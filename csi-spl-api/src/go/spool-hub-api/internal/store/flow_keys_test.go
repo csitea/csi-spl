@@ -97,7 +97,7 @@ func TestFlowKeysSumToTotals(t *testing.T) {
 
 			// The live fan-out carries the same keys.
 			nxt := post("c-034", "box-a", "HUM-1", "", dmA, "old agent dm 3")
-			pushes, err := fe.FlowFanout(ctx, tid, nxt.MsgID, []string{"HUM-1"}, now)
+			pushes, err := fe.FlowFanout(ctx, tid, nxt.MsgID, []string{"HUM-1"}, now, "")
 			if err != nil {
 				t.Fatal(err)
 			}

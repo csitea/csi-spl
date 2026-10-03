@@ -134,7 +134,7 @@ func TestFlowEvents(t *testing.T) {
 			}
 
 			// The live fan-out: the event and fresh counts of the members who got one.
-			pushes, err := fe.FlowFanout(ctx, tid, poke.MsgID, []string{"HUM-1", "HUM-3", "HUM-9"}, now)
+			pushes, err := fe.FlowFanout(ctx, tid, poke.MsgID, []string{"HUM-1", "HUM-3", "HUM-9"}, now, "")
 			if err != nil {
 				t.Fatal(err)
 			}

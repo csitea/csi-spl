@@ -5,6 +5,11 @@
 // totals by what was read. The mock stands in for the hub's cover rule
 // (contract flow-v1 section 3): a t:/ch:/dm: read mark at or past a line.
 //
+// Add-on, same topic, ~14:46Z: "anything that is archived should not be part
+// of the unread messages counter", and an unread topic must not turn red
+// once archived: archiving it from its row menu drops the totals by its
+// unread and no badge is left on it.
+//
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e unread-drops-on-read
 import { createRequire } from 'node:module'
@@ -126,6 +131,28 @@ try {
       ok(`${tag} channel: opening the channel's topic drops the Topics total`, after.topics === before.topics - before.row && before.row === 2, { before, after })
       ok(`${tag} channel: the topic row's number goes`, after.row === 0, after)
       ok(`${tag} channel: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
+      await ctx.close()
+    }
+
+    /* 3. Topics > the topic's menu > Archive */
+    {
+      const { ctx, p, errors } = await fresh(browser, size)
+      await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+      await applyViewport(p, size)
+      await p.click('[data-testid=sidebar-tab-topics]')
+      await p.waitForSelector(`#sidebar-panel-topics .nav-item[data-key="${TASK}"] [data-testid=topic-unread]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => {})
+      const before = await counts(p)
+      await p.click(`[data-testid=sidebar-row-menu][data-menu-id="th:${TASK}"]`)
+      const item = await p.waitForSelector('[data-testid=sidebar-row-menu-archive]', { visible: true, timeout: 10000 }).catch(() => null)
+      ok(`${tag} archive: the row menu offers Archive`, Boolean(item))
+      if (item) await item.click()
+      const after = await settle(p, before)
+      const red = await p.evaluate((task) => [...document.querySelectorAll(`[data-key="${task}"] .badge-unread, [data-msg-id="${task}"] [data-test=topic-unread]`)]
+        .filter((b) => b.getBoundingClientRect().width > 0).map((b) => b.textContent.trim()), TASK)
+      ok(`${tag} archive: the Topics total drops by the archived topic's unread`, before.row === 2 && after.topics === before.topics - before.row, { before, after })
+      ok(`${tag} archive: the Channels total drops with it`, after.channels === Math.max(0, before.channels - before.row), { before, after })
+      ok(`${tag} archive: nothing of the archived topic shows red`, red.length === 0 && after.row === 0, { red, after })
+      ok(`${tag} archive: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
       await ctx.close()
     }
   }

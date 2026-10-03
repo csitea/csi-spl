@@ -569,6 +569,17 @@ async function archiveTopic(ctx, msgId, archived = true) {
   return live(`/v1/messages/${encodeURIComponent(id)}/archive`, { method: archived ? 'PUT' : 'DELETE' })
 }
 
+/** Owner (t1 56b8cc17): an archived topic leaves the unread counts; the Flow store re-reads them on this. */
+const TOPIC_ARCHIVED_EVENT = 'spool:topic-archived'
+
+async function archiveTopicAndTell(ctx, msgId, archived = true) {
+  const out = await archiveTopic(ctx, msgId, archived)
+  if (typeof globalThis.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+    globalThis.dispatchEvent(new CustomEvent(TOPIC_ARCHIVED_EVENT, { detail: { msgId, archived } }))
+  }
+  return out
+}
+
 /** topic-archive-v1 §3: { replies, task_ids, can_delete, ... } for the confirm dialog. */
 async function topicSize(ctx, msgId) {
   const { live, mock, state, mockArchivePolicy } = ctx
@@ -1098,14 +1109,18 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
     const all = mockFlowEvents(state.messages, self)
     /* the reader's read cursors stand in for the hub's read marks */
     const cursors = loadCursors()
-    const counts = mockFlowCounts(all, marks.seen, marks.opened, cursors)
-    const unread = mockFlowCounts(all, '', marks.opened, cursors)
+    /* an archived topic's lines are read, as the hub's cover rule has them (t1 56b8cc17) */
+    const cards = state.archived || []
+    const gone = new Set([...cards.map((m) => String(m.msg_id)), ...cards.map((m) => String(m.task_id))])
+    const opened = new Set([...marks.opened, ...all.filter((e) => gone.has(String(e.msg_id)) || gone.has(String(e.task_id)) || gone.has(String(e.parent_task_id || ''))).map((e) => String(e.msg_id))])
+    const counts = mockFlowCounts(all, marks.seen, opened, cursors)
+    const unread = mockFlowCounts(all, '', opened, cursors)
     /* MOCK_FLOW_KEYS_OFF: the mock answers as a hub without `keys` (the rows keep their own counts) */
-    const keys = storageGet(MOCK_FLOW_KEYS_OFF) === 'off' ? null : mockFlowKeys(all, marks.opened, cursors)
+    const keys = storageGet(MOCK_FLOW_KEYS_OFF) === 'off' ? null : mockFlowKeys(all, opened, cursors)
     if (countsOnly) return { events: [], next: '', counts, unread, keys }
     const pick = kind ? all.filter((e) => flowEventKind(e.kind) === kind) : all
     const from = Number(before) || 0
-    const page = pick.slice(from, from + limit).map((e, i) => ({ ...e, cursor: String(from + i + 1), unread: !marks.opened.has(String(e.msg_id)) }))
+    const page = pick.slice(from, from + limit).map((e, i) => ({ ...e, cursor: String(from + i + 1), unread: !opened.has(String(e.msg_id)) }))
     return { events: page, next: from + limit < pick.length ? String(from + limit) : '', counts, unread, keys }
   }
   const q = new URLSearchParams()
@@ -1170,7 +1185,7 @@ export const lazySpoolMethods = {
   editMessage,
   deleteMessage,
   mergeMessage,
-  archiveTopic,
+  archiveTopic: archiveTopicAndTell,
   topicSize,
   deleteTopic,
   moveTopic,

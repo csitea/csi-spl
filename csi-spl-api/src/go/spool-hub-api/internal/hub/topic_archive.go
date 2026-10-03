@@ -195,6 +195,7 @@ func (s *Server) handleArchiveTopic(w http.ResponseWriter, r *http.Request) {
 	s.o.Log.Info().Str("tenant", c.t.ID).Str("msg_id", c.m.MsgID).Str("by", c.from).Bool("archived", archive).Msg("topic archive")
 	out := archivedBody(c.m, st)
 	s.fanoutTopic(r.Context(), c.t.ID, c.m, withType(topicArchivedFrame, c.m, out))
+	s.pushFlowCountsAll(r.Context(), c.t.ID)
 	writeJSON(w, http.StatusOK, out)
 }
 

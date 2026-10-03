@@ -81,6 +81,7 @@ type FlowQuery struct {
 	BeforeID       string
 	Kind           string // "" = all; FlowMention includes pokes
 	Now            time.Time
+	Lobby          string // the lobby's task id ("" = none): an archived topic's lines are read (archivedHideSQL)
 }
 
 // FlowPage is a page of events, newest first, and the member's counts:
@@ -131,7 +132,7 @@ type FlowEvents interface {
 	FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error)
 	// FlowFanout is, for the stored line msgID, the event and fresh counts of
 	// each of members who got one (members without one are absent).
-	FlowFanout(ctx context.Context, tenant, msgID string, members []string, now time.Time) (map[string]FlowPush, error)
+	FlowFanout(ctx context.Context, tenant, msgID string, members []string, now time.Time, lobby string) (map[string]FlowPush, error)
 }
 
 var (
@@ -251,7 +252,7 @@ func (s *Memory) flowMentionedInLocked(tenant, member, task string) bool {
 
 // flowEventLocked builds the entry for row k, ok=false when it is not
 // listed: its message is gone or expired, or the read door shuts it.
-func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time) (FlowEvent, bool) {
+func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time, lobby string) (FlowEvent, bool) {
 	m, ok := s.messages[[2]string{k[0], k[2]}]
 	if !ok || !now.Before(e.expiresAt) || !now.Before(m.ExpiresAt) {
 		return FlowEvent{}, false
@@ -273,7 +274,7 @@ func (s *Memory) flowEventLocked(k [3]string, e memFlowEvent, now time.Time) (Fl
 	ev := FlowEvent{MsgID: m.MsgID, TaskID: m.TaskID, ParentTaskID: m.ParentTaskID, Channel: m.Channel,
 		FromID: m.FromID, FromBox: m.FromBox, ToID: m.ToID, ToBox: m.ToBox, TypedBy: m.TypedBy,
 		Kind: e.kind, Body: m.Body, At: m.ReceivedAt, Files: filesCount(m.Files)}
-	ev.Unread = !s.flowCoveredLocked(k[0], member, m)
+	ev.Unread = !s.flowCoveredLocked(k[0], member, m) && !s.archivedHiddenLocked(k[0], m, lobby)
 	return ev, true
 }
 
@@ -297,13 +298,13 @@ func (s *Memory) flowCoveredLocked(tenant, member string, m *Message) bool {
 }
 
 // flowListLocked is every listed event of member, newest first.
-func (s *Memory) flowListLocked(tenant, member string, now time.Time) []FlowEvent {
+func (s *Memory) flowListLocked(tenant, member string, now time.Time, lobby string) []FlowEvent {
 	var out []FlowEvent
 	for k, e := range s.flowEvents {
 		if k[0] != tenant || k[1] != member {
 			continue
 		}
-		if ev, ok := s.flowEventLocked(k, e, now); ok {
+		if ev, ok := s.flowEventLocked(k, e, now, lobby); ok {
 			out = append(out, ev)
 		}
 	}
@@ -335,7 +336,7 @@ func flowKindMatch(filter, kind string) bool {
 func (s *Memory) FlowRead(_ context.Context, q FlowQuery) (FlowPage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all := s.flowListLocked(q.Tenant, q.Member, q.Now)
+	all := s.flowListLocked(q.Tenant, q.Member, q.Now, q.Lobby)
 	var p FlowPage
 	p.Counts, p.Unread, p.Keys = s.flowCountsLocked(q.Tenant, q.Member, all)
 	for _, ev := range all {
@@ -354,7 +355,7 @@ func (s *Memory) FlowRead(_ context.Context, q FlowQuery) (FlowPage, error) {
 	return p, nil
 }
 
-func (s *Memory) FlowFanout(_ context.Context, tenant, msgID string, members []string, now time.Time) (map[string]FlowPush, error) {
+func (s *Memory) FlowFanout(_ context.Context, tenant, msgID string, members []string, now time.Time, lobby string) (map[string]FlowPush, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := map[string]FlowPush{}
@@ -364,11 +365,11 @@ func (s *Memory) FlowFanout(_ context.Context, tenant, msgID string, members []s
 		if !ok {
 			continue
 		}
-		ev, ok := s.flowEventLocked(k, e, now)
+		ev, ok := s.flowEventLocked(k, e, now, lobby)
 		if !ok {
 			continue
 		}
-		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now))
+		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now, lobby))
 		out[member] = FlowPush{Event: ev, Counts: c, Unread: u, Keys: keys}
 	}
 	return out, nil

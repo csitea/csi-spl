@@ -71,9 +71,12 @@ func flowDoorSQL(e, m, pub string) string {
 
 // flowCoveredSQL: a mark covers event e of message m (contract section 3):
 // f:<msg_id>, or the thread / channel / DM-peer mark at or past the line.
-// Each is a read_marks primary-key probe.
-func flowCoveredSQL(e, m string) string {
-	return `(EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id AND r.mark_key = 'f:' || ` + e + `.msg_id::text)
+// Each is a read_marks primary-key probe. An archived topic's line is read
+// too (owner, t1 56b8cc17: "anything that is archived should not be part of
+// the unread messages counter"), by the lists' own archive rule; lobby is a
+// bound text $n.
+func flowCoveredSQL(e, m, lobby string) string {
+	return `(NOT (true` + archivedHideSQL(m, e+`.tenant_id`, lobby) + `) OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id AND r.mark_key = 'f:' || ` + e + `.msg_id::text)
 		OR EXISTS (SELECT 1 FROM read_marks r WHERE r.tenant_id = ` + e + `.tenant_id AND r.member_id = ` + e + `.member_id
 			AND r.mark_key IN ('t:' || ` + m + `.task_id::text,
 				CASE WHEN ` + m + `.channel IS NULL THEN 'dm:' || ` + m + `.from_id ELSE 'ch:' || ` + m + `.channel END,
@@ -85,7 +88,7 @@ func flowCoveredSQL(e, m string) string {
 // then the same unread) of member in tenant at now, and the unread per
 // sidebar row as a jsonb object (FlowKeys: flowPlaceKey and t:<task_id>):
 // one scan of the member's flow_events_member_at range.
-func flowCountsSQL(tenant, member, now, pub string) string {
+func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 	return `WITH fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
 				CASE WHEN fm.channel IS NOT NULL THEN 'ch:' || fm.channel
 					WHEN coalesce(fm.from_box, '') <> '' THEN 'dm:' || fm.from_id || '@' || fm.from_box
@@ -95,7 +98,7 @@ func flowCountsSQL(tenant, member, now, pub string) string {
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
 			FROM flow_events fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
 			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
-		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm") + `)
+		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
@@ -113,11 +116,11 @@ func flowCountsSQL(tenant, member, now, pub string) string {
 
 // flowEventCols are the FlowEvent columns of event e / message m, scanned
 // by scanFlowEvent.
-func flowEventCols(e, m string) string {
+func flowEventCols(e, m, lobby string) string {
 	return e + `.msg_id::text, ` + m + `.task_id::text, coalesce(` + m + `.parent_task_id::text, ''), coalesce(` + m + `.channel, ''),
 		` + m + `.from_id, ` + m + `.from_box, coalesce(` + m + `.to_id, ''), coalesce(` + m + `.to_box, ''), coalesce(` + m + `.typed_by, ''),
 		` + e + `.kind, left(` + m + `.body, 400), CASE WHEN jsonb_typeof(` + m + `.files) = 'array' THEN jsonb_array_length(` + m + `.files) ELSE 0 END,
-		` + m + `.received_at, NOT ` + flowCoveredSQL(e, m)
+		` + m + `.received_at, NOT ` + flowCoveredSQL(e, m, lobby)
 }
 
 func scanFlowEvent(r pgx.Rows, extra ...any) (FlowEvent, error) {
@@ -152,8 +155,8 @@ func flowKindsFilter(kind string) []string {
 func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) {
 	var p FlowPage
 	reads := []tenantRead{{
-		sql:  flowCountsSQL("$1", "$2", "$3", "$4::text[]"),
-		args: []any{q.Tenant, q.Member, q.Now, PublicChannels},
+		sql:  flowCountsSQL("$1", "$2", "$3", "$4::text[]", "$5::text"),
+		args: []any{q.Tenant, q.Member, q.Now, PublicChannels, q.Lobby},
 		each: func(r pgx.Rows) (err error) { p.Counts, p.Unread, p.Keys, err = scanFlowCounts(r); return err },
 	}}
 	if q.Limit > 0 {
@@ -163,13 +166,13 @@ func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) 
 		}
 		limit := min(q.Limit, FlowMaxPage)
 		reads = append(reads, tenantRead{
-			sql: `SELECT ` + flowEventCols("e", "m") + `
+			sql: `SELECT ` + flowEventCols("e", "m", "$9::text") + `
 				FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
 				WHERE e.tenant_id = $1 AND e.member_id = $2 AND e.expires_at > $3 AND m.expires_at > $3` + flowDoorSQL("e", "m", "$4::text[]") + `
 				  AND ($6::timestamptz IS NULL OR (e.at, e.msg_id) < ($6::timestamptz, $7::uuid))
 				  AND ($8::text[] IS NULL OR e.kind = ANY($8::text[]))
 				ORDER BY e.at DESC, e.msg_id DESC LIMIT $5`,
-			args: []any{q.Tenant, q.Member, q.Now, PublicChannels, limit + 1, before, beforeID, flowKindsFilter(q.Kind)},
+			args: []any{q.Tenant, q.Member, q.Now, PublicChannels, limit + 1, before, beforeID, flowKindsFilter(q.Kind), q.Lobby},
 			each: func(r pgx.Rows) error {
 				ev, err := scanFlowEvent(r)
 				if err != nil {
@@ -187,16 +190,16 @@ func (s *Postgres) FlowRead(ctx context.Context, q FlowQuery) (FlowPage, error) 
 	return p, s.queryTenantBatch(ctx, q.Tenant, reads...)
 }
 
-func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members []string, now time.Time) (map[string]FlowPush, error) {
+func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members []string, now time.Time, lobby string) (map[string]FlowPush, error) {
 	out := map[string]FlowPush{}
 	if len(members) == 0 {
 		return out, nil
 	}
-	err := s.queryTenant(ctx, tenant, `SELECT `+flowEventCols("e", "m")+`, e.member_id, c.*
+	err := s.queryTenant(ctx, tenant, `SELECT `+flowEventCols("e", "m", "$6::text")+`, e.member_id, c.*
 		FROM flow_events e JOIN messages m ON m.tenant_id = e.tenant_id AND m.msg_id = e.msg_id
-		CROSS JOIN LATERAL (`+flowCountsSQL("e.tenant_id", "e.member_id", "$4", "$5::text[]")+`) c
+		CROSS JOIN LATERAL (`+flowCountsSQL("e.tenant_id", "e.member_id", "$4", "$5::text[]", "$6::text")+`) c
 		WHERE e.tenant_id = $1 AND e.msg_id = $2 AND e.member_id = ANY($3) AND e.expires_at > $4`+flowDoorSQL("e", "m", "$5::text[]"),
-		[]any{tenant, msgID, members, now, PublicChannels}, func(r pgx.Rows) error {
+		[]any{tenant, msgID, members, now, PublicChannels, lobby}, func(r pgx.Rows) error {
 			var member string
 			var c, u FlowCounts
 			var keys map[string]int

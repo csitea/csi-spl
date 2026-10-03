@@ -123,7 +123,7 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_query", "limit 1..50; kind mention|reply|dm; before a cursor")
 		return
 	}
-	q.Tenant, q.Member, q.Now = t.ID, hum, s.o.Now()
+	q.Tenant, q.Member, q.Now, q.Lobby = t.ID, hum, s.o.Now(), s.o.LobbyTaskID
 	p, err := fe.FlowRead(r.Context(), q)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("flow read")
@@ -209,7 +209,7 @@ func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 	}
 	go func() {
 		ctx := context.WithoutCancel(ctx)
-		pushes, err := fe.FlowFanout(ctx, row.TenantID, row.MsgID, members, s.o.Now())
+		pushes, err := fe.FlowFanout(ctx, row.TenantID, row.MsgID, members, s.o.Now(), s.o.LobbyTaskID)
 		if err != nil {
 			s.o.Log.Warn().Err(err).Str("tenant", row.TenantID).Str("msg_id", row.MsgID).Msg("flow fan-out")
 			return
@@ -227,6 +227,22 @@ func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 // SaveReadMarks announces it): "f:<member>", never a msg id.
 func flowMarkWake(key string) (string, bool) { return strings.CutPrefix(key, "f:") }
 
+// pushFlowCountsAll sends every member with a socket here a counts-only
+// flow frame, off the request: an archived topic's lines leave the unread
+// counts (owner, t1 56b8cc17) on the open screens, not only the next read.
+func (s *Server) pushFlowCountsAll(ctx context.Context, tenant string) {
+	socks := s.flowSockets(tenant)
+	if len(socks) == 0 {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	go func() {
+		for member := range socks {
+			s.pushFlowCounts(ctx, tenant, member)
+		}
+	}()
+}
+
 // pushFlowCounts sends member's sockets here a counts-only flow frame.
 func (s *Server) pushFlowCounts(ctx context.Context, tenant, member string) {
 	fe, ok := s.flowStore()
@@ -237,7 +253,7 @@ func (s *Server) pushFlowCounts(ctx context.Context, tenant, member string) {
 	if len(socks) == 0 {
 		return
 	}
-	p, err := fe.FlowRead(ctx, store.FlowQuery{Tenant: tenant, Member: member, Now: s.o.Now()})
+	p, err := fe.FlowRead(ctx, store.FlowQuery{Tenant: tenant, Member: member, Now: s.o.Now(), Lobby: s.o.LobbyTaskID})
 	if err != nil {
 		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("flow counts push")
 		return

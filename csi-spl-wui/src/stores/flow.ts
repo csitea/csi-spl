@@ -238,6 +238,8 @@ export const useFlowStore = defineStore('flow', () => {
       void readCounts()
       if (mineLoaded.value) void readMine('')
     })
+    /* owner (t1 56b8cc17): an archived topic leaves every unread number at once */
+    window.addEventListener('spool:topic-archived', () => { void readCounts() }) /* spool-client-lazy archiveTopic */
     void readCounts()
   }
 

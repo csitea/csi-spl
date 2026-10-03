@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Fixes the internal role rename when the new id already has messages waiting; nothing changes for users.

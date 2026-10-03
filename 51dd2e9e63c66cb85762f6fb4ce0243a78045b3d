@@ -1,0 +1,6 @@
+Lay-What: The machines that relay messages are now restarted automatically when they run an out-of-date program, not only the main one.
+Lay-How: The regular check that keeps relays healthy now looks at every relay machine and restarts a stale or stopped one.
+Lay-Why: Several relays kept running an old program and refused messages until someone restarted them by hand.
+Tech-What: New do_spl_desk_up_boxes; the desk reconcile cron restarts a stale-binary or dead sidecar on every other seated desk box.
+Tech-How: Set = box dirs with a sidecar pid file and an agent dir, excluding DESK_BOX, box-wui and reboxed boxes; DESK_OTHER_BOXES=0 disables; desk-up-all section 10 adds 7 assertions.
+Tech-Why: All 6 box-rsp sidecars ran a deleted spool binary that predated the new agent ids, so relays went to .hub/rejected.

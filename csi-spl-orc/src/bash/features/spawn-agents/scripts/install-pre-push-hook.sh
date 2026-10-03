@@ -17,6 +17,11 @@
 # The trampoline is taken from THIS script's tree, so running the installer
 # from an up-to-date worktree installs the current one. Idempotent.
 #
+# It also installs hooks/post-checkout, the nested-worktree guard: a
+# `git worktree add --detach origin/master` (a ref, or an empty `$W`, read as
+# the PATH) is removed again instead of leaving a full repo copy inside the
+# shared checkout. A post-checkout that is not ours is left alone.
+#
 # Usage: install-pre-push-hook.sh <checkout-dir>
 # Exit: 0 installed/already, 2 usage / not a worktree, 1 no hook payload found.
 set -uo pipefail
@@ -46,3 +51,16 @@ tmp="$dest.tmp.$$"
 cp "$src" "$tmp" && chmod 0755 "$tmp" && rm -f "$dest" && mv -f "$tmp" "$dest" \
   || { rm -f "$tmp"; echo "install-pre-push-hook: could not install $dest" >&2; exit 1; }
 echo "install-pre-push-hook: $dest <- $src (trampoline into the pushing worktree's hook; gates every worktree, no git config)"
+
+guard="$here/../hooks/post-checkout"
+pc="$common/hooks/post-checkout"
+if [ ! -r "$guard" ]; then
+  echo "install-pre-push-hook: no nested-worktree guard at $guard -- skipped" >&2
+elif [ -e "$pc" ] && ! grep -q 'nested-worktree guard' "$pc" 2>/dev/null; then
+  echo "install-pre-push-hook: $pc is not ours -- left alone, nested-worktree guard NOT installed" >&2
+else
+  tmp="$pc.tmp.$$"
+  cp "$guard" "$tmp" && chmod 0755 "$tmp" && rm -f "$pc" && mv -f "$tmp" "$pc" \
+    || { rm -f "$tmp"; echo "install-pre-push-hook: could not install $pc" >&2; exit 1; }
+  echo "install-pre-push-hook: $pc <- $guard (refuses a new worktree nested inside a checkout)"
+fi

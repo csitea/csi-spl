@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# post-checkout (nested-worktree guard) — the file install-pre-push-hook.sh
+# COPIES into the common hooks dir ($GIT_COMMON_DIR/hooks/post-checkout).
+#
+# Why: `git worktree add --detach origin/master` (no path) takes the REF as the
+# path and checks the whole repo out INTO the shared checkout as an untracked
+# `origin/master/`. On 2026-10-03 09:10Z a remote one-liner did exactly that:
+# `sudo -i -u <box-user> bash -lc '... W=/var/tmp/x && git worktree add --detach $W origin/master'`
+# -- `sudo -i` escapes everything except `$`, so the outer login shell expanded
+# `$W` to empty first. The stray tree made the main checkout unclean (lanes
+# skipped their `merge --ff-only`) and made `origin/master` ambiguous there.
+#
+# git runs this hook at the end of `git worktree add` with a null old HEAD and
+# flag 1. A new worktree that sits INSIDE another worktree of the same repo is
+# always this mistake (a ref or an empty variable read as a path), so it is
+# removed again and the add fails. Every other checkout passes untouched.
+# git passes <old-head> <new-head> <branch-flag>.
+case "${1:-}" in *[!0]*|"") exit 0 ;; esac
+[ "${3:-}" = 1 ] || exit 0
+
+new="$(pwd -P)"
+host=""
+while IFS= read -r line; do
+  case "$line" in worktree\ *) wt="${line#worktree }" ;; *) continue ;; esac
+  wt="$(cd "$wt" 2>/dev/null && pwd -P)" || continue
+  [ "$wt" = "$new" ] && continue
+  case "$new/" in "$wt"/*) [ "${#wt}" -gt "${#host}" ] && host="$wt" ;; esac
+done < <(git worktree list --porcelain 2>/dev/null)
+[ -n "$host" ] || exit 0
+
+rel="${new#"$host"/}"
+cd "$host" || exit 1
+git worktree remove --force --force "$new" >/dev/null 2>&1 || { rm -rf -- "$new"; git worktree prune; }
+d="$(dirname "$new")"
+while [ "$d" != "$host" ] && rmdir -- "$d" 2>/dev/null; do d="$(dirname "$d")"; done
+cat >&2 <<EOF
+post-checkout: REFUSED the new worktree '$rel' inside the checkout $host -- removed it.
+  A ref or an empty variable was taken as the PATH, e.g. 'git worktree add --detach origin/master',
+  or '\$W' expanded empty by an outer 'sudo -i' / 'bash -c' shell before the inner one set it.
+  Pass an explicit absolute path outside every checkout: git worktree add --detach /var/tmp/<name> origin/master
+EOF
+exit 1

@@ -224,7 +224,21 @@ if [ -e "${SPOOL_ROOT:-/var/spool-hub}/peer/crons.applied" ]; then
   peer_cut=1
   say "INFO peer crons applied (${SPOOL_ROOT:-/var/spool-hub}/peer/crons.applied): the lease ensure and the dispatch tick are cut (spec 068 6.2)"
 fi
-if [ "${DESK_LEASE:-1}" != 0 ] && [ "$peer_cut" = 0 ]; then
+# do_spl_pool_ctl POOL_CMD=stop (spec 071 4.4) holds the BOX's lease with
+# <spool root>/dispatch/lease.pause: without it this tick - dev or prd, both
+# ensure the one box lease - re-took the lease a stop had just released. The
+# desk pause below does NOT hold the lease (a rebox keeps dispatching).
+lease_pause="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.pause"
+lease_paused=0
+if [ -e "$lease_pause" ]; then
+  lage=$(( $(date +%s) - $(stat -c %Y "$lease_pause" 2>/dev/null || date +%s) ))
+  if [ "$lage" -le "${DESK_PAUSE_MAX_SECS:-1800}" ]; then
+    lease_paused=1; say "INFO lease PAUSED by $lease_pause (${lage}s old: $(head -c 200 "$lease_pause" 2>/dev/null)): no lease ensure this tick"
+  else
+    say "WARN $lease_pause is ${lage}s old (> ${DESK_PAUSE_MAX_SECS:-1800}s): ignored, the lease is ensured"
+  fi
+fi
+if [ "${DESK_LEASE:-1}" != 0 ] && [ "$peer_cut" = 0 ] && [ "$lease_paused" = 0 ]; then
   ( cd "$ORC" && env LEASE_CMD=ensure ./run -a do_spl_dispatch_lease )
   say "INFO do_spl_dispatch_lease ensure exit $?"
 fi

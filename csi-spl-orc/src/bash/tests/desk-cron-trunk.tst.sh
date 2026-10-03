@@ -17,6 +17,9 @@
 #      stuck) IS reported and told
 #   8. HEAD moved by the next checkout but trunk raced again: not reported
 #   9. a HEAD that is not an ancestor of trunk is reported at once
+#  10. a fresh <spool root>/dispatch/lease.pause (do_spl_pool_ctl stop, spec
+#      071 4.4) stops the dev AND prd tick re-taking the lease; a stale one is
+#      ignored with a WARN. CONTROL: no marker, the lease is ensured
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -85,6 +88,23 @@ touch -d '2 hours ago' "$P"; : >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=dev
 grep -q 'do_spl_desk_up_all' "$T/calls" && grep -q "WARN .*ignored" "$T/o" &&
   pass "5. a pause older than DESK_PAUSE_MAX_SECS is ignored with a WARN" || fail "5. stale pause: $(cat "$T/o")"
 rm -f "$P"
+
+# --- 10. the box lease pause (spec 071 4.4, do_spl_pool_ctl stop) --------------------------
+L="$T/spool/dispatch/lease.pause"
+echo "pool-ctl stop" >"$L"
+for e in dev prd; do
+  : >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=$e; rc=$?
+  [[ $rc -eq 0 ]] && grep -q 'lease PAUSED' "$T/o" && ! grep -q 'do_spl_dispatch_lease' "$T/calls" &&
+    grep -q 'do_spl_desk_up_all' "$T/calls" &&
+    pass "10. a fresh lease pause: the $e tick does not re-take the lease (the desks still reconcile)" ||
+    fail "10. $e: rc=$rc calls: $(cat "$T/calls") $(cat "$T/o")"
+done
+touch -d '2 hours ago' "$L"; : >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=prd
+grep -q 'do_spl_dispatch_lease' "$T/calls" && grep -q "WARN .*lease.pause.*ignored" "$T/o" &&
+  pass "10. a lease pause older than DESK_PAUSE_MAX_SECS is ignored with a WARN" || fail "10. stale: $(cat "$T/o")"
+rm -f "$L"; : >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=prd
+grep -q 'do_spl_dispatch_lease' "$T/calls" && ! grep -q 'lease PAUSED' "$T/o" &&
+  pass "10. CONTROL: no lease pause, the same tick ensures the lease" || fail "10. CONTROL: calls: $(cat "$T/calls")"
 
 # --- 6..9. a fetch race is not a stale checkout -------------------------------------------
 commit() { echo "$1" >"$CO/$1" && git -C "$CO" add "$1" && git -C "$CO" -c user.name=t -c user.email=t@example.com commit -q -m "$1"; }

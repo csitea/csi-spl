@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Adds a read-only check against the live app proving that a topic link inside a message opens on a phone; nothing a user sees changes.

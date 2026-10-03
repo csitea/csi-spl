@@ -14,6 +14,8 @@ import { normalizeId, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 
 import { copyEditFields } from './view-api.mjs'
 
+import { perfMark } from './perf-mark.mjs'
+
 export const FRAMES = {
   hello: 'hello',
   welcome: 'welcome',
@@ -65,6 +67,22 @@ export const FRAMES = {
   /* spec 062 §3.2: the viewer's Flow counts (+ the new event), to that member's sockets only */
   flow: 'flow',
 }
+
+/**
+ * Spec 066 M8 reconnect_live: timed only after the tab was away (hidden, or
+ * offline) longer than this, and only when a reconnect follows the wake
+ * within RECONNECT_TIMED_MS.
+ */
+export const RECONNECT_AWAY_MS = 30_000
+export const RECONNECT_TIMED_MS = 120_000
+
+/** M8's `hidden_s` bucket for an away time in ms (spec 4.1). */
+export function awayBucket(ms) {
+  if (ms >= 3_600_000) return '3600+'
+  return ms >= 300_000 ? '300-3600' : '30-300'
+}
+
+const perfNow = () => (globalThis.performance ? globalThis.performance.now() : Date.now())
 
 /** wui-live-ws §2: hello.as must be a v:1 agent id (e.g. HUM-2, c-004); anything else is omitted and the hub assigns a guest GST-<n> (0.4.1). */
 export const AGENT_ID_RE = new RegExp(`^${PARTICIPANT_ID_SRC}$`)
@@ -216,6 +234,8 @@ export function createLiveClient({
   ackTimeoutMs = 10000,
   /** wake(): an open socket that answers nothing within this is re-dialled. */
   probeTimeoutMs = 5000,
+  /** M8's clock (performance.now in the browser). */
+  now = perfNow,
 } = {}) {
   let ws = null
   let state = 'idle'
@@ -228,6 +248,8 @@ export function createLiveClient({
   /* bumped by every frame the hub sends: wake() reads it to tell a live
      socket from a half-open one */
   let frames = 0
+  /* M8: armed by a wake after a long away, timed by the reconnect that follows */
+  let woke = null
   const cursors = new Map()
   const subs = new Set()
   const chanSubs = new Set()
@@ -246,6 +268,14 @@ export function createLiveClient({
   function setState(s) {
     state = s
     onState(s)
+  }
+
+  /** M8 end: the socket is live again and the catch-up was handed its cursors. */
+  function timedReconnect() {
+    const w = woke
+    woke = null
+    const ms = w ? now() - w.t0 : -1
+    if (w && ms <= RECONNECT_TIMED_MS) perfMark('reconnect_live', ms, { hiddenS: w.hiddenS })
   }
 
   /** A welcome or a token frame carries a fresh upload token: hand it to every waiter. */
@@ -403,7 +433,9 @@ export function createLiveClient({
         resolveTokens(f)
         if (dropped) {
           dropped = false
-          onReconnected(f, { cursors: Object.fromEntries(cursors) })
+          /* M8 ends when the catch-up is done: awaited when the caller returns its promise */
+          const caught = onReconnected(f, { cursors: Object.fromEntries(cursors) })
+          if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
         }
         return
       case FRAMES.presence:
@@ -529,10 +561,12 @@ export function createLiveClient({
      * The tab came back (visible / online): a phone that slept, or a laptop
      * that changed networks, can hold a socket that reads 'open' and is dead.
      * A parked retry dials now; an open socket must answer a token frame
-     * within probeTimeoutMs or it is re-dialled.
+     * within probeTimeoutMs or it is re-dialled. `awayMs` (how long the tab
+     * was hidden or offline) arms M8 when it is over RECONNECT_AWAY_MS.
      */
-    wake() {
+    wake(awayMs = 0) {
       if (closedByUs) return
+      if (awayMs > RECONNECT_AWAY_MS) woke = { t0: now(), hiddenS: awayBucket(awayMs) }
       if (state === 'reconnecting' && retryTimer) {
         connect()
         return
@@ -543,6 +577,8 @@ export function createLiveClient({
       raw({ type: FRAMES.token })
       setTimer(() => {
         if (ws === sock && frames === seen && state === 'open') redial()
+        /* it answered: the socket was live all along, nothing to time */
+        else if (ws === sock) woke = null
       }, probeTimeoutMs)
     },
     close() {
@@ -669,20 +705,35 @@ export function watchLive(client, {
   everyMs = REVISION_CHECK_MS,
   setEvery = (fn, ms) => setInterval(fn, ms),
   clearEvery = (t) => clearInterval(t),
+  now = perfNow,
 } = {}) {
   const check = () => { void client.checkRevision() }
+  /* M8: since when the tab was hidden or offline; wake() gets the away time */
+  let awayAt = -1
+  const away = () => { if (awayAt < 0) awayAt = now() }
+  const back = () => {
+    const ms = awayAt < 0 ? 0 : now() - awayAt
+    awayAt = -1
+    return ms
+  }
   const onVisible = () => {
-    if (doc && doc.visibilityState === 'hidden') return
-    client.wake()
+    if (doc && doc.visibilityState === 'hidden') { away(); return }
+    client.wake(back())
     check()
   }
-  const onOnline = () => client.wake()
+  const onOnline = () => client.wake(back())
   const timer = setEvery(check, everyMs)
   if (doc && doc.addEventListener) doc.addEventListener('visibilitychange', onVisible)
-  if (win && win.addEventListener) win.addEventListener('online', onOnline)
+  if (win && win.addEventListener) {
+    win.addEventListener('online', onOnline)
+    win.addEventListener('offline', away)
+  }
   return () => {
     clearEvery(timer)
     if (doc && doc.removeEventListener) doc.removeEventListener('visibilitychange', onVisible)
-    if (win && win.removeEventListener) win.removeEventListener('online', onOnline)
+    if (win && win.removeEventListener) {
+      win.removeEventListener('online', onOnline)
+      win.removeEventListener('offline', away)
+    }
   }
 }

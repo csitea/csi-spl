@@ -23,8 +23,18 @@
 // each an enum or a bounded number. The caller cannot add a field, and an
 // out-of-set value drops the sample rather than send it. session_id is a
 // random uuid per TAB, held in this module's memory only.
+//
+// THE MEASUREMENT POINTS (lane L6): MessageComposer, LiveFeed and live-ws.mjs
+// mark through perf-mark.mjs (small, in the initial chunk); startPerfRum
+// attaches this collector there as the sink, with the pairing of the timings
+// that end on a feed row (perfFeedPair: M3, M5) and the hub clock (M4). The
+// passive observers that need no component (M6b inp, M7 scroll_jank) start
+// here, with the collector.
 
 import { MOBILE_STACK_QUERY } from './mobile-stack.mjs'
+import { afterPaint, perfAttach, perfMark, perfMarkReset } from './perf-mark.mjs'
+
+export { perfMark }
 
 /** The hub's sets (store/perf_samples.go, rdb 0106 CHECKs). */
 export const PERF_METRICS = Object.freeze(['load_rail', 'load_messages', 'send_ack', 'deliver_visible', 'switch_view', 'type_next_paint', 'inp', 'scroll_jank', 'reconnect_live'])
@@ -42,28 +52,24 @@ export const PERF_HOUR_CAP = 300
 export const PERF_SEND_TIMEOUT_MS = 5_000
 export const PERF_FAIL_STOP = 3
 export const PERF_VALUE_MAX_MS = 600_000
+/** M4 (spec 3.1): a clock offset less certain than this drops the sample. */
+export const PERF_CLOCK_ERR_MAX_MS = 250
+/** M7: a scroll burst ends after this long without a scroll event. */
+export const PERF_SCROLL_IDLE_MS = 150
 
 const HOUR_MS = 3_600_000
+/** M3: a send start older than this never pairs with a row (a refused send). */
+const SEND_PAIR_MS = 10_000
+/** M5: a navigation start older than this is not the start of a view switch. */
+const NAV_PAIR_MS = 10_000
+const perfNow = () => globalThis.performance.now()
 const BUILD_RE = /^[0-9A-Za-z.+-]{0,40}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
-/** The collector perfMark feeds; null = RUM off or not loaded yet. */
+/** The tab's collector (perf-mark.mjs's sink); null = RUM off or not loaded yet. */
 let active = null
-
-/**
- * Record one timing. Synchronous, never throws, never awaits.
- * @param {string} metric one of PERF_METRICS
- * @param {number} valueMs the measured time in ms
- * @param {{ view?: string, cache?: string, outcome?: string, ratio?: number, clockErrMs?: number, hiddenS?: string }} [fields]
- * @returns {boolean} true when the sample was kept
- */
-export function perfMark(metric, valueMs, fields) {
-  try {
-    return active ? active.mark(metric, valueMs, fields) : false
-  } catch {
-    return false
-  }
-}
+/** Stops the passive observers startPerfRum installed. */
+let unobserve = null
 
 /** The running collector (tests, the L6 observers), or null. */
 export function perfCollector() {
@@ -228,6 +234,20 @@ function perfBeaconRest(o, buf, st, stats) {
 }
 
 /**
+ * M4 deliver_visible (spec 3.1): hub accept -> painted here, on the hub's
+ * clock via the lowest-RTT offset. No offset yet, or one less certain than
+ * PERF_CLOCK_ERR_MAX_MS, drops the sample and counts it.
+ */
+function perfDeliver(clock, stats, mark, hubMs, wallMs) {
+  try {
+    if (!clock || clock.errMs > PERF_CLOCK_ERR_MAX_MS) { stats.clockDropped++; return false }
+    return mark('deliver_visible', Math.max(0, Number(wallMs) + clock.offsetMs - Number(hubMs)), { clockErrMs: clock.errMs })
+  } catch {
+    return false
+  }
+}
+
+/**
  * The collector: ring buffer + hourly cap + batcher + sender.
  * @param {{
  *   send: (body: string, signal?: AbortSignal) => Promise<any>,
@@ -243,7 +263,7 @@ export function createPerfCollector(opts) {
   const o = perfOptions(opts)
   const buf = []
   const st = { dropped: 0, failures: 0, stopped: !o.sessionId, inFlight: false, flushQueued: false, winStart: o.now(), winCount: 0, clock: null, tick: null }
-  const stats = { kept: 0, capped: 0, invalid: 0, sent: 0, failed: 0, beacons: 0 }
+  const stats = { kept: 0, capped: 0, invalid: 0, sent: 0, failed: 0, beacons: 0, clockDropped: 0 }
 
   function mark(metric, valueMs, fields) {
     try {
@@ -309,6 +329,7 @@ export function createPerfCollector(opts) {
   if (!st.stopped) loop()
   return {
     mark,
+    deliver: (hubMs, wallMs) => perfDeliver(st.clock, stats, mark, hubMs, wallMs),
     flush,
     stop,
     /** pagehide / hidden: the rest goes in beacons. */
@@ -344,14 +365,193 @@ export function startPerfRum(opts) {
     const doc = win.document
     if (doc) doc.addEventListener('visibilitychange', () => { if (doc.visibilityState === 'hidden') c.final() })
     active = c
+    perfAttach({ mark: c.mark, deliver: c.deliver, feed: perfFeedPair })
+    unobserve = perfObserve(win, c.mark)
     return c
   } catch {
     return null
   }
 }
 
+/**
+ * M6b inp: the Event Timing entries of interactions (Chromium, Firefox; Safari
+ * has none and keeps M6 alone), one interaction in ten, the first included.
+ */
+function observeInp(win, mark) {
+  const PO = win.PerformanceObserver
+  if (typeof PO !== 'function' || !(PO.supportedEntryTypes || []).includes('event')) return () => {}
+  let n = 0
+  let last = 0
+  const po = new PO((list) => {
+    for (const e of list.getEntries()) {
+      if (!e.interactionId || e.interactionId === last) continue
+      last = e.interactionId
+      if (n++ % 10 === 0) mark('inp', e.duration)
+    }
+  })
+  po.observe({ type: 'event', durationThreshold: 16, buffered: true })
+  return () => po.disconnect()
+}
+
+/**
+ * M7 scroll_jank: a scroll burst in a feed (.feed-body) from its first scroll
+ * event until PERF_SCROLL_IDLE_MS without one. The value is the longest frame
+ * gap; the ratio is frames over 50 ms / frames. Frames are counted only
+ * during a burst; the listener is passive.
+ */
+function observeScroll(win, mark) {
+  const doc = win.document
+  const raf = win.requestAnimationFrame
+  if (!doc || typeof raf !== 'function') return () => {}
+  const clock = () => win.performance.now()
+  let b = null
+  const frame = () => {
+    if (!b) return
+    const t = clock()
+    const gap = t - b.last
+    b.frames++
+    if (gap > b.max) b.max = gap
+    if (gap > 50) b.over++
+    b.last = t
+    if (t - b.scrolled < PERF_SCROLL_IDLE_MS) { raf(frame); return }
+    const done = b
+    b = null
+    if (done.frames >= 2) mark('scroll_jank', done.max, { ratio: done.over / done.frames })
+  }
+  const onScroll = (ev) => {
+    const el = ev.target
+    if (!el || typeof el.closest !== 'function' || !el.closest('.feed-body')) return
+    const t = clock()
+    if (b) { b.scrolled = t; return }
+    b = { last: t, scrolled: t, frames: 0, max: 0, over: 0 }
+    raf(frame)
+  }
+  doc.addEventListener('scroll', onScroll, { capture: true, passive: true })
+  return () => doc.removeEventListener('scroll', onScroll, { capture: true })
+}
+
+/** The passive observers (M6b, M7); never throws. Returns their stop. */
+export function perfObserve(win, mark) {
+  const stops = []
+  for (const watch of [observeInp, observeScroll]) {
+    try { stops.push(watch(win, mark)) } catch { /* that metric stays off */ }
+  }
+  return () => { for (const s of stops) try { s() } catch { /* ignore */ } }
+}
+
+/** M5's `view`: the kind of the page only, never an id (spec 4.2). */
+export function perfViewKind(path, thread) {
+  if (thread) return 'topic'
+  const p = String(path || '')
+  if (p.startsWith('/dm/')) return 'dm'
+  if (p.startsWith('/channel/') || p === '/lobby') return 'channel'
+  if (p.startsWith('/t/')) return 'topic'
+  if (p.startsWith('/search')) return 'search'
+  return undefined
+}
+
+/** M3: the oldest send start still young enough to be this row's, or -1. */
+function takeSend(st) {
+  const t = perfNow()
+  while (st.sends.length) {
+    const t0 = st.sends.shift()
+    if (t - t0 <= SEND_PAIR_MS) return t0
+  }
+  return -1
+}
+
+function sendDone(st, id, ok) {
+  const t0 = st.bound.get(id)
+  if (t0 === undefined) return
+  st.bound.delete(id)
+  if (ok) afterPaint(() => perfMark('send_ack', perfNow() - t0))
+  else perfMark('send_ack', perfNow() - t0, { outcome: 'fail' })
+}
+
+/**
+ * A new view in this feed: M5 starts at the navigation, or now when the feed
+ * changed view without one (a topic opened in the side pane). A feed born of
+ * a navigation (another page) is a switch too; one born with the page load
+ * is not. The navigation is NOT taken here: one navigation can change several
+ * feeds (the side pane empties as the page goes), and only the first of them
+ * to show rows times it.
+ */
+function feedSwitched(st, f, rows) {
+  const nav = st.navAt >= 0 && perfNow() - st.navAt <= NAV_PAIR_MS ? st.navAt : -1
+  f.fromNav = nav >= 0
+  f.t0 = nav >= 0 ? nav : (f.born ? -1 : perfNow())
+  f.pending = new Set()
+  f.seen = new Set(rows.map((m) => String(m && m.msg_id)))
+  if (f.t0 >= 0) st.landed = true
+}
+
+/** M3: pair own rows with the composer's send starts, oldest first. */
+function feedSends(st, f, rows, own) {
+  const byId = new Map()
+  for (const m of rows) {
+    const id = String(m && m.msg_id)
+    byId.set(id, m)
+    if (m && m.pending) {
+      f.pending.add(id)
+      if (!st.bound.has(id)) {
+        const t0 = takeSend(st)
+        if (t0 >= 0) st.bound.set(id, t0)
+      }
+    } else if (!f.seen.has(id) && st.sends.length && typeof own === 'function' && own(m)) {
+      /* a send that never showed a pending row (the mock, an echo before the paint) */
+      const t0 = takeSend(st)
+      if (t0 >= 0) {
+        st.bound.set(id, t0)
+        sendDone(st, id, true)
+      }
+    }
+  }
+  for (const id of f.pending) {
+    const m = byId.get(id)
+    if (m && m.pending) continue
+    f.pending.delete(id)
+    /* gone from the feed while pending = the send failed (the store dropped the row) */
+    sendDone(st, id, Boolean(m))
+  }
+  f.seen = new Set(byId.keys())
+  if (st.bound.size > 16) st.bound.delete(st.bound.keys().next().value)
+}
+
+/**
+ * The sink's half of perf-mark.mjs perfFeed: pairs the timings that end on a
+ * painted feed row.
+ *   M3 send_ack     an own pending row loses `pending` (or arrives confirmed); a
+ *                   pending row that leaves the feed is outcome=fail
+ *   M5 switch_view  the feed's view changed and its first rows (or empty state) show
+ * `st` is perf-mark's shared memory, `f` the feed's own.
+ */
+export function perfFeedPair(st, f, rows, fresh, shown, o) {
+  try {
+    if (fresh) feedSwitched(st, f, rows)
+    else if (!f.seen) {
+      /* the first call since the collector loaded: a baseline, nothing to pair */
+      f.t0 = -1
+      f.pending = new Set()
+      f.seen = new Set(rows.map((m) => String(m && m.msg_id)))
+      return
+    }
+    if (shown && f.t0 >= 0) {
+      const t0 = f.t0
+      const view = perfViewKind(o.path, o.thread === true)
+      const mine = !f.fromNav || st.navAt === t0
+      if (f.fromNav && mine) st.navAt = -1
+      f.t0 = -1
+      if (mine) afterPaint(() => perfMark('switch_view', perfNow() - t0, view ? { view } : undefined))
+    }
+    if (!fresh) feedSends(st, f, rows, o.own)
+  } catch { /* fire and forget */ }
+}
+
 /** Tests only: forget the tab's collector. */
 export function perfRumReset() {
   if (active) active.stop()
+  if (unobserve) unobserve()
   active = null
+  unobserve = null
+  perfMarkReset()
 }

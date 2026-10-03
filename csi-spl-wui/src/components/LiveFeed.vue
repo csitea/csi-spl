@@ -150,6 +150,7 @@ import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { perfDelivered, perfFeed, perfFeedState, perfOn, perfWatchRouter } from '~/utils/perf-mark.mjs'
 
 /* 013: newest first under the Omnibox; entering rows animate. The first page is 30 rows; a Load more
    button under the last row asks for the next 30 (held rows first, then the hub, before=<cursor>).
@@ -436,6 +437,27 @@ watch(() => [route.hash, props.rows.length] as const, async ([hash]) => {
   if (el && scroller) scrollRowToTop(scroller, el)
   el?.focus({ preventScroll: true })
 }, { immediate: true })
+
+/* Spec 066 L6: the timings that end on this feed's paint - M2 the page
+   load's first messages, M3 an own send confirmed, M5 a view switch - and M4
+   a live row from someone else. A no-op with RUM off. The view key of a
+   thread is its topic; of any other feed, its page. */
+const perfState = perfFeedState()
+perfWatchRouter(useRouter())
+watch(() => [props.rows, props.loading, props.label, props.currentTaskId, route.path] as const, () => {
+  const thread = props.holdScroll === true
+  perfFeed(perfState, {
+    rows: props.rows,
+    loading: props.loading === true,
+    key: thread ? `t|${props.currentTaskId || ''}` : `p|${route.path}|${props.label}`,
+    path: route.path,
+    thread,
+    own: isOwn,
+  })
+}, { immediate: true })
+watch(() => props.lastLive, (m) => {
+  if (m && perfOn() && !isOwn(m) && props.rows.some((r) => r.msg_id === m.msg_id)) perfDelivered(m)
+})
 
 function openable(m: SpoolMessage) {
   if (props.openButton) return Boolean(m.task_id)

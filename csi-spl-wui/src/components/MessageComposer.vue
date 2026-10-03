@@ -300,6 +300,7 @@ import { useStatusStripHeight } from '~/composables/useStatusStrip'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
+import { perfKeydown, perfSendStart } from '~/utils/perf-mark.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
 import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
@@ -846,6 +847,8 @@ function onSyntaxPointerDown(ev: PointerEvent) {
 }
 
 function onKeydown(ev: KeyboardEvent) {
+  /* spec 066 M6: keydown -> the next paint (one in ten; a no-op with RUM off) */
+  perfKeydown(ev.timeStamp)
   if (ev.isComposing) return
   if (syntaxOpen.value && ev.key === 'Escape') {
     ev.preventDefault()
@@ -1005,6 +1008,8 @@ function onSend() {
     sizeError.value = tooBig
     return
   }
+  /* spec 066 M3 starts here; LiveFeed ends it when the row is confirmed */
+  perfSendStart()
   emit('send', body, topicId, picked.value.slice(), channelId)
   text.value = ''
   picked.value = []

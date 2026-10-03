@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: The internal dispatcher checks now read the agents' role ids from settings instead of old fixed names; nothing changes for users.

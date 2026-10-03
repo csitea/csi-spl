@@ -14,29 +14,26 @@ func (s *Postgres) AddReaction(ctx context.Context, tenant, msgID, actor, emoji 
 	if !canonUUIDRe.MatchString(msgID) {
 		return ErrNotFound
 	}
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `INSERT INTO message_reactions (tenant_id, msg_id, actor, emoji, created_at)
-			SELECT $1, $2, $3, $4, $5
-			WHERE EXISTS (
-				SELECT 1 FROM messages m
-				WHERE m.tenant_id = $1 AND m.msg_id = $2 AND m.expires_at > $5
-			)
-			ON CONFLICT DO NOTHING`, tenant, msgID, actor, emoji, now)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 1 {
-			return nil
-		}
-		// A no-op insert is either "already there" or "no such message".
-		var one int
-		err = tx.QueryRow(ctx, `SELECT 1 FROM messages
-			WHERE tenant_id = $1 AND msg_id = $2 AND expires_at > $3`, tenant, msgID, now).Scan(&one)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
+	// One statement, one round trip (perf round 4 G6): the insert and the
+	// "is the message there" answer a no-op insert needs ride the scope batch,
+	// where inTenant paid BEGIN, scope, INSERT, a follow-up SELECT, COMMIT.
+	var live bool
+	err := s.queryRowTenant(ctx, tenant, `WITH m AS (
+			SELECT 1 FROM messages
+			WHERE tenant_id = $1 AND msg_id = $2 AND expires_at > $5
+		), ins AS (
+			INSERT INTO message_reactions (tenant_id, msg_id, actor, emoji, created_at)
+			SELECT $1, $2, $3, $4, $5 FROM m
+			ON CONFLICT DO NOTHING
+		)
+		SELECT EXISTS (SELECT 1 FROM m)`, []any{tenant, msgID, actor, emoji, now}, &live)
+	if err != nil {
 		return err
-	})
+	}
+	if !live {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Postgres) RemoveReaction(ctx context.Context, tenant, msgID, actor, emoji string, now time.Time) error {

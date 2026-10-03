@@ -1,0 +1,6 @@
+Lay-What: Adds a watching tool that records when each connected computer shows as offline, especially around server updates.
+Lay-How: It asks the server every few seconds who is online and which server version answers, then summarises how long each computer looked offline per update.
+Lay-Why: Computers showed as offline after every server update, and the problem had to be measured before it could be fixed.
+Tech-What: orc do_spl_box_presence_watch: a read-only 5 s poller of /v1/view/roster and /v1/wui/revision with a per-roll summary.
+Tech-How: box-presence-watch.py writes one JSON line per read and reports n, min, median and max offline seconds per machine per revision change, plus offline runs with no roll; box-presence-watch.tst.sh.
+Tech-Why: Machines read OFFLINE after each hub deploy; the watcher gives the measurement for the presence fix.

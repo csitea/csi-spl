@@ -32,7 +32,10 @@ REPLY_TO="${DIRECTIVE_REPLY_TO:-}"
 GNUPGHOME_ARG=()
 [ -n "${DIRECTIVE_GNUPGHOME:-}" ] && GNUPGHOME_ARG=(--homedir "$DIRECTIVE_GNUPGHOME")
 
-die() { printf 'ERROR: %s\n' "$*" >&2; exit 2; }
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 2
+}
 
 if [ "${1:-}" = --keygen ]; then
   cat <<'EOT'

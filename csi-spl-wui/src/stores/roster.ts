@@ -60,7 +60,7 @@ export const useRosterStore = defineStore('roster', () => {
     if (Array.isArray(data.humans)) {
       const byId: Record<string, HumanDetail> = {}
       for (const h of data.humans) {
-        const id = String((h && h.human_id) || '')
+        const id = String(h?.human_id || '')
         if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || '') }
       }
       humansDetail.value = byId
@@ -68,7 +68,7 @@ export const useRosterStore = defineStore('roster', () => {
     if (Array.isArray(data.boxes)) {
       const byBox: Record<string, BoxDetail> = {}
       for (const b of data.boxes) {
-        const id = String((b && b.box_id) || '')
+        const id = String(b?.box_id || '')
         if (id) byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || '') }
       }
       boxes.value = byBox

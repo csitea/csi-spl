@@ -96,8 +96,8 @@ watch(() => props.open, (v) => {
 })
 
 function errorKey(e: { status?: number, token?: string }) {
-  const code = Number(e && e.status) || 0
-  const token = String((e && e.token) || '')
+  const code = Number(e?.status) || 0
+  const token = String(e?.token || '')
   if (code === 401 || token === 'view_door' || token === 'unauthenticated') return 'issues.signed_out'
   if (code === 403) return 'issues.forbidden'
   if (code === 404 || token === 'unknown_parent') return 'issues.not_found'

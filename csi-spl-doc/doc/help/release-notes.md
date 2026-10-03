@@ -71,7 +71,7 @@ git push origin refs/notes/release-notes
 
 | place | effect |
 |---|---|
-| pre-push gate, lint part `release-note` | checks every commit in the pushed range for the six trailers (or a form from section 3); it starts as a warning, and when it starts refusing is owner question Q4 in the spec |
+| pre-push gate, lint part `release-note` | checks every commit in the pushed range for the six trailers (or a form from section 3); it starts as a warning and starts refusing one week after it goes live (owner answer Q4 in the spec) |
 | CI, workflow 10 | the backstop for a push that bypassed the hook |
 | deploy (20 / 30) | never blocked: a commit without a note is shown with `state=missing` |
 

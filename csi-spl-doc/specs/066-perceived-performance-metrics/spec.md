@@ -1,7 +1,7 @@
 # 066: metrics for the performance users perceive
 
-Status: **owner answered Q1..Q10 on 2026-10-03; Q2, Q6 and Q9 still open**
-(section 10). The admin page is IN scope now (owner, Q8). Build lanes:
+Status: **all questions answered** (owner, 2026-10-03; Q2, Q6 and Q9 closed
+~05:48Z, section 10). The admin page is IN scope now (owner, Q8). Build lanes:
 section 11. Spec only; no code, workflow, gate or `CLAUDE.md` was touched.
 Draft 2026-10-03, c-061; answers folded in 2026-10-03, c-066.
 Related: [027 performance](../027-spool-performance/) (the budget gate),
@@ -242,17 +242,28 @@ Verbatim, in posting order. They are the ten owner posts of that topic between
 | Q | ts (UTC) | msg | verbatim | reading | status |
 |---|---|---|---|---|---|
 | Q1 | 04:25:11 | `eb408f83` | "On one, do them all." | yes, all of M1..M8 (and M6b `inp`) | **decided** |
-| Q2 | 04:25:38 | `4052815b` | "On question 2 I don't understand what you mean. Explain it." | no answer; the owner asks for a plain explanation (10.2) | **open** |
+| Q2 | 04:25:38 | `4052815b` | "On question 2 I don't understand what you mean. Explain it." | no answer; the owner asks for a plain explanation (10.2) | answered ~05:48Z (below) |
 | Q3 | 04:25:55 | `e76bd161` | "On 3, that's kind of a best practice, yes." | yes, p75 ranks, p50 and p95 beside it | **decided** |
 | Q4 | 04:26:31 | `0d0deec5` | "4. Definitely yes. But make sure that it does not itself affect the performance of the whole application. Use a proper fire-and-forget thing. If for some reason the logging doesn't work, it should not mess with the whole thing, so some kind of asynchronous fire-and-forget thing" | yes, the dedicated table; PLUS a hard rule: collection is asynchronous fire-and-forget end to end and a broken collector never touches the app (section 4.0) | **decided** |
 | Q5 | 04:26:53 | `f8f54729` | "On 5, yes." | yes, 100 % with the 300 / tab / hour cap | **decided** |
-| Q6 | 04:27:03 | `769c4eb4` | "On 6, yes." | Q6 was a PICK (30 / 90), not yes / no. Likely "yes to the recommendation" = 30 days; built as 30 days (one constant, `store.PerfSampleRetention`), so 90 is a one-line change | **open** (confirm) |
+| Q6 | 04:27:03 | `769c4eb4` | "On 6, yes." | Q6 was a PICK (30 / 90), not yes / no. Likely "yes to the recommendation" = 30 days; built as 30 days (one constant, `store.PerfSampleRetention`), so 90 is a one-line change | answered ~05:48Z (below) |
 | Q7 | 04:27:26 | `181aa29b` | "On 7, yes." | yes, prd too, after the 3 % A/B passes on dev | **decided** |
 | Q8 | 04:27:44 | `07fabc24` | "Okay add the whole admin page now." | the admin WUI view moves from "later" into THIS build (section 6 (b), lane L7); the orc action stays for the perf rounds | **decided** |
-| Q9 | 04:27:57 | `d0b46f58` | "Online, yes." | dictation, most likely "On nine, yes" (it is the ninth answer, between Q8 and Q10). Q9 was a PICK: no (recommended) / yes. A literal "yes" means "add the opt-out"; it may also mean "yes to the recommendation" = no opt-out. Built WITHOUT an opt-out until confirmed; the opt-out would be one more lane (a `tenant.settings` toggle the ingest route reads) | **open** |
+| Q9 | 04:27:57 | `d0b46f58` | "Online, yes." | dictation, most likely "On nine, yes" (it is the ninth answer, between Q8 and Q10). Q9 was a PICK: no (recommended) / yes. A literal "yes" means "add the opt-out"; it may also mean "yes to the recommendation" = no opt-out. Built WITHOUT an opt-out until confirmed; the opt-out would be one more lane (a `tenant.settings` toggle the ingest route reads) | answered ~05:48Z (below) |
 | Q10 | 04:28:10 | `8224d24e` | "On 10 years" | dictation of "On 10, yes": start the lanes now, the A/B after | **decided** |
 
-### 10.2 Still open, as the orchestrator asks them
+The answer to the three questions of 10.2 (HUM-10, same topic, ~05:48Z, one
+post with no msg id; relayed to c-001 by c-002 in `92e057b5`), verbatim:
+
+> "1 q2 - yes 2. 30 , q9 the data is anonymous"
+
+| Q | reading | status |
+|---|---|---|
+| Q2 | yes: two halves, no message ids (option A); section 3.1 and L6 unchanged | **decided** |
+| Q6 | 30 days; L1's constant `store.PerfSampleRetention` stays 30 | **decided** |
+| Q9 | no switch: the data is anonymous; no opt-out lane | **decided** |
+
+### 10.2 The three follow-up questions (answered, 10.1)
 
 1. **Q2 (explain).** "When you send a message, we want to know how long until
    the OTHER person sees it. Your phone and their laptop have different clocks,
@@ -264,12 +275,15 @@ Verbatim, in posting order. They are the ten owner posts of that topic between
    alternative would be to send the message id with each timing so the two
    halves can be joined exactly, but then timings point to specific messages,
    which we want to avoid. OK with two halves and no message ids?" yes / no
+   **Answered: yes** (two halves, no message ids).
 2. **Q6.** "Keep raw timings 30 days or 90 days? You answered 'yes'; we read it
    as 30 days (the recommendation)." 30 / 90
+   **Answered: 30.**
 3. **Q9.** "Should a workspace be able to switch the timing collection off in
    its settings? You answered 'Online, yes', which we read as 'On nine, yes'.
    Does that mean YES, add the switch, or yes to our recommendation, NO switch
    (the data is anonymous)?" add the switch / no switch
+   **Answered: no switch** ("the data is anonymous").
 
 ## 11. Build lanes
 
@@ -297,7 +311,6 @@ are open on it at once.
 | L8 orc report action | `do_spl_wui_perf_report` (section 6 (a)), read-only, as the env SA | `csi-spl-orc/src/bash/run/spl-wui-perf-report.func.sh` | `csi-spl-orc/src/bash/tests/spl-wui-perf-report.tst.sh`, hermetic on a canned summary JSON; `./run -a do_check_pre_push_lint` | L3 | any WUI or hub file |
 | L9 overhead A/B | section 5 on dev, n >= 5 per arm; on a pass, flip `perf.rum_enabled` on for prd (cnf only) | this spec (result as section 12); `csi-spl-cnf/csi-spl/prd.env.yaml` (edit, one key) and its rendered file | the A/B itself; `ENV=prd ./run -a do_tpl_gen` then `git diff --exit-code` | L2, L6 on dev | any code |
 
-Open answers that would add or change a lane: Q9 "add the switch" adds one
-lane (a `tenant.settings` toggle in the General section plus the ingest route
-reading it). Q6 = 90 days changes one constant in L1. Q2 = no changes L6 and
-section 3.1 (a join by message id).
+No Q9 lane: the owner answered "q9 the data is anonymous" (10.1), so
+there is no per-workspace opt-out. Q6 = 30 days keeps L1's constant; Q2 = yes
+keeps L6 and section 3.1 as written.

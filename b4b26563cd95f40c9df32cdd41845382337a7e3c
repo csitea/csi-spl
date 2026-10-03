@@ -1,0 +1,6 @@
+Lay-What: On a phone, you can resize the message box, by dragging its size handle or picking Small, Medium or Large.
+Lay-How: Drag the handle at the end of the box's free edge to make it taller or wider, or tap it and choose a size; the size is remembered for each place.
+Lay-Why: The owner asked for it: one fixed size of message box does not suit every message or screen.
+Tech-What: A size handle on the phone dock's free edge and Small/Medium/Large in the grip menu; size kept per browser and per place as a share (spool.omnibox-phone-size).
+Tech-How: OmniboxGrip.vue and omnibox-dock.mjs compute bounds (height up to half the room, width at least 280 px, 48 px of feed kept); CSS repeats the bounds; e2e omnibox-grip covers each place.
+Tech-Why: Owner request (task 516afd37); desktop unchanged.

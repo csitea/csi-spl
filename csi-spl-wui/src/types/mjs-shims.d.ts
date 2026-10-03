@@ -622,12 +622,16 @@ declare module '~/utils/swipe-archive.mjs' {
   export const SWIPE_AXIS_RATIO: number
   export const SWIPE_SETTLE_MS: number
   export function swipeThresholdPx(width: number): number
+  export function swipeInBackZone(x: number, width: number, rtl?: boolean): boolean
+  export type SwipeDir = 'archive' | 'menu'
   export function createSwipe(opts: {
     width: () => number
     rtl?: () => boolean
-    onMove?: (dx: number, armed: boolean) => void
-    onLock?: () => void
-    onCommit: () => void
+    canLeft?: () => boolean
+    canRight?: (x: number, y: number) => boolean
+    onMove?: (dx: number, armed: boolean, dir: SwipeDir) => void
+    onLock?: (dir: SwipeDir) => void
+    onCommit: (dir: SwipeDir, x: number, y: number) => void
     onCancel?: () => void
   }): {
     down(ev: { pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }): void
@@ -637,6 +641,7 @@ declare module '~/utils/swipe-archive.mjs' {
     takeClick(): boolean
     readonly swiping: boolean
     readonly dx: number
+    readonly dir: SwipeDir
     readonly threshold: number
   }
 }

@@ -2,9 +2,10 @@
   <article
     ref="rowEl"
     class="msg"
-    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging, 'msg--swipe': swipeArchive, 'msg--swiping': swipeDx > 0, 'msg--swipe-armed': swipeArmed, 'msg--swipe-settle': swipeSettle }"
-    :style="swipeDx > 0 ? { '--swipe-dx': `${swipeDx}px` } : undefined"
+    :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging, 'msg--swipe': swipeOn, 'msg--swiping': swipeDx !== 0, 'msg--swipe-armed': swipeArmed, 'msg--swipe-settle': swipeSettle }"
+    :style="swipeDx !== 0 ? { '--swipe-dx': `${swipeDx}px`, '--swipe-w': `${Math.abs(swipeDx)}px` } : undefined"
     :data-swipe-archive="swipeArchive ? 'true' : undefined"
+    :data-swipe-menu="swipeOn ? 'true' : undefined"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
     :data-ts="at || undefined"
@@ -30,18 +31,19 @@
     @pointerup="onRowUp"
     @pointercancel="onRowCancel"
   >
-    <!-- CLE-77906 (owner, t1 topic 73c5d695): swipe right archives the topic
-         on mobile. The strip the card uncovers while it slides; armed (past
-         the threshold) it says so. -->
+    <!-- HUM-10 (owner, t1 topic 2d09e9c2): on mobile a swipe LEFT archives
+         the topic, a swipe RIGHT opens the card's menu. The strip the card
+         uncovers while it slides; armed (past the threshold) it says so. -->
     <span
-      v-if="swipeArchive && swipeDx > 0"
+      v-if="swipeOn && swipeDx !== 0"
       class="msg-swipe-reveal"
-      data-testid="swipe-archive-reveal"
+      :class="swipeDir === 'archive' ? 'msg-swipe-reveal--end' : 'msg-swipe-reveal--start'"
+      :data-testid="swipeDir === 'archive' ? 'swipe-archive-reveal' : 'swipe-menu-reveal'"
       :data-armed="swipeArmed ? 'true' : undefined"
       aria-hidden="true"
     >
-      <UiIcon name="archive" :size="20" />
-      <span v-if="swipeArmed" class="msg-swipe-reveal__text">{{ t('feed.swipe_archive') }}</span>
+      <UiIcon :name="swipeDir === 'archive' ? 'archive' : 'menu'" :size="20" />
+      <span v-if="swipeArmed && swipeDir === 'archive'" class="msg-swipe-reveal__text">{{ t('feed.swipe_archive') }}</span>
     </span>
     <!-- SPL-1134 (specs/045 §3.9): the drag handle, the card's first ~3 mm.
          A move starts from here only; the rest of the card clicks, selects
@@ -435,7 +437,7 @@ import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
-import { SWIPE_SETTLE_MS, createSwipe } from '~/utils/swipe-archive.mjs'
+import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
 import { isTouchUi } from '~/utils/undo-timer.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
@@ -786,17 +788,21 @@ const longPress = createLongPress({
 onBeforeUnmount(() => longPress.cancel())
 
 /*
- * CLE-77906 (owner, t1 topic 73c5d695): "Both from the thread messages (AK
- * cards view) and from the topic messages (AK topic view), one should be able
- * to archive a topic by sliding to the right on mobile." A finger sliding a
- * topic card (cards view) or the topic's opening message (topic view) to the
- * right archives the topic through the menu's own Archive (onMenuArchive: the
- * same permission, the same "Archived · Undo" snackbar with its touch window).
- * The rules of the gesture are utils/swipe-archive.mjs; a mouse never swipes,
- * so the desktop card is unchanged. While it slides the card's content moves
- * and the strip it uncovers shows the archive icon; short of the threshold
- * the card snaps back. A swipe takes the gesture from the phone's swipe-right
- * Back (useMobileStack) and from the long press.
+ * CLE-77906 (owner, t1 topic 73c5d695) archived a topic by a swipe right;
+ * HUM-10 (owner, t1 topic 2d09e9c2, 2026-10-03): "Let's change the swipe left
+ * to do the archiving and let's change the swipe right to actually show the
+ * right-click menu." A finger sliding a topic card (cards view) or the
+ * topic's opening message (topic view) to the LEFT archives the topic through
+ * the menu's own Archive (onMenuArchive: the same permission, the same
+ * "Archived · Undo" snackbar with its touch window). A finger sliding any card
+ * to the RIGHT opens its menu, the one a right-click opens (openMenuAt). A
+ * right swipe that starts in the phone's Back zone (the left half, while there
+ * is a level to go back to) is not the card's: it stays the shell's Back
+ * (useMobileStack), exactly as before. The rules of the gesture are
+ * utils/swipe-archive.mjs; a mouse never swipes, so the desktop card is
+ * unchanged. While it slides the card moves and the strip it uncovers shows
+ * the archive (or menu) icon; short of the threshold the card snaps back. A
+ * swipe takes the gesture from the long press.
  */
 const stack = useMobileStack()
 const touchUi = ref(false)
@@ -807,12 +813,17 @@ onMounted(() => {
   touchUi.value = isTouchUi()
   inTopicPane.value = paneOfRow(rowEl.value) === 'topic'
 })
+/** the card swipes at all (a right swipe opens its menu) */
+const swipeOn = computed(() => !editing.value && (mobile.value || touchUi.value))
+/** ... and a left swipe archives its topic */
 const swipeArchive = computed(() => {
-  if (editing.value || !(mobile.value || touchUi.value)) return false
+  if (!swipeOn.value) return false
   if (props.topicMenu) return showTopicArchive.value
   return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me)
 })
+/** signed: < 0 slid towards the start (archive), > 0 towards the end (menu) */
 const swipeDx = ref(0)
+const swipeDir = ref<'archive' | 'menu'>('archive')
 const swipeArmed = ref(false)
 /** the snap back / the slide out animates; a finger-driven move does not */
 const swipeSettle = ref(false)
@@ -826,20 +837,33 @@ function swipeTo(dx: number, settle: boolean) {
      containing block of its fixed menus and pickers */
   if (settle && dx === 0) settleTimer = setTimeout(() => { swipeSettle.value = false; settleTimer = null }, SWIPE_SETTLE_MS)
 }
+const swipeRtl = () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl'
 const swipe = createSwipe({
   width: () => rowEl.value?.getBoundingClientRect().width || 0,
-  rtl: () => typeof document !== 'undefined' && document.documentElement.dir === 'rtl',
-  onLock: () => {
+  rtl: swipeRtl,
+  canLeft: () => swipeArchive.value,
+  /* the Back zone wins: a right swipe from there is the shell's Back */
+  canRight: (x) => !(stack.isMobile.value && stack.level.value > 1
+    && swipeInBackZone(x, typeof window !== 'undefined' ? window.innerWidth : 0, swipeRtl())),
+  onLock: (dir) => {
     longPress.cancel()
     rowDrag.cancel()
-    stack.swipe.claim()
+    swipeDir.value = dir
   },
-  onMove: (dx, armed) => {
+  onMove: (dx, armed, dir) => {
     if (armed && !swipeArmed.value && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
     swipeArmed.value = armed
-    swipeTo(dx, false)
+    swipeTo(dir === 'archive' ? -dx : dx, false)
   },
-  onCommit: () => void swipeCommit(),
+  onCommit: (dir, x, y) => {
+    if (dir === 'archive') return void swipeCommit()
+    swipeArmed.value = false
+    /* no slide back first: a transformed card would hold the menu */
+    swipeTo(0, false)
+    pickerOpen.value = false
+    rowEl.value?.focus({ preventScroll: true })
+    openMenuAt(x, y)
+  },
   onCancel: () => {
     swipeArmed.value = false
     swipeTo(0, true)
@@ -848,7 +872,7 @@ const swipe = createSwipe({
 async function swipeCommit() {
   stack.swipe.claim()
   const inTopicPane = paneOfRow(rowEl.value) === 'topic'
-  swipeTo(rowEl.value?.getBoundingClientRect().width || 0, true)
+  swipeTo(-(rowEl.value?.getBoundingClientRect().width || 0), true)
   const ok = await onMenuArchive()
   swipeArmed.value = false
   if (!ok) {
@@ -869,7 +893,7 @@ function onRowDown(ev: PointerEvent) {
   if (onTextTouch(ev)) longPress.cancel()
   else if (touchLift.value && ev.pointerType === 'touch') rowDrag.down(ev)
   else longPress.down(ev)
-  if (swipeArchive.value && !removing.value) swipe.down(ev)
+  if (swipeOn.value && !removing.value) swipe.down(ev)
 }
 function onRowMove(ev: PointerEvent) {
   rowDrag.move(ev)
@@ -1099,7 +1123,7 @@ function onHandleDown(ev: PointerEvent) {
      handle; the handle stops the row's pointerdown, so start it here. A finger
      that moves before the hold is not a move-drag (move-drag.mjs slop), so the
      two never both run. */
-  if (swipeArchive.value && !removing.value) swipe.down(ev)
+  if (swipeOn.value && !removing.value) swipe.down(ev)
   if (!movable.value || !handle.down(ev)) return
   /* no text selection, no native drag, and the stream stays on the handle
      wherever the pointer goes */
@@ -1682,12 +1706,12 @@ async function save() {
 /* SPL-1134: the ONE card under a dragged reply is lit; the dragged row fades */
 .msg--move-over { background: var(--color-selected); outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .msg--dragging { opacity: 0.5; }
-/* CLE-77906: swipe right to archive (touch only). pan-y leaves the vertical
-   scroll to the browser and gives the horizontal move to the card. The whole
-   card slides by --swipe-dx (its content is display: contents on a phone, so
-   it cannot move on its own) and the strip, pinned just before the card's
-   start edge, fills the gap it uncovers with the archive icon (accent once
-   past the threshold). */
+/* HUM-10: swipe left to archive, right for the menu (touch only). pan-y
+   leaves the vertical scroll to the browser and gives the horizontal move to
+   the card. The whole card slides by --swipe-dx (signed; its content is
+   display: contents on a phone, so it cannot move on its own) and the strip,
+   pinned just past the edge it uncovers (--swipe-w wide), fills the gap with
+   the archive or menu icon (accent once past the threshold). */
 .msg--swipe { position: relative; touch-action: pan-y; }
 .msg--swiping,
 .msg--swipe-settle { transform: translateX(var(--swipe-dx, 0px)); }
@@ -1697,8 +1721,7 @@ async function save() {
 .msg-swipe-reveal {
   position: absolute;
   inset-block: 0;
-  inset-inline-start: calc(-1 * var(--swipe-dx, 0px));
-  width: var(--swipe-dx, 0px);
+  width: var(--swipe-w, 0px);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1712,6 +1735,8 @@ async function save() {
   font-weight: 600;
   pointer-events: none;
 }
+.msg-swipe-reveal--start { inset-inline-start: calc(-1 * var(--swipe-w, 0px)); }
+.msg-swipe-reveal--end { inset-inline-end: calc(-1 * var(--swipe-w, 0px)); justify-content: flex-end; padding-inline: 0 12px; }
 .msg-swipe-reveal[data-armed] { background: var(--color-accent); color: var(--color-on-accent); }
 @media (prefers-reduced-motion: reduce) {
   .msg--swipe-settle { transition: none; }

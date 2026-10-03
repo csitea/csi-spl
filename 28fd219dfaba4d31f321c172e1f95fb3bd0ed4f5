@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Adds test data for a new database table so an existing safety test keeps checking every table; nothing a user sees changes.

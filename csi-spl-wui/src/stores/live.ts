@@ -4,6 +4,8 @@ import { useLive } from '~/composables/useLive'
 import { useMentionPoke } from '~/composables/useMentionPoke'
 import { topicWhere } from '~/utils/mention-poke.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
+import { useNotificationStore } from '~/stores/notification'
+import { useChannelStore } from '~/stores/channel'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
@@ -51,6 +53,8 @@ function setup(key: 'main' | 'pane') {
   const lastLive = ref<SpoolMessage | null>(null)
   /** t1 8fb802cd: the open topic's archive stamp ('' = live); the header marks it. */
   const archivedAt = ref('')
+  /** The open topic is one the reader opened (the right pane, the /t page): it is read as it shows. */
+  const reading = ref(false)
 
   const filtered = computed(() => newestFirst(messages.value.filter((m) => matchesSearch(m, search.value))))
   const view = computed(() => windowed(filtered.value, visible.value))
@@ -76,6 +80,21 @@ function setup(key: 'main' | 'pane') {
       liveCount.value += add.length
       lastLive.value = add[add.length - 1]
     }
+    if (add.length) readOpen()
+  }
+
+  /**
+   * Owner (t1 56b8cc17): a topic opened on the phone (/t, the Topics list)
+   * never left the unread counts. Its t: mark is what the hub's Flow keys
+   * drop a topic's lines by; the channel and DM feeds wrote it, this one did
+   * not, and the read sync that carries it to the hub was never started.
+   */
+  function readOpen() {
+    const id = taskId.value
+    if (!id || !reading.value || !import.meta.client) return
+    const held = messages.value.filter((m) => m.task_id === id || m.parent_task_id === id).length
+    useNotificationStore().markTopicRead(id, Math.max(useChannelStore().repliesFor(id), held - 1))
+    void import('~/utils/read-sync-boot').then((m) => m.pushReads(api))
   }
 
   /**
@@ -133,8 +152,9 @@ function setup(key: 'main' | 'pane') {
   /** `all`: also page to the oldest row (a pinned root needs it); the pane always does.
       `first`: that same newest window, already asked for (utils/lobby-warm);
       a failed one is asked again here. */
-  async function open(id: string, opts: { all?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> } = {}) {
+  async function open(id: string, opts: { all?: boolean, read?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> } = {}) {
     if (!id) return
+    reading.value = key === 'pane' || Boolean(opts.read)
     /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
     if (key === 'pane') usePaneFocus().openedTopic()
     const client = live.ensure()
@@ -169,6 +189,7 @@ function setup(key: 'main' | 'pane') {
       olderCursor.value = data.next
       archivedAt.value = archiveStamp(data)
       if (opts.all || key === 'pane') await loadAll()
+      readOpen()
     } catch (e) {
       fail(e, i18n.t('feed.error.load_failed'))
     } finally {

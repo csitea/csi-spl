@@ -15,6 +15,7 @@ import { storageGet, storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
+import { loadCursors } from './read-cursor.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1095,10 +1096,12 @@ async function listFlow(ctx, { limit = 30, before = '', kind = '', countsOnly = 
   if (mock) {
     const marks = mockFlowMarks(state)
     const all = mockFlowEvents(state.messages, self)
-    const counts = mockFlowCounts(all, marks.seen, marks.opened)
-    const unread = mockFlowCounts(all, '', marks.opened)
+    /* the reader's read cursors stand in for the hub's read marks */
+    const cursors = loadCursors()
+    const counts = mockFlowCounts(all, marks.seen, marks.opened, cursors)
+    const unread = mockFlowCounts(all, '', marks.opened, cursors)
     /* MOCK_FLOW_KEYS_OFF: the mock answers as a hub without `keys` (the rows keep their own counts) */
-    const keys = storageGet(MOCK_FLOW_KEYS_OFF) === 'off' ? null : mockFlowKeys(all, marks.opened)
+    const keys = storageGet(MOCK_FLOW_KEYS_OFF) === 'off' ? null : mockFlowKeys(all, marks.opened, cursors)
     if (countsOnly) return { events: [], next: '', counts, unread, keys }
     const pick = kind ? all.filter((e) => flowEventKind(e.kind) === kind) : all
     const from = Number(before) || 0

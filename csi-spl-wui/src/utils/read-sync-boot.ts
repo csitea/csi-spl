@@ -35,6 +35,17 @@ export function startReadSync(api: Api) {
   })
 }
 
+/**
+ * A read just moved here (a topic opened): send it now, not on the next
+ * tick, so the hub's flow frame drops the counts while the reader looks.
+ * The mock has no hub: its Flow counts are read again from the cursors.
+ */
+export function pushReads(api: Api) {
+  startReadSync(api)
+  if (sync) void sync.push()
+  if (api.mock) void import('~/stores/flow').then((m) => m.useFlowStore().readCounts())
+}
+
 function onMoved(moved: string[], marks: Record<string, Mark>) {
   const notes = useNotificationStore()
   const frozen = { ...notes.boundary }

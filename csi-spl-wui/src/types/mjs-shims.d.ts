@@ -335,12 +335,13 @@ declare module '~/utils/flow-badge.mjs' {
   export function parseFlowCounts(raw: unknown): FlowCounts | null
   export function parseFlowKeys(raw: unknown): Record<string, number> | null
   export function flowPlaceKey(e: unknown): string
-  export function mockFlowKeys(events: unknown[], opened?: Set<string>): Record<string, number> | null
+  export function mockCovered(e: unknown, cursors: Record<string, { ts?: string }> | null): boolean
+  export function mockFlowKeys(events: unknown[], opened?: Set<string>, cursors?: Record<string, { ts?: string }> | null): Record<string, number> | null
   export function badgeLabel(n: unknown): string
   export function syncAppBadge(nav: unknown, n: unknown): boolean
   export function eventAsMessage(ev: unknown): Record<string, unknown> | null
   export function mockFlowEvents(messages: unknown[], self: string): Array<Record<string, unknown>>
-  export function mockFlowCounts(events: unknown[], seen?: string, opened?: Set<string>): FlowCounts | null
+  export function mockFlowCounts(events: unknown[], seen?: string, opened?: Set<string>, cursors?: Record<string, { ts?: string }> | null): FlowCounts | null
 }
 
 declare module '~/utils/channel-feed.mjs' {

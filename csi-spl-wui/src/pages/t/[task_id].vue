@@ -145,7 +145,7 @@ const sinceMs = useNowTick(() => Boolean(taskId.value))
 const messages = computed(() => newestFirst(store.newestFirst))
 
 function reopen() {
-  if (taskId.value) void store.open(taskId.value, { all: true })
+  if (taskId.value) void store.open(taskId.value, { all: true, read: true })
 }
 
 onMounted(() => {

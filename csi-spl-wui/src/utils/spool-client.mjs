@@ -202,6 +202,10 @@ export function createSpoolClient({
   const mockReady = mock
     ? import('./mock-data.mjs').then((data) => {
       state = data.cloneMock()
+      /* test hook (mock only): an e2e adds lines to the mock feed with
+         localStorage `spool.mock.extra-messages` (a JSON array of rows) */
+      const extra = storageGetJson('spool.mock.extra-messages', [])
+      if (Array.isArray(extra)) state.messages.push(...extra.filter((m) => m && m.msg_id))
       state.memberships = Object.create(null)
       state.openInvite = Object.create(null)
       state.agentMembers = Object.create(null)

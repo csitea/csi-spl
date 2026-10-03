@@ -95,13 +95,30 @@ export function flowPlaceKey(e) {
 }
 
 /**
- * MOCK ONLY: the hub's `keys` over `events`: the unopened ones, each once
- * under its place and once under its topic.
+ * MOCK ONLY: the hub's cover rule (contract section 3): a read cursor of the
+ * line's topic (t:), channel (ch:) or DM peer (dm:) at or past it. `cursors`
+ * are the reader's (read-cursor.mjs); the mock has no hub to sync them to.
  */
-export function mockFlowKeys(events, opened = new Set()) {
+export function mockCovered(e, cursors) {
+  if (!cursors) return false
+  const at = Date.parse(String((e && (e.at || e.received_at || e.ts)) || ''))
+  if (!Number.isFinite(at)) return false
+  const place = flowPlaceKey(e)
+  for (const k of [`t:${e.task_id || ''}`, place, place.replace(/@.*$/, '')]) {
+    const c = cursors[k]
+    if (c && Date.parse(String(c.ts || '')) >= at) return true
+  }
+  return false
+}
+
+/**
+ * MOCK ONLY: the hub's `keys` over `events`: the unopened, uncovered ones,
+ * each once under its place and once under its topic.
+ */
+export function mockFlowKeys(events, opened = new Set(), cursors = null) {
   const keys = {}
   for (const e of events || []) {
-    if (opened.has(String(e.msg_id)) || !flowEventKind(e.kind)) continue
+    if (opened.has(String(e.msg_id)) || !flowEventKind(e.kind) || mockCovered(e, cursors)) continue
     for (const k of [flowPlaceKey(e), `t:${e.task_id || ''}`]) keys[k] = (keys[k] || 0) + 1
   }
   return parseFlowKeys(keys)
@@ -173,12 +190,13 @@ export function mockFlowEvents(messages, self) {
 
 /**
  * MOCK ONLY: the counts of `events` newer than `seen` (the f:seen time, ''
- * = never) and not opened (`opened` = msg ids), split by kind.
+ * = never), not opened (`opened` = msg ids) and not covered by a read
+ * cursor (mockCovered), split by kind.
  */
-export function mockFlowCounts(events, seen = '', opened = new Set()) {
+export function mockFlowCounts(events, seen = '', opened = new Set(), cursors = null) {
   const counts = { mention: 0, reply: 0, dm: 0, channels: 0, dms: 0 }
   for (const e of events || []) {
-    if (opened.has(String(e.msg_id))) continue
+    if (opened.has(String(e.msg_id)) || mockCovered(e, cursors)) continue
     if (seen && !(String(e.at) > String(seen))) continue
     const k = flowEventKind(e.kind)
     if (!k) continue

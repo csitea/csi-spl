@@ -121,6 +121,11 @@ grep -q 'prevent_destroy' "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/03-vm.t
 for gone in satellite-bootstrap satellite-install-tools satellite-home-persist satellite-replicate-ai-user satellite-creds-push satellite-claude-config; do
   [[ -e "$PROJ_PATH/src/bash/run/$gone.func.sh" ]] && fail "retired $gone.func.sh is back (the playbook owns it)" || pass "retired: $gone.func.sh"
 done
+r7="$PROJ_PATH/src/terraform/060-gcp-vm-satellite/roles/07_ysg_box/tasks/main.yml"
+awk '/claude-render.sh/ { r = NR } /render-yield.sh" --render "\$w\/render" --role agent/ { y = NR } /claude-pack.sh/ { p = NR } END { exit !(r && y > r && p > y) }' "$r7" \
+  && grep -q 'git_dir: "{{ repo_dir }}"' "$r7" \
+  && pass "07 yields the harness skills to install.sh between render and pack (ysg-box is frozen)" \
+  || fail "07 packs the frozen engine's harness skills (render-yield.sh not between render and pack)"
 grep -q 'claude auth status --json .*jq -r .loggedIn' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" \
   && pass "verify reads only claude's loggedIn flag" || fail "verify does not check the claude login (loggedIn)"
 grep -q 'ok "timezone \$tz"' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" && pass "verify has the timezone row" || fail "verify has no timezone row"

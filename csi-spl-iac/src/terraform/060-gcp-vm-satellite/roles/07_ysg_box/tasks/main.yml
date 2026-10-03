@@ -26,6 +26,19 @@
     git_dir: "{{ ysg_box_overlay_dir }}"
     git_user: "{{ owner_user }}"
 
+# The harness repo before the render (08 syncs it again, a no-op then): its
+# render-yield.sh drops from the agent render every skill and command the
+# harness installs, so the frozen engine's copies (they call the ysg-box
+# spawn-agents scripts: old ids, c-096 -> 'C-96') never reach the agent and
+# 08's install.sh writes the csi-spl ones.
+- name: The harness repo, fast-forwarded to origin/master (render-yield.sh reads its assets)
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/git-sync.yml"
+  vars:
+    git_url: "{{ repo_url }}"
+    git_dir: "{{ repo_dir }}"
+    git_user: "{{ owner_user }}"
+    git_branch: master
+
 - name: The engine's run-bsh dat dirs (README BOOTSTRAP 2), the owner's, setgid
   ansible.builtin.file:
     path: "{{ item }}"
@@ -61,16 +74,19 @@
     rsync -a --exclude .git --exclude ysg-box-cnf "$OVERLAY/" "$w/org/" || { echo "FAIL export"; exit 1; }
     bash "$s/claude-render.sh" --out "$w/render" --box "$TAG" --org-root "$w/org" --role owner --role agent >"$w/render.log" 2>&1 \
       || { echo "FAIL claude-render: $(tail -n 3 "$w/render.log" | tr '\n' ' ')"; exit 1; }
+    bash "$REPO/csi-spl-orc/src/bash/features/spool-install/render-yield.sh" --render "$w/render" --role agent >"$w/yield.log" 2>&1 \
+      || { echo "FAIL render-yield: $(tail -n 3 "$w/yield.log" | tr '\n' ' ')"; exit 1; }
     if cut -f1 "$w"/render/*.manifest.tsv | grep -q 'credentials'; then echo "FAIL a credentials file in the render"; exit 1; fi
     bash "$s/claude-pack.sh" --render "$w/render" --out "$w/sat.pack" >"$w/pack.log" 2>&1 || { echo "FAIL claude-pack"; exit 1; }
     chmod 644 "$w/sat.pack"
-    echo "OK owner $(($(wc -l <"$w/render/owner.manifest.tsv") - 1)) files, agent $(($(wc -l <"$w/render/agent.manifest.tsv") - 1)) files"
+    echo "OK owner $(($(wc -l <"$w/render/owner.manifest.tsv") - 1)) files, agent $(($(wc -l <"$w/render/agent.manifest.tsv") - 1)) files, $(tail -n 1 "$w/yield.log")"
   args:
     executable: /bin/bash
   environment:
     ENGINE: "{{ ysg_box_engine_dir }}"
     OVERLAY: "{{ ysg_box_overlay_dir }}"
     TAG: "{{ box_tag }}"
+    REPO: "{{ repo_dir }}"
   become: true
   become_user: "{{ owner_user }}"
   register: ysg_render

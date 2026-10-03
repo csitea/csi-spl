@@ -46,6 +46,12 @@
 #      take-over moves the copies; a failing tenant is logged once and ends
 #      that tick's copies; the tenant list is the desk pins minus the lease
 #      tenant and the test workspaces
+#  17. a dispatch seat STUCK the same way (t1 865b7a05): pc's master idle with
+#      an unread > 600 s is no candidate, pc's failover holds dispatch at once
+#  18. the 2026-10-03 satellite (t1 865b7a05): sat ranked first holds both
+#      roles, its whole trio sits IDLE on "Usage limit reached · resets
+#      10:50am" -> sat stops renewing, pc takes both roles 181 s later; after
+#      the reset (banner still shown) sat takes them back on rank
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -106,7 +112,7 @@ tick() {
   [[ "$m" == sat ]] && ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_PROC_ROOT="$T/$m/proc" LEASE_SEND="$T/bin/send" LEASE_PANE_CMD="$T/bin/pane" \
     SENT="$T/$m/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
-    LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" "${ids[@]}" "$@" bash -c '
+    LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" LEASE_LIMIT_TZ=Etc/GMT-3 "${ids[@]}" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
@@ -405,6 +411,42 @@ got=$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/pc/spool" SPL_STATE_DIR="$S" LEA
   do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init; spl_fleet_mirror_tenants')
 [[ "$got" == "csitea " ]] &&
   pass "16. served tenants = this box's desk pins, minus the lease tenant, test workspaces and empty pins" || fail "16. tenants: '$got'"
+
+# --- 17. a stuck dispatch seat is no candidate --------------------------------------------
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/act"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/act"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+T17=(LEASE_ACTIVITY_CMD="$T/bin/act" LEASE_OWNER_CMD="$T/bin/owner")
+idle 101; idle 102; echo 40000 >"$T/act/101"; echo 40000 >"$T/act/102"
+tick pc 40000 "${T17[@]}"
+[[ "$(hubh dispatch)" == CLE-002@pc ]] && pass "17. pc's master holds dispatch" || fail "17. setup: hub $(hubh dispatch)"
+msg pc CLE-002 40010
+tick pc 40611 "${T17[@]}"
+[[ "$(hubh dispatch)" == CLE-003@pc && "$(sentc pc 'CLE-003 :: FLEET LEASE dispatch: you are now ACTIVE')" == 1 ]] &&
+  pass "17. master idle with an unread 601 s old: pc's failover holds dispatch at once" || fail "17. stuck: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+grep -q '^stuck pid=101: oldest unread 601s' "$T/pc/spool/dispatch/able.CLE-002" &&
+  pass "17. able.CLE-002 says why" || fail "17. able: $(cat "$T/pc/spool/dispatch/able.CLE-002")"
+
+# --- 18. the 2026-10-03 satellite: every seat idle at its usage limit -----------------------
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/act"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/act"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+limited() { printf '❯ [poke] status?\n  ⎿  Usage limit reached · resets 10:50am\n\n────\n❯ \n────\n  ⏵⏵ auto mode on\n' >"$T/pane/$1"; }
+N=1791007200
+PRIO=sat,pc
+tick sat $N; tick pc $N
+[[ "$(hubh orch)" == CLE-001@sat && "$(hubh dispatch)" == CLE-002@sat ]] && pass "18. sat ranked first holds both roles" || fail "18. setup: $(hubh orch)/$(hubh dispatch)"
+limited 200; limited 201; limited 202
+tick sat $((N + 60)); tick pc $((N + 60)); tick sat $((N + 120))
+[[ "$(logc sat 'NO-LOCAL-AGENT orch')" == 1 && "$(logc sat 'NO-LOCAL-AGENT dispatch')" == 1 && "$(logc sat 'CLE-002: stalled pid=201: Usage limit reached, resets in')" -ge 1 ]] &&
+  pass "18. sat's trio at the limit: sat stops renewing both roles, logged once with why" || fail "18. sat log: $(cat "$T/sat/spool/dispatch/lease.log")"
+tick pc $((N + 181))
+[[ "$(hubh orch)" == CLE-001@pc && "$(hubh dispatch)" == CLE-002@pc ]] &&
+  pass "18. 181 s after sat's last renewal pc takes both roles" || fail "18. takeover: $(hubh orch)/$(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+tick sat $((N + 6660)); tick pc $((N + 6670))
+[[ "$(hubh orch)" == CLE-001@sat && "$(hubh dispatch)" == CLE-002@sat ]] &&
+  pass "18. reset passed (banner still shown): sat takes both back on rank" || fail "18. restore: $(hubh orch)/$(hubh dispatch)"
+PRIO=pc,sat
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

@@ -253,14 +253,20 @@ spl_lease_live_ids() {
 #   progress (the spinner "<verb>… (12s · ↓ 214 tokens)") whose text has not
 #   changed for LEASE_STALL_FROZEN s: a working turn's timer moves every
 #   second; at 03:54Z it read "(12s" 26 min into the stall. Idle under the
-#   banner (a "<verb>ed for 16s" line, no spinner) is able.
+#   banner (a "<verb>ed for 16s" line, no spinner) is able ...
+# - ... UNLESS the banner's reset time still lies ahead (owner t1 865b7a05):
+#   on 2026-10-03 every seat of the satellite sat idle on "Usage limit
+#   reached · resets 10:50am" from ~05:5xZ to 07:50Z, each poke answered by
+#   the banner and no spinner, so both roles stayed there ~30 min until a human
+#   moved the ranks. An idle seat whose reset has not passed is a stall on
+#   sight (spl_lease_limit_until); a reset already passed is the stale banner.
 # Prints the matched text when stalled, nothing otherwise. Fails OPEN: no
 # pane found (no tmux, an agent outside tmux) keeps the process-only rule, so
 # a missing tmux never drops a master.
 LEASE_BLOCK_RE_DEFAULT='select login method|do you trust the files|choose the text style'
 LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired'
 spl_lease_stall() {
-  local pid="$1" text foot hit spin f st="" sat=0 now
+  local pid="$1" text foot hit spin f st="" sat=0 now until
   text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
   foot="$(grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}")"
   hit="$(grep -oiE -m1 -- "${LEASE_BLOCK_RE:-$LEASE_BLOCK_RE_DEFAULT}" <<<"$foot" | head -1)"
@@ -269,6 +275,11 @@ spl_lease_stall() {
   f="$LEASE_DIR/spin.$pid"
   # the spinner's "(...)" only: its glyph and verb cycle while frozen
   spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$foot" | tail -1 | grep -oE '\(.*\)')"
+  if [[ -n "$hit" && -z "$spin" ]]; then
+    rm -f "$f"; until="$(spl_lease_limit_until "$foot")"
+    [[ -n "$until" ]] && echo "$hit, resets in $(( (until - $(spl_lease_now) + 59) / 60 )) min"
+    return 0
+  fi
   [[ -n "$hit" && -n "$spin" ]] || { rm -f "$f"; return 0; }
   now="$(spl_lease_now)"
   [[ -f "$f" ]] && IFS=$'\t' read -r sat st < "$f"
@@ -276,6 +287,37 @@ spl_lease_stall() {
   # runs several times per tick, so "same as last call" is no proof)
   [[ "$st" == "$spin" && "$sat" =~ ^[0-9]+$ ]] || { printf '%s\t%s\n' "$now" "$spin" > "$f"; return 0; }
   (( now - sat >= ${LEASE_STALL_FROZEN:-45} )) && echo "$hit, turn frozen $((now - sat))s at $spin"
+  return 0
+}
+
+# The epoch the usage limit in <footer> resets at, when that is still ahead;
+# nothing for a reset already passed (a stale banner) or one it cannot read.
+# The CLI prints the reset in the agent's local time ("resets 10:50am",
+# "resets at 7pm (Europe/Helsinki)", "resets Oct 6, 10am", "Continuing
+# automatically at 7:20am"); the zone is the one in parentheses, else
+# LEASE_LIMIT_TZ, else this box's. A time with no date is today's, else
+# tomorrow's, and counts only within LEASE_LIMIT_WINDOW s (5 h 5 min, the
+# session window): 10:50am read at 10:51 is the passed one, not tomorrow's.
+spl_lease_limit_until() {
+  local s tz now t win="${LEASE_LIMIT_WINDOW:-18300}"
+  local -a dt=(date)
+  s="$(grep -iE -- 'limit|continuing automatically' <<<"$1" |
+    grep -oiE -m1 -- '(resets|automatically)([[:space:]]+at)?[[:space:]]+[^·]+' | head -1)"
+  s="$(sed -E 's/^[A-Za-z]+([[:space:]]+at)?[[:space:]]+//' <<<"$s")"
+  tz="$(grep -oE '\([A-Za-z_]+(/[A-Za-z_+-]+)*\)' <<<"$s" | tr -d '()')"
+  s="$(sed -E 's/\([^)]*\)//g; s/,/ /g; s/[[:space:]]+at[[:space:]]+/ /g; s/[[:space:]]+/ /g; s/^ //; s/ $//' <<<"$s")"
+  [[ -n "$s" ]] || return 0
+  tz="${tz:-${LEASE_LIMIT_TZ:-}}"
+  [[ -n "$tz" ]] && dt=(env TZ="$tz" date)
+  now="$(spl_lease_now)"
+  if grep -qiE '^[0-9]{1,2}(:[0-9]{2})? ?([ap]m)?$' <<<"$s"; then
+    t="$("${dt[@]}" -d "$("${dt[@]}" -d "@$now" +%F) $s" +%s 2>/dev/null)" || return 0
+    (( t <= now )) && t=$((t + 86400))
+    (( t - now <= win )) && echo "$t"
+  else
+    t="$("${dt[@]}" -d "$s" +%s 2>/dev/null)" || return 0
+    (( t > now )) && echo "$t"
+  fi
   return 0
 }
 
@@ -680,14 +722,19 @@ spl_fleet_candidate() {
       [[ -z "$why" ]] && { echo "$LEASE_ORCH"; return 0; }
       printf 'stuck pid=%s: %s\n' "$pid" "$why" > "$LEASE_DIR/able.$LEASE_ORCH" 2>/dev/null ;;
     dispatch)
+      local pid why
       for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
-        [[ -n "$(spl_lease_agent_able "$id")" ]] && { echo "$id"; return; }
+        pid="$(spl_lease_agent_able "$id")"
+        [[ -n "$pid" ]] || continue
+        why="$(spl_fleet_stuck "$id" "$pid")"
+        [[ -z "$why" ]] && { echo "$id"; return 0; }
+        printf 'stuck pid=%s: %s\n' "$pid" "$why" > "$LEASE_DIR/able.$id" 2>/dev/null
       done ;;
   esac
 }
 
-# Take-over condition 2 (owner, 27f01e16, 2026-10-02): an orchestrator that is
-# alive and able but STUCK - idle while a message waits. On 2026-10-02
+# Take-over condition 2 (owner, 27f01e16, 2026-10-02): an orchestrator (and,
+# since t1 865b7a05, a dispatch seat) that is alive and able but STUCK - idle while a message waits. On 2026-10-02
 # 16:37Z-18:27Z a stray character in its input box stopped every poke: 93
 # unread, and nothing failed over because the lease follows the process.
 # Stuck = the oldest inbox message that arrived AFTER the agent's last activity

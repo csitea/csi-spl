@@ -34,6 +34,12 @@
 #      turn whose timer moves, is able; no pane at all is able (fail open); a
 #      modal trust screen is a stall on sight, and a stalled failover is not
 #      promoted
+#  18b. a master IDLE at its usage limit (t1 865b7a05, the satellite on
+#      2026-10-03: "Usage limit reached · resets 10:50am", no spinner) stops
+#      renewing at once with the reset in the why; the failover takes over
+#      after 180 s; once the reset time has passed (same pane, banner still
+#      shown) the master renews again and the renewal is the handback;
+#      control: a banner with no readable reset time keeps the spinner rule
 #  19. LEASE_PRIORITY_ORCH / _DISPATCH rank one role each (lease.conf or env);
 #      unset = LEASE_PRIORITY; validated the same way
 #------------------------------------------------------------------------------
@@ -55,7 +61,8 @@ while [ $# -gt 0 ]; do case "$1" in --to) to="$2"; shift 2 ;; --body) body="$2";
 echo "$to :: $body" >>"$SENT"
 EOF
 # The pane stub (LEASE_PANE_CMD): the screen of pid N is $T/pane/N; no file =
-# no pane, which the lease reads as able (fail open).
+# no pane, which the lease reads as able (fail open). A banner's reset time is
+# read in LEASE_LIMIT_TZ=Etc/GMT-3 (the boxes' summer offset), never this box's.
 mkdir -p "$T/pane"
 printf '#!/usr/bin/env bash\ncat "%s/pane/$1" 2>/dev/null\n' "$T" >"$T/bin/pane"
 chmod +x "$T/bin/send" "$T/bin/pane"
@@ -66,7 +73,7 @@ kill_agent() { rm -rf "${P:?}/$1"; }
 
 lease() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" LEASE_PROC_ROOT="$P" LEASE_SEND="$T/bin/send" SENT="$T/sent" LEASE_PANE_CMD="$T/bin/pane" \
-    LEASE_MASTER="${LM-M-1}" LEASE_FAILOVER="${LF-F-1}" LEASE_ORCH="${LO-O-1}" "$@" bash -c '
+    LEASE_MASTER="${LM-M-1}" LEASE_FAILOVER="${LF-F-1}" LEASE_ORCH="${LO-O-1}" LEASE_LIMIT_TZ=Etc/GMT-3 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
@@ -322,6 +329,40 @@ tick renew 30540
 tick watch 30661; tick watch 30721
 [[ "$(holder)" == M-1 && "$(logc 'F-1 is not able to act (stalled pid=1100')" == 1 && "$(sentc 'nobody dispatches')" == 1 ]] &&
   pass "18. a stalled failover is not promoted; logged + told once" || fail "18. failover stall: $(cat "$D/lease.log")"
+
+# --- 18b. a master idle at its usage limit (t1 865b7a05) -------------------------------
+rm -rf "$T/spool" "$T/sent"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*
+# 2026-10-03 06:00Z = 09:00 at UTC+3; every poke answered by the banner, no turn
+N=1791007200
+limited() {
+  cat >"$T/pane/$1" <<EOF2
+❯ [channel post from HUM-10, topic 865b7a05] status?
+  ⎿  ${2:-Usage limit reached · resets 10:50am}
+     /upgrade to increase your usage limit.
+
+──────────────────────────────────────────────────────────── box: c-002 ─
+❯ 
+────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · 3 monitors
+EOF2
+}
+agent 1000 M-1; agent 1100 F-1; idle 1000; idle 1100
+tick renew $N
+limited 1000; tick renew $((N + 60))
+[[ "$(cat "$D/lease")" == "M-1 $N" && "$(logc 'renew stop M-1 (stalled pid=1000: Usage limit reached, resets in 109 min)')" == 1 ]] &&
+  pass "18b. idle at the limit, reset ahead: renew stops on sight, logged once with the reset" || fail "18b. idle limit: lease '$(cat "$D/lease")' log: $(cat "$D/lease.log")"
+[[ "$(cat "$D/able.M-1")" == "stalled pid=1000: Usage limit reached, resets in 109 min" ]] &&
+  pass "18b. able.M-1 names the limit" || fail "18b. able: $(cat "$D/able.M-1")"
+tick renew $((N + 120)); tick watch $((N + 181))
+[[ "$(holder)" == F-1 && "$(logc 'FAILOVER: M-1 silent 181s -> F-1 active')" == 1 ]] &&
+  pass "18b. the failover takes over 180 s after the last renewal" || fail "18b. promote: $(cat "$D/lease.log")"
+# 07:51Z: the reset passed; the pane still shows the old banner (the stale case)
+tick renew $((N + 6660)); tick watch $((N + 6670))
+[[ "$(holder)" == M-1 && "$(logc 'handback to M-1')" == 1 ]] &&
+  pass "18b. reset passed, banner still shown: the master renews again, the handback follows" || fail "18b. restore: $(cat "$D/lease.log")"
+limited 1000 'Usage limit reached'; tick renew $((N + 6720))
+[[ "$(cat "$D/lease")" == "M-1 $((N + 6720))" ]] &&
+  pass "18b. control: a banner with no reset time, no spinner, still renews (the spinner rule)" || fail "18b. no time: $(cat "$D/lease.log")"
 
 # --- 19. a per-role machine ranking (t1 aad0e6cf) ---------------------------
 rank19() {

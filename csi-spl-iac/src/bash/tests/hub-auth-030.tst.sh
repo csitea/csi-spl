@@ -35,7 +35,8 @@ for env in dev prd; do
   # state: DSN + session key (a listed provider OR native on) + each listed
   # provider's client secret + the SMTP password (transport smtp) -- no more
   wui_inject=$(yq -r '.env.hub.wui_key.inject // "false"' "$CNF/$env.env.json")
-  inv=$(python3 - "$envline" "$secline" "$wui_inject" <<'PY'
+  rnb_inject=$(yq -r '.env.hub.release_note_bans.inject // "false"' "$CNF/$env.env.json")
+  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" <<'PY'
 import json, sys
 env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
 listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
@@ -43,6 +44,7 @@ want = {"SPOOL_HUB_DB_DSN"} | {f"SPOOL_HUB_AUTH_{p}_CLIENT_SECRET" for p in list
 if listed or env.get("SPOOL_HUB_AUTH_NATIVE_ENABLED") == "true": want.add("SPOOL_HUB_AUTH_SESSION_KEY")
 if env.get("SPOOL_HUB_MAIL_TRANSPORT") == "smtp": want.add("SPOOL_HUB_MAIL_SMTP_PASSWORD")
 if sys.argv[3] == "true": want.add("SPOOL_HUB_WUI_KEY")
+if sys.argv[4] == "true": want.add("SPOOL_HUB_RELEASE_NOTE_BANS")
 # 006 T022 (payment.secret_env): the stripe pair only while PROVIDER is stripe, PayPal only while enabled
 if env.get("SPOOL_HUB_PAYMENT_PROVIDER") == "stripe": want |= {"SPOOL_HUB_STRIPE_SECRET_KEY", "SPOOL_HUB_STRIPE_WEBHOOK_SECRET"}
 if env.get("SPOOL_HUB_ENABLE_PAYPAL") == "true": want.add("SPOOL_HUB_PAYPAL_CLIENT_SECRET")

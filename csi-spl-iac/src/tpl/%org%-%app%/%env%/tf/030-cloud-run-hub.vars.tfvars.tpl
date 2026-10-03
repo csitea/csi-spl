@@ -51,6 +51,13 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (wui_key.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(wui_sec) %}
 {%- endif %}
+{#- spec 065 L4: the release-note bans slot always exists; injected only
+    while hub.release_note_bans.inject is "true" (a version exists) #}
+{%- set rnb = hub["release_note_bans"] if hub["release_note_bans"] is defined else {} %}
+{%- set rnb_sec = rnb["secret_env"] if rnb["secret_env"] is defined else {} %}
+{%- if (rnb.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_sec.update(rnb_sec) %}
+{%- endif %}
 {#- 006 T022: the stripe pair only while the provider is stripe, the PayPal
     secret only while SPOOL_HUB_ENABLE_PAYPAL is "true"; every slot exists #}
 {%- set pay_sec = payment["secret_env"] if (payment is defined and payment["secret_env"] is defined) else {} %}
@@ -62,7 +69,7 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (hub["env"].get("SPOOL_HUB_ENABLE_PAYPAL", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update({"SPOOL_HUB_PAYPAL_CLIENT_SECRET": pay_sec["SPOOL_HUB_PAYPAL_CLIENT_SECRET"]}) %}
 {%- endif %}
-{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) %}
+{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
 {%- for p in listed %}

@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Makes the internal coordination lock visible to every workspace so messages are not handled twice; nothing changes for users.

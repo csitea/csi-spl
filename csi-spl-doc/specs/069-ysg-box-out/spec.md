@@ -172,6 +172,133 @@ reads). It moves with C1/C2.
 
 **33 inventory rows** (S1..S15, C1..C4, L1..L7, H1..H6, the state dir).
 
+### 2.8.1 Reproduced by `do_check_ysg_box_deps` (Y9) on `<pc box>`
+
+`cd csi-spl-orc && ./run -a do_check_ysg_box_deps`, run as `<box-user>`
+2026-10-03 ~14:50Z on lane Y9's tree (`a7f4cfff5` + the action), n=1 run,
+default pattern `ysg-box(-[a-z]+)?/|/opt/<box-user>/` (a PATH into the engine;
+a file merely NAMED `ysg-box-*`, e.g. a brief, is no row). Exit **1**,
+**96 rows**:
+
+| kind | `<box-user>` | `<agent-user>` | root | matches section |
+|---|---|---|---|---|
+| cron | 4 | 0 | 0 | 2.2: C1..C4, reproduces 4 |
+| link | 18 (all live) | 14 (12 BROKEN) | - | 2.3: reproduces 18 + 14, 12 broken |
+| home | 54 lines in 15 files | 6 lines in 4 files | - | 2.4: H1, H2, H4, H5 on `<agent-user>`; H1..H3 on `<box-user>` |
+| tmux / systemd / proc | 0 / 0 / 0 | 0 / 0 / 0 | 0 | 2.5, 2.6: reproduces 0 |
+
+**New against 2.4:** `~<box-user>/.claude/` carries 12 command/skill files that
+call into the engine (`agy-spawn`, `claude-spawn`, `grok-spawn`, `riname`,
+`signed-prompt`, `spawn-an-agent`, `tmux-close-window` commands; `exit-clean`,
+`kill-your-self`, `login-to-claude`, `tmux-color`, `whatsapp-send-msg` skills):
+51 of the 54 `<box-user>` home lines. 2.4 grepped only `~<agent-user>/.claude`.
+These are the box user's own Claude config (the human's sessions), not the
+agent seats; Y4's scope decides whether they move (Q4 kept personal fragments out).
+
+Output, users/homes/engine replaced by this spec's placeholders (`YB:` =
+`<engine>/ysg-box-orc/src/bash/features/`), details cut at 160 chars by the action:
+
+```text
+cron	<box-user>	crontab:44	* * * * * /bin/bash 'YB:claude-sessions/scripts/claude-save-sessions.sh' >> '/var/<box-user>/ysg-box/claude-sessions/save.l
+cron	<box-user>	crontab:45	@reboot /bin/bash 'YB:claude-sessions/scripts/claude-sessions-boot.sh' >> '/var/<box-user>/ysg-box/claude-sessions/boot.log
+cron	<box-user>	crontab:49	*/15 8-19 * * * YB:graft/scripts/graft-cron.sh # graft:index-refresh
+cron	<box-user>	crontab:50	0 20 * * * YB:graft/scripts/graft-cron.sh # graft:index-refresh-final
+home	<agent-user>	~<agent-user>/.bashrc:106	[ -r "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash" ] && . "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash"
+home	<agent-user>	~<agent-user>/.claude/commands/signed-prompt.md:48	bash YB:directive/scripts/directive-session.sh --status
+home	<agent-user>	~<agent-user>/.claude/commands/signed-prompt.md:56	bash YB:directive/scripts/directive-session.sh --minutes 60
+home	<agent-user>	~<agent-user>/.claude/commands/signed-prompt.md:70	bash YB:directive/scripts/directive-sign.sh --reply-to <pc box> <target> "<the owner's literal text>"
+home	<agent-user>	~<agent-user>/.claude/skills/tmux-color/SKILL.md:31	bash YB:tmux-windows/scripts/tmux-window-color.sh --agent <YOUR-AGENT-ID> "$ARGUMENTS"
+home	<agent-user>	~<agent-user>/.local/bin/graft:4	exec bash 'YB:graft/scripts/graft-safe.sh' "$@"
+home	<box-user>	~<box-user>/.bashrc:138	[ -r "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash" ] && . "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash"
+home	<box-user>	~<box-user>/.bashrc:237	bash "YB:dotfiles/scripts/wifi-up.sh" "${1:-YG-21}"
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:116	(`sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh --from AGY-01 CLE-04 "…"`) — allowed by the
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:136	| `YB:spawn-agents/scripts/next-agent-id.sh` | Allocate the next agent id from registry.tsv and CLAIM its inbox dir 
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:137	| `YB:spawn-agents/scripts/spawn-agy.sh` | Window command: worktree (if git), inbox dirs, restore stub, launch as ai
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:138	| `YB:spawn-agents/scripts/inbox-send.sh` | The file based inbox protocol sender (file + poke) |
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:139	| `YB:spawn-agents/scripts/riname.sh` | Rename window to `AGY-0n <title>` |
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:149	YB:spawn-agents/scripts/next-agent-id.sh --kind agy)
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:168	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:194	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:218	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:96	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:131	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:171	sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh \
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:190	YB:spawn-agents/scripts/next-agent-id.sh --kind claude)
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:209	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:216	scripts in the engine's spawn-agents feature (`YB:spawn-agents/scripts/`):
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:250	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:313	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:400	YB:mcp-bot/scripts/mcp-start.sh`, an entry in `<agent-user>`'s `~/.claude.json`) drives a
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:405	`ysg-box-orc/src/bash/features/mcp-bot/scripts/mcp-start.sh`) therefore gives **each agent its
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:433	MCP_BOT_AGENT_ID=CLE-07 sudo -u <box-user> -H --preserve-env=MCP_BOT_AGENT_ID YB:mcp-bot/scripts/mcp-start.sh
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:113	(`sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh --from GRK-01 CLE-04 "…"`) — allowed by the
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:121	| `YB:spawn-agents/scripts/next-agent-id.sh` | Allocate the next agent id from registry.tsv and CLAIM its inbox dir 
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:122	| `YB:spawn-agents/scripts/spawn-grok.sh` | Window command: worktree (if git), inbox dirs, restore stub, launch as a
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:123	| `YB:spawn-agents/scripts/inbox-send.sh` | The file based inbox protocol sender (file + poke) |
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:124	| `YB:spawn-agents/scripts/riname.sh` | Rename window to `GRK-0n <title>` |
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:134	YB:spawn-agents/scripts/next-agent-id.sh --kind grok)
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:153	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:179	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:202	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:93	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/riname.md:18	bash YB:spawn-agents/scripts/riname.sh --agent <YOUR-AGENT-ID> "$ARGUMENTS"
+home	<box-user>	~<box-user>/.claude/commands/signed-prompt.md:48	bash YB:directive/scripts/directive-session.sh --status
+home	<box-user>	~<box-user>/.claude/commands/signed-prompt.md:56	bash YB:directive/scripts/directive-session.sh --minutes 60
+home	<box-user>	~<box-user>/.claude/commands/signed-prompt.md:70	bash YB:directive/scripts/directive-sign.sh --reply-to <pc box> <target> "<the owner's literal text>"
+home	<box-user>	~<box-user>/.claude/commands/spawn-an-agent.md:82	sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh CLE-03 "the message"
+home	<box-user>	~<box-user>/.claude/commands/tmux-close-window.md:18	bash YB:spawn-agents/scripts/tmux-close-window.sh $ARGUMENTS
+home	<box-user>	~<box-user>/.claude/skills/exit-clean/SKILL.md:199	bash YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>
+home	<box-user>	~<box-user>/.claude/skills/exit-clean/SKILL.md:40	bash YB:spawn-agents/scripts/kill-your-self-report.sh 2>/dev/null || true
+home	<box-user>	~<box-user>/.claude/skills/exit-clean/SKILL.md:43	bash YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:164	bash YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:31	`YB:spawn-agents/scripts/kill-your-self-report.sh`  
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:35	`YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>`
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:71	bash YB:spawn-agents/scripts/kill-your-self-report.sh 2>/dev/null || true
+home	<box-user>	~<box-user>/.claude/skills/login-to-claude/SKILL.md:35	sudo -u <box-user> bash YB:claude-login/scripts/claude-login-cli.sh --status
+home	<box-user>	~<box-user>/.claude/skills/login-to-claude/SKILL.md:42	sudo -u <box-user> bash YB:claude-login/scripts/claude-login-cli.sh
+home	<box-user>	~<box-user>/.claude/skills/tmux-color/SKILL.md:31	bash YB:tmux-windows/scripts/tmux-window-color.sh --agent <YOUR-AGENT-ID> "$ARGUMENTS"
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:27	sudo -u <box-user> bash YB:wa-bot/scripts/wa_start.sh
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:44	- Attach-and-send script: `YB:wa-bot/scripts/wa_send.py`
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:45	- One-time launcher: `YB:wa-bot/scripts/wa_start.sh`
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:60	sudo -u <box-user> bash -c "\$HOME/.local/wa-bot/venv/bin/python YB:wa-bot/scripts/wa_send.py --to '+<country><number>' --m
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:64	sudo -u <box-user> bash -c "\$HOME/.local/wa-bot/venv/bin/python YB:wa-bot/scripts/wa_send.py --to 'FirstName LastName' --m
+home	<box-user>	~<box-user>/.local/bin/graft:4	exec bash 'YB:graft/scripts/graft-safe.sh' "$@"
+link	<agent-user>	~<agent-user>/.claude/skills/graft	-> YB:graft/assets/skills/graft (live)
+link	<agent-user>	~<agent-user>/.gemini/config/rules/graft.md	-> YB:graft/assets/agy-rules/graft.md (live)
+link	<agent-user>	~<agent-user>/.tmux/agent-status.conf	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/spawn-agents/assets/tmux-agent-status.conf (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/agent-name.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/spawn-agents/scripts/agent-name.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/agent-state.inc.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/spawn-agents/scripts/agent-state.inc.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/agent-top.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/spawn-agents/scripts/agent-top.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/riname.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/spawn-agents/scripts/riname.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/tmux-sort-pause.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/scripts/tmux-sort-pause.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/tmux-sort-windows.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/scripts/tmux-sort-windows.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/tmux-window-color.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/scripts/tmux-window-color.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/scripts/tmux-window-event.sh	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/scripts/tmux-window-event.sh (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/tmux-window-events.conf	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/assets/tmux-window-events.conf (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/tmux-windows.conf	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/assets/tmux-windows.conf (BROKEN)
+link	<agent-user>	~<agent-user>/.tmux/window-sort.conf	-> /tmp/tmp.2y0uw9Btmd/r10/engine/ysg-box-orc/src/bash/features/tmux-windows/assets/tmux-windows.conf (BROKEN)
+link	<box-user>	~<box-user>/.claude/skills/graft	-> YB:graft/assets/skills/graft (live)
+link	<box-user>	~<box-user>/.gemini/config/rules/graft.md	-> YB:graft/assets/agy-rules/graft.md (live)
+link	<box-user>	~<box-user>/.local/mcp-bot/mcp-start-chrome.sh	-> YB:mcp-bot/scripts/mcp-start-chrome.sh (live)
+link	<box-user>	~<box-user>/.local/mcp-bot/mcp-start.sh	-> YB:mcp-bot/scripts/mcp-start.sh (live)
+link	<box-user>	~<box-user>/.local/wa-bot/wa_send.py	-> YB:wa-bot/scripts/wa_send.py (live)
+link	<box-user>	~<box-user>/.local/wa-bot/wa_start.sh	-> YB:wa-bot/scripts/wa_start.sh (live)
+link	<box-user>	~<box-user>/.tmux/agent-status.conf	-> YB:spawn-agents/assets/tmux-agent-status.conf (live)
+link	<box-user>	~<box-user>/.tmux/scripts/agent-name.sh	-> YB:spawn-agents/scripts/agent-name.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/agent-state.inc.sh	-> YB:spawn-agents/scripts/agent-state.inc.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/agent-top.sh	-> YB:spawn-agents/scripts/agent-top.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/riname.sh	-> YB:spawn-agents/scripts/riname.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/tmux-sort-pause.sh	-> YB:tmux-windows/scripts/tmux-sort-pause.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/tmux-sort-windows.sh	-> YB:tmux-windows/scripts/tmux-sort-windows.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/tmux-window-color.sh	-> YB:tmux-windows/scripts/tmux-window-color.sh (live)
+link	<box-user>	~<box-user>/.tmux/scripts/tmux-window-event.sh	-> YB:tmux-windows/scripts/tmux-window-event.sh (live)
+link	<box-user>	~<box-user>/.tmux/tmux-window-events.conf	-> YB:tmux-windows/assets/tmux-window-events.conf (live)
+link	<box-user>	~<box-user>/.tmux/tmux-windows.conf	-> YB:tmux-windows/assets/tmux-windows.conf (live)
+link	<box-user>	~<box-user>/.tmux/window-sort.conf	-> YB:tmux-windows/assets/tmux-windows.conf (live)
+INFO users: <box-user> <agent-user> root; pattern: ysg-box(-[a-z]+)?/|/opt/<box-user>/
+FAIL 96 dependency row(s) on the ysg-box engine (one per row above)
+```
+
 ### 2.9 sat - not measured yet
 
 The read-only probe (sections 2.2..2.6 as one script) went to c-001@sat at

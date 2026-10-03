@@ -444,6 +444,8 @@ fi
 
 . "$_here/steps/y10-run-completion.sh" && spl_install_run_completion "$ORC" "$HOME/.bashrc" "$DRY" || die 7 "run completion: cannot update $HOME/.bashrc"
 
+source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 6 "cannot render the fleet CLAUDE.md / settings.json (spec 069 Y4)"
+
 # ── 6. the seat ───────────────────────────────────────────────────────────────
 if [ "$SEAT" = 1 ]; then
   if [ "$DRY" = 1 ]; then plan "key + pin $BOX in $TENANT at $SPOOL_HUB_URL ($ENVN; ./run -a do_spl_desk_pin${ROOT_KEY_JSON:+, with ROOT_KEY_JSON})"

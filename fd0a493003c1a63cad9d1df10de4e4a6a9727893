@@ -1,0 +1,2 @@
+Lay-What: The plan for the new helper agents now says every script they run must be kept with the project's own code.
+Lay-Why: The owner asked that nothing the helpers run lives in a scratch folder where it can be lost or changed unseen.

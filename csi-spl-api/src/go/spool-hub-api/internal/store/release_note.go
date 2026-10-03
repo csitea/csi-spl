@@ -1,12 +1,12 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -160,16 +160,10 @@ func ClampReleaseVersions(n int) int {
 
 // sortReleaseNotes is the list order both drivers share.
 func sortReleaseNotes(ns []ReleaseNote) {
-	sort.SliceStable(ns, func(i, j int) bool {
-		a, _ := releaseVersionKey(ns[i].Version)
-		b, _ := releaseVersionKey(ns[j].Version)
-		if a != b {
-			return slices.Compare(a[:], b[:]) > 0
-		}
-		if !ns[i].CommittedAt.Equal(ns[j].CommittedAt) {
-			return ns[i].CommittedAt.After(ns[j].CommittedAt)
-		}
-		return ns[i].SHA < ns[j].SHA
+	slices.SortStableFunc(ns, func(x, y ReleaseNote) int {
+		a, _ := releaseVersionKey(x.Version)
+		b, _ := releaseVersionKey(y.Version)
+		return cmp.Or(slices.Compare(b[:], a[:]), y.CommittedAt.Compare(x.CommittedAt), cmp.Compare(x.SHA, y.SHA))
 	})
 }
 

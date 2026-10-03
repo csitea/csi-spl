@@ -1,9 +1,10 @@
 package store
 
 import (
+	"cmp"
 	"context"
 	"errors"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -43,14 +44,8 @@ func CheckAgentAlias(a AgentAlias) error {
 }
 
 func sortAliases(as []AgentAlias) {
-	sort.SliceStable(as, func(i, j int) bool {
-		if !as[i].MappedAt.Equal(as[j].MappedAt) {
-			return as[i].MappedAt.Before(as[j].MappedAt)
-		}
-		if as[i].OldID != as[j].OldID {
-			return as[i].OldID < as[j].OldID
-		}
-		return as[i].BoxID < as[j].BoxID
+	slices.SortStableFunc(as, func(a, b AgentAlias) int {
+		return cmp.Or(a.MappedAt.Compare(b.MappedAt), cmp.Compare(a.OldID, b.OldID), cmp.Compare(a.BoxID, b.BoxID))
 	})
 }
 

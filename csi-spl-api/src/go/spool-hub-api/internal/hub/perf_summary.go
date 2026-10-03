@@ -1,9 +1,10 @@
 package hub
 
 import (
+	"cmp"
 	"net/http"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -122,12 +123,16 @@ func perfSummaryQuery(w http.ResponseWriter, r *http.Request) (int, string, stri
 // last) and drops p95 under n = 50. The store's own order (metric, device,
 // view) stays as the tie-break.
 func rankPerfSummary(in []store.PerfSummaryRow) []perfSummaryRow {
-	sort.SliceStable(in, func(i, j int) bool {
-		pi, pj := in[i].P75, in[j].P75
-		if pi == nil || pj == nil {
-			return pi != nil && pj == nil
+	slices.SortStableFunc(in, func(a, b store.PerfSummaryRow) int {
+		switch {
+		case a.P75 == nil && b.P75 == nil:
+			return 0
+		case a.P75 == nil:
+			return 1
+		case b.P75 == nil:
+			return -1
 		}
-		return *pi > *pj
+		return cmp.Compare(*b.P75, *a.P75)
 	})
 	out := make([]perfSummaryRow, 0, len(in))
 	for _, r := range in {

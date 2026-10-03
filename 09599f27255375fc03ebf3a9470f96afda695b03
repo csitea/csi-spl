@@ -1,0 +1,6 @@
+Lay-What: Stops the every-minute helper-start job from updating its own code, which clashed with another job.
+Lay-How: The job now relies on the existing regular update instead of fetching updates itself every minute.
+Lay-Why: Two jobs updating the same copy at once could block each other.
+Tech-What: The spawn-remote cron line no longer runs a fetch + checkout every minute.
+Tech-How: spl-spawn-remote-install-cron.func.sh drops the self-update from the installed line.
+Tech-Why: The desk reconcile already moves the desk-cron checkout to trunk every 3 min; a per-minute checkout would race its index.lock.

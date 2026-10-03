@@ -57,7 +57,7 @@ _dns_tf_runner_name() {
 
 _dns_wait_tf_runner() {
   local tf_con="$1"
-  for _ in $(seq 1 30); do
+  for _ in {1..30}; do
     if docker exec "$tf_con" true >/dev/null 2>&1; then
       return 0
     fi

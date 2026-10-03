@@ -48,5 +48,43 @@ fi
   && grep -q 'host_port: 3000' "$APP_ROOT/csi-spl-cnf/csi-spl/lde.env.yaml" \
   && pass "lde WUI port is 3000" || fail "lde WUI port"
 
+# do_wui_up readiness loop: LDE_WUI_READY_TIMEOUT tries, one curl each. A
+# non-integer means 0 tries then FATAL (as `seq 1 abc` did), never a set -u
+# abort. Everything outside the loop is stubbed; curl never answers 200.
+wui_ready_tries() {
+  local work rc
+  work=$(mktemp -d)
+  mkdir -p "$work/wui/node_modules/nuxt/bin" && : >"$work/wui/node_modules/nuxt/bin/nuxt.mjs"
+  : >"$work/curls"
+  (
+    set -u
+    do_require_bin() { :; }
+    do_gen_docker_env() { :; }
+    do_log() { echo "$*" >>"$work/log"; }
+    docker() { :; }
+    ss() { :; }
+    lde_compose() { :; }
+    sleep() { :; }
+    curl() { echo x >>"$work/curls"; printf '000'; }
+    export LDE_WUI_SRC="$work/wui" LDE_HUB_IMAGE=img LDE_WUI_UID=1000 LDE_COMPOSE_PROJECT=p \
+      LDE_WUI_PORT=3999 LDE_WUI_IMAGE=img LDE_SMOKE_TENANT=t LDE_HUB_PORT=1 \
+      LDE_WUI_READY_TIMEOUT="$1"
+    # shellcheck disable=SC1091
+    source "$PROJ_ROOT/src/bash/run/wui-up.func.sh"
+    do_wui_up
+  ) 2>/dev/null
+  rc=$?
+  echo "$rc $(wc -l <"$work/curls") $(grep -c '^FATAL GET ' "$work/log" 2>/dev/null)"
+  rm -rf "$work"
+}
+read -r rc curls fatal < <(wui_ready_tries abc)
+[[ "$rc" != 0 && "$curls" == 0 && "$fatal" == 1 ]] \
+  && pass "wui-up: LDE_WUI_READY_TIMEOUT=abc -> 0 tries, FATAL GET" \
+  || fail "wui-up: timeout abc: want rc!=0 / 0 curls / 1 FATAL, got $rc / $curls / $fatal"
+read -r rc curls fatal < <(wui_ready_tries 3)
+[[ "$rc" != 0 && "$curls" == 3 && "$fatal" == 1 ]] \
+  && pass "wui-up: LDE_WUI_READY_TIMEOUT=3 -> exactly 3 tries, FATAL GET" \
+  || fail "wui-up: timeout 3: want rc!=0 / 3 curls / 1 FATAL, got $rc / $curls / $fatal"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

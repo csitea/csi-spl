@@ -89,7 +89,7 @@ spl_db_backup_restore_counts() {
   # `if` and not `probe && break`: a bare failing probe as the last command of
   # a loop body is one errexit away from killing the run.
   local ready=0
-  for i in $(seq 120); do
+  for i in {1..120}; do
     if docker exec "$con" psql -U postgres -h 127.0.0.1 -d restorecheck -XAtc 'SELECT 1' >/dev/null 2>&1; then
       ready=1; break
     fi

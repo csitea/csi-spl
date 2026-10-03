@@ -54,7 +54,11 @@ do_wui_up() {
   done
 
   local url="http://localhost:$LDE_WUI_PORT/" code=""
-  for _ in $(seq 1 "${LDE_WUI_READY_TIMEOUT:-300}"); do
+  # `seq 1 <non-integer>` ran 0 tries; a bare name in (( )) would instead abort
+  # ./run under set -u, so a non-integer still means 0 tries (base 10, as seq)
+  local tries="${LDE_WUI_READY_TIMEOUT:-300}" i
+  [[ "$tries" =~ ^[0-9]+$ ]] || tries=0
+  for ((i = 1; i <= 10#$tries; i++)); do
     code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$url")
     [[ "$code" == 200 ]] && break
     sleep 1

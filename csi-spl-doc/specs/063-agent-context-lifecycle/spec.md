@@ -1,8 +1,11 @@
 # 063: agent context lifecycle (compact, restart, hand over)
 
-Status: **DRAFT, for the owner's decision** (2026-10-03, c-079). Nothing
-here is built. Every rule below is a recommendation with its measured
-reason and the alternative; the owner picks (section 8).
+Status: **Q1..Q4 APPROVED by the owner** (2026-10-03, t1 `64576223`,
+section 8), with one change: no threshold is hard-coded; every number lives
+in a per-workspace DB config table the admin edits (section 11), and every
+restart, compact and hand-over is logged so the numbers can be tuned
+empirically (section 12). Nothing is built yet; the implementation split is
+section 13. Draft 2026-10-03, c-079.
 Related: [060 hourly role rotation](../060-role-rotation/spec.md) (the
 handoff file, section 6), [SPEC-spool-fleet-roles.md section 1.1](../../doc/md/SPEC-spool-fleet-roles.md)
 (one agent, one small task). Token minimisation per turn is measured
@@ -239,9 +242,17 @@ The lane keeps its id, worktree and branch; only the process is new.
 - `/compact` fails too or the pane is wedged -> the orchestrator closes
   the lane and respawns it from the hold dir (section 1.1's hold rule).
 
-## 8. Decisions for the owner
+## 8. Decisions
 
-| # | question | recommended |
+The owner, t1 `64576223` (relayed by the dispatcher, posted as `7e6feb05`),
+verbatim: *"Q1:yes, q2: yes:q3:yes,q4:ye, BUT have those in a db config
+table in the tenant config section for the admin to be able to config and
+experiment emoirically. Also some logging for the empirics on that would be
+needed"*. So Q1..Q4 are approved as recommended, and every number in them
+is a default of the section 11 table, not a constant. Q5 (the build order)
+is section 13.
+
+| # | question | recommended (Q1..Q4: approved) |
 |---|---|---|
 | Q1 | lanes: restart at 400k (R-L1), `/compact` at 400k, or nothing? | restart at 400k |
 | Q2 | role seats: hourly clock + 300k size trigger (R-R1), size only, or clock only? | clock + 300k |
@@ -254,7 +265,9 @@ The lane keeps its id, worktree and branch; only the process is new.
 - How to spend fewer tokens per turn (c-077's measurement).
 - Changing the 060 rotation steps; this spec only adds a trigger, a reason
   field and two handoff sections.
-- Any harness script: nothing is built until Q1..Q5 are answered.
+- The wall-clock limit per lane (c-077's practice 11, `agent-token-focus-plan.md`
+  section 2.4) is decided in c-077's plan; this spec only carries its
+  number as a config key (section 11) so it is tuned in the same place.
 
 ## 10. How to re-measure
 
@@ -263,5 +276,97 @@ per session, the peak and last context from assistant `usage`, the
 `compact_boundary` records and their `compactMetadata`, the agent name and
 the typed user lines; per rotated session (seed names a
 `dispatch/handoff/` path), the categories of its first 20 tool calls.
-Re-running them is a named action to build with Q5 step 1 (e.g.
-`do_spl_context_report`), so the numbers carry their own check.
+Re-running them is a named action to build in section 13 (brief 03,
+`do_spl_context_report`), so the numbers carry their own check; once the
+section 12 log exists, the same report reads it instead of the jsonl.
+
+## 11. The config table (owner change to Q1..Q4)
+
+One row per workspace (the user-facing word is **workspace**; tenant is the
+internal name), in the hub DB, editable by an admin in Workspace settings.
+A NULL column means "the default", and the default lives in ONE place, the
+hub (`store` constants), so a new key needs no backfill and "reset to
+default" is writing NULL, as `tenants.topic_archive_policy` does (rdb 0093).
+
+Table `agent_lifecycle_config`, primary key `tenant_id`, RLS in the 0021
+fail-closed NULLIF shape (the `fleet_lanes` 0096 policy pair), plus
+`updated_by` (the human id) and `updated_at`:
+
+| column | default | allowed | rule it drives |
+|---|---|---|---|
+| `lane_restart_ctx_k` | 400 | 100..950 | R-L1: a lane restarts when its context passes N thousand tokens |
+| `lane_restarts_before_split` | 2 | 1..5 | R-L2: after N restarts of one task the orchestrator splits it |
+| `seat_restart_ctx_k` | 300 | 100..950 | R-R1: a role seat rotates early above N k |
+| `seat_max_age_min` | 60 | 15..240 | R-R1: the clock; a seat older than this rotates |
+| `seat_compact_after_fails` | 2 | 0..5 | R-R2: compact after N failed rotations in a row (0 = never compact) |
+| `seat_compact_min_ctx_k` | 400 | 100..950 | R-R2: ...and only when the seat is above N k |
+| `size_check_every_min` | 10 | 5..60 | how often the size check runs (the cron line fires every 5 min; the check skips runs until N is due) |
+| `notes_tail_lines` | 40 | 0..200 | R-D1: lines of `NOTES.md` copied into handoff section 1b (0 = section off) |
+| `lane_checkpoint_min` | 0 (off) | 0, 10..240 | c-077 practice 11: at N min of wall time a lane lands what is green and posts one status line; off until c-077's plan is decided |
+
+- Validation: the CHECK on each column = the "allowed" range, and the hub
+  refuses a PATCH outside it with 400 and the key name. One Go table of
+  `{key, default, min, max}` is the source for the hub; its test pins the
+  rdb CHECKs to it (the way `ArchivePolicy*` pins rdb 0093).
+- Who edits: the `tenant.settings` permission, the one the Agents section
+  already gates on.
+- Every change is an event in the section 12 log (`config_change`, old and
+  new value), so an experiment has a start time.
+- Who reads it: the box harness, through the authenticated box hello (the
+  `spool lane` path, `writer_box` audit), never through a human session.
+  It caches the answer for 10 min in its state dir and, when the hub is
+  unreachable, uses the cached copy, then the built-in defaults. A rotation
+  is never blocked by a config read.
+
+## 12. The log for the empirics
+
+Table `agent_lifecycle_events` (RLS as above, append-only, pruned after
+90 days by the hub's existing sweep), one row per event:
+
+| column | meaning |
+|---|---|
+| `at`, `tenant_id`, `fleet`, `agent_id`, `agent_box`, `writer_box` | who and when (`writer_box` from the hello, as in 0096) |
+| `role` | `lane`, `orch`, `master`, `failover` |
+| `event` | `restart`, `rotate`, `rotate_fail`, `compact`, `handoff`, `settled`, `session_end`, `checkpoint`, `split`, `config_change` |
+| `reason` | `size`, `clock`, `fail-compact`, `done`, `checkpoint`, `manual` |
+| `rid` | the rotation or restart id; links `rotate` -> `handoff` -> `settled` |
+| `ctx_before_k`, `ctx_after_k` | context before (last turn of the old session, or compact `preTokens`) and after (first turn of the new one, or `postTokens`) |
+| `age_s`, `turns`, `tokens_read_m` | the old session's age, its turns, and the tokens it re-read (millions) |
+| `handoff_lines`, `handoff_bytes`, `notes_lines` | the size of the distil |
+| `refetch` | the new session's re-fetches in its first 20 tool calls (the 3.3 categories), e.g. `{"lane_map":1,"old_transcript":0}` |
+| `config` | the section 11 values in force at that moment (small json) |
+| `outcome`, `detail` | `ok` / `fail`, and at most 200 chars (a step name, never a message body) |
+
+Where each row comes from: the rotate and restart actions write `rotate`,
+`rotate_fail`, `handoff`, `restart`, `compact`; the size check writes
+`settled` (it sees the new session's first turn) and `session_end` (a
+transcript whose process has gone: peak context, turns, tokens read,
+compactions from `compact_boundary`); the hub writes `config_change`. A
+failed write goes to a local `<state>/lifecycle-events.jsonl` and is resent
+on the next run, so a hub outage loses nothing and never blocks a step.
+
+How the admin reads it: Workspace settings -> Agents -> **Context
+lifecycle**: the editable numbers of section 11 (each with "reset to
+default"), then, per role, for the last 24 h / 7 days: count per event,
+median and p90 `ctx_before_k` and `ctx_after_k`, failed rotations, mean
+re-fetches, and the 50 newest events. The question it answers: "after I
+changed a number, did peak context, failed rotations and re-fetches move?"
+On the box, `do_spl_context_report` prints the same aggregates.
+
+## 13. Implementation split
+
+Five small briefs, under `/var/tmp/claude/briefs/ctx-063/`, each with its
+own files; c-001 runs them. 01, 04 and 05 can start at once; 02 needs 01's
+API shape (it can build on a mock first); 03 can land first on built-in
+defaults and switch to the hub read when 01 is live.
+
+| brief | builds | files (only) |
+|---|---|---|
+| `01-hub-config-and-log.md` | rdb: the two tables; store: get/patch config, append/list/aggregate events (memory + Postgres); hub: `GET/PATCH /v1/tenant/agent-lifecycle`, `GET /v1/tenant/agent-lifecycle/events`, the box read and write; `spool lifecycle` CLI | `csi-spl-rdb/.../spool-hub/<next>_agent_lifecycle.sql`, new `internal/store/agent_lifecycle*.go`, new `internal/hub/agent_lifecycle*.go`, one route-registration line, new `cmd/spool/lifecycle.go` + its case in `main.go` |
+| `02-wui-context-lifecycle.md` | Workspace settings -> Agents -> Context lifecycle: the form and the event aggregates | new `ContextLifecycle*.vue`, new `utils/agent-lifecycle.mjs` (+ mock), one mount in `pages/tenant-settings/agents.vue`, catalogue keys |
+| `03-harness-config-and-events.md` | `do_spl_lifecycle_config` (read, cache, fallback), `do_spl_lifecycle_event` (write, local spool, resend), `do_spl_seat_size_check` + its `_install_cron`, `do_spl_context_report`; event calls in the 060 rotate steps | new orc `run/spl-lifecycle-*.func.sh`, `spl-seat-size-check*.func.sh`, `spl-context-report.func.sh` + tests; event-call lines in `spl-rotate-lib.func.sh` (not `spl_rotate_handoff`) |
+| `04-handoff-notes-and-windows.md` | R-D1: the `NOTES.md` convention in the seed, handoff sections 1b and 6b | `spl_rotate_handoff` in `spl-rotate-lib.func.sh`, the seed text in `spawn-core.inc.sh`, their tests |
+| `05-lane-restart.md` | R-L1 / R-L2: `do_spl_lane_restart` (distil to hold, respawn in the same window as the agent user, never `--resume`) | new `run/spl-lane-restart.func.sh` + test |
+
+03 and 04 both touch `spl-rotate-lib.func.sh`, in disjoint functions; 04
+goes after 03 is on trunk.

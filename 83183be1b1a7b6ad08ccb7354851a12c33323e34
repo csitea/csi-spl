@@ -1,0 +1,6 @@
+Lay-What: Adds one command to empty a machine safely before switching it off, and one to bring it back.
+Lay-How: The machine stops taking new helpers, hands its roles to another machine, asks running helpers to finish, then says whether it is safe to switch off.
+Lay-Why: Switching a machine off while helpers were working lost their work and left roles without an owner.
+Tech-What: New do_spl_box_leave / do_spl_box_join: refuse spawns, demote in LEASE_PRIORITY*, CAS-hand role leases, drain lanes, report SAFE TO SWITCH OFF.
+Tech-How: spawn-window.sh exits 6 under dispatch/box.leave; DRAIN_MIN (10) per lane; idempotent; DRY_RUN=1; spl-box-leave.tst.sh.
+Tech-Why: Spec 064 L9: there was no one-step drain, so turning off a machine stranded its lanes and leases.

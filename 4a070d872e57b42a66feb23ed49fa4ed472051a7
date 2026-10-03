@@ -1,0 +1,6 @@
+Lay-What: Each page of the app is slightly smaller.
+Lay-How: The pages no longer carry a long list of search-engine links, which a private app does not need.
+Lay-Why: The app is hidden from search engines, so those links were dead weight on every page.
+Tech-What: No hreflang alternates or canonical link in documents of the noindex app; lang and dir stay.
+Tech-How: app.vue and rootLocaleRedirect.mjs call useLocaleHead with seo: false.
+Tech-Why: P3-22: 39 hreflang alternates plus a canonical were written into every document of a noindex, nofollow app.

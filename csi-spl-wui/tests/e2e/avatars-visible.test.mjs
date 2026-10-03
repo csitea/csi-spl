@@ -24,6 +24,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { printPageLog, retryOnNetworkChanged, watchPage } from './lib/page-log.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RED = process.env.PROVE_RED || ''
@@ -34,6 +35,7 @@ const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
+  if (!pass) printPageLog(name)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -108,8 +110,14 @@ function avatars(page, scope) {
 }
 
 /* Open `path`, wait for `sel`, plant, measure. `nuxi dev` reloads the page
-   once while it warms up, which destroys the context mid-measure: open again. */
-async function measureAt(page, path, sel) {
+   once while it warms up, which destroys the context mid-measure: open again.
+   Runner network churn gets one more try; the page errors it caused go. */
+function measureAt(page, path, sel, errors) {
+  const before = errors.length
+  return retryOnNetworkChanged(path, () => measureOnce(page, path, sel), { onRetry: () => errors.splice(before) })
+}
+
+async function measureOnce(page, path, sel) {
   for (let i = 0; ; i++) {
     try {
       await page.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -142,7 +150,7 @@ try {
     for (const theme of THEMES) {
       const at = `${width}px ${theme}`
       const touch = width <= 820
-      const p = await browser.newPage()
+      const p = watchPage(await browser.newPage(), at)
       const errors = []
       p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
       await p.setViewport({ width, height: touch ? 844 : 900, isMobile: touch, hasTouch: touch })
@@ -151,17 +159,17 @@ try {
 
       // 1. the Topics list
       if (!touch) {
-        const rows = await measureAt(p, '/', '.topic-row')
+        const rows = await measureAt(p, '/', '.topic-row', errors)
         ok(`1 ${at}: every Topics row on screen paints its starter's avatar`,
           rows.length > 0 && rows.every(painted) && !rows.some((a) => /ALL-0/.test(a.alt || '')),
           { rows: rows.length, bad: rows.filter((a) => !painted(a) || /ALL-0/.test(a.alt || '')).slice(0, 3) })
       }
 
       // 2. #lobby cards: a person and an agent
-      const cards = await measureAt(p, '/lobby', 'article.msg')
+      const cards = await measureAt(p, '/lobby', 'article.msg', errors)
       const person = cards.find((a) => a.kind === 'person')
       /* the mock's agent posts: #alerts */
-      const agentCards = await measureAt(p, '/channel/alerts', 'article.msg')
+      const agentCards = await measureAt(p, '/channel/alerts', 'article.msg', errors)
       const agent = agentCards.find((a) => a.kind === 'agent')
       ok(`2 ${at}: a person's card paints their avatar`, Boolean(person) && painted(person), person)
       ok(`3 ${at}: an agent's card paints its avatar`, Boolean(agent) && painted(agent), agent || { cards: agentCards.length, alts: agentCards.map((a) => a.alt).slice(0, 8) })

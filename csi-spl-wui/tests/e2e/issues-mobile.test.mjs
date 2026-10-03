@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
+import { printPageLog, retryOnNetworkChanged, watchPage } from './lib/page-log.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.ISSUES_SHOTS || mkdtempSync(join(tmpdir(), 'spool-issues-mobile-'))
@@ -31,6 +32,7 @@ const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
+  if (!pass) printPageLog(name)
 }
 
 async function launch() {
@@ -71,11 +73,15 @@ async function maskTimes(p) {
   })
 }
 
-async function openIssues(p, vp) {
-  await setPageViewport(p, vp)
-  await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await applyViewport(p, vp)
-  await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
+/* runner network churn gets one more try; the page errors it caused go */
+async function openIssues(p, vp, errors) {
+  const before = errors.length
+  await retryOnNetworkChanged(`/issues at ${vp.width} px`, async () => {
+    await setPageViewport(p, vp)
+    await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await applyViewport(p, vp)
+    await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV_TIMEOUT })
+  }, { onRetry: () => errors.splice(before) })
   /* `nuxi dev` floats its devtools button over the bottom of a phone screen, where the sheets are */
   await p.evaluate(() => document.getElementById('nuxt-devtools-container')?.remove())
 }
@@ -102,7 +108,7 @@ async function smallTargets(p, root) {
 const server = await startServer()
 const browser = await launch()
 try {
-  const p = await browser.newPage()
+  const p = watchPage(await browser.newPage(), 'issues')
   const errors = []
   /* a phone viewport reloads the page (puppeteer, isMobile); under `nuxi dev`
      that cuts vite's in-flight dynamic imports. Only there is that noise. */
@@ -111,7 +117,7 @@ try {
 
   /* ---- 1440 px: the desktop page, unchanged ---- */
   const desk = { width: 1440, height: 900 }
-  await openIssues(p, desk)
+  await openIssues(p, desk, errors)
   await createDesktop(p, 'Rotate the relay key')
   await createDesktop(p, 'Mobile issues card list')
   /* SPL-1027: a desktop create leaves no issue open (the row stays in the sheet) */
@@ -148,7 +154,7 @@ try {
       const w = vp.width
       /* a phone viewport (isMobile, touch) reloads the page, and the mock
          tenant's issues live in the page: make two the phone way */
-      await openIssues(p, vp)
+      await openIssues(p, vp, errors)
       for (const title of ['Rotate the relay key', 'Mobile issues card list']) {
         await p.click('[data-test=issues-new]')
         await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })

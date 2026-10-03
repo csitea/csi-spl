@@ -26,6 +26,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
+import { printPageLog, retryOnNetworkChanged, watchPage } from './lib/page-log.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -34,6 +35,7 @@ const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
+  if (!pass) printPageLog(name)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -101,9 +103,9 @@ async function keysShown(p) {
  * resolves undefined and i18n-more shows keys, as without the reload), stops
  * the reload, and counts the events so the test can show the block bit.
  */
-async function blockedPage(browser) {
+async function blockedPage(browser, label) {
   const ctx = await browser.createBrowserContext()
-  const p = await ctx.newPage()
+  const p = watchPage(await ctx.newPage(), label)
   await p.evaluateOnNewDocument(() => {
     window.__i18nSplitPreloadErrors = 0
     window.addEventListener('vite:preloadError', (ev) => {
@@ -147,15 +149,14 @@ try {
     console.log(`-- second catalogue blocked (marker namespaces: ${markerNs.slice(0, 4).join(', ')}, ...)`)
     ok('the split leaves whole namespaces to the second catalogue', markerNs.length >= 2, markerNs)
     /*
-     * One locale's checks on its own blocked page. Docker veth churn on a
-     * shared runner makes Chrome abort in-flight loads (net::ERR_NETWORK_CHANGED):
-     * a page chunk then never arrives and the rail stays down. Such a run is
-     * retried ONCE, every check again, and says so; any other failure stands.
+     * One locale's checks on its own blocked page. A run whose page saw
+     * runner network churn is retried ONCE, every check again
+     * (retryOnNetworkChanged, lib/page-log.mjs); any other failure stands.
      */
     async function blockedLocale(code) {
       const checks = []
       const check = (name, pass, ev) => checks.push([name, pass, ev])
-      const { p, ctx, blocked, failed } = await blockedPage(browser)
+      const { p, ctx, blocked, failed } = await blockedPage(browser, `blocked ${code}`)
       try {
         for (const path of ['/', '/lobby']) {
           await p.goto(server.base + prefix(code) + (path === '/' ? '' : path), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -188,17 +189,13 @@ try {
       } finally {
         await ctx.close()
       }
-      const churn = failed.some((f) => f.endsWith('net::ERR_NETWORK_CHANGED'))
-      return { checks, churn }
+      return checks
     }
 
+    const failedChecks = (checks) => { const f = checks.filter(([, pass]) => !pass).map(([name]) => name); return f.length && f }
     for (const code of LOCALES) {
-      let run = await blockedLocale(code)
-      if (run.churn && run.checks.some(([, pass]) => !pass)) {
-        console.log(`  RETRY ${code}: the page saw net::ERR_NETWORK_CHANGED (runner network churn); first attempt failed ${JSON.stringify(run.checks.filter(([, pass]) => !pass).map(([name]) => name))}`)
-        run = await blockedLocale(code)
-      }
-      for (const [name, pass, ev] of run.checks) ok(name, pass, ev)
+      const checks = await retryOnNetworkChanged(code, () => blockedLocale(code), { failed: failedChecks })
+      for (const [name, pass, ev] of checks) ok(name, pass, ev)
     }
   } else {
     console.log('-- not a split build (i18n/.split absent): parts 1 and 2 do not apply')
@@ -208,7 +205,7 @@ try {
   const LATE = ['/help', '/issues', '/search?q=deploy', '/events', '/people', '/agents', '/boxes', '/archive', '/tenant-settings', '/users', '/checkout', '/lobby?settings=profile', '/lobby?settings=notifications']
   for (const code of LOCALES) {
     const ctx = await browser.createBrowserContext()
-    const p = await ctx.newPage()
+    const p = watchPage(await ctx.newPage(), `late ${code}`)
     await p.setViewport({ width: 1280, height: 800 })
     const bad = []
     for (const path of LATE) {

@@ -315,6 +315,7 @@ func (s *Server) Handler() http.Handler {
 	s.routeOperator(mux)       // CLE-77780: backend invite create/mail/revoke
 	s.routeTenantSettings(mux) // specs/046
 	s.routeIssues(mux)         // specs/039
+	s.routePerfIngest(mux)     // spec 066 L2: POST /v1/perf/samples, fire-and-forget
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
@@ -324,10 +325,7 @@ func (s *Server) Handler() http.Handler {
 	if s.o.Payments != nil {
 		s.o.Payments.Register(mux)
 	}
-	if s.o.ClientIPProbe {
-		mux.HandleFunc("GET "+edge.PathProbe, s.edge.Probe)
-		mux.HandleFunc("GET "+edge.PathProbeAuth, s.edge.Probe)
-	}
+	s.routeClientIPProbe(mux)
 	// The edge limits sit inside authCORS so a 429 on /api/v1/auth/* still
 	// carries the CORS headers the WUI needs to read it.
 	inner := etagViews(s.edge.Wrap(mux))
@@ -335,6 +333,14 @@ func (s *Server) Handler() http.Handler {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}
 	return s.middleware(compressJSON(inner))
+}
+
+// routeClientIPProbe mounts GET /v1/debug/client-ip when cnf asks for it.
+func (s *Server) routeClientIPProbe(mux *http.ServeMux) {
+	if s.o.ClientIPProbe {
+		mux.HandleFunc("GET "+edge.PathProbe, s.edge.Probe)
+		mux.HandleFunc("GET "+edge.PathProbeAuth, s.edge.Probe)
+	}
 }
 
 // Shutdown closes every live socket with 1001 (graceful drain); the caller

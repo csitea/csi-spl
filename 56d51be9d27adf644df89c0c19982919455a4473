@@ -1,0 +1,6 @@
+Lay-What: Undoes an earlier speed-up of the issues page because it stopped the topics list from appearing on computers.
+Lay-How: The app again measures the screen width as the page appears, as it did before.
+Lay-Why: With the speed-up, the topics list on a desktop screen never showed up.
+Tech-What: Reverts 81a5db82: WUI usePaneWidths re-reads the width at mount again.
+Tech-How: usePaneWidths.ts restores the onMounted innerWidth read; avatars-visible e2e green again (14/14).
+Tech-Why: On a prerendered page the server renders at its 1280 default, so without the mount read the hydrated pane state stayed stale.

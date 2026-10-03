@@ -1,6 +1,6 @@
 # 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **v0.3, owner answers folded in (1.3); Q1..Q6 open** (section 9).
+Status: **v0.3.1, owner answers folded in (1.3); Q2 answered, Q3 moot, Q1, Q4..Q6 open** (section 9).
 Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
 lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
 `469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
@@ -110,6 +110,12 @@ Relayed by c-002@<pc box>, spool msg `5d0dce90`, oldest first:
 | Q5 responsible in the UI | **yes** | L8 is in scope, 4.1 |
 | Q6 shadow run | **no: switch at once**; spawn all eight, then shut the old agents down slowly, passing them context | 8 |
 
+> `1ca9fa1d`, 12:37:17Z (spool msg `8b978533`), to v0.3 Q2 ("Does "two
+> should be Grok" lift today's grok suspension for the OD seats?"): "2. Yes"
+
+So the grok suspension is lifted **for the OD seats only**: `g-003` and
+`g-004` run grok on each box; lanes stay as the lane seeds say.
+
 The glossary entries (OD, orchestrator dispatcher, agent) are c-001's action
 (c-002's note); 2 below holds the wording this spec uses.
 
@@ -166,8 +172,8 @@ login at its limit froze every sat role at once) and F6 (one harness refusing
 a step). A harness is fit for a seat when it passes the seat drill (lane L7):
 `spool recv`, `spool claim`, `do_spl_post`, a spawn dry run. Grok is suspended
 today and lane seeds say never to spawn grok (c-001, msgs `8896800b`,
-`f2bf978c`): Q2 asks whether "two should be Grok" lifts that for the OD seats
-only, and Q3 what runs in a grok seat while it stays suspended.
+`f2bf978c`). The owner lifted that for the OD seats only (1.3, `1ca9fa1d`):
+the grok seats run grok; lanes are unchanged.
 
 ## 4. Decision 2: who does what without an orchestrator
 
@@ -391,10 +397,10 @@ c-002 / c-003 as distinct roles).
 Each answerable with one word.
 
 1. Order: build the lock and the 5 s loop first (L1..L3), then spawn the eight ODs and hand over (yes), or spawn the eight now with only today's lease holder acting until L3 is live (no)?
-2. Does "two should be Grok" lift today's grok suspension for the OD seats only (yes / no)?
-3. While grok stays suspended, run the two grok seats on claude (yes), or leave them empty (no)?
+2. ~~Does "two should be Grok" lift today's grok suspension for the OD seats only?~~ **Answered yes** (`1ca9fa1d`, 12:37:17Z).
+3. ~~While grok stays suspended, run the two grok seats on claude, or leave them empty?~~ **Moot**: Q2's yes means the grok seats run grok.
 4. "Pass them context" = the old c-001 / c-002 / c-003 each hand their open work to an OD through the 060 handoff file, then exit, one at a time (yes / no)?
 5. May a grok OD spawn and close lanes and run the pre-approved prd actions under the lock + mutex (yes), or only the claude ODs (no)?
 6. Offset the PC's hourly restarts by 7 minutes, so the two boxes never restart the same seat at once (yes), or the same minutes on both boxes (no)?
 
-<!-- version: 0.3.0 · updated: 2026-10-03 · last-edit: 2026-10-03T12:50:00Z -->
+<!-- version: 0.3.1 · updated: 2026-10-03 · last-edit: 2026-10-03T12:40:00Z -->

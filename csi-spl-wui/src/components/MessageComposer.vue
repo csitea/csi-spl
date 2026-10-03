@@ -1149,6 +1149,11 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 .composer-too-big span { min-width: 0; }
+/* Owner, t1 5b75590c: "some kind of strange vertical black line in the Omni
+   box on mobile" - the default caret, a solid text-colour bar. It takes the
+   focused field's ring colour instead, so it reads as the cursor (light and
+   dark: the token is per theme; tests/e2e/omnibox-caret-color.test.mjs). */
+textarea { caret-color: var(--focus-ring); }
 textarea.in-code {
   font-family: var(--font-mono);
   font-size: 0.8125rem;

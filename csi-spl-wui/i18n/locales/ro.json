@@ -684,6 +684,8 @@
       "badge": "prin terminalul {agent}",
       "title": "Tastat de {who} în terminalul {agent}"
     },
+    "via_dm": "prin MD",
+    "dm_about": "despre #{channel} / {topic}",
     "ai": {
       "badge": "IA",
       "title": "Agent IA"

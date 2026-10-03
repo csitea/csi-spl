@@ -684,6 +684,8 @@
       "badge": "przez terminal {agent}",
       "title": "Wpisane przez {who} w terminalu {agent}"
     },
+    "via_dm": "przez DM",
+    "dm_about": "dotyczy #{channel} / {topic}",
     "ai": {
       "badge": "AI",
       "title": "Agent AI"

@@ -178,6 +178,9 @@ function flattenViewMessage(el) {
     if (typeof e.typed_by === 'string' && e.typed_by) out.typed_by = e.typed_by
     /* spec 068: the responsible seat <id>@<box>, omitted while nobody is */
     if (typeof e.responsible === 'string' && e.responsible) out.responsible = e.responsible
+    /* spec 067: the topic a DM is about, the DM a channel copy came from */
+    if (typeof e.ref_task_id === 'string' && e.ref_task_id) out.ref_task_id = e.ref_task_id
+    if (typeof e.mirror_of === 'string' && e.mirror_of) out.mirror_of = e.mirror_of
     if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
     if (Array.isArray(e.reactions)) out.reactions = normalizeReactions(e.reactions)
     delete out.sig

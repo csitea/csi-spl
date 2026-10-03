@@ -684,6 +684,8 @@
       "badge": "per {agent} terminalą",
       "title": "{who} parašė tai {agent} terminale"
     },
+    "via_dm": "per AŽ",
+    "dm_about": "apie #{channel} / {topic}",
     "ai": {
       "badge": "DI",
       "title": "DI agentas"

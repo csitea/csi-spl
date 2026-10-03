@@ -54,6 +54,13 @@ export interface SpoolMessage {
    */
   responsible?: string
   /**
+   * spec 067 (rdb 0112): on a DM, the channel topic it is about (the WUI heads
+   * it "about #channel / topic"); on a channel reply, the DM msg_id it was
+   * copied from (the card shows "via DM"). Each omitted while NULL.
+   */
+  ref_task_id?: string
+  mirror_of?: string
+  /**
    * Emoji added to this message (rdb 0037). Present on an opening message
    * (is_parent 1) and on a reply (is_parent 0). Empty when nobody has added one.
    */

@@ -684,6 +684,8 @@
       "badge": "vía terminal de {agent}",
       "title": "Escrito por {who} en el terminal de {agent}"
     },
+    "via_dm": "vía MD",
+    "dm_about": "sobre #{channel} / {topic}",
     "ai": {
       "badge": "IA",
       "title": "Agente de IA"

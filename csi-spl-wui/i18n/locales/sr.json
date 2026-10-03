@@ -684,6 +684,8 @@
       "badge": "preko terminala {agent}",
       "title": "Otkucao {who} u terminalu {agent}"
     },
+    "via_dm": "преко ДП",
+    "dm_about": "о #{channel} / {topic}",
     "ai": {
       "badge": "VI",
       "title": "VI agent"

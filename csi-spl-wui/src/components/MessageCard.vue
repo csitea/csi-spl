@@ -90,6 +90,14 @@
           :data-via="author.via"
           :title="t('feed.typed_by.title', { who: whoOf(author), agent: author.via })"
         >{{ t('feed.typed_by.badge', { agent: author.via }) }}</span>
+        <!-- spec 067 rule 4: a channel copy of a person's DM answer -->
+        <span
+          v-if="msg.mirror_of"
+          class="msg-via-terminal msg-via-dm"
+          data-testid="msg-via-dm"
+          :data-mirror-of="msg.mirror_of"
+          :title="t('feed.via_dm')"
+        >{{ t('feed.via_dm') }}</span>
         <template v-if="recipient">
           <span class="msg-to-arrow" aria-hidden="true">→</span>
           <SpoolAvatar class="avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
@@ -232,6 +240,13 @@
         :data-moved-from="movedFrom"
         :title="movedText"
       >{{ movedText }}</p>
+      <!-- spec 067 rule 3: a DM about a channel topic says which, linked to it -->
+      <p
+        v-if="dmRef"
+        class="msg-moved msg-dm-ref"
+        data-testid="msg-dm-ref"
+        :data-ref-task-id="msg.ref_task_id"
+      ><NuxtLink :to="localePath(`/t/${msg.ref_task_id}`)" :title="dmRefTip" @click.stop>{{ dmRefText }}</NuxtLink></p>
       <!--
         the row BECOMES the box ("the msg becomes once again a
         textbox"), pre-filled with the old body. The rendered body is NOT
@@ -423,6 +438,7 @@ import {
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
+import { useDmRef } from '~/composables/useDmRef'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
@@ -1302,6 +1318,18 @@ const movedText = computed(() => {
   const name = home ? cardTitle(String(home.body || '')) : ''
   return name ? t('feed.move.from_topic', { title: name.length > 48 ? `${name.slice(0, 47)}…` : name }) : t('feed.move.from_topic_unknown')
 })
+/* spec 067 rule 3: "about #channel / topic" on a DM that carries ref_task_id */
+const { refOf } = useDmRef()
+const dmRefTopic = computed(() => (props.msg.ref_task_id && !props.msg.channel ? refOf(String(props.msg.ref_task_id)).value : null))
+const dmRef = computed(() => Boolean(dmRefTopic.value))
+function dmAbout(cut: boolean) {
+  const r = dmRefTopic.value
+  if (!r) return ''
+  const name = channelStore.channels.find((c) => c.channel_id === r.channel)?.name || r.channel
+  return t('feed.dm_about', { channel: name, topic: cut && r.title.length > 48 ? `${r.title.slice(0, 47)}…` : r.title })
+}
+const dmRefText = computed(() => dmAbout(true))
+const dmRefTip = computed(() => dmAbout(false))
 const removing = ref(false)
 const localePath = useLocalePath()
 const route = useRoute()
@@ -1678,6 +1706,8 @@ async function save() {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+/* spec 067: the DM-ref line is the moved line, its link in the same muted ink */
+.msg-dm-ref a { color: inherit; }
 /* spec 068 L8: the responsible seat gives way like the time (ellipsis, title) */
 .msg-responsible {
   flex: 0 1 auto;

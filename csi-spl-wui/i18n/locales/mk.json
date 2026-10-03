@@ -684,6 +684,8 @@
       "badge": "преку терминалот на {agent}",
       "title": "Напишано од {who} во терминалот на {agent}"
     },
+    "via_dm": "преку ДП",
+    "dm_about": "за #{channel} / {topic}",
     "ai": {
       "badge": "ВИ",
       "title": "ВИ агент"

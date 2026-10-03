@@ -684,6 +684,8 @@
       "badge": "via terminal {agent}",
       "title": "Typed by {who} in the terminal of {agent}"
     },
+    "via_dm": "via DM",
+    "dm_about": "about #{channel} / {topic}",
     "ai": {
       "badge": "AI",
       "title": "AI agent"

@@ -684,6 +684,8 @@
       "badge": "през терминала на {agent}",
       "title": "Написано от {who} в терминала на {agent}"
     },
+    "via_dm": "чрез ЛС",
+    "dm_about": "относно #{channel} / {topic}",
     "ai": {
       "badge": "ИИ",
       "title": "ИИ агент"

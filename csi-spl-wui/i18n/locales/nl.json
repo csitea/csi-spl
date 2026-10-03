@@ -684,6 +684,8 @@
       "badge": "via terminal van {agent}",
       "title": "Getypt door {who} in de terminal van {agent}"
     },
+    "via_dm": "via DM",
+    "dm_about": "over #{channel} / {topic}",
     "ai": {
       "badge": "AI",
       "title": "AI-agent"

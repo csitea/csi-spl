@@ -684,6 +684,8 @@
       "badge": "{agent} terminali kaudu",
       "title": "{who} kirjutas selle {agent} terminalis"
     },
+    "via_dm": "otsesõnumi kaudu",
+    "dm_about": "teemal #{channel} / {topic}",
     "ai": {
       "badge": "TI",
       "title": "Tehisintellekti agent"

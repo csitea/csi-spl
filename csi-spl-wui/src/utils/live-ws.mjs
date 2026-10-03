@@ -187,6 +187,9 @@ export function messageFromFrame(f) {
   if (typeof x.typed_by === 'string' && x.typed_by) out.typed_by = x.typed_by
   /* spec 068: the responsible seat rides on the frame too */
   if (typeof x.responsible === 'string' && x.responsible) out.responsible = x.responsible
+  /* spec 067: ref_task_id / mirror_of ride on the frame like the view row */
+  if (typeof x.ref_task_id === 'string' && x.ref_task_id) out.ref_task_id = x.ref_task_id
+  if (typeof x.mirror_of === 'string' && x.mirror_of) out.mirror_of = x.mirror_of
   return out
 }
 

@@ -684,6 +684,8 @@
       "badge": "через термінал {agent}",
       "title": "Набрано {who} у терміналі {agent}"
     },
+    "via_dm": "через ПП",
+    "dm_about": "щодо #{channel} / {topic}",
     "ai": {
       "badge": "ШІ",
       "title": "ШІ-агент"

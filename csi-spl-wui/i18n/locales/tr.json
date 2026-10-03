@@ -684,6 +684,8 @@
       "badge": "{agent} terminali üzerinden",
       "title": "{who} tarafından {agent} terminalinde yazıldı"
     },
+    "via_dm": "DM üzerinden",
+    "dm_about": "#{channel} / {topic} hakkında",
     "ai": {
       "badge": "YZ",
       "title": "Yapay zekâ ajanı"

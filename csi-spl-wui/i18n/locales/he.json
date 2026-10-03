@@ -684,6 +684,8 @@
       "badge": "דרך הטרמינל של {agent}",
       "title": "הוקלד על ידי {who} בטרמינל של {agent}"
     },
+    "via_dm": "דרך הודעה ישירה",
+    "dm_about": "בנושא #{channel} / {topic}",
     "ai": {
       "badge": "AI",
       "title": "סוכן בינה מלאכותית"

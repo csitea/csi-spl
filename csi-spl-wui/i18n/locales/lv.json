@@ -684,6 +684,8 @@
       "badge": "caur {agent} termināli",
       "title": "{who} to ierakstīja {agent} terminālī"
     },
+    "via_dm": "caur TZ",
+    "dm_about": "par #{channel} / {topic}",
     "ai": {
       "badge": "MI",
       "title": "MI aģents"

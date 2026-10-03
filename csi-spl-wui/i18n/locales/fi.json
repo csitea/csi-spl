@@ -684,6 +684,8 @@
       "badge": "{agent}-päätteen kautta",
       "title": "{who} kirjoitti tämän {agent}-päätteessä"
     },
+    "via_dm": "yksityisviestin kautta",
+    "dm_about": "aiheesta #{channel} / {topic}",
     "ai": {
       "badge": "TA",
       "title": "Tekoälyagentti"

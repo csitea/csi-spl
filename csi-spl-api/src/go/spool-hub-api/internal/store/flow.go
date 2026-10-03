@@ -90,6 +90,7 @@ type FlowPage struct {
 	More   bool
 	Counts FlowCounts
 	Unread FlowCounts
+	Keys   map[string]int // FlowKeys
 }
 
 // FlowPush is what the live fan-out sends one member for one stored line.
@@ -97,6 +98,31 @@ type FlowPush struct {
 	Event  FlowEvent
 	Counts FlowCounts
 	Unread FlowCounts
+	Keys   map[string]int // FlowKeys
+}
+
+// FlowKeys: Unread per sidebar row (owner, t1 77540e6f: a section's total
+// is the sum of its rows). Every unread line counts once under its place,
+// ch:<channel> or dm:<peer> (the sidebar's "<id>@<box>" label), and once
+// under its topic, t:<task_id>. The rows are Unread's, so the ch: keys sum
+// to Unread.Channels, the dm: keys to Unread.DMs and the t: keys to
+// Unread.Total.
+func flowKeysAdd(keys map[string]int, ev FlowEvent) {
+	keys[flowPlaceKey(ev.Channel, ev.FromID, ev.FromBox)]++
+	keys[ThreadMarkKey(ev.TaskID)]++
+}
+
+// flowPlaceKey is a line's sidebar row: its channel, or for a DM the sender
+// as utils/channel-feed.mjs dmPeerOf labels it (a flow DM goes to its "to",
+// so the peer is the sender, the end its covering dm: mark names).
+func flowPlaceKey(channel, fromID, fromBox string) string {
+	if channel != "" {
+		return "ch:" + channel
+	}
+	if fromBox != "" {
+		return "dm:" + fromID + "@" + fromBox
+	}
+	return "dm:" + fromID
 }
 
 // FlowEvents reads the flow. It is written by InsertMessage / InsertMessageSent.
@@ -285,18 +311,20 @@ func (s *Memory) flowListLocked(tenant, member string, now time.Time) []FlowEven
 	return out
 }
 
-func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent) (counts, unread FlowCounts) {
+func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent) (counts, unread FlowCounts, keys map[string]int) {
 	seen, hasSeen := s.readMarks[[3]string{tenant, member, FlowSeenKey}]
+	keys = map[string]int{}
 	for _, ev := range all {
 		if !ev.Unread {
 			continue
 		}
 		unread.add(ev.Kind, ev.Channel)
+		flowKeysAdd(keys, ev)
 		if !hasSeen || ev.At.After(seen.At) {
 			counts.add(ev.Kind, ev.Channel)
 		}
 	}
-	return counts, unread
+	return counts, unread, keys
 }
 
 // flowKindMatch: the kind= filter, FlowMention taking pokes too.
@@ -309,7 +337,7 @@ func (s *Memory) FlowRead(_ context.Context, q FlowQuery) (FlowPage, error) {
 	defer s.mu.Unlock()
 	all := s.flowListLocked(q.Tenant, q.Member, q.Now)
 	var p FlowPage
-	p.Counts, p.Unread = s.flowCountsLocked(q.Tenant, q.Member, all)
+	p.Counts, p.Unread, p.Keys = s.flowCountsLocked(q.Tenant, q.Member, all)
 	for _, ev := range all {
 		if q.Limit == 0 {
 			break
@@ -340,8 +368,8 @@ func (s *Memory) FlowFanout(_ context.Context, tenant, msgID string, members []s
 		if !ok {
 			continue
 		}
-		c, u := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now))
-		out[member] = FlowPush{Event: ev, Counts: c, Unread: u}
+		c, u, keys := s.flowCountsLocked(tenant, member, s.flowListLocked(tenant, member, now))
+		out[member] = FlowPush{Event: ev, Counts: c, Unread: u, Keys: keys}
 	}
 	return out, nil
 }

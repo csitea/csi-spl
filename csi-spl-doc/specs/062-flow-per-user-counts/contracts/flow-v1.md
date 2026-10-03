@@ -28,14 +28,15 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
 | `limit` | 1..50, default 30 |
 | `before` | the `cursor` of the last event of the previous page (opaque) |
 | `kind` | `mention` (includes `poke`), `reply` or `dm`; absent = all |
-| `counts_only=true` | answer `{counts, unread}` only |
+| `counts_only=true` | answer `{counts, unread, keys}` only |
 
 ```json
 {
   "events": [],
   "next": "",
   "counts": {"mention": 2, "reply": 5, "dm": 1, "total": 8, "channels": 7, "dms": 1},
-  "unread": {"mention": 3, "reply": 9, "dm": 1, "total": 13, "channels": 11, "dms": 2}
+  "unread": {"mention": 3, "reply": 9, "dm": 1, "total": 13, "channels": 11, "dms": 2},
+  "keys": {"ch:lobby": 11, "dm:c-034@box-a": 2, "t:<task_id>": 13}
 }
 ```
 
@@ -49,7 +50,15 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
   numbers on the Channels and Direct messages tabs (owner, t1 f4e6c677: new
   messages only in the discussions the member takes part in). Additive: an
   older hub omits them and the tabs keep their pip.
-- `kind` filters `events` only; `counts` and `unread` are always the whole flow.
+- `keys` = `unread` per sidebar row (owner, t1 77540e6f: a section's total
+  is the sum of its rows). Every unread line counts once under its place,
+  `ch:<channel>` or `dm:<peer>` (the sender as the sidebar labels it,
+  `<id>@<box>`), and once under its topic, `t:<task_id>`. So the `ch:` keys
+  sum to `unread.channels`, the `dm:` keys to `unread.dms` and the `t:` keys
+  to `unread.total`. The WUI draws each row's badge and each section's
+  number from `keys` alone; a `dm:` key with no listed peer gets a row.
+  Only keys > 0; `{}` when nothing is unread. Additive: an older hub omits it.
+- `kind` filters `events` only; `counts`, `unread` and `keys` are always the whole flow.
 - Expired events (the message's `expires_at`) are never listed or counted.
 
 ### 2.1 Event (the thin entry, no `env`)
@@ -82,10 +91,10 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
 ## 4. WS frame on /v1/wui/ws
 
 ```json
-{"type": "flow", "counts": {}, "unread": {}, "event": null}
+{"type": "flow", "counts": {}, "unread": {}, "keys": {}, "event": null}
 ```
 
-- `counts` and `unread` as in section 2; `event` an Event (2.1) or null.
+- `counts`, `unread` and `keys` as in section 2; `event` an Event (2.1) or null.
 - Only to the sockets of the member the event is for, on every hub process.
 - `event` set: a new event was written for that member.
 - `event` null (counts only): the member's marks moved (any `PUT /v1/me/reads`),

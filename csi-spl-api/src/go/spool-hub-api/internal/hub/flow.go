@@ -130,7 +130,7 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
 		return
 	}
-	body := map[string]any{"counts": p.Counts, "unread": p.Unread}
+	body := map[string]any{"counts": p.Counts, "unread": p.Unread, "keys": wireFlowKeys(p.Keys)}
 	if r.URL.Query().Get("counts_only") != "true" {
 		events := make([]wireFlowEvent, 0, len(p.Events))
 		for _, e := range p.Events {
@@ -148,9 +148,18 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, body)
 }
 
+// wireFlowKeys is store.FlowKeys on the wire, {} when none: the WUI renders
+// every row's unread and each section's total from it (owner, t1 77540e6f).
+func wireFlowKeys(keys map[string]int) map[string]int {
+	if keys == nil {
+		return map[string]int{}
+	}
+	return keys
+}
+
 // flowFrame is the `flow` WS frame (contract section 4).
-func flowFrame(counts, unread store.FlowCounts, ev *store.FlowEvent) map[string]any {
-	f := map[string]any{"type": "flow", "counts": counts, "unread": unread, "event": nil}
+func flowFrame(counts, unread store.FlowCounts, keys map[string]int, ev *store.FlowEvent) map[string]any {
+	f := map[string]any{"type": "flow", "counts": counts, "unread": unread, "keys": wireFlowKeys(keys), "event": nil}
 	if ev != nil {
 		f["event"] = wireFlow(*ev)
 	}
@@ -206,7 +215,7 @@ func (s *Server) fanoutFlow(ctx context.Context, row store.Message) {
 			return
 		}
 		for member, p := range pushes {
-			frame := flowFrame(p.Counts, p.Unread, &p.Event)
+			frame := flowFrame(p.Counts, p.Unread, p.Keys, &p.Event)
 			for _, c := range socks[member] {
 				c.write(ctx, frame) //nolint:errcheck
 			}
@@ -233,7 +242,7 @@ func (s *Server) pushFlowCounts(ctx context.Context, tenant, member string) {
 		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("flow counts push")
 		return
 	}
-	frame := flowFrame(p.Counts, p.Unread, nil)
+	frame := flowFrame(p.Counts, p.Unread, p.Keys, nil)
 	for _, c := range socks {
 		c.write(ctx, frame) //nolint:errcheck
 	}

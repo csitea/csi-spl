@@ -1,6 +1,6 @@
 import { useTopicStore } from '~/stores/topic'
 import { withSessionRetry } from './live-follow.mjs'
-import { issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from './parent-section.mjs'
+import { cardScrollDelta, issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from './parent-section.mjs'
 
 /**
  * (SPL-15): what "Open parent section" does, loaded only when the
@@ -20,13 +20,19 @@ import { issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from '
  *    page whose first rows lack the card releases the topic
  *    (useTopicFeedClose); once the card is loaded the same target and hash
  *    are opened again.
+ * 4. HUM-10 (topic c15b557e): the card lands at the reader's edge - the top
+ *    of the list when they read newest first, the bottom when newest last
+ *    (`newestLast`, Settings -> Behaviour "Message order"). A topic's own
+ *    opening card stops at the topic level: the channel or DM selected, the
+ *    card selected (focused) at that edge, the topic NOT opened.
  *
  * @param {Record<string, any>} msg
- * @param {{ self: string, api: any, router: any, localePath: (p: string) => string }} deps
+ * @param {{ self: string, api: any, router: any, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean }} deps
  * @returns {Promise<boolean>} false when the message names no parent
  */
 export async function openParentSection(msg, deps) {
   const { self, api, router, localePath } = deps
+  const newestLast = Boolean(deps.newestLast)
   const topic = useTopicStore()
   const open = topic.target ? { ...topic.target } : null
   let issueKey = ''
@@ -38,19 +44,26 @@ export async function openParentSection(msg, deps) {
       /* no answer: the Issues tab (or the retired #tasks) is still the place */
     }
   }
-  const to = parentSection(msg, { self, target: open, issueKey })
+  const to = parentSection(msg, { self, target: open, issueKey, topicLevel: Boolean(deps.topicLevel) })
   if (!to) return false
   if (to.kind === 'issue') {
     await router.push({ path: localePath(to.path), query: to.query })
     return true
   }
   const taskId = String(to.query.topic || '')
+  if (!taskId) {
+    /* a topic's opening card: no topic is opened, the card itself is selected */
+    await router.push({ path: localePath(to.path), query: {} })
+    if (topic.open) topic.close()
+    await revealCard(topic, null, { router, hash: '', newestLast, msgId: String(msg.msg_id || '') })
+    return true
+  }
   const target = open && open.taskId === taskId
     ? open
     : { taskId, mode: to.query.in ? 'message' : 'task', rootMsgId: to.query.in ? taskId : '', parentTaskId: String(to.query.in || '') }
   await router.push({ path: localePath(to.path), query: to.query, hash: to.hash })
-  if (taskId && !topic.open) topic.openTarget(target, topic.rootMsg)
-  if (taskId) await revealCard(topic, target, { router, hash: to.hash })
+  if (!topic.open) topic.openTarget(target, topic.rootMsg)
+  await revealCard(topic, target, { router, hash: to.hash, newestLast })
   return true
 }
 
@@ -59,21 +72,28 @@ export const REVEAL_PAGES = 10
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** Scroll the parent card into view, reading older pages for it, and keep
-    the thread open on it. */
-async function revealCard(topic, target, { router, hash }, { tries = 150, every = 100 } = {}) {
-  const sel = `.spool-main article.msg[data-task-id="${CSS.escape(target.taskId)}"]`
+/** Scroll the parent card to the reader's edge, reading older pages for it,
+    and keep the thread open on it - or, with no target, select the card
+    `msgId` itself and open nothing. */
+async function revealCard(topic, target, { router, hash, newestLast, msgId = '' }, { tries = 150, every = 100 } = {}) {
+  const sel = target
+    ? `.spool-main article.msg[data-task-id="${CSS.escape(target.taskId)}"]`
+    : `.spool-main article.msg[data-msg-id="${CSS.escape(msgId)}"]`
   let pages = 0
   for (let i = 0; i < tries; i++) {
     const card = document.querySelector(sel)
     if (card) {
-      if (!topic.open || !topic.target || topic.target.taskId !== target.taskId) {
+      if (target && (!topic.open || !topic.target || topic.target.taskId !== target.taskId)) {
         topic.openTarget(target, topic.rootMsg)
         await sleep(0)
         if (hash) await router.replace({ hash })
       }
       const scroller = card.closest('.feed-body')
-      if (scroller) scroller.scrollTop += card.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+      if (scroller) {
+        const pad = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
+        scroller.scrollTop += cardScrollDelta(card.getBoundingClientRect(), scroller.getBoundingClientRect(), newestLast, pad)
+      }
+      if (!target) card.focus({ preventScroll: true, focusVisible: true })
       return
     }
     const feed = document.querySelector('.spool-main [role="feed"]')

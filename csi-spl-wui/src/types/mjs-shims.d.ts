@@ -672,7 +672,7 @@ declare module '~/utils/touch-ui.mjs' {
 }
 
 declare module '~/utils/msg-menu.mjs' {
-  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string, disabled?: boolean, hintKey?: string }[]
+  export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string, disabled?: boolean, hintKey?: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string
   export function topicPaneLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, currentTaskId?: string }): string
   export function threadLineLink(msg: unknown, where?: { path?: string, query?: Record<string, unknown>, pathFor?: (path: string) => string }): string
@@ -832,14 +832,17 @@ declare module '~/utils/parent-section.mjs' {
   export function parentChannelOf(msg: unknown): string
   export function parentTopicOf(msg: unknown): string
   export function mayBeIssueTopic(msg: unknown): boolean
-  export function parentSection(msg: unknown, opts?: { self?: string, target?: { taskId?: string, mode?: string, parentTaskId?: string } | null, issueKey?: string }): ParentSection | null
+  export function isTopicStarter(msg: unknown): boolean
+  export function parentKindOf(msg: unknown, self?: string): 'dm' | 'channel' | 'issue' | ''
+  export function cardScrollDelta(card: { top: number, bottom: number }, scroller: { top: number, bottom: number }, newestLast: boolean, padBottom?: number): number
+  export function parentSection(msg: unknown, opts?: { self?: string, target?: { taskId?: string, mode?: string, parentTaskId?: string } | null, issueKey?: string, topicLevel?: boolean }): ParentSection | null
   export function parentSectionHref(section: { path: string, query?: Record<string, string>, hash?: string } | null, pathFor?: (path: string) => string): string
   export function issueKeyForTask(list: unknown, taskId: string): string
 }
 
 declare module '~/utils/parent-section-open.mjs' {
   export const REVEAL_PAGES: number
-  export function openParentSection(msg: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string }): Promise<boolean>
+  export function openParentSection(msg: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean }): Promise<boolean>
 }
 
 declare module '~/utils/msg-edit.mjs' {

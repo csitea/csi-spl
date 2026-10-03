@@ -56,14 +56,58 @@ function holdsMessage(target, m) {
 }
 
 /**
+ * Is this message the one that opens its topic (a level-1 row, not a reply)?
+ * HUM-10 (topic c15b557e): such a card's jump stops at the topic level - the
+ * channel or DM selected, the card selected, the topic NOT opened.
+ */
+export function isTopicStarter(msg) {
+  const m = msg && typeof msg === 'object' ? msg : {}
+  return !m.parent_task_id && m.is_parent !== 0
+}
+
+/**
+ * Which place the menu item names for this message (HUM-10, topic c15b557e):
+ * 'dm' - "Open in direct msg view"; 'channel' - "Open in channels view";
+ * 'issue' - an issue discussion, whose place is the Issues tab, keeps "Open
+ * parent section"; '' - no place (no item). MessageCard computes the same
+ * inline (this module stays out of the initial chunk, specs/027).
+ *
+ * @param {unknown} msg
+ * @param {string} [self] the viewer's id
+ * @returns {'dm' | 'channel' | 'issue' | ''}
+ */
+export function parentKindOf(msg, self = '') {
+  const m = msg && typeof msg === 'object' ? msg : {}
+  if (parentChannelOf(m)) return mayBeIssueTopic(m) ? 'issue' : 'channel'
+  return dmPeerOf(m, String(self || '')) ? 'dm' : ''
+}
+
+/**
+ * How far the feed must scroll so the card sits at the reader's edge: the
+ * TOP of the list when they read newest first (prepend), the BOTTOM when
+ * newest last (append) - the edge where new cards arrive.
+ *
+ * @param {{ top: number, bottom: number }} card the card's client rect
+ * @param {{ top: number, bottom: number }} scroller the feed's client rect
+ * @param {boolean} newestLast the person's "Message order" is newest last
+ * @param {number} [padBottom] the scroller's bottom padding (the docked Omnibox sits over it)
+ * @returns {number} the scrollTop delta
+ */
+export function cardScrollDelta(card, scroller, newestLast, padBottom = 0) {
+  if (newestLast) return card.bottom - (scroller.bottom - (Number(padBottom) || 0))
+  return card.top - scroller.top
+}
+
+/**
  * Where "Open parent section" goes, or null when the message names no
  * channel and no other DM end (a broadcast, a row with no ids).
  *
  * @param {unknown} msg the thread message
- * @param {{ self?: string, target?: { taskId?: string, mode?: string, parentTaskId?: string } | null, issueKey?: string }} [opts]
+ * @param {{ self?: string, target?: { taskId?: string, mode?: string, parentTaskId?: string } | null, issueKey?: string, topicLevel?: boolean }} [opts]
  *   self: the viewer's id (the DM end that is not the peer);
  *   target: the topic open on the right, kept as it is when it holds this message;
- *   issueKey: the issue whose discussion this topic is, when there is one
+ *   issueKey: the issue whose discussion this topic is, when there is one;
+ *   topicLevel: a topic message (isTopicStarter) opens nothing - the card menu's rule
  * @returns {{ path: string, query: Record<string, string>, hash: string, kind: 'channel' | 'dm' | 'issue' } | null}
  */
 export function parentSection(msg, opts = {}) {
@@ -88,6 +132,9 @@ export function parentSection(msg, opts = {}) {
 
   /** @type {Record<string, string>} */
   const query = {}
+  /* the card menu (HUM-10 c15b557e): a topic message goes only to the topic
+     level, nothing opened. A search row (no is_parent) keeps the old jump. */
+  if (o.topicLevel && isTopicStarter(m)) return { path, query, hash: '', kind }
   const open = holdsMessage(o.target, m) ? topicQuery(o.target) : { topic: parentTopicOf(m) || undefined, in: undefined }
   if (open.topic) query.topic = String(open.topic)
   if (open.in) query.in = String(open.in)

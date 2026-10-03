@@ -591,6 +591,8 @@
       "label": "Message menu",
       "open": "Open",
       "open_parent": "Open parent section",
+      "open_in_dm": "Open in direct msg view",
+      "open_in_channels": "Open in channels view",
       "edit": "Edit",
       "copy_link": "Copy link",
       "delete": "Delete",

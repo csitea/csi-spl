@@ -591,6 +591,8 @@
       "label": "Meniu mesaj",
       "open": "Deschide",
       "open_parent": "Deschide secțiunea părinte",
+      "open_in_dm": "Deschide în vizualizarea mesajelor directe",
+      "open_in_channels": "Deschide în vizualizarea canalelor",
       "edit": "Editează",
       "copy_link": "Copiază linkul",
       "delete": "Șterge",

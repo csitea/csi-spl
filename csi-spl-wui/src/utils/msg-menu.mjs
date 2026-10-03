@@ -13,6 +13,9 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * A thread line (`parent`) also has Open parent section, right
  * after Open: the channel or DM the thread lives in, the parent card
  * selected there and the thread kept open (utils/parent-section.mjs).
+ * HUM-10 (topic c15b557e): its words name that place - `parentKind` 'dm'
+ * "Open in direct msg view", 'channel' "Open in channels view"; an issue
+ * discussion (or no kind) keeps "Open parent section".
  *
  * A topic card ends with Archive and/or Delete, each with its Material glyph
  * on the left. Archive is offered when `topicArchive` (SPL-983 / specs/041 its
@@ -44,9 +47,12 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * reason as `hintKey`, instead of vanishing. Without `locks` (a reply, a
  * thread line) nothing changes.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
  * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
+/** HUM-10 (topic c15b557e): the parent item's words per place */
+const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
+
 export function msgMenuItems(opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const editable = Boolean(o.editable)
@@ -65,7 +71,7 @@ export function msgMenuItems(opts = {}) {
     items.push({ id: 'react', icon: 'smile', labelKey: 'feed.emoji.add' })
   }
   items.push({ id: 'open', icon: 'open', labelKey: 'feed.msg_menu.open' })
-  if (o.parent) items.push({ id: 'parent', icon: 'parent', labelKey: 'feed.msg_menu.open_parent' })
+  if (o.parent) items.push({ id: 'parent', icon: 'parent', labelKey: PARENT_LABEL[o.parentKind] || 'feed.msg_menu.open_parent' })
   if (touch) items.push({ id: 'copy-text', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' })
   items.push(copy)
   gated(editable, edit, locks.edit)

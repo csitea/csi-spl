@@ -66,7 +66,7 @@ try {
   await p.waitForSelector('[data-testid=msg-menu]', { visible: true, timeout: 5000 })
   const ids = await p.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((e) => e.getAttribute('data-testid')))
   const label = await p.$eval('[data-testid=msg-menu-parent]', (el) => el.textContent.trim()).catch(() => '')
-  ok('2 the thread line menu offers Open parent section after Open', ids[0] === 'msg-menu-open' && ids[1] === 'msg-menu-parent' && label === 'Open parent section', { ids, label })
+  ok('2 the thread line menu offers Open in channels view after Open', ids[0] === 'msg-menu-open' && ids[1] === 'msg-menu-parent' && label === 'Open in channels view', { ids, label })
   await p.keyboard.press('Escape')
   await p.waitForSelector('[data-testid=msg-menu]', { hidden: true, timeout: 5000 })
 

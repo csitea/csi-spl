@@ -327,6 +327,7 @@
       :merge-prev="!!mergePrev"
       :merge-next="!!mergeNext"
       :parent="showParent"
+      :parent-kind="parentKind"
       :topic-archive="showTopicArchive"
       :topic-delete="showTopicDelete"
       :kind="kindSettable"
@@ -429,6 +430,7 @@ import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useViewPrefs } from '~/composables/useViewPrefs'
 import { openThreadRow } from '~/utils/pane-scroll.mjs'
 import { threadLineLink, topicPaneLink } from '~/utils/msg-menu.mjs'
 import { topicMenuLocks } from '~/utils/topic-menu.mjs'
@@ -738,11 +740,22 @@ function onMenuOpen() {
    chosen, so it is not in the initial JS (specs/027, 210 KB gzip). */
 const showParent = computed(() => !props.clickable
   && Boolean(String(props.msg.channel || '').trim().replace(/^#/, '') || dmPeerOf(props.msg, viewerId.value)))
+/* HUM-10 (topic c15b557e): the item names its place - a DM "Open in direct
+   msg view", a channel "Open in channels view"; the issue channel (or the
+   retired #tasks) keeps "Open parent section". utils/parent-section.mjs
+   parentKindOf is the same rule. */
+const parentKind = computed(() => {
+  const ch = String(props.msg.channel || '').trim().replace(/^#/, '').toLowerCase()
+  if (ch) return ch === 'issues' || ch === 'tasks' ? 'issue' : 'channel'
+  return dmPeerOf(props.msg, viewerId.value) ? 'dm' : ''
+})
 const parentDeps = { api: useSpoolApi(), router: useRouter() }
+/* the card lands at the reader's edge: the top newest first, the bottom newest last */
+const { newestLast } = useViewPrefs()
 async function onMenuParent() {
   closeMenu()
   const m = await import('~/utils/parent-section-open.mjs')
-  await m.openParentSection(props.msg, { ...parentDeps, localePath, self: viewerId.value })
+  await m.openParentSection(props.msg, { ...parentDeps, localePath, self: viewerId.value, newestLast: newestLast.value, topicLevel: true })
 }
 
 /* A topic card in the middle links to this page with its topic open on the

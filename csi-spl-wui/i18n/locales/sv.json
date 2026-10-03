@@ -591,6 +591,8 @@
       "label": "Meddelandemeny",
       "open": "Öppna",
       "open_parent": "Öppna överordnad sektion",
+      "open_in_dm": "Öppna i vyn för direktmeddelanden",
+      "open_in_channels": "Öppna i kanalvyn",
       "edit": "Redigera",
       "copy_link": "Kopiera länk",
       "delete": "Ta bort",

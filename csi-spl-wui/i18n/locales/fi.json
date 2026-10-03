@@ -591,6 +591,8 @@
       "label": "Viestin valikko",
       "open": "Avaa",
       "open_parent": "Avaa yläosio",
+      "open_in_dm": "Avaa yksityisviestinäkymässä",
+      "open_in_channels": "Avaa kanavanäkymässä",
       "edit": "Muokkaa",
       "copy_link": "Kopioi linkki",
       "delete": "Poista",

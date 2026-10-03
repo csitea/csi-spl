@@ -591,6 +591,8 @@
       "label": "Mesaj menüsü",
       "open": "Aç",
       "open_parent": "Üst bölümü aç",
+      "open_in_dm": "Doğrudan mesaj görünümünde aç",
+      "open_in_channels": "Kanallar görünümünde aç",
       "edit": "Düzenle",
       "copy_link": "Bağlantıyı kopyala",
       "delete": "Sil",

@@ -6,10 +6,13 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  cardScrollDelta,
   ISSUE_CHANNEL,
+  isTopicStarter,
   issueKeyForTask,
   mayBeIssueTopic,
   parentChannelOf,
+  parentKindOf,
   parentSection,
   parentSectionHref,
   parentTopicOf,
@@ -125,6 +128,104 @@ describe('parentSectionHref / parentTopicOf', () => {
     assert.equal(parentTopicOf({ task_id: CHILD, parent_task_id: TOPIC }), TOPIC)
     assert.equal(parentTopicOf({ task_id: TOPIC }), TOPIC)
     assert.equal(parentTopicOf(null), '')
+  })
+})
+
+describe('HUM-10 c15b557e: a topic message stops at the topic level (the card menu)', () => {
+  const dmCard = { msg_id: MSG, task_id: TOPIC, from: 'HUM-4', from_box: 'box-wui', to: 'CLE-07', to_box: 'box-desk', parent_task_id: null }
+  const chCard = { msg_id: MSG, task_id: TOPIC, channel: 'dev', is_parent: 1 }
+
+  it('a DM topic message goes to that conversation with nothing opened and no hash', () => {
+    assert.deepEqual(parentSection(dmCard, { self: 'HUM-4', topicLevel: true }), { path: '/dm/' + encodeURIComponent('CLE-07@box-desk'), query: {}, hash: '', kind: 'dm' })
+  })
+
+  it('a channel topic message goes to the channel with nothing opened, even while its topic is open', () => {
+    const target = { taskId: TOPIC, mode: 'task', rootMsgId: '', parentTaskId: '' }
+    assert.deepEqual(parentSection(chCard, { target, topicLevel: true }), { path: '/channel/dev', query: {}, hash: '', kind: 'channel' })
+  })
+
+  it('CONTROL: a reply still opens its topic with the reply as the hash', () => {
+    assert.deepEqual(parentSection({ ...chCard, is_parent: 0 }, { topicLevel: true }), { path: '/channel/dev', query: { topic: TOPIC }, hash: '#' + MSG, kind: 'channel' })
+    assert.equal(parentSection({ ...dmCard, parent_task_id: CHILD }, { self: 'HUM-4', topicLevel: true }).query.topic, CHILD)
+  })
+
+  it('CONTROL: without topicLevel (the search Original jump) a topic message keeps the topic open', () => {
+    assert.deepEqual(parentSection(chCard).query, { topic: TOPIC })
+    assert.equal(parentSection(chCard).hash, '#' + MSG)
+  })
+
+  it('isTopicStarter: level 1 with no parent; absent is_parent is level 1 (spec 033)', () => {
+    assert.equal(isTopicStarter({ msg_id: MSG }), true)
+    assert.equal(isTopicStarter({ is_parent: 1 }), true)
+    assert.equal(isTopicStarter({ is_parent: 0 }), false)
+    assert.equal(isTopicStarter({ parent_task_id: TOPIC }), false)
+  })
+})
+
+describe('HUM-10 c15b557e: the item names its place', () => {
+  it('a DM card reads Open in direct msg view; CONTROL a channel card reads Open in channels view', () => {
+    assert.equal(parentKindOf({ from: 'HUM-4', to: 'CLE-07', to_box: 'box-a', task_id: TOPIC }, 'HUM-4'), 'dm')
+    assert.equal(parentKindOf({ channel: '#dev', task_id: TOPIC }, 'HUM-4'), 'channel')
+    assert.equal(msgMenuItems({ parent: true, parentKind: 'dm' })[1].labelKey, 'feed.msg_menu.open_in_dm')
+    assert.equal(msgMenuItems({ parent: true, parentKind: 'channel' })[1].labelKey, 'feed.msg_menu.open_in_channels')
+  })
+
+  it('an issue discussion, or no kind, keeps Open parent section', () => {
+    assert.equal(parentKindOf({ channel: 'issues' }), 'issue')
+    assert.equal(parentKindOf({ channel: 'tasks' }), 'issue')
+    assert.equal(parentKindOf({ from: 'HUM-4', to: 'ALL-0' }, 'HUM-4'), '')
+    assert.equal(msgMenuItems({ parent: true, parentKind: 'issue' })[1].labelKey, 'feed.msg_menu.open_parent')
+    assert.equal(msgMenuItems({ parent: true })[1].labelKey, 'feed.msg_menu.open_parent')
+  })
+
+  it('the card computes the same kind inline (it may not import parent-section.mjs)', () => {
+    const card = src('src/components/MessageCard.vue')
+    assert.match(card, /:parent-kind="parentKind"/)
+    assert.match(card, /ch === 'issues' \|\| ch === 'tasks' \? 'issue' : 'channel'/)
+    assert.match(card, /dmPeerOf\(props\.msg, viewerId\.value\) \? 'dm' : ''/)
+    const inline = (m, self) => {
+      const ch = String(m.channel || '').trim().replace(/^#/, '').toLowerCase()
+      if (ch) return ch === 'issues' || ch === 'tasks' ? 'issue' : 'channel'
+      return dmPeerOfShim(m, self) ? 'dm' : ''
+    }
+    for (const m of [{ channel: 'dev' }, { channel: '#Issues' }, { channel: 'tasks' }, { from: 'HUM-4', to: 'CLE-07', to_box: 'box-a' }, { from: 'HUM-4', to: 'ALL-0' }, {}]) {
+      assert.equal(inline(m, 'HUM-4'), parentKindOf(m, 'HUM-4'), JSON.stringify(m))
+    }
+    assert.match(src('src/components/MessageMenu.vue'), /parentKind: props\.parentKind/)
+  })
+
+  it('both words exist and are translated in every locale', () => {
+    const dir = join(WUI, 'i18n/locales')
+    const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
+    assert.equal(en.open_in_dm, 'Open in direct msg view')
+    assert.equal(en.open_in_channels, 'Open in channels view')
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+      const row = JSON.parse(readFileSync(join(dir, f), 'utf8')).feed.msg_menu
+      for (const k of ['open_in_dm', 'open_in_channels']) {
+        assert.ok(typeof row[k] === 'string' && row[k].trim() && !/[<@{}|]/.test(row[k]), f + ' ' + k)
+        if (f !== 'en.json') assert.notEqual(row[k], en[k], f + ' ' + k)
+      }
+    }
+  })
+})
+
+describe('HUM-10 c15b557e: the card lands at the reader\'s edge', () => {
+  const scroller = { top: 100, bottom: 700 }
+  it('newest first (prepend): the card\'s top meets the list\'s top', () => {
+    assert.equal(cardScrollDelta({ top: 400, bottom: 480 }, scroller, false), 300)
+    assert.equal(cardScrollDelta({ top: 40, bottom: 120 }, scroller, false), -60)
+  })
+  it('newest last (append): the card\'s bottom meets the list\'s bottom, above the docked Omnibox', () => {
+    assert.equal(cardScrollDelta({ top: 400, bottom: 480 }, scroller, true), -220)
+    assert.equal(cardScrollDelta({ top: 400, bottom: 480 }, scroller, true, 120), -100)
+    assert.equal(cardScrollDelta({ top: 900, bottom: 980 }, scroller, true), 280)
+  })
+  it('the menu jump reads the person\'s order and selects a topic message without opening it', () => {
+    const nav = src('src/utils/parent-section-open.mjs')
+    assert.match(nav, /cardScrollDelta\(/)
+    assert.match(nav, /topicLevel: Boolean\(deps\.topicLevel\)/)
+    assert.match(nav, /if \(!target\) card\.focus\(\{ preventScroll: true, focusVisible: true \}\)/)
+    assert.match(src('src/components/MessageCard.vue'), /newestLast: newestLast\.value, topicLevel: true/)
   })
 })
 

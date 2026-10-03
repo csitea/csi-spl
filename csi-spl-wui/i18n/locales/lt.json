@@ -591,6 +591,8 @@
       "label": "Žinutės meniu",
       "open": "Atidaryti",
       "open_parent": "Atidaryti pirminę skiltį",
+      "open_in_dm": "Atidaryti tiesioginių žinučių rodinyje",
+      "open_in_channels": "Atidaryti kanalų rodinyje",
       "edit": "Redaguoti",
       "copy_link": "Kopijuoti nuorodą",
       "delete": "Ištrinti",

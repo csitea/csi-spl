@@ -591,6 +591,8 @@
       "label": "Ziņas izvēlne",
       "open": "Atvērt",
       "open_parent": "Atvērt vecāksadaļu",
+      "open_in_dm": "Atvērt tiešo ziņu skatā",
+      "open_in_channels": "Atvērt kanālu skatā",
       "edit": "Rediģēt",
       "copy_link": "Kopēt saiti",
       "delete": "Dzēst",

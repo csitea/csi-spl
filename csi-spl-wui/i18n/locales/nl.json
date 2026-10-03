@@ -591,6 +591,8 @@
       "label": "Berichtmenu",
       "open": "Openen",
       "open_parent": "Bovenliggende sectie openen",
+      "open_in_dm": "Openen in de weergave directe berichten",
+      "open_in_channels": "Openen in de kanaalweergave",
       "edit": "Bewerken",
       "copy_link": "Link kopiëren",
       "delete": "Verwijderen",

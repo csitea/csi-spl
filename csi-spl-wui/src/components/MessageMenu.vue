@@ -32,6 +32,8 @@ const props = defineProps<{
   mergeNext?: boolean
   /** a thread line: offer Open parent section */
   parent?: boolean
+  /** HUM-10 (topic c15b557e): the place it names - 'dm' | 'channel' | 'issue' */
+  parentKind?: 'dm' | 'channel' | 'issue' | ''
   /** SPL-983: a topic card the viewer may archive / delete (both) */
   topic?: boolean
   /** SPL-983 / CLE-77819: offer Archive (author, addressee, owner or admin) */
@@ -84,6 +86,7 @@ const items = computed(() => msgMenuItems({
   mergePrev: props.mergePrev,
   mergeNext: props.mergeNext,
   parent: props.parent,
+  parentKind: props.parentKind,
   topic: props.topic,
   topicArchive: props.topicArchive,
   topicDelete: props.topicDelete,

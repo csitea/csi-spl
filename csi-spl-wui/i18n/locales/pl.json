@@ -591,6 +591,8 @@
       "label": "Menu wiadomości",
       "open": "Otwórz",
       "open_parent": "Otwórz sekcję nadrzędną",
+      "open_in_dm": "Otwórz w widoku wiadomości bezpośrednich",
+      "open_in_channels": "Otwórz w widoku kanałów",
       "edit": "Edytuj",
       "copy_link": "Kopiuj link",
       "delete": "Usuń",

@@ -591,6 +591,8 @@
       "label": "Menú del mensaje",
       "open": "Abrir",
       "open_parent": "Abrir sección principal",
+      "open_in_dm": "Abrir en la vista de mensajes directos",
+      "open_in_channels": "Abrir en la vista de canales",
       "edit": "Editar",
       "copy_link": "Copiar enlace",
       "delete": "Eliminar",

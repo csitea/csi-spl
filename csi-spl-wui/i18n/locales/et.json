@@ -591,6 +591,8 @@
       "label": "Sõnumi menüü",
       "open": "Ava",
       "open_parent": "Ava ülemjaotis",
+      "open_in_dm": "Ava otsesõnumite vaates",
+      "open_in_channels": "Ava kanalite vaates",
       "edit": "Muuda",
       "copy_link": "Kopeeri link",
       "delete": "Kustuta",

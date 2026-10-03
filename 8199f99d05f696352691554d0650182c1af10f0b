@@ -1,0 +1,6 @@
+Lay-What: The server reuses memory when it checks whether a page has changed, so it answers faster.
+Lay-How: Instead of reserving fresh memory for every check, it keeps a few spare buffers and hands them out again.
+Lay-Why: Reserving and cleaning up memory on every request slowed answers down.
+Tech-What: hub etagWriter takes its held-body buffer from a sync.Pool and returns buffers up to 1 MiB.
+Tech-How: etag.go adds the pool and drops the reference after finish/release; etag_pool_test.go and pool_buffers_bench_test.go cover it.
+Tech-Why: Perf round 4 G10: a fresh buffer per /v1/view/ read; 133KB 139512 -> 227 B/op, ~157 -> ~94 us.

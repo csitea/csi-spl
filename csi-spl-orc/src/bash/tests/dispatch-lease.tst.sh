@@ -34,6 +34,8 @@
 #      turn whose timer moves, is able; no pane at all is able (fail open); a
 #      modal trust screen is a stall on sight, and a stalled failover is not
 #      promoted
+#  19. LEASE_PRIORITY_ORCH / _DISPATCH rank one role each (lease.conf or env);
+#      unset = LEASE_PRIORITY; validated the same way
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -320,6 +322,27 @@ tick renew 30540
 tick watch 30661; tick watch 30721
 [[ "$(holder)" == M-1 && "$(logc 'F-1 is not able to act (stalled pid=1100')" == 1 && "$(sentc 'nobody dispatches')" == 1 ]] &&
   pass "18. a stalled failover is not promoted; logged + told once" || fail "18. failover stall: $(cat "$D/lease.log")"
+
+# --- 19. a per-role machine ranking (t1 aad0e6cf) ---------------------------
+rank19() {
+  env -i PATH="$PATH" PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/r19" LEASE_MACHINE=pc "$@" bash -c '
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init >/dev/null && spl_lease_conf && spl_fleet_ids || exit 1
+    echo "orch=$(spl_fleet_rank sat orch)$(spl_fleet_rank pc orch) dispatch=$(spl_fleet_rank sat dispatch)$(spl_fleet_rank pc dispatch)"' 2>&1
+}
+mkdir -p "$T/r19/dispatch"
+printf 'LEASE_FLEET=main\nLEASE_PRIORITY=pc,sat\nLEASE_PRIORITY_ORCH=sat,pc\n' >"$T/r19/dispatch/lease.conf"
+[[ "$(rank19)" == "orch=01 dispatch=10" ]] &&
+  pass "19. LEASE_PRIORITY_ORCH (lease.conf) ranks sat first for orch; dispatch keeps LEASE_PRIORITY (pc first)" || fail "19. per-role: $(rank19)"
+printf 'LEASE_FLEET=main\nLEASE_PRIORITY=pc,sat\n' >"$T/r19/dispatch/lease.conf"
+[[ "$(rank19)" == "orch=10 dispatch=10" ]] &&
+  pass "19. control: no per-role key, LEASE_PRIORITY ranks both roles" || fail "19. control: $(rank19)"
+[[ "$(rank19 LEASE_PRIORITY_DISPATCH=sat,pc)" == "orch=10 dispatch=01" ]] &&
+  pass "19. LEASE_PRIORITY_DISPATCH (env) ranks dispatch on its own" || fail "19. dispatch: $(rank19 LEASE_PRIORITY_DISPATCH=sat,pc)"
+[[ "$(rank19 LEASE_PRIORITY_ORCH=sat)" == *"FATAL this machine (pc) is not in LEASE_PRIORITY_ORCH"* &&
+   "$(rank19 LEASE_PRIORITY_ORCH=Sat,pc)" == *"FATAL LEASE_PRIORITY_ORCH must list the machines"* ]] &&
+  pass "19. a per-role ranking is validated like LEASE_PRIORITY" || fail "19. validate: $(rank19 LEASE_PRIORITY_ORCH=sat)"
 
 echo "dispatch-lease: $fails failure(s)"
 [[ $fails -eq 0 ]]

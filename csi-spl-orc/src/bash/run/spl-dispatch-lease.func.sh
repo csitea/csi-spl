@@ -51,6 +51,7 @@
 # @param LEASE_FLEET (optional) - fleet mode: the fleet's name on the hub (else lease.conf)
 # @param LEASE_MACHINE (optional) - fleet mode: this machine's box, default its desk box id (spl_desk_box_default)
 # @param LEASE_PRIORITY (optional) - fleet mode: machines, comma-separated, preferred first
+# @param LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH (optional) - fleet mode: that role's own machine ranking, same form as LEASE_PRIORITY (env or lease.conf); unset = LEASE_PRIORITY
 # @param LEASE_UNREAD_MAX (optional) - fleet mode: an orchestrator idle while an inbox message newer than its last transcript write is older than this many s is stuck, no candidate (take-over condition 2), default 600, 0 = off
 # @param LEASE_OWNER (optional) - fleet mode: the owner's HUM id DMed once per orch take-over (else lease.conf ASKS_OWNER); LEASE_OWNER_CMD replaces the DM
 # @param LEASE_MIRROR_TENANTS (optional) - fleet mode: the tenants the holder copies the lease into, space-separated (default: every tenant this machine's desk box is pinned in, minus LEASE_TENANT and the test workspaces); LEASE_MIRROR_TIMEOUT (default 10 s) bounds each copy call
@@ -119,10 +120,10 @@ spl_lease_conf() {
   [[ -f "$LEASE_CONF" ]] || return 0
   while IFS='=' read -r k v; do
     case "$k" in
-      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX)
+      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_PRIORITY_ORCH|LEASE_PRIORITY_DISPATCH|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX)
         [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v" ;;
     esac
-  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY=[a-z0-9][a-z0-9,-]*$' "$LEASE_CONF")
+  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$' "$LEASE_CONF")
   return 0
 }
 
@@ -523,6 +524,7 @@ spl_lease_ensure() {
     out="$LEASE_DIR/$verb.out"
     LEASE_CMD="$verb" LEASE_MASTER="$LEASE_MASTER" LEASE_FAILOVER="$LEASE_FAILOVER" LEASE_ORCH="$LEASE_ORCH" \
       LEASE_FLEET="${LEASE_FLEET:-}" LEASE_MACHINE="${LEASE_MACHINE:-}" LEASE_PRIORITY="${LEASE_PRIORITY:-}" \
+      LEASE_PRIORITY_ORCH="${LEASE_PRIORITY_ORCH:-}" LEASE_PRIORITY_DISPATCH="${LEASE_PRIORITY_DISPATCH:-}" \
       LEASE_ENV="${LEASE_ENV:-}" LEASE_TENANT="${LEASE_TENANT:-}" LEASE_DESK_BOX="${LEASE_DESK_BOX:-}" \
       spl_lease_detach "$out" "${LEASE_RUN:-$PROJ_PATH/run}" -a do_spl_dispatch_lease
     do_log "INFO lease $verb loop started (log $out)"
@@ -563,10 +565,14 @@ spl_fleet_ids() {
   for k in LEASE_FLEET LEASE_MACHINE; do
     [[ "${!k:-}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL $k is not set (env or $LEASE_CONF)"; return 1; }
   done
-  [[ "${LEASE_PRIORITY:-}" =~ ^[a-z0-9][a-z0-9-]*(,[a-z0-9][a-z0-9-]*)*$ ]] ||
-    { do_log "FATAL LEASE_PRIORITY must list the machines, preferred first (e.g. pc,sat)"; return 1; }
-  [[ ",$LEASE_PRIORITY," == *",$LEASE_MACHINE,"* ]] ||
-    { do_log "FATAL this machine ($LEASE_MACHINE) is not in LEASE_PRIORITY ($LEASE_PRIORITY)"; return 1; }
+  for k in LEASE_PRIORITY LEASE_PRIORITY_ORCH LEASE_PRIORITY_DISPATCH; do
+    # the per-role rankings are optional: unset = LEASE_PRIORITY
+    [[ "$k" != LEASE_PRIORITY && -z "${!k:-}" ]] && continue
+    [[ "${!k:-}" =~ ^[a-z0-9][a-z0-9-]*(,[a-z0-9][a-z0-9-]*)*$ ]] ||
+      { do_log "FATAL $k must list the machines, preferred first (e.g. pc,sat)"; return 1; }
+    [[ ",${!k}," == *",$LEASE_MACHINE,"* ]] ||
+      { do_log "FATAL this machine ($LEASE_MACHINE) is not in $k (${!k})"; return 1; }
+  done
 }
 
 # Resolve how this machine calls the hub. LEASE_HUB_CMD (tests) replaces the
@@ -651,10 +657,13 @@ spl_fleet_read() {
   [[ "$FG" =~ ^[0-9]+$ && "$FA" =~ ^-?[0-9]+$ ]]
 }
 
-# The 0-based rank of a machine in LEASE_PRIORITY; unknown = last.
+# spl_fleet_rank <machine> <role>: its 0-based rank in the role's ranking
+# (LEASE_PRIORITY_ORCH / LEASE_PRIORITY_DISPATCH, else LEASE_PRIORITY);
+# unknown = last.
 spl_fleet_rank() {
-  local i=0 m
-  IFS=, read -ra _ms <<<"$LEASE_PRIORITY"
+  local i=0 m k="LEASE_PRIORITY_${2^^}"
+  [[ -n "${2:-}" && -n "${!k:-}" ]] || k=LEASE_PRIORITY
+  IFS=, read -ra _ms <<<"${!k}"
   for m in "${_ms[@]}"; do [[ "$m" == "$1" ]] && { echo "$i"; return; }; i=$((i + 1)); done
   echo "$i"
 }
@@ -775,7 +784,7 @@ spl_fleet_role_tick() {
   if [[ -z "$cand" ]]; then
     [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
   elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )) ||
-       (( $(spl_fleet_rank "$me") < $(spl_fleet_rank "$hm") )); then
+       (( $(spl_fleet_rank "$me" "$role") < $(spl_fleet_rank "$hm" "$role") )); then
     want="$cand@$me"
   fi
   [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal"
@@ -785,7 +794,7 @@ spl_fleet_role_tick() {
     if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$want" --if-gen "$FG" 2>&1)" && spl_fleet_read "$out"; then
       [[ "$FW" == true ]] && { echo "$now" > "$ok"; won=true; }
       [[ "$FW" == true && -n "$before" && "${before##*@}" != "$me" ]] &&
-        spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before##*@}") -> $(spl_fleet_rank "$me"))"
+        spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before##*@}" "$role") -> $(spl_fleet_rank "$me" "$role"))"
       # a failover (not a priority handback) of the orchestrator: tell the owner once
       [[ "$FW" == true && "$role" == orch && -n "$before" && "${before##*@}" != "$me" ]] && (( age > LEASE_STALE )) &&
         spl_fleet_owner_dm "$want" "Orchestrator failover: $want took over from $before, silent ${age}s - its process is gone, stalled, or it sat idle with an unread message older than $(( ${LEASE_UNREAD_MAX:-600} / 60 )) min. $want acts for the fleet now and hands back when $before is able again."

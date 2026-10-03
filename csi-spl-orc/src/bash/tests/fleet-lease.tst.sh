@@ -12,6 +12,7 @@
 #   4. pc returns: priority handback; the satellite's agents told STANDBY once
 #   5. local order: pc's master dies -> pc's failover holds at once
 #   6. priority flip is one config change (LEASE_PRIORITY=sat,pc)
+#  6b. LEASE_PRIORITY_ORCH ranks the orch role on its own; unset = LEASE_PRIORITY
 #   7. a lost compare-and-set mirrors the real holder, never its own wish
 #   8. hub unreachable past LEASE_STALE: the holder demotes itself locally
 #   9. a machine with no live candidate never writes
@@ -177,6 +178,15 @@ tick sat 1470; tick pc 1480
 [[ "$(hubh dispatch)" == CLE-002@sat && "$(hubh orch)" == CLE-001@sat && "$(mirror pc)" == CLE-002@sat ]] &&
   pass "6. LEASE_PRIORITY=sat,pc moves both roles to the satellite, pc stands by" || fail "6. hub $(hubh dispatch)/$(hubh orch)"
 PRIO=pc,sat
+
+# --- 6b. a per-role ranking (t1 aad0e6cf: the orch prefers the satellite) --------
+tick pc 1482 LEASE_PRIORITY_ORCH=sat,pc; tick sat 1484 LEASE_PRIORITY_ORCH=sat,pc
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@sat && "$(mirror pc orch)" == CLE-001@sat ]] &&
+  pass "6b. LEASE_PRIORITY_ORCH=sat,pc: the satellite keeps orch, pc takes dispatch back on LEASE_PRIORITY" ||
+  fail "6b. per-role: hub $(hubh dispatch)/$(hubh orch)"
+tick pc 1486
+[[ "$(hubh dispatch)" == CLE-002@pc && "$(hubh orch)" == CLE-001@pc ]] &&
+  pass "6b. control: no per-role key, LEASE_PRIORITY ranks orch too (pc takes it back)" || fail "6b. control: hub $(hubh dispatch)/$(hubh orch)"
 
 # --- 7. a lost compare-and-set ---------------------------------------------------
 tick pc 1490 HUB_RACE=CLE-003@sat

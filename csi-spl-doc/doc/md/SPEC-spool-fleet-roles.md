@@ -255,7 +255,7 @@ resource, and its age would have come from each machine's own clock.
 | no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`) | writes nothing; a lease it held goes stale |
 | holds it | renews; the local master/failover order still applies inside the machine |
 | holder silent > 180 s on the hub's clock | takes over |
-| ranks before the holder's machine in `LEASE_PRIORITY` | takes it back (the handback) |
+| ranks before the holder's machine in the role's ranking (`LEASE_PRIORITY_ORCH` / `LEASE_PRIORITY_DISPATCH`, else `LEASE_PRIORITY`) | takes it back (the handback) |
 | otherwise | stands by |
 
 - **The standby takes over on two conditions** (owner, t1 27f01e16,
@@ -315,9 +315,18 @@ resource, and its age would have come from each machine's own clock.
   `box-desk`). With `LEASE_FLEET` set, `ensure` runs the fleet loop INSTEAD of
   renew + watch. **Flipping the priority to the satellite** = `LEASE_PRIORITY`
   `sat` first in BOTH machines' `lease.conf`.
+- **One role on its own ranking** (owner, t1 aad0e6cf, 2026-10-03: the orch
+  defaults to the satellite, the dispatchers stay where they are):
+  `LEASE_PRIORITY_ORCH` and `LEASE_PRIORITY_DISPATCH` in `lease.conf` (or the
+  environment), same form and validation as `LEASE_PRIORITY`, each in BOTH
+  machines' `lease.conf`. Unset, the role ranks on `LEASE_PRIORITY`, so a
+  `lease.conf` without them behaves exactly as before. E.g.
+  `LEASE_PRIORITY=<pc box>,sat` + `LEASE_PRIORITY_ORCH=sat,<pc box>` hands the
+  orch role back to the satellite and the dispatch role back to the pc.
 - Tests: `csi-spl-orc/src/bash/tests/fleet-lease.tst.sh` simulates two
   machines against a hub stub (CAS, expiry at 181 s, priority handback, local
-  order, lost race, unreachable hub, hub clock, stalled agents, and section
+  order, lost race, unreachable hub, hub clock, stalled agents, 6b: a
+  per-role `LEASE_PRIORITY_ORCH`, and section
   15: a stuck holder fails over with one owner DM, a busy one does not, the
   `LEASE_UNREAD_MAX=0` control renews it, a dead one still fails over at
   181 s). The hub side is tested by

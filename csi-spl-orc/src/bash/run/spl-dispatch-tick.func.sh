@@ -58,6 +58,9 @@ do_spl_dispatch_tick() {
   # the value, so one silent workspace stays one item while it lasts
   sed -n 's/^SILENT \([^ ]*\) \([^:]*\): \(.*\)$/GAP \1 inbound: \3 (\2)/p; s/^UNSIGNED \([^ ]*\) \([^,]*\), \(.*\)$/GAP \1 unsigned posts: \3 (\2)/p' \
     "$tmp/sub" >>"$tmp/gaps"
+  # an OD seat of a fleet box the workspace does not seat (owner 2026-10-03:
+  # every OD in every channel); the seats are the value
+  sed -n 's/^UNSEATED \([^ ]*\) \([^(]*[^ (]\) (.*$/GAP \1 OD seats: unseated, seat them with do_spl_desk_up (\2)/p' "$tmp/sub" >>"$tmp/gaps"
   ( DISPATCH_CHECK_SUBS=0 do_spl_dispatch_check ) >"$tmp/check" 2>&1
   # "| what | value | GAP ... |" -> "GAP what: verdict (value)"; the value
   # (an age, a count) is not part of the item's identity

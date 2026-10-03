@@ -31,10 +31,12 @@ trap 'kill ${H1:-} ${H2:-} 2>/dev/null; rm -rf "$T"' EXIT
 
 P="$T/proc" S="$T/spool" ST="$T/state" R="$T/repo"
 mkdir -p "$P" "$S" "$ST" "$T/home"
-# the hub DB as fixture files: both dispatchers in every channel, c-001 in none
+# the hub DB as fixture files: every OD seat seated and in every channel
 SUBS="$T/subs"; mkdir -p "$SUBS"
 for w in w1 w2; do
-  printf 'chan|lobby\nchan|team\nsub|lobby|box-desk|c-002|invite\nsub|lobby|box-desk|c-003|invite\nsub|team|box-desk|c-002|invite\nsub|team|box-desk|c-003|invite\n' >"$SUBS/$w.txt"
+  { printf 'chan|lobby\nchan|team\n'
+    for a in c-001 c-002 c-003; do printf 'ros|box-desk|%s\nsub|lobby|box-desk|%s|invite\nsub|team|box-desk|%s|invite\n' "$a" "$a" "$a"; done
+  } >"$SUBS/$w.txt"
 done
 # a fake crontab (-l prints the file, <file> replaces it) and the checkout the
 # sweep cron line points at, so step 11 never touches the real crontab
@@ -248,10 +250,16 @@ echo "CLE-77 $(date +%s)" >"$S/dispatch/lease"; gap "holder not a dispatcher" 'G
 echo "c-002 $(date +%s)" >"$S/dispatch/lease"
 touch "$R-wt/c-002/.claude/settings.local.json"; gap "settings not loaded" 'c-002 desk-reply permission .*GAP relaunch'
 touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
-cp "$SUBS/w2.txt" "$T/w2.keep"; echo 'sub|team|box-desk|c-001|invite' >>"$SUBS/w2.txt"
-gap "orchestrator subscribed to a channel" '\| w2 #team \| dispatchers y, c-001 y \| GAP'
+cp "$SUBS/w2.txt" "$T/w2.keep"
+check >"$T/o" 2>&1
+grep -qF '| w2 #team | OD seats 3/3 | ok |' "$T/o" && grep -qF '| w2 OD seats | every fleet OD seat seated | ok |' "$T/o" &&
+  pass "7. every OD seat in a channel, the orchestrator included, is ok (owner 2026-10-03)" || fail "7. full channel: $(grep 'w2' "$T/o")"
+grep -v 'sub|team|box-desk|c-001' "$T/w2.keep" >"$SUBS/w2.txt"
+gap "the orchestrator missing from a channel" '\| w2 #team \| OD seats 2/3, missing: c-001@box-desk \| GAP do_spl_dispatch_subscribe'
+grep -v 'sub|lobby|box-desk|c-003' "$T/w2.keep" >"$SUBS/w2.txt"
+gap "a dispatcher missing from a channel" '\| w2 #lobby \| OD seats 2/3, missing: c-003@box-desk \| GAP'
 grep -v 'c-003' "$T/w2.keep" >"$SUBS/w2.txt"
-gap "a dispatcher missing from a channel" '\| w2 #lobby \| dispatchers n, c-001 n \| GAP'
+gap "an OD seat the workspace does not seat" '\| w2 OD seats \| unseated: c-003@box-desk \| GAP seat it'
 cp "$T/w2.keep" "$SUBS/w2.txt"
 echo 'hum|6|2' >>"$SUBS/w2.txt"
 gap "people post, the desk receives nothing (CLE-77876)" '\| w2 inbound \| 6 human posts in 120 min, 0 inbound files .*\| GAP SILENT \|'

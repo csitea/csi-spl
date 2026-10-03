@@ -51,6 +51,9 @@ INSERT INTO pins (tenant_id, box_id, pubkey, updated_at) VALUES
   ('wp', 'box-wui', decode(repeat('01', 32), 'hex'), now() - interval '30 minutes'),
   ('wr', 'box-wui', decode(repeat('02', 32), 'hex'), now() - interval '90 minutes');
 UPDATE pins SET revoked_at = now() - interval '80 minutes' WHERE tenant_id = 'wr';
+INSERT INTO boxes (tenant_id, box_id) VALUES ('wp', 'box-desk'), ('wp', 'box-sat'), ('wn', 'box-desk');
+INSERT INTO roster (tenant_id, box_id, agent_id) VALUES ('wp', 'box-desk', 'c-001'), ('wp', 'box-desk', 'c-002'),
+  ('wp', 'box-sat', 'c-003'), ('wp', 'box-desk', 'c-077'), ('wn', 'box-desk', 'c-002');
 PSQL
 n=0
 # m <tenant> <channel|''> <from> <sig|''> <minutes ago>
@@ -81,7 +84,7 @@ m wr ops HUM-4 '' 100          # before a pin that is now revoked
 m wr ops HUM-4 '' 50
 
 read_hum() {
-  env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" W="$1" bash -c '
+  env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" W="$1" DISPATCH_ORCH=c-001 DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -95,6 +98,11 @@ out="$(read_hum wp)"; rc=$?
   pass "2+3. pinned workspace: 4 human posts in the window, only the post-pin unsigned one counts" || fail "2. wp: $(grep '^hum|' <<<"$out")"
 [[ "$(read_hum wn | grep '^hum|')" == 'hum|2|2' ]] && pass "2. no pin: every unsigned post counts" || fail "2. wn: $(read_hum wn | grep '^hum|')"
 [[ "$(read_hum wr | grep '^hum|')" == 'hum|2|2' ]] && pass "2. a revoked pin covers nothing" || fail "2. wr: $(read_hum wr | grep '^hum|')"
+
+# owner 2026-10-03 (every OD seat in every channel): the read names the
+# roster rows of the OD seats, on every box, and no other agent's
+[[ "$(grep '^ros|' <<<"$out" | tr '\n' ' ')" == 'ros|box-desk|c-001 ros|box-desk|c-002 ros|box-sat|c-003 ' ]] &&
+  pass "4. the OD seats' roster rows, every box, no other agent, no other workspace" || fail "4. ros: $(grep '^ros|' <<<"$out")"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

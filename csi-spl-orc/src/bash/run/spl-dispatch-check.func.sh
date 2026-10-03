@@ -16,9 +16,11 @@
 # @description   per workspace: inbound - humans posted in the last
 # @description   DISPATCH_SILENCE_WINDOW min and the dispatchers' desk received
 # @description   files, and no post was stored unsigned (CLE-77876)
-# @description   per workspace and channel: both dispatchers subscribed and the
-# @description   orchestrator NOT (the hub delivers a web UI post to a
-# @description   channel's subscribed agents; do_spl_dispatch_subscribe fixes it)
+# @description   per workspace and channel: every OD seat (orchestrator, master,
+# @description   failover) of every fleet box subscribed, where the workspace
+# @description   seats it (owner 2026-10-03, SPEC 2.1; the hub delivers a web UI
+# @description   post to a channel's subscribed agents; do_spl_dispatch_subscribe
+# @description   fixes it); per workspace: every such OD seat seated (rostered)
 # @description Read-only: one read of the hub DB per workspace (as the env SA,
 # @description DISPATCH_CHECK_SUBS=0 skips it), no write.
 # @param ENV - required: dev or prd, the hub the desks seat at
@@ -181,19 +183,33 @@ sys.exit(1)
 PY
 }
 
-# One row per channel of workspace <t>: both dispatchers in, the orchestrator out.
+# One row per channel of workspace <t>: every seated OD seat of every fleet
+# box in it (a missing one is a GAP), and one row for the OD seats the
+# workspace does not seat at all (the hub refuses their subscription).
 spl_dispatch_check_tenant() {
-  local t="$1" data="$2" ch d o box="$DISPATCH_DESK_BOX"
+  local t="$1" data="$2" ch fb a want have miss unseated=""
+  for fb in $(spl_dispatch_fleet_boxes); do
+    for a in $(spl_dispatch_od_ids); do
+      spl_dispatch_rostered "$data" "$fb" "$a" || unseated+=" $a@$fb"
+    done
+  done
   for ch in $(sed -n 's/^chan|//p' <<<"$data"); do
-    d=y o=n
-    spl_dispatch_subbed "$data" "$ch" "$box" "$DISPATCH_MASTER" && spl_dispatch_subbed "$data" "$ch" "$box" "$DISPATCH_FAILOVER" || d=n
-    [[ -n "$(spl_dispatch_boxes_of "$data" "$ch" "$DISPATCH_ORCH")" ]] && o=y
-    if [[ "$d" == y && "$o" == n ]]; then
-      row "$t #$ch" "dispatchers y, $DISPATCH_ORCH n" ok
+    want=0 have=0 miss=""
+    for fb in $(spl_dispatch_fleet_boxes); do
+      for a in $(spl_dispatch_od_ids); do
+        spl_dispatch_rostered "$data" "$fb" "$a" || continue
+        want=$((want + 1))
+        if spl_dispatch_subbed "$data" "$ch" "$fb" "$a"; then have=$((have + 1)); else miss+=" $a@$fb"; fi
+      done
+    done
+    if [[ -z "$miss" ]]; then
+      row "$t #$ch" "OD seats $have/$want" ok
     else
-      row "$t #$ch" "dispatchers $d, $DISPATCH_ORCH $o" "GAP do_spl_dispatch_subscribe"
+      row "$t #$ch" "OD seats $have/$want, missing:$miss" "GAP do_spl_dispatch_subscribe"
     fi
   done
+  [[ -z "$unseated" ]] && row "$t OD seats" "every fleet OD seat seated" ok ||
+    row "$t OD seats" "unseated:$unseated" "GAP seat it (do_spl_desk_up), then do_spl_dispatch_subscribe"
   local l bad
   bad="$(spl_dispatch_inbound "$t" "$data")"
   # The fleet dispatch lease held on another box (spec fleet-roles 4.1): its

@@ -1,20 +1,24 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description Route every web UI post to the dispatchers, not the orchestrator
-# @description (SPEC-spool-fleet-roles.md). The hub delivers a human post to
-# @description the channel's ONLINE SUBSCRIBED agents (channel_subscriptions);
-# @description the workspace fallback list fires only when none is online. So
-# @description a channel the orchestrator sits in and the dispatchers do not
-# @description reaches only the orchestrator (measured 2026-10-01: a fresh
-# @description owner topic in a 50-agent channel went to CLE-001 alone).
+# @description Put every OD seat (orchestrator, master and failover dispatcher)
+# @description of every box of the fleet in every channel (SPEC-spool-fleet-
+# @description roles.md 2.1; owner 2026-10-03: "Of course every OD should be a
+# @description member of every channel because they are the ones to take in
+# @description whatever comes and decide what to do."). The hub delivers a human
+# @description post to the channel's ONLINE SUBSCRIBED agents
+# @description (channel_subscriptions); the workspace fallback list fires only
+# @description when none is online. The fleet's boxes: this machine's desk box,
+# @description plus, in fleet mode (lease.conf LEASE_FLEET), every box of
+# @description LEASE_PRIORITY / _ORCH / _DISPATCH. Which seat answers is the
+# @description leases' business (spec 2.1, 3), not the subscription's.
 # @description Per seated workspace and per live channel (default ones
 # @description included; #issues and the retired #tasks excluded):
-# @description   add    - the master + failover dispatchers where they are not
-# @description            subscribed (do_spl_channel_agent_add_op's runner,
-# @description            ALLOW_DEFAULT_CHANNEL=1)
-# @description   remove - the orchestrator's subscriptions (the remove op's
-# @description            runner); its desk seat stays, so DMs and @mentions
-# @description            still reach it
+# @description   add    - each OD seat <id>@<box> not subscribed, where the
+# @description            workspace's roster has it (do_spl_channel_agent_add_op's
+# @description            runner, ALLOW_DEFAULT_CHANNEL=1)
+# @description   UNSEATED - REPORT ONLY: an OD seat of a fleet box with no
+# @description            roster row in the workspace: the hub refuses its
+# @description            subscription until do_spl_desk_up seats it there
 # @description   legacy - spec 061 L6: a role's OLD id (CLE-002 for c-002,
 # @description            from <spool root>/agent-id-aliases.tsv) is removed
 # @description            where the role's new id is already subscribed on
@@ -38,6 +42,7 @@
 # @param ENV - required: dev or prd
 # @param DISPATCH_MASTER / DISPATCH_FAILOVER / DISPATCH_ORCH (optional) - as do_spl_dispatch_setup
 # @param DISPATCH_TENANTS (optional) - as do_spl_dispatch_setup
+# @param DISPATCH_FLEET_BOXES (optional) - the fleet's boxes, space or comma separated; default above
 # @param DESK_BOX (optional) - the box the agents answer from, default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param DISPATCH_SILENCE_WINDOW (optional) - minutes, default 120
@@ -63,6 +68,7 @@ do_spl_dispatch_subscribe() {
 # subscriptions and call <fn> <tenant> <data>. <data> lines:
 #   chan|<channel>            one per live channel (defaults included)
 #   sub|<channel>|<box>|<agent>|<origin>   one per live subscription
+#   ros|<box>|<agent>         one per roster row of an OD seat (any box)
 #   hum|<posts>|<unsigned>    human channel posts the hub stored between
 #                             DISPATCH_SILENCE_WINDOW and _GRACE minutes ago,
 #                             and how many of them unsigned and not older
@@ -100,7 +106,7 @@ _spl_dispatch_with_subs_all() {
 # SPL_PROXY_DSN set (inside spl_via_proxy). Announce rows on a default channel
 # grant nothing since rdb 0036 and are left out, as ChannelMembers does.
 _spl_dispatch_subs_read() {
-  spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" \
+  spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" -v ods="$(spl_dispatch_od_ids)" \
     -v win="${DISPATCH_SILENCE_WINDOW:-120}" -v grace="${DISPATCH_SILENCE_GRACE:-5}" <<'SQL'
 BEGIN READ ONLY;
 SET LOCAL app.tenant_id = :'tenant';
@@ -116,6 +122,9 @@ SELECT 'sub|' || s.channel_id || '|' || s.box_id || '|' || s.agent_id || '|' || 
  WHERE s.tenant_id = :'tenant' AND s.origin <> 'removed'
    AND c.deleted_at IS NULL AND c.archived_at IS NULL
    AND NOT (s.origin = 'announce' AND s.channel_id IN ('lobby', 'alerts', 'feedback'))
+ ORDER BY 1;
+SELECT 'ros|' || r.box_id || '|' || r.agent_id FROM roster r
+ WHERE r.tenant_id = :'tenant' AND r.agent_id = ANY (string_to_array(:'ods', ' '))
  ORDER BY 1;
 -- unsigned leaves out a post stored before the live box-wui pin was set: a
 -- post stored before the pin is the replay's (do_spl_replay_unsigned), not a
@@ -134,47 +143,81 @@ SQL
 
 # The plan for one workspace; applied when SPL_DISPATCH_DRY=0.
 spl_dispatch_subscribe_tenant() {
-  local t="$1" data="$2" ch missing a old n_ok=0 n_add=0 n_rm=0 n_leg=0 n_dead=0 box="$DISPATCH_DESK_BOX" dead obox
+  local t="$1" data="$2" ch missing a old fb n_ok=0 n_add=0 n_leg=0 n_dead=0 box="$DISPATCH_DESK_BOX" dead unseated=""
   local -a chans=()
   mapfile -t chans < <(sed -n 's/^chan|//p' <<<"$data")
   (( ${#chans[@]} )) || { do_log "FATAL $t: no channel at all - is that the right workspace?"; return 1; }
+  for fb in $(spl_dispatch_fleet_boxes); do
+    for a in $(spl_dispatch_od_ids); do
+      spl_dispatch_rostered "$data" "$fb" "$a" || unseated+="${unseated:+ }$a@$fb"
+    done
+  done
   for ch in "${chans[@]}"; do
-    missing=""
-    for a in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
-      spl_dispatch_subbed "$data" "$ch" "$box" "$a" || missing+="${missing:+ }$a"
-    done
-    if [[ -n "$missing" ]]; then
-      n_add=$((n_add + 1))
-      echo "PLAN add $t #$ch $missing"
-      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_add_op_run "$t" "$ch" "$box" "$missing" 1 ||
-        SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
-    fi
-    for obox in $(spl_dispatch_boxes_of "$data" "$ch" "$DISPATCH_ORCH"); do
-      n_rm=$((n_rm + 1))
-      echo "PLAN remove $t #$ch $DISPATCH_ORCH ($obox)"
-      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_remove_op_run "$t" "$ch" "$obox" "$DISPATCH_ORCH" ||
+    local right=1
+    for fb in $(spl_dispatch_fleet_boxes); do
+      missing=""
+      for a in $(spl_dispatch_od_ids); do
+        spl_dispatch_rostered "$data" "$fb" "$a" || { right=0; continue; }
+        spl_dispatch_subbed "$data" "$ch" "$fb" "$a" || missing+="${missing:+ }$a"
+      done
+      [[ -n "$missing" ]] || continue
+      right=0 n_add=$((n_add + 1))
+      echo "PLAN add $t #$ch $missing ($fb)"
+      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_add_op_run "$t" "$ch" "$fb" "$missing" 1 ||
         SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
     done
-    for a in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
-      old="$(spl_dispatch_legacy_of "$a")"
-      [[ -n "$old" ]] && spl_dispatch_subbed "$data" "$ch" "$box" "$a" && spl_dispatch_subbed "$data" "$ch" "$box" "$old" || continue
-      n_leg=$((n_leg + 1))
-      echo "PLAN remove $t #$ch $old ($box; legacy id of $a, which is subscribed)"
-      (( SPL_DISPATCH_DRY )) || _spl_channel_agent_remove_op_run "$t" "$ch" "$box" "$old" ||
-        SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
+    for fb in $(spl_dispatch_fleet_boxes); do
+      for a in $(spl_dispatch_od_ids); do
+        old="$(spl_dispatch_legacy_of "$a")"
+        [[ -n "$old" ]] && spl_dispatch_subbed "$data" "$ch" "$fb" "$a" && spl_dispatch_subbed "$data" "$ch" "$fb" "$old" || continue
+        n_leg=$((n_leg + 1))
+        echo "PLAN remove $t #$ch $old ($fb; legacy id of $a, which is subscribed)"
+        (( SPL_DISPATCH_DRY )) || _spl_channel_agent_remove_op_run "$t" "$ch" "$fb" "$old" ||
+          SPL_DISPATCH_SUB_FAILS=$((SPL_DISPATCH_SUB_FAILS + 1))
+      done
     done
-    [[ -z "$missing" ]] && [[ -z "$(spl_dispatch_boxes_of "$data" "$ch" "$DISPATCH_ORCH")" ]] && n_ok=$((n_ok + 1))
+    (( right )) && n_ok=$((n_ok + 1))
     dead=""
     for a in $(sed -n "s/^sub|$ch|$box|\([^|]*\)|.*/\1/p" <<<"$data"); do
-      [[ "$a" == "$DISPATCH_MASTER" || "$a" == "$DISPATCH_FAILOVER" || "$a" == "$DISPATCH_ORCH" ]] && continue
-      [[ -n "$(spl_dispatch_legacy_of "$DISPATCH_MASTER")" && "$a" == "$(spl_dispatch_legacy_of "$DISPATCH_MASTER")" ]] && continue
-      [[ -n "$(spl_dispatch_legacy_of "$DISPATCH_FAILOVER")" && "$a" == "$(spl_dispatch_legacy_of "$DISPATCH_FAILOVER")" ]] && continue
+      spl_dispatch_is_od "$a" && continue
       [[ "$SPL_DISPATCH_LIVE_IDS" == *" $a "* ]] || dead+="${dead:+ }$a"
     done
     [[ -n "$dead" ]] && { n_dead=$((n_dead + 1)); echo "DEAD $t #$ch $dead (no live process on this box; report only)"; }
   done
+  [[ -n "$unseated" ]] && echo "UNSEATED $t $unseated (no roster row in $t: seat it with do_spl_desk_up; report only)"
   spl_dispatch_inbound "$t" "$data"
-  echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add to add the dispatchers, $n_rm orchestrator seat(s) to remove, $n_leg legacy role row(s) to remove, $n_dead with dead subscriptions"
+  echo "SUM  $t: ${#chans[@]} channel(s), $n_ok already right, $n_add OD seat add(s), $n_leg legacy role row(s) to remove, $n_dead with dead subscriptions, $(wc -w <<<"$unseated") OD seat(s) unseated"
+}
+
+# The OD seats: the orchestrator, the master and the failover dispatcher.
+spl_dispatch_od_ids() {
+  echo "$DISPATCH_ORCH $DISPATCH_MASTER $DISPATCH_FAILOVER"
+}
+
+# 0 when <agent> is an OD seat, or the legacy id of one.
+spl_dispatch_is_od() {
+  local o
+  for o in $(spl_dispatch_od_ids); do
+    [[ "$1" == "$o" ]] && return 0
+    [[ "$1" == "$(spl_dispatch_legacy_of "$o")" ]] && return 0
+  done
+  return 1
+}
+
+# The fleet's boxes, one per line: DISPATCH_FLEET_BOXES, else this machine's
+# desk box plus (fleet mode) every box the lease rankings name.
+spl_dispatch_fleet_boxes() {
+  local l="${DISPATCH_FLEET_BOXES:-}"
+  if [[ -z "$l" ]]; then
+    l="$DISPATCH_DESK_BOX"
+    [[ -n "${LEASE_FLEET:-}" ]] && l+=",${LEASE_PRIORITY:-},${LEASE_PRIORITY_ORCH:-},${LEASE_PRIORITY_DISPATCH:-}"
+  fi
+  tr ', ' '\n\n' <<<"$l" | awk 'NF && !seen[$0]++'
+}
+
+# 0 when the workspace's roster in <data> has <agent> on <box>.
+spl_dispatch_rostered() {
+  grep -qx "ros|$2|$3" <<<"$1"
 }
 
 # The legacy id an agent id was mapped from (agent-id-aliases.tsv), or nothing.

@@ -17,8 +17,8 @@
 # @description   7. a desk in every workspace (do_spl_desk_up) where unseated
 # @description   8. the legacy registry row, when DISPATCH_LEGACY_REGISTRY is set
 # @description   9. the lease loops (do_spl_dispatch_lease ensure)
-# @description  10. the channel subscriptions (do_spl_dispatch_subscribe): both
-# @description      dispatchers in every channel, the orchestrator in none. It
+# @description  10. the channel subscriptions (do_spl_dispatch_subscribe): every
+# @description      OD seat of every fleet box in every channel (SPEC 2.1). It
 # @description      reads the hub DB even in the dry run (DISPATCH_SUBSCRIBE=0 skips)
 # @description  11. the unanswered-post sweep cron (do_spl_unanswered_sweep_install_cron,
 # @description      SPEC 3.2: the pull that finds posts nobody answered;

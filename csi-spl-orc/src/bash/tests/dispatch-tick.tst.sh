@@ -6,7 +6,7 @@
 #          fixture files the stub add runner appends to (as the hub would), the
 #          check a stub printing its table, the note sender a stub.
 #   1. no lease.conf: nothing runs, nothing is printed
-#   2. a new channel: the next tick subscribes both dispatchers to it
+#   2. a new channel: the next tick subscribes every OD seat to it
 #   3. no change: the next tick calls no runner, prints nothing, writes nothing
 #   4. a dead subscription: logged once per agent, never sent
 #   5. a new check GAP on prd: logged and ONE note to the lease holder; the
@@ -30,7 +30,7 @@ P="$T/proc" S="$T/spool" SUBS="$T/subs"
 mkdir -p "$P" "$S/dispatch" "$SUBS" "$T/state/desk/w1/box-desk"
 touch "$T/state/desk/w1/box-desk/pinned"
 mkdir -p "$P/101"; echo claude >"$P/101/comm"; printf 'HOME=/x\0SPOOL_AGENT_ID=CLE-8\0' >"$P/101/environ"
-printf 'chan|lobby\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\n' >"$SUBS/w1.txt"
+printf 'chan|lobby\nros|box-desk|c-001\nros|box-desk|CLE-002\nros|box-desk|CLE-003\nsub|lobby|box-desk|c-001|invite\nsub|lobby|box-desk|CLE-002|invite\nsub|lobby|box-desk|CLE-003|invite\n' >"$SUBS/w1.txt"
 printf '| what | value | verdict |\n|---|---|---|\n| CLE-002 process | pid 7, SPOOL_AGENT_ID=CLE-002 | ok |\n' >"$T/check"
 
 tick() {
@@ -62,9 +62,9 @@ tick; rc=$?
 # --- 2. a new channel ------------------------------------------------------------------------
 printf 'LEASE_MASTER=CLE-002\nLEASE_FAILOVER=CLE-003\nLEASE_ORCH=c-001\n' >"$S/dispatch/lease.conf"
 tick; rc=$?
-[[ $rc -eq 0 && "$(cat "$T/calls")" == 'add w1 newc box-desk CLE-002 CLE-003 1' ]] &&
-  grep -qx 'DISPATCH subscribe add w1 #newc CLE-002 CLE-003' "$T/o" &&
-  pass "2. a new channel: the next tick subscribes both dispatchers and says so" || fail "2. rc=$rc calls=$(cat "$T/calls") $(cat "$T/o")"
+[[ $rc -eq 0 && "$(cat "$T/calls")" == 'add w1 newc box-desk c-001 CLE-002 CLE-003 1' ]] &&
+  grep -qx 'DISPATCH subscribe add w1 #newc c-001 CLE-002 CLE-003 (box-desk)' "$T/o" &&
+  pass "2. a new channel: the next tick subscribes every OD seat, the orchestrator too, and says so" || fail "2. rc=$rc calls=$(cat "$T/calls") $(cat "$T/o")"
 
 # --- 3. no change ----------------------------------------------------------------------------
 : >"$T/calls"; touch "$T/mark"; sleep 1
@@ -113,6 +113,14 @@ sed -i '/CLE-003 process/d' "$T/check"
 tick
 grep -qx 'DISPATCH cleared GAP CLE-003 process: GAP not running' "$T/o" && [[ "$(grep -c '^send ' "$T/sent")" == "$n" ]] &&
   pass "5. a gone gap is logged as cleared, nothing sent" || fail "5. cleared: $(cat "$T/o")"
+
+# --- 5b. an unseated OD seat (owner 2026-10-03: every OD in every channel) ---------------------
+cp "$SUBS/w1.txt" "$T/w1.keep"; grep -v '^ros|box-desk|c-001$' "$T/w1.keep" >"$SUBS/w1.txt"
+tick ENV=dev
+grep -qx 'DISPATCH gap GAP w1 OD seats: unseated, seat them with do_spl_desk_up (c-001@box-desk)' "$T/o" &&
+  pass "5b. an OD seat the workspace does not seat is a GAP item" || fail "5b. unseated: $(cat "$T/o")"
+cp "$T/w1.keep" "$SUBS/w1.txt"; tick ENV=dev
+grep -q '^DISPATCH cleared GAP w1 OD seats' "$T/o" && pass "5b. seated again: cleared" || fail "5b. cleared: $(cat "$T/o")"
 
 # --- 6. failing subscribe ------------------------------------------------------------------
 echo 'chan|other' >>"$SUBS/w1.txt"

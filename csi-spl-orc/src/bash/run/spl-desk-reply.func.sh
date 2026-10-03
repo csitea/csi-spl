@@ -65,11 +65,7 @@ do_spl_desk_reply() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
-  if [[ -n "${DESK_BODY_FILE:-}" ]]; then
-    [[ -z "$body" ]] || { do_log "FATAL set DESK_BODY or DESK_BODY_FILE, not both"; return 1; }
-    [[ -f "$DESK_BODY_FILE" && -r "$DESK_BODY_FILE" ]] || { do_log "FATAL DESK_BODY_FILE is not a readable file: '$DESK_BODY_FILE'"; return 1; }
-    body="$(cat "$DESK_BODY_FILE")"
-  fi
+  _spl_desk_reply_body_file || return 1
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' f files=()
   read -r -a files <<<"${DESK_FILES:-}"
@@ -157,6 +153,16 @@ print(json.dumps({"env": env, "tenant": tenant, "box": box, "agent": agent, "kin
                   "to": to, "task_id": task, "answered_msg_id": in_msg, "answered_head": head,
                   "send": sent}, sort_keys=True))
 EOF_PY
+}
+
+# _spl_desk_reply_body_file: DESK_BODY_FILE's text into the caller's body
+# (do_spl_desk_reply's local); 1 with the FATAL when DESK_BODY is set too or
+# the file is unreadable. Unset: body stays DESK_BODY.
+_spl_desk_reply_body_file() {
+  [[ -n "${DESK_BODY_FILE:-}" ]] || return 0
+  [[ -z "$body" ]] || { do_log "FATAL set DESK_BODY or DESK_BODY_FILE, not both"; return 1; }
+  [[ -f "$DESK_BODY_FILE" && -r "$DESK_BODY_FILE" ]] || { do_log "FATAL DESK_BODY_FILE is not a readable file: '$DESK_BODY_FILE'"; return 1; }
+  body="$(cat "$DESK_BODY_FILE")"
 }
 
 # _spl_desk_reply_check_args <body> <kind> <to> <task> <file>...: 0 when the

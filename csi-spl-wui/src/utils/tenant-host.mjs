@@ -23,7 +23,7 @@ export function tenantOrigin(tenant, siteUrl, apexTenant) {
   const site = siteHostOf(siteUrl)
   const t = String(tenant || '')
   if (!site || !validTenant(t)) return ''
-  return t === apexTenant ? 'https://' + site : 'https://' + t + '.' + site
+  return t === apexTenant ? `https://${site}` : `https://${t}.${site}`
 }
 
 /** The same path (+ query + hash) on the tenant's host. '' when the tenant is invalid. */

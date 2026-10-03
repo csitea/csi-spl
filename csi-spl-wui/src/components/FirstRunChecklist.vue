@@ -26,8 +26,8 @@
           <template v-else>{{ i + 1 }}</template>
         </span>
         <span class="first-run__text">
-          <NuxtLink :to="localePath(s.to)" class="first-run__link" :data-test="'first-run-link-' + s.id">{{ t('first_run.' + s.id) }}</NuxtLink>
-          <span class="muted first-run__hint">{{ s.done ? t('first_run.done') : t('first_run.' + s.id + '_hint') }}</span>
+          <NuxtLink :to="localePath(s.to)" class="first-run__link" :data-test="`first-run-link-${s.id}`">{{ t(`first_run.${s.id}`) }}</NuxtLink>
+          <span class="muted first-run__hint">{{ s.done ? t('first_run.done') : t(`first_run.${s.id}_hint`) }}</span>
         </span>
       </li>
     </ol>

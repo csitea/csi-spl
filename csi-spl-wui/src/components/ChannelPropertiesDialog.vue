@@ -205,10 +205,10 @@
               <span
                 v-if="row.state"
                 class="agent-state"
-                :class="'agent-state--' + row.state"
-                :title="t('channels.properties.agent_' + row.state + '_hint')"
-                :data-testid="'channel-agent-state-' + row.id"
-              >{{ t('channels.properties.agent_' + row.state) }}</span>
+                :class="`agent-state--${row.state}`"
+                :title="t(`channels.properties.agent_${row.state}_hint`)"
+                :data-testid="`channel-agent-state-${row.id}`"
+              >{{ t(`channels.properties.agent_${row.state}`) }}</span>
               <button
                 type="button"
                 class="icon-btn"
@@ -252,10 +252,10 @@
             <span
               v-if="row.state"
               class="agent-state"
-              :class="'agent-state--' + row.state"
-              :title="t('channels.properties.agent_' + row.state + '_hint')"
-              :data-testid="'channel-agent-state-' + row.id"
-            >{{ t('channels.properties.agent_' + row.state) }}</span>
+              :class="`agent-state--${row.state}`"
+              :title="t(`channels.properties.agent_${row.state}_hint`)"
+              :data-testid="`channel-agent-state-${row.id}`"
+            >{{ t(`channels.properties.agent_${row.state}`) }}</span>
           </li>
         </ul>
         <p v-if="fallback" class="fallback-line muted" data-testid="channel-fallback-ro">

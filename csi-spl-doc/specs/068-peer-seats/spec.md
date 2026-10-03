@@ -1,8 +1,11 @@
-# 068: four peer seats - every seat dispatches and orchestrates
+# 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **draft for the owner, Q1..Q6 open** (section 9). Spec only: no code,
-no `lease.conf`, cron, table or seat was touched by this lane.
-Draft 2026-10-03, c-098; v0.2 folds in the owner posts `d077dd4e`, `469e6391`, `b6dbd286`, `c1216b5e`.
+Status: **v0.3, owner answers folded in (1.3); Q1..Q6 open** (section 9).
+Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
+lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
+`469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
+`66958941`, `f4d05ace` and the order `cddcbf7c` ("Write those specs down once
+again and ask questions if it was not clear").
 Related: [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md)
 (sections 1..4.4 are what this replaces), [060 role
 rotation](../060-role-rotation/spec.md), [064 the fleet without the
@@ -49,7 +52,7 @@ tree, as in spec 064). Log lines quoted below carry it in place of the tag.
 (The last four were relayed to this lane by c-002@<pc box>, task `1068e306`,
 spool msgs `31410b95`, `783a99af`, `e1a41397`, `940a02d0`.)
 
-**Fixed by the owner, not options in this spec:** four peers; each polls the
+**Fixed by the owner, not options in this spec:** four ODs (1.3: per box); each polls the
 database every 5 s in a continuous loop; a lock per message, "locked by him";
 a responsible agent on every message (DMs, channels, topics, replies); a
 fresh instance per peer every hour, staggered `:00`, `:15`, `:30`, `:45`; the
@@ -74,14 +77,49 @@ PC). Fleet loop code on sat at the time: `cat /var/spool-hub/dispatch/fleet.ver`
 **The common cause.** Every item had exactly one allowed actor (the lease
 holder), chosen per ROLE, and "able" was judged from a process and a pane,
 not from progress. When that actor froze, stalled, or flapped, the work
-waited. The fix is to choose the actor per ITEM, among four peers, and to
+waited. The fix is to choose the actor per ITEM, among the ODs, and to
 let progress (or its absence) move the item.
+
+### 1.3 The owner's answers to v0.2 (HUM-10, t1 `1068e306`, verbatim)
+
+Relayed by c-002@<pc box>, spool msg `5d0dce90`, oldest first:
+
+> `9590b1d6`, 12:31:14Z: "I need to correct 4 ODs (aka orchestrator
+> dispatchers) on a box. Two should be Claude and two should be Grok."
+
+> `5dddc9e3`, 12:32:07Z: "Yes the 001, 002, 003, and 004 will be special and
+> reserved only for the ODs or the orchestrator dispatchers. Add this to the
+> glossary of the application: - ODs - orchestrator dispatcher - agent"
+
+> `66958941`, 12:32:40Z: "And yes the responsible for each message should be
+> shown in the UI."
+
+> `f4d05ace`, 12:33:08Z: "No, switch immediately to the new roles. First
+> spawn all eight agents and start slowly shutting down the old other agents.
+> Just pass them context."
+
+> `cddcbf7c`, 12:33:23Z (spool msg `6e6fd399`): "Write those specs down once
+> again and ask questions if it was not clear."
+
+| v0.2 question | answer | what changed in this spec |
+|---|---|---|
+| Q1 seats per machine | **four ODs on EACH box**, eight in all (sat + the PC) | 3.1, 6.1, 7 |
+| Q2 mixed harnesses | **yes: two claude + two grok per box** | 3.3 |
+| Q3 ids | **001..004 reserved for the ODs only** (on every box, so an OD is `<id>@<box>`) | 3.2 |
+| Q4 grok may spawn / run prd | not answered | Q5 below |
+| Q5 responsible in the UI | **yes** | L8 is in scope, 4.1 |
+| Q6 shadow run | **no: switch at once**; spawn all eight, then shut the old agents down slowly, passing them context | 8 |
+
+The glossary entries (OD, orchestrator dispatcher, agent) are c-001's action
+(c-002's note); 2 below holds the wording this spec uses.
 
 ## 2. Words
 
 | word | means |
 |---|---|
-| **peer** / **seat** | one of four agent sessions, each a dispatcher AND an orchestrator. "Seat" is the slot (number, home box, harness); "peer" is the session in it, replaced every hour |
+| **OD** (orchestrator dispatcher) | one of the four agent sessions on a box with id 001..004, each a dispatcher AND an orchestrator: it takes messages, routes them, decides, spawns and closes lanes. Eight in the fleet (four per box). Also called a **peer** in this spec and in code names (`do_spl_peer_*`) |
+| **seat** | an OD's slot: id 001..004, its box, its harness. The session in it is replaced every hour; the seat stays |
+| **agent** | any harness session with a spool id (`^[acgq]-[0-9]{3}$`, `<id>@<box>`): an OD (001..004) or a lane (005..999, one small task each) |
 | **message** | a row of the hub table `messages` (rdb 0001): a DM (`channel` NULL), a channel post, a topic reply (`task_id` = the topic). One table already holds all three |
 | **responsible agent** | the new `messages.responsible` column: the seat that must deal with that message. Set at insert when the message is addressed to one agent; set by a peer's claim when it is addressed to the peers (a human post, a report to `orchestrator`) |
 | **lock** | `messages.locked_until` (hub clock) next to `responsible`. Renewed by the holder's loop; past it, any peer may take the message |
@@ -90,50 +128,46 @@ let progress (or its absence) move the item.
 | **mutex** | a short named lease in the existing `fleet_leases` table (`role` = `spawn`, `prd-<target>`, `fleet-config`), for the few shared resources that need ONE actor at a time |
 | **able** | the existing check `spl_lease_agent_able` (process, pane stall, stuck-unread rule) |
 
-## 3. Decision 1: the seats
+## 3. Decision 1: the seats (decided by the owner, 1.3)
 
-### 3.1 How many per machine
+### 3.1 Four ODs per box
 
-| option | one dead peer | one machine gone | one LOGIN at its limit (F2) | seats with the PC off (064's normal) |
-|---|---|---|---|---|
-| A. 4 on sat | survives | **does not** | only if harnesses are mixed | 4 |
-| B. 3 on sat + 1 on the PC | survives | survives while the PC is on | only if mixed | 3 |
-| **C. 2 on sat + 2 on the PC (recommended)** | survives | survives while the PC is on | survives if each machine mixes harnesses | 2 |
-| D. 2 + 2, floating (an absent machine's seats start on the other) | survives | survives always | survives if mixed | 4 |
+Owner: "4 ODs ... on a box", eight in all. Each box carries the whole job
+alone: with the PC off (064's normal) sat's four ODs do everything, and with
+both on, all eight share one pool of messages (4.1).
 
-**Recommendation: C, each machine running one claude and one grok seat.**
-F2 shows the frozen thing is a LOGIN, not a machine: diversity of quota buys
-more than a count of seats, and two seats on two quotas keep sat working with
-the PC off. D comes later only if C measures a gap: with the hourly restart
-(section 6) a floating seat is just "the restart cron of the other machine
-starts it", so it is cheap to add once wanted.
+| box | OD seats |
+|---|---|
+| sat | 001, 002, 003, 004 |
+| the PC (`<pc box>`) | 001, 002, 003, 004 |
+
+Against the failures of 1.2: one dead OD leaves seven (three on its box); one
+box gone leaves the other box's four; one login at its limit (F2) leaves the
+two seats of the other harness on every box.
 
 ### 3.2 Ids
 
-Spec 061 reserves 001..003 on EVERY box, so a bare `c-001` means "this
-machine's", and the hub refuses it across machines (`ambiguous_to_box`). A
-responsible agent written on a message must name ONE seat fleet-wide, and the
-harness letter is part of the grammar (`^[acgq]-[0-9]{3}$`).
+Owner: 001..004 are reserved for the ODs only, on every box (061 reserved
+001..003 per box; 004 now leaves the rolling lane pool the same way, and
+lanes allocate from 005). Because the same numbers run on both boxes, an OD
+is always written `<id>@<box>`, and so is `messages.responsible`. A bare id
+means this box's OD, as today (4.2 of fleet-roles, `ambiguous_to_box`).
 
-| option | ids |
-|---|---|
-| a. keep per-box 001..003, add 004 | `c-001@sat`, `c-002@sat`, `c-001@<pc box>`, ... - two sessions per number |
-| **b. seat numbers 001..004 fleet-wide, letter per harness (recommended)** | `c-001@sat`, `g-002@sat`, `c-003@<pc box>`, `g-004@<pc box>` |
-
-**Recommendation: b.** One number = one seat in the whole fleet. The number
-is also the restart slot: seat N restarts at minute `15*(N-1)` (section 6).
-004 leaves the rolling pool (061 section 3.5) the way 001..003 did; 001..004
-are claimed with `--claim`, never allocated. `messages.responsible` stores
-`<id>@<box>`.
+The numbers are reserved on EVERY harness letter: no lane is ever `c-`,
+`g-`, `a-` or `q-` 001..004. The letter is the harness
+(`^[acgq]-[0-9]{3}$`); on each box the seats are `c-001`, `c-002` (claude) and
+`g-003`, `g-004` (grok), e.g. `c-001@sat c-002@sat g-003@sat g-004@sat`. The
+number is also the restart slot (6.1).
 
 ### 3.3 Harness and model
 
-Owner split earlier today: claude 40 / grok 50 / agy 10. **Peers may be
-mixed, and should be** (F2, F6): a seat is defined by what it must be able to
-run, not by its harness. A harness is fit for a seat when it passes the seat
-drill (lane L7): `spool recv`, `spool claim`, `do_spl_post`, a spawn dry
-run. Recommended start: 2 claude + 2 grok (one of each per machine); agy is
-not seated until it passes the drill.
+Owner: two claude + two grok per box. The mix is the defense against F2 (a
+login at its limit froze every sat role at once) and F6 (one harness refusing
+a step). A harness is fit for a seat when it passes the seat drill (lane L7):
+`spool recv`, `spool claim`, `do_spl_post`, a spawn dry run. Grok is suspended
+today and lane seeds say never to spawn grok (c-001, msgs `8896800b`,
+`f2bf978c`): Q2 asks whether "two should be Grok" lifts that for the OD seats
+only, and Q3 what runs in a grok seat while it stays suspended.
 
 ## 4. Decision 2: who does what without an orchestrator
 
@@ -169,7 +203,7 @@ work (option c).
 
 Plus a partial index `WHERE needs_peer AND handled_at IS NULL`, where
 `needs_peer` is true for a human post in a seated workspace and for a message
-`to_id = 'peers'`. The poll reads only that index, so four peers polling
+`to_id = 'peers'`. The poll reads only that index, so eight ODs polling
 every 5 s is 0.8 indexed queries a second.
 
 **The claim** is ONE statement on the hub (box frame `claim`, CLI `spool
@@ -239,8 +273,8 @@ and only for these shared resources.** The mutex is the existing
 `fleet_leases` row and `lease cas` frame under a new `role` name: no new
 primitive. A dead holder's mutex expires in 120 s.
 
-Consensus (3 of 4 agree) is rejected: with the PC off (064's normal) only 2
-seats exist, and with one of them frozen (F2) no quorum is possible - the
+Consensus (3 of 4 agree) is rejected: with the PC off (064's normal) only 4
+ODs are on sat, and with two of them frozen (F2) no quorum of 3 is possible - the
 exact case this spec exists for. Lock + mutex survives one dead peer and one
 frozen machine: any one able peer takes every message.
 
@@ -250,12 +284,13 @@ frozen machine: any one able peer takes every message.
 
 | cron | where | does |
 |---|---|---|
-| `0,15,30,45 * * * *` `do_spl_peer_restart` (tag `# csi-spl:peer-restart`) | every machine | seat N = `minute/15 + 1`; if seat N lives on this machine: stop its poll loop (its locks stay, `responsible` names the SEAT, not the session), write the 060 handoff file (060 section 6, minus its lease lines), `/exit-clean` the old session (kill after 5 min, 060 D4), start a fresh one under the same id with the handoff, start its poll loop. A fresh session that does not start in 5 min: alert (an owner DM) and start the old one's loop again (060 D2) |
+| `0,15,30,45 * * * *` `do_spl_peer_restart` (tag `# csi-spl:peer-restart`) | every box | seat N = `minute/15 + 1` (001 at `:00`, 002 at `:15`, 003 at `:30`, 004 at `:45`), on this box: stop its poll loop (its locks stay, `responsible` names the SEAT, not the session), write the 060 handoff file (060 section 6, minus its lease lines), `/exit-clean` the old session (kill after 5 min, 060 D4), start a fresh one under the same id with the handoff, start its poll loop. A fresh session that does not start in 5 min: alert (an owner DM) and start the old one's loop again (060 D2) |
 | `* * * * *` `do_spl_peer_ensure` (tag `# csi-spl:peer-ensure`) | every machine | starts a missing poll loop of a local seat (the reboot path); nothing else |
 
-At most one seat restarts at a time, and its messages wait at most the
-restart (a few minutes) or the lock, whichever is first: the other three
-keep polling new messages meanwhile.
+At most one seat per box restarts at a time (two in the fleet, at the same
+minute, unless Q6 offsets the PC), and its messages wait at most the restart
+(a few minutes) or the lock, whichever is first: the other ODs keep polling
+new messages meanwhile.
 
 ### 6.2 The crons removed (owner: "Remove the current cron scripts")
 
@@ -292,8 +327,8 @@ clock. `PEER_POLL_SEC` 5, `LOCK_TTL` 120 s, `PEER_PROGRESS_MAX` 10 min.
 | one peer stalled but alive (usage limit, modal screen, stuck) | the same, from the able check | **125 s** |
 | a stall the able check misses (F4) | its transcript stops growing; after `PEER_PROGRESS_MAX` its loop stops renewing | **12 min** |
 | the poll loop itself dead | nothing renews; the locks run out; `peer-ensure` restarts the loop within a minute | **125 s** |
-| one machine frozen or gone (its whole box, or every seat on it at its quota) | nothing on it renews; the other machine's peers take everything. With mixed harnesses (3.1) a quota freeze hits one seat per machine, not all | **125 s** |
-| one login at its limit fleet-wide (every claude seat) | the grok seats carry everything; `not_by` routes harness refusals | **125 s** |
+| one box frozen or gone | nothing on it renews; the other box's four ODs take everything | **125 s** |
+| one login at its limit fleet-wide (every claude seat, F2) | the two grok seats on each box carry everything; `not_by` routes harness refusals | **125 s** |
 | the hourly restart of a seat | its messages keep their lock, renewed by nobody while it restarts; the fresh session takes them from the handoff, or they run out and move | **125 s** worst case; new messages unaffected |
 | hub down | no poll, no web posts, no relays. Each machine falls back to a local lock, an `O_EXCL` create of `<spool root>/claims/<msg id>` among its own seats, for local-origin messages only (terminal reports). No cross-machine duplicate is possible: nothing crosses machines without the hub. On recovery each local lock is pushed as the message's `responsible`, insert-if-absent | local: **5 s**; web posts: until the hub is back (they cannot arrive) |
 | split brain (one machine reaches the hub, the other does not) | the hub is the only arbiter, so there is one view. The cut-off machine cannot renew; its messages move after `LOCK_TTL`. Its peers may still think they hold them, but every outward action is fenced (4.2): a post, spawn or prd call re-checks `responsible_gen` on the hub, cannot, and stops | **125 s** |
@@ -303,23 +338,41 @@ clock. `PEER_POLL_SEC` 5, `LOCK_TTL` 120 s, `PEER_PROGRESS_MAX` 10 min.
 ## 8. Decision 6: migration in small, disjoint lanes
 
 Today c-001 orchestrates and c-002 / c-003 dispatch on each box under the
-fleet lease, with the 9 crons of 6.2. The cut-over first runs the peers in
-**shadow**: the loops lock with a `shadow` flag and log what they would do,
-the old roles still act, and a report compares the two. Only then are the old
-roles and crons switched off.
+fleet lease, with the 9 crons of 6.2. Owner (1.3): **no shadow run; switch at
+once.** "First spawn all eight agents and start slowly shutting down the old
+other agents. Just pass them context."
+
+**The catch.** The ODs cannot share messages safely until L1 (the columns),
+L2 (answer once) and L3 (the poll loop) exist. Spawned before then, the eight
+either all answer the same message or sit idle while today's lease holder
+does the work. Two orders, Q1 asks which:
+
+| order | steps | until L3 is live |
+|---|---|---|
+| **A. build first (recommended: the fastest SAFE path)** | L1, L2, L3 in parallel lanes, live on dev + prd; then spawn the eight ODs; then the staged hand-over | today's c-001 / c-002 / c-003 keep working exactly as now |
+| B. spawn first | spawn the eight ODs now; only today's lease holder acts, the others stand by; L1..L3 follow | eight sessions mostly idle, and one of them the single point of failure this spec removes |
+
+**The staged hand-over (replaces v0.2's shadow run and cut-over).** "Pass
+them context" read as: each old role session (c-001, c-002, c-003 on each
+box) writes its 060 handoff file (section 6 of 060: in-flight terminal lines,
+open asks, outbox, unread inbox, live lanes, hold notes), an OD on the same
+box acks it, and the old session exits (`/exit-clean`, killed after 5 min).
+One old session at a time; the next only after the ack. Q4 confirms this
+reading. A lane already running keeps its task and reports to `orchestrator`,
+which from then on resolves to the ODs.
 
 | lane | scope (files) | test |
 |---|---|---|
 | L1 hub: the columns | the next free rdb migration (6 columns + the partial index + `needs_peer`; `responsible` back-filled for messages to one agent); store memory + Postgres; box frame `claim` (`poll / renew / release / done`); CLI `spool claim` | `TestMessageClaimPoll` (memory + Postgres: 4 pollers, 100 messages, each locked exactly once; lock expiry; non-responsible close refused; dead-letter at 4; `not_by`); `TestBoxMessageClaim` (two boxes) |
 | L2 hub: answer once | the `answers` guard on agent posts (responsible + gen + unique) | `TestAnswerOnce`: two peers answer one message, one 200, one 409 |
-| L3 orc: poll loop | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; shadow only | `peer-poll.tst.sh`: 4 simulated seats on 2 machines against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence |
+| L3 orc: poll loop | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; live as soon as it lands | `peer-poll.tst.sh`: 8 simulated ODs on 2 boxes against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence |
 | L4 orc: `--to peers` | `spool-send.sh` (`orchestrator` -> `peers`), `asks.sh` (lock moved to the message) | `test-fleet-send.sh` and `asks.tst.sh` extended: one report, 4 seats, exactly 1 responsible |
 | L5 orc: mutexes + fence | the spawn launchers and the prd wrappers take `spawn` / `prd-<target>` and re-check the fence; `do_spl_fleet_config` writes every machine or none | `spawn-mutex.tst.sh`: two peers spawn at once, one spawns; a lost fence stops a deploy |
 | L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45`), its `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the two new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat, one seat at a time, a failed start keeps the old one; a crontab fixture before / after |
-| L7 seats + drill | `do_spl_peer_setup` (claims 001..004, the harness per seat, seats on every desk); the live drill: kill one peer, SIGSTOP one machine's seats, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
+| L7 seats + drill | `do_spl_peer_setup` (claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
 | L8 WUI | show the responsible agent on every message and topic (DM, channel, topic reply) | e2e: a post shows its responsible seat within 5 s |
 | L9 doc | rewrite SPEC-spool-fleet-roles.md sections 1, 3, 3.2, 4, 4.1, 4.3, 4.4, 7 | `do_check_dist_hygiene` |
-| L10 cut-over + delete | after L7's drill: the peers act, the old roles and crons stop | `fleet-lease.tst.sh` and the sweep's fixture tests retired with what they tested |
+| L10 staged hand-over + delete | the hand-over above, one old session at a time; then, with L3 and L6 running on both boxes, the old roles' code and crons go | `fleet-lease.tst.sh` and the sweep's fixture tests retired with what they tested |
 
 L1, L2 touch only the hub; L3..L6 disjoint orc files; L8 only the WUI; L9
 only docs. L3..L6 and L8 need L1; L7 needs L1..L6; L10 is last.
@@ -337,11 +390,11 @@ c-002 / c-003 as distinct roles).
 
 Each answerable with one word.
 
-1. Seats: 2 on sat + 2 on the PC (yes), or all 4 on sat (no)?
-2. Mixed harnesses: 2 claude + 2 grok, one of each per machine (yes / no)?
-3. Seat numbers 001..004 unique across the whole fleet, letter per harness (`c-001@sat`, `g-002@sat`, `c-003@<pc box>`, `g-004@<pc box>`) (yes / no)?
-4. May a grok peer spawn and close lanes and run the pre-approved prd actions under the lock + mutex (yes), or only claude peers (no)?
-5. Show the responsible agent on every message in the web UI (yes / no)?
-6. Shadow-run the peers for 24 h before switching the old roles and crons off (yes), or switch directly (no)?
+1. Order: build the lock and the 5 s loop first (L1..L3), then spawn the eight ODs and hand over (yes), or spawn the eight now with only today's lease holder acting until L3 is live (no)?
+2. Does "two should be Grok" lift today's grok suspension for the OD seats only (yes / no)?
+3. While grok stays suspended, run the two grok seats on claude (yes), or leave them empty (no)?
+4. "Pass them context" = the old c-001 / c-002 / c-003 each hand their open work to an OD through the 060 handoff file, then exit, one at a time (yes / no)?
+5. May a grok OD spawn and close lanes and run the pre-approved prd actions under the lock + mutex (yes), or only the claude ODs (no)?
+6. Offset the PC's hourly restarts by 7 minutes, so the two boxes never restart the same seat at once (yes), or the same minutes on both boxes (no)?
 
-<!-- version: 0.2.0 · updated: 2026-10-03 · last-edit: 2026-10-03T13:20:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-03 · last-edit: 2026-10-03T12:50:00Z -->

@@ -432,6 +432,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepClones(ctx)
 			s.sweepMemberActivity(ctx) // CLE-77799: Activity-log auth-row retention
 			s.sweepAgentLifecycle(ctx) // spec 063 section 12: 90-day event log
+			s.sweepPerfSamples(ctx)    // spec 066 section 4: 30-day WUI perf samples
 		}
 	}
 }

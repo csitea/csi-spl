@@ -193,6 +193,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, _, err := pg.PatchAgentLifecycleConfig(ctx, s.tenant, LifecyclePatch{"notes_tail_lines": 20}, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	// wui_perf_samples (rdb 0106, spec 066): one sample.
+	if err := pg.InsertPerfSamples(ctx, s.tenant, []PerfSample{{At: now, SessionID: uuid4(), Metric: "inp",
+		ValueMs: 1, Device: "phone", Outcome: "ok"}}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

@@ -89,10 +89,29 @@ async function keysShown(p) {
   }, NAMESPACES)
 }
 
-/** A page whose second-catalogue chunks fail to load. */
+/**
+ * A page whose second-catalogue chunks fail to load.
+ *
+ * A failed chunk is what a stale tab sees after a deploy, so the app answers
+ * its `vite:preloadError` with a page reload (src/plugins/chunk-reload.client.ts,
+ * once per 10 s). Here that reload lands at a random point of the steps below -
+ * mid-goto, mid rail wait, or under the control's in-app push - and those runs
+ * failed (wf10 37087180918, 37089147099). A listener that runs before the
+ * app's own takes the event first: it keeps the app's preventDefault (the load
+ * resolves undefined and i18n-more shows keys, as without the reload), stops
+ * the reload, and counts the events so the test can show the block bit.
+ */
 async function blockedPage(browser) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
+  await p.evaluateOnNewDocument(() => {
+    window.__i18nSplitPreloadErrors = 0
+    window.addEventListener('vite:preloadError', (ev) => {
+      window.__i18nSplitPreloadErrors++
+      ev.preventDefault()
+      ev.stopImmediatePropagation()
+    })
+  })
   const s = await p.createCDPSession()
   const blocked = []
   await s.send('Fetch.enable', { patterns: [{ urlPattern: '*/_nuxt/*.js', requestStage: 'Response' }] })
@@ -104,13 +123,19 @@ async function blockedPage(browser) {
         blocked.push(e.request.url.replace(/.*\/_nuxt\//, ''))
         await s.send('Fetch.failRequest', { requestId: e.requestId, errorReason: 'BlockedByClient' })
       } else await s.send('Fetch.continueRequest', { requestId: e.requestId })
-    } catch { /* the page went away */ }
+    } catch {
+      /* never leave it paused: a paused chunk hangs the page (the page may have gone away) */
+      await s.send('Fetch.continueRequest', { requestId: e.requestId }).catch(() => {})
+    }
   })
   await p.setViewport({ width: 1280, height: 800 })
   return { p, ctx, blocked }
 }
 
 const prefix = (code) => (code === 'en' ? '' : `/${code}`)
+/** The document the step started on is still there: no reload under it. */
+const markDoc = (p) => p.evaluate(() => { window.__i18nSplitDoc = true })
+const sameDoc = (p) => p.evaluate(() => window.__i18nSplitDoc === true).catch(() => false)
 const railUp = (p) => p.waitForSelector('[data-testid=sidebar-tab-flow]', { visible: true, timeout: 20000 }).then(() => true, () => false)
 
 const server = await startServer()
@@ -123,14 +148,18 @@ try {
       const { p, ctx, blocked } = await blockedPage(browser)
       for (const path of ['/', '/lobby']) {
         await p.goto(server.base + prefix(code) + (path === '/' ? '' : path), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+        await markDoc(p)
         const up = await railUp(p)
         await sleep(1500) // the idle load has been tried (and blocked)
         const keys = await keysShown(p)
-        ok(`${code} ${path}: the first screen renders with core alone, no key shown`, up && keys.length === 0, { up, keys })
+        const noReload = await sameDoc(p)
+        ok(`${code} ${path}: the first screen renders with core alone, no key shown`, up && keys.length === 0 && noReload, { up, keys, noReload })
       }
-      ok(`${code}: the idle load asked for the second catalogue and it was blocked`, blocked.length > 0, blocked)
+      const preloadErrors = await p.evaluate(() => window.__i18nSplitPreloadErrors).catch(() => 0)
+      ok(`${code}: the idle load asked for the second catalogue and it was blocked`, blocked.length > 0 && preloadErrors > 0, { blocked, preloadErrors })
       if (code === 'en') {
         /* in-app, as a click would: the route guard awaits the (blocked) load */
+        await markDoc(p)
         await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/issues'))
         await p.waitForFunction(() => location.pathname.endsWith('/issues'), { timeout: 10000 }).catch(() => {})
         let keys = []
@@ -138,7 +167,8 @@ try {
           await sleep(250)
           keys = await keysShown(p)
         }
-        ok('control: /issues with the second catalogue blocked shows its keys', keys.length > 0, keys)
+        const noReload = await sameDoc(p)
+        ok('control: /issues with the second catalogue blocked shows its keys', keys.length > 0 && noReload, { keys, noReload })
       }
       await ctx.close()
     }

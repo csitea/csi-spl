@@ -185,3 +185,54 @@ func sortClaims(ms []Message) {
 		return ms[i].MsgID < ms[j].MsgID
 	})
 }
+
+func (s *Postgres) GetMessageClaim(ctx context.Context, tenant, msgID string) (Message, error) {
+	var out Message
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		m, err := scanClaim(tx.QueryRow(ctx, `SELECT `+claimCols+` FROM messages
+			WHERE tenant_id = $1 AND msg_id = $2`, tenant, msgID), tenant)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		out = m
+		return err
+	})
+	return out, err
+}
+
+func (s *Postgres) AdoptMessageClaim(ctx context.Context, tenant string, c ClaimClose, ttl time.Duration, now time.Time) (Message, bool, error) {
+	var out Message
+	adopted := false
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		m, err := scanClaim(tx.QueryRow(ctx, `SELECT `+claimCols+` FROM messages
+			WHERE tenant_id = $1 AND msg_id = $2 FOR UPDATE`, tenant, c.MsgID), tenant)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		out = m
+		if !m.NeedsPeer {
+			return ErrNotPeerMessage
+		}
+		if !claimFree(&m, now) {
+			return nil
+		}
+		applyClaim(&m, c.Seat, ttl, now)
+		if _, err = tx.Exec(ctx, `UPDATE messages SET responsible = $3, locked_until = $4,
+			responsible_gen = $5, claim_n = $6 WHERE tenant_id = $1 AND msg_id = $2`,
+			tenant, c.MsgID, m.Responsible, m.LockedUntil, m.ResponsibleGen, m.ClaimN); err != nil {
+			return err
+		}
+		out, adopted = m, true
+		return nil
+	})
+	if errors.Is(err, ErrNotPeerMessage) {
+		return out, false, err
+	}
+	if err != nil {
+		return Message{}, false, err
+	}
+	return out, adopted, nil
+}

@@ -269,3 +269,57 @@ func TestMessageClaimPoll(t *testing.T) {
 		})
 	}
 }
+
+// The fence read and the hub-down adopt (spec 068 4.2, section 7): a seat
+// still holds a message only while it is responsible at the same fence with
+// a live lock; adopt takes a free peer message as a claim would, and leaves
+// one another seat holds untouched (insert-if-absent).
+func TestMessageClaimAdopt(t *testing.T) {
+	ctx := context.Background()
+	t0 := time.Date(2026, 10, 3, 15, 0, 0, 0, time.UTC)
+	ttl := ClaimTTLDefault
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			tid := newTenant(t, st)
+			ins := func(to string) string {
+				m := msgFor(tid, uuid4(), "box-a", t0, t0, "env-"+uuid4())
+				m.FromID, m.ToID = "c-009", to
+				if _, err := st.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+				return m.MsgID
+			}
+			a, b := ins(PeersID), ins(PeersID)
+			m, adopted, err := st.AdoptMessageClaim(ctx, tid, ClaimClose{MsgID: a, Seat: "c-001@box-a"}, ttl, t0)
+			if err != nil || !adopted || m.Responsible != "c-001@box-a" || m.ResponsibleGen != 1 || m.ClaimN != 1 || !m.LockedUntil.Equal(t0.Add(ttl)) {
+				t.Fatalf("adopt: %+v %v %v", m, adopted, err)
+			}
+			// insert-if-absent: the other machine's seat leaves it alone
+			if m, adopted, err = st.AdoptMessageClaim(ctx, tid, ClaimClose{MsgID: a, Seat: "c-001@box-b"}, ttl, t0); err != nil || adopted || m.Responsible != "c-001@box-a" {
+				t.Fatalf("second adopt: %+v %v %v", m, adopted, err)
+			}
+			// an adopted message is held: a poll does not take it
+			if got, _, _ := st.PollMessageClaims(ctx, tid, ClaimPoll{Seat: "g-003@box-a", Harness: "grok", Max: 5, TTL: ttl}, t0); len(got) != 1 || got[0].MsgID != b {
+				t.Fatalf("poll after adopt: %+v", got)
+			}
+			if m, err = st.GetMessageClaim(ctx, tid, a); err != nil || !ClaimHeld(m, "c-001@box-a", 1, t0.Add(ttl)) {
+				t.Fatalf("held: %+v %v", m, err)
+			}
+			for _, c := range []struct {
+				seat string
+				gen  int64
+				at   time.Time
+			}{{"c-001@box-b", 1, t0}, {"c-001@box-a", 2, t0}, {"c-001@box-a", 1, t0.Add(ttl + time.Second)}} {
+				if ClaimHeld(m, c.seat, c.gen, c.at) {
+					t.Fatalf("held by %s gen %d at %s", c.seat, c.gen, c.at)
+				}
+			}
+			if _, _, err = st.AdoptMessageClaim(ctx, tid, ClaimClose{MsgID: ins("c-120"), Seat: "c-001@box-a"}, ttl, t0); !errors.Is(err, ErrNotPeerMessage) {
+				t.Fatalf("adopt a dm: %v", err)
+			}
+			if _, err = st.GetMessageClaim(ctx, tid, uuid4()); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown: %v", err)
+			}
+		})
+	}
+}

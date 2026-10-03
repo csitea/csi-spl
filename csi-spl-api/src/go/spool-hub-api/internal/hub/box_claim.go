@@ -26,6 +26,11 @@ import (
 //	                    adds the seat's harness to not_by
 //	claim_op done     - close one: answered | handed:<lane> | no-reply:<reason>;
 //	                    gen > 0 is a compare-and-set on the fence
+//	claim_op check    - the fence (4.2): held = the seat is still responsible
+//	                    at gen, the message open and its lock live
+//	claim_op adopt    - insert-if-absent (section 7, hub down): a free peer
+//	                    message becomes the seat's as a claim makes it;
+//	                    adopted false = another seat holds it, or it is closed
 //
 // The seat is <id>@<box> and must be on the box that dialled (the hello
 // proved its key): a box claims only for its own seats. The harness is the
@@ -44,7 +49,7 @@ type ClaimRow struct {
 	Kind        string          `json:"kind"`
 	Responsible string          `json:"responsible,omitempty"`
 	LockedUntil string          `json:"locked_until,omitempty"`
-	Gen         int64           `json:"gen"`
+	Gen         int64           `json:"responsible_gen"`
 	ClaimN      int             `json:"claim_n"`
 	HandledAt   string          `json:"handled_at,omitempty"`
 	HandledHow  string          `json:"handled_how,omitempty"`
@@ -65,9 +70,11 @@ type claimIn struct {
 
 // claimAnswer is the reply object.
 type claimAnswer struct {
-	Seat string     `json:"seat"`
-	Msgs []ClaimRow `json:"msgs"`
-	Dead []ClaimRow `json:"dead"`
+	Seat    string     `json:"seat"`
+	Msgs    []ClaimRow `json:"msgs"`
+	Dead    []ClaimRow `json:"dead"`
+	Held    bool       `json:"held,omitempty"`    // check
+	Adopted bool       `json:"adopted,omitempty"` // adopt
 }
 
 func claimRow(m store.Message, withMsg bool) ClaimRow {
@@ -125,8 +132,10 @@ func (s *Server) boxClaim(ctx context.Context, x *session, f wire.Frame) (claimA
 		return s.claimRead(ctx, x, f.ClaimOp, seat, in.Max, ttl, out)
 	case "release", "done":
 		return s.claimClose(ctx, x, f.ClaimOp, seat, in, out)
+	case "check", "adopt":
+		return s.claimOne(ctx, x, f.ClaimOp, seat, ttl, in, out)
 	}
-	return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "claim_op must be poll, renew, release or done"}
+	return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "claim_op must be poll, renew, release, done, check or adopt"}
 }
 
 // claimSeat resolves the seat to <id>@<box> on the dialling box, and the lock TTL.
@@ -220,6 +229,39 @@ func (s *Server) claimClose(ctx context.Context, x *session, op, seat string, in
 	}
 	s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("seat", seat).Str("msg", m.MsgID).
 		Str("op", op).Str("how", m.HandledHow).Str("reason", in.Reason).Msg("claim " + op)
+	out.Msgs = []ClaimRow{claimRow(m, false)}
+	return out, nil
+}
+
+// claimOne runs a check (read the fence) or an adopt (take it if absent).
+func (s *Server) claimOne(ctx context.Context, x *session, op, seat string, ttl time.Duration, in claimIn, out claimAnswer) (claimAnswer, *issueErr) {
+	if !uuidRe.MatchString(in.MsgID) {
+		return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "msg_id must be the message's id (a UUID)"}
+	}
+	now := s.o.Now()
+	var m store.Message
+	var err error
+	if op == "check" {
+		if in.Gen < 1 {
+			return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "check needs gen, the fence the poll returned"}
+		}
+		m, err = s.o.Store.GetMessageClaim(ctx, x.tenant, in.MsgID)
+		out.Held = err == nil && store.ClaimHeld(m, seat, in.Gen, now)
+	} else {
+		m, out.Adopted, err = s.o.Store.AdoptMessageClaim(ctx, x.tenant, store.ClaimClose{MsgID: in.MsgID, Seat: seat}, ttl, now)
+	}
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return claimAnswer{}, &issueErr{http.StatusNotFound, "unknown_message", "no such message in this tenant"}
+	case errors.Is(err, store.ErrNotPeerMessage):
+		return claimAnswer{}, &issueErr{http.StatusConflict, "not_peer_message", "a message to one agent is " + m.Responsible + "'s alone"}
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("seat", seat).Str("msg", in.MsgID).Msg("claim " + op)
+		return claimAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "claims unavailable"}
+	}
+	if out.Adopted {
+		s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("seat", seat).Str("msg", m.MsgID).Msg("claim adopt")
+	}
 	out.Msgs = []ClaimRow{claimRow(m, false)}
 	return out, nil
 }

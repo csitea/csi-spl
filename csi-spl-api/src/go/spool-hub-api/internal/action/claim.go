@@ -18,6 +18,8 @@ import (
 //	release   give MsgID back now, Reason required (harness-refused:<step>, send-failed)
 //	done      close MsgID: How = answered (default) | handed:<lane> | no-reply:<reason>;
 //	          Gen > 0 is a compare-and-set on the fence
+//	check     the fence: the answer's held says whether Seat still holds MsgID at Gen
+//	adopt     insert-if-absent: take MsgID if no live lock holds it (hub-down recovery)
 type ClaimArgs struct {
 	Op     string
 	Seat   string // <ID> or <ID>@<box>; a bare id is this box's
@@ -64,6 +66,14 @@ func claimBody(in ClaimArgs) (json.RawMessage, error) {
 		}
 		v["max"] = in.Max
 	case "renew":
+	case "check", "adopt":
+		if !store.AskIDRe.MatchString(in.MsgID) {
+			return nil, fmt.Errorf("claim: --%s needs --msg, the message id (a lowercase UUID)", in.Op)
+		}
+		if in.Op == "check" && in.Gen < 1 {
+			return nil, fmt.Errorf("claim: --check needs --gen, the fence the poll returned")
+		}
+		v["msg_id"], v["gen"] = in.MsgID, in.Gen
 	case "release", "done":
 		if !store.AskIDRe.MatchString(in.MsgID) {
 			return nil, fmt.Errorf("claim: --%s needs the message id (a lowercase UUID)", in.Op)
@@ -82,7 +92,47 @@ func claimBody(in ClaimArgs) (json.RawMessage, error) {
 		}
 		v["msg_id"], v["gen"], v["how"], v["reason"] = in.MsgID, in.Gen, in.How, in.Reason
 	default:
-		return nil, fmt.Errorf("claim: one of --poll, --renew, --release <msg>, --done <msg>")
+		return nil, fmt.Errorf("claim: one of --poll, --renew, --release <msg>, --done <msg>, --check, --adopt")
 	}
 	return json.Marshal(v)
+}
+
+// ClaimFlat turns a claim answer into the JSON array the peer poll loop
+// reads (do_spl_peer_poll, spec 068 L3): one object per row of msgs, then
+// per row of dead with "dead": true. A row that carries its v:1 message
+// starts from that message's fields (task_id, ts, from, to, kind, body,
+// files); the claim fields (msg_id, responsible_gen, responsible,
+// locked_until, claim_n, handled_how, not_by, channel) are laid over it.
+func ClaimFlat(raw json.RawMessage) (json.RawMessage, error) {
+	var ans struct {
+		Msgs []map[string]json.RawMessage `json:"msgs"`
+		Dead []map[string]json.RawMessage `json:"dead"`
+	}
+	if err := json.Unmarshal(raw, &ans); err != nil {
+		return nil, fmt.Errorf("claim: the hub's answer does not decode: %w", err)
+	}
+	out := []map[string]json.RawMessage{}
+	flat := func(row map[string]json.RawMessage, dead bool) {
+		o := map[string]json.RawMessage{}
+		if m, ok := row["msg"]; ok {
+			json.Unmarshal(m, &o) //nolint:errcheck // a row without a v:1 object keeps its own fields
+		}
+		for k, v := range row {
+			if k == "msg" || (k == "from" || k == "to" || k == "ts" || k == "task_id" || k == "kind") && o[k] != nil {
+				continue
+			}
+			o[k] = v
+		}
+		if dead {
+			o["dead"] = json.RawMessage("true")
+		}
+		out = append(out, o)
+	}
+	for _, r := range ans.Msgs {
+		flat(r, false)
+	}
+	for _, r := range ans.Dead {
+		flat(r, true)
+	}
+	return json.Marshal(out)
 }

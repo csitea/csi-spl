@@ -28,9 +28,11 @@ import (
 //  4. a claude seat's harness refusal sends it to a grok seat only
 //  5. four claims without a close: the next poll returns it dead, once
 type claimOut struct {
-	Seat string         `json:"seat"`
-	Msgs []hub.ClaimRow `json:"msgs"`
-	Dead []hub.ClaimRow `json:"dead"`
+	Seat    string         `json:"seat"`
+	Msgs    []hub.ClaimRow `json:"msgs"`
+	Dead    []hub.ClaimRow `json:"dead"`
+	Held    bool           `json:"held"`
+	Adopted bool           `json:"adopted"`
 }
 
 func claimCall(t *testing.T, b *box, in action.ClaimArgs) (claimOut, error) {
@@ -84,7 +86,8 @@ func TestBoxMessageClaim(t *testing.T) {
 		id := uuidV4()
 		m := store.Message{TenantID: tid, MsgID: id, TaskID: uuidV4(), TS: at, FromBox: "box-b", FromID: "c-120",
 			ToBox: "box-b", ToID: store.PeersID, Kind: "note", Body: "report " + id,
-			Files: []byte(`[]`), Msg: []byte(`{"v":1,"msg_id":"` + id + `"}`), Env: []byte(`{"id":"` + id + `"}`),
+			Files: []byte(`[]`), Msg: []byte(`{"v":1,"msg_id":"` + id + `","task_id":"` + id + `","ts":"` + at.Format(time.RFC3339) +
+				`","from":"c-120","to":"peers","kind":"note","body":"report ` + id + `","files":[]}`), Env: []byte(`{"id":"` + id + `"}`),
 			ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour)}
 		if _, err := e.st.InsertMessage(ctx, m); err != nil {
 			t.Fatal(err)
@@ -220,6 +223,49 @@ func TestBoxMessageClaim(t *testing.T) {
 	}
 	if got = mustClaim(t, pc, action.ClaimArgs{Op: "poll", Seat: "g-004"}); len(got.Msgs)+len(got.Dead) != 0 {
 		t.Fatalf("dead twice: %+v", got)
+	}
+
+	// 6. L3's calls: the fence, the hub-down adopt, the flat array
+	fresh := peerMsg()
+	ad := mustClaim(t, pc, action.ClaimArgs{Op: "adopt", Seat: "c-001", MsgID: fresh})
+	if !ad.Adopted || len(ad.Msgs) != 1 || ad.Msgs[0].Responsible != "c-001@box-c" || ad.Msgs[0].Gen != 1 {
+		t.Fatalf("adopt: %+v", ad)
+	}
+	if ad = mustClaim(t, sat, action.ClaimArgs{Op: "adopt", Seat: "c-001", MsgID: fresh}); ad.Adopted || ad.Msgs[0].Responsible != "c-001@box-c" {
+		t.Fatalf("adopt of a held message: %+v", ad)
+	}
+	if ck := mustClaim(t, pc, action.ClaimArgs{Op: "check", Seat: "c-001", MsgID: fresh, Gen: 1}); !ck.Held {
+		t.Fatalf("check, held: %+v", ck)
+	}
+	for _, c := range []struct {
+		b    *box
+		seat string
+		gen  int64
+	}{{sat, "c-001", 1}, {pc, "c-001", 2}, {pc, "g-004", 1}} {
+		if ck := mustClaim(t, c.b, action.ClaimArgs{Op: "check", Seat: c.seat, MsgID: fresh, Gen: c.gen}); ck.Held {
+			t.Fatalf("check %s gen %d: %+v", c.seat, c.gen, ck)
+		}
+	}
+	advance(store.ClaimTTLDefault + time.Second)
+	if ck := mustClaim(t, pc, action.ClaimArgs{Op: "check", Seat: "c-001", MsgID: fresh, Gen: 1}); ck.Held {
+		t.Fatalf("check after the lock ran out: %+v", ck)
+	}
+	raw, err := action.Claim(ctx, sat.cfg, action.ClaimArgs{Op: "poll", Seat: "c-001", Hub: sat.c})
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat, err := action.ClaimFlat(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(flat, &rows); err != nil || len(rows) != 1 {
+		t.Fatalf("flat %s: %v", flat, err)
+	}
+	r := rows[0]
+	if r["msg_id"] != fresh || r["responsible_gen"] != float64(2) || r["task_id"] != fresh || r["from"] != "c-120" ||
+		r["to"] != "peers" || r["kind"] != "note" || r["body"] != "report "+fresh || r["ts"] == nil || r["files"] == nil {
+		t.Fatalf("flat row for the poll loop: %v", r)
 	}
 
 	// the client refuses what the hub would, before dialling

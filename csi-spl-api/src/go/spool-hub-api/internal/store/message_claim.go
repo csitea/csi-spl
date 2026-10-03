@@ -87,6 +87,29 @@ type MessageClaims interface {
 	ReleaseMessageClaim(ctx context.Context, tenant string, c ClaimClose, now time.Time) (Message, error)
 	// CloseMessageClaim records c.How. Only the responsible seat may close.
 	CloseMessageClaim(ctx context.Context, tenant string, c ClaimClose, now time.Time) (Message, error)
+	// GetMessageClaim reads one message's claim, no lock taken (the fence
+	// check of 4.2). ErrNotFound when there is no such message.
+	GetMessageClaim(ctx context.Context, tenant, msgID string) (Message, error)
+	// AdoptMessageClaim is insert-if-absent (spec 068 section 7, hub down: a
+	// seat's local lock pushed back to the hub). A free peer message becomes
+	// c.Seat's exactly as a claim makes it (lock, fence +1, claim_n +1) and
+	// adopted is true; one another seat holds, or closed, comes back
+	// unchanged with adopted false. ErrNotPeerMessage for a one-agent message.
+	AdoptMessageClaim(ctx context.Context, tenant string, c ClaimClose, ttl time.Duration, now time.Time) (m Message, adopted bool, err error)
+}
+
+// ClaimHeld reports whether seat still holds m at fence gen on the hub clock:
+// responsible, the same generation, open, and its lock (if any) not run out.
+func ClaimHeld(m Message, seat string, gen int64, now time.Time) bool {
+	return m.HandledAt.IsZero() && m.Responsible == seat && m.ResponsibleGen == gen &&
+		(m.LockedUntil.IsZero() || !m.LockedUntil.Before(now))
+}
+
+// applyClaim makes m seat's for ttl; both drivers' poll and adopt share it.
+func applyClaim(m *Message, seat string, ttl time.Duration, now time.Time) {
+	m.Responsible, m.LockedUntil = seat, now.Add(ttl)
+	m.ResponsibleGen++
+	m.ClaimN++
 }
 
 // claimDefaults resets m's claim fields to what an insert stores; the 0110
@@ -213,9 +236,7 @@ func (s *Memory) PollMessageClaims(_ context.Context, tenant string, p ClaimPoll
 		if len(claimed) == p.Max {
 			break
 		}
-		m.Responsible, m.LockedUntil = p.Seat, now.Add(p.TTL)
-		m.ResponsibleGen++
-		m.ClaimN++
+		applyClaim(m, p.Seat, p.TTL, now)
 		claimed = append(claimed, claimCopy(m))
 	}
 	return claimed, dead, nil
@@ -265,4 +286,31 @@ func (s *Memory) CloseMessageClaim(_ context.Context, tenant string, c ClaimClos
 	}
 	applyClose(m, c.How, now)
 	return claimCopy(m), nil
+}
+
+func (s *Memory) GetMessageClaim(_ context.Context, tenant, msgID string) (Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.messages[[2]string{tenant, msgID}]
+	if !ok {
+		return Message{}, ErrNotFound
+	}
+	return claimCopy(m), nil
+}
+
+func (s *Memory) AdoptMessageClaim(_ context.Context, tenant string, c ClaimClose, ttl time.Duration, now time.Time) (Message, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.messages[[2]string{tenant, c.MsgID}]
+	if !ok {
+		return Message{}, false, ErrNotFound
+	}
+	if !m.NeedsPeer {
+		return claimCopy(m), false, ErrNotPeerMessage
+	}
+	if !claimFree(m, now) {
+		return claimCopy(m), false, nil
+	}
+	applyClaim(m, c.Seat, ttl, now)
+	return claimCopy(m), true, nil
 }

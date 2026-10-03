@@ -144,13 +144,13 @@ type CopyState = '' | 'ok' | 'fail'
 const copyState = ref<CopyState>('')
 let clearTimer: ReturnType<typeof setTimeout> | undefined
 
-const copyTitle = computed(() =>
-  copyState.value === 'ok'
-    ? t('common.copied')
-    : copyState.value === 'fail'
-      ? t('common.copy_failed')
-      : t('common.copy_ref'),
-)
+const COPY_TITLE_KEY: Record<CopyState, string> = {
+  ok: 'common.copied',
+  fail: 'common.copy_failed',
+  '': 'common.copy_ref',
+}
+
+const copyTitle = computed(() => t(COPY_TITLE_KEY[copyState.value]))
 
 async function copy(): Promise<void> {
   // Clipboard access is refused outright in some contexts (insecure origin, a

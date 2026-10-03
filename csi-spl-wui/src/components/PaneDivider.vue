@@ -9,7 +9,7 @@
     :aria-valuenow="Math.round(value)"
     :aria-valuemin="Math.round(min)"
     :aria-valuemax="Math.round(max)"
-    :aria-label="pane === 'sidebar' ? t('pane.resize_sidebar') : pane === 'issue' ? t('pane.resize_issue') : t('pane.resize_topic')"
+    :aria-label="t(RESIZE_LABEL_KEY[pane] ?? 'pane.resize_topic')"
     :title="t('pane.resize_hint')"
     tabindex="0"
     @pointerdown="onDown"
@@ -37,6 +37,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
+
+const RESIZE_LABEL_KEY: Record<'sidebar' | 'topic' | 'issue', string> = {
+  sidebar: 'pane.resize_sidebar',
+  topic: 'pane.resize_topic',
+  issue: 'pane.resize_issue',
+}
 
 const dragging = ref(false)
 const moved = ref(false)

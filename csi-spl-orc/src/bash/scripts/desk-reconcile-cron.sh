@@ -163,17 +163,38 @@ check_tools || exit $?
 # (the reconcile still runs: stale code seating desks beats no desks).
 # DESK_TRUNK_REF names trunk (default origin/master); a tree that is not a git
 # checkout, or lacks that ref, is not judged. DESK_TRUNK_CHECK=0 turns it off.
+#
+# A FETCH RACE IS NOT A STALE CHECKOUT. The checkout is a worktree of the shared
+# clone, so it shares origin/master with every lane: any lane's `git fetch`
+# between the crontab's checkout and this check moves trunk past a HEAD that is
+# current (2026-10-03: a "2 behind" blocker, the next tick 0 behind). So a CLEAN
+# HEAD that is an ancestor of trunk is only remembered on its first sighting;
+# it is stale when the NEXT tick still finds that same HEAD behind, because a
+# working checkout would have moved it. A dirty tree, or a HEAD that is not an
+# ancestor of trunk, is stale at once.
 stale=0
 if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${DESK_TRUNK_REF:-origin/master}" >/dev/null 2>&1; then
   head_sha="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   trunk_sha="$(git -C "$ROOT" rev-parse "${DESK_TRUNK_REF:-origin/master}")"
+  mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
+  seen="$mark_dir/behind-head.${head_sha:0:12}"
   if [ "$head_sha" != "$trunk_sha" ]; then
-    stale=1
-    behind="$(git -C "$ROOT" rev-list --count "HEAD..$trunk_sha" 2>/dev/null || echo '?')"
     dirty="$(git -C "$ROOT" status --porcelain 2>/dev/null | head -5 | tr '\n' ' ')"
+    if [ -z "$dirty" ] && [ ! -e "$seen" ] &&
+       git -C "$ROOT" merge-base --is-ancestor HEAD "$trunk_sha" 2>/dev/null; then
+      rm -f "$mark_dir"/behind-head.* 2>/dev/null
+      mkdir -p "$mark_dir" && touch "$seen"
+      say "INFO trunk ${trunk_sha:0:8} moved past HEAD ${head_sha:0:8} after this tick's checkout (a fetch race): judged again next tick"
+    else
+      stale=1
+    fi
+  else
+    rm -f "$mark_dir"/behind-head.* 2>/dev/null
+  fi
+  if [ "$stale" = 1 ]; then
+    behind="$(git -C "$ROOT" rev-list --count "HEAD..$trunk_sha" 2>/dev/null || echo '?')"
     say "FATAL checkout $ROOT is NOT on trunk: HEAD ${head_sha:0:8}, ${DESK_TRUNK_REF:-origin/master} ${trunk_sha:0:8}, $behind commit(s) behind${dirty:+; dirty: $dirty}"
     say "FATAL this tick runs stale code - fix the checkout (the crontab's 'git checkout --detach' cannot move it)"
-    mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
     mark="$mark_dir/stale-checkout.${head_sha:0:12}.${trunk_sha:0:12}"
     lease_conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
     to="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | head -1)}"

@@ -11,6 +11,12 @@
 #      reconcile and the lease ensure still ran
 #   3. the next tick in the same state: FATAL again, but told only once
 #   4. DESK_TRUNK_CHECK=0 turns it off
+#   6. a CLEAN HEAD that trunk moved past after this tick's checkout (another
+#      lane's fetch, 2026-10-03) is NOT reported: exit 0, nobody told
+#   7. CONTROL: the same HEAD still behind on the next tick (the checkout is
+#      stuck) IS reported and told
+#   8. HEAD moved by the next checkout but trunk raced again: not reported
+#   9. a HEAD that is not an ancestor of trunk is reported at once
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -79,6 +85,38 @@ touch -d '2 hours ago' "$P"; : >"$T/calls"; tick DESK_TRUNK_CHECK=0 ENV=dev
 grep -q 'do_spl_desk_up_all' "$T/calls" && grep -q "WARN .*ignored" "$T/o" &&
   pass "5. a pause older than DESK_PAUSE_MAX_SECS is ignored with a WARN" || fail "5. stale pause: $(cat "$T/o")"
 rm -f "$P"
+
+# --- 6..9. a fetch race is not a stale checkout -------------------------------------------
+commit() { echo "$1" >"$CO/$1" && git -C "$CO" add "$1" && git -C "$CO" -c user.name=t -c user.email=t@example.com commit -q -m "$1"; }
+git -C "$CO" checkout -q -- . && git -C "$CO" checkout -q --detach origin/master
+commit three; three="$(git -C "$CO" rev-parse HEAD)"
+git -C "$CO" update-ref refs/remotes/origin/master HEAD
+git -C "$CO" checkout -q --detach HEAD~1
+sent_before="$(wc -l <"$T/sent")"
+tick; rc=$?
+[[ $rc -eq 0 && "$(wc -l <"$T/sent")" == "$sent_before" ]] && ! grep -q 'NOT on trunk' "$T/o" && grep -q 'fetch race' "$T/o" &&
+  pass "6. trunk moved after this tick's checkout (clean tree): no alarm, exit 0" || fail "6. rc=$rc $(cat "$T/o")"
+
+tick; rc=$?
+[[ $rc -eq 1 && "$(wc -l <"$T/sent")" == $((sent_before + 1)) ]] && grep -q 'NOT on trunk' "$T/o" &&
+  pass "7. CONTROL: the same HEAD still behind next tick (stuck checkout) is reported and told" || fail "7. rc=$rc $(cat "$T/o")"
+
+git -C "$CO" checkout -q --detach "$three"; commit four
+git -C "$CO" update-ref refs/remotes/origin/master HEAD
+git -C "$CO" checkout -q --detach "$three"
+tick; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'NOT on trunk' "$T/o" &&
+  pass "8. HEAD moved, trunk raced again: no alarm" || fail "8. rc=$rc $(cat "$T/o")"
+
+commit diverged
+tick; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'NOT on trunk' "$T/o" &&
+  pass "9. a HEAD that is not an ancestor of trunk is reported at once" || fail "9. rc=$rc $(cat "$T/o")"
+
+git -C "$CO" checkout -q --detach origin/master
+tick; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'NOT on trunk' "$T/o" && ! compgen -G "$T/state/behind-head.*" >/dev/null &&
+  pass "9. back on trunk: no alarm, the remembered HEAD is forgotten" || fail "9b. rc=$rc $(ls "$T/state") $(cat "$T/o")"
 
 echo "desk-cron-trunk: $fails failure(s)"
 [[ $fails -eq 0 ]]

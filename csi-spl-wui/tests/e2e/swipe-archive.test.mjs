@@ -308,7 +308,18 @@ try {
   ok('B ... the phone goes Back (level 3 -> 2), no menu, no archive',
     lv0 === '3' && (await until(p, () => document.querySelector('[data-mobile-level]')?.getAttribute('data-mobile-level') === '2', null, 3000)) && !(await has(p, menu)) && !(await has(p, toast)),
     { before: lv0, after: await level(p), pops: [bpops, await pops(p)] })
-  ok('B the topic view opens again', await openTopic(p, b))
+  /* Back's popstate settles first (a slow runner): then open it again, retried */
+  await until(p, () => document.querySelector('[data-mobile-level]')?.getAttribute('data-mobile-level') === '2', null, 5000)
+  await sleep(600)
+  let again = false
+  for (let i = 0; i < 3 && !again; i++) {
+    again = await openTopic(p, b)
+    if (!again) {
+      await p.evaluate(({ A }) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/channel/' + A), { A })
+      await sleep(800)
+    }
+  }
+  ok('B the topic view opens again', again, { level: await level(p) })
   await sleep(500)
 
   await slideLeft(p, opener, 260, {

@@ -1,0 +1,2 @@
+Lay-What: Records that the first browser test on the second machine passed.
+Lay-Why: Browser tests had only run on the owner's computer; this shows the second machine can take them over.

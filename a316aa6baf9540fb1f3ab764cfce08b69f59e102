@@ -1,0 +1,6 @@
+Lay-What: Removes copied code behind the members screens and the epics progress bar; nothing on screen changes.
+Lay-How: Two identical copies of the same small routine now live once, and a hand-copied progress sum uses the shared one.
+Lay-Why: Two copies of the same code drift apart over time, and then one screen shows a different answer than the other.
+Tech-What: WUI roleName() moves to composables/useRoleName.ts; IssueEpicsPanel uses utils/issues-view.mjs epicProgress() instead of its own epicPct().
+Tech-How: TenantUsers.vue and UserEditPane.vue import useRoleName; behaviour-preserving, unit 233 files / 2677 passes before and after.
+Tech-Why: Refactor round 1 #20: byte-identical twins and a hand copy of an existing helper.

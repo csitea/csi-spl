@@ -1,10 +1,11 @@
 # 063: agent context lifecycle (compact, restart, hand over)
 
 Status: **Q1..Q4 APPROVED by the owner** (2026-10-03, t1 `64576223`,
-section 8), with one change: no threshold is hard-coded; every number lives
+section 8), with two changes: no threshold is hard-coded; every number lives
 in a per-workspace DB config table the admin edits (section 11), and every
 restart, compact and hand-over is logged so the numbers can be tuned
-empirically (section 12). Nothing is built yet; the implementation split is
+empirically, in a table used for that only and at most 3 % slower
+(section 12). Nothing is built yet; the implementation split is
 section 13. Draft 2026-10-03, c-079.
 Related: [060 hourly role rotation](../060-role-rotation/spec.md) (the
 handoff file, section 6), [SPEC-spool-fleet-roles.md section 1.1](../../doc/md/SPEC-spool-fleet-roles.md)
@@ -304,6 +305,12 @@ fail-closed NULLIF shape (the `fleet_lanes` 0096 policy pair), plus
 | `notes_tail_lines` | 40 | 0..200 | R-D1: lines of `NOTES.md` copied into handoff section 1b (0 = section off) |
 | `lane_checkpoint_min` | 0 (off) | 0, 10..240 | c-077 practice 11: at N min of wall time a lane lands what is green and posts one status line; off until c-077's plan is decided |
 
+- `lane_checkpoint_min` is c-077's limit, owned here as a number only:
+  c-077 measured (`agent-token-focus-plan.md` section 2.4, tree
+  `3f9c9dff`, n=50 lanes, 24 h) lane wall time from spawn to last result
+  median 73 min, p90 191 min, 41 of 50 lanes over 30 min. Wall time
+  includes CI waits, so it is a time limit, not a context one; the
+  context rules above stay the trigger for restarts.
 - Validation: the CHECK on each column = the "allowed" range, and the hub
   refuses a PATCH outside it with 400 and the key name. One Go table of
   `{key, default, min, max}` is the source for the hub; its test pins the
@@ -319,6 +326,16 @@ fail-closed NULLIF shape (the `fleet_lanes` 0096 policy pair), plus
   is never blocked by a config read.
 
 ## 12. The log for the empirics
+
+Second owner requirement (t1 `64576223`, after `a2f9a949`), verbatim:
+*"Lets enable our internal gathering into dedicated for this purpose only
+lodding table. Note logging must not decrease performance more than 3%"*.
+
+- **Dedicated:** `agent_lifecycle_events` holds the restart, compact and
+  hand-over empirics and NOTHING else. No other feature writes or reads
+  it; these events never go into `human_events`, `flow_events`, a general
+  log or the message tables.
+- **Budget: at most 3 % slower**, measured, not argued (section 12.1).
 
 Table `agent_lifecycle_events` (RLS as above, append-only, pruned after
 90 days by the hub's existing sweep), one row per event:
@@ -344,6 +361,32 @@ transcript whose process has gone: peak context, turns, tokens read,
 compactions from `compact_boundary`); the hub writes `config_change`. A
 failed write goes to a local `<state>/lifecycle-events.jsonl` and is resent
 on the next run, so a hub outage loses nothing and never blocks a step.
+
+### 12.1 The 3 % budget
+
+The rows are rare (section 3: ~170 sessions and ~70 rotations a day, so a
+few thousand rows a day at most), so the budget is spent by WHERE a write
+happens, not by how many. Rules:
+
+- No event is written on a hot path: never inside a message send, a hello
+  or a WUI view read. The box writes its events off the step that caused
+  them (fire and forget, the local jsonl spool on failure), and a rotation
+  or restart step never waits on the hub. `LIFECYCLE_EVENTS=0` switches
+  every writer off (the A arm, and the rollback).
+- The hub appends with one single-row INSERT, no trigger, one index; the
+  admin view's aggregates are computed on read, only by that view.
+- Each implementing lane measures before and after, n >= 5 per arm,
+  interleaved A/B, and fails its own gate above 3 %:
+
+| lane | benchmark | arm A / arm B | pass |
+|---|---|---|---|
+| hub (brief 01) | `go test -bench BenchmarkOnSend -count 5` with `benchstat`, plus `do_spl_hub_route_latency` p50/p95 on dev for the send and view routes | events table + writer absent / present and writing at 10x the measured rate | each median within 3 % |
+| harness (brief 03) | wall time of `do_spl_orch_rotate DRY_RUN=1` and of one `do_spl_seat_size_check` pass, 5 timed runs each | `LIFECYCLE_EVENTS=0` / on | median within 3 %, and one size-check pass under 3 % of its interval |
+| lane restart (brief 05) | wall time of `do_spl_lane_restart DRY_RUN=1`, 5 timed runs | `LIFECYCLE_EVENTS=0` / on | median within 3 % |
+| handoff (brief 04) | wall time of `spl_rotate_handoff`, 5 timed runs | before / after 1b + 6b | median within 3 % |
+| WUI (brief 02) | the perf harness on the `/tenant-settings` routes other than Context lifecycle | before / after | within 3 %; the new block loads lazily |
+
+Each lane posts both arms, n and its tree in its result.
 
 How the admin reads it: Workspace settings -> Agents -> **Context
 lifecycle**: the editable numbers of section 11 (each with "reset to

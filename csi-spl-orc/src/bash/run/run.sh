@@ -145,9 +145,31 @@ do_detect_stdout_mode() {
   export RUN_STDOUT_IS_DATA
 }
 
+# Quiet logs for agents (token/focus practice 05). An agent reads ./run through
+# a pipe, and there ~60% of every byte was decoration: ANSI colour, a date, the
+# module, the box, the pid and START/STOP banners. So when stdout is not a
+# terminal (or RUN_LOG=compact) a log line prints as `LEVEL msg`, DEBUG is
+# dropped (RUN_LOG=debug keeps it) and the framework banners are dropped. The
+# log FILE keeps the full line either way. RUN_LOG=full restores the old
+# format on a pipe. Decided once here, before main's tee turns stdout into a
+# pipe; an inherited value (a ./run inside a ./run) is kept.
+do_detect_log_mode() {
+  case "${RUN_LOG:-}" in
+    full) RUN_LOG_COMPACT=0 ;;
+    compact | debug) RUN_LOG_COMPACT=1 ;;
+    *)
+      if [[ -z "${RUN_LOG_COMPACT:-}" ]]; then
+        if [[ -t 1 ]]; then RUN_LOG_COMPACT=0; else RUN_LOG_COMPACT=1; fi
+      fi
+      ;;
+  esac
+  export RUN_LOG_COMPACT
+}
+
 main() {
   do_detect_stdout_mode "$@"
-  [[ "${RUN_STDOUT_IS_DATA:-0}" == "1" ]] || do_flush_screen
+  do_detect_log_mode
+  [[ "${RUN_STDOUT_IS_DATA:-0}" == "1" || "$RUN_LOG_COMPACT" == "1" ]] || do_flush_screen
   do_set_vars "$@"
   ts=$(date "+%Y%m%d_%H%M%S")
   main_log_dir=~/var/log/${PROJ:-run.sh}/
@@ -331,6 +353,31 @@ do_log() {
   log_dir="$_log_dir"
   export LOG_DIR="$log_dir"
   log_file="$log_dir/${PROJ:-run}."$(date "+%Y%m%d")'.log'
+
+  # Compact mode (do_detect_log_mode; a do_log sourced without main keeps the
+  # full line): the file gets the full line, stdout `LEVEL msg`.
+  if [[ "${RUN_LOG_COMPACT:-0}" == "1" ]]; then
+    case "$type_of_msg" in
+    'FATAL') print_fatal "$msg" ;;
+    'ERROR') print_fail "$msg" ;;
+    'WARNING'|'WARN') print_warning "$msg" ;;
+    'INFO') print_info "$msg" ;;
+    'OK')    print_ok    "$msg" ;;
+    'DEBUG') print_debug "$msg" ;;
+    *) echo "$msg" ;;
+    esac >>"$log_file"
+    [[ "$type_of_msg" == "DEBUG" && "${RUN_LOG:-}" != "debug" ]] && return 0
+    [[ ( "$action" == "START" || "$action" == "STOP" ) && "$rest_of_msg" == "::: running "* ]] && return 0
+    [[ "$*" == *"'s run completed" ]] && return 0
+    local _body="$*"
+    _body="${_body#"$type_of_msg"}"
+    if [[ "$_body" == "$*" ]]; then
+      echo "$*"
+    else
+      echo "$display_type ${_body# }"
+    fi
+    return 0
+  fi
 
   case "$type_of_msg" in
   'FATAL') print_fatal "$msg" | tee -a $log_file ;;

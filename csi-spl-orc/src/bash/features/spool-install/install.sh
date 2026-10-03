@@ -440,6 +440,7 @@ EOF_PY
     say "tmux: add this line to ~/.tmux.conf for the window-access keys:  source-file $DATA/tmux-agent-status.conf"
   fi
 fi
+. "$_here/steps/y7-tmux-links.sh" && { spool_install_y7_tmux_links "$HOME" "$DATA/tmux-agent-status.conf" "$DRY" || die 6 "cannot repoint ~/.tmux.conf"; }
 
 . "$_here/steps/y10-run-completion.sh" && spl_install_run_completion "$ORC" "$HOME/.bashrc" "$DRY" || die 7 "run completion: cannot update $HOME/.bashrc"
 

@@ -1,0 +1,6 @@
+Lay-What: When the server sends the same live update to many open windows, it now prepares it once instead of once per window.
+Lay-How: The update is packed a single time and the same packed copy goes to every window.
+Lay-Why: Preparing identical copies over and over wasted time on every update.
+Tech-What: hub fanoutWUI and fanoutIssue encode a frame once (encodeFrame) and send the bytes with writeRaw.
+Tech-How: wui.go and issues.go marshal once, byte-identical to wsjson; writeRaw keeps the per-socket lock and timeout; BenchmarkFanout added.
+Tech-Why: Perf G8: each socket re-marshalled the same frame; fanoutWUI 300.8 -> 252.2 us, 508 -> 383 allocs.

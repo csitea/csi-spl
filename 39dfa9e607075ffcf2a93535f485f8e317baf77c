@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Makes an automated swipe test wait and retry once, so it stops failing at random; nothing a user sees changes.

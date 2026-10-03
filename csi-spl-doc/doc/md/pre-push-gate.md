@@ -50,6 +50,7 @@ command that reproduces it.
 | `lint-trufflehog` | 64 | `do_sec_trufflehog` --only-verified, every touched file | hook |
 | `lint-mdlinks` | — | relative links in touched `.md`, and in the `.md` that link to a deleted/renamed path | hook |
 | `lint-typos` | — | typos-cli 1.50.3 + root `_typos.toml`, ADDED lines only; WARN, never blocks (a real word goes in `_typos.toml`) | hook |
+| `release-note` | — | every commit in the pushed range carries the six release-note trailers or a special form ([release-notes.md](../help/release-notes.md)); WARN, never blocks, until spec 065 L11; prints `RELEASE_NOTE_CHECK ... commits=<n> warn=<n>`; alone: `./run -a do_check_release_note` | hook |
 | `lint-semgrep` | 61 | `do_sec_semgrep` vs `.semgrep-baseline.txt` on the touched hub `.go` / WUI src files (~11 s; whole scope 152 s) | hook |
 | `lint-gomod` | — | `go mod tidy -diff` (offline) when `go.mod`/`go.sum` change | hook |
 | `lint-checkov` / `lint-gosec` | 65 / 62 | the action over its whole scope (65 s / >300 s) | `PRE_PUSH_TIER=full` + CI |

@@ -1,0 +1,6 @@
+Lay-What: The maintenance commands now print much shorter messages when run by an automated worker, while the full log is still kept in a file.
+Lay-How: When the output goes to another program, each message is one short line without dates, colours or start and stop banners.
+Lay-Why: Automated workers read every line, so the long decorated output cost time and money for no benefit.
+Tech-What: iac and orc run.sh: on a pipe (or RUN_LOG=compact) do_log prints "LEVEL msg", drops DEBUG and the framework banners; RUN_LOG=full restores the old format.
+Tech-How: The mode is decided once in main before the tee; the log file keeps the full line; a do_log sourced without main keeps the full line; run-log-compact.tst.sh covers both run.sh.
+Tech-Why: Agent output tokens: piped ./run output was 48-79% decoration on the measured actions.

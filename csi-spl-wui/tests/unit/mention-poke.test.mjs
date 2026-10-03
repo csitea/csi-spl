@@ -172,3 +172,28 @@ describe('splitPokes (CLE-77852: a seated agent outside the channel)', () => {
     assert.deepEqual(splitPokes(['CLE-001'], acc, undefined), { ok: [], direct: [], refused: ['CLE-001'] })
   })
 })
+
+import { agentTargets, pokeFrame } from '../../src/utils/mention-poke.mjs'
+
+describe('spec 067 Q3 + rule 3: no poke DM to a person; an agent poke carries ref_task_id', () => {
+  const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  it('a person gets no poke DM, an agent does', () => {
+    assert.deepEqual(agentTargets(['HUM-10', 'c-002', 'GST-6', 'CLE-7']), ['c-002', 'CLE-7'])
+    assert.deepEqual(agentTargets(pokeTargets({ text: '@HUM-2 please' })), [])
+  })
+  it("an agent's poke frame carries the topic id", () => {
+    const f = pokeFrame({ to: 'c-002', body: 'b', toBox: 'sat', taskId: 'new-task', msgId: 'm1', refTaskId: TOPIC.toUpperCase() })
+    assert.deepEqual(f, { task_id: 'new-task', msg_id: 'm1', kind: 'note', body: 'b', files: [], to: 'c-002', to_box: 'sat', is_parent: 1, ref_task_id: TOPIC })
+  })
+  it('CONTROL: no topic, or not a uuid (an issue key), claims none', () => {
+    assert.equal(pokeFrame({ to: 'c-002', body: 'b', taskId: 't' }).ref_task_id, undefined)
+    assert.equal(pokeFrame({ to: 'c-002', body: 'b', taskId: 't', refTaskId: 'SPL-985' }).ref_task_id, undefined)
+  })
+  it('the composable pokes agents only and sends the topic id of a channel post, none of an issue or DM', () => {
+    const s = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src/composables/useMentionPoke.ts'), 'utf8')
+    assert.match(s, /const ids = agentTargets\(pokeTargets\(/)
+    assert.match(s, /pokeFrame\(\{ to: id, body, toBox, taskId: newId\(\), msgId: newId\(\), refTaskId \}\)/)
+    assert.match(s, /where\.issue \|\| where\.ends \|\| where\.peer \? '' : String\(where\.taskId \|\| ''\)/)
+    assert.match(s, /sendDm\(id, body, boxes\[id\], refOf\(opts\.where\)\)/)
+  })
+})

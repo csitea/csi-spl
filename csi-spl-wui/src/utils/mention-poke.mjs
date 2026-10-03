@@ -1,7 +1,7 @@
 /**
  * SPL-985 (spec 042 §3): the mention poke. When a text is stored, the author's
- * browser sends each person or agent it mentions a direct message asking them
- * to act. Node tests import this file; composables/useMentionPoke.ts wraps it.
+ * browser sends each agent it mentions a direct message asking it to act
+ * (spec 067 Q3: a person gets none). Node tests import this file; composables/useMentionPoke.ts wraps it.
  */
 
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
@@ -73,6 +73,42 @@ export function issueLink(origin, key) {
 
 function isHuman(id) {
   return /^(HUM|GST)-\d+$/.test(String(id || ''))
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Spec 067 Q3 (owner, HUM-10): a PERSON gets no poke DM - the @mention already
+ * reaches them in Flow and in the channel. Only agents are poked.
+ *
+ * @param {string[]} ids
+ * @returns {string[]}
+ */
+export function agentTargets(ids) {
+  return (Array.isArray(ids) ? ids : []).filter((id) => !isHuman(id))
+}
+
+/**
+ * The poke DM's send frame. Spec 067 rule 3: it carries `ref_task_id`, the
+ * channel topic the mention was raised in, so the agent answers in that topic
+ * and the WUI heads the DM "about #channel / topic". A non-uuid (an issue, no
+ * task) claims none; the hub drops a claim the author may not read.
+ *
+ * @param {{ to: string, body: string, toBox?: string, taskId: string, msgId?: string, refTaskId?: string }} a
+ */
+export function pokeFrame({ to, body, toBox = '', taskId, msgId = '', refTaskId = '' }) {
+  const ref = String(refTaskId || '').toLowerCase()
+  return {
+    task_id: taskId,
+    msg_id: msgId || undefined,
+    kind: 'note',
+    body,
+    files: [],
+    to,
+    to_box: toBox || undefined,
+    is_parent: 1,
+    ref_task_id: UUID_RE.test(ref) ? ref : undefined,
+  }
 }
 
 /**

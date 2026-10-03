@@ -468,6 +468,10 @@ declare module '~/utils/mention-poke.mjs' {
     | { kind: 'channel', humans: string[], agents: string[], responders?: string[] }
     | null
   export function pokeTargets(a: { text: string, before?: string, selfId?: string, addressee?: string }): string[]
+  export function agentTargets(ids: string[]): string[]
+  export function pokeFrame(a: { to: string, body: string, toBox?: string, taskId: string, msgId?: string, refTaskId?: string }): {
+    task_id: string, msg_id?: string, kind: string, body: string, files: never[], to: string, to_box?: string, is_parent: 1, ref_task_id?: string
+  }
   export function pokeExcerpt(text: string): string
   export function mentionBoxes(text: string): Record<string, string>
   export function pokeBody(a: { author: string, link: string, text: string }): string

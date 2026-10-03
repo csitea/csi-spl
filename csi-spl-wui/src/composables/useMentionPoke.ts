@@ -6,6 +6,8 @@
 // failed poke is one snackbar line (K4, K6); the stored text is never rolled
 // back for it. CLE-77852: an agent seated in the workspace but not in the
 // channel is DM-poked anyway, and the author gets a notice saying so.
+// Spec 067 (Q3, rule 3): a PERSON is never poked (the @mention reaches them in
+// Flow), and an agent's poke carries ref_task_id, the channel topic it is about.
 import { noteError } from '@/composables/errorJournal.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
@@ -13,11 +15,13 @@ import { useRosterStore } from '~/stores/roster'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { sendWithResend } from '~/utils/send-failure.mjs'
 import {
+  agentTargets,
   cardLink,
   channelAccess,
   issueLink,
   mentionBoxes,
   pokeBody,
+  pokeFrame,
   pokeTargets,
   splitPokes,
   type MentionAccess,
@@ -55,6 +59,11 @@ export interface PokeWhere {
   unknown?: boolean
 }
 
+/* spec 067 rule 3: the channel topic a poke is about; none from an issue or a DM */
+function refOf(where: PokeWhere) {
+  return where.issue || where.ends || where.peer ? '' : String(where.taskId || '')
+}
+
 export function useMentionPoke() {
   const api = useSpoolApi()
   const roster = useRosterStore()
@@ -75,10 +84,10 @@ export function useMentionPoke() {
     }
   }
 
-  async function sendDm(id: string, body: string, toBox?: string) {
+  async function sendDm(id: string, body: string, toBox?: string, refTaskId?: string) {
     const client = live.ensure()
     if (!client) throw new Error('live socket unavailable')
-    const frame = { task_id: newId(), msg_id: newId() || undefined, kind: 'note', body, files: [], to: id, to_box: toBox || undefined, is_parent: 1 as const }
+    const frame = pokeFrame({ to: id, body, toBox, taskId: newId(), msgId: newId(), refTaskId })
     await sendWithResend(() => client.send(frame))
   }
 
@@ -98,7 +107,7 @@ export function useMentionPoke() {
   async function poke(opts: { text: string, before?: string, addressee?: string, where: PokeWhere }) {
     const none = { told: [] as string[], refused: [] as string[], failed: [] as string[] }
     const self = roster.self ? roster.self.id : ''
-    const ids = pokeTargets({ text: opts.text, before: opts.before || '', selfId: self, addressee: opts.addressee || '' })
+    const ids = agentTargets(pokeTargets({ text: opts.text, before: opts.before || '', selfId: self, addressee: opts.addressee || '' }))
     if (!ids.length) return none
     const seated = roster.people.map((p) => p.id)
     /* the mock tenant has nobody to tell, and its feeds are what the e2e reads:
@@ -120,7 +129,7 @@ export function useMentionPoke() {
     const boxes = mentionBoxes(opts.text)
     for (const id of [...ok, ...direct]) {
       try {
-        await sendDm(id, body, boxes[id])
+        await sendDm(id, body, boxes[id], refOf(opts.where))
         told.push(id)
       } catch {
         failed.push(id)

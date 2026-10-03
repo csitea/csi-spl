@@ -1,0 +1,6 @@
+Lay-What: Makes the server prepare each signed message about three times faster, with exactly the same result.
+Lay-How: Instead of taking each message apart and putting it back together, the server now tidies it in a single pass.
+Lay-Why: Every message passes through this step, so doing it faster makes the whole service quicker and cheaper.
+Tech-What: wire.Canonical rewrites the marshalled bytes in one pass; the decode/encode path stays as the fallback.
+Tech-How: wire.go sorts object members, re-escapes strings like encoding/json, keeps numbers; canonical_golden_test.go pins byte-identical output (n=5000 + fuzz) against the old function.
+Tech-Why: Perf round 4 G9: Canonical marshalled, decoded into any and encoded again; chat_80B 8.15 -> 2.69 us, 59 -> 7 allocs.

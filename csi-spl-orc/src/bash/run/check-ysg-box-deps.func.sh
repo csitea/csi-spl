@@ -154,7 +154,7 @@ ysg_box_deps_homefiles() {
     "$h"/.claude/CLAUDE.md "$h"/.claude/settings.json; do
     ysg_box_deps_as "$u" test -f "$f" && files+=("$f")
   done
-  while IFS= read -r f; do files+=("$f"); done < <(ysg_box_deps_as "$u" find "$h/.local/bin" "$h/.claude/commands" \
+  mapfile -t -O "${#files[@]}" files < <(ysg_box_deps_as "$u" find "$h/.local/bin" "$h/.claude/commands" \
     "$h/.claude/skills" -maxdepth 2 \( -type f -o -type l \) -readable \( -path '*/.local/bin/*' -o -name '*.md' \) 2>/dev/null)
   if (( ${#files[@]} )); then
     ysg_box_deps_as "$u" grep -nIHE "$pat" "${files[@]}" | ysg_box_deps_grep_rows "$u" home

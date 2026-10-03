@@ -86,4 +86,16 @@ run_check STUB_CRON_RC=1; rc=$?
 run_check; rc=$?
 [[ $rc -eq 0 ]] && pass "4. back to clean: exit 0" || fail "4. clean again: rc=$rc $(cat "$T/out")"
 
+# --- 5. the rc-files and the .local/bin files are all scanned -----------------
+echo "source $ENGINE/run.completion.bash" >"$T/home/.bashrc"
+echo "exec $ENGINE/a.sh" >"$T/home/.local/bin/a.sh"
+echo "exec $ENGINE/b.sh" >"$T/home/.local/bin/b.sh"
+run_check; rc=$?
+grep -qP "^home\t$(id -un)\t$T/home/.bashrc:1\t" "$T/out" \
+  && grep -qP "^home\t$(id -un)\t$T/home/.local/bin/a.sh:1\t" "$T/out" \
+  && grep -qP "^home\t$(id -un)\t$T/home/.local/bin/b.sh:1\t" "$T/out" \
+  && [[ $rc -eq 1 ]] && grep -q 'FAIL 3 dependency row' "$T/out" \
+  && pass "5. one rc-file + two .local/bin files: all 3 scanned" || fail "5. rc=$rc $(cat "$T/out")"
+rm -f "$T/home/.bashrc" "$T/home/.local/bin/a.sh" "$T/home/.local/bin/b.sh"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

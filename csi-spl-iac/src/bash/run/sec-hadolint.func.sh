@@ -69,11 +69,11 @@ do_sec_hadolint() {
   if [[ -n "${SEC_HADOLINT_FILES:-}" ]]; then
     while IFS= read -r f; do [[ -n "$f" ]] && dfs+=("$root/$f"); done <<<"$SEC_HADOLINT_FILES"
   else
-  while IFS= read -r f; do dfs+=("$f"); done < <(
-    find "$root" -path '*/node_modules' -prune -o -path "$root/tpl-gen" -prune \
-      -o -path '*/bin/*' -prune \
-      -o \( -iname 'Dockerfile' -o -iname 'Dockerfile.*' -o -iname '*.dockerfile' \) -print 2>/dev/null | sort
-  )
+    mapfile -t dfs < <(
+      find "$root" -path '*/node_modules' -prune -o -path "$root/tpl-gen" -prune \
+        -o -path '*/bin/*' -prune \
+        -o \( -iname 'Dockerfile' -o -iname 'Dockerfile.*' -o -iname '*.dockerfile' \) -print 2>/dev/null | sort
+    )
   fi
   if [[ "${#dfs[@]}" -eq 0 ]]; then
     do_log "FATAL no Dockerfile found under $root -- refusing a scan that checks nothing"

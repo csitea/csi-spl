@@ -67,7 +67,7 @@ except Exception: print(-1)')
     while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done <<<"$SEC_ESLINT_FILES"
   else
     # shellcheck disable=SC2086
-    while IFS= read -r f; do files+=("$f"); done < <(
+    mapfile -t files < <(
       cd "$root" && find $dirs -type f \( -name '*.mjs' -o -name '*.js' \) 2>/dev/null | grep -v '/node_modules/' | sort
     )
   fi

@@ -1,0 +1,6 @@
+Lay-What: Editing, archiving, reacting, moving and merging messages are faster.
+Lay-How: The server reads a message and its card in one trip to the database instead of opening and closing a separate step around it.
+Lay-Why: The extra steps added waiting time to every one of these actions.
+Tech-What: GetEditable and CardState read as one tenant batch instead of BEGIN/COMMIT around the read.
+Tech-How: message_edit_postgres.go uses queryTenantBatch and topic_archive_postgres.go queryRowTenant; read_batch_test.go pins scope and ErrNotFound on memory and Postgres.
+Tech-Why: Perf round 4 G4: archive 22 -> 14 round trips, merge-topic 36 -> 28 (n=5).

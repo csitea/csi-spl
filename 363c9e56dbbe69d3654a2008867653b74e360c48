@@ -1,0 +1,6 @@
+Lay-What: The project's command-line tool starts much faster.
+Lay-How: The tool works out its internal names itself instead of starting a small helper program hundreds of times.
+Lay-Why: Every command waited over a second just to start.
+Tech-What: The orc and iac ./run loaders derive names by parameter expansion instead of a $(basename) fork per *.func.sh.
+Tech-How: run.sh do_load_functions and do_set_vars change in both; run-loader-no-fork.tst.sh checks the map and that no basename/dirname fork remains.
+Tech-Why: Perf round 4 C1: orc wall median 1215 -> 294 ms, iac 545 -> 161 ms (n=12).

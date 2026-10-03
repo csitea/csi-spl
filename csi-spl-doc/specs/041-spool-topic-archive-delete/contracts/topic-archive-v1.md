@@ -42,6 +42,16 @@ The archived cards the caller may read (the rdb 0028 door), newest `archived_at`
 `limit` 1..200, default 50; `before` is the `next` of the previous page.
 `200` `{cards: [<view element §4.4 + task_id, is_parent, archived_at, archived_by, replies, can_delete>], next}`.
 
+## 5.1 The archive stamp on a topic read
+
+Lists leave an archived topic out, but `GET /v1/view/topics/{task_id}` answers
+one read by its id (a link, a notification, this view). Its body then carries
+the topic's stamp, `archived_at` and `archived_by` (omitted while the topic is
+live), by the lists' own rule: an archived row of the task, the lobby's
+excepted, or the archived lobby card whose thread it is. Only a first or
+reverse-window read carries it; an `after=` poll and the lobby never do. The
+WUI marks the topic with it (the Archived badge, t1 8fb802cd).
+
 ## 6. Frames (browser socket)
 
 ```json
@@ -52,4 +62,4 @@ The archived cards the caller may read (the rdb 0028 door), newest `archived_at`
 Audience: every browser socket that would have received the card's own `message`
 frame (032's `fanoutDeleted` rule).
 
-<!-- version: 0.1.0 · updated: 2026-09-26 -->
+<!-- version: 0.2.0 · updated: 2026-10-03 -->

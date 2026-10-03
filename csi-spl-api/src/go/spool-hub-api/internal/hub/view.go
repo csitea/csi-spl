@@ -515,6 +515,11 @@ type topicBody struct {
 	TaskID   string    `json:"task_id"`
 	Messages []viewMsg `json:"messages"`
 	Next     *string   `json:"next"`
+	// The topic's archive stamp (specs/041), on a read that is not an
+	// after= poll: a topic read by its id answers while archived, and the
+	// WUI marks it (t1 8fb802cd). Absent = live.
+	ArchivedAt string `json:"archived_at,omitempty"`
+	ArchivedBy string `json:"archived_by,omitempty"`
 }
 
 // perTopicMax caps per_topic: a page of viewLimitMax topics at this many
@@ -941,7 +946,19 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, topicBody{TaskID: task, Messages: viewMsgsIn(rows, react, task), Next: next})
+	body := topicBody{TaskID: task, Messages: viewMsgsIn(rows, react, task), Next: next}
+	if sq.AfterAt.IsZero() && task != s.o.LobbyTaskID {
+		at, by, err := s.o.Store.TopicArchived(r.Context(), t.ID, task, s.o.LobbyTaskID)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("task", task).Msg("topic archived")
+			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+			return
+		}
+		if !at.IsZero() {
+			body.ArchivedAt, body.ArchivedBy = rfc(at), by
+		}
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // topicReader is the read door of one topic (rdb 0028, privacy.go): it

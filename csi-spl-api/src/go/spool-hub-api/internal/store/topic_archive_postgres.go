@@ -221,6 +221,30 @@ func (s *Postgres) TopicReplies(ctx context.Context, tenant string, msgIDs, ownT
 	return out, err
 }
 
+// topicArchivedSQL is archivedTopicHideSQL's row for one task ($1 tenant,
+// $2 task, $3 lobby or ""): the earliest archive stamp. messages_archived
+// holds only archived rows, so this reads a handful.
+const topicArchivedSQL = `SELECT z.archived_at, z.archived_by FROM messages z
+		WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+			AND (z.msg_id = $2::uuid OR (z.task_id = $2::uuid AND $2::text <> $3::text))
+		ORDER BY z.archived_at LIMIT 1`
+
+func (s *Postgres) TopicArchived(ctx context.Context, tenant, task, lobby string) (time.Time, string, error) {
+	if !canonUUIDRe.MatchString(task) {
+		return time.Time{}, "", nil
+	}
+	var at *time.Time
+	var by *string
+	err := s.queryRowTenant(ctx, tenant, topicArchivedSQL, []any{tenant, task, lobby}, &at, &by)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && at == nil) {
+		return time.Time{}, "", nil
+	}
+	if err != nil {
+		return time.Time{}, "", err
+	}
+	return *at, deref(by), nil
+}
+
 // archivedHideSQL is the list filter on alias a (a messages row): none of
 // its own card, its task's card, its parent task's card (the lobby's
 // excepted in both) or the lobby card whose thread it is in is archived. lobby is a bound $n ("" = no lobby).

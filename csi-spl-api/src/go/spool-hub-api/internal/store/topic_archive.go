@@ -101,6 +101,12 @@ type TopicArchive interface {
 	// TopicReplies counts every row of each card's topic but the card, in
 	// retention (the Archive view's reply count). ownTasks[i] is msgIDs[i]'s.
 	TopicReplies(ctx context.Context, tenantID string, msgIDs, ownTasks []string) (map[string]int, error)
+	// TopicArchived answers the archive stamp that hides taskID from every
+	// list (the lists' own rule: an archived row of the task, the lobby's
+	// excepted, or the archived lobby card whose thread it is). A zero time
+	// = live. A topic read by its id answers while archived, so the WUI
+	// needs this to MARK it (t1 8fb802cd).
+	TopicArchived(ctx context.Context, tenantID, taskID, lobby string) (time.Time, string, error)
 }
 
 // walkTopic is the walk both drivers share. next answers, for a set of task
@@ -296,10 +302,25 @@ func (s *Memory) archivedHiddenLocked(tenant string, m *Message, lobby string) b
 // topicArchivedLocked: task is archived (its card is), or it is the thread
 // of an archived lobby card.
 func (s *Memory) topicArchivedLocked(tenant, task, lobby string) bool {
+	return !s.topicStampLocked(tenant, task, lobby).ArchivedAt.IsZero()
+}
+
+// topicStampLocked is topicArchivedLocked's archived row (the earliest
+// stamp), or a zero Message when the topic is live.
+func (s *Memory) topicStampLocked(tenant, task, lobby string) Message {
+	var hit Message
 	for k, z := range s.messages {
-		if k[0] == tenant && !z.ArchivedAt.IsZero() && (z.MsgID == task || (z.TaskID == task && task != lobby)) {
-			return true
+		if k[0] == tenant && !z.ArchivedAt.IsZero() && (z.MsgID == task || (z.TaskID == task && task != lobby)) &&
+			(hit.ArchivedAt.IsZero() || z.ArchivedAt.Before(hit.ArchivedAt)) {
+			hit = *z
 		}
 	}
-	return false
+	return hit
+}
+
+func (s *Memory) TopicArchived(_ context.Context, tenant, task, lobby string) (time.Time, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	z := s.topicStampLocked(tenant, task, lobby)
+	return z.ArchivedAt, z.ArchivedBy, nil
 }

@@ -1,0 +1,6 @@
+Lay-What: Computers connected to the server no longer all show as "offline" right after the server is updated.
+Lay-How: Each connected computer's "last seen" time is now refreshed every 30 seconds in a shared place, and any server copy reads that time.
+Lay-Why: After every server update the owner saw every computer marked offline, which was plainly wrong.
+Tech-What: Hub box presence: online = boxes.last_hello_at younger than two ping intervals, read by every instance.
+Tech-How: The instance holding a box's socket re-stamps last_hello_at each 30 s ping; presence.go decides online; a real disconnect still reads offline at once; the memory store matches Postgres on roster rows.
+Tech-Why: Online meant "this instance holds the socket", and a Cloud Run roll leaves sockets on the old revision while the new one answers the roster.

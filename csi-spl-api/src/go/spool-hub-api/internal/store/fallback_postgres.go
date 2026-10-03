@@ -62,7 +62,7 @@ func (s *Postgres) ClaimFallback(ctx context.Context, d FallbackDelivery) (bool,
 // are left out here rather than re-read every tick.
 func (s *Postgres) UnheardPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]Queued, error) {
 	var out []Queued
-	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env FROM messages m
+	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, m.task_id::text FROM messages m
 		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
 		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
@@ -76,7 +76,7 @@ func (s *Postgres) UnheardPosts(ctx context.Context, tenant string, since, until
 		ORDER BY m.received_at, m.msg_id LIMIT $4`, []any{tenant, since, until, limit},
 		func(rows pgx.Rows) error {
 			var q Queued
-			if err := rows.Scan(&q.MsgID, &q.Env); err != nil {
+			if err := rows.Scan(&q.MsgID, &q.Env, &q.TaskID); err != nil {
 				return err
 			}
 			out = append(out, q)
@@ -93,7 +93,7 @@ func (s *Postgres) UnheardPosts(ctx context.Context, tenant string, since, until
 // from_id is not a HUM-/GST- id).
 func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]Queued, error) {
 	var out []Queued
-	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env FROM messages m
+	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, m.task_id::text FROM messages m
 		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
 		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
@@ -109,7 +109,7 @@ func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, un
 		ORDER BY m.received_at, m.msg_id LIMIT $4`, []any{tenant, since, until, limit},
 		func(rows pgx.Rows) error {
 			var q Queued
-			if err := rows.Scan(&q.MsgID, &q.Env); err != nil {
+			if err := rows.Scan(&q.MsgID, &q.Env, &q.TaskID); err != nil {
 				return err
 			}
 			out = append(out, q)
@@ -125,7 +125,7 @@ func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, un
 // Unlike UnansweredPosts this REQUIRES a fallback row and reads its attempts.
 func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {
 	var out []Queued
-	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, f.agent_id FROM messages m
+	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, f.agent_id, m.task_id::text FROM messages m
 		JOIN fallback_deliveries f ON f.tenant_id = m.tenant_id AND f.msg_id = m.msg_id
 		WHERE m.tenant_id = $1 AND m.received_at >= $6 AND m.received_at < $3
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
@@ -141,7 +141,7 @@ func (s *Postgres) ReescalatablePosts(ctx context.Context, tenant string, since,
 		ORDER BY f.delivered_at, m.msg_id LIMIT $4`, []any{tenant, escalatedBefore, until, limit, maxAttempts, since},
 		func(rows pgx.Rows) error {
 			var q Queued
-			if err := rows.Scan(&q.MsgID, &q.Env, &q.LastAgent); err != nil {
+			if err := rows.Scan(&q.MsgID, &q.Env, &q.LastAgent, &q.TaskID); err != nil {
 				return err
 			}
 			out = append(out, q)

@@ -160,6 +160,13 @@ type Queued struct {
 	// agent the last escalation attempt went to, so the re-escalation rotates
 	// PAST it. "" for every other producer.
 	LastAgent string
+	// TaskID is messages.task_id: the topic the row lives in now. Empty when
+	// the producer did not read the column (the ordinary delivery queue). A
+	// merge rewrites this column and leaves the signed envelope on the
+	// pre-move task, so a fallback that delivers the envelope unchanged
+	// writes the abandoned topic into the responder's inbox (prd t1
+	// 139c58c8).
+	TaskID string
 }
 
 // SweepResult counts what a retention sweep changed.

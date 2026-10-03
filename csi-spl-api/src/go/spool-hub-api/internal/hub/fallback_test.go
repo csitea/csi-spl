@@ -305,6 +305,89 @@ func TestEscalateUnansweredReachesResponderDespiteOnlineAgent(t *testing.T) {
 	}
 }
 
+// A topic merge rewrites messages.task_id and leaves the signed envelope on
+// the pre-move task (prd t1 139c58c8, merged into 4a31aa83, then escalated).
+// The escalation must deliver the topic the row lives in now, or the
+// responder's Seen opens the abandoned id as a lonely topic. The stored
+// envelope stays the historical record.
+func TestEscalateMovedPostDeliversTheTopicItLivesIn(t *testing.T) {
+	pub, key, _ := ed25519.GenerateKey(nil)
+	const grace = 2 * time.Second
+	var clockOffset atomic.Int64
+	e := newEnv(t, func(o *hub.Options) {
+		fallbackOpts(o, key, true)
+		o.UnansweredGrace = grace
+		o.Now = func() time.Time { return time.Now().Add(time.Duration(clockOffset.Load())) }
+	})
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	e.pinKey(tid, hub.WUIBox, pub)
+	if err := e.st.(store.Fallbacks).SetTenantResponders(ctx, tid, []string{"CLE-001"}); err != nil {
+		t.Fatal(err)
+	}
+	desk := e.box(tid, "box-desk", "CLE-001")
+	pokes := pokeLog(t, desk)
+	e.pin(tid, desk)
+	sd, err := desk.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sd.Close()
+	human := "HUM-google-sub-1@" + tid
+	now := time.Now()
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "staffed",
+		Name: "staffed", CreatedBy: human, CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.AddChannelHumans(ctx, tid, "staffed", []string{human}, human, now); err != nil {
+		t.Fatal(err)
+	}
+	b := e.box(tid, "box-b", "GRK-36")
+	e.pin(tid, b)
+	sb, err := b.c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sb.Close()
+	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/staffed/agents", human,
+		map[string]string{"id": "GRK-36", "box": "box-b"}); code != http.StatusCreated {
+		t.Fatalf("invite: %d %v", code, out)
+	}
+	ws := dialMember(t, e, tid, "Owner", human)
+	m1, task := "606f8004-58e4-4563-9c82-a4c69264ff72", "139c58c8-65be-468b-8faa-e28f5e13feef"
+	target := "4a31aa83-81f2-4864-9801-d6775c6fa920"
+	threadFrame(t, ws, m1, task, "staffed", 1, "this belongs in the other topic")
+	eventually(t, "GRK-36 got it the ordinary way", func() bool { return strings.Join(inboxIDs(t, b, "GRK-36"), ",") == m1 })
+	if _, err := e.st.(store.TopicMerge).MergeTopic(ctx, tid, m1, task, target, "staffed", human, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	posts, err := e.st.(store.Fallbacks).UnansweredPosts(ctx, tid, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), 20)
+	if err != nil || len(posts) != 1 || posts[0].TaskID != target {
+		t.Fatalf("sweep must name the topic the row lives in now: %+v err %v", posts, err)
+	}
+	env, err := wire.ParseEnvelope(posts[0].Env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := env.Inner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inner.TaskID != task {
+		t.Fatalf("stored envelope task %q, want the pre-move %q (merge does not re-sign history)", inner.TaskID, task)
+	}
+	clockOffset.Store(int64(grace + time.Second))
+	e.srv.Relay(ctx)
+	eventually(t, "CLE-001 got the moved post on its current topic", func() bool {
+		got := inbox(t, desk, "CLE-001")
+		return len(got) == 1 && got[0].MsgID == m1 && got[0].TaskID == target
+	})
+	eventually(t, "poke names the current topic", func() bool {
+		p := pokes()
+		return len(p) == 1 && strings.Contains(p[0], "--task "+target) && !strings.Contains(p[0], "--task "+task)
+	})
+}
+
 // SPL-1225 miss fix (prd t1 4b0ba40a): a post escalated to a responder that
 // never acted on it (its poke was refused and dropped) must be RE-escalated to
 // the NEXT responder, not left in permanent silence on the first. The first

@@ -96,7 +96,7 @@ func (s *Server) Relay(ctx context.Context) {
 			if err != nil {
 				continue
 			}
-			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true})
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, taskID: p.TaskID})
 		}
 	}
 	s.escalateUnanswered(ctx, fb, ids, now)
@@ -132,7 +132,7 @@ func (s *Server) escalateUnanswered(ctx context.Context, fb store.Fallbacks, ten
 			if err != nil {
 				continue
 			}
-			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, escalate: true})
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, escalate: true, taskID: p.TaskID})
 		}
 	}
 	s.reescalate(ctx, fb, tenants, now)
@@ -162,7 +162,7 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 			if err != nil {
 				continue
 			}
-			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, escalate: true, reescalate: true, avoid: p.LastAgent})
+			s.fallbackPost(ctx, tenant, s.storedChannel(ctx, tenant, env, m), env, m, escalation{swept: true, escalate: true, reescalate: true, avoid: p.LastAgent, taskID: p.TaskID})
 		}
 	}
 }

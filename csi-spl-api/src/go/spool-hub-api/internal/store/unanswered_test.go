@@ -66,6 +66,9 @@ func TestUnansweredPosts(t *testing.T) {
 			ids := map[string]bool{}
 			for _, q := range got {
 				ids[q.MsgID] = true
+				if q.MsgID == unheard.MsgID && q.TaskID != taskUnheard {
+					t.Fatalf("unanswered post task %q, want the column %q (the topic it lives in now)", q.TaskID, taskUnheard)
+				}
 			}
 			if !ids[unheard.MsgID] {
 				t.Fatalf("the unanswered post %s was not returned: %v", unheard.MsgID, ids)
@@ -131,8 +134,8 @@ func TestReescalatablePosts(t *testing.T) {
 			}
 			// Due once escalatedBefore passes the attempt.
 			got, err := fb.ReescalatablePosts(ctx, tid, t0.Add(-time.Minute), t0.Add(5*time.Minute), until, maxAtt, 20)
-			if err != nil || len(got) != 1 || got[0].MsgID != post.MsgID {
-				t.Fatalf("want the post re-escalatable: got %d err %v", len(got), err)
+			if err != nil || len(got) != 1 || got[0].MsgID != post.MsgID || got[0].TaskID != post.TaskID || got[0].LastAgent != "CLE-001" {
+				t.Fatalf("want the post re-escalatable in its current topic: got %+v err %v", got, err)
 			}
 			// CONTROL (side effect fix): the age bound. The same due post is NOT
 			// re-escalated when it is older than `since` - an ancient probe post

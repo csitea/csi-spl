@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -208,6 +209,10 @@ func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, en
 type escalation struct {
 	swept, escalate, reescalate bool
 	avoid                       string
+	// taskID is messages.task_id when a sweep read the row back. Empty on the
+	// immediate fallback, which runs in the same turn as the insert, before
+	// any merge.
+	taskID string
 }
 
 func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, esc escalation) {
@@ -237,8 +242,9 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	if !esc.escalate && s.recipientOnline(ctx, tenant, channel, env, m, roster) {
 		return
 	}
-	canon, err := env.Marshal()
+	canon, err := s.fallbackCanon(ctx, tenant, env, m, esc.taskID)
 	if err != nil {
+		log.Error().Err(err).Str("task_id", esc.taskID).Msg("fallback envelope")
 		return
 	}
 	b, agent, ok := s.fallbackPick(ctx, tenant, roster, boxes, wire.InnerVersion(canon), esc.avoid)
@@ -260,6 +266,32 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	s.fallbackRecord(ctx, rec, esc, log)
 	log.Info().Str("box", b.box).Str("agent", agent).Str("where", where).
 		Bool("swept", esc.swept).Bool("escalate", esc.escalate).Bool("reescalate", esc.reescalate).Msg("fallback delivered")
+}
+
+// fallbackCanon is the envelope a fallback frame carries. The stored envelope
+// keeps the task the human signed. MergeTopic rewrites messages.task_id and
+// does not touch env (the sig covers the inner task), so delivering those
+// bytes writes the abandoned task into the responder's inbox and the Seen
+// opens a lonely topic (prd t1 139c58c8: merged into 4a31aa83 at 03:33:25,
+// escalated at 03:35 still naming 139c58c8). When taskID is the row's current
+// topic and it differs, this re-signs a delivery-only copy onto that topic.
+// The stored row stays the historical record. A failure returns before the
+// claim, so the next sweep tries again instead of sealing a stale delivery.
+func (s *Server) fallbackCanon(ctx context.Context, tenant string, env *wire.Envelope, m *msg.Message, taskID string) ([]byte, error) {
+	if taskID == "" || taskID == m.TaskID {
+		return env.Marshal()
+	}
+	pin := s.wuiPin(ctx, tenant)
+	if pin == nil {
+		return nil, fmt.Errorf("moved post %s now lives in %s and this hub cannot re-sign box-wui", m.MsgID, taskID)
+	}
+	cp := *m
+	cp.TaskID = taskID
+	signed, err := s.dispatchEnvelope(env.ToBox, env.Channel, env.ParentTaskID, pin, &cp)
+	if err != nil {
+		return nil, err
+	}
+	return signed.Marshal()
 }
 
 // fallbackTake makes this process the one that delivers a swept, escalated or

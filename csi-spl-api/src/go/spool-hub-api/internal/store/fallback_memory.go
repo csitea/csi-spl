@@ -169,7 +169,7 @@ func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, esc
 	}
 	out := make([]Queued, len(ms))
 	for i, m := range ms {
-		out[i] = Queued{MsgID: m.MsgID, Env: m.Env, LastAgent: s.fb.delivered[[2]string{tenant, m.MsgID}].Agent}
+		out[i] = Queued{MsgID: m.MsgID, Env: m.Env, LastAgent: s.fb.delivered[[2]string{tenant, m.MsgID}].Agent, TaskID: m.TaskID}
 	}
 	return out, nil
 }
@@ -215,7 +215,7 @@ func oldestFirst(ms []*Message, limit int) []Queued {
 	}
 	out := make([]Queued, len(ms))
 	for i, m := range ms {
-		out[i] = Queued{MsgID: m.MsgID, Env: m.Env}
+		out[i] = Queued{MsgID: m.MsgID, Env: m.Env, TaskID: m.TaskID}
 	}
 	return out
 }

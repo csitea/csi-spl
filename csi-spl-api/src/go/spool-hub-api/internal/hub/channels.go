@@ -60,12 +60,17 @@ func (s *Server) tagChannel(channel, taskID string) string {
 }
 
 // channelOf is the channel a message belongs to: tagChannel, else the channel
-// of its task's topic root, else "" (a DM). A thread reply lives on its
-// topic's task and the WUI reply pane sends no tag, so without the inherit a
-// #lobby reply was stored with channel NULL while its topic said lobby
-// - and the per-message read door (rdb 0028) then judged the
-// reply as a DM. A lookup error keeps the old answer rather than failing the
-// send.
+// of its task's topic root, else the channel of the task's earliest row of
+// ANY level (TaskFirstChannel, as boxLevel), else "" (a DM). A thread reply
+// lives on its topic's task and the WUI reply pane sends no tag, so without
+// the inherit a #lobby reply was stored with channel NULL while its topic said
+// lobby - and the per-message read door (rdb 0028) then judged the reply as a
+// DM. A channel topic whose opening card is missing (opened as a reply, swept,
+// moved) has no is_parent 1 root, so TopicChannel alone stored every untagged
+// agent reply on it as a DM on the channel topic's task_id (spec 067 2.3: 280
+// prd DMs in 2 weeks). Rule 1: a channel reply is never a DM. Only a task with
+// no channel row at all (a genuine DM, a new task) stays "". A lookup error
+// keeps the old answer rather than failing the send.
 func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) string {
 	if c := s.tagChannel(channel, taskID); c != "" {
 		return c
@@ -73,6 +78,14 @@ func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) 
 	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
+		return ""
+	}
+	if c != "" {
+		return c
+	}
+	c, err = s.o.Store.TaskFirstChannel(ctx, tenant, taskID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("task first channel")
 		return ""
 	}
 	return c

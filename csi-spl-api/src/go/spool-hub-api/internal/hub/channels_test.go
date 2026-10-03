@@ -21,6 +21,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -379,6 +380,83 @@ func TestChannelEnvelopeStored(t *testing.T) {
 	msgs, _ := e.st.ViewTopic(ctx, tid, store.TopicMsgQuery{TaskID: child, Now: time.Now()})
 	if len(msgs) != 1 || !bytes.Contains(msgs[0].Env, []byte(`"channel":"feedback"`)) || !bytes.Contains(msgs[0].Env, []byte(`"parent_task_id":"`+root+`"`)) {
 		t.Fatalf("stored env: %+v", msgs)
+	}
+}
+
+// spec 067 L1 (rule 1: a channel reply is never a DM): an untagged box reply
+// on a channel task whose opening card is missing inherits the channel of the
+// task's earliest row, as boxLevel does. TopicChannel alone read such a task
+// as a DM, so the reply was stored with channel NULL on the channel topic's
+// task_id (2.3: 280 prd DMs in 2 weeks). Controls: a genuine DM stays NULL,
+// and a reply on a topic with its card keeps the card's channel.
+func TestBoxReplyInheritsCardlessChannel(t *testing.T) {
+	e := wuiEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	w := dialWUI(t, e, tid, "HUM-1")
+	a := e.box(tid, "box-a", "GRK-03")
+	e.pin(tid, a)
+	if _, err := a.c.Sync(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wuiSend := func(task, channel string, isParent int) string {
+		t.Helper()
+		f := map[string]any{"type": "send", "task_id": task, "body": "W", "is_parent": isParent}
+		if channel != "" {
+			f["channel"] = channel
+		}
+		w.send(f)
+		ack := w.read("ack")
+		if ack.MsgID == "" {
+			t.Fatalf("ack %+v", ack)
+		}
+		return ack.MsgID
+	}
+	boxSend := func(task string) string {
+		t.Helper()
+		out, err := action.SendCtx(ctx, a.cfg, action.SendArgs{From: "GRK-03", To: hub.BroadcastID, ToBox: hub.WUIBox,
+			TaskID: task, Kind: "note", Body: "untagged agent reply", Hub: a.c})
+		if err != nil {
+			t.Fatalf("box send on %s: %v", task, err)
+		}
+		return out.MsgID
+	}
+	stored := func(id string) string {
+		t.Helper()
+		m, err := e.st.GetEditable(ctx, tid, id, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m.Channel
+	}
+
+	const (
+		cardless = "44444444-4444-4444-8444-444444444401"
+		carded   = "44444444-4444-4444-8444-444444444402"
+		dm       = "44444444-4444-4444-8444-444444444403"
+		moved    = "44444444-4444-4444-8444-444444444404"
+	)
+	wuiSend(cardless, "feedback", 0) // opened as a reply: no is_parent 1 row
+	wuiSend(carded, "feedback", 1)
+	wuiSend(dm, "", 1)
+	// A reply moved out of its topic into a fresh task: the task's only row is
+	// an is_parent 0 #lobby row (MoveMessage), so it has no card either.
+	r := wuiSend(carded, "feedback", 0)
+	if _, err := e.st.MoveMessage(ctx, tid, r, moved, store.ChannelLobby, "HUM-1", time.Now(), time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range []struct {
+		name, task, want string
+	}{
+		{"reply on a card-less channel task", cardless, "feedback"},
+		{"reply on a moved card-less task", moved, store.ChannelLobby},
+		{"reply on a carded channel topic (control)", carded, "feedback"},
+		{"reply on a genuine DM (control)", dm, ""},
+	} {
+		if got := stored(boxSend(c.task)); got != c.want {
+			t.Errorf("%s: channel %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

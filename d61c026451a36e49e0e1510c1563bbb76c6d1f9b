@@ -1,0 +1,6 @@
+Lay-What: The app is ready for smaller live message updates from the server.
+Lay-How: When a live update leaves out details that can be worked out, the app fills them in itself, so old and new updates look the same.
+Lay-Why: The server is about to send leaner live updates, and the app must understand them before that happens.
+Tech-What: messageFromFrame rebuilds what a trimmed message frame omits: cursor from received_at + msg_id, files [], and the box-wui ends.
+Tech-How: live-ws.mjs fills the defaults; live-ws.test.mjs covers old and new frames.
+Tech-Why: R2-3: the WUI must ship ahead of the hub's frame trim (51ae0d95).

@@ -1,13 +1,14 @@
 # 070: three-second response - a model's full answer to a human post in <= 3 s
 
-Status: **draft v0.3, owner questions open** (section 11). v0.3 applies the
+Status: **draft v0.4, owner questions open** (section 11). v0.4: the pool
+service is a native Go process on both boxes (owner, 19:15Z; 5.2, L3). v0.3 applied the
 owner's answers of 18:50Z: **the 3 s answer is the call response of a
 standby agent on the box** (Q2 = boxes, Q10 = no), which reverses v0.2's
 hub-side fast responder. v0.2 folded in the owner inputs of 18:31Z, 18:41Z
 and 18:43Z and the reviews [review-claude.md](review-claude.md) (c-134) and
 [review-grok.md](review-grok.md) (g-135); both reviewed v0.1.
 Spec only: no code, cron, cnf, setting or seat was touched. Draft 2026-10-03,
-c-132@sat; v0.3 on tree `origin/master` @ `f47de742`.
+c-132@sat; v0.4 on tree `origin/master` @ `d4d693a8`.
 Related: [068 peer seats](../068-peer-seats/spec.md) (the OD seats, the
 message claim, answer once), [053 live delivery](../053-spool-live-delivery/spec.md),
 [030 wire fast path](../030-spool-wire-fastpath/spec.md),
@@ -84,6 +85,11 @@ than 2 minutes for a simple hei in response".
 > Q10: the first 3 s answer comes from the fast responder, not a pool agent?
 > No, 3 seconds should be the call response. That is an agent who is on
 > standby."
+
+> 2026-10-03 ~19:15Z, #spool-hub-devel topic `55c97c00` (msgs `3b3e7ca5`,
+> `6e263273`): "Yeah and the service could be created in Go so that it would
+> be extremely fast. The polling service" and "And I would guess that it
+> should run natively both on the satellite and on the tank box."
 
 (Relayed to this lane by c-001@sat, task `drill-reply-latency`, and
 `/var/tmp/c-001-briefs/spec070-owner-inputs.md`.)
@@ -210,7 +216,7 @@ measure (Q1).
 ## 5. Design
 
 ```text
-human post -> hub (needs_peer) --claimable push--> pool service (one per box, code, a while-loop)
+human post -> hub (needs_peer) --claimable push--> pool service (one per box, a native Go process)
    claim on the warm socket, topic tail in the reply (one round trip)
    -> stdin of the FIRST FREE standby agent (warm, idle, headless)          [R1: the call response]
    <- its streamed answer (<= ~80 tokens, no tool call) -> code posts it with answers=<msg_id>
@@ -238,14 +244,45 @@ SLA watchdog (hub): 4 s next standby, 60 s other box, 120 s RSP-01, 170 s owner 
   responsible). The owner reads it on its next turn. R1 never waits for a busy
   owner.
 
-### 5.2 The pool service (owner, 18:28Z and 18:31Z)
+### 5.2 The pool service (owner, 18:28Z, 18:31Z and 19:15Z)
+
+**A Go program, run natively on both boxes** (owner, 19:15Z: "created in Go
+so that it would be extremely fast", "run natively both on the satellite and
+on the tank box"). Not a container, not a shell loop.
 
 | piece | does |
 |---|---|
-| `do_spl_pool_serve` (one per box, a shell while-loop) | woken by the push: claims each new post on the warm socket; hands a new topic to the first free standby, and a follow-up to its owner or, when the owner is busy, to a standby; keeps `POOL_IDLE_MIN` standby agents; grows `POOL_MAX` 8 -> 16 -> 32 -> 64 |
-| handover deadline | no first token from the standby in `CALL_DEADLINE` (4 s): the next free standby of the other vendor takes it (the first one keeps nothing: its late output is refused by `answers=`, R5) |
-| memory watch / hard limit (owner, 18:31Z) | per agent: process-tree RSS over `POOL_RSS_MAX`, or no progress for `PEER_PROGRESS_MAX`: release its topics with `not_by`, stop it, refill. Per box: available memory under `POOL_MEM_FLOOR`: spawn no new agent |
-| posting | the service, not the agent, posts the call response (F5); the owner agent's later posts carry the topic and msg id from its claim (F4) |
+| **`spool pool serve`** (Go, a new subcommand of the `spool` binary in the csi-spl-api module, `cmd/spool`) | one process per box. It holds ONE warm session on the hub's box socket: the `claimable` push wakes it, and a 0.5 s poll on the same warm socket is its backstop (no cold dial, e5). It claims each new post, hands a new topic to the first free standby, and a follow-up to its owner or, when the owner is busy, to a standby. It writes the post + topic tail to the agent's stdin, reads its streamed output, and posts it with `answers=<msg_id>` (F4, F5). It keeps `POOL_IDLE_MIN` standby agents and grows `POOL_MAX` 8 -> 16 -> 32 -> 64 |
+| handover deadline | no first token from the standby in `CALL_DEADLINE` (4 s): the next free standby of the other vendor takes it (the first one's late output is refused by `answers=`, R5) |
+| memory watch / hard limit (owner, 18:31Z) | per agent: process-tree RSS over `POOL_RSS_MAX`, or no progress for `PEER_PROGRESS_MAX`: release its topics with `not_by`, stop it, refill. Per box: available memory under `POOL_MEM_FLOOR`: spawn no new agent. Read from `/proc` in Go, no shell-out |
+| reaping | the agent's `<spool root>/pool/<id>/done` flag (it ends itself, owner 18:31Z): the service reaps the window and starts a new standby |
+| **`do_spl_pool_serve`** (orc, bash) + `do_spl_pool_serve_install_cron` (`* * * * *`, tag `# csi-spl:pool-serve`) | **only install, start and keep the Go binary running.** No routing, claiming or posting in bash |
+
+**The native install and start path, the same on sat and on the PC box.**
+It reuses the path the desk sidecars already run on:
+
+1. **Build and install**: `spl_host_spool`
+   (`csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh:236`) builds the
+   `spool` binary on the host with `csi-spl-api/src/bash/build.sh` (the
+   host Go toolchain) into `$SPL_STATE_DIR/bin/spool`
+   (`$HOME/.local/share/csi-spl/cloud/<env>/bin/spool`). It keeps the binary
+   when it was built from this tree's HEAD, builds when the tree is newer,
+   refuses a downgrade, and renames the build into place atomically. Being a
+   subcommand of the same binary, the pool service needs no new artefact and
+   no new build step.
+2. **Start**: `do_spl_pool_serve` (`ENV=<env>`) runs `spool pool serve
+   --env <env> --box <desk box>` detached, as the box user, from that binary,
+   with its pid in `<spool root>/pool/serve.pid` and its log under the box's
+   log dir. Already running from the current binary: nothing to do.
+3. **Keep running**: the cron runs `do_spl_pool_serve` every minute. A dead
+   process is restarted. A process older than the installed binary (a new
+   build) is restarted, the rule the desk reconcile already applies to a
+   sidecar whose binary was rebuilt (fleet-roles 4.2, Rollout).
+4. **Both boxes**: the PC box runs the same action from its own checkout, its
+   own state dir and its own desk box. *Unchecked from this lane* whether the
+   PC box's desk sidecar is built by this same path (no shell there). L3's
+   acceptance runs on both boxes. Spec 068 8.1 holds: the cron line resolves
+   to a repo checkout, nothing under `/var/tmp` or a home dir.
 
 ### 5.3 Transport fixes on the critical path (the reviews, e5)
 
@@ -379,7 +416,7 @@ match (L7).
 | **L0 quick win** | the delivery notice carries the full topic uuid and the msg id (`spool-notify.inc.sh` 170, 177) | `spawn-agents/tests`: the poke line holds both ids. Cuts drill 2's ~5 resolve calls today |
 | **L1 first: the standby benchmark** | `do_spl_standby_bench`: one warm standby per vendor (W1..W7), n >= 20 call responses on dev; first token, last token, output size; proves the headless stdin/stdout mode for claude and grok | its own report. **Decides Q1 (the model) and Q11** before L3..L5 are built |
 | L2 hub + sidecar: push and warm frames | a `claimable` hint on the box socket; claim / renew / check / `send --answers` on the warm socket; the tail inside the claim reply; a fractional poll | `TestClaimablePush`, `TestClaimWarmSocket`: no `role=cli` dial on the claim path |
-| L3 orc: the pool service | `do_spl_pool_serve` + its ensure cron: first free standby, follow-ups to the owner or a standby, `CALL_DEADLINE` handover, the stdin/stdout bridge, code posts with `answers=`, reap on the done flag, refill, memory watch, `POOL_MAX` | `pool-serve.tst.sh` with stub agents: first free wins; a deadline hands over and the late answer gets 409; done -> reaped and refilled; RSS cap -> released and stopped; floor -> no spawn |
+| L3 api + orc: the pool service | **Go**: `spool pool serve` in `csi-spl-api/src/go/spool-hub-api` (`cmd/spool` + an `internal/pool` package): the warm box session, first free standby, follow-ups to the owner or a standby, `CALL_DEADLINE` handover, the stdin/stdout bridge, posts with `answers=`, reap on the done flag, refill, memory watch, `POOL_MAX`. **orc**: `do_spl_pool_serve` + `do_spl_pool_serve_install_cron` only install (`spl_host_spool`), start and keep the binary running, natively on sat and on the PC box | Go `TestPoolServe` (stub agents, a stub hub): first free wins; a deadline hands over and the late answer gets 409; done -> reaped and refilled; RSS cap -> released and stopped; floor -> no spawn. bash `pool-serve-ensure.tst.sh`: not running -> started; dead -> restarted; a newer binary -> restarted; running and current -> untouched; the cron line resolves to a checkout (068 8.1) |
 | L4 orc: the standby agent contract | the headless start, the warm-up turn, the call-response prompt (no tools, ~80 tokens), the owner phase, the done flag and `/exit-clean`; the topic owner field per c-133 | a stub run through all four states |
 | L5 hub: one definition of answered + the watchdog | the sweep, RSP-01 and the escalations read the `answers=` row; the 60 s release sets `not_by`; the 170 s owner DM; the fallback frame carries its cause (e8) | `TestSLAWatchdog`; RSP-01 never double-answers |
 | L6 orc: permissions at every start | the start of every agent writes setup's allow rules (`fc19cdcd`) into its worktree; the check's GAP row becomes a start gate (Q3) | `dispatch-setup-check.tst.sh` extended |
@@ -424,4 +461,4 @@ shows, in one recorded run on the tree it names:
 | **Q13** (new) | Standby agents run headless (code must read their output); each agent's tmux window tails its stream log instead of showing an interactive screen. Acceptable? | new |
 | **Q14** (new) | An unsigned post never reaches a box (review-claude, `fallback.go:231`). With the responder on the boxes: let the hub forward unsigned posts to the pool, or keep them outside R2 | new, raised by Q2 |
 
-<!-- version: 0.3 · updated: 2026-10-03 · last-edit: 2026-10-03T19:20:00Z -->
+<!-- version: 0.4 · updated: 2026-10-03 · last-edit: 2026-10-03T19:30:00Z -->

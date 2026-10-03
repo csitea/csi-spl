@@ -19,7 +19,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 # sweep_with <state-dir> runs do_spl_responder_sweep with the cloud cnf pointed
 # at <state-dir> and do_spl_responder_run stubbed to log the tenant it handled.
 sweep_with() {
-  env PROJ_PATH="$PROJ_ROOT" STATE="$1" RUN_LOG="$T/run.log" ENV=dev bash -c '
+  # SPOOL_ROOT: no dispatch lease, so the live box's lease cannot gate it (specs/064 L2)
+  env PROJ_PATH="$PROJ_ROOT" STATE="$1" RUN_LOG="$T/run.log" ENV=dev SPOOL_ROOT="$T/spool" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }

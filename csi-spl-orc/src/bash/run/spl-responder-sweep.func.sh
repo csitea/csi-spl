@@ -13,6 +13,11 @@
 # @description The always-on service reacts in seconds; this cron is the belt.
 # @description It never seats a desk: the desk reconcile does that. A tenant
 # @description whose RSP desk is not seated is logged and skipped, not an error.
+# @description ONE machine answers (specs/064 L2): when the fleet's dispatch
+# @description lease is held on ANOTHER machine (do_spl_dispatch_lease, the
+# @description same gate as do_spl_unanswered_sweep), this machine's sweep
+# @description sends nothing and logs one INFO line - two machines with a
+# @description box-rsp desk would otherwise post two "Seen" replies per post.
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param DESK_BOX (optional) - the responder box, default box-rsp
@@ -25,6 +30,13 @@ do_spl_responder_sweep() {
   do_spl_cloud_cnf || return 1
   local box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-RSP-01}"
   local deskroot="$SPL_STATE_DIR/desk"
+  # fleet mode: the lease holder's machine answers; a standby sends nothing
+  spl_lease_init ro || return 1
+  spl_lease_conf
+  if spl_lease_read && spl_lease_remote; then
+    do_log "INFO the fleet's dispatch lease is held by $LH: this machine's responder sends nothing"
+    return 0
+  fi
   [[ -d "$deskroot" ]] || { do_log "OK responder sweep ($ENV): no desks on this box ($deskroot)"; return 0; }
 
   # Every tenant with a seated box-rsp spool is in scope. The reconcile seats

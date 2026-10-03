@@ -1,0 +1,6 @@
+Lay-What: The app opens faster on repeat visits, and an open tab moves to a new version by itself.
+Lay-How: The browser keeps a copy of the app's frame and uses it while it is still current, checking for a newer version in the background.
+Lay-Why: Every visit waited for the server before showing anything, even when nothing had changed.
+Tech-What: WUI sw.js keeps a navigation app shell (spool-shell-v1) tagged with the build id, served within 30 s of the network confirming it; uses navigation preload.
+Tech-How: Reloads go to the network; a newer build posts spool:shell-stale and pwa.client.ts applies build-watch's reload rules once ready; /api passes through; sw-app-shell unit 11.
+Tech-Why: Perf round 4 W9: warm loads paid a revalidation round trip; a reload during boot was cancelled by boot navigations.

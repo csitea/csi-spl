@@ -8,6 +8,9 @@
     ],
     "cleanUrls": true,
     "trailingSlash": false,
+    "i18n": {
+      "root": "/localized-files"
+    },
     "headers": [
       {
         "source": "**",

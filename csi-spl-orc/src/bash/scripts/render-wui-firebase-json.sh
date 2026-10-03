@@ -46,7 +46,7 @@ PUBLIC_DIR="${PUBLIC_DIR:-$ROOT/csi-spl-wui/.output/public}"
 # auth one). connect-src admits the tenant hosts: a page on <fqdn> reads and
 # opens its WebSocket on <tenant>.<fqdn> (NUXT_PUBLIC_API_BASE).
 python3 - "$OUT" "$SITE_ID" "$SERVICE" "$REGION" "$FQDN" "$CNF" "$PUBLIC_DIR" <<'PY'
-import base64, glob, hashlib, json, os, re, sys
+import base64, glob, hashlib, json, os, re, shutil, sys
 out, site_id, service, region, fqdn, cnf, public_dir = sys.argv[1:8]
 
 # ── Content-Security-Policy (spec 017 FR-SEC-005, T013/T014) ─────────────────
@@ -69,6 +69,40 @@ SCRIPT_RE = re.compile(r"<script\b([^>]*)>(.*?)</script>", re.S | re.I)
 STYLE_RE = re.compile(r"<style\b[^>]*>(.*?)</style>", re.S | re.I)
 TYPE_RE = re.compile(r"""\btype\s*=\s*["']?([^"'\s>]+)""", re.I)
 SRC_RE = re.compile(r"\bsrc\s*=", re.I)
+
+
+# ── Root locale at the edge (perf round 4 W10, round-3 P3-28) ──────────────
+# Firebase Hosting i18n answers `/` from <root>/<code>_ALL/index.html, picked
+# by the firebase-language-override cookie, else by Accept-Language, so a
+# non-default browser gets its prerendered `/<code>` page in ONE document
+# instead of `/` + a head `location.replace`. Staged here from THIS build:
+# every `<code>/index.html` whose <html lang> is <code>, plus the root page
+# under its own lang (an "en-US, fi" browser must still get en at `/`). The
+# head script (src/utils/rootLocaleRedirect.mjs) renames the URL to `/<code>`
+# and keeps the cookie choice above Accept-Language.
+I18N_ROOT = "localized-files"
+LANG_RE = re.compile(r"""<html\b[^>]*?\slang\s*=\s*["']?([A-Za-z]+)""", re.I)
+
+
+def page_lang(path):
+    m = LANG_RE.search(open(path, encoding="utf-8").read(4096))
+    return m.group(1).lower() if m else ""
+
+
+loc_dir = os.path.join(public_dir, I18N_ROOT)
+shutil.rmtree(loc_dir, ignore_errors=True)
+localized = {}
+for d in sorted(os.listdir(public_dir)):
+    src = os.path.join(public_dir, d, "index.html")
+    if re.fullmatch(r"[a-z]{2,3}", d) and os.path.isfile(src) and page_lang(src) == d:
+        localized[d] = src
+root_page = os.path.join(public_dir, "index.html")
+root_lang = page_lang(root_page) if os.path.isfile(root_page) else ""
+if localized and root_lang and root_lang not in localized:
+    localized[root_lang] = root_page
+for code, src in localized.items():
+    os.makedirs(os.path.join(loc_dir, code + "_ALL"))
+    shutil.copyfile(src, os.path.join(loc_dir, code + "_ALL", "index.html"))
 
 
 def sha(text):
@@ -159,6 +193,7 @@ doc = {
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "cleanUrls": True,
     "trailingSlash": False,
+    **({"i18n": {"root": "/" + I18N_ROOT}} if localized else {}),
     "headers": [
       {
         "source": "**",

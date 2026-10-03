@@ -2,8 +2,10 @@
 name: spawn-an-agent
 description: >
   Route a piece of work to the right agent launcher and spawn it: estimate the
-  task's difficulty against your own maximum capacity, then run /qwen-spawn
-  (under 60%, the cheap lane) or /claude-spawn (60% or more, or unsure). Use when
+  task's difficulty against your own maximum capacity, then run the launcher
+  do_spl_lane_mix picks from the box's vendor split (cnf env.box.agent_split):
+  /claude-spawn for hard, unsure or secret-bearing work, easy work to the vendor
+  under its share (grok by default). Use when
   the user says "spawn an agent", "give this to an agent", or hands you work that
   belongs in another lane. A leading c-NNN / g-NNN / a-NNN / q-NNN id (or a legacy CLE-nn) sends
   the rest to that agent instead.
@@ -21,15 +23,27 @@ the rest to that agent (section 2 of its launcher command) and stop.
 
 ## 2. Pick the launcher
 
-| your difficulty estimate | launcher |
-|---|---|
-| under 60% of what you could handle | `/qwen-spawn` |
-| 60% or more, or unsure | `/claude-spawn` |
+Estimate the task's difficulty against your own maximum capacity (0..100),
+then let the box's vendor split pick the launcher:
 
-The data rule overrides difficulty: work that carries personal data or secrets
-(credentials, keys, customer data) always goes to `/claude-spawn`. An estimate
-near the line counts as harder than it looks: use `/claude-spawn`.
-`/grok-spawn` and `/agy-spawn` are used only when the user names them.
+```bash
+cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> ./run -a do_spl_lane_mix
+```
+
+Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
+launcher. The split is cnf `env.box.agent_split` (all.env.yaml: claude 40,
+grok 50, agy 10, each +/- 5 over the box's last 20 spawns), an approximate
+ratio, never a quota:
+
+| the task | goes to |
+|---|---|
+| personal data or secrets (credentials, keys, customer data): `LANE_MIX_SENSITIVE=1` | claude, always |
+| 60% or more, or unsure (omit `LANE_MIX_DIFFICULTY`) | claude |
+| under 60%: easy, mechanical, well specified | the vendor furthest below its share by more than the tolerance; inside the band, grok |
+
+A vendor whose CLI is not installed or not signed in on this box is skipped
+and its share goes to claude. An estimate near the line counts as harder than
+it looks. A user who names a launcher wins over the pick.
 
 ## 3. Before spawning
 

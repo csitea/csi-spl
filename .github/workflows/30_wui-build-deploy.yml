@@ -173,7 +173,10 @@ jobs:
     # 20 min for the build + deploy, plus up to 30 min waiting for the hub
     # (CLE-35057 guard, below)
     timeout-minutes: 50
-    # One firebase deploy per site at a time; never killed mid-flight.
+    # One firebase deploy per site at a time; never killed once it holds the
+    # group. A PENDING deploy is still dropped when a newer push wants the
+    # group. The newest job, outside this lock, dispatches trunk head so
+    # that drop cannot leave dev and prd behind.
     concurrency:
       group: deploy-wui-${{ matrix.environment }}-${{ github.ref }}
       cancel-in-progress: false
@@ -461,3 +464,35 @@ jobs:
           [[ "$LB_ROUTE" == true ]] && { code=$(curl -sS -o /dev/null -w '%{http_code}' "https://${FQDN}/version"); \
             [[ "$code" == 200 ]] && echo "ok - https://${FQDN}/version -> 200 (hub)" || { echo "::error::https://${FQDN}/version -> $code"; rc=1; }; }
           exit $rc
+
+  # -------------------------------------------------------------------------
+  # newest: outside the deploy lock. needs: deploy + if: always(), so a
+  # deploy GitHub dropped while it was pending still reaches here and
+  # dispatches trunk head when nothing newer is already deploying it.
+  # -------------------------------------------------------------------------
+  newest:
+    name: Trunk head still gets a WUI deploy
+    needs: [plan, deploy]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write   # gh workflow run -> 30 at trunk head
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Dispatch 30 at trunk head when this run did not ship it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tip="$(git rev-parse HEAD)"
+          TIP="$tip" APP_PATH="$GITHUB_WORKSPACE" \
+            bash csi-spl-orc/src/bash/scripts/wui-deploy-newest.sh

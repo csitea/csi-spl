@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Stops an internal agent restart tool from leaving agents down; nothing changes for users.

@@ -188,6 +188,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// agent_lifecycle_config + agent_lifecycle_events (rdb 0105, spec 063):
+	// one patched key (which also appends the config_change event).
+	if _, _, err := pg.PatchAgentLifecycleConfig(ctx, s.tenant, LifecyclePatch{"notes_tail_lines": 20}, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

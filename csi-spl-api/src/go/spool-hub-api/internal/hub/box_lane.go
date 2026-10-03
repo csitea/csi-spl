@@ -52,6 +52,10 @@ func laneRow(l store.FleetLane) LaneRow {
 
 // onLane answers a lane frame.
 func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
+	if isLifecycleLaneOp(f.LaneOp) { // spec 063: the lifecycle config + event log
+		s.onLifecycleLane(ctx, x, f)
+		return
+	}
 	id := f.MsgID
 	if !uuidRe.MatchString(id) {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a lane frame needs msg_id (a UUID) to pair the reply")

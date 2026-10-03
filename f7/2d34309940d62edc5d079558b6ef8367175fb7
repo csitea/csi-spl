@@ -1,0 +1,6 @@
+Lay-What: Pages open a little faster because the app prepares only the routes for your language at start.
+Lay-How: The app sets up the pages for your current language first and adds the other languages a moment later, or just before you switch language.
+Lay-Why: The app used to prepare every page in all 19 languages before showing anything.
+Tech-What: The browser router starts with the default locale, the URL's locale and locale-less records; the other locale routes are added with router.addRoute at idle, before a locale switch, or on a navigation that matches nothing.
+Tech-How: locale-routes.mjs splits the records; router.options.ts, locale-routes.client.ts, useLocaleSwitch and preferred-locale add them; a beforeEach guard adds and resolves again; the prerender still builds all routes.
+Tech-Why: P3-14: createRouter 58.7 -> 13.6 ms median on /people (n=10, CPU 4x); the deferred add costs 18.5 ms off the critical path.

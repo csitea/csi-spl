@@ -1,12 +1,13 @@
 # 070: three-second response - a model's full answer to a human post in <= 3 s
 
-Status: **draft v0.2, owner questions open** (section 11). Direct API calls
-were decided 18:30Z. v0.2 folds in the owner inputs of 18:31Z, 18:41Z and
-18:43Z (the standby pool, drill 2, the sizing) and the reviews
-[review-claude.md](review-claude.md) (c-134) and
-[review-grok.md](review-grok.md) (g-135).
+Status: **draft v0.3, owner questions open** (section 11). v0.3 applies the
+owner's answers of 18:50Z: **the 3 s answer is the call response of a
+standby agent on the box** (Q2 = boxes, Q10 = no), which reverses v0.2's
+hub-side fast responder. v0.2 folded in the owner inputs of 18:31Z, 18:41Z
+and 18:43Z and the reviews [review-claude.md](review-claude.md) (c-134) and
+[review-grok.md](review-grok.md) (g-135); both reviewed v0.1.
 Spec only: no code, cron, cnf, setting or seat was touched. Draft 2026-10-03,
-c-132@sat; v0.2 on tree `origin/master` @ `f57365fe`.
+c-132@sat; v0.3 on tree `origin/master` @ `f47de742`.
 Related: [068 peer seats](../068-peer-seats/spec.md) (the OD seats, the
 message claim, answer once), [053 live delivery](../053-spool-live-delivery/spec.md),
 [030 wire fast path](../030-spool-wire-fastpath/spec.md),
@@ -75,6 +76,15 @@ than 2 minutes for a simple hei in response".
 > 20 which are actually doing some stuff and then the rest will be somewhat
 > idle."
 
+> ~18:50Z, **answers to v0.2's section 11** (msg `a0ba23fe`): "Q2: fast
+> responder in the hub, or on the boxes? Boxes Q6: cap the 3 s answer at ~80
+> tokens, with the full work from the topic owner? Yes Q8: the id scheme for
+> pool agents As the current scheme: rolling ID numbers, like C or G or
+> A-3-digit at box name Q9: the 40-window ceiling counts busy agents only? Yes
+> Q10: the first 3 s answer comes from the fast responder, not a pool agent?
+> No, 3 seconds should be the call response. That is an agent who is on
+> standby."
+
 (Relayed to this lane by c-001@sat, task `drill-reply-latency`, and
 `/var/tmp/c-001-briefs/spec070-owner-inputs.md`.)
 
@@ -82,11 +92,11 @@ than 2 minutes for a simple hei in response".
 
 | id | requirement | measured by |
 |---|---|---|
-| **R1** | a human post in a seated workspace gets **a model's full answer visible in the WUI within 3 s, p95**, from the hub's receive time. The fast answer is short (Q6: about 80 tokens); longer content follows from the topic's owner agent | the gate (section 10) |
+| **R1** | a human post in a seated workspace gets **the call response of a standby agent on a box: a full answer of about 80 tokens, visible in the WUI within 3 s, p95**, from the hub's receive time (Q2 boxes, Q6 yes, Q10 no). Longer work follows from the same agent, now the topic's owner | the gate (section 10) |
 | **R2** | **any** post by anyone, unsigned posts included, gets an answer within **180 s, hard**. A HANDOFF does not count as an answer (section 7) | the gate, failure rows |
 | **R3** | the agent that takes a discussion keeps its context and owns it until the discussion closes, then ends itself (c-133's spec; the owner, 18:26Z and 18:31Z). R1 never waits on the owner agent | c-133's spec + the gate's "owner busy" row |
 | **R4** | **code does routing, polling, claiming, delivery and posting; the model only reads and answers** (owner, 18:29Z) | section 3.5: no chosen hop is a model doing code's work |
-| **R5** | exactly one answer per post, across every responder (fast responder, pool agents, RSP-01): **one definition of answered = the `answers=<msg_id>` row** | 068 L2's answer-once (409 on a second) + the gate |
+| **R5** | exactly one answer per post, across every responder (standby agents on both boxes, RSP-01): **one definition of answered = the `answers=<msg_id>` row** | 068 L2's answer-once (409 on a second) + the gate |
 | **R6** | a harness refusal, a dead agent or box, or one vendor's API outage never leaves a post unanswered past R2 | section 7 |
 | **R7** | the standby pool scales by powers of 2, from 8 to 32 or 64 per box (owner, 18:43Z), under a memory watch and a hard limit per agent (18:31Z) | section 8 |
 
@@ -144,7 +154,7 @@ topic id, because the delivery notice carries only 8 hex
 | (e4) no actor was allowed to post | the orchestrator was refused too | hop 7 |
 | (e5) **every box-side claim and answer is a cold dial** (from the reviews) | **CONFIRMED**: `spool claim` dials a one-shot `role=cli` session, and so does the answer send. A poll tick dials twice (renew, then poll). The poll period must be a whole number | `grep -n 'c.Dial' csi-spl-api/src/go/spool-hub-api/internal/hubclient/claim.go` -> 15; `grep -n 'func (c \*Client) SendAnswerMessage' .../internal/hubclient/flush.go` -> 90 (dial at 103, per review-grok); `grep -n '\^\[1-9\]' csi-spl-orc/src/bash/run/spl-peer-poll.func.sh` -> 89. Cold dial 588 ms p50 / 1580 ms p95 (030, hub 0.1.17, n=20); 619.5 / 681.4 ms (030, hub 0.1.19, n=12) |
 | (e6) **a watchdog release would not route away from the failed harness** (from review-grok) | **CONFIRMED**: `not_by` grows only on a `harness-refused:` reason | `grep -n 'harness-refused' csi-spl-api/src/go/spool-hub-api/internal/store/message_claim.go` -> 87, 168, 190 |
-| (e8) **"no member agent online" while c-001..003 are subscribed** | **CONFIRMED, a misleading label, not a presence bug**: the box renders that text for EVERY channel fallback frame. The 120 s unanswered escalation reuses the same frame (`relay.go` `escalateUnanswered` -> `fallbackPost`), and no flag tells the box why. So "members online but nobody answered in 120 s" reads as "nobody online". Presence itself is `agentOnline`: a live box socket whose roster names the agent | `grep -n 'no member agent online' csi-spl-api/src/go/spool-hub-api/internal/hubclient/fallback.go` -> 73 (hardcoded in `FallbackPoke`); `grep -c scalat .../internal/hubclient/fallback.go` -> 0; `grep -n 'func (s \*Server) agentOnline' .../internal/hub/fallback.go` -> 74. Fix: the frame carries the cause (`offline` / `unanswered 120 s` / `re-escalation n`), and the label says it (L2) |
+| (e8) **"no member agent online" while c-001..003 are subscribed** | **CONFIRMED, a misleading label, not a presence bug**: the box renders that text for EVERY channel fallback frame. The 120 s unanswered escalation reuses the same frame (`relay.go` `escalateUnanswered` -> `fallbackPost`), and no flag tells the box why. So "members online but nobody answered in 120 s" reads as "nobody online". Presence itself is `agentOnline`: a live box socket whose roster names the agent | `grep -n 'no member agent online' csi-spl-api/src/go/spool-hub-api/internal/hubclient/fallback.go` -> 73 (hardcoded in `FallbackPoke`); `grep -c scalat .../internal/hubclient/fallback.go` -> 0; `grep -n 'func (s \*Server) agentOnline' .../internal/hub/fallback.go` -> 74. Fix: the frame carries the cause (`offline` / `unanswered 120 s` / `re-escalation n`), and the label says it (L5) |
 | (e7) **"answered" has two definitions** (from review-claude) | the escalation sweep means "no reply in the topic", not "no answer row", so a responder posting without `answers=` slips past the 409 | review-claude 4, `fallback.go:196` (unchecked by this lane) |
 
 ### 3.4 What a model turn costs (this lane's session)
@@ -168,13 +178,14 @@ measure (Q1).
 
 | # | job | today | code that should do it |
 |---|---|---|---|
-| F1 | notice a new post | the model reads a poke line | the hub (H, 5.1) or the pool service's push |
-| F2 | fetch the post | a `spool recv` tool call | the hub's own store (H), or the claim reply with the tail (L4) |
+| F1 | notice a new post | the model reads a poke line | the pool service, woken by the hub's push (L2) |
+| F2 | fetch the post | a `spool recv` tool call | the claim reply, with the topic tail inside it (L2) |
 | F3 | route | the routing table judged by the model | the claim + the topic owner + `needs_peer` |
-| F4 | find the topic and the human | **~5 shell calls in drill 2** to resolve an 8-hex topic id | the full uuid + msg id in the notice (L0), or none at all (H) |
-| F5 | post the answer | a `do_spl_desk_reply` tool call (refused in drill 1) | the hub posts (H); a pool agent's reply is posted by code from its output |
+| F4 | find the topic and the human | **~5 shell calls in drill 2** to resolve an 8-hex topic id | the claimed row carries both (L2); today: the full uuid + msg id in the notice (L0) |
+| F5 | post the answer | a `do_spl_desk_reply` tool call (refused in drill 1) | code posts the standby agent's streamed output (L3) |
 | F6 | close / ack | the model | code, on a successful post |
 | F7 | fail over | the lease | the claim lock + the SLA watchdog |
+
 
 ## 4. Options
 
@@ -182,116 +193,117 @@ measure (Q1).
 
 | option | R1 | R4 | verdict |
 |---|---|---|---|
-| A. today: an interactive agent, poked, posts with a tool call | no: ~3.5 s+ p50; drill 2 took 20 s; unbounded on a refusal | fails F1..F6 | rejected for R1; the work path only |
-| O. the owner's 0.5 s SQL loop -> stdin of running CLI agents | only as O+ | as written the agent posts (F5) | 4.2 |
-| O+. claim first, a headless warm agent's real stdin, code posts its stdout | box-side: needs every dial warm (e5) | passes | **an experiment the gate may promote** (both reviews) |
-| P. box-side direct API call from the loop | yes **after** the warm-socket work (e5): 3.76 s p50 with cold dials, ~2.25 s with warm ones (review-grok 1) | passes | the box-side fallback |
-| **H. hub-side fast responder** (review-claude rank 1): on a stored `needs_peer` human post, a hub goroutine reads the topic tail from its own store and makes one streamed API call; it posts with `answers=<msg_id>` as the owner agent's stand-in | **yes: ~1.6 s, 1.4 s margin** (6) | passes: no box, no harness, no classifier in the path | **chosen** for R1 |
-| R. RSP-01, the non-AI responder | no: hears a post only after the 120 s grace (`spl-responder-run.func.sh:3`, "NON-AI") | - | the R2 backstop, posting with `answers=` |
+| A. today: an interactive agent, poked, posts with a tool call | no: ~3.5 s+ p50 (3.4); drill 2, 17..20 s; unbounded on a refusal | fails F1..F6 | rejected for R1 |
+| H. a hub-side fast responder (v0.2's choice, review-claude rank 1) | ~1.65 s | passes | **rejected by the owner** (Q2 = boxes, Q10 = no, 18:50Z). Not kept as a hidden fallback |
+| P. a stateless direct API call from the box loop (review-grok's primary) | ~2.25 s on warm sockets | passes | **not the owner's model** (Q10: the answer is a standby agent's call response). It is kept only as **Q11 (a)**, the owner's to choose if the gate shows a warm agent turn cannot fit |
+| **S. a standby agent on the box** (the owner's 18:28Z loop + 18:31Z pool + 18:50Z Q10): the pool service hands the post to a warm, idle agent process on its stdin; the agent's streamed call response is posted by code; the agent then owns the topic | **only if its turn is warm** (6.2) | passes when code posts its output | **chosen** |
+| R. RSP-01, the non-AI responder | hears a post after the 120 s grace | - | the R2 backstop: it forwards to any standby agent |
 
-Why H: the hub already holds the post and the topic; its CPU is always
-allocated and one instance is always warm
-(`grep -n 'cpu_idle' csi-spl-iac/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf`
--> 79 `false`; `grep -n 'min_instances' csi-spl-cnf/csi-spl/all.env.yaml` ->
-60 `1`). It removes hops 1, 2, 3, 6 and 7 of the box path. It also answers
-unsigned posts, which never reach a box (review-claude 4). The owner's
-18:30Z decision covers "the fast responder may call the API directly".
-
-### 4.2 The owner's options O (18:28Z) and the pool (18:31Z) in this design
-
-The owner's loop is **the right place for routing**, and the reviews agree:
-it becomes the pool service (5.2). It hands each new discussion to the first
-free agent, and that agent owns it. What changes is only **who writes the
-first 3 s of text**. A CLI agent's turn cannot (3.4, drill 2), so the hub's
-fast responder writes it for the owner agent. The owner agent answers
-everything after that with its context and tools. Q10 asks the owner to
-confirm this split.
-
-### 4.3 Push vs poll
+### 4.2 Push vs poll (unchanged from v0.2)
 
 | option | hop | verdict |
 |---|---|---|
-| 068 as written: each seat polls every 5 s, two cold dials per tick | max 5 s + ~1.2..3.2 s of dials | replaced |
-| the owner's 0.5 s poll, per agent | 32+ cold sessions/s across two boxes (review-claude 2); the period check rejects a fraction (e5) | **not shipped on cold dials** |
-| **one pool service per box, woken by a `claimable` push on the live box socket**, with a 0.5 s poll on the warm socket as backstop | ~0.1 s; 2 pollers in the fleet | **chosen** for the pool |
-| H needs no push at all: it runs inside the hub | 0 | R1 path |
+| each seat polls every 5 s, two cold dials per tick (068 as written) | max 5 s + ~1.2..3.2 s of dials | replaced |
+| a 0.5 s poll per agent on cold dials | 32+ cold sessions/s across two boxes (review-claude 2) | not shipped |
+| **one pool service per box, woken by a `claimable` push on the live box socket**, a 0.5 s poll on the warm socket as backstop | ~0.1 s | **chosen** |
 
 ## 5. Design
 
 ```text
-                       +--> H: hub fast responder --(answers=<msg>, <= ~80 tokens, ~1.6 s)--> WUI      [R1]
-human post -> hub -----|
- (needs_peer)          +--> claimable push --> pool service (one per box, code) --> first free standby agent
-                                                   |   claim on the warm socket, topic tail in the reply
-                                                   |   the agent owns the topic (R3), works, posts follow-ups
-                                                   |   topic closed -> the agent writes its done flag and exits itself
-                                                   +-- reaps, refills to K idle, watches memory (R7)
-SLA watchdog (hub): 60 s release with not_by -> another agent / vendor; 120 s RSP-01; 170 s owner DM  [R2]
+human post -> hub (needs_peer) --claimable push--> pool service (one per box, code, a while-loop)
+   claim on the warm socket, topic tail in the reply (one round trip)
+   -> stdin of the FIRST FREE standby agent (warm, idle, headless)          [R1: the call response]
+   <- its streamed answer (<= ~80 tokens, no tool call) -> code posts it with answers=<msg_id>
+   the same agent now owns the topic (R3): it works with tools, posts follow-ups,
+   and on close writes its done flag and exits itself; the service reaps and refills (R7)
+SLA watchdog (hub): 4 s next standby, 60 s other box, 120 s RSP-01, 170 s owner DM   [R2]
 ```
 
-### 5.1 H, the fast responder (R1)
+### 5.1 The standby agent
 
-| step | who |
+| state | what it is |
 |---|---|
-| the post is stored and `needs_peer` | hub |
-| read the topic tail (last ~5 messages) and the owner agent's id, if any | hub, from its own store: no dial |
-| one streamed call, a <= ~2k-token prompt with a cached system prompt: "answer only from the topic; if work is needed, say what is known now and what the owner agent will check" | **the model**: the only model step |
-| post with `answers=<msg_id>`, the owner agent named as responsible | hub |
-| a deadline miss (`FAST_DEADLINE` 4 s): one call to the other vendor; still nothing: leave the post to the owner agent and the watchdog | hub |
+| **standby** | a pre-started agent CLI process (claude or grok), authenticated, its session prompt already sent once (a warm-up turn primes the provider's prompt cache), **idle on its stdin**. Idle costs no tokens (owner, 18:31Z) |
+| **call response** | the pool service writes one user message on stdin: the post, the topic tail (<= ~2k tokens), and the instruction "answer in about 80 tokens from this topic only; if work is needed, say what is known now and what you will check". **No tool call in this turn.** Code reads the streamed output and posts it with `answers=<msg_id>` |
+| **owner** | from the next turn on, the same agent owns the topic (R3, c-133): it uses its tools, posts follow-ups with content (never filler), and answers further posts in the topic |
+| **done** | the topic closes: the agent writes `<spool root>/pool/<id>/done` and exits itself (`/exit-clean`); the service reaps it and starts a new standby |
 
-- **A HANDOFF must carry content.** It says what is known now; a bare "on
-  it" is refused as filler (`action/filler.go`, the owner's no-filler rule).
-  The claim stays open (`handed:<agent>`), and the watchdog keeps watching it
-  until the owner agent's work post (R2).
-- **Quality**: answer from the topic tail only. The gate grades n >= 20
-  answers by hand, not only their latency (review-claude 4).
-- **Cost**: *relayed from review-claude*, Haiku 4.5 at $1 / $5 per MTok:
-  2k in + 80 out ~= $0.0024 an answer, about $2.4 a day at 1000 posts.
+- **Code reads the agent's output**, so the standby runs headless: stream
+  output on stdout, one user message per line on stdin. *I believe,
+  unchecked*, the claude CLI's print mode with stream-json input and output
+  does this; grok's equivalent is unchecked. L1 proves both. The agent's tmux
+  window tails its stream log, so the fleet stays visible in tmux (Q13).
+- **A post in an owned topic whose owner is mid-turn** goes to a free standby
+  agent for the call response, written for the owner (who is named as
+  responsible). The owner reads it on its next turn. R1 never waits for a busy
+  owner.
 
-### 5.2 The standby pool (R3, R7)
+### 5.2 The pool service (owner, 18:28Z and 18:31Z)
 
 | piece | does |
 |---|---|
-| `do_spl_pool_serve` (one per box, a shell while-loop) | woken by the `claimable` push (0.5 s warm-socket poll as backstop): claims each **new** discussion for the **first free standby agent** on this box; follow-ups in an owned topic go to their owner agent; keeps `POOL_IDLE_MIN` agents idle and spawns up to `POOL_MAX` (8, 16, 32 or 64) |
-| a standby agent | a pre-started session, idle until handed a topic (idle costs no tokens). Handed one, it reads the topic, posts follow-ups with content, does the work, and owns the topic until it closes |
-| self-end (owner, 18:31Z) | when its topic closes, the agent writes `<spool root>/pool/<id>/done` and exits itself (`/exit-clean`). The service reaps the window and refills the pool. It never kills a healthy agent |
-| memory watch / hard limit | per agent: process-tree RSS over `POOL_RSS_MAX`, or a turn frozen past `PEER_PROGRESS_MAX` -> the service releases its topics with `not_by` and stops it (the "faulty agent" case). Per box: available memory under `POOL_MEM_FLOOR` -> no new agent is spawned and no new topic is handed to a busy one |
-| the posts it makes | an agent's text is posted by code with the claimed topic and msg id: no `DESK_TASK` typed by the model (F4, F5) |
+| `do_spl_pool_serve` (one per box, a shell while-loop) | woken by the push: claims each new post on the warm socket; hands a new topic to the first free standby, and a follow-up to its owner or, when the owner is busy, to a standby; keeps `POOL_IDLE_MIN` standby agents; grows `POOL_MAX` 8 -> 16 -> 32 -> 64 |
+| handover deadline | no first token from the standby in `CALL_DEADLINE` (4 s): the next free standby of the other vendor takes it (the first one keeps nothing: its late output is refused by `answers=`, R5) |
+| memory watch / hard limit (owner, 18:31Z) | per agent: process-tree RSS over `POOL_RSS_MAX`, or no progress for `PEER_PROGRESS_MAX`: release its topics with `not_by`, stop it, refill. Per box: available memory under `POOL_MEM_FLOOR`: spawn no new agent |
+| posting | the service, not the agent, posts the call response (F5); the owner agent's later posts carry the topic and msg id from its claim (F4) |
 
-### 5.3 Transport fixes every box-side path needs (from the reviews)
+### 5.3 Transport fixes on the critical path (the reviews, e5)
 
-- `claim`, `renew`, `--check` and `send --answers` frames on the warm 030
-  sidecar socket instead of a cold `role=cli` dial (e5);
-- the topic tail returned inside the claim reply (one round trip);
-- no separate fence pre-check before a post: `answers=` + `if_gen` already
-  fence it atomically in the send (review-claude 2, `answer_once.go:45`, unchecked by this lane);
-- a fractional poll period accepted (`spl-peer-poll.func.sh:89`).
+`claim`, `renew`, `--check` and `send --answers` on the warm 030 sidecar
+socket, not a cold `role=cli` dial; the topic tail inside the claim reply; no
+separate fence pre-check (`answers=` + `if_gen` fence the send atomically,
+review-claude 2, unchecked by this lane); a fractional poll period accepted
+(`spl-peer-poll.func.sh:89`). Without these, R1 is lost before the model
+starts (~7.5 s p95, review-claude).
 
-## 6. Budget (R1, p95 target)
+## 6. Budget (R1, p95, a standby agent on the box)
 
-| # | hop | H target | box path on today's code (reviews) |
-|---|---|---:|---|
-| 1 | post stored -> responder holds it | 0.01 s (in process) | p95 0.72 s hub -> box (053) |
-| 2 | claim | 0 (the hub is the claimant) | 2 cold dials per tick: 1.58 s p95 each |
-| 3 | topic tail | 0.02 s (own store) | one more cold dial |
-| 4 | model: first token | 0.80 s | same |
-| 5 | model: stream <= ~80 tokens | 0.50 s | same |
-| 6 | the post is allowed | 0 (code posts) | 0 with code posting |
-| 7 | answer stored | 0.02 s | a cold dial (`SendAnswerMessage`) |
-| 8 | hub -> WUI visible | 0.30 s | same |
-| | **sum** | **~1.65 s, margin 1.35 s** | **~7.5 s p95** (review-claude), 3.76 s p50 (review-grok) |
+### 6.1 Per hop
 
-Today: drill 2, 17..20 s (n=1). Drill 1, never. The fallback leg, 123..372 s
-(n=3).
+| # | hop | p95 budget | basis | measured or estimate |
+|---|---|---:|---|---|
+| 1 | post stored -> `claimable` on the box | 0.40 s | today p95 0.72 s, p50 6 ms (053 4.4, prd, 2026-09-30) | **measured, n=149**; 0.40 s needs 053's live-socket work |
+| 2 | claim on the warm socket, tail in the reply | 0.16 s | the 030 submit leg on a warm socket, p95 160 ms (hub 0.1.19) | **measured, n=12** (a proxy: a send, not a claim) |
+| 3 | stdin write to the idle standby | 0.01 s | a local pipe | estimate, n=0 |
+| 4 | the standby's first token | **0.90 s** | the only measured agent-CLI turn: 2.37 s p50, 5.30 s p90 (3.4: Opus-class, 20..80k context, auto mode, a busy session) | **measured n=23, and it does NOT fit**; 0.90 s is an **estimate** for a warm, short-context, fast-model turn, n=0 |
+| 5 | stream ~80 tokens | 0.60 s | ~135 tokens/s | estimate, n=0 |
+| 6 | code posts with `answers=` on the warm socket | 0.40 s | 030 submit p95 160 ms quiet (n=12), 401 ms with ~20 agents running (n=20) | **measured** |
+| 7 | hub -> WUI visible | 0.30 s | one socket write in the same process (review-grok 1) | estimate, n=0 |
+| | **sum** | **2.77 s** | margin 0.23 s | 3 of 7 hops measured |
 
-**What cannot fit, plainly:** an agent turn that posts through its own tool
-call (3.4: >= 3.5 s p50; drill 2: 20 s); a box path on cold dials; and the
-*work* behind a post, which no design does in 3 s. R1 is the fast responder's
-short answer. The owner agent's work follows.
+With today's hop 1 (0.72 s p95), the sum is 3.09 s: **over by 0.09 s**. R1
+needs both 053's live-socket work (hop 1) and a warm turn (hop 4).
 
-**Hop 4 is unchecked.** 0.8 s to first token for a fast model with a ~2k-token
-cached prompt is an assumption. The gate measures it per vendor before Q1
-picks one.
+### 6.2 Can a standby agent-CLI turn fit 3 s? Plainly
+
+**Not on any number measured today.** The one measured agent-CLI turn takes
+2.37 s p50 and 5.30 s p90 to its first token (n=23). That alone is more than
+the 1.5 s the model gets (hops 4 + 5), before it writes a word. Both reviews
+put a cold turn at 5..15 s. Drill 2 took 17..20 s.
+
+It can fit **only as a warm turn**, and each of these is needed:
+
+| # | what makes the turn warm | removes |
+|---|---|---|
+| W1 | **pre-started**: the process is running, authenticated, idle on stdin | process start, login, CLI init |
+| W2 | **primed**: a warm-up turn already sent the session prompt, so the provider's prompt cache holds it | re-reading the long prefix on the first token |
+| W3 | **short context**: a replaced, short system prompt; for the call response, no tool list or a minimal one; the post + <= ~2k tokens of topic tail | the 20..80k context of 3.4 |
+| W4 | **a fast model** for the call response (claude's fast tier; grok's fast tier) | the large model's first-token time |
+| W5 | **streamed** output, read by code as it arrives | waiting for the turn to end |
+| W6 | **the ~80-token cap** (Q6 yes) and **no tool call** in the call-response turn | generation time; a tool call's 0.7 s (or a 12..15 s refusal) |
+| W7 | **a fresh agent**: a standby has no history, and owners hand off when their context grows | context growth |
+
+Whether W1..W7 bring the first token under 0.90 s p95 is **unmeasured** (n=0).
+So **L1 measures it first**, before anything else is built: a warm standby per
+vendor, n >= 20 call responses, first token and last token.
+
+**If it does not fit, the smallest change, for the owner to pick (Q11):**
+
+| option | change | cost |
+|---|---|---|
+| (a) | the call response skips the agent's own model loop: the pool service makes one streamed API call **on the standby agent's behalf**, posted as that agent, and the agent stays the owner and does the work (the API was allowed 18:30Z) | the agent did not write its own first 80 tokens. Q10 asked for the agent's call response, so this is the owner's call, not a quiet fallback |
+| (b) | R1 counts the **first words** visible in 3 s, streamed into a placeholder that is edited as tokens arrive (`internal/hub/edit.go`) | a looser R1 than "full answer" |
+| (c) | accept the measured p95 (e.g. 4..5 s) | misses 3 s |
 
 ## 7. R2: the 180 s hard SLA
 
@@ -299,22 +311,21 @@ Each step runs only if no `answers=` row exists yet (hub clock, from the post):
 
 | at | step |
 |---|---|
-| 0..2 s | H answers (R1) |
-| 4 s | H's first vendor missed `FAST_DEADLINE`: one call to the other vendor |
-| ~10 s | the owner agent (pool) has the topic and answers with its context |
-| **60 s** | **SLA watchdog** (hub): release the claim **with `not_by`** for the holder's harness (e6), so another agent or vendor takes it |
-| 120 s | `UnansweredGrace` -> RSP-01 (with a fast call inside it), posting with `answers=` (R5) |
+| 0..3 s | a standby agent's call response (R1) |
+| 4 s | no first token (`CALL_DEADLINE`): the next free standby, other vendor, same box |
+| **60 s** | **SLA watchdog** (hub): release the claim **with `not_by`** (e6), so the other box's pool takes it |
+| 120 s | `UnansweredGrace` -> RSP-01 (non-AI) forwards it to any free standby agent, on either box |
 | 170 s | one owner DM from the hub: "unanswered: <topic>" |
 
 | failure | answered by | worst case |
 |---|---|---|
-| none | H | ~1.7 s |
-| one vendor slow or down | H's second vendor | ~6 s |
-| both vendors down | the owner agent (subscription, not API) | ~10..60 s |
-| owner agent dead, frozen or over its memory limit | the watchdog -> another standby agent | ~65 s |
-| a box down | the other box's pool | ~65 s |
+| none | a standby agent | ~3 s |
+| that standby is slow or its vendor is down | the other vendor's standby | ~7 s |
+| no free standby on the box, or the box is down | the other box's pool | ~63 s |
+| the pool service is dead | `do_spl_pool_serve`'s ensure cron restarts it; else the watchdog | ~63 s |
+| both vendors down | nothing can write an answer | **R2 breached; the 170 s DM** |
 | hub down | nothing can arrive (068 7) | - |
-| every responder down | the 170 s owner DM | **R2 breached, visibly** |
+| an unsigned post (it never reaches a box, `fallback.go:231` per review-claude) | **open, Q14** | - |
 
 ## 8. Sizing the pool (owner, 18:43Z)
 
@@ -324,92 +335,93 @@ Measured on sat, 2026-10-03 ~18:50Z, as the agent user (n per row):
 |---|---|---|
 | box RAM | 62 GiB total, 51 GiB available | `free -g` |
 | cores | 16 | `nproc` |
-| an **idle** claude session (<= 13 CPU ticks in 10 s) | PSS 215..249 MB, RSS 329..364 MB, **n=4** (c-002, c-003, c-131, c-134) | `/proc/<pid>/smaps_rollup` Pss; `ps -o rss` |
+| an **idle** claude session (<= 13 CPU ticks in 10 s) | PSS 215..249 MB, RSS 329..364 MB, **n=4** | `/proc/<pid>/smaps_rollup` Pss; `ps -o rss` |
 | a busy claude session | PSS 298..337 MB, RSS 405..418 MB, n=3 | same |
 | a grok session (both busy) | PSS 423..449 MB, RSS 474..499 MB, n=2 | same |
 | agent windows on the box now | 12 | the ceiling count of the repo CLAUDE.md |
 
-n=4 idle is under the n >= 5 asked for; no idle grok session was available
-to measure. The PC box was not measured (no shell from this lane).
+These were interactive sessions. A headless standby process was not measured.
+n=4 idle is under the n >= 5 asked for, no idle grok session was available,
+and the PC box was not measured.
 
-| pool | idle sessions (44 at ~0.36 GB RSS) | 20 busy sessions (~0.45 GB) | what is left of 51 GiB for the work the busy ones run |
+| pool | idle sessions (~0.36 GB RSS each) | 20 busy (~0.45 GB) | left of 51 GiB for the busy agents' tool runs |
 |---|---:|---:|---:|
-| 64 per box | ~16 GB | ~9 GB | **~26 GB** |
-| 32 per box | ~4 GB (12 idle) | ~9 GB | ~38 GB |
+| 64 per box | 44: ~16 GB | ~9 GB | **~26 GB** |
+| 32 per box | 12: ~4 GB | ~9 GB | ~38 GB |
 
-**The sessions fit; the work decides.** An idle session costs ~0.36 GB and
-almost no CPU. A busy agent's tool runs (a Go test suite, a browser e2e run)
-cost far more than its session and are not measured here. So the memory
-watch (5.2) is the real limit, not the pool size. Start at 8, double while
-`POOL_MEM_FLOOR` holds over a day.
+**The sessions fit; the work decides.** A busy agent's tool runs (a Go test
+suite, a browser e2e run) cost far more than its session and were not
+measured, so the memory watch (5.2) is the real limit. Start at 8, double
+while `POOL_MEM_FLOOR` holds for a day.
 
-**Quota, not memory, is the scarce resource.** An idle session costs no
-tokens. Twenty busy sessions on one login burn its weekly limit twenty times
-as fast, and on 2026-10-01 the whole fleet stopped on one login's weekly
-limit (global agent rules). The pool spreads over both vendors and logins.
+**Quota is the scarcer resource.** An idle standby costs no tokens. Twenty
+busy agents on one login burn its weekly limit twenty times as fast, and the
+whole fleet once stopped on one login's weekly limit. The pool spreads over
+both vendors and over logins.
 
-### 8.1 Ids
+### 8.1 Ids (Q8, decided 18:50Z)
 
-Spec 061: `^[acgq]-[0-9]{3}$`; 068 reserves 001..004 per box for the fixed
-OD seats; lanes allocate from the cursor. Pool agents end themselves when
-their topic closes (owner, 18:31Z), so they behave like lanes, not seats.
-**Proposed:** pool agents take ordinary ids from the cursor, with kind `pool`
-in `registry.tsv`; the fixed seats stay 001..004. 64 pool + lanes stay inside
-the 996 free numbers per letter (Q8).
+The current scheme: pool agents take rolling ids, `c-`, `g-` or `a-` plus 3
+digits, at the box name (spec 061). `registry.tsv` marks them kind `pool`;
+nothing else changes.
 
-### 8.2 The 40-window ceiling
+### 8.2 The 40-window ceiling (Q9, decided 18:50Z)
 
-The global and repo rules cap a box at 40 concurrent agent windows, counted
-by window name. 64 pool agents alone break it. **Proposed (Q9):** the ceiling
-counts **busy** agents (a held topic or a lane task), at most 40. Idle pool
-agents are bounded by `POOL_MAX` and the memory floor instead. This changes a
-standing owner order, so it is the owner's call.
+The ceiling counts **busy** agents only (a held topic or a lane task), at most
+40 per box. Idle standby agents are bounded by `POOL_MAX` and the memory
+floor. The ceiling's count command and the global agent rules change to
+match (L7).
 
 ## 9. Lanes
 
 | lane | scope | test |
 |---|---|---|
 | **L0 quick win** | the delivery notice carries the full topic uuid and the msg id (`spool-notify.inc.sh` 170, 177) | `spawn-agents/tests`: the poke line holds both ids. Cuts drill 2's ~5 resolve calls today |
-| L1 hub: fast responder H | a goroutine on a stored `needs_peer` human post (unsigned included): the tail from the store, one streamed call, post with `answers=`, `FAST_DEADLINE` + the second vendor, the content rule for a HANDOFF; the key from Secret Manager, read by the hub SA (a terraform secret resource; the value is placed by the owner, never in a tfvars, a log or git) | `TestFastResponder` (memory + Postgres, a stub model): post -> one answer row; deadline -> second vendor; a second responder 409; a filler body refused |
-| L2 hub: one definition of answered + the watchdog | the sweep, RSP-01 and the escalations read the `answers=` row; the 60 s release sets `not_by`; the 170 s owner DM; the fallback frame carries its cause and the box labels it (e8) | `TestSLAWatchdog`: release at 60 s with `not_by`, DM once at 170 s, none when answered; RSP-01 never double-answers |
-| L3 hub + sidecar: push and warm frames | a `claimable` hint on the box socket; claim / renew / check / `send --answers` on the warm socket; the tail inside the claim reply | `TestClaimablePush`, `TestClaimWarmSocket`: no `role=cli` dial on the claim path |
-| L4 orc: the pool service | `do_spl_pool_serve`, its `_install_cron` (ensure), first-free hand-out, follow-ups to the owner, reap on the done flag, refill, memory watch, `POOL_MAX` 8/16/32/64 | `pool-serve.tst.sh` with stub agents: first free wins; a done flag is reaped and refilled; RSS over the cap -> released + stopped; floor hit -> no spawn |
-| L5 orc: the pool agent contract | the seed: own the topic, post content only, write the done flag and `/exit-clean` on close; the topic owner field per c-133 | a stub run: close -> flag -> exit 0 |
-| L6 orc: permissions at every start | the start of a seat, a pool agent and the rotation writes setup's allow rules (`fc19cdcd`) into its worktree; the check's GAP row becomes a start gate (Q3) | `dispatch-setup-check.tst.sh` extended |
-| L7 orc: ids and the ceiling | kind `pool` in the registry; the ceiling count of busy agents (Q8, Q9) | `test-agent-id-map.sh` extended; a ceiling fixture |
+| **L1 first: the standby benchmark** | `do_spl_standby_bench`: one warm standby per vendor (W1..W7), n >= 20 call responses on dev; first token, last token, output size; proves the headless stdin/stdout mode for claude and grok | its own report. **Decides Q1 (the model) and Q11** before L3..L5 are built |
+| L2 hub + sidecar: push and warm frames | a `claimable` hint on the box socket; claim / renew / check / `send --answers` on the warm socket; the tail inside the claim reply; a fractional poll | `TestClaimablePush`, `TestClaimWarmSocket`: no `role=cli` dial on the claim path |
+| L3 orc: the pool service | `do_spl_pool_serve` + its ensure cron: first free standby, follow-ups to the owner or a standby, `CALL_DEADLINE` handover, the stdin/stdout bridge, code posts with `answers=`, reap on the done flag, refill, memory watch, `POOL_MAX` | `pool-serve.tst.sh` with stub agents: first free wins; a deadline hands over and the late answer gets 409; done -> reaped and refilled; RSS cap -> released and stopped; floor -> no spawn |
+| L4 orc: the standby agent contract | the headless start, the warm-up turn, the call-response prompt (no tools, ~80 tokens), the owner phase, the done flag and `/exit-clean`; the topic owner field per c-133 | a stub run through all four states |
+| L5 hub: one definition of answered + the watchdog | the sweep, RSP-01 and the escalations read the `answers=` row; the 60 s release sets `not_by`; the 170 s owner DM; the fallback frame carries its cause (e8) | `TestSLAWatchdog`; RSP-01 never double-answers |
+| L6 orc: permissions at every start | the start of every agent writes setup's allow rules (`fc19cdcd`) into its worktree; the check's GAP row becomes a start gate (Q3) | `dispatch-setup-check.tst.sh` extended |
+| L7 orc: ids and the ceiling | kind `pool` in the registry; the busy-only ceiling count in the count command and the agent rules (Q8, Q9 decided) | `test-agent-id-map.sh` extended; a ceiling fixture |
 | **L8 the gate** | `do_spl_reply_drill`: n >= 20 asks in a test workspace, per-hop stamps, p50 / p95 / max per vendor, a hand-graded sample; then the section 7 failure rows (n >= 5 each) | the gate itself (section 10) |
-| L9 WUI (only if Q6 = no cap) | stream into a placeholder that is edited as tokens arrive (`internal/hub/edit.go`) | e2e: first words visible in ~1 s |
+| L9 WUI (only if Q11 = b) | stream into a placeholder edited as tokens arrive | e2e: first words in ~1 s |
 | L10 doc | fleet-roles and 068 point here | `do_check_dist_hygiene` |
 
-Order: L0 now (it cuts today's 20 s). Then L1 + L2 (they meet R1 and R2
-alone), L6, then L3, L4, L5, L7 for the pool. L8 gates each step. L9 only on
-Q6. L10 last.
+Order: L0 now (it cuts today's 17..20 s). **L1 next, alone**: its numbers
+decide whether S can meet R1 and which model to run. Then L2 + L5 + L6 in
+parallel, then L3 + L4 + L7, then L8. L9 only on Q11 (b). L10 last.
 
 ## 10. The gate
 
 Done when `do_spl_reply_drill` on **dev** (prd only with the owner's go)
 shows, in one recorded run on the tree it names:
 
-- **R1**: p95 post -> full answer visible **<= 3 s**, n >= 20, per vendor,
-  and a hand-graded sample with no wrong answer;
+- **R1**: p95 post -> a standby agent's full call response visible
+  **<= 3 s**, n >= 20, per vendor, and a hand-graded sample with no wrong
+  answer;
 - **R2**: every failure row of section 7 answered within 180 s, n >= 5 each;
-- **R5**: zero double answers, including a slow responder finishing after a
-  release;
-- **R4**: zero model tool calls in the R1 path.
+- **R5**: zero double answers, including a standby that finishes after its
+  `CALL_DEADLINE` handover;
+- **R4**: zero model tool calls in the call-response turn.
 
 ## 11. Owner questions
 
-| # | question | reviews |
+| # | question | state |
 |---|---|---|
-| Q1 | **Decided 18:30Z**: direct API calls. Open: the model per vendor, picked by the gate (fastest non-reasoning model of each vendor, kept if p95 <= 3 s and the graded sample passes); the key per env in Secret Manager, placed by you | both: measure before naming |
-| Q2 | The **hub** (H) posts the fast answer as the owner agent's stand-in, rather than a box. Yes / no (no = box-side P after the L3 transport work) | claude: H; grok: box-side P first |
-| Q3 | Setup's allow rules (reply, post, archive, `fc19cdcd`) are written at every seat, pool-agent and rotation start | both: yes |
-| Q4 | One pool service per box, woken by a push, with a 0.5 s warm-socket poll as backstop, instead of a 0.5 s poll per agent | both: no 0.5 s poll on cold dials |
-| Q5 | Times: `FAST_DEADLINE` 4 s, the watchdog 60 s (with `not_by`), RSP-01 at 120 s, the owner DM at 170 s | claude: 4 s, `UnansweredGrace` 60 s later; grok: keep 120 s |
-| Q6 | Cap the fast answer at about 80 tokens, with longer content from the owner agent. Or no cap, and stream into the WUI (L9) | grok: cap |
-| Q7 | Lanes may run read-only prd queries through a **SELECT-only DB role** (not `SQL=*` in a read-only transaction, which a statement can end) | claude: role; grok: reject writes |
-| Q8 | Pool agents take ordinary ids with kind `pool`; 001..004 stay the fixed seats | - |
-| Q9 | The 40-window ceiling counts busy agents; idle pool agents are bounded by `POOL_MAX` and the memory floor | - |
-| Q10 | The first 3 s answer comes from the fast responder; the pool agent that takes the topic owns it and answers everything after. Your 18:31Z words have that agent "start answering" itself, which a CLI turn cannot do in 3 s (3.4, drill 2) | - |
+| Q1 | The standby model per vendor: picked by L1 (the fastest model whose warm call response fits), not named in advance | open: L1 measures |
+| Q2 | fast responder in the hub, or on the boxes? | **decided 18:50Z: boxes** |
+| Q3 | Setup's allow rules (reply, post, archive, `fc19cdcd`) are written at every agent start | open (both reviews: yes) |
+| Q4 | One pool service per box, woken by a push, with a 0.5 s warm-socket poll as backstop, instead of a 0.5 s poll per agent | open (both reviews: no 0.5 s poll on cold dials) |
+| Q5 | Times: `CALL_DEADLINE` 4 s, the watchdog 60 s (with `not_by`), RSP-01 at 120 s, the owner DM at 170 s | open |
+| Q6 | cap the 3 s answer at ~80 tokens, with the full work from the topic owner? | **decided 18:50Z: yes** |
+| Q7 | Lanes may run read-only prd queries through a SELECT-only DB role | open |
+| Q8 | the id scheme for pool agents | **decided 18:50Z: the current scheme** (rolling ids at the box name) |
+| Q9 | the 40-window ceiling counts busy agents only? | **decided 18:50Z: yes** |
+| Q10 | the first 3 s answer comes from a fast responder, not a pool agent? | **decided 18:50Z: no**, the call response of a standby agent |
+| **Q11** (new) | If L1 shows a warm standby turn cannot reach the first token in ~0.9 s p95: (a) the pool service makes the call response one direct API call on the standby agent's behalf, and the agent stays the owner; (b) R1 counts the first words visible in 3 s (streamed); or (c) accept the measured p95 | new, raised by Q10 |
+| **Q12** (new) | The standby agent's model: the call response needs a fast model (W4), while the owner phase does real work. One fast model for the whole life of a pool agent, or a switch of model after the call response (*unchecked* whether the CLIs can switch inside a headless session) | new |
+| **Q13** (new) | Standby agents run headless (code must read their output); each agent's tmux window tails its stream log instead of showing an interactive screen. Acceptable? | new |
+| **Q14** (new) | An unsigned post never reaches a box (review-claude, `fallback.go:231`). With the responder on the boxes: let the hub forward unsigned posts to the pool, or keep them outside R2 | new, raised by Q2 |
 
-<!-- version: 0.2 · updated: 2026-10-03 · last-edit: 2026-10-03T19:00:00Z -->
+<!-- version: 0.3 · updated: 2026-10-03 · last-edit: 2026-10-03T19:20:00Z -->

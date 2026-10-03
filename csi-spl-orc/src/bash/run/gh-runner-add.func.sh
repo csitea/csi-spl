@@ -36,8 +36,11 @@
 #------------------------------------------------------------------------------
 
 # the debian packages rootless docker needs (dockerd-rootless-setuptool.sh
-# ships with docker.io)
-GH_RUNNER_PKGS="rootlesskit uidmap slirp4netns"
+# ships with docker.io), and the fonts the browser e2e draws in: the WUI ships
+# no webfont, so a box with only DejaVu lays every card out wider than the
+# others (card-edge-inset red on sat-spl-* only, 2026-10-03); Liberation Sans
+# is that test's MEASURE_FONT
+GH_RUNNER_PKGS="rootlesskit uidmap slirp4netns fonts-noto-core fonts-liberation"
 GH_RUNNER_SETUPTOOL="${GH_RUNNER_SETUPTOOL:-/usr/share/docker.io/contrib/dockerd-rootless-setuptool.sh}"
 
 # ghr_as <user> <cmd...> - run as the runner user, on its own systemd --user bus

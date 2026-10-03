@@ -572,6 +572,7 @@
     },
     "new_pill": "New: {n}",
     "new_pill_label": "Jump to the newest messages",
+    "jump_oldest": "Jump to the oldest messages",
     "open_topic_hint": "Press Enter to open this message's topic.",
     "edit": {
       "label": "Edit message",

@@ -103,6 +103,20 @@
       </button>
     </div>
     <p class="sr-only" aria-live="polite">{{ announce }}</p>
+    <!-- Phone thread only: one round arrow. Away from the newest end it
+         jumps there; at that end it jumps to the oldest. -->
+    <button
+      v-if="phone && props.holdScroll && jumpEnds.show"
+      type="button"
+      class="thread-jump"
+      data-testid="thread-jump"
+      :data-end="jumpEnds.show"
+      :data-dir="jumpEnds.dir"
+      :aria-label="t(jumpEnds.show === 'newest' ? 'feed.new_pill_label' : 'feed.jump_oldest')"
+      @click="jumpThreadEnd"
+    >
+      <UiIcon :name="jumpEnds.dir === 'up' ? 'chevron-up' : 'chevron-down'" :size="22" />
+    </button>
   </section>
 </template>
 
@@ -116,6 +130,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { mergeableSourceIn, neighborIn, threadNeighbors } from '~/utils/msg-menu.mjs'
 import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { threadJumpState } from '~/utils/thread-jump.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
@@ -263,6 +278,50 @@ function measureDivider() {
 }
 function onFeedScroll() {
   if (firstNewId.value) measureDivider()
+  if (phone.value && props.holdScroll) measureJump()
+}
+
+/* Phone thread. The scroller is the pane's .feed-body. A channel feed never
+   passes holdScroll, and a desktop is not phone, so this stays empty there. */
+const jumpEnds = ref(threadJumpState())
+/* The phone pane is display:none until the stack shows it, so the first
+   measure sees clientHeight 0. A size change (the pane appearing, the
+   keyboard, a late picture) measures again. It never asks for another page. */
+let jumpResize: ResizeObserver | null = null
+let jumpWatched: HTMLElement | null = null
+function watchJumpSize(s: HTMLElement) {
+  if (typeof ResizeObserver === 'undefined') return
+  if (!jumpResize) jumpResize = new ResizeObserver(() => measureJump())
+  if (jumpWatched === s) return
+  jumpResize.disconnect()
+  jumpWatched = s
+  jumpResize.observe(s)
+}
+function measureJump() {
+  if (!phone.value || props.holdScroll !== true) {
+    if (jumpEnds.value.show) jumpEnds.value = threadJumpState()
+    jumpResize?.disconnect()
+    jumpWatched = null
+    return
+  }
+  const s = root.value?.closest<HTMLElement>('.feed-body')
+  if (!s) return
+  watchJumpSize(s)
+  const next = threadJumpState({
+    scrollTop: s.scrollTop,
+    scrollHeight: s.scrollHeight,
+    clientHeight: s.clientHeight,
+    newestLast: newestLast.value,
+  })
+  const cur = jumpEnds.value
+  if (cur.show !== next.show || cur.dir !== next.dir || cur.top !== next.top) jumpEnds.value = next
+}
+function jumpThreadEnd() {
+  const s = root.value?.closest<HTMLElement>('.feed-body')
+  const st = jumpEnds.value
+  if (!s || !st.show) return
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  s.scrollTo({ top: st.top, behavior: reduce ? 'auto' : 'smooth' })
 }
 
 function jumpToUnread() {
@@ -300,9 +359,15 @@ watch(() => [firstNewId.value, props.rows.length] as const, async ([id]) => {
 
 onMounted(() => {
   if (typeof document !== 'undefined') document.addEventListener('scroll', onFeedScroll, { capture: true, passive: true })
+  void nextTick(() => measureJump())
+})
+watch([phone, newestLast, () => props.holdScroll, () => props.rows.length], async () => {
+  await nextTick()
+  measureJump()
 })
 onUnmounted(() => {
   if (typeof document !== 'undefined') document.removeEventListener('scroll', onFeedScroll, { capture: true })
+  jumpResize?.disconnect()
 })
 
 const announce = computed(() => {
@@ -376,4 +441,26 @@ function isSelected(m: SpoolMessage) {
   .append-enter-active, .append-move { transition: none; }
 }
 .new-pill-wrap--bottom { top: auto; bottom: 8px; align-items: flex-end; }
+/* Above the dock and the keyboard. The rule exists only at the phone width. */
+@media (max-width: 820px) {
+  .thread-jump {
+    position: fixed;
+    z-index: 15;
+    inset-inline-end: 16px;
+    bottom: calc(12px + var(--kb-inset, 0px) + max(var(--composer-dock-h, 0px), env(safe-area-inset-bottom, 0px)));
+    width: var(--tap, 44px);
+    height: var(--tap, 44px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    background: var(--color-surface);
+    color: var(--color-fg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+    cursor: pointer;
+  }
+  .thread-jump:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+}
 </style>

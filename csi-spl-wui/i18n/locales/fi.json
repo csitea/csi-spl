@@ -572,6 +572,7 @@
     },
     "new_pill": "Uusia: {n}",
     "new_pill_label": "Siirry uusimpiin viesteihin",
+    "jump_oldest": "Siirry vanhimpiin viesteihin",
     "open_topic_hint": "Avaa tämän viestin aihe painamalla Enter.",
     "edit": {
       "label": "Muokkaa viestiä",

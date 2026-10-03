@@ -572,6 +572,7 @@
     },
     "new_pill": "Naujų: {n}",
     "new_pill_label": "Pereiti prie naujausių žinučių",
+    "jump_oldest": "Pereiti prie seniausių žinučių",
     "open_topic_hint": "Paspauskite Enter, kad atidarytumėte šios žinutės temą.",
     "edit": {
       "label": "Redaguoti žinutę",

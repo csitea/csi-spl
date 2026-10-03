@@ -943,6 +943,15 @@ declare module '~/utils/scroll-anchor.mjs' {
   export function scrollerOf(el: Element | null, doc?: Document): Element
 }
 
+declare module '~/utils/thread-jump.mjs' {
+  export function threadJumpState(o?: {
+    scrollTop?: number
+    scrollHeight?: number
+    clientHeight?: number
+    newestLast?: boolean
+  }): { show: '' | 'newest' | 'oldest', dir: '' | 'up' | 'down', top: number }
+}
+
 declare module '~/utils/pane-scroll.mjs' {
   export function scrollRowToTop(scroller: HTMLElement, row: Element): void
   export function scrollRowIntoPane(scroller: HTMLElement, row: Element): void

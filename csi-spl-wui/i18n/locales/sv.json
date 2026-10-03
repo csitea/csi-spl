@@ -572,6 +572,7 @@
     },
     "new_pill": "Nya: {n}",
     "new_pill_label": "Gå till de senaste meddelandena",
+    "jump_oldest": "Gå till de äldsta meddelandena",
     "open_topic_hint": "Tryck på Enter för att öppna meddelandets ämne.",
     "edit": {
       "label": "Redigera meddelandet",

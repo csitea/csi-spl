@@ -572,6 +572,7 @@
     },
     "new_pill": "Uusi: {n}",
     "new_pill_label": "Mine uusimate sõnumite juurde",
+    "jump_oldest": "Mine vanimate sõnumite juurde",
     "open_topic_hint": "Selle sõnumi teema avamiseks vajuta Enter.",
     "edit": {
       "label": "Muuda sõnumit",

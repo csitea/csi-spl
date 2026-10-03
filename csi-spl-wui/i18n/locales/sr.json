@@ -572,6 +572,7 @@
     },
     "new_pill": "Нове: {n}",
     "new_pill_label": "Иди на најновије поруке",
+    "jump_oldest": "Иди на најстарије поруке",
     "open_topic_hint": "Притисните Enter да отворите тему ове поруке.",
     "edit": {
       "label": "Izmeni poruku",

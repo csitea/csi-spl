@@ -572,6 +572,7 @@
     },
     "new_pill": "Nowe: {n}",
     "new_pill_label": "Przejdź do najnowszych wiadomości",
+    "jump_oldest": "Przejdź do najstarszych wiadomości",
     "open_topic_hint": "Naciśnij Enter, aby otworzyć temat tej wiadomości.",
     "edit": {
       "label": "Edytuj wiadomość",

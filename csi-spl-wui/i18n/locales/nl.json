@@ -572,6 +572,7 @@
     },
     "new_pill": "Nieuw: {n}",
     "new_pill_label": "Naar de nieuwste berichten",
+    "jump_oldest": "Naar de oudste berichten",
     "open_topic_hint": "Druk op Enter om het onderwerp van dit bericht te openen.",
     "edit": {
       "label": "Bericht bewerken",

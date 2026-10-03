@@ -572,6 +572,7 @@
     },
     "new_pill": "Noi: {n}",
     "new_pill_label": "Salt la cele mai noi mesaje",
+    "jump_oldest": "Salt la cele mai vechi mesaje",
     "open_topic_hint": "Apasă Enter pentru a deschide tema acestui mesaj.",
     "edit": {
       "label": "Editează mesajul",

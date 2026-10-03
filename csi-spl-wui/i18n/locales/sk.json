@@ -572,6 +572,7 @@
     },
     "new_pill": "Nové: {n}",
     "new_pill_label": "Prejsť na najnovšie správy",
+    "jump_oldest": "Prejsť na najstaršie správy",
     "open_topic_hint": "Stlačením Enter otvoríte tému tejto správy.",
     "edit": {
       "label": "Upraviť správu",

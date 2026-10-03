@@ -572,6 +572,7 @@
     },
     "new_pill": "Jaunas: {n}",
     "new_pill_label": "Pāriet uz jaunākajām ziņām",
+    "jump_oldest": "Pāriet uz vecākajām ziņām",
     "open_topic_hint": "Nospiediet Enter, lai atvērtu šīs ziņas tēmu.",
     "edit": {
       "label": "Rediģēt ziņu",

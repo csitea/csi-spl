@@ -572,6 +572,7 @@
     },
     "new_pill": "Yeni: {n}",
     "new_pill_label": "En yeni mesajlara git",
+    "jump_oldest": "En eski mesajlara git",
     "open_topic_hint": "Bu iletinin konusunu açmak için Enter'a basın.",
     "edit": {
       "label": "Mesajı düzenle",

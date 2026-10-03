@@ -144,9 +144,14 @@ spl_sweep_send() {
 
 # One do_spl_dispatch_check row (its `row`, LEASE_DIR set): the last delivered
 # sweep, its age and open count; never run, a failed send or older than
-# DISPATCH_SWEEP_STALE s is a GAP.
+# DISPATCH_SWEEP_STALE s is a GAP. While another machine holds the lease this
+# one's sweep sends nothing and never rewrites the file, so it is not judged.
 spl_sweep_check_row() {
   local f="$LEASE_DIR/unanswered.last" k v ts="" open="" per="" sent="" to="" age stale="${DISPATCH_SWEEP_STALE:-1800}"
+  spl_lease_read; spl_lease_conf
+  if spl_lease_remote && [[ "$LH" != *@unreachable ]]; then
+    row "unanswered sweep" "not sent from here" "ok (remote holder $LH: that machine sends)"; return 0
+  fi
   if [[ ! -f "$f" ]]; then
     row "unanswered sweep" "never ran" "GAP DRY_RUN=0 do_spl_unanswered_sweep_install_cron"; return 0
   fi

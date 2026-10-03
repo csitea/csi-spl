@@ -19,7 +19,8 @@
 #      human post after the ack opens it again; refusals; ACK_LIST
 #   7. no lease: the master from lease.conf
 #   8. bad input is refused
-#   9. do_spl_dispatch_check's sweep row: never ran / fresh / stale / failed
+#   9. do_spl_dispatch_check's sweep row: never ran / fresh / stale / failed;
+#      9b. a stale failed file while another machine holds the lease is ok
 #  10. the cron install: dry run writes nothing, DRY_RUN=0 one exact tagged
 #      line, idempotent, dev and prd lines apart, check, remove, worktree refused
 #------------------------------------------------------------------------------
@@ -178,7 +179,7 @@ sweep SWEEP_MIN_AGE=x >"$T/o" 2>&1 && fail "8. SWEEP_MIN_AGE=x accepted" || pass
 
 # --- 9. the dispatch check row ----------------------------------------------------------------
 crow() {
-  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" LEASE_NOW="$1" bash -c '
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" LEASE_NOW="$1" "${@:2}" bash -c '
     gaps=0; do_log() { echo "$*"; }
     row() { echo "| $1 | $2 | $3 |"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
@@ -191,6 +192,17 @@ crow $((NOW + 60)) | grep -q '| unanswered sweep | last 60s ago to CLE-002, 3 op
 crow $((NOW + 4000)) | grep -q 'GAP stale' && pass "9. stale: GAP" || fail "9. stale: $(crow $((NOW + 4000)))"
 sed -i 's/sent=ok/sent=FAILED/' "$S/dispatch/unanswered.last"
 crow $((NOW + 60)) | grep -q 'GAP the last note was not delivered' && pass "9. failed send: GAP" || fail "9. failed"
+# 9b. a standby box: its sweep sends nothing while another machine holds the
+#     lease, so a stale sent=FAILED file from when it held it is no GAP; the
+#     control is the same file with the lease held on this machine
+cp "$S/dispatch/lease" "$T/lease.keep"
+echo "c-002@box-b $NOW" >"$S/dispatch/lease"
+crow $((NOW + 60)) LEASE_MACHINE=box-a >"$T/o" 2>&1
+! grep -q 'GAP' "$T/o" && grep -q '| unanswered sweep | .* | ok (remote holder c-002@box-b: that machine sends) |' "$T/o" &&
+  pass "9b. remote lease + stale sent=FAILED: ok, no GAP" || fail "9b. remote: $(cat "$T/o")"
+crow $((NOW + 60)) LEASE_MACHINE=box-b | grep -q 'GAP the last note was not delivered' &&
+  pass "9b. control: the same file + a LOCAL lease is still a GAP" || fail "9b. local: $(crow $((NOW + 60)) LEASE_MACHINE=box-b)"
+cp "$T/lease.keep" "$S/dispatch/lease"
 rm -f "$S/dispatch/unanswered.last"
 crow "$NOW" | grep -q 'never ran | GAP' && pass "9. never ran: GAP" || fail "9. never: $(crow "$NOW")"
 

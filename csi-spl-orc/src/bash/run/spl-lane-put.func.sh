@@ -28,7 +28,11 @@ do_spl_lane_put() {
     return 0
   fi
   if [[ "$state" == "done" ]]; then
-    cur="$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null | jq -c --arg a "$LANE_AGENT" '.lanes[]? | select(.agent_id == $a)' 2>/dev/null)"
+    # The row is <ID>@<box>, so one id can carry a row per box (an old
+    # box-desk row next to the renamed one): read THIS box's row only, or
+    # the box field comes back as two lines ("sat box-desk")
+    cur="$(spl_lane_hub --fleet "$LANE_FLEET" 2>/dev/null | jq -c --arg a "$LANE_AGENT" --arg b "$LANE_BOX" \
+      '[.lanes[]? | select(.agent_id == $a and .agent_box == $b)] | first // empty' 2>/dev/null)"
   fi
   # lane_was <field>: that field of the hub row read above ("" without one);
   # a LANE_* set in the environment, even empty, wins over it
@@ -39,6 +43,7 @@ do_spl_lane_put() {
   files="$(printf '%s' "$files" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | head -50 | paste -sd, -)"
   local box="$LANE_BOX" out
   [[ -n "$cur" ]] && box="$(lane_was agent_box)"
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL lane $LANE_AGENT: the box must be ONE box id, got '$box'"; return 1; }
   if ! out="$(spl_lane_hub --fleet "$LANE_FLEET" --agent "$LANE_AGENT" --box "$box" \
     --repo "${LANE_REPO-$(lane_was repo)}" --branch "${LANE_BRANCH-$(lane_was branch)}" \
     --scope "$scope" --files "$files" --topic "${LANE_TOPIC-$(lane_was topic)}" --state "$state" 2>&1)"; then

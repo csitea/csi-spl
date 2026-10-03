@@ -18,6 +18,11 @@
 #   6. the hub down: WARN, the map falls back to this machine's worktrees,
 #      a put is exit 2
 #   7. json output carries fleet, hub state and the rows
+#   8. one id with a row on TWO boxes (an old box-desk row next to the renamed
+#      one): done writes ONE box id, this machine's (the "sat box-desk" defect)
+#   9. lane-map.sh: done for a role seat (c-001..c-003, a lease.conf id) is a
+#      no-op that never calls the action; a two-word box is refused client
+#      side; CONTROL: a normal lane id's done still calls it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -30,8 +35,10 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/hub"
 
-# The hub stub: one JSON file per fleet, {"lanes":[...]}; the writing box is
-# the caller's SPOOL_DESK_BOX, as the hub records it from the session.
+# The hub stub: one JSON file per fleet, {"lanes":[...]}, one row per
+# <agent>@<box> as the hub keys it; the writing box is the caller's
+# SPOOL_DESK_BOX, as the hub records it from the session. A --box that is not
+# one box id is refused, as the hub's CheckFleetLane does.
 cat >"$T/bin/hub" <<'STUB'
 #!/usr/bin/env bash
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
@@ -42,11 +49,12 @@ while [ $# -gt 0 ]; do case "$1" in
   --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --state) state="$2";; esac; shift 2; done
 f="$HUB_DIR/$fleet.json"; [ -s "$f" ] || echo '{"lanes":[]}' >"$f"
 if [ -n "$agent" ]; then
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "box must be the agent's desk box id" >&2; exit 1; }
   row="$(jq -n -c --arg a "$agent" --arg b "$box" --arg r "$repo" --arg br "$branch" --arg s "$scope" --arg fl "$files" \
     --arg t "$topic" --arg st "$state" --arg w "$SPOOL_DESK_BOX" \
     '{agent_id:$a, agent_box:$b, repo:$r, branch:$br, scope:$s, files:($fl | split(",") | map(select(length > 0))),
       topic:$t, state:$st, writer_box:$w, age_s:0}')"
-  jq -c --argjson row "$row" '.lanes = ([.lanes[] | select(.agent_id != $row.agent_id)] + [$row])' "$f" >"$f.new" && mv "$f.new" "$f"
+  jq -c --argjson row "$row" '.lanes = ([.lanes[] | select(.agent_id != $row.agent_id or .agent_box != $row.agent_box)] + [$row])' "$f" >"$f.new" && mv "$f.new" "$f"
   jq -c --arg f "$fleet" --argjson row "$row" '{fleet:$f, lanes:[$row]}' <<<'{}'
 else
   jq -c --arg f "$fleet" '{fleet:$f, lanes:.lanes}' "$f"
@@ -156,6 +164,47 @@ out="$(on pc 'LANE_CHECK=csi-spl-orc do_spl_lane_map' "${F[@]}" HUB_DOWN=1)"
 out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json | tail -1)"
 [[ "$(jq -r '.fleet + " " + .hub + " " + (.lanes | map(.agent_id) | sort | join(","))' <<<"$out" 2>/dev/null)" == "main ok CLE-100001,CLE-77930" ]] &&
   pass "json: fleet, hub state and the live rows" || fail "json: $out"
+
+# 8. one id, a row on two boxes
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=CLE-100009 LANE_BRANCH=old-row LANE_STATE=done >/dev/null
+on sat do_spl_lane_put "${F[@]}" LANE_AGENT=CLE-100009 LANE_BRANCH=new-row LANE_TOPIC=t-9 >/dev/null
+[[ "$(jq '[.lanes[] | select(.agent_id == "CLE-100009")] | length' "$T/hub/main.json")" == 2 ]] &&
+  pass "setup: CLE-100009 has a row on box-desk and one on sat" || fail "two-row setup: $(cat "$T/hub/main.json")"
+out="$(on sat do_spl_lane_put "${F[@]}" LANE_AGENT=CLE-100009 LANE_STATE=done)"; rc=$?
+row="$(jq -c '.lanes[] | select(.agent_id == "CLE-100009" and .agent_box == "sat")' "$T/hub/main.json")"
+[[ $rc -eq 0 && "$out" == *"CLE-100009@sat done"* && "$(jq -r .state <<<"$row")" == "done" && "$(jq -r .branch <<<"$row")" == new-row ]] &&
+  pass "done on a two-row id writes ONE box (sat) and keeps sat's own row fields" || fail "two-row done (rc=$rc): $out / $row"
+[[ "$(jq -r '[.lanes[] | select(.agent_id == "CLE-100009")] | map(.agent_box) | sort | join(",")' "$T/hub/main.json")" == box-desk,sat ]] &&
+  pass "...and no row with a two-word box was made" || fail "rows: $(cat "$T/hub/main.json")"
+out="$(on sat do_spl_lane_put "${F[@]}" LANE_AGENT=CLE-100010 'LANE_BOX=sat box-desk')"; rc=$?
+[[ $rc -eq 1 && "$out" == *"LANE_BOX must be"* ]] && pass "the action refuses a two-word LANE_BOX" || fail "two-word LANE_BOX (rc=$rc): $out"
+
+# 9. lane-map.sh: role seats, the box check, the control
+LM="$PROJ_ROOT/src/bash/features/spawn-agents/scripts/lane-map.sh"
+mkdir -p "$T/orc" "$T/lm/dispatch"
+printf '#!/usr/bin/env bash\necho "RUN $* state=${LANE_STATE:-} agent=${LANE_AGENT:-}" >>"%s/orc/calls"\n' "$T" >"$T/orc/run"
+chmod +x "$T/orc/run"
+printf 'LEASE_MASTER=c-412\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\n' >"$T/lm/dispatch/lease.conf"
+lm() { env -u LANE_BOX -u LANE_DESK_BOX SPOOL_ROOT="$T/lm" SPOOL_BOX_ENV="$T/lm/box.env" SPOOL_DESK_BOX=box-desk LANE_MAP_ORC="$T/orc" "$@"; }
+for id in c-001 c-002 c-003 c-412; do
+  : >"$T/orc/calls"
+  out="$(lm bash "$LM" "done" --agent "$id" 2>&1)"; rc=$?
+  [[ $rc -eq 0 && "$out" == *"INFO"*"role seat"* && ! -s "$T/orc/calls" ]] &&
+    pass "done --agent $id (a role seat) is a no-op: exit 0, one INFO line, the action is never called" || fail "role seat $id (rc=$rc): $out / $(cat "$T/orc/calls")"
+done
+: >"$T/orc/calls"
+out="$(lm bash "$LM" "done" --agent c-077 2>&1)"; rc=$?
+grep -qx "RUN -a do_spl_lane_put state=done agent=c-077" "$T/orc/calls" && [[ $rc -eq 0 ]] &&
+  pass "control: done --agent c-077 (a lane) still calls do_spl_lane_put LANE_STATE=done" || fail "control done (rc=$rc): $out / $(cat "$T/orc/calls")"
+: >"$T/orc/calls"
+out="$(lm bash "$LM" put --agent c-003 --branch b 2>&1)"; rc=$?
+grep -q "state=live agent=c-003" "$T/orc/calls" && pass "a role seat's put (the rotation spawn) still writes its lane" || fail "role put (rc=$rc): $out"
+for k in SPOOL_DESK_BOX LANE_BOX LANE_DESK_BOX; do
+  : >"$T/orc/calls"
+  out="$(lm env "$k=sat box-desk" bash "$LM" "done" --agent c-077 2>&1)"; rc=$?
+  [[ $rc -eq 64 && "$out" == *"$k must be ONE box id"*"sat box-desk"* && ! -s "$T/orc/calls" ]] &&
+    pass "$k='sat box-desk' is refused client side (exit 64, names the value), the action is never called" || fail "two-word $k (rc=$rc): $out"
+done
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

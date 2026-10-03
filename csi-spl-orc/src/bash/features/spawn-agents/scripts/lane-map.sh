@@ -13,11 +13,13 @@
 #   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T]
 #       write that agent's row, state live (the spawn path)
 #   lane-map.sh done --agent <ID>
-#       set it done, keeping its other fields (exit-clean)
+#       set it done, keeping its other fields (exit-clean); a role seat
+#       (c-001..c-003, or an id in the dispatch lease.conf) is a no-op: the
+#       rotation successor carries the same id, so its lane never ends
 #
 # The action runs as $SPOOL_BOX_USER (the desk keys that sign the hub call are
 # theirs). Exit codes: the action's own (0 ok, 1 refused, 2 hub did not take a
-# write, 3 collision); 64 usage.
+# write, 3 collision); 64 usage, or a box setting that is not ONE box id.
 #
 # LANE_MAP_ORC (tests): the csi-spl-orc dir whose ./run is called.
 set -uo pipefail
@@ -26,7 +28,7 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-usage() { sed -n '9,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n '9,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 
 verb=list
 case "${1:-}" in list|put|done) verb="$1"; shift ;; -h|--help) usage ;; esac
@@ -55,6 +57,24 @@ for _v in "${vars[@]}"; do case "$_v" in LANE_AGENT=*) _lane_agent="${_v#LANE_AG
 if [ "$verb" != list ] && ! spl_is_agent_id "$_lane_agent"; then
   echo "lane-map.sh: $verb needs --agent <ID>" >&2; exit 64
 fi
+
+# A role seat's lane outlives the seat: the hourly rotation (spec 060) hands
+# the same id to the successor, so marking it done would hide a live lane.
+# The ids: 001-003 (next-agent-id.sh), and whatever lease.conf names.
+lane_is_role_seat() {  # ID
+  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
+}
+if [ "$verb" = "done" ] && lane_is_role_seat "$_lane_agent"; then
+  echo "INFO lane-map.sh: $_lane_agent is a role seat; its successor keeps the lane, nothing to mark done"
+  exit 0
+fi
+# One box id per setting: a value such as "sat box-desk" is refused here, not
+# by the hub's "box must be the agent's desk box id".
+for k in LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX; do
+  [ -z "${!k:-}" ] || [[ "${!k}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] ||
+    { echo "lane-map.sh: $k must be ONE box id ([a-z0-9-], up to 32), got '${!k}'" >&2; exit 64; }
+done
 
 orc="${LANE_MAP_ORC:-$(cd "$_here/../../../../.." && pwd)}"
 [ -x "$orc/run" ] || { echo "lane-map.sh: no orc ./run at $orc" >&2; exit 1; }

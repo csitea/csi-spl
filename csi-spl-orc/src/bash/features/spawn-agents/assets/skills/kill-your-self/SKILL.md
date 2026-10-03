@@ -35,6 +35,10 @@ scope check still reads you as owning your files:
 bash {{HARNESS_DIR}}/scripts/lane-map.sh done --agent <YOUR-AGENT-ID>
 ```
 
+A role seat (c-001..c-003, the ids in the dispatch lease) runs it too: it
+prints one INFO line and changes nothing, because the rotation successor keeps
+the same id and so the lane.
+
 ## 2. Report
 
 Send the summary to your orchestrator (`{{ORCHESTRATOR_ID}}` unless your brief names

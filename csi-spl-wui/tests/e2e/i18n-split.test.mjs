@@ -129,7 +129,9 @@ async function blockedPage(browser) {
     }
   })
   await p.setViewport({ width: 1280, height: 800 })
-  return { p, ctx, blocked }
+  const failed = []
+  p.on('requestfailed', (r) => failed.push(`${r.url().replace(/.*\/_nuxt\//, '')} ${r.failure()?.errorText}`))
+  return { p, ctx, blocked, failed }
 }
 
 const prefix = (code) => (code === 'en' ? '' : `/${code}`)
@@ -144,33 +146,59 @@ try {
   if (split) {
     console.log(`-- second catalogue blocked (marker namespaces: ${markerNs.slice(0, 4).join(', ')}, ...)`)
     ok('the split leaves whole namespaces to the second catalogue', markerNs.length >= 2, markerNs)
-    for (const code of LOCALES) {
-      const { p, ctx, blocked } = await blockedPage(browser)
-      for (const path of ['/', '/lobby']) {
-        await p.goto(server.base + prefix(code) + (path === '/' ? '' : path), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-        await markDoc(p)
-        const up = await railUp(p)
-        await sleep(1500) // the idle load has been tried (and blocked)
-        const keys = await keysShown(p)
-        const noReload = await sameDoc(p)
-        ok(`${code} ${path}: the first screen renders with core alone, no key shown`, up && keys.length === 0 && noReload, { up, keys, noReload })
-      }
-      const preloadErrors = await p.evaluate(() => window.__i18nSplitPreloadErrors).catch(() => 0)
-      ok(`${code}: the idle load asked for the second catalogue and it was blocked`, blocked.length > 0 && preloadErrors > 0, { blocked, preloadErrors })
-      if (code === 'en') {
-        /* in-app, as a click would: the route guard awaits the (blocked) load */
-        await markDoc(p)
-        await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/issues'))
-        await p.waitForFunction(() => location.pathname.endsWith('/issues'), { timeout: 10000 }).catch(() => {})
-        let keys = []
-        for (let i = 0; i < 40 && !keys.length; i++) {
-          await sleep(250)
-          keys = await keysShown(p)
+    /*
+     * One locale's checks on its own blocked page. Docker veth churn on a
+     * shared runner makes Chrome abort in-flight loads (net::ERR_NETWORK_CHANGED):
+     * a page chunk then never arrives and the rail stays down. Such a run is
+     * retried ONCE, every check again, and says so; any other failure stands.
+     */
+    async function blockedLocale(code) {
+      const checks = []
+      const check = (name, pass, ev) => checks.push([name, pass, ev])
+      const { p, ctx, blocked, failed } = await blockedPage(browser)
+      try {
+        for (const path of ['/', '/lobby']) {
+          await p.goto(server.base + prefix(code) + (path === '/' ? '' : path), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+          await markDoc(p)
+          const up = await railUp(p)
+          await sleep(1500) // the idle load has been tried (and blocked)
+          const keys = await keysShown(p)
+          const noReload = await sameDoc(p)
+          const pass = up && keys.length === 0 && noReload
+          check(`${code} ${path}: the first screen renders with core alone, no key shown`, pass, pass ? { up, keys, noReload } : { up, keys, noReload, failed })
         }
-        const noReload = await sameDoc(p)
-        ok('control: /issues with the second catalogue blocked shows its keys', keys.length > 0 && noReload, { keys, noReload })
+        const preloadErrors = await p.evaluate(() => window.__i18nSplitPreloadErrors).catch(() => 0)
+        check(`${code}: the idle load asked for the second catalogue and it was blocked`, blocked.length > 0 && preloadErrors > 0, { blocked, preloadErrors })
+        if (code === 'en') {
+          /* in-app, as a click would: the route guard awaits the (blocked) load */
+          await markDoc(p)
+          await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/issues'))
+          await p.waitForFunction(() => location.pathname.endsWith('/issues'), { timeout: 10000 }).catch(() => {})
+          let keys = []
+          for (let i = 0; i < 40 && !keys.length; i++) {
+            await sleep(250)
+            keys = await keysShown(p)
+          }
+          const noReload = await sameDoc(p)
+          const pass = keys.length > 0 && noReload
+          check('control: /issues with the second catalogue blocked shows its keys', pass, pass ? { keys, noReload } : { keys, noReload, failed })
+        }
+      } catch (e) {
+        check(`${code}: the blocked steps ran to the end`, false, { error: String(e.message).slice(0, 200), failed })
+      } finally {
+        await ctx.close()
       }
-      await ctx.close()
+      const churn = failed.some((f) => f.endsWith('net::ERR_NETWORK_CHANGED'))
+      return { checks, churn }
+    }
+
+    for (const code of LOCALES) {
+      let run = await blockedLocale(code)
+      if (run.churn && run.checks.some(([, pass]) => !pass)) {
+        console.log(`  RETRY ${code}: the page saw net::ERR_NETWORK_CHANGED (runner network churn); first attempt failed ${JSON.stringify(run.checks.filter(([, pass]) => !pass).map(([name]) => name))}`)
+        run = await blockedLocale(code)
+      }
+      for (const [name, pass, ev] of run.checks) ok(name, pass, ev)
     }
   } else {
     console.log('-- not a split build (i18n/.split absent): parts 1 and 2 do not apply')

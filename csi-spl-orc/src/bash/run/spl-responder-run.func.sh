@@ -6,9 +6,13 @@
 # @description in no channel, EVERY message the hub delivers to it is an
 # @description escalation (an SPL-997/SPL-1225 fallback frame). For each one,
 # @description one pass of this action:
-# @description   (a) posts a visible "Seen: routed to the team" reply into the
-# @description       topic (DESK_TO = the human, DESK_TASK = the topic), so the
-# @description       owner sees the post was received;
+# @description   (a) ONLY with RESP_SEEN_REPLY=1: posts a visible "Seen: routed
+# @description       to the team" reply into the topic (DESK_TO = the human,
+# @description       DESK_TASK = the topic). OFF by default since the owner
+# @description       rule of 2026-10-03 (HUM-10, t1 topic 02800102): a post
+# @description       that only acknowledges adds nothing for the human reader
+# @description       and must not occur in a channel or a DM. With it off,
+# @description       (b) and (c) still run for every escalation;
 # @description   (b) forwards the escalation as a FILE into RESP_FORWARD_TO's
 # @description       inbox (default CLE-001) - a file cannot be refused the way
 # @description       a busy pane refuses a poke (the SPL-1225 miss, 4b0ba40a);
@@ -51,6 +55,7 @@
 # @param RESP_FORWARD_TO (optional) - who the escalation is filed to, default CLE-001
 # @param RESP_SEND (optional) - the send script, default spawn-agents spool-send.sh (tests stub it)
 # @param RESP_HUB_WAIT (optional) - seconds a Seen waits for the hub to answer hub-rsp, default 900
+# @param RESP_SEEN_REPLY (optional) - 1 posts the visible "Seen" reply (a); default 0: file + ack only
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DRY_RUN=0 ./run -a do_spl_responder_run
 #------------------------------------------------------------------------------
@@ -58,8 +63,9 @@ do_spl_responder_run() {
   do_require_bin python3 yq || return 1
   do_spl_cloud_cnf || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-box-rsp}" agent="${DESK_AGENT:-RSP-01}"
-  local fwd="${RESP_FORWARD_TO:-CLE-001}" wait="${RESP_HUB_WAIT:-900}"
+  local fwd="${RESP_FORWARD_TO:-CLE-001}" wait="${RESP_HUB_WAIT:-900}" reply="${RESP_SEEN_REPLY:-0}"
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL RESP_HUB_WAIT must be whole seconds, got: '$wait'"; return 1; }
+  [[ "$reply" =~ ^[01]$ ]] || { do_log "FATAL RESP_SEEN_REPLY must be 0 or 1, got: '$reply'"; return 1; }
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   spl_is_participant_id "$fwd" || { do_log "FATAL RESP_FORWARD_TO must be an agent id, got: '$fwd'"; return 1; }
@@ -99,11 +105,22 @@ do_spl_responder_run() {
   fi
 
   local send="${RESP_SEND:-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  local n=0 skipped=0 fails=0 task frm mids seen since hubn hrc
+  local n=0 skipped=0 filed=0 fails=0 task frm mids seen since hubn hrc
   while IFS=$'\t' read -r task frm mids seen since; do
     [[ -n "$task" ]] || continue
     [[ "$mids" == - ]] && mids=""
     [[ "$since" == - ]] && since=""
+    if (( ! reply )); then
+      # No visible Seen (owner rule 2026-10-03): file the escalation, ack it.
+      if (( dry )); then
+        do_log "INFO DRY_RUN would: file msg(s) ${mids:-none} of $frm in topic $task to $fwd and ack; no reply in the topic (RESP_SEEN_REPLY=0)"
+      else
+        _spl_responder_pending_drop "$d" "$task"
+        [[ -n "$mids" ]] && _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
+        filed=$((filed + 1))
+      fi
+      n=$((n + 1)); continue
+    fi
     if (( dry )); then
       if [[ "$seen" == 1 ]]; then
         do_log "INFO DRY_RUN topic $task already has its Seen reply: would file msg(s) $mids to $fwd and ack, no second reply"
@@ -136,14 +153,15 @@ do_spl_responder_run() {
     [[ -n "$mids" ]] && _spl_responder_forward "$send" "$agent" "$fwd" "$tenant" "$frm" "$task" "$mids"
     n=$((n + 1))
   done <<<"$rows"
-  # A seen-only pass sent no reply, so nothing acked its inbox: ack it here.
-  if (( ! dry && skipped > 0 )); then
+  # A seen-only or file-only pass sent no reply, so nothing acked its inbox:
+  # ack it here.
+  if (( ! dry && skipped + filed > 0 )); then
     spl_desk_spool "$d" "$box" "$tenant" "$hub" -- recv --as "$agent" --ack >/dev/null 2>&1 ||
       do_log "WARN could not archive $agent's inbox"
   fi
   exec {lockfd}>&-
 
-  do_log "OK $agent ($tenant): handled $n topic(s), $skipped already seen (no second reply), $fails failed"
+  do_log "OK $agent ($tenant): handled $n topic(s), $filed filed without a reply, $skipped already seen (no second reply), $fails failed"
   (( fails == 0 ))
 }
 
@@ -224,7 +242,7 @@ _spl_responder_pending_drop() {
 # refused); a failed send only warns - the topic already has its "Seen".
 _spl_responder_forward() {
   local send="$1" agent="$2" fwd="$3" tenant="$4" frm="$5" task="$6" mids="$7" body
-  body="$(printf 'Unheard human post escalated by the responder (%s, tenant %s).\nFrom %s, topic %s, msg %s.\nReply in the topic; the responder already posted "Seen".' "$agent" "$tenant" "$frm" "$task" "$mids")"
+  body="$(printf 'Unheard human post escalated by the responder (%s, tenant %s).\nFrom %s, topic %s, msg %s.\nReply in the topic with the answer.' "$agent" "$tenant" "$frm" "$task" "$mids")"
   if ! bash "$send" --from "$agent" --to "$fwd" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
     do_log "WARN $agent could not file msg $mids to $fwd (it is answered in-topic)"
   fi

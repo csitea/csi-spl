@@ -9,10 +9,14 @@
 #   2. dry run: for a canned inbox of two HUM escalations + one box message,
 #      it says it WOULD reply+file+ack the TWO humans only, and makes NO real
 #      reply/send (the stub reply is never called)
-#   3. DRY_RUN=0: it calls do_spl_desk_reply once per escalated topic
-#   4. CLE-77847: five posts in ONE topic, swept 4 times (the inbox re-delivered
+#   3. RESP_SEEN_REPLY=1 DRY_RUN=0: it calls do_spl_desk_reply once per topic
+#   4. (RESP_SEEN_REPLY=1) CLE-77847: five posts in ONE topic, swept 4 times (the inbox re-delivered
 #      each time) -> exactly ONE "Seen" reply; a lost ledger with the "Seen"
 #      still in the outbox -> no second reply; a held lock -> no reply at all
+#   5. the DEFAULT (owner HUM-10, 2026-10-03, t1 02800102: an ack-only post
+#      adds nothing for the human): DRY_RUN=0 posts NO reply in the topic,
+#      still files each escalation to the orchestrator; a bad
+#      RESP_SEEN_REPLY is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -84,9 +88,10 @@ else
   fail "dry run posted a real reply: $(cat "$T/reply.log")"
 fi
 
-# --- 3. DRY_RUN=0: one reply per escalation ----------------------------------------
+# --- 3. RESP_SEEN_REPLY=1 DRY_RUN=0: one reply per escalation -----------------------
+unset RESP_SEEN_REPLY
 : >"$T/reply.log"
-SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
+SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1
 if [ "$(grep -c '^reply ' "$T/reply.log")" = "2" ] && grep -q "DESK_TO=HUM-10 DESK_TASK=t-aaa" "$T/reply.log"; then
   pass "DRY_RUN=0 replies once per escalation, in the right topic"
 else
@@ -111,7 +116,7 @@ JSON
 D="$T/state/dev/desk/t1/box-rsp"
 rm -f "$D/seen-topics"; : >"$T/reply.log"
 for i in 1 2 3 4; do
-  SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
+  SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1
 done
 if [ "$(grep -c '^reply ' "$T/reply.log")" = "1" ] && grep -q "DESK_TO=HUM-10 DESK_TASK=t-ddd" "$T/reply.log"; then
   pass "five posts in one topic, four sweeps: exactly one Seen reply"
@@ -124,18 +129,37 @@ grep -q "1 already seen" "$T/o" && pass "a re-delivered topic is logged as alrea
 rm -f "$D/seen-topics"; : >"$T/reply.log"
 mkdir -p "$D/spool/RSP-01/outbox"
 echo '{"v":1,"msg_id":"s1","from":"RSP-01","to":"HUM-10","task_id":"t-ddd","kind":"note","body":"Seen: routed to the team."}' >"$D/spool/RSP-01/outbox/s1.json"
-SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
+SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1
 [ ! -s "$T/reply.log" ] && pass "a lost ledger: the outbox Seen still blocks a second reply" ||
   fail "replied again although the outbox holds the Seen: $(cat "$T/reply.log")"
 rm -f "$D/spool/RSP-01/outbox/s1.json" "$D/seen-topics"
 
 : >"$T/reply.log"
-( exec 9>"$D/responder.lock"; flock -n 9; SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1 )
+( exec 9>"$D/responder.lock"; flock -n 9; SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 RESP_SEEN_REPLY=1 in_resp >"$T/o" 2>&1 )
 if [ ! -s "$T/reply.log" ] && grep -q "another responder run holds" "$T/o"; then
   pass "a concurrent run (lock held) does not answer"
 else
   fail "answered under a held lock: $(cat "$T/reply.log") / $(cat "$T/o")"
 fi
+
+# --- 5. the default: no visible reply, every escalation still filed -----------------
+cat >"$T/inbox.json" <<'JSON'
+[
+ {"v":1,"msg_id":"c1","from":"HUM-10","task_id":"t-eee","to":"ALL-0","kind":"note","body":"the selected msg adds nothing"},
+ {"v":1,"msg_id":"c2","from":"HUM-27","task_id":"t-fff","to":"ALL-0","kind":"note","body":"anyone?"}
+]
+JSON
+rm -f "$D/seen-topics"; : >"$T/reply.log"; : >"$T/send.log"
+SNIPPET='do_spl_responder_run' TENANT_ID=t1 DRY_RUN=0 in_resp >"$T/o" 2>&1
+[ ! -s "$T/reply.log" ] && pass "default: no Seen (or any) reply is posted in the topic" ||
+  fail "default posted a reply: $(cat "$T/reply.log")"
+if [ "$(grep -c -- '--to CLE-001 --kind note --task t-' "$T/send.log" 2>/dev/null)" = "2" ] && grep -q "2 filed without a reply" "$T/o"; then
+  pass "default: each escalation is still filed to the orchestrator"
+else
+  fail "default forward set wrong: $(cat "$T/send.log" 2>/dev/null) / $(cat "$T/o")"
+fi
+SNIPPET='do_spl_responder_run' TENANT_ID=t1 RESP_SEEN_REPLY=yes in_resp >"$T/o" 2>&1 &&
+  fail "a bad RESP_SEEN_REPLY reached work" || pass "refuses a bad RESP_SEEN_REPLY"
 
 # Nothing reached a spool root: the sandbox one holds no inbox, no outbox.
 if [ -z "$(find "$T/spool" -mindepth 1 -not -name box.env 2>/dev/null)" ]; then

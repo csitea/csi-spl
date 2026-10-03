@@ -37,7 +37,7 @@ on_box() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/$sd" \
     SPOOL_TEST=1 SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/spool/box.env" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" \
     SPOOL_FLEET_RELAY=0 RESP_SEND="$T/send.sh" SEND_LOG="$T/send.log" HUB="$T/hub.tsv" \
-    INBOX="$T/inbox.json" HUB_DOWN="${HUB_DOWN:-0}" ENV=dev TENANT_ID=t1 DESK_BOX="$bx" DRY_RUN=0 "$@" bash -c '
+    INBOX="$T/inbox.json" HUB_DOWN="${HUB_DOWN:-0}" ENV=dev TENANT_ID=t1 DESK_BOX="$bx" DRY_RUN=0 RESP_SEEN_REPLY=1 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }

@@ -3,9 +3,9 @@
 # @description SPL-1265 / epic SPL-1238, the reboot-proof driver of the non-AI
 # @description responder. One sweep over EVERY tenant that has an RSP desk
 # @description seated on this box (a box-rsp spool under SPL_STATE_DIR/desk/*):
-# @description for each, run do_spl_responder_run, which answers each unheard
-# @description post with a "Seen: routed to the team" reply + a FILE to the
-# @description orchestrator. This is the target of the every-3-min cron (the
+# @description for each, run do_spl_responder_run, which files each unheard
+# @description post to the orchestrator (the visible "Seen: routed to the team"
+# @description reply only with RESP_SEEN_REPLY=1, off by default). This is the target of the every-3-min cron (the
 # @description watchdog), so the responder is permanent and survives a reboot
 # @description without a human - no systemd/root: a crontab line the box user
 # @description already owns, exactly like do_spl_desk_install_service chose for

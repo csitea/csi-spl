@@ -17,7 +17,8 @@
 # @description after a restart. It MUTATES nothing: the control for "did the
 # @description reboot recover" is the live state, not a staged one. The active
 # @description stop-and-reprove (kill a sidecar, post a test escalation, assert
-# @description the "Seen" within 60 s) is REBOOT_TEST_LIVE=1 DRY_RUN=0, a prod
+# @description its FILE to the orchestrator within 60 s; the visible "Seen" is
+# @description off by default, RESP_SEEN_REPLY) is REBOOT_TEST_LIVE=1 DRY_RUN=0, a prod
 # @description leg the box operator runs; the default here is the safe audit.
 # @param ENV - required: dev or prd
 # @param DESK_BOX (optional) - the responder box to expect, default box-rsp

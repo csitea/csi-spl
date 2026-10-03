@@ -490,6 +490,8 @@ do_check_pre_push() {
   done
 
   [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 ]] && _ppl_typos "$changed" "$tree"
+  # spec 065 L2: every pushed commit carries its release note -- WARN only, never blocks
+  [[ "${PRE_PUSH_LINT:-1}" != 0 ]] && { declare -F _pp_release_note >/dev/null || . "$(dirname "${BASH_SOURCE[0]}")/check-release-note.func.sh"; } && _pp_release_note "$tree" "$base"
 
   _pp_baseline_cleanup "$tree"
   trap - INT TERM HUP

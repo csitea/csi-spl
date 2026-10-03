@@ -1,0 +1,6 @@
+Lay-What: Any computer can now ask the server whether a topic already got an automatic "Seen" reply, whichever computer wrote it.
+Lay-How: The server answers with just a count of such replies in the topic, counted across all computers.
+Lay-Why: Each computer could only see its own replies, so a second computer taking over the duty replied "Seen" again.
+Tech-What: New `spool hub-rsp`: a tail frame with rsp_count returns the number of RSP-* rows in a task across every box; tail_end echoes rsp_count.
+Tech-How: ws.go answers the count for a task the caller holds something of (else 0); hubclient and wire gain the field; an older hub returns an error, never a guessed 0; rsp_count_test.
+Tech-Why: A box tail reads only that box's envelopes (BoxTaskEnvelopes), so after a lease failover the new responder could not see the previous one's Seen.

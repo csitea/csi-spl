@@ -1,0 +1,6 @@
+Lay-What: A reminder about an unanswered message that was moved to another topic now opens the topic it lives in now.
+Lay-How: When the system re-sends such a reminder, it looks up where the message is today instead of where it was first posted.
+Lay-Why: The reminder used to open the old, abandoned topic, so the reader landed in the wrong place.
+Tech-What: The hub unanswered-message sweep delivers a moved post into its current topic.
+Tech-How: fallback.go reads messages.task_id (the column) and re-signs a delivery-only copy of the envelope onto it; the store returns the current task; fallback_test covers a merged post.
+Tech-Why: A topic merge rewrites messages.task_id but leaves the signed envelope on the pre-move task, and the sweep forwarded that envelope as is.

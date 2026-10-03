@@ -3,7 +3,7 @@
 // At 360 and 820 px (touch emulated) the bar is ONE row of the tenant switcher and the avatar; the logo, the theme picker
 // and the language switcher are out of the row. SPL-1005 (owner, topic
 // 9b58a27b) retired E's floating GO at the middle of the right edge and its
-// full-screen sheet: the docked composer's bottom-right Send is the GO, and
+// full-screen sheet: the docked composer's Send is the GO (bottom-left since t1 932eeefc), and
 // `/search hello` typed there opens the results. The avatar opens a bottom sheet that carries language, theme and
 // the notification toggles (the rail's copy is hidden). Every control named
 // here is >= 44 px, and the page never scrolls sideways.
@@ -97,8 +97,9 @@ async function phone(p, base, width) {
   /* CLE-77888: the dock sits on the ~5 mm bottom status strip - its top is the floor */
   const view = await p.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight }))
   const floor = view.h - await p.evaluate(() => document.querySelector('[data-test=status-strip]')?.getBoundingClientRect().height || 0)
-  check(`${tag}: no floating GO (SPL-1005); the GO is the dock's bottom-right button`, !bar['[data-test=top-bar-search-toggle]']
-    && go && view.w - (go.x + go.w) <= 24 && floor - go.b <= 24
+  /* owner, t1 932eeefc: Attach + GO lead the dock, 8 px from its left edge */
+  check(`${tag}: no floating GO (SPL-1005); the GO is the dock's bottom-left button after Attach`, !bar['[data-test=top-bar-search-toggle]']
+    && go && go.x <= 60 && floor - go.b <= 24
     && await p.evaluate(() => {
       const b = document.querySelector('.composer--dock [data-testid=send]')
       return getComputedStyle(b).borderRadius === '50%' && b.querySelector('svg')?.getAttribute('data-icon') === 'go'

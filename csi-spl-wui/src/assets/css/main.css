@@ -119,7 +119,9 @@ html.pane-dragging * {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 6px 12px calc(6px + var(--kb-inset, 0px));
+  /* owner, t1 932eeefc: Attach + GO lead the bar 2 mm (8 px) from its left
+     edge (MessageComposer), so the start padding is 8 px */
+  padding: 6px 12px calc(6px + var(--kb-inset, 0px)) 8px;
   background: var(--color-sidebar);
   border-top: var(--top-bar-border) solid var(--color-border);
   position: relative;

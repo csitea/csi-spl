@@ -3,8 +3,10 @@
 // button on the bottom right with his icon". This reverses the floating GO of
 // SPL-995 answer E on phones:
 //   - no round GO at the middle of the right edge, on any page or level
-//   - the docked composer's bottom-right Send is the GO: the go (play) icon,
-//     accent fill, >= 44 px, "Go / Send"
+//   - the docked composer's Send is the GO: the go (play) icon, accent fill,
+//     >= 44 px, "Go / Send" - at the bar's LEFT since t1 932eeefc (owner,
+//     2026-10-03: "Move both the play button and the attachment to the
+//     bottom menu, 2 mm on the left"): Attach 8 px in, GO right after it
 //   - the dock is on EVERY phone level (the section chooser too) and on pages
 //     with no send target (/issues, /events), so `/search` is
 //     always reachable; `/search <q>` from the dock opens /search?q= from
@@ -79,7 +81,7 @@ function look(p) {
       goIcon: go ? (go.querySelector('svg[data-icon]')?.getAttribute('data-icon') || '') : '',
       goLabel: go ? go.getAttribute('aria-label') : '',
       goSize: r ? [Math.round(r.width), Math.round(r.height)] : null,
-      goRight: r ? Math.round(W - r.right) : null,
+      goLeft: r ? Math.round(r.left) : null,
       goBg: cs ? cs.backgroundColor : '',
       accentRgb,
     }
@@ -112,7 +114,7 @@ async function open(browser, vp, path) {
 }
 
 const goOk = (l) => Boolean(l.dock && l.goIcon === 'go' && l.goSize && l.goSize[0] >= 44 && l.goSize[1] >= 44
-  && l.goBg === l.accentRgb && l.goRight !== null && l.goRight <= 24 && l.dockBottom !== null && Math.abs(l.dockBottom) <= 1)
+  && l.goBg === l.accentRgb && l.goLeft !== null && l.goLeft <= 60 && l.dockBottom !== null && Math.abs(l.dockBottom) <= 1)
 
 async function phoneCase(browser, width, height) {
   const tag = `${width}px`
@@ -124,7 +126,7 @@ async function phoneCase(browser, width, height) {
     const l = await look(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `mobile-go-dock-${width}-${path.replace(/\W+/g, '_') || 'root'}.png`) })
     ok(`${tag} ${name}: no floating GO at the middle of the right edge`, l.toggle === 0 && !/search-toggle/.test(l.midButton), { level: l.level, midButton: l.midButton })
-    ok(`${tag} ${name}: the dock is at the bottom and its bottom-right button is the accent GO (go icon, >= 44 px)`, l.level === want && goOk(l), l)
+    ok(`${tag} ${name}: the dock is at the bottom and its bottom-left GO (after Attach) is the accent GO (go icon, >= 44 px)`, l.level === want && goOk(l), l)
     ok(`${tag} ${name}: no page error`, errors.length === 0, errors)
     await p.close()
   }

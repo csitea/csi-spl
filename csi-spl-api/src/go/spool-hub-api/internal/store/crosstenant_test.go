@@ -57,6 +57,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.SetRoster(ctx, s.tenant, "box-a", []string{"CLE-01"}, now); err != nil { // roster
 		t.Fatal(err)
 	}
+	// agent_seats (rdb 0107): one row per tenant so the catalogue gate holds.
+	// SetRoster does not write the table yet; the box row above satisfies the FK.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO agent_seats (tenant_id, box_id, agent_id, seated_at)
+			VALUES ($1, 'box-a', 'CLE-01', $2)`, s.tenant, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	m := msgFor(s.tenant, s.taskID, "box-a", now, now, "env-"+s.tenant) // messages
 	m.Body = "the " + s.marker + " plan"
 	if _, err := pg.InsertMessage(ctx, m); err != nil {

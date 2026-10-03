@@ -1,0 +1,6 @@
+Lay-What: The server can now store anonymous measurements of how fast the app feels, and deletes them after 30 days.
+Lay-How: A new table keeps each speed sample per organisation, with tools to add, list and summarise them, and a daily clean-up removes old ones.
+Lay-Why: To make the app faster we first need real numbers from real use, without keeping personal data or keeping it forever.
+Tech-What: rdb 0106 wui_perf_samples (append-only, tenant RLS, enum CHECKs) and store.PerfSamples on memory and Postgres, with 30-day retention.
+Tech-How: Batch insert, list, p50/p75/p95 summary and prune; sweepPerfSamples runs on the hub retention sweep with PerfSampleRetention = 30 days; cross-tenant and operator-scope guards register the table.
+Tech-Why: Spec 066 L1: real-user performance data needs a tenant-isolated store before the ingest endpoint and the WUI sampler can land.

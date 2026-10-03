@@ -234,6 +234,10 @@ jobs:
           print("default_locale=" + e.get("i18n", {}).get("default_locale", "en"))
           # SPL-959: tenant hosts <tenant>.<fqdn> (the apex is wui_default_tenant)
           print("tenant_hosts=" + ("1" if s19.get("wui_tenant_hosts") else "0"))
+          # spec 066: the real-user timing collector (cnf env.perf); off when absent
+          perf = e.get("perf", {})
+          print("perf_rum_enabled=" + ("1" if perf.get("rum_enabled") else "0"))
+          print("perf_sample_rate=" + str(perf.get("sample_rate", 1)))
           PY
           # CLE-35057: the hub bakes the repo .version into GET /version
           echo "want_version=$(tr -d '[:space:]' < .version)" >> "$GITHUB_OUTPUT"
@@ -280,6 +284,8 @@ jobs:
           NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
           NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
           NUXT_PUBLIC_TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
+          NUXT_PUBLIC_PERF_RUM: ${{ steps.cfg.outputs.perf_rum_enabled }}
+          NUXT_PUBLIC_PERF_SAMPLE_RATE: ${{ steps.cfg.outputs.perf_sample_rate }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
@@ -362,6 +368,8 @@ jobs:
           NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
           NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
           NUXT_PUBLIC_TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
+          NUXT_PUBLIC_PERF_RUM: ${{ steps.cfg.outputs.perf_rum_enabled }}
+          NUXT_PUBLIC_PERF_SAMPLE_RATE: ${{ steps.cfg.outputs.perf_sample_rate }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}

@@ -494,6 +494,11 @@ export default defineNuxtConfig({
       // "1" = on; off (lde, and until cnf turns it on) keeps specs/026 as is.
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || "",
       tenantHosts: process.env.NUXT_PUBLIC_TENANT_HOSTS || "0",
+      // spec 066: the real-user timing collector, cnf env.perf via wf30.
+      // "1" = on; off (lde, and until cnf turns it on) collects nothing.
+      // perfSampleRate is the share of sessions that collect (0..1).
+      perfRum: process.env.NUXT_PUBLIC_PERF_RUM || "0",
+      perfSampleRate: process.env.NUXT_PUBLIC_PERF_SAMPLE_RATE || "1",
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.
       lobbyTaskId: cnfLobbyTaskId(),

@@ -1,5 +1,8 @@
+import { nextTick } from 'vue'
 import { useTopicStore } from '~/stores/topic'
+import { useSidePane } from '~/composables/useSidePane'
 import { withSessionRetry } from './live-follow.mjs'
+import { scrollRowToTop } from './pane-scroll.mjs'
 import { cardScrollDelta, issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from './parent-section.mjs'
 
 /**
@@ -25,9 +28,15 @@ import { cardScrollDelta, issueKeyForTask, mayBeIssueTopic, parentSection, paren
  *    (`newestLast`, Settings -> Behaviour "Message order"). A topic's own
  *    opening card stops at the topic level: the channel or DM selected, the
  *    card selected (focused) at that edge, the topic NOT opened.
+ * 5. HUM-10 (topic c15b557e, 13:19Z): the card menu's jump (`showPlace`)
+ *    lands fully in its place - the first left panel switches from the list
+ *    it holds (the Flow) to Channels (or Direct messages), so the channel row
+ *    is the selected one, and a reply is selected (focused) in its thread
+ *    even when the address did not change. The Flow's own open
+ *    (open-message.mjs) keeps its list.
  *
  * @param {Record<string, any>} msg
- * @param {{ self: string, api: any, router: any, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean }} deps
+ * @param {{ self: string, api: any, router: any, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean, showPlace?: boolean }} deps
  * @returns {Promise<boolean>} false when the message names no parent
  */
 export async function openParentSection(msg, deps) {
@@ -50,6 +59,12 @@ export async function openParentSection(msg, deps) {
     await router.push({ path: localePath(to.path), query: to.query })
     return true
   }
+  const showPlace = Boolean(deps.showPlace)
+  if (showPlace) {
+    /* the sidebar drops the list it holds (the Flow) for the place's own */
+    useSidePane().reveal(to.kind === 'dm' ? 'dm' : 'channels')
+    await nextTick()
+  }
   const taskId = String(to.query.topic || '')
   if (!taskId) {
     /* a topic's opening card: no topic is opened, the card itself is selected */
@@ -64,7 +79,26 @@ export async function openParentSection(msg, deps) {
   await router.push({ path: localePath(to.path), query: to.query, hash: to.hash })
   if (!topic.open) topic.openTarget(target, topic.rootMsg)
   await revealCard(topic, target, { router, hash: to.hash, newestLast })
+  if (showPlace && to.hash) await selectReply(to.hash.slice(1))
   return true
+}
+
+/** The thread line `msgId` selected (focused) and at the top of its thread,
+    once the thread shows it. The thread does this itself for a new #hash;
+    the same hash again (the card was opened from there) needs it here. */
+async function selectReply(msgId, { tries = 50, every = 100 } = {}) {
+  const sel = `aside.live-pane article.msg[data-msg-id="${CSS.escape(msgId)}"]`
+  for (let i = 0; i < tries; i++) {
+    const row = document.querySelector(sel)
+    if (row) {
+      if (document.activeElement === row) return
+      const scroller = row.closest('.feed-body')
+      if (scroller) scrollRowToTop(scroller, row)
+      row.focus({ preventScroll: true })
+      return
+    }
+    await sleep(every)
+  }
 }
 
 /** The list's pages it may read back for the parent card. */

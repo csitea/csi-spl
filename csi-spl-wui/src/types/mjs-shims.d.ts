@@ -847,7 +847,7 @@ declare module '~/utils/parent-section.mjs' {
 
 declare module '~/utils/parent-section-open.mjs' {
   export const REVEAL_PAGES: number
-  export function openParentSection(msg: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean }): Promise<boolean>
+  export function openParentSection(msg: unknown, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, newestLast?: boolean, topicLevel?: boolean, showPlace?: boolean }): Promise<boolean>
 }
 
 declare module '~/utils/msg-edit.mjs' {

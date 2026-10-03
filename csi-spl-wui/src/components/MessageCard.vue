@@ -755,7 +755,7 @@ const { newestLast } = useViewPrefs()
 async function onMenuParent() {
   closeMenu()
   const m = await import('~/utils/parent-section-open.mjs')
-  await m.openParentSection(props.msg, { ...parentDeps, localePath, self: viewerId.value, newestLast: newestLast.value, topicLevel: true })
+  await m.openParentSection(props.msg, { ...parentDeps, localePath, self: viewerId.value, newestLast: newestLast.value, topicLevel: true, showPlace: true })
 }
 
 /* A topic card in the middle links to this page with its topic open on the

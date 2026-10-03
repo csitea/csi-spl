@@ -9,7 +9,8 @@
     "cancel": "Peruuta"
   },
   "mobile": {
-    "back": "Takaisin"
+    "back": "Takaisin",
+    "more": "Lisää"
   },
   "nav": {
     "topics": "Aiheet",

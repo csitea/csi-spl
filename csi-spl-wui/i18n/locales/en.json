@@ -9,7 +9,8 @@
     "cancel": "Cancel"
   },
   "mobile": {
-    "back": "Back"
+    "back": "Back",
+    "more": "More"
   },
   "nav": {
     "topics": "Topics",

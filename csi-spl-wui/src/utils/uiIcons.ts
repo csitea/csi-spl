@@ -338,6 +338,12 @@ export const UI_ICON_PATHS = {
   "chevron-down": ["m6 9 6 6 6-6"],
   // Back one level on the phone top bar (SPL-990); rtl mirrors it in CSS.
   "chevron-left": ["m15 18-6-6 6-6"],
+  // Phone topic header overflow (⋯): the card height and the status line.
+  more: [
+    { d: "M5 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 1 1 0-3z", fill: true },
+    { d: "M12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 1 1 0-3z", fill: true },
+    { d: "M19 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 1 1 0-3z", fill: true },
+  ],
   grip: [{ d: "M9 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M9 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 3.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 10.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }, { d: "M15 17.7a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 1 1 0-2.6z", fill: true }],
   // Boxes (CLE-77799): a rack server, two stacked units with a status LED
   // (lucide server). The rectangles are drawn as rounded-rect paths (no <rect>,

@@ -285,6 +285,7 @@ html.pane-dragging * {
    its hover. The id is not shown. The status gives way before the title. */
 .feed-header:has(.topic-page-heading) {
   flex-wrap: nowrap;
+  position: relative;
 }
 .feed-header h2.topic-page-heading {
   display: flex;
@@ -313,6 +314,32 @@ html.pane-dragging * {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+/* Phone topic header, desktop side: the tools wrapper leaves the flex
+   tree, so the card-height control stays the last item of the row. The
+   ⋯ button and the status copy inside the panel stay hidden. At
+   <= 820 px the media query below puts both into the menu and gives
+   the title the free width. */
+.topic-page-tools { display: contents; }
+.feed-header:has(.topic-page-heading) .topic-page-more { display: none; }
+.topic-page-tools__panel { display: contents; }
+.topic-page-tools__status { display: none; }
+.topic-page-title-full {
+  position: absolute;
+  z-index: var(--z-popover);
+  inset-inline: 8px;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 /* SPL-941: the middle pane's FeedHeader is one row at every width - the
    title ellipses (full text on hover) so the card height control keeps its
@@ -895,6 +922,61 @@ html.pane-dragging * {
   /* wraps rather than clips: a narrow phone or a wider font (CI's runner)
      must still show the whole "last seen ..." */
   .feed-header__who--status .feed-header__status { font-size: 0.75rem; white-space: normal; overflow-wrap: anywhere; }
+  /* t1 1d8e647d: at a phone width the title takes the free width of the
+     one row (>= 60% at 360 px). "Topics /" gives way to the back arrow.
+     The status line and the card-height control move into the ⋯ menu.
+     Above 820 px none of this applies. */
+  .feed-header:has(.topic-page-heading) > .topic-page-tools {
+    display: flex;
+    flex: 0 0 auto;
+    position: relative;
+    align-items: center;
+  }
+  .feed-header:has(.topic-page-heading) .topic-page-more {
+    display: inline-flex;
+    width: var(--tap);
+    height: var(--tap);
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+  .feed-header:has(.topic-page-heading) .topic-page-crumb,
+  .feed-header:has(.topic-page-heading) .topic-page-sep,
+  .feed-header:has(.topic-page-heading) > .topic-page-status { display: none; }
+  .feed-header:has(.topic-page-heading) > h2.topic-page-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .feed-header:has(.topic-page-heading) .topic-page-title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .feed-header:has(.topic-page-heading) .topic-page-tools__panel { display: none; }
+  .feed-header:has(.topic-page-heading) .topic-page-tools[data-open="1"] .topic-page-tools__panel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    position: absolute;
+    z-index: var(--z-popover);
+    top: calc(100% + 4px);
+    inset-inline-end: 0;
+    width: max-content;
+    max-width: 18rem;
+    padding: 8px;
+    background: var(--color-surface);
+    color: var(--color-fg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+  }
+  .feed-header:has(.topic-page-heading) .topic-page-tools[data-open="1"] .topic-page-tools__status {
+    display: block;
+    margin: 0;
+    max-width: 16rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .feed-header:has(.topic-page-heading) .topic-page-tools__panel .card-clip-ctl { margin-inline-start: 0; }
 }
 @keyframes mobile-panel-in {
   from { transform: translateX(24px); opacity: .6; }

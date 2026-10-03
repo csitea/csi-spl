@@ -63,9 +63,13 @@ do_spl_box_leave() {
 
   # 4. the lanes
   local -a lanes=() live=()
-  mapfile -t lanes < <(spl_box_lanes)
-  echo "4. lanes on $SPL_BOX_ME: ${#lanes[@]}${lanes[*]:+ (${lanes[*]})}"
+  local -a all=()
   local id
+  mapfile -t all < <(spl_box_lanes_all)
+  for id in "${all[@]}"; do
+    if [[ "$id" == "stale "* ]]; then echo "4. stale row, no note: ${id#stale }"; else lanes+=("$id"); fi
+  done
+  echo "4. lanes on $SPL_BOX_ME: ${#lanes[@]}${lanes[*]:+ (${lanes[*]})}"
   for id in "${lanes[@]}"; do
     if [[ -e "$SPL_BOX_STATE/noted.$id" ]]; then echo "   $id: drain note already sent"; continue; fi
     echo "   $id: ${w}send the drain note"
@@ -188,11 +192,16 @@ spl_box_ensure() {
 }
 
 # 3. Each role whose hub holder is this machine goes to the next box in its
-# (new) ranking, as "<the role's id>@<box>" (ids 001-003 exist on every box;
-# that box's own loop renews it with its live candidate on its next tick).
+# (new) ranking that is ALIVE, as "<the role's id>@<box>" (ids 001-003 exist on
+# every box). The hub keeps no heartbeat for a box that holds nothing, so the
+# proof is the hand-over itself: a box whose lease loop runs renews a role it
+# holds on its next tick (gen moves on, holder still @box), within
+# BOX_LEAVE_RENEW_WAIT s (default LEASE_PERIOD + 30). A box that does not
+# renew is skipped (PC dry run 2026-10-03: the next in rank was box-desk, dead
+# since 22:45Z) and the next one is tried; when none renews the role is written
+# back here, so the other loops take it after LEASE_STALE as they would anyway.
 spl_box_handover() (
-  # shellcheck disable=SC2034 # FA is set by spl_fleet_read with the others
-  local dry="$1" role id next out FH FG FA FW hm try
+  local dry="$1" role
   unset LEASE_PRIORITY LEASE_PRIORITY_ORCH LEASE_PRIORITY_DISPATCH
   if [[ -z "${LEASE_FLEET:-}" && -z "$(spl_box_conf_get LEASE_FLEET)" ]]; then
     echo "3. roles: no LEASE_FLEET - no fleet lease to hand over"; return 0
@@ -200,37 +209,76 @@ spl_box_handover() (
   LEASE_MACHINE="$SPL_BOX_ME"
   { spl_lease_ids master failover orch && spl_fleet_ids && spl_fleet_hub_init; } >/dev/null 2>&1 ||
     { echo "3. roles: WARN cannot reach the fleet lease (lease.conf or desk) - the roles go stale ${LEASE_STALE}s after the switch-off"; return 0; }
-  for role in orch dispatch; do
-    for try in 1 2 3; do
-      if ! out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" || ! spl_fleet_read "$out"; then
-        echo "3. roles: $role: WARN hub unreachable: $(tr '\n' ' ' <<<"$out" | cut -c1-160)"; break
-      fi
-      hm=""; [[ "$FH" == *@* ]] && hm="${FH##*@}"
-      if [[ "$hm" != "$SPL_BOX_ME" ]]; then
-        (( try == 1 )) && echo "3. roles: $role held by ${FH:-nobody} - nothing to hand" || echo "3. roles: $role -> $FH"
-        break
-      fi
-      next="$(spl_box_next "$role")"
-      [[ -n "$next" ]] || { echo "3. roles: $role: WARN no other box in the ranking - it stays here and goes stale ${LEASE_STALE}s after the switch-off"; break; }
-      [[ "$role" == orch ]] && id="$LEASE_ORCH" || id="$LEASE_MASTER"
-      if [[ "$dry" == 1 ]]; then echo "3. roles: $role: WOULD hand $FH -> $id@$next"; break; fi
-      if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$id@$next" --if-gen "$FG" 2>&1)" &&
-         spl_fleet_read "$out" && [[ "$FW" == true ]]; then
-        spl_lease_log "BOX-LEAVE $role: $SPL_BOX_ME hands $role to $id@$next (was $out)"
-        echo "3. roles: $role handed to $id@$next"
-        break
-      fi
-      (( try == 3 )) && echo "3. roles: $role: WARN 3 compare-and-sets lost - holder now ${FH:-unknown}"
-    done
-  done
+  for role in orch dispatch; do spl_box_hand_role "$role" "$dry"; done
 )
 
-# The first box of the role's ranking that is not this machine.
-spl_box_next() {
+# spl_box_read <role>: FH FG FA FW and hm (the holder's box) from the hub; 1 = unreachable.
+spl_box_read() {
+  local out
+  if ! out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$1" 2>&1)" || ! spl_fleet_read "$out"; then
+    echo "3. roles: $1: WARN hub unreachable: $(tr '\n' ' ' <<<"$out" | cut -c1-160)"; return 1
+  fi
+  hm=""; [[ "$FH" == *@* ]] && hm="${FH##*@}"
+  return 0
+}
+
+# spl_box_cas <role> <holder>: one compare-and-set on the gen last read; 0 = won.
+spl_box_cas() {
+  local out
+  out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$1" --holder "$2" --if-gen "$FG" 2>&1)" &&
+    spl_fleet_read "$out" && [[ "$FW" == true ]]
+}
+
+spl_box_hand_role() {
+  # shellcheck disable=SC2034 # FA is set by spl_fleet_read with the others
+  local role="$1" dry="$2" id next g end FH FG FA FW hm tried=""
+  spl_box_read "$role" || return 0
+  [[ "$hm" == "$SPL_BOX_ME" ]] || { echo "3. roles: $role held by ${FH:-nobody} - nothing to hand"; return 0; }
+  [[ "$role" == orch ]] && id="$LEASE_ORCH" || id="$LEASE_MASTER"
+  local -a nexts=()
+  mapfile -t nexts < <(spl_box_others "$role")
+  (( ${#nexts[@]} )) || { echo "3. roles: $role: WARN no other box in the ranking - it stays here and goes stale ${LEASE_STALE}s after the switch-off"; return 0; }
+  if [[ "$dry" == 1 ]]; then
+    echo "3. roles: $role: WOULD hand $FH -> $id@${nexts[0]}, kept only if ${nexts[0]}'s lease loop renews it within $(spl_box_renew_wait)s, else the next of: ${nexts[*]}"
+    return 0
+  fi
+  for next in "${nexts[@]}"; do
+    spl_box_read "$role" || return 0
+    # still here, or still on the box just skipped (written there by this run)
+    [[ "$hm" == "$SPL_BOX_ME" || ( -n "$tried" && "$hm" == "${tried##* }" ) ]] ||
+      { echo "3. roles: $role is now ${FH:-nobody} - left there"; return 0; }
+    spl_box_cas "$role" "$id@$next" || { spl_box_read "$role" && spl_box_cas "$role" "$id@$next"; } ||
+      { echo "3. roles: $role: WARN compare-and-set lost twice - holder now ${FH:-unknown}"; return 0; }
+    g="$FG"; end=$(( $(date +%s) + $(spl_box_renew_wait) ))
+    while :; do
+      spl_box_read "$role" >/dev/null || break
+      if [[ "$hm" == "$next" ]] && (( FG > g )); then
+        spl_lease_log "BOX-LEAVE $role: $SPL_BOX_ME handed $role to $next ($FH renewed it)${tried:+, skipped$tried}"
+        echo "3. roles: $role handed to $next: $FH renewed it${tried:+ (skipped, no renewal:$tried)}"
+        return 0
+      fi
+      [[ "$hm" == "$next" ]] || { echo "3. roles: $role: taken by ${FH:-nobody} meanwhile - left there"; return 0; }
+      (( $(date +%s) >= end )) && break
+      sleep "${BOX_LEAVE_RENEW_POLL:-5}"
+    done
+    echo "3. roles: $role: $next did not renew it within $(spl_box_renew_wait)s (no live lease loop there) - skipped"
+    tried+=" $next"
+  done
+  # nobody renewed: back here, so it is not parked on a dead box
+  spl_box_read "$role" && [[ "$hm" != "$SPL_BOX_ME" ]] && spl_box_cas "$role" "$id@$SPL_BOX_ME" >/dev/null
+  spl_lease_log "BOX-LEAVE $role: no box renewed it (tried$tried) - kept on $SPL_BOX_ME"
+  echo "3. roles: $role: WARN no other box renewed it (tried$tried) - kept on $SPL_BOX_ME; it goes stale ${LEASE_STALE}s after the switch-off"
+}
+
+spl_box_renew_wait() { echo "${BOX_LEAVE_RENEW_WAIT:-$(( LEASE_PERIOD + 30 ))}"; }
+
+# The other boxes of the role's ranking, in rank order.
+spl_box_others() {
   local k="LEASE_PRIORITY_${1^^}" m
   [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
   IFS=, read -ra _bn <<<"${!k}"
-  for m in "${_bn[@]}"; do [[ "$m" != "$SPL_BOX_ME" ]] && { echo "$m"; return; }; done
+  for m in "${_bn[@]}"; do [[ "$m" != "$SPL_BOX_ME" ]] && echo "$m"; done
+  return 0
 }
 
 # A role seat: 001-003 (every box), or an id lease.conf names (as lane-map.sh).
@@ -239,26 +287,60 @@ spl_box_role_seat() {
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$LEASE_CONF" 2>/dev/null
 }
 
-# The lane agents on this machine: live (a process carries its
-# SPOOL_AGENT_ID), spawned here (a registry.tsv row), not a role seat, not the
-# caller itself.
-spl_box_lanes() {
-  local reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv" id
+# The lane agents on this machine. An id is a lane only when ALL hold: a
+# process carries its SPOOL_AGENT_ID, it is not a role seat or the caller,
+# its LATEST registry.tsv row names a pane, that pane is alive on THIS box's
+# tmux server, and the pane's window carries the id. Anything else is a stale
+# row and gets no note: on the PC (2026-10-03) a gone pane, finished agents
+# and three panes of an older numbering (other sessions) all carried ids.
+# Prints "<id>" per lane and "stale <id> <why>" per dropped id.
+spl_box_lanes_all() {
+  local reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv" id pane win panes
   [[ -s "$reg" ]] || return 0
+  panes="$(spl_box_panes)"
   while read -r id; do
     grep -q "^$id"$'\t' "$reg" || continue
     spl_box_role_seat "$id" && continue
     [[ "$id" == "${SPOOL_AGENT_ID:-}" ]] && continue
+    pane="$(awk -F'\t' -v id="$id" '$1 == id {p = $3} END {print p}' "$reg")"
+    [[ "$pane" =~ ^%[0-9]+$ ]] || { echo "stale $id: its registry row names no pane"; continue; }
+    win="$(awk -v p="$pane" '$1 == p {sub(/^[^ ]+ /, ""); print; exit}' <<<"$panes")"
+    [[ -n "$win" ]] || { echo "stale $id: its pane $pane is gone from this box's tmux"; continue; }
+    spl_box_win_has "$win" "$id" || { echo "stale $id: pane $pane is window '$win', not this lane"; continue; }
     echo "$id"
   done < <(spl_lease_live_ids)
 }
 
-# Those of the given ids that still run.
+spl_box_lanes() { spl_box_lanes_all | grep -v '^stale '; }
+
+# 0 when a window name carries <id> (as spool_id_of_window reads it: an
+# optional "<tag>: " prefix, then the id, then "@<box>" or " <title>").
+spl_box_win_has() {
+  local n="$1"
+  case "$n" in *": "*) [[ "${n%%: *}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && n="${n#*: }" ;; esac
+  n="${n%% *}"; n="${n%%@*}"
+  [[ "$n" == "$2" ]]
+}
+
+# "<pane id> <window name>" for every pane of this box's tmux server.
+# BOX_LEAVE_PANES_CMD replaces it in the tests.
+spl_box_panes() {
+  if [[ -n "${BOX_LEAVE_PANES_CMD:-}" ]]; then $BOX_LEAVE_PANES_CMD; return 0; fi
+  (
+    # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" &&
+      SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1 && spool_tmux_argv &&
+      "${SPOOL_TM[@]}" list-panes -a -F '#{pane_id} #{window_name}' 2>/dev/null
+  )
+  return 0
+}
+
+# Those of the given lanes that still run: still a lane by every rule above.
 spl_box_still() {
   (( $# )) || return 0
-  local live id
-  live=" $(spl_lease_live_ids | tr '\n' ' ') "
-  for id in "$@"; do [[ "$live" == *" $id "* ]] && echo "$id"; done
+  local now id
+  now=" $(spl_box_lanes | tr '\n' ' ') "
+  for id in "$@"; do [[ "$now" == *" $id "* ]] && echo "$id"; done
   return 0
 }
 
@@ -282,16 +364,17 @@ spl_box_note() {
 }
 
 # spl_box_pushed <dir> <exited yes|no>: yes / no (<n> unpushed, <m> dirty) /
-# ? when there is nothing to read. A worktree gone after its agent exited was
-# removed by exit-clean, which removes it only once HEAD is on trunk.
+# n/a (no own worktree). A worktree gone after its agent exited was removed by
+# exit-clean, which removes it only once HEAD is on trunk. An agent with no
+# worktree of its own (an agy agent works in the main checkout) is n/a and is
+# never counted as unpushed.
 spl_box_pushed() {
   local d="$1" ahead dirty
-  [[ -n "$d" ]] || { echo "?"; return; }
-  if [[ ! -d "$d" ]]; then
-    [[ "$2" == yes ]] && echo "yes (worktree removed)" || echo "? (no worktree at $d)"
+  if [[ -z "$d" || ! -d "$d" ]]; then
+    [[ -n "$d" && "$2" == yes ]] && echo "yes (worktree removed)" || echo "n/a (no own worktree)"
     return
   fi
-  git -C "$d" rev-parse --git-dir >/dev/null 2>&1 || { echo "? (not a git tree)"; return; }
+  [[ "$(git -C "$d" rev-parse --git-dir 2>/dev/null)" == *"/worktrees/"* ]] || { echo "n/a (no own worktree)"; return; }
   ahead="$(git -C "$d" rev-list --count HEAD --not --remotes=origin 2>/dev/null)" || ahead="?"
   dirty="$(git -C "$d" status --porcelain 2>/dev/null | grep -c .)"
   [[ "$ahead" == 0 && "$dirty" == 0 ]] && { echo yes; return; }
@@ -300,7 +383,7 @@ spl_box_pushed() {
 
 spl_box_table() {
   local live id ex hold
-  live=" $(spl_lease_live_ids | tr '\n' ' ') "
+  live=" $(spl_box_lanes | tr '\n' ' ') "
   echo "5. agent | pushed | exited | hold note"
   for id in "$@"; do
     ex=yes; [[ "$live" == *" $id "* ]] && ex=no

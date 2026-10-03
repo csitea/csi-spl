@@ -1,0 +1,6 @@
+Lay-What: Removing agents from a channel no longer fails when two clean-ups run at the same moment.
+Lay-How: The removal now reports exactly what it removed itself, instead of counting first and refusing when the count changed.
+Lay-Why: Two clean-ups at once made correct removals report failure and roll back.
+Tech-What: do_spl_channel_agent_remove_op reads removed/absent from the UPDATE's RETURNING, not a pre-count.
+Tech-How: spl-channel-agent-remove-op.func.sh rewrites the SQL; proven on postgres:16 with a concurrent session holding the remove.
+Tech-Why: On prd 36 removes that landed read "unexpected number of rows; rolled back" (rc 1) while the desk tick removed the same rows.

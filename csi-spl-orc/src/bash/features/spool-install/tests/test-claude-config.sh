@@ -16,7 +16,12 @@
 #      the control (an asset changed by one word) FAILS it; with
 #      SPOOL_CLAUDE_MD_LIVE=<an agent's live CLAUDE.md> it runs against that
 #      file too (plus SPOOL_AGENT_USER / SPOOL_BOX_USER / SPOOL_BOX_TAG /
-#      SPOOL_TMUX_SOCKET of that box), else that half is SKIPPED
+#      SPOOL_TMUX_SOCKET of that box), else against claude-md-today.fixture.md
+#      (the assets rendered with the fixed values of TODAY_VALS below, plus
+#      one personal fragment): an asset changed without that fixture FAILS.
+#      Re-pin it after a deliberate asset change with
+#        python3 ../steps/y4-claude-config.py ../assets/claude <dir> 0 0 <TODAY_VALS>
+#      (<dir>/.claude/CLAUDE.md, then append the org/55-personal fragment)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -161,7 +166,22 @@ if [ -n "$LIVE" ] && [ -r "$LIVE" ]; then
   if compare "$LIVE" "$T/h7/.claude/CLAUDE.md" >"$T/out7l"; then
     pass "7: live $LIVE: fleet fragments identical;$(grep personal "$T/out7l" | sed 's/^ *personal/ personal/')"
   else fail "7: live $LIVE differs"; cat "$T/out7l"; fi
-else echo "SKIP: 7: no SPOOL_CLAUDE_MD_LIVE - the live comparison did not run"; fi
+else
+  # Hermetic stand-in for a live file: the pinned fixture, rendered by the
+  # renderer itself with fixed values (no passwd lookup, so CI renders the same).
+  TODAY="$TEST_DIR/claude-md-today.fixture.md"
+  TODAY_VALS=(AGENT_USER=agent-user AGENT_HOME=/srv/agent-user BOX_USER=box-user BOX_HOME=/srv/box-user
+    TMUX_SOCKET=/tmp/tmux-box/default BOX_TAG=box1 AGENT_CEILING=40)
+  mkdir -p "$T/h7f/.claude"
+  python3 "${STEP%.sh}.py" "$ASSETS" "$T/h7f" 0 0 "${TODAY_VALS[@]}" 2>/dev/null
+  if compare "$TODAY" "$T/h7f/.claude/CLAUDE.md" >"$T/out7f" && grep -q 'personal (live only): org/55-personal$' "$T/out7f"; then
+    pass "7: fixture $(basename "$TODAY"): fleet fragments identical, personal org/55-personal only"
+  else fail "7: fixture $(basename "$TODAY") differs from the assets"; cat "$T/out7f"; fi
+  sed '0,/standing order/s//STANDING ORDER/' "$TODAY" >"$T/today-ctl.md"
+  if compare "$T/today-ctl.md" "$T/h7f/.claude/CLAUDE.md" >"$T/out7fc"; then fail "7: the fixture control (one word changed) passed"
+  else grep -q 'differs: 20-spawn-an-agent' "$T/out7fc" && pass "7: the fixture control FAILS: $(grep differs "$T/out7fc" | sed 's/^ *//')" ||
+    fail "7: the fixture control failed for another reason"; fi
+fi
 
 echo "== $((n - fails))/$n passed"
 [ "$fails" = 0 ]

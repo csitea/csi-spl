@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+#------------------------------------------------------------------------------
+# Purpose: do_gh_runner_add (spec 064 L3) with stubbed sudo, gh, systemctl,
+#          id, dpkg, docker and hostname, and a real tarball whose config.sh /
+#          svc.sh only record what they were asked:
+#          - fail fast: no repo, no group, an unrestricted group, a group
+#            workflow not pinned to the default branch, two label sets
+#          - dry run (the default) changes nothing and names the plan
+#          - APPLY=1 registers N runners with the group's labels, as the
+#            dedicated user, with rootless docker + the cleanup hook in .env
+#          - APPLY=1 twice = one set of runners (nothing re-registered)
+#          - a runner user in the docker group is refused
+#          - a registration token never reaches the log
+#          - the cleanup hook prunes only its OWN runner's work dir
+#------------------------------------------------------------------------------
+set -uo pipefail
+TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
+FUNC="$PROJ_ROOT/src/bash/run/gh-runner-add.func.sh"
+fails=0
+ok() { echo "PASS: $1"; }
+no() { echo "FAIL: $1"; fails=$((fails + 1)); }
+bash -n "$FUNC" || { echo "FAIL: bash -n"; exit 1; }
+
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+mkdir -p "$T/bin" "$T/state" "$T/pkg"
+export STATE="$T/state" RUN_LOG="$T/run.log" MUT_LOG="$T/mut.log"
+
+# sudo: drop -u/-U, record root-side mutations, exec the rest as this user
+cat >"$T/bin/sudo" <<'EOF'
+#!/usr/bin/env bash
+u=root
+while [[ "${1:-}" == -* ]]; do
+  case "$1" in
+    -u) u="$2"; shift 2 ;;
+    -l) echo "User $3 is not allowed to run sudo on box."; exit 0 ;;
+    *) shift ;;
+  esac
+done
+case "$1" in
+  test) [[ "$2" == -S ]] && exit 0; exec "$@" ;;
+  useradd) echo "$u $*" >>"$MUT_LOG"; touch "$STATE/user"; exit 0 ;;
+  usermod|loginctl|chmod|curl|apt-get) echo "$u $*" >>"$MUT_LOG"; exit 0 ;;
+  install) echo "$u install ${*: -1}" >>"$MUT_LOG"; mkdir -p "${@: -1}"; exit 0 ;;
+  env) a=(); for x in "$@"; do [[ "$x" == PATH=* ]] || a+=("$x"); done
+       [[ "${a[*]}" == *apt-get* ]] && { echo "$u apt-get" >>"$MUT_LOG"; touch "$STATE/pkgs"; exit 0; }
+       exec "${a[@]}" ;;
+esac
+exec "$@"
+EOF
+cat >"$T/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  "api repos/o/app --jq .default_branch") echo master ;;
+  "api orgs/o/actions/runner-groups --paginate --jq"*) echo 3 ;;
+  "api orgs/o/actions/runner-groups/3 --jq"*) echo "${GROUP_SHAPE:-selected true 3 0}" ;;
+  "api orgs/o/actions/runner-groups/3/runners --paginate --jq"*custom*) printf '%s\n' ${LABEL_SETS:-spool-ci spool-ci spool-ci} ;;
+  "api orgs/o/actions/runner-groups/3/runners --paginate --jq"*online*) cat "$STATE/reg" 2>/dev/null ;;
+  "api orgs/o/actions/runner-groups/3/runners --paginate --jq"*) printf '%s\n' pc-01 pc-02; cat "$STATE/reg" 2>/dev/null ;;
+  "api -X POST orgs/o/actions/runners/registration-token --jq .token") echo TOKEN-REG-SENTINEL ;;
+  *) echo "gh stub: unexpected: $*" >&2; exit 1 ;;
+esac
+EOF
+cat >"$T/bin/id" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  -u) [[ -e "$STATE/user" ]] && echo 1500 || exit 1 ;;
+  -nG) echo "${ID_GROUPS:-ghrunner}" ;;
+esac
+EOF
+cat >"$T/bin/dpkg" <<'EOF'
+#!/usr/bin/env bash
+[[ -e "$STATE/pkgs" ]]
+EOF
+cat >"$T/bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+[[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
+exit 0
+EOF
+cat >"$T/bin/setuptool" <<'EOF'
+#!/usr/bin/env bash
+echo "setuptool $*" >>"$MUT_LOG"; touch "$STATE/rootless"
+EOF
+printf '#!/usr/bin/env bash\nexit 0\n' >"$T/bin/docker"
+printf '#!/usr/bin/env bash\necho box\n' >"$T/bin/hostname"
+# the fake runner package
+cat >"$T/pkg/config.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "$(basename "$PWD") config.sh $*" >>"$RUN_LOG"
+while (($#)); do [[ "$1" == --name ]] && { echo "$2" >>"$STATE/reg"; echo "{}" >.runner; }; shift; done
+EOF
+cat >"$T/pkg/svc.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "$(basename "$PWD") svc.sh $*" >>"$RUN_LOG"
+[[ "$1" == install ]] && echo unit >.service
+exit 0
+EOF
+chmod +x "$T/bin/"* "$T/pkg/"*
+tar -czf "$T/runner.tgz" -C "$T/pkg" config.sh svc.sh
+export PATH="$T/bin:$PATH"
+
+act() {
+  ( LOGF="$T/log"
+    do_log() { printf '%s\n' "$*" >>"$LOGF"; }
+    do_require_bin() { :; }
+    sleep() { :; }
+    export GH_RUNNER_SETUPTOOL="$T/bin/setuptool"
+    # shellcheck source=/dev/null
+    source "$FUNC"
+    GH_RUNNER_ROOT="$T/srv" GH_RUNNER_HOME="$T/home" GH_RUNNER_TARBALL="$T/runner.tgz" do_gh_runner_add ) >/dev/null 2>&1
+}
+
+GH_RUNNER_GROUP=g act && no "missing repo must fail" || ok "missing GH_RUNNER_REPO fails fast"
+GH_RUNNER_REPO=o/app act && no "missing group must fail" || ok "missing GH_RUNNER_GROUP fails fast"
+GROUP_SHAPE="all false 0 0" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "open group must fail" || ok "an unrestricted runner group is refused"
+GROUP_SHAPE="selected true 3 1" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "non-master workflow must fail" || ok "a group workflow not pinned to @refs/heads/master is refused"
+LABEL_SETS="spool-ci spool-ci,x" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "two label sets must fail" || ok "runners with differing label sets are refused"
+
+: >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g RUNNER_COUNT=2 act && ok "dry run exits 0" || no "dry run failed: $(tail -2 "$T/log")"
+[[ ! -s "$RUN_LOG" && ! -s "$MUT_LOG" && ! -e "$T/srv" ]] && ok "dry run changes nothing" || no "dry run changed: $(cat "$RUN_LOG" "$MUT_LOG")"
+grep -q 'box-spl-01: new.*labels spool-ci, group g' "$T/log" && grep -q '2 new runner(s): box-spl-01 box-spl-02' "$T/log" \
+  && ok "dry run names both runners, the copied label and the group" || no "dry plan: $(grep -E 'new|DRY' "$T/log")"
+
+: >"$T/log"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "apply exits 0" || no "apply failed: $(tail -3 "$T/log")"
+want="box-spl-01 config.sh --unattended --replace --url https://github.com/o --token TOKEN-REG-SENTINEL --name box-spl-01 --labels spool-ci --runnergroup g --work _work
+box-spl-02 config.sh --unattended --replace --url https://github.com/o --token TOKEN-REG-SENTINEL --name box-spl-02 --labels spool-ci --runnergroup g --work _work"
+[[ "$(grep config.sh "$RUN_LOG")" == "$want" ]] && ok "two runners registered on the org, in group g, with the copied label" || no "config: $(grep config.sh "$RUN_LOG")"
+[[ "$(grep -c 'svc.sh install ghrunner' "$RUN_LOG")" == 2 ]] && ok "both services installed as ghrunner" || no "svc: $(cat "$RUN_LOG")"
+grep -q '^root useradd --system .*ghrunner$' "$MUT_LOG" && grep -q '^setuptool install' "$MUT_LOG" && grep -q 'loginctl enable-linger ghrunner' "$MUT_LOG" \
+  && ok "dedicated user, linger and rootless docker set up" || no "box setup: $(cat "$MUT_LOG")"
+grep -qE 'usermod .*(-aG|-G) *docker' "$MUT_LOG" && no "ghrunner was put in the docker group" || ok "ghrunner is never added to the docker group"
+grep -qx 'DOCKER_HOST=unix:///run/user/1500/docker.sock' "$T/srv/box-spl-02/.env" && grep -qx "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=$T/srv/job-done.sh" "$T/srv/box-spl-02/.env" \
+  && [[ -s "$T/srv/job-done.sh" ]] && grep -q "chmod 0755 $T/srv/job-done.sh" "$MUT_LOG" && ok ".env points at the rootless docker and the cleanup hook" || no ".env: $(cat "$T/srv/box-spl-02/.env")"
+grep -q SENTINEL "$T/log" && no "a token reached the log" || ok "no token in the log"
+
+: >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "second apply exits 0" || no "second apply failed: $(tail -3 "$T/log")"
+[[ "$(sort "$STATE/reg" | uniq -c | awk '{print $1}' | sort -u)" == 1 && "$(wc -l <"$STATE/reg")" == 2 ]] \
+  && ! grep -q config.sh "$RUN_LOG" && ok "apply twice = one set of runners (nothing re-registered)" || no "re-registered: $(cat "$RUN_LOG")"
+[[ "$(grep -c -- '- kept' "$T/log")" == 2 ]] && ! grep -q 'useradd\|setuptool' "$MUT_LOG" && ok "existing runners, user and docker are kept" || no "kept: $(cat "$T/log" "$MUT_LOG")"
+[[ "$(grep -c 'svc.sh start' "$RUN_LOG")" == 2 && "$(grep -c 'svc.sh install' "$RUN_LOG")" == 0 ]] && ok "kept services are only started" || no "svc 2nd: $(cat "$RUN_LOG")"
+
+ID_GROUPS="ghrunner docker" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 act && no "docker-group user must fail" || ok "a runner user in the docker group is refused"
+
+# the cleanup hook: under the threshold it prunes its own work dir only
+for r in box-spl-01 box-spl-02; do mkdir -p "$T/srv/$r/_work/app/app" "$T/srv/$r/_work/_tool/go"; done
+GH_RUNNER_MIN_FREE_GB=999999999 RUNNER_WORKSPACE="$T/srv/box-spl-01/_work/app" bash "$T/srv/job-done.sh" >/dev/null 2>&1
+[[ ! -e "$T/srv/box-spl-01/_work/app" && -d "$T/srv/box-spl-01/_work/_tool/go" && -d "$T/srv/box-spl-02/_work/app/app" ]] \
+  && ok "cleanup prunes its own work dir, keeps _tool and the other runner's" || no "cleanup: $(find "$T/srv" -path '*_work*' -maxdepth 4)"
+mkdir -p "$T/srv/box-spl-01/_work/app"
+GH_RUNNER_MIN_FREE_GB=0 RUNNER_WORKSPACE="$T/srv/box-spl-01/_work/app" bash "$T/srv/job-done.sh" >/dev/null 2>&1
+[[ -d "$T/srv/box-spl-01/_work/app" ]] && ok "cleanup keeps the work dir while there is room" || no "pruned with room to spare"
+
+echo "=== gh-runner-add: $fails failure(s)"
+[[ "$fails" -eq 0 ]]

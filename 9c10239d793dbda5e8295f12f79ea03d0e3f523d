@@ -1,0 +1,6 @@
+Lay-What: Simplifies two small pieces of the search and work-flow screens; nothing on screen changes.
+Lay-How: A check that wrapped a whole block is turned into an early exit at the top.
+Lay-Why: Flatter code is easier to read and to change safely.
+Tech-What: WUI search.more() and flow.markOpened() use guard clauses instead of a whole-body if.
+Tech-How: stores/search.ts and stores/flow.ts return early; finally still resets loadingMore; unit 2688/2688 before and after.
+Tech-Why: Refactor round 1 #17: deep nesting around the last statement.

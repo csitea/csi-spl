@@ -1,0 +1,6 @@
+Lay-What: Fixes the step where the permanent coordinating assistants signed off their work, which failed every time.
+Lay-How: For these permanent roles that step now does nothing, and other assistants record their finish on exactly one machine.
+Lay-Why: The sign-off failed with a confusing error and left wrong records behind.
+Tech-What: lane-map.sh done is a no-op for role seats; do_spl_lane_put done reads only this box's row and refuses a multi-word box.
+Tech-How: lane-map.sh checks ids 001-003 and lease.conf roles; spl-lane-put.func.sh filters agent_id AND agent_box; lane-map.tst.sh sections 8-9.
+Tech-Why: A renamed box left two rows per role id, so lane_was returned two box names and the hub refused the --box value.

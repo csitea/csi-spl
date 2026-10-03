@@ -1,0 +1,2 @@
+Lay-What: Adds the owner's second requirement to the assistant restart plan: its measurements go in their own table and may cost at most 3 percent.
+Lay-Why: Measuring must not noticeably slow the assistants down, and the data should stay in one place.

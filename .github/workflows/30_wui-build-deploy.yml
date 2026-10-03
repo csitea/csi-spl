@@ -37,6 +37,7 @@ on:
       - 'csi-spl-cnf/csi-spl/*.env.json'   # site id, fqdn, project, tenant
       - 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh'
       - 'csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh'
+      - 'csi-spl-orc/src/bash/scripts/wui-deploy-newest.sh'
       - '.github/workflows/30_wui-build-deploy.yml'
   workflow_dispatch:
     inputs:

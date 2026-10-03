@@ -1,0 +1,6 @@
+Lay-What: The commands that list and close open questions to the coordinator work again once the question list grows large.
+Lay-How: The list is now handed to the processing tool in a way that has no size limit.
+Lay-Why: On one computer these commands stopped working with an "argument list too long" error once the list got big.
+Tech-What: orc do_spl_asks_open / do_spl_ask_close pass the hub's ask book to jq on stdin instead of --argjson.
+Tech-How: spl-asks-open.func.sh pipes the merged book into jq; asks.tst.sh case 11 lists a 3 MB book.
+Tech-Why: The book outgrew ARG_MAX, and --argjson put it on the command line.

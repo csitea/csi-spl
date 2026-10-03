@@ -1,0 +1,6 @@
+Lay-What: Only one computer at a time now runs the automatic responder, the one currently in charge of coordination.
+Lay-How: The computer in charge starts its responder; the others switch theirs off; if it is unclear who is in charge, nothing is changed.
+Lay-Why: Two computers running the responder kept pushing each other off the server, over and over.
+Tech-What: orc do_spl_responder_sweep: the dispatch-lease holder seats its RSP sidecar; a standby takes its own down with do_spl_desk_down.
+Tech-How: An unreachable or stale lease changes no sidecar (WARN); no lease = one-machine mode; the RSP box comes from SPOOL_RSP_BOX in box.env; responder-reboot-test.tst.sh 4-9.
+Tech-Why: The hub keeps one socket per (tenant, box), so two machines seating the responder evicted each other each reconcile tick (spec 064 L2).

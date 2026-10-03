@@ -357,8 +357,16 @@ func TestReescalateRotatesToTheWholeResponderList(t *testing.T) {
 	ws := dialMember(t, e, tid, "Owner", human)
 	m1, task := "4b0ba40a-1a2b-4c3d-8e4f-5a6b7c8d9e0f", "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d"
 	threadFrame(t, ws, m1, task, "mobile", 1, "it should be possible to upload an image")
-	// Post time: the first responder is poked (the immediate fallback).
-	eventually(t, "first responder poked", func() bool { return len(pokesA()) == 1 && len(pokesB()) == 0 })
+	// Post time: the first responder is poked (the immediate fallback). Wait
+	// for the hub's fallback ROW too, not only the poke: the hub writes the
+	// frame first and records the row after, so a clock jump + Relay in that
+	// gap finds no row, the unanswered sweep claims a fresh one stamped with
+	// the jumped clock, and the re-escalation (last attempt too recent) never
+	// reaches the second responder (workflow 11 run 37091072886).
+	eventually(t, "first responder poked and its fallback recorded", func() bool {
+		sum, err := e.st.(store.Fallbacks).ChannelFallbacks(ctx, tid, "mobile", time.Now().Add(-time.Hour))
+		return err == nil && sum.Count == 1 && len(pokesA()) == 1 && len(pokesB()) == 0
+	})
 	// A re-escalate interval later with no reply: the SECOND responder is poked.
 	clock.Store(int64(grace + reEvery + time.Second))
 	e.srv.Relay(ctx)

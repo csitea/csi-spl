@@ -1,0 +1,6 @@
+Lay-What: Pages with side panels open a little faster, because the app no longer measures the window twice while starting.
+Lay-How: The app uses the window width it already read at start and only updates it when the window is resized.
+Lay-Why: An extra measurement at start forced the browser to lay out the page again, which slowed the first view.
+Tech-What: WUI usePaneWidths: hydrate() no longer re-reads window.innerWidth in onMounted (re-land after a revert).
+Tech-How: viewportW is read in setup and later widths come from the resize listener; measured /issues forced layout 82.4 -> 0 ms, total layout median 303.8 -> 264.4 ms.
+Tech-Why: The onMounted read forced a synchronous layout; the earlier revert was a misread flake (avatars-visible green with and without the change).

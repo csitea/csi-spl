@@ -79,7 +79,7 @@
                   <UiIcon name="user" :size="20" />
                   <span class="users-row__main">
                     <span class="users-row__name">{{ i.email }}</span>
-                    <span class="users-row__sub muted" data-test="users-invite-sub">{{ i.expired ? t('users.expired') : t('users.pending') }} · {{ i.mailCount > 0 ? t('users.mailed_short') : t('users.not_mailed_short') }}<template v-if="i.createdAt"> · {{ isoDate(i.createdAt) }}</template></span>
+                    <span class="users-row__sub muted" data-test="users-invite-sub">{{ i.expired ? t('users.expired') : t('users.pending') }} · {{ i.mailedAt ? t('users.mailed_short_at', { at: isoDateTime(i.mailedAt) }) : i.mailCount > 0 ? t('users.mailed_short') : t('users.not_mailed_short') }}<template v-if="i.createdAt && !i.mailedAt"> · {{ isoDate(i.createdAt) }}</template></span>
                   </span>
                   <span class="users-role" data-test="users-row-role">{{ roleName(i.role) }}</span>
                 </button>
@@ -95,6 +95,7 @@
       :row="selected"
       :creating="creating"
       :roles="dir.roles"
+      :invites="dir.invites"
       @close="closePane"
       @changed="reload"
     />
@@ -108,7 +109,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useRoleName } from '~/composables/useRoleName'
-import { isoDate } from '~/utils/date-iso.mjs'
+import { isoDate, isoDateTime } from '~/utils/date-iso.mjs'
 import { USER_PANE_SIDE, memberLabel, normalizeDirectory, userErrorKey } from '~/utils/tenant-users.mjs'
 import type { UserRow } from '~/utils/tenant-users.mjs'
 

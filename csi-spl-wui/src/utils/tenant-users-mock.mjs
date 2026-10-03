@@ -13,6 +13,23 @@ function mockErr(status, token) {
   return e
 }
 
+/** The hub's invitemail.DefaultMinGap: least time between two mails of one invite. */
+export const MOCK_MAIL_GAP_MS = 10 * 60 * 1000
+
+/**
+ * The hub's rules for one POST /v1/members/invites (CLE-77780, FR-016): every
+ * POST (re)stores the invite and resets mail_count, keeping mailed_at; no_mail
+ * sends nothing; a mailing POST mails unless the last mail is under
+ * MOCK_MAIL_GAP_MS old ('rate_limited'). HUM-10 2026-10-03: the page hid that
+ * skip; the mock reproduces it so the e2e can drive it.
+ */
+function mockMailStep(prev, at, noMail) {
+  const last = prev?.mailed_at || null
+  if (noMail) return { mail: 'not_sent', mailCount: 0, mailedAt: last }
+  if (last && at.getTime() - new Date(last).getTime() < MOCK_MAIL_GAP_MS) return { mail: 'rate_limited', mailCount: 0, mailedAt: last }
+  return { mail: 'sent', mailCount: 1, mailedAt: at.toISOString() }
+}
+
 const MOCK_ROLES = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester', 'pure_agent', 'biz_customer', 'regular_user']
 
 /**
@@ -48,14 +65,10 @@ export function createMockDirectory(now = () => new Date()) {
       if (!MOCK_ROLES.includes(r)) throw mockErr(400, 'bad_role')
       if (r === 'biz_owner') throw mockErr(403, 'forbidden')
       const at = now()
-      // CLE-77780: no_mail stores the invite with mail_count 0 and sends nothing;
-      // a mailing (re)send simulates a working relay and bumps the count, so the
-      // 'mailed' state and the Send/Resend label can be exercised in the mock.
-      const prev = invites.find((i) => i.email === e)
-      const mailCount = noMail ? 0 : ((prev?.mail_count || 0) + 1)
+      const { mail, mailCount, mailedAt } = mockMailStep(invites.find((i) => i.email === e), at, noMail)
       invites = invites.filter((i) => i.email !== e)
-      invites.push({ email: e, role: r, invited_by: you, created_at: at.toISOString(), expires_at: new Date(at.getTime() + 7 * 864e5).toISOString(), mail_count: mailCount })
-      return { email: e, role: r, mail: noMail ? 'not_sent' : 'sent' }
+      invites.push({ email: e, role: r, invited_by: you, created_at: at.toISOString(), expires_at: new Date(at.getTime() + 7 * 864e5).toISOString(), mail_count: mailCount, mailed_at: mailedAt })
+      return { email: e, role: r, mail }
     },
     setRole(id, role) {
       const m = find(id)

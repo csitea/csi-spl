@@ -1388,7 +1388,7 @@ declare module '~/utils/access.mjs' {
 
 declare module '~/utils/tenant-users.mjs' {
   export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, suspended: boolean, lastSeen: string, you: boolean, manageable: boolean, orderedBy: string, orderedByName: string, orderedVia: string, invitedOn: string }
-  export type UserInvite = { kind: 'invite', key: string, email: string, role: string, invitedBy: string, createdAt: string, expiresAt: string, expired: boolean, mailCount: number, orderedBy: string, orderedByName: string, orderedVia: string, tenant: string }
+  export type UserInvite = { kind: 'invite', key: string, email: string, role: string, invitedBy: string, createdAt: string, expiresAt: string, expired: boolean, mailCount: number, mailedAt: string, orderedBy: string, orderedByName: string, orderedVia: string, tenant: string }
   export type UserRow = UserMember | UserInvite
   export const USERS_PERMISSION: string
   export const USER_PANE_SIDE: 'left' | 'right'
@@ -1398,6 +1398,9 @@ declare module '~/utils/tenant-users.mjs' {
   export function userErrorKey(err: unknown): string
   export function looksLikeEmail(s: unknown): boolean
   export function inviteLink(origin: unknown, tenant: unknown, email?: unknown): string
+  export function inviteMailed(row: UserInvite | null | undefined): boolean
+  export function openInviteFor(dir: { invites: UserInvite[] } | null | undefined, email: unknown): UserInvite | null
+  export function mailOutcomeKey(outcome: unknown): string
 }
 
 declare module '~/utils/tenant-users-mock.mjs' {

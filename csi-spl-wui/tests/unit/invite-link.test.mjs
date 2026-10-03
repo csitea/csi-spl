@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { inviteLink, normalizeDirectory } from '../../src/utils/tenant-users.mjs'
+import { inviteLink, mailOutcomeKey, normalizeDirectory } from '../../src/utils/tenant-users.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -46,9 +46,11 @@ describe('the pending-invite pane', () => {
   })
   it('only the hub answer "sent" reads as mailed ("logged" does not)', () => {
     // CLE-77780: the create no longer mails (no mail without a click), so only
-    // the explicit Send/Resend button (sendMail) reads the 'sent' outcome — one
-    // occurrence, not the previous two (create + resend).
-    assert.equal((pane.match(/res\?\.mail === 'sent' \? t\('users\.invited'/g) || []).length, 1)
+    // the explicit Send/Resend button (sendMail) reads the outcome — once.
+    // HUM-10: through mailOutcomeKey, where only 'sent' is the "sent" words.
+    assert.equal((pane.match(/t\(mailOutcomeKey\(res\?\.mail\)/g) || []).length, 1)
+    assert.equal(mailOutcomeKey('sent'), 'users.invited')
+    assert.notEqual(mailOutcomeKey('logged'), 'users.invited')
   })
   it('every locale words the button and the hint, with the {email} slot', () => {
     const dir = join(WUI, 'i18n/locales')

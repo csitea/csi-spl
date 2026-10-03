@@ -63,6 +63,9 @@ export function normalizeDirectory(body) {
     /* CLE-77781: how many invitation mails have gone out (0 = none sent yet,
        e.g. a NO_MAIL operator invite). The pane shows it as mailed/not mailed. */
     mailCount: typeof i.mail_count === 'number' && i.mail_count > 0 ? i.mail_count : 0,
+    /* HUM-10 2026-10-03: when the last invitation mail went out ('' = never).
+       A re-invite resets mail_count but not this, so "was it mailed" reads here. */
+    mailedAt: str(i.mailed_at),
     /* CLE-77778: who ordered this invite (a HUM-* id / display name) and via what */
     orderedBy: str(i.ordered_by),
     orderedByName: str(i.ordered_by_name),
@@ -107,4 +110,32 @@ export function inviteLink(origin, tenant, email = '') {
 /** A loose address check before the round trip; the hub has the last word. */
 export function looksLikeEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim())
+}
+
+/** Whether an invitation mail ever went out for this invite (HUM-10). */
+export function inviteMailed(row) {
+  return Boolean(row && (row.mailCount > 0 || row.mailedAt))
+}
+
+/**
+ * The open (unexpired) pending invite for `email` in a normalizeDirectory()
+ * result, or null. HUM-10: re-submitting the invite form for such an address
+ * used to re-create it silently (and reset its mail count); the page opens
+ * the existing invite instead.
+ */
+export function openInviteFor(dir, email) {
+  const e = String(email || '').trim().toLowerCase()
+  if (!e || !dir || !Array.isArray(dir.invites)) return null
+  return dir.invites.find((i) => i.email === e && !i.expired) || null
+}
+
+/**
+ * The i18n key for a POST /v1/members/invites `mail` outcome after the admin
+ * clicked Send / Resend: 'sent', 'rate_limited' (mailed too recently; the hub
+ * keeps the earlier mail), else the invite stands and no mail went out.
+ */
+export function mailOutcomeKey(outcome) {
+  if (outcome === 'sent') return 'users.invited'
+  if (outcome === 'rate_limited') return 'users.mail_rate_limited'
+  return 'users.mail_not_sent'
 }

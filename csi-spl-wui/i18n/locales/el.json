@@ -1101,7 +1101,13 @@
     "mailed_yes": "Sent ({n})",
     "mailed_no": "Not sent",
     "mailed_short": "sent",
-    "not_mailed_short": "not sent"
+    "not_mailed_short": "not sent",
+    "mailed_at": "Sent {at}",
+    "mailed_short_at": "sent {at}",
+    "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
+    "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
+    "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
   },
   "events": {
     "title": "Αρχείο συμβάντων",

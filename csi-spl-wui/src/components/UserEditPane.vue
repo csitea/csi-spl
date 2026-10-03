@@ -156,7 +156,8 @@
           <dt>{{ t('users.created') }}</dt>
           <dd data-test="users-pane-invite-created">{{ invite.createdAt ? when(invite.createdAt) : '—' }}</dd>
           <dt>{{ t('users.mailed') }}</dt>
-          <dd data-test="users-pane-invite-mailed">{{ invite.mailCount > 0 ? t('users.mailed_yes', { n: invite.mailCount }) : t('users.mailed_no') }}</dd>
+          <!-- HUM-10: whether and WHEN the mail went out; a re-invite resets the count, not mailed_at -->
+          <dd data-test="users-pane-invite-mailed">{{ invite.mailedAt ? t('users.mailed_at', { at: when(invite.mailedAt) }) : inviteMailed(invite) ? t('users.mailed_yes', { n: invite.mailCount }) : t('users.mailed_no') }}</dd>
         </dl>
         <!-- 047 W13: the way in when no mail arrived (a log-only relay, spam) -->
         <button
@@ -176,10 +177,10 @@
           type="button"
           class="btn"
           :disabled="busy"
-          :data-test="invite.mailCount > 0 ? 'users-pane-resend' : 'users-pane-send-mail'"
+          :data-test="inviteMailed(invite) ? 'users-pane-resend' : 'users-pane-send-mail'"
           @click="sendMail"
         >
-          {{ invite.mailCount > 0 ? t('users.resend') : t('users.send_invite_email') }}
+          {{ inviteMailed(invite) ? t('users.resend') : t('users.send_invite_email') }}
         </button>
         <button
           type="button"
@@ -227,7 +228,7 @@ import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { useRoleName } from '~/composables/useRoleName'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { inviteLink, memberLabel, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
+import { inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
 
 const props = defineProps<{
@@ -235,6 +236,8 @@ const props = defineProps<{
   row: UserRow | null
   creating: boolean
   roles: { id: string, grantable: boolean }[]
+  /** The list's invites: the form opens an address's open invite instead of re-creating it. */
+  invites?: UserInvite[]
 }>()
 const emit = defineEmits<{
   close: []
@@ -344,6 +347,18 @@ function sendInvite() {
     error.value = t('users.error.bad_email')
     return
   }
+  // HUM-10 2026-10-03: a second submit for an address with an open invite
+  // re-created it, which reset its "sent" state, and said nothing. Open that
+  // invite instead and say so; it carries Send/Resend and when it was mailed.
+  const open = openInviteFor({ invites: props.invites || [] }, addr)
+  if (open) {
+    carry = open.mailedAt
+      ? t('users.already_invited_mailed', { email: open.email, at: when(open.mailedAt) })
+      : t('users.already_invited', { email: open.email })
+    notice.value = carry
+    emit('changed', open.key)
+    return
+  }
   void run(async () => {
     // CLE-77780: creating an invite never mails it. The owner does not want mail
     // sent on his behalf without a click; the admin sends it from this pane.
@@ -409,7 +424,9 @@ function sendMail() {
   if (!i) return
   void run(async () => {
     const res = await api.inviteTenantUser({ email: i.email, role: i.role, locale: String(locale.value) })
-    carry = res?.mail === 'sent' ? t('users.invited', { email: i.email }) : t('users.invite_saved_no_mail', { email: i.email })
+    // HUM-10: say what happened - sent, skipped as too soon after the last
+    // mail (the hub keeps that one), or not sent - never a bare "saved".
+    carry = t(mailOutcomeKey(res?.mail), { email: i.email, at: i.mailedAt ? when(i.mailedAt) : '—' })
     notice.value = carry
     emit('changed', i.key)
   })

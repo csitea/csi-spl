@@ -163,6 +163,33 @@ try {
     /sent/i.test(sentNotice) && Boolean(await p.$('[data-test=users-pane-resend]')) && !(await p.$('[data-test=users-pane-send-mail]')),
     { sentNotice })
 
+  // 6c. HUM-10 2026-10-03: the prd sequence. After the mail went out the owner
+  // submitted the invite form again for the same address and pressed Resend
+  // twice; the page then said "not sent" with no word on what happened. Now
+  // the row says when it was mailed, a second submit opens the existing invite
+  // and says so, and a too-soon Resend says the earlier mail stands.
+  const sentSub = await text(p, `${row('i:e2e-invitee@example.com')} [data-test=users-invite-sub]`)
+  ok('10e the row says the invite was mailed, with the time', /sent \d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(sentSub), { sentSub })
+  await p.click('[data-test=users-invite-open]')
+  await p.waitForSelector('[data-test=users-invite-form]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=users-invite-email]', 'e2e-invitee@example.com')
+  await p.click('[data-test=users-invite-send]')
+  await p.waitForSelector('[data-test=users-pane][data-kind=invite]', { visible: true, timeout: 5000 }).catch(() => null)
+  const againNotice = await text(p, '[data-test=users-pane-notice]')
+  const againSub = await text(p, `${row('i:e2e-invitee@example.com')} [data-test=users-invite-sub]`)
+  ok('10f a second invite for the same address opens the pending one, says so, and keeps it mailed',
+    /already has a pending invite/i.test(againNotice) && /mailed \d{4}-/.test(againNotice) && /sent \d{4}-/.test(againSub) &&
+    (await text(p, '[data-test=users-pane-email]')) === 'e2e-invitee@example.com' && Boolean(await p.$('[data-test=users-pane-resend]')),
+    { againNotice, againSub })
+  await p.click('[data-test=users-pane-resend]')
+  await sleep(300)
+  const limitNotice = await text(p, '[data-test=users-pane-notice]')
+  ok('10g a Resend inside the gap says it was not sent again and when the earlier mail went',
+    /not sent again/i.test(limitNotice) && /\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(limitNotice) &&
+    /^Sent \d{4}-/.test(await text(p, '[data-test=users-pane-invite-mailed]')),
+    { limitNotice, mailed: await text(p, '[data-test=users-pane-invite-mailed]') })
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/users-hum10-resend.png` })
+
   // 7. revoke, confirmed
   await p.click(row('i:e2e-invitee@example.com'))
   await p.waitForSelector('[data-test=users-pane-revoke]', { visible: true, timeout: 5000 })

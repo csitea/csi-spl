@@ -1,0 +1,6 @@
+Lay-What: The tool that shows which helper owns which files now prints far less: just a yes or no answer, and only recent rows.
+Lay-How: The quick check prints "free" or the owner, and the full map hides rows older than two hours unless asked.
+Lay-Why: Helpers read this output often, and most of it was old or irrelevant.
+Tech-What: lane-map.sh --check prints only the verdict; the default map hides rows aged >= 2 h behind "N older rows hidden (--all)".
+Tech-How: spl-lane-map.func.sh moves ./run framework lines off stdout (--quiet); --all unchanged; lane-map.tst.sh updated.
+Tech-Why: Token practice 01: --check printed 22,496 B, now 5 B; map 22,359 -> 6,869 B.

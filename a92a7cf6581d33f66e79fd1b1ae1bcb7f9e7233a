@@ -1,0 +1,6 @@
+Lay-What: On a phone, a message card's menu now opens in full, and "Archive" sits higher where the thumb reaches it.
+Lay-How: The menu may now use the whole screen height and its rows are a bit tighter on short screens; Archive moved up to just after Edit.
+Lay-Why: The owner had to slide the menu up to reach its last items, and Archive was near the bottom.
+Tech-What: WUI MessageMenu sheet may use the full visual viewport above --kb-inset; rows 40 px under 700 px height; phone order puts Archive after Edit.
+Tech-How: MessageMenu.vue sheet max height change; msg-menu.mjs reorders the phone entries (Delete stays last, desktop unchanged); e2e phone-card-menu at 390x844 and 390x664.
+Tech-Why: The sheet capped at 70dvh while a topic card has 10-11 rows, so the last ones sat below the fold.

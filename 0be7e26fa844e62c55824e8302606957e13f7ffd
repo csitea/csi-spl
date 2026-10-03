@@ -1,0 +1,6 @@
+Lay-What: Tidies two setup scripts so a blank setting can no longer make them fail with a confusing error; nothing a user sees changes.
+Lay-How: The scripts now compare values in a safer way, and a new check proves they report success and failure correctly.
+Lay-Why: A small slip in a setting could have stopped a setup step with an error that pointed nowhere useful.
+Tech-What: do_tf_init and do_tf_import use [[ ]] instead of [ ]; new tf-import-result-log.tst.sh.
+Tech-How: tf-init.func.sh and tf-import.func.sh switch test syntax, keeping the if/then shape; the test stubs terraform and asserts the OK line on rc=0 and FATAL otherwise.
+Tech-Why: [ ] word-splits, so an empty or unquoted variable turned the test into a syntax error (refactor round 1, practice 24).

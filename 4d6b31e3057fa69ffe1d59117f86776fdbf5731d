@@ -1,0 +1,6 @@
+Lay-What: Promoting a reply to its own topic is a little faster.
+Lay-How: The server reads a channel's member list once instead of twice when the message stays in that channel.
+Lay-Why: Reading the same list twice cost an extra trip to the database.
+Tech-What: fanoutMove reads a channel's members once when the row keeps its channel (promote, a reply moved within its channel).
+Tech-How: message_move.go reuses the first read; privacy_memo_test.go counts reads per route.
+Tech-Why: Perf round 4 G1: promote channel_humans reads 3 -> 2, Postgres round trips 34 -> 33 (n=5).

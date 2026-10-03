@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Fixes the agents' internal role rotation so one failed rotation no longer delays the next; nothing changes for users.

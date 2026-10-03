@@ -1,0 +1,2 @@
+Lay-What: Records the live proof that starting a helper on the other machine works, and that a wrong sender is refused.
+Lay-Why: The guide should show that the new feature has really been tried, including the refusal case.

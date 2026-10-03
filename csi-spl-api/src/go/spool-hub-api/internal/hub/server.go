@@ -317,6 +317,7 @@ func (s *Server) Handler() http.Handler {
 	s.routeIssues(mux)         // specs/039
 	s.routePerfIngest(mux)     // spec 066 L2: POST /v1/perf/samples, fire-and-forget
 	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
+	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)

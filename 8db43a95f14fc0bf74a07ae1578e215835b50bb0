@@ -1,0 +1,6 @@
+Lay-What: On a phone, you can drag the message box to the top, the bottom-right corner or back to the bottom.
+Lay-How: Drag the small grip on the box's free edge and let go; it snaps into place, or tap the grip and pick a place from its menu; your choice is remembered.
+Lay-Why: The owner asked for it: a fixed message box at the bottom does not suit every hand or screen.
+Tech-What: OmniboxGrip on the phone dock with drag-to-snap (top, corner, bottom), a Move to menu, and the place kept in spool.omnibox-phone-pos.
+Tech-How: OmniboxGrip.vue takes the touch alone (touch-action none); snapPhonePosition in omnibox-dock.mjs picks the place; MessageComposer.vue and main.css lay out panes under a top dock; strings in all locales.
+Tech-Why: Owner request (task 516afd37); desktop unchanged.

@@ -1,0 +1,6 @@
+Lay-What: Merging topics is faster.
+Lay-How: The server sends all the steps of a merge to the database together instead of one at a time.
+Lay-Why: Each step waited for a separate database reply, which made merging slower than needed.
+Tech-What: MergeTopic queues its five writes and the read-back as one pgx.Batch.
+Tech-How: topic_merge_postgres.go batches in queue order so the first failing statement's error is still returned; TestWriteBatchRoundTrips pins the budget.
+Tech-Why: Perf round 4 G3: MergeTopic 12 -> 7 round trips (n=5).

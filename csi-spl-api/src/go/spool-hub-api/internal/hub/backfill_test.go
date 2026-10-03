@@ -21,6 +21,7 @@ import (
 // backfillEnv is dispatchEnv (browser posts signed by box-wui) with the
 // SPL-987 back-fill on.
 func backfillEnv(t *testing.T, key ed25519.PrivateKey, max int) *env {
+	t.Helper()
 	return newEnv(t, func(o *hub.Options) {
 		o.ViewDoor = hub.ViewDoorOff
 		o.LobbyTaskID = lobby
@@ -62,6 +63,7 @@ func pokeLog(t *testing.T, b *box) func() []string {
 }
 
 func inboxIDs(t *testing.T, b *box, as string) []string {
+	t.Helper()
 	var ids []string
 	for _, m := range inbox(t, b, as) {
 		ids = append(ids, m.MsgID)

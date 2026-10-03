@@ -31,6 +31,7 @@ func sqlDir(t testing.TB) string {
 // drivers returns every Store the contract suite runs against: Memory always,
 // Postgres when $SPOOL_TEST_PG_DSN names a database (hub-pg.tst.sh sets it).
 func drivers(t *testing.T) map[string]Store {
+	t.Helper()
 	out := map[string]Store{"memory": NewMemory()}
 	dsn := os.Getenv("SPOOL_TEST_PG_DSN")
 	if dsn == "" {
@@ -70,6 +71,7 @@ func pubkey() ed25519.PublicKey {
 }
 
 func newTenant(t *testing.T, s Store) string {
+	t.Helper()
 	id := uid("t-")
 	if err := s.CreateTenant(context.Background(), Tenant{ID: id, RootPubKey: pubkey()}); err != nil {
 		t.Fatal(err)

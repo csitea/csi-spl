@@ -65,6 +65,7 @@ func idSet(t *testing.T, e *env, tid, path, as, key, field string) map[string]bo
 }
 
 func listedChannels(t *testing.T, e *env, tid, as string) map[string]bool {
+	t.Helper()
 	return idSet(t, e, tid, "/v1/view/channels", as, "channels", "channel")
 }
 
@@ -93,6 +94,7 @@ func viewInvite(t *testing.T, e *env, tid, as, channel string) (bool, bool) {
 }
 
 func listedTopics(t *testing.T, e *env, tid, as string) map[string]bool {
+	t.Helper()
 	return idSet(t, e, tid, "/v1/view/topics?roots=false", as, "topics", "task_id")
 }
 

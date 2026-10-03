@@ -369,6 +369,11 @@ onBeforeUnmount(() => {
 }
 .omni-size svg { filter: drop-shadow(0 0 1px var(--color-sidebar)); }
 .omni-size[data-pos=top] { top: auto; bottom: -16px; }
+/* owner, t1 03128097 (2026-10-03): "The two small arrows to resize this (the
+   size of the Omni boxes' bottom bar) ... should be put on the left side on
+   mobile": at the bottom the handle is the free edge's LEFT end. The top
+   and the corner keep theirs; the grip is phone-only, so a desktop has none. */
+.omni-size[data-pos=bottom] { right: auto; left: 8px; }
 .omni-size[data-pos=right] {
   top: 50%;
   right: auto;

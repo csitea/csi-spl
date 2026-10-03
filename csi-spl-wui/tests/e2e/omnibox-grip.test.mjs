@@ -21,7 +21,8 @@
 //       ArrowDown + Enter picks the next one
 //   desktop (1440x900): 9 CONTROL: no grip, the box where it always was
 //   owner, t1 21:53Z "it should be possible to resize it" (phone again):
-//     10 the size handle (a 44x24 target at the free edge's right end):
+//     10 the size handle (a 44x24 target at the free edge's LEFT end, owner
+//        t1 03128097: "should be put on the left side on mobile"):
 //        a touch drag UP at the bottom makes the field taller, the feed's
 //        padding follows
 //     11 LIMIT: dragging far past the top stops at half the room under the
@@ -289,8 +290,8 @@ async function sizes(p) {
   /* 10: bottom, drag the size handle up 250 px */
   const h0 = f9.field
   const f10 = await dragGrip(p, f9.size.cx, f9.size.cy - 250, 'size')
-  ok('390px 10 the size handle (44x24, labelled, right end of the top edge): a drag up makes the field taller, the panes\' bottom padding follows',
-    Boolean(f9.size && f9.size.w >= 44 && f9.size.h >= 24 && f9.size.label && Math.abs(f9.size.cy - f9.box.top) <= 4 && f9.size.cx > f9.vw * 0.75
+  ok('390px 10 the size handle (44x24, labelled, left end of the top edge): a drag up makes the field taller, the panes\' bottom padding follows',
+    Boolean(f9.size && f9.size.w >= 44 && f9.size.h >= 24 && f9.size.label && Math.abs(f9.size.cy - f9.box.top) <= 4 && f9.size.cx < f9.vw * 0.25 && f9.size.cx - f9.box.left <= 40
       && f10.pos === 'bottom' && f10.field >= h0 + 200 && f10.stored_size && f10.stored_size.bottom > 0
       && f10.dockPad >= f10.box.h - 2), { f9: f9.size, h0, f10 })
   /* 11: the limit */

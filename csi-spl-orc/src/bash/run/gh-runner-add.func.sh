@@ -16,6 +16,8 @@
 # @description The group must be restricted to selected workflows, each pinned
 # @description to @refs/heads/<default branch> (spec 044 FR-OS-005: no PR job
 # @description reaches a self-hosted runner) - otherwise it refuses.
+# @description Warm: the images 10_ci-quality.yml pins (its img= lines) are
+# @description pulled into the runner user's docker, so no gate SKIPs cold.
 # @description Idempotent: a runner already configured here is kept (its env
 # @description refreshed, its service started); APPLY twice = one set.
 # @description Dry run unless APPLY=1. Needs sudo and gh with admin:org.
@@ -27,6 +29,7 @@
 # @param GH_RUNNER_HOME (optional) - the user's home, default /var/lib/<user>
 # @param GH_RUNNER_MIN_FREE_GB (optional) - prune below this, default 8
 # @param GH_RUNNER_TARBALL (optional) - a local actions-runner-linux-x64 tarball
+# @param GH_RUNNER_WORKFLOW (optional) - the workflow whose img= pins are warmed
 # @param APPLY (optional) - 1 to do it; anything else prints the plan only
 # @example GH_RUNNER_REPO=<owner>/<repo> GH_RUNNER_GROUP=<group> ./run -a do_gh_runner_add
 # @example GH_RUNNER_REPO=<owner>/<repo> GH_RUNNER_GROUP=<group> APPLY=1 RUNNER_COUNT=2 ./run -a do_gh_runner_add
@@ -79,153 +82,193 @@ exit 0
 HOOK
 }
 
-do_gh_runner_add() {
-  do_require_bin gh systemctl sudo curl tar sha256sum || return 1
-  local repo="${GH_RUNNER_REPO:-}" group="${GH_RUNNER_GROUP:-}" n="${RUNNER_COUNT:-2}"
-  local user="${GH_RUNNER_USER:-ghrunner}" root="${GH_RUNNER_ROOT:-/srv/gh-runner}"
-  local min_free="${GH_RUNNER_MIN_FREE_GB:-8}" apply=0
-  GH_RUNNER_HOME="${GH_RUNNER_HOME:-/var/lib/$user}"
-  [[ "${APPLY:-0}" == 1 ]] && apply=1
-  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
-    || { do_log "FATAL GH_RUNNER_REPO must be <owner>/<repo> (no default)"; return 1; }
-  [[ -n "$group" ]] || { do_log "FATAL GH_RUNNER_GROUP must be set (no default): the org runner group"; return 1; }
-  [[ "$n" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL RUNNER_COUNT must be 1..99, got: $n"; return 1; }
-  [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ && "$user" != root ]] || { do_log "FATAL bad GH_RUNNER_USER: $user"; return 1; }
-  [[ "$min_free" =~ ^[0-9]+$ ]] || { do_log "FATAL GH_RUNNER_MIN_FREE_GB must be a number"; return 1; }
-  local org="${repo%%/*}" branch gid g labels names
+# The steps below share the GHR_* variables do_gh_runner_add sets.
 
-  # 1. the group: restricted to selected workflows of the default branch only
-  branch="$(gh api "repos/$repo" --jq .default_branch)" && [[ -n "$branch" ]] \
-    || { do_log "FATAL cannot read $repo"; return 1; }
-  gid="$(gh api "orgs/$org/actions/runner-groups" --paginate --jq ".runner_groups[]|select(.name==\"$group\")|.id")"
-  [[ -n "$gid" ]] || { do_log "FATAL no runner group '$group' in org $org"; return 1; }
-  g="$(gh api "orgs/$org/actions/runner-groups/$gid" \
+# ghr_check_group - the group is restricted to selected workflows of the
+# default branch only (FR-OS-005); sets GHR_GID, GHR_LABELS (copied from the
+# runners already in it, which must agree) and GHR_NAMES
+ghr_check_group() {
+  local branch g
+  branch="$(gh api "repos/$GHR_REPO" --jq .default_branch)" && [[ -n "$branch" ]] \
+    || { do_log "FATAL cannot read $GHR_REPO"; return 1; }
+  GHR_GID="$(gh api "orgs/$GHR_ORG/actions/runner-groups" --paginate --jq ".runner_groups[]|select(.name==\"$GHR_GROUP\")|.id")"
+  [[ -n "$GHR_GID" ]] || { do_log "FATAL no runner group '$GHR_GROUP' in org $GHR_ORG"; return 1; }
+  g="$(gh api "orgs/$GHR_ORG/actions/runner-groups/$GHR_GID" \
         --jq '"\(.visibility) \(.restricted_to_workflows) \(.selected_workflows|length) \([.selected_workflows[]|select(endswith("@refs/heads/'"$branch"'")|not)]|length)"')"
   [[ "$g" =~ ^selected\ true\ [1-9][0-9]*\ 0$ ]] \
-    || { do_log "FATAL runner group $group must be visibility=selected, restricted to selected workflows, every one @refs/heads/$branch (got: $g)"; return 1; }
-  do_log "OK runner group $group (id $gid): selected repos, workflows pinned to @refs/heads/$branch only"
-
-  # 2. labels: copied from the runners already in the group, which must agree
-  labels="$(gh api "orgs/$org/actions/runner-groups/$gid/runners" --paginate \
+    || { do_log "FATAL runner group $GHR_GROUP must be visibility=selected, restricted to selected workflows, every one @refs/heads/$branch (got: $g)"; return 1; }
+  do_log "OK runner group $GHR_GROUP (id $GHR_GID): selected repos, workflows pinned to @refs/heads/$branch only"
+  GHR_LABELS="$(gh api "orgs/$GHR_ORG/actions/runner-groups/$GHR_GID/runners" --paginate \
              --jq '.runners[]|[.labels[]|select(.type=="custom")|.name]|sort|join(",")' | sort -u)"
-  [[ -n "$labels" && "$labels" != *$'\n'* ]] \
-    || { do_log "FATAL the runners of $group must carry ONE custom label set, got: ${labels:-none}"; return 1; }
-  names="$(gh api "orgs/$org/actions/runner-groups/$gid/runners" --paginate --jq '.runners[].name')"
-  do_log "OK labels to copy (custom, from the runners already in $group): $labels"
+  [[ -n "$GHR_LABELS" && "$GHR_LABELS" != *$'\n'* ]] \
+    || { do_log "FATAL the runners of $GHR_GROUP must carry ONE custom label set, got: ${GHR_LABELS:-none}"; return 1; }
+  GHR_NAMES="$(gh api "orgs/$GHR_ORG/actions/runner-groups/$GHR_GID/runners" --paginate --jq '.runners[].name')"
+  do_log "OK labels to copy (custom, from the runners already in $GHR_GROUP): $GHR_LABELS"
+}
 
-  # 3. the plan, per runner: kept (configured here) or new
-  local i name dir todo=()
-  for ((i = 1; i <= n; i++)); do
-    name="$(ghr_name "$i")"; dir="$root/$name"
+# ghr_plan - per runner: kept (configured here) or new (into GHR_TODO)
+ghr_plan() {
+  local i name dir
+  GHR_TODO=()
+  for ((i = 1; i <= GHR_N; i++)); do
+    name="$(ghr_name "$i")"; dir="$GHR_ROOT/$name"
     if sudo test -s "$dir/.runner"; then
       do_log "INFO $name: configured in $dir - kept"
     else
-      grep -qx "$name" <<<"$names" && do_log "WARN $name is registered on GitHub but not configured here - it will be replaced"
-      do_log "INFO $name: new, in $dir, user $user, labels $labels, group $group"
-      todo+=("$name")
+      grep -qx "$name" <<<"$GHR_NAMES" && do_log "WARN $name is registered on GitHub but not configured here - it will be replaced"
+      do_log "INFO $name: new, in $dir, user $GHR_USER, labels $GHR_LABELS, group $GHR_GROUP"
+      GHR_TODO+=("$name")
     fi
   done
-  if ((!apply)); then
-    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $user (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker); job-completed cleanup under ${min_free}G free; ${#todo[@]} new runner(s): ${todo[*]:-none}"
-    do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
-    return 0
-  fi
+}
 
-  # 4. the box: packages, user, rootless docker
-  local p missing=()
+# ghr_setup_user - packages, the dedicated user (never root-equivalent),
+# linger, its rootless docker; sets GHR_UID
+ghr_setup_user() {
+  local p missing=() u="$GHR_USER" t=0
   for p in $GH_RUNNER_PKGS; do dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p"); done
   if ((${#missing[@]})); then
     sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${missing[@]}" >/dev/null \
       || { do_log "FATAL apt-get install ${missing[*]} failed"; return 1; }
     do_log "OK installed ${missing[*]}"
   fi
-  if ! id -u "$user" >/dev/null 2>&1; then
-    sudo useradd --system --create-home --home-dir "$GH_RUNNER_HOME" --shell /bin/bash --add-subids-for-system "$user" \
-      || { do_log "FATAL useradd $user failed"; return 1; }
-    do_log "OK created user $user"
+  if ! id -u "$u" >/dev/null 2>&1; then
+    sudo useradd --system --create-home --home-dir "$GH_RUNNER_HOME" --shell /bin/bash --add-subids-for-system "$u" \
+      || { do_log "FATAL useradd $u failed"; return 1; }
+    do_log "OK created user $u"
   fi
   sudo chmod 0700 "$GH_RUNNER_HOME" || return 1
-  id -nG "$user" | tr ' ' '\n' | grep -qxE 'docker|sudo|adm|root|wheel' \
-    && { do_log "FATAL $user is in a privileged group ($(id -nG "$user")) - a runner must not be root-equivalent"; return 1; }
-  sudo -l -U "$user" 2>/dev/null | grep -q 'may run' \
-    && { do_log "FATAL $user has sudo rights - remove them"; return 1; }
-  grep -q "^$user:" /etc/subuid && grep -q "^$user:" /etc/subgid \
-    || sudo usermod --add-subuids 1000000-1065535 --add-subgids 1000000-1065535 "$user" \
-    || { do_log "FATAL cannot give $user a subuid range"; return 1; }
-  sudo loginctl enable-linger "$user" || { do_log "FATAL loginctl enable-linger $user failed"; return 1; }
-  local uid t=0; uid="$(id -u "$user")"
-  until sudo test -S "/run/user/$uid/bus" || ((t++ >= 20)); do sleep 1; done
-  if ! ghr_as "$user" systemctl --user is-active --quiet docker; then
+  id -nG "$u" | tr ' ' '\n' | grep -qxE 'docker|sudo|adm|root|wheel' \
+    && { do_log "FATAL $u is in a privileged group ($(id -nG "$u")) - a runner must not be root-equivalent"; return 1; }
+  sudo -l -U "$u" 2>/dev/null | grep -q 'may run' && { do_log "FATAL $u has sudo rights - remove them"; return 1; }
+  grep -q "^$u:" /etc/subuid && grep -q "^$u:" /etc/subgid \
+    || sudo usermod --add-subuids 1000000-1065535 --add-subgids 1000000-1065535 "$u" \
+    || { do_log "FATAL cannot give $u a subuid range"; return 1; }
+  sudo loginctl enable-linger "$u" || { do_log "FATAL loginctl enable-linger $u failed"; return 1; }
+  GHR_UID="$(id -u "$u")"
+  until sudo test -S "/run/user/$GHR_UID/bus" || ((t++ >= 20)); do sleep 1; done
+  if ! ghr_as "$u" systemctl --user is-active --quiet docker; then
     # its exit code is not the verdict: debian's copy ends with
     # `$BIN/docker version`, $BIN being contrib/, where no docker is - so it
     # fails AFTER writing and starting the unit. The unit being active is.
-    ghr_as "$user" "$GH_RUNNER_SETUPTOOL" install >/dev/null 2>&1
-    ghr_as "$user" systemctl --user enable --now docker >/dev/null 2>&1
-    ghr_as "$user" systemctl --user is-active --quiet docker \
-      || { do_log "FATAL rootless docker setup failed for $user: sudo -u $user XDG_RUNTIME_DIR=/run/user/$uid $GH_RUNNER_SETUPTOOL install"; return 1; }
-    do_log "OK rootless docker running for $user"
+    ghr_as "$u" "$GH_RUNNER_SETUPTOOL" install >/dev/null 2>&1
+    ghr_as "$u" systemctl --user enable --now docker >/dev/null 2>&1
+    ghr_as "$u" systemctl --user is-active --quiet docker \
+      || { do_log "FATAL rootless docker setup failed for $u: sudo -u $u XDG_RUNTIME_DIR=/run/user/$GHR_UID $GH_RUNNER_SETUPTOOL install"; return 1; }
+    do_log "OK rootless docker running for $u"
   fi
-  ghr_as "$user" env DOCKER_HOST="unix:///run/user/$uid/docker.sock" docker info >/dev/null 2>&1 \
-    || { do_log "FATAL $user's rootless docker does not answer"; return 1; }
+  ghr_docker docker info >/dev/null 2>&1 || { do_log "FATAL $u's rootless docker does not answer"; return 1; }
+}
 
-  # 5. the runner tarball (once, sha256-verified) and the cleanup hook
-  sudo install -d -m 0755 -o root -g root "$root" || return 1
-  local tarball="${GH_RUNNER_TARBALL:-}"
-  if ((${#todo[@]})) && [[ -z "$tarball" ]]; then
-    local rel ver sha url
-    rel="$(gh api repos/actions/runner/releases/latest --jq '"\(.tag_name) \(.body|capture("BEGIN SHA linux-x64 -->(?<s>[0-9a-f]{64})<").s)"')" \
-      || { do_log "FATAL cannot read the actions/runner release"; return 1; }
-    ver="${rel%% *}"; ver="${ver#v}"; sha="${rel#* }"
-    tarball="$root/actions-runner-linux-x64-$ver.tar.gz"
-    url="https://github.com/actions/runner/releases/download/v$ver/actions-runner-linux-x64-$ver.tar.gz"
-    sudo test -s "$tarball" || sudo curl -fsSL -o "$tarball" "$url" \
-      || { do_log "FATAL download $url failed"; return 1; }
-    echo "$sha  $tarball" | sudo sha256sum -c --quiet - \
-      || { sudo rm -f "$tarball"; do_log "FATAL sha256 mismatch for $tarball"; return 1; }
-    do_log "OK runner v$ver tarball verified (sha256 $sha)"
-  fi
-  ghr_job_done_hook | sudo tee "$root/job-done.sh" >/dev/null && sudo chmod 0755 "$root/job-done.sh" || return 1
+# ghr_docker <cmd...> - run against the runner user's rootless docker
+ghr_docker() { ghr_as "$GHR_USER" env DOCKER_HOST="unix:///run/user/$GHR_UID/docker.sock" "$@"; }
 
-  # 6. each new runner: unpack, register (the token is never logged)
-  local tok
-  for name in "${todo[@]}"; do
-    dir="$root/$name"
-    sudo install -d -m 0700 -o "$user" -g "$user" "$dir" \
-      && sudo -u "$user" tar -xzf "$tarball" -C "$dir" || { do_log "FATAL cannot unpack into $dir"; return 1; }
-    tok="$(gh api -X POST "orgs/$org/actions/runners/registration-token" --jq .token)" \
-      && ghr_in "$dir" "$user" ./config.sh --unattended --replace --url "https://github.com/$org" \
-           --token "$tok" --name "$name" --labels "$labels" --runnergroup "$group" --work _work >/dev/null \
+# ghr_warm_images - pull every image the self-hosted workflow pins (its
+# `img=` lines) into the runner user's docker: a gate that finds no cached
+# image SKIPS, and CI turns a skip into a failure (hub-pg on a fresh runner)
+ghr_warm_images() {
+  local wf="${GH_RUNNER_WORKFLOW:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../../.github/workflows/10_ci-quality.yml}"
+  local img i imgs
+  [[ -f "$wf" ]] || { do_log "WARN no workflow at $wf - no image warmed"; return 0; }
+  imgs="$(sed -nE 's/^[[:space:]]*img=([A-Za-z0-9._\/-]+:[A-Za-z0-9._-]+)[[:space:]]*$/\1/p' "$wf" | sort -u)"
+  for img in $imgs; do
+    ghr_docker docker image inspect "$img" >/dev/null 2>&1 && continue
+    for i in 1 2 3; do ghr_docker docker pull -q "$img" >/dev/null 2>&1 && break; sleep $((i * 10)); done
+    ghr_docker docker image inspect "$img" >/dev/null 2>&1 || { do_log "FATAL cannot pull $img for $GHR_USER"; return 1; }
+    do_log "OK $img cached for $GHR_USER"
+  done
+}
+
+# ghr_tarball - echo a sha256-verified runner tarball (downloaded once)
+ghr_tarball() {
+  [[ -n "${GH_RUNNER_TARBALL:-}" ]] && { echo "$GH_RUNNER_TARBALL"; return 0; }
+  local rel ver sha url tarball
+  rel="$(gh api repos/actions/runner/releases/latest --jq '"\(.tag_name) \(.body|capture("BEGIN SHA linux-x64 -->(?<s>[0-9a-f]{64})<").s)"')" \
+    || { do_log "FATAL cannot read the actions/runner release"; return 1; }
+  ver="${rel%% *}"; ver="${ver#v}"; sha="${rel#* }"
+  tarball="$GHR_ROOT/actions-runner-linux-x64-$ver.tar.gz"
+  url="https://github.com/actions/runner/releases/download/v$ver/actions-runner-linux-x64-$ver.tar.gz"
+  sudo test -s "$tarball" || sudo curl -fsSL -o "$tarball" "$url" \
+    || { do_log "FATAL download $url failed"; return 1; }
+  echo "$sha  $tarball" | sudo sha256sum -c --quiet - \
+    || { sudo rm -f "$tarball"; do_log "FATAL sha256 mismatch for $tarball"; return 1; }
+  do_log "OK runner v$ver tarball verified (sha256 $sha)"
+  echo "$tarball"
+}
+
+# ghr_register - unpack + register each GHR_TODO runner (token never logged)
+ghr_register() {
+  ((${#GHR_TODO[@]})) || return 0
+  local tarball name dir tok
+  tarball="$(ghr_tarball)" || return 1
+  for name in "${GHR_TODO[@]}"; do
+    dir="$GHR_ROOT/$name"
+    sudo install -d -m 0700 -o "$GHR_USER" -g "$GHR_USER" "$dir" \
+      && sudo -u "$GHR_USER" tar -xzf "$tarball" -C "$dir" || { do_log "FATAL cannot unpack into $dir"; return 1; }
+    tok="$(gh api -X POST "orgs/$GHR_ORG/actions/runners/registration-token" --jq .token)" \
+      && ghr_in "$dir" "$GHR_USER" ./config.sh --unattended --replace --url "https://github.com/$GHR_ORG" \
+           --token "$tok" --name "$name" --labels "$GHR_LABELS" --runnergroup "$GHR_GROUP" --work _work >/dev/null \
       || { tok=""; do_log "FATAL cannot register $name"; return 1; }
     tok=""
-    do_log "OK $name registered in $group"
+    do_log "OK $name registered in $GHR_GROUP"
   done
+}
 
-  # 7. every runner: env (restart when it changed), service installed + started
-  local envf
-  envf="$(printf '%s\n' "DOCKER_HOST=unix:///run/user/$uid/docker.sock" "XDG_RUNTIME_DIR=/run/user/$uid" \
-    "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=$root/job-done.sh" "GH_RUNNER_MIN_FREE_GB=$min_free" \
+# ghr_services - every runner: .env (restart when it changed), service
+# installed + started
+ghr_services() {
+  local i name dir envf
+  envf="$(printf '%s\n' "DOCKER_HOST=unix:///run/user/$GHR_UID/docker.sock" "XDG_RUNTIME_DIR=/run/user/$GHR_UID" \
+    "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=$GHR_ROOT/job-done.sh" "GH_RUNNER_MIN_FREE_GB=$GHR_MIN_FREE" \
     "LANG=C.UTF-8" "PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin")"
-  for ((i = 1; i <= n; i++)); do
-    name="$(ghr_name "$i")"; dir="$root/$name"
+  for ((i = 1; i <= GHR_N; i++)); do
+    name="$(ghr_name "$i")"; dir="$GHR_ROOT/$name"
     if [[ "$(sudo cat "$dir/.env" 2>/dev/null)" != "$envf" ]]; then
-      sudo -u "$user" tee "$dir/.env" >/dev/null <<<"$envf" || return 1
+      sudo -u "$GHR_USER" tee "$dir/.env" >/dev/null <<<"$envf" || return 1
       sudo test -s "$dir/.service" && ghr_in "$dir" root ./svc.sh stop >/dev/null
     fi
     if ! sudo test -s "$dir/.service"; then
-      ghr_in "$dir" root ./svc.sh install "$user" >/dev/null || { do_log "FATAL svc.sh install failed for $name"; return 1; }
+      ghr_in "$dir" root ./svc.sh install "$GHR_USER" >/dev/null || { do_log "FATAL svc.sh install failed for $name"; return 1; }
     fi
     ghr_in "$dir" root ./svc.sh start >/dev/null || { do_log "FATAL $name's service did not start"; return 1; }
   done
+}
 
-  # 8. verify on GitHub
-  local online up; t=0
+# ghr_verify - every runner of this box is online in the group
+ghr_verify() {
+  local online up i t=0
   while :; do
-    online="$(gh api "orgs/$org/actions/runner-groups/$gid/runners" --paginate --jq '.runners[]|select(.status=="online")|.name')"
+    online="$(gh api "orgs/$GHR_ORG/actions/runner-groups/$GHR_GID/runners" --paginate --jq '.runners[]|select(.status=="online")|.name')"
     up=0
-    for ((i = 1; i <= n; i++)); do grep -qx "$(ghr_name "$i")" <<<"$online" && up=$((up + 1)); done
-    ((up == n || t++ >= 12)) && break
+    for ((i = 1; i <= GHR_N; i++)); do grep -qx "$(ghr_name "$i")" <<<"$online" && up=$((up + 1)); done
+    ((up == GHR_N || t++ >= 12)) && break
     sleep 5
   done
-  ((up == n)) || { do_log "FATAL only $up of $n runners of this box are online in $group"; return 1; }
-  do_log "OK $n runner(s) of this box online in $group with labels $labels"
+  ((up == GHR_N)) || { do_log "FATAL only $up of $GHR_N runners of this box are online in $GHR_GROUP"; return 1; }
+  do_log "OK $GHR_N runner(s) of this box online in $GHR_GROUP with labels $GHR_LABELS"
+}
+
+do_gh_runner_add() {
+  do_require_bin gh systemctl sudo curl tar sha256sum || return 1
+  GHR_REPO="${GH_RUNNER_REPO:-}" GHR_GROUP="${GH_RUNNER_GROUP:-}" GHR_N="${RUNNER_COUNT:-2}"
+  GHR_USER="${GH_RUNNER_USER:-ghrunner}" GHR_ROOT="${GH_RUNNER_ROOT:-/srv/gh-runner}"
+  GHR_MIN_FREE="${GH_RUNNER_MIN_FREE_GB:-8}" GH_RUNNER_HOME="${GH_RUNNER_HOME:-/var/lib/$GHR_USER}"
+  [[ "$GHR_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
+    || { do_log "FATAL GH_RUNNER_REPO must be <owner>/<repo> (no default)"; return 1; }
+  [[ -n "$GHR_GROUP" ]] || { do_log "FATAL GH_RUNNER_GROUP must be set (no default): the org runner group"; return 1; }
+  [[ "$GHR_N" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL RUNNER_COUNT must be 1..99, got: $GHR_N"; return 1; }
+  [[ "$GHR_USER" =~ ^[a-z_][a-z0-9_-]*$ && "$GHR_USER" != root ]] || { do_log "FATAL bad GH_RUNNER_USER: $GHR_USER"; return 1; }
+  [[ "$GHR_MIN_FREE" =~ ^[0-9]+$ ]] || { do_log "FATAL GH_RUNNER_MIN_FREE_GB must be a number"; return 1; }
+  GHR_ORG="${GHR_REPO%%/*}"
+  ghr_check_group || return 1
+  ghr_plan
+  if [[ "${APPLY:-0}" != 1 ]]; then
+    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
+    do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
+    return 0
+  fi
+  ghr_setup_user && ghr_warm_images || return 1
+  sudo install -d -m 0755 -o root -g root "$GHR_ROOT" || return 1
+  ghr_job_done_hook | sudo tee "$GHR_ROOT/job-done.sh" >/dev/null && sudo chmod 0755 "$GHR_ROOT/job-done.sh" || return 1
+  ghr_register && ghr_services && ghr_verify
 }

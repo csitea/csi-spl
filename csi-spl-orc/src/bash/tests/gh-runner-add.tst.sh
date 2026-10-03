@@ -11,6 +11,7 @@
 #          - APPLY=1 twice = one set of runners (nothing re-registered)
 #          - a runner user in the docker group is refused
 #          - a registration token never reaches the log
+#          - the workflow's img= pins are pulled once into the runner's docker
 #          - the cleanup hook prunes only its OWN runner's work dir
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -81,7 +82,17 @@ cat >"$T/bin/setuptool" <<'EOF'
 #!/usr/bin/env bash
 echo "setuptool $*" >>"$MUT_LOG"; touch "$STATE/rootless"
 EOF
-printf '#!/usr/bin/env bash\nexit 0\n' >"$T/bin/docker"
+cat >"$T/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+k="$STATE/img-${3//[\/:]/_}"
+case "$1 $2" in
+  "image inspect") [[ -e "$k" ]]; exit ;;
+  "pull -q") echo "pull $3" >>"$MUT_LOG"; touch "$k" ;;
+esac
+exit 0
+EOF
+printf '%s\n' '      run: |' '          img=postgres:16-alpine' '          img=fsouza/fake-gcs-server:1.52.2' >"$T/wf.yml"
+export GH_RUNNER_WORKFLOW="$T/wf.yml"
 printf '#!/usr/bin/env bash\necho box\n' >"$T/bin/hostname"
 # the fake runner package
 cat >"$T/pkg/config.sh" <<'EOF'
@@ -134,12 +145,14 @@ grep -qE 'usermod .*(-aG|-G) *docker' "$MUT_LOG" && no "ghrunner was put in the 
 grep -qx 'DOCKER_HOST=unix:///run/user/1500/docker.sock' "$T/srv/box-spl-02/.env" && grep -qx "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=$T/srv/job-done.sh" "$T/srv/box-spl-02/.env" \
   && [[ -s "$T/srv/job-done.sh" ]] && grep -q "chmod 0755 $T/srv/job-done.sh" "$MUT_LOG" && ok ".env points at the rootless docker and the cleanup hook" || no ".env: $(cat "$T/srv/box-spl-02/.env")"
 grep -q SENTINEL "$T/log" && no "a token reached the log" || ok "no token in the log"
+[[ "$(grep '^pull ' "$MUT_LOG" | sort | tr '\n' ' ')" == "pull fsouza/fake-gcs-server:1.52.2 pull postgres:16-alpine " ]] \
+  && ok "the workflow's pinned images are warmed in the runner user's docker" || no "warm: $(grep pull "$MUT_LOG")"
 
 : >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"
 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "second apply exits 0" || no "second apply failed: $(tail -3 "$T/log")"
 [[ "$(sort "$STATE/reg" | uniq -c | awk '{print $1}' | sort -u)" == 1 && "$(wc -l <"$STATE/reg")" == 2 ]] \
   && ! grep -q config.sh "$RUN_LOG" && ok "apply twice = one set of runners (nothing re-registered)" || no "re-registered: $(cat "$RUN_LOG")"
-[[ "$(grep -c -- '- kept' "$T/log")" == 2 ]] && ! grep -q 'useradd\|setuptool' "$MUT_LOG" && ok "existing runners, user and docker are kept" || no "kept: $(cat "$T/log" "$MUT_LOG")"
+[[ "$(grep -c -- '- kept' "$T/log")" == 2 ]] && ! grep -q 'useradd\|setuptool\|^pull ' "$MUT_LOG" && ok "existing runners, user and docker are kept" || no "kept: $(cat "$T/log" "$MUT_LOG")"
 [[ "$(grep -c 'svc.sh start' "$RUN_LOG")" == 2 && "$(grep -c 'svc.sh install' "$RUN_LOG")" == 0 ]] && ok "kept services are only started" || no "svc 2nd: $(cat "$RUN_LOG")"
 
 ID_GROUPS="ghrunner docker" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 act && no "docker-group user must fail" || ok "a runner user in the docker group is refused"

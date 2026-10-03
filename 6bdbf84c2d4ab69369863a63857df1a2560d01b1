@@ -1,0 +1,6 @@
+Lay-What: The first screen of the app appears noticeably sooner after a page is opened.
+Lay-How: Each page now tells the browser up front which pieces it will need, so they download together instead of one after another.
+Lay-Why: The browser discovered the needed pieces in about six waves, each waiting for the last, which made the first screen slow.
+Tech-What: Each prerendered document modulepreloads the static-import closure of its page, layout and locale catalogue and preloads their CSS, with no duplicate prefetch.
+Tech-How: A nuxt module reads the client chunk graph at generateBundle and rewrites each prerendered .html in nitro prerender:generate (first-screen-hints.mjs); an unresolvable page fails the generate; 200.html is untouched.
+Tech-Why: P3-01: rail p50 on fast 4G 3045 -> 2144 ms desktop, 5189 -> 4263 ms phone (n=5); 93 of 99 critical requests hinted.

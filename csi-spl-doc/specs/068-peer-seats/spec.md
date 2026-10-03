@@ -1,6 +1,6 @@
 # 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **v0.3.1, owner answers folded in (1.3); Q2 answered, Q3 moot, Q1, Q4..Q6 open** (section 9).
+Status: **v0.3.2, owner answers folded in (1.3); Q1, Q4, Q6 open** (section 9).
 Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
 lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
 `469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
@@ -106,15 +106,23 @@ Relayed by c-002@<pc box>, spool msg `5d0dce90`, oldest first:
 | Q1 seats per machine | **four ODs on EACH box**, eight in all (sat + the PC) | 3.1, 6.1, 7 |
 | Q2 mixed harnesses | **yes: two claude + two grok per box** | 3.3 |
 | Q3 ids | **001..004 reserved for the ODs only** (on every box, so an OD is `<id>@<box>`) | 3.2 |
-| Q4 grok may spawn / run prd | not answered | Q5 below |
+| Q4 grok may spawn / run prd | **yes** (`220915e8`, v0.3 Q5): same skills as claude | 3.3, 5 |
 | Q5 responsible in the UI | **yes** | L8 is in scope, 4.1 |
 | Q6 shadow run | **no: switch at once**; spawn all eight, then shut the old agents down slowly, passing them context | 8 |
 
 > `1ca9fa1d`, 12:37:17Z (spool msg `8b978533`), to v0.3 Q2 ("Does "two
 > should be Grok" lift today's grok suspension for the OD seats?"): "2. Yes"
 
-So the grok suspension is lifted **for the OD seats only**: `g-003` and
-`g-004` run grok on each box; lanes stay as the lane seeds say.
+> `0fefd316`, 12:37:39Z (spool msg `6504ef8f`): "No, Grok is not suspended.
+> Grok agents can be run. The limit is over."
+
+> `220915e8`, 12:38:00Z (spool msg `f59da3b4`), to v0.3 Q5: "Grop can spawn
+> other agents as well. He actually has the same skills." ("Grop" = grok.)
+
+So the grok suspension is over **in general**, not only for the OD seats:
+`g-003` and `g-004` run grok on each box. A grok OD has the same powers as a
+claude OD: it spawns and closes lanes and runs the pre-approved prd actions
+under the lock + mutex (section 5).
 
 The glossary entries (OD, orchestrator dispatcher, agent) are c-001's action
 (c-002's note); 2 below holds the wording this spec uses.
@@ -172,8 +180,16 @@ login at its limit froze every sat role at once) and F6 (one harness refusing
 a step). A harness is fit for a seat when it passes the seat drill (lane L7):
 `spool recv`, `spool claim`, `do_spl_post`, a spawn dry run. Grok is suspended
 today and lane seeds say never to spawn grok (c-001, msgs `8896800b`,
-`f2bf978c`). The owner lifted that for the OD seats only (1.3, `1ca9fa1d`):
-the grok seats run grok; lanes are unchanged.
+`f2bf978c`). The owner ended the suspension in general (1.3, `0fefd316`):
+the grok seats run grok, with the same powers as the claude seats
+(`220915e8`).
+
+**There is no grok CLI on sat today**, measured 2026-10-03 ~12:40Z as the
+agent user: `command -v grok` -> empty; `ls ~/.local/bin | grep -i grok` ->
+nothing (c-001, msg `a9e2b9e4`, also found none for the box user nor
+anywhere under `/`). Unchecked on the PC. So L7 installs the grok CLI on each
+box, and each box needs **one human login of grok for the agent user** before
+its grok seats can start - an owner step, listed in section 8.
 
 ## 4. Decision 2: who does what without an orchestrator
 
@@ -358,6 +374,10 @@ does the work. Two orders, Q1 asks which:
 | **A. build first (recommended: the fastest SAFE path)** | L1, L2, L3 in parallel lanes, live on dev + prd; then spawn the eight ODs; then the staged hand-over | today's c-001 / c-002 / c-003 keep working exactly as now |
 | B. spawn first | spawn the eight ODs now; only today's lease holder acts, the others stand by; L1..L3 follow | eight sessions mostly idle, and one of them the single point of failure this spec removes |
 
+**Owner step before any grok seat starts:** on each box, one interactive
+grok login as the agent user, after L7 has installed the CLI (3.3). The
+claude seats need nothing new.
+
 **The staged hand-over (replaces v0.2's shadow run and cut-over).** "Pass
 them context" read as: each old role session (c-001, c-002, c-003 on each
 box) writes its 060 handoff file (section 6 of 060: in-flight terminal lines,
@@ -375,7 +395,7 @@ which from then on resolves to the ODs.
 | L4 orc: `--to peers` | `spool-send.sh` (`orchestrator` -> `peers`), `asks.sh` (lock moved to the message) | `test-fleet-send.sh` and `asks.tst.sh` extended: one report, 4 seats, exactly 1 responsible |
 | L5 orc: mutexes + fence | the spawn launchers and the prd wrappers take `spawn` / `prd-<target>` and re-check the fence; `do_spl_fleet_config` writes every machine or none | `spawn-mutex.tst.sh`: two peers spawn at once, one spawns; a lost fence stops a deploy |
 | L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45`), its `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the two new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat, one seat at a time, a failed start keeps the old one; a crontab fixture before / after |
-| L7 seats + drill | `do_spl_peer_setup` (claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
+| L7 seats + drill | `do_spl_peer_setup` (installs the grok CLI on the box; claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
 | L8 WUI | show the responsible agent on every message and topic (DM, channel, topic reply) | e2e: a post shows its responsible seat within 5 s |
 | L9 doc | rewrite SPEC-spool-fleet-roles.md sections 1, 3, 3.2, 4, 4.1, 4.3, 4.4, 7 | `do_check_dist_hygiene` |
 | L10 staged hand-over + delete | the hand-over above, one old session at a time; then, with L3 and L6 running on both boxes, the old roles' code and crons go | `fleet-lease.tst.sh` and the sweep's fixture tests retired with what they tested |
@@ -394,13 +414,12 @@ c-002 / c-003 as distinct roles).
 
 ## 9. Owner questions
 
-Each answerable with one word.
+The v0.3 numbering is kept, so an answer by number stays unambiguous.
+Answered: Q2 yes and Q5 yes (1.3); Q3 dropped (grok is not suspended).
+Open, each answerable with one word:
 
 1. Order: build the lock and the 5 s loop first (L1..L3), then spawn the eight ODs and hand over (yes), or spawn the eight now with only today's lease holder acting until L3 is live (no)?
-2. ~~Does "two should be Grok" lift today's grok suspension for the OD seats only?~~ **Answered yes** (`1ca9fa1d`, 12:37:17Z).
-3. ~~While grok stays suspended, run the two grok seats on claude, or leave them empty?~~ **Moot**: Q2's yes means the grok seats run grok.
 4. "Pass them context" = the old c-001 / c-002 / c-003 each hand their open work to an OD through the 060 handoff file, then exit, one at a time (yes / no)?
-5. May a grok OD spawn and close lanes and run the pre-approved prd actions under the lock + mutex (yes), or only the claude ODs (no)?
 6. Offset the PC's hourly restarts by 7 minutes, so the two boxes never restart the same seat at once (yes), or the same minutes on both boxes (no)?
 
-<!-- version: 0.3.1 · updated: 2026-10-03 · last-edit: 2026-10-03T12:40:00Z -->
+<!-- version: 0.3.2 · updated: 2026-10-03 · last-edit: 2026-10-03T12:45:00Z -->

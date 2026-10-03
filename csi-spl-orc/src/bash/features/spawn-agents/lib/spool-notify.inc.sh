@@ -230,7 +230,7 @@ spool_notify_is_shell() {  # CMD
 # SPOOL_POKE_STYLE auto/body, a pane that is a TUI is typed the body VERBATIM
 # instead of the poke line. The line actually chosen is left in
 # SPOOL_POKE_LINE, so a caller that queues a refusal queues what it would have
-# typed rather than re-deriving it.
+# typed rather than re-deriving it; empty when no live agent pane got it (5, 7).
 # 0 when LINE (CSI already stripped) is real unsent input.
 # A grok input row is "│ ❯ │". The trailing bar survived the trim, so every
 # human message was refused while that box was on screen. Measured on the
@@ -282,6 +282,10 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
   spool_pane_of_var pane "$to"
   if [ -z "$pane" ]; then
+    # Nothing was typed, so nothing is left in SPOOL_POKE_LINE: the mirror's
+    # trigger record (spec 067 L2) is for a line a live pane really got, never
+    # for a test or CLI subprocess that inherited SPOOL_NOTIFY_CMD.
+    SPOOL_POKE_LINE=""
     echo "poke: none - no live window carries ${to}; the message waits in ${SPOOL_ROOT}/${to}/inbox/"
     return 5
   fi
@@ -308,6 +312,7 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   if spool_notify_is_shell "${SPOOL_PANE_CMD:-}" && [ -n "$pane_tty" ]; then
     tty_cmds="$(ps -t "${pane_tty#/dev/}" -o comm= 2>/dev/null | sort -u | tr '\n' ' ')"
     if [ -n "$tty_cmds" ] && ! printf '%s\n' $tty_cmds | grep -qvxE 'bash|sh|zsh|dash|login'; then
+      SPOOL_POKE_LINE=""
       echo "poke: skipped - ${to} pane ${pane} runs only shells (${tty_cmds% }); the agent has exited"
       return 7
     fi

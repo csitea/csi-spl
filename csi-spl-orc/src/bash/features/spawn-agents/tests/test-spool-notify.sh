@@ -260,6 +260,9 @@ has "a channel post's typed line: a channel trigger" '"kind":"channel"' "$rec"
 has "...naming the FRAMED line typed" '"line":"[channel post from HUM-9, topic 44444444] channel words zz95"' "$rec"
 SPOOL_POKE=0 bash "$SN" --to CLE-81 --from HUM-9 --kind note --task "$DMT" --msg-id aaaaaaaa-x --body 'not typed zz96' >/dev/null
 check "a line never typed (SPOOL_POKE=0) leaves no trigger" test ! -e "$TR"
+mkdir -p "$SPOOL_ROOT/CLE-83/inbox"
+bash "$SN" --to CLE-83 --from HUM-9 --kind note --task "$DMT" --msg-id aaaaaaaa-x --body 'no window zz97' >/dev/null
+eq "no live window (rc 5): nothing typed, so no trigger record (a CLI or test subprocess)" "" "$(ls -A "$SPOOL_ROOT/CLE-83/.mirror/trigger" 2>/dev/null)"
 rm -f "$DESK/mirror-to" "$DESK/operator"
 
 # ---- usage ----------------------------------------------------------------

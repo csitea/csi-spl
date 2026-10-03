@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: The internal dispatcher setup now removes old duplicate channel entries left by the agent id change; nothing changes for users.

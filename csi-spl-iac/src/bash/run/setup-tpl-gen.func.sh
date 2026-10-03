@@ -17,7 +17,7 @@ do_setup_tpl_gen() {
   local py_proj="$tpl_gen/src/python/tpl-gen"
   local pkgs="${TPL_GEN_PIP_PKGS:-jinja2 pyyaml jq colorama rich pprintjson requests}"
   local want have
-  want=$(cat "$PROJ_PATH/cnf/tpl-gen.ref") || return 1
+  want=$(<"$PROJ_PATH/cnf/tpl-gen.ref") || return 1
   [[ "$want" =~ ^[0-9a-f]{40}$ ]] || { do_log "FATAL cnf/tpl-gen.ref is not a full sha: $want"; return 1; }
 
   if [[ -d "$tpl_gen/.git" ]]; then

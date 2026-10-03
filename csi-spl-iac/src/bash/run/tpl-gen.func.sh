@@ -23,11 +23,11 @@ do_tpl_gen() {
 
   [[ -d "$tpl_gen/.git" ]] || {
     do_log "FATAL tpl-gen not found at $tpl_gen"
-    do_log "INFO  git clone git@github.com:csitea/tpl-gen.git $tpl_gen && git -C $tpl_gen checkout $(cat "$PROJ_PATH/cnf/tpl-gen.ref")"
+    do_log "INFO  git clone git@github.com:csitea/tpl-gen.git $tpl_gen && git -C $tpl_gen checkout $(<"$PROJ_PATH/cnf/tpl-gen.ref")"
     return 1
   }
   local want have
-  want=$(cat "$PROJ_PATH/cnf/tpl-gen.ref")
+  want=$(<"$PROJ_PATH/cnf/tpl-gen.ref")
   have=$(git -C "$tpl_gen" rev-parse HEAD)
   [[ "$want" == "$have" ]] || {
     do_log "FATAL tpl-gen HEAD $have is not the pinned $want (cnf/tpl-gen.ref)"

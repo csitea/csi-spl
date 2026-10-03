@@ -73,5 +73,15 @@ run_setup "main" "$URL"; rc=$?
 run_setup "0123456789abcdef0123456789abcdef01234567" "$URL"; rc=$?
 [[ $rc -ne 0 ]] && pass "control: a pin the remote lacks fails" || fail "control: unknown pin accepted"
 
+# CONTROL: no cnf/tpl-gen.ref -> the read itself fails (its `|| return 1`),
+# before the sha check, and nothing is cloned
+rm -rf "$T/app" "$T/proj/cnf/tpl-gen.ref"
+env PATH="$T/stub:$PATH" PIP_LOG="$T/pip.log" PROJ_PATH="$T/proj" APP_PATH="$T/app" "$URL" bash -c '
+  do_log() { echo "$*"; }
+  source "'"$PROJ_ROOT"'/src/bash/run/setup-tpl-gen.func.sh"
+  do_setup_tpl_gen' >"$T/out" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -e "$T/app/tpl-gen" ]] && ! grep -q 'not a full sha' "$T/out" \
+  && pass "control: a missing cnf/tpl-gen.ref fails at the read" || fail "control: missing ref rc=$rc $(cat "$T/out")"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

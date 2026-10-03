@@ -54,13 +54,13 @@ post() {  # <kind> <body>
       DESK_KIND="$1" DESK_BODY="$2" DRY_RUN=0 ./run -a do_spl_desk_post )
 }
 if [ "$DRY_RUN" != 0 ]; then
-  [ -s "$missed" ] && echo "DRY_RUN would post a blocker: $(cat "$missed")"
+  [ -s "$missed" ] && echo "DRY_RUN would post a blocker: $(<"$missed")"
   echo "DRY_RUN would post $summary to #$CHANNEL of $TENANT as $AGENT on $BOX"
   exit 0
 fi
 # a skipped week first, as its own one-line blocker
-[ -s "$missed" ] && { post blocker "$(cat "$missed")" || echo "weekly-full-scan-cron: the missed-week alert failed"; }
+[ -s "$missed" ] && { post blocker "$(<"$missed")" || echo "weekly-full-scan-cron: the missed-week alert failed"; }
 [ -s "$summary" ] || { echo "weekly-full-scan-cron: no summary at $summary"; exit 1; }
-post note "$(cat "$summary")" \
+post note "$(<"$summary")" \
   || { echo "weekly-full-scan-cron: the post failed (the report is still at ${summary%.summary.txt}.md)"; exit 1; }
 echo "== posted $summary"

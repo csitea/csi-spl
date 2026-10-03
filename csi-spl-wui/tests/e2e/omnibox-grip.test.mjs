@@ -353,8 +353,12 @@ async function sizes(p) {
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'omnibox-size-390-right-small.png') })
 
   /* 16: the menu presets, opened from the size handle */
-  await p.tap('[data-testid=omnibox-size]')
-  await sleep(300)
+  /* the tap can land while the corner drag (15) is still settling and be
+     lost (gate 11 runs 37129791383, 37130559228): wait for the menu, tap again */
+  for (let i = 0; i < 3; i++) {
+    if (!(await p.$('[data-testid=omnibox-grip-menu] [data-size=medium]'))) await p.tap('[data-testid=omnibox-size]')
+    if (await p.waitForSelector('[data-testid=omnibox-grip-menu] [data-size=medium]', { timeout: 2000 }).catch(() => null)) break
+  }
   const items = await p.evaluate(() => [...document.querySelectorAll('[data-testid=omnibox-grip-menu] [data-size]')].map((b) => ({ size: b.getAttribute('data-size'), checked: b.getAttribute('aria-checked'), text: b.textContent.trim() })))
   await p.tap('[data-testid=omnibox-grip-menu] [data-size=medium]')
   await sleep(400)

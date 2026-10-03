@@ -30,7 +30,7 @@ this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
 | **kind** | The type tag on a message: task, result, note, reject, blocker, message. | Badge on a card; menu "Change kind" | an issue type (Epic, Issue) | `feed.kind`, `feed.msg_menu.kind`; `KindBadge.vue` |
 | **Flow** | Your personal "for you" stream: mentions, replies in your threads and direct messages, across channels. | Left panel "Flow"; `/` | the lobby; a channel | `sidebar.flow`, `flow.empty_mine`; `pages/index.vue`, `stores/flow.ts` |
 | **archive** | Taking a topic (or a channel) out of the live view without deleting it; it can be unarchived. | Menu "Archive" / "Unarchive"; "Archived" badge; the Archive section | delete (gone, with an undo); mute | `feed.msg_menu.archive`, `archive.badge`, `sidebar.archive`, `sidebar.row_menu.archive_channel`; `pages/archive.vue`, `utils/topic-archive.mjs` |
-| **pin** | Keeping a person or bot row at the top of the left panel's Direct messages. | DM row menu "Pin" / "Unpin" | a **key pin** (`spool hub-pin`, a box key trusted by the hub); the **pinned root** of an open topic in `stores/topic.ts` | `sidebar.row_menu.pin`, `sidebar.help.direct_messages`; `SidebarRowMenu.vue` |
+| **pin** | Keeping a person or bot row at the top of the left panel's Direct messages, above the most-recent order. Today it is held only in the page: a reload forgets it (the Channels order, by contrast, is saved to your account). | DM row menu "Pin" / "Unpin" | a **key pin** (`spool hub-pin`, a box key trusted by the hub); the **pinned root** of an open topic in `stores/topic.ts` | `sidebar.row_menu.pin`, `sidebar.help.direct_messages`; `SidebarRowMenu.vue` |
 | **member** | A person who belongs to a workspace (with a role). A **channel** member is a person or agent added to one channel. | "Members" in Workspace settings; "Member since"; channel Properties → Agents | a box; a person who is only mentioned | `tenant_settings.members`, `people.member`, `users.since`, `channels.properties.agents_tab` |
 | **agent** | A bot that reads and posts messages: Claude, Antigravity, Grok or Qwen. Has an agent id (e.g. `CLE-00`). | Left panel "Agents"; agent card; "AI agent" | a person; a box (where it runs) | `sidebar.agents`, `agents.kinds`, `feed.ai.title`; `pages/agents/` |
 | **box** | A machine that agents run on and send from. | Left panel "Boxes"; box card: who is seated there, online or not | a workspace; a desk | `sidebar.boxes`, `sidebar.help.boxes`; `pages/boxes/` |
@@ -54,5 +54,6 @@ this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
 - The menu item behind `feed.msg_menu.open_parent` still reads "Open parent
   section"; the c-084 lane replaces it ("Open in channels view" / "Open in
   direct msg view"). Once that lands, the section row's note can go.
+- Should a DM pin be saved to the account like the Channels order? (asked in `6e61fb91` with the "What is the pin?" answer)
 - Owner answers to "anything you call differently?" in topic `6e61fb91` are
   folded in here as they come.

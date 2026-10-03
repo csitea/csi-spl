@@ -1,0 +1,6 @@
+Lay-What: The channel settings page and opening a link to a message are faster, especially with many channels or workspaces.
+Lay-How: The server now gathers what it needs for all channels or workspaces in one request to the database, not one per item.
+Lay-Why: The time these took grew with every channel or workspace you had.
+Tech-What: GET /v1/tenant/channels and GET /v1/view/locate/{id} each use one store batch instead of a read per item (new store.SetReads).
+Tech-How: set_reads.go adds ChannelSettings and LocateTopicOrMessage batches with each probe under its own tenant scope; the hub keeps the loop for stores without SetReads; n_plus_1_rt_test.go guards it.
+Tech-Why: Perf round 4 G2: tenant/channels with 13 channels 32 -> 4 round trips, locate over 8 tenants 9 -> 2 (n=5).

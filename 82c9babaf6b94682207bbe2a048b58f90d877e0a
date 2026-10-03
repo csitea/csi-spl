@@ -1,0 +1,6 @@
+Lay-What: Tightens the internal descriptions of how a message is opened from a list; nothing on screen changes.
+Lay-How: The code now states exactly what kind of data it expects, so the build tools can catch a wrong value early.
+Lay-Why: Loose descriptions let mistakes slip through to the user instead of being caught while building.
+Tech-What: WUI useOpenMessage exports a MessageRef type for openMessage; badgeOf takes Record<string, unknown>; the last explicit any goes.
+Tech-How: useOpenMessage.ts adds the type; SearchSidePanel keeps one cast narrowed to MessageRef because SearchRow has only an index signature. Type-only.
+Tech-Why: Refactor round 1, practice 16: explicit any disables type checking at those call sites.

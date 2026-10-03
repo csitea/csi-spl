@@ -1,0 +1,6 @@
+Lay-What: The top of a topic's own page now shows the topic's title on one line, instead of a raw code number.
+Lay-How: The header uses the topic's first message as its title, cuts it short with "..." on narrow screens and shows the full text on hover.
+Lay-Why: The header showed an internal code and wrapped onto several lines on phones, so you could not see which topic you were in.
+Tech-What: WUI /t/<task> header: breadcrumb + topic title + Archived badge on one row; the short id is no longer shown.
+Tech-How: [task_id].vue derives the heading with topicTitleFromRows; main.css makes .topic-page-heading nowrap with an ellipsized title and a status that shrinks first; unit test topic-page-header.
+Tech-Why: The h2 rendered the short task id and wrapped freely at 360-430 px widths.

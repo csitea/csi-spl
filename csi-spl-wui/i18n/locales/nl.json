@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Nieuwe berichten",
+    "seat_divider": "Nieuwe houder sinds {when}",
     "unread_jump": "{n} nieuw",
     "unread_jump_label": "Ga naar het eerste ongelezen bericht",
     "replies_unread": "{n} ongelezen",

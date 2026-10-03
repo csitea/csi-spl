@@ -23,6 +23,8 @@ import (
 type Postgres struct {
 	pool *pgxpool.Pool
 	hot  hotCache // pins and tenant rows of the send path (hotcache.go)
+	// seats: is rdb 0107 agent_seats there yet (agent_seats.go)
+	seats seatsProbe
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps
@@ -291,6 +293,15 @@ func (s *Postgres) SetRoster(ctx context.Context, tenant, box string, agents []s
 		b := &pgx.Batch{}
 		b.Queue(`INSERT INTO boxes (tenant_id, box_id) VALUES ($1, $2)
 			ON CONFLICT (tenant_id, box_id) DO NOTHING`, tenant, box)
+		if len(agents) > 0 && s.hasAgentSeats(ctx) {
+			// rdb 0107 (spec 061 3.6): an id that is not in the box's
+			// current roster is a new holder's seat. Read before the clear.
+			b.Queue(`INSERT INTO agent_seats (tenant_id, box_id, agent_id, seated_at)
+				SELECT $1, $2, a, $4 FROM unnest($3::text[]) AS a
+				WHERE NOT EXISTS (SELECT 1 FROM roster r WHERE r.tenant_id = $1 AND r.box_id = $2 AND r.agent_id = a)
+				ON CONFLICT (tenant_id, box_id, agent_id) DO UPDATE SET seated_at = EXCLUDED.seated_at`,
+				tenant, box, agents, now)
+		}
 		b.Queue(`DELETE FROM roster WHERE tenant_id = $1 AND box_id = $2`, tenant, box)
 		if len(agents) > 0 {
 			b.Queue(`INSERT INTO roster (tenant_id, box_id, agent_id, announced_at)

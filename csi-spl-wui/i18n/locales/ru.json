@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Новые сообщения",
+    "seat_divider": "Новый владелец с {when}",
     "unread_jump": "{n} новых",
     "unread_jump_label": "Перейти к первому непрочитанному",
     "replies_unread": "{n} непрочитанных",

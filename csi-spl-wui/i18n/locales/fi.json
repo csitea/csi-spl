@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Uudet viestit",
+    "seat_divider": "Uusi haltija {when} alkaen",
     "unread_jump": "{n} uutta",
     "unread_jump_label": "Siirry ensimmäiseen lukemattomaan viestiin",
     "replies_unread": "{n} lukematonta",

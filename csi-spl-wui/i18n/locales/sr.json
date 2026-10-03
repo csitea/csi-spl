@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Нове поруке",
+    "seat_divider": "Нови носилац од {when}",
     "unread_jump": "{n} нових",
     "unread_jump_label": "Скочи на прву непрочитану поруку",
     "replies_unread": "{n} непрочитаних",

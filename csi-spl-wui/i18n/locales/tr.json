@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Yeni mesajlar",
+    "seat_divider": "{when} tarihinden beri yeni sahip",
     "unread_jump": "{n} yeni",
     "unread_jump_label": "İlk okunmamış mesaja git",
     "replies_unread": "{n} okunmamış",

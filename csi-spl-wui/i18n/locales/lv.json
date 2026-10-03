@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Jauni ziņojumi",
+    "seat_divider": "Jauns turētājs kopš {when}",
     "unread_jump": "{n} jauni",
     "unread_jump_label": "Pāriet uz pirmo nelasīto ziņojumu",
     "replies_unread": "{n} nelasīti",

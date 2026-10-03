@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Naujos žinutės",
+    "seat_divider": "Naujas savininkas nuo {when}",
     "unread_jump": "{n} naujų",
     "unread_jump_label": "Pereiti prie pirmos neperskaitytos žinutės",
     "replies_unread": "{n} neperskaityta",

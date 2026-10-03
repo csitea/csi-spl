@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Nowe wiadomości",
+    "seat_divider": "Nowy posiadacz od {when}",
     "unread_jump": "{n} nowych",
     "unread_jump_label": "Przejdź do pierwszej nieprzeczytanej wiadomości",
     "replies_unread": "{n} nieprzeczytanych",

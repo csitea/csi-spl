@@ -21,6 +21,7 @@ type Memory struct {
 	history  []memHist
 	boxes    map[[2]string]time.Time
 	roster   map[[2]string][]string
+	seats    map[[3]string]time.Time // rdb 0107: (tenant, box, agent) -> seated_at
 	messages map[[2]string]*Message
 	// specs/032: every body a message has had, oldest first, per (tenant, msg).
 	revisions map[[2]string][]MessageRevision
@@ -80,6 +81,7 @@ func NewMemory() *Memory {
 	return &Memory{
 		tenants: map[string]Tenant{}, pins: map[[2]string]*memPin{},
 		boxes: map[[2]string]time.Time{}, roster: map[[2]string][]string{},
+		seats:    map[[3]string]time.Time{},
 		messages: map[[2]string]*Message{}, deliveries: map[[3]string]*memDelivery{},
 		revisions: map[[2]string][]MessageRevision{},
 	}
@@ -222,8 +224,31 @@ func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []strin
 	}
 	a := append([]string(nil), agents...)
 	sort.Strings(a)
+	had := map[string]bool{}
+	for _, id := range s.roster[[2]string{tenant, box}] {
+		had[id] = true
+	}
+	for _, id := range a {
+		if !had[id] { // rdb 0107: the id entered the roster, a new holder's seat
+			s.seats[[3]string{tenant, box, id}] = now
+		}
+	}
 	s.roster[[2]string{tenant, box}] = a
 	return nil
+}
+
+// seatsLocked is the box's agents' seated_at (ViewBox.SeatedAt); nil = none.
+func (s *Memory) seatsLocked(k [2]string) map[string]time.Time {
+	var out map[string]time.Time
+	for _, id := range s.roster[k] {
+		if at, ok := s.seats[[3]string{k[0], k[1], id}]; ok {
+			if out == nil {
+				out = map[string]time.Time{}
+			}
+			out[id] = at
+		}
+	}
+	return out
 }
 
 func (s *Memory) Roster(_ context.Context, tenant string) (map[string][]string, error) {

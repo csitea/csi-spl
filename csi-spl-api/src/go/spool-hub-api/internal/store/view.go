@@ -19,6 +19,10 @@ type ViewBox struct {
 	Revoked     bool
 	LastHelloAt time.Time // zero: never said hello
 	Agents      []string  // last announcement, sorted
+	// SeatedAt is when each announced agent's current holder was seated
+	// (rdb 0107, spec 061 3.6): the id entered this box's roster then. An
+	// agent with no entry was seated before the hub recorded seats.
+	SeatedAt map[string]time.Time
 }
 
 // TopicQuery pages GET /v1/view/topics: newest activity first, strictly
@@ -158,6 +162,7 @@ func (s *Memory) ViewBoxes(_ context.Context, tenant string) ([]ViewBox, error) 
 		out = append(out, ViewBox{
 			BoxID: k[1], PubKey: p.pub, Revoked: p.revoked,
 			LastHelloAt: s.boxes[k], Agents: append([]string{}, s.roster[k]...),
+			SeatedAt: s.seatsLocked(k),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].BoxID < out[j].BoxID })

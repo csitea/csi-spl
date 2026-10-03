@@ -971,6 +971,10 @@ html.pane-dragging * {
   opacity: .5;
 }
 .new-divider__label { white-space: nowrap; }
+/* Spec 061 3.6 (lane L10): "new holder since" on a reused agent id. Muted, so
+   it never reads as the accent "New messages" line. */
+.seat-divider { color: var(--color-muted); text-transform: none; }
+.seat-divider::before, .seat-divider::after { background: var(--color-muted); }
 .live-rows > .msg--new { animation: unread-fade 6s ease-out 2.5s forwards; }
 @keyframes unread-fade {
   from { background: var(--color-surface-hover); }

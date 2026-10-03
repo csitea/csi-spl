@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Νέα μηνύματα",
+    "seat_divider": "Νέος κάτοχος από {when}",
     "unread_jump": "{n} νέα",
     "unread_jump_label": "Μετάβαση στο πρώτο μη αναγνωσμένο μήνυμα",
     "replies_unread": "{n} μη αναγνωσμένα",

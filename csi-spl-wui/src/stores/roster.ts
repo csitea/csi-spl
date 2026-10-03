@@ -69,7 +69,7 @@ export const useRosterStore = defineStore('roster', () => {
       const byBox: Record<string, BoxDetail> = {}
       for (const b of data.boxes) {
         const id = String(b?.box_id || '')
-        if (id) byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || '') }
+        if (id) byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || ''), seated_at: { ...(b.seated_at || {}) } }
       }
       boxes.value = byBox
     }
@@ -97,4 +97,7 @@ export interface BoxDetail {
   online: boolean
   /** boxes.last_hello_at (RFC3339), "" when the box never announced. */
   last_hello_at: string
+  /** Spec 061 3.6 (rdb 0107): agent id -> when its current holder was seated
+   *  (RFC3339). An id with no entry was seated before the hub recorded seats. */
+  seated_at?: Record<string, string>
 }

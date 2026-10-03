@@ -28,26 +28,52 @@ func pgLimit(n int) int {
 
 func (s *Postgres) ViewBoxes(ctx context.Context, tenant string) ([]ViewBox, error) {
 	var out []ViewBox
-	r := viewBoxesRead(tenant, &out)
+	r := viewBoxesRead(tenant, &out, s.hasAgentSeats(ctx))
 	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
 	return out, err
 }
 
-// viewBoxesRead is ViewBoxes' statement, shared with ViewRoster's batch.
-func viewBoxesRead(tenant string, out *[]ViewBox) tenantRead {
-	return tenantRead{sql: `SELECT p.box_id, p.pubkey, p.revoked_at IS NOT NULL, b.last_hello_at,
-			COALESCE(array_agg(r.agent_id ORDER BY r.agent_id) FILTER (WHERE r.agent_id IS NOT NULL), '{}')
+// viewBoxesSQL is the boxes read; with seats it also aggregates each roster
+// agent's agent_seats.seated_at (rdb 0107), without it never names that table.
+func viewBoxesSQL(seats bool) string {
+	cols, join := "", ""
+	if seats {
+		cols = `,
+			COALESCE(array_agg(s.agent_id ORDER BY s.agent_id) FILTER (WHERE s.agent_id IS NOT NULL), '{}'),
+			COALESCE(array_agg(s.seated_at ORDER BY s.agent_id) FILTER (WHERE s.agent_id IS NOT NULL), '{}')`
+		join = `
+		LEFT JOIN agent_seats s ON s.tenant_id = r.tenant_id AND s.box_id = r.box_id AND s.agent_id = r.agent_id`
+	}
+	return `SELECT p.box_id, p.pubkey, p.revoked_at IS NOT NULL, b.last_hello_at,
+			COALESCE(array_agg(r.agent_id ORDER BY r.agent_id) FILTER (WHERE r.agent_id IS NOT NULL), '{}')` + cols + `
 		FROM pins p
 		LEFT JOIN boxes b ON b.tenant_id = p.tenant_id AND b.box_id = p.box_id
-		LEFT JOIN roster r ON r.tenant_id = p.tenant_id AND r.box_id = p.box_id
+		LEFT JOIN roster r ON r.tenant_id = p.tenant_id AND r.box_id = p.box_id` + join + `
 		WHERE p.tenant_id = $1
 		GROUP BY p.box_id, p.pubkey, p.revoked_at, b.last_hello_at
-		ORDER BY p.box_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
+		ORDER BY p.box_id`
+}
+
+// viewBoxesRead is ViewBoxes' statement, shared with ViewRoster's batch.
+func viewBoxesRead(tenant string, out *[]ViewBox, seats bool) tenantRead {
+	return tenantRead{sql: viewBoxesSQL(seats), args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var v ViewBox
 		var pub []byte
 		var hello *time.Time
-		if err := rows.Scan(&v.BoxID, &pub, &v.Revoked, &hello, &v.Agents); err != nil {
+		var seatIDs []string
+		var seatAts []time.Time
+		dst := []any{&v.BoxID, &pub, &v.Revoked, &hello, &v.Agents}
+		if seats {
+			dst = append(dst, &seatIDs, &seatAts)
+		}
+		if err := rows.Scan(dst...); err != nil {
 			return err
+		}
+		for i, id := range seatIDs { // rdb 0107: one entry per seated agent
+			if v.SeatedAt == nil {
+				v.SeatedAt = map[string]time.Time{}
+			}
+			v.SeatedAt[id] = seatAts[i]
 		}
 		v.PubKey = ed25519.PublicKey(pub)
 		if hello != nil {

@@ -215,6 +215,10 @@ type viewBox struct {
 	LastHelloAt *string  `json:"last_hello_at"`
 	Online      bool     `json:"online"`
 	Agents      []string `json:"agents"`
+	// SeatedAt is when each agent's current holder was seated (rdb 0107,
+	// spec 061 3.6), agent id -> RFC3339; omitted when no agent has one.
+	// A DM with a reused id draws "new holder since" at that time.
+	SeatedAt map[string]string `json:"seated_at,omitempty"`
 }
 
 // rosterBody is GET /v1/view/roster (view-v1 §4.1). A typed envelope, not a
@@ -251,6 +255,12 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		if !b.LastHelloAt.IsZero() {
 			at := rfc(b.LastHelloAt)
 			v.LastHelloAt = &at
+		}
+		if len(b.SeatedAt) > 0 {
+			v.SeatedAt = make(map[string]string, len(b.SeatedAt))
+			for id, at := range b.SeatedAt {
+				v.SeatedAt[id] = rfc(at)
+			}
 		}
 		out = append(out, v)
 	}

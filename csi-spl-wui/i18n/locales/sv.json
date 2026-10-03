@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Nya meddelanden",
+    "seat_divider": "Ny innehavare sedan {when}",
     "unread_jump": "{n} nya",
     "unread_jump_label": "Gå till det första olästa meddelandet",
     "replies_unread": "{n} olästa",

@@ -21,6 +21,7 @@
       :count-for="channel.repliesFor"
       :unread-for="channel.unreadFor"
       :unread-boundary="boundary"
+      :seated-at="seatedAt"
       always-topic
       clickable
       open-button
@@ -47,7 +48,9 @@ import type { SpoolMessage } from '~/types/spool'
 /* 013 on /channel and /dm (X3): the lobby's LiveFeed over the channel store, newest first. */
 /* CLE-77804: the page snapshots the read cursor at open (before markRead advances
    it) and passes it here so LiveFeed can draw the New-messages divider. */
-defineProps<{ label: string, boundary?: { ts: string, id: string } | null }>()
+/* Spec 061 3.6 (lane L10): a DM with a reused agent id passes the current
+   holder's seat time, for LiveFeed's "new holder since" divider. */
+defineProps<{ label: string, boundary?: { ts: string, id: string } | null, seatedAt?: string }>()
 const channel = useChannelStore()
 const topic = useTopicStore()
 

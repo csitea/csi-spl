@@ -46,4 +46,4 @@ from 2026-10-02 by the owner, 2026-10-02 ~06:52Z).
 - [ ] T100 L9a api: remove the alias path; convert `_test.go` fixtures
 - [ ] T101 L9b wui: remove the alias path; convert test fixtures
 - [ ] T102 L9c orc: remove the alias path and the `old -> new` spool symlinks; convert test fixtures
-- [ ] T110 L10 hub `seated_at` + WUI "new holder since" divider for reused ids
+- [x] T110 L10 hub `seated_at` + WUI "new holder since" divider for reused ids (rdb 0107 `agent_seats`: `SetRoster` stamps `seated_at` when an id ENTERS a box's roster, i.e. a retired id announced again by its next holder; GET /v1/view/roster `boxes[].seated_at` {agent: RFC3339}; WUI `seat-divider.mjs` draws "New holder since <when>" in a DM at the first message on or after it, only when an older message of the previous holder is on screen. No backfill: an id seated before 0107 has no entry and no divider. Tests: hub `TestViewRosterSeatedAtOnReuse` (memory + pg), WUI `seat-divider.test.mjs` 8)

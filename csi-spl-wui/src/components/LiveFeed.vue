@@ -51,6 +51,17 @@
         >
           <span class="new-divider__label">{{ t('feed.unread_divider') }}</span>
         </div>
+        <!-- Spec 061 3.6 (lane L10): a reused agent id - the previous
+             holder's messages sit on the far side of this line. -->
+        <div
+          v-else-if="it.seat"
+          class="new-divider seat-divider"
+          data-testid="seat-divider"
+          role="separator"
+          :aria-label="seatLabel"
+        >
+          <span class="new-divider__label">{{ seatLabel }}</span>
+        </div>
         <MessageCard
           v-else-if="it.msg"
           :msg="it.msg"
@@ -132,6 +143,8 @@ import { useLive } from '~/composables/useLive'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { threadJumpState } from '~/utils/thread-jump.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
+import { seatDividerId } from '~/utils/seat-divider.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
@@ -186,6 +199,10 @@ const props = defineProps<{
       they carry a fading highlight, and a "N new" button jumps to the divider.
       null / undefined (a never-read feed, or a pane that opts out) shows none. */
   unreadBoundary?: { ts: string, id: string } | null
+  /** Spec 061 3.6 (lane L10): when a DM peer's reused agent id was seated by
+      its current holder (view-v1 §4.1 boxes[].seated_at). The "new holder
+      since" divider goes before that holder's first message. '' = none. */
+  seatedAt?: string
 }>()
 defineEmits<{ older: [], 'clear-search': [], 'open-topic': [msg: SpoolMessage], edited: [msg: SpoolMessage], deleted: [msg: SpoolMessage], reacted: [update: ReactionUpdate] }>()
 
@@ -228,20 +245,25 @@ function isNew(m: SpoolMessage) {
   return Boolean(props.unreadBoundary) && !isOwn(m) && isUnread(m, props.unreadBoundary)
 }
 
-/* The rows with the divider interleaved (one keyed element per iteration). */
-type FeedItem = { key: string, divider?: true, msg?: SpoolMessage, i: number }
+/* Spec 061 3.6 (lane L10): the first message of a reused id's current holder. */
+const seatId = computed(() => (props.seatedAt ? seatDividerId(shown.value, props.seatedAt) : ''))
+const seatLabel = computed(() => t('feed.seat_divider', { when: isoDateTime(props.seatedAt || '') }))
+
+/* The rows with the dividers interleaved (one keyed element per iteration).
+   Each divider sits on the older side of its message: before it newest-last,
+   after it newest-first. */
+type FeedItem = { key: string, divider?: true, seat?: true, msg?: SpoolMessage, i: number }
 const feedItems = computed<FeedItem[]>(() => {
   const out: FeedItem[] = []
   const fid = firstNewId.value
+  const sid = seatId.value
   shown.value.forEach((m, i) => {
+    const before: FeedItem[] = []
+    if (sid && m.msg_id === sid) before.push({ key: '__seat-divider__', seat: true, i: -1 })
+    if (fid && m.msg_id === fid) before.push({ key: '__new-divider__', divider: true, i: -1 })
     const card: FeedItem = { key: String(m.msg_id), msg: m, i }
-    const divider: FeedItem = { key: '__new-divider__', divider: true, i: -1 }
-    if (fid && m.msg_id === fid) {
-      if (newestLast.value) out.push(divider, card)
-      else out.push(card, divider)
-    } else {
-      out.push(card)
-    }
+    if (newestLast.value) out.push(...before, card)
+    else out.push(card, ...before.reverse())
   })
   return out
 })

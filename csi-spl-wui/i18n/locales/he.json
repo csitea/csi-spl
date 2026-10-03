@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "הודעות חדשות",
+    "seat_divider": "מחזיק חדש מאז {when}",
     "unread_jump": "{n} חדשות",
     "unread_jump_label": "מעבר להודעה הראשונה שלא נקראה",
     "replies_unread": "{n} שלא נקראו",

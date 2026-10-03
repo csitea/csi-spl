@@ -777,6 +777,7 @@
       "undone": "Promote undone"
     },
     "unread_divider": "Mesaje noi",
+    "seat_divider": "Deținător nou din {when}",
     "unread_jump": "{n} noi",
     "unread_jump_label": "Salt la primul mesaj necitit",
     "replies_unread": "{n} necitite",

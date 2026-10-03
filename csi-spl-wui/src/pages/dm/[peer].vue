@@ -9,7 +9,7 @@
       :archived-at="openArchive.at"
       :topic-title="openArchive.title"
     />
-    <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" />
+    <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" :seated-at="seatedAt" />
   </div>
 </template>
 
@@ -33,6 +33,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { dmPresence } from '~/utils/dm-presence.mjs'
 import { BROWSER_BOX, topicTitleFromRows } from '~/utils/view-api.mjs'
 import { archiveStamp } from '~/utils/topic-archive.mjs'
+import { seatedAtFor } from '~/utils/seat-divider.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -67,6 +68,13 @@ const presence = computed(() => {
   const lastSeen = roster.humansDetail[String(id || '')]?.last_seen
     || (box && box !== BROWSER_BOX ? roster.boxes[box]?.last_hello_at : '')
   return dmPresence({ online: online.value, lastSeen: lastSeen || '' })
+})
+
+/* Spec 061 3.6 (lane L10): when this agent id@box was seated by its current
+   holder. A reused id's DM draws "new holder since" there; '' = none. */
+const seatedAt = computed(() => {
+  const [id, box] = peer.value.split('@')
+  return seatedAtFor(roster.boxes, String(id || ''), String(box || ''))
 })
 
 /* The topic pane reads one task and does not notice a peer change. Once this

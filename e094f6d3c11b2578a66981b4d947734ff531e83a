@@ -1,0 +1,6 @@
+Lay-What: Error messages from file copying and key creation now say which step failed; nothing else changes.
+Lay-How: Each error is labelled with the step it came from, such as opening, copying or writing.
+Lay-Why: An error that only said "permission denied" gave no clue where to look.
+Tech-What: files copyVerify and sign GenerateKey wrap each bare return err with %w and the failing step.
+Tech-How: files.go and sign.go add fmt.Errorf wraps; ErrHashMismatch stays unwrapped and os.IsNotExist runs before any wrap; 48 tests pass before and after.
+Tech-Why: Refactor round 1 #05: bare errors lost the context of which operation failed.

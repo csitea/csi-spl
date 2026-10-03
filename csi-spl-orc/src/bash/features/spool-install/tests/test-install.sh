@@ -265,7 +265,9 @@ ARGS=(--cli qwen --no-seat); inst SPOOL_INSTALL_NPM="$T/no-such-npm"; rc=$?
 ASSETS="$(cd "$TEST_DIR/../../spawn-agents/assets" && pwd)"
 CMD="$H/.claude/commands"; SK="$H/.claude/skills"
 n_cmd="$(ls "$ASSETS/commands" | wc -l)"; n_sk="$(ls "$ASSETS/skills" | wc -l)"
-[[ "$(ls "$CMD"/*.md 2>/dev/null | wc -l)" == "$n_cmd" && "$(ls "$SK"/*/SKILL.md 2>/dev/null | wc -l)" == "$n_sk" ]] &&
+# The harness skills only: a feature step (graft, spec 069 Y6) links its own skill beside them.
+n_sk_got="$(for k in "$ASSETS"/skills/*/; do k="${k%/}"; [ -f "$SK/${k##*/}/SKILL.md" ] && echo; done | wc -l)"
+[[ "$(ls "$CMD"/*.md 2>/dev/null | wc -l)" == "$n_cmd" && "$n_sk_got" == "$n_sk" ]] &&
   pass "10. every command ($n_cmd) and skill ($n_sk) is rendered into ~/.claude" || fail "10. rendered: $(ls -R "$H/.claude" | head -30)"
 for k in claude grok agy qwen; do [[ -r "$CMD/$k-spawn.md" ]] || fail "10. no /$k-spawn"; done
 ! grep -rqE '\{\{[A-Z_]+\}\}' "$CMD" "$SK" && pass "10. no placeholder is left" || fail "10. placeholders: $(grep -rlE '\{\{[A-Z_]+\}\}' "$CMD" "$SK")"

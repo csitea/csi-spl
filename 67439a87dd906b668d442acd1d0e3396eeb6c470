@@ -1,0 +1,6 @@
+Lay-What: Sending a message now records who it concerns, so each person's Flow count is ready the moment it is sent.
+Lay-How: The same step that saves a message also notes the mentions, pokes, direct messages and replies for each person, with no extra wait.
+Lay-Why: The personal Flow and its number need these records written reliably and cheaply with every message.
+Tech-What: Store FlowEvents written as CTEs of the send INSERT (new rows only, mention > poke > dm > reply, human seats behind the channel read door); FlowRead returns counts and a page in one batch; FlowFanout returns a line's events and counts per member.
+Tech-How: flow.go and flow_postgres.go implement it with a memory twin; the sweep drops f:<msg_id> marks with their line; tests on memory and Postgres.
+Tech-Why: Spec 062 L2: per-user counts with 0 extra round trips on send.

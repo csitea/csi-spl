@@ -33,6 +33,15 @@ func New(cfg *config.Config) *Store { return &Store{cfg: cfg} }
 // the dir <id>@<box> plus the compat symlink <id> -> <id>@<box>, so every
 // path built from the bare id keeps resolving; an existing <id> (dir or link)
 // is used as it is.
+// The three mailbox dirs under <root>/<id>/.
+const (
+	boxInbox   = "inbox"
+	boxOutbox  = "outbox"
+	boxArchive = "archive"
+)
+
+var allBoxes = []string{boxInbox, boxOutbox, boxArchive}
+
 func (s *Store) ensureAgent(id string) error {
 	if q := s.qualifiedDir(id); q != "" {
 		base := filepath.Join(s.cfg.SpoolRoot, id)
@@ -45,7 +54,7 @@ func (s *Store) ensureAgent(id string) error {
 			}
 		}
 	}
-	for _, d := range []string{"inbox", "outbox", "archive"} {
+	for _, d := range allBoxes {
 		if err := os.MkdirAll(filepath.Join(s.cfg.SpoolRoot, id, d), 0o775); err != nil {
 			return err
 		}
@@ -156,7 +165,7 @@ func (s *Store) Send(from, to, taskID, kind, body string, atts []msg.Attachment)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.writeBox(m, m.To, "inbox"); err != nil {
+	if _, err := s.writeBox(m, m.To, boxInbox); err != nil {
 		return nil, err
 	}
 	if err := s.WriteOutbox(m); err != nil {
@@ -190,7 +199,7 @@ func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachme
 
 // WriteOutbox records m in the sender's outbox.
 func (s *Store) WriteOutbox(m *msg.Message) error {
-	_, err := s.writeBox(m, m.From, "outbox")
+	_, err := s.writeBox(m, m.From, boxOutbox)
 	return err
 }
 
@@ -220,13 +229,13 @@ func (s *Store) deliverTo(m *msg.Message, id string, ring bool) (bool, error) {
 		return false, fmt.Errorf("to must be a valid agent id")
 	}
 	name := msg.Filename(m)
-	for _, box := range []string{"inbox", "archive"} {
+	for _, box := range []string{boxInbox, boxArchive} {
 		if _, err := os.Stat(filepath.Join(s.dir(id, box), name)); err == nil {
 			// a redelivery: the fleet copy may be the half that failed
 			return false, s.bridgeFleet(m, id)
 		}
 	}
-	wrote, err := s.writeBoxRing(m, id, "inbox", ring)
+	wrote, err := s.writeBoxRing(m, id, boxInbox, ring)
 	if err != nil {
 		return wrote, err
 	}
@@ -247,12 +256,12 @@ func (s *Store) bridgeFleet(m *msg.Message, id string) error {
 		filepath.Clean(root) == filepath.Clean(s.cfg.SpoolRoot) {
 		return nil
 	}
-	inbox := filepath.Join(root, id, "inbox")
+	inbox := filepath.Join(root, id, boxInbox)
 	if fi, err := os.Stat(inbox); err != nil || !fi.IsDir() {
 		return nil
 	}
 	name := msg.Filename(m)
-	for _, box := range []string{"inbox", "archive"} {
+	for _, box := range []string{boxInbox, boxArchive} {
 		if _, err := os.Stat(filepath.Join(root, id, box, name)); err == nil {
 			return nil
 		}
@@ -293,7 +302,7 @@ func (s *Store) writeBoxRing(m *msg.Message, id, box string, ring bool) (bool, e
 	if err := writeFileAtomic(filepath.Join(s.dir(id, box), msg.Filename(m)), blob, 0o664); err != nil {
 		return false, err
 	}
-	if box == "inbox" {
+	if box == boxInbox {
 		// The delivery itself: from here the message survives a crash, a
 		// restart and a closed socket (002). The hop table subtracts this
 		// from ws_recv to price the file mailbox - the part of the design
@@ -307,7 +316,7 @@ func (s *Store) writeBoxRing(m *msg.Message, id, box string, ring bool) (bool, e
 	// Hooking it here is also what gives FR-003 for free: a redelivery that
 	// DeliverTo already short-circuited never reaches this line, so a
 	// reconnecting sidecar does not ring an old message a second time.
-	if box == "inbox" && ring {
+	if box == boxInbox && ring {
 		// Deliver, not Run: a long-running box daemon installs a per-recipient
 		// queue (notify.Start) so the terminal leg does not hold up the read
 		// loop behind it; every other caller is short-lived and still runs it
@@ -335,7 +344,7 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 	if err := s.ensureAgent(as); err != nil {
 		return nil, err
 	}
-	inbox := s.dir(as, "inbox")
+	inbox := s.dir(as, boxInbox)
 	entries, err := os.ReadDir(inbox)
 	if err != nil {
 		return nil, err
@@ -369,7 +378,7 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 			// FR-006: the rename is the claim. Only the process whose rename
 			// succeeded returns the message; a racing loser (ENOENT) drops it
 			// silently and does not fail.
-			if err := atomicMove(p, filepath.Join(s.dir(as, "archive"), name)); err != nil {
+			if err := atomicMove(p, filepath.Join(s.dir(as, boxArchive), name)); err != nil {
 				if errors.Is(err, fs.ErrNotExist) {
 					continue
 				}
@@ -412,7 +421,7 @@ func (s *Store) Tail(taskID string) ([]*msg.Message, error) {
 		if !ok || !a.IsDir() {
 			continue
 		}
-		for _, box := range []string{"inbox", "outbox", "archive"} {
+		for _, box := range allBoxes {
 			s.tailBox(filepath.Join(s.cfg.SpoolRoot, a.Name(), box), id, taskID, seen)
 		}
 	}

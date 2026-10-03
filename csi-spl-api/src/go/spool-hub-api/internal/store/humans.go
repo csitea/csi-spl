@@ -337,13 +337,16 @@ func checkFileID(id string) error {
 	return nil
 }
 
+// maxEmailLen is the RFC 5321 path limit; an identity subject shares it.
+const maxEmailLen = 320
+
 func normalizeIdentity(id *Identity) error {
 	id.Provider = strings.TrimSpace(id.Provider)
 	id.Email = strings.ToLower(strings.TrimSpace(id.Email))
 	if !providerRe.MatchString(id.Provider) {
 		return errors.New("identity provider must match ^[a-z][a-z0-9-]{0,31}$")
 	}
-	if id.Subject == "" || len(id.Subject) > 320 || len(id.Email) > 320 {
+	if id.Subject == "" || len(id.Subject) > maxEmailLen || len(id.Email) > maxEmailLen {
 		return errors.New("identity subject must be 1..320 bytes, email at most 320")
 	}
 	if len(id.Name) > 200 {
@@ -359,7 +362,7 @@ func normalizeInvite(in *Invite) error {
 		return err
 	}
 	in.Role = role
-	if len(in.Email) < 3 || len(in.Email) > 320 || !strings.Contains(in.Email, "@") {
+	if len(in.Email) < 3 || len(in.Email) > maxEmailLen || !strings.Contains(in.Email, "@") {
 		return errors.New("invite email must be an address")
 	}
 	if in.InvitedBy == "" || in.ExpiresAt.IsZero() {

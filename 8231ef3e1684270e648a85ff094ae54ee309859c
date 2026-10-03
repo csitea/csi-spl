@@ -1,0 +1,6 @@
+Lay-What: Adds a tool that measures how much the advance fetching after a release actually speeds up first visits.
+Lay-How: It compares never-fetched copies with fetched ones, one request at a time, and reports the typical waiting time of each.
+Lay-Why: A speed-up should be proven with numbers, not assumed.
+Tech-What: New do_measure_wui_edge_warm prints n, median TTFB, server TTFB and HIT share per arm (cold, warm) and class.
+Tech-How: measure-wui-edge-warm.func.sh uses a never-seen ?edgewarm key per sample, interleaved per path, MEASURE_WUI_PAUSE between GETs; every sample to a TSV; mock-edge test.
+Tech-Why: Perf round 4 C7 needs a before/after for the edge warm on the same live deploy.

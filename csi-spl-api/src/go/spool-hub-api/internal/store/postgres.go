@@ -393,30 +393,8 @@ func (s *Postgres) InsertMessageSent(ctx context.Context, m Message, deliveryExp
 // insertMessage is InsertMessage, plus the sent delivery row when
 // sentExpires is set; one round trip for a new message and for a resend.
 func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires time.Time) (bool, error) {
-	var channel, parent, typedBy, refTask, mirrorOf any
-	if m.Channel != "" {
-		channel = m.Channel
-	}
-	if m.ParentTaskID != "" {
-		parent = m.ParentTaskID
-	}
-	if m.TypedBy != "" {
-		typedBy = m.TypedBy
-	}
-	if m.RefTaskID != "" { // spec 067, rdb 0112
-		refTask = m.RefTaskID
-	}
-	if m.MirrorOf != "" {
-		mirrorOf = m.MirrorOf
-	}
-	args := []any{m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,
-		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt, parent, parentBit(m.IsParent), typedBy,
-		refTask, mirrorOf}
-	sql, sent := insertMessageOnly, !sentExpires.IsZero()
-	if sent {
-		sql, args = insertMessageSent, append(args, sentExpires)
-	}
-	args = append(args, flowInsertArgs(m)...)
+	sql, args := insertMessageArgs(m, sentExpires)
+	sent := !sentExpires.IsZero()
 	var inserted bool
 	var old []byte
 	var notified int64
@@ -444,6 +422,35 @@ func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires tim
 		return false, nil
 	}
 	return false, ErrConflict
+}
+
+// insertMessageArgs is insertMessage's statement and parameters: the plain
+// insert, or with sentExpires set the insert plus its sent delivery row.
+func insertMessageArgs(m Message, sentExpires time.Time) (string, []any) {
+	var channel, parent, typedBy, refTask, mirrorOf any
+	if m.Channel != "" {
+		channel = m.Channel
+	}
+	if m.ParentTaskID != "" {
+		parent = m.ParentTaskID
+	}
+	if m.TypedBy != "" {
+		typedBy = m.TypedBy
+	}
+	if m.RefTaskID != "" { // spec 067, rdb 0112
+		refTask = m.RefTaskID
+	}
+	if m.MirrorOf != "" {
+		mirrorOf = m.MirrorOf
+	}
+	args := []any{m.TenantID, m.MsgID, m.TaskID, channel, m.TS, m.FromBox, m.FromID, m.ToBox, m.ToID,
+		m.Kind, m.Body, string(m.Files), string(m.Msg), m.EnvSig, m.Env, m.ReceivedAt, m.ExpiresAt, parent, parentBit(m.IsParent), typedBy,
+		refTask, mirrorOf}
+	sql := insertMessageOnly
+	if !sentExpires.IsZero() {
+		sql, args = insertMessageSent, append(args, sentExpires)
+	}
+	return sql, append(args, flowInsertArgs(m)...)
 }
 
 // Enqueue is one batch, so one round trip in one implicit transaction (027

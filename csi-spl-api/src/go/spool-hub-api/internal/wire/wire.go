@@ -184,6 +184,13 @@ type Frame struct {
 	// like TypedBy, and never on a frame to a box.
 	Answers string `json:"answers,omitempty"`
 
+	// send (spec 067 3.3): the channel topic this DM is about. Outside the
+	// signed envelope like TypedBy: the inner msg carries it only once every
+	// box reader knows the key (msg.Parse refuses unknown keys), so a box
+	// claims it here. The hub keeps it only when the sender may read the
+	// topic, and never puts it on a frame to a box.
+	RefTaskID string `json:"ref_task_id,omitempty"`
+
 	// sent
 	MsgID    string `json:"msg_id,omitempty"`
 	TaskID   string `json:"task_id,omitempty"`

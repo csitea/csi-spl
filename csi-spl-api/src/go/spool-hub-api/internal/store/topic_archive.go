@@ -181,11 +181,9 @@ func (s *Memory) SetArchived(_ context.Context, tenant, msgID, by string, at tim
 	if !ok {
 		return CardState{}, ErrNotFound
 	}
-	switch {
-	case !archived:
-		m.ArchivedAt, m.ArchivedBy = time.Time{}, ""
-	case m.ArchivedAt.IsZero():
-		m.ArchivedAt, m.ArchivedBy = at, by
+	archiveLocked(m, by, at, archived)
+	for _, c := range s.mirrorsLocked(tenant, msgID) { // spec 067 edge 3: the channel copy follows
+		archiveLocked(c, by, at, archived)
 	}
 	return s.cardStateLocked(tenant, m), nil
 }

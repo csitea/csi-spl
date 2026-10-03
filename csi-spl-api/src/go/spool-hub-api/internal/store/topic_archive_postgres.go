@@ -84,6 +84,9 @@ func (s *Postgres) SetArchived(ctx context.Context, tenant, msgID, by string, at
 		if tag.RowsAffected() == 0 {
 			return ErrNotFound
 		}
+		if err := archiveMirrorsTx(ctx, tx, tenant, msgID, by, at, archived); err != nil { // spec 067 edge 3
+			return err
+		}
 		return scanCard(ctx, tx, tenant, msgID, time.Time{}, &c)
 	})
 	return c, err

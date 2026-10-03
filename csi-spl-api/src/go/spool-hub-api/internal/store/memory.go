@@ -268,6 +268,11 @@ func (s *Memory) Roster(_ context.Context, tenant string) (map[string][]string, 
 func (s *Memory) InsertMessage(_ context.Context, m Message) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.insertMessageLocked(m)
+}
+
+// insertMessageLocked is InsertMessage under s.mu (InsertMirrored shares it).
+func (s *Memory) insertMessageLocked(m Message) (bool, error) {
 	k := [2]string{m.TenantID, m.MsgID}
 	if old, ok := s.messages[k]; ok {
 		if bytes.Equal(old.Env, m.Env) {

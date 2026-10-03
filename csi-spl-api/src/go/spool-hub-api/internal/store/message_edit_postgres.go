@@ -133,7 +133,7 @@ func applyEditTx(ctx context.Context, tx pgx.Tx, tenant, msgID string, e Edit) (
 	if err != nil {
 		return 0, err
 	}
-	return rev, nil
+	return rev, editMirrorsTx(ctx, tx, tenant, msgID, e) // spec 067 edge 3: the channel copy follows
 }
 
 func (s *Postgres) MessageRevisions(ctx context.Context, tenant, msgID string) ([]MessageRevision, error) {

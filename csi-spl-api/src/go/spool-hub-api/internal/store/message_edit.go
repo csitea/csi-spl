@@ -164,6 +164,7 @@ func (s *Memory) applyEditLocked(tenant, msgID string, e Edit) int {
 		m.EnvSig = e.EnvSig
 	}
 	m.EditedAt, m.EditedBy = e.EditedAt, e.EditedBy
+	s.editMirrorsLocked(tenant, msgID, e) // spec 067 edge 3: the channel copy follows
 	return rev
 }
 

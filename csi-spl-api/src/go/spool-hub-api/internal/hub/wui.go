@@ -126,6 +126,8 @@ type wuiIn struct {
 	ParentTaskID string `json:"parent_task_id,omitempty"`
 	// rdb 0034. Absent on a box or agent send. 0 or 1 from the browser.
 	IsParent *int `json:"is_parent,omitempty"`
+	// Spec 067 3.3: the channel topic a DM is about (dm_ref.go). Untrusted.
+	RefTaskID string `json:"ref_task_id,omitempty"`
 	// Subscription targets beyond task_id / channel (wui-live-ws.md v0.5).
 	Peer string `json:"peer,omitempty"`
 	All  bool   `json:"all,omitempty"`
@@ -569,6 +571,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail(&frameRefusal{tok, status, detail})
 		return
 	}
+	ctx = s.wuiDMRef(ctx, c, f.RefTaskID) // spec 067 3.3, dm_ref.go
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
 		fail(&frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})

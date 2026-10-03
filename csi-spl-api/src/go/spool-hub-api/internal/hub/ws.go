@@ -531,6 +531,7 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, rf.token, rf.status, rf.detail)
 		return
 	}
+	ctx = s.boxDMRef(ctx, x, m.From, f.RefTaskID) // spec 067 3.3, dm_ref.go
 	r, err := s.commitRowTyped(ctx, x.tenant, env, m, s.boxLevel(ctx, x.tenant, m.TaskID), f.TypedBy)
 	if err != nil && undo != nil {
 		undo()
@@ -854,7 +855,7 @@ func (s *Server) commitRowTyped(ctx context.Context, tenant string, env *wire.En
 		Files: filesJSON, Msg: env.Msg, EnvSig: env.Sig, Env: canon, Channel: channel, ParentTaskID: env.ParentTaskID,
 		ReceivedAt: now, ExpiresAt: now.Add(s.retention(channel)), IsParent: isParent, TypedBy: typedBy,
 	}
-	inserted, sentInOne, err := s.insertRow(ctx, row)
+	inserted, sentInOne, err := s.insertRowRef(ctx, &row) // spec 067 L4, dm_ref.go
 	if err != nil {
 		return c, err
 	}

@@ -677,6 +677,9 @@
         "bug": "באג"
       }
     },
+    "responsible": {
+      "title": "אחראי: {seat}"
+    },
     "typed_by": {
       "badge": "דרך הטרמינל של {agent}",
       "title": "הוקלד על ידי {who} בטרמינל של {agent}"

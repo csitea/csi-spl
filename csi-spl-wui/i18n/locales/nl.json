@@ -677,6 +677,9 @@
         "bug": "Bug"
       }
     },
+    "responsible": {
+      "title": "Verantwoordelijk: {seat}"
+    },
     "typed_by": {
       "badge": "via terminal van {agent}",
       "title": "Getypt door {who} in de terminal van {agent}"

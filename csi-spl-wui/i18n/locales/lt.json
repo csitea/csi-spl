@@ -677,6 +677,9 @@
         "bug": "Klaida"
       }
     },
+    "responsible": {
+      "title": "Atsakingas: {seat}"
+    },
     "typed_by": {
       "badge": "per {agent} terminalą",
       "title": "{who} parašė tai {agent} terminale"

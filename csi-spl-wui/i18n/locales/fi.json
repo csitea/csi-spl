@@ -677,6 +677,9 @@
         "bug": "Bugi"
       }
     },
+    "responsible": {
+      "title": "Vastuussa: {seat}"
+    },
     "typed_by": {
       "badge": "{agent}-päätteen kautta",
       "title": "{who} kirjoitti tämän {agent}-päätteessä"

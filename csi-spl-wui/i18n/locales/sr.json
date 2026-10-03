@@ -677,6 +677,9 @@
         "bug": "Грешка"
       }
     },
+    "responsible": {
+      "title": "Одговоран: {seat}"
+    },
     "typed_by": {
       "badge": "preko terminala {agent}",
       "title": "Otkucao {who} u terminalu {agent}"

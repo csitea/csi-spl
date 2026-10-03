@@ -677,6 +677,9 @@
         "bug": "Bug"
       }
     },
+    "responsible": {
+      "title": "Responsible: {seat}"
+    },
     "typed_by": {
       "badge": "via terminal {agent}",
       "title": "Typed by {who} in the terminal of {agent}"

@@ -677,6 +677,9 @@
         "bug": "Hata"
       }
     },
+    "responsible": {
+      "title": "Sorumlu: {seat}"
+    },
     "typed_by": {
       "badge": "{agent} terminali üzerinden",
       "title": "{who} tarafından {agent} terminalinde yazıldı"

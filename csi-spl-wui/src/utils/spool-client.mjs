@@ -1,6 +1,7 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
 import { belongsTo, parseMention } from './channel-feed.mjs'
+import { isAgentId } from './agent-id.mjs'
 import {
   channelReadQuery,
   channelsFromView,
@@ -653,6 +654,9 @@ export function createSpoolClient({
       const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const body = peer ? String(text || '') : parsed.body
       if (mock) {
+        /* spec 068: what the hub's insert stores - <to>@<to_box> for a
+           message to one agent; the mock reads a bare peer's box off the roster */
+        const seatBox = toBox || Object.keys(state.roster || {}).find((b) => (state.roster[b] || []).includes(to))
         const row = {
           v: 1,
           msg_id: uuid(),
@@ -668,6 +672,7 @@ export function createSpoolClient({
           channel: channel || null,
           parent_task_id: parent_task_id || null,
           ...(is_parent === 0 || is_parent === 1 ? { is_parent } : {}),
+          ...(isAgentId(to) && seatBox ? { responsible: `${to}@${seatBox}` } : {}),
         }
         state.messages.push(row)
         return row

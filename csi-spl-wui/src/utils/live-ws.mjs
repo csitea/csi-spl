@@ -185,6 +185,8 @@ export function messageFromFrame(f) {
   copyEditFields(x, out)
   /* specs/036 FR-011: the verified typist rides on the frame, like edited_by */
   if (typeof x.typed_by === 'string' && x.typed_by) out.typed_by = x.typed_by
+  /* spec 068: the responsible seat rides on the frame too */
+  if (typeof x.responsible === 'string' && x.responsible) out.responsible = x.responsible
   return out
 }
 

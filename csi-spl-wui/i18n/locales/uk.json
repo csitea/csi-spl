@@ -677,6 +677,9 @@
         "bug": "Помилка"
       }
     },
+    "responsible": {
+      "title": "Відповідальний: {seat}"
+    },
     "typed_by": {
       "badge": "через термінал {agent}",
       "title": "Набрано {who} у терміналі {agent}"

@@ -677,6 +677,9 @@
         "bug": "Грешка"
       }
     },
+    "responsible": {
+      "title": "Одговорен: {seat}"
+    },
     "typed_by": {
       "badge": "преку терминалот на {agent}",
       "title": "Напишано од {who} во терминалот на {agent}"

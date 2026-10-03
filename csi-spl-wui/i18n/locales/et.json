@@ -677,6 +677,9 @@
         "bug": "Viga"
       }
     },
+    "responsible": {
+      "title": "Vastutaja: {seat}"
+    },
     "typed_by": {
       "badge": "{agent} terminali kaudu",
       "title": "{who} kirjutas selle {agent} terminalis"

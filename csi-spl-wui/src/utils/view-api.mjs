@@ -176,6 +176,8 @@ function flattenViewMessage(el) {
     copyEditFields(e, out)
     /* specs/036 FR-011: hub metadata beside the envelope, omitted when absent */
     if (typeof e.typed_by === 'string' && e.typed_by) out.typed_by = e.typed_by
+    /* spec 068: the responsible seat <id>@<box>, omitted while nobody is */
+    if (typeof e.responsible === 'string' && e.responsible) out.responsible = e.responsible
     if (e.is_parent === 0 || e.is_parent === 1) out.is_parent = e.is_parent
     if (Array.isArray(e.reactions)) out.reactions = normalizeReactions(e.reactions)
     delete out.sig

@@ -49,6 +49,11 @@ export interface SpoolMessage {
    */
   typed_by?: string
   /**
+   * spec 068 (rdb 0110): the seat `<id>@<box>` that must deal with this
+   * message. Omitted while nobody is; the card then shows nothing.
+   */
+  responsible?: string
+  /**
    * Emoji added to this message (rdb 0037). Present on an opening message
    * (is_parent 1) and on a reply (is_parent 0). Empty when nobody has added one.
    */

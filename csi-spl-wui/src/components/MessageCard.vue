@@ -96,6 +96,14 @@
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
         <KindBadge :kind="String(msg.kind)" :msg="msg" />
+        <!-- spec 068 L8: the seat that must deal with it; nothing while nobody is -->
+        <span
+          v-if="msg.responsible"
+          class="msg-responsible"
+          data-testid="msg-responsible"
+          :data-responsible="msg.responsible"
+          :title="t('feed.responsible.title', { seat: msg.responsible })"
+        ><span aria-hidden="true">⚑ </span>{{ msg.responsible }}</span>
         <!-- bug B (4ecb4b0d): our own row is drawn the moment Send is pressed;
              until the hub's ack it says so, instead of a time that reads "posted" -->
         <span v-if="msg.pending" class="msg-time msg-time--sending" data-test="msg-sending" role="status">{{ t('composer.sending') }}</span>
@@ -1670,6 +1678,16 @@ async function save() {
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+/* spec 068 L8: the responsible seat gives way like the time (ellipsis, title) */
+.msg-responsible {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
 .msg-to-arrow {
   align-self: center;
   color: var(--color-muted);
@@ -1930,6 +1948,8 @@ async function save() {
      of the free space and strand the menu mid-row) */
   .msg-meta-spacer { flex: 0 0 0; margin-inline-start: auto; }
   .msg-meta > .msg-via-terminal { flex: 1 1 0; max-width: max-content; min-width: 1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* spec 068 L8: the seat gives way on the header line, as the typist does */
+  .msg-meta > .msg-responsible { flex: 1 1 0; max-width: max-content; min-width: 1em; }
   .msg-actions [data-test="open-topic"] { display: none; }
   /* SPL-1000 (owner, SPL-982 rule on every card): Add emoji stays in the
      header on a phone too - a 44 px target whose 16 px glyph sits 5 px after

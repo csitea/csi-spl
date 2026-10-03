@@ -677,6 +677,9 @@
         "bug": "Chyba"
       }
     },
+    "responsible": {
+      "title": "Zodpovedný: {seat}"
+    },
     "typed_by": {
       "badge": "cez terminál {agent}",
       "title": "Napísané používateľom {who} v termináli {agent}"

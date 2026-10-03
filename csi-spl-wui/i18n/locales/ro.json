@@ -677,6 +677,9 @@
         "bug": "Eroare"
       }
     },
+    "responsible": {
+      "title": "Responsabil: {seat}"
+    },
     "typed_by": {
       "badge": "prin terminalul {agent}",
       "title": "Tastat de {who} în terminalul {agent}"

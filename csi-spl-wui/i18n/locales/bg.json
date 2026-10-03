@@ -677,6 +677,9 @@
         "bug": "Бъг"
       }
     },
+    "responsible": {
+      "title": "Отговорник: {seat}"
+    },
     "typed_by": {
       "badge": "през терминала на {agent}",
       "title": "Написано от {who} в терминала на {agent}"

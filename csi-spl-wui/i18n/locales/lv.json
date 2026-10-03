@@ -677,6 +677,9 @@
         "bug": "Kļūda"
       }
     },
+    "responsible": {
+      "title": "Atbildīgais: {seat}"
+    },
     "typed_by": {
       "badge": "caur {agent} termināli",
       "title": "{who} to ierakstīja {agent} terminālī"

@@ -1,0 +1,6 @@
+Lay-What: The machines list now shows only real machines; the browser entry is gone, so the list and its count agree.
+Lay-How: The list leaves out the entry that stands for the web browser, and opening that entry goes back to the list.
+Lay-Why: The browser showed up as if it were a machine, which was confusing and made the count wrong.
+Tech-What: WUI boxRows() drops the box-wui pseudo-box; /boxes/box-wui redirects to the Boxes list.
+Tech-How: utils/box-rows.mjs filters it so rail list, filter and count agree; pages/boxes/[id].vue redirects; box-rows unit 12/12.
+Tech-Why: box-wui is a browser session row, not a machine, but boxRows listed every box id.

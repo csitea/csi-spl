@@ -152,8 +152,11 @@ spl_dispatch_setup_steps() {
 
 # spl_dispatch_lease_conf_text: sets the caller's conf to the lease.conf this
 # setup wants - the three roles, the fleet keys (given, or carried over from
-# the current file so a re-run keeps fleet mode) and the asks timer's knobs
-# (given, or carried over). 1 with the FATAL on a malformed knob.
+# the current file so a re-run keeps fleet mode), the asks timer's knobs
+# (given, or carried over), and the per-role rankings LEASE_PRIORITY_ORCH /
+# _DISPATCH (always carried over: do_spl_lease_rank owns them). Lines keep the
+# current file's order, so a re-run that changes nothing rewrites nothing.
+# 1 with the FATAL on a malformed knob.
 spl_dispatch_lease_conf_text() {
   local k v
   conf="$(printf 'LEASE_MASTER=%s\nLEASE_FAILOVER=%s\nLEASE_ORCH=%s\n' "$DISPATCH_MASTER" "$DISPATCH_FAILOVER" "$DISPATCH_ORCH")"
@@ -164,10 +167,14 @@ spl_dispatch_lease_conf_text() {
     # follow box.env SPOOL_DESK_BOX, so a box rename needs no lease.conf edit
     [[ -n "${DISPATCH_MACHINE:-}" ]] && conf+=$'\n'"LEASE_MACHINE=$DISPATCH_MACHINE"
     [[ -n "${DESK_BOX:-}" ]] && conf+=$'\n'"LEASE_DESK_BOX=$DESK_BOX"
+    # no setup knob writes the per-role rankings: dropping them here would
+    # silently revert the ranking to LEASE_PRIORITY
+    v="$(grep -E '^LEASE_PRIORITY_(ORCH|DISPATCH)=' "$LEASE_CONF" 2>/dev/null)"
+    [[ -n "$v" ]] && conf+=$'\n'"$v"
   elif grep -qE '^LEASE_FLEET=' "$LEASE_CONF" 2>/dev/null; then
     # a re-run without DISPATCH_FLEET keeps fleet mode: dropping it would let
     # this machine act beside the fleet's holder
-    conf+=$'\n'"$(grep -E '^LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)=' "$LEASE_CONF")"
+    conf+=$'\n'"$(grep -E '^LEASE_(FLEET|MACHINE|PRIORITY(_ORCH|_DISPATCH)?|ENV|TENANT|DESK_BOX)=' "$LEASE_CONF")"
   fi
   # the asks timer's knobs (CLE-77929): given ones are written, the others
   # carried over from the current file, so a re-run never drops them
@@ -181,6 +188,12 @@ spl_dispatch_lease_conf_text() {
     [[ "$k" != OWNER && ! "$v" =~ ^[0-9]+$ ]] && { do_log "FATAL DISPATCH_ASKS_$k must be minutes, got '$v'"; return 1; }
     conf+=$'\n'"ASKS_$k=$v"
   done
+  # the current file's key order first, then the keys it lacks (order above)
+  [[ -f "$LEASE_CONF" ]] || return 0
+  conf="$(awk 'FNR == NR { k = $0; sub(/=.*/, "", k); if (!(k in at)) { at[k] = ++n }; next }
+    { k = $0; sub(/=.*/, "", k); if (!(k in at)) rest[++r] = $0; else if (!(at[k] in mine)) mine[at[k]] = $0 }
+    END { for (i = 1; i <= n; i++) if (i in mine) print mine[i]; for (i = 1; i <= r; i++) print rest[i] }' \
+    "$LEASE_CONF" <(printf '%s\n' "$conf"))"
 }
 
 # Ids, dirs and the workspace list, shared with do_spl_dispatch_check.

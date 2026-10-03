@@ -54,7 +54,7 @@ seat() { mkdir -p "$ST/desk/$2/box-desk/spool/$1"; touch "$ST/desk/$2/box-desk/p
 
 act() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$R" SPOOL_ROOT="$S" SPL_STATE_DIR="$ST" LEASE_PROC_ROOT="$P" \
-    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" LEASE_ALLOW_STALE=1 DISPATCH_SUBS_DIR="$SUBS" \
+    DISPATCH_BOX_USER=boxuser ENV=prd HOME="$T/home" SPOOL_DESK_BOX=box-desk LEASE_ALLOW_STALE=1 DISPATCH_SUBS_DIR="$SUBS" \
     PATH="$T/bin:$PATH" FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$T/shared" SWEEP_CRON_LOG_DIR="$T/log" \
     DISPATCH_LAG_CMD='echo "$ENV hub current served=a sha=b"; echo "$ENV wui pending served=a sha=b n=1 age=3m (in grace)"' "$@" bash -c '
     set -uo pipefail
@@ -111,8 +111,20 @@ setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
 grep -qx 'ASKS_OWNER=HUM-10' "$S/dispatch/lease.conf" && grep -qx 'ASKS_RERAISE_MIN=20' "$S/dispatch/lease.conf" && grep -qx 'LEASE_FLEET=main' "$S/dispatch/lease.conf" &&
   pass "2. DISPATCH_ASKS_* write the asks knobs; a re-run keeps them" || fail "2. asks knobs: $(cat "$S/dispatch/lease.conf")"
 setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_ASKS_OWNER=owner >"$T/o" 2>&1 && fail "2. accepted DISPATCH_ASKS_OWNER=owner" || pass "2. a non-HUM owner id is refused"
+# the per-role rankings (do_spl_lease_rank appends them): a re-run keeps them
+# and every other key, byte-identical; a re-run with DISPATCH_FLEET keeps them too
+printf 'LEASE_PRIORITY_ORCH=sat,pc\nLEASE_PRIORITY_DISPATCH=pc,sat\n' >>"$S/dispatch/lease.conf"
+cp "$S/dispatch/lease.conf" "$T/lc.ranked"
+setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
+cmp -s "$T/lc.ranked" "$S/dispatch/lease.conf" && grep -qE '^OK +lease-conf ' "$T/o" &&
+  pass "2. a re-run keeps the per-role rankings and every other key, byte-identical" ||
+  fail "2. ranked re-run: $(diff "$T/lc.ranked" "$S/dispatch/lease.conf")"
+setup DRY_RUN=0 LEASE_RUN=/bin/true DISPATCH_FLEET=main DISPATCH_MACHINE=pc DISPATCH_PRIORITY=pc,sat DISPATCH_LEASE_TENANT=w1 >"$T/o" 2>&1
+grep -qx 'LEASE_PRIORITY_ORCH=sat,pc' "$S/dispatch/lease.conf" && grep -qx 'LEASE_PRIORITY_DISPATCH=pc,sat' "$S/dispatch/lease.conf" &&
+  grep -qx 'ASKS_OWNER=HUM-10' "$S/dispatch/lease.conf" &&
+  pass "2. a re-run with DISPATCH_FLEET keeps the per-role rankings" || fail "2. ranks dropped: $(cat "$S/dispatch/lease.conf")"
 # back to the local-only conf the rest of this file checks
-grep -vE '^(LEASE_(FLEET|MACHINE|PRIORITY|ENV|TENANT|DESK_BOX)|ASKS_[A-Z_]+)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
+grep -vE '^(LEASE_(FLEET|MACHINE|PRIORITY[A-Z_]*|ENV|TENANT|DESK_BOX)|ASKS_[A-Z_]+)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
 
 # --- 3. settings newer than the session ----------------------------------------------
 touch "$R-wt/c-003/.claude/settings.local.json"

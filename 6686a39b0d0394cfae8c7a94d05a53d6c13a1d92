@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: The internal agent restart tool now refuses an agent it cannot bring back before stopping it; nothing changes for users.

@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Adds an hourly clean-up of leftover temporary folders from finished agent sessions on the build machine; nothing changes for users.

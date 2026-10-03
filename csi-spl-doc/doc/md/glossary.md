@@ -24,7 +24,7 @@ this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
 | **section** | One entry of the left panel's icon row (the rail): Flow, Channels, Direct messages, Issues, Archive, People, Agents, Boxes, Help, Workspace settings. On a phone, the "section strip". | Rail icons; "Drag the section icon …"; a section's own page has a close X | the old menu item "Open parent section", which meant the card's **channel or DM**, not a section. Avoid "section" for a channel or DM. | `sidebar.help.people`; `utils/section-strip.mjs`, `SectionClose.vue` |
 | **topic** | A conversation inside a channel or DM: a topic message plus its replies. Its id (`task_id`) is the topic id. | Feed rows; "Start topic"; "Open topic"; "Topics"; `/t/<topic id>`, `?topic=<topic id>` | a thread (the same topic, seen open in the pane); a channel | `topic.title`, `composer.go_new`, `feed.open_topic`, `nav.topics`; `pages/t/[task_id].vue`, `stores/topic.ts`, `TopicPane.vue` |
 | **topic message** | A topic's **first** message: the one that starts it. The hub stores it as a level-1 message. Archive and Delete act on the whole topic from this card. | The card in the channel/DM feed; "the topic's opening card" / "its first card" | a reply | `feed.topic_delete.error_not_card`; "level-1" in `utils/topic-archive.mjs`, `utils/move.mjs` |
-| **reply** | Any message **inside** a topic, after the topic message. | Topic pane "Replies, newest first"; "{n} replies"; menu "Reply"; "Send reply" | a topic message; a DM | `topic.replies_label`, `feed.replies`, `feed.msg_menu.reply`, `composer.go_reply` |
+| **reply** | Any message **inside** a topic, after the topic message. People also say **reply message** (the owner's preferred spoken form) and sometimes **thread message**: both mean a reply, never the topic message. | Topic pane "Replies, newest first"; "{n} replies"; menu "Reply"; "Send reply" | a topic message; a DM | `topic.replies_label`, `feed.replies`, `feed.msg_menu.reply`, `composer.go_reply` |
 | **thread** | A topic as it reads when **open** in the topic pane: the topic message with its replies under it. "Your threads" are the topics you took part in. | "Expand thread" / "Collapse thread"; "Replying in the open thread"; Flow "Replies in your threads" | a topic in general: prefer "topic" in specs, "thread" only for the open pane | `pane.expand_thread`, `composer.target_thread`, `flow.chip_reply` |
 | **card** | One message as drawn on screen: a topic message in the feed, or a reply in the pane. It has the right-click message menu. | Every message; "Card height" setting | a person's / agent's / box's **profile card** ("see their card"); a payment card at checkout | `feed.clip.label`, `feed.msg_menu.label`; `MessageCard.vue`, `MessageMenu.vue` (profile: `people.empty`; payment: `checkout.card_loading`) |
 | **kind** | The type tag on a message: task, result, note, reject, blocker, message. | Badge on a card; menu "Change kind" | an issue type (Epic, Issue) | `feed.kind`, `feed.msg_menu.kind`; `KindBadge.vue` |
@@ -42,6 +42,9 @@ this doc: t1 #spool-hub-ops topic `6e61fb91`. In the app, a topic opens at
 
 - **topic message** for the first message, **reply** for the rest. Not "root",
   "parent", "post" or "starting msg".
+- **reply message** (preferred) or **thread message** is what people say for a
+  **reply**; both mean the reply, not the topic message. In writing, **reply**
+  or **reply message**; avoid "thread message" (topic `b6253a70`).
 - **channel** or **DM** for where a topic lives. Not "section": a section is a
   left-panel entry.
 - **topic** in specs; **thread** only when you mean the topic open in the pane.

@@ -1,0 +1,6 @@
+Lay-What: The database gets a new place to record when an agent name was taken by its current owner.
+Lay-How: A new table holds one row per agent name and box, with the time the current owner took the name.
+Lay-Why: Agent names are reused, and without this record the app could not show where one owner ends and the next begins.
+Tech-What: rdb migration 0107 creates agent_seats (tenant, box, agent id, seated_at).
+Tech-How: Forward-only SQL migration 0107_agent_seats.sql with the tenant RLS policy; the hub writes it from SetRoster (next commit).
+Tech-Why: Spec 061 L10: the seated_at stamp behind the "new holder since" divider needs a durable, per-tenant table.

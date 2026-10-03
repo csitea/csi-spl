@@ -1,0 +1,6 @@
+Lay-What: When a message between machines is refused, the system now writes down why instead of dropping it silently.
+Lay-How: Each refused message gets a short note with the reason, and the refusal is logged as an error.
+Lay-Why: Messages were disappearing with no trace, and nobody could tell what had gone wrong.
+Tech-What: hubclient reject(pending, why) writes <file>.reason (at, status, token, detail, error) and logs one ERROR line; the submit handler logs hub refusals.
+Tech-How: flush.go and submit.go record the reason; TestSubmitRefusalRejectsPendingLikeDial and TestFlushRejectsUnreadableWithReason cover hub and local refusals.
+Tech-Why: An old sidecar binary could not validate new agent ids; its Flush moved the send to .hub/rejected with no log.

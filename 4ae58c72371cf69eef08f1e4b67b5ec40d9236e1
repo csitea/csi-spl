@@ -1,0 +1,6 @@
+Lay-What: Moving a message and promoting a reply to a topic are faster.
+Lay-How: The server now makes all the changes of a move in a single database step instead of a chain of steps.
+Lay-Why: Each step of the chain waited for the database, making moves slower than needed.
+Tech-What: MoveMessage and PromoteMessage write in one CTE statement instead of a lock, read and update chain.
+Tech-How: message_move_postgres.go and topic_promote_postgres.go use WITH cur (... FOR UPDATE) ... UPDATE ... RETURNING with the stages as CTE columns.
+Tech-Why: Perf round 4 G5: move 50 -> 36 round trips, promote 32 -> 26 (n=5).

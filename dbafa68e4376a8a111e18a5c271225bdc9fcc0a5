@@ -1,0 +1,6 @@
+Lay-What: The Flow now has a "Mine" view that shows only what concerns you, with a number on the Flow tab and chips for mentions, replies and direct messages.
+Lay-How: Mine lists your mentions, pokes, direct messages and replies; the number goes down as soon as you open the Flow, and it updates live on all your devices; "All" still shows everything.
+Lay-Why: The Flow showed every message in the workspace, so it was hard to see what needed your attention.
+Tech-What: WUI Flow Mine/All switch reading GET /v1/view/flow (30 per page, Load more by cursor), the tab badge (unseen+unread, 99+), per-kind chips, the flow WS frame, f:seen and f:<msg_id> read marks, app badge and tab title.
+Tech-How: stores/flow.ts and flow-badge.mjs hold counts; live-ws.mjs handles the flow frame; listFlow/markFlow are lazy client stubs; the store is imported lazily; a hub without the route keeps the old pip; 10 strings in 19 locales.
+Tech-Why: Spec 062 L4 per contract flow-v1 (owner Q1: Mine is the default, Q4: opening the pane clears the number).

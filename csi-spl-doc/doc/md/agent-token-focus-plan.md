@@ -4,8 +4,8 @@ Owner ask (t1 topic `64576223-7996-4b09-bc50-e01c2572bbdf`): best practices for
 agents to keep token use down and stay on one topic.
 
 This plan comes from MEASUREMENTS. Every number below gives its source and n. A
-practice without a measured saving is not on the list, so this plan has **10
-practices, not 30**.
+practice without a measured saving is not on the list, so this plan has **11
+practices, not 30** (11 was added after the owner's follow-up on lanes that run over 30 min).
 
 ## 1. Method and limits
 
@@ -71,6 +71,21 @@ Two facts that matter beyond size:
 Caveat: a lane id that is reused after a retire counts both of its lanes. So 33% is
 an UPPER bound. Brief 08 re-measures it with the lane-map topic column.
 
+### 2.4 Lanes that run long (owner follow-up: "over 30 min on a subject")
+
+| measure | source | value | n |
+|---|---|---|---|
+| lane wall time: from spawn to the lane's last `result` | `registry.tsv` spawn time (latest spawn of that id before the result) → `ts` of the last `result` from that id, last 24 h, role seats excluded | median 73 min, p75 109, p90 191, max 377 | 50 lanes |
+| lanes over 30 / 60 / 120 min | same | 41 / 27 / 10 of 50 | 50 |
+| lane-minutes spent past the 30th minute | same | 3,020 of 4,395 (69%) | 50 |
+
+What this does NOT show: how much of that time is tokens and how much is waiting.
+Wall time includes CI and deploy waits, and the seed requires a lane to watch CI to
+green, so part of every lane's tail is a wait. A wait costs tokens only as poll
+turns, and each poll turn re-reads the whole context (section 2.1). Brief 00
+(transcripts) splits wall time into tokens per phase. Until it runs, "41 of 50 over
+30 min" is a time measure, not a cost measure.
+
 ## 3. The practices, ranked by measured saving
 
 The saving is per lane session unless the row says otherwise. "Owner" is the file
@@ -97,6 +112,12 @@ any of these files (checked with `lane-map.sh --check`, 2026-10-03).
 | 9 | **The orchestrator reads bodies, not envelopes.** `spool recv --compact` prints `from kind task_id` + body, without the v/msg_id/ts/files fields; `agent-inbox.sh` uses it | `csi-spl-api/src/go/spool-hub-api/cmd/spool/main.go`, `spawn-agents/scripts/agent-inbox.sh` | ~−20% of every recv (970 → ~780 B per message, n=1,490) | `spool recv --as <id>` vs `--compact`, `wc -c`, same inbox | api lane + ORC |
 | 10 | **Lanes load only the skills and connectors they use.** Office-file, browser, desktop and doc-connector skills/plugins are disabled for the harness user's lanes | harness user `settings.json` (`enabledPlugins`) | NOT measured. Measure first: the listing's chars in a lane with vs without | count the skills/connector text in a lane transcript, n=2 | **human owner** (account) |
 
+### 3.2.1 Time on one subject
+
+| # | practice | where | expected saving | measure before / after | owner |
+|---|---|---|---|---|---|
+| 11 | **A 30-minute checkpoint, and waits that cost no turns.** At 30 min a lane lands what is green, posts one status line (done / remaining / blocked-on) and either finishes or hands the rest to a new lane. CI and deploy waits run as ONE background wait that wakes the lane when it finishes, not as a poll loop | the limit and restart/compact rule: c-079's agent context-lifecycle spec; a new read-only `spawn-agents/scripts/lane-age-report.sh` that lists live lanes > 30 min with their last push age | 41 of 50 lanes run over 30 min; 69% of lane-minutes come after minute 30 (n=50). The token share follows after brief 00 | the section 2.4 query again, 24 h after; brief 00's per-phase token split | c-079 (limit), ORC (report) |
+
 ### 3.3 Practices considered and dropped (measured, no gain)
 
 - **Shorter briefs.** Median 3,249 B, n=131, which is ~3% of the preamble. Not a driver.
@@ -114,9 +135,10 @@ Brief 00 is the transcript measurement, which needs a lane cleared for it.
 | 3 | 03-global-claude-md-scope | human owner go (global file) |
 | 4 | 04-memory-index-under-cut | any lane; memory is not in git |
 | 5 | 05-quiet-run-logs | ORC + iac files |
-| 6 | 06-claude-md-reference-tables | doc lane |
+| 6 | 06-claude-md-reference-tables | LANDED 88d70f60 + e3650a7a: CLAUDE.md 13,087 → 8,545 B |
 | 7 | 07-short-results | ORC lane |
 | 8 | 08-one-topic-per-lane | ORC lane |
 | 9 | 09-recv-compact | api lane (Go) |
 | 10 | 10-lane-skill-set | human owner go |
+| 11 | 11-thirty-minute-checkpoint | ORC lane; the limit text goes into c-079's spec |
 | 0 | 00-transcript-measure | lane cleared to read transcripts (counts only) |

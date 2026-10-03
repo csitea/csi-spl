@@ -87,6 +87,18 @@ grep -q 'stale.js' "$T/crawl.err" \
   && pass "a /_nuxt ref answered by the HTML fallback is named as skipped" \
   || fail "the stale ref was not reported: $(cat "$T/crawl.err")"
 
+# --- the crawl sorts in byte order whatever the caller's locale -------------
+# (no locale needs installing: a sort shim records the LC_ALL it was given;
+# CI sets only LANG, and en_US orders /fi before /_nuxt)
+mkdir -p "$T/bin" "$T/c2"
+real_sort=$(command -v sort)
+printf '#!/usr/bin/env bash\necho "${LC_ALL:-unset}" >>"%s/sort.lc"\nexec %s "$@"\n' "$T" "$real_sort" >"$T/bin/sort"
+chmod +x "$T/bin/sort"
+( unset LC_ALL; export LANG=en_US.UTF-8 PATH="$T/bin:$PATH"; _warm_wui_edge_crawl "$BASE" "$T/c2" >/dev/null 2>&1 )
+[[ -s "$T/sort.lc" && -z "$(grep -vx C "$T/sort.lc")" ]] \
+  && pass "every sort in the crawl runs with LC_ALL=C when the caller set only LANG" \
+  || fail "the crawl's sort saw LC_ALL: $(sort -u "$T/sort.lc" 2>/dev/null | paste -sd' ')"
+
 # --- the warm: each live path once per browser key, then nothing is cold -----
 : >"$T/port.log"
 export WARM_WUI_RATE=50/s

@@ -107,8 +107,10 @@ _warm_wui_edge_curl() {
 # discovers, the fetch pass warms.
 _warm_wui_edge_crawl() {
   # byte order for sort and comm, whatever the runner's locale: comm needs both
-  # inputs in one order, and the path list must not depend on LANG
-  local LC_ALL=C
+  # inputs in one order, and the path list must not depend on LANG. -x: a
+  # plain `local LC_ALL=C` is NOT exported to sort/comm when the caller never
+  # exported LC_ALL (CI sets only LANG), so they kept sorting by LANG.
+  local -x LC_ALL=C
   local base="$1" w="$2" max="${WARM_WUI_MAX_FILES:-2000}" par="${WARM_WUI_PARALLEL:-2}"
   local level=0 i p code ctype
   curl -fsS --compressed --max-time 30 "$base/" -o "$w/index.html" \

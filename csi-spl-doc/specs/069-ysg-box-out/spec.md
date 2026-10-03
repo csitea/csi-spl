@@ -1,6 +1,6 @@
 # 069: ysg-box out - every spool dependency on ysg-box moves into csi-spl
 
-Status: **v0.2, owner answered Q1..Q4 (section 6); inventory measured on `<pc box>`; sat not yet measured (section 2.9).**
+Status: **v0.3, owner answered Q1..Q4 (section 6); inventory measured on `<pc box>` and on sat (section 2.9, by `do_check_ysg_box_deps`).**
 Spec only: no code, no crontab, no home-dir file, no ysg-box file was touched by
 this lane. Draft 2026-10-03, c-138 (v0.1 `6f9fe600`); v0.2 folds in the owner's
 answers, HUM-10 at 14:37Z, topic `828d50b1`.
@@ -299,17 +299,113 @@ INFO users: <box-user> <agent-user> root; pattern: ysg-box(-[a-z]+)?/|/opt/<box-
 FAIL 96 dependency row(s) on the ysg-box engine (one per row above)
 ```
 
-### 2.9 sat - not measured yet
+### 2.9 sat - measured by `do_check_ysg_box_deps` (v0.3)
 
-The read-only probe (sections 2.2..2.6 as one script) went to c-001@sat at
-14:29Z (msg `578725d9`). It was **not run**: Claude Code's built-in safety
-check refused an inline `sudo bash -c` script, and c-001@sat rightly would not
-work around it (msg `7d447ce9`). Per the owner's 14:23Z rule the probe becomes
-a named read-only action in source: that is lane **Y9** (`do_check_ysg_box_deps`),
-and it runs on sat as **Y9's first job**, before any other lane changes sat.
-Until then sat's rows are unknown. Known from source: sat is provisioned by
-S1..S3, so it has at least the engine + overlay clones and the S3 render (H6).
-The lanes below already cover S1..S3.
+History: the inline probe sent to c-001@sat at 14:29Z (msg `578725d9`) was
+refused by Claude Code's safety check (msg `7d447ce9`), so it became the named
+read-only action of lane **Y9**. c-001@sat ran it 2026-10-03 ~14:55Z as the
+sat box user, its checkout fast-forwarded to origin/master (includes
+`24db15c23`), n=1 run, default pattern (msg `01ea9460`). Exit **1**,
+**70 rows, all `home`**:
+
+| kind | `<box-user>` | `<agent-user>` | root | vs `<pc box>` (2.8.1) |
+|---|---|---|---|---|
+| cron | 0 | 0 | 0 | pc: C1..C4. sat has **no** boot-restore, save-sessions or graft cron |
+| link | 0 | 0 | - | pc: 18 + 14. sat has no `mcp-bot`, `graft`, `wa-bot` or `~/.tmux` links |
+| home | 64 lines in 15 files | 6 lines in 4 files | - | same files as pc, plus `qwen-spawn.md` (11 lines) and a `graft` SKILL.md that is a FILE (one prose line) |
+| tmux / systemd / proc | 0 / 0 / 0 | 0 / 0 / 0 | 0 | same: none |
+
+Reading of the rows:
+
+- `<agent-user>`: H2 (`.bashrc` completion), H4 (`signed-prompt.md`, 3 lines),
+  H5 (`tmux-color` SKILL.md). No H1: sat has no `~/.local/bin/graft` calling the engine.
+- `<box-user>`: H2 plus 14 command/skill files: the 12 of 2.8.1's "new"
+  finding (the S3 render of the engine's `claude-config`, H6), `qwen-spawn.md`
+  and the `graft` SKILL.md. No H3 (`wifi-up`) on sat.
+- The `graft/SKILL.md:63` row on both users is prose naming `ysg-box-utl/...`
+  in a quoted example, not a call: the one false positive of the default
+  pattern on sat. It goes away when Y4 moves or drops that skill.
+- So on sat every runtime dependency is a rendered `~/.claude` file or a
+  `.bashrc` line: lanes Y4 (render), Y10 (completion) and the S1..S3 lanes
+  cover them; sat needs no cron or link move.
+
+Output, users/homes/engine replaced by this spec's placeholders (`YB:` =
+`<engine>/ysg-box-orc/src/bash/features/`):
+
+```text
+home	<agent-user>	~<agent-user>/.bashrc:106	[ -r "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash" ] && . "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash"
+home	<agent-user>	~<agent-user>/.claude/commands/signed-prompt.md:48	bash YB:directive/scripts/directive-session.sh --status
+home	<agent-user>	~<agent-user>/.claude/commands/signed-prompt.md:56	bash YB:directive/scripts/directive-session.sh --minutes 60
+home	<agent-user>	~<agent-user>/.claude/commands/signed-prompt.md:70	bash YB:directive/scripts/directive-sign.sh --reply-to sat <target> "<the owner's literal text>"
+home	<agent-user>	~<agent-user>/.claude/skills/graft/SKILL.md:63	> "The index shows 3 call sites in `ysg-box-utl/src/bash/run/`. It only covers shell and
+home	<agent-user>	~<agent-user>/.claude/skills/tmux-color/SKILL.md:31	bash YB:tmux-windows/scripts/tmux-window-color.sh --agent <YOUR-AGENT-ID> "$ARGUMENTS"
+home	<box-user>	~<box-user>/.bashrc:113	[ -r "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash" ] && . "<engine>/ysg-box-utl/lib/bash/completions/run.completion.bash"
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:117	(`sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh --from AGY-01 CLE-04 "…"`) — allowed by the
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:137	| `YB:spawn-agents/scripts/next-agent-id.sh` | Allocate the next agent id from registry.tsv and CLAIM its inbox dir 
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:138	| `YB:spawn-agents/scripts/spawn-agy.sh` | Window command: worktree (if git), inbox dirs, restore stub, launch as ai
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:139	| `YB:spawn-agents/scripts/inbox-send.sh` | The file based inbox protocol sender (file + poke) |
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:140	| `YB:spawn-agents/scripts/riname.sh` | Rename window to `AGY-0n <title>` |
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:150	YB:spawn-agents/scripts/next-agent-id.sh --kind agy)
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:169	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:195	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:219	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/agy-spawn.md:97	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:138	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:178	sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh \
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:197	YB:spawn-agents/scripts/next-agent-id.sh --kind claude)
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:216	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:223	scripts in the engine's spawn-agents feature (`YB:spawn-agents/scripts/`):
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:257	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:321	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:408	YB:mcp-bot/scripts/mcp-start.sh`, an entry in `<agent-user>`'s `~/.claude.json`) drives a
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:413	`ysg-box-orc/src/bash/features/mcp-bot/scripts/mcp-start.sh`) therefore gives **each agent its
+home	<box-user>	~<box-user>/.claude/commands/claude-spawn.md:441	MCP_BOT_AGENT_ID=CLE-07 sudo -u <box-user> -H --preserve-env=MCP_BOT_AGENT_ID YB:mcp-bot/scripts/mcp-start.sh
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:114	(`sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh --from GRK-01 CLE-04 "…"`) — allowed by the
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:122	| `YB:spawn-agents/scripts/next-agent-id.sh` | Allocate the next agent id from registry.tsv and CLAIM its inbox dir 
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:123	| `YB:spawn-agents/scripts/spawn-grok.sh` | Window command: worktree (if git), inbox dirs, restore stub, launch as a
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:124	| `YB:spawn-agents/scripts/inbox-send.sh` | The file based inbox protocol sender (file + poke) |
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:125	| `YB:spawn-agents/scripts/riname.sh` | Rename window to `GRK-0n <title>` |
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:135	YB:spawn-agents/scripts/next-agent-id.sh --kind grok)
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:154	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:180	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:203	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/grok-spawn.md:94	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:101	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:121	(`sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh --from QWN-01 CLE-04 "…"`) — allowed by the
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:141	| `YB:spawn-agents/scripts/next-agent-id.sh` | Allocate the next agent id from registry.tsv and CLAIM its inbox dir 
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:142	| `YB:spawn-agents/scripts/spawn-qwen.sh` | Window command: worktree (if git), inbox dirs, restore stub, launch as a
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:143	| `YB:spawn-agents/scripts/inbox-send.sh` | The file based inbox protocol sender (file + poke) |
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:144	| `YB:spawn-agents/scripts/riname.sh` | Rename window to `QWN-0n <title>` |
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:154	YB:spawn-agents/scripts/next-agent-id.sh --kind qwen)
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:173	(`YB:spawn-agents/tests/test-next-agent-id.sh`,
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:19	`<engine>/ysg-box-doc/doc/md/feature/spawn-agents/qwen-setup.md`. Two modes, selected by the first argument:
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:199	S=YB:spawn-agents/scripts
+home	<box-user>	~<box-user>/.claude/commands/qwen-spawn.md:223	SEND=YB:spawn-agents/scripts/inbox-send.sh
+home	<box-user>	~<box-user>/.claude/commands/riname.md:18	bash YB:spawn-agents/scripts/riname.sh --agent <YOUR-AGENT-ID> "$ARGUMENTS"
+home	<box-user>	~<box-user>/.claude/commands/signed-prompt.md:48	bash YB:directive/scripts/directive-session.sh --status
+home	<box-user>	~<box-user>/.claude/commands/signed-prompt.md:56	bash YB:directive/scripts/directive-session.sh --minutes 60
+home	<box-user>	~<box-user>/.claude/commands/signed-prompt.md:70	bash YB:directive/scripts/directive-sign.sh --reply-to sat <target> "<the owner's literal text>"
+home	<box-user>	~<box-user>/.claude/commands/spawn-an-agent.md:84	sudo -u <box-user> bash YB:spawn-agents/scripts/inbox-send.sh CLE-03 "the message"
+home	<box-user>	~<box-user>/.claude/commands/tmux-close-window.md:18	bash YB:spawn-agents/scripts/tmux-close-window.sh $ARGUMENTS
+home	<box-user>	~<box-user>/.claude/skills/exit-clean/SKILL.md:199	bash YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>
+home	<box-user>	~<box-user>/.claude/skills/exit-clean/SKILL.md:40	bash YB:spawn-agents/scripts/kill-your-self-report.sh 2>/dev/null || true
+home	<box-user>	~<box-user>/.claude/skills/exit-clean/SKILL.md:43	bash YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>
+home	<box-user>	~<box-user>/.claude/skills/graft/SKILL.md:63	> "The index shows 3 call sites in `ysg-box-utl/src/bash/run/`. It only covers shell and
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:164	bash YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:31	`YB:spawn-agents/scripts/kill-your-self-report.sh`  
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:35	`YB:spawn-agents/scripts/tmux-close-window.sh --defer --agent <YOUR-AGENT-ID>`
+home	<box-user>	~<box-user>/.claude/skills/kill-your-self/SKILL.md:71	bash YB:spawn-agents/scripts/kill-your-self-report.sh 2>/dev/null || true
+home	<box-user>	~<box-user>/.claude/skills/login-to-claude/SKILL.md:35	sudo -u <box-user> bash YB:claude-login/scripts/claude-login-cli.sh --status
+home	<box-user>	~<box-user>/.claude/skills/login-to-claude/SKILL.md:42	sudo -u <box-user> bash YB:claude-login/scripts/claude-login-cli.sh
+home	<box-user>	~<box-user>/.claude/skills/tmux-color/SKILL.md:31	bash YB:tmux-windows/scripts/tmux-window-color.sh --agent <YOUR-AGENT-ID> "$ARGUMENTS"
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:27	sudo -u <box-user> bash YB:wa-bot/scripts/wa_start.sh
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:44	- Attach-and-send script: `YB:wa-bot/scripts/wa_send.py`
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:45	- One-time launcher: `YB:wa-bot/scripts/wa_start.sh`
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:60	sudo -u <box-user> bash -c "\$HOME/.local/wa-bot/venv/bin/python YB:wa-bot/scripts/wa_send.py --to '+<country><number>' --m
+home	<box-user>	~<box-user>/.claude/skills/whatsapp-send-msg/SKILL.md:64	sudo -u <box-user> bash -c "\$HOME/.local/wa-bot/venv/bin/python YB:wa-bot/scripts/wa_send.py --to 'FirstName LastName' --m
+INFO users: <box-user> <agent-user> root; pattern: ysg-box(-[a-z]+)?/|/opt/<box-user>/
+FAIL 70 dependency row(s) on the ysg-box engine (one per row above)
+```
 
 ## 3. Inventory with decisions
 

@@ -91,7 +91,7 @@ PY
 rc_py=$?
 [[ $rc_py -eq 0 ]] && pass "fixture assertions" || fail "fixture assertions (rc=$rc_py)"
 
-python3 - <<PY
+if python3 - <<PY
 import importlib.util, json, os
 spec = importlib.util.spec_from_file_location("imp", "$PY")
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
@@ -133,11 +133,11 @@ else:
     print("PASS: second run creates 0")
 raise SystemExit(0 if ok else 1)
 PY
-[[ $? -eq 0 ]] && pass "reconcile idempotence" || fail "reconcile idempotence"
+then pass "reconcile idempotence"; else fail "reconcile idempotence"; fi
 
 # real tree: the parser keeps every spec readable. Floor, not an exact count —
 # tasks.md grows under other lanes.
-python3 - <<PY || fails=$((fails + 1))
+if python3 - <<PY
 import importlib.util
 from pathlib import Path
 spec = importlib.util.spec_from_file_location("imp", "$PY")
@@ -167,12 +167,12 @@ if ok:
     print("PASS: real-tree ids, titles, statuses and source lines")
 raise SystemExit(0 if ok else 1)
 PY
-[[ $? -eq 0 ]] && pass "real-tree smoke" || fail "real-tree smoke"
+then pass "real-tree smoke"; else fail "real-tree smoke"; fi
 
 # A foreign spec tree may wrap the id in bold and lead with an [FR-nnn] tag:
 # `- [X] **T001** [FR-009] text` (pas-psf). The id must still be captured and
 # the tag dropped from the title; the Source line names that tree's doc repo.
-python3 - <<PY
+if python3 - <<PY
 import importlib.util
 spec = importlib.util.spec_from_file_location("imp", "$PY")
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
@@ -201,7 +201,7 @@ if ok:
     print("PASS: bold-wrapped ids parse, markup and [tag] stripped from the title")
 raise SystemExit(0 if ok else 1)
 PY
-[[ $? -eq 0 ]] && pass "bold id parsing" || fail "bold id parsing"
+then pass "bold id parsing"; else fail "bold id parsing"; fi
 
 # SPEC_IMPORT_LABELS tags every issue on top of task/bug/subtask, in the plan,
 # so reconcile's needed_labels and the create call both carry it, deduped.

@@ -37,30 +37,26 @@ do_gcp_sync_src_bucket_data_to_tgt_bucket() {
   # an interactive owner login; the SA needs read on SRC_BUCKET and write on
   # TGT_BUCKET, granted SA-to-SA, never by the owner account.
 
+  # Each check is `cmd || quit_on`, never `if ! cmd; then quit_on`: quit_on
+  # reads $? and is a no-op when it is 0, which it is inside a `then`.
+
   # Verify access to Source Bucket
   do_log "INFO Verifying access to source bucket (gs://$SRC_BUCKET)..."
-  gcloud storage ls gs://"$SRC_BUCKET" --account="${account}" >/dev/null 2>&1
-  if [ $? -ne 0 ]; then
+  gcloud storage ls gs://"$SRC_BUCKET" --account="${account}" >/dev/null 2>&1 ||
     quit_on "Access denied or source bucket gs://$SRC_BUCKET does not exist for the active user."
-  fi
 
   # Verify access to Target Bucket
   do_log "INFO Verifying access to target bucket (gs://$TGT_BUCKET)..."
-  gcloud storage ls gs://"$TGT_BUCKET" --account="${account}" >/dev/null 2>&1
-  if [ $? -ne 0 ]; then
+  gcloud storage ls gs://"$TGT_BUCKET" --account="${account}" >/dev/null 2>&1 ||
     quit_on "Access denied or target bucket gs://$TGT_BUCKET does not exist for the active user."
-  fi
 
   # Debugging: Confirm active credentials
   do_log "INFO Active account: ${account}"
 
   # Perform the sync operation
   do_log "INFO Starting sync from gs://$SRC_BUCKET to gs://$TGT_BUCKET"
-  gcloud storage rsync -r --delete-unmatched-destination-objects gs://"$SRC_BUCKET" gs://"$TGT_BUCKET" --account="${account}"
-
-  if [ $? -ne 0 ]; then
+  gcloud storage rsync -r --delete-unmatched-destination-objects gs://"$SRC_BUCKET" gs://"$TGT_BUCKET" --account="${account}" ||
     quit_on "Sync operation failed"
-  fi
 
   # Function to list top 10 largest files in a bucket
   list_top_10() {

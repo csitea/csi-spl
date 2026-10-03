@@ -85,12 +85,10 @@ do_gcp_fetch_secrets() {
     [[ -z "$secret_id" ]] && continue
 
     local value
-    value=$(gcloud secrets versions access latest \
+    if value=$(gcloud secrets versions access latest \
       --secret="$secret_id" \
       --project="$project" \
-      --account="${account}" 2>/dev/null)
-
-    if [[ $? -eq 0 && -n "$value" ]]; then
+      --account="${account}" 2>/dev/null) && [[ -n "$value" ]]; then
       # Convert secret_id to env var name:
       #   csi-spl-stripe-secret-key → STRIPE_SECRET_KEY
       local env_var

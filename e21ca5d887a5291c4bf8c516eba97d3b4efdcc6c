@@ -1,0 +1,6 @@
+Lay-What: Adds a command that sets up automatic build workers on a machine, safely separated from everything else.
+Lay-How: It creates a dedicated restricted user and registers the workers, cleaning up after each job.
+Lay-Why: Builds should also run on the second machine, without giving the build workers access to anything else.
+Tech-What: New do_gh_runner_add registers RUNNER_COUNT org runners in GH_RUNNER_GROUP as systemd units of one dedicated user with rootless docker.
+Tech-How: Copies labels from the group's runners, refuses a group not restricted to the default branch, a job-completed hook prunes work dirs; dry run unless APPLY=1.
+Tech-Why: Spec 064 L3: self-hosted runners must not depend on the PC, and spec 044 FR-OS-005 requires restricted groups.

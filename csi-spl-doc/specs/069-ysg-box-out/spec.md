@@ -1,8 +1,9 @@
 # 069: ysg-box out - every spool dependency on ysg-box moves into csi-spl
 
-Status: **v0.1, inventory measured on `<pc box>`; sat not yet measured (section 2.9); owner questions in section 6.**
+Status: **v0.2, owner answered Q1..Q4 (section 6); inventory measured on `<pc box>`; sat not yet measured (section 2.9).**
 Spec only: no code, no crontab, no home-dir file, no ysg-box file was touched by
-this lane. Draft 2026-10-03, c-138.
+this lane. Draft 2026-10-03, c-138 (v0.1 `6f9fe600`); v0.2 folds in the owner's
+answers, HUM-10 at 14:37Z, topic `828d50b1`.
 Related: [068 peer seats](../068-peer-seats/spec.md) (acceptance check 8.1,
 "every OD script lives in source"), [048 agent harness parity](../048-agent-harness-parity/),
 the 2026-09-28 order that made the AI CLI harness canonical in csi-spl and froze
@@ -193,18 +194,18 @@ Decision: **move** (copy into csi-spl, repoint, then delete the engine use),
 |---|---|---|---|---|
 | C1 save-sessions | boot restore | `csi-spl-orc/src/bash/features/box-sessions/scripts/save-sessions.sh` + state `/var/csi/csi-spl/box-sessions/` | move | high: a gap means the next reboot restores nothing |
 | C2 sessions-boot | boot restore | `.../box-sessions/scripts/sessions-boot.sh` | move | high |
-| C3, C4 graft cron | graft index | `csi-spl-orc/src/bash/features/graft/scripts/graft-cron.sh` | move (Q1) | low |
+| C3, C4 graft cron | graft index | `csi-spl-orc/src/bash/features/graft/scripts/graft-cron.sh` | move (Q1: move) | low |
 | the crontab lines themselves | C1..C4 | a named action `do_install_box_crons` writing marked lines from a csi-spl manifest | move | medium: the crontab is shared with other projects; edit only marked lines |
 | L1 mcp-start.sh (firefox) | every agent's browser MCP | `csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start.sh` | move | high: a broken link silently drops the MCP server |
 | L2 mcp-start-chrome.sh | every agent's browser MCP | existing `csi-spl-orc/.../mcp-bot/scripts/mcp-start-chrome.sh` | replace | medium: diff the two first |
-| L3 wa-bot | WhatsApp | - | drop from spool (Q2) | none |
-| L4, L5, H1 graft skill/rule/wrapper | agents | `csi-spl-orc/src/bash/features/graft/{scripts/graft-safe.sh,assets/}` installed by `install.sh` | move (Q1) | low |
+| L3 wa-bot | WhatsApp | - | drop from spool (Q2: yes); stays in ysg-box | none |
+| L4, L5, H1 graft skill/rule/wrapper | agents | `csi-spl-orc/src/bash/features/graft/{scripts/graft-safe.sh,assets/}` installed by `install.sh` | move (Q1: move) | low |
 | L6, L7 tmux links | nothing live | - (`install.sh` already ships the tmux snippet) | drop: remove the links, point `~<agent-user>/.tmux.conf:155,160` at the csi-spl snippet | low |
-| H2 run completion | humans | - | drop from spool (Q3) | none |
-| H3 wifi-up | personal | - | drop from spool | none |
+| H2 run completion | humans | `csi-spl-orc/lib/bash/completions/run.completion.bash`, sourced from `.bashrc` by an `install.sh` step | move (Q3: no, do not drop) | low |
+| H3 wifi-up | personal | - | drop from spool (personal, like Q4) | none |
 | H4 directive / `/signed-prompt` | cross-box owner directives | `csi-spl-orc/src/bash/features/directive/` + `spawn-agents/assets/commands/signed-prompt.md` | move | medium: signing key handling; the key stays out of git |
 | H5 tmux-color | `/tmux-color` | `spawn-agents/scripts/tmux-window-color.sh` + `assets/skills/tmux-color` | move | low |
-| H6 CLAUDE.md fragments + settings | every agent | `csi-spl-orc/src/bash/features/spool-install/assets/claude/{claude-md,settings}/` rendered by `install.sh` | move the fleet fragments (spawn, cross-lane, run-as-agent-user, push-and-deploy, spool-mirror settings); personal ones stay (Q4) | high: a half-rendered CLAUDE.md changes every agent's rules |
+| H6 CLAUDE.md fragments + settings | every agent | `csi-spl-orc/src/bash/features/spool-install/assets/claude/{claude-md,settings}/` rendered by `install.sh` | move the fleet fragments (spawn, cross-lane, run-as-agent-user, push-and-deploy, spool-mirror settings); the personal ones (Slack, HTML docs, doc-hub) stay outside csi-spl (Q4: yes) | high: a half-rendered CLAUDE.md changes every agent's rules |
 | H6 skills paste-html-into-chrome, spec-kit-tasks | agents | `spawn-agents/assets/skills/` | move | low |
 | S1..S3 satellite clone + apply | sat provisioning | role 05 reads users from `csi-spl-cnf`; role 07 runs `install.sh` only | move | medium: re-provision test on a throwaway VM |
 | S4 render-yield.sh | S3 workaround | - | drop once S3 is gone | low |
@@ -229,27 +230,32 @@ them to the homes; no lane edits a home or crontab by hand.
 | Y5 skills + commands | `spawn-agents/assets/skills/{tmux-color,paste-html-into-chrome,spec-kit-tasks}`, `assets/commands/signed-prompt.md`, `scripts/tmux-window-color.sh`, `features/directive/` | `spawn-agents/tests/test-hygiene.sh` (no engine path) | all 15 files under `~/.claude/{commands,skills}` carry the marker |
 | Y2 box-sessions | `csi-spl-orc/src/bash/features/box-sessions/{scripts/save-sessions.sh,scripts/sessions-boot.sh,tests/}` | save then restore in a private tmux socket and a private state dir | a reboot of `<pc box>` restores every seat from the csi-spl copy |
 | Y3 box crons | `csi-spl-orc/src/bash/run/install-box-crons.func.sh` (`do_install_box_crons`) + manifest | dry run prints the diff; touches only `# csi-spl:` marked lines | C1..C4 run from csi-spl paths; `crontab -l \| grep -c '/opt/<box-user>/'` -> 0 |
-| Y6 graft (if Q1 = move) | `features/graft/{scripts,assets}` | the wrapper runs `graft-safe.sh` from csi-spl in a sandbox | H1, L4, L5, C3, C4 point at csi-spl |
+| Y6 graft (Q1: move) | `features/graft/{scripts,assets}` | the wrapper runs `graft-safe.sh` from csi-spl in a sandbox | H1, L4, L5, C3, C4 point at csi-spl |
 | Y7 tmux cleanup | `install.sh` removes engine-pointing `~/.tmux/*` links and repoints `~<agent-user>/.tmux.conf` | a sandbox `HOME` seeded with today's 12 broken links | 0 broken links in either home |
+| Y10 run completion (Q3) | `csi-spl-orc/lib/bash/completions/run.completion.bash`; an `install.sh` step replaces the engine `.bashrc` line with a marked csi-spl one | completes `./run -a` for `csi-spl-iac/run` and `csi-spl-orc/run` in a sandbox shell; the `.bashrc` edit is idempotent | `grep -c '/opt/<box-user>/' ~/.bashrc` -> only the personal `wifi-up` line (H3) |
 | Y8 satellite | S1, S2, S3, S5, S6; S4 deleted; users into `csi-spl-cnf` | `satellite-ansible.tst.sh`, `satellite-actions.tst.sh` assert no engine clone | sat re-provisions on a throwaway VM with no `<engine>` |
 
 Order: Y9 (the probe, so sat is measured), then Y1, Y4, Y5 (live agent paths),
-then Y2+Y3 together (boot), Y6, Y7, Y8. Y4 and Y5 both edit `install.sh`: run
-them in sequence, not in parallel.
+then Y2+Y3 together (boot), Y6, Y10, Y7, Y8. Y4 and Y5 both edit `install.sh`: run
+them in sequence, not in parallel; so do Y6, Y7 and Y10, which also edit it.
 
 ## 5. Out of scope
 
 the owner-utility creds backup cron, the four other-project crontab lines,
 `~/.claude.json` project history, and any file of spec 068.
 
-## 6. Owner questions (one word each)
+## 6. Owner questions - answered
 
-| Q | question | answer |
-|---|---|---|
-| Q1 | graft (the code index tool the agents use): move into csi-spl? | move / leave |
-| Q2 | wa-bot (WhatsApp send): drop from spool? | drop / move |
-| Q3 | `./run` tab completion in `.bashrc`: drop from spool? | drop / move |
-| Q4 | personal CLAUDE.md fragments (Slack, HTML docs, doc-hub rules): stay outside csi-spl? | stay / move |
+Answered by the owner, HUM-10 at 14:37Z, verbatim: "1. move 2 y 3 n 4 y".
+
+| Q | question | answer | effect |
+|---|---|---|---|
+| Q1 | graft (the code index tool the agents use): move into csi-spl? | **move** | Y6 is in scope |
+| Q2 | wa-bot (WhatsApp send): drop from spool? | **y** | L3 dropped; stays in ysg-box |
+| Q3 | `./run` tab completion in `.bashrc`: drop from spool? | **n** | H2 moves: lane Y10 |
+| Q4 | personal CLAUDE.md fragments (Slack, HTML docs, doc-hub rules): stay outside csi-spl? | **y** | Y4 moves only the fleet fragments |
+
+No question is open.
 
 ## 7. Acceptance check
 

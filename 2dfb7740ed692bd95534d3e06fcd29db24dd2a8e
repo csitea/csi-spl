@@ -1,0 +1,6 @@
+Lay-What: The app downloads less code before it shows the first screen.
+Lay-How: The demo data used only for testing is no longer bundled into the code that the live app loads at start.
+Lay-Why: Every visitor was downloading test-only data they never use.
+Tech-What: mock-data.mjs leaves the live initial JS; spool-client builds its mock state from a dynamic import and useLive reads the lobby id from the small mock-ids.mjs.
+Tech-How: Every async mock method awaits the import; identifiers are read as members to stop Nuxt's utils auto-import from adding a static import, guarded by initial-js-trims.test.mjs.
+Tech-Why: P3-15: ci_initial_gzip_kb 148.6 -> 147.5 (n=1 each).

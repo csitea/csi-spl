@@ -1,6 +1,6 @@
 # 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **v0.4, every owner question answered (1.3, section 9)**; ready for the build lanes L1..L3.
+Status: **v0.4.1, every owner question answered (1.3, section 9)**; build lanes L1..L3 started (section 8).
 Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
 lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
 `469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
@@ -134,6 +134,18 @@ So **Q1 = yes**: order A, L1..L3 first, then the eight ODs, then the
 hand-over (section 8). **Q4 = yes**: the staged hand-over through the 060
 handoff file, one old session at a time. The old role sessions, c-001@<pc box>
 included, are retired by that hand-over (L10).
+
+> typed by HUM-10 in the PC's c-001 terminal at 14:16Z (relayed by
+> c-001@<pc box>, spool msg `bd93ef7c`): "also for the cron each new spun
+> agent must by 5 min before knowing its dead - lay out a destilled summary
+> of what he has been doing to "pass on" the next incarnation of itself a
+> condensed but small prompt for the current context"
+
+So 5 minutes before its restart slot, each OD writes its OWN short summary
+for the next session in its seat (6.1). This reverses spec 060's "no step
+calls a model to decide, summarise or write" for this one step only; the
+mechanical 060 handoff file is still written and still seeds the new
+session.
 
 So the PC's hourly restarts run 7 minutes after sat's (6.1): the two boxes
 never restart the same seat at once.
@@ -321,7 +333,15 @@ frozen machine: any one able peer takes every message.
 | cron | where | does |
 |---|---|---|
 | `M,M+15,M+30,M+45 * * * *` `do_spl_peer_restart` (tag `# csi-spl:peer-restart`); `M` = `PEER_RESTART_OFFSET`: 0 on sat, 7 on the PC (owner, `5f00eaed`) | every box | seat N = `(minute - M)/15 + 1`: sat restarts 001 at `:00`, 002 at `:15`, 003 at `:30`, 004 at `:45`; the PC 001 at `:07`, 002 at `:22`, 003 at `:37`, 004 at `:52`. On this box: stop its poll loop (its locks stay, `responsible` names the SEAT, not the session), write the 060 handoff file (060 section 6, minus its lease lines), `/exit-clean` the old session (kill after 5 min, 060 D4), start a fresh one under the same id with the handoff, start its poll loop. A fresh session that does not start in 5 min: alert (an owner DM) and start the old one's loop again (060 D2) |
+| `M+10,M+25,M+40,M+55 * * * *` `do_spl_peer_distill` (tag `# csi-spl:peer-distill`), 5 min before each restart slot (sat `:55`, `:10`, `:25`, `:40`; the PC `:02`, `:17`, `:32`, `:47`) | every box | the seat due at the next slot only: pokes its session with one line asking it to write `<spool root>/<id>/handoff/distilled.md`, a condensed prompt for its next incarnation in its own words: what it was doing, the messages it holds (ids), what it waits on and from whom, the next step. Cap `PEER_DISTILL_MAX_LINES` (40) and `PEER_DISTILL_MAX_BYTES` (4096). It does not wait: the restart reads the file |
 | `* * * * *` `do_spl_peer_ensure` (tag `# csi-spl:peer-ensure`) | every machine | starts a missing poll loop of a local seat (the reboot path); nothing else |
+
+**The seed of a fresh session** = the distilled summary (if present, written
+after the distill poke, and within the caps; a longer one is cut at the cap
+with a `[cut]` line) + the mechanical 060 handoff file. No summary in 5 min
+(a stalled or busy session): restart with the mechanical handoff only, and
+one `WARN distill-missing <id>` in `rotate.log`; the restart is never
+delayed for it.
 
 At most one seat per box restarts at a time (and never the same seat on both boxes: the PC
 runs 7 minutes later), and its messages wait at most the restart
@@ -348,7 +368,7 @@ Measured on sat, as the box user: `crontab -l | grep -oE '# csi-spl:[a-z-]+' | s
 | renew / watch loops (4) | - | all: no master, no failover |
 | the able check (4) and the stuck-unread rule (4.1 condition 2) | kept: the poll loop's step 1 | - |
 | ask book (4.3) | the ask rows and their owner leg | the hand-over blocker, re-raise to one holder, `acked_by` as a lock |
-| rotation (060) | the handoff file, the mechanical script, "keep the old session if the new one fails", the forced exit | the times `:05` / `:15` (now `:00/:15/:30/:45` per seat), the dispatcher HOLD choreography (060 5.2), `rotate.hold` |
+| rotation (060) | the handoff file (plus the OD's own distilled summary, 6.1), the mechanical script, "keep the old session if the new one fails", the forced exit | the times `:05` / `:15` (now `:00/:15/:30/:45` per seat), the dispatcher HOLD choreography (060 5.2), `rotate.hold` |
 | `--to orchestrator` | the word, as an alias | the lease lookup: it means `to_id = 'peers'` on the hub |
 
 ## 7. Decision 5: failure table
@@ -403,12 +423,12 @@ which from then on resolves to the ODs.
 
 | lane | scope (files) | test |
 |---|---|---|
-| L1 hub: the columns | the next free rdb migration (6 columns + the partial index + `needs_peer`; `responsible` back-filled for messages to one agent); store memory + Postgres; box frame `claim` (`poll / renew / release / done`); CLI `spool claim` | `TestMessageClaimPoll` (memory + Postgres: 4 pollers, 100 messages, each locked exactly once; lock expiry; non-responsible close refused; dead-letter at 4; `not_by`); `TestBoxMessageClaim` (two boxes) |
-| L2 hub: answer once | the `answers` guard on agent posts (responsible + gen + unique) | `TestAnswerOnce`: two peers answer one message, one 200, one 409 |
-| L3 orc: poll loop | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; live as soon as it lands | `peer-poll.tst.sh`: 8 simulated ODs on 2 boxes against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence |
+| L1 hub: the columns (**c-116@sat**) | the next free rdb migration (6 columns + the partial index + `needs_peer`; `responsible` back-filled for messages to one agent); store memory + Postgres; box frame `claim` (`poll / renew / release / done`); CLI `spool claim` | `TestMessageClaimPoll` (memory + Postgres: 4 pollers, 100 messages, each locked exactly once; lock expiry; non-responsible close refused; dead-letter at 4; `not_by`); `TestBoxMessageClaim` (two boxes) |
+| L2 hub: answer once (**c-117@sat**) | the `answers` guard on agent posts (responsible + gen + unique) | `TestAnswerOnce`: two peers answer one message, one 200, one 409 |
+| L3 orc: poll loop (**c-118@sat**) | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; live as soon as it lands | `peer-poll.tst.sh`: 8 simulated ODs on 2 boxes against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence |
 | L4 orc: `--to peers` | `spool-send.sh` (`orchestrator` -> `peers`), `asks.sh` (lock moved to the message) | `test-fleet-send.sh` and `asks.tst.sh` extended: one report, 4 seats, exactly 1 responsible |
 | L5 orc: mutexes + fence | the spawn launchers and the prd wrappers take `spawn` / `prd-<target>` and re-check the fence; `do_spl_fleet_config` writes every machine or none | `spawn-mutex.tst.sh`: two peers spawn at once, one spawns; a lost fence stops a deploy |
-| L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45` on sat, `7,22,37,52` on the PC via `PEER_RESTART_OFFSET`), its `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the two new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat on both offsets, one seat at a time, a failed start keeps the old one; a crontab fixture before / after |
+| L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45` on sat, `7,22,37,52` on the PC via `PEER_RESTART_OFFSET`), `do_spl_peer_distill` (5 min before each slot), their `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the three new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat on both offsets, one seat at a time, a failed start keeps the old one; the distill poke reaches only the seat due next; a summary within the caps reaches the new session's seed verbatim, an oversize one is cut at the cap, a missing one restarts on the mechanical handoff alone with one `WARN distill-missing`; a crontab fixture before / after |
 | L7 seats + drill | `do_spl_peer_setup` (installs the grok CLI on the box; claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
 | L8 WUI | show the responsible agent on every message and topic (DM, channel, topic reply) | e2e: a post shows its responsible seat within 5 s |
 | L9 doc | rewrite SPEC-spool-fleet-roles.md sections 1, 3, 3.2, 4, 4.1, 4.3, 4.4, 7 | `do_check_dist_hygiene` |
@@ -439,4 +459,4 @@ None open. The v0.3 questions and their answers (all quoted in 1.3):
 | 5 | a grok OD may spawn, close lanes and run the pre-approved prd actions | **yes**, same skills (`220915e8`) |
 | 6 | the PC restarts 7 minutes after sat | **yes** (`5f00eaed`) |
 
-<!-- version: 0.4.0 · updated: 2026-10-03 · last-edit: 2026-10-03T14:20:00Z -->
+<!-- version: 0.4.1 · updated: 2026-10-03 · last-edit: 2026-10-03T14:25:00Z -->

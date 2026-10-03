@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Splits a long setup script for the test machines into named steps and makes it pre-load the images the tests need; nothing a user sees changes.

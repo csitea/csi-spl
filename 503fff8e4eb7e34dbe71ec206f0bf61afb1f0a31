@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Repairs an automated test that broke after the previous change; nothing a user sees changes.

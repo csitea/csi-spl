@@ -1,0 +1,6 @@
+Lay-What: A helper assistant with a very long memory can now be restarted fresh, carrying a short summary, instead of squeezing its memory.
+Lay-How: When safe, the helper's state is written into a hand-over note and a new helper starts in the same window from that note.
+Lay-Why: Squeezing a long memory loses details, while a clean restart with a good summary keeps the helper fast and accurate.
+Tech-What: New do_spl_lane_restart: GATE, DISTIL to <hold>/<task>/<ID>.md, SPAWN via respawn-pane -k as the agent user, then a HUMAN check.
+Tech-How: Gate needs no uncommitted or unpushed work and restarts < lane_restarts_before_split; seat_fail_action handles a failed spawn; lane-restart.tst.sh 30/30.
+Tech-Why: Spec 063 R-L1/R-L2: compaction lost context; lifecycle logging measured +0.6% (n=7).

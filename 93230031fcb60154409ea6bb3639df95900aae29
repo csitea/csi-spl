@@ -1,0 +1,6 @@
+Lay-What: Makes the list of files fetched after a release come out in the same order on every machine.
+Lay-How: The warm-up now sorts names in one fixed way, regardless of the machine's language setting.
+Lay-Why: The order changed with the language of the machine running it, which made the comparison step give wrong answers.
+Tech-What: warm-wui-edge pins LC_ALL=C for its sort and comm calls.
+Tech-How: warm-wui-edge.func.sh sets the locale for the crawl's sort and comm.
+Tech-Why: Workflow 10 failed warm-wui-edge.tst.sh: the runner's locale sorted /fi before /_nuxt, the box's C locale after.

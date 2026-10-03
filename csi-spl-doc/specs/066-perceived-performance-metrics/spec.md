@@ -388,3 +388,63 @@ How noisy this is:
 
 Evidence (box-local, not in git): `first-load.json` of both runs, 10
 `baseline.json`, and each bundle's `perf-budget` JSON.
+
+### 12.5 Re-run with the collector deferred to an idle slot (2026-10-03, c-106)
+
+**Verdict: desktop now passes every row. The phone does not: cold-load total
+blocking time is +13.7 % (n=15 per arm, permutation p = 0.02) and open topic
+on slow 4G is +4.4 % (p = 0.31, a heavier tail in B). So the overhead is still
+not shown to be within 3 % on the phone. `perf.rum_enabled` stays `false` on
+prd; no cnf was changed.**
+
+What changed (`92a368fc`, deployed as v7.9.8): the plugin now waits for the
+load event plus `requestIdleCallback` (timeout 4 s; `setTimeout` 1.5 s where
+rIC is missing) before it imports the collector chunk. It waits again before
+`startPerfRum` (`utils/perf-idle.mjs`).
+
+| field | value |
+|---|---|
+| tree | `92a368fc` (the deferral on master), one `nuxt generate` per arm with dev's `NUXT_PUBLIC_*` values, app version `7.9.7-ab0` / `7.9.7-ab1` |
+| arms | A = `NUXT_PUBLIC_PERF_RUM=0`, B = `=1`, served by `serve-hosting-h2.mjs` (A :8471, B :8472) under the dev t1 host via `LOCAL_MAP` / `LOCAL_MAP_B`; the dev hub answered both |
+| first load | `perf-first-load.timing.mjs`, warm cache, d1440 + m390 (CPU 4x), 3 runs of N=5 with A,B / B,A interleaved inside each run, pooled **n=15 per arm per profile** |
+| open / cold | `perf-baseline-live.proof.mjs`, **SEND=0** (read-only, nothing posted), N=1 per call, 15 calls per arm interleaved A,B / B,A, d1440 + m390-4g, **n=15 per arm** |
+| box load | each run started only when the 1-min load average was below 4 (27 one-minute waits). At start it was 2.3..3.8. During runs it rose to 4.0..5.6 several times, and once to 11.0 (first-load run 1). 16 cores |
+
+| row | metric | profile | A off | B on | delta | n per arm | bar |
+|---|---|---|---|---|---|---|---|
+| first load | rail ms | d1440 | 603 | 537 | -10.9 % | 15 | pass |
+| first load | flow ms | d1440 | 761 | 753 | -1.1 % | 15 | pass |
+| main thread | TBT ms | d1440 | 171 | 167 | -2.3 % | 15 | pass (was +7.4 %) |
+| main thread | longest task ms | d1440 | 169 | 156 | -7.7 % | 15 | pass (was +6.0 %) |
+| first load | rail ms | m390 | 3219 | 3067 | -4.7 % | 15 | pass |
+| first load | flow ms | m390 | 4699 | 4579 | -2.6 % | 15 | pass |
+| main thread | TBT ms | m390 | 2667 | 2499 | -6.3 % | 15 | pass |
+| main thread | longest task ms | m390 | 1637 | 1569 | -4.2 % | 15 | pass |
+| open | open topic ms | d1440 | 53 | 54 | +1.9 % | 15 | pass (was +84 %) |
+| open | open topic ms | m390-4g | 271 | 283 | **+4.4 %** | 15 | **fail** |
+| cold /lobby | first message ms | d1440 | 486 | 496 | +2.1 % | 15 | pass |
+| cold /lobby | TBT ms | d1440 | 118 | 134 | +13.6 % (p = 0.15) | 15 | noise, see below |
+| cold /lobby | first message ms | m390-4g | 5263 | 5425 | **+3.1 %** | 15 | **fail** (marginal) |
+| cold /lobby | TBT ms | m390-4g | 1333 | 1516 | **+13.7 %** (p = 0.02) | 15 | **fail** |
+
+How to read it:
+
+- **Desktop main thread is fixed.** The 12.2 failures were TBT +7.4 % and
+  longest task +6.0 %. Now they are -2.3 % and -7.7 %, and each of the three
+  runs agrees in sign for TBT (-5, -9, -4 %). Desktop open topic is no longer
+  bimodal: A ranges 45..63 ms, B 47..74 ms.
+- **Desktop script time is still +20.5 % pooled (44 -> 53 ms).** The three
+  runs disagree, though (-15, +7, +2 %). The chunk still runs inside the
+  probe's 2.5 s window, but now in an idle slot rather than inside a long task.
+- **Phone cold load is the remaining signal.** Cold-cache /lobby on slow 4G
+  at CPU 4x shows TBT +183 ms median and last long task +3 %. Warm phone TBT
+  does not move (-6.3 % first-load, p = 0.62 baseline warm). The cold case
+  fetches the collector chunk over the throttled link, and that page has few
+  idle slots before the 4 s rIC timeout forces the start. This is a single
+  test among about 10 rows, so p = 0.02 is suggestive, not proven.
+- Next lever, if wanted: start the phone collector later (a fixed delay after
+  load, or the first user input), or drop the rIC timeout so a busy page
+  never forces the start. Then re-run this table on the phone rows only.
+
+Evidence (box-local, not in git): `/var/tmp/c106-ab/` holds `fl-{1,2,3}/first-load.json`,
+30 `bl-*/baseline.json`, `loads.log` (load average per run) and `pool.py`.

@@ -208,3 +208,35 @@ func TestEscapedLegacyFileStillParses(t *testing.T) {
 		t.Fatalf("re-marshal\n got %s\nwant %s", d, want)
 	}
 }
+
+// Spec 067 3.3: ref_task_id is optional. Unset, the canonical bytes are the
+// ones a reader that predates it signs and verifies; set, it round-trips and
+// must be a uuid (rdb 0112 types the column).
+func TestRefTaskID(t *testing.T) {
+	m := sample()
+	plain, err := Canonical(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), "ref_task_id") {
+		t.Fatalf("unset ref_task_id is in the canonical bytes: %s", plain)
+	}
+	m.RefTaskID = "0b6e8f2a-1c3d-4e5f-8a9b-0c1d2e3f4a5b"
+	if err := m.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Parse(raw)
+	if err != nil || back.RefTaskID != m.RefTaskID {
+		t.Fatalf("round trip: %v %q", err, back.RefTaskID)
+	}
+	for _, bad := range []string{"t1", "0B6E8F2A-1C3D-4E5F-8A9B-0C1D2E3F4A5B", "0b6e8f2a1c3d4e5f8a9b0c1d2e3f4a5b"} {
+		m.RefTaskID = bad
+		if err := m.Validate(); err == nil {
+			t.Fatalf("ref_task_id %q accepted", bad)
+		}
+	}
+}

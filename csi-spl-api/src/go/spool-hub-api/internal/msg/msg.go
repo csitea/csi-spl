@@ -64,6 +64,9 @@ func ValidKind(k string) bool { return validKinds[k] }
 // bridge; spec 002 Clarifications 2026-09-19).
 const LegacySender = "LGC-0"
 
+// uuidRe matches a canonical lower-case uuid: ref_task_id is a uuid column.
+var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
 // boxRe matches a box id ($SPOOL_BOX_ID), e.g. box-a.
 var boxRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
@@ -96,7 +99,14 @@ type Message struct {
 	Kind   string       `json:"kind"`
 	Body   string       `json:"body"`
 	Files  []Attachment `json:"files"`
-	Sig    string       `json:"sig,omitempty"`
+	// RefTaskID is the channel topic a DM is about (spec 067 3.3, rdb 0112
+	// messages.ref_task_id). Optional: omitted while empty, so the canonical
+	// bytes, and every signature, of a message without it are unchanged. A
+	// reader that predates it refuses an object that carries it (Parse
+	// disallows unknown keys), so nothing may set it before every reader
+	// knows it (spec 067 L4).
+	RefTaskID string `json:"ref_task_id,omitempty"`
+	Sig       string `json:"sig,omitempty"`
 }
 
 // Canonical returns the signing payload: the object with sig removed, keys
@@ -177,6 +187,9 @@ func (m *Message) Validate() error {
 	}
 	if !validKinds[m.Kind] {
 		return fmt.Errorf("kind %q is not one of "+KindList, m.Kind)
+	}
+	if m.RefTaskID != "" && !uuidRe.MatchString(m.RefTaskID) {
+		return fmt.Errorf("ref_task_id %q is not a uuid", m.RefTaskID)
 	}
 	if len(m.Body) > MaxBodyBytes {
 		return fmt.Errorf("body %d bytes exceeds limit %d", len(m.Body), MaxBodyBytes)

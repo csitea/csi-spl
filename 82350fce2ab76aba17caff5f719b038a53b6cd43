@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Keeps a copy of the infrastructure tool's plugins on the test machine so a slow check stops timing out; nothing changes for users.

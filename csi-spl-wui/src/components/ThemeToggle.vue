@@ -16,7 +16,7 @@
       data-test="theme-picker"
       aria-haspopup="listbox"
       :aria-expanded="open ? 'true' : 'false'"
-      :aria-controls="listId"
+      :aria-controls="open ? listId : undefined"
       :aria-label="label"
       :title="label"
       @click="toggleOpen"
@@ -24,8 +24,10 @@
     >
       <UiIcon name="palette" :size="18" />
     </button>
+    <!-- perf r4 W6: v-if, not v-show - the list (24 nodes) exists only while
+         open; focusOption waits a tick before placing and focusing it -->
     <ul
-      v-show="open"
+      v-if="open"
       :id="listId"
       role="listbox"
       class="theme-picker__list"

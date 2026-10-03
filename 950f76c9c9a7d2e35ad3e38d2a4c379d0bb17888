@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Makes automated browser tests explain why a page came up blank and retry once on a known network hiccup of the test machines; nothing a user sees changes.

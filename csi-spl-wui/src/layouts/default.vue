@@ -158,7 +158,7 @@ import { isSectionPage } from '~/utils/section-strip.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'
-import { CHANNEL, LIVE, NONE, closes, topicSection } from '~/utils/topic-pane.mjs'
+import { CHANNEL, LIVE, NONE, closes, routeLeavesTopic, topicSection } from '~/utils/topic-pane.mjs'
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
@@ -257,6 +257,21 @@ stack.install({
 /* CLE-77886 (owner, t1 topic ac0fa400): a section's own page on a phone
    (Issues, People, Help, ...) keeps the section strip on top, as level 1 does */
 const route = useRoute()
+/* t1 6e21c7d8: on a phone the topic pane covers the page, so a link from a
+   post to another page (an in-post /t/<id> link) closes it and the page it
+   went to shows; Back returns to the post (its entry still holds ?topic=).
+   Back / Forward never closes it here: history.listen sees only popstates. */
+const router = useRouter()
+let popNav = false
+const offPop = router.options.history.listen(() => { popNav = true })
+const offNav = router.afterEach((to, from, failure) => {
+  const popstate = popNav
+  popNav = false
+  if (failure) return
+  const nav = { mobile: stack.isMobile.value, open: topicPaneOpen.value, popstate, fromPath: from.path, toPath: to.path, toQuery: to.query }
+  if (routeLeavesTopic(nav)) { livePane.close(); topic.close() }
+})
+onUnmounted(() => { offPop(); offNav() })
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
 
 /* CLE-3429, the state half of 1..1: opening one section closes the other, so

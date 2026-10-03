@@ -61,3 +61,24 @@ export function closes(opened, state = {}) {
   if (opened === CHANNEL) return state.paneTaskId ? LIVE : ''
   return ''
 }
+
+/**
+ * t1 6e21c7d8 (owner: "This lin does not work on mobile"): on a phone the
+ * open topic pane is level 3, the ONLY panel on screen, and the page sits
+ * hidden under it. An in-post link to another page (`/t/<id>`) moved that
+ * hidden page and the reader saw nothing change. Whether a route navigation
+ * must close the pane so the page it went to shows.
+ *
+ * Only a forward navigation to another path that names no topic of its own:
+ * Back / Forward (`popstate`) restores whatever its entry holds, a
+ * `?topic=` write is the pane itself, and a desktop shows the page beside
+ * the pane anyway.
+ *
+ * @param {{ mobile?: boolean, open?: boolean, popstate?: boolean, fromPath?: string, toPath?: string, toQuery?: Record<string, unknown> }} nav
+ * @returns {boolean}
+ */
+export function routeLeavesTopic(nav = {}) {
+  if (!nav.mobile || !nav.open || nav.popstate) return false
+  if (!nav.toPath || nav.toPath === nav.fromPath) return false
+  return !(nav.toQuery && nav.toQuery.topic)
+}

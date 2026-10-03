@@ -865,6 +865,9 @@ type viewMsg struct {
 	// rdb 0040 / specs/036 FR-011: the HUM-* the hub verified typed this
 	// line at the agent's terminal. Omitted when the agent wrote it.
 	TypedBy string `json:"typed_by,omitempty"`
+	// Spec 068 (rdb 0110): the responsible seat, <id>@<box>. Omitted while
+	// nobody is responsible.
+	Responsible string `json:"responsible,omitempty"`
 	// SPL-952 (rdb 0060): the kind as set after sending. Omitted while it was
 	// never changed; the envelope then carries the truth.
 	Kind      string `json:"kind,omitempty"`
@@ -1090,7 +1093,7 @@ func viewMsgsIn(rows []store.ViewMsg, react map[string][]store.StoredReaction, t
 		}
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
 			Env: trimEnv(m.Env, home), Deliveries: viewDeliveries(m.Deliveries), IsParent: m.IsParent,
-			TypedBy: m.TypedBy}
+			TypedBy: m.TypedBy, Responsible: m.Responsible}
 		if rs := groupReactions(react[m.MsgID]); len(rs) > 0 {
 			v.Reactions = rs
 		}

@@ -53,8 +53,9 @@ type wuiFrame struct {
 	Error       string          `json:"error"`
 	Envelope    json.RawMessage `json:"envelope"`
 	Env         json.RawMessage `json:"env"`
-	TypedBy     string          `json:"typed_by"` // specs/036 FR-011
-	Revision    string          `json:"revision"` // bug B welcome (revision_test.go)
+	TypedBy     string          `json:"typed_by"`    // specs/036 FR-011
+	Responsible string          `json:"responsible"` // spec 068 L8
+	Revision    string          `json:"revision"`    // bug B welcome (revision_test.go)
 }
 
 type wuiClient struct {

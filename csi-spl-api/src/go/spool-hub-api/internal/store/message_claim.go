@@ -117,15 +117,24 @@ func applyClaim(m *Message, seat string, ttl time.Duration, now time.Time) {
 func claimDefaults(m *Message, seated bool) {
 	m.Responsible, m.LockedUntil, m.ResponsibleGen, m.ClaimN = "", time.Time{}, 0, 0
 	m.HandledAt, m.HandledHow, m.NotBy, m.NeedsPeer = time.Time{}, "", nil, false
-	if agentid.IsAgent(m.ToID) {
-		m.Responsible = m.ToID + "@" + m.ToBox
-	}
+	m.Responsible = InsertResponsible(m.ToID, m.ToBox)
 	switch {
 	case m.ToID == PeersID:
 		m.NeedsPeer = true
 	case m.Responsible == "" && m.FromBox == "box-wui" && strings.HasPrefix(m.FromID, "HUM-") && m.ToID == "ALL-0" && seated:
 		m.NeedsPeer = true
 	}
+}
+
+// InsertResponsible is the responsible seat an insert stores (the 0110
+// trigger's first branch): <to_id>@<to_box> for a message to one agent, ""
+// otherwise. The hub's live WUI frame reads it too, so the echo shows the
+// seat the row was stored with.
+func InsertResponsible(toID, toBox string) string {
+	if agentid.IsAgent(toID) {
+		return toID + "@" + toBox
+	}
+	return ""
 }
 
 // IsPeerSeat reports whether id (bare or <id>@<box>) is a peer seat number.

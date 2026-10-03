@@ -115,6 +115,9 @@ type ViewMsg struct {
 	IsParent int
 	// TypedBy is messages.typed_by (rdb 0040); "" = the agent wrote it.
 	TypedBy string
+	// Responsible is messages.responsible (spec 068, rdb 0110): the seat
+	// <id>@<box> that must deal with it; "" = nobody yet.
+	Responsible string
 	// SPL-952 (rdb 0060): the kind as set after sending. All three are zero
 	// while nobody changed it, and the view then emits no override at all.
 	Kind      string
@@ -271,7 +274,7 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 			continue
 		}
 		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
-			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Move: viewMove(m), RowChannel: m.Channel}
+			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Responsible: m.Responsible, Move: viewMove(m), RowChannel: m.Channel}
 		if !m.KindSetAt.IsZero() {
 			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
 		}

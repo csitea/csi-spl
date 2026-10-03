@@ -884,6 +884,16 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	if typedBy != "" { // specs/036 FR-011: top level, like edited_by
 		frame["typed_by"] = typedBy
 	}
+	// Spec 068: the responsible seat, as the view row carries it. A stored
+	// row may not hand it back (the 0110 trigger sets it), so derive it the
+	// way the insert does.
+	responsible := row.Responsible
+	if responsible == "" {
+		responsible = store.InsertResponsible(row.ToID, row.ToBox)
+	}
+	if responsible != "" {
+		frame["responsible"] = responsible
+	}
 	b, err := encodeFrame(frame)
 	if err != nil {
 		return

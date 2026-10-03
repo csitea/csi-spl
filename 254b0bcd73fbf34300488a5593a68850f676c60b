@@ -1,0 +1,6 @@
+Lay-What: The coordinating assistant can now start a helper on the other machine, even when it cannot reach that machine directly.
+Lay-How: It sends a start request as a message; the other machine checks it came from the coordinator, starts the helper and replies.
+Lay-Why: Some work, such as browser checks, can only run on one machine, and the coordinator often runs on the other.
+Tech-What: New spawn-remote.sh: a spawn-request task to <orch>@<box>; --serve runs that box's spawn-window.sh and replies <id>@<box> <pane>.
+Tech-How: A per-minute cron (do_spl_spawn_remote_install_cron) serves requests; only the lease.orch holder is accepted; brief written to a file, fields pattern-checked, nothing evaluated.
+Tech-Why: The satellite cannot ssh to the PC behind NAT, yet browser lanes must run on the PC (HOWTO-satellite-work gap 6).

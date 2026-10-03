@@ -10,6 +10,21 @@
 # in this box's /proc and tmux, and names the box from <spool_root>/box.env
 # (SPOOL_DESK_BOX = box_tag, role 08). A box without lease.conf rotates nothing.
 # Idempotent: each action replaces its tagged line in place.
+# Spec 064 L4 (owner t1 1e48c889: the PC can be shut off): the three csi-spl
+# crons that ran on the PC only (064 section 3.3 rows 4, 5, 7), each the PC's
+# line exactly, each through its named install action:
+#   dev desk reconcile  box user, */3, ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00
+#                       (do_spl_desk_install_service, tag csi-spl:desk-reconcile)
+#   weekly full scan    box user, Fri 17:00 box time (Europe/Helsinki, as on the
+#                       PC). SAT-ONLY, not holder-gated: sat is the always-on
+#                       home (064 Q1), the script posts to #spool-hub-ops so two
+#                       machines = two posts, its flock is per box, and a gate
+#                       would live in the script, outside this role. The PC's
+#                       line is removed on the PC (WEEKLY_SCAN_CRON_ACTION=remove)
+#                       (do_install_weekly_full_scan_cron, tag csi-spl:weekly-full-scan)
+#   tmp scratch sweep   AGENT user, :17 hourly, DRY_RUN=0, from the main checkout
+#                       (do_tmp_scratch_sweep_install_cron, tag csi-spl:tmp-scratch-sweep)
+# Each prints OK <line> when the line already read so, CHANGED <line> otherwise.
 - name: "Rotation cron {{ item }} (the box user's crontab, DRY_RUN=0, then check)"
   ansible.builtin.shell: |
     set -uo pipefail
@@ -30,3 +45,32 @@
   loop: [orch, dispatch]
   register: rotation_cron
   changed_when: rotation_cron.stdout is search('CHANGED ')
+
+- name: "PC-only cron {{ item.tag }} (064 L4, the {{ item.user }} user's crontab, DRY_RUN=0, then read back)"
+  ansible.builtin.shell: |
+    set -uo pipefail
+    export SPOOL_ROOT="{{ spool_root }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$PATH"
+    cd "{{ repo_dir }}/{{ item.dir }}" || exit 1
+    tagged() { crontab -l 2>/dev/null | grep " # csi-spl:{{ item.tag }}$"; }
+    old=$(tagged)
+    setsid -w env {{ item.env }} DRY_RUN=0 ./run -a {{ item.action }} </dev/null 2>&1 || { echo "FAIL {{ item.action }}"; exit 1; }
+    [ -z "{{ item.check }}" ] || setsid -w env {{ item.env }} {{ item.check }} ./run -a {{ item.action }} </dev/null 2>&1 || { echo "FAIL the {{ item.tag }} check"; exit 1; }
+    line=$(tagged)
+    [ "$(printf '%s\n' "$line" | grep -c .)" = 1 ] || { echo "FAIL want ONE csi-spl:{{ item.tag }} line"; exit 1; }
+    [ "$old" = "$line" ] && echo "OK $line" || echo "CHANGED $line"
+  args:
+    executable: /bin/bash
+    chdir: "{{ repo_dir }}"
+  become: true
+  become_user: "{{ owner_user if item.user == 'box' else agent_user }}"
+  loop:
+    - {tag: desk-reconcile, user: box, dir: csi-spl-orc, action: do_spl_desk_install_service,
+       env: "ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 DESK_CRON_EVERY=3", check: "DESK_SERVICE_ACTION=check"}
+    - {tag: weekly-full-scan, user: box, dir: csi-spl-iac, action: do_install_weekly_full_scan_cron,
+       env: "WEEKLY_SCAN_CRON_ACTION=install", check: ""}
+    - {tag: tmp-scratch-sweep, user: agent, dir: csi-spl-orc, action: do_tmp_scratch_sweep_install_cron,
+       env: "SCRATCH_CRON_MINUTE=17 SCRATCH_CRON_DRY_RUN=0", check: ""}
+  loop_control:
+    label: "{{ item.tag }}"
+  register: pc_only_cron
+  changed_when: pc_only_cron.stdout is search('CHANGED ')

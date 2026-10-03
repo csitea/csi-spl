@@ -30,6 +30,11 @@
 #  15. role 10 installs both hourly rotation crons (orch :05, dispatch :15)
 #      for the box user through the named install actions, then checks them;
 #      run against a stub ./run + crontab: one line each, idempotent.
+#  17. role 10 also installs the PC-only csi-spl crons (spec 064 L4): the dev
+#      desk reconcile (*/3, CLE-00 muted) and the weekly full scan (sat-only)
+#      as the box user, the tmp scratch sweep as the agent user, each the PC's
+#      line through its named action; run against a stub: one line each,
+#      other lines kept, idempotent, a failing action fails the task.
 #   9. /var/csi lives on the data disk, /var/csi/csi-spl is the owner's and
 #      group-writable, and verify checks both users can write it.
 #------------------------------------------------------------------------------
@@ -383,6 +388,65 @@ b1=$(run_boot); b2=$(run_boot); b3=$(run_boot other-user); b3rc=$?; b4=$(run_boo
   && pass "16. role 11 fails when box.env names another agent user" || fail "16. role 11 box.env check: rc=$b3rc $b3"
 [[ $b4rc -ne 0 && "$b4" == *"does not name SPOOL_BOX_TAG=other"* ]] \
   && pass "16. role 11 fails when box.env names another box tag" || fail "16. role 11 box tag check: rc=$b4rc $b4"
+
+# 17. the PC-only csi-spl crons on the satellite too (spec 064 L4, owner t1 1e48c889)
+pt=$(python3 -c "
+import yaml
+for t in yaml.safe_load(open('$r10')):
+    if t.get('name','').startswith('PC-only cron'):
+        print(t.get('become_user'))
+        for i in t['loop']: print('ITEM', i['tag'], i['user'], i['dir'], i['action'], '|' + i['env'] + '|' + i['check'] + '|')
+        print(t['ansible.builtin.shell'])")
+grep -qx "{{ owner_user if item.user == 'box' else agent_user }}" <<<"$(head -n1 <<<"$pt")" \
+  && grep -qx 'ITEM desk-reconcile box csi-spl-orc do_spl_desk_install_service |ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 DESK_CRON_EVERY=3|DESK_SERVICE_ACTION=check|' <<<"$pt" \
+  && grep -qx 'ITEM weekly-full-scan box csi-spl-iac do_install_weekly_full_scan_cron |WEEKLY_SCAN_CRON_ACTION=install||' <<<"$pt" \
+  && grep -qx 'ITEM tmp-scratch-sweep agent csi-spl-orc do_tmp_scratch_sweep_install_cron |SCRATCH_CRON_MINUTE=17 SCRATCH_CRON_DRY_RUN=0||' <<<"$pt" \
+  && pass "17. role 10 installs the PC's dev desk reconcile (*/3, CLE-00 muted) + weekly scan as the box user, the scratch sweep as the agent user" \
+  || fail "17. role 10 PC-only items: $(grep -E '^(ITEM|\{\{)' <<<"$pt" | tr '\n' ' ')"
+grep -q 'DRY_RUN=0 ./run -a {{ item.action }}' <<<"$pt" && grep -q '{{ item.check }} ./run -a {{ item.action }}' <<<"$pt" \
+  && pass "17. role 10 goes through the named install actions (and the desk check)" || fail "17. role 10 does not use the PC-only install actions"
+[[ -f "$O/spl-desk-install-service.func.sh" && -f "$O/tmp-scratch-sweep-install-cron.func.sh" && -f "$PROJ_PATH/src/bash/run/install-weekly-full-scan-cron.func.sh" ]] \
+  && grep -q "printf '%s:desk-reconcile%s'" "$O/spl-desk-install-service.func.sh" \
+  && grep -q 'tag="csi-spl:tmp-scratch-sweep"' "$O/tmp-scratch-sweep-install-cron.func.sh" \
+  && grep -q 'tag="# $app:weekly-full-scan"' "$PROJ_PATH/src/bash/run/install-weekly-full-scan-cron.func.sh" \
+  && pass "17. the actions exist and tag their lines csi-spl:{desk-reconcile,weekly-full-scan,tmp-scratch-sweep}" || fail "17. a PC-only install action or its tag moved"
+PB17="$T/pconly"; mkdir -p "$PB17/repo/csi-spl-orc" "$PB17/repo/csi-spl-iac" "$PB17/spool"; cp "$RB/bin/crontab" "$PB17/crontab"
+cat >"$PB17/run" <<'RUN'
+#!/usr/bin/env bash
+[ "${STUB_FAIL:-}" = "$2" ] && exit 1
+case "$2" in
+  do_spl_desk_install_service) t=desk-reconcile; [ "${ENV:-dev}" = dev ] || t=desk-reconcile-$ENV
+    l="*/${DESK_CRON_EVERY:-5} * * * * ENV=$ENV TENANT_ID=$TENANT_ID DESK_MUTE=$DESK_MUTE x/desk-reconcile-cron.sh # csi-spl:$t" ;;
+  do_install_weekly_full_scan_cron) t=weekly-full-scan; l="0 17 * * 5 x/weekly-full-scan-cron.sh # csi-spl:$t" ;;
+  do_tmp_scratch_sweep_install_cron) t=tmp-scratch-sweep; l="$SCRATCH_CRON_MINUTE * * * * DRY_RUN=$SCRATCH_CRON_DRY_RUN x/tmp-scratch-sweep.sh # csi-spl:$t" ;;
+  *) exit 2 ;;
+esac
+if [ "${DESK_SERVICE_ACTION:-}" = check ]; then grep -q " # csi-spl:$t$" "$FAKE_CRON"; exit; fi
+[ "${DRY_RUN:-1}" = 0 ] || exit 0
+{ grep -v " # csi-spl:$t$" "$FAKE_CRON" 2>/dev/null; echo "$l"; } >"$FAKE_CRON.n"; mv "$FAKE_CRON.n" "$FAKE_CRON"
+RUN
+mkdir -p "$PB17/bin"; mv "$PB17/crontab" "$PB17/bin/crontab"; cp "$PB17/run" "$PB17/repo/csi-spl-orc/run"; cp "$PB17/run" "$PB17/repo/csi-spl-iac/run"
+chmod +x "$PB17/bin/crontab" "$PB17/repo/csi-spl-orc/run" "$PB17/repo/csi-spl-iac/run"
+printf '%s\n' '1-59/5 * * * * desk # csi-spl:desk-reconcile-prd' '5 * * * * x # csi-spl:orch-rotate' >"$PB17/cron"
+run_pc() { local body; body=$(python3 -c "
+import sys, yaml
+for t in yaml.safe_load(open('$r10')):
+    if t.get('name','').startswith('PC-only cron'):
+        i = [x for x in t['loop'] if x['tag'] == sys.argv[1]][0]; s = t['ansible.builtin.shell']
+        for k, v in i.items(): s = s.replace('{{ item.%s }}' % k, v)
+        print(s.replace('{{ spool_root }}', '$PB17/spool').replace('{{ repo_dir }}', '$PB17/repo'))" "$1")
+  env FAKE_CRON="$PB17/cron" PATH="$PB17/bin:$PATH" STUB_FAIL="${2:-}" bash -c "$body" 2>&1; }
+p1=$(run_pc desk-reconcile); p2=$(run_pc weekly-full-scan); p3=$(run_pc tmp-scratch-sweep); p4=$(run_pc desk-reconcile); p5=$(run_pc tmp-scratch-sweep)
+[[ "$p1" == "CHANGED */3 * * * * ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 "*"# csi-spl:desk-reconcile" && "$p2" == "CHANGED 0 17 * * 5 "*"# csi-spl:weekly-full-scan" \
+   && "$p3" == "CHANGED 17 * * * * DRY_RUN=0 "*"# csi-spl:tmp-scratch-sweep" && "$p4" == "OK */3 "* && "$p5" == "OK 17 "* ]] \
+  && [[ "$(grep -c 'csi-spl:desk-reconcile$' "$PB17/cron")" == 1 && "$(grep -c 'csi-spl:desk-reconcile-prd$' "$PB17/cron")" == 1 \
+     && "$(grep -c 'csi-spl:weekly-full-scan$' "$PB17/cron")" == 1 && "$(grep -c 'csi-spl:tmp-scratch-sweep$' "$PB17/cron")" == 1 \
+     && "$(grep -c 'orch-rotate$' "$PB17/cron")" == 1 && "$(wc -l <"$PB17/cron")" == 5 ]] \
+  && pass "17. role 10 against a stub: the PC's three lines, one each, the prd desk + rotation lines kept, a re-run is OK (no change)" \
+  || fail "17. role 10 PC-only run: p1=$p1 p2=$p2 p3=$p3 p4=$p4 p5=$p5 cron=$(cat "$PB17/cron")"
+p6=$(run_pc weekly-full-scan do_install_weekly_full_scan_cron); p6rc=$?
+[[ $p6rc -ne 0 && "$p6" == *"FAIL do_install_weekly_full_scan_cron"* ]] \
+  && pass "17. role 10 fails when an install action fails" || fail "17. role 10 swallowed a failing action: rc=$p6rc $p6"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

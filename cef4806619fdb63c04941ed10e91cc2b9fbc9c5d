@@ -1,0 +1,6 @@
+Lay-What: Replaces unexplained numbers and words in the server code with named values; nothing a user sees changes.
+Lay-How: Folder names for message boxes and the longest allowed email address are now defined once by name.
+Lay-Why: A value written in many places is easy to change in one and forget the rest.
+Tech-What: spool.go names boxInbox/boxOutbox/boxArchive/allBoxes (12 sites); humans.go maxEmailLen = 320.
+Tech-How: Constants replace literals; error strings stay byte-identical; spool + store 155 tests pass before and after, hub-pg green.
+Tech-Why: Refactor round 1 #04: magic literals; 320 is the RFC 5321 path limit.

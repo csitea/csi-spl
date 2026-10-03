@@ -1,0 +1,6 @@
+Lay-What: A direct conversation opened on an archived topic now says so at the top, with the topic's title and an "Archived" label.
+Lay-How: The page asks the server once about the opened topic and shows its title and archive mark next to the person's name.
+Lay-Why: The owner could not tell in that view whether the topic was archived or not.
+Tech-What: WUI DM page (/dm/<peer>?topic=<id>) header shows the muted topic title and the ArchivedBadge when the topic is archived.
+Tech-How: [peer].vue calls getTopic(limit 1) per opened topic for archived_at and the title; FeedHeader gains archivedAt/topicTitle props; unit archived-mark and e2e dm-archived-mark at 1440 and 390.
+Tech-Why: The ArchivedBadge from the earlier archive work never reached the DM page, which held no read of the topic.

@@ -1,0 +1,6 @@
+Lay-What: Tried to make the issues page open faster on phones by skipping one layout measurement at start-up.
+Lay-How: The page reused the screen width it already knew instead of measuring it again as it appeared.
+Lay-Why: Each extra measurement makes the phone redo the page layout, which costs time.
+Tech-What: WUI usePaneWidths hydrate() no longer re-reads window.innerWidth in onMounted.
+Tech-How: usePaneWidths.ts relies on viewportW from setup and the resize listener; /issues forced layout 82.4 -> 0 ms (n=7).
+Tech-Why: Perf round 4 W3: a forced layout at mount; reverted in 56d51be9 because the desktop Topics list then never showed.

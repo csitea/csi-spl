@@ -1250,6 +1250,7 @@
     "empty": "Archiwum jest puste.",
     "hint": "Zarchiwizowane tematy są ukryte w kanałach, wiadomościach bezpośrednich i wyszukiwaniu. Przywróć z archiwum przywraca temat.",
     "archived_at": "Zarchiwizowano {when}",
+    "badge": "Zarchiwizowano",
     "load_failed": "Nie udało się wczytać archiwum.",
     "error": "Nie zmieniono tematu. Spróbuj ponownie.",
     "unarchive": "Przywróć z archiwum",

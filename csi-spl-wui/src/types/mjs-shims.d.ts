@@ -81,6 +81,9 @@ declare module '~/utils/spool-client.mjs' {
       task_id: string
       messages: import('./spool').SpoolMessage[]
       next: string | null
+      /** t1 8fb802cd: the topic's archive stamp (a first read only); absent = live */
+      archived_at?: string
+      archived_by?: string
     }>
     me(): Promise<Record<string, unknown> | null>
     mockChannelOrder(): string[] | null
@@ -759,6 +762,7 @@ declare module '~/utils/topic-menu.mjs' {
 }
 
 declare module '~/utils/topic-archive.mjs' {
+  export function archiveStamp(data: unknown): string
   export type ArchivedCard = {
     message: import('./spool').SpoolMessage
     msg_id: string

@@ -11,6 +11,7 @@ import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failur
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
+import { archiveStamp } from '~/utils/topic-archive.mjs'
 import type { FileRef, SpoolMessage } from '~/types/spool'
 
 import { WINDOW } from '~/utils/feed-window.mjs'
@@ -48,6 +49,8 @@ function setup(key: 'main' | 'pane') {
   const olderCursor = ref<string | null>(null)
   const loadingOlder = ref(false)
   const lastLive = ref<SpoolMessage | null>(null)
+  /** t1 8fb802cd: the open topic's archive stamp ('' = live); the header marks it. */
+  const archivedAt = ref('')
 
   const filtered = computed(() => newestFirst(messages.value.filter((m) => matchesSearch(m, search.value))))
   const view = computed(() => windowed(filtered.value, visible.value))
@@ -138,6 +141,7 @@ function setup(key: 'main' | 'pane') {
     if (taskId.value && taskId.value !== id && client) client.unsubscribe(taskId.value)
     if (taskId.value !== id) {
       messages.value = []
+      archivedAt.value = ''
       visible.value = WINDOW
       search.value = ''
       olderCursor.value = null
@@ -163,6 +167,7 @@ function setup(key: 'main' | 'pane') {
       const data = opts.first ? await opts.first.catch(read) : await read()
       merge(data.messages)
       olderCursor.value = data.next
+      archivedAt.value = archiveStamp(data)
       if (opts.all || key === 'pane') await loadAll()
     } catch (e) {
       fail(e, i18n.t('feed.error.load_failed'))
@@ -183,6 +188,7 @@ function setup(key: 'main' | 'pane') {
     offEdited = null
     taskId.value = null
     messages.value = []
+    archivedAt.value = ''
   }
 
   /**
@@ -286,7 +292,7 @@ function setup(key: 'main' | 'pane') {
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
-    applyEdited, loadingOlder, drop, applyReactions,
+    applyEdited, loadingOlder, drop, applyReactions, archivedAt,
   }
 }
 

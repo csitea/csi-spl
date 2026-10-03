@@ -1250,6 +1250,7 @@
     "empty": "Arşivde bir şey yok.",
     "hint": "Arşivlenen konular kanallarda, doğrudan mesajlarda ve aramada gizlenir. Arşivden çıkar konuyu geri getirir.",
     "archived_at": "Arşivlendi {when}",
+    "badge": "Arşivlendi",
     "load_failed": "Arşiv yüklenemedi.",
     "error": "Konu değiştirilemedi. Tekrar deneyin.",
     "unarchive": "Arşivden çıkar",

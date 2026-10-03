@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { bumpTopic, mergeTopicPage } from '~/utils/topic-list.mjs'
-import { withoutTopics } from '~/utils/topic-archive.mjs'
+import { archiveStamp, withoutTopics } from '~/utils/topic-archive.mjs'
 import { useLive } from '~/composables/useLive'
 import type { SpoolMessage, TopicRow } from '~/types/spool'
 
@@ -93,7 +93,15 @@ export const useViewerStore = defineStore('viewer', () => {
     const client = live.ensure()
     if (!client) return
     client.subscribeAll()
-    offMessage = live.onMessage((m) => { topics.value = bumpTopic(topics.value, m) as TopicRow[] })
+    offMessage = live.onMessage((m) => {
+      const before = topics.value
+      topics.value = bumpTopic(before, m) as TopicRow[]
+      /* t1 8fb802cd: a message in a topic the list does not hold starts a
+         row - and an agent still writing into an ARCHIVED topic put that
+         topic back among the live ones. One read of the new row's topic
+         answers its archive stamp; an archived one leaves again. */
+      if (topics.value.length > before.length) void dropIfArchived(String(m.task_id || ''))
+    })
     offReconnect = live.onReconnected(() => { void catchUp() })
   }
   function unfollow() {
@@ -110,6 +118,15 @@ export const useViewerStore = defineStore('viewer', () => {
       topics.value = mergeTopicPage(topics.value, data.topics) as TopicRow[]
     } catch (e) {
       fail(e)
+    }
+  }
+
+  async function dropIfArchived(id: string) {
+    if (!id) return
+    try {
+      if (archiveStamp(await api.getTopic(id, { limit: 1 }))) dropTopics([id])
+    } catch {
+      /* the row stays; the next catch-up re-reads the list */
     }
   }
 

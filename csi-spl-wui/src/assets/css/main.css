@@ -486,6 +486,10 @@ html.pane-dragging * {
 /* owner 2026-09-26: the bare glyph is the icon, no frame around it; only the
    blocker keeps its red fill so it stands out */
 .kind--icon:not(.kind-blocker) { border-color: transparent; }
+/* t1 8fb802cd: an archived topic, where one still renders, reads muted next to
+   its ArchivedBadge (the badge keeps its own colour) */
+.is-archived { color: var(--color-muted); }
+.is-archived .topic-subject, .is-archived .msg-author, .is-archived .label { color: var(--color-muted); }
 .replies {
   margin-top: 6px;
   font-size: 0.75rem;

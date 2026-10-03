@@ -1250,6 +1250,7 @@
     "empty": "Archív je prázdny.",
     "hint": "Archivované témy sú skryté v kanáloch, priamych správach a vo vyhľadávaní. Obnoviť z archívu tému vráti späť.",
     "archived_at": "Archivované {when}",
+    "badge": "Archivované",
     "load_failed": "Archív sa nepodarilo načítať.",
     "error": "Téma sa nezmenila. Skúste to znova.",
     "unarchive": "Obnoviť z archívu",

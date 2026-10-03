@@ -88,6 +88,8 @@ export interface TopicRow {
   kinds: Record<string, number>
   participants: string[]
   subject: string
+  /** t1 8fb802cd: set only on a row of an archived topic (lists leave those out); the row is marked */
+  archived_at?: string
 }
 
 /** One channel (channels-v1 §5.2, normalised by utils/view-api.mjs channelsFromView). */

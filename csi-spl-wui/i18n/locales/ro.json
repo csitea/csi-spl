@@ -1250,6 +1250,7 @@
     "empty": "Nimic nu este arhivat.",
     "hint": "Subiectele arhivate sunt ascunse în canale, mesaje directe și căutare. Scoate din arhivă aduce un subiect înapoi.",
     "archived_at": "Arhivat {when}",
+    "badge": "Arhivat",
     "load_failed": "Arhiva nu a putut fi încărcată.",
     "error": "Subiectul nu a fost modificat. Încearcă din nou.",
     "unarchive": "Scoate din arhivă",

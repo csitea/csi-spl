@@ -252,3 +252,14 @@ export function withoutTopics(rows, taskIds) {
   const gone = new Set((taskIds || []).map(String))
   return (Array.isArray(rows) ? rows : []).filter((r) => !gone.has(String(r && r.task_id)))
 }
+
+/**
+ * t1 8fb802cd: the archive stamp of a getTopic answer (the hub sends it on a
+ * first read of an archived topic; a list never shows one). '' = live.
+ * @param {unknown} data
+ * @returns {string}
+ */
+export function archiveStamp(data) {
+  const at = data && typeof data === 'object' ? /** @type {{ archived_at?: unknown }} */ (data).archived_at : ''
+  return typeof at === 'string' ? at : ''
+}

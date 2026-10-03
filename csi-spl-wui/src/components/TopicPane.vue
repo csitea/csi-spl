@@ -19,7 +19,8 @@
       <MobileBack />
       <!-- SPL-1133: the X at the chosen corner (Mac = here, the default) -->
       <UiCloseButton side="start" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
-      <strong class="topic-heading__title" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
+      <strong class="topic-heading__title" :class="{ 'is-archived': archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
+      <ArchivedBadge v-if="archivedAt" :at="archivedAt" />
       <LazyCardClipControl pane="thread" />
       <UiCloseButton side="end" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
     </header>
@@ -67,6 +68,7 @@ import { useLive } from '~/composables/useLive'
 import { matchesSearch, mergeById, newestFirst, withoutMsg } from '~/utils/feed.mjs'
 import { rowsForRightPane } from '~/utils/channel-feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
+import { archiveStamp } from '~/utils/topic-archive.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { applyEdit } from '~/utils/msg-edit.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -102,6 +104,8 @@ const olderCursor = ref<string | null>(null)
 const loadingOlder = ref(false)
 /* The topic's first message, for the heading, when the newest page does not reach it. */
 const oldestRow = ref<SpoolMessage | null>(null)
+/* t1 8fb802cd: the open topic's archive stamp ('' = live), from its first read */
+const archivedAt = ref('')
 const hasOlder = computed(() => !api.mock && Boolean(olderCursor.value))
 /* A reply with is_parent 0 lives in the channel store as well as here.
    Keep it on this pane after the send stops being pending. */
@@ -149,7 +153,10 @@ async function catchUp() {
   if (api.mock || !topic.open || !id) return
   try {
     const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: 50 })) as { messages?: SpoolMessage[] }
-    if (topic.parentTaskId === id) liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
+    if (topic.parentTaskId === id) {
+      liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
+      archivedAt.value = archiveStamp(data)
+    }
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : t('topic.load_failed')
   }
@@ -178,6 +185,7 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
   lastLive.value = null
   olderCursor.value = null
   oldestRow.value = null
+  archivedAt.value = ''
   if (api.mock || !open || !id) return
   loading.value = true
   try {
@@ -185,6 +193,7 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
     if (topic.parentTaskId !== id) return
     liveRows.value = data.messages || []
     olderCursor.value = data.next || null
+    archivedAt.value = archiveStamp(data)
     if (olderCursor.value && !topic.rootMsg) void loadOldestRow(id)
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : t('topic.load_failed')

@@ -440,12 +440,15 @@ export function createSpoolClient({
       if (!id) throw new Error('task_id required')
       if (mock) {
         const all = topicMessages(state.messages, id)
-        if (order !== 'desc') return { task_id: id, messages: all, next: null }
+        /* t1 8fb802cd: the hub's archive stamp, as its own rule reads it */
+        const arch = (state.archived || []).find((m) => m.archived_at && (m.msg_id === id || m.task_id === id))
+        const stamp = arch && !after ? { archived_at: arch.archived_at, archived_by: arch.archived_by } : {}
+        if (order !== 'desc') return { task_id: id, messages: all, next: null, ...stamp }
         const desc = all.slice().reverse()
         const start = before ? desc.findIndex((m) => m.msg_id === before) + 1 : 0
         const page = desc.slice(start, start + limit)
         const more = start + limit < desc.length
-        return { task_id: id, messages: page, next: more && page.length ? page[page.length - 1].msg_id : null }
+        return { task_id: id, messages: page, next: more && page.length ? page[page.length - 1].msg_id : null, ...stamp }
       }
       const q = new URLSearchParams()
       if (order === 'desc') q.set('order', 'desc')
@@ -464,7 +467,10 @@ export function createSpoolClient({
         throw e
       }
       const rows = (data && data.messages) || []
-      return { task_id: id, messages: rows.map((m) => normalizeViewMessage(m, id)), next: (data && data.next) || null }
+      const out = { task_id: id, messages: rows.map((m) => normalizeViewMessage(m, id)), next: (data && data.next) || null }
+      /* t1 8fb802cd: a topic read by its id answers while archived; the stamp marks it */
+      if (data && data.archived_at) Object.assign(out, { archived_at: String(data.archived_at), archived_by: String(data.archived_by || '') })
+      return out
     },
     /**
      * specs/025 FR-006: the caller's role and permissions in the active

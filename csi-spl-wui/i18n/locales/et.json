@@ -1250,6 +1250,7 @@
     "empty": "Arhiivis pole midagi.",
     "hint": "Arhiveeritud teemad on kanalites, otsesõnumites ja otsingus peidetud. Taasta arhiivist toob teema tagasi.",
     "archived_at": "Arhiveeritud {when}",
+    "badge": "Arhiveeritud",
     "load_failed": "Arhiivi ei saanud laadida.",
     "error": "Teemat ei muudetud. Proovi uuesti.",
     "unarchive": "Taasta arhiivist",

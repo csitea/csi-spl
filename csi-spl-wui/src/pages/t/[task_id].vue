@@ -2,7 +2,7 @@
   <div class="feed-col">
     <header class="feed-header">
       <MobileBack />
-      <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code></h2>
+      <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code> <ArchivedBadge v-if="store.archivedAt" :at="store.archivedAt" /></h2>
       <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
       <!-- SPL-963: the thread's control, as in the right pane -->
       <LazyCardClipControl pane="thread" />

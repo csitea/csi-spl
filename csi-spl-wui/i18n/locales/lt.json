@@ -1250,6 +1250,7 @@
     "empty": "Archyve nieko nėra.",
     "hint": "Archyvuotos temos paslėptos kanaluose, tiesioginėse žinutėse ir paieškoje. Grąžinti iš archyvo sugrąžina temą.",
     "archived_at": "Archyvuota {when}",
+    "badge": "Archyvuota",
     "load_failed": "Nepavyko įkelti archyvo.",
     "error": "Tema nepakeista. Bandykite dar kartą.",
     "unarchive": "Grąžinti iš archyvo",

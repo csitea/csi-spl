@@ -1250,6 +1250,7 @@
     "empty": "Arhīvā nav nekā.",
     "hint": "Arhivētās tēmas ir paslēptas kanālos, tiešajās ziņās un meklēšanā. Atjaunot no arhīva atgriež tēmu.",
     "archived_at": "Arhivēta {when}",
+    "badge": "Arhivēta",
     "load_failed": "Arhīvu neizdevās ielādēt.",
     "error": "Tēma netika mainīta. Mēģiniet vēlreiz.",
     "unarchive": "Atjaunot no arhīva",

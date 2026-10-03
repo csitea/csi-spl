@@ -28,7 +28,7 @@
       >
       <a
         class="topic-row"
-        :class="{ selected: openedTopicId === t.task_id }"
+        :class="{ selected: openedTopicId === t.task_id, 'is-archived': t.archived_at }"
         :aria-current="openedTopicId === t.task_id ? 'true' : undefined"
         :data-key="t.task_id"
         :data-ts="t.last_ts || undefined"
@@ -50,6 +50,7 @@
         <div class="msg-meta">
           <span class="msg-author" :title="topicPeople(t.participants).title || undefined">{{ topicPeople(t.participants).text || t.task_id }}</span>
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
+          <ArchivedBadge v-if="t.archived_at" :at="t.archived_at" />
           <span class="msg-time">{{ rowTime(t.last_ts) }}</span>
         </div>
         <div class="topic-subject">{{ topicRowTitle(t.subject) }}</div>

@@ -409,7 +409,7 @@
         >
         <a
           class="nav-item"
-          :class="{ active: topicOpen === row.task_id }"
+          :class="{ active: topicOpen === row.task_id, 'is-archived': row.archived_at }"
           :aria-current="topicOpen === row.task_id ? 'true' : undefined"
           :data-key="row.task_id"
           :data-ts="row.last_ts || undefined"
@@ -417,6 +417,7 @@
           @click.exact.prevent="pane.open(row.task_id)"
         >
           <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id) }}</span>
+          <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
         </a>
         <SidebarRowMenu
           :menu-id="'th:' + row.task_id"

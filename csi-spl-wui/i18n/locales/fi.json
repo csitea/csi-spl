@@ -1250,6 +1250,7 @@
     "empty": "Arkistossa ei ole mitään.",
     "hint": "Arkistoidut aiheet eivät näy kanavissa, yksityisviesteissä eikä haussa. Palauta arkistosta tuo aiheen takaisin.",
     "archived_at": "Arkistoitu {when}",
+    "badge": "Arkistoitu",
     "load_failed": "Arkistoa ei voitu ladata.",
     "error": "Aihetta ei muutettu. Yritä uudelleen.",
     "unarchive": "Palauta arkistosta",

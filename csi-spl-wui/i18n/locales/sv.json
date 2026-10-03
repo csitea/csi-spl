@@ -1250,6 +1250,7 @@
     "empty": "Inget är arkiverat.",
     "hint": "Arkiverade ämnen döljs i kanaler, direktmeddelanden och sökning. Återställ från arkiv tar tillbaka ett ämne.",
     "archived_at": "Arkiverat {when}",
+    "badge": "Arkiverat",
     "load_failed": "Arkivet kunde inte läsas in.",
     "error": "Ämnet ändrades inte. Försök igen.",
     "unarchive": "Återställ från arkiv",

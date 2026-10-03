@@ -1250,6 +1250,7 @@
     "empty": "Er is niets gearchiveerd.",
     "hint": "Gearchiveerde onderwerpen zijn verborgen in kanalen, directe berichten en zoeken. Uit archief halen brengt een onderwerp terug.",
     "archived_at": "Gearchiveerd {when}",
+    "badge": "Gearchiveerd",
     "load_failed": "Het archief kon niet worden geladen.",
     "error": "Het onderwerp is niet gewijzigd. Probeer het opnieuw.",
     "unarchive": "Uit archief halen",

@@ -1250,6 +1250,7 @@
     "empty": "No hay nada archivado.",
     "hint": "Los temas archivados se ocultan en canales, mensajes directos y búsqueda. Desarchivar recupera un tema.",
     "archived_at": "Archivado {when}",
+    "badge": "Archivado",
     "load_failed": "No se pudo cargar el archivo.",
     "error": "No se cambió el tema. Inténtalo de nuevo.",
     "unarchive": "Desarchivar",

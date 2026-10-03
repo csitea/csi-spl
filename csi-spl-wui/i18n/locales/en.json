@@ -1250,6 +1250,7 @@
     "empty": "Nothing is archived.",
     "hint": "Archived topics are hidden from channels, direct messages and search. Unarchive brings one back.",
     "archived_at": "Archived {when}",
+    "badge": "Archived",
     "load_failed": "Could not load the archive.",
     "error": "Could not change the topic. Try again.",
     "unarchive": "Unarchive",

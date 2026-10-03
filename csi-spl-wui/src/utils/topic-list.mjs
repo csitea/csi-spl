@@ -50,9 +50,28 @@ export function bumpTopic(topics, m) {
   return [row, ...rest].sort(byNewest)
 }
 
-/** Reconnect catch-up: a fresh first page replaces rows by task_id, keeps older pages. */
+/**
+ * Reconnect catch-up: a fresh first page replaces rows by task_id, keeps older
+ * pages. A held row the page SHOULD have carried - its last_ts inside the
+ * page's own span - and did not is gone from the list on the hub (archived,
+ * deleted or merged while this tab was away, t1 8fb802cd): it goes here too,
+ * or an archived topic sits among the live ones until a reload. A row newer
+ * than the page (a live bump that raced the read) or older (a later page) is
+ * kept.
+ */
 export function mergeTopicPage(topics, page) {
+  const fresh = (page || []).filter((t) => t && t.task_id)
   const byId = new Map((topics || []).map((t) => [t.task_id, t]))
-  for (const t of page || []) if (t && t.task_id) byId.set(t.task_id, t)
+  if (fresh.length) {
+    const stamps = fresh.map((t) => String(t.last_ts || '')).sort()
+    const floor = stamps[0]
+    const ceiling = stamps[stamps.length - 1]
+    const listed = new Set(fresh.map((t) => t.task_id))
+    for (const [id, t] of byId) {
+      const ts = String(t.last_ts || '')
+      if (!listed.has(id) && ts >= floor && ts <= ceiling) byId.delete(id)
+    }
+  }
+  for (const t of fresh) byId.set(t.task_id, t)
   return [...byId.values()].sort(byNewest)
 }

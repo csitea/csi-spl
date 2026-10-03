@@ -17,6 +17,17 @@
 #    pnpm.auditConfig.ignoreGhsas (JSON has no comments, so its reason and its
 #    2026-11-01 expiry live here): remove both together once a fixed
 #    node-forge or a listhen without it ships.
+#  - braces 3.0.3 (npm, GHSA-vfj7-8cjw-p6xm, high, stack-exhaustion DoS on
+#    deeply nested patterns): no fixed release exists (last_affected 3.0.3 =
+#    latest). Pulled only through micromatch 4.0.8 (latest) via fast-glob /
+#    globby under nitropack, unplugin-vue-router and @intlify/unplugin-vue-i18n:
+#    build-time file globbing over our own sources, never untrusted input.
+#    Not in the generated static bundle (grep of .output/public for braces /
+#    micromatch / "exceeds max characters": 0 of 242 js files, 2026-10-03).
+#    The pnpm audit leg (workflow 15) carries the SAME single exception in
+#    csi-spl-wui/package.json pnpm.auditConfig.ignoreGhsas; remove both
+#    together once a fixed braces or a micromatch without it ships.
+#    Re-check by 2026-11-02.
 #  - otel/sdk, serialize-javascript (npm): low, below the govulncheck/pnpm-audit
 #    gates; Dependabot-tracked.
 # Review / re-check by 2026-11-01.
@@ -55,3 +66,8 @@ reason = "google.golang.org/grpc: fix needs go 1.26 (toolchain pinned to go 1.25
 id = "GHSA-86w9-cpqp-85rv"
 ignoreUntil = 2026-11-01
 reason = "node-forge 1.4.0: no fixed version upstream; only listhen (nuxt dev server self-signed HTTPS, via @nuxt/cli + nitropack) pulls it and its latest 1.10.1 still needs ^1.4.0; not shipped in the generated WUI bundle. Re-check for a node-forge or listhen release by the expiry."
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2026-11-02
+reason = "braces 3.0.3: no fixed version upstream; only micromatch 4.0.8 (latest) via fast-glob/globby under nitropack, unplugin-vue-router and @intlify/unplugin-vue-i18n pulls it, for build-time globbing of our own sources; not shipped in the generated WUI bundle. Re-check for a braces or micromatch release by the expiry."

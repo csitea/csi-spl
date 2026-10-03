@@ -7,6 +7,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 // etagPrefix is the part of the API that answers conditional reads: the
@@ -42,6 +43,15 @@ func etagViews(next http.Handler) http.Handler {
 	})
 }
 
+// etagBufMax caps a held-body buffer that goes back to etagBufPool: a view
+// p95 (topics 133 KB, issues 296 KB) is reused, a rare multi-MB answer is
+// left to the GC rather than pinned in the pool.
+const etagBufMax = 1 << 20
+
+// etagBufPool recycles the held bodies. Without it every eligible view read
+// grew a fresh buffer to its full size (a 133 KB view: 140 KB of garbage).
+var etagBufPool = sync.Pool{New: func() any { return new(bytes.Buffer) }}
+
 // etagWriter holds an eligible body until the handler returns.
 type etagWriter struct {
 	http.ResponseWriter
@@ -49,7 +59,7 @@ type etagWriter struct {
 	status  int
 	decided bool
 	hold    bool
-	buf     bytes.Buffer
+	buf     *bytes.Buffer // from etagBufPool while hold; nil once given back
 }
 
 func (e *etagWriter) WriteHeader(code int) {
@@ -61,6 +71,8 @@ func (e *etagWriter) WriteHeader(code int) {
 	mt, _, _ := mime.ParseMediaType(h.Get("Content-Type"))
 	if code == http.StatusOK && mt == "application/json" && h.Get("Cache-Control") == "" && h.Get("ETag") == "" {
 		e.hold = true
+		e.buf = etagBufPool.Get().(*bytes.Buffer)
+		e.buf.Reset()
 		return
 	}
 	e.ResponseWriter.WriteHeader(code)
@@ -89,7 +101,18 @@ func (e *etagWriter) release() {
 	e.hold = false
 	e.ResponseWriter.WriteHeader(e.status)
 	e.ResponseWriter.Write(e.buf.Bytes()) //nolint:errcheck
-	e.buf.Reset()
+	e.putBuf()
+}
+
+// putBuf gives the held buffer back. The writer below has consumed it (an
+// io.Writer never retains p), and e drops its reference, so nothing reads
+// the bytes after another request takes the buffer.
+func (e *etagWriter) putBuf() {
+	b := e.buf
+	e.buf = nil
+	if b.Cap() <= etagBufMax {
+		etagBufPool.Put(b)
+	}
 }
 
 func (e *etagWriter) finish() {
@@ -97,6 +120,7 @@ func (e *etagWriter) finish() {
 		return
 	}
 	e.hold = false
+	defer e.putBuf()
 	tag := bodyETag(e.buf.Bytes())
 	h := e.Header()
 	h.Set("ETag", tag)

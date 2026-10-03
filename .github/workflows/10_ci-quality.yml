@@ -781,13 +781,21 @@ jobs:
           # CONTROL: csi-spl-iac/src/bash/tests/hygiene-owner-email-allow.tst.sh
           allow_file='^\./csi-spl-cnf/csi-spl/[a-z]+\.env\.(yaml|json)$'
           allow_line='^[[:space:]]*"?gcp_account_owner_email"?[[:space:]]*:[[:space:]]*"?[^"[:space:]#,]+"?,?[[:space:]]*$'
-          allowed() {
-            local f="${1%%:*}" n="${1#*:}"
+          # Second owner-approved exception (spec 069 v0.2, section 4 row Y8:
+          # "users into csi-spl-cnf"): the satellite's two OS users are
+          # config, keys box_owner_user / box_agent_user in the same cnf
+          # files, one bare user name per line, and ONLY the OS-user sweep
+          # allows them (the name and mail sweeps allow only the mail key).
+          # CONTROL: csi-spl-iac/src/bash/tests/hygiene-box-users-allow.tst.sh
+          allow_user_line='^[[:space:]]*"?box_(owner|agent)_user"?[[:space:]]*:[[:space:]]*"?[a-z_][a-z0-9_-]*"?,?[[:space:]]*$'
+          allowed() { # <file:line> <the line regex this sweep allows, or "">
+            local f="${1%%:*}" n="${1#*:}" re="$2"
+            [[ -n "$re" ]] || return 1
             [[ "$f" =~ $allow_file ]] || return 1
-            [[ "$(sed -n "${n}p" "$f")" =~ $allow_line ]]
+            [[ "$(sed -n "${n}p" "$f")" =~ $re ]]
           }
-          sweep() {
-            local label="$1" pattern="$2" hits rc=0 h kept="" n_allowed=0
+          sweep() { # <label> <pattern> [<allowed line regex> <what it allows>]
+            local label="$1" pattern="$2" re="${3:-}" what="${4:-}" hits rc=0 h kept="" n_allowed=0
             # grep exits 1 on NO match -- the clean case. The step shell is
             # `bash -e` and pipefail carries grep's status out of the
             # pipeline, so an unguarded clean sweep would abort the script
@@ -802,10 +810,10 @@ jobs:
             fi
             while IFS= read -r h; do
               [[ -n "$h" ]] || continue
-              if allowed "$h"; then n_allowed=$((n_allowed + 1)); else kept+="$h"$'\n'; fi
+              if allowed "$h" "$re"; then n_allowed=$((n_allowed + 1)); else kept+="$h"$'\n'; fi
             done <<<"$hits"
             hits="${kept%$'\n'}"
-            (( n_allowed )) && echo "allowed - ${label}: ${n_allowed} line(s) = the owner-approved gcp_account_owner_email key in csi-spl-cnf"
+            (( n_allowed )) && echo "allowed - ${label}: ${n_allowed} line(s) = the owner-approved ${what} in csi-spl-cnf"
             if [[ -n "$hits" ]]; then
               echo "::error::hygiene: ${label} -- $(wc -l <<<"$hits") line(s)"
               sed 's/^/  /' <<<"$hits"
@@ -815,8 +823,11 @@ jobs:
             fi
           }
           sweep "non-Csitea org or bank reference" '(?i)nordea|\.op\.fi|op-pohjola'
-          sweep "personal name"                    '(?i)yordan|georgiev|sandholm|\bpetri\b'
-          sweep "literal OS user / box / AD id"    '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\bz013503\b|wmpf5jz555|\btnk\b'
+          sweep "personal name"                    '(?i)yordan|georgiev|sandholm|\bpetri\b' \
+                "$allow_line" "gcp_account_owner_email key"
+          sweep "literal OS user / box / AD id"    '(?i)\bysg\b(?!-box)|\bclaude-user\b|\bai-usr\b|\bz013503\b|wmpf5jz555|\btnk\b' \
+                "$allow_user_line" "box_owner_user / box_agent_user keys"
           sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
-          sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi'
+          sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi' \
+                "$allow_line" "gcp_account_owner_email key"
           exit "$fail"

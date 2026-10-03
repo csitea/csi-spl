@@ -132,7 +132,7 @@ _satellite_verify_replica() {
   remote=$({ printf "DIR='%s'\n" "/opt/csi/${repo##*/}"; cat <<'REMOTE'
 export PATH="$HOME/.local/bin:$PATH"
 [ -s "$HOME/.claude/CLAUDE.md" ] && echo "cfg claude-md ok"
-jq -e . "$HOME/.claude/settings.json" >/dev/null 2>&1 && grep -q '^\.claude/settings\.json	' "$HOME/.claude/.claude-config.tsv" 2>/dev/null && echo "cfg settings ok"
+jq -e . "$HOME/.claude/settings.json" >/dev/null 2>&1 && echo "cfg settings ok"
 echo "cfg skills $(find "$HOME/.claude/skills" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)"
 echo "cfg memory $(find "$HOME/.claude/projects" -mindepth 2 -maxdepth 2 -type d -name memory 2>/dev/null | wc -l)"
 [ -s "$HOME/.tmux.conf" ] && echo "cfg tmux ok"
@@ -145,7 +145,7 @@ echo "cfg tz $(timedatectl show -p Timezone --value 2>/dev/null)"
 REMOTE
 } | "${SATELLITE_AS_AGENT[@]}" 2>/dev/null)
   local c
-  for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (valid, managed by claude-config)" tmux:"~/.tmux.conf" \
+  for c in claude-md:"~/.claude/CLAUDE.md" settings:"~/.claude/settings.json (valid JSON)" tmux:"~/.tmux.conf" \
     git:"git identity" gh:"gh is authenticated" docker:"docker runs without sudo" claude-login:"claude is logged in (claude auth status)" tpl-gen:"tpl-gen cloned (+ its .venv)"; do
     grep -qx "cfg ${c%%:*} ok" <<<"$remote" && ok "${SATELLITE_AGENT}: ${c#*:}" || ko "${SATELLITE_AGENT}: ${c#*:}"
   done
@@ -157,7 +157,7 @@ REMOTE
 }
 
 # The users of box-playbook.yaml role 05 (owner topic 6f10f92b): read from
-# the box's own /etc/csi-spl-satellite.env (the names are not in this repo),
+# the box's own /etc/csi-spl-satellite.env (role 05 writes it from the cnf),
 # then one row per property, as on the box PC. Sets SATELLITE_AGENT and
 # SATELLITE_AS_AGENT (the command that runs a stdin script as the agent);
 # before the playbook ran there are no users: a FAIL, and the checks that

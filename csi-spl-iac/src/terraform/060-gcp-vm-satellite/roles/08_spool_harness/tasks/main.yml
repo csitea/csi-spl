@@ -121,8 +121,8 @@
 # The BOX user runs the desks (do_spl_desk_up, the desk sidecar, the desk
 # cron and the fleet lease loop), as on the box PC: it needs spool and
 # spool-agent too, not only the agent. --cli none: no AI CLI for it (the agent
-# user runs every AI CLI). --no-hooks --no-skills: role 07 owns its
-# ~/.claude. --no-seat: seating is its own step with the tenant admin. The
+# user runs every AI CLI). --no-hooks --no-skills: the owner runs no AI
+# CLI, so it needs none. --no-seat: seating is its own step with the tenant admin. The
 # desk sidecar's own spool binary is built on demand from this repo with the
 # Go of role 02 (/usr/local/go).
 - name: spool-install/install.sh as the owner (the box user that runs the desks)

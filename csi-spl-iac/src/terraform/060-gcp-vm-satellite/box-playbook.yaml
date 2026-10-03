@@ -11,10 +11,12 @@
 #
 # Users (the box PC's split, CLAUDE.md "Claude Code instances start as" the
 # agent user): the OWNER runs tmux and the UI, the AGENT runs every AI CLI.
-# Their names are NOT in this repo (distribution hygiene): role 05 reads them
-# from the ysg-box overlay's boxes/<box_tag>/box.env (BOX_USER,
-# BOX_AGENT_USER), the file the hub renders that box's claude-config from.
-- name: The satellite - data disk, binaries, users, ysg-box settings, agent harness
+# Their names are csi-spl cnf (spec 069 Y8): role 05 reads
+# steps.060-gcp-vm-satellite box_owner_user / box_agent_user from
+# csi-spl-cnf/csi-spl/<env>.env.json. Nothing here clones or runs ysg-box
+# (spec 069): the agent's settings, skills and CLAUDE.md come from the
+# harness's own spool-install/install.sh (role 08).
+- name: The satellite - data disk, binaries, users, agent harness
   hosts: satellite
   become: true
   # facts only once sshd answers: do_tf_apply runs this right after the VM is created
@@ -40,9 +42,6 @@
     spool_group: spool-agents
     repo_url: https://github.com/csitea/csi-spl.git
     repo_dir: /opt/csi/csi-spl
-    ysg_box_overlay_url: https://github.com/csitea/ysg-box-csi.git
-    ysg_box_overlay_dir: /opt/csi/ysg-box
-    ysg_box_engine_url: https://github.com/csitea/ysg-box.git
     agent_clis: claude
     # the controller side: read at run time, inside the tf-runner
     controller_home: "{{ lookup('env', 'HOME') }}"
@@ -69,7 +68,6 @@
     - { role: 04_ssh_hardening, tags: [04_ssh_hardening] }
     - { role: 05_users, tags: [05_users, always] }
     - { role: 06_secrets, tags: [06_secrets] }
-    - { role: 07_ysg_box, tags: [07_ysg_box] }
     - { role: 08_spool_harness, tags: [08_spool_harness] }
     - { role: 09_agent_tools, tags: [09_agent_tools] }
     - { role: 10_rotation_cron, tags: [10_rotation_cron] }

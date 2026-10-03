@@ -11,8 +11,12 @@
 #   4. secrets: every task that reads a key or the token is no_log, the token
 #      reaches git through a helper (never a URL), no .credentials.json is
 #      copied, and terraform never reads GITHUB_TOKEN or a key file's content.
-#   5. users come from the overlay's box.env (BOX_USER / BOX_AGENT_USER),
-#      sudoers is visudo-validated, homes are on the data disk.
+#   5. users come from the csi-spl cnf (steps.060-gcp-vm-satellite
+#      box_owner_user / box_agent_user, spec 069 Y8), sudoers is
+#      visudo-validated, homes are on the data disk.
+#  18. no ysg-box engine or overlay (spec 069 Y8): nothing in the step clones,
+#      reads or runs either, and role 07 is gone. CONTROL: an engine clone
+#      planted in a copy of the step is caught.
 #   6. do_satellite_playbook refuses with no running tf-runner (stub docker),
 #      and do_satellite_verify carries the users block.
 #   7. the repo is fast-forwarded to origin/master on every run (a non-ff is a
@@ -97,7 +101,7 @@ for f in files:
 print("unbalanced " + ", ".join(bad))
 PY
 )
-grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 07_ysg_box 08_spool_harness 09_agent_tools 10_rotation_cron 11_boot_restore' <<<"$out" \
+grep -qx 'roles 01_data_disk 02_os_binaries 03_timezone 04_ssh_hardening 05_users 06_secrets 08_spool_harness 09_agent_tools 10_rotation_cron 11_boot_restore' <<<"$out" \
   && pass "the playbook runs roles 01..11" || fail "the playbook roles are not 01..11 ($(grep '^roles' <<<"$out"))"
 grep -qx 'sorted True' <<<"$out" && pass "the roles run in their numbered order" || fail "the roles are out of order"
 grep -qx 'missing ' <<<"$out" && pass "every role has tasks/main.yml" || fail "a role has no tasks/main.yml ($(grep '^missing' <<<"$out"))"
@@ -113,11 +117,16 @@ grep -q 'no_log: true' "$STEP/tasks/git-sync.yml" && grep -q 'password=$GH_TOKEN
   && pass "git-sync: the token goes through a helper, no_log, never in a URL" || fail "git-sync leaks the token"
 grep -rn 'credentials\.json' "$R" | grep -v 'grep -q' | grep -v '^\S*:\s*#' | grep -vi 'no \.credentials\|never\|FAIL a credentials' \
   && fail "a role copies .credentials.json" || pass "no role copies an AI CLI login (.credentials.json)"
-grep -q "grep -q 'credentials'" "$R/07_ysg_box/tasks/main.yml" && pass "07 refuses a render that carries a credentials file" || fail "07 does not check the render for credentials"
 
 # 5. users
-grep -q 'BOX_USER=' "$R/05_users/tasks/main.yml" && grep -q 'BOX_AGENT_USER=' "$R/05_users/tasks/main.yml" \
-  && pass "05 reads the users from the overlay's box.env" || fail "05 does not read box.env"
+grep -q "'/csi-spl-cnf/csi-spl/' + env + '.env.json'" "$R/05_users/tasks/main.yml" \
+  && grep -q 'sat_step.box_owner_user' "$R/05_users/tasks/main.yml" && grep -q 'sat_step.box_agent_user' "$R/05_users/tasks/main.yml" \
+  && ! grep -q 'box\.env' "$R/05_users/tasks/main.yml" \
+  && pass "05 reads the users from the csi-spl cnf, not a box.env" || fail "05 does not read box_owner_user / box_agent_user from the cnf"
+CNFJ="$PROJ_PATH/../csi-spl-cnf/csi-spl/prd.env.json"
+cu=$(jq -r '.env.steps["060-gcp-vm-satellite"] | "\(.box_owner_user // "") \(.box_agent_user // "")"' "$CNFJ" 2>/dev/null)
+[[ "$cu" =~ ^[a-z_][a-z0-9_-]*\ [a-z_][a-z0-9_-]*$ && "${cu% *}" != "${cu#* }" ]] \
+  && pass "the prd cnf names two different satellite users (box_owner_user, box_agent_user)" || fail "prd.env.json lacks the two satellite users: '$cu'"
 grep -q 'validate: /usr/sbin/visudo -cf %s' "$R/05_users/tasks/main.yml" && pass "sudoers is visudo-validated" || fail "sudoers is not validated"
 grep -q 'owner_home: "{{ home_root }}/' "$R/05_users/tasks/main.yml" && grep -q 'home_root: /mnt/data/home' "$PB" \
   && pass "homes live on the data disk" || fail "homes are not on the data disk"
@@ -131,8 +140,6 @@ grep -rnE '^\s*(ansible\.builtin\.)?(get_url|uri):' "$R" "$STEP/tasks" && fail "
 grep -q 'FAIL no ~/.local/bin/$b after install.sh' "$R/08_spool_harness/tasks/main.yml" && pass "08 proves claude/spool/spool-agent exist after install.sh" || fail "08 trusts an empty install.sh ok"
 
 # 4b. no task fights become's pty (loop run 1 hung on claude-apply's `bash -ic`)
-grep -q 'timeout 600 setsid -w bash "$ENGINE/ysg-box-orc/src/bash/features/claude-config/scripts/claude-apply.sh"' "$R/07_ysg_box/tasks/main.yml" \
-  && pass "07 applies the claude-config with no controlling tty, bounded" || fail "07 runs claude-apply on become's pty (it hangs)"
 grep -q 'timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh' "$R/08_spool_harness/tasks/main.yml" \
   && pass "08 runs install.sh with no controlling tty, bounded" || fail "08 runs install.sh on become's pty"
 grep -q '"SPOOL_DESK_BOX={{ box_tag }}"' "$R/08_spool_harness/tasks/main.yml" && grep -q '^    box_tag: sat$' "$PB" \
@@ -447,6 +454,32 @@ p1=$(run_pc desk-reconcile); p2=$(run_pc weekly-full-scan); p3=$(run_pc tmp-scra
 p6=$(run_pc weekly-full-scan do_install_weekly_full_scan_cron); p6rc=$?
 [[ $p6rc -ne 0 && "$p6" == *"FAIL do_install_weekly_full_scan_cron"* ]] \
   && pass "17. role 10 fails when an install action fails" || fail "17. role 10 swallowed a failing action: rc=$p6rc $p6"
+
+# 18. no ysg-box engine or overlay (spec 069 Y8). A code line (not a comment)
+# that clones, reads or runs either is a row; the step must have none.
+engine_rows() { # <step dir> -> one file:line per row
+  grep -rnE 'ysg-box[a-z-]*\.git|ysg_box_(engine|overlay)|BOX_ENGINE_ROOT|boxes/[^ ]*/box\.env|claude-(apply|render|pack)\.sh|render-yield\.sh|ysg-box-orc/' \
+    "$1/box-playbook.yaml" "$1/roles" "$1/tasks" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#'
+}
+rows=$(engine_rows "$STEP")
+[[ -z "$rows" ]] && pass "18. the playbook clones, reads and runs no ysg-box engine or overlay" \
+  || fail "18. the playbook still depends on ysg-box: $(tr '\n' ' ' <<<"$rows")"
+[[ ! -e "$R/07_ysg_box" ]] && pass "18. role 07_ysg_box is gone" || fail "18. role 07_ysg_box is back"
+[[ ! -e "$PROJ_PATH/../csi-spl-orc/src/bash/features/spool-install/render-yield.sh" ]] \
+  && pass "18. render-yield.sh (the engine-render workaround) is gone" || fail "18. render-yield.sh is back"
+# CONTROL: an engine clone planted in a copy of the step is caught
+C18="$T/step18"; cp -a "$STEP" "$C18"
+cat >>"$C18/roles/05_users/tasks/main.yml" <<'EOF'
+
+- name: planted engine clone
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/git-sync.yml"
+  vars:
+    git_url: https://github.com/csitea/ysg-box.git
+    git_dir: "{{ ysg_box_engine_dir }}"
+EOF
+crow=$(engine_rows "$C18")
+[[ $(grep -c . <<<"$crow") -eq 2 ]] && pass "18. CONTROL: a planted engine clone is caught ($(grep -c . <<<"$crow") rows)" \
+  || fail "18. CONTROL: a planted engine clone was NOT caught: '$crow'"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -28,7 +28,7 @@ Section 7 of the spec records how it was actually built.
 | OS | Debian GNU/Linux 13 (trixie), cloud kernel, image `debian-13-trixie-v20260921` (pinned, dated) |
 | boot disk | 30 GB pd-balanced: OS, `/home` |
 | data disk | `csi-spl-all-satellite-data`, 100 GB pd-balanced, ext4, label `satellite-data`; mounted at `/mnt/data`, with `/opt` and `/var/spool-hub` bind-mounted from it and docker's data-root on it |
-| users | the box PC's split (box-playbook role 05): `<owner>` uid 2000 (tmux, the UI, `/opt/csi`) and `<agent>` uid 2001 (every AI CLI agent), names from the ysg-box overlay's `boxes/sat/box.env` (`BOX_USER`, `BOX_AGENT_USER`); homes `/mnt/data/home/<user>`, NOPASSWD sudo, `docker` + `spool-agents`, linger. `debian` (the GCE default) is the ssh/Ansible entry only |
+| users | the box PC's split (box-playbook role 05): `<owner>` uid 2000 (tmux, the UI, `/opt/csi`) and `<agent>` uid 2001 (every AI CLI agent), names from the csi-spl cnf (`prd.env.yaml` `steps.060-gcp-vm-satellite` `box_owner_user`, `box_agent_user`; spec 069 Y8); homes `/mnt/data/home/<user>`, NOPASSWD sudo, `docker` + `spool-agents`, linger. `debian` (the GCE default) is the ssh/Ansible entry only |
 | network | own VPC `csi-spl-all-satellite-vpc`, subnet `10.80.0.0/24` (private Google access, 10% flow logs); internal IP only |
 | outbound | Cloud Router + Cloud NAT (`csi-spl-all-satellite-nat`); **no public IP** |
 | inbound | ONE firewall rule: tcp/22 from `35.235.240.0/20`, Google IAP only; no http/https, no load balancer, no DNS |
@@ -42,7 +42,7 @@ Section 7 of the spec records how it was actually built.
 | disk | holds | survives |
 |---|---|---|
 | boot, 30 GB | the OS, packages, `/home/debian` (the ssh entry only) | nothing: lost on any VM recreate |
-| data, 100 GB | the users' homes `/mnt/data/home/<owner>` and `/mnt/data/home/<agent>` (`~/.local/bin`, `~/.claude` with the agent's claude login, the keys and token), `/opt` (the repo `/opt/csi/csi-spl`, the ysg-box overlay and engine), `/var/spool-hub` (the spool root), docker's data-root `/mnt/data/docker` | a VM-only rebuild (e.g. an image change); NOT a 060 destroy |
+| data, 100 GB | the users' homes `/mnt/data/home/<owner>` and `/mnt/data/home/<agent>` (`~/.local/bin`, `~/.claude` with the agent's claude login, the keys and token), `/opt` (the repo `/opt/csi/csi-spl`), `/var/spool-hub` (the spool root), docker's data-root `/mnt/data/docker` | a VM-only rebuild (e.g. an image change); NOT a 060 destroy |
 
 No snapshots and no backups (owner: git is the backup): anything not pushed is
 lost with its disk.
@@ -62,7 +62,6 @@ Each role is idempotent; a recreate plus one playbook run rebuilds the box.
 | 04_ssh_hardening | keys only, no passwords, no root login (`/etc/ssh/sshd_config.d/60-satellite.conf`, `sshd -t` validated) | `satellite-box-setup.sh` 06 |
 | 05_users | `<owner>` + `<agent>` as on the box PC (1.1), `/opt/csi` the owner's (setgid, default ACL group rwx), `/var/spool-hub` `<owner>:spool-agents` 2770, `/etc/csi-spl-satellite.env` (what verify reads) | `satellite-box-setup.sh` 02 |
 | 06_secrets | `~/.gcp/.csi/key-csi-spl-{dev,prd}.json` and `~/.github/token` for both users, 0600 in 0700 dirs, `no_log` | `do_satellite_creds_push` |
-| 07_ysg_box | the ysg-box engine + overlay, its `/var` dat dirs, and box `sat`'s claude-config rendered on the VM and applied per role (`.bashrc` & co, `~/.claude` CLAUDE.md settings commands skills, dotfiles); never a `.credentials.json` | `do_satellite_claude_config` |
 | 08_spool_harness | `/opt/csi/csi-spl`, git + gh for both users, the spool env (`/etc/profile.d/csi-spl-satellite.sh`: `SPOOL_ROOT`, `SPOOL_BOX_TAG=sat`), `spool-install/install.sh --cli claude --no-seat` as `<agent>` (claude, spool, spool-agent, yq, Go, hooks, skills) | `do_satellite_bootstrap` 05 |
 | 09_agent_tools | cloud-sql-proxy (Google's release, sha256-pinned to the box PC's), pnpm (corepack, the WUI's pin), the CI-pinned scanners + terraform (`do_install_lint_tools`, system-wide), tpl-gen | `do_satellite_install_tools` |
 | 10_rotation_cron | the box user's hourly role rotation crons: orchestrator at :05, dispatchers at :15 (spec 060), through `do_spl_orch_rotate_install_cron` / `do_spl_dispatch_rotate_install_cron`, then checked; the rotation acts on this box's own lease.conf ids | the owner's one-off install |
@@ -83,7 +82,7 @@ Not on the satellite: the AI CLI logins (each user's own interactive step,
 | terraform: VM, disk, VPC, NAT, firewall, SA | `csi-spl-iac/src/terraform/060-gcp-vm-satellite` |
 | terraform → Ansible | `060-gcp-vm-satellite/07-ansible.tf`: writes `inventory.prd.ini` (the VM over the IAP proxy) and `csi-spl-iac/src/bash/scripts/run-ansible-csi-spl-prd-060-gcp-vm-satellite.sh` (both git-ignored, no secret); `do_tf_apply` runs the script after every 060 apply, in the tf-runner |
 | the playbook | `060-gcp-vm-satellite/box-playbook.yaml`, `roles/01..09`, `tasks/git-sync.yml` |
-| the users' names | the ysg-box overlay `boxes/sat/box.env` (`BOX_USER`, `BOX_AGENT_USER`, `BOX_ENGINE_ROOT`), never this repo |
+| the users' names | csi-spl-cnf `prd.env.yaml` `steps.060-gcp-vm-satellite` `box_owner_user` / `box_agent_user` (the only place they live; the hygiene sweep allows exactly those key lines). No ysg-box engine or overlay is cloned (spec 069) |
 | tfvars templates | `csi-spl-iac/src/tpl/%org%-%app%/%env%/tf/05{9,60}-*.tpl` |
 | box actions | `csi-spl-iac/src/bash/run/satellite-*.func.sh`, helpers in `csi-spl-iac/lib/bash/funcs/satellite.func.sh` |
 | ssh ProxyCommand | `csi-spl-iac/src/bash/scripts/satellite-iap-proxy.sh` |
@@ -203,7 +202,7 @@ cd /opt/csi/csi-spl/csi-spl-iac && ./run -a do_satellite_playbook
 One role, or a dry run:
 
 ```bash
-cd /opt/csi/csi-spl/csi-spl-iac && SATELLITE_PLAYBOOK_ARGS="--tags 07_ysg_box" ./run -a do_satellite_playbook
+cd /opt/csi/csi-spl/csi-spl-iac && SATELLITE_PLAYBOOK_ARGS="--tags 05_users" ./run -a do_satellite_playbook
 ```
 
 The same, straight in the container:

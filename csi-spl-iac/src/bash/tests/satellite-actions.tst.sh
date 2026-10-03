@@ -121,11 +121,17 @@ grep -q 'prevent_destroy' "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/03-vm.t
 for gone in satellite-bootstrap satellite-install-tools satellite-home-persist satellite-replicate-ai-user satellite-creds-push satellite-claude-config; do
   [[ -e "$PROJ_PATH/src/bash/run/$gone.func.sh" ]] && fail "retired $gone.func.sh is back (the playbook owns it)" || pass "retired: $gone.func.sh"
 done
-r7="$PROJ_PATH/src/terraform/060-gcp-vm-satellite/roles/07_ysg_box/tasks/main.yml"
-awk '/claude-render.sh/ { r = NR } /render-yield.sh" --render "\$w\/render" --role agent/ { y = NR } /claude-pack.sh/ { p = NR } END { exit !(r && y > r && p > y) }' "$r7" \
-  && grep -q 'git_dir: "{{ repo_dir }}"' "$r7" \
-  && pass "07 yields the harness skills to install.sh between render and pack (ysg-box is frozen)" \
-  || fail "07 packs the frozen engine's harness skills (render-yield.sh not between render and pack)"
+# spec 069 Y8: the satellite's ~/.claude is the harness's install.sh (role 08),
+# never a ysg-box engine render: no role 07, no render-yield workaround, and
+# no action or role names the engine's claude-config scripts or repos
+[[ ! -e "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/roles/07_ysg_box" ]] \
+  && [[ ! -e "$PROJ_PATH/../csi-spl-orc/src/bash/features/spool-install/render-yield.sh" ]] \
+  && pass "no ysg-box render on the satellite (role 07 and render-yield.sh are gone)" \
+  || fail "the ysg-box render is back (role 07 or render-yield.sh)"
+eng=$(grep -rnE 'ysg-box[a-z-]*\.git|claude-(apply|render|pack)\.sh|render-yield\.sh|ysg-box-orc/' \
+  "$PROJ_PATH/src/terraform/060-gcp-vm-satellite" "$PROJ_PATH"/src/bash/run/satellite-*.func.sh | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')
+[[ -z "$eng" ]] && pass "no satellite action or role clones or runs the ysg-box engine" \
+  || fail "a satellite action or role still uses the ysg-box engine: $(tr '\n' ' ' <<<"$eng")"
 grep -q 'claude auth status --json .*jq -r .loggedIn' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" \
   && pass "verify reads only claude's loggedIn flag" || fail "verify does not check the claude login (loggedIn)"
 grep -q 'ok "timezone \$tz"' "$PROJ_PATH/src/bash/run/satellite-verify.func.sh" && pass "verify has the timezone row" || fail "verify has no timezone row"

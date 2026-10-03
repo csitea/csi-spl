@@ -13,7 +13,7 @@
 # @description No script yet = no 060 apply from the mounted tree yet: run
 # @description `make do-provision ENV=prd STEP=060-gcp-vm-satellite` (owner go).
 # @param SATELLITE_PLAYBOOK_ARGS (optional) - passed to ansible-playbook,
-# @param        e.g. "--tags 07_ysg_box" or "--check --diff"
+# @param        e.g. "--tags 05_users" or "--check --diff"
 # @param TF_RUNNER (optional) - default con-<org>-<org>-<app>-tf-runner
 # @example ./run -a do_satellite_playbook
 # @example SATELLITE_PLAYBOOK_ARGS="--tags 05_users,06_secrets" ./run -a do_satellite_playbook

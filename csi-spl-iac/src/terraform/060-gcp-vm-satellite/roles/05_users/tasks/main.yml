@@ -1,39 +1,30 @@
 ---
 # 05 the users, as on the box PC: the OWNER (tmux, the UI, the worktrees) and
 # the AGENT (every AI CLI; CLAUDE.md "Claude Code instances start as" it).
-# Their names come from the ysg-box overlay's boxes/<box_tag>/box.env
-# (BOX_USER / BOX_AGENT_USER), never from this repo. Homes live on the data
-# disk (box.env BOX_AGENT_HOME), so they survive a VM rebuild that keeps it.
+# Their names are csi-spl cnf (spec 069 Y8): steps.060-gcp-vm-satellite
+# box_owner_user / box_agent_user of csi-spl-cnf/csi-spl/<env>.env.yaml, read
+# here from the rendered <env>.env.json on the controller (proj_path is
+# csi-spl-iac in the tf-runner, the cnf is its sibling). Nothing is cloned
+# from ysg-box. Homes live on the data disk (home_root), so they survive a
+# VM rebuild that keeps it.
 # Sudo as on the box PC: NOPASSWD:ALL, one /etc/sudoers.d file each, visudo
 # checked. The agent is in the owner's group (the shared worktrees), both in
 # docker and spool-agents; both linger (tmux and agents outlive ssh).
 # The GCE login user (os_user) stays the ssh/ansible entry only.
-- name: The ysg-box overlay (box.env names the users)
-  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/git-sync.yml"
-  vars:
-    git_url: "{{ ysg_box_overlay_url }}"
-    git_dir: "{{ ysg_box_overlay_dir }}"
-    git_user: root
-
-- name: Read boxes/{{ box_tag }}/box.env
-  ansible.builtin.slurp:
-    src: "{{ ysg_box_overlay_dir }}/boxes/{{ box_tag }}/box.env"
-  register: box_env_raw
-
-- name: The owner and agent users from box.env
+- name: The owner and agent users from the csi-spl cnf (box_owner_user / box_agent_user)
   ansible.builtin.set_fact:
-    owner_user: "{{ (box_env_raw.content | b64decode) | regex_search('(?m)^BOX_USER=\"?([a-z_][a-z0-9_-]*)', '\\1') | first }}"
-    agent_user: "{{ (box_env_raw.content | b64decode) | regex_search('(?m)^BOX_AGENT_USER=\"?([a-z_][a-z0-9_-]*)', '\\1') | first }}"
-    ysg_box_engine_dir: "{{ (box_env_raw.content | b64decode) | regex_search('(?m)^BOX_ENGINE_ROOT=\"?(/[A-Za-z0-9/._-]+)', '\\1') | first }}"
+    owner_user: "{{ sat_step.box_owner_user | default('') }}"
+    agent_user: "{{ sat_step.box_agent_user | default('') }}"
+  vars:
+    sat_step: "{{ (lookup('file', (proj_path | dirname) + '/csi-spl-cnf/csi-spl/' + env + '.env.json') | from_json).env.steps['060-gcp-vm-satellite'] }}"
 
-- name: Refuse a box.env without both users
+- name: Refuse a cnf without both users
   ansible.builtin.assert:
     that:
-      - owner_user | length > 0
-      - agent_user | length > 0
+      - owner_user is match('^[a-z_][a-z0-9_-]*$')
+      - agent_user is match('^[a-z_][a-z0-9_-]*$')
       - owner_user != agent_user
-      - ysg_box_engine_dir is match('^/opt/')
-    fail_msg: "boxes/{{ box_tag }}/box.env must set BOX_USER, BOX_AGENT_USER and BOX_ENGINE_ROOT (under /opt)"
+    fail_msg: "csi-spl-cnf/csi-spl/{{ env }}.env.yaml steps.060-gcp-vm-satellite must set box_owner_user and box_agent_user (two different users)"
 
 - name: The users' home paths
   ansible.builtin.set_fact:
@@ -95,40 +86,36 @@
     key: "{{ lookup('file', ssh_public_key_file) }}"
     state: present
 
-- name: /opt/csi and the engine's parent, the owner's, group-writable (setgid + default ACL, as on the box PC)
+- name: /opt/csi, the owner's, group-writable (setgid + default ACL, as on the box PC)
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: /opt/csi
     state: directory
     owner: "{{ owner_user }}"
     group: "{{ owner_user }}"
     mode: "2775"
-  loop: [/opt/csi, "{{ ysg_box_engine_dir | dirname }}"]
 
-- name: Default ACL, group rwx, on /opt/csi and the engine's parent
+- name: Default ACL, group rwx, on /opt/csi
   ansible.posix.acl:
-    path: "{{ item.0 }}"
+    path: /opt/csi
     etype: group
     entity: "{{ owner_user }}"
     permissions: rwx
-    default: "{{ item.1 }}"
+    default: "{{ item }}"
     state: present
-  loop: "{{ ['/opt/csi', ysg_box_engine_dir | dirname] | product([false, true]) | list }}"
+  loop: [false, true]
 
-- name: Everything under /opt/csi and the engine's parent belongs to the owner (a clone made by root or the GCE user)
+- name: Everything under /opt/csi belongs to the owner (a clone made by root or the GCE user)
   ansible.builtin.shell: |
     set -uo pipefail
-    c=0
-    for d in /opt/csi "$E"; do
-      if [ -n "$(find "$d" \( ! -user "$O" -o ! -group "$O" \) -print -quit)" ]; then
-        chown -R "$O:$O" "$d" && chmod -R g+rwX "$d" && c=1
-      fi
-    done
-    [ "$c" = 1 ] && echo CHANGED || echo OK
+    if [ -n "$(find /opt/csi \( ! -user "$O" -o ! -group "$O" \) -print -quit)" ]; then
+      chown -R "$O:$O" /opt/csi && chmod -R g+rwX /opt/csi && echo CHANGED
+    else
+      echo OK
+    fi
   args:
     executable: /bin/bash
   environment:
     O: "{{ owner_user }}"
-    E: "{{ ysg_box_engine_dir | dirname }}"
   register: opt_owner
   changed_when: "'CHANGED' in opt_owner.stdout"
 

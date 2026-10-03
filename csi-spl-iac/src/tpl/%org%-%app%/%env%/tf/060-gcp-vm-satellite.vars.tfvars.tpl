@@ -12,6 +12,6 @@ app         = "{{ APP }}"
 env         = "{{ ENV }}"
 gcp_project = "{{ steps.get("060-gcp-vm-satellite", {}).get("gcp_project", gcp["gcp_project"]) }}"
 gcp_region  = "{{ gcp["gcp_region"] }}"
-{% for key, value in steps.get("060-gcp-vm-satellite", {}).items() if key not in ("tf_key_project", "tf_state_bucket", "gcp_project") %}
+{# box_owner_user / box_agent_user are the playbook's (role 05 reads <env>.env.json), not terraform's #}{% for key, value in steps.get("060-gcp-vm-satellite", {}).items() if key not in ("tf_key_project", "tf_state_bucket", "gcp_project", "box_owner_user", "box_agent_user") %}
 {{ key }} = {{ value | tojson }}
 {%- endfor %}

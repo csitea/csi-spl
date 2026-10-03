@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Extends the internal tool that moves agent desks to a renamed machine and adds a check step; nothing changes for users.

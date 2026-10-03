@@ -1,0 +1,2 @@
+Lay-What: Moves a reference table about the pre-release checks out of the main assistant instructions into its own document.
+Lay-Why: The assistants read the main instructions every time, so keeping them short saves time; the table is still one link away.

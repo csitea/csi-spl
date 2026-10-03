@@ -1,0 +1,6 @@
+Lay-What: The server sends live updates (who is online, edited and deleted messages) with much less work, with exactly the same content.
+Lay-How: These updates are now built from fixed templates, and the "who is online" update is built once rather than once per person.
+Lay-Why: These updates go to every open window all the time, so making them cheaper keeps the service fast as more people join.
+Tech-What: hub presence, message_edited and message_deleted WebSocket frames are typed structs instead of maps.
+Tech-How: channels.go and edit.go use structs with fields in key order; typed_frames_test.go checks byte-equal output over 290+ cases.
+Tech-Why: Perf round 4 G12: map frames paid boxing and key sorting per socket write; presence 10x5 101.9 -> 14.2 us.

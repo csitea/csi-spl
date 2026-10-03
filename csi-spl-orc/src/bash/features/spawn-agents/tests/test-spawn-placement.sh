@@ -114,7 +114,7 @@ check "4. the remote does not answer: asked it, then starts here" \
   bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]] && [ -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
 has "4. ... with a WARN on stderr" "WARN the spawn on $OTHER did not start (spawn-remote exit 5" "$OUT"
 spawn; check "4. CONTROL the remote answers: its line" went_there
-hasnt "4. CONTROL ... and no WARN" "WARN" "$OUT"
+hasnt "4. CONTROL ... and no placement WARN (spool-env may WARN about a stale bin)" "WARN the spawn on" "$OUT"
 OUT="$(SPAWN_BOX=$OTHER REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
 eq "4. an explicit SPAWN_BOX does not fall back: exit 8" 8 "$RC"
 

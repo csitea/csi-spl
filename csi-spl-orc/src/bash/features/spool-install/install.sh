@@ -378,6 +378,7 @@ os.replace(tmp, path)
   fi
 fi
 
+[ "$SKILLS" = 1 ] && { . "$_here/steps/y5-adopt-skills.sh" && y5_adopt_skills "$HOME" || die 7 "cannot hand the engine-rendered skills over (specs/069 Y5)"; }
 # ── 5b. the agent harness: skills, slash commands, tmux snippet (specs/048) ──
 HARNESS_DIR="$ORC/src/bash/features/spawn-agents"
 if [ "$SKILLS" = 1 ]; then

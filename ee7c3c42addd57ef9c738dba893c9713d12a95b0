@@ -1,0 +1,6 @@
+Lay-What: Makes the infrastructure apply and remove steps safe when a folder name contains a space.
+Lay-How: The scripts now keep folder names together as one piece, and a new test checks it.
+Lay-Why: A folder name with a space could make the step act on the wrong folder.
+Tech-What: do_tf_apply and do_tf_destroy quote -chdir, -var-file, -backend-config, the tee log and the run-ansible hook path.
+Tech-How: tf-apply.func.sh and tf-destroy.func.sh add quotes; tf-apply-destroy-quoted-paths.tst.sh stubs terraform with spaced paths, 12 assertions.
+Tech-Why: Refactor round 1 practice 22: unquoted expansions word-split a run dir containing a space.

@@ -1,0 +1,6 @@
+Lay-What: Fixes a handover between two copies of the coordinating assistant that stopped half way.
+Lay-How: When both copies kept the same small log file, the handover now joins the two logs instead of halting.
+Lay-Why: The coordinating role could not move to its successor, so the hand-over stalled until someone stepped in.
+Tech-What: agent-id-rename.sh role-mailbox merge appends a .pokes log present on both sides and drops a byte-identical copy.
+Tech-How: Two different messages under one name still stop the switch; a stopped merge resumes on the next run; test-agent-id-rename 54 -> 58 checks.
+Tech-Why: An orchestrator rotation stopped at SWITCH because .pokes/notices.log existed in both mailboxes (spec 061 L6).

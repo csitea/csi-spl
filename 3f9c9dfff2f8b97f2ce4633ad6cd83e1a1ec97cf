@@ -1,0 +1,6 @@
+Lay-What: Shortens a few safety checks in the people list and the sub-task dialog; nothing on screen changes.
+Lay-How: A long "if this exists and that exists" check is written in a shorter, standard form.
+Lay-Why: Shorter checks are easier to read and harder to get wrong.
+Tech-What: WUI roster.ts and IssueSubtaskDialog.vue errorKey use optional chaining instead of && chains.
+Tech-How: h?.human_id, b?.box_id, e?.status, e?.token; || kept (not ??) so 0 and '' map as before; unit 2688/2688.
+Tech-Why: Refactor round 1 #15: manual && null checks.

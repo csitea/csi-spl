@@ -6,6 +6,14 @@
 # the agent owns the checkboxes, the commit and the /exit.
 #
 # Usage: kill-your-self-report.sh [WORKDIR]      (default: $PWD)
+#        kill-your-self-report.sh --result --outcome "<one line>" [--sha <sha>]...
+#          [--numbers "<text>"] [--detail <file>|-] [--detail-path <doc>] [WORKDIR]
+#
+# --result prints ONLY the final report body, at most RESULT_MAX (800) chars:
+# the one-line outcome, the numbers, the sha(s) (default: HEAD) and the path to
+# the full detail. --detail copies a file (or stdin) to
+# ${REPORT_DIR:-$SPOOL_ROOT/reports}/<id>.md; --detail-path names a doc
+# instead. Text cut to fit the cap is kept whole in that file.
 set -uo pipefail
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
@@ -14,11 +22,21 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/agent-state.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-WORKDIR="${WORKDIR:-${1:-$PWD}}"
-echo "=== kill-your-self discovery (read-only) ==="
-echo "WORKDIR:  $WORKDIR"
-echo "user:     $(id -un)"
-echo "date:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+MODE=discovery OUTCOME="" NUMBERS="" DETAIL="" DETAIL_PATH="" SHAS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --result) MODE=result ;;
+    --outcome) OUTCOME="${2:-}"; shift ;;
+    --numbers) NUMBERS="${2:-}"; shift ;;
+    --sha) SHAS+=("${2:-}"); shift ;;
+    --detail) DETAIL="${2:-}"; shift ;;
+    --detail-path) DETAIL_PATH="${2:-}"; shift ;;
+    -*) echo "kill-your-self-report: unknown option $1" >&2; exit 2 ;;
+    *) WORKDIR="${WORKDIR:-$1}" ;;
+  esac
+  shift
+done
+WORKDIR="${WORKDIR:-$PWD}"
 
 # The id: the session's own env first, then the worktree path, then the window.
 ID="${SPOOL_AGENT_ID:-${MCP_BOT_AGENT_ID:-}}" SRC=env
@@ -29,6 +47,36 @@ if [ -n "${TMUX_PANE:-}" ]; then
   wname="$("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{window_name}' 2>/dev/null | awk -F '\t' -v p="$TMUX_PANE" '$1 == p { print $2; exit }')"
   if [ -z "$ID" ]; then ID="$(an_strip "$wname" | grep -oE "^${SPOOL_AGENT_ID_RX}" || true)"; SRC=window; fi
 fi
+
+# Practice 07 (agent-token-focus-plan): a short result, the detail in a file.
+if [ "$MODE" = result ]; then
+  [ -n "$OUTCOME" ] || { echo "kill-your-self-report: --result needs --outcome" >&2; exit 2; }
+  max="${RESULT_MAX:-800}"
+  [ "${#SHAS[@]}" -gt 0 ] || SHAS=("$(git -C "$WORKDIR" rev-parse --short HEAD 2>/dev/null || echo none)")
+  out="${DETAIL_PATH:-${REPORT_DIR:-$SPOOL_ROOT/reports}/${ID:-unknown}.md}"
+  if [ -n "$DETAIL" ] && [ -z "$DETAIL_PATH" ]; then
+    mkdir -p "$(dirname "$out")" && cat -- "$DETAIL" >"$out" || exit 1
+  fi
+  outcome="${OUTCOME//$'\n'/ }" numbers="${NUMBERS//$'\n'/ }"
+  tail_="sha: ${SHAS[*]}"$'\n'"detail: $out"
+  room=$(( max - ${#tail_} - 2 - (${#numbers} ? 10 : 0) ))
+  if [ $(( ${#outcome} + ${#numbers} )) -gt "$room" ]; then
+    # The body is cut to fit; the whole text stays in the detail file.
+    [ -n "$DETAIL_PATH" ] || { mkdir -p "$(dirname "$out")" && printf '\n## outcome\n%s\n\n## numbers\n%s\n' "$OUTCOME" "$NUMBERS" >>"$out"; }
+    (( room < 8 )) && room=8
+    keep_n=$(( ${#numbers} < room / 2 ? ${#numbers} : room / 2 ))
+    keep_o=$(( room - keep_n ))
+    (( ${#outcome} > keep_o )) && outcome="${outcome:0:keep_o-3}..."
+    (( ${#numbers} > keep_n )) && numbers="${numbers:0:keep_n-3}..."
+  fi
+  printf '%s\n%s%s\n' "$outcome" "${numbers:+numbers: $numbers$'\n'}" "$tail_"
+  exit 0
+fi
+
+echo "=== kill-your-self discovery (read-only) ==="
+echo "WORKDIR:  $WORKDIR"
+echo "user:     $(id -un)"
+echo "date:     $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 kind="$(spl_kind_of_agent_id "$ID")" || kind=unknown
 echo "agent id: ${ID:-unknown}${ID:+ (from $SRC)}   kind: $kind"
 echo "window:   ${wname:-n/a}"

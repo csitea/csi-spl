@@ -41,7 +41,12 @@ the same id and so the lane.
 
 Send the summary to your orchestrator (`{{ORCHESTRATOR_ID}}` unless your brief names
 another): what landed (shas), what is open, and
-anything another lane must act on.
+anything another lane must act on. The result is <= 800 chars + a path: the
+sha(s), the one-line outcome and the numbers, with the full detail in a file.
+
+```bash
+bash {{HARNESS_DIR}}/scripts/kill-your-self-report.sh --result --outcome "<one line>" --sha <sha> --numbers "<n, before -> after>" --detail <detail-file> > <summary-file>
+```
 
 ```bash
 SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOUR-ID> {{ORCHESTRATOR_ID}} --kind result --file <summary-file>

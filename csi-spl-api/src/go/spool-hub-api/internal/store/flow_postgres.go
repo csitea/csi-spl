@@ -81,17 +81,21 @@ func flowCoveredSQL(e, m string) string {
 			AND (` + m + `.received_at, ` + m + `.msg_id::text) <= (r.at, r.msg_id)))`
 }
 
-// flowCountsSQL selects the six counts (badge mention/reply/dm, then the
-// same unread) of member in tenant at now: one scan of the member's
+// flowCountsSQL selects the ten counts (badge mention/reply/dm/channels/dms,
+// then the same unread) of member in tenant at now: one scan of the member's
 // flow_events_member_at range.
 func flowCountsSQL(tenant, member, now, pub string) string {
 	return `SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'dm'),
+			count(*) FILTER (WHERE fc.unseen AND fc.in_ch),
+			count(*) FILTER (WHERE fc.unseen AND NOT fc.in_ch),
 			count(*) FILTER (WHERE fc.kind IN ('mention', 'poke')),
 			count(*) FILTER (WHERE fc.kind = 'reply'),
-			count(*) FILTER (WHERE fc.kind = 'dm')
-		FROM (SELECT fe.kind, fe.at > coalesce((SELECT s.at FROM read_marks s
+			count(*) FILTER (WHERE fc.kind = 'dm'),
+			count(*) FILTER (WHERE fc.in_ch),
+			count(*) FILTER (WHERE NOT fc.in_ch)
+		FROM (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch, fe.at > coalesce((SELECT s.at FROM read_marks s
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
 			FROM flow_events fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
 			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
@@ -115,10 +119,14 @@ func scanFlowEvent(r pgx.Rows, extra ...any) (FlowEvent, error) {
 }
 
 func scanFlowCounts(r pgx.Rows, extra ...any) (c, u FlowCounts, err error) {
-	dest := append(append([]any{}, extra...), &c.Mention, &c.Reply, &c.DM, &u.Mention, &u.Reply, &u.DM)
-	err = r.Scan(dest...)
+	err = r.Scan(append(append([]any{}, extra...), flowCountsDest(&c, &u)...)...)
 	c.Total, u.Total = c.Mention+c.Reply+c.DM, u.Mention+u.Reply+u.DM
 	return c, u, err
+}
+
+// flowCountsDest are the scan targets of flowCountsSQL's columns, in order.
+func flowCountsDest(c, u *FlowCounts) []any {
+	return []any{&c.Mention, &c.Reply, &c.DM, &c.Channels, &c.DMs, &u.Mention, &u.Reply, &u.DM, &u.Channels, &u.DMs}
 }
 
 // flowKindsFilter is the kind= filter as kind values (nil = all).
@@ -182,7 +190,7 @@ func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members
 		[]any{tenant, msgID, members, now, PublicChannels}, func(r pgx.Rows) error {
 			var member string
 			var c, u FlowCounts
-			ev, err := scanFlowEvent(r, &member, &c.Mention, &c.Reply, &c.DM, &u.Mention, &u.Reply, &u.DM)
+			ev, err := scanFlowEvent(r, append([]any{&member}, flowCountsDest(&c, &u)...)...)
 			if err != nil {
 				return err
 			}

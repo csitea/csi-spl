@@ -34,8 +34,8 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
 {
   "events": [],
   "next": "",
-  "counts": {"mention": 2, "reply": 5, "dm": 1, "total": 8},
-  "unread": {"mention": 3, "reply": 9, "dm": 1, "total": 13}
+  "counts": {"mention": 2, "reply": 5, "dm": 1, "total": 8, "channels": 7, "dms": 1},
+  "unread": {"mention": 3, "reply": 9, "dm": 1, "total": 13, "channels": 11, "dms": 2}
 }
 ```
 
@@ -44,6 +44,11 @@ Signed-in member session only (403 `forbidden` otherwise, as `/v1/me/reads`).
   AND not covered by a mark (section 3). It drops to 0 when the pane opens.
 - `unread` = **unread regardless of `f:seen`**: the in-pane chips.
 - `mention` counts include `poke`. `total` = `mention + reply + dm`.
+- `channels` + `dms` = `total` again, split by where the line is (a channel
+  line / a DM). The WUI shows `unread.channels` and `unread.dms` as the red
+  numbers on the Channels and Direct messages tabs (owner, t1 f4e6c677: new
+  messages only in the discussions the member takes part in). Additive: an
+  older hub omits them and the tabs keep their pip.
 - `kind` filters `events` only; `counts` and `unread` are always the whole flow.
 - Expired events (the message's `expires_at`) are never listed or counted.
 

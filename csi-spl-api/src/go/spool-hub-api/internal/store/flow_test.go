@@ -72,7 +72,7 @@ func TestFlowEvents(t *testing.T) {
 			if got, want := kinds(p1), "mention:@HUM-3 @HUM-1 private|dm:dm to one, cc @HUM-3|reply:agent reply|mention:@HUM-1 look, and @c-001 too|"; got != want {
 				t.Fatalf("HUM-1 flow\n got %s\nwant %s", got, want)
 			}
-			if want := (FlowCounts{Mention: 2, Reply: 1, DM: 1, Total: 4}); p1.Counts != want || p1.Unread != want {
+			if want := (FlowCounts{Mention: 2, Reply: 1, DM: 1, Total: 4, Channels: 3, DMs: 1}); p1.Counts != want || p1.Unread != want {
 				t.Fatalf("HUM-1 counts %+v unread %+v, want %+v", p1.Counts, p1.Unread, want)
 			}
 			if got, want := kinds(read("HUM-2", "", 30)), "reply:my own @HUM-1 line|reply:agent reply|"; got != want {
@@ -82,7 +82,7 @@ func TestFlowEvents(t *testing.T) {
 			if len(p3.Events) != 1 || p3.Events[0].Kind != FlowPoke || p3.Events[0].MsgID != poke.MsgID {
 				t.Fatalf("HUM-3 flow = %s, want the one poke", kinds(p3))
 			}
-			if p3.Counts.Mention != 1 || p3.Counts.Total != 1 {
+			if p3.Counts.Mention != 1 || p3.Counts.Total != 1 || p3.Counts.DMs != 1 || p3.Counts.Channels != 0 {
 				t.Fatalf("HUM-3 counts = %+v, want the poke under mention", p3.Counts)
 			}
 			if got := kinds(read("HUM-3", FlowMention, 30)); got != kinds(p3) {
@@ -124,7 +124,7 @@ func TestFlowEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 			p1 = read("HUM-1", "", 30)
-			if want := (FlowCounts{Mention: 1, Total: 1}); p1.Unread != want {
+			if want := (FlowCounts{Mention: 1, Total: 1, Channels: 1}); p1.Unread != want {
 				t.Fatalf("after f:<dm> + t:<task> unread = %+v, want %+v", p1.Unread, want)
 			}
 			for _, e := range p1.Events {

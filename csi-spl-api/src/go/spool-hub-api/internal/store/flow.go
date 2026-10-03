@@ -33,14 +33,23 @@ const FlowSeenKey = "f:seen"
 func FlowMarkKey(msgID string) string { return "f:" + msgID }
 
 // FlowCounts is one count per chip; Mention includes pokes, Total the sum.
+// Channels and DMs split the same Total by where the line is (owner, t1
+// f4e6c677: the rail's Channels and Direct messages numbers).
 type FlowCounts struct {
-	Mention int `json:"mention"`
-	Reply   int `json:"reply"`
-	DM      int `json:"dm"`
-	Total   int `json:"total"`
+	Mention  int `json:"mention"`
+	Reply    int `json:"reply"`
+	DM       int `json:"dm"`
+	Total    int `json:"total"`
+	Channels int `json:"channels"`
+	DMs      int `json:"dms"`
 }
 
-func (c *FlowCounts) add(kind string) {
+func (c *FlowCounts) add(kind, channel string) {
+	if channel == "" {
+		c.DMs++
+	} else {
+		c.Channels++
+	}
 	switch kind {
 	case FlowMention, FlowPoke:
 		c.Mention++
@@ -282,9 +291,9 @@ func (s *Memory) flowCountsLocked(tenant, member string, all []FlowEvent) (count
 		if !ev.Unread {
 			continue
 		}
-		unread.add(ev.Kind)
+		unread.add(ev.Kind, ev.Channel)
 		if !hasSeen || ev.At.After(seen.At) {
-			counts.add(ev.Kind)
+			counts.add(ev.Kind, ev.Channel)
 		}
 	}
 	return counts, unread

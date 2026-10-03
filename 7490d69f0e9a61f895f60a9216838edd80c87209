@@ -1,0 +1,6 @@
+Lay-What: Only one machine now answers new posts with a "Seen" reply, even when both machines could.
+Lay-How: The machine that is not currently in charge of replies skips the answer and logs why.
+Lay-Why: With two machines able to reply, people could get two identical "Seen" replies to one post.
+Tech-What: do_spl_responder_sweep sends nothing and logs one INFO line while another machine holds the dispatch lease.
+Tech-How: spl-responder-sweep.func.sh uses the same gate as do_spl_unanswered_sweep; responder-reboot-test 4-6; responder-sweep runs against an empty SPOOL_ROOT.
+Tech-Why: Spec 064 L2: two machines with a box-rsp desk could post two Seen replies per post.

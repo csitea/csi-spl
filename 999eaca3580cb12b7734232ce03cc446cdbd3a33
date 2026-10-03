@@ -1,0 +1,6 @@
+Lay-What: A signed-out visitor who opens a link to the app now lands on the sign-in page much sooner.
+Lay-How: The browser remembers that you signed out and jumps straight to the sign-in page before the rest of the app loads.
+Lay-Why: Signed-out visitors waited for the whole app to start only to be sent to sign-in anyway; on a phone that took several seconds.
+Tech-What: An inline head script reads the WUI's own spl_so=1 hint and, on a product screen, replaces the location with <locale>/login?redirect=<here> before any JS loads.
+Tech-How: signed-out-hint.mjs sets the hint when the session reads out and drops it when it reads in; signed-out-redirect-script.mjs is injected by nuxt.config.ts (not in mock builds); login.vue handles a stale hint; a parity test pins the product-screen set.
+Tech-Why: Perf audit round 3 P3-02: login form visible p50 3464 -> 2091 ms desktop and 7648 -> 3853 ms phone (n=10), session GETs 2 -> 1.

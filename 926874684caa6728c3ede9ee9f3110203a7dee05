@@ -1,0 +1,6 @@
+Lay-What: Lets the browser skip downloading the work-flow view again when it has not changed, and tried to let the price list be kept for a few minutes.
+Lay-How: The server now labels these answers so the browser can ask "has it changed?" and get a short "no" instead of the whole thing.
+Lay-Why: Re-sending the same data on every visit wastes time and network, especially on a phone.
+Tech-What: GET /v1/view/flow gets a weak ETag and private, no-cache (304 on repeat); GET /api/v1/checkout/plan answers public, max-age=300.
+Tech-How: flow.go drops its own no-store so etagViews applies; payments/handler.go sets the cache header; flow_etag_test.go and plan_cache_test.go cover both.
+Tech-Why: Perf round 4 G11: both answers were no-store, so every repeat read paid the full body although the flow is per-user and the plan names no buyer.

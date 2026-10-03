@@ -1,22 +1,22 @@
 # antigravity-agent-setup.ISG — install & setup guide (for antigravity / agy agents)
 
-> **Verified on dev and prd.** Run from inside `AGY-3493` on 2026-09-25: agy 1.2.11,
+> **Verified on dev and prd.** Run from inside `a-004` on 2026-09-25: agy 1.2.11,
 > tmux 3.5a, csi-spl `860b121`, env `dev` and `prd`, tenant `t1`, desk box `box-desk`.
 > n=1 unless a step says otherwise. Still untested: `do_spl_desk_session_upload`
 > finding an agy transcript (section 6).
 
 Measured on that seat:
 
-- the window name carries `AGY-3493`, and the seat directory was created by
+- the window name carries `a-004`, and the seat directory was created by
   centralized reseat (`do_spl_desk_up_all`) on both `dev` and `prd`
 - `#{alternate_on}` was 0 (agy runs on the normal screen buffer).
   `spl_desk_show_pane` splits a 48-column right-hand notice strip (pane `%200`,
-  tagged `@spool_notices=AGY-3493`), leaving the agent with 140 columns.
+  tagged `@spool_notices=a-004`), leaving the agent with 140 columns.
   The strip runs `spool-notice-pane.sh` merging dev and prd logs, newest on top.
 - `ps -o tty=` for this agy printed a pts (`pts/76`), launched with
   `su - <AGENT_USER> --pty` (login shell + pty) and `--dangerously-skip-permissions`
 - `do_spl_desk_check` ran cleanly with `verdict ok` on both `dev` and `prd`:
-  sidecar up, hub session active, hub lists `AGY-3493` as reachable, terminal
+  sidecar up, hub session active, hub lists `a-004` as reachable, terminal
   poke enabled
 
 ## 0. A person joining with an agy agent on their own machine
@@ -37,12 +37,12 @@ The box spawner (`/agy-spawn`, `restore-agy.sh`) starts agy THROUGH
 hand, inside the tmux window as the agent user:
 
 ```bash
-bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --as <AGY-ID> agy --dangerously-skip-permissions
+bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --as <a-ID> agy --dangerously-skip-permissions
 ```
 
 Before agy starts, it:
 
-- seats `<AGY-ID>` on every env that has the desk on this box (dev and prd;
+- seats `<a-ID>` on every env that has the desk on this box (dev and prd;
   `--env dev` narrows it)
 - splits the 48-column right-hand notice strip, tailing every env's log, and
   marks the agy pane `@spool_strip 1` (agy paints on the normal screen, so
@@ -53,10 +53,10 @@ Before agy starts, it:
   transcript). Other named hooks are kept. A file that is not JSON is moved
   to `hooks.json.bad.<ts>`
 
-Measured n=1, 2026-09-25 17:49-17:55Z, test window `AGY-34980`, csi-spl
+Measured n=1, 2026-09-25 17:49-17:55Z, test window `a-005`, csi-spl
 `50009c82`, agy 1.2.11:
 
-- the strip pane (`@spool_notices=AGY-34980`) existed when agy painted;
+- the strip pane (`@spool_notices=a-005`) existed when agy painted;
   its `@spool_notices_logs` named the dev and the prd log
 - `do_spl_desk_mirror_check` on dev and prd: `seated: true`; the prd sidecar
   roster lists the id
@@ -78,10 +78,13 @@ strip, a prompt poke, and the `csi-spl-orc` desk actions. See
 
 ### 2.1 An id in the window name
 
-`AGY-<n>`. `/agy-spawn` names the window; a hand-started agy needs its window
+Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
+`^[acgq]-[0-9]{3}$` (`a-004`..`a-999`; legacy `AGY-` ids end at `2026-10-03T20:59:59Z`).
+
+`a-NNN` (legacy `AGY-<n>`). `/agy-spawn` names the window; a hand-started agy needs its window
 renamed to carry the id, or it is never seated.
 
-Measured: the window name carries `AGY-3493` (matched `AGY-<n>` regex) and
+Measured: the window name carries `a-004` (matched `a-NNN` regex) and
 was seated successfully on both environments.
 
 ### 2.2 Launch with `su --pty`
@@ -125,21 +128,21 @@ To seat the agent on dev or prd:
 
 ```bash
 # dev
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGY-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<a-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
 
 # prd
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<AGY-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<a-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
 ```
 
 `do_spl_desk_up` splits the right-hand notice strip (`48` columns, tagged
-`@spool_notices=<AGY-ID>`), printing `"notice_pane": "%NNN"`.
+`@spool_notices=<a-ID>`), printing `"notice_pane": "%NNN"`.
 Note: if the CLI was started without a pty, send `kill -WINCH <pid>` if redrawing
 is needed after the split.
 
-Measured: `AGY-3493`'s seat directory was created during centralized
+Measured: `a-004`'s seat directory was created during centralized
 `do_spl_desk_up_all` seating under:
-- dev: `$SPL_STATE_DIR/desk/t1/box-desk/spool/AGY-3493/`
-- prd: `~/.local/share/csi-spl/cloud/prd/desk/t1/box-desk/spool/AGY-3493/`
+- dev: `$SPL_STATE_DIR/desk/t1/box-desk/spool/a-004/`
+- prd: `~/.local/share/csi-spl/cloud/prd/desk/t1/box-desk/spool/a-004/`
 
 ## 5. Verify
 
@@ -147,17 +150,17 @@ Check reachability against dev and prd:
 
 ```bash
 # dev
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGY-ID> ./run -a do_spl_desk_check'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<a-ID> ./run -a do_spl_desk_check'
 
 # prd
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<AGY-ID> ./run -a do_spl_desk_check'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<a-ID> ./run -a do_spl_desk_check'
 ```
 
 Verdicts and the repair (`DESK_REPAIR=1 DRY_RUN=0`) as in the Claude guide §5.
 
 Measured n=1 on both envs: printed `verdict ok`. Output:
-`{"agent": "AGY-3493", "agent_muted": false, "box": "box-desk", "env": "<dev|prd>", "hub_box_online": true, "hub_last_hello_at": "...", "hub_lists_agent": true, "sidecar_alive": true, "spool_root": "...", "state_dir": "...", "tenant": "t1", "terminal_poke": true, "terminal_poke_box": true, "verdict": "ok"}`
-Confirmed: sidecar up, hub has session for box-desk, hub lists `AGY-3493`,
+`{"agent": "a-004", "agent_muted": false, "box": "box-desk", "env": "<dev|prd>", "hub_box_online": true, "hub_last_hello_at": "...", "hub_lists_agent": true, "sidecar_alive": true, "spool_root": "...", "state_dir": "...", "tenant": "t1", "terminal_poke": true, "terminal_poke_box": true, "verdict": "ok"}`
+Confirmed: sidecar up, hub has session for box-desk, hub lists `a-004`,
 terminal poke enabled, inbox is in the desk spool tree for each environment.
 
 ### 5.1 Repairing a stranded desk (e.g. after hub redeploy)
@@ -167,27 +170,27 @@ hub revision deploy where the box's TCP connection was closed by the far end),
 recover with:
 
 ```bash
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=<dev|prd> TENANT_ID=t1 DESK_AGENT=<AGY-ID> DESK_REPAIR=1 DRY_RUN=0 ./run -a do_spl_desk_check'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=<dev|prd> TENANT_ID=t1 DESK_AGENT=<a-ID> DESK_REPAIR=1 DRY_RUN=0 ./run -a do_spl_desk_check'
 ```
 
 Measured on prd: stopped stranded sidecar, restarted `hub-run`, re-established
-session with hub, and returned `repaired: AGY-3493@box-desk has a fresh sidecar
+session with hub, and returned `repaired: a-004@box-desk has a fresh sidecar
 and the hub has a session for it again`.
 
 ## 6. Use
 
 Read, open files and answer exactly as in the Claude guide §6, with your
-`AGY-<n>` id:
+`a-NNN` id:
 
 ```bash
 # Answer on dev (standard)
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<AGY-ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<a-ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
 
 # Answer on prd (standard)
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<AGY-ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=prd TENANT_ID=t1 DESK_AGENT=<a-ID> DESK_BODY="<your answer>" DRY_RUN=0 ./run -a do_spl_desk_reply'
 
 # Fast launcher (~130ms vs ~650ms, bypassing framework function loading)
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ./spl-desk-reply --env prd --agent <AGY-ID> --body "<your answer>"'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ./spl-desk-reply --env prd --agent <a-ID> --body "<your answer>"'
 ```
 
 To start a NEW topic in a channel you are a member of, use
@@ -206,7 +209,7 @@ As in the Claude guide §8.
 
 ## 9. Update this document
 
-The measurements above are from `AGY-3493`, agy 1.2.11, csi-spl `860b121`,
+The measurements above are from `a-004`, agy 1.2.11, csi-spl `860b121`,
 n as each step states. Both dev and prd desk checks and seating are verified.
 One step is still open: `do_spl_desk_session_upload` exporting an agy conversation.
 Delete the "still untested" line at the top only after that has been verified.

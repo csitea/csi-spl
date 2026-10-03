@@ -14,7 +14,7 @@ Nothing here sources or calls it.
 | `specs/002-box-agent-messaging/contracts/local-folder-layout.md` | the root is `$SPOOL_ROOT`, default `/var/spool-hub`. Each agent gets `<id>/{inbox,outbox,archive}`, mode 0775 |
 | `specs/002-.../contracts/message-schema.md`, `cli.md` | messages are `v:1` JSON objects written by `spool send`, not `.md` files |
 | `specs/002-.../contracts/trust-modes.md` §2 | local mode is unsigned: the spawn creates no key and no pin, and messages carry no `sig`. The file is the record and the tmux poke is only a doorbell |
-| `doc/md/SPEC-spool-identity-routing.md` §2 | ids match `^[A-Z]{2,4}-[0-9]+$`, are unique per box, and never use the `BOX` prefix. CLE/GRK/AGY/QWN belong to claude/grok/agy/qwen |
+| `doc/md/SPEC-spool-identity-routing.md` §2 | ids follow [spec 061 section 0](../../../../../csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03) (`^[acgq]-[0-9]{3}$`, seats `001`-`003` for roles, `004`-`999` for per-box agents, unique across fleet as `<id>@<box>`; legacy `CLE-`/`GRK-`/`AGY-`/`QWN-` ids end at `2026-10-03T20:59:59Z`) |
 
 Some behaviour is box-level rather than spec-level, so it is kept exactly as
 the reference does it:
@@ -85,7 +85,7 @@ environment always wins over it.
 | `SPOOL_TMUX_SOCKET` | `/tmp/tmux-<uid of box user>/default` |
 | `SPOOL_BOX_TAG` | empty. When set, window and claude session names read `<ID>@<tag>` (the owner's `<ID>@<box>` naming, specs/058; 3 letters preferred) |
 | `SPOOL_NAME_STYLE` | retired (spec 061): every launcher writes `<ID>@<tag>`; parsers still read the old `<tag>: <ID>` |
-| `SPOOL_ORCHESTRATOR_ID` | `CLE-00`. Spawned agents report to this id |
+| `SPOOL_ORCHESTRATOR_ID` | `c-001`. Spawned agents report to this id |
 | `SPOOL_AGENT_ID_RANGE` | empty (the whole line). `<lo>-<hi>`: this machine allocates ids only inside that band, so two machines of one fleet never hand out the same id (`csi-spl-doc/specs/058-multi-machine-fleet`). Set it in the box config |
 | `SPOOL_DESK_BOX` | `box-desk`. This machine's desk box id: every `DESK_BOX` / `AGENT_BOX` default of the desk actions and scripts reads it (`csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh`), so two machines of one fleet never seat the same box (the hub keeps one socket per box id; the last hello evicts the other). Set it in the box config |
 | `SPOOL_LEGACY_INBOX_ROOT` `SPOOL_LEGACY_SEND` | unset. During a switch-over: the older markdown message root and its sender; `agent-send.sh` / `agent-inbox.sh` use them for agents spawned before it |
@@ -124,7 +124,7 @@ A working dir that is not a git checkout gets no worktree and no git closing
 steps.
 
 ```bash
-SPOOL_AGENT_USER=<AGENT_USER> bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh grok GRK-4442 /var/tmp/spool-work /path/to/brief.md
+SPOOL_AGENT_USER=<AGENT_USER> bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh grok g-004 /var/tmp/spool-work /path/to/brief.md
 ```
 
 ### 3.3.1 Start claude or grok seated and mirrored
@@ -141,7 +141,7 @@ bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh claude
 ### 3.3.2 See the plan without changing anything
 
 ```bash
-bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --dry-run --as CLE-4441 grok
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh --dry-run --as c-004 grok
 ```
 
 ### 3.3.3 Every spawn and restore is mirrored
@@ -171,7 +171,7 @@ kept). While its process is alive the action SKIPs it. Run it from a checkout
 on trunk.
 
 ```bash
-IDENTITY_RESTORE_IDS="CLE-002" DRY_RUN=0 ./run -a do_spl_agent_identity_restore
+IDENTITY_RESTORE_IDS="c-002" DRY_RUN=0 ./run -a do_spl_agent_identity_restore
 ```
 
 Then confirm the agent reads `yes`.
@@ -192,7 +192,7 @@ touch /var/spool-hub/.mirror-off
 ### 3.4 Send a task and show it in the peer's pane
 
 ```bash
-bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh --from CLE-4441 --to GRK-4442 --kind task --body "ping"
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh --from c-004 --to g-004 --kind task --body "ping"
 ```
 
 ### 3.4.1 Show a message that already landed in an inbox
@@ -201,13 +201,13 @@ The hub sidecar writes cross-box mail and a human's WUI task straight into
 `$SPOOL_ROOT/<id>/inbox/`; this is the leg that puts it on the terminal.
 
 ```bash
-bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh --to GRK-4442 --from CLE-4441 --kind task --body "ping"
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh --to g-004 --from c-004 --kind task --body "ping"
 ```
 
 ### 3.5 Read your inbox
 
 ```bash
-SPOOL_ROOT=/var/spool-hub csi-spl-api/src/go/spool-hub-api/bin/spool recv --as GRK-4442 --ack
+SPOOL_ROOT=/var/spool-hub csi-spl-api/src/go/spool-hub-api/bin/spool recv --as g-004 --ack
 ```
 
 ### 3.6 Show a thread
@@ -229,7 +229,7 @@ with `--to-box`; the harness then needs `box-<box_id>.key` (0600) and starts
 one `spool hub-run` per spool root. Exit codes: `specs/012-spool-box-api/contracts/spool-harness.md`.
 
 ```bash
-bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh --as CLE-4441 -- claude
+bash csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-harness.sh --as c-004 -- claude
 ```
 
 ### 3.9 Run the tests
@@ -311,7 +311,7 @@ DRY_RUN=0 ./run -a do_spl_agent_identity_record
 #### 3.10.4 Is an agent alive (prints its pid)
 
 ```bash
-bash -c '. csi-spl-orc/src/bash/features/spawn-agents/lib/agent-identity.inc.sh && ai_alive CLE-002'
+bash -c '. csi-spl-orc/src/bash/features/spawn-agents/lib/agent-identity.inc.sh && ai_alive c-002'
 ```
 
 #### 3.10.5 Name every agent window from the map (dry run, the default)
@@ -409,7 +409,7 @@ bash scripts/lane-map.sh
 #### 3.11.2 Check the paths a new lane will own (exit 3 names the owner)
 
 ```bash
-bash scripts/lane-map.sh --check csi-spl-orc/src/bash/run/,csi-spl-doc/specs/058-multi-machine-fleet/ --agent CLE-07
+bash scripts/lane-map.sh --check csi-spl-orc/src/bash/run/,csi-spl-doc/specs/058-multi-machine-fleet/ --agent c-007
 ```
 
 #### 3.11.3 Spawn with the lane's files in its row
@@ -421,7 +421,7 @@ SPAWN_LANE_FILES=csi-spl-orc/src/bash/run/spl-lane-map.func.sh SPAWN_LANE_TOPIC=
 #### 3.11.4 Mark a lane done by hand
 
 ```bash
-bash scripts/lane-map.sh done --agent CLE-07
+bash scripts/lane-map.sh done --agent c-007
 ```
 
 The same reads and writes as run actions: `./run -a do_spl_lane_map`

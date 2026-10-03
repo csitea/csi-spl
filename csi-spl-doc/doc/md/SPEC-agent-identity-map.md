@@ -19,6 +19,9 @@ replaces them as the source of truth. Names become derived output.
 
 ## 2. The record
 
+Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
+`^[acgq]-[0-9]{3}$` (`c-`, `a-`, `g-`, `q-` with 3 digits `004`..`999`; role seats `001`..`003`). Legacy ids end at `2026-10-03T20:59:59Z`.
+
 2.1 There is one file per agent, `$SPOOL_ROOT/agents/<ID>.json`. Each is
 written atomically (temp file plus rename) by `do_spl_agent_identity_record`,
 and by nothing else.
@@ -61,7 +64,7 @@ master is recorded only on the next pass.
 `do_spl_agent_identity_check`. Test: `tests/test-agent-identity.sh`.
 
 4.2 (b) `do_spl_agent_identity_reconcile` sets every agent window to
-`<tag>: <ID> [badge] <title>` from its record. It keeps a state badge only on
+`<ID>@<tag> [badge] <title>` (older windows: `<tag>: <ID> [badge] <title>`) from its record. It keeps a state badge only on
 the right id, compare-and-sets each rename on the pane id, and turns off
 `allow-rename` / `automatic-rename` on that window. `riname.sh` writes the
 title into the record (`set-title`) and then reconciles. Its pane comes from

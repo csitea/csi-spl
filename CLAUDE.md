@@ -133,3 +133,8 @@ How to apply:
   `git ls-remote --tags origin 'v*'`.
 - Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, no AI trailers,
   explicit pathspecs.
+- **Agent ceiling: 40 concurrent agent windows.** Count before spawning:
+  ```bash
+  sudo -u ysg tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-1000/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
+  ```
+  Agent ids follow the grammar in [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03) (`^[acgq]-[0-9]{3}$`, unique as `<ID>@<box>`; legacy ids end at `2026-10-03T20:59:59Z`).

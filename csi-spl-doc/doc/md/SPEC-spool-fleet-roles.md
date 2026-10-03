@@ -7,12 +7,15 @@ decisions reach the orchestrator.
 
 ## 1. Roles
 
+Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
+`^[acgq]-[0-9]{3}$`. Roles `001`..`003` are claimed (`--claim`), never allocated. Legacy `CLE-` ids end at `2026-10-03T20:59:59Z`.
+
 | id | role | does | never does |
 |---|---|---|---|
-| `CLE-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved) | reads the raw message stream; routes routine traffic |
-| `CLE-002` | master dispatcher | routes every inbound message to the lane that owns it; delivers agents' owner texts to their topics after checking the claim; escalates decisions to `CLE-001` | codes, commits, deploys, spawns, closes agents, decides |
-| `CLE-003` | failover dispatcher | the same as `CLE-002`, but only while it holds the lease (section 4) | dispatches while on standby |
-| `CLE-<n>` | lane agents | one brief each: build, test, land, prove live, report to `CLE-001` | route other lanes' traffic |
+| `c-001` | orchestrator | decides; spawns, re-seats and closes agents; verifies "live" claims; runs the production operations agents' harnesses refuse (prd reads, prd desk and issue writes, deploys the owner pre-approved) | reads the raw message stream; routes routine traffic |
+| `c-002` | master dispatcher | routes every inbound message to the lane that owns it; delivers agents' owner texts to their topics after checking the claim; escalates decisions to `c-001` | codes, commits, deploys, spawns, closes agents, decides |
+| `c-003` | failover dispatcher | the same as `c-002`, but only while it holds the lease (section 4) | dispatches while on standby |
+| `c-NNN` | lane agents | one brief each: build, test, land, prove live, report to `c-001` | route other lanes' traffic |
 
 Every agent runs in **auto** permission mode on the current default model. The
 spawner sets `--permission-mode auto`; the model comes from the agent user's
@@ -31,41 +34,41 @@ on every turn.
 
 | situation | do |
 |---|---|
-| a **new ask**, in any topic, even in the same code or the same topic | **always a new small lane**, spawned by `CLE-001`; its brief names the old lane's notes and commits as context. Never hand it to a running lane because it is alive, idle or "already in that code" |
+| a **new ask**, in any topic, even in the same code or the same topic | **always a new small lane**, spawned by `c-001`; its brief names the old lane's notes and commits as context. Never hand it to a running lane because it is alive, idle or "already in that code" |
 | a follow-up that is part of the lane's **own task** (an answer it asked for, a correction to the same ask) | the owning lane if it is alive; if it has closed, a fresh lane that starts from its branch and notes |
 | a defect in the lane's **own just-shipped commit**, inside its own task | the same lane fixes it before it exits; this is the only exception, and anything beyond that commit is a new ask |
-| a lane is sent a different task | it refuses it and tells `CLE-001`, which spawns a new lane for it |
-| a lane's task is verified | it reports and exits (`/exit-clean`); `CLE-001` verifies the claim (section 3.1) and closes it at once if it has not |
-| a lane waits more than about an hour for an owner answer | park its context (branch, held commit, the open question) in `/var/tmp/CLE-parent-level/dispatch/hold/<topic>/`, close it, and respawn from the hold dir when the answer comes |
+| a lane is sent a different task | it refuses it and tells `c-001`, which spawns a new lane for it |
+| a lane's task is verified | it reports and exits (`/exit-clean`); `c-001` verifies the claim (section 3.1) and closes it at once if it has not |
+| a lane waits more than about an hour for an owner answer | park its context (branch, held commit, the open question) in `/var/tmp/c-parent-level/dispatch/hold/<topic>/`, close it, and respawn from the hold dir when the answer comes |
 
 "Stand by in case the owner answers later" is not a reason to keep an agent
 open, and neither is "it could take the next ask". The dispatchers apply the
 first two rows: they forward only a follow-up to the owning lane, and escalate
-every new ask to the acting orchestrator for a new lane. `CLE-001` applies the
+every new ask to the acting orchestrator for a new lane. `c-001` applies the
 rest.
 
 **When a human ends the discussion, the agent ends too.** A human closes or
 archives the topic, or says in any words that it is done or no longer active:
-the dispatcher tells `CLE-001`, and `CLE-001` closes the lane. The agent does not
+the dispatcher tells `c-001`, and `c-001` closes the lane. The agent does not
 look for new work in that topic, and posts nothing more there. If it still has
 something to say (a risk, a follow-up, an idea), it sends one message to the
-dispatcher, which passes it to `CLE-001`. `CLE-001` decides whether it deserves
-the humans' time; if so, `CLE-001` (or a new lane) opens a **new** discussion.
+dispatcher, which passes it to `c-001`. `c-001` decides whether it deserves
+the humans' time; if so, `c-001` (or a new lane) opens a **new** discussion.
 An agent never reopens a closed discussion on its own.
 
 ⏸️ on a topic's opening message = on hold (not archived). An agent sets or
-clears it with `do_spl_react` (CLE-77895).
+clears it with `do_spl_react`.
 
 ## 2. Where messages come from
 
 | source | arrives as | first reader |
 |---|---|---|
 | web UI posts (owner, members) | a desk delivery: a spool message in the seated agent's inbox + a poke line in its pane | the dispatcher seated on that workspace's desk |
-| terminal (agents' reports, peer handoffs, relays) | a v:1 spool message in `$SPOOL_ROOT/<id>/inbox/` + a poke line | the addressee: a dispatcher for traffic, `CLE-001` only for escalations |
-| the owner's own terminal | typed into the orchestrator's pane | `CLE-001` |
+| terminal (agents' reports, peer handoffs, relays) | a v:1 spool message in `$SPOOL_ROOT/<id>/inbox/` + a poke line | the addressee: a dispatcher for traffic, `c-001` only for escalations |
+| the owner's own terminal | typed into the orchestrator's pane | `c-001` |
 
 The dispatchers are seated on every workspace desk the box serves
-(`do_spl_desk_up DESK_AGENT=CLE-002`, and `CLE-003`). `CLE-001` stays seated
+(`do_spl_desk_up DESK_AGENT=c-002`, and `c-003`). `c-001` stays seated
 too, so a post that names it still reaches it.
 
 A channel created later gets both dispatchers on the next desk reconcile tick
@@ -82,12 +85,12 @@ For each message the lease holder does exactly one thing, then archives it:
 | a follow-up to a live lane's own task (an answer it asked for, a correction to that same ask) | forwards it verbatim, with topic and message id, to that lane |
 | a status question | asks the owning lane for a one-paragraph status and posts it in the asker's topic |
 | an agent's owner text ("post this in topic X") | checks the claim (section 3.1), then posts it verbatim with its screenshots |
-| a new ask (any new piece of work, even in a live lane's code or topic; section 1.1), a decision, an approval, anything needing a spawn, close, deploy or production action, or anything unclear | escalates to `CLE-001` in one message: who asked, where, the exact words, what it needs |
+| a new ask (any new piece of work, even in a live lane's code or topic; section 1.1), a decision, an approval, anything needing a spawn, close, deploy or production action, or anything unclear | escalates to `c-001` in one message: who asked, where, the exact words, what it needs |
 | a duplicate or chatter | archives it, no reply |
 
 Ownership comes from the spool registry, the window names and the
 orchestrator's lane table. A dispatcher never guesses an owner; it asks
-`CLE-001`.
+`c-001`.
 
 ### 3.1 A "live" claim is checked before it is posted
 
@@ -131,7 +134,7 @@ channel, topic, last human post, age, who and the first 120 characters. The
 memory is `<spool root>/dispatch/unanswered.state`, keyed by the topic's last
 message, so a new human post in a known topic is a new item. An item still
 open two hours after its note is sent once more (`AGAIN`); still open two
-hours after that, it is escalated to `CLE-001`, once. The dispatcher treats
+hours after that, it is escalated to `c-001`, once. The dispatcher treats
 each item like a delivery under section 3. An item that needs no agent reply
 (an announcement, a link, a topic the owner closed in words) is acked, never
 answered with filler:
@@ -150,21 +153,21 @@ by hand to see the current list.
 
 ```mermaid
 sequenceDiagram
-    participant M as CLE-002 (master)
+    participant M as c-002 (master)
     participant L as lease file
     participant W as lease watcher
-    participant F as CLE-003 (failover)
-    participant O as CLE-001
+    participant F as c-003 (failover)
+    participant O as c-001
     loop every 60 s while the master's claude process lives and is able to act
-        M->>L: write "CLE-002 <epoch>"
+        M->>L: write "c-002 <epoch>"
     end
     W->>L: read every 60 s
     Note over W: lease older than 180 s
-    W->>L: write "CLE-003 <epoch>"
+    W->>L: write "c-003 <epoch>"
     W->>F: DISPATCH LEASE: you are now ACTIVE
     W->>O: failover took over
     F->>F: dispatch own inbox + the master's unread inbox
-    M->>L: master back: write "CLE-002 <epoch>"
+    M->>L: master back: write "c-002 <epoch>"
     W->>F: DISPATCH LEASE: STANDBY
     W->>O: master is back
 ```
@@ -175,7 +178,7 @@ sequenceDiagram
   live claude process whose environment carries `SPOOL_AGENT_ID=<master>`, so a
   relaunched master is picked up with no manual step. No such process, no
   renewal, and the lease goes stale.
-- **Live means able to act** (CLE-77935): a live process is not enough. On
+- **Live means able to act**: a live process is not enough. On
   2026-10-02 the master sat on `Usage limit reached · Continuing
   automatically at 7:20am` with an owner post in its prompt while the lease
   stayed fresh. Each tick also reads the footer of the agent's own tmux pane
@@ -201,7 +204,7 @@ sequenceDiagram
 - On promotion the failover also works through the master's unread inbox,
   skipping what the master's outbox shows it already handled.
 - Every transition is logged once to `$SPOOL_ROOT/dispatch/lease.log` and
-  reported to `CLE-001`.
+  reported to `c-001`.
 - Both loops are the run action `do_spl_dispatch_lease`
   (`LEASE_CMD=show|renew|watch|ensure|stop`). The desk reconcile cron runs
   `ensure` every tick, which starts a loop that is not running; that is what
@@ -210,7 +213,7 @@ sequenceDiagram
 - Setting it all up on a machine: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md)
   (`do_spl_dispatch_setup`, verified by `do_spl_dispatch_check`).
 
-### 4.1 Across machines: the fleet lease (CLE-77911)
+### 4.1 Across machines: the fleet lease (spec 061)
 
 Owner decision "a" (t1 5fe56859, 2026-10-01): exactly ONE orchestrator and
 ONE master dispatcher act at a time across BOTH machines, the box PC and the
@@ -221,15 +224,15 @@ priority flips to the satellite by one config change.
 
 | role | box PC | satellite (box `sat`) |
 |---|---|---|
-| orchestrator | `CLE-001@<box>` | `CLE-001@sat` |
-| master dispatcher | `CLE-002@<box>` | `CLE-002@sat` |
-| failover dispatcher (local) | `CLE-003@<box>` | `CLE-003@sat` |
+| orchestrator | `c-001@<box>` | `c-001@sat` |
+| master dispatcher | `c-002@<box>` | `c-002@sat` |
+| failover dispatcher (local) | `c-003@<box>` | `c-003@sat` |
 
 Owner rules (t1 2efb3e78, 2026-10-01): ids `001`, `002` and `003` are
 reserved on EVERY box (orchestrator, master, failover), and a session is
 named `<ID>@<box>`, where the box is the machine's desk box id (box.env
-`SPOOL_DESK_BOX`, 3 letters preferred). The format is owned by spec 058
-(CLE-77913). Because the same ids run on both machines, a bare id says
+`SPOOL_DESK_BOX`, 3 letters preferred). The format is owned by spec 058.
+Because the same ids run on both machines, a bare id says
 nothing about the machine: every lease holder carries its box.
 
 **Where the lease lives: the hub**, not a bucket. Both machines already reach
@@ -332,7 +335,7 @@ resource, and its age would have come from each machine's own clock.
   181 s). The hub side is tested by
   `TestFleetLeaseCAS` (memory + Postgres) and `TestBoxFleetLease`.
 
-### 4.2 Messages and reports across machines (specs/058 N1, CLE-77919)
+### 4.2 Messages and reports across machines (specs/058 N1)
 
 Each machine has its own spool root (`/var/spool-hub`). A peer message or a
 report must reach the agent's inbox on WHICHEVER machine it runs, and a
@@ -342,7 +345,7 @@ the sender's machine.
 | send | goes |
 |---|---|
 | `spool-send.sh --to <id>`, `<id>` an agent of this machine (its dir or a `registry.tsv` row) | local, unchanged |
-| `--to <id>@<box>` | the machine named: this machine's own desk box is local, any other box is relayed with that `to_box`. The role ids 001-003 exist on EVERY machine, so a bare `CLE-001` always means this machine's, and the hub refuses it across machines (`ambiguous_to_box`) |
+| `--to <id>@<box>` | the machine named: this machine's own desk box is local, any other box is relayed with that `to_box`. The role ids 001-003 exist on EVERY machine, so a bare `c-001` always means this machine's, and the hub refuses it across machines (`ambiguous_to_box`) |
 | `--to <id>` NOT on this machine | relayed: `spool-fleet-relay.sh` (as the box user) signs it with THIS machine's desk box and hands it to the hub over the live desk sidecar; the hub roster names the box that holds `<id>`; that machine's sidecar writes it into the agent's desk inbox AND, through `SPOOL_FLEET_ROOT`, into `/var/spool-hub/<id>/inbox`, and rings the pane. `delivery` is the hub's (`sent`, `queued`, `pending`) |
 | `--to <id>` known nowhere (or no fleet desk configured) | refused, exit 13, nothing written. The bare `spool send` refuses an unknown local id too (exit 3, `unknown_local_agent`): it no longer mints an orphan inbox |
 | `--to orchestrator` | the orch lease holder from `<root>/dispatch/lease.orch` (`<ID>@<box>`: local when the box is this machine's, else relayed to that box); `none@unreachable` or no file -> `LEASE_ORCH`, then `SPOOL_ORCHESTRATOR_ID` |
@@ -364,7 +367,7 @@ the sender's machine.
   `spawn-agents/tests/test-fleet-send.sh` (two simulated roots, the relay
   script against a fake `/proc`).
 
-### 4.3 Asks to the orchestrator: fire and forget, tracked until closed (CLE-77929)
+### 4.3 Asks to the orchestrator: fire and forget, tracked until closed
 
 Owner bug t1 #spool-hub-bugs 2f7996aa (2026-10-02 01:58Z): "there needs to be
 some kind a state mechanism both in the db and on the file system, that you
@@ -375,11 +378,11 @@ the previous one just died) would know to check and get and continue".
 
 | when | what | why nothing happened |
 |---|---|---|
-| 20:06Z | CLE-002 -> CLE-001, kind `task`, msg 7b7f6e64: "new topic 692aefe8, your call" | landed in the inbox and rang the pane once (`.pokes/notices.log` line 1). A decision request, no deadline, no state: 52 more messages followed it before the next reminder (29 notes, 17 results, 5 tasks, 1 blocker) |
+| 20:06Z | c-002 -> c-001, kind `task`, msg 7b7f6e64: "new topic 692aefe8, your call" | landed in the inbox and rang the pane once (`.pokes/notices.log` line 1). A decision request, no deadline, no state: 52 more messages followed it before the next reminder (29 notes, 17 results, 5 tasks, 1 blocker) |
 | 01:51Z | the "reminder": a `note` on ANOTHER topic (396fe7e5, msg 4aeb5002) | an FYI note about a report; nothing in it reads as an open ask |
-| 01:55Z | CLE-002 -> CLE-001, kind `blocker`, msg 39451306 | acted on at ~02:10Z, after the owner wrote "but nothing done" |
-| all night | CLE-001's inbox: 954 messages, 0 archived, `.agent-inbox-seen` empty | nothing ever marked a message handled; the orchestrator read by poke lines, and a poke that lands mid-turn is easy to miss |
-| for hours | pokes to CLE-002 REFUSED ("pane holds unsent text", spool-send exit 6) | answers back to the sender were not rung either |
+| 01:55Z | c-002 -> c-001, kind `blocker`, msg 39451306 | acted on at ~02:10Z, after the owner wrote "but nothing done" |
+| all night | c-001's inbox: 954 messages, 0 archived, `.agent-inbox-seen` empty | nothing ever marked a message handled; the orchestrator read by poke lines, and a poke that lands mid-turn is easy to miss |
+| for hours | pokes to c-002 REFUSED ("pane holds unsent text", spool-send exit 6) | answers back to the sender were not rung either |
 
 The common cause: an ask was a file plus a doorbell, with no state of its own,
 no re-raise, and on the old holder's disk only.
@@ -394,9 +397,9 @@ whatever we have: a database, a file system, distributed nodes, the agents"):
 | record, idempotent producer | one row per ask keyed by the spool `msg_id` that carried it: a replay (journal sync, a retried send) changes nothing |
 | durable log, replicated | the hub table `fleet_asks` (rdb 0097, every machine reads it) + each machine's journal `<spool root>/asks/<msg id>.json` and the append-only `asks/journal.log` |
 | consumer commit after handling (share group, KIP-932) | per record, not an offset: `ack` = acquired (in progress, by `<ID>@<box>`), `done` = accepted, `declined` (with a reason) = rejected. An offset would let one stuck ask block every later one; a per-record commit does not |
-| acquisition lock + timeout | an `ack` is a lock: a holder quiet `ASKS_LOCK_MIN` (60) minutes after acking (no re-ack, no close) loses it - the tick releases the ask (op `release`: acked -> open, `acked_by` kept as the last holder) and re-raises it the same tick, labelled "LOCK EXPIRED, acked by X". Acking again renews the lock (CLE-77942) |
+| acquisition lock + timeout | an `ack` is a lock: a holder quiet `ASKS_LOCK_MIN` (60) minutes after acking (no re-ack, no close) loses it - the tick releases the ask (op `release`: acked -> open, `acked_by` kept as the last holder) and re-raises it the same tick, labelled "LOCK EXPIRED, acked by X". Acking again renews the lock |
 | at-least-once redelivery | the lease tick re-raises an uncommitted ask (unacked `ASKS_RERAISE_MIN`, acked and past its deadline, or its lock just expired); handling is idempotent: closing a closed ask is refused naming who closed it and why |
-| delivery count + limit, archived | `raised_n` counts every delivery (a hand-over and a re-raise alike). At `ASKS_MAX_RAISES` (4) an open ask is not raised again: it goes to the owner once (unless the age leg already told them) and is closed as `dead` with the reason (op `dead`, rdb 0099), e.g. "max delivery count 4 reached (raised 4x); the owner was told". No owner leg configured: dead-lettered anyway, the reason says nobody was told (CLE-77942) |
+| delivery count + limit, archived | `raised_n` counts every delivery (a hand-over and a re-raise alike). At `ASKS_MAX_RAISES` (4) an open ask is not raised again: it goes to the owner once (unless the age leg already told them) and is closed as `dead` with the reason (op `dead`, rdb 0099), e.g. "max delivery count 4 reached (raised 4x); the owner was told". No owner leg configured: dead-lettered anyway, the reason says nobody was told |
 | consumer-group rebalance, replay | a new orch holder (the fleet lease, 4.1) gets ONE handover blocker listing every open ask of its role, from the hub - also when the dead holder had read them |
 | retention | a closed ask stays a week, then a write prunes it |
 
@@ -495,7 +498,7 @@ end to end in every seated workspace.
 
 | piece | state |
 |---|---|
-| `CLE-002`, `CLE-003` spawned (auto mode, current model) | live since 2026-10-01 |
+| `c-002`, `c-003` spawned (auto mode, current model) | live since 2026-10-01 |
 | lease renew + watch loops | `do_spl_dispatch_lease` with tests (a replay of the 2026-10-01 live failover test); ensured every 5 min by the desk reconcile cron; repo loops live since 2026-10-01 06:28Z; the interim watch loop is stopped, the interim renew loop is stopped by the orchestrator at cutover |
 | setup and verify on a new machine | `do_spl_dispatch_setup` (DRY_RUN plan, idempotent) + `do_spl_dispatch_check`; prompt: [HOWTO-setup-dispatchers.md](HOWTO-setup-dispatchers.md) |
 | dispatchers seated on every workspace desk | done 2026-10-01: both seated in every workspace on the box (do_spl_dispatch_check) |
@@ -503,10 +506,10 @@ end to end in every seated workspace.
 | a channel created after the subscribe | done 2026-10-01: `do_spl_dispatch_tick` on every desk reconcile tick re-runs the subscribe (one read per workspace, no write when nothing changed) and reports a changed gap set: `DISPATCH` lines in the cron log; on prd one `dispatch-gaps` note to the lease holder per new `GAP`, the orchestrator once when it is still open after an hour; test workspaces (`<spool root>/dispatch/test-workspaces`, shared with the sweep) left out |
 | @mention of the orchestrator in a channel it left | open: the WUI refused it ("Not told"); decision: the WUI pokes a seated non-member agent by DM with a visible note (a confirm in private channels) |
 | unanswered-post sweep over every workspace (section 3.2) | `do_spl_unanswered_sweep` + `do_spl_unanswered_sweep_install_cron` with fixture tests (2026-10-01); every 10 min from the box crontab; a row in `do_spl_dispatch_check` |
-| one lease across the box PC and the satellite (4.1) | live on the box PC since 2026-10-01 23:24Z (rdb 0094 + 0095 on dev + prd, hub `lease` frame, `LEASE_CMD=fleet`; prd rows `CLE-001@box-desk` / `CLE-002@box-desk`; the interim lease.sh retired). The satellite trio `CLE-001/002/003@sat` and the live drill follow the satellite rebuild (CLE-77912) and the owner's go for its prd pins |
-| hourly dispatcher rotation (4.4) | `do_spl_dispatch_rotate` + the hold in `spl_lease_agent_able` + `do_spl_dispatch_rotate_install_cron` (`15 * * * *`, tag `# csi-spl:dispatch-rotate`) on trunk with sandbox tests (2026-10-02, CLE-77940); the cron is installed after the live proof (060 L3) |
-| messages and reports across machines (4.2) | code on trunk 2026-10-02 (CLE-77919); live once the satellite's desk is pinned and both sidecars run the new binary |
-| asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (CLE-77929: rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
+| one lease across the box PC and the satellite (4.1) | live on the box PC since 2026-10-01 23:24Z (rdb 0094 + 0095 on dev + prd, hub `lease` frame, `LEASE_CMD=fleet`; prd rows `c-001@box-desk` / `c-002@box-desk`; the interim lease.sh retired). The satellite trio `c-001/002/003@sat` and the live drill follow the satellite rebuild and the owner's go for its prd pins |
+| hourly dispatcher rotation (4.4) | `do_spl_dispatch_rotate` + the hold in `spl_lease_agent_able` + `do_spl_dispatch_rotate_install_cron` (`15 * * * *`, tag `# csi-spl:dispatch-rotate`) on trunk with sandbox tests (2026-10-02); the cron is installed after the live proof (060 L3) |
+| messages and reports across machines (4.2) | code on trunk 2026-10-02; live once the satellite's desk is pinned and both sidecars run the new binary |
+| asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
 <!-- version: 0.7.0 · updated: 2026-10-02 · last-edit: 2026-10-02T18:45:00Z -->

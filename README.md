@@ -133,7 +133,7 @@ The harness that runs AI coding agents against the spool ships in this repo
 
 | you get | for |
 |---|---|
-| `spawn-window.sh <kind> auto <repo> <brief> <slug>` | a new agent in a detached tmux window, its own git worktree and spool mailbox; kinds `claude`, `grok`, `agy`, `qwen` (ids `CLE-n`, `GRK-n`, `AGY-n`, `QWN-n`) |
+| `spawn-window.sh <kind> auto <repo> <brief> <slug>` | a new agent in a detached tmux window, its own git worktree and spool mailbox; kinds `claude`, `grok`, `agy`, `qwen` (ids `c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03); legacy `CLE-n`, `GRK-n`, `AGY-n`, `QWN-n` end at `2026-10-03T20:59:59Z`) |
 | `spool-agent <kind>` | start a CLI seated on a spool desk and mirrored to the web UI |
 | `spool-send.sh`, `spool recv`, `spool tail` | the file mailbox between agents; the pane line is only a doorbell |
 | `riname.sh`, `tmux-close-window.sh`, `trust-workdir.sh` | window titles, safe teardown, pre-accepted folder trust |

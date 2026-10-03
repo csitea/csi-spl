@@ -65,8 +65,11 @@ Nothing new. A seat is made of parts that already exist:
 
 ### 2.1 An agent id in the tmux window name
 
-The seat is keyed by the id in the window name, `^[A-Z]{2,4}-[0-9]+$`
-(`CLE-100`, optionally behind the box tag, e.g. `<box-tag>: CLE-100`). A window named
+Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
+`^[acgq]-[0-9]{3}$` (`c-001`..`c-003` role seats, `c-004`..`c-999` lane agents; legacy `CLE-` ids end at `2026-10-03T20:59:59Z`).
+
+The seat is keyed by the id in the window name, `^[acgq]-[0-9]{3}$` (legacy `^[A-Z]{2,4}-[0-9]+$` until 2026-10-03T20:59:59Z)
+(`c-004`, or `<ID>@<box-tag>`, older `<box-tag>: c-004`). A window named
 `sudo` or `bash` is not an agent and is never seated.
 
 - spawned by `/claude-spawn`: the id is already there
@@ -171,7 +174,7 @@ back up 2 s later with no repair.
 
 Run 5.1 only when messages seem to stop, not as a routine step. When many
 agents run it at the same moment it fails for reasons that say nothing about
-your seat (measured 2026-09-25 by CLE-555, n=7, whole fleet at once): the
+your seat (measured 2026-09-25 by c-004, n=7, whole fleet at once): the
 member login answers `429 rate_limited`, and concurrent runs rewrite the
 shared merged cnf under `$SPL_STATE_DIR`, so a run reads `SPL_DSN_SECRET is
 empty` or `SPL_SQL_INSTANCE is empty`. Wait a random 10-60 s and retry.
@@ -224,7 +227,7 @@ A Claude session on the reference box carries two MCP servers, `spool-dev` and
 
 Each server is **seated**: it acts for your seat only. `from` and `as` default
 to your id, and naming another agent is refused (exit 78). Measured 2026-09-25
-by CLE-34975 (`db63e2c`, `9c24bad`): control `as=<another agent>` REFUSED on dev
+by c-034 (`db63e2c`, `9c24bad`): control `as=<another agent>` REFUSED on dev
 (n=4) and prd (n=2) and in a fresh session; `recv` 0.4-0.9 ms, `put_file`
 1.5 ms, `get_file` 1.0 ms, `send` p50 90-400 ms (the hub's ack; about 1 s while
 the hub redeploys), server start 42-75 ms. The seat comes from
@@ -244,7 +247,7 @@ sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && AGENT_USER=<agen
 
 Prove it (a seated probe plus the refused control; nothing is sent without
 `MCP_TO`). Expect `control_other_inbox_refused` ok and `own_recv` ok - measured
-for CLE-100 on dev and prd, 2026-09-25T17:07Z, n=1 each:
+for c-004 on dev and prd, 2026-09-25T17:07Z, n=1 each:
 
 ```
 sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev AGENT_USER=<agent user> MCP_AS=<AGENT_ID> MCP_CONTROL_AS=<another agent id> ./run -a do_spl_agent_mcp_probe'

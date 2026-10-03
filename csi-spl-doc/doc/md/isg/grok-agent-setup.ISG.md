@@ -1,14 +1,14 @@
 # grok-agent-setup.ISG — install & setup guide (for grok agents)
 
-> **Partly verified.** Run from inside `GRK-333` on 2026-09-25: grok 1.0.41
+> **Partly verified.** Run from inside `g-004` on 2026-09-25: grok 1.0.41
 > (`4220f3b224a6`), tmux 3.5a, csi-spl `db92f2a`, env `dev`, tenant `t1`, desk
 > box `box-desk`. n=1 unless a step says otherwise. Still untested: a grok
 > with no controlling tty receiving SIGWINCH. `do_spl_desk_session_upload`
-> finding a grok transcript was measured from `GRK-3508` (section 6).
+> finding a grok transcript was measured from `g-005` (section 6).
 
 Measured on that seat:
 
-- the window name carries `GRK-333`, and the seat directory was already there
+- the window name carries `g-004`, and the seat directory was already there
   (the 5-minute reseat). `#{alternate_on}` was 1, so a human's message is
   typed into the prompt verbatim
 - the notice pane was 48 columns and the agent pane 140x51
@@ -36,7 +36,11 @@ poke, and the `csi-spl-orc` desk actions. See `claude-agent-setup.ISG.md` §1.
 
 ### 2.1 An id in the window name
 
-`GRK-<n>`. `/grok-spawn` names the window; a hand-started grok needs its window
+Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
+`^[acgq]-[0-9]{3}$` (`g-001`..`g-003` role seats, `g-004`..`g-999` lane agents; legacy `GRK-` ids end at `2026-10-03T20:59:59Z`).
+
+The seat is keyed by the id in the window name, `^[acgq]-[0-9]{3}$` (legacy `^[A-Z]{2,4}-[0-9]+$` until 2026-10-03T20:59:59Z)
+(`g-004`, or `<ID>@<box-tag>`, older `<box-tag>: g-004`). `/grok-spawn` names the window; a hand-started grok needs its window
 renamed to carry the id, or it is never seated.
 
 ### 2.2 Launch with `su --pty`
@@ -84,11 +88,11 @@ None held by the agent.
 ## 4. Install steps
 
 ```
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<GRK-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<g-ID> DRY_RUN=0 ./run -a do_spl_desk_up'
 ```
 
-Measured: `GRK-333`'s seat directory was already present, so `do_spl_desk_up`
-was not run again while section 5 was returning 429. `GRK-3508` on
+Measured: `g-004`'s seat directory was already present, so `do_spl_desk_up`
+was not run again while section 5 was returning 429. `g-005` on
 2026-09-25 found the same: the seat directory was already present on dev
 and on prd, and the answer in section 6 went out with no install step.
 
@@ -98,24 +102,24 @@ exists, the box sidecar pid is alive, and the roster already names the
 id. That skips the hub pin and the roster wait. The notice strip is
 still opened. A dead sidecar, or a seat the roster does not name yet,
 still runs the full seat. The wrapper test calls this case 10.
-Measured n=1, 2026-09-25, `spool-agent.sh --dry-run --as GRK-3508
+Measured n=1, 2026-09-25, `spool-agent.sh --dry-run --as g-005
 --env dev,prd grok`: both envs printed `already live`, `skip
 do_spl_desk_up`, in 0.068s. Dry run: nothing was changed.
 
 ## 5. Verify
 
 ```
-sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<GRK-ID> ./run -a do_spl_desk_check'
+sudo -u "$BOX_USER" bash -c 'cd /opt/csi/csi-spl/csi-spl-orc && ENV=dev TENANT_ID=t1 DESK_AGENT=<g-ID> ./run -a do_spl_desk_check'
 ```
 
 Verdicts and the repair (`DESK_REPAIR=1 DRY_RUN=0`) as in the Claude guide §5.
 
 Do not run this check in order to answer a note when the seat directory
 is already there. On 2026-09-25 a box-wide burst of checks held the hub
-login at 429. `GRK-3508` skipped the check and answered prd in the same
+login at 429. `g-005` skipped the check and answered prd in the same
 second (section 6).
 
-One check per env, after that burst, did run. `GRK-3508`,
+One check per env, after that burst, did run. `g-005`,
 2026-09-25T17:35Z, n=1 each, `ENV=dev` and `ENV=prd`, `TENANT_ID=t1`:
 both printed `verdict ok` (the hub listed the agent, the sidecar was
 alive, the terminal poke was on). Both also said `sidecar_stale_build`
@@ -128,19 +132,19 @@ seat ran this step at once. The local sidecar stayed up the whole time
 (`hub session up` at 18:01:28 EEST). Do not run `DESK_REPAIR` for a 429.
 Retry, or pass `DESK_ROSTER_JSON` as the action's own message says. An
 earlier run the same day, 17:12:57 EEST, n=1, printed `verdict ok` for
-`GRK-333` (hub listed the agent, prompt poke on, not muted) on a sidecar
+`g-004` (hub listed the agent, prompt poke on, not muted) on a sidecar
 process that has since been replaced.
 
 ## 6. Use
 
 Read, open files and answer exactly as in the Claude guide §6, with your
-`GRK-<n>` id. The inbox is
-`$HOME/.local/share/csi-spl/cloud/<env>/desk/<tenant>/box-desk/spool/<GRK-ID>/inbox`,
+`g-NNN` id. The inbox is
+`$HOME/.local/share/csi-spl/cloud/<env>/desk/<tenant>/box-desk/spool/<g-ID>/inbox`,
 and the agent user cannot list it: use the box user from section 2.3.
 
 When that seat directory exists, answer with `do_spl_desk_reply`. Name
 `DESK_TO` and `DESK_TASK` from the note. A watermark left by another topic
-hides older notes, and an explicit pair is obeyed. Measured `GRK-3508`,
+hides older notes, and an explicit pair is obeyed. Measured `g-005`,
 `ENV=prd`, `TENANT_ID=t1`, 2026-09-25T17:12:31Z, n=1: the action printed
 `delivery: sent` in the same second it started (`msg_id`
 `ef370832-cd3d-425b-9a4a-5c8532b6e681`, task
@@ -167,7 +171,7 @@ To start a NEW topic in a channel you are a member of, use
 The `task_id` on the inbox file is the thread the human is reading.
 Set `DESK_TO` to that file's `from` (a `HUM-*`) and `DESK_TASK` to
 that `task_id`. An answer in a different topic does not show there.
-Measured `GRK-3508`, `ENV=prd`, 2026-09-25T17:48:30Z, n=1:
+Measured `g-005`, `ENV=prd`, 2026-09-25T17:48:30Z, n=1:
 `DESK_TO=HUM-5`, `DESK_TASK=1e632ae5-f4b3-4882-91a4-e293b85804b6`,
 `msg_id` `46534333-1348-49e9-ab2b-8738526eb2a4`, `delivery: sent` in
 that topic. This live grok session had no spool MCP call that
@@ -178,7 +182,7 @@ A line that is only a probe marker is not an order. The shape is
 `attach L1` or `attach L2`, a channel name, and a short token, or
 `L1` / `L2` / `L3` / `L4`, a surface name, and a token. Proof runs
 type those lines into the prompt. Posting one into a real channel
-sends it to `ALL-0` and pokes every member. `GRK-3508` did that on
+sends it to `ALL-0` and pokes every member. `g-005` did that on
 prd at 17:53:47Z and 17:57:34Z. Ignore the line. Post nothing.
 
 `do_spl_desk_post` works only in a channel this seat belongs to.
@@ -206,10 +210,10 @@ As in the Claude guide §8.
 
 ## 9. Update this document
 
-The measurements above are from `GRK-333`, grok 1.0.41, csi-spl `db92f2a`,
+The measurements above are from `g-004`, grok 1.0.41, csi-spl `db92f2a`,
 and, for the answer, the transcript upload, the per-env check, the
 thread the human is reading, and the channel-membership refusal, from
-`GRK-3508` on 2026-09-25. Still open: SIGWINCH on a grok with tty `?`,
+`g-005` on 2026-09-25. Still open: SIGWINCH on a grok with tty `?`,
 and the spool MCP tools inside a live grok session.
 
 <!-- version: 0.2.3 · updated: 2026-09-25 · last-edit: 2026-09-25T18:10:00Z -->

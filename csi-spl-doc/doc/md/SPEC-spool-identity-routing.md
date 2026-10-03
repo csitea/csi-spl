@@ -6,7 +6,7 @@ Git-spec: `csi-spl-doc/specs/004-spool-identity-routing/`
 Related: `specs/002-box-agent-messaging/contracts/trust-modes.md`, `SPEC-spool-hub-rental.md`, `specs/002-box-agent-messaging/`
 
 Hub crypto is **per box**, not per agent — `specs/002-box-agent-messaging/contracts/trust-modes.md`.
-`from`/`to` remain `CLE-07`. The box key signs. Local mode has **no** keys.
+`from`/`to` remain `c-004`. The box key signs. Local mode has **no** keys.
 
 ---
 
@@ -17,7 +17,7 @@ Hub crypto is **per box**, not per agent — `specs/002-box-agent-messaging/cont
 | **Tenant id** | which paid hub namespace | `$SPOOL_HUB_URL` / Host |
 | **Tenant root** | who may pin/revoke **box** pubkeys | Ed25519; private key held by the renter |
 | **Box keypair** | SSH-like commander/commandee | one Ed25519 per `$SPOOL_BOX_ID` (hub mode only) |
-| **Agent id** | who authored / who should recv | `CLE-07` — a name, **not** a hub key |
+| **Agent id** | who authored / who should recv | `c-004` — a name, **not** a hub key |
 | **Box id** | which machine | `$SPOOL_BOX_ID` required in hub mode |
 | **Door (private deploy only)** | GCP principal for an org Cloud Run | not used for public rental |
 
@@ -30,22 +30,27 @@ Display names, tmux titles, and OS users are **not** identities.
 
 ## 2. Agent ids
 
-Regex (unchanged): `^[A-Z]{2,4}-[0-9]+$`.
+Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
+`^[acgq]-[0-9]{3}$` (lower case letter followed by 3 digits `004`..`999`).
+Legacy agent ids (`^(CLE|AGY|GRK|QWN)-[0-9]+$`) end at `2026-10-03T20:59:59Z`.
+Roles `001`..`003` are reserved seats (`c-001` orchestrator, `c-002` master dispatcher, `c-003` failover dispatcher; `a-001`, `g-001`, `q-001` never handed out).
 
-Reserved prefixes:
+Reserved prefixes / letters:
 
-| Prefix | Kind |
+| Prefix / Letter | Kind |
 |---|---|
-| `CLE` | Claude Code |
-| `GRK` | Grok |
-| `AGY` | Antigravity |
-| `HUM` | human operator (viewer / rare sender; not required in 002) |
-| `BOX` | forbidden as an agent prefix (box id lives in env, not in `from`) |
+| `c-` (legacy `CLE-`) | Claude Code |
+| `g-` (legacy `GRK-`) | Grok |
+| `a-` (legacy `AGY-`) | Antigravity |
+| `q-` (legacy `QWN-`) | Qwen Code |
+| `HUM-` | human operator (viewer / rare sender; not required in 002) |
+| `BOX-` | forbidden as an agent prefix (box id lives in env, not in `from`) |
 
-A new vendor adds a prefix. Same API.
+A new vendor adds a letter. Same API.
 
 **Scope of agent ids:** unique **on one box** (one directory
-`$SPOOL_ROOT/CLE-07`). Two boxes MAY both have `CLE-07`. Hub addressing is
+`$SPOOL_ROOT/c-004`). Two boxes MAY both have `c-004`. Fleet addressing is
+`c-NNN@<box>` (spec 058 / spec 061 §3.3); hub addressing is
 `(box_id, agent_id)` — see `specs/002-box-agent-messaging/contracts/trust-modes.md` envelope `from_box` /
 `to_box`.
 
@@ -57,9 +62,9 @@ with a **different** pubkey → **409**. Same pubkey → 200.
 
 **Sub-agents (Hierarchy):** Subagents (e.g. child subagents spawned by Antigravity
 or Claude Code) MUST NOT inherit the parent ID and MUST NOT use dotted sub-IDs
-(`AGY-01.1` is rejected by the schema regex). Each subagent is an independent,
-first-class peer on the bus allocated its own distinct top-level ID (e.g. `AGY-02`,
-`AGY-03`) via the box allocator, equipped with its own inbox/outbox directory
+(`a-004.1` is rejected by the schema regex). Each subagent is an independent,
+first-class peer on the bus allocated its own distinct top-level ID (e.g. `a-005`,
+`a-006`) via the box allocator, equipped with its own inbox/outbox directory
 (`$SPOOL_ROOT/<id>/{inbox,outbox,archive}`). Keypairs and pins are per-box,
 shared by all agents on that box.
 

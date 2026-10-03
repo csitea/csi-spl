@@ -1,0 +1,6 @@
+Lay-What: On a phone, both "Back" buttons work again after opening a topic, instead of going dead until the app was restarted.
+Lay-How: The app now keeps the page underneath an open topic free of that topic's address, so going back no longer re-opens the same topic.
+Lay-Why: The owner found that Back on both the top and bottom bars sometimes did nothing and the app had to be closed.
+Tech-What: WUI useMobileStack: the level-3 push owns the topic URL, and popstate onto a level 1/2 entry drops a stale topic/in query.
+Tech-How: pushLevel strips topic/in from the entry below; the popstate handler heals histories written by older builds; desktop unchanged (isMobile gate); e2e mobile-back-stuck at 390 and 820 px.
+Tech-Why: A link writing ?topic= before the topic opened tagged the level-2 entry with it, so Back landed on it, the router re-opened the topic and pushed again.

@@ -868,6 +868,11 @@ type viewMsg struct {
 	// Spec 068 (rdb 0110): the responsible seat, <id>@<box>. Omitted while
 	// nobody is responsible.
 	Responsible string `json:"responsible,omitempty"`
+	// Spec 067 (rdb 0112): the channel topic a DM is about, and the DM a
+	// channel copy mirrors. Browser only, never in a box envelope (dm_ref.go).
+	// Omitted while unset.
+	RefTaskID string `json:"ref_task_id,omitempty"`
+	MirrorOf  string `json:"mirror_of,omitempty"`
 	// SPL-952 (rdb 0060): the kind as set after sending. Omitted while it was
 	// never changed; the envelope then carries the truth.
 	Kind      string `json:"kind,omitempty"`
@@ -1093,7 +1098,7 @@ func viewMsgsIn(rows []store.ViewMsg, react map[string][]store.StoredReaction, t
 		}
 		v := viewMsg{Cursor: encCursor(m.ReceivedAt, m.MsgID), ReceivedAt: rfc(m.ReceivedAt),
 			Env: trimEnv(m.Env, home), Deliveries: viewDeliveries(m.Deliveries), IsParent: m.IsParent,
-			TypedBy: m.TypedBy, Responsible: m.Responsible}
+			TypedBy: m.TypedBy, Responsible: m.Responsible, RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf}
 		if rs := groupReactions(react[m.MsgID]); len(rs) > 0 {
 			v.Reactions = rs
 		}

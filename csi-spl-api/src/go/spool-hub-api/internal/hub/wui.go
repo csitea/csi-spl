@@ -897,6 +897,14 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	if responsible != "" {
 		frame["responsible"] = responsible
 	}
+	// Spec 067: as the view row carries them; the frame only, never a box's
+	// envelope (dm_ref.go).
+	if row.RefTaskID != "" {
+		frame["ref_task_id"] = row.RefTaskID
+	}
+	if row.MirrorOf != "" {
+		frame["mirror_of"] = row.MirrorOf
+	}
 	b, err := encodeFrame(frame)
 	if err != nil {
 		return

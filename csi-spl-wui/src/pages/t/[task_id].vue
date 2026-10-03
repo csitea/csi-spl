@@ -2,8 +2,14 @@
   <div class="feed-col">
     <header class="feed-header">
       <MobileBack />
-      <h2><NuxtLink :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink> / <code>{{ shortId }}</code> <ArchivedBadge v-if="store.archivedAt" :at="store.archivedAt" /></h2>
-      <span class="muted">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
+      <!-- t1 1d8e647d: the title, one line, never the raw id -->
+      <h2 class="topic-page-heading">
+        <NuxtLink class="topic-page-crumb" :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink>
+        <span class="topic-page-sep" aria-hidden="true">/</span>
+        <span v-if="heading" class="topic-page-title" data-test="topic-page-title" :title="heading">{{ heading }}</span>
+        <ArchivedBadge v-if="store.archivedAt" :at="store.archivedAt" />
+      </h2>
+      <span class="muted topic-page-status" :title="t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) })">{{ t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }) }}</span>
       <!-- SPL-963: the thread's control, as in the right pane -->
       <LazyCardClipControl pane="thread" />
     </header>
@@ -44,6 +50,7 @@ import type { SpoolMessage } from '~/types/spool'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { topicTitleFromRows } from '~/utils/view-api.mjs'
 
 const route = useRoute()
 const store = useLiveFeed('main')
@@ -58,6 +65,9 @@ const localePath = useLocalePath()
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
+/* t1 1d8e647d: the header names the topic by its oldest row. While
+   older pages are still loading, a reply must not stand in as the title. */
+const heading = computed(() => (store.hasOlder ? '' : topicTitleFromRows(store.messages, null)))
 const topic = useTopicStore()
 const sidePane = useSidePane()
 /* SPL-989: a topic deep link is the phone's level 3; Back steps to the Topics list (level 2) */

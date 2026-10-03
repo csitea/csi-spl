@@ -280,6 +280,40 @@ html.pane-dragging * {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* t1 1d8e647d: the topic page (/t) breadcrumb is one row at every
+   width, including 360-430 px. The title ellipsizes; the full text is
+   its hover. The id is not shown. The status gives way before the title. */
+.feed-header:has(.topic-page-heading) {
+  flex-wrap: nowrap;
+}
+.feed-header h2.topic-page-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  flex: 1 1 12rem;
+  min-width: 7rem;
+  overflow: hidden;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.topic-page-crumb,
+.topic-page-sep {
+  flex: 0 0 auto;
+}
+.topic-page-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topic-page-status {
+  flex: 0 2 auto;
+  min-width: 0;
+  max-width: 11rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 /* SPL-941: the middle pane's FeedHeader is one row at every width - the
    title ellipses (full text on hover) so the card height control keeps its
    place at the right edge and the document never scrolls sideways. */

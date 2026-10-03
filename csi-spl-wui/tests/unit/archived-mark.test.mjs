@@ -121,7 +121,7 @@ describe('the open topic header marks an archived topic', () => {
   const panes = [
     ['TopicPane', cut(templateOf('src/components/TopicPane.vue'), '<header>'), (at) => ({ archivedAt: at, heading: 'h', topic: {} })],
     ['LiveTopicPane', cut(templateOf('src/components/LiveTopicPane.vue'), '<header>'), (at) => ({ pane: { archivedAt: at }, heading: 'h', topic: {} })],
-    ['/t/<id>', cut(templateOf('src/pages/t/[task_id].vue'), '<h2>'), (at) => ({ store: { archivedAt: at }, shortId: 'abc', t: (k) => k, localePath: (p) => p })],
+    ['/t/<id>', cut(templateOf('src/pages/t/[task_id].vue'), '<h2 '), (at) => ({ store: { archivedAt: at }, heading: 'the topic title', t: (k) => k, localePath: (p) => p })],
   ]
   for (const [name, tpl, ctx] of panes) {
     it(`${name}: archived -> badge; live -> none (control)`, async () => {

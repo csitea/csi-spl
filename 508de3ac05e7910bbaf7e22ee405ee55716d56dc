@@ -1,0 +1,6 @@
+Lay-What: Several message actions are a little faster, such as changing a message's kind, archiving, reacting, moving and merging.
+Lay-How: During one request the server remembers who is in a channel instead of looking it up again each time.
+Lay-Why: The same member list was read from the database several times per action.
+Tech-What: A per-request memo of channel_humans, opened by messageDoor and read by canReadChannel and channelMemberSet; dropped when the request ends, errors never memoised.
+Tech-How: privacy.go holds the memo on the request context; TestChannelHumansMemoIsPerRequest proves it never outlives the request.
+Tech-Why: Perf round 4 G1: Postgres round trips for move 35 -> 33, merge-topic 49 -> 46 (n=5).

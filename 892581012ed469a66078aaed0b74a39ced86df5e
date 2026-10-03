@@ -1,0 +1,6 @@
+Lay-What: The app no longer shows broken text when part of its translations fails to download.
+Lay-How: A failed download of the extra translations is now noticed and treated as a failure instead of being taken as loaded.
+Lay-Why: When that download failed silently, screens could show raw keys or "[object Object]" in place of words.
+Tech-What: The second i18n catalogue loader treats a chunk that Vite resolves as undefined as a failed load; the i18n-split e2e waits for the keys and flags [object Object].
+Tech-How: i18n-more.client.ts checks the resolved module before merging it; i18n-split.test.mjs gains the stricter control.
+Tech-Why: P3-06 follow-up: a failed chunk could resolve to undefined and be merged as an empty catalogue.

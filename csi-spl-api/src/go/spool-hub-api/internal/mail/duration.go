@@ -11,9 +11,7 @@ import (
 // (rounded), as the English wording always did. The templates place it where
 // the counting form reads naturally ("…: 24 tuntia").
 func Duration(locale string, d time.Duration) string {
-	if d < time.Minute {
-		d = time.Minute
-	}
+	d = max(d, time.Minute)
 	u, n := unitsMinute, int(d.Round(time.Minute)/time.Minute)
 	if d%time.Hour == 0 {
 		u, n = unitsHour, int(d/time.Hour)

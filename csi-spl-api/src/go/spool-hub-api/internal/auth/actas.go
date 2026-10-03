@@ -112,10 +112,7 @@ func (h *Handler) startActAs(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "sign session")
 		return
 	}
-	maxAge := int(res.ExpiresAt.Sub(h.now()).Seconds())
-	if maxAge < 1 {
-		maxAge = 1
-	}
+	maxAge := max(int(res.ExpiresAt.Sub(h.now()).Seconds()), 1)
 	http.SetCookie(w, h.sessionCookie(tok, maxAge))
 	h.log.Info().Str("admin", s.HumanID).Str("target", res.TargetHum).Str("clone", res.CloneHum).
 		Str("tenant", tenant).Msg("auth.act_as_start")

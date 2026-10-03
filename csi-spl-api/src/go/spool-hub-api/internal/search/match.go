@@ -437,19 +437,13 @@ func (q *Query) Snippet(body string) (string, []Span) {
 	if hs := q.HighlightWords(flat); len(hs) > 0 {
 		first = len([]rune(string(utf16Prefix(flat, hs[0][0]))))
 	}
-	start := first - 60
-	if start < 0 {
-		start = 0
-	}
+	start := max(first-60, 0)
 	if start > 0 { // never cut a word in half
 		for start < first && rs[start-1] != ' ' {
 			start++
 		}
 	}
-	end := start + SnippetMax - 4
-	if end > len(rs) {
-		end = len(rs)
-	}
+	end := min(start+SnippetMax-4, len(rs))
 	if end < len(rs) {
 		e := end
 		for e > first && rs[e] != ' ' {

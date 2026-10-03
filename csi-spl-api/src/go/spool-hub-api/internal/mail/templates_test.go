@@ -154,7 +154,7 @@ func TestDurationPlurals(t *testing.T) {
 		d    time.Duration
 		want string
 	}{
-		{"en", time.Hour, "1 hour"}, {"en", 24 * time.Hour, "24 hours"}, {"en", 90 * time.Minute, "90 minutes"},
+		{"en", time.Hour, "1 hour"}, {"en", 24 * time.Hour, "24 hours"}, {"en", 90 * time.Minute, "90 minutes"}, {"en", 30 * time.Second, "1 minute"},
 		{"ru", time.Hour, "1 час"}, {"ru", 24 * time.Hour, "24 часа"}, {"ru", 5 * time.Hour, "5 часов"},
 		{"ru", 11 * time.Hour, "11 часов"}, {"ru", 21 * time.Hour, "21 час"}, {"ru", 90 * time.Minute, "90 минут"},
 		{"pl", 22 * time.Hour, "22 godziny"}, {"pl", 12 * time.Hour, "12 godzin"}, {"pl", 21 * time.Hour, "21 godzin"},

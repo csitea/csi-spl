@@ -259,6 +259,20 @@ func TestHighlights(t *testing.T) {
 	}
 }
 
+// TestSnippetEdges: a first hit near the start is not cut before the body, and
+// one near the end is not cut past it.
+func TestSnippetEdges(t *testing.T) {
+	q, _ := Parse("needle", now)
+	head, _ := q.Snippet("the needle " + strings.Repeat("word ", 100))
+	if !strings.HasPrefix(head, "the needle ") || !strings.HasSuffix(head, " …") || len([]rune(head)) > SnippetMax {
+		t.Fatalf("head snippet %q", head)
+	}
+	tail, _ := q.Snippet(strings.Repeat("word ", 100) + "the needle")
+	if !strings.HasPrefix(tail, "… ") || !strings.HasSuffix(tail, "the needle") || len([]rune(tail)) > SnippetMax {
+		t.Fatalf("tail snippet %q", tail)
+	}
+}
+
 // TestOperatorTable: every operator is documented and reachable by name.
 func TestOperatorTable(t *testing.T) {
 	issueFixture(t)

@@ -5,10 +5,14 @@
  * useKeyboardInset()  - keeps `--kb-inset` on <html> equal to the on-screen
  *                       keyboard's height (visualViewport), so anything docked
  *                       at the bottom (the composer, a bottom sheet, the send
- *                       error) sits ABOVE the keyboard. One listener per tab.
+ *                       error) sits ABOVE the keyboard. It subscribes to the
+ *                       tab's one passive, rAF-coalesced viewport source
+ *                       (utils/viewport-resize.mjs, perf round 4 W5), so it
+ *                       runs at most once per frame and never during mount.
  */
 import { keyboardInset } from '~/utils/touch-ui.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { onViewportResize } from '~/utils/viewport-resize.mjs'
 
 /** SPL-989's one breakpoint (layouts/default.vue installs the stack) */
 export function usePhone() {
@@ -29,12 +33,8 @@ export function useKeyboardInset() {
       document.documentElement.style.setProperty('--kb-inset', `${px}px`)
     }
     document.documentElement.style.setProperty('--kb-inset', '0px')
-    if (vv) {
-      vv.addEventListener('resize', apply)
-      vv.addEventListener('scroll', apply)
-    }
-    window.addEventListener('resize', apply)
-    apply()
+    /* the first innerHeight read waits for the first frame too */
+    onViewportResize(apply, { visual: true, initial: true })
   }
   return kbInset
 }

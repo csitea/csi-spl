@@ -1888,8 +1888,10 @@ declare module '~/utils/now-tick.mjs' {
 }
 
 declare module '~/utils/viewport-resize.mjs' {
-  export function createViewportResize(env?: { win?: { addEventListener: (...a: unknown[]) => void, removeEventListener: (...a: unknown[]) => void } | null, frame?: (fn: () => void) => unknown }): { subscribe(fn: () => void): () => void, size(): number }
-  export function onViewportResize(fn: () => void): () => void
+  type ViewportTarget = { addEventListener: (...a: unknown[]) => void, removeEventListener: (...a: unknown[]) => void }
+  type ViewportSubscribeOpts = { visual?: boolean, initial?: boolean }
+  export function createViewportResize(env?: { win?: (ViewportTarget & { visualViewport?: unknown }) | null, vv?: ViewportTarget | null, frame?: (fn: () => void) => unknown }): { subscribe(fn: () => void, opts?: ViewportSubscribeOpts): () => void, size(): number }
+  export function onViewportResize(fn: () => void, opts?: ViewportSubscribeOpts): () => void
 }
 
 declare module '~/utils/issue-columns-pref.mjs' {

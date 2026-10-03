@@ -12,7 +12,8 @@
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
 //	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
 //	          [--to-box <box_id>]   (hub mode only, spec 003)
-//	recv    --as <id> [--ack]
+//	recv    --as <id> [--ack] [--compact]   --compact: one block per message,
+//	          `from kind task_id [files=N]` then the body (no v, msg_id, ts)
 //	put-file <path>            put-dir <path>
 //	get-file <file_id> <dest>  get-dir <file_id> <dest>
 //	tail    [--task <uuid>] [--json]
@@ -64,8 +65,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
@@ -321,6 +324,7 @@ func cmdRecv(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("recv", flag.ContinueOnError)
 	as := fs.String("as", "", "receiving agent id")
 	ack := fs.Bool("ack", false, "move returned messages to archive/")
+	compact := fs.Bool("compact", false, "print `from kind task_id` + body per message, not JSON")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -329,13 +333,31 @@ func cmdRecv(cfg *config.Config, args []string) int {
 	}
 	msgs, err := action.Recv(cfg, *as, *ack)
 	// Print the valid messages regardless (they were verified); [] when empty.
-	if msgs != nil {
+	if *compact {
+		writeCompact(os.Stdout, msgs)
+	} else if msgs != nil {
 		fmt.Println(action.JSON(msgs))
 	}
 	if err != nil {
 		return fail(err)
 	}
 	return 0
+}
+
+// writeCompact prints what a reader acts on (token/focus practice 09): a
+// `from kind task_id` header, ` files=N` when there are attachments, then
+// the body; a blank line separates messages. Nothing at all when empty.
+func writeCompact(w io.Writer, msgs []*msg.Message) {
+	for i, m := range msgs {
+		if i > 0 {
+			fmt.Fprintln(w)
+		}
+		fmt.Fprintf(w, "%s %s %s", m.From, m.Kind, m.TaskID)
+		if n := len(m.Files); n > 0 {
+			fmt.Fprintf(w, " files=%d", n)
+		}
+		fmt.Fprintf(w, "\n%s\n", strings.TrimRight(m.Body, "\n"))
+	}
 }
 
 func cmdPut(cfg *config.Config, args []string, dir bool) int {

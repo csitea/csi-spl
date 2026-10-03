@@ -1,6 +1,7 @@
 # 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **v0.4.1, every owner question answered (1.3, section 9)**; build lanes L1..L3 started (section 8).
+Status: **v0.4.2, every owner question answered (1.3, section 9)**; build lanes L1..L3 started (section 8);
+every OD script lives in source (acceptance check 8.1).
 Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
 lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
 `469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
@@ -146,6 +147,14 @@ for the next session in its seat (6.1). This reverses spec 060's "no step
 calls a model to decide, summarise or write" for this one step only; the
 mechanical 060 handoff file is still written and still seeds the new
 session.
+
+> typed by HUM-10 in the PC's c-001 terminal at 14:23Z (relayed by
+> c-001@<pc box>, spool msg `3feb79fe`): "also make sure all of the scripts
+> are in the source code of trhe project ..."
+
+So every script an OD runs is a named action in this repo, installed from it:
+nothing ad hoc under `/var/tmp` or a home directory. L3, L6 and L7 each carry
+the acceptance check of 8.1.
 
 So the PC's hourly restarts run 7 minutes after sat's (6.1): the two boxes
 never restart the same seat at once.
@@ -425,17 +434,42 @@ which from then on resolves to the ODs.
 |---|---|---|
 | L1 hub: the columns (**c-116@sat**) | the next free rdb migration (6 columns + the partial index + `needs_peer`; `responsible` back-filled for messages to one agent); store memory + Postgres; box frame `claim` (`poll / renew / release / done`); CLI `spool claim` | `TestMessageClaimPoll` (memory + Postgres: 4 pollers, 100 messages, each locked exactly once; lock expiry; non-responsible close refused; dead-letter at 4; `not_by`); `TestBoxMessageClaim` (two boxes) |
 | L2 hub: answer once (**c-117@sat**) | the `answers` guard on agent posts (responsible + gen + unique) | `TestAnswerOnce`: two peers answer one message, one 200, one 409 |
-| L3 orc: poll loop (**c-118@sat**) | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; live as soon as it lands | `peer-poll.tst.sh`: 8 simulated ODs on 2 boxes against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence |
+| L3 orc: poll loop (**c-118@sat**) | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; live as soon as it lands | `peer-poll.tst.sh`: 8 simulated ODs on 2 boxes against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence; **acceptance 8.1** for the 5 s poll loop and peer-ensure |
 | L4 orc: `--to peers` | `spool-send.sh` (`orchestrator` -> `peers`), `asks.sh` (lock moved to the message) | `test-fleet-send.sh` and `asks.tst.sh` extended: one report, 4 seats, exactly 1 responsible |
 | L5 orc: mutexes + fence | the spawn launchers and the prd wrappers take `spawn` / `prd-<target>` and re-check the fence; `do_spl_fleet_config` writes every machine or none | `spawn-mutex.tst.sh`: two peers spawn at once, one spawns; a lost fence stops a deploy |
-| L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45` on sat, `7,22,37,52` on the PC via `PEER_RESTART_OFFSET`), `do_spl_peer_distill` (5 min before each slot), their `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the three new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat on both offsets, one seat at a time, a failed start keeps the old one; the distill poke reaches only the seat due next; a summary within the caps reaches the new session's seed verbatim, an oversize one is cut at the cap, a missing one restarts on the mechanical handoff alone with one `WARN distill-missing`; a crontab fixture before / after |
-| L7 seats + drill | `do_spl_peer_setup` (installs the grok CLI on the box; claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
+| L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45` on sat, `7,22,37,52` on the PC via `PEER_RESTART_OFFSET`), `do_spl_peer_distill` (5 min before each slot), their `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the three new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat on both offsets, one seat at a time, a failed start keeps the old one; the distill poke reaches only the seat due next; a summary within the caps reaches the new session's seed verbatim, an oversize one is cut at the cap, a missing one restarts on the mechanical handoff alone with one `WARN distill-missing`; a crontab fixture before / after; **acceptance 8.1** for peer-restart and `do_spl_peer_distill` |
+| L7 seats + drill | `do_spl_peer_setup` (installs the grok CLI on the box; claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7; **acceptance 8.1** for the drill and on both live boxes |
 | L8 WUI | show the responsible agent on every message and topic (DM, channel, topic reply) | e2e: a post shows its responsible seat within 5 s |
 | L9 doc | rewrite SPEC-spool-fleet-roles.md sections 1, 3, 3.2, 4, 4.1, 4.3, 4.4, 7 | `do_check_dist_hygiene` |
 | L10 staged hand-over + delete | the hand-over above, one old session at a time; then, with L3 and L6 running on both boxes, the old roles' code and crons go | `fleet-lease.tst.sh` and the sweep's fixture tests retired with what they tested |
 
 L1, L2 touch only the hub; L3..L6 disjoint orc files; L8 only the WUI; L9
 only docs. L3..L6 and L8 need L1; L7 needs L1..L6; L10 is last.
+
+### 8.1 Acceptance check: every OD script is in the project source
+
+Owner, 14:23Z (1.3): "also make sure all of the scripts are in the source
+code of trhe project ...". L3, L6 and L7 are not done until this holds:
+
+- Every script the ODs run lives in csi-spl source, as a `./run` action
+  (`do_<verb>_<noun>` in a `<verb>-<noun>.func.sh`) or as
+  `csi-spl-orc/src/bash/scripts/*-cron.sh`, and every cron line is installed
+  by an `_install_cron` action, never typed into a crontab by hand.
+- That covers peer-restart (`do_spl_peer_restart`), peer-ensure
+  (`do_spl_peer_ensure`), the 5 s poll loop (`do_spl_peer_poll`), the T-5 min
+  self-summary (`do_spl_peer_distill`) and the drill (L7).
+- Nothing ad hoc under `/var/tmp` or a home directory: no hand-written
+  launcher, loop or wrapper outside a repo checkout, not even for the drill.
+
+**Mechanical test.** Every crontab line of the agent user and of the box
+owner user resolves to a path inside a repo checkout: for each non-comment
+line of `crontab -l` (both users), the command's script path, after
+`readlink -f`, starts with a csi-spl checkout root (`git -C <dir>
+rev-parse --show-toplevel` succeeds and names a csi-spl clone). One line
+that resolves under `/var/tmp`, a home directory or nowhere fails the check
+and names the line. L6 runs it on its crontab fixture before / after; L3 and
+L7 run it on both live boxes after install, as the agent user and the box
+owner user, and the drill log records the output (0 failing lines).
 
 **Deleted in L10:** the renew / watch loops and the role logic of
 `LEASE_CMD=renew|watch|fleet`, `LEASE_MASTER` / `LEASE_FAILOVER` /
@@ -459,4 +493,4 @@ None open. The v0.3 questions and their answers (all quoted in 1.3):
 | 5 | a grok OD may spawn, close lanes and run the pre-approved prd actions | **yes**, same skills (`220915e8`) |
 | 6 | the PC restarts 7 minutes after sat | **yes** (`5f00eaed`) |
 
-<!-- version: 0.4.1 · updated: 2026-10-03 · last-edit: 2026-10-03T14:25:00Z -->
+<!-- version: 0.4.2 · updated: 2026-10-03 · last-edit: 2026-10-03T14:25:05Z -->

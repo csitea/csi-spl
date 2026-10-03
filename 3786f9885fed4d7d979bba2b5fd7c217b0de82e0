@@ -1,0 +1,6 @@
+Lay-What: Stops a false alarm that said the automatic tidy-up machine was running an old copy of the code.
+Lay-How: A brief, harmless lag is now only reported if it is still there on the next check.
+Lay-Why: The false alarm appeared whenever someone fetched updates at the wrong moment, and wasted people's time.
+Tech-What: desk-reconcile-cron.sh reports a clean HEAD behind trunk only when the next tick still sees the same HEAD.
+Tech-How: First sighting is remembered, not reported; dirty or diverged HEAD is still reported at once; desk-cron-trunk.tst.sh cases 6-9.
+Tech-Why: The desk-cron checkout shares the clone, so any lane's git fetch moved origin/master past a current HEAD between checks.

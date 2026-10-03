@@ -42,15 +42,17 @@ jobs:
       # the pin + the runner's python + image, so a pin bump or an image python
       # change misses and reinstalls. A restored venv must still answer
       # --version 1.178.0 or it is rebuilt: the assert, not the key, is the gate.
-      - name: python version (cache key)
+      - name: python + image version (cache key)
         id: py
-        run: echo "ver=$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "ver=$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageOS:-none}" >> "$GITHUB_OUTPUT"
 
       - name: Restore semgrep venv
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/csi-spl/semgrep-venv
-          key: semgrep-1.178.0-py${{ steps.py.outputs.ver }}-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}
+          key: semgrep-1.178.0-py${{ steps.py.outputs.ver }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.py.outputs.image }}
 
       - name: Install semgrep 1.178.0
         run: |

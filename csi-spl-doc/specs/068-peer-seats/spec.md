@@ -1,6 +1,6 @@
 # 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **v0.3.2, owner answers folded in (1.3); Q1, Q4, Q6 open** (section 9).
+Status: **v0.3.3, owner answers folded in (1.3); Q1, Q4 open** (section 9).
 Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
 lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
 `469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
@@ -123,6 +123,11 @@ So the grok suspension is over **in general**, not only for the OD seats:
 `g-003` and `g-004` run grok on each box. A grok OD has the same powers as a
 claude OD: it spawns and closes lanes and runs the pre-approved prd actions
 under the lock + mutex (section 5).
+
+> `5f00eaed`, 12:38:48Z (spool msg `a4ddc31a`), to v0.3 Q6: "#6, yes."
+
+So the PC's hourly restarts run 7 minutes after sat's (6.1): the two boxes
+never restart the same seat at once.
 
 The glossary entries (OD, orchestrator dispatcher, agent) are c-001's action
 (c-002's note); 2 below holds the wording this spec uses.
@@ -306,11 +311,11 @@ frozen machine: any one able peer takes every message.
 
 | cron | where | does |
 |---|---|---|
-| `0,15,30,45 * * * *` `do_spl_peer_restart` (tag `# csi-spl:peer-restart`) | every box | seat N = `minute/15 + 1` (001 at `:00`, 002 at `:15`, 003 at `:30`, 004 at `:45`), on this box: stop its poll loop (its locks stay, `responsible` names the SEAT, not the session), write the 060 handoff file (060 section 6, minus its lease lines), `/exit-clean` the old session (kill after 5 min, 060 D4), start a fresh one under the same id with the handoff, start its poll loop. A fresh session that does not start in 5 min: alert (an owner DM) and start the old one's loop again (060 D2) |
+| `M,M+15,M+30,M+45 * * * *` `do_spl_peer_restart` (tag `# csi-spl:peer-restart`); `M` = `PEER_RESTART_OFFSET`: 0 on sat, 7 on the PC (owner, `5f00eaed`) | every box | seat N = `(minute - M)/15 + 1`: sat restarts 001 at `:00`, 002 at `:15`, 003 at `:30`, 004 at `:45`; the PC 001 at `:07`, 002 at `:22`, 003 at `:37`, 004 at `:52`. On this box: stop its poll loop (its locks stay, `responsible` names the SEAT, not the session), write the 060 handoff file (060 section 6, minus its lease lines), `/exit-clean` the old session (kill after 5 min, 060 D4), start a fresh one under the same id with the handoff, start its poll loop. A fresh session that does not start in 5 min: alert (an owner DM) and start the old one's loop again (060 D2) |
 | `* * * * *` `do_spl_peer_ensure` (tag `# csi-spl:peer-ensure`) | every machine | starts a missing poll loop of a local seat (the reboot path); nothing else |
 
-At most one seat per box restarts at a time (two in the fleet, at the same
-minute, unless Q6 offsets the PC), and its messages wait at most the restart
+At most one seat per box restarts at a time (and never the same seat on both boxes: the PC
+runs 7 minutes later), and its messages wait at most the restart
 (a few minutes) or the lock, whichever is first: the other ODs keep polling
 new messages meanwhile.
 
@@ -394,7 +399,7 @@ which from then on resolves to the ODs.
 | L3 orc: poll loop | `do_spl_peer_poll`, `do_spl_peer_ensure`, the local-lock fallback; live as soon as it lands | `peer-poll.tst.sh`: 8 simulated ODs on 2 boxes against a hub stub: pickup 5 s, a dead peer 125 s, an undetected stall 12 min, hub down, the split-brain fence |
 | L4 orc: `--to peers` | `spool-send.sh` (`orchestrator` -> `peers`), `asks.sh` (lock moved to the message) | `test-fleet-send.sh` and `asks.tst.sh` extended: one report, 4 seats, exactly 1 responsible |
 | L5 orc: mutexes + fence | the spawn launchers and the prd wrappers take `spawn` / `prd-<target>` and re-check the fence; `do_spl_fleet_config` writes every machine or none | `spawn-mutex.tst.sh`: two peers spawn at once, one spawns; a lost fence stops a deploy |
-| L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45`), its `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the two new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat, one seat at a time, a failed start keeps the old one; a crontab fixture before / after |
+| L6 orc: crons | `do_spl_peer_restart` (`0,15,30,45` on sat, `7,22,37,52` on the PC via `PEER_RESTART_OFFSET`), its `_install_cron`, the removals of 6.2 (`do_spl_peer_crons APPLY=1`: installs the two new tags, removes the three old ones, cuts the lease steps out of desk-reconcile) | `peer-restart.tst.sh`: slot -> seat on both offsets, one seat at a time, a failed start keeps the old one; a crontab fixture before / after |
 | L7 seats + drill | `do_spl_peer_setup` (installs the grok CLI on the box; claims 001..004 on a box, the harness per seat, seats on every desk; the spawn of section 8, as an action); the live drill: kill one OD, SIGSTOP one box's ODs, post 20 messages, measure each delay of section 7 (n >= 5 each) | the drill log vs section 7 |
 | L8 WUI | show the responsible agent on every message and topic (DM, channel, topic reply) | e2e: a post shows its responsible seat within 5 s |
 | L9 doc | rewrite SPEC-spool-fleet-roles.md sections 1, 3, 3.2, 4, 4.1, 4.3, 4.4, 7 | `do_check_dist_hygiene` |
@@ -415,11 +420,10 @@ c-002 / c-003 as distinct roles).
 ## 9. Owner questions
 
 The v0.3 numbering is kept, so an answer by number stays unambiguous.
-Answered: Q2 yes and Q5 yes (1.3); Q3 dropped (grok is not suspended).
+Answered: Q2 yes, Q5 yes, Q6 yes (1.3); Q3 dropped (grok is not suspended).
 Open, each answerable with one word:
 
 1. Order: build the lock and the 5 s loop first (L1..L3), then spawn the eight ODs and hand over (yes), or spawn the eight now with only today's lease holder acting until L3 is live (no)?
 4. "Pass them context" = the old c-001 / c-002 / c-003 each hand their open work to an OD through the 060 handoff file, then exit, one at a time (yes / no)?
-6. Offset the PC's hourly restarts by 7 minutes, so the two boxes never restart the same seat at once (yes), or the same minutes on both boxes (no)?
 
-<!-- version: 0.3.2 · updated: 2026-10-03 · last-edit: 2026-10-03T12:45:00Z -->
+<!-- version: 0.3.3 · updated: 2026-10-03 · last-edit: 2026-10-03T12:50:00Z -->

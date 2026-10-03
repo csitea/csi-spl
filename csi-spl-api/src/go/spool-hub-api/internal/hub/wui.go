@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
@@ -73,6 +74,27 @@ func (c *wuiConn) write(ctx context.Context, v any) error {
 	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
 	return wsjson.Write(ctx, c.conn, v)
+}
+
+// encodeFrame is v as wsjson.Write puts it on the wire (the JSON plus the
+// Encoder's newline), so a fan-out encodes one frame once for N sockets
+// (perf round 4, G8) and sends each the bytes with writeRaw.
+func encodeFrame(v any) ([]byte, error) {
+	var b bytes.Buffer
+	if err := json.NewEncoder(&b).Encode(v); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+// writeRaw is write for a frame encodeFrame already encoded: the same lock
+// and write timeout, no marshal.
+func (c *wuiConn) writeRaw(ctx context.Context, p []byte) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
+	defer cancel()
+	return c.conn.Write(ctx, websocket.MessageText, p)
 }
 
 func (c *wuiConn) close(code websocket.StatusCode, reason string) {
@@ -862,8 +884,12 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	if typedBy != "" { // specs/036 FR-011: top level, like edited_by
 		frame["typed_by"] = typedBy
 	}
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range targets {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 

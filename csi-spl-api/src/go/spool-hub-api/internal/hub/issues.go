@@ -417,8 +417,15 @@ func (s *Server) fanoutIssue(ctx context.Context, tenant string, frame map[strin
 		}
 	}
 	s.mu.Unlock()
+	if len(targets) == 0 {
+		return
+	}
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range targets {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 

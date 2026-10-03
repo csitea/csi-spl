@@ -7,9 +7,10 @@
 #
 # Usage:
 #   lane-map.sh [list] [--check <path,...>] [--agent <ID>] [--json] [--all]
-#       print the live lanes (<ID>@<box>, state, age, repo, branch, topic,
-#       files, scope, src); --check exits 3 when another live lane owns an
-#       overlapping path (--agent: the caller, never its own collision)
+#       print the live lanes younger than 2 h (<ID>@<box>, state, age, repo,
+#       branch, topic, files, scope, src); --all: every row, done ones too;
+#       --check prints ONLY `free` (exit 0) or `<path> owned by <ID>@<box>
+#       <branch>` per overlap (exit 3) (--agent: the caller, never its own)
 #   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T]
 #       write that agent's row, state live (the spawn path)
 #   lane-map.sh done --agent <ID>
@@ -28,14 +29,15 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-env.inc.sh"
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
 
-usage() { sed -n '9,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n '9,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 
 verb=list
 case "${1:-}" in list|put|done) verb="$1"; shift ;; -h|--help) usage ;; esac
 vars=()
+quiet=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --check)  vars+=("LANE_CHECK=${2:-}"); shift 2 ;;
+    --check)  vars+=("LANE_CHECK=${2:-}"); quiet=(--quiet); shift 2 ;;
     --agent)  vars+=("LANE_AGENT=${2:-}"); shift 2 ;;
     --repo)   vars+=("LANE_REPO=${2:-}"); shift 2 ;;
     --branch) vars+=("LANE_BRANCH=${2:-}"); shift 2 ;;
@@ -83,8 +85,12 @@ for k in LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX LANE_REPO_DIRS S
   [ -n "${!k:-}" ] && vars+=("$k=${!k}")
 done
 vars+=("SPOOL_ROOT=$SPOOL_ROOT")
+# --check answers one question, so stdout carries only the verdict: --quiet
+# moves ./run's framework lines to stderr, and of those only a WARN / FATAL
+# (the hub did not answer, a refusal) is passed on.
+if [ ${#quiet[@]} -gt 0 ]; then exec 2> >(grep --line-buffered -E 'WARN|FATAL|NOK' >&2); fi
 if [ "$(id -un)" != "$SPOOL_BOX_USER" ] && [ -z "${LANE_MAP_ORC:-}" ]; then
   home="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)"
-  cd "$orc" && exec sudo -n -u "$SPOOL_BOX_USER" env HOME="$home" "${vars[@]}" ./run -a "$action"
+  cd "$orc" && exec sudo -n -u "$SPOOL_BOX_USER" env HOME="$home" "${vars[@]}" ./run -a "$action" "${quiet[@]}"
 fi
-cd "$orc" && exec env "${vars[@]}" ./run -a "$action"
+cd "$orc" && exec env "${vars[@]}" ./run -a "$action" "${quiet[@]}"

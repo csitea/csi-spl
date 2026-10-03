@@ -10,9 +10,13 @@
 #   2. both machines write their lanes; EACH map shows BOTH, <id>@<box>
 #   3. the collision check: a path sat owns -> exit 3 naming CLE-100001@sat;
 #      a parent / child path collides too; a disjoint path and the caller's
-#      own lane do not
+#      own lane do not. The table form prints ONLY the verdict: `free`, or
+#      `<path> owned by <ID>@<box> <branch>` per overlap, never the map
 #   4. a lane spawned before the map existed (local worktree, no hub row)
-#      still shows, src local
+#      shows with LANE_ALL=1, src local; the default map hides it (no age)
+#      behind the `N older rows hidden (--all)` footer
+#   4b. the default map hides rows 2 h old or older; LANE_ALL=1 prints every
+#      row, the same table as before the hiding
 #   5. exit-clean: done keeps the row's fields; the default map hides it,
 #      LANE_ALL=1 shows it, and it no longer collides
 #   6. the hub down: WARN, the map falls back to this machine's worktrees,
@@ -22,7 +26,8 @@
 #      one): done writes ONE box id, this machine's (the "sat box-desk" defect)
 #   9. lane-map.sh: done for a role seat (c-001..c-003, a lease.conf id) is a
 #      no-op that never calls the action; a two-word box is refused client
-#      side; CONTROL: a normal lane id's done still calls it
+#      side; CONTROL: a normal lane id's done still calls it; --check runs
+#      the action --quiet (framework lines off stdout), a plain map does not
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -120,23 +125,41 @@ grep -E '^CLE-77920@box-desk .* hub\+local' <<<"$out" >/dev/null && grep -E '^CL
 
 # 3. the collision check
 out="$(on pc 'LANE_CHECK=csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh LANE_AGENT=CLE-77921 do_spl_lane_map' "${F[@]}")"; rc=$?
-[[ $rc -eq 3 && "$out" == *"COLLISION csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh <-> CLE-100001@sat"* ]] &&
-  pass "a file another machine's lane owns: exit 3, names CLE-100001@sat" || fail "collision (rc=$rc): $out"
+[[ $rc -eq 3 && "$(head -1 <<<"$out")" == "csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh owned by CLE-100001@sat CLE-100001-lease-gate" ]] &&
+  pass "a file another machine's lane owns: exit 3, one line '<path> owned by CLE-100001@sat <branch>'" || fail "collision (rc=$rc): $out"
+[[ "$out" != *AGENT@BOX* && "$out" != *CLE-77920@box-desk* ]] && pass "...and the check prints no map" || fail "check printed the map: $out"
 out="$(on pc 'LANE_CHECK=./csi-spl-orc/src/bash/run/ do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-77921)"; rc=$?
 [[ $rc -eq 3 && "$out" == *CLE-100001@sat* && "$out" == *CLE-77920@box-desk* ]] && pass "a parent dir collides with the files under it, on both machines" || fail "parent (rc=$rc): $out"
 out="$(on pc 'LANE_CHECK=csi-spl-doc/specs/058-multi-machine-fleet/spec.md do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-77921)"; rc=$?
 [[ $rc -eq 3 && "$out" == *CLE-77920@box-desk* ]] && pass "a file under a dir another lane owns collides" || fail "child (rc=$rc): $out"
 out="$(on sat 'LANE_CHECK=csi-spl-wui/src,csi-spl-orc/src/bash/run/spl-dispatch-lease.func.shx do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-100002)"; rc=$?
-[[ $rc -eq 0 && "$out" != *COLLISION* ]] && pass "disjoint paths (and a mere name prefix) do not collide" || fail "disjoint (rc=$rc): $out"
+[[ $rc -eq 0 && "$(head -1 <<<"$out")" == free && "$out" != *"owned by"* && "$out" != *AGENT@BOX* ]] &&
+  pass "disjoint paths (and a mere name prefix) do not collide: 'free', no map" || fail "disjoint (rc=$rc): $out"
 out="$(on sat 'LANE_CHECK=csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-100001)"; rc=$?
 [[ $rc -eq 0 ]] && pass "the caller's own lane never collides with itself" || fail "self (rc=$rc): $out"
 
 # 4. a lane the hub has no row for
 lane pc CLE-77930 old-lane
+out="$(on pc do_spl_lane_map "${F[@]}" LANE_ALL=1)"
+grep -E '^CLE-77930@box-desk .* local$' <<<"$out" >/dev/null && pass "a worktree with no hub row shows with LANE_ALL=1, src local" || fail "local-only lane: $out"
 out="$(on pc do_spl_lane_map "${F[@]}")"
-grep -E '^CLE-77930@box-desk .* local$' <<<"$out" >/dev/null && pass "a worktree with no hub row shows, src local" || fail "local-only lane: $out"
+[[ "$out" != *CLE-77930* && "$out" == *CLE-100001@sat* && "$(tail -1 <<<"$out")" == "1 older rows hidden (--all)" ]] &&
+  pass "the default map hides a row with no age while the hub answers, footer '1 older rows hidden (--all)'" || fail "no-age row hidden: $out"
 out="$(on sat do_spl_lane_map "${F[@]}")"
 [[ "$out" != *CLE-77930* ]] && pass "...and only on its own machine until it is written" || fail "sat sees an unwritten lane"
+
+# 4b. age: a row 2 h old or older is hidden by default, LANE_ALL=1 prints it
+cp "$T/hub/main.json" "$T/hub/main.json.keep"
+jq -c '.lanes |= map(if .agent_id == "CLE-100001" then .age_s = 7200 elif .agent_id == "CLE-77920" then .age_s = 7199 else . end)' \
+  "$T/hub/main.json.keep" >"$T/hub/main.json"
+out="$(on sat do_spl_lane_map "${F[@]}")"
+[[ "$out" == *CLE-77920@box-desk* && "$out" != *CLE-100001@sat* && "$(tail -1 <<<"$out")" == "1 older rows hidden (--all)" ]] &&
+  pass "the default map shows a 1h59m row, hides a 2h one, footer counts it" || fail "age hiding: $out"
+all="$(on sat do_spl_lane_map "${F[@]}" LANE_ALL=1)"
+want="$(on sat 'spl_lane_init; spl_lane_table "$(spl_lane_merge "$(spl_lane_hub --fleet main)" "$(spl_lane_local_rows)")"' "${F[@]}")"
+[[ "$all" == "$want" && "$all" == *CLE-100001@sat* && "$all" != *"rows hidden"* ]] &&
+  pass "LANE_ALL=1 prints every row, the whole table with no footer" || fail "LANE_ALL table: $all /// $want"
+mv "$T/hub/main.json.keep" "$T/hub/main.json"
 
 # 5. exit-clean
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=CLE-77920 LANE_STATE=done >/dev/null
@@ -205,6 +228,12 @@ for k in SPOOL_DESK_BOX LANE_BOX LANE_DESK_BOX; do
   [[ $rc -eq 64 && "$out" == *"$k must be ONE box id"*"sat box-desk"* && ! -s "$T/orc/calls" ]] &&
     pass "$k='sat box-desk' is refused client side (exit 64, names the value), the action is never called" || fail "two-word $k (rc=$rc): $out"
 done
+
+: >"$T/orc/calls"
+lm bash "$LM" --check a/b --agent c-077 >/dev/null 2>&1
+lm bash "$LM" >/dev/null 2>&1
+[[ "$(cat "$T/orc/calls")" == $'RUN -a do_spl_lane_map --quiet state= agent=c-077\nRUN -a do_spl_lane_map state= agent=' ]] &&
+  pass "--check runs the action --quiet (only the verdict on stdout); a plain map does not" || fail "quiet: $(cat "$T/orc/calls")"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

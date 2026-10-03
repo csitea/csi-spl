@@ -11,12 +11,17 @@
 # @description Without a fleet (no LANE_FLEET / lease.conf LEASE_FLEET) the map
 # @description is the local worktrees only - the one-machine behaviour.
 # @description With LANE_CHECK it is the spawn path's collision check: exit 3
-# @description when a LIVE lane of another agent owns an overlapping path.
+# @description when a LIVE lane of another agent owns an overlapping path. The
+# @description table form then prints ONLY the verdict: `free`, or one line per
+# @description overlap `<path> owned by <ID>@<box> <branch>` (token practice 01).
+# @description The default table hides the rows 2 h old or older, and those with
+# @description no age while the hub answered, behind a footer
+# @description `N older rows hidden (--all)`; LANE_ALL=1 shows every row.
 # @param LANE_FLEET (optional) - the fleet; default LEASE_FLEET (env, then <spool root>/dispatch/lease.conf)
 # @param LANE_ENV / LANE_TENANT (optional) - the hub env (dev|prd|self) and the tenant holding the map; default LEASE_ENV / LEASE_TENANT
 # @param LANE_DESK_BOX (optional) - the pinned desk box whose key signs the calls; default LEASE_DESK_BOX, then spl_desk_box_default
 # @param LANE_FORMAT (optional) - table (default) or json
-# @param LANE_ALL (optional) - 1 also lists done rows (the hub keeps them a week)
+# @param LANE_ALL (optional) - 1 also lists done rows (the hub keeps them a week) and the older rows the table hides
 # @param LANE_CHECK (optional) - comma-separated paths the caller is about to own; exit 3 on an overlap with another live lane
 # @param LANE_AGENT (optional) - the caller's own id, skipped by LANE_CHECK
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
@@ -45,8 +50,8 @@ do_spl_lane_map() {
 
   if [[ "$fmt" == json ]]; then
     jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" '{fleet: $f, hub: $h, lanes: .}' <<<"$rows"
-  else
-    spl_lane_table "$rows"
+  elif [[ -z "${LANE_CHECK:-}" ]]; then
+    spl_lane_table_recent "$rows"
   fi
   if [[ -n "${LANE_CHECK:-}" ]]; then
     spl_lane_check "$rows" || rc=$?
@@ -152,6 +157,19 @@ spl_lane_table() {
     column -t -s $'\t'
 }
 
+# The default table: rows younger than LANE_RECENT_S (2 h), plus the rows
+# with no age when the hub did not answer (then they are the whole map), and
+# a footer counting the rest. LANE_ALL=1 prints every row, as before.
+spl_lane_table_recent() {
+  local shown hidden
+  if [[ "${LANE_ALL:-0}" == 1 ]]; then spl_lane_table "$1"; return; fi
+  shown="$(jq -c --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" \
+    '[.[] | select((.age_s >= 0 and .age_s < $max) or (.age_s < 0 and $h != "ok"))]' <<<"$1")"
+  spl_lane_table "$shown"
+  hidden=$(( $(jq length <<<"$1") - $(jq length <<<"$shown") ))
+  (( hidden == 0 )) || echo "$hidden older rows hidden (--all)"
+}
+
 # Exit 3 when a live lane of another agent lists a path that overlaps one in
 # LANE_CHECK (one is the other, or contains it at a / boundary).
 spl_lane_check() {
@@ -163,7 +181,7 @@ spl_lane_check() {
     | .[] | select(.state == "live" and .agent_id != $me) as $l
     | $l.files[] | norm as $f
     | $w[] | select(over(.; $f))
-    | "COLLISION \(.) <-> \($l.agent_id)@\($l.agent_box) owns \($f) (\($l.scope))"' <<<"$1")"
+    | "\(.) owned by \($l.agent_id)@\($l.agent_box) \($l.branch)"' <<<"$1")"
   if [[ "$LANE_HUB_STATE" == unreachable ]]; then
     do_log "WARN the collision check saw this machine only (the hub did not answer)"
   fi
@@ -172,5 +190,6 @@ spl_lane_check() {
     do_log "WARN $(wc -l <<<"$hits") path(s) overlap another live lane: keep the new scope disjoint, or talk to that agent first"
     return 3
   fi
+  echo free
   do_log "INFO no live lane of another agent owns $LANE_CHECK"
 }

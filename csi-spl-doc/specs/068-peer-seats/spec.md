@@ -1,6 +1,6 @@
 # 068: orchestrator dispatchers (ODs) - four per box, each dispatches and orchestrates
 
-Status: **v0.3.3, owner answers folded in (1.3); Q1, Q4 open** (section 9).
+Status: **v0.4, every owner question answered (1.3, section 9)**; ready for the build lanes L1..L3.
 Spec only: no code, no `lease.conf`, cron, table or seat was touched by this
 lane. Draft 2026-10-03, c-098; v0.2 folded in the owner posts `d077dd4e`,
 `469e6391`, `b6dbd286`, `c1216b5e`; v0.3 the answers `9590b1d6`, `5dddc9e3`,
@@ -125,6 +125,15 @@ claude OD: it spawns and closes lanes and runs the pre-approved prd actions
 under the lock + mutex (section 5).
 
 > `5f00eaed`, 12:38:48Z (spool msg `a4ddc31a`), to v0.3 Q6: "#6, yes."
+
+> typed by HUM-10 in the PC's c-001 terminal at 14:15Z (relayed by
+> c-001@<pc box>, spool msg `143e6c97`): "q1 yes , q4 , yes" and "yes the new
+> setup will replace this lane".
+
+So **Q1 = yes**: order A, L1..L3 first, then the eight ODs, then the
+hand-over (section 8). **Q4 = yes**: the staged hand-over through the 060
+handoff file, one old session at a time. The old role sessions, c-001@<pc box>
+included, are retired by that hand-over (L10).
 
 So the PC's hourly restarts run 7 minutes after sat's (6.1): the two boxes
 never restart the same seat at once.
@@ -372,11 +381,11 @@ other agents. Just pass them context."
 **The catch.** The ODs cannot share messages safely until L1 (the columns),
 L2 (answer once) and L3 (the poll loop) exist. Spawned before then, the eight
 either all answer the same message or sit idle while today's lease holder
-does the work. Two orders, Q1 asks which:
+does the work. Two orders; the owner chose **A** (Q1 yes, 1.3):
 
 | order | steps | until L3 is live |
 |---|---|---|
-| **A. build first (recommended: the fastest SAFE path)** | L1, L2, L3 in parallel lanes, live on dev + prd; then spawn the eight ODs; then the staged hand-over | today's c-001 / c-002 / c-003 keep working exactly as now |
+| **A. build first (owner's choice)** | L1, L2, L3 in parallel lanes, live on dev + prd; then spawn the eight ODs; then the staged hand-over | today's c-001 / c-002 / c-003 keep working exactly as now |
 | B. spawn first | spawn the eight ODs now; only today's lease holder acts, the others stand by; L1..L3 follow | eight sessions mostly idle, and one of them the single point of failure this spec removes |
 
 **Owner step before any grok seat starts:** on each box, one interactive
@@ -388,8 +397,8 @@ them context" read as: each old role session (c-001, c-002, c-003 on each
 box) writes its 060 handoff file (section 6 of 060: in-flight terminal lines,
 open asks, outbox, unread inbox, live lanes, hold notes), an OD on the same
 box acks it, and the old session exits (`/exit-clean`, killed after 5 min).
-One old session at a time; the next only after the ack. Q4 confirms this
-reading. A lane already running keeps its task and reports to `orchestrator`,
+One old session at a time; the next only after the ack. The owner confirmed
+this reading (Q4 yes, 1.3). A lane already running keeps its task and reports to `orchestrator`,
 which from then on resolves to the ODs.
 
 | lane | scope (files) | test |
@@ -419,11 +428,15 @@ c-002 / c-003 as distinct roles).
 
 ## 9. Owner questions
 
-The v0.3 numbering is kept, so an answer by number stays unambiguous.
-Answered: Q2 yes, Q5 yes, Q6 yes (1.3); Q3 dropped (grok is not suspended).
-Open, each answerable with one word:
+None open. The v0.3 questions and their answers (all quoted in 1.3):
 
-1. Order: build the lock and the 5 s loop first (L1..L3), then spawn the eight ODs and hand over (yes), or spawn the eight now with only today's lease holder acting until L3 is live (no)?
-4. "Pass them context" = the old c-001 / c-002 / c-003 each hand their open work to an OD through the 060 handoff file, then exit, one at a time (yes / no)?
+| # | question | answer |
+|---|---|---|
+| 1 | build L1..L3 first, then spawn the eight ODs and hand over | **yes** (14:15Z) |
+| 2 | "two should be Grok" lifts the grok suspension | **yes**, and the suspension is over in general (`1ca9fa1d`, `0fefd316`) |
+| 3 | grok seats on claude while grok is suspended | dropped: grok is not suspended |
+| 4 | "pass them context" = the 060 handoff file, then exit, one at a time | **yes** (14:15Z) |
+| 5 | a grok OD may spawn, close lanes and run the pre-approved prd actions | **yes**, same skills (`220915e8`) |
+| 6 | the PC restarts 7 minutes after sat | **yes** (`5f00eaed`) |
 
-<!-- version: 0.3.3 · updated: 2026-10-03 · last-edit: 2026-10-03T12:50:00Z -->
+<!-- version: 0.4.0 · updated: 2026-10-03 · last-edit: 2026-10-03T14:20:00Z -->

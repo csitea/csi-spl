@@ -610,6 +610,17 @@ func (s *Session) Send(ctx context.Context, env *wire.Envelope) (wire.Frame, err
 // SendTyped is Send with a typed_by claim on the frame (specs/036 FR-009),
 // outside the signed envelope; "" sends the plain frame.
 func (s *Session) SendTyped(ctx context.Context, env *wire.Envelope, typedBy string) (wire.Frame, error) {
+	return s.sendFrame(ctx, env, wire.Frame{TypedBy: typedBy})
+}
+
+// SendAnswer is Send for a post that answers msg answers (spec 068 4.2),
+// from the seat that holds it on gen; a second answer is a 409 HubError.
+func (s *Session) SendAnswer(ctx context.Context, env *wire.Envelope, answers string, gen int64) (wire.Frame, error) {
+	return s.sendFrame(ctx, env, wire.Frame{Answers: answers, IfGen: gen})
+}
+
+// sendFrame sends env on a send frame carrying extra's typed_by / answers.
+func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.Frame) (wire.Frame, error) {
 	raw, err := env.Marshal()
 	if err != nil {
 		return wire.Frame{}, err
@@ -620,7 +631,7 @@ func (s *Session) SendTyped(ctx context.Context, env *wire.Envelope, typedBy str
 	}
 	id := m.MsgID
 	send := func() (wire.Frame, error) {
-		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: typedBy}, wire.TSent,
+		return s.request(ctx, wire.Frame{Type: wire.TSend, Env: raw, TypedBy: extra.TypedBy, Answers: extra.Answers, IfGen: extra.IfGen}, wire.TSent,
 			func(r wire.Frame) bool { return r.MsgID == id || (r.Type == wire.TError && r.MsgID == "") })
 	}
 	f, err := send()

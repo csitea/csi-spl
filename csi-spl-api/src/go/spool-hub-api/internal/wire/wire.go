@@ -169,6 +169,12 @@ type Frame struct {
 	// The hub never puts it on a frame to a box.
 	TypedBy string `json:"typed_by,omitempty"`
 
+	// send (spec 068 4.2): this post answers msg Answers, sent by the seat
+	// that holds it on IfGen (its responsible_gen). The hub stores it only
+	// from that seat on that gen, and only once; outside the signed envelope
+	// like TypedBy, and never on a frame to a box.
+	Answers string `json:"answers,omitempty"`
+
 	// sent
 	MsgID    string `json:"msg_id,omitempty"`
 	TaskID   string `json:"task_id,omitempty"`

@@ -107,6 +107,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, _, err := pg.PutFleetAsk(ctx, s.tenant, FleetAsk{Fleet: "main", AskID: uuid4(), Role: "orch", Kind: "blocker", From: "CLE-02"}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
+	// message_answers (rdb 0111, spec 068 4.2): the message is to CLE-07, so
+	// rdb 0110 made CLE-07@box-a responsible on gen 0; one answer per tenant.
+	if _, err := pg.ClaimAnswer(ctx, s.tenant, Answer{Answers: m.MsgID, AnswerMsgID: uuid4(), Seat: "CLE-07@box-a", AnsweredAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.CreateChannel(ctx, Channel{TenantID: s.tenant, ChannelID: s.channelID, Name: "c" + s.marker[:12], CreatedBy: "CLE-01", CreatedAt: now}); err != nil { // channels
 		t.Fatal(err)
 	}

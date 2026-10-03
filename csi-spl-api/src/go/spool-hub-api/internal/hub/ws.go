@@ -523,11 +523,18 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	if rf == nil {
 		rf = s.sendContentRefusal(ctx, x, env, m, f.TypedBy)
 	}
+	var undo func()
+	if rf == nil {
+		rf, undo = s.claimAnswer(ctx, x, env, m, f)
+	}
 	if rf != nil {
 		x.fail(ctx, id, rf.token, rf.status, rf.detail)
 		return
 	}
 	r, err := s.commitRowTyped(ctx, x.tenant, env, m, s.boxLevel(ctx, x.tenant, m.TaskID), f.TypedBy)
+	if err != nil && undo != nil {
+		undo()
+	}
 	if errors.Is(err, store.ErrConflict) {
 		x.fail(ctx, id, "conflict_msg", http.StatusConflict, "msg_id exists with a different envelope")
 		return

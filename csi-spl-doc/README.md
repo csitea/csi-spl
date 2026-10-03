@@ -11,6 +11,7 @@ consistency record: `specs/README.md`.**
 | Path | What |
 |---|---|
 | `doc/help/index.md` | **Spool User Help Center & Interface Guide** (end-user documentation) |
+| `doc/md/glossary.md` | **the app's lingo**: topic message, reply, card, channel, DM, section … one table, each term cited to en.json or code |
 | `doc/md/csi-spl.feature.md` | git-rel GCS estate (operator how-to) |
 | `doc/md/SPEC-spool-milestones.md` | **M1 technical proto → M2 public MVP (buy) → M3 rollout Slack UI** |
 | `doc/md/SPEC-spool-hub-api-infra.md` | copy csi-rel/pas-psf infra+DNS, not the shop |

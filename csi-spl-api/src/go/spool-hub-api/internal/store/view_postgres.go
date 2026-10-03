@@ -82,16 +82,21 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 	}
 	sql, args := viewTopicsSQL(tenant, q)
 	var out []TopicRow
-	err := s.queryTenantNoJIT(ctx, tenant, sql, args, func(rows pgx.Rows) error {
+	err := s.queryTenantNoJIT(ctx, tenant, sql, args, scanTopicRows(&out))
+	return out, err
+}
+
+// scanTopicRows appends each row of viewTopicsSQL's statement to out.
+func scanTopicRows(out *[]TopicRow) func(pgx.Rows) error {
+	return func(rows pgx.Rows) error {
 		var r TopicRow
 		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.FirstAt, &r.LastAt, &r.Count,
 			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
 			return err
 		}
-		out = append(out, r)
+		*out = append(*out, r)
 		return nil
-	})
-	return out, err
+	}
 }
 
 // pgScopeTenantNoJIT is pgScopeTenant plus jit off for the same implicit
@@ -363,6 +368,28 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 	if !canonUUIDRe.MatchString(q.TaskID) {
 		return nil, nil
 	}
+	// Two single-statement batches, two round trips (it was a
+	// BEGIN .. COMMIT transaction, five). Under READ COMMITTED each statement
+	// of that transaction already took its own snapshot, so the answer is the
+	// same: a delivery row is read at least as late as its message.
+	p := newTopicPage(tenant, q)
+	if err := s.queryTenant(ctx, tenant, p.read.sql, p.read.args, p.read.each); err != nil {
+		return nil, err
+	}
+	return p.finish(ctx, s, tenant)
+}
+
+// topicPage is ViewTopic's page read as a tenantRead, so another read can
+// ride its batch (perf round 4 G7, ViewTopicDoor), plus the rows it fills.
+type topicPage struct {
+	read tenantRead
+	out  []ViewMsg
+	idx  map[string]int
+	ids  []string
+}
+
+// newTopicPage builds the page statement of q (a canonical task id).
+func newTopicPage(tenant string, q TopicMsgQuery) *topicPage {
 	order := "ORDER BY received_at, msg_id::text"
 	if q.Desc {
 		order = "ORDER BY received_at DESC, msg_id::text DESC"
@@ -380,44 +407,40 @@ func (s *Postgres) ViewTopic(ctx context.Context, tenant string, q TopicMsgQuery
 	if q.HideArchived { // specs/041: the lobby feed
 		archived = " AND archived_at IS NULL"
 	}
-	// Two single-statement batches, two round trips (it was a
-	// BEGIN .. COMMIT transaction, five). Under READ COMMITTED each statement
-	// of that transaction already took its own snapshot, so the answer is the
-	// same: a delivery row is read at least as late as its message.
-	var out []ViewMsg
-	idx := map[string]int{}
-	var ids []string
-	err := s.queryTenant(ctx, tenant, `SELECT msg_id::text, received_at, env, edited_at, edited_by,
+	p := &topicPage{idx: map[string]int{}}
+	p.read = tenantRead{sql: `SELECT msg_id::text, received_at, env, edited_at, edited_by,
 				CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision)
 					FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END,
-				is_parent, typed_by, kind, kind_set_at, kind_set_by, `+moveCols("")+`
+				is_parent, typed_by, kind, kind_set_at, kind_set_by, ` + moveCols("") + `
 			FROM messages
 			WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3
 				AND ($4::timestamptz IS NULL OR (received_at, msg_id::text) > ($4::timestamptz, $5::text))
 				AND ($7::timestamptz IS NULL OR (received_at, msg_id::text) < ($7::timestamptz, $8::text))
-				AND `+door+archived+`
-			`+order+`
-			LIMIT $6`, append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
-		func(rows pgx.Rows) error {
+				AND ` + door + archived + `
+			` + order + `
+			LIMIT $6`, args: append([]any{tenant, q.TaskID, q.Now, optTime(q.AfterAt), q.AfterID, pgLimit(q.Limit), optTime(q.BeforeAt), q.BeforeID}, doorArgs...),
+		each: func(rows pgx.Rows) error {
 			v, err := scanViewMsg(rows)
 			if err != nil {
 				return err
 			}
-			idx[v.MsgID] = len(out)
-			ids = append(ids, v.MsgID)
-			out = append(out, v)
+			p.idx[v.MsgID] = len(p.out)
+			p.ids = append(p.ids, v.MsgID)
+			p.out = append(p.out, v)
 			return nil
-		})
-	if err != nil {
+		}}
+	return p
+}
+
+// finish reads the page's deliveries (and, with a memo, its reactions).
+func (p *topicPage) finish(ctx context.Context, s *Postgres, tenant string) ([]ViewMsg, error) {
+	if len(p.ids) == 0 {
+		return p.out, nil
+	}
+	if err := s.viewTopicDeliveries(ctx, tenant, p.ids, p.idx, p.out); err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		return out, nil
-	}
-	if err := s.viewTopicDeliveries(ctx, tenant, ids, idx, out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return p.out, nil
 }
 
 // viewTopicDeliveries fills out's delivery lists (idx: msg_id -> row). A view

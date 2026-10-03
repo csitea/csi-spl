@@ -589,28 +589,66 @@ func (s *Postgres) TopicAccess(ctx context.Context, tenant, task string, now tim
 	if !canonUUIDRe.MatchString(task) {
 		return a, nil
 	}
-	var chans, ends []string
-	var n int
-	err := s.queryRowTenant(ctx, tenant, `SELECT count(*)::int,
+	r := topicAccessRead(tenant, task, now, &a)
+	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
+	return a, err
+}
+
+// topicAccessRead is TopicAccess's aggregate as a tenantRead (one row), so
+// it can ride the page's batch (ViewTopicDoor).
+func topicAccessRead(tenant, task string, now time.Time, a *TopicAccess) tenantRead {
+	return tenantRead{sql: `SELECT count(*)::int,
 			array_agg(DISTINCT COALESCE(channel, '')),
 			COALESCE(array_agg(DISTINCT from_id) FILTER (WHERE channel IS NULL), '{}')
 				|| COALESCE(array_agg(DISTINCT to_id) FILTER (WHERE channel IS NULL), '{}')
 		FROM messages WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3`,
-		[]any{tenant, task, now}, &n, &chans, &ends)
-	if err != nil || n == 0 {
-		return a, err
+		args: []any{tenant, task, now}, each: func(rows pgx.Rows) error {
+			var chans, ends []string
+			var n int
+			if err := rows.Scan(&n, &chans, &ends); err != nil || n == 0 {
+				return err
+			}
+			a.Found, a.Channels = true, chans
+			seen := map[string]bool{}
+			for _, p := range ends {
+				if p != "" && !seen[p] {
+					seen[p] = true
+					a.DMParties = append(a.DMParties, p)
+				}
+			}
+			sort.Strings(a.Channels)
+			sort.Strings(a.DMParties)
+			return nil
+		}}
+}
+
+// ViewTopicDoor is TopicAccess and ViewTopic(q) in ONE batch (perf round 4
+// G7): the topic door's aggregate is independent of the page, so it rides
+// the page's round trip instead of paying its own. may is the door's
+// verdict on the aggregate, asked after the batch and before anything else
+// is read: a refused topic returns no rows and never reads its deliveries,
+// so what the page read is dropped unseen. An aggregate with no message
+// (Found false) is not asked about; its page is empty by the same filters.
+// ok=false = refused.
+func (s *Postgres) ViewTopicDoor(ctx context.Context, tenant string, q TopicMsgQuery, may func(TopicAccess) (bool, error)) (TopicAccess, bool, []ViewMsg, error) {
+	var a TopicAccess
+	if !canonUUIDRe.MatchString(q.TaskID) {
+		return a, true, nil, nil
 	}
-	a.Found, a.Channels = true, chans
-	seen := map[string]bool{}
-	for _, p := range ends {
-		if p != "" && !seen[p] {
-			seen[p] = true
-			a.DMParties = append(a.DMParties, p)
+	p := newTopicPage(tenant, q)
+	if err := s.queryTenantBatch(ctx, tenant, topicAccessRead(tenant, q.TaskID, q.Now, &a), p.read); err != nil {
+		return TopicAccess{}, false, nil, err
+	}
+	if a.Found {
+		switch ok, err := may(a); {
+		case err != nil:
+			return a, false, nil, err
+		case !ok:
+			return a, false, nil, nil
 		}
 	}
-	sort.Strings(a.Channels)
-	sort.Strings(a.DMParties)
-	return a, nil
+	rows, err := p.finish(ctx, s, tenant)
+	return a, err == nil, rows, err
 }
 
 // ---- the file read door (rdb 0028 + 0030, file_door.go) -------------------

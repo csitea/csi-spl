@@ -550,9 +550,17 @@ func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t stor
 	// the person's DMs. The DM-list surfaces (dm=true, peer=<id>) refuse it; the
 	// unfiltered list already drops DMs the reader is not an end of, and a clone
 	// is an end of none.
-	if (sq.DM || q.Get("peer") != "") && s.readerIsActAsClone(r.Context(), t.ID, hum) {
-		writeErr(w, http.StatusForbidden, "actas_no_dm", "acting-as sessions cannot open direct messages")
-		return
+	// Perf round 4 G7: where the store can, the gate rides the walk's batch
+	// (listTopics); a since= delta reads before the walk, so it keeps the
+	// gate in front.
+	cloneGate := ""
+	if sq.DM || q.Get("peer") != "" {
+		if _, fused := s.o.Store.(topicsCloneGate); fused && hum != "" && q.Get("since") == "" {
+			cloneGate = hum
+		} else if s.readerIsActAsClone(r.Context(), t.ID, hum) {
+			writeActAsNoDM(w)
+			return
+		}
 	}
 	if sq.DM { // dm=true is the explicit "only my DMs" filter, on top of it
 		sq.Viewer = hum
@@ -560,7 +568,19 @@ func (s *Server) handleViewTopics(w http.ResponseWriter, r *http.Request, t stor
 	if !s.readerScope(w, r, t.ID, hum, &sq) {
 		return
 	}
-	s.listTopics(w, r, t, sq)
+	s.listTopics(w, r, t, sq, cloneGate)
+}
+
+// topicsCloneGate runs the act-as clone gate and the topic walk in one batch
+// (perf round 4 G7, store.Postgres.ViewTopicsUnlessClone): a live clone gets
+// clone=true and no rows.
+type topicsCloneGate interface {
+	ViewTopicsUnlessClone(ctx context.Context, tenant, reader string, q store.TopicQuery) (rows []store.TopicRow, clone bool, err error)
+}
+
+// writeActAsNoDM is the act-as clone's refusal of every DM-list surface.
+func writeActAsNoDM(w http.ResponseWriter) {
+	writeErr(w, http.StatusForbidden, "actas_no_dm", "acting-as sessions cannot open direct messages")
 }
 
 // GET /v1/view/topics/{task_id}/children (view-v1 §4.5).
@@ -589,7 +609,7 @@ func (s *Server) handleViewChildren(w http.ResponseWriter, r *http.Request, t st
 	if !s.readerScope(w, r, t.ID, hum, &sq) {
 		return
 	}
-	s.listTopics(w, r, t, sq)
+	s.listTopics(w, r, t, sq, "")
 }
 
 // readerScope loads hum's channel allow-list into sq. false = it answered.
@@ -607,7 +627,9 @@ func (s *Server) readerScope(w http.ResponseWriter, r *http.Request, tenant, hum
 }
 
 // listTopics pages one topic-list query (§4.3 shape) with the before= cursor.
-func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery) {
+// cloneGate, when set, is the reader the walk's batch refuses if it is a live
+// act-as clone (topicsCloneGate); the caller sets it only without since=.
+func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, cloneGate string) {
 	per := 0
 	if v := r.URL.Query().Get("per_topic"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -636,7 +658,15 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 	}
 	var rows []store.TopicRow
 	var err error
-	if body.Delta == nil || !*body.Delta || len(sq.TaskIDs) > 0 { // a delta with no change reads nothing
+	switch {
+	case cloneGate != "":
+		var clone bool
+		rows, clone, err = s.o.Store.(topicsCloneGate).ViewTopicsUnlessClone(r.Context(), t.ID, cloneGate, sq)
+		if err == nil && clone {
+			writeActAsNoDM(w)
+			return
+		}
+	case body.Delta == nil || !*body.Delta || len(sq.TaskIDs) > 0: // a delta with no change reads nothing
 		rows, err = s.o.Store.ViewTopics(r.Context(), t.ID, sq)
 	}
 	if err != nil {
@@ -837,9 +867,25 @@ type viewMsg struct {
 	MovedFromTask    string  `json:"moved_from_task,omitempty"`
 }
 
+// topicDoorReader reads the topic door's aggregate and the page in one batch
+// (perf round 4 G7, store.Postgres.ViewTopicDoor): the door rides the page's
+// round trip. may decides before anything past the page is read; ok=false =
+// refused, and no rows come back.
+type topicDoorReader interface {
+	ViewTopicDoor(ctx context.Context, tenant string, q store.TopicMsgQuery,
+		may func(store.TopicAccess) (bool, error)) (a store.TopicAccess, ok bool, rows []store.ViewMsg, err error)
+}
+
 func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	task := r.PathValue("task_id")
-	hum, ok := s.topicReader(w, r, t.ID, task)
+	door, fused := s.o.Store.(topicDoorReader)
+	var hum string
+	var ok bool
+	if fused { // the door is asked inside the page's batch, below
+		hum, ok = s.topicReaderID(w, r, t.ID, task)
+	} else {
+		hum, ok = s.topicReader(w, r, t.ID, task)
+	}
 	if !ok {
 		return
 	}
@@ -859,7 +905,21 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		writeErr(w, rf.status, rf.token, rf.detail)
 		return
 	}
-	rows, err := s.o.Store.ViewTopic(r.Context(), t.ID, sq)
+	var rows []store.ViewMsg
+	var err error
+	if fused {
+		var may bool
+		_, may, rows, err = door.ViewTopicDoor(r.Context(), t.ID, sq, func(a store.TopicAccess) (bool, error) {
+			return s.topicVerdict(r.Context(), t.ID, a, hum)
+		})
+		if err == nil && !may {
+			// 404, never 403, as topicReader answers it.
+			writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+			return
+		}
+	} else {
+		rows, err = s.o.Store.ViewTopic(r.Context(), t.ID, sq)
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return
@@ -890,13 +950,8 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 // a task_id was enough to read another member's DM or a channel you were
 // never in.
 func (s *Server) topicReader(w http.ResponseWriter, r *http.Request, tenant, task string) (string, bool) {
-	if !uuidRe.MatchString(task) {
-		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-		return "", false
-	}
-	hum, ok := s.readerID(r, tenant)
+	hum, ok := s.topicReaderID(w, r, tenant, task)
 	if !ok {
-		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return "", false
 	}
 	switch ok, found, err := s.canReadTopic(r.Context(), tenant, task, hum); {
@@ -908,6 +963,21 @@ func (s *Server) topicReader(w http.ResponseWriter, r *http.Request, tenant, tas
 		// such topic" confirms the topic exists to someone who may not
 		// know that (owner's call: a non-member cannot learn it exists).
 		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return "", false
+	}
+	return hum, true
+}
+
+// topicReaderID is topicReader before its door: the task id's shape and the
+// reader. false has written the refusal.
+func (s *Server) topicReaderID(w http.ResponseWriter, r *http.Request, tenant, task string) (string, bool) {
+	if !uuidRe.MatchString(task) {
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return "", false
+	}
+	hum, ok := s.readerID(r, tenant)
+	if !ok {
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
 		return "", false
 	}
 	return hum, true

@@ -107,8 +107,10 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// SPL-1111: boxes, avatars and members in one batch (it was 3: 4).
 		{"GET /v1/view/roster", 1, get("/v1/view/roster")},
 		{"GET /v1/view/topics", 1, get("/v1/view/topics")},
-		{"GET /v1/view/topics/{lobby}", 3, // SPL-1121: reactions ride the deliveries batch
-			get("/v1/view/topics/" + lobby)},
+		// SPL-1121: reactions ride the deliveries batch. Perf round 4 G7: the
+		// topic door's aggregate rides the page's batch (store ViewTopicDoor;
+		// it was 3, measured 3/6 -> 2/4, n=3x5 interleaved A/B).
+		{"GET /v1/view/topics/{lobby}", 2, get("/v1/view/topics/" + lobby)},
 		{"GET /v1/view/search?q=seed", 6, get("/v1/view/search?q=seed")},
 		// SPL-1206: the grammar is built once (sync.Once), so operators is only
 		// the view door's one membership read — it must never grow a read of its
@@ -120,7 +122,9 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// DB payload cut 1: the DM seed counts per-peer unread/total in the hub
 		// from a thin read; per_topic=50 inlined the envelopes and read their
 		// deliveries and reactions too (measured 5/9 -> 4/5 here, n=3).
-		{"GET topics?dm&dm_counts", 3, get("/v1/view/topics?dm=true&limit=50&dm_counts=true&dm_read=CLE-07%40box-a~2026-10-01T00%3A00%3A00Z~")},
+		// Perf round 4 G7: the act-as clone gate rides the walk's batch
+		// (store ViewTopicsUnlessClone; it was 3, measured 3/6 -> 2/4, n=3x5).
+		{"GET topics?dm&dm_counts", 2, get("/v1/view/topics?dm=true&limit=50&dm_counts=true&dm_read=CLE-07%40box-a~2026-10-01T00%3A00%3A00Z~")},
 		// spec 062 FR-010: the per-member Flow - counts and one page in one
 		// batch behind the cached door (spec target <= 2; measured 1/2 and 1/1,
 		// n=5, on c-037's tree); counts_only is the same batch's first read.

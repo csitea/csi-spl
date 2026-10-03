@@ -132,15 +132,22 @@ func (s *Server) canReadTopic(ctx context.Context, tenant, task, human string) (
 	if !a.Found {
 		return false, false, nil
 	}
+	ok, err = s.topicVerdict(ctx, tenant, a, human)
+	return ok, true, err
+}
+
+// topicVerdict is canReadTopic's rule on a found topic's aggregate (also the
+// verdict ViewTopicDoor asks between its batch and the deliveries).
+func (s *Server) topicVerdict(ctx context.Context, tenant string, a store.TopicAccess, human string) (bool, error) {
 	if human == "" {
-		return true, true, nil
+		return true, nil
 	}
 	// Readable when the topic holds at least ONE message this human may
 	// read. It is only the door onto the topic: which messages come back is
 	// decided again, per message, by TopicMsgQuery's Reader - a topic that
 	// mixes a DM with a channel reply must not hand over the DM half.
 	if a.HasDM() && a.Party(human) {
-		return true, true, nil
+		return true, nil
 	}
 	for _, ch := range a.Channels {
 		if ch == "" {
@@ -148,12 +155,12 @@ func (s *Server) canReadTopic(ctx context.Context, tenant, task, human string) (
 		}
 		switch may, err := s.canReadChannel(ctx, tenant, ch, human); {
 		case err != nil:
-			return false, true, err
+			return false, err
 		case may:
-			return true, true, nil
+			return true, nil
 		}
 	}
-	return false, true, nil
+	return false, nil
 }
 
 // memberSet is the channel's human members as a set, for the live fan-out.

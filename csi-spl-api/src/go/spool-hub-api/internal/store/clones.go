@@ -190,6 +190,51 @@ func (s *Postgres) ListClones(ctx context.Context, tenant string) ([]Clone, erro
 	return out, nil
 }
 
+// ViewTopicsUnlessClone is the act-as clone gate and ViewTopics(q) in ONE
+// batch (perf round 4 G7): the walk does not read the clone row, only runs
+// when reader is not a live clone, so the gate rides the walk's round trip
+// instead of paying its own. The gate's answer is exactly Clone's, read
+// first in the batch: a LIVE clone (a member_clones row of tenant with no
+// ended_at) gets clone=true and NO rows - what the walk read is dropped
+// here, never returned. A gate read that fails fails the whole call.
+func (s *Postgres) ViewTopicsUnlessClone(ctx context.Context, tenant, reader string, q TopicQuery) (rows []TopicRow, clone bool, err error) {
+	if err := checkTenant(tenant); err != nil {
+		return nil, false, err
+	}
+	if q.Parent != "" && !canonUUIDRe.MatchString(q.Parent) {
+		return nil, false, nil
+	}
+	sql, args := viewTopicsSQL(tenant, q)
+	b := &pgx.Batch{}
+	b.Queue(pgScopeTenantNoJIT, tenant)
+	b.Queue(`SELECT EXISTS (SELECT 1 FROM member_clones
+		WHERE tenant_id = $1 AND clone_hum = $2 AND ended_at IS NULL)`, tenant, reader)
+	b.Queue(sql, args...)
+	br := s.pool.SendBatch(ctx, b)
+	defer br.Close()
+	if _, err := br.Exec(); err != nil {
+		return nil, false, err
+	}
+	if err := br.QueryRow().Scan(&clone); err != nil {
+		return nil, false, err
+	}
+	qr, err := br.Query()
+	if err != nil {
+		return nil, false, err
+	}
+	var out []TopicRow
+	if err := scanRows(qr, scanTopicRows(&out)); err != nil {
+		return nil, false, err
+	}
+	if err := br.Close(); err != nil {
+		return nil, false, err
+	}
+	if clone {
+		return nil, true, nil
+	}
+	return out, false, nil
+}
+
 // SweepClones expires every live clone past its expiry, across all tenants
 // (the auto-expiry, specs/054 §5). It runs in the operator scope like Sweep, so
 // no host cron is needed. Returns the number expired.

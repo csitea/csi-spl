@@ -74,7 +74,7 @@ spool_install_y7_tmux_links() {
 y7_sourced_rel() {
   local re
   re='^[[:space:]]*source-file([[:space:]]+-q)?[[:space:]]+"?(~|\$HOME|\$\{HOME\}|'"$(y7_ere "$2")"')/\.tmux/([^"[:space:]]+)"?[[:space:]]*$'
-  [[ "$1" =~ $re ]] && printf '%s' "${BASH_REMATCH[3]}"
+  if [[ "$1" =~ $re ]]; then printf '%s' "${BASH_REMATCH[3]}"; fi
 }
 
 y7_in() { local x="$1" e; shift; for e in "$@"; do [ "$e" = "$x" ] && return 0; done; return 1; }

@@ -19,6 +19,7 @@
 #   6. a re-run changes nothing and writes no second backup
 #   7. a conf that is a symlink is written through, the link kept
 #   8. an absent snippet: the engine lines are commented out, not repointed
+#   9. a caller under `set -e` (an unmatched conf line is no error)
 # Control: Y7_TEST_CONTROL=noop swaps the step for a no-op; the run must FAIL.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -139,6 +140,11 @@ printf 'source-file -q "%s/.tmux/agent-status.conf"\n' "$D" >"$D/.tmux.conf"
 spool_install_y7_tmux_links "$D" "$D/.local/share/spool-agent/tmux-agent-status.conf" 0 2>/dev/null
 check "no snippet: the line is commented out" \
   '[ "$(cat "$D/.tmux.conf")" = "# spool-install (specs/069 Y7): source-file -q \"$D/.tmux/agent-status.conf\"" ] && [ "$(engine "$D")" = 0 ]'
+
+# 9. set -e in the caller
+E="$T/sete"; seed "$E" "$GONE"; printf 'set -g mouse on\nsource-file ~/.tmux/agent-status.conf\n' >"$E/.tmux.conf"
+( set -e; spool_install_y7_tmux_links "$E" "$E/.local/share/spool-agent/tmux-agent-status.conf" 0 2>/dev/null ); rce=$?
+check "set -e caller: exit 0, links gone" '[ "$rce" = 0 ] && [ "$(engine "$E")" = 0 ]'
 
 echo "test-y7-tmux-links: $((n - fails))/$n passed"
 [ "$fails" = 0 ]

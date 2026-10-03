@@ -164,6 +164,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onLane(ctx, x, f)
 		case wire.TAsk: // CLE-77929: asks to the orchestrator, tracked until closed
 			s.onAsk(ctx, x, f)
+		case wire.TClaim: // spec 068 4.1: a peer seat's claim on messages
+			s.onClaim(ctx, x, f)
 		case wire.TCommit: // spec 059 S2: the box wrote a delivery's inbox copy
 			s.onCommit(ctx, x, f)
 		case wire.TToken:

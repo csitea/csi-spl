@@ -69,6 +69,11 @@ const (
 	// and the hub's answer (CLE-77929, rdb 0097). Request and reply pair on
 	// MsgID, a request id the box picks.
 	TAsk = "ask"
+	// TClaim is a peer seat locking (claim_op poll), keeping (renew), giving
+	// back (release) or closing (done) messages, and the hub's answer (spec
+	// 068 4.1, rdb 0110). Request and reply pair on MsgID, a request id the
+	// box picks.
+	TClaim = "claim"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
 	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
@@ -253,6 +258,13 @@ type Frame struct {
 	// is {fleet, created, asks: [row + writer_box, times, age_s, quiet_s]}.
 	AskOp string          `json:"ask_op,omitempty"`
 	Ask   json.RawMessage `json:"ask,omitempty"`
+
+	// claim (spec 068 4.1): ClaimOp poll | renew | release | done. The
+	// request's Claim is {seat, max, ttl_s, msg_id, gen, how, reason}; the
+	// reply's is {seat, msgs: [row + lock, gen, claim_n, close, not_by, msg on
+	// poll], dead: [rows a poll closed dead]}.
+	ClaimOp string          `json:"claim_op,omitempty"`
+	Claim   json.RawMessage `json:"claim,omitempty"`
 
 	// error
 	Error  string `json:"error,omitempty"`

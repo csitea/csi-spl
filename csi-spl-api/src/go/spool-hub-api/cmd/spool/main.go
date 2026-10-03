@@ -31,6 +31,8 @@
 //	          hub mode: the agent lifecycle config as KEY=VALUE lines, or append one event (spec 063)
 //	ask     [list|put|ack|done|decline|raise|escalate] --fleet <f> [--id <msg id> ...]
 //	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
+//	claim   (--poll [--max n] | --renew | --release <msg> --reason <r> | --done <msg> [--how h]) --as <seat> [--ttl s] [--gen g]
+//	          hub mode: a peer seat locks, keeps, gives back or closes messages (spec 068 4.1)
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -113,6 +115,7 @@ on a box (an agent's machine):
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
   lifecycle           print the agent lifecycle config (config), or append one event (event --json)
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
+  claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 
 a box and its hub ($SPOOL_HUB_URL):
@@ -240,6 +243,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLifecycle(cfg, rest)
 	case "ask": // CLE-77929
 		return cmdAsk(cfg, rest)
+	case "claim": // spec 068 4.1
+		return cmdClaim(cfg, rest)
 	case "layout": // specs/058 6
 		return cmdLayout(cfg)
 	default:

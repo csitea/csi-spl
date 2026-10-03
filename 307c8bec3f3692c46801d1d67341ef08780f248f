@@ -1,0 +1,6 @@
+Lay-What: After each new version of the web app goes live, its files are fetched once in advance so the first visitors get them quickly.
+Lay-How: A new automatic step visits every page and file of the new version at a gentle pace, so the delivery network already holds them.
+Lay-Why: Right after a release the first person to open the app waited longer, because nothing was ready near them yet.
+Tech-What: New do_warm_wui_edge and workflow 31 (on workflow_run of 30) warm the CDN edge for each env whose hosting deploy succeeded.
+Tech-How: warm-wui-edge.func.sh crawls / and /_nuxt, GETs each per real Accept-Encoding header, at most 2 workers paced by --rate; host from cnf env.dns.fqdn; mock-edge test.
+Tech-Why: Perf round 4 C7: the edge keys on the raw Accept-Encoding header, so every deploy left cold keys for the first readers.

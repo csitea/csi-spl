@@ -14,6 +14,14 @@
 // avatar at the same inset, no sideways scroll, one header line from 390 px.
 // Desktop (1440): unchanged - text starts right of the avatar column.
 //
+// The header's line count is a width sum, so it is measured in ONE font
+// (MEASURE_FONT, Arial metrics - the stand-in for a phone's system face).
+// The WUI ships no webfont: its stack falls through to the runner's
+// fontconfig default, Noto Sans on one CI box and DejaVu Sans on another,
+// and DejaVu put the 390 px channel header on 2 lines on every sat-spl-*
+// run and 1 on every other (n=15, 2026-10-03). A runner without the font
+// fails that check by name instead of reading a wrong line count.
+//
 //   pnpm run test:e2e card-edge-inset
 //   BASE_URL=<generated bundle> pnpm run test:e2e card-edge-inset
 //   MEASURE=1 ... prints the numbers without asserting
@@ -61,6 +69,37 @@ async function launch() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/* every CI box has it (fonts-liberation); a phone draws SF / Roboto, never DejaVu */
+const MEASURE_FONT = process.env.MEASURE_FONT || 'Liberation Sans'
+
+/** Pins the UI stack to MEASURE_FONT; returns the faces Chrome drew a header name in. */
+async function pinFont(page) {
+  await page.addStyleTag({ content: `:root:root { --font-stack: "${MEASURE_FONT}", sans-serif !important; }` })
+  await sleep(100)
+  /* the first author on screen (a phone keeps hidden cards behind the topic pane) */
+  const marked = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('article.msg[data-msg-id] .msg-meta .msg-author')].find((a) => {
+      const r = a.getBoundingClientRect()
+      return a.getClientRects().length && r.width > 0 && r.bottom > 0 && r.top < innerHeight
+    })
+    el?.setAttribute('data-measure-font', '')
+    return !!el
+  })
+  if (!marked) return null
+  const cdp = await page.createCDPSession()
+  try {
+    await cdp.send('DOM.enable')
+    await cdp.send('CSS.enable')
+    const { root } = await cdp.send('DOM.getDocument')
+    const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '[data-measure-font]' })
+    if (!nodeId) return null
+    const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId })
+    return fonts.map((f) => f.familyName)
+  } finally {
+    await cdp.detach()
+  }
+}
 
 /** every visible card: its text box and header, against the window edges */
 function edges(page) {
@@ -115,8 +154,10 @@ try {
           if (await page.$('article.msg[data-test=issues-comment]')) break
         }
       }
+      const faces = await pinFont(page)
       const f = await edges(page)
       const tag = `${w}px ${name}`
+      if (faces) ok(`${tag}: the header is drawn in ${MEASURE_FONT}`, faces.includes(MEASURE_FONT), faces)
       if (!f.cards.length) {
         if (open) console.log(`  --   ${tag}: no card in the mock (measured live)`)
         else ok(`${tag}: a card with text is on screen`, false, f)

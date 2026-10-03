@@ -1,5 +1,5 @@
 # SAST (Semgrep). Same runner rule as 15_sec-deps-secrets.yml: GitHub-hosted
-# (ubuntu-latest). Semgrep is installed pinned into a throwaway venv; a missing tool
+# (ubuntu-latest). Semgrep is installed pinned into a cached venv; a missing tool
 # fails the action. The gate uses the p/golang + p/javascript + p/owasp-top-ten
 # rulesets against .semgrep-baseline.txt so only NEW findings redden trunk.
 #
@@ -36,14 +36,34 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # Version-pinned into a throwaway venv (large dep tree; version is the pin).
+      # Version-pinned into a venv (large dep tree; a per-package sha pin is
+      # impractical, so the version is the pin). The venv is cached across hosted
+      # runs (perf round 4, C3: the install was ~20 s of every run), keyed on
+      # the pin + the runner's python + image, so a pin bump or an image python
+      # change misses and reinstalls. A restored venv must still answer
+      # --version 1.178.0 or it is rebuilt: the assert, not the key, is the gate.
+      - name: python version (cache key)
+        id: py
+        run: echo "ver=$(python3 -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore semgrep venv
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/csi-spl/semgrep-venv
+          key: semgrep-1.178.0-py${{ steps.py.outputs.ver }}-${{ runner.os }}-${{ runner.arch }}-${{ env.ImageOS }}
+
       - name: Install semgrep 1.178.0
         run: |
           set -euo pipefail
-          venv="$RUNNER_TEMP/semgrep-venv"
-          python3 -m venv "$venv"
-          "$venv/bin/pip" install --disable-pip-version-check --quiet semgrep==1.178.0
-          "$venv/bin/semgrep" --version
+          venv="$HOME/.cache/csi-spl/semgrep-venv"
+          if "$venv/bin/semgrep" --version 2>/dev/null | grep -qxF 1.178.0; then
+            echo "semgrep 1.178.0 restored from cache"
+          else
+            rm -rf "$venv"
+            python3 -m venv "$venv"
+            "$venv/bin/pip" install --disable-pip-version-check --quiet semgrep==1.178.0
+          fi
+          "$venv/bin/semgrep" --version | grep -xF 1.178.0
           echo "$venv/bin" >> "$GITHUB_PATH"
 
       - name: semgrep (control + scan vs baseline)

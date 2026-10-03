@@ -139,6 +139,11 @@ import {
   summariseRecord,
 } from '@/composables/errorJournal.mjs'
 
+/* how often the relative ages re-render */
+const CLOCK_TICK_MS = 15_000
+/* how long the copy result label stays before it clears */
+const COPY_STATE_RESET_MS = 2500
+
 const { t, locale } = useI18n({ useScope: 'global' })
 const { records, visible, clear: clearJournal } = useErrorJournal()
 
@@ -210,7 +215,7 @@ watch(open, (isOpen) => {
   stopClock()
   if (!isOpen) return
   now.value = Date.now()
-  clock = setInterval(() => { now.value = Date.now() }, 15000)
+  clock = setInterval(() => { now.value = Date.now() }, CLOCK_TICK_MS)
 }, { immediate: true })
 onBeforeUnmount(stopClock)
 
@@ -270,7 +275,7 @@ async function copy(): Promise<void> {
   } catch {
     copyState.value = 'fail'
   }
-  setTimeout(() => { copyState.value = '' }, 2500)
+  setTimeout(() => { copyState.value = '' }, COPY_STATE_RESET_MS)
 }
 
 function clear(): void {

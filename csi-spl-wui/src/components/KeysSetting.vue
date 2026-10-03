@@ -123,6 +123,8 @@ const pasted = ref('')
 const error = ref('')
 const notice = ref('')
 const copied = ref(false)
+/* how long the Copy button reads 'Copied' before it resets */
+const COPIED_RESET_MS = 1500
 let autoTried = false
 
 const state = (k: Key) => (k.revoked_at ? (k.revoked_reason === 'replaced' ? 'replaced' : 'revoked') : 'active')
@@ -221,7 +223,7 @@ async function copyPublic() {
   /* refused: the key is on screen to select by hand */
   if (!(await writeClipboard(active.value.public_key))) return
   copied.value = true
-  setTimeout(() => { copied.value = false }, 1500)
+  setTimeout(() => { copied.value = false }, COPIED_RESET_MS)
 }
 
 onMounted(async () => {

@@ -474,6 +474,17 @@ jobs:
             [[ "$code" == 200 ]] && echo "ok - https://${FQDN}/version -> 200 (hub)" || { echo "::error::https://${FQDN}/version -> $code"; rc=1; }; }
           exit $rc
 
+      # spec 065 L5, as in 20: a WUI-only push gets its release notes here,
+      # not at the next hub deploy. The project key's SA is the hub's operator
+      # (the WIF fallback is the Firebase deploy SA, which is not), so only
+      # the key path ingests. Never holds the deploy back.
+      - name: Ingest the release notes (do_release_note_ingest)
+        if: steps.ver.outputs.stale != 'true' && steps.auth_key.outcome == 'success'
+        continue-on-error: true
+        env:
+          ENV: ${{ matrix.environment }}
+        run: DRY_RUN=0 GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_note_ingest
+
   # -------------------------------------------------------------------------
   # newest: outside the deploy lock. needs: deploy + if: always(), so a
   # deploy GitHub dropped while it was pending still reaches here and

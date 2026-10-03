@@ -658,6 +658,17 @@ jobs:
             *) echo "::error::cannot read the $ENV service state (rc $rc)"; exit 1 ;;
           esac
 
+      # spec 065 L5: fill the release notes the version pop-up's "Release
+      # notes" modal and the /releases/<sha> links read. The newest 500 trunk
+      # commits, each with the first v-tag that contains it, upserted by sha
+      # (idempotent; the window also carries WUI-only and doc commits). After
+      # the roll + verify, so it never holds a deploy back (spec 5.1); a
+      # failure still shows on the run, it is not swallowed.
+      - name: Ingest the release notes (do_release_note_ingest)
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
+        continue-on-error: true
+        run: DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_note_ingest
+
       - name: Deployment summary
         if: always() && steps.cfg.outcome == 'success'
         env:

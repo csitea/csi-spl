@@ -143,8 +143,12 @@ export function usePaneWidths(opts: {
     viewportW.value = window.innerWidth
   }
 
+  /* perf round 4 W3: no geometry read at mount. viewportW was read in setup,
+     before this component's DOM went in; reading innerWidth again here, in
+     onMounted, forced a synchronous layout of the whole freshly mounted shell
+     (62.7..65.8 ms self on /issues, m390 CPU 4x). A later width change comes
+     through the resize listener. */
   function hydrate() {
-    onResize()
     const loaded = loadPaneWidths()
     /* SPL-1182: on a wide screen a signed-in person's account override
        (fractions -> px, clamped) wins over this browser's localStorage, so a

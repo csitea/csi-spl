@@ -1,0 +1,2 @@
+Lay-What: Adds a review's points to the assistant restart plan: each hand-over must list what was tried and failed.
+Lay-Why: A fresh assistant that does not know what already failed will try it again.

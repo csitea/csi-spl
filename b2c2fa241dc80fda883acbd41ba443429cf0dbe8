@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: The hourly internal coordinator rotation now also handles the agent id change by itself; nothing changes for users.

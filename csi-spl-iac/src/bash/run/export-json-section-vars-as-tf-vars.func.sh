@@ -19,7 +19,7 @@ do_export_json_section_vars_as_tf_vars(){
    if [ $# -gt 0 ]; then shift 1; fi
 
    # Skip if the section does not exist in the JSON file
-   section_check=$(cat "$json_file" | jq -r "$section // empty" 2>/dev/null)
+   section_check=$(jq -r "$section // empty" "$json_file" 2>/dev/null)
    if [ -z "$section_check" ]; then
       do_log "WARNING section $section not found in $json_file, skipping"
       return 0
@@ -42,7 +42,7 @@ do_export_json_section_vars_as_tf_vars(){
       fi
 
    # done < <(cat "$json_file"| jq -r "$section"'|keys_unsorted[] as $key|"\($key):\"\(.[$key])\""')
-   done < <(cat "$json_file"| jq -r "$section"'|to_entries| map(select(.value | type == "string"))|from_entries|keys_unsorted[] as $key|"\($key):\"\(.[$key])\""')
+   done < <(jq -r "$section"'|to_entries| map(select(.value | type == "string"))|from_entries|keys_unsorted[] as $key|"\($key):\"\(.[$key])\""' "$json_file")
   # thanks ChatGPT: 'to_entries | map(select(.value | type == "string")) | from_entries'
   # ok cat <ORG>-<APP>-cnf/<ORG>-<APP>/dev.env.json | jq -r '.env.steps."004-aws-iam"|to_entries| map(select(.value | type == "string"))|from_entries|keys_unsorted[] as $key|"\($key):\"\(.[$key])\""'
 }

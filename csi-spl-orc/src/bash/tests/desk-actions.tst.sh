@@ -747,5 +747,14 @@ out=$(SNIPPET=do_spl_desk_down in_orc TENANT_ID=t1 DRY_RUN=0 2>&1); rc=$?
   pass "no DESK_AGENT stops the box as before" || fail "no DESK_AGENT (rc=$rc): $out"
 kill "$(cat "$DD/spool/.hub/hub-run.pid")" 2>/dev/null || true
 
+# --- 14. spl_desk_purge_pokes counts the queued pokes it drops (refactor r1 #26) ---
+PQ="$T/purge/spool/CLE-9/.pokes"; mkdir -p "$PQ"; : >"$PQ/a.poke"; : >"$PQ/b.poke"
+out=$(SNIPPET="spl_desk_purge_pokes '$T/purge' CLE-9 0" in_orc 2>&1)
+[[ "$out" == *'dropped 2 queued poke(s) for CLE-9'* && ! -e "$PQ/a.poke" ]] &&
+  pass "purge_pokes drops 2 queued pokes and says so" || fail "purge_pokes with 2 pokes: $out"
+out=$(SNIPPET="spl_desk_purge_pokes '$T/purge' CLE-9 0" in_orc 2>&1)
+[[ "$out" != *dropped* ]] && pass "purge_pokes on an empty queue reports nothing" ||
+  fail "purge_pokes on an empty queue: $out"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

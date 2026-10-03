@@ -217,7 +217,7 @@ spl_desk_purge_pokes() {
   if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null; do_log "INFO stopped the poke-retry daemon of $agent (pid $pid): DESK_POKE=0"
   fi
-  n="$(ls -1 "$q"/*.poke 2>/dev/null | wc -l)"
+  local -a pk=("$q"/*.poke); [[ -e "${pk[0]-}" ]] || pk=(); n=${#pk[@]}
   rm -f "$q"/*.poke "$q/retry.pid" 2>/dev/null
   (( n > 0 )) && do_log "INFO dropped $n queued poke(s) for $agent: DESK_POKE=0, and every one of those messages is in its inbox"
   return 0

@@ -1,0 +1,6 @@
+Lay-What: The workspace switcher fits its labels with less work, so the top bar settles faster.
+Lay-How: The app measures the workspace names with a quick drawing method instead of building hidden text on the page, and skips it when the switcher is hidden on a phone.
+Lay-Why: The old measuring forced the page to redo its layout every time.
+Tech-What: tenant-switcher.mjs measureControlText uses one canvas measureText in the computed font; TenantDropBox.vue measures nothing while hidden (<= 820 px).
+Tech-How: Spacing is added as the probe drew it; the DOM probe stays as the fallback; unit and e2e tenant-text-measure tests compare the two.
+Tech-Why: Perf round 4 W4: canvas within the padding of the probe in Chrome (max diff 0.015 px over 92 checks).

@@ -1,0 +1,19 @@
+# box-crons.manifest - the box owner's spool cron jobs (specs/069 lane Y3),
+# installed by `./run -a do_install_box_crons` as lines tagged
+# `# csi-spl:box-cron:<name>` in the box user's crontab.
+#
+# One row per job, fields separated by `|` (blanks around a field trimmed):
+#   name     - the tag suffix, [a-z0-9-]+, unique
+#   schedule - the five cron fields, or @reboot
+#   script   - relative to csi-spl-orc; run with /bin/bash
+#   log      - relative to BOX_CRONS_STATE_DIR (default /var/csi/csi-spl);
+#              stdout and stderr are appended to it
+#   replaces - comma-separated paths below an engine checkout (`ysg-box/`) of
+#              the engine jobs this row takes over: a crontab line naming one
+#              of them (commented or not) is removed when this row installs
+#
+# name              | schedule        | script                                                  | log                   | replaces
+box-save-sessions   | * * * * *       | src/bash/features/box-sessions/scripts/save-sessions.sh | box-sessions/save.log | ysg-box-orc/src/bash/features/claude-sessions/scripts/claude-save-sessions.sh,src/bash/scripts/agent-save-sessions.sh
+box-sessions-boot   | @reboot         | src/bash/features/box-sessions/scripts/sessions-boot.sh | box-sessions/boot.log | ysg-box-orc/src/bash/features/claude-sessions/scripts/claude-sessions-boot.sh,src/bash/scripts/agent-tmux-boot.sh
+graft-index-refresh | */15 8-19 * * * | src/bash/features/graft/scripts/graft-cron.sh           | graft/cron.log        | ysg-box-orc/src/bash/features/graft/scripts/graft-cron.sh
+graft-index-final   | 0 20 * * *      | src/bash/features/graft/scripts/graft-cron.sh           | graft/cron.log        | ysg-box-orc/src/bash/features/graft/scripts/graft-cron.sh

@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Adds a read-only check against the live app proving that writing a long message on a phone keeps the cursor in view; nothing a user sees changes.

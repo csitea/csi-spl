@@ -61,6 +61,11 @@
 #   6   delivered; REFUSED to poke: the pane holds unsent typed text
 #   7   delivered; the pane runs only bare shells (the agent has exited)
 #   2   usage error (nothing sent)
+#   3   refused (nothing sent): --kind task to a lane of this machine that
+#       already owns another topic (its first task's task_id since spawn);
+#       spawn a new lane. SPOOL_SECOND_TOPIC_OK=1 overrides, logged to
+#       $SPOOL_ROOT/second-topic.log. Role seats (001-003, lease.conf) take
+#       any topic. A body over 1200 chars only WARNs on stderr: send a path.
 #   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
 #       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
@@ -81,6 +86,31 @@ spool_env_resolve
 usage() {
   sed -n '/^# Usage:/,/^# stdout:/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 2
+}
+
+SEND_BODY_WARN=1200
+
+# A role seat (001-003, or an id lease.conf names) takes every topic by design.
+send_role_seat() {  # ID
+  [[ "$1" =~ ^[A-Za-z]+-00[1-3]$ ]] && return 0
+  grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
+}
+
+# The topic a live lane of this machine owns: the task_id of the first task it
+# received since its registry row was written (a reused id starts clean).
+# Read from the lane's own inbox + archive, not from the hub lane map: that is
+# a ~15 s signed hub call per send, and its topic column was empty in 186 of
+# 186 live rows on 2026-10-03. Prints nothing for a role seat, an id with no
+# registry row, or a lane that has no task yet.
+send_lane_topic() {  # ID
+  local id="$1" since
+  send_role_seat "$id" && return 0
+  since="$(awk -F'\t' -v id="$id" '$1 == id { s = $5 } END { print s }' "$SPOOL_ROOT/registry.tsv" 2>/dev/null)"
+  [[ "$since" =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z$ ]] || return 0
+  since="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}T${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}Z"
+  find "$SPOOL_ROOT/$id/inbox" "$SPOOL_ROOT/$id/archive" -maxdepth 1 -name '*.json' -print0 2>/dev/null |
+    xargs -0r jq -r --arg s "$since" 'select(.kind == "task" and .ts >= $s and (.task_id // "") != "") | "\(.ts)\t\(.task_id)"' 2>/dev/null |
+    sort | head -1 | cut -f2
 }
 
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
@@ -128,6 +158,27 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
   case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
+
+  # ---- one topic per lane (token/focus practice 08) -------------------------
+  # A task on a second topic makes one lane carry two contexts: it re-reads
+  # both, and neither closes. Measured 2026-10-03 on the spool archive, n=35
+  # worker lanes that got a task in 24 h: 8 got a second task topic.
+  if [ "$KIND" = task ] && [ "$FROM" != "$TO" ] && [ -z "$TO_BOX" ]; then
+    _lt="$(send_lane_topic "$TO")"
+    if [ -n "$_lt" ] && [ "$_lt" != "$TASK" ]; then
+      if [ "${SPOOL_SECOND_TOPIC_OK:-0}" = 1 ]; then
+        echo "topic: WARN SPOOL_SECOND_TOPIC_OK=1: ${FROM} gives ${TO} a second topic (${TASK:-new}) beside ${_lt}" >&2
+        printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$FROM" "$TO" "$_lt" "${TASK:-new}" \
+          >>"$SPOOL_ROOT/second-topic.log" 2>/dev/null || true
+      else
+        echo "ERROR: ${TO}: that lane owns topic ${_lt}; spawn a new lane (or send on --task ${_lt}; SPOOL_SECOND_TOPIC_OK=1 overrides, logged). Nothing was sent." >&2
+        exit 3
+      fi
+    fi
+  fi
+  if [ "${#BODY}" -gt "$SEND_BODY_WARN" ]; then
+    echo "body: WARN ${#BODY} chars > ${SEND_BODY_WARN}: put the detail in a file and send the path" >&2
+  fi
 
   args=(send --from "$FROM" --to "$TO" --kind "$KIND" --body "$BODY")
   [ -n "$TASK" ] && args+=(--task "$TASK")

@@ -61,7 +61,7 @@ declare -F spl_desk_alive >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/s
 
 do_spl_pool_ctl() {
   local cmd="${POOL_CMD:-status}" dry="${DRY_RUN:-1}"
-  case "${ENV:-}" in dev|prd) ;; *) do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1 ;; esac
+  spl_require_cloud_env || return 1
   case "$cmd" in status|start|stop|restart|ensure) ;; *) do_log "FATAL POOL_CMD must be status, start, stop, restart or ensure, got: '$cmd'"; return 1 ;; esac
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   pool_ctl_init || return 1

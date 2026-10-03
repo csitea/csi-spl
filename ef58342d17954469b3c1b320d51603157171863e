@@ -1,0 +1,6 @@
+Lay-What: Adds a small command that prints the release-notes link for a change, with the version it shipped in.
+Lay-How: Given a change and an environment, it looks up the first version that contains the change and builds the link from the settings.
+Lay-Why: Every "released" report must carry the link to its notes, and nobody should have to build that link by hand.
+Tech-What: orc do_release_note_link SHA= ENV= prints "<short sha> v<X.Y.Z>|unreleased https://<env.dns.fqdn>/releases/<full sha>".
+Tech-How: release-note-link.func.sh reads the WUI host from cnf, resolves the first containing v-tag, and fails (rc 1) on an unknown sha or an env other than dev/prd; tested on a synthetic repo.
+Tech-Why: Spec 065 L7: the link format must come from cnf, never a literal host, so one helper owns it.

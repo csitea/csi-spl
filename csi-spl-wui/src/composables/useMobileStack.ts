@@ -11,6 +11,7 @@ import {
   mobileOverlayOf,
   mobileOverlayPop,
   mobileOverlayState,
+  mobileStaleTopicUrl,
   mobileTagState,
   mobileTaggedLevel,
   type MobileLevel,
@@ -77,6 +78,20 @@ let inPlaceUntil = 0
 
 function tag(lv: MobileLevel, below?: number) {
   window.history.replaceState(mobileTagState(window.history.state, lv, below), '')
+}
+
+/**
+ * The level went UP on the same entry: add one, so Back comes down again.
+ * c78fb3ec: the entry left below must not keep the topic's URL (a link to
+ * ?topic= wrote it there before the topic opened), or Back onto it opens the
+ * topic again - stuck on level 3. It keeps its page; the new entry takes the
+ * topic URL.
+ */
+function pushLevel(next: MobileLevel, tagged: MobileLevel | null) {
+  const href = window.location.href
+  const under = mobileStaleTopicUrl(href, tagged)
+  if (under) window.history.replaceState(window.history.state, '', under)
+  window.history.pushState(mobileTagState(mobileOverlayState(window.history.state, null), next, tagged ?? 1), '', under ? href : undefined)
 }
 
 /** Show `lv` without touching history (a popstate already moved it). */
@@ -178,6 +193,11 @@ function onPopCapture(e: PopStateEvent) {
     return
   }
   const step = mobileOverlayPop(overlays.map((o) => o.id), e.state, lastPos)
+  /* c78fb3ec: the router is about to read this entry's URL. One tagged below
+     3 that still names a topic (an older build wrote them) would open it
+     again - level 3, a new push, the same entry on the next Back, stuck until
+     the app restarts: drop the topic from it first */
+  if (step.kind !== 'close' && !(step.kind === 'dead' && !step.back)) dropStaleTopic(e.state)
   if (step.kind === 'none') return
   if (step.kind === 'dead') {
     if (step.back) {
@@ -210,6 +230,12 @@ function onPopCapture(e: PopStateEvent) {
   wake()
   /* an overlay under it that closed while this one was open: step over its entry too */
   if (under && !under.open()) void enqueue(() => (overlays[overlays.length - 1] === under ? stepBack(1) : undefined))
+}
+
+function dropStaleTopic(state: unknown) {
+  if (!isMobile.value) return
+  const url = mobileStaleTopicUrl(window.location.href, mobileTaggedLevel(state))
+  if (url) window.history.replaceState(state, '', url)
 }
 
 function overlayOpened(o: Overlay) {
@@ -375,9 +401,7 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
       const step = mobileInPlaceStep(mobileHistoryStep(tagged, next), next, inPlace)
       if (inPlace && next === 3) inPlaceUntil = 0
       if (step === 'tag') tag(next)
-      else if (step === 'push') {
-        window.history.pushState(mobileTagState(mobileOverlayState(window.history.state, null), next, tagged ?? 1), '')
-      }
+      else if (step === 'push') pushLevel(next, tagged)
     }
     /* SPL-994: a level pushed from inside an overlay (a menu opening a
        thread) lands after the overlay's entry is gone, not on top of it */

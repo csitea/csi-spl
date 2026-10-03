@@ -58,6 +58,29 @@ export function mobileInitialLevel(path, query) {
 }
 
 /**
+ * c78fb3ec (owner: "the back button on both the bottom and top bars does not
+ * work" ... "one has to close the app"): an entry tagged below level 3 must
+ * not name a topic in its URL. A link to `?topic=` (router.push) makes a fresh
+ * entry that router.afterEach tags 2 before the topic opens; the level-3 push
+ * on top of it copied that URL, so Back landed on a level-2 entry that opened
+ * the topic again - level 3, another push, the same entry on the next Back.
+ * Returns the URL without topic/in for an entry tagged 1 or 2 that has them,
+ * else null (level 3, an untagged entry, nothing to drop).
+ * @param {string} href the entry's URL
+ * @param {1|2|3|null} tagged the level the entry says (or will say)
+ * @returns {string|null}
+ */
+export function mobileStaleTopicUrl(href, tagged) {
+  if (tagged !== 1 && tagged !== 2) return null
+  let u
+  try { u = new URL(href) } catch { return null }
+  if (!u.searchParams.has('topic') && !u.searchParams.has('in')) return null
+  u.searchParams.delete('topic')
+  u.searchParams.delete('in')
+  return u.pathname + u.search + u.hash
+}
+
+/**
  * The level a history entry was tagged with, or null for an entry the shell
  * has not seen (a fresh router push, the first load).
  * @returns {1|2|3|null}

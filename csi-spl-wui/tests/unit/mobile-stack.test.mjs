@@ -13,6 +13,7 @@ import {
   mobileInPlaceStep,
   mobileInitialLevel,
   mobileLevelOf,
+  mobileStaleTopicUrl,
   mobileTagState,
   mobileTaggedLevel,
 } from '../../src/utils/mobile-stack.mjs'
@@ -89,5 +90,22 @@ describe('CLE-77882: an open-in-place is one history entry', () => {
     assert.equal(mobileInPlaceStep('push', 2, true), 'push')
     assert.equal(mobileInPlaceStep('tag', 1, true), 'tag')
     assert.equal(mobileInPlaceStep('none', 3, true), 'none')
+  })
+})
+
+describe('c78fb3ec: an entry below level 3 never names a topic', () => {
+  const T = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  it('a level-2 entry drops topic and in, keeping the path and every other parameter', () => {
+    assert.equal(mobileStaleTopicUrl(`https://x.example.com/channel/lobby?topic=${T}`, 2), '/channel/lobby')
+    assert.equal(mobileStaleTopicUrl(`https://x.example.com/fi/channel/a?q=hi&topic=${T}&in=p#m`, 1), '/fi/channel/a?q=hi#m')
+    assert.equal(mobileStaleTopicUrl('https://x.example.com/channel/a?in=p', 2), '/channel/a')
+  })
+  it('CONTROL: level 3 (the topic itself) and untagged entries keep their URL', () => {
+    assert.equal(mobileStaleTopicUrl(`https://x.example.com/channel/lobby?topic=${T}`, 3), null)
+    assert.equal(mobileStaleTopicUrl(`https://x.example.com/channel/lobby?topic=${T}`, null), null)
+  })
+  it('nothing to drop, or no URL, is null', () => {
+    assert.equal(mobileStaleTopicUrl('https://x.example.com/channel/lobby?q=hi', 2), null)
+    assert.equal(mobileStaleTopicUrl('not a url', 2), null)
   })
 })

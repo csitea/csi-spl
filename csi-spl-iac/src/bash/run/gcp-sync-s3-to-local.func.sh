@@ -32,7 +32,7 @@ do_gcp_sync_s3_to_local() {
   DOMAIN=$(yq -r '.env.dns.tld_domain' $YAML_CONF_FILE)
   wui_fqdn=$(yq -r '.env.dns.wui_fqdn' $YAML_CONF_FILE)
 
-  export GOOGLE_APPLICATION_CREDENTIALS=$(eval echo ~/.gcp/.${ORG}/key-${ORG}-${APP}-${ENV}.json)
+  export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/.${ORG}/key-${ORG}-${APP}-${ENV}.json"
 
   # Authenticate using the service account key file
   gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS

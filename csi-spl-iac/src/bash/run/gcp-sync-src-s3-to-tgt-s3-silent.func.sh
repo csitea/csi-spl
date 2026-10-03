@@ -29,8 +29,8 @@ do_gcp_sync_src_s3_to_tgt_s3_silent() {
   do_require_var TGT_ENV ${TGT_ENV:-}
 
   # Define source and target credentials
-  SRC_CREDENTIALS=$(eval echo ~/.gcp/.${ORG}/key-${ORG}-${APP}-${SRC_ENV}.json)
-  TGT_CREDENTIALS=$(eval echo ~/.gcp/.${ORG}/key-${ORG}-${APP}-${TGT_ENV}.json)
+  SRC_CREDENTIALS="$HOME/.gcp/.${ORG}/key-${ORG}-${APP}-${SRC_ENV}.json"
+  TGT_CREDENTIALS="$HOME/.gcp/.${ORG}/key-${ORG}-${APP}-${TGT_ENV}.json"
 
   # Define source and destination buckets
   SRC_BUCKET="gs://${ORG}-${APP}-${SRC_ENV}-site"

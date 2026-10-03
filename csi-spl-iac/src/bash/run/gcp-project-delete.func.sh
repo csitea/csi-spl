@@ -22,7 +22,7 @@ do_gcp_project_delete() {
   local FORCE="${FORCE:-false}"
   local GCLOUD="/opt/google-cloud-sdk/bin/gcloud"
   local GSUTIL="/opt/google-cloud-sdk/bin/gsutil"
-  local KEY_FILE="$(eval echo ~/.gcp/.${ORG}/key-${GCP_PROJECT}.json)"
+  local KEY_FILE="$HOME/.gcp/.${ORG}/key-${GCP_PROJECT}.json"
 
   do_log "INFO GCP_PROJECT: ${GCP_PROJECT}"
 

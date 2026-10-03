@@ -235,9 +235,9 @@ SLA watchdog (hub): 4 s next standby, 60 s other box, 120 s RSP-01, 170 s owner 
 | **done** | the topic closes: the agent writes `<spool root>/pool/<id>/done` and exits itself (`/exit-clean`); the service reaps it and starts a new standby |
 
 - **Code reads the agent's output**, so the standby runs headless: stream
-  output on stdout, one user message per line on stdin. *I believe,
-  unchecked*, the claude CLI's print mode with stream-json input and output
-  does this; grok's equivalent is unchecked. L1 proves both. The agent's tmux
+  output on stdout, one user message per line on stdin. **Proven by L1**
+  ([standby-bench.md](standby-bench.md), n=20 per model): claude `-p` with
+  stream-json input and output, and grok `agent stdio` (ACP JSON-RPC). The agent's tmux
   window tails its stream log, so the fleet stays visible in tmux (Q13).
 - **A post in an owned topic whose owner is mid-turn** goes to a free standby
   agent for the call response, written for the owner (who is named as
@@ -302,8 +302,8 @@ starts (~7.5 s p95, review-claude).
 | 1 | post stored -> `claimable` on the box | 0.40 s | today p95 0.72 s, p50 6 ms (053 4.4, prd, 2026-09-30) | **measured, n=149**; 0.40 s needs 053's live-socket work |
 | 2 | claim on the warm socket, tail in the reply | 0.16 s | the 030 submit leg on a warm socket, p95 160 ms (hub 0.1.19) | **measured, n=12** (a proxy: a send, not a claim) |
 | 3 | stdin write to the idle standby | 0.01 s | a local pipe | estimate, n=0 |
-| 4 | the standby's first token | **0.90 s** | the only measured agent-CLI turn: 2.37 s p50, 5.30 s p90 (3.4: Opus-class, 20..80k context, auto mode, a busy session) | **measured n=23, and it does NOT fit**; 0.90 s is an **estimate** for a warm, short-context, fast-model turn, n=0 |
-| 5 | stream ~80 tokens | 0.60 s | ~135 tokens/s | estimate, n=0 |
+| 4 | the standby's first token | **0.90 s** | L1: a warm claude haiku standby, thinking off, 0.58 s p50 ([standby-bench.md](standby-bench.md), tree `febc0e46`) | **measured 0.69 s p95, n=20 (haiku): fits**; grok's fastest model 4.07 s p95, n=20: does not |
+| 5 | stream ~80 tokens | 0.60 s | L1: haiku's last token 2.08 s p95 at ~92 output tokens (p50) | **measured ~1.4 s for ~90 tokens, n=20: over 0.6 s** |
 | 6 | code posts with `answers=` on the warm socket | 0.40 s | 030 submit p95 160 ms quiet (n=12), 401 ms with ~20 agents running (n=20) | **measured** |
 | 7 | hub -> WUI visible | 0.30 s | one socket write in the same process (review-grok 1) | estimate, n=0 |
 | | **sum** | **2.77 s** | margin 0.23 s | 3 of 7 hops measured |
@@ -330,9 +330,13 @@ It can fit **only as a warm turn**, and each of these is needed:
 | W6 | **the ~80-token cap** (Q6 yes) and **no tool call** in the call-response turn | generation time; a tool call's 0.7 s (or a 12..15 s refusal) |
 | W7 | **a fresh agent**: a standby has no history, and owners hand off when their context grows | context growth |
 
-Whether W1..W7 bring the first token under 0.90 s p95 is **unmeasured** (n=0).
-So **L1 measures it first**, before anything else is built: a warm standby per
-vendor, n >= 20 call responses, first token and last token.
+**L1 answer** ([standby-bench.md](standby-bench.md), dev, n=20 per model):
+W1..W7 bring the first token under 0.90 s p95 **for claude haiku** (0.69 s;
+sonnet 0.92 s), and **not for grok** (4.07 s fastest). W6 needs claude's
+extended thinking OFF (`--settings '{"alwaysThinkingEnabled":false}'`): low
+effort alone leaves it on, and haiku then took ~5 s to its first word. The full
+~90-token answer (hops 4 + 5) is 2.08 s p95, so the R1 sum is ~3.35 s: over by
+~0.35 s until the answer is shorter (~40 tokens) or Q11 (b) applies.
 
 **If it does not fit, the smallest change, for the owner to pick (Q11):**
 
@@ -446,7 +450,7 @@ shows, in one recorded run on the tree it names:
 
 | # | question | state |
 |---|---|---|
-| Q1 | The standby model per vendor: picked by L1 (the fastest model whose warm call response fits), not named in advance | open: L1 measures |
+| Q1 | The standby model per vendor: picked by L1 (the fastest model whose warm call response fits), not named in advance | **L1: claude haiku** (0.69 s p95 first token, n=20); no grok model fits |
 | Q2 | fast responder in the hub, or on the boxes? | **decided 18:50Z: boxes** |
 | Q3 | Setup's allow rules (reply, post, archive, `fc19cdcd`) are written at every agent start | open (both reviews: yes) |
 | Q4 | One pool service per box, woken by a push, with a 0.5 s warm-socket poll as backstop, instead of a 0.5 s poll per agent | open (both reviews: no 0.5 s poll on cold dials) |
@@ -456,9 +460,9 @@ shows, in one recorded run on the tree it names:
 | Q8 | the id scheme for pool agents | **decided 18:50Z: the current scheme** (rolling ids at the box name) |
 | Q9 | the 40-window ceiling counts busy agents only? | **decided 18:50Z: yes** |
 | Q10 | the first 3 s answer comes from a fast responder, not a pool agent? | **decided 18:50Z: no**, the call response of a standby agent |
-| **Q11** (new) | If L1 shows a warm standby turn cannot reach the first token in ~0.9 s p95: (a) the pool service makes the call response one direct API call on the standby agent's behalf, and the agent stays the owner; (b) R1 counts the first words visible in 3 s (streamed); or (c) accept the measured p95 | new, raised by Q10 |
+| **Q11** (new) | If L1 shows a warm standby turn cannot reach the first token in ~0.9 s p95: (a) the pool service makes the call response one direct API call on the standby agent's behalf, and the agent stays the owner; (b) R1 counts the first words visible in 3 s (streamed); or (c) accept the measured p95 | **raised by L1** for grok (4.07 s p95 first token) and for the full-answer streaming time (haiku 2.08 s p95, R1 sum ~3.35 s) |
 | **Q12** (new) | The standby agent's model: the call response needs a fast model (W4), while the owner phase does real work. One fast model for the whole life of a pool agent, or a switch of model after the call response (*unchecked* whether the CLIs can switch inside a headless session) | new |
 | **Q13** (new) | Standby agents run headless (code must read their output); each agent's tmux window tails its stream log instead of showing an interactive screen. Acceptable? | new |
 | **Q14** (new) | An unsigned post never reaches a box (review-claude, `fallback.go:231`). With the responder on the boxes: let the hub forward unsigned posts to the pool, or keep them outside R2 | new, raised by Q2 |
 
-<!-- version: 0.4 · updated: 2026-10-03 · last-edit: 2026-10-03T19:30:00Z -->
+<!-- version: 0.4 · updated: 2026-10-03 · last-edit: 2026-10-03T20:40:00Z -->

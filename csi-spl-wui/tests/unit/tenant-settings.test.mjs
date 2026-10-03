@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { issuePrefixOf, moveItem, normalizeTenantChannels, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from '../../src/utils/tenant-settings.mjs'
 import { TENANT_SETTINGS_SECTIONS, tenantSettingsSectionOf, tenantSettingsSections, tenantSettingsVisible } from '../../src/utils/tenant-settings-nav.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
+import { mockPerfSummary, normalizePerfSummary, perfCompareRows, perfSummaryQuery } from '../../src/utils/perf-summary.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 import { setAgentIdNow } from '../../src/utils/agent-id.mjs'
@@ -24,11 +25,17 @@ const admin = normalizeMe({ human_id: 'HUM-1', role: 'admin', permissions: all }
 const owner = normalizeMe({ human_id: 'HUM-2', role: 'biz_owner', permissions: [...all, 'billing.manage'] })
 const dev = normalizeMe({ human_id: 'HUM-3', role: 'developer', permissions: ['topics.read', 'notes.send', 'channels.manage'] })
 const ids = (me, o) => tenantSettingsSections(me, o).map((s) => s.id).join(',')
-ok('admin sees every section', ids(admin) === 'members,agents,split,channels,general', ids(admin))
-ok('biz_owner sees every section (046: admins AND biz_owners)', ids(owner) === 'members,agents,split,channels,general')
+ok('admin sees every section', ids(admin) === 'members,agents,split,channels,general,performance', ids(admin))
+ok('biz_owner sees every section (046: admins AND biz_owners)', ids(owner) === 'members,agents,split,channels,general,performance')
 ok('CONTROL: a developer sees no entry', !tenantSettingsVisible(dev) && ids(dev) === '')
 ok('CONTROL: no answer does NOT fail open', !tenantSettingsVisible(null) && !tenantSettingsVisible(normalizeMe({})))
 ok('members.invite alone shows Members only', ids(normalizeMe({ permissions: ['members.invite'] })) === 'members')
+/* spec 066 L7: Performance is a tenant.settings section, like the hub's summary route */
+ok('066 L7: Performance needs tenant.settings', TENANT_SETTINGS_SECTIONS.find((s) => s.id === 'performance')?.perm === 'tenant.settings' &&
+  ids(normalizeMe({ permissions: ['tenant.settings'] })).split(',').includes('performance'))
+ok('066 L7 CONTROL: no tenant.settings, no Performance', !ids(normalizeMe({ permissions: ['members.invite', 'members.roles', 'topics.read'] })).split(',').includes('performance') &&
+  !ids(dev).split(',').includes('performance'))
+ok('066 L7: the Performance path is a section', tenantSettingsSectionOf('/fi/tenant-settings/performance') === 'performance')
 ok('mock plays the admin', tenantSettingsVisible(null, { mock: true }))
 ok('every section names a permission', TENANT_SETTINGS_SECTIONS.every((s) => s.perm && s.label.startsWith('tenant_settings.')))
 
@@ -92,6 +99,36 @@ ok('CONTROL: a human is not a responder', !validResponderId('HUM-4') && !validRe
 ok('move up', moveItem(['a', 'b', 'c'], 2, -1).join() === 'a,c,b')
 ok('move past the end is a no-op', moveItem(['a', 'b'], 1, 1).join() === 'a,b' && moveItem(['a', 'b'], 0, -1).join() === 'a,b')
 ok('error words', tenantSettingsErrorKey({ token: 'channel_public' }) === 'tenant_settings.error.channel_public' && tenantSettingsErrorKey({ token: 'x' }) === 'tenant_settings.error.generic')
+
+{
+  /* spec 066 L7: the summary reader (hub perf_summary.go shape) */
+  const q = perfSummaryQuery({ days: 30, build: ' 1.3.12 ', buildB: 'x y' })
+  ok('066 L7 query: days, a trimmed build, a bad token left out', q === 'days=30&build=1.3.12', q)
+  ok('066 L7 query: an unknown window is 7', perfSummaryQuery({ days: 365 }) === 'days=7')
+  const s = normalizePerfSummary({ days: 7, rows: [
+    { metric: 'send_ack', device: 'phone', view: 'channel', n: 49, p50: 10, p75: 20, p95: 90, failed: 1 },
+    { metric: 'nope', device: 'phone', n: 9 },
+    { metric: 'load_rail', device: 'tv', view: 'x', n: 60, p50: 5, p75: 7, p95: 9 },
+  ] })
+  ok('066 L7 reader: unknown metrics dropped, device and view read safely', s.rows.length === 2 && s.rows[1].device === 'desktop' && s.rows[1].view === '')
+  ok('066 L7 reader: p95 hidden under n = 50, kept from 50', s.rows[0].p95 === null && s.rows[1].p95 === 9)
+  ok('066 L7 reader: junk is an empty summary', normalizePerfSummary(null).rows.length === 0 && normalizePerfSummary({ off: true }).off === true)
+  const a = normalizePerfSummary(mockPerfSummary({})).rows
+  ok('066 L7 mock: ranked by p75, one group under n = 50 without p95', a.every((r, i) => i === 0 || (a[i - 1].p75 ?? 0) >= (r.p75 ?? 0)) &&
+    a.some((r) => r.n < 50 && r.p95 === null) && a.every((r) => r.n >= 50 ? r.p95 !== null : true), a.map((r) => r.p75).join())
+  const ab = normalizePerfSummary(mockPerfSummary({ build: '1.3.11', buildB: '1.3.12' }))
+  const cmp = perfCompareRows(ab.rows, ab.rowsB)
+  ok('066 L7 compare: B joined per group, delta = B p75 - A p75', ab.buildB === '1.3.12' && cmp.length === ab.rows.length &&
+    cmp.every((c) => c.b && c.delta === Math.round(c.b.p75 - c.a.p75)) && cmp[0].delta < 0)
+  const only = perfCompareRows([], [{ metric: 'inp', device: 'phone', view: '', n: 1, p50: 1, p75: 1, p95: null, failed: 0 }])
+  ok('066 L7 compare: a group only B has is kept, no delta', only.length === 1 && only[0].a === null && only[0].delta === null)
+}
+const perfPage = readFileSync(new URL('../../src/pages/tenant-settings/performance.vue', import.meta.url), 'utf8')
+ok('066 L7: the Performance page reads the summary and shows n beside the percentiles', perfPage.includes('api.getPerfSummary(') &&
+  perfPage.includes('data-test="tenant-perf-n"') && perfPage.includes('data-test="tenant-perf-p95"') && perfPage.includes('data-test="tenant-perf-days"') &&
+  perfPage.includes('data-test="tenant-perf-build-b"'))
+const lazy = readFileSync(new URL('../../src/utils/spool-client-lazy.mjs', import.meta.url), 'utf8')
+ok('066 L7: the client calls the admin summary route', lazy.includes('/v1/admin/perf/summary?'))
 
 const m = createMockTenant()
 m.patch({ display_name: ' New ', responders: ['GRK-3', 'GRK-3', 'CLE-01'] })

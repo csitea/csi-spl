@@ -17,6 +17,7 @@ export const TENANT_SETTINGS_SECTIONS = [
   { id: 'split', label: 'tenant_settings.split', perm: 'tenant.settings' },
   { id: 'channels', label: 'tenant_settings.channels', perm: 'tenant.settings' },
   { id: 'general', label: 'tenant_settings.general', perm: 'tenant.settings' },
+  { id: 'performance', label: 'tenant_settings.performance', perm: 'tenant.settings' },
 ]
 
 /** `me` is normalizeMe()'s shape. The mock build plays an admin. */

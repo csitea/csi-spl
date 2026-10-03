@@ -10,13 +10,18 @@
 // Channels and General; Members invites, disables and removes; Agents edits
 // the responder order; Channels flips a no-fallback flag and archives
 // (confirmed); General saves the tenant name. On a phone the list of
-// sections is level 2 and a section is level 3. The non-admin half (no
+// sections is level 2 and a section is level 3. Performance (spec 066 L7)
+// renders the mock's canned summary, ranked by p75 with n beside every
+// percentile, a 30-day window and a build A / B compare, on desktop and as
+// cards on a phone. The non-admin half (no
 // entry, hub 403) is tests/unit/tenant-settings.test.mjs plus hub
 // TestTenantSettingsForbidden.
 //
 // Plant the defect and watch it go red (the proof cancels the archive
 // confirmation, so the row stays):
 //   PROVE_RED=no-archive node tests/e2e/tenant-settings.test.mjs
+// (Performance: the compare is skipped, so step 16d goes red)
+//   PROVE_RED=no-compare node tests/e2e/tenant-settings.test.mjs
 //
 // Run:
 //   pnpm run test:e2e tenant-settings
@@ -91,7 +96,7 @@ try {
   await p.waitForFunction(() => location.pathname.endsWith('/tenant-settings/members'), { timeout: 10000 }).catch(() => null)
   ok('2 it opens the first section, Members', path(p).endsWith('/tenant-settings/members'), path(p))
   const nav = await attrs(p, '[data-test=tenant-settings-nav] a', 'data-test')
-  ok('3 the Settings layout lists Members, Agents, Vendor split, Channels, General', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-channels,tenant-settings-nav-general', nav)
+  ok('3 the Settings layout lists Members, Agents, Vendor split, Channels, General, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-performance', nav)
 
   // 2. Members: the users list and edit pane, embedded
   await p.waitForSelector('[data-test=tenant-settings-members] [data-test=users-row]', { visible: true, timeout: 10000 })
@@ -197,6 +202,33 @@ try {
     policy0.value === 'everyone' && policy0.options.join() === 'everyone,admins,starter' && policy0.labels.every((l) => l && !l.startsWith('tenant_settings.')) &&
     policy1.value === 'admins' && policy1.error === '', { policy0, policy1 })
 
+  // 5b. Performance (spec 066 L7): the canned summary, ranked by p75
+  const perfRows = () => p.$$eval('[data-test=tenant-perf-row]', (els) => els.map((e) => ({
+    metric: e.getAttribute('data-metric'),
+    label: e.querySelector('[data-test=tenant-perf-metric]')?.textContent.trim(),
+    n: Number(e.querySelector('[data-test=tenant-perf-n]')?.textContent.trim()),
+    p75: Number(e.querySelector('[data-test=tenant-perf-p75]')?.textContent.trim()),
+    p95: e.querySelector('[data-test=tenant-perf-p95]')?.textContent.trim(),
+    change: e.querySelector('[data-test=tenant-perf-change]')?.textContent.trim(),
+  })))
+  await p.click('[data-test=tenant-settings-nav-performance]')
+  await p.waitForSelector('[data-test=tenant-perf-row]', { visible: true, timeout: 10000 })
+  const perf7 = await perfRows()
+  ok('16 Performance shows the canned summary, slowest p75 first, readable labels', perf7.length === 6 && perf7[0].metric === 'load_messages' &&
+    perf7.every((r, i) => i === 0 || perf7[i - 1].p75 >= r.p75) && perf7.every((r) => r.label && !r.label.startsWith('tenant_settings.')), perf7)
+  ok('16b n beside every percentile; p95 hidden under n = 50', perf7.every((r) => r.n > 0) &&
+    perf7.filter((r) => r.n < 50).every((r) => r.p95 === '—') && perf7.filter((r) => r.n >= 50).every((r) => /^[0-9]+$/.test(r.p95)), perf7)
+  await p.select('[data-test=tenant-perf-days]', '30')
+  await p.waitForFunction((n0) => Number(document.querySelector('[data-test=tenant-perf-n]')?.textContent) === n0 * 4, { timeout: 5000 }, perf7[0].n).catch(() => null)
+  const perf30 = await perfRows()
+  ok('16c the 30-day window reads again', perf30.length === 6 && perf30[0].n === perf7[0].n * 4, { n7: perf7[0].n, n30: perf30[0].n })
+  await p.type('[data-test=tenant-perf-build]', '1.3.11')
+  if (RED !== 'no-compare') await p.type('[data-test=tenant-perf-build-b]', '1.3.12')
+  await p.click('[data-test=tenant-perf-apply]')
+  await p.waitForSelector('[data-test=tenant-perf-table][data-compare="1"]', { visible: true, timeout: 5000 }).catch(() => null)
+  const perfAB = await perfRows()
+  ok('16d a second build compares the two (B minus A at p75)', perfAB.length === 6 && perfAB.every((r) => /^[-+]?[0-9]+$/.test(r.change || '')) && perfAB[0].change.startsWith('-'), perfAB)
+
   // 6. phone: the list is level 2, a section level 3
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true })
   await p.goto(server.base + '/tenant-settings', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -206,6 +238,19 @@ try {
   await p.waitForSelector('[data-test=tenant-settings-general]', { visible: true, timeout: 10000 })
   const navHidden = await p.$eval('[data-test=tenant-settings-nav]', (e) => getComputedStyle(e).display === 'none')
   ok('14 phone: a section opens full width, the list hidden', navHidden)
+  await p.goto(server.base + '/tenant-settings/performance', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-perf-row]', { visible: true, timeout: 10000 })
+  const phonePerf = await p.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-test=tenant-perf-row]')]
+    const head = document.querySelector('[data-test=tenant-perf-table] thead')
+    return {
+      rows: rows.length,
+      fits: rows.every((r) => r.getBoundingClientRect().right <= window.innerWidth + 1),
+      pageScrollX: document.documentElement.scrollWidth > window.innerWidth + 1,
+      headHidden: !!head && getComputedStyle(head).display === 'none',
+    }
+  })
+  ok('14b phone: Performance shows one card per group, no sideways scroll', phonePerf.rows === 6 && phonePerf.fits && !phonePerf.pageScrollX && phonePerf.headHidden, phonePerf)
   ok('15 no page errors', errors.length === 0, errors)
 } finally {
   await browser.close()

@@ -209,6 +209,12 @@ permission. Its sections are:
   visibility, member and agent counts, the no-fallback flag, and Archive.
 - **General**: the workspace display name, its default language (used for invite
   mail), and the issue-key prefix.
+- **Performance**: how fast the app feels to the people of this workspace, from
+  anonymous timings their browsers send (no names, no messages). One row per
+  measurement, device and view, slowest first, with the number of samples (n)
+  beside the 50th, 75th and 95th percentile in milliseconds; the 95th shows from
+  50 samples. Pick a window of 7 or 30 days, and type a second build to compare
+  two versions.
 
 ---
 

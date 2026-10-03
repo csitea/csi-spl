@@ -434,6 +434,18 @@ async function archiveTenantChannel(ctx, channel) {
 }
 
 /**
+ * GET /v1/admin/perf/summary (spec 066 section 6 (b), tenant.settings): this
+ * workspace's timings per (metric, device, view). The mock build answers
+ * perf-summary.mjs's canned summary.
+ */
+async function getPerfSummary(ctx, opts = {}) {
+  const { live, mock } = ctx
+  const ps = await import('./perf-summary.mjs')
+  if (mock) return ps.mockPerfSummary(opts)
+  return live(`/v1/admin/perf/summary?${ps.perfSummaryQuery(opts)}`)
+}
+
+/**
  * message-edit-v1 §1 — PATCH /v1/messages/{msg_id}, body { body }.
  *
  * The prefix is `/v1/`, NOT `/api/v1/`: the latter is the auth handler's
@@ -1151,6 +1163,7 @@ export const lazySpoolMethods = {
   listTenantChannels,
   setTenantChannelNoFallback,
   archiveTenantChannel,
+  getPerfSummary,
   editMessage,
   deleteMessage,
   mergeMessage,

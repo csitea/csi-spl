@@ -1,0 +1,6 @@
+Lay-What: The server now keeps a per-person record of mentions, pokes, direct messages and replies, ready for a personal Flow view.
+Lay-How: When a message mentions or concerns someone, the server notes it against that person, and remembers what they have already seen.
+Lay-Why: A personal Flow with an unread count needs the server to know which messages concern each person.
+Tech-What: rdb 0104 adds flow_watches and flow_events (RLS tenant/operator, FK-cascaded with their message, indexed) and read_marks admits f:seen and f:<msg_id>; a Go port of the WUI MENTION_RE.
+Tech-How: 0104_flow_events.sql creates the tables and backfills watches from lines in retention; flow_mentions.go ports the mention regex with a parity fixture run through the WUI's mentionedIds (26/26); a cross-tenant seed covers both tables.
+Tech-Why: Spec 062 L1: per-user Flow counts need stored events per member; mention parsing must match the WUI exactly (FR-014).

@@ -1,0 +1,6 @@
+Lay-What: Sorting long issue lists and showing prices is now much faster, with exactly the same results.
+Lay-How: The app sets up its sorting and price formatting tools once and reuses them, instead of setting them up for every item.
+Lay-Why: Setting these tools up again and again made big lists slow to sort.
+Tech-What: WUI sortSheet uses one module-level Intl.Collator; formatPrice reuses one Intl.NumberFormat per locale.
+Tech-How: issues-view.mjs and checkout-client.mjs cache the Intl objects with the same options; output byte-equal.
+Tech-Why: Perf round 4 W2: localeCompare-with-options per comparison; 500-row sort 25.06 -> 0.75 ms (n=15).

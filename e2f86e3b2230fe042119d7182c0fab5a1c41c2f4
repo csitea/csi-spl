@@ -1,0 +1,6 @@
+Lay-What: An archived topic is now clearly marked as archived wherever it still shows, and archived topics no longer slip back into the list of live ones.
+Lay-How: An "Archived" label with a box icon (the date on hover) and a faded title appear on the topic and its row; the list drops archived topics that reappeared after a reconnect or a new message.
+Lay-Why: The owner asked that an archived topic be clearly marked; before, it looked exactly like a live one and sometimes sat among live topics.
+Tech-What: WUI ArchivedBadge on topic headers (TopicPane, LiveTopicPane, /t/<id>) and Topics rows with archived_at; two list leaks closed.
+Tech-How: Badge = archive icon + archive.badge (19 locales) in --color-warn; mergeTopicPage drops held rows the fresh page lacks; a live message's new row is read once and dropped if archived.
+Tech-Why: The WUI had no archived state on a topic opened by id, and reconnect merges and live messages re-added archived topics to the list.

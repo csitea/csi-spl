@@ -789,7 +789,9 @@
     "unread_jump": "{n} nowych",
     "unread_jump_label": "Przejdź do pierwszej nieprzeczytanej wiadomości",
     "replies_unread": "{n} nieprzeczytanych",
-    "swipe_archive": "Puść, aby zarchiwizować"
+    "swipe_archive": "Puść, aby zarchiwizować",
+    "swipe_hide": "Puść, aby ukryć",
+    "hidden_show": "Pokaż {n} ukrytą wiadomość | Pokaż ukryte wiadomości: {n}"
   },
   "topic": {
     "title": "Temat",

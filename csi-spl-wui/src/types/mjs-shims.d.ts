@@ -626,6 +626,17 @@ declare module '~/utils/typed-by.mjs' {
   export function isViewersOwn(msg: { from?: string, typed_by?: string } | null | undefined, selfId?: string): boolean
 }
 
+declare module '~/utils/hidden-cards.mjs' {
+  export const HIDDEN_CARDS_KEY: string
+  export const HIDDEN_CARDS_MAX: number
+  export function normalizeHiddenIds(raw: unknown): string[]
+  export function readHiddenCards(store?: Storage | null): string[]
+  export function writeHiddenCards(ids: string[], store?: Storage | null): void
+  export function withHiddenIds(ids: string[], add: string[]): string[]
+  export function withoutHiddenIds(ids: string[], drop: string[]): string[]
+  export function collapseHiddenRuns<T extends { key: string, msg?: { msg_id?: string } }>(items: T[], isHidden: (id: string) => boolean): Array<T | { key: string, hidden: string[], i: number }>
+}
+
 declare module '~/utils/swipe-archive.mjs' {
   export const SWIPE_LOCK_PX: number
   export const SWIPE_MIN_PX: number
@@ -635,11 +646,13 @@ declare module '~/utils/swipe-archive.mjs' {
   export const SWIPE_SETTLE_MS: number
   export function swipeThresholdPx(width: number): number
   export function swipeInBackZone(x: number, width: number, rtl?: boolean): boolean
-  export type SwipeDir = 'archive' | 'menu'
+  export type SwipeDir = 'archive' | 'hide' | 'menu'
+  export function swipeLeftAction(c: { swipeOn: boolean, starter: boolean, mayArchive: boolean, inTopicPane: boolean }): 'archive' | 'hide' | null
   export function createSwipe(opts: {
     width: () => number
     rtl?: () => boolean
     canLeft?: () => boolean
+    leftDir?: () => 'archive' | 'hide' | null
     canRight?: (x: number, y: number) => boolean
     onMove?: (dx: number, armed: boolean, dir: SwipeDir) => void
     onLock?: (dir: SwipeDir) => void

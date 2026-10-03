@@ -203,6 +203,13 @@ export const UI_ICON_PATHS = {
     "M12 11v6",
     "m9 14 3 3 3-3",
   ],
+  // HUM-10 (t1 6fc56905): a reply's swipe-left strip - hide it here (lucide eye-off).
+  "eye-off": [
+    "M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68",
+    "M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61",
+    "M14.12 14.12a3 3 0 1 1-4.24-4.24",
+    "m2 2 20 20",
+  ],
   // Unarchive (Material "unarchive"): the same tray, the arrow going out.
   unarchive: [
     "M4 3h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",

@@ -5,6 +5,7 @@
     :class="{ selected, 'msg--ai': ai, 'msg--clickable': clickable, 'msg--movable': movable, 'msg--move-over': dropOver, 'msg--dragging': dragging, 'msg--swipe': swipeOn, 'msg--swiping': swipeDx !== 0, 'msg--swipe-armed': swipeArmed, 'msg--swipe-settle': swipeSettle }"
     :style="swipeDx !== 0 ? { '--swipe-dx': `${swipeDx}px`, '--swipe-w': `${Math.abs(swipeDx)}px` } : undefined"
     :data-swipe-archive="swipeArchive ? 'true' : undefined"
+    :data-swipe-hide="swipeLeft === 'hide' ? 'true' : undefined"
     :data-swipe-menu="swipeOn ? 'true' : undefined"
     tabindex="0"
     :data-msg-id="msg.msg_id || undefined"
@@ -33,17 +34,19 @@
   >
     <!-- HUM-10 (owner, t1 topic 2d09e9c2): on mobile a swipe LEFT archives
          the topic, a swipe RIGHT opens the card's menu. The strip the card
-         uncovers while it slides; armed (past the threshold) it says so. -->
+         uncovers while it slides; armed (past the threshold) it says so.
+         HUM-10 (t1 6fc56905): in the topic view a reply's LEFT hides it
+         (this device only), so its strip shows the eye-off instead. -->
     <span
       v-if="swipeOn && swipeDx !== 0"
       class="msg-swipe-reveal"
-      :class="swipeDir === 'archive' ? 'msg-swipe-reveal--end' : 'msg-swipe-reveal--start'"
-      :data-testid="swipeDir === 'archive' ? 'swipe-archive-reveal' : 'swipe-menu-reveal'"
+      :class="swipeDir === 'menu' ? 'msg-swipe-reveal--start' : 'msg-swipe-reveal--end'"
+      :data-testid="`swipe-${swipeDir}-reveal`"
       :data-armed="swipeArmed ? 'true' : undefined"
       aria-hidden="true"
     >
-      <UiIcon :name="swipeDir === 'archive' ? 'archive' : 'menu'" :size="20" />
-      <span v-if="swipeArmed && swipeDir === 'archive'" class="msg-swipe-reveal__text">{{ t('feed.swipe_archive') }}</span>
+      <UiIcon :name="swipeDir === 'archive' ? 'archive' : swipeDir === 'hide' ? 'eye-off' : 'menu'" :size="20" />
+      <span v-if="swipeArmed && swipeDir !== 'menu'" class="msg-swipe-reveal__text">{{ t(swipeDir === 'hide' ? 'feed.swipe_hide' : 'feed.swipe_archive') }}</span>
     </span>
     <!-- SPL-1134 (specs/045 §3.9): the drag handle, the card's first ~3 mm.
          A move starts from here only; the rest of the card clicks, selects
@@ -463,7 +466,8 @@ import { useMessageEmoji } from '~/composables/useMessageEmoji'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
 import { canSetKind } from '~/utils/msg-kind.mjs'
 import { COMPOSER_FOCUS_EVENT, LONG_PRESS_MS, LONG_PRESS_SLOP_PX, createLongPress } from '~/utils/touch-ui.mjs'
-import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone } from '~/utils/swipe-archive.mjs'
+import { SWIPE_SETTLE_MS, createSwipe, swipeInBackZone, swipeLeftAction } from '~/utils/swipe-archive.mjs'
+import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isTouchUi } from '~/utils/undo-timer.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
@@ -858,9 +862,21 @@ const swipeArchive = computed(() => {
   if (props.topicMenu) return showTopicArchive.value
   return inTopicPane.value && mayArchiveTopic(props.msg, editorId.value, access.me)
 })
-/** signed: < 0 slid towards the start (archive), > 0 towards the end (menu) */
+/* HUM-10 (owner, t1 topics 6fc56905 / 3e073a95): in the topic view a reply's
+   LEFT swipe hides it on this device (useHiddenCards; not archive, not
+   delete): LiveFeed puts a thicker line where it was and a tap on the line
+   shows it again. The topic starter (a topic card, any level-1 row, the
+   pane's opener) keeps the archive and is never hidden (swipeLeftAction). */
+const swipeStarter = computed(() => Boolean(props.topicMenu) || props.msg.is_parent !== 0
+  || (Boolean(props.moveCtx?.opener) && props.msg.msg_id === props.moveCtx?.opener))
+const swipeLeft = computed(() => {
+  const a = swipeLeftAction({ swipeOn: swipeOn.value, starter: swipeStarter.value, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value })
+  return a === 'hide' && (!props.msg.msg_id || props.msg.pending) ? null : a
+})
+const hiddenCards = useHiddenCards()
+/** signed: < 0 slid towards the start (archive / hide), > 0 towards the end (menu) */
 const swipeDx = ref(0)
-const swipeDir = ref<'archive' | 'menu'>('archive')
+const swipeDir = ref<'archive' | 'hide' | 'menu'>('archive')
 const swipeArmed = ref(false)
 /** the snap back / the slide out animates; a finger-driven move does not */
 const swipeSettle = ref(false)
@@ -878,7 +894,7 @@ const swipeRtl = () => typeof document !== 'undefined' && document.documentEleme
 const swipe = createSwipe({
   width: () => rowEl.value?.getBoundingClientRect().width || 0,
   rtl: swipeRtl,
-  canLeft: () => swipeArchive.value,
+  leftDir: () => swipeLeft.value,
   /* the Back zone wins: a right swipe from there is the shell's Back */
   canRight: (x) => !(stack.isMobile.value && stack.level.value > 1
     && swipeInBackZone(x, typeof window !== 'undefined' ? window.innerWidth : 0, swipeRtl())),
@@ -890,10 +906,11 @@ const swipe = createSwipe({
   onMove: (dx, armed, dir) => {
     if (armed && !swipeArmed.value && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
     swipeArmed.value = armed
-    swipeTo(dir === 'archive' ? -dx : dx, false)
+    swipeTo(dir === 'menu' ? dx : -dx, false)
   },
   onCommit: (dir, x, y) => {
     if (dir === 'archive') return void swipeCommit()
+    if (dir === 'hide') return void swipeHideCommit()
     swipeArmed.value = false
     /* no slide back first: a transformed card would hold the menu */
     swipeTo(0, false)
@@ -924,6 +941,20 @@ async function swipeCommit() {
     useTopicStore().close()
   }
 }
+/* the card slides out, then leaves the list: LiveFeed draws the line */
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+function swipeHideCommit() {
+  stack.swipe.claim()
+  swipeTo(-(rowEl.value?.getBoundingClientRect().width || 0), true)
+  if (hideTimer) clearTimeout(hideTimer)
+  hideTimer = setTimeout(() => {
+    hideTimer = null
+    swipeArmed.value = false
+    hiddenCards.hide(String(props.msg.msg_id || ''))
+    /* a list that does not fold hidden rows keeps the card: slide it back */
+    void nextTick(() => { if (rowEl.value?.isConnected) swipeTo(0, true) })
+  }, SWIPE_SETTLE_MS)
+}
 function onRowDown(ev: PointerEvent) {
   /* HUM-10: a finger on a topic card it may move lifts it on the hold (the
      long-press menu then opens on a release in place, see rowDrag) */
@@ -951,6 +982,7 @@ function onRowCancel() {
 onBeforeUnmount(() => {
   swipe.cancel()
   if (settleTimer) clearTimeout(settleTimer)
+  if (hideTimer) clearTimeout(hideTimer)
 })
 
 /* Reply: a topic card opens its topic (the third panel); a thread line is

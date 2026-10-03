@@ -13,8 +13,9 @@
 //      leaves, "Archived · Undo" shows and is still up 2.5 s later (the touch
 //      window); Undo brings it back, selected; a RIGHT swipe from the left
 //      edge is still Back (level 2 -> 1), no menu, no archive
-//   B  topic view: a RIGHT slide on a reply opens the reply's menu; a LEFT
-//      slide on a reply does nothing; a short LEFT slide on the topic's
+//   B  topic view: a RIGHT slide on a reply opens the reply's menu; a short
+//      LEFT slide on a reply shows the HIDE strip, never the archive one
+//      (the hide itself: swipe-hide.test.mjs); a short LEFT slide on the topic's
 //      opening message cancels; a RIGHT swipe from the left edge on it is
 //      still Back (3 -> 2); a long LEFT slide archives the topic, closes the
 //      topic view and offers Undo, which brings the card back
@@ -290,10 +291,15 @@ try {
   ok('B ... and opens the reply\'s menu', await until(p, (s) => [...document.querySelectorAll(s)].some((e) => e.getClientRects().length), menu, 3000))
   await shot(p, 'swipe-reply-menu')
   ok('B ... the menu closes', await closeMenu(p))
-  const reply = await slideLeft(p, `.topic ${card(b.r2)}`, 150, { mid: midState(`.topic ${card(b.r2)}`) })
-  ok('B a LEFT slide on a reply shows no strip and does not move it', reply && !reply.strip && !reply.shifted, reply)
-  await sleep(300)
-  ok('B ... and archives nothing', (await has(p, opener)) && !(await has(p, toast)))
+  const reply = await slideLeft(p, `.topic ${card(b.r2)}`, 50, {
+    mid: (p) => p.evaluate((sel) => {
+      const e = document.querySelector(sel)
+      return e && { archive: Boolean(e.querySelector('[data-testid=swipe-archive-reveal]')), hide: Boolean(e.querySelector('[data-testid=swipe-hide-reveal]')) }
+    }, `.topic ${card(b.r2)}`),
+  })
+  ok('B a short LEFT slide on a reply shows the hide strip, never the archive one', reply && reply.hide && !reply.archive, reply)
+  await sleep(400)
+  ok('B ... snaps back and archives nothing', (await has(p, opener)) && (await has(p, `.topic ${card(b.r2)}`)) && !(await has(p, toast)))
 
   const lv0 = await level(p)
   const bpops = await pops(p)

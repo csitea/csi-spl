@@ -789,7 +789,9 @@
     "unread_jump": "{n} yeni",
     "unread_jump_label": "İlk okunmamış mesaja git",
     "replies_unread": "{n} okunmamış",
-    "swipe_archive": "Arşivlemek için bırakın"
+    "swipe_archive": "Arşivlemek için bırakın",
+    "swipe_hide": "Gizlemek için bırakın",
+    "hidden_show": "{n} gizli mesajı göster | {n} gizli mesajı göster"
   },
   "topic": {
     "title": "Konu",

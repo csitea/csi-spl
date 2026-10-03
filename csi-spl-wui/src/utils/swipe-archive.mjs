@@ -11,6 +11,11 @@
 //   - LEFT  ('archive') archives the topic (the menu's Archive: same
 //     permission, same "Archived · Undo" snackbar);
 //   - RIGHT ('menu') opens the card's menu, the one a right-click opens.
+// HUM-10 (owner, t1 topics 6fc56905 / 3e073a95, 2026-10-03): "On mobile in
+// the reply/thread messages view, it should be possible to hide a
+// message/card by just swiping to the left. That would be just hide, not
+// archive, not delete." So in the topic view a REPLY's LEFT is 'hide'
+// (swipeLeftAction); the topic starter keeps 'archive' and is never hidden.
 // Anything else cancels and the card snaps back:
 //   - the first SWIPE_LOCK_PX of travel decide the axis: mostly vertical is a
 //     scroll (the browser keeps it, the card never moves); a direction the
@@ -56,25 +61,48 @@ export function swipeInBackZone(x, width, rtl = false) {
 }
 
 /**
+ * What a card's LEFT swipe does, or null for nothing:
+ *   - the topic starter (a topic card, or the topic's opening message in the
+ *     topic view) archives when the viewer may archive it - and is NEVER
+ *     hidden, whatever else holds;
+ *   - a reply in the topic view hides (only on this device: not archive,
+ *     not delete);
+ *   - anything else (a reply outside the topic view) is not a left swipe.
+ * @param {{ swipeOn: boolean, starter: boolean, mayArchive: boolean, inTopicPane: boolean }} c
+ * @returns {'archive' | 'hide' | null}
+ */
+export function swipeLeftAction(c) {
+  if (!c || !c.swipeOn) return null
+  if (c.starter) return c.mayArchive ? 'archive' : null
+  return c.inTopicPane ? 'hide' : null
+}
+
+/**
  * The direction a move of (rx, ry) from (x0, y0) locks to, or null: mostly
  * vertical, or a direction the card does not offer, is not a swipe.
- * @returns {'archive' | 'menu' | null}
+ * @returns {'archive' | 'hide' | 'menu' | null}
  */
 function lockDir(opts, rx, ry, x0, y0) {
   if (Math.abs(rx) <= Math.abs(ry) * SWIPE_AXIS_RATIO) return null
-  if (rx < 0) return !opts.canLeft || opts.canLeft() ? 'archive' : null
+  if (rx < 0) {
+    if (opts.leftDir) return opts.leftDir()
+    return !opts.canLeft || opts.canLeft() ? 'archive' : null
+  }
   return opts.canRight && opts.canRight(x0, y0) ? 'menu' : null
 }
 
 /**
  * @param {{ width: () => number, rtl?: () => boolean,
  *   canLeft?: () => boolean,
+ *   leftDir?: () => 'archive' | 'hide' | null,
  *   canRight?: (x: number, y: number) => boolean,
- *   onMove?: (dx: number, armed: boolean, dir: 'archive' | 'menu') => void,
- *   onLock?: (dir: 'archive' | 'menu') => void,
- *   onCommit: (dir: 'archive' | 'menu', x: number, y: number) => void,
+ *   onMove?: (dx: number, armed: boolean, dir: 'archive' | 'hide' | 'menu') => void,
+ *   onLock?: (dir: 'archive' | 'hide' | 'menu') => void,
+ *   onCommit: (dir: 'archive' | 'hide' | 'menu', x: number, y: number) => void,
  *   onCancel?: () => void }} opts
  * `dx` is the travel (>= 0) in the swipe's direction; no canRight, no menu.
+ * `leftDir`, when given, decides the left swipe (swipeLeftAction) in place
+ * of `canLeft` (which only ever offers 'archive').
  */
 export function createSwipe(opts) {
   /** 'idle' | 'pending' (finger down, axis not decided) | 'swiping' | 'off' (not ours until lift) */
@@ -84,7 +112,7 @@ export function createSwipe(opts) {
   /** where the finger is now: the menu opens there */
   let at = { x: 0, y: 0 }
   let dx = 0
-  /** @type {'archive' | 'menu'} */
+  /** @type {'archive' | 'hide' | 'menu'} */
   let dir = 'archive'
   let threshold = SWIPE_MIN_PX
   let swallow = false
@@ -128,7 +156,7 @@ export function createSwipe(opts) {
         if (opts.onLock) opts.onLock(dir)
       }
       at = { x: ev.clientX, y: ev.clientY }
-      dx = Math.max(0, dir === 'archive' ? -rx : rx)
+      dx = Math.max(0, dir === 'menu' ? rx : -rx)
       if (opts.onMove) opts.onMove(dx, dx >= threshold, dir)
     },
     /** the finger lifted: commit when past the threshold */

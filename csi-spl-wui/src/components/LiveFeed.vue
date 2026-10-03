@@ -62,6 +62,21 @@
         >
           <span class="new-divider__label">{{ seatLabel }}</span>
         </div>
+        <!-- HUM-10 (owner, t1 topics 6fc56905 / 3e073a95): replies this
+             viewer hid by a swipe left (this device only). One thicker line
+             stands where a run of them was; a tap shows them again. -->
+        <button
+          v-else-if="it.hidden"
+          type="button"
+          class="hidden-cards-line"
+          data-testid="hidden-cards-line"
+          :data-hidden-ids="it.hidden.join(' ')"
+          :aria-label="t('feed.hidden_show', { n: it.hidden.length }, it.hidden.length)"
+          :title="t('feed.hidden_show', { n: it.hidden.length }, it.hidden.length)"
+          @click="hiddenCards.show(it.hidden)"
+        >
+          <span class="hidden-cards-line__bar" aria-hidden="true" />
+        </button>
         <MessageCard
           v-else-if="it.msg"
           :msg="it.msg"
@@ -144,6 +159,8 @@ import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { threadJumpState } from '~/utils/thread-jump.mjs'
 import { countUnread, firstUnreadId, isUnread } from '~/utils/read-cursor.mjs'
 import { seatDividerId } from '~/utils/seat-divider.mjs'
+import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
+import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
@@ -253,8 +270,15 @@ const seatLabel = computed(() => t('feed.seat_divider', { when: isoDateTime(prop
 /* The rows with the dividers interleaved (one keyed element per iteration).
    Each divider sits on the older side of its message: before it newest-last,
    after it newest-first. */
-type FeedItem = { key: string, divider?: true, seat?: true, msg?: SpoolMessage, i: number }
+type FeedItem = { key: string, divider?: true, seat?: true, hidden?: string[], msg?: SpoolMessage, i: number }
+/* HUM-10: a thread folds the replies hidden on this device (swipe left) */
+const hiddenCards = useHiddenCards()
 const feedItems = computed<FeedItem[]>(() => {
+  const items = feedRows.value
+  if (!props.holdScroll || !hiddenCards.ids.value.length) return items
+  return collapseHiddenRuns(items, hiddenCards.isHidden) as FeedItem[]
+})
+const feedRows = computed<FeedItem[]>(() => {
   const out: FeedItem[] = []
   const fid = firstNewId.value
   const sid = seatId.value
@@ -484,6 +508,27 @@ function isSelected(m: SpoolMessage) {
 @media (prefers-reduced-motion: reduce) {
   .append-enter-active, .append-move { transition: none; }
 }
+/* HUM-10: the thicker line where hidden replies are; the whole strip is the
+   tap target (a phone thumb), the bar inside it is what shows */
+.hidden-cards-line {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 24px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.hidden-cards-line__bar {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-muted);
+}
+.hidden-cards-line:hover .hidden-cards-line__bar,
+.hidden-cards-line:focus-visible .hidden-cards-line__bar { background: var(--color-accent); }
+.hidden-cards-line:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
 .new-pill-wrap--bottom { top: auto; bottom: 8px; align-items: flex-end; }
 /* Above the dock and the keyboard. The rule exists only at the phone width. */
 @media (max-width: 820px) {

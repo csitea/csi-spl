@@ -789,7 +789,9 @@
     "unread_jump": "{n} חדשות",
     "unread_jump_label": "מעבר להודעה הראשונה שלא נקראה",
     "replies_unread": "{n} שלא נקראו",
-    "swipe_archive": "שחררו כדי להעביר לארכיון"
+    "swipe_archive": "שחררו כדי להעביר לארכיון",
+    "swipe_hide": "שחררו כדי להסתיר",
+    "hidden_show": "הצגת {n} הודעה מוסתרת | הצגת {n} הודעות מוסתרות"
   },
   "topic": {
     "title": "נושא",

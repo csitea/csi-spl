@@ -789,7 +789,9 @@
     "unread_jump": "{n} naujų",
     "unread_jump_label": "Pereiti prie pirmos neperskaitytos žinutės",
     "replies_unread": "{n} neperskaityta",
-    "swipe_archive": "Atleiskite, kad archyvuotumėte"
+    "swipe_archive": "Atleiskite, kad archyvuotumėte",
+    "swipe_hide": "Atleiskite, kad paslėptumėte",
+    "hidden_show": "Rodyti {n} paslėptą žinutę | Rodyti paslėptas žinutes: {n}"
   },
   "topic": {
     "title": "Tema",

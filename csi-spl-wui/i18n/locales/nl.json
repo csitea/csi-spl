@@ -789,7 +789,9 @@
     "unread_jump": "{n} nieuw",
     "unread_jump_label": "Ga naar het eerste ongelezen bericht",
     "replies_unread": "{n} ongelezen",
-    "swipe_archive": "Loslaten om te archiveren"
+    "swipe_archive": "Loslaten om te archiveren",
+    "swipe_hide": "Loslaten om te verbergen",
+    "hidden_show": "{n} verborgen bericht tonen | {n} verborgen berichten tonen"
   },
   "topic": {
     "title": "Onderwerp",

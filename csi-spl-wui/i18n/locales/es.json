@@ -789,7 +789,9 @@
     "unread_jump": "{n} nuevos",
     "unread_jump_label": "Ir al primer mensaje sin leer",
     "replies_unread": "{n} sin leer",
-    "swipe_archive": "Suelta para archivar"
+    "swipe_archive": "Suelta para archivar",
+    "swipe_hide": "Suelta para ocultar",
+    "hidden_show": "Mostrar {n} mensaje oculto | Mostrar {n} mensajes ocultos"
   },
   "topic": {
     "title": "Tema",

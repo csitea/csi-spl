@@ -789,7 +789,9 @@
     "unread_jump": "{n} new",
     "unread_jump_label": "Jump to the first unread message",
     "replies_unread": "{n} unread",
-    "swipe_archive": "Release to archive"
+    "swipe_archive": "Release to archive",
+    "swipe_hide": "Release to hide",
+    "hidden_show": "Show {n} hidden message | Show {n} hidden messages"
   },
   "topic": {
     "title": "Topic",

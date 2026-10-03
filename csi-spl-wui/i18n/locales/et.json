@@ -789,7 +789,9 @@
     "unread_jump": "{n} uut",
     "unread_jump_label": "Liigu esimese lugemata sõnumi juurde",
     "replies_unread": "{n} lugemata",
-    "swipe_archive": "Vabasta arhiveerimiseks"
+    "swipe_archive": "Vabasta arhiveerimiseks",
+    "swipe_hide": "Vabasta peitmiseks",
+    "hidden_show": "Näita {n} peidetud sõnumit | Näita {n} peidetud sõnumit"
   },
   "topic": {
     "title": "Teema",

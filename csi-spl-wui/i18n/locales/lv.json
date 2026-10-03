@@ -789,7 +789,9 @@
     "unread_jump": "{n} jauni",
     "unread_jump_label": "Pāriet uz pirmo nelasīto ziņojumu",
     "replies_unread": "{n} nelasīti",
-    "swipe_archive": "Atlaid, lai arhivētu"
+    "swipe_archive": "Atlaid, lai arhivētu",
+    "swipe_hide": "Atlaid, lai paslēptu",
+    "hidden_show": "Rādīt {n} paslēpto ziņu | Rādīt paslēptās ziņas: {n}"
   },
   "topic": {
     "title": "Tēma",

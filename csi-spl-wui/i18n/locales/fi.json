@@ -789,7 +789,9 @@
     "unread_jump": "{n} uutta",
     "unread_jump_label": "Siirry ensimmäiseen lukemattomaan viestiin",
     "replies_unread": "{n} lukematonta",
-    "swipe_archive": "Päästä irti arkistoidaksesi"
+    "swipe_archive": "Päästä irti arkistoidaksesi",
+    "swipe_hide": "Päästä irti piilottaaksesi",
+    "hidden_show": "Näytä {n} piilotettu viesti | Näytä {n} piilotettua viestiä"
   },
   "topic": {
     "title": "Aihe",

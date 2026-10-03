@@ -789,7 +789,9 @@
     "unread_jump": "{n} noi",
     "unread_jump_label": "Salt la primul mesaj necitit",
     "replies_unread": "{n} necitite",
-    "swipe_archive": "Eliberează pentru a arhiva"
+    "swipe_archive": "Eliberează pentru a arhiva",
+    "swipe_hide": "Eliberează pentru a ascunde",
+    "hidden_show": "Arată {n} mesaj ascuns | Arată {n} mesaje ascunse"
   },
   "topic": {
     "title": "Temă",

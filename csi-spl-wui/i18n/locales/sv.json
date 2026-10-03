@@ -789,7 +789,9 @@
     "unread_jump": "{n} nya",
     "unread_jump_label": "Gå till det första olästa meddelandet",
     "replies_unread": "{n} olästa",
-    "swipe_archive": "Släpp för att arkivera"
+    "swipe_archive": "Släpp för att arkivera",
+    "swipe_hide": "Släpp för att dölja",
+    "hidden_show": "Visa {n} dolt meddelande | Visa {n} dolda meddelanden"
   },
   "topic": {
     "title": "Ämne",

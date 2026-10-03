@@ -291,25 +291,25 @@ func copyVerify(src, dest, want string) error {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("source %q absent: %w", src, err)
 		}
-		return err
+		return fmt.Errorf("open %q: %w", src, err)
 	}
 	defer in.Close()
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
+		return fmt.Errorf("mkdir %q: %w", filepath.Dir(dest), err)
 	}
 	tmp, err := createTemp(filepath.Dir(dest), ".get-")
 	if err != nil {
-		return err
+		return fmt.Errorf("temp in %q: %w", filepath.Dir(dest), err)
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
 	h := sha256.New()
 	if _, err := io.Copy(io.MultiWriter(tmp, h), in); err != nil {
 		tmp.Close()
-		return err
+		return fmt.Errorf("copy %q: %w", src, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return fmt.Errorf("close temp: %w", err)
 	}
 	if want != "" && hex.EncodeToString(h.Sum(nil)) != want {
 		return ErrHashMismatch

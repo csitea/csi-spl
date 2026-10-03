@@ -31,7 +31,7 @@ func pinPath(pinsDir, box string) string { return filepath.Join(pinsDir, "box-"+
 // returns the base64 public key (for pinning).
 func GenerateKey(keysDir, id string, force bool) (pubB64 string, err error) {
 	if err := os.MkdirAll(keysDir, 0o700); err != nil {
-		return "", err
+		return "", fmt.Errorf("create keys dir %s: %w", keysDir, err)
 	}
 	kp := keyPath(keysDir, id)
 	if _, err := os.Stat(kp); err == nil && !force {
@@ -39,11 +39,11 @@ func GenerateKey(keysDir, id string, force bool) (pubB64 string, err error) {
 	}
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("generate key for %s: %w", id, err)
 	}
 	enc := base64.StdEncoding.EncodeToString(priv)
 	if err := os.WriteFile(kp, []byte(enc+"\n"), 0o600); err != nil {
-		return "", err
+		return "", fmt.Errorf("write key %s: %w", kp, err)
 	}
 	return base64.StdEncoding.EncodeToString(pub), nil
 }

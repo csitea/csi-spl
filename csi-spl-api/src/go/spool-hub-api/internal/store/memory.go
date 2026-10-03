@@ -217,7 +217,9 @@ func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []strin
 		overBotCap(t.SeatsBots, s.countBotsLocked(tenant), s.roster[[2]string{tenant, box}], agents) {
 		return ErrSeatQuota
 	}
-	s.boxes[[2]string{tenant, box}] = now
+	if _, ok := s.boxes[[2]string{tenant, box}]; !ok {
+		s.boxes[[2]string{tenant, box}] = time.Time{} // the row, no hello (Postgres: last_hello_at NULL)
+	}
 	a := append([]string(nil), agents...)
 	sort.Strings(a)
 	s.roster[[2]string{tenant, box}] = a

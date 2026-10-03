@@ -233,13 +233,13 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 	}
 	// Online presence for every box under ONE hub-mutex hold (map reads only),
 	// so the mutex that also guards routing is not taken once per box and never
-	// held across the base64 / time formatting below.
+	// held across the base64 / time formatting below. A box whose socket is on
+	// another instance reads online from its fresh stamp (presence.go).
 	online := make([]bool, len(rs.Boxes))
+	now := s.o.Now()
 	s.mu.Lock()
 	for i, b := range rs.Boxes {
-		if !b.Revoked {
-			online[i] = s.boxes[[2]string{t.ID, b.BoxID}] != nil
-		}
+		online[i] = s.boxOnlineLocked(t.ID, b, now)
 	}
 	s.mu.Unlock()
 	out := make([]viewBox, 0, len(rs.Boxes))

@@ -132,6 +132,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	kctx, stopPing := context.WithCancel(ctx)
 	defer stopPing()
 	s.keepalive(kctx, conn)
+	if x.role == wire.RoleBox {
+		go s.stampPresence(kctx, x)
+	}
 
 	for {
 		var f wire.Frame
@@ -334,6 +337,7 @@ func (s *Server) register(x *session) bool {
 		k := [2]string{x.tenant, x.box}
 		old = s.boxes[k]
 		s.boxes[k] = x
+		delete(s.left, k)
 	}
 	s.sessions[x] = struct{}{}
 	s.mu.Unlock()
@@ -349,6 +353,9 @@ func (s *Server) drop(x *session) {
 	gone := s.boxes[k] == x // false for a superseded socket: its box stays online
 	if gone {
 		delete(s.boxes, k)
+		if x.role == wire.RoleBox && !s.closing {
+			s.left[k] = s.o.Now() // a shutdown is a roll: the box redials elsewhere
+		}
 	}
 	delete(s.sessions, x)
 	s.mu.Unlock()

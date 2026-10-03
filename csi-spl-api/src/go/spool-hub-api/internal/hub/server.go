@@ -169,9 +169,11 @@ type Server struct {
 	o      Options
 	suffix string // TenantHostPattern without "{tenant}"
 
-	mu       sync.Mutex
-	boxes    map[[2]string]*session // (tenant, box) → the role=box session
-	sessions map[*session]struct{}  // every live socket (both roles)
+	mu    sync.Mutex
+	boxes map[[2]string]*session // (tenant, box) → the role=box session
+	// left: when this instance saw a box's own socket close (presence.go).
+	left     map[[2]string]time.Time
+	sessions map[*session]struct{} // every live socket (both roles)
 	tokens   map[string]uploadToken
 	// tokenSweptAt: when mintToken last dropped expired tokens (CLE-34986:
 	// it walked the whole map on EVERY mint, under mu).
@@ -241,7 +243,7 @@ func New(o Options) (*Server, error) {
 	o.Revision = revisionOr(o.Revision)
 	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
-		boxes: map[[2]string]*session{}, sessions: map[*session]struct{}{},
+		boxes: map[[2]string]*session{}, left: map[[2]string]time.Time{}, sessions: map[*session]struct{}{},
 		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{}, online: map[[2]string]int{},
 		edge: edge.NewGuard(o.Edge, o.Log, o.Now), searchRate: edge.NewWindow(time.Minute, o.Now),
 		fileUsage: newFileUsage(o.FileUsageTTL),

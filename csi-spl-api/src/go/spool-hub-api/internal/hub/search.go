@@ -428,12 +428,9 @@ func (s *Server) boxEntities(ctx context.Context, tenant string, ty search.Type,
 		return err
 	}
 	for _, b := range boxes {
-		online := false
-		if !b.Revoked {
-			s.mu.Lock()
-			online = s.boxes[[2]string{tenant, b.BoxID}] != nil
-			s.mu.Unlock()
-		}
+		s.mu.Lock()
+		online := s.boxOnlineLocked(tenant, b, s.o.Now())
+		s.mu.Unlock()
 		if ty == search.TypeBox {
 			agents := append([]string{}, b.Agents...)
 			var hello *string

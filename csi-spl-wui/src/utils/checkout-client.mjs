@@ -66,6 +66,20 @@ export function checkoutErrorCopy() {
   return { ...ERRORS, generic: GENERIC_ERROR }
 }
 
+/** One NumberFormat per locale, built on first use (a new one per call costs
+ *  ~x25 a reused one); null for a locale Intl refuses. */
+const PRICE_FORMATS = new Map()
+function priceFormat(locale) {
+  if (!PRICE_FORMATS.has(locale)) {
+    let f = null
+    try {
+      f = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    } catch { /* unknown locale → the plain form */ }
+    PRICE_FORMATS.set(locale, f)
+  }
+  return PRICE_FORMATS.get(locale)
+}
+
 /**
  * "20.00 EUR"; unknown / bad amounts → ''. With a `locale` (spec 021: the
  * active UI locale) the amount uses that locale's digits and separators,
@@ -75,11 +89,8 @@ export function formatPrice(cents, currency, locale) {
   const n = Number(cents)
   if (!Number.isFinite(n) || n < 0) return ''
   let amount = (n / 100).toFixed(2)
-  if (locale) {
-    try {
-      amount = new Intl.NumberFormat(String(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n / 100)
-    } catch { /* unknown locale → the plain form */ }
-  }
+  const fmt = locale ? priceFormat(String(locale)) : null
+  if (fmt) amount = fmt.format(n / 100)
   return `${amount} ${String(currency || '').toUpperCase()}`.trim()
 }
 

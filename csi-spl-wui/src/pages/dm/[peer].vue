@@ -6,6 +6,8 @@
       :status="presence.status"
       :status-text="t(presence.key, presence.params)"
       status-shown
+      :archived-at="openArchive.at"
+      :topic-title="openArchive.title"
     />
     <MessageFeed :label="t('pages.feed_label', { target: peer })" :boundary="feedBoundary" />
   </div>
@@ -29,7 +31,9 @@ import { paneTakesLine } from '~/utils/pane-focus.mjs'
 import { useTopicFeedClose } from '~/composables/useTopicRoute'
 import { useNotificationStore } from '~/stores/notification'
 import { dmPresence } from '~/utils/dm-presence.mjs'
-import { BROWSER_BOX } from '~/utils/view-api.mjs'
+import { BROWSER_BOX, topicTitleFromRows } from '~/utils/view-api.mjs'
+import { archiveStamp } from '~/utils/topic-archive.mjs'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -95,6 +99,26 @@ watch([peer, () => session.state], async ([p, st]) => {
   if (peer.value !== p) return
   topicFeedReady.value = true
   releaseStaleTopic()
+}, { immediate: true })
+
+/* t1 404cd808 (owner: "it must be a clear indication in this view if
+   somethign is archived"): the topic open on this DM (?topic=) - its archive
+   stamp and title for the header's Archived mark. The hub stamps the first
+   read of an archived topic (topic-archive.mjs archiveStamp); this page held
+   no read of it, so one limit-1 read per opened topic. '' = live. */
+const openArchive = ref({ at: '', title: '' })
+const openTopicId = computed(() => (topic.open ? String(topic.parentTaskId || '') : ''))
+watch(openTopicId, async (id) => {
+  openArchive.value = { at: '', title: '' }
+  if (!id) return
+  try {
+    const data = await withSessionRetry(api, () => api.getTopic(id, { limit: 1 })) as { messages?: SpoolMessage[] }
+    if (openTopicId.value !== id) return
+    const at = archiveStamp(data)
+    openArchive.value = { at, title: at ? topicTitleFromRows(data.messages || [], topic.rootMsg) : '' }
+  } catch {
+    /* no mark is the live rendering; the topic pane reports a failed read */
+  }
 }, { immediate: true })
 
 /* read cursors follow channel.peer in plugins/notify.client.ts */

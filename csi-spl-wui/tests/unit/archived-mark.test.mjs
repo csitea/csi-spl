@@ -131,6 +131,48 @@ describe('the open topic header marks an archived topic', () => {
   }
 })
 
+/* t1 404cd808 (owner: "it must be a clear indication in this view if
+   somethign is archived"): the DM page opened on an archived topic (?topic=)
+   marks it in its own header - the SHIPPED DM page's <FeedHeader> rendered
+   with the SHIPPED FeedHeader.vue template. A live topic: no mark (control). */
+describe('the DM view header marks an archived open topic', () => {
+  const headerTpl = templateOf('src/components/FeedHeader.vue')
+  const dmPage = templateOf('src/pages/dm/[peer].vue')
+  const dmTpl = dmPage.slice(dmPage.indexOf('<FeedHeader'), dmPage.indexOf('/>', dmPage.indexOf('<FeedHeader')) + 2) /* self-closing */
+  const FeedHeader = {
+    props: ['title', 'titleTip', 'status', 'statusText', 'statusShown', 'archivedAt', 'topicTitle'],
+    setup(props) {
+      const tpl = component(headerTpl, new Proxy({ t: (k) => k }, { get: (o, k) => (k in o ? o[k] : props[k]), has: () => true }))
+      return () => tpl.render(null, [])
+    },
+  }
+  async function dm(at, title) {
+    const app = Vue.createSSRApp(component(dmTpl, {
+      peerName: 'RSP-01', peer: 'RSP-01@box-rsp', presence: { status: 'off', key: 'k', params: {} }, t: (k) => k,
+      openArchive: { at, title },
+    }))
+    app.component('FeedHeader', FeedHeader)
+    app.component('ArchivedBadge', ArchivedBadge)
+    app.component('UiIcon', UiIcon)
+    for (const stub of ['MobileBack', 'CardClipControl']) app.component(stub, { render: () => null })
+    app.config.warnHandler = () => {}
+    return renderToString(app)
+  }
+  it('archived -> the badge beside the muted topic title', async () => {
+    const out = await dm(STAMP, 'deploy the relay')
+    assert.match(out, /data-test="archived-badge"/)
+    assert.match(out, /class="feed-header__topic is-archived"/)
+    assert.match(out, /class="feed-header__topic-title">deploy the relay</)
+    assert.match(out, />RSP-01</, 'the peer name stays the title')
+  })
+  it('live topic (or none open) -> no badge, nothing muted (control)', async () => {
+    const out = await dm('', '')
+    assert.doesNotMatch(out, /archived-badge/)
+    assert.doesNotMatch(out, /is-archived/)
+    assert.match(out, />RSP-01</)
+  })
+})
+
 describe('archiveStamp (the getTopic answer)', () => {
   it('is the hub stamp, or empty for a live topic or junk', () => {
     assert.equal(archiveStamp({ task_id: 'x', messages: [], archived_at: STAMP }), STAMP)

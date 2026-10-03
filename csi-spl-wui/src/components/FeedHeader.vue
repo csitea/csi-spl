@@ -7,7 +7,11 @@
      (status-shown) - "isn't this green dot MY status?" - so the peer's
      presence reads as the peer's without hovering. Owner
      2026-09-26: no "last 30 · tenant-scoped" note and no channel description
-     here (the description lives in channel Properties). -->
+     here (the description lives in channel Properties).
+     t1 404cd808 (owner: "it must be a clear indication in this view if
+     somethign is archived"): a DM opened on an ARCHIVED topic (?topic=)
+     names that topic here, muted, beside the same ArchivedBadge the topic
+     pane and the Topics rows carry; a live topic adds nothing. -->
 <template>
   <header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t('pane.msgs')">
     <MobileBack />
@@ -23,6 +27,15 @@
       <span v-if="statusText && statusShown" class="feed-header__status" data-test="feed-header-status-text">{{ statusText }}</span>
       <span v-else-if="statusText" class="sr-only">{{ statusText }}</span>
     </div>
+    <span
+      v-if="archivedAt"
+      class="feed-header__topic is-archived"
+      data-test="feed-header-archived"
+      :title="topicTitle || undefined"
+    >
+      <span v-if="topicTitle" class="feed-header__topic-title">{{ topicTitle }}</span>
+      <ArchivedBadge :at="archivedAt" />
+    </span>
     <CardClipControl />
   </header>
 </template>
@@ -39,6 +52,28 @@ defineProps<{
   /** print statusText beside the title (DM: the peer's presence); omitted =
       the words stay in the dot's tooltip and for screen readers (lobby) */
   statusShown?: boolean
+  /** the open topic's archive stamp ('' or omitted = live: nothing shown) */
+  archivedAt?: string
+  /** the open topic's title, shown muted beside the badge when archived */
+  topicTitle?: string
 }>()
 const { t } = useI18n({ useScope: 'global' })
 </script>
+
+<style scoped>
+/* gives way (ellipsis) before the name does; the badge never shrinks */
+.feed-header__topic {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 2 auto;
+  min-width: 0;
+  font-size: 0.8125rem;
+}
+.feed-header__topic-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

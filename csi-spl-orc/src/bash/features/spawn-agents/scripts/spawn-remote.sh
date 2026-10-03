@@ -142,7 +142,7 @@ reply_file() {  # ID TASK
     [ -d "$d" ] || continue
     while IFS= read -r f; do
       [ "$(jq -r '.task_id // ""' "$f" 2>/dev/null)" = "$2" ] || continue
-      body_of "$f" | strip_from_agent | head -1 | grep -qxF "$MAGIC_REP" && { printf '%s' "$f"; return 0; }
+      body_of "$f" | strip_from_agent | sed -n 1p | grep -qxF "$MAGIC_REP" && { printf '%s' "$f"; return 0; }
     done < <(grep -lF -- "$2" "$d"/*.json 2>/dev/null)
   done
 }
@@ -234,7 +234,7 @@ serve() {
       [ -d "$d" ] || continue
       # a day back is enough: a tick runs every minute; older files are history
       while IFS= read -r f; do
-        body_of "$f" | strip_from_agent | head -1 | grep -qxF "$MAGIC_REQ" && handle "$me" "$f" </dev/null
+        body_of "$f" | strip_from_agent | sed -n 1p | grep -qxF "$MAGIC_REQ" && handle "$me" "$f" </dev/null
       done < <(find "$d" -maxdepth 1 -name '*.json' -mmin -1440 -print0 2>/dev/null |
                xargs -0 -r grep -lF -- "$MAGIC_REQ" 2>/dev/null | sort)
     done

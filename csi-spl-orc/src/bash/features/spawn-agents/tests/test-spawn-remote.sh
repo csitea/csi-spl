@@ -119,4 +119,16 @@ eq "5. home -> home from the holder (bare local from): exit 0" 0 "$(cat "$T_TMP/
 eq "5. ... spawned" 2 "$(calls)"
 has "5. ... with no brief" "qwen auto $WORK" "$(tail -1 "$T_TMP/spawn.calls")"
 
+# ---- 6. a large request is still seen (2026-10-03: a 7.5 KB request was skipped) -------
+# serve() reads each body's first line through a pipe under pipefail; `head -1`
+# exited early, the producer took SIGPIPE (141) and the match came back false,
+# so the request was never handled and nothing was logged. A body far above the
+# pipe buffer makes that deterministic.
+printf 'c-001@sat 1790995313\n' >"$A/dispatch/lease.orch"
+{ printf '# big brief\n'; for _ in $(seq 1 800); do printf 'line of padding text so the body is far above the pipe buffer\n'; done; } >"$T_TMP/big.md"
+req_b "$T_TMP/r6" claude auto "$WORK" "$T_TMP/big.md" big-slug
+eq "6. a ~50 KB request from the holder: exit 0" 0 "$(cat "$T_TMP/r6.rc")"
+eq "6. ... spawned (not silently skipped)" 3 "$(calls)"
+has "6. ... with its slug" " big-slug" "$(tail -1 "$T_TMP/spawn.calls")"
+
 t_done

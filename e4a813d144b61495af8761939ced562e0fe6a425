@@ -1,0 +1,6 @@
+Lay-What: Finishes the fix that makes the release warm-up list come out in the same order on every machine.
+Lay-How: The fixed sorting rule is now passed on to the helper programs that do the sorting, and a test proves it.
+Lay-Why: The first fix did not reach those helpers, so the problem was still there on the build servers.
+Tech-What: warm-wui-edge uses local -x LC_ALL=C so sort and comm inherit it; the test adds a sort shim recording LC_ALL.
+Tech-How: warm-wui-edge.func.sh exports the locale; warm-wui-edge.tst.sh runs with LC_ALL unset and LANG=en_US.UTF-8, failing on the old line.
+Tech-Why: 93230031 used plain local LC_ALL=C, which is not exported to child processes when the caller never exported LC_ALL.

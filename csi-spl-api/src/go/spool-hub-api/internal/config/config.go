@@ -268,6 +268,13 @@ type Hub struct {
 	// there); a local dir in tests / lde. Neither set = the section is off.
 	DocsBucket string `env:"SPOOL_HUB_DOCS_BUCKET"`
 	DocsDir    string `env:"SPOOL_HUB_DOCS_DIR"`
+	// The workspace docs (specs/075 Phase 2): one store per workspace.
+	// WorkspaceDocsBucket is a bucket name with {tenant} in it (terraform
+	// step 052 makes one bucket per workspace); WorkspaceDocsDir is a local
+	// root holding <root>/<tenant>/ (tests / lde). Neither set = the
+	// /v1/workspace/docs routes are off.
+	WorkspaceDocsBucket string `env:"SPOOL_HUB_WORKSPACE_DOCS_BUCKET"`
+	WorkspaceDocsDir    string `env:"SPOOL_HUB_WORKSPACE_DOCS_DIR"`
 	// TenantHostPattern is "{tenant}.<fqdn>"; the tenant comes from the Host.
 	TenantHostPattern string        `env:"SPOOL_HUB_TENANT_HOST_PATTERN"`
 	AllowTextOnly     bool          `env:"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING" envDefault:"false"`
@@ -496,6 +503,9 @@ func (h *Hub) checkStorage() error {
 	if h.DocsBucket != "" && h.DocsDir != "" {
 		return fmt.Errorf("at most one of SPOOL_HUB_DOCS_BUCKET or SPOOL_HUB_DOCS_DIR may be set")
 	}
+	if err := h.validateWorkspaceDocs(); err != nil {
+		return err
+	}
 	if !strings.HasPrefix(h.TenantHostPattern, "{tenant}.") || len(h.TenantHostPattern) <= len("{tenant}.") {
 		return fmt.Errorf("SPOOL_HUB_TENANT_HOST_PATTERN %q must look like {tenant}.<fqdn> (no default)", h.TenantHostPattern)
 	}
@@ -638,3 +648,27 @@ func checkOrigin(o string) error {
 var tenantIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
 var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// workspaceDocsBucketRe is a GCS bucket name with no dot (a dotted name needs
+// domain verification, specs/075 4.1): 3..63 of [a-z0-9_-].
+var workspaceDocsBucketRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$`)
+
+// validateWorkspaceDocs fails fast on a workspace docs store that is set but
+// cannot name one bucket per workspace.
+func (h *Hub) validateWorkspaceDocs() error {
+	b := h.WorkspaceDocsBucket
+	switch {
+	case b != "" && h.WorkspaceDocsDir != "":
+		return fmt.Errorf("at most one of SPOOL_HUB_WORKSPACE_DOCS_BUCKET or SPOOL_HUB_WORKSPACE_DOCS_DIR may be set")
+	case b == "":
+		return nil
+	case strings.Count(b, "{tenant}") != 1:
+		return fmt.Errorf("SPOOL_HUB_WORKSPACE_DOCS_BUCKET %q must contain {tenant} exactly once (one bucket per workspace)", b)
+	}
+	for _, t := range []string{"t1", strings.Repeat("t", 32)} {
+		if n := strings.Replace(b, "{tenant}", t, 1); !workspaceDocsBucketRe.MatchString(n) {
+			return fmt.Errorf("SPOOL_HUB_WORKSPACE_DOCS_BUCKET %q gives %q, not a dot-free bucket name", b, n)
+		}
+	}
+	return nil
+}

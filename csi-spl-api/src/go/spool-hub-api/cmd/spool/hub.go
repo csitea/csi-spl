@@ -125,6 +125,12 @@ func cmdServe() int {
 	if opts.Docs != nil {
 		defer opts.Docs.Close()
 	}
+	if opts.WorkspaceDocs, err = workspaceDocs(cf, hc); err != nil {
+		return fail(err)
+	}
+	if opts.WorkspaceDocs != nil {
+		defer opts.WorkspaceDocs.Close()
+	}
 	opts.SchemaHead = schemaHead
 	srv, err := hub.New(opts)
 	if err != nil {
@@ -302,6 +308,23 @@ func openBlobStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.
 // neither bucket nor dir is set: the section is off.
 func openDocsStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.Store, error) {
 	return cf.Blob(ctx, hc.DocsBucket, hc.DocsDir)
+}
+
+// workspaceDocs is the per-workspace docs resolver (specs/075 T007), nil
+// when neither SPOOL_HUB_WORKSPACE_DOCS_BUCKET nor _DIR is set: the routes
+// are off. Config.Validate has already refused a bucket name without {tenant}.
+func workspaceDocs(cf cloud.Factory, hc *config.Hub) (*hub.WorkspaceDocs, error) {
+	switch {
+	case hc.WorkspaceDocsBucket != "":
+		return hub.NewWorkspaceDocs(hc.WorkspaceDocsBucket, func(ctx context.Context, bucket string) (blob.Store, error) {
+			return cf.Blob(ctx, bucket, "")
+		})
+	case hc.WorkspaceDocsDir != "":
+		return hub.NewWorkspaceDocs(filepath.Join(hc.WorkspaceDocsDir, "{tenant}"), func(ctx context.Context, dir string) (blob.Store, error) {
+			return cf.Blob(ctx, "", dir)
+		})
+	}
+	return nil, nil
 }
 
 // cicdService is the CI-logs service, or nil when it is off.

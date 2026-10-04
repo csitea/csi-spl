@@ -42,7 +42,10 @@ type Options struct {
 	Store store.Store
 	Blob  blob.Store
 	// Docs is the docs bucket (docs.go): repo paths + tree.json. nil = off.
-	Docs              blob.Store
+	Docs blob.Store
+	// WorkspaceDocs resolves each workspace's own docs store (specs/075
+	// Phase 2, workspace_docs.go). nil = the routes are off.
+	WorkspaceDocs     *WorkspaceDocs
 	Log               zerolog.Logger
 	TenantHostPattern string // "{tenant}.<fqdn>"
 	HelloSkew         time.Duration
@@ -332,6 +335,7 @@ func (s *Server) Handler() http.Handler {
 	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
 	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest
 	s.routeDocs(mux)           // the Docs section: GET /v1/docs/{path...}
+	s.routeWorkspaceDocs(mux)  // specs/075 Phase 2: /v1/workspace/docs/{path...}
 	s.routeBoxStats(mux)       // rdb 0117: GET /v1/tenant/box-stats
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {

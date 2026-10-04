@@ -41,7 +41,7 @@
 #------------------------------------------------------------------------------
 do_spl_spool_refresh() {
   local dry="${DRY_RUN:-1}" trunk head want before after rc u h org_app shared grp
-  local -a users=() others=()
+  local -a others=()
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   local inst="${SPOOL_REFRESH_INSTALLER:-$PROJ_PATH/src/bash/features/spool-install/install.sh}"
   local bin="${SPOOL_INSTALL_PREFIX:-$HOME/.local}/share/spool-agent/tools/bin/spool"
@@ -55,14 +55,8 @@ do_spl_spool_refresh() {
     else echo "NOTE per-user copy: adopt the one installed copy with SPOOL_SHARED_BIN=/var/${org_app%%-*}/$org_app/spool/bin/spool"; fi
   fi
   if [[ -n "$shared" ]]; then
-    read -r -a users <<<"${SPOOL_REFRESH_USERS:-$USER $(spool_refresh_agent_user)}"
-    for u in "${users[@]}"; do
-      [[ "$u" == "$USER" || " ${others[*]} " == *" $u "* ]] && continue
-      [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL bad user in SPOOL_REFRESH_USERS: '$u'"; return 1; }
-      h="$(spool_refresh_home_of "$u")"
-      [[ -n "$h" ]] || { do_log "FATAL no home for user '$u'"; return 1; }
-      others+=("$u")
-    done
+    u="$(spool_refresh_other_users)" || return 1
+    read -r -a others <<<"$u"
     grp="$(stat -c %G "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)"
     [[ "$grp" == UNKNOWN ]] && grp=""
   fi
@@ -116,9 +110,24 @@ do_spl_spool_refresh() {
       h="$(spool_refresh_as "$u" readlink -f "$(spool_refresh_home_of "$u")/.local/bin/spool" 2>/dev/null)"
       [[ "$h" == "$(readlink -f "$shared")" ]] || { do_log "FAIL $u's spool resolves to '${h:-nothing}', not $shared"; return 1; }
     done
-    do_log "OK one installed copy: $shared at $want, run by ${users[*]}"; return 0
+    do_log "OK one installed copy: $shared at $want, run by $USER${others[*]:+ ${others[*]}}"; return 0
   fi
   do_log "OK the spool binary is at $want"
+}
+
+# spool_refresh_other_users: the users besides $USER to link (SPOOL_REFRESH_USERS,
+# else the box's agent user), space separated; fails on a bad user or no home
+spool_refresh_other_users() {
+  local u out=""
+  local -a users
+  read -r -a users <<<"${SPOOL_REFRESH_USERS:-$USER $(spool_refresh_agent_user)}"
+  for u in "${users[@]}"; do
+    [[ "$u" == "$USER" || " $out " == *" $u "* ]] && continue
+    [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL bad user in SPOOL_REFRESH_USERS: '$u'"; return 1; }
+    [[ -n "$(spool_refresh_home_of "$u")" ]] || { do_log "FATAL no home for user '$u'"; return 1; }
+    out="${out:+$out }$u"
+  done
+  echo "$out"
 }
 
 # spool_refresh_agent_user: the box's agent user (the box config), or nothing

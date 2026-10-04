@@ -1,6 +1,6 @@
 # 074 the operator workspace: tasks
 
-Authority for what is built (`spec.md` holds the behaviour). Each task names its lane, the files it owns and its done check. Status vocabulary: `../README.md` §2.3. Open owner questions: `spec.md` section 9 (Q1-Q5); every task builds behind the recommended default.
+Authority for what is built (`spec.md` holds the behaviour). Each task names its lane, the files it owns and its done check. Status vocabulary: `../README.md` §2.3. Owner decisions: `spec.md` section 9 (D1-D5, HUM-10 msg `5d2e5ab5`); every task builds against these decisions.
 
 Phased according to owner HUM-10 order (msg `880e9e40`):
 1. Hub API: full workspace CRUD, operator-admin only.
@@ -18,6 +18,10 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 - [x] T004 **store methods** (c-210): `store.OperatorWorkspaces` interface (`ListWorkspaces`, `GetWorkspace`, `SetWorkspaceState`, `AppendOperatorAudit`, `OperatorAuditOf`), catalog probe for migration 0115 columns, whitelist in `internal/store/operator_scope_test.go`. Landed: commits `d8565bf7f` and `666fbcaf2`.
 - [x] T005 **api endpoints** (c-210): routes `GET /v1/operator/workspaces`, `POST /v1/operator/workspaces`, `GET /v1/operator/workspaces/{id}`, `PATCH /v1/operator/workspaces/{id}` (display_name, billing_status, suspended, default_locale, topic_archive_policy), `DELETE /v1/operator/workspaces/{id}` (soft-delete). Doors answer 403 `workspace_suspended`. Landed: commit `a980f4ef3` (tag `v8.5.6`).
 
+### Phase 1b: Database Authority for Operator Workspace (Owner Decision 1, HUM-10 msg 5d2e5ab5)
+- [ ] T002b **rdb migration tenants.is_operator**: migration `0116_operator_workspace_flag.sql` adding column `tenants.is_operator boolean NOT NULL DEFAULT false`, partial unique index `CREATE UNIQUE INDEX tenants_operator_unique ON tenants (is_operator) WHERE is_operator = true;`, and seeding `is_operator = true` for the apex workspace (`t1`). (Replaces cnf `SPOOL_HUB_OPERATOR_TENANT` lookup). Done: postgres migration linter green (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`).
+- [ ] T003b **hub operator resolution via db**: update `store.OperatorWorkspaces` and hub `operatorActor` to resolve the operator workspace dynamically from `tenants.is_operator` (cached in memory with invalidation on update), keeping `SPOOL_HUB_OPERATOR_TENANT` only as bootstrap fallback. Expose `operator: bool` in `workspaceJSON` and workspace settings. Done: hub unit tests and `TestOperatorScopeCallers` pass.
+
 ### Phase 2: Shell Actions & CLI Verbs Over Hub API
 - [ ] T006 **spool cli verbs**: `spool operator-workspace-list`, `spool operator-workspace-create`, `spool operator-workspace-suspend`, `spool operator-workspace-resume` in `cmd/spool/` calling the authenticated Hub API with operator session tokens instead of direct DB DSN access. Done: CLI tests against test hub pass.
 - [ ] T007 **shell actions re-route**: update `csi-spl-orc/src/bash/run/spl-tenant-*.func.sh` (`do_spl_tenant_create`, `do_spl_tenant_display_name`, `do_spl_tenant_member_*`) to call the hub operator API instead of executing raw `psql` queries via Cloud SQL proxy. Done: orc test suites pass with no direct DB dependency.
@@ -31,4 +35,4 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 ### Phase 5: Self-Hosted & Open-Source Bootstrap
 - [ ] T010 **self-hosted first-run**: bootstrap logic in `csi-spl-api/src/docker/hub-entrypoint.sh` and `docker-compose.yml` automatically designating the first created workspace as the operator workspace and giving initial account the `admin` role. Done: AC10 clean compose boot test passes.
 
-<!-- version: 0.4.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:25:00Z -->
+<!-- version: 0.5.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:15:00Z -->

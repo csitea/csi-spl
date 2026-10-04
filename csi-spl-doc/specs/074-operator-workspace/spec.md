@@ -122,10 +122,10 @@ Every claim below is verified against master (tree `origin/master` @ `803aff49a`
                                 (operator_audit table, rdb 0115)
 ```
 
-### 3.1 Designated Operator Workspace
-- **Instance Configuration**: The operator workspace is declared in configuration (`csi-spl-cnf/csi-spl/all.env.yaml` under `env.instance.operator_workspace` and rendered into environment files), exposed to the hub as the environment variable `SPOOL_HUB_OPERATOR_TENANT`.
-- **Fallback Resolution**: When `SPOOL_HUB_OPERATOR_TENANT` is unset, it defaults to `SPOOL_HUB_WUI_APEX_TENANT` (cnf `wui_default_tenant`, `t1` on dev and prd). If both are empty, operator endpoints answer HTTP 404.
-- **No Hardcoded Slug**: The codebase contains no literal workspace identifier (such as `t1` or `operator`) hardcoded as an authority. In existing estates, it defaults to the existing root workspace (e.g. `t1`); in fresh or self-hosted deployments, it defaults to the first created workspace.
+### 3.1 Designated Operator Workspace (Database Authority)
+- **Database Authority (`tenants.is_operator`)**: The designated operator workspace is declared directly in the database via column `tenants.is_operator boolean NOT NULL DEFAULT false`, enforced by a partial unique index `CREATE UNIQUE INDEX tenants_operator_unique ON tenants (is_operator) WHERE is_operator = true;` (per owner Decision 1, HUM-10 msg `5d2e5ab5`).
+- **Reversal of v8.5.6 Configuration Lookup**: In v8.5.6 (Phase 1, c-210), the operator workspace was resolved from environment `SPOOL_HUB_OPERATOR_TENANT` (fallback `SPOOL_HUB_WUI_APEX_TENANT`). The owner decided that the database is the sole authority (`tenants.is_operator`). Migration `0116_operator_workspace_flag.sql` adds the column and sets `is_operator = true` for the apex workspace (e.g. `t1`); the hub replaces environment variable lookup with a cached database lookup `store.OperatorTenant(ctx)`. `SPOOL_HUB_OPERATOR_TENANT` is retained strictly as a fallback bootstrap default when no row has `is_operator = true`.
+- **No Hardcoded Slug**: The codebase contains no literal workspace identifier (such as `t1` or `operator`) hardcoded as an authority. In existing estates, migration 0116 flags the existing root workspace (e.g. `t1`); in fresh or self-hosted deployments, it defaults to the first created workspace.
 - **Dual Functionality**: The operator workspace is a standard, fully functioning workspace (carrying channels, members, topics, notes, agents, and local settings), but additionally serves as the administrative cockpit for the entire cloud instance.
 
 ### 3.2 Single DNS Entry Point and Unified Routing
@@ -146,7 +146,7 @@ Every claim below is verified against master (tree `origin/master` @ `803aff49a`
 ### 3.3 The Operator Management Interface (WUI)
 The operator management interface lives exclusively in the operator workspace:
 - **Visibility Condition**: In `csi-spl-wui`, the "Instance Workspaces" navigation tab and route (`/operator/workspaces`) appear **if and only if**:
-  1. The current active workspace matches `pub.operatorWorkspace` (rendered from `SPOOL_HUB_OPERATOR_TENANT`), **and**
+  1. The current active workspace has `is_operator = true` (exposed in workspace config / settings / session from `tenants.is_operator`), **and**
   2. The authenticated user holds the `admin` role in that workspace.
 - **Strict Isolation**: When navigating any regular workspace, or when viewing the operator workspace as a non-admin (e.g. `biz_owner`, `developer`, `member`), the navigation item is entirely omitted from DOM and router definitions. Direct navigation to `/operator/workspaces` redirects to `/lobby` with an access alert.
 
@@ -174,7 +174,7 @@ When an operator creates a new workspace, creating the database row alone leaves
    - Assign initial billing status (`billing_status`, default `manual`, or `active`, `grace`, `unpaid`, `internal`). Workspace suspension is an orthogonal lifecycle state controlled via `suspended: true|false` setting `tenants.suspended_at`, not a billing status.
    - Allocate seat and monthly message quotas per instance policies.
 7. **Lifecycle Controls**:
-   - Suspend / reactivate toggle: instantly cut off access (`403 workspace_suspended`) while preserving data.
+   - Suspend / reactivate toggle: instantly cut off access (`403 workspace_suspended`) while preserving data. Queued agent messages remain intact in PostgreSQL queues until regular message retention expires (per owner Decision 5, HUM-10 msg `5d2e5ab5`). If reactivated before expiry, delivery resumes immediately.
    - Soft delete: mark workspace archived (`tenants.archived_at = now()`) and suspended (`tenants.suspended_at = now()`) via `DELETE /v1/operator/workspaces/{id}`.
    - Hard purge: explicitly refused (`?purge` returns 400).
 
@@ -260,7 +260,7 @@ The owner established a decisive security rule (msg `94071e2e-10a8-45e5-817d-fd5
 To maintain complete architectural parity across public cloud, private enterprise, and developer environments (spec 044 §1, spec 072 §3):
 1. **Initial Bootstrap**:
    - When a self-hosted instance boots with an empty database (e.g. via `docker compose up` or single-server deployment), the setup process or first-run wizard prompts for the initial instance configuration.
-   - The very first workspace created is automatically flagged as the designated operator workspace (`SPOOL_HUB_OPERATOR_TENANT` defaults to it).
+   - The very first workspace created is automatically flagged as the designated operator workspace (setting `tenants.is_operator = true` directly in the database).
 2. **Initial Administrator Account**:
    - The initial account created during bootstrap is granted both `admin` and `biz_owner` roles in that first workspace, immediately equipping them to access the operator management console.
 3. **Zero Cloud Dependencies**:
@@ -289,17 +289,17 @@ To maintain complete architectural parity across public cloud, private enterpris
 
 | ID | Description | Status |
 |---|---|---|
-| **FR-001** | **Designated Operator Workspace**: One workspace per cloud instance is designated as the operator workspace via `SPOOL_HUB_OPERATOR_TENANT` (fallback `SPOOL_HUB_WUI_APEX_TENANT`, `t1`); no literal workspace ID is hardcoded. | Implemented (v8.5.6) |
+| **FR-001** | **Designated Operator Workspace in Database**: One workspace per cloud instance is designated as the operator workspace via database column `tenants.is_operator boolean NOT NULL DEFAULT false` (with unique partial index); replaces the interim v8.5.6 cnf env lookup (`SPOOL_HUB_OPERATOR_TENANT`) per owner Decision 1 (HUM-10 msg `5d2e5ab5`). | Changed (re-opened for DB migration) |
 | **FR-002** | **Single DNS Entry Point**: The cloud instance serves all workspaces under one DNS entry point; workspace context is resolved via `/w/<workspace_id>/` URL paths, session cookies, and `X-Spool-Tenant` headers. | Planned |
-| **FR-003** | **Vanity Subdomain Deprecation**: Legacy per-workspace subdomains (`<workspace>.<BASE_DOMAIN>`) issue an HTTP 301 redirect to the single DNS entry point; workflow 40 and terraform step 032 are retired for individual workspaces. | Planned |
+| **FR-003** | **Vanity Subdomain Deprecation**: Legacy per-workspace subdomains (`<workspace>.<BASE_DOMAIN>`) issue an HTTP 301 redirect to the single DNS entry point for a 30-day grace period (owner Decision 3); after 30 days workflow 40 and terraform step 032 are retired for individual workspaces. | Planned |
 | **FR-004** | **Exclusive Operator UI**: The workspace management interface (`/operator/workspaces`) is exposed exclusively in the designated operator workspace to members holding the `admin` role; it is completely omitted in all other workspaces and for non-admin roles. | Planned |
 | **FR-005** | **Workspace Catalogue API & UI**: An operator admin can list all workspaces on the instance (`GET /v1/operator/workspaces`) with status, display name, created_at, suspended_at, archived_at, and operator flag. | Implemented (v8.5.6) |
 | **FR-006** | **Instant Workspace Provisioning & Useful Checklist**: An operator admin can create a new workspace via `POST /v1/operator/workspaces` and complete the onboarding checklist (admin invite, display name, default channels, join token, billing) without DNS delays. | Implemented (v8.5.6) |
-| **FR-007** | **Workspace Suspension & Soft Delete**: An operator admin can suspend (`PATCH /v1/operator/workspaces/{id}` with `suspended: true`) and soft-delete (`DELETE /v1/operator/workspaces/{id}`) a workspace. Suspended doors return 403 `workspace_suspended`. | Implemented (v8.5.6) |
+| **FR-007** | **Workspace Suspension & Soft Delete**: An operator admin can suspend (`PATCH /v1/operator/workspaces/{id}` with `suspended: true`) and soft-delete (`DELETE /v1/operator/workspaces/{id}`) a workspace. Suspended doors return 403 `workspace_suspended`; queued agent messages are preserved until retention expires (owner Decision 5). | Implemented (v8.5.6) |
 | **FR-008** | **Operator Workspace Immortality**: The designated operator workspace cannot be suspended or deleted; attempts fail with `409 conflict`. | Implemented (v8.5.6) |
 | **FR-009** | **Cross-Workspace Settings Management**: An operator admin can update display name, default locale, and topic archive policy of any workspace (`PATCH /v1/operator/workspaces/{id}`). Fallback responders remain managed within workspace settings (spec 046). | Implemented (v8.5.6) |
 | **FR-010** | **Cross-Workspace Billing Control**: An operator admin can update the billing status (`active`, `grace`, `unpaid`, `manual`, `internal`) via `PATCH /v1/operator/workspaces/{id}`. (Suspension is an orthogonal state controlled via `suspended: true|false`, not a billing status). | Implemented (v8.5.6) |
-| **FR-011** | **Roster & Audit Inspection**: An operator admin can view a workspace's configuration and its last 50 audit entries (`GET /v1/operator/workspaces/{id}`); message and channel contents remain inaccessible. | Implemented (v8.5.6) |
+| **FR-011** | **Roster & Audit Inspection (Zero-Trust Privacy)**: An operator admin can view a workspace's configuration, members, and its last 50 audit entries (`GET /v1/operator/workspaces/{id}`); message channels, topics, and DM contents remain strictly inaccessible (owner Decision 4). | Implemented (v8.5.6) |
 | **FR-012** | **Strict Role Boundary (`admin`, not `biz_owner`)**: Instance mutation routes require the `admin` role in the operator workspace; a `biz_owner` lacking the `admin` role is refused with `403` (`permission: operator.workspaces`). | Implemented (v8.5.6) |
 | **FR-013** | **Cross-Tenant Admin Rejection**: An administrator of regular workspace A attempting to access operator endpoints or another workspace's data is refused with HTTP 403 `forbidden`. | Implemented (v8.5.6) |
 | **FR-014** | **Immutable Audit Trail**: Every cross-workspace action is recorded in `operator_audit` (`id bigserial PRIMARY KEY`, `at`, `tenant_id`, `actor_tenant`, `actor_hum`, `action`, `detail`). | Implemented (v8.5.6) |
@@ -325,17 +325,17 @@ To maintain complete architectural parity across public cloud, private enterpris
 
 ---
 
-## 9. Numbered Questions for the Owner
+## 9. Owner Decisions (HUM-10, t1 aa35699c, msg 5d2e5ab5-9dab-4ffc-8749-f30e1c8b0459)
 
-Each question is formulated for a concise, one-line answer and is paired with a recommended default:
+The owner resolved each of the five architectural questions in prd workspace `t1`, topic `aa35699c-94ef-44b7-8f28-a51f53664d91`, msg `5d2e5ab5-9dab-4ffc-8749-f30e1c8b0459`. Every decision is final and authoritative:
 
-| ID | Question | Recommended Default |
-|---|---|---|
-| **Q1** | Should the operator workspace identifier be stored in cnf/environment (`SPOOL_HUB_OPERATOR_TENANT`), in the database (`tenants.is_operator`), or both? | **Both**: cnf/env defines the instance authority; database column `is_operator` mirrors it with a unique constraint preventing multiple operator workspaces. |
-| **Q2** | For routing regular workspaces under the single DNS entry point, should the WUI use explicit path prefixes (`/w/<workspace_id>/...`) or keep URLs clean and rely solely on session switching? | **Explicit path prefixes (`/w/<workspace_id>/...`)**: allows multiple workspaces to be open in separate browser tabs and supports bookmarkable links. |
-| **Q3** | What is the grace period before retiring legacy per-workspace DNS CNAMEs and workflow 40? | **30 days**: maintain HTTP 301 redirects on existing CNAMEs for 30 days before tearing down legacy terraform step 032 resources. |
-| **Q4** | Should operator admins have read access to message channels or topics of other workspaces for technical support? | **No (metadata and rosters only)**: operator admins can view members, agents, and quotas, but never message contents or DMs (zero-trust privacy). |
-| **Q5** | When a workspace is suspended, should queued messages for its agents be discarded or held until reactivation? | **Held until retention expiry (spec 006 FR-010)**: unexpired deliveries remain queued in PostgreSQL and resume delivery upon reactivation. |
+| # | Topic | Question | Owner Decision | Architectural Impact |
+|---|---|---|---|---|
+| **D1** | Operator Authority | Where is the operator workspace recorded: cnf, db, or both? | **in the db** (`tenants.is_operator`) | Reverses interim v8.5.6 cnf `SPOOL_HUB_OPERATOR_TENANT` lookup. Adds migration `0116_operator_workspace_flag.sql` with column `tenants.is_operator boolean NOT NULL DEFAULT false` and unique partial index. Hub resolves operator workspace dynamically from DB. |
+| **D2** | Web Routing | One web address: path per workspace or switch in session? | **path per workspace** (`/w/<workspace>/...`) | Confirms single DNS entry point model: WUI routes are explicitly path-prefixed (`https://<BASE_DOMAIN>/w/<workspace>/...`), allowing multi-tab workspace access and deep bookmarking. |
+| **D3** | Legacy DNS Retirement | How long do old per-workspace DNS names and wf 40 stay? | **30 days** | Establishes a 30-day migration grace period during which HTTP 301 redirects are maintained on legacy CNAMEs before tearing down terraform step 032 resources and retiring workflow 40. |
+| **D4** | Support Access Scope | Can operator admins read other workspaces' channels/topics? | **no: metadata and members only** | Enforces zero-trust tenant privacy: operator admins inspect workspace rosters, agent keys, quotas, and audit trails only. Channel and topic message contents are never exposed to operator admins. |
+| **D5** | Suspension Message Retention | Suspended workspace: queued agent messages kept or dropped? | **kept until retention expires** | Unexpired agent messages in PostgreSQL queues are preserved during suspension (per spec 006 FR-010). Delivery resumes if the workspace is reactivated before TTL expiration. |
 
 ---
 
@@ -356,5 +356,6 @@ Each question is formulated for a concise, one-line answer and is paired with a 
 | v0.2 | Incorporated owner messages 880e9e40 & e76a7b38: explicit "useful workspace" onboarding checklist (admin invite, channel seed, join tokens, settings, billing), aligned Phase 1 API route contract (`GET/POST/PATCH/DELETE /v1/operator/workspaces`) with c-210 implementation. | a-209 |
 | v0.3 | Aligned with c-210 live API contract (msg 6fd5cf85): `SPOOL_HUB_OPERATOR_TENANT`, permission `operator.workspaces`, `operator_audit` table (rdb 0115), `tenants.suspended_at`/`archived_at`, 403 `workspace_suspended`. | a-209 |
 | v0.4 | Reconciled 3 Phase 1 drifts identified by c-001/c-210 (v8.5.6): (1) `operator_audit.id` is `bigserial PRIMARY KEY` (not uuid), no FK on `tenant_id`; (2) `billing_status` valid values are `active\|grace\|unpaid\|internal\|manual` - workspace suspension is orthogonal via `PATCH {"suspended": true\|false}` setting `tenants.suspended_at`; (3) removed fallback responders from `PATCH /v1/operator/workspaces/{id}` (retained in workspace settings spec 046). Marked Phase 1 FRs as Implemented (v8.5.6). | a-209 |
+| v0.5 | Folded owner decisions (HUM-10 msg 5d2e5ab5): (D1) operator workspace stored in DB (`tenants.is_operator`), reversing v8.5.6 cnf lookup; (D2) confirmed path per workspace (`/w/<workspace>/...`); (D3) 30-day grace period for legacy DNS; (D4) confirmed zero-trust privacy (metadata/members only, no channels/topics); (D5) queued agent messages preserved during suspension until retention expiry. Marked FR-001 Changed (Phase 1b). | a-209 |
 
-<!-- version: 0.4.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:25:00Z -->
+<!-- version: 0.5.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:15:00Z -->

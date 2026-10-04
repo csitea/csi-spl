@@ -176,7 +176,7 @@ func (s *Postgres) AppendOperatorAudit(ctx context.Context, a OperatorAudit) err
 func (s *Postgres) OperatorAuditOf(ctx context.Context, tenant string, limit int) ([]OperatorAudit, error) {
 	var out []OperatorAudit
 	err := s.queryTenant(ctx, tenant, `SELECT at, tenant_id, actor_tenant, actor_hum, action, detail::text
-		FROM (SELECT * FROM operator_audit WHERE tenant_id = $1 ORDER BY at DESC, id DESC LIMIT $2) a
+		FROM (SELECT id, at, tenant_id, actor_tenant, actor_hum, action, detail FROM operator_audit WHERE tenant_id = $1 ORDER BY at DESC, id DESC LIMIT $2) a
 		ORDER BY at, id`, []any{tenant, limit}, func(r pgx.Rows) error {
 		var a OperatorAudit
 		var detail string

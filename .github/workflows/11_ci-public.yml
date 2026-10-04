@@ -1,21 +1,22 @@
-# ci: the public quality gate of the product tree.
+# ci: the public quality gate -- the pull-request entry to the ONE gate.
 #
-# GitHub-hosted runners only, no secret, read-only token: this is the CI a
-# contributor's pull request runs (after a maintainer approves the run - the
-# repository requires approval for outside contributors). It checks the
-# product as published: the hub suite, the WUI unit tests + typecheck, and
-# the WUI browser e2e against a generated mock bundle.
+# Spec 072 A35: a contributor's pull request (fork branches included) runs the
+# SAME jobs as a master push, because this workflow holds no job of its own: it
+# calls 10_ci-quality.yml, the reusable gate (hub, wui unit + typecheck,
+# generate, browser e2e, iac, orc, cnf, no-ysg-box-ref, distribution hygiene,
+# and the read-only security scanners). Add a check to 10 and a pull request
+# gets it too; there is no second list to keep in step.
 #
-# Runs only while the repository is PUBLIC (hosted minutes of a private repo
-# are billed). The fuller gate, 10, runs on push to master on the self-hosted
-# runners, which a pull request can never reach (org runner group
-# spool-ci-trusted: named workflows at refs/heads/master only).
+# GitHub-hosted runners only (`runner` below), no secret, read-only token: a
+# pull request can never reach the self-hosted runners (org runner group
+# spool-ci-trusted: named workflows at refs/heads/master only). Outside
+# contributors' runs still wait for a maintainer's approval (repository
+# setting). Runs only while the repository is PUBLIC (hosted minutes of a
+# private repo are billed). A master push is gated by 10 alone.
 
 name: "11 ci: public quality gate"
 
 on:
-  push:
-    branches: [master]
   pull_request:
   workflow_dispatch: {}
 
@@ -23,133 +24,22 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-public-${{ github.event.pull_request.number || github.sha }}
+  group: ci-public-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  hub-suite:
-    name: "hub: gofmt, go vet, go test, smoke"
+  gate:
+    name: "gate"
     if: ${{ !github.event.repository.private }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Set up Go (version from go.mod)
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
-          cache: false
-
-      - name: Download Go modules (the suite runs with GOPROXY=off)
-        working-directory: csi-spl-api/src/go/spool-hub-api
-        run: go mod download
-
-      - name: Cache the fake-gcs emulator image
-        run: |
-          img=fsouza/fake-gcs-server:1.52.2
-          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
-          exit 1
-
-      - name: run-all-tests.sh
-        run: bash csi-spl-api/src/bash/tests/run-all-tests.sh
-
-  wui-suite:
-    name: "wui: unit tests + typecheck"
-    if: ${{ !github.event.repository.private }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: csi-spl-wui
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Set up pnpm (version from package.json packageManager)
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          package_json_file: csi-spl-wui/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: pnpm install (frozen lockfile)
-        run: pnpm install --frozen-lockfile
-
-      - name: Unit tests
-        run: pnpm run test:unit
-
-      - name: Typecheck
-        run: pnpm run typecheck
-
-  wui-e2e:
-    name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
-    if: ${{ !github.event.repository.private }}
-    runs-on: ubuntu-latest
-    # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), as workflow 10
-    # (perf round 4, C4): the one serial job was this run's wall clock,
-    # median 1652 s (n=8 green runs, 2026-10-02) while every other job here
-    # took <= 360 s. The union of the 3 shards is the unsharded selection.
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
-    timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: csi-spl-wui
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Set up pnpm (version from package.json packageManager)
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          package_json_file: csi-spl-wui/package.json
-
-      - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: pnpm install (frozen lockfile)
-        run: pnpm install --frozen-lockfile
-
-      - name: Chrome is on the runner (a skip is a failure)
-        run: |
-          set -euo pipefail
-          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
-          [[ -n "$chrome" ]] || { echo "::error::no google-chrome on the runner"; exit 1; }
-          echo "CHROME_PATH=$chrome" >> "$GITHUB_ENV"
-          "$chrome" --version
-
-      - name: nuxt generate (mock tenant)
-        env:
-          NUXT_PUBLIC_USE_MOCK: "1"
-          NUXT_PUBLIC_DEFAULT_LOCALE: "en"
-        run: pnpm run generate
-
-      - name: Browser e2e (mock bundle, signed-out API stub)
-        env:
-          CI: "1"
-          E2E_SHARD: "${{ matrix.shard }}/3"
-        run: |
-          set -euo pipefail
-          # Free ports, a signed-out API stub, the generated bundle served, then
-          # the command with BASE_URL set: one script shared with workflow 10.
-          # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
-          # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
-          # whatever the one before it did, and the step fails at the end naming
-          # each red one (CLE-77827).
-          # card-edge-inset asserts the 390 px channel card header fits ONE line;
-          # with the hosted runner's fonts it wraps to two (run 36942045783),
-          # on the self-hosted box (workflow 10) it is one. Its other 60+
-          # checks are font-independent and run in 10. (CLE-77915)
-          E2E_SKIP="card-edge-inset.test.mjs" bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh pnpm run test:e2e
+    # gate-health in 10 reads the run list (actions: read); nothing writes.
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/10_ci-quality.yml
+    with:
+      runner: '"ubuntu-latest"'
+      # card-edge-inset asserts the 390 px channel card header fits ONE line;
+      # with the hosted runner's fonts it wraps to two (run 36942045783), on
+      # the self-hosted box it is one. Its other 60+ checks are
+      # font-independent and run on every push. (CLE-77915)
+      e2e_skip: card-edge-inset.test.mjs

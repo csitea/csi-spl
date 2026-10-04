@@ -26,7 +26,9 @@ command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 require_action "$FUNC"
 
 # --- static: wf 10 ------------------------------------------------------------
-WANT="runs-on: \${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('[\"self-hosted\",\"spool-ci\"]') || 'ubuntu-latest' }}"
+# inputs.runner first: the caller's choice when 11_ci-public.yml calls wf 10 for
+# a pull request (spec 072 A35, ci-one-gate.tst.sh); empty on a push.
+WANT="runs-on: \${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('[\"self-hosted\",\"spool-ci\"]') || 'ubuntu-latest' }}"
 runs_on() { grep -E '^[[:space:]]*runs-on:' "$1"; }
 not_var() { runs_on "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -vxF "$WANT"; }
 n_all=$(runs_on "$WF" | wc -l)

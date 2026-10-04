@@ -31,8 +31,13 @@ check('no per-file test:e2e:<name> scripts (use `pnpm test:e2e <name>`)', perFil
 const listed = Object.entries(scripts).filter(([k, v]) => k !== 'test:live' && /tests\/e2e\/[\w.-]+\.test\.mjs/.test(v))
 check('no script names an e2e file', listed.length === 0, listed.map(([k]) => k).join(', '))
 
-// --- workflows 10 and 11 run the runner, not a script loop --------------------
-for (const wf of ['10_ci-quality.yml', '11_ci-public.yml']) {
+// --- workflow 10 runs the runner, not a script loop; 11 calls 10 (072 A35) ----
+{
+  const src = readFileSync(join(REPO, '.github/workflows/11_ci-public.yml'), 'utf8')
+  check('11_ci-public.yml calls 10_ci-quality.yml', /^\s*uses: \.\/\.github\/workflows\/10_ci-quality\.yml\s*$/m.test(src), 'no call of workflow 10')
+  check('11_ci-public.yml names no test:e2e:<name> script', !/test:e2e:[a-z0-9-]/.test(src), 'a per-file script is back')
+}
+for (const wf of ['10_ci-quality.yml']) {
   const src = readFileSync(join(REPO, '.github/workflows', wf), 'utf8')
   check(`${wf} runs pnpm run test:e2e`, /pnpm run test:e2e\s*\n/.test(src), 'no bare `pnpm run test:e2e` line')
   check(`${wf} names no test:e2e:<name> script`, !/test:e2e:[a-z0-9-]/.test(src), 'a per-file script is back')

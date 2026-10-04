@@ -4,8 +4,9 @@
 #          share, CLE-77928) serves a bundle on a free port beside the
 #          signed-out API stub, runs the command with BASE_URL set, and stops
 #          both servers after. serve-generated.mjs is faked by a small node
-#          server that records the --api it was given. Also: both workflows
-#          call the script and neither carries the inline copy any more.
+#          server that records the --api it was given. Also: workflow 10 calls
+#          the script and carries no inline copy, and workflow 11 runs it by
+#          calling workflow 10 (spec 072 A35), holding no e2e of its own.
 #          CONTROL: a bundle server that never answers fails the script.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -39,10 +40,12 @@ out=$(cd "$wui" && CHROME_PATH=/bin/true RUNNER_TEMP="$T" API_FILE="$T/api" NEVE
 out=$(cd "$wui" && env -u CHROME_PATH bash "$S" true 2>&1); rc=$?
 [[ $rc -ne 0 ]] && pass "CHROME_PATH unset is refused" || fail "CHROME_PATH unset accepted"
 
+n=$(basename "$WF10")
+grep -q 'bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh .*pnpm run test:e2e' "$WF10" && pass "$n runs the e2e through the script" || fail "$n does not call the script"
 for wf in "$WF10" "$WF11"; do
   n=$(basename "$wf")
-  grep -q 'bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh .*pnpm run test:e2e' "$wf" && pass "$n runs the e2e through the script" || fail "$n does not call the script"
   grep -q 'BaseHTTPRequestHandler' "$wf" && fail "$n still carries an inline API stub" || pass "$n carries no inline copy"
 done
+grep -qE '^[[:space:]]*uses: \./\.github/workflows/10_ci-quality\.yml$' "$WF11" && pass "11_ci-public.yml runs the e2e by calling workflow 10" || fail "11_ci-public.yml does not call workflow 10"
 
 echo "---"; (( fails == 0 )) && echo "wui-e2e-mock-serve: all passed" || { echo "wui-e2e-mock-serve: $fails failed"; exit 1; }

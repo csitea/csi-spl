@@ -1,4 +1,6 @@
-# RUNNER (spec 072 A13): every job's runs-on is, in order, the repo variable
+# RUNNER (spec 072 A13, A35): every job's runs-on is, in order, the caller's
+# `runner` input (11_ci-public.yml passes ubuntu-latest for a pull request);
+# else the repo variable
 # SPOOL_CI_RUNNER (JSON: a label array or a quoted string) when set; else the
 # SELF-HOSTED [self-hosted, spool-ci] on this repo (csitea/csi-spl, no variable
 # needed); else ubuntu-latest, so a fork or a copy runs on GitHub-hosted
@@ -34,7 +36,15 @@ name: "10 ci: quality gate"
 # regression nobody is told about. These suites are cheap, so they run on
 # every master push.
 #
-# NO `pull_request:` trigger: trunk-based repo, no pull requests.
+# ONE GATE FOR PUSH AND PULL REQUEST (spec 072 A35): this file is also the
+# reusable gate. 11_ci-public.yml calls it on `pull_request` (fork branches
+# included) with `runner: '"ubuntu-latest"'`, so a contributor's pull request
+# runs exactly these jobs, never a hand-kept subset. It is THIS file, not a new
+# one, on purpose: the self-hosted runner group spool-ci-trusted admits only
+# named workflows (this one at refs/heads/master), and a job inside a separate
+# reusable file would be judged by that file's path -- trunk's gate would queue
+# for ever until the org setting changed. No `pull_request:` trigger here: a
+# pull request never reaches the self-hosted runners, 11 is its entry point.
 #
 # The WUI (csi-spl-wui) has two jobs below: unit tests + typecheck, and
 # browser e2e (016 T021) against a generated mock-tenant bundle.
@@ -45,6 +55,21 @@ on:
   workflow_dispatch: {}
   push:
     branches: [master]
+  # The pull-request entry (11_ci-public.yml). Empty inputs = a push here.
+  workflow_call:
+    inputs:
+      runner:
+        description: >-
+          runs-on for every job, JSON (a label array or a quoted string, as
+          SPOOL_CI_RUNNER). Empty: the RUNNER rule at the top of this file.
+        type: string
+        default: ""
+      e2e_skip:
+        description: >-
+          more tests/e2e files to leave out of this run (E2E_SKIP of
+          run-e2e-tests.mjs), space-separated; for a runner whose fonts differ.
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -66,7 +91,7 @@ jobs:
   # ===========================================================================
   hub-suite:
     name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -141,7 +166,7 @@ jobs:
   # ===========================================================================
   wui-suite:
     name: "wui: unit tests + typecheck"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     defaults:
       run:
@@ -193,7 +218,7 @@ jobs:
   # ===========================================================================
   wui-generate:
     name: "wui: nuxt generate (mock tenant) once for the e2e shards"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       bundle: ${{ steps.upload.outcome }}
@@ -270,7 +295,7 @@ jobs:
   # ===========================================================================
   wui-e2e:
     name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
     needs: wui-generate
     if: ${{ !cancelled() && needs.wui-generate.outputs.bundle == 'success' }}
@@ -350,10 +375,11 @@ jobs:
         env:
           CI: "1"
           E2E_SHARD: "${{ matrix.shard }}/3"
+          E2E_SKIP: ${{ inputs.e2e_skip }}
         run: |
           set -euo pipefail
           # Free ports, a signed-out API stub, the generated bundle served, then
-          # the command with BASE_URL set: one script shared with workflow 11.
+          # the command with BASE_URL set.
           # One discovering runner (CLE-77915): every tests/e2e/*.test.mjs runs
           # unless tests/e2e/ci-skip.txt names it with a reason; every file runs
           # whatever the one before it did, and the step fails at the end naming
@@ -373,7 +399,7 @@ jobs:
   # ===========================================================================
   iac-suite:
     name: "iac: tfvars parity, step contracts, terraform validate"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -514,7 +540,7 @@ jobs:
   # ===========================================================================
   orc-suite:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     # orc derives ORG/APP from the PARENT dirs, <base>/<ORG>/<ORG>-<APP>
     # (csi-spl-orc/lib/bash/funcs/resolve-oap.func.sh), so the tree is checked
@@ -647,7 +673,7 @@ jobs:
   # ===========================================================================
   cnf-suite:
     name: "cnf: conf-validator exit codes"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -685,7 +711,7 @@ jobs:
   # ===========================================================================
   no-ysg-box-ref:
     name: "spool source carries no ysg-box reference"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -695,6 +721,74 @@ jobs:
       - name: Temp files on the runner's disk, not the shared /tmp tmpfs
         run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
       - run: bash csi-spl-api/src/bash/tests/no-ysg-box-ref.tst.sh
+
+  # ===========================================================================
+  # Read-only security scanners for a PULL REQUEST (spec 072 A35, research a3
+  # S6): gitleaks over the history, trivy config over the terraform, checkov.
+  # The same named actions 15_sec-deps-secrets.yml and 65_iac-checkov.yml run
+  # on every master push, so a push skips this job rather than run them twice
+  # on the self-hosted runners; any other event (11's pull_request, a
+  # dispatch) runs it. No secret, no write: a planted secret or a bad IaC
+  # change fails the pull request before merge.
+  # ===========================================================================
+  pr-sec-scan:
+    name: "sec: gitleaks, trivy config, checkov (read-only)"
+    if: ${{ github.event_name != 'push' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Temp files on the runner's disk, not the shared /tmp tmpfs
+        run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      # Pinned and checksummed as in 15_sec-deps-secrets.yml.
+      - name: Install gitleaks 8.30.1
+        run: |
+          set -euo pipefail
+          sha=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/gitleaks.tgz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          echo "$sha  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: gitleaks (control, then the history)
+        working-directory: csi-spl-iac
+        run: SEC_SCAN=secrets ./run -a do_sec_scan
+
+      - name: Install trivy 0.74.0
+        run: |
+          set -euo pipefail
+          v=0.74.0; base="https://github.com/aquasecurity/trivy/releases/download/v$v"
+          tgz="trivy_${v}_Linux-64bit.tar.gz"
+          get() { curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 5 -o "$2" "$1"; }
+          get "$base/$tgz" "$RUNNER_TEMP/$tgz"
+          get "$base/trivy_${v}_checksums.txt" "$RUNNER_TEMP/trivy-checksums.txt"
+          (cd "$RUNNER_TEMP" && grep " $tgz\$" trivy-checksums.txt | sha256sum -c -)
+          mkdir -p "$RUNNER_TEMP/trivy" && tar -xzf "$RUNNER_TEMP/$tgz" -C "$RUNNER_TEMP/trivy" trivy
+          "$RUNNER_TEMP/trivy/trivy" --version | head -1
+          echo "$RUNNER_TEMP/trivy" >> "$GITHUB_PATH"
+
+      - name: trivy config (terraform misconfiguration)
+        working-directory: csi-spl-iac
+        run: SEC_SCAN=iac ./run -a do_sec_scan
+
+      - name: Install checkov 3.3.21
+        run: |
+          set -euo pipefail
+          venv="$RUNNER_TEMP/checkov-venv"
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install --disable-pip-version-check --quiet checkov==3.3.21
+          "$venv/bin/checkov" --version | grep -xF 3.3.21
+          echo "$venv/bin" >> "$GITHUB_PATH"
+
+      - name: checkov (control + scan vs baseline)
+        working-directory: csi-spl-iac
+        run: ./run -a do_sec_checkov
 
   # ===========================================================================
   # Gate health (CLE-3442): on a RED run only, the failures-per-JOB table for
@@ -710,9 +804,9 @@ jobs:
   # ===========================================================================
   gate-health:
     name: "gate health: what else has been failing"
-    needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene]
+    needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
     if: failure()
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     continue-on-error: true
     permissions:
@@ -759,7 +853,7 @@ jobs:
   # ===========================================================================
   distribution-hygiene:
     name: "distribution-hygiene sweep over the tree"
-    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

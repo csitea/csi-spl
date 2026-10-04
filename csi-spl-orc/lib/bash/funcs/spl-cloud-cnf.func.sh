@@ -360,13 +360,28 @@ spl_proxy_dsn() {
   printf 'postgres://%s@127.0.0.1:%s/%s?sslmode=disable' "${BASH_REMATCH[2]}" "$2" "${BASH_REMATCH[3]}"
 }
 
+# spl_free_port -> a port on 127.0.0.1 that is free right now (the kernel's pick).
+spl_free_port() {
+  python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
+}
+
+# spl_sql_proxy_alive -> 0 while OUR proxy (the pid, or the container) runs.
+spl_sql_proxy_alive() {
+  if [[ -n "${_SPL_PROXY_PID:-}" ]]; then kill -0 "$_SPL_PROXY_PID" 2>/dev/null
+  else [[ "$(docker inspect -f '{{.State.Running}}' "$_SPL_PROXY_CON" 2>/dev/null)" == true ]]; fi
+}
+
 # spl_sql_proxy_start -> the Cloud SQL Auth Proxy on 127.0.0.1:$SPL_PROXY_PORT
-# (default 55499) for $SPL_SQL_CONN, as $GCP_ACCOUNT. The access token goes
-# through the environment (CSQL_PROXY_TOKEN), never argv. A cloud-sql-proxy
+# (default: a free port) for $SPL_SQL_CONN, as $GCP_ACCOUNT. The access token
+# goes through the environment (CSQL_PROXY_TOKEN), never argv. A cloud-sql-proxy
 # binary on PATH wins; otherwise the cnf image runs in docker on the host net.
+# "Up" means a listener on the port AND our proxy still alive: a proxy that
+# lost the port to a concurrent run dies on bind, and its listener is not ours
+# (2026-10-04: the fixed 55499 let one env's DSN meet another run's instance).
 # Stop it with spl_sql_proxy_stop.
 spl_sql_proxy_start() {
-  SPL_PROXY_PORT="${SPL_PROXY_PORT:-55499}"
+  SPL_PROXY_PORT="${SPL_PROXY_PORT:-$(spl_free_port)}"
+  [[ "$SPL_PROXY_PORT" =~ ^[0-9]+$ ]] || { do_log "FATAL no free local port for the Cloud SQL proxy"; return 1; }
   _SPL_PROXY_PID="" _SPL_PROXY_CON=""
   if (exec 3<>"/dev/tcp/127.0.0.1/$SPL_PROXY_PORT") 2>/dev/null; then
     do_log "FATAL 127.0.0.1:$SPL_PROXY_PORT is already in use (set SPL_PROXY_PORT)"; return 1
@@ -385,9 +400,20 @@ spl_sql_proxy_start() {
   fi
   unset CSQL_PROXY_TOKEN
   for _ in $(seq 1 60); do
-    (exec 3<>"/dev/tcp/127.0.0.1/$SPL_PROXY_PORT") 2>/dev/null && { do_log "INFO Cloud SQL proxy up: 127.0.0.1:$SPL_PROXY_PORT -> $SPL_SQL_CONN"; return 0; }
+    spl_sql_proxy_alive || break
+    if (exec 3<>"/dev/tcp/127.0.0.1/$SPL_PROXY_PORT") 2>/dev/null; then
+      sleep 0.5  # a proxy that failed to bind exits within this; a bound one stays
+      spl_sql_proxy_alive || break
+      do_log "INFO Cloud SQL proxy up: 127.0.0.1:$SPL_PROXY_PORT -> $SPL_SQL_CONN"; return 0
+    fi
     sleep 0.5
   done
+  if ! spl_sql_proxy_alive; then
+    do_log "FATAL the Cloud SQL proxy on 127.0.0.1:$SPL_PROXY_PORT exited (port taken by another run?); not using its listener. Proxy log tail:"
+    if [[ -n "$_SPL_PROXY_PID" ]]; then tail -n 5 "$SPL_STATE_DIR/sql-proxy.log" 2>/dev/null
+    else docker logs --tail 5 "$_SPL_PROXY_CON" 2>&1; fi
+    spl_sql_proxy_stop; return 1
+  fi
   do_log "FATAL the Cloud SQL proxy did not listen on 127.0.0.1:$SPL_PROXY_PORT"
   spl_sql_proxy_stop; return 1
 }

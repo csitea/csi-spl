@@ -13,10 +13,10 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 - [x] T001 **spec** (a-209): `spec.md` and this file.
 
 ### Phase 1: Hub API (Full Workspace CRUD, Operator-Admin Only) — Lane c-210
-- [ ] T002 **rdb migration** (c-210): migration `0115_operator_workspaces.sql` adding `operator_audit` table (spec §4.3), `tenants.suspended_at timestamptz NULL`, `tenants.archived_at timestamptz NULL`. Done: Postgres migration linter green (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`).
-- [ ] T003 **hub auth & rbac** (c-210): permission `operator.workspaces` in `internal/rbac/rbac.go` (granted to `admin` in operator workspace, withheld from `biz_owner`), middleware `requireOperatorAdmin(r)` in `internal/hub/operator.go`, parsing `SPOOL_HUB_OPERATOR_TENANT` (fallback `SPOOL_HUB_WUI_APEX_TENANT`). Done: unit tests proving `admin` allowed (200) and `biz_owner` / other workspace admin refused (403 with `permission: operator.workspaces`).
-- [ ] T004 **store methods** (c-210): reuse existing store calls (`CreateTenant`, `SetTenantConfig`, `SetBillingStatus`, `PutInvite`) plus `operator_audit` logging under `asOperator()` in `internal/store/`, registered in `operatorCallers` whitelist in `internal/store/operator_scope_test.go`. Done: `TestOperatorScopeCallers` and postgres store tests pass.
-- [ ] T005 **api endpoints** (c-210): routes `GET /v1/operator/workspaces`, `POST /v1/operator/workspaces`, `GET /v1/operator/workspaces/{id}`, `PATCH /v1/operator/workspaces/{id}`, `DELETE /v1/operator/workspaces/{id}`. Doors answer 403 `workspace_suspended` when suspended. Done: AC1-AC7 pass on postgres, hub deployed dev & prd.
+- [x] T002 **rdb migration** (c-210): migration `0115_operator_workspaces.sql` adding `operator_audit` table (`id bigserial PRIMARY KEY`, spec §4.3), `tenants.suspended_at timestamptz NULL`, `tenants.archived_at timestamptz NULL`. Landed: commit `d8565bf7f`.
+- [x] T003 **hub auth & rbac** (c-210): role rule requiring `admin` in the operator workspace (`SPOOL_HUB_OPERATOR_TENANT`, fallback apex tenant), answering 403 with `permission: operator.workspaces` for `biz_owner` and other workspaces. Landed: commit `a980f4ef3`.
+- [x] T004 **store methods** (c-210): `store.OperatorWorkspaces` interface (`ListWorkspaces`, `GetWorkspace`, `SetWorkspaceState`, `AppendOperatorAudit`, `OperatorAuditOf`), catalog probe for migration 0115 columns, whitelist in `internal/store/operator_scope_test.go`. Landed: commits `d8565bf7f` and `666fbcaf2`.
+- [x] T005 **api endpoints** (c-210): routes `GET /v1/operator/workspaces`, `POST /v1/operator/workspaces`, `GET /v1/operator/workspaces/{id}`, `PATCH /v1/operator/workspaces/{id}` (display_name, billing_status, suspended, default_locale, topic_archive_policy), `DELETE /v1/operator/workspaces/{id}` (soft-delete). Doors answer 403 `workspace_suspended`. Landed: commit `a980f4ef3` (tag `v8.5.6`).
 
 ### Phase 2: Shell Actions & CLI Verbs Over Hub API
 - [ ] T006 **spool cli verbs**: `spool operator-workspace-list`, `spool operator-workspace-create`, `spool operator-workspace-suspend`, `spool operator-workspace-resume` in `cmd/spool/` calling the authenticated Hub API with operator session tokens instead of direct DB DSN access. Done: CLI tests against test hub pass.
@@ -31,4 +31,4 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 ### Phase 5: Self-Hosted & Open-Source Bootstrap
 - [ ] T010 **self-hosted first-run**: bootstrap logic in `csi-spl-api/src/docker/hub-entrypoint.sh` and `docker-compose.yml` automatically designating the first created workspace as the operator workspace and giving initial account the `admin` role. Done: AC10 clean compose boot test passes.
 
-<!-- version: 0.3.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:12:00Z -->
+<!-- version: 0.4.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:25:00Z -->

@@ -1483,13 +1483,13 @@ declare module '~/utils/tenant-settings.mjs' {
 }
 
 declare module '~/utils/connect-agent.mjs' {
-  export const SPOOL_REPO: string
+  export function spoolRepo(cloneUrl: unknown): string
   export function validAgentId(s: unknown): boolean
   export function validBoxId(s: unknown): boolean
   export function keyFileArg(path: unknown): string
   export function boxHubUrl(apiBase: unknown, origin: unknown, tenant?: unknown): string
   export function spoolEnv(o: { hubUrl: string, tenant: string, box: string }): string
-  export function connectAgentScript(o: { hubUrl: string, tenant: string, box: string, agent: string, keyFile: string }): string
+  export function connectAgentScript(o: { hubUrl: string, tenant: string, box: string, agent: string, keyFile: string, repo?: string }): string
   export function cursorMcpJson(o: { agent: string }): string
   export function firstPrompt(agent: string): string
 }
@@ -1502,11 +1502,29 @@ declare module '~/utils/first-run.mjs' {
   export function firstRunVisible(o: { canSetUp: boolean, hidden: boolean, steps: FirstRunStep[] }): boolean
 }
 
+declare module '~/utils/commit-link-hook.mjs' {
+  export type CommitLinker = { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string }
+  export function setCommitLinkProvider(fn: (() => CommitLinker | null) | null): void
+  export function activeCommitLinker(): CommitLinker | null
+}
+
+declare module '~/utils/commit-links.mjs' {
+  export function repoBase(url: unknown): string
+  export function repoPath(path: unknown): string
+  export function isCommitHash(token: unknown): boolean
+  export function commitPrefix(webUrl: unknown, commitPath: unknown): string
+  export function commitHref(prefix: string, hash: unknown): string
+  export function linkifyCommitText(text: unknown, prefix: string): { type: string, text: string, href?: string }[]
+  export function linkifyCommitMarkdown(src: unknown, prefix: string): string
+  export function linkifyCommitBlocks<T>(blocks: T, prefix: string): T
+  export function commitLinker(webUrl: unknown, commitPath: unknown): { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string } | null
+}
+
 declare module '~/utils/help.mjs' {
-  export const HELP_REPO_BASE: string
+  export function helpRepoBase(webUrl: unknown, helpPath: unknown): string
   export function validHelpSlug(s: unknown): boolean
-  export function helpHref(raw: unknown, route?: (slug: string) => string): string
-  export function rewriteHelpLinks(md: unknown, route?: (slug: string) => string): string
+  export function helpHref(raw: unknown, route?: (slug: string) => string, repoBase?: string): string
+  export function rewriteHelpLinks(md: unknown, route?: (slug: string) => string, repoBase?: string): string
   export function fillHelpHosts(md: unknown, hosts?: { api?: string, site?: string }): string
   export function hostOf(url: unknown): string
 }

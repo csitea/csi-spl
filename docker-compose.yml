@@ -146,6 +146,11 @@ services:
     image: spool-web:${SPOOL_IMAGE_TAG:-local}
     environment:
       SPOOL_SITE_ADDRESS: ${SPOOL_SITE_ADDRESS:-:80}
+      # the source repository's url pieces (.env.example); "" = links hidden
+      SPOOL_REPO_WEB_URL: ${SPOOL_REPO_WEB_URL:-}
+      SPOOL_REPO_CLONE_URL: ${SPOOL_REPO_CLONE_URL:-}
+      SPOOL_REPO_COMMIT_PATH: ${SPOOL_REPO_COMMIT_PATH:-}
+      SPOOL_REPO_HELP_PATH: ${SPOOL_REPO_HELP_PATH:-}
     ports:
       - "${SPOOL_BIND:-127.0.0.1}:${SPOOL_HTTP_PORT:-8080}:80"
       - "${SPOOL_BIND:-127.0.0.1}:${SPOOL_HTTPS_PORT:-8443}:443"

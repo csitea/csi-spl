@@ -28,7 +28,7 @@
     <ol v-else class="ca__steps">
       <li>
         <p>{{ t('connect_agent.step_paste') }}</p>
-        <div data-test="connect-agent-script"><CodeBlock :text="script" lang="bash" /></div>
+        <div v-if="script" data-test="connect-agent-script"><CodeBlock :text="script" lang="bash" /></div>
         <p class="muted ca__small">{{ t('connect_agent.key_hint') }}</p>
       </li>
       <li>
@@ -68,7 +68,9 @@ watch(() => props.tenant, (tn) => { if (!keyFile.value) keyFile.value = `~/Downl
 const agentId = computed(() => normalizeId(agent.value) || agent.value.trim().toUpperCase())
 const boxId = computed(() => box.value.trim().toLowerCase())
 const valid = computed(() => validAgentId(agentId.value) && validBoxId(boxId.value) && Boolean(keyFile.value.trim()) && Boolean(props.hubUrl) && Boolean(props.tenant))
-const script = computed(() => connectAgentScript({ hubUrl: props.hubUrl, tenant: props.tenant, box: boxId.value, agent: agentId.value, keyFile: keyFile.value.trim() }))
+/* cnf env.wui.repo_clone_url via /config.json; unset = no block (no fallback repo) */
+const repo = String(useRuntimeConfig().public.repoCloneUrl || '')
+const script = computed(() => connectAgentScript({ hubUrl: props.hubUrl, tenant: props.tenant, box: boxId.value, agent: agentId.value, keyFile: keyFile.value.trim(), repo }))
 const cursor = computed(() => cursorMcpJson({ agent: agentId.value }))
 const prompt = computed(() => firstPrompt(agentId.value))
 </script>

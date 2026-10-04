@@ -49,7 +49,7 @@
 
 <script setup lang="ts">
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
-import { fillHelpHosts, hostOf, rewriteHelpLinks, validHelpSlug } from '~/utils/help.mjs'
+import { fillHelpHosts, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } from '~/utils/help.mjs'
 import { boxHubUrl } from '~/utils/connect-agent.mjs'
 
 type HelpPage = { slug: string, title: string }
@@ -93,7 +93,9 @@ async function load() {
     if (mine !== seq) return
     /* the SPA fallback answers an unknown file with the app shell, not a 404 */
     if (md === null || /^\s*<!doctype html/i.test(md)) { state.value = 'missing'; return }
-    text.value = rewriteHelpLinks(fillHelpHosts(md, hosts()), route)
+    /* cnf env.wui.repo_web_url + repo_help_path; unset = repo links hidden */
+    const pub = useRuntimeConfig().public
+    text.value = rewriteHelpLinks(fillHelpHosts(md, hosts()), route, helpRepoBase(pub.repoWebUrl, pub.repoHelpPath))
     state.value = 'ready'
   } catch {
     if (mine === seq) state.value = 'failed'

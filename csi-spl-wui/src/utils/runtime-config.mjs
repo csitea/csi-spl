@@ -40,6 +40,12 @@ export const RUNTIME_CONFIG_KEYS = Object.freeze({
   lobbyTaskId: 'text',
   perfRum: 'flag',
   perfSampleRate: 'text',
+  // HUM-10: cnf env.wui.repo_* (commit links, /help repo links, the
+  // connect-agent clone); "" = that link is hidden, never a fallback repo
+  repoWebUrl: 'base',
+  repoCloneUrl: 'base',
+  repoCommitPath: 'text',
+  repoHelpPath: 'text',
 })
 
 // {tenant} stays legal in a base: the lde / legacy tenant-host template

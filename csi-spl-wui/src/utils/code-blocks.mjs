@@ -30,6 +30,7 @@ import { classifyHref, linkOpen } from './link-target.mjs'
 import { BIDI_CLASS } from './bidi.mjs'
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { activeIdIndex, linkifyBlocks, linkifyMarkdown } from './id-link-gate.mjs'
+import { activeCommitLinker } from './commit-link-hook.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -434,7 +435,10 @@ export function parseBody(src) {
   // Ids link from the catalog the front layer registered. Empty in a unit
   // test, so this returns the same tree it always did.
   const index = activeIdIndex()
-  return index.empty ? blocks : linkifyBlocks(blocks, index)
+  const linked = index.empty ? blocks : linkifyBlocks(blocks, index)
+  // Commit hashes after the ids (commit-links.mjs): null until it loads.
+  const commits = activeCommitLinker()
+  return commits ? commits.blocks(linked) : linked
 }
 
 /**
@@ -613,7 +617,9 @@ function longestRun(s) {
  */
 export function markdownSource(src) {
   const index = activeIdIndex()
-  const plain = (s) => (index.empty ? s : linkifyMarkdown(s, index))
+  const commits = activeCommitLinker()
+  const ids = (s) => (index.empty ? s : linkifyMarkdown(s, index))
+  const plain = (s) => (commits ? commits.markdown(ids(s)) : ids(s))
   let out = ''
   const block = (s) => {
     if (out && !out.endsWith('\n')) out += '\n'

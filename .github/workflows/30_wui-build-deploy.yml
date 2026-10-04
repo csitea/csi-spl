@@ -243,6 +243,10 @@ jobs:
           # #lobby (wui-live-ws.md): the WUI's config.json carries it
           lobby = str(e.get("hub", {}).get("env", {}).get("SPOOL_HUB_LOBBY_TASK_ID", "")).strip()
           print("lobby_task_id=" + lobby)
+          # HUM-10: the repository url pieces (cnf env.wui.repo_*); "" = hidden
+          wui = e.get("wui", {})
+          for k in ("repo_web_url", "repo_clone_url", "repo_commit_path", "repo_help_path"):
+              print(k + "=" + str(wui.get(k) or "").strip())
           PY
           # CLE-35057: the hub bakes the repo .version into GET /version
           echo "want_version=$(tr -d '[:space:]' < .version)" >> "$GITHUB_OUTPUT"
@@ -391,6 +395,10 @@ jobs:
           LOBBY_TASK_ID: ${{ steps.cfg.outputs.lobby_task_id }}
           PERF_RUM: ${{ steps.cfg.outputs.perf_rum_enabled }}
           PERF_SAMPLE_RATE: ${{ steps.cfg.outputs.perf_sample_rate }}
+          REPO_WEB_URL: ${{ steps.cfg.outputs.repo_web_url }}
+          REPO_CLONE_URL: ${{ steps.cfg.outputs.repo_clone_url }}
+          REPO_COMMIT_PATH: ${{ steps.cfg.outputs.repo_commit_path }}
+          REPO_HELP_PATH: ${{ steps.cfg.outputs.repo_help_path }}
         run: |
           set -euo pipefail
           python3 - > .output/public/config.json <<'PY'
@@ -401,6 +409,8 @@ jobs:
               "tenantHosts": os.environ["TENANT_HOSTS"], "envName": os.environ["ENV_NAME"],
               "lobbyTaskId": os.environ["LOBBY_TASK_ID"], "perfRum": os.environ["PERF_RUM"],
               "perfSampleRate": os.environ["PERF_SAMPLE_RATE"],
+              "repoWebUrl": os.environ["REPO_WEB_URL"], "repoCloneUrl": os.environ["REPO_CLONE_URL"],
+              "repoCommitPath": os.environ["REPO_COMMIT_PATH"], "repoHelpPath": os.environ["REPO_HELP_PATH"],
           }))
           PY
           cat .output/public/config.json

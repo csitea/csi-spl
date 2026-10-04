@@ -260,6 +260,10 @@ jobs:
         env:
           NUXT_PUBLIC_USE_MOCK: "1"
           NUXT_PUBLIC_DEFAULT_LOCALE: "en"
+          # HUM-10: a repository for tests/e2e/commit-links (example values;
+          # the deployed page reads cnf env.wui.repo_* from /config.json)
+          NUXT_PUBLIC_REPO_WEB_URL: "https://git.example.org/acme/spool"
+          NUXT_PUBLIC_REPO_COMMIT_PATH: "/commit/"
         run: pnpm run generate
 
       - name: Upload the generated bundle for the e2e shards

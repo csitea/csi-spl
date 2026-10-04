@@ -3,11 +3,19 @@
  * csi-spl-doc/doc/help, copied into src/public/help-md by
  * src/node/help/sync-help.mjs. A page links its siblings as `./x.md`; here
  * such a link becomes the /help/x route, and any other relative link points
- * at the file in the public repository. Node tests import this file.
+ * at the file in the source repository: helpRepoBase() from cnf
+ * env.wui.repo_web_url + env.wui.repo_help_path (/config.json repoWebUrl,
+ * repoHelpPath). Either unset = no repository: such a link is dropped and
+ * its text stays. Node tests import this file.
  */
 
-/** Where a relative link that is not a help page resolves: the repo copy of doc/help. */
-export const HELP_REPO_BASE = 'https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/help/'
+/** Where a relative link that is not a help page resolves, or '' (none). */
+export function helpRepoBase(webUrl, helpPath) {
+  const b = String(webUrl ?? '').trim().replace(/\/+$/, '')
+  const p = String(helpPath ?? '').trim()
+  if (!/^https?:\/\/[^\s"'<>]+$/i.test(b) || !/^\/[^\s"'<>?#]*\/$/.test(p)) return ''
+  return b + p
+}
 
 /** A help page slug the copy can hold (the sync script's file rule). */
 export function validHelpSlug(s) {
@@ -16,19 +24,21 @@ export function validHelpSlug(s) {
 
 /**
  * One link target as the /help page shows it. `route(slug)` builds the
- * in-app path (the page passes its locale-aware one).
+ * in-app path (the page passes its locale-aware one); `repoBase` is
+ * helpRepoBase(). A repo link with no repoBase is '' (hidden).
  */
-export function helpHref(raw, route = (slug) => '/help/' + slug) {
+export function helpHref(raw, route = (slug) => '/help/' + slug, repoBase = '') {
   const s = String(raw ?? '').trim()
   if (!s) return s
   /* absolute, mailto, same-page anchor or site path: unchanged */
   if (/^[a-z][a-z0-9+.-]*:/i.test(s) || s.startsWith('#') || s.startsWith('/')) return s
   const m = /^(?:\.\/)?([a-z0-9-]+)\.md(?:#.*)?$/.exec(s)
   if (m) return route(m[1] === 'index' ? '' : m[1]).replace(/\/$/, '')
+  if (!repoBase) return ''
   try {
-    return new URL(s, HELP_REPO_BASE).href
+    return new URL(s, repoBase).href
   } catch {
-    return s
+    return ''
   }
 }
 
@@ -48,7 +58,14 @@ export function hostOf(url) {
   try { return new URL(String(url || '')).host } catch { return '' }
 }
 
-/** The markdown with every inline link target rewritten by helpHref. */
-export function rewriteHelpLinks(md, route) {
-  return String(md ?? '').replace(/\]\(([^)\s]+)\)/g, (_, href) => '](' + helpHref(href, route) + ')')
+/**
+ * The markdown with every inline link target rewritten by helpHref; a link
+ * helpHref hides keeps only its text.
+ */
+export function rewriteHelpLinks(md, route, repoBase = '') {
+  return String(md ?? '').replace(/(!?)\[([^\]\n]*)\]\(([^)\s]+)\)/g, (all, bang, text, href) => {
+    const to = helpHref(href, route, repoBase)
+    if (to) return bang + '[' + text + '](' + to + ')'
+    return bang ? '' : text
+  })
 }

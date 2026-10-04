@@ -11,7 +11,15 @@
 
 import { isWritableAgentId } from './agent-id.mjs'
 
-export const SPOOL_REPO = 'https://github.com/csitea/csi-spl'
+/**
+ * The source repository the lines clone: cnf env.wui.repo_clone_url
+ * (/config.json repoCloneUrl). '' = this site names none, and the guide
+ * hides the lines (no fallback repository).
+ */
+export function spoolRepo(cloneUrl) {
+  const s = String(cloneUrl ?? '').trim().replace(/\/+$/, '')
+  return /^https?:\/\/[^\s"'<>`$\\]+$/i.test(s) ? s : ''
+}
 
 /* the hub's id rules (internal/msg: idRe, boxRe; spec 061: c-004, or a legacy
    id until LEGACY_ID_UNTIL - this is a write path) */
@@ -52,16 +60,19 @@ export function spoolEnv({ hubUrl, tenant, box }) {
 
 /**
  * The one block to paste in a terminal (bash or zsh; needs git and Go).
- * keyFile is where the tenant root key sits on that machine.
+ * keyFile is where the tenant root key sits on that machine; repo is
+ * spoolRepo(). No repo: '' (nothing to clone, the guide hides the block).
  */
-export function connectAgentScript({ hubUrl, tenant, box, agent, keyFile }) {
+export function connectAgentScript({ hubUrl, tenant, box, agent, keyFile, repo }) {
+  const src = spoolRepo(repo)
+  if (!src) return ''
   /* one subshell: set -e stops at the first failing line without closing
      the terminal the block was pasted into */
   return [
     '(',
     'set -e',
     'mkdir -p ~/.spool ~/.local/bin',
-    `[ -d ~/.spool/src ] || git clone --depth 1 ${SPOOL_REPO} ~/.spool/src`,
+    `[ -d ~/.spool/src ] || git clone --depth 1 ${q(src)} ~/.spool/src`,
     '(cd ~/.spool/src/csi-spl-api/src/go/spool-hub-api && go build -o ~/.local/bin/spool ./cmd/spool)',
     "cat > ~/.spool/env <<'SPOOL_ENV'",
     spoolEnv({ hubUrl, tenant, box }),

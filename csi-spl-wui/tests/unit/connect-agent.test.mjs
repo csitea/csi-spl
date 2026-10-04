@@ -6,7 +6,7 @@
 // Run: node tests/unit/connect-agent.test.mjs
 import { spawnSync } from 'node:child_process'
 import {
-  boxHubUrl, connectAgentScript, cursorMcpJson, firstPrompt, keyFileArg, validAgentId, validBoxId,
+  spoolRepo, boxHubUrl, connectAgentScript, cursorMcpJson, firstPrompt, keyFileArg, validAgentId, validBoxId,
 } from '../../src/utils/connect-agent.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 import { setAgentIdNow } from '../../src/utils/agent-id.mjs'
@@ -20,14 +20,16 @@ const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); 
 const bashN = (src) => spawnSync('bash', ['-n'], { input: src, encoding: 'utf8' })
 
 console.log('connect-agent')
-const o = { hubUrl: 'https://api.example.com', tenant: 't1', box: 'box-laptop', agent: 'CLE-01', keyFile: '~/Downloads/t1.root.key' }
+const o = { hubUrl: 'https://api.example.com', tenant: 't1', box: 'box-laptop', agent: 'CLE-01', keyFile: '~/Downloads/t1.root.key', repo: 'https://git.example.org/acme/spool' }
 const s = connectAgentScript(o)
 const lines = s.split('\n')
 ok('the block is valid bash', bashN(s).status === 0, bashN(s).stderr)
 ok('CONTROL a broken block is caught by bash -n', bashN(s.replace(/\)$/, '')).status !== 0)
 ok('one subshell: set -e cannot close the terminal', lines[0] === '(' && lines.at(-1) === ')' && lines[1] === 'set -e')
 ok('it names the hub, the tenant and the box', s.includes("SPOOL_HUB_URL='https://api.example.com'") && s.includes("SPOOL_TENANT='t1'") && s.includes("SPOOL_BOX_ID='box-laptop'"))
-ok('it builds spool from the public repo', s.includes('git clone --depth 1 https://github.com/csitea/csi-spl ~/.spool/src') && s.includes('go build -o ~/.local/bin/spool ./cmd/spool'))
+ok('it builds spool from the configured repo', s.includes("git clone --depth 1 'https://git.example.org/acme/spool' ~/.spool/src") && s.includes('go build -o ~/.local/bin/spool ./cmd/spool'))
+ok('no repo configured: no block at all (no fallback repo)', connectAgentScript({ ...o, repo: '' }) === '' && connectAgentScript({ ...o, repo: undefined }) === '')
+ok('a repo that is not an http(s) url is no repo', spoolRepo('ftp://x/y') === '' && spoolRepo('https://x/$(id)') === '' && spoolRepo('https://x/y/') === 'https://x/y')
 ok('it seats the box with the root key file', s.includes('spool hub-pin --box "$SPOOL_BOX_ID" --pubkey "$(spool keygen)" --root-key "$HOME/Downloads/t1.root.key"'))
 ok('it announces the agent (its spool dir)', s.includes('mkdir -p "$SPOOL_ROOT/CLE-01"'))
 ok('it keeps the box connected', s.includes('nohup spool hub-run'))

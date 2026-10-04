@@ -134,6 +134,7 @@ if (sh.status !== 0) {
     eq(r.status, 0, 'wui-config.sh: no env at all is a valid start')
     eq(JSON.parse(readFileSync(out, 'utf8')), {
       apiBase: '', authBase: '', siteUrl: '', tenant: 'main', lobbyTaskId: '', envName: '',
+      repoWebUrl: '', repoCloneUrl: '', repoCommitPath: '', repoHelpPath: '',
     }, 'and writes the same-origin defaults')
 
     r = start({ SPOOL_PUBLIC_URL: 'https://chat.example.org//', SPOOL_TENANT: 'acme', SPOOL_LOBBY_TASK_ID: '00000000-0000-4000-8000-000000000001', SPOOL_ENV_NAME: 'dev' })
@@ -141,6 +142,12 @@ if (sh.status !== 0) {
     eq([cfg.apiBase, cfg.siteUrl, cfg.tenant, cfg.envName], ['https://chat.example.org', 'https://chat.example.org', 'acme', 'dev'], 'the env values reach config.json')
     const pub = { apiBase: '' }
     eq(applyRuntimeConfig(pub, cfg).rejected, [], 'and every one passes the page\'s own merge rules')
+
+    r = start({ SPOOL_REPO_WEB_URL: 'https://git.example.org/acme/spool', SPOOL_REPO_CLONE_URL: 'https://git.example.org/acme/spool.git', SPOOL_REPO_COMMIT_PATH: '/-/commit/', SPOOL_REPO_HELP_PATH: '/-/blob/main/doc/help/' })
+    const repo = JSON.parse(readFileSync(out, 'utf8'))
+    const rpub = {}
+    eq(applyRuntimeConfig(rpub, repo).rejected, [], 'the repo url pieces pass the merge rules')
+    eq([rpub.repoWebUrl, rpub.repoCloneUrl, rpub.repoCommitPath, rpub.repoHelpPath], ['https://git.example.org/acme/spool', 'https://git.example.org/acme/spool.git', '/-/commit/', '/-/blob/main/doc/help/'], 'and reach the public config')
 
     r = start({ SPOOL_PUBLIC_URL: 'http://localhost:8080' })
     eq(JSON.parse(readFileSync(out, 'utf8')).siteUrl, '', 'a plain-http URL is no site URL (tenant hosts are https)')

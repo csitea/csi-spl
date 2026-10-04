@@ -493,6 +493,13 @@ export default defineNuxtConfig({
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.
       lobbyTaskId: lobbyTaskIdDefault(),
+      // HUM-10: the source repository's url pieces, cnf env.wui.repo_* via
+      // /config.json (wf 30). No default: "" hides commit links, the /help
+      // repo links and the connect-agent clone block.
+      repoWebUrl: process.env.NUXT_PUBLIC_REPO_WEB_URL || "",
+      repoCloneUrl: process.env.NUXT_PUBLIC_REPO_CLONE_URL || "",
+      repoCommitPath: process.env.NUXT_PUBLIC_REPO_COMMIT_PATH || "",
+      repoHelpPath: process.env.NUXT_PUBLIC_REPO_HELP_PATH || "",
       useMock: wuiUseMock(),
       appVersion: wuiAppVersion(),
       // SPL-1006: the commit this bundle was built from, so an open tab can

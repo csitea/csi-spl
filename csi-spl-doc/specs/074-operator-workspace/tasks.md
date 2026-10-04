@@ -27,7 +27,7 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 - [ ] T007 **shell actions re-route**: update `csi-spl-orc/src/bash/run/spl-tenant-*.func.sh` (`do_spl_tenant_create`, `do_spl_tenant_display_name`, `do_spl_tenant_member_*`) to call the hub operator API instead of executing raw `psql` queries via Cloud SQL proxy. Done: orc test suites pass with no direct DB dependency.
 
 ### Phase 3: Operator Workspace UI ("Make Useful" Console)
-- [ ] T008 **wui console & wizard**: `/operator/workspaces` view in `csi-spl-wui` (catalogue table, search, status filters). Create workspace wizard implementing the complete "Make Useful" checklist (spec §3.4: create, admin invite/account, settings, default channels, initial agent join token, billing status). Restricted strictly to operator workspace with `admin` role. Done: `pnpm run typecheck` and WUI e2e tests green.
+- [ ] T008 **wui console & wizard**: a **section in the right-most pane** of the shell (owner HUM-10, t1 aa35699c msg 617055e5: "we need to create a new section on the right most pane"), not a separate `/operator/workspaces` page. It is the third kind of the one right-pane section (`utils/topic-pane.mjs`: live / channel / operator, still 1..1), opened from a rail button that shows only when the active workspace is the operator workspace (`operator: true`) and the reader is its `admin`; the hub's 403 `operator.workspaces` stays the gate. It lists the workspaces (search, status filter active / suspended / archived), creates one (id, display name, first admin email, billing status: the fields `POST /v1/operator/workspaces` takes today), suspends / resumes and archives (soft delete, with a confirm). The rest of the §3.4 checklist (default channels, initial agent join token) follows when the API offers it. Done: `pnpm run typecheck` and WUI e2e tests green.
 
 ### Phase 4: Single DNS Entry Point & Unified Routing
 - [ ] T009 **single dns routing**: WUI router path prefix normalization `/w/<workspace_id>/...` and session cookie/header integration; 301 redirects for legacy subdomains; deprecate per-tenant host provisioning workflow 40 and terraform step 032. Done: AC8 and AC9 green in live browser e2e.
@@ -35,4 +35,4 @@ Phased according to owner HUM-10 order (msg `880e9e40`):
 ### Phase 5: Self-Hosted & Open-Source Bootstrap
 - [ ] T010 **self-hosted first-run**: bootstrap logic in `csi-spl-api/src/docker/hub-entrypoint.sh` and `docker-compose.yml` automatically designating the first created workspace as the operator workspace and giving initial account the `admin` role. Done: AC10 clean compose boot test passes.
 
-<!-- version: 0.5.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:15:00Z -->
+<!-- version: 0.5.1 · updated: 2026-10-04 · last-edit: 2026-10-04T21:00:00Z -->

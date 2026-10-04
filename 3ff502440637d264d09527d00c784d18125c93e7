@@ -1,0 +1,6 @@
+Lay-What: Help now shows just two columns: the list of help pages on the left and the chosen page on the right.
+Lay-How: Opening help hides the channel list and closes any conversation that was open on the right.
+Lay-Why: Help was squeezed between the channel list and an open conversation, four columns at once.
+Tech-What: WUI /help renders as two panes; the sidebar is rail-only there and the topic section closes.
+Tech-How: ChannelSidebar adds helpRailOnly to sidebar--rail on desktop /help; the help page closes the topic store and live pane on mount and on reopen.
+Tech-Why: The shell kept the sidebar list and the topic pane (topic store / live pane) on every route, help included.

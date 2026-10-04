@@ -29,6 +29,15 @@ open(sys.argv[2], "w").write(str(os.getpid()))
 time.sleep(60)
 PY
 free_port() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()'; }
+# wait_listen <pidfile> <port>: the stubs start the decoy asynchronously, so
+# wait until it wrote its pidfile AND accepts on <port>; 0 within 5 s, else 1.
+wait_listen() {
+  for _ in $(seq 1 100); do
+    [[ -f "$1" ]] && (exec 3<>"/dev/tcp/127.0.0.1/$2") 2>/dev/null && return 0
+    sleep 0.05
+  done
+  return 1
+}
 
 # Stubs. cloud-sql-proxy records its argv; FAKE_PROXY=race starts a decoy on
 # --port a moment later (another run winning the port) and dies like a failed
@@ -78,7 +87,7 @@ reset() { for p in "$T"/*.pid; do [[ -f "$p" ]] && { kill "$(cat "$p")" 2>/dev/n
 # --- 1. race: our proxy died, someone else listens -> refused ---------------
 reset; port=$(free_port)
 out=$(start FAKE_PROXY=race SPL_PROXY_PORT="$port" 2>&1)
-[[ -f "$T/decoy.pid" ]] && pass "control: the decoy took 127.0.0.1:$port after the free check" || fail "control: no decoy listened on $port"
+wait_listen "$T/decoy.pid" "$port" && pass "control: the decoy took 127.0.0.1:$port after the free check" || fail "control: no decoy listened on $port"
 if grep -q "RC=0" <<<"$out" || grep -q "proxy up" <<<"$out"; then
   fail "race (binary): reported up through another run's listener: $(tr '\n' ' ' <<<"$out")"
 else

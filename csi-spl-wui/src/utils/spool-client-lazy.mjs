@@ -375,8 +375,9 @@ async function revokeTenantInvite(ctx, email) {
 }
 
 /**
- * PATCH /v1/members/{id} (specs/046): { display_name?, locale?, disabled? }.
- * disabled suspends the member in THIS tenant only.
+ * PATCH /v1/members/{id} (specs/046): { display_name?, locale?, disabled?, access_until? }.
+ * disabled suspends the member in THIS tenant only; access_until (RFC 3339,
+ * null = no end) ends their access here on a date (spec 072 A27).
  */
 async function patchTenantUser(ctx, humanId, patch = {}) {
   const { live, mock, dir } = ctx

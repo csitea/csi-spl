@@ -96,7 +96,7 @@ declare module '~/utils/spool-client.mjs' {
     auditClones(): Promise<Array<{ clone_hum?: string, target_hum?: string, created_by?: string, role?: string, created_at?: string, expires_at?: string, ended_at?: string | null, end_reason?: string }>>
     memberActivity(humanId: string): Promise<Array<{ at?: string, kind?: string, detail?: string, by?: string, ip?: string }>>
     revokeTenantInvite(email: string): Promise<null>
-    patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean }): Promise<null>
+    patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
     patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number } }): Promise<unknown>
     listTenantChannels(): Promise<unknown>
@@ -1413,7 +1413,7 @@ declare module '~/utils/access.mjs' {
 }
 
 declare module '~/utils/tenant-users.mjs' {
-  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, suspended: boolean, lastSeen: string, you: boolean, manageable: boolean, orderedBy: string, orderedByName: string, orderedVia: string, invitedOn: string }
+  export type UserMember = { kind: 'member', key: string, humanId: string, displayName: string, email: string, role: string, since: string, disabled: boolean, suspended: boolean, lastSeen: string, accessUntil: string, accessEnded: boolean, you: boolean, manageable: boolean, orderedBy: string, orderedByName: string, orderedVia: string, invitedOn: string }
   export type UserInvite = { kind: 'invite', key: string, email: string, role: string, invitedBy: string, createdAt: string, expiresAt: string, expired: boolean, mailCount: number, mailedAt: string, orderedBy: string, orderedByName: string, orderedVia: string, tenant: string }
   export type UserRow = UserMember | UserInvite
   export const USERS_PERMISSION: string
@@ -1422,6 +1422,8 @@ declare module '~/utils/tenant-users.mjs' {
   export function normalizeDirectory(body: unknown): { you: string, members: UserMember[], invites: UserInvite[], roles: { id: string, grantable: boolean }[] }
   export function memberLabel(row: UserRow | null | undefined): string
   export function userErrorKey(err: unknown): string
+  export function accessUntilOfDate(day: string): string
+  export function accessDateOf(iso: string): string
   export function looksLikeEmail(s: unknown): boolean
   export function inviteLink(origin: unknown, tenant: unknown, email?: unknown): string
   export function inviteMailed(row: UserInvite | null | undefined): boolean

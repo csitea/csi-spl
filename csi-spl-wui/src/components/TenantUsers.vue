@@ -54,6 +54,7 @@
                       <span v-if="m.you" class="users-tag">{{ t('users.you') }}</span>
                       <span v-if="m.disabled" class="users-tag">{{ t('users.disabled') }}</span>
                       <span v-if="m.suspended" class="users-tag" data-test="users-row-suspended">{{ t('users.suspended') }}</span>
+                      <span v-if="m.accessEnded" class="users-tag" data-test="users-row-access-ended">{{ t('users.access_ended') }}</span>
                     </span>
                     <span v-if="m.email && m.email !== memberLabel(m)" class="users-row__sub muted">{{ m.email }}</span>
                   </span>

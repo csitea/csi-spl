@@ -43,6 +43,9 @@ export function normalizeDirectory(body) {
     disabled: m.disabled === true,
     suspended: m.suspended === true,
     lastSeen: str(m.last_seen),
+    /* spec 072 A27: when the membership stops granting access ('' = no end) */
+    accessUntil: str(m.access_until),
+    accessEnded: m.access_ended === true,
     you: m.you === true,
     manageable: m.manageable === true,
     /* CLE-77778: the invite this member accepted — who ordered it and when */
@@ -84,10 +87,30 @@ export function memberLabel(row) {
   return row.displayName || row.email || row.humanId
 }
 
+/**
+ * Spec 072 A27: the access_until a date input means — the END of that local
+ * day (the next local midnight), as RFC 3339 UTC. '' for no / a bad date.
+ */
+export function accessUntilOfDate(day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''))
+  if (!m) return ''
+  const at = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1)
+  return Number.isNaN(at.getTime()) ? '' : at.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/** The local day (YYYY-MM-DD) a stored access_until ends; '' for none. The inverse of accessUntilOfDate. */
+export function accessDateOf(iso) {
+  const at = new Date(String(iso || ''))
+  if (!iso || Number.isNaN(at.getTime())) return ''
+  const last = new Date(at.getTime() - 1)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`
+}
+
 /** The i18n key for a failed call's hub token ('' → the generic one). */
 export function userErrorKey(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
-  const known = ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'shared_account', 'bad_name', 'bad_locale']
+  const known = ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'shared_account', 'bad_name', 'bad_locale', 'bad_access_until', 'not_migrated']
   return 'users.error.' + (known.includes(token) ? token : 'generic')
 }
 

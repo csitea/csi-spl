@@ -69,6 +69,11 @@
             <dt>{{ t('users.status') }}</dt>
             <dd data-test="users-pane-suspended">{{ t('users.suspended') }}</dd>
           </template>
+          <!-- spec 072 A27: the membership's end of access -->
+          <dt>{{ t('users.access_until') }}</dt>
+          <dd data-test="users-pane-access-until">
+            {{ member.accessUntil ? when(member.accessUntil) : t('users.access_no_end') }}<template v-if="member.accessEnded"> · {{ t('users.access_ended') }}</template>
+          </dd>
         </dl>
         <p v-if="!member.manageable" class="muted users-note" data-test="users-pane-locked">
           {{ member.you ? t('users.not_manageable_self') : t('users.not_manageable_role') }}
@@ -105,6 +110,28 @@
             {{ t('users.save_profile') }}
           </button>
           <small class="muted">{{ t('users.profile_hint') }}</small>
+        </form>
+        <!-- spec 072 A27: access that ends on a date (the last day, local);
+             past it the hub refuses the person here, the row stays -->
+        <form v-if="member.manageable" class="users-form" data-test="users-access-form" @submit.prevent="saveAccess">
+          <label class="users-field">
+            <span>{{ t('users.access_until') }}</span>
+            <input v-model="accessDay" type="date" data-test="users-pane-access-input">
+          </label>
+          <button type="submit" class="btn" :disabled="busy || !accessDay || accessDay === accessDateOf(member.accessUntil)" data-test="users-pane-save-access">
+            {{ t('users.save_access') }}
+          </button>
+          <button
+            v-if="member.accessUntil"
+            type="button"
+            class="btn ghost"
+            :disabled="busy"
+            data-test="users-pane-clear-access"
+            @click="clearAccess"
+          >
+            {{ t('users.clear_access') }}
+          </button>
+          <small class="muted">{{ t('users.access_hint') }}</small>
         </form>
         <!-- specs/054: act as this member (a read-and-verify clone session) -->
         <button
@@ -228,7 +255,7 @@ import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { useRoleName } from '~/composables/useRoleName'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
+import { accessDateOf, accessUntilOfDate, inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
 
 const props = defineProps<{
@@ -272,6 +299,7 @@ const inviteRole = ref('developer')
 const memberRole = ref('')
 const profileName = ref('')
 const profileLocale = ref('')
+const accessDay = ref('')
 const profileDirty = computed(() => Boolean(member.value) && (profileName.value.trim() !== (member.value?.displayName || '') || profileLocale.value !== ''))
 const busy = ref(false)
 const error = ref('')
@@ -296,6 +324,7 @@ watch(() => [props.row?.key, props.creating], () => {
   memberRole.value = member.value?.role || ''
   profileName.value = member.value?.displayName || ''
   profileLocale.value = ''
+  accessDay.value = accessDateOf(member.value?.accessUntil || '')
   if (props.creating) {
     email.value = ''
     const ids = grantable.value.map((r) => r.id)
@@ -413,6 +442,31 @@ function toggleSuspend() {
     await api.patchTenantUser(m.humanId, { disabled: !m.suspended })
     emit('changed', m.key)
     notice.value = m.suspended ? t('users.restored') : t('users.suspended_notice')
+  })
+}
+
+// The reloaded row keeps its key, so the date follows its access_until here.
+watch(() => member.value?.accessUntil, (v) => { accessDay.value = accessDateOf(v || '') })
+
+// spec 072 A27: end the member's access here after the chosen local day.
+function saveAccess() {
+  const m = member.value
+  const until = accessUntilOfDate(accessDay.value)
+  if (!m || !until) return
+  void run(async () => {
+    await api.patchTenantUser(m.humanId, { access_until: until })
+    emit('changed', m.key)
+    notice.value = t('users.access_saved', { date: accessDay.value })
+  })
+}
+
+function clearAccess() {
+  const m = member.value
+  if (!m) return
+  void run(async () => {
+    await api.patchTenantUser(m.humanId, { access_until: null })
+    emit('changed', m.key)
+    notice.value = t('users.access_cleared')
   })
 }
 

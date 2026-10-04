@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { inviteMailed, looksLikeEmail, mailOutcomeKey, memberLabel, normalizeDirectory, openInviteFor, USER_PANE_SIDE, userErrorKey, usersEntryVisible } from '../../src/utils/tenant-users.mjs'
+import { accessDateOf, accessUntilOfDate, inviteMailed, looksLikeEmail, mailOutcomeKey, memberLabel, normalizeDirectory, openInviteFor, USER_PANE_SIDE, userErrorKey, usersEntryVisible } from '../../src/utils/tenant-users.mjs'
 import { createMockDirectory, MOCK_MAIL_GAP_MS } from '../../src/utils/tenant-users-mock.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { tabForPath, USERS_TAB } from '../../src/utils/sidebar-tabs.mjs'
@@ -81,10 +81,19 @@ const used = [...code.matchAll(/t\('(users\.[a-z_.]+|sidebar\.users)'/g)].map((x
 const get = (k) => k.split('.').reduce((o, p) => (o && typeof o === 'object' ? o[p] : undefined), en)
 const missing = used.filter((k) => typeof get(k) !== 'string')
 ok('every users key the code names is in en.json', used.length > 20 && missing.length === 0, missing.join(','))
-for (const tok of ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'generic']) {
+for (const tok of ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'bad_access_until', 'not_migrated', 'generic']) {
   ok('error word ' + tok, typeof get('users.error.' + tok) === 'string')
 }
 
+// spec 072 A27: a membership that ends on a date.
+const ax = normalizeDirectory({ members: [{ human_id: 'HUM-7', access_until: '2026-11-01T22:00:00Z', access_ended: true }, { human_id: 'HUM-8', access_until: null }] })
+ok('access_until is read', ax.members[0].accessUntil === '2026-11-01T22:00:00Z' && ax.members[0].accessEnded === true)
+ok('CONTROL: no end reads empty, not ended', ax.members[1].accessUntil === '' && ax.members[1].accessEnded === false)
+const until = accessUntilOfDate('2026-11-01')
+ok('a day ends at the next local midnight', until !== '' && new Date(until).getTime() === new Date(2026, 10, 2).getTime(), until)
+ok('the day round-trips', accessDateOf(until) === '2026-11-01', accessDateOf(until))
+ok('CONTROL: a bad day is no end', accessUntilOfDate('') === '' && accessUntilOfDate('11/01/2026') === '' && accessDateOf('') === '')
+ok('error key bad_access_until', userErrorKey({ token: 'bad_access_until' }) === 'users.error.bad_access_until')
 const s = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', s.ok, s.why)
 

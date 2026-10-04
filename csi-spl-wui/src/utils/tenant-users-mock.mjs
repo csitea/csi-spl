@@ -91,6 +91,12 @@ export function createMockDirectory(now = () => new Date()) {
         m.display_name = n
       }
       if (p.disabled !== undefined) m.suspended = Boolean(p.disabled)
+      if (p.access_until !== undefined) {
+        if (id === you) throw mockErr(409, 'self')
+        if (p.access_until !== null && Number.isNaN(Date.parse(p.access_until))) throw mockErr(400, 'bad_access_until')
+        m.access_until = p.access_until
+        m.access_ended = p.access_until !== null && Date.parse(p.access_until) <= Date.now()
+      }
       return null
     },
     remove(id) {

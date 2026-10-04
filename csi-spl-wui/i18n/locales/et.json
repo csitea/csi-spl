@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Kanali sõnum"
+  },
   "common": {
     "loading": "Laadimine…",
     "close": "Sulge",

@@ -29,7 +29,7 @@
 import { classifyHref, linkOpen } from './link-target.mjs'
 import { BIDI_CLASS } from './bidi.mjs'
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
-import { activeIdIndex, linkifyBlocks, linkifyMarkdown } from './id-links.mjs'
+import { activeIdIndex, linkifyBlocks, linkifyMarkdown } from './id-link-gate.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 

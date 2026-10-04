@@ -143,6 +143,9 @@
     >
       <UiIcon :name="jumpEnds.dir === 'up' ? 'chevron-up' : 'chevron-down'" :size="22" />
     </button>
+    <!-- A #msg near the end of the thread cannot reach the top of the pane
+         unless a viewport of room follows it. Kept while that hash is open. -->
+    <div v-if="landTail" data-land-tail aria-hidden="true" :style="{ height: landTail + 'px' }" />
   </section>
 </template>
 
@@ -445,21 +448,34 @@ function mergeTarget(m: SpoolMessage, which: 'previous' | 'next') {
 /* A pasted link to a thread line (#<msg_id>) moves that line to the top of
    its list once it has loaded, and selects it. Only a thread feed does this,
    and only once per hash, so later rows do not pull the reader back. The
-   document itself does not scroll. */
+   document itself does not scroll. A row near the end needs room after it
+   (`landTail`) or the pane stops short and leaves the row down the list. */
 const route = useRoute()
+const landTail = ref(0)
 let hashDone = ''
 watch(() => [route.hash, props.rows.length] as const, async ([hash]) => {
   const id = String(hash || '').replace(/^#/, '')
   if (!props.holdScroll || !id || id === hashDone) return
   if (!props.rows.some((m) => String(m.msg_id) === id)) return
-  hashDone = id
-  await nextTick()
-  const el = root.value?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`)
-  const scroller = el?.closest<HTMLElement>('.feed-body')
-  /* newest last: the linked row wins over following the bottom (A9) */
-  if (el) hold()
-  if (el && scroller) scrollRowToTop(scroller, el)
-  el?.focus({ preventScroll: true })
+  for (let i = 0; i < 8; i++) {
+    await nextTick()
+    const el = root.value?.querySelector<HTMLElement>(`[data-msg-id="${CSS.escape(id)}"]`)
+    const scroller = el?.closest<HTMLElement>('.feed-body')
+    if (!el || !scroller || scroller.clientHeight <= 0) {
+      await new Promise((r) => requestAnimationFrame(r))
+      continue
+    }
+    landTail.value = scroller.clientHeight
+    await nextTick()
+    /* newest last: the linked row wins over following the bottom (A9).
+       Focus first: a focus that still scrolls the pane is then corrected. */
+    hold()
+    el.focus({ preventScroll: true })
+    scrollRowToTop(scroller, el)
+    hashDone = id
+    requestAnimationFrame(() => { scrollRowToTop(scroller, el) })
+    return
+  }
 }, { immediate: true })
 
 /* Spec 066 L6: the timings that end on this feed's paint - M2 the page

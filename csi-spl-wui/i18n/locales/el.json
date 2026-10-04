@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Μήνυμα καναλιού"
+  },
   "common": {
     "loading": "Φόρτωση…",
     "close": "Κλείσιμο",

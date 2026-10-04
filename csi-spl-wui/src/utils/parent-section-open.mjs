@@ -124,8 +124,14 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '' 
       }
       const scroller = card.closest('.feed-body')
       if (scroller) {
-        const pad = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
-        scroller.scrollTop += cardScrollDelta(card.getBoundingClientRect(), scroller.getBoundingClientRect(), newestLast, pad)
+        const apply = () => {
+          if (!card.isConnected) return
+          const pad = parseFloat(getComputedStyle(scroller).paddingBottom) || 0
+          scroller.scrollTop += cardScrollDelta(card.getBoundingClientRect(), scroller.getBoundingClientRect(), newestLast, pad)
+        }
+        apply()
+        /* the tail under the list lands on the next frame; measure again then */
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(apply)
       }
       if (!target) card.focus({ preventScroll: true, focusVisible: true })
       return
@@ -141,4 +147,16 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '' 
     }
     await sleep(every)
   }
+}
+
+/** Scroll the topic card named by ?topic= to the reader's edge.
+    A plain link does not run the menu's openParentSection, so the channel
+    and direct-message feeds call this when the address carries ?topic=. */
+export function scrollTopicCard({ router, newestLast = false, taskId = '', hash = '' } = {}) {
+  if (typeof document === 'undefined') return Promise.resolve()
+  const id = String(taskId || '')
+  if (!id) return Promise.resolve()
+  const topic = useTopicStore()
+  const target = { taskId: id, mode: 'task', rootMsgId: '', parentTaskId: '' }
+  return revealCard(topic, target, { router, hash: String(hash || ''), newestLast: Boolean(newestLast) })
 }

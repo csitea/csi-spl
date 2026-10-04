@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Správa v kanáli"
+  },
   "common": {
     "loading": "Načítava sa…",
     "close": "Zavrieť",

@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Kanalmeddelande"
+  },
   "common": {
     "loading": "Laddar…",
     "close": "Stäng",

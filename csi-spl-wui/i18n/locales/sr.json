@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Порука канала"
+  },
   "common": {
     "loading": "Učitavanje…",
     "close": "Zatvori",

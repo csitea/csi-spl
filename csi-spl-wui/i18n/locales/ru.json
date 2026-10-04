@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Сообщение в канале"
+  },
   "common": {
     "loading": "Загрузка…",
     "close": "Закрыть",

@@ -140,6 +140,9 @@ describe('a thread is not scrolled', () => {
       assert.doesNotMatch(read(rel), /scrollIntoView\s*\(/, rel)
     }
     assert.match(read('src/components/SideHitList.vue'), /scrollRowIntoPane\(/)
+    /* a linked row near the end of its list needs room after it to reach the top */
+    assert.match(read('src/components/LiveFeed.vue'), /data-land-tail/)
+    assert.match(read('src/components/MessageFeed.vue'), /data-land-tail/)
     const search = read('src/components/SearchSidePanel.vue')
     const focus = search.slice(search.indexOf('function focusMessage'), search.indexOf('defineExpose'))
     assert.match(focus, /openThreadRow\(/)

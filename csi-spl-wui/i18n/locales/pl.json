@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Wiadomość na kanale"
+  },
   "common": {
     "loading": "Ładowanie…",
     "close": "Zamknij",

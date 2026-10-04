@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Порака во канал"
+  },
   "common": {
     "loading": "Се вчитува…",
     "close": "Затвори",

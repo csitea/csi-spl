@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "הודעת ערוץ"
+  },
   "common": {
     "loading": "טוען…",
     "close": "סגירה",

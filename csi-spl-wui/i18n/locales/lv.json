@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Kanāla ziņa"
+  },
   "common": {
     "loading": "Ielādē…",
     "close": "Aizvērt",

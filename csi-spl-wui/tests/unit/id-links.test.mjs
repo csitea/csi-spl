@@ -2,6 +2,8 @@
 // Controls: a hex string that is not an id, an id in code, an unknown id.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { parseBody, markdownSource } from '../../src/utils/code-blocks.mjs'
 import {
@@ -68,7 +70,7 @@ describe('id links', () => {
   it('a full topic uuid opens that topic', () => {
     assert.deepEqual(linkifyText(`topic ${TOPIC} please`, index), [
       txt('topic '),
-      link(TOPIC, `/t/${TOPIC}`),
+      link(TOPIC, `/channel/lobby?topic=${TOPIC}`),
       txt(' please'),
     ])
   })
@@ -76,7 +78,7 @@ describe('id links', () => {
   it('a unique 8-hex topic prefix opens that topic', () => {
     assert.deepEqual(linkifyText('see bbbbbbbb now', index), [
       txt('see '),
-      link('bbbbbbbb', `/t/${TOPIC}`),
+      link('bbbbbbbb', `/channel/lobby?topic=${TOPIC}`),
       txt(' now'),
     ])
   })
@@ -143,7 +145,7 @@ describe('id links', () => {
 
   it('the letters of the id are kept as written', () => {
     const upper = TOPIC.toUpperCase()
-    assert.deepEqual(linkifyText(upper, index), [link(upper, `/t/${TOPIC}`)])
+    assert.deepEqual(linkifyText(upper, index), [link(upper, `/channel/lobby?topic=${TOPIC}`)])
   })
 
   it('an id in inline code or a fence stays text', () => {
@@ -175,20 +177,83 @@ describe('id links', () => {
     assert.equal(linkifyBlocks(blocks, none), blocks)
   })
 
+  it('a link carries its kind, and an archived id opens the topic page', () => {
+    const labels = {
+      topic: 'Topic',
+      'channel-message': 'Channel message',
+      'direct-message': 'direct message',
+      archived: 'Archived',
+    }
+    const named = indexCatalog({
+      self: 'HUM-1',
+      labels,
+      topics: [{ task_id: OTHER, channel: 'lobby', archived_at: '2026-10-01T00:00:00Z' }],
+      messages: [channelMsg, dmRoot],
+    })
+    assert.deepEqual(linkifyText(`see ${TOPIC}`, named), [
+      txt('see Topic: '),
+      link(TOPIC, `/channel/lobby?topic=${TOPIC}`),
+    ])
+    assert.deepEqual(linkifyText(MSG, named), [
+      txt('Channel message: '),
+      link(MSG, `/channel/lobby?topic=${TOPIC}#${MSG}`),
+    ])
+    assert.deepEqual(linkifyText(DM_TOPIC, named), [
+      txt('direct message: '),
+      link(DM_TOPIC, `/dm/GRK-03%40box-a?topic=${DM_TOPIC}`),
+    ])
+    assert.deepEqual(linkifyText(OTHER, named), [
+      txt('Topic (Archived): '),
+      link(OTHER, `/t/${OTHER}`),
+    ])
+    const archivedMsg = indexCatalog({
+      self: 'HUM-1',
+      labels,
+      messages: [{ ...channelMsg, archived_at: '2026-10-01T00:00:00Z' }],
+    })
+    assert.deepEqual(linkifyText(MSG, archivedMsg), [
+      txt('Channel message (Archived): '),
+      link(MSG, `/t/${TOPIC}#${MSG}`),
+    ])
+    assert.deepEqual(linkifyText(`missing ${UNKNOWN}`, named), [txt(`missing ${UNKNOWN}`)])
+    const fence = linkifyBlocks(parseBody('```\n' + TOPIC + '\n```'), named)
+    assert.equal(fence[0].type, 'code')
+    assert.equal(fence[0].text, TOPIC)
+    assert.equal(
+      linkifyMarkdown(`see ${TOPIC}`, named),
+      `see Topic: [${TOPIC}](/channel/lobby?topic=${TOPIC})`,
+    )
+  })
+
   it('parseBody and markdownSource use the registered catalog, and skip code', () => {
     setIdCatalogProvider(() => index)
     try {
       const blocks = parseBody(`topic ${TOPIC} and \`${TOPIC}\``)
       const parts = blocks[0].parts
-      assert.equal(parts.some((p) => p.type === 'link' && p.href === `/t/${TOPIC}`), true)
+      assert.equal(parts.some((p) => p.type === 'link' && p.href === `/channel/lobby?topic=${TOPIC}`), true)
       assert.equal(parts.some((p) => p.type === 'inline' && p.text === TOPIC), true)
 
       const md = markdownSource(`# Note\n\nsee ${TOPIC}\n\n\`${MSG}\`\n`)
-      assert.match(md, new RegExp(`\\[${TOPIC}\\]\\(/t/${TOPIC}\\)`))
+      assert.match(md, new RegExp(`\\[${TOPIC}\\]\\(/channel/lobby\\?topic=${TOPIC}\\)`))
       assert.match(md, new RegExp('`' + MSG + '`'))
       assert.equal(md.includes(`[${MSG}](`), false)
     } finally {
       resetIdCatalogProvider()
     }
+  })
+})
+
+const source = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
+
+describe('the linker stays out of the first script', () => {
+  it('code-blocks reaches it through the gate, and the plugin does not import the stores', () => {
+    const blocks = source('../../src/utils/code-blocks.mjs')
+    assert.match(blocks, /from '\.\/id-link-gate\.mjs'/)
+    assert.doesNotMatch(blocks, /from '\.\/id-links\.mjs'/)
+    const plugin = source('../../src/plugins/id-catalog.ts')
+    assert.match(plugin, /import\('~\/utils\/id-catalog-install'\)/)
+    assert.doesNotMatch(plugin, /from '~\/utils\/id-links/)
+    assert.doesNotMatch(plugin, /stores\/flow/)
+    assert.doesNotMatch(plugin, /parent-section/)
   })
 })

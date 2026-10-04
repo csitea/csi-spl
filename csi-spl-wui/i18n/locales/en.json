@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Channel message"
+  },
   "common": {
     "loading": "Loading…",
     "close": "Close",

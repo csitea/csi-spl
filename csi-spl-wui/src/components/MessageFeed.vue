@@ -5,6 +5,7 @@
        pointer keeps its own data-move-drop="card" (a MOVE); only a real channel
        (not a DM / lobby / issues) offers it. -->
   <div
+    ref="scrollerEl"
     class="feed-body"
     :data-move-drop="promotable ? 'topics' : undefined"
     :data-move-id="promotable && promoteDrag ? 'promote' : undefined"
@@ -32,6 +33,9 @@
       @open-topic="openRow"
       @edited="onEdited"
     />
+    <!-- ?topic= scrolls that card to the top. A card near the end of the
+         list needs a viewport of room after it or the pane cannot get there. -->
+    <div v-if="tailPx" data-land-tail aria-hidden="true" :style="{ height: tailPx + 'px' }" />
   </div>
 </template>
 
@@ -40,6 +44,7 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
+import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMove } from '~/composables/useMove'
 import { moveBlocked } from '~/utils/move.mjs'
@@ -79,4 +84,44 @@ const { openRow } = useTopicRoute({
   close: () => topic.close(),
   rowFor: (msgId) => channel.messages.find((m) => m.msg_id === msgId) as SpoolMessage | undefined,
 })
+
+/* A pasted or written id opens /channel/<name>?topic=<task> (or the direct
+   message twin). The menu path scrolls that card; a plain link did not.
+   The tail is a viewport of room after the last card so the named card can
+   sit at the top of this pane, and it stays while ?topic= is in the address. */
+const scrollerEl = ref<HTMLElement | null>(null)
+const tailPx = ref(0)
+if (import.meta.client) {
+  const route = useRoute()
+  const router = useRouter()
+  const { newestLast } = useViewPrefs()
+  let landGen = 0
+  async function landTopic() {
+    const gen = ++landGen
+    const raw = route.query.topic
+    const taskId = String(Array.isArray(raw) ? raw[0] : raw || '')
+    if (!taskId) {
+      tailPx.value = 0
+      return
+    }
+    await nextTick()
+    await new Promise((r) => requestAnimationFrame(r))
+    if (gen !== landGen) return
+    const el = scrollerEl.value
+    if (el && el.clientHeight > 0) tailPx.value = el.clientHeight
+    await nextTick()
+    if (gen !== landGen) return
+    const hash = String(route.hash || '')
+    const m = await import('~/utils/parent-section-open.mjs')
+    if (gen !== landGen) return
+    if (typeof m.scrollTopicCard === 'function') {
+      await m.scrollTopicCard({ router, newestLast: newestLast.value, taskId, hash })
+    }
+  }
+  watch(() => {
+    const raw = route.query.topic
+    const id = Array.isArray(raw) ? raw[0] : raw
+    return String(id || '')
+  }, () => { void landTopic() }, { immediate: true })
+}
 </script>

@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Kanal mesajı"
+  },
   "common": {
     "loading": "Yükleniyor…",
     "close": "Kapat",

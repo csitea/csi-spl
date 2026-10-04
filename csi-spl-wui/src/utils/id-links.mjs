@@ -4,6 +4,12 @@
  * holds — a channel topic, a direct-message topic, or a message — and never
  * asks the hub once per id. An id that matches nothing there stays text.
  *
+ * A channel topic opens that channel with the card selected and the thread
+ * in the right pane. A reply keeps that address and adds the message id, so
+ * the reply stays in the right pane. A direct message opens its own list.
+ * An archived row, or a direct message with no other end, opens the topic
+ * page. A caller that passes labels gets the kind word in front of the link.
+ *
  * A full uuid is a topic when that task is known, otherwise a message when
  * that msg_id is known. An 8-hex token is a topic when exactly one known
  * topic starts with it; otherwise a message when no topic does and exactly
@@ -15,6 +21,7 @@
  * in a unit test is unchanged.
  */
 import { parentSection, parentSectionHref } from './parent-section.mjs'
+import { registerIdLinks } from './id-link-gate.mjs'
 
 const UUID_SRC = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 const UUID_RE = new RegExp(`(?<![0-9a-fA-F-])${UUID_SRC}(?![0-9a-fA-F-])`, 'g')
@@ -68,6 +75,10 @@ function channelOf(row) {
   return String((row && row.channel) || '').trim().replace(/^#/, '')
 }
 
+function archivedOf(row) {
+  return Boolean(row && (row.archived_at || row.archived === true))
+}
+
 /** The other end of a DM, as the sidebar labels a peer. */
 function peerOf(row, self) {
   const m = row || {}
@@ -91,20 +102,31 @@ function peerOf(row, self) {
 }
 
 function topicHref(info, pathFor) {
+  /* An archived topic has left the channel list. The topic page still shows it. */
+  if (info.archived) return pathOf(pathFor, '/t/' + encodeURIComponent(info.taskId))
   if (!info.channel && info.peer) {
     return pathOf(pathFor, '/dm/' + encodeURIComponent(info.peer)) + '?topic=' + encodeURIComponent(info.taskId)
+  }
+  if (info.channel) {
+    return pathOf(pathFor, '/channel/' + encodeURIComponent(info.channel)) + '?topic=' + encodeURIComponent(info.taskId)
   }
   return pathOf(pathFor, '/t/' + encodeURIComponent(info.taskId))
 }
 
-function messageHref(row, self, pathFor) {
-  const section = parentSection(row, { self })
-  if (section && section.path && section.kind !== 'issue') return parentSectionHref(section, pathFor)
+function topicPageMessage(row, pathFor) {
   const task = norm(row.parent_task_id || row.task_id)
   const id = norm(row.msg_id)
   if (UUID_TEST.test(task)) return pathOf(pathFor, '/t/' + encodeURIComponent(task)) + (id ? '#' + id : '')
   if (UUID_TEST.test(id)) return pathOf(pathFor, '/m/' + encodeURIComponent(id))
   return ''
+}
+
+function messageHref(row, self, pathFor) {
+  /* An archived reply is not in the channel list. The topic page keeps the hash. */
+  if (row.archived) return topicPageMessage(row, pathFor)
+  const section = parentSection(row, { self })
+  if (section && section.path && section.kind !== 'issue') return parentSectionHref(section, pathFor)
+  return topicPageMessage(row, pathFor)
 }
 
 function pushPrefix(map, prefix, rec) {
@@ -116,7 +138,8 @@ function pushPrefix(map, prefix, rec) {
 /**
  * Index the topics and messages the reader can already see.
  * `pathFor` is the locale-aware path (identity when omitted).
- * @param {{ topics?: unknown[], messages?: unknown[], self?: string, pathFor?: (path: string) => string }} [input]
+ * `labels` is the translated kind words. Omit it and the link text is the id alone.
+ * @param {{ topics?: unknown[], messages?: unknown[], self?: string, pathFor?: (path: string) => string, labels?: Record<string, string> }} [input]
  */
 export function indexCatalog(input = {}) {
   const src = input && typeof input === 'object' ? input : {}
@@ -128,12 +151,13 @@ export function indexCatalog(input = {}) {
   function addTopic(id, row) {
     const key = norm(id)
     if (!UUID_TEST.test(key)) return
-    const prev = topicRows.get(key) || { taskId: key, channel: '', peer: '' }
+    const prev = topicRows.get(key) || { taskId: key, channel: '', peer: '', archived: false }
     const channel = prev.channel || channelOf(row)
     topicRows.set(key, {
       taskId: key,
       channel,
       peer: channel ? '' : (prev.peer || peerOf(row, self)),
+      archived: Boolean(prev.archived || archivedOf(row)),
     })
   }
 
@@ -150,6 +174,7 @@ export function indexCatalog(input = {}) {
       from_box: prev.from_box || row.from_box || '',
       to: prev.to || row.to || '',
       to_box: prev.to_box || row.to_box || '',
+      archived: Boolean(prev.archived || archivedOf(row)),
     })
     addTopic(row.parent_task_id || row.task_id, row)
   }
@@ -166,19 +191,30 @@ export function indexCatalog(input = {}) {
   const topicsByPrefix = new Map()
   const messagesById = new Map()
   const messagesByPrefix = new Map()
+  const labels = src.labels && typeof src.labels === 'object' ? src.labels : null
   for (const info of topicRows.values()) {
-    const rec = { href: topicHref(info, pathFor) }
+    const rec = {
+      href: topicHref(info, pathFor),
+      label: info.peer && !info.channel ? 'direct-message' : 'topic',
+      archived: Boolean(info.archived),
+    }
     topicsById.set(info.taskId, rec)
     pushPrefix(topicsByPrefix, info.taskId.slice(0, 8), rec)
   }
   for (const [id, row] of messageRows) {
-    const href = messageHref(row, self, pathFor)
+    const parent = topicRows.get(norm(row.parent_task_id || row.task_id))
+    const archived = Boolean(row.archived || (parent && parent.archived))
+    const href = messageHref({ ...row, archived }, self, pathFor)
     if (!href) continue
-    const rec = { href }
+    const rec = {
+      href,
+      label: row.channel ? 'channel-message' : 'direct-message',
+      archived,
+    }
     messagesById.set(id, rec)
     pushPrefix(messagesByPrefix, id.slice(0, 8), rec)
   }
-  return { empty: false, topicsById, topicsByPrefix, messagesById, messagesByPrefix }
+  return { empty: false, topicsById, topicsByPrefix, messagesById, messagesByPrefix, labels }
 }
 
 /**
@@ -192,17 +228,17 @@ export function resolveId(token, index) {
   const key = raw.toLowerCase()
   if (UUID_TEST.test(key)) {
     const topic = index.topicsById.get(key)
-    if (topic) return { kind: 'topic', href: topic.href }
+    if (topic) return { kind: 'topic', href: topic.href, label: topic.label, archived: topic.archived }
     const msg = index.messagesById.get(key)
-    if (msg) return { kind: 'message', href: msg.href }
+    if (msg) return { kind: 'message', href: msg.href, label: msg.label, archived: msg.archived }
     return null
   }
   if (!/^[0-9a-f]{8}$/.test(key)) return null
   const topics = index.topicsByPrefix.get(key) || []
-  if (topics.length === 1) return { kind: 'topic', href: topics[0].href }
+  if (topics.length === 1) return { kind: 'topic', href: topics[0].href, label: topics[0].label, archived: topics[0].archived }
   if (topics.length === 0) {
     const msgs = index.messagesByPrefix.get(key) || []
-    if (msgs.length === 1) return { kind: 'message', href: msgs[0].href }
+    if (msgs.length === 1) return { kind: 'message', href: msgs[0].href, label: msgs[0].label, archived: msgs[0].archived }
   }
   return null
 }
@@ -213,7 +249,7 @@ function findHits(text, index) {
   for (const m of text.matchAll(UUID_RE)) {
     const hit = resolveId(m[0], index)
     if (!hit) continue
-    hits.push({ start: m.index, end: m.index + m[0].length, href: hit.href })
+    hits.push({ start: m.index, end: m.index + m[0].length, href: hit.href, label: hit.label, archived: hit.archived })
   }
   SHORT_RE.lastIndex = 0
   for (const m of text.matchAll(SHORT_RE)) {
@@ -222,10 +258,26 @@ function findHits(text, index) {
     if (hits.some((h) => start >= h.start && end <= h.end)) continue
     const hit = resolveId(m[0], index)
     if (!hit) continue
-    hits.push({ start, end, href: hit.href })
+    hits.push({ start, end, href: hit.href, label: hit.label, archived: hit.archived })
   }
   hits.sort((a, b) => a.start - b.start)
   return hits
+}
+
+function kindPrefix(hit, index) {
+  const labels = index && index.labels
+  if (!labels || typeof labels !== 'object') return ''
+  const name = String(labels[hit.label] || '')
+  if (!name) return ''
+  const arch = hit.archived && labels.archived ? ' (' + String(labels.archived) + ')' : ''
+  return name + arch + ': '
+}
+
+function pushText(parts, text) {
+  if (!text) return
+  const prev = parts[parts.length - 1]
+  if (prev && prev.type === 'text') prev.text += text
+  else parts.push({ type: 'text', text })
 }
 
 /** Text parts and link parts. An unknown id stays one text part. */
@@ -237,11 +289,11 @@ export function linkifyText(text, index) {
   const parts = []
   let last = 0
   for (const h of hits) {
-    if (h.start > last) parts.push({ type: 'text', text: s.slice(last, h.start) })
+    pushText(parts, s.slice(last, h.start) + kindPrefix(h, index))
     parts.push({ type: 'link', text: s.slice(h.start, h.end), href: h.href })
     last = h.end
   }
-  if (last < s.length) parts.push({ type: 'text', text: s.slice(last) })
+  pushText(parts, s.slice(last))
   return parts
 }
 
@@ -272,6 +324,7 @@ export function linkifyMarkdown(src, index) {
   let last = 0
   for (const h of hits) {
     out += s.slice(last, h.start)
+    out += kindPrefix(h, index)
     out += '[' + s.slice(h.start, h.end) + '](' + h.href + ')'
     last = h.end
   }
@@ -314,3 +367,5 @@ export function linkifyBlocks(blocks, index) {
     return b
   })
 }
+
+registerIdLinks({ activeIdIndex, linkifyBlocks, linkifyMarkdown })

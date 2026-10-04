@@ -1,4 +1,7 @@
 {
+  "id_link": {
+    "channel_message": "Kanaalbericht"
+  },
   "common": {
     "loading": "Laden…",
     "close": "Sluiten",

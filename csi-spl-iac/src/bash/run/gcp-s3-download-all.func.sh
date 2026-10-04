@@ -97,7 +97,7 @@ do_gcp_s3_download_all() {
     local BUCKET_TARGET="${TARGET_DIR}/${BUCKET_NAME}"
     do_log "INFO syncing ${BUCKET_URL} -> ${BUCKET_TARGET}"
 
-    sudo -u <DEV_USER> mkdir -p "${BUCKET_TARGET}"
+    mkdir -p "${BUCKET_TARGET}"
     if [[ $? -ne 0 ]]; then
       do_log "ERROR failed to create directory: ${BUCKET_TARGET}"
       FAILED=$((FAILED + 1))

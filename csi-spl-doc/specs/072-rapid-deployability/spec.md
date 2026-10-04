@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.7** (the version log is at the end of section 9). Lead
+Status: **draft v0.8** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -304,7 +304,7 @@ timed run a receiver can repeat.
 | **A13** | The CI runner is a repo variable: every `runs-on` in wf 10 and 99 reads `vars.SPOOL_CI_RUNNER`, else `ubuntu-latest`; this repo sets the variable through a named action, not by hand (research 12 C1) | P2, contributors | CI | S | a fork's push runs wf 10 to a verdict; on this repo nothing changes |
 | **A14** | A slim infra stack: tpl-gen without a token (vendored, or fetched by a public ref); `GITHUB_TOKEN` optional except for step 120; the key dir mounted read-only, no `~/.aws` / `~/.ssh` mounts (research 03 A5) | P2 | orc | S | `make do-setup-tpl-gen` with no `GITHUB_TOKEN` succeeds |
 | **A15** | One page, `DEPLOY.md` at the repo root: which path (P1, P2, P3, or a hosted tenant), how long each takes, the one command each, an error index (message -> fix), and the box size each path needs (research 19); the README opens with a "Choose your path" block (research 18 D1) | all | docs | S | linked from the top of README; every command on it has a passing acceptance check in this table |
-| **A16** | Timed stranger tests: P2 from `DEPLOY.md` alone in a throwaway GCP project, and P1 on every `stable-*` (047 metric 5) | P1, P2 | any lane + owner (billing) | M | a posted run with the tree, n, and the minutes per step |
+| **A16** | Timed stranger tests. P1 on every `stable-*` (047 metric 5). P2 as a **clean-room estate** in the one throwaway project (owner `af863518`, research 20): `do_spl_cleanroom_host_bootstrap ENV=cr` once (owner); per run a scratch cnf from the template with every resource labelled `spl-run=<run>`; `do_spl_estate_up ENV=cr` (A9), a smoke (health, `/version`, wf 50's browser proof), then `do_spl_cleanroom_down`, which refuses unless the project carries `spl-cleanroom=true`; deploys use `SPL_NO_MINT=1` (no release tag); workflow `75_cleanroom-estate.yml` nightly and on every `stable-*`, a weekly full tier with a delegated sub-zone; `do_report_cleanroom N=10` publishes the median minutes per stage (research 20 CR1-CR8) | P1, P2 | CI + iac + owner (the one project) | M | a nightly run green from zero to smoke to an empty project, ~20-35 min (estimate), ~$0.05 a run, capped at $9 a month; `DEPLOY.md` cites `do_report_cleanroom` with its n and date |
 | **A17** | `do_spl_box_deploy` and `do_spl_pool_ctl` accept the env names the cnf declares, and `ENV=self` with a hub URL; the key prerequisite is `todo`, not `missing`, on a box with no GCP (research 11 M2, 17 N17.7) | P3 | orc | S | `ENV=self SPOOL_HUB_URL=<url> BOX_DEPLOY_CMD=check ./run -a do_spl_box_deploy` -> a verdict, not a refusal |
 | **A18** | **Keyless bootstrap by default** (`BOOTSTRAP_AUTH=impersonate`): gcp-002 creates the SA and grants the human `roles/iam.serviceAccountTokenCreator` on it, with no JSON key and no org-policy change; `do_tf_init` and `do_gcp_account` impersonate when no key file exists, and refuse with one line naming both routes when neither is there (research 03 A4); `BOOTSTRAP_AUTH=key` keeps today's path (02 G5) | P2 | iac | M | in impersonate mode a stubbed-gcloud log shows 0 `org-policies` and 0 `keys create` calls, and terraform gets `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`; the key-mode test stays green |
 | **A19** | **A full, honest dry run plus a read-only preflight** (`do_gcp_bootstrap_preflight`): gcp-003/004 plan against a planned SA instead of stopping; a project that reads "(or it may not exist)" counts as **taken**; `testIamPermissions` on the parent and the billing account; every input says where it came from (env or cnf) (02 G3, G4) | P2 | iac | S | stub walk -> 4 `OK DRY_RUN` lines, exit 0; a denied permission -> a refusal naming the role and scope; a cnf-sourced org prints `org: <id> (from cnf ...)` |
@@ -421,7 +421,7 @@ of the table below, which keeps its ids for reference.
 | 3 | L16 | A17: box deploy for any env and `self` | `spl-box-deploy.func.sh`, `spl-pool-ctl.func.sh` | - |
 | 3 | L17 | A5: join tokens, its own spec first (037 T005) | a new spec, then hub, WUI and CLI lanes | D3 |
 | 4 | L18 | A9: `do_spl_estate_up` | a new action + test | L4, L10, L11, L12, L15 |
-| 4 | L19 | A16: timed stranger tests, P1 then P2 | a results file in this dir | L9, L18, D4 |
+| 4 | L19 | A16: P1 stranger test on stables; P2 clean-room estate (one sub-lane per research 20 CR1-CR8; CR1 teardown first) | a results file in this dir; `75_cleanroom-estate.yml`; cleanroom actions | L9, L18, D4 answered |
 | 4 | L20 | A15 final: `DEPLOY.md` with every new command and the error index | `DEPLOY.md` | wave 3 |
 | 1 | L21 | A19: full dry run + preflight | gcp-000..004, a new `gcp-bootstrap-preflight.func.sh` + tests | - |
 | 1 | L22 | A24: deploy workflows name envs and secrets from cnf | the env/secret lines of wf 20 and wf 30 | - |
@@ -556,3 +556,4 @@ rule, and logs it below.
 | v0.5 | owner `d7e415ed`: the cloud layer leaves this spec (3.1 is a pointer); research 10 (c-171), 11 (c-163), 16 (c-174), 17 (c-166), 18, 19 (c-167): 14 (c-173): A49-A62, lanes L45-L56, D16, A49 and A60-A61 join the user-story-1 order; S3 store and fleet-ops items parked | c-165 |
 | v0.6 | owner `fe7fd2b9`: the four cloud-layer decisions recorded in 3.1 (scope, factory shape, self-host first then AWS, GCP default); P1 first now cites it | c-165 |
 | v0.7 | owner D4 answered (`af863518`); 8.1 the 15-question list for the owner (`85a28d38`) | c-165 |
+| v0.8 | research 20 (c-176): A16 becomes the clean-room estate in the one throwaway project (CR1-CR8) | c-165 |

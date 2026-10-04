@@ -29,6 +29,8 @@
 #      and a python heredoc that does not compile in a .sh, are REFUSED
 #  21. lint-tf (real terraform, when installed): an unformatted .tf and a
 #      .tfvars that does not parse are REFUSED; a formatted .tf passes
+#  22. lint-sigpipe: a pushed .sh with `| grep -q` under pipefail is REFUSED
+#      and names its reproduce command; the fixed form passes
 #  18. a .vue whose TEMPLATE does not compile -> lint-wui-syntax FAIL; a clean
 #      one passes (when this checkout's csi-spl-wui/node_modules exists)
 #   Scanners are stubs on PATH (hermetic: the CI runner has no shellcheck);
@@ -345,6 +347,17 @@ if [[ -n "$REAL_TF" ]]; then
 else
   echo "INFO: no terraform on this host -- leg 21 not run (./run -a do_install_lint_tools)"
 fi
+
+# 22. lint-sigpipe
+new_repo
+printf '#!/bin/bash\nset -o pipefail\nls | grep -q x && echo y\n' >"$R/$SH/pipe.sh"; commit sigpipe
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-sigpipe)" == FAIL ]] && grep -q "sigpipe-lint.sh $SH/pipe.sh" "$T/out" \
+  && pass "22a. | grep -q under pipefail in a pushed .sh is a lint-sigpipe FAIL" || fail "22a. sigpipe" "rc=$rc verdict=$(verdict lint-sigpipe)"
+printf '#!/bin/bash\nset -o pipefail\nls | grep x >/dev/null && echo y\n' >"$R/$SH/pipe.sh"; commit sigpipe-fix
+rc="$(lint)"
+[[ "$(verdict lint-sigpipe)" == PASS ]] \
+  && pass "22b. the fixed form passes lint-sigpipe" || fail "22b. sigpipe fixed" "rc=$rc verdict=$(verdict lint-sigpipe)"
 
 # 6. routing (the planner alone)
 plan_of() {  # <changed-files...>

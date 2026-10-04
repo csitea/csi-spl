@@ -37,6 +37,10 @@
 # @description   lint-semgrep     61 do_sec_semgrep on the touched hub .go / WUI src files
 # @description                    vs .semgrep-baseline.txt (~11 s; whole scope 152 s)
 # @description   lint-gomod       go mod tidy -diff (offline) when go.mod/go.sum change
+# @description   lint-sigpipe     touched .sh under pipefail: no early-exit consumer
+# @description                    (`| grep -q`, `| grep -m`, `| head`) after a producer
+# @description                    -- it SIGPIPEs the producer (141) and the pipeline reads
+# @description                    false (sigpipe-lint.sh; opt-out `# sigpipe-ok: <why>`)
 # @description FULL tier only (too slow for the hook, CI owns them; measured
 # @description 2026-10-01 over the whole tree): lint-checkov (65, 65 s, when
 # @description terraform is touched) and lint-gosec (62, >300 s). CodeQL (60) and DAST (68) need the whole
@@ -55,7 +59,7 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod lint-sigpipe"
 _PPL_SLOW="lint-checkov lint-gosec"
 
 # ruff: syntax + pyflakes + the security codes with a zero baseline. Never
@@ -106,13 +110,14 @@ _ppl_select() {  # <scanner> <changed> <tree>
       lint-syntax)
         if [[ "$f" == *.sh || "$f" == *.yml || "$f" == *.yaml || "$f" == *.json || "$f" == *.toml \
               || "$f" == csi-spl-orc/Makefile || "$f" == csi-spl-orc/*.mk ]]; then echo "$f"
-        elif [[ "$b" != *.* ]] && head -1 "$tree/$f" 2>/dev/null | grep -qE '^#!.*\b(ba)?sh\b'; then echo "$f"
+        elif [[ "$b" != *.* ]] && head -1 "$tree/$f" 2>/dev/null | grep -E '^#!.*\b(ba)?sh\b' >/dev/null; then echo "$f"
         fi ;;
       lint-shellcheck) [[ "$f" == *.sh ]] && _ppl_under "$f" "${sc_dirs[@]}" && echo "$f" ;;
       lint-actionlint) [[ "$f" == .github/workflows/*.yml || "$f" == .github/workflows/*.yaml ]] && echo "$f" ;;
       lint-hadolint)   [[ "$b" == Dockerfile || "$b" == Dockerfile.* || "$b" == *.dockerfile ]] && echo "$f" ;;
       lint-eslint)     [[ "$f" == csi-spl-wui/src/* && ( "$f" == *.mjs || "$f" == *.js ) && "$f" != */node_modules/* ]] && echo "$f" ;;
       lint-mdlinks)    [[ "$f" == *.md ]] && echo "$f" ;;
+      lint-sigpipe)    [[ "$f" == *.sh ]] && echo "$f" ;;
       lint-migration)  [[ "$f" == "$_PPL_MIG_DIR"/*.sql ]] && echo "$f" ;;
       lint-compose)    [[ "$b" == docker-compose*.yml || "$b" == docker-compose*.yaml ]] && echo "$f" ;;
       lint-gitleaks)   echo ALL; return 0 ;;
@@ -155,7 +160,7 @@ _ppl_plan() {  # <changed> <mode> <tier> <tree>
       sel=ALL
       [[ "$sc" == lint-syntax || "$sc" == lint-trufflehog ]] && sel="$(git -C "$tree" ls-files 2>/dev/null)"
       case "$sc" in
-        lint-syntax|lint-mdlinks|lint-compose|lint-wui-syntax|lint-py|lint-tf) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
+        lint-syntax|lint-mdlinks|lint-sigpipe|lint-compose|lint-wui-syntax|lint-py|lint-tf) sel="$(_ppl_select "$sc" "$(git -C "$tree" ls-files 2>/dev/null)" "$tree")" ;;
         lint-migration) sel="" ;;   # nothing is "edited" in a whole-tree run
       esac
     else
@@ -213,6 +218,7 @@ _ppl_missing() {  # <scanner>
       _ppl_need python3 ;;
     lint-trufflehog) _ppl_need trufflehog; _ppl_need python3 ;;
     lint-mdlinks)    _ppl_need python3 ;;
+    lint-sigpipe)    _ppl_need awk ;;
     lint-checkov)    _ppl_need checkov ;;
     lint-semgrep)    _ppl_need semgrep ;;
     lint-gosec)      _ppl_need gosec ;;
@@ -251,6 +257,7 @@ _ppl_repro() {  # <scanner>
     lint-wui-lock) echo "cd csi-spl-wui && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts"; return 0 ;;
     lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
     lint-mdlinks) echo "python3 csi-spl-iac/src/bash/scripts/md-rel-links.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
+    lint-sigpipe) echo "bash csi-spl-iac/src/bash/scripts/sigpipe-lint.sh $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
     *) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
   esac
   if [[ -z "${var:-}" || "$sel" == ALL ]]; then echo "cd csi-spl-iac && ./run -a $act"; return 0; fi
@@ -347,6 +354,9 @@ sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
     lint-mdlinks)
       local -a mds=(); mapfile -t mds <<<"$files"
       ( cd "$tree" && python3 "$(_ppl_scripts)/md-rel-links.py" "${mds[@]}" ) || rc=$? ;;
+    lint-sigpipe)
+      local -a scripts=(); mapfile -t scripts <<<"$files"
+      ( cd "$tree" && bash "$(_ppl_scripts)/sigpipe-lint.sh" "${scripts[@]}" ) || rc=1 ;;
     lint-checkov)    SEC_CHECKOV_ROOT="$tree" do_sec_checkov || rc=$? ;;
     lint-semgrep)
       if [[ "${_PPL_FILES[$sc]:-}" == ALL ]]; then SEC_SEMGREP_ROOT="$tree" do_sec_semgrep || rc=$?
@@ -435,6 +445,7 @@ _pp_part_lint_checkov()    { _ppl_run_one lint-checkov "$1"; }
 _pp_part_lint_semgrep()    { _ppl_run_one lint-semgrep "$1"; }
 _pp_part_lint_gomod()      { _ppl_run_one lint-gomod "$1"; }
 _pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }
+_pp_part_lint_sigpipe()    { _ppl_run_one lint-sigpipe "$1"; }
 
 # Spelling: WARN only (owner: no CI gate yet). typos-cli with the repo-root
 # _typos.toml on the touched whole files, reporting only the lines the push

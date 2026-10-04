@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MSG_SHORTCUTS, NAV_SHORTCUTS, inTypingOrOverlay, offeredItems, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  MSG_SHORTCUTS, NAV_SHORTCUTS, inTypingOrOverlay, messageShortcutsSection, offeredItems, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -148,3 +148,34 @@ describe('hints, the setting, the catalogue', () => {
     }
   })
 })
+
+/** The help section, from the "## 7" heading up to the next heading or the version footer. */
+function helpSection(md) {
+  const at = md.indexOf('## 7. Message shortcuts')
+  if (at < 0) return ''
+  const rest = md.slice(at)
+  const cut = rest.slice(1).search(/\n(?:## |<!-- version:)/)
+  return (cut < 0 ? rest : rest.slice(0, cut + 1)).replace(/\s+$/, '')
+}
+
+describe('help page: the Message shortcuts section is this map', () => {
+  const en = JSON.parse(readFileSync(join(WUI, 'i18n/locales/en.json'), 'utf8'))
+  const label = (key) => key.split('.').reduce((o, p) => (o && typeof o === 'object' ? o[p] : undefined), en)
+  const want = messageShortcutsSection(label)
+
+  it('doc/help and the served copy both equal messageShortcutsSection', () => {
+    for (const rel of ['../csi-spl-doc/doc/help/keyboard-shortcuts.md', 'src/public/help-md/keyboard-shortcuts.md']) {
+      const md = readFileSync(join(WUI, rel), 'utf8')
+      assert.equal(helpSection(md), want, rel)
+    }
+  })
+
+  it('a section that drops a key no longer matches, and every Shift + letter is one map key', () => {
+    const keys = [...want.matchAll(/Shift \+ ([A-Z])/g)].map((m) => m[1])
+    assert.deepEqual(keys, MSG_SHORTCUTS.map((s) => s.key))
+    const dropped = want.replace(/\| \*\*`Shift \+ H`\*\*[^\n]*\n/, '')
+    assert.notEqual(dropped, want)
+    assert.equal(helpSection('## 6. Earlier\n\n' + dropped + '\n\n<!-- version: x -->'), dropped)
+  })
+})
+

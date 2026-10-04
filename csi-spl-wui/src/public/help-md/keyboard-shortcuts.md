@@ -75,4 +75,25 @@ Spool conforms to modern accessibility standards:
 - **WAI-ARIA Attributes**: Message cards announce sender, timestamp, kind, and reply counts via `aria-label` and `aria-describedby`.
 - **Live Regions**: Incoming live messages and connection status transitions announce via `aria-live="polite"`.
 
-<!-- version: 1.1.0 · updated: 2026-09-30 -->
+---
+
+## 7. Message shortcuts
+
+These keys act on the **selected message**. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.
+
+| Shortcut | Context | Action |
+|---|---|---|
+| **`Shift + H`** | Selected message, desktop | Hide from flow |
+| **`Shift + R`** | Selected message, desktop | Reply |
+| **`Shift + E`** | Selected message, desktop | Edit |
+| **`Shift + A`** | Selected message, desktop | Archive / Unarchive |
+| **`Shift + O`** | Selected message, desktop | Open |
+| **`Shift + P`** | Selected message, desktop | Open parent section |
+| **`Shift + L`** | Selected message, desktop | Copy link |
+| **`Shift + C`** | Selected message, desktop | Copy text |
+| **`Shift + K`** | Selected message, desktop | Change kind |
+| **`Shift + T`** | Selected message, desktop | Make it a topic |
+| **`Shift + M`** | Selected message, desktop | Move or merge… |
+| **`Shift + D`** | Selected message, desktop | Delete |
+
+<!-- version: 1.2.0 · updated: 2026-10-04 -->

@@ -134,3 +134,30 @@ export function shortcutItem(key, offered) {
   const has = offered instanceof Set ? (id) => offered.has(id) : (id) => Array.from(offered || []).includes(id)
   return s.items.find(has) || ''
 }
+
+/**
+ * The "Message shortcuts" section of doc/help/keyboard-shortcuts.md.
+ * The rows are MSG_SHORTCUTS, so the page cannot name a key the app does
+ * not have, or miss one it does. `label(labelKey)` is the English action
+ * name (the help pages are English). The unit test fails while the page
+ * and this text disagree.
+ *
+ * @param {(labelKey: string) => string} label
+ * @returns {string}
+ */
+export function messageShortcutsSection(label) {
+  const name = typeof label === 'function' ? label : () => ''
+  const rows = MSG_SHORTCUTS.map((s) => {
+    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    return `| **\`Shift + ${s.key}\`** | Selected message, desktop | ${action} |`
+  })
+  return [
+    '## 7. Message shortcuts',
+    '',
+    'These keys act on the **selected message**. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.',
+    '',
+    '| Shortcut | Context | Action |',
+    '|---|---|---|',
+    ...rows,
+  ].join('\n')
+}

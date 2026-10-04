@@ -19,6 +19,12 @@
 #    10. wui cache HIT over non-wui and e2e/bench-edit commits
 #    11. wui cache MISS over wui src, e2e names, ci-skip.txt and a hub file a
 #        unit test reads; that hub file also SELECTS the part (CLE-77946)
+#    12. (2026-10-04, c-231) a push touching no wui input -- api + a spec
+#        tasks.md, a dir a unit test names only as FIXTURE data -- does not run
+#        the wui part, before or after trunk gains a wui commit mid-push
+#    13. (c-226) a green wui verdict survives a rebase over a spec tasks.md and a
+#        cnf tfvars; a templated read (csi-spl-cnf/csi-spl/${env}.env.json) is a
+#        glob: its files select and key the part, the rest of that dir does not
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -173,6 +179,10 @@ mkwui() {  # <dir>
   : >"$R/csi-spl-wui/tests/e2e/ci-skip.txt"; echo b >"$R/csi-spl-wui/tests/bench/b.bench.mjs"
   echo m >"$R/csi-spl-api/internal/msg/msg.go"
   printf "// a comment naming csi-spl-orc/never-read.sh\nconst src = readFileSync(join(REPO, 'csi-spl-api/internal/msg/msg.go'), 'utf8')\n" >"$R/csi-spl-wui/tests/unit/u.test.mjs"
+  # fixture data naming real directories (docs.test.mjs), and a templated read
+  mkdir -p "$R/csi-spl-doc/specs/073-x" "$R/csi-spl-cnf/csi-spl/dev/tf"
+  echo t >"$R/csi-spl-doc/specs/073-x/tasks.md"; echo '{}' >"$R/csi-spl-cnf/csi-spl/dev.env.json"; echo v >"$R/csi-spl-cnf/csi-spl/dev/tf/a.tfvars"
+  printf "assert.deepEqual(dirs, ['csi-spl-doc', 'csi-spl-doc/specs'])\nconst env = JSON.parse(readFileSync(join(REPO, \`csi-spl-cnf/csi-spl/\${e}.env.json\`)))\n" >"$R/csi-spl-wui/tests/unit/v.test.mjs"
   git -C "$R" add -A; git -C "$R" commit -qm wui-seed
   git -C "$R" branch -f trunk HEAD
 }
@@ -237,6 +247,32 @@ gate "$R"; eq "11. an api push changing a file a wui unit test reads runs the wu
 R="$ROOT/r11c"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
 echo x >"$R/csi-spl-orc/never-read.sh"; git -C "$R" add -A; git -C "$R" commit -qm "orc file only named in a comment"
 gate "$R"; eq "11. a path only named in a unit-test COMMENT does not select it" 0 "$(runs csi-spl-wui-unit)"
+
+# 12. c-231: api + a spec tasks.md edit; trunk gains a wui commit mid-push
+R="$ROOT/r12"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo x >>"$R/csi-spl-api/a.go"; echo ticked >>"$R/csi-spl-doc/specs/073-x/tasks.md"
+git -C "$R" add -A; git -C "$R" commit -qm "api + spec tasks.md"
+gate "$R"; eq "12. api + spec tasks.md push -> passes" 0 "$?"
+eq "12. ... the wui part never ran (a fixture dir is not a wui input)" 0 "$(runs csi-spl-wui-unit)"
+git -C "$R" checkout -q trunk; echo z >>"$R/csi-spl-wui/src/a.ts"; git -C "$R" commit -qam "someone else's wui"; git -C "$R" checkout -q lane
+gate "$R"; eq "12. ... trunk gained a wui commit (not yet rebased) -> still no wui run" 0 "$(runs csi-spl-wui-unit)"
+git -C "$R" rebase -q trunk
+gate "$R"; eq "12. ... after the rebase over it -> still no wui run (scope = this push's commits)" 0 "$(runs csi-spl-wui-unit)"
+eq "12. ... wui logged SKIP-untouched" SKIP-untouched "$(verdict "$R" wui)"
+
+# 13. c-226: a wui push, then rebases over files the part does not read
+R="$ROOT/r13"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo mine >>"$R/csi-spl-wui/src/a.ts"; git -C "$R" commit -qam "my wui change"
+gate "$R"; eq "13. first wui push -> green" 1 "$(runs csi-spl-wui-unit)"
+trunk_commit "$R" csi-spl-doc/specs/073-x/tasks.md "someone else's tasks.md tick"
+trunk_commit "$R" csi-spl-cnf/csi-spl/dev/tf/a.tfvars "someone else's tfvars"
+gate "$R"; eq "13. rebase over a spec tasks.md + a cnf tfvars -> cache hit" 1 "$(runs csi-spl-wui-unit)"
+eq "13. ... logged PASS-cached" PASS-cached "$(verdict "$R" wui)"
+trunk_commit "$R" csi-spl-cnf/csi-spl/dev.env.json "a value the unit test reads"
+gate "$R"; eq "13. rebase over the templated read (dev.env.json) -> re-runs" 2 "$(runs csi-spl-wui-unit)"
+R="$ROOT/r13b"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
+echo '{"a":1}' >"$R/csi-spl-cnf/csi-spl/prd.env.json"; git -C "$R" add -A; git -C "$R" commit -qm "a NEW env json"
+gate "$R"; eq "13. a push adding a file the templated read matches selects the wui part" 1 "$(runs csi-spl-wui-unit)"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

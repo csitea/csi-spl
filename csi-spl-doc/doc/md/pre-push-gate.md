@@ -20,6 +20,40 @@ on every push and fails on a skip: api `go test -race` (plain `go test`
 stays), `build-stripped`, `hub-pg` (~384 s), `hub-gcs`; iac tests whose
 header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
 
+### 1.1 Scope and verdict cache
+
+- **Scope** is this push's own commits: `origin/master...HEAD` (from the
+  merge-base), plus the working tree. Commits other lanes landed on trunk
+  never select a part, before or after the rebase.
+- **What the wui part reads** outside `csi-spl-wui` is taken from
+  `tests/unit/*.mjs` and `src/node/**/*.mjs`. A `<dir>/...` literal counts
+  when it names a FILE in the tree, when it names a directory on a line
+  that reads it (`join(REPO, '.github/workflows', wf)`), or when it carries
+  a template. A template becomes a glob: `csi-spl-cnf/csi-spl/${env}.env.json`
+  is `csi-spl-cnf/csi-spl/*.env.json`, not the whole directory. A directory
+  named only as fixture data or in a message is not an input. On 2026-10-04
+  the `csi-spl-doc/specs` fixture in `docs.test.mjs` made every spec
+  `tasks.md` tick select the 3..5 min wui part and miss its cache, and 4
+  lanes lost the trunk ref lock to it within an hour. Print the list:
+  `bash -c '. csi-spl-iac/src/bash/run/check-pre-push.func.sh; _pp_wui_external .'`.
+- **The cache key is content**: the git trees and blobs of what the part
+  reads, plus the tier and the gate version. No commit sha and no base sha,
+  so a re-push after a rebase that brought in only files the part does not
+  read takes seconds. wui also keys on `node -v` and `pnpm -v`. lint-migration
+  keys on the whole migration dir at HEAD and on the base, because its
+  prefix rule reads both. Keyed on the touched files alone, a rebase over
+  another lane's same-numbered migration re-used the old green.
+
+### 1.2 The override
+
+`SPL_PREPUSH_OVERRIDE=1 git push` skips the slow parts but still runs
+`hygiene` and `lint-migration` (`PRE_PUSH_ONLY=override`, seconds,
+`PRE_PUSH_LINT=0` cannot drop them) and refuses the push when one fails.
+On 2026-10-04 an override that skipped everything landed a duplicate
+migration 0119. Only a poisoned shared git config (`core.worktree` in the
+common config), which makes the gate read the wrong tree, skips them too
+(audited) so whoever fixes it can push the fix.
+
 ## 2. Lint parts
 
 **Lint parts** (CLE-77829, owner 2026-10-01: "why cannot they be ran via

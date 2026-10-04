@@ -4,7 +4,8 @@
 #   HOOK
 #     1. gate passes            -> exit 0, tree stamped green
 #     2. gate fails             -> exit 1 (REFUSE)
-#     3. SPL_PREPUSH_OVERRIDE=1  -> exit 0 even when the gate would fail, audited
+#     3. SPL_PREPUSH_OVERRIDE=1  -> exit 0 even when the full gate would fail, audited;
+#        it still runs the cheap parts (PRE_PUSH_ONLY=override) and exit 1 when THEY fail
 #     4. an already-green tree   -> exit 0 WITHOUT running the gate (rebase-retry)
 #     5. not the spool tree      -> exit 0 (fail-open), never blocks a foreign repo
 #    13. the gate gets the per-part log, the verdict cache and tier=fast
@@ -37,7 +38,10 @@ REPO="$ROOT/repo"
 mkdir -p "$REPO/csi-spl-iac"
 cat >"$REPO/csi-spl-iac/run" <<'EOF'
 #!/usr/bin/env bash
-# stub ./run: the gate fails iff STUB_FAIL=1; args (-a do_check_pre_push) ignored
+# stub ./run: the full gate fails iff STUB_FAIL=1, the override's cheap parts
+# (PRE_PUSH_ONLY=override) iff STUB_CHEAP_FAIL=1; args (-a do_check_pre_push) ignored
+[ -n "${STUB_ONLY_LOG:-}" ] && echo "only=${PRE_PUSH_ONLY:-}" >>"$STUB_ONLY_LOG"
+if [ "${PRE_PUSH_ONLY:-}" = override ]; then [ "${STUB_CHEAP_FAIL:-0}" = 1 ] && exit 7; exit 0; fi
 [ "${STUB_FAIL:-0}" = 1 ] && exit 7
 exit 0
 EOF
@@ -64,6 +68,10 @@ grep -q 'REFUSE' "$L/pre-push.log" && pass "2. logged REFUSE" || fail "2. logged
 # 3. override beats a failing gate
 L="$ROOT/l3"; run_hook "$L" STUB_FAIL=1 SPL_PREPUSH_OVERRIDE=1; eq "3. override -> exit 0" 0 "$?"
 grep -q 'OVERRIDE' "$L/pre-push.log" && pass "3. logged OVERRIDE" || fail "3. logged OVERRIDE"
+L="$ROOT/l3b"; run_hook "$L" STUB_FAIL=1 SPL_PREPUSH_OVERRIDE=1 STUB_ONLY_LOG="$ROOT/l3b.only"
+eq "3. ... the override still ran the cheap parts, and only those" "only=override" "$(cat "$ROOT/l3b.only" 2>/dev/null)"
+L="$ROOT/l3c"; run_hook "$L" STUB_CHEAP_FAIL=1 SPL_PREPUSH_OVERRIDE=1; eq "3. override + a failing cheap part (duplicate migration) -> exit 1" 1 "$?"
+grep -q 'REFUSE .*SPL_PREPUSH_OVERRIDE=1' "$L/pre-push.log" && pass "3. ... logged REFUSE under the override" || fail "3. ... logged REFUSE under the override" "$(cat "$L/pre-push.log" 2>/dev/null)"
 
 # 4. an already-green tree skips the gate (so a failing stub still passes)
 L="$ROOT/l4"; run_hook "$L"; eq "4. first run greens the tree (exit 0)" 0 "$?"

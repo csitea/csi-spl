@@ -42,7 +42,9 @@
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
-# @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint)
+# @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
+# @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
+# @param        (what the hook still runs under SPL_PREPUSH_OVERRIDE=1; PRE_PUSH_LINT=0 cannot drop them)
 # @param PRE_PUSH_EXTRA_PATH (optional) - dirs appended to PATH before the tool check, default /usr/local/bin:/usr/bin:/bin:~/.local/bin
 # @example ./run -a do_check_pre_push
 # @example PRE_PUSH_MODE=full PRE_PUSH_TIER=full ./run -a do_check_pre_push
@@ -56,23 +58,48 @@ declare -F _ppl_plan >/dev/null 2>&1 \
 
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
-_PP_CACHE_V=5
+_PP_CACHE_V=6
 
 # The repo files OUTSIDE csi-spl-wui that the wui unit tests read (hub Go
 # sources, migrations, the firebase render script, cnf env JSON, workflows,
-# help docs), taken from the tests themselves so the list cannot go stale: every
-# non-comment '<dir>/...' literal in tests/unit/*.mjs, cut at a template '${'
-# (so `csi-spl-cnf/csi-spl/${env}.env.json` covers its whole directory). A line
-# that builds a scratch repo (mkdirSync / writeFileSync) names paths it WRITES,
-# not reads, so it is left out.
-# Before CLE-77946 none of them selected the wui part or keyed its cache, so a
-# msg.go change re-used a green verdict the unit suite no longer gave.
+# help docs), taken from the tests (tests/unit/*.mjs) and the build modules
+# they import (src/node/**/*.mjs) so the list cannot go stale. A line that
+# builds a scratch repo (mkdirSync / writeFileSync) names paths it WRITES, not
+# reads, so it is left out. A '<dir>/...' literal counts when:
+#   - it carries a template ('csi-spl-cnf/csi-spl/${env}.env.json'): it is
+#     the glob 'csi-spl-cnf/csi-spl/*.env.json', not the whole directory (the
+#     dir form keyed the part on every <env>/tf tfvars);
+#   - it names a FILE in the tree;
+#   - it names a DIRECTORY on a line that reads it (join, readFileSync,
+#     readdirSync, existsSync, statSync, cpSync): join(REPO, '.github/workflows', wf).
+# A directory named only as fixture data or in a message is NOT an input
+# (2026-10-04: the 'csi-spl-doc/specs' fixture in docs.test.mjs made every
+# spec tasks.md edit select the 5-min part and miss its cache; 4 lanes lost
+# the trunk race to it within an hour). Before CLE-77946 none of them selected
+# the wui part or keyed its cache, so a msg.go change re-used a green verdict
+# the unit suite no longer gave.
+_PP_WUI_EXT_RE='(csi-spl-(api|cnf|dat|doc|iac|orc|rdb|utl)|\.github)/[A-Za-z0-9_./-]*(\$\{[^}]*\}[A-Za-z0-9_./-]*)*'
 _pp_wui_external() {  # <tree>
-  local unit="$1/csi-spl-wui/tests/unit"
-  [[ -d "$unit" ]] || return 0
-  grep -hvE '^[[:space:]]*(//|\*)|mkdirSync|writeFileSync' "$unit"/*.mjs 2>/dev/null \
-    | grep -oE '(csi-spl-(api|cnf|dat|doc|iac|orc|rdb|utl)|\.github)/[A-Za-z0-9_./-]*' \
-    | sed -E 's#/+$##' | grep -vF '...' | sort -u | paste -sd' ' -
+  local top="$1" wui="$1/csi-spl-wui" line m reads
+  [[ -d "$wui/tests/unit" ]] || return 0
+  local -a srcs=("$wui"/tests/unit/*.mjs)
+  if [[ -d "$wui/src/node" ]]; then
+    while IFS= read -r m; do srcs+=("$m"); done < <(find "$wui/src/node" -name '*.mjs' -not -path '*/node_modules/*' 2>/dev/null | sort)
+  fi
+  grep -hvE '^[[:space:]]*(//|\*)|mkdirSync|writeFileSync' "${srcs[@]}" 2>/dev/null \
+    | grep -E "$_PP_WUI_EXT_RE" | while IFS= read -r line; do
+      reads=0
+      [[ "$line" =~ (join|readFileSync|readdirSync|existsSync|statSync|cpSync)\( ]] && reads=1
+      while IFS= read -r m; do
+        [[ -n "$m" && "$m" != *...* ]] || continue
+        if [[ "$m" == *'${'* ]]; then
+          sed -E 's/\$\{[^}]*\}/*/g' <<<"$m"
+          continue
+        fi
+        while [[ "$m" == */ ]]; do m="${m%/}"; done
+        if [[ -f "$top/$m" ]] || [[ "$reads" == 1 && -d "$top/$m" ]]; then echo "$m"; fi
+      done < <(grep -oE "$_PP_WUI_EXT_RE" <<<"$line")
+    done | sort -u | paste -sd' ' -
 }
 
 # Within csi-spl-wui, the e2e and bench files are never RUN by the wui part:
@@ -156,6 +183,8 @@ _pp_touches() {  # <changed-list> <paths...>
     [[ -z "$f" ]] && continue
     for p in "$@"; do
       [[ "$f" == "$p" || "$f" == "$p"/* ]] && return 0
+      # shellcheck disable=SC2053 # a templated wui input is a glob (_pp_wui_external)
+      [[ "$p" == *'*'* && "$f" == $p ]] && return 0
     done
   done <<< "$changed"
   return 1
@@ -163,11 +192,27 @@ _pp_touches() {  # <changed-list> <paths...>
 
 # The cache key of a part: the git trees of its paths at HEAD, plus the tier and
 # the gate version. Empty (= uncacheable) when any of those paths is dirty in
-# the working tree, since then HEAD is not what was tested.
+# the working tree, since then HEAD is not what was tested. It is a CONTENT
+# key: no commit sha and no base sha, so a re-push after a rebase that only
+# brought in files the part does not read re-uses the verdict in seconds.
+# Two parts read more than their selecting paths, and key on it:
+#   wui            node + pnpm versions (a tool upgrade re-runs it)
+#   lint-migration the whole migration dir at HEAD AND on the base: its
+#                  prefix rule (one file per NNNN, new = head+1) reads both,
+#                  so keyed on the touched files alone a rebase over another
+#                  lane's same-number file re-used the old green (0119, c-226)
 _pp_key() {  # <tree> <part> <tier>
   local tree="$1" part="$2" tier="$3" p ids=""
   local -a paths; read -r -a paths <<< "$(_pp_paths "$part")"
   [[ "${#paths[@]}" -gt 0 ]] || return 0
+  if [[ "$part" == lint-migration ]]; then
+    paths+=("$_PPL_MIG_DIR")
+    ids+="base=$(git -C "$tree" rev-parse -q --verify "${PRE_PUSH_BASE:-origin/master}:$_PPL_MIG_DIR" 2>/dev/null || echo -) "
+  fi
+  if [[ "$part" == wui ]]; then
+    local pn; pn="$(_pp_pnpm 2>/dev/null)" || pn=""
+    ids+="node=$(node -v 2>/dev/null || echo -) pnpm=$([[ -n "$pn" ]] && "$pn" -v 2>/dev/null || echo -) "
+  fi
   local dirty; dirty="$(git -C "$tree" status --porcelain -- "${paths[@]}" 2>/dev/null)"
   # wui: an edited (M) e2e/bench file is not an input -- see _pp_wui_content_free
   [[ "$part" == wui && -n "$dirty" ]] && dirty="$(while IFS= read -r l; do
@@ -180,6 +225,8 @@ _pp_key() {  # <tree> <part> <tier>
     # across every tree.
     if [[ "$part" == wui && "$p" == csi-spl-wui ]]; then
       ids+="$p=$(_pp_wui_tree_id "$tree") "
+    elif [[ "$p" == *'*'* ]]; then
+      ids+="$p=$(git -C "$tree" ls-files -s -- "$p" 2>/dev/null | sha1sum | cut -c1-40) "
     elif [[ "$p" == . ]]; then
       ids+=".=$(git -C "$tree" rev-parse -q --verify "HEAD^{tree}" 2>/dev/null || echo -) "
     else
@@ -433,7 +480,7 @@ do_check_pre_push() {
   _PP_HEAD="$(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
   local only="${PRE_PUSH_ONLY:-}"
-  case "$only" in ''|lint) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty or lint (got '$only')"; return 2 ;; esac
+  case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
   local all="hygiene iac wui-vendor wui api" parts="hygiene" p changed="" lint
   local -A _PPL_FILES=()
   local _PPL_SELECTED=""
@@ -454,11 +501,19 @@ do_check_pre_push() {
     done
   fi
   # The lint parts run right after hygiene: seconds, and the likeliest red.
-  _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
-  local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-  all="hygiene $lint_all iac wui-vendor wui api"
-  parts="${parts/hygiene/hygiene${lint:+ $lint}}"
-  [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
+  if [[ "$only" == override ]]; then
+    # The override skips the slow parts, never these: c-226's override landed
+    # a duplicate migration 0119 that lint-migration refuses in a second.
+    PRE_PUSH_LINT=1 PRE_PUSH_LINT_ONLY=lint-migration _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"
+    lint="$_PPL_SELECTED"
+    parts="hygiene${lint:+ $lint}"; all="hygiene lint-migration"
+  else
+    _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
+    local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
+    all="hygiene $lint_all iac wui-vendor wui api"
+    parts="${parts/hygiene/hygiene${lint:+ $lint}}"
+    [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
+  fi
 
   # A machine-readable plan line (also the whole of PLAN mode's output).
   echo "PRE_PUSH_PLAN mode=$mode tier=$_PP_TIER parts=$parts"
@@ -489,9 +544,9 @@ do_check_pre_push() {
     fi
   done
 
-  [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 ]] && _ppl_typos "$changed" "$tree"
+  [[ -n "$changed" && "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && _ppl_typos "$changed" "$tree"
   # spec 065 L2: every pushed commit carries its release note -- WARN only, never blocks
-  [[ "${PRE_PUSH_LINT:-1}" != 0 ]] && { declare -F _pp_release_note >/dev/null || . "$(dirname "${BASH_SOURCE[0]}")/check-release-note.func.sh"; } && _pp_release_note "$tree" "$base"
+  [[ "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && { declare -F _pp_release_note >/dev/null || . "$(dirname "${BASH_SOURCE[0]}")/check-release-note.func.sh"; } && _pp_release_note "$tree" "$base"
 
   _pp_baseline_cleanup "$tree"
   trap - INT TERM HUP

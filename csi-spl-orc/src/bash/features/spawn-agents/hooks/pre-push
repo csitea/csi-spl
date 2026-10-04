@@ -9,8 +9,12 @@
 # about would be worse than the gate it replaces. It REFUSES (exit 1) only when
 # the gate itself runs and fails.
 #
-# Emergency override:  SPL_PREPUSH_OVERRIDE=1 git push …   skips the gate but
-# writes an audit line, so a deliberate bypass is never silent.
+# Emergency override:  SPL_PREPUSH_OVERRIDE=1 git push …   skips the slow parts
+# but still runs the seconds-cheap correctness parts (hygiene, lint-migration:
+# PRE_PUSH_ONLY=override), and writes an audit line, so a deliberate bypass is
+# never silent. 2026-10-04: an override that skipped everything landed a
+# duplicate migration 0119. Only a poisoned shared git config (below), which
+# would make the gate read the wrong tree, skips them too.
 #
 # The gate runs its FAST tier on the parts the push touches (CLE-77824): the
 # slow checks (go test -race, hub-pg, hub-gcs, terraform validate, tpl-gen
@@ -34,20 +38,31 @@ head="$(git rev-parse --short HEAD 2>/dev/null || echo '?')"
 _pp_t0="$(date +%s 2>/dev/null || echo 0)"
 _pp_secs() { echo "$(( $(date +%s 2>/dev/null || echo 0) - _pp_t0 ))s"; }
 
-# Emergency override -- the universal escape hatch, first (so whoever is fixing a
-# poisoned shared config can still push the fix).
-if [ "${SPL_PREPUSH_OVERRIDE:-0}" = 1 ]; then
-  _pp_logline "OVERRIDE $PWD HEAD=$head remote=${1:-?} -- SPL_PREPUSH_OVERRIDE=1, gate SKIPPED"
-  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- deploy-gate SKIPPED (audited in $_pp_log)" >&2
-  exit 0
-fi
+_pp_override="${SPL_PREPUSH_OVERRIDE:-0}"
+# The git env a hook inherits (GIT_DIR, GIT_INDEX_FILE, ...) is scrubbed before
+# the gate runs: its tests create commits and set config in THROWAWAY repos,
+# and an inherited GIT_DIR made those land on the pushing branch and the shared
+# config (junk "head/pinned/tip" commits, core.bare=true), 2026-09-30.
+_pp_gate() {  # <PRE_PUSH_ONLY>
+  ( cd "$top/csi-spl-iac" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
+      -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_QUARANTINE_PATH -u GIT_COMMON_DIR -u GIT_PREFIX \
+      PRE_PUSH_ONLY="$1" PRE_PUSH_MODE="${SPL_PREPUSH_MODE:-fast}" PRE_PUSH_TIER="${SPL_PREPUSH_TIER:-fast}" \
+      PRE_PUSH_LOG="$_pp_log" PRE_PUSH_CACHE="$_pp_log_dir/pre-push.parts.green" ./run -a do_check_pre_push )
+}
 
 # Poisoned shared git config guard -- BEFORE trusting show-toplevel, because a
 # core.worktree in the COMMON config points every worktree at ONE tree (measured:
 # core.worktree=<one lane> made every lane's git read that lane's files), and it
 # would otherwise pass every check below against the WRONG tree. A main checkout
-# misdetected as bare breaks git here too.
+# misdetected as bare breaks git here too. Under the override these skip the
+# gate entirely (audited), so whoever is fixing the config can push the fix.
 common="$(git rev-parse --git-common-dir 2>/dev/null)"
+if [ "$_pp_override" = 1 ] && { { [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; } \
+     || [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; }; then
+  _pp_logline "OVERRIDE $PWD HEAD=$head remote=${1:-?} -- SPL_PREPUSH_OVERRIDE=1 on a broken git config, gate SKIPPED"
+  echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- git config is broken here, deploy-gate SKIPPED (audited in $_pp_log)" >&2
+  exit 0
+fi
 if [ -n "$common" ] && git config -f "$common/config" --get core.worktree >/dev/null 2>&1; then
   _pp_logline "REFUSE $PWD -- common git config has core.worktree (poisoned shared tree)"
   echo "pre-push: REFUSED -- the SHARED git config ($common/config) has core.worktree set; it points every worktree at one tree. Fix it ('git config -f $common/config --unset-all core.worktree') and tell the orchestrator. Override once with SPL_PREPUSH_OVERRIDE=1 only if you are the one fixing it." >&2
@@ -69,6 +84,19 @@ if [ ! -x "$run" ]; then
   exit 0
 fi
 
+# Emergency override: the slow parts are skipped, the cheap correctness parts
+# are not (seconds; their verdicts are cached like the full gate's).
+if [ "$_pp_override" = 1 ]; then
+  if _pp_gate override; then
+    _pp_logline "OVERRIDE $top HEAD=$head remote=${1:-?} secs=$(_pp_secs) -- SPL_PREPUSH_OVERRIDE=1, slow parts SKIPPED, hygiene + lint-migration PASSED"
+    echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- slow parts SKIPPED, hygiene + lint-migration passed (audited in $_pp_log)" >&2
+    exit 0
+  fi
+  _pp_logline "REFUSE $top HEAD=$head secs=$(_pp_secs) -- SPL_PREPUSH_OVERRIDE=1, but hygiene/lint-migration FAILED"
+  echo "pre-push: REFUSED -- SPL_PREPUSH_OVERRIDE=1 skips the slow parts, never hygiene or lint-migration, and one of them failed above. Fix it (a duplicate migration number: renumber yours past the head)." >&2
+  exit 1
+fi
+
 # Skip when this exact working tree was already verified green. `git write-tree`
 # is stable across a rebase that only re-parents commits, so the race-retry loop
 # (rebase -> push -> rejected -> rebase -> push) does not re-run the whole gate.
@@ -81,14 +109,7 @@ if [ -n "$tree" ] && [ -f "$stamp" ] && grep -qxF "$tree" "$stamp" 2>/dev/null; 
 fi
 
 echo "pre-push: running the deploy-gate (do_check_pre_push, mode ${SPL_PREPUSH_MODE:-fast}, tier ${SPL_PREPUSH_TIER:-fast}). Override once with 'SPL_PREPUSH_OVERRIDE=1 git push …'." >&2
-# Scrub the env git exports to a hook (GIT_DIR, GIT_INDEX_FILE, GIT_WORK_TREE, ...):
-# the gate's tests create commits and set config in THROWAWAY repos, and an
-# inherited GIT_DIR made those land on the pushing branch and the shared config
-# (junk "head/pinned/tip" commits, core.bare=true), 2026-09-30.
-if ( cd "$top/csi-spl-iac" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
-       -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_QUARANTINE_PATH -u GIT_COMMON_DIR -u GIT_PREFIX \
-       PRE_PUSH_MODE="${SPL_PREPUSH_MODE:-fast}" PRE_PUSH_TIER="${SPL_PREPUSH_TIER:-fast}" \
-       PRE_PUSH_LOG="$_pp_log" PRE_PUSH_CACHE="$_pp_log_dir/pre-push.parts.green" ./run -a do_check_pre_push ); then
+if _pp_gate ""; then
   if [ -n "$tree" ]; then
     mkdir -p "$_pp_log_dir" 2>/dev/null || true
     printf '%s\n' "$tree" >>"$stamp" 2>/dev/null || true

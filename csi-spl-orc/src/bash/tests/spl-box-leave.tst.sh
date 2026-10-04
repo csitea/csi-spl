@@ -127,8 +127,14 @@ last() { tail -1 "$T/o"; }
 sentc() { cat "$T/sent" 2>/dev/null | grep -c .; }
 ensc() { cat "$T/ensure.log" 2>/dev/null | grep -c .; }
 hubh() { cut -d' ' -f1 "$T/hub/main.$1"; }
+# The drain check is exit 6, after the requester gate. A lane pane is exit 9
+# first: step 1 is SPOOL_AGENT_ID, else the window of $TMUX_PANE, else the
+# ancestor walk. Sandbox skips the walk, so this caller has no agent id.
+# Dry run: the post-join call must not start an agent; the drain check is earlier.
 spawn() {
-  SPOOL_ROOT="$S" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" SPOOL_SESSION='' \
+  env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u MCP_BOT_AGENT_ID -u SPAWN_REQUESTER \
+    SPAWN_TEST_SANDBOX=1 SPAWN_DRY_RUN=1 \
+    SPOOL_ROOT="$S" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" SPOOL_SESSION='' \
     bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" claude auto "$T" >"$T/so" 2>&1
   echo $? >"$T/src"
 }

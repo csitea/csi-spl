@@ -62,6 +62,17 @@ while [ $# -gt 0 ]; do case "$1" in --seat) seat="$2"; shift 2;; --msg) msg="$2"
 [ "$(cat "$HUB_DIR/msg.$msg" 2>/dev/null)" = "$seat $gen" ]
 STUB
 chmod +x "$T/bin/"*
+# spawn-window calls ./run for the peer gate. That logger writes the module
+# log dir, which a lane user cannot create. SPAWN_ORC_RUN is the hook's seam:
+# the same function act() calls, and no module log.
+cat >"$T/bin/orc-run" <<STUB
+#!/usr/bin/env bash
+set -uo pipefail
+do_log() { echo "\$*"; }
+source "$PROJ_ROOT/src/bash/run/spl-peer-gate.func.sh"
+do_spl_peer_gate
+STUB
+chmod +x "$T/bin/orc-run"
 
 # fresh: an empty hub and the spool root of box sat with (or without) seats
 fresh() {
@@ -72,9 +83,13 @@ fresh() {
 hold() { echo "$2@sat $3" >"$T/hub/msg.$1"; }   # hold <msg> <seat> <gen>
 calls() { cat "$T/hub/calls" 2>/dev/null | grep -c -- "${1:-.}"; }
 NOW=0
+# Drop the caller's lane. An empty SPOOL_AGENT_ID is not enough for
+# spawn-window: it also reads the window of $TMUX_PANE. The ancestor walk
+# (step 4) is skipped only when spawnw sets SPAWN_TEST_SANDBOX=1.
 penv() {
-  env SPOOL_ROOT="$T/sat" PEER_BOX=sat LEASE_FLEET=fl LEASE_NOW="$((T0 + NOW))" HUB_DIR="$T/hub" \
-    LEASE_HUB_CMD="$T/bin/lease" PEER_HUB_CMD="$T/bin/claim" SPOOL_AGENT_ID= "$@"
+  env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u MCP_BOT_AGENT_ID -u SPAWN_REQUESTER \
+    SPOOL_ROOT="$T/sat" PEER_BOX=sat LEASE_FLEET=fl LEASE_NOW="$((T0 + NOW))" HUB_DIR="$T/hub" \
+    LEASE_HUB_CMD="$T/bin/lease" PEER_HUB_CMD="$T/bin/claim" "$@"
 }
 # act <action> [VAR=value...]: one action in a fresh shell, its rc in $T/rc
 act() {
@@ -89,7 +104,7 @@ act() {
 }
 rc() { cat "$T/rc"; }
 spawnw() {
-  penv SPOOL_TMUX_SOCKET="$T/no-tmux.sock" SPOOL_SESSION='' SPAWN_DRY_RUN=1 "$@" \
+  penv SPAWN_TEST_SANDBOX=1 SPAWN_ORC_RUN="$T/bin/orc-run" SPOOL_TMUX_SOCKET="$T/no-tmux.sock" SPOOL_SESSION='' SPAWN_DRY_RUN=1 "$@" \
     bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spawn-window.sh" claude auto "$T" >"$T/so" 2>&1
   echo $? >"$T/src"
 }

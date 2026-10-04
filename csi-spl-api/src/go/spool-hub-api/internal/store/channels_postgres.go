@@ -424,10 +424,20 @@ func (cs *channelStats) markArgs(reads map[string]ReadMark, now time.Time, reade
 // archived). One statement for every mark (it was one per read= mark). A
 // mark only matters for a channel with messages, known once the counts read
 // is scanned, so a mark of an empty channel is scanned and dropped.
+//
+// received_at >= the mark is the range on messages_channel. The tuple
+// comparison alone is not a range, so each mark used to read every line of
+// its channel and throw away the ones already read (prd t1, a member with
+// 13 marks, trunk b6b8fc348139, operator EXPLAIN n=3 interleaved: 14.039 /
+// 13.048 / 14.071 ms, 3 451 buffers, ~400 rows removed by filter per mark ->
+// 1.600 / 1.652 / 1.916 ms, 303 buffers, Index Scan messages_channel, the
+// same 22 lines). The tuple filter stays, so a mark with no msg id still
+// drops only the equal timestamp. The generic plan keeps the same index range.
 func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
 	return tenantRead{`WITH ` + channelMarksCTE + `
 		SELECT mk.ch, c.n FROM mk CROSS JOIN LATERAL (SELECT count(*)::int AS n FROM messages m
-			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2 AND (m.received_at, m.msg_id::text) > (mk.at, mk.id)
+			WHERE m.tenant_id = $1 AND m.channel = mk.ch AND m.expires_at > $2
+			AND m.received_at >= mk.at AND (m.received_at, m.msg_id::text) > (mk.at, mk.id)
 			AND ($6::text IS NULL OR (m.from_id IS DISTINCT FROM $6 AND m.typed_by IS DISTINCT FROM $6))` +
 		threadReadSQL("m", "$1", "$6") + archivedHideSQL("m", "$1", "$7") + `) c`,
 		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {

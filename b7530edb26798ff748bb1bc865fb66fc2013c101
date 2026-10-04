@@ -1,0 +1,6 @@
+Lay-What: Tapping a link in a message on a phone now opens that link.
+Lay-How: The tap follows the link as soon as the finger lifts, while the tap still counts.
+Lay-Why: On a phone, tapping a link inside a message did nothing.
+Tech-What: A message-body link opens on pointerup, while the gesture is still a user activation.
+Tech-How: messageLinkPointerUp navigates an internal href with router.push and opens http or mailto with window.open; the click that follows is swallowed by href so a re-rendered anchor does not navigate twice.
+Tech-Why: Ancestor user-select and the anchor native drag cancel the click on a phone, so the click handler never ran.

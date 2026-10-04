@@ -311,7 +311,7 @@
             />
             <MentionList :picker="editMp" />
           </div>
-          <MessageBody v-else :body="String(msg.body || '')" />
+          <MessageBody v-else :body="String(msg.body || '')" no-previews />
           <FileAttachment
             v-for="(f, i) in files"
             :key="String(f.file_id || f.path || i)"
@@ -331,6 +331,9 @@
         @click.stop="onGripClick"
         @keydown="onGripKey"
       />
+      <!-- topic e1f8f797: the cards of the body's internal links sit under the
+           clip box, so the 5-row clip never cuts them; none in titles mode -->
+      <LinkPreviewsLazy v-if="!titleOnly && !editing && linkPreviews.length" :refs="linkPreviews" />
       <p v-if="editing" :id="editHintId" class="muted msg-edit-hint">
         {{ saving ? t('feed.edit.saving') : t('feed.edit.hint') }}
       </p>
@@ -482,6 +485,7 @@ import {
 } from '~/utils/card-clip.mjs'
 import { onViewportResize } from '~/utils/viewport-resize.mjs'
 import type { CardClipMode } from '~/composables/useCardClip'
+import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPreviewRefs'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -1462,6 +1466,8 @@ const clipEl = ref<HTMLElement | null>(null)
 const clipInner = ref<HTMLElement | null>(null)
 const picture = computed(() => cardHasPicture(files.value))
 const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
+/* topic e1f8f797: the body's internal links, as preview cards under the clip */
+const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''))
 const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
 const title = computed(() => {
   const own = cardTitle(String(props.msg.body || ''))

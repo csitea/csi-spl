@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Skróty klawiszowe",
       "hint": "Shift + litera działa na zaznaczonej wiadomości (komputer). Shift + ? pokazuje wszystkie klawisze."
+    },
+    "link_previews": {
+      "label": "Podgląd linków",
+      "hint": "Link do tematu lub wiadomości z tej przestrzeni roboczej pokazuje pod wiadomością krótki podgląd: tytuł, kilka wierszy i autora. Tylko dla Ciebie."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Temat",
+    "message": "Wiadomość"
   }
 }

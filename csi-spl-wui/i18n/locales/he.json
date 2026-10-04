@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "קיצורי מקלדת",
       "hint": "Shift + אות פועלת על ההודעה הנבחרת (מחשב). Shift + ? מציג את כל המקשים."
+    },
+    "link_previews": {
+      "label": "תצוגה מקדימה של קישורים",
+      "hint": "קישור לנושא או להודעה בסביבת עבודה זו מציג תצוגה מקדימה קצרה מתחת להודעה: כותרת, כמה שורות ומי כתב. רק עבורך."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "נושא",
+    "message": "הודעה"
   }
 }

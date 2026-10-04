@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Īsinājumtaustiņi",
       "hint": "Shift + burts darbojas ar atlasīto ziņu (datorā). Shift + ? parāda visus taustiņus."
+    },
+    "link_previews": {
+      "label": "Saišu priekšskatījumi",
+      "hint": "Saite uz šīs darbvietas tēmu vai ziņu zem ziņas parāda īsu priekšskatījumu: virsrakstu, dažas rindas un autoru. Tikai jums."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Tēma",
+    "message": "Ziņa"
   }
 }

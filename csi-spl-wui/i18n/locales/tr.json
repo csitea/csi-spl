@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Klavye kısayolları",
       "hint": "Shift + bir harf seçili mesaja uygulanır (masaüstü). Shift + ? tüm tuşları listeler."
+    },
+    "link_previews": {
+      "label": "Bağlantı önizlemeleri",
+      "hint": "Bu çalışma alanındaki bir konuya veya mesaja verilen bağlantı, mesajın altında kısa bir önizleme gösterir: başlık, birkaç satır ve yazan kişi. Yalnızca sizin için."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Konu",
+    "message": "Mesaj"
   }
 }

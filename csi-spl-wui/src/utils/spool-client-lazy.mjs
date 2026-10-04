@@ -18,6 +18,7 @@ import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowK
 import { loadCursors } from './read-cursor.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
 import { mockFleetRead, mockFleetWrite } from './fleet-load.mjs'
+import { mockPreviews } from './link-preview-lookup.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1203,7 +1204,6 @@ async function lookupIds(ctx, ids, self = '') {
   })
 }
 
-
 /**
  * rdb 0118: GET /v1/operator/fleet-load. 403 operator.workspaces when this
  * session is not an admin of the operator workspace. The mock answers that
@@ -1226,8 +1226,24 @@ async function patchFleetLoad(ctx, patch = {}) {
   })
 }
 
+/**
+ * Topic e1f8f797: the topics / messages that the visible bodies link, as
+ * preview cards resolved by the hub as this reader (view-v1 section 4.7,
+ * POST /v1/view/previews). The mock answers from every mock row.
+ */
+async function previewLinks(ctx, ids) {
+  const { live, mock, state } = ctx
+  if (mock) return mockPreviews([...state.messages, ...(state.archived || [])], ids)
+  return live('/v1/view/previews', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export const lazySpoolMethods = {
   lookupIds,
+  previewLinks,
   listFlow,
   markFlow,
   setChannelOrder,

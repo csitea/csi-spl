@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Пречице на тастатури",
       "hint": "Shift + слово делује на изабрану поруку (рачунар). Shift + ? приказује све тастере."
+    },
+    "link_previews": {
+      "label": "Преглед веза",
+      "hint": "Веза ка теми или поруци из овог радног простора приказује кратак преглед испод поруке: наслов, неколико редова и аутора. Само за вас."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Тема",
+    "message": "Порука"
   }
 }

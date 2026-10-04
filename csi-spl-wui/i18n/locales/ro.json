@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Comenzi rapide de la tastatură",
       "hint": "Shift + o literă acționează asupra mesajului selectat (desktop). Shift + ? arată toate tastele."
+    },
+    "link_previews": {
+      "label": "Previzualizare linkuri",
+      "hint": "Un link către un subiect sau un mesaj din acest spațiu de lucru afișează sub mesaj o scurtă previzualizare: titlul, câteva rânduri și autorul. Doar pentru tine."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Subiect",
+    "message": "Mesaj"
   }
 }

@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Sneltoetsen",
       "hint": "Shift + een letter werkt op het geselecteerde bericht (desktop). Shift + ? toont alle toetsen."
+    },
+    "link_previews": {
+      "label": "Linkvoorbeelden",
+      "hint": "Een link naar een onderwerp of bericht in deze werkruimte toont een kort voorbeeld onder het bericht: titel, een paar regels en wie het schreef. Alleen voor jou."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Onderwerp",
+    "message": "Bericht"
   }
 }

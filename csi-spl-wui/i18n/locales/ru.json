@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Сочетания клавиш",
       "hint": "Shift + буква действует на выбранное сообщение (компьютер). Shift + ? показывает все клавиши."
+    },
+    "link_previews": {
+      "label": "Предпросмотр ссылок",
+      "hint": "Ссылка на тему или сообщение этого рабочего пространства показывает под сообщением краткий предпросмотр: заголовок, несколько строк и автора. Только для вас."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Тема",
+    "message": "Сообщение"
   }
 }

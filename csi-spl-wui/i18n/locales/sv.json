@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Kortkommandon",
       "hint": "Shift + en bokstav verkar på det markerade meddelandet (dator). Shift + ? visar alla tangenter."
+    },
+    "link_previews": {
+      "label": "Förhandsvisning av länkar",
+      "hint": "En länk till ett ämne eller ett meddelande i den här arbetsytan visar en kort förhandsvisning under meddelandet: rubrik, några rader och vem som skrev det. Bara för dig."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Ämne",
+    "message": "Meddelande"
   }
 }

@@ -38,6 +38,8 @@ export interface SessionClaims {
   issues_view?: string | null
   /** SPL-1133 "Close buttons": 'mac' (top left) | 'windows' (top right); null = never picked (Mac). */
   close_buttons?: string | null
+  /** Topic e1f8f797 "Link previews": 'on' | 'off'; null = never picked (on). The person's own switch. */
+  link_previews?: string | null
   /** SPL-1132 Issues sheet column widths: column -> px; null = never sized (automatic layout). */
   issues_columns?: Record<string, number> | null
   /** SPL-1181 Issues list default sort: {col, dir}; null = never picked (priority ascending). */
@@ -148,7 +150,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   /** Topic c6994436: mirror a layout choice (optimistic; reverted on a failed save). */
-  function setViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons', value: string) {
+  function setViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons' | 'link_previews', value: string) {
     if (claims.value) claims.value = { ...claims.value, [key]: value }
   }
 

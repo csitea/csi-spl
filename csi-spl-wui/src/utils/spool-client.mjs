@@ -21,6 +21,7 @@ import { MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.m
  */
 const LAZY_METHODS = [
   'lookupIds',
+  'previewLinks',
   'setChannelOrder',
   'removeMember',
   'listTenantUsers',

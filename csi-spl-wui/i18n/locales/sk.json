@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Klávesové skratky",
       "hint": "Shift + písmeno pôsobí na vybranú správu (počítač). Shift + ? zobrazí všetky klávesy."
+    },
+    "link_previews": {
+      "label": "Náhľady odkazov",
+      "hint": "Odkaz na tému alebo správu z tohto pracovného priestoru zobrazí pod správou krátky náhľad: názov, pár riadkov a autora. Len pre vás."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Téma",
+    "message": "Správa"
   }
 }

@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Kiirklahvid",
       "hint": "Shift + täht toimib valitud sõnumil (lauaarvuti). Shift + ? näitab kõiki klahve."
+    },
+    "link_previews": {
+      "label": "Linkide eelvaated",
+      "hint": "Link selle tööruumi teemale või sõnumile näitab sõnumi all lühikest eelvaadet: pealkirja, paari rida ja autorit. Ainult sulle."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Teema",
+    "message": "Sõnum"
   }
 }

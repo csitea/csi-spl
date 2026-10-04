@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Keyboard shortcuts",
       "hint": "Shift + a letter acts on the selected message (desktop). Shift + ? lists every key."
+    },
+    "link_previews": {
+      "label": "Link previews",
+      "hint": "A link to a topic or a message of this workspace shows a short preview under the message: its title, a few lines and who wrote it. Only for you."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Topic",
+    "message": "Message"
   }
 }

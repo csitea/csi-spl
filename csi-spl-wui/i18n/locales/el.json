@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Συντομεύσεις πληκτρολογίου",
       "hint": "Shift + ένα γράμμα ενεργεί στο επιλεγμένο μήνυμα (υπολογιστής). Shift + ? δείχνει όλα τα πλήκτρα."
+    },
+    "link_previews": {
+      "label": "Προεπισκόπηση συνδέσμων",
+      "hint": "Ένας σύνδεσμος σε θέμα ή μήνυμα αυτού του χώρου εργασίας εμφανίζει σύντομη προεπισκόπηση κάτω από το μήνυμα: τίτλο, λίγες γραμμές και συντάκτη. Μόνο για εσάς."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Θέμα",
+    "message": "Μήνυμα"
   }
 }

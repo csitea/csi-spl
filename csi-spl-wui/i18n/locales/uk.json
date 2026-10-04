@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Клавіатурні скорочення",
       "hint": "Shift + літера діє на вибране повідомлення (комп’ютер). Shift + ? показує всі клавіші."
+    },
+    "link_previews": {
+      "label": "Попередній перегляд посилань",
+      "hint": "Посилання на тему чи повідомлення цього робочого простору показує під повідомленням короткий попередній перегляд: заголовок, кілька рядків і автора. Лише для вас."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Тема",
+    "message": "Повідомлення"
   }
 }

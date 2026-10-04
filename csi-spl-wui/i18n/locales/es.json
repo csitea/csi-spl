@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Atajos de teclado",
       "hint": "Mayús + una letra actúa sobre el mensaje seleccionado (escritorio). Mayús + ? muestra todas las teclas."
+    },
+    "link_previews": {
+      "label": "Vista previa de enlaces",
+      "hint": "Un enlace a un tema o mensaje de este espacio de trabajo muestra una breve vista previa bajo el mensaje: título, unas líneas y quién lo escribió. Solo para ti."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Tema",
+    "message": "Mensaje"
   }
 }

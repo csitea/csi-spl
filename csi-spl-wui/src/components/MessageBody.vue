@@ -16,12 +16,14 @@
       <blockquote v-else-if="b.type === 'quote'" class="msg-quote"><MessageRuns :parts="b.parts" /></blockquote>
       <p v-else class="msg-para"><MessageRuns :parts="b.parts" /></p>
     </template>
+    <LinkPreviewsLazy v-if="!noPreviews && previews.length" :refs="previews" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { isMarkdownLang, looksLikeMarkdown, markdownSource, parseBody } from '~/utils/code-blocks.mjs'
 import MessageRuns from '~/components/MessageRuns.vue'
+import { LinkPreviewsLazy, useLinkPreviewRefs } from '~/composables/useLinkPreviewRefs'
 
 /* Slack-style ``` blocks and `inline code`; every string is text-interpolated,
    never markup. A fenced block is CodeBlock.vue (preview, highlighting, the
@@ -39,11 +41,19 @@ import MessageRuns from '~/components/MessageRuns.vue'
    body when `markdown` is set (an issue description), renders whole through
    MarkdownBlock's bare mode; until that lazy chunk has rendered, and when it
    fails, the blocks below stay on screen. A plain body never loads it. */
-const props = defineProps<{ body: string, markdown?: boolean }>()
+const props = defineProps<{ body: string, markdown?: boolean, noPreviews?: boolean }>()
 const blocks = computed(() => parseBody(props.body))
 const mdSource = computed(() => (props.markdown || looksLikeMarkdown(props.body) ? markdownSource(props.body) : null))
 const mdOn = ref(false)
 watch(mdSource, (v) => { if (v === null) mdOn.value = false })
+
+/* Topic e1f8f797: a link to a topic or a message of this workspace gets a
+   short preview card under the body (LinkPreviews.vue), unless the reader
+   turned "Link previews" off for themselves. The cards load lazily: a body
+   with no such link, or a reader with previews off, never loads them. A
+   host that draws them itself (MessageCard, under its 5-row clip) passes
+   no-previews. */
+const previews = useLinkPreviewRefs(() => props.body)
 </script>
 
 <style scoped>

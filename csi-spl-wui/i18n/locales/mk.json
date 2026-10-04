@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Кратенки на тастатура",
       "hint": "Shift + буква дејствува врз избраната порака (компјутер). Shift + ? ги прикажува сите копчиња."
+    },
+    "link_previews": {
+      "label": "Преглед на врски",
+      "hint": "Врска до тема или порака од овој работен простор прикажува краток преглед под пораката: наслов, неколку реда и автор. Само за вас."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Тема",
+    "message": "Порака"
   }
 }

@@ -208,6 +208,10 @@
     "keyboard_shortcuts": {
       "label": "Pikanäppäimet",
       "hint": "Vaihto + kirjain toimii valitussa viestissä (tietokone). Vaihto + ? näyttää kaikki näppäimet."
+    },
+    "link_previews": {
+      "label": "Linkkien esikatselut",
+      "hint": "Linkki tämän työtilan aiheeseen tai viestiin näyttää viestin alla lyhyen esikatselun: otsikon, muutaman rivin ja kirjoittajan. Vain sinulle."
     }
   },
   "auth": {
@@ -1747,5 +1751,9 @@
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
     "bad_ref": "Not a commit or a version: {ref}"
+  },
+  "link_preview": {
+    "topic": "Aihe",
+    "message": "Viesti"
   }
 }

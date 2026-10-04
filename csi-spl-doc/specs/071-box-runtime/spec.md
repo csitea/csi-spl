@@ -71,6 +71,8 @@ sidecars, dev runs 1 sidecar. So the native path holds on both boxes.
 
 Measure it again: `crontab -l | grep -o '# csi-spl:[a-z0-9:-]*$'`.
 
+Go build caches are pruned by `do_prune_go_build_cache` on its own `*/5` crontab line (`# csi-spl:go-cache-prune`, installed like the box-stats cron by `do_setup_go_cache_prune_cron`): every hour, and on any tick where the filesystem that holds the cache is at or over 85% full.
+
 ### 3.3 Not runtimes: never started or stopped by these actions
 
 - **Agent windows and everything in them.** That covers the `claude` and

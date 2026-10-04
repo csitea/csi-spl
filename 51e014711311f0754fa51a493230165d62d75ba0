@@ -1,0 +1,6 @@
+Lay-What: An administrator of the operator workspace can set how busy each machine should stay, and which machine takes the next new agent.
+Lay-How: Open workspace settings, choose Fleet load, set the low and high percents and the machine order, then save. Reset one field to put that field back to its usual value.
+Lay-Why: The target was stored, but there was no screen to read or change it.
+Tech-What: WUI workspace settings calls GET and PATCH /v1/operator/fleet-load.
+Tech-How: The nav entry is shown only when that GET returns 200. A reset sends JSON null. A 400 bad_setting shows the hub detail text.
+Tech-Why: The operator-admin rule is not a session permission row, so the screen asks the hub instead of reading the session.

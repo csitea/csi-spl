@@ -22,7 +22,7 @@ func TestBoxStats(t *testing.T) {
 	ctx := context.Background()
 
 	for _, s := range []string{
-		`{"box":"sat","load1":2.5,"load5":2,"load15":1.5,"cpus":8,"mem_total_kb":1000,"mem_avail_kb":600,"swap_used_kb":0,"agents_live":3}`,
+		`{"box":"sat","load1":2.5,"load5":2,"load15":1.5,"cpus":8,"mem_total_kb":1000,"mem_avail_kb":600,"swap_used_kb":0,"agents_live":3,"disks":[{"mount":"/","total_kb":100,"avail_kb":40}]}`,
 		`{"box":"sat","load1":4.5,"load5":3,"load15":2,"cpus":8,"mem_total_kb":1000,"mem_avail_kb":200,"swap_used_kb":0,"agents_live":5,"writer_box":"forged"}`,
 	} {
 		raw, err := b.c.Lane(ctx, "box_stats_put", "", json.RawMessage(s))
@@ -36,7 +36,7 @@ func TestBoxStats(t *testing.T) {
 	}
 	// CONTROL: what the table would refuse, and an unknown field or op.
 	for _, bad := range []string{`{"box":"Sat","cpus":8}`, `{"box":"sat","cpus":0}`, `{"box":"sat","cpus":8,"load1":-1}`,
-		`{"box":"sat","cpus":8,"extra":1}`, `"not an object"`} {
+		`{"box":"sat","cpus":8,"extra":1}`, `"not an object"`, `{"box":"sat","cpus":8,"disks":[{"mount":"rel","total_kb":1,"avail_kb":1}]}`} {
 		if _, err := b.c.Lane(ctx, "box_stats_put", "", json.RawMessage(bad)); err == nil {
 			t.Errorf("put %s accepted", bad)
 		}
@@ -53,6 +53,10 @@ func TestBoxStats(t *testing.T) {
 			Box       string  `json:"box"`
 			WriterBox string  `json:"writer_box"`
 			Load1     float64 `json:"load1"`
+			Disks     []struct {
+				Mount   string `json:"mount"`
+				AvailKB int64  `json:"avail_kb"`
+			} `json:"disks"`
 		} `json:"rows"`
 		Hours []struct {
 			Box       string  `json:"box"`
@@ -60,6 +64,10 @@ func TestBoxStats(t *testing.T) {
 			Load1Avg  float64 `json:"load1_avg"`
 			Load1Peak float64 `json:"load1_peak"`
 			MemPeak   int64   `json:"mem_used_peak_kb"`
+			Disks     []struct {
+				Mount      string `json:"mount"`
+				AvailMinKB int64  `json:"avail_min_kb"`
+			} `json:"disks"`
 		} `json:"hours"`
 	}
 	raw, err := b.c.Lane(ctx, "box_stats_list", "", json.RawMessage(`{"box":"sat","since":"20h"}`))
@@ -74,6 +82,12 @@ func TestBoxStats(t *testing.T) {
 	for _, h := range a.Hours {
 		n += h.N
 		peak = max(peak, h.Load1Peak)
+	}
+	if a.Rows[0].Disks[0].Mount != "/" || a.Rows[0].Disks[0].AvailKB != 40 || a.Rows[1].Disks == nil {
+		t.Fatalf("rows disks (a sample without disks reads []): %s", raw)
+	}
+	if d := a.Hours[len(a.Hours)-1].Disks; len(a.Hours) == 1 && (len(d) != 1 || d[0].AvailMinKB != 40) {
+		t.Fatalf("hour disks %s", raw)
 	}
 	if n != 2 || peak != 4.5 {
 		t.Fatalf("hours %+v", a.Hours)

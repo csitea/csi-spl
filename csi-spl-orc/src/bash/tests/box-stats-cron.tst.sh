@@ -36,10 +36,11 @@ chmod +x "$T/bin/hub"
 printf '2.50 1.75 0.47 3/900 12345\n' >"$T/loadavg"
 printf 'MemTotal: 16000000 kB\nMemAvailable: 6000000 kB\nSwapTotal: 1000 kB\nSwapFree: 400 kB\n' >"$T/meminfo"
 printf '0 c-001@sat\n0 c-150@sat wip\n1 c-151@sat\n0 shell\n' >"$T/panes"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 100 60 40 60%% /\n/dev/sdb1 900 400 500 45%% /mnt/my data\n/dev/sda1 100 60 40 60%% /\nsrv:/x - - - - /net\n' >"$T/df"
 
 post() {
   env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=sat LANE_FLEET=main LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" \
-    LANE_LOADAVG="$T/loadavg" LANE_MEMINFO="$T/meminfo" LANE_NPROC=8 LANE_PANES_CMD="cat $T/panes" "$@" bash -c '
+    LANE_LOADAVG="$T/loadavg" LANE_MEMINFO="$T/meminfo" LANE_NPROC=8 LANE_PANES_CMD="cat $T/panes" LANE_DF_CMD="cat $T/df" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/post-box-stats.func.sh"
@@ -47,8 +48,8 @@ post() {
 }
 out="$(post)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK box stats of sat recorded"* ]] &&
-  jq -s -e '. == [{"box":"sat","load1":2.5,"load5":1.75,"load15":0.47,"cpus":8,"mem_total_kb":16000000,"mem_avail_kb":6000000,"swap_used_kb":600,"agents_live":2}]' "$T/hub/stats.jsonl" >/dev/null &&
-  pass "one sample: load, cpus, memory, swap used, 2 live agents (a dead pane, a shell: not)" || fail "post (rc=$rc): $out / $(cat "$T/hub/stats.jsonl" 2>&1)"
+  jq -s -e '. == [{"box":"sat","load1":2.5,"load5":1.75,"load15":0.47,"cpus":8,"mem_total_kb":16000000,"mem_avail_kb":6000000,"swap_used_kb":600,"agents_live":2,"disks":[{"mount":"/","total_kb":100,"avail_kb":40},{"mount":"/mnt/my data","total_kb":900,"avail_kb":500}]}]' "$T/hub/stats.jsonl" >/dev/null &&
+  pass "one sample: load, cpus, memory, swap used, 2 live agents (a dead pane, a shell: not), disks per mount (a space kept, a repeat and a dash row dropped)" || fail "post (rc=$rc): $out / $(cat "$T/hub/stats.jsonl" 2>&1)"
 [[ "$(wc -l <"$T/hub/calls")" -eq 1 ]] && pass "...and ONE hub call: no lane read, no BOX-0 row" || fail "calls: $(cat "$T/hub/calls")"
 out="$(post HUB_DOWN=1)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"did not record the sample of sat"*"connection refused"* ]] && pass "hub down: exit 1 naming the error (the cron logs it)" || fail "hub down (rc=$rc): $out"
@@ -59,6 +60,11 @@ out="$(post LANE_FLEET= LEASE_FLEET=)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"live on the hub"* && ! -s "$T/hub/calls" ]] && pass "no fleet: refused before any hub call" || fail "no fleet (rc=$rc): $out"
 out="$(post LANE_PANES_CMD=false)"; rc=$?
 [[ $rc -eq 0 && "$(tail -1 "$T/hub/stats.jsonl" | jq .agents_live)" == 0 ]] && pass "tmux unreadable: the sample still goes, 0 live agents" || fail "no panes (rc=$rc): $out"
+out="$(post LANE_DF_CMD=false)"; rc=$?
+[[ $rc -eq 0 && "$(tail -1 "$T/hub/stats.jsonl" | jq -c .disks)" == "[]" ]] && pass "df fails: the sample still goes, with disks []" || fail "no df (rc=$rc): $(tail -1 "$T/hub/stats.jsonl")"
+seq 1 20 | awk '{print "/dev/x" $1, 10, 1, 9, "10%", "/m" $1}' | sed '1i head' >"$T/df20"
+post LANE_DF_CMD="cat $T/df20" >/dev/null
+[[ "$(tail -1 "$T/hub/stats.jsonl" | jq '.disks | length')" == 16 ]] && pass "20 mounts: the first 16 go (the hub's cap)" || fail "cap: $(tail -1 "$T/hub/stats.jsonl")"
 
 # 2. box-stats-cron.sh ---------------------------------------------------------
 SH="$T/shared"

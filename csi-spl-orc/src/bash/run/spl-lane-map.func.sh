@@ -305,10 +305,11 @@ spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
 # do_post_box_stats every 5 min from the box-stats cron (the lane map runs only
 # on spawns and checks, so its BOX-0 tick is no clock).
 # As one JSON object: /proc/loadavg (LANE_LOADAVG), nproc
-# (LANE_NPROC), /proc/meminfo (LANE_MEMINFO) and the live agent count. Fails
-# when a source cannot be read, so nothing half-read is sent.
+# (LANE_NPROC), /proc/meminfo (LANE_MEMINFO), the live agent count and the
+# disks (spl_lane_box_disks). Fails when load, cpus or memory cannot be read,
+# so nothing half-read is sent; unreadable disks are [].
 spl_lane_box_sample() {  # LIVE_HERE (JSON array)
-  local l1 l5 l15 cpus mem total avail swap
+  local l1 l5 l15 cpus mem total avail swap disks
   read -r l1 l5 l15 _ 2>/dev/null <"${LANE_LOADAVG:-/proc/loadavg}" || return 1
   cpus="${LANE_NPROC:-$(nproc 2>/dev/null)}"
   mem="$(awk '$1 ~ /^(MemTotal|MemAvailable|SwapTotal|SwapFree):$/ {v[$1] = $2}
@@ -317,10 +318,27 @@ spl_lane_box_sample() {  # LIVE_HERE (JSON array)
   [[ "$l1 $l5 $l15" =~ ^[0-9.]+\ [0-9.]+\ [0-9.]+$ && "$cpus" =~ ^[0-9]+$ && "$mem" =~ ^[0-9]+\ [0-9]+\ -?[0-9]+$ ]] || return 1
   read -r total avail swap <<<"$mem"
   (( swap < 0 )) && swap=0
+  disks="$(spl_lane_box_disks)"
   jq -n -c --arg b "$LANE_BOX" --argjson l1 "$l1" --argjson l5 "$l5" --argjson l15 "$l15" --argjson c "$cpus" \
-    --argjson t "$total" --argjson a "$avail" --argjson s "$swap" --argjson ids "${1:-[]}" \
+    --argjson t "$total" --argjson a "$avail" --argjson s "$swap" --argjson ids "${1:-[]}" --argjson d "$disks" \
     '{box: $b, load1: $l1, load5: $l5, load15: $l15, cpus: $c, mem_total_kb: $t, mem_avail_kb: $a,
-      swap_used_kb: $s, agents_live: ($ids | length)}'
+      swap_used_kb: $s, agents_live: ($ids | length), disks: $d}'
+}
+
+# The real filesystems as [{mount, total_kb, avail_kb}] (rdb 0121): POSIX df
+# in kB minus the memory, image and EFI-variable mounts, one row per mount, at
+# most 16 (the hub's cap), under a timeout (a hung network mount must not hold
+# the tick). LANE_DF_CMD replaces df in the tests. [] when df prints nothing
+# usable.
+spl_lane_box_disks() {
+  local out
+  if [[ -n "${LANE_DF_CMD:-}" ]]; then out="$($LANE_DF_CMD 2>/dev/null)"
+  else out="$(timeout 10 df -kP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>/dev/null)"; fi
+  awk 'NR > 1 && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ {
+         m = $6; for (i = 7; i <= NF; i++) m = m " " $i
+         if (m ~ /^\// && !(m in seen)) { seen[m] = 1; printf "%s\t%s\t%s\n", m, $2, $4 } }' <<<"$out" |
+    head -n 16 | jq -R -s -c 'split("\n") | map(select(length > 0) | split("\t")
+      | {mount: .[0], total_kb: (.[1] | tonumber), avail_kb: (.[2] | tonumber)})'
 }
 
 # One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`;

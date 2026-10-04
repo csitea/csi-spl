@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,14 +11,22 @@ import (
 // Postgres side of rdb 0117. Every statement runs in the tenant scope except
 // the retention prune, which is the operator's (every tenant at once).
 
-const boxStatCols = `box, writer_box, at, load1, load5, load15, cpus, mem_total_kb, mem_avail_kb, swap_used_kb, agents_live`
+const boxStatCols = `box, writer_box, at, load1, load5, load15, cpus, mem_total_kb, mem_avail_kb, swap_used_kb, agents_live, disks`
 
 func (s *Postgres) AppendBoxStat(ctx context.Context, tenant string, b BoxStat) error {
+	disks := b.Disks
+	if disks == nil {
+		disks = []BoxDisk{}
+	}
+	raw, err := json.Marshal(disks)
+	if err != nil {
+		return err
+	}
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO box_stats (tenant_id, `+boxStatCols+`)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)`,
 			tenant, b.Box, b.WriterBox, b.At.UTC(), b.Load1, b.Load5, b.Load15, b.CPUs,
-			b.MemTotalKB, b.MemAvailKB, b.SwapUsedKB, b.AgentsLive)
+			b.MemTotalKB, b.MemAvailKB, b.SwapUsedKB, b.AgentsLive, string(raw))
 		return err
 	})
 }
@@ -37,8 +46,12 @@ func (s *Postgres) ListBoxStats(ctx context.Context, tenant, box string, since t
 		for rows.Next() {
 			var b BoxStat
 			var l1, l5, l15 float32
+			var disks []byte
 			if err := rows.Scan(&b.Box, &b.WriterBox, &b.At, &l1, &l5, &l15, &b.CPUs,
-				&b.MemTotalKB, &b.MemAvailKB, &b.SwapUsedKB, &b.AgentsLive); err != nil {
+				&b.MemTotalKB, &b.MemAvailKB, &b.SwapUsedKB, &b.AgentsLive, &disks); err != nil {
+				return err
+			}
+			if err := json.Unmarshal(disks, &b.Disks); err != nil {
 				return err
 			}
 			b.Load1, b.Load5, b.Load15 = round2(l1), round2(l5), round2(l15)

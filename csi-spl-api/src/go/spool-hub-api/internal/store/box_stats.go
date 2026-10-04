@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"math"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -21,8 +22,10 @@ const (
 	BoxStatsRetention = 30 * 24 * time.Hour
 	// BoxStatsMax is the most rows one list returns: 30 days of one box at
 	// one row per 5 min is 8640, so two boxes fit a full window.
-	BoxStatsMax     = 20000
-	boxStatLoadMax  = 100000 // rdb 0117 CHECKs
+	BoxStatsMax    = 20000
+	boxStatLoadMax = 100000 // rdb 0117 CHECKs
+	// BoxDisksMax is the most mounts one sample carries (rdb 0121 CHECK).
+	BoxDisksMax     = 16
 	boxStatCountMax = 100000
 )
 
@@ -39,7 +42,18 @@ type BoxStat struct {
 	MemAvailKB int64     `json:"mem_avail_kb"`
 	SwapUsedKB int64     `json:"swap_used_kb"`
 	AgentsLive int       `json:"agents_live"`
+	Disks      []BoxDisk `json:"disks"` // rdb 0121; [] before it
 }
+
+// BoxDisk is one mounted filesystem of a sample: its size and free space.
+type BoxDisk struct {
+	Mount   string `json:"mount"`
+	TotalKB int64  `json:"total_kb"`
+	AvailKB int64  `json:"avail_kb"`
+}
+
+// boxMountRe is a mount point: an absolute path, printable, up to 256 bytes.
+var boxMountRe = regexp.MustCompile(`^/[^\x00-\x1f\x7f]{0,255}$`)
 
 // CheckBoxStat names the first field a sample may not carry ("" = fine): the
 // Go side of rdb 0117's CHECKs, so a refusal is a 400, not a 500.
@@ -56,24 +70,45 @@ func CheckBoxStat(b BoxStat) string {
 		return "mem_total_kb / mem_avail_kb / swap_used_kb must be >= 0"
 	case b.AgentsLive < 0 || b.AgentsLive > boxStatCountMax:
 		return "agents_live must be 0..100000"
+	case len(b.Disks) > BoxDisksMax:
+		return "disks lists at most 16 mounts"
+	}
+	seen := map[string]bool{}
+	for _, d := range b.Disks {
+		if !boxMountRe.MatchString(d.Mount) || seen[d.Mount] {
+			return "each disk needs a distinct mount, an absolute path of up to 256 bytes"
+		}
+		if d.TotalKB < 0 || d.AvailKB < 0 {
+			return "disk total_kb / avail_kb must be >= 0"
+		}
+		seen[d.Mount] = true
 	}
 	return ""
 }
 
 // BoxStatHour is one box's hour of samples: n, the load1 and the used memory
-// (mem_total - mem_avail) as avg and peak, and the live agents.
+// (mem_total - mem_avail) as avg and peak, the live agents, and per mount
+// the size and the least free space of the hour.
 type BoxStatHour struct {
-	Box           string    `json:"box"`
-	Hour          time.Time `json:"hour"`
-	N             int       `json:"n"`
-	CPUs          int       `json:"cpus"`
-	Load1Avg      float64   `json:"load1_avg"`
-	Load1Peak     float64   `json:"load1_peak"`
-	MemUsedAvgKB  int64     `json:"mem_used_avg_kb"`
-	MemUsedPeakKB int64     `json:"mem_used_peak_kb"`
-	MemAvailMinKB int64     `json:"mem_avail_min_kb"`
-	AgentsAvg     float64   `json:"agents_avg"`
-	AgentsPeak    int       `json:"agents_peak"`
+	Box           string        `json:"box"`
+	Hour          time.Time     `json:"hour"`
+	N             int           `json:"n"`
+	CPUs          int           `json:"cpus"`
+	Load1Avg      float64       `json:"load1_avg"`
+	Load1Peak     float64       `json:"load1_peak"`
+	MemUsedAvgKB  int64         `json:"mem_used_avg_kb"`
+	MemUsedPeakKB int64         `json:"mem_used_peak_kb"`
+	MemAvailMinKB int64         `json:"mem_avail_min_kb"`
+	AgentsAvg     float64       `json:"agents_avg"`
+	AgentsPeak    int           `json:"agents_peak"`
+	Disks         []BoxDiskHour `json:"disks"`
+}
+
+// BoxDiskHour is one mount over an hour: its largest size and least free.
+type BoxDiskHour struct {
+	Mount      string `json:"mount"`
+	TotalKB    int64  `json:"total_kb"`
+	AvailMinKB int64  `json:"avail_min_kb"`
 }
 
 // BoxStatHours folds samples into one row per (box, UTC hour), ordered by
@@ -86,6 +121,7 @@ func BoxStatHours(rows []BoxStat) []BoxStatHour {
 	type acc struct {
 		h                 BoxStatHour
 		load, used, agent float64
+		disks             map[string]*BoxDiskHour
 	}
 	m := map[key]*acc{}
 	for _, r := range rows {
@@ -93,7 +129,7 @@ func BoxStatHours(rows []BoxStat) []BoxStatHour {
 		k := key{r.Box, hr.Unix()}
 		a := m[k]
 		if a == nil {
-			a = &acc{h: BoxStatHour{Box: r.Box, Hour: hr, MemAvailMinKB: r.MemAvailKB}}
+			a = &acc{h: BoxStatHour{Box: r.Box, Hour: hr, MemAvailMinKB: r.MemAvailKB}, disks: map[string]*BoxDiskHour{}}
 			m[k] = a
 		}
 		used := r.MemTotalKB - r.MemAvailKB
@@ -109,6 +145,14 @@ func BoxStatHours(rows []BoxStat) []BoxStatHour {
 		a.h.MemUsedPeakKB = max(a.h.MemUsedPeakKB, used)
 		a.h.MemAvailMinKB = min(a.h.MemAvailMinKB, r.MemAvailKB)
 		a.h.AgentsPeak = max(a.h.AgentsPeak, r.AgentsLive)
+		for _, d := range r.Disks {
+			if dh := a.disks[d.Mount]; dh == nil {
+				a.disks[d.Mount] = &BoxDiskHour{Mount: d.Mount, TotalKB: d.TotalKB, AvailMinKB: d.AvailKB}
+			} else {
+				dh.TotalKB = max(dh.TotalKB, d.TotalKB)
+				dh.AvailMinKB = min(dh.AvailMinKB, d.AvailKB)
+			}
+		}
 	}
 	out := make([]BoxStatHour, 0, len(m))
 	for _, a := range m {
@@ -116,6 +160,11 @@ func BoxStatHours(rows []BoxStat) []BoxStatHour {
 		a.h.Load1Avg = math.Round(a.load/n*100) / 100
 		a.h.MemUsedAvgKB = int64(math.Round(a.used / n))
 		a.h.AgentsAvg = math.Round(a.agent/n*10) / 10
+		a.h.Disks = make([]BoxDiskHour, 0, len(a.disks))
+		for _, d := range a.disks {
+			a.h.Disks = append(a.h.Disks, *d)
+		}
+		sort.Slice(a.h.Disks, func(i, j int) bool { return a.h.Disks[i].Mount < a.h.Disks[j].Mount })
 		out = append(out, a.h)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -154,6 +203,7 @@ func (s *Memory) AppendBoxStat(_ context.Context, tenant string, b BoxStat) erro
 		memBoxStats[s] = map[string][]BoxStat{}
 	}
 	b.At = b.At.UTC()
+	b.Disks = append([]BoxDisk{}, b.Disks...)
 	memBoxStats[s][tenant] = append(memBoxStats[s][tenant], b)
 	return nil
 }
@@ -164,6 +214,7 @@ func (s *Memory) ListBoxStats(_ context.Context, tenant, box string, since time.
 	out := []BoxStat{}
 	for _, b := range memBoxStats[s][tenant] {
 		if (box == "" || b.Box == box) && !b.At.Before(since) {
+			b.Disks = append([]BoxDisk{}, b.Disks...)
 			out = append(out, b)
 		}
 	}

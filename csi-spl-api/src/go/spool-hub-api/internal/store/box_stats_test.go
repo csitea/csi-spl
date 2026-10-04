@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -26,8 +27,8 @@ func TestBoxStatsAppendListPrune(t *testing.T) {
 					CPUs: 8, MemTotalKB: 1000, MemAvailKB: avail, SwapUsedKB: 5, AgentsLive: agents}
 			}
 			for _, b := range []BoxStat{
-				s("sat", t0.Add(5*time.Minute), 2.5, 600, 3),
-				s("sat", t0.Add(10*time.Minute), 4.5, 200, 5),
+				withDisks(s("sat", t0.Add(5*time.Minute), 2.5, 600, 3), BoxDisk{"/", 100, 40}, BoxDisk{"/mnt/data", 900, 500}),
+				withDisks(s("sat", t0.Add(10*time.Minute), 4.5, 200, 5), BoxDisk{"/", 100, 30}),
 				s("sat", t0.Add(65*time.Minute), 1.25, 900, 1),
 				s("tower", t0.Add(7*time.Minute), 0.47, 400, 2),
 			} {
@@ -40,7 +41,8 @@ func TestBoxStatsAppendListPrune(t *testing.T) {
 			}
 
 			rows, err := bs.ListBoxStats(ctx, tid, "sat", t0)
-			if err != nil || len(rows) != 3 || rows[0].Load1 != 2.5 || rows[2].MemAvailKB != 900 || rows[0].WriterBox != "box-desk-sat" || !rows[0].At.Equal(t0.Add(5*time.Minute)) {
+			if err != nil || len(rows) != 3 || len(rows[0].Disks) != 2 || rows[0].Disks[1] != (BoxDisk{"/mnt/data", 900, 500}) ||
+				rows[2].Disks == nil || len(rows[2].Disks) != 0 || rows[0].Load1 != 2.5 || rows[2].MemAvailKB != 900 || rows[0].WriterBox != "box-desk-sat" || !rows[0].At.Equal(t0.Add(5*time.Minute)) {
 				t.Fatalf("sat rows: %+v %v", rows, err)
 			}
 			all, _ := bs.ListBoxStats(ctx, tid, "", t0)
@@ -62,6 +64,12 @@ func TestBoxStatsAppendListPrune(t *testing.T) {
 				a.MemUsedAvgKB != 600 || a.MemUsedPeakKB != 800 || a.MemAvailMinKB != 200 || a.AgentsAvg != 4 || a.AgentsPeak != 5 || a.CPUs != 8 {
 				t.Fatalf("sat 10:00: %+v", a)
 			}
+			if d := h[0].Disks; len(d) != 2 || d[0] != (BoxDiskHour{"/", 100, 30}) || d[1] != (BoxDiskHour{"/mnt/data", 900, 500}) {
+				t.Fatalf("sat 10:00 disks (per mount: size, least free): %+v", d)
+			}
+			if h[1].Disks == nil || len(h[1].Disks) != 0 {
+				t.Fatalf("an hour with no disk sample lists none: %+v", h[1].Disks)
+			}
 			if h[1].Box != "sat" || h[1].N != 1 || h[2].Box != "tower" {
 				t.Fatalf("order box, hour: %+v", h)
 			}
@@ -81,10 +89,22 @@ func TestBoxStatsAppendListPrune(t *testing.T) {
 	}
 }
 
+func withDisks(b BoxStat, d ...BoxDisk) BoxStat {
+	b.Disks = d
+	return b
+}
+
 func TestCheckBoxStat(t *testing.T) {
 	ok := BoxStat{Box: "sat", Load1: 1, Load5: 1, Load15: 1, CPUs: 4, MemTotalKB: 1, MemAvailKB: 1}
 	if why := CheckBoxStat(ok); why != "" {
 		t.Fatal(why)
+	}
+	full := ok
+	for i := 0; i < BoxDisksMax; i++ {
+		full.Disks = append(full.Disks, BoxDisk{fmt.Sprintf("/m%d", i), 1, 1})
+	}
+	if why := CheckBoxStat(full); why != "" {
+		t.Fatalf("16 mounts: %s", why)
 	}
 	for _, f := range []func(*BoxStat){
 		func(b *BoxStat) { b.Box = "Sat" },
@@ -95,6 +115,16 @@ func TestCheckBoxStat(t *testing.T) {
 		func(b *BoxStat) { b.MemAvailKB = -1 },
 		func(b *BoxStat) { b.SwapUsedKB = -1 },
 		func(b *BoxStat) { b.AgentsLive = -1 },
+		func(b *BoxStat) {
+			b.Disks = make([]BoxDisk, 17)
+			for i := range b.Disks {
+				b.Disks[i].Mount = fmt.Sprintf("/m%d", i)
+			}
+		},
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"data", 1, 1}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", 1, 1}, {"/", 2, 2}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/a\nb", 1, 1}} },
+		func(b *BoxStat) { b.Disks = []BoxDisk{{"/", -1, 1}} },
 	} {
 		b := ok
 		f(&b)

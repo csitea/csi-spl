@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 type memHuman struct {
@@ -73,6 +75,17 @@ func (h *memHumans) init() {
 	}
 }
 
+// realElsewhere reports whether hum holds a membership in a workspace other
+// than tenant (the open demo rule never seats a real member, specs/077).
+func (h *memHumans) realElsewhere(hum, tenant string) bool {
+	for k := range h.members {
+		if k[1] == hum && k[0] != tenant {
+			return true
+		}
+	}
+	return false
+}
+
 func (h *memHumans) memberCount(tenant string) int {
 	n := 0
 	for k := range h.members {
@@ -132,7 +145,7 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	var inv *memInvite
 	if tenant != "" {
 		var err error
-		if grant, inv, err = s.admitToTenant(tenant, hum, id.Email, known || linked, p, now); err != nil {
+		if grant, inv, err = s.admitToTenant(tenant, hum, id, known || linked, p, now); err != nil {
 			return "", err
 		}
 	}
@@ -168,10 +181,13 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 // writing anything: an open matching invite (its role and provenance), else the
 // bootstrap owner, else a pending-but-lapsed invite is ErrInviteExpired (distinct
 // so the login page can say "ask for a fresh invite", CLE-77781/SPL-1229), else
-// a plain refusal. resolved is (known || linked): a resolved human that is
-// already a member needs no grant. A new membership is a new user seat (009
-// D-3), refused over the tenant cap.
-func (s *Memory) admitToTenant(tenant, hum, email string, resolved bool, p AdmitPolicy, now time.Time) (*memMember, *memInvite, error) {
+// a plain refusal. In the open demo workspace the open rule (specs/077 T007)
+// stands where bootstrap would: a demo_user seat for a verified Google or
+// Facebook identity that is no real member elsewhere. resolved is (known ||
+// linked): a resolved human that is already a member needs no grant. A new
+// membership is a new user seat (009 D-3), refused over the tenant cap.
+func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p AdmitPolicy, now time.Time) (*memMember, *memInvite, error) {
+	email := id.Email
 	if _, ok := s.tenants[tenant]; !ok {
 		return nil, nil, ErrNotAdmitted
 	}
@@ -185,7 +201,9 @@ func (s *Memory) admitToTenant(tenant, hum, email string, resolved bool, p Admit
 		inv = i
 		grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
 			orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
-	} else if p.BootstrapOwner && h.memberCount(tenant) == 0 {
+	} else if p.openAdmits(id, tenant) && !(resolved && h.realElsewhere(hum, tenant)) {
+		grant = &memMember{role: rbac.DemoUser, admittedBy: AdmittedDemo, since: now}
+	} else if p.bootstraps(tenant) && h.memberCount(tenant) == 0 {
 		grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
 	} else if i, ok := h.invites[[2]string{tenant, email}]; ok && email != "" && !i.accepted && !now.Before(i.ExpiresAt) {
 		// A pending invite that merely lapsed: distinct from a stranger.

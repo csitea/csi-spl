@@ -364,6 +364,9 @@ type Hub struct {
 	// owner's go, dev first (Q8).
 	DemoEnabled   bool   `env:"SPOOL_HUB_DEMO_ENABLED" envDefault:"false"`
 	DemoWorkspace string `env:"SPOOL_HUB_DEMO_WORKSPACE" envDefault:"demo"`
+	// DemoProviders are the sign-in providers the open demo admission takes
+	// (cnf env.demo.providers, specs/077 FR-004); never password.
+	DemoProviders []string `env:"SPOOL_HUB_DEMO_PROVIDERS" envSeparator:"," envDefault:"google,facebook"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -577,6 +580,11 @@ func (h *Hub) checkViews() error {
 	}
 	if h.DemoEnabled && !tenantIDRe.MatchString(h.DemoWorkspace) {
 		return fmt.Errorf("SPOOL_HUB_DEMO_WORKSPACE %q must be a tenant id", h.DemoWorkspace)
+	}
+	for _, p := range h.DemoProviders {
+		if p != "google" && p != "facebook" {
+			return fmt.Errorf("SPOOL_HUB_DEMO_PROVIDERS %q: only google and facebook may open the demo", p)
+		}
 	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {

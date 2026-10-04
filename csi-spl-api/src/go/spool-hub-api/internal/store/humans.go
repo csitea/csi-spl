@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -112,6 +113,42 @@ type AdmitPolicy struct {
 	// BootstrapOwner: the first human on a tenant with zero members becomes
 	// its owner. dev/lde only until the owner decides OQ-A5.
 	BootstrapOwner bool
+	// OpenWorkspace is the demo workspace (specs/077 FR-004, T007): a
+	// provider-verified identity of an OpenProviders provider signing in to
+	// it with no invite is seated as rbac.DemoUser. "" = the demo is off
+	// (SPOOL_HUB_DEMO_ENABLED false): every workspace is invite-only.
+	// Bootstrap never seats an owner here: a visitor must not find an empty
+	// demo workspace and own it.
+	OpenWorkspace string
+	// OpenProviders are the providers the open rule admits (cnf
+	// env.demo.providers, default google,facebook). A native (password) or
+	// operator identity is never admitted by it, whatever this lists.
+	OpenProviders []string
+}
+
+// AdmittedDemo marks a membership the open demo rule seated (specs/077).
+const AdmittedDemo = "demo"
+
+// openAdmits reports whether the open rule may seat id in tenant: the demo
+// is on, tenant IS the demo workspace, the provider is listed and federated,
+// and the address is provider-verified (Identity.Email is non-empty only
+// then, auth FR-004). The store refuses it anyway to a human who is a real
+// member of another workspace (spec 3.8: the demo workspace has no real
+// members, and its 3-hour end must never touch a real person's data).
+func (p AdmitPolicy) openAdmits(id Identity, tenant string) bool {
+	if p.OpenWorkspace == "" || tenant != p.OpenWorkspace || id.Email == "" {
+		return false
+	}
+	if id.Provider == ProviderNative || id.Provider == ProviderOperator {
+		return false
+	}
+	return slices.Contains(p.OpenProviders, id.Provider)
+}
+
+// bootstraps reports whether the bootstrap rule applies to tenant: never in
+// the open demo workspace.
+func (p AdmitPolicy) bootstraps(tenant string) bool {
+	return p.BootstrapOwner && (p.OpenWorkspace == "" || tenant != p.OpenWorkspace)
 }
 
 // Invite admits the first sign-in whose verified Email matches, once.

@@ -28,6 +28,7 @@ var operatorCallers = map[string]string{
 	"SetTenantHost":        "tenant host reconciler (operator action / hub-tenant); no route",
 	"Memberships":          "auth session (026 tenant from identity): the SESSION's own human_id, across that human's tenants",
 	"LiveInviteTenants":    "sign-in that named no tenant (SPL-1230): the SESSION's own provider-verified address, its live invites across tenants",
+	"noMemberElsewhere":    "open demo admission (specs/077 T007): the signing-in identity's OWN human, whether it is a member outside the demo workspace; a bool",
 	"HoldCheckout":         "POST /v1/checkout: the tenant does not exist yet (slug hold)",
 	"checkoutAsOperator":   "GetCheckout / CheckoutByProviderRef: unguessable checkout id or a verified webhook's provider ref",
 	"ApplyPayment":         "verified payment webhook (signature checked before the store)",

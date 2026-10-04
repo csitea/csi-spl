@@ -59,11 +59,16 @@ Rules for every task (owner Q8, spec §3.10):
 
 ### Phase 2: Join path — next lane
 
-- [ ] T007 **open admission** (FR-004): `AdmitPolicy.OpenWorkspace`: a
-  verified Google or Facebook identity (cnf `env.demo.providers`, default
-  `google,facebook`) signing in with `tenant=<demo id>` and no invite is
-  admitted as `demo_user`, only while the flag is on; a `password` identity
-  never. Done: store + auth tests on Postgres.
+- [x] T007 **open admission** (FR-004, c-260): `AdmitPolicy.OpenWorkspace`: a
+  verified Google or Facebook identity (hub env `SPOOL_HUB_DEMO_PROVIDERS`,
+  default `google,facebook`; the cnf key `env.demo.providers` lands with the
+  flag's cnf wiring in T023) signing in with `tenant=<demo id>` and no invite
+  is admitted as `demo_user`, only while the flag is on; a `password` or
+  `operator` identity never; an invite still wins; bootstrap never seats an
+  owner in the demo workspace; a real member of another workspace is not
+  seated (spec 3.8). Done: `TestHumansOpenDemoAdmission`,
+  `TestHumansOpenDemoNeverBootstraps` (memory + Postgres),
+  `TestStoreBackedOpenDemoAdmission` (auth), `TestLoadHubDemoProviders`.
 - [ ] T008 **9 live at a time** (FR-006): admission counts live demo
   memberships under the tenant row lock; the 10th answers `demo_full`. Done:
   a concurrent-admission test on Postgres.
@@ -123,4 +128,4 @@ Rules for every task (owner Q8, spec §3.10):
 - [ ] T024 **prd on**: only on the owner's explicit go after the dev
   walkthrough.
 
-<!-- version: 0.2.0 · updated: 2026-10-05 · last-edit: 2026-10-05T00:30:00Z -->
+<!-- version: 0.2.1 · updated: 2026-10-05 · last-edit: 2026-10-04T23:03:00Z -->

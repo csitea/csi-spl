@@ -392,3 +392,22 @@ func TestHubRuntimeLimits(t *testing.T) {
 		}
 	}
 }
+
+// specs/077 FR-004: the demo providers default to google,facebook, and a
+// password (or any other) provider can never open the demo.
+func TestLoadHubDemoProviders(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(h.DemoProviders, ",") != "google,facebook" || h.DemoTenant() != "" {
+		t.Fatalf("defaults: providers %v, demo %q (want off)", h.DemoProviders, h.DemoTenant())
+	}
+	for _, bad := range []string{"password", "google,password", "microsoft"} {
+		t.Setenv("SPOOL_HUB_DEMO_PROVIDERS", bad)
+		if _, err := LoadHub(); err == nil {
+			t.Fatalf("SPOOL_HUB_DEMO_PROVIDERS=%s was accepted", bad)
+		}
+	}
+}

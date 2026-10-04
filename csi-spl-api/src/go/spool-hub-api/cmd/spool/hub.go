@@ -211,7 +211,9 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	logRLSPosture(ctx, log, st)
 	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
 	// The IdP picture lands in the same tenant blob store (010 T044).
-	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner},
+	// The open demo admission (specs/077 T007) is on only with the demo flag.
+	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner,
+		OpenWorkspace: hc.DemoTenant(), OpenProviders: hc.DemoProviders},
 		Blob: bs, AvatarErr: func(hum string, err error) {
 			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
 		}}

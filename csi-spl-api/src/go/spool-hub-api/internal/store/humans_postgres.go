@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p AdmitPolicy, now time.Time) (string, error) {
@@ -39,7 +41,13 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 		return "", err
 	}
 	if tenant != "" {
-		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, p, now); err != nil {
+		open := p.openAdmits(id, tenant)
+		if open && (f.known || f.linked) {
+			if open, err = s.noMemberElsewhere(ctx, f.hum, tenant); err != nil {
+				return "", err
+			}
+		}
+		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, admitRule{p, open}, now); err != nil {
 			return "", err // rollback: a refusal writes nothing
 		}
 	}
@@ -150,7 +158,30 @@ func recordIdentity(ctx context.Context, tx pgx.Tx, id Identity, f foundHuman, n
 	return hum, nil
 }
 
-func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant string, p AdmitPolicy, now time.Time) error {
+// admitRule is the policy for one admission: p, and whether the open demo
+// rule (specs/077 T007) may seat this human in this tenant.
+type admitRule struct {
+	p    AdmitPolicy
+	open bool
+}
+
+// noMemberElsewhere reports whether hum holds no membership outside tenant,
+// so the open demo rule may seat it: the demo workspace has no real members
+// (spec 3.8), and its 3-hour end must never touch a real person's data. It
+// reads across tenants, so it is an operator caller (TestOperatorScopeCallers).
+// A membership granted between this read and the admission is harmless: the
+// person is then both, until the demo seat ends.
+func (s *Postgres) noMemberElsewhere(ctx context.Context, hum, tenant string) (bool, error) {
+	none := true
+	err := s.asOperatorQuery(ctx, `SELECT 1 FROM tenant_memberships
+		WHERE human_id = $1 AND tenant_id <> $2 LIMIT 1`, []any{hum, tenant}, func(pgx.Rows) error {
+		none = false
+		return nil
+	})
+	return none, err
+}
+
+func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant string, r admitRule, now time.Time) error {
 	// The tenant row lock serialises bootstrap (one owner, not two) and the
 	// user-seat count (009 D-3: two first sign-ins cannot both take the last seat).
 	var capUsers int
@@ -196,7 +227,12 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 			return err
 		}
 	}
-	if p.BootstrapOwner {
+	if r.open {
+		_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
+			VALUES ($1, $2, $3, $4, $5)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo)
+		return err
+	}
+	if r.p.bootstraps(tenant) {
 		tag, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
 			SELECT $1, $2, $4, $3, 'bootstrap'
 			WHERE NOT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = $1)`, tenant, hum, now, RoleTenantOwner)
@@ -213,16 +249,24 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	// blank not_allowed a stranger gets. The UPDATE above only matched
 	// expires_at > now, so an unaccepted row with expires_at <= now is exactly
 	// the expired case (CLE-77781).
-	if email != "" {
-		var expired bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenant_invites
-			WHERE tenant_id = $1 AND email = $2 AND accepted_at IS NULL AND expires_at <= $3)`,
-			tenant, email, now).Scan(&expired); err != nil {
-			return err
-		}
-		if expired {
-			return ErrInviteExpired
-		}
+	return refusal(ctx, tx, email, tenant, now)
+}
+
+// refusal is admitTx's answer when nothing admitted: ErrInviteExpired when
+// the address holds a pending invite to tenant that merely lapsed, else
+// ErrNotAdmitted.
+func refusal(ctx context.Context, tx pgx.Tx, email, tenant string, now time.Time) error {
+	if email == "" {
+		return ErrNotAdmitted
+	}
+	var expired bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenant_invites
+		WHERE tenant_id = $1 AND email = $2 AND accepted_at IS NULL AND expires_at <= $3)`,
+		tenant, email, now).Scan(&expired); err != nil {
+		return err
+	}
+	if expired {
+		return ErrInviteExpired
 	}
 	return ErrNotAdmitted
 }

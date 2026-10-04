@@ -28,13 +28,19 @@ describe('the topic view is two panels', () => {
     assert.doesNotMatch(page, /topic\.list_title/)
   })
 
-  it('desktop is the list plus a thread that fills the rest, with no sidebar', () => {
+  it('desktop is the list plus a thread, and the sidebar is not a column', () => {
     assert.match(css, /\.topic-browse \{[^}]*display: flex;/)
     assert.match(css, /\.topic-browse__list \{[^}]*flex: 0 0 340px;/)
     assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*width: auto;/)
     assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*position: relative;/)
     assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*top: auto;/)
-    assert.match(css, /\.spool-shell\[data-topic-browse="1"\] > \.sidebar,\n  \.spool-shell\[data-topic-browse="1"\] > \.pane-divider/)
+    const start = css.indexOf('/* /t/:id is two panels:')
+    const block = css.slice(start, css.indexOf('.topic-browse {', start))
+    const side = block.match(/\.spool-shell\[data-topic-browse="1"\] > \.sidebar \{[^}]*\}/)
+    assert.ok(side, 'desktop topic-browse sidebar rule')
+    assert.match(side[0], /visibility: hidden;/)
+    assert.match(side[0], /width: var\(--sidebar-w\);/)
+    assert.doesNotMatch(side[0], /display:\s*none/)
   })
 
   it('a phone shows the thread or the list, one at a time', () => {

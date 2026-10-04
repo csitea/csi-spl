@@ -32,9 +32,16 @@ describe('the topic view is two panels', () => {
     assert.doesNotMatch(channel, /data-topic-browse/)
   })
 
-  it('desktop hides the sidebar; a phone shows one panel', () => {
-    assert.match(css, /\.spool-shell\[data-topic-browse="1"\] > \.sidebar/)
-    assert.match(css, /@media \(min-width: 821px\) \{[\s\S]*\.spool-shell\[data-topic-browse="1"\] > \.sidebar/)
+  it('from 821px up the sidebar stays laid out and is not a column', () => {
+    const start = css.indexOf('/* /t/:id is two panels:')
+    const block = css.slice(start, css.indexOf('.topic-browse {', start))
+    const side = block.match(/\.spool-shell\[data-topic-browse="1"\] > \.sidebar \{[^}]*\}/)
+    assert.ok(side, 'desktop topic-browse sidebar rule')
+    assert.match(block, /@media \(min-width: 821px\)/)
+    assert.match(side[0], /position: absolute;/)
+    assert.match(side[0], /visibility: hidden;/)
+    assert.match(side[0], /width: var\(--sidebar-w\);/)
+    assert.doesNotMatch(side[0], /display:\s*none/)
     assert.match(css, /\.topic-browse:not\(\[data-phone="list"\]\) > \.topic-browse__list \{ display: none; \}/)
     assert.match(css, /\.topic-browse\[data-phone="list"\] > \.topic-browse__thread \{ display: none; \}/)
   })

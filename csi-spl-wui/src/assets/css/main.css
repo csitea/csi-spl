@@ -1385,11 +1385,22 @@ html.pane-dragging * {
   .pane-collapse { display: none; }
 }
 
-/* /t/:id is two panels: the topic list and the thread. The shell sidebar,
-   its divider and the middle collapse are not a third column. Phone widths
-   keep the sidebar (level 1). */
+/* /t/:id is two panels: the topic list and the thread. From 821px up the
+   shell sidebar is not a third column (out of the row, not painted) but it
+   keeps a real box. display:none would make a row menu's width 0, so the
+   channel menu could not open. Phone widths keep the sidebar (level 1). */
 @media (min-width: 821px) {
-  .spool-shell[data-topic-browse="1"] > .sidebar,
+  .spool-shell[data-topic-browse="1"] {
+    position: relative;
+  }
+  .spool-shell[data-topic-browse="1"] > .sidebar {
+    position: absolute;
+    visibility: hidden;
+    width: var(--sidebar-w);
+    inset-inline-start: 0;
+    top: 0;
+    bottom: 0;
+  }
   .spool-shell[data-topic-browse="1"] > .pane-divider,
   .spool-shell[data-topic-browse="1"] > .spool-main > .pane-collapse {
     display: none;

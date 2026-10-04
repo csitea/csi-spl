@@ -1,6 +1,7 @@
 // The topic view (/t/:id) is two panels. On a phone one shows at a time:
 // the thread, then Back to the list, then the row back to the thread.
-// Desktop shows both, the sidebar stays hidden, and a channel still has it.
+// Desktop shows both. The sidebar is not a painted column, and it keeps a
+// box so a row menu can open at 821px and up. A channel still shows it.
 // The thread title is the topic text inside a four-side 1px border.
 //
 // Run: node tests/e2e/phone-topic-header-width.test.mjs
@@ -82,6 +83,10 @@ function readBrowse(page) {
       thread: box(document.querySelector('[data-test=topic-browse-thread]')),
       title: title ? (title.textContent || '').replace(/\s+/g, ' ').trim() : '',
       sidebar: box(shell ? shell.querySelector(':scope > .sidebar') : null),
+      shellW: shell ? Math.round(shell.getBoundingClientRect().width * 10) / 10 : 0,
+      menuW: shell
+        ? Math.round(Math.max(0, ...[...shell.querySelectorAll(':scope > .sidebar [data-testid=sidebar-row-menu]')].map((n) => n.getBoundingClientRect().width)) * 10) / 10
+        : 0,
       sections: document.querySelectorAll('[data-test=topic-section]').length,
     }
   })
@@ -172,6 +177,24 @@ try {
   ok('1280px both panels are on screen', desk.list && desk.list.visible && desk.thread && desk.thread.visible, desk)
   ok('1280px the thread is wider than the list', desk.thread.w > desk.list.w, { thread: desk.thread.w, list: desk.list.w })
   ok('1280px the sidebar is not a third panel', desk.sidebar && !desk.sidebar.visible, desk.sidebar)
+  ok('1280px the sidebar keeps a box so a row menu can open', desk.sidebar && desk.sidebar.w > 40 && desk.menuW > 0, { sidebar: desk.sidebar, menuW: desk.menuW })
+  ok('1280px the two panels fill the row', desk.list && desk.thread && desk.shellW > 0 && desk.list.w + desk.thread.w > desk.shellW - 24, { list: desk.list.w, thread: desk.thread.w, shell: desk.shellW })
+  const opened = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll('.spool-shell > .sidebar [data-testid=sidebar-row-menu]')].find((x) => x.getBoundingClientRect().width > 0)
+    if (!btn) return { clicked: false }
+    btn.click()
+    return { clicked: true, w: Math.round(btn.getBoundingClientRect().width) }
+  })
+  await sleep(400)
+  const panel = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid=sidebar-row-menu-panel]')
+    if (!el) return { open: false }
+    const r = el.getBoundingClientRect()
+    const s = getComputedStyle(el)
+    return { open: s.visibility !== 'hidden' && r.width > 0, w: Math.round(r.width), vis: s.visibility }
+  })
+  ok('1280px the row menu opens', opened.clicked && panel.open, { opened, panel })
+  await page.keyboard.press('Escape')
   ok('1280px one topic section', desk.sections === 1, desk.sections)
   ok('1280px the title is the topic text', desk.title === TITLE, desk.title)
   ok('1280px no sideways scroll', desk.docScroll <= desk.docClient + 1, desk)

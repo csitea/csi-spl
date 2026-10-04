@@ -79,6 +79,13 @@ permissions:
 # one. A gate on the newest sha covers every commit before it. Without this,
 # a busy fleet (a push every few minutes, ~9 jobs a gate, 4 runners) queued
 # 16+ gates for 35+ minutes on 2026-09-25 and a red gate surfaced hours late.
+#
+# So "cancelled" on a master run of this gate means SUPERSEDED, not lost: on
+# 2026-10-04 (n=100 runs) 85 were replaced pending runs and the tip still got
+# a finished verdict every ~25 min (one gate's wall time, ~70 job-min). Do not
+# make the group per sha (~15 pushes/h x ~70 job-min against a 4-runner pool
+# queues without bound) nor set cancel-in-progress (a push every ~4 min would
+# kill every gate before it finishes). Gate: gate10-concurrency.tst.sh.
 concurrency:
   group: quality-gate-${{ github.ref }}
   cancel-in-progress: false

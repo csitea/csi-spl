@@ -1,6 +1,6 @@
 # Tasks: 072 rapid deployability
 
-Status per item: `[ ]` open, `[x]` landed (with its sha and the check that proved it). One lane = one task, one agent. The task text is the lane row of [spec.md](spec.md) section 7; its **acceptance check is the named action's check** in spec section 6 (A-ids). Generated from spec v0.15 sections 7.0 and 7.1; when the spec changes a lane, regenerate this list rather than editing a row by hand.
+Status per item: `[ ]` open, `[x]` landed (with its sha and the check that proved it). One lane = one task, one agent. The task text is the lane row of [spec.md](spec.md) section 7; its **acceptance check is the named action's check** in spec section 6 (A-ids). Generated from spec v0.16 sections 7.0 and 7.1; when the spec changes a lane, regenerate this list rather than editing a row by hand.
 
 Rules for every lane: the spec's ranking rule (section 2: time to first deploy, manual steps, clarity of errors; never cost); the owner's guest rules R1-R3 (section 3.2); no GCP mutation without the owner's go; GCP lanes use the per-env service account only; the cloud-provider layer is out of scope (section 3.1, topic `a5a141bc`).
 
@@ -27,10 +27,10 @@ Rules for every lane: the spec's ranking rule (section 2: time to first deploy, 
 
 ## Phase 2: wave 1
 
-- [ ] T019 **L4** A8: generic name validations, project id from cnf. Owns: the 7 steps' `02-variables.tf`, `gcp-001`, `resolve-oap.func.sh`. Needs: -
+- [ ] T019 **L4** A8: generic name validations, project id from cnf. Owns: the 7 steps' `02-variables.tf`, `gcp-001`, `resolve-oap.func.sh`, conf-validator `EnvModels/cloud.py`. Needs: -
 - [ ] T020 **L21** A19: full dry run + preflight. Owns: gcp-000..004, a new `gcp-bootstrap-preflight.func.sh` + tests. Needs: -
 - [ ] T021 **L22** A24: deploy workflows name envs and secrets from cnf. Owns: the env/secret lines of wf 20 and wf 30. Needs: -
-- [ ] T022 **L23** A25: stale deploy text + pinned yq. Owns: the cnf comments, 030 `02-variables.tf`, `build-push-hub-image.func.sh`, wf 20 yq step. Needs: -
+- [ ] T022 **L23** A25: stale deploy text + pinned yq. Owns: the cnf comments, 030 `02-variables.tf`, `build-push-hub-image.func.sh`, wf 20 yq step, the stale 031 rows (wf 20/30, renderer, 019 vars, `specs/README.md:216`). Needs: -
 - [ ] T023 **L34** A44: cnf derivations, byte-identical (C4, C5 first). Owns: `csi-spl-cnf`, `spl-merged-cnf.func.sh`. Needs: -
 - [ ] T024 **L49** A55: true release notes + forward-only gate (R2 is a live bug, XS). Owns: `release-stable.func.sh`, a new test. Needs: -
 - [ ] T025 **L58** A64: digest pins + installer checksums. Owns: the 8 Dockerfiles, `install.sh` and its tests. Needs: -

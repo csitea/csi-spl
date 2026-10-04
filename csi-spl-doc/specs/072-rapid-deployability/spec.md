@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.6** (the version log is at the end of section 9). Lead
+Status: **draft v0.7** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -467,7 +467,7 @@ of the table below, which keeps its ids for reference.
 | D1 | Is P2 (a company or organisation runs the GCP shape in its own org) a supported path now? Reverses 047 D2 | **ANSWERED yes** (msg `03bc3dab`): any company or organisation spawns its own Google Cloud; AWS later, in its own topic (3.1) |
 | D2 | Publish images, and to which registry? | **ANSWERED** (msg `2ff40a49`): "Do not publish images to GCA or GHR if that incurs costs." Per the vendor pages (read 2026-10-04, table below), **GHCR public packages are free to us and to downloaders**; Artifact Registry is not. So A1 publishes to GHCR as **public** packages only, and the CLI binaries and the WUI bundle go out as GitHub release assets. **Fallback**: GitHub promises a month's notice before any change; on such a notice A1 stops publishing and compose builds locally (today's path, which works) |
 | D3 | Build agent join tokens (037 T005)? | **ANSWERED yes** (msg `97f2df08`), with the contributor persona P3+ (3.2): their own machine, their own AI-vendor tokens, no GCP. A5, A27-A29 |
-| D4 | One throwaway GCP project and its billing for the P2 stranger test (A16) | **yes**, deleted after the run |
+| D4 | One throwaway GCP project and its billing for the P2 stranger test (A16) | **ANSWERED yes** (msg `af863518`): "you can use one throwaway Google project"; no separate infrastructure project is needed (research 20) |
 
 Registry costs, from the vendors' own pages, read 2026-10-04 (n = 1 read each):
 
@@ -496,6 +496,41 @@ Open questions from the research, each with the contributor's recommendation (no
 | D15 | Is plain `http://<ip>` supported? | no: refused with the two fixes named (A40) | research/08 Q1 |
 | D16 | Set a ruleset on the public trunk (no force-push or deletion, wf 11 required, one maintainer review on a pull request, the fleet's push identity bypasses; A60)? Outward-facing repo setting | yes, before the first contributor is invited | research/14 |
 
+### 8.1 The question list sent to the owner (msg `85a28d38`)
+
+The open questions of this section and of the research files, merged, answered ones dropped, the odometer question left out (asked separately). Each maps to its source: Q1 D16; Q2 research 14 O4 + 18 Q2; Q3 D12; Q4 research 10 Q1 (A49); Q5 D5 + D6; Q6 D10 + D11; Q7 D15; Q8 research 17 Q1; Q9 research 17 Q3; Q10 D7; Q11 research 13 Q3, Q4; Q12 research 16 Q1, Q2; Q13 D14 + research 16 Q3; Q14 research 20 Q2, Q3; Q15 D13. Answers are recorded in the table above as they come.
+
+> **Spec 072: 15 questions to finish the spec** (owner msg `85a28d38`). Reply with the number and a letter, e.g. "1a 2b". **(a) is the recommendation every time.** Already answered and not asked again: own GCP for any organisation, the registry cost rule, join tokens, the contributor deal, the cloud-layer decisions, and the one throwaway project.
+>
+> **Contributors and access**
+> 1. Before the first outside contributor, lock the public trunk: no force-push or deletion, checks required, a maintainer reviews every pull request, our agents still push directly? a) yes, now · b) later · c) no
+> 2. Should outside contributors sign off their commits (DCO)? a) yes, and a check enforces it · b) drop the rule
+> 3. Should a contributor's pull request run the full test gate before merge? a) yes · b) only hub and web tests, as today
+> 4. Should the agent installer write our fleet's own Claude Code settings only when asked (`--fleet`), instead of on everyone's machine? a) yes · b) no
+>
+> **Security and keys**
+> 5. Should a new organisation set up its Google Cloud without downloadable keys, and never change org-wide policy? a) yes, both · b) no downloadable keys, but org policy may change · c) keep today's way
+> 6. Should CI sign in to Google without a stored key, and then lose the "owner" role in favour of only the rights it needs? a) yes, both · b) keyless only · c) neither
+> 7. Should a self-hosted instance on a bare `http://<ip>` address be supported? a) no: refuse it and name the two fixes (own domain, SSH tunnel) · b) yes
+>
+> **What a self-hoster gets**
+> 8. Is the one-machine Docker install a supported production setup, not just a trial? a) supported production · b) trial only
+> 9. Should Google/social sign-in and payments work in a self-hosted install? a) yes, both off until configured · b) only on our hosted service
+> 10. Should someone with a personal Google account and no organisation be able to deploy? a) yes, with a printed list of what they lose · b) no
+> 11. In the open-source defaults, should a workspace live on the main address, with one workspace per install? a) yes · b) no, one sub-domain per workspace, as hosted
+>
+> **Releases**
+> 12. Is the weekly `stable-<date>` the only release outsiders should pin, with images published for every build and the CLI only for stables? a) yes · b) images for stables only, too
+> 13. Who gets security fixes? a) the latest stable, plus a same-day stable for a fix, with upgrades tested from the last 4 stables · b) the latest stable only · c) master only, as today
+>
+> **Testing the from-zero path**
+> 14. Should a clean-room deploy run in the one throwaway project every night and before every stable (~$2/month, capped at $9), with a red run blocking only the weekly stable? a) yes · b) only before a stable · c) not yet
+> 15. May a lane create one public test fork under a second GitHub account to prove that a fork's CI works, deleted after? a) yes, once · b) no
+>
+> About your question on a separate infrastructure project (`af863518`): none is needed. The one throwaway project holds its own CI identity (research 20).
+>
+> Unless you object, these engineering choices follow the recommendations: one hub image, a web config read at runtime, config derived from org/app/env, and a full dry run plus preflight before any Google change.
+
 ## 9. Multi-agent research (msg `e61b8d29`)
 
 The orchestrator fans the research out; **only the lead edits `spec.md` and
@@ -520,3 +555,4 @@ rule, and logs it below.
 | v0.4 | research 01 (c-158), 03, 04 (c-168), 07 (c-161), 08 (c-170), 09 (c-162), 12 (c-172), 13 (c-164), 15: F20-F31, G26-G34, A30-A48 (6.2), lanes L31-L44, US1 order widened (7.0), D10-D15; out-of-scope items handed on | c-165 |
 | v0.5 | owner `d7e415ed`: the cloud layer leaves this spec (3.1 is a pointer); research 10 (c-171), 11 (c-163), 16 (c-174), 17 (c-166), 18, 19 (c-167): 14 (c-173): A49-A62, lanes L45-L56, D16, A49 and A60-A61 join the user-story-1 order; S3 store and fleet-ops items parked | c-165 |
 | v0.6 | owner `fe7fd2b9`: the four cloud-layer decisions recorded in 3.1 (scope, factory shape, self-host first then AWS, GCP default); P1 first now cites it | c-165 |
+| v0.7 | owner D4 answered (`af863518`); 8.1 the 15-question list for the owner (`85a28d38`) | c-165 |

@@ -382,8 +382,12 @@ nine | grep '| c-002 desk-reply permission | loaded | ok |' >/dev/null && [[ "$(
   pass "10. a rewrite for the sweep rule only: same file, desk rules still loaded, no GAP" ||
   fail "10. sweep-only rewrite: ino $ino -> $(stat -c %i "$SF") $(grep -E 'settings|desk-reply' "$T/o")"
 sed 's/DESK_AGENT=c-002 \* .\/run -a do_spl_topic_archive/DESK_AGENT=c-002 .\/run -a do_spl_topic_archive/' "$SF" >"$T/s10"; cat "$T/s10" >"$SF"
+# a new file is a new birth time, not a new inode: rm + cp may reuse the
+# inode it just freed (CI 2026-10-04, run 37193430817); no birth time on the
+# fs (0 / '-'): the PLAN line alone
+born="$(stat -c %.9W "$SF")"
 setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
-grep -q 'desk rules changed: a new file' "$T/o" && [[ "$(stat -c %i "$SF")" != "$ino" ]] &&
+grep -q 'desk rules changed: a new file' "$T/o" && { [[ ! "$born" =~ ^[1-9] ]] || [[ "$(stat -c %.9W "$SF")" != "$born" ]]; } &&
   pass "10. a desk-rule change writes a new file" || fail "10. desk change: $(grep settings "$T/o")"
 touch -d "@$(( $(stat -c %W "$SF") - 60 ))" "$P/100"
 nine | grep -E '\| c-002 desk-reply permission \| desk rules written after the session started \| GAP relaunch' >/dev/null &&

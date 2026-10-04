@@ -27,7 +27,7 @@ printf 'SECRET-KEY-BODY\n' >"$T/key.json"
 CT="$T/crontab"
 printf '0 8 * * * /opt/other/run-me.sh # other:job\n' >"$CT"
 printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$CT" "$CT" >"$T/fake-crontab"; chmod +x "$T/fake-crontab"
-TAGS="desk-reconcile unanswered-sweep orch-rotate dispatch-rotate agent-id-reap agent-identity-reconcile agent-boot-restore box-cron:box-save-sessions weekly-full-scan"
+TAGS="desk-reconcile unanswered-sweep orch-rotate dispatch-rotate agent-id-reap agent-identity-reconcile agent-boot-restore box-cron:box-save-sessions weekly-full-scan box-update"
 
 # the stubs: each installer records its call and, on DRY_RUN=0, puts (or
 # drops) one tagged line, replaced in place as the real ones do
@@ -45,6 +45,7 @@ do_spl_agent_identity_install() { inst agent-identity-reconcile "$([[ $IDENTITY_
 do_spl_agent_boot_restore_install_cron() { inst agent-boot-restore "$BOOT_CRON_ACTION"; }
 do_install_box_crons() { inst box-cron:box-save-sessions "$BOX_CRONS_ACTION"; }
 do_install_weekly_full_scan_cron() { inst weekly-full-scan "$WEEKLY_SCAN_CRON_ACTION"; }
+do_spl_box_update_install_cron() { inst box-update "$BOX_UPDATE_CRON_ACTION"; }
 do_spl_cloud_cnf() { SPL_ORG_APP=csi-spl; SPL_CNF="$SPL_STATE_DIR/dev.env.yaml"; }
 spl_host_spool_verdict() { [[ -x "$1" ]] && echo "keep built from HEAD" || echo "build no binary yet"; }
 spl_host_spool() { echo "spl_host_spool" >>"$STUB_LOG"; SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
@@ -72,8 +73,8 @@ reset_calls; cp "$CT" "$T/ct.0"
 out="$(dep BOX_DEPLOY_CMD=install)"; rc=$?
 [ "$rc" -eq 0 ] && cmp -s "$CT" "$T/ct.0" && [ ! -e "$T/state/dev/bin/spool" ] && ! grep -q 'DRY_RUN=0' "$T/calls.log" \
   && pass "1. the dry run changes nothing and calls nothing with DRY_RUN=0" || fail "1. dry run (rc $rc: $out)"
-[ "$(grep -c '^PLAN installer ' <<<"$out")" = 9 ] && grep -q '^PLAN binary: spl_host_spool' <<<"$out" && grep -q '^PLAN pool: .*POOL_CMD=start' <<<"$out" \
-  && pass "1. ...and plans every step (binary, 9 installers, pool start)" || fail "1. plan ($out)"
+[ "$(grep -c '^PLAN installer ' <<<"$out")" = 10 ] && grep -q '^PLAN binary: spl_host_spool' <<<"$out" && grep -q '^PLAN pool: .*POOL_CMD=start' <<<"$out" \
+  && pass "1. ...and plans every step (binary, 10 installers, pool start)" || fail "1. plan ($out)"
 grep -q 'DRY_RUN=0' <<<"installer x install DRY_RUN=0" && pass "1. control: the DRY_RUN=0 detector fires on a live call" || fail "1. control"
 
 # 2. install

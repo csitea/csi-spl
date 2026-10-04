@@ -43,6 +43,13 @@
 #   --force-skills    step 4b also overwrites a hand-edited rendered file
 #                     (the old one is kept as <file>.bak-spool-install)
 #   --update          `git pull --ff-only` this checkout first (clean checkouts only)
+#   --binary-only     ONLY rebuild the spool binary in <data>/tools/bin (and its
+#                     <prefix>/bin link): no CLI, no config, no shim, no hooks,
+#                     no skills, no .bashrc, no CLAUDE.md, no mcp-bot, no seat.
+#                     The old binary is kept as spool.bak; the new one must run
+#                     `spool version` and carry this checkout's HEAD (or
+#                     SPOOL_INSTALL_EXPECT_REV) as its commit, else the old
+#                     one is put back and it exits 6
 #   --dry-run         print the plan; change nothing
 #
 # Env: SPOOL_HUB_URL - required unless --no-seat; the hub URL, no default.
@@ -58,6 +65,7 @@
 #      SPOOL_ROOT / SPOOL_AGENT_CEILING / SPOOL_ORCHESTRATOR_ID - rendered into
 #      the skills (defaults /var/spool-hub, 40 and CLE-00)
 #      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
+#      SPOOL_INSTALL_BINREV - prints a binary's commit (tests; default go version -m)
 #
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
 # missing, 4 an agent CLI did not install (every other step still ran), 5 the seat failed, 6 the toolchain
@@ -82,7 +90,7 @@ CLIS="claude" ENVN="${SPOOL_ENV:-$(cfg_get SPOOL_ENV)}" TENANT="${SPOOL_TENANT:-
 ENVN="${ENVN:-dev}"
 [ -n "${SPOOL_HUB_URL:-}" ] || SPOOL_HUB_URL="$(cfg_get SPOOL_HUB_URL)"
 [ -n "$SPOOL_HUB_URL" ] || unset SPOOL_HUB_URL
-SEAT=1 HOOKS=1 SKILLS=1 FORCE_SKILLS=0 UPDATE=0 DRY=0
+SEAT=1 HOOKS=1 SKILLS=1 FORCE_SKILLS=0 UPDATE=0 DRY=0 BINONLY=0
 say()  { echo "spool-install: $*" >&2; }
 die()  { local rc="$1"; shift; say "FATAL $*"; exit "$rc"; }
 usage() { sed -n '/^#   install.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
@@ -99,6 +107,7 @@ while [ "$#" -gt 0 ]; do
     --force-skills) FORCE_SKILLS=1; shift ;;
     --update)   UPDATE=1; shift ;;
     --dry-run)  DRY=1; shift ;;
+    --binary-only) BINONLY=1; shift ;;
     -h|--help)  usage ;;
     *) say "unknown option $1"; usage ;;
   esac
@@ -117,6 +126,9 @@ if [ "$UPDATE" = 1 ] && [ "$DRY" = 0 ]; then
   fi
 fi
 
+# --binary-only touches nothing but the binary: no CLI, no seat (step 6), and
+# it stops after the link, before the config, shim, hooks and harness steps.
+[ "$BINONLY" = 1 ] && { CLIS=none SEAT=0; }
 # ── 0. arguments and base tools ──────────────────────────────────────────────
 [[ "$ENVN" =~ ^(dev|prd|self)$ ]] || die 2 "--env must be dev, prd or self (a self-hosted hub), got '$ENVN'"
 [ "$CLIS" = none ] && CLIS=""
@@ -237,7 +249,7 @@ done
 TPATH="$TOOLS/bin:$TOOLS/go/bin"
 export PATH="$TPATH:$PATH"
 yq_ok() { yq --version 2>/dev/null | grep -E 'mikefarah|version v?4\.' >/dev/null; }
-if ! yq_ok; then
+if [ "$BINONLY" = 0 ] && ! yq_ok; then
   url="${SPOOL_INSTALL_URL_YQ:-https://github.com/mikefarah/yq/releases/latest/download}/yq_${OS}_${ARCH}"
   if [ "$DRY" = 1 ]; then plan "download yq v4 into $TOOLS/bin/yq ($url)"
   else
@@ -285,7 +297,53 @@ if ! go_ok; then
 fi
 [ -n "$GO_BIN" ] && TPATH="$TPATH:$(dirname "$GO_BIN")" && export PATH="$(dirname "$GO_BIN"):$PATH"
 SPOOL="$TOOLS/bin/spool"
-if [ "$DRY" = 1 ]; then plan "build spool from $MOD into $SPOOL"
+# bin_rev <bin>: the commit a spool binary was built from - build.sh's
+# -X main.commit in the recorded -ldflags, else Go's vcs.revision.
+bin_rev() {
+  if [ -n "${SPOOL_INSTALL_BINREV:-}" ]; then "$SPOOL_INSTALL_BINREV" "$1"; return; fi
+  "${GO_BIN:-go}" version -m "$1" 2>/dev/null | awk '
+    $1 == "build" && match($0, /main\.commit=[0-9a-f]+/) { c = substr($0, RSTART + 12, RLENGTH - 12) }
+    $2 ~ /^vcs\.revision=/ { sub(/^vcs\.revision=/, "", $2); r = $2 }
+    END { if (c == "") c = r; print c }'
+}
+# bin_ok <bin> <want>: it runs `spool version` and carries commit <want>
+bin_ok() {
+  local v r
+  v="$("$1" version 2>/dev/null | sed -n 1p)"
+  [ -n "$v" ] || { say "FAIL $1: 'spool version' printed nothing"; return 1; }
+  r="$(bin_rev "$1")"
+  [ "$r" = "$2" ] || { say "FAIL $1 carries commit '${r:-none}', want $2"; return 1; }
+  say "verified $1: version $v, commit $r"
+}
+# --binary-only: build to a temp file and verify it, keep the old binary as
+# spool.bak, rename the new one in and verify again. A failure before the
+# rename leaves the old binary untouched; after it, the old one is put back
+# (or the new one removed when there was none). Either way: exit 6.
+binary_only() {
+  local want new="$SPOOL.new.$$" bak="$SPOOL.bak"
+  want="${SPOOL_INSTALL_EXPECT_REV:-$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)}"
+  [ -n "$want" ] || die 6 "cannot read HEAD of $ROOT (set SPOOL_INSTALL_EXPECT_REV)"
+  if [ "$DRY" = 1 ]; then plan "build spool from $MOD into $new, verify commit $want, keep $bak, rename into $SPOOL"; return 0; fi
+  mkdir -p "$TOOLS/bin" || die 6 "cannot create $TOOLS/bin"
+  if ! bash "$BUILD_SH" "$new" >/dev/null 2>&1; then
+    say "fetching the Go modules of $MOD (first build on this machine)"
+    { ( cd "$MOD" && GOFLAGS=-mod=mod "${GO_BIN:-go}" mod download ) >&2 && bash "$BUILD_SH" "$new" >&2; } ||
+      { rm -f "$new"; die 6 "the spool build failed ($BUILD_SH); $SPOOL untouched"; }
+  fi
+  bin_ok "$new" "$want" || { rm -f "$new"; die 6 "the new binary failed verification; $SPOOL untouched"; }
+  if [ -e "$SPOOL" ]; then
+    say "old spool: commit $(bin_rev "$SPOOL"), version $("$SPOOL" version 2>/dev/null | sed -n 1p), kept as $bak"
+    cp -p "$SPOOL" "$bak" || { rm -f "$new"; die 6 "cannot back up $SPOOL to $bak; $SPOOL untouched"; }
+  fi
+  mv -f "$new" "$SPOOL" || { rm -f "$new"; die 6 "cannot rename the new binary into $SPOOL"; }
+  if ! bin_ok "$SPOOL" "$want"; then
+    if [ -e "$bak" ]; then cp -p "$bak" "$SPOOL"; else rm -f "$SPOOL"; fi
+    die 6 "$SPOOL failed verification after the rename; the old binary is restored"
+  fi
+  say "spool: $SPOOL refreshed to $want"
+}
+if [ "$BINONLY" = 1 ]; then binary_only
+elif [ "$DRY" = 1 ]; then plan "build spool from $MOD into $SPOOL"
 else
   mkdir -p "$TOOLS/bin"
   # build.sh is offline (GOPROXY=off): a fresh machine fetches the modules
@@ -310,6 +368,10 @@ elif [ -e "$SPOOL_LINK" ] && [ ! -L "$SPOOL_LINK" ]; then
 else
   mkdir -p "$BIN" && ln -sfn "$SPOOL" "$SPOOL_LINK" || die 7 "cannot link $SPOOL_LINK"
   say "spool on PATH: $SPOOL_LINK -> $SPOOL"
+fi
+if [ "$BINONLY" = 1 ]; then
+  [ "$DRY" = 1 ] && say "DRY RUN - nothing changed"
+  exit 0
 fi
 
 # ── 4. the spool-agent command and its config ────────────────────────────────

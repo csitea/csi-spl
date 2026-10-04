@@ -8,6 +8,7 @@
 # @description               missing tools with the box's package manager
 # @description            2. the spool binary through spl_host_spool
 # @description            3. the crons through their own installers (3.2),
+# @description               the 12h box update (do_spl_box_update) among them,
 # @description               DRY_RUN passed through; the first that fails
 # @description               stops the run and is named
 # @description            4. POOL_CMD=start do_spl_pool_ctl (spec 071 lane A)
@@ -214,7 +215,7 @@ box_deploy_installers() {
   else
     printf '%s\n' unanswered-sweep orch-rotate dispatch-rotate
   fi
-  printf '%s\n' agent-id-reap agent-identity agent-boot-restore box-crons weekly-full-scan
+  printf '%s\n' agent-id-reap agent-identity agent-boot-restore box-crons weekly-full-scan box-update
   if declare -F do_spl_pool_serve_install_cron >/dev/null; then echo pool-serve; fi
 }
 
@@ -259,6 +260,7 @@ box_deploy_installer() {
           source "$APP_PATH/${SPL_ORG_APP:?}-iac/src/bash/run/install-weekly-full-scan-cron.func.sh" || exit 1
         fi
         WEEKLY_SCAN_CRON_ACTION="$act" do_install_weekly_full_scan_cron ;;
+      box-update) BOX_UPDATE_CRON_ACTION="$act" do_spl_box_update_install_cron ;;
       pool-serve) POOL_SERVE_CRON_ACTION="$act" do_spl_pool_serve_install_cron ;;
       *) do_log "FATAL unknown installer $n"; exit 1 ;;
     esac

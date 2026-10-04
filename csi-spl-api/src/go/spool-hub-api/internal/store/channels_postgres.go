@@ -446,20 +446,28 @@ func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Tim
 // hiddenUnreadRead takes the lines the feed hides as archived out of the
 // unread of a channel the reader has NO mark for (countsRead counted every
 // other line there; markedUnreadRead filters a marked one itself). Driven
-// from the archived cards (222 in prd t1), so the counts read keeps its
-// index-only scan.
+// from the archived cards, so the counts read keeps its index-only scan.
+//
+// z/h is the tenant's archived set: it does not depend on the reader. h
+// carries channel, from_id and expires_at out of that one pass, and the
+// reader predicate is only the outer WHERE. The old shape kept msg_id and
+// joined messages again on the primary key, one probe per hidden line
+// (prd t1, same trunk and method, n=3: 69.424 / 45.916 / 44.742 ms,
+// 19 762 buffers, estimate 1 vs 4 878 ids -> 23.993 / 18.599 / 25.518 ms,
+// 5 368 buffers). A reader with no mark still sees the same per-channel
+// counts (4 334 lines, 5 channels, no row different).
 func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
 	return tenantRead{`WITH ` + channelMarksCTE + `,
 		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL),
 		h AS (
-			SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id
-			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id
-			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7
-			UNION SELECT m.msg_id FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7)
-		SELECT m.channel, count(*)::int FROM h JOIN messages m ON m.tenant_id = $1 AND m.msg_id = h.msg_id
-		WHERE m.channel IS NOT NULL AND m.expires_at > $2 AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)
-			AND ($6::text IS NULL OR m.from_id IS DISTINCT FROM $6)
-		GROUP BY m.channel`,
+			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7)
+		SELECT h.channel, count(*)::int FROM h
+		WHERE h.channel IS NOT NULL AND h.expires_at > $2 AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = h.channel)
+			AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
+		GROUP BY h.channel`,
 		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {
 			var id string
 			var hidden int

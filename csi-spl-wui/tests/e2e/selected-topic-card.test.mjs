@@ -1,6 +1,7 @@
 // t1 b921518d: the selected topic card in the channel list has no left
-// bracket bar. It has a 1px border on all four sides, sits 1px up, and
-// carries the theme drop shadow. Desktop and phone, dark and light.
+// bracket bar. It has a 1px soft-grey border on all four sides and a
+// small grey drop shadow. It is not translated. Desktop and phone, dark
+// and light.
 // Keyboard focus stays visible. A screenshot of the desktop card is written
 // under a per-run temp directory.
 //
@@ -154,11 +155,11 @@ try {
       const card = before && before.card
       const borderOk = Boolean(card && card.border.every((w) => w === '1px') && card.color.every((c) => c === before.grey && c !== before.ring))
       const noBar = Boolean(card && !/inset/.test(card.shadow) && card.shadow === before.shadow)
-      const lifted = Boolean(card && /matrix\(1,\s*0,\s*0,\s*1,\s*0,\s*-1\)/.test(card.transform))
+      const still = Boolean(card && (card.transform === 'none' || card.transform === 'matrix(1, 0, 0, 1, 0, 0)'))
       const plain = Boolean(before && before.other && before.other.border.every((w) => w === '0px'))
       ok(`${tag}: selected card has a 1px soft-grey border on all four sides`, borderOk, card && { border: card.border, color: card.color, grey: before.grey, ring: before.ring })
       ok(`${tag}: selected card has no left bar and a soft grey drop shadow`, noBar, card && { shadow: card.shadow, want: before.shadow })
-      ok(`${tag}: selected card is lifted 1px`, lifted, card && { transform: card.transform })
+      ok(`${tag}: selected card is not translated`, still, card && { transform: card.transform })
       ok(`${tag}: an unselected card has no border`, plain, before && before.other)
 
       await page.$eval('article.msg.selected', (el) => el.focus({ focusVisible: true }))

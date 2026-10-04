@@ -1711,19 +1711,18 @@ async function save() {
 
 <style scoped>
 /* t1 b921518d: the selected topic card has no left bracket bar. A 1px
-   soft-grey border frames all four sides, the card sits 1px up, and a
-   small grey drop shadow lifts it. Keyboard focus stays the global
-   :focus-visible outline. A swipe keeps its own translateX. */
+   soft-grey border frames all four sides, and a small grey drop shadow
+   lifts it. The card is not translated: scroll-to-top reads the border
+   box, and a 1px shift leaves the card 1px off the edge once the
+   selection clears. Keyboard focus stays the global :focus-visible
+   outline. A swipe keeps its own translateX. */
 .msg.selected {
   position: relative;
   z-index: 1;
-  /* t1 b921518d follow-up: a soft grey, low opacity. Not the accent ring
-     and not a heavy dark shadow. Keyboard focus keeps the global outline. */
+  /* t1 b921518d follow-up: a soft grey, low opacity. Keyboard focus
+     keeps the global outline. */
   border: 1px solid rgba(128, 128, 128, 0.45);
   box-shadow: 0 2px 6px rgba(100, 100, 100, 0.22);
-}
-.msg.selected:not(.msg--swiping):not(.msg--swipe-settle) {
-  transform: translateY(-1px);
 }
 .mention-anchor { position: relative; min-width: 0; }
 /*

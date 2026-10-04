@@ -1,7 +1,7 @@
 // t1 b921518d: the selected topic card drops the left bracket bar.
-// A 1px soft-grey border on every side, a 1px lift, and a small grey
-// drop shadow. The phone topic-heading rule in main.css is a different
-// element and is not restated here.
+// A 1px soft-grey border on every side and a small grey drop shadow.
+// The card is not translated. The phone topic-heading rule in main.css
+// is a different element and is not restated here.
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -22,11 +22,8 @@ describe('selected topic card', () => {
     assert.match(body, /border:\s*1px solid rgba\(128, 128, 128, 0\.45\)/)
     assert.match(body, /box-shadow:\s*0 2px 6px rgba\(100, 100, 100, 0\.22\)/)
     assert.doesNotMatch(body, /var\(--focus-ring\)|var\(--focus-3d\)|var\(--color-accent\)/)
-    assert.doesNotMatch(body, /inset|var\(--select-bar-w\)/)
-    assert.match(
-      style,
-      /\.msg\.selected:not\(\.msg--swiping\):not\(\.msg--swipe-settle\) \{[^}]*transform:\s*translateY\(-1px\)/,
-    )
+    assert.doesNotMatch(body, /inset|var\(--select-bar-w\)|transform/)
+    assert.doesNotMatch(style, /translateY/)
   })
 
   it('does not set a px font size on the selected card', () => {

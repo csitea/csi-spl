@@ -13,7 +13,8 @@
 # @description   - after 9.9.9 comes 1.0.1 of the next cycle: its tag is
 # @description     v1.0.1-c2 (the cycle lives only in the tag name), what is
 # @description     printed and shown stays the plain 1.0.1
-# @description Prints the bare version on stdout (logs go to stderr), and `version=<v>` into
+# @description Prints the bare version on stdout (logs go to stderr), and `version=<v>` plus
+# @description `key=<release key>` (the tag minus its v, e.g. 1.0.1-c2) into
 # @description $GITHUB_OUTPUT when that is set. Dry run unless DRY_RUN=0: a dry
 # @description run prints what it WOULD claim and pushes nothing.
 # @param RELEASE_SHA (optional) - the commit to version, default HEAD
@@ -29,7 +30,7 @@ do_release_version() {
   do_require_bin git || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local sha="${RELEASE_SHA:-HEAD}" remote="${RELEASE_REMOTE:-origin}" floor v latest mine
+  local sha="${RELEASE_SHA:-HEAD}" remote="${RELEASE_REMOTE:-origin}" floor v k latest mine
   floor="$(tr -d '[:space:]' <"$APP_PATH/.version" 2>/dev/null)"
 
   if ((dry)); then
@@ -48,9 +49,10 @@ do_release_version() {
   fi
 
   # rc 3 = the target is stale against trunk head's workflows (see the lib)
-  v="$(spl_release_mint "$APP_PATH" "$sha" "$floor" "$remote")" || return $?
-  spl_version_valid "$v" || { do_log "FATAL the minted version is not one d.d.d value: '$v'" >&2; return 1; }
-  [[ -n "${GITHUB_OUTPUT:-}" ]] && echo "version=$v" >>"$GITHUB_OUTPUT"
-  do_log "OK release version of $(git -C "$APP_PATH" rev-parse --short "$sha") is $v (tag v$v on $remote)" >&2
+  k="$(spl_release_mint "$APP_PATH" "$sha" "$floor" "$remote")" || return $?
+  v="$(spl_release_key_display "$k")" && spl_version_valid "$v" ||
+    { do_log "FATAL the minted release key is not d.d.d[-c<N>]: '$k'" >&2; return 1; }
+  [[ -n "${GITHUB_OUTPUT:-}" ]] && printf 'version=%s\nkey=%s\n' "$v" "$k" >>"$GITHUB_OUTPUT"
+  do_log "OK release version of $(git -C "$APP_PATH" rev-parse --short "$sha") is $v (tag v$k on $remote)" >&2
   echo "$v"
 }

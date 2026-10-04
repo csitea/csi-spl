@@ -21,8 +21,8 @@
 #      trunk head stays rc 1, a real error (CLE-77950)
 #  14. CYCLES (owner: "reaches 9.9.9 ... start all over, from 1.0.1"): release
 #      keys order by cycle then X.Y.Z; 9.9.9 -> 1.0.1 of cycle 2 is claimed as
-#      tag v1.0.1-c2 beside the cycle-1 v1.0.1, shown as plain 1.0.1 (mint and
-#      action, GITHUB_OUTPUT too); the cycle-1 floor no longer wins; a commit
+#      tag v1.0.1-c2 beside the cycle-1 v1.0.1; mint returns the key, the
+#      action shows plain 1.0.1 (GITHUB_OUTPUT version=1.0.1 key=1.0.1-c2); the cycle-1 floor no longer wins; a commit
 #      re-reads its cycle-2 version; CONTROL: plain-version max ignores the
 #      cycle-2 tags and would re-mint 9.9.9's successor forever
 #------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ got=$(act RELEASE_SHA="$c10")
 [[ "$got" == 2.1.0 && "$(git --git-dir="$T/remote.git" tag | wc -l)" == "$before" ]] && pass "DRY_RUN (default) says 2.1.0 and claims nothing" || fail "dry run: '$got'"
 : >"$T/gh.out"
 got=$(act RELEASE_SHA="$c10" DRY_RUN=0 GITHUB_OUTPUT="$T/gh.out")
-[[ "$got" == 2.1.0 && "$(cat "$T/gh.out")" == version=2.1.0 ]] && pass "DRY_RUN=0 claims v2.1.0 and writes version=2.1.0 to GITHUB_OUTPUT" || fail "live: '$got' out='$(cat "$T/gh.out")'"
+[[ "$got" == 2.1.0 && "$(cat "$T/gh.out")" == $'version=2.1.0\nkey=2.1.0' ]] && pass "DRY_RUN=0 claims v2.1.0 and writes version=2.1.0 key=2.1.0 to GITHUB_OUTPUT" || fail "live: '$got' out='$(cat "$T/gh.out")'"
 got=$(act RELEASE_SHA="$c10")
 [[ "$got" == 2.1.0 ]] && pass "DRY_RUN on a tagged commit re-reads 2.1.0" || fail "dry re-read '$got'"
 
@@ -150,19 +150,19 @@ act_stdout_log() { # like act, but do_log prints to STDOUT as ./run's does
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     do_release_version' 2>>"$T/act.err"
 }
-out_ok() { grep -qvx 'version=[0-9]\.[0-9]\.[0-9]' "$1" && return 1; [[ "$(grep -c . "$1")" == 1 ]]; }
+out_ok() { grep -qvxE 'version=[0-9]\.[0-9]\.[0-9]|key=[0-9]\.[0-9]\.[0-9](-c[0-9]+)?' "$1" && return 1; [[ "$(grep -c . "$1")" == 2 ]]; }
 
 c11=$(commit eleven); git -C "$T/w" push -q origin HEAD:refs/heads/master
 : >"$T/gh11"
 got=$(act_stdout_log RELEASE_SHA="$c11" DRY_RUN=0 GITHUB_OUTPUT="$T/gh11" RACE_SHA="$c11" | tail -1)
-if out_ok "$T/gh11" && [[ "$(cat "$T/gh11")" == version=2.1.1 ]]; then
+if out_ok "$T/gh11" && [[ "$(cat "$T/gh11")" == $'version=2.1.1\nkey=2.1.1' ]]; then
   pass "the dev leg claimed the tag for the SAME commit first: GITHUB_OUTPUT is exactly version=2.1.1 (its tag, not a new one)"
 else fail "same-commit lost race: GITHUB_OUTPUT='$(tr '\n' '|' <"$T/gh11")' last stdout='$got'"; fi
 
 c12=$(commit twelve); c13=$(commit thirteen); git -C "$T/w" push -q origin HEAD:refs/heads/master
 : >"$T/gh13"
 act_stdout_log RELEASE_SHA="$c13" DRY_RUN=0 GITHUB_OUTPUT="$T/gh13" RACE_SHA="$c12" >/dev/null
-if out_ok "$T/gh13" && [[ "$(cat "$T/gh13")" == version=2.1.3 ]]; then
+if out_ok "$T/gh13" && [[ "$(cat "$T/gh13")" == $'version=2.1.3\nkey=2.1.3' ]]; then
   pass "lost the race to ANOTHER commit: GITHUB_OUTPUT is exactly version=2.1.3 (2.1.2 went to the winner)"
 else fail "other-commit lost race: GITHUB_OUTPUT='$(tr '\n' '|' <"$T/gh13")'"; fi
 
@@ -344,13 +344,13 @@ git -C "$T/c" push -q origin HEAD:refs/heads/master 'refs/tags/v*:refs/tags/v*'
 cmint() { lib spl_release_mint "$T/c" "$1" "$2" origin 2>>"$T/mint.err"; }
 got=$(cmint "$k2" 8.4.0); [[ "$got" == 9.9.9 ]] && pass "cycle 1 ends at 9.9.9" || fail "9.9.9 mint '$got'"
 got=$(cmint "$k3" 8.4.0)
-if [[ "$got" == 1.0.1 && "$(git --git-dir="$T/cyc.git" rev-parse 'v1.0.1-c2^{commit}')" == "$k3" \
+if [[ "$got" == 1.0.1-c2 && "$(git --git-dir="$T/cyc.git" rev-parse 'v1.0.1-c2^{commit}')" == "$k3" \
       && "$(git --git-dir="$T/cyc.git" rev-parse 'v1.0.1^{commit}')" == "$k0" ]]; then
-  pass "after 9.9.9: shows 1.0.1, claims v1.0.1-c2, the cycle-1 v1.0.1 untouched"
+  pass "after 9.9.9: mint returns key 1.0.1-c2 (tag v1.0.1-c2), the cycle-1 v1.0.1 untouched"
 else fail "wrap mint '$got' tags=$(git --git-dir="$T/cyc.git" tag | tr '\n' ' ')"; fi
-got=$(cmint "$k4" 8.4.0); [[ "$got" == 1.0.2 && -n "$(git --git-dir="$T/cyc.git" tag -l v1.0.2-c2)" ]] \
+got=$(cmint "$k4" 8.4.0); [[ "$got" == 1.0.2-c2 && -n "$(git --git-dir="$T/cyc.git" tag -l v1.0.2-c2)" ]] \
   && pass "cycle 2 continues 1.0.2 (v1.0.2-c2); the cycle-1 floor 8.4.0 does not win" || fail "cycle-2 next '$got'"
-got=$(cmint "$k3" 8.4.0); [[ "$got" == 1.0.1 ]] && pass "the wrap commit re-reads 1.0.1" || fail "wrap re-read '$got'"
+got=$(cmint "$k3" 8.4.0); [[ "$got" == 1.0.1-c2 ]] && pass "the wrap commit re-reads 1.0.1-c2" || fail "wrap re-read '$got'"
 k5=$(ccommit act); git -C "$T/c" push -q origin HEAD:refs/heads/master; echo 8.4.0 >"$T/c/.version"
 cact() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/c" "$@" bash -c '
@@ -362,8 +362,8 @@ cact() {
 got=$(cact RELEASE_SHA="$k5"); [[ "$got" == 1.0.3 ]] && pass "action DRY_RUN in cycle 2 says 1.0.3" || fail "cycle-2 dry run '$got'"
 : >"$T/gh2.out"
 got=$(cact RELEASE_SHA="$k5" DRY_RUN=0 GITHUB_OUTPUT="$T/gh2.out")
-[[ "$got" == 1.0.3 && "$(cat "$T/gh2.out")" == version=1.0.3 && -n "$(git --git-dir="$T/cyc.git" tag -l v1.0.3-c2)" ]] \
-  && pass "action DRY_RUN=0 claims v1.0.3-c2, GITHUB_OUTPUT version=1.0.3 (plain)" || fail "cycle-2 live '$got' out='$(cat "$T/gh2.out")'"
+[[ "$got" == 1.0.3 && "$(cat "$T/gh2.out")" == $'version=1.0.3\nkey=1.0.3-c2' && -n "$(git --git-dir="$T/cyc.git" tag -l v1.0.3-c2)" ]] \
+  && pass "action DRY_RUN=0 claims v1.0.3-c2, GITHUB_OUTPUT version=1.0.3 (plain) key=1.0.3-c2" || fail "cycle-2 live '$got' out='$(cat "$T/gh2.out")'"
 got=$(lib eval 'spl_version_step "$(git -C "'"$T/c"'" tag -l "v*" | sed "s/^v//" | spl_version_max)"')
 [[ "$got" == 1.0.1 ]] && pass "CONTROL: plain-version max ignores the cycle-2 tags (would re-mint 1.0.1 forever)" \
   || fail "CONTROL plain max: '$got'"

@@ -257,9 +257,10 @@ spl_claim_tag() {
 # ./run do_log prints to stdout and the caller captures this function's
 # stdout (run 36372654214, 2026-09-28: a lost race logged an INFO line into
 # the captured value and GITHUB_OUTPUT refused it).
-# spl_release_mint <git-dir> <sha> <floor> [remote] -> prints the DISPLAYED
-# version X.Y.Z for <sha>, claiming a new tag v<key> on <remote> (default
-# origin) when it has none; past 9.9.9 that tag carries the cycle (CYCLES).
+# spl_release_mint <git-dir> <sha> <floor> [remote] -> prints the release KEY
+# for <sha> (its tag minus the v: X.Y.Z, or X.Y.Z-c<N> past 9.9.9, see CYCLES),
+# claiming a new tag v<key> on <remote> (default origin) when it has none. The
+# caller shows spl_release_key_display of it.
 # rc 1 on a bad argument, or when no tag could be claimed after 10 attempts;
 # rc 3 when the claim was refused because <sha>'s .github/workflows differs from
 # trunk head's (see spl_workflows_stale) -- `stale=true` then goes to
@@ -275,7 +276,7 @@ spl_release_mint() {
     # already minted for this commit: the LOWEST of its v-tags, so every
     # reader agrees even in the (theoretical) case of two
     mine="$(git -C "$dir" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_min)"
-    [[ -n "$mine" ]] && { spl_release_key_display "$mine"; return 0; }
+    [[ -n "$mine" ]] && { echo "$mine"; return 0; }
     latest="$(git -C "$dir" tag -l 'v*' | sed 's/^v//' | spl_release_key_max)"
     if [[ -z "$latest" ]] || spl_release_key_gt "$floor" "$latest"; then next="$floor"
     else next="$(spl_release_key_step "$latest")" || { do_log "FATAL cannot step past $latest" >&2; return 1; }
@@ -285,7 +286,7 @@ spl_release_mint() {
     spl_claim_tag "$dir" "$sha" "v$next" "$remote"; rc=$?
     if ((rc == 0)); then
       git -C "$dir" tag -f "v$next" "$sha" >/dev/null 2>&1
-      spl_release_key_display "$next"; return 0
+      echo "$next"; return 0
     fi
     # A lost race (2): another lane took v$next -- re-read and take the next
     # number. Print the WHOLE server/git message (the old code kept only the

@@ -16,9 +16,15 @@
         <p v-else-if="!viewer.needsToken && !viewer.loading && !viewer.error && viewer.topics.length === 0" class="muted">
           {{ t('pages.index.empty') }}
         </p>
-        <template v-for="row in viewer.topics" :key="row.task_id">
+        <div
+          v-for="row in viewer.topics"
+          :key="row.task_id"
+          class="topic-row-wrap"
+          @contextmenu="onRowContext(row.task_id, $event)"
+        >
         <a
           class="topic-row"
+          v-if="editTask !== row.task_id"
           :class="{ selected: taskId === row.task_id, 'is-archived': row.archived_at }"
           :aria-current="taskId === row.task_id ? 'true' : undefined"
           :data-key="row.task_id"
@@ -29,24 +35,92 @@
           <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
           <small class="muted">{{ t('pages.index.messages', { n: row.count }, row.count) }}</small>
         </a>
-        </template>
+        <div
+          v-else
+          class="topic-row selected"
+          :data-key="row.task_id"
+        >
+          <TopicListEdit
+            v-model="editDraft"
+            :saving="editSaving"
+            :label="t('feed.edit.label')"
+            @keydown="onEditKey"
+          />
+          <p v-if="editError" class="msg-edit-error" role="alert" data-test="topic-list-edit-error">{{ t(editError) }}</p>
+        </div>
+        <button
+          type="button"
+          class="icon-btn topic-list-menu"
+          data-testid="topic-list-menu"
+          :data-menu-id="row.task_id"
+          :aria-label="t('feed.msg_menu.label')"
+          :title="t('feed.msg_menu.label')"
+          :aria-expanded="menuOpen && menuTask === row.task_id ? 'true' : 'false'"
+          aria-haspopup="menu"
+          @click.stop="onRowMenuButton(row.task_id, $event)"
+          @contextmenu.stop.prevent="onRowMenuButton(row.task_id, $event)"
+        >
+          <UiIcon name="menu" :size="16" />
+        </button>
+        </div>
         <button v-if="viewer.next" class="btn ghost" type="button" @click="viewer.loadMore()">{{ t('pages.index.older') }}</button>
       </div>
     </section>
     <div class="topic-browse__thread" data-test="topic-browse-thread">
       <TopicPane />
     </div>
+    <!-- the channel card's menu (MessageMenu), one at a time, mounted on open -->
+    <LazyMessageMenu
+      v-if="menuOpen && menuMsg && menuFlags"
+      :open="menuOpen"
+      :x="menuPoint.x"
+      :y="menuPoint.y"
+      :editable="menuFlags.editable"
+      :parent="menuFlags.parent"
+      :topic-archive="menuFlags.topicArchive"
+      :topic-delete="menuFlags.topicDelete"
+      :move-channel="menuFlags.moveChannel"
+      :merge-topic="menuFlags.mergeTopic"
+      :locks="menuFlags.locks"
+      @close="hideMenu()"
+      @open="onMenuOpen"
+      @edit="onMenuEdit"
+      @copy="onMenuCopy"
+      @archive="onMenuArchive"
+      @delete-topic="onMenuDelete"
+      @move-channel="onMenuMove('channel')"
+      @merge-topic="onMenuMove('merge')"
+    />
+    <LazyMovePickerDialog
+      v-if="movePicker && menuMsg"
+      :open="true"
+      :mode="movePicker"
+      :msg="menuMsg"
+      @update:open="(v: boolean) => { if (!v) movePicker = '' }"
+    />
+    <TopicDeleteDialog
+      v-if="deleteOpen && deleteMsgId"
+      v-model:open="deleteOpen"
+      :msg-id="deleteMsgId"
+      @deleted="onTopicDeleted"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
+import { noteError } from '~/composables/errorJournal.mjs'
+import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useMessageMenu } from '~/composables/useMessageMenu'
+import { useArchiveUndo } from '~/composables/useArchiveUndo'
+import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { useSessionStore } from '~/stores/session'
+import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useSidePane } from '~/composables/useSidePane'
@@ -55,6 +129,30 @@ import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
+import { writeClipboard } from '~/utils/clipboard.mjs'
+import { dmPeerOf } from '~/utils/channel-feed.mjs'
+import { topicPaneLink } from '~/utils/msg-menu.mjs'
+import { fenceStateAt } from '~/utils/code-blocks.mjs'
+import { beginEdit, commitEdit, editFailureKey, editKeyAction, withDraft, type MsgEditState } from '~/utils/msg-edit.mjs'
+import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
+import * as topicMenuMod from '~/utils/topic-menu.mjs'
+import type { SpoolMessage } from '~/types/spool'
+
+/* mjs-shims.d.ts is another lane's file, so this export is not declared there. */
+type MeLike = { role?: string | null, tenantOwner?: boolean, topicArchivePolicy?: string } | null
+type CardMenuOpts = {
+  editable: boolean
+  parent: boolean
+  topicArchive: boolean
+  topicDelete: boolean
+  moveChannel: boolean
+  mergeTopic: boolean
+  locks: TopicMenuLocks
+}
+const topicCardMenuOpts = (topicMenuMod as unknown as {
+  topicCardMenuOpts: (msg: unknown, viewerId: string, me: MeLike, opts?: { editable?: boolean, lobbyTaskId?: string }) => CardMenuOpts
+}).topicCardMenuOpts
 
 const route = useRoute()
 const localePath = useLocalePath()
@@ -65,8 +163,12 @@ const session = useSessionStore()
 const channel = useChannelStore()
 const topic = useTopicStore()
 const viewer = useViewerStore()
+const access = useAccessStore()
 const sidePane = useSidePane()
 const stack = useMobileStack()
+const live = useLive()
+const editor = useMessageEdit()
+const archiveUndo = useArchiveUndo()
 
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
@@ -74,6 +176,30 @@ const shortId = computed(() => taskId.value.slice(0, 8))
 const phoneThread = ref(true)
 const listBody = ref<HTMLElement | null>(null)
 const sending = ref(false)
+
+/* The channel card's menu, for the row whose opening card we have loaded. */
+const menuTask = ref('')
+const menuMsg = ref<SpoolMessage | null>(null)
+const { open: menuOpen, point: menuPoint, openAt, close: hideMenu } = useMessageMenu(() => menuTask.value)
+let menuTicket = 0
+const movePicker = ref<'' | 'channel' | 'merge'>('')
+const deleteOpen = ref(false)
+const deleteMsgId = ref('')
+const editTask = ref('')
+const editDraft = ref('')
+const editError = ref('')
+const editSaving = ref(false)
+const editState = ref<MsgEditState | null>(null)
+
+const menuFlags = computed(() => {
+  const msg = menuMsg.value
+  if (!msg) return null
+  const me = (access.me ?? null) as MeLike
+  return topicCardMenuOpts(msg, editor.viewerId.value, me, {
+    editable: editor.canEdit(msg),
+    lobbyTaskId: String(live.lobbyTaskId.value || ''),
+  })
+})
 
 stack.rightPanel(
   () => stack.isMobile.value && phoneThread.value && topic.open,
@@ -92,8 +218,202 @@ watch(() => viewer.needsToken, (need) => {
   topic.close()
 })
 
+watch(() => api.mock || String(session.state) === 'in', (on) => { if (on) void access.load() }, { immediate: true })
+
 function rowTitle(subject: string) {
   return topicOpening(subject) || t('topic.title')
+}
+
+function openingOf(rows: SpoolMessage[], id: string): SpoolMessage | null {
+  const mine = rows.filter((m) => String(m.parent_task_id || m.task_id || '') === id)
+  /* A channel card is the topic root. A desc thread page lists replies first,
+     and a reply with no is_parent still counts as a card, so take the root
+     and read it oldest-first before openingCardId. */
+  const roots = mine.filter((m) => !String(m.parent_task_id || '') && String(m.task_id || '') === id)
+  const pool = (roots.length ? roots : mine).slice().sort((a, b) => String(a.ts || '').localeCompare(String(b.ts || '')))
+  const found = openingCardId(pool, '')
+  if (!found) return null
+  return pool.find((m) => String(m.msg_id || '') === found) || null
+}
+
+/** The same card a channel feed would draw for this topic. */
+async function cardOf(id: string): Promise<SpoolMessage | null> {
+  const local = openingOf(channel.messages, id)
+  if (local) return local
+  try {
+    const page = await api.getTopic(id, { limit: 30 }) as { messages?: SpoolMessage[] }
+    return openingOf(page.messages || [], id)
+  } catch {
+    return null
+  }
+}
+
+async function openRowMenu(id: string, x: number, y: number) {
+  const ticket = ++menuTicket
+  /* The channel card's Edit / Delete follow the viewer id. Mock me() omits
+     human_id once an archive policy is set, so the id is live.identity, which
+     ensure() fills. Opening before that shows those entries locked. */
+  live.ensure()
+  if ((api.mock || String(session.state) === 'in') && !access.me) {
+    try { await access.load() } catch { /* locks follow whatever me is */ }
+  }
+  if (ticket !== menuTicket) return
+  const msg = await cardOf(id)
+  if (ticket !== menuTicket || !msg) return
+  menuMsg.value = msg
+  menuTask.value = id
+  openAt(x, y)
+}
+
+/* A phone long-press stays the browser's. This list has no swipe. The
+   button still opens the menu. Desktop right-click opens it here. */
+function onRowContext(id: string, ev: MouseEvent) {
+  if (stack.isMobile.value) return
+  ev.preventDefault()
+  void openRowMenu(id, ev.clientX, ev.clientY)
+}
+
+function onRowMenuButton(id: string, ev: MouseEvent) {
+  if (menuOpen.value && menuTask.value === id) {
+    hideMenu()
+    return
+  }
+  const btn = ev.currentTarget
+  if (!(btn instanceof HTMLElement)) return
+  const r = btn.getBoundingClientRect()
+  void openRowMenu(id, r.left, r.bottom + 4)
+}
+
+function onMenuOpen() {
+  const id = menuTask.value
+  hideMenu()
+  if (id) pick(id)
+}
+
+function onMenuEdit() {
+  const msg = menuMsg.value
+  const id = menuTask.value
+  hideMenu()
+  if (!msg || !editor.canEdit(msg)) return
+  const began = beginEdit(msg)
+  if (!began) return
+  editTask.value = id
+  editState.value = began
+  editDraft.value = began.draft
+  editError.value = ''
+  void nextTick(() => {
+    const el = document.querySelector<HTMLTextAreaElement>('[data-testid=topic-list-edit]')
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  })
+}
+
+function closeEdit() {
+  editTask.value = ''
+  editState.value = null
+  editDraft.value = ''
+  editSaving.value = false
+}
+
+function onEditKey(ev: KeyboardEvent) {
+  if (editSaving.value) {
+    if (ev.key === 'Enter' && !ev.shiftKey) ev.preventDefault()
+    return
+  }
+  const el = ev.target
+  const caret = el instanceof HTMLTextAreaElement ? (el.selectionStart ?? editDraft.value.length) : editDraft.value.length
+  const act = editKeyAction(ev, { inCode: fenceStateAt(editDraft.value, caret).inCode })
+  if (act === 'cancel') {
+    ev.preventDefault()
+    editError.value = ''
+    closeEdit()
+    return
+  }
+  if (act !== 'commit') return
+  ev.preventDefault()
+  void saveEdit()
+}
+
+async function saveEdit() {
+  const state = withDraft(editState.value, editDraft.value)
+  if (!state) return
+  const decided = commitEdit(state)
+  if (decided.action === 'unchanged') {
+    editError.value = ''
+    closeEdit()
+    return
+  }
+  if (decided.action === 'empty') {
+    editError.value = editFailureKey(decided.error)
+    return
+  }
+  editSaving.value = true
+  editError.value = ''
+  try {
+    const row = await editor.commit(state.msgId, decided.body)
+    editor.applyEverywhere(row)
+    const id = editTask.value
+    viewer.topics = viewer.topics.map((r) => (r.task_id === id ? { ...r, subject: decided.body } : r))
+    if (menuMsg.value && String(menuMsg.value.msg_id || '') === state.msgId) menuMsg.value = { ...menuMsg.value, ...row }
+    closeEdit()
+  } catch (e) {
+    editSaving.value = false
+    editError.value = editFailureKey(e)
+  }
+}
+
+async function onMenuCopy() {
+  const msg = menuMsg.value
+  const id = menuTask.value
+  hideMenu()
+  if (!msg || typeof window === 'undefined') return
+  const ch = String(msg.channel || '').trim().replace(/^#/, '')
+  let path = ''
+  if (ch) path = localePath('/channel/' + encodeURIComponent(ch))
+  else {
+    const peer = dmPeerOf(msg, editor.viewerId.value)
+    if (peer) path = localePath('/dm/' + encodeURIComponent(peer))
+  }
+  const rel = path ? topicPaneLink(msg, { path, query: {}, currentTaskId: '' }) : ''
+  const href = rel || localePath('/t/' + id)
+  if (href) await writeClipboard(new URL(href, window.location.origin).href)
+}
+
+async function onMenuArchive() {
+  const msg = menuMsg.value
+  const id = menuTask.value
+  hideMenu()
+  const cardId = String(msg?.msg_id || '')
+  if (!cardId) return
+  try {
+    await api.archiveTopic(cardId, true)
+    editor.dropEverywhere(cardId)
+    viewer.dropTopics([id, cardId])
+    archiveUndo.offerUndo(cardId, 'rail')
+  } catch (e) {
+    noteError({ source: 'topic-archive', name: 'TopicArchive', message: t(topicErrorKey(e, 'archive')), error: e })
+  }
+}
+
+function onMenuDelete() {
+  const id = String(menuMsg.value?.msg_id || '')
+  hideMenu()
+  if (!id) return
+  deleteMsgId.value = id
+  deleteOpen.value = true
+}
+
+function onTopicDeleted(out: { msg_ids?: string[], task_ids?: string[] }) {
+  const ids = [...(out.msg_ids || []), ...(out.task_ids || []), menuTask.value].filter(Boolean)
+  for (const id of out.msg_ids || []) editor.dropEverywhere(id)
+  viewer.dropTopics(ids)
+}
+
+function onMenuMove(mode: 'channel' | 'merge') {
+  hideMenu()
+  if (!menuMsg.value) return
+  movePicker.value = mode
 }
 
 /* TopicPane's mock path reads the channel store, not its own fetch.
@@ -223,3 +543,17 @@ onUnmounted(() => {
   topic.close()
 })
 </script>
+
+<style scoped>
+.topic-row-wrap { position: relative; min-width: 0; }
+.topic-row-wrap > .topic-row { padding-inline-end: 40px; }
+.topic-list-menu {
+  position: absolute;
+  inset-inline-end: 4px;
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin-block: auto;
+  z-index: 1;
+}
+</style>

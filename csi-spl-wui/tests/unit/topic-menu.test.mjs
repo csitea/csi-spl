@@ -7,10 +7,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { topicMenuLocks } from '../../src/utils/topic-menu.mjs'
+import { topicCardMenuOpts, topicMenuLocks } from '../../src/utils/topic-menu.mjs'
 import { msgMenuItems } from '../../src/utils/msg-menu.mjs'
-import { mayArchiveTopic, mayChangeTopic } from '../../src/utils/topic-archive.mjs'
-import { mayMoveTopic } from '../../src/utils/move.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const WHY = 'feed.msg_menu.why.'
@@ -20,15 +18,7 @@ const admin = { role: 'admin', tenantOwner: false, topicArchivePolicy: 'everyone
 
 /** The card menu exactly as MessageCard builds it for this viewer. */
 function menu(msg, viewer, me, { editable = viewer === msg.from, lobby = '' } = {}) {
-  const move = mayMoveTopic(msg, viewer, me, lobby)
-  return msgMenuItems({
-    editable,
-    topicArchive: mayArchiveTopic(msg, viewer, me),
-    topicDelete: mayChangeTopic(msg, viewer, me),
-    moveChannel: move,
-    mergeTopic: move,
-    locks: topicMenuLocks(msg, viewer, me, { editable, lobbyTaskId: lobby }),
-  })
+  return msgMenuItems(topicCardMenuOpts(msg, viewer, me, { editable, lobbyTaskId: lobby }))
 }
 const ids = (items) => items.map((i) => i.id)
 const off = (items) => items.filter((i) => i.disabled).map((i) => i.id)
@@ -91,6 +81,23 @@ describe('topic card menu: one shape for every viewer (HUM-24)', () => {
     assert.deepEqual(ids(msgMenuItems({ editable: true, locks: {} })), ['open', 'copy', 'edit', 'delete'])
   })
 
+  it('a channel card has no Open-in-channels item; that item is a thread line', () => {
+    const opts = topicCardMenuOpts(card, 'HUM-1', member, { editable: true })
+    assert.equal(opts.parent, false)
+    assert.equal(ids(msgMenuItems(opts)).includes('parent'), false)
+  })
+
+  it('the topic list reuses the channel card menu, it does not keep its own item list', () => {
+    const page = readFileSync(join(root, 'src/pages/t/[task_id].vue'), 'utf8')
+    assert.match(page, /topicCardMenuOpts/)
+    assert.match(page, /<LazyMessageMenu/)
+    assert.match(page, /@contextmenu="onRowContext\(row\.task_id, \$event\)"/)
+    assert.match(page, /data-testid="topic-list-menu"/)
+    assert.match(page, /@archive="onMenuArchive"/)
+    assert.doesNotMatch(page, /rowMenuItems/)
+    assert.doesNotMatch(page, /<SidebarRowMenu/)
+  })
+
   it('every reason exists in all 19 locales, and the Bulgarian ones are translated', () => {
     const keys = ['edit', 'edit_agent', 'move', 'move_place', 'merge', 'archive_admins', 'archive_starter', 'delete']
     const locales = ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']
@@ -110,7 +117,7 @@ describe('topic card menu: one shape for every viewer (HUM-24)', () => {
     assert.match(vue, /:aria-disabled="item\.disabled \? 'true' : undefined"/)
     assert.match(vue, /:title="item\.disabled && item\.hintKey \? t\(item\.hintKey\) : undefined"/)
     assert.match(vue, /if \(disabled\) return/)
-    const card = readFileSync(join(root, 'src/components/MessageCard.vue'), 'utf8')
-    assert.match(card, /:locks="menuLocks"/)
+    const cardVue = readFileSync(join(root, 'src/components/MessageCard.vue'), 'utf8')
+    assert.match(cardVue, /:locks="menuLocks"/)
   })
 })

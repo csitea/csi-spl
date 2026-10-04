@@ -57,3 +57,32 @@ export function topicMenuLocks(msg, viewerId, me, { editable = false, lobbyTaskI
   if (!mayChangeTopic(m, viewerId, me)) out.delete = WHY + 'delete'
   return out
 }
+
+/**
+ * The flags a clickable channel card passes to its menu (LiveFeed
+ * open-button + clickable, MessageCard's topicMenu). The topic list on /t
+ * passes these to the same MessageMenu, so the row does not keep a second
+ * item list.
+ *
+ * "Open in channels view" / "Open in direct msg view" is a thread line's
+ * item: MessageCard showParent is only when the row is not clickable. A
+ * channel card does not show it, so neither does this.
+ *
+ * @param {unknown} msg the topic's opening card
+ * @param {string} viewerId
+ * @param {{ role?: string | null, tenantOwner?: boolean, topicArchivePolicy?: string } | null} me
+ * @param {{ editable?: boolean, lobbyTaskId?: string }} [opts]
+ */
+export function topicCardMenuOpts(msg, viewerId, me, { editable = false, lobbyTaskId = '' } = {}) {
+  const canEdit = Boolean(editable)
+  const move = mayMoveTopic(msg, viewerId, me, lobbyTaskId)
+  return {
+    editable: canEdit,
+    parent: false,
+    topicArchive: mayArchiveTopic(msg, viewerId, me),
+    topicDelete: mayChangeTopic(msg, viewerId, me),
+    moveChannel: move,
+    mergeTopic: move,
+    locks: topicMenuLocks(msg, viewerId, me, { editable: canEdit, lobbyTaskId }),
+  }
+}

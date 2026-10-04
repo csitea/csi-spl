@@ -20,9 +20,9 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
 *Prerequisite Note*: Spec 072 tasks T004 (`DEPLOY.md`), T005 (`do_lde_up`), T013 (`config.json`), T014 (`hub.Dockerfile`), T015 (`56_ghcr-images.yml`), T016 (compose image pulls), and T017 (`do_spl_self_host_up`) already deliver the self-hosted compose foundation. The tasks below build strictly the seam neutralization layer on top.
 
 - [ ] T002 **cnf cloud provider schema**: Add `env.cloud.provider: gcp|none|aws` (default: `gcp`) to `csi-spl-cnf/csi-spl/all.env.yaml`, `spl-merged-cnf.func.sh`, and validator `EnvModels/cloud.py`. Export `SPOOL_CLOUD_PROVIDER=none` in `docker-compose.yml`.
-  - **Owns**: `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-cnf/csi-spl/lde.env.yaml`, `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, `csi-spl-orc/src/python/conf-validator/EnvModels/cloud.py`, `docker-compose.yml`.
+  - **Owns**: `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-cnf/csi-spl/lde.env.yaml`, `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, `csi-spl-cnf/src/python/conf-validator/EnvModels/cloud.py`, `docker-compose.yml`.
   - **Needs**: T001.
-  - **Done**: `python3 -m unittest discover csi-spl-orc/src/python/conf-validator` green and `ENV=dev ./run -a do_tpl_gen && git diff --exit-code` exits 0.
+  - **Done**: `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` passes and `ENV=dev ./run -a do_tpl_gen && git diff --exit-code` exits 0.
 
 - [ ] T003 **hub go cloud factory** [Parallel]: Create `internal/cloud/` package in `csi-spl-api` with `Factory`, `ComputeProvider`, `DatabaseProvider`, and `SecretsProvider` interfaces. When `SPOOL_CLOUD_PROVIDER=none` (or bucket is empty), force `blob.Dir` (`SPOOL_HUB_FILES_DIR`), eliminate `cloud.google.com/go/storage` initialization, read container revision from `SPOOL_VERSION`/hostname, and connect to plain TCP PostgreSQL DSN.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/cloud/`, `csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go`.
@@ -49,10 +49,10 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Needs**: T004.
   - **Done**: `bash csi-spl-orc/src/bash/tests/publish-docs-none.tst.sh` passes; mirrors `.md` files to local path with zero cloud network calls.
 
-- [ ] T008 **hub and wui deploy dispatch**: Update `hub-deploy.func.sh` and `spl-wui-deploy.func.sh` to dispatch via `do_spl_cloud_dispatch`. Under `none`, dispatch triggers `docker compose up -d --no-deps <service>` / Caddy config reload.
-  - **Owns**: `csi-spl-orc/src/bash/run/hub-deploy.func.sh`, `csi-spl-orc/src/bash/run/spl-wui-deploy.func.sh`, tests.
+- [ ] T008 **deploy verification and self-host orchestration dispatch**: Update `check-hub-deploy.func.sh` and `spl-self-host-up.func.sh` to route deployment status and compute orchestration via `do_spl_cloud_dispatch`. Under `none`, deploy verification validates local container readiness and HTTP `/healthz` instead of querying `gcloud run services describe`; `do_spl_self_host_up` acts as the compute deployer for `provider: none` (with cloud deploys remaining in workflows 20 and 30).
+  - **Owns**: `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`, `csi-spl-orc/src/bash/run/spl-self-host-up.func.sh`, `csi-spl-orc/src/bash/tests/check-hub-deploy.tst.sh`.
   - **Needs**: T004.
-  - **Done**: Deploy action test suites pass across both `gcp` and `none` mock environments.
+  - **Done**: `bash csi-spl-orc/src/bash/tests/check-hub-deploy.tst.sh` passes; validates local endpoint when `SPOOL_CLOUD_PROVIDER=none` with zero `gcloud` invocations.
 
 - [ ] T009 **standalone compose verification**: End-to-end integration test validating clean compose boot with `SPOOL_CLOUD_PROVIDER=none`, running DB migrations, seeding initial workspace, and verifying WebSocket and file upload without reaching any Google APIs.
   - **Owns**: `csi-spl-iac/src/bash/tests/cloud-provider-none-e2e.tst.sh`.

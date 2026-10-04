@@ -40,8 +40,8 @@ mkdir -p "$T/bin" "$T/proc" "$T/tmux" "$D/briefs" "$T/hold" "$T/mem"
 TCK="$(getconf CLK_TCK)"; UP=100000
 echo "$UP.00 0.00" >"$T/proc/uptime"
 printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\n' "$(id -un)" "$(id -un)" >"$S/box.env"
-CONF=$'LEASE_MASTER=CLE-902\nLEASE_FAILOVER=CLE-903\nLEASE_ORCH=CLE-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10'
-for id in CLE-902 CLE-903; do echo "brief of $id: read your inbox" >"$D/briefs/brief-dispatcher-$id.md"; done
+CONF=$'LEASE_MASTER=c-902\nLEASE_FAILOVER=c-903\nLEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10'
+for id in c-902 c-903; do echo "brief of $id: read your inbox" >"$D/briefs/brief-dispatcher-$id.md"; done
 
 # --- stubs --------------------------------------------------------------------
 # proc <pid> <id> <age-s>: a fake claude carrying SPOOL_AGENT_ID=<id>
@@ -92,7 +92,7 @@ mode="$(cat "$T/spawn.mode.$id" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%s\t%s\t$0\t%s@box\n' "$pane" "$pid" "$id" >>"$T/tmux/panes"
 [ "$mode" = nostart ] || "$T/bin/proc" "$pid" "$id" 0
-echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T05:16:00Z","from":"HUM-10","to":"CLE-902","kind":"msg","task_id":"y","body":"mid-rotation"}' >"$SPOOL_ROOT/CLE-902/inbox/m9.json"
+echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T05:16:00Z","from":"HUM-10","to":"c-902","kind":"msg","task_id":"y","body":"mid-rotation"}' >"$SPOOL_ROOT/c-902/inbox/m9.json"
 if [ "$(cat "$T/ack.mode.$id" 2>/dev/null || echo yes)" = yes ]; then
   rid="$(grep '^ACK-COMMAND:' "$4" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
   ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID="$pid" "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
@@ -107,7 +107,7 @@ echo "$a ASK_KIND=${ASK_KIND:-} ASK_FROM=${ASK_FROM:-} ASK_TOPIC=${ASK_TOPIC:-} 
 case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
-  do_spl_dispatch_setup) [ -d "$T/proc/203" ] || "$T/bin/proc" 203 CLE-903 0 ;;
+  do_spl_dispatch_setup) [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
   do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
   *) exit 1 ;;
 esac
@@ -162,16 +162,16 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env
   ROTATE_AS_AGENT_DIRECT=1 ROTATE_POLL=1 ROTATE_IDLE_SEC=0 ROTATE_IDLE_GRACE=2 ROTATE_ESC_WAIT=1 ROTATE_START_WAIT=4 \
   ROTATE_ACK_TIMEOUT=6 ROTATE_EXIT_WAIT=2 ROTATE_TERM_WAIT=2 ROTATE_NEW_EXIT_WAIT=2 ROTATE_PROMOTE_WAIT=3 ROTATE_SETTLE=0 ROTATE_SEQ_WAIT=2
 
-# the world: CLE-902 (pid 102, pane %2) holds the lease, CLE-903 (pid 103, pane %3) stands by, both 2 h old
+# the world: c-902 (pid 102, pane %2) holds the lease, c-903 (pid 103, pane %3) stands by, both 2 h old
 world() {
   rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/ack.mode."* "$T/ai."* \
-    "$D"/rotate.* "$D/handoff" "$D/lease"* "$S"/CLE-90*
+    "$D"/rotate.* "$D/handoff" "$D/lease"* "$S"/c-90*
   echo "$CONF" >"$D/lease.conf"
-  mkdir -p "$S/CLE-902/inbox" "$S/CLE-902/outbox" "$S/CLE-903/inbox" "$S/CLE-903/outbox"
-  "$T/bin/proc" 102 CLE-902 7200; "$T/bin/proc" 103 CLE-903 7200
-  printf '%%2\t102\t$0\tCLE-902@box > dispatcher\n%%3\t103\t$0\tCLE-903@box > dispatcher\n' >"$T/tmux/panes"
-  echo "CLE-902 $(date +%s)" >"$D/lease"
-  echo '{"v":1,"msg_id":"m1","ts":"2026-10-02T05:10:00Z","from":"HUM-10","to":"CLE-902","kind":"msg","task_id":"t-owner","body":"owner asks for X"}' >"$S/CLE-902/inbox/m1.json"
+  mkdir -p "$S/c-902/inbox" "$S/c-902/outbox" "$S/c-903/inbox" "$S/c-903/outbox"
+  "$T/bin/proc" 102 c-902 7200; "$T/bin/proc" 103 c-903 7200
+  printf '%%2\t102\t$0\tc-902@box > dispatcher\n%%3\t103\t$0\tc-903@box > dispatcher\n' >"$T/tmux/panes"
+  echo "c-902 $(date +%s)" >"$D/lease"
+  echo '{"v":1,"msg_id":"m1","ts":"2026-10-02T05:10:00Z","from":"HUM-10","to":"c-902","kind":"msg","task_id":"t-owner","body":"owner asks for X"}' >"$S/c-902/inbox/m1.json"
 }
 act() { env "$@" "$T/bin/act"; }
 ctx() { sed -n "s/^$1=//p" "$D/rotate.dispatch.ctx" 2>/dev/null; }
@@ -181,7 +181,7 @@ holder() { cut -d' ' -f1 "$D/lease"; }
 world
 act >"$T/o" 2>&1; rc=$?
 n=0; for p in GATE HOLD QUIESCE HANDOFF SPAWN ACK RETIRE RELEASE REFRESH DONE; do grep -q " $p PLAN " "$T/o" && n=$((n + 1)); done
-[[ $rc -eq 0 && $n == 10 ]] && grep -q ' GATE PLAN pass: CLE-902 pid 102, 7200s old, pane %2; CLE-903 pid 103' "$T/o" &&
+[[ $rc -eq 0 && $n == 10 ]] && grep -q ' GATE PLAN pass: c-902 pid 102, 7200s old, pane %2; c-903 pid 103' "$T/o" &&
   pass "1. dry run: one PLAN line per step" || fail "1. dry: rc=$rc n=$n $(cat "$T/o")"
 [[ ! -e "$D/rotate.log" && ! -e "$D/rotate.hold" && ! -e "$D/rotate.dispatch.ctx" && ! -e "$T/spawn.log" && ! -e "$T/tmux/log" ]] &&
   pass "1. dry run: nothing written, held, renamed or spawned" || fail "1. the dry run touched something"
@@ -194,13 +194,13 @@ gate() {  # <want> <label> [env...]
 }
 world; gate "disabled" "ROTATE=0: SKIP disabled" ROTATE=0
 echo 'ROTATE_DISPATCH=0' >"$D/rotate.conf"; gate "disabled" "rotate.conf ROTATE_DISPATCH=0: SKIP disabled (FR-090)"; rm -f "$D/rotate.conf"
-world; echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "CLE-902@sat $(date +%s)" >"$D/lease"
-gate "standby (dispatch lease: CLE-902@sat)" "another machine holds the dispatch lease: SKIP standby (FR-044)"
-world; rm -rf "$T/proc/102"; "$T/bin/proc" 102 CLE-902 600; gate "young: CLE-902 pid 102 is 600s old" "a young master: SKIP young (FR-008)"
+world; echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-902@sat $(date +%s)" >"$D/lease"
+gate "standby (dispatch lease: c-902@sat)" "another machine holds the dispatch lease: SKIP standby (FR-044)"
+world; rm -rf "$T/proc/102"; "$T/bin/proc" 102 c-902 600; gate "young: c-902 pid 102 is 600s old" "a young master: SKIP young (FR-008)"
 world; date +%s >"$D/rotate.dispatch.last"; gate "young: the last rotation" "a rotation less than ROTATE_MIN_AGE ago: SKIP young"
 world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"; gate "stalled Usage limit reached" "a stalled master: SKIP stalled (FR-022)"
-grep -q 'send CLE-900 -> CLE-900 note dispatch-rotate .*ROTATION SKIP stalled' "$T/send.log" && pass "2. ... the orchestrator gets one note" || fail "2. stall note: $(cat "$T/send.log" 2>&1)"
-world; "$T/bin/proc" 112 CLE-902 7200; gate "duplicate: CLE-902 pids 102 112" "two processes on one id: SKIP duplicate"
+grep -q 'send c-900 -> c-900 note dispatch-rotate .*ROTATION SKIP stalled' "$T/send.log" && pass "2. ... the orchestrator gets one note" || fail "2. stall note: $(cat "$T/send.log" 2>&1)"
+world; "$T/bin/proc" 112 c-902 7200; gate "duplicate: c-902 pids 102 112" "two processes on one id: SKIP duplicate"
 world; ( flock 9; sleep 3 ) 9>>"$D/rotate.dispatch.lock" & sleep 0.5; gate "locked" "the lock held: SKIP locked"; wait
 # spec 061 L6: c-002 / c-003 pass the id gate (they read "no master + failover pair" before)
 world; act DRY_RUN=0 LEASE_MASTER=c-002 LEASE_FAILOVER=c-003 >"$T/o" 2>&1
@@ -217,33 +217,33 @@ act >"$T/o" 2>&1
 world; cp "$D/lease.conf" "$T/conf.before"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"; frid="${rid%-master}-failover"
-[[ $rc -eq 0 && "$rid" =~ ^[0-9]{8}T[0-9]{4}Z-master$ ]] && grep -q " $rid DONE OK fresh CLE-902" "$T/o" &&
+[[ $rc -eq 0 && "$rid" =~ ^[0-9]{8}T[0-9]{4}Z-master$ ]] && grep -q " $rid DONE OK fresh c-902" "$T/o" &&
   pass "3. rotated M and F to DONE ($rid)" || fail "3. rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
 [[ -d "$T/proc/2902" && -d "$T/proc/2903" && ! -d "$T/proc/102" && ! -d "$T/proc/103" ]] &&
-  pass "3. fresh CLE-902 and CLE-903 under the same ids; the old sessions are gone" || fail "3. procs: $(ls "$T/proc")"
-cmp -s "$D/lease.conf" "$T/conf.before" && [[ "$(holder)" == CLE-902 && ! -e "$D/rotate.hold" ]] &&
-  pass "3. lease.conf untouched (I8), the lease back on CLE-902, no hold left" || fail "3. lease=$(cat "$D/lease") conf: $(cat "$D/lease.conf")"
-grep -q 'send CLE-900 -> CLE-903 note dispatch-lease \[lease=CLE-903 hold=CLE-902\]: DISPATCH LEASE: you are now ACTIVE' "$T/send.log" &&
-  grep -q 'send CLE-900 -> CLE-902 note dispatch-lease \[lease=CLE-903 hold=CLE-902\]: DISPATCH LEASE: STANDBY' "$T/send.log" &&
+  pass "3. fresh c-902 and c-903 under the same ids; the old sessions are gone" || fail "3. procs: $(ls "$T/proc")"
+cmp -s "$D/lease.conf" "$T/conf.before" && [[ "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] &&
+  pass "3. lease.conf untouched (I8), the lease back on c-902, no hold left" || fail "3. lease=$(cat "$D/lease") conf: $(cat "$D/lease.conf")"
+grep -q 'send c-900 -> c-903 note dispatch-lease \[lease=c-903 hold=c-902\]: DISPATCH LEASE: you are now ACTIVE' "$T/send.log" &&
+  grep -q 'send c-900 -> c-902 note dispatch-lease \[lease=c-903 hold=c-902\]: DISPATCH LEASE: STANDBY' "$T/send.log" &&
   pass "3. T-DISP-ONE-HOLDER: F told ACTIVE and M STANDBY while the lease names F and M is held" || fail "3. holder: $(cat "$T/send.log")"
-grep -q "send CLE-900 -> CLE-902 task dispatch-rotate-$rid .*ROTATION $rid: you are the fresh CLE-902@box-desk. Read $D/handoff/$rid-CLE-902.md" "$T/send.log" &&
-  grep -q 'brief of CLE-902: read your inbox' "$D/handoff/$rid-CLE-902.seed.md" && grep -q "^ACK-COMMAND: .*ROTATE_CMD=ack ROTATE_ID=$rid ./run -a do_spl_dispatch_rotate" "$D/handoff/$rid-CLE-902.seed.md" &&
-  pass "3. the fresh M: seeded with its brief + the ack line, the handoff as an inbox task (FR-026)" || fail "3. seed/task: $(cat "$D/handoff/$rid-CLE-902.seed.md" 2>&1)"
-grep -q "send CLE-902 -> CLE-902 result dispatch-rotate-$rid .*ACK rotation $rid: CLE-902 pid 2902" "$T/send.log" &&
-  grep -q "send CLE-903 -> CLE-903 result dispatch-rotate-$frid .*ACK rotation $frid: CLE-903 pid 2903" "$T/send.log" &&
+grep -q "send c-900 -> c-902 task dispatch-rotate-$rid .*ROTATION $rid: you are the fresh c-902@box-desk. Read $D/handoff/$rid-c-902.md" "$T/send.log" &&
+  grep -q 'brief of c-902: read your inbox' "$D/handoff/$rid-c-902.seed.md" && grep -q "^ACK-COMMAND: .*ROTATE_CMD=ack ROTATE_ID=$rid ./run -a do_spl_dispatch_rotate" "$D/handoff/$rid-c-902.seed.md" &&
+  pass "3. the fresh M: seeded with its brief + the ack line, the handoff as an inbox task (FR-026)" || fail "3. seed/task: $(cat "$D/handoff/$rid-c-902.seed.md" 2>&1)"
+grep -q "send c-902 -> c-902 result dispatch-rotate-$rid .*ACK rotation $rid: c-902 pid 2902" "$T/send.log" &&
+  grep -q "send c-903 -> c-903 result dispatch-rotate-$frid .*ACK rotation $frid: c-903 pid 2903" "$T/send.log" &&
   pass "3. each ack = a result in its own outbox on dispatch-rotate-<rid> (FR-041)" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"
-grep -qx "rename %2 CLE-902-${rid:9:4}Z-retiring" "$T/tmux/log" && grep -q '^keys %2 /exit-clean$' "$T/tmux/log" && grep -qx 'kill %2' "$T/tmux/log" &&
+grep -qx "rename %2 c-902-${rid:9:4}Z-retiring" "$T/tmux/log" && grep -q '^keys %2 /exit-clean$' "$T/tmux/log" && grep -qx 'kill %2' "$T/tmux/log" &&
   grep -q '^keys %3 /exit-clean$' "$T/tmux/log" && grep -qx 'kill %3' "$T/tmux/log" &&
   pass "3. old windows renamed retiring, /exit-clean, closed by pane id" || fail "3. tmux: $(cat "$T/tmux/log")"
-grep -qx 'adopt CLE-902 2902' "$T/ai.log" && grep -qx 'adopt CLE-903 2903' "$T/ai.log" && pass "3. the map adopts each new pid (pokes reach the new pane)" || fail "3. adopt: $(cat "$T/ai.log")"
-grep -q "brief of CLE-903" "$D/handoff/$frid-CLE-903.seed.md" && grep -q " $frid REFRESH OK CLE-903 pid 103" "$T/o" &&
+grep -qx 'adopt c-902 2902' "$T/ai.log" && grep -qx 'adopt c-903 2903' "$T/ai.log" && pass "3. the map adopts each new pid (pokes reach the new pane)" || fail "3. adopt: $(cat "$T/ai.log")"
+grep -q "brief of c-903" "$D/handoff/$frid-c-903.seed.md" && grep -q " $frid REFRESH OK c-903 pid 103" "$T/o" &&
   pass "3. REFRESH F after M holds the lease (FR-029)" || fail "3. refresh: $(grep REFRESH "$T/o")"
 phases="$(awk -v r="$rid" '$2 == r && !seen[$3]++ {printf "%s ", $3}' "$D/rotate.log")"
 [[ "$phases" == "GATE HOLD QUIESCE HANDOFF SPAWN ACK RETIRE CLOSE RELEASE DONE " ]] &&
   pass "3. one log line per phase in rotate.log" || fail "3. phases: $phases"
-[[ -f "$S/CLE-902/inbox/m1.json" && -f "$S/CLE-902/inbox/m9.json" ]] && grep -q 'owner asks for X' "$D/handoff/$rid-CLE-902.md" &&
-  pass "3. T-MSG-IN-FLIGHT: the inbox kept both messages, the handoff lists the unread one" || fail "3. inbox: $(ls "$S/CLE-902/inbox")"
-[[ -s "$D/rotate.dispatch.last" ]] && grep -q "send CLE-900 -> CLE-900 result dispatch-rotate-$rid .*ROTATION DONE" "$T/send.log" &&
+[[ -f "$S/c-902/inbox/m1.json" && -f "$S/c-902/inbox/m9.json" ]] && grep -q 'owner asks for X' "$D/handoff/$rid-c-902.md" &&
+  pass "3. T-MSG-IN-FLIGHT: the inbox kept both messages, the handoff lists the unread one" || fail "3. inbox: $(ls "$S/c-902/inbox")"
+[[ -s "$D/rotate.dispatch.last" ]] && grep -q "send c-900 -> c-900 result dispatch-rotate-$rid .*ROTATION DONE" "$T/send.log" &&
   pass "3. DONE: rotate.dispatch.last + a result note to the orchestrator (FR-030)" || fail "3. done"
 ! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "3. no stray failing command under the ERR trap" || fail "3. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
 # 2026-10-02: DONE went to the log only, the ctx kept the failover's CLOSE,
@@ -254,33 +254,33 @@ grep -q ' GATE SKIP young' "$T/o" && ! grep -q RESUME "$T/o" &&
   pass "3. the next run gates afresh, no RESUME" || fail "3. next run: $(cat "$T/o")"
 
 # --- 4. T-DISP-ACK-FAIL ----------------------------------------------------------------------
-world; echo no >"$T/ack.mode.CLE-902"
+world; echo no >"$T/ack.mode.c-902"
 act DRY_RUN=0 ROTATE_ACK_TIMEOUT=2 >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 ]] && grep -q ' FAIL FAIL ACK: no ack within 2s' "$T/o" && [[ -d "$T/proc/102" && ! -d "$T/proc/2902" ]] &&
   pass "4. no ack: the fresh M closed, the old M (pid 102) kept" || fail "4. rc=$rc $(cat "$T/o")"
-[[ "$(holder)" == CLE-902 && ! -e "$D/rotate.hold" ]] && grep -q $'^%2\t102\t$0\tCLE-902@box > dispatcher$' "$T/tmux/panes" &&
-  [[ "$(tail -1 "$T/ai.log")" == "adopt CLE-902 102" ]] && pass "4. the hold removed, the lease, the window name and the map back on the old M" ||
+[[ "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] && grep -q $'^%2\t102\t$0\tc-902@box > dispatcher$' "$T/tmux/panes" &&
+  [[ "$(tail -1 "$T/ai.log")" == "adopt c-902 102" ]] && pass "4. the hold removed, the lease, the window name and the map back on the old M" ||
   fail "4. lease=$(cat "$D/lease") $(cat "$T/tmux/panes")"
-grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=CLE-902 ASK_TOPIC=dispatch-rotate-" "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
+grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rotate-" "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
   pass "4. ALERT: one ask + one owner DM (FR-075)" || fail "4. alert: $(cat "$T/run.log")"
 [[ ! -e "$T/proc/2903" && -d "$T/proc/103" ]] && ! grep -q REFRESH "$D/rotate.log" && pass "4. no refresh after a failed master" || fail "4. refreshed anyway"
 
 # --- 5. a failed F refresh ------------------------------------------------------------------
-world; echo no >"$T/ack.mode.CLE-903"
+world; echo no >"$T/ack.mode.c-903"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 && -d "$T/proc/2902" && -d "$T/proc/103" && ! -d "$T/proc/2903" && "$(holder)" == CLE-902 ]] &&
-  grep -q 'DONE WAIT fresh CLE-902; the CLE-903 refresh failed' "$T/o" && grep -q "ASK_FROM=CLE-903 ASK_TOPIC=dispatch-rotate-.*-failover" "$T/run.log" &&
+[[ $rc -ne 0 && -d "$T/proc/2902" && -d "$T/proc/103" && ! -d "$T/proc/2903" && "$(holder)" == c-902 ]] &&
+  grep -q 'DONE WAIT fresh c-902; the c-903 refresh failed' "$T/o" && grep -q "ASK_FROM=c-903 ASK_TOPIC=dispatch-rotate-.*-failover" "$T/run.log" &&
   pass "5. F refresh fails: the old F kept and alerted, M stays fresh" || fail "5. rc=$rc $(cat "$T/o")"
 
 # --- 6. T-DISP-HEAL ----------------------------------------------------------------------------
 world; rm -rf "$T/proc/103"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && -d "$T/proc/203" && -d "$T/proc/102" ]] && grep -q 'HEAL OK running again: CLE-903' "$T/o" &&
-  grep -q 'do_spl_dispatch_setup .*DISPATCH_MASTER=CLE-902' "$T/run.log" && [[ ! -e "$T/spawn.log" && ! -e "$D/rotate.hold" ]] &&
+[[ $rc -eq 0 && -d "$T/proc/203" && -d "$T/proc/102" ]] && grep -q 'HEAL OK running again: c-903' "$T/o" &&
+  grep -q 'do_spl_dispatch_setup .*DISPATCH_MASTER=c-902' "$T/run.log" && [[ ! -e "$T/spawn.log" && ! -e "$D/rotate.hold" ]] &&
   pass "6. a missing failover: do_spl_dispatch_setup spawns it, nothing else this run (FR-021)" || fail "6. rc=$rc $(cat "$T/o")"
 
 # --- 7. T-DISP-ACK-SOURCE ----------------------------------------------------------------------
-world; echo no >"$T/ack.mode.CLE-902"
+world; echo no >"$T/ack.mode.c-902"
 ( act DRY_RUN=0 ROTATE_ACK_TIMEOUT=5 >"$T/o" 2>&1 ) & sleep 3
 rid="$(ctx ROTATE_RID)"
 act ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=102 >"$T/a" 2>&1; rc=$?
@@ -295,38 +295,38 @@ world
 able() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" LEASE_PROC_ROOT="$T/proc" LEASE_PANE_CMD="$T/bin/footer" bash -c '
     do_log() { echo "$*"; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init
-    echo "able=[$(spl_lease_agent_able CLE-902)] why=[$(cat "$LEASE_DIR/able.CLE-902")]"'
+    echo "able=[$(spl_lease_agent_able c-902)] why=[$(cat "$LEASE_DIR/able.c-902")]"'
 }
-echo "CLE-902 $(date +%s) 20261002T0515Z-master" >"$D/rotate.hold"
+echo "c-902 $(date +%s) 20261002T0515Z-master" >"$D/rotate.hold"
 [[ "$(able)" == "able=[] why=[held: rotation since "* ]] && pass "8. a held master is not able (renew, watch, fleet candidate skip it)" || fail "8. gate: $(able)"
-echo "CLE-903 $(date +%s)" >"$D/rotate.hold"
+echo "c-903 $(date +%s)" >"$D/rotate.hold"
 [[ "$(able)" == "able=[102] why=[able]" ]] && pass "8. a hold on another id leaves the master able" || fail "8. other: $(able)"
-echo "CLE-902 $(( $(date +%s) - 4000 )) x" >"$D/rotate.hold"; able >/dev/null
-[[ "$(able)" == "able=[102] why=[able]" && "$(grep -c 'rotate.hold on CLE-902 is .* ignored' "$D/lease.log")" == 1 ]] &&
+echo "c-902 $(( $(date +%s) - 4000 )) x" >"$D/rotate.hold"; able >/dev/null
+[[ "$(able)" == "able=[102] why=[able]" && "$(grep -c 'rotate.hold on c-902 is .* ignored' "$D/lease.log")" == 1 ]] &&
   pass "8. a hold older than ROTATE_HOLD_MAX is ignored, logged once (FR-024)" || fail "8. stale: $(able) $(cat "$D/lease.log" 2>&1)"
 
 # --- 9. resume + abort -----------------------------------------------------------------------------
 # a run killed at ACK: rebuild that state by hand (old 102 + new 2902, hold, ctx ACK)
 at_ack() {
-  world; echo no >"$T/ack.mode.CLE-902"
+  world; echo no >"$T/ack.mode.c-902"
   act DRY_RUN=0 ROTATE_ACK_TIMEOUT=1 >/dev/null 2>&1
   rid="$(ctx ROTATE_RID)"
-  "$T/bin/proc" 2902 CLE-902 0; printf '%%2902\t2902\t$0\tCLE-902@box\n' >>"$T/tmux/panes"; echo 2902 >"$T/ai.CLE-902"
-  echo "CLE-902 $(date +%s) $rid" >"$D/rotate.hold"; echo "CLE-903 $(date +%s)" >"$D/lease"
+  "$T/bin/proc" 2902 c-902 0; printf '%%2902\t2902\t$0\tc-902@box\n' >>"$T/tmux/panes"; echo 2902 >"$T/ai.c-902"
+  echo "c-902 $(date +%s) $rid" >"$D/rotate.hold"; echo "c-903 $(date +%s)" >"$D/lease"
   sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=ACK/; s/^ROTATE_NEW_PID=.*/ROTATE_NEW_PID=2902/; s/^ROTATE_NEW_PANE=.*/ROTATE_NEW_PANE=%2902/' "$D/rotate.dispatch.ctx"
 }
 at_ack
 act ROTATE_CMD=abort DRY_RUN=0 >"$T/o" 2>&1
-grep -q ' ABORT ABORT at ACK by hand' "$T/o" && [[ ! -d "$T/proc/2902" && -d "$T/proc/102" && ! -e "$D/rotate.hold" && "$(holder)" == CLE-902 ]] &&
+grep -q ' ABORT ABORT at ACK by hand' "$T/o" && [[ ! -d "$T/proc/2902" && -d "$T/proc/102" && ! -e "$D/rotate.hold" && "$(holder)" == c-902 ]] &&
   pass "9. abort (FR-091): the new one closed, the hold removed, the old M keeps the lease" || fail "9. abort: $(cat "$T/o") lease=$(cat "$D/lease")"
 at_ack
-"$T/bin/send" --from CLE-902 --to CLE-902 --kind result --task "dispatch-rotate-$rid" --body ack
+"$T/bin/send" --from c-902 --to c-902 --kind result --task "dispatch-rotate-$rid" --body ack
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && grep -q " RESUME OK from ACK (old alive=1, new alive=1)" "$T/o" && [[ ! -d "$T/proc/102" && "$(holder)" == CLE-902 && ! -e "$D/rotate.hold" ]] &&
+[[ $rc -eq 0 ]] && grep -q " RESUME OK from ACK (old alive=1, new alive=1)" "$T/o" && [[ ! -d "$T/proc/102" && "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] &&
   grep -q " $rid DONE OK" "$T/o" && pass "9. resumed at ACK with its ack on disk: retired, released, refreshed, DONE (FR-003)" || fail "9. resume rc=$rc $(cat "$T/o")"
 # the live shape of 2026-10-02 13:15Z: a ctx left at the failover's CLOSE
 # (old gone, new alive) is closed once, ends at DONE, and is not resumed again
-world; "$T/bin/proc" 2903 CLE-903 0; printf '%%2903\t2903\t$0\tCLE-903@box\n' >>"$T/tmux/panes"; echo 2903 >"$T/ai.CLE-903"
+world; "$T/bin/proc" 2903 c-903 0; printf '%%2903\t2903\t$0\tc-903@box\n' >>"$T/tmux/panes"; echo 2903 >"$T/ai.c-903"
 rm -rf "$T/proc/103"; date +%s >"$D/rotate.dispatch.last"
 printf 'ROTATE_RID=20261002T1100Z-failover\nROTATE_PHASE=CLOSE\nROTATE_OLD_PID=103\nROTATE_OLD_PANE=%%3\nROTATE_NEW_PID=2903\nROTATE_NEW_PANE=%%2903\n' >"$D/rotate.dispatch.ctx"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?

@@ -216,11 +216,20 @@ func (s *Postgres) FlowFanout(ctx context.Context, tenant, msgID string, members
 
 // flowMarkSweepSQL deletes the f:<msg_id> marks whose message is gone
 // ($1 now, $2 the chunk): the Flow's per-entry read state goes with its
-// line, as flow_events do by FK.
-const flowMarkSweepSQL = `DELETE FROM read_marks WHERE (tenant_id, member_id, mark_key) IN (
-		SELECT r.tenant_id, r.member_id, r.mark_key FROM read_marks r
-		WHERE r.mark_key LIKE 'f:%' AND r.mark_key <> 'f:seen' AND r.updated_at <= $1
-		  AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = r.tenant_id
-			AND m.msg_id = CASE WHEN substr(r.mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-				THEN substr(r.mark_key, 3)::uuid END)
-		LIMIT $2)`
+// line, as flow_events do by FK. The msg_id is computed in r BEFORE the
+// anti-join (perf 20261004 E01): under RLS a CASE/regex/cast inside NOT
+// EXISTS is not leakproof, so it could not be an index condition and every
+// mark filtered the tenant's whole messages table; r.msg_id is a plain column,
+// one messages_pkey probe per mark. A non-uuid key stays NULL, matches nothing
+// and is deleted as before. gone is materialized once, so the DELETE does not
+// re-run the anti-join per read_marks row.
+const flowMarkSweepSQL = `WITH r AS MATERIALIZED (
+		SELECT tenant_id, member_id, mark_key,
+			CASE WHEN substr(mark_key, 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+				THEN substr(mark_key, 3)::uuid END AS msg_id
+		FROM read_marks WHERE mark_key LIKE 'f:%' AND mark_key <> 'f:seen' AND updated_at <= $1),
+	gone AS MATERIALIZED (SELECT r.tenant_id, r.member_id, r.mark_key FROM r
+		WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = r.tenant_id AND m.msg_id = r.msg_id)
+		LIMIT $2)
+	DELETE FROM read_marks d USING gone g
+	WHERE d.tenant_id = g.tenant_id AND d.member_id = g.member_id AND d.mark_key = g.mark_key`

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -126,12 +127,8 @@ func threadReadSQL(a, tenant, reader string) string {
 
 func (s *Postgres) ReadMarksOf(ctx context.Context, tenant, humanID string) (map[string]ReadMark, error) {
 	out := map[string]ReadMark{}
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT mark_key, at, msg_id, seen FROM read_marks WHERE tenant_id = $1 AND member_id = $2`, tenant, humanID)
-		if err != nil {
-			return err
-		}
-		return scanRows(rows, func(r pgx.Rows) error {
+	err := s.queryTenant(ctx, tenant, `SELECT mark_key, at, msg_id, seen FROM read_marks WHERE tenant_id = $1 AND member_id = $2`,
+		[]any{tenant, humanID}, func(r pgx.Rows) error {
 			var k string
 			var m ReadMark
 			if err := r.Scan(&k, &m.At, &m.MsgID, &m.Seen); err != nil {
@@ -140,7 +137,6 @@ func (s *Postgres) ReadMarksOf(ctx context.Context, tenant, humanID string) (map
 			out[k] = m
 			return nil
 		})
-	})
 	return out, err
 }
 
@@ -148,19 +144,29 @@ func (s *Postgres) SaveReadMarks(ctx context.Context, tenant, humanID string, ma
 	if len(marks) == 0 {
 		return nil
 	}
+	// One lock order: two writes of one member (two devices, two tabs) that
+	// share keys take their row locks in sorted key order, so one waits for
+	// the other instead of deadlocking it (a Go map ranges in random order:
+	// prd 2026-10-04, 47 x 40P01 in 24 h).
 	keys := make([]string, 0, len(marks))
+	for k := range marks {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	ats := make([]time.Time, 0, len(marks))
 	ids := make([]string, 0, len(marks))
 	seen := make([]int, 0, len(marks))
-	for k, m := range marks {
-		keys, ats, ids, seen = append(keys, k), append(ats, m.At), append(ids, strings.TrimSpace(m.MsgID)), append(seen, max(0, m.Seen))
+	for _, k := range keys {
+		m := marks[k]
+		ats, ids, seen = append(ats, m.At), append(ids, strings.TrimSpace(m.MsgID)), append(seen, max(0, m.Seen))
 	}
-	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		// spec 062 FR-007: the write announces "<tenant>|f:<member>" on the
-		// browser wake channel (sent on commit), so every hub process pushes
-		// that member's sockets their new flow counts.
-		_, err := tx.Exec(ctx, `WITH up AS (INSERT INTO read_marks (tenant_id, member_id, mark_key, at, msg_id, seen, updated_at)
-			SELECT $1, $2, k, a, i, n, $7 FROM unnest($3::text[], $4::timestamptz[], $5::text[], $6::int[]) AS u(k, a, i, n)
+	// One batch, one round trip: the tenant scope and the upsert run as one
+	// implicit transaction (inTenant paid BEGIN, scope, upsert, COMMIT).
+	// spec 062 FR-007: the write announces "<tenant>|f:<member>" on the
+	// browser wake channel (sent on commit), so every hub process pushes that
+	// member's sockets their new flow counts.
+	_, err := s.execTenant(ctx, tenant, `WITH up AS (INSERT INTO read_marks (tenant_id, member_id, mark_key, at, msg_id, seen, updated_at)
+			SELECT $1, $2, k, a, i, n, $7 FROM unnest($3::text[], $4::timestamptz[], $5::text[], $6::int[]) AS u(k, a, i, n) ORDER BY k
 			ON CONFLICT (tenant_id, member_id, mark_key) DO UPDATE SET
 				at = CASE WHEN (EXCLUDED.at, EXCLUDED.msg_id) > (read_marks.at, read_marks.msg_id) THEN EXCLUDED.at ELSE read_marks.at END,
 				msg_id = CASE WHEN (EXCLUDED.at, EXCLUDED.msg_id) > (read_marks.at, read_marks.msg_id) THEN EXCLUDED.msg_id ELSE read_marks.msg_id END,
@@ -168,7 +174,6 @@ func (s *Postgres) SaveReadMarks(ctx context.Context, tenant, humanID string, ma
 				updated_at = EXCLUDED.updated_at
 			RETURNING 1)
 			SELECT pg_notify('`+WUIWakeChannel+`', $1 || '|f:' || $2), (SELECT count(*) FROM up)`,
-			tenant, humanID, keys, ats, ids, seen, now)
-		return err
-	})
+		tenant, humanID, keys, ats, ids, seen, now)
+	return err
 }

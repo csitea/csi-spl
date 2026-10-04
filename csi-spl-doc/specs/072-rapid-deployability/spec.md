@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.8** (the version log is at the end of section 9). Lead
+Status: **draft v0.9** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -241,6 +241,7 @@ Each row is the contributor's claim with its check; the full walk is in the file
 | F29 | The release has 0 assets, the compose file needs the tree (`pg-init.sh` bind mount), nothing is signed or checksummed, and the stable is proven on Cloud Run, not on the compose path a client runs | research/15 B1, B2, B5, B6 | `gh release view stable-2026-09-29 --json assets`; `docker-compose.yml:36` |
 | F30 | Migrations: no lint for duplicate prefixes or edited applied files; the hub starts on a schema behind its image | research/07 | research/07 D3, D4 |
 | F31 | Hosted path (047 path B, not a deployment, recorded for its owner): workflow 40 is `disabled_manually` although its header says revived, and a bought tenant gets no box-wui pin, so its browser posts reach no agent | research/08 B5, 13 B1, B2 | `gh workflow list --all \| grep '^40'`; `dispatch.go:157` `wui_unpinned` |
+| F32 | The one loop over every step runs them in **lexical** order, so 005 plans before 025 (its DNS zone) and 030 before 028 / 040 (its registry and database): a from-zero sweep stops at the first dependent step | research/a2 B8 | `grep -n '| sort)' csi-spl-orc/src/bash/run/tf-sweep-steps.func.sh` -> line 73 |
 
 ## 5. Gap table
 
@@ -358,8 +359,9 @@ Same shape as the table above; the source column names the research file and its
 | **A60** | **Protect the public trunk before contributors arrive**: `do_oss_public_settings` checks and (owner's go) sets a master ruleset: no force-push, no deletion, wf 11 required, a pull request needs one maintainer review; the fleet's push identity may bypass. Today the public trunk has **no** branch protection | 14 O2 | P3+ (US1 step 4) | orc | S | the action prints `OK master ruleset`; its test stubs a repo with no ruleset and reads `FAIL`; research 14: branch protection API -> 404, 0 rulesets |
 | **A61** | **A contributor knows the rules before the first push**: the DCO either checked on fork pull requests in wf 11 or dropped from CONTRIBUTING; issue and PR templates (path, `/version`, tree; test run, cheap gate); a short untrusted-input doc linked from SECURITY.md and CONTRIBUTING; SECURITY.md states the known limitation (any tenant member can prompt any agent of that tenant until the prompt allow-list lands) | 14 O4, O5, O7, O11 | P3+ | docs + CI | XS each | an unsigned fork commit fails wf 11 naming the fix (or `grep -c DCO CONTRIBUTING.md` -> 0); `gh api repos/<owner>/<repo>/community/profile --jq .health_percentage` -> 100 |
 | **A62** | **Open-source hygiene that keeps itself**: spec 044 restated for the one-repo reality; the export gate as a hosted ratchet in wf 11 (a new fleet id in product code fails with class, file and line), then the 1587 fleet-id hits driven to 0 per package; licence files and SPDX headers; the open false-positive secret-scanning alert triaged; Dependabot grouped with a weekly lane | 14 O1, O3, O6, O8-O10 | all | orc + docs + CI | XS-M per item | the O9 ratchet fails a planted fleet id on a throwaway branch; `grep -c 'NEW public repo' csi-spl-doc/specs/README.md` -> 0; open secret-scanning alerts -> 0 |
+| **A63** | **Evaluate on GCP with no mail relay and no Stripe**: the template sets `SPOOL_HUB_MAIL_TRANSPORT: log` (invite and confirmation links go to Cloud Logging, as lde does) and payments off; `do_spl_estate_up` prints where to read the links; a real relay is one key later | research/a2 Q4 | P2 | cnf + docs | XS | a template-rendered env has `SPOOL_HUB_MAIL_TRANSPORT: log`; the hub boots with no SMTP values (`grep -n MAIL_TRANSPORT csi-spl-cnf/csi-spl/lde.env.yaml` -> `"log"` is the working precedent) |
 
-Also from the research, folded into existing rows rather than new ones: 02 G1-G9 -> A8, A10, A18-A20, A9; 03 A2, A4-A6, A8 -> A9, A18, A14, A8, A7; 04 C6-C7 -> A7; 05 H2-H8 -> A21-A25; 06 W1-W8 -> A3, A8, A23, A24, A26; 07 D1, D5-D8 -> A6, A8, A9, A25; 08 D4, D5 -> A2, A7; 09 K9, K10 -> A2, A15; 12 C5-C7 -> A16, A24, A15; 13 N4, N6 -> A7, A16; 15 C3, C5, C7 -> A3, A4, A6; 10 A4, A5, A20, A21, A24 -> A4, A5; 11 M2, M9 -> A17, A15; 16 R4, R6-R8 -> A37, A4, A39; 17 N17.3, N17.4 -> A21, A6; 18 D1 -> A15; 19 items 1-9 -> A2-A7, A15.
+Also from the research, folded into existing rows rather than new ones: 02 G1-G9 -> A8, A10, A18-A20, A9; 03 A2, A4-A6, A8 -> A9, A18, A14, A8, A7; 04 C6-C7 -> A7; 05 H2-H8 -> A21-A25; 06 W1-W8 -> A3, A8, A23, A24, A26; 07 D1, D5-D8 -> A6, A8, A9, A25; 08 D4, D5 -> A2, A7; 09 K9, K10 -> A2, A15; 12 C5-C7 -> A16, A24, A15; 13 N4, N6 -> A7, A16; 15 C3, C5, C7 -> A3, A4, A6; 10 A4, A5, A20, A21, A24 -> A4, A5; 11 M2, M9 -> A17, A15; 16 R4, R6-R8 -> A37, A4, A39; 17 N17.3, N17.4 -> A21, A6; 18 D1 -> A15; 19 items 1-9 -> A2-A7, A15; a2 (a-184) B1-B10 and its actions confirm A1, A3-A5, A7-A10, A14, A15, A18 and their order (A8 + A7 first for a client).
 
 **Not in this spec's scope (hosted path B), handed to the orchestrator for their owners:** research 13 N1 (the owner enables workflow 40) and N2 (pin box-wui when a bought tenant is claimed); research 08 D7 (a check that workflow headers match GitHub's enabled state); research 05 H1 (the version odometer at `9.9.9`). Parked with the cloud-layer topic (3.1): research 17 N17.2 (an S3-compatible blob store) and research 11 M6, M8 (fleet ranking through the hub, a GitHub identity per machine), which are fleet operations, not deployability.
 
@@ -459,6 +461,7 @@ of the table below, which keeps its ids for reference.
 | any | L54 | A59: docs that stay true + weekly newcomer walk | READMEs, CONTRIBUTING, a new weekly workflow | - |
 | 1 | L55 | A60 + A61: trunk ruleset (owner go), contributor rules | `oss-public-settings.func.sh`, wf 11, CONTRIBUTING, SECURITY.md, `.github/` templates | D16 |
 | any | L56 | A62: open-source hygiene (one sub-lane per item) | spec 044 files, wf 11 gate job, licence files, `.github/dependabot.yml` | - |
+| 2 | L57 | A63: evaluation mode for a P2 estate | the cnf template mail/payment keys, `DEPLOY.md` | L15 |
 
 ## 8. Decisions needed from the owner
 
@@ -557,3 +560,4 @@ rule, and logs it below.
 | v0.6 | owner `fe7fd2b9`: the four cloud-layer decisions recorded in 3.1 (scope, factory shape, self-host first then AWS, GCP default); P1 first now cites it | c-165 |
 | v0.7 | owner D4 answered (`af863518`); 8.1 the 15-question list for the owner (`85a28d38`) | c-165 |
 | v0.8 | research 20 (c-176): A16 becomes the clean-room estate in the one throwaway project (CR1-CR8) | c-165 |
+| v0.9 | research a2 (a-184, client walk): F32 (lexical step order), A63 (evaluate without a mail relay), lane L57; the rest confirms existing actions | c-165 |

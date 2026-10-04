@@ -49,17 +49,18 @@ export default defineNuxtPlugin({
       if (known) return known
       const loader = moreLoader(code)
       const p = loader
-        ? loader()
-            .then((m) => {
+        ? (async () => {
+            try {
+              const m = await loader()
               // a failed chunk can come back as undefined (Vite's preload wrapper)
               if (!m?.default) throw new Error('no module')
               i18n.mergeLocaleMessage(code, m.default)
-            })
-            .catch((e) => {
+            } catch (e) {
               // a failed chunk is retried on the next need; keys show meanwhile
               loads.delete(code)
               console.error('[i18n-more] load failed', code, e)
-            })
+            }
+          })()
         : Promise.resolve()
       loads.set(code, p)
       return p

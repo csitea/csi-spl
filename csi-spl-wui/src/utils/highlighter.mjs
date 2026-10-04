@@ -53,17 +53,18 @@ let autodetectPromise = null
 /** The configured highlight.js core, loaded once. */
 function engine() {
   if (!enginePromise) {
-    enginePromise = import('highlight.js/lib/core')
-      .then((m) => {
+    enginePromise = (async () => {
+      try {
+        const m = await import('highlight.js/lib/core')
         const hl = m.default
         hl.configure({ __emitter: createTokenEmitter(), classPrefix: 'hljs-' })
         return hl
-      })
-      .catch((err) => {
+      } catch (err) {
         // a failed chunk must degrade to plain text, not break the feed
         enginePromise = null
         throw err
-      })
+      }
+    })()
   }
   return enginePromise
 }

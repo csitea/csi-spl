@@ -15,15 +15,16 @@ const cache = new Map<string, Ref<DmRef | null>>()
 export function useDmRef() {
   const api = useSpoolApi()
 
-  function load(id: string, out: Ref<DmRef | null>) {
-    void withSessionRetry(api, () => api.getTopic(id, { limit: 1 }))
-      .then((data) => {
-        const rows = ((data as { messages?: SpoolMessage[] }).messages || [])
-        const root = rows.find((m) => String(m.task_id || '') === id) || rows[0]
-        const channel = String((root && root.channel) || '').replace(/^#/, '')
-        if (channel) out.value = { channel, title: topicTitleFromRows(rows, null) }
-      })
-      .catch(() => { cache.delete(id) /* a later card may retry; none shows meanwhile */ })
+  async function load(id: string, out: Ref<DmRef | null>) {
+    try {
+      const data = await withSessionRetry(api, () => api.getTopic(id, { limit: 1 }))
+      const rows = ((data as { messages?: SpoolMessage[] }).messages || [])
+      const root = rows.find((m) => String(m.task_id || '') === id) || rows[0]
+      const channel = String((root && root.channel) || '').replace(/^#/, '')
+      if (channel) out.value = { channel, title: topicTitleFromRows(rows, null) }
+    } catch {
+      cache.delete(id) /* a later card may retry; none shows meanwhile */
+    }
   }
 
   /** The topic a DM row is about, once read; null until then or when unreadable. */
@@ -33,7 +34,7 @@ export function useDmRef() {
     if (!hit) {
       hit = shallowRef<DmRef | null>(null)
       cache.set(id, hit)
-      if (id) load(id, hit)
+      if (id) void load(id, hit)
     }
     return hit
   }

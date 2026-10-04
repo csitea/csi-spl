@@ -67,6 +67,11 @@ type Tenant struct {
 	// "" = unset = everyone, else an ArchivePolicy* value. It rides the cached
 	// tenant row so archive and /v1/view/me read it with no extra round trip.
 	TopicArchivePolicy string
+	// SuspendedAt / ArchivedAt (rdb 0115, spec 074): set by the operator
+	// workspace. Zero = live. A suspended workspace's doors answer 403
+	// workspace_suspended; archived = soft-deleted (also suspended).
+	SuspendedAt time.Time
+	ArchivedAt  time.Time
 }
 
 func normalizeTenant(t *Tenant) error {

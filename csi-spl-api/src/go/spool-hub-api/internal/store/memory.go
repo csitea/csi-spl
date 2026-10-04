@@ -55,6 +55,8 @@ type Memory struct {
 	// tenant_settings.go (rdb 0109): vendor split, guarded by mu. Missing = the default.
 	agentSplit map[string]AgentSplit
 	wake       memWake // wake.go (spec 059 S1), its own lock
+	// operator_workspaces.go (rdb 0115): operator_audit rows, guarded by mu
+	opAudit []OperatorAudit
 }
 
 type memPin struct {

@@ -27,6 +27,8 @@ type Postgres struct {
 	seats seatsProbe
 	// access: is rdb 0113 tenant_memberships.access_until there yet (access_until.go)
 	access seatsProbe
+	// wsState: is rdb 0115 tenants.suspended_at there yet (operator_workspaces.go)
+	wsState seatsProbe
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps
@@ -145,17 +147,18 @@ func (s *Postgres) GetTenant(ctx context.Context, id string) (Tenant, error) {
 func (s *Postgres) getTenant(ctx context.Context, id string) (Tenant, error) {
 	var t Tenant
 	var root []byte
-	var bought *time.Time
+	var bought, sus, arc *time.Time
 	err := s.queryRowTenant(ctx, id, `SELECT tenant_id, root_pubkey, billing_status, plan_id,
 		COALESCE(org, ''), COALESCE(app, ''), COALESCE(project_id, ''), bought_at, seats_users, seats_bots,
-		COALESCE(topic_archive_policy, '')
+		COALESCE(topic_archive_policy, ''), `+workspaceStateCols(s.hasWorkspaceState(ctx))+`
 		FROM tenants WHERE tenant_id = $1`,
 		[]any{id}, &t.ID, &root, &t.BillingStatus, &t.PlanID,
-		&t.Org, &t.App, &t.ProjectID, &bought, &t.SeatsUsers, &t.SeatsBots, &t.TopicArchivePolicy)
+		&t.Org, &t.App, &t.ProjectID, &bought, &t.SeatsUsers, &t.SeatsBots, &t.TopicArchivePolicy, &sus, &arc)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Tenant{}, ErrNotFound
 	}
 	t.RootPubKey = ed25519.PublicKey(root)
+	t.SuspendedAt, t.ArchivedAt = timeOf(sus), timeOf(arc)
 	if bought != nil {
 		t.BoughtAt = bought.UTC()
 	}

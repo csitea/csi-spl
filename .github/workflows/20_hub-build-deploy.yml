@@ -713,13 +713,14 @@ jobs:
   # ---------------------------------------------------------------------------
   # verify: post-deploy HTTPS smoke of the acceptance endpoints (22, reusable)
   # ---------------------------------------------------------------------------
-  # Runs after deploy whatever deploy did (ran, skipped, stood down): the
-  # endpoints are the product's, not the deploy's. Not-reachable-yet is a
-  # warning inside 22, a wrong answer is red. Not run when the tests failed.
+  # Runs only after a deploy that succeeded (spec 072 A34): a skipped deploy
+  # (a fork with no WIF variables, a stand-down) probes nothing. always() keeps
+  # it evaluable after a skipped sibling; the estate guard keeps a fork off OUR
+  # hosts. Not-reachable-yet is a warning inside 22, a wrong answer is red.
   verify:
     name: Post-deploy smoke
     needs: [test, prepare-deploy, deploy]
-    if: always() && needs.test.result == 'success' && needs.prepare-deploy.result == 'success'
+    if: always() && needs.test.result == 'success' && needs.prepare-deploy.result == 'success' && needs.deploy.result == 'success' && (vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl')
     permissions:
       contents: read
     uses: ./.github/workflows/22_deploy-verify.yml

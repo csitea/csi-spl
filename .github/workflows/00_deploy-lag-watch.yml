@@ -69,6 +69,9 @@ permissions:
 jobs:
   targets:
     name: Which envs can be asked
+    # Estate guard (spec 072 A34): this job reads or changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -195,6 +198,9 @@ jobs:
   # ---------------------------------------------------------------------------
   lag:
     name: Does ${{ matrix.environment }} serve this commit?
+    # Estate guard (spec 072 A34): this job reads or changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:

@@ -29,6 +29,9 @@ concurrency:
 jobs:
   headers:
     name: "sec: security headers vs dev"
+    # Estate guard (spec 072 A34): this job reads or changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -41,6 +44,9 @@ jobs:
 
   zap:
     name: "sec: OWASP ZAP baseline vs dev"
+    # Estate guard (spec 072 A34): this job reads or changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

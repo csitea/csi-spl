@@ -1,0 +1,6 @@
+Lay-What: The server can now remember, per workspace, whether you want the message keyboard shortcuts on or off.
+Lay-How: A new switch value is saved with your other personal settings and sent back when you sign in.
+Lay-Why: The upcoming Keyboard shortcuts switch in Settings needs somewhere to keep your choice.
+Tech-What: auth preferences gain keyboard_shortcuts (true, false or null = on), answered by GET /session and the native login.
+Tech-How: Stored only in the tenant_memberships.settings jsonb override (rdb 0078) like time_zone; parseKeyboardShortcuts validates, Overlay applies it.
+Tech-Why: A per-tenant jsonb key needs no DDL, so the hub can ship before the WUI without a migration.

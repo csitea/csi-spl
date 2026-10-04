@@ -30,6 +30,12 @@ T=$(mktemp -d)
 trap 'sudo -n rm -rf "$T" 2>/dev/null || rm -rf "$T"' EXIT
 # the outsider must be able to reach the spool root's parent, as on /var
 chmod 711 "$T"
+# a TMPDIR under a closed home (a hosted runner's RUNNER_TEMP below a 0750
+# /home/runner) hides the tree from the outsider, so the controls in 1 and 3
+# would fail for the path, not the model: move to /tmp, which anyone traverses
+if sudo -n true 2>/dev/null && id nobody >/dev/null 2>&1 && ! sudo -n -u nobody test -x "$T" 2>/dev/null; then
+  rm -rf "$T"; T=$(mktemp -d /tmp/spool-permissions.XXXXXX); chmod 711 "$T"
+fi
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" LDE_STATE_DIR="$T/state" "$@" bash -c '

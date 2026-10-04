@@ -154,7 +154,8 @@ _sai_check_migrate() {
   local out n files
   out=$(lde_compose run --rm --no-deps -T hub migrate 2>&1) || { _sai_record migrate FAIL "first run: $(tail -3 <<<"$out" | tr '\n' ' ')"; return; }
   out=$(lde_compose run --rm --no-deps -T hub migrate 2>&1) || { _sai_record migrate FAIL "re-run is not a no-op: $(tail -3 <<<"$out" | tr '\n' ' ')"; return; }
-  files=$(find "$LDE_STATE_DIR/hub-ctx/sql" -name '*.sql' | wc -l)
+  # what hub.Dockerfile bundles (spl_hub_image_matches_cnf holds it to cnf sql_src)
+  files=$(find "$LDE_SQL_SRC" -maxdepth 1 -name '*.sql' | wc -l)
   n=$(lde_compose exec -T pg psql -U "$LDE_PG_USER" -d "$LDE_PG_DB" -Atc 'select count(*) from spool_schema_migrations' 2>&1)
   [[ "$n" =~ ^[0-9]+$ && "$n" -eq "$files" && "$files" -gt 0 ]] \
     && _sai_record migrate PASS "$n/$files migrations recorded in spool_schema_migrations; re-run no-op" \

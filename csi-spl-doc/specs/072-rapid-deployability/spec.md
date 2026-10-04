@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.14** (the version log is at the end of section 9). Lead
+Status: **draft v0.15** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -405,21 +405,20 @@ of the table below, which keeps its ids for reference.
 
 | order | lane | action | 2.1 step |
 |---|---|---|---|
-| 0 | L59 | A65 the in-app connect guide shows its block again (a live bug, F38) | 3 |
-| 1 | L5, then L33 | A13 fork CI on GitHub-hosted runners, then A34 estate guard (a fork never touches our estate) | 4 |
-| 2 | L6 | A15 first cut, with the contributor section of A28 | 1 |
-| 2a | L31 | A46 contributor dev stack, Docker only | 4 |
-| 2e | L59 | A65 true agent-connect help, A66 hub tests on a fresh clone | 3, 4 |
-| 2b | L32 | A35 one gate for push and pull request | 4 |
-| 2d | L55 | A60 trunk ruleset (owner go), A61 contributor rules | 4 |
-| 2c | L45 | A49 installer writes no fleet config by default, A50 installer errors a stranger owns | 3 |
-| 3 | L3, then L8 | A4 the `spool` CLI as a release asset, the installer downloads it | 3 |
-| 4 | L26 | A27 membership that expires | 2 |
-| 5 | L17 | A5 join tokens (spec first, then hub, WUI, CLI) | 3 |
-| 6 | L1 | A3 WUI runtime config | 5 |
-| 7 | L25, then L2, then L7 | A21 one hub image, A1 publish to GHCR, compose pulls | 5 |
-| 8 | L9 | A2 `spool-up` with preflight | 5 |
-| 9 | L30 | A28 final + A29 newcomer test, run to step 5 | all |
+| 1 | L59 | A65 the in-app connect guide shows its block again (a live bug, F38) | 3 |
+| 2 | L5, then L33 | A13 fork CI on GitHub-hosted runners, then A34 estate guard (a fork never touches our estate) | 4 |
+| 3 | L6 | A15 first cut, with the contributor section of A28 | 1 |
+| 4 | L31 | A46 contributor dev stack, Docker only | 4 |
+| 5 | L32 | A35 one gate for push and pull request | 4 |
+| 6 | L45 | A49 installer writes no fleet config by default, A50 installer errors a stranger owns | 3 |
+| 7 | L55 | A60 trunk ruleset (owner go), A61 contributor rules | 4 |
+| 8 | L3, then L8 | A4 the `spool` CLI as a release asset, the installer downloads it | 3 |
+| 9 | L26 | A27 membership that expires | 2 |
+| 10 | L17 | A5 join tokens (spec first, then hub, WUI, CLI) | 3 |
+| 11 | L1 | A3 WUI runtime config | 5 |
+| 12 | L25, then L2, then L7 | A21 one hub image, A1 publish to GHCR, compose pulls | 5 |
+| 13 | L9 | A2 `spool-up` with preflight | 5 |
+| 14 | L30 | A28 final + A29 newcomer test, run to step 5 | all |
 
 ### 7.1 All lanes
 
@@ -485,7 +484,7 @@ P2 order inside the waves, from three independent walks (F40): names first (A8, 
 | any | L56 | A62: open-source hygiene (one sub-lane per item) | spec 044 files, wf 11 gate job, licence files, `.github/dependabot.yml` | - |
 | 2 | L57 | A63: evaluation mode for a P2 estate | the cnf template mail/payment keys, `DEPLOY.md` | L15 |
 | 1 | L58 | A64: digest pins + installer checksums | the 8 Dockerfiles, `install.sh` and its tests | - |
-| 1 | L59 | A65 + A66: agent-connect help page, hub tests on a fresh clone | `doc/help/connect-an-agent.md` + a doc test; `run-all-tests.sh` | - |
+| 1 | L59 | A65 + A66: agent-connect help page, hub tests on a fresh clone | `csi-spl-wui/src/components/ConnectAgentGuide.vue` + its unit test; `doc/help/connect-an-agent.md` + a doc test; the README "another machine" paragraph; `run-all-tests.sh` | - |
 | 4 | L60 | A67: `@arg` flags for `./run` actions | the `./run` framework of iac and orc | L53 |
 
 ## 8. Decisions needed from the owner
@@ -605,3 +604,4 @@ rule, and logs it below.
 | v0.12 | research a4 (a-186, DevEx critique): F37 (most of A-DEV1's delete list is live), A43 narrowed (AWS items wait for topic `a5a141bc`, per c-001), A67 `@arg` flags; 3.1 names topic `a5a141bc`; all 4 cross-cutting walks merged | c-165 |
 | v0.13 | the 10 grok second opinions (g-168, g-169, g-170, g-171, g-172, g-177, g-178, g-179, g-180, g-182): F38-F46 (incl. the live connect-guide bug, reported), line corrections, 22 actions widened, P2 order "names first", Q12 dissent; all 34 research files merged | c-165 |
 | v0.14 | 8.2 the second, shorter owner question list (Q16-Q21) | c-165 |
+| v0.15 | 7.0 renumbered 1-14 (one row per lane, L59 once); `tasks.md` generated from sections 7.0 and 7.1 | c-165 |

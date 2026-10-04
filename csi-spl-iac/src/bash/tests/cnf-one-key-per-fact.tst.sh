@@ -27,7 +27,9 @@ trap 'rm -rf "$tmp"' EXIT
 #   005, 046, 059, 060   our estate's own data (072 A12 makes them optional)
 #   019 wui_default_tenant / wui_tenant_hosts: the tenant-host actions read
 #                        them from <env>.env.yaml itself, not from the merge
-KEEP='^(00[5]-|046-|059-|060-|019-firebase-static-site\.wui_(default_tenant|tenant_hosts) )'
+#   052 workspaces       each env's own workspace list; its entries match only
+#                        by chance (t1, the apex of both), never as one fact
+KEEP='^(00[5]-|046-|059-|060-|019-firebase-static-site\.wui_(default_tenant|tenant_hosts) |052-gcs-workspace-docs\.workspaces\.)'
 
 # same_step_keys <cnf dir> -> each env.steps leaf dev and prd set to one value
 same_step_keys() {

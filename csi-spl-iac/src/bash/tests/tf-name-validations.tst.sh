@@ -40,7 +40,7 @@ check() {
 }
 
 # --- 2. env: any cnf env name, never lde --------------------------------------
-for s in 019 020 028 040 045 046 050 051; do
+for s in 019 020 028 040 045 046 050 051 052; do
   check "$s" env "dev,prd,stg" "Dev,x,dev-1"
   f=$(ls "$TF"/"$s"-*/02-variables.tf)
   grep -qF 'var.env != "lde"' "$f" && pass "$s env refuses lde" || fail "$s env does not refuse lde"
@@ -57,6 +57,15 @@ check 046 tf_key_project "csi-spl-bkp,acme-spool-bkp-7f3a" "bkp,Bad_Project,acme
 check 046 offsite_bucket_name "csi-spl-bkp-dev,acme-spool-bkp-7f3a-stg" "Bad,-b"
 check 050 files_bucket_name "csi-spl-dev-files,acme-spool-dev-7f3a-files" "Bad,files-"
 check 051 docs_bucket_name "csi-spl-dev-docs,acme-spool-dev-7f3a-docs" "Bad,docs-"
+check 052 bucket_prefix "csi-spl-dev-docs-,acme-spool-dev-7f3a-docs-" "csi-spl-dev-docs,Bad-,-docs-"
+# 052 workspaces: every slug must keep <prefix><slug> a bucket name
+f52="$TF/052-gcs-workspace-docs/02-variables.tf"
+re52=$(sed -n 's/.*for w in var.workspaces : can(regex("\(.*\)", w)).*/\1/p' "$f52" | sed -n 1p)
+if [[ -z "$re52" ]]; then fail "052: no slug regex on var.workspaces"; else
+  for v in t1 csi-rel niba-consult; do grep -qE "$re52" <<<"$v" && pass "052 workspaces accepts $v" || fail "052 workspaces refuses $v ($re52)"; done
+  for v in T1 -x x- a_b; do grep -qE "$re52" <<<"$v" && fail "052 workspaces accepts $v ($re52)" || pass "052 workspaces refuses $v"; done
+fi
+grep -qF 'length(distinct(var.workspaces)) == length(var.workspaces)' "$f52" && pass "052 workspaces refuses a duplicate slug" || fail "052 workspaces allows a duplicate slug"
 
 # CONTROL: the extraction is live - an old pinned regex refuses the clone name
 grep -qE '^csi-spl-(dev|prd)-rel$' <<<"acme-spool-dev-7f3a-rel" \

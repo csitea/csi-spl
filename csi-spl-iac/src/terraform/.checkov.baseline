@@ -130,6 +130,17 @@
                     ]
                 }
             ]
+        },
+        {
+            "file": "/052-gcs-workspace-docs/03-workspace-docs-buckets.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.workspace_docs",
+                    "check_ids": [
+                        "CKV_GCP_62"
+                    ]
+                }
+            ]
         }
     ]
 }

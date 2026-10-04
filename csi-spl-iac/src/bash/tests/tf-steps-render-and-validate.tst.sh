@@ -96,6 +96,19 @@ grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers|cors' "$TFD/
 [[ "$(cat "$TFD"/051-gcs-docs/*.tf | grep -cE '^resource "google_storage_bucket_iam_member"')" == 1 ]] \
   && grep -qE '^\s*role\s*=\s*"roles/storage.objectViewer"' "$TFD/051-gcs-docs/04-hub-reader.tf" \
   && pass "051: the hub SA reads (one objectViewer binding), nothing else" || fail "051 bindings are not exactly the hub's objectViewer"
+# the workspace docs buckets (052, spec 075 T006): one per workspace, private
+# like 051, VERSIONED (no git behind them), the hub reads and writes
+f="$TFD/052-gcs-workspace-docs/03-workspace-docs-buckets.tf"
+grep -qE '^\s*for_each\s*=\s*toset\(var\.workspaces\)' "$f" && pass "052: one bucket per cnf workspace" || fail "052: the buckets are not for_each over var.workspaces"
+grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "workspace docs buckets: uniform bucket-level access on" || fail "workspace docs buckets: uniform access is not true"
+grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "workspace docs buckets: public access prevention enforced" || fail "workspace docs buckets: PAP is not enforced"
+grep -A1 -E '^\s*versioning \{' "$f" | grep -E '^\s*enabled\s*=\s*true' >/dev/null && pass "workspace docs buckets: versioning on" || fail "workspace docs buckets: versioning is not on"
+grep -qE '^\s*force_destroy\s*=\s*false' "$f" && pass "workspace docs buckets: force_destroy false" || fail "workspace docs buckets: force_destroy is not false"
+grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers|cors' "$TFD/052-gcs-workspace-docs/"*.tf && fail "a public/ACL/CORS grant appears in 052" || pass "no ACL, allUsers or CORS in 052"
+[[ "$(cat "$TFD"/052-gcs-workspace-docs/*.tf | grep -cE '^resource "google_storage_bucket_iam_(member|binding|policy)"')" == 1 ]] \
+  && grep -qE '^\s*role\s*=\s*"roles/storage.objectAdmin"' "$TFD/052-gcs-workspace-docs/04-hub-object-admin.tf" \
+  && grep -qE '^\s*member\s*=\s*"serviceAccount:\$\{var.hub_runtime_sa_account_id\}@' "$TFD/052-gcs-workspace-docs/04-hub-object-admin.tf" \
+  && pass "052: the hub SA reads and writes (one objectAdmin binding per bucket), nothing else" || fail "052 bindings are not exactly the hub's objectAdmin"
 # No secret may reach tf state: no password, no generated secret, no secret
 # VERSION, no SA key anywhere in the terraform tree.
 grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \
@@ -127,6 +140,10 @@ for env in dev prd; do
   d="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/051-gcs-docs.vars.tfvars"
   grep -qx "docs_bucket_name = \"csi-spl-$env-docs\"" "$d" && grep -qx "hub_runtime_sa_account_id = \"csi-spl-hub-$env\"" "$d" \
     && pass "$env docs bucket is csi-spl-$env-docs, read by csi-spl-hub-$env" || fail "$env 051 tfvars"
+  w="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/052-gcs-workspace-docs.vars.tfvars"
+  grep -qx "bucket_prefix = \"csi-spl-$env-docs-\"" "$w" && grep -qx "hub_runtime_sa_account_id = \"csi-spl-hub-$env\"" "$w" \
+    && grep -qE '^workspaces = \["t1"' "$w" \
+    && pass "$env workspace docs buckets are csi-spl-$env-docs-<slug> from t1 on, for csi-spl-hub-$env" || fail "$env 052 tfvars"
   grep -q publish_enabled "$d" && fail "$env 051 tfvars carry publish_enabled (a cnf gate, not a tfvar)" || pass "$env publish_enabled stays out of the 051 tfvars"
   # the hub is pointed at the bucket only once publish_enabled is true (after the 051 apply)
   # publish_enabled is read like the cnf merge does: the env file wins, else

@@ -7,7 +7,7 @@ its lane, the files it owns and its done check. Status vocabulary:
 
 - [x] T001 **spec** (c-179, spec 072 T012 / L17): `spec.md` and this file.
       Decisions folded in v0.2 (g-242).
-- [ ] T002 **rdb**: the `agent_join_tokens` migration (next free prefix),
+- [x] T002 **rdb** (c-231, rdb `0119_agent_join_tokens.sql`): the `agent_join_tokens` migration (next free prefix),
       including `for_human` (spec 4.2), RLS, `pins_history.reason` += `join`,
       `wui-revoke`, `membership-end`, and the `agents.join` permission granted
       to `admin` only (spec 4.7; `rbac.Permissions` and `rbac.Defaults` in the

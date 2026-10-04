@@ -29,7 +29,7 @@ func (f *fakeSrc) TenantRoles(context.Context, string) (map[string]Role, error) 
 
 // 025 §3.2: the matrix as the spec states it, cell by cell for the cells the
 // OQs defaulted, plus the one tenant owner: biz_owner holds every permission
-// but members.invite, which is the admin's only (owner 2026-09-25).
+// but agents.join, which is the admin's only (specs/073 §4.7, Q1).
 func TestDefaultsMatrix(t *testing.T) {
 	roles := DefaultRoles()
 	has := func(role, perm string) bool {
@@ -58,8 +58,13 @@ func TestDefaultsMatrix(t *testing.T) {
 			}
 		}
 	}
-	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions) {
-		t.Fatalf("biz_owner must be the one tenant owner with every permission: %+v", roles[BizOwner])
+	if owners != 1 || !roles[BizOwner].TenantOwner || len(roles[BizOwner].Perms) != len(Permissions)-1 || has(BizOwner, AgentsJoin) {
+		t.Fatalf("biz_owner must be the one tenant owner with every permission but agents.join: %+v", roles[BizOwner])
+	}
+	for _, r := range roles { // specs/073 §4.7 (Q1): agents.join is admin only
+		if has(r.ID, AgentsJoin) != (r.ID == Admin) {
+			t.Errorf("%s agents.join = %v, want %v (admin only)", r.ID, !(r.ID == Admin), r.ID == Admin)
+		}
 	}
 	for _, id := range RoleIDs {
 		if _, ok := roles[id]; !ok {
@@ -110,6 +115,14 @@ func TestCoversNoEscalation(t *testing.T) {
 	}
 	if a.Covers(roles[BizOwner]) {
 		t.Fatal("CONTROL: admin covers biz_owner")
+	}
+	// specs/073: biz_owner lacks agents.join yet still appoints and manages admins.
+	owner := Access{Role: BizOwner, TenantOwner: true, Perms: map[string]bool{}}
+	for _, p := range roles[BizOwner].Perms {
+		owner.Perms[p] = true
+	}
+	if owner.Perms[AgentsJoin] || !owner.Covers(roles[Admin]) {
+		t.Fatal("biz_owner must cover admin without holding agents.join")
 	}
 }
 

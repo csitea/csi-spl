@@ -30,6 +30,10 @@ const (
 	// MembersImpersonate is the permission to start an "act as a member"
 	// session through a temporary clone (specs/054). biz_owner and admin.
 	MembersImpersonate = "members.impersonate"
+	// AgentsJoin is the permission to mint, list and revoke agent join tokens
+	// and to revoke one seat from the WUI (specs/073 §4.7). admin only: the
+	// one permission biz_owner does not hold (owner 2026-10-04, Q1).
+	AgentsJoin = "agents.join"
 )
 
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
@@ -75,18 +79,20 @@ var Permissions = []PermissionDoc{
 	{KeysManage, "tenant-level keys (box pins, the box-wui pin)"},
 	{AuditRead, "see the tenant audit trail"},
 	{MembersImpersonate, "act as a member through a temporary clone"},
+	{AgentsJoin, "mint, list and revoke agent join tokens, and revoke one seat from the WUI"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
-// 0029, 0039, 0074). biz_owner holds every permission: rdb 0039 had made
-// members.invite the admin's only, and 0074 returns it (owner 2026-09-28,
-// specs/046: "the admins and the biz_owners of the tenant can CRUD users").
+// 0029, 0039, 0074, 0119). biz_owner holds every permission but agents.join:
+// rdb 0039 had made members.invite the admin's only, and 0074 returns it
+// (owner 2026-09-28, specs/046: "the admins and the biz_owners of the tenant
+// can CRUD users"); agents.join is admin only (specs/073 §4.7, Q1).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate)},
 	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
 	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate)},
+		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin)},
 	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
 	{ID: Tester, Perms: sorted(TopicsRead, NotesSend)},
 	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand)},
@@ -144,7 +150,13 @@ func (a Access) List() []string {
 }
 
 // Covers reports perms(role) ⊆ perms(a): the no-escalation rule (025 §3.4).
+// The tenant owner covers every role: it held every permission until
+// agents.join (specs/073 §4.7), which is admin only for the session that
+// mints, not a bar on the owner appointing or managing an admin.
 func (a Access) Covers(r Role) bool {
+	if a.TenantOwner {
+		return true
+	}
 	for _, p := range r.Perms {
 		if !a.Perms[p] {
 			return false
@@ -155,8 +167,12 @@ func (a Access) Covers(r Role) bool {
 
 // CoversAccess reports perms(b) ⊆ perms(a). With the strict form (a covers b
 // AND b does not cover a) it is the act-as role ceiling (specs/054): an admin
-// may clone a strictly-lower member, never a peer admin or the owner.
+// may clone a strictly-lower member, never a peer admin or the owner. The
+// tenant owner covers everyone, as in Covers.
 func (a Access) CoversAccess(b Access) bool {
+	if a.TenantOwner {
+		return true
+	}
 	for p, ok := range b.Perms {
 		if ok && !a.Perms[p] {
 			return false

@@ -173,6 +173,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// agent_join_tokens (rdb 0119, specs/073): one open token minted by the
+	// seeded member for itself; the hash is unique per tenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO agent_join_tokens (token_hash, tenant_id, created_by, for_human, expires_at)
+			VALUES (encode(sha256(convert_to($1, 'UTF8')), 'hex'), $1, $2, $2, $3)`, s.tenant, hum, now.Add(time.Hour))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// member_activity (rdb 0091, CLE-77799): one audit row for the seeded
 	// member, so the every-table cross-tenant gate holds a row for both tenants.
 	if err := pg.AppendMemberActivity(ctx, MemberActivity{TenantID: s.tenant, SubjectHum: hum, ActorHum: hum, Kind: "role_changed", Detail: "developer", CreatedAt: now}); err != nil {

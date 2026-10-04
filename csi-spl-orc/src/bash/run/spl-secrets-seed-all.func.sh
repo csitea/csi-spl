@@ -132,9 +132,8 @@ do_secrets_seed_none() {
   local envf statef
   spl_secrets_none_paths || return 1
 
-  local key req kind state v
+  local key req kind state
   local -a gen=() need=()
-  local -A val=()
   while IFS=$'\t' read -r key req kind; do
     state="$(spl_secrets_none_state "$(spl_secrets_none_get "$envf" "$key")")"
     case "$state:$req:$kind" in
@@ -146,40 +145,70 @@ do_secrets_seed_none() {
     esac
   done < <(spl_secrets_none_rows "$envf")
 
-  local fix_mode=0 errs=0
+  local errs=0 count=${#gen[@]}
+  spl_secrets_none_seed_env
+  spl_secrets_none_seed_key
+
+  local n
+  for n in "${need[@]}"; do do_log "NEED $n"; done
+  if (( dry )); then
+    do_log "OK DRY_RUN for the self-host secrets: $count secret(s) would be generated, nothing written. Re-run with DRY_RUN=0."
+    return 0
+  fi
+  local rc=0
+  do_secrets_check_none || rc=1
+  (( errs == 0 )) || rc=1
+  return $rc
+}
+
+# spl_secrets_none_seed_env - the .env step of do_secrets_seed_none (reads its
+# dry, envf and gen; counts a failure in its errs): generate each key of gen,
+# rewrite .env whole (umask 077, mode 600), or only fix a loose mode.
+spl_secrets_none_seed_env() {
+  local key v fix_mode=0
+  local -A val=()
   [[ -f "$envf" && "$(spl_secrets_none_mode "$envf")" != 600 ]] && fix_mode=1
   if (( dry )); then
     for key in "${gen[@]}"; do do_log "INFO DRY_RUN would generate $key into $envf (24 random bytes, hex)"; done
-    (( fix_mode )) && do_log "INFO DRY_RUN would chmod 600 $envf"
-  elif (( ${#gen[@]} )); then
-    for key in "${gen[@]}"; do
-      v="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
-      [[ ${#v} -eq 48 ]] || { do_log "ERROR could not generate $key"; errs=$((errs + 1)); continue; }
-      val[$key]="$v"
-    done
-    local tmp="$envf.tmp.$$" line
-    if (
-      umask 077
-      {
-        if [[ -f "$envf" ]]; then
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)= && -n "${val[${BASH_REMATCH[1]}]+x}" ]] || printf '%s\n' "$line"
-          done <"$envf"
-        else
-          echo "# written by ./run -a do_spl_secrets_seed_all (spec 076, provider none); never commit it."
-        fi
-        for key in "${gen[@]}"; do [[ -n "${val[$key]+x}" ]] && printf "%s='%s'\n" "$key" "${val[$key]}"; done
-      } >"$tmp"
-    ) && chmod 600 "$tmp" && mv -f "$tmp" "$envf"; then
-      for key in "${!val[@]}"; do do_log "INFO $key generated into $envf (value not logged)"; done
-    else
-      rm -f "$tmp"; do_log "ERROR cannot write $envf"; errs=$((errs + 1))
-    fi
-  elif (( fix_mode )); then
-    chmod 600 "$envf" && do_log "INFO $envf: mode set to 600" || { do_log "ERROR cannot chmod 600 $envf"; errs=$((errs + 1)); }
+    (( fix_mode == 0 )) || do_log "INFO DRY_RUN would chmod 600 $envf"
+    return 0
   fi
+  if (( ${#gen[@]} == 0 )); then
+    (( fix_mode )) || return 0
+    chmod 600 "$envf" && do_log "INFO $envf: mode set to 600" || { do_log "ERROR cannot chmod 600 $envf"; errs=$((errs + 1)); }
+    return 0
+  fi
+  for key in "${gen[@]}"; do
+    v="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
+    [[ ${#v} -eq 48 ]] || { do_log "ERROR could not generate $key"; errs=$((errs + 1)); continue; }
+    val[$key]="$v"
+  done
+  local tmp="$envf.tmp.$$" line
+  if (
+    umask 077
+    {
+      if [[ -f "$envf" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)= && -n "${val[${BASH_REMATCH[1]}]+x}" ]] || printf '%s\n' "$line"
+        done <"$envf"
+      else
+        echo "# written by ./run -a do_spl_secrets_seed_all (spec 076, provider none); never commit it."
+      fi
+      for key in "${gen[@]}"; do [[ -n "${val[$key]+x}" ]] && printf "%s='%s'\n" "$key" "${val[$key]}"; done
+    } >"$tmp"
+  ) && chmod 600 "$tmp" && mv -f "$tmp" "$envf"; then
+    for key in "${!val[@]}"; do do_log "INFO $key generated into $envf (value not logged)"; done
+  else
+    rm -f "$tmp"; do_log "ERROR cannot write $envf"; errs=$((errs + 1))
+  fi
+}
 
-  local sdir="${statef%/*}" count=${#gen[@]}
+# spl_secrets_none_seed_key - the session.key step of do_secrets_seed_none
+# (reads its dry and statef; counts into its count and errs): mint the key
+# into an existing state dir, or fix a loose mode; no state dir on this host
+# is hub-init's to fill.
+spl_secrets_none_seed_key() {
+  local sdir="${statef%/*}"
   if [[ ! -d "$sdir" ]]; then
     do_log "INFO session.key: no state dir $sdir on this host: hub-init mints it into the hub-state volume"
   elif [[ -s "$statef" ]]; then
@@ -197,15 +226,4 @@ do_secrets_seed_none() {
       do_log "ERROR cannot write $statef"; errs=$((errs + 1))
     fi
   fi
-
-  local n
-  for n in "${need[@]}"; do do_log "NEED $n"; done
-  if (( dry )); then
-    do_log "OK DRY_RUN for the self-host secrets: $count secret(s) would be generated, nothing written. Re-run with DRY_RUN=0."
-    return 0
-  fi
-  local rc=0
-  do_secrets_check_none || rc=1
-  (( errs == 0 )) || rc=1
-  return $rc
 }

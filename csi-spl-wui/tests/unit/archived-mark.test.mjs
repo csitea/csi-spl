@@ -63,9 +63,14 @@ function component(template, ctx) {
   return { render: (_c, cache) => render(scope, cache || []) }
 }
 const ArchivedBadge = {
-  props: ['at'],
+  props: ['at', 'showWhen'],
   setup(props) {
-    const tpl = component(templateOf('src/components/ArchivedBadge.vue'), { t, get when() { return props.at ? `when:${props.at}` : '' } })
+    const tpl = component(templateOf('src/components/ArchivedBadge.vue'), {
+      t,
+      get when() { return props.at ? `when:${props.at}` : '' },
+      get date() { return props.at ? String(props.at).slice(0, 10) : '' },
+      get showWhen() { return Boolean(props.showWhen) },
+    })
     return () => tpl.render(null, [])
   },
 }
@@ -87,6 +92,13 @@ describe('ArchivedBadge', () => {
     const out = await html('<ArchivedBadge :at="at" />', { at: STAMP })
     assert.match(out, /data-test="archived-badge"/)
     assert.match(out, /data-icon="archive"/)
+    assert.match(out, />Archived</)
+    assert.match(out, new RegExp(`title="Archived when:${STAMP}"`))
+    assert.doesNotMatch(out, /archived-badge__when/, 'a row badge keeps the day on the title')
+  })
+  it('show-when prints the day; the full stamp stays the title', async () => {
+    const out = await html('<ArchivedBadge :at="at" :show-when="true" />', { at: STAMP })
+    assert.match(out, /archived-badge__when[^>]*>2026-10-02</)
     assert.match(out, />Archived</)
     assert.match(out, new RegExp(`title="Archived when:${STAMP}"`))
   })
@@ -125,7 +137,13 @@ describe('the open topic header marks an archived topic', () => {
   ]
   for (const [name, tpl, ctx] of panes) {
     it(`${name}: archived -> badge; live -> none (control)`, async () => {
-      assert.match(await html(tpl, ctx(STAMP)), /data-test="archived-badge"/)
+      const a = await html(tpl, ctx(STAMP))
+      assert.match(a, /data-test="archived-badge"/)
+      if (name === 'TopicPane' || name === 'LiveTopicPane') {
+        assert.match(a, /archived-badge__when[^>]*>2026-10-02</, `${name} header prints the day`)
+      } else {
+        assert.doesNotMatch(a, /archived-badge__when/, `${name} keeps the day on the title`)
+      }
       assert.doesNotMatch(await html(tpl, ctx('')), /archived-badge/)
     })
   }

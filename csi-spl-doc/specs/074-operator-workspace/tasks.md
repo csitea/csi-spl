@@ -1,0 +1,14 @@
+# 074 the operator workspace: tasks
+
+Authority for what is built (`spec.md` holds the behaviour). Each task names its lane, the files it owns and its done check. Status vocabulary: `../README.md` §2.3. Open owner questions: `spec.md` section 9 (Q1-Q5); every task builds behind the recommended default.
+
+- [x] T001 **spec** (a-209): `spec.md` and this file.
+- [ ] T002 **rdb**: migration for `instance_operator_audit_events` table (spec §4.3), `tenants.is_operator` boolean column with a partial unique index (`WHERE is_operator = true`), `tenants.suspended_at timestamptz NULL`, and append-only trigger on audit events. Done: `cd csi-spl-iac && ./run -a do_check_pre_push` and postgres migration linter green.
+- [ ] T003 **hub-auth** (after T002): permission `instance.workspaces` in `internal/rbac/rbac.go` (granted to `admin` in operator workspace, withheld from `biz_owner`), `requireOperatorAdmin(r)` middleware in `internal/hub/`, parsing `SPOOL_HUB_OPERATOR_WORKSPACE` from env/cnf. Done: unit tests proving `admin` allowed and `biz_owner` refused with 403 `operator_admin_required` (AC4).
+- [ ] T004 **store** (after T002, T003): store methods `ListWorkspacesOverview`, `CreateWorkspaceInstance`, `SetWorkspaceSuspended`, `SetWorkspaceBillingStatusInstance`, and `GetWorkspaceMembersAndAgents` under `asOperator()`, registered in `operatorCallers` in `internal/store/operator_scope_test.go`. Done: `TestOperatorScopeCallers` and postgres tests pass.
+- [ ] T005 **hub-api** (after T004): routes `GET /v1/operator/workspaces`, `POST /v1/operator/workspaces`, `POST /v1/operator/workspaces/{id}/suspend`, `POST /v1/operator/workspaces/{id}/reactivate`, `PATCH /v1/operator/workspaces/{id}`, `PUT /v1/operator/workspaces/{id}/billing`, `GET /v1/operator/workspaces/{id}/overview`. Immutable audit record written on every mutation. Done: AC1-AC7 pass on postgres (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`).
+- [ ] T006 **routing** (after T005): single DNS entry point path normalization `/w/<workspace_id>/...` in `csi-spl-wui` router and hub, 301 redirects for legacy subdomains, retirement of per-workspace host requirement in `tenant-host-boot.mjs`. Done: AC8 and AC9 pass in e2e suite.
+- [ ] T007 **wui** (after T005, T006): `/operator/workspaces` view in `csi-spl-wui` (catalogue, search, create modal with credential display, suspend/reactivate toggles, settings/billing editors, member/agent drawer). Strictly rendered in operator workspace for `admin` role only. Done: `pnpm run typecheck` and `pnpm run test:e2e` pass.
+- [ ] T008 **bootstrap** (after T005): self-hosted / compose bootstrap in `csi-spl-api/src/docker/hub-entrypoint.sh` and `docker-compose.yml` automatically designating the first created workspace as the operator workspace. Done: AC10 clean boot test passes.
+
+<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:00:00Z -->

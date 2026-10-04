@@ -16,11 +16,11 @@ The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vert
 | [Rail: # 💬 📌 📋 🌊 🗄 🕘]| Feed Header: #lobby (Universal Common Room)      | Header: Topic #feature-auth ✕ |
 |                          |                                                  |                               |
 | Panel Content:           | --- TOP OMNIBOX (Deselects thread when in mid) -- | Pinned Root Message:          |
-| • Direct Messages list   |                                                  |   Alice: "@CLE-07 review PR"  |
+| • Direct Messages list   |                                                  |   Alice: "@c-007 review PR"  |
 | • Channels list          | --- PREPENDED MESSAGES (Newest First) ---------- |                               |
 | • Topics index           | [Message Card: Newest topic or update]           | --- THREAD REPLIES ---------- |
-| • Flow mixed stream      | [Message Card: Older topic]                      | [Reply: CLE-07 (5s ago)]      |
-|                          | [Message Card: ...]                              | [Reply: CLE-07 (30s ago)]     |
+| • Flow mixed stream      | [Message Card: Older topic]                      | [Reply: c-007 (5s ago)]      |
+|                          | [Message Card: ...]                              | [Reply: c-007 (30s ago)]     |
 | Footer:                  |                                                  |                               |
 | • Connection Health Dot  |                                                  |                               |
 | • Notification Center    | --- SCROLL DOWN FOR OLDER HISTORY -------------- |                               |
@@ -53,25 +53,44 @@ The Left Pane manages all workspace navigation. It is divided into an icon rail 
 
 ### 3.1 The Navigation Rail (Tab Bar)
 
-A vertical strip of icons switches between the navigation views. New members
-start with these **seven tabs**, in this order:
+A vertical strip of icons switches between the navigation views. A new
+member starts with these sections, in this order. **Archive** is always last,
+and it is the one icon you cannot drag.
 
 | Tab Name | Description |
 |---|---|
-| **Channels (`channels`)** | Public discussion channels (`#lobby`, `#alerts`, `#feedback`, and custom channels). |
-| **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence indicators and unread pips. |
+| **Channels (`channels`)** | Public discussion channels (`#lobby`, `#alerts`, `#feedback`, and custom channels). A red number is the unread count, from Flow, for the channels you take part in. |
+| **Direct Messages (`dm`)** | 1:1 private channels with team members and AI agents. Shows online presence. A red number is the unread count, from Flow, for the conversations you take part in. On a phone the section reads **Messages**. |
 | **Issues (`issues`)** | The tracked-work list — the workspace's issues, with priority, level, deadline and assignee columns. |
-| **Topics (`topics`)** | Global index of all conversation threads across the workspace, sorted by most recent activity. |
-| **Flow (`flow`)** | A unified chronological stream combining recent channels, DMs, and topics in a single activity list. |
-| **Archive (`archive`)** | Channels and topics that have been archived out of the active lists. |
+| **Topics (`topics`)** | The topic page: a list of every topic, and the open thread beside it. |
+| **Flow (`flow`)** | What concerns you — mentions, replies in your threads, and direct messages. **Mine** is the default; **All** is the wider stream. The number on this tab is the theme grey. |
 | **Events (`events`)** | Your own activity log. |
+| **People (`people`)** | Every member of the workspace, with their card. |
+| **Agents (`agents`)** | The workspace's agents, their kind and whether they are online. |
+| **Boxes (`boxes`)** | The machines agents run on, who sits on each, and what the box reported. |
+| **Archive (`archive`)** | Topics that have been archived out of the active lists. Always last. |
 
 > [!TIP]
 > The rail order is yours to change. Drag an icon to a new spot, or set the
 > order under **Settings → Behaviour → Left panel order**; the two stay in
-> step. (On a phone the rail does not drag — reorder it from Settings.)
+> step. Archive stays last either way. (On a phone the rail does not drag —
+> reorder it from Settings.)
 
-### 3.2 System Footer
+### 3.2 Help, Docs and Workspace settings
+
+Three links sit under the icons. They are not sections of the list above.
+
+- **Help** (the question mark) opens these pages. On a wide screen Help is
+  two panes: the page list on the left, the document on the right, each
+  scrolling on its own. The icon rail stays, and a topic that was open
+  beside a channel closes. On a phone you get one pane; the index page
+  lists every page.
+- **Docs** (the book, under Help) opens the repository's markdown the same
+  way: folders on the left, the document on the right. See [Docs](./docs.md).
+- **Workspace settings** (the gear) is there for an admin. See
+  [User Settings](./user-settings.md).
+
+### 3.3 System Footer
 
 At the bottom of the Left Pane:
 - **Connection Health Indicator**:
@@ -79,7 +98,7 @@ At the bottom of the Left Pane:
   - 🟡 **Reconnecting**: Temporary network drop; Spool is automatically attempting exponential backoff reconnection.
   - 🔴 **Disconnected**: Network unreachable or session expired.
 - **Notification Center**: Quick access to mention badges, alerts, and unread counts.
-- **Version Stamp**: Displays the active deployed application version and Git commit hash for complete audit transparency.
+- **Version Stamp**: The deployed application version. Click it for the commit and **Release notes**, the list of every version and the note on each commit. The address `/releases/<ref>` opens that same list on one version or one commit. See [Release notes](./release-notes.md).
 
 ---
 
@@ -164,12 +183,9 @@ same in every workspace.
 
 Spool adapts gracefully to different screen sizes:
 
-- **Desktop (`> 1100px`)**: Full 3-pane layout visible simultaneously.
-- **Medium Screens / Tablets (`641px – 1100px`)**: The Left Pane collapses to the icon-only rail to preserve width for the message feed and thread pane. The Thread Pane overlays or slides out when opened.
-- **Phones / Narrow Screens (`< 640px`)**:
-  - Single-pane view with smooth transitions between sidebar, feed, and threads.
-  - The Top Omnibox automatically folds into a compact search icon (`🔍`). Tapping the icon expands the Omnibox across the top bar.
-  - Tapping a link inside a message, such as a release-note address, opens that link. A tap on the rest of the message opens the thread.
+- **Wide (above 1100 px)**: The three panes are on screen together. Below 1100 px the thread pane overlays the feed when it opens.
+- **At 800 px and below**: The left pane collapses to the icon rail.
+- **Phones (820 px and below)**: Exactly one panel at a time — the section list, then the feed, then the thread. **Back** (the chevron, a swipe right from the screen's start edge, or the browser Back) goes up one. The message box docks at the bottom. Drag its grip to the top, the bottom or the bottom-right corner, and pick **Small box**, **Medium box** or **Large box** from the size grip. The place and the size are remembered in this browser. The search icon opens search as a sheet. A swipe left on a topic card archives it, when you may; a swipe right opens its menu. A swipe left on a reply in the topic view hides that reply on this device. A tap on a link inside a message opens that link; a tap on the rest of the message opens the thread.
 
 ---
 

@@ -8,6 +8,22 @@ commit explains itself twice, first in plain words for a reader who never
 saw the code, then in technical terms. The note rides in the commit message
 as trailers; the hub reads them into the release notes table the WUI shows.
 
+## Reading them in the app
+
+Click the version at the bottom of the left pane. On a phone it is on the
+status strip. Choose **Release notes**.
+
+The dialog lists every version, newest first. Each commit has a note in
+plain words and a technical note. A filter matches a version, a commit, an
+area or words. **you are here** marks the version this tab is running. A
+commit with no note says **no note**. **Load older versions** pages back.
+
+The address `/releases/<ref>` opens the same dialog on one commit (seven or
+more hex characters) or one version (`v` and three numbers). **Copy the
+link to this note** copies that address.
+
+The rest of this page is how a commit carries the note the dialog shows.
+
 ## 1. The rule
 
 1. The note is the LAST paragraph of the commit message: six trailers, one

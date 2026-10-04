@@ -15,7 +15,7 @@ import (
 
 // The release notes table (spec 065 section 4.2, rdb 0108): one row per trunk
 // commit, the six Lay-* / Tech-* trailers of its message (spec 4.1), the first
-// v<X.Y.Z> tag that carries it and a state. Estate-wide, not per tenant: every
+// release tag that carries it and a state. Estate-wide, not per tenant: every
 // tenant runs the same code, so no call takes a tenant id.
 
 // ReleaseNoteStates is rdb 0108's state CHECK (TestReleaseNotesPinRdbChecks):
@@ -28,7 +28,7 @@ var ReleaseNoteStates = []string{"ok", "missing", "skip", "revert", "backfill"}
 var (
 	releaseSHARe     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	releaseRefRe     = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
-	releaseVersionRe = regexp.MustCompile(`^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})$`)
+	releaseVersionRe = regexp.MustCompile(`^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-c([2-9]|[1-9][0-9]{1,3}))?$`)
 	releaseKindRe    = regexp.MustCompile(`^[a-z]{0,16}$`)
 	releaseLinkRe    = regexp.MustCompile(`^https://\S+$`)
 )
@@ -46,8 +46,11 @@ const (
 // ErrAmbiguousRef: a sha prefix matches more than one release note.
 var ErrAmbiguousRef = errors.New("ambiguous sha prefix")
 
-// ReleaseNote is one row of release_notes. Version "" is NULL: the commit is
-// on trunk but no deploy has minted a tag over it yet. Reverts is the sha a
+// ReleaseNote is one row of release_notes. Version is the release key, the
+// full tag (rdb 0114): v<X.Y.Z> in cycle 1, v<X.Y.Z>-c<N> from cycle 2 on
+// (after 9.9.9 the mint starts over at 1.0.1), so two cycles' same X.Y.Z
+// stay two versions; ReleaseDisplay is what a reader sees. Version "" is
+// NULL: the commit is on trunk but no deploy has minted a tag over it yet. Reverts is the sha a
 // revert row reverts ("" otherwise).
 type ReleaseNote struct {
 	SHA         string    `json:"sha"`
@@ -83,11 +86,12 @@ type ReleaseNotes interface {
 	ReleaseNote(ctx context.Context, ref string) (ReleaseNote, error)
 	// ListReleaseNotes is every row of the newest `versions` versions
 	// (capped at ReleaseVersionsMax) strictly older than before ("" = from
-	// the newest): version newest first (numeric), then newest commit first.
+	// the newest): version newest first (numeric: cycle, then X.Y.Z), then
+	// newest commit first.
 	// Rows with no version yet are not listed.
 	ListReleaseNotes(ctx context.Context, before string, versions int) ([]ReleaseNote, error)
 	// ReleaseNotesOfVersion is one version's rows, newest commit first
-	// (spec 7.2: /releases/v<X.Y.Z>).
+	// (spec 7.2: /releases/v<X.Y.Z>[-c<N>]); version is the full key.
 	ReleaseNotesOfVersion(ctx context.Context, version string) ([]ReleaseNote, error)
 }
 
@@ -99,7 +103,7 @@ func CheckReleaseNote(n ReleaseNote) string {
 	case !releaseSHARe.MatchString(n.SHA):
 		return "sha must be a full lowercase commit sha"
 	case n.Version != "" && !releaseVersionRe.MatchString(n.Version):
-		return "version must be v<X.Y.Z>"
+		return "version must be v<X.Y.Z> or v<X.Y.Z>-c<N>"
 	case n.CommittedAt.IsZero():
 		return "committed_at is required"
 	case !releaseKindRe.MatchString(n.Kind):
@@ -129,23 +133,36 @@ func CheckReleaseRef(ref string) (string, error) {
 	return ref, nil
 }
 
-// releaseVersionKey is v<X.Y.Z> as numbers; ok false when it is not one.
-func releaseVersionKey(v string) ([3]int, bool) {
+// releaseVersionKey is a release key as numbers {cycle, X, Y, Z} (no -c<N>
+// = cycle 1): the order both drivers page by. ok false when it is not one.
+func releaseVersionKey(v string) ([4]int, bool) {
 	m := releaseVersionRe.FindStringSubmatch(v)
 	if m == nil {
-		return [3]int{}, false
+		return [4]int{}, false
 	}
-	var k [3]int
-	for i := range k {
-		k[i], _ = strconv.Atoi(m[i+1])
+	k := [4]int{1}
+	if m[4] != "" {
+		k[0], _ = strconv.Atoi(m[4])
+	}
+	for i := 1; i < 4; i++ {
+		k[i], _ = strconv.Atoi(m[i])
 	}
 	return k, true
+}
+
+// ReleaseDisplay is a release key as a reader sees it: the plain v<X.Y.Z>,
+// the cycle dropped (owner, t1 e82eea7c: "version is just a number").
+func ReleaseDisplay(version string) string {
+	if i := strings.Index(version, "-c"); i >= 0 {
+		return version[:i]
+	}
+	return version
 }
 
 // checkBefore is a list's before cursor: "" or a version.
 func checkBefore(before string) error {
 	if _, ok := releaseVersionKey(before); before != "" && !ok {
-		return fmt.Errorf("before must be v<X.Y.Z>")
+		return fmt.Errorf("before must be v<X.Y.Z> or v<X.Y.Z>-c<N>")
 	}
 	return nil
 }
@@ -237,7 +254,7 @@ func (s *Memory) ListReleaseNotes(_ context.Context, before string, versions int
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()
 	keep := map[string]bool{}
-	var keys [][3]int
+	var keys [][4]int
 	for _, n := range s.releases() {
 		k, ok := releaseVersionKey(n.Version)
 		if !ok || keep[n.Version] || (before != "" && slices.Compare(k[:], cut[:]) >= 0) {
@@ -246,8 +263,8 @@ func (s *Memory) ListReleaseNotes(_ context.Context, before string, versions int
 		keep[n.Version] = true
 		keys = append(keys, k)
 	}
-	slices.SortFunc(keys, func(a, b [3]int) int { return slices.Compare(b[:], a[:]) })
-	page := map[[3]int]bool{}
+	slices.SortFunc(keys, func(a, b [4]int) int { return slices.Compare(b[:], a[:]) })
+	page := map[[4]int]bool{}
 	for _, k := range keys[:min(len(keys), ClampReleaseVersions(versions))] {
 		page[k] = true
 	}
@@ -263,7 +280,7 @@ func (s *Memory) ListReleaseNotes(_ context.Context, before string, versions int
 
 func (s *Memory) ReleaseNotesOfVersion(_ context.Context, version string) ([]ReleaseNote, error) {
 	if _, ok := releaseVersionKey(version); !ok {
-		return nil, fmt.Errorf("version must be v<X.Y.Z>")
+		return nil, fmt.Errorf("version must be v<X.Y.Z> or v<X.Y.Z>-c<N>")
 	}
 	memReleaseMu.Lock()
 	defer memReleaseMu.Unlock()

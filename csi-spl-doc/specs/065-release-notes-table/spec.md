@@ -98,7 +98,7 @@ Rules for the agent:
 | column | from |
 |---|---|
 | `sha` | the commit (primary key) |
-| `version` | the first `v<X.Y.Z>` tag that contains the commit (filled by the deploy that minted it) |
+| `version` | the first release tag that contains the commit (filled by the deploy that minted it): its full name, `v<X.Y.Z>` in cycle 1, `v<X.Y.Z>-c<N>` from cycle 2 on (rdb 0114, 4.2.1) |
 | `committed_at` | commit date, ISO 8601 UTC |
 | `kind` | the subject prefix (`fix`, `feat`, `perf`, ...) |
 | `area` | the subject scope `(wui)`, else the top-level dir touched (`csi-spl-api`, ...) |
@@ -110,6 +110,21 @@ Rules for the agent:
 
 The WUI page groups rows by `version`, newest first, with the lay columns
 visible and the technical three behind an expander on each row.
+
+#### 4.2.1 The release key across the 9.9.9 wrap (owner, t1 `6410e374`)
+
+> "if the scheme reaches 9.9.9 than start all over , but from 1.0.1" (msg
+> `1c5b6d53`); "version is just a number" (msg `e82eea7c`).
+
+After 9.9.9 the mint claims tag `v1.0.1-c2`: the cycle lives in the tag name
+only, and `/version`, the WUI footer and `build.json` show plain `1.0.1`.
+`release_notes.version` stores the **full tag** (the release key), so cycle
+2's `v1.0.1-c2` rows never merge with cycle 1's `v1.0.1` rows. Versions sort
+newest first by `{cycle, X, Y, Z}` (no suffix = cycle 1; `-c0` / `-c1` are
+refused). `GET /v1/release-notes` and `GET /v1/release-notes/<key>` answer
+each group as `{version: <key>, display: "v<X.Y.Z>", notes}`; the key is the
+`before` cursor and the `/releases/<key>` ref, the modal shows `display`, and
+"you are here" marks the newest key whose plain version is the running one.
 
 ## 5. Decision 3: enforcement
 

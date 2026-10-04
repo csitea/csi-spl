@@ -29,7 +29,6 @@ func TestReleaseNotesPinRdbChecks(t *testing.T) {
 	}
 	for _, want := range []string{
 		`sha ~ '^[0-9a-f]{40}$'`,
-		`version ~ '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$'`,
 		`kind ~ '` + releaseKindRe.String() + `'`,
 		fmt.Sprintf("length(area) <= %d", ReleaseAreaMax),
 		fmt.Sprintf("length(subject) BETWEEN 1 AND %d", ReleaseSubjectMax),
@@ -45,8 +44,49 @@ func TestReleaseNotesPinRdbChecks(t *testing.T) {
 			t.Errorf("0108 lacks CHECK %s", want)
 		}
 	}
-	if releaseSHARe.String() != `^[0-9a-f]{40}$` || releaseVersionRe.String() != `^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})$` {
-		t.Errorf("Go sha / version shapes drifted from 0108")
+	if releaseSHARe.String() != `^[0-9a-f]{40}$` {
+		t.Errorf("Go sha shape drifted from 0108")
+	}
+}
+
+// TestReleaseNotesPinRdbCycle pins rdb 0114 (the release key: v<X.Y.Z> in
+// cycle 1, v<X.Y.Z>-c<N> after the 9.9.9 wrap) to releaseVersionRe and
+// releaseKeySQL: a shape or sort key changed on one side only turns this red.
+func TestReleaseNotesPinRdbCycle(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(sqlDir(t), "0114_release_note_cycle.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := strings.Join(strings.Fields(string(raw)), " ")
+	if want := `CHECK (version ~ '^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$')`; !strings.Contains(sql, want) {
+		t.Errorf("0114 lacks %s", want)
+	}
+	if want := `^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-c([2-9]|[1-9][0-9]{1,3}))?$`; releaseVersionRe.String() != want {
+		t.Errorf("Go version shape drifted from 0114: %s", releaseVersionRe)
+	}
+	if want := "((" + strings.Join(strings.Fields(releaseKeySQL("version")), " ") + ") DESC"; !strings.Contains(sql, want) {
+		t.Errorf("0114's index is not on releaseKeySQL: want %s", want)
+	}
+}
+
+// TestReleaseVersionKey: the cycle sorts first, a bare tag is cycle 1, the
+// display drops the cycle, and -c0 / -c1 are not keys (cycle 1 has none).
+func TestReleaseVersionKey(t *testing.T) {
+	for v, want := range map[string][4]int{"v9.9.9": {1, 9, 9, 9}, "v1.0.1-c2": {2, 1, 0, 1}, "v7.10.0-c12": {12, 7, 10, 0}} {
+		if k, ok := releaseVersionKey(v); !ok || k != want {
+			t.Errorf("releaseVersionKey(%s) = %v %v, want %v", v, k, ok, want)
+		}
+	}
+	for _, bad := range []string{"v1.0.1-c1", "v1.0.1-c0", "v1.0.1-c02", "v1.0.1-c", "1.0.1-c2", "v1.0.1-c12345"} {
+		if _, ok := releaseVersionKey(bad); ok {
+			t.Errorf("releaseVersionKey(%s) accepted", bad)
+		}
+	}
+	if d := ReleaseDisplay("v1.0.1-c2"); d != "v1.0.1" {
+		t.Errorf("ReleaseDisplay(v1.0.1-c2) = %s", d)
+	}
+	if d := ReleaseDisplay("v7.4.1"); d != "v7.4.1" {
+		t.Errorf("ReleaseDisplay(v7.4.1) = %s", d)
 	}
 }
 
@@ -172,16 +212,78 @@ func TestReleaseNotes(t *testing.T) {
 	}
 }
 
+// Cycle 1 vs cycle 2 of one X.Y.Z (owner t1 1c5b6d53: after 9.9.9 start over
+// at 1.0.1): v<M>.0.1 and v<M>.0.1-c<N> are two versions, never merged, and
+// the later cycle pages first even though its X.Y.Z reads lower than a
+// cycle-1 v<M>.9.9. The cycle is random and high so rows other tests left
+// (all cycle 1, or another run's cycle) stay out of the before window.
+func TestReleaseNotesCycles(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			rs := st.(ReleaseNotes)
+			cy, _ := rand.Int(rand.Reader, big.NewInt(8000))
+			cycle := int(cy.Int64()) + 1000
+			mj, _ := rand.Int(rand.Reader, big.NewInt(800000))
+			major := int(mj.Int64()) + 100000
+			c1 := fmt.Sprintf("v%d.0.1", major)
+			c1top := fmt.Sprintf("v%d.9.9", major)
+			c2 := fmt.Sprintf("v%d.0.1-c%d", major, cycle)
+			top := fmt.Sprintf("v%d.0.0-c%d", major, cycle+1)
+			t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+
+			a, b, c, d := randSHA(), randSHA(), randSHA(), randSHA()
+			batch := []ReleaseNote{noteOK(a, c1, t0), noteOK(b, c1top, t0.Add(time.Minute)),
+				noteOK(c, c2, t0.Add(2*time.Minute)), noteOK(d, c2, t0.Add(3*time.Minute))}
+			for _, n := range batch {
+				if why := CheckReleaseNote(n); why != "" {
+					t.Fatalf("CheckReleaseNote(%s): %s", n.Version, why)
+				}
+			}
+			if err := rs.PutReleaseNotes(ctx, batch, t0.Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := rs.ReleaseNote(ctx, c); err != nil || got.Version != c2 || ReleaseDisplay(got.Version) != c1 {
+				t.Fatalf("cycle-2 row: %+v %v", got, err)
+			}
+			// the cycle-2 version pages first; its rows stay apart from cycle 1's
+			ls, err := rs.ListReleaseNotes(ctx, top, 1)
+			if err != nil || len(ls) != 2 || ls[0].SHA != d || ls[1].SHA != c || ls[0].Version != c2 {
+				t.Fatalf("cycle-2 page: %+v %v", ls, err)
+			}
+			// cycle 1 of this major alone: its two versions, never the cycle-2 rows
+			ls, err = rs.ListReleaseNotes(ctx, fmt.Sprintf("v%d.0.0", major+1), 2)
+			if err != nil || len(ls) != 2 || ls[0].SHA != b || ls[1].SHA != a {
+				t.Fatalf("cycle-1 page: %+v %v", ls, err)
+			}
+			if ls, err = rs.ReleaseNotesOfVersion(ctx, c2); err != nil || len(ls) != 2 || ls[0].SHA != d || ls[1].SHA != c {
+				t.Fatalf("of cycle-2 version: %+v %v", ls, err)
+			}
+			if ls, err = rs.ReleaseNotesOfVersion(ctx, c1); err != nil || len(ls) != 1 || ls[0].SHA != a {
+				t.Fatalf("of cycle-1 version: %+v %v", ls, err)
+			}
+			if _, err = rs.ListReleaseNotes(ctx, fmt.Sprintf("v%d.0.1-c1", major), 1); err == nil {
+				t.Fatal("a -c1 cursor was accepted")
+			}
+		})
+	}
+}
+
 // The ingest refuses what 0108's CHECKs would, so a bad row is a 400.
 func TestCheckReleaseNote(t *testing.T) {
 	ok := noteOK(randSHA(), "v7.4.1", time.Now())
 	if why := CheckReleaseNote(ok); why != "" {
 		t.Fatalf("refused a good row: %s", why)
 	}
+	if c2 := noteOK(randSHA(), "v1.0.1-c2", time.Now()); CheckReleaseNote(c2) != "" {
+		t.Fatalf("refused a cycle-2 row: %s", CheckReleaseNote(c2))
+	}
 	for _, bad := range []func(*ReleaseNote){
 		func(n *ReleaseNote) { n.SHA = strings.ToUpper(n.SHA) },
 		func(n *ReleaseNote) { n.SHA = n.SHA[:7] },
 		func(n *ReleaseNote) { n.Version = "7.4.1" },
+		func(n *ReleaseNote) { n.Version = "v7.4.1-c1" },
+		func(n *ReleaseNote) { n.Version = "v7.4.1-c" },
 		func(n *ReleaseNote) { n.CommittedAt = time.Time{} },
 		func(n *ReleaseNote) { n.Kind = "Fix" },
 		func(n *ReleaseNote) { n.Area = strings.Repeat("a", ReleaseAreaMax+1) },

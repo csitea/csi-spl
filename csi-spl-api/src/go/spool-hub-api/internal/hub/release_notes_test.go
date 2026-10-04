@@ -112,7 +112,7 @@ func TestReleaseNotesIngestAndRead(t *testing.T) {
 	}
 
 	// The list: versions newest first (v7.4.10 > v7.4.2, numeric), paged.
-	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes?limit=2", hum, nil)
+	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes?limit=2&before=v7.5.0", hum, nil)
 	vs := out["versions"].([]any)
 	if code != http.StatusOK || len(vs) != 2 || vs[0].(map[string]any)["version"] != "v7.4.10" ||
 		len(vs[0].(map[string]any)["notes"].([]any)) != 3 || out["next_before"] != "v7.4.2" {
@@ -126,6 +126,47 @@ func TestReleaseNotesIngestAndRead(t *testing.T) {
 	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes/v7.4.2", hum, nil)
 	if code != http.StatusOK || len(out["notes"].([]any)) != 2 {
 		t.Fatalf("version: %d %v", code, out)
+	}
+}
+
+// The 9.9.9 wrap (owner t1 1c5b6d53): cycle 2's tag v<X.Y.Z>-c2 and cycle
+// 1's v<X.Y.Z> are two groups keyed by the full tag, cycle 2 first even after
+// cycle 1's v<X>.9.9, and each shows the plain v<X.Y.Z> (t1 e82eea7c). The
+// table is estate-wide and Postgres runs share it, so the rows have their own
+// shas and major 8, and every list starts below v8.0.2-c2.
+func TestReleaseNotesCycleTwoSameVersion(t *testing.T) {
+	e, tid, hum := releaseEnv(t)
+	code, out := ingest(t, e, tid,
+		releaseRow(releaseSHA("2"), "v8.0.1", releaseFullMsg),
+		releaseRow(releaseSHA("3"), "v8.9.9", releaseFullMsg),
+		releaseRow(releaseSHA("4"), "v8.0.1-c2", releaseFullMsg),
+		releaseRow(releaseSHA("5"), "v8.0.1-c1", releaseFullMsg),
+	)
+	if code != http.StatusOK || out["stored"].(float64) != 3 {
+		t.Fatalf("ingest: %d %v", code, out)
+	}
+	if rej := out["rejected"].([]any); len(rej) != 1 || rej[0].(map[string]any)["sha"] != releaseSHA("5") {
+		t.Fatalf("a -c1 tag must be refused (cycle 1 has no suffix): %v", rej)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes?limit=3&before=v8.0.2-c2", hum, nil)
+	vs := out["versions"].([]any)
+	if code != http.StatusOK || len(vs) != 3 {
+		t.Fatalf("list: %d %v", code, out)
+	}
+	for i, want := range [][2]string{{"v8.0.1-c2", "v8.0.1"}, {"v8.9.9", "v8.9.9"}, {"v8.0.1", "v8.0.1"}} {
+		v := vs[i].(map[string]any)
+		if v["version"] != want[0] || v["display"] != want[1] || len(v["notes"].([]any)) != 1 {
+			t.Fatalf("group %d: %v, want key %s display %s", i, v, want[0], want[1])
+		}
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes?limit=1&before=v8.0.1-c2", hum, nil)
+	if vs = out["versions"].([]any); code != http.StatusOK || len(vs) != 1 || vs[0].(map[string]any)["version"] != "v8.9.9" {
+		t.Fatalf("page below cycle 2: %d %v", code, out)
+	}
+	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes/v8.0.1-c2", hum, nil)
+	if notes, _ := out["notes"].([]any); code != http.StatusOK || out["display"] != "v8.0.1" || len(notes) != 1 ||
+		notes[0].(map[string]any)["sha"] != releaseSHA("4") {
+		t.Fatalf("cycle-2 version: %d %v", code, out)
 	}
 }
 

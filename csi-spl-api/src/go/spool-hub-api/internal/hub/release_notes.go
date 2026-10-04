@@ -24,7 +24,12 @@ import (
 //	                                   the newest `limit` versions (1..50)
 //	                                   strictly older than before, grouped.
 //	GET  /v1/release-notes/{ref}       one note by sha or 7+ char prefix, or
-//	                                   one version's notes by v<X.Y.Z> (7.2).
+//	                                   one version's notes by its release
+//	                                   key v<X.Y.Z>[-c<N>] (7.2).
+//
+// A version is keyed by its release key, the full tag (rdb 0114): after
+// 9.9.9 the mint starts over at 1.0.1 as tag v1.0.1-c2, so the two cycles'
+// v1.0.1 stay two groups. `display` is what a reader sees, the plain v1.0.1.
 //
 // Every signed-in member reads (Q11 yes); the rows are estate-wide, so the
 // tenant only gates the session. A store without ReleaseNotes answers as off.
@@ -149,9 +154,11 @@ func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (s
 	return rs, true
 }
 
-// releaseVersion is one version's notes, newest commit first.
+// releaseVersion is one version's notes, newest commit first. Version is the
+// release key (the cursor and the /releases ref), Display the plain v<X.Y.Z>.
 type releaseVersion struct {
 	Version string              `json:"version"`
+	Display string              `json:"display"`
 	Notes   []store.ReleaseNote `json:"notes"`
 }
 
@@ -199,7 +206,7 @@ func groupReleaseNotes(rows []store.ReleaseNote) []releaseVersion {
 	out := []releaseVersion{}
 	for _, n := range rows {
 		if len(out) == 0 || out[len(out)-1].Version != n.Version {
-			out = append(out, releaseVersion{Version: n.Version})
+			out = append(out, releaseVersion{Version: n.Version, Display: store.ReleaseDisplay(n.Version)})
 		}
 		last := &out[len(out)-1]
 		last.Notes = append(last.Notes, n)
@@ -225,7 +232,7 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 		case len(rows) == 0:
 			writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
 		default:
-			writeJSON(w, http.StatusOK, releaseVersion{Version: ref, Notes: rows})
+			writeJSON(w, http.StatusOK, releaseVersion{Version: ref, Display: store.ReleaseDisplay(ref), Notes: rows})
 		}
 		return
 	}

@@ -16,10 +16,12 @@ import (
 const releaseNoteCols = `sha, coalesce(version, ''), committed_at, kind, area, subject,
 	lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, coalesce(reverts, ''), link, ingested_at`
 
-// releaseVersionSQL is a version column or parameter as int[] (v7.10.0 >
-// v7.9.0), the expression rdb 0108's index is built on.
-func releaseVersionSQL(expr string) string {
-	return `string_to_array(substr(` + expr + `, 2), '.')::int[]`
+// releaseKeySQL is a version column or parameter as int[] {cycle, X, Y, Z}
+// (v1.0.1-c2 > v9.9.9 > v7.10.0 > v7.9.0), releaseVersionKey in SQL and the
+// expression rdb 0114's index is built on.
+func releaseKeySQL(expr string) string {
+	return `array_prepend(coalesce(substring(` + expr + ` from '-c([0-9]+)$')::int, 1),
+                    string_to_array(substring(` + expr + ` from '^v([0-9.]+)'), '.')::int[])`
 }
 
 func scanReleaseNote(row pgx.Row) (ReleaseNote, error) {
@@ -124,10 +126,10 @@ func (s *Postgres) ListReleaseNotes(ctx context.Context, before string, versions
 	if err := checkBefore(before); err != nil {
 		return nil, err
 	}
-	vk := releaseVersionSQL("version")
+	vk := releaseKeySQL("version")
 	out, err := s.queryReleaseNotes(ctx, `WITH page AS (
 			SELECT DISTINCT `+vk+` AS k FROM release_notes
-			WHERE version IS NOT NULL AND ($1 = '' OR `+vk+` < `+releaseVersionSQL("$1::text")+`)
+			WHERE version IS NOT NULL AND ($1 = '' OR `+vk+` < `+releaseKeySQL("$1::text")+`)
 			ORDER BY k DESC LIMIT $2)
 		SELECT `+releaseNoteCols+` FROM release_notes
 		WHERE version IS NOT NULL AND `+vk+` IN (SELECT k FROM page)`, before, ClampReleaseVersions(versions))
@@ -137,7 +139,7 @@ func (s *Postgres) ListReleaseNotes(ctx context.Context, before string, versions
 
 func (s *Postgres) ReleaseNotesOfVersion(ctx context.Context, version string) ([]ReleaseNote, error) {
 	if _, ok := releaseVersionKey(version); !ok {
-		return nil, fmt.Errorf("version must be v<X.Y.Z>")
+		return nil, fmt.Errorf("version must be v<X.Y.Z> or v<X.Y.Z>-c<N>")
 	}
 	out, err := s.queryReleaseNotes(ctx, `SELECT `+releaseNoteCols+` FROM release_notes
 		WHERE version = $1`, version)

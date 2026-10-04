@@ -87,8 +87,9 @@ do_release_note_ingest() {
 # first-parent commit, newest first. The version map walks newest -> oldest:
 # a tag at a commit contains every older commit on the line, so the running
 # minimum of the tags seen so far is the first version that shipped it. Tags
-# are ordered as release keys (cycle, then X.Y.Z); the row carries the plain
-# X.Y.Z the hub accepts.
+# are ordered as release keys (cycle, then X.Y.Z); the row carries the full
+# key (v1.0.1-c2 from cycle 2 on, rdb 0114), so two cycles' X.Y.Z stay two
+# versions in the hub; the hub shows it plain.
 spl_release_note_rows() {
   local head="$1" depth="$2" g=(git -C "$APP_PATH")
   local -A tagv=()
@@ -113,7 +114,7 @@ spl_release_note_rows() {
     [[ -n "$files" ]] && ! grep -qv '\.md$' <<<"$files" && doc=true
     area="$(sed -n 's|/.*||p' <<<"$files" | sort -u)"
     [[ "$(grep -c . <<<"$area")" == 1 ]] || area=""
-    jq -cn --arg sha "$sha" --arg version "${min:+v${min%%-c*}}" --arg at "$("${g[@]}" log -1 --format=%cI "$sha")" \
+    jq -cn --arg sha "$sha" --arg version "${min:+v$min}" --arg at "$("${g[@]}" log -1 --format=%cI "$sha")" \
       --arg message "$msg" --arg note "$note" --arg area "$area" --argjson doc "$doc" \
       '{sha: $sha, committed_at: $at, message: $message}
        + (if $version != "" then {version: $version} else {} end)

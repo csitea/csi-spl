@@ -135,7 +135,7 @@ C7=$(commit csi-spl-api/w.go "fix(hub): second of cycle 2")
 git -C "$REPO" tag v9.9.9 "$C5"; git -C "$REPO" tag v1.0.1-c2 "$C6"; git -C "$REPO" tag v1.0.2-c2 "$C7"
 out=$(act ENV=dev); rc=$?
 [[ $rc == 0 && "$(v "$C5")" == v9.9.9 ]] && pass "C5, in v9.9.9 and every cycle-2 tag -> v9.9.9 (cycle first)" || fail "C5 version $(v "$C5")"
-[[ "$(v "$C6")" == v1.0.1 && "$(v "$C7")" == v1.0.2 ]] && pass "cycle-2 rows carry the plain v1.0.1 / v1.0.2 the hub accepts" \
+[[ "$(v "$C6")" == v1.0.1-c2 && "$(v "$C7")" == v1.0.2-c2 ]] && pass "cycle-2 rows carry the full key v1.0.1-c2 / v1.0.2-c2 (never merged with cycle 1's v1.0.1)" \
   || fail "C6/C7 versions $(v "$C6") $(v "$C7")"
 [[ "$(v "$C4")" == v9.9.9 ]] && pass "C4, first shipped in v9.9.9 -> v9.9.9" || fail "C4 after the wrap $(v "$C4")"
 

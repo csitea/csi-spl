@@ -12,9 +12,12 @@
 
      Reads (spec 065 L4, every signed-in member, Q11):
        GET /v1/release-notes?before=<version>&limit=50
-           -> { off?, versions: [{ version, notes: [note] }], next_before }
+           -> { off?, versions: [{ version, display, notes: [note] }], next_before }
        GET /v1/release-notes/<sha | 7+ prefix>  -> { note }
-       GET /v1/release-notes/v<X.Y.Z>           -> { version, notes }
+       GET /v1/release-notes/v<X.Y.Z>[-c<N>]    -> { version, display, notes }
+     A version is keyed by its release key, the full tag (after 9.9.9 the
+     mint starts over at 1.0.1 as v1.0.1-c2, owner t1 1c5b6d53), and shown
+     plain (`display`, v1.0.1: "version is just a number", t1 e82eea7c).
      The mock tenant answers from a generated list (mockReleaseNotes). -->
 <template>
   <UiDialog :open="open" :title="t('release_notes.title')" size="xl" @update:open="onOpen">
@@ -26,7 +29,7 @@
         <article class="rn-note" data-test="release-note" :data-state="note.state" :data-sha="note.sha">
           <h3 class="rn-note__subject">{{ note.subject || shortSha(note.sha) }}</h3>
           <p class="rn-note__meta muted">
-            <span v-if="note.version" data-test="release-note-version">{{ note.version }}</span>
+            <span v-if="note.version" data-test="release-note-version">{{ plainVersion(note.version) }}</span>
             <span v-if="note.kind">{{ note.kind }}</span>
             <span v-if="note.area">{{ note.area }}</span>
           </p>
@@ -93,7 +96,7 @@
           class="rn-ver"
           data-test="release-version"
           :data-version="v.version"
-          :data-current="v.version === running ? 'true' : undefined"
+          :data-current="v.version === currentKey ? 'true' : undefined"
         >
           <button
             type="button"
@@ -103,8 +106,8 @@
             @click="toggle(v)"
           >
             <UiIcon :name="isOpen(v) ? 'chevron-up' : 'chevron-down'" :size="16" />
-            <span class="rn-ver__name">{{ v.version || t('release_notes.unversioned') }}</span>
-            <span v-if="v.version === running" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
+            <span class="rn-ver__name">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
+            <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
             <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
             <span class="rn-ver__n muted">{{ v.notes.length }}</span>
           </button>
@@ -151,7 +154,7 @@ interface ReleaseNote {
   link?: string
   [k: string]: string | undefined
 }
-interface ReleaseVersion { version: string, notes: ReleaseNote[] }
+interface ReleaseVersion { version: string, display?: string, notes: ReleaseNote[] }
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -170,10 +173,16 @@ const { copied, copy } = useCopyText()
 const PAGE = 50
 const PARTS = ['what', 'how', 'why'] as const
 const SHA_RE = /^[0-9a-f]{7,40}$/
-const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$/
+const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$/
 
 const running = computed(() => String(config.public.appVersion || '').trim())
 const versions = ref<ReleaseVersion[]>([])
+/* a release key as a reader sees it: v1.0.1-c2 -> v1.0.1 */
+const plainVersion = (v: string) => String(v || '').replace(/-c[0-9]+$/, '')
+const shownVersion = (v: ReleaseVersion) => v.display || plainVersion(v.version)
+/* the running build's version is plain, so two cycles share it: the newest
+   (first listed) release key carrying it is the one "you are here" marks */
+const currentKey = computed(() => versions.value.find((v) => plainVersion(v.version) === running.value)?.version || '')
 const nextBefore = ref('')
 const loading = ref(false)
 const message = ref('')
@@ -223,9 +232,9 @@ const shown = computed(() => {
   }
   const out: ReleaseVersion[] = []
   for (const v of versions.value) {
-    if (v.version.toLowerCase().startsWith(q)) { out.push(v); continue }
+    if (v.version.toLowerCase().startsWith(q) || shownVersion(v).toLowerCase().startsWith(q)) { out.push(v); continue }
     const notes = v.notes.filter(hit)
-    if (notes.length) out.push({ version: v.version, notes })
+    if (notes.length) out.push({ ...v, notes })
   }
   return out
 })
@@ -257,7 +266,7 @@ async function loadPage(before: string) {
     versions.value = [...versions.value, ...add]
     nextBefore.value = String(body?.next_before || '')
     if (!before && !opened.value.size) {
-      const first = versions.value.find((v) => v.version === running.value) || versions.value[0]
+      const first = versions.value.find((v) => v.version === currentKey.value) || versions.value[0]
       if (first) opened.value = new Set([first.version])
     }
   } catch {
@@ -280,11 +289,11 @@ async function openRef(raw: string) {
     return
   }
   try {
-    const body = await hubGet(`/v1/release-notes/${encodeURIComponent(want)}`) as { note?: ReleaseNote, version?: string, notes?: ReleaseNote[] }
+    const body = await hubGet(`/v1/release-notes/${encodeURIComponent(want)}`) as { note?: ReleaseNote, version?: string, display?: string, notes?: ReleaseNote[] }
     if (body?.note) {
       note.value = body.note
     } else if (body?.version) {
-      const v = { version: body.version, notes: body.notes || [] }
+      const v = { version: body.version, display: body.display, notes: body.notes || [] }
       versions.value = [v, ...versions.value.filter((x) => x.version !== v.version)]
       opened.value = new Set([v.version])
       filter.value = v.version

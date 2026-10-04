@@ -104,6 +104,64 @@ func TestOperatorWorkspacesFollowCnf(t *testing.T) {
 	}
 }
 
+// unflagOperator clears tenants.is_operator after a test that set it: the
+// hub package shares one Postgres database, where the flag would otherwise
+// overrule every later test's cnf operator workspace. Memory is per env.
+func unflagOperator(t *testing.T, e *env) {
+	t.Helper()
+	pg, ok := e.st.(*store.Postgres)
+	if !ok {
+		return
+	}
+	t.Cleanup(func() {
+		if _, err := pg.Pool().Exec(context.Background(), `BEGIN; SELECT set_config('app.rls_scope', 'operator', true);
+			UPDATE tenants SET is_operator = false WHERE is_operator; COMMIT`); err != nil {
+			t.Error(err)
+		}
+	})
+}
+
+// spec 074 phase 1b (owner D1: the operator workspace is recorded "in the
+// db"): hub start claims the cnf workspace into tenants.is_operator while no
+// row is flagged, and the store answers it from then on.
+func TestOperatorWorkspaceClaimedFromCnf(t *testing.T) {
+	e, op, _, _, _ := operatorEnv(t, func(op, _ string) string { return op })
+	unflagOperator(t, e)
+	ctx := context.Background()
+	if got, err := e.srv.ClaimOperatorWorkspace(ctx); err != nil || got != op {
+		t.Fatalf("start-up claim: %q %v, want the cnf workspace %q", got, err, op)
+	}
+	if got, err := e.st.(store.OperatorFlag).OperatorTenant(ctx); err != nil || got != op {
+		t.Fatalf("flag after the claim: %q %v, want %q", got, err, op)
+	}
+}
+
+// Once a row is flagged the FLAG decides, not the cnf: flag the other
+// workspace (cnf still names op) and its admin passes, op's admin gets 403,
+// the list marks only it operator, and a start-up claim does not move the
+// flag back to the cnf. CONTROL: before the flag, op's admin passed (cnf).
+func TestOperatorWorkspacesFollowDBFlag(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	unflagOperator(t, e)
+	ctx := context.Background()
+	if code, _ := call(t, e, op, http.MethodGet, opPath, who[rbac.Admin], nil); code != http.StatusOK {
+		t.Fatalf("control: admin of the cnf workspace, nothing flagged: %d, want 200", code)
+	}
+	if got, err := e.st.(store.OperatorFlag).ClaimOperatorTenant(ctx, other); err != nil || got != other {
+		t.Fatalf("flag %s: %q %v", other, got, err)
+	}
+	if got, err := e.srv.ClaimOperatorWorkspace(ctx); err != nil || got != other {
+		t.Fatalf("start-up claim: %q %v, want the flagged %q (never moved to the cnf)", got, err, other)
+	}
+	if code, _ := call(t, e, op, http.MethodGet, opPath, who[rbac.Admin], nil); code != http.StatusForbidden {
+		t.Fatalf("admin of the cnf workspace, flag elsewhere: %d, want 403", code)
+	}
+	code, body := call(t, e, other, http.MethodGet, opPath, whoOther[rbac.Admin], nil)
+	if code != http.StatusOK || listed(body)[other]["operator"] != true || listed(body)[op]["operator"] != false {
+		t.Fatalf("admin of the flagged workspace: %d %v, want 200 with only %s operator", code, body, other)
+	}
+}
+
 func listed(body map[string]any) map[string]map[string]any {
 	out := map[string]map[string]any{}
 	ws, _ := body["workspaces"].([]any)

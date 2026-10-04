@@ -130,10 +130,24 @@ func cmdServe() int {
 		return fail(err)
 	}
 	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
+	claimOperatorWorkspace(ctx, log, srv)
 	go srv.RunSweeper(ctx, sweepEvery)
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	go srv.RunWake(ctx)                 // spec 059 S1 + S3
 	return serveUntilDone(ctx, hc, log, srv)
+}
+
+// claimOperatorWorkspace records the cnf operator workspace in the database
+// while no row is flagged (rdb 0116, spec 074 phase 1b) and logs the one in
+// force. A failure is logged, never fatal: the hub then reads the flag per
+// request and falls back to the cnf.
+func claimOperatorWorkspace(ctx context.Context, log zerolog.Logger, srv *hub.Server) {
+	op, err := srv.ClaimOperatorWorkspace(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("operator workspace not claimed")
+		return
+	}
+	log.Info().Str("operator_workspace", op).Msg("operator workspace")
 }
 
 // checkSchemaHead refuses to serve a database behind the migrations this image

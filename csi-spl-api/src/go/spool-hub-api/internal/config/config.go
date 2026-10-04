@@ -344,10 +344,13 @@ type Hub struct {
 	// session's tenant there, as before). Both off by default.
 	WUITenantHosts bool   `env:"SPOOL_HUB_WUI_TENANT_HOSTS" envDefault:"false"`
 	WUIApexTenant  string `env:"SPOOL_HUB_WUI_APEX_TENANT"`
-	// OperatorTenant is the operator workspace (spec 074): the one workspace
-	// whose ADMINS manage every other workspace of this instance through
-	// /v1/operator/workspaces. "" = the apex workspace (WUIApexTenant);
-	// both "" = the routes are off (404).
+	// OperatorTenant is the BOOTSTRAP operator workspace (spec 074): the one
+	// workspace whose ADMINS manage every other workspace of this instance
+	// through /v1/operator/workspaces. The database is the authority
+	// (tenants.is_operator, rdb 0116, owner D1): the hub flags this workspace
+	// at start only while no row is flagged, and reads it from cnf only until
+	// then. "" = the apex workspace (WUIApexTenant); both "" and no row
+	// flagged = the routes are off (404).
 	OperatorTenant string `env:"SPOOL_HUB_OPERATOR_TENANT"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
@@ -434,8 +437,9 @@ func ParseMemLimit(s string) (int64, error) {
 	return n * mult, nil
 }
 
-// OperatorWorkspace is the operator workspace in force: SPOOL_HUB_OPERATOR_TENANT,
-// else the apex workspace, else "" (operator workspace routes off).
+// OperatorWorkspace is the bootstrap operator workspace: SPOOL_HUB_OPERATOR_TENANT,
+// else the apex workspace, else "". The one in force is the database's
+// tenants.is_operator row (rdb 0116); this names it only while none is flagged.
 func (h *Hub) OperatorWorkspace() string {
 	if h.OperatorTenant != "" {
 		return h.OperatorTenant

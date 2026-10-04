@@ -29,6 +29,10 @@ type Postgres struct {
 	access seatsProbe
 	// wsState: is rdb 0115 tenants.suspended_at there yet (operator_workspaces.go)
 	wsState seatsProbe
+	// opFlag: is rdb 0116 tenants.is_operator there yet; opCache: the flagged
+	// workspace (operator_flag.go)
+	opFlag  seatsProbe
+	opCache operatorCache
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps

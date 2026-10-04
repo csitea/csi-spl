@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
@@ -16,8 +17,9 @@ import (
 )
 
 // Workspace CRUD by the operator workspace (spec 074 phase 1; owner HUM-10,
-// t1 aa35699c): one workspace of the instance (Options.OperatorTenant, cnf
-// SPOOL_HUB_OPERATOR_TENANT, default the apex) is the only place to manage the
+// t1 aa35699c): one workspace of the instance (tenants.is_operator, rdb 0116;
+// Options.OperatorTenant, the cnf, only while no row is flagged - see
+// operatorTenant) is the only place to manage the
 // others, and "only the admin of the spool-hub could perform any spool-hub
 // instance specific changes, like add or remove tenants - he has to be admin,
 // not biz owner". So every route below needs a member SESSION whose active
@@ -42,17 +44,51 @@ const permOperatorAdmin = "operator.workspaces"
 // operatorAuditLimit is how many audit rows GET /v1/operator/workspaces/{id} shows.
 const operatorAuditLimit = 50
 
-// opActor is the caller of an operator workspace route.
+// opActor is the caller of an operator workspace route. tenant is the
+// operator workspace (the caller's active one).
 type opActor struct {
 	tenant, hum string
 	ws          store.OperatorWorkspaces
+}
+
+// operatorTenant is the operator workspace in force (spec 074 phase 1b, owner
+// D1 "in the db"): the row tenants.is_operator flags (rdb 0116, cached by the
+// store), else Options.OperatorTenant (the cnf) while no row is flagged or
+// the store keeps no flag; "" = the operator routes are off.
+func (s *Server) operatorTenant(ctx context.Context) (string, error) {
+	if f, ok := s.o.Store.(store.OperatorFlag); ok {
+		id, err := f.OperatorTenant(ctx)
+		if err != nil || id != "" {
+			return id, err
+		}
+	}
+	return s.o.OperatorTenant, nil
+}
+
+// ClaimOperatorWorkspace flags the cnf operator workspace in the database
+// while no row is flagged (rdb 0116), once at hub start. It never moves an
+// existing flag; it answers the operator workspace now in force.
+func (s *Server) ClaimOperatorWorkspace(ctx context.Context) (string, error) {
+	f, ok := s.o.Store.(store.OperatorFlag)
+	if s.o.OperatorTenant == "" || !ok {
+		return s.operatorTenant(ctx)
+	}
+	if _, err := f.ClaimOperatorTenant(ctx, s.o.OperatorTenant); err != nil {
+		return "", err
+	}
+	return s.operatorTenant(ctx)
 }
 
 // operatorActor authorises a workspace route; false = answered.
 func (s *Server) operatorActor(w http.ResponseWriter, r *http.Request) (opActor, bool) {
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
-	if s.o.OperatorTenant == "" {
+	op, err := s.operatorTenant(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
+		return opActor{}, false
+	}
+	if op == "" {
 		writeErr(w, http.StatusNotFound, "not_found", "this hub names no operator workspace")
 		return opActor{}, false
 	}
@@ -60,7 +96,7 @@ func (s *Server) operatorActor(w http.ResponseWriter, r *http.Request) (opActor,
 	if !ok {
 		return opActor{}, false
 	}
-	if hum == "" || t.ID != s.o.OperatorTenant {
+	if hum == "" || t.ID != op {
 		writeForbidden(w, permOperatorAdmin, "only an admin of the operator workspace manages workspaces")
 		return opActor{}, false
 	}
@@ -106,10 +142,11 @@ func rfcOrNil(t time.Time) *string {
 	return &v
 }
 
-func (s *Server) workspaceJSON(ws store.Workspace) workspaceBody {
+// workspaceJSON renders ws; op is the operator workspace (opActor.tenant).
+func (s *Server) workspaceJSON(ws store.Workspace, op string) workspaceBody {
 	return workspaceBody{ID: ws.ID, DisplayName: ws.DisplayName, BillingStatus: ws.BillingStatus, PlanID: ws.PlanID,
 		CreatedAt: rfcOrNil(ws.CreatedAt), SuspendedAt: rfcOrNil(ws.SuspendedAt), ArchivedAt: rfcOrNil(ws.ArchivedAt),
-		Operator: ws.ID == s.o.OperatorTenant}
+		Operator: ws.ID == op}
 }
 
 // GET /v1/operator/workspaces: every workspace of the instance.
@@ -125,7 +162,7 @@ func (s *Server) handleOperatorWorkspaces(w http.ResponseWriter, r *http.Request
 	}
 	out := make([]workspaceBody, 0, len(list))
 	for _, ws := range list {
-		out = append(out, s.workspaceJSON(ws))
+		out = append(out, s.workspaceJSON(ws, a.tenant))
 	}
 	s.opAudit(r, a, a.tenant, store.AuditList, map[string]any{"count": len(out)})
 	writeJSON(w, http.StatusOK, map[string]any{"workspaces": out})
@@ -171,7 +208,7 @@ func (s *Server) handleOperatorWorkspace(w http.ResponseWriter, r *http.Request)
 		rows = append(rows, map[string]any{"at": rfc(x.At), "actor_tenant": x.ActorTenant,
 			"actor_hum": x.ActorHum, "action": x.Action, "detail": x.Detail})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws), "audit": rows})
+	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws, a.tenant), "audit": rows})
 }
 
 // createWorkspaceReq is POST /v1/operator/workspaces.
@@ -261,7 +298,7 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 		out["invite"] = s.inviteFirstAdmin(r, a, req)
 	}
 	ws, _ := a.ws.GetWorkspace(r.Context(), req.ID)
-	out["workspace"] = s.workspaceJSON(ws)
+	out["workspace"] = s.workspaceJSON(ws, a.tenant)
 	s.opAudit(r, a, req.ID, store.AuditCreate, map[string]any{"billing_status": req.BillingStatus,
 		"display_name": req.DisplayName, "first_admin_email": req.FirstAdminEmail, "key_generated": priv != nil})
 	writeJSON(w, http.StatusCreated, out)
@@ -334,7 +371,7 @@ func (s *Server) handleOperatorWorkspacePatch(w http.ResponseWriter, r *http.Req
 		return
 	}
 	ws, _ = a.ws.GetWorkspace(r.Context(), ws.ID)
-	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws)})
+	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws, a.tenant)})
 }
 
 // patchWorkspace applies req to ws and audits each change; false = answered.
@@ -343,7 +380,7 @@ func (s *Server) patchWorkspace(w http.ResponseWriter, r *http.Request, a opActo
 		writeErr(w, http.StatusBadRequest, "bad_billing_status", "billing_status must be active|grace|unpaid|internal|manual")
 		return false
 	}
-	if req.Suspended != nil && *req.Suspended && ws.ID == s.o.OperatorTenant {
+	if req.Suspended != nil && *req.Suspended && ws.ID == a.tenant {
 		writeErr(w, http.StatusConflict, "self", "the operator workspace cannot suspend itself")
 		return false
 	}
@@ -429,7 +466,7 @@ func (s *Server) handleOperatorWorkspaceDelete(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if ws.ID == s.o.OperatorTenant {
+	if ws.ID == a.tenant {
 		writeErr(w, http.StatusConflict, "self", "the operator workspace cannot archive itself")
 		return
 	}
@@ -437,7 +474,7 @@ func (s *Server) handleOperatorWorkspaceDelete(w http.ResponseWriter, r *http.Re
 		return
 	}
 	ws, _ = a.ws.GetWorkspace(r.Context(), ws.ID)
-	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws)})
+	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws, a.tenant)})
 }
 
 func (s *Server) operatorWorkspacesPreflight(w http.ResponseWriter, r *http.Request) {

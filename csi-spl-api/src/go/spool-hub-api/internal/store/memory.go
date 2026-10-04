@@ -57,6 +57,8 @@ type Memory struct {
 	wake       memWake // wake.go (spec 059 S1), its own lock
 	// operator_workspaces.go (rdb 0115): operator_audit rows, guarded by mu
 	opAudit []OperatorAudit
+	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu
+	operatorTenant string
 }
 
 type memPin struct {

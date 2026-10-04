@@ -167,9 +167,12 @@ type Options struct {
 	OperatorAudience string
 	OperatorVerify   OperatorVerify
 	OperatorMail     OperatorMailer
-	// OperatorTenant is the operator workspace (spec 074, operator_workspaces.go):
-	// only an ADMIN of it, in a member session, may list, create, change,
-	// suspend or archive the instance's workspaces. "" = those routes are off.
+	// OperatorTenant is the cnf operator workspace (spec 074, operator_workspaces.go):
+	// only an ADMIN of the operator workspace, in a member session, may list,
+	// create, change, suspend or archive the instance's workspaces. The
+	// database flag (tenants.is_operator, rdb 0116) wins; this is the bootstrap
+	// value claimed at start and used while no row is flagged. "" with no
+	// flag = those routes are off.
 	OperatorTenant string
 }
 

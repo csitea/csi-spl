@@ -32,7 +32,9 @@ var operatorCallers = map[string]string{
 	"ApplyPayment":         "verified payment webhook (signature checked before the store)",
 	"SetClaimLink":         "paid webhook / claim mail, keyed by the checkout id",
 	"ClaimCheckout":        "POST /v1/checkout/claim: checkout id + the claim secret's hash",
-	"ListWorkspaces":       "GET /v1/operator/workspaces (spec 074): every workspace by design; only an admin of the cnf operator workspace reaches it",
+	"ListWorkspaces":       "GET /v1/operator/workspaces (spec 074): every workspace by design; only an admin of the operator workspace reaches it",
+	"OperatorTenant":       "which workspace is the operator one (rdb 0116, spec 074): one flagged row of the instance, unknown until read; returns its id only",
+	"ClaimOperatorTenant":  "hub start (spec 074): flags the cnf operator workspace while no row is flagged; no route",
 }
 
 // operatorEntries are the only functions that set the operator scope:

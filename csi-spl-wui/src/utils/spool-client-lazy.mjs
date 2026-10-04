@@ -19,6 +19,7 @@ import { loadCursors } from './read-cursor.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
 import { mockFleetRead, mockFleetWrite } from './fleet-load.mjs'
 import { mockPreviews } from './link-preview-lookup.mjs'
+import { mockOperatorArchive, mockOperatorCreate, mockOperatorList, mockOperatorPatch } from './operator-console.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1241,6 +1242,46 @@ async function previewLinks(ctx, ids) {
   })
 }
 
+/**
+ * Spec 074 T008: the operator console. GET/POST /v1/operator/workspaces,
+ * PATCH/DELETE /v1/operator/workspaces/{id}; 403 operator.workspaces for
+ * anyone but an admin of the operator workspace. The mock answers that 403
+ * unless the e2e opted in (spool.mock.operator_admin).
+ */
+async function listOperatorWorkspaces(ctx) {
+  const { live, mock } = ctx
+  if (mock) return mockOperatorList()
+  return live('/v1/operator/workspaces')
+}
+
+async function createOperatorWorkspace(ctx, body = {}) {
+  const { live, mock } = ctx
+  if (mock) return mockOperatorCreate(body)
+  return live('/v1/operator/workspaces', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** PATCH: { suspended: true } suspends, { suspended: false } resumes (and un-archives). */
+async function patchOperatorWorkspace(ctx, id, patch = {}) {
+  const { live, mock } = ctx
+  if (mock) return mockOperatorPatch(id, patch)
+  return live('/v1/operator/workspaces/' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+/** DELETE is soft on the hub: suspend + archive; nothing is purged. */
+async function archiveOperatorWorkspace(ctx, id) {
+  const { live, mock } = ctx
+  if (mock) return mockOperatorArchive(id)
+  return live('/v1/operator/workspaces/' + encodeURIComponent(id), { method: 'DELETE' })
+}
+
 export const lazySpoolMethods = {
   lookupIds,
   previewLinks,
@@ -1265,6 +1306,10 @@ export const lazySpoolMethods = {
   boxStats,
   getFleetLoad,
   patchFleetLoad,
+  listOperatorWorkspaces,
+  createOperatorWorkspace,
+  patchOperatorWorkspace,
+  archiveOperatorWorkspace,
   editMessage,
   deleteMessage,
   mergeMessage,

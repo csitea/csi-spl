@@ -83,6 +83,22 @@
       >
         <UiIcon name="settings" :size="20" />
       </NuxtLink>
+      <!-- spec 074 T008 (owner HUM-10, t1 aa35699c): the operator console, a
+           section of the right-most pane; only an admin of the operator
+           workspace sees this (stores/operator-pane probes the list) -->
+      <button
+        v-if="operatorPane.visible"
+        type="button"
+        class="sidebar-rail__settings sidebar-rail__operator"
+        data-testid="operator-console-open"
+        :data-on="operatorPane.open ? 'true' : undefined"
+        :aria-pressed="operatorPane.open ? 'true' : 'false'"
+        :title="t('operator.open')"
+        :aria-label="t('operator.open')"
+        @click="operatorPane.toggle()"
+      >
+        <UiIcon name="building" :size="20" />
+      </button>
       <!-- CLE-77886 (owner, msg 8ebbce0e): on a phone whose strip overflows,
            a copy of its controls on each side makes it roll endlessly
            (useLoopStrip). Copies only: no ids, no test ids, out of the tab
@@ -761,6 +777,7 @@ import { useDragReorder } from '~/composables/useDragReorder'
 import { useMove } from '~/composables/useMove'
 import { isChannelDropTarget } from '~/utils/move.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
+import { useOperatorPane } from '~/stores/operator-pane'
 import { topicOpening } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useTopicRowActions } from '~/composables/useTopicRowActions'
@@ -924,6 +941,11 @@ const docsRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSecti
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
+/* spec 074 T008: probe the operator list once the reader's role is known */
+const operatorPane = useOperatorPane()
+watch(() => [session.state, access.me?.role ?? null] as const, ([st, role]) => {
+  if (st === 'in' || api.mock) void operatorPane.probe(role)
+}, { immediate: true })
 const rail = computed(() => (acting.value ? RAIL.value.filter((item) => item.id !== 'dm') : RAIL.value))
 // specs/054: the DM tab is hidden while acting; never leave it selected.
 watch(acting, (a) => { if (a && tab.value === 'dm') tab.value = 'channels' }, { immediate: true })

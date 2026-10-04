@@ -79,6 +79,8 @@
              is the only place allowed to decide which one renders. -->
         <LiveTopicPane v-if="section === LIVE" />
         <TopicPane v-else-if="section === CHANNEL" />
+        <!-- spec 074 T008: the operator console, the third kind of the one section -->
+        <OperatorPane v-else-if="section === OPERATOR" />
       </div>
       <!-- CLE-77888 (owner, t1 topic 1701ae89): on a phone, the desktop
            footer's dot, bell, note and version as a ~5 mm strip at the very
@@ -165,7 +167,10 @@ import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'
-import { CHANNEL, LIVE, NONE, closes, routeLeavesTopic, topicSection } from '~/utils/topic-pane.mjs'
+import { CHANNEL, LIVE, NONE, OPERATOR, closes, operatorCloses, routeLeavesTopic, topicSection } from '~/utils/topic-pane.mjs'
+import { useOperatorPane } from '~/stores/operator-pane'
+/* spec 074 T008: the operator console's chunk loads on its first open only */
+const OperatorPane = defineAsyncComponent(() => import('@/components/OperatorPane.vue'))
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
@@ -215,6 +220,7 @@ onUnmounted(() => {
   document.documentElement.style.removeProperty('--omnibox-dock-h')
 })
 const livePane = useLiveFeed('pane')
+const operatorPane = useOperatorPane()
 /* A delete from another tab drops the row from every store this shell holds. */
 const live = useLive()
 const { dropEverywhere } = useMessageEdit()
@@ -259,7 +265,7 @@ onUnmounted(() => { offDeleted(); offTopic(); window.removeEventListener('spool:
    before topicPaneOpen: stack.install reads it during setup. */
 const route = useRoute()
 const topicPage = computed(() => /^\/t\/[^/]+$/.test(productPath(route.path)))
-const section = computed(() => topicPage.value ? NONE : topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
+const section = computed(() => topicPage.value ? NONE : topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open, operatorOpen: operatorPane.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)
 /* 050: which panel absorbs the slack the fixed/collapsed panels leave, as a
    data-filler attribute the collapse CSS reads. Normally the middle feed. */
@@ -270,7 +276,7 @@ const filler = computed(() => fillerPane(collapse.collapsed, topicPaneOpen.value
 const stack = useMobileStack()
 stack.install({
   topicOpen: topicPaneOpen,
-  closeTopic: () => { livePane.close(); topic.close() },
+  closeTopic: () => { livePane.close(); topic.close(); operatorPane.close() },
 })
 /* CLE-77886 (owner, t1 topic ac0fa400): a section's own page on a phone
    (Issues, People, Help, ...) keeps the section strip on top, as level 1 does */
@@ -287,6 +293,8 @@ const offNav = router.afterEach((to, from, failure) => {
   if (failure) return
   const nav = { mobile: stack.isMobile.value, open: topicPaneOpen.value, popstate, fromPath: from.path, toPath: to.path, toQuery: to.query }
   if (routeLeavesTopic(nav)) { livePane.close(); topic.close() }
+  /* spec 074 T008: the operator console shares that slot */
+  if (routeLeavesTopic(nav)) operatorPane.close()
 })
 onUnmounted(() => { offPop(); offNav() })
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
@@ -302,6 +310,18 @@ watch(() => livePane.taskId, (id) => {
 }, { flush: 'sync' })
 watch(() => topic.open, (open) => {
   if (open && closes(CHANNEL, { paneTaskId: livePane.taskId }) === LIVE) livePane.close()
+}, { flush: 'sync' })
+/* spec 074 T008: the operator console takes the same slot, both ways */
+watch(() => [Boolean(livePane.taskId), topic.open] as const, ([live, chan], [wasLive, wasChan]) => {
+  const opened = (live && !wasLive) ? LIVE : (chan && !wasChan) ? CHANNEL : ''
+  if (opened && operatorCloses(opened, { operatorOpen: operatorPane.open }).length) operatorPane.close()
+}, { flush: 'sync' })
+watch(() => operatorPane.open, (open) => {
+  if (!open) return
+  for (const s of operatorCloses(OPERATOR, { paneTaskId: livePane.taskId, topicOpen: topic.open })) {
+    if (s === LIVE) livePane.close()
+    if (s === CHANNEL) topic.close()
+  }
 }, { flush: 'sync' })
 
 const {

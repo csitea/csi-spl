@@ -19,13 +19,14 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
-import { CHANNEL, LIVE, NONE, closes, sectionCount, topicSection } from '../../src/utils/topic-pane.mjs'
+import { CHANNEL, LIVE, NONE, OPERATOR, closes, operatorCloses, sectionCount, topicSection } from '../../src/utils/topic-pane.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const PANES = [
   ['LiveTopicPane', 'src/components/LiveTopicPane.vue'],
   ['TopicPane', 'src/components/TopicPane.vue'],
+  ['OperatorPane', 'src/components/OperatorPane.vue'],
 ]
 
 /** The template half of an SFC — mounts in <script> (imports) must not count. */
@@ -130,7 +131,7 @@ describe('CLE-3429 — exactly one topic section (1..1)', () => {
   it('the layout decides with utils/topic-pane, and closes the losing store', () => {
     const src = read('src/layouts/default.vue')
     assert.match(src, /from '~\/utils\/topic-pane\.mjs'/)
-    assert.match(src, /topicSection\(\{\s*paneTaskId: livePane\.taskId,\s*topicOpen: topic\.open\s*\}\)/)
+    assert.match(src, /topicSection\(\{\s*paneTaskId: livePane\.taskId,\s*topicOpen: topic\.open,\s*operatorOpen: operatorPane\.open\s*\}\)/)
     /* both directions, or a stale section outranks the one just opened; and
        both sync, so the losing store is cleared before the render it would spoil */
     assert.match(
@@ -145,6 +146,26 @@ describe('CLE-3429 — exactly one topic section (1..1)', () => {
     )
   })
 
+  it('spec 074 T008: the operator console is the third kind, still one section', () => {
+    for (const paneTaskId of [null, 'x']) {
+      for (const topicOpen of [false, true]) {
+        for (const operatorOpen of [false, true]) {
+          const n = sectionCount({ paneTaskId, topicOpen, operatorOpen })
+          assert.ok(n === 0 || n === 1, `sectionCount(${paneTaskId}, ${topicOpen}, ${operatorOpen}) = ${n}`)
+        }
+      }
+    }
+    assert.equal(topicSection({ operatorOpen: true }), OPERATOR)
+    assert.equal(topicSection({ operatorOpen: true, topicOpen: true }), CHANNEL)
+    assert.deepEqual(operatorCloses(OPERATOR, { paneTaskId: 'x', topicOpen: true }), [LIVE, CHANNEL])
+    assert.deepEqual(operatorCloses(OPERATOR, {}), [])
+    assert.deepEqual(operatorCloses(LIVE, { operatorOpen: true }), [OPERATOR])
+    assert.deepEqual(operatorCloses(CHANNEL, { operatorOpen: false }), [])
+    const tpl = template(read('src/layouts/default.vue'))
+    assert.equal(mounts(tpl, 'OperatorPane').length, 1, 'OperatorPane is mounted once')
+    assert.ok(tpl.indexOf('v-else-if="section === OPERATOR"') > tpl.indexOf('v-else-if="section === CHANNEL"'), 'it continues the same chain')
+  })
+
   it('both panes carry the same data-test hook, so a DOM count cannot miss one', () => {
     for (const [name, rel] of PANES) {
       const tpl = template(read(rel))
@@ -155,5 +176,6 @@ describe('CLE-3429 — exactly one topic section (1..1)', () => {
     const chan = template(read('src/components/TopicPane.vue'))
     assert.match(live, /data-section="live"/)
     assert.match(chan, /data-section="channel"/)
+    assert.match(template(read('src/components/OperatorPane.vue')), /data-section="operator"/)
   })
 })

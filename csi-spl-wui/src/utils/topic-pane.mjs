@@ -20,6 +20,8 @@
 export const LIVE = 'live'
 /** The channel / DM topic store: /channel/<name>, /dm/<peer>. */
 export const CHANNEL = 'channel'
+/** Spec 074 T008: the operator console (stores/operator-pane), the lowest rank. */
+export const OPERATOR = 'operator'
 /** No topic on screen — the shell is two panes wide. */
 export const NONE = 'none'
 
@@ -28,12 +30,13 @@ export const NONE = 'none'
  * The live pane outranks the channel store when both are armed; the layout's
  * watchers make sure that only lasts one tick.
  *
- * @param {{ paneTaskId?: string|null, topicOpen?: boolean }} state
- * @returns {'live'|'channel'|'none'}
+ * @param {{ paneTaskId?: string|null, topicOpen?: boolean, operatorOpen?: boolean }} state
+ * @returns {'live'|'channel'|'operator'|'none'}
  */
 export function topicSection(state = {}) {
   if (state.paneTaskId) return LIVE
   if (state.topicOpen) return CHANNEL
+  if (state.operatorOpen) return OPERATOR
   return NONE
 }
 
@@ -41,7 +44,7 @@ export function topicSection(state = {}) {
  * How many topic sections a shell state may render. The invariant this
  * module exists for: never more than 1, for any state whatsoever.
  *
- * @param {{ paneTaskId?: string|null, topicOpen?: boolean }} state
+ * @param {{ paneTaskId?: string|null, topicOpen?: boolean, operatorOpen?: boolean }} state
  * @returns {0|1}
  */
 export function sectionCount(state = {}) {
@@ -60,6 +63,21 @@ export function closes(opened, state = {}) {
   if (opened === LIVE) return state.topicOpen ? CHANNEL : ''
   if (opened === CHANNEL) return state.paneTaskId ? LIVE : ''
   return ''
+}
+
+/**
+ * Spec 074 T008: the operator console shares the one right-pane slot. The
+ * sections that must give way when `opened` opens: opening the console
+ * closes either topic store; opening a topic closes the console.
+ *
+ * @param {'live'|'channel'|'operator'} opened  the section just opened
+ * @param {{ paneTaskId?: string|null, topicOpen?: boolean, operatorOpen?: boolean }} state  the state BEFORE it opened
+ * @returns {Array<'live'|'channel'|'operator'>}
+ */
+export function operatorCloses(opened, state = {}) {
+  if (opened === OPERATOR) return [state.paneTaskId ? LIVE : '', state.topicOpen ? CHANNEL : ''].filter(Boolean)
+  if (opened === LIVE || opened === CHANNEL) return state.operatorOpen ? [OPERATOR] : []
+  return []
 }
 
 /**

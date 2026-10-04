@@ -28,6 +28,14 @@ do_satellite_cnf() {
   f=$(_satellite_cnf_file)
   [[ -f "$f" ]] || { do_log "FATAL no satellite cnf at $f" >&2; return 1; }
   v=$(yq -r ".env.steps.\"${step}\".${key} // \"\"" "$f" 2>/dev/null)
+  # a value shared by every env lives in all.env.yaml or is derived (spec 072
+  # A44, e.g. 120 gh_repo): read the effective prd cnf when the file lacks it
+  if [[ -z "$v" || "$v" == null ]] && [[ -z "${SATELLITE_CNF_FILE:-}" ]]; then
+    local m
+    m=$(mktemp) || return 1
+    do_spl_merged_cnf "$(dirname "$f")" prd "$m" >&2 && v=$(yq -r ".env.steps.\"${step}\".${key} // \"\"" "$m" 2>/dev/null)
+    rm -f "$m"
+  fi
   [[ -n "$v" && "$v" != null ]] || { do_log "FATAL steps.${step}.${key} is not set in $f" >&2; return 1; }
   printf '%s\n' "$v"
 }

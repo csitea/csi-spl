@@ -20,6 +20,11 @@
 # @description env.hub.env.SPOOL_HUB_DEFAULT_LOCALE defaults to env.i18n.default_locale
 # @description (spec 021): the hub's mail fallback and the WUI's unprefixed locale
 # @description are one cnf value; a literal wins.
+# @description env.steps in all.env.yaml holds the step settings every cloud env
+# @description shares (spec 072 A44); an env file without env.steps of its own
+# @description (lde: no terraform) gets no env.steps at all.
+# @description steps.120-github-general-secrets.gh_repo defaults to
+# @description steps.017-github-wif-deploy.github_repository: one key per fact.
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
 # @param $2 - env: dev, prd or lde
 # @param $3 - output yaml path
@@ -29,7 +34,12 @@ do_spl_merged_cnf() {
   local dir="${1:?cnf dir}" env="${2:?env}" out="${3:?out}"
   [[ -f "$dir/all.env.yaml" && -f "$dir/$env.env.yaml" ]] || {
     echo "do_spl_merged_cnf: missing $dir/all.env.yaml or $dir/$env.env.yaml" >&2; return 1; }
+  local own_steps
+  own_steps=$(yq '.env.steps | tag' "$dir/$env.env.yaml") || return 1
   yq eval-all '. as $i ireduce ({}; . * $i)' "$dir/all.env.yaml" "$dir/$env.env.yaml" |
+    yq "$( [[ "$own_steps" == '!!map' ]] && echo . || echo 'del(.env.steps)' )" |
+    yq '(.env | select(.steps."017-github-wif-deploy".github_repository != null)) |= (
+      .steps."120-github-general-secrets".gh_repo = (.steps."120-github-general-secrets".gh_repo // .steps."017-github-wif-deploy".github_repository))' |
     yq '.env.dns.fqdn = (select(.env.dns.env_subdomain != "") | .env.dns.env_subdomain + "." + .env.dns.BASE_DOMAIN) // .env.dns.BASE_DOMAIN' |
     yq '.env.dns.api_fqdn = (.env.dns.api_fqdn // ((select(.env.dns.env_subdomain != "") | .env.dns.env_subdomain + ".api." + .env.dns.BASE_DOMAIN) // ("api." + .env.dns.BASE_DOMAIN)))' |
     yq '(.env | select(.steps."019-firebase-static-site".wui_auth_base != null)) |= (

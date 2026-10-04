@@ -1,0 +1,6 @@
+Lay-What: Archived conversations no longer slow down the unread count on the channel list.
+Lay-How: Those hidden lines are counted in one read, instead of a second lookup of each one.
+Lay-Why: The extra lookup made every channel-list refresh slower, even when you had nothing new.
+Tech-What: hiddenUnreadRead carries channel, from_id and expires_at out of the archived set.
+Tech-How: The outer WHERE applies the reader and expiry filters; the second messages primary-key join is gone.
+Tech-Why: The old join probed messages once per hidden line (19 762 buffers down to 5 368).

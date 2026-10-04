@@ -32,7 +32,7 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Needs**: T002.
   - **Done**: `go test -v ./internal/cloud/...` and `go test -v ./cmd/spool/...` pass in `csi-spl-api/src/go/spool-hub-api`.
 
-- [ ] T004 **generic s3 blob driver in go api** [Parallel]: Implement generic `blob.S3` driver using `aws-sdk-go-v2/service/s3` satisfying `blob.Store`. Support custom endpoints and path-style addressing for Compose S3 service (`http://s3:9000`), and standard regional addressing for AWS S3. Provides unified object storage across Phase 1 and Phase 2.
+- [x] T004 **generic s3 blob driver in go api** [Parallel]: Implement generic `blob.S3` driver using `aws-sdk-go-v2/service/s3` satisfying `blob.Store`. Support custom endpoints and path-style addressing for Compose S3 service (`http://s3:9000`), and standard regional addressing for AWS S3. Provides unified object storage across Phase 1 and Phase 2.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/store/s3/`, `csi-spl-api/src/go/spool-hub-api/internal/store/s3/s3_test.go`.
   - **Needs**: T003.
   - **Done**: `go test -v ./internal/store/s3/...` in `csi-spl-api/src/go/spool-hub-api` passes with mock S3 unit tests and local container integration test.

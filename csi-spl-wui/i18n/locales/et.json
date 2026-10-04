@@ -920,7 +920,7 @@
     "home": "Spooli avaleht",
     "placeholder_no_target": "Sisesta /search ja päring, nt /search from:CLE-07 is:task",
     "title": "Otsing",
-    "help_intro": "Sisesta ülemisele ribale /search, seejärel sõnad, \"fraasid\" ja operaatorid nagu Gmailis. Näited:",
+    "help_intro": "Sisesta /search: (või /search koos tühikuga, või /s koos tühikuga) riba algusesse, seejärel sõnad, \"fraasid\" ja operaatorid nagu Gmailis. Näiteks /search: deploy from:HUM-10. Näited:",
     "loading": "Otsin…",
     "bad_query": "Päringut ei saanud lugeda: {detail}",
     "no_results": "Vasteid pole.",
@@ -949,7 +949,7 @@
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "help_button": "Otsingu süntaks",
     "help_title": "Otsingu süntaks",
-    "help_content": "Sõnad vastavad tekstile; rõhumärgid ja suurtähed ei loe. Sõna, mida kirjutad, vastab pikemate sõnade algusele. Keskel oleva sõna lõppu pane * (deploy*). type:workspace (type:tenant töötab endiselt) ja type:event otsivad sinu tööruume ja sinu enda logi. name: vastab nimele. status:, priority:, assignee: ja label: otsivad probleeme.",
+    "help_content": "Sõnad vastavad tekstile; rõhumärgid ja suurtähed ei loe. Sõna, mida kirjutad, vastab pikemate sõnade algusele. Keskel oleva sõna lõppu pane * (/search: deploy*). /search: type:workspace (/search: type:tenant töötab endiselt) ja /search: type:event otsivad sinu tööruume ja sinu enda logi. name: vastab nimele. status:, priority:, assignee: ja label: otsivad probleeme.",
     "help_operators": "Operaatorid",
     "current_tenant": "Praegune",
     "op": {

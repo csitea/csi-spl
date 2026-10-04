@@ -920,7 +920,7 @@
     "home": "Spool pradžia",
     "placeholder_no_target": "Įveskite /search ir užklausą, pvz. /search from:CLE-07 is:task",
     "title": "Paieška",
-    "help_intro": "Viršutinėje juostoje įveskite /search, tada žodžius, \"frazes\" ir operatorius, kaip Gmail. Pavyzdžiai:",
+    "help_intro": "Juostos pradžioje įveskite /search: (arba /search su tarpu, arba /s su tarpu), tada žodžius, \"frazes\" ir operatorius, kaip Gmail. Pavyzdžiui /search: deploy from:HUM-10. Pavyzdžiai:",
     "loading": "Ieškoma…",
     "bad_query": "Nepavyko perskaityti užklausos: {detail}",
     "no_results": "Nieko nerasta.",
@@ -949,7 +949,7 @@
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",
-    "help_content": "Žodžiai atitinka tekstą; kirčiai ir didžiosios raidės nesvarbu. Žodis, kurį rašote, atitinka ilgesnių žodžių pradžią. Žodžiui viduryje gale dėkite * (deploy*). type:workspace (type:tenant vis dar veikia) ir type:event ieško jūsų darbo sričių ir jūsų žurnalo. name: atitinka vardą. status:, priority:, assignee: ir label: ieško problemų.",
+    "help_content": "Žodžiai atitinka tekstą; kirčiai ir didžiosios raidės nesvarbu. Žodis, kurį rašote, atitinka ilgesnių žodžių pradžią. Žodžiui viduryje gale dėkite * (/search: deploy*). /search: type:workspace (/search: type:tenant vis dar veikia) ir /search: type:event ieško jūsų darbo sričių ir jūsų žurnalo. name: atitinka vardą. status:, priority:, assignee: ir label: ieško problemų.",
     "help_operators": "Operatoriai",
     "current_tenant": "Dabartinis",
     "op": {

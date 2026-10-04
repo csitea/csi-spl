@@ -920,7 +920,7 @@
     "home": "Spool home",
     "placeholder_no_target": "Type /search and a query, e.g. /search from:CLE-07 is:task",
     "title": "Search",
-    "help_intro": "Type /search in the bar at the top, then words, \"phrases\" and operators, as in Gmail. Examples:",
+    "help_intro": "Type /search: (or /search with a space, or /s with a space) at the very start of the bar, then words, \"phrases\" and operators, as in Gmail. For example /search: deploy from:HUM-10. Examples:",
     "loading": "Searching…",
     "bad_query": "The query could not be read: {detail}",
     "no_results": "Nothing matches.",
@@ -949,7 +949,7 @@
     "unreachable": "The search service could not be reached. Try again shortly.",
     "help_button": "Search syntax",
     "help_title": "Search syntax",
-    "help_content": "Words match the text; accents and case do not matter. The word you are typing matches the start of longer words; end another word with * (deploy*) for the same. type:workspace (type:tenant still works) and type:event search your workspaces and your own event log. name: matches a name. status:, priority:, assignee: and label: search issues.",
+    "help_content": "Words match the text; accents and case do not matter. The word you are typing matches the start of longer words; end another word with * (/search: deploy*) for the same. /search: type:workspace (/search: type:tenant still works) and /search: type:event search your workspaces and your own event log. name: matches a name. status:, priority:, assignee: and label: search issues.",
     "help_operators": "Operators",
     "current_tenant": "Current",
     "op": {

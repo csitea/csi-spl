@@ -484,6 +484,37 @@ describe('issue hits (grammar 1.2)', () => {
       if (f !== 'en.json') assert.notEqual(label, en, f)
     }
   })
+  it('the help says how a search starts, and every example carries /search:', () => {
+    const files = readdirSync(join(WUI, 'i18n/locales')).filter((f) => f.endsWith('.json')).sort()
+    assert.equal(files.length, 19)
+    for (const f of files) {
+      const data = JSON.parse(read('i18n/locales/' + f))
+      const intro = data.search.help_intro
+      assert.equal(typeof intro, 'string', f)
+      assert.ok(intro.includes('/search:'), f + ' /search:')
+      assert.ok(intro.includes('/search '), f + ' /search space')
+      assert.ok(intro.includes('/s '), f + ' /s space')
+      assert.ok(intro.includes('/search: deploy from:HUM-10'), f + ' copied example')
+      assert.ok(intro.indexOf('/search:') < 80, f + ' start line is first')
+      const help = data.search.help_content
+      assert.ok(help.includes('/search: deploy*'), f)
+      assert.ok(help.includes('/search: type:workspace'), f)
+      assert.ok(!help.includes('/search: /search:'), f)
+    }
+    const composer = read('src/components/MessageComposer.vue')
+    const introAt = composer.indexOf("t('search.help_intro')")
+    const contentAt = composer.indexOf("t('search.help_content')")
+    assert.ok(introAt > 0 && contentAt > introAt, 'popover leads with the start line')
+    assert.match(composer, /\/search: \{\{ row\.example \}\}/)
+    const page = read('src/pages/search.vue')
+    const pageIntro = page.indexOf("t('search.help_intro')")
+    assert.ok(pageIntro > 0 && pageIntro < page.indexOf('/search: {{ ex }}'))
+    assert.match(page, /\/search: \{\{ ex \}\}/)
+    assert.match(page, /\/search: \{\{ row\.example \}\}/)
+    const index = read('src/public/help-md/index.md')
+    assert.match(index, /\/search: deploy from:HUM-10/)
+    assert.match(index, /\/s ` with a space/)
+  })
 })
 
 describe('mock matcher (lde only)', () => {

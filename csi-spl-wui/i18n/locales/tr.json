@@ -920,7 +920,7 @@
     "home": "Spool ana sayfa",
     "placeholder_no_target": "/search ve bir sorgu yazın, ör. /search from:CLE-07 is:task",
     "title": "Arama",
-    "help_intro": "Üst çubuğa /search yazın, ardından Gmail'deki gibi kelimeler, \"ifadeler\" ve operatörler. Örnekler:",
+    "help_intro": "Çubuğun en başına /search: yazın (ya da /search ve bir boşluk, ya da /s ve bir boşluk), ardından Gmail'deki gibi kelimeler, \"ifadeler\" ve operatörler. Örneğin /search: deploy from:HUM-10. Örnekler:",
     "loading": "Aranıyor…",
     "bad_query": "Sorgu okunamadı: {detail}",
     "no_results": "Eşleşme yok.",
@@ -949,7 +949,7 @@
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "help_button": "Arama sözdizimi",
     "help_title": "Arama sözdizimi",
-    "help_content": "Sözcükler metinle eşleşir; aksan ve büyük harf fark etmez. Yazdığınız sözcük daha uzun sözcüklerin başıyla eşleşir. Ortadaki bir sözcüğün sonuna * koyun (deploy*). type:workspace (type:tenant hâlâ çalışır) ve type:event çalışma alanlarını ve kendi günlüğünü arar. name: bir adla eşleşir. status:, priority:, assignee: ve label: konuları arar.",
+    "help_content": "Sözcükler metinle eşleşir; aksan ve büyük harf fark etmez. Yazdığınız sözcük daha uzun sözcüklerin başıyla eşleşir. Ortadaki bir sözcüğün sonuna * koyun (/search: deploy*). /search: type:workspace (/search: type:tenant hâlâ çalışır) ve /search: type:event çalışma alanlarını ve kendi günlüğünü arar. name: bir adla eşleşir. status:, priority:, assignee: ve label: konuları arar.",
     "help_operators": "İşleçler",
     "current_tenant": "Geçerli",
     "op": {

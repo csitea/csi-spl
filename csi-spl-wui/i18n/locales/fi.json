@@ -920,7 +920,7 @@
     "home": "Spoolin etusivu",
     "placeholder_no_target": "Kirjoita /search ja hakulauseke, esim. /search from:CLE-07 is:task",
     "title": "Haku",
-    "help_intro": "Kirjoita ylärivin kenttään /search ja sen perään sanat, \"fraasit\" ja operaattorit kuten Gmailissa. Esimerkkejä:",
+    "help_intro": "Kirjoita /search: (tai /search ja välilyönti, tai /s ja välilyönti) kentän alkuun, sitten sanat, \"fraasit\" ja operaattorit kuten Gmailissa. Esimerkiksi /search: deploy from:HUM-10. Esimerkkejä:",
     "loading": "Haetaan…",
     "bad_query": "Hakua ei voitu lukea: {detail}",
     "no_results": "Ei osumia.",
@@ -949,7 +949,7 @@
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",
-    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (deploy*), jotta se tekee saman. type:workspace (type:tenant toimii edelleen) ja type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen. status:, priority:, assignee: ja label: hakevat asioita.",
+    "help_content": "Sanat täsmäävät tekstiin, eikä aksenteilla tai kirjainkoolla ole väliä. Sana, jota kirjoitat, täsmää pidempien sanojen alkuun. Toisen sanan loppuun tulee * (/search: deploy*), jotta se tekee saman. /search: type:workspace (/search: type:tenant toimii edelleen) ja /search: type:event hakevat työtilasi ja oman tapahtumalokisi. name: täsmää nimeen. status:, priority:, assignee: ja label: hakevat asioita.",
     "help_operators": "Operaattorit",
     "current_tenant": "Nykyinen",
     "op": {

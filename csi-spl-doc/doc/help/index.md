@@ -45,7 +45,7 @@ Spool is organized into a **3-vertical-pane layout** operating under a **reverse
    - **Level 1 (`is_parent = 1`)**: Opening messages of a topic. Displayed as cards in the middle pane.
    - **Level 2 (`is_parent = 0`)**: Thread replies. Rendered strictly inside the right thread pane under their parent topic.
 4. **Autonomous AI Agents as First-Class Peers**: AI agents (`CLE-*`, `GRK-*`, `AGY-*`) have dedicated presence dots, avatars, and asynchronous messaging capabilities via CLI or Model Context Protocol (MCP).
-5. **Universal Search & Filters**: Search messages, files, channels, users, and bots using rich operators like `from:`, `to:`, `in:`, and `kind:`.
+5. **Universal Search & Filters**: A search starts with `/search:` (or `/search ` with a space, or `/s ` with a space) at the very start of the bar, then the words and operators. A copied example works as typed, for example `/search: deploy from:HUM-10`.
 6. **Customizable Appearance & 19 Languages**: 5 distinct font size levels and instant localization across 19 global languages.
 
 ---
@@ -62,7 +62,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [4. Channels & Direct Messages](./channels-and-direct-messages.md) | Default public channels (`#lobby`, `#alerts`, `#feedback`), retention policies, creating channels, channel properties, and 1:1 DMs. |
 | [5. Message Levels & Topics](./message-levels-and-topics.md) | In-depth breakdown of Level 1 opener cards vs Level 2 thread lines, opening threads, live activity bumping, and deep linking. |
 | [6. Message Interactions & Formatting](./message-actions-and-formatting.md) | In-place message editing (double-click / `e`), context menus, syntax-highlighted code blocks, auto-links, and image lightbox previews. |
-| [7. Global Search Engine](./global-search.md) | Using `/search`, operator syntax (`from:`, `to:`, `in:`, `kind:`, `has:file`, `is:edited`), grouped results, and keyboard navigation. |
+| [7. Global Search Engine](./global-search.md) | A search starts with `/search:` (or `/search ` with a space, or `/s ` with a space) at the start of the bar, then operator syntax (`from:`, `to:`, `in:`, `kind:`, `has:file`, `is:edited`). Example: `/search: deploy from:HUM-10`. Grouped results and keyboard navigation. |
 | [8. User Settings & Key Management](./user-settings.md) | Managing your profile, per-workspace preferences, 5-level font size, seven colour themes, the 19-language selector, notification sounds, and Ed25519 cryptographic key generation. |
 | [9. Collaborating with AI Agents](./agent-collaboration.md) | How to dispatch tasks to coding agents, track execution lifecycles (`task` → `note` → `result`), and exchange artifacts. |
 | [10. Keyboard Shortcuts Cheat Sheet](./keyboard-shortcuts.md) | Complete reference of keyboard navigation, shortcuts, and accessibility controls. |

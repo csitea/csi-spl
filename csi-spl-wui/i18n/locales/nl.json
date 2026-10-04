@@ -920,7 +920,7 @@
     "home": "Spool-start",
     "placeholder_no_target": "Typ /search en een zoekopdracht, bv. /search from:CLE-07 is:task",
     "title": "Zoeken",
-    "help_intro": "Typ /search in de balk bovenaan, dan woorden, \"zinnen\" en operatoren, zoals in Gmail. Voorbeelden:",
+    "help_intro": "Typ /search: (of /search met een spatie, of /s met een spatie) aan het begin van de balk, dan woorden, \"zinnen\" en operatoren, zoals in Gmail. Bijvoorbeeld /search: deploy from:HUM-10. Voorbeelden:",
     "loading": "Zoeken…",
     "bad_query": "De zoekopdracht kon niet worden gelezen: {detail}",
     "no_results": "Geen resultaten.",
@@ -949,7 +949,7 @@
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",
-    "help_content": "Woorden komen overeen met de tekst; accenten en hoofdletters doen er niet toe. Het woord dat je typt komt overeen met het begin van langere woorden; zet * aan het eind van een ander woord (deploy*) voor hetzelfde. type:workspace (type:tenant werkt nog steeds) en type:event zoeken je werkruimten en je eigen log. name: komt overeen met een naam. status:, priority:, assignee: en label: zoeken kwesties.",
+    "help_content": "Woorden komen overeen met de tekst; accenten en hoofdletters doen er niet toe. Het woord dat je typt komt overeen met het begin van langere woorden; zet * aan het eind van een ander woord (/search: deploy*) voor hetzelfde. /search: type:workspace (/search: type:tenant werkt nog steeds) en /search: type:event zoeken je werkruimten en je eigen log. name: komt overeen met een naam. status:, priority:, assignee: en label: zoeken kwesties.",
     "help_operators": "Operatoren",
     "current_tenant": "Huidige",
     "op": {

@@ -920,7 +920,7 @@
     "home": "Domov Spool",
     "placeholder_no_target": "Zadajte /search a dopyt, napr. /search from:CLE-07 is:task",
     "title": "Vyhľadávanie",
-    "help_intro": "Do horného panela zadajte /search a potom slová, \"frázy\" a operátory ako v Gmaile. Príklady:",
+    "help_intro": "Na úplný začiatok panela zadajte /search: (alebo /search s medzerou, alebo /s s medzerou), potom slová, \"frázy\" a operátory ako v Gmaile. Napríklad /search: deploy from:HUM-10. Príklady:",
     "loading": "Hľadá sa…",
     "bad_query": "Dopyt sa nepodarilo prečítať: {detail}",
     "no_results": "Žiadne výsledky.",
@@ -949,7 +949,7 @@
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",
     "help_button": "Syntax vyhľadávania",
     "help_title": "Syntax vyhľadávania",
-    "help_content": "Slová sa zhodujú s textom; dĺžne a veľkosť písmen nerozhodujú. Slovo, ktoré píšete, sa zhoduje so začiatkom dlhších slov. Slovu v strede dajte na koniec * (deploy*). type:workspace (type:tenant stále funguje) a type:event hľadajú vaše pracovné priestory a váš denník. name: sa zhoduje s menom. status:, priority:, assignee: a label: hľadajú úlohy.",
+    "help_content": "Slová sa zhodujú s textom; dĺžne a veľkosť písmen nerozhodujú. Slovo, ktoré píšete, sa zhoduje so začiatkom dlhších slov. Slovu v strede dajte na koniec * (/search: deploy*). /search: type:workspace (/search: type:tenant stále funguje) a /search: type:event hľadajú vaše pracovné priestory a váš denník. name: sa zhoduje s menom. status:, priority:, assignee: a label: hľadajú úlohy.",
     "help_operators": "Operátory",
     "current_tenant": "Aktuálny",
     "op": {

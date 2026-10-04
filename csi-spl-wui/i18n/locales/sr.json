@@ -920,7 +920,7 @@
     "home": "Почетна Spool",
     "placeholder_no_target": "Унесите /search и упит, нпр. /search from:CLE-07 is:task",
     "title": "Претрага",
-    "help_intro": "Унесите /search у горњу траку, затим речи, \"фразе\" и операторе, као у Gmail-у. Примери:",
+    "help_intro": "Унесите /search: (или /search са размаком, или /s са размаком) на сам почетак траке, затим речи, \"фразе\" и операторе, као у Gmail-у. На пример /search: deploy from:HUM-10. Примери:",
     "loading": "Претрага…",
     "bad_query": "Упит није могуће прочитати: {detail}",
     "no_results": "Нема резултата.",
@@ -949,7 +949,7 @@
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",
-    "help_content": "Reči se poklapaju sa tekstom; akcenti i velika slova nisu bitni. Reč koju kucate poklapa se sa početkom dužih reči. Reči u sredini stavite * na kraj (deploy*). type:workspace (type:tenant i dalje radi) i type:event traže vaše radne prostore i vaš dnevnik. name: se poklapa sa imenom. status:, priority:, assignee: i label: traže probleme.",
+    "help_content": "Reči se poklapaju sa tekstom; akcenti i velika slova nisu bitni. Reč koju kucate poklapa se sa početkom dužih reči. Reči u sredini stavite * na kraj (/search: deploy*). /search: type:workspace (/search: type:tenant i dalje radi) i /search: type:event traže vaše radne prostore i vaš dnevnik. name: se poklapa sa imenom. status:, priority:, assignee: i label: traže probleme.",
     "help_operators": "Operatori",
     "current_tenant": "Tekući",
     "op": {

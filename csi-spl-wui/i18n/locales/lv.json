@@ -920,7 +920,7 @@
     "home": "Spool sākums",
     "placeholder_no_target": "Ievadiet /search un vaicājumu, piem., /search from:CLE-07 is:task",
     "title": "Meklēšana",
-    "help_intro": "Augšējā joslā ievadiet /search, pēc tam vārdus, \"frāzes\" un operatorus kā Gmail. Piemēri:",
+    "help_intro": "Pašā joslas sākumā ievadiet /search: (vai /search ar atstarpi, vai /s ar atstarpi), pēc tam vārdus, \"frāzes\" un operatorus kā Gmail. Piemēram /search: deploy from:HUM-10. Piemēri:",
     "loading": "Meklē…",
     "bad_query": "Vaicājumu nevarēja nolasīt: {detail}",
     "no_results": "Nekas netika atrasts.",
@@ -949,7 +949,7 @@
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",
-    "help_content": "Vārdi atbilst tekstam; garumzīmes un lielie burti nav svarīgi. Vārds, ko rakstāt, atbilst garāku vārdu sākumam. Vārdam vidū beigās lieciet * (deploy*). type:workspace (type:tenant joprojām darbojas) un type:event meklē jūsu darbvietas un jūsu žurnālu. name: atbilst nosaukumam. status:, priority:, assignee: un label: meklē problēmas.",
+    "help_content": "Vārdi atbilst tekstam; garumzīmes un lielie burti nav svarīgi. Vārds, ko rakstāt, atbilst garāku vārdu sākumam. Vārdam vidū beigās lieciet * (/search: deploy*). /search: type:workspace (/search: type:tenant joprojām darbojas) un /search: type:event meklē jūsu darbvietas un jūsu žurnālu. name: atbilst nosaukumam. status:, priority:, assignee: un label: meklē problēmas.",
     "help_operators": "Operatori",
     "current_tenant": "Pašreizējais",
     "op": {

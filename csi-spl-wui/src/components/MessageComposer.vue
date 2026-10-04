@@ -119,6 +119,7 @@
           :aria-label="t('search.help_title')"
           @mousedown.prevent
         >
+          <p class="muted">{{ t('search.help_intro') }}</p>
           <p class="muted">{{ t('search.help_content') }}</p>
           <p class="search-syntax__label">{{ t('search.help_operators') }}</p>
           <ul>
@@ -126,7 +127,7 @@
               <button type="button" class="search-syntax__op" @click="insertOperator(row.op)">
                 <code dir="ltr">{{ row.op }}</code>
                 <span v-if="te(row.hintKey)">{{ t(row.hintKey) }}</span>
-                <span class="muted" dir="ltr">{{ row.example }}</span>
+                <span class="muted" dir="ltr">/search: {{ row.example }}</span>
               </button>
             </li>
           </ul>

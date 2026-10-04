@@ -920,7 +920,7 @@
     "home": "Spool-start",
     "placeholder_no_target": "Skriv /search och en fråga, t.ex. /search from:CLE-07 is:task",
     "title": "Sök",
-    "help_intro": "Skriv /search i fältet överst, sedan ord, \"fraser\" och operatorer, som i Gmail. Exempel:",
+    "help_intro": "Skriv /search: (eller /search med ett mellanslag, eller /s med ett mellanslag) längst i början av fältet, sedan ord, \"fraser\" och operatorer, som i Gmail. Till exempel /search: deploy from:HUM-10. Exempel:",
     "loading": "Söker…",
     "bad_query": "Frågan kunde inte läsas: {detail}",
     "no_results": "Inga träffar.",
@@ -949,7 +949,7 @@
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",
-    "help_content": "Ord matchar texten; accenter och versaler spelar ingen roll. Ordet du skriver matchar början av längre ord. Sätt * i slutet av ett annat ord (deploy*) för samma sak. type:workspace (type:tenant fungerar fortfarande) och type:event söker dina arbetsytor och din egen logg. name: matchar ett namn. status:, priority:, assignee: och label: söker ärenden.",
+    "help_content": "Ord matchar texten; accenter och versaler spelar ingen roll. Ordet du skriver matchar början av längre ord. Sätt * i slutet av ett annat ord (/search: deploy*) för samma sak. /search: type:workspace (/search: type:tenant fungerar fortfarande) och /search: type:event söker dina arbetsytor och din egen logg. name: matchar ett namn. status:, priority:, assignee: och label: söker ärenden.",
     "help_operators": "Operatorer",
     "current_tenant": "Nuvarande",
     "op": {

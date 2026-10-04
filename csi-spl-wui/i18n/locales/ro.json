@@ -920,7 +920,7 @@
     "home": "Acasă Spool",
     "placeholder_no_target": "Tastați /search și o interogare, de ex. /search from:CLE-07 is:task",
     "title": "Căutare",
-    "help_intro": "Tastați /search în bara de sus, apoi cuvinte, \"expresii\" și operatori, ca în Gmail. Exemple:",
+    "help_intro": "Tastați /search: (sau /search urmat de un spațiu, sau /s urmat de un spațiu) la începutul barei, apoi cuvinte, \"expresii\" și operatori, ca în Gmail. De exemplu /search: deploy from:HUM-10. Exemple:",
     "loading": "Se caută…",
     "bad_query": "Interogarea nu a putut fi citită: {detail}",
     "no_results": "Niciun rezultat.",
@@ -949,7 +949,7 @@
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
     "help_button": "Sintaxa căutării",
     "help_title": "Sintaxa căutării",
-    "help_content": "Cuvintele se potrivesc cu textul; accentele și majusculele nu contează. Cuvântul pe care îl scrii se potrivește cu începutul cuvintelor mai lungi. Pentru un cuvânt la mijloc pune * la sfârșit (deploy*). type:workspace (type:tenant funcționează în continuare) și type:event caută spațiile tale de lucru și jurnalul tău. name: se potrivește cu un nume. status:, priority:, assignee: și label: caută probleme.",
+    "help_content": "Cuvintele se potrivesc cu textul; accentele și majusculele nu contează. Cuvântul pe care îl scrii se potrivește cu începutul cuvintelor mai lungi. Pentru un cuvânt la mijloc pune * la sfârșit (/search: deploy*). /search: type:workspace (/search: type:tenant funcționează în continuare) și /search: type:event caută spațiile tale de lucru și jurnalul tău. name: se potrivește cu un nume. status:, priority:, assignee: și label: caută probleme.",
     "help_operators": "Operatori",
     "current_tenant": "Curent",
     "op": {

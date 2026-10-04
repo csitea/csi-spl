@@ -22,13 +22,13 @@
         <p class="muted">{{ t('search.help_intro') }}</p>
         <ul>
           <li v-for="ex in examples" :key="ex">
-            <NuxtLink :to="localePath(searchPath(ex))"><code dir="ltr">/search {{ ex }}</code></NuxtLink>
+            <NuxtLink :to="localePath(searchPath(ex))"><code dir="ltr">/search: {{ ex }}</code></NuxtLink>
           </li>
         </ul>
         <p class="muted">{{ t('search.help_operators') }}</p>
         <ul data-test="search-operator-help">
           <li v-for="row in helpRows" :key="row.op">
-            <code dir="ltr">{{ row.example }}</code>
+            <code dir="ltr">/search: {{ row.example }}</code>
             <span v-if="te(row.hintKey)" class="muted"> · {{ t(row.hintKey) }}</span>
           </li>
         </ul>

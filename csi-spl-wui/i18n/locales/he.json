@@ -920,7 +920,7 @@
     "home": "דף הבית של Spool",
     "placeholder_no_target": "הקלידו ‎/search ושאילתה, לדוגמה ‎/search from:CLE-07 is:task",
     "title": "חיפוש",
-    "help_intro": "הקלידו ‎/search בסרגל העליון, ואחריו מילים, \"ביטויים\" ואופרטורים, כמו ב-Gmail. דוגמאות:",
+    "help_intro": "הקלידו ‎/search: (או ‎/search עם רווח, או ‎/s עם רווח) בתחילת הסרגל, ואחריו מילים, \"ביטויים\" ואופרטורים, כמו ב-Gmail. לדוגמה ‎/search: deploy from:HUM-10. דוגמאות:",
     "loading": "מחפש…",
     "bad_query": "לא ניתן לקרוא את השאילתה: {detail}",
     "no_results": "אין תוצאות.",
@@ -949,7 +949,7 @@
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
     "help_button": "תחביר חיפוש",
     "help_title": "תחביר חיפוש",
-    "help_content": "מילים תואמות לטקסט, בלי קשר לניקוד או לאותיות גדולות. המילה שאתם מקלידים תואמת לתחילת מילים ארוכות יותר. למילה באמצע הוסיפו * בסוף (deploy*). type:workspace (type:tenant עדיין עובד) ו-type:event מחפשים את סביבות העבודה ואת היומן שלך. name: תואם לשם. status:, priority:, assignee: ו-label: מחפשים סוגיות.",
+    "help_content": "מילים תואמות לטקסט, בלי קשר לניקוד או לאותיות גדולות. המילה שאתם מקלידים תואמת לתחילת מילים ארוכות יותר. למילה באמצע הוסיפו * בסוף (/search: deploy*). /search: type:workspace (/search: type:tenant עדיין עובד) ו-/search: type:event מחפשים את סביבות העבודה ואת היומן שלך. name: תואם לשם. status:, priority:, assignee: ו-label: מחפשים סוגיות.",
     "help_operators": "אופרטורים",
     "current_tenant": "נוכחי",
     "op": {

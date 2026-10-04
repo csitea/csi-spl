@@ -449,6 +449,21 @@ async function getPerfSummary(ctx, opts = {}) {
 }
 
 /**
+ * HUM-10 (t1 f77c9f87): GET /v1/tenant/box-stats?box=&since= - a box's load
+ * and memory history, raw rows plus per-hour avg / peak (rdb 0117, audit.read).
+ * A hub without the route answers 404; the Boxes pane reads that as "no
+ * history yet". Mock: no history - the mock never invents hardware numbers.
+ */
+async function boxStats(ctx, { box = '', since = '' } = {}) {
+  const { live, mock } = ctx
+  if (mock) return { box, since: '', rows: [], hours: [] }
+  const q = new URLSearchParams()
+  if (box) q.set('box', String(box))
+  if (since) q.set('since', String(since))
+  return live(`/v1/tenant/box-stats?${q.toString()}`)
+}
+
+/**
  * message-edit-v1 §1 — PATCH /v1/messages/{msg_id}, body { body }.
  *
  * The prefix is `/v1/`, NOT `/api/v1/`: the latter is the auth handler's
@@ -1203,6 +1218,7 @@ export const lazySpoolMethods = {
   setTenantChannelNoFallback,
   archiveTenantChannel,
   getPerfSummary,
+  boxStats,
   editMessage,
   deleteMessage,
   mergeMessage,

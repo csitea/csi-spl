@@ -37,6 +37,7 @@ const LAZY_METHODS = [
   'setTenantChannelNoFallback',
   'archiveTenantChannel',
   'getPerfSummary',
+  'boxStats',
   'editMessage',
   'deleteMessage',
   'mergeMessage',

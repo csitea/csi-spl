@@ -65,14 +65,7 @@ export const useRosterStore = defineStore('roster', () => {
       }
       humansDetail.value = byId
     }
-    if (Array.isArray(data.boxes)) {
-      const byBox: Record<string, BoxDetail> = {}
-      for (const b of data.boxes) {
-        const id = String(b?.box_id || '')
-        if (id) byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || ''), seated_at: { ...(b.seated_at || {}) } }
-      }
-      boxes.value = byBox
-    }
+    if (Array.isArray(data.boxes)) boxes.value = boxDetails(data.boxes)
   }
 
   function isOnline(id: string, box?: string) {
@@ -82,6 +75,21 @@ export const useRosterStore = defineStore('roster', () => {
 
   return { roster, online, owners, humansDetail, boxes, me, self, people, peers, refresh, isOnline, applyFrame }
 })
+
+/** view-v1 §4.1 boxes[] keyed by box_id, as the Agents and Boxes cards read it. */
+function boxDetails(list: Array<BoxDetail & { box_id?: string }>): Record<string, BoxDetail> {
+  const byBox: Record<string, BoxDetail> = {}
+  for (const b of list) {
+    const id = String(b?.box_id || '')
+    if (!id) continue
+    byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || ''), seated_at: { ...(b.seated_at || {}) } }
+    /* HUM-10 (t1 f77c9f87): the BOX-0 hello's OS and run-times, when the
+       hub serves them (c-220); absent on an older hub */
+    if (b.os && typeof b.os === 'object') byBox[id].os = { ...b.os }
+    if (b.runtimes && typeof b.runtimes === 'object') byBox[id].runtimes = { ...b.runtimes }
+  }
+  return byBox
+}
 
 /** view-v1 §4.1 humans[] detail the People card reads (CLE-77794). */
 export interface HumanDetail {
@@ -100,4 +108,10 @@ export interface BoxDetail {
   /** Spec 061 3.6 (rdb 0107): agent id -> when its current holder was seated
    *  (RFC3339). An id with no entry was seated before the hub recorded seats. */
   seated_at?: Record<string, string>
+  /** The box's OS from its BOX-0 hello (HUM-10, t1 f77c9f87); absent until
+   *  the hub serves it. */
+  os?: { name?: string, version?: string, kernel?: string, arch?: string }
+  /** Run-time name -> version from the BOX-0 hello (go, node, docker, the
+   *  agent CLIs); absent until the hub serves it. */
+  runtimes?: Record<string, string>
 }

@@ -103,6 +103,8 @@ declare module '~/utils/spool-client.mjs' {
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
     archiveTenantChannel(channel: string): Promise<null>
     getPerfSummary(opts?: { days?: number, build?: string, buildB?: string }): Promise<unknown>
+    /** HUM-10: GET /v1/tenant/box-stats (rdb 0117); mock: no history. */
+    boxStats(opts?: { box?: string, since?: string }): Promise<unknown>
     listChannels(opts?: { read?: Record<string, string> }): Promise<import('./spool').ChannelRow[]>
     listMessages(opts?: {
       channel?: string

@@ -222,21 +222,6 @@ try {
       if (touch) {
         await page.goto(`${srv.base}/`, { waitUntil: 'networkidle2' }).catch(() => {})
         await sleep(800)
-      } else if (made) {
-        /* /t/:id is two panels. At >= 821px the shell sidebar is
-           display:none (data-topic-browse), so the channel row menu has no
-           box. A full load drops the in-memory mock channel, the same way
-           the phone reload does, so walk to the channel inside the app. */
-        await page.evaluate((id) => {
-          const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
-          if (router) return router.push('/channel/' + id)
-        }, made)
-        await page.waitForFunction((id) => {
-          const shell = document.querySelector('.spool-shell')
-          if (!shell || shell.getAttribute('data-topic-browse') === '1') return false
-          return [...document.querySelectorAll(`[data-testid="sidebar-row-menu"][data-menu-id="ch:${id}"]`)]
-            .some((x) => x.getBoundingClientRect().width > 0)
-        }, { timeout: 15000 }, made).catch(() => {})
       }
       await click(page, '[data-testid=sidebar-tab-channels]')
       await sleep(400)

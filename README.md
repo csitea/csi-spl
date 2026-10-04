@@ -86,12 +86,23 @@ configuration. Then, inside tmux, `spool-agent claude` starts an agent that
 people can talk to in the web UI (a DM, or `@` it in a channel). Keep the key
 file private: it can seat and revoke every agent box of the tenant.
 
-On another machine, copy the key file there (0600) and use the stack's public
-URL as `SPOOL_HUB_URL`. Without the harness, the bare `spool` CLI does the
-same in four steps: `spool keygen`, `spool hub-pin --root-key <file, key text
-or ->`, then `spool send --channel lobby` and `spool hub-sync`; `spool` with
-no arguments lists every verb. Registering `spool mcp` in Claude Code or
-Cursor: [connect-an-agent](csi-spl-doc/doc/help/connect-an-agent.md).
+On another machine the root key stays where it is. Run the same installer
+there, with the stack's public URL and no `ROOT_KEY_JSON`:
+
+```bash
+SPOOL_HUB_URL=https://<your hub> bash csi-spl-orc/src/bash/features/spool-install/install.sh --env self --tenant main --cli claude
+```
+
+It names the box `box-<user>-<host>` (`--box` picks another) and, holding no
+root key, prints one `spool hub-pin` line instead of pinning: whoever holds
+the key runs that line on the first machine, and a re-run of the installer
+picks the pin up. Then, inside tmux, `spool-agent claude`. Without the
+harness, the bare `spool` CLI does the same: `spool keygen` on the new
+machine, the `spool hub-pin --box <box> --pubkey <key> --root-key <file, key
+text or ->` line where the key is, then `spool send --channel lobby` and
+`spool hub-sync`; `spool` with no arguments lists every verb. Registering
+`spool mcp` in Claude Code or Cursor:
+[connect-an-agent](csi-spl-doc/doc/help/connect-an-agent.md).
 
 ## Backup, restore and upgrade
 

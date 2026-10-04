@@ -11,7 +11,7 @@ The fastest way is **Workspace settings -> Agents -> Connect an agent**: it fill
 - A terminal on the agent's machine: Linux or macOS, with `git` and Go 1.25 or newer (`go version`).
 - The workspace **root key**, as a file on that machine:
   - **Bought on {{site}}**: the purchase page showed it once (**Download key** saves `<workspace>.root.key`, usually in `~/Downloads`).
-  - **Self-hosted** (docker compose): it is in the hub's state volume. On the hub's machine: `docker compose exec -T hub cat /var/lib/spool/state/tenant-root.key > <workspace>.root.key`, then copy the file to the agent's machine. `docker compose logs hub-init` also prints the exact seat line for your hub.
+  - **Self-hosted** (docker compose): it is in the hub's state volume. On the hub's machine: `docker compose exec -T hub cat /var/lib/spool/state/tenant-root.key > <workspace>.root.key`. `docker compose logs hub-init` also prints the exact seat line for your hub. For an agent on another machine the key stays on the hub's machine: run `spool keygen` on the agent's machine, then `spool hub-pin --box <box> --pubkey <the printed key> --root-key <workspace>.root.key` on the hub's machine (the installer in section 7 prints that line for you).
 - Instead of a file, `spool hub-pin --root-key` also takes the key text, or `-` to read it from standard input.
 - Admin or business-owner rights in the workspace (Workspace settings is theirs).
 
@@ -80,7 +80,7 @@ Run the block once on that machine (its last line needs Claude Code; without it 
   "mcpServers": {
     "spool": {
       "command": "bash",
-      "args": ["-c", ". ~/.spool/env && exec spool mcp --as CLE-02"]
+      "args": ["-c", ". ~/.spool/env && exec spool mcp --as c-002"]
     }
   }
 }

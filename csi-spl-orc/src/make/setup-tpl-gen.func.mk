@@ -1,15 +1,26 @@
+# spec 072 A14: no GITHUB_TOKEN. Neither image nor init script reads it; only
+# the compose file's `GITHUB_TOKEN:?` interpolation (parsed for every service,
+# tf-runner too) refused, so an unset token gets an inert placeholder here.
+# tpl-gen is the public clone at the pin (csi-spl-iac/cnf/tpl-gen.ref): a
+# missing one is fetched anonymously by do_setup_tpl_gen when TPL_GEN_REPO_URL
+# is set, else refused up front instead of a 3-minute readiness timeout.
 .PHONY: do-setup-tpl-gen  ## @-> 01.06 build and start tpl-gen + conf-validator for template generation
-do-setup-tpl-gen: do-create-network demand_var-GITHUB_TOKEN
+do-setup-tpl-gen: do-create-network
+	@test -d $(TPG_PROJ_PATH)/.git || { \
+	  test -n "$${TPL_GEN_REPO_URL:-}" || { \
+	    echo "ERROR: no tpl-gen clone at $(TPG_PROJ_PATH): set TPL_GEN_REPO_URL (the public tpl-gen remote, no token) and rerun"; exit 1; }; \
+	  (cd $(IAC_PROJ_PATH) && ./run -a do_setup_tpl_gen) || exit 1; }
 	@export DOCKER_BUILDKIT=1 && \
+	export GITHUB_TOKEN="$${GITHUB_TOKEN:-not-needed-by-tpl-gen}" && \
 	${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} build tpl-gen conf-validator && \
 	${DOCKER_COMPOSE_CMD} -f ${DOCKER_COMPOSE_FILE_WUI_INF} up -d tpl-gen conf-validator && \
 	echo "Containers started, waiting for tpl-gen init (poetry install)..." && \
 	ok=0 && for i in $$(seq 1 90); do \
-	  docker exec con-$(ORG)-$(APP)-tpl-gen test -f $(TPG_PROJ_PATH)/src/python/tpl-gen/.venv/bin/activate 2>/dev/null && ok=1 && break; \
+	  docker exec $(CON_TPL_GEN) test -f $(TPG_PROJ_PATH)/src/python/tpl-gen/.venv/bin/activate 2>/dev/null && ok=1 && break; \
 	  sleep 2; \
 	done && [ "$$ok" = "1" ] && echo "tpl-gen ready" && \
 	ok=0 && for i in $$(seq 1 90); do \
-	  docker exec con-$(ORG)-$(APP)-conf-validator test -f $(CNF_PROJ_PATH)/src/python/conf-validator/.venv/bin/activate 2>/dev/null && ok=1 && break; \
+	  docker exec $(CON_CONF_VALIDATOR) test -f $(CNF_PROJ_PATH)/src/python/conf-validator/.venv/bin/activate 2>/dev/null && ok=1 && break; \
 	  sleep 2; \
 	done && [ "$$ok" = "1" ] && echo "conf-validator ready" && \
 	echo "tpl-gen and conf-validator containers ready" || \

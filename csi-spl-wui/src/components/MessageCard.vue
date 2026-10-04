@@ -445,7 +445,7 @@ import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useDmRef } from '~/composables/useDmRef'
 import { useMessageMenu } from '~/composables/useMessageMenu'
-import { stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
+import { holdPanel, stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
 import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
@@ -1062,6 +1062,8 @@ function onKey(ev: KeyboardEvent) {
     : deleteKeyAction(ev, props.msg, { topicDelete: showTopicDelete.value, editable: Boolean(props.editable) && canEdit(props.msg) })
   if (del) {
     ev.preventDefault()
+    /* HUM-10 c13e8023: the focus stays in this card's panel (useMsgShortcuts) */
+    holdPanel(rowEl.value)
     if (del === 'confirm-topic') void onMenuDeleteTopic()
     else if (del === 'confirm-message') msgDeleteOpen.value = true
     else {

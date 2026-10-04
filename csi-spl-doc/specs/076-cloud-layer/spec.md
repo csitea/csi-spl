@@ -46,6 +46,13 @@ The owner HUM-10 gave the authoritative mandate to create a swappable cloud laye
 3. Owner HUM-10, topic `a5a141bc`, msg `ac6fbf0c` (15:12Z, 2026-10-04):
    > "go"
 
+4. Owner HUM-10, topic `a5a141bc`, msg `cfc67e74-16d2-4488-8a8f-f0f44efc169d` (owner decisions on 5 questions):
+   - **Blob storage for `none`**: "yes - for some minimalistic s3 service" (embedded S3-compatible service in compose, not host volume mounts; S3 Go driver moves to Phase 1).
+   - **Secrets for `none`**: Docker Compose secrets backed by a restricted root-owned `.env` (mode 600) generated during `spool-up`.
+   - **AWS Compute**: AWS ECS Fargate, matching Cloud Run's serverless container execution model.
+   - **AWS WUI**: CloudFront + S3 static bucket hosting managed via Terraform.
+   - **Database & Migrations**: Plain standard PostgreSQL SQL dialect without cloud-specific extensions or vendor lock-in.
+
 ### Core Principles
 1. **Universal Factory Pattern**: Every cloud service is abstracted behind a clean interface. Concrete implementations (`gcp`, `none`, `aws`) are instantiated dynamically through a unified provider factory keyed by configuration (`env.cloud.provider`).
 2. **Zero Vendor Leakage in Core Business Logic**: The Go hub API (`csi-spl-api`), the Nuxt WUI (`csi-spl-wui`), and core orchestration scripts must interact exclusively with abstract interfaces. No cloud-vendor SDKs, vendor-specific environment variables, or proprietary CLI tools may be referenced directly outside provider adapters.
@@ -229,8 +236,8 @@ type Store interface {
 
 *Implementations*:
 - `gcp`: `blob.GCS` driver wrapping `cloud.google.com/go/storage`.
-- `none`: `blob.Dir` filesystem driver wrapping local directory (`/var/lib/spool/files`).
-- `aws`: `blob.S3` driver wrapping `github.com/aws/aws-sdk-go-v2/service/s3`.
+- `none`: Generic `blob.S3` driver wrapping `github.com/aws/aws-sdk-go-v2/service/s3` pointing to embedded Compose S3 service endpoint (`http://s3:9000`), with bucket auto-created at `spool-up` (owner decision 1).
+- `aws`: Generic `blob.S3` driver wrapping `github.com/aws/aws-sdk-go-v2/service/s3` pointing to regional AWS S3 bucket.
 
 #### 3. Database Provider Interface
 The database engine is PostgreSQL 16 across all environments. The abstraction handles connection URI resolution, proxy negotiation, and health validation:
@@ -366,18 +373,34 @@ Building strictly on top of Spec 072, Spec 076 Phase 1 implements the concrete s
    - Add `env.cloud.provider` with valid values `gcp`, `none`, `aws` (default: `gcp`).
    - For standalone compose, `docker-compose.yml` exports `SPOOL_CLOUD_PROVIDER=none`.
 2. **Hub Go Factory Driver (`internal/cloud/none`)**:
-   - Blob store: Forces `blob.Dir` (`SPOOL_HUB_FILES_DIR=/var/lib/spool/files`), eliminating any invocation of `cloud.google.com/go/storage`.
-   - Docs store: Forces `blob.Dir` (`SPOOL_HUB_DOCS_DIR=/var/lib/spool/docs`).
+   - Blob store: Connects to the embedded Compose S3 service (`http://s3:9000`) using the generic `blob.S3` driver (`aws-sdk-go-v2/service/s3`), using S3 credentials passed via Compose secrets. The default bucket (`spool-files`) is created during `spool-up` setup. Does not force `blob.Dir` (owner decision 1).
+   - Docs store: Stored in S3 bucket (`spool-docs`) or local web proxy volume.
    - Compute: Resolves container hostname or `SPOOL_VERSION`; drops `K_REVISION` checks.
    - Database: Directly utilizes TCP DSN (`postgres://${SPOOL_DB_RUNTIME}:...`), bypassing all proxy wrappers.
 3. **Database Seam Neutralization**:
    - `spl_sql_proxy_start` checks `$(do_spl_cloud_provider)`: when `none`, it immediately returns exit 0 with `SPL_PROXY_PORT=5432` and `SPL_PROXY_DSN=$SPOOL_HUB_DB_DSN`, allowing all standard database migration and inspection actions (`do_spl_db_bootstrap`, `do_spl_tenant_create`) to execute cleanly against local Postgres.
 4. **Secrets Seam Neutralization**:
-   - `do_spl_secrets_check` and `do_spl_secrets_seed_all` route through `do_spl_cloud_dispatch`. Under `none`, secrets are validated against and written to `.env` mode 600 or `/var/lib/spool/state/session.key`.
+   - `do_spl_secrets_check` and `do_spl_secrets_seed_all` route through `do_spl_cloud_dispatch`. Under `none`, secrets are validated against and written to `.env` mode 600 (Compose secrets) or `/var/lib/spool/state/session.key`.
 5. **Docs Publish Seam Neutralization**:
-   - `do_publish_docs` routes through `do_spl_cloud_dispatch`. Under `none`, staged markdown files are copied directly into the shared Docker volume (`hub-docs`) rather than invoking `gcloud storage rsync`.
+   - `do_publish_docs` routes through `do_spl_cloud_dispatch`. Under `none`, staged markdown files are copied directly into target local directory or S3 bucket rather than invoking `gcloud storage rsync`.
 6. **Deploy Seam Neutralization**:
    - Deploy actions dispatch to local Docker compose lifecycle (`docker compose up -d --no-deps <service>`).
+
+### 5.3 Minimal S3-Compatible Service Evaluation & Selection (for Compose Self-Host)
+
+Per owner HUM-10 decision 1, provider `none` includes an embedded minimal S3-compatible service in `docker-compose.yml` rather than relying on direct host filesystem volume mounts. Three candidates were evaluated for image size, licensing, architecture, and operational simplicity:
+
+| Candidate | Image / Tag | License | Compressed Size | Binary & Architecture | S3 API Fidelity | Recommendation |
+|---|---|---|---|---|---|---|
+| **MinIO** | `minio/minio:RELEASE.2024-05-10...` | GNU AGPLv3 | ~95 MB (260 MB raw) | Single Go binary (`minio server /data --console-address :9001`) | 100% (Industry standard, v4 signatures, multipart uploads) | **Recommended Default**: Battle-tested with `aws-sdk-go-v2`, zero compatibility issues with standard Go SDK client. Run with `MINIO_BROWSER=off` for minimal memory. |
+| **SeaweedFS** | `chrislusf/seaweedfs:latest` | Apache 2.0 | ~45 MB (120 MB raw) | Single Go binary (`weed server -s3 -dir=/data`) | High (embedded S3 gateway + volume server) | **Recommended Permissive Alternative**: Permissive Apache 2.0 license eliminates any AGPL copyleft viral concern for downstream distributors; very low memory footprint. |
+| **Garage** | `dxflrs/garage:v1.2.0` | GNU AGPLv3 | ~25 MB (70 MB raw) | Single Rust binary (`garage server`) | Moderate (tailored for lightweight geo-distributed self-hosting) | Viable, but requires explicit cluster layout initialization even for single-node deployments. |
+
+**Selection & Provisioning Contract**:
+- Default image: MinIO (or SeaweedFS if Apache 2.0 compliance is strictly required by packaging rules).
+- Default internal endpoint: `http://s3:9000`.
+- Bucket provisioning: During `do_spl_self_host_up` (step 4), the bootstrap script provisions the default bucket `spool-files` before starting the hub container.
+- Credentials: S3 Access Key ID and Secret Access Key are randomly generated (48 hex characters) and stored in `.env` (mode 600) as Compose secrets (`SPOOL_S3_ACCESS_KEY`, `SPOOL_S3_SECRET_KEY`).
 
 ---
 
@@ -399,28 +422,37 @@ Phase 2 introduces the AWS cloud provider (`env.cloud.provider: aws`). Detailed 
 
 ---
 
-## 7. Open Questions for the Owner
+## 7. Owner Decisions & Architectural Directives
 
-The following 5 technical design decisions are presented for the owner's review, each with a concrete recommended default:
+Owner HUM-10 formally resolved all five design questions in topic `a5a141bc-e891-4f26-bcdb-d1ac5efcd89f`, msg `cfc67e74-16d2-4488-8a8f-f0f44efc169d` (2026-10-04 15:43Z). These decisions govern the implementation across Phase 1 and Phase 2:
 
-### Question 1: Provider Selection Granularity (Global vs Hybrid)
-- **Question**: Should `env.cloud.provider` set all 7 services simultaneously (`provider: gcp | none | aws`), or should hybrid configurations be permitted (e.g. self-hosted compute with AWS S3 storage)?
-- **Recommended Default**: **Global setting by default, with optional service overrides**. The top-level key `env.cloud.provider: gcp|none|aws` establishes the estate baseline. Advanced operators may override individual services (e.g. `env.cloud.services.blob: aws`) only when explicitly specified. This preserves extreme simplicity for standard deployments while supporting enterprise multi-cloud setups.
+### Decision 1: Blob Storage for Provider `none` (Embedded S3 Service)
+- **Question**: Should provider `none` default to direct local host filesystem volume mounts or an embedded S3-compatible service in compose?
+- **Owner Decision**: **"yes - for some minimalistic s3 service"**.
+- **Architectural Directive**:
+  1. The self-hosted compose stack runs an embedded S3-compatible container (MinIO with `MINIO_BROWSER=off` or SeaweedFS).
+  2. The generic Go S3 driver (`aws-sdk-go-v2/service/s3`) moves into **Phase 1** (was Phase 2 T011), providing a unified S3 storage abstraction across both self-hosted Compose and native AWS S3.
+  3. The default bucket (`spool-files`) is created during `do_spl_self_host_up` before the hub container starts.
+  4. Local host folder mounting (`blob.Dir`) is not the default for compose self-hosting.
 
-### Question 2: Local Blob Storage Engine for Self-Hosting (Filesystem vs MinIO)
-- **Question**: For provider `none` in production self-hosting on a single VM, should local filesystem volume storage (`blob.Dir`) remain the permanent storage engine, or should an embedded MinIO/SeaweedFS S3-compatible container be added to `docker-compose.yml`?
-- **Recommended Default**: **Keep `blob.Dir` as the default storage engine for `none`**. `blob.Dir` introduces zero memory overhead, requires no background daemon, has zero external network dependencies, and provides optimal I/O throughput on local NVMe storage. An S3-compatible container can be offered as an optional profile for distributed multi-node clusters.
+### Decision 2: Secret Loading Mechanism for Provider `none`
+- **Question**: Should secrets for self-hosted deployments without a cloud KMS be passed via `.env` files, Docker Compose secrets, or an encrypted local keystore?
+- **Owner Decision**: **Accepted Recommended Default**.
+- **Architectural Directive**: Docker Compose secrets backed by a restricted root-owned `.env` file (mode 600) automatically generated during `spool-up` setup. Hub reads secrets from `/run/secrets/` or standard environment variables injected by Compose.
 
-### Question 3: Primary AWS Compute Architecture (ECS Fargate vs App Runner vs EKS)
-- **Question**: For Phase 2 AWS deployment, which compute platform should be the primary deployment target for the containerized Go hub API?
-- **Recommended Default**: **AWS ECS with AWS Fargate**. ECS Fargate provides exact architectural parity with Google Cloud Run (serverless container execution, automatic task replacement, native IAM task role authentication, seamless Secrets Manager integration). AWS App Runner currently imposes restrictive limits on persistent WebSocket connection lifespans, while AWS EKS introduces disproportionate operational overhead for a single-image API service.
+### Decision 3: Primary AWS Compute Architecture for Phase 2
+- **Question**: Which compute platform should be the primary deployment target for the containerized Go hub API on AWS?
+- **Owner Decision**: **Accepted Recommended Default**.
+- **Architectural Directive**: **AWS ECS with AWS Fargate**. Serverless container execution matching Google Cloud Run's architectural profile, with ALB routing, native IAM task role authentication, and zero VM cluster management overhead.
 
-### Question 4: Static Web Hosting Topology on AWS (S3+CloudFront vs Amplify)
-- **Question**: For Phase 2 WUI hosting on AWS, should the static web bundle be deployed to S3 fronted by CloudFront CDN via Terraform, or should AWS Amplify Hosting be used?
-- **Recommended Default**: **S3 + CloudFront managed via Terraform**. S3 + CloudFront mirrors the project's existing Terraform infrastructure pattern (analogous to step `019`), avoids proprietary Amplify framework lock-in, and allows precise declarative configuration of security headers, edge caching behaviors, and path rewrites to the hub API.
+### Decision 4: Static Web Hosting Topology on AWS for Phase 2
+- **Question**: Should the Nuxt WUI static bundle be deployed to S3 fronted by CloudFront CDN via Terraform, or should AWS Amplify Hosting be used?
+- **Owner Decision**: **Accepted Recommended Default**.
+- **Architectural Directive**: **Amazon S3 + CloudFront managed via Terraform**. Matches the existing Terraform step `019` pattern, supports fine-grained cache invalidation, edge headers, and custom domain SSL certificates via ACM.
 
-### Question 5: Cloud Database Connectivity Pattern on AWS
-- **Question**: Cloud SQL uses Cloud SQL Auth Proxy for secure IAM-gated socket access. On AWS, should RDS use AWS IAM database authentication or standard TLS TCP connections with secrets-managed credentials?
-- **Recommended Default**: **Standard TLS TCP connections (`sslmode=verify-full`) with credentials retrieved from AWS Secrets Manager**. AWS IAM DB authentication generates ephemeral tokens with a 15-minute lifetime requiring complex token renewal interceptors in the Go connection pool, whereas standard TLS connection pooling via `jackc/pgx/v5` is highly performant, standard across PostgreSQL, and completely reliable.
+### Decision 5: Multi-Cloud Database Dialect & Migration Strategy
+- **Question**: Should database migrations remain pure standard PostgreSQL (guaranteeing 100% portability across Cloud SQL, RDS Aurora PostgreSQL, and local Postgres containers)?
+- **Owner Decision**: **Accepted Recommended Default**.
+- **Architectural Directive**: Enforce strict standard PostgreSQL SQL dialect without cloud-specific extensions or vendor lock-in. A migration verification task is added to Phase 1 to statically validate all existing and future migration SQL files.
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:25:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:45:00Z -->

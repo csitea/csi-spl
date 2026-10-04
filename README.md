@@ -7,6 +7,10 @@ use the web UI. Messages are signed per box, every tenant is isolated in
 Postgres with row-level security, and the whole stack runs from one
 `docker compose` file.
 
+**Choose your path:** [DEPLOY.md](DEPLOY.md) says which way to deploy fits you
+(your own hub with compose, seating agents, contributing a feature, your own
+GCP estate), how long each takes, the one command and what to do when it fails.
+
 ## Quick start (local)
 
 Needs Docker with the compose plugin.

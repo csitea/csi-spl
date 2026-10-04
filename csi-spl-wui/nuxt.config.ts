@@ -12,6 +12,7 @@ import type { NuxtPage } from "@nuxt/schema"
 import { addTemplate, addTypeTemplate, addVitePlugin } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
+import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
 import { buildSignedOutRedirectScript } from "./src/utils/signed-out-redirect-script.mjs"
 import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
@@ -52,7 +53,11 @@ function wuiUseMock(): string {
 // dev / prd: the api host (https://api.<fqdn>); the hub resolves the tenant
 // from identity (specs/026, internal/hub/resolve.go). lde / legacy: a template
 // whose {tenant} is replaced at runtime (src/utils/tenant.mjs apiBaseFor).
-const apiBase = (process.env.NUXT_PUBLIC_API_BASE || "http://{tenant}.localhost:58080").replace(/\/+$/, "")
+// Spec 072 A3: a deployed page takes it from the served /config.json
+// (src/utils/runtime-config.mjs), so this is only the lde default. A
+// production build with none set bakes "" (never localhost): the page's own
+// origin, unless its config.json names one.
+const apiBase = (process.env.NUXT_PUBLIC_API_BASE || (isDev ? "http://{tenant}.localhost:58080" : "")).replace(/\/+$/, "")
 
 /**
  * The hub origin as a CSP source: `{tenant}` becomes `*`, so
@@ -73,29 +78,15 @@ function hubCspSources(base: string): string[] {
 const authBase = (process.env.NUXT_PUBLIC_AUTH_BASE || "").replace(/\/+$/, "")
 const HUB_SOURCES = [...new Set([...hubCspSources(apiBase), ...hubCspSources(authBase)])].join(" ")
 
-// ── The lobby task id, from cnf ───────────────────────────────────────────
+// ── The lobby task id ─────────────────────────────────────────────────────
 // wui-live-ws.md §LOBBY_TASK_ID: defined ONCE, in cnf (env.hub.env.
-// SPOOL_HUB_LOBBY_TASK_ID); the hub publishes it in `welcome`. The deployed
-// build shipped `lobbyTaskId: ""`, so /lobby could not read a row
-// before the socket was up and had said welcome (session -> socket -> welcome
-// -> read). So the build reads the same cnf file the deploy job reads, for the
-// env it builds (NUXT_PUBLIC_ENV_NAME); NUXT_PUBLIC_LOBBY_TASK_ID still
-// overrides, and welcome still wins at runtime.
-function cnfLobbyTaskId(): string {
-  const fromEnv = (process.env.NUXT_PUBLIC_LOBBY_TASK_ID || "").trim()
-  if (fromEnv) return fromEnv
-  const env = (process.env.NUXT_PUBLIC_ENV_NAME || "").trim()
-  if (!/^[a-z0-9-]+$/.test(env)) return ""
-  try {
-    const cnf = JSON.parse(readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "..", "csi-spl-cnf", "csi-spl", `${env}.env.json`),
-      "utf8",
-    ))
-    const id = String(cnf?.env?.hub?.env?.SPOOL_HUB_LOBBY_TASK_ID || "").trim()
-    return /^[0-9a-f-]{36}$/i.test(id) ? id : ""
-  } catch {
-    return ""
-  }
+// SPOOL_HUB_LOBBY_TASK_ID); the hub publishes it in `welcome`. A deployed page
+// reads it from /config.json (spec 072 A3: the deploy writes it from cnf, so
+// /lobby can read a row before the socket has said welcome); the build no
+// longer reads our cnf path (research 06 W8). NUXT_PUBLIC_LOBBY_TASK_ID is the
+// lde default, and welcome still wins at runtime.
+function lobbyTaskIdDefault(): string {
+  return (process.env.NUXT_PUBLIC_LOBBY_TASK_ID || "").trim()
 }
 
 // ── Preconnect to the hub ─────────────────────────────────────────────────
@@ -501,7 +492,7 @@ export default defineNuxtConfig({
       perfSampleRate: process.env.NUXT_PUBLIC_PERF_SAMPLE_RATE || "1",
       // #lobby is a well-known task_id (003 wui-live-ws.md / cnf LOBBY_TASK_ID);
       // the hub welcome frame overrides this when it names one.
-      lobbyTaskId: cnfLobbyTaskId(),
+      lobbyTaskId: lobbyTaskIdDefault(),
       useMock: wuiUseMock(),
       appVersion: wuiAppVersion(),
       // SPL-1006: the commit this bundle was built from, so an open tab can
@@ -543,6 +534,8 @@ export default defineNuxtConfig({
           ? [
               { innerHTML: buildSignedOutRedirectScript({ locales: I18N_LOCALES.map((l) => l.code), defaultLocale: DEFAULT_LOCALE }), tagPosition: "head" as const, tagPriority: "critical" as const },
               { innerHTML: buildEarlySessionScript({ authBase }), tagPosition: "head" as const, tagPriority: "critical" as const },
+              // spec 072 A3: /config.json leaves at parse time, beside the probe
+              { innerHTML: buildEarlyConfigScript(), tagPosition: "head" as const, tagPriority: "critical" as const },
             ]
           : []),
       ],

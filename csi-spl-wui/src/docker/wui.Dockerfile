@@ -7,9 +7,12 @@
 # The footer version (specs/047 W6): SPOOL_VERSION when given, else `git
 # describe --tags` of the checkout, else the root .version floor with -dev.
 #
-# The public URL is baked into the bundle at build time (Nuxt public runtime
-# config of a static generate), so a change of SPOOL_PUBLIC_URL needs
-# `docker compose up --build`.
+# Spec 072 A3: the bundle carries no env values. At container start
+# wui-config.sh writes /srv/config.json from SPOOL_PUBLIC_URL, SPOOL_TENANT,
+# SPOOL_LOBBY_TASK_ID and SPOOL_ENV_NAME, and the page reads it at boot, so a
+# domain or tenant change is a restart, not a rebuild. The build args below
+# are only the defaults of those env values; SPOOL_DEFAULT_LOCALE stays a
+# build value because it decides which routes carry a locale prefix.
 FROM node:20-alpine AS build
 WORKDIR /app
 ENV NUXT_TELEMETRY_DISABLED=1 CI=1
@@ -27,17 +30,9 @@ RUN set -eu; v="$SPOOL_VERSION"; \
     [ -n "$v" ] || v="$(git -c safe.directory='*' --git-dir=/meta describe --tags --match 'v[0-9]*' 2>/dev/null)" || true; \
     [ -n "$v" ] || v="$(tr -d ' \n' </meta/.version)-dev"; \
     printf 'v%s' "${v#v}" >/meta/version.txt; echo "WUI version $(cat /meta/version.txt)"
-ARG SPOOL_PUBLIC_URL=http://localhost:8080
-ARG SPOOL_TENANT=main
-ARG SPOOL_LOBBY_TASK_ID=00000000-0000-4000-8000-000000000001
 ARG SPOOL_DEFAULT_LOCALE=en
-# The hub is the same origin as the page: reads, the live socket and
-# /api/v1/auth/** all go to SPOOL_PUBLIC_URL, which Caddy routes to the hub.
+# No NUXT_PUBLIC_API_BASE / TENANT / LOBBY: one bundle for every origin.
 RUN NUXT_PUBLIC_APP_VERSION="$(cat /meta/version.txt)" \
-    NUXT_PUBLIC_API_BASE="$SPOOL_PUBLIC_URL" \
-    NUXT_PUBLIC_AUTH_BASE="" \
-    NUXT_PUBLIC_TENANT="$SPOOL_TENANT" \
-    NUXT_PUBLIC_LOBBY_TASK_ID="$SPOOL_LOBBY_TASK_ID" \
     NUXT_PUBLIC_DEFAULT_LOCALE="$SPOOL_DEFAULT_LOCALE" \
     NUXT_PUBLIC_USE_MOCK=0 \
     pnpm run generate
@@ -45,3 +40,11 @@ RUN NUXT_PUBLIC_APP_VERSION="$(cat /meta/version.txt)" \
 FROM caddy:2-alpine
 COPY csi-spl-wui/src/docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/.output/public/ /srv/
+COPY --chmod=0755 csi-spl-wui/src/docker/wui-config.sh /usr/local/bin/wui-config.sh
+# defaults of the runtime values (the compose file may still pass them as
+# build args); the container's env overrides each at start
+ARG SPOOL_TENANT=main
+ARG SPOOL_LOBBY_TASK_ID=00000000-0000-4000-8000-000000000001
+ENV SPOOL_TENANT=$SPOOL_TENANT SPOOL_LOBBY_TASK_ID=$SPOOL_LOBBY_TASK_ID
+ENTRYPOINT ["/usr/local/bin/wui-config.sh"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

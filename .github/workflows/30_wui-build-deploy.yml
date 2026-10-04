@@ -12,8 +12,10 @@
 # route on (031 wui_origin_host), on https://<fqdn>/build.json (the product
 # host). A red probe is a failed deploy.
 #
-# Build cannot be shared: nuxt generate bakes NUXT_PUBLIC_* into the bundle,
-# so dev and prd each build their own .output/public.
+# Spec 072 A3: the api host, tenant and the other runtime values reach the
+# page through .output/public/config.json, written per env beside build.json.
+# Each env still builds its own bundle while the auth base, default locale and
+# site URL stay build values (see the generate step).
 #
 # GCP auth, owner direction 2026-09-19 (spec 007 T080), csi-rel style:
 #   key  -- PRIMARY. The per-project SA key secret GCP_KEY_CSI_SPL_<ENV>
@@ -238,6 +240,9 @@ jobs:
           perf = e.get("perf", {})
           print("perf_rum_enabled=" + ("1" if perf.get("rum_enabled") else "0"))
           print("perf_sample_rate=" + str(perf.get("sample_rate", 1)))
+          # #lobby (wui-live-ws.md): the WUI's config.json carries it
+          lobby = str(e.get("hub", {}).get("env", {}).get("SPOOL_HUB_LOBBY_TASK_ID", "")).strip()
+          print("lobby_task_id=" + lobby)
           PY
           # CLE-35057: the hub bakes the repo .version into GET /version
           echo "want_version=$(tr -d '[:space:]' < .version)" >> "$GITHUB_OUTPUT"
@@ -276,23 +281,19 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "predicted release version $v"
 
-      # Reads go to the API host (specs/026: tenant from the session, no
-      # per-tenant host); NUXT_PUBLIC_TENANT is only what sign-in binds.
+      # Spec 072 A3: the api host, tenant, tenant hosts, perf and env name are
+      # NOT baked: the page reads them from the config.json written below.
+      # Still build values: the auth base (the parse-time session probe in
+      # the document head), the default locale (which routes are prefixed)
+      # and the site URL (the prerendered hreflang alternates).
       - name: nuxt generate (beside the suite, predicted version)
         working-directory: csi-spl-wui
         env:
-          NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
-          NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
-          NUXT_PUBLIC_TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
-          NUXT_PUBLIC_PERF_RUM: ${{ steps.cfg.outputs.perf_rum_enabled }}
-          NUXT_PUBLIC_PERF_SAMPLE_RATE: ${{ steps.cfg.outputs.perf_sample_rate }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
           # absolute base for the hreflang alternates (spec 021)
           NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
-          # signed-out bar title: spool-dev / spool-hub
-          NUXT_PUBLIC_ENV_NAME: ${{ matrix.environment }}
           # the footer version: the predicted one; regenerated below if the
           # mint differs
           NUXT_PUBLIC_APP_VERSION: ${{ steps.pre.outputs.version }}
@@ -365,21 +366,44 @@ jobs:
         if: steps.ver.outputs.stale != 'true' && steps.ver.outputs.version != steps.pre.outputs.version
         working-directory: csi-spl-wui
         env:
-          NUXT_PUBLIC_API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
-          NUXT_PUBLIC_TENANT: ${{ steps.cfg.outputs.tenant }}
-          NUXT_PUBLIC_TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
-          NUXT_PUBLIC_PERF_RUM: ${{ steps.cfg.outputs.perf_rum_enabled }}
-          NUXT_PUBLIC_PERF_SAMPLE_RATE: ${{ steps.cfg.outputs.perf_sample_rate }}
           NUXT_PUBLIC_USE_MOCK: "0"
           NUXT_PUBLIC_AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
           NUXT_PUBLIC_DEFAULT_LOCALE: ${{ steps.cfg.outputs.default_locale }}
           # absolute base for the hreflang alternates (spec 021)
           NUXT_PUBLIC_SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
-          # signed-out bar title: spool-dev / spool-hub
-          NUXT_PUBLIC_ENV_NAME: ${{ matrix.environment }}
           # the footer version: the one minted above, not csi-spl-wui/.version
           NUXT_PUBLIC_APP_VERSION: ${{ steps.ver.outputs.version }}
         run: pnpm run generate
+
+      # Spec 072 A3: this env's runtime config (src/utils/runtime-config.mjs).
+      # Reads go to the API host (specs/026: tenant from the session, no
+      # per-tenant host); tenant is only what sign-in binds.
+      - name: Write config.json (this env's runtime values)
+        if: steps.ver.outputs.stale != 'true'
+        working-directory: csi-spl-wui
+        env:
+          API_BASE: https://${{ steps.cfg.outputs.api_fqdn }}
+          AUTH_BASE: ${{ steps.cfg.outputs.auth_base }}
+          SITE_URL: https://${{ steps.cfg.outputs.fqdn }}
+          TENANT: ${{ steps.cfg.outputs.tenant }}
+          TENANT_HOSTS: ${{ steps.cfg.outputs.tenant_hosts }}
+          ENV_NAME: ${{ matrix.environment }}
+          LOBBY_TASK_ID: ${{ steps.cfg.outputs.lobby_task_id }}
+          PERF_RUM: ${{ steps.cfg.outputs.perf_rum_enabled }}
+          PERF_SAMPLE_RATE: ${{ steps.cfg.outputs.perf_sample_rate }}
+        run: |
+          set -euo pipefail
+          python3 - > .output/public/config.json <<'PY'
+          import json, os
+          print(json.dumps({
+              "apiBase": os.environ["API_BASE"], "authBase": os.environ["AUTH_BASE"],
+              "siteUrl": os.environ["SITE_URL"], "tenant": os.environ["TENANT"],
+              "tenantHosts": os.environ["TENANT_HOSTS"], "envName": os.environ["ENV_NAME"],
+              "lobbyTaskId": os.environ["LOBBY_TASK_ID"], "perfRum": os.environ["PERF_RUM"],
+              "perfSampleRate": os.environ["PERF_SAMPLE_RATE"],
+          }))
+          PY
+          cat .output/public/config.json
 
       - name: Stamp build.json (the deployed-commit probe)
         if: steps.ver.outputs.stale != 'true'

@@ -32,7 +32,7 @@ Spool supports a robust search grammar combining free text keywords with structu
 
 | Operator | Syntax Example | What it Matches |
 |---|---|---|
-| **`from:`** | `from:CLE-07` or `from:alice` | Messages sent by a specific human or AI agent. |
+| **`from:`** | `from:c-007` or `from:alice` | Messages sent by a specific human or AI agent. An older id of that same agent still matches. |
 | **`to:`** | `to:HUM-bob` or `to:@channel` | Messages addressed to a specific recipient or broadcast to a channel. |
 | **`in:`** | `in:lobby` or `in:feature-auth` | Messages posted within a specific channel or topic. |
 | **`kind:`** | `kind:task`, `kind:result`, `kind:reject` | Messages of a specific category (e.g. only completed results). |
@@ -40,9 +40,9 @@ Spool supports a robust search grammar combining free text keywords with structu
 | **`is:edited`** | `is:edited` | Restricts search to messages that have been modified after sending. |
 
 ### Example Queries
-- Find all failing test results from agent CLE-07:
+- Find all failing test results from agent c-007:
   ```text
-  /search from:CLE-07 kind:reject
+  /search from:c-007 kind:reject
   ```
 - Find all file uploads in the `#lobby` channel:
   ```text
@@ -79,11 +79,11 @@ Search results on `/search` are intelligently organized into distinct category s
 | 📋 Update authentication migrations                     4 messages • 10m ago      |
 |                                                                                   |
 | MESSAGES                                                                          |
-| 🤖 CLE-07 → Alice    kind: result                        2026-09-25T14:10:00Z     |
+| 🤖 c-007 → Alice    kind: result                        2026-09-25T14:10:00Z     |
 |   "Database <mark>auth migration</mark> executed successfully on staging"         |
 |                                                                                   |
 | 📎 FILES                                                                          |
-|   0014_auth_migration.sql (4.2 KB)                      Attached by CLE-07        |
+|   0014_auth_migration.sql (4.2 KB)                      Attached by c-007        |
 +-----------------------------------------------------------------------------------+
 ```
 
@@ -111,4 +111,4 @@ You can explore search results entirely from the keyboard:
 
 To customize your workspace appearance, font sizes, language, and cryptographic keys, see [User Settings & Key Management](./user-settings.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.0.0 · updated: 2026-10-04 -->

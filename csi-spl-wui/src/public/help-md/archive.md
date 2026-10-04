@@ -13,7 +13,7 @@ Click **Archive** in the left rail, or open `/archive`. The list fills the middl
 pane; a **Load more** button pages through older entries.
 
 Each row shows the topic's title, its channel, who started it, its reply count,
-and when it was archived.
+and when it was archived. Wherever an archived topic still shows — its row, or the thread header — it carries the word **Archived** and the archive glyph. The header also prints the day. Hovering the word shows the full time, and the title is muted.
 
 ---
 
@@ -32,9 +32,22 @@ and when it was archived.
 
 ---
 
+## 3. On a phone
+
+Swipe a topic card to the left and release to archive it. That is the same
+**Archive** as the menu, with the same permission, and you get an **Undo**.
+Swipe right to open the card's menu. A short drag snaps the card back. A
+swipe that starts at the screen's start edge is **Back**, not the menu.
+
+In the topic view, a swipe left on the topic's opening message archives the
+topic. A swipe left on a reply hides that reply on this device only — see
+[Message Interactions](./message-actions-and-formatting.md).
+
+---
+
 ## Next Steps
 
 To learn how topics and threads are structured, read
 [Message Levels & Topics](./message-levels-and-topics.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-30 -->
+<!-- version: 1.0.0 · updated: 2026-10-04 -->

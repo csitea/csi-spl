@@ -40,9 +40,13 @@ The **Profile** section shows who you are in the workspace:
 - **Picture**: your identity-provider picture, or a deterministic identicon when
   you have none. It is not edited here.
 
-You can change one field — your **Display name**. Type a new name (1–200
+You can change your **Display name**. Type a new name (1–200
 characters, a single line) and **Save**; the lists and message cards pick it up
 without a reload.
+
+**Interests** is a separate note, up to 1000 characters, about what you work
+on or care about. It is shown on your card in the People section. Save it on
+its own. Leave it empty and the card shows no interests.
 
 > Your workspace **role** (e.g. Product Owner, Developer, Admin) is shown under
 > your name in the avatar menu, not on this page.
@@ -103,6 +107,12 @@ A checkbox that shows or hides the diagnostics panel at the bottom of the app.
 The switch is kept on the hub for your account, so it follows you between
 browsers.
 
+### 4.5 Time zone
+Pick a zone, or leave **Browser time zone**. Every time in this workspace
+shows in that zone, including an ISO time that carries a zone inside a
+message. A time with no zone stays as written. The choice is kept for this
+workspace.
+
 ---
 
 ## 5. Behaviour (`/settings/behaviour`)
@@ -138,6 +148,13 @@ direction (**ascending** or **descending**). With nothing chosen the default is
 **priority ascending** (priority 1 at the top). Clicking a column header still
 re-sorts the current view; this only sets what Issues opens with. This one is
 kept per workspace.
+
+### 5.7 Keyboard shortcuts
+A switch, on unless you turn it off. While it is on, **Shift + a letter**
+acts on the selected message on a desktop (the list is in
+[Keyboard Shortcuts](./keyboard-shortcuts.md)), and **Shift + ?** shows that
+list. While it is off, those keys do nothing. The switch is kept for this
+workspace.
 
 ---
 
@@ -199,7 +216,13 @@ It has the same look as your personal Settings and only appears if you hold the
 permission. Its sections are:
 
 - **Members**: the users of the workspace — invite, edit and manage them (the
-  same list as the Users screen).
+  same list as the Users screen). A member can have an **Access until** day.
+  After that day they can no longer sign in or act here; their account stays.
+  **no end date** is the usual state. **Set the last day** stores the date,
+  **Remove the end date** clears it, and a membership that has passed the day
+  reads **access ended**. A pending invite shows **Mailed**: **Sent** and the
+  time the invitation email went out, or **Not sent**. A resend is possible
+  10 minutes after that time.
 - **Agents**: the AI agents seated in the workspace and their online state, the
   fallback-responder order, and a *Connect an agent* block to paste on an
   agent's machine.
@@ -215,6 +238,14 @@ permission. Its sections are:
   beside the 50th, 75th and 95th percentile in milliseconds; the 95th shows from
   50 samples. Pick a window of 7 or 30 days, and type a second build to compare
   two versions.
+- **Fleet load**: the band a box's load should stay in, as a percent of its
+  cores, and the order the boxes take a new agent. The section is
+  `/tenant-settings/fleet-load`, and it shows only for an administrator of the
+  workspace that runs the fleet. **Low %** and **High %** print their default
+  beside the field, and **Reset to default** puts a stored value back. A new
+  agent goes to the first box in the list that is under the high mark. An empty
+  list leaves the order to each box. A box id is letters, digits and hyphens,
+  up to 32 characters, and the list holds at most 32 boxes.
 
 ---
 
@@ -223,4 +254,4 @@ permission. Its sections are:
 To learn how human developers orchestrate and command AI coding agents, continue
 to [Collaborating with AI Agents](./agent-collaboration.md).
 
-<!-- version: 1.1.0 · updated: 2026-10-03 -->
+<!-- version: 1.1.0 · updated: 2026-10-04 -->

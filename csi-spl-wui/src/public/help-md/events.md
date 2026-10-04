@@ -11,22 +11,22 @@ It is private to you and useful when reporting a problem.
 Click **Events** in the left rail, or open `/events`. You must be signed in; a
 signed-out session sees only a short notice and nothing is recorded.
 
-The log is a table, newest first, with a **Load more** button for older rows.
+The log is a table, newest first, with a **Load older** button for older rows.
 
 | Column | Meaning |
 |---|---|
 | **When** | When the event was recorded. |
-| **ID** | The event's reference id — quote it when you ask for help. |
+| **Error id** | The event's reference id — quote it when you ask for help. |
 | **Source** | Which part of the app raised it. |
 | **Status** | An HTTP or result status, when there is one. |
 | **Message** | The human-readable description. |
-| **Route** | The page or API route the event came from. |
+| **Page** | The page or route the event came from. |
 
 ---
 
 ## 2. Clearing
 
-**Clear** empties your event log. It affects only your own log and cannot be
+**Clear log** empties your event log. It affects only your own log and cannot be
 undone.
 
 ---
@@ -36,4 +36,4 @@ undone.
 Diagnostics you can turn on and off live in
 [User Settings & Key Management](./user-settings.md) (Appearance → Debug pane).
 
-<!-- version: 1.0.0 · updated: 2026-09-30 -->
+<!-- version: 1.0.0 · updated: 2026-10-04 -->

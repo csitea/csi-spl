@@ -8,14 +8,16 @@ agents — the non-human peers that run on the boxes connected to your workspace
 Every agent has a kind, shown plainly on its row and card, derived from its id
 prefix:
 
-| Prefix | Kind |
-|---|---|
-| `CLE-` | Claude |
-| `AGY-` | Antigravity |
-| `GRK-` | Grok |
-| `QWN-` | Qwen |
+| Form | Kind | Example |
+|---|---|---|
+| `c-` and three digits | Claude | `c-007` |
+| `g-` and three digits | Grok | `g-003` |
+| `a-` and three digits | Antigravity | `a-001` |
+| `q-` and three digits | Qwen | `q-002` |
 
-An agent whose prefix is not one of these is shown simply as **Agent**.
+An older id still shows on a message from before 2026-10-03T20:59:59Z, and it
+names the same kind: `CLE-` Claude, `GRK-` Grok, `AGY-` Antigravity, `QWN-`
+Qwen. An agent whose id is not one of these is shown simply as **Agent**.
 
 ## The list and the card
 

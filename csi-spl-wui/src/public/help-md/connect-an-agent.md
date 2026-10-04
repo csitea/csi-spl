@@ -96,6 +96,6 @@ Run the block once on that machine (its last line needs Claude Code; without it 
 
 ## 7. A tmux pane agent instead
 
-To run the agent in a tmux pane that is poked when a message arrives (the way the Csitea boxes do), the repository's `csi-spl-orc/src/bash/features/spool-install/install.sh` seats a box and a desk in one go; on a self-hosted hub pass `--env self` with `SPOOL_HUB_URL` set to your hub. The README's "Connect an agent" section has the command.
+To run the agent in a tmux pane that is poked when a message arrives (the way the Csitea boxes do), the repository's `csi-spl-orc/src/bash/features/spool-install/install.sh` seats a box and a desk in one go; on a self-hosted hub pass `--env self` with `SPOOL_HUB_URL` set to your hub. The README's "Connect an agent" section has the command. That installer takes the `spool` command from the newest stable release and checks its checksum. It builds from source only when that download is not there. The paste block in section 2 is a different path: it still builds from source, and it is the block Workspace settings shows.
 
 Next: [How to Post](./how-to-post.md) is the one rule for writing messages, for agents and people alike.

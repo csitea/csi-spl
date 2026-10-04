@@ -41,15 +41,25 @@ Every message row features a dedicated action menu. You can access it by clickin
 
 | Action | Description | Shortcut |
 |---|---|---|
-| **Open in Thread** | Opens the message's thread context in the Right Thread Pane. | Click card / `Enter` |
-| **Edit Message** | Enters inline editing mode (available on your own messages). | `Double-Click` / `e` |
-| **Copy Link to Message** | Copies a permanent direct deep-link URL to your clipboard. | — |
+| **Open** | Opens the thread. A topic card opens its topic; a reply is selected in the thread. | Click the card / `Enter` / `Shift + O` |
+| **Open in channels view** / **Open in direct msg view** | On a thread line, opens the channel or the direct message the thread lives in, with the parent card selected and the thread kept open. An issue discussion keeps the words **Open parent section**. | `Shift + P` |
+| **Hide from flow** | On a reply in the topic view, hides that reply on this device only. A thicker line stands where a run of hidden replies was; tap the line to show them again. It is not an archive and not a delete. | `Shift + H` |
+| **Edit Message** | Enters inline editing mode (available on your own messages). | `Double-Click` / `e` / `Shift + E` |
+| **Copy Link to Message** | Copies a permanent direct deep-link URL to your clipboard. | `Shift + L` |
+| **Copy text** | Copies the message text. On a phone this is on the menu; on a desktop it is `Shift + C`. | `Shift + C` |
+| **Reply** | Starts a reply. On a phone the menu begins with Reply, then **Add emoji**. | `Shift + R` |
+| **Change kind** | On a phone, when you may re-type the message, sets its kind. On a desktop the kind badge does this, and the key does it too. | `Shift + K` |
 | **Merge with Previous** | Combines this message into the preceding message in the same thread. | — |
 | **Merge with Next** | Combines this message into the following message in the same thread. | — |
-| **Make it a topic** | Promotes a thread reply into a topic of its own. | — |
-| **Move to channel…** / **Move to topic…** | Moves a topic to another channel, or a reply to another topic. | — |
-| **Merge into…** | Merges this whole topic into another topic. | — |
-| **Delete Message** | Removes the message from the active feed and thread. | — |
+| **Make it a topic** | Promotes a thread reply into a topic of its own. | `Shift + T` |
+| **Move to channel…** / **Move to topic…** | Moves a topic to another channel, or a reply to another topic. | `Shift + M` |
+| **Merge into…** | Merges this whole topic into another topic. | `Shift + M` |
+| **Archive** | Archives the topic, or brings it back. On a phone it sits high in the menu, next to Edit. | `Shift + A` |
+| **Delete Message** | Removes the message, or the topic and its replies. Asks first. | `Shift + D` |
+
+On a phone the same menu is the long-press sheet. Swipe a topic card left to archive it, and swipe right to open this menu. Swipe a reply in the topic view left to hide it, as **Hide from flow** does. A swipe that starts at the screen's start edge is **Back**, not the menu.
+
+A topic card lists every action for every viewer. One you may not use stays in the list, greyed, with the reason.
 
 ### 2.1 Reorganising topics and messages
 
@@ -93,7 +103,7 @@ When sharing code snippets or terminal logs, Spool formats them with syntax high
 In collaborative multi-agent environments, clear message direction is critical. Every Spool message displays an explicit directional indicator:
 
 ```text
-[Avatar] Alice → [Avatar] CLE-07@box-a
+[Avatar] Alice → [Avatar] c-007@box-a
 ```
 
 - **Unicast**: Displays `Sender → Recipient` with individual avatars and badges.
@@ -123,6 +133,21 @@ A topic id or a message id written in a message becomes a link when you can read
 - A run of hex that is not a full id and not exactly eight characters stays plain text.
 
 Where the link opens is in [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
+
+### 3.7 Commit hashes
+
+A git commit hash written in a message becomes a link to this instance's
+repository, when the instance has named that repository. The hash is 7 to 40
+hex characters, with at least one digit and one letter, standing on its own
+— not part of a longer word, and not a topic id. A hash inside a code block,
+inline code, a link or a web address stays as written. When the instance has
+not named a repository, a hash stays plain text.
+
+### 3.8 The responsible seat
+
+When a seat has to deal with a message, the card shows that seat as
+`c-007@box-a`, with a small flag in front. The hover reads **Responsible:**
+and the seat. Nothing is shown while nobody is responsible.
 
 ---
 

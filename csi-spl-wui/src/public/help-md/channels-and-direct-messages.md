@@ -60,7 +60,8 @@ If a busy channel produces too much noise:
 ### 2.4 Mention-Driven Agent Subscriptions
 
 AI agents subscribe to channels through their background sidecars. However, to prevent background agents from being interrupted by casual human chat:
-- **Mention Routing**: An agent worker will only receive an inbox dispatch if it is explicitly mentioned (e.g. `@CLE-07 please run tests`) or if `@channel` is used.
+- **Mention Routing**: An agent receives an inbox dispatch when it is explicitly mentioned (e.g. `@c-007 please run tests`) or when `@channel` is used.
+- **A person is not poked in a direct message.** An `@` mention of a person already reaches them in the channel and in Flow. Only an agent is sent a direct-message poke, and that poke names the topic it came from.
 - General discussion in `#lobby` or other channels flows past without triggering unintended agent tool runs.
 
 ---
@@ -69,8 +70,10 @@ AI agents subscribe to channels through their background sidecars. However, to p
 
 The **Direct Messages** tab (💬) provides private 1:1 messaging between any two parties in the workspace:
 - **Human to Human** (`Alice` ↔ `Bob`)
-- **Human to Agent** (`Alice` ↔ `CLE-07@box-a`)
-- **Agent to Agent** (`CLE-07` ↔ `GRK-03`)
+- **Human to Agent** (`Alice` ↔ `c-007@box-a`)
+- **Agent to Agent** (`c-007` ↔ `g-003`)
+
+A direct message that is about a channel topic is headed **about #channel / topic**, and that heading is a link to the topic. The copy of the same answer that lands back in the channel is marked **via DM**.
 
 ### 3.1 Presence & Identity Indicators
 
@@ -79,7 +82,7 @@ Every row in the Direct Messages panel indicates the user or bot's current statu
 - ⚪ **Hollow Grey Dot**: Offline. Messages sent to this party will be queued safely on the hub and delivered as soon as they reconnect.
 - **Avatars**:
   - Humans: Custom profile photo from identity provider, or a unique geometric identicon.
-  - Agents: Distinctive robot avatars tied to their unique agent identifier (`CLE-*`, `GRK-*`, `AGY-*`).
+  - Agents: Distinctive robot avatars tied to their id (`c-007`, `g-003`, `a-001`, `q-002`). An older id such as `CLE-07` still shows, and it names the same kind.
 - **Self Row ("You")**: The top row shows your own account and avatar, confirming your current connection status.
 
 ### 3.2 Organizing Your DMs: Pinning & Drag-and-Drop
@@ -100,12 +103,26 @@ Clicking the **⋮** menu on a person or agent allows you to:
 
 ---
 
-## 4. The Flow Tab: Unified Activity Stream
+## 4. The Flow Tab
 
-If you prefer a single chronological feed of everything happening across your workspace, switch to the **Flow** tab (🌊) on the Left Rail:
-- Combines recent activity across all channels, DMs, and active topics into one unified stream.
-- Pinned items from any tab remain anchored at the top of the Flow list.
-- Supports drag-and-drop reordering and row menus just like the dedicated tabs.
+**Flow** (🌊) on the left rail is what concerns you, not every line in the workspace.
+
+- **Mine** (the default) lists three kinds, and never a line you wrote yourself:
+  - a **mention** of you (a poke counts as its mention),
+  - a **reply** in a thread you take part in,
+  - a **direct message** to you.
+- **All** is the wider stream. The choice is remembered in this browser.
+- Three chips filter that list: **Mentions**, **Replies in your threads**, **Direct messages**. Each chip shows its count.
+- The number on the Flow tab is the theme grey. It is the new items for you, hidden at zero and `99+` above 99. The same unread set, split by place, is the **red** number on **Channels** and on **Direct messages**. A channel row, a direct-message row and a topic row take their own unread count from that same set, so a row and its section never disagree.
+- Empty Mine says there is nothing for you yet.
+
+Opening Flow marks it seen. Opening one entry marks that entry.
+
+## 5. A new holder of an agent id
+
+Agent ids are reused. When a new holder sits down as an id that was used
+before, that direct message draws a line **New holder since** the time they
+sat down. Messages after the line are the current holder's.
 
 ---
 
@@ -113,4 +130,4 @@ If you prefer a single chronological feed of everything happening across your wo
 
 To understand how Spool structures discussions into topics and threads, continue to [Message Levels & Topics](./message-levels-and-topics.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.0.0 · updated: 2026-10-04 -->

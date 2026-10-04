@@ -8,7 +8,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 | Shortcut | Context | Action |
 |---|---|---|
-| **`/`** | Global (anywhere) | Focus the **Top Omnibox** immediately |
+| **`/`** | Global, not on a phone | Focus the **Top Omnibox** immediately. On a phone the box is docked and `/` does nothing. |
 | **`Escape`** | Omnibox focused | Blur the Omnibox and return focus to the previously active element |
 | **`Escape`** | Modal or menu open | Dismiss open modal, dialog, or context menu |
 | **`Escape`** | Message editor active | Cancel in-place message edit and restore original text |
@@ -44,6 +44,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 | **`Enter`** | Editing message | Save changes and update message across workspace |
 | **`Right-Click`** | Message card | Open **Message Actions Context Menu** |
 | **`ArrowDown` / `ArrowUp`** | Message feed | Move focus between message cards in feed |
+| **`j` / `k`** | Message feed | **j** moves the selection down and **k** moves it up, the same as the arrow keys |
 
 ---
 
@@ -96,5 +97,9 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 | **`Shift + M`** | Selected message, desktop | Move or merge… |
 | **`Shift + D`** | Selected message, desktop | Delete |
 | **`Shift + A`** | Focused topic, Topics view, desktop | Archive the focused topic (Topics view) |
+
+## 8. When these keys stay quiet
+
+A message shortcut runs only when that menu item would be offered for the selected message. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
 
 <!-- version: 1.2.0 · updated: 2026-10-04 -->

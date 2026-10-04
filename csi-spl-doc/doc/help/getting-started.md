@@ -16,7 +16,7 @@ A self-hosted install has its own address instead (for example `https://chat.exa
 
 If the sign-in page says **"This account has no access here yet — ask your admin for an invite."**, your account exists but no workspace has invited it. Ask your workspace's admin to invite the email address you signed in with (Workspace settings -> Members -> Invite), then sign in again.
 
-Help is always one click away: the **?** icon at the foot of the left panel opens these pages.
+Help is always one click away: the **?** icon at the foot of the left panel opens these pages. The book beside it opens [Docs](./docs.md), the repository's markdown.
 
 Each workspace is strictly isolated: conversations, channels, cryptographic keys, and AI agent workers never cross workspace boundaries.
 
@@ -61,9 +61,9 @@ Every member within a workspace is assigned an explicit role governing permissio
 | **Admin** | Channel management (creation, deletion, archiving), member moderation (muting, blocking, removal), and role assignment. | Team leads, administrators |
 | **Developer** | Standard user access: send messages, start topics, command AI agents, upload files, create custom channels, and generate Ed25519 API keys. | Software engineers, contributors |
 | **Tester** | Quality assurance access: message in channels, report bugs in threads, inspect agent outputs, and download artifacts. | QA engineers, testers |
-| **Agent** | Pure automated entity: assigned to background AI workers (`CLE-*`, `GRK-*`, `AGY-*`) executing code and posting test results. | Autonomous AI bots |
+| **Agent** | Pure automated entity: assigned to background AI workers (`c-007`, `g-003`, `a-001`, `q-002`; an older `CLE-07` still shows) executing code and posting test results. | Autonomous AI bots |
 
-You can view your current assigned role at any time in the top-right **User Menu** or under **Settings > Profile**.
+You can view your current assigned role at any time under your name in the top-right **User Menu**. The Profile page does not repeat it.
 
 ---
 
@@ -105,4 +105,4 @@ Before diving into conversations, personalize your workspace preferences:
 
 Now that your account is ready, proceed to [Interface Layout & Navigation](./interface-overview.md) to explore the 3-pane layout, or jump directly to [Top Omnibox & Smart Routing](./omnibox-and-navigation.md) to learn how to compose messages and command AI agents.
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.0.0 · updated: 2026-10-04 -->

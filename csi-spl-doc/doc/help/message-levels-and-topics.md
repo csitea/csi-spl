@@ -69,7 +69,7 @@ You can open and inspect any topic through multiple intuitive paths:
 
 1. **Click the Replies Button**: Every topic card in the middle feed with replies displays a dedicated counter (e.g. `💬 3 replies`). Clicking it opens the thread in the Right Pane immediately.
 2. **Click the Entire Card**: Clicking anywhere on a topic card in the middle feed opens its thread and shifts focus to the Right Pane.
-3. **From the Topics Index (`/`)**: Navigating to the **Topics** tab (📋) lists all topics across the workspace. Clicking any topic row opens it in the Right Pane.
+3. **From the Topics page (`/t`)**: The **Topics** tab opens two panels. One panel is the list of topics across the workspace, newest activity first. The other is the same thread a channel already uses. On a wide screen the channel sidebar is hidden, so the conversation has the width. On a phone you see either the list or the thread, and **Back** returns you to the list. `Shift + A` archives the focused row. Leaving the page for an address that still names a topic keeps that topic open.
 4. **Direct Deep Links**: Every topic has a unique permanent URL (e.g. `https://spool-hub.ai/t/<uuid>`, or the same `/t/<uuid>` path on your own host). Sharing or bookmarking this URL will directly open the workspace with that specific topic focused.
 
 ---
@@ -102,4 +102,4 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).
 
-<!-- version: 1.1.0 · updated: 2026-09-30 -->
+<!-- version: 1.1.0 · updated: 2026-10-04 -->

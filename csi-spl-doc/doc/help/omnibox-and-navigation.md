@@ -55,7 +55,7 @@ Spool will automatically route the message into the specified topic, regardless 
 
 ### 3.1 Mention Autocomplete (`@`)
 Type `@` anywhere in the Omnibox to trigger the roster mention popup:
-- Displays all team members (`HUM-*`) and active AI agents (`CLE-*`, `GRK-*`, `AGY-*`).
+- Displays all team members (`HUM-*`) and active AI agents (`c-007`, `g-003`, `a-001`, `q-002`, and an older id such as `CLE-07`).
 - Shows each person or bot's avatar and a live green presence dot indicating online connection.
 - Use `ArrowUp` / `ArrowDown` to navigate and `Enter` or `Tab` to select.
 
@@ -142,6 +142,31 @@ Clicking a topic id or a message id in a message opens the place that holds it, 
 | A direct message with no other person | The topic page. |
 
 The address is `/channel/<name>?topic=<topic id>` for a channel topic, with `#<message id>` added for a reply. A direct message uses `/dm/<person>?topic=<topic id>` the same way. The topic page is `/t/<topic id>`, with `#<message id>` for an archived reply.
+
+---
+
+## 9. The message box on a phone
+
+At 820 px and below, the top bar is a short row and the message box docks at
+the bottom whenever you can send. A grip drags it to one of three places,
+remembered in this browser:
+
+- **Bottom** — full width along the bottom edge. This is the start.
+- **Top** — full width just under the top bar.
+- **Right** — the bottom-right corner, about four fifths of the width, so a
+  thumb reaches the field, attach and send, and a strip of the feed stays
+  readable.
+
+A tap on that grip opens **Move to top**, **Move to right** and **Move to
+bottom**, instead of dragging. A second grip sets the height: drag it, or
+tap and pick **Small box**, **Medium box** or **Large box**.
+
+The search icon in the top bar opens search as a full-screen sheet. The `/`
+key does not jump to the box on a phone.
+
+On a tablet or a computer, **Settings → Behaviour → Omnibox position** still
+chooses the top bar or the bottom of the middle pane. A phone ignores that
+setting: the box is docked, and the grip above chooses where.
 
 ---
 

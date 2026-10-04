@@ -9,7 +9,11 @@ export default defineNuxtPlugin((nuxtApp) => {
   } catch { /* an unprefixed path still opens on the default locale */ }
 
   const i18n = nuxtApp.$i18n as { t?: (key: string) => string } | undefined
+  // A later navigation can abort this chunk. The preload helper then
+  // resolves with no module, because the reload listener cancels that
+  // error. Calling through the missing module throws a page error.
+  // The next document runs this plugin again.
   void import('~/utils/id-catalog-install').then((m) => {
-    m.installIdCatalog({ pathFor, i18n })
-  })
+    m?.installIdCatalog?.({ pathFor, i18n })
+  }).catch(() => { /* the reload listener already handled a failed chunk */ })
 })

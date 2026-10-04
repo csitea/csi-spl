@@ -135,9 +135,19 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
   { "box_id": "box-a", "pubkey": "<base64 32 bytes>", "revoked": false,
     "last_hello_at": "2026-09-18T12:00:00Z", "online": true,
     "agents": ["CLE-07", "GRK-03"],
+    "facts_reported_at": "2026-10-04T12:00:00Z",
     "os": { "name": "Debian GNU/Linux", "version": "13",
+            "pretty": "Debian GNU/Linux 13 (trixie)",
             "kernel": "6.12.111+deb13-cloud-amd64", "arch": "amd64" },
-    "runtimes": { "go": "1.25.1", "node": "22.1.0", "claude": "2.1.3" },
+    "runtimes": { "go": "1.25.1", "node": "22.1.0", "python": "3.13.5",
+                  "git": "2.47.3", "spool": "8.9.6", "claude": "2.1.3" },
+    "system": { "hostname": "box-a", "timezone": "Europe/Helsinki",
+                "boot_at": "2026-10-02T13:58:04Z", "cpus": 16,
+                "cpu_model": "AMD EPYC 7B12", "load": "0.12 0.20 0.30",
+                "mem_total_mb": 64305, "mem_avail_mb": 40756,
+                "swap_total_mb": 2048, "swap_free_mb": 1024, "state": "running" },
+    "network": { "ips": ["10.0.0.2"], "gateway": "10.0.0.1",
+                 "dns": ["169.254.169.254"] },
     "agent_presence": {
       "CLE-07": { "state": "online", "last_seen": "2026-09-18T12:00:00Z" },
       "GRK-03": { "state": "online", "last_seen": "2026-09-18T12:00:00Z" } } } ],
@@ -152,15 +162,31 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
 received whole (a `tail_msg` frame; the hub already verified them at ingest).
 The §4.4 view `env` carries no `sig` since DB payload cut 4.
 
-`os` and `runtimes` (t1 f77c9f87, the Boxes page) are what the box said it
-runs on in the `host` field of its last role=box hello: `os` an object of
-`name`, `version`, `kernel`, `arch`; `runtimes` a map of run-time or agent CLI
-name (`go`, `node`, `docker`, `claude`, `grok`, `qwen`, `agy`) to version. A
-run-time the box lacks is absent, and both keys are omitted for a box that has
-not said them to this hub process (an older binary, or a fresh revision
-before the box redials). The box is untrusted: the hub keeps printable ASCII
-only, each string cut to 64 bytes, names `^[a-z][a-z0-9_-]{0,23}$`, at most 16
-run-times; a hostile field is cut, never a refused hello.
+`os`, `runtimes`, `system`, `network` and `facts_reported_at` are the box's
+fact sheet (t1 f77c9f87, d1d9bcd3: what a Unix admin reads first when
+troubleshooting a box), sent in the `host` field of its role=box hello. The
+box collects it at most once a day (owner: "once per day - no more often"),
+keeps it in `$SPOOL_ROOT/.hub/host-facts.json` and re-sends that sheet on
+every hello; `facts_reported_at` is when it was collected, so `load`,
+`mem_avail_mb`, `swap_free_mb` and `state` are snapshots of that moment.
+
+- `os`: `name`, `version`, `pretty` (os-release), `kernel`, `arch`.
+- `runtimes`: run-time or CLI name (`go`, `node`, `python`, `git`, `spool`,
+  `docker`, `claude`, `grok`, `qwen`, `agy`) to version; one the box lacks is
+  absent. `spool` is the version of the box's running spool binary.
+- `system`: `hostname`, `timezone`, `boot_at`, `cpus`, `cpu_model`, `load`
+  (1/5/15 min), `mem_total_mb`, `mem_avail_mb`, `swap_total_mb`,
+  `swap_free_mb` (MiB), `state` (`systemctl is-system-running`).
+- `network`: `ips` (the box's own addresses, primary first; no public-IP
+  lookup), `gateway`, `dns`.
+
+Disk per mount is not here (the box-stats sample). Every key is omitted for
+a box that has not sent a sheet to this hub process ("not reported yet": an
+older binary, or a fresh revision before the box redials). The box is
+untrusted: the hub keeps printable ASCII only, each string cut to 64 bytes,
+run-time names `^[a-z][a-z0-9_-]{0,23}$` and at most 16 of them, at most 8
+`ips` and 4 `dns` that parse as addresses, numbers in range and times not in
+the future; a hostile field is cut, never a refused hello.
 
 `agent_presence` maps each agent of `agents` to `{state, last_seen}`: `state`
 is `online` or `offline` with its box, `last_seen` the box's presence stamp

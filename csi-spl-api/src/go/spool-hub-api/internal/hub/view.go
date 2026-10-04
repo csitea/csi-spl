@@ -222,10 +222,14 @@ type viewBox struct {
 	// spec 061 3.6), agent id -> RFC3339; omitted when no agent has one.
 	// A DM with a reused id draws "new holder since" at that time.
 	SeatedAt map[string]string `json:"seated_at,omitempty"`
-	// OS and Runtimes are what the box said it runs on at its last hello
-	// (box_facts.go); omitted for a box that has not said them to this hub.
-	OS       *wire.HostOS      `json:"os,omitempty"`
-	Runtimes map[string]string `json:"runtimes,omitempty"`
+	// The box's fact sheet from its last hello (box_facts.go), collected by
+	// the box at FactsReportedAt; every key is omitted for a box that has
+	// not sent one to this hub ("not reported yet").
+	OS              *wire.HostOS      `json:"os,omitempty"`
+	Runtimes        map[string]string `json:"runtimes,omitempty"`
+	System          *wire.HostSystem  `json:"system,omitempty"`
+	Network         *wire.HostNetwork `json:"network,omitempty"`
+	FactsReportedAt *string           `json:"facts_reported_at,omitempty"`
 	// AgentPresence is each roster agent's presence: its box's, since an
 	// agent is reachable exactly while its box's socket is (presence.go).
 	AgentPresence map[string]agentPresence `json:"agent_presence,omitempty"`
@@ -275,7 +279,11 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 			v.LastHelloAt = &at
 		}
 		facts := s.hosts.get(t.ID, b.BoxID)
-		v.OS, v.Runtimes = facts.os, facts.runtimes
+		v.OS, v.Runtimes, v.System, v.Network = facts.os, facts.runtimes, facts.system, facts.network
+		if !facts.reportedAt.IsZero() {
+			at := rfc(facts.reportedAt)
+			v.FactsReportedAt = &at
+		}
 		if len(v.Agents) > 0 {
 			p := agentPresence{State: "offline", LastSeen: v.LastHelloAt}
 			if v.Online {

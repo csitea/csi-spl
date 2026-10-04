@@ -18,12 +18,15 @@ import (
 // rosterBox is one boxes[] row of GET /v1/view/roster, the fields the Boxes
 // page reads (t1 f77c9f87).
 type rosterBox struct {
-	BoxID         string            `json:"box_id"`
-	Online        bool              `json:"online"`
-	LastHelloAt   *string           `json:"last_hello_at"`
-	OS            *wire.HostOS      `json:"os"`
-	Runtimes      map[string]string `json:"runtimes"`
-	AgentPresence map[string]struct {
+	BoxID           string            `json:"box_id"`
+	Online          bool              `json:"online"`
+	LastHelloAt     *string           `json:"last_hello_at"`
+	OS              *wire.HostOS      `json:"os"`
+	Runtimes        map[string]string `json:"runtimes"`
+	System          *wire.HostSystem  `json:"system"`
+	Network         *wire.HostNetwork `json:"network"`
+	FactsReportedAt *string           `json:"facts_reported_at"`
+	AgentPresence   map[string]struct {
 		State    string  `json:"state"`
 		LastSeen *string `json:"last_seen"`
 	} `json:"agent_presence"`
@@ -78,8 +81,12 @@ func TestBoxFactsOnRoster(t *testing.T) {
 	e.pin(tid, a)
 	e.pin(tid, old)
 	host := &wire.BoxHost{
-		OS:       &wire.HostOS{Name: "Debian GNU/Linux", Version: "13", Kernel: "6.12.111+deb13-cloud-amd64", Arch: "amd64"},
-		Runtimes: map[string]string{"go": "1.25.1", "node": "22.1.0", "claude": "2.1.3"},
+		ReportedAt: "2026-10-04T12:00:00Z",
+		OS:         &wire.HostOS{Name: "Debian GNU/Linux", Version: "13", Pretty: "Debian GNU/Linux 13 (trixie)", Kernel: "6.12.111+deb13-cloud-amd64", Arch: "amd64"},
+		Runtimes:   map[string]string{"go": "1.25.1", "node": "22.1.0", "claude": "2.1.3", "spool": "8.9.6"},
+		System: &wire.HostSystem{Hostname: "box-a", Timezone: "Europe/Helsinki", BootAt: "2026-10-02T13:58:04Z", CPUs: 16,
+			CPUModel: "AMD EPYC 7B12", Load: "0.12 0.20 0.30", MemTotalMB: 64305, MemAvailMB: 40756, SwapTotalMB: 2048, SwapFreeMB: 1024, State: "running"},
+		Network: &wire.HostNetwork{IPs: []string{"10.0.0.2", "fd00::2"}, Gateway: "10.0.0.1", DNS: []string{"169.254.169.254"}},
 	}
 	c := helloHost(t, e, tid, a, host, "c-001")
 	connectBox(t, e, tid, old, "c-002") // an older box: no host
@@ -92,11 +99,20 @@ func TestBoxFactsOnRoster(t *testing.T) {
 	if fmt.Sprint(got.Runtimes) != fmt.Sprint(host.Runtimes) {
 		t.Fatalf("runtimes = %v, want %v", got.Runtimes, host.Runtimes)
 	}
+	if got.System == nil || *got.System != *host.System {
+		t.Fatalf("system = %+v, want %+v", got.System, host.System)
+	}
+	if got.Network == nil || fmt.Sprint(*got.Network) != fmt.Sprint(*host.Network) {
+		t.Fatalf("network = %+v, want %+v", got.Network, host.Network)
+	}
+	if got.FactsReportedAt == nil || *got.FactsReportedAt != "2026-10-04T12:00:00Z" {
+		t.Fatalf("facts_reported_at = %v", got.FactsReportedAt)
+	}
 	p, ok := got.AgentPresence["c-001"]
 	if !ok || p.State != "online" || p.LastSeen == nil || got.LastHelloAt == nil || *p.LastSeen != *got.LastHelloAt {
 		t.Fatalf("agent_presence = %+v (last_hello_at %v)", got.AgentPresence, got.LastHelloAt)
 	}
-	if o := rs["box-o"]; o.OS != nil || o.Runtimes != nil {
+	if o := rs["box-o"]; o.OS != nil || o.Runtimes != nil || o.System != nil || o.Network != nil || o.FactsReportedAt != nil {
 		t.Fatalf("a box that said no host reads one: %+v", o)
 	}
 
@@ -119,7 +135,7 @@ func TestBoxFactsOnRoster(t *testing.T) {
 
 	// Last hello wins: a redial without host (a downgraded binary) clears them.
 	connectBox(t, e, tid, a, "c-001")
-	if got := rosterBoxes(t, e, tid)["box-a"]; got.OS != nil || got.Runtimes != nil {
+	if got := rosterBoxes(t, e, tid)["box-a"]; got.OS != nil || got.Runtimes != nil || got.System != nil || got.FactsReportedAt != nil {
 		t.Fatalf("a hello without host left the old facts: %+v", got)
 	}
 }
@@ -147,7 +163,16 @@ func TestBoxFactsHostileCut(t *testing.T) {
 		Version: "13\u0000",
 		Kernel:  "‮6.12",
 		Arch:    "\x1b]0;pwned\x07",
-	}, Runtimes: rt}
+	}, Runtimes: rt,
+		ReportedAt: "2999-01-01T00:00:00Z", // in the future: dated by the hello instead
+		System: &wire.HostSystem{Hostname: "box\x1b[31m-a", BootAt: "2999-01-01T00:00:00Z", CPUs: -4,
+			MemTotalMB: -1, MemAvailMB: 1 << 50, SwapTotalMB: 512, Load: strings.Repeat("9 ", 1000)},
+		Network: &wire.HostNetwork{
+			IPs:     append([]string{"not-an-ip", "10.0.0.1; rm -rf /", "::ffff:10.0.0.9"}, ips(20)...),
+			Gateway: "999.1.1.1",
+			DNS:     []string{"1.1.1.1", "8.8.8.8", "9.9.9.9", "8.8.4.4", "1.0.0.1", "bogus"},
+		}}
+	before := time.Now().UTC().Add(-time.Second)
 	helloHost(t, e, tid, a, host, "c-001")
 
 	got := rosterBoxes(t, e, tid)["box-a"]
@@ -168,4 +193,25 @@ func TestBoxFactsHostileCut(t *testing.T) {
 			t.Fatalf("bad runtime kept: %q=%q", k, v)
 		}
 	}
+	s := got.System
+	if s == nil || s.Hostname != "box[31m-a" || s.BootAt != "" || s.CPUs != 0 || s.MemTotalMB != 0 || s.MemAvailMB != 0 ||
+		s.SwapTotalMB != 512 || s.Load == "" || len(s.Load) > 64 {
+		t.Fatalf("system not cut: %+v", s)
+	}
+	n := got.Network
+	if n == nil || len(n.IPs) != 8 || n.IPs[0] != "10.0.0.9" || n.Gateway != "" || len(n.DNS) != 4 {
+		t.Fatalf("network not cut: %+v", n)
+	}
+	if at, err := time.Parse(time.RFC3339, *got.FactsReportedAt); err != nil || at.Before(before) || at.After(time.Now().Add(time.Minute)) {
+		t.Fatalf("a future reported_at was kept: %v", *got.FactsReportedAt)
+	}
+}
+
+// ips is n distinct private addresses.
+func ips(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("10.1.0.%d", i+1)
+	}
+	return out
 }

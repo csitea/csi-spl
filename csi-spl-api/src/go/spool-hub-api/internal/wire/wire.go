@@ -163,9 +163,10 @@ type Frame struct {
 	// the backfill_end frame.
 	Features []string `json:"features,omitempty"`
 
-	// hello (t1 f77c9f87): what the box runs on, its OS and run-times. Not
-	// signed, static per hello; absent = an older box, and the roster view
-	// then omits them. The hub cuts it to size (hub/box_facts.go).
+	// hello (t1 f77c9f87, d1d9bcd3): the box's fact sheet (OS, run-times,
+	// system, network), collected at most once a day. Not signed; absent =
+	// an older box, and the roster view then omits it. The hub cuts it to
+	// size (hub/box_facts.go).
 	Host *BoxHost `json:"host,omitempty"`
 
 	// welcome / roster / token
@@ -718,20 +719,51 @@ func isDelim(b byte) bool {
 	return b == ',' || b == '}' || b == ']' || b == ':' || b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
 
-// BoxHost is a box's own report of what it runs on, sent on its hello.
-// Runtimes maps a run-time or CLI name (go, node, docker, claude, ...) to its
-// version; one the box does not have is absent, never "unknown".
+// BoxHost is a box's own fact sheet, sent on its hello: what a Unix admin
+// reads first when troubleshooting a box (t1 d1d9bcd3). The box collects it
+// at most once a day (ReportedAt, RFC3339) and re-sends that sheet on every
+// hello. Runtimes maps a run-time or CLI name (go, node, docker, claude, ...)
+// to its version; one the box does not have is absent, never "unknown".
 type BoxHost struct {
-	OS       *HostOS           `json:"os,omitempty"`
-	Runtimes map[string]string `json:"runtimes,omitempty"`
+	ReportedAt string            `json:"reported_at,omitempty"`
+	OS         *HostOS           `json:"os,omitempty"`
+	Runtimes   map[string]string `json:"runtimes,omitempty"`
+	System     *HostSystem       `json:"system,omitempty"`
+	Network    *HostNetwork      `json:"network,omitempty"`
 }
 
 // HostOS is the box's operating system; an empty field is one it could not read.
 type HostOS struct {
 	Name    string `json:"name,omitempty"`
 	Version string `json:"version,omitempty"`
+	Pretty  string `json:"pretty,omitempty"`
 	Kernel  string `json:"kernel,omitempty"`
 	Arch    string `json:"arch,omitempty"`
+}
+
+// HostSystem is the machine as of BoxHost.ReportedAt: Load is the 1/5/15
+// minute load average ("0.12 0.20 0.30"), State `systemctl
+// is-system-running`, the memory figures MiB. Zero / empty = not read.
+type HostSystem struct {
+	Hostname    string `json:"hostname,omitempty"`
+	Timezone    string `json:"timezone,omitempty"`
+	BootAt      string `json:"boot_at,omitempty"`
+	CPUs        int    `json:"cpus,omitempty"`
+	CPUModel    string `json:"cpu_model,omitempty"`
+	Load        string `json:"load,omitempty"`
+	MemTotalMB  int64  `json:"mem_total_mb,omitempty"`
+	MemAvailMB  int64  `json:"mem_avail_mb,omitempty"`
+	SwapTotalMB int64  `json:"swap_total_mb,omitempty"`
+	SwapFreeMB  int64  `json:"swap_free_mb,omitempty"`
+	State       string `json:"state,omitempty"`
+}
+
+// HostNetwork: the box's own addresses (primary first, no public-IP
+// lookup), its default gateway and its resolvers.
+type HostNetwork struct {
+	IPs     []string `json:"ips,omitempty"`
+	Gateway string   `json:"gateway,omitempty"`
+	DNS     []string `json:"dns,omitempty"`
 }
 
 // HelloPayload is the byte string a hello sig covers: jq -cS '{box_id,nonce,ts}'.

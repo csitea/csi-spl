@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"strconv"
@@ -862,7 +863,8 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 	}
 	c := hubclient.New(cfg)
 	c.Log = logging.New(cfg).With().Str("component", "hubclient").Str("box", cfg.BoxID).Logger()
-	c.Host = hubclient.CollectHost // role=box hellos only (the Boxes page)
+	// role=box hellos only: the box's fact sheet, collected once a day (the Boxes page)
+	c.Host = hubclient.HostFacts(filepath.Join(cfg.HubDir(), "host-facts.json"), version)
 	return c, nil
 }
 

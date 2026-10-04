@@ -93,7 +93,7 @@ async function linkPoint(page, part) {
     const list = [...document.querySelectorAll('.spool-shell > .topic a.msg-link')]
     const a = list.find((el) => (el.getAttribute('href') || '').includes(needle))
     if (!a) return null
-    a.scrollIntoView({ block: 'center', inline: 'nearest' })
+    a.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
     const r = a.getBoundingClientRect()
     let x = 0
     let y = 0
@@ -149,74 +149,90 @@ async function swallowClicks(page, on) {
   }, on)
 }
 
-/** Archive one mock card through the same client the card menu uses. */
-async function archiveCard(page, msgId) {
-  return page.evaluate(async (id) => {
-    function apiFrom(bag) {
-      if (!bag || typeof bag !== 'object') return null
-      try {
-        const deps = bag.parentDeps
-        if (deps && deps.api && typeof deps.api.archiveTopic === 'function') return deps.api
-        if (typeof bag.archiveTopic === 'function') return bag
-      } catch { /* a proxy that throws */ }
-      return null
-    }
-    const root = document.querySelector('#__nuxt')?.__vue_app__?._instance
-    const seen = new Set()
-    function fromVNode(v) {
-      if (!v || typeof v !== 'object') return null
-      if (Array.isArray(v)) {
-        for (const k of v) {
-          const hit = fromVNode(k)
-          if (hit) return hit
+/** Archive the welcome card from its menu. A generated bundle does not expose
+    the component api, and a reload after this drops the mock's archived set,
+    so the caller stays in this document. */
+async function archiveWelcome(page, base) {
+  await page.goto(`${base}/channel/lobby`, { waitUntil: 'networkidle2' })
+  await page.waitForSelector('.spool-shell', { timeout: 15000 })
+  await sleep(500)
+  const sel = `article.msg[data-msg-id="${ARCH_MSG}"]`
+  const card = await page.waitForSelector(sel, { timeout: 10000 }).catch(() => null)
+  if (!card) return { ok: false, archived: false, reason: 'no-card' }
+  let opened = false
+  for (let i = 0; i < 3 && !opened; i++) {
+    await page.evaluate((s) => {
+      document.querySelector(`${s} [data-testid=msg-menu-btn]`)?.click()
+    }, sel)
+    opened = await page.waitForSelector('[data-testid=msg-menu-archive]', { timeout: 2000 }).then(() => true).catch(() => false)
+  }
+  if (!opened) return { ok: false, archived: false, reason: 'no-menu' }
+  const click = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid=msg-menu-archive]')
+    if (!el) return { ok: false, reason: 'no-item' }
+    if (el.getAttribute('aria-disabled') === 'true') return { ok: false, reason: 'disabled' }
+    el.click()
+    return { ok: true }
+  })
+  if (!click.ok) return { ok: false, archived: false, reason: click.reason }
+  const gone = await page.waitForFunction((s) => !document.querySelector(s), { timeout: 8000 }, sel).then(() => true).catch(() => false)
+  return { ok: gone, archived: gone, task_id: ARCH_TASK, reason: gone ? 'archived' : 'card-stayed' }
+}
+
+/** Stay on the same document so the archive above is still in the mock. */
+async function openTopicClient(page, body) {
+  await page.evaluate(async (from) => {
+    const app = document.querySelector('#__nuxt').__vue_app__
+    await app.config.globalProperties.$router.push({ path: '/channel/lobby', query: { topic: from } })
+  }, FROM)
+  await page.waitForFunction((id) => location.search.includes('topic=' + id), { timeout: 8000 }, FROM)
+  await page.waitForSelector('.spool-shell > .topic', { timeout: 8000 })
+  await sleep(600)
+  await setBody(page, body)
+}
+
+/** A real click through Puppeteer's box, at a pixel that is the anchor.
+    Raw viewport coordinates miss on the generated-bundle runner. */
+async function clickLink(page, part) {
+  const handle = await page.evaluateHandle((needle) => {
+    const list = [...document.querySelectorAll('.spool-shell > .topic a.msg-link')]
+    return list.find((el) => (el.getAttribute('href') || '').includes(needle)) || null
+  }, part)
+  const el = handle.asElement()
+  if (!el) {
+    await handle.dispose()
+    return { hit: false, reason: 'no-anchor' }
+  }
+  const info = await page.evaluate((node) => {
+    node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
+    const r = node.getBoundingClientRect()
+    let ox = -1
+    let oy = -1
+    for (let yy = Math.ceil(r.top) + 1; yy < r.bottom; yy += 2) {
+      for (let xx = Math.ceil(r.left) + 1; xx < r.right; xx += 2) {
+        const at = document.elementFromPoint(xx, yy)
+        if (at && at.closest && at.closest('a.msg-link') === node) {
+          ox = xx - r.left
+          oy = yy - r.top
+          break
         }
-        return null
       }
-      if (v.component) {
-        const hit = fromComp(v.component)
-        if (hit) return hit
-      }
-      for (const kids of [v.children, v.dynamicChildren]) {
-        if (Array.isArray(kids)) {
-          for (const k of kids) {
-            const hit = fromVNode(k)
-            if (hit) return hit
-          }
-        } else if (kids && typeof kids === 'object') {
-          const hit = fromVNode(kids)
-          if (hit) return hit
-        }
-      }
-      return null
+      if (ox >= 0) break
     }
-    function fromComp(c) {
-      if (!c || seen.has(c)) return null
-      seen.add(c)
-      for (const bag of [c.setupState, c.devtoolsRawSetupState, c.ctx, c.exposed]) {
-        const api = apiFrom(bag)
-        if (api) return api
-      }
-      return fromVNode(c.subTree)
-    }
-    let api = fromComp(root)
-    if (!api) {
-      const urls = performance.getEntriesByType('resource').map((e) => e.name).filter((n) => n.includes('useSpoolApi'))
-      for (const url of urls) {
-        try {
-          const mod = await import(url)
-          const client = mod && typeof mod.useSpoolApi === 'function' ? mod.useSpoolApi() : null
-          if (client && typeof client.archiveTopic === 'function') { api = client; break }
-        } catch { /* a second copy of the module has no client yet */ }
-      }
-      if (!api) return { ok: false, reason: 'no-api', seen: seen.size, urls }
-    }
-    try {
-      const out = await api.archiveTopic(id, true)
-      return { ok: true, task_id: out && out.task_id, archived: out && out.archived }
-    } catch (e) {
-      return { ok: false, reason: String(e && e.message || e) }
-    }
-  }, msgId)
+    return { ox, oy, hit: ox >= 0 }
+  }, el)
+  if (!info || !info.hit) {
+    await handle.dispose()
+    return { hit: false, reason: 'no-pixel' }
+  }
+  try {
+    await el.click({ offset: { x: Math.max(1, info.ox), y: Math.max(1, info.oy) } })
+  } catch (e) {
+    await handle.dispose()
+    return { hit: false, reason: String(e && e.message || e) }
+  }
+  await handle.dispose()
+  return { hit: true, ox: info.ox, oy: info.oy }
 }
 
 const state = (page) => page.evaluate(() => {
@@ -302,8 +318,8 @@ try {
     s)
 
   await swallowClicks(phone, false)
-  await openPost(phone, srv.base, archBody(origin))
-  const archived = await archiveCard(phone, ARCH_MSG)
+  const archived = await archiveWelcome(phone, srv.base)
+  await openTopicClient(phone, archBody(origin))
   await phone.waitForFunction((id) => {
     const a = [...document.querySelectorAll('.spool-shell > .topic a.msg-link')]
       .find((el) => (el.getAttribute('href') || '').includes(`/t/${id}`))
@@ -342,12 +358,12 @@ try {
   }, { timeout: 15000 })
   const beforeOpens = await desk.evaluate(() => (window.__opens || []).length)
   const dpt = await linkPoint(desk, `/releases/${SHA}`)
-  if (dpt && dpt.hit && dpt.x > 0) await desk.mouse.click(dpt.x, dpt.y)
+  const clicked = await clickLink(desk, `/releases/${SHA}`)
   await waitPath(desk, `/releases/${SHA}`)
   s = await state(desk)
   ok('desktop: a click on the markdown link opens it in this tab',
-    Boolean(dpt && dpt.hit) && s.path.includes(`/releases/${SHA}`) && s.releases && s.opens.length === beforeOpens,
-    { dpt, ...s })
+    Boolean(dpt && dpt.hit && clicked && clicked.hit) && s.path.includes(`/releases/${SHA}`) && s.releases && s.opens.length === beforeOpens,
+    { dpt, clicked, ...s })
   await desk.close()
 } finally {
   await browser.close()

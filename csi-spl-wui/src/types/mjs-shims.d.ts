@@ -2207,3 +2207,20 @@ declare module '~/utils/msg-shortcuts.mjs' {
   export function offeredItems(flags?: Parameters<typeof import('~/utils/msg-menu.mjs').msgMenuItems>[0]): Set<string>
   export function shortcutItem(key: string, offered: Set<string> | string[]): string
 }
+
+declare module '~/utils/unread-model.mjs' {
+  export interface UnreadModel {
+    rows: Map<string, number>
+    sections: { channels: number, dms: number, topics: number }
+    title: number
+  }
+  export function unreadModel(inputs?: {
+    keys?: Record<string, number> | null
+    cursors?: Record<string, unknown>
+    channelUnread?: Record<string, number>
+    dmUnread?: Record<string, number>
+    muted?: readonly string[]
+    topics?: readonly { task_id: string, total?: number, messages?: readonly unknown[] }[]
+    self?: string
+  }): UnreadModel
+}

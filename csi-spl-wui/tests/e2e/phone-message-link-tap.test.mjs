@@ -191,48 +191,65 @@ async function openTopicClient(page, body) {
   await setBody(page, body)
 }
 
-/** A real click through Puppeteer's box, at a pixel that is the anchor.
-    Raw viewport coordinates miss on the generated-bundle runner. */
+/** Click a pixel with the anchor on both sides.
+    The first uncovered pixel of a wrapped URL is a one-pixel sliver on the
+    generated-bundle runner, and a mouse click there misses the anchor. */
 async function clickLink(page, part) {
-  const handle = await page.evaluateHandle((needle) => {
+  const point = await page.evaluate((needle) => {
     const list = [...document.querySelectorAll('.spool-shell > .topic a.msg-link')]
-    return list.find((el) => (el.getAttribute('href') || '').includes(needle)) || null
-  }, part)
-  const el = handle.asElement()
-  if (!el) {
-    await handle.dispose()
-    return { hit: false, reason: 'no-anchor' }
-  }
-  const info = await page.evaluate((node) => {
-    node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
-    const r = node.getBoundingClientRect()
-    let ox = -1
-    let oy = -1
-    for (let yy = Math.ceil(r.top) + 1; yy < r.bottom; yy += 2) {
-      for (let xx = Math.ceil(r.left) + 1; xx < r.right; xx += 2) {
-        const at = document.elementFromPoint(xx, yy)
-        if (at && at.closest && at.closest('a.msg-link') === node) {
-          ox = xx - r.left
-          oy = yy - r.top
-          break
+    const a = list.find((el) => (el.getAttribute('href') || '').includes(needle))
+    if (!a) return { hit: false, reason: 'no-anchor' }
+    a.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' })
+    const owns = (x, y) => {
+      const at = document.elementFromPoint(x, y)
+      return Boolean(at && at.closest && at.closest('a.msg-link') === a)
+    }
+    const rects = [...a.getClientRects()].filter((r) => r.width >= 8 && r.height >= 8)
+    const pts = []
+    for (const r of rects) {
+      for (let y = Math.ceil(r.top) + 1; y < r.bottom; y += 2) {
+        for (let x = Math.ceil(r.left) + 1; x < r.right; x += 2) {
+          if (owns(x, y)) pts.push([x, y])
         }
       }
-      if (ox >= 0) break
     }
-    return { ox, oy, hit: ox >= 0 }
-  }, el)
-  if (!info || !info.hit) {
-    await handle.dispose()
-    return { hit: false, reason: 'no-pixel' }
-  }
+    if (!pts.length) {
+      const sample = rects.slice(0, 3).map((r) => {
+        const x = r.left + r.width / 2
+        const y = r.top + r.height / 2
+        const at = document.elementFromPoint(x, y)
+        return {
+          w: Math.round(r.width), h: Math.round(r.height),
+          at: at ? at.tagName + '.' + String(at.className || '').slice(0, 24) : null,
+        }
+      })
+      return { hit: false, reason: 'no-pixel', n: rects.length, sample }
+    }
+    let best = pts[0]
+    let bestScore = -1
+    for (const [x, y] of pts) {
+      let score = 0
+      for (let d = 2; d <= 16; d += 2) {
+        if (owns(x - d, y)) score++
+        if (owns(x + d, y)) score++
+      }
+      if (score > bestScore) { bestScore = score; best = [x, y] }
+    }
+    return {
+      hit: true,
+      x: Math.round(best[0]),
+      y: Math.round(best[1]),
+      score: bestScore,
+      n: pts.length,
+    }
+  }, part)
+  if (!point || !point.hit) return point || { hit: false, reason: 'no-point' }
   try {
-    await el.click({ offset: { x: Math.max(1, info.ox), y: Math.max(1, info.oy) } })
+    await page.mouse.click(point.x, point.y)
   } catch (e) {
-    await handle.dispose()
-    return { hit: false, reason: String(e && e.message || e) }
+    return { hit: false, reason: String(e && e.message || e), x: point.x, y: point.y }
   }
-  await handle.dispose()
-  return { hit: true, ox: info.ox, oy: info.oy }
+  return { hit: true, x: point.x, y: point.y, score: point.score, n: point.n }
 }
 
 const state = (page) => page.evaluate(() => {

@@ -71,7 +71,10 @@ try {
     await p.click('[data-test=connect-agent-summary]')
     await p.waitForSelector('[data-test=connect-agent-script]', { visible: true, timeout: 5000 }).catch(() => {})
     const s = await scriptText(p)
-    ok('the block builds, seats, connects and adds the MCP', /git clone --depth 1 https:\/\/github\.com\/csitea\/csi-spl/.test(s) &&
+    /* the clone url is cnf env.wui.repo_clone_url; the e2e bundle bakes an example (wf 10) */
+    const clone = await p.evaluate(() => String((window.__NUXT__?.config?.public?.repoCloneUrl) || ''))
+    ok('the bundle names a clone url (NUXT_PUBLIC_REPO_CLONE_URL baked for e2e)', Boolean(clone), clone)
+    ok('the block builds, seats, connects and adds the MCP', Boolean(clone) && s.includes(`git clone --depth 1 '${clone}' ~/.spool/src`) &&
       /spool hub-pin --box "\$SPOOL_BOX_ID" --pubkey "\$\(spool keygen\)" --root-key "\$HOME\/Downloads\/mock\.root\.key"/.test(s) &&
       /nohup spool hub-run/.test(s) && /claude mcp add spool -- bash -c '\. ~\/\.spool\/env && exec spool mcp --as c-001'/.test(s), s.slice(0, 120))
     ok('it names this tenant', /SPOOL_TENANT='mock'/.test(s))

@@ -271,6 +271,8 @@ jobs:
           # the deployed page reads cnf env.wui.repo_* from /config.json)
           NUXT_PUBLIC_REPO_WEB_URL: "https://git.example.org/acme/spool"
           NUXT_PUBLIC_REPO_COMMIT_PATH: "/commit/"
+          NUXT_PUBLIC_REPO_CLONE_URL: "https://git.example.org/acme/spool"
+          NUXT_PUBLIC_REPO_HELP_PATH: "/blob/master/csi-spl-doc/doc/help/"
         run: pnpm run generate
 
       - name: Upload the generated bundle for the e2e shards

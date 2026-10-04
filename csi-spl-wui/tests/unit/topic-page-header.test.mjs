@@ -51,7 +51,7 @@ describe('the topic page header shows the title on one row', () => {
     assert.match(phone, /\.topic-page-more \{[\s\S]*width: var\(--tap\);/)
   })
 
-  it('a phone thread title has no Topic: prefix and a four-side border', () => {
+  it('a thread title has no Topic: prefix and a four-side border at every width', () => {
     assert.doesNotMatch(page, /topic\.list_title/)
     const en = JSON.parse(read('i18n/locales/en.json'))
     assert.equal(en.topic.list_title, 'Topic: {text}')
@@ -62,7 +62,9 @@ describe('the topic page header shows the title on one row', () => {
       assert.match(s, /class="topic-heading__text"/)
       assert.match(s, /t\('topic\.list_title', \{ text: titleText\.value \}\)/)
     }
-    assert.match(css, /@media \(max-width: 820px\) \{\n  \.topic-heading__label \{ display: none; \}\n  \.topic-heading__title \{\n    background: transparent;\n    box-shadow: none;\n    border: 1px solid var\(--color-border\);\n  \}\n\}/)
-    assert.match(css, /\.topic-heading__title,\n\.search-row\.active \{\n  background: var\(--color-selected\);\n  box-shadow: inset var\(--select-bar-w\) 0 0 var\(--focus-ring\);\n\}/)
+    assert.match(css, /^\.topic-heading__label \{ display: none; \}\n\.topic-heading__title \{\n  background: transparent;\n  box-shadow: none;\n  border: 1px solid var\(--color-border\);\n\}/m)
+    assert.doesNotMatch(css, /@media \(max-width: 820px\) \{\n  \.topic-heading__label/)
+    assert.doesNotMatch(css, /\.topic-heading__title,\n\.search-row\.active/)
+    assert.match(css, /\.topic\.selected,\n\.search-row\.active \{\n  background: var\(--color-selected\);\n  box-shadow: inset var\(--select-bar-w\) 0 0 var\(--focus-ring\);\n\}/)
   })
 })

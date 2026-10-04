@@ -9,6 +9,9 @@
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
@@ -96,7 +99,7 @@ function readBox(page) {
   })
 }
 
-const SHOT = '/tmp/g-181-phone-topic-border.png'
+const SHOT_DIR = mkdtempSync(join(tmpdir(), 'topic-border-'))
 const THREADS = [
   ['channel', `/channel/lobby?topic=${TOPIC}`],
   ['topics', `/?topic=${TOPIC}`],
@@ -206,7 +209,6 @@ try {
   ok('1280px no sideways scroll', desk.docScroll <= desk.docClient + 1, desk)
 
   const four = (b) => b.length === 4 && b.every((w) => w === '1px')
-  const none = (b) => b.length === 4 && b.every((w) => w === '0px')
   const solid = (st) => st.length === 4 && st.every((w) => w === 'solid')
   for (const width of [360, 390, 430]) {
     await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
@@ -219,8 +221,9 @@ try {
       ok(`${width}px ${name} title has a four-side 1px border`, four(h.border) && solid(h.borderStyle) && h.shadow === 'none', h)
       ok(`${width}px ${name} the three clip buttons stay`, h.clips === 3, h.clips)
       if (width === 390 && name === 'channel') {
-        await page.screenshot({ path: SHOT })
-        console.log(`SHOT ${SHOT}`)
+        const shot = join(SHOT_DIR, 'phone-topic-border.png')
+        await page.screenshot({ path: shot })
+        console.log(`SHOT ${shot}`)
       }
     }
   }
@@ -230,10 +233,17 @@ try {
     await openThread(page, path)
     await sleep(300)
     const h = await readThread(page)
-    console.log(`THREAD 1280 ${name} label=${JSON.stringify(h.labelText)} border=${h.border} shadow=${h.shadow}`)
-    ok(`1280px ${name} keeps the Topic: label`, h.text === TITLE && h.labelOn && h.labelText === 'Topic:', h)
-    ok(`1280px ${name} keeps the left selection bar`, none(h.border) && h.shadow.includes('inset'), h)
+    console.log(`THREAD 1280 ${name} text=${JSON.stringify(h.text)} label=${h.labelOn} border=${h.border} shadow=${h.shadow} clips=${h.clips}`)
+    ok(`1280px ${name} title has no Topic: prefix`, h.text === TITLE && !h.labelOn && !h.text.startsWith('Topic:'), h)
+    ok(`1280px ${name} title has a four-side 1px border`, four(h.border) && solid(h.borderStyle) && h.shadow === 'none', h)
     ok(`1280px ${name} the three clip buttons stay`, h.clips === 3, h.clips)
+    if (name === 'channel') {
+      const shot = join(SHOT_DIR, 'desktop-topic-border.png')
+      const head = await page.$('[data-test=topic-section] header')
+      if (head) await head.screenshot({ path: shot })
+      else await page.screenshot({ path: shot })
+      console.log(`SHOT ${shot}`)
+    }
   }
   await page.close()
 } finally {

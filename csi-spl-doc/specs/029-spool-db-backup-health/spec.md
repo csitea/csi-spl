@@ -493,6 +493,58 @@ RPO: the daily dump (05:17 UTC) makes it <= ~24 h plus scheduler drift (21.6 h m
 RTO of the DATA: ~1.5 min for the DB, well under a minute for the files. The RTO of the whole estate is
 still dominated by the re-create (spec 044 T079).
 
+## 6.7 Restore drill 2026-10-04
+
+Re-run of §6.6.3, lane g-225, n = 1 per row, tree `a0fbaad4` (origin/master at
+2026-10-04T18:08:52Z; the four in-project restores finished at 2026-10-04T18:09:50Z).
+Actions: `do_spl_db_restore` and `do_spl_files_restore`, each env's project SA,
+`BACKUP_SOURCE=env` and `SOURCE=env` (the default is `bkp` once
+`steps.046.copy_enabled` is true). Targets: prd dump into a local throwaway
+container; dev dump into `spool_restore_drill` on `csi-spl-dev-pg`, dropped
+after; both files buckets into a local throwaway dir. No `TARGET=env`, no
+`ALLOW_PRD_RESTORE`. The dev instance listed `postgres` and `spool` afterwards.
+
+The dumps are the objects workflow 45 wrote in run 37184945942 (success,
+2026-10-04T07:09:42Z, head `474b940a`): `spool-20261004T071230Z.sql.gz` (prd)
+and `spool-20261004T071022Z.sql.gz` (dev).
+
+| run | restored | vs live (read-only) | RPO (dump age) | RTO |
+|---|---|---|---|---|
+| prd latest dump -> local throwaway container | 52 tables, 52 256 rows | exit 5: `box_stats`, `operator_audit` absent from the restore; every other live table present | 39 376 s (10.9 h) | 32 s |
+| dev latest dump -> throwaway DB `spool_restore_drill` on `csi-spl-dev-pg` (`gcloud sql import` as the schema owner), dropped after | 52 tables, 31 423 rows | same exit 5, same two tables | 39 509 s (11.0 h) | 50 s |
+| prd files -> local throwaway dir | 526 objects, 105 999 834 B | every name present | - | 5 s |
+| dev files -> local throwaway dir | 55 objects, 3 382 464 B | every name present | - | 4 s |
+
+Diff against the 2026-09-29 row (§6.6.3). RTO is each action's own clock.
+
+| run | 2026-09-29 | 2026-10-04 |
+|---|---|---|
+| prd DB | 36 tables, 14 856 rows, RPO 77 617 s (21.6 h), RTO 51 s, check passed | 52 tables, 52 256 rows, RPO 39 376 s (10.9 h), RTO 32 s, exit 5 |
+| dev DB | 36 tables, 12 586 rows, RPO 78 021 s (21.7 h), RTO 86 s, check passed | 52 tables, 31 423 rows, RPO 39 509 s (11.0 h), RTO 50 s, exit 5 |
+| prd files | 323 objects, 55 058 640 B, RTO 20 s | 526 objects, 105 999 834 B, RTO 5 s |
+| dev files | 54 objects, 3 369 308 B, RTO 16 s | 55 objects, 3 382 464 B, RTO 4 s |
+
+The exit 5 is the finding. On both envs the compare printed all 54 live tables.
+`spool_schema_migrations` is 114 rows in the dump and 119 live. This tree has
+117 migration files, through `0117_box_stats.sql`. `operator_audit` is created
+by `0115_operator_workspaces.sql` and `box_stats` by `0117_box_stats.sql`;
+neither table is in either dump. On prd, live `box_stats` has 5 rows and
+live `operator_audit` has 0; on dev, live `box_stats` has 0 and live
+`operator_audit` has 7. Every other live table was present. Count drift on
+those tables is the two-instant gap the check allows (live is ahead: prd
+56 176 rows, dev 31 965). The dev import itself succeeded as the schema owner
+and the throwaway database was dropped. The 2026-09-29 `ALTER DEFAULT
+PRIVILEGES` failure did not recur.
+
+Off-project (`gs://csi-spl-bkp-<env>`, cnf `steps.046.copy_enabled: true` on
+dev and prd). A name list as each env's project SA, which can list and cannot
+read bytes: 17 `.sql.gz` under `<env>/db/` on each env, and the newest name
+matches the in-project object above; `<env>/files/**` lists 56 names (dev) and
+520 names (prd). The byte restore was not run. `ENV=dev BACKUP_SOURCE=bkp
+DRY_RUN=1` and `ENV=dev SOURCE=bkp DRY_RUN=1` both exit 1 with `FATAL no key
+for csi-spl-bkp at ~/.gcp/.csi/key-csi-spl-bkp.json`. The read-back (spec 044
+T077) is unmeasured on this run.
+
 ## 7. Out of scope
 
 Anything that changes the schema, the instance flags, the tier or the

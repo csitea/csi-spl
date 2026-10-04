@@ -265,11 +265,22 @@ function items(): HTMLElement[] {
 const narrow = useMobileStack().isMobile
 const phone = () => narrow.value || window.matchMedia(MOBILE_STACK_QUERY).matches
 
+/* drop the popover style but keep `display`: v-show hides the closed panel
+   with an inline display:none, and wiping the whole style attribute on a
+   rotation SHOWED the closed menu, which then sat over the page and took
+   its clicks (c-155: a card's open icon opened Settings) */
+function clearPopover(panel: HTMLElement | null | undefined) {
+  if (!panel) return
+  const display = panel.style.display
+  panel.removeAttribute('style')
+  if (display) panel.style.display = display
+}
+
 function placePanel() {
   const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
   /* the bottom sheet is placed by CSS, not next to the button: a popover
      style left from a desktop open (the panel is v-show) must not override it */
-  if (phone()) { panel?.removeAttribute('style'); return }
+  if (phone()) { clearPopover(panel); return }
   const btn = trigger.value
   if (!panel || !btn) return
   const r = btn.getBoundingClientRect()
@@ -361,8 +372,7 @@ onBeforeUnmount(() => {
 /* a rotation across the line: the popover styles of one layout must not
    stick to the other */
 watch(narrow, () => {
-  const panel = root.value?.querySelector<HTMLElement>('.user-menu__panel')
-  if (panel) panel.removeAttribute('style')
+  clearPopover(root.value?.querySelector<HTMLElement>('.user-menu__panel'))
   if (open.value) close(false)
 })
 watch(() => route.fullPath, () => { if (open.value) close(false) })

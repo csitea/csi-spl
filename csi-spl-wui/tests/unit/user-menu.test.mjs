@@ -137,3 +137,17 @@ describe('user menu panel is RTL-safe (spec 021 FR-004: logical properties)', ()
     assert.doesNotMatch(css, /text-align: (left|right)/)
   })
 })
+
+describe('a rotation never shows the CLOSED menu (v-show owns display)', () => {
+  const src = readFileSync(new URL('../../src/components/UserMenu.vue', import.meta.url), 'utf8').split('<style')[0]
+  it('the only bare style wipe is clearPopover, and it puts display back', () => {
+    assert.equal(src.split("removeAttribute('style')").length - 1, 1)
+    const fn = src.match(/function clearPopover\([^)]*\) \{([\s\S]*?)\n\}/)
+    assert.ok(fn, 'clearPopover exists')
+    assert.match(fn[1], /const display = panel\.style\.display[\s\S]*removeAttribute\('style'\)[\s\S]*panel\.style\.display = display/)
+  })
+  it('the narrow watch and the phone path both go through it', () => {
+    assert.match(src, /watch\(narrow, \(\) => \{\s*clearPopover\(/)
+    assert.match(src, /if \(phone\(\)\) \{ clearPopover\(panel\); return \}/)
+  })
+})

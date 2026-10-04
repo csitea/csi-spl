@@ -25,10 +25,11 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Done**: `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` passes and `ENV=dev ./run -a do_tpl_gen && git diff --exit-code` exits 0.
   - **Landed** (c-205): `aa211f81`. Reader `do_spl_cloud_provider` (`SPOOL_CLOUD_PROVIDER` > merged cnf > `gcp`), tests `cloud-provider.tst.sh` and conf-validator `tests/` (unittest, `azure` rejected; in CI cnf-suite). lde stays `gcp` (it runs the GCS emulator). dev/prd tfvars byte-identical; the generated `<env>.env.json` gains `env.cloud`.
 
-- [ ] T003 **hub go cloud factory** [Parallel]: Create `internal/cloud/` package in `csi-spl-api` with `Factory`, `ComputeProvider`, `DatabaseProvider`, and `SecretsProvider` interfaces. When `SPOOL_CLOUD_PROVIDER=none` (or bucket is empty), force `blob.Dir` (`SPOOL_HUB_FILES_DIR`), eliminate `cloud.google.com/go/storage` initialization, read container revision from `SPOOL_VERSION`/hostname, and connect to plain TCP PostgreSQL DSN.
+- [x] T003 **hub go cloud factory** [Parallel]: Create `internal/cloud/` package in `csi-spl-api` with `Factory`, `ComputeProvider`, `DatabaseProvider`, and `SecretsProvider` interfaces. When `SPOOL_CLOUD_PROVIDER=none` (or bucket is empty), force `blob.Dir` (`SPOOL_HUB_FILES_DIR`), eliminate `cloud.google.com/go/storage` initialization, read container revision from `SPOOL_VERSION`/hostname, and connect to plain TCP PostgreSQL DSN.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/cloud/`, `csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go`.
   - **Needs**: T002.
   - **Done**: `go test -v ./internal/cloud/...` and `go test -v ./cmd/spool/...` pass in `csi-spl-api/src/go/spool-hub-api`.
+  - **Landed** (c-211): `d747e6a0`. `cloud.New` reads `SPOOL_CLOUD_PROVIDER` (unset = `gcp`; `aws` and unknown values refuse to start). gcp proved unchanged against the pre-076 functions (`cmd/spool/hub_cloud_test.go`); `none` refuses a files bucket and a Cloud SQL socket DSN. Tests: `internal/cloud` 5, `cmd/spool` 12, api suite green.
 
 - [x] T004 **shell cloud dispatch router**: Implement `do_spl_cloud_dispatch <family> <verb> [args]` in `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, routing actions dynamically to `do_<family>_<verb>_<provider>`.
   - **Owns**: `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, `csi-spl-orc/src/bash/tests/cloud-dispatch.tst.sh`.

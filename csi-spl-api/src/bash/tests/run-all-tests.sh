@@ -15,7 +15,7 @@ tier="${SPL_API_TEST_TIER:-full}"
 case "$tier" in full|fast) ;; *) echo "SPL_API_TEST_TIER must be full or fast (got '$tier')" >&2; exit 2 ;; esac
 slow() { echo "SKIP-TIER (fast tier; CI workflow 10/20 runs it): $1"; }
 
-export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local
+export GOTOOLCHAIN=local
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOD="$HERE/../../go/spool-hub-api"
@@ -23,8 +23,16 @@ MOD="$HERE/../../go/spool-hub-api"
 source "$HERE/../use-go-toolchain.sh"
 spl_export_go_path
 
+# spec 072 A66: a fresh clone's module cache is cold; fill it once, then
+# everything below runs offline as before.
+# shellcheck source=../warm-go-mod-cache.sh
+source "$HERE/../warm-go-mod-cache.sh"
+spl_warm_go_mod_cache "$MOD"
+export GOFLAGS=-mod=mod GOPROXY=off GOSUMDB=off
+
 echo "== go toolchain selector =="
 bash "$HERE/use-go-toolchain.tst.sh"
+bash "$HERE/warm-go-mod-cache.tst.sh"
 if [ "$tier" = full ]; then bash "$HERE/build-stripped.tst.sh"; else slow build-stripped.tst.sh; fi
 
 echo "== gofmt =="

@@ -29,7 +29,6 @@
 # @param LANE_BOX_ROW_S (optional) - rewrite this box's BOX-0 load row when it is this old, default 300 s
 # @param LANE_BOX_ROW_MAX_S (optional) - a box's BOX-0 row older than this is not read, default 3600 s
 # @param LANE_PANES_CMD (optional, tests) - replaces the tmux read: prints `<pane_dead> <window name>` lines
-# @param LANE_LOADAVG / LANE_MEMINFO / LANE_NPROC (optional, tests) - replace /proc/loadavg, /proc/meminfo, nproc for the BOX-0 tick's stats sample (rdb 0117)
 # @example ./run -a do_spl_lane_map
 # @example LANE_CHECK=csi-spl-orc/src/bash/run/,csi-spl-doc/specs/058-multi-machine-fleet/ LANE_AGENT=CLE-77920 ./run -a do_spl_lane_map
 # @example LANE_FORMAT=json LANE_ALL=1 ./run -a do_spl_lane_map
@@ -299,29 +298,18 @@ spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   scope="${scope:0:500}"
   out="$(spl_lane_hub --fleet "$LANE_FLEET" --agent "$LANE_BOX_ROW_ID" --box "$LANE_BOX" --scope "$scope" --state live 2>&1)" ||
     do_log "INFO the load of $LANE_BOX was not published ($LANE_BOX_ROW_ID@$LANE_BOX): $(tail -1 <<<"$out")" >&2
-  spl_lane_box_stats "$2"
   return 0
 }
 
-# Append one hardware sample of THIS box to the hub's history (rdb 0117,
-# do_report_box_stats reads it), on the BOX-0 tick: the row above is
-# overwritten, this one is kept 30 days. Best effort like the row: an older
-# hub or spool binary, a refusal or a timeout is one line on stderr, never the
-# map's exit code.
-spl_lane_box_stats() {  # LIVE_HERE (JSON array)
-  local sample out
-  sample="$(spl_lane_box_sample "$1")" || return 0
-  out="$(spl_lane_spool box-stats put --json - <<<"$sample" 2>&1)" ||
-    do_log "INFO the stats of $LANE_BOX were not recorded: $(tail -1 <<<"$out")" >&2
-  return 0
-}
-
-# This box's sample as one JSON object: /proc/loadavg (LANE_LOADAVG), nproc
+# This box's hardware sample for the hub's history (rdb 0117), posted by
+# do_post_box_stats every 5 min from the box-stats cron (the lane map runs only
+# on spawns and checks, so its BOX-0 tick is no clock).
+# As one JSON object: /proc/loadavg (LANE_LOADAVG), nproc
 # (LANE_NPROC), /proc/meminfo (LANE_MEMINFO) and the live agent count. Fails
 # when a source cannot be read, so nothing half-read is sent.
 spl_lane_box_sample() {  # LIVE_HERE (JSON array)
   local l1 l5 l15 cpus mem total avail swap
-  read -r l1 l5 l15 _ <"${LANE_LOADAVG:-/proc/loadavg}" 2>/dev/null || return 1
+  read -r l1 l5 l15 _ 2>/dev/null <"${LANE_LOADAVG:-/proc/loadavg}" || return 1
   cpus="${LANE_NPROC:-$(nproc 2>/dev/null)}"
   mem="$(awk '$1 ~ /^(MemTotal|MemAvailable|SwapTotal|SwapFree):$/ {v[$1] = $2}
     END {if (("MemTotal:" in v) && ("MemAvailable:" in v)) print v["MemTotal:"], v["MemAvailable:"], v["SwapTotal:"] - v["SwapFree:"]}' \

@@ -10,6 +10,8 @@ BEGIN = ("<!-- spool-install: begin claude-md (csi-spl fleet rules; edit "
          "spool-install/assets/claude/claude-md, not this block) -->\n")
 END = re.compile(r"<!-- spool-install: end claude-md sha256=([0-9a-f]{64}) -->\n?")
 def say(m): print("spool-install: claude-config: " + m, file=sys.stderr)
+# a dry run never claims a write it did not make (spec 072 A50)
+def did(done, plan): return plan if dry == "1" else done
 def sha(s): return hashlib.sha256(s.encode()).hexdigest()
 def fragments(sub, ext):
     d = os.path.join(assets, sub)
@@ -77,7 +79,7 @@ if new == cur:
 else:
     if cur and i < 0: backup(md, cur)
     write(md, new)
-    say("%s: %d fleet fragment(s) rendered" % (md, len(frags)))
+    say(did("%s: %d fleet fragment(s) rendered", "%s: would render %d fleet fragment(s)") % (md, len(frags)))
 
 # ── settings.json ────────────────────────────────────────────────────────────
 def merge(a, b):
@@ -103,4 +105,4 @@ if new_s == cur_s:
 else:
     if raw: backup(st, raw)
     write(st, json.dumps(new_s, indent=2, ensure_ascii=False) + "\n")
-    say("%s: fleet settings merged" % st)
+    say(did("%s: fleet settings merged", "%s: would merge the fleet settings") % st)

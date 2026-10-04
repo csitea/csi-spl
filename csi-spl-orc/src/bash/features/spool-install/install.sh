@@ -27,17 +27,28 @@
 #   5. your box on a tenant: its key, and its pin at the hub. The hub pins a
 #      box only with the tenant root key: with ROOT_KEY_JSON you pin it
 #      yourself; without, the seat is PENDING - this prints the one line your
-#      tenant admin runs, and exits 0; re-running install.sh picks the pin up
+#      tenant admin runs, and exits 0; re-running install.sh picks the pin up.
+#      The hub is checked first (GET <hub>/version): one that does not answer,
+#      fails TLS or returns an error is exit 5 naming the URL, before anything
+#      is installed
+#   6. only with --fleet: the fleet's ~/.claude/CLAUDE.md block, its settings
+#      (skipDangerousModePermissionPrompt among them) and the browser MCP
+#      entrypoints. Without it your own Claude Code setup is left as it is
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
 #   --cli <list>      comma list of claude,grok,agy,qwen, or none (default claude)
-#   --env dev|prd|self  the hub environment (default $SPOOL_ENV, else dev);
+#   --env dev|prd|self  the hub environment (default $SPOOL_ENV, else self when
+#                     SPOOL_HUB_URL is set, else dev);
 #                     self = your own hub at SPOOL_HUB_URL, any host - e.g. the
 #                     docker compose stack of this repo (specs/047 W4)
 #   --tenant <slug>   the tenant (default $SPOOL_TENANT)
 #   --box <box>       your box id (default $SPOOL_BOX, else box-<user>-<host>)
 #   --no-seat         skip step 5 (no hub needed)
+#   --fleet           also step 6: the fleet's CLAUDE.md, settings and browser
+#                     MCP (the fleet's own boxes pass it). Remembered: a re-run
+#                     keeps it, as it does on a home that already has the
+#                     fleet block; SPOOL_INSTALL_FLEET=0 turns it off
 #   --no-hooks        skip step 4 (spool-agent then passes the hooks per session)
 #   --no-skills       skip step 4b
 #   --force-skills    step 4b also overwrites a hand-edited rendered file
@@ -72,12 +83,14 @@
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
 #      SPOOL_ROOT / SPOOL_AGENT_CEILING / SPOOL_ORCHESTRATOR_ID - rendered into
-#      the skills (defaults /var/spool-hub, 40 and CLE-00)
+#      the skills (defaults $XDG_STATE_HOME/spool-hub - ~/.local/state/spool-hub
+#      without it, /var/spool-hub with --fleet -, 40 and the role orchestrator)
 #      SPOOL_INSTALL_BUILD / SPOOL_INSTALL_RUN - the spool build and ./run (tests)
 #      SPOOL_INSTALL_BINREV - prints a binary's commit (tests; default go version -m)
 #
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
-# missing, 4 an agent CLI did not install (every other step still ran), 5 the seat failed, 6 the toolchain
+# missing, 4 an agent CLI did not install (every other step still ran), 5 the
+# hub did not answer or the seat failed (the URL is named), 6 the toolchain
 # or the spool build failed, 7 a file in the way is not ours.
 set -uo pipefail
 
@@ -96,7 +109,7 @@ MARK="# spool-agent shim, written by spool-install (specs/037)"
 CFG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/spool-agent/env"
 cfg_get() { [ -r "$CFG_FILE" ] && ( . "$CFG_FILE" >/dev/null 2>&1; eval "printf '%s' \"\${$1:-}\"" ); }
 CLIS="claude" ENVN="${SPOOL_ENV:-$(cfg_get SPOOL_ENV)}" TENANT="${SPOOL_TENANT:-$(cfg_get SPOOL_TENANT)}" BOX="${SPOOL_BOX:-$(cfg_get SPOOL_BOX)}"
-ENVN="${ENVN:-dev}"
+FLEET="${SPOOL_INSTALL_FLEET:-$(cfg_get SPOOL_INSTALL_FLEET)}"
 [ -n "${SPOOL_HUB_URL:-}" ] || SPOOL_HUB_URL="$(cfg_get SPOOL_HUB_URL)"
 [ -n "$SPOOL_HUB_URL" ] || unset SPOOL_HUB_URL
 SEAT=1 HOOKS=1 SKILLS=1 FORCE_SKILLS=0 UPDATE=0 DRY=0 BINONLY=0
@@ -111,6 +124,7 @@ while [ "$#" -gt 0 ]; do
     --tenant)   [ "$#" -ge 2 ] || usage; TENANT="$2"; shift 2 ;;
     --box)      [ "$#" -ge 2 ] || usage; BOX="$2"; shift 2 ;;
     --no-seat)  SEAT=0; shift ;;
+    --fleet)    FLEET=1; shift ;;
     --no-hooks) HOOKS=0; shift ;;
     --no-skills) SKILLS=0; shift ;;
     --force-skills) FORCE_SKILLS=1; shift ;;
@@ -139,6 +153,14 @@ fi
 # it stops after the link, before the config, shim, hooks and harness steps.
 [ "$BINONLY" = 1 ] && { CLIS=none SEAT=0; }
 # ── 0. arguments and base tools ──────────────────────────────────────────────
+# A hub URL and no env is someone's own hub (spec 072 A50), never our dev.
+[ -n "$ENVN" ] || { [ -n "${SPOOL_HUB_URL:-}" ] && ENVN=self || ENVN=dev; }
+# The fleet config is opt-in (spec 072 A49); a home that already carries the
+# fleet's CLAUDE.md block is a fleet box that predates the option.
+if [ -z "$FLEET" ]; then
+  grep -qF '<!-- spool-install: begin claude-md' "$HOME/.claude/CLAUDE.md" 2>/dev/null && FLEET=1 || FLEET=0
+fi
+[[ "$FLEET" =~ ^[01]$ ]] || die 2 "SPOOL_INSTALL_FLEET must be 0 or 1, got '$FLEET'"
 [[ "$ENVN" =~ ^(dev|prd|self)$ ]] || die 2 "--env must be dev, prd or self (a self-hosted hub), got '$ENVN'"
 [ "$CLIS" = none ] && CLIS=""
 IFS=, read -r -a CLI_LIST <<<"$CLIS"
@@ -193,6 +215,17 @@ fetch() {  # URL OUT
   if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 2 -o "$2" "$1"; else wget -q -O "$2" "$1"; fi
 }
 plan() { [ "$DRY" = 1 ] && echo "would: $*"; }
+# The hub answers before anything is installed: a wrong URL, bad TLS or a 404
+# is exit 5 naming the URL, never a PENDING seat (spec 072 A50).
+if [ "$SEAT" = 1 ]; then
+  probe="${SPOOL_HUB_URL%/}/version"
+  if [ "$DRY" = 1 ]; then plan "check that the hub answers $probe"
+  else
+    if command -v curl >/dev/null 2>&1; then err="$(curl -fsS --max-time 15 -o /dev/null "$probe" 2>&1)"
+    else err="$(wget -nv -T 15 -O /dev/null "$probe" 2>&1)"; fi ||
+      die 5 "the hub at $SPOOL_HUB_URL does not answer $probe (${err:-no detail}): check SPOOL_HUB_URL and --env ($ENVN), or pass --no-seat, then re-run install.sh"
+  fi
+fi
 
 # ── 1. this checkout (a real --update ran and re-exec-ed above) ──────────────
 [ "$UPDATE" = 1 ] && plan "git -C $ROOT pull --ff-only, then run the updated installer"
@@ -437,16 +470,16 @@ SHIM="$BIN/spool-agent" CFG="$CFG_FILE"
 if [ -e "$SHIM" ] && ! grep -qF "$MARK" "$SHIM" 2>/dev/null; then
   die 7 "$SHIM exists and is not a spool-install shim: move it away and re-run"
 fi
-if [ "$DRY" = 1 ]; then plan "write $SHIM -> $AGENT_SH, and $CFG (SPOOL_ENV=$ENVN SPOOL_TENANT=$TENANT SPOOL_BOX=$BOX)"
+if [ "$DRY" = 1 ]; then plan "write $SHIM -> $AGENT_SH, and $CFG (SPOOL_ENV=$ENVN SPOOL_TENANT=$TENANT SPOOL_BOX=$BOX SPOOL_INSTALL_FLEET=$FLEET)"
 else
   mkdir -p "$BIN" "$CFG_DIR" && chmod 700 "$CFG_DIR" || die 7 "cannot create $BIN / $CFG_DIR"
   ( umask 077
     { echo "# spool-agent defaults, written by spool-install; edit freely"
-      printf 'SPOOL_ENV=%q\nSPOOL_TENANT=%q\nSPOOL_BOX=%q\n' "$ENVN" "$TENANT" "$BOX"
+      printf 'SPOOL_ENV=%q\nSPOOL_TENANT=%q\nSPOOL_BOX=%q\nSPOOL_INSTALL_FLEET=%q\n' "$ENVN" "$TENANT" "$BOX" "$FLEET"
       if [ -n "${SPOOL_HUB_URL:-}" ]; then printf 'SPOOL_HUB_URL=%q\n' "$SPOOL_HUB_URL"; fi
       # Lines this installer does not own (agent-top's SPOOL_BOX_TAG,
       # SPOOL_ORCHESTRATOR_ID, ...) survive a re-run.
-      if [ -r "$CFG" ]; then grep -vE '^(# spool-agent defaults|SPOOL_ENV=|SPOOL_TENANT=|SPOOL_BOX=|SPOOL_HUB_URL=)' "$CFG" || true; fi
+      if [ -r "$CFG" ]; then grep -vE '^(# spool-agent defaults|SPOOL_ENV=|SPOOL_TENANT=|SPOOL_BOX=|SPOOL_INSTALL_FLEET=|SPOOL_HUB_URL=)' "$CFG" || true; fi
     } >"$CFG.tmp" && mv -f "$CFG.tmp" "$CFG" ) || die 7 "cannot write $CFG"
   cat >"$SHIM.tmp" <<EOF
 #!/usr/bin/env bash
@@ -501,6 +534,9 @@ fi
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y5-adopt-skills.sh" && y5_adopt_skills "$HOME" || die 7 "cannot hand the engine-rendered skills over (specs/069 Y5)"; }
 # ── 5b. the agent harness: skills, slash commands, tmux snippet (specs/048) ──
 HARNESS_DIR="$ORC/src/bash/features/spawn-agents"
+# A stranger's spool lives under their own state dir and talks to whoever holds
+# the orchestrator role; /var/spool-hub is the fleet's (spec 072 A50).
+if [ "$FLEET" = 1 ]; then ROOT_DEFAULT=/var/spool-hub; else ROOT_DEFAULT="${XDG_STATE_HOME:-$HOME/.local/state}/spool-hub"; fi
 if [ "$SKILLS" = 1 ]; then
   QWEN_SKILLS=0
   for c in "${CLI_LIST[@]}"; do [ "$c" = qwen ] && QWEN_SKILLS=1; done
@@ -510,7 +546,7 @@ if [ "$SKILLS" = 1 ]; then
     plan "copy the tmux snippet to $DATA/tmux-agent-status.conf"
   else
     python3 - "$HARNESS_DIR/assets" "$HOME" "$QWEN_SKILLS" "$FORCE_SKILLS" \
-      "$HARNESS_DIR" "${SPOOL_ROOT:-/var/spool-hub}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-CLE-00}" <<'EOF_PY' || die 6 "cannot render the harness skills"
+      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" <<'EOF_PY' || die 6 "cannot render the harness skills"
 import hashlib, os, re, sys
 assets, home, qwen, force, harness, root, ceiling, orc = sys.argv[1:]
 MARK = re.compile(r"\n<!-- spool-install: sha256=([0-9a-f]{64}) -->\n?")
@@ -564,6 +600,12 @@ fi
 . "$_here/steps/y7-tmux-links.sh" && { spool_install_y7_tmux_links "$HOME" "$DATA/tmux-agent-status.conf" "$DRY" || die 6 "cannot repoint ~/.tmux.conf"; }
 
 . "$_here/steps/y10-run-completion.sh" && spl_install_run_completion "$ORC" "$HOME/.bashrc" "$DRY" || die 7 "run completion: cannot update $HOME/.bashrc"
+# ── 5c. the fleet config, only with --fleet (spec 072 A49) ────────────────────
+if [ "$FLEET" != 1 ]; then
+  # shellcheck disable=SC2034  # read by the sourced y1 and y4 steps
+  SPOOL_INSTALL_MCP_BOT=0 SPOOL_INSTALL_CLAUDE_CONFIG=0
+  say "fleet config: not written - your ~/.claude/CLAUDE.md, settings and browser MCP are yours (--fleet writes the fleet's)"
+fi
 . "$_here/steps/y1-mcp-bot.sh" && y1_mcp_bot "$ORC/src/bash/features/mcp-bot" || die $? "mcp-bot: cannot link the browser MCP entrypoints (spec 069 Y1)"
 
 source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 6 "cannot render the fleet CLAUDE.md / settings.json (spec 069 Y4)"
@@ -587,7 +629,7 @@ if [ "$SEAT" = 1 ]; then
       say "then re-run install.sh: it picks the pin up."
     else
       printf '%s\n' "$out" | grep -E 'FATAL|FAIL|WARN' | tail -3 >&2
-      die 5 "the seat failed (rc $rc)"
+      die 5 "the seat failed (rc $rc) at $SPOOL_HUB_URL: fix the line above, then re-run install.sh"
     fi
   fi
 fi

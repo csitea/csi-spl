@@ -29,6 +29,12 @@
 #      the tmux snippet lands in <data>; --no-skills renders nothing
 #  11. a vendor URL that returns no script: that CLI is named, never run, the
 #      other CLIs and the harness still install, and the run exits 4
+#  12. spec 072 A49: a default install writes no fleet CLAUDE.md, no
+#      skipDangerous setting, no browser MCP; --fleet writes them and is
+#      remembered; a home with the fleet block is a fleet box; =0 opts out
+#  13. spec 072 A50: an unreachable hub is exit 5 naming the URL before
+#      anything installs; a hub URL alone means --env self; a dry run says
+#      "would render"; the skills carry no /var/spool-hub and no CLE-00
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -62,11 +68,12 @@ chmod +x "$T/gobuild/go/bin/go"
 tar -czf "$T/www/go.tgz" -C "$T/gobuild" go
 printf 'go1.99.0\ntime 2026-01-01T00:00:00Z\n' >"$T/www/goversion"
 printf '#!/bin/sh\necho "yq (https://github.com/mikefarah/yq/) version v4.99.0"\n' >"$T/www/yq"
+echo '{"version": "9.9.9"}' >"$T/www/version"
 
 cat >"$T/stub/curl" <<EOF
 #!/bin/bash
 out=""; url=""
-while [ \$# -gt 0 ]; do case "\$1" in -o) out="\$2"; shift 2 ;; --retry) shift 2 ;; -*) shift ;; *) url="\$1"; shift ;; esac; done
+while [ \$# -gt 0 ]; do case "\$1" in -o) out="\$2"; shift 2 ;; --retry|--max-time) shift 2 ;; -*) shift ;; *) url="\$1"; shift ;; esac; done
 echo "curl \$url" >>"$T/net.log"
 case "\$url" in
   https://vendor.test/claude) f=claude-install.sh ;;
@@ -75,6 +82,7 @@ case "\$url" in
   https://go.test/VERSION*)   f=goversion ;;
   https://go.test/dl/go1.99.0.*.tar.gz) f=go.tgz ;;
   https://yq.test/yq_*)       f=yq ;;
+  https://api.example.com/version|http://localhost:18478/version) f=version ;;
   *) echo "curl stub: no fixture for \$url" >&2; exit 22 ;;
 esac
 if [ -n "\$out" ]; then cp "$T/www/\$f" "\$out"; else cat "$T/www/\$f"; fi
@@ -323,5 +331,44 @@ ARGS=(--cli none --no-seat --no-skills); inst; rc=$?
 printf '#!/bin/sh\necho mine\n' >"$H/.local/bin/spool-agent"
 ARGS=(--cli none --no-seat); inst; rc=$?
 [[ $rc -eq 7 ]] && grep -qx 'echo mine' "$H/.local/bin/spool-agent" && pass "8. a foreign spool-agent is left alone (7)" || fail "8. rc $rc $(cat "$T/o")"
+
+# --- 12. the fleet config is opt-in (spec 072 A49) ------------------------------------------------
+H="$T/home-a49"; mkdir -p "$H"; CFG="$H/.config/spool-agent/env"
+ARGS=(--cli none --no-seat); inst; rc=$?
+[[ $rc -eq 0 && ! -e "$H/.claude/CLAUDE.md" && ! -e "$H/.local/mcp-bot" && -r "$H/.claude/settings.json" ]] &&
+  ! grep -q skipDangerous "$H/.claude/settings.json" && grep -q 'fleet config: not written' "$T/o" && grep -qx SPOOL_INSTALL_FLEET=0 "$CFG" &&
+  pass "12. a default install leaves CLAUDE.md, skipDangerous and the browser MCP alone" || fail "12. default: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --no-seat --fleet); inst; rc=$?
+[[ $rc -eq 0 && -L "$H/.local/mcp-bot/mcp-start.sh" ]] && grep -qF '<!-- spool-install: begin claude-md' "$H/.claude/CLAUDE.md" &&
+  python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["skipDangerousModePermissionPrompt"] is True' "$H/.claude/settings.json" &&
+  grep -qx SPOOL_INSTALL_FLEET=1 "$CFG" && grep -rqF 'SPOOL_ROOT=/var/spool-hub' "$H/.claude/skills" &&
+  pass "12. --fleet writes the fleet CLAUDE.md, settings and browser MCP (the fleet spool root)" || fail "12. --fleet: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --no-seat); inst; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'fleet config: not written' "$T/o" && grep -qx SPOOL_INSTALL_FLEET=1 "$CFG" &&
+  pass "12. a bare re-run keeps --fleet" || fail "12. sticky: rc $rc $(cat "$T/o")"
+mkdir -p "$T/home-a49b/.claude"; cp "$H/.claude/CLAUDE.md" "$T/home-a49b/.claude/"; H="$T/home-a49b"
+ARGS=(--cli none --no-seat --no-skills); inst; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'fleet config: not written' "$T/o" && grep -q skipDangerous "$H/.claude/settings.json" &&
+  pass "12. a home that has the fleet block is a fleet box" || fail "12. legacy fleet box: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --no-seat --no-skills); inst SPOOL_INSTALL_FLEET=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'fleet config: not written' "$T/o" && grep -qx SPOOL_INSTALL_FLEET=0 "$H/.config/spool-agent/env" &&
+  pass "12. SPOOL_INSTALL_FLEET=0 opts a fleet home out" || fail "12. opt out: rc $rc $(cat "$T/o")"
+
+# --- 13. errors and defaults a stranger owns (spec 072 A50) ------------------------------------------
+H="$T/home-a50"; mkdir -p "$H"; : >"$T/vendor.log"; : >"$T/seat.log"
+ARGS=(--cli claude --tenant t1); inst SPOOL_HUB_URL=https://down.example.com; rc=$?
+[[ $rc -eq 5 && ! -s "$T/vendor.log" && ! -s "$T/seat.log" && ! -e "$H/.local" ]] &&
+  grep -q 'FATAL the hub at https://down.example.com does not answer https://down.example.com/version' "$T/o" && ! grep -q PENDING "$T/o" &&
+  pass "13. an unreachable hub is exit 5 naming the URL, before anything installs" || fail "13. down hub: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --tenant t1 --box box-ext); inst SPOOL_HUB_URL=$HUB; rc=$?
+[[ $rc -eq 0 ]] && grep -q '^pin ENV=self TENANT_ID=t1 ' "$T/seat.log" && grep -qx SPOOL_ENV=self "$H/.config/spool-agent/env" &&
+  pass "13. a hub URL and no --env is env self" || fail "13. self default: rc $rc $(cat "$T/o" "$T/seat.log")"
+[[ -z "$(grep -rhoE '/var/spool-hub|CLE-00' "$H/.claude")" ]] && grep -rqF "SPOOL_ROOT=$H/.local/state/spool-hub" "$H/.claude/skills" &&
+  grep -rqF 'agent-send.sh --from <YOUR-ID> orchestrator ' "$H/.claude/skills" &&
+  pass "13. the skills default to ~/.local/state/spool-hub and the orchestrator role" || fail "13. defaults: $(grep -rnoE '/var/spool-hub|CLE-00' "$H/.claude" | sed -n 1,3p)"
+H="$T/home-a50b"; mkdir -p "$H"
+ARGS=(--cli none --no-seat --fleet --dry-run); inst; rc=$?
+[[ $rc -eq 0 && -z "$(ls -A "$H")" ]] && grep -q 'would render' "$T/o" && ! grep -qE 'rendered|merged' "$T/o" &&
+  pass "13. a dry run says would render, never rendered" || fail "13. dry wording: rc $rc $(cat "$T/o")"
 
 [[ $fails -eq 0 ]] && echo "OK test-install: $n passed" || { echo "FAILED test-install: $fails of $n"; exit 1; }

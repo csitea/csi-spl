@@ -1626,6 +1626,22 @@ declare module '~/utils/view-prefs.mjs' {
   ): Promise<{ ok: boolean, value: string, out?: unknown }>
 }
 
+declare module '~/utils/drafts.mjs' {
+  export type DraftEntry = { text: string, ts: number }
+  export type DraftPlaces = Record<string, DraftEntry>
+  export type DraftTarget = string | { taskId?: unknown, peer?: unknown, channel?: unknown } | null | undefined
+  export const DRAFTS_KEY: 'spool.drafts'
+  export const DRAFT_MAX_AGE_MS: number
+  export const DRAFT_MAX_ENTRIES: number
+  export function draftPlaceOf(target: DraftTarget): string
+  export function pruneDrafts(all: unknown, now?: number): Record<string, DraftPlaces>
+  export function loadDrafts(store: Storage | undefined, humanId: unknown, now?: number): DraftPlaces
+  export function draftText(store: Storage | undefined, humanId: unknown, place: DraftTarget, now?: number): string
+  export function saveDraft(store: Storage | undefined, humanId: unknown, place: DraftTarget, text: unknown, now?: number): boolean
+  export function clearDraft(store: Storage | undefined, humanId: unknown, place: DraftTarget, now?: number): boolean
+  export function clearDrafts(store: Storage | undefined, humanId: unknown, now?: number): boolean
+}
+
 declare module '~/utils/rail-order.mjs' {
   export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events' | 'archive'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]

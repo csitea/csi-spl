@@ -169,6 +169,7 @@ Spool adapts gracefully to different screen sizes:
 - **Phones / Narrow Screens (`< 640px`)**:
   - Single-pane view with smooth transitions between sidebar, feed, and threads.
   - The Top Omnibox automatically folds into a compact search icon (`🔍`). Tapping the icon expands the Omnibox across the top bar.
+  - Tapping a link inside a message, such as a release-note address, opens that link. A tap on the rest of the message opens the thread.
 
 ---
 
@@ -176,4 +177,4 @@ Spool adapts gracefully to different screen sizes:
 
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
 
-<!-- version: 1.1.1 · updated: 2026-09-30 -->
+<!-- version: 1.1.1 · updated: 2026-10-04 -->

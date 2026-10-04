@@ -518,6 +518,14 @@ whatever we have: a database, a file system, distributed nodes, the agents"):
    `ORCH_INBOX_KEEP_MIN` (60) and the closed asks' messages to `archive/`.
    From any pane: `asks.sh [open|ack|done|decline|inbox|sync|tick]`.
 
+The owner reminder names the topic it belongs to: the title, who is waiting,
+the summary, what to do, and the topic id. When that topic is a channel the
+owner can read, the reminder is a reply in it. Otherwise it is a new topic
+that still names the title. When the title could not be read, the reminder
+keeps the older id line. Once the ask is acknowledged, closed or dead, the
+next tick posts one line in the reminder's topic: `resolved:` and the reason.
+A dead-letter in the same tick is answered on the following tick.
+
 The mechanical parts are code (owner, 02:19Z: "whenever something can be
 pre-coded with pre-existing logic, there should be code for it"); taking,
 deciding and answering an ask stay the agent's.
@@ -596,4 +604,4 @@ end to end in every seated workspace.
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.8.0 · updated: 2026-10-03 · last-edit: 2026-10-03T19:00:00Z -->
+<!-- version: 0.8.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:15:00Z -->

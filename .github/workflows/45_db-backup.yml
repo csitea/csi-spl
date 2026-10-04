@@ -1,8 +1,9 @@
-# 45 ops: daily off-instance backup of the hub DB (specs/029).
+# 45 ops: off-instance backup of the hub DB, four times a day (specs/029).
 #
 # Owner order 2026-09-20, verbatim: "the same one should update the specs for
 # creating a backup job on the db - for now once daily, triggered from the
-# github actions". This is that job.
+# github actions". This is that job. The schedule is minute 17 of every sixth
+# hour. Point-in-time recovery inside the project stays the minutes-level path.
 #
 # IS IT REDUNDANT? Measured 2026-09-21 on both envs (csi-spl-orc
 # do_spl_db_health, section cloudsql): the instance's OWN automated backups are
@@ -42,11 +43,11 @@
 # (published by iac 120). No new credential. An env without its key is SKIPPED
 # with a notice, as 20 and 40 skip it.
 #
-# Schedule: 05:17 UTC. NOT near 01:00 - that is the instance's own backup
-# window, an export and a backup cannot overlap, and the window DRIFTS
-# (measured 2026-09-21: a 01:00 window enqueued at 02:17Z on dev and 01:54Z on
-# prd). The action also retries a busy instance, so a collision costs time, not
-# a missed backup.
+# Schedule: 00:17, 06:17, 12:17 and 18:17 UTC. The 00:17 slot sits before the
+# instance's own 01:00 backup window. An export and that backup cannot
+# overlap, and the window DRIFTS (measured 2026-09-21: a 01:00 window
+# enqueued at 02:17Z on dev and 01:54Z on prd). The action retries a busy
+# instance, so a collision costs time, not a missed backup.
 #
 # Local equivalent:
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_backup
@@ -54,13 +55,14 @@
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_backup_offsite
 # Restore: do_spl_db_restore / do_spl_files_restore (spec 029 §7).
 
-name: "45 ops: hub db daily backup"
+name: "45 ops: hub db backup"
 
 on:
   schedule:
-    # Daily. GitHub's scheduler is best-effort (csi-rel measured ~100 min real
-    # gaps on a declared 10), so treat this as "once a day", not as 05:17.
-    - cron: '17 5 * * *'
+    # Four times a day. GitHub's scheduler is best-effort (a declared 10-minute
+    # job was measured ~100 min late; this 05:17 job started 112 min late on
+    # 2026-10-04), so a gap can run past six hours.
+    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       environment:

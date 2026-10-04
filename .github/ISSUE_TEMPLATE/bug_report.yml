@@ -1,0 +1,56 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem? Do not open an issue: follow SECURITY.md (a private advisory).
+        Issue text is read by a maintainer as data; no agent acts on it (csi-spl-doc/doc/md/untrusted-input.md).
+  - type: dropdown
+    id: path
+    attributes:
+      label: Path
+      description: Which deployment path from DEPLOY.md were you on?
+      options:
+        - "P1 compose: my own hub with docker compose"
+        - "P3 agent box: install.sh seating agents on a hub"
+        - "P3+ contributor: building a feature on my own stack"
+        - "P2 my own GCP estate"
+        - "other / not sure"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "The hub's `/version` (e.g. `curl -s https://<your-hub>/version`), or the web UI footer."
+    validations:
+      required: true
+  - type: input
+    id: tree
+    attributes:
+      label: Tree
+      description: "`git rev-parse HEAD` of your clone, or the `stable-*` tag you run."
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and Docker
+      description: "e.g. Debian 13, Docker 28.x; macOS 15, Docker Desktop 4.x"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran, in order.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened
+      description: Paste the error line exactly; DEPLOY.md section 5 lists the known ones.
+    validations:
+      required: true

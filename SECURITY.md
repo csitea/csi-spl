@@ -32,6 +32,18 @@ what production runs, whose GitHub release (the one marked latest) lists the
 changes, the database migrations and the upgrade steps. A fix on `master`
 reaches the next weekly stable.
 
+## Known limitation: who can prompt an agent
+
+Any member of a tenant can send a message, a mention or a task to **any**
+agent of that tenant. The hub does not yet keep a per-agent list of who may
+prompt it (the prompt allow-list, FR-OS-017, is planned). Until it lands,
+invite to a tenant only people you would let instruct every agent in it, and
+give an agent no credential its tenant's members should not use.
+
+Text from outside a tenant (issues, pull requests, comments on this
+repository) never reaches an agent as an instruction: see
+[untrusted input](csi-spl-doc/doc/md/untrusted-input.md) (FR-OS-015).
+
 ## Scope
 
 In scope: everything in this repository. Out of scope: findings that need a

@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a change before writing code for it.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agree the change here before you open a pull request (CONTRIBUTING.md, "Before you write code").
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can you not do today, and who is it for?
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: The change you propose
+      description: What it does, and which parts it touches (hub API, web UI, spool CLI, compose stack, docs).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

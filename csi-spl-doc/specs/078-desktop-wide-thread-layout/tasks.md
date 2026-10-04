@@ -1,0 +1,30 @@
+# 078 desktop layout, the thread gets the width: tasks
+
+Authority for what is built (`spec.md` holds the behaviour). Each task names the files it owns and its done check. Status vocabulary: `../README.md` §2.3. Every task is one lane; tasks in different phases touch disjoint files except where named. Paths are under `csi-spl-wui/` unless they start with `csi-spl-doc/`.
+
+Order (spec §9 Q1): Phase 1, 3 and 4 now, in any order. Phase 2 (Topics) waits for the owner's answer on `topics-view-retire-proposal.md`.
+
+Every WUI task is done only when, from `csi-spl-wui/`: `pnpm run test:unit`, `pnpm run typecheck`, and its named e2e run green against a generated bundle (`BASE_URL=<bundle> pnpm run test:e2e <names>`), and `cd ../csi-spl-iac && ./run -a do_check_pre_push` passes.
+
+---
+
+### Phase 0: Specification
+- [x] T001 **spec** (c-245): `spec.md` and this file.
+
+### Phase 1: A section change closes the right pane (FR-004, FR-005)
+- [ ] T002 **route rule** : extend `routeLeavesTopic` in `src/utils/topic-pane.mjs` so that at > 820 px a non-popstate navigation into a `SECTION_PAGES` path (`src/utils/section-strip.mjs`) or `/search` (`isSearchPage`, `src/utils/sidebar-tabs.mjs`) closes the pane; keep the phone branch and the popstate rule as they are. In `src/layouts/default.vue` (`router.afterEach`, ~:288) close the operator section too (spec Q3). Owns: `src/utils/topic-pane.mjs`, the `afterEach` block of `src/layouts/default.vue`, `tests/unit/route-leaves-topic.test.mjs` (add desktop cases: section -> true, channel -> channel false, popstate false). New e2e `tests/e2e/section-closes-pane.test.mjs` (AC3); `topic-pane-single`, `archive-close-pane`, `help-two-panes` stay green (AC4). Done: the checks above.
+
+### Phase 2: Topics is two panes (FR-001..003) — after the owner answers spec Q1
+- [ ] T003 **Topics = the `/t/` view** : on `/` at > 820 px, a row click routes to `/t/<id>` (spec Q2) instead of `pane.open(id)` (`src/pages/index.vue:59`); `/` with nothing selected renders the empty hint in the middle instead of the second list (`src/pages/index.vue:25-81`). The sidebar list (`src/components/ChannelSidebar.vue:423-461`) stays the index and marks the selected row. Owns: `src/pages/index.vue`, `src/pages/t/[task_id].vue` (only if the empty state needs a shared component), i18n key `topic.pick_hint` in all 19 `i18n/locales/*.json`. Tests: extend `tests/unit/topic-view-two-panels.test.mjs`; new e2e `tests/e2e/topics-two-panes.test.mjs` (AC1, AC2); phone suites green (AC9). Rebase on c-253 and on spec 079 T003 if they touched `index.vue` rows. Done: the checks above.
+
+### Phase 3: Proportional default and per-view widths (FR-006, FR-007)
+- [ ] T004 **proportional default** : replace the fixed default with `topicDefaultFor(mainWidth)` = 40 % of the space right of the left pane, clamped by `TOPIC_MIN`, `TOPIC_MAX_RATIO`, `MAIN_MIN` (`src/utils/pane-widths.mjs`); `src/composables/usePaneWidths.ts` uses it when nothing is stored and sets `--topic-w` from it, so `src/assets/css/variables.css:100` stops being the source. Owns: `src/utils/pane-widths.mjs`, `src/composables/usePaneWidths.ts`, `src/assets/css/variables.css` (the one variable), `tests/unit/pane-widths.test.mjs` (AC5). New e2e `tests/e2e/topic-pane-title-fits.test.mjs` (AC6). Rebase on perf plan E28 if it landed. Done: the checks above.
+- [ ] T005 **per-view widths** : the stored shape becomes `{default:{sidebar,topic}, channel?, issues?, help?, docs?}` in `spool.pane-widths` and the account `pane_sizes`; a flat old value loads as `default`; `commit()` writes only the current view. Owns: `src/utils/pane-widths.mjs` (`loadPaneWidths`, `savePaneWidths`, a `viewOf(route)` helper), `src/composables/usePaneWidths.ts` (`hydrate`, `commit`), `src/stores/session.ts` (`pane_sizes` type), `src/types/mjs-shims.d.ts` (the type), `tests/unit/pane-widths.test.mjs` (AC7). **Hub check first**: confirm `PUT /api/v1/auth/preferences {pane_sizes}` stores the nested object unchanged (read `csi-spl-api` auth handler); if it validates the flat shape, a hub sub-task with its own test goes first, in a separate commit. Depends on T004 (same files): run after it. Done: the checks above, plus the hub test if touched.
+
+### Phase 4: Readable measure (FR-008)
+- [ ] T006 **message measure** : cap the message body at `100ch` (spec Q4) and let the card's actions follow the capped card. Owns: the `.msg` rules in `src/assets/css/main.css` (~:328-336) and the desktop card layout rules in `src/components/MessageCard.vue` (not the phone block ~:2026+). Tests: new e2e `tests/e2e/message-measure.test.mjs` at 1920 (AC8); `no-x-scroll`, `card-edge-inset`, `code-blocks` suites green. Done: the checks above.
+
+### Phase 5: Help
+- [ ] T007 **help** : `csi-spl-doc/doc/help/interface-overview.md` §1 (geometry), §5 (right pane), §6 (dividers: per-view widths, proportional default), then regenerate the WUI copy with `node src/node/help/sync-help.mjs` (writes `src/public/help-md/`). Mark the stale `spool.pane-widths` paragraph in `csi-spl-doc/doc/md/SPEC-spool-wui-layout.md` §1.2 as replaced by this spec. Lands with or after the last code task it describes. Done: `./run -a do_check_dist_hygiene` and `lint-mdlinks` green.
+
+<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:00:00Z -->

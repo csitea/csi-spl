@@ -9,12 +9,12 @@ import { chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath
 
 describe('isSectionPage', () => {
   it('every section page the owner named, with or without a locale', () => {
-    for (const p of ['/issues', '/people', '/boxes', '/agents', '/events', '/help', '/tenant-settings', '/archive', '/', '/fi/issues', '/issues?epic=SPL-1', '/people/']) {
+    for (const p of ['/issues', '/people', '/boxes', '/agents', '/events', '/help', '/docs', '/tenant-settings', '/archive', '/', '/fi/issues', '/issues?epic=SPL-1', '/people/']) {
       assert.equal(isSectionPage(p), true, p)
     }
   })
   it('a drill-down keeps its own header and Back', () => {
-    for (const p of ['/channel/general', '/dm/HUM-2', '/people/HUM-2', '/agents/CLE-1', '/boxes/b1', '/help/how-to-post', '/tenant-settings/members', '/t/abc', '/search']) {
+    for (const p of ['/channel/general', '/dm/HUM-2', '/people/HUM-2', '/agents/CLE-1', '/boxes/b1', '/help/how-to-post', '/docs/README.md', '/tenant-settings/members', '/t/abc', '/search']) {
       assert.equal(isSectionPage(p), false, p)
     }
   })
@@ -25,6 +25,8 @@ describe('railLinkSection', () => {
     assert.equal(railLinkSection('/help'), 'help')
     assert.equal(railLinkSection('/fi/help/how-to-post'), 'help')
     assert.equal(railLinkSection('/tenant-settings/members'), 'settings')
+    assert.equal(railLinkSection('/docs'), 'docs')
+    assert.equal(railLinkSection('/fi/docs/csi-spl-doc/specs/072-x/spec.md'), 'docs')
     assert.equal(railLinkSection('/issues'), '')
   })
 })

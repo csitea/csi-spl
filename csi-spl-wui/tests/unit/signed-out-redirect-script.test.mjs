@@ -49,7 +49,7 @@ for (const p of ['/lobby', '/', '/fi/t/abc', '/settings/profile', '/dm/x', '/sea
 
 // 3. the same product screens as the middleware (isProductScreen), both ways
 const PATHS = [
-  '/', '/lobby', '/search', '/channel', '/channel/abc', '/dm', '/dm/x', '/t', '/t/1/2', '/settings', '/settings/a',
+  '/', '/lobby', '/search', '/channel', '/channel/abc', '/dm', '/dm/x', '/t', '/t/1/2', '/settings', '/settings/a', '/docs', '/docs/a/b.md', '/docsx',
   '/login', '/login/x', '/reset-password', '/verify-email', '/checkout', '/checkout/done',
   '/issues', '/people', '/help', '/events', '/archive', '/users', '/tenant-settings', '/agents', '/boxes', '/m/x',
   '/fi', '/fi/lobby', '/fi/login', '/he/t/x', '/fi/issues', '/channelx', '/tt', '/lobby/x', '/dmx',

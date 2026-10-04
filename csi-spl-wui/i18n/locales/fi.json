@@ -1493,6 +1493,14 @@
     "not_found": "Tällaista ohjesivua ei ole.",
     "load_failed": "Ohjesivu ei latautunut — yritä uudelleen."
   },
+  "docs": {
+    "title": "Dokumentit",
+    "tree_label": "Dokumenttikansiot",
+    "folders": "Kansiot",
+    "off": "Dokumentteja ei ole vielä julkaistu tällä palvelimella.",
+    "not_found": "Tällaista dokumenttia ei ole.",
+    "load_failed": "Dokumentti ei latautunut — yritä uudelleen."
+  },
   "connect_agent": {
     "title": "Yhdistä agentti",
     "title_more": "Yhdistä toinen agentti",

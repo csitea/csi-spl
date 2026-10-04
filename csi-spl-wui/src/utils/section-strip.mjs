@@ -17,6 +17,7 @@ const SECTION_PAGES = new Set([
   '/agents',
   '/boxes',
   '/help',
+  '/docs',
   '/tenant-settings',
 ])
 
@@ -25,10 +26,11 @@ export function isSectionPage(path) {
   return SECTION_PAGES.has(productPath(path))
 }
 
-/** the rail links (not tabs) a section page may be: Help, Workspace settings */
+/** the rail links (not tabs) a section page may be: Help, Docs, Workspace settings */
 export function railLinkSection(path) {
   const p = productPath(path)
   if (p === '/help' || p.startsWith('/help/')) return 'help'
+  if (p === '/docs' || p.startsWith('/docs/')) return 'docs'
   if (p === '/tenant-settings' || p.startsWith('/tenant-settings/')) return 'settings'
   return ''
 }

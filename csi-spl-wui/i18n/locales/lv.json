@@ -1493,6 +1493,14 @@
     "not_found": "Šādas palīdzības lapas nav.",
     "load_failed": "Palīdzības lapa neielādējās — mēģiniet vēlreiz."
   },
+  "docs": {
+    "title": "Dokumenti",
+    "tree_label": "Dokumentu mapes",
+    "folders": "Mapes",
+    "off": "Dokumenti šajā serverī vēl nav publicēti.",
+    "not_found": "Šāda dokumenta nav.",
+    "load_failed": "Dokuments neielādējās — mēģiniet vēlreiz."
+  },
   "connect_agent": {
     "title": "Pievienot aģentu",
     "title_more": "Pievienot vēl vienu aģentu",

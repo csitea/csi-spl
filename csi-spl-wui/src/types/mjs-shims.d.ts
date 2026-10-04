@@ -1511,6 +1511,25 @@ declare module '~/utils/help.mjs' {
   export function hostOf(url: unknown): string
 }
 
+declare module '~/utils/docs.mjs' {
+  export type DocsFile = { name: string, path: string, title: string }
+  export type DocsDir = { name: string, path: string, dirs: DocsDir[], files: DocsFile[] }
+  export type DocsRow = { kind: 'dir' | 'file', path: string, name: string, title?: string, depth: number, open?: boolean }
+  export const DOCS_REPO_BASE: string
+  export const DOCS_HOME: string
+  export function validDocsPath(p: unknown): boolean
+  export function docsRoute(path: string): string
+  export function docsHref(raw: unknown, from: string, route?: (path: string) => string): string
+  export function rewriteDocsLinks(md: unknown, from: string, route?: (path: string) => string): string
+  export function buildDocsTree(files: unknown): DocsDir
+  export function docsAncestors(path: string): string[]
+  export function visibleDocsRows(root: DocsDir, open: Set<string>): DocsRow[]
+}
+
+declare module '~/utils/docs-mock.mjs' {
+  export function mockDocs(path: string): string | null
+}
+
 declare module '~/utils/tenant-settings-mock.mjs' {
   export function createMockTenant(): unknown
 }
@@ -2099,7 +2118,7 @@ declare module '~/utils/side-hit-list.mjs' {
 
 declare module '~/utils/section-strip.mjs' {
   export function isSectionPage(path: string): boolean
-  export function railLinkSection(path: string): '' | 'help' | 'settings'
+  export function railLinkSection(path: string): '' | 'help' | 'docs' | 'settings'
   export function loopPosition(pos: number, set: number): number
   export function chatKind(path: string): '' | 'channel' | 'dm'
   export function sectionExitPath(last: { channel?: string, dm?: string, chat?: string }, tab?: string): string

@@ -1493,6 +1493,14 @@
     "not_found": "Tokio pagalbos puslapio nėra.",
     "load_failed": "Pagalbos puslapis neįsikėlė — bandykite dar kartą."
   },
+  "docs": {
+    "title": "Dokumentai",
+    "tree_label": "Dokumentų aplankai",
+    "folders": "Aplankai",
+    "off": "Dokumentai šiame serveryje dar nepaskelbti.",
+    "not_found": "Tokio dokumento nėra.",
+    "load_failed": "Dokumentas neįsikėlė — bandykite dar kartą."
+  },
   "connect_agent": {
     "title": "Prijunkite agentą",
     "title_more": "Prijunkite kitą agentą",

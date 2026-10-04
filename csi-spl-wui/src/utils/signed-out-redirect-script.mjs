@@ -63,7 +63,7 @@ export function earlyLoginHref(input) {
     if (p.length > 1 && p.charAt(p.length - 1) === '/') p = p.slice(0, -1)
   }
   var product = p === '/' || p === '/lobby' || p === '/search'
-  var roots = ['/channel', '/dm', '/t', '/settings']
+  var roots = ['/channel', '/dm', '/t', '/settings', '/docs']
   for (var r = 0; r < roots.length; r++) {
     if (p === roots[r] || p.indexOf(roots[r] + '/') === 0) product = true
   }

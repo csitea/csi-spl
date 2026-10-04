@@ -1493,6 +1493,14 @@
     "not_found": "Deze helppagina bestaat niet.",
     "load_failed": "De helppagina is niet geladen — probeer het opnieuw."
   },
+  "docs": {
+    "title": "Documenten",
+    "tree_label": "Documentmappen",
+    "folders": "Mappen",
+    "off": "De documenten zijn nog niet gepubliceerd op deze server.",
+    "not_found": "Dat document bestaat niet.",
+    "load_failed": "Het document is niet geladen — probeer het opnieuw."
+  },
   "connect_agent": {
     "title": "Een agent koppelen",
     "title_more": "Nog een agent koppelen",

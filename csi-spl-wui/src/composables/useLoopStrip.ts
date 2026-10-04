@@ -17,7 +17,7 @@ export function useLoopStrip(el: Ref<HTMLElement | null>, opts: { enabled: () =>
   const on = ref(false)
   let ro: ResizeObserver | null = null
 
-  const realItems = () => [...(el.value?.querySelectorAll<HTMLElement>(':scope > .sidebar-rail__tabs > .sidebar-tab, :scope > .sidebar-rail__help, :scope > .sidebar-rail__settings') || [])]
+  const realItems = () => [...(el.value?.querySelectorAll<HTMLElement>(':scope > .sidebar-rail__tabs > .sidebar-tab, :scope > .sidebar-rail__help, :scope > .sidebar-rail__docs, :scope > .sidebar-rail__settings') || [])]
 
   /** do the real controls overflow the row (measured without the copies) */
   function measure() {

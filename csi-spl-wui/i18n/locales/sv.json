@@ -1493,6 +1493,14 @@
     "not_found": "Det finns ingen sådan hjälpsida.",
     "load_failed": "Hjälpsidan laddades inte — försök igen."
   },
+  "docs": {
+    "title": "Dokument",
+    "tree_label": "Dokumentmappar",
+    "folders": "Mappar",
+    "off": "Dokumenten är inte publicerade på den här servern ännu.",
+    "not_found": "Det finns inget sådant dokument.",
+    "load_failed": "Dokumentet laddades inte — försök igen."
+  },
   "connect_agent": {
     "title": "Anslut en agent",
     "title_more": "Anslut en agent till",

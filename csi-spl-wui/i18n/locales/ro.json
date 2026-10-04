@@ -1493,6 +1493,14 @@
     "not_found": "Nu există această pagină de ajutor.",
     "load_failed": "Pagina de ajutor nu s-a încărcat — încercați din nou."
   },
+  "docs": {
+    "title": "Documente",
+    "tree_label": "Dosare de documente",
+    "folders": "Dosare",
+    "off": "Documentele nu sunt încă publicate pe acest server.",
+    "not_found": "Nu există un astfel de document.",
+    "load_failed": "Documentul nu s-a încărcat — încercați din nou."
+  },
   "connect_agent": {
     "title": "Conectați un agent",
     "title_more": "Conectați încă un agent",

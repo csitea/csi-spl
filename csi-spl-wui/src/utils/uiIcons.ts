@@ -345,6 +345,11 @@ export const UI_ICON_PATHS = {
   "chevron-down": ["m6 9 6 6 6-6"],
   // Back one level on the phone top bar (SPL-990); rtl mirrors it in CSS.
   "chevron-left": ["m15 18-6-6 6-6"],
+  // The Docs section's explorer: a closed folder points right (rtl mirrors it in CSS).
+  "chevron-right": ["m9 18 6-6-6-6"],
+  // Docs (the repo's markdown): the rail link (lucide book-open) and its tree's folders.
+  "book-open": ["M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z", "M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"],
+  folder: ["M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"],
   // Phone topic header overflow (⋯): the card height and the status line.
   more: [
     { d: "M5 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 1 1 0-3z", fill: true },

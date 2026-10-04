@@ -1493,6 +1493,14 @@
     "not_found": "Böyle bir yardım sayfası yok.",
     "load_failed": "Yardım sayfası yüklenmedi — tekrar deneyin."
   },
+  "docs": {
+    "title": "Belgeler",
+    "tree_label": "Belge klasörleri",
+    "folders": "Klasörler",
+    "off": "Belgeler bu sunucuda henüz yayımlanmadı.",
+    "not_found": "Böyle bir belge yok.",
+    "load_failed": "Belge yüklenmedi — tekrar deneyin."
+  },
   "connect_agent": {
     "title": "Bir ajan bağlayın",
     "title_more": "Başka bir ajan bağlayın",

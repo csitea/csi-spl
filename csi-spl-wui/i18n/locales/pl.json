@@ -1493,6 +1493,14 @@
     "not_found": "Nie ma takiej strony pomocy.",
     "load_failed": "Strona pomocy się nie wczytała — spróbuj ponownie."
   },
+  "docs": {
+    "title": "Dokumenty",
+    "tree_label": "Foldery dokumentów",
+    "folders": "Foldery",
+    "off": "Dokumenty nie są jeszcze opublikowane na tym serwerze.",
+    "not_found": "Nie ma takiego dokumentu.",
+    "load_failed": "Dokument się nie wczytał — spróbuj ponownie."
+  },
   "connect_agent": {
     "title": "Podłącz agenta",
     "title_more": "Podłącz kolejnego agenta",

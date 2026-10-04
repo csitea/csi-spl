@@ -1493,6 +1493,14 @@
     "not_found": "Sellist abilehte pole.",
     "load_failed": "Abileht ei laadinud — proovi uuesti."
   },
+  "docs": {
+    "title": "Dokumendid",
+    "tree_label": "Dokumentide kaustad",
+    "folders": "Kaustad",
+    "off": "Dokumente pole selles serveris veel avaldatud.",
+    "not_found": "Sellist dokumenti pole.",
+    "load_failed": "Dokument ei laadinud — proovi uuesti."
+  },
   "connect_agent": {
     "title": "Ühenda agent",
     "title_more": "Ühenda veel üks agent",

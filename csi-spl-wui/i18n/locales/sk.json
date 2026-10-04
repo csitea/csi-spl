@@ -1493,6 +1493,14 @@
     "not_found": "Taká stránka pomoci neexistuje.",
     "load_failed": "Stránka pomoci sa nenačítala — skúste to znova."
   },
+  "docs": {
+    "title": "Dokumenty",
+    "tree_label": "Priečinky dokumentov",
+    "folders": "Priečinky",
+    "off": "Dokumenty ešte nie sú na tomto serveri zverejnené.",
+    "not_found": "Taký dokument neexistuje.",
+    "load_failed": "Dokument sa nenačítal — skúste to znova."
+  },
   "connect_agent": {
     "title": "Pripojiť agenta",
     "title_more": "Pripojiť ďalšieho agenta",

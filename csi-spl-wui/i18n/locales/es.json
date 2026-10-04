@@ -1493,6 +1493,14 @@
     "not_found": "No existe esa página de ayuda.",
     "load_failed": "La página de ayuda no se cargó — inténtalo de nuevo."
   },
+  "docs": {
+    "title": "Documentos",
+    "tree_label": "Carpetas de documentos",
+    "folders": "Carpetas",
+    "off": "Los documentos aún no están publicados en este servidor.",
+    "not_found": "No existe ese documento.",
+    "load_failed": "El documento no se cargó — inténtalo de nuevo."
+  },
   "connect_agent": {
     "title": "Conectar un agente",
     "title_more": "Conectar otro agente",

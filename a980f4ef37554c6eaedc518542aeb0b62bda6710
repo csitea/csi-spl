@@ -1,0 +1,6 @@
+Lay-What: Service operators get a way to list, create, pause and close customer workspaces.
+Lay-How: Only an administrator of the operator's own workspace may use it; everyone else is turned away.
+Lay-Why: Managing workspaces used to need hand-run database steps; now it is a controlled, logged action.
+Tech-What: Hub adds GET/POST /v1/operator/workspaces and GET/PATCH/DELETE /v1/operator/workspaces/{id}.
+Tech-How: Gate = member session in SPOOL_HUB_OPERATOR_TENANT with role admin; DELETE is soft (suspend+archive); suspended doors/WS answer 403.
+Tech-Why: Spec 074 phase 1: an operator-only workspace CRUD API, every action written to operator_audit.

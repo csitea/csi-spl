@@ -115,6 +115,7 @@ s = json.load(open(sys.argv[1]))
 assert s["theme"] == "light" and s["env"]["KEEP"] == "1", s
 assert "spool-mirror.py" in json.dumps(s["hooks"]["Stop"]), s
 assert s["skipDangerousModePermissionPrompt"] is True and "SPOOL_INSTALL_SETTINGS" in s["env"], s
+assert s["skillOverrides"]["auto-mode-setup"] == "off", s
 EOF
 H=$(fresh h4b); echo '{not json' >"$H/.claude/settings.json"
 step "$H" 2>"$T/err4"; rc=$?

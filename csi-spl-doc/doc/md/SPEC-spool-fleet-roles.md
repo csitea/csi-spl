@@ -256,7 +256,15 @@ sequenceDiagram
   stayed fresh. Each tick also reads the footer of the agent's own tmux pane
   (the last 12 non-blank lines of the visible screen, found by walking the
   pid's parents to a `pane_pid`). A modal trust, onboarding or login-picker
-  screen is a stall on sight. A usage-limit, `/login` or invalid-key banner
+  screen is a stall on sight. A dismissable modal is a stall on sight too:
+  `LEASE_MODAL_RES` is one extended regex per line (the default line is
+  `teach auto mode about your environment`, the offer titled "Teach auto
+  mode about your environment?"). The able check presses Escape once, waits
+  `LEASE_MODAL_WAIT` seconds (default 3) and reads the pane again. Still
+  there: the seat stays not able, so the lease fails over, and the
+  orchestrator is told once. Escape cancels and chooses nothing. The fleet
+  settings turn that offer off (`skillOverrides.auto-mode-setup` = `off`).
+  A usage-limit, `/login` or invalid-key banner
   is only a hint, because claude leaves it under the prompt after it resumes
   (a false positive at 04:09Z, the master working under it). It counts only
   while a turn is in progress whose spinner (`… (12s · ↓ 214 tokens)`) has
@@ -267,7 +275,7 @@ sequenceDiagram
   machine whose whole trio is stalled lets the fleet lease go stale and the
   other machine takes over. No pane found fails open (process-only rule).
   Knobs: `LEASE_BLOCK_RE`, `LEASE_STALL_RE`, `LEASE_STALL_FROZEN`,
-  `LEASE_PANE_TAIL`.
+  `LEASE_PANE_TAIL`, `LEASE_MODAL_RES`, `LEASE_MODAL_WAIT`.
 - The **watch loop** promotes the failover after 180 s without renewal (never
   a failover with no live process: that is logged once as `NO-FAILOVER`) and
   keeps the lease fresh in its name, under a lock so it cannot overwrite a

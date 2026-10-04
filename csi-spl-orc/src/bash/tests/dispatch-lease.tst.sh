@@ -40,6 +40,11 @@
 #      after 180 s; once the reset time has passed (same pane, banner still
 #      shown) the master renews again and the renewal is the handback;
 #      control: a banner with no readable reset time keeps the spinner rule
+#  18c. the "Teach auto mode about your environment?" modal (2026-10-04):
+#      a pane without it is able and no Escape is sent; with the new list
+#      emptied the old matchers miss it and the seat stays able; with the
+#      list, the seat is not able, Escape is sent once, the orchestrator
+#      is told once, and the lease fails over
 #  19. LEASE_PRIORITY_ORCH / _DISPATCH rank one role each (lease.conf or env);
 #      unset = LEASE_PRIORITY; validated the same way
 #------------------------------------------------------------------------------
@@ -363,6 +368,73 @@ tick renew $((N + 6660)); tick watch $((N + 6670))
 limited 1000 'Usage limit reached'; tick renew $((N + 6720))
 [[ "$(cat "$D/lease")" == "M-1 $((N + 6720))" ]] &&
   pass "18b. control: a banner with no reset time, no spinner, still renews (the spinner rule)" || fail "18b. no time: $(cat "$D/lease.log")"
+
+# --- 18c. the "Teach auto mode about your environment?" modal ----------------
+rm -rf "$T/spool" "$T/sent" "$T/keys"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*
+cat >"$T/bin/keys" <<'EOF'
+#!/usr/bin/env bash
+printf '%s Escape\n' "$1" >>"$KEYS"
+EOF
+chmod +x "$T/bin/keys"
+dialog() {
+  cat >"$T/pane/$1" <<'EOF2'
+Teach auto mode about your environment?
+
+This scans the first word of each command in your shell history.
+
+ > 1. Yes, scan shell history
+   2. No
+   3. Don't show again
+
+----------------------------------------------------------------
+  >> auto mode on
+EOF2
+}
+agent 1000 M-1; agent 1100 F-1; idle 1000; idle 1100
+K=(LEASE_KEYS_CMD="$T/bin/keys" KEYS="$T/keys" LEASE_MODAL_WAIT=0)
+N=1792000000
+tick renew "$N" "${K[@]}"
+[[ "$(cat "$D/lease")" == "M-1 $N" && ! -s "$T/keys" ]] &&
+  pass "18c. without the dialog the master is able and no Esc is sent" ||
+  fail "18c. idle: lease '$(cat "$D/lease" 2>&1)' keys '$(cat "$T/keys" 2>/dev/null)'"
+dialog 1000
+tick renew $((N + 60)) "${K[@]}" LEASE_MODAL_RES=
+[[ "$(cat "$D/lease")" == "M-1 $((N + 60))" && ! -s "$T/keys" ]] &&
+  pass "18c. control: the old matcher misses the dialog, so the seat stays able" ||
+  fail "18c. control: lease '$(cat "$D/lease")' log: $(cat "$D/lease.log")"
+tick renew $((N + 120)) "${K[@]}"
+[[ "$(cat "$D/lease")" == "M-1 $((N + 60))" && "$(logc 'renew stop M-1 (stalled pid=1000: Teach auto mode about your environment)')" == 1 ]] &&
+  pass "18c. the dialog is not able, logged once" ||
+  fail "18c. stall: lease '$(cat "$D/lease")' log: $(cat "$D/lease.log")"
+[[ "$(cat "$T/keys" 2>/dev/null)" == "1000 Escape" ]] &&
+  pass "18c. one Esc sent" || fail "18c. keys: '$(cat "$T/keys" 2>/dev/null)'"
+[[ "$(sentc 'O-1 :: DISPATCH LEASE: M-1 pid=1000 is blocked by a modal')" == 1 ]] &&
+  pass "18c. the orchestrator is told once" || fail "18c. sent: $(cat "$T/sent" 2>/dev/null)"
+tick renew $((N + 180)) "${K[@]}"
+[[ "$(cat "$T/keys" 2>/dev/null)" == "1000 Escape" && "$(sentc 'blocked by a modal')" == 1 && "$(logc 'still blocked after one Esc')" == 1 ]] &&
+  pass "18c. a second tick does not press Esc again or alert again" ||
+  fail "18c. twice: keys '$(cat "$T/keys" 2>/dev/null)' sent: $(cat "$T/sent" 2>/dev/null)"
+tick watch $((N + 241)) "${K[@]}"
+[[ "$(holder)" == F-1 && "$(logc 'FAILOVER: M-1 silent 181s -> F-1 active')" == 1 ]] &&
+  pass "18c. the lease fails over once the master stays blocked" ||
+  fail "18c. promote: $(cat "$D/lease.log")"
+# Esc clears the dialog before the recheck: the seat stays able and nobody is told.
+rm -rf "$T/spool" "$T/sent" "$T/keys"; mkdir -p "$D"
+cat >"$T/bin/keys-clear" <<EOF
+#!/usr/bin/env bash
+printf '%s Escape\n' "\$1" >>"\$KEYS"
+printf 'done\n> \n  auto mode on\n' >"$T/pane/\$1"
+EOF
+chmod +x "$T/bin/keys-clear"
+idle 1000; idle 1100; dialog 1000
+tick renew $((N + 300)) LEASE_KEYS_CMD="$T/bin/keys-clear" KEYS="$T/keys" LEASE_MODAL_WAIT=0
+[[ "$(cat "$D/lease")" == "M-1 $((N + 300))" && "$(cat "$T/keys" 2>/dev/null)" == "1000 Escape" && ! -s "$T/sent" ]] &&
+  pass "18c. Esc that clears the dialog: the recheck is able and no alert is sent" ||
+  fail "18c. cleared: lease '$(cat "$D/lease" 2>&1)' keys '$(cat "$T/keys" 2>/dev/null)' sent '$(cat "$T/sent" 2>/dev/null)'"
+grep -q 'LEASE_MODAL_WAIT:-3' "$PROJ_ROOT/src/bash/run/spl-dispatch-lease.func.sh" &&
+  grep -q 'teach auto mode about your environment' "$PROJ_ROOT/src/bash/run/spl-dispatch-lease.func.sh" &&
+  pass "18c. the recheck waits a few seconds (default 3) and the list names the dialog" ||
+  fail "18c. the source lost the default wait or the dialog line"
 
 # --- 19. a per-role machine ranking (t1 aad0e6cf) ---------------------------
 rank19() {

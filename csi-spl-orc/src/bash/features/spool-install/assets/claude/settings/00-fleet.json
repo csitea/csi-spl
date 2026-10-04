@@ -1,4 +1,7 @@
 {
   "skipDangerousModePermissionPrompt": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "skillOverrides": {
+    "auto-mode-setup": "off"
+  }
 }

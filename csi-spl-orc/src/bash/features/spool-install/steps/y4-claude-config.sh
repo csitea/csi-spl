@@ -19,6 +19,12 @@
 #     order over the current file (other keys kept, ours win), and the marker
 #     env.SPOOL_INSTALL_SETTINGS=sha256=<hex of the merged fragments>.
 #     The mirror hooks are step 5 of install.sh, not this step.
+#     00-fleet.json sets skillOverrides.auto-mode-setup to "off" so a seat
+#     is not offered "Teach auto mode about your environment?" (Claude Code
+#     docs, auto-mode-config, "Turn off /auto-mode-setup", read 2026-10-04,
+#     https://code.claude.com/docs/en/auto-mode-config). That page documents
+#     no environment variable for the offer. disableBundledSkills does not
+#     turn the command off.
 #
 # Placeholders ({{KEY}}) and where their values come from - never a literal:
 #   AGENT_USER    SPOOL_AGENT_USER, else the user running install.sh

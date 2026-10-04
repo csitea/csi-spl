@@ -5,8 +5,10 @@
 # @description dispatches. LEASE_CMD picks the verb:
 # @description   show   - print "<holder> <age-seconds>"
 # @description   renew  - loop: every LEASE_PERIOD s, while a live (and not
-# @description            stalled: usage-limit/login pane, CLE-77935) claude
-# @description            process carries SPOOL_AGENT_ID=<master>, write
+# @description            stalled: usage-limit/login pane, CLE-77935, or a
+# @description            dismissable modal such as "Teach auto mode about
+# @description            your environment?") claude process carries
+# @description            SPOOL_AGENT_ID=<master>, write
 # @description            "<master> <epoch>". It follows the master BY ID,
 # @description            so a relaunched master is picked up with no manual
 # @description            step; no live master process = no renewal
@@ -244,9 +246,24 @@ spl_lease_live_ids() {
 # post in its prompt while the lease stayed fresh every minute, so the 180 s
 # failover never fired. The agent must also be ABLE to act, read from the
 # footer of its tmux pane (the last LEASE_PANE_TAIL non-blank lines of the
-# visible screen). Two tiers:
+# visible screen). Three tiers:
+# - a DISMISSABLE modal (the list in spl_lease_modal_res, one extended
+#   regex per line) blocks the seat on sight. The able check presses
+#   Escape once (cancel: nothing chosen), waits LEASE_MODAL_WAIT seconds
+#   (default 3) and reads the pane again. Still matching: not able, so
+#   the lease can fail over, and the orchestrator (LEASE_ORCH) is told
+#   once. The first line is "Teach auto mode about your environment?",
+#   Claude Code's offer to run /auto-mode-setup (it can scan shell
+#   history). Append a line to recognise another. The offer and the
+#   command are turned off by skillOverrides "auto-mode-setup" = "off"
+#   (Claude Code docs, auto-mode-config, section "Turn off
+#   /auto-mode-setup", read 2026-10-04,
+#   https://code.claude.com/docs/en/auto-mode-config). disableBundledSkills
+#   does not turn this command off. That page documents no environment
+#   variable for the offer.
 # - a MODAL screen (LEASE_BLOCK_RE: trust, onboarding, login picker) blocks
-#   every key, so it is a stall on sight;
+#   every key, so it is a stall on sight; Escape is not sent (it can
+#   choose "No, exit");
 # - a BANNER (LEASE_STALL_RE: usage limit, /login, invalid key) is only a
 #   hint: claude leaves it under the prompt after it resumes (a false positive
 #   at 04:09Z, the master working under it). It counts only while a turn is in
@@ -265,9 +282,70 @@ spl_lease_live_ids() {
 # a missing tmux never drops a master.
 LEASE_BLOCK_RE_DEFAULT='select login method|do you trust the files|choose the text style'
 LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired'
+
+# One extended regex per line from the modal list. Blank lines and '#' lines
+# are skipped. Unset LEASE_MODAL_RES uses the here-doc; set it (even to
+# empty) to replace the list.
+spl_lease_modal_res() {
+  local src line
+  if [[ -n "${LEASE_MODAL_RES+x}" ]]; then
+    src="$LEASE_MODAL_RES"
+  else
+    src="$(cat <<'EOF'
+teach auto mode about your environment
+EOF
+)"
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z "$line" || "${line:0:1}" == "#" ]] && continue
+    printf '%s\n' "$line"
+  done <<<"$src"
+}
+
+# The first dismissable-modal match in <text>; nothing when none match.
+spl_lease_modal_hit() {
+  local text="$1" re hit
+  while IFS= read -r re; do
+    [[ -n "$re" ]] || continue
+    hit="$(grep -oiE -m1 -- "$re" <<<"$text" | sed -n 1p)"
+    [[ -n "$hit" ]] && { printf '%s\n' "$hit"; return 0; }
+  done < <(spl_lease_modal_res)
+  return 0
+}
+
+# Escape once on a dismissable modal, then re-read. A pane that still matches
+# stays marked so a later tick does not press again, and the orchestrator is
+# told once. A cleared pane drops the mark. LEASE_KEYS_CMD "<pid>" replaces
+# tmux in tests, so a test never presses a live pane.
+spl_lease_dismiss_modal() {
+  local id="$1" pid="$2" pause="${LEASE_MODAL_WAIT:-3}"
+  [[ "$pause" =~ ^[0-9]+$ ]] || pause=3
+  (
+    flock -w "$((pause + 5))" 9 || exit 0
+    local foot hit hit2 marker="$LEASE_DIR/modal.$pid"
+    foot="$(spl_lease_pane_text "$pid" 2>/dev/null)" || { rm -f "$marker"; exit 0; }
+    hit="$(spl_lease_modal_hit "$foot")"
+    if [[ -z "$hit" ]]; then rm -f "$marker"; exit 0; fi
+    if [[ -f "$marker" ]] && [[ "$(cat "$marker" 2>/dev/null)" == "$hit" ]]; then exit 0; fi
+    spl_lease_send_esc "$pid"
+    printf '%s\n' "$hit" > "$marker"
+    sleep "$pause"
+    foot="$(spl_lease_pane_text "$pid" 2>/dev/null)" || exit 0
+    hit2="$(spl_lease_modal_hit "$foot")"
+    if [[ -z "$hit2" ]]; then rm -f "$marker"; exit 0; fi
+    printf '%s\n' "$hit2" > "$marker"
+    spl_lease_log "MODAL $id pid=$pid still blocked after one Esc: $hit2"
+    [[ -n "${LEASE_ORCH:-}" ]] || exit 0
+    spl_lease_tell "$LEASE_ORCH" "DISPATCH LEASE: $id pid=$pid is blocked by a modal ($hit2). Escape was sent once (cancel, nothing chosen) and the dialog is still there, so the seat is not able and the lease can fail over."
+  ) 9>"$LEASE_DIR/modal.lock"
+}
+
 spl_lease_stall() {
   local pid="$1" text foot hit spin f st="" sat=0 now until
   text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
+  hit="$(spl_lease_modal_hit "$text")"
+  [[ -n "$hit" ]] && { printf '%s\n' "$hit"; return 0; }
   foot="$(grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}")"
   hit="$(grep -oiE -m1 -- "${LEASE_BLOCK_RE:-$LEASE_BLOCK_RE_DEFAULT}" <<<"$foot" | sed -n 1p)"
   [[ -n "$hit" ]] && { echo "$hit"; return 0; }
@@ -321,37 +399,71 @@ spl_lease_limit_until() {
   return 0
 }
 
-# The visible screen of the tmux pane that runs <pid>: the pane whose
-# pane_pid is <pid> or one of its ancestors (two panes may carry an agent's
-# name; only the one it runs in counts). LEASE_PANE_CMD (called with the pid)
-# replaces it in the tests. Non-zero = no pane.
-spl_lease_pane_text() {
+# tmux for this lease. LEASE_TMUX_SOCKET keeps it off the shared config.
+spl_lease_tmux() {
+  if [[ -n "${LEASE_TMUX_SOCKET:-}" ]]; then
+    tmux -S "$LEASE_TMUX_SOCKET" "$@"
+  else
+    tmux "$@"
+  fi
+}
+
+# The pane id whose pane_pid is <pid> or one of its ancestors. Non-zero = none.
+spl_lease_pane_id() {
   local root="${LEASE_PROC_ROOT:-/proc}" panes pane="" p="$1" stat i
-  local -a tm=(tmux)
-  [[ -n "${LEASE_PANE_CMD:-}" ]] && { $LEASE_PANE_CMD "$1"; return; }
-  [[ -n "${LEASE_TMUX_SOCKET:-}" ]] && tm+=(-S "$LEASE_TMUX_SOCKET")
   command -v tmux >/dev/null || return 1
-  panes="$("${tm[@]}" list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null)" || return 1
+  panes="$(spl_lease_tmux list-panes -a -F '#{pane_pid} #{pane_id}' 2>/dev/null)" || return 1
   for ((i = 0; i < 8; i++)); do
     pane="$(awk -v p="$p" '$1 == p {print $2; exit}' <<<"$panes")"
-    [[ -n "$pane" ]] && break
+    [[ -n "$pane" ]] && { printf '%s\n' "$pane"; return 0; }
     # /proc/<pid>/stat: "pid (comm) state ppid ..."; comm may hold spaces
     stat=""; { read -r stat < "$root/$p/stat"; } 2>/dev/null
     stat="${stat##*) }"; read -r _ p _ <<<"$stat"
     [[ "$p" =~ ^[0-9]+$ ]] && (( p > 1 )) || return 1
   done
-  [[ -n "$pane" ]] || return 1
-  "${tm[@]}" capture-pane -p -t "$pane" 2>/dev/null
+  return 1
+}
+
+# The visible screen of the tmux pane that runs <pid>: the pane whose
+# pane_pid is <pid> or one of its ancestors (two panes may carry an agent's
+# name; only the one it runs in counts). LEASE_PANE_CMD (called with the pid)
+# replaces it in the tests. Non-zero = no pane.
+spl_lease_pane_text() {
+  local pane
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  [[ -n "${LEASE_PANE_CMD:-}" ]] && { $LEASE_PANE_CMD "$1"; return; }
+  pane="$(spl_lease_pane_id "$1")" || return 1
+  spl_lease_tmux capture-pane -p -t "$pane" 2>/dev/null
+}
+
+# Escape to the pane of <pid>. LEASE_KEYS_CMD "<pid>" replaces tmux in tests.
+# A stubbed screen (LEASE_PANE_CMD) with no keys command presses nothing, so
+# a test cannot hit a live pane.
+spl_lease_send_esc() {
+  local pid="$1" pane
+  if [[ -n "${LEASE_KEYS_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $LEASE_KEYS_CMD "$pid"
+    return 0
+  fi
+  [[ -n "${LEASE_PANE_CMD:-}" ]] && return 0
+  pane="$(spl_lease_pane_id "$pid" 2>/dev/null)" || return 0
+  [[ -n "$pane" ]] || return 0
+  spl_lease_tmux send-keys -t "$pane" Escape
 }
 
 # The pid of <id> when it is live AND able to act (spl_lease_stall); empty
-# otherwise. Why not is left in $LEASE_DIR/able.<id> for the loggers.
+# otherwise. A dismissable modal is Escape once, then re-checked, before
+# that verdict. Why not is left in $LEASE_DIR/able.<id> for the loggers.
 spl_lease_agent_able() {
   local id="$1" pid why
   pid="$(spl_lease_agent_pid "$id")"
   if [[ -z "$pid" ]]; then why="no live process"
   elif why="$(spl_lease_held "$id")" && [[ -n "$why" ]]; then :
-  else why="$(spl_lease_stall "$pid")"; [[ -n "$why" ]] && why="stalled pid=$pid: $why"
+  else
+    spl_lease_dismiss_modal "$id" "$pid"
+    why="$(spl_lease_stall "$pid")"
+    [[ -n "$why" ]] && why="stalled pid=$pid: $why"
   fi
   printf '%s\n' "${why:-able}" > "$LEASE_DIR/able.$id" 2>/dev/null
   [[ -z "$why" ]] && echo "$pid"

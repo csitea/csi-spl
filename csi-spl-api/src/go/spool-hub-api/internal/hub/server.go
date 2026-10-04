@@ -85,6 +85,9 @@ type Options struct {
 	Version           string
 	Commit            string // -ldflags main.commit; "unknown" in dev builds
 	BuiltAt           string // -ldflags main.builtAt (RFC3339 UTC)
+	// SchemaHead is the newest migration the image bundles (spec 072 A45);
+	// serve refused to start on a database behind it. "" = not checked.
+	SchemaHead string
 	// Revision names the process a browser socket is on (bug B, 4ecb4b0d):
 	// Cloud Run's $K_REVISION, else a per-process id. See revision.go.
 	Revision string
@@ -271,10 +274,7 @@ func (s *Server) Handler() http.Handler {
 	// ending in "z" and the LB health check needs one it will pass (FR-023).
 	mux.HandleFunc("GET /healthz", health)
 	mux.HandleFunc("GET /v1/health", health)
-	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) {
-		// Public, like /healthz: the deploy acceptance check (T037).
-		writeJSON(w, http.StatusOK, map[string]string{"version": s.o.Version, "commit": s.o.Commit, "built_at": s.o.BuiltAt})
-	})
+	mux.HandleFunc("GET /version", s.handleVersion)
 	mux.HandleFunc("GET /v1/ws", s.handleWS)
 	mux.HandleFunc("POST /v1/files", s.handlePutFile)
 	mux.HandleFunc("GET /v1/files/{file_id}", s.handleGetFile)
@@ -335,6 +335,16 @@ func (s *Server) Handler() http.Handler {
 		return s.middleware(compressJSON(s.authCORS(inner)))
 	}
 	return s.middleware(compressJSON(inner))
+}
+
+// handleVersion is public, like /healthz: the deploy acceptance check (T037),
+// plus the schema head serve checked at start (spec 072 A45).
+func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
+	v := map[string]string{"version": s.o.Version, "commit": s.o.Commit, "built_at": s.o.BuiltAt}
+	if s.o.SchemaHead != "" {
+		v["schema_head"] = s.o.SchemaHead
+	}
+	writeJSON(w, http.StatusOK, v)
 }
 
 // routeClientIPProbe mounts GET /v1/debug/client-ip when cnf asks for it.

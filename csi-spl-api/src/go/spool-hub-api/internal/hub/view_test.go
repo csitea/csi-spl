@@ -319,6 +319,19 @@ func TestVersionBody(t *testing.T) {
 		v["version"] != "test" || v["commit"] != "abc123" || v["built_at"] != "2026-09-18T19:45:00Z" {
 		t.Fatalf("/version: %d %s", code, body)
 	}
+	if _, ok := v["schema_head"]; ok {
+		t.Fatalf("/version: schema_head without a checked schema: %s", body)
+	}
+}
+
+// spec 072 A45: /version shows the schema head serve checked at start.
+func TestVersionSchemaHead(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.SchemaHead = "0112_dm_ref_task.sql" })
+	code, _, body := viewGet(t, e, "nosuch", "/version")
+	var v map[string]string
+	if err := json.Unmarshal(body, &v); err != nil || code != 200 || v["schema_head"] != "0112_dm_ref_task.sql" {
+		t.Fatalf("/version schema_head: %d %s", code, body)
+	}
 }
 
 // Reserved labels (api, www, dev; msg.ValidTenantID) are never a tenant: the

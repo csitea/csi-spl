@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
@@ -93,6 +94,10 @@ func cmdServe() int {
 		return fail(err)
 	}
 	defer st.Close()
+	schemaHead, err := checkSchemaHead(ctx, log, st, hc.MigrationsDir)
+	if err != nil {
+		return fail(err)
+	}
 	bs, err := openBlobStore(ctx, hc)
 	if err != nil {
 		return fail(err)
@@ -103,6 +108,7 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
+	opts.SchemaHead = schemaHead
 	srv, err := hub.New(opts)
 	if err != nil {
 		return fail(err)
@@ -112,6 +118,32 @@ func cmdServe() int {
 	go srv.RunRelay(ctx, hc.QueueRelay) // SPL-1004
 	go srv.RunWake(ctx)                 // spec 059 S1 + S3
 	return serveUntilDone(ctx, hc, log, srv)
+}
+
+// checkSchemaHead refuses to serve a database behind the migrations this image
+// bundles (spec 072 A45): such a hub starts, then fails per request. Ahead (an
+// older image on a newer schema) is a warning. Returns the bundled head for
+// /version. Off for the memory store and when SPOOL_HUB_MIGRATIONS_DIR is
+// unset; a head it cannot read is a warning, never a refusal.
+func checkSchemaHead(ctx context.Context, log zerolog.Logger, st store.Store, dir string) (string, error) {
+	pg, ok := st.(interface{ Pool() *pgxpool.Pool })
+	if !ok || dir == "" {
+		return "", nil
+	}
+	h, err := store.ReadSchemaHead(ctx, pg.Pool(), dir)
+	if err != nil {
+		log.Warn().Err(err).Str("migrations_dir", dir).Msg("db.schema_head_unread")
+		return h.Bundled, nil
+	}
+	ev := log.Info()
+	switch {
+	case h.Behind():
+		return "", h.BehindError()
+	case h.Ahead():
+		ev = log.Warn()
+	}
+	ev.Str("applied", h.Applied).Str("bundled", h.Bundled).Bool("ahead", h.Ahead()).Msg("db.schema_head")
+	return h.Bundled, nil
 }
 
 // hubOptions wires every dependency of the hub in boot order: the base

@@ -4,7 +4,7 @@
 # internal/store, hub and auth suites against it under -race (016 T002), then
 # drive the M1 demo end to end
 # with the real binary: serve, two boxes, cross-box send/recv, queued delivery,
-# hub-down pending + flush.
+# hub-down pending + flush. spec 072 A45: serve refuses a schema behind its image.
 # Postgres comes from local server binaries (initdb) when installed, else from
 # a locally CACHED docker image (never pulled); with neither it skips (exit 0).
 # Usage: bash csi-spl-api/src/bash/tests/hub-pg.tst.sh
@@ -207,6 +207,34 @@ rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --emai
 out="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email nm@example.com --no-mail 2>/dev/null)" &&
   echo "$out" | grep '"outcome":"skipped_no_mail_flag"' >/dev/null || { echo "FAIL - --no-mail: $out"; exit 1; }
 echo "ok   - 010 FR-016: invite mail logged once (log transport answers logged, not sent: 047 W13), resend in the gap refused (exit 3), unknown not found, --no-mail, digest-only log"
+
+# spec 072 A45: `spool serve` refuses a database behind the migrations its
+# image bundles, naming the migrate command (the last ledger row deleted, as
+# the runtime login); CONTROL: the same database against the dir that ends
+# one file earlier starts and listens.
+mkdb spool_hub_behind
+"$BIN" migrate --db "$(app_dsn spool_hub_behind)" --sql-dir "$SQL_DIR" >/dev/null
+own_sql spool_hub_behind "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
+last="$(cd "$SQL_DIR" && ls -- *.sql | sort | tail -1)"
+printf "DELETE FROM spool_schema_migrations WHERE filename = '%s';\n" "$last" >"$WORK/behind.sql"
+own_sql spool_hub_behind "$WORK/behind.sql" >/dev/null
+serve_behind() { # <sql dir>: serve for at most 20 s, output on stdout
+  SPOOL_HUB_DB_DSN="$(rt_dsn spool_hub_behind)" SPOOL_HUB_MIGRATIONS_DIR="$1" SPOOL_HUB_FILES_DIR="$WORK/blobs-behind" \
+  SPOOL_HUB_TENANT_HOST_PATTERN="{tenant}.localhost" SPOOL_HUB_LISTEN_ADDR="127.0.0.1:0" \
+  SPOOL_HUB_LOG_FORMAT=json SPOOL_HUB_ENV=lde SPOOL_HUB_VIEW_DOOR=off \
+  SPOOL_HUB_LOBBY_TASK_ID=00000000-0000-4000-8000-000000000001 timeout 20 "$BIN" serve 2>&1
+}
+rc=0; out="$(serve_behind "$SQL_DIR")" || rc=$?
+[ "$rc" -ne 0 ] && [ "$rc" -ne 124 ] && grep -q "schema is behind this image" <<<"$out" && grep -q "the image bundles $last" <<<"$out" \
+  && grep -q 'run `spool migrate` first' <<<"$out" || { echo "FAIL - serve on a schema behind its image: rc=$rc $out"; exit 1; }
+behind_rc="$rc"
+mkdir -p "$WORK/sql-prev"
+cp "$SQL_DIR"/*.sql "$WORK/sql-prev/"
+rm -f "$WORK/sql-prev/$last"
+rc=0; out="$(serve_behind "$WORK/sql-prev")" || rc=$?
+[ "$rc" -eq 124 ] && grep -q '"message":"hub listening"' <<<"$out" && grep -q '"message":"db.schema_head"' <<<"$out" \
+  || { echo "FAIL - CONTROL: serve at the schema head did not start: rc=$rc $out"; exit 1; }
+echo "ok   - 072 A45: serve exits $behind_rc on a schema behind its image (ledger row $last deleted), naming spool migrate; CONTROL at the head it listens"
 
 # 017 T029: the M1 demo runs as the RUNTIME role (DML grants only, as the
 # cloud hub after do_spl_db_owner_split); the hub's own startup check must

@@ -643,6 +643,16 @@ jobs:
             echo "rolled=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Option A of the 2026-10-04 prd 429 incident (owner go, task aa35699c):
+      # under max_instances 1 a roll can leave the service answering Cloud Run
+      # 429 "no available instance" until a NEW revision starts. Watch
+      # <run.app url>/v1/health ~60 s (ingress all + allUsers invoker, so the
+      # runner reaches it); on a 429 streak force ONE fresh revision
+      # (do_gcp_hub_restart's update), re-watch, and fail if still 429.
+      - name: Heal a stuck rollout (do_heal_hub_deploy)
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true' && steps.deploy.outputs.rolled == 'true'
+        run: DRY_RUN=0 GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_heal_hub_deploy
+
       # The hub sits behind the 031 load balancer's IP allowlist (ingress
       # internal-and-cloud-load-balancing), so a runner cannot probe /healthz.
       # Verify through the control plane instead: the template runs the cnf

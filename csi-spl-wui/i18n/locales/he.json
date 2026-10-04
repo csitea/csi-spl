@@ -1675,6 +1675,7 @@
     "col_hour": "שעה (UTC)",
     "col_mem_avg": "זיכרון בשימוש (ממוצע)",
     "disk": "דיסק",
+    "disk_val": "{mount}: {avail} פנויים מתוך {total}",
     "gcp_vm": "מדדי GCP VM",
     "gcp_vm_later": "יגיע בהמשך. אין נתונים עדיין.",
     "os_name": "שם",

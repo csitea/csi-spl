@@ -1675,6 +1675,7 @@
     "col_hour": "Stunda (UTC)",
     "col_mem_avg": "Izmantotā atmiņa (vidējā)",
     "disk": "Disks",
+    "disk_val": "{mount}: {avail} brīvi no {total}",
     "gcp_vm": "GCP VM metrikas",
     "gcp_vm_later": "Būs vēlāk. Datu vēl nav.",
     "os_name": "Nosaukums",

@@ -145,6 +145,9 @@ try {
     ok(`${theme}: now - load against the CPUs`, /1\.25.*8/.test(await p.$eval('[data-test=box-now-load]', (e) => e.textContent)))
     ok(`${theme}: now - memory used and free`, /12 GiB.*20 GiB/.test(await p.$eval('[data-test=box-now-mem]', (e) => e.textContent)))
     ok(`${theme}: now - its sample age`, /ago/.test(await p.$eval('[data-test=box-now-age]', (e) => e.textContent)))
+    /* owner f5389813 "add a disk col": the mount nearest full, every mount on hover */
+    ok(`${theme}: now - the disk nearest full`, /\/var.*10 GiB.*200 GiB/.test(await p.$eval('[data-test=box-now-disk]', (e) => e.textContent)))
+    ok(`${theme}: now - every mount on hover`, (await p.$eval('[data-test=box-now-disk]', (e) => e.getAttribute('title') || '')).split('\n').length === 2)
     await click(p, '[data-test=box-resource-system]')
     await p.waitForSelector('[data-test=box-stats-system]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: system - hostname and service state`, /desk-01/.test(await p.$eval('[data-test=box-stats-system]', (e) => e.textContent))
@@ -165,6 +168,14 @@ try {
     await p.waitForSelector('[data-test=box-stats-hw-snapshot]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: hardware - the snapshot's CPU model`, /Example CPU/.test(await p.$eval('[data-test=box-stats-hw-snapshot]', (e) => e.textContent)))
     ok(`${theme}: hardware - the middle row reads the snapshot`, /8 CPUs/.test(await p.$eval('[data-test=box-resource-sum-hardware]', (e) => e.textContent)))
+    /* the history's Disk column: newest hour first; the hour from before rdb 0121 shows "—", no crash */
+    await p.waitForSelector('[data-test=box-stats-hours]', { visible: true, timeout: NAV_TIMEOUT })
+    const diskCells = await p.$$eval('[data-test=box-stats-hour-disk]', (es) => es.map((e) => ({ text: e.textContent.trim(), title: e.getAttribute('title') || '' })))
+    ok(`${theme}: hardware - one Disk cell per hour`, diskCells.length === 2 && await count(p, '[data-test=box-stats-hour]') === 2, diskCells)
+    ok(`${theme}: hardware - the hour's disk nearest full, every mount on hover`,
+      /\/var.*10 GiB.*200 GiB/.test(diskCells[0].text) && /\/:.*50 GiB.*100 GiB/.test(diskCells[0].title), diskCells)
+    ok(`${theme}: hardware - an hour with no disks shows "—"`, diskCells[1].text === '—' && diskCells[1].title === '', diskCells)
+    ok(`${theme}: hardware - the current disks, one row a mount`, await count(p, '[data-test=box-stats-disk-row]') === 2)
     ok(`${theme}: no horizontal page scroll`, await noXScroll(p))
     await p.close()
   }

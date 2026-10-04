@@ -55,11 +55,15 @@ const MOCK_DESK_FACTS = {
    box-stats sample (GET /v1/tenant/box-stats rows), the Boxes page's "Now".
    The other boxes have none, so their "no current sample yet" shows too. */
 export const MOCK_BOX_STATS = [
-  { box: 'box-desk', writer_box: 'box-desk', at: T0, load1: 1.25, load5: 0.9, load15: 0.7, cpus: 8, mem_total_kb: 33554432, mem_avail_kb: 20971520, swap_used_kb: 524288, agents_live: 1 },
+  { box: 'box-desk', writer_box: 'box-desk', at: T0, load1: 1.25, load5: 0.9, load15: 0.7, cpus: 8, mem_total_kb: 33554432, mem_avail_kb: 20971520, swap_used_kb: 524288, agents_live: 1,
+    disks: [{ mount: '/', total_kb: 104857600, avail_kb: 52428800 }, { mount: '/var', total_kb: 209715200, avail_kb: 10485760 }] },
 ]
-/* the hub folds rows into one per (box, UTC hour); this is that fold */
+/* the hub folds rows into one per (box, UTC hour); this is that fold. The
+   09:00 hour is from before the hub reported disks (rdb 0121): no `disks`. */
 export const MOCK_BOX_STAT_HOURS = [
-  { box: 'box-desk', hour: '2026-09-18T10:00:00Z', n: 1, cpus: 8, load1_avg: 1.25, load1_peak: 1.25, mem_used_avg_kb: 12582912, mem_used_peak_kb: 12582912, mem_avail_min_kb: 20971520, agents_avg: 1, agents_peak: 1 },
+  { box: 'box-desk', hour: '2026-09-18T09:00:00Z', n: 1, cpus: 8, load1_avg: 0.5, load1_peak: 0.5, mem_used_avg_kb: 8388608, mem_used_peak_kb: 8388608, mem_avail_min_kb: 25165824, agents_avg: 1, agents_peak: 1 },
+  { box: 'box-desk', hour: '2026-09-18T10:00:00Z', n: 1, cpus: 8, load1_avg: 1.25, load1_peak: 1.25, mem_used_avg_kb: 12582912, mem_used_peak_kb: 12582912, mem_avail_min_kb: 20971520, agents_avg: 1, agents_peak: 1,
+    disks: [{ mount: '/', total_kb: 104857600, avail_min_kb: 52428800 }, { mount: '/var', total_kb: 209715200, avail_min_kb: 10485760 }] },
 ]
 
 /* CLE-77794: the Agents section's per-box detail (view-v1 §4.1 boxes[]):

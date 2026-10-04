@@ -1675,6 +1675,7 @@
     "col_hour": "Godzina (UTC)",
     "col_mem_avg": "Użyta pamięć (średnia)",
     "disk": "Dysk",
+    "disk_val": "{mount}: {avail} wolne z {total}",
     "gcp_vm": "Metryki GCP VM",
     "gcp_vm_later": "Wkrótce. Brak danych.",
     "os_name": "Nazwa",

@@ -1675,6 +1675,7 @@
     "col_hour": "Tund (UTC)",
     "col_mem_avg": "Kasutatud mälu (keskmine)",
     "disk": "Ketas",
+    "disk_val": "{mount}: {avail} vaba {total}-st",
     "gcp_vm": "GCP VM-i mõõdikud",
     "gcp_vm_later": "Tuleb hiljem. Andmeid veel pole.",
     "os_name": "Nimi",

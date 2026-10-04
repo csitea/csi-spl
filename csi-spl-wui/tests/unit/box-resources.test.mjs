@@ -9,8 +9,8 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   BOX_RESOURCES, ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf,
-  boxStatsOf, boxSystemOf, currentOf, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary, isBoxStatsForbidden,
-  isNoBoxStats, latestBoxStat, osLine,
+  boxStatsOf, boxSystemOf, currentOf, diskLine, diskTitle, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary,
+  hourDisksOf, isBoxStatsForbidden, isNoBoxStats, latestBoxStat, lowestDisk, osLine,
 } from '../../src/utils/box-resources.mjs'
 
 describe('boxResourceOf', () => {
@@ -53,6 +53,29 @@ describe('box-stats read', () => {
       boxDisksOf({ disks: [{ mount: '/var', total_kb: 2048, avail_kb: 1024 }, { mount: '/', total_kb: 4096, avail_kb: 100 }, { total_kb: 1 }] }),
       [{ mount: '/', totalKB: 4096, availKB: 100 }, { mount: '/var', totalKB: 2048, availKB: 1024 }],
     )
+  })
+  it('hour disks (rdb 0121): the least free of the hour; an older hour has none', () => {
+    assert.deepEqual(hourDisksOf({ hour: '2026-09-18T09:00:00Z' }), [])
+    assert.deepEqual(hourDisksOf(null), [])
+    assert.deepEqual(hourDisksOf({ disks: null }), [])
+    assert.deepEqual(
+      hourDisksOf({ disks: [{ mount: '/var', total_kb: 2048, avail_min_kb: 512 }, { mount: '/', total_kb: 4096, avail_min_kb: 100 }, { avail_min_kb: 1 }] }),
+      [{ mount: '/', totalKB: 4096, availKB: 100 }, { mount: '/var', totalKB: 2048, availKB: 512 }],
+    )
+  })
+  it('the Disk column: the mount nearest full, every mount on hover, "" with none', () => {
+    const t = (/** @type {string} */ k, /** @type {Record<string, string>} */ a) => `${k}|${a.mount}|${a.avail}|${a.total}`
+    const big = { mount: '/', totalKB: 104857600, availKB: 52428800 }
+    const tight = { mount: '/var', totalKB: 209715200, availKB: 10485760 }
+    assert.equal(lowestDisk([]), null)
+    assert.equal(lowestDisk(/** @type {any} */ (undefined)), null)
+    assert.deepEqual(lowestDisk([big, tight]), tight, 'the least free share wins, not the least free bytes')
+    assert.deepEqual(lowestDisk([{ mount: '/a', totalKB: 0, availKB: 0 }, big]), big, 'a zero-size mount never wins')
+    assert.deepEqual(lowestDisk([{ mount: '/a', totalKB: 200, availKB: 100 }, { mount: '/b', totalKB: 100, availKB: 50 }]).mount, '/b')
+    assert.equal(diskLine(tight, t), 'boxes.disk_val|/var|10 GiB|200 GiB')
+    assert.equal(diskLine(null, t), '')
+    assert.equal(diskTitle([big, tight], t), 'boxes.disk_val|/|50 GiB|100 GiB\nboxes.disk_val|/var|10 GiB|200 GiB')
+    assert.equal(diskTitle([], t), undefined)
   })
   it('the hardware summary is sample-weighted; none without hours', () => {
     assert.equal(hardwareSummary([]), null)

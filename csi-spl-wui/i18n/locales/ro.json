@@ -1675,6 +1675,7 @@
     "col_hour": "Ora (UTC)",
     "col_mem_avg": "Memorie folosită (medie)",
     "disk": "Disc",
+    "disk_val": "{mount}: {avail} liberi din {total}",
     "gcp_vm": "Metrici GCP VM",
     "gcp_vm_later": "Urmează. Încă nu există date.",
     "os_name": "Nume",

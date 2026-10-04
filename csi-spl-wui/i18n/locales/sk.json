@@ -1675,6 +1675,7 @@
     "col_hour": "Hodina (UTC)",
     "col_mem_avg": "Použitá pamäť (priemer)",
     "disk": "Disk",
+    "disk_val": "{mount}: {avail} voľných z {total}",
     "gcp_vm": "Metriky GCP VM",
     "gcp_vm_later": "Príde neskôr. Zatiaľ žiadne údaje.",
     "os_name": "Názov",

@@ -31,7 +31,8 @@ export function boxResourceOf(q) {
  *   agents_live: number, disks?: { mount: string, total_kb: number, avail_kb: number }[] }} BoxStat
  * @typedef {{ box: string, hour: string, n: number, cpus: number, load1_avg: number,
  *   load1_peak: number, mem_used_avg_kb: number, mem_used_peak_kb: number,
- *   mem_avail_min_kb: number, agents_avg: number, agents_peak: number }} BoxStatHour
+ *   mem_avail_min_kb: number, agents_avg: number, agents_peak: number,
+ *   disks?: { mount: string, total_kb: number, avail_min_kb: number }[] }} BoxStatHour
  */
 
 /**
@@ -66,6 +67,53 @@ export function boxDisksOf(row) {
     .filter((d) => d && d.mount)
     .map((d) => ({ mount: String(d.mount), totalKB: Number(d.total_kb) || 0, availKB: Number(d.avail_kb) || 0 }))
     .sort((a, b) => a.mount.localeCompare(b.mount))
+}
+
+/**
+ * The disks of one hour (rdb 0121: per mount the largest size and the least
+ * free of the hour), sorted by mount; [] for an hour from before the hub
+ * reported disks.
+ * @param {BoxStatHour | null | undefined} hour
+ * @returns {{ mount: string, totalKB: number, availKB: number }[]}
+ */
+export function hourDisksOf(hour) {
+  const list = hour && Array.isArray(hour.disks) ? hour.disks : []
+  return list
+    .filter((d) => d && d.mount)
+    .map((d) => ({ mount: String(d.mount), totalKB: Number(d.total_kb) || 0, availKB: Number(d.avail_min_kb) || 0 }))
+    .sort((a, b) => a.mount.localeCompare(b.mount))
+}
+
+/**
+ * The mount nearest full (the least free share of its size, then the least
+ * free), or null with no disks: what a one-cell Disk column shows.
+ * @param {{ mount: string, totalKB: number, availKB: number }[]} disks
+ */
+export function lowestDisk(disks) {
+  const share = (/** @type {{ totalKB: number, availKB: number }} */ d) => (d.totalKB > 0 ? d.availKB / d.totalKB : 1)
+  let best = null
+  for (const d of Array.isArray(disks) ? disks : []) {
+    if (!best || share(d) < share(best) || (share(d) === share(best) && d.availKB < best.availKB)) best = d
+  }
+  return best
+}
+
+/**
+ * One mount in one line, "/: 12 GiB free of 100 GiB" ('' for none), and every
+ * mount one a line for the hover (undefined for none, so no empty tooltip).
+ * @param {{ mount: string, totalKB: number, availKB: number } | null} d
+ * @param {(key: string, args: Record<string, string>) => string} t vue-i18n t
+ */
+export function diskLine(d, t) {
+  return d ? t('boxes.disk_val', { mount: d.mount, avail: formatKB(d.availKB), total: formatKB(d.totalKB) }) : ''
+}
+
+/**
+ * @param {{ mount: string, totalKB: number, availKB: number }[]} disks
+ * @param {(key: string, args: Record<string, string>) => string} t
+ */
+export function diskTitle(disks, t) {
+  return Array.isArray(disks) && disks.length ? disks.map((d) => diskLine(d, t)).join('\n') : undefined
 }
 
 /**

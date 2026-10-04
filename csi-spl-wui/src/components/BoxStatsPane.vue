@@ -3,7 +3,9 @@
      already have" (state, kind, seated since, last hello). Hardware: the load
      and memory history from GET /v1/tenant/box-stats (per-hour avg / peak);
      until a box has sent a sample, or on a hub without the route, a plain
-     "no history yet". GCP VM metrics come later: one named slot, no data.
+     "no history yet". Its Disk column (owner f5389813) is the mount nearest
+     full that hour, every mount on hover; an hour from before rdb 0121 has
+     none and shows "—". GCP VM metrics come later: one named slot, no data.
      System, OS, run-times, network and the hardware snapshot: the box's daily
      facts (c-220; owner d1d9bcd3), with their age, else "not reported yet".
      Loaded lazily by pages/boxes/[id].vue (027 initial-chunk budget). -->
@@ -78,6 +80,7 @@
                 <th scope="col">{{ t('boxes.stat_load_peak') }}</th>
                 <th scope="col">{{ t('boxes.col_mem_avg') }}</th>
                 <th scope="col">{{ t('boxes.stat_mem_peak') }}</th>
+                <th scope="col">{{ t('boxes.disk') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -87,6 +90,7 @@
                 <td>{{ formatLoad(h.load1_peak) }}</td>
                 <td>{{ formatKB(h.mem_used_avg_kb) }}</td>
                 <td>{{ formatKB(h.mem_used_peak_kb) }}</td>
+                <td data-test="box-stats-hour-disk" :title="diskTitle(hourDisksOf(h), t)">{{ diskLine(lowestDisk(hourDisksOf(h)), t) || '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -164,8 +168,8 @@
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
-  ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxRuntimesOf, boxSystemOf, factsReportedAt,
-  formatKB, formatLoad, formatMB, hardwareSummary, latestBoxStat,
+  ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxRuntimesOf, boxSystemOf, diskLine, diskTitle,
+  factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary, hourDisksOf, latestBoxStat, lowestDisk,
 } from '~/utils/box-resources.mjs'
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import type { BoxDetail } from '~/stores/roster'

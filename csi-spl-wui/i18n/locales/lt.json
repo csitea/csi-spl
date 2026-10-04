@@ -1675,6 +1675,7 @@
     "col_hour": "Valanda (UTC)",
     "col_mem_avg": "Naudojama atmintis (vidurkis)",
     "disk": "Diskas",
+    "disk_val": "{mount}: {avail} laisva iš {total}",
     "gcp_vm": "GCP VM metrikos",
     "gcp_vm_later": "Bus vėliau. Duomenų dar nėra.",
     "os_name": "Pavadinimas",

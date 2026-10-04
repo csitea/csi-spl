@@ -1675,6 +1675,7 @@
     "col_hour": "Година (UTC)",
     "col_mem_avg": "Використано пам'яті (середнє)",
     "disk": "Диск",
+    "disk_val": "{mount}: {avail} вільно з {total}",
     "gcp_vm": "Метрики GCP VM",
     "gcp_vm_later": "З'явиться пізніше. Даних ще немає.",
     "os_name": "Назва",

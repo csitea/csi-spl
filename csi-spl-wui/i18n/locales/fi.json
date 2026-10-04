@@ -1675,6 +1675,7 @@
     "col_hour": "Tunti (UTC)",
     "col_mem_avg": "Käytetty muisti (keskiarvo)",
     "disk": "Levy",
+    "disk_val": "{mount}: {avail} vapaana / {total}",
     "gcp_vm": "GCP VM -mittarit",
     "gcp_vm_later": "Tulossa myöhemmin. Ei vielä tietoja.",
     "os_name": "Nimi",

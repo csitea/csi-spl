@@ -1675,6 +1675,7 @@
     "col_hour": "Saat (UTC)",
     "col_mem_avg": "Kullanılan bellek (ort.)",
     "disk": "Disk",
+    "disk_val": "{mount}: {total} içinde {avail} boş",
     "gcp_vm": "GCP VM metrikleri",
     "gcp_vm_later": "Daha sonra gelecek. Henüz veri yok.",
     "os_name": "Ad",

@@ -1675,6 +1675,7 @@
     "col_hour": "Сат (UTC)",
     "col_mem_avg": "Искоришћена меморија (просек)",
     "disk": "Диск",
+    "disk_val": "{mount}: {avail} слободно од {total}",
     "gcp_vm": "GCP VM метрике",
     "gcp_vm_later": "Стиже касније. Још нема података.",
     "os_name": "Назив",

@@ -1675,6 +1675,7 @@
     "col_hour": "Uur (UTC)",
     "col_mem_avg": "Gebruikt geheugen (gem.)",
     "disk": "Schijf",
+    "disk_val": "{mount}: {avail} vrij van {total}",
     "gcp_vm": "GCP VM-metrieken",
     "gcp_vm_later": "Komt later. Nog geen gegevens.",
     "os_name": "Naam",

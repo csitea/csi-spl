@@ -1675,6 +1675,7 @@
     "col_hour": "Timme (UTC)",
     "col_mem_avg": "Använt minne (medel)",
     "disk": "Disk",
+    "disk_val": "{mount}: {avail} ledigt av {total}",
     "gcp_vm": "GCP VM-mått",
     "gcp_vm_later": "Kommer senare. Inga data än.",
     "os_name": "Namn",

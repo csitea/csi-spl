@@ -1675,6 +1675,7 @@
     "col_hour": "Час (UTC)",
     "col_mem_avg": "Използвана памет (средно)",
     "disk": "Диск",
+    "disk_val": "{mount}: {avail} свободни от {total}",
     "gcp_vm": "Метрики на GCP VM",
     "gcp_vm_later": "Предстои. Все още няма данни.",
     "os_name": "Име",

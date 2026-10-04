@@ -57,6 +57,8 @@
               <dd data-test="box-now-mem">{{ t('boxes.now_mem_val', { used: formatKB(now.memUsedKB), avail: formatKB(now.memAvailKB) }) }}</dd>
               <dt>{{ t('boxes.swap') }}</dt>
               <dd>{{ formatKB(now.swapUsedKB) }}</dd>
+              <dt>{{ t('boxes.disk') }}</dt>
+              <dd data-test="box-now-disk" :title="diskTitle(nowDisks, t)">{{ diskLine(lowestDisk(nowDisks), t) || '—' }}</dd>
               <dt>{{ t('boxes.now_agents') }}</dt>
               <dd data-test="box-now-agents">{{ now.agentsLive }}</dd>
             </dl>
@@ -143,8 +145,9 @@ import { useRosterStore } from '~/stores/roster'
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { boxByID, isBrowserBox } from '~/utils/box-rows.mjs'
 import {
-  ageOf, agentCounts, agentStatRows, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, boxSystemOf,
-  currentOf, factsReportedAt, formatKB, formatLoad, formatMB, isBoxStatsForbidden, isNoBoxStats, latestBoxStat, osLine,
+  ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, boxSystemOf,
+  currentOf, diskLine, diskTitle, factsReportedAt, formatKB, formatLoad, formatMB, isBoxStatsForbidden, isNoBoxStats,
+  latestBoxStat, lowestDisk, osLine,
 } from '~/utils/box-resources.mjs'
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
@@ -193,6 +196,8 @@ async function loadStats(quiet = false) {
 
 const latest = computed(() => latestBoxStat(stats.value.rows, boxId.value))
 const now = computed(() => currentOf(latest.value))
+/* the Now Disk line (owner f5389813): the mount nearest full, every mount on hover */
+const nowDisks = computed(() => boxDisksOf(latest.value))
 const notReported = computed(() => t('boxes.not_reported'))
 const factsAt = computed(() => factsReportedAt(detail.value))
 /* the facts are a daily snapshot: say how old it is */

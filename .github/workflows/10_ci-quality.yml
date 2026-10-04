@@ -1,4 +1,9 @@
-# RUNNER: this gate runs on the SELF-HOSTED runners, not ubuntu-latest.
+# RUNNER (spec 072 A13): every job's runs-on is, in order, the repo variable
+# SPOOL_CI_RUNNER (JSON: a label array or a quoted string) when set; else the
+# SELF-HOSTED [self-hosted, spool-ci] on this repo (csitea/csi-spl, no variable
+# needed); else ubuntu-latest, so a fork or a copy runs on GitHub-hosted
+# runners instead of queueing for ever. Set or change the variable only with
+# `./run -a do_gh_set_ci_vars` (csi-spl-iac). Gate: gh-set-ci-vars.tst.sh.
 #
 # Why: the org hit its GitHub Actions spending limit on 2026-09-23 and every
 # hosted job stopped starting ("The job was not started because recent account
@@ -15,7 +20,7 @@
 # A step that needs something else must install it explicitly.
 #
 # To go back to hosted runners (a dead box, or the limit raised):
-#   sed -i 's/runs-on: \[self-hosted, spool-ci\]/runs-on: ubuntu-latest/' this file
+#   SPOOL_CI_RUNNER='"ubuntu-latest"' DRY_RUN=0 ./run -a do_gh_set_ci_vars
 # Jobs QUEUE rather than fail when the runner is offline, so a dead box looks
 # like a hung gate, not a red one.
 name: "10 ci: quality gate"
@@ -61,7 +66,7 @@ jobs:
   # ===========================================================================
   hub-suite:
     name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -136,7 +141,7 @@ jobs:
   # ===========================================================================
   wui-suite:
     name: "wui: unit tests + typecheck"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     defaults:
       run:
@@ -188,7 +193,7 @@ jobs:
   # ===========================================================================
   wui-generate:
     name: "wui: nuxt generate (mock tenant) once for the e2e shards"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       bundle: ${{ steps.upload.outcome }}
@@ -265,7 +270,7 @@ jobs:
   # ===========================================================================
   wui-e2e:
     name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
     needs: wui-generate
     if: ${{ !cancelled() && needs.wui-generate.outputs.bundle == 'success' }}
@@ -368,7 +373,7 @@ jobs:
   # ===========================================================================
   iac-suite:
     name: "iac: tfvars parity, step contracts, terraform validate"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -509,7 +514,7 @@ jobs:
   # ===========================================================================
   orc-suite:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     # orc derives ORG/APP from the PARENT dirs, <base>/<ORG>/<ORG>-<APP>
     # (csi-spl-orc/lib/bash/funcs/resolve-oap.func.sh), so the tree is checked
@@ -642,7 +647,7 @@ jobs:
   # ===========================================================================
   cnf-suite:
     name: "cnf: conf-validator exit codes"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -680,7 +685,7 @@ jobs:
   # ===========================================================================
   no-ysg-box-ref:
     name: "spool source carries no ysg-box reference"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -707,7 +712,7 @@ jobs:
     name: "gate health: what else has been failing"
     needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene]
     if: failure()
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     continue-on-error: true
     permissions:
@@ -754,7 +759,7 @@ jobs:
   # ===========================================================================
   distribution-hygiene:
     name: "distribution-hygiene sweep over the tree"
-    runs-on: [self-hosted, spool-ci]
+    runs-on: ${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -1,23 +1,41 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: spec 072 A13 -- the CI runner is a repo variable.
+#   static: every `runs-on` of wf 10 is the one A13 expression: the variable
+#           SPOOL_CI_RUNNER when set, else [self-hosted, spool-ci] on this repo
+#           only, else ubuntu-latest (a fork has no self-hosted runner: a bare
+#           literal label queues its gate for ever)
 #   do_gh_set_ci_vars (hermetic: `gh` is a stub over a dir of variables):
 #     1. DRY_RUN default: a missing variable is "would create", nothing written
 #     2. DRY_RUN=0 writes it (JSON on --body) and reads it back
 #     3. an equal value is "unchanged", nothing written
 #     4. a different value is "would update: old -> new"
 #     5. the repo comes from the origin remote (ssh and https), else refused
-#   CONTROL: a non-JSON SPOOL_CI_RUNNER is refused and writes nothing.
+#   CONTROLS: a non-JSON SPOOL_CI_RUNNER is refused and writes nothing; a
+#             literal self-hosted runs-on is caught by the static check.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 FUNC="$PROJ_ROOT/src/bash/run/gh-set-ci-vars.func.sh"
+WF="$APP_ROOT/.github/workflows/10_ci-quality.yml"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
 
 command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 require_action "$FUNC"
+
+# --- static: wf 10 ------------------------------------------------------------
+WANT="runs-on: \${{ vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('[\"self-hosted\",\"spool-ci\"]') || 'ubuntu-latest' }}"
+runs_on() { grep -E '^[[:space:]]*runs-on:' "$1"; }
+not_var() { runs_on "$1" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -vxF "$WANT"; }
+n_all=$(runs_on "$WF" | wc -l)
+if ((n_all == 0)); then fail "wf 10 has no runs-on line"
+elif [[ -n "$(not_var "$WF")" ]]; then fail "wf 10 runs-on lines not read from vars.SPOOL_CI_RUNNER:"; not_var "$WF" | sed 's/^/      /'
+else pass "wf 10: all $n_all runs-on lines: SPOOL_CI_RUNNER, else self-hosted on this repo, else ubuntu-latest"; fi
+printf 'jobs:\n  a:\n    runs-on: [self-hosted, spool-ci]\n' >"$T/ctl.yml"
+[[ -n "$(not_var "$T/ctl.yml")" ]] && pass "CONTROL: a literal self-hosted runs-on is caught" \
+  || fail "CONTROL: a literal self-hosted runs-on passed"
 
 # --- the action, gh stubbed ---------------------------------------------------
 mkdir -p "$T/bin" "$T/vars" "$T/app"

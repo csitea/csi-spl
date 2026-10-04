@@ -3,11 +3,12 @@
 # @description Set this repo's GitHub Actions repository VARIABLES that make the
 # @description workflows fork-portable (spec 072 A13, research 12 C1). One table,
 # @description one place: never a hand `gh variable set`.
-# @description   SPOOL_CI_RUNNER  the `runs-on` of wf 10, as JSON (a label array
-# @description                    or a quoted string). Unset -> ubuntu-latest, so
-# @description                    a fork's gate runs on GitHub-hosted runners; this
-# @description                    repo sets its self-hosted label, so here nothing
-# @description                    changes.
+# @description   SPOOL_CI_RUNNER  overrides the `runs-on` of wf 10, as JSON (a
+# @description                    label array or a quoted string). Unset, wf 10
+# @description                    runs on [self-hosted, spool-ci] on this repo and
+# @description                    on ubuntu-latest anywhere else (a fork, a copy),
+# @description                    so this repo needs no variable to keep its
+# @description                    runners.
 # @description Prints one line per variable: unchanged / would create / would
 # @description update (old -> new). DRY_RUN=1 (the default) changes nothing;
 # @description DRY_RUN=0 writes each differing variable, then reads it back.

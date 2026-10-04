@@ -32,6 +32,12 @@ mkdirSync(OUT, { recursive: true })
 const puppeteer = await loadPuppeteer()
 const res = { base: BASE, at: new Date().toISOString(), limits: { preview: { ...PREVIEW_LIMIT }, send: { ...SEND_LIMIT } }, steps: [] }
 const step = (name, ok, ev = {}) => { res.steps.push({ name, ok, ...ev }); console.log(ok ? 'PASS' : 'FAIL', name, JSON.stringify(ev)) }
+/**
+ * The code viewer's own dialog: the ui-dialog that holds its lines. A bare
+ * [data-testid=ui-dialog] matches the FIRST dialog on the page, which is now
+ * the Settings dialog, not this one.
+ */
+const CV_DLG = '[data-testid=ui-dialog]:has([data-testid=code-viewer-lines])'
 const xscroll = (p) => p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 
 const nonce = 'cv' + Date.now().toString(36)
@@ -134,10 +140,10 @@ try {
   /* ---- 2. the dialog ---- */
   await el.evaluate((a) => a.scrollIntoView({ block: 'center' }))
   await (await el.$('[data-testid=code-open]')).click()
-  await p.waitForSelector('[data-testid=ui-dialog]', { timeout: 10000 })
+  await p.waitForSelector(CV_DLG, { timeout: 10000 })
   await sleep(900)
-  const dlg = await p.evaluate(() => {
-    const d = document.querySelector('[data-testid=ui-dialog]')
+  const dlg = await p.evaluate((sel) => {
+    const d = document.querySelector(sel)
     const rows = [...d.querySelectorAll('.code-line .code-src')]
     return {
       modal: d.getAttribute('aria-modal'),
@@ -151,7 +157,7 @@ try {
       bodyScrolls: (() => { const b = d.querySelector('[data-testid=ui-dialog-body]'); return b.scrollHeight > b.clientHeight })(),
       pageLocked: getComputedStyle(document.documentElement).overflow === 'hidden',
     }
-  })
+  }, CV_DLG)
   step('the dialog is modal, labelled, teleported out of the card and takes focus',
     dlg.modal === 'true' && dlg.labelled && dlg.teleported && dlg.focusInside, dlg && { modal: dlg.modal, labelled: dlg.labelled, teleported: dlg.teleported, focusInside: dlg.focusInside })
   step('it holds the WHOLE source, with line numbers and highlighting',
@@ -163,7 +169,7 @@ try {
 
   // the focus trap: Tab round the end of the dialog stays inside it
   for (let i = 0; i < 12; i++) await p.keyboard.press('Tab')
-  const trapped = await p.evaluate(() => document.querySelector('[data-testid=ui-dialog]').contains(document.activeElement))
+  const trapped = await p.evaluate((sel) => document.querySelector(sel).contains(document.activeElement), CV_DLG)
   step('Tab cannot leave the dialog (focus trap)', trapped, { trapped })
 
   const beforeWrap = await p.$eval('[data-testid=code-viewer-lines]', (e) => e.className)
@@ -175,10 +181,10 @@ try {
   await p.click('[data-testid=code-wrap]')
   await sleep(200)
 
-  const numsBefore = await p.$$eval('[data-testid=ui-dialog] .code-ln', (n) => n.length)
+  const numsBefore = await p.$$eval(`${CV_DLG} .code-ln`, (n) => n.length)
   await p.click('[data-testid=code-numbers]')
   await sleep(300)
-  const numsAfter = await p.$$eval('[data-testid=ui-dialog] .code-ln', (n) => n.length)
+  const numsAfter = await p.$$eval(`${CV_DLG} .code-ln`, (n) => n.length)
   step('the line-number toggle works', numsBefore > 0 && numsAfter === 0, { numsBefore, numsAfter })
   await p.click('[data-testid=code-numbers]')
   await sleep(200)
@@ -192,11 +198,11 @@ try {
   /* ---- 3. Escape closes and focus comes back ---- */
   await p.keyboard.press('Escape')
   await sleep(500)
-  const closed = await p.evaluate(() => ({
-    gone: !document.querySelector('[data-testid=ui-dialog]'),
+  const closed = await p.evaluate((sel) => ({
+    gone: !document.querySelector(sel),
     back: document.activeElement?.getAttribute('data-testid') || '',
     unlocked: getComputedStyle(document.documentElement).overflow !== 'hidden',
-  }))
+  }), CV_DLG)
   step('Escape closes the dialog, unlocks the page and restores focus to the open control',
     closed.gone && closed.back === 'code-open' && closed.unlocked, closed)
 

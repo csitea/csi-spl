@@ -1,0 +1,6 @@
+Lay-What: A self-hosted server can now check and create its own passwords and session key without any cloud account.
+Lay-How: The secret check and secret setup steps now pick the right place to look: a cloud vault, or a private file on the server.
+Lay-Why: People running the chat on their own machine had no way to check or create these secrets without the cloud tools.
+Tech-What: do_spl_secrets_check and do_spl_secrets_seed_all dispatch through do_spl_cloud_dispatch; provider none adapters added.
+Tech-How: Old bodies moved unchanged to do_secrets_{check,seed}_gcp; none adapters read and write .env (mode 600) and state session.key.
+Tech-Why: Spec 076 T006: both actions called gcloud secrets directly, so a box with provider none could not use them.

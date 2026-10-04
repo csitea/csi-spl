@@ -81,10 +81,14 @@ do_spl_cloud_cnf() {
   # release version CI mints for its commit (do_release_version), handed in as
   # SPL_HUB_IMAGE_TAG. SPL_IMAGE_CNF_REF keeps the cnf reference for readers
   # that compare against the floor (do_check_hub_deploy, the regress check).
+  # Past 9.9.9 the tag is the release KEY, e.g. 1.0.1-c2 (spl-release-version
+  # CYCLES): the registry's tags are immutable and cycle 1's :1.0.1 exists.
   SPL_IMAGE_CNF_REF="$SPL_IMAGE_REF"
   if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then
-    [[ "$SPL_HUB_IMAGE_TAG" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] ||
-      { do_log "FATAL SPL_HUB_IMAGE_TAG must be an odometer version (d.d.d), got: '$SPL_HUB_IMAGE_TAG'"; return 1; }
+    # shellcheck source=spl-release-version.func.sh
+    declare -f spl_release_key_valid >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-release-version.func.sh"
+    spl_release_key_valid "$SPL_HUB_IMAGE_TAG" ||
+      { do_log "FATAL SPL_HUB_IMAGE_TAG must be a release key (d.d.d, or d.d.d-c<N> past 9.9.9), got: '$SPL_HUB_IMAGE_TAG'"; return 1; }
     SPL_IMAGE_REF="${SPL_IMAGE_REF%:*}:$SPL_HUB_IMAGE_TAG"
   fi
   SPL_IMAGE_SQL_SRC="$APP_PATH/${vals[4]}"

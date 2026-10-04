@@ -5,7 +5,8 @@
 #   1. current   (image == cnf ref, Ready, latest revision ready) -> rc 0
 #   2. lagging   (another image)                                  -> rc 3
 #      minted versions: a tag at/above the cnf floor is current; with
-#      SPL_HUB_IMAGE_TAG (the deploy job) only exactly that tag is
+#      SPL_HUB_IMAGE_TAG (the deploy job) only exactly that tag is;
+#      past 9.9.9 the tag is the key 1.0.1-c2 (/version shows 1.0.1)
 #   3. unhealthy (Ready False / latest revision not the ready one) -> rc 4,
 #      Ready read by condition TYPE, not by position
 #   4. describe fails (no service / no access)                     -> rc 1
@@ -41,15 +42,9 @@ exit 1
 EOF
 chmod +x "$T/stub/gcloud"
 
-# Release-cycle fixtures (spl_release_cycle_now reads RELEASE_TAGS_DIR): tags1
-# is cycle 1, tags2 is past the 9.9.9 -> 1.0.1 wrap. Every check pins one, so
-# the verdicts do not drift with the real repo's tags.
-for d in tags1 tags2; do git init -q "$T/$d" && git -C "$T/$d" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m t; done
-git -C "$T/tags1" tag v8.4.2; git -C "$T/tags2" tag v9.9.9; git -C "$T/tags2" tag v1.0.1-c2
-
 export ENV=dev
 in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" RELEASE_TAGS_DIR="$T/tags1" \
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" \
     PATH="$T/stub:$PATH" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
@@ -99,10 +94,20 @@ fixture "$T/behind.json" "${ref%:*}:$behind" True r-4 r-4
 fixture "$T/otherrepo.json" "example.com/other/spool-hub:$ahead" True r-4 r-4
 check "current: a minted tag ABOVE the floor ($ahead > $floor), no SPL_HUB_IMAGE_TAG" 0 current FIXTURE="$T/ahead.json"
 check "lagging: a tag BELOW the floor ($behind < $floor)"                            3 lagging FIXTURE="$T/behind.json"
-check "current: past the 9.9.9 wrap, a cycle-2 tag reading BELOW the floor ($behind)" 0 current FIXTURE="$T/behind.json" RELEASE_TAGS_DIR="$T/tags2"
 check "lagging: a later tag in ANOTHER repository"                                   3 lagging FIXTURE="$T/otherrepo.json"
 check "current: SPL_HUB_IMAGE_TAG=$ahead and the service runs exactly it"            0 current FIXTURE="$T/ahead.json" SPL_HUB_IMAGE_TAG="$ahead"
 check "lagging: SPL_HUB_IMAGE_TAG=$ahead but the service still runs the floor"       3 lagging FIXTURE="$T/current.json" SPL_HUB_IMAGE_TAG="$ahead"
+
+# Past 9.9.9 the image tag is the release KEY 1.0.1-c2 while /version shows
+# 1.0.1 (spl-release-version CYCLES); cycle 1's :1.0.1 is another image.
+fixture "$T/c2.json" "${ref%:*}:1.0.1-c2" True r-5 r-5
+fixture "$T/c1.json" "${ref%:*}:1.0.1" True r-5 r-5
+check "current: cycle-2 key 1.0.1-c2 is later than the cycle-1 floor ($floor)"       0 current FIXTURE="$T/c2.json"
+check "lagging: cycle-1 1.0.1 is still below the floor ($floor)"                     3 lagging FIXTURE="$T/c1.json"
+check "current: SPL_HUB_IMAGE_TAG=1.0.1-c2 and the service runs exactly :1.0.1-c2"   0 current FIXTURE="$T/c2.json" SPL_HUB_IMAGE_TAG=1.0.1-c2
+check "lagging: SPL_HUB_IMAGE_TAG=1.0.1-c2 but the service runs cycle-1 :1.0.1"      3 lagging FIXTURE="$T/c1.json" SPL_HUB_IMAGE_TAG=1.0.1-c2
+check "lagging: the plain /version 1.0.1 is not the key of a :1.0.1-c2 service"      3 lagging FIXTURE="$T/c2.json" SPL_HUB_IMAGE_TAG=1.0.1
+check "refused: SPL_HUB_IMAGE_TAG=1.0.1-c1 is no release key (cycle 1 is plain)"     1 "" FIXTURE="$T/c2.json" SPL_HUB_IMAGE_TAG=1.0.1-c1
 
 out=$(in_orc GCP_ACCOUNT= HOME="$T/nosa_home" FIXTURE="$T/current.json" 2>&1); rc=$?
 owner=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$APP_ROOT"/*-cnf/*/all.env.yaml)

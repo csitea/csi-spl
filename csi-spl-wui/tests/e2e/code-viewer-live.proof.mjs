@@ -155,7 +155,9 @@ try {
       numbers: d.querySelectorAll('.code-ln').length,
       tokens: d.querySelectorAll('.code-src span[class*="hljs-"]').length,
       bodyScrolls: (() => { const b = d.querySelector('[data-testid=ui-dialog-body]'); return b.scrollHeight > b.clientHeight })(),
-      pageLocked: getComputedStyle(document.documentElement).overflow === 'hidden',
+      // the dialog's lock is the INLINE overflow on <html>; the computed value
+      // is no evidence, base.css keeps html at overflow:hidden for good
+      pageLocked: document.documentElement.style.overflow === 'hidden',
     }
   }, CV_DLG)
   step('the dialog is modal, labelled, teleported out of the card and takes focus',
@@ -201,7 +203,7 @@ try {
   const closed = await p.evaluate((sel) => ({
     gone: !document.querySelector(sel),
     back: document.activeElement?.getAttribute('data-testid') || '',
-    unlocked: getComputedStyle(document.documentElement).overflow !== 'hidden',
+    unlocked: document.documentElement.style.overflow === '',
   }), CV_DLG)
   step('Escape closes the dialog, unlocks the page and restores focus to the open control',
     closed.gone && closed.back === 'code-open' && closed.unlocked, closed)

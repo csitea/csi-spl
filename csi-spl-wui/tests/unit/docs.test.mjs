@@ -7,7 +7,7 @@
 // Run: node tests/unit/docs.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { DOCS_REPO_BASE, buildDocsTree, docsAncestors, docsHref, rewriteDocsLinks, validDocsPath, visibleDocsRows } from '../../src/utils/docs.mjs'
 import { mockDocs } from '../../src/utils/docs-mock.mjs'
 
@@ -106,8 +106,14 @@ describe('wiring', () => {
       for (const k of ['title', 'tree_label', 'folders', 'off', 'not_found', 'load_failed']) assert.ok(d && d[k], `${loc} docs.${k}`)
     }
   })
+  it('no page file name puts "..." in a chunk name (a ".."-refusing server loops the reload)', () => {
+    const walk = (d) => readdirSync(new URL('../../' + d, import.meta.url), { withFileTypes: true })
+      .flatMap((e) => e.isDirectory() ? walk(d + '/' + e.name) : [d + '/' + e.name])
+    assert.deepEqual(walk('src/pages').filter((f) => f.includes('..')), [])
+    assert.match(read('src/pages/docs.vue'), /definePageMeta\(\{ path: '\/docs\/:path\(\.\*\)\*' \}\)/)
+  })
   it('the page reads the hub, never a bundled copy', () => {
-    const s = read('src/pages/docs/[...path].vue')
+    const s = read('src/pages/docs.vue')
     assert.match(s, /\/v1\/docs\//)
     assert.equal(/docs-md|import\s+.*docs-mock/.test(s.replace(/await import\('~\/utils\/docs-mock\.mjs'\)/, '')), false)
   })

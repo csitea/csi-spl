@@ -85,6 +85,11 @@
 </template>
 
 <script setup lang="ts">
+/* the catch-all route, set here rather than by a [...path].vue file name:
+   that name makes a "_...path_" chunk, and a static server that refuses
+   ".." in a request path (the e2e gate's serve-generated.mjs) then fails
+   the chunk and Nuxt reloads the page in a loop */
+definePageMeta({ path: '/docs/:path(.*)*' })
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOCS_HOME, buildDocsTree, docsAncestors, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'

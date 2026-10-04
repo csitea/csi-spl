@@ -1,8 +1,8 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.3** (v0.3: owner D2 answered, research 02, 05 and 06
-merged; v0.2: owner D1 = yes; the remaining research files of section 9
-are merged into later versions).
+Status: **draft v0.4** (v0.4: research 01, 03, 04, 07, 08, 09, 12, 13, 15
+merged; v0.3: owner D2/D3, the guest rule, user story 1; v0.2: owner D1).
+The remaining research files of section 9 are merged into later versions.
 `origin/master` @ `803aff49a`, 2026-10-04. Docs only: this spec builds
 nothing.
 
@@ -231,6 +231,18 @@ Each row is the contributor's claim with its check; the full walk is in the file
 | F17 | The Hosting site id regex admits only our two ids, which are globally unique for ever | research/06 T1 | `019-firebase-static-site/02-variables.tf:41-44` |
 | F18 | wf 30 bakes 11 `NUXT_PUBLIC_*` values per env and the build reads our cnf path from disk | research/06 1.2, B7 | `grep -oE 'NUXT_PUBLIC_[A-Z_]+' .github/workflows/30_wui-build-deploy.yml \| sort -u \| wc -l` -> 11; `nuxt.config.ts:91` |
 | F19 | The version odometer allows one digit per part: at `9.9.9` every hub and WUI deploy fails at the mint (c-160 counted 159 steps left at ~130 a day on 2026-10-04). **Not a deployability action**: c-160 routed it to the orchestrator (msg `1af8a098`) | research/05 B1 | `grep -n 'spl_version_valid()' csi-spl-orc/lib/bash/funcs/spl-release-version.func.sh` -> `^[0-9]\.[0-9]\.[0-9]$` |
+| F20 | The contributor's local dev stack (lde) needs host Go and a filled module cache, and `do_setup_app_inf` provisions the box spool root (`/var`, a group, sudo) | research/01 B1-B3, B8 | research/01 section 1 |
+| F21 | Changing `SPOOL_HTTP_PORT` alone leaves the public URL on 8080, a silent failure; the fixed compose project name stops two clones side by side | research/01 B4, B7 | `SPOOL_HTTP_PORT=18580 docker compose config \| grep -c localhost:8080` > 0 |
+| F22 | A contributor's pull request runs only hub-suite, wui-suite and wui-e2e; iac, orc, cnf and the hygiene sweep run after the merge, so their reds land on trunk | research/12 B2 | `awk '/^jobs:/{f=1;next} f&&/^  [a-z-]+:/' .github/workflows/11_ci-public.yml` |
+| F23 | Live-estate workflows (00, 21, 22, 31, 40, 45, 55, 68) have no "is this our estate" guard: an enabled fork would probe, tag or DAST-scan **our** hosts | research/12 B3 | `grep -nE 'github\.repository ==\|vars\.SPOOL_' .github/workflows/*.yml \| wc -l` -> 0 |
+| F24 | The CI and box identity is `roles/owner`, and that key is copied into GitHub and used before WIF | research/09 B1, B2 | `gcp-003-configure-proj-sa-permissions.func.sh:34`; `20_hub-build-deploy.yml:24` |
+| F25 | Seven secret seeds with no runner and no empty-slot check: an empty slot fails at the Cloud Run deploy, far from its cause | research/09 B6 | research/09 1.3 |
+| F26 | ~65 estate values in 1435 cnf lines; 48 are resource names derivable from org, app and env; 96 keys are identical in dev and prd | research/04 1.1, 3.2 | research/04 section 1 |
+| F27 | Terraform: the state bucket is made by a host-terraform procedure; apply re-plans instead of applying the reviewed plan, with `-lock=false`; there is no step order in cnf | research/03 B1-B3 | `grep -c 'lock=false' csi-spl-iac/src/bash/run/tf-plan.func.sh csi-spl-iac/src/bash/run/tf-apply.func.sh` |
+| F28 | Plain `http://<ip>` off localhost breaks file upload and download with a browser error (`crypto.subtle` needs a secure context); 4 variables must agree by hand for one domain; GCP has no "no custom domain" mode | research/08 B1-B4 | `csi-spl-wui` `spool-client.mjs:86`; `grep -c 'ssh -L' README.md` -> 0 |
+| F29 | The release has 0 assets, the compose file needs the tree (`pg-init.sh` bind mount), nothing is signed or checksummed, and the stable is proven on Cloud Run, not on the compose path a client runs | research/15 B1, B2, B5, B6 | `gh release view stable-2026-09-29 --json assets`; `docker-compose.yml:36` |
+| F30 | Migrations: no lint for duplicate prefixes or edited applied files; the hub starts on a schema behind its image | research/07 | research/07 D3, D4 |
+| F31 | Hosted path (047 path B, not a deployment, recorded for its owner): workflow 40 is `disabled_manually` although its header says revived, and a bought tenant gets no box-wui pin, so its browser posts reach no agent | research/08 B5, 13 B1, B2 | `gh workflow list --all \| grep '^40'`; `dispatch.go:157` `wui_unpinned` |
 
 ## 5. Gap table
 
@@ -261,6 +273,15 @@ Each row is the contributor's claim with its check; the full walk is in the file
 | G23 a fork deploys nothing and stays green | P2 | errors | F16 | A24 |
 | G24 guest access does not expire | P3+ | trust (owner rule R1) | 3.2 | A27 |
 | G25 no page for a contributor with no GCP knowledge | P3+ | steps, errors | 3.2 | A28, A29 |
+| G26 contributor dev stack needs Go and sudo | P3+ (US1 step 4) | time, steps | F20, F21 | A46 |
+| G27 a pull request is not fully gated; forks can reach our estate | P3+ (US1 step 4), us | errors, trust | F22, F23 | A34, A35 |
+| G28 owner-rights key in CI | P2 | trust (a third party's review stops) | F24 | A31, A32 |
+| G29 secrets are 16 hand-run seeds | P2 | steps, errors | F25 | A30 |
+| G30 the cnf is 65 values to type | P2 | steps | F26 | A44, A7 |
+| G31 terraform apply is not the reviewed plan | P2 | errors, trust | F27 | A42 |
+| G32 no-domain and plain-http shapes fail unclearly | P1, P2 | errors | F28 | A40, A41 |
+| G33 the release is not a client artifact | P1 | time, trust | F29 | A1, A36-A39 |
+| G34 schema drift is silent | P1, P2 | errors | F30 | A45 |
 
 ## 6. The actions, ranked
 
@@ -270,24 +291,24 @@ timed run a receiver can repeat.
 
 | # | action | path | owner | effort | acceptance check |
 |---|---|---|---|---|---|
-| **A1** | Publish the hub image (one image, A23) and the WUI image or bundle (A26) per `stable-*` and `v*` tag to **GHCR as public packages**, the only zero-cost registry (D2, section 8); `docker-compose.yml` pulls by default and builds only with `--build`. If GHCR stops being free, A1 falls back to today's local build (section 8, D2) | P1 | CI + api | M | on a fresh VM with only Docker: `curl -fsSLO <raw compose URL> && docker compose up -d --wait` healthy in **< 2 min**, no clone; `grep -li ghcr .github/workflows/*` >= 1; an anonymous pull of the image works (no `docker login`) |
+| **A1** | Publish the hub image (one image, A23) and the WUI image or bundle (A26) per `stable-*` and `v*` tag to **GHCR as public packages**, the only zero-cost registry (D2, section 8); each `stable-*` release also attaches an images-only compose pinned by **digest**, `.env.example` and `SHA256SUMS` (research 15 C1); `docker-compose.yml` pulls by default and builds only with `--build`. If GHCR stops being free, A1 falls back to today's local build (section 8, D2) | P1 | CI + api | M | on a fresh VM with only Docker: `curl -fsSLO <raw compose URL> && docker compose up -d --wait` healthy in **< 2 min**, no clone; `grep -li ghcr .github/workflows/*` >= 1; an anonymous pull of the image works (no `docker login`) |
 | **A2** | `spool-up`: one script (also `./run -a do_spl_self_host_up`) that asks ~5 questions (domain, owner email, SMTP), writes `.env` with generated passwords, **preflights** the DNS A record, ports 80/443, the SMTP login and Docker, then `up --wait` and prints the owner link | P1 | orc + docs | S-M | fresh VM: one command plus the answers -> the owner link is printed; each preflight failure names its fix (control: a wrong A record fails before `up`) |
 | **A3** | The WUI reads its env values at runtime from a served `/config.json` (api and auth base, tenant, site URL, tenant hosts, env name, locale, lobby task id), for **both** carriers: compose writes it from `.env` at container start, the Hosting deploy (A23) writes it per env. Build-time values stay only as lde defaults; the build stops reading our cnf path (06 W1, W8) | P1, P2 | WUI | M | one `nuxt generate` with no `NUXT_PUBLIC_*` set, served with two different `config.json`s, calls two different api hosts; `grep -c 'ARG SPOOL_PUBLIC_URL' csi-spl-wui/src/docker/wui.Dockerfile` -> 0; `grep -c NUXT_PUBLIC_API_BASE .github/workflows/30_wui-build-deploy.yml` -> 0 (today 2) |
 | **A4** | Prebuilt `spool` CLI per release (linux and darwin, amd64 and arm64) as release assets; `install.sh` downloads it and checks the sha256, builds only as a fallback, and runs without a clone | P3 | CI + orc | S-M | a box with no Go and no clone: the pasted line seats an agent; `grep -c 'releases/download' install.sh` >= 1 |
 | **A5** | Agent join tokens (037 T005, 047 B2; owner D3 = yes): a tenant admin mints a short-lived, **per-seat** token in Tenant settings -> Agents; `spool join <url> <token>` seats the box; each seat is revocable on its own; the root key never leaves the owner (rules R1, R2 in 3.2) | P3 | api + WUI + orc | M-L | from the WUI alone, an agent is seated in **< 1 min**; a used or expired token is refused naming the fix; revoking one seat leaves the others seated |
-| **A6** | `do_spl_self_host_upgrade`: backup, fetch the newest `stable-*`, pull, `up --wait`, compare `/version`; on failure print the restore line | P1 | orc + docs | S | an upgrade from the previous stable to the current one in one command; `/version` = the new tag |
-| **A7** | A blank cnf template plus `do_spl_cnf_init`: ~10 answers (org, app, env names, region, domain, mail, optional steps) render a new estate's cnf that conf-validator accepts | P2 | cnf + iac | M | `do_spl_cnf_init` with sample answers, then `ENV=<env> ./run -a do_tpl_gen` renders every step's tfvars with 0 references to our domain or project ids; the template has `env.cloud: gcp` and no GCP name outside the backend's block (3.1) |
+| **A6** | `do_spl_self_host_backup` / `_restore` / `_upgrade` (research 07 D1, 15 C7): the README lines as actions (db name from `.env`, a 0700 dir, `KEEP=<n>`, an optional off-machine copy hook); upgrade = backup, fetch the newest `stable-*`, pull, `up --wait`, compare `/version`; on failure print the restore line | P1 | orc + docs | S | an upgrade from the previous stable to the current one in one command; `/version` = the new tag |
+| **A7** | An 8-key `estate.yaml` (org, app, base domain, GitHub repository, bootstrap account, org/folder/none, mail, env names; billing stays an env var) plus `do_spl_cnf_init`, after the derivations of A44 (research 04 C6, C7, 03 A8); tenant hosts off in the template (08 D5, 13 N4); the validator names each missing key; the answers render a new estate's cnf that conf-validator accepts | P2 | cnf + iac | M | `do_spl_cnf_init` with sample answers, then `ENV=<env> ./run -a do_tpl_gen` renders every step's tfvars with 0 references to our domain or project ids; the template has `env.cloud: gcp` and no GCP name outside the backend's block (3.1) |
 | **A8** | Estate names and env names from cnf only: the 9 `regex("^csi-spl` validations become each resource's own id rule (019 names the Hosting site's global-uniqueness trap); the project id is cnf `env.gcp.gcp_project`, not the directory name, in the bootstrap (02 G1), `do_spl_cloud_cnf` (05 H4) and the key path; the env names are the `*.env.yaml` files the cnf holds, in terraform, gcp-001, the firebase.json renderer and the DNS action (02 G8, 06 W6) | P2 | iac + orc | S-M | `grep -rnF 'regex("^csi-spl' csi-spl-iac/src/terraform \| wc -l` -> 0; a fixture cnf with `gcp_project: acme-spool-dev-7f3a` under a directory named `csi-spl-iac` plans `projects create acme-spool-dev-7f3a`; a fixture `stg.env.yaml` makes `ENV=stg` plan |
-| **A9** | `do_spl_estate_up ENV=<env>`: gcp-000 -> the infra stack -> every enabled step in order through the sweep's gate -> the seeds -> the GitHub vars (A11) -> the first deploy; **resumable** (skips what exists), dry run by default, every stop names the step and the fix | P2 | iac + orc | M | in a throwaway project, one command per env reaches a healthy `/v1/health` and the WUI; a second run changes nothing and says so; the action dispatches on `env.cloud` and `env.cloud: aws` exits with "not supported yet", naming 3.1 (control for the seam) |
+| **A9** | `do_spl_estate_up ENV=<env>`: gcp-000 -> the infra stack -> every enabled step in the cnf `steps_order` (dependency-checked: 025<005, 028<030, 040<030, 050<030; research 03 A2), with named hooks between steps (image push, `do_spl_db_bootstrap` after 040, secrets A30, domain verify, cert wait; 07 D7), then the first tenant and its owner invite in one action (07 D6) through the sweep's gate -> the seeds -> the GitHub vars (A11) -> the first deploy; **resumable** (skips what exists), dry run by default, every stop names the step and the fix | P2 | iac + orc | M | in a throwaway project, one command per env reaches a healthy `/v1/health` and the WUI; a second run changes nothing and says so; the action dispatches on `env.cloud` and `env.cloud: aws` exits with "not supported yet", naming 3.1 (control for the seam) |
 | **A10** | Org optional end to end: with no org and no folder, gcp-001 creates a project with no parent, gcp-002 skips the policy step, and gcp-000 prints what that loses; gcp-000 sets `GCP_ORG_ID` from cnf only when `GCP_FOLDER_ID` is empty, so a folder works (02 G2, G7) | P2 | iac | S | `ENV=<env> DRY_RUN=1 ./run -a do_gcp_000_bootstrap_gcp_env` with neither set -> a 4-step plan and one `INFO no org: ...` line; with a folder only -> `--folder=<id>`, no `not both` stop |
 | **A11** | `do_spl_gh_wire`: writes step 017's outputs into the 6 GitHub repo variables | P2 | iac | XS-S | after it, `gh variable list` shows the 6 `vars.*` that wf 20 and 30 read |
 | **A12** | Mark our-only steps optional in cnf (satellite 059/060, off-project backups 046, domain verification 005); the sweep skips a step marked off | P2 | cnf + iac | S | with them off, the sweep plans 0 resources for them; the step list lives in the gcp backend's cnf block, not in the entry point (3.1) |
-| **A13** | The CI runner is a repo variable: wf 10 runs on `ubuntu-latest` unless `vars.SPOOL_CI_RUNNER` names a self-hosted label | P2, contributors | CI | S | a fork's push runs wf 10 to a verdict; on this repo nothing changes |
-| **A14** | tpl-gen without a token: vendored, or fetched by a public ref | P2 | orc | S | `make do-setup-tpl-gen` with no `GITHUB_TOKEN` succeeds |
+| **A13** | The CI runner is a repo variable: every `runs-on` in wf 10 and 99 reads `vars.SPOOL_CI_RUNNER`, else `ubuntu-latest`; this repo sets the variable through a named action, not by hand (research 12 C1) | P2, contributors | CI | S | a fork's push runs wf 10 to a verdict; on this repo nothing changes |
+| **A14** | A slim infra stack: tpl-gen without a token (vendored, or fetched by a public ref); `GITHUB_TOKEN` optional except for step 120; the key dir mounted read-only, no `~/.aws` / `~/.ssh` mounts (research 03 A5) | P2 | orc | S | `make do-setup-tpl-gen` with no `GITHUB_TOKEN` succeeds |
 | **A15** | One page, `DEPLOY.md` at the repo root: which path (P1, P2, P3, or a hosted tenant), how long each takes, the one command each, and an error index (message -> fix) | all | docs | S | linked from the top of README; every command on it has a passing acceptance check in this table |
 | **A16** | Timed stranger tests: P2 from `DEPLOY.md` alone in a throwaway GCP project, and P1 on every `stable-*` (047 metric 5) | P1, P2 | any lane + owner (billing) | M | a posted run with the tree, n, and the minutes per step |
 | **A17** | `do_spl_box_deploy` and `do_spl_pool_ctl` accept the env names the cnf declares, and `ENV=self` with a hub URL | P3 | orc | S | `ENV=self SPOOL_HUB_URL=<url> BOX_DEPLOY_CMD=check ./run -a do_spl_box_deploy` -> a verdict, not a refusal |
-| **A18** | **Keyless bootstrap by default** (`BOOTSTRAP_AUTH=impersonate`): gcp-002 creates the SA and grants the human `roles/iam.serviceAccountTokenCreator` on it, with no JSON key and no org-policy change; `do_tf_init` and `do_gcp_account` impersonate when no key file exists; `BOOTSTRAP_AUTH=key` keeps today's path (02 G5) | P2 | iac | M | in impersonate mode a stubbed-gcloud log shows 0 `org-policies` and 0 `keys create` calls, and terraform gets `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`; the key-mode test stays green |
+| **A18** | **Keyless bootstrap by default** (`BOOTSTRAP_AUTH=impersonate`): gcp-002 creates the SA and grants the human `roles/iam.serviceAccountTokenCreator` on it, with no JSON key and no org-policy change; `do_tf_init` and `do_gcp_account` impersonate when no key file exists, and refuse with one line naming both routes when neither is there (research 03 A4); `BOOTSTRAP_AUTH=key` keeps today's path (02 G5) | P2 | iac | M | in impersonate mode a stubbed-gcloud log shows 0 `org-policies` and 0 `keys create` calls, and terraform gets `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`; the key-mode test stays green |
 | **A19** | **A full, honest dry run plus a read-only preflight** (`do_gcp_bootstrap_preflight`): gcp-003/004 plan against a planned SA instead of stopping; a project that reads "(or it may not exist)" counts as **taken**; `testIamPermissions` on the parent and the billing account; every input says where it came from (env or cnf) (02 G3, G4) | P2 | iac | S | stub walk -> 4 `OK DRY_RUN` lines, exit 0; a denied permission -> a refusal naming the role and scope; a cnf-sourced org prints `org: <id> (from cnf ...)` |
 | **A20** | **The key path, when chosen, changes only the project**: the key policy is set on `projects/<id>`, the org's previous policy is untouched, the temporary policyAdmin grant is removed, the member prefix follows the account type (02 G6) | P2 | iac | S | stub log: `set-policy` targets only `projects/<id>`; a `remove-iam-policy-binding` follows every `add`; `grep -c remove-iam-policy-binding gcp-002-create-project-service-account.func.sh` >= 1 (today 0) |
 | **A21** | **One hub image** for compose, Cloud Run and the release: `do_build_push_hub_image` builds `csi-spl-api/src/docker/hub.Dockerfile` with the minted `SPOOL_VERSION`; the distroless cloud Dockerfile and the host Go build go (05 H2) | P1, P2 | api + orc | S-M | `ls csi-spl-orc/src/docker/spool-hub-api/Dockerfile` -> absent; `check-hub-deploy.tst.sh` green; dev `/version` = the minted tag after one wf 20 run |
@@ -299,6 +320,36 @@ timed run a receiver can repeat.
 | **A27** | **Membership that expires**: a guest's membership carries an optional `access_until`; past it the hub refuses the guest's sign-in and agents, and Tenant settings -> Members shows it. Today only the invite expires (`do_spl_hub_invite` `TTL_HOURS` 1..720 = how long the invite stays open), not the access (rule R1) | P3+ | api + WUI + rdb | S-M | `grep -n 'access_until' csi-spl-rdb/src/sql/postgres/spool-hub/*.sql` >= 1 (today `CREATE TABLE tenant_memberships` in `0006_users_and_memberships.sql` has no expiry column); a hub test: a member past `access_until` gets 403 and a control member does not |
 | **A28** | **A contributor page**, `CONTRIBUTING-WITH-AGENTS.md` (or a section of `DEPLOY.md`): from an invite mail to your own agent taking a task, on your own laptop or cloud VM, with your own AI-vendor login, no GCP; it names what the guest can and cannot reach (rules R1-R3) | P3+ | docs | S | the A29 run follows it alone |
 | **A29** | **The newcomer test (P3+ acceptance)**: someone with no GCP knowledge, on a fresh machine, from the A28 page alone: accept the invite, seat an agent with a join token (A5), the agent takes a task and posts its result | P3+ | any lane + one newcomer | S (after A4, A5, A28) | a posted run: tree, n, minutes per step, 0 steps outside the page; target **< 15 min** |
+
+### 6.2 Actions from the research (v0.4)
+
+Same shape as the table above; the source column names the research file and its own id, where the full walk and check live.
+
+| # | action | source | path | owner | effort | acceptance check |
+|---|---|---|---|---|---|---|
+| **A30** | `do_spl_secrets_check` (read-only: every 030/040 secret slot has an enabled version; never reads a value) and `do_spl_secrets_seed_all` (the 7 seeds in order, generating what can be generated, asking only SMTP / IdP / payment, idempotent) | 09 K1, K2 | P2 | iac + orc | S-M | stubbed test: an empty required slot -> exit 1 naming its seed action; a second seed run adds 0 versions; 0 `versions access` calls |
+| **A31** | WIF first in CI: wf 00, 20, 30, 40, 45 authenticate by WIF when the provider var is set, the key only as a fallback; the log says which | 09 K3 | P2 | CI | S | a branch run logs `auth = WIF`; a lint test asserts the WIF branch comes first |
+| **A32** | Least privilege: the project SA gets the measured role list (`do_gcp_audit_iam`), not `roles/owner`; owner stays with the human bootstrap | 09 K8 | P2 | iac | M | in the D4 throwaway project a full sweep plans and applies with the new SA; `grep -c roles/owner csi-spl-iac/src/bash/run/gcp-003-*.func.sh` -> 0 |
+| **A33** | One key resolver `do_gcp_key_path` honouring `GCP_KEY_DIR`; the relay key mint and rotate become actions (feature doc 6.3 today); secret names org-neutral | 09 K4-K6 | P2 | iac | S each | `grep -rlE '\.gcp/\.' csi-spl-iac/src/bash/run csi-spl-orc/src/bash/run \| wc -l` -> 0 outside the resolver |
+| **A34** | Estate guard: every live-estate workflow (00, 21, 22, 31, 40, 45, 55, 68) runs only when `vars.SPOOL_ESTATE == 'true'`, set on this repo by the A13 action; a static fork-portability test keeps it so | 12 C2, C4 | us, P3+ | CI | S | `ci-estate-guard.tst.sh` red when a cron or cnf-host workflow lacks the guard; a fork shows them as skipped |
+| **A35** | One gate for push and pull request: wf 10's suites move into a reusable workflow that wf 10 (push) and wf 11 (pull request, fork branches) both call, so a contributor gets iac, orc, cnf and hygiene before merge | 12 C3 | P3+ | CI | M | a pull request's checks list iac, orc, cnf and hygiene; wf 10 and 11 job sets are equal; actionlint green |
+| **A36** | Compose runs with no tree: `pg-init.sh` moves into the hub image (or an inline `configs:` entry), the bind mount goes | 15 C2 | P1 | api + orc | S | in an empty dir with only the release compose + `.env`: `docker compose up -d --wait` healthy |
+| **A37** | Prove the stable on the client path before cutting it: wf 55 runs the wf 50 stranger job on the candidate with the pulled images and the release compose, plus a previous-stable -> candidate upgrade and a backup-restore drill; red cuts nothing | 15 C4, 07 D2 | P1 | CI | S | a planted break on a throwaway branch makes wf 55 cut no tag |
+| **A38** | Sign what we ship: keyless `cosign` of both image digests and `SHA256SUMS` from the release job (GitHub OIDC, no key stored); one verify line in `DEPLOY.md` | 15 C6 | P1, P3 | CI | S | `cosign verify ghcr.io/<owner>/spool-hub@<digest> --certificate-identity-regexp ...` exits 0 in CI |
+| **A39** | A release a client can act on: notes open with "Before you upgrade" (`.env` keys changed, migrations, the upgrade command); `/version`, the footer and `spool version` print `stable-<date> (v<X.Y.Z>)`; `SECURITY.md` names the latest stable, with a same-day stable for a security fix | 15 C8-C10 | P1 | CI + docs | S each | a fixture range that changes `.env.example` lists each key under "Before you upgrade"; `grep -c 'rebuild from it' SECURITY.md` -> 0 |
+| **A40** | No-domain and plain-http shapes made clear: README "No domain yet" (localhost, `ssh -L`); hub-init refuses `http://<non-loopback>` naming both fixes, the WUI shows a banner without a secure context; `SPOOL_SITE_ADDRESS`, `SPOOL_DOMAIN` and the cookie flag derive from `SPOOL_PUBLIC_URL` | 08 D1-D3 | P1 | api + WUI + docs | XS-S each | compose with `SPOOL_PUBLIC_URL=http://203.0.113.5:8080` -> hub-init exits non-zero naming both fixes; localhost -> 0 (control); `grep -c 'ssh -L' README.md` >= 1 |
+| **A41** | GCP without a custom domain: an empty `BASE_DOMAIN` serves the WUI on the Firebase default host and the hub on its Cloud Run URL, and turns 005/025/032 off | 08 D6 | P2 | iac + cnf | M | `do_tpl_gen` renders with `BASE_DOMAIN: ""`; the sweep plans 0 resources in 005/025/032 |
+| **A42** | Terraform you can trust: `do_gcp_state_bucket_create` (000 imports the bucket; the host-terraform procedure goes); `do_provision` applies the saved, reviewed plan with the lock on and refuses a stale one; `do_tf_validate_all` validates all 18 steps in a minute with no key | 03 A1, A3, A7 | P2 | iac | S-M | `grep -c 'lock=false' tf-plan.func.sh tf-apply.func.sh` -> 0; a stub terraform receives the plan path; a fresh HOME with no key prints 18 validates |
+| **A43** | Remove the AWS-era leftovers and the other organisation's name from the terraform comments | 03 A9, A10 | P2 | iac | XS | `git grep -cE 'terrafom\|AWS_PROFILE' -- csi-spl-iac/src/bash/run csi-spl-orc/src/make` -> 0 |
+| **A44** | Derive the cnf: names, secret slot ids and host values from `{org}`, `{app}`, `{env}`, `{fqdn}`; one key per fact; the 96 identical keys into `all.env.yaml`; region and key-dir literals out of code; a single-source test keeps it. Every step renders **byte-identical**, so it needs no plan, no apply and no owner go | 04 C1-C5, C8-C10 | P2 | cnf + iac | M | `ENV=dev ./run -a do_tpl_gen && ENV=prd ./run -a do_tpl_gen && git diff --exit-code csi-spl-cnf/csi-spl/*/tf` exits 0 after each lane |
+| **A45** | Schema guards: a migration lint in pre-push (unique prefixes, no edited applied file); `spool serve` refuses to start on a schema behind its image, naming the migrate command; `/version` shows the schema head | 07 D3, D4 | P1, P2 | rdb + api | XS + S | a copied `0112_x.sql` turns the lint red; a postgres test with the last migration row deleted -> serve exits non-zero with that message |
+| **A46** | The contributor's dev stack in one command, Docker only: the lde hub builds in Docker from `hub.Dockerfile` (no host Go); lde stops provisioning the box spool root; `SPOOL_PUBLIC_URL` follows `SPOOL_HTTP_PORT`; a per-clone compose project; `./run -a do_lde_up` / `do_lde_down`; a "Develop locally" section; a hosted CI job proves it on a clean clone | 01 A1-A7 | P3+ (US1 step 4) | orc + docs + CI | S each | `env -i HOME=$(mktemp -d) PATH=<no go> ./run -a do_setup_app_inf` on a fresh clone -> exit 0; `do_lde_up` -> `:58080/healthz` and `:3000/` both 200 |
+| **A47** | A second workspace on compose in one command (`ENV=self ./run -a do_spl_tenant_create`), printing the owner invite link and where the root key went; and a self-service root-key re-key in Tenant settings for a `biz_owner` | 13 N5, N7 | P1 | orc + api + WUI | S, M | on the compose stack one command -> a second tenant whose owner signs in; an e2e re-keys and seats an agent with the new key |
+| **A48** | Measure the compose browser -> agent leg on a fresh `up`, and fix it if a WUI post reaches no agent (hub-init pins box-wui under a generated key) | 13 N3 | P1 | orc + api | XS to measure, S to fix | a compose e2e: a #lobby post from the WUI reaches a seated agent; control: unpin -> `wui_unpinned` |
+
+Also from the research, folded into existing rows rather than new ones: 02 G1-G9 -> A8, A10, A18-A20, A9; 03 A2, A4-A6, A8 -> A9, A18, A14, A8, A7; 04 C6-C7 -> A7; 05 H2-H8 -> A21-A25; 06 W1-W8 -> A3, A8, A23, A24, A26; 07 D1, D5-D8 -> A6, A8, A9, A25; 08 D4, D5 -> A2, A7; 09 K9, K10 -> A2, A15; 12 C5-C7 -> A16, A24, A15; 13 N4, N6 -> A7, A16; 15 C3, C5, C7 -> A3, A4, A6.
+
+**Not in this spec's scope (hosted path B), handed to the orchestrator for their owners:** research 13 N1 (the owner enables workflow 40) and N2 (pin box-wui when a bought tenant is claimed); research 08 D7 (a check that workflow headers match GitHub's enabled state); research 05 H1 (the version odometer at `9.9.9`).
 
 ### 6.1 The top five
 
@@ -322,8 +373,10 @@ of the table below, which keeps its ids for reference.
 
 | order | lane | action | 2.1 step |
 |---|---|---|---|
-| 1 | L5 | A13 fork CI runs on GitHub-hosted runners | 4 |
+| 1 | L5, then L33 | A13 fork CI on GitHub-hosted runners, then A34 estate guard (a fork never touches our estate) | 4 |
 | 2 | L6 | A15 first cut, with the contributor section of A28 | 1 |
+| 2a | L31 | A46 contributor dev stack, Docker only | 4 |
+| 2b | L32 | A35 one gate for push and pull request | 4 |
 | 3 | L3, then L8 | A4 the `spool` CLI as a release asset, the installer downloads it | 3 |
 | 4 | L26 | A27 membership that expires | 2 |
 | 5 | L17 | A5 join tokens (spec first, then hub, WUI, CLI) | 3 |
@@ -366,6 +419,20 @@ of the table below, which keeps its ids for reference.
 | 3 | L28 | A23: `do_spl_wui_deploy` | a new action + test; wf 30 deploy job | L1 |
 | 3 | L29 | A26: prebuilt WUI bundle as a release asset | a job in `55_release-stable.yml` | L1 |
 | 4 | L30 | A28 + A29: contributor page, then the newcomer test | `CONTRIBUTING-WITH-AGENTS.md`; a results file in this dir | L8, L17 |
+| 1 | L31 | A46: contributor dev stack (one sub-lane per research 01 action) | `do_setup_app_inf`, `docker-compose.yml` port defaults, a new `do_lde_up` | - |
+| 2 | L32 | A35: reusable gate for push and pull request | wf 10, 11, a new reusable workflow | L5 |
+| 1 | L33 | A34: estate guard + fork-portability test | the 8 live-estate workflows, a new iac test | - |
+| 1 | L34 | A44: cnf derivations, byte-identical (C4, C5 first) | `csi-spl-cnf`, `spl-merged-cnf.func.sh` | - |
+| 2 | L35 | A30: secrets check + seed-all | two new actions + tests | - |
+| 2 | L36 | A42: state bucket action, reviewed-plan apply, validate-all | `tf-plan`, `tf-apply`, a new action, step 000 | - |
+| 2 | L37 | A36 + A37: no-tree compose, stable proven on the client path | `docker-compose.yml`, `pg-init.sh`, wf 55 | L7 |
+| 2 | L38 | A40: no-domain docs, plain-http refusal, one name variable | README, hub-init entrypoint, WUI banner | - |
+| 2 | L39 | A45: migration lint + schema-head guard | pre-push part, `spool serve` | - |
+| 3 | L40 | A31 then A32: WIF first, then least privilege | auth steps of wf 00/20/30/40/45; gcp-003 | A11, D4 |
+| 3 | L41 | A38 + A39: signing, client release notes, one version name | wf 55, `SECURITY.md` | L2 |
+| 3 | L42 | A47 + A48: compose second workspace, browser -> agent leg | `do_spl_tenant_create`, hub-init | - |
+| 4 | L43 | A41: GCP without a custom domain | cnf, 005/025/032 skip | L12 |
+| any | L44 | A33, A43: key resolver, relay key actions, AWS leftovers | iac run dir | - |
 
 ## 8. Decisions needed from the owner
 
@@ -395,6 +462,12 @@ Open questions from the research, each with the contributor's recommendation (no
 | D7 | Support a GCP project with no org, for a solo developer (A10)? | yes, with the losses printed | research/02 Q3 |
 | D8 | One hub image for compose, Cloud Run and the release (A21)? | yes | research/05 Q3 |
 | D9 | The WUI reads a served `config.json` (one ~1 KB request before mount) instead of baked values (A3)? | yes | research/06 Q1 |
+| D10 | CI keyless by WIF while the project key stays on the box (the 2026-09-19 rule holds); drop the GitHub key secret once WIF is green (A31)? | yes | research/09 Q1 |
+| D11 | Narrow the project SA from `roles/owner` to the measured list (A32)? | yes, proven first in the D4 project | research/09 Q2 |
+| D12 | A contributor's pull request runs the full gate (A35), still behind "approve outside contributors"? | yes | research/12 Q2 |
+| D13 | One throwaway fork under a second GitHub account to measure fork CI once (research 12 C5)? Outward-facing | yes, once, deleted after | research/12 Q3 |
+| D14 | Security fixes go to the latest stable, with a same-day stable for a fix, never "rebuild from master" (A39)? | yes | research/15 Q2 |
+| D15 | Is plain `http://<ip>` supported? | no: refused with the two fixes named (A40) | research/08 Q1 |
 
 ## 9. Multi-agent research (msg `e61b8d29`)
 
@@ -417,4 +490,4 @@ rule, and logs it below.
 | v0.1 | sections 1-8, first pass from the tree | c-165 |
 | v0.2 | owner D1 = yes; section 3.1 (one cloud now, one seam for AWS later) | c-165 |
 | v0.3 | owner D2 (zero-cost registry: GHCR public + release assets), D3 = yes with the contributor persona, the guest rule (3.2, R1-R3); research 02 (c-167), 05 (c-160), 06 (c-169): F10-F19, G19-G25, A18-A29, L21-L30, D5-D9; the owner's user story 1 (2.1, msg `699f38b0`) and the plan order that serves it first (7.0) | c-165 |
-
+| v0.4 | research 01 (c-158), 03, 04 (c-168), 07 (c-161), 08 (c-170), 09 (c-162), 12 (c-172), 13 (c-164), 15: F20-F31, G26-G34, A30-A48 (6.2), lanes L31-L44, US1 order widened (7.0), D10-D15; out-of-scope items handed on | c-165 |

@@ -5,7 +5,9 @@
 # @description fact, then exits 1 when any row is a GAP:
 # @description   per dispatcher: its claude process (found by SPOOL_AGENT_ID),
 # @description   model, permission mode (must be auto), desk settings loaded
-# @description   (the session started after its settings.local.json) and their
+# @description   (the session started after its settings.local.json's desk
+# @description   rules were written - the file's birth time; a rewrite for
+# @description   another rule does not unload them) and their
 # @description   allow rule matching the desk-reply command its brief teaches
 # @description   (one command, no &&/;/|/$()), a desk
 # @description   seat in every workspace, unread inbox messages
@@ -65,8 +67,8 @@ do_spl_dispatch_check() {
       elif ! spl_dispatch_reply_allowed "$id" "$wt/.claude/settings.local.json"; then
         row "$id desk-reply permission" "no allow rule matches the brief's desk-reply command" \
           "GAP the taught command is not one command the rule allows: DRY_RUN=0 do_spl_dispatch_setup, relaunch $id"
-      elif spl_dispatch_stale_settings "$pid" "$wt/.claude/settings.local.json"; then
-        row "$id desk-reply permission" "written after the session started" "GAP relaunch $id"
+      elif spl_dispatch_stale_desk_rules "$pid" "$wt/.claude/settings.local.json"; then
+        row "$id desk-reply permission" "desk rules written after the session started" "GAP relaunch $id"
       else
         row "$id desk-reply permission" loaded ok
       fi
@@ -161,14 +163,26 @@ spl_dispatch_model() {
 # 2026-10-03: the check said "loaded ok" while c-002's prd reply, taught as
 # `cd <main checkout> && ... DESK_BODY="$(cat f)" ...`, was refused.
 spl_dispatch_reply_allowed() {
-  local brief="$DISPATCH_BRIEF_DIR/brief-dispatcher-$1.md"
-  python3 - "$2" "$brief" "$(spl_dispatch_reply_cmd "$1")" <<'PY'
-import json, os, re, sys
-settings, brief, default = sys.argv[1:4]
-cmd = default
-if os.path.isfile(brief):
-    spans = [s for s in re.findall(r"`([^`]*)`", open(brief).read()) if "do_spl_desk_reply" in s]
-    cmd = spans[0] if spans else ""
+  local brief="$DISPATCH_BRIEF_DIR/brief-dispatcher-$1.md" cmd
+  cmd="$(spl_dispatch_reply_cmd "$1")"
+  if [[ -f "$brief" ]]; then
+    cmd="$(python3 - "$brief" <<'PY'
+import re, sys
+spans = [s for s in re.findall(r"`([^`]*)`", open(sys.argv[1]).read()) if "do_spl_desk_reply" in s]
+print(spans[0] if spans else "", end="")
+PY
+)"
+  fi
+  spl_dispatch_rule_allows "$2" "$cmd"
+}
+
+# 0 when <cmd> is ONE command (no &&/||/;/|/backtick/newline/$(): the harness
+# judges each part of a compound line on its own) and an allow rule
+# Bash(<glob>) in <settings> matches all of it, * matching anything.
+spl_dispatch_rule_allows() {
+  python3 - "$1" "$2" <<'PY'
+import json, re, sys
+settings, cmd = sys.argv[1:3]
 if not cmd or re.search(r"&&|\|\||[;|`\n]|\$\(", cmd):
     sys.exit(1)
 try:

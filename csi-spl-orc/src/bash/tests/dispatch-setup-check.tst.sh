@@ -19,6 +19,11 @@
 #      check said "loaded ok"): the brief teaches ONE command, run from the
 #      seat's own worktree, that the allow rule matches; a compound taught
 #      command, or a rule that matches nothing taught, is a GAP
+#  10. the sweep rule (2026-10-04, refused with SPOOL_ROOT=... before ENV=prd):
+#      any other env vars in any order and number match; another action,
+#      user, env or a compound line does not. A rewrite for that rule keeps
+#      the file (desk rules still loaded, no false GAP); a desk-rule change
+#      makes a new one (relaunch GAP)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -54,7 +59,7 @@ agent() {
   printf 'claude\0--permission-mode\0%s\0%s' "${3:-auto}" "${4:+--model}" >"$P/$1/cmdline"
   [[ -n "${4:-}" ]] && printf '\0%s\0' "$4" >>"$P/$1/cmdline"
   ln -sfn "$R-wt/$2" "$P/$1/cwd"
-  touch -d '2026-01-01 00:00:00' "$P/$1"
+  touch -d '+1 hour' "$P/$1"
 }
 seat() { mkdir -p "$ST/desk/$2/box-desk/spool/$1"; touch "$ST/desk/$2/box-desk/pinned"; }
 
@@ -101,6 +106,8 @@ grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run 
   grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_topic_archive)' "$R-wt/c-002/.claude/settings.local.json" &&
   grep -qF 'Bash(sudo -u boxuser env ENV=prd * ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
   grep -qF 'Bash(sudo -u boxuser env ENV=prd ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
+  grep -qF 'Bash(sudo -u boxuser env * ENV=prd ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
+  grep -qF 'Bash(sudo -u boxuser env * ENV=prd * ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
   python3 -m json.tool "$R-wt/c-002/.claude/settings.local.json" >/dev/null &&
   ! grep -q 'DESK_AGENT=c-003' "$R-wt/c-002/.claude/settings.local.json" &&
   pass "2. the settings allow reply / post / archive as the seat itself + the unanswered sweep, valid JSON" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"
@@ -139,7 +146,7 @@ grep -qx 'LEASE_PRIORITY_ORCH=sat,pc' "$S/dispatch/lease.conf" && grep -qx 'LEAS
 grep -vE '^(LEASE_(FLEET|MACHINE|PRIORITY[A-Z_]*|ENV|TENANT|DESK_BOX)|ASKS_[A-Z_]+)=' "$S/dispatch/lease.conf" >"$T/lc" && cat "$T/lc" >"$S/dispatch/lease.conf"
 
 # --- 3. settings newer than the session ----------------------------------------------
-touch "$R-wt/c-003/.claude/settings.local.json"
+touch -d '+2 hours' "$R-wt/c-003/.claude/settings.local.json"
 setup >"$T/o" 2>&1
 grep -q '^RELAUNCH c-003 pid=200' "$T/o" && [[ -d "$P/200" ]] &&
   pass "3. settings written after the start -> RELAUNCH reported, nothing killed" || fail "3. $(cat "$T/o")"
@@ -255,8 +262,8 @@ gap "unread over the max" 'c-003 unread \| 3 \| GAP' DISPATCH_UNREAD_MAX=2; rm -
 echo "c-002 $(( $(date +%s) - 500 ))" >"$S/dispatch/lease"; gap "stale lease" 'lease \| c-002, 50[0-9]s old \| GAP stale'
 echo "CLE-77 $(date +%s)" >"$S/dispatch/lease"; gap "holder not a dispatcher" 'GAP holder is not a dispatcher'
 echo "c-002 $(date +%s)" >"$S/dispatch/lease"
-touch "$R-wt/c-002/.claude/settings.local.json"; gap "settings not loaded" 'c-002 desk-reply permission .*GAP relaunch'
-touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
+touch -d '2026-01-01 00:00:00' "$P/100"; gap "desk rules written after the session started" 'c-002 desk-reply permission \| desk rules written after the session started \| GAP relaunch c-002'
+touch -d '+1 hour' "$P/100"
 cp "$SUBS/w2.txt" "$T/w2.keep"
 check >"$T/o" 2>&1
 grep -qF '| w2 #team | OD seats 3/3 | ok |' "$T/o" && grep -qF '| w2 OD seats | every fleet OD seat seated | ok |' "$T/o" &&
@@ -334,6 +341,54 @@ touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
 nine | grep -E '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' >/dev/null &&
   pass "9. a rule that matches no taught command -> GAP" || fail "9. rule: $(grep desk-reply "$T/o")"
 cp "$T/s.keep" "$R-wt/c-002/.claude/settings.local.json"; touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
+
+# --- 10. the sweep rule: any env vars, nothing wider; no false relaunch GAP ----------------------
+SF="$R-wt/c-002/.claude/settings.local.json"
+allows() { bash -c 'source "$1/src/bash/run/spl-dispatch-check.func.sh"; spl_dispatch_rule_allows "$2" "$3"' _ "$PROJ_ROOT" "$SF" "$1"; }
+sw='./run -a do_spl_unanswered_sweep'
+must=("sudo -u boxuser env ENV=prd $sw"
+  "sudo -u boxuser env ENV=prd SWEEP_MIN_AGE=2 $sw"
+  "sudo -u boxuser env SPOOL_ROOT=/var/spool-hub ENV=prd SWEEP_MIN_AGE=3 $sw"
+  "sudo -u boxuser env SPOOL_ROOT=/var/spool-hub ENV=prd $sw"
+  "sudo -u boxuser env SPOOL_ROOT=/x SWEEP_MIN_AGE=3 ENV=prd $sw"
+  "sudo -u boxuser env ENV=prd SPOOL_ROOT=/x SWEEP_MIN_AGE=3 DELIVER=0 $sw")
+mustnot=("sudo -u boxuser env ENV=prd ./run -a do_spl_desk_up"
+  "sudo -u boxuser env ENV=prd DRY_RUN=0 ./run -a do_spl_unanswered_sweep_install_cron"
+  "sudo -u boxuser env SPOOL_ROOT=/x ENV=prd ./run -a do_spl_dispatch_setup"
+  "sudo -u boxuser env ENV=dev $sw"
+  "sudo -u boxuser env SPOOL_ROOT=/x ENV=dev $sw"
+  "sudo -u root env ENV=prd $sw"
+  "sudo -u boxuser env ENV=prd $sw && sudo -u boxuser env ENV=prd ./run -a do_spl_desk_up"
+  "sudo -u boxuser env ENV=prd X=\$(./run -a do_spl_desk_up) $sw"
+  "sudo -u boxuser env ENV=prd X=1; ./run -a do_spl_desk_up; env $sw")
+bad=0
+for c in "${must[@]}"; do allows "$c" || { fail "10. not allowed: $c"; bad=1; }; done
+for c in "${mustnot[@]}"; do allows "$c" && { fail "10. allowed: $c"; bad=1; }; done
+((bad)) || pass "10. the sweep rule: ${#must[@]} env-var orders/counts allowed, ${#mustnot[@]} other actions/users/envs/compounds not"
+# the control: the old two forms refuse the 2026-10-04 command
+grep -vF 'env * ENV=prd' "$SF" | sed 'N;s/,\n *\]/\n    ]/;P;D' >"$T/old.json"
+python3 -m json.tool "$T/old.json" >/dev/null && ! SF="$T/old.json" allows "${must[2]}" &&
+  pass "10. control: without the '* ENV=prd' forms that command is refused" || fail "10. control: $(cat "$T/old.json")"
+# 2026-10-04 08:18Z: setup rewrote c-002's file for the sweep rule only, 3 min
+# after c-002 started; the check said "GAP relaunch" while its desk replies worked
+echo "c-002 $(date +%s)" >"$S/dispatch/lease"; date +%s >"$S/dispatch/rotate.dispatch.last"
+printf 'ts=%s\nopen=0\nto=c-002\nsent=ok\n' "$(date +%s)" >"$S/dispatch/unanswered.last"
+ino="$(stat -c %i "$SF")"
+grep -vF 'env * ENV=prd * ./run' "$SF" >"$T/s10"; cat "$T/s10" >"$SF"
+setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
+touch -d '+2 hours' "$SF"
+nine | grep '| c-002 desk-reply permission | loaded | ok |' >/dev/null && [[ "$(stat -c %i "$SF")" == "$ino" ]] &&
+  ! grep -q 'desk rules changed' "$T/o" &&
+  pass "10. a rewrite for the sweep rule only: same file, desk rules still loaded, no GAP" ||
+  fail "10. sweep-only rewrite: ino $ino -> $(stat -c %i "$SF") $(grep -E 'settings|desk-reply' "$T/o")"
+sed 's/DESK_AGENT=c-002 \* .\/run -a do_spl_topic_archive/DESK_AGENT=c-002 .\/run -a do_spl_topic_archive/' "$SF" >"$T/s10"; cat "$T/s10" >"$SF"
+setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1
+grep -q 'desk rules changed: a new file' "$T/o" && [[ "$(stat -c %i "$SF")" != "$ino" ]] &&
+  pass "10. a desk-rule change writes a new file" || fail "10. desk change: $(grep settings "$T/o")"
+touch -d "@$(( $(stat -c %W "$SF") - 60 ))" "$P/100"
+nine | grep -E '\| c-002 desk-reply permission \| desk rules written after the session started \| GAP relaunch' >/dev/null &&
+  pass "10. ... and a session older than that new file is a relaunch GAP" || fail "10. new file: $(grep desk-reply "$T/o")"
+touch -d '+1 hour' "$P/100"
 
 # --- 8. setup step 11: the sweep cron ----------------------------------------------------------
 rm -f "$T/crontab"

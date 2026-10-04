@@ -146,7 +146,7 @@ cd "$CHECKOUT/csi-spl-orc" && ./run -a do_spl_dispatch_check
 | `<id> process` | no live session carries that id: run the setup again |
 | `<id> permission mode` | the session is not in auto mode: respawn it |
 | `<id> model` | with `DISPATCH_MODEL` set, the session runs another model |
-| `<id> desk-reply permission` | the settings file is missing, its allow rule does not match the command the brief teaches, or it is newer than the session (3.3) |
+| `<id> desk-reply permission` | the settings file is missing, its allow rule does not match the command the brief teaches, or its desk rules were written after the session started: the file's birth time, as setup writes a new file only when the desk rules change and rewrites it in place otherwise (3.3) |
 | `<id> desks` | the workspaces it has no seat in |
 | `<id> unread` | more than `DISPATCH_UNREAD_MAX` (default 20) messages wait in its inbox |
 | `lease` | the holder is not a dispatcher, or the lease is older than 180 s (fleet mode: a fresh holder on the other machine is `ok`, this one stands by) |

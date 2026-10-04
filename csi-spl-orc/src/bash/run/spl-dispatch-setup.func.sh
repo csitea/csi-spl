@@ -9,6 +9,7 @@
 # @description   3. both briefs, rendered from features/dispatch/brief-dispatcher.tpl.md
 # @description   4. each dispatcher's worktree <repo>-wt/<id>, BEFORE its spawn
 # @description   5. its .claude/settings.local.json allowing desk replies, posts and archives (as itself) and the unanswered sweep
+# @description      (any other env vars, any order: spl_dispatch_env_rules; a desk-rule change writes a new file)
 # @description      (+ the path in git's info/exclude). A running session does
 # @description      not load a settings file created after it started: that
 # @description      is reported as RELAUNCH, never done here
@@ -295,21 +296,33 @@ spl_dispatch_settings_json() {
   # The unanswered sweep reads every workspace (no DESK_AGENT); its cron runs
   # it every 10 min anyway (owner 2026-10-03: "The dispatcher should be doing
   # everything as well").
-  # Two forms: with extra vars (SWEEP_MIN_AGE=2 ...) and bare - a '*' needs at
-  # least one word, so the bare command matched no rule (refused 2026-10-04 08:16Z).
-  printf '      "Bash(sudo -u %s env ENV=%s * ./run -a do_spl_unanswered_sweep)"\n' "$DISPATCH_BOX_USER" "$ENV"
-  printf '      "Bash(sudo -u %s env ENV=%s ./run -a do_spl_unanswered_sweep)"\n' "$DISPATCH_BOX_USER" "$ENV"
+  spl_dispatch_env_rules do_spl_unanswered_sweep
   } | sed '$!s/$/,/' | { printf '{\n  "permissions": {\n    "allow": [\n'; cat; printf '    ]\n  }\n}\n'; }
 }
 
+# The allow rules for a read-only <action> on this ENV with any other env vars,
+# in any order and number. The harness's ' * ' needs at least one word, so the
+# bare command and each side of ENV=<env> are their own form (2026-10-04, both
+# refused: the bare command at 08:16Z, SPOOL_ROOT=... before ENV=prd later).
+spl_dispatch_env_rules() {
+  local f
+  for f in "ENV=$ENV" "ENV=$ENV *" "* ENV=$ENV" "* ENV=$ENV *"; do
+    printf '      "Bash(sudo -u %s env %s ./run -a %s)"\n' "$DISPATCH_BOX_USER" "$f" "$1"
+  done
+}
+
 spl_dispatch_settings() {
-  local id="$1" wt="$2" f="$2/.claude/settings.local.json" exc pid
+  local id="$1" wt="$2" f="$2/.claude/settings.local.json" exc pid new=0
   spl_dispatch_settings_json "$id" > "$SPL_DISPATCH_TMP/settings"
   if cmp -s "$SPL_DISPATCH_TMP/settings" "$f"; then
     spl_dispatch_ok settings "$f"
   else
-    spl_dispatch_do settings "write $f (desk reply / post / archive as $id, unanswered sweep)" \
-      bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/settings" "$f" || return 1
+    # Changed desk rules (DESK_AGENT=) get a NEW file, any other change is
+    # written in place: the file's birth time is when its desk rules last
+    # changed, which do_spl_dispatch_check compares with the session start.
+    [[ "$(grep -F 'DESK_AGENT=' "$f" 2>/dev/null)" != "$(grep -F 'DESK_AGENT=' "$SPL_DISPATCH_TMP/settings")" ]] && new=1
+    spl_dispatch_do settings "write $f (desk reply / post / archive as $id, unanswered sweep$( ((new)) && echo '; desk rules changed: a new file'))" \
+      bash -c 'mkdir -p "$(dirname "$2")" && { [ "$3" = 0 ] || rm -f "$2"; cp "$1" "$2"; }' _ "$SPL_DISPATCH_TMP/settings" "$f" "$new" || return 1
   fi
   exc="$(git -C "$DISPATCH_REPO" rev-parse --git-common-dir 2>/dev/null)/info/exclude"
   [[ "$exc" == /* ]] || exc="$DISPATCH_REPO/$exc"
@@ -333,6 +346,18 @@ spl_dispatch_stale_settings() {
   start="$(stat -c %Y "${LEASE_PROC_ROOT:-/proc}/$1" 2>/dev/null)" || return 0
   mt="$(stat -c %Y "$2" 2>/dev/null)" || return 0
   (( start < mt ))
+}
+
+# 0 when the process started before the settings file's desk rules were
+# written: its birth time (spl_dispatch_settings makes a new file only when
+# they change), else - no birth time on this filesystem - its mtime. A rewrite
+# for another rule (the sweep's, 2026-10-04 08:18Z) leaves them loaded.
+spl_dispatch_stale_desk_rules() {
+  local start since
+  start="$(stat -c %Y "${LEASE_PROC_ROOT:-/proc}/$1" 2>/dev/null)" || return 0
+  since="$(stat -c %W "$2" 2>/dev/null)" || return 0
+  [[ "$since" =~ ^[1-9][0-9]*$ ]] || since="$(stat -c %Y "$2" 2>/dev/null)" || return 0
+  (( start < since ))
 }
 
 spl_dispatch_spawn() {

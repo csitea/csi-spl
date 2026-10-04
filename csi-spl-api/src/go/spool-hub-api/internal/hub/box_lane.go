@@ -56,6 +56,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onBoxStatsLane(ctx, x, f)
 		return
 	}
+	if isFleetLoadLaneOp(f.LaneOp) { // rdb 0118: the instance's fleet load target
+		s.onFleetLoadLane(ctx, x, f)
+		return
+	}
 	if isLifecycleLaneOp(f.LaneOp) { // spec 063: the lifecycle config + event log
 		s.onLifecycleLane(ctx, x, f)
 		return

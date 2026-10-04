@@ -3,7 +3,7 @@
 # Purpose: do_spl_box_pick (owner HUM-10, t1 c13e8023) prints the box a new
 #          lane starts on: the first box in the fill order below its HIGH
 #          mark (load5 / cpus); every box at or above HIGH -> hold. The band
-#          and the order come from the hub (`spool fleet-load get`, rdb 0119);
+#          and the order come from the hub (`spool fleet-load get`, rdb 0118);
 #          an empty hub order -> the cnf seed; a hub that does not answer ->
 #          50 / 75 and the cnf seed with a WARN; a box with no sample is
 #          skipped with a WARN; no box stats answer -> FATAL.

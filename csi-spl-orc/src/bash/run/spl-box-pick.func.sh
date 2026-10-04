@@ -5,7 +5,7 @@
 # @description the fill order whose load is below its HIGH mark, as % of cores
 # @description (load5 / cpus * 100); every box at or above HIGH -> "hold" (queue
 # @description the lane, spawn nothing). The band (low / high) and the order are
-# @description the hub's instance setting (rdb 0119, `spool fleet-load get`;
+# @description the hub's instance setting (rdb 0118, `spool fleet-load get`;
 # @description only the operator workspace's admin changes them). A hub that
 # @description does not answer -> the defaults 50 / 75 and the cnf seed order
 # @description env.box.fleet_load.box_order, with a WARN. A hub order that is

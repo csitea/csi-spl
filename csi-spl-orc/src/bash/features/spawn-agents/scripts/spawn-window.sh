@@ -69,7 +69,7 @@
 #
 # LOAD TARGET (owner HUM-10, t1 c13e8023): before the busy count, the same
 # new lane asks do_spl_box_pick, which reads the hub's fleet load target
-# (rdb 0119: the band, 50..75 % of cores by default, and the box fill order)
+# (rdb 0118: the band, 50..75 % of cores by default, and the box fill order)
 # and each box's latest load5 / cpus. `pick=<box>` places the lane there;
 # `pick=hold` (every box at or above its high mark) spawns NOTHING and exits
 # 10 so the requester queues the lane; no pick line (the action failed) falls

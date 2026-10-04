@@ -33,6 +33,8 @@
 //	          hub mode: the agent lifecycle config as KEY=VALUE lines, or append one event (spec 063)
 //	box-stats put --json <file|-> | box-stats list [--box <b>] [--since 20h]
 //	          hub mode: append one box load + memory sample, or read the history (rdb 0117)
+//	fleet-load get
+//	          hub mode: the instance's fleet load target, {low, high, box_order, source} (rdb 0118)
 //	ask     [list|put|ack|done|decline|raise|escalate] --fleet <f> [--id <msg id> ...]
 //	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
 //	claim   (--poll [--max n] | --renew | --release <msg> --reason <r> | --done <msg> [--how h]) --as <seat> [--ttl s] [--gen g]
@@ -120,6 +122,7 @@ on a box (an agent's machine):
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
   lifecycle           print the agent lifecycle config (config), or append one event (event --json)
   box-stats           append one box load + memory sample (put --json), or read the history (list)
+  fleet-load          print the instance's fleet load target (get): the band and the box fill order
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
@@ -247,6 +250,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLane(cfg, rest)
 	case "box-stats": // rdb 0117
 		return cmdBoxStats(cfg, rest)
+	case "fleet-load": // rdb 0118
+		return cmdFleetLoad(cfg, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
 	case "ask": // CLE-77929

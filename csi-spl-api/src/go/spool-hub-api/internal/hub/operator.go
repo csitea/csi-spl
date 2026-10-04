@@ -268,4 +268,5 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/operator/invites", s.handleOperatorInviteRevoke)
 	mux.HandleFunc("POST /v1/operator/replay-unsigned", s.handleOperatorReplayUnsigned)
 	s.routeOperatorWorkspaces(mux) // spec 074: workspace CRUD, operator-workspace admins only
+	s.routeFleetLoad(mux)          // rdb 0118: the instance's fleet load target, same rule
 }

@@ -63,7 +63,7 @@ services:
       # off localhost (specs/047 W9, W18) hub-init refuses the default
       # passwords above and seats the owner by a one-time invite for
       # SPOOL_OWNER_EMAIL; it prints the sign-in link and the agent seat line
-      SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+      SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
       SPOOL_BIND: ${SPOOL_BIND:-127.0.0.1}
       SPOOL_OWNER_EMAIL: ${SPOOL_OWNER_EMAIL:-}
       SPOOL_OWNER_PASSWORD: ${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}
@@ -87,7 +87,7 @@ services:
       # URL and the hub takes the tenant from the signed-in session
       SPOOL_HUB_TENANT_HOST_PATTERN: "{tenant}.${SPOOL_DOMAIN:-localhost}"
       SPOOL_HUB_VIEW_DOOR: session
-      SPOOL_HUB_VIEW_CORS_ORIGINS: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+      SPOOL_HUB_VIEW_CORS_ORIGINS: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
       SPOOL_HUB_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
       SPOOL_HUB_DEFAULT_LOCALE: ${SPOOL_DEFAULT_LOCALE:-en}
       SPOOL_HUB_LOG_FORMAT: ${SPOOL_LOG_FORMAT:-console}
@@ -102,13 +102,13 @@ services:
       # real domain set it to false and give the hub an SMTP relay below.
       SPOOL_HUB_AUTH_NATIVE_ENABLED: "true"
       SPOOL_HUB_AUTH_NATIVE_DEBUG_TOKENS: ${SPOOL_AUTH_DEBUG_LINKS:-true}
-      SPOOL_HUB_AUTH_APP_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+      SPOOL_HUB_AUTH_APP_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
       SPOOL_HUB_AUTH_COOKIE_SECURE: ${SPOOL_COOKIE_SECURE:-false}
       # auto: on localhost the first person to sign in to the empty tenant
       # becomes its owner; anywhere else nobody does (hub-init invites
       # SPOOL_OWNER_EMAIL instead). true / false force it.
       SPOOL_HUB_AUTH_BOOTSTRAP_OWNER: ${SPOOL_BOOTSTRAP_OWNER:-auto}
-      SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+      SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
       SPOOL_BIND: ${SPOOL_BIND:-127.0.0.1}
       SPOOL_HUB_MAIL_TRANSPORT: ${SPOOL_MAIL_TRANSPORT:-log}
       SPOOL_HUB_MAIL_SMTP_HOST: ${SPOOL_MAIL_SMTP_HOST:-}
@@ -139,7 +139,7 @@ services:
       dockerfile: csi-spl-wui/src/docker/wui.Dockerfile
       args:
         SPOOL_VERSION: ${SPOOL_VERSION:-}
-        SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:8080}
+        SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
         SPOOL_TENANT: ${SPOOL_TENANT:-main}
         SPOOL_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
         SPOOL_DEFAULT_LOCALE: ${SPOOL_DEFAULT_LOCALE:-en}

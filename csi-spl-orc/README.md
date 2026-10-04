@@ -5,11 +5,14 @@ emulator and `spool serve` in docker compose, wired from `csi-spl-cnf` and
 nothing else. Shaped like `pas-psf-orc` (compose split -infra / -rdb / -api,
 `gen-docker-env`). The lde actions are LOCAL ONLY: they call no gcloud and
 no terraform. The few CLOUD actions (below) are owner-gated dry runs by default.
-The WUI is not part of this stack (a separate lane owns it).
+The WUI joins it with `do_wui_up`; `do_lde_up` brings up both. Docker is the
+only host tool they need (spec 072 A46): the hub builds inside docker.
 
 | action | what |
 |---|---|
-| `./run -a do_setup_app_inf` | build `spool` + the hub image, bring the stack up, smoke it (pg, gcs, migrate, serve, hello) |
+| `./run -a do_lde_up` | the whole dev stack: `do_setup_app_inf` + `do_wui_up` (one-shot WUI install, sign-in on), then the URLs |
+| `./run -a do_lde_down` | the inverse (`LDE_PURGE=1` also drops the volumes) |
+| `./run -a do_setup_app_inf` | build `spool` in docker + the hub image, bring the stack up, smoke it (pg, gcs, migrate, serve, hello) |
 | `./run -a do_teardown_app_inf` | `compose down` for this tree (`LDE_PURGE=1` also drops the volumes) |
 | `./run -a do_gen_docker_env` | render `compose.env` + `hub.env` from cnf (called by the two above) |
 | `./run -a do_provision_spool_root` | make the box's `/var/spool-hub` (cnf `env.box`) with the group-only perms model (017 FR-SEC-001) |
@@ -97,8 +100,8 @@ DRY_RUN=0 SPOOL_ROOT_MEMBERS="<HARNESS_USER> <DEV_USER>" ./run -a do_repair_spoo
 The first is the default dry run (current state + the exact root commands);
 the second creates the group, adds the members, re-groups the tree, sets
 setgid on every dir, applies the ACLs and proves `nobody` can neither list nor
-write the root. Until then `do_provision_spool_root` (and so
-`do_setup_app_inf`) leaves an existing root as it is, with a WARN.
+write the root. Until then `do_provision_spool_root` leaves an existing root
+as it is, with a WARN. `do_setup_app_inf` runs it only with `LDE_SPOOL_ROOT=1`.
 
 ## Tests
 

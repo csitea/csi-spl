@@ -205,6 +205,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		ValueMs: 1, Device: "phone", Outcome: "ok"}}); err != nil {
 		t.Fatal(err)
 	}
+	// box_stats (rdb 0117): one load + memory sample.
+	if err := pg.AppendBoxStat(ctx, s.tenant, BoxStat{Box: "sat", WriterBox: "box-seed", At: now, CPUs: 1}); err != nil {
+		t.Fatal(err)
+	}
 	// operator_audit (rdb 0115, spec 074): one operator action on this workspace.
 	if err := pg.AppendOperatorAudit(ctx, OperatorAudit{At: now, TenantID: s.tenant, ActorTenant: "op-seed",
 		ActorHum: hum, Action: AuditCreate}); err != nil {

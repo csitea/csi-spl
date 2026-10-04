@@ -612,6 +612,9 @@ func (s *Server) sendTenantRefusal(ctx context.Context, x *session, id string) *
 	if !billing.AllowsWrite(trow.BillingStatus) {
 		return &frameRefusal{billing.TokenUnpaid, billing.HTTPUnpaid, "tenant billing is unpaid"}
 	}
+	if trow.Suspended() { // spec 074: an open socket outlives the suspend; its sends do not
+		return &frameRefusal{tokenWorkspaceSuspended, http.StatusForbidden, "this workspace is suspended by the operator"}
+	}
 	if tok, status, detail := s.messageQuota(ctx, x.tenant, id); tok != "" {
 		return &frameRefusal{tok, status, detail}
 	}

@@ -340,6 +340,11 @@ type Hub struct {
 	// session's tenant there, as before). Both off by default.
 	WUITenantHosts bool   `env:"SPOOL_HUB_WUI_TENANT_HOSTS" envDefault:"false"`
 	WUIApexTenant  string `env:"SPOOL_HUB_WUI_APEX_TENANT"`
+	// OperatorTenant is the operator workspace (spec 074): the one workspace
+	// whose ADMINS manage every other workspace of this instance through
+	// /v1/operator/workspaces. "" = the apex workspace (WUIApexTenant);
+	// both "" = the routes are off (404).
+	OperatorTenant string `env:"SPOOL_HUB_OPERATOR_TENANT"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -423,6 +428,15 @@ func ParseMemLimit(s string) (int64, error) {
 		return 0, fmt.Errorf("%q is not a positive size like 460MiB", s)
 	}
 	return n * mult, nil
+}
+
+// OperatorWorkspace is the operator workspace in force: SPOOL_HUB_OPERATOR_TENANT,
+// else the apex workspace, else "" (operator workspace routes off).
+func (h *Hub) OperatorWorkspace() string {
+	if h.OperatorTenant != "" {
+		return h.OperatorTenant
+	}
+	return h.WUIApexTenant
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,
@@ -523,6 +537,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.WUIApexTenant != "" && (!h.WUITenantHosts || !tenantIDRe.MatchString(h.WUIApexTenant)) {
 		return fmt.Errorf("SPOOL_HUB_WUI_APEX_TENANT %q needs SPOOL_HUB_WUI_TENANT_HOSTS=true and a tenant id", h.WUIApexTenant)
+	}
+	if h.OperatorTenant != "" && !tenantIDRe.MatchString(h.OperatorTenant) {
+		return fmt.Errorf("SPOOL_HUB_OPERATOR_TENANT %q must be a tenant id", h.OperatorTenant)
 	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {

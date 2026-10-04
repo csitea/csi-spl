@@ -165,6 +165,10 @@ type Options struct {
 	OperatorAudience string
 	OperatorVerify   OperatorVerify
 	OperatorMail     OperatorMailer
+	// OperatorTenant is the operator workspace (spec 074, operator_workspaces.go):
+	// only an ADMIN of it, in a member session, may list, create, change,
+	// suspend or archive the instance's workspaces. "" = those routes are off.
+	OperatorTenant string
 }
 
 // Server is one hub process.

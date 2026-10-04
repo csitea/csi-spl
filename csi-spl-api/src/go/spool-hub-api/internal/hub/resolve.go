@@ -46,6 +46,10 @@ func (s *Server) loadTenant(w http.ResponseWriter, r *http.Request, id string) (
 		writeErr(w, http.StatusNotFound, "unknown_tenant", "no such tenant")
 		return store.Tenant{}, false
 	}
+	if t.Suspended() { // spec 074: the operator workspace suspended (or archived) it
+		writeErr(w, http.StatusForbidden, tokenWorkspaceSuspended, "this workspace is suspended by the operator")
+		return store.Tenant{}, false
+	}
 	return t, true
 }
 

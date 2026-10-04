@@ -246,7 +246,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		Revision:              os.Getenv("K_REVISION"), // Cloud Run sets it; "" = a per-process id
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
-		OriginTenant: originTenant,
+		OriginTenant: originTenant, OperatorTenant: hc.OperatorWorkspace(),
 		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion,
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,

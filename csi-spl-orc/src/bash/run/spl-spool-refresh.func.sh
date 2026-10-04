@@ -123,8 +123,11 @@ do_spl_spool_refresh() {
 
 # spool_refresh_agent_user: the box's agent user (the box config), or nothing
 spool_refresh_agent_user() {
-  declare -F spool_env_resolve >/dev/null || return 0
-  ( SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1; printf '%s' "${SPOOL_AGENT_USER:-}" )
+  (
+    # shellcheck source=../features/spawn-agents/lib/spool-env.inc.sh
+    source "$PROJ_PATH/src/bash/features/spawn-agents/lib/spool-env.inc.sh" >/dev/null 2>&1 || exit 0
+    SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1; printf '%s' "${SPOOL_AGENT_USER:-}"
+  )
 }
 
 # spool_refresh_home_of <user>: SPOOL_REFRESH_HOMES, else $HOME for $USER, else getent

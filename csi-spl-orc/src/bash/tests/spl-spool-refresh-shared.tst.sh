@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: do_spl_spool_refresh in its ONE-installed-copy mode, hermetic. A
-# fixture box with two users (tester = $USER, other = a second home reached
+# fixture box with two users (tester = $USER, other = the box's agent user in
+# <spool root>/box.env, as on a real box: a second home reached
 # through a SPOOL_REFRESH_AS stub standing in for `sudo -n -u`), each with
 # its own real spool copy at a different old commit and the five config
 # paths. The build and the commit reader are the stubs of
@@ -26,7 +27,8 @@ HEAD_SHA="$(git -C "$APP_ROOT" rev-parse HEAD)"
 SHARED="$T/shared/bin/spool"
 H1="$T/home1"; H2="$T/home2"
 TL=.local/share/spool-agent/tools/bin/spool
-mkdir -p "$T/go/bin"
+mkdir -p "$T/go/bin" "$T/root"
+printf 'SPOOL_AGENT_USER=other\n' >"$T/root/box.env"
 printf '#!/bin/sh\n[ "$1" = version ] && echo "go version go1.99.0 linux/amd64"\nexit 0\n' >"$T/go/bin/go"
 printf '#!/bin/sh\nsed -n "s/^# commit=//p" "$1"\n' >"$T/binrev"
 mk_bin() { printf '#!/bin/sh\n# commit=%s\n[ "$1" = version ] && echo 9.9.9\nexit 0\n' "$2" >"$1"; chmod +x "$1"; }
@@ -58,8 +60,8 @@ refresh() {
   local -a sb=(SPOOL_SHARED_BIN="$SHARED")
   [ "${NO_SB:-0}" = 1 ] && sb=()
   SNIPPET='do_spl_spool_refresh' in_orc HOME="$H1" XDG_CONFIG_HOME= MCP_BOT_HOME= SPOOL_INSTALL_PREFIX="$H1/.local" \
-    "${sb[@]}" SPOOL_REFRESH_USERS="tester other" SPOOL_REFRESH_HOMES="other=$H2" \
-    SPOOL_REFRESH_AS="$T/as" SPOOL_ROOT="$T/no-root" SPOOL_REFRESH_TRUNK=HEAD \
+    "${sb[@]}" SPOOL_REFRESH_HOMES="other=$H2" \
+    SPOOL_REFRESH_AS="$T/as" SPOOL_ROOT="$T/root" SPOOL_BOX_USER=tester SPOOL_REFRESH_TRUNK=HEAD \
     SPOOL_INSTALL_BUILD="$T/build.sh" SPOOL_INSTALL_BINREV="$T/binrev" SPOOL_INSTALL_GO_ROOTS="$T/go" \
     PATH="$T/go/bin:$PATH" USER=tester "$@" 2>&1
 }
@@ -76,7 +78,8 @@ out="$(NO_SB=1 refresh)"; rc=$?
 out="$(refresh)"; rc=$?
 [ "$rc" -eq 0 ] && [ "$(tree "$H1/.local" "$H2/.local")" = "$t0" ] && [ ! -e "$T/shared" ] && [ ! -e "$T/builds" ] \
   && grep -q 'OK DRY_RUN nothing was touched' <<<"$out" && grep -q "would: link $H2/$TL -> $SHARED" <<<"$out" \
-  && pass "1. the dry run touches neither home, builds nothing, plans both links" || fail "1. dry run (rc $rc: $out)"
+  && grep -q 'user tester, linked: other' <<<"$out" \
+  && pass "1. the dry run reads the agent user from box.env, touches neither home, builds nothing, plans both links" || fail "1. dry run (rc $rc: $out)"
 
 # 2. one live run
 out="$(refresh DRY_RUN=0)"; rc=$?

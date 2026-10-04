@@ -60,7 +60,7 @@ BIN="$T/spool"
 PG_CTR="spl-fake-buy-pg-$$"
 docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
   -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
-PGPORT="$(docker port "$PG_CTR" 5432 | head -1 | sed 's/.*://')"
+PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
 for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
 DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 "$BIN" migrate --db "$DSN" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null || { fail "migrate"; exit 1; }
@@ -115,7 +115,7 @@ in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127
 
 in_orc ENV=lde TENANT_ID=acme BUYER_EMAIL=buyer@example.com BASE_URL="http://127.0.0.1:$P1" >"$T/dry.out" 2>/dev/null \
   && jq -e '.dry_run == true and .rail == "fake"' "$T/dry.out" >/dev/null && pass "DRY_RUN reads the plan only" || fail "dry: $(cat "$T/dry.out")"
-curl -s -H 'X-Spool-Tenant: acme' "127.0.0.1:$P1/v1/ws" | grep -q unknown_tenant \
+curl -s -H 'X-Spool-Tenant: acme' "127.0.0.1:$P1/v1/ws" | grep unknown_tenant >/dev/null \
   && pass "DRY_RUN bought nothing (acme still unknown)" || fail "DRY_RUN created acme"
 
 KEY="$T/keys/acme.json"

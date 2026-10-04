@@ -47,8 +47,8 @@ rm -f "$T/rec"; helper TENANT_PIN_WUI=0; rc=$?
 [[ $rc -eq 0 && ! -e "$T/rec" ]] && grep -q 'TENANT_PIN_WUI=0' "$T/o" && pass "3. TENANT_PIN_WUI=0 skips the pin" || fail "3. rc=$rc"
 
 body="$(sed -n '/^do_spl_tenant_create() {/,/^}/p' "$F")"
-pin_at="$(grep -n 'spl_tenant_create_pin_wui' <<<"$body" | head -1 | cut -d: -f1)"
-host_at="$(grep -n 'spl_tenant_create_host' <<<"$body" | head -1 | cut -d: -f1)"
+pin_at="$(grep -n 'spl_tenant_create_pin_wui' <<<"$body" | sed -n 1p | cut -d: -f1)"
+host_at="$(grep -n 'spl_tenant_create_host' <<<"$body" | sed -n 1p | cut -d: -f1)"
 [[ -n "$pin_at" && -n "$host_at" && "$pin_at" -lt "$host_at" ]] && grep -q 'return 4' <<<"$body" &&
   pass "4. the create pins before the host step and exits 4 when the pin fails" || fail "4. pin=$pin_at host=$host_at"
 

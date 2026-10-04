@@ -46,7 +46,7 @@ else
   pool=() serial=()
   for t in "$dir"/*.tst.sh; do
     [[ -f "$t" ]] || continue
-    if head -40 "$t" | grep -qE '^# serial( |$)'; then serial+=("$t"); else pool+=("$t"); fi
+    if head -40 "$t" | grep -E '^# serial( |$)' >/dev/null; then serial+=("$t"); else pool+=("$t"); fi
   done
   files=("${pool[@]}" "${serial[@]}")
   n=${#files[@]}

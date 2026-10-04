@@ -45,7 +45,7 @@ out="$(run ROLE_ID=c-003 DRY_RUN=0)"; rc=$?
 [ "$(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=' "$R/dispatch/lease.conf" | tr '\n' ' ')" = "LEASE_MASTER=CLE-002 LEASE_FAILOVER=c-003 LEASE_ORCH=CLE-009 " ] &&
   pass "3. lease.conf: LEASE_FAILOVER=c-003, the others untouched" || fail "3. lease.conf: $(cat "$R/dispatch/lease.conf")"
 compgen -G "$R/dispatch/lease.conf.bak-*" >/dev/null && pass "3. a backup is kept" || fail "3. no backup"
-tmux -S "$SOCK" list-windows -F '#{window_name}' | grep -qx 'c-003@tg dispatcher' && pass "3. the window carries c-003@tg" || fail "3. window: $(tmux -S "$SOCK" list-windows -F '#{window_name}')"
+tmux -S "$SOCK" list-windows -F '#{window_name}' | grep -x 'c-003@tg dispatcher' >/dev/null && pass "3. the window carries c-003@tg" || fail "3. window: $(tmux -S "$SOCK" list-windows -F '#{window_name}')"
 out="$(run ROLE_ID=CLE-003 DRY_RUN=0)"; [ "$?" -eq 0 ] && grep -q 'already renamed to c-003' <<<"$out" && pass "3. a re-run is a no-op" || fail "3. re-run: $out"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

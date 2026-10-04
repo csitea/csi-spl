@@ -58,7 +58,7 @@ probe; rc=$?
   && pass "buyer signs in as biz_owner, the other address is refused (not_allowed), 0 operator actions" || fail "happy path: rc=$rc $(cat "$T/out")"
 [[ "$(grep -c '"tenant": "w1t"' "$T/calls")" -eq 2 ]] && pass "both logins name the tenant" || fail "login bodies: $(cat "$T/calls")"
 grep -q 'example.com\|spool_session\|c-buyer' "$T/out" && fail "an address or the cookie is printed" || pass "no address, password or cookie in the verdict"
-pw="$(grep -o '"password": "[^"]*"' "$T/calls" | head -1 | cut -d'"' -f4)"
+pw="$(grep -o '"password": "[^"]*"' "$T/calls" | sed -n 1p | cut -d'"' -f4)"
 [[ ${#pw} -ge 20 ]] && ! grep -qF "$pw" "$T/out" && pass "a random password (${#pw} chars), not printed" || fail "password: '${pw:0:3}...'"
 
 echo developer >"$T/role"; probe; rc=$?

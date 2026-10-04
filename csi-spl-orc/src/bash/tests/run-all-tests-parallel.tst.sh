@@ -35,7 +35,7 @@ grep -qx 'FAILED: d-fail.tst.sh' "$T/out" && pass "the failing test is named" ||
 heads=$(grep '^=== [a-z]' "$T/out" | tr '\n' ' ')
 [ "$heads" = "=== a-sleep.tst.sh === b-sleep.tst.sh === c-sleep.tst.sh === d-fail.tst.sh === s-alone.tst.sh " ] \
   && pass "headers print in suite order, the '# serial' test last" || fail "headers print in suite order" "$heads"
-grep -A2 -x '=== b-sleep.tst.sh' "$T/out" | tr '\n' ' ' | grep -qx '=== b-sleep.tst.sh out-b end-b ' \
+grep -A2 -x '=== b-sleep.tst.sh' "$T/out" | tr '\n' ' ' | grep -x '=== b-sleep.tst.sh out-b end-b ' >/dev/null \
   && pass "a file's output is not interleaved with another's" || fail "a file's output is not interleaved" "$(cat "$T/out")"
 grep -qx 'out-s' "$T/out" && pass "the '# serial' test ran alone" || fail "the '# serial' test ran alone" "$(cat "$T/out")"
 grep -q '4/5 test files passed' "$T/out" && pass "the count is 4/5" || fail "the count is 4/5" "$(grep 'test files passed' "$T/out")"

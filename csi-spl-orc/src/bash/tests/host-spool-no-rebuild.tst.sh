@@ -67,7 +67,7 @@ out="$(in_orc 'spl_host_spool && echo "SPOOL=$SPL_SPOOL"')"
 eq "1 no binary: one build" 1 "$(builds)"
 eq "1 SPL_SPOOL is the state-dir binary" "SPOOL=$S/bin/spool" "$(grep '^SPOOL=' <<<"$out")"
 eq "1 the stamp names HEAD and a clean module" "$H1 clean" "$(cat "$S/bin/spool.src")"
-ls "$S/bin" | grep -q '\.build\.' && fail "1 a build tmp was left behind" || pass "1 no build tmp left behind"
+ls "$S/bin" | grep '\.build\.' >/dev/null && fail "1 a build tmp was left behind" || pass "1 no build tmp left behind"
 
 # --- 2. unchanged tree: no build; the old function builds every time ----------
 in_orc 'spl_host_spool; spl_host_spool; spl_host_spool' >/dev/null
@@ -194,7 +194,7 @@ r3="$(cnf_run SPL_CNF_CACHE=0)"
 for i in 1 2 3 4 5 6; do cnf_run SPL_CNF_CACHE=0 >"$T/par.$i" 2>&1 & done; wait
 ok=1; for i in 1 2 3 4 5 6; do [[ "$(sed -n 2p "$T/par.$i")" == "$(sed -n 2p <<<"$r1")" && "$(sed -n 3p "$T/par.$i")" == "$(sed -n 2p <<<"$r1")" ]] || ok=0; done
 eq "8 six PARALLEL fresh merges all read whole, equal values" 1 "$ok"
-ls "$T/cnfstate" "$T/cnfstate/cnf" | grep -q '\.tmp\.' && fail "8 a tmp was left behind" || pass "8 no tmp left behind"
+ls "$T/cnfstate" "$T/cnfstate/cnf" | grep '\.tmp\.' >/dev/null && fail "8 a tmp was left behind" || pass "8 no tmp left behind"
 
 echo "--- $fails failure(s)"
 [[ "$fails" -eq 0 ]]

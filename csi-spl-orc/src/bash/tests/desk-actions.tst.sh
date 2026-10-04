@@ -548,14 +548,14 @@ out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
   ISSUE_TITLE='Rotate the key' ISSUE_EPIC=SPL-17 ISSUE_PRIORITY=2 ISSUE_LEVEL=2 ISSUE_DEADLINE=2026-10-01T15:00:00Z DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"key": "SPL-7"'* && "$out" == *'"op": "create"'* ]] && pass "do_spl_issue_create files through the desk's spool" ||
   fail "do_spl_issue_create (rc=$rc): $out"
-tail -1 "$T/issue.log" | grep -q '^issue|create|--as|CLE-00|' && tail -1 "$T/issue.log" | grep -q '|--title|Rotate the key|' &&
-  tail -1 "$T/issue.log" | grep -q '|--priority|2|' && tail -1 "$T/issue.log" | grep -q '|--level|2|' &&
-  tail -1 "$T/issue.log" | grep -q '|--deadline|2026-10-01T15:00:00Z|' && tail -1 "$T/issue.log" | grep -q '|--epic|SPL-17|' &&
+tail -1 "$T/issue.log" | grep '^issue|create|--as|CLE-00|' >/dev/null && tail -1 "$T/issue.log" | grep '|--title|Rotate the key|' >/dev/null &&
+  tail -1 "$T/issue.log" | grep '|--priority|2|' >/dev/null && tail -1 "$T/issue.log" | grep '|--level|2|' >/dev/null &&
+  tail -1 "$T/issue.log" | grep '|--deadline|2026-10-01T15:00:00Z|' >/dev/null && tail -1 "$T/issue.log" | grep '|--epic|SPL-17|' >/dev/null &&
   pass "…as spool issue create --as with each set field, the epic included" ||
   fail "create args: $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_STATUS=in_progress ISSUE_ASSIGNEE= DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|update|--as|CLE-00|--ref|SPL-7|--status|in_progress|--assignee||' &&
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -x 'issue|update|--as|CLE-00|--ref|SPL-7|--status|in_progress|--assignee||' >/dev/null &&
   pass "do_spl_issue_update sends only the SET fields; an empty one clears" || fail "update (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 # SPL-1130: a multi-line description stays ONE argv word, and the flags after it
 # still reach spool (a newline-delimited stream dropped --priority and --epic).
@@ -573,14 +573,14 @@ out=$(SNIPPET="${ISS}do_spl_issue_update" in_orc FAKE="$T/fakeissue" FAKE_LOG="$
   fail "multi-line update (rc=$rc): $out / $(cat "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_BODY='dev done; prd next' DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|comment|--as|CLE-00|--ref|SPL-7|--body|dev done; prd next|' &&
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -x 'issue|comment|--as|CLE-00|--ref|SPL-7|--body|dev done; prd next|' >/dev/null &&
   pass "do_spl_issue_comment posts the progress" || fail "comment (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_delete" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$out" == *'"op": "delete"'* ]] && tail -1 "$T/issue.log" | grep -qx 'issue|delete|--as|CLE-00|--ref|SPL-7|' &&
+[[ $rc -eq 0 && "$out" == *'"op": "delete"'* ]] && tail -1 "$T/issue.log" | grep -x 'issue|delete|--as|CLE-00|--ref|SPL-7|' >/dev/null &&
   pass "do_spl_issue_delete sends spool issue delete --as --ref" || fail "delete (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_list" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -qx 'issue|list|--as|CLE-00|--assignee|me|--status|eval,todo,wip,blocked,onhold,qas|' &&
+[[ $rc -eq 0 ]] && tail -1 "$T/issue.log" | grep -x 'issue|list|--as|CLE-00|--assignee|me|--status|eval,todo,wip,blocked,onhold,qas|' >/dev/null &&
   pass "do_spl_issue_list defaults to my open issues" || fail "list (rc=$rc): $out / $(tail -1 "$T/issue.log")"
 out=$(SNIPPET="${ISS}do_spl_issue_comment" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 \
   ISSUE_REF=SPL-7 ISSUE_BODY=x DRY_RUN=0 2>&1); rc=$?
@@ -614,12 +614,12 @@ else pass "do_spl_desk_edit refuses an empty DESK_BODY_FILE"; fi
 [[ ! -s "$T/edit.log" ]] && pass "CONTROL no refused edit reached spool" || fail "a refused edit ran spool: $(cat "$T/edit.log")"
 out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
   DESK_BODY_FILE="$T/new.md" DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$out" == *'"revision": 2'* ]] && tail -1 "$T/edit.log" | grep -qx "edit|--msg-id|$EDIT_ID|--as|CLE-00|--body-file|$T/new.md|" &&
+[[ $rc -eq 0 && "$out" == *'"revision": 2'* ]] && tail -1 "$T/edit.log" | grep -x "edit|--msg-id|$EDIT_ID|--as|CLE-00|--body-file|$T/new.md|" >/dev/null &&
   pass "do_spl_desk_edit runs spool edit --msg-id --as --body-file and prints the revision" ||
   fail "edit (rc=$rc): $out / $(tail -1 "$T/edit.log")"
 out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
   DESK_BODY='new text' DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/edit.log" | grep -qx "edit|--msg-id|$EDIT_ID|--as|CLE-00|--body|new text|" &&
+[[ $rc -eq 0 ]] && tail -1 "$T/edit.log" | grep -x "edit|--msg-id|$EDIT_ID|--as|CLE-00|--body|new text|" >/dev/null &&
   pass "do_spl_desk_edit DESK_BODY rides as --body" || fail "edit --body (rc=$rc): $out / $(tail -1 "$T/edit.log")"
 out=$(SNIPPET="$EDIT" in_orc FAKE="$T/fakeedit" FAKE_LOG="$T/edit.log" FAKE_REFUSE=1 TENANT_ID=t1 DESK_AGENT=CLE-00 MSG_ID=$EDIT_ID \
   DESK_BODY=x DRY_RUN=0 2>&1); rc=$?
@@ -651,11 +651,11 @@ done
 [[ ! -s "$T/archive.log" ]] && pass "CONTROL no refused archive reached spool" || fail "a refused archive ran spool: $(cat "$T/archive.log")"
 out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"archived": true'* && "$out" == *'"mode": "archive"'* ]] &&
-  tail -1 "$T/archive.log" | grep -qx "archive|--task|$ARC_TOPIC|--as|CLE-00|" &&
+  tail -1 "$T/archive.log" | grep -x "archive|--task|$ARC_TOPIC|--as|CLE-00|" >/dev/null &&
   pass "do_spl_topic_archive runs spool archive --task --as and prints the hub's answer" ||
   fail "archive (rc=$rc): $out / $(tail -1 "$T/archive.log")"
 out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$ARC_TOPIC MODE=unarchive DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 ]] && tail -1 "$T/archive.log" | grep -qx "archive|--task|$ARC_TOPIC|--as|CLE-00|--unarchive|" &&
+[[ $rc -eq 0 ]] && tail -1 "$T/archive.log" | grep -x "archive|--task|$ARC_TOPIC|--as|CLE-00|--unarchive|" >/dev/null &&
   pass "MODE=unarchive rides as --unarchive" || fail "unarchive (rc=$rc): $out / $(tail -1 "$T/archive.log")"
 for tok in "issue_topic:archived with its issue" "not_allowed:Who can archive topics" "not_found:never delivered to the desk"; do
   out=$(SNIPPET="$ARC" in_orc FAKE="$T/fakearchive" FAKE_LOG="$T/archive.log" FAKE_REFUSE="${tok%%:*}" TENANT_ID=t1 DESK_AGENT=CLE-00 \
@@ -695,8 +695,8 @@ done
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ DRY_RUN=0 2>&1); rc=$?
 [[ $rc -eq 0 && "$out" == *'"emoji": "⏸️"'* && "$out" == *'"mode": "add"'* && "$out" == *'"actors": ["CLE-00"]'* &&
    "$out" == *$'\n'"RESULT added emoji=⏸️ msg=0f8fad5b-d9cb-469f-a165-70867728950e task=$RX_TOPIC by=CLE-00"* ]] &&
-  tail -2 "$T/react.log" | head -1 | grep -qx "react|--task|$RX_TOPIC|--list|--as|CLE-00|" &&
-  tail -1 "$T/react.log" | grep -qx "react|--task|$RX_TOPIC|--emoji|⏸️|--as|CLE-00|" &&
+  tail -2 "$T/react.log" | sed -n 1p | grep -x "react|--task|$RX_TOPIC|--list|--as|CLE-00|" >/dev/null &&
+  tail -1 "$T/react.log" | grep -x "react|--task|$RX_TOPIC|--emoji|⏸️|--as|CLE-00|" >/dev/null &&
   pass "do_spl_react reads the mark, runs spool react --task --emoji --as, prints RESULT added" ||
   fail "react (rc=$rc): $out / $(tail -2 "$T/react.log")"
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_BEFORE='[{"emoji":"⏸️","actors":["CLE-00"]}]' TENANT_ID=t1 \
@@ -718,7 +718,7 @@ out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_LIST_REFUSE=not_found TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ MODE=check 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"RESULT failed"* && "$out" == *"never delivered to the desk"* ]] && pass "a refused check says RESULT failed and why" || fail "check refused (rc=$rc): $out"
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" TENANT_ID=t1 DESK_AGENT=CLE-00 TOPIC= MSG=$RX_MSG EMOJI=✅ MODE=remove DRY_RUN=0 2>&1); rc=$?
-[[ $rc -eq 0 && "$out" == *"RESULT absent emoji=✅"* ]] && tail -1 "$T/react.log" | grep -qx "react|--msg|$RX_MSG|--emoji|✅|--as|CLE-00|--remove|" &&
+[[ $rc -eq 0 && "$out" == *"RESULT absent emoji=✅"* ]] && tail -1 "$T/react.log" | grep -x "react|--msg|$RX_MSG|--emoji|✅|--as|CLE-00|--remove|" >/dev/null &&
   pass "MSG alone and MODE=remove ride as --msg / --remove (nothing was there: RESULT absent)" || fail "react by msg (rc=$rc): $out / $(tail -1 "$T/react.log")"
 out=$(SNIPPET="$RX" in_orc FAKE="$T/fakereact" FAKE_LOG="$T/react.log" FAKE_BEFORE='[{"emoji":"⏸️","actors":["CLE-00"]}]' TENANT_ID=t1 \
   DESK_AGENT=CLE-00 TOPIC=$RX_TOPIC EMOJI=⏸️ MODE=remove DRY_RUN=0 2>&1); rc=$?

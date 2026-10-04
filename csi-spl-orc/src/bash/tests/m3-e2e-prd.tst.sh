@@ -84,7 +84,7 @@ grep -q 'I=imap\.' <<<"$out1" && pass "IMAP host derived from the SMTP host" || 
 [[ -f "$st/imap-pass" && "$(stat -c %a "$st/imap-pass")" == 600 && "$(cat "$st/imap-pass")" == relay-app-password-s3cret ]] \
   && pass "relay password in a 0600 file" || fail "imap-pass file: $(stat -c %a "$st/imap-pass" 2>&1)"
 grep -q s3cret <<<"$out1$out2" && fail "the relay password reached the output" || pass "the relay password is in no output"
-grep 'secrets versions access' "$T/calls.log" | grep -qv -- '--account=' && fail "a secret read without --account" \
+grep 'secrets versions access' "$T/calls.log" | grep -v -- '--account=' >/dev/null && fail "a secret read without --account" \
   || { grep -q -- 'secrets versions access latest --secret=.* --account=stub-sa@example.com' "$T/calls.log" \
        && pass "secret read pins --account" || fail "no secret read: $(cat "$T/calls.log")"; }
 SNIPPET="M3_IMAP_PASS_FILE=$st/imap-pass spl_m3_imap_forget" in_orc >/dev/null 2>&1

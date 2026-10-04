@@ -180,7 +180,7 @@ send() {
   env "${e[@]}" SPOOL_ASKS_SYNC_CMD="${SYNC_CMD:-true}" bash "$SCRIPTS/spool-send.sh" --no-poke "$@"
 }
 jrn() { cat "$T/$1/spool/asks/$2.json" 2>/dev/null; }
-msgid() { sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p' <<<"$1" | head -1; }
+msgid() { sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p' <<<"$1" | sed -n 1p; }
 hubrow() { jq -c --arg i "$1" '.[] | select(.ask_id == $i)' "$T/hub/main.json" 2>/dev/null; }
 
 # 1. CONTROL ----------------------------------------------------------------

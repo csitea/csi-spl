@@ -46,8 +46,8 @@ wait
 [[ $(WANT_VERSION=1.1.0 bash "$S" >/dev/null 2>&1; echo $?) == 2 ]] && pass "no HUB_URL -> exit 2 (no default)" || fail "missing HUB_URL accepted"
 
 # the workflow runs the guard, with the repo .version, BEFORE firebase deploy
-g=$(grep -n 'wait-for-hub-version.sh' "$WF" | head -1 | cut -d: -f1)
-d=$(grep -n 'firebase-tools@13 deploy' "$WF" | head -1 | cut -d: -f1)
+g=$(grep -n 'wait-for-hub-version.sh' "$WF" | sed -n 1p | cut -d: -f1)
+d=$(grep -n 'firebase-tools@13 deploy' "$WF" | sed -n 1p | cut -d: -f1)
 [[ -n "$g" && -n "$d" && "$g" -lt "$d" ]] && pass "30_wui-build-deploy.yml waits for the hub before firebase deploy" || fail "workflow 30 does not run the guard before the deploy"
 grep -q 'WANT_VERSION: \${{ steps.cfg.outputs.want_version }}' "$WF" && pass "the guard reads the repo .version via cnf step" || fail "workflow 30 guard is not fed the repo .version"
 

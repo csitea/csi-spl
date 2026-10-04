@@ -114,7 +114,7 @@ fresh() {
   done
 }
 agent() { mkdir -p "$T/$1/proc/$2"; echo "$4" > "$T/$1/proc/$2/comm"; printf 'HOME=/x\0SPOOL_AGENT_ID=%s\0' "$3" > "$T/$1/proc/$2/environ"; }
-pid_of() { grep -lzx "SPOOL_AGENT_ID=$2" "$T/$1"/proc/*/environ 2>/dev/null | head -1 | xargs -r dirname | xargs -r basename; }
+pid_of() { grep -lzx "SPOOL_AGENT_ID=$2" "$T/$1"/proc/*/environ 2>/dev/null | sed -n 1p | xargs -r dirname | xargs -r basename; }
 hubc() { HUB_DIR="$T/hub" LEASE_NOW="$((T0 + ${NOW:-0}))" python3 "$T/bin/hub.py" "$@"; }
 peer_env() {
   SPOOL_ROOT="$T/$1" PEER_BOX="$1" LEASE_PROC_ROOT="$T/$1/proc" LEASE_PANE_CMD="$T/bin/pane" LEASE_ACTIVITY_CMD="$T/bin/act" \
@@ -150,7 +150,7 @@ mkdir -p "$T/empty"
 SPOOL_ROOT="$T/empty" PEER_BOX=sat PEER_SEAT=c-001 PEER_TICKS=1 PEER_HUB_CMD="$T/bin/hub" do_spl_peer_poll; r1=$?
 SPOOL_ROOT="$T/empty" PEER_BOX=sat do_spl_peer_ensure; r2=$?
 if [[ $r1 == 0 && $r2 == 0 && -z "$(find "$T/empty" -mindepth 1)" ]]; then pass "1 inert: no seat = poll and ensure exit 0 and write nothing"
-else fail "1 inert: rc $r1/$r2, wrote: $(find "$T/empty" -mindepth 1 | head -3)"; fi
+else fail "1 inert: rc $r1/$r2, wrote: $(find "$T/empty" -mindepth 1 | sed -n 1,3p)"; fi
 
 # ---- 2. pickup within 5 s, exactly one responsible -----------------------------
 fresh

@@ -17,7 +17,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 SD="$T/home/.stripe/.csi/.spl"; mkdir -p "$SD" "$T/bin" "$T/st"
-rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | head -c 24; }
+rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c 1-24; }
 p_sk=sk; SK="${p_sk}_test_$(rnd)"
 printf 'STRIPE_SECRET_KEY=%s\n' "$SK" >"$SD/stripe-dev.env"; chmod 600 "$SD/stripe-dev.env"
 

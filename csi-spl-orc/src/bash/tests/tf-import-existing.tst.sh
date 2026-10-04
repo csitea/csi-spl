@@ -118,7 +118,7 @@ for s in 020-gcp-relay-bucket 040-cloud-sql-postgres; do
     n=3; [[ $s == 040-* ]] && n=4 # 040: + the 017 T029 owner DSN slot
     [[ $rc -eq 0 && "$out" == *"imported=$n skipped=0 failed=0"* ]] && pass "$s $e: $n imported" || fail "$s $e: rc=$rc $(tail -3 <<<"$out")"
     [[ $(command grep -c . "$T/docker.log") -eq $((n + 1)) ]] && pass "$s $e: 1 state list + $n imports" || fail "$s $e: calls: $(cat "$T/docker.log")"
-    command grep -v "^EXEC $CON ./run -a do_tf_\(state_list\|import\) | ORG=csi APP=spl ENV=$e STEP=$s " "$T/docker.log" | command grep -q . \
+    command grep -v "^EXEC $CON ./run -a do_tf_\(state_list\|import\) | ORG=csi APP=spl ENV=$e STEP=$s " "$T/docker.log" | command grep . >/dev/null \
       && fail "$s $e: an exec outside the contract: $(cat "$T/docker.log")" || pass "$s $e: every exec = tf-runner, state_list|import, ORG/APP/ENV/STEP"
     command grep -qE 'apply|destroy|taint|state_(rm|push|remove)' "$T/docker.log" && fail "$s $e: mutating action" || pass "$s $e: no apply/destroy"
   done

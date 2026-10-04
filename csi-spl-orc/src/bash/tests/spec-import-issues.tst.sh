@@ -379,12 +379,12 @@ do_log() { printf '%s\n' "$*"; }
 # shellcheck disable=SC1090
 source "$PROJ_ROOT/src/bash/run/spl-spec-import-issues.func.sh"
 off=$(SPEC_IMPORT_OFFLINE=1 SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
-[[ "$off" == *"| 001 |"* && "$off" == *"| 026 |"* && "$off" == *"Sample titles:"* ]] && pass "offline action prints the table" || { fail "offline action"; printf '%s\n' "$off" | head -n 20; }
+[[ "$off" == *"| 001 |"* && "$off" == *"| 026 |"* && "$off" == *"Sample titles:"* ]] && pass "offline action prints the table" || { fail "offline action"; printf '%s\n' "$off" | sed -n 1,20p; }
 
 # SPEC_IMPORT_SPECS filters the OFFLINE run too (it used to be ignored, planning
 # every spec — a "056 only" run would then have created ~1000 issues).
 off1=$(SPEC_IMPORT_OFFLINE=1 SPEC_IMPORT_SPECS=026 SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
-[[ "$off1" == *"| 026 |"* && "$off1" != *"| 001 |"* ]] && pass "offline honours SPEC_IMPORT_SPECS" || { fail "offline SPEC_IMPORT_SPECS ignored"; printf '%s\n' "$off1" | head -n 20; }
+[[ "$off1" == *"| 026 |"* && "$off1" != *"| 001 |"* ]] && pass "offline honours SPEC_IMPORT_SPECS" || { fail "offline SPEC_IMPORT_SPECS ignored"; printf '%s\n' "$off1" | sed -n 1,20p; }
 
 # The same filter on the LIVE dry-run path (parse --only), where the plan.json
 # is built: only the wanted spec's rows survive.
@@ -485,7 +485,7 @@ PY
 [[ $? -eq 0 ]] && pass "doc import" || fail "doc import"
 
 offd=$(SPEC_IMPORT_OFFLINE=1 SPEC_IMPORT_DOCS=1 SPEC_DIR="$DOCFIX" PROJ_PATH="$PROJ_ROOT" do_spl_spec_import_issues 2>&1) || true
-[[ "$offd" == *"| 002 | 0 | 0 | 0 | 1 |"* ]] && pass "offline SPEC_IMPORT_DOCS counts docs" || { fail "offline SPEC_IMPORT_DOCS"; printf '%s\n' "$offd" | head -n 20; }
+[[ "$offd" == *"| 002 | 0 | 0 | 0 | 1 |"* ]] && pass "offline SPEC_IMPORT_DOCS counts docs" || { fail "offline SPEC_IMPORT_DOCS"; printf '%s\n' "$offd" | sed -n 1,20p; }
 
 # A planted first-set status name must fail the suite: the read-only issue list
 # and the create/update calls speak the hub's set (eval|todo|wip|diss|...), so a

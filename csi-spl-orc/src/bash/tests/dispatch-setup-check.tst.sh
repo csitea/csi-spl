@@ -105,7 +105,7 @@ grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run 
   pass "2. the settings allow reply / post / archive as the seat itself + the unanswered sweep, valid JSON" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"
 for id in c-002 c-003; do touch -d '2025-12-31 00:00:00' "$R-wt/$id/.claude/settings.local.json"; done
 setup >"$T/o" 2>&1
-grep -v '^PLAN lease-loops' "$T/o" | grep -q '^PLAN' &&
+grep -v '^PLAN lease-loops' "$T/o" | grep '^PLAN' >/dev/null &&
   fail "2. a complete box still plans: $(grep '^PLAN' "$T/o")" || pass "2. a re-run on a complete box plans nothing but the ensure"
 grep -q '^RELAUNCH' "$T/o" && fail "2. RELAUNCH on older settings" || pass "2. settings older than the session: no RELAUNCH"
 # fleet mode (CLE-77911): DISPATCH_FLEET writes the fleet lines; a re-run without it keeps them
@@ -307,12 +307,12 @@ gap "the dispatcher rotation never ran (FR-072)" 'dispatch rotation \| never ran
 
 # --- 9. the desk-reply rule matches the taught command ------------------------------------------
 b="$S/dispatch/briefs/brief-dispatcher-c-002.md"
-taught="$(grep -o '`sudo -u boxuser env ENV=prd [^`]*do_spl_desk_reply`' "$b" | head -1)"
+taught="$(grep -o '`sudo -u boxuser env ENV=prd [^`]*do_spl_desk_reply`' "$b" | sed -n 1p)"
 [[ "$taught" == *"DESK_AGENT=c-002 "*"DESK_BODY_FILE=<file> "* && "$taught" != *'$('* && "$taught" != *'&&'* ]] &&
   grep -qF "You post from \`$R-wt/c-002/csi-spl-orc\`" "$b" &&
   pass "9. the brief teaches one command, body from a file, run from the seat's own worktree" || fail "9. taught: '$taught' $(grep -n do_spl_desk_reply "$b")"
 nine() { check DISPATCH_CHECK_SUBS=0 DISPATCH_SWEEP=0 DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1; grep 'desk-reply permission' "$T/o"; }
-nine | grep -q '| c-002 desk-reply permission | loaded | ok |' &&
+nine | grep '| c-002 desk-reply permission | loaded | ok |' >/dev/null &&
   pass "9. the rule matches the taught command: ok" || fail "9. match: $(grep desk-reply "$T/o")"
 # the control: the compound form c-002 was refused on (cd outside the worktree, body via $(cat))
 cp "$b" "$T/b.keep"
@@ -323,14 +323,14 @@ s = re.sub(r"`sudo -u boxuser env ENV=prd [^`]*do_spl_desk_reply`",
            lambda m: '`cd /x/csi-spl-orc && sudo -u boxuser env ENV=prd TENANT_ID=<workspace> DESK_AGENT=c-002 DRY_RUN=0 DESK_BODY="$(cat <file>)" ./run -a do_spl_desk_reply`', s)
 open(sys.argv[1], "w").write(s)
 PY2
-nine | grep -qE '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' &&
+nine | grep -E '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' >/dev/null &&
   pass "9. control: a compound taught command -> GAP" || fail "9. compound: $(grep desk-reply "$T/o")"
 cp "$T/b.keep" "$b"
 # a rule that matches no taught command (another seat's id)
 cp "$R-wt/c-002/.claude/settings.local.json" "$T/s.keep"
 sed -i 's/DESK_AGENT=c-002/DESK_AGENT=c-003/' "$R-wt/c-002/.claude/settings.local.json"
 touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
-nine | grep -qE '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' &&
+nine | grep -E '\| c-002 desk-reply permission \| .*\| GAP the taught command is not one command the rule allows' >/dev/null &&
   pass "9. a rule that matches no taught command -> GAP" || fail "9. rule: $(grep desk-reply "$T/o")"
 cp "$T/s.keep" "$R-wt/c-002/.claude/settings.local.json"; touch -d '2025-12-31 00:00:00' "$R-wt/c-002/.claude/settings.local.json"
 

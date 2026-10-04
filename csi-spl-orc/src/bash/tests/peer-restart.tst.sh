@@ -214,7 +214,7 @@ mkdir -p "$T/empty"
 SPOOL_ROOT="$T/empty" LEASE_NOW="$T0" DRY_RUN=0 "$T/bin/act" do_spl_peer_restart > "$T/o" 2>&1; r1=$?
 SPOOL_ROOT="$T/empty" LEASE_NOW="$(at 55)" DRY_RUN=0 "$T/bin/act" do_spl_peer_distill >> "$T/o" 2>&1; r2=$?
 [[ $r1 == 0 && $r2 == 0 && -z "$(find "$T/empty" -mindepth 1)" ]] && pass "2. inert: no seat = restart and distill exit 0 and write nothing" ||
-  fail "2. inert rc $r1/$r2, wrote: $(find "$T/empty" -mindepth 1 | head -3) $(cat "$T/o")"
+  fail "2. inert rc $r1/$r2, wrote: $(find "$T/empty" -mindepth 1 | sed -n 1,3p) $(cat "$T/o")"
 
 # --- 3. a restart -------------------------------------------------------------------
 world
@@ -223,7 +223,7 @@ lpid="$(cat "$S/peer/c-001/poll.pid")"
 printf 'I was routing topic 1068e306.\nI hold msgs 8896800b and f2bf978c.\nWaiting on c-118 for the L3 fix.\nNext: answer HUM-10.\n' > "$T/sum.md"
 summary c-001 cat "$T/sum.md"
 LEASE_NOW="$T0" DRY_RUN=0 "$T/bin/act" do_spl_peer_restart > "$T/o" 2>&1; rc=$?
-seed="$(ls "$S/c-001/handoff/"*-peer-c-001.seed.md 2>/dev/null | head -1)"
+seed="$(ls "$S/c-001/handoff/"*-peer-c-001.seed.md 2>/dev/null | sed -n 1p)"
 hand="${seed%.seed.md}.md"
 [[ $rc == 0 ]] && alive 3001 && ! alive 101 && grep -q ' DONE OK c-001@sat is pid 3001 in %3001' "$T/o" &&
   pass "3. restart at :00: c-001 is the fresh pid 3001, the old pid 101 is gone" || fail "3. restart rc=$rc: $(cat "$T/o")"
@@ -237,7 +237,7 @@ waitfor "$T/run.log" '^do_spl_peer_poll PEER_SEAT=c-001 ' && pass "3. its poll l
   pass "3. the handoff: the 060 sections, no lease lines" || fail "3. handoff $hand: $(head -12 "$hand" 2>/dev/null)"
 cmp -s <(between "$seed") "$T/sum.md" && grep -q '^## B. The mechanical handoff' "$seed" && [[ -e "$S/c-001/handoff/distilled.${seed##*/}" || -n "$(ls "$S/c-001/handoff/"distilled.*-peer-c-001.md 2>/dev/null)" ]] &&
   [[ ! -e "$S/c-001/handoff/distilled.md" ]] && pass "3. the seed holds the summary VERBATIM ($(wc -c < "$T/sum.md") bytes), then the handoff; the summary is consumed" ||
-  fail "3. seed: $(cat "$seed" 2>/dev/null | head -20)"
+  fail "3. seed: $(cat "$seed" 2>/dev/null | sed -n 1,20p)"
 grep -q 'keys %1 /exit-clean' "$T/tmux/log" && grep -q 'kill %1' "$T/tmux/log" && [[ "$(win %3001)" == c-001@sat ]] &&
   pass "3. the old session got /exit-clean, its window is closed, the new one is c-001@sat" || fail "3. retire: $(cat "$T/tmux/log")"
 [[ "$(grep -c -- '-peer-c-001 ' "$D/rotate.log")" -ge 6 ]] && ! grep -q 'distill-missing' "$D/rotate.log" &&

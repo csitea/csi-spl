@@ -23,7 +23,7 @@ fails=0
 SD="$T/home/.stripe/.csi/.spl" RD="$T/home/.stripe/.csi/.rel" PD="$T/home/.paypal/.csi/.spl"
 mkdir -p "$T/store" "$SD" "$RD" "$PD"
 
-rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | head -c 24; }
+rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c 1-24; }
 p_sk=sk p_pk=pk p_wh=whsec
 SK_TEST="${p_sk}_test_$(rnd)" SK_LIVE="${p_sk}_live_$(rnd)" WH="${p_wh}_$(rnd)" PP="pp$(rnd)"
 PK_TEST="${p_pk}_test_$(rnd)" PK_LIVE="${p_pk}_live_$(rnd)"
@@ -132,7 +132,7 @@ all_out="$(cat "$T/argv" "$T/allout")"
 leak=0
 for v in "$SK_TEST" "$SK_LIVE" "$SK_LIVE2" "$WH" "$PP" "$REL_WH"; do grep -qF "$v" <<<"$all_out" && leak=1; done
 (( leak == 0 )) && pass "no secret value in any output or gcloud argv" || fail "a secret value leaked into output or argv"
-[[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | head -2)"
+[[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | sed -n 1,2p)"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

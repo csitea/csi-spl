@@ -152,7 +152,7 @@ out=$(SNIPPET=do_spl_desk_up_all in_orc TENANT_ID=t1 DESK_RETIRE=0 STUB_TMUX_WIN
 [[ "$out" == *"would NOT retire"* ]] && pass "DESK_RETIRE=0 keeps a dead agent announced" || fail "DESK_RETIRE=0: $out"
 # tmux IS called - that is how a live agent is found - so the question is
 # whether anything that reaches the CLOUD was called.
-out_of_band="$(grep -v '^tmux ' "$T/calls.log" | head -3)"
+out_of_band="$(grep -v '^tmux ' "$T/calls.log" | sed -n 1,3p)"
 [[ -z "$out_of_band" ]] && pass "no gcloud, curl, docker or spool call in the dry run" ||
   fail "a dry run called out: $out_of_band"
 ( PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" gcloud version >/dev/null 2>&1 )
@@ -163,7 +163,7 @@ printf 'an unread message\n' >"$D/spool/CLE-999/inbox.json"
 SNIPPET="spl_desk_retire '$D' CLE-999" in_orc >/dev/null 2>&1
 [[ $? -eq 0 ]] && pass "a dead agent is retired" || fail "spl_desk_retire failed"
 [[ ! -d "$D/spool/CLE-999" ]] && pass "…out of the dir scan the box announces from" || fail "the dir is still in the scan"
-kept=$(find "$D/retired" -name inbox.json 2>/dev/null | head -1)
+kept=$(find "$D/retired" -name inbox.json 2>/dev/null | sed -n 1p)
 [[ -s "$kept" ]] && pass "…and its messages are kept, not deleted (the inbox is the record)" ||
   fail "the retired agent's inbox is gone"
 SNIPPET="spl_desk_retire '$D' CLE-404" in_orc >/dev/null 2>&1
@@ -213,7 +213,7 @@ out=$(svc DRY_RUN=1)
 [[ "$out" == *"*/5 * * * * ENV=dev"* ]] &&
   pass "the dry run shows the REAL schedule, unglobbed" || fail "the shown schedule was globbed: $out"
 hasdir=0
-for f in $(ls "$PROJ_ROOT" 2>/dev/null | head -3); do [[ "$out" == *" $f "* ]] && hasdir=1; done
+for f in $(ls "$PROJ_ROOT" 2>/dev/null | sed -n 1,3p); do [[ "$out" == *" $f "* ]] && hasdir=1; done
 [[ "$hasdir" == 0 ]] && pass "…and no directory listing leaked into it" || fail "a directory listing leaked into the shown line: $out"
 [[ "$(wc -c <"$T/crontab.txt")" == 0 ]] && pass "…and it wrote nothing" || fail "the dry run wrote to the crontab"
 out=$(svc DRY_RUN=0)

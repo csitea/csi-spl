@@ -82,7 +82,7 @@ out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0)"; rc=$?
 [ "$rc" -eq 0 ] && one_per_tag "$CT" && grep -q 'other:job' "$CT" && pass "2. install: one line per tag, the other line kept" || fail "2. install (rc $rc: $out; $(cat "$CT"))"
 grep -q '^spl_host_spool$' "$T/calls.log" && grep -q '^pool start DRY_RUN=0$' "$T/calls.log" && grep -q 'OK pool status: every row' <<<"$out" \
   && grep -q '^DONE changed' <<<"$out" && pass "2. ...the binary built, the pool started, status all running" || fail "2. steps ($(calls); $out)"
-[ "$(grep -n '' "$T/calls.log" | grep -m1 'spl_host_spool' | cut -d: -f1)" -lt "$(grep -n '' "$T/calls.log" | grep -m1 installer | cut -d: -f1)" ] \
+[ "$(grep -n -m1 'spl_host_spool' "$T/calls.log" | cut -d: -f1)" -lt "$(grep -n -m1 installer "$T/calls.log" | cut -d: -f1)" ] \
   && pass "2. ...the binary is built before the crons are installed" || fail "2. order ($(calls))"
 printf '%s\n' "$(cat "$CT")" "* * * * * y # csi-spl:orch-rotate" >"$T/ct.dup"
 one_per_tag "$T/ct.dup" && fail "2. control: one_per_tag accepted a duplicated tag" || pass "2. control: one_per_tag rejects a duplicated tag"

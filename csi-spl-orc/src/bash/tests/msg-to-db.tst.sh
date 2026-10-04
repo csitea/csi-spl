@@ -60,7 +60,7 @@ done
 
 # --- 2. SQL carries no body / envelope bytes ---------------------------------------
 sql=$(SNIPPET='spl_db_message_sql "m.tenant_id = '"'"'t1'"'"'"' in_orc 2>&1)
-grep -qE "'body'|m\.env\b|env_sig|'env'" <<<"$sql" && fail "SQL selects body/env: $(grep -E "body|env" <<<"$sql" | head -2)" \
+grep -qE "'body'|m\.env\b|env_sig|'env'" <<<"$sql" && fail "SQL selects body/env: $(grep -E "body|env" <<<"$sql" | sed -n 1,2p)" \
   || pass "SQL selects no body, env or env_sig"
 grep -q "body_sha256_16" <<<"$sql" && grep -q "FROM deliveries d" <<<"$sql" && pass "SQL: body hash + deliveries" \
   || fail "SQL lacks the hash or deliveries"

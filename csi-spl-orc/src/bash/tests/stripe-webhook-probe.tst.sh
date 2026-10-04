@@ -18,7 +18,7 @@ source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 SD="$T/home/.stripe/.csi/.spl"
 mkdir -p "$SD" "$T/bin" "$T/api"
-rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | head -c 24; }
+rnd() { head -c 24 /dev/urandom | base64 -w0 | tr -dc 'A-Za-z0-9' | cut -c 1-24; }
 p_sk=sk
 SK_TEST="${p_sk}_test_$(rnd)"
 printf 'STRIPE_SECRET_KEY=%s\n' "$SK_TEST" >"$SD/stripe-dev.env"; chmod 600 "$SD/stripe-dev.env"
@@ -83,7 +83,7 @@ run_act() {  # [VAR=value ...]
 }
 
 # the endpoint URL the action derives from cnf (read off its dry-run log)
-EP_URL="$(run_act NO_EP=1 | sed -n 's/.*tagged managed_by=csi-spl role=hub on \([^ ]*\).*/\1/p' | head -1)"
+EP_URL="$(run_act NO_EP=1 | sed -n 's/.*tagged managed_by=csi-spl role=hub on \([^ ]*\).*/\1/p' | sed -n 1p)"
 [[ "$EP_URL" == https://*/api/v1/webhooks/payment/stripe ]] && pass "the probe targets https://<api_fqdn>/api/v1/webhooks/payment/stripe" || fail "url: '$EP_URL'"
 export EP_URL
 

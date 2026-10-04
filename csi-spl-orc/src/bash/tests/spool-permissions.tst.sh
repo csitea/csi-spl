@@ -47,7 +47,7 @@ outsider_reads() { sudo -n -u nobody cat "$1/CLE-01/inbox/m.json" >/dev/null 2>&
 outsider_injects() { sudo -n -u nobody sh -c "echo forged >'$1/CLE-01/inbox/evil.json'" 2>/dev/null; }
 
 if sudo -n true 2>/dev/null && command -v setfacl >/dev/null && id nobody >/dev/null 2>&1 \
-   && ! id -nG nobody | tr ' ' '\n' | grep -qx "$G"; then
+   && ! id -nG nobody | tr ' ' '\n' | grep -x "$G" >/dev/null; then
   # --- 1. CONTROL: the old model is open -----------------------------------------
   d="$T/old"
   SNIPPET='do_provision_spool_root' in_orc SPOOL_ROOT_DIR="$d" SPOOL_ROOT_GROUP="" SPOOL_ROOT_OTHER=rwx >"$T/p1.out" 2>&1 \

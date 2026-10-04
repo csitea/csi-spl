@@ -85,7 +85,7 @@ mk="$PROJ_ROOT/src/make/tf-tasks.func.mk"
 if grep -q 'do_check_hub_image_regress' "$mk" && grep -q '030-cloud-run-hub' "$mk"; then
   pass "make do-provision gates step 030 on the precondition"
 else fail "make do-provision does not call do_check_hub_image_regress for 030"; fi
-if awk '/^do-provision:/,/^$/' "$mk" | grep -q 'do_check_hub_image_regress'; then
+if awk '/^do-provision:/,/^$/' "$mk" | grep 'do_check_hub_image_regress' >/dev/null; then
   pass "the gate sits in the do-provision recipe (before the apply)"
 else fail "the gate is not inside the do-provision recipe"; fi
 

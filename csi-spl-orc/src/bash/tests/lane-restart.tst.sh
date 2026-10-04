@@ -185,7 +185,7 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q ' DONE OK c-900 restarted from ' "$T/o" && pass "3. restarted (DONE)" || fail "3. rc=$rc $(cat "$T/o")"
 [[ -f "$DIST" && "$(stat -c %a "$DIST")" == 640 ]] && grep -q 'brief: /var/tmp/ctx-063-05-lane-restart.md' "$DIST" &&
   pass "3. the distil is $DIST, mode 0640" || fail "3. distil: $(ls -l "$H"/*/ 2>&1)"
-sed -n '/^## 1c/,/^## 2/p' "$DIST" | grep -c -E 'tried a sed-only patch|failed the sed patch' | grep -qx 2 && ! sed -n '/^## 1c/,/^## 2/p' "$DIST" | grep -q 'decided' &&
+sed -n '/^## 1c/,/^## 2/p' "$DIST" | grep -c -E 'tried a sed-only patch|failed the sed patch' | grep -x 2 >/dev/null && ! sed -n '/^## 1c/,/^## 2/p' "$DIST" | grep 'decided' >/dev/null &&
   pass "3. 1c lists every tried / failed line, nothing else" || fail "3. 1c: $(sed -n '/^## 1c/,/^## 2/p' "$DIST")"
 grep -q 'working on the gate' "$H/ctx-063-05-lane-restart/c-900.pane.txt" && ! grep -q 'pane.txt' "$DIST" "$T/tmux/respawn.cmd" &&
   pass "3. the raw pane only in c-900.pane.txt, never named by the distil or the seed" || fail "3. pane.txt"

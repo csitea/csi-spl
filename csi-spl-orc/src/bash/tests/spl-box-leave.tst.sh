@@ -158,7 +158,7 @@ run do_spl_box_join
 cmp -s "$D/lease.conf" "$T/lease.conf.orig" && [[ ! -e "$D/box-leave/lease.conf.before" ]] &&
   pass "3. lease.conf back byte for byte" || fail "3. lease.conf: $(cat "$D/lease.conf")"
 [[ "$(ensc)" == 2 ]] && pass "3. the loop restarted on the restored ranking" || fail "3. ensure count $(ensc)"
-last | grep -qx 'JOINED: pc takes agents again; lease rank orch 1/2 dispatch 1/2' &&
+last | grep -x 'JOINED: pc takes agents again; lease rank orch 1/2 dispatch 1/2' >/dev/null &&
   pass "3. one JOINED status line" || fail "3. output: $(cat "$T/o")"
 spawn
 [[ "$(cat "$T/src")" != 6 ]] && ! grep -q draining "$T/so" && pass "3. spawn-window no longer refuses after join" || fail "3. spawn: $(cat "$T/so")"
@@ -218,7 +218,7 @@ run do_spl_box_leave DRY_RUN=1
 [[ "$(rc)" == 0 && ! -e "$D/box.leave" && "$(sentc)" == 0 && "$(ensc)" == "$e0" && "$(hubh orch)" == c-001@pc ]] &&
   cmp -s "$D/lease.conf" "$T/lease.conf.orig" && pass "7. leave DRY_RUN=1: nothing written, sent or handed" || fail "7. leave dry: $(cat "$T/o")"
 has "WOULD refuse every spawn" && has "WOULD LEASE_PRIORITY=pc,sat -> sat,pc" && has "orch: WOULD hand c-001@pc -> c-001@sat" &&
-  has "c-302: WOULD send the drain note" && last | grep -qx 'DRY_RUN=1: nothing changed; right now: NOT SAFE: 1 agents still running' &&
+  has "c-302: WOULD send the drain note" && last | grep -x 'DRY_RUN=1: nothing changed; right now: NOT SAFE: 1 agents still running' >/dev/null &&
   pass "7. leave DRY_RUN=1 prints what it would do" || fail "7. dry output: $(cat "$T/o")"
 
 # ---- 8. join on a machine that never left ---------------------------------------

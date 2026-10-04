@@ -66,7 +66,7 @@ BIN="$T/spool"
 PG_CTR="spl-topic-delete-pg-$$"
 docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool \
   -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
-PGPORT="$(docker port "$PG_CTR" 5432 | head -1 | sed 's/.*://')"
+PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
 for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
 OWNER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
 RT_DSN="postgres://spool_rt:rt@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"

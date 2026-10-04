@@ -179,7 +179,7 @@ if command -v docker >/dev/null && docker image inspect "$IMG" >/dev/null 2>&1 &
   PG_CTR="spl-owner-split-tst-$$"
   docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=su -e POSTGRES_PASSWORD=su -e POSTGRES_DB=spool \
     -p 127.0.0.1::5432 "$IMG" >/dev/null
-  PORT=$(docker port "$PG_CTR" 5432 | head -1 | sed 's/.*://')
+  PORT=$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')
   for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U su -d spool -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
   sleep 1
   docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U su -d spool >/dev/null <<'EOF'
@@ -203,11 +203,11 @@ EOF
   ODSN="postgres://own:own@127.0.0.1:$PORT/spool"
   out=$(real "ver=\$(printf %s \"\$RPW\" | spl_scram_verifier); spl_db_roles_psql '$ODSN' runtime-role.sql \"\\\\set runtime_verifier '\$ver'\" && spl_db_roles_psql '$ODSN' runtime-grants.sql"); rc=$?
   [[ $rc -eq 0 ]] && pass "6. runtime-role.sql + runtime-grants.sql run as a non-superuser owner" || fail "6. roles sql: rc=$rc $out"
-  PGPASSWORD="$RPW" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c 'select 1' 2>/dev/null | grep -qx 1 \
+  PGPASSWORD="$RPW" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c 'select 1' 2>/dev/null | grep -x 1 >/dev/null \
     && pass "6. the runtime login authenticates with the password behind the client-side SCRAM verifier" || fail "6. SCRAM login failed"
   PGPASSWORD="wrong" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c 'select 1' >/dev/null 2>&1 \
     && fail "6. CONTROL: a wrong password logged in" || pass "6. CONTROL: a wrong password is refused"
-  docker exec "$PG_CTR" psql -At -U su -d spool -c "select rolpassword like 'SCRAM-SHA-256\$4096:%' from pg_authid where rolname='rt'" | grep -qx t \
+  docker exec "$PG_CTR" psql -At -U su -d spool -c "select rolpassword like 'SCRAM-SHA-256\$4096:%' from pg_authid where rolname='rt'" | grep -x t >/dev/null \
     && pass "6. the server stores the verifier (never saw the clear text)" || fail "6. stored password is not the SCRAM verifier"
   out=$(real "spl_db_runtime_verify 'postgres://rt:$RPW@127.0.0.1:$PORT/spool'"); rc=$?
   [[ $rc -eq 0 ]] && grep -q '"owns" : 0\|"owns":0\|owns 0' <<<"$out" && grep -q 'OK refused as rt: ALTER TABLE messages' <<<"$out" && grep -q 'OK refused as rt: GRANT "own"' <<<"$out" \
@@ -216,7 +216,7 @@ EOF
   [[ $rc -ne 0 ]] && grep -q 'NOT split' <<<"$out" && pass "6. CONTROL: the owner itself fails spl_db_runtime_verify" || fail "6. owner control: rc=$rc $out"
   out=$(real "spl_db_roles_psql '$ODSN' runtime-grants.sql && echo again-ok"); grep -q again-ok <<<"$out" && pass "6. runtime-grants.sql is idempotent" || fail "6. re-grant: $out"
   docker exec -i "$PG_CTR" psql -q -v ON_ERROR_STOP=1 -U su -d spool -c "SET ROLE own; CREATE TABLE later (tenant_id text)" >/dev/null
-  PGPASSWORD="$RPW" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c "insert into later values ('t1') returning 1" 2>/dev/null | grep -qx 1 \
+  PGPASSWORD="$RPW" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c "insert into later values ('t1') returning 1" 2>/dev/null | grep -x 1 >/dev/null \
     && pass "6. default privileges: a table the owner creates later is writable by the runtime login" || fail "6. default privileges"
   PGPASSWORD="$RPW" psql -X -q -At -h 127.0.0.1 -p "$PORT" -U rt -d spool -c "insert into spool_schema_migrations values ('x')" >/dev/null 2>&1 \
     && fail "6. the runtime login wrote the migration ledger" || pass "6. the runtime login cannot write spool_schema_migrations"

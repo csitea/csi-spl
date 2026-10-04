@@ -108,7 +108,7 @@ if grep -qF "${PW// /}" <<<"$out" || grep -qF "${PW// /}" "$T/argv" "$T/argv.cur
 n=$(adds); out=$(run_act do_spl_mail_secret_seed DRY_RUN=0)
 [[ $(adds) -eq $n ]] && pass "mail: a re-run with the same password adds nothing" || fail "mail re-run added"
 
-[[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | head -2)"
+[[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | sed -n 1,2p)"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -104,7 +104,7 @@ run_gandi() {
 api=$(mktemp)
 out=$(run_gandi "$api" do_gandi_set_nameservers \
       NAMESERVERS=ns-cloud-x1.googledomains.com,ns-cloud-x2.googledomains.com 2>&1) || true
-if echo "$out" | grep -q 'dry-run' && [[ ! -s "$api" ]]; then
+if echo "$out" | grep 'dry-run' >/dev/null && [[ ! -s "$api" ]]; then
   pass "set-nameservers dry-runs without CONFIRM and does not call the API"
 else
   fail "set-nameservers without CONFIRM called the API or did not dry-run (out=$out api=$(cat "$api"))"
@@ -121,7 +121,7 @@ fi
 
 api=$(mktemp)
 out=$(run_gandi "$api" do_gandi_set_nameservers CONFIRM=yes NAMESERVERS=ns-cloud-x1.googledomains.com 2>&1); rc=$?
-if [[ $rc -ne 0 && ! -s "$api" ]] && echo "$out" | grep -q 'at least two'; then
+if [[ $rc -ne 0 && ! -s "$api" ]] && echo "$out" | grep 'at least two' >/dev/null; then
   pass "control: a single name server is refused before any API call"
 else
   fail "control: single NS rc=$rc out=$out api=$(cat "$api")"
@@ -130,7 +130,7 @@ fi
 api=$(mktemp)
 out=$(run_gandi "$api" do_gandi_set_dns_record CONFIRM=yes \
       RRSET_NAME=@ RRSET_TYPE=A RRSET_VALUES=192.0.2.10 2>&1) || true
-if echo "$out" | grep -q 'refusing to change' && [[ ! -s "$api" ]]; then
+if echo "$out" | grep 'refusing to change' >/dev/null && [[ ! -s "$api" ]]; then
   pass "set-dns-record refuses apex @ A (Gandi parking)"
 else
   fail "set-dns-record allowed apex @ A (out=$out)"
@@ -139,7 +139,7 @@ fi
 api=$(mktemp)
 out=$(run_gandi "$api" do_gandi_set_dns_record \
       RRSET_NAME='*' RRSET_TYPE=A RRSET_VALUES=192.0.2.10 2>&1) || true
-if echo "$out" | grep -q 'dry-run' && [[ ! -s "$api" ]]; then
+if echo "$out" | grep 'dry-run' >/dev/null && [[ ! -s "$api" ]]; then
   pass "set-dns-record dry-runs * A without CONFIRM=yes"
 else
   fail "set-dns-record * A dry-run leaked an API call (out=$out)"

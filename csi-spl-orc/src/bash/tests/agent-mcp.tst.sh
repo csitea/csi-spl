@@ -62,7 +62,7 @@ env -i PATH=/usr/bin:/bin SPOOL_ROOT="$D/spool" SPOOL_KEYS_DIR="$D/keys" SPOOL_B
   bash -c 'exec -a "spool hub-run" sleep 60' &
 SIDE=$!
 echo "$SIDE" >"$D/spool/.hub/hub-run.pid"
-for _ in $(seq 50); do tr '\0' ' ' <"/proc/$SIDE/cmdline" 2>/dev/null | grep -q ' hub-run' && break; sleep 0.1; done
+for _ in $(seq 50); do tr '\0' ' ' <"/proc/$SIDE/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null && break; sleep 0.1; done
 box --as CLE-07 dev; rc=$?
 if [[ $rc -eq 0 && -s "$T/served" ]]; then
   grep -qx 'ARGV mcp --as CLE-07' "$T/served" && pass "3. runs spool mcp --as CLE-07" || fail "3. argv: $(head -1 "$T/served")"

@@ -62,11 +62,11 @@ SNIPPET='spl_db_compact_check messages 1 0 5s 10min' in_orc ENV=tst >/dev/null 2
 # --- 3. the rewrite itself ---------------------------------------------------------------
 grep -q -- '-c "VACUUM (FULL, ANALYZE) $table"' "$FN" && pass "VACUUM FULL runs as its own psql -c" || fail "no standalone VACUUM -c"
 grep -qiE 'BEGIN|START TRANSACTION' "$FN" && fail "a transaction block around VACUUM" || pass "no transaction block"
-lt=$(grep -n -- "-c \"SET lock_timeout" "$FN" | head -1 | cut -d: -f1); vf=$(grep -n -- '-c "VACUUM (FULL, ANALYZE) \$table"' "$FN" | head -1 | cut -d: -f1)
+lt=$(grep -n -- "-c \"SET lock_timeout" "$FN" | sed -n 1p | cut -d: -f1); vf=$(grep -n -- '-c "VACUUM (FULL, ANALYZE) \$table"' "$FN" | sed -n 1p | cut -d: -f1)
 [[ -n "$lt" && -n "$vf" ]] && (( lt < vf )) && pass "lock_timeout is set before the VACUUM" || fail "lock_timeout order ($lt, $vf)"
 dry=$(grep -n 'if \[\[ "$dry" == 1 \]\]' "$FN" | cut -d: -f1)
 [[ -n "$dry" ]] && (( dry < vf )) && pass "the VACUUM sits behind the DRY_RUN branch" || fail "DRY_RUN branch order"
-own=$(grep -n 'not the owner' "$FN" | cut -d: -f1); px=$(grep -n 'spl_sql_proxy_start' "$FN" | head -1 | cut -d: -f1)
+own=$(grep -n 'not the owner' "$FN" | cut -d: -f1); px=$(grep -n 'spl_sql_proxy_start' "$FN" | sed -n 1p | cut -d: -f1)
 (( own < px )) && pass "the owner login is checked before the proxy starts" || fail "owner check order"
 
 # --- 4. the size SQL ----------------------------------------------------------------------

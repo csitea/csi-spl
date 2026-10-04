@@ -104,10 +104,10 @@ owner=$(yq -r '.env.gcp.gcp_account_owner_email // ""' "$APP_ROOT"/*-cnf/*/all.e
 
 n=$(grep -c '^gcloud ' "$T/calls.log")
 [[ $n -ge 10 ]] && pass "control: the stub recorded $n gcloud calls" || fail "control: stub recorded only $n calls"
-if grep -vq -- '--account=op@example.com' "$T/calls.log"; then fail "a gcloud call without --account: $(grep -v -- '--account=' "$T/calls.log" | head -1)"
+if grep -vq -- '--account=op@example.com' "$T/calls.log"; then fail "a gcloud call without --account: $(grep -v -- '--account=' "$T/calls.log" | sed -n 1p)"
 else pass "every gcloud call carries --account"; fi
 if grep -Eq ' (update|deploy|create|delete|set-iam-policy|add-iam-policy-binding|replace)( |$)' "$T/calls.log"; then
-  fail "a mutating gcloud call: $(grep -E ' (update|deploy|create|delete|set-iam-policy|add-iam-policy-binding|replace)( |$)' "$T/calls.log" | head -1)"
+  fail "a mutating gcloud call: $(grep -E ' (update|deploy|create|delete|set-iam-policy|add-iam-policy-binding|replace)( |$)' "$T/calls.log" | sed -n 1p)"
 else pass "no mutating gcloud call (describe + token mint only)"; fi
 
 [[ $fails -eq 0 ]] && echo "PASS: all check-hub-deploy assertions" || { echo "FAILED: $fails"; exit 1; }

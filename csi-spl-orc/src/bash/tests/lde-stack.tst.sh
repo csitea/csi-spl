@@ -103,7 +103,7 @@ if docker compose version >/dev/null 2>&1 && [[ -f "$T/state/compose.env" ]]; th
     [[ "$n" == 1 ]] && pass "wui mounts only the tree (no node_modules/.nuxt shadow volume)" || fail "wui has $n volumes"
     # compose drops a profiled service from the default model: absent = gated
     [[ "$(yq -p json -r '.services | has("wui-install")' "$T/cfg.json")" == false ]] \
-      && grep -A1 '^  wui-install:' "$PROJ_ROOT/src/docker/docker-compose-wui.yaml" | grep -q 'profiles: \[install\]' \
+      && grep -A1 '^  wui-install:' "$PROJ_ROOT/src/docker/docker-compose-wui.yaml" | grep 'profiles: \[install\]' >/dev/null \
       && pass "the registry-bound install is a profile-gated one-shot (not in the default model)" || fail "wui-install is not profile-gated"
   else
     fail "compose config: $(head -3 "$T/cfg.err")"

@@ -81,13 +81,13 @@ for e in dev prd; do
     || fail "$e: $got imports, want $want: $addrs"
   command grep -qF "google_service_account.hub projects/$project/serviceAccounts/$sa_id@$project.iam.gserviceaccount.com" "$T/calls.log" \
     && pass "$e: SA imported as the declared runtime_sa_account_id" || fail "$e: SA import id"
-  command grep -E 'terraform import' "$T/calls.log" | command grep -q 'compute@developer' \
+  command grep -E 'terraform import' "$T/calls.log" | command grep 'compute@developer' >/dev/null \
     && fail "$e: default compute SA used in an import" || pass "$e: default compute SA never imported"
   command grep -qF "google_storage_bucket_iam_member.hub_files_object_user b/$project-files roles/storage.objectUser serviceAccount:$sa_id@" "$T/calls.log" \
     && pass "$e: files bucket binding id" || fail "$e: files bucket binding id"
   command grep -qE "google_cloud_run_v2_service.hub projects/$project/locations/[a-z0-9-]+/services/" "$T/calls.log" \
     && pass "$e: service id" || fail "$e: service id"
-  command grep -E '^terraform import' "$T/calls.log" | command grep -vqF -- "-var-file=" \
+  command grep -E '^terraform import' "$T/calls.log" | command grep -vF -- "-var-file=" >/dev/null \
     && fail "$e: an import without -var-file" || pass "$e: every import passes -var-file"
 
   # 2. drift guard, both ways
@@ -155,11 +155,11 @@ out=$(run_action HOME="$T/home" ENV=dev TF_030_WORK="$T/scratch"); rc=$?
 out=$(run_action HOME="$T/home" ENV=dev TF_030_WORK="$T/tf-030-dev"); rc=$?
 [[ $rc -eq 0 ]] && pass "happy path rc 0" || fail "happy path rc=$rc: $out"
 [[ $(wc -l <"$T/docker.log") -eq 2 ]] && pass "two docker runs (init, import)" || fail "docker calls: $(cat "$T/docker.log")"
-sed -n 1p "$T/docker.log" | command grep -q "init -input=false -backend-config=$STEP.backend-config.tfvars" \
+sed -n 1p "$T/docker.log" | command grep "init -input=false -backend-config=$STEP.backend-config.tfvars" >/dev/null \
   && pass "init uses the step backend-config" || fail "init args"
-sed -n 2p "$T/docker.log" | command grep -q "/tf/tf-030-import-existing-cloud-run.sh $STEP.vars.tfvars" \
+sed -n 2p "$T/docker.log" | command grep "/tf/tf-030-import-existing-cloud-run.sh $STEP.vars.tfvars" >/dev/null \
   && pass "importer runs with the step tfvars" || fail "importer args"
-command grep -c "GOOGLE_APPLICATION_CREDENTIALS=${tf_home}/.gcp/.csi/key-csi-spl-dev.json" "$T/docker.log" | command grep -qx 2 \
+command grep -c "GOOGLE_APPLICATION_CREDENTIALS=${tf_home}/.gcp/.csi/key-csi-spl-dev.json" "$T/docker.log" | command grep -x 2 >/dev/null \
   && pass "both runs on the project key" || fail "credentials"
 command grep -qwE 'apply|destroy' "$T/docker.log" && fail "apply/destroy in a docker call" || pass "no apply/destroy"
 [[ -f "$T/tf-030-dev/04-cloud-run-service.tf" && -f "$T/tf-030-dev/$STEP.vars.tfvars" && -f "$T/tf-030-dev/tf-030-import-existing-cloud-run.sh" ]] \

@@ -216,7 +216,7 @@ act >"$T/o" 2>&1
 # --- 3. T-DISP-HAPPY ------------------------------------------------------------------------
 world; cp "$D/lease.conf" "$T/conf.before"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | head -1)"; frid="${rid%-master}-failover"
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"; frid="${rid%-master}-failover"
 [[ $rc -eq 0 && "$rid" =~ ^[0-9]{8}T[0-9]{4}Z-master$ ]] && grep -q " $rid DONE OK fresh CLE-902" "$T/o" &&
   pass "3. rotated M and F to DONE ($rid)" || fail "3. rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
 [[ -d "$T/proc/2902" && -d "$T/proc/2903" && ! -d "$T/proc/102" && ! -d "$T/proc/103" ]] &&

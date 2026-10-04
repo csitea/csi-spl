@@ -149,8 +149,8 @@ run DRY_RUN=0
 # 8. locale
 ADMITS="$T/a8"; { admit t1 HUM-25 2500 'Kristina' bg; admit t1 HUM-26 2600 'Pat' zz; } >"$ADMITS"
 run DRY_RUN=0
-grep 'Kristina' "$POSTS" | grep -qE 'Добре|Здравейте|Ура' && pass "8. preferred_locale bg greets in Bulgarian" || fail "8. bg: $(grep Kristina "$POSTS")"
-grep 'Pat' "$POSTS" | grep -qE 'Welcome|Hello|Hooray' && pass "8. an unknown locale falls back to the cnf default (en)" || fail "8. fallback: $(grep Pat "$POSTS")"
+grep 'Kristina' "$POSTS" | grep -E 'Добре|Здравейте|Ура' >/dev/null && pass "8. preferred_locale bg greets in Bulgarian" || fail "8. bg: $(grep Kristina "$POSTS")"
+grep 'Pat' "$POSTS" | grep -E 'Welcome|Hello|Hooray' >/dev/null && pass "8. an unknown locale falls back to the cnf default (en)" || fail "8. fallback: $(grep Pat "$POSTS")"
 
 # 11. a test/proof account is skipped unless WELCOME_INCLUDE_TEST=1
 ADMITS="$T/a11"; admit t1 HUM-30 3000 'm3-e2e human' '' true >"$ADMITS"

@@ -51,6 +51,17 @@ const MOCK_DESK_FACTS = {
   agent_presence: { 'CLE-11': { state: 'online', last_seen: T0 } },
 }
 
+/* HUM-10 (owner ba10751d, "present also the current info"): box-desk's latest
+   box-stats sample (GET /v1/tenant/box-stats rows), the Boxes page's "Now".
+   The other boxes have none, so their "no current sample yet" shows too. */
+export const MOCK_BOX_STATS = [
+  { box: 'box-desk', writer_box: 'box-desk', at: T0, load1: 1.25, load5: 0.9, load15: 0.7, cpus: 8, mem_total_kb: 33554432, mem_avail_kb: 20971520, swap_used_kb: 524288, agents_live: 1 },
+]
+/* the hub folds rows into one per (box, UTC hour); this is that fold */
+export const MOCK_BOX_STAT_HOURS = [
+  { box: 'box-desk', hour: '2026-09-18T10:00:00Z', n: 1, cpus: 8, load1_avg: 1.25, load1_peak: 1.25, mem_used_avg_kb: 12582912, mem_used_peak_kb: 12582912, mem_avail_min_kb: 20971520, agents_avg: 1, agents_peak: 1 },
+]
+
 /* CLE-77794: the Agents section's per-box detail (view-v1 §4.1 boxes[]):
    online and last_hello_at, so the card can show a box's liveness. */
 export const MOCK_BOXES = [

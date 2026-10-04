@@ -1656,7 +1656,15 @@
     "net_ips": "Adrese IP",
     "net_gateway": "Gateway",
     "net_dns": "Servere DNS",
-    "os_release": "Versiune"
+    "os_release": "Versiune",
+    "now_title": "Acum",
+    "now_age": "Mostră de acum {age}",
+    "now_none": "Încă nu există o mostră curentă.",
+    "now_load": "Încărcare",
+    "now_load_val": "{load} pe {cpus} CPU",
+    "now_mem": "Memorie",
+    "now_mem_val": "{used} folosită, {avail} liberă",
+    "now_agents": "Agenți activi"
   },
   "act_as": {
     "acting_as": "Acționezi ca {name}",

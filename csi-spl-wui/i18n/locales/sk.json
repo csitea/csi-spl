@@ -1656,7 +1656,15 @@
     "net_ips": "IP adresy",
     "net_gateway": "Brána",
     "net_dns": "DNS servery",
-    "os_release": "Vydanie"
+    "os_release": "Vydanie",
+    "now_title": "Teraz",
+    "now_age": "Vzorka spred {age}",
+    "now_none": "Zatiaľ žiadna aktuálna vzorka.",
+    "now_load": "Záťaž",
+    "now_load_val": "{load} na {cpus} CPU",
+    "now_mem": "Pamäť",
+    "now_mem_val": "{used} použité, {avail} voľné",
+    "now_agents": "Aktívni agenti"
   },
   "act_as": {
     "acting_as": "Konáte ako {name}",

@@ -1656,7 +1656,15 @@
     "net_ips": "IP-adressen",
     "net_gateway": "Gateway",
     "net_dns": "DNS-servers",
-    "os_release": "Release"
+    "os_release": "Release",
+    "now_title": "Nu",
+    "now_age": "Meting van {age} geleden",
+    "now_none": "Nog geen actuele meting.",
+    "now_load": "Belasting",
+    "now_load_val": "{load} op {cpus} CPU's",
+    "now_mem": "Geheugen",
+    "now_mem_val": "{used} gebruikt, {avail} vrij",
+    "now_agents": "Actieve agents"
   },
   "act_as": {
     "acting_as": "Handelen als {name}",

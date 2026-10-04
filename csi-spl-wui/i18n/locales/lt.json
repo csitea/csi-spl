@@ -1656,7 +1656,15 @@
     "net_ips": "IP adresai",
     "net_gateway": "Šliuzas",
     "net_dns": "DNS serveriai",
-    "os_release": "Leidimas"
+    "os_release": "Leidimas",
+    "now_title": "Dabar",
+    "now_age": "Matavimas prieš {age}",
+    "now_none": "Dabartinio matavimo dar nėra.",
+    "now_load": "Apkrova",
+    "now_load_val": "{load} iš {cpus} CPU",
+    "now_mem": "Atmintis",
+    "now_mem_val": "{used} naudojama, {avail} laisva",
+    "now_agents": "Aktyvūs agentai"
   },
   "act_as": {
     "acting_as": "Veikiate kaip {name}",

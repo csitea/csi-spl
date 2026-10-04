@@ -452,11 +452,15 @@ async function getPerfSummary(ctx, opts = {}) {
  * HUM-10 (t1 f77c9f87): GET /v1/tenant/box-stats?box=&since= - a box's load
  * and memory history, raw rows plus per-hour avg / peak (rdb 0117, audit.read).
  * A hub without the route answers 404; the Boxes pane reads that as "no
- * history yet". Mock: no history - the mock never invents hardware numbers.
+ * history yet". Mock: box-desk's one fixture sample and its hour (mock-data).
  */
 async function boxStats(ctx, { box = '', since = '' } = {}) {
   const { live, mock } = ctx
-  if (mock) return { box, since: '', rows: [], hours: [] }
+  if (mock) {
+    const { MOCK_BOX_STATS, MOCK_BOX_STAT_HOURS } = await import('./mock-data.mjs')
+    const mine = (r) => !box || r.box === box
+    return { box, since: '', rows: MOCK_BOX_STATS.filter(mine), hours: MOCK_BOX_STAT_HOURS.filter(mine) }
+  }
   const q = new URLSearchParams()
   if (box) q.set('box', String(box))
   if (since) q.set('since', String(since))

@@ -134,11 +134,17 @@ try {
     await click(p, '[data-test=box-resource-os]')
     await p.waitForSelector('[data-test=box-stats-pane][data-resource=os]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: os - "not reported yet"`, await visible(p, '[data-test=box-stats-not-reported]'))
+    ok(`${theme}: box-a - no current sample yet`, await visible(p, '[data-test=box-now-none]'))
     ok(`${theme}: box-a - facts not reported yet`, /not reported/i.test(await p.$eval('[data-test=box-facts-age]', (e) => e.textContent)))
 
     /* box-desk reported its facts: system, network, OS, run-times, hardware snapshot */
     await click(p, '[data-testid=sidebar-panel-boxes] a[data-key="box-desk"]')
     await p.waitForFunction(() => location.pathname.endsWith('/boxes/box-desk'), { timeout: NAV_TIMEOUT })
+    /* NOW, apart from the daily facts: the latest 5-minute sample */
+    await p.waitForSelector('[data-test=box-now-load]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`${theme}: now - load against the CPUs`, /1\.25.*8/.test(await p.$eval('[data-test=box-now-load]', (e) => e.textContent)))
+    ok(`${theme}: now - memory used and free`, /12 GiB.*20 GiB/.test(await p.$eval('[data-test=box-now-mem]', (e) => e.textContent)))
+    ok(`${theme}: now - its sample age`, /ago/.test(await p.$eval('[data-test=box-now-age]', (e) => e.textContent)))
     await click(p, '[data-test=box-resource-system]')
     await p.waitForSelector('[data-test=box-stats-system]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: system - hostname and service state`, /desk-01/.test(await p.$eval('[data-test=box-stats-system]', (e) => e.textContent))

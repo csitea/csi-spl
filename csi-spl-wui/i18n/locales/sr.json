@@ -1656,7 +1656,15 @@
     "net_ips": "IP адресе",
     "net_gateway": "Мрежни пролаз",
     "net_dns": "DNS сервери",
-    "os_release": "Издање"
+    "os_release": "Издање",
+    "now_title": "Сада",
+    "now_age": "Узорак пре {age}",
+    "now_none": "Још нема тренутног узорка.",
+    "now_load": "Оптерећење",
+    "now_load_val": "{load} на {cpus} CPU",
+    "now_mem": "Меморија",
+    "now_mem_val": "{used} заузето, {avail} слободно",
+    "now_agents": "Активни агенти"
   },
   "act_as": {
     "acting_as": "Делујете као {name}",

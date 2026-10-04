@@ -1656,7 +1656,15 @@
     "net_ips": "כתובות IP",
     "net_gateway": "שער",
     "net_dns": "שרתי DNS",
-    "os_release": "גרסת הפצה"
+    "os_release": "גרסת הפצה",
+    "now_title": "עכשיו",
+    "now_age": "דגימה מלפני {age}",
+    "now_none": "אין עדיין דגימה נוכחית.",
+    "now_load": "עומס",
+    "now_load_val": "{load} על {cpus} מעבדים",
+    "now_mem": "זיכרון",
+    "now_mem_val": "{used} בשימוש, {avail} פנוי",
+    "now_agents": "סוכנים פעילים"
   },
   "act_as": {
     "acting_as": "פועל בתור {name}",

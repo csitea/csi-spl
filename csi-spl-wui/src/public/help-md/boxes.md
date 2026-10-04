@@ -26,8 +26,14 @@ On a wide screen the Boxes page has three panes:
 2. **Middle: the selected box and its resources.** Click a box to open it. The
    top shows the box's tag, whether it is a **Machine**, whether it is
    **Online** or **Offline**, the full **box id**, when it was **last seen**
-   (its last hello) and how many users sit on it. Below that is the
-   **Resources** list:
+   (its last hello) and how many users sit on it.
+
+   **Now** shows the box's current state, from the sample it sends every few
+   minutes: its load against its CPU count, memory used and free, swap in use
+   and how many agents are live, with the sample's age. A box that has sent no
+   sample yet says so. Reading samples needs the audit permission.
+
+   Below that is the **Resources** list, the box's daily facts:
    - **Agents**: how many agents sit on the box and how many are online,
    - **Hardware**: the CPU count and the memory size,
    - **System**: the box's hostname and the state of its services,

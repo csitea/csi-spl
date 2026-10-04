@@ -1656,7 +1656,15 @@
     "net_ips": "IP адреси",
     "net_gateway": "Портал",
     "net_dns": "DNS сервери",
-    "os_release": "Издание"
+    "os_release": "Издание",
+    "now_title": "Сега",
+    "now_age": "Примерок пред {age}",
+    "now_none": "Сè уште нема тековен примерок.",
+    "now_load": "Оптоварување",
+    "now_load_val": "{load} на {cpus} CPU",
+    "now_mem": "Меморија",
+    "now_mem_val": "{used} искористени, {avail} слободни",
+    "now_agents": "Активни агенти"
   },
   "act_as": {
     "acting_as": "Дејствувате како {name}",

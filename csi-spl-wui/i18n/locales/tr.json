@@ -1656,7 +1656,15 @@
     "net_ips": "IP adresleri",
     "net_gateway": "Ağ geçidi",
     "net_dns": "DNS sunucuları",
-    "os_release": "Sürüm"
+    "os_release": "Sürüm",
+    "now_title": "Şimdi",
+    "now_age": "Örnek {age} önce alındı",
+    "now_none": "Henüz güncel örnek yok.",
+    "now_load": "Yük",
+    "now_load_val": "{cpus} CPU üzerinde {load}",
+    "now_mem": "Bellek",
+    "now_mem_val": "{used} kullanılıyor, {avail} boş",
+    "now_agents": "Etkin ajanlar"
   },
   "act_as": {
     "acting_as": "{name} olarak hareket ediyorsunuz",

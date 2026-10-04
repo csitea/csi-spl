@@ -1656,7 +1656,15 @@
     "net_ips": "Διευθύνσεις IP",
     "net_gateway": "Πύλη",
     "net_dns": "Διακομιστές DNS",
-    "os_release": "Έκδοση διανομής"
+    "os_release": "Έκδοση διανομής",
+    "now_title": "Τώρα",
+    "now_age": "Δείγμα πριν από {age}",
+    "now_none": "Δεν υπάρχει ακόμη τρέχον δείγμα.",
+    "now_load": "Φόρτος",
+    "now_load_val": "{load} σε {cpus} CPU",
+    "now_mem": "Μνήμη",
+    "now_mem_val": "{used} σε χρήση, {avail} ελεύθερη",
+    "now_agents": "Ενεργοί πράκτορες"
   },
   "act_as": {
     "acting_as": "Ενεργείτε ως {name}",

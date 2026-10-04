@@ -1656,7 +1656,15 @@
     "net_ips": "IP-aadressid",
     "net_gateway": "Lüüs",
     "net_dns": "DNS-serverid",
-    "os_release": "Väljalase"
+    "os_release": "Väljalase",
+    "now_title": "Praegu",
+    "now_age": "Näidis {age} tagasi",
+    "now_none": "Praegust näidist veel pole.",
+    "now_load": "Koormus",
+    "now_load_val": "{load} {cpus} CPU peal",
+    "now_mem": "Mälu",
+    "now_mem_val": "{used} kasutusel, {avail} vaba",
+    "now_agents": "Aktiivsed agendid"
   },
   "act_as": {
     "acting_as": "Tegutsete kasutajana {name}",

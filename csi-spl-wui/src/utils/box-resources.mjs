@@ -104,6 +104,28 @@ const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinit
 const strs = (v) => (Array.isArray(v) ? v.map(str).filter(Boolean) : [])
 
 /**
+ * The box's CURRENT state (owner ba10751d: "present also the current info"),
+ * from its latest box-stats sample (a 5-minute tick), apart from the daily
+ * facts: load1 against the CPUs, memory used / free, swap in use, live
+ * agents and when the sample was taken. null with no sample.
+ * @param {BoxStat | null | undefined} row latestBoxStat()
+ */
+export function currentOf(row) {
+  if (!row) return null
+  const total = Number(row.mem_total_kb) || 0
+  const avail = Number(row.mem_avail_kb) || 0
+  return {
+    at: str(row.at),
+    load1: Number(row.load1) || 0,
+    cpus: Number(row.cpus) || 0,
+    memUsedKB: Math.max(0, total - avail),
+    memAvailKB: avail,
+    swapUsedKB: Number(row.swap_used_kb) || 0,
+    agentsLive: Number(row.agents_live) || 0,
+  }
+}
+
+/**
  * The box's OS as the hub reports it (`boxes[].os`: name, version, pretty,
  * kernel, arch), or null when the hub reports none.
  * @param {{ os?: unknown } | null | undefined} detail roster.boxes[box]

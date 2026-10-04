@@ -1656,7 +1656,15 @@
     "net_ips": "Direcciones IP",
     "net_gateway": "Puerta de enlace",
     "net_dns": "Servidores DNS",
-    "os_release": "Versión"
+    "os_release": "Versión",
+    "now_title": "Ahora",
+    "now_age": "Muestra de hace {age}",
+    "now_none": "Aún no hay una muestra actual.",
+    "now_load": "Carga",
+    "now_load_val": "{load} en {cpus} CPU",
+    "now_mem": "Memoria",
+    "now_mem_val": "{used} usada, {avail} libre",
+    "now_agents": "Agentes activos"
   },
   "act_as": {
     "acting_as": "Actuando como {name}",

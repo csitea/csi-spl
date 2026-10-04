@@ -1656,7 +1656,15 @@
     "net_ips": "IP-adresser",
     "net_gateway": "Gateway",
     "net_dns": "DNS-servrar",
-    "os_release": "Utgåva"
+    "os_release": "Utgåva",
+    "now_title": "Nu",
+    "now_age": "Prov för {age} sedan",
+    "now_none": "Inget aktuellt prov än.",
+    "now_load": "Last",
+    "now_load_val": "{load} på {cpus} CPU:er",
+    "now_mem": "Minne",
+    "now_mem_val": "{used} använt, {avail} ledigt",
+    "now_agents": "Aktiva agenter"
   },
   "act_as": {
     "acting_as": "Agerar som {name}",

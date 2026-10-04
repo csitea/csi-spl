@@ -1656,7 +1656,15 @@
     "net_ips": "IP-osoitteet",
     "net_gateway": "Yhdyskäytävä",
     "net_dns": "DNS-palvelimet",
-    "os_release": "Julkaisu"
+    "os_release": "Julkaisu",
+    "now_title": "Nyt",
+    "now_age": "Näyte {age} sitten",
+    "now_none": "Ei vielä nykyistä näytettä.",
+    "now_load": "Kuorma",
+    "now_load_val": "{load} / {cpus} CPU:ta",
+    "now_mem": "Muisti",
+    "now_mem_val": "{used} käytössä, {avail} vapaana",
+    "now_agents": "Aktiiviset agentit"
   },
   "act_as": {
     "acting_as": "Toimit käyttäjänä {name}",

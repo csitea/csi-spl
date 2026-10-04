@@ -9,7 +9,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   BOX_RESOURCES, ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf,
-  boxStatsOf, boxSystemOf, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary, isBoxStatsForbidden,
+  boxStatsOf, boxSystemOf, currentOf, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary, isBoxStatsForbidden,
   isNoBoxStats, latestBoxStat, osLine,
 } from '../../src/utils/box-resources.mjs'
 
@@ -61,6 +61,14 @@ describe('box-stats read', () => {
       { n: 3, load1_avg: 3, load1_peak: 5, mem_used_peak_kb: 300, mem_avail_min_kb: 20 },
     ])
     assert.deepEqual(s, { samples: 4, load1Avg: 2.5, load1Peak: 5, memUsedPeakKB: 300, memAvailMinKB: 20 })
+  })
+})
+
+describe('the current state (latest sample)', () => {
+  it('none without a sample', () => assert.equal(currentOf(null), null))
+  it('load vs cpus, memory used / free, swap, live agents, its time', () => {
+    assert.deepEqual(currentOf({ at: '2026-10-04T12:00:00Z', load1: 1.5, cpus: 8, mem_total_kb: 1000, mem_avail_kb: 400, swap_used_kb: 10, agents_live: 3 }),
+      { at: '2026-10-04T12:00:00Z', load1: 1.5, cpus: 8, memUsedKB: 600, memAvailKB: 400, swapUsedKB: 10, agentsLive: 3 })
   })
 })
 

@@ -1656,7 +1656,15 @@
     "net_ips": "IP addresses",
     "net_gateway": "Gateway",
     "net_dns": "DNS servers",
-    "os_release": "Release"
+    "os_release": "Release",
+    "now_title": "Now",
+    "now_age": "Sample taken {age} ago",
+    "now_none": "No current sample yet.",
+    "now_load": "Load",
+    "now_load_val": "{load} on {cpus} CPUs",
+    "now_mem": "Memory",
+    "now_mem_val": "{used} used, {avail} free",
+    "now_agents": "Live agents"
   },
   "act_as": {
     "acting_as": "Acting as {name}",

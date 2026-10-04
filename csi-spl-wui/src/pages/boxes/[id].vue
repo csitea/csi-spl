@@ -44,6 +44,29 @@
           <dd data-test="box-user-total">{{ box.userCount }}</dd>
         </dl>
 
+        <!-- NOW (owner ba10751d): the latest box-stats sample, a 5-minute
+             tick - apart from the daily facts under Resources -->
+        <section class="box-now" data-test="box-now" :aria-label="t('boxes.now_title')">
+          <h3>{{ t('boxes.now_title') }}</h3>
+          <template v-if="now">
+            <p class="muted box-res__age" data-test="box-now-age" :title="isoDateTime(now.at)">{{ t('boxes.now_age', { age: ageOf(now.at) }) }}</p>
+            <dl class="box-card__facts">
+              <dt>{{ t('boxes.now_load') }}</dt>
+              <dd data-test="box-now-load">{{ t('boxes.now_load_val', { load: formatLoad(now.load1), cpus: now.cpus }) }}</dd>
+              <dt>{{ t('boxes.now_mem') }}</dt>
+              <dd data-test="box-now-mem">{{ t('boxes.now_mem_val', { used: formatKB(now.memUsedKB), avail: formatKB(now.memAvailKB) }) }}</dd>
+              <dt>{{ t('boxes.swap') }}</dt>
+              <dd>{{ formatKB(now.swapUsedKB) }}</dd>
+              <dt>{{ t('boxes.now_agents') }}</dt>
+              <dd data-test="box-now-agents">{{ now.agentsLive }}</dd>
+            </dl>
+          </template>
+          <p v-else-if="stats.state === 'loading'" class="muted" data-test="box-now-loading">{{ t('app.loading') }}</p>
+          <p v-else-if="stats.state === 'forbidden'" class="muted" data-test="box-now-forbidden">{{ t('boxes.stats_forbidden') }}</p>
+          <p v-else-if="stats.state === 'failed'" class="muted" role="alert" data-test="box-now-failed">{{ t('boxes.stats_failed') }}</p>
+          <p v-else class="muted" data-test="box-now-none">{{ t('boxes.now_none') }}</p>
+        </section>
+
         <!-- the box's resources: each row opens its statistics on the right -->
         <nav class="box-res__list" :aria-label="t('boxes.resources')" data-test="box-resources">
           <h3>{{ t('boxes.resources') }}</h3>
@@ -121,7 +144,7 @@ import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { boxByID, isBrowserBox } from '~/utils/box-rows.mjs'
 import {
   ageOf, agentCounts, agentStatRows, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, boxSystemOf,
-  factsReportedAt, formatKB, formatMB, isBoxStatsForbidden, isNoBoxStats, latestBoxStat, osLine,
+  currentOf, factsReportedAt, formatKB, formatLoad, formatMB, isBoxStatsForbidden, isNoBoxStats, latestBoxStat, osLine,
 } from '~/utils/box-resources.mjs'
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
@@ -152,10 +175,11 @@ const resource = computed(() => boxResourceOf(route.query.r))
 type BoxStatsState = { state: 'loading' | 'ready' | 'empty' | 'forbidden' | 'failed', rows: BoxStat[], hours: BoxStatHour[] }
 const stats = ref<BoxStatsState>({ state: 'loading', rows: [], hours: [] })
 let seq = 0
-async function loadStats() {
+async function loadStats(quiet = false) {
   const mine = ++seq
   const id = boxId.value
-  stats.value = { state: 'loading', rows: [], hours: [] }
+  /* a quiet refresh keeps what is shown until the new read lands */
+  if (!quiet) stats.value = { state: 'loading', rows: [], hours: [] }
   if (!id || isBrowserBox(id)) { stats.value = { state: 'empty', rows: [], hours: [] }; return }
   try {
     const { rows, hours } = boxStatsOf(await useSpoolApi().boxStats({ box: id, since: '24h' }) as { rows?: unknown[], hours?: unknown[] } | null)
@@ -168,6 +192,7 @@ async function loadStats() {
 }
 
 const latest = computed(() => latestBoxStat(stats.value.rows, boxId.value))
+const now = computed(() => currentOf(latest.value))
 const notReported = computed(() => t('boxes.not_reported'))
 const factsAt = computed(() => factsReportedAt(detail.value))
 /* the facts are a daily snapshot: say how old it is */
@@ -209,6 +234,10 @@ if (isBrowserBox(boxId.value)) void navigateTo(localePath('/boxes'), { replace: 
    straight to this card (no sidebar visited yet) still has the seats. */
 onMounted(() => { if (!roster.boxes[boxId.value] && box.value.userCount === 0) void roster.refresh() })
 onMounted(() => { void loadStats() })
+/* "Now" follows the box's 5-minute sample tick while the page is open */
+let statsTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { statsTimer = setInterval(() => { if (document.visibilityState === 'visible') void loadStats(true) }, 5 * 60 * 1000) })
+onUnmounted(() => { if (statsTimer) clearInterval(statsTimer) })
 watch(boxId, () => { if (import.meta.client) void loadStats() })
 
 /* three panes: no topic panel sits beside the box's two (as on /help) */
@@ -282,6 +311,8 @@ stack.rightPanel(
 }
 .box-res__label { font-weight: 600; flex-shrink: 0; }
 .box-res__age { margin: -4px 0 4px; font-size: 0.78rem; }
+.box-now h3 { margin: 0 0 6px; font-size: 0.9rem; }
+.box-now p { margin: 0; }
 .box-res__sum { margin-inline-start: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
 .box-card__n { font-weight: 400; font-size: 0.8rem; }
 .box-seat {

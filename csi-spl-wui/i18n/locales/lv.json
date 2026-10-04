@@ -1656,7 +1656,15 @@
     "net_ips": "IP adreses",
     "net_gateway": "Vārteja",
     "net_dns": "DNS serveri",
-    "os_release": "Laidiens"
+    "os_release": "Laidiens",
+    "now_title": "Tagad",
+    "now_age": "Paraugs pirms {age}",
+    "now_none": "Pašreizējā parauga vēl nav.",
+    "now_load": "Slodze",
+    "now_load_val": "{load} uz {cpus} CPU",
+    "now_mem": "Atmiņa",
+    "now_mem_val": "{used} izmantoti, {avail} brīvi",
+    "now_agents": "Aktīvie aģenti"
   },
   "act_as": {
     "acting_as": "Darbojaties kā {name}",

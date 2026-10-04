@@ -1656,7 +1656,15 @@
     "net_ips": "Adresy IP",
     "net_gateway": "Brama",
     "net_dns": "Serwery DNS",
-    "os_release": "Wydanie"
+    "os_release": "Wydanie",
+    "now_title": "Teraz",
+    "now_age": "Próbka sprzed {age}",
+    "now_none": "Brak jeszcze bieżącej próbki.",
+    "now_load": "Obciążenie",
+    "now_load_val": "{load} na {cpus} CPU",
+    "now_mem": "Pamięć",
+    "now_mem_val": "{used} użyte, {avail} wolne",
+    "now_agents": "Aktywni agenci"
   },
   "act_as": {
     "acting_as": "Działasz jako {name}",

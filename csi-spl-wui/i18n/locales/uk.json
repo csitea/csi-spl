@@ -1656,7 +1656,15 @@
     "net_ips": "IP-адреси",
     "net_gateway": "Шлюз",
     "net_dns": "DNS-сервери",
-    "os_release": "Випуск"
+    "os_release": "Випуск",
+    "now_title": "Зараз",
+    "now_age": "Замір {age} тому",
+    "now_none": "Поточного заміру ще немає.",
+    "now_load": "Навантаження",
+    "now_load_val": "{load} на {cpus} CPU",
+    "now_mem": "Пам'ять",
+    "now_mem_val": "{used} зайнято, {avail} вільно",
+    "now_agents": "Активні агенти"
   },
   "act_as": {
     "acting_as": "Ви дієте як {name}",

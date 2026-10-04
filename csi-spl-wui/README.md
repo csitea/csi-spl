@@ -236,6 +236,7 @@ and asserts `document.scrollingElement.scrollWidth <= innerWidth`. When
 `BASE_URL` is unset it starts `nuxi dev` with the mock tenant. Uses
 puppeteer-core when resolvable (`PUPPETEER_CORE` or `node_modules`); otherwise
 Chrome DevTools Protocol against `CHROME_PATH` (default `/usr/bin/google-chrome`).
+A local run first takes one of `E2E_LOCAL_SLOTS` (default 2) box-wide slots and, when all are held, prints the holders and waits (GitHub Actions is not capped; `src/node/test/e2e-slots.mjs`).
 
 `pnpm test:e2e:thread-pane` is the 1..1 gate: it walks
 `/channel/<name>` -> `/lobby` -> `/` -> back, opens a thread from each side,

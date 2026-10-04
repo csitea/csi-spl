@@ -31,10 +31,12 @@
 //   node src/node/test/run-e2e-tests.mjs --list              # print the selection, run none
 //   FAIL_FAST=1 node src/node/test/run-e2e-tests.mjs         # stop at first failure
 //   E2E_SHARD=2/3 node src/node/test/run-e2e-tests.mjs       # the 2nd of 3 round-robin shards
+//   E2E_LOCAL_SLOTS=1 node src/node/test/run-e2e-tests.mjs   # box-wide cap on local runs (default 2, e2e-slots.mjs)
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
+import { acquireSlot } from './e2e-slots.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WUI = join(__dirname, '../../..')
@@ -114,6 +116,15 @@ if (shard) {
 if (listOnly) {
   for (const f of files) console.log(f)
   process.exit(0)
+}
+
+// One of E2E_LOCAL_SLOTS box-wide slots before any browser starts: lanes'
+// parallel local runs drove a 16-cpu box to load 50. GitHub Actions is not
+// capped. Waiting prints the holders; the slot frees on exit, signal or crash.
+try {
+  await acquireSlot()
+} catch (e) {
+  die(e.message)
 }
 
 const scope = paths.length || filters.length ? '' : ` (${skipped.size} skipped by ${SKIP_REL}${process.env.E2E_SKIP ? ' + E2E_SKIP' : ''})`

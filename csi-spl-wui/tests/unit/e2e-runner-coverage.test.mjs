@@ -15,6 +15,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const WUI = join(__dirname, '../..')
 const REPO = join(WUI, '..')
 const RUNNER_REL = 'src/node/test/run-e2e-tests.mjs'
+const SLOTS_REL = 'src/node/test/e2e-slots.mjs'
+// The throwaway runs below must not take (or wait for) the box's real slots.
+process.env.E2E_LOCAL_SLOTS_DIR = mkdtempSync(join(tmpdir(), 'e2e-slots-'))
 
 let failed = 0
 const pass = (n) => console.log(`  OK   ${n}`)
@@ -61,6 +64,7 @@ try {
   mkdirSync(join(tmp, 'src/node/test'), { recursive: true })
   mkdirSync(join(tmp, 'tests/e2e'), { recursive: true })
   cpSync(join(WUI, RUNNER_REL), join(tmp, RUNNER_REL))
+  cpSync(join(WUI, SLOTS_REL), join(tmp, SLOTS_REL))
 
   let r = run(tmp)
   check('empty tests/e2e refuses to pass', r.status === 1 && /refusing to pass/.test(r.stderr), `status ${r.status}`)
@@ -109,6 +113,7 @@ try {
   check('a filter that matches nothing fails', r.status === 1 && /matched none/.test(r.stderr), r.stderr)
 } finally {
   rmSync(tmp, { recursive: true, force: true })
+  rmSync(process.env.E2E_LOCAL_SLOTS_DIR, { recursive: true, force: true })
 }
 
 console.log(failed ? `\ne2e-runner-coverage: ${failed} FAILED` : '\ne2e-runner-coverage: all passed')

@@ -7,7 +7,8 @@
      t1 67f91532 (owner): help is TWO panes on a desktop, the page list left
      and the document right; the sidebar keeps its icon rail only
      (ChannelSidebar helpRailOnly) and a topic panel open beside the channel
-     the reader came from closes. -->
+     the reader came from closes. Each pane scrolls on its own (the page
+     body does not). The document column is centred on the viewport. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -162,6 +163,50 @@ useHead(() => ({ title: t('help.title') }))
 }
 .settings-content { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .help-content { max-width: 820px; }
+/* Desktop only. The page body stops scrolling and each pane scrolls on its
+   own. The document is centred on the viewport: 72-80ch is wider than the
+   slot that stays clear of the list (the list ends near 315px, and a
+   centred column has to start at or after about 336px, so the widest
+   centred column at 1440px is about 760px, 66ch at the default font).
+   Where that column would cover the list, it moves to --help-safe and
+   narrows to the room that is left, and the list stays visible. The phone
+   rule below is unchanged. */
+@media (min-width: 821px) {
+  .settings-page {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .help-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .help-nav {
+    min-height: 0;
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .help-content {
+    --help-safe: 336px;
+    --help-doc: min(66ch, 760px);
+    position: fixed;
+    z-index: 1;
+    margin: 0;
+    width: min(var(--help-doc), calc(100vw - var(--help-safe) - 16px));
+    max-width: min(var(--help-doc), calc(100vw - var(--help-safe) - 16px));
+    left: max(var(--help-safe), calc(50% - min(66ch, 760px) / 2));
+    right: auto;
+    /* header is 57px under the 58px top bar; the body pads 16px above and 8px below */
+    top: calc(var(--top-bar-h) + 73px);
+    bottom: 8px;
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
 .help-content :deep(h1) { font-size: 1.5rem; margin: 0 0 0.5em; }
 .help-content :deep(h2) { font-size: 1.2rem; margin: 1.2em 0 0.4em; }
 .help-content :deep(h3) { font-size: 1.05rem; margin: 1em 0 0.3em; }

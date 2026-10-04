@@ -7,10 +7,18 @@
 // 3rd panel) open, the rail's Help opens /help showing exactly two panes -
 // the help page list on the left, the document on the right - the sidebar
 // keeps its icon rail only and no topic panel is left; a click on a left
-// link swaps the document on the right.
+// link swaps the document on the right. Each pane scrolls on its own: the
+// page body does not. A short viewport (1440x640) makes the list overflow
+// too; 900px is tall enough that the twenty links still fit. The document
+// column is centred on the whole screen (equal gaps to the viewport edges),
+// a readable measure wide.
 //
 // Control: before the change the sidebar's channel list and the topic panel
-// both stay beside help (4 columns), so the pane checks FAIL.
+// both stay beside help (4 columns), so the pane checks FAIL. Before the
+// independent scrollers, both panes sit in the one scrolling page body, so
+// the scroll checks FAIL (a pane's scrollTop never moves). Before the
+// column is centred on the viewport, its gaps to the screen edges differ
+// by far more than a few px, so the centre check FAILS.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e help-two-panes
@@ -62,6 +70,45 @@ const panes = (p) => p.evaluate(() => {
   return cols.sort((a, b) => a.left - b.left)
 })
 
+/* scrollTop of each help pane, of the page body, and where a mark inside
+   the pane sits. Rounding keeps a fractional pixel from flapping the check. */
+const scrollState = (p) => p.evaluate(() => {
+  const box = (sel, markSel) => {
+    const el = document.querySelector(sel)
+    if (!el) return null
+    const mark = markSel ? el.querySelector(markSel) : null
+    return {
+      overflowY: getComputedStyle(el).overflowY,
+      scrollTop: Math.round(el.scrollTop),
+      max: Math.round(el.scrollHeight - el.clientHeight),
+      mark: mark ? Math.round(mark.getBoundingClientRect().top) : null,
+    }
+  }
+  return {
+    nav: box('[data-test=help-nav]', 'a'),
+    doc: box('[data-test=help-content]', 'h1'),
+    body: box('[data-test=help]', ''),
+    page: Math.round(document.scrollingElement ? document.scrollingElement.scrollTop : 0),
+  }
+})
+const scrollPaneToBottom = (p, sel) => p.evaluate((s) => {
+  const el = document.querySelector(s)
+  if (!el) return false
+  el.scrollTop = el.scrollHeight
+  return true
+}, sel)
+const resetPaneScroll = (p) => p.evaluate(() => {
+  for (const s of ['[data-test=help-nav]', '[data-test=help-content]', '[data-test=help]']) {
+    const el = document.querySelector(s)
+    if (el) el.scrollTop = 0
+  }
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0
+})
+const canScroll = (m) => Boolean(m) && (m.overflowY === 'auto' || m.overflowY === 'scroll') && m.max > 8
+const bodyFixed = (m) => Boolean(m) && (m.overflowY === 'hidden' || m.overflowY === 'clip') && m.scrollTop === 0
+const atBottom = (m) => Boolean(m) && m.scrollTop > 8 && m.scrollTop >= m.max - 2
+const sameMark = (a, b) => a !== null && b !== null && Math.abs(a - b) <= 1
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -96,6 +143,58 @@ try {
     ok(`${theme}: the sidebar keeps its icon rail`, Boolean(await p.$('[data-testid=sidebar-rail]')) && (await p.$eval('nav.sidebar', (el) => el.getAttribute('data-help-rail'))) === '1')
     const links = await p.$$eval('[data-test=help-nav] a', (as) => as.map((a) => a.getAttribute('data-test')))
     ok(`${theme}: the left pane lists the help pages (pages.json)`, links.length >= 12 && links.includes('help-nav-archive'), links.length)
+
+    /* owner: the document sits in the middle of the screen, not the right pane */
+    const centred = await p.evaluate(() => {
+      const el = document.querySelector('[data-test=help-content]')
+      const r = el.getBoundingClientRect()
+      const leftGap = r.left
+      const rightGap = window.innerWidth - r.right
+      return {
+        leftGap: Math.round(leftGap),
+        rightGap: Math.round(rightGap),
+        delta: Math.round(Math.abs(leftGap - rightGap)),
+        centreOff: Math.round(Math.abs((r.left + r.right) / 2 - window.innerWidth / 2)),
+        width: Math.round(r.width),
+      }
+    })
+    ok(`${theme}: the document column is centred on the screen`,
+      centred.delta <= 8 && centred.centreOff <= 4, centred)
+
+    /* 640px tall: the list (about twenty links) overflows as well as the
+       document. Width stays 1440, so this is still the desktop two-pane layout.
+       The index page is the document: archive.md is short enough that it
+       might fit, and this check has to scroll a long page. */
+    await p.setViewport({ width: 1440, height: 640 })
+    await sleep(300)
+    await resetPaneScroll(p)
+    const idle = await scrollState(p)
+    ok(`${theme}: each pane is its own scroller and the page body is not`,
+      canScroll(idle.nav) && canScroll(idle.doc) && bodyFixed(idle.body) && idle.page === 0, idle)
+
+    await scrollPaneToBottom(p, '[data-test=help-content]')
+    const downDoc = await scrollState(p)
+    ok(`${theme}: scrolling the document to the bottom leaves the list where it was`,
+      atBottom(downDoc.doc)
+        && downDoc.nav.scrollTop === idle.nav.scrollTop
+        && sameMark(downDoc.nav.mark, idle.nav.mark)
+        && downDoc.body.scrollTop === 0
+        && downDoc.page === 0,
+      { idle, downDoc })
+
+    await resetPaneScroll(p)
+    const idleList = await scrollState(p)
+    await scrollPaneToBottom(p, '[data-test=help-nav]')
+    const downNav = await scrollState(p)
+    ok(`${theme}: scrolling the list to the bottom leaves the document where it was`,
+      atBottom(downNav.nav)
+        && downNav.doc.scrollTop === idleList.doc.scrollTop
+        && sameMark(downNav.doc.mark, idleList.doc.mark)
+        && downNav.body.scrollTop === 0
+        && downNav.page === 0,
+      { idleList, downNav })
+    await p.setViewport({ width: 1440, height: 900 })
+    await sleep(200)
 
     await p.click('[data-test=help-nav-archive]')
     await p.waitForFunction(() => document.querySelector('[data-test=help-content]')?.getAttribute('data-page') === 'archive', { timeout: 10000 }).catch(() => {})

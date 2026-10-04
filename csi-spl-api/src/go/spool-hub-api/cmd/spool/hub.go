@@ -25,6 +25,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/cloud"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/edge"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
@@ -88,7 +89,15 @@ func cmdServe() int {
 	ctx, stop := interruptible()
 	defer stop()
 
-	st, err := openStore(ctx, hc.DBDSN, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
+	cf, err := cloud.New(cloud.OSEnv()) // spec 076: SPOOL_CLOUD_PROVIDER, unset = gcp
+	if err != nil {
+		return fail(err)
+	}
+	dsn, err := cf.Database().DSN(hc.DBDSN)
+	if err != nil {
+		return fail(err)
+	}
+	st, err := openStore(ctx, dsn, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
 		MinConns: int32(hc.DBMinConns), MaxConnIdleTime: hc.DBMaxConnIdleTime})
 	if err != nil {
 		return fail(err)
@@ -98,7 +107,7 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	bs, err := openBlobStore(ctx, hc)
+	bs, err := openBlobStore(ctx, cf, hc)
 	if err != nil {
 		return fail(err)
 	}
@@ -108,7 +117,8 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	if opts.Docs, err = openDocsStore(ctx, hc); err != nil {
+	opts.Revision = cf.Compute().Revision()
+	if opts.Docs, err = openDocsStore(ctx, cf, hc); err != nil {
 		return fail(err)
 	}
 	if opts.Docs != nil {
@@ -249,7 +259,6 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		ReescalateEvery: hc.ReescalateEvery,
 		ReescalateMax:   hc.ReescalateMax,
 		AllowTextOnly:   hc.AllowTextOnly, Version: version, Commit: commit, BuiltAt: builtAt,
-		Revision:              os.Getenv("K_REVISION"), // Cloud Run sets it; "" = a per-process id
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
 		OriginTenant: originTenant, OperatorTenant: hc.OperatorWorkspace(),
@@ -261,29 +270,23 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 	}
 }
 
-// openBlobStore is the tenant file store: the GCS bucket when one is set,
-// else a local dir.
-func openBlobStore(ctx context.Context, hc *config.Hub) (blob.Store, error) {
-	if hc.FilesBucket == "" {
-		return blob.Dir{Root: hc.FilesDir}, nil
-	}
-	g, err := blob.OpenGCS(ctx, hc.FilesBucket)
+// openBlobStore is the tenant file store from the provider: under gcp the GCS
+// bucket when one is set, else a local dir; under none always the dir.
+func openBlobStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.Store, error) {
+	bs, err := cf.Blob(ctx, hc.FilesBucket, hc.FilesDir)
 	if err != nil {
 		return nil, err
 	}
-	return g, nil
+	if bs == nil {
+		return nil, fmt.Errorf("no file store: set SPOOL_HUB_FILES_DIR or SPOOL_HUB_FILES_BUCKET")
+	}
+	return bs, nil
 }
 
-// openDocsStore is the Docs section's bucket (or a local dir), nil when
-// neither is set: the section is off.
-func openDocsStore(ctx context.Context, hc *config.Hub) (blob.Store, error) {
-	switch {
-	case hc.DocsBucket != "":
-		return blob.OpenGCS(ctx, hc.DocsBucket)
-	case hc.DocsDir != "":
-		return blob.Dir{Root: hc.DocsDir}, nil
-	}
-	return nil, nil
+// openDocsStore is the Docs section's store from the provider, nil when
+// neither bucket nor dir is set: the section is off.
+func openDocsStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.Store, error) {
+	return cf.Blob(ctx, hc.DocsBucket, hc.DocsDir)
 }
 
 // cicdService is the CI-logs service, or nil when it is off.

@@ -94,7 +94,7 @@ func TestSessionReadsSettingsOnce(t *testing.T) {
 	ctl.signedIn(t, cc, "person@example.com")
 	const put = `{"preferred_locale":"fi","preferred_theme":"light-red","submit_key":"ctrl-enter","display_name":"FirstName LastName",` +
 		`"diagnostics_enabled":true,"rail_order":["archive","events","flow","topics","issues","channels","dm"],` +
-		`"message_order":"newest-last","composer_position":"bottom","issues_view":"status","close_buttons":"windows","issues_columns":{"key":96}}`
+		`"message_order":"newest-last","composer_position":"bottom","issues_view":"status","close_buttons":"windows","link_previews":"off","issues_columns":{"key":96}}`
 	for _, rig := range []struct {
 		r *nrig
 		c *http.Client

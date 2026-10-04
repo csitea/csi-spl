@@ -920,3 +920,44 @@ func TestResetMailLocalePrecedence(t *testing.T) {
 		t.Fatalf("request locale: %s\n%s", m.Locale, m.TextBody)
 	}
 }
+
+// Topic e1f8f797: link_previews is the person's own switch for the preview
+// card under a message that links a topic or a message. Kept on the account
+// like the other layout keys: only on / off, null clears, independent of
+// the others; GET /session and the native login answer carry it. On is the
+// default (null = never picked = on).
+func TestPreferencesLinkPreviews(t *testing.T) {
+	if auth.ViewPrefs[auth.PrefLinkPreviews][0] != "on" {
+		t.Fatalf("default drifted: %v", auth.ViewPrefs[auth.PrefLinkPreviews])
+	}
+	r, _ := newPRig(t, "", true)
+	c := browser(t)
+	r.signedIn(t, c, "person@example.com")
+	if got := r.call(t, c, http.MethodGet, "session", ""); got.body["link_previews"] != nil {
+		t.Fatalf("session before: %s", got.raw)
+	} else if _, ok := got.body["link_previews"]; !ok {
+		t.Fatalf("session must answer link_previews null: %s", got.raw)
+	}
+	got := r.call(t, c, http.MethodPut, "preferences", `{"link_previews":"off"}`)
+	if got.code != http.StatusOK || len(got.body) != 1 || got.body["link_previews"] != "off" {
+		t.Fatalf("put: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["link_previews"] != "off" || got.body["close_buttons"] != nil {
+		t.Fatalf("session after: %s", got.raw)
+	}
+	if got := r.post(t, browser(t), "login", map[string]string{"email": "person@example.com", "password": pwA, "tenant": "acme"}); got.code != http.StatusOK || got.body["link_previews"] != "off" {
+		t.Fatalf("login answer: %d %s", got.code, got.raw)
+	}
+	for _, body := range []string{`{"link_previews":"no"}`, `{"link_previews":"On"}`, `{"link_previews":""}`, `{"link_previews":true}`} {
+		if got := r.call(t, c, http.MethodPut, "preferences", body); got.code != http.StatusBadRequest || got.body["error"] != "unsupported_link_previews" {
+			t.Errorf("%s: %d %s", body, got.code, got.raw)
+		}
+	}
+	got = r.call(t, c, http.MethodPut, "preferences", `{"link_previews":null}`)
+	if got.code != http.StatusOK || got.body["link_previews"] != nil || len(got.body) != 1 {
+		t.Fatalf("clear: %d %s", got.code, got.raw)
+	}
+	if got = r.call(t, c, http.MethodGet, "session", ""); got.body["link_previews"] != nil {
+		t.Fatalf("session after clear: %s", got.raw)
+	}
+}

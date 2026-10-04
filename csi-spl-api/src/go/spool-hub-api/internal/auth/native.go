@@ -411,6 +411,8 @@ type loginResp struct {
 	IssuesView *string `json:"issues_view"`
 	// CloseButtons as GET /session answers it (SPL-1133), null when unset.
 	CloseButtons *string `json:"close_buttons"`
+	// LinkPreviews as GET /session answers it (topic e1f8f797), null when unset.
+	LinkPreviews *string `json:"link_previews"`
 	// IssuesColumns as GET /session answers it (SPL-1132), null when unset.
 	IssuesColumns map[string]int `json:"issues_columns"`
 	// IssuesSort as GET /session answers it (CLE-35099), null when unset.
@@ -554,6 +556,7 @@ func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string)
 		SubmitKey: n.h.submitKey(ctx, sess), RailOrder: n.h.railOrder(ctx, sess),
 		MessageOrder: n.h.viewPref(ctx, sess, PrefMessageOrder), ComposerPosition: n.h.viewPref(ctx, sess, PrefComposerPosition),
 		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView), CloseButtons: n.h.viewPref(ctx, sess, PrefCloseButtons),
+		LinkPreviews:  n.h.viewPref(ctx, sess, PrefLinkPreviews),
 		IssuesColumns: n.h.issueColumns(ctx, sess), IssuesSort: n.h.issuesSort(ctx, sess), PaneSizes: n.h.paneSizes(ctx, sess),
 		TimeZone: n.h.timeZone(ctx, sess), KeyboardShortcuts: n.h.keyboardShortcuts(ctx, sess)}
 }

@@ -480,6 +480,9 @@ type sessionResp struct {
 	// CloseButtons is Settings -> Behaviour "Close buttons" (SPL-1133), null
 	// when never picked (the WUI then draws them Mac style, top left).
 	CloseButtons *string `json:"close_buttons"`
+	// LinkPreviews is Settings -> Behaviour "Link previews" (topic
+	// e1f8f797), null when never picked (the WUI then shows them: on).
+	LinkPreviews *string `json:"link_previews"`
 	// IssuesColumns is the Issues sheet's column widths (SPL-1132), column
 	// -> px, null when never sized (the WUI then keeps its automatic layout).
 	IssuesColumns map[string]int `json:"issues_columns"`
@@ -540,6 +543,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.ComposerPosition = h.viewPref(ctx, s, PrefComposerPosition)
 		out.IssuesView = h.viewPref(ctx, s, PrefIssuesView)
 		out.CloseButtons = h.viewPref(ctx, s, PrefCloseButtons)
+		out.LinkPreviews = h.viewPref(ctx, s, PrefLinkPreviews)
 		out.IssuesColumns = h.issueColumns(ctx, s)
 		out.IssuesSort = h.issuesSort(ctx, s)
 		out.PaneSizes = h.paneSizes(ctx, s)
@@ -854,6 +858,10 @@ const (
 	// PrefCloseButtons (SPL-1133, rdb 0077): 'mac' = every close X in the
 	// top left (the owner's default); 'windows' = in the top right.
 	PrefCloseButtons = "close_buttons"
+	// PrefLinkPreviews (topic e1f8f797, rdb 0119): 'on' = a link to a topic
+	// or a message of the workspace shows a short preview card under the
+	// message (the default); 'off' = it stays a plain link.
+	PrefLinkPreviews = "link_previews"
 )
 
 // ViewPrefs maps each layout key to its values, default first.
@@ -862,10 +870,11 @@ var ViewPrefs = map[string][]string{
 	PrefComposerPosition: {"top", "bottom"},
 	PrefIssuesView:       {"list", "status"},
 	PrefCloseButtons:     {"mac", "windows"},
+	PrefLinkPreviews:     {"on", "off"},
 }
 
 // viewPrefKeys is ViewPrefs' keys in a fixed order (the PUT answer and logs).
-var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition, PrefIssuesView, PrefCloseButtons}
+var viewPrefKeys = []string{PrefMessageOrder, PrefComposerPosition, PrefIssuesView, PrefCloseButtons, PrefLinkPreviews}
 
 // IsViewPref reports whether value is one of key's ViewPrefs values, exactly.
 func IsViewPref(key, value string) bool {
@@ -934,7 +943,8 @@ func isPermutation(order, of []string) bool {
 // submit_key (SPL-976) is one of SubmitKeys exactly, or null to clear it;
 // rail_order (SPL-979) is an array holding every RailTabs id once (or the
 // legacy six, SPL-983), or null; message_order and composer_position (topic
-// c6994436), issues_view (SPL-1028) and close_buttons (SPL-1133) are one of
+// c6994436), issues_view (SPL-1028), close_buttons (SPL-1133) and
+// link_previews (topic e1f8f797) are one of
 // their ViewPrefs values exactly, or null; issues_columns (SPL-1132) is an object of IssueColumns
 // -> px (IsIssueColumns), or null / {} to clear it.
 type preferencesReq struct {
@@ -949,6 +959,7 @@ type preferencesReq struct {
 	ComposerPosition   json.RawMessage `json:"composer_position"`
 	IssuesView         json.RawMessage `json:"issues_view"`
 	CloseButtons       json.RawMessage `json:"close_buttons"`
+	LinkPreviews       json.RawMessage `json:"link_previews"`
 	IssuesColumns      json.RawMessage `json:"issues_columns"`
 	IssuesSort         json.RawMessage `json:"issues_sort"`
 	PaneSizes          json.RawMessage `json:"pane_sizes"`
@@ -965,6 +976,8 @@ func (q preferencesReq) raw(key string) json.RawMessage {
 		return q.IssuesView
 	case PrefCloseButtons:
 		return q.CloseButtons
+	case PrefLinkPreviews:
+		return q.LinkPreviews
 	}
 	return q.ComposerPosition
 }
@@ -1047,7 +1060,7 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 		return p, code, detail
 	}
 	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null) or keyboard_shortcuts (true, false or null) is required"
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null) or keyboard_shortcuts (true, false or null) is required"
 	}
 	code, detail = p.parseScalars(req)
 	return p, code, detail

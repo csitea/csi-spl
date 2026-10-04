@@ -26,8 +26,9 @@ tenant, error and file rules).
   cursor return the same bytes.
 - **Not a send path.** Human send (`./wui-live-ws.md`) and channel creation
   (`POST /v1/channels`, `./channels-v1.md` §5.1) live outside `/v1/view/`.
-  The one call under `/v1/view/` that reads a body is `POST /v1/view/ids`
-  (§4.6): a list of ids to resolve, not a message to store.
+  The calls under `/v1/view/` that read a body are `POST /v1/view/ids`
+  (§4.6) and `POST /v1/view/previews` (§4.7): a list of ids to resolve, not
+  a message to store.
 - **Not the box door.** The browser never opens `/v1/ws` (Ed25519 box door,
   `./http-v1.md` §2) and never holds a box key.
 
@@ -45,9 +46,10 @@ GET  /v1/view/search                      ./search-v1.md: one Gmail-style gramma
 GET  /v1/view/search/operators            ./search-v1.md §6: the grammar as data              FR-031
 GET  /v1/view/me                          the reader's roles and permissions                  025
 POST /v1/view/ids                         the ids quoted in one body, resolved (§4.6)          HUM-10
+POST /v1/view/previews                    the topics / messages bodies link, as cards (§4.7)  e1f8f797
 ```
 
-Every other method on `/v1/view/*` (`POST /v1/view/ids` excepted) → `405 method_not_allowed`; an unknown GET
+Every other method on `/v1/view/*` (`POST /v1/view/ids` and `/previews` excepted) → `405 method_not_allowed`; an unknown GET
 path → `404 not_found`. Tenant = the member session's tenant (026,
 `./http-v1.md` header note); unknown → `404 unknown_tenant`.
 
@@ -338,6 +340,36 @@ anything else, or more than 50, is `400 bad_id` / `400 too_many`. Body
   so it is the same for every reader.
 - One statement per call whatever the id count
   (`TestNPlus1RoundTripsViewIDs`).
+
+### 4.7 `POST /v1/view/previews` (topic e1f8f797)
+
+The topics and messages that the visible message bodies LINK to (an internal
+`/t/<task>`, `/t/<task>#<msg>`, `/m/<msg>` or `?topic=<task>` link), as short
+preview cards, in one call. The WUI asks only when the reader's own
+`link_previews` setting is on (auth `PUT /preferences`, rdb 0119; null = on).
+Request `{"ids": [...]}`: up to 20 distinct full uuids (any case); an 8-hex
+token, anything else, or more than 20 is `400 bad_id` / `400 too_many`.
+
+```json
+{"previews": [{"id": "<uuid as asked, lower case>", "kind": "topic|message",
+               "task_id": "<uuid>", "msg_id": "<uuid, message only>",
+               "channel": "<id, omitted for a DM>", "peer": "<other DM end>",
+               "archived": false, "title": "<first line, <= 100 chars>",
+               "excerpt": "<up to 3 lines, newline-separated>", "from": "<author id>",
+               "ts": "<RFC 3339, received_at>"}]}
+```
+
+- The door is §4.6's, resolved as the VIEWER. On top of it the row the card
+  prints must be readable: a topic prints its first message, so a topic whose
+  first message the reader may not read has NO card (the link stays plain).
+  An id the reader may not read is left out, exactly like an unknown one: no
+  title, no excerpt, no author.
+- A topic: title = its first message's first non-empty line, excerpt = the
+  next three. A message: title = its topic's title (its own first line when
+  that topic's first message is not readable), excerpt = its own first three
+  lines. Code-fence marker lines are skipped; a line is cut at 160 chars.
+- Two statements per call whatever the id count
+  (`TestNPlus1RoundTripsViewPreviews`).
 
 ## 5. Hygiene and limits
 

@@ -63,6 +63,7 @@ type MembershipSettings struct {
 	ComposerPosition *string            `json:"composer_position,omitempty"`
 	IssuesView       *string            `json:"issues_view,omitempty"`
 	CloseButtons     *string            `json:"close_buttons,omitempty"`
+	LinkPreviews     *string            `json:"link_previews,omitempty"`
 	IssueColumns     map[string]int     `json:"issues_columns,omitempty"`
 	Diagnostics      *bool              `json:"diagnostics_enabled,omitempty"`
 	IssuesSort       *IssuesSort        `json:"issues_sort,omitempty"`
@@ -103,6 +104,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.CloseButtons != nil {
 		vp[PrefCloseButtons] = *o.CloseButtons
+	}
+	if o.LinkPreviews != nil {
+		vp[PrefLinkPreviews] = *o.LinkPreviews
 	}
 	b.ViewPrefs = vp
 	if o.IssueColumns != nil {

@@ -1710,6 +1710,21 @@ async function save() {
 </script>
 
 <style scoped>
+/* t1 b921518d: the selected topic card has no left bracket bar. A 1px
+   soft-grey border frames all four sides, the card sits 1px up, and a
+   small grey drop shadow lifts it. Keyboard focus stays the global
+   :focus-visible outline. A swipe keeps its own translateX. */
+.msg.selected {
+  position: relative;
+  z-index: 1;
+  /* t1 b921518d follow-up: a soft grey, low opacity. Not the accent ring
+     and not a heavy dark shadow. Keyboard focus keeps the global outline. */
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  box-shadow: 0 2px 6px rgba(100, 100, 100, 0.22);
+}
+.msg.selected:not(.msg--swiping):not(.msg--swipe-settle) {
+  transform: translateY(-1px);
+}
 .mention-anchor { position: relative; min-width: 0; }
 /*
  * the recipient half of the owner's row format.

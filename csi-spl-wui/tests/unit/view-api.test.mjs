@@ -6,6 +6,7 @@ import {
   normalizeTopicRow,
   normalizeViewMessage,
   DEFAULT_DELIVERY,
+  rowTitle,
   rosterFromView,
   topicMessages,
   topicOpening,
@@ -59,6 +60,16 @@ describe('view-api helpers', () => {
     assert.deepEqual(f.participants, ['GRK-03@box-a', 'CLE-07@box-b'])
     assert.equal(f.last_ts, 'c')
     assert.equal(f.subject, 'line1')
+  })
+
+  it('a Topics row title is the gist, else the plain opening (082 FR-001)', () => {
+    assert.equal(rowTitle('Welcome to **#lobby**.'), 'Welcome to #lobby.')
+    assert.equal(rowTitle('Welcome to **#lobby**.', ''), 'Welcome to #lobby.')
+    assert.equal(rowTitle('Welcome to **#lobby**.', '  '), 'Welcome to #lobby.')
+    assert.equal(rowTitle('long opening', 'the **gist**'), 'the gist')
+    assert.equal(rowTitle('a'.repeat(120)), 'a'.repeat(100) + '…')
+    assert.equal(rowTitle(''), '')
+    assert.ok(!rowTitle('hello').startsWith('Topic:'))
   })
 
   it('a topic title is the first 100 characters of the first message', () => {

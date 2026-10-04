@@ -10,6 +10,7 @@
  */
 
 import { normalizeReactions } from './emoji.mjs'
+import { plainText } from './plain-text.mjs'
 
 /** channels-v1 §2: absent, null and "" all mean absent → null. */
 export function hubField(v) {
@@ -49,6 +50,16 @@ export function topicOpening(text) {
   const chars = Array.from(flat)
   if (chars.length <= TOPIC_TITLE_CHARS) return flat
   return chars.slice(0, TOPIC_TITLE_CHARS).join('') + '...'
+}
+
+/**
+ * A Topics list row title (spec 082 FR-001, FR-004): the topic's gist (034)
+ * when it has one, else its opening as plain text, cut at 100 characters.
+ * No "Topic:" label: the list already says what its rows are.
+ */
+export function rowTitle(subject, gist) {
+  const short = plainText(gist)
+  return short || plainText(subject, TOPIC_TITLE_CHARS)
 }
 
 function label(id, box) {

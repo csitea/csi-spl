@@ -12,7 +12,7 @@ No task changes the reply control ("3 >>", owner SPL-982): spec §9 Q4.
 - [x] T001 **spec** (c-245): `spec.md` and this file.
 
 ### Phase 1: Topics rows (FR-001..FR-004, FR-006)
-- [ ] T002 **plain text + row title** : new pure `src/utils/plain-text.mjs` (`plainText(md, max)`) and `rowTitle(subject, gist)` next to `topicOpening` in `src/utils/view-api.mjs`. Owns: `src/utils/plain-text.mjs`, the new export in `src/utils/view-api.mjs`, `tests/unit/plain-text.test.mjs` (AC1), `tests/unit/view-api.test.mjs` (rowTitle cases), the `src/types/mjs-shims.d.ts` entries. Done: the checks above.
+- [x] T002 **plain text + row title** (c-257): new pure `src/utils/plain-text.mjs` (`plainText(md, max)`) and `rowTitle(subject, gist)` next to `topicOpening` in `src/utils/view-api.mjs`. Owns: `src/utils/plain-text.mjs`, the new export in `src/utils/view-api.mjs`, `tests/unit/plain-text.test.mjs` (AC1), `tests/unit/view-api.test.mjs` (rowTitle cases), the `src/types/mjs-shims.d.ts` entries. Done: the checks above.
 - [ ] T003 **use it in both lists + the date rule** : replace `topicRowTitle` in `src/pages/index.vue:161-164` and `src/components/ChannelSidebar.vue:832-835` with `rowTitle`, dropping `topic.list_title` there; desktop `rowTime` in `index.vue:158` (and the sidebar row time, if shown) uses `formatMsgListTs` (`src/utils/channel-feed.mjs:261`). Update only the list-row assertions among the `list_title` tests (spec AC6). Owns: those functions and the row time in the two files. New e2e `tests/e2e/clean-list-rows.test.mjs` (AC2, AC3, AC4 as a grep in the unit suite). Rebase on c-253 / 079 T005 / 080 T004 if they touched the row templates. Depends on T002. Done: the checks above.
 
 ### Phase 2: Flow rows (FR-005)

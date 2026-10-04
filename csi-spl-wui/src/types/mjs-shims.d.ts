@@ -596,11 +596,16 @@ declare module '~/utils/tenant-switcher.mjs' {
   export function measureControlText(source: object | null | undefined, text: unknown): number
 }
 
+declare module '~/utils/plain-text.mjs' {
+  export function plainText(md: string | null | undefined, max?: number): string
+}
+
 declare module '~/utils/view-api.mjs' {
   export const BROWSER_BOX: string
   export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[], owners: string[] }
   export function subjectOf(body: string): string
   export function topicOpening(text: string): string
+  export function rowTitle(subject: string, gist?: string | null): string
   export function topicTitleFromRows(rows: unknown, pinnedRoot?: { body?: string, ts?: string } | null): string
   export function hubField(v: unknown): string | null
   export function channelReadQuery(read: Record<string, string>): string[]

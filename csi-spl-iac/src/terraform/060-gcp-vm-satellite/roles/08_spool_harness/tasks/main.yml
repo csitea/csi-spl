@@ -97,11 +97,15 @@
   register: box_config
   changed_when: "'CHANGED' in box_config.stdout"
 
-- name: spool-install/install.sh as the agent (CLIs, yq, Go, spool, hooks, skills)
+# --fleet (spec 072 T007/A49): the installer writes the fleet config
+# (~/.claude/CLAUDE.md block, settings, browser MCP) only when asked, and a
+# NEW box has no fleet block to be detected by. Our boxes are the fleet.
+# The owner call below stays without it: the owner runs no AI CLI.
+- name: spool-install/install.sh as the agent (CLIs, yq, Go, spool, hooks, skills, fleet config)
   ansible.builtin.shell: |
     set -uo pipefail
     export SPOOL_ROOT="{{ spool_root }}" SPOOL_BOX_TAG="{{ box_tag }}" PATH="$HOME/.local/bin:/usr/local/go/bin:$HOME/go/bin:$PATH"
-    cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat </dev/null 2>&1
+    cd "{{ repo_dir }}" && timeout 1800 setsid -w bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli "{{ agent_clis }}" --no-seat --fleet </dev/null 2>&1
     rc=$?
     # loop run 2 printed nothing: prove the result, never trust an empty ok
     for b in claude spool spool-agent; do [ -x "$HOME/.local/bin/$b" ] || { echo "FAIL no ~/.local/bin/$b after install.sh (rc=$rc)"; exit 1; }; done

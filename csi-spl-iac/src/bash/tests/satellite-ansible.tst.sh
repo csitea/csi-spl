@@ -176,6 +176,8 @@ gs="$STEP/tasks/git-sync.yml"; h8="$R/08_spool_harness/tasks/main.yml"
 grep -q 'merge -q --ff-only "origin/$BRANCH"' "$gs" && grep -q 'FAIL $DIR did not fast-forward' "$gs" && grep -q "BRANCH: \"{{ git_branch | default('') }}\"" "$gs" \
   && pass "git-sync: with git_branch, fetch + merge --ff-only, a non-ff FAILS" || fail "git-sync does not fast-forward to origin/<branch> strictly"
 grep -q 'git_branch: master' "$h8" && pass "role 08 syncs the repo on master" || fail "role 08 does not pin the repo to master"
+grep -qF 'install.sh --cli "{{ agent_clis }}" --no-seat --fleet <' "$h8" \
+  && pass "role 08 installs the agent with --fleet (spec 072 A49: our boxes get the fleet config)" || fail "role 08 agent install lacks --fleet"
 grep -q 'install.sh --cli none --no-seat --no-hooks --no-skills' "$h8" && grep -q 'become_user: "{{ owner_user }}"' "$h8" \
   && pass "role 08 installs spool + spool-agent for the owner (box user), no AI CLI, no hooks/skills" || fail "role 08 does not install the owner's harness"
 grep -q 'installed for $owner (the box user runs the desks)' "$v" && grep -q '^_satellite_verify_repo()' "$v" \

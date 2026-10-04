@@ -3,7 +3,11 @@
      src/node/help/sync-help.mjs). /help is the index page; a sibling link
      (./x.md) opens /help/x in this tab. Signed in or not: the help is not a
      product screen, so a stranger on the sign-in page reaches it too.
-     At <= 820 px the page list hides; the index page lists every page. -->
+     At <= 820 px the page list hides; the index page lists every page.
+     t1 67f91532 (owner): help is TWO panes on a desktop, the page list left
+     and the document right; the sidebar keeps its icon rail only
+     (ChannelSidebar helpRailOnly) and a topic panel open beside the channel
+     the reader came from closes. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -51,6 +55,8 @@
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import { fillHelpHosts, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } from '~/utils/help.mjs'
 import { boxHubUrl } from '~/utils/connect-agent.mjs'
+import { useTopicStore } from '~/stores/topic'
+import { useLiveFeed } from '~/stores/live'
 
 type HelpPage = { slug: string, title: string }
 
@@ -111,6 +117,17 @@ onMounted(async () => {
     /* no list: the index page still links every page */
   }
 })
+/* t1 67f91532 (owner: "if one clicks from the channel view - of course the
+   3rd panel with the content of the channel view should be closed"): no
+   topic panel sits beside help, whichever store holds it */
+const topic = useTopicStore()
+const livePane = useLiveFeed('pane')
+function closeTopicPanel() {
+  if (livePane.taskId) livePane.close()
+  if (topic.open) topic.close()
+}
+watch(() => [livePane.taskId, topic.open], closeTopicPanel)
+onMounted(closeTopicPanel)
 watch(slug, () => { if (import.meta.client) void load() })
 onMounted(() => { void load() })
 useHead(() => ({ title: t('help.title') }))

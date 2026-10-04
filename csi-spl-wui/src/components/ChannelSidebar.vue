@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly, 'sidebar--strip': stripOnly }">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || helpRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, topics, flow,
@@ -912,6 +912,11 @@ const localePath = useLocalePath()
    sidebar keeps the icon rail and the issue list takes the width. */
 const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
 const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
+/* t1 67f91532 (owner: "the help section should have only 2 panes"): on
+   /help the sidebar keeps the icon rail only; the help page itself is the
+   two panes, its page list left and the document right. A phone keeps its
+   one-pane stack (the section strip above the page). */
+const helpRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSection(route.path) === 'help')
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))

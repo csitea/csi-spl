@@ -193,8 +193,14 @@ spl_m3_prd_humans() {
 # spl_m3_imap_pass <file>: the relay password (cnf slot
 # mail.secret_env.SPOOL_HUB_MAIL_SMTP_PASSWORD) into a 0600 file, read as the
 # env's project SA in a throwaway CLOUDSDK_CONFIG. Never argv, stdout or a log.
+# Under provider none (spec 076) it is SPOOL_MAIL_SMTP_PASSWORD of the
+# self-host .env instead, with no gcloud call.
 spl_m3_imap_pass() {
   local f="$1" slot
+  if [[ "$(do_spl_cloud_provider)" == none ]]; then
+    spl_m3_imap_pass_none "$f"
+    return
+  fi
   slot="$(yq -r '.env.mail.secret_env.SPOOL_HUB_MAIL_SMTP_PASSWORD // ""' "$SPL_CNF")"
   [[ -n "$slot" ]] || { do_log "FATAL no mail.secret_env.SPOOL_HUB_MAIL_SMTP_PASSWORD in the $ENV cnf"; return 1; }
   (
@@ -207,6 +213,19 @@ spl_m3_imap_pass() {
   )
 }
 
+# spl_m3_imap_pass_none <file>: SPOOL_MAIL_SMTP_PASSWORD of the self-host .env
+# (spl_secrets_none_get, the T009 store) into a 0600 file. Never logged.
+spl_m3_imap_pass_none() {
+  # shellcheck disable=SC2034 # statef: set by spl_secrets_none_paths, unused here
+  local f="$1" envf statef pw
+  spl_secrets_none_paths || return 1
+  pw="$(spl_secrets_none_get "$envf" SPOOL_MAIL_SMTP_PASSWORD)"
+  [[ "$(spl_secrets_none_state "$pw")" == set ]] ||
+    { do_log "FATAL no SPOOL_MAIL_SMTP_PASSWORD in $envf (the IMAP mailbox password)"; return 1; }
+  ( umask 077; printf '%s' "$pw" >"$f" ) || { rm -f "$f"; return 1; }
+  do_log "OK the relay password for IMAP is in a 0600 file for this run (SPOOL_MAIL_SMTP_PASSWORD, self-host .env)"
+}
+
 spl_m3_imap_forget() {
   [[ -n "${M3_IMAP_PASS_FILE:-}" ]] && rm -f "$M3_IMAP_PASS_FILE"
   return 0
@@ -215,8 +234,17 @@ spl_m3_imap_forget() {
 # spl_m3_invite <tenant> <email> [role]: `spool hub-invite --role <role>` (default member) through the
 # Cloud SQL proxy (the path do_spl_tenant_create uses), as the env's service
 # account in a throwaway gcloud config (never the owner account, never the
-# shared ~/.config/gcloud). The DSN stays in a local.
+# shared ~/.config/gcloud). The DSN stays in a local. Under provider none
+# (spec 076) the DSN is the local Postgres one (spl_db_runtime_local), with
+# no gcloud call.
 spl_m3_invite() {
+  if [[ "$(do_spl_cloud_provider)" == none ]]; then
+    local dsn rc=0
+    spl_db_runtime_local || return 1
+    _spl_m3_invite_run "$@" || rc=$?
+    unset dsn
+    return "$rc"
+  fi
   local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
   local cfg
@@ -227,18 +255,22 @@ spl_m3_invite() {
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
     GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
     export GCP_ACCOUNT
-    local cloud_dsn dsn out rc
-    cloud_dsn="$(spl_read_dsn)"
-    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; exit 1; }
-    spl_sql_proxy_start || exit 1
-    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || { spl_sql_proxy_stop; do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"; exit 1; }
-    out="$(SPOOL_HUB_DB_DSN="$dsn" "$SPL_SPOOL" hub-invite --tenant "$1" --email "$2" --role "${3:-member}" 2>&1)"
-    rc=$?
-    spl_sql_proxy_stop
-    [[ $rc == 0 ]] || { do_log "FATAL hub-invite $2 to $1: $out"; exit 1; }
-    do_log "OK invited $2 to $1 as ${3:-member} ($GCP_ACCOUNT): $out"
+    local dsn
+    spl_db_runtime_local || exit 1
+    _spl_m3_invite_run "$@"
   )
   local rc=$?
   rm -rf "$cfg"
   return $rc
+}
+
+# _spl_m3_invite_run <tenant> <email> [role] -> hub-invite once $dsn is the
+# local login. Stops the proxy.
+_spl_m3_invite_run() {
+  local out rc
+  out="$(SPOOL_HUB_DB_DSN="$dsn" "$SPL_SPOOL" hub-invite --tenant "$1" --email "$2" --role "${3:-member}" 2>&1)"
+  rc=$?
+  spl_sql_proxy_stop
+  [[ $rc == 0 ]] || { do_log "FATAL hub-invite $2 to $1: $out"; return 1; }
+  do_log "OK invited $2 to $1 as ${3:-member} (${GCP_ACCOUNT:-local Postgres}): $out"
 }

@@ -1,0 +1,29 @@
+# 081 command palette, pane keys and a complete overlay: tasks
+
+Authority for what is built (`spec.md` holds the behaviour). Each task names the files it owns and its done check. Status vocabulary: `../README.md` §2.3. Paths are under `csi-spl-wui/` unless they start with `csi-spl-doc/`.
+
+Every WUI task is done only when, from `csi-spl-wui/`: `pnpm run test:unit`, `pnpm run typecheck`, its named e2e green against a generated bundle (`BASE_URL=<bundle> pnpm run test:e2e <names>`), and `cd ../csi-spl-iac && ./run -a do_check_pre_push` passes.
+
+---
+
+### Phase 0: Specification
+- [x] T001 **spec** (c-245): `spec.md` and this file.
+
+### Phase 1: The palette (FR-001..FR-005)
+- [ ] T002 **ranker** : new pure `src/utils/palette.mjs`: `rankItems(items, query, recent)` (prefix, word prefix, substring, recency), `parseQuery` (`>` = actions), `pushRecent(store, id)` over `src/utils/prefs.mjs` (`spool.palette-recent`, 20). Owns: `src/utils/palette.mjs`, `tests/unit/palette.test.mjs` (AC3), its `src/types/mjs-shims.d.ts` entry. Done: the checks above.
+- [ ] T003 **sources** : a forward `routeForTab(id)` next to `tabForPath` in `src/utils/sidebar-tabs.mjs` (unit-tested both ways in `tests/unit/sidebar-tabs.test.mjs`), and a `src/composables/usePaletteItems.ts` that builds the groups from `RAIL_TABS` (`src/utils/rail-order.mjs`), `stores/channel.ts`, `stores/roster.ts`, the viewer topics, the docs tree (`src/utils/docs.mjs` / 075's list) and `SETTINGS_SECTIONS` (`src/utils/settings-nav.mjs`), with the existing admin gates. Owns: those two files plus the test. Done: the checks above.
+- [ ] T004 **dialog + global listener** : new `src/components/CommandPalette.vue` (on `UiDialog`, size `md`, listbox with `aria-activedescendant`) and an always-on `src/composables/useGlobalKeys.ts` mounted once in `src/layouts/default.vue` (not inside `useMsgShortcuts`, which installs only with cards). `Ctrl/Cmd+K` with `preventDefault` (spec Q1, Q2), off on a phone and while another modal is open. i18n `palette.*` in all 19 locales. Owns: the two new files, one mount line in `default.vue`, the i18n keys. New e2e `tests/e2e/command-palette.test.mjs` (AC1, AC2). Depends on T002, T003. Done: the checks above.
+- [ ] T005 **actions mode** : `>` lists `msgMenuItems(opts)` (`src/utils/msg-menu.mjs`) for the current selection with its gating, plus new topic / mark all read / change theme; each row shows `shortcutHint` from `src/utils/msg-shortcuts.mjs`; running an item calls the same handler as the menu (`src/composables/useMessageMenu.ts`). Owns: an actions provider in `src/composables/usePaletteItems.ts` (append-only), the action rows of `CommandPalette.vue`. e2e AC4 added to `tests/e2e/command-palette.test.mjs`. Depends on T004. Done: the checks above.
+
+### Phase 2: Pane keys, skip link, focus (FR-006..FR-010, FR-012)
+- [ ] T006 **F6 + skip link + focus after route** : add a `left` pane id to `src/utils/pane-focus.mjs` / `src/stores/pane-focus.ts`; `F6` / `Shift+F6` in `useGlobalKeys.ts`; a skip link as the first child of `src/layouts/default.vue`; after a non-popstate `afterEach`, focus the middle pane's selected row or heading and set a polite live region (`src/layouts/default.vue`, after 078 T002's close rule in the same hook: rebase on it). Owns: `src/utils/pane-focus.mjs`, `src/stores/pane-focus.ts`, the F6 block of `useGlobalKeys.ts`, the skip link and the focus lines of `default.vue`, `tests/unit/pane-focus.test.mjs` (or the existing `pane-names` test). New e2e `tests/e2e/pane-keys.test.mjs` (AC5, AC6, AC8). Depends on T004 (`useGlobalKeys.ts` exists). Done: the checks above.
+- [ ] T007 **roving left list** : the left list (`src/components/ChannelSidebar.vue` row lists) becomes one Tab stop with arrow keys inside (roving tabindex); row ≡ buttons get `tabindex="-1"` and open with `Shift+F10` / ContextMenu (`src/components/SidebarRowMenu.vue`). Owns: the list containers and key handlers in `ChannelSidebar.vue`, `SidebarRowMenu.vue`, `src/utils/row-keys.mjs` (helpers), `tests/unit/row-keys.test.mjs`. e2e AC7 in `tests/e2e/pane-keys.test.mjs`. Rebase on 079 T005 / 080 T004 if they changed row templates. Done: the checks above.
+- [ ] T008 **setting scope** : `useMsgShortcutsOn()` keeps gating letters only; `useGlobalKeys.ts` ignores it for `Ctrl+K`, `F6`, `Esc` (FR-012). Owns: those two guards and a case in `tests/unit/msg-shortcuts.test.mjs`. e2e AC10 in `tests/e2e/command-palette.test.mjs`. Done: the checks above.
+
+### Phase 3: The complete overlay (FR-011)
+- [ ] T009 **one table, five groups** : `src/utils/msg-shortcuts.mjs` gains `SHORTCUT_GROUPS` (Global, Message, Topic list, Moving, Dividers) built from the existing arrays plus the new keys; `src/components/MsgShortcutsHelp.vue` renders the groups; declare `TOPIC_LIST_SHORTCUTS` in `src/types/mjs-shims.d.ts` (drop the cast at `MsgShortcutsHelp.vue:31-34`); extend the generator so help `keyboard-shortcuts.md` §1 is generated like §7, with the page-equals-code unit test (AC9). Owns: those files and `tests/unit/msg-shortcuts.test.mjs`. Coordinate with the Shift-shortcut lane (spec §7) before landing. Done: the checks above.
+
+### Phase 4: Help
+- [ ] T010 **help** : `csi-spl-doc/doc/help/keyboard-shortcuts.md` (§1 generated, palette, F6, skip link), `csi-spl-doc/doc/help/omnibox-and-navigation.md` (a "Command palette" section), then `node src/node/help/sync-help.mjs`; retire `SPEC-spool-wui-layout.md` §2.2 with a pointer here. Done: `./run -a do_check_dist_hygiene`, `lint-mdlinks` green.
+
+<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:35:00Z -->

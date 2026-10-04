@@ -1,9 +1,7 @@
-// t1 1d8e647d follow-up: on a phone the /t header title was ~5 characters
-// (52 px at 360, 64 px at 390, 81 px at 430 on origin/master before this
-// change). The title must take >= 60% of the header row at 360 / 390 / 430,
-// stay on one row, and the page must not scroll sideways. The full text is
-// the hover title and a long-press tooltip. Desktop keeps Topics /, the
-// status, and the card-height control on the row.
+// The topic view (/t/:id) is two panels. On a phone one shows at a time:
+// the thread, then Back to the list, then the row back to the thread.
+// Desktop shows both, the sidebar stays hidden, and a channel still has it.
+// The thread title is the topic text inside a four-side 1px border.
 //
 // Run: node tests/e2e/phone-topic-header-width.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -38,10 +36,13 @@ async function launch() {
   })
 }
 
-async function waitTitle(page) {
+async function waitThread(page) {
   for (let i = 0; i < 40; i++) {
-    const found = await page.evaluate(() => !!document.querySelector('[data-test=topic-page-title]')).catch(() => false)
-    if (found) return true
+    const text = await page.evaluate(() => {
+      const el = document.querySelector('[data-test=topic-browse-thread] [data-test=topic-heading] .topic-heading__text')
+      return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : ''
+    }).catch(() => '')
+    if (text === TITLE) return true
     await sleep(500)
   }
   return false
@@ -51,12 +52,12 @@ async function openTopic(page) {
   const url = `${srv.base}/t/${TOPIC}`
   for (let attempt = 0; attempt < 2; attempt++) {
     await page.goto(url, { waitUntil: 'domcontentloaded' })
-    if (await waitTitle(page)) return
+    if (await waitThread(page)) return
   }
   throw new Error('topic title never appeared')
 }
 
-function readBox(page) {
+function readBrowse(page) {
   return page.evaluate(() => {
     const box = (el) => {
       if (!el) return null
@@ -65,36 +66,23 @@ function readBox(page) {
       const visible = s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 0
       return {
         w: Math.round(r.width * 10) / 10,
-        h: Math.round(r.height * 10) / 10,
-        y: Math.round(r.y * 10) / 10,
         visible,
         text: (el.textContent || '').replace(/\s+/g, ' ').trim(),
       }
     }
-    const header = document.querySelector('.feed-header')
-    const title = document.querySelector('[data-test=topic-page-title]')
-    const hr = header ? header.getBoundingClientRect() : null
-    const tops = [title, document.querySelector('[data-testid=mobile-back]'), document.querySelector('[data-test=topic-page-more]')]
-      .filter(Boolean)
-      .map((el) => el.getBoundingClientRect())
-      .filter((r) => r.width > 0 && r.height > 0)
-    const ys = tops.map((r) => r.y + r.height / 2)
+    const shell = document.querySelector('.spool-shell')
+    const root = document.querySelector('[data-test=topic-browse]')
+    const title = document.querySelector('[data-test=topic-browse-thread] [data-test=topic-heading] .topic-heading__text')
     return {
       inner: window.innerWidth,
       docScroll: document.documentElement.scrollWidth,
       docClient: document.documentElement.clientWidth,
-      headerW: hr ? Math.round(hr.width * 10) / 10 : 0,
-      headerH: hr ? Math.round(hr.height * 10) / 10 : 0,
-      headerScroll: header ? header.scrollWidth : 0,
-      headerClient: header ? header.clientWidth : 0,
-      title: box(title),
-      titleAttr: title ? title.getAttribute('title') : '',
-      crumb: box(document.querySelector('.topic-page-crumb')),
-      status: box(header ? header.querySelector(':scope > .topic-page-status') : null),
-      clip: box(document.querySelector('[data-testid=card-clip-control]')),
-      more: box(document.querySelector('[data-test=topic-page-more]')),
-      back: box(document.querySelector('[data-testid=mobile-back]')),
-      rowSpread: ys.length ? Math.round((Math.max(...ys) - Math.min(...ys)) * 10) / 10 : 999,
+      phone: root ? root.getAttribute('data-phone') || '' : '',
+      list: box(document.querySelector('[data-test=topic-browse-list]')),
+      thread: box(document.querySelector('[data-test=topic-browse-thread]')),
+      title: title ? (title.textContent || '').replace(/\s+/g, ' ').trim() : '',
+      sidebar: box(shell ? shell.querySelector(':scope > .sidebar') : null),
+      sections: document.querySelectorAll('[data-test=topic-section]').length,
     }
   })
 }
@@ -103,6 +91,7 @@ const SHOT_DIR = mkdtempSync(join(tmpdir(), 'topic-border-'))
 const THREADS = [
   ['channel', `/channel/lobby?topic=${TOPIC}`],
   ['topics', `/?topic=${TOPIC}`],
+  ['topic-view', `/t/${TOPIC}`],
 ]
 
 function readThread(page) {
@@ -155,58 +144,57 @@ try {
     await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
     await openTopic(page)
     await sleep(300)
-    const m = await readBox(page)
-    const ratio = m.headerW ? m.title.w / m.headerW : 0
-    console.log(`MEASURE ${width} title=${m.title.w} header=${m.headerW} ratio=${ratio.toFixed(3)} headerH=${m.headerH}`)
+    const m = await readBrowse(page)
+    console.log(`MEASURE ${width} phone=${m.phone} title=${JSON.stringify(m.title)} list=${m.list && m.list.visible} thread=${m.thread && m.thread.visible}`)
     ok(`${width}px viewport applied`, m.inner === width, m.inner)
-    ok(`${width}px title is >= 60% of the header row`, ratio >= 0.6, { title: m.title.w, header: m.headerW, ratio })
-    ok(`${width}px the title is the topic text, not the id`, m.title.text === TITLE && m.titleAttr === TITLE, m.title)
-    ok(`${width}px one row (header under 72px, controls share a centre)`, m.headerH <= 72 && m.rowSpread <= 20, { headerH: m.headerH, rowSpread: m.rowSpread })
-    ok(`${width}px no sideways scroll`, m.docScroll <= m.docClient + 1 && m.headerScroll <= m.headerClient + 1, m)
-    ok(`${width}px Topics / is not on the row`, m.crumb && !m.crumb.visible, m.crumb)
-    ok(`${width}px the status line is not on the row`, m.status && !m.status.visible, m.status)
-    ok(`${width}px the card-height control is not on the row`, m.clip && !m.clip.visible, m.clip)
-    ok(`${width}px the overflow button is a 44px target`, m.more && m.more.visible && m.more.w >= 44 && m.more.h >= 44, m.more)
+    ok(`${width}px the thread is the panel on screen`, m.phone === 'thread' && m.thread && m.thread.visible && m.list && !m.list.visible, m)
+    ok(`${width}px the title is the topic text`, m.title === TITLE, m.title)
+    ok(`${width}px one topic section`, m.sections === 1, m.sections)
+    ok(`${width}px no sideways scroll`, m.docScroll <= m.docClient + 1, m)
 
-    await page.evaluate(() => {
-      const el = document.querySelector('[data-test=topic-page-title]')
-      const r = el.getBoundingClientRect()
-      el.dispatchEvent(new PointerEvent('pointerdown', {
-        bubbles: true, pointerType: 'touch', isPrimary: true, clientX: r.x + 8, clientY: r.y + 8,
-      }))
-    })
-    await sleep(650)
-    const tip = await page.evaluate(() => {
-      const el = document.querySelector('[data-test=topic-page-title-full]')
-      return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : ''
-    })
-    ok(`${width}px a long-press shows the full title`, tip === TITLE, tip)
-    await page.evaluate(() => {
-      document.querySelector('[data-test=topic-page-title]')?.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch', isPrimary: true }))
-    })
+    await page.click('[data-test=topic-browse-thread] [data-testid=mobile-back]')
+    await sleep(400)
+    const back = await readBrowse(page)
+    ok(`${width}px Back returns to the topic list`, back.phone === 'list' && back.list && back.list.visible && back.thread && !back.thread.visible, back)
 
-    await page.click('[data-test=topic-page-more]')
-    await sleep(200)
-    const open = await readBox(page)
-    const openRatio = open.headerW ? open.title.w / open.headerW : 0
-    ok(`${width}px the overflow shows the card-height control`, open.clip && open.clip.visible, open.clip)
-    ok(`${width}px opening the overflow keeps the title >= 60%`, openRatio >= 0.6, { title: open.title.w, header: open.headerW })
-    ok(`${width}px opening the overflow does not scroll sideways`, open.docScroll <= open.docClient + 1, open)
+    await page.click(`[data-test=topic-browse-list] [data-key="${TOPIC}"]`)
+    await sleep(400)
+    const again = await readBrowse(page)
+    ok(`${width}px the row opens the thread again`, again.phone === 'thread' && again.title === TITLE, again)
   }
 
   await page.setViewport({ width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
   await openTopic(page)
   await sleep(300)
-  const desk = await readBox(page)
-  console.log(`MEASURE 1280 title=${desk.title.w} header=${desk.headerW} ratio=${(desk.title.w / desk.headerW).toFixed(3)}`)
+  const desk = await readBrowse(page)
+  console.log(`MEASURE 1280 list=${desk.list && desk.list.w} thread=${desk.thread && desk.thread.w} sections=${desk.sections}`)
   ok('1280px viewport applied', desk.inner === 1280, desk.inner)
-  ok('1280px Topics / stays on the row', desk.crumb && desk.crumb.visible && desk.crumb.text === 'Topics', desk.crumb)
-  ok('1280px the status stays on the row', desk.status && desk.status.visible, desk.status)
-  ok('1280px the card-height control stays on the row', desk.clip && desk.clip.visible, desk.clip)
-  ok('1280px the overflow button is not shown', desk.more && !desk.more.visible, desk.more)
-  ok('1280px there is no back arrow', !desk.back || !desk.back.visible, desk.back)
-  ok('1280px the title still shows the topic text', desk.title.text === TITLE, desk.title)
+  ok('1280px both panels are on screen', desk.list && desk.list.visible && desk.thread && desk.thread.visible, desk)
+  ok('1280px the thread is wider than the list', desk.thread.w > desk.list.w, { thread: desk.thread.w, list: desk.list.w })
+  ok('1280px the sidebar is not a third panel', desk.sidebar && !desk.sidebar.visible, desk.sidebar)
+  ok('1280px one topic section', desk.sections === 1, desk.sections)
+  ok('1280px the title is the topic text', desk.title === TITLE, desk.title)
   ok('1280px no sideways scroll', desk.docScroll <= desk.docClient + 1, desk)
+
+  await page.goto(`${srv.base}/channel/lobby`, { waitUntil: 'domcontentloaded' })
+  let channel = { visible: false }
+  for (let i = 0; i < 40; i++) {
+    channel = await page.evaluate(() => {
+      const el = document.querySelector('.spool-shell > .sidebar')
+      if (!el) return { visible: false, path: location.pathname }
+      const r = el.getBoundingClientRect()
+      const s = getComputedStyle(el)
+      return {
+        visible: s.display !== 'none' && r.width > 0,
+        w: Math.round(r.width),
+        path: location.pathname,
+        browse: document.querySelector('.spool-shell')?.getAttribute('data-topic-browse') || '',
+      }
+    })
+    if (channel.visible && channel.w > 40) break
+    await sleep(250)
+  }
+  ok('1280px the channel view still shows the sidebar', channel.visible && channel.w > 40, channel)
 
   const four = (b) => b.length === 4 && b.every((w) => w === '1px')
   const solid = (st) => st.length === 4 && st.every((w) => w === 'solid')

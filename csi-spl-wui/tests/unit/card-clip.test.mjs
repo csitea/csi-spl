@@ -260,8 +260,11 @@ describe('SPL-945: the thread pane has its own control and mode', () => {
     })
   }
 
-  it('the /t topic page reads the thread mode too', () => {
-    assert.match(read('src/pages/t/[task_id].vue'), /<LiveFeed\s+clip\s+clip-pane="thread"\s+hold-scroll/)
+  it('the /t topic page reuses TopicPane, which clips with the thread mode', () => {
+    const page = read('src/pages/t/[task_id].vue')
+    assert.match(page, /<TopicPane/)
+    assert.doesNotMatch(page, /<LiveFeed/)
+    assert.match(read('src/components/TopicPane.vue'), /<LiveFeed\s+clip\s+clip-pane="thread"\s+hold-scroll/)
   })
 
   it('LiveFeed reads the pane\'s mode for every card, the thread root too (SPL-963)', () => {

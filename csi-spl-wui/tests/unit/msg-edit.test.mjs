@@ -483,7 +483,6 @@ describe('CLE-3446 — an edit never rides across onto another row', () => {
   const PANES = [
     'src/components/TopicPane.vue',
     'src/components/LiveTopicPane.vue',
-    'src/pages/t/[task_id].vue',
   ]
 
   it('topic messages render through LiveFeed, which keys every card by msg_id', () => {
@@ -497,6 +496,10 @@ describe('CLE-3446 — an edit never rides across onto another row', () => {
       assert.match(tpl, /<LiveFeed/, rel)
       assert.doesNotMatch(tpl, /<MessageCard/, rel)
     }
+    const topicPage = src('src/pages/t/[task_id].vue')
+    assert.match(topicPage, /<TopicPane/)
+    assert.doesNotMatch(topicPage, /<MessageCard/)
+    assert.doesNotMatch(topicPage, /<LiveFeed/)
   })
 
   it('MessageCard resets its edit state when the row identity changes', () => {

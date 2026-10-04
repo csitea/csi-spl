@@ -1,8 +1,6 @@
-// t1 1d8e647d: on a phone the topic page header showed the topic id
-// broken over two lines ("6e61f b91") and "Topics /", the id and the
-// status stacked into a tall column. The header shows the topic title
-// (ellipsis, one line, full text on hover) and never the raw id. The
-// breadcrumb stays one row at 360-430 px.
+// The topic view (/t/:id) is two panels: the list of topics and the
+// thread (TopicPane) filling the rest of the width. The title is the
+// topic text, never the raw id. A phone shows one panel at a time.
 // Run: node --test tests/unit/topic-page-header.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -14,41 +12,36 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const page = read('src/pages/t/[task_id].vue')
 const template = page.slice(page.indexOf('<template>'), page.lastIndexOf('</template>'))
-const header = template.slice(template.indexOf('<header'), template.indexOf('</header>') + '</header>'.length)
 const css = read('src/assets/css/main.css')
 
-describe('the topic page header shows the title on one row', () => {
-  it('the breadcrumb is Topics / the title, never the raw id', () => {
-    assert.match(header, /class="topic-page-heading"/)
-    assert.match(header, /class="topic-page-title"[^>]*:title="heading"/)
-    assert.match(header, /\{\{ heading \}\}/)
-    assert.doesNotMatch(header, /shortId/)
-    assert.doesNotMatch(header, /<code/)
-    assert.match(page, /topicTitleFromRows\(store\.messages/)
+describe('the topic view is two panels', () => {
+  it('the list names topics and the thread is TopicPane, never the raw id', () => {
+    assert.match(template, /data-test="topic-browse"/)
+    assert.match(template, /data-test="topic-browse-list"/)
+    assert.match(template, /data-test="topic-browse-thread"/)
+    assert.match(template, /<TopicPane\s*\/>/)
+    assert.match(template, /\{\{ t\('nav\.topics'\) \}\}/)
+    assert.doesNotMatch(template, /shortId/)
+    assert.doesNotMatch(template, /<code/)
+    assert.doesNotMatch(template, /<LiveFeed/)
+    assert.match(page, /topicOpening\(subject\)/)
+    assert.doesNotMatch(page, /topic\.list_title/)
   })
 
-  it('the title ellipsizes and the row does not wrap (360-430 px included)', () => {
-    assert.match(css, /\.feed-header h2\.topic-page-heading \{[^}]*white-space: nowrap;[^}]*overflow-wrap: normal;/)
-    assert.match(css, /\.topic-page-title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/)
-    assert.match(css, /\.feed-header:has\(\.topic-page-heading\) \{[^}]*flex-wrap: nowrap;/)
-    assert.match(css, /\.topic-page-status \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
-    assert.doesNotMatch(css, /\.feed-header h2\.topic-page-heading \{[^}]*overflow-wrap: anywhere/)
+  it('desktop is the list plus a thread that fills the rest, with no sidebar', () => {
+    assert.match(css, /\.topic-browse \{[^}]*display: flex;/)
+    assert.match(css, /\.topic-browse__list \{[^}]*flex: 0 0 340px;/)
+    assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*width: auto;/)
+    assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*position: relative;/)
+    assert.match(css, /\.topic-browse__thread > \.topic \{[^}]*top: auto;/)
+    assert.match(css, /\.spool-shell\[data-topic-browse="1"\] > \.sidebar,\n  \.spool-shell\[data-topic-browse="1"\] > \.pane-divider/)
   })
 
-  it('on a phone the title keeps the row and the card height moves into the overflow', () => {
-    assert.match(header, /data-test="topic-page-more"/)
-    assert.match(header, /t\('mobile\.more'\)/)
-    assert.match(header, /data-test="topic-page-tools"/)
-    assert.match(header, /<LazyCardClipControl pane="thread" \/>/)
-    assert.match(header, /@pointerdown="titlePress\.down"/)
-    assert.match(page, /createLongPress/)
-    assert.match(css, /\.topic-page-tools \{ display: contents; \}/)
-    assert.match(css, /\.topic-page-more \{ display: none; \}/)
-    const phone = css.slice(css.indexOf('@media (max-width: 820px)'))
-    assert.match(phone, /\.topic-page-crumb,[\s\S]*display: none;/)
-    assert.match(phone, /> \.topic-page-status \{ display: none; \}/)
-    assert.match(phone, /\.topic-page-title \{[\s\S]*flex: 1 1 auto;/)
-    assert.match(phone, /\.topic-page-more \{[\s\S]*width: var\(--tap\);/)
+  it('a phone shows the thread or the list, one at a time', () => {
+    assert.match(page, /phoneThread/)
+    assert.match(template, /data-phone/)
+    assert.match(css, /\.topic-browse:not\(\[data-phone="list"\]\) > \.topic-browse__list \{ display: none; \}/)
+    assert.match(css, /\.topic-browse\[data-phone="list"\] > \.topic-browse__thread \{ display: none; \}/)
   })
 
   it('a thread title has no Topic: prefix and a four-side border at every width', () => {

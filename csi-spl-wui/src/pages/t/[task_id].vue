@@ -1,74 +1,40 @@
 <template>
-  <div class="feed-col">
-    <header class="feed-header">
-      <MobileBack />
-      <!-- t1 1d8e647d: the title, one line, never the raw id.
-           Phone (≤820 px): the title takes the free width of this one row.
-           "Topics /" gives way to the back arrow. The card-height control
-           and the status line move into the ⋯ menu. Desktop is unchanged. -->
-      <h2 class="topic-page-heading">
-        <NuxtLink class="topic-page-crumb" :to="localePath('/')">{{ t('nav.topics') }}</NuxtLink>
-        <span class="topic-page-sep" aria-hidden="true">/</span>
-        <span
-          v-if="heading"
-          class="topic-page-title"
-          data-test="topic-page-title"
-          :title="heading"
-          @pointerdown="titlePress.down"
-          @pointermove="titlePress.move"
-          @pointerup="titlePress.up"
-          @pointercancel="titlePress.cancel"
-          @click="onTitleClick"
-        >{{ heading }}</span>
-        <ArchivedBadge v-if="store.archivedAt" :at="store.archivedAt" />
-      </h2>
-      <span class="muted topic-page-status" :title="statusText">{{ statusText }}</span>
-      <!-- SPL-963: the thread's control, as in the right pane. On a phone it
-           sits in the overflow with the status, so the title can use the row. -->
-      <div class="topic-page-tools" :data-open="toolsOpen ? '1' : undefined">
-        <button
-          type="button"
-          class="icon-btn topic-page-more"
-          data-test="topic-page-more"
-          :aria-expanded="toolsOpen ? 'true' : 'false'"
-          aria-controls="topic-page-tools"
-          :aria-label="t('mobile.more')"
-          :title="t('mobile.more')"
-          @click.stop="toolsOpen = !toolsOpen"
+  <div
+    class="topic-browse"
+    data-test="topic-browse"
+    :data-phone="stack.isMobile.value ? (phoneThread ? 'thread' : 'list') : undefined"
+  >
+    <section class="topic-browse__list" data-test="topic-browse-list" :aria-label="t('nav.topics')">
+      <header class="feed-header">
+        <MobileBack />
+        <h2>{{ t('nav.topics') }}</h2>
+        <span class="muted">{{ t('pages.index.subtitle') }}</span>
+      </header>
+      <div ref="listBody" class="feed-body">
+        <ViewTokenForm v-if="viewer.needsToken" :detail="viewer.doorDetail" @saved="onDoor" />
+        <ErrorNotice v-if="viewer.error" :message="viewer.error" source="viewer" test-id="viewer-error" />
+        <p v-else-if="!viewer.needsToken && !viewer.loading && !viewer.error && viewer.topics.length === 0" class="muted">
+          {{ t('pages.index.empty') }}
+        </p>
+        <template v-for="row in viewer.topics" :key="row.task_id">
+        <a
+          class="topic-row"
+          :class="{ selected: taskId === row.task_id, 'is-archived': row.archived_at }"
+          :aria-current="taskId === row.task_id ? 'true' : undefined"
+          :data-key="row.task_id"
+          :href="localePath('/t/' + row.task_id)"
+          @click.exact.prevent="pick(row.task_id)"
         >
-          <UiIcon name="more" :size="22" />
-        </button>
-        <div id="topic-page-tools" class="topic-page-tools__panel" data-test="topic-page-tools">
-          <p class="topic-page-tools__status">{{ statusText }}</p>
-          <LazyCardClipControl pane="thread" />
-        </div>
+          <div class="topic-subject">{{ rowTitle(row.subject) }}</div>
+          <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
+          <small class="muted">{{ t('pages.index.messages', { n: row.count }, row.count) }}</small>
+        </a>
+        </template>
+        <button v-if="viewer.next" class="btn ghost" type="button" @click="viewer.loadMore()">{{ t('pages.index.older') }}</button>
       </div>
-      <p
-        v-if="titleFull && heading"
-        class="topic-page-title-full"
-        data-test="topic-page-title-full"
-        role="tooltip"
-      >{{ heading }}</p>
-    </header>
-    <div class="pinned-root feed-body" data-test="topic-root">
-      <ViewTokenForm v-if="store.door" :detail="store.door.detail" @saved="reopen" />
-      <ErrorNotice v-if="store.error" :message="store.error" source="topic" test-id="topic-error" />
-      <LiveFeed
-        clip
-        clip-pane="thread"
-        hold-scroll
-        :label="t('topic.replies_label')"
-        :rows="messages"
-        :has-older="store.hasOlder"
-        :loading-older="store.loadingOlder"
-        @older="store.loadOlder()"
-        :loading="store.loading"
-        :search="store.search"
-        :last-live="store.lastLive"
-        :since-ms="sinceMs"
-        @clear-search="store.setSearch('')"
-        @edited="onEdited"
-      />
+    </section>
+    <div class="topic-browse__thread" data-test="topic-browse-thread">
+      <TopicPane />
     </div>
   </div>
 </template>
@@ -77,125 +43,183 @@
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useChannelStore } from '~/stores/channel'
-import { useLiveFeed } from '~/stores/live'
 import { useOmniboxTarget } from '~/stores/omnibox'
-import { useLive } from '~/composables/useLive'
 import { useTopicStore } from '~/stores/topic'
-import { newestFirst } from '~/utils/feed.mjs'
-import { useMessageEdit } from '~/composables/useMessageEdit'
-import type { SpoolMessage } from '~/types/spool'
-import { useSidePane } from '~/composables/useSidePane'
+import { useViewerStore } from '~/stores/viewer'
+import { useSessionStore } from '~/stores/session'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useSidePane } from '~/composables/useSidePane'
+import { bumpTopic } from '~/utils/topic-list.mjs'
+import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
-import { topicTitleFromRows } from '~/utils/view-api.mjs'
-import { createLongPress } from '~/utils/touch-ui.mjs'
+import { topicOpening } from '~/utils/view-api.mjs'
+import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 
 const route = useRoute()
-const store = useLiveFeed('main')
-const side = useLiveFeed('pane')
-const channel = useChannelStore()
-const live = useLive()
-const { t, te } = useI18n({ useScope: 'global' })
-/* SPL-976: the placeholder names the keys of the person's Behaviour setting */
-const { hintFor: sk } = useSubmitKey()
 const localePath = useLocalePath()
-/** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
-const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
-const statusText = computed(() => t('pages.task.status', { n: store.messages.length, state: stateLabel(live.state.value) }))
-/* A phone has no hover. A long-press shows the full title; the title
-   attribute is the hover for a desktop pointer. */
-const titleFull = ref(false)
-const toolsOpen = ref(false)
-const titlePress = createLongPress({
-  onPress() { titleFull.value = true },
-})
-function onTitleClick() {
-  if (titlePress.takeClick()) return
-}
-function onDocPointerDown(ev: PointerEvent) {
-  const node = ev.target instanceof Node ? ev.target : null
-  const header = document.querySelector('.feed-col > .feed-header')
-  if (!node || !header || !header.contains(node)) {
-    toolsOpen.value = false
-    titleFull.value = false
-    return
-  }
-  const more = header.querySelector('[data-test="topic-page-more"]')
-  const panel = header.querySelector('[data-test="topic-page-tools"]')
-  const title = header.querySelector('[data-test="topic-page-title"]')
-  const tip = header.querySelector('[data-test="topic-page-title-full"]')
-  if (toolsOpen.value && more && !more.contains(node) && panel && !panel.contains(node)) toolsOpen.value = false
-  if (titleFull.value && title && !title.contains(node) && (!tip || !tip.contains(node))) titleFull.value = false
-}
-function onDocKey(ev: KeyboardEvent) {
-  if (ev.key !== 'Escape') return
-  toolsOpen.value = false
-  titleFull.value = false
-}
+const { t } = useI18n({ useScope: 'global' })
+const { hintFor: sk } = useSubmitKey()
+const api = useSpoolApi()
+const session = useSessionStore()
+const channel = useChannelStore()
+const topic = useTopicStore()
+const viewer = useViewerStore()
+const sidePane = useSidePane()
+const stack = useMobileStack()
+
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
-/* t1 1d8e647d: the header names the topic by its oldest row. While
-   older pages are still loading, a reply must not stand in as the title. */
-const heading = computed(() => (store.hasOlder ? '' : topicTitleFromRows(store.messages, null)))
-const topic = useTopicStore()
-const sidePane = useSidePane()
-/* SPL-989: a topic deep link is the phone's level 3; Back steps to the Topics list (level 2) */
-useMobileStack().rightPanel(() => true, () => { void navigateTo(localePath('/'), { replace: true }) })
-const sinceMs = useNowTick(() => Boolean(taskId.value))
-const messages = computed(() => newestFirst(store.newestFirst))
+/* A deep link opens on the thread. Back (and the thread's X) returns to the list. */
+const phoneThread = ref(true)
+const listBody = ref<HTMLElement | null>(null)
+const sending = ref(false)
 
-function reopen() {
-  if (taskId.value) void store.open(taskId.value, { all: true, read: true })
-}
+stack.rightPanel(
+  () => stack.isMobile.value && phoneThread.value && topic.open,
+  () => { phoneThread.value = false },
+)
 
-onMounted(() => {
-  watch(taskId, reopen, { immediate: true })
-  document.addEventListener('pointerdown', onDocPointerDown)
-  document.addEventListener('keydown', onDocKey)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', onDocPointerDown)
-  document.removeEventListener('keydown', onDocKey)
+/* The thread's X closes the topic store. On a phone that must reveal the list,
+   or the thread column stays the one on screen and is empty. */
+watch(() => topic.open, (open, was) => {
+  if (was && !open) phoneThread.value = false
 })
 
-/* an edit landed on this page's own feed store (the live store
-   already applies a `message_edited` frame from another session itself). */
-const { applyEverywhere } = useMessageEdit()
+watch(() => viewer.needsToken, (need) => {
+  if (!need) return
+  phoneThread.value = false
+  topic.close()
+})
 
-function onEdited(row: SpoolMessage) {
-  applyEverywhere(row)
+function rowTitle(subject: string) {
+  return topicOpening(subject) || t('topic.title')
 }
 
-/* Topics tab with this task selected: the omnibox replies here. `in:`
-   naming another topic still goes there. A different left tab starts a new message. */
+/* TopicPane's mock path reads the channel store, not its own fetch.
+   Seed that store from the same read before opening, or the thread is empty. */
+async function seedMockThread(id: string) {
+  if (!api.mock) return
+  const data = await api.getTopic(id, { order: 'desc', limit: 50 }) as { messages?: { msg_id?: string }[] }
+  const rows = data.messages || []
+  const have = new Set(channel.messages.map((m) => String(m.msg_id || '')))
+  const add = rows.filter((m) => m && m.msg_id && !have.has(String(m.msg_id)))
+  if (add.length) channel.messages = [...channel.messages, ...(add as typeof channel.messages)]
+}
+
+async function showTopic(id: string) {
+  await seedMockThread(id)
+  if (taskId.value !== id || viewer.needsToken) {
+    if (viewer.needsToken) {
+      phoneThread.value = false
+      topic.close()
+    }
+    return
+  }
+  topic.openTopic(id)
+}
+
+function pick(id: string) {
+  if (viewer.needsToken) return
+  phoneThread.value = true
+  if (id !== taskId.value) {
+    void navigateTo(localePath('/t/' + id))
+    return
+  }
+  if (!topic.open) void showTopic(id)
+}
+
+async function onDoor() {
+  await viewer.loadTopics()
+  const id = taskId.value
+  if (!id || viewer.needsToken) return
+  phoneThread.value = true
+  await showTopic(id)
+}
+
+/* The list is showing: the thread is not the line, even if the store is still open. */
+function paneVisible() {
+  if (stack.isMobile.value && !phoneThread.value) return false
+  return topic.open
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
+  const fresh = startsNewTopic(text)
+  const visible = paneVisible()
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
     namedTopicId: topicId || '',
-    paneVisible: true,
-    /* SPL-996 B: `@someone` first is the explicit new topic */
-    newTopic: startsNewTopic(text),
+    paneVisible: visible,
+    newTopic: fresh,
   })
-  if (target && target === taskId.value && store.taskId) {
-    await store.send(text, files || [], { isParent: isParentFlag({ paneVisible: true }) })
-    return
+  sending.value = true
+  try {
+    const sent = await channel.send(
+      text,
+      target || undefined,
+      files,
+      channelId,
+      isParentFlag({ paneVisible: visible && !fresh, replyTaskId: target || '' }),
+    )
+    if (sent) viewer.topics = bumpTopic(viewer.topics, sent as unknown as Record<string, unknown>) as typeof viewer.topics
+  } finally {
+    sending.value = false
   }
-  const sent = await channel.send(text, target || undefined, files, channelId, isParentFlag({ paneVisible: Boolean(target) }))
-  topic.noteBorn(topic.open || Boolean(side.taskId), target, sent as SpoolMessage)
 }
+
 function replyTarget() {
   return omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
     namedTopicId: '',
-    paneVisible: true,
+    paneVisible: paneVisible(),
   })
 }
+
 useOmniboxTarget({
   placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: shortId.value }),
   send: onSend,
-  busy: () => store.sending,
+  busy: () => sending.value,
+})
+
+watch([taskId, () => viewer.topics.length, phoneThread], async () => {
+  const id = taskId.value
+  if (!id || (stack.isMobile.value && phoneThread.value)) return
+  await nextTick()
+  const root = listBody.value
+  if (!root) return
+  const row = root.querySelector(`[data-key="${CSS.escape(id)}"]`)
+  if (row) scrollRowToTop(root, row)
+})
+
+if (import.meta.client) {
+  watch(taskId, async (id, prev) => {
+    if (!id) return
+    if (prev !== undefined) phoneThread.value = true
+    await showTopic(id)
+  }, { immediate: true })
+}
+
+let listStarted = false
+watch(() => api.mock || String(session.state) === 'in', (ready) => {
+  if (!ready || listStarted) return
+  listStarted = true
+  void viewer.loadTopics().then(() => {
+    if (shouldOpenHubSocket(session.state, api.mock)) viewer.follow()
+  })
+}, { immediate: true })
+
+onUnmounted(() => {
+  viewer.unfollow()
+  /* Closing while the next page still names a topic strips its ?topic=
+     (the channel page writes the store back onto its own URL). A page
+     with no topic query does not want this pane left open. */
+  const cur = useRouter().currentRoute.value
+  const path = String(cur.path || '')
+  if (/\/t\/[^/]+$/.test(path)) return
+  if (cur.query.topic || cur.query.in) return
+  topic.close()
 })
 </script>

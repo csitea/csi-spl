@@ -78,17 +78,20 @@ describe('the phone thread paints the arrow and nothing else does', () => {
     assert.match(media, /\.thread-jump \{[^}]*position:\s*fixed/)
   })
 
-  it('the three thread panes still do not scroll themselves', () => {
+  it('the thread panes still do not scroll themselves', () => {
     for (const rel of [
       'src/components/LiveTopicPane.vue',
       'src/components/TopicPane.vue',
-      'src/pages/t/[task_id].vue',
     ]) {
       const src = read(rel)
       assert.match(src, /hold-scroll/, rel)
       assert.doesNotMatch(src, /thread-jump/, rel)
       assert.doesNotMatch(src, /scrollTop\s*=/, rel)
     }
+    const page = read('src/pages/t/[task_id].vue')
+    assert.doesNotMatch(page, /thread-jump/)
+    assert.doesNotMatch(page, /scrollTop\s*=/)
+    assert.match(page, /<TopicPane/)
   })
 
   it('the oldest-end label is in the catalogue', () => {

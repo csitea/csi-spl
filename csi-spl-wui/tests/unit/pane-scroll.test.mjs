@@ -127,7 +127,6 @@ describe('a thread is not scrolled', () => {
     for (const rel of [
       'src/components/LiveTopicPane.vue',
       'src/components/TopicPane.vue',
-      'src/pages/t/[task_id].vue',
     ]) {
       const src = read(rel)
       assert.match(src, /hold-scroll/, rel)
@@ -135,6 +134,10 @@ describe('a thread is not scrolled', () => {
       assert.doesNotMatch(src, /scrollIntoView\s*\(/, rel)
       assert.doesNotMatch(src, /scrollRowToTop\s*\(/, rel)
     }
+    const topicPage = read('src/pages/t/[task_id].vue')
+    assert.doesNotMatch(topicPage, /scrollTop\s*=/)
+    assert.doesNotMatch(topicPage, /scrollIntoView\s*\(/)
+    assert.match(topicPage, /scrollRowToTop\s*\(/)
     /* CLE-77884: the search list moved to the left panel */
     for (const rel of ['src/pages/search.vue', 'src/components/SearchSidePanel.vue', 'src/components/SideHitList.vue']) {
       assert.doesNotMatch(read(rel), /scrollIntoView\s*\(/, rel)

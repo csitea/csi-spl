@@ -20,6 +20,7 @@
         :style="shellStyle"
         :data-mobile-level="stack.level.value"
         :data-mobile-topic="topicPaneOpen ? '1' : undefined"
+        :data-topic-browse="topicPage ? '1' : undefined"
         :data-mobile-section="sectionStrip ? '1' : undefined"
         :data-collapse-channels="collapse.collapsed.channels ? '1' : undefined"
         :data-collapse-topic="collapse.collapsed.topic ? '1' : undefined"
@@ -160,6 +161,7 @@ import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 import { fillerPane } from '~/utils/pane-collapse.mjs'
 import { isSectionPage } from '~/utils/section-strip.mjs'
+import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { usePaneWidths } from '~/composables/usePaneWidths'
@@ -249,7 +251,12 @@ onMounted(() => {
 })
 onUnmounted(() => { offDeleted(); offTopic(); document.removeEventListener('keydown', noteKey, true) })
 /* the single source of truth for which topic section is on screen. */
-const section = computed(() => topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
+/* /t/:id mounts TopicPane inside the page. This shell must not open a
+   third column or a second copy of that pane. route is declared here,
+   before topicPaneOpen: stack.install reads it during setup. */
+const route = useRoute()
+const topicPage = computed(() => /^\/t\/[^/]+$/.test(productPath(route.path)))
+const section = computed(() => topicPage.value ? NONE : topicSection({ paneTaskId: livePane.taskId, topicOpen: topic.open }))
 const topicPaneOpen = computed(() => section.value !== NONE)
 /* 050: which panel absorbs the slack the fixed/collapsed panels leave, as a
    data-filler attribute the collapse CSS reads. Normally the middle feed. */
@@ -264,7 +271,6 @@ stack.install({
 })
 /* CLE-77886 (owner, t1 topic ac0fa400): a section's own page on a phone
    (Issues, People, Help, ...) keeps the section strip on top, as level 1 does */
-const route = useRoute()
 /* t1 6e21c7d8: on a phone the topic pane covers the page, so a link from a
    post to another page (an in-post /t/<id> link) closes it and the page it
    went to shows; Back returns to the post (its entry still holds ?topic=).

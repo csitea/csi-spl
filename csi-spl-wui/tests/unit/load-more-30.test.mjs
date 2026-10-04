@@ -73,7 +73,6 @@ describe('LiveFeed: a Load more button, not a scroll sentinel', () => {
       ['src/components/LiveTopicPane.vue', 'pane'],
       ['src/components/TopicPane.vue', null],
       ['src/pages/lobby.vue', 'store'],
-      ['src/pages/t/[task_id].vue', 'store'],
     ]) {
       const src = read(rel)
       assert.match(src, /@older="/, rel)

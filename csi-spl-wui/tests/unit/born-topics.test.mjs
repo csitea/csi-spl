@@ -46,15 +46,13 @@ describe('a new topic pops up at the top of the open right pane', () => {
     }
   })
 
-  /* SPL-996 (prd t1 #spool-hub-mobile, 2026-09-27): on a page whose middle
-     list shows the new topic, a born card in the right pane drew the same
-     message twice - once as an opening, once above the open topic's replies -
-     and it read as a message that is both is_parent 1 and 0. Only /t/<id>,
-     whose middle IS the topic, has no other place to show it. */
-  it('channel, DM and the Topics list draw a new topic once: no born card', () => {
-    for (const rel of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue']) {
+  /* SPL-996: a page whose list already shows the new topic must not also
+     draw a born card in the thread. /t/<id> now has that list, so it bumps
+     the row and does not call noteBorn. */
+  it('channel, DM, the Topics list and the topic page draw a new topic once', () => {
+    for (const rel of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/t/[task_id].vue']) {
       assert.doesNotMatch(src(rel), /noteBorn\(/, rel)
     }
-    assert.match(src('src/pages/t/[task_id].vue'), /topic\.noteBorn\(/)
+    assert.match(src('src/pages/t/[task_id].vue'), /bumpTopic\(/)
   })
 })

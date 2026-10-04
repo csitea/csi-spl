@@ -75,10 +75,13 @@ describe('right pane lists (the thread mode)', () => {
     assert.doesNotMatch(src, /is_parent|clipsInThread/)
   })
 
-  it('/t page: its header has the thread control, its feed the thread mode', () => {
+  it('/t page: the thread is TopicPane, which owns the thread control and mode', () => {
     const t = template('src/pages/t/[task_id].vue')
-    assert.match(t, /<header class="feed-header">[\s\S]*?<LazyCardClipControl pane="thread" \/>[\s\S]*?<\/header>/)
-    assert.match(t, /<LiveFeed\s+clip\s+clip-pane="thread"/)
+    assert.match(t, /<TopicPane/)
+    assert.doesNotMatch(t, /<LiveFeed/)
+    const pane = template('src/components/TopicPane.vue')
+    assert.match(pane, /<LazyCardClipControl pane="thread" \/>/)
+    assert.match(pane, /<LiveFeed\s+clip\s+clip-pane="thread"/)
   })
 
   it('BornTopics: the new-topic cards in the right pane take the thread mode', () => {

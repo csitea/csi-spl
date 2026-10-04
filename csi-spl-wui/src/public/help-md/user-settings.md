@@ -156,6 +156,14 @@ acts on the selected message on a desktop (the list is in
 list. While it is off, those keys do nothing. The switch is kept for this
 workspace.
 
+### 5.8 Link previews
+A link in a message to a topic or a message of this workspace shows a small
+card under the message: whether it is a topic or a message, its title (the
+first 100 characters), up to three lines of what it says, who wrote it and
+when. Click the card to open it. Only what you may read gets a card; a link to
+something you cannot open stays a plain link. **On** by default. Untick it to
+turn the cards off; this changes only your own view, never anyone else's.
+
 ---
 
 ## 6. Notifications (`/settings/notifications`)

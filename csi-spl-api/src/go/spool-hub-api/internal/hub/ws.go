@@ -196,6 +196,9 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	if !ok {
 		return nil, false
 	}
+	if f.Role == wire.RoleBox {
+		s.hosts.set(t.ID, f.BoxID, f.Host) // before the welcome: a roster read after it sees them
+	}
 	if !s.register(x) {
 		conn.Close(websocket.StatusGoingAway, "shutdown") //nolint:errcheck
 		return nil, false

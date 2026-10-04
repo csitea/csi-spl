@@ -128,6 +128,9 @@ type Client struct {
 	// Warn receives the operator warnings (a private key loaded from inside
 	// SPOOL_ROOT). nil = os.Stderr.
 	Warn io.Writer
+	// Host answers what this box runs on, for a role=box hello (host.go).
+	// nil = the hello carries none (tests, and every non-daemon caller).
+	Host func(context.Context) *wire.BoxHost
 
 	keysDirWarned sync.Once
 
@@ -313,6 +316,10 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 		return nil, err
 	}
 	wsURL = "ws" + strings.TrimPrefix(wsURL, "http")
+	var host *wire.BoxHost
+	if role == wire.RoleBox && c.Host != nil {
+		host = c.Host(ctx) // before the dial: the hub times the hello from its challenge
+	}
 	dctx, cancel := context.WithTimeout(ctx, c.timeout())
 	defer cancel()
 	conn, err := c.dialWS(dctx, wsURL)
@@ -320,7 +327,7 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 		return nil, err
 	}
 	conn.SetReadLimit(maxFrameBytes)
-	wel, err := c.handshake(dctx, conn, role, box, priv)
+	wel, err := c.handshake(dctx, conn, role, box, priv, host)
 	if err != nil {
 		conn.CloseNow() //nolint:errcheck
 		return nil, err
@@ -352,12 +359,12 @@ const maxFrameBytes = 1 << 20
 
 // handshake reads the challenge, answers it with a signed hello and answers
 // the welcome frame. A hub refusal (close code >= 4000) is a *HubError.
-func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box string, priv ed25519.PrivateKey) (wire.Frame, error) {
+func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box string, priv ed25519.PrivateKey, host *wire.BoxHost) (wire.Frame, error) {
 	var ch wire.Frame
 	if err := wsjson.Read(ctx, conn, &ch); err != nil || ch.Type != wire.TChallenge {
 		return wire.Frame{}, fmt.Errorf("%w: no challenge: %v", ErrUnreachable, err)
 	}
-	hello, err := c.hello(role, box, priv, ch.Nonce)
+	hello, err := c.hello(role, box, priv, ch.Nonce, host)
 	if err != nil {
 		return wire.Frame{}, err
 	}
@@ -379,8 +386,8 @@ func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box 
 }
 
 // hello is the signed answer to the challenge nonce. A box also announces
-// its features, agents and channels.
-func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string) (wire.Frame, error) {
+// its features, agents, channels and host.
+func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, host *wire.BoxHost) (wire.Frame, error) {
 	ts := c.now().UTC().Format(time.RFC3339)
 	payload, _ := wire.HelloPayload(box, nonce, ts)
 	hello := wire.Frame{Type: wire.THello, BoxID: box, TS: ts, Nonce: nonce, Role: role, Sig: sign.Sign(priv, payload),
@@ -396,6 +403,7 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string) 
 	}
 	hello.Agents = agents
 	hello.Channels = c.Cfg.ChannelList()
+	hello.Host = host
 	return hello, nil
 }
 

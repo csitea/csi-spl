@@ -862,6 +862,7 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 	}
 	c := hubclient.New(cfg)
 	c.Log = logging.New(cfg).With().Str("component", "hubclient").Str("box", cfg.BoxID).Logger()
+	c.Host = hubclient.CollectHost // role=box hellos only (the Boxes page)
 	return c, nil
 }
 

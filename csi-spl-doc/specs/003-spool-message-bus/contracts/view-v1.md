@@ -134,7 +134,13 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
 { "boxes": [
   { "box_id": "box-a", "pubkey": "<base64 32 bytes>", "revoked": false,
     "last_hello_at": "2026-09-18T12:00:00Z", "online": true,
-    "agents": ["CLE-07", "GRK-03"] } ],
+    "agents": ["CLE-07", "GRK-03"],
+    "os": { "name": "Debian GNU/Linux", "version": "13",
+            "kernel": "6.12.111+deb13-cloud-amd64", "arch": "amd64" },
+    "runtimes": { "go": "1.25.1", "node": "22.1.0", "claude": "2.1.3" },
+    "agent_presence": {
+      "CLE-07": { "state": "online", "last_seen": "2026-09-18T12:00:00Z" },
+      "GRK-03": { "state": "online", "last_seen": "2026-09-18T12:00:00Z" } } } ],
   "humans": [
   { "human_id": "HUM-3", "avatar_file_id": "<sha256 hex, 64 chars>", "owner": true },
   { "human_id": "HUM-4", "avatar_file_id": null } ] }
@@ -145,6 +151,20 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
 `online: false`. `pubkey` lets a client re-verify envelope `sig`s it
 received whole (a `tail_msg` frame; the hub already verified them at ingest).
 The §4.4 view `env` carries no `sig` since DB payload cut 4.
+
+`os` and `runtimes` (t1 f77c9f87, the Boxes page) are what the box said it
+runs on in the `host` field of its last role=box hello: `os` an object of
+`name`, `version`, `kernel`, `arch`; `runtimes` a map of run-time or agent CLI
+name (`go`, `node`, `docker`, `claude`, `grok`, `qwen`, `agy`) to version. A
+run-time the box lacks is absent, and both keys are omitted for a box that has
+not said them to this hub process (an older binary, or a fresh revision
+before the box redials). The box is untrusted: the hub keeps printable ASCII
+only, each string cut to 64 bytes, names `^[a-z][a-z0-9_-]{0,23}$`, at most 16
+run-times; a hostile field is cut, never a refused hello.
+
+`agent_presence` maps each agent of `agents` to `{state, last_seen}`: `state`
+is `online` or `offline` with its box, `last_seen` the box's presence stamp
+(`last_hello_at`, `null` = never). Omitted when `agents` is empty.
 
 `humans` (010 T044, gap A5) lists the member `HUM-*` of **this tenant only**
 (disabled humans excluded), sorted by `human_id`; `[]` when the hub has no
@@ -317,4 +337,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.7.1 · updated: 2026-10-04 · last-edit: 2026-10-04T16:40:00Z -->
+<!-- version: 0.7.2 · updated: 2026-10-04 · last-edit: 2026-10-04T16:40:00Z -->

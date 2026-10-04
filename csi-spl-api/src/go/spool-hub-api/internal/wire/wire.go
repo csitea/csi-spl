@@ -163,6 +163,11 @@ type Frame struct {
 	// the backfill_end frame.
 	Features []string `json:"features,omitempty"`
 
+	// hello (t1 f77c9f87): what the box runs on, its OS and run-times. Not
+	// signed, static per hello; absent = an older box, and the roster view
+	// then omits them. The hub cuts it to size (hub/box_facts.go).
+	Host *BoxHost `json:"host,omitempty"`
+
 	// welcome / roster / token
 	Roster               map[string][]string `json:"roster,omitempty"`
 	UploadToken          string              `json:"upload_token,omitempty"`
@@ -711,6 +716,22 @@ func skipWS(s []byte, i int) int {
 
 func isDelim(b byte) bool {
 	return b == ',' || b == '}' || b == ']' || b == ':' || b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
+// BoxHost is a box's own report of what it runs on, sent on its hello.
+// Runtimes maps a run-time or CLI name (go, node, docker, claude, ...) to its
+// version; one the box does not have is absent, never "unknown".
+type BoxHost struct {
+	OS       *HostOS           `json:"os,omitempty"`
+	Runtimes map[string]string `json:"runtimes,omitempty"`
+}
+
+// HostOS is the box's operating system; an empty field is one it could not read.
+type HostOS struct {
+	Name    string `json:"name,omitempty"`
+	Version string `json:"version,omitempty"`
+	Kernel  string `json:"kernel,omitempty"`
+	Arch    string `json:"arch,omitempty"`
 }
 
 // HelloPayload is the byte string a hello sig covers: jq -cS '{box_id,nonce,ts}'.

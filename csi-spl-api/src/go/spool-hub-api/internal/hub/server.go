@@ -185,6 +185,7 @@ type Server struct {
 	boxes map[[2]string]*session // (tenant, box) → the role=box session
 	// left: when this instance saw a box's own socket close (presence.go).
 	left     map[[2]string]time.Time
+	hosts    boxHosts              // box_facts.go: the OS and run-times each box said at hello
 	sessions map[*session]struct{} // every live socket (both roles)
 	tokens   map[string]uploadToken
 	// tokenSweptAt: when mintToken last dropped expired tokens (CLE-34986:

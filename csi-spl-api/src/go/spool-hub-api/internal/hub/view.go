@@ -19,6 +19,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // Read-only viewer API for the WUI (specs/003 contracts/view-v1.md, US7).
@@ -221,6 +222,21 @@ type viewBox struct {
 	// spec 061 3.6), agent id -> RFC3339; omitted when no agent has one.
 	// A DM with a reused id draws "new holder since" at that time.
 	SeatedAt map[string]string `json:"seated_at,omitempty"`
+	// OS and Runtimes are what the box said it runs on at its last hello
+	// (box_facts.go); omitted for a box that has not said them to this hub.
+	OS       *wire.HostOS      `json:"os,omitempty"`
+	Runtimes map[string]string `json:"runtimes,omitempty"`
+	// AgentPresence is each roster agent's presence: its box's, since an
+	// agent is reachable exactly while its box's socket is (presence.go).
+	AgentPresence map[string]agentPresence `json:"agent_presence,omitempty"`
+}
+
+// agentPresence is one agent's row of viewBox.AgentPresence. State is
+// "online" or "offline"; LastSeen is the box's last presence stamp, null =
+// its box never said hello.
+type agentPresence struct {
+	State    string  `json:"state"`
+	LastSeen *string `json:"last_seen"`
 }
 
 // rosterBody is GET /v1/view/roster (view-v1 §4.1). A typed envelope, not a
@@ -257,6 +273,18 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		if !b.LastHelloAt.IsZero() {
 			at := rfc(b.LastHelloAt)
 			v.LastHelloAt = &at
+		}
+		facts := s.hosts.get(t.ID, b.BoxID)
+		v.OS, v.Runtimes = facts.os, facts.runtimes
+		if len(v.Agents) > 0 {
+			p := agentPresence{State: "offline", LastSeen: v.LastHelloAt}
+			if v.Online {
+				p.State = "online"
+			}
+			v.AgentPresence = make(map[string]agentPresence, len(v.Agents))
+			for _, id := range v.Agents {
+				v.AgentPresence[id] = p
+			}
 		}
 		if len(b.SeatedAt) > 0 {
 			v.SeatedAt = make(map[string]string, len(b.SeatedAt))

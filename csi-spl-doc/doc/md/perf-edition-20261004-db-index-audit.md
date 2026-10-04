@@ -10,7 +10,7 @@ Owner question (HUM-10, t1 `7d7e86a9`, msg `2e38197b`): *"are there any indexes 
 - **Temp spills:** they come from **E17's unanswered sweep**, not E01. The fix is the query; `work_mem` stays at 4 MB.
 - **`log_temp_files`:** already `0` on both envs (the Cloud SQL default). Nothing to change.
 
-The migration (`0121_dbx_index_audit.sql`, renumbered at release) is built and tested on a branch, and **held for the owner's go** (orchestrator amendment `86193cba`).
+The owner approved both index changes (go `36424cc9`: "both"). They shipped as **rdb 0122** (`0122_dbx_index_audit.sql`, `b965c687e`, v9.1.6) and were applied on prd at 21:01:19Z and on dev at 21:01:21Z. Section 7 has the before/after.
 
 ## 1. Method and window
 
@@ -161,8 +161,8 @@ pgx caches prepared statements, and `plan_cache_mode` is `auto`. For flow counts
 
 | change | kind | evidence | expected gain | go |
 |---|---|---|---|---|
-| `CREATE INDEX deliveries_sent_acked ON deliveries (acked_at) WHERE state = 'sent'` | migration 0121 | §2.3: prd Seq Scan 22 594 rows, Insights 74.9 ms x 138/day; scratch 2.7..3.9 -> 0.07..0.21 ms (n=3) | ~10 s/day prd DB time; build ~30 ms | **held** |
-| `DROP INDEX messages_search` | migration 0121 | §3: 0 scans since 09-18 on both envs; the hub cannot use it under FORCE RLS (non-LEAKPROOF `@@`), proven on scratch | 12 MB off a 128 MB buffer pool; insert -25 % on scratch (n=3) | **held**; coupled to 022 §9 D-S1 |
+| `CREATE INDEX deliveries_sent_acked ON deliveries (acked_at) WHERE state = 'sent'` | migration 0121 | §2.3: prd Seq Scan 22 594 rows, Insights 74.9 ms x 138/day; scratch 2.7..3.9 -> 0.07..0.21 ms (n=3) | ~10 s/day prd DB time; build ~30 ms | **applied (0122)** |
+| `DROP INDEX messages_search` | migration 0121 | §3: 0 scans since 09-18 on both envs; the hub cannot use it under FORCE RLS (non-LEAKPROOF `@@`), proven on scratch | 12 MB off a 128 MB buffer pool; insert -25 % on scratch (n=3) | **applied (0122)**; D-S1 would re-create it |
 | drop `messages_channel` | | §3: 355 466 prd scans, needed by the channel counts | **do not** | n/a |
 | `log_temp_files` | Cloud SQL flag | already 0 (Cloud SQL default) | none | not needed |
 | `work_mem` | Cloud SQL flag | §4.3: the spill is one statement, above the safe bound | none from a flag | **no change**; E17's query fix |
@@ -172,3 +172,13 @@ pgx caches prepared statements, and `plan_cache_mode` is `auto`. For flow counts
 - **E17** (unanswered sweep): the only source of temp spills, plus a 406.8 ms mean. Narrow the DISTINCT ON sort, or `SET LOCAL work_mem` in its own transaction. Put prd `temp_files` / `temp_bytes` per hour in its before/after.
 - **E01** (flow_postgres.go): flow counts' custom plan 96 -> 53 ms with the member's events fenced first (n=3, same output). Flow list: a 10-vs-2 284 estimate skips `flow_events_member_at`.
 - **Search lane** (022 §9): /v1/view/search seq-scans every tenant message, 66..70 ms on prd t1, with one 4.36 s outlier (n=3). D-S1 is the only option that would use a GIN.
+
+## 7. After the roll (rdb 0122, `b965c687e`, v9.1.6 on dev and prd)
+
+Ledger, both envs: `spool_schema_migrations` holds `0122_dbx_index_audit.sql` (prd 2026-10-04 21:01:19Z, dev 21:01:21Z). In `pg_indexes`, `deliveries_sent_acked` is present, `messages_search` is gone and `messages_channel` is present.
+
+| measure (prd) | before | after |
+|---|---|---|
+| prune inner select, EXPLAIN (ANALYZE, BUFFERS), n=3 | 20:47Z: Seq Scan, 325 buffers, 116.4 / 5.1 / 9.4 ms | 21:05Z: Index Scan using `deliveries_sent_acked`, 2 buffers, 6.40 (first read from disk) / 0.022 / 0.016 ms |
+| prune DELETE, Insights mean | 24 h to 10-04 20:02Z: n=138, **74.9 ms** | 1 h 21:03..22:03Z: n=3, **0.98 ms** (small n: re-read over 24 h) |
+| `messages_search` | 12 MB, 0 scans | dropped; search plans unchanged (they could not use it) |

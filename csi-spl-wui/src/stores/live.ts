@@ -55,6 +55,8 @@ function setup(key: 'main' | 'pane') {
   const archivedAt = ref('')
   /** The open topic is one the reader opened (the right pane, the /t page): it is read as it shows. */
   const reading = ref(false)
+  /** The open topic's read mark (t:<id> count) from before this open read it: its first message shows what was new then. */
+  const seenAtOpen = ref<number | undefined>(undefined)
 
   const filtered = computed(() => newestFirst(messages.value.filter((m) => matchesSearch(m, search.value))))
   const view = computed(() => windowed(filtered.value, visible.value))
@@ -89,11 +91,18 @@ function setup(key: 'main' | 'pane') {
    * drop a topic's lines by; the channel and DM feeds wrote it, this one did
    * not, and the read sync that carries it to the hub was never started.
    */
+  /** The open topic's reply total: the channel's count, or the replies this feed holds (it reads the whole topic). */
+  function replyTotal() {
+    const id = taskId.value
+    if (!id) return 0
+    const held = messages.value.filter((m) => m.task_id === id || m.parent_task_id === id).length
+    return Math.max(useChannelStore().repliesFor(id), held - 1)
+  }
+
   function readOpen() {
     const id = taskId.value
     if (!id || !reading.value || !import.meta.client) return
-    const held = messages.value.filter((m) => m.task_id === id || m.parent_task_id === id).length
-    useNotificationStore().markTopicRead(id, Math.max(useChannelStore().repliesFor(id), held - 1))
+    useNotificationStore().markTopicRead(id, replyTotal())
     void import('~/utils/read-sync-boot').then((m) => m.pushReads(api))
   }
 
@@ -155,6 +164,7 @@ function setup(key: 'main' | 'pane') {
   async function open(id: string, opts: { all?: boolean, read?: boolean, first?: Promise<{ messages: SpoolMessage[], next: string | null }> } = {}) {
     if (!id) return
     reading.value = key === 'pane' || Boolean(opts.read)
+    if (id !== taskId.value) seenAtOpen.value = useNotificationStore().topicRead[id]
     /* the lobby's room task is opened by the page, not by the reader: only the right pane's store moves the reader */
     if (key === 'pane') usePaneFocus().openedTopic()
     const client = live.ensure()
@@ -313,7 +323,7 @@ function setup(key: 'main' | 'pane') {
   return {
     taskId, messages, newestFirst: newestFirstRows, hasOlder, lobbyRows, lobbyHasOlder, topic, error, door, sending, loading,
     search, liveCount, lastLive, open, close, send, admit, loadOlder, loadAll, setSearch, catchUpAfterReconnect,
-    applyEdited, loadingOlder, drop, applyReactions, archivedAt,
+    applyEdited, loadingOlder, drop, applyReactions, archivedAt, replyTotal, seenAtOpen,
   }
 }
 

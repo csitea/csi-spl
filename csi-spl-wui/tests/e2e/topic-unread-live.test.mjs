@@ -11,6 +11,12 @@
 //
 // Per left tab (Channels, Flow - both keep the channel in the middle), RUNS
 // fresh browser contexts each (default 2; RUNS=10 for a stability count).
+//
+// Topics view (the middle is the Topics list; a topic opens in the right
+// pane): the pane's first message carries the same count - new counted from
+// the topic's read mark before this open read it, on that message only.
+//   open     read at 1 of 3 replies: "2/3 >>" on the first message
+//   reopen   closed and opened again (it was read): a plain "3 >>"
 //   BASE_URL=http://127.0.0.1:3111 RUNS=10 node tests/e2e/topic-unread-live.test.mjs
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -19,13 +25,23 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RUNS = Math.max(1, Number(process.env.RUNS ?? 2))
-const VIEWS = ['channels', 'flow']
+const VIEWS = ['channels', 'flow', 'topics']
 const TASK = '7e7e7e7e-7e7e-4e7e-8e7e-7e7e7e7e7e7e'
 /* the channel mark is after the topic's lines: nothing in it is new at open */
 const MARK = '2026-09-18T09:00:00.000Z'
 const EXTRA = [
   { v: 1, msg_id: TASK, task_id: TASK, ts: '2026-09-18T08:00:00Z', from: 'GRK-03', from_box: 'box-a', to: '@channel', kind: 'note', body: 'live count topic', channel: 'alerts', parent_task_id: null, is_parent: 1, files: [] },
   { v: 1, msg_id: '7f7f7f7f-7f7f-4f7f-8f7f-7f7f7f7f7f7f', task_id: TASK, ts: '2026-09-18T08:10:00Z', from: 'CLE-07', from_box: 'box-a', to: '@channel', kind: 'note', body: 'an old reply', channel: 'alerts', parent_task_id: null, is_parent: 0, files: [] },
+]
+
+/* Topics view: a topic read at 1 reply, with 2 more since */
+const PANE_TASK = '7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c'
+const paneRow = (i, ts, body) => ({ v: 1, msg_id: i ? `7b7b7b7b-7b7b-4b7b-8b7b-7b7b7b7b7b0${i}` : PANE_TASK, task_id: PANE_TASK, ts, from: i ? 'CLE-07' : 'GRK-03', from_box: 'box-a', to: '@channel', kind: 'note', body, channel: 'alerts', parent_task_id: null, is_parent: i ? 0 : 1, files: [] })
+const PANE_EXTRA = [
+  paneRow(0, '2026-09-18T07:00:00Z', 'pane count topic'),
+  paneRow(1, '2026-09-18T07:10:00Z', 'read reply'),
+  paneRow(2, '2026-09-18T09:10:00Z', 'new reply one'),
+  paneRow(3, '2026-09-18T09:20:00Z', 'new reply two'),
 ]
 
 const results = []
@@ -47,10 +63,10 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-const CARD = (scope) => `${scope} article.msg[data-msg-id="${TASK}"] [data-test=topic-replies]`
+const CARD = (scope, task = TASK) => `${scope} article.msg[data-msg-id="${task}"] [data-test=topic-replies]`
 
 /** The root card's counter: its text and the bold unread part. */
-const counter = (p, scope) => p.evaluate((sel) => {
+const counter = (p, scope, task) => p.evaluate((sel) => {
   const btn = document.querySelector(sel)
   const strong = btn && btn.querySelector('[data-test=topic-unread]')
   return {
@@ -58,15 +74,15 @@ const counter = (p, scope) => p.evaluate((sel) => {
     unread: strong ? strong.textContent.trim() : null,
     bold: Boolean(strong && Number(getComputedStyle(strong).fontWeight) >= 700),
   }
-}, CARD(scope))
+}, CARD(scope, task))
 
 /** Waits for the counter to read `want`; returns what it read last. */
-async function reads(p, scope, want) {
+async function reads(p, scope, want, task) {
   await p.waitForFunction((sel, want) => {
     const btn = document.querySelector(sel)
     return btn && btn.textContent.replace(/\s+/g, ' ').trim() === want
-  }, { timeout: 4000 }, CARD(scope), want).catch(() => {})
-  return counter(p, scope)
+  }, { timeout: 4000 }, CARD(scope, task), want).catch(() => {})
+  return counter(p, scope, task)
 }
 
 /** A reply the hub now holds (the mock's extra lines, read on its 4 s poll),
@@ -80,7 +96,7 @@ const liveReply = (p, n) => p.evaluate((task, n) => {
   s.ingestLive(row)
 }, TASK, n)
 
-async function fresh(browser) {
+async function fresh(browser, extra = EXTRA, cursors = { 'ch:alerts': { ts: MARK, id: '' } }) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   const errors = []
@@ -89,9 +105,9 @@ async function fresh(browser) {
     try {
       localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' }))
       localStorage.setItem('spool.mock.extra-messages', JSON.stringify(extra))
-      localStorage.setItem('spool.read-cursors', JSON.stringify({ 'ch:alerts': { ts: mark, id: '' } }))
+      localStorage.setItem('spool.read-cursors', JSON.stringify(mark))
     } catch { /* about:blank */ }
-  }, EXTRA, MARK)
+  }, extra, cursors)
   await p.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false })
   return { ctx, p, errors }
 }
@@ -129,12 +145,39 @@ async function feedRun(browser, base, view, run) {
   }
 }
 
+/** Topics view: open the topic from the Topics list into the right pane. */
+async function paneRun(browser, base, run) {
+  const { ctx, p, errors } = await fresh(browser, PANE_EXTRA, { [`t:${PANE_TASK}`]: { ts: MARK, id: '', count: 1 } })
+  const tag = `topics #${run}`
+  const row = `#sidebar-panel-topics .nav-item[data-key="${PANE_TASK}"]`
+  const pane = '[data-test=topic-root]'
+  try {
+    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.click('[data-testid=sidebar-tab-topics]')
+    await p.waitForSelector(row, { visible: true, timeout: NAV })
+    await p.click(row)
+    await p.waitForSelector(`${pane} article.msg[data-msg-id="${PANE_TASK}"]`, { timeout: NAV })
+    const open = await reads(p, pane, '2/3 >>', PANE_TASK)
+    ok(`${tag}: the pane's first message reads "2/3 >>", the 2 bold`, open.text === '2/3 >>' && open.unread === '2' && open.bold, open)
+    const others = await p.$$eval(`${pane} article.msg [data-test=topic-replies]`, (b) => b.length)
+    ok(`${tag}: only the first message carries the count`, others === 1, { others })
+    if (run === 1) await shot(p, 'topics')
+    await p.click('[data-test=live-topic-close]')
+    await p.click(row)
+    const again = await reads(p, pane, '3 >>', PANE_TASK)
+    ok(`${tag}: opened again (read), it reads a plain "3 >>"`, again.text === '3 >>' && again.unread === null, again)
+    ok(`${tag}: no page error`, errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)
+  } finally {
+    await ctx.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
   for (const view of VIEWS) {
-    for (let run = 1; run <= RUNS; run++) await feedRun(browser, server.base, view, run)
+    for (let run = 1; run <= RUNS; run++) await (view === 'topics' ? paneRun(browser, server.base, run) : feedRun(browser, server.base, view, run))
   }
 } catch (e) {
   console.error(e)

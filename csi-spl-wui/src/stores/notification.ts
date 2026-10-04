@@ -266,6 +266,13 @@ export const useNotificationStore = defineStore('notification', () => {
       }
     }
   }
+  /** CLE-77804: the unread part of a topic card's "<unread>/<total>" - the
+   *  total minus what the reader had seen when they last read it (0 if never,
+   *  so an untouched topic shows a plain total). Every card reads this one rule;
+   *  `seen`: a mark frozen earlier (an open thread pane, from before it read). */
+  function topicUnread(taskId: string, total: number, seen: number | undefined = topicRead.value[taskId]) {
+    return Number.isFinite(seen) ? Math.max(0, total - Number(seen)) : 0
+  }
   /** Mark a topic read at its current reply total (thread opened, or own reply).
    *  `ownMsgId`: the own reply that total already counts, so its echo never counts it twice (CLE-77889). */
   function markTopicRead(taskId: string, count: number, ownMsgId = '') {
@@ -461,6 +468,7 @@ export const useNotificationStore = defineStore('notification', () => {
        map replaced the marks read from localStorage above - a tab opened there
        drew every topic card a plain total. They are this browser's, not the page's. */
     topicRead: skipHydrate(topicRead),
+    topicUnread,
     markTopicRead,
     requestPush,
     ping,

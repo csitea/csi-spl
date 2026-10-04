@@ -497,8 +497,7 @@ export const useChannelStore = defineStore('channel', () => {
      minus what the reader had seen when they last opened it (0 if never opened,
      so an untouched topic shows a plain total). */
   function unreadFor(taskId: string) {
-    const seen = useNotificationStore().topicRead[taskId]
-    return Number.isFinite(seen) ? Math.max(0, repliesFor(taskId) - Number(seen)) : 0
+    return useNotificationStore().topicUnread(taskId, repliesFor(taskId))
   }
 
   return {

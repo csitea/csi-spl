@@ -44,6 +44,9 @@
         :last-live="pane.lastLive"
         :empty-text="t('topic.no_replies')"
         :since-ms="sinceMs"
+        :count-for="rootCount"
+        :unread-for="rootUnread"
+        :count-msg-id="rootId"
         @clear-search="pane.setSearch('')"
         @edited="onEdited"
         :move-ctx="moveCtx"
@@ -60,6 +63,7 @@
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
+import { useNotificationStore } from '~/stores/notification'
 import { newestFirst } from '~/utils/feed.mjs'
 import { topicTitleFromRows } from '~/utils/view-api.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
@@ -97,6 +101,24 @@ const messages = computed(() => {
   if (!messageRooted.value) return pane.newestFirst
   return newestFirst([topic.rootMsg, ...pane.newestFirst].filter((m): m is SpoolMessage => Boolean(m)))
 })
+/* Owner (HUM-10, t1 7ef63cfc): the topic's first message carries the same
+   "<new>/<total> >>" as its card in the channel feed - one rule (topicUnread),
+   one component. Opening the pane reads the topic, so "new" is counted from
+   the mark it had before (as the channel's divider is). A message-rooted
+   topic (a #lobby row) is not a reply count. */
+const notes = useNotificationStore()
+const rootId = computed(() => {
+  if (messageRooted.value) return ''
+  const rows = messages.value
+  return String(rows[rows.length - 1]?.msg_id || '')
+})
+function rootCount(id: string) {
+  return rootId.value && id === pane.taskId ? pane.replyTotal() : 0
+}
+function rootUnread(id: string) {
+  return notes.topicUnread(id, rootCount(id), pane.seenAtOpen)
+}
+
 /* The open topic's own title, selected at the top of this pane. */
 const titleText = computed(() => topicTitleFromRows(pane.messages, messageRooted.value ? topic.rootMsg : null))
 const heading = computed(() => (titleText.value ? t('topic.list_title', { text: titleText.value }) : t('topic.title')))

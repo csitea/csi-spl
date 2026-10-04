@@ -83,8 +83,8 @@
           :posinset="it.i + 1"
           :setsize="hasOlder ? -1 : shown.length"
           :topic-link="openable(it.msg)"
-          :count="countFor ? countFor(String(it.msg.task_id || '')) : 0"
-          :unread="unreadFor ? unreadFor(String(it.msg.task_id || '')) : 0"
+          :count="countFor && countedRow(it.msg) ? countFor(String(it.msg.task_id || '')) : 0"
+          :unread="unreadFor && countedRow(it.msg) ? unreadFor(String(it.msg.task_id || '')) : 0"
           :always-topic="alwaysTopic"
           :clickable="clickable"
           :selected="isSelected(it.msg)"
@@ -192,6 +192,8 @@ const props = defineProps<{
   countFor?: (taskId: string) => number
   /** CLE-77804 (topic 35053f95): the reader's unread reply count per topic. */
   unreadFor?: (taskId: string) => number
+  /** Only this row carries the reply count (a thread pane: its first message, not every reply). */
+  countMsgId?: string
   alwaysTopic?: boolean
   /** a click (or Enter / Space) anywhere on a row opens its topic. */
   clickable?: boolean
@@ -231,6 +233,9 @@ const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
 const people = useHumanNames()
 const { mode: clipMode } = useCardClip(props.clipPane)
+function countedRow(msg: SpoolMessage) {
+  return !props.countMsgId || msg.msg_id === props.countMsgId
+}
 function clipModeFor() {
   return props.clip ? clipMode.value : undefined
 }

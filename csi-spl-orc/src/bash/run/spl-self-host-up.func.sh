@@ -82,15 +82,10 @@ spl_self_host_port_busy() {
   fi
 }
 
-do_spl_self_host_up() {
-  local dir="${SPOOL_SELF_HOST_DIR:-${APP_PATH:-}}"
-  [[ -n "$dir" && -f "$dir/docker-compose.yml" ]] ||
-    { do_log "FATAL no docker-compose.yml in '$dir': run this from the spool checkout, or set SPOOL_SELF_HOST_DIR"; return 1; }
-  local envf="$dir/.env"
-
-  # --- 1. the answers: env var > existing .env > prompt > default -----------
+# spl_self_host_answers - step 1: fill ans[] and domain, email, smtp_*, from
+# (declared by do_spl_self_host_up) from env var > existing .env > prompt > default
+spl_self_host_answers() {
   local row key prompt def val
-  local -A ans=()
   for row in "${SPL_SELF_HOST_ASK[@]}"; do
     IFS='|' read -r key prompt def <<<"$row"
     val="${!key:-}"
@@ -108,18 +103,21 @@ do_spl_self_host_up() {
       { do_log "FATAL $key holds a single quote or a newline, which .env cannot carry literally: choose another value"; return 1; }
     ans[$key]="$val"
   done
-  local domain="${ans[SPOOL_DOMAIN]}" email="${ans[SPOOL_OWNER_EMAIL]}"
-  local smtp_host="${ans[SPOOL_MAIL_SMTP_HOST]}" smtp_port="${ans[SPOOL_MAIL_SMTP_PORT]}" smtp_user="${ans[SPOOL_MAIL_SMTP_USER]}"
+  domain="${ans[SPOOL_DOMAIN]}" email="${ans[SPOOL_OWNER_EMAIL]}"
+  smtp_host="${ans[SPOOL_MAIL_SMTP_HOST]}" smtp_port="${ans[SPOOL_MAIL_SMTP_PORT]}" smtp_user="${ans[SPOOL_MAIL_SMTP_USER]}"
   [[ "$domain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ ]] ||
     { do_log "FATAL SPOOL_DOMAIN '$domain' is not a bare domain: give the host name only, e.g. chat.example.com (no scheme, port or path)"; return 1; }
   [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] ||
     { do_log "FATAL SPOOL_OWNER_EMAIL '$email' is not an email address"; return 1; }
   [[ "$smtp_port" =~ ^[0-9]{1,5}$ ]] ||
     { do_log "FATAL SPOOL_MAIL_SMTP_PORT '$smtp_port' is not a port number"; return 1; }
-  local from="${SPOOL_MAIL_FROM:-$(spl_self_host_env_get "$envf" SPOOL_MAIL_FROM)}"
+  from="${SPOOL_MAIL_FROM:-$(spl_self_host_env_get "$envf" SPOOL_MAIL_FROM)}"
   from="${from:-spool@$domain}"
+}
 
-  # --- 2. preflight: every check, then stop before `up` on any failure ------
+# spl_self_host_preflight - step 2: every check runs; any failure stops before
+# anything is written or started (Discourse's list)
+spl_self_host_preflight() {
   local fails=0
   _shu_fail() { do_log "PREFLIGHT FAIL $1"; do_log "  fix: $2"; fails=$((fails + 1)); }
   _shu_ok() { do_log "PREFLIGHT ok   $1"; }
@@ -181,7 +179,12 @@ do_spl_self_host_up() {
     return 1
   fi
 
-  # --- 3. .env, mode 600, existing secrets kept -----------------------------
+  return 0
+}
+
+# spl_self_host_write_env - step 3: .env, mode 600, existing secrets kept
+# (Supabase's generated keys)
+spl_self_host_write_env() {
   local k sec
   local -A put=(
     [SPOOL_PUBLIC_URL]="https://$domain" [SPOOL_SITE_ADDRESS]="$domain" [SPOOL_DOMAIN]="$domain"
@@ -221,8 +224,21 @@ do_spl_self_host_up() {
     rm -f "$tmp"; do_log "FATAL cannot write $envf"; return 1
   fi
   do_log "INFO wrote $envf (mode 600)"
+}
 
-  # --- 4. up, then the owner link -------------------------------------------
+do_spl_self_host_up() {
+  local dir="${SPOOL_SELF_HOST_DIR:-${APP_PATH:-}}"
+  [[ -n "$dir" && -f "$dir/docker-compose.yml" ]] ||
+    { do_log "FATAL no docker-compose.yml in '$dir': run this from the spool checkout, or set SPOOL_SELF_HOST_DIR"; return 1; }
+  local envf="$dir/.env"
+
+  local -A ans=()
+  local domain email smtp_host smtp_port smtp_user from
+  spl_self_host_answers || return 1
+  spl_self_host_preflight || return 1
+  spl_self_host_write_env || return 1
+
+  # step 4: up, then the owner link (Zulip's re-run that ends with it)
   do_log "INFO docker compose up -d --wait (pulls the images; a failed pull builds them)"
   docker compose --project-directory "$dir" up -d --wait ||
     { do_log "FATAL docker compose up failed: 'docker compose --project-directory $dir logs hub-init hub web' names the problem"; return 1; }

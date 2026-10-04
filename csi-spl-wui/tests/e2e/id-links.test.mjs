@@ -131,8 +131,20 @@ async function openChannel(p, base, extra) {
     })).catch((e) => ({ eval: String(e).slice(0, 200) }))
     throw new Error('no shell ' + JSON.stringify({ ...info, errors: errors.slice(0, 4) }))
   }
-  await p.waitForSelector(`a.msg-link[href*="topic=${TO}"]`, { visible: true, timeout: 15000 })
-  await sleep(400)
+  const linkSel = `a.msg-link[href*="topic=${TO}"]`
+  await p.waitForSelector(linkSel, { visible: true, timeout: 15000 })
+  // A generated bundle reloads once while the shell settles. The link is
+  // visible before that reload and missing during it, so a fixed pause
+  // lands on the blank document. Count the link only after it stays, or
+  // after the reload has brought it back.
+  await p.evaluate(() => { window.__idLinkBoot = 1 })
+  const reloaded = await p.waitForFunction(
+    () => window.__idLinkBoot !== 1, { timeout: 2000 },
+  ).then(() => true, () => false)
+  if (reloaded) {
+    await p.waitForSelector('.spool-shell', { timeout: 15000 })
+    await p.waitForSelector(linkSel, { visible: true, timeout: 15000 })
+  }
 }
 
 async function waitUntil(p, fn, arg, ms = 8000) {

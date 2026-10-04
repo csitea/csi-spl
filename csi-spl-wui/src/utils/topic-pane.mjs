@@ -16,6 +16,9 @@
 // other half — they keep the state honest so the section the reader opened
 // LAST is the one that wins.
 
+import { isSectionPage } from './section-strip.mjs'
+import { isSearchPage } from './sidebar-tabs.mjs'
+
 /** The live pane (useLiveFeed('pane')): /, /lobby, /search, /?topic=. */
 export const LIVE = 'live'
 /** The channel / DM topic store: /channel/<name>, /dm/<peer>. */
@@ -89,14 +92,18 @@ export function operatorCloses(opened, state = {}) {
  *
  * Only a forward navigation to another path that names no topic of its own:
  * Back / Forward (`popstate`) restores whatever its entry holds, a
- * `?topic=` write is the pane itself, and a desktop shows the page beside
- * the pane anyway.
+ * `?topic=` write is the pane itself. A desktop shows the page beside the
+ * pane, so there it closes only on a section page (`SECTION_PAGES`) or
+ * `/search` (spec 078 FR-004), whichever section the pane holds.
  *
  * @param {{ mobile?: boolean, open?: boolean, popstate?: boolean, fromPath?: string, toPath?: string, toQuery?: Record<string, unknown> }} nav
  * @returns {boolean}
  */
 export function routeLeavesTopic(nav = {}) {
-  if (!nav.mobile || !nav.open || nav.popstate) return false
+  if (!nav.open || nav.popstate) return false
   if (!nav.toPath || nav.toPath === nav.fromPath) return false
-  return !(nav.toQuery && nav.toQuery.topic)
+  if (nav.toQuery && nav.toQuery.topic) return false
+  /* spec 078 FR-004 (owner b6f35bf4, 193d95f7): on desktop only a section's
+     own page or /search closes the pane; channel to channel / DM keeps it */
+  return Boolean(nav.mobile) || isSectionPage(nav.toPath) || isSearchPage(nav.toPath)
 }

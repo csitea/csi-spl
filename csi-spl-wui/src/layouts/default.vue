@@ -292,9 +292,9 @@ const offNav = router.afterEach((to, from, failure) => {
   popNav = false
   if (failure) return
   const nav = { mobile: stack.isMobile.value, open: topicPaneOpen.value, popstate, fromPath: from.path, toPath: to.path, toQuery: to.query }
-  if (routeLeavesTopic(nav)) { livePane.close(); topic.close() }
-  /* spec 074 T008: the operator console shares that slot */
-  if (routeLeavesTopic(nav)) operatorPane.close()
+  /* spec 078 FR-004, Q3: on desktop a section page or /search closes the
+     right pane too, whichever section it holds (the operator console too) */
+  if (routeLeavesTopic(nav)) { livePane.close(); topic.close(); operatorPane.close() }
 })
 onUnmounted(() => { offPop(); offNav() })
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))

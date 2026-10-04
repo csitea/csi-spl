@@ -1,0 +1,6 @@
+Lay-What: Every machine now updates its own copy of the agent tool to the newest version twice a day, at midnight and noon.
+Lay-How: A scheduled job rebuilds only the tool itself, checks it, and puts the old copy back if the new one is wrong.
+Lay-Why: Machines kept running old versions, and the full installer also reset personal settings, so it was unsafe to rerun.
+Tech-What: orc: install.sh --binary-only, do_spl_spool_refresh, do_spl_box_update, do_spl_box_update_install_cron (0 0,12, wired into box deploy).
+Tech-How: Builds to a temp file, verifies spool version and the go version -m commit equals trunk, keeps spool.bak; then box deploy and a gated deploy-lag dispatch.
+Tech-Why: The installed spool copy was never refreshed, and a full install.sh rewrote the agent env, .bashrc, CLAUDE.md, settings.json and mcp-bot links.

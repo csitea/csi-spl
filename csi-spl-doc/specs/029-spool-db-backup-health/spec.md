@@ -543,7 +543,49 @@ matches the in-project object above; `<env>/files/**` lists 56 names (dev) and
 520 names (prd). The byte restore was not run. `ENV=dev BACKUP_SOURCE=bkp
 DRY_RUN=1` and `ENV=dev SOURCE=bkp DRY_RUN=1` both exit 1 with `FATAL no key
 for csi-spl-bkp at ~/.gcp/.csi/key-csi-spl-bkp.json`. The read-back (spec 044
-T077) is unmeasured on this run.
+T077) is §6.7.1.
+
+### 6.7.1 Off-project read-back (2026-10-04, g-228)
+
+The read-back the paragraphs above left unmeasured. n = 1 per row, tree
+`3743415c` (the restores; `f7e190b3` landed on trunk during the run and does
+not touch these actions). Lane g-228. The four restores ran
+2026-10-04T19:08:05Z to 2026-10-04T19:10:08Z. Actions: `do_spl_db_restore`
+(`BACKUP_SOURCE=bkp`, `TARGET=local`) and `do_spl_files_restore`
+(`SOURCE=bkp`, `TARGET=local`), prd then dev, read as the csi-spl-bkp SA.
+No `gcloud sql import`, no `TARGET=env`, no `ALLOW_PRD_RESTORE`. Each local
+database restore probed with `SELECT 1` over TCP before the load; the
+throwaway container accepted TCP after 4 s on both envs. Throwaway
+containers and directories were removed.
+
+The newest off-project dumps are the same objects workflow 45 wrote in run
+37184945942: `spool-20261004T071230Z.sql.gz` (prd) and
+`spool-20261004T071022Z.sql.gz` (dev).
+
+| run | restored | vs the in-project restore above | RPO (copy age) | RTO | rc |
+|---|---|---|---|---|---|
+| prd dump -> local throwaway container | 52 tables, 52 256 rows | same counts, same exit 5 | 42 849 s (11.9 h) | 39 s | 5 |
+| dev dump -> local throwaway container | 52 tables, 31 423 rows | same counts, same exit 5 | 43 058 s (12.0 h) | 36 s | 5 |
+| prd files -> local throwaway dir | 520 objects, 103 423 163 B | 6 objects and 2 576 671 B fewer (526 objects, 105 999 834 B) | - | 6 s | 0 |
+| dev files -> local throwaway dir | 56 objects, 3 395 620 B | 1 object and 13 156 B more (55 objects, 3 382 464 B) | - | 5 s | 0 |
+
+The exit 5 is the same cause. On both envs the only live tables absent from
+the restore are `box_stats` and `operator_audit`. `spool_schema_migrations`
+is 114 rows in both dumps. `operator_audit` is created by
+`0115_operator_workspaces.sql` and `box_stats` by `0117_box_stats.sql`;
+`0116_operator_workspace_flag.sql` creates no table. The dump is older than
+0115, 0116 and 0117. Every other live table was present. On prd, live
+`box_stats` has 26 rows and live `operator_audit` has 0; on dev, live
+`box_stats` has 0 and live `operator_audit` has 7. Live
+`spool_schema_migrations` is 119 on prd and 120 on dev (119 on both at the
+in-project drill).
+
+The off-project copy does not by itself rebuild current prd. The database
+matches the in-project dump, so it rebuilds that point in time and then
+needs the later migrations from git; `box_stats` rows written since the dump
+are not in the copy (26 live on prd, none restored). The files copy is 6
+objects and 2 576 671 B short of the in-project files bucket measured the
+same day. Secrets and the cnf stay outside the bucket (§6.6.1).
 
 ## 7. Out of scope
 

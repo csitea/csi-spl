@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.17** (the version log is at the end of section 9). Lead
+Status: **draft v0.18** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -247,7 +247,7 @@ Each row is the contributor's claim with its check; the full walk is in the file
 | F35 | The help page a newcomer follows to connect an agent sets our hosted hub URL and a legacy agent id (`CLE-01`, a form that ended 2026-10-03), while the README says `localhost:8080` and `spool-agent` | research/a1 B2 | `grep -nE "SPOOL_HUB_URL=\|CLE-0" csi-spl-doc/doc/help/connect-an-agent.md` -> lines 31, 38, 41 |
 | F36 | The hub test suite a contributor runs first fails on a clean machine: it forces `GOPROXY=off` with a cold module cache | research/a1 B6, research/01 | `grep -n GOPROXY csi-spl-api/src/bash/tests/run-all-tests.sh` -> line 18 |
 | F37 | **Correction to research a4 A-DEV1** ("purge dead scripts"): most of its list is live. `do_divest` is the terraform destroy behind `make do-deprovision`; the 3 tenant-host actions are called by workflow 40 and `do_spl_tenant_create`; `gcp-s3-download-all` has a live lane and a test; the `gcp-*-s3*` actions use `gcloud storage` (GCS), not AWS. Only the WordPress excludes inside the GCS sync actions are dead text | lead check | `grep -n divest csi-spl-orc/src/make/tf-tasks.func.mk` -> lines 88, 102, 137; `git grep -l do_spl_tenant_host -- .github csi-spl-orc/src` -> wf 40, `spl-tenant-create.func.sh` |
-| F38 | **A live WUI bug on user story 1 step 3**: Tenant settings -> Agents opens the connect guide on `CLE-01`, a legacy id the validator has rejected since `2026-10-03T20:59:59Z`, so the paste block is hidden; three connect procedures (README, help page, guide) disagree. Reported to the orchestrator as an unowned lane | review 17-18 (g-182) B1, B2; lead check | `grep -n "ref('CLE-01')" csi-spl-wui/src/components/ConnectAgentGuide.vue` -> line 62; `csi-spl-wui/src/utils/agent-id.mjs:20` |
+| F38 | **A live WUI bug on user story 1 step 3**: Tenant settings -> Agents opens the connect guide on `CLE-01`, a legacy id the validator has rejected since `2026-10-03T20:59:59Z`, so the paste block is hidden; three connect procedures (README, help page, guide) disagree. Reported to the orchestrator; **fixed** in `496bfb803` (c-174, A65 part 1), live on dev and prd | review 17-18 (g-182) B1, B2; lead check | `grep -n "ref('CLE-01')" csi-spl-wui/src/components/ConnectAgentGuide.vue` -> line 62; `csi-spl-wui/src/utils/agent-id.mjs:20` |
 | F39 | Resuming a half-built bootstrap in a new shell is not safe: once the key file exists the identity resolves to the SA, which gcp-003 has not yet made owner, so the run cannot finish its own grant | review 01-02 (g-168) | `gcp-account-pin.func.sh:180-183` |
 | F40 | The step a stranger meets first is the name, not the key: with the project id `csi-spl-dev` an outsider stops at project create (and at `spl-cloud-cnf.func.sh:111`, 028 `:37`) before any org-policy step or image build. So A8 (names) ships before A18 (keyless) and A21 (one image) | reviews 01-02, 05-06; research a2 | `gcp-001-create-project.func.sh:71`; `spl-cloud-cnf.func.sh:111` |
 | F41 | Steps 059/060 (our satellite VM) render for dev too, so a default `ENVS="dev prd"` sweep plans them; the satellite project `csi-spl-all` is a fourth project class beside dev, prd and bkp | review 03-04 (g-169) | `git grep -l csi-spl-all \| wc -l` -> 39 (reviewer's count) |
@@ -607,3 +607,4 @@ rule, and logs it below.
 | v0.15 | 7.0 renumbered 1-14 (one row per lane, L59 once); `tasks.md` generated from sections 7.0 and 7.1 | c-165 |
 | v0.16 | review 03-04 follow-up (g-169): A8 includes the conf-validator realm rule (`cloud.py:64`), A25 the stale 031 row in the spec index; L4, L23 own them | c-165 |
 | v0.17 | reviews 17-18 (g-182) N3, N4 and 11-12 (g-171) R2 detail: A65, A59, A34 widened | c-165 |
+| v0.18 | F38 fixed (`496bfb803`); tasks.md T001 split: T001a done, T001b open | c-165 |

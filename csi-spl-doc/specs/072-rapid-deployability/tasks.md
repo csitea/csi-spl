@@ -6,7 +6,8 @@ Rules for every lane: the spec's ranking rule (section 2: time to first deploy, 
 
 ## Phase 1: user story 1 end to end (spec 2.1, 7.0), in this order
 
-- [ ] T001 **L59** (US1 step 3) A65 + A66: agent-connect help page, hub tests on a fresh clone. Owns: `csi-spl-wui/src/components/ConnectAgentGuide.vue` + its unit test; `doc/help/connect-an-agent.md` + a doc test; the README "another machine" paragraph; `run-all-tests.sh`. Needs: -
+- [x] T001a **L59** (US1 step 3) A65, the live bug: the in-app guide opens on `c-001`, the help page and `en.json` carry no `CLE-01`. `496bfb803` (c-174), unit test `connect-agent-default-id.test.mjs`; WUI live on dev and prd (c-174). Check: `git grep -c CLE-01 origin/master -- csi-spl-wui/src/components/ConnectAgentGuide.vue csi-spl-doc/doc/help/connect-an-agent.md` -> 0
+- [ ] T001b **L59** (US1 step 3, 4) the rest of A65 and A66: getting started drops "(Recommended)" on social sign-in (`getting-started.md:29`), the README "another machine" paragraph stops teaching a root-key copy, one connect story across README / help / guide; `run-all-tests.sh` works on a fresh clone (`GOPROXY=off` at line 18 today). Owns: `doc/help/getting-started.md`, the README paragraph, `run-all-tests.sh`. Needs: -
 - [ ] T002 **L5** (US1 step 4) A13: the runner as a repo variable. Owns: `10_ci-quality.yml` `runs-on` lines. Needs: -
 - [ ] T003 **L33** (US1 step 4) A34: estate guard + fork-portability test. Owns: the 8 live-estate workflows, a new iac test. Needs: -
 - [ ] T004 **L6** (US1 step 1) A15: `DEPLOY.md` first cut (P1 and P3 as they are today). Owns: `DEPLOY.md`, one README link. Needs: -

@@ -8,8 +8,9 @@
 #      (CONTROL: the same tree with the name put back cuts)
 #   3. EDITED = FATAL; 4. DELETED = FATAL
 #   5. two migrations sharing a number = FATAL; the grandfathered pair passes
-#   6. the version wraps 9.9.9 -> 1.0.1: the newer build is released, and the
-#      gate (migrations only, never version numbers) calls it forward
+#   6. the version wraps 9.9.9 -> 1.0.1 of cycle 2 (tag v1.0.1-c2): that
+#      build is released as v1.0.1, and the gate (migrations only, never
+#      version numbers) calls it forward
 #   7. THIS tree against the newest stable-* tag on the remote: forward-only.
 #      A branch that renames, edits or deletes a released migration turns
 #      this suite red.
@@ -26,11 +27,8 @@ M=csi-spl-rdb/src/sql/postgres/spool-hub
 
 git init -q --bare "$T/remote.git"
 git init -q "$T/w" && git -C "$T/w" remote add origin "$T/remote.git"
-commit() {  # <subject> -> sha; stages what the caller changed. Runs in $(...), so the
-  # commit date comes from the repo's own count: one minute apart, never a tie
-  local when; when=$((1790000000 + 60 * ($(git -C "$T/w" rev-list --count HEAD 2>/dev/null || echo 0) + 1)))
-  git -C "$T/w" add -A && GIT_COMMITTER_DATE="@$when +0000" GIT_AUTHOR_DATE="@$when +0000" \
-    git -C "$T/w" commit -q --allow-empty -m "$1" && git -C "$T/w" rev-parse HEAD
+commit() {  # <subject> -> sha; stages what the caller changed
+  git -C "$T/w" add -A && git -C "$T/w" commit -q --allow-empty -m "$1" && git -C "$T/w" rev-parse HEAD
 }
 mig() { mkdir -p "$T/w/$M"; echo "${2:-select 1;}" >"$T/w/$M/$1"; }
 vtag() { git -C "$T/w" tag "v$1" "$2" && git -C "$T/w" push -q origin "refs/tags/v$1"; }
@@ -103,11 +101,11 @@ out=$(act STABLE_DATE=2026-10-26 DRY_RUN=0); rc=$?
 # --- 6. the version wraps 9.9.9 -> 1.0.1 ---------------------------------------------
 c=$(commit "feat(hub): the last build of a cycle"); vtag 9.9.9 "$c"
 mig 0060_z.sql; cw=$(commit "feat(rdb): the first build after the wrap")
-git -C "$T/w" tag -d v1.0.1 >/dev/null; git -C "$T/w" push -q origin :refs/tags/v1.0.1; vtag 1.0.1 "$cw"
+vtag 1.0.1-c2 "$cw"
 out=$(act STABLE_DATE=2026-11-02); rc=$?
 ((rc == 0)) && grep -q "^# stable-2026-11-02 (v1.0.1)" <<<"$out" && grep -q "Commit \`${cw:0:12}\`" <<<"$out" \
   && grep -q 'OK forward-only' <<<"$out" && grep -qx -- '- `0060_z.sql`' <<<"$out" \
-  && pass "9.9.9 -> 1.0.1: the newer build v1.0.1 is released, forward-only" || fail "wrap (rc $rc): $out"
+  && pass "9.9.9 -> v1.0.1-c2: the cycle-2 build is released as v1.0.1, forward-only" || fail "wrap (rc $rc): $out"
 
 # --- 7. this tree against the newest released stable ---------------------------------
 R=$(git -C "$PROJ_ROOT" rev-parse --show-toplevel)

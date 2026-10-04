@@ -8,9 +8,9 @@
 # @description workflow 55.
 # @description   1. the commit: STABLE_FROM (a ref), else the commit the hub at
 # @description      STABLE_FROM_URL (or STABLE_FROM_ENV's hub) reports on
-# @description      /version - what prd RUNS -, else the NEWEST v-tag (by
-# @description      commit date, not by number: the version wraps 9.9.9 ->
-# @description      1.0.1, and the build after the wrap is still the newest)
+# @description      /version - what prd RUNS -, else the LATEST v-tag by
+# @description      release key (spl_release_key_gt: cycle, then X.Y.Z, so
+# @description      v1.0.1-c2 after the 9.9.9 wrap is later than v9.9.9)
 # @description   2. the tag: stable-<YYYY-MM-DD> (UTC), immutable. There is no
 # @description      moving `stable` tag (a tag never moves without --force); the
 # @description      newest stable is the GitHub release marked latest
@@ -59,7 +59,8 @@ do_release_stable() {
   local sha
   sha="$(spl_stable_commit)" || return 1
   local tag="stable-$day" version prev
-  version="$("${g[@]}" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_version_max)"
+  version="$("${g[@]}" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_max)"
+  [[ -z "$version" ]] || version="$(spl_release_key_display "$version")"
   prev="$("${g[@]}" tag -l 'stable-*' | sort | grep -vx "$tag" | tail -1)"
 
   local have
@@ -99,7 +100,7 @@ do_release_stable() {
 # to stdout, so every log line here goes to stderr - the do_release_version
 # trap of run 36372654214).
 # spl_stable_commit -> the full sha to release
-# (STABLE_FROM > STABLE_FROM_URL > STABLE_FROM_ENV's hub /version > newest v-tag)
+# (STABLE_FROM > STABLE_FROM_URL > STABLE_FROM_ENV's hub /version > latest v-tag key)
 spl_stable_commit() {
   local ref="${STABLE_FROM:-}" body v url="${STABLE_FROM_URL:-}"
   if [[ -z "$ref" && -z "$url" && -n "${STABLE_FROM_ENV:-}" ]]; then
@@ -117,21 +118,12 @@ spl_stable_commit() {
     do_log "INFO $url runs ${ref:0:8}: that commit is released" >&2
   fi
   if [[ -z "$ref" ]]; then
-    v="$(spl_stable_newest_vtag)"
+    v="$(git -C "$APP_PATH" tag -l 'v*' | sed 's/^v//' | spl_release_key_max)"
     [[ -n "$v" ]] || { do_log "FATAL no v-tag to release (and no STABLE_FROM)" >&2; return 1; }
     ref="v$v"
   fi
   git -C "$APP_PATH" rev-parse -q --verify "$ref^{commit}" ||
     { do_log "FATAL not a commit here: '$ref' (fetch it first)" >&2; return 1; }
-}
-
-# spl_stable_newest_vtag -> the version of the v-tag on the newest commit ("" if none).
-# Newest by commit date, not the highest number: the version wraps 9.9.9 ->
-# 1.0.1, and the highest number would then pin the release to the last build
-# before the wrap. Tags on the same second: the highest number among them.
-spl_stable_newest_vtag() {
-  git -C "$APP_PATH" for-each-ref --sort=-creatordate --format='%(creatordate:unix) %(refname:strip=2)' 'refs/tags/v*' |
-    awk 'NR == 1 { top = $1 } $1 == top { sub(/^v/, "", $2); print $2 }' | spl_version_max
 }
 
 # The migration files: a numbered .sql anywhere under this dir.

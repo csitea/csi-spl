@@ -24,7 +24,11 @@
 #   8. T-DISP-HOLD-STALE: the hold gate, and a hold older than
 #      ROTATE_HOLD_MAX ignored with one WARN (FR-023, FR-024)
 #   9. resume (FR-003) and abort (FR-091)
-#  10. T-CRON: :15, idempotent, check, CRON_REMOVE=1
+#  10. T-CRON: :15, idempotent, check, CRON_REMOVE=1; the heal line every 3 min
+#      off the rotation's minute, the cron script's --heal
+#  11. ROTATE_CMD=heal: dead -> healed (rotate.log, no rotation), alive or on
+#      a usage-limit pane -> untouched, back within the confirm window ->
+#      untouched, two at once -> one heal, gates (in flight, ROTATE_HEAL=0)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -107,7 +111,7 @@ echo "$a ASK_KIND=${ASK_KIND:-} ASK_FROM=${ASK_FROM:-} ASK_TOPIC=${ASK_TOPIC:-} 
 case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
-  do_spl_dispatch_setup) [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
+  do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
   do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
   *) exit 1 ;;
 esac
@@ -367,8 +371,76 @@ cron DRY_RUN=0 >/dev/null 2>&1
 cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1 && pass "10. check passes once installed" || fail "10. check: $(cat "$T/o")"
 cron CRON_REMOVE=1 DRY_RUN=0 >/dev/null 2>&1
 ! grep -q 'dispatch-rotate' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "10. CRON_REMOVE=1 takes only its line (FR-092)" || fail "10. remove: $(cat "$T/crontab")"
+cron DRY_RUN=0 >/dev/null 2>&1
+hwant="1-59/3 * * * * $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh --heal >> $T/log/heal.out 2>&1 # csi-spl:dispatch-heal"
+grep -qxF "$hwant" "$T/crontab" && [[ "$(grep -c '# csi-spl:dispatch-heal$' "$T/crontab")" == 1 ]] &&
+  pass "10. the heal line: every 3 min, never at :15 (one lock), idempotent" || fail "10. heal line: $(cat "$T/crontab")"
+cron DRY_RUN=0 ROTATE_CRON_MINUTE=0 ROTATE_HEAL_CRON_EVERY=5 >/dev/null 2>&1
+grep -q '^1-59/5 .* --heal >> .* # csi-spl:dispatch-heal$' "$T/crontab" && [[ "$(grep -c '# csi-spl:dispatch-heal$' "$T/crontab")" == 1 ]] &&
+  pass "10. ROTATE_HEAL_CRON_EVERY=5 at :00 -> 1-59/5, replaced in place" || fail "10. every 5: $(cat "$T/crontab")"
+cron DRY_RUN=0 ROTATE_HEAL_CRON_EVERY=0 >/dev/null 2>&1
+! grep -q 'dispatch-heal' "$T/crontab" && grep -q '# csi-spl:dispatch-rotate$' "$T/crontab" &&
+  pass "10. ROTATE_HEAL_CRON_EVERY=0 drops only the heal line" || fail "10. every 0: $(cat "$T/crontab")"
+cron DRY_RUN=0 ROTATE_HEAL_CRON_EVERY=1 >"$T/o" 2>&1 && fail "10. ROTATE_HEAL_CRON_EVERY=1 accepted" || pass "10. ROTATE_HEAL_CRON_EVERY=1 refused"
+cron DRY_RUN=0 >/dev/null 2>&1; cron CRON_REMOVE=1 DRY_RUN=0 >/dev/null 2>&1
+! grep -q 'dispatch-' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "10. CRON_REMOVE=1 takes the heal line too" || fail "10. remove heal: $(cat "$T/crontab")"
+printf '#!/usr/bin/env bash\necho "run $* ROTATE_CMD=$ROTATE_CMD DRY_RUN=$DRY_RUN"\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"
+bash "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" --heal >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'run -a do_spl_dispatch_rotate ROTATE_CMD=heal DRY_RUN=0' "$T/o" && grep -q 'START dispatcher heal' "$T/o" &&
+  pass "10. the cron script --heal runs ROTATE_CMD=heal DRY_RUN=0" || fail "10. --heal: rc=$rc $(cat "$T/o")"
+bash "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" >"$T/o" 2>&1
+grep -q 'ROTATE_CMD=auto DRY_RUN=0' "$T/o" && pass "10. ... and without it the rotation (ROTATE_CMD=auto)" || fail "10. auto: $(cat "$T/o")"
 ROTATE_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" --check-tools >"$T/o" 2>&1
 [[ $? -eq 3 ]] && grep -q 'no-such-tool-x' "$T/o" && pass "10. the cron script names a missing tool (exit 3)" || fail "10. tools: $(cat "$T/o")"
+
+# --- 11. ROTATE_CMD=heal ------------------------------------------------------------------------
+heal() { act DRY_RUN=0 ROTATE_CMD=heal ROTATE_HEAL_CONFIRM=0 "$@"; }
+nsetup() { local n; n="$(grep -c '^do_spl_dispatch_setup ' "$T/run.log" 2>/dev/null)"; echo "${n:-0}"; }
+world; rm -rf "$T/proc/103"
+heal >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && -d "$T/proc/203" && -d "$T/proc/102" && "$(nsetup)" == 1 ]] &&
+  grep -qE '^[0-9T:-]+Z [0-9]{8}T[0-9]{4}Z-master HEAL WAIT no live process: c-903 ' "$D/rotate.log" &&
+  grep -qE '^[0-9T:-]+Z [0-9]{8}T[0-9]{4}Z-master HEAL OK running again: c-903$' "$D/rotate.log" &&
+  pass "11. dead failover: healed, HEAL WAIT + OK in rotate.log (the rotation's format)" || fail "11. dead: rc=$rc $(cat "$T/o") $(cat "$D/rotate.log" 2>&1)"
+[[ ! -e "$T/spawn.log" && ! -e "$D/rotate.hold" && ! -e "$D/rotate.dispatch.last" && "$(holder)" == c-902 && ! -e "$T/tmux/log" ]] &&
+  pass "11. ... and nothing rotated: no spawn, hold, rename or .last, the lease kept" || fail "11. rotated: $(ls "$D")"
+world; rm -rf "$T/proc/102"
+heal >"$T/o" 2>&1
+grep -q 'HEAL WAIT no live process: c-902 ' "$D/rotate.log" && grep -q 'DISPATCH_MASTER=c-902' "$T/run.log" &&
+  pass "11. dead master: do_spl_dispatch_setup runs for it" || fail "11. master: $(cat "$T/o")"
+world
+heal >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(nsetup)" == 0 && ! -e "$D/rotate.log" ]] && grep -q ' HEAL SKIP both alive' "$T/o" &&
+  pass "11. both alive: untouched, nothing in rotate.log" || fail "11. alive: rc=$rc $(cat "$T/o")"
+world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"
+heal LEASE_PANE_CMD="$T/bin/footer" >"$T/o" 2>&1
+[[ "$(nsetup)" == 0 && -d "$T/proc/102" && ! -e "$T/proc/202" ]] && grep -q ' HEAL SKIP both alive' "$T/o" &&
+  pass "11. a live master on a usage-limit pane: untouched (no second process on its id)" || fail "11. stalled: $(cat "$T/o")"
+world; rm -rf "$T/proc/103"
+( sleep 1; "$T/bin/proc" 103 c-903 7200 ) &
+heal ROTATE_HEAL_CONFIRM=3 >"$T/o" 2>&1; wait
+[[ "$(nsetup)" == 0 && ! -d "$T/proc/203" ]] && grep -q ' HEAL SKIP back within 3s' "$T/o" &&
+  pass "11. dead at one look, back within ROTATE_HEAL_CONFIRM: untouched" || fail "11. confirm: $(cat "$T/o")"
+world; rm -rf "$T/proc/103"
+heal SETUP_SLEEP=3 >"$T/o1" 2>&1 & sleep 0.5
+heal SETUP_SLEEP=3 >"$T/o2" 2>&1; wait
+[[ "$(nsetup)" == 1 && "$(grep -c 'HEAL OK' "$D/rotate.log")" == 1 ]] && grep -q ' HEAL SKIP locked' "$T/o2" &&
+  pass "11. two heals at once: one heals, the other SKIP locked" || fail "11. concurrent: $(nsetup) $(cat "$T/o1" "$T/o2")"
+world; rm -rf "$T/proc/103"; ( flock 9; sleep 3 ) 9>>"$D/rotate.dispatch.lock" & sleep 0.5
+heal >"$T/o" 2>&1; wait
+[[ "$(nsetup)" == 0 ]] && grep -q ' HEAL SKIP locked' "$T/o" && pass "11. a rotation holding the lock: no heal" || fail "11. rotation lock: $(cat "$T/o")"
+world; rm -rf "$T/proc/103"; printf 'ROTATE_RID=20261002T1100Z-master\nROTATE_PHASE=ACK\n' >"$D/rotate.dispatch.ctx"
+heal >"$T/o" 2>&1
+[[ "$(nsetup)" == 0 ]] && grep -q ' HEAL SKIP rotation 20261002T1100Z-master in flight at ACK' "$T/o" &&
+  pass "11. a rotation in flight (ctx): no heal" || fail "11. in flight: $(cat "$T/o")"
+world; rm -rf "$T/proc/103"; echo 'ROTATE_HEAL=0' >"$D/rotate.conf"
+heal >"$T/o" 2>&1; rm -f "$D/rotate.conf"
+[[ "$(nsetup)" == 0 ]] && grep -q ' HEAL SKIP disabled' "$T/o" && pass "11. rotate.conf ROTATE_HEAL=0: off" || fail "11. off: $(cat "$T/o")"
+world; rm -rf "$T/proc/103"
+act ROTATE_CMD=heal ROTATE_HEAL_CONFIRM=0 >"$T/o" 2>&1
+[[ "$(nsetup)" == 0 && ! -e "$D/rotate.log" ]] && grep -q ' HEAL PLAN do_spl_dispatch_setup spawns: c-903' "$T/o" &&
+  pass "11. dry run: HEAL PLAN, nothing spawned or logged" || fail "11. dry: $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" "$T/o1" "$T/o2" && pass "11. no stray failing command under the ERR trap" || fail "11. ERRTRAP"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

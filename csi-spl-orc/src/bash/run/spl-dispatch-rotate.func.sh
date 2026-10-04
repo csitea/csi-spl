@@ -29,7 +29,12 @@
 # @description A new session that does not start or ack is closed, the OLD one
 # @description keeps the role (the hold is removed), and an ask + an owner DM
 # @description raise it (owner D2, FR-027, FR-075). Dry run unless DRY_RUN=0.
-# @param ROTATE_CMD (optional) - auto (default), ack (the new session's ack, with ROTATE_ID), abort (FR-091), handoff (preview)
+# @description ROTATE_CMD=heal runs the HEAL step alone, no rotation, every few
+# @description minutes from cron (dispatch-rotate-cron.sh --heal): a dispatcher
+# @description dead at :23 is back in minutes, not at the next :15.
+# @param ROTATE_CMD (optional) - auto (default), heal (HEAL only), ack (the new session's ack, with ROTATE_ID), abort (FR-091), handoff (preview)
+# @param ROTATE_HEAL (optional) - 0 turns ROTATE_CMD=heal off (env > rotate.conf), default 1
+# @param ROTATE_HEAL_CONFIRM (optional) - s a dispatcher must stay dead before ROTATE_CMD=heal spawns it, default 20
 # @param ROTATE_ID (optional) - with ROTATE_CMD=ack: the rotation id from the seed
 # @param ROTATE_FORCE (optional) - 1 skips the age and boot gates
 # @param ROTATE_ACK_TIMEOUT (optional) - s, default 600 here (the orchestrator's is 900)
@@ -43,6 +48,7 @@
 # @example ./run -a do_spl_dispatch_rotate
 # @example DRY_RUN=0 ./run -a do_spl_dispatch_rotate
 # @example ROTATE_CMD=abort DRY_RUN=0 ./run -a do_spl_dispatch_rotate
+# @example ROTATE_CMD=heal DRY_RUN=0 ./run -a do_spl_dispatch_rotate
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
@@ -57,10 +63,11 @@ do_spl_dispatch_rotate() {
     { spl_rotate_log - GATE SKIP "no master + failover pair in $LEASE_CONF"; return 0; }
   case "${ROTATE_CMD:-auto}" in
     auto)    spl_disp_rotate_auto ;;
+    heal)    spl_disp_heal_only ;;
     ack)     spl_rotate_ack_send "${ROTATE_ID##*-}" "$(spl_rotate_role_id "${ROTATE_ID##*-}")" ;;
     abort)   spl_disp_rotate_abort ;;
     handoff) ROTATE_QUIESCE="not run (preview)" spl_rotate_handoff master "$LEASE_MASTER" preview - ;;
-    *) do_log "FATAL ROTATE_CMD must be auto, ack, abort or handoff, got: '${ROTATE_CMD:-}'"; return 1 ;;
+    *) do_log "FATAL ROTATE_CMD must be auto, heal, ack, abort or handoff, got: '${ROTATE_CMD:-}'"; return 1 ;;
   esac
 }
 
@@ -177,6 +184,48 @@ spl_disp_heal() {
   done
   spl_rotate_log "$rid" HEAL OK "running again: $what"
 }
+
+# ROTATE_CMD=heal: the HEAL step alone, from cron every few minutes
+# (2026-10-04: c-002 died ~07:23Z and only the 08:15Z rotation healed it).
+# The rotation's lock, so never two heals and never a heal inside a rotation;
+# only a dispatcher with NO live process, dead at two looks ROTATE_HEAL_CONFIRM
+# s apart, is spawned - a live one (a usage-limit or login pane included) is
+# the lease's to judge, never a second process on its id. A run that changes
+# nothing prints, and writes nothing to rotate.log.
+spl_disp_heal_only() {
+  local rid nm nf
+  rid="$(spl_rotate_new_rid master)"
+  : "${ROTATE_HEAL:=1}" "${ROTATE_HEAL_CONFIRM:=20}"
+  [[ "$ROTATE_HEAL" =~ ^[01]$ && "$ROTATE_HEAL_CONFIRM" =~ ^[0-9]+$ ]] ||
+    { do_log "FATAL ROTATE_HEAL must be 0 or 1 and ROTATE_HEAL_CONFIRM whole seconds"; return 1; }
+  exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
+  flock -n 7 || { spl_disp_heal_say "$rid" "locked: a rotation or a heal is running"; return 0; }
+  [[ "$ROTATE_HEAL" == 1 ]] || { spl_disp_heal_say "$rid" "disabled (ROTATE_HEAL=0)"; return 0; }
+  if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
+    spl_disp_heal_say "$rid" "rotation $ROTATE_RID in flight at $ROTATE_PHASE"; return 0
+  fi
+  spl_lease_read
+  if spl_lease_remote; then spl_disp_heal_say "$rid" "standby (dispatch lease: $LH)"; return 0; fi
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
+    spl_disp_heal_say "$rid" "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
+  fi
+  if spl_disp_in_flight "$(cut -d' ' -f2 "$LEASE_DIR/rotate.orch.state" 2>/dev/null || true)"; then
+    spl_disp_heal_say "$rid" "orch-busy"; return 0
+  fi
+  spl_disp_heal_count; (( nm && nf )) && { spl_disp_heal_say "$rid" "both alive"; return 0; }
+  sleep "$ROTATE_HEAL_CONFIRM"
+  spl_disp_heal_count; (( nm && nf )) && { spl_disp_heal_say "$rid" "back within ${ROTATE_HEAL_CONFIRM}s"; return 0; }
+  spl_disp_heal "$rid" "$nm" "$nf"
+}
+
+# nm / nf of the caller: live processes of the master / the failover.
+spl_disp_heal_count() {
+  nm="$(spl_rotate_pids "$LEASE_MASTER" | grep -c . || true)"
+  nf="$(spl_rotate_pids "$LEASE_FAILOVER" | grep -c . || true)"
+}
+
+# A heal run with nothing to do: stdout (the cron's log), not rotate.log.
+spl_disp_heal_say() { printf '%s %s HEAL SKIP %s\n' "$(date -u +%FT%TZ)" "$1" "$2"; }
 
 # One note per distinct condition, to the orchestrator (FR-009, FR-073).
 spl_disp_once() {

@@ -19,10 +19,11 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
 
 *Prerequisite Note*: Spec 072 tasks T004 (`DEPLOY.md`), T005 (`do_lde_up`), T013 (`config.json`), T014 (`hub.Dockerfile`), T015 (`56_ghcr-images.yml`), T016 (compose image pulls), and T017 (`do_spl_self_host_up`) already deliver the self-hosted compose foundation. The tasks below build strictly the seam neutralization layer on top.
 
-- [ ] T002 **cnf cloud provider schema**: Add `env.cloud.provider: gcp|none|aws` (default: `gcp`) to `csi-spl-cnf/csi-spl/all.env.yaml`, `spl-merged-cnf.func.sh`, and validator `EnvModels/cloud.py`. Export `SPOOL_CLOUD_PROVIDER=none` in `docker-compose.yml`.
+- [x] T002 **cnf cloud provider schema**: Add `env.cloud.provider: gcp|none|aws` (default: `gcp`) to `csi-spl-cnf/csi-spl/all.env.yaml`, `spl-merged-cnf.func.sh`, and validator `EnvModels/cloud.py`. Export `SPOOL_CLOUD_PROVIDER=none` in `docker-compose.yml`.
   - **Owns**: `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-cnf/csi-spl/lde.env.yaml`, `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, `csi-spl-cnf/src/python/conf-validator/EnvModels/cloud.py`, `docker-compose.yml`.
   - **Needs**: T001.
   - **Done**: `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` passes and `ENV=dev ./run -a do_tpl_gen && git diff --exit-code` exits 0.
+  - **Landed** (c-205): `aa211f81`. Reader `do_spl_cloud_provider` (`SPOOL_CLOUD_PROVIDER` > merged cnf > `gcp`), tests `cloud-provider.tst.sh` and conf-validator `tests/` (unittest, `azure` rejected; in CI cnf-suite). lde stays `gcp` (it runs the GCS emulator). dev/prd tfvars byte-identical; the generated `<env>.env.json` gains `env.cloud`.
 
 - [ ] T003 **hub go cloud factory** [Parallel]: Create `internal/cloud/` package in `csi-spl-api` with `Factory`, `ComputeProvider`, `DatabaseProvider`, and `SecretsProvider` interfaces. When `SPOOL_CLOUD_PROVIDER=none` (or bucket is empty), force `blob.Dir` (`SPOOL_HUB_FILES_DIR`), eliminate `cloud.google.com/go/storage` initialization, read container revision from `SPOOL_VERSION`/hostname, and connect to plain TCP PostgreSQL DSN.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/cloud/`, `csi-spl-api/src/go/spool-hub-api/cmd/spool/hub.go`.

@@ -201,6 +201,10 @@
       "label": "Zona horaria",
       "browser": "Zona horaria del navegador ({zone})",
       "hint": "Todas las horas de este espacio de trabajo se muestran en esta zona, también las horas ISO con zona dentro de los mensajes. Una hora sin zona, como 18:46, queda tal como se escribió. Se guarda para este espacio de trabajo."
+    },
+    "keyboard_shortcuts": {
+      "label": "Atajos de teclado",
+      "hint": "Mayús + una letra actúa sobre el mensaje seleccionado (escritorio). Mayús + ? muestra todas las teclas."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} sin leer",
     "swipe_archive": "Suelta para archivar",
     "swipe_hide": "Suelta para ocultar",
-    "hidden_show": "Mostrar {n} mensaje oculto | Mostrar {n} mensajes ocultos"
+    "hidden_show": "Mostrar {n} mensaje oculto | Mostrar {n} mensajes ocultos",
+    "shortcuts": {
+      "title": "Atajos de teclado",
+      "archive": "Archivar / Desarchivar",
+      "move": "Mover o fusionar…",
+      "step": "Seleccionar el mensaje anterior / siguiente",
+      "help": "Mostrar esta lista",
+      "search": "Buscar",
+      "close": "Cerrar un menú o panel",
+      "menu_hint": "Atajo: {key}"
+    }
   },
   "topic": {
     "title": "Tema",

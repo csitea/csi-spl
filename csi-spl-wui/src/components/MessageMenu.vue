@@ -22,6 +22,8 @@
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
 import { usePhone } from '~/composables/useTouchUi'
+import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
+import { shortcutHint } from '~/utils/msg-shortcuts.mjs'
 
 const props = defineProps<{
   open: boolean
@@ -82,7 +84,9 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 /* the item list differs on a phone (msgMenuItems `touch`) */
 const sheet = usePhone()
-const items = computed(() => msgMenuItems({
+/* HUM-10 ae2e5093: each entry's Shift + letter on its right, while the setting is on */
+const keysOn = useMsgShortcutsOn()
+const items = computed(() => withKeys(msgMenuItems({
   touch: sheet.value,
   kind: props.kind,
   editable: props.editable,
@@ -99,7 +103,10 @@ const items = computed(() => msgMenuItems({
   promoteTopic: props.promoteTopic,
   hide: props.hide,
   locks: props.locks,
-}))
+})))
+function withKeys<T extends { id: string }>(list: T[]): (T & { keyHint?: string })[] {
+  return keysOn.value ? list.map((it) => ({ ...it, keyHint: shortcutHint(it.id) || undefined })) : list
+}
 /* UiPointMenu skips a disabled entry and emits close after this */
 function choose(id: string) {
   if (id === 'open') emit('open')

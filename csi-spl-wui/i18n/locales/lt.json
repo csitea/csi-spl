@@ -201,6 +201,10 @@
       "label": "Laiko juosta",
       "browser": "Naršyklės laiko juosta ({zone})",
       "hint": "Visi šios darbo srities laikai rodomi šioje juostoje, taip pat ISO laikai su juosta žinutėse. Laikas be juostos, pvz., 18:46, lieka kaip parašytas. Saugoma šiai darbo sričiai."
+    },
+    "keyboard_shortcuts": {
+      "label": "Spartieji klavišai",
+      "hint": "Shift + raidė veikia pasirinktą žinutę (kompiuteryje). Shift + ? parodo visus klavišus."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} neperskaityta",
     "swipe_archive": "Atleiskite, kad archyvuotumėte",
     "swipe_hide": "Atleiskite, kad paslėptumėte",
-    "hidden_show": "Rodyti {n} paslėptą žinutę | Rodyti paslėptas žinutes: {n}"
+    "hidden_show": "Rodyti {n} paslėptą žinutę | Rodyti paslėptas žinutes: {n}",
+    "shortcuts": {
+      "title": "Spartieji klavišai",
+      "archive": "Archyvuoti / Grąžinti iš archyvo",
+      "move": "Perkelti arba sujungti…",
+      "step": "Pasirinkti ankstesnę / kitą žinutę",
+      "help": "Rodyti šį sąrašą",
+      "search": "Ieškoti",
+      "close": "Uždaryti meniu ar skydelį",
+      "menu_hint": "Spartusis klavišas: {key}"
+    }
   },
   "topic": {
     "title": "Tema",

@@ -201,6 +201,10 @@
       "label": "Saat dilimi",
       "browser": "Tarayıcının saat dilimi ({zone})",
       "hint": "Bu çalışma alanındaki her saat bu dilimde gösterilir, mesajlardaki dilimli ISO saatleri de. 18:46 gibi dilimsiz bir saat yazıldığı gibi kalır. Bu çalışma alanı için saklanır."
+    },
+    "keyboard_shortcuts": {
+      "label": "Klavye kısayolları",
+      "hint": "Shift + bir harf seçili mesaja uygulanır (masaüstü). Shift + ? tüm tuşları listeler."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} okunmamış",
     "swipe_archive": "Arşivlemek için bırakın",
     "swipe_hide": "Gizlemek için bırakın",
-    "hidden_show": "{n} gizli mesajı göster | {n} gizli mesajı göster"
+    "hidden_show": "{n} gizli mesajı göster | {n} gizli mesajı göster",
+    "shortcuts": {
+      "title": "Klavye kısayolları",
+      "archive": "Arşivle / Arşivden çıkar",
+      "move": "Taşı veya birleştir…",
+      "step": "Önceki / sonraki mesajı seç",
+      "help": "Bu listeyi göster",
+      "search": "Ara",
+      "close": "Bir menüyü veya paneli kapat",
+      "menu_hint": "Kısayol: {key}"
+    }
   },
   "topic": {
     "title": "Konu",

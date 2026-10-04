@@ -110,6 +110,11 @@
     <ClientOnly>
       <ArchiveUndoToast v-if="archiveUndo.toast.value" />
     </ClientOnly>
+    <!-- HUM-10 ae2e5093: Shift + ? lists the message keyboard shortcuts; the
+         chunk loads on the first Shift + ? only -->
+    <ClientOnly>
+      <LazyMsgShortcutsHelp v-if="shortcutsHelp" />
+    </ClientOnly>
     <!-- CLE-77840: "Deleted · Undo" after Delete on a reply; eager like the archive one -->
     <ClientOnly>
       <DeleteUndoToast v-if="deleteUndo.toast.value" />
@@ -168,6 +173,7 @@ import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
+import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
 import { useOpenMessageNotice } from '~/composables/useOpenMessage'
@@ -215,6 +221,8 @@ const move = useMove()
 /* SPL-1264: the "Archived · Undo" snackbar this tab shows after archiving a card */
 const archiveUndo = useArchiveUndo()
 const deleteUndo = useDeleteUndo()
+/* HUM-10 ae2e5093: Shift + ? opens the shortcuts list (useMsgShortcuts) */
+const shortcutsHelp = useMsgShortcutsHelp()
 const mentionDirect = useMentionDirectNote()
 const openNotice = useOpenMessageNotice()
 let offDeleted = () => {}

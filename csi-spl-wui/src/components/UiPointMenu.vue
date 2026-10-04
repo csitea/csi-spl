@@ -50,6 +50,7 @@
             :aria-disabled="item.disabled ? 'true' : undefined"
             :aria-describedby="item.disabled && item.hintKey ? hintId + item.id : undefined"
             :title="item.disabled && item.hintKey ? t(item.hintKey) : undefined"
+            :aria-keyshortcuts="item.keyHint && !sheet ? item.keyHint.replace('⇧', 'Shift+') : undefined"
             @click.stop="choose(item.id, item.disabled, $event)"
           >
             <UiIcon :name="item.icon" :size="16" />
@@ -65,6 +66,18 @@
                 :data-testid="testid + '-why'"
               >{{ t(item.hintKey) }}</small>
             </span>
+            <!-- HUM-10 ae2e5093: the entry's keyboard shortcut, muted, on the
+                 right (desktop only). Drawn from data-key by CSS, so the entry's
+                 text (and its accessible name) stays the action's name alone;
+                 aria-keyshortcuts above announces the key. -->
+            <span
+              v-if="item.keyHint && !sheet"
+              class="point-menu__key"
+              :class="block + '__key'"
+              :data-testid="testid + '-key-' + item.id"
+              :data-key="item.keyHint"
+              aria-hidden="true"
+            />
           </button>
         </li>
       </ul>
@@ -86,6 +99,8 @@ export type PointMenuItem = {
   disabled?: boolean
   /** the i18n key of why a disabled entry is locked */
   hintKey?: string
+  /** HUM-10 ae2e5093: the entry's keyboard shortcut ("⇧H"), shown muted on the right */
+  keyHint?: string
 }
 
 const props = defineProps<{
@@ -180,6 +195,14 @@ function choose(id: string, disabled?: boolean, ev?: MouseEvent) {
 .point-menu__item .ui-icon { flex: 0 0 auto; }
 .point-menu__text { display: flex; flex-direction: column; min-width: 0; }
 .point-menu__item--off { color: var(--color-muted); opacity: .7; cursor: not-allowed; }
+.point-menu__key {
+  margin-inline-start: auto;
+  padding-inline-start: 12px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.point-menu__key::after { content: attr(data-key); }
 .point-menu__why { font-size: 0.75rem; line-height: 1.3; white-space: normal; }
 .point-menu__item:hover,
 .point-menu__item:focus-visible {

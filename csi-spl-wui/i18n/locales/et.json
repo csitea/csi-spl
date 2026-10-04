@@ -201,6 +201,10 @@
       "label": "Ajavöönd",
       "browser": "Brauseri ajavöönd ({zone})",
       "hint": "Kõik selle tööruumi ajad näidatakse selles vööndis, ka sõnumites olevad vööndiga ISO-ajad. Vööndita aeg, nagu 18:46, jääb nii, nagu kirjutati. Salvestatakse selle tööruumi jaoks."
+    },
+    "keyboard_shortcuts": {
+      "label": "Kiirklahvid",
+      "hint": "Shift + täht toimib valitud sõnumil (lauaarvuti). Shift + ? näitab kõiki klahve."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} lugemata",
     "swipe_archive": "Vabasta arhiveerimiseks",
     "swipe_hide": "Vabasta peitmiseks",
-    "hidden_show": "Näita {n} peidetud sõnumit | Näita {n} peidetud sõnumit"
+    "hidden_show": "Näita {n} peidetud sõnumit | Näita {n} peidetud sõnumit",
+    "shortcuts": {
+      "title": "Kiirklahvid",
+      "archive": "Arhiveeri / Taasta arhiivist",
+      "move": "Teisalda või ühenda…",
+      "step": "Vali eelmine / järgmine sõnum",
+      "help": "Näita seda loendit",
+      "search": "Otsi",
+      "close": "Sulge menüü või paneel",
+      "menu_hint": "Kiirklahv: {key}"
+    }
   },
   "topic": {
     "title": "Teema",

@@ -201,6 +201,10 @@
       "label": "Time zone",
       "browser": "Browser time zone ({zone})",
       "hint": "Every time in this workspace shows in this zone, also ISO times with a zone inside messages. A time with no zone, like 18:46, stays as written. Kept for this workspace."
+    },
+    "keyboard_shortcuts": {
+      "label": "Keyboard shortcuts",
+      "hint": "Shift + a letter acts on the selected message (desktop). Shift + ? lists every key."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} unread",
     "swipe_archive": "Release to archive",
     "swipe_hide": "Release to hide",
-    "hidden_show": "Show {n} hidden message | Show {n} hidden messages"
+    "hidden_show": "Show {n} hidden message | Show {n} hidden messages",
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "archive": "Archive / Unarchive",
+      "move": "Move or merge…",
+      "step": "Select the previous / next message",
+      "help": "Show this list",
+      "search": "Search",
+      "close": "Close a menu or panel",
+      "menu_hint": "Shortcut: {key}"
+    }
   },
   "topic": {
     "title": "Topic",

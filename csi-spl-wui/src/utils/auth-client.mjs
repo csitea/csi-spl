@@ -458,6 +458,11 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       const v = typeof zone === 'string' && zone.trim() ? zone.trim() : null
       return post('/preferences', { time_zone: v }, 'PUT')
     },
+    // HUM-10 ae2e5093: the message shortcuts switch, per tenant (rdb 0078);
+    // null clears it (back to the default, on).
+    saveKeyboardShortcuts(on) {
+      return post('/preferences', { keyboard_shortcuts: typeof on === 'boolean' ? on : null }, 'PUT')
+    },
     // SPL-1182: the two divider widths, per tenant (rdb 0078); null clears.
     savePaneSizes(sizes) {
       const obj = sizes && typeof sizes === 'object' && !Array.isArray(sizes) && Object.keys(sizes).length ? sizes : null

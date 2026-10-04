@@ -201,6 +201,10 @@
       "label": "Časové pásmo",
       "browser": "Časové pásmo prehliadača ({zone})",
       "hint": "Každý čas v tomto pracovnom priestore sa zobrazuje v tomto pásme, aj časy ISO s pásmom v správach. Čas bez pásma, napríklad 18:46, zostane tak, ako bol napísaný. Uloží sa pre tento pracovný priestor."
+    },
+    "keyboard_shortcuts": {
+      "label": "Klávesové skratky",
+      "hint": "Shift + písmeno pôsobí na vybranú správu (počítač). Shift + ? zobrazí všetky klávesy."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} neprečítaných",
     "swipe_archive": "Pustite na archiváciu",
     "swipe_hide": "Pustite na skrytie",
-    "hidden_show": "Zobraziť {n} skrytú správu | Zobraziť skryté správy: {n}"
+    "hidden_show": "Zobraziť {n} skrytú správu | Zobraziť skryté správy: {n}",
+    "shortcuts": {
+      "title": "Klávesové skratky",
+      "archive": "Archivovať / Obnoviť z archívu",
+      "move": "Presunúť alebo zlúčiť…",
+      "step": "Vybrať predchádzajúcu / nasledujúcu správu",
+      "help": "Zobraziť tento zoznam",
+      "search": "Hľadať",
+      "close": "Zavrieť ponuku alebo panel",
+      "menu_hint": "Skratka: {key}"
+    }
   },
   "topic": {
     "title": "Téma",

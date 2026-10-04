@@ -10,6 +10,7 @@
     <ChannelOrderSetting />
     <ViewPrefsSetting />
     <IssuesSortSetting />
+    <KeyboardShortcutsSetting />
   </SettingsSection>
 </template>
 
@@ -20,6 +21,7 @@ import RailOrderSetting from '~/components/RailOrderSetting.vue'
 import ChannelOrderSetting from '~/components/ChannelOrderSetting.vue'
 import ViewPrefsSetting from '~/components/ViewPrefsSetting.vue'
 import IssuesSortSetting from '~/components/IssuesSortSetting.vue'
+import KeyboardShortcutsSetting from '~/components/KeyboardShortcutsSetting.vue'
 
 const { t } = useI18n({ useScope: 'global' })
 </script>

@@ -201,6 +201,10 @@
       "label": "Laika josla",
       "browser": "Pārlūka laika josla ({zone})",
       "hint": "Visi šīs darba vietas laiki tiek rādīti šajā joslā, arī ISO laiki ar joslu ziņās. Laiks bez joslas, piemēram, 18:46, paliek, kā uzrakstīts. Tiek saglabāts šai darba vietai."
+    },
+    "keyboard_shortcuts": {
+      "label": "Īsinājumtaustiņi",
+      "hint": "Shift + burts darbojas ar atlasīto ziņu (datorā). Shift + ? parāda visus taustiņus."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} nelasīti",
     "swipe_archive": "Atlaid, lai arhivētu",
     "swipe_hide": "Atlaid, lai paslēptu",
-    "hidden_show": "Rādīt {n} paslēpto ziņu | Rādīt paslēptās ziņas: {n}"
+    "hidden_show": "Rādīt {n} paslēpto ziņu | Rādīt paslēptās ziņas: {n}",
+    "shortcuts": {
+      "title": "Īsinājumtaustiņi",
+      "archive": "Arhivēt / Atjaunot no arhīva",
+      "move": "Pārvietot vai apvienot…",
+      "step": "Atlasīt iepriekšējo / nākamo ziņu",
+      "help": "Rādīt šo sarakstu",
+      "search": "Meklēt",
+      "close": "Aizvērt izvēlni vai paneli",
+      "menu_hint": "Īsinājumtaustiņš: {key}"
+    }
   },
   "topic": {
     "title": "Tēma",

@@ -201,6 +201,10 @@
       "label": "Strefa czasowa",
       "browser": "Strefa czasowa przeglądarki ({zone})",
       "hint": "Każda godzina w tym obszarze roboczym jest pokazywana w tej strefie, także godziny ISO ze strefą w wiadomościach. Godzina bez strefy, np. 18:46, zostaje tak, jak ją zapisano. Zapisywane dla tego obszaru roboczego."
+    },
+    "keyboard_shortcuts": {
+      "label": "Skróty klawiszowe",
+      "hint": "Shift + litera działa na zaznaczonej wiadomości (komputer). Shift + ? pokazuje wszystkie klawisze."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} nieprzeczytanych",
     "swipe_archive": "Puść, aby zarchiwizować",
     "swipe_hide": "Puść, aby ukryć",
-    "hidden_show": "Pokaż {n} ukrytą wiadomość | Pokaż ukryte wiadomości: {n}"
+    "hidden_show": "Pokaż {n} ukrytą wiadomość | Pokaż ukryte wiadomości: {n}",
+    "shortcuts": {
+      "title": "Skróty klawiszowe",
+      "archive": "Archiwizuj / Przywróć z archiwum",
+      "move": "Przenieś lub scal…",
+      "step": "Zaznacz poprzednią / następną wiadomość",
+      "help": "Pokaż tę listę",
+      "search": "Szukaj",
+      "close": "Zamknij menu lub panel",
+      "menu_hint": "Skrót: {key}"
+    }
   },
   "topic": {
     "title": "Temat",

@@ -2120,3 +2120,17 @@ declare module '~/utils/id-links.mjs' {
     pathFor?: (path: string) => string
   }): IdIndex
 }
+
+declare module '~/utils/msg-shortcuts.mjs' {
+  export const MSG_SHORTCUTS: readonly { key: string, items: readonly string[], labelKey: string }[]
+  export const NAV_SHORTCUTS: readonly { keys: readonly string[], labelKey: string }[]
+  export function shortcutHint(itemId: unknown): string
+  export function shortcutsOn(claim: unknown): boolean
+  export function inTypingOrOverlay(el: unknown): boolean
+  export function shortcutFor(
+    ev: unknown,
+    ctx?: { enabled?: boolean, phone?: boolean, overlayOpen?: boolean },
+  ): { type: 'action', key: string } | { type: 'step', step: 1 | -1 } | { type: 'help' } | null
+  export function offeredItems(flags?: Parameters<typeof import('~/utils/msg-menu.mjs').msgMenuItems>[0]): Set<string>
+  export function shortcutItem(key: string, offered: Set<string> | string[]): string
+}

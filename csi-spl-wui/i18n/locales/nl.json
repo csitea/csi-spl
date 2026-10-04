@@ -201,6 +201,10 @@
       "label": "Tijdzone",
       "browser": "Tijdzone van de browser ({zone})",
       "hint": "Elke tijd in deze werkruimte wordt in deze zone getoond, ook ISO-tijden met een zone in berichten. Een tijd zonder zone, zoals 18:46, blijft zoals geschreven. Bewaard voor deze werkruimte."
+    },
+    "keyboard_shortcuts": {
+      "label": "Sneltoetsen",
+      "hint": "Shift + een letter werkt op het geselecteerde bericht (desktop). Shift + ? toont alle toetsen."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} ongelezen",
     "swipe_archive": "Loslaten om te archiveren",
     "swipe_hide": "Loslaten om te verbergen",
-    "hidden_show": "{n} verborgen bericht tonen | {n} verborgen berichten tonen"
+    "hidden_show": "{n} verborgen bericht tonen | {n} verborgen berichten tonen",
+    "shortcuts": {
+      "title": "Sneltoetsen",
+      "archive": "Archiveren / Dearchiveren",
+      "move": "Verplaatsen of samenvoegen…",
+      "step": "Vorig / volgend bericht selecteren",
+      "help": "Deze lijst tonen",
+      "search": "Zoeken",
+      "close": "Een menu of paneel sluiten",
+      "menu_hint": "Sneltoets: {key}"
+    }
   },
   "topic": {
     "title": "Onderwerp",

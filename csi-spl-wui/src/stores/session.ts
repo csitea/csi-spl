@@ -46,6 +46,8 @@ export interface SessionClaims {
   pane_sizes?: Record<string, number> | null
   /** CLE-77908 The IANA zone every time prints in, per workspace; null = the browser's zone. */
   time_zone?: string | null
+  /** HUM-10 ae2e5093 The message Shift+letter shortcuts, per workspace; null = never picked = on. */
+  keyboard_shortcuts?: boolean | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -170,6 +172,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, time_zone: zone }
   }
 
+  /** HUM-10 ae2e5093: mirror the shortcuts switch (optimistic; reverted on a failed save). */
+  function setKeyboardShortcuts(on: boolean | null) {
+    if (claims.value) claims.value = { ...claims.value, keyboard_shortcuts: on }
+  }
+
   async function logout() {
     await auth.logout()
     if (import.meta.client) {
@@ -196,5 +203,5 @@ export const useSessionStore = defineStore('session', () => {
     await logout()
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, logout, stopActingAs }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, logout, stopActingAs }
 })

@@ -445,6 +445,7 @@ import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useDmRef } from '~/composables/useDmRef'
 import { useMessageMenu } from '~/composables/useMessageMenu'
+import { stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
 import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
@@ -452,10 +453,8 @@ import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
-import { deleteKeyAction, rowStep, stepRow } from '~/utils/row-keys.mjs'
-import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
+import { deleteKeyAction, rowStep } from '~/utils/row-keys.mjs'
 import { paneOfRow } from '~/utils/reselect-row.mjs'
-import { scrollerOf } from '~/utils/scroll-anchor.mjs'
 import { useLive } from '~/composables/useLive'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -1050,16 +1049,7 @@ function onKey(ev: KeyboardEvent) {
      which is the selection, to the next / previous message of this feed. */
   const step = editing.value ? 0 : rowStep(ev)
   if (step) {
-    const feed = rowEl.value?.closest('[role="feed"]')
-    const rows = feed ? [...feed.querySelectorAll<HTMLElement>('article.msg')].filter((r) => r.closest('[role="feed"]') === feed) : []
-    const next = rowEl.value ? stepRow(rows, rowEl.value, step) : null
-    if (next) {
-      ev.preventDefault()
-      next.focus({ preventScroll: true })
-      /* the feed's own scroller, never the document (pane-scroll.mjs) */
-      const scroller = scrollerOf(next)
-      if (scroller !== document.scrollingElement && scroller !== document.documentElement) scrollRowIntoPane(scroller as HTMLElement, next)
-    }
+    if (stepSelection(rowEl.value, step)) ev.preventDefault()
     return
   }
   /* Delete / Backspace on the selected row. A topic-level message
@@ -1384,6 +1374,25 @@ const menuKey = useId()
 const { open: menuOpen, point: menuPoint, openAt: openMenuAt, close: closeMenu } = useMessageMenu(
   () => menuKey,
 )
+/* HUM-10 ae2e5093: Shift + letter on the selected card runs the same handler
+   as its menu item, offered by the same flags (composables/useMsgShortcuts.ts) */
+const shortcutRun: Record<string, () => unknown> = {
+  open: onMenuOpen, parent: onMenuParent, edit: onMenuEdit, copy: copyMessageLink, 'copy-text': copyBody,
+  reply: onMenuReply, kind: onMenuKind, archive: onMenuArchive, delete: onMenuDelete, 'delete-topic': onMenuDeleteTopic,
+  'move-channel': () => openMovePicker('channel'), 'move-topic': () => openMovePicker('topic'),
+  'merge-topic': () => openMovePicker('merge'), 'promote-topic': onPromote, 'hide-flow': onMenuHide,
+}
+useMsgShortcuts({
+  row: rowEl,
+  busy: () => editing.value || removing.value,
+  run: (id) => shortcutRun[id]?.(),
+  flags: () => ({
+    editable: !!props.editable && !editing.value, parent: showParent.value, parentKind: parentKind.value,
+    topicArchive: showTopicArchive.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
+    moveChannel: canMoveTopic.value, mergeTopic: canMoveTopic.value, moveTopic: canMoveMsg.value,
+    promoteTopic: canMoveMsg.value, hide: menuHide.value, locks: menuLocks.value,
+  }),
+})
 const { viewerId, setReaction, applyEverywhere } = useMessageEmoji()
 const pickerOpen = ref(false)
 const pickerAt = ref({ x: 0, y: 0 })

@@ -201,6 +201,10 @@
       "label": "Tidszon",
       "browser": "Webbläsarens tidszon ({zone})",
       "hint": "Alla tider i den här arbetsytan visas i denna zon, även ISO-tider med zon i meddelanden. En tid utan zon, som 18:46, visas som den skrevs. Sparas för den här arbetsytan."
+    },
+    "keyboard_shortcuts": {
+      "label": "Kortkommandon",
+      "hint": "Shift + en bokstav verkar på det markerade meddelandet (dator). Shift + ? visar alla tangenter."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} olästa",
     "swipe_archive": "Släpp för att arkivera",
     "swipe_hide": "Släpp för att dölja",
-    "hidden_show": "Visa {n} dolt meddelande | Visa {n} dolda meddelanden"
+    "hidden_show": "Visa {n} dolt meddelande | Visa {n} dolda meddelanden",
+    "shortcuts": {
+      "title": "Kortkommandon",
+      "archive": "Arkivera / Ångra arkivering",
+      "move": "Flytta eller slå ihop…",
+      "step": "Markera föregående / nästa meddelande",
+      "help": "Visa den här listan",
+      "search": "Sök",
+      "close": "Stäng en meny eller panel",
+      "menu_hint": "Kortkommando: {key}"
+    }
   },
   "topic": {
     "title": "Ämne",

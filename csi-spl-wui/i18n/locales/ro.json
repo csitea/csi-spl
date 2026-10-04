@@ -201,6 +201,10 @@
       "label": "Fus orar",
       "browser": "Fusul orar al browserului ({zone})",
       "hint": "Fiecare oră din acest spațiu de lucru apare în acest fus, inclusiv orele ISO cu fus din mesaje. O oră fără fus, ca 18:46, rămâne cum a fost scrisă. Se păstrează pentru acest spațiu de lucru."
+    },
+    "keyboard_shortcuts": {
+      "label": "Comenzi rapide de la tastatură",
+      "hint": "Shift + o literă acționează asupra mesajului selectat (desktop). Shift + ? arată toate tastele."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} necitite",
     "swipe_archive": "Eliberează pentru a arhiva",
     "swipe_hide": "Eliberează pentru a ascunde",
-    "hidden_show": "Arată {n} mesaj ascuns | Arată {n} mesaje ascunse"
+    "hidden_show": "Arată {n} mesaj ascuns | Arată {n} mesaje ascunse",
+    "shortcuts": {
+      "title": "Comenzi rapide de la tastatură",
+      "archive": "Arhivează / Dezarhivează",
+      "move": "Mută sau îmbină…",
+      "step": "Selectează mesajul anterior / următor",
+      "help": "Arată această listă",
+      "search": "Caută",
+      "close": "Închide un meniu sau un panou",
+      "menu_hint": "Comandă rapidă: {key}"
+    }
   },
   "topic": {
     "title": "Temă",

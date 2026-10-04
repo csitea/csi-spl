@@ -201,6 +201,10 @@
       "label": "Aikavyöhyke",
       "browser": "Selaimen aikavyöhyke ({zone})",
       "hint": "Kaikki tämän työtilan ajat näytetään tällä vyöhykkeellä, myös viesteissä olevat ISO-ajat, joissa on vyöhyke. Aika ilman vyöhykettä, kuten 18:46, näkyy sellaisenaan. Tallennetaan tälle työtilalle."
+    },
+    "keyboard_shortcuts": {
+      "label": "Pikanäppäimet",
+      "hint": "Vaihto + kirjain toimii valitussa viestissä (tietokone). Vaihto + ? näyttää kaikki näppäimet."
     }
   },
   "auth": {
@@ -792,7 +796,17 @@
     "replies_unread": "{n} lukematonta",
     "swipe_archive": "Päästä irti arkistoidaksesi",
     "swipe_hide": "Päästä irti piilottaaksesi",
-    "hidden_show": "Näytä {n} piilotettu viesti | Näytä {n} piilotettua viestiä"
+    "hidden_show": "Näytä {n} piilotettu viesti | Näytä {n} piilotettua viestiä",
+    "shortcuts": {
+      "title": "Pikanäppäimet",
+      "archive": "Arkistoi / Palauta arkistosta",
+      "move": "Siirrä tai yhdistä…",
+      "step": "Valitse edellinen / seuraava viesti",
+      "help": "Näytä tämä luettelo",
+      "search": "Haku",
+      "close": "Sulje valikko tai paneeli",
+      "menu_hint": "Pikanäppäin: {key}"
+    }
   },
   "topic": {
     "title": "Aihe",

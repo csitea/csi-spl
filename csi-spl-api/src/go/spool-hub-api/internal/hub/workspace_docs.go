@@ -144,6 +144,12 @@ func (s *Server) docsCaller(w http.ResponseWriter, r *http.Request, perm string)
 	s.allowOrigin(w, r)
 	var t store.Tenant
 	var who string
+	// off first: that the section is off is no secret, and an anonymous
+	// probe proves a deploy keeps it off
+	if s.o.WorkspaceDocs == nil {
+		writeErr(w, http.StatusNotFound, "workspace_docs_off", "this hub has no workspace docs store")
+		return t, "", nil, false
+	}
 	if _, box, _, ok := s.bearerAny(r); ok && box != WUIBox {
 		if t, _, ok = s.tokenTenant(w, r); !ok {
 			return t, "", nil, false
@@ -166,10 +172,6 @@ func (s *Server) docsCaller(w http.ResponseWriter, r *http.Request, perm string)
 			return t, "", nil, false
 		}
 		who = hum
-	}
-	if s.o.WorkspaceDocs == nil {
-		writeErr(w, http.StatusNotFound, "workspace_docs_off", "this hub has no workspace docs store")
-		return t, "", nil, false
 	}
 	st, err := s.o.WorkspaceDocs.Store(r.Context(), t.ID)
 	if err != nil {

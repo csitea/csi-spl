@@ -211,8 +211,10 @@ func TestWorkspaceDocsOffWithoutStore(t *testing.T) {
 	tid, _ := e.tenant()
 	hum := seat(t, e, tid, rbac.Tester)
 	for _, m := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
-		if code, body := wsDoc(t, e, tid, m, "a.md", hum, "", "x"); code != http.StatusNotFound || !strings.Contains(body, "workspace_docs_off") {
-			t.Fatalf("%s off: %d %q", m, code, body)
+		for _, as := range []string{hum, ""} { // "" = an anonymous probe of a deploy
+			if code, body := wsDoc(t, e, tid, m, "a.md", as, "", "x"); code != http.StatusNotFound || !strings.Contains(body, "workspace_docs_off") {
+				t.Fatalf("%s off as %q: %d %q", m, as, code, body)
+			}
 		}
 	}
 }

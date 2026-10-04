@@ -1,7 +1,18 @@
 # spool, standalone: Postgres 16 + the hub + the WUI on one machine, with
 # one command and no cloud account:
 #
-#   docker compose up --build        then open http://localhost:8080
+#   docker compose up -d             then open http://localhost:8080
+#
+# Images (spec 072 A1b): `up` pulls the published hub and web images,
+# ${SPOOL_IMAGE_REPO}/spool-{hub,web}:${SPOOL_IMAGE_TAG} (default: GHCR, the
+# newest stable-* release, wf 56). The one switch to build them from this
+# checkout instead is `--build`:
+#
+#   docker compose up --build -d     the same images, built from source
+#
+# A pull that fails (no network, a tag not published yet) falls back to the
+# build. A `--build` image carries the pulled name: `docker compose pull`
+# goes back to the published one.
 #
 # Sign up on the login page: on localhost the first person to sign in becomes
 # the owner of the tenant this stack seeds (SPOOL_TENANT); on a public host
@@ -53,7 +64,7 @@ services:
       dockerfile: csi-spl-api/src/docker/hub.Dockerfile
       args:
         SPOOL_VERSION: ${SPOOL_VERSION:-}
-    image: spool-hub:${SPOOL_IMAGE_TAG:-local}
+    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-09-29}
     command: ["init"]
     environment:
       SPOOL_OWNER_DSN: postgres://${SPOOL_DB_OWNER:-spool_hub}:${SPOOL_DB_OWNER_PASSWORD:-spool-local-owner}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
@@ -77,7 +88,7 @@ services:
 
   hub:
     build: *hub-build
-    image: spool-hub:${SPOOL_IMAGE_TAG:-local}
+    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-09-29}
     command: ["serve"]
     environment:
       SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
@@ -139,13 +150,17 @@ services:
       dockerfile: csi-spl-wui/src/docker/wui.Dockerfile
       args:
         SPOOL_VERSION: ${SPOOL_VERSION:-}
-        SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
-        SPOOL_TENANT: ${SPOOL_TENANT:-main}
-        SPOOL_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
+        # the one build-time value (it decides which routes carry a locale
+        # prefix): a pulled image is en, another locale needs `--build`
         SPOOL_DEFAULT_LOCALE: ${SPOOL_DEFAULT_LOCALE:-en}
-    image: spool-web:${SPOOL_IMAGE_TAG:-local}
+    image: ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-web:${SPOOL_IMAGE_TAG:-stable-2026-09-29}
     environment:
       SPOOL_SITE_ADDRESS: ${SPOOL_SITE_ADDRESS:-:80}
+      # read at container start (wui-config.sh, 072 A3), so a pulled image
+      # serves any domain or tenant: a change is a restart, not a rebuild
+      SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
+      SPOOL_TENANT: ${SPOOL_TENANT:-main}
+      SPOOL_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
       # the source repository's url pieces (.env.example); "" = links hidden
       SPOOL_REPO_WEB_URL: ${SPOOL_REPO_WEB_URL:-}
       SPOOL_REPO_CLONE_URL: ${SPOOL_REPO_CLONE_URL:-}

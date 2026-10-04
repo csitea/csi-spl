@@ -76,6 +76,16 @@ async function setBody(page, body) {
     const ch = pinia?._s.get('channel')
     ch.messages = ch.messages.map((m) => (m.msg_id === id ? { ...m, body: text } : m))
   }, REPLY, body)
+  // The feed slides the rows under a changed body. For that fifth of a
+  // second the sliding row is painted over the link, and a click there
+  // hits the row. Wait until the slide is gone.
+  await page.evaluate(() => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve))
+  }))
+  await page.waitForFunction(
+    () => !document.querySelector('.prepend-move, .append-move'),
+    { timeout: 2000 },
+  ).catch(() => {})
 }
 
 async function openPost(page, base, body) {

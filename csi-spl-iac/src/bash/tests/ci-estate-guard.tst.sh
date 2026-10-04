@@ -34,6 +34,7 @@ declare -A EXEMPT=(
   [15]="dependency + secret scan of the tree, no host"
   [20]="hub deploy: skips without the WIF variables; its call of 22 is asserted below"
   [30]="WUI deploy: skips without the WIF variables"
+  [56]="GHCR image publish: builds the tree, pushes to the repo owner's own registry, no host"
   [60]="CodeQL scan of the tree, no host"
 )
 

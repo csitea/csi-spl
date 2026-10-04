@@ -1,0 +1,153 @@
+# 56 GHCR images: publish the hub and web images per stable release (spec 072
+# A1a, lane L2).
+#
+# A self-hoster pulls instead of building from source (072 F1: 241 s of the
+# 268 s to healthy was the build). Each stable-<date> release publishes
+#   ghcr.io/<owner>/spool-hub:<stable tag>   csi-spl-api/src/docker/hub.Dockerfile
+#   ghcr.io/<owner>/spool-web:<stable tag>   csi-spl-wui/src/docker/wui.Dockerfile
+# built from the stable tag's tree with the SAME Dockerfiles the root
+# docker-compose.yml, lde and Cloud Run (do_build_push_hub_image) build: no
+# second Dockerfile. The version baked in is `git describe` of the checkout,
+# as in a local compose build.
+#
+# Registry and visibility (072 D2, owner Q12 in spec 8.3): GHCR public
+# packages only (free to us and to downloaders), on stable-* only; v* tags are
+# builds, not releases, and stay in our own registry (wf 20). The last step
+# pulls anonymously: a package that is still private is red, naming the fix.
+#
+# Triggers:
+#   - wf 55 completed: it cuts the stable tag with GITHUB_TOKEN, and a tag
+#     pushed by GITHUB_TOKEN starts no push-triggered workflow, so this one
+#     follows wf 55's run and publishes the newest stable-* tag unless its
+#     images already exist (a dry run, or nothing cut that week, is a no-op);
+#   - a stable-* tag pushed by a person;
+#   - workflow_dispatch: on a stable-* ref it (re)publishes that tag; on any
+#     other ref it pushes the image tag given (default test-<sha>), never a
+#     v*, stable-* or latest tag (the proof run, 072 T015).
+#
+# No secret: GITHUB_TOKEN with packages: write logs in through stdin; the
+# login lives in a throwaway DOCKER_CONFIG. Not an estate job: a fork
+# publishes to its own owner's registry (exempt in ci-estate-guard.tst.sh).
+
+name: "56 GHCR images: hub + web"
+
+on:
+  workflow_run:
+    workflows: ["55 release: weekly stable"]
+    types: [completed]
+  push:
+    tags: ['stable-*']
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'image tag on a non-stable ref (default test-<sha>); never v*, stable-* or latest'
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: ghcr-images-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write   # push to ghcr.io/<owner>
+
+jobs:
+  publish:
+    name: Build and push hub + web
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # fetch-depth 0: the stable tags, and `git describe` for the baked version
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve the tree and the image tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          reg="ghcr.io/${OWNER,,}" ref=HEAD
+          if [[ "$EVENT" == workflow_run ]]; then
+            tag="$(git tag -l 'stable-*' --sort=-v:refname | head -n1)" ref="$tag"
+            [[ -n "$tag" ]] || { echo "no stable-* tag yet: nothing to publish"; echo "skip=1" >>"$GITHUB_OUTPUT"; exit 0; }
+            if docker manifest inspect "$reg/spool-hub:$tag" >/dev/null 2>&1 &&
+               docker manifest inspect "$reg/spool-web:$tag" >/dev/null 2>&1; then
+              echo "$tag is already published: nothing to do"; echo "skip=1" >>"$GITHUB_OUTPUT"; exit 0
+            fi
+          elif [[ "$REF_TYPE" == tag && "$REF_NAME" == stable-* ]]; then
+            tag="$REF_NAME"
+          elif [[ "$EVENT" == workflow_dispatch ]]; then
+            tag="${INPUT_TAG:-test-$(git rev-parse --short=12 HEAD)}"
+            if [[ "$tag" =~ ^(v[0-9]|stable-|latest$) ]]; then
+              echo "::error::refused image tag '$tag': v*, stable-* and latest are release tags (dispatch on a stable-* ref to republish one)"; exit 1
+            fi
+            [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "::error::'$tag' is not a valid image tag"; exit 1; }
+          else
+            echo "::error::unexpected trigger $EVENT on $REF_TYPE $REF_NAME"; exit 1
+          fi
+          git checkout -q --detach "$ref"
+          { echo "skip=0"; echo "tag=$tag"; echo "reg=$reg"; echo "sha=$(git rev-parse HEAD)"; } >>"$GITHUB_OUTPUT"
+          echo "publishing $reg/spool-{hub,web}:$tag from $(git rev-parse HEAD) ($(git describe --tags --match 'v[0-9]*' 2>/dev/null || echo 'no v* tag'))"
+
+      - name: Build the images
+        if: steps.tag.outputs.skip == '0'
+        env:
+          REG: ${{ steps.tag.outputs.reg }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          SHA: ${{ steps.tag.outputs.sha }}
+          SRC: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          labels=(--label "org.opencontainers.image.source=$SRC"
+                  --label "org.opencontainers.image.revision=$SHA"
+                  --label "org.opencontainers.image.version=$TAG")
+          docker build --platform linux/amd64 --build-arg "SPOOL_COMMIT=$SHA" "${labels[@]}" \
+            --label "org.opencontainers.image.title=spool-hub" \
+            -t "$REG/spool-hub:$TAG" -f csi-spl-api/src/docker/hub.Dockerfile .
+          docker build --platform linux/amd64 "${labels[@]}" \
+            --label "org.opencontainers.image.title=spool-web" \
+            -t "$REG/spool-web:$TAG" -f csi-spl-wui/src/docker/wui.Dockerfile .
+
+      - name: Push to GHCR
+        if: steps.tag.outputs.skip == '0'
+        env:
+          REG: ${{ steps.tag.outputs.reg }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DOCKER_CONFIG="$(mktemp -d)"; export DOCKER_CONFIG
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin >/dev/null
+          { echo "## GHCR images ($TAG)"; echo; echo '| image | digest |'; echo '|---|---|'; } >>"$GITHUB_STEP_SUMMARY"
+          for img in spool-hub spool-web; do
+            docker push -q "$REG/$img:$TAG" >/dev/null
+            echo "| \`$REG/$img:$TAG\` | \`$(docker image inspect -f '{{index .RepoDigests 0}}' "$REG/$img:$TAG")\` |" >>"$GITHUB_STEP_SUMMARY"
+          done
+
+      # the acceptance check (072 A1): an anonymous pull works, no docker login
+      - name: Anonymous pull
+        if: steps.tag.outputs.skip == '0'
+        env:
+          REG: ${{ steps.tag.outputs.reg }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          DOCKER_CONFIG="$(mktemp -d)"; export DOCKER_CONFIG
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          for img in spool-hub spool-web; do
+            docker rmi -f "$REG/$img:$TAG" >/dev/null
+            docker pull -q "$REG/$img:$TAG" >/dev/null ||
+              { echo "::error::anonymous pull of $REG/$img:$TAG failed: set the package public once (GitHub > Packages > $img > Package settings > Change visibility)"; exit 1; }
+            echo "OK anonymous pull of $REG/$img:$TAG"
+          done

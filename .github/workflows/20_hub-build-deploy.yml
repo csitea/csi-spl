@@ -10,7 +10,9 @@
 #   it already carries, else one odometer step past the highest tag, claimed
 #   by pushing the tag (the remote is the lock, so parallel lanes cannot
 #   collide). That version is the image tag (028 tags stay IMMUTABLE: one
-#   tag, one commit) and the version baked into the binary. cnf
+#   tag, one commit) and the version baked into the binary. Past 9.9.9 the
+#   image tag is the release KEY (1.0.1-c2, like its git tag) while the
+#   binary and /version say 1.0.1: cycle 1's :1.0.1 already exists. cnf
 #   hub.image.tag and .version are only the FLOOR a human raises for a
 #   deliberate jump. 030 creates the service with the floor and then ignores
 #   the image (lifecycle ignore_changes), so an apply never rolls it back.
@@ -489,11 +491,16 @@ jobs:
           ((rc == 0)) || exit "$rc"
           v="$(sed -n 's/^version=//p' "$GITHUB_OUTPUT" | tail -1)"
           [[ "$v" =~ ^[0-9]\.[0-9]\.[0-9]$ ]] || { echo "::error::no release version minted"; exit 1; }
-          echo "image_ref=${CNF_REF%:*}:$v" >> "$GITHUB_OUTPUT"
+          # The image tag is the release KEY the mint claimed: the plain
+          # version in cycle 1, past 9.9.9 the keyed 1.0.1-c2 (028 tags are
+          # immutable and cycle 1's :1.0.1 exists). /version shows the plain $v.
+          k="$(sed -n 's/^key=//p' "$GITHUB_OUTPUT" | tail -1)"
+          [[ "$k" == "$v" || "$k" =~ ^$v-c[0-9]+$ ]] || { echo "::error::no release key minted for $v (got '$k')"; exit 1; }
+          echo "image_ref=${CNF_REF%:*}:$k" >> "$GITHUB_OUTPUT"
           # every later ./run action (build + push, do_check_hub_deploy) ships
           # and checks this tag instead of the cnf floor
-          echo "SPL_HUB_IMAGE_TAG=$v" >> "$GITHUB_ENV"
-          echo "release version $v -> ${CNF_REF%:*}:$v"
+          echo "SPL_HUB_IMAGE_TAG=$k" >> "$GITHUB_ENV"
+          echo "release version $v (key $k) -> ${CNF_REF%:*}:$k"
 
       # The identity every later gcloud call pins (--account via GCP_ACCOUNT):
       # the key path runs as the project SA gcp-002 created, the WIF path as
@@ -532,11 +539,13 @@ jobs:
         if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
         env:
           IMAGE_REF: ${{ steps.ver.outputs.image_ref }}
+          VERSION: ${{ steps.ver.outputs.version }}
           GCP_PROJECT: ${{ steps.cfg.outputs.gcp_project }}
         run: |
           set -uo pipefail
           # prebuild's copy of this commit, built with the version it predicted
-          pre="${IMAGE_REF%:*}:ci-${GITHUB_SHA}-v${IMAGE_REF##*:}"
+          # (the plain X.Y.Z it bakes; the minted tag may be the key X.Y.Z-c<N>)
+          pre="${IMAGE_REF%:*}:ci-${GITHUB_SHA}-v${VERSION}"
           if out="$(gcloud artifacts docker images describe "$IMAGE_REF" --project "$GCP_PROJECT" --format='value(image_summary.digest)' 2>&1)"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "::notice::$IMAGE_REF is already in the registry ($out): this commit's version was built before (a re-run, the other env, or a rollback), so nothing is rebuilt."

@@ -51,7 +51,9 @@ else:
     if body.count("docker push") != 1 or 'docker push -q "$pre"' not in body: bad.append("prebuild pushes something other than the ci- tag")
 steps = d["steps"]; ids = [s.get("id") for s in steps]
 img = steps[ids.index("img")]["run"]
-if 'pre="${IMAGE_REF%:*}:ci-${GITHUB_SHA}-v${IMAGE_REF##*:}"' not in img or 'docker tags add "$pre" "$IMAGE_REF"' not in img:
+# the prebuilt copy is named by the plain version it baked; the minted tag
+# may be the release key X.Y.Z-c<N> past 9.9.9
+if 'pre="${IMAGE_REF%:*}:ci-${GITHUB_SHA}-v${VERSION}"' not in img or 'docker tags add "$pre" "$IMAGE_REF"' not in img:
     bad.append("deploy does not promote ci-<sha>-v<minted version>")
 if not any("do_build_push_hub_image" in str(s.get("run", "")) for s in steps): bad.append("deploy lost its own build + push fallback")
 if ids.index("ver") > ids.index("img"): bad.append("deploy reads the registry before the mint")

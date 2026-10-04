@@ -180,6 +180,10 @@ type Options struct {
 	// value claimed at start and used while no row is flagged. "" with no
 	// flag = those routes are off.
 	OperatorTenant string
+	// DemoWorkspace is the one workspace a demo_user may act in (specs/077,
+	// demo.go); "" = the demo is off (SPOOL_HUB_DEMO_ENABLED false, the
+	// default): a demo_user membership grants nothing and GET /v1/demo is 404.
+	DemoWorkspace string
 }
 
 // Server is one hub process.
@@ -216,6 +220,7 @@ type Server struct {
 
 type uploadToken struct {
 	tenant, box string
+	member      string // the WUI socket's member session ("" = a box); specs/077 files.write
 	expires     time.Time
 }
 
@@ -475,7 +480,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func (s *Server) mintToken(tenant, box string) (string, time.Time) {
+func (s *Server) mintToken(tenant, box, member string) (string, time.Time) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		panic(err)
@@ -493,7 +498,7 @@ func (s *Server) mintToken(tenant, box string) (string, time.Time) {
 			}
 		}
 	}
-	s.tokens[tok] = uploadToken{tenant: tenant, box: box, expires: exp}
+	s.tokens[tok] = uploadToken{tenant: tenant, box: box, member: member, expires: exp}
 	return tok, exp
 }
 
@@ -514,13 +519,13 @@ type tokenSlot struct {
 
 // slotToken answers slot's token, minting one when none is left or it is in
 // the second half of its life.
-func (s *Server) slotToken(slot *tokenSlot, tenant, box string) (string, time.Time) {
+func (s *Server) slotToken(slot *tokenSlot, tenant, box, member string) (string, time.Time) {
 	slot.mu.Lock()
 	defer slot.mu.Unlock()
 	if slot.tok != "" && slot.exp.Sub(s.o.Now()) > s.o.UploadTokenTTL/2 {
 		return slot.tok, slot.exp
 	}
-	slot.tok, slot.exp = s.mintToken(tenant, box)
+	slot.tok, slot.exp = s.mintToken(tenant, box, member)
 	return slot.tok, slot.exp
 }
 

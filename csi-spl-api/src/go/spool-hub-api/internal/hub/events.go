@@ -169,7 +169,7 @@ func (s *Server) handleEventsList(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleEventsAdd(w http.ResponseWriter, r *http.Request) {
 	hum, es, ok := s.eventsHuman(w, r)
-	if !ok || !s.eventsWrite(w, hum) {
+	if !ok || !s.selfKeys(w, r, hum) || !s.eventsWrite(w, hum) {
 		return
 	}
 	var req struct {
@@ -215,7 +215,7 @@ func (s *Server) handleEventsAdd(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleEventsClear(w http.ResponseWriter, r *http.Request) {
 	hum, es, ok := s.eventsHuman(w, r)
-	if !ok || !s.eventsWrite(w, hum) {
+	if !ok || !s.selfKeys(w, r, hum) || !s.eventsWrite(w, hum) {
 		return
 	}
 	var req struct{}

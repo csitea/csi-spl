@@ -359,6 +359,11 @@ type Hub struct {
 	// then. "" = the apex workspace (WUIApexTenant); both "" and no row
 	// flagged = the routes are off (404).
 	OperatorTenant string `env:"SPOOL_HUB_OPERATOR_TENANT"`
+	// DemoEnabled turns on demo users (specs/077): a demo_user acts in
+	// DemoWorkspace only. OFF by default in dev and prd; on only by the
+	// owner's go, dev first (Q8).
+	DemoEnabled   bool   `env:"SPOOL_HUB_DEMO_ENABLED" envDefault:"false"`
+	DemoWorkspace string `env:"SPOOL_HUB_DEMO_WORKSPACE" envDefault:"demo"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -452,6 +457,14 @@ func (h *Hub) OperatorWorkspace() string {
 		return h.OperatorTenant
 	}
 	return h.WUIApexTenant
+}
+
+// DemoTenant is the open demo workspace, "" while the demo is off (specs/077).
+func (h *Hub) DemoTenant() string {
+	if !h.DemoEnabled {
+		return ""
+	}
+	return h.DemoWorkspace
 }
 
 // WUIPrivateKey returns the box-wui signing key: decoded from SPOOL_HUB_WUI_KEY,
@@ -561,6 +574,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.OperatorTenant != "" && !tenantIDRe.MatchString(h.OperatorTenant) {
 		return fmt.Errorf("SPOOL_HUB_OPERATOR_TENANT %q must be a tenant id", h.OperatorTenant)
+	}
+	if h.DemoEnabled && !tenantIDRe.MatchString(h.DemoWorkspace) {
+		return fmt.Errorf("SPOOL_HUB_DEMO_WORKSPACE %q must be a tenant id", h.DemoWorkspace)
 	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {

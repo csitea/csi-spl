@@ -125,6 +125,12 @@ func (s *Server) channelDoor(w http.ResponseWriter, r *http.Request) (store.Tena
 	if !ok {
 		return t, "", "", false
 	}
+	// specs/077: a channel change needs channels.edit (every role but
+	// demo_user) before the owner / open-invite rules below; a channel
+	// created by hub or wui otherwise lets ANY member add people and agents.
+	if r.Method != http.MethodGet && !s.permit(w, r, t.ID, hum, rbac.ChannelsEdit) {
+		return t, "", "", false
+	}
 	ch := store.NormalizeChannel(r.PathValue("channel"))
 	if hum == "" && s.o.ViewDoor != ViewDoorOff {
 		writeErr(w, http.StatusUnauthorized, "view_door", "a member session is required")

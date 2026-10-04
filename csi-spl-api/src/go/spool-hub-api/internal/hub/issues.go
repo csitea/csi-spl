@@ -791,6 +791,9 @@ func (s *Server) issueWriter(w http.ResponseWriter, r *http.Request) (store.Tena
 	if !s.permit(w, r, t.ID, hum, rbac.NotesSend) { // specs/025, per request
 		return t, "", false
 	}
+	if !s.permit(w, r, t.ID, hum, rbac.TopicsManage) { // specs/077 G3
+		return t, "", false
+	}
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
 		return t, "", false

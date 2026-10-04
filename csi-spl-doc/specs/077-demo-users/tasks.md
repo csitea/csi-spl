@@ -28,27 +28,31 @@ Rules for every task (owner Q8, spec §3.10):
 
 ### Phase 1: Hub role, deny list, demo workspace (slice 1, flag OFF) — lane c-251
 
-- [ ] T002 **rdb migration** (c-251): `NNNN_demo_user_role.sql` (head+1 at
-  push): the role `demo_user` (`topics.read`, `notes.send`,
-  `agents.command`) and the three new permissions `files.write`,
-  `topics.manage`, `self.keys`, granted to every existing role in the same
+- [x] T002 **rdb migration** (c-251): `0124_demo_user_role.sql`: the role
+  `demo_user` (`topics.read`, `notes.send`, `agents.command`, `docs.read`)
+  and the four
+  new permissions `files.write`, `topics.manage`, `self.keys`,
+  `channels.edit`, granted to every existing role in the same
   file so no real member loses anything (FR-001, FR-002). Done:
   `TestRBACSeedMatchesDefaults` on Postgres.
-- [ ] T003 **rbac Defaults** (c-251): `internal/rbac/rbac.go` constants,
+- [x] T003 **rbac Defaults** (c-251): `internal/rbac/rbac.go` constants,
   catalogue and `Defaults` equal the migration; `demo_user` is NOT in
   `RoleIDs` (the Users page cannot grant it). Done: `internal/rbac` tests.
-- [ ] T004 **hub deny list** (c-251): `files.write` on `POST /v1/files`,
-  `DELETE /v1/files/{id}` and the upload-token mint (G1); `self.keys` on
-  `/api/v1/auth/keys` and `/api/v1/auth/events` writes (G2); `topics.manage` on topic move
-  / merge / promote and issue create / edit / labels (G3). Done: hub tests.
-- [ ] T005 **flag + fence** (c-251): `SPOOL_HUB_DEMO_ENABLED` (default
+- [x] T004 **hub deny list** (c-251): `files.write` on `POST /v1/files` and
+  `DELETE /v1/files/{id}` for a WUI socket's upload token (G1); `self.keys`
+  on `/api/v1/auth/keys` and `/api/v1/auth/events` writes (G2);
+  `topics.manage` on topic move / merge / promote and every issue write (G3);
+  `channels.edit` on every channel change (members, agents, invite setting,
+  archive, delete): a channel created by `hub` or `wui` let ANY member add
+  people and agents. Done: hub tests.
+- [x] T005 **flag + fence** (c-251): `SPOOL_HUB_DEMO_ENABLED` (default
   `false`) and `SPOOL_HUB_DEMO_WORKSPACE` (default `demo`). A `demo_user`
   membership grants nothing unless the flag is on AND the tenant is the demo
   workspace; no member route grants `demo_user`; the demo workspace's topic
   archive policy is `starter` whatever its row says (G4); `GET /v1/demo`
   answers the demo workspace and its limits, `404` with the flag off. Done:
   hub tests; live `GET /v1/demo` = 404 on dev and prd.
-- [ ] T006 **route-walk control** (c-251): a hub test walks every mutating
+- [x] T006 **route-walk control** (c-251): a hub test walks every mutating
   route registered on the mux and asserts a `demo_user` session is refused
   unless the route is on an explicit allow list; a new route without a
   decision fails it (FR-003). Done: the test, with a CONTROL.
@@ -119,4 +123,4 @@ Rules for every task (owner Q8, spec §3.10):
 - [ ] T024 **prd on**: only on the owner's explicit go after the dev
   walkthrough.
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T21:00:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-05 · last-edit: 2026-10-05T00:30:00Z -->

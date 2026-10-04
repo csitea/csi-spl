@@ -128,7 +128,7 @@ func (s *Server) resolveCard(w http.ResponseWriter, r *http.Request, need cardCa
 	c.may = s.mayChangeTopic(r.Context(), t.ID, hum, from, m.FromID)
 	// Archive follows the workspace "Who can archive topics" setting
 	// (CLE-77819); delete keeps the narrower c.may rule.
-	c.mayArchive = s.mayArchiveByPolicy(r.Context(), t.ID, hum, t.TopicArchivePolicy, c.may)
+	c.mayArchive = s.mayArchiveByPolicy(r.Context(), t.ID, hum, s.archivePolicy(t), c.may)
 	switch need {
 	case capArchive:
 		if !c.mayArchive {

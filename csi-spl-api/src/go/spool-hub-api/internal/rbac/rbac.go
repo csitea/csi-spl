@@ -39,6 +39,12 @@ const (
 	// be able to edit docs"); "who edits what" later is a grant change.
 	DocsRead  = "docs.read"
 	DocsWrite = "docs.write"
+	// FilesWrite, TopicsManage, SelfKeys and ChannelsEdit close the demo gaps
+	// on data (specs/077 §3.2, rdb 0124): every role but demo_user holds all four.
+	FilesWrite   = "files.write"   // upload and delete files, the WUI upload token
+	TopicsManage = "topics.manage" // move / merge / promote topics; create and edit issues
+	SelfKeys     = "self.keys"     // a human's own keys and event-log writes
+	ChannelsEdit = "channels.edit" // channel members, agents, invite setting, archive, delete
 )
 
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
@@ -53,6 +59,10 @@ const (
 	PureAgent    = "pure_agent"
 	BizCustomer  = "biz_customer"
 	RegularUser  = "regular_user"
+	// DemoUser is a visitor from the Internet (specs/077): read, post, talk to
+	// the demo agents. Not in RoleIDs: no member route grants it, and the hub
+	// grants it nothing outside the open demo workspace (hub/demo.go).
+	DemoUser = "demo_user"
 )
 
 // RoleIDs is every system role id, in the spec's order.
@@ -87,24 +97,37 @@ var Permissions = []PermissionDoc{
 	{AgentsJoin, "mint, list and revoke agent join tokens, and revoke one seat from the WUI"},
 	{DocsRead, "read the workspace docs"},
 	{DocsWrite, "create, edit and delete the workspace docs"},
+	{FilesWrite, "upload and delete files"},
+	{TopicsManage, "move, merge and promote topics; create and edit issues"},
+	{SelfKeys, "add and revoke one's own keys; write one's own event log"},
+	{ChannelsEdit, "add or remove channel members and agents; archive or delete a channel"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
-// 0029, 0039, 0074, 0119, 0123). biz_owner holds every permission but agents.join:
+// 0029, 0039, 0074, 0119, 0123, 0124). biz_owner holds every permission but agents.join:
 // rdb 0039 had made members.invite the admin's only, and 0074 returns it
 // (owner 2026-09-28, specs/046: "the admins and the biz_owners of the tenant
-// can CRUD users"); agents.join is admin only (specs/073 §4.7, Q1).
+// can CRUD users"); agents.join is admin only (specs/073 §4.7, Q1). rdb 0124
+// gives every role files.write, topics.manage, self.keys and channels.edit, and adds
+// demo_user without them (specs/077).
 var Defaults = []Role{
-	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
+	{ID: BizOwner, TenantOwner: true, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite)},
-	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite)},
-	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
+	{ID: ProductOwner, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite)},
+	{ID: Admin, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite)},
-	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
-	{ID: Tester, Perms: sorted(TopicsRead, NotesSend, DocsRead, DocsWrite)},
-	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, DocsRead, DocsWrite)},
-	{ID: BizCustomer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
-	{ID: RegularUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+	{ID: Developer, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+	{ID: Tester, Perms: withMember(TopicsRead, NotesSend, DocsRead, DocsWrite)},
+	{ID: PureAgent, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, DocsRead, DocsWrite)},
+	{ID: BizCustomer, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+	{ID: RegularUser, Perms: withMember(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+	{ID: DemoUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, DocsRead)},
+}
+
+// withMember is p plus the four permissions every member role holds and
+// demo_user does not (rdb 0124), sorted.
+func withMember(p ...string) []string {
+	return sorted(append(p, FilesWrite, TopicsManage, SelfKeys, ChannelsEdit)...)
 }
 
 // DefaultRoles is Defaults keyed by id (a fresh map each call).

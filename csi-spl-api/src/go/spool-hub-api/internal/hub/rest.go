@@ -31,7 +31,7 @@ import (
 func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)             // browser uploads from the WUI origin (wui-live-ws.md §5)
 	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
-	if !ok {
+	if !ok || !s.tokenMayWriteFiles(w, r, t.ID) {
 		return
 	}
 	if !billing.AllowsWrite(t.BillingStatus) {

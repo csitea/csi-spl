@@ -67,6 +67,9 @@ func (s *Server) resolveMove(w http.ResponseWriter, r *http.Request, mutate bool
 	if !s.permit(w, r, t.ID, hum, perm) {
 		return mr, false
 	}
+	if mutate && !s.permit(w, r, t.ID, hum, rbac.TopicsManage) { // specs/077 G3
+		return mr, false
+	}
 	id := strings.ToLower(r.PathValue("msg_id"))
 	if !uuidRe.MatchString(id) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")

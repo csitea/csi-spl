@@ -199,7 +199,7 @@ type keyAddReq struct {
 
 func (s *Server) handleKeyAdd(w http.ResponseWriter, r *http.Request) {
 	hum, ks, ok := s.keysHuman(w, r)
-	if !ok || !s.keysWrite(w, hum) {
+	if !ok || !s.selfKeys(w, r, hum) || !s.keysWrite(w, hum) {
 		return
 	}
 	var req keyAddReq
@@ -244,7 +244,7 @@ func (s *Server) handleKeyAdd(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleKeyRevoke(w http.ResponseWriter, r *http.Request) {
 	hum, ks, ok := s.keysHuman(w, r)
-	if !ok || !s.keysWrite(w, hum) {
+	if !ok || !s.selfKeys(w, r, hum) || !s.keysWrite(w, hum) {
 		return
 	}
 	var req struct{}

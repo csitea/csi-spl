@@ -316,7 +316,7 @@ func (s *Server) wuiHello(ctx context.Context, conn *websocket.Conn, tenant, hum
 // wuiWelcome writes the welcome (the socket's id, its upload token, the
 // lobby) and the presence snapshot (wui-live-ws.md §3.2).
 func (s *Server) wuiWelcome(ctx context.Context, c *wuiConn) bool {
-	tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox)
+	tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox, c.member)
 	welcome := map[string]any{"type": "welcome", "as": c.from, "name": c.as,
 		"upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339),
 		"revision": s.o.Revision} // bug B: the browser compares it with GET /v1/wui/revision
@@ -350,7 +350,7 @@ func (s *Server) wuiFrame(ctx context.Context, c *wuiConn, f wuiIn) {
 		// reads it again, so a demotion still bites on an open socket.
 		s.wuiSend(store.WithMemo(ctx), c, f)
 	case "token":
-		tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox)
+		tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox, c.member)
 		c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
 	default:
 		c.write(ctx, wuiErr{"error", "bad_frame", http.StatusBadRequest, "unknown frame type", ""}) //nolint:errcheck
@@ -1010,7 +1010,7 @@ func (s *Server) fanoutChannelFrame(ctx context.Context, tenant string, members 
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
 	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
-	if !ok {
+	if !ok || !s.tokenMayWriteFiles(w, r, t.ID) {
 		return
 	}
 	fileID := r.PathValue("file_id")

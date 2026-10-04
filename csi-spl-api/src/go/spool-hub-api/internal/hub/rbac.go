@@ -43,7 +43,11 @@ func (s *Server) access(ctx context.Context, hum, tenant string) (rbac.Access, e
 	if s.o.Authorizer == nil {
 		return rbac.Access{}, errNoAuthorizer
 	}
-	return s.o.Authorizer.Access(ctx, hum, tenant)
+	a, err := s.o.Authorizer.Access(ctx, hum, tenant)
+	if err == nil && s.demoFenced(a, tenant) { // specs/077: demo_user only in the open demo workspace
+		return rbac.Access{}, rbac.ErrNotMember
+	}
+	return a, err
 }
 
 // allowed reports perm for hum in tenant. hum "" is the anonymous door-off
@@ -120,7 +124,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out.HumanID, out.Role, out.TenantOwner, out.Permissions = &hum, &a.Role, &a.TenantOwner, a.List()
-		out.TopicArchivePolicy = store.EffectiveArchivePolicy(t.TopicArchivePolicy)
+		out.TopicArchivePolicy = s.archivePolicy(t)
 		out.ChannelOrder = s.channelOrder(r.Context(), t.ID, hum)
 		// Only an act-as session pays the clone lookup (its Provider marks it);
 		// a normal /v1/view/me adds no round trip (TestRoundTripsPerRequest).
@@ -169,7 +173,7 @@ func (s *Server) membersActor(w http.ResponseWriter, r *http.Request, perm strin
 		writeErr(w, http.StatusInternalServerError, "internal", "roles unavailable")
 		return fail()
 	}
-	return t, a, roles, h, true
+	return t, a, memberRoles(roles), h, true
 }
 
 // grantable resolves a requested role and applies 025 §3.4 rule 1.
@@ -378,6 +382,7 @@ func (s *Server) routeMembers(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/members/{human_id}", s.handleMemberRemove)
 	mux.HandleFunc("OPTIONS /v1/members", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/invites", s.membersPreflight)
+	s.routeDemo(mux) // specs/077: the demo membership, GET /v1/demo (404 while off)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}/role", s.membersPreflight)
 }

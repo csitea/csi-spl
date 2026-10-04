@@ -181,6 +181,7 @@ checks a role name, 025 §3):
 | `files.write` | `POST /v1/files`, `DELETE /v1/files/{id}`, the WUI upload-token mint | every role of 025 §3.2; not `demo_user` |
 | `topics.manage` | topic move / merge / promote; issue create / edit / labels | every role of 025 §3.2; not `demo_user` |
 | `self.keys` | `POST /v1/keys` and revoke; `POST /v1/events` and clear | every role of 025 §3.2; not `demo_user` |
+| `channels.edit` | every channel change: members, agents, invite setting, archive, delete. Found at build: a channel created by `hub` or `wui` (the seeded ones) let ANY member add people and agents | every role of 025 §3.2; not `demo_user` |
 
 Granting the new permissions to every existing role in the same migration
 keeps today's behaviour for every real member unchanged.
@@ -351,6 +352,7 @@ Plus a countdown in the WUI header ("2 h 14 min left") for a `demo_user`.
 - **FR-001** A system role `demo_user` holding `topics.read`, `notes.send` and
   `agents.command` only; rdb migration and `rbac.Defaults` in one commit.
 - **FR-002** New permissions `files.write`, `topics.manage`, `self.keys`,
+  `channels.edit` (rdb 0124),
   checked at the routes of 3.2 and granted to every existing role in the same
   migration.
 - **FR-003** A route-walk hub test proves every mutating human route refuses

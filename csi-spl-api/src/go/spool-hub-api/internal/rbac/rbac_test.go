@@ -40,7 +40,8 @@ func TestDefaultsMatrix(t *testing.T) {
 		}
 		return false
 	}
-	if len(roles) != 8 || len(RoleIDs) != len(roles) {
+	// demo_user (specs/077) is a role no member route grants: not in RoleIDs.
+	if len(roles) != 9 || len(RoleIDs) != len(roles)-1 {
 		t.Fatalf("roles: %d", len(roles))
 	}
 	all := map[string]bool{}
@@ -98,6 +99,24 @@ func TestDefaultsMatrix(t *testing.T) {
 	for _, r := range roles {
 		if !has(r.ID, TopicsRead) {
 			t.Errorf("%s cannot read", r.ID)
+		}
+	}
+	// specs/077 §3.2: every member role holds files.write, topics.manage,
+	// self.keys and channels.edit; demo_user holds exactly read, post,
+	// agents.command and docs.read.
+	for _, id := range RoleIDs {
+		for _, p := range []string{FilesWrite, TopicsManage, SelfKeys, ChannelsEdit} {
+			if !has(id, p) {
+				t.Errorf("%s lacks %s", id, p)
+			}
+		}
+	}
+	if !reflect.DeepEqual(roles[DemoUser].Perms, sorted(AgentsCommand, DocsRead, NotesSend, TopicsRead)) || roles[DemoUser].TenantOwner {
+		t.Errorf("demo_user %+v, want topics.read, notes.send, agents.command, docs.read only", roles[DemoUser])
+	}
+	for _, id := range RoleIDs {
+		if id == DemoUser {
+			t.Error("CONTROL: RoleIDs names demo_user: the Users page would offer it")
 		}
 	}
 }

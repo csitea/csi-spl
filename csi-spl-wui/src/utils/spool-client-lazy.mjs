@@ -16,6 +16,7 @@ import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 import { loadCursors } from './read-cursor.mjs'
+import { mockLookupIds } from './id-lookup.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1164,7 +1165,25 @@ async function markFlow(ctx, marks) {
   })
 }
 
+/**
+ * HUM-10 (topic cd357c76): the ids quoted in one body, resolved by the hub
+ * (view-v1 §4.6, POST /v1/view/ids). The mock answers from every mock row.
+ */
+async function lookupIds(ctx, ids, self = '') {
+  const { live, mock, state } = ctx
+  if (mock) {
+    const archived = state.archived || []
+    return mockLookupIds([...state.messages, ...archived], archived, ids, self)
+  }
+  return live('/v1/view/ids', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export const lazySpoolMethods = {
+  lookupIds,
   listFlow,
   markFlow,
   setChannelOrder,

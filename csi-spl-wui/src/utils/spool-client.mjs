@@ -20,6 +20,7 @@ import { MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.m
  * that chunk on its first call; the names match that module's one export.
  */
 const LAZY_METHODS = [
+  'lookupIds',
   'setChannelOrder',
   'removeMember',
   'listTenantUsers',

@@ -7,6 +7,7 @@ export const idLinkEpoch = shallowRef(0)
 
 const EMPTY = Object.freeze({ empty: true })
 let api = null
+let lookup = null
 
 /** id-links.mjs calls this as it loads. It does not repaint by itself. */
 export function registerIdLinks(next) {
@@ -21,6 +22,19 @@ export function idLinksReady() {
 export function activeIdIndex() {
   idLinkEpoch.value
   return api ? api.activeIdIndex() : EMPTY
+}
+
+/**
+ * id-catalog-install.ts registers the hub lookup (id-lookup.mjs). A body
+ * that is linked hands it its source (noteIds), so the ids the tab has not
+ * loaded are asked once, after the paint.
+ */
+export function registerIdLookup(fn) {
+  lookup = typeof fn === 'function' ? fn : null
+}
+
+export function noteIds(src, index) {
+  if (lookup) lookup(src, index)
 }
 
 export function linkifyBlocks(blocks, index) {

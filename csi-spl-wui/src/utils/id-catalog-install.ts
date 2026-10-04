@@ -1,8 +1,11 @@
 // The rows an id can name. Loaded after the first script, so the flow store
 // and the linker stay out of it. The stores are read when a body renders.
-// Nothing here calls the hub.
-import { indexCatalog, setIdCatalogProvider } from '~/utils/id-links.mjs'
-import { idLinksReady } from '~/utils/id-link-gate.mjs'
+// An id no store holds is asked from the hub once, after the paint, for the
+// whole body (id-lookup.mjs, POST /v1/view/ids); the answers join the rows.
+import { indexCatalog, resolveId, setIdCatalogProvider } from '~/utils/id-links.mjs'
+import { idLinksReady, registerIdLookup } from '~/utils/id-link-gate.mjs'
+import { createIdLookup } from '~/utils/id-lookup.mjs'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
 import { useChannelStore } from '~/stores/channel'
 import { useFlowStore } from '~/stores/flow'
@@ -10,6 +13,9 @@ import { useLiveFeed } from '~/stores/live'
 import { useSearchStore } from '~/stores/search'
 import { useViewerStore } from '~/stores/viewer'
 import { useLive } from '~/composables/useLive'
+
+/* lookupIds is a lazy client method (spool-client-lazy.mjs, view-v1 §4.6) */
+type IdLookupApi = { lookupIds(ids: string[], self?: string): Promise<unknown> }
 
 function read<T>(fn: () => T, fallback: T): T {
   try { return fn() } catch { return fallback }
@@ -29,6 +35,13 @@ export function installIdCatalog(opts: {
   const pathFor = opts.pathFor
   const i18n = opts.i18n
   let cache: { refs: unknown[], index: ReturnType<typeof indexCatalog> } | null = null
+  let self = ''
+  const lookup = createIdLookup({
+    fetchIds: (ids) => (useSpoolApi() as unknown as IdLookupApi).lookupIds(ids, self),
+    resolves: (token, index) => Boolean(resolveId(token, index as ReturnType<typeof indexCatalog>)),
+    onHits: () => idLinksReady(),
+  })
+  registerIdLookup((src: string, index: unknown) => lookup.note(src, index))
 
   setIdCatalogProvider(() => {
     const channel = read(() => useChannelStore().messages, [] as unknown[])
@@ -43,7 +56,7 @@ export function installIdCatalog(opts: {
     const found = read(() => useSearchStore().result, null)
     const access = read(() => useAccessStore().me, null)
     const who = read(() => useLive().identity.value, '')
-    const self = String((access && access.humanId) || who || '')
+    self = String((access && access.humanId) || who || '')
     const labels = read((): IdLabels | null => {
       const tr = i18n && i18n.t
       if (typeof tr !== 'function') return null
@@ -57,14 +70,15 @@ export function installIdCatalog(opts: {
     const refs: unknown[] = [
       channel, topics, viewed, main, pane, flowEntries, flowMine, found, self,
       labels && labels.topic, labels && labels['channel-message'],
-      labels && labels['direct-message'], labels && labels.archived,
+      labels && labels['direct-message'], labels && labels.archived, lookup.version,
     ]
     if (cache && cache.refs.length === refs.length && cache.refs.every((r, i) => r === refs[i])) return cache.index
     const hits: unknown[] = []
     if (found && found.groups) for (const g of found.groups) if (g.items) hits.push(...g.items)
+    const asked = lookup.rows(self)
     const index = indexCatalog({
-      topics,
-      messages: [...channel, ...viewed, ...main, ...pane, ...flowEntries, ...flowMine, ...hits],
+      topics: [...topics, ...asked.topics],
+      messages: [...channel, ...viewed, ...main, ...pane, ...flowEntries, ...flowMine, ...hits, ...asked.messages],
       self,
       pathFor,
       labels: labels || undefined,

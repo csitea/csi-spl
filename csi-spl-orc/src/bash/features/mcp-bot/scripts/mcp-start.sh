@@ -75,12 +75,12 @@ _id_from_ancestry() {
     prev=""
     while IFS= read -r -d '' tok; do
       # `claude --name <ID>` (spawn-claude.sh launches the harness this way)
-      if [ "$prev" = "--name" ] && printf '%s' "$tok" | grep -qE '^[A-Za-z][A-Za-z0-9._-]{0,63}$'; then
+      if [ "$prev" = "--name" ] && printf '%s' "$tok" | grep -E '^[A-Za-z][A-Za-z0-9._-]{0,63}$' >/dev/null; then
         printf '%s' "$tok"; return 0
       fi
       # `spawn-<kind>.sh <TITLE> …` — the launcher itself is an ancestor
-      if printf '%s' "$prev" | grep -qE '(^|/)spawn-[a-z-]+\.sh$' \
-         && printf '%s' "$tok" | grep -qE '^[A-Za-z][A-Za-z0-9._-]{0,63}$'; then
+      if printf '%s' "$prev" | grep -E '(^|/)spawn-[a-z-]+\.sh$' >/dev/null \
+         && printf '%s' "$tok" | grep -E '^[A-Za-z][A-Za-z0-9._-]{0,63}$' >/dev/null; then
         printf '%s' "$tok"; return 0
       fi
       prev="$tok"
@@ -162,7 +162,7 @@ fi
 if [ -L "$PROFILE/lock" ] || [ -e "$PROFILE/.parentlock" ]; then
   LOCK_PID=$(readlink "$PROFILE/lock" 2>/dev/null | sed -n 's/.*:+\([0-9]\+\)$/\1/p' || true)
   if [ -n "$LOCK_PID" ] && [ -d "/proc/$LOCK_PID" ] \
-     && tr '\0' ' ' < "/proc/$LOCK_PID/cmdline" 2>/dev/null | grep -qF -- "$PROFILE"; then
+     && tr '\0' ' ' < "/proc/$LOCK_PID/cmdline" 2>/dev/null | grep -F -- "$PROFILE" >/dev/null; then
     log "profile is held by live firefox pid $LOCK_PID — not touching it (launch will fail)"
   else
     log "removing stale profile lock (pid ${LOCK_PID:-?} is gone)"

@@ -119,7 +119,7 @@ send_lane_topic() {  # ID
   since="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}T${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}Z"
   find "$SPOOL_ROOT/$id/inbox" "$SPOOL_ROOT/$id/archive" -maxdepth 1 -name '*.json' -print0 2>/dev/null |
     xargs -0r jq -r --arg s "$since" 'select(.kind == "task" and .ts >= $s and (.task_id // "") != "") | "\(.ts)\t\(.task_id)"' 2>/dev/null |
-    sort | head -1 | cut -f2
+    sort | sed -n 1p | cut -f2
 }
 
 # 0 when reports go to the peers (spec 068 L4): SPOOL_TO_PEERS=1|0, else a

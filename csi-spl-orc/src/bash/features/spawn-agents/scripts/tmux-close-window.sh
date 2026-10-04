@@ -190,7 +190,7 @@ norm_id() {
   t="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
   if [[ "$t" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]]; then printf '%s' "$t"; return 0; fi
   t="$(printf '%s' "$t" | tr '[:lower:]' '[:upper:]')"
-  if printf '%s' "$t" | grep -qE '^[A-Z]+-?[0-9]+$'; then
+  if printf '%s' "$t" | grep -E '^[A-Z]+-?[0-9]+$' >/dev/null; then
     p="$(printf '%s' "$t" | grep -oE '^[A-Z]+')"
     n="$(printf '%s' "$t" | grep -oE '[0-9]+$')"
     while [ "${#n}" -lt 2 ]; do n="0$n"; done
@@ -225,7 +225,7 @@ an_strip() {
   case "$n" in
     '> '*|'? '*|'! '*)
       rest="$(an_strip "${n:2}")"
-      if printf '%s' "$rest" | grep -qE "^${SPOOL_AGENT_ID_RX}([[:space:]]|\$)"; then
+      if printf '%s' "$rest" | grep -E "^${SPOOL_AGENT_ID_RX}([[:space:]]|\$)" >/dev/null; then
         id="${rest%% *}"; tail="${rest#"$id"}"; tail="${tail# }"
         case "$tail" in '>'|'?'|'!') tail="" ;; '> '*|'? '*|'! '*) tail="${tail:2}" ;; esac
         printf '%s %s%s' "$id" "${n:0:1}" "${tail:+ $tail}"; return 0
@@ -236,7 +236,7 @@ an_strip() {
   fi
   case "$n" in *": "*) ;; *) printf '%s' "$n"; return 0 ;; esac
   head="${n%%": "*}"; rest="${n#*": "}"
-  printf '%s' "$head" | grep -qE '^[A-Za-z0-9][A-Za-z0-9._-]*$' || { printf '%s' "$n"; return 0; }
+  printf '%s' "$head" | grep -E '^[A-Za-z0-9][A-Za-z0-9._-]*$' >/dev/null || { printf '%s' "$n"; return 0; }
   if [ -n "${BOX_TAG:-}" ] && [ "$head" = "$BOX_TAG" ]; then an_strip "$rest"; return 0; fi
   if [ -n "${BOX_TAGS:-}" ]; then
     case " $BOX_TAGS " in *" $head "*) an_strip "$rest"; return 0 ;; esac
@@ -475,7 +475,7 @@ collect_agent_pids_for_pane() {
 
     cmd="$(ps -p "$p" -o args= 2>/dev/null || true)"
     # Match agent binaries only (not this script / wrappers with the words in path)
-    if printf '%s' "$cmd" | grep -qE '(^|[[:space:]/])(claude|grok|agy|qwen)([[:space:]]|$)'; then
+    if printf '%s' "$cmd" | grep -E '(^|[[:space:]/])(claude|grok|agy|qwen)([[:space:]]|$)' >/dev/null; then
       printf '%s\n' "$p"
     fi
 

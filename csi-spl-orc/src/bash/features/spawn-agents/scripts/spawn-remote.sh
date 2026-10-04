@@ -125,9 +125,9 @@ request() {
     f="$(reply_file "$from" "$task")"
     if [ -n "$f" ]; then
       b="$(body_of "$f" | strip_from_agent)"
-      case "$(sed -n 's/^status: //p' <<<"$b" | head -1)" in
-        ok) printf '%s %s\n' "$(sed -n 's/^agent: //p' <<<"$b" | head -1)" "$(sed -n 's/^pane: //p' <<<"$b" | head -1)"; return 0 ;;
-        *) say "refused by $box: $(sed -n 's/^reason: //p' <<<"$b" | head -1)"; exit 4 ;;
+      case "$(sed -n 's/^status: //p' <<<"$b" | sed -n 1p)" in
+        ok) printf '%s %s\n' "$(sed -n 's/^agent: //p' <<<"$b" | sed -n 1p)" "$(sed -n 's/^pane: //p' <<<"$b" | sed -n 1p)"; return 0 ;;
+        *) say "refused by $box: $(sed -n 's/^reason: //p' <<<"$b" | sed -n 1p)"; exit 4 ;;
       esac
     fi
     [ "$(date +%s)" -lt "$end" ] || { say "no reply from $box within ${wait}s (task $task); it may still come: spool tail --task $task"; exit 5; }
@@ -142,7 +142,7 @@ reply_file() {  # ID TASK
     [ -d "$d" ] || continue
     while IFS= read -r f; do
       [ "$(jq -r '.task_id // ""' "$f" 2>/dev/null)" = "$2" ] || continue
-      body_of "$f" | strip_from_agent | sed -n 1p | grep -qxF "$MAGIC_REP" && { printf '%s' "$f"; return 0; }
+      body_of "$f" | strip_from_agent | sed -n 1p | grep -xF "$MAGIC_REP" >/dev/null && { printf '%s' "$f"; return 0; }
     done < <(grep -lF -- "$2" "$d"/*.json 2>/dev/null)
   done
 }
@@ -178,7 +178,7 @@ reply() {  # INBOX_ID TO TASK STATUS LINES...
 }
 
 # The KEY: value of a request header (the lines before ---).
-req_field() { sed -n '1,/^---$/p' <<<"$1" | sed -n "s/^$2: //p" | head -1; }
+req_field() { sed -n '1,/^---$/p' <<<"$1" | sed -n "s/^$2: //p" | sed -n 1p; }
 
 handle() {  # INBOX_ID FILE
   local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason
@@ -234,7 +234,7 @@ serve() {
       [ -d "$d" ] || continue
       # a day back is enough: a tick runs every minute; older files are history
       while IFS= read -r f; do
-        body_of "$f" | strip_from_agent | sed -n 1p | grep -qxF "$MAGIC_REQ" && handle "$me" "$f" </dev/null
+        body_of "$f" | strip_from_agent | sed -n 1p | grep -xF "$MAGIC_REQ" >/dev/null && handle "$me" "$f" </dev/null
       done < <(find "$d" -maxdepth 1 -name '*.json' -mmin -1440 -print0 2>/dev/null |
                xargs -0 -r grep -lF -- "$MAGIC_REQ" 2>/dev/null | sort)
     done

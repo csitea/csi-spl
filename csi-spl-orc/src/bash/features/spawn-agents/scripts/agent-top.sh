@@ -90,7 +90,7 @@ registry_row() {  # ID PANE LIVE-PANES -> the registry row of that pane, else th
     [ -r "$reg" ] || continue
     while IFS= read -r row; do
       p="$(printf '%s' "$row" | cut -f3)"
-      [ -n "$p" ] && printf '%s\n' "$live" | grep -qxF "$p" && { printf '%s\n' "$row"; return; }
+      [ -n "$p" ] && printf '%s\n' "$live" | grep -xF "$p" >/dev/null && { printf '%s\n' "$row"; return; }
     done < <(awk -F '\t' -v id="$id" '$1 == id' "$reg" | tac)
   done
 }
@@ -121,7 +121,7 @@ collect_rows() {  # TSV: id kind state window branch rundir pending pane target
   while IFS='|' read -r target wname _wid role pane pid; do
     [ -n "$pane" ] || continue
     bare="$(an_strip "$wname")"
-    printf '%s' "$bare" | grep -qE "^${SPOOL_AGENT_ID_RX}" || continue
+    printf '%s' "$bare" | grep -E "^${SPOOL_AGENT_ID_RX}" >/dev/null || continue
     id="$(printf '%s' "$bare" | grep -oE '^[A-Za-z]+-[0-9]+')"
     has_launcher=0 kind=- launch=""
     if [ -n "$pid" ]; then

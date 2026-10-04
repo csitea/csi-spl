@@ -25,8 +25,8 @@ unset DIRECTIVE_FPR DIRECTIVE_BOX DIRECTIVE_LEDGER DIRECTIVE_GNUPGHOME SPOOL_BOX
 for s in core anyany list session; do
   out="$(bash "$HERE/scripts/selftest-$s.sh" 2>&1)"; rc=$?
   sum="$(printf '%s\n' "$out" | grep -E '== [0-9]+ passed, [0-9]+ failed ==' | tail -1)"
-  [ "$rc" = 0 ] && printf '%s' "$sum" | grep -q ', 0 failed' &&
-    pass "1. selftest-$s:${sum//=/}" || fail "1. selftest-$s: rc $rc $(printf '%s\n' "$out" | grep -E 'FAIL|ABORT' | head -5)"
+  [ "$rc" = 0 ] && printf '%s' "$sum" | grep ', 0 failed' >/dev/null &&
+    pass "1. selftest-$s:${sum//=/}" || fail "1. selftest-$s: rc $rc $(printf '%s\n' "$out" | grep -E 'FAIL|ABORT' | sed -n 1,5p)"
 done
 
 # --- 2. the loader --------------------------------------------------------------------
@@ -53,11 +53,11 @@ E="$(printf 'to: bx2\nnonce: %s\nissued: %s\nexpires: %s\n---\nhello\n' "$RANDOM
 [ -n "$FPR" ] && [ -n "$E" ] || fail "3. cannot make a test key/envelope (gpg)"
 env_for "SPOOL_BOX_TAG=bx1"
 out="$(printf '%s\n' "$E" | SPOOL_BOX_ENV="$T/box.env" bash "$HERE/scripts/directive-verify.sh" 2>&1)"; rc=$?
-[ "$rc" = 78 ] && printf '%s' "$out" | grep -q "addressed to 'bx2', this box is 'bx1'" &&
+[ "$rc" = 78 ] && printf '%s' "$out" | grep "addressed to 'bx2', this box is 'bx1'" >/dev/null &&
   pass "3. an envelope for bx2 is refused on bx1 (tag from the box config)" || fail "3. routing: rc $rc $out"
 env_for ""
 out="$(printf '%s\n' "$E" | SPOOL_BOX_ENV="$T/box.env" bash "$HERE/scripts/directive-verify.sh" 2>&1)"; rc=$?
-[ "$rc" = 78 ] && printf '%s' "$out" | grep -q 'cannot tell which box this is' &&
+[ "$rc" = 78 ] && printf '%s' "$out" | grep 'cannot tell which box this is' >/dev/null &&
   pass "3. control: no tag configured -> refused, cannot tell which box" || fail "3. control: rc $rc $out"
 env_for "SPOOL_BOX_TAG=bx2"
 out="$(printf '%s\n' "$E" | SPOOL_BOX_ENV="$T/box.env" bash "$HERE/scripts/directive-verify.sh" 2>&1)"; rc=$?

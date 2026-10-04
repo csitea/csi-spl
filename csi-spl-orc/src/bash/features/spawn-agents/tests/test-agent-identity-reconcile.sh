@@ -53,9 +53,9 @@ pname() { tm display -p -t "$1" '#{window_name}' | sed -E 's/((CLE|GRK|AGY|QWN)-
 drift() {
   local pane pid wname nid aid
   while IFS='|' read -r pane pid wname; do
-    nid="$(printf '%s' "$wname" | grep -oE '(CLE|GRK|AGY|QWN)-[0-9]+' | head -1)"
+    nid="$(printf '%s' "$wname" | grep -oE '(CLE|GRK|AGY|QWN)-[0-9]+' | sed -n 1p)"
     [ -n "$nid" ] || continue
-    aid="$(for c in "$pid" $(pgrep -P "$pid"); do tr '\0' '\n' < "/proc/$c/environ" 2>/dev/null | sed -n 's/^SPOOL_AGENT_ID=//p'; done | head -1)"
+    aid="$(for c in "$pid" $(pgrep -P "$pid"); do tr '\0' '\n' < "/proc/$c/environ" 2>/dev/null | sed -n 's/^SPOOL_AGENT_ID=//p'; done | sed -n 1p)"
     [ -n "$aid" ] && [ "$aid" != "$nid" ] && printf '%s->%s ' "$nid" "$aid"
   done < <(tm list-panes -a -F '#{pane_id}|#{pane_pid}|#{window_name}')
   return 0

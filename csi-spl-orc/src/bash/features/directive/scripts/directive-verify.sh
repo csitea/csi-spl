@@ -139,10 +139,10 @@ if [ "${1:-}" = --check-key ]; then
       }
       if [ "$PROVE" -eq 0 ] && [ -f "$_SESS" ] \
          && _unwritable_by_me "$_SESS" && _unwritable_by_me "$(dirname "$_SESS")"; then
-        _exp="$(sed -n 's/^expires_epoch=//p' "$_SESS" | head -1)"
+        _exp="$(sed -n 's/^expires_epoch=//p' "$_SESS" | sed -n 1p)"
         if [ -n "$_exp" ] && [ "$(date -u +%s)" -lt "$_exp" ]; then
           say "unattended sign is EXPECTED — a directive session is open"
-          say "                window closes $(sed -n 's/^expires=//p' "$_SESS" | head -1)"
+          say "                window closes $(sed -n 's/^expires=//p' "$_SESS" | sed -n 1p)"
           say "                Each directive is still signed over its own text; what the"
           say "                window removes is the prompt, not the signature."
           say "                Not re-proved here: telling a cached passphrase from an"
@@ -176,7 +176,7 @@ if [ "${1:-}" = --check-key ]; then
         gpgconf --kill gpg-agent >/dev/null 2>&1
       fi
       KG="$(gpg "${GNUPGHOME_ARG[@]}" --with-keygrip --list-secret-keys "$FPR" 2>/dev/null \
-            | sed -n 's/.*Keygrip = //p' | head -1)"
+            | sed -n 's/.*Keygrip = //p' | sed -n 1p)"
       if [ -n "$KG" ]; then
         if [ -n "${DIRECTIVE_GNUPGHOME:-}" ]; then
           gpg-connect-agent --homedir "$DIRECTIVE_GNUPGHOME" \
@@ -229,13 +229,13 @@ done
 [ -n "$SIGNER" ] \
   || refuse "signed by a key that is NOT a pinned owner key.
          Pinned:  ${FPR_LIST[*]}
-         Got:     $(sed -n 's/^\[GNUPG:\] VALIDSIG \([0-9A-F]*\).*/\1/p' "$TMP/status" | head -1)"
+         Got:     $(sed -n 's/^\[GNUPG:\] VALIDSIG \([0-9A-F]*\).*/\1/p' "$TMP/status" | sed -n 1p)"
 FPR="$SIGNER"
 
 # The body of a clearsigned message, with the gpg armour stripped by --verify.
 BODY="$(gpg "${GNUPGHOME_ARG[@]}" --decrypt "$TMP/env.asc" 2>/dev/null)"
 
-field() { printf '%s\n' "$BODY" | sed -n "s/^$1:[[:space:]]*//p" | head -1; }
+field() { printf '%s\n' "$BODY" | sed -n "s/^$1:[[:space:]]*//p" | sed -n 1p; }
 TO="$(field to)"; NONCE="$(field nonce)"; EXPIRES="$(field expires)"
 REPLY_TO="$(field reply-to)"
 

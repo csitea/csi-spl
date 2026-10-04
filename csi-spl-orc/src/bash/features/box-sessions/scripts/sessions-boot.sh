@@ -94,7 +94,7 @@ if [ -z "$FAIL" ] && ! btmux has-session 2>/dev/null; then
 fi
 
 # ── 2. the shell windows ────────────────────────────────────────────────────
-win_present() { btmux list-windows -t "=$1" -F '#{window_name}' 2>/dev/null | grep -qxF -- "$2"; }
+win_present() { btmux list-windows -t "=$1" -F '#{window_name}' 2>/dev/null | grep -xF -- "$2" >/dev/null; }
 declare -a WANT_WIN=() WANT_ID=()
 shells=0; made=0
 if [ ! -r "$BS_STATE" ]; then

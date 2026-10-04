@@ -207,7 +207,7 @@ qwen_install() {
     [ -f "$rg" ] && [ ! -x "$rg" ] && chmod +x "$rg" && say "qwen: made $rg executable"
   done
   have="$(cli_path qwen)"; [ -n "$have" ] || { cli_fail qwen "npm installed $QWEN_PKG but no qwen binary is on PATH or in $BIN"; return 0; }
-  say "qwen: $have ($("$have" --version 2>/dev/null | head -1))"
+  say "qwen: $have ($("$have" --version 2>/dev/null | sed -n 1p))"
 }
 for c in "${CLI_LIST[@]}"; do
   url="$(cli_url "$c")"; have="$(cli_path "$c")"
@@ -216,7 +216,7 @@ for c in "${CLI_LIST[@]}"; do
   # documented way to the latest. claude's and grok's installers update in place.
   if [ "$c" = agy ] && [ -n "$have" ]; then
     if [ "$DRY" = 1 ]; then plan "$have update"; continue; fi
-    "$have" update >&2 || say "WARN '$have update' failed; keeping $("$have" --version 2>/dev/null | head -1)"
+    "$have" update >&2 || say "WARN '$have update' failed; keeping $("$have" --version 2>/dev/null | sed -n 1p)"
     continue
   fi
   if [ "$DRY" = 1 ]; then plan "install the latest $c: bash <($url)${have:+ (have $have)}"; continue; fi
@@ -230,13 +230,13 @@ for c in "${CLI_LIST[@]}"; do
   rm -f "$tmp"
   [ "$rc" -eq 0 ] || { cli_fail "$c" "the $c installer failed (rc $rc)"; continue; }
   have="$(cli_path "$c")"; [ -n "$have" ] || { cli_fail "$c" "the $c installer ran but no $c binary is on PATH or in $BIN"; continue; }
-  say "$c: $have ($("$have" --version 2>/dev/null | head -1))"
+  say "$c: $have ($("$have" --version 2>/dev/null | sed -n 1p))"
 done
 
 # ── 3. toolchain: yq, Go, spool ───────────────────────────────────────────────
 TPATH="$TOOLS/bin:$TOOLS/go/bin"
 export PATH="$TPATH:$PATH"
-yq_ok() { yq --version 2>/dev/null | grep -qE 'mikefarah|version v?4\.'; }
+yq_ok() { yq --version 2>/dev/null | grep -E 'mikefarah|version v?4\.' >/dev/null; }
 if ! yq_ok; then
   url="${SPOOL_INSTALL_URL_YQ:-https://github.com/mikefarah/yq/releases/latest/download}/yq_${OS}_${ARCH}"
   if [ "$DRY" = 1 ]; then plan "download yq v4 into $TOOLS/bin/yq ($url)"
@@ -263,7 +263,7 @@ go_ok() {  # the first go on PATH (or in an override root) that is new enough
   for g in "${cands[@]}"; do
     [ -d "$g" ] && g="$g/go"; [ -x "$g" ] || continue
     v="$("$g" version 2>/dev/null | sed -n 's/.* go\([0-9.]*\).*/\1/p')"
-    [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$GO_NEED" "$v" | sort -V | head -1)" = "$GO_NEED" ] && { GO_BIN="$g"; return 0; }
+    [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$GO_NEED" "$v" | sort -V | sed -n 1p)" = "$GO_NEED" ] && { GO_BIN="$g"; return 0; }
   done
   return 1
 }
@@ -296,7 +296,7 @@ else
     ( cd "$MOD" && GOFLAGS=-mod=mod "${GO_BIN:-go}" mod download ) >&2 || die 6 "go mod download failed in $MOD"
     bash "$BUILD_SH" "$SPOOL" >&2 || die 6 "the spool build failed ($BUILD_SH)"
   fi
-  say "spool: $SPOOL ($("$SPOOL" version 2>/dev/null | head -1))"
+  say "spool: $SPOOL ($("$SPOOL" version 2>/dev/null | sed -n 1p))"
 fi
 # The harness scripts (spool-send.sh, ...) call a bare `spool`: a binary only
 # in tools is not on PATH, and they fail rc 127. A symlink in <prefix>/bin
@@ -455,10 +455,10 @@ if [ "$SEAT" = 1 ]; then
   else
     out="$(PATH="$TPATH:$PATH" env ENV="$ENVN" TENANT_ID="$TENANT" DESK_BOX="$BOX" SPOOL_HUB_URL="$SPOOL_HUB_URL" \
       ROOT_KEY_JSON="${ROOT_KEY_JSON:-}" DRY_RUN=0 "$RUN" -a do_spl_desk_pin 2>&1)"; rc=$?
-    json="$(printf '%s\n' "$out" | grep -m1 '^{')"
-    if [ "$rc" -eq 0 ] && printf '%s' "$json" | grep -q '"pinned": true'; then
+    json="$(grep -m1 '^{' <<<"$out")"
+    if [ "$rc" -eq 0 ] && printf '%s' "$json" | grep '"pinned": true' >/dev/null; then
       say "seated: $BOX is pinned in $TENANT ($ENVN) - start an agent with:  spool-agent claude"
-    elif printf '%s' "$json" | grep -q '"pinned": false'; then
+    elif printf '%s' "$json" | grep '"pinned": false' >/dev/null; then
       admin="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["admin_cmd"])')"
       pub="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["box_pubkey"])')"
       say "seat PENDING: $BOX is not pinned in $TENANT yet. Send your tenant admin this ONE line:"

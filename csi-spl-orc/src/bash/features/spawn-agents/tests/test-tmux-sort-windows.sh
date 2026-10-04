@@ -52,7 +52,7 @@ eq "6. paused: nothing moves" "$before" "$(order)"
 tm set -g @window-sort-enabled 1
 tm set -g @window-sort-order agents-last
 sortit
-eq "6. agents-last puts plain windows first" "home" "$(tm list-windows -t t -F '#{window_name}' | head -1)"
+eq "6. agents-last puts plain windows first" "home" "$(tm list-windows -t t -F '#{window_name}' | sed -n 1p)"
 tm set -g @window-sort-order agents-first
 
 tm new-session -d -s m -n bash

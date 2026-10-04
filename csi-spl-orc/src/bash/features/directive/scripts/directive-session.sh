@@ -79,12 +79,12 @@ resolve_signing_fpr() {
 }
 
 keygrip_of() {
-  gpg --with-keygrip --list-secret-keys "$1" 2>/dev/null | sed -n 's/.*Keygrip = //p' | head -1
+  gpg --with-keygrip --list-secret-keys "$1" 2>/dev/null | sed -n 's/.*Keygrip = //p' | sed -n 1p
 }
 
 window_open() {
   [ -f "$STATE" ] || return 1
-  local exp; exp="$(sed -n 's/^expires_epoch=//p' "$STATE" | head -1)"
+  local exp; exp="$(sed -n 's/^expires_epoch=//p' "$STATE" | sed -n 1p)"
   [ -n "$exp" ] || return 1
   [ "$(date -u +%s)" -lt "$exp" ]
 }
@@ -92,9 +92,9 @@ window_open() {
 case "$ACTION" in
 status)
   if window_open; then
-    exp="$(sed -n 's/^expires_epoch=//p' "$STATE" | head -1)"
+    exp="$(sed -n 's/^expires_epoch=//p' "$STATE" | sed -n 1p)"
     printf '\n=== directive session OPEN\n'
-    say "signer    $(sed -n 's/^fpr=//p' "$STATE" | head -1)"
+    say "signer    $(sed -n 's/^fpr=//p' "$STATE" | sed -n 1p)"
     say "closes    $(date -u -d "@$exp" +%Y-%m-%dT%H:%M:%SZ)  ($(( (exp - $(date -u +%s) + 59) / 60 )) min left)"
     printf '\n  OK\n\n'; exit 0
   fi
@@ -108,7 +108,7 @@ close)
   KG="$(keygrip_of "$FPR")"
   [ -n "$KG" ] && gpg-connect-agent "clear_passphrase --mode=normal $KG" /bye >/dev/null 2>&1
   if [ -f "$STATE" ]; then
-    BAK="$(sed -n 's/^agent_conf_backup=//p' "$STATE" | head -1)"
+    BAK="$(sed -n 's/^agent_conf_backup=//p' "$STATE" | sed -n 1p)"
     if [ -n "$BAK" ] && [ "$BAK" != none ] && [ -f "$BAK" ]; then
       cp "$BAK" "$AGENT_CONF" && rm -f "$BAK"
     elif [ "$BAK" = none ]; then

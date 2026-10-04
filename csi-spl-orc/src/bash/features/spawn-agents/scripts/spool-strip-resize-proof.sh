@@ -161,7 +161,7 @@ ink_case() {  # -v|-h SIZE LABEL
   sleep 1.5
   cap="$(tmux -S "$SOCK" capture-pane -p -t w.0)"
   rows="$(tmux -S "$SOCK" display-message -p -t w.0 '#{pane_height}')"
-  frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | head -1 | cut -d: -f1)"
+  frame_row="$(printf '%s\n' "$cap" | grep -n 'FRAME-0' | sed -n 1p | cut -d: -f1)"
   tx_first="$(printf '%s\n' "$cap" | sed -n '1p' | grep -o '^TX-[0-9]*' || true)"
   tx_intact="$(printf '%s\n' "$cap" | grep -c 'TXEND' || true)"
   say "  ${label}"

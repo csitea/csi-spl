@@ -69,7 +69,7 @@ STATE="${SPOOL_FLEET_STATE_ROOT:-$(getent passwd "$(id -un)" | cut -d: -f6)/.loc
 d="$STATE/$ENVN/desk/$TENANT/$BOX"
 
 pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
-[[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep -q ' hub-run' || {
+[[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null || {
   say "no live hub-run sidecar for $BOX in $TENANT ($ENVN, $d): the message to $TO cannot leave this machine. Run do_spl_desk_up. Nothing was sent."
   exit 3; }
 # The box is the trust unit, not the seat (HOWTO-satellite-work §4 gaps 1-3):

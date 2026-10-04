@@ -62,11 +62,11 @@ _id_from_ancestry() {
     [ -r "/proc/$pid/cmdline" ] || continue
     prev=""
     while IFS= read -r -d '' tok; do
-      if [ "$prev" = "--name" ] && printf '%s' "$tok" | grep -qE '^[A-Za-z][A-Za-z0-9._-]{0,63}$'; then
+      if [ "$prev" = "--name" ] && printf '%s' "$tok" | grep -E '^[A-Za-z][A-Za-z0-9._-]{0,63}$' >/dev/null; then
         printf '%s' "$tok"; return 0
       fi
-      if printf '%s' "$prev" | grep -qE '(^|/)spawn-[a-z-]+\.sh$' \
-         && printf '%s' "$tok" | grep -qE '^[A-Za-z][A-Za-z0-9._-]{0,63}$'; then
+      if printf '%s' "$prev" | grep -E '(^|/)spawn-[a-z-]+\.sh$' >/dev/null \
+         && printf '%s' "$tok" | grep -E '^[A-Za-z][A-Za-z0-9._-]{0,63}$' >/dev/null; then
         printf '%s' "$tok"; return 0
       fi
       prev="$tok"
@@ -104,7 +104,7 @@ _dir_in_use() {
     pid=${d#/proc/}
     [ -r "/proc/$pid/cmdline" ] || continue
     if { tr '\0' '\n' < "/proc/$pid/cmdline"; } 2>/dev/null \
-       | grep -qxF -- "--user-data-dir=$dir"; then
+       | grep -xF -- "--user-data-dir=$dir" >/dev/null; then
       printf '%s' "$pid"; return 0
     fi
   done
@@ -229,7 +229,7 @@ _browser_pids() {
   local pid
   for pid in $(pgrep -u "$(id -u)" -f -- "--user-data-dir=$PROFILE( |$)"); do
     { tr '\0' ' ' < "/proc/$pid/cmdline"; } 2>/dev/null \
-      | grep -q -- '--type=' && continue
+      | grep -- '--type=' >/dev/null && continue
     printf '%s\n' "$pid"
   done
 }

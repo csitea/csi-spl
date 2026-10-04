@@ -81,6 +81,6 @@ exec 8>&-
 
 echo "== hygiene"
 is "$(grep -rnE '/opt/|/var/tmp|/home/' "$SCRIPTS" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')" "" "no script line names /opt, /var/tmp or a home"
-is "$(grep -rnIE 'ysg-box|BOX_VAR_ROOT|BOX_ENGINE_ROOT|box-env\.inc|\.box-root' "$SCRIPTS" "$ASSETS" | head -3)" "" "no script or asset reaches into the engine"
+is "$(grep -rnIE 'ysg-box|BOX_VAR_ROOT|BOX_ENGINE_ROOT|box-env\.inc|\.box-root' "$SCRIPTS" "$ASSETS" | sed -n 1,3p)" "" "no script or asset reaches into the engine"
 
 finish

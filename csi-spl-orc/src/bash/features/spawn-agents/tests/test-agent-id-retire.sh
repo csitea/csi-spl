@@ -64,7 +64,7 @@ check "same generation stamp -> a .2 dir, the first kept" test -d "$R/.retired/c
 # --- qualified layout + no registry row ------------------------------------------
 mkdir -p "$R/g-010@sat/inbox"; ln -s g-010@sat "$R/g-010"
 bash "$RET" --apply g-010 >/dev/null 2>&1; eq "a qualified id retires" 0 "$?"
-check "the <ID>@<box> dir moved and the link is gone" test ! -e "$R/g-010@sat" -a ! -L "$R/g-010" -a -d "$(ls -d "$R"/.retired/g-010.* | head -1)/inbox"
+check "the <ID>@<box> dir moved and the link is gone" test ! -e "$R/g-010@sat" -a ! -L "$R/g-010" -a -d "$(ls -d "$R"/.retired/g-010.* | sed -n 1p)/inbox"
 has "with no registry row one is synthesized (quarantine holds)" "g-010	grok" "$(cat "$R/registry.retired.tsv")"
 
 # --- the /exit-clean hook: tmux-close-window.sh --agent ID --defer --retire --------
@@ -79,7 +79,7 @@ has "the close log records the retire" "agent-id-retire: q-020 retired" "$(cat "
 mkdir -p "$R/q-021/inbox"
 P3="$(t_window 'tg: q-021 done' 'sleep 600')"
 bash "$CLOSE" --agent q-021 --defer --timeout 10 >/dev/null 2>&1
-for _ in $(seq 1 30); do tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id}' | grep -qx "$P3" || break; sleep 0.5; done
+for _ in $(seq 1 30); do tmux -S "$SPOOL_TMUX_SOCKET" list-panes -a -F '#{pane_id}' | grep -x "$P3" >/dev/null || break; sleep 0.5; done
 sleep 1
 check "CONTROL: without --retire the id stays held" test -d "$R/q-021/inbox"
 

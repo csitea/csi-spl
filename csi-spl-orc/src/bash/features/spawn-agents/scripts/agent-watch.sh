@@ -36,11 +36,11 @@ LEGACY="${SPOOL_LEGACY_INBOX_ROOT:-}"
 
 unread() {  # ID -> "<count> <inbox dir>"
   local id="$1" dir
-  if [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | grep -qx "$id"; then dir="$SPOOL_ROOT/$id/inbox"
+  if [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | grep -x "$id" >/dev/null; then dir="$SPOOL_ROOT/$id/inbox"
   elif [ -n "$LEGACY" ] && [ -d "$LEGACY/$id/inbox" ]; then
     dir="$LEGACY/$id/inbox"
     local n; n="$(find "$dir" -maxdepth 1 -type f | wc -l)"
-    if [ "$n" = 1 ] && find "$dir" -maxdepth 1 -type f -name '*--brief.md' | grep -q .; then echo "0 $dir"; return; fi
+    if [ "$n" = 1 ] && find "$dir" -maxdepth 1 -type f -name '*--brief.md' | grep . >/dev/null; then echo "0 $dir"; return; fi
   else dir="$SPOOL_ROOT/$id/inbox"; fi
   echo "$(find "$dir" -maxdepth 1 -type f 2>/dev/null | wc -l) $dir"
 }
@@ -58,8 +58,8 @@ scan() {
     agent_is_orc "$(an_strip "$wname")" "$role" && continue
     [ -n "$SELF" ] && [ "$id" = "$SELF" ] && continue
     scr="$("${TM[@]}" capture-pane -p -t "$p" 2>/dev/null)"
-    if printf '%s' "$scr" | grep -qE '❯ 1\.|Do you want to|\(y/n\)|Yes, and|No, and tell'; then
-      echo "DIALOG $id ($p) a prompt is waiting: $(printf '%s' "$scr" | grep -E 'Do you want to|❯ 1\.' | head -1 | cut -c1-90)"
+    if printf '%s' "$scr" | grep -E '❯ 1\.|Do you want to|\(y/n\)|Yes, and|No, and tell' >/dev/null; then
+      echo "DIALOG $id ($p) a prompt is waiting: $(printf '%s' "$scr" | grep -E 'Do you want to|❯ 1\.' | sed -n 1p | cut -c1-90)"
       continue
     fi
     # The LIVE prompt is the LAST ❯ line (the first is scrollback); the glyph is

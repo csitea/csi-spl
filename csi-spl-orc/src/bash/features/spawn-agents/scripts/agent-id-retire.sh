@@ -55,7 +55,7 @@ step() { printf '%s %-9s %s\n' "$VERB" "$1" "$2"; }
 # as the allocator's rule 4 (a tag before, a badge or title after).
 spool_tmux_argv
 if "${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null \
-    | grep -qE "(^|[^A-Za-z0-9])${ID}([^0-9]|\$)"; then
+    | grep -E "(^|[^A-Za-z0-9])${ID}([^0-9]|\$)" >/dev/null; then
   echo "agent-id-retire: a tmux window still carries ${ID}; close it first (tmux-close-window.sh --agent ${ID} --retire)" >&2
   exit 3
 fi

@@ -38,9 +38,9 @@ fake() {  # ID SCREEN -> a pane command whose argv names the agent (spawn-claude
 drift() {
   local pane pid wname nid aid
   while IFS='|' read -r pane pid wname; do
-    nid="$(printf '%s' "$wname" | grep -oE '(CLE|GRK|AGY|QWN)-[0-9]+' | head -1)"
+    nid="$(printf '%s' "$wname" | grep -oE '(CLE|GRK|AGY|QWN)-[0-9]+' | sed -n 1p)"
     [ -n "$nid" ] || continue
-    aid="$(ps -o args= -g "$(ps -o sid= -p "$pid" | tr -d ' ')" 2>/dev/null | grep -oE 'spawn-claude\.sh (CLE|GRK|AGY|QWN)-[0-9]+' | head -1 | awk '{print $2}')"
+    aid="$(ps -o args= -g "$(ps -o sid= -p "$pid" | tr -d ' ')" 2>/dev/null | grep -oE 'spawn-claude\.sh (CLE|GRK|AGY|QWN)-[0-9]+' | sed -n 1p | awk '{print $2}')"
     [ -n "$aid" ] && [ "$aid" != "$nid" ] && printf '%s %s\n' "$nid" "$aid"
   done < <(tm list-panes -a -F '#{pane_id}|#{pane_pid}|#{window_name}')
   return 0
@@ -67,7 +67,7 @@ snap="$(tm list-windows -a -F '#{session_name}:#{window_index}|#{window_name}')"
 bash -c "$SPAWN" >/dev/null 2>&1; sleep 0.3
 while IFS='|' read -r target wname; do
   case "$wname" in CLE-*) ;; *) continue ;; esac
-  pane="$(tm list-panes -t "$target" -F '#{pane_id}' | head -1)"
+  pane="$(tm list-panes -t "$target" -F '#{pane_id}' | sed -n 1p)"
   tm rename-window -t "$pane" "${wname%% *} > ${wname#* }"
 done <<< "$snap"
 d="$(drift)"
@@ -113,7 +113,7 @@ loops_top() {
 for _ in $(seq 50); do [ -n "$(loops_top)" ] && break; sleep 0.2; done
 sleep 1
 eq "5. six concurrent ensure calls start one loop" 1 "$(loops_top | wc -l)"
-eq "5. ... and it is the pidfile's loop" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" "$(loops_top | head -1)"
+eq "5. ... and it is the pidfile's loop" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)" "$(loops_top | sed -n 1p)"
 pgrep -f "^bash \\S*agent-top.sh --badge-loop --interval $IV\$" | xargs -r kill 2>/dev/null
 
 t_done

@@ -89,8 +89,8 @@ TM=(tmux -u -S "$SPOOL_TMUX_SOCKET")
 # the ACTIVE window instead of failing, which would colour the wrong window.
 target_exists() {
   case "$1" in
-    %*) "${TM[@]}" list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qxF -- "$1" ;;
-    @*) "${TM[@]}" list-windows -a -F '#{window_id}' 2>/dev/null | grep -qxF -- "$1" ;;
+    %*) "${TM[@]}" list-panes -a -F '#{pane_id}' 2>/dev/null | grep -xF -- "$1" >/dev/null ;;
+    @*) "${TM[@]}" list-windows -a -F '#{window_id}' 2>/dev/null | grep -xF -- "$1" >/dev/null ;;
     *)  return 1 ;;
   esac
 }

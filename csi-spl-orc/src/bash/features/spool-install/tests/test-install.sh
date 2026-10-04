@@ -137,7 +137,7 @@ ARGS=(--cli claude,grok,agy --tenant t1 --box box-ext --dry-run); inst SPOOL_HUB
   grep -q 'would: download the latest Go' "$T/o" && grep -q "would: key + pin box-ext in t1 at $HUB" "$T/o" &&
   pass "2. the dry run prints every step" || fail "2. dry: rc $rc $(cat "$T/o")"
 [[ ! -e "$T/net.log" && ! -e "$T/seat.log" && ! -e "$T/build.log" && -z "$(ls -A "$H")" ]] &&
-  pass "2. the dry run downloads, builds and writes nothing" || fail "2. dry side effects: $(ls -AR "$H" | head)"
+  pass "2. the dry run downloads, builds and writes nothing" || fail "2. dry side effects: $(ls -AR "$H" | sed -n 1,10p)"
 
 # --- 3. full install, no seat ----------------------------------------------------------------
 ARGS=(--cli claude,grok,agy --no-seat --env prd --tenant t9 --box box-ext); inst; rc=$?
@@ -147,7 +147,7 @@ for c in claude agy; do grep -qx "vendor-$c ran" "$T/vendor.log" && [[ -x "$H/.l
 grep -qx "vendor-grok ran GROK_BIN_DIR=$H/.local/bin" "$T/vendor.log" && [[ -x "$H/.local/bin/grok" ]] &&
   pass "3. grok installs into <prefix>/bin" || fail "3. grok: $(cat "$T/vendor.log")"
 [[ -x "$TOOLS/bin/yq" && -x "$TOOLS/go/bin/go" ]] && grep -q 'https://go.test/dl/go1.99.0.linux-' "$T/net.log" &&
-  pass "3. yq and the latest Go land in tools" || fail "3. tools: $(ls -R "$TOOLS" | head) $(cat "$T/net.log")"
+  pass "3. yq and the latest Go land in tools" || fail "3. tools: $(ls -R "$TOOLS" | sed -n 1,10p) $(cat "$T/net.log")"
 grep -q "^build $TOOLS/bin/spool go=$TOOLS/go/bin/go" "$T/build.log" && [[ -x "$TOOLS/bin/spool" ]] &&
   pass "3. spool is built into tools with the tools Go on PATH" || fail "3. build: $(cat "$T/build.log")"
 [[ -L "$H/.local/bin/spool" && "$(readlink "$H/.local/bin/spool")" == "$TOOLS/bin/spool" ]] &&
@@ -268,7 +268,7 @@ n_cmd="$(ls "$ASSETS/commands" | wc -l)"; n_sk="$(ls "$ASSETS/skills" | wc -l)"
 # The harness skills only: a feature step (graft, spec 069 Y6) links its own skill beside them.
 n_sk_got="$(for k in "$ASSETS"/skills/*/; do k="${k%/}"; [ -f "$SK/${k##*/}/SKILL.md" ] && echo; done | wc -l)"
 [[ "$(ls "$CMD"/*.md 2>/dev/null | wc -l)" == "$n_cmd" && "$n_sk_got" == "$n_sk" ]] &&
-  pass "10. every command ($n_cmd) and skill ($n_sk) is rendered into ~/.claude" || fail "10. rendered: $(ls -R "$H/.claude" | head -30)"
+  pass "10. every command ($n_cmd) and skill ($n_sk) is rendered into ~/.claude" || fail "10. rendered: $(ls -R "$H/.claude" | sed -n 1,30p)"
 for k in claude grok agy qwen; do [[ -r "$CMD/$k-spawn.md" ]] || fail "10. no /$k-spawn"; done
 ! grep -rqE '\{\{[A-Z_]+\}\}' "$CMD" "$SK" && pass "10. no placeholder is left" || fail "10. placeholders: $(grep -rlE '\{\{[A-Z_]+\}\}' "$CMD" "$SK")"
 grep -qF "$(cd "$TEST_DIR/../../spawn-agents" && pwd)/scripts/spawn-window.sh qwen auto" "$CMD/qwen-spawn.md" &&

@@ -119,8 +119,8 @@ eq "a second notice reuses the pane" 1 \
 # listing is newest-first (013/CLE-3425), so the pane is repainted, not tailed.
 sleep 1
 plain="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$np")"
-first_row="$(printf '%s\n' "$plain" | grep -n 'hello from the hub' | head -1 | cut -d: -f1)"
-second_row="$(printf '%s\n' "$plain" | grep -n 'the SECOND message' | head -1 | cut -d: -f1)"
+first_row="$(printf '%s\n' "$plain" | grep -n 'hello from the hub' | sed -n 1p | cut -d: -f1)"
+second_row="$(printf '%s\n' "$plain" | grep -n 'the SECOND message' | sed -n 1p | cut -d: -f1)"
 check "both messages are on screen" test -n "$first_row" -a -n "$second_row"
 check "the NEWEST message is ABOVE the older one (row $second_row < $first_row)" \
   test "${second_row:-99}" -lt "${first_row:-0}"

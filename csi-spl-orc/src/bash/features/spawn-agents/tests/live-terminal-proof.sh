@@ -36,7 +36,7 @@ SPOOL="${SPOOL:-$REPO/${ORG_APP}-api/src/go/spool-hub-api/bin/spool}"
 NOTIFY="$FEAT/scripts/spool-notify.sh"
 # The hub the pinned boxes belong to: whatever do_spl_m3_e2e last used. No
 # default host is baked in (doc-hub distribution rule 3).
-HUB_URL="${HUB_URL:-$(sed -n 's/.*"hub": *"\([^"]*\)".*/\1/p' "$E2E/results.json" 2>/dev/null | head -1)}"
+HUB_URL="${HUB_URL:-$(sed -n 's/.*"hub": *"\([^"]*\)".*/\1/p' "$E2E/results.json" 2>/dev/null | sed -n 1p)}"
 TENANT="${TENANT:-t1}"
 AGENT="${AGENT:-TRM-1}"       # throwaway; not a live lane, and not CLE/GRK/AGY
 OTHER="${OTHER:-TRM-2}"       # the isolation control
@@ -154,11 +154,11 @@ PANE_D="$(tm new-window -d -n "TRM-4" -P -F '#{pane_id}' "$OUT/tui-pane.sh")"
 mkdir -p "$ROOT/TRM-4/inbox"
 printf '%s\tclaude\t%s\t%s\t%s\n' TRM-4 "$PANE_D" "$OUT" "$STAMP" >>"$ROOT/registry.tsv"
 sleep 1
-if has_txt "$(cap "$PANE_D")" "half typed and never sent" && cap "$PANE_D" | grep -qF "$(printf '\342\235\257')"; then
+if has_txt "$(cap "$PANE_D")" "half typed and never sent" && cap "$PANE_D" | grep -F "$(printf '\342\235\257')" >/dev/null; then
   say "     (TRM-4 pane really carries the TUI prompt glyph and the unsent text)"
 else
   say "FAIL 4 setup: TRM-4 pane does not show a prompt glyph + unsent text; the control would be vacuous"
-  say "     pane reads: $(cap "$PANE_D" | head -3 | tr '\n' '|')"
+  say "     pane reads: $(cap "$PANE_D" | sed -n 1,3p | tr '\n' '|')"
 fi
 B4="this must NOT be typed over a half-typed line $STAMP"
 out4="$(SPOOL_ROOT="$ROOT" SPOOL_TMUX_SOCKET="$SOCK" SPOOL_NOTIFY_CMD="$NOTIFY" \

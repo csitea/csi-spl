@@ -20,7 +20,7 @@ has "poke went to the registered pane" "poke: ${P91} (CLE-91)" "$out"
 TASK="$(printf '%s' "$out" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
 check "a task_id was minted" test -n "$TASK"
 
-f="$(ls "$SPOOL_ROOT/CLE-91/inbox/"*.json 2>/dev/null | head -1)"
+f="$(ls "$SPOOL_ROOT/CLE-91/inbox/"*.json 2>/dev/null | sed -n 1p)"
 check "a .json landed in the recipient inbox" test -n "$f"
 check "a copy landed in the sender outbox" test -n "$(ls "$SPOOL_ROOT/CLE-90/outbox/"*.json 2>/dev/null)"
 obj="$(cat "$f")"
@@ -43,7 +43,7 @@ eq "reply to an agent with no window: delivered, exit 5" 5 "$rc"
 check "the reply is in CLE-90's inbox" test -n "$(ls "$SPOOL_ROOT/CLE-90/inbox/"*.json 2>/dev/null)"
 tail_out="$(sp tail --task "$TASK")"
 eq "tail shows the 2-message topic" 2 "$(printf '%s\n' "$tail_out" | grep -c .)"
-has "tail is oldest-first (task first)" "task" "$(printf '%s\n' "$tail_out" | head -1)"
+has "tail is oldest-first (task first)" "task" "$(printf '%s\n' "$tail_out" | sed -n 1p)"
 
 # ---- doorbell outcomes -----------------------------------------------------
 # agents of THIS machine: a send to an id the root does not know is relayed or

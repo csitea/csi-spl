@@ -103,7 +103,7 @@ fi
 echo
 echo "=== candidate specs/*/tasks.md (newest first, cap 20) ==="
 find "$WORKDIR" \( -path '*/.git/*' -o -path '*/node_modules/*' -o -path '*/.venv/*' \) -prune -o \
-  -type f -path '*/specs/*/tasks.md' -printf '%T@|%p\n' 2>/dev/null | sort -t'|' -k1,1nr | head -20 |
+  -type f -path '*/specs/*/tasks.md' -printf '%T@|%p\n' 2>/dev/null | sort -t'|' -k1,1nr | sed -n 1,20p |
 while IFS='|' read -r mt path; do
   slug="$(printf '%s' "$path" | sed -n 's|.*/specs/\([^/]*\)/tasks.md|\1|p')"
   open_n="$(grep -cE '^[[:space:]]*- \[ \]' "$path" 2>/dev/null)"; done_n="$(grep -cE '^[[:space:]]*- \[[xX]\]' "$path" 2>/dev/null)"

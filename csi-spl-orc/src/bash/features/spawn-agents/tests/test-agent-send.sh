@@ -43,7 +43,7 @@ P7="$(t_window 'tbox: CLE-07 new harness' 'sleep 600')"
 out="$(bash "$SEND" --from CLE-01 cle-7 hello new agent 2>&1)"; rc=$?
 eq "1. a registry id goes by spool (rc 0)" 0 "$rc"
 has "1. it says which route and why" "via: spool (CLE-07 is in $SPOOL_ROOT/registry.tsv)" "$out"
-f="$(ls "$SPOOL_ROOT/CLE-07/inbox/"*.json 2>/dev/null | head -1)"
+f="$(ls "$SPOOL_ROOT/CLE-07/inbox/"*.json 2>/dev/null | sed -n 1p)"
 eq "1. a v:1 message from CLE-01 lands in CLE-07's spool inbox" "1 CLE-01" "$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["v"], d["from"])' "$f" 2>/dev/null)"
 has "1. ... carrying the text" "hello new agent" "$(cat "$f" 2>/dev/null)"
 has "1. the pane is poked" "poke: $P7 (CLE-07)" "$out"

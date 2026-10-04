@@ -134,13 +134,13 @@ fi
 # from the hub's welcome/roster frames as compact JSON {"<box>":["<id>",...]}.
 roster_has() {  # FILE BOX AGENT
   [ -r "$1" ] || return 1
-  grep -oE "\"$2\":\[[^]]*\]" "$1" 2>/dev/null | grep -q "\"$3\""
+  grep -oE "\"$2\":\[[^]]*\]" "$1" 2>/dev/null | grep "\"$3\"" >/dev/null
 }
 sidecar_alive() {  # PIDFILE
   local pid
   pid="$(cat "$1" 2>/dev/null)" || return 1
   [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null \
-    && tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q ' hub-run'
+    && tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null
 }
 sidecar() {
   local mode="${SPOOL_HARNESS_SIDECAR:-auto}" hub="$SPOOL_ROOT/.hub"

@@ -54,7 +54,7 @@ if [ -z "$LIB" ]; then
     LIB=$(_lib_of "$g") || LIB=""
     [ -n "$LIB" ] || LIB=$(_lib_of "${g}.real") || LIB=""
     if [ -z "$LIB" ]; then
-      r=$(sed -n "s|.*GRAFT_SAFE_BIN=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}.*|\1|p" "$g" 2>/dev/null | head -1)
+      r=$(sed -n "s|.*GRAFT_SAFE_BIN=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}.*|\1|p" "$g" 2>/dev/null | sed -n 1p)
       [ -n "$r" ] && { LIB=$(_lib_of "$r") || LIB=""; }
     fi
   fi

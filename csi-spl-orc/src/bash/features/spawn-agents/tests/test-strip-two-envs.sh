@@ -42,7 +42,7 @@ printf 'SPOOL CLE-80: note from HUM-2\tprd live one\t%s\n' $(( T0 + 50 )) >>"$pl
 sleep 1
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PR")"
 eq "a record appended to the SECOND log is painted on top" "prd live one" \
-  "$(printf '%s\n' "$scr" | grep -oE 'prd live one|dev third newest' | head -n 1)"
+  "$(printf '%s\n' "$scr" | grep -oE 'prd live one|dev third newest' | sed -n 1p)"
 
 # A log written ONLY by an older, untimed writer - the stale checkout's
 # notifier, live when this shipped - is dated from its mtime: its last line
@@ -61,7 +61,7 @@ touch -d "@$(( T0 + 5 ))" "$olog"
 printf 'SPOOL CLE-80: note from HUM-1\tdev wake-up\t%s\n' $(( T0 + 1 )) >>"$dlog"; sleep 1
 scr="$(tmux -S "$SPOOL_TMUX_SOCKET" capture-pane -p -t "$PO")"
 eq "CONTROL …and below the timed records when its mtime is older" "dev third newest," \
-  "$(printf '%s\n' "$scr" | grep -oE 'untimed newest|untimed older|dev third newest' | head -n 1 | tr '\n' ',')"
+  "$(printf '%s\n' "$scr" | grep -oE 'untimed newest|untimed older|dev third newest' | sed -n 1p | tr '\n' ',')"
 
 # CONTROL: one log paints exactly as before - no tag.
 P1="$(t_window single "NO_COLOR=1 exec $T_SCRIPTS/spool-notice-pane.sh --log $dlog")"

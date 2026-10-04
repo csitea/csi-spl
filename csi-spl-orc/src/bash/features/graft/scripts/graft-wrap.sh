@@ -30,7 +30,7 @@ SAFE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/graft-safe.sh"
 die() { echo "graft-wrap: $*" >&2; exit 1; }
 
 is_wrapper() { [ -r "$1" ] && grep -q 'graft-safe' "$1" 2>/dev/null; }
-target_of()  { sed -n "s/^export GRAFT_SAFE_BIN='\(.*\)'$/\1/p" "$1" 2>/dev/null | head -1; }
+target_of()  { sed -n "s/^export GRAFT_SAFE_BIN='\(.*\)'$/\1/p" "$1" 2>/dev/null | sed -n 1p; }
 
 case "${1:-}" in
   --check)

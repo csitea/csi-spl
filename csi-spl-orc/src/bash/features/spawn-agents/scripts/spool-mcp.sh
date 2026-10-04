@@ -107,7 +107,7 @@ d="$STATE/desk/$TENANT/$BOX"
 [ -d "$d/spool/$AS" ] || { say "$AS is not seated on $BOX in $TENANT ($ENVN): run do_spl_desk_up"; exit 5; }
 
 pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
-[[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q ' hub-run' ||
+[[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null ||
   { say "no live hub-run sidecar for $BOX in $TENANT ($ENVN): run do_spl_desk_up"; exit 6; }
 declare -a envv=()
 while IFS= read -r -d '' kv; do

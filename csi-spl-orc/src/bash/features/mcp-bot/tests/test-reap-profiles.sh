@@ -80,8 +80,8 @@ lock_at() {               # lock_at <clone-dir> <pid> — Firefox's own lock sha
 ahead() { touch -d '+1 hour' "$@"; }
 
 reap() { MCP_BOT_HOME="$H" bash "$SUT" "$@" 2>&1; }
-listed()   { printf '%s' "$1" | grep -qx -- "$2"; }      # a bare removal line
-skipped()  { printf '%s' "$1" | grep -qE "^  SKIP  +$2 +$3( |$)"; }
+listed()   { printf '%s' "$1" | grep -x -- "$2" >/dev/null; }      # a bare removal line
+skipped()  { printf '%s' "$1" | grep -E "^  SKIP  +$2 +$3( |$)" >/dev/null; }
 
 echo "== reap-profiles.sh regression tests =="
 echo "   fixtures under $ROOT"
@@ -136,7 +136,7 @@ clone CLE-a >/dev/null; clone CLE-b >/dev/null
 reap --delete --all-ages >/dev/null 2>&1
 out="$(reap --delete --all-ages)"; rc=$?
 [[ $VERBOSE -eq 1 ]] && printf '%s\n' "$out"
-if [[ $rc -eq 0 ]] && printf '%s' "$out" | grep -q 'nothing to reap'; then
+if [[ $rc -eq 0 ]] && printf '%s' "$out" | grep 'nothing to reap' >/dev/null; then
   ok "a second --delete is a no-op: 'nothing to reap', exit 0"
 else
   nok "the reaper is not idempotent" "rc=$rc / $out"
@@ -167,7 +167,7 @@ if [[ -d "$d_live" ]] && skipped "$out" live ff-profile-CLE-live; then
 else
   nok "a LIVE profile was reaped — the data-loss defect" "$out"
 fi
-if printf '%s' "$out" | grep -q "live pid $pid names it as an argv path (argv-path)"; then
+if printf '%s' "$out" | grep "live pid $pid names it as an argv path (argv-path)" >/dev/null; then
   ok "the report names the holding pid and calls the hold browser-shaped (argv-path)"
 else nok "the skip line should name the pid and the shape of the hold" "$out"; fi
 
@@ -179,7 +179,7 @@ python3 -c 'import time; time.sleep(300)' "pretend script text touching $d_ment 
 pid2=$!; HOLDERS+=("$pid2"); sleep 0.3
 out="$(reap --dry-run --all-ages)"
 [[ $VERBOSE -eq 1 ]] && printf '%s\n' "$out"
-if printf '%s' "$out" | grep -q "live pid $pid2 mentions it inside a larger argv token (argv-text)"; then
+if printf '%s' "$out" | grep "live pid $pid2 mentions it inside a larger argv token (argv-text)" >/dev/null; then
   ok "an incidental mention keeps the clone, reported as argv-text not as a browser"
 else
   nok "the two shapes of argv hold are not distinguished" "$out"
@@ -228,7 +228,7 @@ else nok "the age cutoff did not fire" "$out"; fi
 if [[ -d "$d_touch" ]] && skipped "$out" fresh ff-profile-CLE-t; then
   ok "a freshly written DIRECT CHILD keeps the clone"
 else nok "top-level child mtime was not taken as activity" "$out"; fi
-if [[ -d "$d_run" ]] && printf '%s' "$out" | grep -q 'run/CLE-r.marionette-port'; then
+if [[ -d "$d_run" ]] && printf '%s' "$out" | grep 'run/CLE-r.marionette-port' >/dev/null; then
   ok "run/<ID>.marionette-port keeps the clone, and is named as the reason"
 else nok "the run-dir signal was not consulted" "$out"; fi
 
@@ -290,7 +290,7 @@ if [[ -d "$d_nb" ]] && skipped "$out" fresh ff-profile-CLE-anc; then
 else
   nok "with no birth time the tree mtime decided — the osp data loss" "$out"
 fi
-if printf '%s' "$out" | grep -qE 'ff-profile-CLE-anc .*clone ctime \(%Z, no birth time\)'; then
+if printf '%s' "$out" | grep -E 'ff-profile-CLE-anc .*clone ctime \(%Z, no birth time\)' >/dev/null; then
   ok "the skip line names ctime as the age source"
 else nok "the age source used with no birth time is not logged" "$out"; fi
 
@@ -342,12 +342,12 @@ if skipped "$out" inflight "ff-profile-pid$srv"; then
 else
   nok "an in-flight ephemeral profile was listed for removal" "$out"
 fi
-if printf '%s' "$out" | grep -qE '^  SKIP  +inflight +ff-profile-pid[0-9]+ +ephemeral clone of live mcp-start server pid'; then
+if printf '%s' "$out" | grep -E '^  SKIP  +inflight +ff-profile-pid[0-9]+ +ephemeral clone of live mcp-start server pid' >/dev/null; then
   ok "the skip line says it is an ephemeral clone and names the server pid"
 else nok "the inflight reason should name the owning mcp-start server" "$out"; fi
 # and the dead one is still governed by the age threshold, not reaped on sight
 out="$(reap --dry-run --days 14)"
-if printf '%s' "$out" | grep -q 'nothing to reap'; then
+if printf '%s' "$out" | grep 'nothing to reap' >/dev/null; then
   ok "an ephemeral clone with a DEAD pid is left to the age threshold, not reaped on sight"
 else nok "closing the protection gap must not widen what gets deleted" "$out"; fi
 kill "$srv" 2>/dev/null
@@ -361,7 +361,7 @@ out="$(reap --delete --all-ages)"
 if [[ -d "$H/cr-profile-CLE-01" && -d "$H/cr-profile-CLE-02" ]]; then
   ok "cr-profile-* dirs survive (out of scope by design)"
 else nok "the reaper deleted a CHROME profile" "$out"; fi
-if printf '%s' "$out" | grep -q 'cr-profile-\* dirs: 2'; then
+if printf '%s' "$out" | grep 'cr-profile-\* dirs: 2' >/dev/null; then
   ok "the report counts them and says they are not handled"
 else nok "cr-profile-* should be named as explicitly unhandled" "$out"; fi
 

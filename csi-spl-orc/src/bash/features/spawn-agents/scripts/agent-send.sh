@@ -92,7 +92,7 @@ fi
 case "$VIA" in auto|spool|legacy) ;; *) echo "agent-send: --via must be auto, spool or legacy" >&2; exit 2 ;; esac
 
 LEGACY_ROOT="${SPOOL_LEGACY_INBOX_ROOT:-}"
-in_spool_registry() { [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | sed -E 's/^.*: //' | grep -qx "$TO"; }
+in_spool_registry() { [ -r "$SPOOL_ROOT/registry.tsv" ] && cut -f1 "$SPOOL_ROOT/registry.tsv" | sed -E 's/^.*: //' | grep -x "$TO" >/dev/null; }
 route="" why=""
 case "$VIA" in
   spool)  route=spool why="--via spool" ;;

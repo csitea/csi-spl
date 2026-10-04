@@ -178,7 +178,7 @@ eq "6. a registered lane through spool-send: exit 0" 0 "$?"
 # the reply: the receiving box writes from as <ID>@<box> (internal/spool
 # WithFromAgent, Go tests); the harness `spool recv` must read that file back.
 r="$(SPOOL_ROOT="$B" SPOOL_NOTIFY_CMD=off "$SPOOL_BIN" send --from CLE-100004 --to CLE-100005 --kind result --body 'the reply' 2>/dev/null)"
-f="$(ls "$B/CLE-100005/inbox/"*.json | head -1)"
+f="$(ls "$B/CLE-100005/inbox/"*.json | sed -n 1p)"
 python3 -c 'import json,sys; p=sys.argv[1]; m=json.load(open(p)); m["from"]="CLE-77913@box-desk"; json.dump(m,open(p,"w"),sort_keys=True,separators=(",",":"))' "$f"
 got="$(SPOOL_ROOT="$B" "$SPOOL_BIN" recv --as CLE-100005 --ack 2>&1)"
 has "6. the reply comes back to the lane's own inbox" '"the reply"' "$got"

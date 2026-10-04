@@ -26,7 +26,7 @@ t_window "AGY-93 noglyph" 'exec sleep 600' >/dev/null
 sleep 0.4
 
 OUT="$(bash "$SUT" 2>&1)"; RC=$?
-kind_of() { printf '%s\n' "$OUT" | grep -E "^[[:space:]]*(clear|TYPED|RESIDUE)[[:space:]]+$1([[:space:]]|$)" | awk '{print $1}' | head -1; }
+kind_of() { printf '%s\n' "$OUT" | grep -E "^[[:space:]]*(clear|TYPED|RESIDUE)[[:space:]]+$1([[:space:]]|$)" | awk '{print $1}' | sed -n 1p; }
 eq "agy idle pane: clear (ASCII > glyph)" clear "$(kind_of AGY-90)"
 eq "agy typed pane: TYPED" TYPED "$(kind_of AGY-91)"
 eq "claude idle pane with > in scrollback: clear" clear "$(kind_of CLE-80)"

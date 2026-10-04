@@ -115,7 +115,7 @@ spl_box_init() {
 }
 
 # The value of KEY in lease.conf (first line wins, as spl_lease_conf reads it).
-spl_box_conf_get() { sed -n "s/^$1=//p" "$LEASE_CONF" 2>/dev/null | head -1; }
+spl_box_conf_get() { sed -n "s/^$1=//p" "$LEASE_CONF" 2>/dev/null | sed -n 1p; }
 
 # <list> with <box> moved to the end ("a,me,b" -> "a,b,me").
 spl_box_last() {
@@ -143,12 +143,12 @@ spl_box_rank() {
   tmp="$(mktemp)" || return 1
   cp "$LEASE_CONF" "$tmp"
   for k in LEASE_PRIORITY LEASE_PRIORITY_ORCH LEASE_PRIORITY_DISPATCH; do
-    v="$(sed -n "s/^$k=//p" "$tmp" | head -1)"
+    v="$(sed -n "s/^$k=//p" "$tmp" | sed -n 1p)"
     if [[ "$verb" == leave ]]; then
       [[ -n "$v" ]] || continue
       nv="$(spl_box_last "$v" "$SPL_BOX_ME")"
     else
-      nv="$(sed -n "s/^$k=//p" "$saved" | head -1)"
+      nv="$(sed -n "s/^$k=//p" "$saved" | sed -n 1p)"
       [[ -n "$nv" ]] || continue
     fi
     [[ "$nv" == "$v" ]] && continue

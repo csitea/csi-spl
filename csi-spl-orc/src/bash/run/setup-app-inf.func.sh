@@ -95,7 +95,7 @@ _sai_build() {
   do_log "INFO bundling $(find "$ctx/sql" -name '*.sql' | wc -l) sql file(s) from $LDE_SQL_SRC"
   docker build -q --build-arg "MIGRATIONS_DIR=$LDE_MIGRATIONS_DIR" -t "$LDE_HUB_IMAGE" \
     -f "$LDE_DOCKER_DIR/spool-hub-api/Dockerfile" "$ctx" >/dev/null || { do_log "FATAL hub image build failed"; return 1; }
-  do_log "INFO built $LDE_HUB_IMAGE ($("$_SAI_CLI" version 2>/dev/null | head -1))"
+  do_log "INFO built $LDE_HUB_IMAGE ($("$_SAI_CLI" version 2>/dev/null | sed -n 1p))"
 }
 
 _sai_check_pg() {

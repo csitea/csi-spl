@@ -36,7 +36,7 @@ do_spl_peer_distill() {
   spl_rotate_conf || return 1
   at="$(printf ':%02d' "$(spl_peer_slot_minute "$n" "$PEER_RESTART_OFFSET")")"
   d="$SPOOL_ROOT/$id/handoff"
-  pid="$(spl_peer_pids "$id" | head -1)"
+  pid="$(spl_peer_pids "$id" | sed -n 1p)"
   [[ -n "$pid" ]] || { spl_peer_rlog "distill-$id" DISTILL SKIP "no live session carries $id"; return 0; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_peer_rlog "distill-$id" DISTILL SKIP "pid $pid of $id is in no tmux pane"; return 0; }

@@ -55,7 +55,7 @@ do_spl_lane_restart() {
   if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then spl_lane_restart_spawn; return; fi
   local rid id="$ID" wt pid pane task brief split n tr ctx
   rid="$(date -u +%Y%m%dT%H%M%SZ)-$id"
-  pid="$(spl_rotate_pids "$id" | head -1)"
+  pid="$(spl_rotate_pids "$id" | sed -n 1p)"
   [[ -n "$pid" ]] || { spl_lane_restart_log "$rid" GATE FAIL "no live claude carries $id"; return 1; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_lane_restart_log "$rid" GATE FAIL "$id pid $pid sits in no tmux pane"; return 1; }
@@ -254,7 +254,7 @@ spl_lane_restart_clean() {
 spl_lane_restart_brief() {
   [[ -n "$1" ]] || return 0
   spl_rotate_as_agent head -n 50 "$1" 2>/dev/null | jq -r 'select(.type == "user") | .message.content | strings' 2>/dev/null |
-    grep -oE -m1 'task brief at [^ ]+' | head -1 | sed -E 's/^task brief at //; s/[.,;]$//' || true
+    grep -oE 'task brief at [^ ]+' | sed -n 1p | sed -E 's/^task brief at //; s/[.,;]$//' || true
 }
 
 # The lane's last context in thousands: input + cache_read + cache_creation of
@@ -336,7 +336,7 @@ spl_lane_restart_distil_body() {
   echo "## 2. In flight: git and spool state"
   echo "- branch: $branch"
   echo "- git status --short (tracked):"
-  git -c safe.directory='*' -C "$wt" status --short --untracked-files=no 2>/dev/null | head -n 15 | sed 's/^/    /' | grep . || echo "    clean"
+  git -c safe.directory='*' -C "$wt" status --short --untracked-files=no 2>/dev/null | sed -n 1,15p | sed 's/^/    /' | grep . || echo "    clean"
   echo "- commits not on origin/master:"
   git -c safe.directory='*' -C "$wt" log --oneline -10 origin/master..HEAD 2>/dev/null | sed 's/^/    /' | grep . || echo "    none (all pushed)"
   echo "- last spool message sent: $(spl_lane_restart_last_msg "$SPOOL_ROOT/$id/outbox" to)"
@@ -361,7 +361,7 @@ spl_lane_restart_last_msg() {
   local who=from f
   local -a dirs=()
   for f in "$@"; do if [[ "$f" == to ]]; then who=to; else dirs+=("$f"); fi; done
-  f="$(find "${dirs[@]}" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)"
+  f="$(find "${dirs[@]}" -maxdepth 1 -name '*.json' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n 1p | cut -d' ' -f2-)"
   [[ -n "$f" ]] || { echo none; return 0; }
   jq -r --arg who "$who" '"\(.ts // "?") \(if $who == "to" then "-> " + (.to // "?") else "<- " + (.from // "?") end) \(.kind // "?") [\(.task_id // "" | .[0:12])] \((.body // "") | gsub("\\s+"; " ") | .[0:160])"' "$f" 2>/dev/null || echo "UNAVAILABLE: $f unreadable"
 }

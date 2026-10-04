@@ -88,7 +88,7 @@ do_parse_metadata() {
 # Usage: do_get_description <file_path>
 do_get_description() {
   local file_path="${1:?Usage: do_get_description <file_path>}"
-  do_parse_metadata "$file_path" "description" | head -1 | sed 's/^description=//'
+  do_parse_metadata "$file_path" "description" | sed -n 1p | sed 's/^description=//'
 }
 
 # Extract all @param lines from a file

@@ -28,7 +28,7 @@ _spl_failed_deploy_runs() {
       [[ -n "$rid" ]] || continue
       # best-effort failing step (first failed step of any job)
       step="$(gh api "repos/{owner}/{repo}/actions/runs/$rid/jobs" \
-                --jq '.jobs[].steps[] | select(.conclusion=="failure") | .name' 2>/dev/null | head -1)"
+                --jq '.jobs[].steps[] | select(.conclusion=="failure") | .name' 2>/dev/null | sed -n 1p)"
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$rid" "$wf" "$url" "$sha" "$title" "$step"
     done < <(gh run list --workflow "$wf" --status failure --limit 5 \
                --json databaseId,url,headSha,displayTitle \

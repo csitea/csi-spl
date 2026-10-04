@@ -258,7 +258,7 @@ spl_dispatch_boxes_of() {
 # by mtime: the box writes a file on delivery) since the window opened.
 spl_dispatch_inbound() {
   local t="$1" data="$2" posts uns n=0 a d win="${DISPATCH_SILENCE_WINDOW:-120}" since
-  IFS='|' read -r _ posts uns < <(grep '^hum|' <<<"$data" | head -1)
+  IFS='|' read -r _ posts uns < <(grep '^hum|' <<<"$data" | sed -n 1p)
   posts="${posts:-0}" uns="${uns:-0}"
   spl_test_workspace "$t" && return 0
   (( uns > 0 )) && echo "UNSIGNED $t $uns of $posts human posts in $win min stored unsigned, no agent got them: no box-wui pin, see do_spl_check_box_wui_pins"

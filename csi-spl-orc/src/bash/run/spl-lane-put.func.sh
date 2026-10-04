@@ -38,9 +38,9 @@ do_spl_lane_put() {
   # a LANE_* set in the environment, even empty, wins over it
   lane_was() { jq -r --arg k "$1" '.[$k] // "" | if type == "array" then join(",") else . end' <<<"${cur:-{\}}"; }
   scope="${LANE_SCOPE-$(lane_was scope)}"
-  scope="$(printf '%s' "$scope" | tr '\t\r\n' '   ' | tr -d '\000-\037\177' | head -c 500)"
+  scope="$(printf '%s' "$scope" | tr '\t\r\n' '   ' | tr -d '\000-\037\177' | cut -b 1-500)"
   files="${LANE_FILES-$(lane_was files)}"
-  files="$(printf '%s' "$files" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | head -50 | paste -sd, -)"
+  files="$(printf '%s' "$files" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | sed -n 1,50p | paste -sd, -)"
   local box="$LANE_BOX" out
   [[ -n "$cur" ]] && box="$(lane_was agent_box)"
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL lane $LANE_AGENT: the box must be ONE box id, got '$box'"; return 1; }

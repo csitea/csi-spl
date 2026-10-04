@@ -179,7 +179,7 @@ if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${
   mark_dir="${DESK_CRON_STATE_DIR:-$HOME/.cache/$(basename "$ROOT")}"
   seen="$mark_dir/behind-head.${head_sha:0:12}"
   if [ "$head_sha" != "$trunk_sha" ]; then
-    dirty="$(git -C "$ROOT" status --porcelain 2>/dev/null | head -5 | tr '\n' ' ')"
+    dirty="$(git -C "$ROOT" status --porcelain 2>/dev/null | sed -n 1,5p | tr '\n' ' ')"
     if [ -z "$dirty" ] && [ ! -e "$seen" ] &&
        git -C "$ROOT" merge-base --is-ancestor HEAD "$trunk_sha" 2>/dev/null; then
       rm -f "$mark_dir"/behind-head.* 2>/dev/null
@@ -197,7 +197,7 @@ if [ "${DESK_TRUNK_CHECK:-1}" != 0 ] && git -C "$ROOT" rev-parse --verify -q "${
     say "FATAL this tick runs stale code - fix the checkout (the crontab's 'git checkout --detach' cannot move it)"
     mark="$mark_dir/stale-checkout.${head_sha:0:12}.${trunk_sha:0:12}"
     lease_conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf"
-    to="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | head -1)}"
+    to="${DESK_ALERT_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$lease_conf" 2>/dev/null | sed -n 1p)}"
     if [ ! -e "$mark" ] && [ -n "$to" ]; then
       mkdir -p "$mark_dir" && touch "$mark"
       SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh" \

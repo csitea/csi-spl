@@ -28,9 +28,9 @@ do_spl_role_id_switch() {
   conf="${LEASE_CONF:-$root/dispatch/lease.conf}"
   read -r old new < <(awk -F'\t' -v id="$id" '($1 == id || $2 == id) && $2 ~ /^[acgq]-00[123]$/ {print $1, $2; exit}' "$root/agent-id-aliases.tsv" 2>/dev/null)
   [[ -n "$old" && -n "$new" ]] || { do_log "FATAL ROLE_ID '$id' is no role row (new id 001-003) of $root/agent-id-aliases.tsv"; return 1; }
-  key="$(grep -E "^LEASE_(ORCH|MASTER|FAILOVER)=($old|$new)$" "$conf" 2>/dev/null | cut -d= -f1 | head -1)"
+  key="$(grep -E "^LEASE_(ORCH|MASTER|FAILOVER)=($old|$new)$" "$conf" 2>/dev/null | cut -d= -f1 | sed -n 1p)"
   [[ -n "$key" ]] || { do_log "FATAL no LEASE_ORCH / LEASE_MASTER / LEASE_FAILOVER line names $old or $new in $conf"; return 1; }
-  agent_user="${SPOOL_AGENT_USER:-$(sed -n 's/^SPOOL_AGENT_USER=//p' "$root/box.env" 2>/dev/null | head -1)}"
+  agent_user="${SPOOL_AGENT_USER:-$(sed -n 's/^SPOOL_AGENT_USER=//p' "$root/box.env" 2>/dev/null | sed -n 1p)}"
   agent_user="${agent_user:-$USER}"
   echo "== role $key: $old -> $new (DRY_RUN=$dry)"
   echo "== 1. rename"

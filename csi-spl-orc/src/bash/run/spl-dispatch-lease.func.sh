@@ -208,7 +208,7 @@ spl_lease_agent_pid() {
     if (( ${#other[@]} )) && declare -F spool_proc_env_get >/dev/null; then
       spool_proc_env_get "$root" SPOOL_AGENT_ID "${other[@]}" | awk -v id="$id" '$2 == id {print $1}'
     fi
-  } | sort -n | head -1
+  } | sort -n | sed -n 1p
 }
 
 # The SPOOL_AGENT_ID of every live process on this box that carries one,
@@ -269,9 +269,9 @@ spl_lease_stall() {
   local pid="$1" text foot hit spin f st="" sat=0 now until
   text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
   foot="$(grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}")"
-  hit="$(grep -oiE -m1 -- "${LEASE_BLOCK_RE:-$LEASE_BLOCK_RE_DEFAULT}" <<<"$foot" | head -1)"
+  hit="$(grep -oiE -m1 -- "${LEASE_BLOCK_RE:-$LEASE_BLOCK_RE_DEFAULT}" <<<"$foot" | sed -n 1p)"
   [[ -n "$hit" ]] && { echo "$hit"; return 0; }
-  hit="$(grep -oiE -m1 -- "${LEASE_STALL_RE:-$LEASE_STALL_RE_DEFAULT}" <<<"$foot" | head -1)"
+  hit="$(grep -oiE -m1 -- "${LEASE_STALL_RE:-$LEASE_STALL_RE_DEFAULT}" <<<"$foot" | sed -n 1p)"
   f="$LEASE_DIR/spin.$pid"
   # the spinner's "(...)" only: its glyph and verb cycle while frozen
   spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$foot" | tail -1 | grep -oE '\(.*\)')"
@@ -302,7 +302,7 @@ spl_lease_limit_until() {
   local s tz now t win="${LEASE_LIMIT_WINDOW:-18300}"
   local -a dt=(date)
   s="$(grep -iE -- 'limit|continuing automatically' <<<"$1" |
-    grep -oiE -m1 -- '(resets|automatically)([[:space:]]+at)?[[:space:]]+[^·]+' | head -1)"
+    grep -oiE -- '(resets|automatically)([[:space:]]+at)?[[:space:]]+[^·]+' | sed -n 1p)"
   s="$(sed -E 's/^[A-Za-z]+([[:space:]]+at)?[[:space:]]+//' <<<"$s")"
   tz="$(grep -oE '\([A-Za-z_]+(/[A-Za-z_+-]+)*\)' <<<"$s" | tr -d '()')"
   s="$(sed -E 's/\([^)]*\)//g; s/,/ /g; s/[[:space:]]+at[[:space:]]+/ /g; s/[[:space:]]+/ /g; s/^ //; s/ $//' <<<"$s")"
@@ -756,13 +756,13 @@ spl_fleet_stuck() {
   act="$(spl_lease_activity "$pid" 2>/dev/null)"
   [[ "$act" =~ ^[0-9]+$ ]] || return 0
   oldest="$(find "${SPOOL_ROOT:-/var/spool-hub}/$id/inbox" -maxdepth 1 -type f -name '*.json' -newermt "@$act" \
-    -printf '%T@\n' 2>/dev/null | sort -n | head -1)"
+    -printf '%T@\n' 2>/dev/null | sort -n | sed -n 1p)"
   oldest="${oldest%.*}"
   [[ "$oldest" =~ ^[0-9]+$ ]] || return 0
   now="$(spl_lease_now)"
   (( now - oldest > max )) || return 0
   text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
-  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}" | grep -qE -- '…[[:space:]]*\([0-9][^)]*\)' && return 0
+  grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}" | grep -E -- '…[[:space:]]*\([0-9][^)]*\)' >/dev/null && return 0
   echo "oldest unread $((now - oldest))s > ${max}s, idle $((now - act))s"
 }
 
@@ -772,7 +772,7 @@ spl_lease_activity() {
   local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" home cwd dir
   [[ -n "${LEASE_ACTIVITY_CMD:-}" ]] && { $LEASE_ACTIVITY_CMD "$pid"; return; }
   declare -F spool_proc_environ >/dev/null || return 0
-  home="$(spool_proc_environ "$root" "$pid" 2>/dev/null | tr '\0' '\n' | sed -n 's/^HOME=//p' | head -1)"
+  home="$(spool_proc_environ "$root" "$pid" 2>/dev/null | tr '\0' '\n' | sed -n 's/^HOME=//p' | sed -n 1p)"
   cwd="$(readlink "$root/$pid/cwd" 2>/dev/null)"
   [[ -z "$cwd" ]] && cwd="$(spool_proc_as_owner "$root" "$pid" readlink "$root/$pid/cwd")"
   [[ -n "$home" && -n "$cwd" ]] || return 0
@@ -794,7 +794,7 @@ spl_fleet_owner_dm() {
     $LEASE_OWNER_CMD <<<"$text" >/dev/null 2>&1 || spl_lease_log "WARN owner DM failed (LEASE_OWNER_CMD)"
     spl_lease_log "OWNER-DM orch take-over: $who"; return 0
   fi
-  [[ -n "$owner" ]] || owner="$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9][0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | head -1)"
+  [[ -n "$owner" ]] || owner="$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9][0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | sed -n 1p)"
   [[ "$owner" =~ ^HUM-[0-9]+$ ]] ||
     { spl_lease_log "WARN orch take-over by $who: no owner to tell (LEASE_OWNER, or ASKS_OWNER in lease.conf)"; return 0; }
   ( ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_BOX="$LEASE_DESK_BOX" DESK_AGENT="${who%@*}" DESK_TO="$owner" \

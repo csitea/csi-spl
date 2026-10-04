@@ -44,7 +44,7 @@ do_spl_agent_identity_install() {
   # A line whose tag only STARTS with ours is someone else's job that an
   # anchored match would still spare - but it makes the tag ambiguous to a
   # human and to any looser tool. Refuse rather than guess.
-  if grep -F "# $AI_CRON_TAG" "$before" | ai_cron_without /dev/stdin | grep -q .; then
+  if grep -F "# $AI_CRON_TAG" "$before" | ai_cron_without /dev/stdin | grep . >/dev/null; then
     do_log "FATAL the crontab has a line whose tag starts with '# $AI_CRON_TAG' but is not ours - nothing changed:"
     grep -F "# $AI_CRON_TAG" "$before" | ai_cron_without /dev/stdin | sed 's/^/  /'
     rm -f "$before" "$after"; return 1
@@ -75,7 +75,7 @@ do_spl_agent_identity_install() {
   #    is not ours is reported and left alone, never overwritten.
   cmd="run-shell -b \"bash $script --apply --delay 8 >/dev/null 2>&1\""
   for hook in after-new-window pane-exited; do
-    h="$(ai_tmux show-hooks -g "$hook" 2>/dev/null | grep -F "${hook}[1] " | head -1)"
+    h="$(ai_tmux show-hooks -g "$hook" 2>/dev/null | grep -F "${hook}[1] " | sed -n 1p)"
     if [[ "$un" == 1 ]]; then
       if [[ "$h" != *agent-identity-reconcile.sh* ]]; then echo "OK hook ${hook}[1]: none of ours"
       elif [[ "$dry" == 1 ]]; then echo "PLAN hook: set-hook -gu ${hook}[1]   (was: $h)"

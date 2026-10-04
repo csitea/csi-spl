@@ -25,7 +25,7 @@
 
 # Print the agent id a commit subject carries, or empty. First match wins.
 _spl_agent_from_subject() {  # <subject>
-  printf '%s' "${1:-}" | grep -oiE '\b(CLE|GRK|AGY|QWN|SPL)-[0-9]+\b' | head -1 \
+  printf '%s' "${1:-}" | grep -oiE '\b(CLE|GRK|AGY|QWN|SPL)-[0-9]+\b' | sed -n 1p \
     | tr '[:lower:]' '[:upper:]'
 }
 

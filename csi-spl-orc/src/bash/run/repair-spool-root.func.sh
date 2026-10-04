@@ -38,7 +38,7 @@ do_repair_spool_root() {
 
   getent group "$g" >/dev/null || plan+=("groupadd --system '$g'")
   for u in "${members[@]}"; do
-    id -nG "$u" | tr ' ' '\n' | grep -qx "$g" || plan+=("usermod -aG '$g' '$u'")
+    id -nG "$u" | tr ' ' '\n' | grep -x "$g" >/dev/null || plan+=("usermod -aG '$g' '$u'")
   done
   if ! getent group "$g" >/dev/null && (( ${#members[@]} == 0 )); then
     do_log "FATAL group $g is new: name its members, SPOOL_ROOT_MEMBERS=\"<user> ...\" (every agent OS user and the box owner)"

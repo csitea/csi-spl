@@ -92,7 +92,7 @@ do_spl_agent_identity_restore() {
         [[ -x "$adapter" || -r "$adapter" ]] || { echo "FAILED  $id: no adapter $adapter"; failed=$((failed + 1)); continue; }
         ai_tmux has-session -t "=$sess" 2>/dev/null || ai_tmux new-session -d -s "$sess" 2>/dev/null
         pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
-          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -m1 -xE '%[0-9]+')"
+          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"
         if [[ -z "$pane" ]]; then echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1)); continue; fi
         now="$(date -u +%Y%m%dT%H%M%SZ)"
         printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$reg" 2>/dev/null
@@ -157,7 +157,7 @@ _ai_runas_check() {  # BOX-USER ID...
   local ids=" $* "
   while read -r pid args; do
     [[ "${args%% *}" =~ (^|/)(claude|grok|agy|qwen)$ ]] || continue
-    aid="$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -nE 's/^(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=//p' | head -n 1)"
+    aid="$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -nE 's/^(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=//p' | sed -n 1p)"
     [[ -n "$aid" && "$ids" == *" $aid "* ]] || continue
     echo "ALERT   pid $pid ($aid) runs as $box, not the agent user: $args"; bad=1
   done < <(ps -u "$box" -o pid=,args= 2>/dev/null)

@@ -55,7 +55,7 @@ spl_db_health_sections() {
 # spl_db_health_known_section <name> -> 0 when it is "all" or a known section.
 spl_db_health_known_section() {
   [[ "$1" == all ]] && return 0
-  spl_db_health_sections | grep -qxF "$1"
+  spl_db_health_sections | grep -xF "$1" >/dev/null
 }
 
 # _spl_db_health_run <section> -> the SQL half, with SPL_PROXY_DSN in the env.

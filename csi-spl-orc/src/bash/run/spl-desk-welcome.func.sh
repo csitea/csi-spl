@@ -144,7 +144,7 @@ _spl_desk_welcome_greet() {
     [[ $i -eq 0 && -n "$prov" ]] && body+=$'\n\n'"$prov"
     date -u +%FT%TZ >"$D/$bot.claim"
     if out="$(spl_desk_welcome_post "$tenant" "$box" "$bot" "$body" 2>&1)"; then
-      mid="$(grep -o '"msg_id": *"[0-9a-f-]*"' <<<"$out" | head -n 1 | grep -o '[0-9a-f-]\{36\}')"
+      mid="$(grep -o '"msg_id": *"[0-9a-f-]*"' <<<"$out" | sed -n 1p | grep -o '[0-9a-f-]\{36\}')"
       printf '%s\n' "${mid:-sent}" >"$D/$bot.posted"
       rm -f "$D/$bot.claim"
       greeted=$((greeted + 1))

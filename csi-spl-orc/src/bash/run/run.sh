@@ -210,7 +210,7 @@ get_function_list() {
       grep '\''^[^{} ].* () $'\'' |
       awk "{print \$1}" |
       while read -r fnc_name; do
-         type "$fnc_name" | head -n 1 | grep -q "is a function$" || continue
+         type "$fnc_name" | sed -n 1p | grep "is a function$" >/dev/null || continue
             echo "$fnc_name"
             done
             '

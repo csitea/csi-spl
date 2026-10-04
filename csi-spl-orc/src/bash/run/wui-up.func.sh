@@ -39,7 +39,7 @@ do_wui_up() {
   # a host listener on the WUI port (e.g. a leftover `nuxi dev`) makes the
   # container fail to bind with a bare "compose up failed": name it instead
   local holder
-  if ! docker ps --filter "name=^${LDE_COMPOSE_PROJECT}-wui-1$" --filter status=running -q | grep -q . &&
+  if ! docker ps --filter "name=^${LDE_COMPOSE_PROJECT}-wui-1$" --filter status=running -q | grep . >/dev/null &&
      holder="$(ss -Hltnp "sport = :$LDE_WUI_PORT" 2>/dev/null)" && [[ -n "$holder" ]]; then
     do_log "FATAL 127.0.0.1:$LDE_WUI_PORT is already taken: $(tr -s ' ' <<<"$holder" | cut -d' ' -f4,6-) -- stop it, or pick another port with LDE_WUI_PORT"
     return 1

@@ -105,7 +105,7 @@ spl_backfill_probe_run() {
   for ((i = 1; i <= n; i++)); do
     out="$(SPOOL_SUBMIT_SOCKET=off spl_desk_spool "$d" "$box" "$tenant" "$hub" -- send --from "$poster" --channel "$ch" \
       --body "SPL-987 back-fill probe post $i of $n in #$ch" 2>&1)" || { do_log "FATAL post $i: $out"; return 1; }
-    sent+=("$(printf '%s' "$out" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)")
+    sent+=("$(printf '%s' "$out" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | sed -n 1p)")
   done
   local before
   before="$(find "$d/spool/$target/inbox" -name '*.json' | wc -l)"
@@ -126,7 +126,7 @@ spl_backfill_probe_run() {
   got="$(find "$d/spool/$target/inbox" -name '*.json' | wc -l)"
   pokes="$(grep -c -- "--to $target " "$d/pokes.log" 2>/dev/null)" || pokes=0
   local line want="added to #$ch: $n earlier $( ((n == 1)) && echo message || echo messages) in $n $( ((n == 1)) && echo topic || echo topics)"
-  line="$(grep -- "--to $target " "$d/pokes.log" 2>/dev/null | head -1)"
+  line="$(grep -- "--to $target " "$d/pokes.log" 2>/dev/null | sed -n 1p)"
   local ok=1 ids missing=""
   ids="$(cat "$d/spool/$target/inbox/"*.json 2>/dev/null)"
   for i in "${sent[@]}"; do

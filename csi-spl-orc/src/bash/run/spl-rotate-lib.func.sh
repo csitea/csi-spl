@@ -236,7 +236,7 @@ spl_rotate_idle() {
 # (usage limit, login, trust screen ...), nothing otherwise (FR-009).
 spl_rotate_stalled() {
   spl_rotate_screen "$1" | grep -v '^[[:space:]]*$' | tail -n "${LEASE_PANE_TAIL:-8}" |
-    grep -oiE -m1 -- "${LEASE_STALL_RE:-${LEASE_STALL_RE_DEFAULT:-usage limit reached}}" | head -1
+    grep -oiE -- "${LEASE_STALL_RE:-${LEASE_STALL_RE_DEFAULT:-usage limit reached}}" | sed -n 1p
   return 0
 }
 
@@ -271,7 +271,7 @@ spl_rotate_quiesce() {
 # and blocks nothing. OUT "-" prints instead of writing.
 spl_rotate_handoff() {
   local role="$1" id="$2" rid="$3" out="$4" pid="${ROTATE_OLD_PID:-}" pane="${ROTATE_OLD_PANE:-}" asks lanes tr age
-  [[ -n "$pid" ]] || pid="$(spl_rotate_pids "$id" | head -1)"
+  [[ -n "$pid" ]] || pid="$(spl_rotate_pids "$id" | sed -n 1p)"
   [[ -n "$pane" || -z "$pid" ]] || pane="$(spl_rotate_pane_of_pid "$pid")"
   age="$(spl_rotate_age "$pid")"
   asks="$(spl_rotate_json "ASKS_ROLE=${ROTATE_ASKS_ROLE:-orch}" ASKS_FORMAT=json -a do_spl_asks_open)"
@@ -382,7 +382,7 @@ spl_rotate_holds() {
   while IFS= read -r d; do
     [[ -n "$d" ]] || continue
     f="$d"
-    [[ -d "$d" ]] && f="$(ls -t "$d"/notes.md "$d"/runbook.md "$d"/*.md 2>/dev/null | head -1)"
+    [[ -d "$d" ]] && f="$(ls -t "$d"/notes.md "$d"/runbook.md "$d"/*.md 2>/dev/null | sed -n 1p)"
     head="" next=""
     if [[ -f "$f" && "$f" == *.md ]]; then
       head="$(grep -m1 -E '^#+ ' "$f" 2>/dev/null | sed -E 's/^#+ +//' | cut -c1-100)"
@@ -587,7 +587,7 @@ spl_rotate_end() {
     spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
     t0=$SECONDS; while (( SECONDS - t0 < wait )); do
       spl_rotate_alive "$pid" || return 0
-      if (( stop_asked == 0 )) && [[ -n "${6:-}" && -z "$then" ]] && spl_rotate_screen "$pane" | grep -qE '❯ 1\. Exit and stop tasks'; then
+      if (( stop_asked == 0 )) && [[ -n "${6:-}" && -z "$then" ]] && spl_rotate_screen "$pane" | grep -E '❯ 1\. Exit and stop tasks' >/dev/null; then
         spl_rotate_tmux send-keys -t "$pane" Enter 2>/dev/null || true
         spl_rotate_log "${ROTATE_RID:--}" RETIRE WAIT "pid $pid: '${6}' asked about running background work: 'Exit and stop tasks' confirmed"
         stop_asked=1
@@ -654,7 +654,7 @@ spl_rotate_ack_wait() {
 spl_rotate_ack_seen() {  # ID TASK
   find "$SPOOL_ROOT/$1/outbox" -maxdepth 1 -name '*.json' -mmin -120 -print0 2>/dev/null |
     xargs -0 -r jq -r --arg id "$1" --arg t "$2" 'select(.kind == "result" and .task_id == $t and ((.from // "") | sub("@.*"; "")) == $id) | .msg_id' 2>/dev/null |
-    grep -m1 . >/dev/null
+    grep . >/dev/null
 }
 
 # spl_rotate_ack_send ROLE ID: the new session's ack (ROTATE_CMD=ack

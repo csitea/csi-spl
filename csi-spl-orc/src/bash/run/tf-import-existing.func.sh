@@ -23,8 +23,8 @@
 # Resource imported successfully: T -> I` -- the leading "OK" moves into a
 # tag, so match the message text, and treat its FATAL twin as a failure.
 _tf_import_succeeded() { # <do_tf_import output>
-  printf '%s\n' "$1" | grep -qF "Resource imported successfully:" &&
-    ! printf '%s\n' "$1" | grep -qF "Failed to import resource:"
+  printf '%s\n' "$1" | grep -F "Resource imported successfully:" >/dev/null &&
+    ! printf '%s\n' "$1" | grep -F "Failed to import resource:" >/dev/null
 }
 
 do_tf_import_existing() {
@@ -56,7 +56,7 @@ do_tf_import_existing() {
   local con="${CON_TF_RUNNER:-con-${org}-${app}-tf-runner}"
 
   command -v docker >/dev/null 2>&1 || { do_log "FATAL docker is required"; return 1; }
-  docker ps --format '{{.Names}}' | grep -qxF "$con" || {
+  docker ps --format '{{.Names}}' | grep -xF "$con" >/dev/null || {
     do_log "FATAL tf-runner ${con} is not running (bring the orc stack up first)"
     return 1
   }
@@ -74,7 +74,7 @@ do_tf_import_existing() {
   local imported=0 skipped=0 failed=0 planned=0 addr id out
   while IFS=$'\t' read -r addr id; do
     [[ -n "$addr" ]] || continue
-    if printf '%s\n' "$in_state" | grep -qxF "$addr"; then
+    if printf '%s\n' "$in_state" | grep -xF "$addr" >/dev/null; then
       echo "SKIP  already in state: $addr"
       skipped=$((skipped + 1))
       continue
@@ -91,7 +91,7 @@ do_tf_import_existing() {
       imported=$((imported + 1))
     else
       echo "WARN  could not import $addr (not live? -- skipped, non-fatal):"
-      printf '%s\n' "$out" | grep -iE 'error|fatal' | head -n 3
+      printf '%s\n' "$out" | grep -iE 'error|fatal' | sed -n 1,3p
       failed=$((failed + 1))
     fi
   done <<<"$table"

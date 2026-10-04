@@ -131,7 +131,7 @@ spl_fallback_probe_run() {
   done
   local pline want1="unanswered post in #$ch (no member agent online): SPL-997 fallback probe"
   for ((i = 0; i < 50; i++)); do
-    pline="$(grep -- "--to $resp " "$d/pokes.log" 2>/dev/null | grep -- "$id" | head -1)"
+    pline="$(grep -- "--to $resp " "$d/pokes.log" 2>/dev/null | grep -- "$id" | sed -n 1p)"
     [[ -n "$pline" ]] && break
     sleep 0.1
   done
@@ -150,7 +150,7 @@ spl_fallback_probe_run() {
   done
   sleep 5
   grep -qs -- "$cid" "$d/spool/$resp/inbox/"*.json && cleak=1
-  grep -s -- "$cid" "$d/pokes.log" | grep -q -- "--to $resp " && cleak=1
+  grep -s -- "$cid" "$d/pokes.log" | grep -- "--to $resp " >/dev/null && cleak=1
 
   local ok=1
   (( got == 1 )) || ok=0

@@ -35,7 +35,7 @@ do_tf_sweep_steps() {
   for s in "${steps[@]}"; do
     for e in "${envs[@]}"; do
       o="$(_tf_sweep_make do-tf-plan "$e" "$s")"
-      sum="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy|No changes' <<<"$o" | head -1)"
+      sum="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy|No changes' <<<"$o" | sed -n 1p)"
       if [[ -z "$sum" ]] || grep -qE '^(│ )?Error|must be replaced' <<<"$o" || [[ "$sum" =~ ,\ [1-9][0-9]*\ to\ destroy ]]; then
         printf '%s\n' "$o" >>"$log"
         do_log "FATAL STOP $s $e plan: ${sum:-no plan summary} (destroy / replace / error gate; see $log)"; return 1
@@ -45,7 +45,7 @@ do_tf_sweep_steps() {
         continue
       fi
       o="$(_tf_sweep_make do-provision "$e" "$s")"
-      a="$(grep -oE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<<"$o" | head -1)"
+      a="$(grep -oE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<<"$o" | sed -n 1p)"
       [[ -n "$a" ]] || { printf '%s\n' "$o" >>"$log"; do_log "FATAL STOP $s $e: apply failed (see $log)"; return 1; }
       _tf_sweep_note "$log" "$s $e | $sum | $a"
     done

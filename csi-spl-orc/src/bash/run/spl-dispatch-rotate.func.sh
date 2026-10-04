@@ -421,7 +421,7 @@ spl_disp_refresh() {
   if [[ "$LH" != "$LEASE_MASTER" && "$LH" != "$LEASE_MASTER@$ROTATE_BOX" ]]; then
     spl_rotate_log "$rid" REFRESH SKIP "the lease is $LH, not $LEASE_MASTER: $f stays"; return 0
   fi
-  fpid="$(spl_rotate_pids "$f" | head -1)"
+  fpid="$(spl_rotate_pids "$f" | sed -n 1p)"
   [[ -n "$fpid" ]] || { spl_rotate_log "$rid" REFRESH SKIP "$f has no live process: the next run heals it"; return 0; }
   age="$(spl_rotate_age "$fpid")"; age="${age:-0}"
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_MIN_AGE )); then

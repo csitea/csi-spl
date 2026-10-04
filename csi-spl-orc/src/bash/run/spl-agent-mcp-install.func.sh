@@ -139,7 +139,7 @@ EOF_PY
       ;;
     grok|agy)
       as_agent "$cli" mcp list 2>/dev/null |
-        grep -qE "(^|[[:space:]])$name(:|[[:space:]]).*$bin $e([[:space:]]|$)" && echo yes || echo no
+        grep -E "(^|[[:space:]])$name(:|[[:space:]]).*$bin $e([[:space:]]|$)" >/dev/null && echo yes || echo no
       ;;
   esac
 }

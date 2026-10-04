@@ -107,10 +107,10 @@ _spl_channel_member_add_run() {
     return 1
   fi
   if (( n_added == 1 )); then
-    line="$(grep '^added | ' <<<"$out" | head -n 1)"
+    line="$(grep '^added | ' <<<"$out" | sed -n 1p)"
     do_log "OK added $who to #$4 in $1 ($GCP_ACCOUNT): $line"
   else
-    line="$(grep '^already | ' <<<"$out" | head -n 1)"
+    line="$(grep '^already | ' <<<"$out" | sed -n 1p)"
     do_log "OK ${line#already | } is already a member of #$4 in $1 ($GCP_ACCOUNT)"
   fi
 }

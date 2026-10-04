@@ -141,9 +141,9 @@ ghr_setup_user() {
     do_log "OK created user $u"
   fi
   sudo chmod 0700 "$GH_RUNNER_HOME" || return 1
-  id -nG "$u" | tr ' ' '\n' | grep -qxE 'docker|sudo|adm|root|wheel' \
+  id -nG "$u" | tr ' ' '\n' | grep -xE 'docker|sudo|adm|root|wheel' >/dev/null \
     && { do_log "FATAL $u is in a privileged group ($(id -nG "$u")) - a runner must not be root-equivalent"; return 1; }
-  sudo -l -U "$u" 2>/dev/null | grep -q 'may run' && { do_log "FATAL $u has sudo rights - remove them"; return 1; }
+  sudo -l -U "$u" 2>/dev/null | grep 'may run' >/dev/null && { do_log "FATAL $u has sudo rights - remove them"; return 1; }
   grep -q "^$u:" /etc/subuid && grep -q "^$u:" /etc/subgid \
     || sudo usermod --add-subuids 1000000-1065535 --add-subgids 1000000-1065535 "$u" \
     || { do_log "FATAL cannot give $u a subuid range"; return 1; }

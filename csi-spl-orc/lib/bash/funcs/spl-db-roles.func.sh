@@ -169,7 +169,7 @@ spl_db_api_user_set() {
   printf '{"name":"%s","password":"%s"}' "$user" "$pw" >"$tmp/body"
   url="$api"
   if gcloud sql users list --instance="$SPL_SQL_INSTANCE" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" \
-       --format='value(name)' 2>/dev/null | grep -qx "$user"; then
+       --format='value(name)' 2>/dev/null | grep -x "$user" >/dev/null; then
     method=PUT url="$api?name=$user"
     do_log "INFO user $user exists: resetting its password"
   fi

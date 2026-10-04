@@ -228,7 +228,7 @@ spl_desk_alive() {
   local pid
   pid="$(cat "$1" 2>/dev/null)" || return 1
   [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null &&
-    tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q ' hub-run'
+    tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null
 }
 
 # spl_desk_sidecar <state dir> <box> <tenant> <hub> <notify cmd>: ONE live
@@ -354,7 +354,7 @@ spl_desk_detach() {
 spl_desk_wait_roster() {
   local d="$1" box="$2" agent="$3" secs="$4" roster="$d/spool/.hub/roster.json" i
   for ((i = 0; i < secs * 5; i++)); do
-    if [[ -r "$roster" ]] && grep -oE "\"$box\":\[[^]]*\]" "$roster" 2>/dev/null | grep -q "\"$agent\""; then
+    if [[ -r "$roster" ]] && grep -oE "\"$box\":\[[^]]*\]" "$roster" 2>/dev/null | grep "\"$agent\"" >/dev/null; then
       do_log "INFO the hub announces $agent on $box (roster $roster)"; return 0
     fi
     spl_desk_alive "$d/spool/.hub/hub-run.pid" || { do_log "FATAL the hub-run sidecar of $box died: $(tail -n 3 "$d/spool/.hub/hub-run.log" 2>/dev/null)"; return 1; }

@@ -145,7 +145,7 @@ pool_ctl_serve_alive() {
   local pid
   pid="$(cat "$POOL_SERVE_PIDF" 2>/dev/null)" || return 1
   [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null &&
-    tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q ' pool serve'
+    tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep ' pool serve' >/dev/null
 }
 
 # pool_ctl_in_pane <pid> - 0 when <pid> or one of its ancestors is the process
@@ -216,7 +216,7 @@ pool_ctl_status() {
 # The DESK_MUTE baked into this env's desk-reconcile cron line, if any
 pool_ctl_cron_mute() {
   crontab -l 2>/dev/null | grep -v '^[[:space:]]*#' | grep "ENV=$ENV " | grep 'desk-reconcile-cron.sh' |
-    sed -n "s/.*DESK_MUTE=['\"]\{0,1\}\([A-Za-z0-9 _-]*\)['\"]\{0,1\} .*/\1/p" | head -1
+    sed -n "s/.*DESK_MUTE=['\"]\{0,1\}\([A-Za-z0-9 _-]*\)['\"]\{0,1\} .*/\1/p" | sed -n 1p
 }
 
 # pool_ctl_fresh <marker> - 0 when it exists and is no older than

@@ -132,9 +132,9 @@ spl_dispatch_model() {
   m="$(spl_dispatch_cmd_flag "$pid" --model)"
   [[ -n "$m" ]] && { echo "$m"; return 0; }
   if declare -F spool_proc_environ >/dev/null; then
-    home="$(spool_proc_environ "$root" "$pid" | tr '\0' '\n' | sed -n 's/^HOME=//p' | head -1)"
+    home="$(spool_proc_environ "$root" "$pid" | tr '\0' '\n' | sed -n 's/^HOME=//p' | sed -n 1p)"
   else
-    home="$(tr '\0' '\n' < "$root/$pid/environ" 2>/dev/null | sed -n 's/^HOME=//p' | head -1)"
+    home="$(tr '\0' '\n' < "$root/$pid/environ" 2>/dev/null | sed -n 's/^HOME=//p' | sed -n 1p)"
   fi
   cwd="$(readlink "$root/$pid/cwd" 2>/dev/null)"
   [[ -z "$cwd" ]] && declare -F spool_proc_as_owner >/dev/null &&
@@ -145,7 +145,7 @@ spl_dispatch_model() {
   sid="$(spl_dispatch_cmd_flag "$pid" --resume)"
   # shellcheck disable=SC2016
   local pick='f=""; [ -n "$2" ] && [ -f "$1/$2.jsonl" ] && f="$1/$2.jsonl"
-    [ -n "$f" ] || f="$(ls -t "$1"/*.jsonl 2>/dev/null | head -1)"
+    [ -n "$f" ] || f="$(ls -t "$1"/*.jsonl 2>/dev/null | sed -n 1p)"
     [ -n "$f" ] && grep -o "\"model\":\"[^\"]*\"" "$f" 2>/dev/null | tail -1'
   # The agent user's home is its own: read its transcript through it.
   if [[ -r "$dir" ]] || ! declare -F spool_proc_as_owner >/dev/null; then
@@ -221,7 +221,7 @@ spl_dispatch_check_tenant() {
     [[ -z "$bad" ]] && { row "$t inbound" "this box's desk is not the dispatch desk" "ok (held by $LH)"; return 0; }
   fi
   if [[ -z "$bad" ]]; then
-    l="$(sed -n 's/^hum|\([^|]*\)|.*/\1/p' <<<"$data" | head -1)"
+    l="$(sed -n 's/^hum|\([^|]*\)|.*/\1/p' <<<"$data" | sed -n 1p)"
     row "$t inbound" "${l:-0} human posts in ${DISPATCH_SILENCE_WINDOW:-120} min" ok
   else
     while IFS= read -r l; do row "$t inbound" "${l#* "$t" }" "GAP ${l%% *}"; done <<<"$bad"

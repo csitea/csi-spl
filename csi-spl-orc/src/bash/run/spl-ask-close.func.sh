@@ -18,7 +18,7 @@
 do_spl_ask_close() {
   local state="${ASK_STATE:-"done"}" reason
   [[ "$state" =~ ^(done|declined)$ ]] || { do_log "FATAL ASK_STATE must be done or declined"; return 1; }
-  reason="$(printf '%s' "${ASK_REASON:-}" | tr '\t\r\n' '   ' | tr -d '\000-\037\177' | head -c 500)"
+  reason="$(printf '%s' "${ASK_REASON:-}" | tr '\t\r\n' '   ' | tr -d '\000-\037\177' | cut -b 1-500)"
   [[ "$state" == "done" || -n "$reason" ]] || { do_log "FATAL a decline needs ASK_REASON"; return 1; }
   local op="done"
   [[ "$state" == declined ]] && op="decline"

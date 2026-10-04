@@ -78,7 +78,7 @@ spl_db_compact_tables() {
 
 # spl_db_compact_check <table> <dry> <allow_prd> <lock timeout> <statement timeout>
 spl_db_compact_check() {
-  spl_db_compact_tables | grep -qxF "$1" ||
+  spl_db_compact_tables | grep -xF "$1" >/dev/null ||
     { do_log "FATAL TABLE must be one of: $(spl_db_compact_tables | tr '\n' ' ')got '$1'"; return 1; }
   [[ "$2" == 0 || "$2" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got '$2'"; return 1; }
   [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got '${ENV:-}'"; return 1; }

@@ -210,7 +210,7 @@ spl_peer_able() {
       elif declare -F spool_proc_env_get >/dev/null; then
         spool_proc_env_get "$root" SPOOL_AGENT_ID "${d##*/}" | awk -v id="$id" '$2 == id {print $1}'
       fi
-    done | sort -n | head -1)"
+    done | sort -n | sed -n 1p)"
   [[ -n "$pid" ]] || return 0
   why="$(spl_lease_stall "$pid")"
   if [[ -n "$why" ]]; then printf 'stalled pid=%s: %s\n' "$pid" "$why" > "$LEASE_DIR/able.$id"; return 0; fi

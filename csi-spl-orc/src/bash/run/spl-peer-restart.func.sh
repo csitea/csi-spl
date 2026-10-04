@@ -304,9 +304,9 @@ spl_peer_cap() {
     return 0
   fi
   # "[cut]\n" is 6 bytes and the body's own last newline 1
-  body="$(head -n "$((PEER_DISTILL_MAX_LINES - 1))" "$f" | head -c "$((PEER_DISTILL_MAX_BYTES - 7))")"
+  body="$(head -c "$((PEER_DISTILL_MAX_BYTES - 7))" <(head -n "$((PEER_DISTILL_MAX_LINES - 1))" "$f"))"
   # a line the byte cap split is dropped whole
-  [[ -z "$(head -n "$((PEER_DISTILL_MAX_LINES - 1))" "$f" | head -c "$((PEER_DISTILL_MAX_BYTES - 7))" | tail -c1)" ]] ||
+  [[ -z "$(head -c "$((PEER_DISTILL_MAX_BYTES - 7))" <(head -n "$((PEER_DISTILL_MAX_LINES - 1))" "$f") | tail -c1)" ]] ||
     body="$(sed '$d' <<<"$body")"
   [[ -n "$body" ]] && printf '%s\n' "$body"
   echo "[cut]"

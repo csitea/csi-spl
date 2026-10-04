@@ -94,8 +94,8 @@ do_spl_standby_bench() {
   [[ -z "$(git -c safe.directory='*' -C "$PROJ_PATH/.." status --porcelain 2>/dev/null)" ]] || dirty="+dirty"
   cwd="$(mktemp -d "${TMPDIR:-/tmp}/spl-standby-bench.XXXXXX")" || return 1
   local claude_ver="-" grok_ver="-"
-  (( have_claude )) && claude_ver="$(claude --version 2>/dev/null | head -1)"
-  (( have_grok )) && grok_ver="$(grok --version 2>/dev/null | head -1)"
+  (( have_claude )) && claude_ver="$(claude --version 2>/dev/null | sed -n 1p)"
+  (( have_grok )) && grok_ver="$(grok --version 2>/dev/null | sed -n 1p)"
   BENCH_CWD="$cwd" BENCH_ROWS="$state/$stamp.jsonl" BENCH_REPORT_PATH="$report" BENCH_SHA="${sha}${dirty}" \
     BENCH_STAMP="$stamp" BENCH_CLAUDE_VER="$claude_ver" BENCH_GROK_VER="$grok_ver" BENCH_SKIPPED="$(printf '%s\n' "${skipped[@]}")" \
     python3 "$PROJ_PATH/src/bash/scripts/spl-standby-bench.py" "$n" "$effort" "$budget" "$tmo" "$thinking" "${plan[@]}" || rc=$?

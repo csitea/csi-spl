@@ -42,7 +42,7 @@ do_spl_desk_up_boxes() {
       [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$b" != box-wui && "$b" != "$main" ]] || continue
       [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && continue
       [[ -e "$d/spool/.hub/hub-run.pid" ]] || continue
-      agent="$(spl_desk_box_agents "$d" | head -n 1)"
+      agent="$(spl_desk_box_agents "$d" | sed -n 1p)"
       [[ -n "$agent" ]] || continue
       n=$((n + 1))
       why="$(spl_desk_box_state "$d")"

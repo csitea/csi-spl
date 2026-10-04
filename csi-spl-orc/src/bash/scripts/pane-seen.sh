@@ -105,7 +105,7 @@ while :; do
     kind="${pair%%:*}" pane="${pair#*:}"
     [ -n "$pane" ] || continue
     [ "$where" = any ] || [ "$where" = "$kind" ] || continue
-    if tm capture-pane -p -S -500 -t "$pane" | flatten | grep -qF -- "$want"; then
+    if tm capture-pane -p -S -500 -t "$pane" | flatten | grep -F -- "$want" >/dev/null; then
       seen_pane="$pane" seen_kind="$kind"; break
     fi
   done

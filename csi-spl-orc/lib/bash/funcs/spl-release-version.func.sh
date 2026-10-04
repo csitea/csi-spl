@@ -134,7 +134,7 @@ spl_claim_tag_push() {
   SPL_CLAIM_ERR="$out"
   # A real race leaves $tag on the remote NOW (another lane claimed it) -> 2.
   # Anything else (the ref never appears) is a genuine rejection -> 1.
-  git -C "$dir" ls-remote --tags "$remote" "refs/tags/$tag" 2>/dev/null | grep -q "refs/tags/$tag$" && return 2
+  git -C "$dir" ls-remote --tags "$remote" "refs/tags/$tag" 2>/dev/null | grep "refs/tags/$tag$" >/dev/null && return 2
   return 1
 }
 

@@ -28,7 +28,7 @@ do_spl_probe_hub_host() {
 
   out="$(getent hosts "$host" | awk '{print $1}' | tr '\n' ' ')"
   local cname
-  cname="$(command -v dig >/dev/null && dig +short CNAME "$host" | head -1)"
+  cname="$(command -v dig >/dev/null && dig +short CNAME "$host" | sed -n 1p)"
   [[ -n "$out" ]] && _probe dns PASS "${cname:+$cname }$out" || _probe dns FAIL "does not resolve"
 
   if command -v openssl >/dev/null; then

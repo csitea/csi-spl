@@ -36,12 +36,12 @@ do_spl_responder_reboot_test() {
   # 1. the reboot-proof driver: a desk-reconcile crontab line this box owns,
   #    whose script is executable. Match on the tag, env-scoped or not.
   local tag="${SPL_ORG_APP}:desk-reconcile" cronline script
-  cronline="$(crontab -l 2>/dev/null | grep -F "# $tag" | head -1)"
+  cronline="$(crontab -l 2>/dev/null | grep -F "# $tag" | sed -n 1p)"
   if [[ -z "$cronline" ]]; then
     do_log "FAIL no '$tag' crontab line: nothing re-seats the desks or runs the responder after a reboot"
     fails=$((fails + 1))
   else
-    script="$(printf '%s' "$cronline" | grep -oE '[^ ]*desk-reconcile-cron\.sh' | head -1)"
+    script="$(printf '%s' "$cronline" | grep -oE '[^ ]*desk-reconcile-cron\.sh' | sed -n 1p)"
     if [[ -n "$script" && -x "$script" ]]; then
       do_log "OK 1/4 reboot driver: desk-reconcile cron installed, script executable ($script)"
     else

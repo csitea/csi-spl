@@ -168,7 +168,7 @@ spl_th_render() {
 # destroy of an address not in the allow list.
 spl_th_plan_gate() {
   local o="$1" allow="$2" sum a
-  sum="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy|No changes' <<<"$o" | head -1)"
+  sum="$(grep -oE 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy|No changes' <<<"$o" | sed -n 1p)"
   # outputs-only: terraform prints neither summary, and touches no resource
   # (measured 2026-09-26: 019 after new custom domains changed its outputs)
   [[ -z "$sum" ]] && grep -q 'without changing any real infrastructure' <<<"$o" && sum="No changes"
@@ -194,12 +194,12 @@ spl_th_apply() {
     o="$(spl_th_make do-tf-plan STEP="$s")"
     spl_th_plan_gate "$o" "$allow"; rc=$?
     [[ $rc == 3 ]] && { do_log "INFO $s $ENV: no changes, apply skipped"; continue; }
-    [[ $rc == 0 ]] || { printf '%s\n' "$o" | grep -E '^ *# |Plan:|Error' | head -40 >&2; do_log "FATAL STOP $s $ENV: plan refused"; return 1; }
+    [[ $rc == 0 ]] || { printf '%s\n' "$o" | grep -E '^ *# |Plan:|Error' | sed -n 1,40p >&2; do_log "FATAL STOP $s $ENV: plan refused"; return 1; }
     printf '%s\n' "$o" | grep -E '^ *# .* will be' >&2
     o="$(spl_th_make do-provision STEP="$s")"
     grep -qE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<<"$o" ||
       { printf '%s\n' "$o" | tail -30 >&2; do_log "FATAL STOP $s $ENV: apply failed"; return 1; }
-    do_log "OK $s $ENV: $(grep -oE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<<"$o" | head -1)"
+    do_log "OK $s $ENV: $(grep -oE 'Apply complete! Resources: [0-9]+ added, [0-9]+ changed, [0-9]+ destroyed' <<<"$o" | sed -n 1p)"
   done
 }
 

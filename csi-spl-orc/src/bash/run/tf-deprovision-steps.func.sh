@@ -36,7 +36,7 @@ do_tf_deprovision_steps() {
         _tf_sweep_note "$log" "$s $e | DRY_RUN would destroy $n: $(tr '\n' ' ' <<<"$before")"; continue
       fi
       o="$(_tf_sweep_make do-deprovision "$e" "$s")"
-      d="$(grep -oE 'Destroy complete! Resources: [0-9]+ destroyed' <<<"$o" | head -1)"
+      d="$(grep -oE 'Destroy complete! Resources: [0-9]+ destroyed' <<<"$o" | sed -n 1p)"
       after="$(_tf_state_resources "$e" "$s" | grep -c .)"
       if [[ -z "$d" || "$after" -ne 0 ]]; then
         printf '%s\n' "$o" >>"$log"

@@ -167,7 +167,7 @@ box_deploy_prereqs() {
 box_deploy_missing_tools() {
   local out
   out="$(DESK_CRON_TOOLS="$1" bash "$PROJ_PATH/src/bash/scripts/desk-reconcile-cron.sh" --check-tools 2>&1)" && return 0
-  sed -n 's/.*these tools are not on the PATH: *//p' <<<"$out" | head -1
+  sed -n 's/.*these tools are not on the PATH: *//p' <<<"$out" | sed -n 1p
 }
 
 # box_deploy_install_pkgs <dry> <tool>...: the box's package manager, via sudo.

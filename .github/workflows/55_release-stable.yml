@@ -16,8 +16,14 @@
 # GitHub-hosted, no secret: GITHUB_TOKEN with contents: write pushes the tag
 # and creates the release. No GCP identity: /version is a public GET.
 #
+# Job `cli` (spec 072 A4a, lane L3) then attaches the `spool` CLI to the
+# release it cut: spool-<linux|darwin>-<amd64|arm64> + spool-SHA256SUMS, built
+# from the stable tag, so a box downloads the CLI instead of building it. On a
+# dry_run=1 dispatch it builds from this commit and uploads nothing.
+#
 # Local equivalent (dry run, prints the notes):
 #   STABLE_FROM_ENV=prd ./csi-spl-orc/run -a do_release_stable
+#   ./csi-spl-orc/run -a do_release_cli_assets
 
 name: "55 release: weekly stable"
 
@@ -46,6 +52,9 @@ jobs:
     name: Cut the stable release
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.stable.outputs.tag }}
+      version: ${{ steps.stable.outputs.version }}
     steps:
       # fetch-depth 0: the notes walk the history since the last stable tag
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -53,6 +62,7 @@ jobs:
           fetch-depth: 0
 
       - name: do_release_stable
+        id: stable
         env:
           STABLE_FROM_ENV: prd
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || '0' }}
@@ -63,4 +73,41 @@ jobs:
           ./csi-spl-orc/run -a do_release_stable
           { echo "## Stable release (DRY_RUN=$DRY_RUN)"; echo
             if [[ -s "$STABLE_NOTES_FILE" ]]; then cat "$STABLE_NOTES_FILE"; else echo "Nothing cut: see the log."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cli:
+    name: Attach the spool CLI
+    needs: cut
+    # a cut release, or a dry-run dispatch (build only, nothing uploaded)
+    if: needs.cut.outputs.tag != '' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == '1')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.cut.outputs.tag || github.sha }}
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache-dependency-path: csi-spl-api/src/go/spool-hub-api/go.sum
+
+      # build.sh is offline by design (GOPROXY=off): fill the module cache first
+      - name: Download Go modules
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      - name: do_release_cli_assets
+        env:
+          CLI_ASSETS_TAG: ${{ needs.cut.outputs.tag }}
+          CLI_ASSETS_VERSION: ${{ needs.cut.outputs.version }}
+          CLI_ASSETS_DIR: ${{ runner.temp }}/spool-cli
+          DRY_RUN: ${{ needs.cut.outputs.tag != '' && '0' || '1' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ./csi-spl-orc/run -a do_release_cli_assets
+          { echo "## spool CLI (DRY_RUN=$DRY_RUN${CLI_ASSETS_TAG:+, $CLI_ASSETS_TAG})"; echo; echo '```'
+            cat "$CLI_ASSETS_DIR/spool-SHA256SUMS"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

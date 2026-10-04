@@ -56,6 +56,7 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Owns**: `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, `csi-spl-orc/src/bash/tests/sql-proxy-none.tst.sh`.
   - **Needs**: T007.
   - **Done**: `bash csi-spl-orc/src/bash/tests/sql-proxy-none.tst.sh` passes; `SPOOL_CLOUD_PROVIDER=none spl_sql_proxy_start` starts no background proxy process.
+  - **Follow-up landed** (c-222): `cc4fc8d3`, the `db_dsn read <runtime|owner>` / `db_dsn local` seam (SM-26): `spl_via_proxy` and `do_spl_db_bootstrap` read the DSN without gcloud under `none` (runtime `$SPOOL_HUB_DB_DSN`, owner from the self-host `.env`); `db-dsn-none.tst.sh` 16 assertions, 0 gcloud calls. Open: the bootstrap still pins a GCP account first, and the other `spl_proxy_dsn` callers are not routed.
 
 - [x] T009 **secrets seam neutralization** [Parallel]: Route `do_spl_secrets_check` and `do_spl_secrets_seed_all` through `do_spl_cloud_dispatch`. Under `none`, read and seed `.env` mode 600 (Compose secrets) or `/var/lib/spool/state/session.key` instead of executing `gcloud secrets` CLI commands (owner decision 2).
   - **Owns**: `csi-spl-orc/src/bash/run/spl-secrets-check.func.sh`, `csi-spl-orc/src/bash/run/spl-secrets-seed-all.func.sh`, `csi-spl-orc/src/bash/tests/secrets-none.tst.sh`.
@@ -88,4 +89,4 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
 - [ ] T017 **aws github oidc workflows**: Create reusable GitHub Actions deploy workflows authenticating via AWS IAM OIDC roles.
 - [ ] T018 **aws clean-room smoke test**: Automated smoke test deploying test stack to AWS dev sandbox and verifying end-to-end messaging.
 
-<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T15:45:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T18:19:47Z -->

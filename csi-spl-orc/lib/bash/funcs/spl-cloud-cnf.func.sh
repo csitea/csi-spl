@@ -375,7 +375,7 @@ spl_host_spool_verdict() {
   fi
 }
 
-# spl_read_dsn [runtime|owner] -> the db_dsn read seam (spec 076 T017, SM-26):
+# spl_read_dsn [runtime|owner] -> the db_dsn read seam (spec 076 T008 follow-up, SM-26):
 # routed by do_spl_cloud_dispatch to do_db_dsn_read_<provider>. Prints the
 # hub DB's runtime DSN (default) or the owner DSN, nothing when there is none.
 # The value is never logged; the caller keeps it in a local.

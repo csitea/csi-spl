@@ -21,7 +21,7 @@ spl_dsn_user() {
 }
 
 # spl_read_owner_dsn -> the owner DSN, or nothing: the db_dsn read seam
-# (spl_read_dsn owner, spec 076 T017); under gcp the latest version of
+# (spl_read_dsn owner, spec 076 T008 follow-up); under gcp the latest version of
 # $SPL_OWNER_DSN_SECRET, under none built from the self-host .env.
 spl_read_owner_dsn() {
   spl_read_dsn owner

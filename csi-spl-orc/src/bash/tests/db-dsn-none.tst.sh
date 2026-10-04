@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: spec 076 T017, the db_dsn seam (SM-26) under provider none:
+# Purpose: spec 076 T008 follow-up, the db_dsn seam (SM-26) under provider none:
 #          spl_read_dsn / spl_read_owner_dsn (do_spl_cloud_dispatch db_dsn
 #          read) and spl_local_dsn (db_dsn local), the DSN readers of
 #          spl_via_proxy and do_spl_db_bootstrap.

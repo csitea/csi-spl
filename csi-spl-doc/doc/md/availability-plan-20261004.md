@@ -138,6 +138,7 @@ revision). Durations come from the first and last log entry of the burst.
 | F-05 | 10-03 ~03:40 | minutes after a hub update | every machine's agents showed offline (t1 b3bf3d13) | the shared presence stamp after a hub update | c-062's fix (t1 484d66e6 07:56Z) | it happened after a rollout; R05 shrinks rollouts' blast radius | R06 |
 | F-06 | 10-03 11:51 | 193 s | the box PC's orchestrator went silent | unknown | the fleet lease failed over to the satellite at 181 s, as designed | - (the redundancy worked) | - |
 | F-07 | 10-03 ~12:40 | - | four lanes the orchestrator started never ran: the launcher printed an id and a pane, the agents died at once (t1 484d66e6 12:42Z) | the brief file write failed, the launcher did not check | not verified here whether the launcher now checks the brief | unknown | none (spawn tooling) |
+| F-08 | 09-30 | ~18 h | the desk cron's checkout sat 27 commits behind trunk, so every desk cron ran old code; the failed `git checkout` was silent | four dirty files in the shared desk checkout (header of `csi-spl-orc/src/bash/tests/desk-cron-trunk.tst.sh`) | `desk-reconcile-cron.sh` now fails loudly and tells the orchestrator once | detection yes, prevention no: every cron still checks out trunk in one shared tree (2.5.2) | R07 |
 
 ### 3.4 What the history says
 
@@ -148,11 +149,88 @@ revision). Durations come from the first and last log entry of the burst.
   ROLLOUT or a CODE DEFECT, none from infrastructure.
 - **Every hub incident was found by a person** (2.6.1). The longest (I-06,
   ~11 h, I-07, ~6 h, still open) are the ones nobody was paged for.
-- The fleet incidents (F-01..F-07) are as long as or longer than the hub's:
+- The fleet incidents (F-01..F-08) are as long as or longer than the hub's:
   the longest is 8 h (F-02). Most are owned elsewhere (SPL-1250, spec 068);
   the plan names them so they are not counted twice.
 - So the ranking below weights rows with incidents behind them first; rows
   with none (the infrastructure SPOFs of section 2) are real but have not
   broken yet, and each says so.
 
-<!-- last-edit: 2026-10-04T19:40:00Z -->
+
+## 4. Best practice per weakness, and the ranked rows
+
+### 4.1 How the rows are scored
+
+`score = impact / (effort + cost / 50)`: impact 1..5 on availability, effort in
+lane-days, cost in EUR/month (so EUR 50/month weighs like one lane-day). Rows
+with an incident behind them (section 3) rank first, as the owner asked; the
+score orders them within each group. Row R01 is first by the brief (in
+progress since before this plan).
+
+**Costs are list-price estimates for europe-north1, not quotes** (n=0
+calculator runs in this lane). Each lane that costs money re-prices in the GCP
+pricing calculator and puts that figure in front of the owner before asking
+for the go.
+
+**Needs go** = it costs money or mutates GCP (terraform apply, IAM, a new
+resource). Those rows are planned here and never applied by a lane without
+the owner's go for that call.
+
+### 4.2 Rows with incidents behind them
+
+| id | weakness (section) | incidents | fix (the standard practice) | cost EUR/mo | effort (days) | score | needs go | proof of done | files | box |
+|---|---|---|---|---|---|---|---|---|---|---|
+| R01 | post-rollout routing stall (2.1.2) | I-01..I-05: 21 bursts, 1 490 x 429 | self-heal after every rollout: probe the public health URL, on a 429 streak force one fresh revision (c-221 option A) | 0 | 1 | 5.0 | no (owner chose A) | the first real deploy that runs the step on dev and prd, its log line; a forced stall healed in a drill | `.github/workflows/20_hub-build-deploy.yml`, `csi-spl-orc/src/bash/run/heal-hub-deploy.func.sh` + test | sat (**c-221, landed `f7e190b3`, proof pending**) |
+| R02 | read-marks write deadlocks (I-07) | I-07: 47 x 500, still open | write rows in one deterministic order (sort the keys before the batch upsert) and retry a 40P01 once: the standard deadlock rule for batched upserts | 0 | 0.5 | 6.0 | no | a PG test with two concurrent `SaveReadMarks` on overlapping keys: 0 deadlocks in n>=200 runs (control: unsorted order deadlocks); prd log `deadlock detected` 0 over 24 h after the deploy | `csi-spl-api/src/go/spool-hub-api/internal/store/read_marks.go`, its `_test.go` | sat |
+| R03 | nothing pages (2.6.1) | every hub incident was found by a person | Cloud Monitoring: an uptime check on the public health URL from 3+ regions; alert policies on uptime fail, 429 rate, 5xx rate, `severity>=ERROR` log rate, Cloud SQL `up`, backup workflow failure; an email channel to the owner (not via the fleet: 2.5.4) | ~0..2 | 1 | 4.8 | **yes** (new tf step, apply) | a forced 429 streak on dev pages the owner's channel within 5 min; `policies list` shows the set on dev + prd, n=2 envs | new `csi-spl-iac/src/terraform/070-gcp-monitoring/**`, its step block in `csi-spl-cnf/csi-spl/all.env.yaml`, rendered tfvars | sat |
+| R04 | no SLO, no error budget (2.6.2) | all of section 3 | write an SLO for the hub (SLI: share of non-429/5xx responses + uptime-check success; target 99.5 % / 30 d) and an error-budget policy: budget spent -> rollouts batch (no per-commit prd roll) until it recovers | 0 | 0.5 | 4.0 | no (doc; the owner approves the target) | the doc on trunk; the 16-day history scored against it (section 3: ~18 min of full 429 outage on prd in 16 days, I-01..I-03, plus the 500 runs I-06, I-07) | new `csi-spl-doc/doc/md/SLO-spool-hub.md` | sat |
+| R05 | a 500 does not log its cause (2.6.4) | I-06 (~11 h, cause still unknown), I-08 | one choke point: `writeErr` with status >= 500 logs the request id, route and the wrapped error; a test that every 500 path leaves one ERROR line | 0 | 1 | 3.0 | no | a test that forces a store error on 3 routes and finds 3 ERROR lines with the request id; prd: every 5xx in 24 h has a matching ERROR line | `csi-spl-api/src/go/spool-hub-api/internal/hub/server.go` (+ a new `_test.go`) | sat |
+| R06 | 100 % cut-over; prd rolls with dev, not after it (2.1.4, 2.1.5) | I-06 (shipped to dev and prd in the same run), F-05 | deploy prd only after dev's post-deploy smoke is green; roll each env as a no-traffic tagged revision, probe its tag URL, then move traffic (Cloud Run's standard gradual rollout) | 0 | 2 | 2.0 | no (workflow) | a deploy run whose prd job starts after dev's smoke; a broken image on dev never reaches prd (forced on a throwaway branch) | `.github/workflows/20_hub-build-deploy.yml` (**after R01's lane closes**: same file) | sat |
+| R07 | desk crons run whatever trunk is, in one shared tree (2.5.2) | F-08 (~18 h stale), F-02 (the sweep that fixes it runs there) | desks run a pinned, known-good ref (the newest `v*` release tag whose CI is green) and each cron takes a lock (`flock`) on the shared checkout | 0 | 1.5 | 2.0 | no | a red trunk commit on a throwaway ref is not picked up by any desk; two crons in the same minute serialize (test) | `csi-spl-orc/src/bash/scripts/desk-reconcile-cron.sh`, the `*-install-cron.func.sh` that write the prefix, `csi-spl-orc/src/bash/tests/desk-cron-trunk.tst.sh` | sat |
+| R08 | boxes are watched only by themselves (2.6.6) | F-04, F-06 (a silent box was found by the lease, not by a watch) | alert when a box's newest `box_stats` row is older than 15 min (a hub log line or metric R03's policies read); GCP-side VM metrics for the satellite need the Ops Agent and an IAM grant | ~0..1 | 1 | 2.0 | **yes** for the VM-metrics half (IAM grant, c-203's ask) | stop a box's stats cron on dev: the alert fires within 20 min | `csi-spl-api/src/go/spool-hub-api/internal/hub/box_stats.go` (+ test); the alert itself joins `070` after R03 | sat |
+
+### 4.3 Rows with no incident behind them yet
+
+Each is a real single point of failure or an unproven recovery path from
+section 2; none has caused an outage in 2026-09-18..10-04.
+
+| id | weakness (section) | incidents | fix (the standard practice) | cost EUR/mo | effort (days) | score | needs go | proof of done | files | box |
+|---|---|---|---|---|---|---|---|---|---|---|
+| R09 | a restore of an older dump fails verification (2.2.6) | none (drill red, n=2) | verify a restore against the counts AT THE DUMP's migration level (tables the dump predates are "expected missing", listed by migration id), not against live | 0 | 0.5 | 4.0 | no | g-225's two runs re-run: exit 0 with `box_stats`, `operator_audit` listed as newer than the dump; a control with a really missing table still exits 5 | `csi-spl-orc/src/bash/run/spl-db-restore.func.sh`, `spl-db-backup.func.sh` (the compare), their tests | sat |
+| R10 | off-instance dump RPO ~11 h (2.2.5) | none | dump 4 x a day (cron `17 */6 * * *`); PITR stays the minutes-RPO path in the project | <1 | 0.5 | 4.0 | no | 4 dumps per env per day for 2 days in the bucket; measured RPO <= 6 h | `.github/workflows/45_db-backup.yml` | sat |
+| R11 | off-project copy: byte restore never run (2.3.3) | none | run spec 044 T077: restore a dump and the files from the csi-spl-bkp bucket as its SA, on a box that holds that key | 0 | 0.5 | 4.0 | no (reads only) | spec 029 section 6.8: tables/rows and object counts vs live, RPO, RTO, n=2 envs | `csi-spl-doc/specs/029-spool-db-backup-health/spec.md` only | the box PC (holds the bkp key; the satellite has none) |
+| R12 | PITR is on but never restored (2.2.4) | none | a named action that clones the dev instance to a point in time (`gcloud sql instances clone --point-in-time`), counts tables, deletes the clone; run monthly | ~0 (a clone for < 1 h per drill) | 1 | 3.0 | **yes** (creates and deletes an instance) | one dev drill: RPO in seconds, RTO, counts vs live; the clone gone after | new `csi-spl-iac/src/bash/run/gcp-sql-pitr-drill.func.sh` + test | sat |
+| R13 | every bucket incl. the off-project copy in one region (2.3.1) | none | the off-project bucket in a second region (or the EU multi-region) so a regional loss keeps a copy | <1 | 0.5 | 1.9 | **yes** (new bucket, apply) | `buckets describe` shows the new location; one day's copy lands there | `csi-spl-iac/src/terraform/046-gcs-offsite-backups/**`, the 046 blocks in `dev.env.yaml` / `prd.env.yaml` | sat |
+| R14 | the satellite VM has no snapshot schedule (2.5.5) | none | a daily snapshot resource policy on its disks, 7 kept | ~3..5 | 0.5 | 1.7 | **yes** (apply) | `resource-policies list` + the first snapshot | `csi-spl-iac/src/terraform/060-gcp-vm-satellite/**`, the 060 block in `prd.env.yaml` | sat |
+| R15 | Cloud SQL ZONAL on a shared-core tier (2.2.1-2.2.3) | none (0 maintenance / failover ops, n=2 envs, 16 d) | prd on a dedicated-core tier (e.g. 1 vCPU / 3.75 GB) with `availability_type REGIONAL`: a standby in a second zone, automatic failover, SLA coverage, ~100 connections; dev stays as is | ~+85 (prd only: ~45 dedicated zonal, ~90 regional, vs ~9 today) | 1 + a maintenance window | 1.1 | **yes** (money + an instance restart) | `instances describe` shows REGIONAL + `secondaryGceZone`; a forced failover on prd in the owner's window: hub back < 2 min | the 040 block in `prd.env.yaml`; `SPOOL_HUB_DB_MAX_CONNS` in `all.env.yaml` | sat |
+| R16 | ingress via a preview domain mapping (2.1.10) | none | a decision memo for the owner: keep the mapping, or a global external Application LB (health checks, the standard production front, Cloud Armor later). Reverses the 2026-09-19 decision, so memo first | ~+18 if the LB is chosen | 1 | 0.7 | **yes** (reverses an owner decision; money) | the owner's answer recorded | new `csi-spl-doc/doc/md/ingress-lb-decision.md` | sat |
+| R17 | one hub instance holds every socket (2.1.1) | I-01..I-03 are this class (R01 heals; only this removes it) | spec: N >= 2 instances, session affinity, a cross-instance fan-out bus. The hub already has a Postgres LISTEN/NOTIFY wake listener (`internal/hub/wake.go`), the usual bus at this scale | 0 | 1.5 | 0.6 (with R18) | no (doc) | spec on trunk with the delivery contract and a test plan | new `csi-spl-doc/specs/<next>-hub-multi-instance/spec.md` | sat |
+| R18 | the same (2.1.1) | the same | implement R17; `max_instances >= 2` | ~+45 per env (one more always-on instance) | ~6 | 0.6 (with R17) | **yes** (money; needs R15 first: 25 connections cannot carry 2 instances) | a rollout with 2 instances: 0 x 429; a message to a box on the other instance delivered in < 1 s, n >= 100 | `csi-spl-api/src/go/spool-hub-api/internal/hub/**` (except `server.go`, `read_marks.go`, `box_stats.go` while R02/R05/R08 run), `max_instances` in `all.env.yaml` | sat |
+
+### 4.4 Already owned elsewhere (named so nobody plans them twice)
+
+| incident | owner |
+|---|---|
+| F-01 deploys stuck by a red gate | SPL-1250 deploy-gate (pre-push hook, live) |
+| F-03, F-04 an orchestrator or the fleet stopped by a usage limit | spec 068 peer seats (written, not built) |
+| role failover beyond the lease | `PRINCIPLES-role-failover.md` (proposal, topic 27f01e16) |
+
+## 5. Waves
+
+At most 6 rows per wave; the rows of a wave touch disjoint files, so they run
+as parallel lanes. A row that shares a file with an earlier row waits for its
+wave.
+
+| wave | rows | shared-file order it respects |
+|---|---|---|
+| 1 | R01 (running), R02, R03, R04, R05, R09 | - |
+| 2 | R06, R07, R08, R10, R11, R12 | R06 after R01 (workflow 20); R08's alert after R03 (070) |
+| 3 | R13, R16, R17 | R13 is the first of three rows on `prd.env.yaml` |
+| 4 | R15 | after R13 (`prd.env.yaml`) and before R18 (connections) |
+| 5 | R14, R18 | R14 after R15 (`prd.env.yaml`); R18 after R15 and R17 |
+
+**Needs the owner's go:** R03, R08 (VM-metrics half), R12, R13, R14, R15, R16,
+R18. Everything else is code, workflow or doc and runs on the normal
+integration rules.
+
+<!-- last-edit: 2026-10-04T20:05:00Z -->

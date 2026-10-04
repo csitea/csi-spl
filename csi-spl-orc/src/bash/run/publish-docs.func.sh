@@ -18,12 +18,20 @@
 # @description once 051 is applied): an INFO and rc 0, so the deploy step
 # @description lands before the bucket does.
 # @description As the env's project service account, never the owner account.
+# @description The publish itself is the cloud layer's docs publish (spec 076
+# @description T007): do_spl_cloud_dispatch docs publish -> do_docs_publish_gcp
+# @description (the bucket above, the default) or do_docs_publish_none (a
+# @description self-host box: the stage is mirrored into a local dir, e.g. the
+# @description hub's mounted docs volume - no gcloud, no cnf switch).
 # @param ENV - required: dev or prd
 # @param DRY_RUN (optional) - 1 (default): stage and print tree.json, upload nothing; 0: upload
 # @param DOCS_SHA (optional) - the commit tree.json names, default HEAD
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
+# @param SPOOL_CLOUD_PROVIDER (optional) - gcp | none, wins over cnf env.cloud.provider (default gcp)
+# @param DOCS_DIR (provider none) - the dir to mirror into, default SPOOL_HUB_DOCS_DIR; neither set: FATAL
 # @example ENV=dev ./run -a do_publish_docs
 # @example ENV=prd DRY_RUN=0 ./run -a do_publish_docs
+# @example SPOOL_CLOUD_PROVIDER=none DOCS_DIR=/var/lib/spool/docs ENV=prd DRY_RUN=0 ./run -a do_publish_docs
 #------------------------------------------------------------------------------
 do_publish_docs() {
   do_require_bin git jq || return 1
@@ -47,8 +55,16 @@ do_publish_docs() {
     return 0
   fi
 
-  do_require_bin yq gcloud || return 1
+  do_require_bin yq || return 1
   do_spl_cloud_cnf || return 1
+  do_spl_cloud_dispatch docs publish "$d/stage" "$sha" "$n"
+}
+
+# do_docs_publish_gcp <stage> <sha> <n>: upload the stage to the env's 051
+# docs bucket as the pinned project SA; off until cnf publish_enabled.
+do_docs_publish_gcp() {
+  local stage="$1" sha="$2" n="$3"
+  do_require_bin gcloud || return 1
   local bucket on
   bucket="$(yq -r '.env.steps."051-gcs-docs".docs_bucket_name // ""' "$SPL_CNF")"
   on="$(yq -r '.env.steps."051-gcs-docs".publish_enabled // false' "$SPL_CNF")"
@@ -58,9 +74,30 @@ do_publish_docs() {
   fi
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  spl_docs_upload "$d/stage" "$bucket" || { do_log "FATAL upload to gs://$bucket failed"; return 1; }
+  spl_docs_upload "$stage" "$bucket" || { do_log "FATAL upload to gs://$bucket failed"; return 1; }
   printf '{"env":"%s","bucket":"%s","sha":"%s","docs":%d}\n' "$ENV" "$bucket" "${sha:0:8}" "$n"
   do_log "OK $n doc(s) of ${sha:0:8} published to gs://$bucket"
+}
+
+# do_docs_publish_none <stage> <sha> <n>: mirror the stage into DOCS_DIR
+# (default SPOOL_HUB_DOCS_DIR, the hub's docs dir / its mounted volume): every
+# staged file copied at its repo path, then each *.md the stage no longer holds
+# removed and the dirs that leaves empty pruned. Only .md is ever deleted, so a
+# mistyped dir loses no other file. No cloud call.
+do_docs_publish_none() {
+  local stage="$1" sha="$2" n="$3" dir="${DOCS_DIR:-${SPOOL_HUB_DOCS_DIR:-}}" p
+  [[ -n "$dir" ]] || {
+    do_log "FATAL provider none publishes to a local dir: set DOCS_DIR (or SPOOL_HUB_DOCS_DIR, the hub's docs dir)"; return 1; }
+  [[ "$dir" == /* && "${dir%/}" != "" ]] || { do_log "FATAL DOCS_DIR must be an absolute path other than /, got: '$dir'"; return 1; }
+  dir="${dir%/}"
+  mkdir -p "$dir" && cp -R "$stage/." "$dir/" || { do_log "FATAL copy to $dir failed"; return 1; }
+  while IFS= read -r -d '' p; do
+    p="${p#"$dir"/}"
+    [[ -f "$stage/$p" ]] || rm -f "$dir/$p" || { do_log "FATAL cannot remove $dir/$p"; return 1; }
+  done < <(find "$dir" -type f -name '*.md' -print0)
+  find "$dir" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+  jq -cn --arg env "$ENV" --arg dir "$dir" --arg sha "${sha:0:8}" --argjson n "$n" '{env: $env, dir: $dir, sha: $sha, docs: $n}'
+  do_log "OK $n doc(s) of ${sha:0:8} published to $dir"
 }
 
 # spl_docs_stage <dir> <sha> -> <dir>/<repo path> for every published .md and

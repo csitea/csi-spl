@@ -167,18 +167,22 @@ _spl_tenant_create_cli() {
   cli="$out"
 }
 
-# _spl_tenant_create_cloud_dsn: pins the env's service account, reads the DSN
-# secret and starts the Cloud SQL proxy; sets the caller's dsn and proxied=1
-# (the proxy is stopped again when the DSN cannot be rewritten).
+# _spl_tenant_create_cloud_dsn: reads the runtime DSN and reaches it locally.
+# Under gcp that pins the env's service account and starts the Cloud SQL proxy
+# (spl_local_dsn is spl_proxy_dsn). Under none no account is pinned and the
+# DSN is the local Postgres one. Sets the caller's dsn and proxied=1 (the
+# proxy is stopped again when the DSN cannot be rewritten).
 _spl_tenant_create_cloud_dsn() {
-  do_gcp_pin_account "${SPL_CNF:-}" || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  if [[ "$(do_spl_cloud_provider)" != none ]]; then
+    do_gcp_pin_account "${SPL_CNF:-}" || return 1
+    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  fi
   local cloud_dsn
   cloud_dsn="$(spl_read_dsn)"
-  [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
+  [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as ${GCP_ACCOUNT:-}"; return 1; }
   spl_sql_proxy_start || return 1
   proxied=1
-  dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || {
+  dsn="$(spl_local_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || {
     spl_sql_proxy_stop
     do_log "FATAL the DSN in $SPL_DSN_SECRET is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"
     return 1

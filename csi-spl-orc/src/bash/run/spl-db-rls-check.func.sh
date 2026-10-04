@@ -25,8 +25,21 @@
 # @example ENV=prd EXPECT_RLS=1 ./run -a do_spl_db_rls_check
 #------------------------------------------------------------------------------
 do_spl_db_rls_check() {
-  do_require_bin gcloud psql python3 || return 1
+  local provider
+  provider="$(do_spl_cloud_provider)" || return 1
+  if [[ "$provider" == none ]]; then
+    do_require_bin psql python3 || return 1
+  else
+    do_require_bin gcloud psql python3 || return 1
+  fi
   do_spl_cloud_cnf || return 1
+  if [[ "$provider" == none ]]; then
+    local dsn none_rc=0
+    spl_db_runtime_local || return 1
+    _spl_db_rls_query || none_rc=$?
+    unset dsn
+    return "$none_rc"
+  fi
   local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
   local cfg rc=0
@@ -37,21 +50,24 @@ do_spl_db_rls_check() {
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
     GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
     export GCP_ACCOUNT
-    local cloud_dsn dsn out qrc
-    cloud_dsn="$(spl_read_dsn)"
-    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; exit 1; }
-    spl_sql_proxy_start || exit 1
-    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" ||
-      { spl_sql_proxy_stop; do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"; exit 1; }
-    out="$(spl_psql_ro "$dsn" "$(spl_db_rls_sql)")"
-    qrc=$?
-    spl_sql_proxy_stop
-    [[ $qrc == 0 && -n "$out" ]] || { do_log "FATAL read-only catalog query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; exit 1; }
-    printf '%s\n' "$out"
-    spl_db_rls_verdict "$out" "${EXPECT_RLS:-0}" "${EXPECT_NOT_LIFTABLE:-0}"
+    spl_db_runtime_local || exit 1
+    _spl_db_rls_query
+    exit $?
   ) || rc=$?
   rm -rf "$cfg"
   return $rc
+}
+
+# _spl_db_rls_query -> the catalog read, once $dsn is the local login.
+# The verdict's exit (0 / 3 / 4 / 5) is this function's. Stops the proxy.
+_spl_db_rls_query() {
+  local out qrc
+  out="$(spl_psql_ro "$dsn" "$(spl_db_rls_sql)")"
+  qrc=$?
+  spl_sql_proxy_stop
+  [[ $qrc == 0 && -n "$out" ]] || { do_log "FATAL read-only catalog query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; return 1; }
+  printf '%s\n' "$out"
+  spl_db_rls_verdict "$out" "${EXPECT_RLS:-0}" "${EXPECT_NOT_LIFTABLE:-0}"
 }
 
 # spl_db_rls_sql -> one JSON object: the login's role flags, 0014 applied or

@@ -26,7 +26,13 @@
 # @example ENV=prd LAG_FORMAT=ndjson ./run -a do_spl_consumer_lag | grep '^{' | jq -C .
 #------------------------------------------------------------------------------
 do_spl_consumer_lag() {
-  do_require_bin gcloud psql python3 || return 1
+  local provider
+  provider="$(do_spl_cloud_provider)" || return 1
+  if [[ "$provider" == none ]]; then
+    do_require_bin psql python3 || return 1
+  else
+    do_require_bin gcloud psql python3 || return 1
+  fi
   local alert_min="${LAG_ALERT_MIN:-30}" dead_h="${LAG_DEAD_HOURS:-72}"
   [[ "$alert_min" =~ ^[0-9]+$ ]] && ((alert_min >= 1 && alert_min <= 10080)) ||
     { do_log "FATAL LAG_ALERT_MIN must be 1..10080 minutes, got: '$alert_min'"; return 1; }
@@ -37,6 +43,13 @@ do_spl_consumer_lag() {
     { do_log "FATAL LAG_FORMAT must be auto, table or ndjson, got: '$fmt'"; return 1; }
   [[ "$fmt" == auto ]] && { [[ -t 1 ]] && fmt=table || fmt=ndjson; }
   do_spl_cloud_cnf || return 1
+  if [[ "$provider" == none ]]; then
+    local dsn none_rc=0
+    spl_db_runtime_local || return 1
+    _spl_consumer_lag_query || none_rc=$?
+    unset dsn
+    return "$none_rc"
+  fi
   local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
   local cfg rc=0
@@ -47,27 +60,32 @@ do_spl_consumer_lag() {
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
     GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
     export GCP_ACCOUNT
-    local cloud_dsn dsn out qrc summary
-    cloud_dsn="$(spl_read_dsn)"
-    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; exit 1; }
-    spl_sql_proxy_start || exit 1
-    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" ||
-      { spl_sql_proxy_stop; do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"; exit 1; }
-    out="$(spl_psql_ro "$dsn" "$(spl_consumer_lag_sql "$alert_min" "$dead_h")")"
-    qrc=$?
-    spl_sql_proxy_stop
-    [[ $qrc == 0 ]] || { do_log "FATAL read-only query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; exit 1; }
-    spl_consumer_lag_render "$out" "$fmt" || { do_log "FATAL cannot parse the lag rows"; exit 1; }
-    summary="$(spl_consumer_lag_summary "$out")" || { do_log "FATAL cannot parse the lag rows"; exit 1; }
-    printf '%s\n' "$summary"
-    if grep -q '^ALERT ' <<<"$summary"; then
-      do_log "ALERT consumer lag past ${alert_min}m on a live box in $SPL_PROJECT/$SPL_DB_NAME (read-only, as $GCP_ACCOUNT)"
-      exit 3
-    fi
-    do_log "OK consumer lag read in $SPL_PROJECT/$SPL_DB_NAME, no live box past ${alert_min}m (read-only, as $GCP_ACCOUNT)"
+    spl_db_runtime_local || exit 1
+    _spl_consumer_lag_query
+    exit $?
   ) || rc=$?
   rm -rf "$cfg"
   return $rc
+}
+
+# _spl_consumer_lag_query -> the read, once $dsn is the local login and the
+# proxy (if any) is up. Stops the proxy. Exit 3 when a live box is past the
+# alert age. Under gcp $GCP_ACCOUNT is the project SA, so the log line is the
+# one this action printed before the seam.
+_spl_consumer_lag_query() {
+  local out qrc summary
+  out="$(spl_psql_ro "$dsn" "$(spl_consumer_lag_sql "$alert_min" "$dead_h")")"
+  qrc=$?
+  spl_sql_proxy_stop
+  [[ $qrc == 0 ]] || { do_log "FATAL read-only query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; return 1; }
+  spl_consumer_lag_render "$out" "$fmt" || { do_log "FATAL cannot parse the lag rows"; return 1; }
+  summary="$(spl_consumer_lag_summary "$out")" || { do_log "FATAL cannot parse the lag rows"; return 1; }
+  printf '%s\n' "$summary"
+  if grep -q '^ALERT ' <<<"$summary"; then
+    do_log "ALERT consumer lag past ${alert_min}m on a live box in $SPL_PROJECT/$SPL_DB_NAME (read-only, as ${GCP_ACCOUNT:-})"
+    return 3
+  fi
+  do_log "OK consumer lag read in $SPL_PROJECT/$SPL_DB_NAME, no live box past ${alert_min}m (read-only, as ${GCP_ACCOUNT:-})"
 }
 
 # spl_consumer_lag_sql <alert minutes> <dead hours> -> one json object per box

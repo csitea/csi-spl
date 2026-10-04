@@ -578,6 +578,26 @@ spl_via_proxy() {
   return $rc
 }
 
+# spl_db_runtime_local -> the caller's $dsn becomes the hub runtime login as
+# this box reaches it (spec 076 T008). Under gcp that is spl_proxy_dsn after
+# the Cloud SQL proxy; under none it is the local Postgres DSN. No gcloud call
+# is made here under none. The caller stops the proxy with spl_sql_proxy_stop.
+spl_db_runtime_local() {
+  local cloud_dsn
+  cloud_dsn="$(spl_read_dsn)"
+  [[ -n "$cloud_dsn" ]] || {
+    do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as ${GCP_ACCOUNT:-}"
+    return 1
+  }
+  spl_sql_proxy_start || return 1
+  # shellcheck disable=SC2034 # the caller's dsn, via dynamic scope
+  dsn="$(spl_local_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" || {
+    spl_sql_proxy_stop
+    do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"
+    return 1
+  }
+}
+
 # The 025 system role ids (hub internal/rbac RoleIDs, rdb 0021 + 0039), for
 # messages and @param lines; the hub DB (rbac_roles FK) is the authority.
 SPL_ROLE_IDS='biz_owner|product_owner|admin|developer|tester|pure_agent|biz_customer|regular_user'

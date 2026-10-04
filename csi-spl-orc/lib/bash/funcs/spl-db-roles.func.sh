@@ -12,6 +12,10 @@
 # @description same files hub-pg.tst.sh runs. Every gcloud call is pinned to
 # @description $GCP_ACCOUNT (the caller ran do_gcp_pin_account). A password or
 # @description DSN is never printed, never in argv: stdin and env only.
+# @description Secret writes go through do_spl_cloud_dispatch (spec 076 T008):
+# @description under gcp they are the Secret Manager calls below; under none
+# @description they update the self-host .env (mode 600, the T009 seam) and
+# @description never call gcloud.
 #------------------------------------------------------------------------------
 
 # spl_dsn_user <dsn> -> the login of a postgres:// DSN (the DSN travels in
@@ -27,15 +31,64 @@ spl_read_owner_dsn() {
   spl_read_dsn owner
 }
 
-# spl_secret_add <secret id> <- value on stdin: a new version, nothing logged
+# spl_secret_add <secret id> <- value on stdin: a new version, nothing logged.
+# Routed (spec 076 T008): do_db_secret_add_gcp is the Secret Manager write;
+# do_db_secret_add_none stores it in the self-host .env.
 spl_secret_add() {
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_secret add "$1"
+}
+
+# do_db_secret_add_gcp <secret id> <- value on stdin. The gcloud argv is the
+# one spl_secret_add used before the seam.
+do_db_secret_add_gcp() {
   gcloud secrets versions add "$1" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --data-file=- >/dev/null 2>&1
+}
+
+# do_db_secret_add_none <secret id> <- a postgres DSN on stdin. The owner slot
+# becomes SPOOL_DB_OWNER / SPOOL_DB_OWNER_PASSWORD / SPOOL_DB_NAME; the runtime
+# slot becomes $SPOOL_HUB_DB_DSN (exported, so a later spl_read_dsn sees it)
+# plus the runtime user and password. Mode 600. The value is never logged.
+do_db_secret_add_none() {
+  local secret="$1" dsn user pw db
+  local -a f=()
+  dsn="$(cat)"
+  [[ -n "$dsn" ]] || return 1
+  mapfile -t f < <(SPL_DSN_IN="$dsn" python3 -c '
+import os, urllib.parse as u
+p = u.urlsplit(os.environ["SPL_DSN_IN"])
+print(u.unquote(p.username or ""))
+print(u.unquote(p.password or ""))
+print(u.unquote(p.path.lstrip("/")))
+')
+  user="${f[0]:-}" pw="${f[1]:-}" db="${f[2]:-}"
+  if [[ "$secret" == "${SPL_OWNER_DSN_SECRET:-}" ]]; then
+    [[ -n "$user" ]] && { spl_secrets_none_put SPOOL_DB_OWNER "$user" || return 1; }
+    spl_secrets_none_put SPOOL_DB_OWNER_PASSWORD "$pw" || return 1
+    [[ -z "$db" ]] || { spl_secrets_none_put SPOOL_DB_NAME "$db" || return 1; }
+  elif [[ "$secret" == "${SPL_DSN_SECRET:-}" ]]; then
+    export SPOOL_HUB_DB_DSN="$dsn"
+    spl_secrets_none_put SPOOL_HUB_DB_DSN "$dsn" || return 1
+    [[ -z "$user" ]] || { spl_secrets_none_put SPOOL_DB_RUNTIME "$user" || return 1; }
+    [[ -z "$pw" ]] || { spl_secrets_none_put SPOOL_DB_RUNTIME_PASSWORD "$pw" || return 1; }
+  else
+    do_log "FATAL provider none has no .env key for secret $secret"
+    return 1
+  fi
 }
 
 # spl_secret_disable_older <secret id> -> disables every ENABLED version but
 # the newest, so a reader of the slot (the hub's SA, for the runtime slot)
-# cannot fetch an older login by version number. Prints the count.
+# cannot fetch an older login by version number. Prints the count. Under none
+# the .env holds one value, so the count is 0 and nothing is called.
 spl_secret_disable_older() {
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_secret disable_older "$1"
+}
+
+do_db_secret_disable_older_gcp() {
   local v n=0 first=1
   while read -r v; do
     [[ -n "$v" ]] || continue
@@ -47,6 +100,8 @@ spl_secret_disable_older() {
              --filter='state=ENABLED' --sort-by='~createTime' --format='value(name.basename())' 2>/dev/null)
   echo "$n"
 }
+
+do_db_secret_disable_older_none() { echo 0; }
 
 # spl_scram_verifier <- password on stdin -> a SCRAM-SHA-256 verifier
 # (RFC 5802 / 7677, Postgres' stored form). The server stores it as given, so
@@ -89,10 +144,43 @@ spl_db_runtime_ensure() {
     { do_log "FATAL runtime-grants.sql as $SPL_DB_OWNER_USER failed"; return 1; }
   do_log "INFO DML-only grants + default privileges for $SPL_DB_USER applied by $SPL_DB_OWNER_USER"
   [[ "$mint" == 1 ]] || return 0
-  printf 'postgres://%s:%s@/%s?host=/cloudsql/%s' "$SPL_DB_USER" "$pw" "$SPL_DB_NAME" "$SPL_SQL_CONN" |
-    spl_secret_add "$SPL_DSN_SECRET" ||
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_secret publish_runtime "$pw" ||
     { do_log "FATAL could not add a version to $SPL_DSN_SECRET (the role has a password nobody holds: re-run to reset it)"; return 1; }
   do_log "INFO secret $SPL_DSN_SECRET: new version with the runtime login $SPL_DB_USER (value not logged)"
+}
+
+# do_db_secret_publish_runtime_gcp <password> -> the runtime DSN as a new
+# version of $SPL_DSN_SECRET. The password rides on gcloud's stdin, never argv.
+do_db_secret_publish_runtime_gcp() {
+  printf 'postgres://%s:%s@/%s?host=/cloudsql/%s' "$SPL_DB_USER" "$1" "$SPL_DB_NAME" "$SPL_SQL_CONN" |
+    gcloud secrets versions add "$SPL_DSN_SECRET" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --data-file=- >/dev/null 2>&1
+}
+
+# do_db_secret_publish_runtime_none <password> -> the same login as a TCP DSN
+# in the self-host .env (SPOOL_HUB_DB_DSN, SPOOL_DB_RUNTIME, the password),
+# and exported so spl_read_dsn in this shell reads it back. Host and port come
+# from the current $SPOOL_HUB_DB_DSN, else 127.0.0.1:5432. Nothing is logged.
+do_db_secret_publish_runtime_none() {
+  local dsn
+  dsn="$(SPL_PW_IN="$1" SPL_USER_IN="$SPL_DB_USER" SPL_DB_IN="${SPL_DB_NAME:-spool_hub}" \
+    SPL_DSN_IN="${SPOOL_HUB_DB_DSN:-}" python3 -c '
+import os, urllib.parse as u
+base = os.environ.get("SPL_DSN_IN") or ""
+p = u.urlsplit(base) if base else None
+host = (p.hostname if p else "") or "127.0.0.1"
+port = (p.port if p and p.port else None) or 5432
+q = lambda s: u.quote(s, safe="")
+hostp = "[%s]" % host if ":" in host else host
+print("postgres://%s:%s@%s:%s/%s?sslmode=disable" % (
+    q(os.environ["SPL_USER_IN"]), q(os.environ["SPL_PW_IN"]), hostp, port,
+    q(os.environ["SPL_DB_IN"] or "spool_hub")), end="")
+')" || return 1
+  export SPOOL_HUB_DB_DSN="$dsn"
+  spl_secrets_none_put SPOOL_HUB_DB_DSN "$dsn" || return 1
+  spl_secrets_none_put SPOOL_DB_RUNTIME "$SPL_DB_USER" || return 1
+  spl_secrets_none_put SPOOL_DB_RUNTIME_PASSWORD "$1" || return 1
 }
 
 # spl_db_runtime_facts_sql -> one JSON line about the CURRENT login: its
@@ -187,4 +275,68 @@ spl_db_api_user_set() {
     { rm -rf "$tmp"; do_log "FATAL could not add a version to $secret (the user now has a password nobody holds: re-run to reset it)"; return 1; }
   rm -rf "$tmp"
   do_log "INFO secret $secret: new version added (value not logged)"
+}
+
+# do_db_login_ensure_gcp -> spl_db_api_user_set for the owner (Cloud SQL Admin
+# API + a Secret Manager version). The gcp body of a fresh do_spl_db_bootstrap.
+do_db_login_ensure_gcp() {
+  spl_db_api_user_set "$SPL_DB_OWNER_USER" "$SPL_OWNER_DSN_SECRET"
+}
+
+# do_db_login_ensure_none -> a fresh env under provider none. No Cloud SQL
+# Admin API and no Secret Manager: the T009 seam fills the self-host .env
+# (mode 600). $SPOOL_HUB_DB_DSN is left unset so the caller can still tell a
+# fresh env from one that already has a runtime login.
+do_db_login_ensure_none() {
+  DRY_RUN=0 do_secrets_seed_none
+}
+
+# do_db_login_rotate_gcp -> the owner-password rotation (ROTATE_OWNER=1).
+do_db_login_rotate_gcp() {
+  spl_db_api_user_set "$SPL_DB_OWNER_USER" "$SPL_OWNER_DSN_SECRET"
+}
+
+# do_db_login_rotate_none -> a new owner password in the self-host .env only.
+# The value is never logged.
+do_db_login_rotate_none() {
+  local pw
+  pw="$(openssl rand -hex 24)" || return 1
+  spl_secrets_none_put SPOOL_DB_OWNER "${SPL_DB_OWNER_USER:-spool_hub}" || return 1
+  spl_secrets_none_put SPOOL_DB_OWNER_PASSWORD "$pw" || return 1
+  do_log "INFO owner password rotated in the self-host .env (value not logged)"
+}
+
+# spl_secrets_none_put <KEY> <value> -> set KEY in the self-host .env, rewriting
+# the file mode 600 (the T009 store). The value is never logged and never put
+# on a command argv: it travels in the environment of python.
+spl_secrets_none_put() {
+  local key="$1" val="$2" envf statef tmp
+  # shellcheck source=../../../src/bash/run/spl-secrets-check.func.sh
+  declare -F spl_secrets_none_paths >/dev/null ||
+    source "${BASH_SOURCE[0]%/*}/../../../src/bash/run/spl-secrets-check.func.sh"
+  spl_secrets_none_paths >&2 || return 1
+  tmp="$envf.tmp.$$"
+  (
+    umask 077
+    SPL_KEY="$key" SPL_VAL="$val" SPL_ENVF="$envf" python3 - "$tmp" <<'PY'
+import os, sys
+key = os.environ["SPL_KEY"]
+val = os.environ["SPL_VAL"]
+src = os.environ["SPL_ENVF"]
+dst = sys.argv[1]
+kept = []
+if os.path.isfile(src):
+    with open(src) as fh:
+        for line in fh:
+            body = line[:-1] if line.endswith("\n") else line
+            if body.startswith(key + "="):
+                continue
+            kept.append(body)
+quoted = "'" + val.replace("'", "'\\''") + "'"
+kept.append("%s=%s" % (key, quoted))
+with open(dst, "w") as fh:
+    fh.write("\n".join(kept) + "\n")
+PY
+  ) || { rm -f "$tmp"; return 1; }
+  chmod 600 "$tmp" && mv -f "$tmp" "$envf" || { rm -f "$tmp"; return 1; }
 }

@@ -34,8 +34,10 @@ do_spl_db_compact() {
   local table="${TABLE:-messages}" dry="${DRY_RUN:-1}"
   spl_db_compact_check "$table" "$dry" "${ALLOW_PRD:-0}" "${COMPACT_LOCK_TIMEOUT:-5s}" "${COMPACT_STATEMENT_TIMEOUT:-10min}" || return 1
   do_spl_cloud_cnf || return 1
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  if [[ "$(do_spl_cloud_provider)" != none ]]; then
+    do_gcp_pin_account "$SPL_CNF" || return 1
+    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  fi
   local owner_dsn
   owner_dsn="$(spl_read_owner_dsn)"
   [[ -n "$owner_dsn" ]] || { do_log "FATAL cannot read $SPL_OWNER_DSN_SECRET: VACUUM FULL needs the table owner"; return 1; }
@@ -45,7 +47,7 @@ do_spl_db_compact() {
     { do_log "FATAL $SPL_OWNER_DSN_SECRET logs in as '$user', not the owner $SPL_DB_OWNER_USER"; return 1; }
   local rc=0 pdsn
   spl_sql_proxy_start || return 1
-  pdsn="$(spl_proxy_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
+  pdsn="$(spl_local_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
     { spl_sql_proxy_stop; do_log "FATAL the owner DSN is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"; return 1; }
   do_log "INFO $ENV $table before:"
   spl_pg_env "$pdsn" psql -X -q -P pager=off -c "$(spl_db_compact_size_sql "$table")" || rc=1

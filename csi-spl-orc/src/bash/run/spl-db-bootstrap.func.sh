@@ -20,6 +20,10 @@
 # @description env whose runtime slot still holds the owner (not split yet)
 # @description migrates with that DSN and says to run do_spl_db_owner_split.
 # @description The passwords and the DSNs are never logged.
+# @description Under SPOOL_CLOUD_PROVIDER=none (spec 076 T008): no GCP account
+# @description is pinned, and a fresh env (no runtime DSN) is seeded through
+# @description the T009 secrets seam (self-host .env, mode 600) instead of
+# @description Secret Manager. Under gcp the calls are unchanged.
 # @description
 # @description DRY_RUN=1 (default): print the IDs it would touch, call no cloud.
 # @param ENV - required: dev or prd
@@ -43,28 +47,49 @@ do_spl_db_bootstrap() {
     return 0
   fi
 
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_require_bin gcloud curl || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  local provider
+  provider="$(do_spl_cloud_provider)" || return 1
+  if [[ "$provider" != none ]]; then
+    do_gcp_pin_account "$SPL_CNF" || return 1
+    do_require_bin gcloud curl || return 1
+    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  fi
   [[ -d "$SPL_IMAGE_SQL_SRC" ]] || { do_log "FATAL no DDL dir $SPL_IMAGE_SQL_SRC (cnf hub.image.sql_src)"; return 1; }
+
+  # A fresh none env has no runtime DSN. Seed the self-host .env (T009, mode
+  # 600) before the reads, and do not export SPOOL_HUB_DB_DSN yet: the fresh
+  # classification is "no runtime login". The owner read borrows a host only
+  # for that call; the shell's SPOOL_HUB_DB_DSN stays empty.
+  local none_fresh=0
+  if [[ "$provider" == none && -z "${SPOOL_HUB_DB_DSN:-}" ]]; then
+    do_spl_cloud_dispatch db_login ensure || return 1
+    none_fresh=1
+  fi
 
   # runtime: split = the runtime slot holds $SPL_DB_USER; owner = not split
   # yet (the old single login); fresh = the env has no login at all
   local owner_dsn rt_dsn rt_user runtime
-  owner_dsn="$(spl_read_owner_dsn)"
-  rt_dsn="$(spl_read_dsn)"
-  rt_user=""; [[ -n "$rt_dsn" ]] && rt_user="$(spl_dsn_user "$rt_dsn")"
-  case "$rt_user" in
-    "") runtime=fresh ;;
-    "$SPL_DB_USER") runtime='split' ;;
-    "$SPL_DB_OWNER_USER") runtime=owner ;;
-    *) do_log "FATAL $SPL_DSN_SECRET holds '$rt_user', neither $SPL_DB_USER nor $SPL_DB_OWNER_USER"; return 1 ;;
-  esac
+  if (( none_fresh )); then
+    owner_dsn="$(SPOOL_HUB_DB_DSN='postgres://local@127.0.0.1:5432/local' spl_read_owner_dsn)" || return 1
+    [[ -n "$owner_dsn" ]] || { do_log "FATAL no owner DSN after seeding the self-host .env"; return 1; }
+    rt_dsn=""
+    runtime=fresh
+  else
+    owner_dsn="$(spl_read_owner_dsn)"
+    rt_dsn="$(spl_read_dsn)"
+    rt_user=""; [[ -n "$rt_dsn" ]] && rt_user="$(spl_dsn_user "$rt_dsn")"
+    case "$rt_user" in
+      "") runtime=fresh ;;
+      "$SPL_DB_USER") runtime='split' ;;
+      "$SPL_DB_OWNER_USER") runtime=owner ;;
+      *) do_log "FATAL $SPL_DSN_SECRET holds '$rt_user', neither $SPL_DB_USER nor $SPL_DB_OWNER_USER"; return 1 ;;
+    esac
+  fi
   if [[ -z "$owner_dsn" ]]; then
     case "$runtime" in
       owner) owner_dsn="$rt_dsn"
              do_log "INFO $SPL_OWNER_DSN_SECRET is empty and $SPL_DSN_SECRET still holds the owner: migrating with it (not split: run do_spl_db_owner_split)" ;;
-      fresh) spl_db_api_user_set "$SPL_DB_OWNER_USER" "$SPL_OWNER_DSN_SECRET" || return 1
+      fresh) do_spl_cloud_dispatch db_login ensure || return 1
              owner_dsn="$(spl_read_owner_dsn)"
              [[ -n "$owner_dsn" ]] || { do_log "FATAL secret $SPL_OWNER_DSN_SECRET still has no readable version"; return 1; } ;;
       split) do_log "FATAL $SPL_DSN_SECRET holds the runtime login but $SPL_OWNER_DSN_SECRET is empty: the owner's DSN is lost; resetting the $SPL_DB_OWNER_USER password is an owner decision, not done here"; return 1 ;;

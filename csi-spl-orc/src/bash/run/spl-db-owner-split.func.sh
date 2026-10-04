@@ -69,9 +69,11 @@ do_spl_db_owner_split() {
     return 0
   fi
 
-  do_gcp_pin_account "$SPL_CNF" || return 1
-  do_require_bin gcloud curl || return 1
-  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  if [[ "$(do_spl_cloud_provider)" != none ]]; then
+    do_gcp_pin_account "$SPL_CNF" || return 1
+    do_require_bin gcloud curl || return 1
+    do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
+  fi
   "_spl_db_owner_split_$mode"
 }
 
@@ -103,7 +105,7 @@ _spl_db_owner_split_split() {
 
   local odsn rdsn rc=0
   spl_sql_proxy_start || return 1
-  odsn="$(spl_proxy_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
+  odsn="$(spl_local_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
     { spl_sql_proxy_stop; do_log "FATAL the DSN in $SPL_OWNER_DSN_SECRET is not the /cloudsql socket form"; return 1; }
   spl_db_runtime_ensure "$odsn" "$mint" || rc=1
   if (( rc == 0 )); then
@@ -111,7 +113,7 @@ _spl_db_owner_split_split() {
     [[ "$(spl_dsn_user "$rt_dsn")" == "$SPL_DB_USER" ]] || { do_log "FATAL $SPL_DSN_SECRET does not hold $SPL_DB_USER after the switch"; rc=1; }
   fi
   if (( rc == 0 )); then
-    rdsn="$(spl_proxy_dsn "$rt_dsn" "$SPL_PROXY_PORT")" && spl_db_runtime_verify "$rdsn" || rc=1
+    rdsn="$(spl_local_dsn "$rt_dsn" "$SPL_PROXY_PORT")" && spl_db_runtime_verify "$rdsn" || rc=1
   fi
   spl_sql_proxy_stop
   if (( rc != 0 )); then
@@ -149,14 +151,16 @@ _spl_db_owner_split_rotate_owner() {
   [[ -n "$owner_dsn" && "$(spl_dsn_user "$owner_dsn")" == "$SPL_DB_OWNER_USER" ]] ||
     { do_log "FATAL $SPL_OWNER_DSN_SECRET has no $SPL_DB_OWNER_USER DSN"; return 1; }
   spl_sql_proxy_start || return 1
-  odsn="$(spl_proxy_dsn "$owner_dsn" "$SPL_PROXY_PORT")" &&
+  odsn="$(spl_local_dsn "$owner_dsn" "$SPL_PROXY_PORT")" &&
     others="$(printf 'SELECT count(*) FROM pg_stat_activity WHERE usename = current_user AND pid <> pg_backend_pid();\n' |
       spl_pg_env "$odsn" psql -X -q -At -v ON_ERROR_STOP=1 -f - 2>&1)" || rc=1
   spl_sql_proxy_stop
   (( rc == 0 )) && [[ "$others" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot count the $SPL_DB_OWNER_USER sessions: $others"; return 1; }
   [[ "$others" == 0 ]] || {
     do_log "FATAL $others other session(s) are logged in as $SPL_DB_OWNER_USER (a hub revision not yet rolled?): not rotating"; return 1; }
-  spl_db_api_user_set "$SPL_DB_OWNER_USER" "$SPL_OWNER_DSN_SECRET" || return 1
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_login rotate || return 1
   local n
   n="$(spl_secret_disable_older "$SPL_OWNER_DSN_SECRET")" || return 1
   do_log "OK $SPL_DB_OWNER_USER has a new password (in $SPL_OWNER_DSN_SECRET only); $n older owner version(s) disabled"

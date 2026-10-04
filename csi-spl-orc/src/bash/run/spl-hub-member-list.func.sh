@@ -22,10 +22,23 @@
 # @example ENV=prd TENANT_ID=t1 MATCH=example.com ./run -a do_spl_hub_member_list
 #------------------------------------------------------------------------------
 do_spl_hub_member_list() {
-  do_require_bin gcloud psql python3 || return 1
+  local provider
+  provider="$(do_spl_cloud_provider)" || return 1
+  if [[ "$provider" == none ]]; then
+    do_require_bin psql python3 || return 1
+  else
+    do_require_bin gcloud psql python3 || return 1
+  fi
   do_spl_cloud_cnf || return 1
   local sql
   sql="$(spl_hub_member_list_sql)" || return 1
+  if [[ "$provider" == none ]]; then
+    local dsn none_rc=0
+    spl_db_runtime_local || return 1
+    _spl_hub_member_list_query || none_rc=$?
+    unset dsn
+    return "$none_rc"
+  fi
   local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
   local cfg rc=0
@@ -36,22 +49,25 @@ do_spl_hub_member_list() {
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
     GCP_ACCOUNT="$(do_gcp_isolated_active_account)" || exit 1
     export GCP_ACCOUNT
-    local cloud_dsn dsn out qrc
-    cloud_dsn="$(spl_read_dsn)"
-    [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; exit 1; }
-    spl_sql_proxy_start || exit 1
-    dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" ||
-      { spl_sql_proxy_stop; do_log "FATAL unexpected DSN shape in $SPL_DSN_SECRET"; exit 1; }
-    out="$(spl_psql_ro "$dsn" "$sql")"
-    qrc=$?
-    spl_sql_proxy_stop
-    [[ $qrc == 0 ]] || { do_log "FATAL read-only query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; exit 1; }
-    [[ -n "$out" ]] || { do_log "FAIL no member or invite in $SPL_PROJECT/$SPL_DB_NAME for tenant $TENANT_ID${MATCH:+ matching '$MATCH'}"; exit 2; }
-    printf '%s\n' "$out"
-    do_log "OK $(grep -c '"type" : "member"' <<<"$out") member(s), $(grep -c '"type" : "invite"' <<<"$out") invite(s) in $SPL_PROJECT/$SPL_DB_NAME for $TENANT_ID${MATCH:+ matching '$MATCH'} (read-only, as $GCP_ACCOUNT)"
+    spl_db_runtime_local || exit 1
+    _spl_hub_member_list_query
+    exit $?
   ) || rc=$?
   rm -rf "$cfg"
   return $rc
+}
+
+# _spl_hub_member_list_query -> the read, once $dsn is the local login.
+# Exit 2 when nothing matches. Stops the proxy.
+_spl_hub_member_list_query() {
+  local out qrc
+  out="$(spl_psql_ro "$dsn" "$sql")"
+  qrc=$?
+  spl_sql_proxy_stop
+  [[ $qrc == 0 ]] || { do_log "FATAL read-only query on $SPL_SQL_CONN/$SPL_DB_NAME failed: $out"; return 1; }
+  [[ -n "$out" ]] || { do_log "FAIL no member or invite in $SPL_PROJECT/$SPL_DB_NAME for tenant $TENANT_ID${MATCH:+ matching '$MATCH'}"; return 2; }
+  printf '%s\n' "$out"
+  do_log "OK $(grep -c '"type" : "member"' <<<"$out") member(s), $(grep -c '"type" : "invite"' <<<"$out") invite(s) in $SPL_PROJECT/$SPL_DB_NAME for $TENANT_ID${MATCH:+ matching '$MATCH'} (read-only, as ${GCP_ACCOUNT:-})"
 }
 
 # spl_hub_member_list_sql -> the member + invite query for TENANT_ID [MATCH].

@@ -33,7 +33,8 @@
 #      old filter leaves it acked forever); a re-ack renews the lock; at the
 #      delivery limit an ask is no longer raised, goes to the owner once and
 #      is dead-lettered with the reason (CONTROL: no limit = raised again);
-#      without an owner leg it is dead-lettered saying nobody was told
+#      the next tick posts one resolved line in that reminder; without an
+#      owner leg it is dead-lettered saying nobody was told
 #  11. a hub book past ARG_MAX (3 MB) is listed (CONTROL: the same book as
 #      a jq argument fails: Argument list too long)
 #  12. the orchestrator view on 5000 inbox files and that book: section 2
@@ -42,6 +43,11 @@
 #      hub message to peers, still an ask; exactly 1 seat is responsible;
 #      ack/done are its message's lock (3 seats refused, book untouched);
 #      CONTROL: SPOOL_TO_PEERS=0 = the book's lock
+#  14. the owner's reminder names the topic, who is waiting and what to do.
+#      A channel topic the owner can read gets the reply in that topic; the
+#      next tick after an ack posts one resolved line there. A title with no
+#      readable topic is a new topic that still names the title and the uuid.
+#      A lookup that fails keeps the old id line and a new topic
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -144,7 +150,11 @@ while [ $# -gt 0 ]; do case "$1" in --from) from="$2"; shift 2;; --to) to="$2"; 
 printf '%s %s %s\n' "$from" "$to" "$(tr '\n' ' ' <<<"$body")" >>"$SEND_LOG"
 STUB
 chmod +x "$T/bin/send"
-printf '#!/usr/bin/env bash\necho "$ASK_JSON" >>"$OWNER_LOG"\n' >"$T/bin/owner"; chmod +x "$T/bin/owner"
+cat >"$T/bin/owner" <<'STUB'
+#!/usr/bin/env bash
+jq -c --arg text "$(cat)" --arg task "${ASK_TASK:-}" '. + {owner_text: $text, owner_task: $task}' <<<"$ASK_JSON" >>"$OWNER_LOG"
+STUB
+chmod +x "$T/bin/owner"
 
 for m in pc sat; do
   mkdir -p "$T/$m/spool/CLE-001/inbox" "$T/$m/spool/CLE-002/inbox" "$T/$m/spool/CLE-77929/inbox" "$T/$m/spool/dispatch"
@@ -357,10 +367,16 @@ out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=0)"
 : >"$T/sat/send.log"
 out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
 out2="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
+dl1="$(sed -n '1p' "$T/dlq.log")"; dl2="$(sed -n '2p' "$T/dlq.log")"
 if [[ "$(kqrow "$B2" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "dead|CLE-001@sat|max delivery count 4 reached (raised 5x); the owner was told" ]] &&
-   [[ "$(wc -l <"$T/dlq.log")" -eq 1 && "$(jq -r .ask_id "$T/dlq.log")" == "$B2" ]] && ! grep -q "${B2:0:8}" "$T/sat/send.log" && [[ "$out" == *"dead-letter due 1 (raised >= 4)"* ]]; then
-  pass "at the delivery limit: not re-raised, told to the owner ONCE, dead-lettered with the reason"
-else fail "dead-letter: $(kqrow "$B2") / $(cat "$T/dlq.log" 2>/dev/null) / $(cat "$T/sat/send.log") / $out"; fi
+   [[ "$(wc -l <"$T/dlq.log")" -eq 2 && "$(jq -r .ask_id <<<"$dl1")" == "$B2" && "$(jq -r .owner_text <<<"$dl1")" == "**Dead-lettered"* && "$(jq -r .owner_text <<<"$dl1")" == *"Ask id $B2"* ]] &&
+   [[ "$(jq -r .owner_text <<<"$dl2")" == "resolved: it was closed because nobody answered" && "$(jq -r .ask_id <<<"$dl2")" == "$B2" && "$(jq -r .owner_task <<<"$dl1")" == "$(jq -r .owner_task <<<"$dl2")" ]] &&
+   [[ "$out" != *"reminder resolved"* && "$out2" == *"reminder resolved: it was closed because nobody answered"* ]] &&
+   ! grep -q "${B2:0:8}" "$T/sat/send.log" && [[ "$out" == *"dead-letter due 1 (raised >= 4)"* ]]; then
+  pass "at the delivery limit: not re-raised, told to the owner ONCE, dead-lettered with the reason; the next tick posts resolved"
+else fail "dead-letter: $(kqrow "$B2") / $(cat "$T/dlq.log" 2>/dev/null) / $(cat "$T/sat/send.log") / $out / $out2"; fi
+out3="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
+[[ "$(wc -l <"$T/dlq.log")" -eq 2 && "$out3" != *"reminder resolved"* ]] && pass "a third tick adds no second resolved reply" || fail "third tick: $(wc -l <"$T/dlq.log") / $out3"
 [[ "$(jq -r '.state + " " + .reason' <<<"$(jrn sat "$B2")")" == "dead max delivery count 4 reached (raised 5x); the owner was told" ]] && pass "the journal holds the dead-letter and its reason" || fail "journal dead: $(jrn sat "$B2")"
 out="$(on sat 'ASK_ID='"${B2:0:8}"' do_spl_ask_ack' ASKS_FLEET=kq)"; rc=$?
 [[ $rc -eq 3 && "$out" == *"already dead by CLE-001@sat"* ]] && pass "a late ack of a dead-lettered ask: exit 3, names who and why" || fail "late ack dead (rc=$rc): $out"
@@ -501,6 +517,112 @@ out="$(asks "$R" "done" "${P1:0:8}" 2>&1)"; rc=$?
 : >"$T/orc.log"
 out="$(SPOOL_TO_PEERS=0 asks "$R" ack "${P1:0:8}" 2>&1)"
 [[ "$(cat "$T/orc.log")" == "do_spl_ask_ack ASK_ID=${P1:0:8} ASK_STATE= ASK_BY=" ]] && pass "CONTROL: switch off (SPOOL_TO_PEERS=0): ack is the book's lock again (do_spl_ask_ack)" || fail "control off: $out / $(cat "$T/orc.log")"
+
+
+# 14. the owner's reminder: plain words, one tap, then resolved -------------
+# topic_read: the opening line, 100 characters, and a mention of the whole
+# owner id (HUM-10 is not a prefix of HUM-100). A channel post is to ALL-0.
+python3 - "$T" <<'PY'
+import json, os, sys
+t = sys.argv[1]
+def w(name, rows):
+    with open(os.path.join(t, name), "w") as f:
+        for r in rows:
+            f.write(json.dumps(r, separators=(",", ":")) + "\n")
+w("title-long.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "A" * 101 + "\nrest", "to": "ALL-0", "from": "c-176"}])
+w("title-exact.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "B" * 100, "to": "ALL-0", "from": "c-176"}])
+w("title-miss.json", [
+    {"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "Needs a go\nmore", "to": "ALL-0", "from": "c-176"},
+    {"ts": "2026-10-04T10:01:00Z", "msg_id": "2", "body": "see @HUM-100", "to": "ALL-0", "from": "c-176"}])
+w("title-hit.json", [
+    {"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "  Needs   a go  ", "to": "ALL-0", "from": "c-001"},
+    {"ts": "2026-10-04T10:02:00Z", "msg_id": "2", "body": "cc @HUM-10 please", "to": "ALL-0", "from": "c-176"}])
+w("title-direct.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "cc @HUM-10 please", "to": "HUM-10", "from": "c-176"}])
+w("title-from.json", [{"ts": "2026-10-04T10:00:00Z", "msg_id": "1", "body": "hello", "to": "ALL-0", "from": "HUM-10"}])
+PY
+tread() { on sat spl_asks_topic_read ASKS_OWNER=HUM-10 <"$1"; }
+got="$(tread "$T/title-long.json")"
+[[ "$(jq -r .title <<<"$got")" == "$(python3 -c 'print("A"*100 + "...")')" && "$(jq -r .readable <<<"$got")" == false ]] &&
+  pass "topic title: 101 characters collapse to 100 plus an ellipsis, and an unnamed channel is not readable" || fail "long title: $got"
+got="$(tread "$T/title-exact.json")"
+[[ "$(jq -r .title <<<"$got")" == "$(python3 -c 'print("B"*100)')" && "$(jq -r .readable <<<"$got")" == false ]] &&
+  pass "topic title: 100 characters stay whole" || fail "exact title: $got"
+got="$(tread "$T/title-miss.json")"
+[[ "$(jq -r .title <<<"$got")" == "Needs a go" && "$(jq -r .readable <<<"$got")" == false ]] &&
+  pass "a mention of HUM-100 does not name HUM-10; the oldest line is the title" || fail "mention boundary: $got"
+got="$(tread "$T/title-hit.json")"
+[[ "$(jq -r .title <<<"$got")" == "Needs a go" && "$(jq -r .readable <<<"$got")" == true ]] &&
+  pass "whitespace collapses, and @HUM-10 on a channel post is readable" || fail "mention hit: $got"
+got="$(tread "$T/title-direct.json")"
+[[ "$(jq -r .title <<<"$got")" == "cc @HUM-10 please" && "$(jq -r .readable <<<"$got")" == false ]] &&
+  pass "a direct message that names the owner is not a channel topic" || fail "dm: $got"
+got="$(tread "$T/title-from.json")"
+[[ "$(jq -r .readable <<<"$got")" == true && "$(jq -r .title <<<"$got")" == hello ]] &&
+  pass "a channel post from the owner is readable" || fail "from owner: $got"
+
+# the set-aside wording, when the title is known (the dead-letter above has none)
+printf '%s\n' '{"ask_id":"abababab-1111-4111-8111-111111111111","from":"CLE-176@sat","topic":"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1","summary":"sum","age_s":120,"raised_n":5,"kind":"blocker"}' >"$T/wrow.json"
+printf '%s\n' '{"title":"Needs one owner go","readable":true,"channel":"tasks","ask":"Approve it."}' >"$T/wctx.json"
+words="$(on sat "spl_asks_owner_words \"\$(cat $T/wrow.json)\" CLE-001@sat true \"\$(cat $T/wctx.json)\" 4" ASKS_OWNER=HUM-10)"
+if [[ "$words" == "Topic: Needs one owner go (#tasks)"* && "$words" == *"@HUM-10"* && "$words" == *"Set aside after 5 raises (the limit is 4): nobody answered (2 min)."* &&
+      "$words" == *"Waiting: CLE-176."* && "$words" == *"Summary: sum"* && "$words" == *"What to do: Approve it."* && "$words" == *"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1"* &&
+      "$words" != *"Ask id"* ]]; then
+  pass "a dead-letter whose title is known says set aside, who is waiting, and what to do"
+else fail "set aside words: $words"; fi
+
+C_TOPIC=11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1
+C_PRIV=22222222-bbbb-4bbb-8bbb-bbbbbbbbbbb2
+C_MISS=33333333-cccc-4ccc-8ccc-ccccccccccc3
+C_READ=dddddddd-1414-4141-8141-aaaaaaaaaaa1
+C_NOR=eeeeeeee-2424-4242-8242-bbbbbbbbbbb2
+C_OLD=ffffffff-3434-4343-8343-ccccccccccc3
+cat >"$T/bin/topic" <<EOF
+#!/usr/bin/env bash
+case "\$1" in
+  $C_TOPIC) printf '%s\n' '{"title":"Needs one owner go","readable":true,"channel":"tasks","ask":"Approve the repo-settings change."}' ;;
+  $C_PRIV) printf '%s\n' '{"title":"Private thread","readable":false}' ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$T/bin/topic"
+hub put --fleet ctx --id "$C_READ" --kind blocker --from CLE-176@sat --topic "$C_TOPIC" --summary "needs one owner go, a repo-settings change"
+hub put --fleet ctx --id "$C_NOR" --kind blocker --from CLE-176@sat --topic "$C_PRIV" --summary "the private summary"
+hub put --fleet ctx --id "$C_OLD" --kind task --from CLE-002@sat --topic "$C_MISS" --summary "lookup misses"
+: >"$T/ctx.log"
+ctx_tick() { on sat do_spl_asks_tick ASKS_FLEET=ctx ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_MAX_RAISES=0 ASKS_OWNER=HUM-10 ASKS_OWNER_CMD="$T/bin/owner" ASKS_TOPIC_CMD="$T/bin/topic" OWNER_LOG="$T/ctx.log" HUB_SKEW=0; }
+ctx_row() { jq -c --arg id "$1" 'select(.ask_id == $id and (.owner_text | startswith("resolved:") | not))' "$T/ctx.log"; }
+out="$(ctx_tick)"
+rread="$(ctx_row "$C_READ")"; rnor="$(ctx_row "$C_NOR")"; rold="$(ctx_row "$C_OLD")"
+uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+if [[ "$(jq -r .owner_task <<<"$rread")" == "$C_TOPIC" && "$(jq -r .owner_text <<<"$rread")" == "Topic: Needs one owner go (#tasks)"* &&
+      "$(jq -r .owner_text <<<"$rread")" == *"@HUM-10"* && "$(jq -r .owner_text <<<"$rread")" == *"Waiting: CLE-176."* &&
+      "$(jq -r .owner_text <<<"$rread")" == *"Summary: needs one owner go, a repo-settings change"* &&
+      "$(jq -r .owner_text <<<"$rread")" == *"What to do: Approve the repo-settings change."* &&
+      "$(jq -r .owner_text <<<"$rread")" == *"$C_TOPIC"* && "$(jq -r .owner_text <<<"$rread")" != *"Ask id"* &&
+      "$(jq -r .owner_text <<<"$rread")" != *"$C_READ"* ]]; then
+  pass "a readable channel topic: the reminder is a reply in it, in plain words, with the topic uuid"
+else fail "readable reminder: $rread"; fi
+if [[ "$(jq -r .owner_task <<<"$rnor")" != "$C_PRIV" && "$(jq -r .owner_task <<<"$rnor")" =~ $uuid_re &&
+      "$(jq -r .owner_text <<<"$rnor")" == "Topic: Private thread"* && "$(jq -r .owner_text <<<"$rnor")" == *"$C_PRIV"* &&
+      "$(jq -r .owner_text <<<"$rnor")" != *"@HUM-10"* && "$(jq -r .owner_text <<<"$rnor")" != *"Ask id"* &&
+      "$(jq -r .owner_text <<<"$rnor")" == *"Waiting: CLE-176."* && "$(jq -r .owner_text <<<"$rnor")" == *"Summary: the private summary"* ]]; then
+  pass "a title the owner cannot read: a new topic that names the title and the source uuid"
+else fail "unreadable reminder: $rnor"; fi
+if [[ "$(jq -r .owner_task <<<"$rold")" != "$C_MISS" && "$(jq -r .owner_task <<<"$rold")" =~ $uuid_re &&
+      "$(jq -r .owner_text <<<"$rold")" == "**Unanswered ask to the orchestrator ("* &&
+      "$(jq -r .owner_text <<<"$rold")" == *"re-raised 0x"* && "$(jq -r .owner_text <<<"$rold")" == *"Ask id $C_OLD"* &&
+      "$(jq -r .owner_text <<<"$rold")" == *"topic $C_MISS"* ]]; then
+  pass "a topic lookup that fails keeps the old id line and a new topic"
+else fail "lookup miss: $rold"; fi
+[[ "$(sed -n '1p' "$T/sat/spool/asks/.owner-told.$C_READ")" == "$C_TOPIC" ]] && pass "the reminder topic is recorded beside the ask" || fail "sidecar: $(cat "$T/sat/spool/asks/.owner-told.$C_READ" 2>/dev/null)"
+on sat "ASK_ID=${C_READ:0:8} do_spl_ask_ack" ASKS_FLEET=ctx >/dev/null
+out="$(ctx_tick)"
+res="$(jq -c --arg id "$C_READ" 'select(.ask_id == $id and (.owner_text | startswith("resolved:")))' "$T/ctx.log")"
+[[ "$(jq -r .owner_text <<<"$res")" == "resolved: the orchestrator acknowledged it" && "$(jq -r .owner_task <<<"$res")" == "$C_TOPIC" && "$out" == *"reminder resolved: the orchestrator acknowledged it"* ]] &&
+  pass "an acked ask posts one resolved reply in the reminder's topic" || fail "resolved: $res / $out"
+out="$(ctx_tick)"
+[[ "$(jq -c --arg id "$C_READ" 'select(.ask_id == $id and (.owner_text | startswith("resolved:")))' "$T/ctx.log" | wc -l)" -eq 1 && "$out" != *"reminder resolved"* ]] &&
+  pass "the resolved reply is posted once" || fail "resolved twice: $(cat "$T/ctx.log") / $out"
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

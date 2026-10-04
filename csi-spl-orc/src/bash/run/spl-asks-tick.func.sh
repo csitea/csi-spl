@@ -22,10 +22,18 @@
 # @description         delivery count). One raised ASKS_MAX_RAISES times is not
 # @description         raised again
 # @description      c. OWNER - an ask still unacked ASKS_OWNER_MIN minutes after
-# @description         it was raised goes to the owner ONCE (escalated_at), via
+# @description         it was raised goes to the owner ONCE (escalated_at). The
+# @description         reminder names the topic by its title, who is waiting,
+# @description         the summary and what the owner is asked to do, and keeps
+# @description         the topic uuid. A channel topic this owner can read gets
+# @description         the reminder as a reply in it; any other topic gets a new
+# @description         one (the old id line when the title could not be read).
 # @description         ASKS_OWNER_CMD, else a DM to ASKS_OWNER (a HUM id) from
 # @description         the holder's desk (do_spl_desk_reply). Neither set: logged
 # @description         once per ask, nothing sent
+# @description      c2. RESOLVED - once that ask is acked, closed or dead, one
+# @description         reply in the reminder's topic says resolved and why.
+# @description         A dead-letter in the same tick is answered on the next
 # @description      d. DEAD-LETTER (CLE-77942, Kafka's archived after the
 # @description         delivery limit) - an open ask raised ASKS_MAX_RAISES
 # @description         times goes to the owner (as c, unless already told) and
@@ -38,7 +46,8 @@
 # @param ASKS_LOCK_MIN (optional) - minutes an acked ask's holder may stay quiet before the lock expires, default 60, 0 = never (also lease.conf)
 # @param ASKS_MAX_RAISES (optional) - the delivery limit: raises after which an open ask is dead-lettered to the owner, default 4, 0 = never (also lease.conf)
 # @param ASKS_OWNER (optional) - the owner's human id (HUM-<n>) for the DM leg (also lease.conf)
-# @param ASKS_OWNER_CMD (optional) - replaces the DM leg: run with the text on stdin and ASK_JSON in the environment
+# @param ASKS_OWNER_CMD (optional) - replaces the DM leg: the text on stdin, ASK_JSON the row, ASK_TASK the reminder topic
+# @param ASKS_TOPIC_CMD (optional) - replaces the topic lookup: arg 1 is the topic uuid; prints {"title","readable","channel","ask"}
 # @param ASKS_SEND (optional, tests) - replaces spool-send.sh
 # @param ASKS_HOLDER (optional, tests) - the holder as <ID>@<box>, instead of lease.orch
 # @param ASKS_TICK_WAIT (optional) - seconds to wait for a tick already running (the lease loop's), default 60
@@ -74,6 +83,7 @@ do_spl_asks_tick() {
   rows="$(spl_asks_release "$holder" "$rows")"
   spl_asks_handover "$holder" "$rows" || spl_asks_reraise "$holder" "$rows"
   spl_asks_owner "$holder" "$rows"
+  spl_asks_resolved "$holder"
   return 0
 }
 
@@ -203,11 +213,195 @@ spl_asks_reraise() {
   do_log "OK re-raised $n ask(s) to $holder"
 }
 
+# The topic the ask belongs to: {"title","readable","channel","ask"}.
+# title is the opening line of the topic (what the card shows). readable is
+# true only for a channel topic this owner can read, so the reminder can be a
+# reply in it. ASKS_TOPIC_CMD replaces the lookup. Otherwise hub-tail on the
+# desk: the inner message has no channel, so "the owner can read it" means a
+# channel post (to ALL-0) that names this owner. Anything else is readable
+# false, with the title when the messages arrived. {} means nothing was learned.
+spl_asks_owner_ctx() {  # TOPIC
+  local topic="$1" out="" uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  if [[ "$topic" =~ $uuid_re ]]; then
+    if [[ -n "${ASKS_TOPIC_CMD:-}" ]]; then
+      out="$("$ASKS_TOPIC_CMD" "$topic" 2>/dev/null)" || out=""
+    elif [[ -z "${ASKS_HUB_CMD:-}" && "${LANE_MODE:-}" == hub && -n "${SPL_SPOOL:-}" && -n "${LANE_DESK_DIR:-}" ]]; then
+      out="$(spl_asks_topic_hub "$topic")" || out=""
+    fi
+  fi
+  if [[ -z "$out" ]] || ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$out"; then
+    printf '%s' '{}'
+    return 0
+  fi
+  if ! jq -c '{title: (.title // ""), readable: (.readable // false), channel: (.channel // ""), ask: (.ask // "")}' <<<"$out"; then
+    printf '%s' '{}'
+  fi
+  return 0
+}
+
+# hub-tail --json of one topic, through the same desk spool `spool ask` uses.
+spl_asks_topic_hub() {  # TOPIC
+  local raw
+  raw="$(SPOOL_ROOT="$LANE_DESK_DIR/spool" SPOOL_KEYS_DIR="$LANE_DESK_DIR/keys" SPOOL_BOX_ID="$LANE_DESK_BOX" \
+    SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LANE_TENANT" \
+    timeout "${ASKS_TIMEOUT:-30}" "$SPL_SPOOL" hub-tail --task "$1" --json 2>/dev/null)" || return 0
+  [[ -n "$raw" ]] || return 0
+  printf '%s\n' "$raw" | spl_asks_topic_read || return 0
+}
+
+# NDJSON of v:1 messages on stdin -> the context object. The oldest body's
+# first line, whitespace collapsed, 100 characters, is the title (the WUI's
+# topic opening). A channel post that names the owner is readable.
+spl_asks_topic_read() {
+  ASKS_OWNER="${ASKS_OWNER:-}" python3 -c '
+import json, os, re, sys
+owner = os.environ.get("ASKS_OWNER", "")
+rows = []
+for line in sys.stdin:
+    line = line.strip()
+    if not line.startswith("{"):
+        continue
+    try:
+        rows.append(json.loads(line))
+    except ValueError:
+        pass
+if not rows:
+    sys.exit(0)
+rows.sort(key=lambda m: (str(m.get("ts") or ""), str(m.get("msg_id") or "")))
+first = str(rows[0].get("body") or "").split("\n", 1)[0]
+flat = " ".join(first.split())
+chars = list(flat)
+title = flat if len(chars) <= 100 else "".join(chars[:100]) + "..."
+channel = any(str(m.get("to") or "") == "ALL-0" for m in rows)
+named = False
+if owner:
+    pat = re.compile(r"(^|[^A-Za-z0-9_-])@" + re.escape(owner) + r"([^A-Za-z0-9_-]|$)")
+    for m in rows:
+        if str(m.get("from") or "") == owner or str(m.get("to") or "") == owner or pat.search(str(m.get("body") or "")):
+            named = True
+            break
+print(json.dumps({"title": title, "readable": bool(channel and named), "channel": "", "ask": ""}))
+'
+}
+
+# The ask's own topic when it is a channel topic the owner can read, else a
+# fresh topic (the reminder still names the source by its title).
+spl_asks_owner_dest() {  # TOPIC READABLE
+  local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  if [[ "$2" == true && "$1" =~ $uuid_re ]]; then
+    printf '%s' "$1"
+  else
+    cat /proc/sys/kernel/random/uuid
+  fi
+}
+
+# The id line, used when the topic's title could not be read.
+spl_asks_owner_words_plain() {  # ROW HOLDER MAXED MAX
+  if [[ "$3" == true ]]; then
+    jq -r --arg h "$2" --arg x "$4" '"**Dead-lettered ask to the orchestrator (raised \(.raised_n)x, the limit is \($x); \(.age_s / 60 | floor) min old):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) never closed it; it is no longer re-raised. Ask id \(.ask_id)."' <<<"$1"
+  else
+    jq -r --arg h "$2" '"**Unanswered ask to the orchestrator (\(.age_s / 60 | floor) min, re-raised \(.raised_n)x):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) has not acked it. Ask id \(.ask_id)."' <<<"$1"
+  fi
+}
+
+# Plain words: the topic title, who is waiting, the summary, what to do, and
+# the source topic uuid. No ask id. On a channel reply a known owner is
+# mentioned so the post reaches them. The title stays the first line.
+spl_asks_owner_words() {  # ROW HOLDER MAXED CTX MAX
+  local title maxed_json=false
+  if [[ "$3" == true ]]; then maxed_json=true; fi
+  title="$(jq -r '.title // ""' <<<"$4")" || return 1
+  if [[ -z "$title" ]]; then
+    spl_asks_owner_words_plain "$1" "$2" "$3" "$5"
+    return
+  fi
+  jq -r --arg x "$5" --arg owner "${ASKS_OWNER:-}" --argjson maxed "$maxed_json" --argjson ctx "$4" '
+    def who: (.from // "" | split("@")[0]);
+    def mins: ((.age_s // 0) / 60 | floor);
+    ($ctx.channel // "") as $ch | ($ctx.ask // "") as $ask | ($ctx.title // "") as $title |
+    (if $ch != "" then " (#\($ch))" else "" end) as $where |
+    (if $maxed then "Set aside after \(.raised_n // 0) raises (the limit is \($x)): nobody answered (\(mins) min)."
+     else "Unanswered for \(mins) min." end) as $state |
+    (if ($ctx.readable == true) and ($owner | test("^HUM-[0-9]+$")) then "@\($owner)" else "" end) as $ping |
+    [ "Topic: \($title)\($where)", $ping, $state,
+      (if who != "" then "Waiting: \(who)." else "" end),
+      (if (.summary // "") != "" then "Summary: \(.summary)" else "" end),
+      (if $ask != "" then "What to do: \($ask)" else "" end),
+      (.topic // "") ] | map(select(length > 0)) | join("\n")' <<<"$1"
+}
+
+# The reminder's topic, beside the ask file: the journal mirror rewrites that
+# file from the hub and would drop a field only the file held. Line 1 is the
+# task the reminder went into; line 2 is "resolved" once the follow-up posted.
+spl_asks_told_file() { printf '%s/.owner-told.%s' "$(spool_asks_dir)" "$1"; }
+
+spl_asks_told_save() {  # ID TASK
+  local f tmp
+  f="$(spl_asks_told_file "$1")" || return 1
+  tmp="$f.tmp.$$"
+  printf '%s\n' "$2" >"$tmp" && mv -f "$tmp" "$f"
+}
+
+# Prints the reminder topic. 1 when there is none, or the follow-up is posted.
+spl_asks_told_task() {  # ID
+  local f task mark
+  f="$(spl_asks_told_file "$1")" || return 1
+  [[ -s "$f" ]] || return 1
+  task="$(sed -n '1p' "$f")"
+  mark="$(sed -n '2p' "$f")"
+  [[ "$mark" == resolved ]] && return 1
+  [[ "$task" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 1
+  printf '%s' "$task"
+}
+
+spl_asks_told_done() {  # ID
+  local f task tmp
+  f="$(spl_asks_told_file "$1")" || return 1
+  task="$(sed -n '1p' "$f")"
+  tmp="$f.tmp.$$"
+  printf '%s\nresolved\n' "$task" >"$tmp" && mv -f "$tmp" "$f"
+}
+
+spl_asks_resolved_why() {  # ROW
+  jq -r '(.reason // "") as $r | .state as $s |
+    if $s == "acked" then "the orchestrator acknowledged it"
+    elif $s == "dead" then "it was closed because nobody answered"
+    elif $r != "" then $r
+    elif $s == "declined" then "it was declined"
+    else "it was closed" end' <<<"$1"
+}
+
+# c2. A reminder already posted, whose ask the loaded book now shows acked,
+# closed or dead. The book is what this tick read, so a dead-letter in this
+# same tick is answered on the next one, after the reminder has been seen.
+spl_asks_resolved() {  # HOLDER
+  local holder="$1" dir f id task row state why text
+  dir="$(spool_asks_dir)" || return 0
+  for f in "$dir"/.owner-told.*; do
+    [[ -f "$f" ]] || continue
+    id="$(basename "$f")"
+    id="${id#.owner-told.}"
+    task="$(spl_asks_told_task "$id")" || continue
+    row="$(jq -c --arg id "$id" '[.[] | select(.ask_id == $id)][0] // empty' <<<"${ASKS_ROWS:-[]}")" || row=""
+    [[ -n "$row" ]] || row="$(spool_ask_journal_get "$id" 2>/dev/null)" || continue
+    state="$(jq -r '.state // ""' <<<"$row")" || continue
+    case "$state" in acked|done|declined|dead) ;; *) continue ;; esac
+    why="$(spl_asks_resolved_why "$row")" || continue
+    text="resolved: $why"
+    if spl_asks_owner_send "$holder" "$row" "$text" "$task"; then
+      spl_asks_told_done "$id" || do_log "WARN ask ${id:0:8}: the resolved reply posted but was not recorded"
+      do_log "OK ask ${id:0:8} reminder resolved: $why"
+    else
+      do_log "WARN the resolved reply for ask ${id:0:8} did not post; retried next tick"
+    fi
+  done
+  return 0
+}
 # c. Unacked ASKS_OWNER_MIN after it was raised, owner not told yet; and
 # d. open and raised ASKS_MAX_RAISES times: told (unless c already did) and
 # dead-lettered with the reason.
 spl_asks_owner() {
-  local holder="$1" rows="$2" row id text maxed told why max="${ASKS_MAX_RAISES:-4}"
+  local holder="$1" rows="$2" row id text maxed told why ctx dest max="${ASKS_MAX_RAISES:-4}"
   while IFS= read -r row; do
     [[ -n "$row" ]] || continue
     id="$(jq -r '.ask_id' <<<"$row")"
@@ -229,12 +423,11 @@ spl_asks_owner() {
       do_log "WARN ask ${id:0:8} is unacked past ${ASKS_OWNER_MIN:-60} min and no owner leg is configured (ASKS_OWNER / ASKS_OWNER_CMD in lease.conf)"
       continue
     fi
-    if [[ "$maxed" == true ]]; then
-      text="$(jq -r --arg h "$holder" --arg x "$max" '"**Dead-lettered ask to the orchestrator (raised \(.raised_n)x, the limit is \($x); \(.age_s / 60 | floor) min old):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) never closed it; it is no longer re-raised. Ask id \(.ask_id)."' <<<"$row")"
-    else
-      text="$(jq -r --arg h "$holder" '"**Unanswered ask to the orchestrator (\(.age_s / 60 | floor) min, re-raised \(.raised_n)x):** \(.kind) from \(.from), topic \(.topic): \(.summary). The acting orchestrator \($h) has not acked it. Ask id \(.ask_id)."' <<<"$row")"
-    fi
-    if spl_asks_owner_send "$holder" "$row" "$text"; then
+    ctx="$(spl_asks_owner_ctx "$(jq -r '.topic // ""' <<<"$row")")"
+    text="$(spl_asks_owner_words "$row" "$holder" "$maxed" "$ctx" "$max")" || { do_log "WARN ask ${id:0:8}: the reminder text could not be built"; continue; }
+    dest="$(spl_asks_owner_dest "$(jq -r '.topic // ""' <<<"$row")" "$(jq -r '.readable // false' <<<"$ctx")")"
+    if spl_asks_owner_send "$holder" "$row" "$text" "$dest"; then
+      spl_asks_told_save "$id" "$dest" || do_log "WARN ask ${id:0:8}: the reminder topic was not recorded"
       spl_asks_mark escalate "$id" "$holder"
       do_log "OK ask ${id:0:8} told to the owner"
       [[ "$maxed" == true ]] && spl_asks_dead "$id" "$holder" "$why; the owner was told"
@@ -251,13 +444,13 @@ spl_asks_dead() {  # ID HOLDER REASON
     do_log "OK ask ${1:0:8} dead-lettered: $3"
 }
 
-spl_asks_owner_send() {  # HOLDER ROW TEXT
+spl_asks_owner_send() {  # HOLDER ROW TEXT TASK
   if [[ -n "${ASKS_OWNER_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    ASK_JSON="$2" $ASKS_OWNER_CMD <<<"$3"; return
+    ASK_JSON="$2" ASK_TASK="${4:-}" $ASKS_OWNER_CMD <<<"$3"; return
   fi
-  local topic
-  topic="$(cat /proc/sys/kernel/random/uuid)"
+  local topic="${4:-}"
+  [[ -n "$topic" ]] || topic="$(cat /proc/sys/kernel/random/uuid)"
   ENV="$LANE_ENV" TENANT_ID="$LANE_TENANT" DESK_BOX="$LANE_DESK_BOX" DESK_AGENT="${1%@*}" DESK_TO="$ASKS_OWNER" \
     DESK_TASK="$topic" DESK_KIND=blocker DESK_BODY="$3" DRY_RUN=0 do_spl_desk_reply >/dev/null
 }

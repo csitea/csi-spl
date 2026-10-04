@@ -1,7 +1,8 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.1** (the lead's first pass; the research files of section
-9 are merged into later versions). Lead and editor: c-165. Tree:
+Status: **draft v0.2** (v0.2: owner decision D1 = yes, recorded in
+sections 3.1 and 8; the research files of section 9 are merged into later
+versions). Lead and editor: c-165. Tree:
 `origin/master` @ `803aff49a`, 2026-10-04. Docs only: this spec builds
 nothing.
 
@@ -56,12 +57,39 @@ section 4: 047 decision D7 (cut the dev hub CPU) is out of scope here.
 | path | who | where | 047 verdict | this spec |
 |---|---|---|---|---|
 | **P1 compose** | a client or a third party | one VM or laptop, any provider, Docker | works; 6 min 26 s to the first human message (047 1.1, tree `4dc8df91`, n=1) | make it **one command, no build, no clone** |
-| **P2 GCP estate** | a client in their own GCP org, or a third party copying the hosted shape | GCP: Cloud Run hub, Cloud SQL, Firebase WUI, 18 terraform steps | **cannot run outside our estate without editing code** (047 1.2) | make it **one resumable action from a filled template**; decision D1 (section 8) reopens 047 D2 |
+| **P2 GCP estate** | a client in their own GCP org, or a third party copying the hosted shape | GCP: Cloud Run hub, Cloud SQL, Firebase WUI, 18 terraform steps | **cannot run outside our estate without editing code** (047 1.2) | make it **one resumable action from a filled template**; a supported path (owner D1 = yes, section 8, reverses 047 D2) |
 | **P3 agent boxes** | anyone seating agents on either hub | any Linux / macOS box | works, needs a 37 MB clone and a Go build (047 U8) | **one pasted line, no toolchain** |
 
 P1 serves the most people for the least effort, so its actions rank first
 (section 2, measure 1). A hosted, bought tenant (047 path B) is not a
 deployment and is not in scope.
+
+### 3.1 One cloud now, one seam for the next
+
+Owner, HUM-10, topic `6410e374`, msg `03bc3dab`, verbatim:
+
+> "Yes any company or organization should be able to spawn their own Google
+> Cloud. Later on we will add support for AWS as well."
+
+So P2 is a supported path for any company or organisation, and **AWS is a
+stated later goal, out of scope for v1 of this spec**. To keep AWS a new
+backend rather than a rewrite, the P2 actions follow one rule:
+
+- **The cloud-specific steps sit behind one seam.** The entry points stay
+  cloud-neutral (`do_spl_cnf_init`, `do_spl_estate_up`, the preflight). A cnf
+  key `env.cloud` (only `gcp` in v1) picks the backend, and the backend owns
+  everything provider-named: the project bootstrap (gcp-000..004), the
+  terraform step list, the identity (service-account keys, WIF) and the WUI
+  host (Firebase).
+- **What crosses the seam is a contract, not GCP names**: the hub image, its
+  env vars (a Postgres DSN, a bucket for files, a mail relay), the public URL
+  and the secrets list. P1 compose already runs on that contract with no
+  cloud at all (047 1.1), which is the evidence that the hub is
+  cloud-neutral.
+- An action that adds a GCP-only step to an entry point instead of to the
+  backend is a review finding against this section.
+
+A7, A9 and A12 (section 6) carry this rule in their acceptance checks.
 
 ## 4. The from-zero path today, measured by reading the tree
 
@@ -164,12 +192,12 @@ timed run a receiver can repeat.
 | **A4** | Prebuilt `spool` CLI per release (linux and darwin, amd64 and arm64) as release assets; `install.sh` downloads it and checks the sha256, builds only as a fallback, and runs without a clone | P3 | CI + orc | S-M | a box with no Go and no clone: the pasted line seats an agent; `grep -c 'releases/download' install.sh` >= 1 |
 | **A5** | Agent join tokens (037 T005, 047 B2): a tenant admin mints a short-lived token in Tenant settings -> Agents; `spool join <url> <token>` seats the box; the root key stays offline | P3 | api + WUI + orc | M-L | from the WUI alone, an agent is seated in **< 1 min**; a used or expired token is refused with a message naming the fix |
 | **A6** | `do_spl_self_host_upgrade`: backup, fetch the newest `stable-*`, pull, `up --wait`, compare `/version`; on failure print the restore line | P1 | orc + docs | S | an upgrade from the previous stable to the current one in one command; `/version` = the new tag |
-| **A7** | A blank cnf template plus `do_spl_cnf_init`: ~10 answers (org, app, env names, region, domain, mail, optional steps) render a new estate's cnf that conf-validator accepts | P2 | cnf + iac | M | `do_spl_cnf_init` with sample answers, then `ENV=<env> ./run -a do_tpl_gen` renders every step's tfvars with 0 references to our domain or project ids |
+| **A7** | A blank cnf template plus `do_spl_cnf_init`: ~10 answers (org, app, env names, region, domain, mail, optional steps) render a new estate's cnf that conf-validator accepts | P2 | cnf + iac | M | `do_spl_cnf_init` with sample answers, then `ENV=<env> ./run -a do_tpl_gen` renders every step's tfvars with 0 references to our domain or project ids; the template has `env.cloud: gcp` and no GCP name outside the backend's block (3.1) |
 | **A8** | Estate names from cnf only: the 9 `regex("^csi-spl` validations become a generic name pattern; the project id is a cnf key, not the directory name | P2 | iac | S | `grep -rnF 'regex("^csi-spl' csi-spl-iac/src/terraform \| wc -l` -> 0; a clone under any directory name resolves the same ORG/APP |
-| **A9** | `do_spl_estate_up ENV=<env>`: gcp-000 -> the infra stack -> every enabled step in order through the sweep's gate -> the seeds -> the GitHub vars (A11) -> the first deploy; **resumable** (skips what exists), dry run by default, every stop names the step and the fix | P2 | iac + orc | M | in a throwaway project, one command per env reaches a healthy `/v1/health` and the WUI; a second run changes nothing and says so |
+| **A9** | `do_spl_estate_up ENV=<env>`: gcp-000 -> the infra stack -> every enabled step in order through the sweep's gate -> the seeds -> the GitHub vars (A11) -> the first deploy; **resumable** (skips what exists), dry run by default, every stop names the step and the fix | P2 | iac + orc | M | in a throwaway project, one command per env reaches a healthy `/v1/health` and the WUI; a second run changes nothing and says so; the action dispatches on `env.cloud` and `env.cloud: aws` exits with "not supported yet", naming 3.1 (control for the seam) |
 | **A10** | Org optional: gcp-001 creates a project with no org or folder when neither is given, and says what that loses | P2 | iac | S | `ENV=<env> DRY_RUN=1 ./run -a do_gcp_001_create_project` with neither set -> a plan, not `FATAL` |
 | **A11** | `do_spl_gh_wire`: writes step 017's outputs into the 6 GitHub repo variables | P2 | iac | XS-S | after it, `gh variable list` shows the 6 `vars.*` that wf 20 and 30 read |
-| **A12** | Mark our-only steps optional in cnf (satellite 059/060, off-project backups 046, domain verification 005); the sweep skips a step marked off | P2 | cnf + iac | S | with them off, the sweep plans 0 resources for them |
+| **A12** | Mark our-only steps optional in cnf (satellite 059/060, off-project backups 046, domain verification 005); the sweep skips a step marked off | P2 | cnf + iac | S | with them off, the sweep plans 0 resources for them; the step list lives in the gcp backend's cnf block, not in the entry point (3.1) |
 | **A13** | The CI runner is a repo variable: wf 10 runs on `ubuntu-latest` unless `vars.SPOOL_CI_RUNNER` names a self-hosted label | P2, contributors | CI | S | a fork's push runs wf 10 to a verdict; on this repo nothing changes |
 | **A14** | tpl-gen without a token: vendored, or fetched by a public ref | P2 | orc | S | `make do-setup-tpl-gen` with no `GITHUB_TOKEN` succeeds |
 | **A15** | One page, `DEPLOY.md` at the repo root: which path (P1, P2, P3, or a hosted tenant), how long each takes, the one command each, and an error index (message -> fix) | all | docs | S | linked from the top of README; every command on it has a passing acceptance check in this table |
@@ -218,7 +246,7 @@ Order = rank, dependencies respected. Lanes in one wave run in parallel.
 
 | # | decision | recommendation |
 |---|---|---|
-| D1 | Is P2 (a client or a third party runs the GCP shape in their own org) a supported path now? This ask reverses 047 D2 ("no, not now") | **yes**, ranked after P1 as section 2 orders it |
+| D1 | Is P2 (a client or a third party runs the GCP shape in their own org) a supported path now? This ask reverses 047 D2 ("no, not now") | **ANSWERED yes** (msg `03bc3dab`, 2026-10-04): any company or organisation spawns its own Google Cloud; AWS later, behind the seam of section 3.1. Ranked after P1 as section 2 orders it |
 | D2 | Publish images to GHCR under the org (047 D4, still open: `grep -li ghcr .github/workflows/*` -> 0) | **yes** |
 | D3 | Build agent join tokens (037 T005) | **yes**: the root key on every agent box is the worst step left in P3 |
 | D4 | One throwaway GCP project and its billing for the P2 stranger test (A16) | **yes**, deleted after the run |
@@ -242,3 +270,4 @@ rule, and logs it below.
 | version | merged | by |
 |---|---|---|
 | v0.1 | sections 1-8, first pass from the tree | c-165 |
+| v0.2 | owner D1 = yes; section 3.1 (one cloud now, one seam for AWS later) | c-165 |

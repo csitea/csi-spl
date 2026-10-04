@@ -35,6 +35,12 @@
 #  13. spec 072 A50: an unreachable hub is exit 5 naming the URL before
 #      anything installs; a hub URL alone means --env self; a dry run says
 #      "would render"; the skills carry no /var/spool-hub and no CLE-00
+#  14. spec 072 A4b: spool is downloaded from the newest stable-* release
+#      (a newer v* release is skipped), checked against spool-SHA256SUMS, and
+#      no Go is fetched; a re-run fetches nothing; no asset for this OS/arch,
+#      no release, offline -> the build, named in one line; a bad checksum ->
+#      exit 6, nothing installed, nothing built; SPOOL_INSTALL_CLI=download
+#      never builds; --fleet builds; the dry run names both paths
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -69,6 +75,8 @@ tar -czf "$T/www/go.tgz" -C "$T/gobuild" go
 printf 'go1.99.0\ntime 2026-01-01T00:00:00Z\n' >"$T/www/goversion"
 printf '#!/bin/sh\necho "yq (https://github.com/mikefarah/yq/) version v4.99.0"\n' >"$T/www/yq"
 echo '{"version": "9.9.9"}' >"$T/www/version"
+# the releases list: none by default, so every section above 14 builds
+echo '[]' >"$T/www/rel-none.json"
 
 cat >"$T/stub/curl" <<EOF
 #!/bin/bash
@@ -83,6 +91,8 @@ case "\$url" in
   https://go.test/dl/go1.99.0.*.tar.gz) f=go.tgz ;;
   https://yq.test/yq_*)       f=yq ;;
   https://api.example.com/version|http://localhost:18478/version) f=version ;;
+  https://rel.test/releases*) f="\${STUB_REL:-rel-none.json}" ;;
+  https://dl.test/*)          f="dl/\${url#https://dl.test/}"; [ -f "$T/www/\$f" ] || exit 22 ;;
   *) echo "curl stub: no fixture for \$url" >&2; exit 22 ;;
 esac
 if [ -n "\$out" ]; then cp "$T/www/\$f" "\$out"; else cat "$T/www/\$f"; fi
@@ -124,6 +134,7 @@ inst() {  # run install.sh in the throwaway HOME; output in $T/o
     SPOOL_INSTALL_URL_CLAUDE=https://vendor.test/claude SPOOL_INSTALL_URL_GROK=https://vendor.test/grok \
     SPOOL_INSTALL_URL_AGY=https://vendor.test/agy SPOOL_INSTALL_URL_GO=https://go.test \
     SPOOL_INSTALL_URL_YQ=https://yq.test SPOOL_INSTALL_GO_ROOTS="" \
+    SPOOL_INSTALL_REPO=example/spool SPOOL_INSTALL_URL_RELEASES=https://rel.test/releases SPOOL_INSTALL_URL_CLI=https://dl.test \
     SPOOL_INSTALL_BUILD="$T/stub/build.sh" SPOOL_INSTALL_RUN="$T/stub/run" "$@" \
     bash "$INSTALL" ${ARGS[@]+"${ARGS[@]}"} >"$T/o" 2>&1
 }
@@ -370,5 +381,73 @@ H="$T/home-a50b"; mkdir -p "$H"
 ARGS=(--cli none --no-seat --fleet --dry-run); inst; rc=$?
 [[ $rc -eq 0 && -z "$(ls -A "$H")" ]] && grep -q 'would render' "$T/o" && ! grep -qE 'rendered|merged' "$T/o" &&
   pass "13. a dry run says would render, never rendered" || fail "13. dry wording: rc $rc $(cat "$T/o")"
+
+# --- 14. the CLI from the newest stable-* release (spec 072 A4b) ----------------------------------
+case "$(uname -m)" in x86_64|amd64) A=amd64 ;; aarch64|arm64) A=arm64 ;; *) A="$(uname -m)" ;; esac
+ASSET="spool-$(uname -s | tr '[:upper:]' '[:lower:]')-$A"
+mk_stable() {  # TAG SUMS-OVERRIDE: a release dir with the asset and its spool-SHA256SUMS
+  mkdir -p "$T/www/dl/$1"
+  printf '#!/bin/sh\n[ "$1" = version ] && echo "spool v9.9.9 (%s)"\n' "$1" >"$T/www/dl/$1/$ASSET"
+  if [ -n "${2:-}" ]; then printf '%s  %s\n' "$2" "$ASSET" >"$T/www/dl/$1/spool-SHA256SUMS"
+  else (cd "$T/www/dl/$1" && sha256sum "$ASSET" >spool-SHA256SUMS); fi
+}
+mk_stable stable-2026-10-05
+mk_stable stable-2026-10-06 "$(printf '0%.0s' $(seq 64))"
+rel() { printf '{"tag_name": "%s", "draft": false, "prerelease": false, "assets": [%s]}' "$1" "$2"; }
+a() { printf '{"name": "%s"}' "$1"; }
+echo "[$(rel v9.9.9 "$(a "$ASSET")"), $(rel stable-2026-10-05 "$(a "$ASSET"), $(a spool-SHA256SUMS)")]" >"$T/www/rel-good.json"
+echo "[$(rel stable-2026-10-05 "$(a spool-plan9-amd64), $(a spool-SHA256SUMS)")]" >"$T/www/rel-noasset.json"
+echo "[$(rel stable-2026-10-06 "$(a "$ASSET"), $(a spool-SHA256SUMS)")]" >"$T/www/rel-bad.json"
+cli_lines() { grep -c '^spool-install: spool CLI: ' "$T/o"; }
+
+H="$T/home-a4b"; mkdir -p "$H"; TOOLS="$H/.local/share/spool-agent/tools"; : >"$T/net.log"; : >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-good.json; rc=$?
+[[ $rc -eq 0 ]] && grep -q "spool CLI: downloaded $ASSET of stable-2026-10-05 (https://dl.test/stable-2026-10-05/$ASSET, sha256 checked against spool-SHA256SUMS)" "$T/o" &&
+  [[ "$(cli_lines)" == 1 ]] && cmp -s "$TOOLS/bin/spool" "$T/www/dl/stable-2026-10-05/$ASSET" &&
+  pass "14. spool is the $ASSET of the newest stable-* (the newer v* skipped), sha256 checked, one line" || fail "14. download: rc $rc $(cat "$T/o")"
+[[ ! -s "$T/build.log" && ! -e "$TOOLS/go" ]] && ! grep -q go.test "$T/net.log" &&
+  pass "14. a downloaded spool needs no Go and no build" || fail "14. built anyway: $(cat "$T/build.log" "$T/net.log")"
+[[ "$(env -i PATH="$H/.local/bin:/usr/bin:/bin" bash -c 'spool version')" == "spool v9.9.9 (stable-2026-10-05)" ]] &&
+  pass "14. ... and is on <prefix>/bin as spool" || fail "14. not on PATH: $(ls -l "$H/.local/bin/spool" 2>&1)"
+: >"$T/net.log"
+ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-good.json; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'already spool-.* of stable-2026-10-05 (sha256 matches) - not downloaded again' "$T/o" && ! grep -q "dl.test/stable-2026-10-05/$ASSET" "$T/net.log" &&
+  pass "14. a re-run on the same stable downloads nothing" || fail "14. re-run: rc $rc $(cat "$T/o" "$T/net.log")"
+
+H="$T/home-a4b-bad"; mkdir -p "$H"; TOOLS="$H/.local/share/spool-agent/tools"; : >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-bad.json; rc=$?
+[[ $rc -eq 6 && ! -e "$TOOLS/bin/spool" && ! -s "$T/build.log" && ! -e "$H/.local/bin/spool-agent" ]] &&
+  grep -q "FATAL the sha256 of https://dl.test/stable-2026-10-06/$ASSET is .*, its spool-SHA256SUMS says 0\{64\}: refused, .* untouched. Re-run install.sh" "$T/o" &&
+  pass "14. a bad checksum is refused (6): nothing installed, nothing built, the URL named" || fail "14. bad sum: rc $rc $(cat "$T/o")"
+
+H="$T/home-a4b-noasset"; mkdir -p "$H"; TOOLS="$H/.local/share/spool-agent/tools"; : >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-noasset.json; rc=$?
+[[ $rc -eq 0 && "$(cli_lines)" == 1 ]] && grep -q "spool CLI: building from this checkout - stable-2026-10-05 has no $ASSET (this OS/arch)" "$T/o" &&
+  grep -q "^build $TOOLS/bin/spool go=$TOOLS/go/bin/go" "$T/build.log" &&
+  pass "14. no asset for this OS/arch: the Go build, named in one line" || fail "14. no asset: rc $rc $(cat "$T/o" "$T/build.log")"
+: >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills); inst; rc=$?
+[[ $rc -eq 0 ]] && grep -q "spool CLI: building from this checkout - no stable-\* release at https://rel.test/releases" "$T/o" && [[ -s "$T/build.log" ]] &&
+  pass "14. no stable-* release: the build" || fail "14. no release: rc $rc $(cat "$T/o")"
+: >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=no-such-file; rc=$?
+[[ $rc -eq 0 ]] && grep -q "spool CLI: building from this checkout - cannot read the releases at https://rel.test/releases" "$T/o" && [[ -s "$T/build.log" ]] &&
+  pass "14. offline (the releases do not answer): the build, the URL named" || fail "14. offline: rc $rc $(cat "$T/o")"
+: >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills); inst SPOOL_INSTALL_CLI=download; rc=$?
+[[ $rc -eq 6 && ! -s "$T/build.log" ]] && grep -q 'FATAL SPOOL_INSTALL_CLI=download, but no stable-\* release at https://rel.test/releases: unset SPOOL_INSTALL_CLI' "$T/o" &&
+  pass "14. SPOOL_INSTALL_CLI=download never builds (6, what to run next)" || fail "14. download-only: rc $rc $(cat "$T/o")"
+: >"$T/build.log"; : >"$T/net.log"
+ARGS=(--cli none --no-seat --no-skills --fleet); inst STUB_REL=rel-good.json; rc=$?
+[[ $rc -eq 0 && -s "$T/build.log" ]] && grep -q 'spool CLI: building from this checkout - a fleet box (--fleet)' "$T/o" && ! grep -q 'rel.test' "$T/net.log" &&
+  pass "14. a --fleet box builds this checkout, no release read" || fail "14. fleet: rc $rc $(cat "$T/o")"
+ARGS=(--cli none --no-seat --no-skills); inst SPOOL_INSTALL_CLI=nope; rc=$?
+[[ $rc -eq 2 ]] && pass "14. CONTROL: SPOOL_INSTALL_CLI=nope is refused (2)" || fail "14. bad mode: rc $rc"
+H="$T/home-a4b-dry"; mkdir -p "$H"; : >"$T/net.log"
+ARGS=(--cli none --no-seat --dry-run); inst STUB_REL=rel-good.json; rc=$?
+[[ $rc -eq 0 && -z "$(ls -A "$H")" && ! -s "$T/net.log" ]] && grep -q "would: download $ASSET of the newest stable-\* release (example/spool" "$T/o" &&
+  grep -q 'would: build spool from .* (only when the download is impossible)' "$T/o" &&
+  pass "14. the dry run names the download and the fallback, fetches nothing" || fail "14. dry: rc $rc $(cat "$T/o")"
+grep -c 'releases/download' "$INSTALL" >/dev/null && pass "14. spec check: install.sh names releases/download" || fail "14. no releases/download in install.sh"
 
 [[ $fails -eq 0 ]] && echo "OK test-install: $n passed" || { echo "FAILED test-install: $fails of $n"; exit 1; }

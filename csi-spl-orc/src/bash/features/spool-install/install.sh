@@ -11,9 +11,17 @@
 #   1. the agent CLIs you pick, each through its vendor's own documented
 #      installer, which installs or updates to the LATEST release (qwen:
 #      `npm install -g` into <prefix>, which needs Node 20+ and npm)
-#   2. the toolchain the harness runs on: yq (v4) and Go, when not present,
-#      into <data>/tools, and the `spool` binary built from this checkout,
-#      linked as <prefix>/bin/spool (a real file there is left alone)
+#   2. the toolchain the harness runs on: yq (v4) into <data>/tools, and the
+#      `spool` binary, linked as <prefix>/bin/spool (a real file there is left
+#      alone). spool is DOWNLOADED (spec 072 A4b): spool-<os>-<arch> of the
+#      newest stable-* release of this clone's GitHub origin, checked against
+#      the release's spool-SHA256SUMS - no Go needed. Only when that is
+#      impossible (no release, no asset for this OS/arch, no SHA256SUMS,
+#      offline) is it built from this checkout, with Go downloaded into
+#      <data>/tools when not present; one line says which path ran and why.
+#      A checksum mismatch is refused (exit 6), never built around. A --fleet
+#      box and a shared copy (SPOOL_INSTALL_SHARED) always build: their binary
+#      carries this checkout's commit
 #   3. the `spool-agent` command in <prefix>/bin, a shim that runs this
 #      checkout's spool-agent.sh with your env / tenant / box
 #   4. the terminal mirror hooks in ~/.claude/settings.json (claude and grok
@@ -79,6 +87,13 @@
 #      SPOOL_INSTALL_NO_BUILD=1 - with SPOOL_INSTALL_SHARED, --binary-only only
 #      LINKS to the shared copy another user built and verified: no Go, no
 #      build; a missing shared copy fails (exit 6)
+#      SPOOL_INSTALL_CLI - auto (default: download, build as the fallback),
+#      download (no build: a download that is impossible is exit 6) or build
+#      SPOOL_INSTALL_REPO - <owner>/<repo> whose releases carry the CLI
+#      (default: this clone's origin, when it is on GitHub)
+#      SPOOL_INSTALL_URL_RELEASES - the releases list (default the GitHub API
+#      for SPOOL_INSTALL_REPO); SPOOL_INSTALL_URL_CLI - the download base,
+#      <base>/<tag>/<asset> (default that repo's releases/download)
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
@@ -91,7 +106,8 @@
 # Exit codes: 0 done (a PENDING seat included), 2 usage, 3 a base tool is
 # missing, 4 an agent CLI did not install (every other step still ran), 5 the
 # hub did not answer or the seat failed (the URL is named), 6 the toolchain
-# or the spool build failed, 7 a file in the way is not ours.
+# or the spool build failed, or the downloaded spool failed its checksum,
+# 7 a file in the way is not ours.
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -161,6 +177,8 @@ if [ -z "$FLEET" ]; then
   grep -qF '<!-- spool-install: begin claude-md' "$HOME/.claude/CLAUDE.md" 2>/dev/null && FLEET=1 || FLEET=0
 fi
 [[ "$FLEET" =~ ^[01]$ ]] || die 2 "SPOOL_INSTALL_FLEET must be 0 or 1, got '$FLEET'"
+CLI_MODE="${SPOOL_INSTALL_CLI:-auto}"
+[[ "$CLI_MODE" =~ ^(auto|download|build)$ ]] || die 2 "SPOOL_INSTALL_CLI must be auto, download or build, got '$CLI_MODE'"
 [[ "$ENVN" =~ ^(dev|prd|self)$ ]] || die 2 "--env must be dev, prd or self (a self-hosted hub), got '$ENVN'"
 [ "$CLIS" = none ] && CLIS=""
 IFS=, read -r -a CLI_LIST <<<"$CLIS"
@@ -300,6 +318,84 @@ if [ "$BINONLY" = 0 ] && ! yq_ok; then
     yq_ok || die 6 "$TOOLS/bin/yq is not yq v4"
   fi
 fi
+TOOLS_SPOOL="$TOOLS/bin/spool"
+# One installed copy per machine: SPOOL_INSTALL_SHARED, else the file the
+# tools path already links to (so a full install by any linked user rebuilds
+# the shared copy instead of splitting it again).
+SHARED="${SPOOL_INSTALL_SHARED:-}"
+[ -z "$SHARED" ] && [ -L "$TOOLS_SPOOL" ] && SHARED="$(readlink -f "$TOOLS_SPOOL")"
+SPOOL="${SHARED:-$TOOLS_SPOOL}"
+
+# spool from the newest stable-* release (spec 072 A4b): wf 55 attaches
+# spool-<os>-<arch> and spool-SHA256SUMS (sha256sum -c format) to each one.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  else return 1; fi
+}
+CLI_ASSET="spool-$OS-$ARCH"
+CLI_REPO="${SPOOL_INSTALL_REPO:-$(git -C "$ROOT" remote get-url origin 2>/dev/null |
+  sed -nE 's#^(https://|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\2#p' | sed 's/\.git$//')}"
+CLI_RELEASES="${SPOOL_INSTALL_URL_RELEASES:-https://api.github.com/repos/$CLI_REPO/releases?per_page=30}"
+CLI_BASE="${SPOOL_INSTALL_URL_CLI:-https://github.com/$CLI_REPO/releases/download}"
+# cli_download: 0 = $SPOOL is the release asset (downloaded, or already that
+# file); 1 = a download is impossible, the reason in CLI_WHY (the caller
+# builds). A checksum mismatch is exit 6 here: never installed, never built
+# around, since a tampered or truncated asset is not "no release".
+cli_download() {
+  local tmp="" tag="" has_asset="" has_sums="" want="" got="" ver=""
+  [ -n "$CLI_REPO" ] || { CLI_WHY="the origin of $ROOT is not a GitHub repo, so there is no release to read (set SPOOL_INSTALL_REPO=<owner>/<repo>)"; return 1; }
+  sha256_of /dev/null >/dev/null || { CLI_WHY="neither sha256sum nor shasum is here to check a download"; return 1; }
+  tmp="$(mktemp -d)"
+  fetch "$CLI_RELEASES" "$tmp/rel.json" || { rm -rf "$tmp"; CLI_WHY="cannot read the releases at $CLI_RELEASES (offline, or the API rate limit)"; return 1; }
+  read -r tag has_asset has_sums < <(python3 - "$tmp/rel.json" "$CLI_ASSET" <<'PY'
+import json, sys
+try:
+    rels = json.load(open(sys.argv[1]))
+except ValueError:
+    rels = []
+for r in rels if isinstance(rels, list) else []:
+    if not str(r.get("tag_name", "")).startswith("stable-") or r.get("draft") or r.get("prerelease"):
+        continue
+    names = {a.get("name") for a in r.get("assets", [])}
+    print(r["tag_name"], int(sys.argv[2] in names), int("spool-SHA256SUMS" in names))
+    break
+PY
+)
+  [ -n "$tag" ] || { rm -rf "$tmp"; CLI_WHY="no stable-* release at $CLI_RELEASES"; return 1; }
+  [ "$has_asset" = 1 ] || { rm -rf "$tmp"; CLI_WHY="$tag has no $CLI_ASSET (this OS/arch)"; return 1; }
+  [ "$has_sums" = 1 ] || { rm -rf "$tmp"; CLI_WHY="$tag publishes no spool-SHA256SUMS, so $CLI_ASSET cannot be checked"; return 1; }
+  fetch "$CLI_BASE/$tag/spool-SHA256SUMS" "$tmp/sums" || { rm -rf "$tmp"; CLI_WHY="cannot download $CLI_BASE/$tag/spool-SHA256SUMS"; return 1; }
+  want="$(awk -v f="$CLI_ASSET" '$2 == f || $2 == "*" f {print $1; exit}' "$tmp/sums")"
+  [[ "$want" =~ ^[0-9a-f]{64}$ ]] || { rm -rf "$tmp"; CLI_WHY="$CLI_BASE/$tag/spool-SHA256SUMS lists no sha256 for $CLI_ASSET"; return 1; }
+  if [ -x "$SPOOL" ] && [ ! -L "$SPOOL" ] && [ "$(sha256_of "$SPOOL")" = "$want" ]; then
+    rm -rf "$tmp"; say "spool CLI: $SPOOL is already $CLI_ASSET of $tag (sha256 matches) - not downloaded again"; return 0
+  fi
+  fetch "$CLI_BASE/$tag/$CLI_ASSET" "$tmp/$CLI_ASSET" || { rm -rf "$tmp"; CLI_WHY="cannot download $CLI_BASE/$tag/$CLI_ASSET"; return 1; }
+  got="$(sha256_of "$tmp/$CLI_ASSET")"
+  [ "$got" = "$want" ] || { rm -rf "$tmp"; die 6 "the sha256 of $CLI_BASE/$tag/$CLI_ASSET is ${got:-unreadable}, its spool-SHA256SUMS says $want: refused, $SPOOL untouched. Re-run install.sh; if it repeats, report it and build from this checkout with SPOOL_INSTALL_CLI=build"; }
+  chmod 755 "$tmp/$CLI_ASSET"
+  ver="$("$tmp/$CLI_ASSET" version 2>/dev/null | sed -n 1p)"
+  [ -n "$ver" ] || { rm -rf "$tmp"; CLI_WHY="$CLI_ASSET of $tag does not run here ('spool version' printed nothing)"; return 1; }
+  mkdir -p "${SPOOL%/*}" && cp "$tmp/$CLI_ASSET" "$SPOOL.new.$$" && mv -f "$SPOOL.new.$$" "$SPOOL" ||
+    { rm -rf "$tmp" "$SPOOL.new.$$"; die 6 "cannot write $SPOOL: check that ${SPOOL%/*} is yours, then re-run install.sh"; }
+  rm -rf "$tmp"
+  say "spool CLI: downloaded $CLI_ASSET of $tag ($CLI_BASE/$tag/$CLI_ASSET, sha256 checked against spool-SHA256SUMS) -> $SPOOL ($ver)"
+}
+CLI_FROM=build CLI_WHY=""
+if [ "$BINONLY" = 1 ]; then :  # --binary-only verifies this checkout's HEAD: always a build
+elif [ "$CLI_MODE" = build ]; then CLI_WHY="SPOOL_INSTALL_CLI=build"
+elif [ "$CLI_MODE" = auto ] && [ "$FLEET" = 1 ]; then CLI_WHY="a fleet box (--fleet) runs this checkout's own build"
+elif [ "$CLI_MODE" = auto ] && [ -n "$SHARED" ]; then CLI_WHY="the shared copy $SHARED carries this checkout's commit"
+elif [ "$DRY" = 1 ]; then
+  CLI_FROM=plan
+  plan "download $CLI_ASSET of the newest stable-* release (${CLI_REPO:-no GitHub origin}: $CLI_RELEASES), check it against spool-SHA256SUMS, install it as $SPOOL"
+elif cli_download; then CLI_FROM=download
+elif [ "$CLI_MODE" = download ]; then
+  die 6 "SPOOL_INSTALL_CLI=download, but $CLI_WHY: unset SPOOL_INSTALL_CLI to build from this checkout instead, then re-run install.sh"
+fi
+[ "$BINONLY" = 1 ] || [ "$CLI_FROM" != build ] || say "spool CLI: building from this checkout - $CLI_WHY"
+
 GO_NEED="$(sed -n 's/^go \([0-9.]*\).*/\1/p' "$MOD/go.mod" 2>/dev/null)"
 go_ok() {  # the first go on PATH (or in an override root) that is new enough
   local g v
@@ -322,10 +418,11 @@ go_ok() {  # the first go on PATH (or in an override root) that is new enough
   return 1
 }
 GO_BIN=""
-if [ "${SPOOL_INSTALL_NO_BUILD:-0}" = 1 ]; then :
+FALLBACK=""; [ "$CLI_FROM" = plan ] && FALLBACK=" (only when the download is impossible)"
+if [ "${SPOOL_INSTALL_NO_BUILD:-0}" = 1 ] || [ "$CLI_FROM" = download ]; then :
 elif ! go_ok; then
   base="${SPOOL_INSTALL_URL_GO:-https://go.dev}"
-  if [ "$DRY" = 1 ]; then plan "download the latest Go (>= $GO_NEED) into $TOOLS/go ($base/dl/)"; GO_BIN="$TOOLS/go/bin/go"
+  if [ "$DRY" = 1 ]; then plan "download the latest Go (>= $GO_NEED) into $TOOLS/go ($base/dl/)$FALLBACK"; GO_BIN="$TOOLS/go/bin/go"
   else
     tmp="$(mktemp -d)"
     fetch "$base/VERSION?m=text" "$tmp/v" || die 6 "cannot read the latest Go version from $base"
@@ -339,13 +436,6 @@ elif ! go_ok; then
   fi
 fi
 [ -n "$GO_BIN" ] && TPATH="$TPATH:$(dirname "$GO_BIN")" && export PATH="$(dirname "$GO_BIN"):$PATH"
-TOOLS_SPOOL="$TOOLS/bin/spool"
-# One installed copy per machine: SPOOL_INSTALL_SHARED, else the file the
-# tools path already links to (so a full install by any linked user rebuilds
-# the shared copy instead of splitting it again).
-SHARED="${SPOOL_INSTALL_SHARED:-}"
-[ -z "$SHARED" ] && [ -L "$TOOLS_SPOOL" ] && SHARED="$(readlink -f "$TOOLS_SPOOL")"
-SPOOL="${SHARED:-$TOOLS_SPOOL}"
 # bin_rev <bin>: the commit a spool binary was built from - build.sh's
 # -X main.commit in the recorded -ldflags, else Go's vcs.revision.
 bin_rev() {
@@ -433,7 +523,8 @@ link_tools() {
   say "spool: $TOOLS_SPOOL -> $SHARED (the one installed copy)"
 }
 if [ "$BINONLY" = 1 ]; then binary_only
-elif [ "$DRY" = 1 ]; then plan "build spool from $MOD into $SPOOL"
+elif [ "$CLI_FROM" = download ]; then :
+elif [ "$DRY" = 1 ]; then plan "build spool from $MOD into $SPOOL$FALLBACK"
 else
   shared_dir
   # build.sh is offline (GOPROXY=off): a fresh machine fetches the modules

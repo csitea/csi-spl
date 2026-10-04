@@ -28,6 +28,10 @@
 #      no-op that never calls the action; a two-word box is refused client
 #      side; CONTROL: a normal lane id's done still calls it; --check runs
 #      the action --quiet (framework lines off stdout), a plain map does not
+#  10. the BOX-0 load row: a machine that reads its panes publishes
+#      `mem_kb=<n> live=<ids>` as BOX-0@<box>; the other machine's header
+#      shows that mem and busy count; BOX-0 is never a lane (table, --all,
+#      json, the collision check); CONTROL without panes nothing is written
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -86,7 +90,7 @@ on() {
   local m="$1" a="$2"; shift 2
   local box=box-desk; [[ "$m" == sat ]] && box=sat
   env PROJ_PATH="$T/$m/csi-spl" SPOOL_ROOT="$T/$m/spool" SPOOL_BOX_ENV="$T/$m/spool/box.env" SPOOL_DESK_BOX="$box" \
-    LANE_REPO_DIRS="$T/$m/csi-spl" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" "$@" bash -c '
+    LANE_REPO_DIRS="$T/$m/csi-spl" LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_PANES_CMD=false "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/spl-lane-map.func.sh"
@@ -236,6 +240,25 @@ lm bash "$LM" --check a/b --agent c-077 >/dev/null 2>&1
 lm bash "$LM" >/dev/null 2>&1
 [[ "$(cat "$T/orc/calls")" == $'RUN -a do_spl_lane_map --quiet state= agent=c-077\nRUN -a do_spl_lane_map state= agent=' ]] &&
   pass "--check runs the action --quiet (only the verdict on stdout); a plain map does not" || fail "quiet: $(cat "$T/orc/calls")"
+
+# 10. the BOX-0 load row
+printf '0 c-001@sat\n0 c-150@sat wip\n1 c-151@sat\n0 shell\n' >"$T/panes"
+printf 'MemTotal: 1 kB\nMemAvailable: 8388608 kB\n' >"$T/meminfo"
+on sat do_spl_lane_map "${F[@]}" >/dev/null
+[[ "$(jq -c '[.lanes[] | select(.agent_id == "BOX-0")] | length' "$T/hub/main.json")" == 0 ]] &&
+  pass "control: a machine whose panes cannot be read publishes no BOX-0 row" || fail "BOX-0 without panes: $(cat "$T/hub/main.json")"
+on sat do_spl_lane_map "${F[@]}" LANE_PANES_CMD="cat $T/panes" LANE_MEMINFO="$T/meminfo" >/dev/null
+row="$(jq -c '.lanes[] | select(.agent_id == "BOX-0")' "$T/hub/main.json")"
+[[ "$(jq -r '.agent_box + " " + .state + " " + .scope' <<<"$row")" == "sat live mem_kb=8388608 live=c-001,c-150" ]] &&
+  pass "sat publishes BOX-0@sat: its free kB and its agents with a live pane (a dead pane, a shell: not)" || fail "BOX-0 row: $row"
+out="$(on pc do_spl_lane_map "${F[@]}" LANE_ALL=1)"
+grep -qx 'BOX sat  busy 1  seats 1  mem 8.0G' <<<"$out" && pass "pc's header reads sat's load from it: busy 1, seats 1, mem 8.0G" || fail "pc header: $out"
+[[ "$(grep -v '^BOX ' <<<"$out")" != *BOX-0* ]] && pass "BOX-0 is never a lane in the table, even with LANE_ALL=1" || fail "BOX-0 listed: $out"
+out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json LANE_ALL=1 | tail -1)"
+[[ "$(jq -c '[.lanes[] | select(.agent_id == "BOX-0")] | length' <<<"$out")" == 0 && "$(jq -r '.load[] | select(.box == "sat") | .src' <<<"$out")" == box ]] &&
+  pass "...nor in the json lanes; the load says src box" || fail "json BOX-0: $out"
+out="$(on pc 'LANE_CHECK=mem_kb=8388608 do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-77921)"; rc=$?
+[[ $rc -eq 0 ]] && pass "the collision check never reads a BOX-0 row" || fail "check BOX-0 (rc=$rc): $out"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

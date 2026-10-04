@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# spawn-window.sh PLACEMENT (owner GO 2026-10-03): a new lane (TITLE auto)
-# starts on the fleet box with the fewest BUSY agents, and the lane map's
-# header shows that load per box. Measured before: 9 agents on the box the
+# spawn-window.sh PLACEMENT (owner GO 2026-10-03, real load 2026-10-04): a
+# new lane (TITLE auto) starts on the fleet box with the fewest BUSY agents -
+# the agents live there NOW (this box: its tmux panes; another box: its own
+# BOX-0 report row) - then the most free memory, then here; and the lane
+# map's header shows that load per box. Measured before: 9 agents on the box the
 # orchestrator runs on, 2 on the other, because every lane started where the
 # orchestrator was.
 #
 # The load comes from the REAL lane map action (do_spl_lane_map, json) over a
-# stub hub; spawn-remote.sh is a stub. Nothing is spawned: a placement that
+# stub hub and a stub tmux (the panes of this box); spawn-remote.sh is a stub. Nothing is spawned: a placement that
 # stays here runs into "no tmux session" (exit 5, no tmux server here), one
 # that goes elsewhere prints the stub's "<ID>@<box> <PANE>".
 #   1. busy 8 elsewhere, 0 here -> here; CONTROL busy 0 elsewhere, 8 here -> there
@@ -21,6 +23,20 @@
 #      CONTROL a box outside lease.conf with no row is not listed
 #   7. guards: an explicit TITLE never moves; no fleet = no lane map call;
 #      another box holding the orch lease = here
+#   8. a lane running 3 h with a live pane is busy (the 2 h row window said
+#      0); CONTROL its pane dead -> not busy; another box's report counts its
+#      lanes 3 h old too
+#   9. a finished lane (row still live, written 10 min ago, its pane gone) is
+#      not busy; CONTROL the panes alive; another box: a lane written done
+#      after its report leaves the count, one written live after it joins
+#  10. memory breaks a busy tie: the other box has more free memory -> there;
+#      CONTROL the same memory -> here
+#  11. a box under SPAWN_MEM_FLOOR_MB (default 4096) is skipped even when
+#      idle; CONTROL a lower floor -> there; this box under the floor -> there
+#  12. the BOX-0 report: this box publishes `mem_kb=<n> live=<ids>` (at most
+#      every LANE_BOX_ROW_S); the header shows the other box's mem from its
+#      report; a stale report (LANE_BOX_ROW_MAX_S) falls back to its rows;
+#      BOX-0 is never listed as a lane
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -40,23 +56,30 @@ conf() {  # [SEAT_IDS (3, default c-001..c-003)] extra lease.conf lines
 conf
 echo "c-001@$HERE_BOX 1" > "$SPOOL_ROOT/dispatch/lease.orch"
 printf 'MemTotal: 1 kB\nMemAvailable: 4194304 kB\n' > "$T_TMP/meminfo"
+G=1048576  # kB per GB
 
-# rows <box> <n> <first-id-number>: n live lanes of age 60 s on that box
-ROWS="$T_TMP/rows.json"
-rows() { local i; for ((i = 0; i < $2; i++)); do printf 'c-%03d %s\n' $(( $3 + i )) "$1"; done; }
-set_rows() {  # "<id> <box>" lines on stdin
+# rows <box> <n> <first-id-number> [age_s] [state]: n lanes on that box
+ROWS="$T_TMP/rows.json" PANES="$T_TMP/panes"
+rows() { local i; for ((i = 0; i < $2; i++)); do printf 'c-%03d %s %s %s\n' $(( $3 + i )) "$1" "${4:-60}" "${5:-live}"; done; }
+# report <box> <mem_kb> <age_s> <id,id,...>: that box's BOX-0 load row
+report() { printf 'BOX-0 %s %s live mem_kb=%s live=%s\n' "$1" "$3" "$2" "$4"; }
+set_rows() {  # "<id> <box> [age_s] [state] [scope...]" lines on stdin; this box's live rows are its live panes
   jq -R -s -c '{lanes: [split("\n")[] | select(length > 0) | split(" ") |
-    {agent_id: .[0], agent_box: .[1], repo: "r", branch: "b", scope: "", files: [], topic: "", state: "live", age_s: 60}]}' > "$ROWS"
+    {agent_id: .[0], agent_box: .[1], repo: "r", branch: "b", scope: (.[4:] | join(" ")), files: [], topic: "",
+     state: (.[3] // "live"), age_s: ((.[2] // "60") | tonumber)}]}' > "$ROWS"
+  jq -r --arg b "$HERE_BOX" '.lanes[] | select(.agent_box == $b and .state == "live" and .agent_id != "BOX-0") | "0 \(.agent_id)@sat build"' "$ROWS" > "$PANES"
 }
+panes() { printf '%s\n' "$@" > "$PANES"; }  # "<pane_dead> <window name>" lines
 cat > "$T_TMP/bin/hub" <<STUB
 #!/usr/bin/env bash
+case " \$* " in *" --agent "*) echo "\$*" >> "$T_TMP/hub.puts" ;; esac
 cat "$ROWS"
 STUB
 # The real action, as lane-map.sh --json runs it.
 cat > "$T_TMP/bin/map" <<STUB
 #!/usr/bin/env bash
 cd "$ORC" && SPOOL_ROOT="$SPOOL_ROOT" LANE_BOX="$HERE_BOX" LANE_HUB_CMD="$T_TMP/bin/hub" LANE_MEMINFO="$T_TMP/meminfo" \
-  LANE_REPO_DIRS="$T_TMP/none" LANE_FORMAT=\${FMT:-json} bash -c '
+  LANE_REPO_DIRS="$T_TMP/none" LANE_PANES_CMD="cat $PANES" LANE_FORMAT=\${FMT:-json} bash -c '
   do_log() { echo "\$*" >&2; }
   source src/bash/run/spl-lane-map.func.sh
   do_spl_lane_map'
@@ -83,7 +106,7 @@ went_there() { [ "$RC" = 0 ] && [[ "$OUT" == *"c-200@$OTHER %9"* ]] && grep -q -
 spawn; check "1. busy 8 there, 0 here: stays here" went_here
 { rows "$HERE_BOX" 8 100; echo "c-002 $OTHER"; } | set_rows
 spawn; check "1. CONTROL busy 8 here, 0 there: starts there, prints <ID>@<box> <PANE>" went_there
-has "1. ... and says why on stderr" "placing auto on $OTHER (fewest busy agents)" "$OUT"
+has "1. ... and says why on stderr" "placing auto on $OTHER (fewest busy agents, then most free memory)" "$OUT"
 
 # 2.
 { rows "$HERE_BOX" 3 100; rows "$OTHER" 3 200; } | set_rows
@@ -132,7 +155,7 @@ conf
 { rows "$HERE_BOX" 2 100; echo "c-001 $HERE_BOX"; rows "$OTHER" 8 200; } | set_rows
 hdr="$(FMT=table "$T_TMP/bin/map" 2>/dev/null)"
 has "6. header: this box, busy, seats, mem from meminfo" "BOX $HERE_BOX (here)  busy 2  seats 1  mem 4.0G" "$hdr"
-has "6. header: the other box, mem ?" "BOX $OTHER  busy 8  seats 0  mem ?" "$hdr"
+has "6. header: the other box (no report), mem ?, read from its rows" "BOX $OTHER  busy 8  seats 0  mem ?  (rows < 2h)" "$hdr"
 eq "6. header lines come first, one per box" "BOX BOX AGENT@BOX" "$(head -3 <<<"$hdr" | awk '{printf "%s%s", (NR > 1 ? " " : ""), $1}')"
 hasnt "6. CONTROL a box outside lease.conf with no row is not listed" "BOX box-c" "$hdr"
 conf "LEASE_PRIORITY_ORCH=$OTHER,box-c"
@@ -155,5 +178,67 @@ conf
 OUT="$(SPAWN_PLACE_MAP_CMD="touch $T_TMP/map.called" bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
 check "7. CONTROL in a fleet it is" test -e "$T_TMP/map.called"
 has "7. ... and an unreadable map stays here with a WARN" "WARN no lane map load" "$OUT"
+
+# load <box> <field>: one field of a box's load, as the placement reads it
+load() { FMT=json "$T_TMP/bin/map" 2>/dev/null | jq -c --arg b "$1" ".load[] | select(.box == \$b) | $2"; }
+
+# 8. long-running lanes
+{ rows "$HERE_BOX" 2 100 10800; report "$OTHER" $((32 * G)) 60 c-200; rows "$OTHER" 1 200 10800; } | set_rows
+eq "8. here: 2 lanes 3 h old with live panes are busy 2" 2 "$(load "$HERE_BOX" .busy)"
+eq "8. there: its report counts a lane 3 h old, busy 1" 1 "$(load "$OTHER" .busy)"
+spawn; check "8. 2 busy here, 1 there: starts there" went_there
+panes "1 c-100@sat build" "1 c-101@sat build"
+eq "8. CONTROL the same rows with dead panes: busy 0 here" 0 "$(load "$HERE_BOX" .busy)"
+spawn; check "8. CONTROL ... and stays here" went_here
+
+# 9. finished lanes
+{ rows "$HERE_BOX" 4 100 600; report "$OTHER" $((32 * G)) 60 c-200; rows "$OTHER" 1 200 60; } | set_rows
+panes
+eq "9. 4 rows still live, written 10 min ago, no pane left: busy 0 here" 0 "$(load "$HERE_BOX" .busy)"
+spawn; check "9. 0 busy here, 1 there: stays here" went_here
+{ rows "$HERE_BOX" 4 100 600; report "$OTHER" $((32 * G)) 60 c-200; rows "$OTHER" 1 200 60; } | set_rows
+spawn; check "9. CONTROL the same rows with their panes alive (busy 4): starts there" went_there
+{ report "$OTHER" $((32 * G)) 300 c-200,c-201,c-202; rows "$OTHER" 1 201 120 "done"; rows "$OTHER" 1 205 30; rows "$OTHER" 1 202 400 "done"; } | set_rows
+eq "9. there: report 3, minus c-201 done after it, plus c-205 live after it (c-202 done before: ignored)" 3 "$(load "$OTHER" .busy)"
+
+# 10. memory breaks a tie
+{ rows "$HERE_BOX" 2 100; report "$OTHER" $((32 * G)) 60 c-200,c-201; } | set_rows
+spawn; check "10. 2 busy each, 32G there vs 4G here: starts there" went_there
+{ rows "$HERE_BOX" 2 100; report "$OTHER" $((4 * G)) 60 c-200,c-201; } | set_rows
+spawn; check "10. CONTROL 2 busy each, the same 4G: stays here" went_here
+{ rows "$HERE_BOX" 2 100; report "$OTHER" $((32 * G)) 60 c-200,c-201,c-202; } | set_rows
+spawn; check "10. memory never beats a lower busy count: 2 here, 3 there with 32G: here" went_here
+
+# 11. the low-memory floor
+{ rows "$HERE_BOX" 5 100; report "$OTHER" $((1 * G)) 60 ""; } | set_rows
+spawn; check "11. idle there but 1G free (floor 4096 MB): skipped, stays here" went_here
+rm -f "$T_TMP/remote.calls"
+OUT="$(SPAWN_MEM_FLOOR_MB=512 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+check "11. CONTROL a 512 MB floor: starts there" went_there
+{ rows "$HERE_BOX" 1 100; report "$OTHER" $((32 * G)) 60 c-200,c-201,c-202; } | set_rows
+rm -f "$T_TMP/remote.calls"
+OUT="$(SPAWN_MEM_FLOOR_MB=8192 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+check "11. this box under the floor (4G < 8G): the busier box with room wins" went_there
+OUT="$(SPAWN_MEM_FLOOR_MB=lots bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+eq "11. a SPAWN_MEM_FLOOR_MB that is not a number: usage exit 2" 2 "$RC"
+
+# 12. the report
+rm -f "$T_TMP/hub.puts"
+{ rows "$HERE_BOX" 1 100; echo "c-001 $HERE_BOX"; report "$OTHER" $((32 * G)) 60 c-200; } | set_rows
+hdr="$(FMT=table "$T_TMP/bin/map" 2>/dev/null)"
+has "12. this box publishes its BOX-0 row: free kB and its live pane ids" \
+  "lane --fleet main --agent BOX-0 --box $HERE_BOX --scope mem_kb=4194304 live=c-001,c-100 --state live" "$(cat "$T_TMP/hub.puts" 2>/dev/null)"
+has "12. the header shows the other box's mem from its report" "BOX $OTHER  busy 1  seats 0  mem 32.0G" "$hdr"
+hasnt "12. BOX-0 is never a lane in the table" "BOX-0" "$hdr"
+eq "12. ... nor in the json lanes" "[]" "$(FMT=json "$T_TMP/bin/map" 2>/dev/null | jq -c '[.lanes[] | select(.agent_id == "BOX-0")]')"
+rm -f "$T_TMP/hub.puts"
+{ rows "$HERE_BOX" 1 100; report "$HERE_BOX" 1 120 c-100; } | set_rows
+FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
+check "12. a report of this box 2 min old is not rewritten" test ! -e "$T_TMP/hub.puts"
+{ rows "$HERE_BOX" 1 100; report "$HERE_BOX" 1 400 c-100; } | set_rows
+FMT=table "$T_TMP/bin/map" >/dev/null 2>&1
+check "12. CONTROL one 400 s old is" test -s "$T_TMP/hub.puts"
+{ rows "$HERE_BOX" 1 100; report "$OTHER" $((32 * G)) 4000 c-200,c-201,c-202; rows "$OTHER" 1 200 60; } | set_rows
+eq "12. a report over an hour old is not read: the other box falls back to its rows" '[1,"?","rows"]' "$(load "$OTHER" '[.busy, .mem, .src]')"
 
 t_done

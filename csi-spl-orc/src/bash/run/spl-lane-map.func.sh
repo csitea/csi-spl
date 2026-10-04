@@ -26,6 +26,9 @@
 # @param LANE_AGENT (optional) - the caller's own id, skipped by LANE_CHECK
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `lane <args>`, prints the hub's answer
+# @param LANE_BOX_ROW_S (optional) - rewrite this box's BOX-0 load row when it is this old, default 300 s
+# @param LANE_BOX_ROW_MAX_S (optional) - a box's BOX-0 row older than this is not read, default 3600 s
+# @param LANE_PANES_CMD (optional, tests) - replaces the tmux read: prints `<pane_dead> <window name>` lines
 # @example ./run -a do_spl_lane_map
 # @example LANE_CHECK=csi-spl-orc/src/bash/run/,csi-spl-doc/specs/058-multi-machine-fleet/ LANE_AGENT=CLE-77920 ./run -a do_spl_lane_map
 # @example LANE_FORMAT=json LANE_ALL=1 ./run -a do_spl_lane_map
@@ -34,7 +37,7 @@ declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 
 do_spl_lane_map() {
-  local rows hub_json="" fmt="${LANE_FORMAT:-table}" rc=0
+  local rows hub_json="" fmt="${LANE_FORMAT:-table}" rc=0 live_here load
   [[ "$fmt" =~ ^(table|json)$ ]] || { do_log "FATAL LANE_FORMAT must be table or json"; return 1; }
   spl_lane_init || return 1
   if [[ "$LANE_MODE" == hub ]]; then
@@ -46,13 +49,18 @@ do_spl_lane_map() {
     fi
   fi
   rows="$(spl_lane_merge "${hub_json:-{\"lanes\":[]\}}" "$(spl_lane_local_rows)")" || { do_log "FATAL cannot merge the lane rows"; return 1; }
+  live_here="$(spl_lane_live_here)"
+  load="$(spl_lane_load "$rows" "$live_here")"
+  spl_lane_box_report "$rows" "$live_here" "$load"
+  # the box rows feed the load only: they are no lane
+  rows="$(jq -c --arg b "$LANE_BOX_ROW_ID" '[.[] | select(.agent_id != $b)]' <<<"$rows")"
   [[ "${LANE_ALL:-0}" == 1 ]] || rows="$(jq -c '[.[] | select(.state == "live")]' <<<"$rows")"
 
   if [[ "$fmt" == json ]]; then
-    jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" --argjson load "$(spl_lane_load "$rows")" \
+    jq -c --arg f "${LANE_FLEET:-}" --arg h "$LANE_HUB_STATE" --argjson load "$load" \
       '{fleet: $f, hub: $h, load: $load, lanes: .}' <<<"$rows"
   elif [[ -z "${LANE_CHECK:-}" ]]; then
-    spl_lane_load_header "$(spl_lane_load "$rows")"
+    spl_lane_load_header "$load"
     spl_lane_table_recent "$rows"
   fi
   if [[ -n "${LANE_CHECK:-}" ]]; then
@@ -172,41 +180,115 @@ spl_lane_table_recent() {
   (( hidden == 0 )) || echo "$hidden older rows hidden (--all)"
 }
 
-# The load per box, as a JSON array of {box, here, live, busy, seats, mem}:
-# busy = the live rows the default table shows (younger than LANE_RECENT_S;
-# rows with no age only while the hub is down) that are not role seats; seats = the
-# role seats among them (001-003, and the ids lease.conf names: they run the
-# fleet, they are not build load); live = the box has any such row, so it is
-# up. The boxes: this one first, then the lease.conf rankings
-# (LEASE_PRIORITY*), then any other box a row names. mem = MemAvailable here
-# (/proc/meminfo; LANE_MEMINFO in the tests), "?" for another box: none
-# publishes one yet. spawn-window.sh places a lane by it; the table prints it
-# as its header.
-spl_lane_load() {
-  local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" conf_boxes="" seat_ids="" mem="?" kb
+# The reserved id of a box's LOAD row in the lane map: one row per box,
+# BOX-0@<box>, scope `mem_kb=<MemAvailable> live=<id>,<id>,...` - the agents
+# with a live tmux pane on that box and its free memory, as that box itself
+# read them. The hub stores it like any lane (no field of its own, no hub
+# change); this action writes it (spl_lane_box_report) and the map never
+# shows it as a lane. A legacy-grammar id no agent can hold.
+LANE_BOX_ROW_ID=BOX-0
+
+# The agent ids with a live pane on THIS box, as a JSON array, from the tmux
+# window names (the id is their first token, as the 40-window ceiling counts
+# them; spool_id_of_window); dead panes do not count. null when tmux cannot
+# be read (no server): the load then falls back to the rows.
+spl_lane_live_here() {
+  local out user sock dead name id
+  local -a tm
+  if [[ -n "${LANE_PANES_CMD:-}" ]]; then
+    out="$($LANE_PANES_CMD 2>/dev/null)" || { echo null; return 0; }
+  else
+    user="${SPOOL_BOX_USER:-$(stat -c %U "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)}"
+    case "$user" in ''|root|UNKNOWN) user="$(id -un)" ;; esac
+    sock="${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$user" 2>/dev/null || id -u)/default}"
+    tm=(tmux -u -S "$sock")
+    [[ "$(id -un)" == "$user" ]] || tm=(sudo -n -u "$user" tmux -u -S "$sock")
+    out="$(timeout 10 "${tm[@]}" list-panes -a -F '#{pane_dead} #{window_name}' 2>/dev/null)" || { echo null; return 0; }
+  fi
+  declare -F spool_id_of_window_var >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  while read -r dead name; do
+    [[ "$dead" == 0 ]] || continue
+    spool_id_of_window_var id "$name"
+    [[ -n "$id" ]] && printf '%s\n' "$id"
+  done <<<"$out" | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))'
+}
+
+# The load per box, as a JSON array of
+# {box, here, live, busy, seats, mem, mem_kb, src}: the agents live on the box
+# NOW, split into busy (build lanes) and seats (001-003 and the ids lease.conf
+# names: they run the fleet, they are not build load). src says where the
+# live agents come from:
+#   panes  this box: its tmux panes (spl_lane_live_here)
+#   box    another box: its BOX-0 row younger than LANE_BOX_ROW_MAX_S, plus
+#          its lanes written live after that row, minus those written done
+#   rows   no such row (an older box, tmux unreadable here): the live rows of
+#          the last LANE_RECENT_S (2 h; rows with no age only while the hub is
+#          down), the measure before the box rows
+# live = the box is up: a pane or BOX-0 source, or any such row. mem =
+# MemAvailable (here /proc/meminfo, LANE_MEMINFO in the tests; another box its
+# BOX-0 row), "?" unknown. The boxes: this one first, then the lease.conf
+# rankings (LEASE_PRIORITY*), then any other box a row names.
+# spawn-window.sh places a lane by it; the table prints it as its header.
+spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON array or null)
+  local f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" conf_boxes="" seat_ids="" kb
   if [[ -r "$f" ]]; then
     conf_boxes="$(sed -n 's/^LEASE_PRIORITY[A-Z_]*=\([a-z0-9,-]*\)$/\1/p' "$f" | tr ',' '\n' | grep -E '^[a-z0-9][a-z0-9-]{0,31}$')"
     seat_ids="$(sed -n 's/^LEASE_\(MASTER\|FAILOVER\|ORCH\)=\([A-Za-z0-9-]*\)$/\2/p' "$f")"
   fi
   kb="$(awk '$1 == "MemAvailable:" {print $2; exit}' "${LANE_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
-  [[ "$kb" =~ ^[0-9]+$ ]] && mem="$(awk -v k="$kb" 'BEGIN {printf "%.1fG", k / 1048576}')"
-  jq -c --arg here "$LANE_BOX" --arg mem "$mem" --argjson max "${LANE_RECENT_S:-7200}" --arg h "$LANE_HUB_STATE" \
+  [[ "$kb" =~ ^[0-9]+$ ]] || kb=null
+  jq -c --arg here "$LANE_BOX" --argjson herekb "$kb" --argjson herelive "${2:-null}" --arg h "$LANE_HUB_STATE" \
+    --argjson max "${LANE_RECENT_S:-7200}" --argjson boxmax "${LANE_BOX_ROW_MAX_S:-3600}" --arg brid "$LANE_BOX_ROW_ID" \
     --arg conf "$conf_boxes" --arg seats "$seat_ids" '
     ($seats | split("\n") | map(select(length > 0))) as $ids
     | def seat: test("^[A-Za-z]+-00[1-3]$") or (. as $a | $ids | index($a) != null);
-    [.[] | select(.state == "live" and ((.age_s >= 0 and .age_s < $max) or (.age_s < 0 and $h != "ok")))] as $r
-    | ([$here] + ($conf | split("\n")) + [$r[].agent_box] | map(select(length > 0))) as $all
+      def gb: if . == null then "?" else (. / 104857.6 | round) as $t | "\($t / 10 | floor).\($t % 10)G" end;
+      def field($k): [capture($k + "=(?<v>[^ ]*)")][0].v // "";
+    [.[] | select(.agent_id == $brid and .state == "live" and .age_s >= 0 and .age_s < $boxmax)] as $reports
+    | [.[] | select(.agent_id != $brid)] as $lanes
+    | [$lanes[] | select(.state == "live" and ((.age_s >= 0 and .age_s < $max) or (.age_s < 0 and $h != "ok")))] as $recent
+    | ([$here] + ($conf | split("\n")) + [$recent[].agent_box] + [$reports[].agent_box] | map(select(length > 0))) as $all
     | reduce $all[] as $b ([]; if index($b) then . else . + [$b] end)
-    | map(. as $b | [$r[] | select(.agent_box == $b)] as $on
-        | {box: $b, here: ($b == $here), live: (($on | length) > 0),
-           busy: ([$on[] | select(.agent_id | seat | not)] | length),
-           seats: ([$on[] | select(.agent_id | seat)] | length),
-           mem: (if $b == $here then $mem else "?" end)})' <<<"$1"
+    | map(. as $b
+        | ([$reports[] | select(.agent_box == $b)] | sort_by(.age_s) | first) as $rep
+        | (if $b == $here and $herelive != null then {src: "panes", ids: $herelive, kb: $herekb}
+           elif $rep != null then
+             [$lanes[] | select(.agent_box == $b and .age_s >= 0 and .age_s < $rep.age_s)] as $since
+             | {src: "box",
+                ids: (($rep.scope | field("live") | split(",") | map(select(length > 0)))
+                      + [$since[] | select(.state == "live") | .agent_id]
+                      - [$since[] | select(.state == "done") | .agent_id]),
+                kb: ($rep.scope | field("mem_kb") | if test("^[0-9]+$") then tonumber else null end)}
+           else {src: "rows", ids: [$recent[] | select(.agent_box == $b) | .agent_id], kb: (if $b == $here then $herekb else null end)}
+           end) as $x
+        | ($x.ids | unique) as $u
+        | {box: $b, here: ($b == $here), live: ($x.src != "rows" or ($u | length) > 0),
+           busy: ([$u[] | select(seat | not)] | length), seats: ([$u[] | select(seat)] | length),
+           mem: ($x.kb | gb), mem_kb: $x.kb, src: $x.src})' <<<"$1"
 }
 
-# One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`.
+# Publish THIS box's load as its BOX-0 row, so the other boxes read real
+# activity and free memory here. Only in a fleet, with the hub answering and
+# the panes read; at most once per LANE_BOX_ROW_S (300 s). Best effort: a
+# refusal is one line on stderr, never the map's exit code.
+spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
+  [[ "$LANE_MODE" == hub && "$LANE_HUB_STATE" == ok && "${2:-null}" != null ]] || return 0
+  local age scope out
+  age="$(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
+    '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live") | .age_s] | min // -1' <<<"$1")"
+  [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && return 0
+  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" \
+    '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?") live=\($ids | join(","))"' <<<"$3")"
+  scope="${scope:0:500}"
+  out="$(spl_lane_hub --fleet "$LANE_FLEET" --agent "$LANE_BOX_ROW_ID" --box "$LANE_BOX" --scope "$scope" --state live 2>&1)" ||
+    do_log "INFO the load of $LANE_BOX was not published ($LANE_BOX_ROW_ID@$LANE_BOX): $(tail -1 <<<"$out")" >&2
+  return 0
+}
+
+# One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`;
+# a box read from its rows (no BOX-0 row) says so.
 spl_lane_load_header() {
-  jq -r '.[] | "BOX \(.box)\(if .here then " (here)" else "" end)  busy \(.busy)  seats \(.seats)  mem \(.mem)\(if .live then "" else "  (no live row)" end)"' <<<"$1"
+  jq -r '.[] | "BOX \(.box)\(if .here then " (here)" else "" end)  busy \(.busy)  seats \(.seats)  mem \(.mem)\(if .live | not then "  (no live row)" elif .src == "rows" then "  (rows < 2h)" else "" end)"' <<<"$1"
 }
 
 # Exit 3 when a live lane of another agent lists a path that overlaps one in

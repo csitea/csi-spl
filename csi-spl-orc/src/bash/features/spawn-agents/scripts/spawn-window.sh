@@ -36,13 +36,17 @@
 # first, so two seats never spawn at once past the 40-window ceiling. A dry
 # run only reads the mutex. No seats file (order A) = the gate is not called.
 #
-# PLACEMENT (owner GO 2026-10-03): a NEW lane (TITLE auto) starts on the fleet
-# box with the fewest BUSY agents, so lanes stop piling onto the box the
-# orchestrator runs on. The count is the fleet lane map's load
-# (`lane-map.sh --json`, .load: live rows of the last 2 h per box, role seats
-# not counted; boxes from lease.conf). Another box wins only with strictly
-# fewer busy agents (a tie stays here) and only a box with a live row (it is
-# up); the lane then starts there through `spawn-remote.sh --box <box>`, and
+# PLACEMENT (owner GO 2026-10-03, real load 2026-10-04): a NEW lane (TITLE
+# auto) starts on the fleet box with the fewest BUSY agents, so lanes stop
+# piling onto the box the orchestrator runs on. The count is the fleet lane
+# map's load (`lane-map.sh --json`, .load): the agents with a live pane on each
+# box NOW (this box reads its tmux, another box its own BOX-0 report row; an
+# older box without one falls back to its rows of the last 2 h), role seats
+# not counted; boxes from lease.conf. Fewest busy wins; on a tie the most free
+# memory (MemAvailable; unknown ranks last); then here. A box below
+# SPAWN_MEM_FLOOR_MB free (default 4096) is skipped, and only a box that is up
+# (a pane, a report or a live row) is a candidate; with no candidate the lane
+# stays here. The lane then starts there through `spawn-remote.sh --box <box>`, and
 # stdout is its "<ID>@<box> <PANE>". It runs only in a fleet (LANE_FLEET, or
 # LEASE_FLEET in lease.conf) and only while THIS box holds the orch lease (the
 # remote serve accepts nobody else). A remote spawn that fails, is refused or
@@ -73,7 +77,7 @@ LAUNCHER="$HERE/spawn-$KIND.sh"
 . "$HERE/../lib/spool-fleet.inc.sh"
 # The box this lane starts on; "" = here.
 place_box() {
-  local want="${SPAWN_BOX:-}" here json holder="" fleet
+  local want="${SPAWN_BOX:-}" here json holder="" fleet floor
   here="$(spool_fleet_box)"
   case "$want" in local|"$here") return 0 ;; esac
   if [ -n "$want" ]; then
@@ -93,13 +97,16 @@ place_box() {
   fi
   jq -e '.load | type == "array"' >/dev/null 2>&1 <<<"$json" ||
     { echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
-  jq -r --arg here "$here" '.load as $l
-    | ([$l[] | select(.box == $here) | .busy] + [0])[0] as $mine
-    | [$l[] | select(.live and .box != $here and .busy < $mine)] | sort_by(.busy) | .[0].box // empty' <<<"$json"
+  floor="${SPAWN_MEM_FLOOR_MB:-4096}"
+  [[ "$floor" =~ ^[0-9]+$ ]] || { echo "spawn-window: SPAWN_MEM_FLOOR_MB must be a number of MB, got '$floor'" >&2; return 2; }
+  jq -r --arg here "$here" --argjson floor "$((floor * 1024))" '
+    [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor))]
+    | sort_by([.busy, -(.mem_kb // -1), (if .box == $here then 0 else 1 end)])
+    | .[0].box // empty | select(. != $here)' <<<"$json"
 }
 TARGET="$(place_box)" || exit $?
 if [ -n "$TARGET" ]; then
-  echo "spawn-window: placing ${TITLE} on ${TARGET} (${SPAWN_BOX:+SPAWN_BOX}${SPAWN_BOX:-fewest busy agents}), not on $(spool_fleet_box)" >&2
+  echo "spawn-window: placing ${TITLE} on ${TARGET} (${SPAWN_BOX:+SPAWN_BOX}${SPAWN_BOX:-fewest busy agents, then most free memory}), not on $(spool_fleet_box)" >&2
   if [ "${SPAWN_DRY_RUN:-0}" = 1 ] && [ -z "${SPAWN_REMOTE_CMD:-}" ]; then
     printf 'PLAN %-10s %s\n' place "$TARGET" remote "spawn-remote.sh --box $TARGET $KIND $TITLE ${*:3}"
     printf '%s@%s -\n' "$TITLE" "$TARGET"

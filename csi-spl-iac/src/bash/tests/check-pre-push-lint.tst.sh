@@ -23,6 +23,10 @@
 #  15. editing a migration that is already on the base is a lint-migration
 #      FAIL; SPL_MIGRATION_EDIT_OK=<file> allows it; a NEW one passes
 #  16. a new migration that is not PG16 SQL -> FAIL (pglast, when installed)
+#  23. migration prefixes (spec 072 A45): a copied prefix is REFUSED naming
+#      both files; a new file below the head (a late 0002 past 0003) or one
+#      that skips a number is REFUSED; the grandfathered 0021 pair passes and
+#      a third 0021 does not
 #  17. a docker-compose file with an unknown service key -> lint-compose FAIL
 #      (when docker compose is installed)
 #  20. lint-py (real ruff, when installed): an undefined name in a new .py,
@@ -251,6 +255,30 @@ mig_repo; git -C "$R" rm -q "$R/$MIG/0001_a.sql"; commit rm-mig
 rc="$(lint)"
 [[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] \
   && pass "15c. deleting a migration already on the base is REFUSED" || fail "15c. migration delete" "rc=$rc verdict=$(verdict lint-migration)"
+
+# 23. migration prefixes (spec 072 A45)
+mig_repo; cp "$R/$MIG/0001_a.sql" "$R/$MIG/0001_x.sql"; commit copy-mig
+rc="$(lint)"
+[[ "$rc" == 1 && "$(verdict lint-migration)" == FAIL ]] && grep -q 'prefix 0001 is taken by more than one file: 0001_a.sql 0001_x.sql' "$T/out" \
+  && pass "23a. a copied migration prefix is REFUSED, naming both files" || fail "23a. dup prefix" "rc=$rc verdict=$(verdict lint-migration)"
+# 23b-e call the rule itself: a whole lint run per leg pushed this file past
+# run-all-tests' 120 s ceiling on a loaded box.
+prefixes() { _ppl_migration_prefixes "$R" base >"$T/out" 2>&1; }
+mig_repo; printf 'CREATE TABLE c (id int);\n' >"$R/$MIG/0003_c.sql"; commit hole; git -C "$R" branch -f base
+printf 'CREATE TABLE b (id int);\n' >"$R/$MIG/0002_b.sql"; commit late-mig
+! prefixes && grep -q '0002_b.sql is new but its prefix is not 0004' "$T/out" \
+  && pass "23b. a new migration below the head (a late 0002) is REFUSED" || fail "23b. below head" "$(cat "$T/out")"
+mig_repo; printf 'CREATE TABLE c (id int);\n' >"$R/$MIG/0003_c.sql"; commit skip-mig
+! prefixes && grep -q '0003_c.sql is new but its prefix is not 0002' "$T/out" \
+  && pass "23c. a new migration that skips a prefix is REFUSED" || fail "23c. skip" "$(cat "$T/out")"
+mig_repo
+printf 'SELECT 1;\n' >"$R/$MIG/0021_rls_fail_closed.sql"; printf 'SELECT 1;\n' >"$R/$MIG/0021_tenant_rbac.sql"
+commit pair; git -C "$R" branch -f base
+printf 'SELECT 1;\n' >"$R/$MIG/0022_n.sql"; printf 'SELECT 1;\n' >"$R/$MIG/0023_m.sql"; commit next-mig
+prefixes && pass "23d. the grandfathered 0021 pair + new 0022, 0023 pass" || fail "23d. grandfathered" "$(cat "$T/out")"
+printf 'SELECT 1;\n' >"$R/$MIG/0021_third.sql"; commit third
+! prefixes && grep -q 'prefix 0021 is taken' "$T/out" \
+  && pass "23e. a third 0021 is REFUSED (the pair is grandfathered by name)" || fail "23e. third 0021" "$(cat "$T/out")"
 if [[ -n "$XDG_CACHE_HOME_SAVED" ]]; then export XDG_CACHE_HOME="$XDG_CACHE_HOME_SAVED"; else unset XDG_CACHE_HOME; fi
 if [[ -x "$PGPY" ]]; then
   mig_repo; printf 'CREATE TABLE b (id int);\n' >"$R/$MIG/0002_b.sql"; commit new-mig

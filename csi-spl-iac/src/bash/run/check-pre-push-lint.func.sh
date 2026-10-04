@@ -12,7 +12,10 @@
 # @description   lint-migration   a migration already on the base is never edited, renamed
 # @description                    or deleted (migrate.go refuses a changed sha256 at deploy;
 # @description                    SPL_MIGRATION_EDIT_OK=<file> allows one, logged), and new
-# @description                    ones parse with the PG16 grammar (pglast 6.x)
+# @description                    ones parse with the PG16 grammar (pglast 6.x); prefixes
+# @description                    are unique (the applied 0021 pair grandfathered by name)
+# @description                    and a NEW file continues the base head (head+1, head+2..):
+# @description                    migrate.go applies a late 0007 on every database (spec 072 A45)
 # @description   lint-compose     docker compose config -q --no-interpolate (schema)
 # @description   lint-gitleaks    15's gitleaks + .gitleaks.toml over the PUSHED commits only
 # @description   lint-py          touched .py: compile + ruff E9,F + a security subset
@@ -68,6 +71,9 @@ _PPL_RUFF_RULES="E9,F,S102,S113,S301,S307,S506,S602,S604,S605"
 
 # The hub migrations (forward-only; roles/*.sql carry psql variables, hub-pg's).
 _PPL_MIG_DIR="csi-spl-rdb/src/sql/postgres/spool-hub"
+# Applied everywhere before the prefix rule (spec 072 A45): a rename breaks
+# every database's sha check, so the pair stays, by name, and nothing else.
+_PPL_MIG_PREFIX_OK="0021_rls_fail_closed.sql 0021_tenant_rbac.sql"
 
 # The bash trees workflow 67 scans; a .sh elsewhere (the hub's) is not CI's.
 _PPL_SC_DIRS="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash"
@@ -423,6 +429,48 @@ for f in sys.argv[1:]:
         print("MIGRATION %s: PG16 parse: %s" % (f, " ".join(str(exc).split())))
 sys.exit(1 if bad else 0)' "${parse[@]}" ) || rc=1
   fi
+  _ppl_migration_prefixes "$tree" "$base" || rc=1
+  return "$rc"
+}
+
+# Prefix rules over the whole dir (spec 072 A45): NNNN_<name>.sql, one file per
+# prefix (_PPL_MIG_PREFIX_OK excepted), and the files new against <base> take
+# head+1, head+2, .. in order: migrate.go applies files in name order and
+# skips none, so a new 0007 would run on databases already at the head.
+_ppl_migration_prefixes() {  # <tree> <base>
+  local tree="$1" base="$2" f n p head=0 rc=0 next
+  local -A seen=() onbase=()
+  local -a news=()
+  [[ -d "$tree/$_PPL_MIG_DIR" ]] || return 0
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    n="${f##*/}"; onbase[$n]=1
+    [[ "$n" =~ ^([0-9]{4})_ ]] && p=$((10#${BASH_REMATCH[1]})) && ((p > head)) && head=$p
+  done < <(git -C "$tree" ls-tree --name-only "$base" -- "$_PPL_MIG_DIR/" 2>/dev/null)
+  for f in "$tree/$_PPL_MIG_DIR"/*.sql; do
+    [[ -f "$f" ]] || continue
+    n="${f##*/}"
+    if [[ ! "$n" =~ ^([0-9]{4})_[a-z0-9_]+\.sql$ ]]; then
+      echo "MIGRATION $_PPL_MIG_DIR/$n: the name is not NNNN_<lower_snake>.sql"; rc=1; continue
+    fi
+    p="${BASH_REMATCH[1]}"
+    seen[$p]+="${seen[$p]:+ }$n"
+    [[ -n "${onbase[$n]:-}" ]] || news+=("$n")
+  done
+  for p in $(printf '%s\n' "${!seen[@]}" | sort); do
+    [[ "${seen[$p]}" == *" "* && "${seen[$p]}" != "$_PPL_MIG_PREFIX_OK" ]] || continue
+    echo "MIGRATION prefix $p is taken by more than one file: ${seen[$p]} -- renumber the new one past the head"
+    rc=1
+  done
+  next=$((head + 1))
+  for n in $(printf '%s\n' "${news[@]}" | sort); do
+    p=$((10#${n:0:4}))
+    if ((p != next)); then
+      echo "MIGRATION $_PPL_MIG_DIR/$n is new but its prefix is not $(printf '%04d' "$next") (the head on $base is $(printf '%04d' "$head")) -- migrate.go would apply it out of order on every database"
+      rc=1
+    fi
+    next=$((p + 1))
+  done
   return "$rc"
 }
 

@@ -15,6 +15,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -535,8 +538,46 @@ func (s *Server) skewOK(ts string) bool {
 
 func writeJSON(w http.ResponseWriter, status int, v any) { wire.WriteJSON(w, status, v) }
 
+// writeErr answers status with the wire error body. A 5xx also records its
+// cause on the request's statusWriter, and the middleware turns that into
+// the one ERROR line a 5xx leaves (availability plan R05: I-06 answered 99 x
+// 500 with no line saying why). The response body does not change.
 func writeErr(w http.ResponseWriter, status int, token, detail string) {
+	if status >= 500 {
+		noteCause(w, token, detail, nil)
+	}
 	wire.WriteError(w, status, token, detail)
+}
+
+// writeErrCause is writeErr for a handler that holds the error it answers
+// with a 5xx: the ERROR line then carries it (err), not only the site.
+func writeErrCause(w http.ResponseWriter, status int, token, detail string, err error) {
+	if status >= 500 {
+		noteCause(w, token, detail, err)
+	}
+	wire.WriteError(w, status, token, detail)
+}
+
+// noteCause records the first 5xx cause on the statusWriter under w (every
+// writer in the chain unwraps to it). site is the handler line that
+// answered, two frames up: writeErr or writeErrCause, then its caller.
+func noteCause(w http.ResponseWriter, token, detail string, err error) {
+	for w != nil {
+		if sw, ok := w.(*statusWriter); ok {
+			if sw.token == "" {
+				sw.token, sw.detail, sw.err = token, detail, err
+				if _, file, line, ok := runtime.Caller(2); ok {
+					sw.site = filepath.Base(file) + ":" + strconv.Itoa(line)
+				}
+			}
+			return
+		}
+		u, ok := w.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return
+		}
+		w = u.Unwrap()
+	}
 }
 
 func writeUnpaid(w http.ResponseWriter) {
@@ -560,6 +601,9 @@ func (s *Server) quota() billing.Quota {
 type statusWriter struct {
 	http.ResponseWriter
 	status int
+	// The 5xx cause writeErr noted (noteCause); empty for any other answer.
+	token, detail, site string
+	err                 error
 }
 
 func (w *statusWriter) WriteHeader(c int) {
@@ -581,11 +625,12 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", rid)
 		sw := &statusWriter{ResponseWriter: w}
 		defer func() {
-			if rec := recover(); rec != nil {
-				s.o.Log.Error().Str("request_id", rid).Interface("panic", rec).Msg("handler panic")
-				if sw.status == 0 {
-					writeErr(sw, http.StatusInternalServerError, "internal", "internal error")
-				}
+			rec := recover()
+			if rec != nil && sw.status == 0 {
+				writeErrCause(sw, http.StatusInternalServerError, "internal", "internal error", fmt.Errorf("panic: %v", rec))
+			}
+			if sw.status >= 500 || rec != nil {
+				s.logServerError(r, rid, sw, rec)
 			}
 			// Path only: no query string, no Authorization, no token (Constitution VII).
 			s.o.Log.Info().Str("request_id", rid).Str("method", r.Method).Str("path", r.URL.Path).
@@ -593,6 +638,30 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		}()
 		next.ServeHTTP(sw, r)
 	})
+}
+
+// logServerError writes the one ERROR line a 5xx (or a panic) leaves: the
+// request id, method, route and the cause writeErr noted. Same redaction as
+// the access log: the path and the mux pattern only, never the query string,
+// a header, the body or a token (Constitution VII).
+func (s *Server) logServerError(r *http.Request, rid string, sw *statusWriter, rec any) {
+	route := r.Pattern
+	if route == "" {
+		route = r.Method + " " + r.URL.Path
+	}
+	ev := s.o.Log.Error().Str("request_id", rid).Str("method", r.Method).Str("route", route).
+		Str("path", r.URL.Path).Int("status", sw.status)
+	if sw.token != "" {
+		ev = ev.Str("token", sw.token).Str("detail", sw.detail).Str("site", sw.site)
+	}
+	if sw.err != nil {
+		ev = ev.Err(sw.err)
+	}
+	if rec != nil {
+		ev.Interface("panic", rec).Msg("handler panic")
+		return
+	}
+	ev.Msg("http 5xx")
 }
 
 // writeVersion is the v the hub stamps on a message it composes (specs/020).

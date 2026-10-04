@@ -66,7 +66,7 @@ git init -q -b master "$T/main" && git -C "$T/main" -c user.name=t -c user.email
 git -C "$T/main" worktree add -q --detach "$T/wt" && mkdir -p "$T/wt/csi-spl-orc" "$T/main/csi-spl-orc"
 wt() {
   env PROJ_PATH="$1" BOX_UPDATE_CRONTAB="$T/fake-crontab" BOX_UPDATE_CRON_LOG_DIR="$T/log" ENV=dev DRY_RUN=0 \
-    bash -c 'do_log() { echo "$*"; }; source "$0"; do_spl_box_update_install_cron' "$PROJ_ROOT/src/bash/run/spl-box-update-install-cron.func.sh" 2>&1
+    bash -c 'do_log() { echo "$*"; }; source "$1"; source "$0"; do_spl_box_update_install_cron' "$PROJ_ROOT/src/bash/run/spl-box-update-install-cron.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-cloud-cnf.func.sh" 2>&1
 }
 out="$(wt "$T/wt/csi-spl-orc")"; rc=$?
 [ "$rc" -ne 0 ] && grep -q 'is a linked worktree' <<<"$out" && cmp -s "$CT" "$T/ct.2" && pass "6. a linked worktree is refused, nothing written" || fail "6. worktree ($rc: $out)"

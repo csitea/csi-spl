@@ -39,7 +39,7 @@ do_spl_box_update_install_cron() {
     echo "$want"; do_log "OK the box update cron is installed"; return 0
   fi
   if [[ "$act" == install ]]; then
-    [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+    spl_require_cloud_env || return 1
     gd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
     cd="$(git -C "$PROJ_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
     if [[ -n "$gd" && "$gd" != "$cd" && "${BOX_UPDATE_ALLOW_WORKTREE:-0}" != 1 ]]; then

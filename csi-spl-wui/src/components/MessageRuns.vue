@@ -10,6 +10,10 @@
       :href="hrefOf(p.href)"
       :target="openOf(p.href).target"
       :rel="openOf(p.href).rel"
+      draggable="false"
+      @pointerdown="onPointerDown"
+      @pointerup="onPointerUp($event, p.href)"
+      @pointercancel="onPointerCancel"
       @click.stop="onLink($event, p.href)"
       @dblclick.stop
       @keydown.enter.stop
@@ -24,7 +28,7 @@
 
 <script setup lang="ts">
 import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
-import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
+import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { bodyTimeRuns } from '~/utils/body-times.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
@@ -65,9 +69,25 @@ function hrefOf(href?: string): string | undefined {
   return open && open.internal ? open.href : href
 }
 
+/* a phone drops the click on a link inside the card; pointerup still fires
+   and opens it. draggable=false keeps the browser from taking the finger as
+   a link drag (that cancels the pointer stream, SPL-1034). */
+function openBlank(url: string) {
+  const w = window.open(url, '_blank', 'noopener,noreferrer')
+  if (w) w.opener = null
+  return Boolean(w)
+}
+
+function onPointerDown(e: PointerEvent) { messageLinkPointerDown(e) }
+function onPointerCancel(e: PointerEvent) { messageLinkPointerCancel(e) }
+function onPointerUp(e: PointerEvent, href?: string) {
+  if (!href || !import.meta.client) return
+  messageLinkPointerUp(e, href, hrefNow(), (path) => { void router.push(path) }, openBlank)
+}
+
 function onLink(e: MouseEvent, href?: string) {
   if (!href) return
-  followSameTabLink(e, href, hrefNow(), (path) => { void router.push(path) })
+  messageLinkClick(e, href, hrefNow(), (path) => { void router.push(path) })
 }
 </script>
 
@@ -78,6 +98,9 @@ function onLink(e: MouseEvent, href?: string) {
   text-underline-offset: 2px;
   overflow-wrap: anywhere;
   unicode-bidi: isolate;
+  /* manipulation: the tap is a click, not a double-tap zoom wait */
+  touch-action: manipulation;
+  -webkit-user-drag: none;
 }
 .msg-link:hover { color: var(--color-accent-pressed); }
 .code-inline {

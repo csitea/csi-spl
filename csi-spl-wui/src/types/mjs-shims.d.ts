@@ -1264,6 +1264,28 @@ declare module '~/utils/link-target.mjs' {
     pageHref: string,
     navigate: (path: string) => unknown,
   ): boolean
+  export const MESSAGE_LINK_TAP_MAX_MS: number
+  export function openMessageLink(
+    href: string,
+    pageHref: string,
+    navigate: (path: string) => unknown,
+    openExternal?: (url: string) => unknown,
+  ): boolean
+  export function messageLinkPointerDown(event: { pointerType?: string, pointerId?: number, isPrimary?: boolean, clientX: number, clientY: number, currentTarget?: object | null }): void
+  export function messageLinkPointerCancel(event: { currentTarget?: object | null }): void
+  export function messageLinkPointerUp(
+    event: { pointerType?: string, pointerId?: number, button?: number, clientX: number, clientY: number, currentTarget?: object | null },
+    href: string,
+    pageHref: string,
+    navigate: (path: string) => unknown,
+    openExternal?: (url: string) => unknown,
+  ): boolean
+  export function messageLinkClick(
+    event: { button?: number, metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean, altKey?: boolean, defaultPrevented?: boolean, preventDefault?: () => void, stopPropagation?: () => void, currentTarget?: object | null },
+    href: string,
+    pageHref: string,
+    navigate: (path: string) => unknown,
+  ): boolean
 }
 
 declare module '~/utils/markdown.mjs' {

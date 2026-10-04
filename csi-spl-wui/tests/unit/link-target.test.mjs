@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { classifyHref, followSameTabLink, linkOpen, NEW_TAB_REL, sameTabPath, setLinkSite } from '../../src/utils/link-target.mjs'
+import { classifyHref, followSameTabLink, linkOpen, MESSAGE_LINK_TAP_MAX_MS, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp, NEW_TAB_REL, openMessageLink, sameTabPath, setLinkSite } from '../../src/utils/link-target.mjs'
 import { markdownToHtml, renderMarkdown, treeToHtml } from '../../src/utils/markdown.mjs'
 import { bodyToHtml, parseBody } from '../../src/utils/code-blocks.mjs'
 
@@ -26,7 +26,9 @@ const click = () => ({
   shiftKey: false,
   altKey: false,
   defaultPrevented: false,
+  stopped: false,
   preventDefault() { this.defaultPrevented = true },
+  stopPropagation() { this.stopped = true },
 })
 
 function went(href, page = PAGE) {
@@ -193,7 +195,8 @@ describe('both live components use the helper', () => {
     it(file, () => {
       const src = readFileSync(join(WUI, file), 'utf8')
       assert.match(src, /link-target\.mjs/)
-      assert.match(src, /followSameTabLink/)
+      assert.match(src, /messageLinkClick/)
+      assert.match(src, /messageLinkPointerUp/)
       assert.match(src, /linkOpen/)
       assert.doesNotMatch(src, /target="_blank"|target:\s*'_blank'/)
     })
@@ -295,5 +298,148 @@ describe('www and http product links (SPL-951 regression)', () => {
     assert.equal(classifyHref('https://www.app.example/x', DEV, DEV).internal, false)
     // tenant hosts off: only the exact same origin is internal
     assert.equal(classifyHref('https://www.app.example/x', APEX, '').internal, false)
+  })
+})
+
+// A phone tap on a message link: pointerup opens it, because the click is
+// dropped. The click that does arrive must not open it a second time.
+// A mouse never takes the pointerup path.
+describe('phone tap opens a message link', () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  const el = () => ({})
+  function down(node, over = {}) {
+    return { pointerType: 'touch', pointerId: 1, isPrimary: true, button: 0, clientX: 20, clientY: 40, currentTarget: node, ...over }
+  }
+  function tap(node, href, page = PAGE, over = {}) {
+    const paths = []
+    const opened = []
+    messageLinkPointerDown(down(node))
+    const armed = messageLinkPointerUp(
+      down(node, over),
+      href,
+      page,
+      (path) => { paths.push(path) },
+      (url) => { opened.push(url); return true },
+    )
+    return { armed, paths, opened }
+  }
+
+  it('a touch tap on an internal link navigates once, and the click that follows does not', () => {
+    const node = el()
+    const { armed, paths } = tap(node, REL)
+    assert.equal(armed, true)
+    assert.deepEqual(paths, [REL])
+    const ev = click()
+    ev.currentTarget = node
+    const again = []
+    assert.equal(messageLinkClick(ev, REL, PAGE, (path) => { again.push(path) }), false)
+    assert.deepEqual(again, [])
+    assert.equal(ev.defaultPrevented, true)
+    assert.equal(ev.stopped, true)
+  })
+
+  it('CONTROL: a touch tap whose click is never delivered still navigates', () => {
+    const { armed, paths } = tap(el(), '/people')
+    assert.equal(armed, true)
+    assert.deepEqual(paths, ['/people'])
+  })
+
+  it('a click on the anchor the navigation re-rendered does not navigate again', () => {
+    const { armed, paths } = tap(el(), REL)
+    assert.equal(armed, true)
+    assert.deepEqual(paths, [REL])
+    const other = click()
+    other.currentTarget = el()
+    const again = []
+    assert.equal(messageLinkClick(other, EXT, PAGE, (path) => { again.push(path) }), false)
+    assert.equal(other.defaultPrevented, false)
+    const ghost = click()
+    ghost.currentTarget = el()
+    assert.equal(messageLinkClick(ghost, REL, PAGE, (path) => { again.push(path) }), false)
+    assert.equal(ghost.defaultPrevented, true)
+    assert.equal(ghost.stopped, true)
+    assert.deepEqual(again, [])
+  })
+
+  it('a touch tap on an external link opens one new tab and the click does not', () => {
+    const node = el()
+    const { armed, opened, paths } = tap(node, EXT)
+    assert.equal(armed, true)
+    assert.deepEqual(paths, [])
+    assert.deepEqual(opened, [EXT])
+    const ev = click()
+    ev.currentTarget = node
+    const again = []
+    messageLinkClick(ev, EXT, PAGE, (path) => { again.push(path) })
+    assert.deepEqual(again, [])
+    assert.equal(ev.defaultPrevented, true)
+  })
+
+  it('a blocked external open leaves the click to the anchor', () => {
+    const node = el()
+    messageLinkPointerDown(down(node))
+    const armed = messageLinkPointerUp(down(node), EXT, PAGE, () => {}, () => false)
+    assert.equal(armed, false)
+    const ev = click()
+    ev.currentTarget = node
+    assert.equal(messageLinkClick(ev, EXT, PAGE, () => {}), false)
+    assert.equal(ev.defaultPrevented, false)
+  })
+
+  it('javascript is not opened from a tap', () => {
+    const opened = []
+    const { armed } = tap(el(), 'javascript:alert(1)')
+    assert.equal(armed, false)
+    assert.deepEqual(opened, [])
+    assert.equal(openMessageLink('javascript:alert(1)', PAGE, () => {}, (u) => { opened.push(u) }), false)
+  })
+
+  it('a mouse pointerup does not navigate; the click does, once', () => {
+    const node = el()
+    const paths = []
+    messageLinkPointerDown(down(node, { pointerType: 'mouse' }))
+    const armed = messageLinkPointerUp(
+      down(node, { pointerType: 'mouse' }),
+      REL, PAGE, (path) => { paths.push(path) }, () => {},
+    )
+    assert.equal(armed, false)
+    assert.deepEqual(paths, [])
+    const ev = click()
+    ev.currentTarget = node
+    assert.equal(messageLinkClick(ev, REL, PAGE, (path) => { paths.push(path) }), true)
+    assert.deepEqual(paths, [REL])
+    assert.equal(ev.defaultPrevented, true)
+  })
+
+  it('a finger that moved, or a second finger, is not a tap', () => {
+    const node = el()
+    const moved = tap(node, REL, PAGE, { clientX: 80 })
+    assert.equal(moved.armed, false)
+    assert.deepEqual(moved.paths, [])
+    messageLinkPointerDown(down(node, { isPrimary: false }))
+    const second = messageLinkPointerUp(down(node, { isPrimary: false }), REL, PAGE, () => {}, () => {})
+    assert.equal(second, false)
+  })
+
+  it('a cancelled finger does not open on the next pointerup', () => {
+    const node = el()
+    messageLinkPointerDown(down(node))
+    messageLinkPointerCancel({ currentTarget: node })
+    const armed = messageLinkPointerUp(down(node), REL, PAGE, () => {}, () => {})
+    assert.equal(armed, false)
+  })
+
+  it('a long press does not open from pointerup; a later click still can', async () => {
+    const node = el()
+    const paths = []
+    messageLinkPointerDown(down(node))
+    await sleep(MESSAGE_LINK_TAP_MAX_MS + 30)
+    const armed = messageLinkPointerUp(down(node), REL, PAGE, (path) => { paths.push(path) }, () => {})
+    assert.equal(armed, false)
+    assert.deepEqual(paths, [])
+    const ev = click()
+    ev.currentTarget = node
+    assert.equal(messageLinkClick(ev, REL, PAGE, (path) => { paths.push(path) }), true)
+    assert.deepEqual(paths, [REL])
   })
 })

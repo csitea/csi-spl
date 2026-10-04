@@ -31,7 +31,7 @@
 <script setup lang="ts">
 import { h, type FunctionalComponent, type VNodeChild } from 'vue'
 import type { MdNode } from '~/utils/markdown.mjs'
-import { followSameTabLink, linkOpen } from '~/utils/link-target.mjs'
+import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { mentionParts } from '~/utils/code-blocks.mjs'
 import { hasBodyTime } from '~/utils/body-times.mjs'
 import CodeBlock from '~/components/CodeBlock.vue'
@@ -74,10 +74,27 @@ watch(
    stay in this tab via the router; every other link is a new tab. */
 const stop = (e: Event) => e.stopPropagation()
 
+function openBlank(url: string) {
+  const w = window.open(url, '_blank', 'noopener,noreferrer')
+  if (w) w.opener = null
+  return Boolean(w)
+}
+
+function go(path: string) { void router.push(path) }
+
+/* same rule as MessageRuns: a phone tap opens on pointerup, because the
+   click on a link inside the card is dropped. */
+function onPointerDown(e: PointerEvent) { messageLinkPointerDown(e) }
+function onPointerCancel(e: PointerEvent) { messageLinkPointerCancel(e) }
+function onPointerUp(e: PointerEvent, href: string) {
+  if (!import.meta.client) return
+  messageLinkPointerUp(e, href, window.location.href, go, openBlank)
+}
+
 function onLink(e: MouseEvent, href: string) {
   stop(e)
   if (!import.meta.client) return
-  followSameTabLink(e, href, window.location.href, (path) => { void router.push(path) })
+  messageLinkClick(e, href, window.location.href, go)
 }
 
 function text(s: string, inCode: boolean): VNodeChild {
@@ -109,7 +126,11 @@ function node(n: MdNode, inCode = false): VNodeChild {
     const anchor: Record<string, unknown> = {
       class: 'msg-link',
       href,
+      draggable: 'false',
       title: n.attrs.title,
+      onPointerdown: onPointerDown,
+      onPointerup: (e: PointerEvent) => onPointerUp(e, href),
+      onPointercancel: onPointerCancel,
       onClick: (e: MouseEvent) => onLink(e, href),
       onDblclick: stop,
       onKeydown: (e: KeyboardEvent) => { if (e.key === 'Enter') e.stopPropagation() },
@@ -242,6 +263,8 @@ MdNodes.props = ['nodes']
   text-decoration: underline;
   text-underline-offset: 2px;
   unicode-bidi: isolate;
+  touch-action: manipulation;
+  -webkit-user-drag: none;
 }
 .md-block :deep(.msg-link:hover) { color: var(--color-accent-pressed); }
 </style>

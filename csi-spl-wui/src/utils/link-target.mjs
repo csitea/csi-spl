@@ -24,9 +24,19 @@
  * into another host), a control character, or a relative URL that resolves
  * off the base origin.
  *
- * Pure. pageOrigin is window.location.origin at render time. Omit it and
- * every absolute URL is external: a renderer that does not know the page
- * must not call a foreign host internal. A relative URL stays internal.
+ * classifyHref, linkOpen, sameTabPath and followSameTabLink are pure.
+ * pageOrigin is window.location.origin at render time. Omit it and every
+ * absolute URL is external: a renderer that does not know the page must not
+ * call a foreign host internal. A relative URL stays internal.
+ *
+ * A phone tap on a link inside a card often produces no click. The card is
+ * user-select:none (the body opts back into text) and the anchor is
+ * draggable, so the browser keeps pointerup and drops the click. Desktop
+ * clicks still go through followSameTabLink. messageLinkPointerUp opens the
+ * link from that pointerup. The navigation re-renders the anchor before the
+ * click, so messageLinkClick matches that open by href and swallows the
+ * click. One tap navigates once. A mouse click is unchanged. The href is
+ * what matters: a link to an archived topic opens the same way.
  */
 
 import { isTenantHostOf } from './tenant-host-core.mjs'
@@ -190,4 +200,100 @@ export function followSameTabLink(event, href, pageHref, navigate) {
   if (typeof event.preventDefault === 'function') event.preventDefault()
   navigate(path)
   return true
+}
+
+/** A finger held longer than this is a long press, not a tap. */
+export const MESSAGE_LINK_TAP_MAX_MS = 450
+/** A click this soon after pointerup already opened the link is the ghost. */
+const GHOST_CLICK_MS = 1000
+const TAP_SLOP_PX = 10
+
+/** @type {WeakMap<object, { x: number, y: number, id: number, t: number }>} */
+const tapDown = new WeakMap()
+/* href -> when pointerup opened it. Keyed by href, not the node: the route
+   re-renders the anchor before the click, and a new node would miss. */
+/** @type {Map<string, number>} */
+const tapOpenedAt = new Map()
+
+function touchLike(event) {
+  const t = event && event.pointerType
+  return t === 'touch' || t === 'pen'
+}
+
+/**
+ * Open an internal link through navigate, or hand an external http(s)/mailto
+ * URL to openExternal. Anything classifyHref rejects opens nothing.
+ * openExternal returning false means the browser blocked it: the click that
+ * follows is then left to the anchor.
+ *
+ * @param {string} href
+ * @param {string} pageHref
+ * @param {(path: string) => unknown} navigate
+ * @param {(url: string) => unknown} [openExternal]
+ */
+export function openMessageLink(href, pageHref, navigate, openExternal) {
+  const path = sameTabPath(href, pageHref)
+  if (path != null) {
+    navigate(path)
+    return true
+  }
+  if (typeof openExternal !== 'function') return false
+  let page
+  try { page = new URL(pageHref) } catch { return false }
+  const c = classifyHref(href, page.origin)
+  if (!c || c.internal) return false
+  if (!/^https?:/i.test(c.href) && !c.href.startsWith('mailto:')) return false
+  return openExternal(c.href) !== false
+}
+
+/** Remember a finger down on the anchor. A mouse down is not a tap. */
+export function messageLinkPointerDown(event) {
+  if (!touchLike(event) || (event && event.isPrimary === false)) return
+  const el = event.currentTarget
+  if (!el) return
+  tapDown.set(el, { x: event.clientX, y: event.clientY, id: event.pointerId, t: Date.now() })
+}
+
+/** A cancelled finger (scroll, drag) is not a tap. */
+export function messageLinkPointerCancel(event) {
+  const el = event && event.currentTarget
+  if (el) tapDown.delete(el)
+}
+
+/**
+ * A stationary short touch opens the link now, while the gesture is still a
+ * user activation (an external link's new tab is blocked from a later timer).
+ * Returns whether it opened. A mouse pointerup does nothing.
+ */
+export function messageLinkPointerUp(event, href, pageHref, navigate, openExternal) {
+  const el = event && event.currentTarget
+  const start = el && tapDown.get(el)
+  if (el) tapDown.delete(el)
+  if (!el || !start || !touchLike(event)) return false
+  if (start.id !== event.pointerId) return false
+  if (event.button != null && event.button !== 0) return false
+  if (Date.now() - start.t > MESSAGE_LINK_TAP_MAX_MS) return false
+  if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > TAP_SLOP_PX) return false
+  const opened = openMessageLink(href, pageHref, navigate, openExternal)
+  if (opened) tapOpenedAt.set(String(href), Date.now())
+  return opened
+}
+
+/**
+ * The click path. The click that follows a touch open is swallowed, so it
+ * does not push a second history entry or open a second tab. Any other click
+ * is followSameTabLink. The click never bubbles to the card.
+ */
+export function messageLinkClick(event, href, pageHref, navigate) {
+  if (!event) return false
+  if (typeof event.stopPropagation === 'function') event.stopPropagation()
+  const key = String(href)
+  const opened = tapOpenedAt.get(key)
+  if (typeof opened === 'number' && Date.now() - opened < GHOST_CLICK_MS) {
+    tapOpenedAt.delete(key)
+    if (typeof event.preventDefault === 'function') event.preventDefault()
+    return false
+  }
+  tapOpenedAt.delete(key)
+  return followSameTabLink(event, href, pageHref, navigate)
 }

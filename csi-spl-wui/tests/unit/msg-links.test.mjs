@@ -142,7 +142,8 @@ describe('MessageBody.vue renders a link part', () => {
     // this site is rewritten to its canonical https URL before it renders.
     assert.match(src, /:href="hrefOf\(p\.href\)"/)
     assert.match(src, /link-target\.mjs/)
-    assert.match(src, /followSameTabLink/)
+    assert.match(src, /messageLinkClick/)
+    assert.match(src, /messageLinkPointerUp/)
     assert.match(src, /class="msg-link"/)
     assert.doesNotMatch(src, /target="_blank"/)
     const helper = readFileSync(join(WUI, 'src/utils/link-target.mjs'), 'utf8')

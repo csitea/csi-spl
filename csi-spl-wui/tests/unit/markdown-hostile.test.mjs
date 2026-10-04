@@ -183,7 +183,8 @@ describe('the component', () => {
 
   it('links open through the shared target rule', () => {
     assert.match(block, /link-target\.mjs/)
-    assert.match(block, /followSameTabLink/)
+    assert.match(block, /messageLinkClick/)
+    assert.match(block, /messageLinkPointerUp/)
     assert.match(block, /linkOpen/)
     assert.doesNotMatch(block, /target:\s*'_blank'/)
   })

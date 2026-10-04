@@ -9,7 +9,118 @@
 # plain go test still runs), the hub Postgres gate (~384 s) and the hub GCS
 # gate -- and names each one it leaves out. CI (workflow 10 and the workflow 20
 # deploy gate) never sets it, so CI always runs the full suite.
+#
+# Perf edition 20261004 E05 (C2's practice): after vet, the independent pieces
+# run SPL_API_TEST_JOBS at a time. Unset means all of them at once; 1 is the
+# old serial loop, streamed live. Each piece's stdout and stderr are buffered
+# and printed in suite order, so a log reads like a serial run and one piece's
+# output is never mixed with another's. A failing piece still fails the suite.
+# The Postgres gate and the GCS gate do not share a port: local Postgres
+# listens on its temp unix socket only, the docker Postgres publishes an
+# ephemeral port, and fake-gcs binds below the ephemeral range.
+#
+# Sourced with SPL_API_SUITE_LIB=1, this file defines spl_run_pieces and
+# returns. The sibling run-all-tests-parallel.tst.sh is the only caller.
 set -euo pipefail
+
+# spl_run_pieces <jobs> <name> <fn> [<name> <fn> ...]
+# Run each function <jobs> at a time. Print "== <name> ==" plus that
+# function's output in argument order, then "FAILED: <name>" when it
+# returns non-zero. Append "piece-secs: <name> <secs> rc=<rc>" so a log
+# still carries each piece's duration after the buffer is printed.
+# Return 1 when any piece fails, 2 when <jobs> is not a positive integer.
+spl_run_pieces() {
+  local njobs="$1"
+  shift
+  case "$njobs" in
+    ''|*[!0-9]*|0) echo "SPL_API_TEST_JOBS must be a positive integer (got '$njobs')" >&2; return 2 ;;
+  esac
+  if [ "$#" -eq 0 ] || [ $(( $# % 2 )) -ne 0 ]; then
+    echo "spl_run_pieces: name/function pairs" >&2
+    return 2
+  fi
+  local -a names=() fns=()
+  while [ "$#" -ge 2 ]; do
+    names+=("$1")
+    fns+=("$2")
+    shift 2
+  done
+  local n=${#names[@]} fails=0 i t0 rc
+  if [ "$njobs" -eq 1 ]; then
+    i=0
+    while [ "$i" -lt "$n" ]; do
+      printf '== %s ==\n' "${names[$i]}"
+      t0=$(date +%s)
+      rc=0
+      "${fns[$i]}" || rc=$?
+      echo "piece-secs: ${names[$i]} $(( $(date +%s) - t0 )) rc=$rc"
+      if [ "$rc" -ne 0 ]; then
+        printf 'FAILED: %s\n' "${names[$i]}"
+        fails=$((fails + 1))
+      fi
+      i=$((i + 1))
+    done
+    [ "$fails" -eq 0 ]
+    return
+  fi
+  local work
+  work=$(mktemp -d)
+  # A subshell keeps this EXIT trap off the caller (the suite, or the test).
+  (
+    # p is assigned when the trap runs; kill splits the pid list on purpose.
+    # shellcheck disable=SC2154,SC2086
+    trap 'p=$(jobs -p || true); [ -z "$p" ] || kill $p 2>/dev/null || true; rm -rf "$work"' EXIT
+    trap 'exit 130' INT TERM
+    next=0
+    running=0
+    fails=0
+    start() {
+      local i="$1"
+      (
+        t0=$(date +%s)
+        rc=0
+        "${fns[$i]}" >"$work/$i.out" 2>&1 </dev/null || rc=$?
+        echo "piece-secs: ${names[$i]} $(( $(date +%s) - t0 )) rc=$rc" >>"$work/$i.out"
+        echo "$rc" >"$work/$i.rc.tmp"
+        mv "$work/$i.rc.tmp" "$work/$i.rc"
+      ) &
+    }
+    flush() {
+      while [ "$next" -lt "$n" ] && [ -f "$work/$next.rc" ]; do
+        printf '== %s ==\n' "${names[$next]}"
+        cat "$work/$next.out"
+        if [ "$(cat "$work/$next.rc")" -ne 0 ]; then
+          printf 'FAILED: %s\n' "${names[$next]}"
+          fails=$((fails + 1))
+        fi
+        next=$((next + 1))
+      done
+    }
+    i=0
+    while [ "$i" -lt "$n" ]; do
+      if [ "$running" -ge "$njobs" ]; then
+        wait -n || true
+        running=$((running - 1))
+        flush
+      fi
+      start "$i"
+      running=$((running + 1))
+      i=$((i + 1))
+    done
+    # Reap as each piece finishes and print in order, so a log is not
+    # silent until the slowest piece ends.
+    while [ "$running" -gt 0 ]; do
+      wait -n || true
+      running=$((running - 1))
+      flush
+    done
+    [ "$fails" -eq 0 ]
+  )
+}
+
+if [ "${SPL_API_SUITE_LIB:-}" = 1 ]; then
+  return 0
+fi
 
 tier="${SPL_API_TEST_TIER:-full}"
 case "$tier" in full|fast) ;; *) echo "SPL_API_TEST_TIER must be full or fast (got '$tier')" >&2; exit 2 ;; esac
@@ -44,40 +155,57 @@ echo "== go vet =="
 ( cd "$MOD" && go vet ./... )
 echo "ok   - go vet clean"
 
-# 016 T002 / FR-004: the gate runs under the race detector, so a data race
-# fails it instead of landing green (-race needs cgo: CGO_ENABLED=1 + gcc).
+# Independent pieces (E05). Print order is this list. The parallel pin runs
+# in the same pool so its few seconds hide under the long pieces.
+piece_go_test() {
+  if [ "$tier" = full ]; then
+    ( cd "$MOD" && CGO_ENABLED=1 go test -race ./... )
+  else
+    ( cd "$MOD" && go test ./... )
+    slow "go test -race"
+  fi
+}
+piece_entrypoint() { bash "$HERE/hub-entrypoint.tst.sh"; }
+piece_ref_hygiene() {
+  bash "$HERE/no-ysg-box-ref.tst.sh"
+  bash "$HERE/no-baked-host.tst.sh"
+}
+piece_payment() { bash "$HERE/no-payment-vendor-wui.tst.sh"; }
+piece_baked_hostname() { bash "$HERE/no-baked-hostname.tst.sh"; }
+piece_cookie() { bash "$HERE/cookie-secure-cnf.tst.sh"; }
+piece_smoke() { bash "$HERE/spool-smoke.tst.sh"; }
+piece_pg() {
+  if [ "$tier" = full ]; then bash "$HERE/hub-pg.tst.sh"; else slow hub-pg.tst.sh; fi
+}
+piece_gcs() {
+  if [ "$tier" = full ]; then bash "$HERE/hub-gcs.tst.sh"; else slow hub-gcs.tst.sh; fi
+}
+piece_parallel_pin() { bash "$HERE/run-all-tests-parallel.tst.sh"; }
+
 if [ "$tier" = full ]; then
-  echo "== go test -race =="
-  ( cd "$MOD" && CGO_ENABLED=1 go test -race ./... )
+  go_piece_name="go test -race"
 else
-  echo "== go test (no -race: fast tier) =="
-  ( cd "$MOD" && go test ./... )
-  slow "go test -race"
+  go_piece_name="go test (no -race: fast tier)"
 fi
 
-echo "== standalone hub-init rules (047 W9, W18) =="
-bash "$HERE/hub-entrypoint.tst.sh"
-
-echo "== reference-hygiene gate =="
-bash "$HERE/no-ysg-box-ref.tst.sh"
-bash "$HERE/no-baked-host.tst.sh"
-
-echo "== payment-vendor WUI gate =="
-bash "$HERE/no-payment-vendor-wui.tst.sh"
-
-echo "== no-baked-hostname gate (spec 007 T017) =="
-bash "$HERE/no-baked-hostname.tst.sh"
-
-echo "== cookie Secure cnf gate (SPL-1285: dev+prd must run Secure cookies) =="
-bash "$HERE/cookie-secure-cnf.tst.sh"
-
-echo "== end-to-end smoke =="
-bash "$HERE/spool-smoke.tst.sh"
-
-echo "== hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres) =="
-if [ "$tier" = full ]; then bash "$HERE/hub-pg.tst.sh"; else slow hub-pg.tst.sh; fi
-
-echo "== hub GCS gate: internal/blob against fake-gcs (skips without cached emulator image) =="
-if [ "$tier" = full ]; then bash "$HERE/hub-gcs.tst.sh"; else slow hub-gcs.tst.sh; fi
+pieces=(
+  "$go_piece_name|piece_go_test"
+  "standalone hub-init rules (047 W9, W18)|piece_entrypoint"
+  "reference-hygiene gate|piece_ref_hygiene"
+  "payment-vendor WUI gate|piece_payment"
+  "no-baked-hostname gate (spec 007 T017)|piece_baked_hostname"
+  "cookie Secure cnf gate (SPL-1285: dev+prd must run Secure cookies)|piece_cookie"
+  "end-to-end smoke|piece_smoke"
+  "hub Postgres gate: migrate, store/hub suites on Postgres, binary e2e (skips without Postgres)|piece_pg"
+  "hub GCS gate: internal/blob against fake-gcs (skips without cached emulator image)|piece_gcs"
+  "suite parallelism|piece_parallel_pin"
+)
+npieces=${#pieces[@]}
+njobs="${SPL_API_TEST_JOBS:-$npieces}"
+args=()
+for piece in "${pieces[@]}"; do
+  args+=("${piece%%|*}" "${piece#*|}")
+done
+spl_run_pieces "$njobs" "${args[@]}"
 
 echo "ALL csi-spl-api TESTS PASSED (tier=$tier)"

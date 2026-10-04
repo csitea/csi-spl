@@ -71,7 +71,7 @@ ctl() { # <label> <id> <setup command run inside the copy>
   out=$(sweep "$dir"); rc=$?
   rm -rf "$dir"
   if [[ $rc -ne 0 ]] && grep -qF "::error::hygiene: $LABEL" <<<"$out"; then
-    pass "CONTROL $label -> sweep fails (rc=$rc): $(grep -F "::error::hygiene: $LABEL" <<<"$out" | head -1)"
+    pass "CONTROL $label -> sweep fails (rc=$rc): $(grep -F "::error::hygiene: $LABEL" <<<"$out" | sed -n 1p)"
   else
     fail "CONTROL $label -> sweep did NOT fail (rc=$rc)"
     echo "$out" | sed 's/^/    | /'

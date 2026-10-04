@@ -42,7 +42,7 @@ do_gcp_delete_service_account(){
 
   # 6) Check if the SA exists. If yes, delete it. If not, echo a message.
 
-  if gcloud iam service-accounts list --project="${PROJ_ID}" --format="value(email)" --account="${account}" | grep -q "${SA_EMAIL}"
+  if gcloud iam service-accounts list --project="${PROJ_ID}" --format="value(email)" --account="${account}" | grep "${SA_EMAIL}" >/dev/null
   then
     echo "Service account ${SA_EMAIL} found in ${PROJ_ID}. Deleting..."
     gcloud iam service-accounts delete "${SA_EMAIL}" --project="${PROJ_ID}" --quiet --account="${account}"

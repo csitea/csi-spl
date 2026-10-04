@@ -86,7 +86,7 @@ git -C "$R5" worktree remove --force "$live" >/dev/null 2>&1
 ( _PP_BASE_WT=""; _pp_baseline_tree "$R5" HEAD; echo "$_PP_BASE_WT" >"$ROOT/r5.wt"
   trap "_pp_baseline_cleanup '$R5'; exit 143" TERM; kill -TERM $BASHPID; sleep 5 ) 2>/dev/null
 wt5="$(cat "$ROOT/r5.wt")"
-{ [[ -n "$wt5" ]] && ! git -C "$R5" worktree list | grep -qF "$wt5" && [[ ! -d "$wt5" ]]; } \
+{ [[ -n "$wt5" ]] && ! git -C "$R5" worktree list | grep -F "$wt5" >/dev/null && [[ ! -d "$wt5" ]]; } \
   && pass "5c. TERM mid-run removes the run's own baseline worktree" || fail "5c. term cleanup" "$(git -C "$R5" worktree list)"
 
 # 6. regression: a part that fails on HEAD AND on the base (the re-check

@@ -92,7 +92,7 @@ print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   yq -i '.env.auth.social.env.SPOOL_HUB_AUTH_PROVIDERS = "" | .env.auth.native.env.SPOOL_HUB_AUTH_NATIVE_ENABLED = "true" | .env.mail.env.SPOOL_HUB_MAIL_TRANSPORT = "smtp"' "$tmp/dev.env.yaml"
   out=$(render); sec=$(injected "$out")
   want='"SPOOL_HUB_AUTH_SESSION_KEY" "SPOOL_HUB_DB_DSN" "SPOOL_HUB_MAIL_SMTP_PASSWORD" '
-  [[ "$sec" == "$want" ]] && grep -E '^environment_variables ' <<<"$out" | grep -q '"SPOOL_HUB_MAIL_TRANSPORT": "smtp"' \
+  [[ "$sec" == "$want" ]] && grep -E '^environment_variables ' <<<"$out" | grep '"SPOOL_HUB_MAIL_TRANSPORT": "smtp"' >/dev/null \
     && pass "control: native on + smtp injects the session key + SMTP password, plain mail env rendered" \
     || fail "control: native on + smtp injected: ${sec:-<nothing>} ($(head -c 300 <<<"$out"))"
   # spec 014 T020: inject=false keeps the slot but never references it (Cloud
@@ -100,7 +100,7 @@ print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   cp "$tmp/base.yaml" "$tmp/dev.env.yaml"
   yq -i '.env.hub.wui_key.inject = "false"' "$tmp/dev.env.yaml"
   out=$(render); sec=$(injected "$out")
-  [[ "$sec" != *SPOOL_HUB_WUI_KEY* ]] && grep -E '^auth_secret_ids ' <<<"$out" | grep -q csi-spl-hub-wui-key \
+  [[ "$sec" != *SPOOL_HUB_WUI_KEY* ]] && grep -E '^auth_secret_ids ' <<<"$out" | grep csi-spl-hub-wui-key >/dev/null \
     && pass "control: wui_key.inject=false creates the slot and injects nothing" \
     || fail "control: wui_key.inject=false injected: ${sec:-<nothing>}"
   yq -i '.env.hub.wui_key.inject = "true"' "$tmp/dev.env.yaml"

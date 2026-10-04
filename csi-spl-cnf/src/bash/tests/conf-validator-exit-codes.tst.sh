@@ -76,7 +76,7 @@ expect_rc() {
     ok "${what} → exit ${got}"
   else
     bad "${what} → exit ${got}, want ${want}"
-    sed 's/^/      /' "${TMP_DIR}/err" | head -5
+    sed 's/^/      /' "${TMP_DIR}/err" | sed -n 1,5p
   fi
 }
 

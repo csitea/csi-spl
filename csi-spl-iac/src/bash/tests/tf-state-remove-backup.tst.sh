@@ -51,12 +51,12 @@ run_action() {
 
 # --- 1. default = dry run, with a backup --------------------------------------------
 rm -rf "$T/bk"; run_action; rc=$?
-bk=$(ls "$T"/bk/o-a-dev-s1-*.tfstate 2>/dev/null | head -1)
+bk=$(ls "$T"/bk/o-a-dev-s1-*.tfstate 2>/dev/null | sed -n 1p)
 [[ $rc -eq 0 && -n "$bk" ]] && pass "default: a backup file o-a-dev-s1-<ts>.tfstate is written" || fail "default: rc=$rc backup='$bk' $(cat "$T/out.log")"
 [[ -n "$bk" && "$(stat -c %a "$bk")" == 600 && "$(stat -c %a "$T/bk")" == 700 ]] \
   && pass "default: the backup is 0600 in a 0700 dir" || fail "modes: file=$(stat -c %a "$bk" 2>/dev/null) dir=$(stat -c %a "$T/bk")"
 grep -q '"serial":7' "$bk" 2>/dev/null && pass "default: the backup holds the pulled state" || fail "backup content"
-! grep -q '^state rm' "$T/calls.log" && grep -c '^state list' "$T/calls.log" | grep -qx 2 \
+! grep -q '^state rm' "$T/calls.log" && grep -c '^state list' "$T/calls.log" | grep -x 2 >/dev/null \
   && pass "default: both targets listed, nothing removed" || fail "default calls: $(tr '\n' '|' <"$T/calls.log")"
 
 # --- 2. DRY_RUN=0 keeps the lock and removes after the backup -----------------------
@@ -64,7 +64,7 @@ rm -rf "$T/bk"; run_action DRY_RUN=0; rc=$?
 rms=$(grep '^state rm' "$T/calls.log")
 [[ $rc -eq 0 && "$rms" == $'state rm x.a\nstate rm x.b' ]] \
   && pass "DRY_RUN=0: each target removed, with the lock (no -lock=false)" || fail "DRY_RUN=0: rc=$rc rm='$rms'"
-pull_at=$(grep -n '^state pull' "$T/calls.log" | cut -d: -f1); rm_at=$(grep -n '^state rm' "$T/calls.log" | head -1 | cut -d: -f1)
+pull_at=$(grep -n '^state pull' "$T/calls.log" | cut -d: -f1); rm_at=$(grep -n '^state rm' "$T/calls.log" | sed -n 1p | cut -d: -f1)
 [[ -n "$pull_at" && -n "$rm_at" && "$pull_at" -lt "$rm_at" ]] && pass "DRY_RUN=0: the pull precedes the first state rm" || fail "order: pull=$pull_at rm=$rm_at"
 
 # --- 3. FORCE=1 drops the lock ------------------------------------------------------

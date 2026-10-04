@@ -75,7 +75,7 @@ do_report_ci_gate() { (
     if [[ "${CI_GATE_SIGNATURES:-0}" == 1 ]]; then
       sig=$(gh api "repos/{owner}/{repo}/actions/jobs/$jid/logs" 2>/dev/null |
             grep -aE '(^|[[:space:]])(FAIL[:[:space:]]|FAILED:|--- FAIL|::error::)' |
-            grep -avE '36;1m|echo "::error' | sed -E 's/^[^ ]*Z //' | head -1)
+            grep -avE '36;1m|echo "::error' | sed -E 's/^[^ ]*Z //' | sed -n 1p)
       sig="${sig:0:160}"
     fi
     printf '   %s  %s  %s  %s%s\n' "$rid" "$created" "$sha" "$jname" "${sig:+  || $sig}"

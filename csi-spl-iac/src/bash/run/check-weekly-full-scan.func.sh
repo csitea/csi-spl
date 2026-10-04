@@ -149,7 +149,7 @@ do_check_weekly_full_scan() {
   local prev_week; prev_week="$(date -d "$date -7 days" +%F 2>/dev/null || true)"
   rm -f "$dir/$date.missed.txt"
   if [[ -n "$prev_week" && ! -f "$dir/$prev_week.md" ]] \
-     && find "$dir" -maxdepth 1 -name '????-??-??.md' ! -name "$date.md" 2>/dev/null | grep -q .; then
+     && find "$dir" -maxdepth 1 -name '????-??-??.md' ! -name "$date.md" 2>/dev/null | grep . >/dev/null; then
     echo "Weekly full scan did NOT run on $prev_week: no report on the box (box down or cron missing?) -- this week's run follows." >"$dir/$date.missed.txt"
     do_log "WARN the weekly full scan of $prev_week did not run (no $dir/$prev_week.md)"
   fi

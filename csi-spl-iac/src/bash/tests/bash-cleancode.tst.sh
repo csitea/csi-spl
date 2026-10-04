@@ -93,7 +93,7 @@ done < <(sed -E 's/[[:space:]]*#.*//; s/^[[:space:]]+//' <<<"$LONG")
 # Control: the measure counts a known function right.
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 printf 'a() {\n  echo 1\n  echo 2\n}\nb() { :; }\n' >"$T/x.sh"
-got=$(APP_ROOT="$T" measure "$T/x.sh" | head -1)
+got=$(APP_ROOT="$T" measure "$T/x.sh" | sed -n 1p)
 [[ "$got" == "4 $T/x.sh a" || "$got" == "4 x.sh a" ]] && pass "CONTROL: a 4-line function measures 4" || fail "CONTROL: measured '$got'"
 
 [[ "$fails" -eq 0 ]] && echo "PASS: all $(basename "$0") assertions"

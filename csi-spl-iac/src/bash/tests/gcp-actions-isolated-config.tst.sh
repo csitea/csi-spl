@@ -68,8 +68,8 @@ mkdir -p "$T/mine"; echo secret >"$T/mine/credentials.db"
 out=$(drive "$T/mine")
 n=$(wc -l <"$T/calls.log")
 [[ $n -ge 3 ]] && pass "control: the stub recorded $n gcloud calls" || fail "control: the stub recorded only $n calls"
-if cut -d'|' -f1 "$T/calls.log" | grep -qxF -e "$T/mine" -e '<unset>'; then
-  fail "a gcloud call ran under the caller's / the shared config: $(grep -F "$T/mine|" "$T/calls.log" | head -1)"
+if cut -d'|' -f1 "$T/calls.log" | grep -xF -e "$T/mine" -e '<unset>' >/dev/null; then
+  fail "a gcloud call ran under the caller's / the shared config: $(grep -F "$T/mine|" "$T/calls.log" | sed -n 1p)"
 else pass "a. every gcloud call ran under a private CLOUDSDK_CONFIG"; fi
 priv=$(head -1 "$T/calls.log" | cut -d'|' -f1)
 [[ -n "$priv" && ! -e "$priv" ]] && pass "a. the private config dir is removed afterwards" || fail "a. private config $priv left behind"

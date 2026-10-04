@@ -64,11 +64,11 @@ EOF
 
 hits=$(key_hits "$tmp/bad")
 ok=1
-echo "$hits" | grep -q 'google_service_account_key' || { fail "control: planted google_service_account_key not caught: ${hits:-<nothing>}"; ok=0; }
-echo "$hits" | grep -q 'tls_private_key' || { fail "control: planted tls_private_key not caught: ${hits:-<nothing>}"; ok=0; }
-echo "$hits" | grep -qE 'private_key[[:space:]]*=' || { fail "control: planted private_key= not caught: ${hits:-<nothing>}"; ok=0; }
-echo "$hits" | grep -q 'credentials' || { fail "control: planted credentials=file() not caught: ${hits:-<nothing>}"; ok=0; }
-echo "$hits" | grep -q 'BEGIN' || { fail "control: planted PEM header not caught: ${hits:-<nothing>}"; ok=0; }
+echo "$hits" | grep 'google_service_account_key' >/dev/null || { fail "control: planted google_service_account_key not caught: ${hits:-<nothing>}"; ok=0; }
+echo "$hits" | grep 'tls_private_key' >/dev/null || { fail "control: planted tls_private_key not caught: ${hits:-<nothing>}"; ok=0; }
+echo "$hits" | grep -E 'private_key[[:space:]]*=' >/dev/null || { fail "control: planted private_key= not caught: ${hits:-<nothing>}"; ok=0; }
+echo "$hits" | grep 'credentials' >/dev/null || { fail "control: planted credentials=file() not caught: ${hits:-<nothing>}"; ok=0; }
+echo "$hits" | grep 'BEGIN' >/dev/null || { fail "control: planted PEM header not caught: ${hits:-<nothing>}"; ok=0; }
 [[ "$ok" -eq 1 ]] && pass "control: planted SA key, tls_private_key, PEM, private_key= and credentials=file() are caught"
 
 # --- control 2: rationale comments are not hits -------------------------------

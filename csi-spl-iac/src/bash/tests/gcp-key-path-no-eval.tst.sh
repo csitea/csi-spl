@@ -54,7 +54,7 @@ drive() {
 # key_of <action> - the key path the action resolved
 key_of() {
   if [[ "$1" == gcp-project-delete ]]; then head -1 "$T/key.log"
-  else sed -n 's/^gcloud|auth activate-service-account --key-file=//p' "$T/calls.log" | head -1; fi
+  else sed -n 's/^gcloud|auth activate-service-account --key-file=//p' "$T/calls.log" | sed -n 1p; fi
 }
 
 # --- 1. the key path, under $HOME ----------------------------------------------

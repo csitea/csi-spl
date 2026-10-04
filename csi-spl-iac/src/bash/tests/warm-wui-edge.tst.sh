@@ -111,7 +111,7 @@ for enc in 'gzip, deflate, br, zstd' 'gzip, deflate, br'; do
   [[ "$n" -eq 10 ]] && pass "every live path fetched with accept-encoding '$enc'" \
     || fail "accept-encoding '$enc': $n distinct paths, want 10"
 done
-awk -F'\t' '$1 ~ /stale/ && ($2 == "gzip, deflate, br, zstd" || $2 == "gzip, deflate, br")' "$T/port.log" | grep -q . \
+awk -F'\t' '$1 ~ /stale/ && ($2 == "gzip, deflate, br, zstd" || $2 == "gzip, deflate, br")' "$T/port.log" | grep . >/dev/null \
   && fail "the stale ref was warmed" || pass "the stale ref is never fetched with a browser key"
 out=$(WARM_WUI_URLS="$BASE" do_warm_wui_edge 2>&1)
 grep -q '20 fetches; 0 were cold' <<<"$out" && grep -q 'x-cache seen: MISS, HIT=20' <<<"$out" \

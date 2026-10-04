@@ -42,7 +42,7 @@ do_gcp_003_configure_proj_sa_permissions() {
   out=$(gcloud iam service-accounts describe "${sa_email}" --project="${PROJ_ID}" "${acct}" --format='value(email)' 2>&1)
   rc=$?
   if [[ ${rc} -ne 0 ]]; then
-    if printf '%s' "${out}" | grep -qiE 'NOT_FOUND|does not exist|not found'; then
+    if printf '%s' "${out}" | grep -iE 'NOT_FOUND|does not exist|not found' >/dev/null; then
       do_log "FATAL ${sa_email} does not exist: run do_gcp_002_create_project_service_account first"
     else
       do_log "FATAL cannot tell whether ${sa_email} exists (rc=${rc}): ${out}"

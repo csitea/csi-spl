@@ -78,7 +78,7 @@ ctl() { # <label> <setup command run inside the copy>
   out=$(sweep "$dir"); rc=$?
   rm -rf "$dir"
   if [[ $rc -ne 0 ]] && grep -q '::error::hygiene: owner mail address or domain' <<<"$out"; then
-    pass "CONTROL $label -> sweep fails (rc=$rc): $(grep '::error::hygiene: owner mail' <<<"$out" | head -1)"
+    pass "CONTROL $label -> sweep fails (rc=$rc): $(grep '::error::hygiene: owner mail' <<<"$out" | sed -n 1p)"
   else
     fail "CONTROL $label -> sweep did NOT fail (rc=$rc)"
     echo "$out" | sed 's/^/    | /'

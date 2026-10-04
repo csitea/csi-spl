@@ -107,7 +107,7 @@ cfg=$(sed -n 's/^acct=.* cfg=//p' <<<"$out")
   && pass "do_gcp_pin_account pins the SA and exports a private CLOUDSDK_CONFIG" || fail "pin from the shared config: '$out'"
 [[ -n "$cfg" && ! -e "$cfg" ]] && pass "the private config (it holds the SA credential) is removed on EXIT" || fail "private config $cfg left behind"
 grep -q '^caller-trap-ran$' <<<"$out" && pass "a caller's EXIT trap still runs (chained, not replaced)" || fail "caller EXIT trap lost: '$out'"
-if cut -d'|' -f1 "$T/gcloud.log" | grep -qx -e '<unset>' -e "$T/home/.config/gcloud"; then
+if cut -d'|' -f1 "$T/gcloud.log" | grep -x -e '<unset>' -e "$T/home/.config/gcloud" >/dev/null; then
   fail "a gcloud call ran against the shared config: $(cat "$T/gcloud.log")"
 else pass "no gcloud call touched the shared config"; fi
 
@@ -163,7 +163,7 @@ code_files() {
   done | grep -v '/gcp-account-pin.func.sh$' | sort
 }
 owner_hits=$(code_files | while read -r f; do
-  grep -vE '^[[:space:]]*#' "$f" | grep -qE 'do_gcp_(pin_)?bootstrap_account|gcp_account_owner_email|GCP_ACCOUNT_OWNER_EMAIL' || continue
+  grep -vE '^[[:space:]]*#' "$f" | grep -E 'do_gcp_(pin_)?bootstrap_account|gcp_account_owner_email|GCP_ACCOUNT_OWNER_EMAIL' >/dev/null || continue
   [[ "$(basename "$f")" =~ ^gcp-00[0-4]- ]] || echo "$f"
 done)
 [[ -z "$owner_hits" ]] && pass "STATIC: only gcp-000..004 can reach the owner account" || fail "owner reachable outside the bootstrap: $owner_hits"
@@ -172,7 +172,7 @@ n_boot=$(code_files | xargs grep -lE '^[[:space:]]*do_gcp_pin_bootstrap_account'
 n_gc=0; unresolved=""
 while read -r f; do
   grep -vE '^[[:space:]]*#' "$f" \
-    | grep -qE '(^|[;&|({]|\$\(|(^|[[:space:]])(if|then|do|else|elif|while|until|!|time)[[:space:]])[[:space:]]*(command[[:space:]]+)?(gcloud|\$\{?GCLOUD\}?)[[:space:]]' || continue
+    | grep -E '(^|[;&|({]|\$\(|(^|[[:space:]])(if|then|do|else|elif|while|until|!|time)[[:space:]])[[:space:]]*(command[[:space:]]+)?(gcloud|\$\{?GCLOUD\}?)[[:space:]]' >/dev/null || continue
   n_gc=$((n_gc + 1))
   grep -qE 'do_gcp_(pin_)?(bootstrap_)?account|do_gcp_isolated_active_account|auth activate-service-account --key-file|--account="?\$\{?(GCP_ACCOUNT|account)\b|--account="?\$\{?1' "$f" \
     || unresolved="$unresolved $(basename "$f")"

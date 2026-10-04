@@ -87,7 +87,7 @@ do_measure_wui_edge_warm() {
   # the crawl at 1 worker, 2/s, capped: enough paths to sample, no burst
   if ! WARM_WUI_PARALLEL=1 WARM_WUI_RATE=2/s WARM_WUI_MAX_FILES="${MEASURE_WUI_MAX_FILES:-$(( n * 4 + 80 ))}" \
        _warm_wui_edge_crawl "$base" "$w" >"$w/paths"; then rm -rf "${w:?}"; return 1; fi
-  { grep -v '^/_nuxt/' "$w/paths" | head -n "$ndocs"; grep -E '^/_nuxt/.*\.(js|css)$' "$w/paths" | head -n "$n"; } >"$w/sample"
+  { grep -v '^/_nuxt/' "$w/paths" | sed -n "1,${ndocs}p"; grep -E '^/_nuxt/.*\.(js|css)$' "$w/paths" | sed -n "1,${n}p"; } >"$w/sample"
   do_log "INFO $base: sampling $(grep -vc '^/_nuxt/' "$w/sample") documents + $(grep -c '^/_nuxt/' "$w/sample") /_nuxt files, arms: ${todo[*]}, ${pause}s between requests -> $out"
   printf 'run\tarm\tstep\tclass\tpath\tcode\tttfb_s\tserver_ttfb_s\tx_cache\n' >"$out"
   i=0

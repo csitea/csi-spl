@@ -91,7 +91,7 @@ do_gcp_001_create_project() {
   if [[ "${describe_rc}" -eq 0 ]]; then
     do_log "INFO Project ${PROJ_ID} already exists — skipping create"
   elif printf '%s' "${describe_out}" \
-       | grep -qiE 'NOT_FOUND|does not exist|it may not exist|could not be found|was not found'; then
+       | grep -iE 'NOT_FOUND|does not exist|it may not exist|could not be found|was not found' >/dev/null; then
     if [[ "${dry_run}" == 1 ]]; then
       do_log "INFO DRY_RUN would run: gcloud projects create ${PROJ_ID} --name=${PROJ_ID} ${parent_flag} --account=${GCP_ACCOUNT}"
     else

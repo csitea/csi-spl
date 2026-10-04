@@ -48,7 +48,7 @@ check_derived() {
     got=$(yq -r ".env.auth.social.env.SPOOL_HUB_AUTH_${p}_REDIRECT_URI" "$m")
     [[ "$got" == "https://$fqdn/api/v1/auth/$lp/callback" ]] && pass "$label $p redirect URI on the WUI host" || fail "$label $p redirect URI: $got"
   done
-  yq -r '.env.auth.social.env[]' "$m" | grep -qE 'PLACEHOLDER-(wui-origin|[a-z]+-redirect-uri)|\{fqdn\}|\{base_domain\}' \
+  yq -r '.env.auth.social.env[]' "$m" | grep -E 'PLACEHOLDER-(wui-origin|[a-z]+-redirect-uri)|\{fqdn\}|\{base_domain\}' >/dev/null \
     && fail "$label a URL placeholder or {fqdn}/{base_domain} token survived the merge" || pass "$label no URL placeholder or token survives"
 }
 

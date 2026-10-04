@@ -24,7 +24,7 @@ do_satellite_playbook() {
   org="${ORG:?}" app="${APP:?}"
   con="${TF_RUNNER:-con-${org}-${org}-${app}-tf-runner}"
   command -v docker >/dev/null 2>&1 || { do_log "FATAL docker is not installed"; return 1; }
-  docker inspect -f '{{.State.Running}}' "$con" 2>/dev/null | grep -qx true \
+  docker inspect -f '{{.State.Running}}' "$con" 2>/dev/null | grep -x true >/dev/null \
     || { do_log "FATAL the tf-runner $con is not running (cd ${org}-${app}-orc && make do-setup-app-inf, from the main checkout)"; return 1; }
   # the container mounts the main checkout at APP_PATH; the script lives in its csi-spl-iac
   inner=$(docker exec "$con" bash -c 'printf %s "$APP_PATH"') || return 1

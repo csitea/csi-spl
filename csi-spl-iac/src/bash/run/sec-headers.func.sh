@@ -39,7 +39,7 @@ _sec_headers_default_url() {
     if command -v yq >/dev/null 2>&1; then
       dom=$(yq -r '.env.dns.BASE_DOMAIN // ""' "$cnf" 2>/dev/null)
     fi
-    [[ -z "${dom:-}" ]] && dom=$(sed -n 's/^[[:space:]]*BASE_DOMAIN:[[:space:]]*//p' "$cnf" | head -1 | tr -d '"'"'"' ')
+    [[ -z "${dom:-}" ]] && dom=$(sed -n 's/^[[:space:]]*BASE_DOMAIN:[[:space:]]*//p' "$cnf" | sed -n 1p | tr -d '"'"'"' ')
     [[ -n "${dom:-}" ]] && { printf 'https://dev.%s\n' "$dom"; return 0; }
   done
   return 1

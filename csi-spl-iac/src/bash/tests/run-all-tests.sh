@@ -36,11 +36,11 @@ trap 'exit 130' INT TERM
 pool=() serial=()
 for t in "$dir"/*.tst.sh; do
   [[ -f "$t" ]] || continue
-  if [[ "$tier" == fast ]] && head -40 "$t" | grep -qE '^# pre-push-tier: slow( |$)'; then
+  if [[ "$tier" == fast ]] && head -40 "$t" | grep -E '^# pre-push-tier: slow( |$)' >/dev/null; then
     echo "SKIP-TIER (fast tier; CI workflow 10 runs it): $(basename "$t")"; slow=$((slow + 1))
     continue
   fi
-  if head -40 "$t" | grep -qE '^# serial( |$)'; then serial+=("$t"); else pool+=("$t"); fi
+  if head -40 "$t" | grep -E '^# serial( |$)' >/dev/null; then serial+=("$t"); else pool+=("$t"); fi
 done
 files=("${pool[@]}" "${serial[@]}")
 n=${#files[@]}

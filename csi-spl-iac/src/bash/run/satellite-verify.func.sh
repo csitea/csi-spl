@@ -118,7 +118,7 @@ _satellite_verify_replica() {
   # CI's pin (go.mod), which the playbook installs, not to the box PC's drift
   local gopin
   # the sibling *-api dir: ./run sets APP to the checkout's dir name, so no ${APP} here
-  gopin=$(sed -n 's/^go \([0-9.]*\)$/\1/p' "${PROJ_PATH}"/../*-api/src/go/spool-hub-api/go.mod 2>/dev/null | head -n 1)
+  gopin=$(sed -n 's/^go \([0-9.]*\)$/\1/p' "${PROJ_PATH}"/../*-api/src/go/spool-hub-api/go.mod 2>/dev/null | sed -n 1p)
   while read -r _ name hv; do
     sv=$(awk -v n="$name" '$1 == "ver" && $2 == n { print $3 }' <<<"$there")
     if [[ "$name" == go && -n "$gopin" ]]; then

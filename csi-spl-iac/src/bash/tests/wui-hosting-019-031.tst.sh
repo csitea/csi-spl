@@ -37,7 +37,7 @@ grep -q 'do_provision_firebase_dns || rc' "$PROJ_ROOT/src/bash/run/provision-fir
   && pass "do_provision_firebase_dns_env runs csi-rel's action as the env SA" || fail "provision-firebase-dns-env wrapper"
 
 # a deleted Firebase site id can never be reused: the site must refuse a destroy
-awk '/resource "google_firebase_hosting_site" "default"/,/^}/' "$TFD/019-firebase-static-site/03-firebase-site.tf" | grep -q 'prevent_destroy = true' \
+awk '/resource "google_firebase_hosting_site" "default"/,/^}/' "$TFD/019-firebase-static-site/03-firebase-site.tf" | grep 'prevent_destroy = true' >/dev/null \
   && pass "019 site carries prevent_destroy (a deleted site id is gone forever)" || fail "019 site lacks prevent_destroy"
 
 # --- no load balancer (owner 2026-09-19, "exactly csi-rel") -------------------

@@ -42,7 +42,7 @@ run_action() {
 TFV="$A/csi-spl-cnf/csi-spl/dev/tf/000-step"
 
 run_action "$RUN_DIR_SRC/tf-apply.func.sh" do_tf_apply "$T/apply.argv"
-grep -c -xF "ARG<-chdir=$R>" "$T/apply.argv" | grep -qx 3 \
+grep -c -xF "ARG<-chdir=$R>" "$T/apply.argv" | grep -x 3 >/dev/null \
   && pass "apply: init, apply and output each get -chdir=<run dir> as one argument" \
   || fail "apply: -chdir split: $(head -5 "$T/apply.argv")"
 grep -qxF "ARG<-var-file=$TFV.vars.tfvars>" "$T/apply.argv" \
@@ -55,7 +55,7 @@ grep -qx ANSIBLE-RAN "$T/ansible.out" 2>/dev/null \
   && pass "apply: the run-ansible hook under the spaced PROJ_PATH runs" || fail "apply: the run-ansible hook did not run"
 
 run_action "$RUN_DIR_SRC/tf-destroy.func.sh" do_tf_destroy "$T/destroy.argv"
-grep -c -xF "ARG<-chdir=$R>" "$T/destroy.argv" | grep -qx 2 \
+grep -c -xF "ARG<-chdir=$R>" "$T/destroy.argv" | grep -x 2 >/dev/null \
   && pass "destroy: init and destroy each get -chdir=<run dir> as one argument" \
   || fail "destroy: -chdir split: $(head -5 "$T/destroy.argv")"
 grep -qxF "ARG<-var-file=$TFV.vars.tfvars>" "$T/destroy.argv" \

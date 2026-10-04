@@ -26,7 +26,7 @@ fails=0
 [[ -d "$STEP" ]] || { echo "FAIL: missing $STEP"; exit 1; }
 
 # --- static --------------------------------------------------------------------
-grep -hvE '^[[:space:]]*#' "$STEP"/*.tf | grep -qE 'plaintext_value|encrypted_value' && fail "120 sets a secret value through terraform (lands in state)" || pass "120 passes no secret value through terraform"
+grep -hvE '^[[:space:]]*#' "$STEP"/*.tf | grep -E 'plaintext_value|encrypted_value' >/dev/null && fail "120 sets a secret value through terraform (lands in state)" || pass "120 passes no secret value through terraform"
 grep -qE 'google_secret_manager_secret_version|resource "github_' "$STEP"/*.tf && fail "120 mirrors the key into a state-borne resource" || pass "120 has no github_* or Secret Manager version resource"
 grep -qE 'credentials[[:space:]]*=[[:space:]]*file\(' "$STEP"/*.tf && fail "120 reads a credentials file in a provider" || pass "120 has no credentials=file()"
 for e in dev prd; do

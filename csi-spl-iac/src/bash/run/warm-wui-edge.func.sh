@@ -60,8 +60,8 @@ _warm_wui_edge_check_knobs() {
 _warm_wui_edge_documents() {
   local html="$1" codes def c
   printf '/\n/login\n'
-  codes=$(grep -oE 'locales:\[("[A-Za-z-]+",?)+\]' "$html" | head -1 | grep -oE '"[A-Za-z-]+"' | tr -d '"')
-  def=$(grep -oE 'defaultLocale:"[A-Za-z-]+"' "$html" | head -1 | cut -d'"' -f2)
+  codes=$(grep -oE 'locales:\[("[A-Za-z-]+",?)+\]' "$html" | sed -n 1p | grep -oE '"[A-Za-z-]+"' | tr -d '"')
+  def=$(grep -oE 'defaultLocale:"[A-Za-z-]+"' "$html" | sed -n 1p | cut -d'"' -f2)
   for c in $codes; do
     [[ "$c" == "$def" ]] && continue
     printf '/%s\n/%s/login\n' "$c" "$c"
@@ -77,7 +77,7 @@ _warm_wui_edge_refs() {
   {
     grep -oE "/_nuxt/[A-Za-z0-9._/-]+\.$ext" "$f"
     grep -oE "[\"'(]\./[A-Za-z0-9._-]+\.$ext" "$f" | sed 's#^.\./#/_nuxt/#'
-    grep -oE 'buildId:"[A-Za-z0-9-]+"' "$f" | head -1 | cut -d'"' -f2 | sed 's#^#/_nuxt/builds/meta/#; s#$#.json#'
+    grep -oE 'buildId:"[A-Za-z0-9-]+"' "$f" | sed -n 1p | cut -d'"' -f2 | sed 's#^#/_nuxt/builds/meta/#; s#$#.json#'
   } | sort -u
 }
 
@@ -149,7 +149,7 @@ _warm_wui_edge_crawl() {
     sort -u "$w/found" | comm -23 - "$w/seen" >"$w/frontier"
   done
   if [[ -s "$w/dead" ]]; then
-    do_log "WARN $base: $(sort -u "$w/dead" | wc -l) referenced path(s) are not there (SPA fallback or error), skipped: $(sort -u "$w/dead" | head -5 | paste -sd' ')" >&2
+    do_log "WARN $base: $(sort -u "$w/dead" | wc -l) referenced path(s) are not there (SPA fallback or error), skipped: $(sort -u "$w/dead" | sed -n 1,5p | paste -sd' ')" >&2
   fi
   sort -u "$w/live"
 }
@@ -200,7 +200,7 @@ do_warm_wui_edge() {
     miss=$(awk -F'\t' '{ n = split($3, c, /, */) } n && c[n] == "MISS"' "$w/out" | wc -l)
     do_log "INFO $base: $(wc -l <"$w/paths") paths x $keys encodings = $n fetches; $miss were cold (MISS) and are now warm, $bad failed"
     do_log "INFO $base: x-cache seen: $(awk -F'\t' '{ print ($3 == "" ? "-" : $3) }' "$w/out" | sort | uniq -c | sort -rn | awk '{ c = $1; $1 = ""; printf "%s%s=%s", (NR > 1 ? "; " : ""), substr($0, 2), c }')"
-    awk -F'\t' '$1 !~ /^[23]/ {print "  failed: " $0}' "$w/out" | head -20
+    awk -F'\t' '$1 !~ /^[23]/ {print "  failed: " $0}' "$w/out" | sed -n 1,20p
     # A broken host is a red warm; a few stray refs are logged, not fatal.
     if (( n == 0 || bad * 10 > n )); then do_log "ERROR $base: $bad of $n fetches failed"; rc=1; fi
     rm -rf "${w:?}"

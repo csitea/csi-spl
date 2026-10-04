@@ -55,17 +55,17 @@ _ilt_root() {
 
 # The first `<key>=<value>` assignment in a workflow file (v=, sha=).
 _ilt_pin() {  # <workflow-file> <key>
-  sed -nE "s/.*(^|[ ;])$2=([A-Za-z0-9._-]+).*/\\2/p" "$1" | head -1
+  sed -nE "s/.*(^|[ ;])$2=([A-Za-z0-9._-]+).*/\\2/p" "$1" | sed -n 1p
 }
 
 # The `<pkg>@<ver>` / `<pkg>==<ver>` pin a workflow installs.
 _ilt_pkg_pin() {  # <workflow-file> <pkg> <sep>
-  grep -oE "(^|[ ])$2$3[0-9][0-9A-Za-z.]*" "$1" | head -1 | sed -E "s/^ ?$2$3//"
+  grep -oE "(^|[ ])$2$3[0-9][0-9A-Za-z.]*" "$1" | sed -n 1p | sed -E "s/^ ?$2$3//"
 }
 
 # Have <bin> at <ver>? (`--version` output contains the version string.)
 _ilt_have() {  # <path> <ver>
-  [[ -x "$1" ]] && "$1" --version 2>&1 | grep -qF "$2"
+  [[ -x "$1" ]] && "$1" --version 2>&1 | grep -F "$2" >/dev/null
 }
 
 # Download <url>, check sha256, and put <member> (or the file itself when
@@ -122,8 +122,8 @@ _ilt_bin_tool() {  # <tool>
         ruff-x86_64-unknown-linux-gnu/ruff ;;
     gitleaks)
       wf="$_ILT_WF/15_sec-deps-secrets.yml"
-      v="$(grep -oE 'gitleaks/releases/download/v[0-9.]+' "$wf" | head -1 | sed 's|.*/v||')"
-      sha="$(sed -n '/Install gitleaks/,/tar /s/.*sha=\([0-9a-f]\{64\}\).*/\1/p' "$wf" | head -1)"
+      v="$(grep -oE 'gitleaks/releases/download/v[0-9.]+' "$wf" | sed -n 1p | sed 's|.*/v||')"
+      sha="$(sed -n '/Install gitleaks/,/tar /s/.*sha=\([0-9a-f]\{64\}\).*/\1/p' "$wf" | sed -n 1p)"
       _ilt_fetch gitleaks "$v" "$sha" \
         "https://github.com/gitleaks/gitleaks/releases/download/v$v/gitleaks_${v}_linux_x64.tar.gz" gitleaks ;;
     gosec)
@@ -138,7 +138,7 @@ _ilt_eslint() {
   ev="$(_ilt_pkg_pin "$wf" eslint @)"; pv="$(_ilt_pkg_pin "$wf" eslint-plugin-security @)"
   [[ -n "$ev" && -n "$pv" ]] || { do_log "FATAL could not read the eslint pins from $wf"; return 1; }
   command -v npm >/dev/null 2>&1 || { do_log "FATAL npm not found -- install Node 20 (the version 63 sets up)"; return 1; }
-  if [[ -x "$d/node_modules/.bin/eslint" ]] && "$d/node_modules/.bin/eslint" --version 2>/dev/null | grep -qF "$ev" \
+  if [[ -x "$d/node_modules/.bin/eslint" ]] && "$d/node_modules/.bin/eslint" --version 2>/dev/null | grep -F "$ev" >/dev/null \
      && grep -qF "\"version\": \"$pv\"" "$d/node_modules/eslint-plugin-security/package.json" 2>/dev/null; then
     do_log "INFO eslint $ev + eslint-plugin-security $pv already installed in $d"; return 0
   fi
@@ -182,9 +182,9 @@ _ilt_fetch_sums() {  # <name> <ver> <asset-url> <sums-url> <asset-name> <member 
 
 _ilt_govulncheck() {
   local wf="$_ILT_WF/15_sec-deps-secrets.yml" ver root
-  ver="$(grep -oE 'govulncheck@v[0-9.]+' "$wf" | head -1 | sed 's/.*@//')"
+  ver="$(grep -oE 'govulncheck@v[0-9.]+' "$wf" | sed -n 1p | sed 's/.*@//')"
   [[ -n "$ver" ]] || { do_log "FATAL could not read the govulncheck pin from $wf"; return 1; }
-  if [[ -x "$_ILT_BIN/govulncheck" ]] && "$_ILT_BIN/govulncheck" -version 2>/dev/null | grep -qF "govulncheck@$ver"; then
+  if [[ -x "$_ILT_BIN/govulncheck" ]] && "$_ILT_BIN/govulncheck" -version 2>/dev/null | grep -F "govulncheck@$ver" >/dev/null; then
     do_log "INFO govulncheck $ver already installed"; return 0
   fi
   root="$(cd "$_ILT_WF/../.." && pwd)"
@@ -202,9 +202,9 @@ _ilt_govulncheck() {
 _ilt_terraform() {
   local root ver dst="$_ILT_BIN/terraform" sha tmp
   root="$(cd "$_ILT_WF/../.." && pwd)"
-  ver="$(sed -nE 's/^ *terraform_version: *"?([0-9.]+)"?.*/\1/p' "$root/csi-spl-cnf/csi-spl/dev.env.yaml" | head -1)"
+  ver="$(sed -nE 's/^ *terraform_version: *"?([0-9.]+)"?.*/\1/p' "$root/csi-spl-cnf/csi-spl/dev.env.yaml" | sed -n 1p)"
   [[ -n "$ver" ]] || { do_log "FATAL no terraform_version in csi-spl-cnf/csi-spl/dev.env.yaml"; return 1; }
-  if [[ -x "$dst" ]] && "$dst" version 2>/dev/null | head -1 | grep -qxF "Terraform v$ver"; then
+  if [[ -x "$dst" ]] && "$dst" version 2>/dev/null | sed -n 1p | grep -xF "Terraform v$ver" >/dev/null; then
     do_log "INFO terraform $ver already installed at $dst"; return 0
   fi
   if [[ -x "/opt/tf/bin/terraform-$ver" ]]; then
@@ -260,7 +260,7 @@ do_install_lint_tools() {
           "https://github.com/aquasecurity/trivy/releases/download/v$v/trivy_${v}_checksums.txt" "trivy_${v}_Linux-64bit.tar.gz" trivy \
           || fails=$((fails + 1)) ;;
       osv-scanner)
-        v="$(sed -n '/Install osv-scanner/,/osv-scanner --version/s/.*v=\([0-9.]*\);.*/\1/p' "$_ILT_WF/70_supply-chain.yml" | head -1)"
+        v="$(sed -n '/Install osv-scanner/,/osv-scanner --version/s/.*v=\([0-9.]*\);.*/\1/p' "$_ILT_WF/70_supply-chain.yml" | sed -n 1p)"
         _ilt_fetch_sums osv-scanner "$v" "https://github.com/google/osv-scanner/releases/download/v$v/osv-scanner_linux_amd64" \
           "https://github.com/google/osv-scanner/releases/download/v$v/osv-scanner_SHA256SUMS" osv-scanner_linux_amd64 "" \
           || fails=$((fails + 1)) ;;

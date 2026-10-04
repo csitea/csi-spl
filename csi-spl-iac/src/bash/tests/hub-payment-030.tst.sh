@@ -26,7 +26,7 @@ for env in dev prd; do
   envline=$(grep -E '^environment_variables ' "$v")
   secline=$(grep -E '^secret_environment_variables ' "$v")
   for sl in $slots; do
-    grep -E '^auth_secret_ids ' "$v" | grep -q "\"$sl\"" || fail "$env 030 lacks the slot $sl"
+    grep -E '^auth_secret_ids ' "$v" | grep "\"$sl\"" >/dev/null || fail "$env 030 lacks the slot $sl"
   done
   pass "$env 030 creates the payment slots"
   grep -qE 'STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|PAYPAL_CLIENT_SECRET' <<<"$envline" && fail "$env a payment secret is a plain env var" || pass "$env no payment secret is a plain env var"
@@ -42,11 +42,11 @@ PY
 )
   [[ "$inv" == ok ]] && pass "$env injects exactly the payment secrets its rails need" || fail "$env $inv"
 done
-grep -E '^environment_variables ' "$CNF/prd/tf/030-cloud-run-hub.vars.tfvars" | grep -q '"SPOOL_HUB_ENABLE_PAYPAL": "false"' \
+grep -E '^environment_variables ' "$CNF/prd/tf/030-cloud-run-hub.vars.tfvars" | grep '"SPOOL_HUB_ENABLE_PAYPAL": "false"' >/dev/null \
   && pass "prd PayPal is off" || fail "prd PayPal is not \"false\""
-grep -E '^environment_variables ' "$CNF/prd/tf/030-cloud-run-hub.vars.tfvars" | grep -q '"SPOOL_HUB_ENABLE_FAKE_PAY": "false"' \
+grep -E '^environment_variables ' "$CNF/prd/tf/030-cloud-run-hub.vars.tfvars" | grep '"SPOOL_HUB_ENABLE_FAKE_PAY": "false"' >/dev/null \
   && pass "prd fake-pay is off" || fail "prd fake-pay is not \"false\""
-grep -E '^environment_variables ' "$CNF/dev/tf/030-cloud-run-hub.vars.tfvars" | grep -q '"SPOOL_HUB_ENABLE_FAKE_PAY": "true"' \
+grep -E '^environment_variables ' "$CNF/dev/tf/030-cloud-run-hub.vars.tfvars" | grep '"SPOOL_HUB_ENABLE_FAKE_PAY": "true"' >/dev/null \
   && pass "dev fake-pay is on (M2 dev buys on the fake rail)" || fail "dev fake-pay is not \"true\""
 
 # --- control: the hosted rail injects exactly the payment secret -------------

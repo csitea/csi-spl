@@ -59,7 +59,7 @@ printf 'run it as %s on the box\n' "$banned" >"$T/dirty/notes.md"
 git -C "$T/dirty" add notes.md
 check "$T/dirty" "$WF"; rc=$?
 if [[ $rc -ne 0 ]] && grep -q '\./notes\.md:1' "$T/out"; then
-  pass "a planted banned literal fails (rc=$rc) and names file:line: $(grep -o '\./notes\.md:1' "$T/out" | head -1)"
+  pass "a planted banned literal fails (rc=$rc) and names file:line: $(grep -o '\./notes\.md:1' "$T/out" | sed -n 1p)"
 else
   fail "a planted banned literal did NOT fail with a file:line (rc=$rc)"; sed 's/^/    | /' "$T/out"
 fi

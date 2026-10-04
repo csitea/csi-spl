@@ -103,7 +103,7 @@ grep -qE 'start-iap-tunnel .*' "$px" && grep -q -- '--account="\$account"' "$px"
 # --- 5. destroy / recreate / verify ---------------------------------------------------
 mk="$PROJ_PATH/../csi-spl-orc/src/make/tf-tasks.func.mk"
 for tgt in do-tf-plan-destroy do-deprovision; do
-  awk -v t="$tgt:" '$1 == t { on = 1; next } on && /^\.PHONY/ { on = 0 } on' "$mk" | grep -q 'TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}"' \
+  awk -v t="$tgt:" '$1 == t { on = 1; next } on && /^\.PHONY/ { on = 0 } on' "$mk" | grep 'TF_VAR_billing_account_id="$${GCP_BILLING_ACCOUNT_ID:-}"' >/dev/null \
     && pass "make $tgt passes GCP_BILLING_ACCOUNT_ID" || fail "make $tgt does not pass GCP_BILLING_ACCOUNT_ID"
 done
 pd="$PROJ_PATH/src/bash/run/tf-plan-destroy.func.sh"
@@ -114,7 +114,7 @@ grep -q 'unset ACCOUNT GCP_ACCOUNT' "$v" && grep -q 'refusing' "$v" && ! grep -q
   && pass "verify runs as the csi-spl-all SA only" || fail "verify can run as another identity"
 n_g=$(grep -cE 'gcloud (compute|billing|storage) ' "$v"); n_a=$(grep -E 'gcloud ' "$v" | grep -v 'command -v gcloud' | grep -cv -- '"\$acct"')
 [[ "$n_g" -ge 4 && "$n_a" == 0 ]] && pass "every gcloud call in verify carries --account ($n_g)" || fail "a gcloud call in verify lacks \$acct ($n_a of them)"
-grep -q 'prevent_destroy' "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/03-vm.tf" | grep -q true \
+grep -q 'prevent_destroy' "$PROJ_PATH/src/terraform/060-gcp-vm-satellite/03-vm.tf" | grep true >/dev/null \
   && fail "060 still blocks the owner's destroy drill" || pass "060 has no prevent_destroy (owner-gated destroy drill)"
 
 # --- 6. the replica checks (the setup itself is box-playbook.yaml) ---------------------

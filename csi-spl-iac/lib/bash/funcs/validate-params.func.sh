@@ -36,7 +36,7 @@ do_validate_params() {
     fi
 
     # Check if marked as required
-    if echo "$param_def" | grep -qi '(required)'; then
+    if echo "$param_def" | grep -i '(required)' >/dev/null; then
       # Check if the env var has a value
       local var_val="${!var_name:-}"
       if [[ -z "$var_val" ]]; then

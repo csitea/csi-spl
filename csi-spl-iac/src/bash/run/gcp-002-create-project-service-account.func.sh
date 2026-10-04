@@ -59,7 +59,7 @@ do_gcp_002_create_project_service_account() {
   rc=$?
   if [[ ${rc} -eq 0 ]]; then
     need_sa=false
-  elif printf '%s' "${out}" | grep -qiE 'NOT_FOUND|does not exist|not found'; then
+  elif printf '%s' "${out}" | grep -iE 'NOT_FOUND|does not exist|not found' >/dev/null; then
     need_sa=true
   else
     do_log "ERROR cannot tell whether ${sa_email} exists (rc=${rc}): ${out}"
@@ -88,7 +88,7 @@ do_gcp_002_create_project_service_account() {
   local enforced=false dep_apis="orgpolicy.googleapis.com iam.googleapis.com"
   out=$(gcloud org-policies describe "${constraint}" --project="${PROJ_ID}" --effective "${acct}" 2>&1)
   rc=$?
-  if [[ ${rc} -ne 0 ]] && printf '%s' "${out}" | grep -qiE 'orgpolicy\.googleapis\.com|Organization Policy API|SERVICE_DISABLED|has not been used'; then
+  if [[ ${rc} -ne 0 ]] && printf '%s' "${out}" | grep -iE 'orgpolicy\.googleapis\.com|Organization Policy API|SERVICE_DISABLED|has not been used' >/dev/null; then
     if [[ "${dry_run}" == 1 ]]; then
       do_log "INFO DRY_RUN would run: gcloud services enable ${dep_apis} --project=${PROJ_ID} ${acct}, then re-read ${constraint}"
       rc=0
@@ -101,7 +101,7 @@ do_gcp_002_create_project_service_account() {
     fi
   fi
   if [[ ${rc} -eq 0 ]]; then
-    printf '%s' "${out}" | grep -qE 'enforce: *true' && enforced=true
+    printf '%s' "${out}" | grep -E 'enforce: *true' >/dev/null && enforced=true
   elif [[ "${dry_run}" != 1 ]]; then
     do_log "FATAL cannot read the effective ${constraint} on ${PROJ_ID} (rc=${rc}): ${out}"; exit 1
   fi

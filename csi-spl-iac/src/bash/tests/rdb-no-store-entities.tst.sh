@@ -70,7 +70,7 @@ CREATE TABLE products (id int);
 SQL
 
 hits=$(store_entity_hits "$tmp/bad")
-echo "$hits" | grep -q 'shop.sql' && echo "$hits" | grep -q 'products' && echo "$hits" | grep -q 'sku' && echo "$hits" | grep -q 'wp_posts' \
+echo "$hits" | grep 'shop.sql' >/dev/null && echo "$hits" | grep 'products' >/dev/null && echo "$hits" | grep 'sku' >/dev/null && echo "$hits" | grep 'wp_posts' >/dev/null \
   && pass "control: planted product/cart/sku/wp_ DDL is caught" \
   || fail "control: planted store DDL not caught: ${hits:-<nothing>}"
 
@@ -81,7 +81,7 @@ hits=$(store_entity_hits "$tmp/ok")
 
 # --- control 2b: the exemption is anchored (a real table is still caught) ------
 hits=$(store_entity_hits "$tmp/mix")
-{ echo "$hits" | grep -q 'products' && ! echo "$hits" | grep -qi 'product default'; } \
+{ echo "$hits" | grep 'products' >/dev/null && ! echo "$hits" | grep -i 'product default' >/dev/null; } \
   && pass "control: 'product default' prose is exempt but a products table is still caught" \
   || fail "control: exemption not anchored: ${hits:-<nothing>}"
 

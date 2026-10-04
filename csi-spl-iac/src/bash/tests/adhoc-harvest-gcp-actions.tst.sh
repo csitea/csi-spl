@@ -91,15 +91,15 @@ CP=(SRC_PROJECT=csi-rel-prd SRC_SECRET=src-sec TGT_SECRET=tgt-sec)
 act 'do_gcp_copy_secret' "${CP[@]}"; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'DRY_RUN would add' "$T/out" && ! grep -q 'versions add' "$T/calls.log" \
   && pass "2. DRY_RUN (default): would add, no 'versions add' call" || fail "2. dry run: rc=$rc $(tail -2 "$T/out")"
-grep 'secrets versions access' "$T/calls.log" | grep -- '--project=csi-rel-prd' | grep -qv -- "--account=$REL_SA" \
+grep 'secrets versions access' "$T/calls.log" | grep -- '--project=csi-rel-prd' | grep -v -- "--account=$REL_SA" >/dev/null \
   && fail "2. a source read ran as someone other than $REL_SA" || pass "2. the source is read as ITS project's SA ($REL_SA)"
-grep 'secrets ' "$T/calls.log" | grep -- '--project=csi-spl-dev' | grep -qv -- "--account=$DEV_SA" \
+grep 'secrets ' "$T/calls.log" | grep -- '--project=csi-spl-dev' | grep -v -- "--account=$DEV_SA" >/dev/null \
   && fail "2. a target call ran as someone other than $DEV_SA" || pass "2. the target is touched as the env SA ($DEV_SA)"
 grep -q '<unset>|' "$T/calls.log" && fail "2. a gcloud call ran under the shared config" || pass "2. every call ran in a private gcloud config"
 act 'do_gcp_copy_secret' "${CP[@]}" DRY_RUN=0; rc=$?
 n_add=$(grep -c 'secrets versions add tgt-sec' "$T/calls.log")
 [[ $rc -eq 0 && $n_add -eq 1 && "$(cat "$T/sm/csi-spl-dev/tgt-sec")" == "$VAL" ]] && grep -q 'verified by sha256' "$T/out" \
-  && grep 'versions add' "$T/calls.log" | grep -q -- "--account=$DEV_SA" \
+  && grep 'versions add' "$T/calls.log" | grep -- "--account=$DEV_SA" >/dev/null \
   && pass "2. DRY_RUN=0: one version added as $DEV_SA, verified by sha256" || fail "2. real run: rc=$rc adds=$n_add $(tail -2 "$T/out")"
 grep -rqF -- "$VAL" "$T/out" "$T/calls.log" && fail "2. the secret VALUE reached the output or argv" || pass "2. the value is in neither the output nor any argv"
 act 'do_gcp_copy_secret' "${CP[@]}" DRY_RUN=0
@@ -116,18 +116,18 @@ act 'do_gcp_audit_iam' IAM_AUDIT_DIR="$T/iam" IAM_TAG=t1; rc=$?
 [[ $rc -eq 0 && -s "$T/iam/dev-t1.json" && -s "$T/iam/dev-t1.md" ]] && pass "3. the dump and the analysis land ($T/iam/dev-t1.{json,md})" || fail "3. audit: rc=$rc $(tail -3 "$T/out")"
 n=$(grep -vE '\|auth ' "$T/calls.log" | wc -l); na=$(calls_as "$DEV_SA")
 [[ $n -ge 8 && $n -eq $na ]] && pass "3. all $n audit calls pinned --account=$DEV_SA" || fail "3. $na of $n calls as $DEV_SA"
-grep -qE "$MUT" "$T/calls.log" && fail "3. a mutating gcloud verb: $(grep -E "$MUT" "$T/calls.log" | head -1)" || pass "3. no mutating gcloud verb"
+grep -qE "$MUT" "$T/calls.log" && fail "3. a mutating gcloud verb: $(grep -E "$MUT" "$T/calls.log" | sed -n 1p)" || pass "3. no mutating gcloud verb"
 grep -q 'USER-HELD' "$T/iam/dev-t1.md" && grep -q 'gcp-003 (IaC SA)' "$T/iam/dev-t1.md" && pass "3. a user-held binding is flagged; the IaC SA owner binding is owned by gcp-003" \
   || fail "3. analysis: $(head -8 "$T/iam/dev-t1.md")"
 
 # --- 4. backup ---------------------------------------------------------------------
 BK="bk-$RANDOM-$RANDOM"; printf '%s' "$BK" >"$T/sm/csi-spl-dev/s1"
 act 'do_gcp_backup_env' BACKUP_ROOT="$T/bk"; rc=$?
-d=$(find "$T/bk/dev" -mindepth 1 -maxdepth 1 -type d | head -1)
+d=$(find "$T/bk/dev" -mindepth 1 -maxdepth 1 -type d | sed -n 1p)
 [[ $rc -eq 0 && -n "$d" && "$(stat -c %a "$d")" == 700 ]] && pass "4. backup ran into a 0700 dir" || fail "4. backup: rc=$rc dir='$d' $(tail -3 "$T/out")"
 [[ -f "$d/secrets/s1" && "$(stat -c %a "$d/secrets/s1")" == 600 && "$(cat "$d/secrets/s1")" == "$BK" ]] && pass "4. the secret is saved 0600" || fail "4. secret file: $(ls -l "$d/secrets" 2>&1)"
 grep -qF -- "$BK" "$T/out" "$d/backup.log" && fail "4. the secret VALUE was printed or logged" || pass "4. the value is neither printed nor logged"
-grep -qE "$MUT" "$T/calls.log" && fail "4. a mutating gcloud verb: $(grep -E "$MUT" "$T/calls.log" | head -1)" || pass "4. no mutating gcloud verb"
+grep -qE "$MUT" "$T/calls.log" && fail "4. a mutating gcloud verb: $(grep -E "$MUT" "$T/calls.log" | sed -n 1p)" || pass "4. no mutating gcloud verb"
 n=$(grep -vE '\|auth (activate-service-account|list)' "$T/calls.log" | wc -l); na=$(calls_as "$DEV_SA")
 [[ $n -ge 5 && $n -eq $na ]] && pass "4. all $n backup calls pinned --account=$DEV_SA" || fail "4. $na of $n calls as $DEV_SA"
 grep -q "gs://$(yq -r .env.gcp.state_bucket "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml")/" "$T/calls.log" \

@@ -62,7 +62,7 @@ do_gcp_sync_src_bucket_data_to_tgt_bucket() {
   list_top_10() {
     local BUCKET=$1
     do_log "INFO Top 10 largest files in bucket (gs://$BUCKET):"
-    gcloud storage ls -l gs://"$BUCKET"/** --account="${account}" | grep -v "^TOTAL" | sort -k1 -nr | head -10 | awk '{print $3, $1}' | while read -r file size; do
+    gcloud storage ls -l gs://"$BUCKET"/** --account="${account}" | grep -v "^TOTAL" | sort -k1 -nr | sed -n 1,10p | awk '{print $3, $1}' | while read -r file size; do
       do_log "INFO    $file - ${size} bytes"
     done
   }

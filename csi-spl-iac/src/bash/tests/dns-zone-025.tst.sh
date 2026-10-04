@@ -39,7 +39,7 @@ done
 grep -q 'provider = google.parent' "$PROJ_ROOT/src/terraform/025-gcp-dns-zone/03-dns-zone.tf" \
   && pass "025 delegation NS is written through the parent provider" || fail "025 delegation provider"
 # the adopted apex zone keeps prevent_destroy; the created subzone does not need it
-awk '/resource "google_dns_managed_zone" "env"/,/^}/' "$PROJ_ROOT/src/terraform/025-gcp-dns-zone/03-dns-zone.tf" | grep -q 'prevent_destroy = true' \
+awk '/resource "google_dns_managed_zone" "env"/,/^}/' "$PROJ_ROOT/src/terraform/025-gcp-dns-zone/03-dns-zone.tf" | grep 'prevent_destroy = true' >/dev/null \
   && pass "025 adopted apex zone keeps prevent_destroy" || fail "025 apex zone lost prevent_destroy"
 for env in dev prd; do
   a=$(sed -n 's/^fqdn *= "\(.*\)"$/\1/p' "$CNF/$env/tf/025-gcp-dns-zone.vars.tfvars")

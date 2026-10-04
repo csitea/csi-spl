@@ -221,7 +221,7 @@ grep -q 'owner_tools="yq jq python3 psql pandoc' "$v" && grep -q "required tools
 # 9. /var/csi: on the data disk, the owner's, group-writable; verify rows
 grep -q '{ src: var-csi, dst: /var/csi }' "$R/01_data_disk/tasks/main.yml" && grep -q 'loop: \[opt, spool-hub, var-csi, docker, home\]' "$R/01_data_disk/tasks/main.yml" \
   && pass "role 01 binds /var/csi onto the data disk" || fail "role 01 does not put /var/csi on the data disk"
-grep -q 'path: /var/csi/csi-spl' "$R/05_users/tasks/main.yml" && grep -A5 'path: /var/csi/csi-spl$' "$R/05_users/tasks/main.yml" | grep -q 'mode: "2775"' \
+grep -q 'path: /var/csi/csi-spl' "$R/05_users/tasks/main.yml" && grep -A5 'path: /var/csi/csi-spl$' "$R/05_users/tasks/main.yml" | grep 'mode: "2775"' >/dev/null \
   && pass "role 05 gives /var/csi/csi-spl to the owner, 2775" || fail "role 05 has no owner-writable /var/csi/csi-spl"
 grep -q 'test -w /var/csi/csi-spl && echo "varcsi writable $u"' "$v" && grep -q 'for m in /mnt/data /opt /var/spool-hub /var/csi; do grep' "$v" \
   && pass "verify checks /var/csi is mounted and writable by both users" || fail "verify lacks the /var/csi rows"

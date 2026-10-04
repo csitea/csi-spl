@@ -29,8 +29,8 @@ grep -q "\"$ENVVAR\"" "$APP_ROOT/csi-spl-api/src/go/spool-hub-api/internal/hub/r
 for env in dev prd; do
   v="$CNF/$env/tf/030-cloud-run-hub.vars.tfvars"
   inject=$(yq -r '.env.hub.release_note_bans.inject // "false"' "$CNF/$env.env.json")
-  grep -E '^auth_secret_ids ' "$v" | grep -qF "\"$slot\"" && pass "$env 030 creates the $slot slot" || fail "$env auth_secret_ids lacks $slot"
-  grep -E '^environment_variables ' "$v" | grep -qF "\"$ENVVAR\"" && fail "$env $ENVVAR is a plain env var" || pass "$env $ENVVAR is never a plain env var"
+  grep -E '^auth_secret_ids ' "$v" | grep -F "\"$slot\"" >/dev/null && pass "$env 030 creates the $slot slot" || fail "$env auth_secret_ids lacks $slot"
+  grep -E '^environment_variables ' "$v" | grep -F "\"$ENVVAR\"" >/dev/null && fail "$env $ENVVAR is a plain env var" || pass "$env $ENVVAR is never a plain env var"
   secline=$(grep -E '^secret_environment_variables ' "$v")
   if [[ "$inject" == true ]]; then
     grep -qF "\"$ENVVAR\": \"$slot\"" <<<"$secline" && pass "$env inject=true: the service names $ENVVAR from $slot" || fail "$env inject=true but $ENVVAR not injected from $slot"
@@ -59,11 +59,11 @@ tpl = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(open(os.e
 print(tpl.render(**{**cnf, "ORG": "csi", "APP": "spl", "ENV": "dev"}))' 2>&1); }
   yq -i '.env.hub.release_note_bans.inject = "false"' "$tmp/dev.env.yaml"
   out=$(render)
-  ! grep -E '^secret_environment_variables ' <<<"$out" | grep -qF "\"$ENVVAR\"" && grep -E '^auth_secret_ids ' <<<"$out" | grep -qF "\"$slot\"" \
+  ! grep -E '^secret_environment_variables ' <<<"$out" | grep -F "\"$ENVVAR\"" >/dev/null && grep -E '^auth_secret_ids ' <<<"$out" | grep -F "\"$slot\"" >/dev/null \
     && pass "control: inject=false creates the slot and references nothing" || fail "control inject=false: $(head -c 300 <<<"$out")"
   yq -i '.env.hub.release_note_bans.inject = "true"' "$tmp/dev.env.yaml"
   out=$(render)
-  grep -E '^secret_environment_variables ' <<<"$out" | grep -qF "\"$ENVVAR\": \"$slot\"" \
+  grep -E '^secret_environment_variables ' <<<"$out" | grep -F "\"$ENVVAR\": \"$slot\"" >/dev/null \
     && pass "control: inject=true names $ENVVAR from $slot" || fail "control inject=true: $(head -c 300 <<<"$out")"
   rm -rf "$tmp"
 else

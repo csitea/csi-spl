@@ -100,6 +100,11 @@ jobs:
     name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
+    # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
+    # in the run ends this one, so a red gate frees its slot.
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -152,9 +157,13 @@ jobs:
           exit 1
 
       - name: run-all-tests.sh
+        env:
+          GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          bash csi-spl-api/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/hub-suite.log"
+          bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
+            bash csi-spl-api/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/hub-suite.log"
 
       - name: The Postgres and GCS gates really ran (a skip is a failure in CI)
         run: |
@@ -570,6 +579,11 @@ jobs:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
+    # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
+    # in the run ends this one, so a red gate frees its slot.
+    permissions:
+      contents: read
+      actions: read
     # orc derives ORG/APP from the PARENT dirs, <base>/<ORG>/<ORG>-<APP>
     # (csi-spl-orc/lib/bash/funcs/resolve-oap.func.sh), so the tree is checked
     # out in the operator's layout: on the runner's default
@@ -635,9 +649,13 @@ jobs:
           [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" && ! -e "$HOME/.gcp" ]] || { echo "::error::a GCP credential is present on the runner"; exit 1; }
 
       - name: run-all-tests.sh
+        env:
+          GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          bash csi-spl-orc/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/orc-suite.log"
+          bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
+            bash csi-spl-orc/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/orc-suite.log"
 
       - name: No test reached GCP (the trap log is empty)
         if: always()

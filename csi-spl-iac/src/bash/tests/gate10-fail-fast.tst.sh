@@ -6,16 +6,18 @@
 # 2/3 red since 14:12Z (3/3 hung in no-x-scroll to its 45 min timeout).
 #
 # What it asserts:
-#   1. wf 10's e2e step runs under csi-spl-orc/src/bash/scripts/gate-fail-fast.sh;
+#   1. the long steps of wf 10 run under csi-spl-orc/src/bash/scripts/gate-fail-fast.sh:
+#      the e2e shards (wui-e2e-mock-serve.sh) and the hub and orc
+#      run-all-tests.sh (after an iac red, orc-suite held 37212423666 10.5 min);
 #   2. GATE_FAIL_FAST is set on a master push only (a pull request through
 #      wf 11 keeps the full red report);
-#   3. wui-e2e reads the run's jobs (actions: read) and no job of wf 10 asks
+#   3. those jobs read the run's jobs (actions: read) and no job of wf 10 asks
 #      for actions: write (wf 11 grants read only; more fails every PR);
 #   4. the script, with a stubbed gh: stops the command (and its children)
 #      within seconds of a red job and exits 1; with no red job, passes the
 #      command's own status through; a failing jobs query is not a red;
 #      off (GATE_FAIL_FAST unset), never queries.
-# CONTROLS: a wf with the wrapper dropped, one with GATE_FAIL_FAST on every
+# CONTROLS: a wf with the wrapper dropped (e2e, and orc alone), one with GATE_FAIL_FAST on every
 # event, one asking actions: write, and a script that only runs the command
 # (no watcher) are each red.
 #------------------------------------------------------------------------------
@@ -29,21 +31,30 @@ fails=0
 command -v yq >/dev/null || { echo "FAIL: yq is required"; exit 1; }
 [[ -x "$FF" ]] || { echo "FAIL: no executable $FF"; exit 1; }
 
+# job -> the command its wrapped step must run (literal; a dot in the
+# bash match below is a wildcard, which only loosens it)
+declare -A WRAPPED=(
+  [wui-e2e]='wui-e2e-mock-serve.sh'
+  [hub-suite]='csi-spl-api/src/bash/tests/run-all-tests.sh'
+  [orc-suite]='csi-spl-orc/src/bash/tests/run-all-tests.sh'
+)
 check_wf() {  # <wf 10 file> - prints the first violation, or nothing
-  local f="$1" run ff w
-  run=$(yq '.jobs.wui-e2e.steps[] | select(.env.E2E_SHARD) | .run' "$f")
-  [[ "$run" =~ gate-fail-fast\.sh[[:space:]\\]+bash[[:space:]]+[^[:space:]]*wui-e2e-mock-serve\.sh ]] \
-    || { echo "the e2e step does not run wui-e2e-mock-serve.sh under gate-fail-fast.sh"; return; }
-  ff=$(yq '.jobs.wui-e2e.steps[] | select(.env.E2E_SHARD) | .env.GATE_FAIL_FAST' "$f")
-  [[ "$ff" == *"github.event_name == 'push'"* && "$ff" == *"refs/heads/master"* ]] \
-    || { echo "GATE_FAIL_FAST '$ff' is not limited to a master push"; return; }
-  [[ "$(yq '.jobs.wui-e2e.permissions.actions' "$f")" == read ]] \
-    || { echo "wui-e2e does not grant actions: read (the watcher reads the run's jobs)"; return; }
+  local f="$1" j run ff w
+  for j in "${!WRAPPED[@]}"; do
+    run=$(yq ".jobs.$j.steps[] | select(.run | contains(\"${WRAPPED[$j]}\")) | .run" "$f")
+    [[ "$run" =~ gate-fail-fast\.sh[[:space:]\\]+bash[[:space:]]+[^[:space:]]*${WRAPPED[$j]} ]] \
+      || { echo "$j: ${WRAPPED[$j]} does not run under gate-fail-fast.sh"; return; }
+    ff=$(yq ".jobs.$j.steps[] | select(.run | contains(\"gate-fail-fast\")) | .env.GATE_FAIL_FAST" "$f")
+    [[ "$ff" == *"github.event_name == 'push'"* && "$ff" == *"refs/heads/master"* ]] \
+      || { echo "$j: GATE_FAIL_FAST '$ff' is not limited to a master push"; return; }
+    [[ "$(yq ".jobs.$j.permissions.actions" "$f")" == read ]] \
+      || { echo "$j does not grant actions: read (the watcher reads the run's jobs)"; return; }
+  done
   w=$(yq '[.permissions.actions, .jobs[].permissions.actions] | map(select(. == "write")) | length' "$f")
   [[ "$w" == 0 ]] || { echo "actions: write asked ($w): wf 11 grants read only, every PR would fail at startup"; return; }
 }
 
-v=$(check_wf "$W10"); [[ -z "$v" ]] && pass "wf 10: e2e under gate-fail-fast, master push only, actions: read" || fail "wf 10: $v"
+v=$(check_wf "$W10"); [[ -z "$v" ]] && pass "wf 10: e2e, hub and orc under gate-fail-fast, master push only, actions: read" || fail "wf 10: $v"
 
 # --- the script, against a stubbed gh -------------------------------------
 reset_bin
@@ -75,12 +86,21 @@ check_script() {  # <script> - prints the first violation, or nothing
 v=$(check_script "$FF"); [[ -z "$v" ]] && pass "gate-fail-fast.sh: stops on a red job, passes status through, off by default" || fail "gate-fail-fast.sh: $v"
 
 # --- CONTROLS ---------------------------------------------------------------
-grep -v 'gate-fail-fast\.sh \\$' "$W10" >"$T/c1.yml"
-grep -q gate-fail-fast.sh <(yq '.jobs.wui-e2e.steps[] | select(.env.E2E_SHARD) | .run' "$T/c1.yml") \
-  && fail "CONTROL setup: the wrapper is still in the c1 copy"
-[[ -n "$(check_wf "$T/c1.yml")" ]] && pass "CONTROL: the e2e step without gate-fail-fast.sh is caught" \
-  || fail "CONTROL: the e2e step without gate-fail-fast.sh passed"
-yq '(.jobs.wui-e2e.steps[] | select(.env.E2E_SHARD) | .env.GATE_FAIL_FAST) = "1"' "$W10" >"$T/c2.yml"
+# drop_wrapper <wf> <regex of the wrapped command> - the wf without the
+# gate-fail-fast.sh line in front of that command
+drop_wrapper() {
+  awk -v cmd="$2" '{l[NR]=$0} END {for (i = 1; i <= NR; i++) {
+    if (l[i] ~ /scripts\/gate-fail-fast\.sh \\$/ && l[i+1] ~ cmd) continue; print l[i] }}' "$1"
+}
+drop_wrapper "$W10" '.' >"$T/c1.yml"
+grep -q 'scripts/gate-fail-fast\.sh \\$' "$T/c1.yml" && fail "CONTROL setup: a wrapper is still in c1"
+[[ -n "$(check_wf "$T/c1.yml")" ]] && pass "CONTROL: the steps without gate-fail-fast.sh are caught" \
+  || fail "CONTROL: the steps without gate-fail-fast.sh passed"
+drop_wrapper "$W10" 'csi-spl-orc/src/bash/tests/run-all-tests' >"$T/c1b.yml"
+(( $(diff "$W10" "$T/c1b.yml" | grep -c '^<') == 1 )) || fail "CONTROL setup: c1b did not drop exactly the orc wrapper"
+[[ -n "$(check_wf "$T/c1b.yml")" ]] && pass "CONTROL: orc-suite alone without gate-fail-fast.sh is caught" \
+  || fail "CONTROL: orc-suite alone without gate-fail-fast.sh passed"
+yq '(.jobs.hub-suite.steps[] | select(.env.GATE_FAIL_FAST) | .env.GATE_FAIL_FAST) = "1"' "$W10" >"$T/c2.yml"
 [[ -n "$(check_wf "$T/c2.yml")" ]] && pass "CONTROL: fail-fast on every event (pull requests too) is caught" \
   || fail "CONTROL: fail-fast on every event passed"
 yq '.jobs.wui-e2e.permissions.actions = "write"' "$W10" >"$T/c3.yml"

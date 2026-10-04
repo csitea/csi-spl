@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.13** (the version log is at the end of section 9). Lead
+Status: **draft v0.14** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -560,6 +560,19 @@ The open questions of this section and of the research files, merged, answered o
 >
 > Unless you object, these engineering choices follow the recommendations: one hub image, a web config read at runtime, config derived from org/app/env, and a full dry run plus preflight before any Google change.
 
+### 8.2 The second question list
+
+From the walks and reviews merged after 8.1. Sources: Q16 A63 (research a2 Q4); Q17 F46 (review 15-16); Q18 A16 (review 19-20); Q19 research 11 Q1; Q20 research 07 Q1; Q21 research 18 Q3 (A58).
+
+> **Spec 072: second, shorter question list** (from the last research walks and the 10 second-opinion reviews). Reply with the number and a letter, e.g. "16a 17a". **(a) is the recommendation.** Questions 1-15 (sent earlier) are still open.
+>
+> 16. When someone tries the Google Cloud setup, should it work with no mail server and no Stripe at first (sign-in links go to the cloud log)? a) yes · b) no, require a mail server
+> 17. Should the README quick start keep using the latest code until the weekly stable has passed its own from-zero and upgrade test? The stable is 35 database changes behind. a) yes, switch after the test is green · b) switch to the stable now
+> 18. Should the nightly test start from an emptied project, plus a full from-scratch run once a month (create project, link billing)? a) yes · b) nightly only · c) monthly only
+> 19. Is "an outsider runs agents on several machines" part of this spec's first version? a) yes, after the single-machine paths work · b) now · c) later spec
+> 20. Should a self-hosted install be able to use an external, managed Postgres instead of the bundled one? a) yes, after backups and upgrades work · b) no
+> 21. Should `./run --help` show about 15 "start here" actions, with the full list of ~330 behind `--all`? a) yes · b) no, keep one list
+
 ## 9. Multi-agent research (msg `e61b8d29`)
 
 The orchestrator fans the research out; **only the lead edits `spec.md` and
@@ -591,3 +604,4 @@ rule, and logs it below.
 | v0.11 | research a1 (a-183, newcomer walk): F35, F36, A65 (true agent-connect help), A66 (hub tests on a fresh clone), both in the user-story-1 order | c-165 |
 | v0.12 | research a4 (a-186, DevEx critique): F37 (most of A-DEV1's delete list is live), A43 narrowed (AWS items wait for topic `a5a141bc`, per c-001), A67 `@arg` flags; 3.1 names topic `a5a141bc`; all 4 cross-cutting walks merged | c-165 |
 | v0.13 | the 10 grok second opinions (g-168, g-169, g-170, g-171, g-172, g-177, g-178, g-179, g-180, g-182): F38-F46 (incl. the live connect-guide bug, reported), line corrections, 22 actions widened, P2 order "names first", Q12 dissent; all 34 research files merged | c-165 |
+| v0.14 | 8.2 the second, shorter owner question list (Q16-Q21) | c-165 |

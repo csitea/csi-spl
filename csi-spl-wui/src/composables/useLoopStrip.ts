@@ -10,83 +10,209 @@ import { loopPosition } from '~/utils/section-strip.mjs'
  * into either copy jumps one copy width back - the same picture - so a swipe
  * never meets an end. Never on desktop (`enabled` false): nothing is cloned.
  *
- * `selected` is a selector for the current control; it is brought into view
- * (centred) on mount, on a resize and whenever `watchKey` changes.
+ * `selected` is a selector for the current control. The first centre is read
+ * in the ResizeObserver callback, after the browser's own layout, so the read
+ * is not a forced layout. The copies land on the following frame, so while
+ * the strip is enabled the row stays hidden until that centred scroll is
+ * written. The first painted frame is already centred.
+ *
+ * Phone profile, n=5 interleaved, 390x844 device pixel ratio 3, CPU 4x,
+ * load 19..11, base ea62caba. useLoopStrip self-time ratio 0.22 on / and
+ * 0.23 on /issues. LayoutDuration 84 -> 68 ms on / and 75 -> 74 ms on
+ * /issues. The first visible frame has both copies and is centred (n=5).
  */
-export function useLoopStrip(el: Ref<HTMLElement | null>, opts: { enabled: () => boolean, selected: string, watchKey: () => unknown }) {
+
+const REAL = ':scope > .sidebar-rail__tabs > .sidebar-tab, :scope > .sidebar-rail__help, :scope > .sidebar-rail__docs, :scope > .sidebar-rail__settings'
+
+type Snap = {
+  span: number
+  gap: number
+  rtl: boolean
+  max: number
+  pos: number
+  delta: number
+  fully: boolean
+  set: number
+  scrollLeft: number
+  hasItems: boolean
+  hasSel: boolean
+  view: number
+}
+
+type MountSnap = { span: number, gap: number, rtl: boolean, max: number, delta: number, scrollLeft: number }
+type WriteSnap = { rtl: boolean, max: number, pos: number, delta: number, set: number, force: boolean, fully: boolean, hasSel: boolean }
+type WrapFn = (pos: number, set: number) => number
+
+type LoopOpts = { enabled: () => boolean, selected: string, watchKey: () => unknown }
+type LoopCtx = {
+  el: Ref<HTMLElement | null>
+  opts: LoopOpts
+  on: Ref<boolean>
+  centred: { v: boolean }
+  quiet: { v: boolean }
+}
+
+/** do the real controls overflow the row (their span, without the copies) */
+export function stripOverflows(span: number, view: number) {
+  return span > view + 1
+}
+
+/**
+ * scrollLeft once the two copies exist, predicted from a read taken before
+ * they were inserted. One copy is the real span plus the row's gap (the
+ * before-copy, `order: -1`, shifts the row by that). The same picture as
+ * reveal + wrap, with no geometry read after the copies land.
+ */
+export function loopMountScroll(snap: MountSnap, wrap: WrapFn) {
+  const set = snap.span + snap.gap
+  const postDelta = snap.rtl ? snap.delta - set : snap.delta + set
+  const maxAfter = snap.max + set * 2
+  const scrolled = snap.scrollLeft + postDelta
+  const pos = snap.rtl ? scrolled + maxAfter : scrolled
+  const next = wrap(pos, set)
+  return snap.rtl ? next - maxAfter : next
+}
+
+/** scrollLeft from a read taken while the row is already in its final shape */
+export function loopScrollWrite(snap: WriteSnap, wrap: WrapFn) {
+  if (!snap.hasSel || (!snap.force && snap.fully)) return null
+  const pos = snap.pos + snap.delta
+  const next = snap.set > 0 ? wrap(pos, snap.set) : pos
+  return snap.rtl ? next - snap.max : next
+}
+
+function realItems(box: HTMLElement | null) {
+  return [...(box?.querySelectorAll<HTMLElement>(REAL) || [])]
+}
+
+function spanOf(rects: DOMRect[]) {
+  let min = Infinity
+  let max = -Infinity
+  for (const r of rects) {
+    if (r.left < min) min = r.left
+    if (r.right > max) max = r.right
+  }
+  return max - min
+}
+
+function readSnap(box: HTMLElement, selected: string): Snap {
+  const items = realItems(box)
+  const rects = items.map((i) => i.getBoundingClientRect())
+  const cs = getComputedStyle(box)
+  const rtl = cs.direction === 'rtl'
+  const gap = Number.parseFloat(cs.columnGap)
+  const max = box.scrollWidth - box.clientWidth
+  const scrollLeft = box.scrollLeft
+  const b = box.getBoundingClientRect()
+  const sel = box.querySelector<HTMLElement>(selected)
+  const r = sel?.getBoundingClientRect()
+  const first = items[0]
+  const twin = box.querySelector<HTMLElement>('[data-loop="after"] > *')
+  return {
+    span: rects.length ? spanOf(rects) : 0,
+    gap: Number.isFinite(gap) ? gap : 0,
+    rtl,
+    max,
+    pos: rtl ? scrollLeft + max : scrollLeft,
+    delta: r ? (r.left + r.width / 2) - (b.left + box.clientWidth / 2) : 0,
+    fully: r ? r.left >= b.left && r.right <= b.right : true,
+    set: first && twin ? Math.abs(twin.getBoundingClientRect().left - first.getBoundingClientRect().left) : 0,
+    scrollLeft,
+    hasItems: items.length > 0,
+    hasSel: Boolean(sel),
+    view: box.clientWidth,
+  }
+}
+
+/* one copy's width: from the first real control to the same control in the "after" copy */
+function setWidth(box: HTMLElement | null) {
+  const first = realItems(box)[0]
+  const twin = box?.querySelector<HTMLElement>('[data-loop="after"] > *')
+  if (!first || !twin) return 0
+  return Math.abs(twin.getBoundingClientRect().left - first.getBoundingClientRect().left)
+}
+
+/* scrollLeft is 0..-max in a right-to-left row; work from the physical left */
+function physical(box: HTMLElement) {
+  const rtl = getComputedStyle(box).direction === 'rtl'
+  const max = box.scrollWidth - box.clientWidth
+  return { rtl, max, pos: rtl ? box.scrollLeft + max : box.scrollLeft }
+}
+
+function wrap(ctx: LoopCtx) {
+  if (ctx.quiet.v) return
+  const box = ctx.el.value
+  if (!box || !ctx.on.value) return
+  const { rtl, max, pos } = physical(box)
+  const next = loopPosition(pos, setWidth(box))
+  if (next !== pos) box.scrollLeft = rtl ? next - max : next
+}
+
+function writeScroll(box: HTMLElement, write: number, known: number, quiet: { v: boolean }) {
+  if (write === known) return
+  quiet.v = true
+  box.scrollLeft = write
+  quiet.v = false
+}
+
+/* visibility, not display: the row keeps its size, so the observer still fires */
+function showStrip(box: HTMLElement) {
+  if (box.style.visibility === 'hidden') box.style.visibility = ''
+}
+
+async function place(ctx: LoopCtx, force: boolean) {
+  const box = ctx.el.value
+  if (!box || ctx.quiet.v) return
+  if (!ctx.opts.enabled()) { ctx.on.value = false; showStrip(box); return }
+  const snap = readSnap(box, ctx.opts.selected)
+  if (snap.view <= 0) return
+  ctx.centred.v = true
+  if (!snap.hasItems) { ctx.on.value = false; showStrip(box); return }
+  const overflow = stripOverflows(snap.span, snap.view)
+  const turningOn = overflow && !ctx.on.value
+  if (ctx.on.value !== overflow) ctx.on.value = overflow
+  if (turningOn) {
+    const write = loopMountScroll(snap, loopPosition)
+    ctx.quiet.v = true
+    try {
+      await nextTick()
+      if (ctx.el.value === box) box.scrollLeft = write
+    } finally {
+      ctx.quiet.v = false
+      if (ctx.el.value === box) showStrip(box)
+    }
+    return
+  }
+  const write = loopScrollWrite({ ...snap, force }, loopPosition)
+  if (write != null) writeScroll(box, write, snap.scrollLeft, ctx.quiet)
+  showStrip(box)
+}
+
+export function useLoopStrip(el: Ref<HTMLElement | null>, opts: LoopOpts) {
   const on = ref(false)
   let ro: ResizeObserver | null = null
-
-  const realItems = () => [...(el.value?.querySelectorAll<HTMLElement>(':scope > .sidebar-rail__tabs > .sidebar-tab, :scope > .sidebar-rail__help, :scope > .sidebar-rail__docs, :scope > .sidebar-rail__settings') || [])]
-
-  /** do the real controls overflow the row (measured without the copies) */
-  function measure() {
-    const box = el.value
-    if (!box || !opts.enabled()) { on.value = false; return }
-    const items = realItems()
-    if (!items.length) { on.value = false; return }
-    const rects = items.map((i) => i.getBoundingClientRect())
-    const span = Math.max(...rects.map((r) => r.right)) - Math.min(...rects.map((r) => r.left))
-    on.value = span > box.clientWidth + 1
-  }
-
-  /** one copy's width: from the first real control to the same control in the "after" copy */
-  function setWidth() {
-    const box = el.value
-    const first = realItems()[0]
-    const twin = box?.querySelector<HTMLElement>('[data-loop="after"] > *')
-    if (!first || !twin) return 0
-    return Math.abs(twin.getBoundingClientRect().left - first.getBoundingClientRect().left)
-  }
-
-  /* scrollLeft is 0..-max in a right-to-left row; work from the physical left */
-  function physical(box: HTMLElement) {
-    const rtl = getComputedStyle(box).direction === 'rtl'
-    const max = box.scrollWidth - box.clientWidth
-    return { rtl, max, pos: rtl ? box.scrollLeft + max : box.scrollLeft }
-  }
-
-  function wrap() {
-    const box = el.value
-    if (!box || !on.value) return
-    const { rtl, max, pos } = physical(box)
-    const next = loopPosition(pos, setWidth())
-    if (next !== pos) box.scrollLeft = rtl ? next - max : next
-  }
-
-  /** centre the current control when it is not fully in view */
-  function reveal(force = false) {
-    const box = el.value
-    const sel = box?.querySelector<HTMLElement>(opts.selected)
-    if (!box || !sel) return
-    const b = box.getBoundingClientRect()
-    const r = sel.getBoundingClientRect()
-    if (!force && r.left >= b.left && r.right <= b.right) return
-    box.scrollLeft += (r.left + r.width / 2) - (b.left + box.clientWidth / 2)
-    wrap()
-  }
-
-  async function refresh(force = false) {
-    measure()
-    await nextTick()
-    reveal(force)
-  }
+  const centred = { v: false }
+  const quiet = { v: false }
+  const ctx: LoopCtx = { el, opts, on, centred, quiet }
+  const onScroll = () => wrap(ctx)
 
   onMounted(() => {
     const box = el.value
     if (!box) return
-    box.addEventListener('scroll', wrap, { passive: true })
-    if (typeof ResizeObserver === 'function') {
-      ro = new ResizeObserver(() => { void refresh() })
-      ro.observe(box)
-    }
-    void refresh(true)
+    /* hidden until place() writes the centred scroll; the row keeps its size */
+    if (opts.enabled()) box.style.visibility = 'hidden'
+    /* inserting the copies must not make the browser anchor-scroll under us */
+    box.style.overflowAnchor = 'none'
+    box.addEventListener('scroll', onScroll, { passive: true })
+    if (typeof ResizeObserver !== 'function') { void place(ctx, true); return }
+    ro = new ResizeObserver(() => { void place(ctx, !centred.v) })
+    ro.observe(box)
   })
   onBeforeUnmount(() => {
-    el.value?.removeEventListener('scroll', wrap)
+    el.value?.removeEventListener('scroll', onScroll)
     ro?.disconnect()
   })
-  watch([opts.enabled, opts.watchKey], () => { void nextTick(() => refresh()) })
+  watch([opts.enabled, opts.watchKey], () => { void nextTick(() => place(ctx, false)) })
 
-  return { on, refresh }
+  return { on, refresh: () => place(ctx, false) }
 }

@@ -571,13 +571,14 @@ async function archiveTopic(ctx, msgId, archived = true) {
   return live(`/v1/messages/${encodeURIComponent(id)}/archive`, { method: archived ? 'PUT' : 'DELETE' })
 }
 
-/** Owner (t1 56b8cc17): an archived topic leaves the unread counts; the Flow store re-reads them on this. */
+/** Owner (t1 56b8cc17): an archived topic leaves the unread counts; the Flow store re-reads them on this.
+    t1 5108d85d: the shell closes a right pane open on it (useArchiveUndo closeArchivedPane). */
 const TOPIC_ARCHIVED_EVENT = 'spool:topic-archived'
 
 async function archiveTopicAndTell(ctx, msgId, archived = true) {
   const out = await archiveTopic(ctx, msgId, archived)
   if (typeof globalThis.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
-    globalThis.dispatchEvent(new CustomEvent(TOPIC_ARCHIVED_EVENT, { detail: { msgId, archived } }))
+    globalThis.dispatchEvent(new CustomEvent(TOPIC_ARCHIVED_EVENT, { detail: { msgId, archived, taskId: String(out?.task_id || '') } }))
   }
   return out
 }

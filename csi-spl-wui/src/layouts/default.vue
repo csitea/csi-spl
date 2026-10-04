@@ -174,7 +174,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
-import { useArchiveUndo } from '~/composables/useArchiveUndo'
+import { closeArchivedPane, useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
@@ -229,6 +229,8 @@ const mentionDirect = useMentionDirectNote()
 const openNotice = useOpenMessageNotice()
 let offDeleted = () => {}
 let offTopic = () => {}
+/* t1 5108d85d: archiving a topic closes the right pane open on it */
+const onArchived = (ev: Event) => closeArchivedPane((ev as CustomEvent).detail, live.lobbyTaskId.value)
 /* SPL-996: a focusin chooses a pane only right after the reader's own
    navigation key (stores/pane-focus.ts); capture, so a handler that stops
    the key cannot hide it */
@@ -236,6 +238,7 @@ const noteKey = (ev: KeyboardEvent) => paneFocus.noteKey(ev)
 onMounted(() => {
   collapse.load() /* 050: read the remembered collapsed state on the client */
   document.addEventListener('keydown', noteKey, true)
+  window.addEventListener('spool:topic-archived', onArchived)
   offDeleted = live.onDeleted((m) => dropEverywhere(String(m.msg_id || '')))
   /* SPL-983: an archived card leaves the feeds; a deleted topic takes every
      row, and a pane open on one of its tasks has nothing left to show. */
@@ -249,7 +252,7 @@ onMounted(() => {
     move.dispatch(f)
   })
 })
-onUnmounted(() => { offDeleted(); offTopic(); document.removeEventListener('keydown', noteKey, true) })
+onUnmounted(() => { offDeleted(); offTopic(); window.removeEventListener('spool:topic-archived', onArchived); document.removeEventListener('keydown', noteKey, true) })
 /* the single source of truth for which topic section is on screen. */
 /* /t/:id mounts TopicPane inside the page. This shell must not open a
    third column or a second copy of that pane. route is declared here,

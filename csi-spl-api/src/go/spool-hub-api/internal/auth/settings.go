@@ -33,6 +33,9 @@ type HumanSettings struct {
 	// TimeZone is the IANA zone the WUI prints times in (CLE-77908), "" when
 	// never picked (the browser's zone). Per tenant only (rdb 0078).
 	TimeZone string
+	// KeyboardShortcuts is the message shortcuts switch (HUM-10 ae2e5093), nil
+	// when never picked (on). Per tenant only (rdb 0078).
+	KeyboardShortcuts *bool
 }
 
 // IssuesSort is a person's default sort of the Issues list (CLE-35099): the
@@ -65,6 +68,8 @@ type MembershipSettings struct {
 	IssuesSort       *IssuesSort        `json:"issues_sort,omitempty"`
 	PaneSizes        map[string]float64 `json:"pane_sizes,omitempty"`
 	TimeZone         *string            `json:"time_zone,omitempty"`
+	// KeyboardShortcuts: HUM-10 ae2e5093, nil = on.
+	KeyboardShortcuts *bool `json:"keyboard_shortcuts,omitempty"`
 }
 
 // Overlay returns b with every set field of the per-tenant override o applied
@@ -114,6 +119,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.TimeZone != nil {
 		b.TimeZone = *o.TimeZone
+	}
+	if o.KeyboardShortcuts != nil {
+		b.KeyboardShortcuts = o.KeyboardShortcuts
 	}
 	return b
 }

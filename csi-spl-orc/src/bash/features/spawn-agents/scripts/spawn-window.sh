@@ -29,7 +29,8 @@
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
 # `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
 # remote spawn on an explicit SPAWN_BOX did not start (PLACEMENT below),
-# 9 the requester is a lane. Only c-001, c-002 and c-003 (any box), or a
+# 9 the requester is a lane, 10 HOLD: every fleet box is at or above the
+# load target's high mark (LOAD TARGET below), so queue the lane. Only c-001, c-002 and c-003 (any box), or a
 # shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
 # or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
 # the closest ancestor that still carries the id (`sudo -u` strips it from
@@ -65,6 +66,16 @@
 # TITLE is never moved without SPAWN_BOX. Seams (tests): SPAWN_PLACE_MAP_CMD
 # prints the lane map JSON, SPAWN_REMOTE_CMD replaces spawn-remote.sh; a dry
 # run without SPAWN_REMOTE_CMD prints the PLAN and stops ("auto@<box> -").
+#
+# LOAD TARGET (owner HUM-10, t1 c13e8023): before the busy count, the same
+# new lane asks do_spl_box_pick, which reads the hub's fleet load target
+# (rdb 0119: the band, 50..75 % of cores by default, and the box fill order)
+# and each box's latest load5 / cpus. `pick=<box>` places the lane there;
+# `pick=hold` (every box at or above its high mark) spawns NOTHING and exits
+# 10 so the requester queues the lane; no pick line (the action failed) falls
+# back to the busy count above, with a WARN. SPAWN_BOX still wins, and the
+# 40-window ceiling is unchanged. Seams: SPAWN_BOX_PICK_CMD replaces the
+# action; SPAWN_BOX_PICK=0 skips it (the busy count alone).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -99,6 +110,25 @@ place_box() {
   [ -n "$fleet" ] || return 0
   [ -r "$SPOOL_ROOT/dispatch/lease.orch" ] && read -r holder _ <"$SPOOL_ROOT/dispatch/lease.orch"
   case "$holder" in ""|*@"$here") ;; *) return 0 ;; esac
+  if [ "${SPAWN_BOX_PICK:-1}" != 0 ]; then
+    local out pick
+    if [ -n "${SPAWN_BOX_PICK_CMD:-}" ]; then
+      # shellcheck disable=SC2086 # a command line, split on purpose
+      out="$($SPAWN_BOX_PICK_CMD 2>&1)"
+    else
+      out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_box_pick 2>&1)"
+    fi
+    pick="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\)\( .*\)\{0,1\}$/\1/p' <<<"$out" | tail -1)"
+    case "$pick" in
+      hold)
+        echo "spawn-window: HOLD ${TITLE}: $(sed -n 's/^pick=hold reason=//p' <<<"$out" | sed -n 1p). Queue it; nothing was spawned." >&2
+        return 10 ;;
+      "") echo "spawn-window: WARN no load target pick ($(tail -1 <<<"$out" | cut -c1-200)): placing by the busy count" >&2 ;;
+      "$here") echo "spawn-window: ${TITLE} stays on $here (load target: $(sed -n 's/^pick=[^ ]* reason=//p' <<<"$out" | sed -n 1p))" >&2; return 0 ;;
+      *) echo "spawn-window: load target: $(sed -n 's/^pick=[^ ]* reason=//p' <<<"$out" | sed -n 1p)" >&2
+         printf '%s' "$pick"; return 0 ;;
+    esac
+  fi
   if [ -n "${SPAWN_PLACE_MAP_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     json="$($SPAWN_PLACE_MAP_CMD 2>/dev/null | grep -m1 '^{')"

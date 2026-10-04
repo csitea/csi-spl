@@ -60,8 +60,14 @@ launcher wins over the pick.
   it must NOT touch.
 - Pass the paths it will own as `SPAWN_LANE_FILES=<path,...>` (and its topic as
   `SPAWN_LANE_TOPIC`) to the launcher: the spawn writes them into its lane row.
-- Where it starts: a new lane goes to the fleet box with the fewest busy agents
-  (the lane map's `BOX` header lines); `SPAWN_BOX=local` or `SPAWN_BOX=<box>` pins it.
+- Where it starts: a new lane goes where the fleet load target puts it
+  (`./run -a do_spl_box_pick`: the first box in the hub's fill order below its
+  high mark, load5 / cpus, default band 50..75 %). `pick=hold` means every box
+  is full: the launcher exits 10 and spawns nothing, so queue the lane and say
+  so. With no pick (hub down) it falls back to the box with the fewest busy
+  agents (the lane map's `BOX` header lines). `SPAWN_BOX=local` or
+  `SPAWN_BOX=<box>` pins it. The band and order are the hub's instance setting;
+  only the operator workspace's admin changes them (`PATCH /v1/operator/fleet-load`).
 
 ## 4. Spawn
 

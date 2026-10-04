@@ -40,7 +40,7 @@
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
-unset LEASE_MACHINE LANE_FLEET SPAWN_BOX SPAWN_REMOTE_CMD SPAWN_PLACE_MAP_CMD SPAWN_DRY_RUN
+unset LEASE_MACHINE LANE_FLEET SPAWN_BOX SPAWN_REMOTE_CMD SPAWN_PLACE_MAP_CMD SPAWN_DRY_RUN SPAWN_BOX_PICK_CMD
 command -v jq >/dev/null || { nok "jq is required"; t_done; exit 1; }
 SW="$T_SCRIPTS/spawn-window.sh"
 ORC="$T_REPO/csi-spl-orc"
@@ -93,6 +93,8 @@ echo "c-200@\$2 %9"
 STUB
 chmod +x "$T_TMP/bin/"*
 export SPAWN_PLACE_MAP_CMD="$T_TMP/bin/map" SPAWN_REMOTE_CMD="$T_TMP/bin/remote"
+# The busy count alone; the load target pick has its own test (test-spawn-load-target.sh).
+export SPAWN_BOX_PICK=0
 
 spawn() {  # [TITLE] -> OUT, RC
   rm -f "$T_TMP/remote.calls"

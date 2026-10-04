@@ -28,7 +28,7 @@
 # @param TENANT_ID (optional) - one tenant slug; empty wipes every tenant
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param MSG_WIPE_CONFIRM (DRY_RUN=0 only) - "<env>/<tenant>" or "<env>/all"
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_msg_wipe
 # @example ENV=dev TENANT_ID=t1 DRY_RUN=0 MSG_WIPE_CONFIRM=dev/t1 ./run -a do_spl_msg_wipe
 #------------------------------------------------------------------------------

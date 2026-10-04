@@ -30,7 +30,7 @@
 # @param TASK_ID - required: the topic's task uuid (the ?topic= of the WUI URL)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param TOPIC_DELETE_CONFIRM (DRY_RUN=0 only) - "<env>/<tenant>/<task>"
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=prd TENANT_ID=t1 TASK_ID=008fd14a-5311-418b-a5b6-33d0ea690215 ./run -a do_spl_topic_delete
 # @example ENV=prd TENANT_ID=t1 TASK_ID=008fd14a-5311-418b-a5b6-33d0ea690215 DRY_RUN=0 TOPIC_DELETE_CONFIRM=prd/t1/008fd14a-5311-418b-a5b6-33d0ea690215 ./run -a do_spl_topic_delete
 #------------------------------------------------------------------------------

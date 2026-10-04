@@ -7,7 +7,7 @@
 # @description real tenant. Dry run unless DRY_RUN=0: prints the row count.
 # @param ENV - required: dev (prd is refused)
 # @param SEED_TENANT (optional) - default seed-search; must match ^seed-[a-z0-9-]{1,26}$
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_search_seed_purge
 #------------------------------------------------------------------------------

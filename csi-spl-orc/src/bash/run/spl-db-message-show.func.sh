@@ -20,7 +20,7 @@
 # @param TASK_ID (optional) - every message of one task/topic uuid
 # @param LAST (optional) - the newest n messages of the tenant (1..50, default 5)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=t1 MSG_ID=<uuid> ./run -a do_spl_db_message_show
 # @example ENV=prd TENANT_ID=t1 LAST=3 ./run -a do_spl_db_message_show
 #------------------------------------------------------------------------------

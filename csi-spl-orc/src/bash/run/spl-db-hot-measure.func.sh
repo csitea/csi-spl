@@ -31,7 +31,7 @@
 # @param MEASURE_PLAN_CACHE (optional) - force_custom_plan (default, the walk's scope since CLE-35061) | auto (pgx without it) | force_generic_plan
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per statement
 # @param MEASURE_TIMEOUT_MS (optional) - per statement, 100..60000, default 10000
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=prd TENANT_ID=t1 READER=HUM-10 ./run -a do_spl_db_hot_measure
 # @example ENV=dev TENANT_ID=t1 READER=HUM-4 MEASURE_ONLY=walk_all MEASURE_PLANS=1 ./run -a do_spl_db_hot_measure
 #------------------------------------------------------------------------------

@@ -13,7 +13,7 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug (e.g. t1)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=t1 ./run -a do_spl_db_period_count_check
 #------------------------------------------------------------------------------
 do_spl_db_period_count_check() {

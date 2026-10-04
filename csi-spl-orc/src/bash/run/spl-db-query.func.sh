@@ -14,7 +14,7 @@
 # @description reads empty to the hub login.
 # @param ENV - required: dev or prd
 # @param SQL - required: a single SELECT / \d statement
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev SQL="select tenant_id, human_id, role, admitted_by from tenant_memberships where tenant_id='t1'" ./run -a do_spl_db_query
 # @example ENV=prd SQL='\d tenants' ./run -a do_spl_db_query
 #------------------------------------------------------------------------------

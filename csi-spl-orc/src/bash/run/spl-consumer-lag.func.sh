@@ -18,7 +18,7 @@
 # @param LAG_ALERT_MIN (optional) - alert age of a live box's oldest uncommitted row, minutes (1..10080, default 30)
 # @param LAG_DEAD_HOURS (optional) - no hello for this long = a dead box, hours (1..8760, default 72)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @param LAG_FORMAT (optional) - auto (default): an aligned table on a tty, one
 # @param LAG_FORMAT JSON object per line (ndjson) otherwise; table or ndjson forces one
 # @example ENV=dev ./run -a do_spl_consumer_lag

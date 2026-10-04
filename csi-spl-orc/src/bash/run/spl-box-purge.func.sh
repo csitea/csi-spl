@@ -42,7 +42,7 @@
 # @param PURGE_MIN_IDLE_HOURS (optional) - refuse a box that said hello more recently; default 24
 # @param PURGE_KEEP_STATE (optional) - 1 keeps the local probe/e2e state dirs; default 0 (remove them)
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=t1 BOX_IDS="box-orc-probe box-rls-probe" ./run -a do_spl_box_purge
 # @example ENV=dev TENANT_ID=t1 BOX_IDS="box-orc-probe" DRY_RUN=0 ./run -a do_spl_box_purge
 #------------------------------------------------------------------------------

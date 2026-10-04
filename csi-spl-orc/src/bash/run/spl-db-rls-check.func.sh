@@ -20,7 +20,7 @@
 # @param EXPECT_RLS (optional) - 1: also require every tenant_id table forced
 # @param EXPECT_NOT_LIFTABLE (optional) - 1: also require that the login cannot lift RLS
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_db_rls_check
 # @example ENV=prd EXPECT_RLS=1 ./run -a do_spl_db_rls_check
 #------------------------------------------------------------------------------

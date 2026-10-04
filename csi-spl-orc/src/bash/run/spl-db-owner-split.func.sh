@@ -38,7 +38,7 @@
 # @param ROLLBACK (optional) - 1: undo the split (see above)
 # @param ROTATE_OWNER (optional) - 1: rotate the owner password (see above)
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_pin_account; never the owner account)
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_db_owner_split
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_db_owner_split
 # @example ENV=dev DRY_RUN=0 ROLLBACK=1 ./run -a do_spl_db_owner_split

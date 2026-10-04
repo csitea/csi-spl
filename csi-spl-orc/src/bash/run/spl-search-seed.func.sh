@@ -18,7 +18,7 @@
 # @param SEED_TOPICS (optional) - tasks, 1..100000, default 10000
 # @param SEED_CHANNELS (optional) - channels, 1..5000, default 1000
 # @param SEED_BATCH (optional) - rows per INSERT, 1000..200000, default 100000
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_search_seed
 #------------------------------------------------------------------------------

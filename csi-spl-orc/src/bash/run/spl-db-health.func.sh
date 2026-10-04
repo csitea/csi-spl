@@ -21,7 +21,7 @@
 # @description printed rather than hidden.
 # @param ENV - required: dev or prd
 # @param SECTION (optional) - all (default) | size | load | vacuum | structure | cloudsql
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_db_health
 # @example ENV=prd SECTION=vacuum ./run -a do_spl_db_health
 #------------------------------------------------------------------------------

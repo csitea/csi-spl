@@ -25,7 +25,7 @@
 # @param ENV - required: dev or prd
 # @param OBJECT (optional) - the gs:// uri to verify; default the newest in the bucket
 # @param SPL_RESTORE_IMAGE (optional) - default postgres:16-alpine
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_db_backup_verify
 # @example ENV=prd OBJECT=gs://csi-spl-prd-db-backups/prd/spool-20260921T051700Z.sql.gz ./run -a do_spl_db_backup_verify
 #------------------------------------------------------------------------------

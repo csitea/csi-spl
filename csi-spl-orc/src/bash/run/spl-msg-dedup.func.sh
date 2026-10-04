@@ -35,7 +35,7 @@
 # @param TENANT_ID (optional) - one tenant slug; empty covers every tenant
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param MSG_DEDUP_CONFIRM (DRY_RUN=0 only) - "<env>/<tenant>" or "<env>/all"
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=prd ./run -a do_spl_msg_dedup
 # @example ENV=prd DRY_RUN=0 MSG_DEDUP_CONFIRM=prd/all ./run -a do_spl_msg_dedup
 #------------------------------------------------------------------------------

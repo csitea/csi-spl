@@ -19,7 +19,7 @@
 # @param MEASURE_ONLY (optional) - a comma list of query names; default all
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per query
 # @param MEASURE_TIMEOUT_MS (optional) - per statement, 100..60000, default 5000 (the hub's budget is 2000)
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev TENANT_ID=seed-search ./run -a do_spl_search_measure
 #------------------------------------------------------------------------------
 do_spl_search_measure() {

@@ -25,7 +25,7 @@
 # @param ALLOW_PRD (optional) - 1 lets ENV=prd run for real
 # @param COMPACT_LOCK_TIMEOUT (optional) - default 5s
 # @param COMPACT_STATEMENT_TIMEOUT (optional) - default 10min
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=dev ./run -a do_spl_db_compact
 # @example ENV=dev TABLE=messages DRY_RUN=0 ./run -a do_spl_db_compact
 #------------------------------------------------------------------------------

@@ -17,7 +17,7 @@
 # @param MATCH (optional) - keep only rows whose email or display name
 # @param   contains this text (case-insensitive; letters, digits, . _ @ + -)
 # @param SPL_SA_KEY (optional) - default $HOME/.gcp/.<org>/key-<project>.json
-# @param SPL_PROXY_PORT (optional) - local proxy port, default 55499
+# @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
 # @example ENV=prd TENANT_ID=t1 ./run -a do_spl_hub_member_list
 # @example ENV=prd TENANT_ID=t1 MATCH=example.com ./run -a do_spl_hub_member_list
 #------------------------------------------------------------------------------

@@ -247,14 +247,19 @@ spl_lease_live_ids() {
 # failover never fired. The agent must also be ABLE to act, read from the
 # footer of its tmux pane (the last LEASE_PANE_TAIL non-blank lines of the
 # visible screen). Three tiers:
-# - a DISMISSABLE modal (the list in spl_lease_modal_res, one extended
-#   regex per line) blocks the seat on sight. The able check presses
-#   Escape once (cancel: nothing chosen), waits LEASE_MODAL_WAIT seconds
-#   (default 3) and reads the pane again. Still matching: not able, so
-#   the lease can fail over, and the orchestrator (LEASE_ORCH) is told
-#   once. The first line is "Teach auto mode about your environment?",
-#   Claude Code's offer to run /auto-mode-setup (it can scan shell
-#   history). Append a line to recognise another. The offer and the
+# - a DISMISSABLE modal (the list in spl_lease_modal_res) blocks the seat
+#   on sight. The able check presses Escape once (cancel: nothing chosen),
+#   waits LEASE_MODAL_WAIT seconds (default 3) and reads the pane again.
+#   Still matching: not able, so the lease can fail over, and the
+#   orchestrator (LEASE_ORCH) is told once. An entry is a title regex and,
+#   after a tab, an optional option-line regex. The title and the option
+#   must each be their own line (the rest of the line has no letters), within
+#   16 lines of each other. A line above a trailing idle prompt is the
+#   transcript, not the dialog: on 2026-10-04 a mention of the title in an
+#   agent's own text matched, and Escape interrupted that turn. The default
+#   entry is the offer "Teach auto mode about your environment?" with the
+#   picker lines "Not now" and "Don't show again" (Claude Code 2.1.287).
+#   Append a line to recognise another. The offer and the
 #   command are turned off by skillOverrides "auto-mode-setup" = "off"
 #   (Claude Code docs, auto-mode-config, section "Turn off
 #   /auto-mode-setup", read 2026-10-04,
@@ -283,16 +288,17 @@ spl_lease_live_ids() {
 LEASE_BLOCK_RE_DEFAULT='select login method|do you trust the files|choose the text style'
 LEASE_STALL_RE_DEFAULT='usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|invalid api key|oauth token (has )?expired'
 
-# One extended regex per line from the modal list. Blank lines and '#' lines
-# are skipped. Unset LEASE_MODAL_RES uses the here-doc; set it (even to
-# empty) to replace the list.
+# One entry per line from the modal list. Blank lines and '#' lines are
+# skipped. An entry is a title regex, then an optional tab and an option-line
+# regex. Unset LEASE_MODAL_RES uses the here-doc; set it (even to empty) to
+# replace the list.
 spl_lease_modal_res() {
   local src line
   if [[ -n "${LEASE_MODAL_RES+x}" ]]; then
     src="$LEASE_MODAL_RES"
   else
     src="$(cat <<'EOF'
-teach auto mode about your environment
+teach auto mode about your environment	not now|don't show again
 EOF
 )"
   fi
@@ -303,13 +309,110 @@ EOF
   done <<<"$src"
 }
 
+# 0 when <line> contains <re> and the rest of the line has no letters:
+# a dialog line, not a sentence that mentions the same words. Prints the match.
+spl_lease_modal_line() {
+  local re="$1" line="$2" shown rest
+  shown="$(grep -oiE -m1 -- "$re" <<<"$line" | sed -n 1p)" || true
+  [[ -n "$shown" ]] || return 1
+  rest="${line/"$shown"/}"
+  if grep -q '[[:alpha:]]' <<<"$rest"; then
+    return 1
+  fi
+  printf '%s\n' "$shown"
+  return 0
+}
+
+# 0 when <line> is a composer prompt. A numbered option cursor ("1. Yes")
+# is not the composer. The glyph is matched as text, so the locale cannot
+# split it into bytes.
+spl_lease_modal_composer() {
+  local s="$1" trim rest num='^[0-9]+[.)]([[:space:]]|$)'
+  trim="${s#"${s%%[![:space:]]*}"}"
+  trim="${trim%"${trim##*[![:space:]]}"}"
+  rest=""
+  case "$trim" in
+    $'\u276f'|$'\u203a'|'>') ;;
+    $'\u276f'\ *) rest="${trim#$'\u276f' }" ;;
+    $'\u203a'\ *) rest="${trim#$'\u203a' }" ;;
+    '> '*) rest="${trim#'> '}" ;;
+    *) return 1 ;;
+  esac
+  [[ -n "$rest" && "$rest" =~ $num ]] && return 1
+  return 0
+}
+
+# Index of a trailing idle prompt, or -1. It counts only in the last 8
+# non-blank lines: that is the composer at the bottom of an idle pane.
+spl_lease_modal_floor() {
+  local -a lines=("$@")
+  local i n=${#lines[@]} nb=0 s
+  for ((i = n - 1; i >= 0; i--)); do
+    s="${lines[i]}"
+    [[ "$s" =~ [^[:space:]] ]] || continue
+    nb=$((nb + 1))
+    if spl_lease_modal_composer "$s"; then
+      if (( nb <= 8 )); then
+        printf '%s\n' "$i"
+        return 0
+      fi
+      break
+    fi
+    if (( nb >= 8 )); then
+      break
+    fi
+  done
+  printf '%s\n' "-1"
+  return 0
+}
+
+# 0 when an option line of <opt> sits within 16 lines of <idx>, and below
+# a trailing idle prompt (<floor>).
+spl_lease_modal_near() {
+  local opt="$1" idx="$2" floor="$3"
+  shift 3
+  local -a lines=("$@")
+  local j lo hi n=${#lines[@]}
+  lo=$((idx - 16))
+  (( lo < 0 )) && lo=0
+  if (( floor >= 0 && lo <= floor )); then
+    lo=$((floor + 1))
+  fi
+  hi=$((idx + 16))
+  (( hi >= n )) && hi=$((n - 1))
+  (( lo > hi )) && return 1
+  for ((j = lo; j <= hi; j++)); do
+    spl_lease_modal_line "$opt" "${lines[j]}" >/dev/null && return 0
+  done
+  return 1
+}
+
 # The first dismissable-modal match in <text>; nothing when none match.
+# A transcript mention of the title is not a match.
 spl_lease_modal_hit() {
-  local text="$1" re hit
-  while IFS= read -r re; do
-    [[ -n "$re" ]] || continue
-    hit="$(grep -oiE -m1 -- "$re" <<<"$text" | sed -n 1p)"
-    [[ -n "$hit" ]] && { printf '%s\n' "$hit"; return 0; }
+  local text="$1" entry title opt floor i n shown
+  local -a lines=()
+  mapfile -t lines <<<"$text"
+  n=${#lines[@]}
+  floor="$(spl_lease_modal_floor "${lines[@]}")"
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    title="${entry%%$'\t'*}"
+    opt=""
+    [[ "$entry" == *$'\t'* ]] && opt="${entry#*$'\t'}"
+    for ((i = 0; i < n; i++)); do
+      if (( floor >= 0 && i <= floor )); then
+        continue
+      fi
+      if ! shown="$(spl_lease_modal_line "$title" "${lines[i]}")"; then
+        continue
+      fi
+      if [[ -n "$opt" ]] && ! spl_lease_modal_near "$opt" "$i" "$floor" "${lines[@]}"; then
+        continue
+      fi
+      printf '%s\n' "$shown"
+      return 0
+    done
   done < <(spl_lease_modal_res)
   return 0
 }

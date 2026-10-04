@@ -257,9 +257,12 @@ sequenceDiagram
   (the last 12 non-blank lines of the visible screen, found by walking the
   pid's parents to a `pane_pid`). A modal trust, onboarding or login-picker
   screen is a stall on sight. A dismissable modal is a stall on sight too:
-  `LEASE_MODAL_RES` is one extended regex per line (the default line is
-  `teach auto mode about your environment`, the offer titled "Teach auto
-  mode about your environment?"). The able check presses Escape once, waits
+  `LEASE_MODAL_RES` is one entry per line: a title regex, then an optional
+  tab and an option-line regex. The default title is `teach auto mode about
+  your environment` and the option line is `Not now` or `Don't show again`
+  (the picker on that dialog). Each must be its own line, within 16 lines,
+  and a line above a trailing idle prompt does not count, so a transcript
+  mention is not a stall. The able check presses Escape once, waits
   `LEASE_MODAL_WAIT` seconds (default 3) and reads the pane again. Still
   there: the seat stays not able, so the lease fails over, and the
   orchestrator is told once. Escape cancels and chooses nothing. The fleet

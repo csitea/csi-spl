@@ -328,6 +328,7 @@ func (s *Server) Handler() http.Handler {
 	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
 	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest
 	s.routeDocs(mux)           // the Docs section: GET /v1/docs/{path...}
+	s.routeBoxStats(mux)       // rdb 0117: GET /v1/tenant/box-stats
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)
@@ -461,6 +462,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepMemberActivity(ctx) // CLE-77799: Activity-log auth-row retention
 			s.sweepAgentLifecycle(ctx) // spec 063 section 12: 90-day event log
 			s.sweepPerfSamples(ctx)    // spec 066 section 4: 30-day WUI perf samples
+			s.sweepBoxStats(ctx)       // rdb 0117: 30-day box load + memory history
 		}
 	}
 }

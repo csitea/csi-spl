@@ -52,6 +52,10 @@ func laneRow(l store.FleetLane) LaneRow {
 
 // onLane answers a lane frame.
 func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
+	if isBoxStatsLaneOp(f.LaneOp) { // rdb 0117: the box load + memory history
+		s.onBoxStatsLane(ctx, x, f)
+		return
+	}
 	if isLifecycleLaneOp(f.LaneOp) { // spec 063: the lifecycle config + event log
 		s.onLifecycleLane(ctx, x, f)
 		return

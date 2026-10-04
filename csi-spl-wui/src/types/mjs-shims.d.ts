@@ -1642,6 +1642,22 @@ declare module '~/utils/drafts.mjs' {
   export function clearDrafts(store: Storage | undefined, humanId: unknown, now?: number): boolean
 }
 
+declare module '~/utils/palette.mjs' {
+  export type PaletteItem = { id: string, label: string, keywords?: string[] }
+  export type PaletteQuery = { mode: 'go' | 'actions', text: string }
+  export const PALETTE_RECENT_KEY: 'spool.palette-recent'
+  export const PALETTE_RECENT_MAX: 20
+  export const TIER_EXACT: 0
+  export const TIER_PREFIX: 1
+  export const TIER_WORD: 2
+  export const TIER_SUBSTRING: 3
+  export function parseQuery(raw: unknown): PaletteQuery
+  export function matchTier(item: { label?: unknown, keywords?: unknown } | null | undefined, query: unknown): number
+  export function rankItems<T extends PaletteItem>(items: readonly T[] | null | undefined, query: unknown, recent?: readonly string[] | null): T[]
+  export function loadRecent(store: Storage | undefined): string[]
+  export function pushRecent(store: Storage | undefined, id: unknown): string[]
+}
+
 declare module '~/utils/rail-order.mjs' {
   export type RailId = 'dm' | 'channels' | 'issues' | 'topics' | 'flow' | 'events' | 'archive'
   export const RAIL_TABS: readonly { readonly id: RailId, readonly icon: import('~/utils/uiIcons').UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }[]

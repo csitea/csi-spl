@@ -45,7 +45,7 @@ elif command -v docker >/dev/null && docker image inspect "$PG_IMAGE" >/dev/null
   PG_CTR="spool-hub-pg-test-$$"
   docker run -d --rm --pull never --name "$PG_CTR" -e POSTGRES_USER=spool \
     -e POSTGRES_PASSWORD=spool -e POSTGRES_DB=spool_hub -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null
-  PGPORT="$(docker port "$PG_CTR" 5432 | head -1 | sed 's/.*://')"
+  PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
   for _ in $(seq 1 60); do
     docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break
     sleep 0.5
@@ -86,8 +86,8 @@ BIN="$WORK/spool"
 
 out1="$("$BIN" migrate --db "$DSN" --sql-dir "$SQL_DIR")"
 out2="$(SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_MIGRATIONS_DIR="$SQL_DIR" "$BIN" migrate)"
-echo "$out1" | grep -q 'applied 0001_hub_core.sql' || { echo "FAIL - first migrate: $out1"; exit 1; }
-if echo "$out2" | grep -q '^applied'; then echo "FAIL - second migrate re-applied: $out2"; exit 1; fi
+echo "$out1" | grep 'applied 0001_hub_core.sql' >/dev/null || { echo "FAIL - first migrate: $out1"; exit 1; }
+if echo "$out2" | grep '^applied' >/dev/null; then echo "FAIL - second migrate re-applied: $out2"; exit 1; fi
 echo "ok   - spool migrate applies $(echo "$out1" | grep -c '^applied') file(s); re-run is a no-op"
 
 # One database per package: `go test` runs packages in parallel, and the
@@ -116,7 +116,7 @@ own_sql spool_hub_app "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE"
 # SPL-984 (029 D3): the runtime login carries its own timeouts, set by the
 # owner (CREATEROLE, like the cloud) - not by a superuser.
 cfg="$(su_sql "SELECT ',' || array_to_string(rolconfig, ',') FROM pg_roles WHERE rolname = '$RT_ROLE'")"
-{ echo "$cfg" | grep -q '[^_]statement_timeout=30s' && echo "$cfg" | grep -q 'idle_in_transaction_session_timeout=60s'; } ||
+{ echo "$cfg" | grep '[^_]statement_timeout=30s' >/dev/null && echo "$cfg" | grep 'idle_in_transaction_session_timeout=60s' >/dev/null; } ||
   { echo "FAIL - runtime role timeouts: '$cfg'"; exit 1; }
 echo "ok   - 029 D3: $RT_ROLE has statement_timeout=30s, idle_in_transaction_session_timeout=60s"
 rt_dsn() { # <db>
@@ -179,7 +179,7 @@ echo "ok   - RLS gate CONTROL: a scratch migration with an unprotected tenant_id
 INV_PUB="$("$BIN" root-keygen --out "$WORK/inv-root.key")"
 SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-tenant --tenant t-invite --root-pubkey "$INV_PUB" >/dev/null
 inv="$(SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-invite --tenant t-invite --email Owner@Example.com)"
-echo "$inv" | grep -q '"status":"invited"' || { echo "FAIL - hub-invite: $inv"; exit 1; }
+echo "$inv" | grep '"status":"invited"' >/dev/null || { echo "FAIL - hub-invite: $inv"; exit 1; }
 if SPOOL_HUB_DB_DSN="$DSN" "$BIN" hub-invite --tenant t-nosuch --email x@example.com >/dev/null 2>&1; then
   echo "FAIL - hub-invite accepted an unknown tenant"; exit 1
 fi
@@ -188,24 +188,24 @@ echo "ok   - spool hub-invite: invite for an existing tenant, unknown tenant ref
 # 010 FR-016: the invitation email. Transport none (the default above) sends
 # nothing and says so; transport log mails once, a resend in the gap is
 # refused (exit 3), the log line carries a digest, never the address.
-echo "$inv" | grep -q '"outcome":"skipped_no_relay"' || { echo "FAIL - hub-invite without a relay: $inv"; exit 1; }
+echo "$inv" | grep '"outcome":"skipped_no_relay"' >/dev/null || { echo "FAIL - hub-invite without a relay: $inv"; exit 1; }
 MAILENV=(SPOOL_HUB_DB_DSN="$DSN" SPOOL_HUB_MAIL_TRANSPORT=log SPOOL_HUB_AUTH_APP_URL=https://app.example.com SPOOL_HUB_DEFAULT_LOCALE=bg)
 inv="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email Mem@Example.com --role member 2>"$WORK/inv.log")"
-echo "$inv" | grep -q '"outcome":"logged"' && echo "$inv" | grep -q '"delivered":false' &&
-  echo "$inv" | grep -q '"sign_in_url":"https://app.example.com/login?tenant=t-invite.*redirect=%2Flobby.*login_hint=mem%40example.com"' ||
+echo "$inv" | grep '"outcome":"logged"' >/dev/null && echo "$inv" | grep '"delivered":false' >/dev/null &&
+  echo "$inv" | grep '"sign_in_url":"https://app.example.com/login?tenant=t-invite.*redirect=%2Flobby.*login_hint=mem%40example.com"' >/dev/null ||
   { echo "FAIL - hub-invite log transport: $inv"; exit 1; }
 if grep -qi 'mem@example.com' "$WORK/inv.log" || ! grep -q '"message":"invite.mail_sent"' "$WORK/inv.log"; then
   echo "FAIL - invite mail log leaks the address or lacks the line: $(cat "$WORK/inv.log")"; exit 1
 fi
 rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email mem@example.com 2>/dev/null)" || rc=$?
-[ "$rc" -eq 3 ] && echo "$out" | grep -q '"outcome":"rate_limited"' || { echo "FAIL - resend in the gap: rc=$rc $out"; exit 1; }
+[ "$rc" -eq 3 ] && echo "$out" | grep '"outcome":"rate_limited"' >/dev/null || { echo "FAIL - resend in the gap: rc=$rc $out"; exit 1; }
 out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email mem@example.com --min-gap 0s --locale en 2>/dev/null)" &&
-  echo "$out" | grep -q '"outcome":"logged"' && echo "$out" | grep -q '"locale":"en"' && echo "$out" | grep -q '"mail_count":2' ||
+  echo "$out" | grep '"outcome":"logged"' >/dev/null && echo "$out" | grep '"locale":"en"' >/dev/null && echo "$out" | grep '"mail_count":2' >/dev/null ||
   { echo "FAIL - resend after the gap: $out"; exit 1; }
 rc=0; out="$(env "${MAILENV[@]}" "$BIN" hub-invite-mail --tenant t-invite --email nobody@example.com 2>/dev/null)" || rc=$?
-[ "$rc" -eq 3 ] && echo "$out" | grep -q '"outcome":"not_found"' || { echo "FAIL - resend unknown invite: rc=$rc $out"; exit 1; }
+[ "$rc" -eq 3 ] && echo "$out" | grep '"outcome":"not_found"' >/dev/null || { echo "FAIL - resend unknown invite: rc=$rc $out"; exit 1; }
 out="$(env "${MAILENV[@]}" "$BIN" hub-invite --tenant t-invite --email nm@example.com --no-mail 2>/dev/null)" &&
-  echo "$out" | grep -q '"outcome":"skipped_no_mail_flag"' || { echo "FAIL - --no-mail: $out"; exit 1; }
+  echo "$out" | grep '"outcome":"skipped_no_mail_flag"' >/dev/null || { echo "FAIL - --no-mail: $out"; exit 1; }
 echo "ok   - 010 FR-016: invite mail logged once (log transport answers logged, not sent: 047 W13), resend in the gap refused (exit 3), unknown not found, --no-mail, digest-only log"
 
 # 017 T029: the M1 demo runs as the RUNTIME role (DML grants only, as the

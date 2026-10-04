@@ -22,7 +22,7 @@ info=$(go version -m "$T/spool")
 grep -qE -- '-ldflags=.*-s -w ' <<<"$info" && pass "build info: -ldflags -s -w" || fail "build info lacks -ldflags -s -w"
 grep -q 'main.commit=0123abcd' <<<"$info" && pass "build info keeps main.commit (host spool verdict)" || fail "build info lost main.commit"
 grep -q -- '-trimpath=true' <<<"$info" && fail "-trimpath is back: it hides main.commit" || pass "no -trimpath"
-"$T/spool" version 2>&1 | grep -q '9.8.7' && pass "spool version still reports the injected version" || fail "spool version lost the injected version"
+"$T/spool" version 2>&1 | grep '9.8.7' >/dev/null && pass "spool version still reports the injected version" || fail "spool version lost the injected version"
 
 ( cd "$HERE/../../go/spool-hub-api" && CGO_ENABLED=0 go build -o "$T/spool.full" ./cmd/spool )
 s=$(stat -c %s "$T/spool"); f=$(stat -c %s "$T/spool.full")

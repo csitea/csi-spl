@@ -11,7 +11,7 @@ CNF="$HERE/../../../../csi-spl-cnf/csi-spl"
 VAR=SPOOL_HUB_AUTH_COOKIE_SECURE
 
 # read_val <file> <key-in-context>: pull "<var>": "<value>" (tfvars/json) from a file.
-read_val() { grep -oE "\"$VAR\": \"[^\"]*\"" "$1" | head -1 | sed -E 's/.*: "([^"]*)"/\1/'; }
+read_val() { grep -oE "\"$VAR\": \"[^\"]*\"" "$1" | sed -n 1p | sed -E 's/.*: "([^"]*)"/\1/'; }
 
 fail=0
 for env in dev prd; do
@@ -31,7 +31,7 @@ done
 # lde is the one env that legitimately carries it, so it proves the parse works.
 lde="$CNF/lde.env.yaml"
 if [[ -f "$lde" ]]; then
-  lval=$(grep -oE "$VAR: \"[^\"]*\"" "$lde" | head -1 | sed -E 's/.*: "([^"]*)"/\1/')
+  lval=$(grep -oE "$VAR: \"[^\"]*\"" "$lde" | sed -n 1p | sed -E 's/.*: "([^"]*)"/\1/')
   if [[ "$lval" == "false" ]]; then
     echo "ok   - control: lde $VAR=false is parsed (the gate can detect a false)"
   else

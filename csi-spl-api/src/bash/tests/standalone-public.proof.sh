@@ -45,20 +45,20 @@ unset SPOOL_OWNER_EMAIL SPOOL_BOOTSTRAP_OWNER SPOOL_DB_OWNER_PASSWORD SPOOL_DB_R
 # --- 1. W9 --------------------------------------------------------------------------
 fresh
 dc up -d web >/dev/null 2>&1 && fail "1. up with the default passwords on a public URL succeeded" ||
-  { init_log | grep -q 'still the public defaults' && pass "1. W9: public URL + default DB passwords -> hub-init refuses, up fails" ||
+  { init_log | grep 'still the public defaults' >/dev/null && pass "1. W9: public URL + default DB passwords -> hub-init refuses, up fails" ||
     fail "1. W9: $(init_log)"; }
 
 # --- 2. W18, no owner email ---------------------------------------------------------------
 export SPOOL_DB_OWNER_PASSWORD="o-$(openssl rand -hex 12)" SPOOL_DB_RUNTIME_PASSWORD="r-$(openssl rand -hex 12)" SPOOL_DB_SUPERUSER_PASSWORD="s-$(openssl rand -hex 12)"
 fresh
 dc up -d web >/dev/null 2>&1 && fail "2. up with no SPOOL_OWNER_EMAIL on a public URL succeeded" ||
-  { init_log | grep -q 'set SPOOL_OWNER_EMAIL' && pass "2. W18: public URL + no SPOOL_OWNER_EMAIL -> hub-init refuses" || fail "2. W18: $(init_log)"; }
+  { init_log | grep 'set SPOOL_OWNER_EMAIL' >/dev/null && pass "2. W18: public URL + no SPOOL_OWNER_EMAIL -> hub-init refuses" || fail "2. W18: $(init_log)"; }
 
 # --- 3. W18, the owner invite ---------------------------------------------------------------
 export SPOOL_OWNER_EMAIL=owner@example.org
 fresh
 if dc up -d web >/dev/null 2>&1 && healthy; then
-  dc logs --no-color hub-init | grep -q "OWNER: open $PUBLIC/login" && pass "3. hub-init prints the one-time owner link" || fail "3. no owner link: $(init_log)"
+  dc logs --no-color hub-init | grep "OWNER: open $PUBLIC/login" >/dev/null && pass "3. hub-init prints the one-time owner link" || fail "3. no owner link: $(init_log)"
   c="$(claim intruder@example.org)"; [[ "$c" == 403 ]] && pass "3. a stranger who signs up FIRST is refused ($c)" || fail "3. stranger first: $c"
   c="$(claim owner@example.org)"; r="$(role_of owner@example.org)"
   [[ "$c" == 200 && "$r" == biz_owner ]] && pass "3. the owner's address is admitted as biz_owner" || fail "3. owner: login $c role '$r'"

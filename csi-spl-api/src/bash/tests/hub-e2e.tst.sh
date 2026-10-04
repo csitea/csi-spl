@@ -238,10 +238,10 @@ ok "unpinned box refused at hello (exit 78)"
 
 # 4. receiver offline -> queued; drained by hub-sync
 out="$(on box-a send --from g-003 --to c-007 --kind task --body "build it")"
-echo "$out" | grep -q '"delivery":"queued"' || fail "offline send: $out"
+echo "$out" | grep '"delivery":"queued"' >/dev/null || fail "offline send: $out"
 task="$(echo "$out" | sed 's/.*"task_id":"\([^"]*\)".*/\1/')"
-on box-b hub-sync | grep -q '"delivered":1' || fail "box-b drain"
-on box-b recv --as c-007 --ack | grep -q '"body":"build it"' || fail "box-b recv"
+on box-b hub-sync | grep '"delivered":1' >/dev/null || fail "box-b drain"
+on box-b recv --as c-007 --ack | grep '"body":"build it"' >/dev/null || fail "box-b recv"
 ok "offline receiver: delivery=queued, drained on hello, recv returns the task"
 
 # 5. live daemon -> sent
@@ -249,34 +249,34 @@ env $(box box-b) "$BIN" hub-run >>"$WORK/run-b.log" 2>&1 &
 RUN_PID=$!
 sleep 1
 out="$(on box-a send --from g-003 --to c-007 --task "$task" --kind note --body "live")"
-echo "$out" | grep -q '"delivery":"sent"' || fail "live send: $out"
+echo "$out" | grep '"delivery":"sent"' >/dev/null || fail "live send: $out"
 for _ in $(seq 1 50); do
-  on box-b recv --as c-007 | grep -q '"body":"live"' && break
+  on box-b recv --as c-007 | grep '"body":"live"' >/dev/null && break
   sleep 0.1
 done
-on box-b recv --as c-007 | grep -q '"body":"live"' || fail "hub-run did not write the live frame"
+on box-b recv --as c-007 | grep '"body":"live"' >/dev/null || fail "hub-run did not write the live frame"
 ok "live receiver (hub-run): delivery=sent, written to the inbox"
 
 # 6. result back to box-a
 out="$(on box-b send --from c-007 --to g-003 --task "$task" --kind result --body "done")"
-echo "$out" | grep -q '"delivery":"queued"' || fail "result send: $out"
+echo "$out" | grep '"delivery":"queued"' >/dev/null || fail "result send: $out"
 on box-a hub-sync >/dev/null
-on box-a recv --as g-003 | grep -q '"kind":"result"' || fail "result not received"
+on box-a recv --as g-003 | grep '"kind":"result"' >/dev/null || fail "result not received"
 ok "kind=result crossed back (queued -> hub-sync)"
 
 # 7. hub down -> pending (exit 0); hub back -> flush; the daemon reconnects and receives
 stop_hub
 out="$(on box-a send --from g-003 --to c-007 --task "$task" --kind note --body "while down")"
-echo "$out" | grep -q '"delivery":"pending"' || fail "hub-down send: $out"
-on box-a send --from g-003 --to g-003 --kind note --body "self" | grep -q '"delivery":"local"' || fail "same-box with hub down"
+echo "$out" | grep '"delivery":"pending"' >/dev/null || fail "hub-down send: $out"
+on box-a send --from g-003 --to g-003 --kind note --body "self" | grep '"delivery":"local"' >/dev/null || fail "same-box with hub down"
 ok "hub down: cross-box delivery=pending (exit 0), same-box still local"
 start_hub
-on box-a hub-sync | grep -q '"flushed":1' || fail "flush"
+on box-a hub-sync | grep '"flushed":1' >/dev/null || fail "flush"
 for _ in $(seq 1 150); do
-  on box-b recv --as c-007 | grep -q '"body":"while down"' && break
+  on box-b recv --as c-007 | grep '"body":"while down"' >/dev/null && break
   sleep 0.2
 done
-on box-b recv --as c-007 | grep -q '"body":"while down"' || fail "daemon did not reconnect and receive the flushed message"
+on box-b recv --as c-007 | grep '"body":"while down"' >/dev/null || fail "daemon did not reconnect and receive the flushed message"
 ok "hub back: flush sent the pending envelope; hub-run reconnected and received it"
 
 # 8. the topic from the hub
@@ -287,10 +287,10 @@ ok "hub-tail returns the 4-message topic (task, live, result, flushed)"
 # 9. door-off view API + /v1/wui/ws (003 T036 door-off variant; token door waits on T033/B1)
 command -v python3 >/dev/null || fail "python3 required for /v1/wui/ws e2e"
 topics="$(view_get /v1/view/topics)"
-echo "$topics" | grep -q "$task" || fail "view topics missing $task: $topics"
+echo "$topics" | grep "$task" >/dev/null || fail "view topics missing $task: $topics"
 one="$(view_get "/v1/view/topics/$task")"
-echo "$one" | grep -q '"task_id"' || fail "view one topic: $one"
-echo "$one" | grep -q "build it" || fail "view one topic missing body: $one"
+echo "$one" | grep '"task_id"' >/dev/null || fail "view one topic: $one"
+echo "$one" | grep "build it" >/dev/null || fail "view one topic missing body: $one"
 children="$(view_get "/v1/view/topics/$task/children")"
 echo "$children" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert isinstance(d.get("topics"), list), d' \
   || fail "view children: $children"
@@ -302,7 +302,7 @@ echo "$channels" | python3 -c 'import json,sys; s={c["channel"] for c in json.lo
   || fail "view channels: $channels"
 ok "door-off GET /v1/view/{topics,topics/{id},children,roster,channels}"
 wsout="$(wui_hello_subscribe)"
-echo "$wsout" | grep -q "ok HUM-1 $LOBBY" || fail "wui ws: $wsout"
+echo "$wsout" | grep "ok HUM-1 $LOBBY" >/dev/null || fail "wui ws: $wsout"
 ok "door-off /v1/wui/ws hello + subscribe LOBBY"
 
 echo "ALL HUB E2E CHECKS PASSED"

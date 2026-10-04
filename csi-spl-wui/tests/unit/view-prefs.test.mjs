@@ -198,7 +198,8 @@ describe('newest-last scroll anchor', () => {
     /* the pill points at the newest end */
     assert.match(feed, /↑ \{\{ t\('feed\.new_pill'/)
     assert.match(feed, /↓ \{\{ t\('feed\.new_pill'/)
-    /* A9: a deep link stops the bottom follow */
-    assert.match(feed, /if \(el\) hold\(\)/)
+    /* A9: a deep link stops the bottom follow once the row is on screen. */
+    assert.match(feed, /if \(!el \|\| !scroller \|\| scroller\.clientHeight <= 0\)/)
+    assert.match(feed, /hold\(\)\n\s+el\.focus\(\{ preventScroll: true \}\)/)
   })
 })

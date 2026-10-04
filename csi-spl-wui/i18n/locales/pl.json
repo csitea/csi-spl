@@ -607,6 +607,7 @@
       "move_channel": "Przenieś do kanału…",
       "merge_topic": "Scal z…",
       "move_topic": "Przenieś do tematu…",
+      "hide_flow": "Ukryj z przepływu",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może edytować ten temat",

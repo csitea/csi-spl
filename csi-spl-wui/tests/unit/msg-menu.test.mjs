@@ -33,6 +33,17 @@ describe('msgMenuItems', () => {
     assert.deepEqual(msgMenuItems().map((i) => i.id), ['open', 'copy'])
   })
 
+  it('HUM-10 t1 7d9faaad: Hide from flow sits after Copy link only when hide is set', () => {
+    const item = msgMenuItems({ hide: true }).find((i) => i.id === 'hide-flow')
+    assert.deepEqual(item, { id: 'hide-flow', icon: 'eye-off', labelKey: 'feed.msg_menu.hide_flow' })
+    assert.deepEqual(msgMenuItems({ hide: true }).map((i) => i.id), ['open', 'copy', 'hide-flow'])
+    assert.equal(msgMenuItems({ editable: true }).some((i) => i.id === 'hide-flow'), false)
+    assert.deepEqual(
+      msgMenuItems({ hide: true, editable: true, touch: true }).map((i) => i.id),
+      ['reply', 'react', 'open', 'copy-text', 'copy', 'hide-flow', 'edit', 'delete'],
+    )
+  })
+
   it('SPL-991: the phone sheet starts with Reply and Add emoji, adds Copy text and (when allowed) Kind; the desktop menu is unchanged', () => {
     assert.deepEqual(msgMenuItems({ editable: true, touch: true, kind: true }).map((i) => i.id), ['reply', 'react', 'open', 'copy-text', 'copy', 'edit', 'kind', 'delete'])
     assert.deepEqual(msgMenuItems({ touch: true }).map((i) => i.id), ['reply', 'react', 'open', 'copy-text', 'copy'])
@@ -164,6 +175,13 @@ describe('the card opens the menu on a right-click', () => {
     assert.match(menu, /\{\{ t\(item\.labelKey\) \}\}/)
     assert.match(menu, /:data-testid="testid"/)
     assert.match(card, /@open="onMenuOpen"/)
+    assert.match(card, /:hide="menuHide"/)
+    assert.match(card, /@hide-flow="onMenuHide"/)
+    assert.match(card, /function onMenuHide\(\) \{\n  closeMenu\(\)\n  swipeHideCommit\(\)\n\}/)
+    assert.match(card, /const menuHide = computed\(\(\) => Boolean\(props\.msg\.msg_id\) && !props\.msg\.pending/)
+    assert.match(card, /swipeLeftAction\(\{ swipeOn: true, starter: swipeStarter\.value/)
+    assert.match(src('src/components/MessageMenu.vue'), /hide: props\.hide/)
+    assert.match(src('src/components/MessageMenu.vue'), /id === 'hide-flow'/)
     assert.match(card, /topicPaneLink\(/)
     assert.match(card, /threadLineLink\(/)
   })
@@ -173,7 +191,8 @@ describe('every locale names the message actions', () => {
   it('translates edit and delete, and keeps the same keys', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
-    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'copy_text', 'delete', 'edit', 'kind', 'label', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_in_channels', 'open_in_dm', 'open_parent', 'promote_topic', 'reply', 'unarchive', 'why'])
+    assert.equal(en.hide_flow, 'Hide from flow')
+    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'copy_text', 'delete', 'edit', 'hide_flow', 'kind', 'label', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_in_channels', 'open_in_dm', 'open_parent', 'promote_topic', 'reply', 'unarchive', 'why'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {
@@ -194,6 +213,7 @@ describe('every locale names the message actions', () => {
       assert.notEqual(row.move_channel, en.move_channel, code) // SPL-1024
       assert.notEqual(row.move_topic, en.move_topic, code)
       assert.notEqual(row.merge_topic, en.merge_topic, code) // 714c7028
+      assert.notEqual(row.hide_flow, en.hide_flow, code)
     }
   })
 })

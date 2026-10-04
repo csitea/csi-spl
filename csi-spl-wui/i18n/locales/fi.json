@@ -607,6 +607,7 @@
       "move_channel": "Siirrä kanavalle…",
       "merge_topic": "Yhdistä toiseen…",
       "move_topic": "Siirrä aiheeseen…",
+      "hide_flow": "Piilota flowsta",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi muokata tätä aihetta",

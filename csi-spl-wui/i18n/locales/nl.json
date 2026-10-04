@@ -607,6 +607,7 @@
       "move_channel": "Verplaatsen naar kanaal…",
       "merge_topic": "Samenvoegen met…",
       "move_topic": "Verplaatsen naar onderwerp…",
+      "hide_flow": "Verberg uit de flow",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp bewerken",

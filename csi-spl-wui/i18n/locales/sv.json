@@ -607,6 +607,7 @@
       "move_channel": "Flytta till kanal…",
       "merge_topic": "Slå ihop med…",
       "move_topic": "Flytta till ämne…",
+      "hide_flow": "Dölj från flödet",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan redigera det här ämnet",

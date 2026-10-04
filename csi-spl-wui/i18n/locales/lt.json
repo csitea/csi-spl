@@ -607,6 +607,7 @@
       "move_channel": "Perkelti į kanalą…",
       "merge_topic": "Sujungti su…",
       "move_topic": "Perkelti į temą…",
+      "hide_flow": "Slėpti iš srauto",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali redaguoti šią temą",

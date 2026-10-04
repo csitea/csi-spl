@@ -607,6 +607,7 @@
       "move_channel": "Pārvietot uz kanālu…",
       "merge_topic": "Apvienot ar…",
       "move_topic": "Pārvietot uz tēmu…",
+      "hide_flow": "Paslēpt no plūsmas",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var rediģēt šo tēmu",

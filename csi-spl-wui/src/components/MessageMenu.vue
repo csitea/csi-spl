@@ -50,6 +50,8 @@ const props = defineProps<{
   mergeTopic?: boolean
   /** 8f588edd: a reply the viewer may promote into a new topic of its own */
   promoteTopic?: boolean
+  /** HUM-10 (t1 7d9faaad): a topic-view reply a left swipe may hide */
+  hide?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
   locks?: Partial<TopicMenuLocks>
 }>()
@@ -74,6 +76,7 @@ const emit = defineEmits<{
   'move-topic': []
   'merge-topic': []
   'promote-topic': []
+  'hide-flow': []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -94,6 +97,7 @@ const items = computed(() => msgMenuItems({
   moveTopic: props.moveTopic,
   mergeTopic: props.mergeTopic,
   promoteTopic: props.promoteTopic,
+  hide: props.hide,
   locks: props.locks,
 }))
 /* UiPointMenu skips a disabled entry and emits close after this */
@@ -115,6 +119,7 @@ function choose(id: string) {
   else if (id === 'move-topic') emit('move-topic')
   else if (id === 'merge-topic') emit('merge-topic')
   else if (id === 'promote-topic') emit('promote-topic')
+  else if (id === 'hide-flow') emit('hide-flow')
 }
 </script>
 

@@ -607,6 +607,7 @@
       "move_channel": "Teisalda kanalisse…",
       "merge_topic": "Liida teemaga…",
       "move_topic": "Teisalda teemasse…",
+      "hide_flow": "Peida voost",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat muuta",

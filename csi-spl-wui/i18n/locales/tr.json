@@ -607,6 +607,7 @@
       "move_channel": "Kanala taşı…",
       "merge_topic": "Şununla birleştir…",
       "move_topic": "Konuya taşı…",
+      "hide_flow": "Akıştan gizle",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici düzenleyebilir",

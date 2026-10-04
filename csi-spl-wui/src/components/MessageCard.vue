@@ -361,6 +361,7 @@
       :merge-topic="canMoveTopic"
       :move-topic="canMoveMsg"
       :promote-topic="canMoveMsg"
+      :hide="menuHide"
       :locks="menuLocks"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
@@ -381,6 +382,7 @@
       @move-topic="openMovePicker('topic')"
       @merge-topic="openMovePicker('merge')"
       @promote-topic="onPromote"
+      @hide-flow="onMenuHide"
     />
     <!-- SPL-1024: Move to channel… / Move to topic…, mounted when picked -->
     <LazyMovePickerDialog
@@ -873,6 +875,13 @@ const swipeLeft = computed(() => {
   const a = swipeLeftAction({ swipeOn: swipeOn.value, starter: swipeStarter.value, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value })
   return a === 'hide' && (!props.msg.msg_id || props.msg.pending) ? null : a
 })
+/* HUM-10 (owner, t1 7d9faaad): the right-click menu, the … button and the
+   phone's swipe-right sheet offer Hide from flow where a left swipe would
+   hide this reply. swipeOn is forced on: a desktop card does not swipe, and
+   the allow-rule is still a topic-view reply (not the starter) with a
+   msg_id that is not pending. feed.swipe_hide stays the gesture hint. */
+const menuHide = computed(() => Boolean(props.msg.msg_id) && !props.msg.pending
+  && swipeLeftAction({ swipeOn: true, starter: swipeStarter.value, mayArchive: swipeArchive.value, inTopicPane: inTopicPane.value }) === 'hide')
 const hiddenCards = useHiddenCards()
 /** signed: < 0 slid towards the start (archive / hide), > 0 towards the end (menu) */
 const swipeDx = ref(0)
@@ -943,6 +952,10 @@ async function swipeCommit() {
 }
 /* the card slides out, then leaves the list: LiveFeed draws the line */
 let hideTimer: ReturnType<typeof setTimeout> | null = null
+function onMenuHide() {
+  closeMenu()
+  swipeHideCommit()
+}
 function swipeHideCommit() {
   stack.swipe.claim()
   swipeTo(-(rowEl.value?.getBoundingClientRect().width || 0), true)

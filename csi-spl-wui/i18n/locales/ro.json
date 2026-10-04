@@ -607,6 +607,7 @@
       "move_channel": "Mută în canal…",
       "merge_topic": "Îmbină cu…",
       "move_topic": "Mută în subiect…",
+      "hide_flow": "Ascunde din flux",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate edita acest subiect",

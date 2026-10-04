@@ -607,6 +607,7 @@
       "move_channel": "Mover a un canal…",
       "merge_topic": "Combinar con…",
       "move_topic": "Mover a un tema…",
+      "hide_flow": "Ocultar del flujo",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede editar este tema",

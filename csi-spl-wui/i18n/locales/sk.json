@@ -607,6 +607,7 @@
       "move_channel": "Presunúť do kanála…",
       "merge_topic": "Zlúčiť s…",
       "move_topic": "Presunúť do témy…",
+      "hide_flow": "Skryť z toku",
       "promote_topic": "Make it a topic",
       "why": {
         "edit": "Túto tému môže upraviť len jej zakladateľ, vlastník pracovného priestoru alebo správca",

@@ -1274,6 +1274,17 @@ html.pane-dragging * {
   background: var(--color-selected);
   box-shadow: inset var(--select-bar-w) 0 0 var(--focus-ring);
 }
+/* t1 09b60f6f: on a phone the open topic's title is the text alone, inside
+   a complete 1px border. The "Topic:" label and the left selection bar
+   stay on the desktop row. */
+@media (max-width: 820px) {
+  .topic-heading__label { display: none; }
+  .topic-heading__title {
+    background: transparent;
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+  }
+}
 .msg.selected { border-radius: var(--radius); }
 /* CLE-77812 (owner, topic b005eb90 + a3c2cf08): the SELECTED sidebar row (a
    channel, and every list that shares .nav-item — DMs, topics, people, agents,

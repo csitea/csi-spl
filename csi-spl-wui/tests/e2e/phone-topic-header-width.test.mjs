@@ -96,6 +96,53 @@ function readBox(page) {
   })
 }
 
+const SHOT = '/tmp/g-181-phone-topic-border.png'
+const THREADS = [
+  ['channel', `/channel/lobby?topic=${TOPIC}`],
+  ['topics', `/?topic=${TOPIC}`],
+]
+
+function readThread(page) {
+  return page.evaluate(() => {
+    const el = document.querySelector('[data-test=topic-heading]')
+    const textEl = el && el.querySelector('.topic-heading__text')
+    const label = el && el.querySelector('.topic-heading__label')
+    const s = el ? getComputedStyle(el) : null
+    const ls = label ? getComputedStyle(label) : null
+    const lr = label ? label.getBoundingClientRect() : null
+    const clips = [...document.querySelectorAll('[data-clip-pane="thread"] .card-clip-ctl__opt')].filter((n) => {
+      const r = n.getBoundingClientRect()
+      const cs = getComputedStyle(n)
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0
+    }).length
+    return {
+      text: textEl ? (textEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
+      labelText: label ? (label.textContent || '').replace(/\s+/g, ' ').trim() : '',
+      labelOn: !!(ls && ls.display !== 'none' && lr && lr.width > 0 && lr.height > 0),
+      border: s ? [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth] : [],
+      borderStyle: s ? [s.borderTopStyle, s.borderRightStyle, s.borderBottomStyle, s.borderLeftStyle] : [],
+      shadow: s ? s.boxShadow : '',
+      clips,
+    }
+  })
+}
+
+async function openThread(page, path) {
+  const url = `${srv.base}${path}`
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.goto(url, { waitUntil: 'domcontentloaded' })
+    for (let i = 0; i < 40; i++) {
+      const text = await page.evaluate(() => {
+        const el = document.querySelector('[data-test=topic-heading] .topic-heading__text')
+        return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : ''
+      }).catch(() => '')
+      if (text === TITLE) return
+      await sleep(500)
+    }
+  }
+  throw new Error(`thread title never appeared: ${path}`)
+}
+
 const srv = await startServer()
 const browser = await launch()
 try {
@@ -157,6 +204,37 @@ try {
   ok('1280px there is no back arrow', !desk.back || !desk.back.visible, desk.back)
   ok('1280px the title still shows the topic text', desk.title.text === TITLE, desk.title)
   ok('1280px no sideways scroll', desk.docScroll <= desk.docClient + 1, desk)
+
+  const four = (b) => b.length === 4 && b.every((w) => w === '1px')
+  const none = (b) => b.length === 4 && b.every((w) => w === '0px')
+  const solid = (st) => st.length === 4 && st.every((w) => w === 'solid')
+  for (const width of [360, 390, 430]) {
+    await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })
+    for (const [name, path] of THREADS) {
+      await openThread(page, path)
+      await sleep(300)
+      const h = await readThread(page)
+      console.log(`THREAD ${width} ${name} text=${JSON.stringify(h.text)} label=${h.labelOn} border=${h.border} shadow=${h.shadow} clips=${h.clips}`)
+      ok(`${width}px ${name} title has no Topic: prefix`, h.text === TITLE && !h.labelOn && !h.text.startsWith('Topic:'), h)
+      ok(`${width}px ${name} title has a four-side 1px border`, four(h.border) && solid(h.borderStyle) && h.shadow === 'none', h)
+      ok(`${width}px ${name} the three clip buttons stay`, h.clips === 3, h.clips)
+      if (width === 390 && name === 'channel') {
+        await page.screenshot({ path: SHOT })
+        console.log(`SHOT ${SHOT}`)
+      }
+    }
+  }
+
+  await page.setViewport({ width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  for (const [name, path] of THREADS) {
+    await openThread(page, path)
+    await sleep(300)
+    const h = await readThread(page)
+    console.log(`THREAD 1280 ${name} label=${JSON.stringify(h.labelText)} border=${h.border} shadow=${h.shadow}`)
+    ok(`1280px ${name} keeps the Topic: label`, h.text === TITLE && h.labelOn && h.labelText === 'Topic:', h)
+    ok(`1280px ${name} keeps the left selection bar`, none(h.border) && h.shadow.includes('inset'), h)
+    ok(`1280px ${name} the three clip buttons stay`, h.clips === 3, h.clips)
+  }
   await page.close()
 } finally {
   await browser.close()

@@ -19,7 +19,7 @@
       <MobileBack />
       <!-- SPL-1133: the X at the chosen corner (Mac = here, the default) -->
       <UiCloseButton side="start" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />
-      <strong class="topic-heading__title" :class="{ 'is-archived': archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading">{{ heading }}</strong>
+      <strong class="topic-heading__title" :class="{ 'is-archived': archivedAt }" data-test="topic-heading" data-selected="true" aria-current="true" :title="heading"><span v-if="titleText" class="topic-heading__label">{{ t('topic.list_title', { text: '' }) }}</span><span class="topic-heading__text">{{ titleText || t('topic.title') }}</span></strong>
       <ArchivedBadge v-if="archivedAt" :at="archivedAt" />
       <LazyCardClipControl pane="thread" />
       <UiCloseButton side="end" class="icon-btn topic-close" data-test="topic-pane-close" @click="topic.close()" />

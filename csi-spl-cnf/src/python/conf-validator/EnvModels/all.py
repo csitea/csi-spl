@@ -1,9 +1,14 @@
 # csi-spl ::: all.env.yaml, the settings shared by every env (deep-merged
 # UNDER <env>.env.yaml by do_spl_merged_cnf). It holds THE domain and the hub
 # env-var names; everything env-specific is in <env>.env.yaml.
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, root_validator
 from pydantic_yaml import YamlModel
+
+
+class Cloud(BaseModel):
+    """spec 076: the cloud provider the env runs on; gcp unless the cnf says otherwise."""
+    provider: Literal["gcp", "none", "aws"] = "gcp"
 
 
 class Dns(BaseModel):
@@ -24,6 +29,7 @@ class I18n(BaseModel):
 
 class Env(YamlModel):
     dns: Dns
+    cloud: Cloud = Cloud()
     hub: Any
     auth: Any
     i18n: I18n

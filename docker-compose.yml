@@ -92,6 +92,8 @@ services:
     command: ["serve"]
     environment:
       SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
+      # spec 076: this stack is the no-cloud provider (local files, plain Postgres)
+      SPOOL_CLOUD_PROVIDER: none
       SPOOL_HUB_DB_DSN: postgres://${SPOOL_DB_RUNTIME:-spool_hub_rt}:${SPOOL_DB_RUNTIME_PASSWORD:-spool-local-runtime}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
       SPOOL_HUB_FILES_DIR: /var/lib/spool/files
       # a tenant host is <tenant>.<domain>; the browser uses the one public

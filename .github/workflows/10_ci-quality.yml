@@ -732,6 +732,11 @@ jobs:
       - name: conf-validator-exit-codes.tst.sh
         run: bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh
 
+      # spec 076 T002: the models' own unit tests (env.cloud.provider)
+      - name: conf-validator unit tests
+        working-directory: csi-spl-cnf/src/python/conf-validator
+        run: poetry run python -m unittest discover -v
+
   # ===========================================================================
   # Reference-hygiene gate (spec 002 T003): the spool Go source never
   # references ysg-box. Also part of run-all-tests.sh; its own job so a

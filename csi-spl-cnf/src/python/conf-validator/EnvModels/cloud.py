@@ -4,12 +4,17 @@
 # <env>.env.yaml alone is not a renderable config (no hub, no fqdn), so it is
 # not what this model describes.
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, root_validator
 from pydantic_yaml import YamlModel
 
 # GCP's own project id rule
 GCP_PROJECT_ID = re.compile(r"[a-z][a-z0-9-]{4,28}[a-z0-9]")
+
+
+class Cloud(BaseModel):
+    """spec 076: the cloud provider the env runs on; gcp unless the cnf says otherwise."""
+    provider: Literal["gcp", "none", "aws"] = "gcp"
 
 
 class Gcp(BaseModel):
@@ -50,6 +55,7 @@ class Env(YamlModel):
     dns: Dns
     versions: Versions
     gcp: Gcp
+    cloud: Cloud = Cloud()
     # one entry per terraform step; its keys are the step's own tfvars
     steps: Dict[str, Optional[Dict[str, Any]]]
     hub: Any

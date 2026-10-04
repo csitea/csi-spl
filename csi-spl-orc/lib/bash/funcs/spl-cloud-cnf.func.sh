@@ -21,6 +21,33 @@ spl_require_cloud_env() {
   [[ "$e" == dev || "$e" == prd ]] || { do_log "FATAL ENV must be dev or prd, got: '$e'"; return 1; }
 }
 
+# do_spl_cloud_provider: print the cloud provider the env runs on (spec 076):
+# gcp, none or aws. SPOOL_CLOUD_PROVIDER wins (the root docker-compose.yml sets
+# none); else env.cloud.provider of the effective cnf: $SPL_CNF once
+# do_spl_cloud_cnf has run, else all.env.yaml under <ENV>.env.yaml from
+# $APP_PATH/<org>-<app>-cnf; else gcp, the default. Any other value: FATAL, 1.
+do_spl_cloud_provider() {
+  local p="${SPOOL_CLOUD_PROVIDER:-}" dir
+  local -a files=()
+  if [[ -z "$p" ]]; then
+    if [[ -n "${SPL_CNF:-}" && -s "$SPL_CNF" ]]; then
+      files=("$SPL_CNF")
+    elif [[ -n "${APP_PATH:-}" && "$(basename "${PROJ_PATH:-}")" =~ ^([a-z]+)-([a-z]+)-orc$ ]]; then
+      dir="$APP_PATH/${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-cnf/${BASH_REMATCH[1]}-${BASH_REMATCH[2]}"
+      files=("$dir/all.env.yaml")
+      [[ -n "${ENV:-}" && -f "$dir/$ENV.env.yaml" ]] && files+=("$dir/$ENV.env.yaml")
+    fi
+    if ((${#files[@]})); then
+      p=$(yq eval-all -r '. as $i ireduce ({}; . * $i) | .env.cloud.provider // ""' "${files[@]}") ||
+        { do_log "FATAL cannot read env.cloud.provider from ${files[*]}"; return 1; }
+    fi
+  fi
+  case "${p:-gcp}" in
+    gcp | none | aws) echo "${p:-gcp}" ;;
+    *) do_log "FATAL cloud provider must be gcp, none or aws, got: '$p'"; return 1 ;;
+  esac
+}
+
 do_spl_cloud_cnf() {
   spl_require_cloud_env || return 1
   local proj_base

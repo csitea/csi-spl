@@ -181,7 +181,7 @@ reply() {  # INBOX_ID TO TASK STATUS LINES...
 req_field() { sed -n '1,/^---$/p' <<<"$1" | sed -n "s/^$2: //p" | sed -n 1p; }
 
 handle() {  # INBOX_ID FILE
-  local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason
+  local me="$1" f="$2" msg from task body holder kind title workdir slug brief out rc id pane reason requester
   msg="$(jq -r '.msg_id // ""' "$f" 2>/dev/null)"
   [[ "$msg" =~ ^[0-9A-Za-z-]{8,64}$ ]] || return 0
   grep -qxF -- "$msg" "$STATE/seen" 2>/dev/null && return 0
@@ -206,11 +206,14 @@ handle() {  # INBOX_ID FILE
   brief="$STATE/briefs/$msg.md"
   sed '1,/^---$/d' <<<"$body" >"$brief" && chmod 644 "$brief"
   [ -s "$brief" ] || { rm -f "$brief"; brief=""; }
+  # The cron tick has no agent id. The verified `from` is who asked; the
+  # target's spawn-window records it (a bare id; "@<box>" is the relay).
+  requester="${from%%@*}"
   if [ -n "${SPAWN_REMOTE_WINDOW_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    out="$($SPAWN_REMOTE_WINDOW_CMD "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
+    out="$(SPAWN_REQUESTER="$requester" $SPAWN_REMOTE_WINDOW_CMD "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
   else
-    out="$(bash "$HERE/spawn-window.sh" "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
+    out="$(SPAWN_REQUESTER="$requester" bash "$HERE/spawn-window.sh" "$kind" "$title" "$workdir" ${brief:+"$brief"} ${slug:+"$slug"} 2>&1)"; rc=$?
   fi
   read -r id pane <<<"$(grep -E '^[A-Za-z][A-Za-z0-9-]* (%[0-9]+|-)$' <<<"$out" | tail -1)"
   if [ "$rc" -ne 0 ] || [ -z "${id:-}" ]; then

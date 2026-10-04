@@ -28,7 +28,14 @@
 # 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it),
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
 # `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
-# remote spawn on an explicit SPAWN_BOX did not start (PLACEMENT below).
+# remote spawn on an explicit SPAWN_BOX did not start (PLACEMENT below),
+# 9 the requester is a lane. Only c-001, c-002 and c-003 (any box), or a
+# shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
+# or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
+# the closest ancestor that still carries the id (`sudo -u` strips it from
+# the child). SPAWN_ALLOW_LANE=1 with a reason in SPAWN_ALLOW_REASON allows
+# a lane and appends one line to $SPOOL_ROOT/spawn-allow.log. The registry
+# row's last column is that requester ("-" when there is no agent id).
 #
 # PEER GATE: with <spool root>/peer/seats present, a seat (PEER_SEAT, else
 # SPOOL_AGENT_ID) spawns only for the message it holds (PEER_MSG, PEER_GEN):
@@ -72,6 +79,9 @@ case "$KIND" in claude|grok|agy|qwen) ;; *) usage ;; esac
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
+# Before a claim, a window, or a remote placement: a lane must not start one.
+SPAWN_REQUESTER="$(spool_spawn_gate)" || exit $?
+export SPAWN_REQUESTER
 [ ! -e "${SPOOL_ROOT}/dispatch/box.leave" ] || { echo "spawn-window: this machine is draining ($(head -c 200 "${SPOOL_ROOT}/dispatch/box.leave")): spawn on another box, or run ./run -a do_spl_box_join here" >&2; exit 6; }
 # shellcheck source=../lib/spool-fleet.inc.sh
 . "$HERE/../lib/spool-fleet.inc.sh"
@@ -177,7 +187,7 @@ fi
 envs=()
 for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
          SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPAWN_GIT_IDENTITY \
-         SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
+         SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
   [ -n "${!v:-}" ] && envs+=("$v=${!v}")
 done
 printf -v cmd '%q ' env "${envs[@]}" bash "$LAUNCHER" "$TITLE" "$@"

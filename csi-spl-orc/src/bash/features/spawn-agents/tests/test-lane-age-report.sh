@@ -23,6 +23,9 @@ printf '%s\t%s\t%s\t%s\t%s\n' \
   c-053 claude %4 "$W/gone" 20261003T080000Z \
   c-002 claude %5 "$W/c-002" 20261003T010000Z \
   >"$SPOOL_ROOT/registry.tsv"
+# A requester column on one row must not move spawned-utc (bash read).
+awk -F'\t' -v OFS='\t' '$1 == "c-050" { $6 = "c-001" } { print }' "$SPOOL_ROOT/registry.tsv" >"$T_TMP/reg" \
+  && mv "$T_TMP/reg" "$SPOOL_ROOT/registry.tsv"
 before="$(cd "$T_TMP" && find . -type f -newer "$R" | sort | md5sum)"
 
 out="$(LANE_AGE_NOW="$now" bash "$R" 2>&1)"; rc=$?

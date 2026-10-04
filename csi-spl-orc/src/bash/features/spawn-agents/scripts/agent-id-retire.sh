@@ -9,7 +9,9 @@
 #          inbox mail stays there; the next holder never sees it.
 #   registry.tsv rows of <ID>
 #       -> appended to registry.retired.tsv with retired-utc as column 6
-#          (the allocator's quarantine reads it), then removed from registry.tsv
+#          (the allocator's quarantine reads it). A requester column on the
+#          live row is kept after that timestamp, then the row is removed
+#          from registry.tsv
 #   identity record agents/<ID>.json
 #       -> agents/retired/<ID>.<spawned-utc>.json; index.json re-hashed
 #   hub lane row -> state done (lane-map.sh done), best effort
@@ -118,8 +120,16 @@ fi
 if [ "$APPLY" = 1 ]; then
   (
     flock -w 30 9 || { echo "agent-id-retire: ${REG}.lock stayed locked" >&2; exit 1; }
-    # Each row gets retired-utc as column 6 (rows carry 5 columns).
-    printf '%s\n' "$rows" | awk -F'\t' -v OFS='\t' -v t="$RETIRED_UTC" '{ $6 = t; print }' >>"$R/registry.retired.tsv"
+    # retired-utc stays column 6 (next-agent-id.sh and RetiredInQuarantine
+    # read that column). A requester on the live row (its column 6) is kept
+    # after the timestamp, so the timestamp is not overwritten by it.
+    printf '%s\n' "$rows" | awk -F'\t' -v OFS='\t' -v t="$RETIRED_UTC" '{
+      extra = ""
+      if (NF >= 6 && $6 !~ /^[0-9]{8}T[0-9]{6}Z$/) extra = $6
+      $6 = t
+      if (extra != "") $7 = extra
+      print
+    }' >>"$R/registry.retired.tsv"
     chmod 0664 "$R/registry.retired.tsv" 2>/dev/null || true
     if [ -r "$REG" ]; then
       # Rewritten in place (same inode): a spawner appending with >> keeps

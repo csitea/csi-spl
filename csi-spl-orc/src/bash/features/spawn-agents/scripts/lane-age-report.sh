@@ -41,9 +41,11 @@ _age_min() {
 spool_tmux_argv
 panes="$("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}' 2>/dev/null || true)"
 
-# The latest row per id (registry.tsv: id kind pane rundir spawned-utc).
+# The latest row per id (registry.tsv: id kind pane rundir spawned-utc, and
+# an optional requester appended last). The extra field goes to its own
+# variable: bash `read` would otherwise glue it onto spawned.
 awk -F'\t' 'NF >= 5 { row[$1] = $0 } END { for (i in row) print row[i] }' "$R/registry.tsv" |
-while IFS=$'\t' read -r id _kind pane rundir spawned; do
+while IFS=$'\t' read -r id _kind pane rundir spawned _; do
   is_role_seat "$id" && continue
   [ -d "$rundir" ] || continue
   [ -z "$panes" ] || grep -qxF -- "$pane" <<<"$panes" || continue

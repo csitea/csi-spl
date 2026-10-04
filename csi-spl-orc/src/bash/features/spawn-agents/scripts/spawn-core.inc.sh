@@ -9,7 +9,10 @@
 #   - the message root is $SPOOL_ROOT (default /var/spool-hub): the agent's
 #     dirs are $SPOOL_ROOT/<ID>/{inbox,outbox,archive} and it is on the roster
 #     because that dir exists (trust-modes §4). The registry of spawns
-#     (id, kind, pane, rundir, spawned-utc) is $SPOOL_ROOT/registry.tsv.
+#     (id, kind, pane, rundir, spawned-utc, requester) is $SPOOL_ROOT/registry.tsv.
+#     The requester is last, so a reader of columns 1-5 is unchanged. "-" is a
+#     shell with no agent id. spawn-window.sh gates who may spawn; a direct
+#     launcher call gates here before any directory is created.
 #   - TITLE is a spool agent id (c-004, or the legacy CLE-07: specs/061),
 #     never a BOX- prefix, and its letter / prefix must name the adapter's kind.
 #   - the seed prompt teaches the SPOOL protocol instead of the markdown inbox:
@@ -187,7 +190,12 @@ fi
 # record; the tmux poke is only the doorbell.
 # SPAWN_ORC_DIR: the orc module the invoked scripts dir sits in (lease show).
 SPAWN_ORC_DIR="${SPAWN_SCRIPTS_DIR%/src/bash/features/spawn-agents/scripts}"
-SPOOL_PROTO="THE SPOOL MESSAGING PROTOCOL (how the orchestrator and your peers talk to you). Your spool agent id is ${TITLE}; the spool root is ${SPOOL_ROOT} and your dirs are ${MSGDIR}/{inbox,outbox,archive}. Messages are v:1 JSON objects (fields v, msg_id, task_id, ts, from, to, kind, body, files; kind is one of task|result|note|reject|blocker|msg; local mode is UNSIGNED - there is no sig and you never generate or handle a key). The spool binary is ${SPOOL_BIN}; always run it with SPOOL_ROOT=${SPOOL_ROOT} in its environment. READ: 'SPOOL_ROOT=${SPOOL_ROOT} ${SPOOL_BIN} recv --as ${TITLE}' prints your inbox as a JSON array; add '--ack' once you have acted on them to move them to archive/. A topic is a task_id: 'SPOOL_ROOT=${SPOOL_ROOT} ${SPOOL_BIN} tail --task <task_id>' shows it oldest-first across every agent. SEND: 'bash ${SPAWN_SCRIPTS_DIR}/spool-send.sh --from ${TITLE} --to <PEER-ID> --kind <task|result|note|reject|blocker|msg> [--task <task_id>] --body \"<text>\"' - it runs spool send (writing the v:1 object into the peer's inbox and a copy into your outbox), prints {delivery, msg_id, task_id, ts}, then rings the peer's tmux window with a short shell-inert poke line. Reply on the SAME --task as the message you answer, so the topic stays one task_id. The terminal only ever shows a poke line (': 'SPOOL ${TITLE}: ...''); the poke is a doorbell, the spool FILE is the message - when poked, at natural breakpoints, and before declaring yourself done, run spool recv. Report questions, blockers, status and your final summary to the orchestrator with spool-send.sh --to orchestrator (kind result for the final summary, note otherwise): it resolves to whoever holds the fleet lease's orch role, on this machine or another (today ${SPOOL_ORCHESTRATOR_ID} here), and a peer id on another machine is relayed through the hub. OWNER TEXT (a post meant for the owner, e.g. in a t1 topic) goes to whoever holds the dispatch lease RIGHT NOW, read with 'cd ${SPAWN_ORC_DIR} && sudo -u ${SPOOL_BOX_USER} env SPOOL_ROOT=${SPOOL_ROOT} LEASE_CMD=show ./run -a do_spl_dispatch_lease' (prints '<ID>@<box> <age-seconds>'), never to a fixed dispatcher id and never to the dispatcher that last posted in that topic. Every agent on this box has a dir under ${SPOOL_ROOT} and a row in ${SPOOL_ROOT}/registry.tsv (id, kind, tmux-pane, rundir, spawned-utc). Message peers ONLY for your task, blocker handoffs and scope collisions, never open-ended chatter; never type message payloads into tmux windows. HOW TO WRITE A POST: a longer body uses markdown (headers, bold, lists, GFM pipe tables with one row per line) and needs no \`\`\`md fence; the one rule is csi-spl-doc/doc/help/how-to-post.md."
+SPOOL_PROTO="THE SPOOL MESSAGING PROTOCOL (how the orchestrator and your peers talk to you). Your spool agent id is ${TITLE}; the spool root is ${SPOOL_ROOT} and your dirs are ${MSGDIR}/{inbox,outbox,archive}. Messages are v:1 JSON objects (fields v, msg_id, task_id, ts, from, to, kind, body, files; kind is one of task|result|note|reject|blocker|msg; local mode is UNSIGNED - there is no sig and you never generate or handle a key). The spool binary is ${SPOOL_BIN}; always run it with SPOOL_ROOT=${SPOOL_ROOT} in its environment. READ: 'SPOOL_ROOT=${SPOOL_ROOT} ${SPOOL_BIN} recv --as ${TITLE}' prints your inbox as a JSON array; add '--ack' once you have acted on them to move them to archive/. A topic is a task_id: 'SPOOL_ROOT=${SPOOL_ROOT} ${SPOOL_BIN} tail --task <task_id>' shows it oldest-first across every agent. SEND: 'bash ${SPAWN_SCRIPTS_DIR}/spool-send.sh --from ${TITLE} --to <PEER-ID> --kind <task|result|note|reject|blocker|msg> [--task <task_id>] --body \"<text>\"' - it runs spool send (writing the v:1 object into the peer's inbox and a copy into your outbox), prints {delivery, msg_id, task_id, ts}, then rings the peer's tmux window with a short shell-inert poke line. Reply on the SAME --task as the message you answer, so the topic stays one task_id. The terminal only ever shows a poke line (': 'SPOOL ${TITLE}: ...''); the poke is a doorbell, the spool FILE is the message - when poked, at natural breakpoints, and before declaring yourself done, run spool recv. Report questions, blockers, status and your final summary to the orchestrator with spool-send.sh --to orchestrator (kind result for the final summary, note otherwise): it resolves to whoever holds the fleet lease's orch role, on this machine or another (today ${SPOOL_ORCHESTRATOR_ID} here), and a peer id on another machine is relayed through the hub. OWNER TEXT (a post meant for the owner, e.g. in a t1 topic) goes to whoever holds the dispatch lease RIGHT NOW, read with 'cd ${SPAWN_ORC_DIR} && sudo -u ${SPOOL_BOX_USER} env SPOOL_ROOT=${SPOOL_ROOT} LEASE_CMD=show ./run -a do_spl_dispatch_lease' (prints '<ID>@<box> <age-seconds>'), never to a fixed dispatcher id and never to the dispatcher that last posted in that topic. Every agent on this box has a dir under ${SPOOL_ROOT} and a row in ${SPOOL_ROOT}/registry.tsv (id, kind, tmux-pane, rundir, spawned-utc, requester). Message peers ONLY for your task, blocker handoffs and scope collisions, never open-ended chatter; never type message payloads into tmux windows. HOW TO WRITE A POST: a longer body uses markdown (headers, bold, lists, GFM pipe tables with one row per line) and needs no \`\`\`md fence; the one rule is csi-spl-doc/doc/help/how-to-post.md."
+}
+
+# One registry.tsv row. The requester is last so columns 1-5 stay put.
+spawn_registry_line() {  # TITLE KIND PANE RUNDIR STAMP REQUESTER
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "$6"
 }
 
 spawn_main() {
@@ -219,6 +227,13 @@ spawn_main() {
   [ "$(spl_kind_of_agent_id "$TITLE")" = "$SPAWN_KIND" ] \
     || _sp_fail "TITLE '${TITLE}' does not carry the ${SPAWN_KIND} prefix ${SPAWN_ID_PREFIX}-"
   [ -n "$WORKDIR" ] || _sp_fail "usage: ${SPAWN_ADAPTER##*/} <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]"
+
+  # spawn-window already resolved the caller and passed it in. A direct
+  # launcher call resolves and refuses a lane here, before a spool dir or a
+  # worktree exists. "-" is a shell with no agent id.
+  if [ -z "${SPAWN_REQUESTER:-}" ]; then
+    SPAWN_REQUESTER="$(spool_spawn_gate)" || exit $?
+  fi
 
   _sp_plan adapter "kind=${SPAWN_KIND} prefix=${SPAWN_ID_PREFIX} bin=${SPAWN_BIN} name-flag=${SPAWN_NAME_FLAG:-<none>} prompt-flag=${SPAWN_PROMPT_FLAG:-<positional>} resume=${SPAWN_RESUME_FLAG} <${SPAWN_RESUME_ID}> continue=${SPAWN_CONTINUE_FLAG} perm=${SPAWN_PERM_FLAGS}"
   _sp_plan run-as "$(spool_agent_cmd_text) (SPOOL_RUN_AS_AGENT=${SPOOL_RUN_AS_AGENT})"
@@ -276,11 +291,14 @@ spawn_main() {
   fi
 
   REGISTRY="${SPOOL_ROOT}/registry.tsv"
+  # Column 6 is the requester. Columns 1-5 stay id, kind, pane, rundir,
+  # spawned-utc: registry.retired.tsv keeps its timestamp in column 6 by
+  # moving this field one past it (agent-id-retire.sh).
   if _sp_live; then
-    printf '%s\t%s\t%s\t%s\t%s\n' "$TITLE" "$SPAWN_KIND" "${PANE}" "$RUNDIR" "$(date -u +%Y%m%dT%H%M%SZ)" >> "$REGISTRY" 2>/dev/null || true
+    spawn_registry_line "$TITLE" "$SPAWN_KIND" "${PANE}" "$RUNDIR" "$(date -u +%Y%m%dT%H%M%SZ)" "${SPAWN_REQUESTER:--}" >> "$REGISTRY" 2>/dev/null || true
     chmod a+rw "$REGISTRY" 2>/dev/null || true
   fi
-  _sp_plan registry "${TITLE} ${SPAWN_KIND} ${PANE:-<no pane>} ${RUNDIR} -> ${REGISTRY}"
+  _sp_plan registry "${TITLE} ${SPAWN_KIND} ${PANE:-<no pane>} ${RUNDIR} requester=${SPAWN_REQUESTER:--} -> ${REGISTRY}"
 
   # Pre-accept the "do you trust this folder?" dialog, which would otherwise
   # block the agent in a pane nobody watches. --settle serialises it across a

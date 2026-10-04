@@ -517,3 +517,117 @@ spool_pane_of() {  # ID
   printf '%s' "$_pane"
   return 0
 }
+
+# Bare agent id, or "". Drops a "<tag>: " prefix and an "@<box>" suffix the
+# way spool_id_of_window does, then keeps a new id (c-004) or a legacy one
+# (CLE-07). spl_is_agent_id is the wrong test here: past the legacy cutoff it
+# rejects a live CLE- lane, and this question is "who is calling", not "may
+# this id be written".
+_spool_bare_agent_id() {  # TEXT
+  local n="${1:-}"
+  n="${n##*: }"
+  n="${n%%@*}"
+  n="${n%% *}"
+  [[ "$n" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || n=""
+  printf '%s' "$n"
+}
+
+# SPOOL_AGENT_ID, else MCP_BOT_AGENT_ID, from PID's environ. The harness
+# exports both (spawn-core.inc.sh LAUNCH, spool-harness.sh, spool-agent.sh).
+# spool_proc_environ reads another user's environ (proc-owner.inc.sh).
+_spool_pid_agent_id() {  # PID
+  local kv spool="" mcp=""
+  [ -n "${1:-}" ] || return 0
+  # shellcheck source=proc-owner.inc.sh
+  declare -F spool_proc_environ >/dev/null 2>&1 || . "${_SPOOL_ENV_LIB_DIR}/proc-owner.inc.sh"
+  while IFS= read -r -d '' kv; do
+    case "$kv" in
+      SPOOL_AGENT_ID=*) spool="$(_spool_bare_agent_id "${kv#*=}")" ;;
+      MCP_BOT_AGENT_ID=*) mcp="$(_spool_bare_agent_id "${kv#*=}")" ;;
+    esac
+  done < <(spool_proc_environ /proc "$1" 2>/dev/null || true)
+  printf '%s' "${spool:-$mcp}"
+}
+
+# The spool id of the session calling a spawn, or "" when this is a shell
+# with no agent id (a human, or a cron tick).
+#
+#   1. SPOOL_AGENT_ID, else MCP_BOT_AGENT_ID. riname.sh and agent-send.sh
+#      read those two first; the harness put them in the session's environ.
+#   2. The id in the window name of $TMUX_PANE (riname.sh,
+#      kill-your-self-report.sh), via spool_id_of_window.
+#   3. The registry.tsv row whose pane column (field 3) equals $TMUX_PANE.
+#      Newest row wins; the file is append-only. agent-top.sh registry_row
+#      matches the same column.
+#   4. The closest ancestor that still carries the id. `sudo -u` strips
+#      SPOOL_AGENT_ID and TMUX_PANE from the child (tmux-close-window.sh);
+#      the agent process the harness started still has them. Skipped when
+#      SPAWN_TEST_SANDBOX=1, so a suite running inside a lane is not that lane.
+#   5. SPAWN_REQUESTER, only when nothing above named an id. spawn-remote.sh
+#      --serve sets it from the verified request `from` (the cron tick that
+#      runs spawn-window on the target machine has no agent id of its own).
+spool_spawn_requester() {
+  local id="" w raw pid hops
+  id="$(_spool_bare_agent_id "${SPOOL_AGENT_ID:-}")"
+  [ -n "$id" ] || id="$(_spool_bare_agent_id "${MCP_BOT_AGENT_ID:-}")"
+  if [ -z "$id" ] && [ -n "${TMUX_PANE:-}" ]; then
+    spool_tmux_argv
+    w="$("${SPOOL_TM[@]}" display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null || true)"
+    id="$(spool_id_of_window "$w")"
+    if [ -z "$id" ] && [ -r "${SPOOL_ROOT:-/var/spool-hub}/registry.tsv" ]; then
+      raw="$(awk -F'\t' -v p="$TMUX_PANE" '$3 == p { id = $1 } END { print id }' "${SPOOL_ROOT}/registry.tsv")"
+      id="$(_spool_bare_agent_id "$raw")"
+    fi
+  fi
+  if [ -z "$id" ] && [ "${SPAWN_TEST_SANDBOX:-0}" != 1 ]; then
+    pid="${PPID:-}"
+    hops=0
+    while [ -n "$pid" ] && [ "$pid" != 0 ] && [ "$pid" != 1 ] && [ "$hops" -lt 16 ]; do
+      id="$(_spool_pid_agent_id "$pid")"
+      [ -n "$id" ] && break
+      pid="$(awk '/^PPid:/ { print $2; exit }' "/proc/$pid/status" 2>/dev/null || true)"
+      hops=$((hops + 1))
+    done
+  fi
+  if [ -z "$id" ]; then
+    raw="${SPAWN_REQUESTER:-}"
+    if [ "$raw" = "-" ]; then id="-"
+    else id="$(_spool_bare_agent_id "$raw")"; fi
+  fi
+  printf '%s' "$id"
+}
+
+# 0 for a role seat. These three ids, on any box; the "@<box>" is already
+# stripped. A lease.conf id that is not one of them is still a lane.
+spool_spawn_is_seat() {  # ID
+  case "$1" in c-001|c-002|c-003) return 0 ;; *) return 1 ;; esac
+}
+
+# Allow a seat or a shell with no agent id. A lane is exit 9 and one line on
+# stderr naming it. SPAWN_ALLOW_LANE=1 with a non-empty SPAWN_ALLOW_REASON
+# allows the lane and appends one line to $SPOOL_ROOT/spawn-allow.log.
+# Prints the requester token ("-" when there is no agent id).
+spool_spawn_gate() {
+  local req reason root
+  req="$(spool_spawn_requester)"
+  [ -n "$req" ] || req="-"
+  if [ "$req" = "-" ] || spool_spawn_is_seat "$req"; then
+    printf '%s' "$req"
+    return 0
+  fi
+  reason="$(printf '%s' "${SPAWN_ALLOW_REASON:-}" | tr '\t\n\r' ' ' | sed 's/^ *//; s/ *$//' | cut -c1-200)"
+  if [ "${SPAWN_ALLOW_LANE:-}" = 1 ] && [ -n "$reason" ]; then
+    echo "spawn: ALLOW requester ${req} (SPAWN_ALLOW_LANE=1): ${reason}" >&2
+    root="${SPOOL_ROOT:-/var/spool-hub}"
+    printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$req" "$reason" >>"$root/spawn-allow.log" 2>/dev/null || true
+    chmod 0664 "$root/spawn-allow.log" 2>/dev/null || true
+    printf '%s' "$req"
+    return 0
+  fi
+  if [ "${SPAWN_ALLOW_LANE:-}" = 1 ]; then
+    echo "spawn: refused: requester ${req} is a lane; SPAWN_ALLOW_LANE=1 needs a reason in SPAWN_ALLOW_REASON" >&2
+  else
+    echo "spawn: refused: requester ${req} is a lane; only c-001, c-002 and c-003, or a shell with no agent id, may spawn" >&2
+  fi
+  return 9
+}

@@ -90,7 +90,7 @@ no_cloud() { # <label>
 # rc0 <label> <out> <log-needle>
 rc0() {
   local label="$1" out="$2" need="$3" bad
-  bad=$(printf '%s\n' "$out" | grep -E '^(FATAL|ERROR|FAIL|RC=)' | sed -E 's/[0-9a-f]{24,}/[hex]/g' | head -5)
+  bad=$(printf '%s\n' "$out" | grep -E '^(FATAL|ERROR|FAIL|RC=)' | sed -E 's/[0-9a-f]{24,}/[hex]/g' | sed -n '1,5p')
   grep -qx 'RC=0' <<<"$out" && pass "$label: rc 0" || fail "$label: ${bad:-no RC line}"
   grep -q "$need" "$T/calls.log" && pass "$label: reached $need" || fail "$label: call log has no $need"
   no_cloud "$label"
@@ -172,7 +172,7 @@ out=$(SNIPPET='do_spl_cloud_cnf || { echo RC=$?; exit 0; }; proxied=0; _spl_tena
   run SPOOL_CLOUD_PROVIDER=none SPOOL_HUB_DB_DSN="$RT" 2>&1 | tee -a "$ALL")
 grep -qx 'DSN-SAME' <<<"$out" && grep -qx 'RC=0 PROXIED=1' <<<"$out" \
   && pass "none tenant-create: the helper sets the local DSN and proxied=1, rc 0" \
-  || fail "none tenant-create: $(printf '%s\n' "$out" | grep -E '^(FATAL|ERROR|FAIL|RC=|DSN-|PROXIED=)' | head -8)"
+  || fail "none tenant-create: $(printf '%s\n' "$out" | grep -E '^(FATAL|ERROR|FAIL|RC=|DSN-|PROXIED=)' | sed -n '1,8p')"
 no_cloud "none tenant-create"
 
 # --- control: gcp still reaches the proxy stub --------------------------------
@@ -182,7 +182,7 @@ printf '%s\n' '{"type":"service_account","client_email":"sa@example.com"}' >"$T/
 out=$(SNIPPET='do_spl_consumer_lag; echo RC=$?' run SPOOL_CLOUD_PROVIDER=gcp 2>&1 | tee -a "$ALL")
 grep -q '^gcloud auth print-access-token' "$T/calls.log" && grep -q '^cloud-sql-proxy --address 127.0.0.1' "$T/calls.log" \
   && pass "control: under gcp consumer-lag reaches gcloud auth print-access-token and cloud-sql-proxy" \
-  || fail "control gcp: $(tr '\n' ' ' <"$T/calls.log" | head -c 400) / $(printf '%s\n' "$out" | grep -E '^(FATAL|RC=)' | head -3)"
+  || fail "control gcp: $(tr '\n' ' ' <"$T/calls.log" | cut -c1-400) / $(printf '%s\n' "$out" | grep -E '^(FATAL|RC=)' | sed -n '1,3p')"
 
 # --- nothing secret, and the worktree .env was not touched -------------------
 if grep -qE 'none-fixture-pw|gcp-fixture-secret' "$ALL" "$T/calls.log"; then

@@ -52,17 +52,17 @@ do_db_secret_add_gcp() {
 # plus the runtime user and password. Mode 600. The value is never logged.
 do_db_secret_add_none() {
   local secret="$1" dsn user pw db
-  local -a f=()
+  local -a fields=()
   dsn="$(cat)"
   [[ -n "$dsn" ]] || return 1
-  mapfile -t f < <(SPL_DSN_IN="$dsn" python3 -c '
+  mapfile -t fields < <(SPL_DSN_IN="$dsn" python3 -c '
 import os, urllib.parse as u
 p = u.urlsplit(os.environ["SPL_DSN_IN"])
 print(u.unquote(p.username or ""))
 print(u.unquote(p.password or ""))
 print(u.unquote(p.path.lstrip("/")))
 ')
-  user="${f[0]:-}" pw="${f[1]:-}" db="${f[2]:-}"
+  user="${fields[0]:-}" pw="${fields[1]:-}" db="${fields[2]:-}"
   if [[ "$secret" == "${SPL_OWNER_DSN_SECRET:-}" ]]; then
     [[ -n "$user" ]] && { spl_secrets_none_put SPOOL_DB_OWNER "$user" || return 1; }
     spl_secrets_none_put SPOOL_DB_OWNER_PASSWORD "$pw" || return 1
@@ -310,6 +310,7 @@ do_db_login_rotate_none() {
 # the file mode 600 (the T009 store). The value is never logged and never put
 # on a command argv: it travels in the environment of python.
 spl_secrets_none_put() {
+  # shellcheck disable=SC2034 # statef is set by spl_secrets_none_paths and unused here
   local key="$1" val="$2" envf statef tmp
   # shellcheck source=../../../src/bash/run/spl-secrets-check.func.sh
   declare -F spl_secrets_none_paths >/dev/null ||

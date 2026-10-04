@@ -12,6 +12,9 @@
 #   5. spl_db_backup_compare is red for what a BROKEN dump looks like (a live
 #      table missing, or restored empty while live has rows) and green for a
 #      plain count difference, which is just two reads at two instants
+#   5b. a dump at migration N versus a live schema at N+2 is green, and the
+#      two tables created later are listed as expected missing. A table the
+#      dump's own level should hold, missing, is still exit 5
 #   6. every gcloud call is pinned with --account
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -151,6 +154,51 @@ o=$(cmp_v '' $'messages 177')
 o=$(cmp_v $'messages 177\ntenants 12' $'messages 177\ntenants 12')
 [[ "$o" == *"TABLE RESTORED LIVE"* && "$o" == *"messages 177 177"* ]] &&
   pass "the per-table comparison is printed, not just the verdict" || fail "no table printed: $o"
+
+# --- 5b. the dump's migration level, not the live schema --------------------------------
+mkdir -p "$T/mig"
+printf '%s\n' 'CREATE TABLE keep_me (id int);' >"$T/mig/0001_core.sql"
+printf '%s\n' 'CREATE TABLE newer_a (id int);' >"$T/mig/0002_a.sql"
+printf '%s\n' 'CREATE TABLE newer_b (id int);' >"$T/mig/0003_b.sql"
+cmp_at() { # <restored> <live> <dump max filename>
+  printf '%s\n' "$1" >"$T/r.txt"; printf '%s\n' "$2" >"$T/l.txt"
+  local out rc
+  out=$(SPL_DB_BACKUP_MIGRATIONS_DIR="$T/mig" SNIPPET="spl_db_backup_compare '$T/r.txt' '$T/l.txt' '$3'" in_orc 2>&1); rc=$?
+  echo "rc=$rc $out"
+}
+o=$(cmp_at $'keep_me 4' $'keep_me 4\nnewer_a 1\nnewer_b 2' '0001_core.sql')
+[[ "$o" == rc=0* ]] && pass "a dump at level N versus live at N+2 is exit 0" || fail "level N: $o"
+[[ "$o" == *"newer_a"*"expected missing (newer than the dump: 0002_a.sql)"* ]] &&
+  pass "newer_a is listed with its migration" || fail "newer_a: $o"
+[[ "$o" == *"newer_b"*"expected missing (newer than the dump: 0003_b.sql)"* ]] &&
+  pass "newer_b is listed with its migration" || fail "newer_b: $o"
+o=$(cmp_at $'newer_a 1' $'keep_me 9\nnewer_a 1\nnewer_b 2' '0001_core.sql')
+[[ "$o" == rc=5* && "$o" == *"missing from the restore"*keep_me* ]] &&
+  pass "CONTROL: a table the dump's level should hold, missing, is still exit 5" || fail "control: $o"
+o=$(cmp_v $'keep_me 4' $'keep_me 4\nnewer_a 1')
+[[ "$o" == rc=5* && "$o" == *"missing from the restore"*newer_a* ]] &&
+  pass "without the dump's migration max, a later table is still exit 5" || fail "no max: $o"
+# the two tables the 2026-10-04 drill flagged, against the real migration files
+printf '%s\n' 'messages 10' >"$T/r.txt"
+printf '%s\n' $'messages 10\nbox_stats 5\noperator_audit 0' >"$T/l.txt"
+o=$(SNIPPET="spl_db_backup_compare '$T/r.txt' '$T/l.txt' '0114_release_note_cycle.sql'" in_orc 2>&1); rc=$?
+o="rc=$rc $o"
+[[ "$o" == rc=0* ]] && pass "dump at 0114 versus live box_stats and operator_audit is exit 0" || fail "0114: $o"
+[[ "$o" == *"box_stats"*"expected missing (newer than the dump: 0117_box_stats.sql)"* ]] &&
+  pass "box_stats is listed as newer than the dump (0117)" || fail "box_stats: $o"
+[[ "$o" == *"operator_audit"*"expected missing (newer than the dump: 0115_operator_workspaces.sql)"* ]] &&
+  pass "operator_audit is listed as newer than the dump (0115)" || fail "operator_audit: $o"
+# cnf SPOOL_HUB_MIGRATIONS_DIR is the path inside the hub image, not on this box
+o=$(SPL_MIGRATIONS_DIR=/opt/spool/sql/postgres/spool-hub SNIPPET="spl_db_backup_compare '$T/r.txt' '$T/l.txt' '0114_release_note_cycle.sql'" in_orc 2>&1); rc=$?
+o="rc=$rc $o"
+[[ "$o" == rc=0* && "$o" == *"box_stats"*"0117_box_stats.sql"* ]] &&
+  pass "the image-internal migrations path is not read as a host directory" || fail "image path: $o"
+printf '%s\n' 'tenants 2' >"$T/r.txt"
+printf '%s\n' $'tenants 2\nmessages 10\nbox_stats 5' >"$T/l.txt"
+o=$(SNIPPET="spl_db_backup_compare '$T/r.txt' '$T/l.txt' '0114_release_note_cycle.sql'" in_orc 2>&1); rc=$?
+o="rc=$rc $o"
+[[ "$o" == rc=5* && "$o" == *"missing from the restore"*messages* ]] &&
+  pass "CONTROL: messages, created before 0114, missing, is still exit 5" || fail "messages control: $o"
 
 # --- 6. every gcloud call carries --account -------------------------------------------
 # join backslash continuations first: the export spans two lines and its

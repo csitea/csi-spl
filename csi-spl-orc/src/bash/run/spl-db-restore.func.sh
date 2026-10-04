@@ -122,7 +122,9 @@ spl_db_restore_age() {
 
 # spl_db_restore_local <uri> -> download, restore into the throwaway container
 # and compare against live: exactly do_spl_db_backup_verify's machinery, so the
-# daily proof and the restore can never drift apart.
+# daily proof and the restore can never drift apart. The compare is handed the
+# dump's spool_schema_migrations max, so a table added by a later migration is
+# expected missing rather than a failed restore.
 spl_db_restore_local() {
   local work rc=0
   work="$(mktemp -d)" || return 1
@@ -143,7 +145,8 @@ _spl_db_restore_local_in() {
   spl_db_backup_restore_counts "$work/dump.sql" >"$work/restored.txt" || return $?
   spl_via_proxy _spl_db_backup_live_counts >"$work/live.txt" ||
     { do_log "FATAL $ENV: cannot read the live counts"; return 1; }
-  spl_db_backup_compare "$work/restored.txt" "$work/live.txt"
+  spl_db_backup_compare "$work/restored.txt" "$work/live.txt" \
+    "$(spl_db_backup_dump_max "$work/dump.sql")"
 }
 
 # spl_db_restore_cloud <uri> <target> -> `gcloud sql import sql` into a new
@@ -179,11 +182,14 @@ spl_db_restore_cloud() {
     --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --quiet >/dev/null 2>"$SPL_STATE_DIR/restore-import.log" || rc=3
   if (( rc == 0 )); then
     do_log "INFO $ENV: imported $uri into $db"
-    local restored live
+    local restored live dump_max=""
     restored="$(spl_via_proxy _spl_db_restore_counts_in "$db")" || rc=1
     live="$(spl_via_proxy _spl_db_backup_live_counts)" || rc=1
     if (( rc == 0 )); then
-      spl_db_backup_compare <(printf '%s\n' "$restored") <(printf '%s\n' "$live") || rc=$?
+      # The ledger is not under row-level security. A read that fails leaves
+      # the max empty, and the compare then fails closed on every missing table.
+      dump_max="$(spl_via_proxy _spl_db_restore_schema_max "$db")" || dump_max=""
+      spl_db_backup_compare <(printf '%s\n' "$restored") <(printf '%s\n' "$live") "$dump_max" || rc=$?
     else
       do_log "FATAL $ENV: cannot read the counts"
     fi
@@ -244,4 +250,12 @@ _spl_db_restore_counts_in() {
   local dsn
   dsn="$(_spl_db_restore_dsn_for "$1")" || return 1
   SPL_PROXY_DSN="$dsn" _spl_db_backup_live_counts
+}
+
+# _spl_db_restore_schema_max <db> -> max(filename) in the restored database's
+# spool_schema_migrations. That is the dump's migration level.
+_spl_db_restore_schema_max() {
+  local dsn
+  dsn="$(_spl_db_restore_dsn_for "$1")" || return 1
+  spl_psql_ro "$dsn" "SELECT coalesce(max(filename), '') FROM spool_schema_migrations;"
 }

@@ -50,7 +50,7 @@ chmod +x "$T/stub/gcloud"
 PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };
 eval "$(declare -f do_spl_cloud_cnf | sed 1s/do_spl_cloud_cnf/_orig_cnf/)"; do_spl_cloud_cnf(){ _orig_cnf || return 1; yq -i ".env.steps.\"046-gcs-offsite-backups\".copy_enabled = false" "$SPL_CNF"; };'
 # the proxy is the cloud; here it answers the two reads the action makes
-PROXY='spl_via_proxy(){ case "$1" in _spl_db_restore_table_count) echo "${STUB_TABLES:-0}" ;; *) printf "messages 5\ntenants 2\n" ;; esac; };'
+PROXY='spl_via_proxy(){ echo "proxy $1" >>"$STUB_LOG"; case "$1" in _spl_db_restore_table_count) echo "${STUB_TABLES:-0}" ;; _spl_db_restore_schema_max) printf "%s\n" "0114_release_note_cycle.sql" ;; *) printf "messages 5\ntenants 2\n" ;; esac; };'
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" STUB_LOG="$T/calls.log" \
@@ -98,6 +98,9 @@ grep -q 'sql import sql .*--database=spool_restore_t --user=spool_hub ' "$T/call
 grep -q 'databases delete spool_restore_t' "$T/calls.log" && pass "it drops the throwaway afterwards" ||
   fail "no drop: $(cat "$T/calls.log")"
 grep -q 'rto_s=[0-9]' <<<"$o" && pass "the run prints its RTO" || fail "no rto: $o"
+grep -q 'proxy _spl_db_restore_schema_max' "$T/calls.log" &&
+  pass "the cloud restore reads the dump's migration max before the compare" ||
+  fail "no schema-max call: $(cat "$T/calls.log")"
 : >"$T/calls.log"
 SNIPPET="$PIN $PROXY do_spl_db_restore" in_orc DRY_RUN=0 TARGET=database:spool_restore_t KEEP=1 >/dev/null 2>&1
 grep -q 'databases delete' "$T/calls.log" && fail "KEEP=1 still dropped it" || pass "KEEP=1 keeps the throwaway"

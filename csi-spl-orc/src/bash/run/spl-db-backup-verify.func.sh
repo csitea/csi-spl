@@ -21,6 +21,10 @@
 # @description reason. What it asserts instead is what a broken dump actually
 # @description looks like: a table that the live DB has and the restore does
 # @description not, or a table that restores EMPTY while the live one has rows.
+# @description A table created by a migration newer than the dump's
+# @description spool_schema_migrations max is "expected missing" and is listed
+# @description with that migration; it is not a failure. A table the dump's
+# @description level should already hold, missing, still fails the check.
 # @description The full per-table table is printed so drift is visible.
 # @param ENV - required: dev or prd
 # @param OBJECT (optional) - the gs:// uri to verify; default the newest in the bucket
@@ -55,7 +59,8 @@ do_spl_db_backup_verify() {
   spl_via_proxy _spl_db_backup_live_counts >"$work/live.txt" || rc=$?
   (( rc == 0 )) || { rm -rf "$work"; do_log "FATAL $ENV: cannot read the live counts"; return 1; }
 
-  spl_db_backup_compare "$work/restored.txt" "$work/live.txt" || rc=$?
+  spl_db_backup_compare "$work/restored.txt" "$work/live.txt" \
+    "$(spl_db_backup_dump_max "$work/dump.sql")" || rc=$?
   rm -rf "$work"
   return $rc
 }
@@ -119,6 +124,18 @@ spl_db_backup_restore_counts() {
     tail -20 "$log" 2>/dev/null | while read -r l; do do_log "FATAL   $l"; done
     return 1
   fi
+  # The dump's schema level is max(filename), the same head spool migrate
+  # records. Written beside the dump so the compare can run after this
+  # container is gone. Empty when the ledger is absent: the compare then
+  # treats every missing table as a real failure.
+  local maxf=""
+  if grep -qx 'spool_schema_migrations' <<<"$tables"; then
+    maxf="$(docker exec "$con" psql -U postgres -h 127.0.0.1 -d restorecheck -XAtc \
+      "SELECT coalesce(max(filename), '') FROM spool_schema_migrations" 2>/dev/null || true)"
+    # psql on a docker exec can leave a CR; the filename compare is exact.
+    maxf="$(printf '%s' "$maxf" | tr -d '[:space:]')"
+  fi
+  printf '%s\n' "$maxf" >"${dump}.schema-max"
   local t
   while read -r t; do
     [[ -n "$t" ]] || continue
@@ -142,14 +159,50 @@ _spl_db_backup_live_counts() {
   spl_psql_ro "$SPL_PROXY_DSN" "${sql%UNION ALL } ORDER BY 1;" | tr '|' ' '
 }
 
-# spl_db_backup_compare <restored> <live> -> the verdict. Exit 5 when a live
-# table is missing from the restore, or restored EMPTY while the live one has
-# rows. Those are what a truncated or RLS-blanked dump looks like; a plain
-# count difference is not, because the two reads are minutes apart.
+# spl_db_backup_dump_max <dump.sql> -> the schema head restore_counts wrote
+# beside that dump (one filename, or empty).
+spl_db_backup_dump_max() {
+  local f="${1}.schema-max"
+  [[ -f "$f" ]] || return 0
+  tr -d '\n' <"$f"
+}
+
+# spl_db_backup_migrations_dir -> the spool-hub migration files on THIS box,
+# whose CREATE TABLE statements say which migration introduced a table.
+# SPL_MIGRATIONS_DIR is the path inside the hub image (cnf
+# SPOOL_HUB_MIGRATIONS_DIR); it is not a directory here. Tests set
+# SPL_DB_BACKUP_MIGRATIONS_DIR. A real run uses cnf hub.image.sql_src
+# (SPL_IMAGE_SQL_SRC), then the tree next to this module.
+spl_db_backup_migrations_dir() {
+  if [[ -n "${SPL_DB_BACKUP_MIGRATIONS_DIR:-}" ]]; then
+    printf '%s' "$SPL_DB_BACKUP_MIGRATIONS_DIR"
+    return 0
+  fi
+  if [[ -n "${SPL_IMAGE_SQL_SRC:-}" && -d "$SPL_IMAGE_SQL_SRC" ]]; then
+    printf '%s' "$SPL_IMAGE_SQL_SRC"
+    return 0
+  fi
+  local root="${APP_PATH:-}"
+  if [[ -z "$root" ]]; then
+    root="$(cd "${PROJ_PATH:-}/.." 2>/dev/null && pwd)" || root=""
+  fi
+  printf '%s' "$root/csi-spl-rdb/src/sql/postgres/spool-hub"
+}
+
+# spl_db_backup_compare <restored> <live> [dump_schema_max] -> the verdict.
+# Exit 5 when a live table is missing from the restore, or restored EMPTY
+# while the live one has rows. Those are what a truncated or RLS-blanked dump
+# looks like; a plain count difference is not, because the two reads are
+# minutes apart. A table whose CREATE TABLE sits in a migration file strictly
+# newer than the dump's spool_schema_migrations max is expected missing
+# (newer than the dump: <that file>) and is not a failure. No max, or a table
+# the catalog does not name, stays a failure.
 spl_db_backup_compare() {
-  local v
-  v="$(python3 -c '
-import sys
+  local v migdir dump_max="${3:-}"
+  migdir="$(spl_db_backup_migrations_dir)"
+  do_log "INFO ${ENV:-restore}: dump schema max [${dump_max:-}] migrations ${migdir}"
+  v="$(SPL_MIGRATIONS_DIR="$migdir" python3 -c '
+import os, re, sys
 def load(p):
     d = {}
     for line in open(p):
@@ -158,11 +211,40 @@ def load(p):
             d[parts[0]] = int(parts[1])
     return d
 res, live = load(sys.argv[1]), load(sys.argv[2])
-missing = sorted(t for t in live if t not in res)
+dump_max = (sys.argv[3] if len(sys.argv) > 3 else "").strip()
+if not re.fullmatch(r"[0-9]{4}_[A-Za-z0-9_]+\.sql", dump_max):
+    dump_max = ""
+created = {}
+migdir = os.environ.get("SPL_MIGRATIONS_DIR", "")
+pat = re.compile(
+    "create\\s+(?:unlogged\\s+)?table\\s+(?:if\\s+not\\s+exists\\s+)?(?:only\\s+)?"
+    "(?:\"?(?:public\"?\\s*\\.\\s*\"?)?)([A-Za-z_][A-Za-z0-9_]*)",
+    re.I)
+if dump_max and os.path.isdir(migdir):
+    for fn in sorted(os.listdir(migdir)):
+        if not fn.endswith(".sql"):
+            continue
+        path = os.path.join(migdir, fn)
+        text = open(path, encoding="utf-8", errors="replace").read()
+        text = re.sub("/\\*.*?\\*/", " ", text, flags=re.S)
+        text = re.sub("--[^\\n]*", " ", text)
+        for m in pat.finditer(text):
+            created.setdefault(m.group(1), fn)
+missing, expected = [], []
+for t in sorted(x for x in live if x not in res):
+    mig = created.get(t, "")
+    if dump_max and mig > dump_max:
+        expected.append((t, mig))
+    else:
+        missing.append(t)
 blank = sorted(t for t in live if t in res and live[t] > 0 and res[t] == 0)
+note = {}
+for t, mig in expected:
+    note[t] = "expected missing (newer than the dump: %s)" % mig
 print("TABLE RESTORED LIVE")
 for t in sorted(set(res) | set(live)):
-    print("%s %s %s" % (t, res.get(t, "-"), live.get(t, "-")))
+    extra = (" " + note[t]) if t in note else ""
+    print("%s %s %s%s" % (t, res.get(t, "-"), live.get(t, "-"), extra))
 if missing:
     print("VERDICT 5 %d live table(s) missing from the restore: %s" % (len(missing), ",".join(missing)))
 elif blank:
@@ -171,8 +253,12 @@ elif not res:
     print("VERDICT 5 the restore produced no table at all")
 else:
     rows = sum(res.values())
-    print("VERDICT 0 %d table(s), %d row(s) restored; every live table is present and non-empty where live is" % (len(res), rows))
-' "$1" "$2")" || { do_log "FATAL cannot compare the counts"; return 1; }
+    msg = "%d table(s), %d row(s) restored; every live table is present and non-empty where live is" % (len(res), rows)
+    if expected:
+        listed = ", ".join("%s (%s)" % (t, mig) for t, mig in expected)
+        msg += "; %d expected missing (newer than the dump): %s" % (len(expected), listed)
+    print("VERDICT 0 " + msg)
+' "$1" "$2" "$dump_max")" || { do_log "FATAL cannot compare the counts"; return 1; }
   printf '%s\n' "$v" | grep -v '^VERDICT '
   local line code msg
   line="$(grep '^VERDICT ' <<<"$v")"

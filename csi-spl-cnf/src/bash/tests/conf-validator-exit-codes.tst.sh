@@ -115,11 +115,21 @@ printf '{}\n' > "${TMP_DIR}/empty.env.yaml"
 expect_rc 1 "$(run_validate "${TMP_DIR}/empty.env.yaml" dev)" "a well-formed yaml that fails the model"
 
 # --- 1: csi-spl's realm rule -------------------------------------------------
-# env <env> is GCP project csi-spl-<env>, state bucket csi-spl-<env>-tfstate: a
-# config that would point terraform at another project is invalid, not "valid
-# with a different project".
+# the state bucket is <gcp_project>-tfstate: a config whose project and state
+# bucket disagree would point terraform at another project's state.
 yq '.env.gcp.gcp_project = "some-other-project"' "${TMP_DIR}/dev.env.yaml" >"${TMP_DIR}/realm.env.yaml"
-expect_rc 1 "$(run_validate "${TMP_DIR}/realm.env.yaml" dev)" "a dev config pointing at another GCP project"
+expect_rc 1 "$(run_validate "${TMP_DIR}/realm.env.yaml" dev)" "a project whose state bucket is another project's"
+
+# spec 072 A8: the project id is the cnf's, not <org>-<app>-<env>. A clone whose
+# plain id is taken names its own (review 03-04: this fixture used to be refused).
+yq '.env.gcp.gcp_project = "acme-spool-dev-7f3a" | .env.gcp.state_bucket = "acme-spool-dev-7f3a-tfstate"' \
+  "${TMP_DIR}/dev.env.yaml" >"${TMP_DIR}/a8.env.yaml"
+expect_rc 0 "$(run_validate "${TMP_DIR}/a8.env.yaml" dev)" "A8: gcp_project acme-spool-dev-7f3a with its own state bucket"
+
+# ... but it must still be a GCP project id
+yq '.env.gcp.gcp_project = "Bad_Project" | .env.gcp.state_bucket = "Bad_Project-tfstate"' \
+  "${TMP_DIR}/dev.env.yaml" >"${TMP_DIR}/a8bad.env.yaml"
+expect_rc 1 "$(run_validate "${TMP_DIR}/a8bad.env.yaml" dev)" "A8: a gcp_project that is not a GCP project id"
 
 # spec 021: the unprefixed WUI locale must be one the WUI ships.
 yq '.env.i18n.default_locale = "xx"' "${TMP_DIR}/dev.env.yaml" >"${TMP_DIR}/i18n.env.yaml"

@@ -10,17 +10,19 @@ variable "app" {
 
 variable "env" {
   type        = string
-  description = "The environment: dev or prd (lde is local docker only, never terraform)."
+  description = "The environment: a cnf env name, e.g. dev or prd (lde is local docker only, never terraform)."
 
   validation {
-    condition     = contains(["dev", "prd"], var.env)
-    error_message = "env must be dev or prd."
+    # spec 072 A8: the env names are the cnf's <env>.env.yaml files, not a
+    # fixed pair; lde is local docker only and never reaches terraform.
+    condition     = can(regex("^[a-z][a-z0-9]{1,9}$", var.env)) && var.env != "lde"
+    error_message = "env must be a cnf env name (<env>.env.yaml: 2-10 lowercase letters or digits, a letter first), never lde."
   }
 }
 
 variable "gcp_project" {
   type        = string
-  description = "The GCP project id, csi-spl-<env>."
+  description = "The GCP project id: cnf env.gcp.gcp_project (by default <org>-<app>-<env>)."
 }
 
 variable "gcp_region" {
@@ -31,11 +33,11 @@ variable "gcp_region" {
 
 variable "repository_id" {
   type        = string
-  description = "The Docker repository, csi-spl-<env>-hub (cnf steps.028-gcp-artifact-registry.repository_id)."
+  description = "The Docker repository, <project>-hub by default (cnf steps.028-gcp-artifact-registry.repository_id)."
 
   validation {
-    condition     = can(regex("^csi-spl-(dev|prd)-hub$", var.repository_id))
-    error_message = "repository_id must be csi-spl-dev-hub or csi-spl-prd-hub."
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$", var.repository_id))
+    error_message = "repository_id must be an Artifact Registry repository id: 1-63 lowercase letters, digits or -, a letter first, no - last."
   }
 }
 

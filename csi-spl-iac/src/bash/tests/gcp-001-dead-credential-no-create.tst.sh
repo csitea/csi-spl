@@ -20,7 +20,16 @@ FUNC_FILE="$PROJ_ROOT/src/bash/run/gcp-001-create-project.func.sh"
 LIB_FILE="$PROJ_ROOT/lib/bash/funcs/gcp-require-live-account.func.sh"
 PIN_FILE="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh"
 # an APP_PATH with no cnf: the account / org then come from the env or nowhere
-NOCNF=$(mktemp -d); trap 'rm -rf "$NOCNF"' EXIT
+NOCNF=$(mktemp -d)
+# spec 072 A8: a stranger's estate under OUR directory names (csi-spl-iac), its
+# own project id in the cnf, and an env (stg) this repo does not have
+FIX=$(mktemp -d); trap 'rm -rf "$NOCNF" "$FIX"' EXIT
+mkdir -p "$FIX/csi-spl-iac" "$FIX/csi-spl-cnf/csi-spl"
+printf 'env:\n  gcp:\n    gcp_project: acme-spool-dev-7f3a\n' >"$FIX/csi-spl-cnf/csi-spl/dev.env.yaml"
+printf 'env:\n  gcp:\n    gcp_region: europe-north1\n' >"$FIX/csi-spl-cnf/csi-spl/stg.env.yaml"
+printf 'env:\n  gcp:\n    gcp_project: Bad_Project\n' >"$FIX/csi-spl-cnf/csi-spl/bad.env.yaml"
+printf 'env: {}\n' >"$FIX/csi-spl-cnf/csi-spl/all.env.yaml"
+printf 'env: {}\n' >"$FIX/csi-spl-cnf/csi-spl/lde.env.yaml"
 FUNC_NAME="do_gcp_001_create_project"
 
 fails=0
@@ -91,7 +100,7 @@ run_action() {
     source "$PIN_FILE"
     # shellcheck disable=SC1090
     source "$FUNC_FILE"
-    "$FUNC_NAME" >/dev/null 2>&1
+    "$FUNC_NAME" >"${OUT:-/dev/null}" 2>&1
 INNER
 }
 
@@ -182,6 +191,32 @@ else
   pass "CONTROL: a pin that does not refuse reaches gcloud (rc=$rc, $(wc -l <"$log") calls)"
 fi
 rm -f "$log" "$ctl_pin"
+
+# --- 10. spec 072 A8: the project id is cnf env.gcp.gcp_project ---------------
+log=$(mktemp); out=$(mktemp)
+run_action live_absent "$log" APP_PATH="$FIX" OUT="$out"; rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'DRY_RUN would run: gcloud projects create acme-spool-dev-7f3a ' "$out"; then
+  pass "A8: a cnf gcp_project under a dir named csi-spl-iac plans 'projects create acme-spool-dev-7f3a'"
+else fail "A8: the cnf project id was not planned (rc=$rc): $(grep -m1 -E 'FATAL|projects create' "$out")"; fi
+grep -q 'csi-spl-dev' "$log" && fail "A8: the directory-derived id csi-spl-dev reached gcloud" || pass "A8: the directory-derived id never reaches gcloud"
+rm -f "$log" "$out"
+
+# --- 11. spec 072 A8: the env names are the cnf's *.env.yaml ------------------
+log=$(mktemp); out=$(mktemp)
+run_action live_absent "$log" APP_PATH="$FIX" OUT="$out" ENV=stg; rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'DRY_RUN would run: gcloud projects create csi-spl-stg ' "$out"; then
+  pass "A8: a fixture stg.env.yaml makes ENV=stg plan (convention id when the cnf names none)"
+else fail "A8: ENV=stg did not plan (rc=$rc): $(grep -m1 -E 'FATAL|projects create' "$out")"; fi
+rm -f "$log" "$out"
+
+# --- 12. refused before any gcloud call: lde, an env with no file, a bad id ---
+for case in "ENV=lde" "ENV=prd" "ENV=bad"; do
+  log=$(mktemp); : >"$log"
+  run_action live_absent "$log" APP_PATH="$FIX" $case; rc=$?
+  if [[ $rc -ne 0 ]] && ! grep -q 'projects describe' "$log"; then pass "A8: refused before the project is read: $case"
+  else fail "A8: not refused (rc=$rc): $case"; fi
+  rm -f "$log"
+done
 
 if [[ "$fails" -eq 0 ]]; then
   echo "PASS: all $(basename "$0") assertions"

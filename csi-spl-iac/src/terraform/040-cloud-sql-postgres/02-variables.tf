@@ -10,17 +10,19 @@ variable "app" {
 
 variable "env" {
   type        = string
-  description = "The environment: dev or prd (lde is local docker only, never terraform)."
+  description = "The environment: a cnf env name, e.g. dev or prd (lde is local docker only, never terraform)."
 
   validation {
-    condition     = contains(["dev", "prd"], var.env)
-    error_message = "env must be dev or prd."
+    # spec 072 A8: the env names are the cnf's <env>.env.yaml files, not a
+    # fixed pair; lde is local docker only and never reaches terraform.
+    condition     = can(regex("^[a-z][a-z0-9]{1,9}$", var.env)) && var.env != "lde"
+    error_message = "env must be a cnf env name (<env>.env.yaml: 2-10 lowercase letters or digits, a letter first), never lde."
   }
 }
 
 variable "gcp_project" {
   type        = string
-  description = "The GCP project id, csi-spl-<env>."
+  description = "The GCP project id: cnf env.gcp.gcp_project (by default <org>-<app>-<env>)."
 }
 
 variable "gcp_region" {
@@ -31,11 +33,11 @@ variable "gcp_region" {
 
 variable "instance_name" {
   type        = string
-  description = "The Cloud SQL instance, csi-spl-<env>-pg."
+  description = "The Cloud SQL instance, <project>-pg by default (cnf)."
 
   validation {
-    condition     = can(regex("^csi-spl-(dev|prd)-pg$", var.instance_name))
-    error_message = "instance_name must be csi-spl-dev-pg or csi-spl-prd-pg."
+    condition     = can(regex("^[a-z]([a-z0-9-]{0,82}[a-z0-9])?$", var.instance_name))
+    error_message = "instance_name must be a Cloud SQL instance id: 1-84 lowercase letters, digits or -, a letter first, no - last."
   }
 }
 

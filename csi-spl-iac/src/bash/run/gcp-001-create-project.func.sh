@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #------------------------------------------------------------------------------
-# @description Create the GCP project csi-spl-<env> and link its billing account.
+# @description Create the env's GCP project (cnf env.gcp.gcp_project) and link its billing account.
 # @description Idempotent, and a DRY RUN unless DRY_RUN=0.
 # @description
 # @description Adapted from pas-psf-iac gcp-001-create-project.func.sh, keeping
@@ -20,15 +20,35 @@
 # @description      `config set project`, no interactive login.
 # @description Who runs it and where the project goes come from cnf env.gcp
 # @description (gcp_account_owner_email, gcp_org_id; the env overrides); who
-# @description pays comes from the environment and fails fast. The project id is read from
-# @description csi-spl-cnf and must equal csi-spl-<env>.
-# @param ENV - required: dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
+# @description pays comes from the environment and fails fast. The project id is cnf
+# @description env.gcp.gcp_project (spec 072 A8): GCP ids are global, so a clone
+# @description names its own; <org>-<app>-<env> is only the fallback when the cnf
+# @description has none, and a malformed id is refused.
+# @param ENV - required: an env the cnf declares (<env>.env.yaml, lde excepted), bkp (<org>-<app>-bkp, the off-project backups of iac 046) or all (<org>-<app>-all, the satellite of spec 057)
 # @param GCP_ACCOUNT (optional) - overrides the resolved identity (do_gcp_bootstrap_account: the project SA key once it exists, else cnf env.gcp.gcp_account_owner_email): the identity that creates the project and links billing
 # @param GCP_ORG_ID or GCP_FOLDER_ID - the parent of the project, exactly one; GCP_ORG_ID defaults to cnf env.gcp.gcp_org_id when GCP_FOLDER_ID is unset
 # @param GCP_BILLING_ACCOUNT_ID - required: XXXXXX-XXXXXX-XXXXXX
 # @param DRY_RUN (optional) - 1 (default): print the mutating commands, run none of them. 0: mutate.
 # @example ENV=dev GCP_BILLING_ACCOUNT_ID=XXXXXX-XXXXXX-XXXXXX ./run -a do_gcp_001_create_project
 #------------------------------------------------------------------------------
+# The envs gcp-001 may create a project for: every <env>.env.yaml in the cnf
+# dir except all (the shared base) and lde (local docker only), plus bkp and
+# all. No cnf dir: the historical dev and prd.
+_gcp_001_cnf_envs() {
+  local cnf_dir="$1" f e envs=""
+  if [[ -d "${cnf_dir}" ]]; then
+    for f in "${cnf_dir}"/*.env.yaml; do
+      [[ -f "${f}" ]] || continue
+      e=$(basename "${f}" .env.yaml)
+      [[ "${e}" == all || "${e}" == lde ]] && continue
+      [[ "${e}" =~ ^[a-z][a-z0-9]{1,9}$ ]] && envs+="${e} "
+    done
+  else
+    envs="dev prd "
+  fi
+  printf '%s' "${envs}bkp all"
+}
+
 do_gcp_001_create_project() {
 
   command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
@@ -39,9 +59,13 @@ do_gcp_001_create_project() {
   do_gcp_pin_bootstrap_account || exit 1
   do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
 
-  # bkp: csi-spl-bkp, the off-project backup project (iac 046, spec 044 T077)
-  # all: csi-spl-all, the satellite agent box (iac 059/060, spec 057)
-  [[ "${ENV}" == dev || "${ENV}" == prd || "${ENV}" == bkp || "${ENV}" == all ]] || { do_log "FATAL ENV must be dev, prd, bkp or all, got: ${ENV}"; exit 1; }
+  # the envs are the cnf's <env>.env.yaml files (spec 072 A8), plus
+  # bkp: <org>-<app>-bkp, the off-project backup project (iac 046, spec 044 T077)
+  # all: <org>-<app>-all, the satellite agent box (iac 059/060, spec 057)
+  local cnf_dir="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}"
+  local envs
+  envs=$(_gcp_001_cnf_envs "${cnf_dir}")
+  [[ " ${envs} " == *" ${ENV} "* ]] || { do_log "FATAL ENV must be one of: ${envs}, got: ${ENV}"; exit 1; }
 
   # the org comes from cnf env.gcp.gcp_org_id unless the env names a parent
   [[ -n "${GCP_FOLDER_ID:-}" ]] || GCP_ORG_ID=$(do_gcp_org_id)
@@ -60,17 +84,22 @@ do_gcp_001_create_project() {
   local dry_run="${DRY_RUN:-1}"
   [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }
 
-  # The id comes from the committed config, and is cross-checked against the
-  # convention, so a worktree-derived ORG/APP cannot name a new project.
-  local cnf_file="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}/${ENV}.env.yaml"
+  # The id comes from the committed config (spec 072 A8): a GCP project id is
+  # global, so the directory names cannot be what names it. The convention
+  # <org>-<app>-<env> is only the fallback for a cnf that names none.
+  local cnf_file="${cnf_dir}/${ENV}.env.yaml"
   local cnf_proj=""
   # ENV=all: all.env.yaml is the SHARED base, not csi-spl-all's env file
-  if [[ "${ENV}" != all && -f "${cnf_file}" ]] && command -v yq &>/dev/null; then
+  if [[ "${ENV}" != all && -f "${cnf_file}" ]]; then
+    # an unread cnf must not fall back to the convention: that names a project
+    # the cnf may not mean
+    command -v yq &>/dev/null || { do_log "FATAL yq is needed to read env.gcp.gcp_project from ${cnf_file}"; exit 1; }
     cnf_proj=$(yq -r '.env.gcp.gcp_project // ""' "${cnf_file}" 2>/dev/null)
   fi
-  local proj_id="${ORG}-${APP}-${ENV}"
-  if [[ -n "${cnf_proj}" && "${cnf_proj}" != "${proj_id}" ]]; then
-    do_log "FATAL ${cnf_file} says gcp_project=${cnf_proj}, the convention says ${proj_id}; refusing"
+  local proj_id="${cnf_proj:-${ORG}-${APP}-${ENV}}"
+  # GCP's own rule: 6-30 chars, lowercase letters, digits, hyphens, a letter first
+  if [[ ! "${proj_id}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
+    do_log "FATAL project id ${proj_id} is not a GCP project id (6-30 lowercase letters, digits or -, a letter first); set env.gcp.gcp_project in ${cnf_file}"
     exit 1
   fi
   export PROJ_ID="${proj_id}"

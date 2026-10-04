@@ -76,7 +76,7 @@ do_spl_db_bootstrap() {
   local pdsn rc=0
   spl_host_spool || return 1
   spl_sql_proxy_start || return 1
-  pdsn="$(spl_proxy_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
+  pdsn="$(spl_local_dsn "$owner_dsn" "$SPL_PROXY_PORT")" ||
     { spl_sql_proxy_stop; do_log "FATAL the owner DSN is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"; return 1; }
   SPOOL_HUB_DB_DSN="$pdsn" "$SPL_SPOOL" migrate --sql-dir "$SPL_IMAGE_SQL_SRC" || rc=$?
   if (( rc != 0 )); then

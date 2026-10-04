@@ -375,12 +375,80 @@ spl_host_spool_verdict() {
   fi
 }
 
-# spl_read_dsn -> prints the latest version of the DSN secret. The value is
-# never logged; the caller keeps it in a local.
+# spl_read_dsn [runtime|owner] -> the db_dsn read seam (spec 076 T017, SM-26):
+# routed by do_spl_cloud_dispatch to do_db_dsn_read_<provider>. Prints the
+# hub DB's runtime DSN (default) or the owner DSN, nothing when there is none.
+# The value is never logged; the caller keeps it in a local.
+# shellcheck disable=SC2120 # spl_read_owner_dsn (spl-db-roles) passes owner
 spl_read_dsn() {
-  gcloud secrets versions access latest --secret="$SPL_DSN_SECRET" --project="$SPL_PROJECT" \
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_dsn read "${1:-runtime}"
+}
+
+# do_db_dsn_read_gcp <runtime|owner> -> the latest version of $SPL_DSN_SECRET
+# or $SPL_OWNER_DSN_SECRET, read as $GCP_ACCOUNT.
+do_db_dsn_read_gcp() {
+  local secret
+  case "${1-}" in
+    runtime) secret="$SPL_DSN_SECRET" ;;
+    owner) secret="$SPL_OWNER_DSN_SECRET" ;;
+    *) do_log "FATAL usage: do_db_dsn_read_gcp <runtime|owner>; got: '${1-}'" >&2; return 2 ;;
+  esac
+  gcloud secrets versions access latest --secret="$secret" --project="$SPL_PROJECT" \
     --account="$GCP_ACCOUNT" 2>/dev/null
 }
+
+# do_db_dsn_read_none <runtime|owner> -> no Secret Manager (spec 076 section
+# 7): runtime is $SPOOL_HUB_DB_DSN; owner is the same Postgres server (host
+# and port of $SPOOL_HUB_DB_DSN) as SPOOL_DB_OWNER (default spool_hub) with
+# SPOOL_DB_OWNER_PASSWORD, on SPOOL_DB_NAME (default spool_hub), read from the
+# self-host .env that do_secrets_seed_none writes (mode 600, never sourced).
+# Prints nothing and returns 1 when a part is missing; no value is logged.
+do_db_dsn_read_none() {
+  case "${1-}" in
+    runtime) [[ -n "${SPOOL_HUB_DB_DSN:-}" ]] || return 1; printf '%s' "$SPOOL_HUB_DB_DSN" ;;
+    owner)
+      # shellcheck disable=SC2034 # statef: set by spl_secrets_none_paths, unused here
+      local envf statef pw
+      # shellcheck source=../../../src/bash/run/spl-secrets-check.func.sh
+      declare -F spl_secrets_none_paths >/dev/null ||
+        source "${BASH_SOURCE[0]%/*}/../../../src/bash/run/spl-secrets-check.func.sh"
+      spl_secrets_none_paths >&2 || return 1
+      [[ -n "${SPOOL_HUB_DB_DSN:-}" ]] ||
+        { do_log "FATAL SPOOL_HUB_DB_DSN is not set: the owner DSN uses its host and port" >&2; return 1; }
+      pw="$(spl_secrets_none_get "$envf" SPOOL_DB_OWNER_PASSWORD)"
+      [[ "$(spl_secrets_none_state "$pw")" != empty ]] ||
+        { do_log "FATAL no SPOOL_DB_OWNER_PASSWORD in $envf: run ./run -a do_spl_secrets_seed_all" >&2; return 1; }
+      SPL_DSN_IN="$SPOOL_HUB_DB_DSN" SPL_PW_IN="$pw" \
+        SPL_USER_IN="$(spl_secrets_none_get "$envf" SPOOL_DB_OWNER)" \
+        SPL_DB_IN="$(spl_secrets_none_get "$envf" SPOOL_DB_NAME)" python3 -c '
+import os, urllib.parse as u
+p = u.urlsplit(os.environ["SPL_DSN_IN"]); q = lambda s: u.quote(s, safe="")
+host = p.hostname or ""
+host = "[%s]" % host if ":" in host else host
+if not host: raise SystemExit(1)
+print("postgres://%s:%s@%s:%s/%s?sslmode=disable" % (q(os.environ["SPL_USER_IN"] or "spool_hub"),
+      q(os.environ["SPL_PW_IN"]), host, p.port or 5432, q(os.environ["SPL_DB_IN"] or "spool_hub")), end="")' ;;
+    *) do_log "FATAL usage: do_db_dsn_read_none <runtime|owner>; got: '${1-}'" >&2; return 2 ;;
+  esac
+}
+
+# spl_local_dsn <dsn> <port> -> the db_dsn local seam: the login of a DSN from
+# spl_read_dsn as this box reaches it after spl_sql_proxy_start.
+spl_local_dsn() {
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_dsn local "$@"
+}
+
+# do_db_dsn_local_gcp <cloud dsn> <port> -> spl_proxy_dsn: the /cloudsql DSN
+# through the local Cloud SQL proxy.
+do_db_dsn_local_gcp() { spl_proxy_dsn "$@"; }
+
+# do_db_dsn_local_none <dsn> <port> -> the DSN as given: a plain TCP Postgres,
+# no proxy in between. Fails on an empty one.
+do_db_dsn_local_none() { [[ -n "${1-}" ]] || return 1; printf '%s' "$1"; }
 
 # spl_proxy_dsn <cloud dsn> <port> -> the same login through the local proxy.
 # The cloud DSN is the one 040 documents and 030 runs:
@@ -503,7 +571,7 @@ spl_via_proxy() {
   cloud_dsn="$(spl_read_dsn)"
   [[ -n "$cloud_dsn" ]] || { do_log "FATAL cannot read $SPL_DSN_SECRET in $SPL_PROJECT as $GCP_ACCOUNT"; return 1; }
   spl_sql_proxy_start || return 1
-  dsn="$(spl_proxy_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" ||
+  dsn="$(spl_local_dsn "$cloud_dsn" "$SPL_PROXY_PORT")" ||
     { spl_sql_proxy_stop; do_log "FATAL the DSN in $SPL_DSN_SECRET is not postgres://<user>:<pw>@/<db>?host=/cloudsql/<conn>"; return 1; }
   SPL_PROXY_DSN="$dsn" "$@" || rc=$?
   spl_sql_proxy_stop

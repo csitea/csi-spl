@@ -20,10 +20,11 @@ spl_dsn_user() {
   SPL_DSN_IN="$1" python3 -c 'import os, urllib.parse as u; print(u.unquote(u.urlsplit(os.environ["SPL_DSN_IN"]).username or ""))'
 }
 
-# spl_read_owner_dsn -> the latest version of the owner DSN secret, or nothing
+# spl_read_owner_dsn -> the owner DSN, or nothing: the db_dsn read seam
+# (spl_read_dsn owner, spec 076 T017); under gcp the latest version of
+# $SPL_OWNER_DSN_SECRET, under none built from the self-host .env.
 spl_read_owner_dsn() {
-  gcloud secrets versions access latest --secret="$SPL_OWNER_DSN_SECRET" --project="$SPL_PROJECT" \
-    --account="$GCP_ACCOUNT" 2>/dev/null
+  spl_read_dsn owner
 }
 
 # spl_secret_add <secret id> <- value on stdin: a new version, nothing logged

@@ -14,8 +14,12 @@ unset TMUX TMUX_PANE
 t_tmux
 P="$(t_window 'CLE-80 x ✓ y' "printf '❯ \\n'; stty -echo; exec sleep 600")"
 sleep 0.3
+# env -i drops SPOOL_NOW. t_sandbox pins it before the legacy-id cutoff so a
+# CLE- fixture stays a valid id (specs/061); without it spool_valid_id refuses
+# CLE-80 once wall clock passes SPOOL_LEGACY_ID_UNTIL.
 cenv=(env -i LC_ALL=C PATH="$PATH" HOME="$HOME" SPOOL_ROOT="$SPOOL_ROOT" SPOOL_TMUX_SOCKET="$SPOOL_TMUX_SOCKET"
-      SPOOL_BOX_USER="$SPOOL_BOX_USER" SPOOL_AGENT_USER="$SPOOL_AGENT_USER" XDG_CONFIG_HOME="$T_TMP/cfg")
+      SPOOL_BOX_USER="$SPOOL_BOX_USER" SPOOL_AGENT_USER="$SPOOL_AGENT_USER" SPOOL_NOW="$SPOOL_NOW"
+      XDG_CONFIG_HOME="$T_TMP/cfg")
 
 has "LC_ALL=C tmux -u keeps the checkmark" "✓" "$("${cenv[@]}" tmux -u -S "$SPOOL_TMUX_SOCKET" list-windows -F '#{window_name}')"
 out="$("${cenv[@]}" tmux -S "$SPOOL_TMUX_SOCKET" list-windows -F '#{window_name}')"

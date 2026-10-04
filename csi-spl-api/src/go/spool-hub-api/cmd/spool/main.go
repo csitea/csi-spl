@@ -39,6 +39,10 @@
 //	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
 //	claim   (--poll [--max n] | --renew | --release <msg> --reason <r> | --done <msg> [--how h]) --as <seat> [--ttl s] [--gen g]
 //	          hub mode: a peer seat locks, keeps, gives back or closes messages (spec 068 4.1)
+//	doc-list [prefix]          list workspace docs (GET /v1/workspace/docs/tree.json)
+//	doc-read <path>            print one workspace doc
+//	doc-write <path> [--file f]  save one (stdin when --file is absent); last write wins
+//	doc-delete <path>          delete one workspace doc
 //	mcp [--as <id>]            stdio MCP server exposing the verbs as tools; --as
 //	                           (or $SPOOL_MCP_AS) seats it: it acts for that agent only
 //
@@ -125,6 +129,10 @@ on a box (an agent's machine):
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
+  doc-list            list workspace docs; an optional prefix keeps that folder
+  doc-read            print one workspace document to stdout
+  doc-write           save one workspace document (last write wins)
+  doc-delete          delete one workspace document
   layout              list the agent ids with a mailbox under $SPOOL_ROOT (<ID> or <ID>@<box>)
 
 a box and its hub ($SPOOL_HUB_URL):
@@ -258,6 +266,14 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdAsk(cfg, rest)
 	case "claim": // spec 068 4.1
 		return cmdClaim(cfg, rest)
+	case "doc-list": // spec 075 T009
+		return cmdDocList(cfg, rest)
+	case "doc-read":
+		return cmdDocRead(cfg, rest)
+	case "doc-write":
+		return cmdDocWrite(cfg, rest)
+	case "doc-delete":
+		return cmdDocDelete(cfg, rest)
 	case "layout": // specs/058 6
 		return cmdLayout(cfg)
 	default:

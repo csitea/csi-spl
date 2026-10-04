@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
@@ -101,8 +102,18 @@ func TestHubNonePath(t *testing.T) {
 		t.Errorf("none revision %q, want hostname %q", got, host)
 	}
 	hc := &config.Hub{FilesDir: "/var/lib/spool/files", DBDSN: "postgres://rt@pg:5432/spool_hub?sslmode=disable"}
-	if bs, err := openBlobStore(ctx, cf, hc); err != nil || bs != (blob.Dir{Root: hc.FilesDir}) {
-		t.Errorf("none files store %#v, %v; want blob.Dir on SPOOL_HUB_FILES_DIR", bs, err)
+	if bs, err := openBlobStore(ctx, cf, hc); err == nil || bs != nil || !strings.Contains(err.Error(), "SPOOL_S3_ENDPOINT") {
+		t.Errorf("none files store without the S3 env %#v, %v; want a fail-fast naming it", bs, err)
+	}
+	t.Setenv("SPOOL_S3_ENDPOINT", "http://s3.test:9000")
+	t.Setenv("SPOOL_S3_BUCKET", "test-files")
+	t.Setenv("SPOOL_S3_ACCESS_KEY", "test-access")
+	t.Setenv("SPOOL_S3_SECRET_KEY", "test-secret")
+	t.Setenv("SPOOL_S3_USE_PATH_STYLE", "true")
+	if bs, err := openBlobStore(ctx, cf, hc); err != nil {
+		t.Errorf("none files store: %v", err)
+	} else if _, ok := bs.(*blob.S3); !ok {
+		t.Errorf("none files store %T; want *blob.S3, never blob.Dir", bs)
 	}
 	if bs, err := openDocsStore(ctx, cf, hc); bs != nil || err != nil {
 		t.Errorf("none docs store %#v, %v; want off", bs, err)
@@ -110,8 +121,8 @@ func TestHubNonePath(t *testing.T) {
 	if _, err := openBlobStore(ctx, cf, &config.Hub{FilesBucket: "spl-files"}); err == nil {
 		t.Error("none with a files bucket must refuse, not open GCS")
 	}
-	if _, err := openBlobStore(ctx, cf, &config.Hub{}); err == nil {
-		t.Error("no files dir must refuse")
+	if bs, err := openBlobStore(ctx, cf, &config.Hub{}); err != nil || bs == nil {
+		t.Errorf("none files store without a dir %#v, %v; want S3, the dir is not needed", bs, err)
 	}
 }
 

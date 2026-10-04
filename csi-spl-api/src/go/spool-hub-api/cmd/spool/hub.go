@@ -292,9 +292,9 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 }
 
 // openBlobStore is the tenant file store from the provider: under gcp the GCS
-// bucket when one is set, else a local dir; under none always the dir.
+// bucket when one is set, else a local dir; under none the SPOOL_S3_* service.
 func openBlobStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.Store, error) {
-	bs, err := cf.Blob(ctx, hc.FilesBucket, hc.FilesDir)
+	bs, err := cf.BlobStore().Files(ctx, hc.FilesBucket, hc.FilesDir)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func openBlobStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.
 // openDocsStore is the Docs section's store from the provider, nil when
 // neither bucket nor dir is set: the section is off.
 func openDocsStore(ctx context.Context, cf cloud.Factory, hc *config.Hub) (blob.Store, error) {
-	return cf.Blob(ctx, hc.DocsBucket, hc.DocsDir)
+	return cf.BlobStore().Docs(ctx, hc.DocsBucket, hc.DocsDir)
 }
 
 // workspaceDocs is the per-workspace docs resolver (specs/075 T007), nil
@@ -317,11 +317,11 @@ func workspaceDocs(cf cloud.Factory, hc *config.Hub) (*hub.WorkspaceDocs, error)
 	switch {
 	case hc.WorkspaceDocsBucket != "":
 		return hub.NewWorkspaceDocs(hc.WorkspaceDocsBucket, func(ctx context.Context, bucket string) (blob.Store, error) {
-			return cf.Blob(ctx, bucket, "")
+			return cf.BlobStore().Docs(ctx, bucket, "")
 		})
 	case hc.WorkspaceDocsDir != "":
 		return hub.NewWorkspaceDocs(filepath.Join(hc.WorkspaceDocsDir, "{tenant}"), func(ctx context.Context, dir string) (blob.Store, error) {
-			return cf.Blob(ctx, "", dir)
+			return cf.BlobStore().Docs(ctx, "", dir)
 		})
 	}
 	return nil, nil

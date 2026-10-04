@@ -64,15 +64,19 @@ func TestGCPChoices(t *testing.T) {
 			t.Errorf("gcp DSN(%q) = %q, %v; want unchanged", dsn, got, err)
 		}
 	}
-	bs, err := f.Blob(ctx, "files-bucket", "/ignored")
-	if _, ok := bs.(*blob.GCS); err != nil || !ok {
-		t.Errorf("gcp Blob(bucket) = %T, %v; want *blob.GCS", bs, err)
-	}
-	if bs, _ := f.Blob(ctx, "", "/d"); bs != (blob.Dir{Root: "/d"}) {
-		t.Errorf("gcp Blob(dir) = %#v, want blob.Dir{/d}", bs)
-	}
-	if bs, err := f.Blob(ctx, "", ""); bs != nil || err != nil {
-		t.Errorf("gcp Blob(off) = %#v, %v; want nil, nil", bs, err)
+	for name, open := range map[string]func(context.Context, string, string) (blob.Store, error){
+		"Files": f.BlobStore().Files, "Docs": f.BlobStore().Docs,
+	} {
+		bs, err := open(ctx, "files-bucket", "/ignored")
+		if _, ok := bs.(*blob.GCS); err != nil || !ok {
+			t.Errorf("gcp %s(bucket) = %T, %v; want *blob.GCS", name, bs, err)
+		}
+		if bs, _ := open(ctx, "", "/d"); bs != (blob.Dir{Root: "/d"}) {
+			t.Errorf("gcp %s(dir) = %#v, want blob.Dir{/d}", name, bs)
+		}
+		if bs, err := open(ctx, "", ""); bs != nil || err != nil {
+			t.Errorf("gcp %s(off) = %#v, %v; want nil, nil", name, bs, err)
+		}
 	}
 }
 
@@ -90,14 +94,15 @@ func TestNoneChoices(t *testing.T) {
 	if got := f.Compute().Revision(); got != "" {
 		t.Errorf("none revision without version or hostname = %q, want \"\"", got)
 	}
-	if bs, err := f.Blob(ctx, "", "/var/lib/spool/files"); err != nil || bs != (blob.Dir{Root: "/var/lib/spool/files"}) {
-		t.Errorf("none Blob(dir) = %#v, %v", bs, err)
+	docs := f.BlobStore().Docs
+	if bs, err := docs(ctx, "", "/var/lib/spool/docs"); err != nil || bs != (blob.Dir{Root: "/var/lib/spool/docs"}) {
+		t.Errorf("none Docs(dir) = %#v, %v", bs, err)
 	}
-	if _, err := f.Blob(ctx, "files-bucket", "/d"); err == nil {
-		t.Error("none Blob(bucket) must refuse, never open a GCS client")
+	if _, err := docs(ctx, "docs-bucket", "/d"); err == nil {
+		t.Error("none Docs(bucket) must refuse, never open a GCS client")
 	}
-	if bs, err := f.Blob(ctx, "", ""); bs != nil || err != nil {
-		t.Errorf("none Blob(off) = %#v, %v; want nil, nil", bs, err)
+	if bs, err := docs(ctx, "", ""); bs != nil || err != nil {
+		t.Errorf("none Docs(off) = %#v, %v; want nil, nil", bs, err)
 	}
 	dsn := "postgres://rt:pw@pg:5432/spool_hub?sslmode=disable"
 	if got, err := f.Database().DSN(dsn); err != nil || got != dsn {
@@ -116,6 +121,60 @@ func TestSecretsReadTheEnv(t *testing.T) {
 		}
 		if _, ok := f.Secrets().Secret("SPOOL_MISSING"); ok {
 			t.Errorf("%s Secret(missing) reported present", p)
+		}
+	}
+}
+
+// composeS3 is the S3 env docker-compose.yml gives the hub, with test values.
+func composeS3() map[string]string {
+	return map[string]string{
+		EnvProvider:         "none",
+		blob.EnvS3Endpoint:  "http://s3.test:9000",
+		EnvS3Bucket:         "test-files",
+		blob.EnvS3AccessKey: "test-access",
+		blob.EnvS3SecretKey: "test-secret",
+		EnvS3UsePathStyle:   "true",
+	}
+}
+
+func TestNoneFilesIsS3(t *testing.T) {
+	ctx := context.Background()
+	kv := composeS3()
+	f, _ := New(fakeEnv(kv, "h"))
+	// the dir is ignored: under none the S3 env is the store (owner decision 1)
+	bs, err := f.BlobStore().Files(ctx, "", "/var/lib/spool/files")
+	if _, ok := bs.(*blob.S3); err != nil || !ok {
+		t.Fatalf("none Files = %T, %v; want *blob.S3", bs, err)
+	}
+	if _, err := f.BlobStore().Files(ctx, "files-bucket", ""); err == nil || !strings.Contains(err.Error(), "GCS") {
+		t.Errorf("none Files(GCS bucket) = %v, want a refusal", err)
+	}
+	opt, err := s3Options(fakeEnv(kv, "h"))
+	if err != nil || opt != (blob.S3Options{Bucket: "test-files", Region: s3DefaultRegion, Endpoint: "http://s3.test:9000"}) {
+		t.Errorf("s3Options = %#v, %v", opt, err)
+	}
+	kv[blob.EnvS3Region] = "eu-north-1"
+	if opt, _ := s3Options(fakeEnv(kv, "h")); opt.Region != "eu-north-1" {
+		t.Errorf("s3Options region = %q, want %s", opt.Region, blob.EnvS3Region)
+	}
+}
+
+func TestNoneFilesFailsFastWithoutS3Env(t *testing.T) {
+	ctx := context.Background()
+	for _, k := range []string{blob.EnvS3Endpoint, EnvS3Bucket, blob.EnvS3AccessKey, blob.EnvS3SecretKey} {
+		kv := composeS3()
+		delete(kv, k)
+		f, _ := New(fakeEnv(kv, "h"))
+		bs, err := f.BlobStore().Files(ctx, "", "/var/lib/spool/files")
+		if bs != nil || err == nil || !strings.Contains(err.Error(), k) {
+			t.Errorf("none Files without %s = %#v, %v; want an error naming it", k, bs, err)
+		}
+	}
+	for _, v := range []string{"false", "maybe"} {
+		kv := composeS3()
+		kv[EnvS3UsePathStyle] = v
+		if _, err := s3Options(fakeEnv(kv, "h")); err == nil {
+			t.Errorf("%s=%s accepted; the driver is always path-style on an endpoint", EnvS3UsePathStyle, v)
 		}
 	}
 }

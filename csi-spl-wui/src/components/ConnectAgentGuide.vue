@@ -59,7 +59,7 @@ const props = defineProps<{ tenant: string, hubUrl: string, open: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 
-const agent = ref('CLE-01')
+const agent = ref('c-001')
 const box = ref('box-laptop')
 const keyFile = ref('')
 watch(() => props.tenant, (tn) => { if (!keyFile.value) keyFile.value = `~/Downloads/${tn || 'tenant'}.root.key` }, { immediate: true })

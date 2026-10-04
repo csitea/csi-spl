@@ -49,7 +49,7 @@ async function setField(p, sel, value) {
 
 const scriptText = (p) => p.$eval('[data-test=connect-agent-script] pre, [data-test=connect-agent-script] code', (el) => el.textContent || '').catch(() => '')
 
-/* spec 061 FR-004: the mock ids are legacy (CLE-01); pin the browser's
+/* spec 061 FR-004: the mock ids are legacy (CLE-01, GRK-7); pin the browser's
    agent-id clock before LEGACY_ID_UNTIL so the run never turns red at it */
 const pinAgentIdClock = (p) => p.evaluateOnNewDocument(() => { globalThis.SPOOL_AGENT_ID_NOW = '2026-10-02T12:00:00Z' })
 
@@ -73,7 +73,7 @@ try {
     const s = await scriptText(p)
     ok('the block builds, seats, connects and adds the MCP', /git clone --depth 1 https:\/\/github\.com\/csitea\/csi-spl/.test(s) &&
       /spool hub-pin --box "\$SPOOL_BOX_ID" --pubkey "\$\(spool keygen\)" --root-key "\$HOME\/Downloads\/mock\.root\.key"/.test(s) &&
-      /nohup spool hub-run/.test(s) && /claude mcp add spool -- bash -c '\. ~\/\.spool\/env && exec spool mcp --as CLE-01'/.test(s), s.slice(0, 120))
+      /nohup spool hub-run/.test(s) && /claude mcp add spool -- bash -c '\. ~\/\.spool\/env && exec spool mcp --as c-001'/.test(s), s.slice(0, 120))
     ok('it names this tenant', /SPOOL_TENANT='mock'/.test(s))
     const copy = await p.$('[data-test=connect-agent-script] [data-testid=code-copy]')
     ok('the block has a copy button', Boolean(copy))

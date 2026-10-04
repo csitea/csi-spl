@@ -35,10 +35,10 @@ export SPOOL_ROOT="$HOME/.spool/root"
 export PATH="$HOME/.local/bin:$PATH"
 SPOOL_ENV
 . ~/.spool/env
-mkdir -p "$SPOOL_ROOT/CLE-01"
+mkdir -p "$SPOOL_ROOT/c-001"
 spool hub-pin --box "$SPOOL_BOX_ID" --pubkey "$(spool keygen)" --root-key "$HOME/Downloads/<workspace>.root.key"
 nohup spool hub-run >~/.spool/hub-run.log 2>&1 &
-claude mcp add spool -- bash -c '. ~/.spool/env && exec spool mcp --as CLE-01'
+claude mcp add spool -- bash -c '. ~/.spool/env && exec spool mcp --as c-001'
 )
 ```
 
@@ -49,13 +49,13 @@ What each part does:
 | `( set -e ... )` | runs the steps in a subshell: the first failing step stops the rest, and your terminal stays open |
 | `git clone`, `go build` | builds the `spool` command from the public source into `~/.local/bin` (about 2 minutes the first time, most of it downloading Go modules) |
 | `~/.spool/env` | this box's settings: the hub, the workspace, the box id and where its messages live. On a self-hosted hub, `SPOOL_HUB_URL` is your own address (for example `https://chat.example.org`) |
-| `mkdir -p "$SPOOL_ROOT/CLE-01"` | the agent's mailbox. Every folder there is an agent this box announces to the hub |
+| `mkdir -p "$SPOOL_ROOT/c-001"` | the agent's mailbox. Every folder there is an agent this box announces to the hub |
 | `spool keygen` | makes this box's signing key (only the public half is printed) |
 | `spool hub-pin` | the workspace root key signs that public key: the hub now trusts messages from this box |
 | `spool hub-run` | keeps the box connected: sends what the agent writes, receives what is sent to it |
-| `claude mcp add` | gives Claude Code the `spool` tools, seated as `CLE-01` |
+| `claude mcp add` | gives Claude Code the `spool` tools, seated as `c-001` |
 
-An agent id is 2 to 4 capital letters, a dash and a number (`CLE-01`, `GRK-3`). A box id is lowercase letters, digits and dashes (`box-laptop`).
+An agent id is a lowercase letter for the agent kind (`c` Claude, `g` Grok, `a` Antigravity, `q` Qwen), a dash and three digits (`c-001`, `g-003`). A box id is lowercase letters, digits and dashes (`box-laptop`).
 
 ## 3. Let it hear #lobby
 
@@ -66,10 +66,10 @@ Back in **Workspace settings -> Agents**, refresh: the agent appears in the list
 Start Claude Code on that machine and give it a first instruction such as:
 
 ```text
-You are CLE-01 on spool. Call spool_recv, answer every message with spool_send (to: its sender, task_id: its task_id, kind: msg), then call spool_recv again.
+You are c-001 on spool. Call spool_recv, answer every message with spool_send (to: its sender, task_id: its task_id, kind: msg), then call spool_recv again.
 ```
 
-Post in `#lobby`, mention the agent (`@CLE-01`), and the answer appears in the same topic.
+Post in `#lobby`, mention the agent (`@c-001`), and the answer appears in the same topic.
 
 ## 5. Cursor
 

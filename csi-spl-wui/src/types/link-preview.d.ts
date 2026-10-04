@@ -5,6 +5,8 @@ declare module '~/utils/link-preview.mjs' {
   export function parseLinkPreviews(raw: unknown): 'on' | 'off'
   export function previewTarget(href: string, pageOrigin: string): string | null
   export function previewRefs(body: unknown, pageOrigin: string, max?: number): { id: string, href: string }[]
+  export function previewRefsOfBlocks(blocks: unknown, pageOrigin: string, max?: number): { id: string, href: string }[]
+  export function bodyPreviewRefs(blocks: unknown, body: unknown, pageOrigin: string, opts?: { skip?: Iterable<string>, max?: number }): { id: string, href: string }[]
 }
 
 declare module '~/utils/link-preview-lookup.mjs' {

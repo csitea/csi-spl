@@ -33,6 +33,12 @@ const FAR_REPLY = 'fb200000-0000-4000-8000-00000000000b'
 const DM_TASK = 'fe000000-0000-4000-8000-00000000000d'
 const UNKNOWN = '00000000-0000-4000-8000-000000000098'
 const TITLE = 'Release plan for the link previews'
+/* owner 3522fd83 ("I have the setting, but I cannot see any previews"): agent
+   posts carry bare ids, which id-links.mjs turns into links - no URL at all.
+   The post's own topic id is quoted too: a post gets no card of itself. */
+const ID_TASK = 'fe300000-0000-4000-8000-00000000000e'
+const ID_MSG = 'fe400000-0000-4000-8000-00000000000e'
+const ID_BODY = `the fix is in topic ${FAR_TOPIC.slice(0, 8)}\nthe proof is ${FAR_REPLY}\nthis topic is ${ID_TASK}`
 const BODY = `the plan is [here](/t/${FAR_TOPIC})\nthe proof is /t/${FAR_TOPIC}#${FAR_REPLY} -> [reply](/t/${FAR_TOPIC}#${FAR_REPLY})\nnothing at [this one](/t/${UNKNOWN})`
 
 const results = []
@@ -46,6 +52,7 @@ const base = { v: 1, files: [], kind: 'note', is_parent: 1, parent_task_id: null
 const extra = [
   { ...base, msg_id: FAR_CARD, task_id: FAR_TOPIC, channel: 'feedback', from: 'HUM-2', from_box: 'box-wui', to: '@channel', to_box: 'box-wui', body: `${TITLE}\nstep one: the hub\nstep two: the cards\nstep three: the switch\nstep four: never shown`, ts: '2026-09-10T08:00:00Z' },
   { ...base, msg_id: FAR_REPLY, task_id: 'fb300000-0000-4000-8000-00000000000c', parent_task_id: FAR_TOPIC, is_parent: 0, channel: 'feedback', from: 'HUM-3', from_box: 'box-wui', to: '@channel', to_box: 'box-wui', body: 'the reply that proves it', ts: '2026-09-10T08:01:00Z' },
+  { ...base, msg_id: ID_MSG, task_id: ID_TASK, channel: null, from: 'CLE-07', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', body: ID_BODY, ts: '2026-12-31T23:58:00Z' },
   { ...base, msg_id: 'fe100000-0000-4000-8000-00000000000d', task_id: DM_TASK, channel: null, from: 'CLE-07', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', body: BODY, ts: '2026-12-31T23:59:00Z' },
 ]
 
@@ -113,12 +120,17 @@ const look = (p) => p.evaluate((ids) => {
       return Math.round(e.getBoundingClientRect().height / lh)
     })(),
   }))
+  /* the bare-id post's own cards (the middle pane's topic card of it) */
+  const idPost = [...document.querySelectorAll(`[data-msg-id="${ids.idMsg}"]`)]
+    .map((el) => [...el.querySelectorAll('[data-test=link-preview]')].map((c) => c.getAttribute('data-id')))
+    .find((l) => l.length) || []
   return {
+    idPost,
     topicLink: links.some((h) => h.endsWith('/t/' + ids.topic)),
     unknownLink: links.some((h) => h.endsWith('/t/' + ids.unknown)),
     cards,
   }
-}, { topic: FAR_TOPIC, unknown: UNKNOWN })
+}, { topic: FAR_TOPIC, unknown: UNKNOWN, idMsg: ID_MSG })
 
 async function waitFor(p, pred, ms = 15000) {
   const start = Date.now()
@@ -150,6 +162,10 @@ try {
     ok(`${label} the card names who wrote it`, !!(topic && /HUM-2|FirstName|LastName/.test(topic.text)), topic && topic.text)
     ok(`${label} the linked reply shows a message card: its topic's title over its own line`,
       !!(reply && reply.kind === 'message' && reply.title === TITLE && reply.excerpt === 'the reply that proves it'), reply)
+    const ids = await waitFor(p, (x) => x && x.idPost.length >= 2)
+    ok(`${label} a post with only bare ids (topic ${FAR_TOPIC.slice(0, 8)}, a reply uuid) shows their cards`,
+      !!(ids && ids.idPost.includes(FAR_TOPIC) && ids.idPost.includes(FAR_REPLY)), ids && ids.idPost)
+    ok(`${label} that post gets no card of its own topic`, !!(ids && !ids.idPost.includes(ID_TASK)), ids && ids.idPost)
     ok(`${label} CONTROL: the unknown topic's link stays a plain link, no card`, !!(s && s.unknownLink && !s.cards.some((c) => c.id === UNKNOWN)), s)
     if (SHOT_DIR) {
       mkdirSync(SHOT_DIR, { recursive: true })

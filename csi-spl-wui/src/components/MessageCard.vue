@@ -1467,7 +1467,9 @@ const clipInner = ref<HTMLElement | null>(null)
 const picture = computed(() => cardHasPicture(files.value))
 const titleOnly = computed(() => props.clipMode === 'titles' && !editing.value)
 /* topic e1f8f797: the body's internal links, as preview cards under the clip */
-const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''))
+const linkPreviews = useLinkPreviewRefs(() => String(props.msg.body || ''), {
+  skip: () => [String(props.msg.msg_id || ''), String(props.msg.task_id || ''), String(props.msg.parent_task_id || '')],
+})
 const clipOn = computed(() => props.clipMode === 'rows' && !editing.value)
 const title = computed(() => {
   const own = cardTitle(String(props.msg.body || ''))

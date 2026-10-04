@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { LINK_PREVIEWS, PREVIEWS_PER_BODY, parseLinkPreviews, previewRefs, previewTarget } from '../../src/utils/link-preview.mjs'
+import { LINK_PREVIEWS, PREVIEWS_PER_BODY, bodyPreviewRefs, parseLinkPreviews, previewRefs, previewRefsOfBlocks, previewTarget } from '../../src/utils/link-preview.mjs'
 import { PREVIEW_ASK_MAX, PREVIEW_TTL_MS, createPreviewLookup, mockPreviews, previewText } from '../../src/utils/link-preview-lookup.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -136,5 +136,25 @@ describe('the card text (the hub rule) and the mock answer', () => {
     assert.equal(previews.length, 2)
     assert.deepEqual([previews[0].kind, previews[0].title, previews[0].excerpt, previews[0].from], ['topic', 'The plan', 'step one\nstep two', 'HUM-1'])
     assert.deepEqual([previews[1].kind, previews[1].title, previews[1].excerpt, previews[1].task_id], ['message', 'The plan', 'the reply', T])
+  })
+})
+
+describe('id links (owner 3522fd83: "I have the setting, but I cannot see any previews")', () => {
+  /* what parseBody hands back once id-links.mjs linked "topic aaaaaaaa" and a reply uuid */
+  const blocks = [
+    { type: 'para', parts: [{ type: 'text', text: 'see topic ' }, { type: 'link', text: 'aaaaaaaa', href: `/channel/lobby?topic=${T}` }] },
+    { type: 'list', items: [{ parts: [{ type: 'link', text: M, href: `/channel/lobby?topic=${T}#${M}` }] }] },
+    { type: 'code', text: `/t/${T}` },
+    { type: 'para', parts: [{ type: 'link', text: 'ext', href: 'https://example.org/x' }] },
+  ]
+  it('an id that became a link names its topic / message: same card as a URL link', () => {
+    assert.deepEqual(previewRefsOfBlocks(blocks, O).map((r) => r.id), [T, M])
+    assert.deepEqual(previewRefsOfBlocks(null, O), [])
+  })
+  it('bodyPreviewRefs: parts first, then URL links the parts missed, each once, own message and topic skipped', () => {
+    const C = 'cccccccc-0000-4000-8000-00000000000c'
+    const body = `topic aaaaaaaa\n${M}\n[x](/t/${C}) and again [y](/t/${T})`
+    assert.deepEqual(bodyPreviewRefs(blocks, body, O).map((r) => r.id), [T, M, C])
+    assert.deepEqual(bodyPreviewRefs(blocks, body, O, { skip: [T.toUpperCase()] }).map((r) => r.id), [M, C], 'a post quoting its own topic gets no card of it')
   })
 })

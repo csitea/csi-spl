@@ -53,7 +53,7 @@ watch(mdSource, (v) => { if (v === null) mdOn.value = false })
    with no such link, or a reader with previews off, never loads them. A
    host that draws them itself (MessageCard, under its 5-row clip) passes
    no-previews. */
-const previews = useLinkPreviewRefs(() => props.body)
+const previews = useLinkPreviewRefs(() => props.body, { blocks: () => blocks.value })
 </script>
 
 <style scoped>

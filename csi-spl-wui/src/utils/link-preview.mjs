@@ -16,7 +16,15 @@
  *   /t/<task>              a topic         /t/<task>#<msg>   that message
  *   /m/<msg>               a message       <any>?topic=<task>[#<msg>]
  * with or without a locale prefix (/fi/t/<task>). Links inside code are not
- * links; an id quoted as text (id-links.mjs) is not a link either.
+ * links.
+ *
+ * An id quoted as text that id-links.mjs turned into a link (a bare uuid or
+ * 8-hex start of a known topic / message, e.g. "topic 9f0d751c") IS an
+ * internal link too, and the one the owner sees most (owner, e1f8f797
+ * 3522fd83: "I have the setting, but I cannot see any previews" - agent
+ * posts carry ids, not URLs). previewRefsOfBlocks reads those from the
+ * rendered parts (code-blocks.mjs parseBody), whose hrefs are the same
+ * ?topic=<task>[#<msg>] addresses.
  *
  * The hub answers only what the reader may read (POST /v1/view/previews);
  * anything else stays a plain link.
@@ -94,6 +102,62 @@ export function previewRefs(body, pageOrigin, max = PREVIEWS_PER_BODY) {
     if (!id || seen.has(id)) continue
     seen.add(id)
     out.push({ id, href: raw })
+    if (out.length >= max) break
+  }
+  return out
+}
+
+/**
+ * The link parts of parsed body blocks (code-blocks.mjs parseBody: plain
+ * links, wiki links and the id links of id-links.mjs) that name an object,
+ * each once, in body order, at most `max`. A code block holds no parts.
+ * @param {unknown} blocks
+ * @param {string} pageOrigin
+ * @param {number} [max]
+ * @returns {{ id: string, href: string }[]}
+ */
+export function previewRefsOfBlocks(blocks, pageOrigin, max = PREVIEWS_PER_BODY) {
+  const out = []
+  if (!Array.isArray(blocks) || !pageOrigin) return out
+  const seen = new Set()
+  const take = (parts) => {
+    for (const p of Array.isArray(parts) ? parts : []) {
+      if (out.length >= max) return
+      if (!p || p.type !== 'link' || !p.href) continue
+      const id = previewTarget(String(p.href), pageOrigin)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      out.push({ id, href: String(p.href) })
+    }
+  }
+  for (const b of blocks) {
+    if (!b || typeof b !== 'object' || b.type === 'code') continue
+    take(b.parts)
+    for (const item of Array.isArray(b.items) ? b.items : []) take(item && item.parts)
+    if (out.length >= max) break
+  }
+  return out
+}
+
+/**
+ * The refs of a body: its rendered link parts first (id links included),
+ * then any URL link the parts missed (a relative markdown link outside a
+ * wiki region), each object once, none of `skip` (a card's own message and
+ * topic), at most `max`.
+ * @param {unknown} blocks parseBody(body)
+ * @param {unknown} body
+ * @param {string} pageOrigin
+ * @param {{ skip?: Iterable<string>, max?: number }} [opts]
+ */
+export function bodyPreviewRefs(blocks, body, pageOrigin, opts = {}) {
+  const max = Number(opts.max) > 0 ? Number(opts.max) : PREVIEWS_PER_BODY
+  const skip = new Set([...(opts.skip || [])].map((s) => String(s || '').toLowerCase()).filter(Boolean))
+  const out = []
+  const seen = new Set()
+  for (const r of [...previewRefsOfBlocks(blocks, pageOrigin, max + skip.size), ...previewRefs(body, pageOrigin, max + skip.size)]) {
+    if (seen.has(r.id) || skip.has(r.id)) continue
+    seen.add(r.id)
+    out.push(r)
     if (out.length >= max) break
   }
   return out

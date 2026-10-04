@@ -1,4 +1,6 @@
--- 0119_human_link_previews.sql — whether a person sees a short preview card
+-- 0120_human_link_previews.sql — whether a person sees a short preview card
+-- (Landed first as 0119 in b0def3ad, beside 0119_agent_join_tokens; renumbered.
+-- Idempotent, so a database that applied it as 0119 applies it again as a no-op.)
 -- under a message that links an object of the same workspace (a topic, a
 -- message). Forward-only. humans is hub-wide and outside row level security,
 -- like the other layout choices (0070, 0072, 0077); a per-tenant override

@@ -858,7 +858,7 @@ const (
 	// PrefCloseButtons (SPL-1133, rdb 0077): 'mac' = every close X in the
 	// top left (the owner's default); 'windows' = in the top right.
 	PrefCloseButtons = "close_buttons"
-	// PrefLinkPreviews (topic e1f8f797, rdb 0119): 'on' = a link to a topic
+	// PrefLinkPreviews (topic e1f8f797, rdb 0120): 'on' = a link to a topic
 	// or a message of the workspace shows a short preview card under the
 	// message (the default); 'off' = it stays a plain link.
 	PrefLinkPreviews = "link_previews"

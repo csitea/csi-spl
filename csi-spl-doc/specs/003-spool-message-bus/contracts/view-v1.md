@@ -346,7 +346,7 @@ anything else, or more than 50, is `400 bad_id` / `400 too_many`. Body
 The topics and messages that the visible message bodies LINK to (an internal
 `/t/<task>`, `/t/<task>#<msg>`, `/m/<msg>` or `?topic=<task>` link), as short
 preview cards, in one call. The WUI asks only when the reader's own
-`link_previews` setting is on (auth `PUT /preferences`, rdb 0119; null = on).
+`link_previews` setting is on (auth `PUT /preferences`, rdb 0120; null = on).
 Request `{"ids": [...]}`: up to 20 distinct full uuids (any case); an 8-hex
 token, anything else, or more than 20 is `400 bad_id` / `400 too_many`.
 

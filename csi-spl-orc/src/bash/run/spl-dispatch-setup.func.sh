@@ -295,7 +295,10 @@ spl_dispatch_settings_json() {
   # The unanswered sweep reads every workspace (no DESK_AGENT); its cron runs
   # it every 10 min anyway (owner 2026-10-03: "The dispatcher should be doing
   # everything as well").
+  # Two forms: with extra vars (SWEEP_MIN_AGE=2 ...) and bare - a '*' needs at
+  # least one word, so the bare command matched no rule (refused 2026-10-04 08:16Z).
   printf '      "Bash(sudo -u %s env ENV=%s * ./run -a do_spl_unanswered_sweep)"\n' "$DISPATCH_BOX_USER" "$ENV"
+  printf '      "Bash(sudo -u %s env ENV=%s ./run -a do_spl_unanswered_sweep)"\n' "$DISPATCH_BOX_USER" "$ENV"
   } | sed '$!s/$/,/' | { printf '{\n  "permissions": {\n    "allow": [\n'; cat; printf '    ]\n  }\n}\n'; }
 }
 

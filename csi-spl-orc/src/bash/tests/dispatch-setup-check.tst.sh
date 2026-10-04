@@ -100,6 +100,7 @@ grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run 
   grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_desk_post)' "$R-wt/c-002/.claude/settings.local.json" &&
   grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_topic_archive)' "$R-wt/c-002/.claude/settings.local.json" &&
   grep -qF 'Bash(sudo -u boxuser env ENV=prd * ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
+  grep -qF 'Bash(sudo -u boxuser env ENV=prd ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
   python3 -m json.tool "$R-wt/c-002/.claude/settings.local.json" >/dev/null &&
   ! grep -q 'DESK_AGENT=c-003' "$R-wt/c-002/.claude/settings.local.json" &&
   pass "2. the settings allow reply / post / archive as the seat itself + the unanswered sweep, valid JSON" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"

@@ -1,10 +1,9 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.5** (v0.5: the cloud layer is out of scope (3.1);
-research 10, 11, 16, 17, 18, 19 merged; v0.4: research 01-09, 12, 13, 15;
-v0.3: owner D2/D3, the guest rule, user story 1; v0.2: owner D1).
-`origin/master` @ `803aff49a`, 2026-10-04. Docs only: this spec builds
-nothing.
+Status: **draft v0.6** (the version log is at the end of section 9). Lead
+and editor: c-165. Baseline tree for section 4: `origin/master` @
+`803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
+spec builds nothing.
 
 Builds on, and does not repeat:
 [044 open source](../044-spool-open-source/spec.md) (the repo is public, the
@@ -89,7 +88,7 @@ change and their own running stack, from written pages alone.
 | **P3+ contributor** | a person with no GCP knowledge whom the owner invites (owner, msgs `e8d15511`, `97f2df08`) | their own laptop or cloud VM, with **their own AI-vendor login and tokens** | not covered by 047 | invited, scoped, revocable, expiring; seats agents with a join token and contributes through the public repo |
 
 P1 serves the most people for the least effort, so its actions rank first
-(section 2, measure 1). A hosted, bought tenant (047 path B) is not a
+(section 2, measure 1), and the owner orders no-cloud self-host first (msg `fe7fd2b9`, 3.1). A hosted, bought tenant (047 path B) is not a
 deployment and is not in scope.
 
 ### 3.1 GCP now; the cloud layer is out of scope
@@ -104,6 +103,19 @@ make the cloud layer swappable (GCP now, AWS later) is out of scope for this
 spec**: the owner gave it its own discussion topic, opened by the dispatcher,
 with no work started (msg `d7e415ed`). This spec designs no seam; its P2
 actions are GCP actions.
+
+The owner's decisions for that topic (msg `fe7fd2b9`), recorded here only;
+no lane starts until the owner says go:
+
+- **Scope:** every service: compute, blob storage, database, secrets, web
+  hosting, DNS/TLS, CI identity.
+- **Shape:** a factory pattern for the provider interface.
+- **Order:** no-cloud self-host first, then AWS.
+- **Default:** GCP is the default supported provider; this instance runs on
+  GCP wherever cloud resources are needed.
+
+The self-host-first order is why P1 (compose, no cloud) is this spec's first
+path (section 3).
 
 ### 3.2 Guests and contributors: access without giving up the project
 
@@ -507,3 +519,4 @@ rule, and logs it below.
 | v0.3 | owner D2 (zero-cost registry: GHCR public + release assets), D3 = yes with the contributor persona, the guest rule (3.2, R1-R3); research 02 (c-167), 05 (c-160), 06 (c-169): F10-F19, G19-G25, A18-A29, L21-L30, D5-D9; the owner's user story 1 (2.1, msg `699f38b0`) and the plan order that serves it first (7.0) | c-165 |
 | v0.4 | research 01 (c-158), 03, 04 (c-168), 07 (c-161), 08 (c-170), 09 (c-162), 12 (c-172), 13 (c-164), 15: F20-F31, G26-G34, A30-A48 (6.2), lanes L31-L44, US1 order widened (7.0), D10-D15; out-of-scope items handed on | c-165 |
 | v0.5 | owner `d7e415ed`: the cloud layer leaves this spec (3.1 is a pointer); research 10 (c-171), 11 (c-163), 16 (c-174), 17 (c-166), 18, 19 (c-167): 14 (c-173): A49-A62, lanes L45-L56, D16, A49 and A60-A61 join the user-story-1 order; S3 store and fleet-ops items parked | c-165 |
+| v0.6 | owner `fe7fd2b9`: the four cloud-layer decisions recorded in 3.1 (scope, factory shape, self-host first then AWS, GCP default); P1 first now cites it | c-165 |

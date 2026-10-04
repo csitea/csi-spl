@@ -118,6 +118,18 @@
                     ]
                 }
             ]
+        },
+        {
+            "file": "/051-gcs-docs/03-docs-bucket.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.docs",
+                    "check_ids": [
+                        "CKV_GCP_62",
+                        "CKV_GCP_78"
+                    ]
+                }
+            ]
         }
     ]
 }

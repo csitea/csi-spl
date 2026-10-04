@@ -18,7 +18,6 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const ARCH = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-const CARD = '22222222-2222-4222-8222-222222222222'
 const LIVE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const CLAIMS = { hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }
 const DATE = /\d{4}-\d{2}-\d{2}/
@@ -81,6 +80,28 @@ const snap = () => {
   }
 }
 
+
+/* Open the Topics row menu and choose Archive. True once that row has left
+   the list, which is what the app does after a successful archive. */
+async function archiveFromList(p, taskId) {
+  const btn = `[data-menu-id="home:${taskId}"]`
+  await p.waitForSelector(btn, { timeout: 15000 })
+  let opened = false
+  for (let i = 0; i < 4 && !opened; i++) {
+    await p.evaluate((sel) => document.querySelector(sel)?.click(), btn)
+    opened = await until(p, () => Boolean(document.querySelector('[data-testid=sidebar-row-menu-archive]')), 4000)
+  }
+  if (!opened) return false
+  await p.evaluate(() => document.querySelector('[data-testid=sidebar-row-menu-archive]')?.click())
+  const t0 = Date.now()
+  while (Date.now() - t0 < 8000) {
+    const gone = await p.evaluate((id) => !document.querySelector(`a.topic-row[data-key="${id}"]`), taskId)
+    if (gone) return true
+    await sleep(150)
+  }
+  return false
+}
+
 async function run(browser, base, width, theme) {
   const p = await browser.newPage()
   const phone = width < 600
@@ -104,13 +125,10 @@ async function run(browser, base, width, theme) {
   }
   if (!listed) throw new Error('topics list never appeared: ' + listedText)
   await p.evaluate((name) => { document.documentElement.setAttribute('data-theme', name) }, theme)
-  const archived = await p.evaluate(async (id) => {
-    const root = document.querySelector('.feed-col')
-    const api = root && root.__vueParentComponent && root.__vueParentComponent.setupState.api
-    if (!api) return false
-    await api.archiveTopic(id, true)
-    return true
-  }, CARD)
+  /* Archive from the row menu. The generated bundle does not put the page
+     instance on the DOM, so a dev-only __vueParentComponent walk cannot
+     reach the mock. The menu is the same control a person uses. */
+  const archived = await archiveFromList(p, ARCH)
   check(`${tag}: archived the fixture topic`, archived)
 
   const open = (path) => p.evaluate(async (to) => {

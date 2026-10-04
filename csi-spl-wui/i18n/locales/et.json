@@ -397,6 +397,10 @@
   "app": {
     "loading": "Spooli laadimine…"
   },
+  "topbar": {
+    "last_updated": "viimati uuendatud",
+    "last_updated_title": "{date} — viimati uuendatud"
+  },
   "sidebar": {
     "tenant": "Tööruum",
     "tenant_hint": "Tööruum: {name}. Tööruum on ühe organisatsiooni tööala — selle kanalid, teemad, liikmed ja agendid.",

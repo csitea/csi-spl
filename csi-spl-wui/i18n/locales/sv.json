@@ -397,6 +397,10 @@
   "app": {
     "loading": "Laddar Spool…"
   },
+  "topbar": {
+    "last_updated": "senast uppdaterad",
+    "last_updated_title": "{date} — senast uppdaterad"
+  },
   "sidebar": {
     "tenant": "Arbetsyta",
     "tenant_hint": "Arbetsyta: {name}. En arbetsyta är en organisations eget utrymme — dess kanaler, ämnen, medlemmar och agenter.",

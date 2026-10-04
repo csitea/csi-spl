@@ -397,6 +397,10 @@
   "app": {
     "loading": "Ladataan Spoolia…"
   },
+  "topbar": {
+    "last_updated": "viimeksi päivitetty",
+    "last_updated_title": "{date} — viimeksi päivitetty"
+  },
   "sidebar": {
     "tenant": "Työtila",
     "tenant_hint": "Työtila: {name}. Työtila on yhden organisaation oma tila — sen kanavat, aiheet, jäsenet ja agentit.",

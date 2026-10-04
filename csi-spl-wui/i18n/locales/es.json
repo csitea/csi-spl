@@ -397,6 +397,10 @@
   "app": {
     "loading": "Cargando Spool…"
   },
+  "topbar": {
+    "last_updated": "última actualización",
+    "last_updated_title": "{date} — última actualización"
+  },
   "sidebar": {
     "tenant": "Espacio de trabajo",
     "tenant_hint": "Espacio de trabajo: {name}. Un espacio de trabajo es el entorno propio de una organización — sus canales, temas, miembros y agentes.",

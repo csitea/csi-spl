@@ -397,6 +397,10 @@
   "app": {
     "loading": "Loading Spool…"
   },
+  "topbar": {
+    "last_updated": "last updated",
+    "last_updated_title": "{date} — last updated"
+  },
   "sidebar": {
     "tenant": "Workspace",
     "tenant_hint": "Workspace: {name}. A workspace is one organisation's own space — its channels, topics, members and agents.",

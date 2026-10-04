@@ -397,6 +397,10 @@
   "app": {
     "loading": "Načítava sa Spool…"
   },
+  "topbar": {
+    "last_updated": "naposledy aktualizované",
+    "last_updated_title": "{date} — naposledy aktualizované"
+  },
   "sidebar": {
     "tenant": "Pracovný priestor",
     "tenant_hint": "Pracovný priestor: {name}. Pracovný priestor je vlastný priestor jednej organizácie — jej kanály, témy, členovia a agenti.",

@@ -397,6 +397,10 @@
   "app": {
     "loading": "Spool yükleniyor…"
   },
+  "topbar": {
+    "last_updated": "son güncelleme",
+    "last_updated_title": "{date} — son güncelleme"
+  },
   "sidebar": {
     "tenant": "Çalışma alanı",
     "tenant_hint": "Çalışma alanı: {name}. Çalışma alanı, bir kuruluşun kendi alanıdır — kendi kanalları, konuları, üyeleri ve ajanları.",

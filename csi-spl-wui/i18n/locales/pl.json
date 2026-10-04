@@ -397,6 +397,10 @@
   "app": {
     "loading": "Ładowanie Spool…"
   },
+  "topbar": {
+    "last_updated": "ostatnio zaktualizowano",
+    "last_updated_title": "{date} — ostatnio zaktualizowano"
+  },
   "sidebar": {
     "tenant": "Obszar roboczy",
     "tenant_hint": "Obszar roboczy: {name}. Obszar roboczy to przestrzeń jednej organizacji — jej kanały, tematy, członkowie i agenci.",

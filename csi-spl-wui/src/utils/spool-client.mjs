@@ -13,6 +13,7 @@ import {
 } from './view-api.mjs'
 import { storageGetJson } from './prefs.mjs'
 import { MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
+import { noteLastData } from './last-data.mjs'
 
 /**
  * P3-30: the client methods that live in spool-client-lazy.mjs (writers,
@@ -242,6 +243,14 @@ export function createSpoolClient({
      read. withSessionRetry takes it back if the hub refuses credentials. */
   let doorGuessed = false
   let send = sender
+  const rawFetch = fetchFn
+  async function hubFetch(url, init) {
+    if (typeof rawFetch !== 'function') throw new Error('no fetch')
+    const res = await rawFetch(url, init)
+    // One number per hub 2xx. Callers do not stamp themselves.
+    if (res && res.ok) noteLastData()
+    return res
+  }
   /** GET reads in flight, by what makes them identical (see live). */
   const inflight = new Map()
 
@@ -299,7 +308,7 @@ export function createSpoolClient({
   }
 
   async function liveOnce(path, opts) {
-    const fn = fetchFn
+    const fn = hubFetch
     if (typeof fn !== 'function') throw new Error('no fetch')
     if (configError) {
       const err = new Error(`spool config ${configError}`)
@@ -744,7 +753,7 @@ export function createSpoolClient({
       }
       const headers = { accept: 'application/json', 'content-type': 'application/octet-stream' }
       if (uploadToken) headers.authorization = `Bearer ${uploadToken}`
-      const res = await fetchFn(`${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf })
+      const res = await hubFetch(`${root}/v1/files`, { method: 'POST', credentials: 'omit', headers, body: buf })
       if (!res.ok) {
         let tok = ''
         try { tok = (await res.json()).error || '' } catch { /* not json */ }
@@ -764,7 +773,7 @@ export function createSpoolClient({
         if (!b) throw Object.assign(new Error('not in mock store'), { status: 404 })
         return b.arrayBuffer()
       }
-      const res = await fetchFn(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(viewDoor) })
+      const res = await hubFetch(`${root}/v1/files/${encodeURIComponent(id)}`, { credentials: credentialsFor(viewDoor) })
       if (!res.ok) throw Object.assign(new Error(`spool ${res.status} /v1/files`), { status: res.status })
       return res.arrayBuffer()
     },
@@ -793,7 +802,10 @@ function gateMock(api, ready) {
     if (typeof fn !== 'function' || fn[Symbol.toStringTag] !== 'AsyncFunction') continue
     api[key] = async function (...args) {
       await ready
-      return fn.apply(this, args)
+      const out = await fn.apply(this, args)
+      // Mock has no HTTP: a method that returns is the response the clock counts.
+      noteLastData()
+      return out
     }
   }
 }

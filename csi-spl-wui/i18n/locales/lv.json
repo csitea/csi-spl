@@ -397,6 +397,10 @@
   "app": {
     "loading": "Ielādē Spool…"
   },
+  "topbar": {
+    "last_updated": "pēdējoreiz atjaunināts",
+    "last_updated_title": "{date} — pēdējoreiz atjaunināts"
+  },
   "sidebar": {
     "tenant": "Darbvieta",
     "tenant_hint": "Darbvieta: {name}. Darbvieta ir vienas organizācijas telpa — tās kanāli, tēmas, dalībnieki un aģenti.",

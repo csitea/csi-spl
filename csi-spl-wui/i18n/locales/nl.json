@@ -397,6 +397,10 @@
   "app": {
     "loading": "Spool laden…"
   },
+  "topbar": {
+    "last_updated": "laatst bijgewerkt",
+    "last_updated_title": "{date} — laatst bijgewerkt"
+  },
   "sidebar": {
     "tenant": "Werkruimte",
     "tenant_hint": "Werkruimte: {name}. Een werkruimte is de eigen omgeving van één organisatie — de eigen kanalen, onderwerpen, leden en agenten.",

@@ -397,6 +397,10 @@
   "app": {
     "loading": "Įkeliamas Spool…"
   },
+  "topbar": {
+    "last_updated": "paskutinį kartą atnaujinta",
+    "last_updated_title": "{date} — paskutinį kartą atnaujinta"
+  },
   "sidebar": {
     "tenant": "Darbo sritis",
     "tenant_hint": "Darbo sritis: {name}. Darbo sritis yra vienos organizacijos erdvė — jos kanalai, temos, nariai ir agentai.",

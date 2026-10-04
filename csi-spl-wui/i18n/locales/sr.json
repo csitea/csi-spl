@@ -397,6 +397,10 @@
   "app": {
     "loading": "Učitavanje Spool…"
   },
+  "topbar": {
+    "last_updated": "poslednje ažuriranje",
+    "last_updated_title": "{date} — poslednje ažuriranje"
+  },
   "sidebar": {
     "tenant": "Radni prostor",
     "tenant_hint": "Radni prostor: {name}. Radni prostor je sopstveni prostor jedne organizacije — njeni kanali, teme, članovi i agenti.",

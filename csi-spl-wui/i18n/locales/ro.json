@@ -397,6 +397,10 @@
   "app": {
     "loading": "Se încarcă Spool…"
   },
+  "topbar": {
+    "last_updated": "ultima actualizare",
+    "last_updated_title": "{date} — ultima actualizare"
+  },
   "sidebar": {
     "tenant": "Spațiu de lucru",
     "tenant_hint": "Spațiu de lucru: {name}. Un spațiu de lucru este spațiul propriu al unei organizații — canalele, subiectele, membrii și agenții ei.",

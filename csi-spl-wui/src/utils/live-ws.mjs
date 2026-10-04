@@ -15,6 +15,7 @@ import { normalizeId, PARTICIPANT_ID_SRC } from './agent-id.mjs'
 import { copyEditFields } from './view-api.mjs'
 
 import { perfMark } from './perf-mark.mjs'
+import { noteLastData } from './last-data.mjs'
 
 export const FRAMES = {
   hello: 'hello',
@@ -422,6 +423,8 @@ export function createLiveClient({
   }
 
   function handle(f) {
+    // A frame the hub delivered. An error frame is a refusal, not data.
+    if (f && typeof f === 'object' && f.type !== FRAMES.error) noteLastData()
     switch (f.type) {
       case FRAMES.welcome:
         welcome = f

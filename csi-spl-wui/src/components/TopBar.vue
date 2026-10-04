@@ -81,6 +81,7 @@
     </div>
     </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
+      <LastDataClock />
       <!-- perf r4 W6: not mounted on a phone (the avatar sheet has it), so
            its async chunk is not fetched there either -->
       <div v-if="!phone" class="top-bar__lang"><LanguageSwitcher /></div>
@@ -103,6 +104,7 @@ import { sendFailureKey } from '~/utils/send-failure.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
 import TopBarTenant from '~/components/TopBarTenant.vue'
+import LastDataClock from '@/components/LastDataClock.vue'
 import TenantDropBox from '~/components/TenantDropBox.vue'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'

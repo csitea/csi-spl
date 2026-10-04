@@ -22,9 +22,20 @@
 # @param ENV - required: dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that reads (run.viewer is enough)
 # @param SPL_HUB_IMAGE_TAG (optional) - require exactly this release key (do_release_version `key`; 1.0.1-c2 past 9.9.9, while /version shows 1.0.1)
+# @description Spec 076 T008: routed by provider (do_spl_cloud_dispatch
+# @description hub_deploy verify): gcp (unset) is the Cloud Run check below,
+# @description none is the local compose stack (do_hub_deploy_verify_none),
+# @description with the same verdicts and exit codes and zero gcloud calls.
+# @param SPOOL_CLOUD_PROVIDER (optional) - gcp | none | aws, wins over cnf env.cloud.provider
 # @example ENV=dev ./run -a do_check_hub_deploy
+# @example SPOOL_CLOUD_PROVIDER=none ./run -a do_check_hub_deploy
 #------------------------------------------------------------------------------
 do_check_hub_deploy() {
+  do_spl_cloud_dispatch hub_deploy verify "$@"
+}
+
+# do_hub_deploy_verify_gcp - the Cloud Run check (today's body, unchanged)
+do_hub_deploy_verify_gcp() {
   do_require_bin yq || return 1
   do_spl_cloud_cnf || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -74,4 +85,52 @@ do_check_hub_deploy() {
     return 4
   fi
   echo "$ENV current service=$svc image=$image revision=$latest"
+}
+
+#------------------------------------------------------------------------------
+# @description do_hub_deploy_verify_none - the same question for the
+# @description self-hosted compose stack (provider none, spec 076 T008), with
+# @description no gcloud: is the stack's hub container running and healthy
+# @description (its compose healthcheck polls /healthz in the container), does
+# @description it run the expected image, and does /healthz answer through the
+# @description stack's edge? Verdicts and exit codes are do_check_hub_deploy's:
+# @description   0 current, 3 lagging (only with SPL_HUB_IMAGE_TAG), 4 unhealthy,
+# @description   1 cannot tell (no docker, no compose file, no hub container)
+# @param SPOOL_SELF_HOST_DIR (optional) - the dir holding docker-compose.yml and .env (default: this checkout)
+# @param SPOOL_HUB_HEALTH_URL (optional) - the /healthz to probe (default: SPOOL_PUBLIC_URL of the env or .env, else the local port SPOOL_HTTP_PORT, 8080)
+# @param SPL_HUB_IMAGE_TAG (optional) - require the hub container to run exactly this tag
+#------------------------------------------------------------------------------
+do_hub_deploy_verify_none() {
+  local label="${ENV:-self-host}" dir="${SPOOL_SELF_HOST_DIR:-${APP_PATH:-}}"
+  [[ -n "$dir" && -f "$dir/docker-compose.yml" ]] ||
+    { do_log "FATAL no docker-compose.yml in '$dir': run this from the spool checkout, or set SPOOL_SELF_HOST_DIR"; return 1; }
+  command -v docker >/dev/null || { do_log "FATAL docker is not installed"; return 1; }
+  command -v curl >/dev/null || { do_log "FATAL curl is not installed"; return 1; }
+
+  local row state health image
+  row="$(docker compose --project-directory "$dir" ps --all --format '{{.State}}\t{{.Health}}\t{{.Image}}' hub 2>&1)" || {
+    do_log "FATAL cannot list the compose stack in $dir: $(tail -1 <<<"$row")"; return 1; }
+  row="$(head -n 1 <<<"$row")"
+  [[ -n "$row" ]] || { do_log "FATAL the compose stack in $dir has no hub container (not deployed: ./run -a do_spl_self_host_up)"; return 1; }
+  IFS=$'\t' read -r state health image <<<"$row"
+
+  if [[ -n "${SPL_HUB_IMAGE_TAG:-}" && "${image##*:}" != "$SPL_HUB_IMAGE_TAG" ]]; then
+    echo "$label lagging service=hub live=$image expected tag=$SPL_HUB_IMAGE_TAG"
+    return 3
+  fi
+  if [[ "$state" != running || "$health" != healthy ]]; then
+    echo "$label unhealthy service=hub image=$image state=${state:-unknown} health=${health:-none}"
+    return 4
+  fi
+
+  local base url
+  base="${SPOOL_PUBLIC_URL:-}"
+  [[ -n "$base" ]] || base="$(spl_self_host_env_get "$dir/.env" SPOOL_PUBLIC_URL)"
+  [[ -n "$base" ]] || base="http://127.0.0.1:${SPOOL_HTTP_PORT:-8080}"
+  url="${SPOOL_HUB_HEALTH_URL:-${base%/}/healthz}"
+  if ! curl -fsS --max-time 10 -o /dev/null "$url" 2>/dev/null; then
+    echo "$label unhealthy service=hub image=$image healthz=$url (no 2xx)"
+    return 4
+  fi
+  echo "$label current service=hub image=$image healthz=$url"
 }

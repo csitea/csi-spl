@@ -14,6 +14,12 @@
 #   6. every gcloud call carries --account, and none mutates
 #      (no update / deploy / create / delete / set-iam / add-iam)
 #      CONTROL: the stub records a call when one is made.
+#   7. provider none (spec 076 T008, routed by do_spl_cloud_dispatch): the
+#      compose hub container + /healthz, stubbed docker and curl, and ZERO
+#      gcloud calls (a gcloud stub that records any call and fails):
+#      current 0, unhealthy 4 (not healthy / no 2xx), lagging 3 (tag), no
+#      hub container or no compose file 1; hub_deploy roll under none is
+#      `docker compose up -d --wait`, under gcp the router's FATAL.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -121,5 +127,79 @@ else pass "every gcloud call carries --account"; fi
 if grep -Eq ' (update|deploy|create|delete|set-iam-policy|add-iam-policy-binding|replace)( |$)' "$T/calls.log"; then
   fail "a mutating gcloud call: $(grep -E ' (update|deploy|create|delete|set-iam-policy|add-iam-policy-binding|replace)( |$)' "$T/calls.log" | sed -n 1p)"
 else pass "no mutating gcloud call (describe + token mint only)"; fi
+
+# --- 7. provider none: no gcloud, the compose stack and /healthz ------------
+# docker: `compose ps` prints $PS_ROW (tab-separated State Health Image), fails
+# when PS_FAIL=1; every call logged. curl: logs its argv, exits $CURL_RC.
+# gcloud: logs any call to its own file and fails -- one line there is a FAIL.
+S="$T/stack"; mkdir -p "$S" "$T/nstub"
+echo 'name: spool' >"$S/docker-compose.yml"
+cat >"$T/nstub/docker" <<'EOF'
+#!/bin/sh
+echo "docker $*" >>"$NSTUB_LOG"
+case "$*" in *" ps "*) [ "${PS_FAIL:-0}" = 1 ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+                       [ -n "${PS_ROW:-}" ] && printf '%b\n' "$PS_ROW" ;; esac
+exit 0
+EOF
+cat >"$T/nstub/curl" <<'EOF'
+#!/bin/sh
+echo "curl $*" >>"$NSTUB_LOG"; exit "${CURL_RC:-0}"
+EOF
+cat >"$T/nstub/gcloud" <<'EOF'
+#!/bin/sh
+echo "gcloud $*" >>"$GCLOUD_LOG"; exit 99
+EOF
+chmod +x "$T/nstub/"*
+: >"$T/gcloud-none.log"
+HUB_IMG="${ref%:*}:$ahead"
+in_none() { # [VAR=value ...] -- <snippet>; stdout -> $T/nout, stderr -> $T/nerr
+  local -a envs=(); while [[ $# -gt 0 && "$1" != -- ]]; do envs+=("$1"); shift; done; shift
+  : >"$T/nstub.log"
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" NSTUB_LOG="$T/nstub.log" GCLOUD_LOG="$T/gcloud-none.log" \
+    PATH="$T/nstub:$PATH" SPOOL_CLOUD_PROVIDER=none SPOOL_SELF_HOST_DIR="$S" SPOOL_PUBLIC_URL= \
+    PS_ROW="running\thealthy\t$HUB_IMG" "${envs[@]}" SNIPPET="$1" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*" >&2; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    eval "$SNIPPET"' >"$T/nout" 2>"$T/nerr"
+}
+ncheck() { # <label> <want rc> <want verdict word or ""> [env...]
+  local label="$1" want="$2" word="$3"; shift 3
+  in_none "$@" -- do_check_hub_deploy; local rc=$? out; out=$(cat "$T/nout")
+  if [[ $rc -eq $want && ( -z "$word" || "$out" == "dev $word "* ) ]]; then pass "none: $label (rc $rc)"
+  else fail "none: $label: rc=$rc want $want, out='$out' err='$(tail -1 "$T/nerr")'"; fi
+}
+printf "SPOOL_PUBLIC_URL='https://chat.example.com'\n" >"$S/.env"
+ncheck "hub running + healthy, /healthz 2xx -> current"          0 current
+grep -q "^curl .*https://chat.example.com/healthz" "$T/nstub.log" && grep -q "^docker compose --project-directory $S ps .* hub" "$T/nstub.log" \
+  && pass "none: probes the compose hub container and the .env SPOOL_PUBLIC_URL /healthz" || fail "none: probe calls: $(cat "$T/nstub.log")"
+ncheck "hub health=starting -> unhealthy"                        4 unhealthy PS_ROW="running\tstarting\t$HUB_IMG"
+grep -q '^curl ' "$T/nstub.log" && fail "none: curl ran although the container is not healthy" || pass "none: an unhealthy container is reported before any HTTP probe"
+ncheck "hub exited -> unhealthy"                                 4 unhealthy PS_ROW="exited\t\t$HUB_IMG"
+ncheck "container healthy but /healthz no 2xx -> unhealthy"      4 unhealthy CURL_RC=22
+ncheck "SPL_HUB_IMAGE_TAG=$ahead and the hub runs it -> current" 0 current SPL_HUB_IMAGE_TAG="$ahead"
+ncheck "SPL_HUB_IMAGE_TAG=9.9.9 but the hub runs $ahead -> lagging" 3 lagging SPL_HUB_IMAGE_TAG=9.9.9
+ncheck "no hub container -> cannot tell"                         1 "" PS_ROW=
+ncheck "docker daemon does not answer -> cannot tell"            1 "" PS_FAIL=1
+ncheck "no docker-compose.yml -> cannot tell"                    1 "" SPOOL_SELF_HOST_DIR="$T/nostack"
+rm -f "$S/.env"
+ncheck "no SPOOL_PUBLIC_URL -> the local port"                   0 current SPOOL_HTTP_PORT=18080
+grep -q "^curl .*http://127.0.0.1:18080/healthz" "$T/nstub.log" && pass "none: without SPOOL_PUBLIC_URL /healthz is the local SPOOL_HTTP_PORT" || fail "none: local url: $(cat "$T/nstub.log")"
+ncheck "SPOOL_HUB_HEALTH_URL wins"                               0 current SPOOL_HUB_HEALTH_URL=http://127.0.0.1:9/healthz
+grep -q "^curl .*http://127.0.0.1:9/healthz" "$T/nstub.log" && pass "none: SPOOL_HUB_HEALTH_URL is the probe" || fail "none: health url: $(cat "$T/nstub.log")"
+
+# hub_deploy roll: none is do_spl_self_host_up's `docker compose up -d --wait`;
+# gcp has no shell roll (workflows 20 and 30 deploy the cloud), so the router FATALs.
+in_none -- 'do_spl_cloud_dispatch hub_deploy roll "$SPOOL_SELF_HOST_DIR"'; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "docker compose --project-directory $S up -d --wait" "$T/nstub.log" \
+  && pass "none: hub_deploy roll is docker compose up -d --wait on the stack" || fail "none roll: rc=$rc $(cat "$T/nstub.log") $(cat "$T/nerr")"
+in_none SPOOL_CLOUD_PROVIDER=gcp -- 'do_spl_cloud_dispatch hub_deploy roll "$SPOOL_SELF_HOST_DIR"'; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'do_hub_deploy_roll_gcp is not defined' "$T/nerr" && [[ ! -s "$T/nstub.log" ]] \
+  && pass "gcp: hub_deploy roll has no shell adapter (router FATAL, nothing run)" || fail "gcp roll: rc=$rc $(cat "$T/nerr")"
+
+n=$(wc -l <"$T/gcloud-none.log")
+[[ $n -eq 0 ]] && pass "none: zero gcloud calls across every none case" || fail "none: $n gcloud call(s): $(sed -n 1p "$T/gcloud-none.log")"
+GCLOUD_LOG="$T/gcloud-ctl.log" "$T/nstub/gcloud" run services describe x >/dev/null 2>&1
+[[ -s "$T/gcloud-ctl.log" ]] && pass "control: the none gcloud stub records a call when one is made" || fail "control: none gcloud stub records nothing"
 
 [[ $fails -eq 0 ]] && echo "PASS: all check-hub-deploy assertions" || { echo "FAILED: $fails"; exit 1; }

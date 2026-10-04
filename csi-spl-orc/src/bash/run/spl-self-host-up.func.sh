@@ -238,12 +238,29 @@ do_spl_self_host_up() {
   spl_self_host_preflight || return 1
   spl_self_host_write_env || return 1
 
-  # step 4: up, then the owner link (Zulip's re-run that ends with it)
-  do_log "INFO docker compose up -d --wait (pulls the images; a failed pull builds them)"
-  docker compose --project-directory "$dir" up -d --wait ||
-    { do_log "FATAL docker compose up failed: 'docker compose --project-directory $dir logs hub-init hub web' names the problem"; return 1; }
+  # step 4: up, then the owner link (Zulip's re-run that ends with it). This
+  # stack IS provider none (docker-compose.yml sets SPOOL_CLOUD_PROVIDER: none
+  # on the hub), so the roll is pinned to the none adapter whatever the
+  # checkout's cnf says (spec 076 T008).
+  SPOOL_CLOUD_PROVIDER=none do_spl_cloud_dispatch hub_deploy roll "$dir" || return 1
   local tenant
   tenant="$(spl_self_host_env_get "$envf" SPOOL_TENANT)"
   do_log "INFO the stack is up on https://$domain"
   echo "OWNER LINK: https://$domain/login?tenant=${tenant:-main} - sign up there with $email (only that confirmed address becomes the owner)"
+}
+
+#------------------------------------------------------------------------------
+# @description do_hub_deploy_roll_none <dir> - the compute deployer of
+# @description provider none (spec 076 T008): `docker compose up -d --wait` on
+# @description the stack in <dir>. do_spl_self_host_up is its one caller, after
+# @description its preflight and .env. gcp has no shell roll on purpose: cloud
+# @description hub and WUI deploys stay in workflows 20 and 30, so
+# @description `do_spl_cloud_dispatch hub_deploy roll` under gcp is the
+# @description router's FATAL (no adapter), never a gcloud call.
+#------------------------------------------------------------------------------
+do_hub_deploy_roll_none() {
+  local dir="${1:?do_hub_deploy_roll_none <dir>}"
+  do_log "INFO docker compose up -d --wait (pulls the images; a failed pull builds them)"
+  docker compose --project-directory "$dir" up -d --wait ||
+    { do_log "FATAL docker compose up failed: 'docker compose --project-directory $dir logs hub-init hub web' names the problem"; return 1; }
 }

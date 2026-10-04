@@ -5,7 +5,9 @@
 # @description box_stats, which every box's lane map appends to on its BOX-0
 # @description tick (300 s, spl_lane_box_stats). Per hour: n samples, the cpus,
 # @description load1 avg / peak, used memory (total - available) avg / peak in
-# @description GiB, and the live agents avg / peak. The read is `spool box-stats
+# @description GiB, the live agents avg / peak, and per mount the least free
+# @description of the hour over its size (DISK_FREE_MIN_G, `/=8.2/29.3`; rdb
+# @description 0121, `-` for an hour with no disk sample). The read is `spool box-stats
 # @description list` as this machine's desk box, the lane map's hub call
 # @description (spl_lane_init: fleet, env and tenant from lease.conf). Nothing
 # @description is written.
@@ -47,8 +49,9 @@ report_box_stats_table() {  # ANSWER
   jq -r '
     def gib: (. / 1048576 * 10 | round) / 10 | tostring | if test("\\.") then . else . + ".0" end;
     if (.hours | length) == 0 then "no samples" else
-      (["BOX", "HOUR(UTC)", "N", "CPUS", "LOAD1_AVG", "LOAD1_PEAK", "MEM_USED_AVG_G", "MEM_USED_PEAK_G", "AGENTS_AVG", "AGENTS_PEAK"] | @tsv),
+      (["BOX", "HOUR(UTC)", "N", "CPUS", "LOAD1_AVG", "LOAD1_PEAK", "MEM_USED_AVG_G", "MEM_USED_PEAK_G", "AGENTS_AVG", "AGENTS_PEAK", "DISK_FREE_MIN_G"] | @tsv),
       (.hours[] | [.box, (.hour | sub(":00:00Z$"; "Z")), .n, .cpus, .load1_avg, .load1_peak,
-                   (.mem_used_avg_kb | gib), (.mem_used_peak_kb | gib), .agents_avg, .agents_peak] | @tsv)
+                   (.mem_used_avg_kb | gib), (.mem_used_peak_kb | gib), .agents_avg, .agents_peak,
+                   ([(.disks // [])[] | "\(.mount)=\(.avail_min_kb | gib)/\(.total_kb | gib)"] | join(",") | if . == "" then "-" else . end)] | @tsv)
     end' <<<"$1" | column -t -s $'\t'
 }

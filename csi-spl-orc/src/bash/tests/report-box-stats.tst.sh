@@ -26,7 +26,7 @@ STUB
 chmod +x "$T/bin/hub"
 cat >"$T/answer.json" <<'JSON'
 {"box":"sat","since":"2026-10-03T16:00:00Z","rows":[{},{},{}],"hours":[
- {"box":"sat","hour":"2026-10-04T10:00:00Z","n":2,"cpus":8,"load1_avg":3.5,"load1_peak":4.5,"mem_used_avg_kb":6291456,"mem_used_peak_kb":8388608,"mem_avail_min_kb":200,"agents_avg":4,"agents_peak":5},
+ {"box":"sat","hour":"2026-10-04T10:00:00Z","n":2,"cpus":8,"load1_avg":3.5,"load1_peak":4.5,"mem_used_avg_kb":6291456,"mem_used_peak_kb":8388608,"mem_avail_min_kb":200,"agents_avg":4,"agents_peak":5,"disks":[{"mount":"/","total_kb":31457280,"avail_min_kb":8598323},{"mount":"/mnt/data","total_kb":104857600,"avail_min_kb":26214400}]},
  {"box":"sat","hour":"2026-10-04T11:00:00Z","n":1,"cpus":8,"load1_avg":1.25,"load1_peak":1.25,"mem_used_avg_kb":1048576,"mem_used_peak_kb":1048576,"mem_avail_min_kb":900,"agents_avg":1,"agents_peak":1}]}
 JSON
 echo '{"since":"2026-10-03T16:00:00Z","rows":[],"hours":[]}' >"$T/empty.json"
@@ -44,8 +44,9 @@ run() {
 out="$(run BOX=sat)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/calls")" == "box-stats list --since 20h --box sat" ]] &&
   pass "BOX=sat, SINCE default 20h: one hub call, box-stats list --since 20h --box sat" || fail "call (rc=$rc): $(cat "$T/calls")"
-grep -qE '^sat +2026-10-04T10Z +2 +8 +3\.5 +4\.5 +6\.0 +8\.0 +4 +5$' <<<"$out" &&
-  pass "one line per hour: n, cpus, load1 avg / peak, used GiB avg / peak, agents avg / peak" || fail "table: $out"
+grep -qE '^sat +2026-10-04T10Z +2 +8 +3\.5 +4\.5 +6\.0 +8\.0 +4 +5 +/=8\.2/30\.0,/mnt/data=25\.0/100\.0$' <<<"$out" &&
+  grep -qE '^sat +2026-10-04T11Z .* -$' <<<"$out" &&
+  pass "one line per hour: n, cpus, load1 avg / peak, used GiB avg / peak, agents avg / peak, least free / size per mount (- for none)" || fail "table: $out"
 [[ "$(head -1 <<<"$out")" == "box stats since 2026-10-03T16:00:00Z (3 samples)" && "$(grep -c '^sat ' <<<"$out")" -eq 2 ]] &&
   pass "a header with the window and the sample count, two hour lines" || fail "header: $out"
 

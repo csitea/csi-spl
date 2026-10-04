@@ -41,9 +41,15 @@ exit 1
 EOF
 chmod +x "$T/stub/gcloud"
 
+# Release-cycle fixtures (spl_release_cycle_now reads RELEASE_TAGS_DIR): tags1
+# is cycle 1, tags2 is past the 9.9.9 -> 1.0.1 wrap. Every check pins one, so
+# the verdicts do not drift with the real repo's tags.
+for d in tags1 tags2; do git init -q "$T/$d" && git -C "$T/$d" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m t; done
+git -C "$T/tags1" tag v8.4.2; git -C "$T/tags2" tag v9.9.9; git -C "$T/tags2" tag v1.0.1-c2
+
 export ENV=dev
 in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" \
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" RELEASE_TAGS_DIR="$T/tags1" \
     PATH="$T/stub:$PATH" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
@@ -93,6 +99,7 @@ fixture "$T/behind.json" "${ref%:*}:$behind" True r-4 r-4
 fixture "$T/otherrepo.json" "example.com/other/spool-hub:$ahead" True r-4 r-4
 check "current: a minted tag ABOVE the floor ($ahead > $floor), no SPL_HUB_IMAGE_TAG" 0 current FIXTURE="$T/ahead.json"
 check "lagging: a tag BELOW the floor ($behind < $floor)"                            3 lagging FIXTURE="$T/behind.json"
+check "current: past the 9.9.9 wrap, a cycle-2 tag reading BELOW the floor ($behind)" 0 current FIXTURE="$T/behind.json" RELEASE_TAGS_DIR="$T/tags2"
 check "lagging: a later tag in ANOTHER repository"                                   3 lagging FIXTURE="$T/otherrepo.json"
 check "current: SPL_HUB_IMAGE_TAG=$ahead and the service runs exactly it"            0 current FIXTURE="$T/ahead.json" SPL_HUB_IMAGE_TAG="$ahead"
 check "lagging: SPL_HUB_IMAGE_TAG=$ahead but the service still runs the floor"       3 lagging FIXTURE="$T/current.json" SPL_HUB_IMAGE_TAG="$ahead"

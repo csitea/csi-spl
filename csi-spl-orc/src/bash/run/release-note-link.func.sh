@@ -6,7 +6,8 @@
 # @description sha, so nobody hand-builds the URL. The link is
 # @description https://<env.dns.fqdn>/releases/<full sha>, the WUI host of ENV
 # @description read from the cnf (do_spl_cloud_cnf), never a literal host.
-# @description The version is the FIRST v-tag that contains the commit (the
+# @description The version is the FIRST v-tag that contains the commit, by
+# @description cycle then X.Y.Z (spl_release_key_min), shown as plain X.Y.Z (the
 # @description deploy that shipped it, as the release_note table records it);
 # @description a commit no deploy has shipped yet prints `unreleased` in that
 # @description field, with a WARN on stderr, and still exits 0: the link
@@ -36,9 +37,9 @@ do_release_note_link() {
     { do_log "FATAL not a commit in $APP_PATH: '$want' (unknown or ambiguous sha)" >&2; return 1; }
 
   local v
-  v="$("${g[@]}" tag --contains "$sha" -l 'v*' | sed 's/^v//' | spl_version_min)"
+  v="$("${g[@]}" tag --contains "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_min)"
   if [[ -n "$v" ]]; then
-    v="v$v"
+    v="v$(spl_release_key_display "$v")"
   else
     v=unreleased
     do_log "WARN ${sha:0:8} is in no v-tag yet: no deploy has shipped it" >&2

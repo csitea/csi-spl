@@ -19,12 +19,27 @@
 #     is how a human asks for a deliberate jump (e.g. 2.0.0). It stays equal to
 #     cnf hub.image.tag (hub-version-tag-parity) and odometer-legal
 #     (hub-version-digits).
+#
+# CYCLES (owner, 2026-10-04: "if the scheme reaches 9.9.9 than start all over,
+# but from 1.0.1"; "version is just a number"). After 9.9.9 the next version is
+# 1.0.1 of a NEW cycle. Tags v1.0.1.. of cycle 1 already exist and the pushed
+# tag is the lock, so the cycle lives ONLY in the tag name -- the release KEY:
+#   cycle 1:  v<X.Y.Z>        key X.Y.Z        (every tag up to the wrap)
+#   cycle N:  v<X.Y.Z>-c<N>   key X.Y.Z-c<N>   (N >= 2; "-c1" is never written)
+# What /version, the hub image tag, the WUI footer and build.json SHOW is the
+# plain X.Y.Z (spl_release_key_display). Order is cycle first, then X.Y.Z:
+# spl_release_key_gt is THE forward-ordering rule; every reader of the v-tags
+# (mint, release-note link + ingest, the stable gate) orders keys with it and
+# never compares displayed values across tags. The floor (.version) is a
+# cycle-1 key, so it can no longer win once the odometer has wrapped.
 #------------------------------------------------------------------------------
 
 # spl_version_valid <v> -> 0 when <v> is an odometer version (three 0-9 digits)
 spl_version_valid() { [[ "${1:-}" =~ ^[0-9]\.[0-9]\.[0-9]$ ]]; }
 
-# spl_version_step <v> -> the next odometer value; rc 1 on 9.9.9 or a bad value
+# spl_version_step <v> -> the next DISPLAYED odometer value: 9.9.9 wraps to
+# 1.0.1 (the next cycle's first number); rc 1 on a bad value. The tag of a
+# wrapped version carries its cycle: step KEYS with spl_release_key_step.
 spl_version_step() {
   spl_version_valid "${1:-}" || return 1
   local a b c
@@ -32,7 +47,7 @@ spl_version_step() {
   c=$((c + 1))
   if ((c > 9)); then c=0; b=$((b + 1)); fi
   if ((b > 9)); then b=0; a=$((a + 1)); fi
-  ((a > 9)) && return 1
+  ((a > 9)) && { echo "1.0.1"; return 0; }
   echo "$a.$b.$c"
 }
 
@@ -60,6 +75,79 @@ spl_version_min() {
     if [[ -z "$best" ]] || spl_version_gt "$best" "$v"; then best="$v"; fi
   done
   echo "$best"
+}
+
+# --- release keys: the tag name minus its leading v (see CYCLES above) -------
+
+# spl_release_key_valid <k> -> 0 when <k> is X.Y.Z (cycle 1) or X.Y.Z-c<N>, N >= 2
+spl_release_key_valid() { [[ "${1:-}" =~ ^[0-9]\.[0-9]\.[0-9](-c([2-9]|[1-9][0-9]+))?$ ]]; }
+
+# spl_release_key_cycle <k> -> the cycle number (1 for a plain X.Y.Z)
+spl_release_key_cycle() {
+  spl_release_key_valid "${1:-}" || return 1
+  if [[ "$1" == *-c* ]]; then echo "${1##*-c}"; else echo 1; fi
+}
+
+# spl_release_key_display <k> -> the X.Y.Z every surface shows
+spl_release_key_display() {
+  spl_release_key_valid "${1:-}" || return 1
+  echo "${1%%-c*}"
+}
+
+# spl_release_key_of <cycle> <X.Y.Z> -> the key (plain for cycle 1)
+spl_release_key_of() {
+  [[ "${1:-}" =~ ^[1-9][0-9]*$ ]] && spl_version_valid "${2:-}" || return 1
+  if (($1 == 1)); then echo "$2"; else echo "$2-c$1"; fi
+}
+
+# spl_release_key_gt <a> <b> -> 0 when key a is LATER than key b: the higher
+# cycle wins, then the higher X.Y.Z. So 1.0.1-c2 > 9.9.9 > 1.0.1. This is the
+# one forward-ordering rule for every gate that compares releases.
+spl_release_key_gt() {
+  spl_release_key_valid "${1:-}" && spl_release_key_valid "${2:-}" || return 1
+  local ca cb
+  ca="$(spl_release_key_cycle "$1")"; cb="$(spl_release_key_cycle "$2")"
+  ((ca != cb)) && { ((ca > cb)); return; }
+  spl_version_gt "${1%%-c*}" "${2%%-c*}"
+}
+
+# spl_release_key_step <k> -> the key after <k>: one odometer step in the same
+# cycle, and 9.9.9 of cycle N -> 1.0.1 of cycle N+1.
+spl_release_key_step() {
+  spl_release_key_valid "${1:-}" || return 1
+  local cyc v
+  cyc="$(spl_release_key_cycle "$1")"; v="${1%%-c*}"
+  [[ "$v" == 9.9.9 ]] && { spl_release_key_of "$((cyc + 1))" 1.0.1; return; }
+  spl_release_key_of "$cyc" "$(spl_version_step "$v")"
+}
+
+# spl_release_key_max -> the latest key among stdin lines ("" if none)
+spl_release_key_max() {
+  local k best=""
+  while IFS= read -r k; do
+    spl_release_key_valid "$k" || continue
+    if [[ -z "$best" ]] || spl_release_key_gt "$k" "$best"; then best="$k"; fi
+  done
+  echo "$best"
+}
+
+# spl_release_key_min -> the earliest key among stdin lines ("" if none)
+spl_release_key_min() {
+  local k best=""
+  while IFS= read -r k; do
+    spl_release_key_valid "$k" || continue
+    if [[ -z "$best" ]] || spl_release_key_gt "$best" "$k"; then best="$k"; fi
+  done
+  echo "$best"
+}
+
+# spl_release_cycle_now <git-dir> -> the cycle of the latest LOCAL v-tag (1
+# when there is none). A gate that compares a displayed tag (an image tag) with
+# the cycle-1 floor reads it: from cycle 2 on, every live tag is past the floor.
+spl_release_cycle_now() {
+  local k
+  k="$(git -C "${1:-.}" tag -l 'v*' 2>/dev/null | sed 's/^v//' | spl_release_key_max)"
+  if [[ -n "$k" ]]; then spl_release_key_cycle "$k"; else echo 1; fi
 }
 
 # spl_github_owner_repo <remote-url> -> "owner/repo" on stdout when the URL is a
@@ -169,8 +257,9 @@ spl_claim_tag() {
 # ./run do_log prints to stdout and the caller captures this function's
 # stdout (run 36372654214, 2026-09-28: a lost race logged an INFO line into
 # the captured value and GITHUB_OUTPUT refused it).
-# spl_release_mint <git-dir> <sha> <floor> [remote] -> prints the version for
-# <sha>, claiming a new tag on <remote> (default origin) when it has none.
+# spl_release_mint <git-dir> <sha> <floor> [remote] -> prints the DISPLAYED
+# version X.Y.Z for <sha>, claiming a new tag v<key> on <remote> (default
+# origin) when it has none; past 9.9.9 that tag carries the cycle (CYCLES).
 # rc 1 on a bad argument, or when no tag could be claimed after 10 attempts;
 # rc 3 when the claim was refused because <sha>'s .github/workflows differs from
 # trunk head's (see spl_workflows_stale) -- `stale=true` then goes to
@@ -185,18 +274,18 @@ spl_release_mint() {
       { do_log "FATAL cannot fetch the v-tags from $remote" >&2; return 1; }
     # already minted for this commit: the LOWEST of its v-tags, so every
     # reader agrees even in the (theoretical) case of two
-    mine="$(git -C "$dir" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_version_min)"
-    [[ -n "$mine" ]] && { echo "$mine"; return 0; }
-    latest="$(git -C "$dir" tag -l 'v*' | sed 's/^v//' | spl_version_max)"
-    if [[ -z "$latest" ]] || spl_version_gt "$floor" "$latest"; then next="$floor"
-    else next="$(spl_version_step "$latest")" || { do_log "FATAL the odometer is full at $latest" >&2; return 1; }
+    mine="$(git -C "$dir" tag --points-at "$sha" -l 'v*' | sed 's/^v//' | spl_release_key_min)"
+    [[ -n "$mine" ]] && { spl_release_key_display "$mine"; return 0; }
+    latest="$(git -C "$dir" tag -l 'v*' | sed 's/^v//' | spl_release_key_max)"
+    if [[ -z "$latest" ]] || spl_release_key_gt "$floor" "$latest"; then next="$floor"
+    else next="$(spl_release_key_step "$latest")" || { do_log "FATAL cannot step past $latest" >&2; return 1; }
     fi
     # Claim v$next on the remote (REST API under a CI GitHub App token, else git
     # push -- see spl_claim_tag). rc 0 = ours, 2 = a lost race, 1 = refused.
     spl_claim_tag "$dir" "$sha" "v$next" "$remote"; rc=$?
     if ((rc == 0)); then
       git -C "$dir" tag -f "v$next" "$sha" >/dev/null 2>&1
-      echo "$next"; return 0
+      spl_release_key_display "$next"; return 0
     fi
     # A lost race (2): another lane took v$next -- re-read and take the next
     # number. Print the WHOLE server/git message (the old code kept only the

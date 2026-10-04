@@ -32,9 +32,15 @@ exit 1
 EOF
 chmod +x "$T/stub/gcloud"
 
+# Release-cycle fixtures (spl_release_cycle_now reads RELEASE_TAGS_DIR): tags1
+# is cycle 1, tags2 is past the 9.9.9 -> 1.0.1 wrap. Every check pins one, so
+# the verdicts do not drift with the real repo's tags.
+for d in tags1 tags2; do git init -q "$T/$d" && git -C "$T/$d" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m t; done
+git -C "$T/tags1" tag v8.4.2; git -C "$T/tags2" tag v9.9.9; git -C "$T/tags2" tag v1.0.1-c2
+
 export ENV=dev
 in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" \
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/$ENV" STUB_LOG="$T/calls.log" RELEASE_TAGS_DIR="$T/tags1" \
     PATH="$T/stub:$PATH" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
@@ -76,6 +82,9 @@ tf030="$APP_ROOT/csi-spl-iac/src/terraform/030-cloud-run-hub/04-cloud-run-servic
 grep -v 'template\[0\]\.containers\[0\]\.image' "$tf030" >"$T/stale-030.tf"
 check "CONTROL stale tree: cnf OLDER than live"       3 regress  FIXTURE="$T/newer.json" SPL_TF030_FILE="$T/stale-030.tf"
 check "different repository does not version-compare" 3 diverged FIXTURE="$T/otherepo.json"
+# Past the 9.9.9 -> 1.0.1 wrap a live 0.0.1 is a cycle-2 mint, LATER than the cycle-1 floor.
+check "past the wrap: live reads lower, 030 ignores it" 0 ahead    FIXTURE="$T/older.json" RELEASE_TAGS_DIR="$T/tags2"
+check "past the wrap, stale tree: an apply rolls back"  3 regress  FIXTURE="$T/older.json" RELEASE_TAGS_DIR="$T/tags2" SPL_TF030_FILE="$T/stale-030.tf"
 check "ALLOW_IMAGE_REGRESS=1 permits the rollback"    0 regress  FIXTURE="$T/newer.json" ALLOW_IMAGE_REGRESS=1 SPL_TF030_FILE="$T/stale-030.tf"
 check "describe fails -> cannot tell"                 1 ""       FIXTURE=
 

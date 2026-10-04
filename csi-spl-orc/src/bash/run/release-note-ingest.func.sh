@@ -86,7 +86,9 @@ do_release_note_ingest() {
 # spl_release_note_rows <head-sha> <depth> -> one ingest row (JSON) per
 # first-parent commit, newest first. The version map walks newest -> oldest:
 # a tag at a commit contains every older commit on the line, so the running
-# minimum of the tags seen so far is the first version that shipped it.
+# minimum of the tags seen so far is the first version that shipped it. Tags
+# are ordered as release keys (cycle, then X.Y.Z); the row carries the plain
+# X.Y.Z the hub accepts.
 spl_release_note_rows() {
   local head="$1" depth="$2" g=(git -C "$APP_PATH")
   local -A tagv=()
@@ -94,15 +96,15 @@ spl_release_note_rows() {
   # an annotated tag's commit is %(*objectname); a lightweight one's is %(objectname)
   while read -r obj ref; do
     v="${ref#v}"
-    spl_version_valid "$v" || continue
-    if [[ -z "${tagv[$obj]:-}" ]] || spl_version_gt "${tagv[$obj]}" "$v"; then tagv[$obj]="$v"; fi
+    spl_release_key_valid "$v" || continue
+    if [[ -z "${tagv[$obj]:-}" ]] || spl_release_key_gt "${tagv[$obj]}" "$v"; then tagv[$obj]="$v"; fi
   done < <("${g[@]}" for-each-ref 'refs/tags/v*' --format='%(objectname) %(*objectname) %(refname:strip=2)' | awk 'NF == 3 {print $2, $3; next} {print $1, $2}')
   local has_notes=0
   "${g[@]}" rev-parse -q --verify refs/notes/release-notes >/dev/null 2>&1 && has_notes=1
   local sha min="" t msg note files area doc
   while read -r sha; do
     t="${tagv[$sha]:-}"
-    if [[ -n "$t" ]] && { [[ -z "$min" ]] || spl_version_gt "$min" "$t"; }; then min="$t"; fi
+    if [[ -n "$t" ]] && { [[ -z "$min" ]] || spl_release_key_gt "$min" "$t"; }; then min="$t"; fi
     msg="$("${g[@]}" log -1 --format=%B "$sha")"
     note=""
     ((has_notes)) && note="$("${g[@]}" notes --ref=release-notes show "$sha" 2>/dev/null)"
@@ -111,7 +113,7 @@ spl_release_note_rows() {
     [[ -n "$files" ]] && ! grep -qv '\.md$' <<<"$files" && doc=true
     area="$(sed -n 's|/.*||p' <<<"$files" | sort -u)"
     [[ "$(grep -c . <<<"$area")" == 1 ]] || area=""
-    jq -cn --arg sha "$sha" --arg version "${min:+v$min}" --arg at "$("${g[@]}" log -1 --format=%cI "$sha")" \
+    jq -cn --arg sha "$sha" --arg version "${min:+v${min%%-c*}}" --arg at "$("${g[@]}" log -1 --format=%cI "$sha")" \
       --arg message "$msg" --arg note "$note" --arg area "$area" --argjson doc "$doc" \
       '{sha: $sha, committed_at: $at, message: $message}
        + (if $version != "" then {version: $version} else {} end)

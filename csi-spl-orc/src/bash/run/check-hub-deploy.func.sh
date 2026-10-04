@@ -22,6 +22,7 @@
 # @param ENV - required: dev or prd
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key (do_gcp_account; never the owner account): the identity that reads (run.viewer is enough)
 # @param SPL_HUB_IMAGE_TAG (optional) - require exactly this release version (do_release_version)
+# @param RELEASE_TAGS_DIR (optional) - the git dir whose v-tags tell the release cycle, default APP_PATH
 # @example ENV=dev ./run -a do_check_hub_deploy
 #------------------------------------------------------------------------------
 do_check_hub_deploy() {
@@ -57,8 +58,10 @@ do_check_hub_deploy() {
   local live_tag="${image##*:}" floor="${SPL_IMAGE_CNF_REF##*:}" ok=0
   if [[ -n "${SPL_HUB_IMAGE_TAG:-}" ]]; then
     [[ "$image" == "$SPL_IMAGE_REF" ]] && ok=1
+  # Past 9.9.9 (release cycle 2+) every minted tag is later than the cycle-1
+  # floor even when its X.Y.Z reads lower (spl-release-version CYCLES).
   elif [[ "${image%:*}" == "${SPL_IMAGE_CNF_REF%:*}" ]] && spl_version_valid "$live_tag" &&
-       ! spl_version_gt "$floor" "$live_tag"; then
+       { ! spl_version_gt "$floor" "$live_tag" || (($(spl_release_cycle_now "${RELEASE_TAGS_DIR:-$APP_PATH}") > 1)); }; then
     ok=1
   fi
   if ((!ok)); then

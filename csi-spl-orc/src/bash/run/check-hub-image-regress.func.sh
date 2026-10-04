@@ -33,6 +33,7 @@
 # @param SPL_TF030_FILE (optional) - the 030 service .tf to read the lifecycle from (tests)
 # @param GCP_ACCOUNT (optional) - overrides the per-env project SA from its key
 # @param   (do_gcp_account; never the owner account)
+# @param RELEASE_TAGS_DIR (optional) - the git dir whose v-tags tell the release cycle, default APP_PATH
 # @example ENV=dev ./run -a do_check_hub_image_regress
 #------------------------------------------------------------------------------
 do_check_hub_image_regress() {
@@ -69,6 +70,9 @@ do_check_hub_image_regress() {
   fi
 
   newest="$(printf '%s\n%s\n' "$live_tag" "$cnf_tag" | sort -V | tail -1)"
+  # Past 9.9.9 (release cycle 2+) the live tag is later than the cycle-1 cnf
+  # floor even when its X.Y.Z reads lower (spl-release-version CYCLES).
+  (($(spl_release_cycle_now "${RELEASE_TAGS_DIR:-$APP_PATH}") > 1)) && newest="$live_tag"
   if [[ "$newest" == "$cnf_tag" && "$newest" != "$live_tag" ]]; then
     echo "$ENV forward service=$svc live=$live_tag cnf=$cnf_tag (an apply rolls the hub forward)"
     return 0

@@ -2,7 +2,7 @@
 #------------------------------------------------------------------------------
 # Purpose: the release version is minted by CI, collision-free.
 #   1. odometer arithmetic: 1.1.0 -> 1.1.1, 1.1.9 -> 1.2.0, 1.9.9 -> 2.0.0,
-#      9.9.9 refuses, 1.10.0 is not a version
+#      9.9.9 wraps to 1.0.1, 1.10.0 is not a version
 #   2. first mint against a remote with no tags = the floor (.version)
 #   3. the next commit = one step past the highest tag
 #   4. the same commit again = the same version (hub + WUI + dev + prd agree)
@@ -19,6 +19,12 @@
 #      (a workflow commit landed after it) is rc 3 + stale=true in
 #      GITHUB_OUTPUT, so the deploy stands down; CONTROL: the same refusal at
 #      trunk head stays rc 1, a real error (CLE-77950)
+#  14. CYCLES (owner: "reaches 9.9.9 ... start all over, from 1.0.1"): release
+#      keys order by cycle then X.Y.Z; 9.9.9 -> 1.0.1 of cycle 2 is claimed as
+#      tag v1.0.1-c2 beside the cycle-1 v1.0.1, shown as plain 1.0.1 (mint and
+#      action, GITHUB_OUTPUT too); the cycle-1 floor no longer wins; a commit
+#      re-reads its cycle-2 version; CONTROL: plain-version max ignores the
+#      cycle-2 tags and would re-mint 9.9.9's successor forever
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,7 +47,7 @@ for c in "1.1.0 1.1.1" "1.1.9 1.2.0" "1.9.9 2.0.0" "0.9.9 1.0.0"; do
   set -- $c
   got=$(lib spl_version_step "$1"); [[ "$got" == "$2" ]] && pass "step $1 -> $2" || fail "step $1 -> '$got', want $2"
 done
-lib spl_version_step 9.9.9 >/dev/null 2>&1 && fail "9.9.9 must refuse" || pass "9.9.9 refuses (odometer full)"
+got=$(lib spl_version_step 9.9.9); [[ "$got" == 1.0.1 ]] && pass "displayed 9.9.9 wraps to 1.0.1" || fail "step 9.9.9 -> '$got', want 1.0.1"
 lib spl_version_valid 1.10.0 && fail "1.10.0 accepted" || pass "1.10.0 is not a version (digits rule)"
 got=$(printf '1.0.9\n1.1.0\n0.9.9\njunk\n' | lib spl_version_max); [[ "$got" == 1.1.0 ]] && pass "max = 1.1.0" || fail "max='$got'"
 
@@ -309,6 +315,58 @@ GITHUB_OUTPUT="$T/stale.out" PATH="$T/rej:$PATH" lib spl_release_mint "$T/w" "$c
 if [[ $rc -eq 1 ]] && ! grep -q 'stale=' "$T/stale.out" && grep -q 'was REJECTED' "$T/stale.err"; then
   pass "CONTROL: the same refusal at trunk head stays rc 1 (a real error, no stand-down)"
 else fail "CONTROL stale: rc=$rc out=$(tr '\n' '|' <"$T/stale.out")"; fi
+
+# --- 14. cycles ---------------------------------------------------------------
+for c in "9.9.8 9.9.9" "9.9.9 1.0.1-c2" "1.0.9-c2 1.1.0-c2" "9.9.9-c2 1.0.1-c3" "9.9.9-c12 1.0.1-c13"; do
+  set -- $c
+  got=$(lib spl_release_key_step "$1"); [[ "$got" == "$2" ]] && pass "key step $1 -> $2" || fail "key step $1 -> '$got', want $2"
+done
+for c in "1.0.1-c2 9.9.9" "1.0.2-c2 1.0.1-c2" "1.0.1-c3 9.9.9-c2" "1.0.1-c10 9.9.9-c9" "8.4.3 8.4.2"; do
+  set -- $c
+  lib spl_release_key_gt "$1" "$2" && pass "$1 is later than $2" || fail "$1 not later than $2"
+  lib spl_release_key_gt "$2" "$1" && fail "$2 later than $1" || pass "$2 is not later than $1"
+done
+lib spl_release_key_gt 1.0.1-c2 1.0.1-c2 && fail "a key is later than itself" || pass "a key is not later than itself"
+for k in 1.0.1-c1 1.0.1-c0 1.0.1-c 1.0.1-c02 1.10.1-c2 v1.0.1-c2; do
+  lib spl_release_key_valid "$k" && fail "'$k' accepted as a key" || pass "'$k' is not a key"
+done
+got=$(printf '9.9.9\n1.0.3-c2\n9.9.8\njunk\n1.0.1-c2\n' | lib spl_release_key_max); [[ "$got" == 1.0.3-c2 ]] && pass "key max = 1.0.3-c2 (cycle first)" || fail "key max='$got'"
+got=$(printf '1.0.3-c2\n9.9.9\n1.0.1-c3\n' | lib spl_release_key_min); [[ "$got" == 9.9.9 ]] && pass "key min = 9.9.9 (cycle first)" || fail "key min='$got'"
+got=$(lib spl_release_key_display 1.0.1-c2); [[ "$got" == 1.0.1 ]] && pass "1.0.1-c2 displays as 1.0.1" || fail "display '$got'"
+
+git init -q --bare "$T/cyc.git"
+git init -q "$T/c" && git -C "$T/c" remote add origin "$T/cyc.git"
+ccommit() { echo "$1" >"$T/c/f" && git -C "$T/c" add f && git -C "$T/c" commit -qm "$1" && git -C "$T/c" rev-parse HEAD; }
+k0=$(ccommit old-101); k1=$(ccommit c998)
+git -C "$T/c" tag v1.0.1 "$k0"; git -C "$T/c" tag v9.9.8 "$k1"
+k2=$(ccommit c999); k3=$(ccommit wrap); k4=$(ccommit after)
+git -C "$T/c" push -q origin HEAD:refs/heads/master 'refs/tags/v*:refs/tags/v*'
+cmint() { lib spl_release_mint "$T/c" "$1" "$2" origin 2>>"$T/mint.err"; }
+got=$(cmint "$k2" 8.4.0); [[ "$got" == 9.9.9 ]] && pass "cycle 1 ends at 9.9.9" || fail "9.9.9 mint '$got'"
+got=$(cmint "$k3" 8.4.0)
+if [[ "$got" == 1.0.1 && "$(git --git-dir="$T/cyc.git" rev-parse 'v1.0.1-c2^{commit}')" == "$k3" \
+      && "$(git --git-dir="$T/cyc.git" rev-parse 'v1.0.1^{commit}')" == "$k0" ]]; then
+  pass "after 9.9.9: shows 1.0.1, claims v1.0.1-c2, the cycle-1 v1.0.1 untouched"
+else fail "wrap mint '$got' tags=$(git --git-dir="$T/cyc.git" tag | tr '\n' ' ')"; fi
+got=$(cmint "$k4" 8.4.0); [[ "$got" == 1.0.2 && -n "$(git --git-dir="$T/cyc.git" tag -l v1.0.2-c2)" ]] \
+  && pass "cycle 2 continues 1.0.2 (v1.0.2-c2); the cycle-1 floor 8.4.0 does not win" || fail "cycle-2 next '$got'"
+got=$(cmint "$k3" 8.4.0); [[ "$got" == 1.0.1 ]] && pass "the wrap commit re-reads 1.0.1" || fail "wrap re-read '$got'"
+k5=$(ccommit act); git -C "$T/c" push -q origin HEAD:refs/heads/master; echo 8.4.0 >"$T/c/.version"
+cact() {
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$T/c" "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*" >&2; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    do_release_version' 2>>"$T/act.err"
+}
+got=$(cact RELEASE_SHA="$k5"); [[ "$got" == 1.0.3 ]] && pass "action DRY_RUN in cycle 2 says 1.0.3" || fail "cycle-2 dry run '$got'"
+: >"$T/gh2.out"
+got=$(cact RELEASE_SHA="$k5" DRY_RUN=0 GITHUB_OUTPUT="$T/gh2.out")
+[[ "$got" == 1.0.3 && "$(cat "$T/gh2.out")" == version=1.0.3 && -n "$(git --git-dir="$T/cyc.git" tag -l v1.0.3-c2)" ]] \
+  && pass "action DRY_RUN=0 claims v1.0.3-c2, GITHUB_OUTPUT version=1.0.3 (plain)" || fail "cycle-2 live '$got' out='$(cat "$T/gh2.out")'"
+got=$(lib eval 'spl_version_step "$(git -C "'"$T/c"'" tag -l "v*" | sed "s/^v//" | spl_version_max)"')
+[[ "$got" == 1.0.1 ]] && pass "CONTROL: plain-version max ignores the cycle-2 tags (would re-mint 1.0.1 forever)" \
+  || fail "CONTROL plain max: '$got'"
 
 echo "--- $fails failure(s)"
 [[ $fails -eq 0 ]]

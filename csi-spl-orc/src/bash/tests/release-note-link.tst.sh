@@ -112,5 +112,15 @@ if [[ -n "$base" && "$base" != null ]] && ! grep -qiF "$base" "$ACTION" && ! gre
   pass "no literal host in release-note-link.func.sh (BASE_DOMAIN absent, no https://<text>)"
 else fail "literal host in $ACTION: $(grep -nE "https://[A-Za-z0-9]|$base" "$ACTION")"; fi
 
+# --- 8. across the 9.9.9 -> 1.0.1 wrap (cycle 2 tags are v<X.Y.Z>-c2) -------------
+C5=$(commit "fix(hub): last of cycle 1"); C6=$(commit "fix(hub): first of cycle 2"); C7=$(commit "fix(hub): tagged")
+git -C "$REPO" tag v9.9.9 "$C5"; git -C "$REPO" tag v1.0.1-c2 "$C7"
+out=$(act SHA="$C5" ENV=dev); rc=$?
+[[ $rc == 0 && "$out" == "${C5:0:8} v9.9.9 https://$DEV_FQDN/releases/$C5" ]] \
+  && pass "a commit in v9.9.9 AND v1.0.1-c2 -> v9.9.9 (cycle first, not the lower-reading 1.0.1)" || fail "C5: rc $rc out '$out'"
+out=$(act SHA="$C6" ENV=dev); rc=$?
+[[ $rc == 0 && "$out" == "${C6:0:8} v1.0.1 https://$DEV_FQDN/releases/$C6" ]] && grep -qE "$LINE_RE" <<<"$out" \
+  && pass "a commit first shipped in v1.0.1-c2 -> plain v1.0.1, same line shape" || fail "C6: rc $rc out '$out'"
+
 echo "release-note-link: $fails failure(s)"
 ((fails == 0))

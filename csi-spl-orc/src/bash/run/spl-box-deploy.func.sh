@@ -18,7 +18,16 @@
 # @description   check    read-only: each prerequisite's verdict, the binary
 # @description            verdict, the plan, the tagged cron lines, the status
 # @description Idempotent: a second install on a deployed box changes no
-# @description crontab line and no binary, and says so. No literal host, user
+# @description crontab line and no binary, and says so. A LIVE box keeps its
+# @description lines: an installer whose tagged lines are all in the crontab
+# @description is not run (its tags are read from its own dry run against an
+# @description empty crontab), and after a DRY_RUN=0 install every line that
+# @description was there before is put back verbatim, in place - a hand-tuned
+# @description schedule or env (a DESK_MUTE) is never rewritten, a line is
+# @description never reordered; only lines the box lacks are added.
+# @description Retired desks (do_spl_desk_rebox: rebox-seated.txt or
+# @description rebox-retired/ in their dir) are never started, and their
+# @description stopped rows never fail the status. No literal host, user
 # @description or domain: the box tag is spl_desk_box_default, the user $USER,
 # @description the paths $HOME / $APP_PATH / $SPOOL_ROOT, the rest the cnf.
 # @description Dry run unless DRY_RUN=0 (every installer then prints its plan).
@@ -31,6 +40,12 @@
 # @param   box's package manager) and provisions a missing spool root; DRY_RUN=0 only
 # @param BOX_DEPLOY_KEY (optional) - default $HOME/.gcp/.<org>/key-<org>-<app>-<env>.json
 # @param ROOT_KEY_JSON (optional) - the tenant root key, needed on a desk's first seat
+# @param BOX_DEPLOY_REWRITE (optional) - 1 lets every installer rewrite its
+# @param   installed lines (the pre-2026-10-04 behaviour); default 0 keeps them
+# @param BOX_DEPLOY_MISSING (optional) - add (default) | skip: a missing
+# @param   installer's lines are added, or only named (do_spl_box_update: skip)
+# @param BOX_DEPLOY_POOL (optional) - start (default) | status: status starts
+# @param   no desk (do_spl_box_update: status)
 # @param BOX_DEPLOY_CRONTAB (optional, tests) - the crontab command, default crontab
 # @param BOX_DEPLOY_ALLOW_WORKTREE (optional, tests) - 1 accepts a linked worktree
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
@@ -44,6 +59,8 @@ do_spl_box_deploy() {
   case "$cmd" in install|check|remove) ;; *) do_log "FATAL BOX_DEPLOY_CMD must be install, check or remove, got: '$cmd'"; return 1 ;; esac
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$cmd" == check ]] && dry=1
+  case "${BOX_DEPLOY_MISSING:-add}" in add|skip) ;; *) do_log "FATAL BOX_DEPLOY_MISSING must be add or skip, got: '$BOX_DEPLOY_MISSING'"; return 1 ;; esac
+  case "${BOX_DEPLOY_POOL:-start}" in start|status) ;; *) do_log "FATAL BOX_DEPLOY_POOL must be start or status, got: '$BOX_DEPLOY_POOL'"; return 1 ;; esac
   for v in ENV HOME USER APP_PATH PROJ_PATH; do
     [[ -n "${!v:-}" ]] || { do_log "FATAL $v must be set (no default)"; return 1; }
   done
@@ -70,8 +87,16 @@ do_spl_box_deploy() {
     box_deploy_run_installers remove "$dry" || return 1
   else
     box_deploy_binary "$dry" || return 1
-    box_deploy_run_installers install "$dry" || return 1
-    box_deploy_pool start "$dry" || return 1
+    local ct_before; ct_before="$(mktemp)"
+    $ct -l >"$ct_before" 2>/dev/null
+    box_deploy_run_installers install "$dry" || { rm -f "$ct_before"; return 1; }
+    box_deploy_keep_lines "$ct_before" "$dry" || { rm -f "$ct_before"; return 1; }
+    rm -f "$ct_before"
+    if [[ "${BOX_DEPLOY_POOL:-start}" == start ]]; then
+      box_deploy_pool start "$dry" || return 1
+    else
+      echo "SKIP pool start: BOX_DEPLOY_POOL=status (no desk is started)"
+    fi
     box_deploy_pool status "$dry" || rc=1
   fi
   after="$(box_deploy_fingerprint)"
@@ -230,10 +255,68 @@ box_deploy_run_installers() {
     list=("${rev[@]}")
   fi
   declare -F do_spl_pool_serve_install_cron >/dev/null || echo "SKIP installer pool-serve: not built yet (spec 070 L3)"
+  local tags have
   for n in "${list[@]}"; do
+    if [[ "$act" == install && "${BOX_DEPLOY_REWRITE:-0}" != 1 ]]; then
+      tags="$(box_deploy_installer_tags "$n")"
+      if [[ -n "$tags" ]]; then
+        have="$(box_deploy_tags_missing "$tags")"
+        if [[ -z "$have" ]]; then
+          echo "KEEP installer $n: installed (${tags//$'\n'/ }), left verbatim"; continue
+        fi
+        if [[ "${BOX_DEPLOY_MISSING:-add}" == skip ]]; then
+          echo "SKIP installer $n: not installed (${have//$'\n'/ }), BOX_DEPLOY_MISSING=skip"; continue
+        fi
+      fi
+    fi
     echo "$([[ "$dry" == 1 ]] && echo PLAN || echo DO) installer $n ($act)"
     box_deploy_installer "$n" "$act" "$dry" || { do_log "FATAL installer $n ($act) failed - the run stops here"; return 1; }
   done
+}
+
+# box_deploy_installer_tags <name>: the tags of the lines the installer
+# would add to an EMPTY crontab, read from its own dry run (a stub crontab
+# that lists nothing comes first on PATH). One per line; none when the dry
+# run names no tagged line (then the installer always runs).
+box_deploy_installer_tags() {
+  local shim org_app
+  org_app="$(basename "$PROJ_PATH")"; org_app="${org_app%-orc}"
+  shim="$(mktemp -d)" || return 0
+  printf '#!/bin/sh
+exit 0
+' >"$shim/crontab"; chmod +x "$shim/crontab"
+  ( PATH="$shim:$PATH" BOX_DEPLOY_CRONTAB="$shim/crontab" STUB_EMPTY_CRONTAB=1 box_deploy_installer "$1" install 1 ) 2>&1 </dev/null |
+    grep -E '^[[:space:]]*\+[^+]' | grep -oE "# $org_app:[A-Za-z0-9:_-]+\$" | sed 's/^# //' | sort -u
+  rm -rf "$shim"
+}
+
+# box_deploy_tags_missing <tags>: those of <tags> no crontab line ends with
+box_deploy_tags_missing() {
+  local t cur
+  cur="$(${BOX_DEPLOY_CRONTAB:-crontab} -l 2>/dev/null)"
+  for t in $1; do
+    awk -v suf=" # $t" '{ l = length($0); s = length(suf); if (l >= s && substr($0, l - s + 1) == suf) f = 1 } END { exit !f }' <<<"$cur" || echo "$t"
+  done
+}
+
+# box_deploy_keep_lines <before file> <dry>: after a DRY_RUN=0 install, the
+# crontab is the one from before, verbatim and in its order, plus only the
+# lines whose tag it did not have. BOX_DEPLOY_REWRITE=1 keeps what the
+# installers wrote.
+box_deploy_keep_lines() {
+  local before="$1" dry="$2" ct="${BOX_DEPLOY_CRONTAB:-crontab}" now want
+  [[ "$dry" == 0 && "${BOX_DEPLOY_REWRITE:-0}" != 1 ]] || return 0
+  now="$(mktemp)"; want="$(mktemp)"
+  $ct -l >"$now" 2>/dev/null
+  { cat "$before"
+    awk 'NR == FNR { if (match($0, / # [A-Za-z0-9:_-]+$/)) seen[substr($0, RSTART)] = 1; old[$0] = 1; next }
+      { if (match($0, / # [A-Za-z0-9:_-]+$/) && (substr($0, RSTART) in seen)) next; if (!($0 in old)) print }' "$before" "$now"
+  } >"$want"
+  if ! cmp -s "$now" "$want"; then
+    $ct "$want" || { rm -f "$now" "$want"; do_log "FATAL crontab refused the kept lines"; return 1; }
+    echo "KEEP crontab: every line from before the install is back verbatim; only new tags added"
+  fi
+  rm -f "$now" "$want"
 }
 
 # box_deploy_installer <name> <install|remove> <dry>
@@ -267,6 +350,21 @@ box_deploy_installer() {
   )
 }
 
+# box_deploy_drop_retired: stdin row names minus the desk:<tenant>/<box> rows
+# whose desk dir do_spl_desk_rebox moved away (rebox-seated.txt or
+# rebox-retired/): a retired desk is stopped on purpose
+box_deploy_drop_retired() {
+  local r d
+  while read -r r; do
+    [[ -n "$r" ]] || continue
+    if [[ "$r" =~ ^desk:([a-z0-9-]+)/([a-z0-9-]+)$ ]]; then
+      d="$SPL_STATE_DIR/desk/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+      [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && { echo "INFO pool status: $r is retired (do_spl_desk_rebox), left stopped" >&2; continue; }
+    fi
+    echo "$r"
+  done
+}
+
 # box_deploy_pool <start|stop|status> <dry>: do_spl_pool_ctl by its contract
 # (spec 071 section 4). status fails a DRY_RUN=0 run when a row is stopped.
 box_deploy_pool() {
@@ -280,7 +378,8 @@ box_deploy_pool() {
   [[ -n "$out" ]] && printf '%s\n' "$out" | sed 's/^/  /'
   [[ "$rc" == 0 ]] || { do_log "FATAL pool $verb failed (rc $rc)"; return 1; }
   [[ "$verb" == status ]] || return 0
-  bad="$(awk '$2 == "stopped" { printf " %s", $1 }' <<<"$out")"
+  bad="$(awk '$2 == "stopped" { print $1 }' <<<"$out" | box_deploy_drop_retired | tr '\n' ' ' | sed 's/^/ /; s/ $//')"
+  [[ "$bad" == " " ]] && bad=""
   [[ -z "$bad" ]] && { echo "OK pool status: every row the box runs is running"; return 0; }
   [[ "$dry" == 1 ]] && { echo "INFO pool status: stopped now:$bad (DRY_RUN started nothing)"; return 0; }
   do_log "FAIL pool status: not running after start:$bad"

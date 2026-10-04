@@ -10,8 +10,11 @@
 # @description               updated ./run runs steps 2..4 (BOX_UPDATE_FETCHED=1)
 # @description   2. refresh  do_spl_spool_refresh (the installed spool binary
 # @description               only, never the agent config)
-# @description   3. deploy   BOX_DEPLOY_CMD=install do_spl_box_deploy (the
-# @description               crons and the desk binary, idempotent)
+# @description   3. deploy   BOX_DEPLOY_CMD=install do_spl_box_deploy in
+# @description               UPDATE mode: BOX_DEPLOY_MISSING=skip (an
+# @description               installed cron line is kept verbatim, a missing
+# @description               one only named) and BOX_DEPLOY_POOL=status (no
+# @description               desk is started); the desk binary is refreshed
 # @description   4. lag      do_check_deploy_lag for dev AND prd at trunk; a
 # @description               LAGGING hub or WUI gets its existing deploy
 # @description               workflow (20 / 30) dispatched with environment=all
@@ -57,8 +60,9 @@ do_spl_box_update() {
 
   echo "STEP refresh: do_spl_spool_refresh"
   ( DRY_RUN="$dry" do_spl_spool_refresh ) || { rc=1; echo "FAIL step refresh"; }
-  echo "STEP deploy: BOX_DEPLOY_CMD=install do_spl_box_deploy"
-  ( BOX_DEPLOY_CMD=install DRY_RUN="$dry" do_spl_box_deploy ) || { rc=1; echo "FAIL step deploy"; }
+  echo "STEP deploy: BOX_DEPLOY_CMD=install BOX_DEPLOY_MISSING=skip BOX_DEPLOY_POOL=status do_spl_box_deploy"
+  ( BOX_DEPLOY_CMD=install BOX_DEPLOY_MISSING=skip BOX_DEPLOY_POOL=status DRY_RUN="$dry" do_spl_box_deploy ) ||
+    { rc=1; echo "FAIL step deploy"; }
   echo "STEP lag: dev and prd at ${trunk:-<no origin/master>}"
   box_update_lag "$dry" "$trunk" || { rc=1; echo "FAIL step lag"; }
 

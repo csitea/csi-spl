@@ -3,7 +3,8 @@
 # Purpose: do_spl_box_update with stub steps (do_spl_spool_refresh,
 # do_spl_box_deploy), a scripted deploy-lag verdict and a gh stub, on a
 # throwaway checkout with a local bare origin. Every check has a control.
-#   1. at trunk, nothing lags: refresh + deploy run (DRY_RUN passed), no gh
+#   1. at trunk, nothing lags: refresh + deploy run (DRY_RUN passed, deploy
+#      in update mode: keep installed lines, add none, start no desk), no gh
 #   2. a lagging hub, gate green: 20 is dispatched once (environment=all);
 #      the dry run only plans it
 #   3. a red gate on trunk: nothing dispatched, the newest green sha named
@@ -43,7 +44,7 @@ chmod +x "$T/gh"
 
 STUBS='
 do_spl_spool_refresh() { echo "refresh DRY_RUN=$DRY_RUN" >>"$STUB_LOG"; [[ -z "${STUB_REFRESH_FAIL:-}" ]]; }
-do_spl_box_deploy() { echo "deploy $BOX_DEPLOY_CMD DRY_RUN=$DRY_RUN" >>"$STUB_LOG"; }
+do_spl_box_deploy() { echo "deploy $BOX_DEPLOY_CMD DRY_RUN=$DRY_RUN missing=${BOX_DEPLOY_MISSING:-} pool=${BOX_DEPLOY_POOL:-}" >>"$STUB_LOG"; }
 '
 # LAG: "<env> <comp> <verdict>" lines the lag stub prints for every env
 upd() {
@@ -56,11 +57,11 @@ dispatched() { grep -c '^gh workflow run' "$T/calls.log"; }
 
 # 1. nothing lags
 out="$(upd)"; rc=$?
-[ "$rc" -eq 0 ] && grep -q '^refresh DRY_RUN=1$' "$T/calls.log" && grep -q '^deploy install DRY_RUN=1$' "$T/calls.log" \
+[ "$rc" -eq 0 ] && grep -q '^refresh DRY_RUN=1$' "$T/calls.log" && grep -q '^deploy install DRY_RUN=1 missing=skip pool=status$' "$T/calls.log" \
   && ! grep -q '^gh ' "$T/calls.log" && grep -q 'OK lag: nothing lags trunk' <<<"$out" \
   && pass "1. at trunk, nothing lags: refresh + deploy (dry), gh never called" || fail "1. ($rc: $out; $(cat "$T/calls.log"))"
 out="$(upd DRY_RUN=0)"
-grep -q '^refresh DRY_RUN=0$' "$T/calls.log" && grep -q '^deploy install DRY_RUN=0$' "$T/calls.log" \
+grep -q '^refresh DRY_RUN=0$' "$T/calls.log" && grep -q '^deploy install DRY_RUN=0 missing=skip pool=status$' "$T/calls.log" \
   && pass "1. control: DRY_RUN=0 reaches both steps" || fail "1. control ($(cat "$T/calls.log"))"
 
 # 2. lagging hub, gate green
@@ -110,7 +111,7 @@ g -C "$T/app" checkout -q master; upd DRY_RUN=0 >/dev/null
 
 # 7. a failing step
 out="$(upd DRY_RUN=0 STUB_REFRESH_FAIL=1)"; rc=$?
-[ "$rc" -ne 0 ] && grep -q '^deploy install DRY_RUN=0$' "$T/calls.log" && grep -q 'FAIL step refresh' <<<"$out" && grep -q 'OK lag' <<<"$out" \
+[ "$rc" -ne 0 ] && grep -q '^deploy install DRY_RUN=0 ' "$T/calls.log" && grep -q 'FAIL step refresh' <<<"$out" && grep -q 'OK lag' <<<"$out" \
   && pass "7. a failing refresh: deploy and lag still run, the run exits non-zero" || fail "7. ($rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

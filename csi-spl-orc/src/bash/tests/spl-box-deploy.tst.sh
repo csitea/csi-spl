@@ -14,6 +14,14 @@
 #   8. a failing installer stops the run and is named
 #   9. a stopped row after start fails the install
 #  10. remove: pool stopped, no csi-spl: line left, other lines kept
+#  11. a LIVE box (hand-tuned schedule + DESK_MUTE, its own line order):
+#      install twice changes no byte; control: BOX_DEPLOY_REWRITE=1 (the
+#      installers rewrite, the pre-2026-10-04 code) does change it
+#  12. a box missing one line: only that line is added, the rest verbatim
+#  13. the update mode (BOX_DEPLOY_MISSING=skip BOX_DEPLOY_POOL=status):
+#      no crontab change and no pool start, even with a line missing
+#  14. a stopped RETIRED desk (rebox-retired/) never fails the status;
+#      control: the same row without the marker does
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -34,7 +42,8 @@ TAGS="desk-reconcile unanswered-sweep orch-rotate dispatch-rotate agent-id-reap 
 STUBS='
 inst() { local tag="$1" act="$2"; echo "installer $tag $act DRY_RUN=$DRY_RUN" >>"$STUB_LOG"
   [[ -n "${STUB_FAIL:-}" && "$STUB_FAIL" == "$tag" ]] && return 1
-  [[ "$DRY_RUN" == 0 ]] || return 0
+  # a dry run prints the line it would add, as the real installers do
+  [[ "$DRY_RUN" == 0 ]] || { echo "  +* * * * * x # csi-spl:$tag"; return 0; }
   grep -v " # csi-spl:$tag\$" "$CT" >"$CT.n"; [[ "$act" == install ]] && echo "* * * * * x # csi-spl:$tag" >>"$CT.n"; mv "$CT.n" "$CT"; }
 do_spl_desk_install_service() { inst desk-reconcile "$DESK_SERVICE_ACTION"; }
 do_spl_unanswered_sweep_install_cron() { inst unanswered-sweep "$SWEEP_CRON_ACTION"; }
@@ -55,7 +64,7 @@ do_spl_pool_ctl() { echo "pool $POOL_CMD DRY_RUN=$DRY_RUN" >>"$STUB_LOG"
     start) [[ "$DRY_RUN" == 1 ]] || touch "$T/pool.up" ;;
     stop) [[ "$DRY_RUN" == 1 ]] || rm -f "$T/pool.up" ;;
     status) local s; s=$([[ -e "$T/pool.up" ]] && echo running || echo stopped)
-      echo "desk:t1/box-desk $s pid 1"; echo "lease $([[ -n "${STUB_LEASE_DOWN:-}" ]] && echo stopped || echo "$s") fleet"
+      echo "desk:t1/box-desk $s pid 1"; [[ -n "${STUB_RETIRED_ROW:-}" ]] && echo "desk:t1/box-old stopped no live hub-run"; echo "lease $([[ -n "${STUB_LEASE_DOWN:-}" ]] && echo stopped || echo "$s") fleet"
       echo "pool-serve missing not built yet (spec 070 L3)" ;;
   esac; }
 '
@@ -103,7 +112,7 @@ out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 BOX_DEPLOY_TOOLS="bash no-such-tool-
 [ "$rc" -ne 0 ] && grep -q 'PREREQ tools missing no-such-tool-x' <<<"$out" && grep -q 'missing prerequisite(s): tools' <<<"$out" \
   && [ ! -s "$T/calls.log" ] && cmp -s "$CT" "$T/ct.2" && pass "4. a missing tool is refused and named, nothing called" || fail "4. tool (rc $rc: $out; $(calls))"
 out="$(dep BOX_DEPLOY_CMD=install BOX_DEPLOY_TOOLS="bash no-such-tool-x")"; rc=$?
-[ "$rc" -ne 0 ] && grep -q '^PLAN installer weekly-full-scan' <<<"$out" && grep -q 'DRY_RUN=0 run refuses: missing tools' <<<"$out" \
+[ "$rc" -ne 0 ] && grep -qE '^(PLAN|KEEP) installer weekly-full-scan' <<<"$out" && grep -q 'DRY_RUN=0 run refuses: missing tools' <<<"$out" \
   && pass "4. ...the dry run still plans every step, names it and exits non-zero" || fail "4. dry-run tool (rc $rc: $out)"
 out="$(dep BOX_DEPLOY_CMD=check)"
 grep -q 'PREREQ tools ok bash git' <<<"$out" && pass "4. control: the same check passes with every tool present" || fail "4. control ($out)"
@@ -156,5 +165,50 @@ out="$(dep BOX_DEPLOY_CMD=remove DRY_RUN=0)"; rc=$?
 grep -q '# csi-spl:' "$T/ct.1" && pass "10. control: the no-csi-spl-line check fires on a deployed crontab" || fail "10. control"
 out="$(dep BOX_DEPLOY_CMD=remove DRY_RUN=0)"
 grep -q '^OK nothing changed' <<<"$out" && pass "10. a second remove changes nothing" || fail "10. second remove ($out)"
+
+# 11. a live box keeps its lines
+live_box() {
+  { echo "0 8 * * * /opt/other/run-me.sh # other:job"
+    echo "1-59/3 * * * * y ENV=dev DESK_MUTE=CLE-00 # csi-spl:desk-reconcile"
+    for t in $TAGS; do [ "$t" = desk-reconcile ] || echo "*/7 * * * * hand-$t # csi-spl:$t"; done; } >"$CT"
+}
+live_box; cp "$CT" "$T/live.0"
+out1="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0)"; rc1=$?
+out2="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0)"; rc2=$?
+[ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ] && cmp -s "$CT" "$T/live.0" && grep -q '^OK nothing changed' <<<"$out2" \
+  && pass "11. a live box: install twice changes no byte (schedule, DESK_MUTE, order kept)" || fail "11. live (rc $rc1/$rc2: $out1; $(diff "$T/live.0" "$CT"))"
+[ "$(grep -c '^KEEP installer ' <<<"$out1")" = 10 ] && ! grep -q '^DO installer' <<<"$out1" \
+  && pass "11. ...every installer is kept, none is run" || fail "11. keep ($out1)"
+out="$(dep BOX_DEPLOY_CMD=install)"
+! grep -qE '^ +[-+][^-+]' <<<"$out" && pass "11. ...and its dry run prints no crontab diff" || fail "11. dry diff ($out)"
+dep BOX_DEPLOY_CMD=install DRY_RUN=0 BOX_DEPLOY_REWRITE=1 >/dev/null
+! cmp -s "$CT" "$T/live.0" && ! grep -q 'DESK_MUTE=CLE-00' "$CT" \
+  && pass "11. control: BOX_DEPLOY_REWRITE=1 (the old code) rewrites the hand-tuned line" || fail "11. control ($(cat "$CT"))"
+
+# 12. one line missing: added, the rest verbatim
+live_box; grep -v 'csi-spl:agent-id-reap$' "$CT" >"$T/live.1"; cp "$T/live.1" "$CT"
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && [ "$(head -n "$(wc -l <"$T/live.1")" "$CT")" = "$(cat "$T/live.1")" ] && one_per_tag "$CT" \
+  && [ "$(wc -l <"$CT")" = "$(( $(wc -l <"$T/live.1") + 1 ))" ] && grep -q '^DO installer agent-id-reap' <<<"$out" \
+  && pass "12. a missing line is added; every other line verbatim, in order" || fail "12. (rc $rc: $out; $(diff "$T/live.1" "$CT"))"
+
+# 13. update mode
+cp "$T/live.1" "$CT"; reset_calls
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 BOX_DEPLOY_MISSING=skip BOX_DEPLOY_POOL=status)"; rc=$?
+[ "$rc" -eq 0 ] && cmp -s "$CT" "$T/live.1" && ! grep -q '^pool start' "$T/calls.log" \
+  && grep -q '^SKIP installer agent-id-reap: not installed' <<<"$out" && grep -q '^SKIP pool start' <<<"$out" \
+  && pass "13. update mode: no crontab change, no pool start" || fail "13. (rc $rc: $out; $(calls))"
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0)"
+grep -q '^pool start DRY_RUN=0$' "$T/calls.log" && ! cmp -s "$CT" "$T/live.1" \
+  && pass "13. control: the default mode adds the line and starts the pool" || fail "13. control ($(calls))"
+
+# 14. a retired desk
+mkdir -p "$T/state/dev/desk/t1/box-old/rebox-retired"
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 STUB_RETIRED_ROW=1)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q 'desk:t1/box-old is retired' <<<"$out" && pass "14. a stopped retired desk does not fail the status" || fail "14. (rc $rc: $out)"
+rm -rf "$T/state/dev/desk/t1/box-old/rebox-retired"
+out="$(dep BOX_DEPLOY_CMD=install DRY_RUN=0 STUB_RETIRED_ROW=1)"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'not running after start: desk:t1/box-old' <<<"$out" \
+  && pass "14. control: the same stopped row without the rebox marker fails it" || fail "14. control (rc $rc: $out)"
 
 [ "$fails" -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

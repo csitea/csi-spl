@@ -20,7 +20,7 @@ c-246). An idea marked **also mobile** belongs in both.
 | bundle | `nuxi dev` with `NUXT_PUBLIC_USE_MOCK=1`, the e2e harness's mock tenant (`tests/e2e/lib/server.mjs`); member session HUM-1 |
 | driver | headless Chrome (puppeteer-core 25), device scale 1, no touch |
 | viewports | 1440x900 and 1920x1080 |
-| when | 2026-10-04T21:10Z..2026-10-05T00:30Z |
+| when | 2026-10-04T21:01Z..21:08Z |
 | n | one walk per task per viewport (n=1) unless a row says otherwise. Click and key counts are deterministic. Times come from a local mock and are only good for ranking things against each other |
 | dev / prd | **not driven**. This lane cannot read prd, and dev was left alone. The mock has no hub, so anything that depends on the hub (read sync, live counts) is marked *mock caveat* |
 | screenshots | `/var/tmp/c-245-shots/` (outside the repo) |
@@ -214,4 +214,4 @@ layout, 5 next unread.
 New from the walk: 3.4 (the wide-screen part), 3.7 window identity, 3.8
 search ergonomics, 3.11 accessibility baseline.
 
-<!-- last-edit: 2026-10-05T00:40:00Z -->
+<!-- last-edit: 2026-10-04T21:17:00Z -->

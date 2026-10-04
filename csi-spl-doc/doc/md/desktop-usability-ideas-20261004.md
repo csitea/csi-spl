@@ -61,6 +61,9 @@ pick from c-002's numbering.
 | 10 | **Bulk actions** | archiving N topics costs 2N actions; no multi-select exists (grep -> 0) | M | yes (#8) |
 | 11 | **Accessibility baseline** | no skip link; the omnibox placeholder is 4.0:1, under AA 4.5:1 | S | new |
 | 12 | **Hover previews** (link-preview follow-up) | an id or spec reference shows nothing until you leave the page (owner 145297d8) | S | yes (#10) |
+| 13 | **Clean list titles** (from the mobile list) | every Topics row, left and middle, starts `Topic:` and shows raw `**#lobby**` at 1440 | S | new, also mobile |
+| 14 | **Web Push to a closed browser** (from the mobile list) | an alert fires only from an open tab; a closed browser hears nothing | L | new, also mobile |
+| 15 | **Offline reading + instant first screen** (from the mobile list) | `sw.js` caches the shell only; a cold open waits for the network | L | new, also mobile |
 | — | **Split view** | not now (owner ea6330ff) | — | **no** (#6) |
 
 Top 5 for the owner post: 1 palette, 2 focus model, 3 drafts, 4 wide-screen
@@ -96,7 +99,7 @@ layout, 5 next unread.
 | idea | One draft per place (channel, DM, topic reply), kept across navigation and reloads (browser storage, keyed by workspace and place) and cleared on send. A pencil mark on the row or topic card that holds a draft. Optional: a *Drafts* entry in the palette or Flow |
 | standard practice | Slack (per-channel drafts, *Drafts & sent*), Gmail, GitHub (comment drafts survive a reload) |
 | effort | **S**. `components/MessageComposer.vue`, a pure `utils/drafts.mjs` (key, save, restore, prune), a mark in `ChannelSidebar.vue` / `MessageCard.vue`. The omnibox Teleport already keeps the text while the box moves (`useOmniboxDock.ts`) |
-| risk / overlap | None specced. Follow the per-tenant prefs work (046 / SPL-1182) for the key shape. **Also mobile** |
+| risk / overlap | None specced. Follow the per-tenant prefs work (046 / SPL-1182) for the key shape. **Also mobile**: the mobile list (`mobile-usability-ideas-20261004.md` §3.3) adds an offline send queue on top (a message written without signal goes out when the connection is back). One spec should cover both, and sign-out must wipe stored drafts |
 
 ### 3.4 Wide-screen layout: readable lines and proportional panes
 
@@ -188,7 +191,43 @@ layout, 5 next unread.
 | effort | **S**. Reuse `utils/link-preview-lookup.mjs` and `components/LinkPreviews.vue`; a small `HoverCard.vue` hooked into `utils/id-links.mjs` |
 | risk / overlap | **Running lane c-226** (link previews): start after it lands, as its follow-up. Desktop only (hover) |
 
-### 3.13 Themes with no new idea, and why
+### 3.13 Clean list titles (also mobile)
+
+From the mobile list (`mobile-usability-ideas-20261004.md` §3.13), checked here at 1440.
+
+| field | content |
+|---|---|
+| problem | On the Topics view at 1440x900, every row in the left list and in the middle starts with `Topic:`, and the lobby topic shows raw markdown: `Topic: Welcome to **#lobby**. …` (`topics-1440.png`). The prefix comes from `topic.list_title` = `"Topic: {text}"` (`i18n/locales/en.json:828`, used by `topicRowTitle` in `pages/index.vue:163`). In a 212 px left list it pushes every title onto one more line |
+| idea | List rows show plain text (markdown stripped, or the topic's gist, spec 034) and no `Topic:` prefix in a list already headed "Topics" |
+| standard practice | Slack (thread list), GitHub (notification list): plain titles |
+| effort | **S**. `pages/index.vue`, a strip-markdown helper in `utils/`, the i18n key in every locale |
+| risk / overlap | c-253 (topic new/total) works on the same rows, so rebase on it. `topics-view-retire-proposal.md` may remove this list; the strip helper is still needed for Flow and search rows. **Also mobile** |
+
+### 3.14 Web Push to a closed browser (also mobile)
+
+From the mobile list (§3.2). It applies on desktop too: the owner closes the tab or the browser.
+
+| field | content |
+|---|---|
+| problem | Alerts fire only from a live tab (`utils/notify.mjs`, `new Notification`). With the browser closed, a mention or a DM reaches nobody until the app is reopened. `grep -rliE 'PushManager\|vapid' src \| wc -l` -> 0. Spec 062 Q4 defers "Web Push to a closed app" to a later spec |
+| idea | A mention, a DM or a reply in a followed topic notifies through the OS even with no tab open; a click opens that message (the existing notify-open target). Per-channel mute and quiet hours apply |
+| standard practice | Slack, GitHub, Linear (browser push per mention / DM, with do-not-disturb) |
+| effort | **L**. Hub: a VAPID key pair (secret manager, never in git), a `push_subscriptions` table and migration, a sender on the events that make a Flow entry (062). WUI: `public/sw.js` (`push`, `notificationclick`), `stores/notification.ts`, the Notifications settings page |
+| risk / overlap | A store migration (`PRE_PUSH_TIER=full`) and a new secret; touches 062 and 053 (live delivery). One spec for both lists. **Also mobile** |
+
+### 3.15 Offline reading and an instant first screen (also mobile)
+
+From the mobile list (§3.11). On desktop the gain is the cold open, not offline use.
+
+| field | content |
+|---|---|
+| problem | `public/sw.js` keeps the shell HTML but no API reads, so a cold open shows the skeleton until the network answers. This walk took no cold-open timing worth citing (a dev server compiles on first load); the perf specs own real timings |
+| idea | The last ~20 opened feeds and topics are kept on the device. They paint at once on open and refresh in the background; with no network they show read-only under an "offline, as of 14:02" line |
+| standard practice | Slack, Gmail, Telegram desktop |
+| effort | **L**. `public/sw.js` or an IndexedDB layer in `stores/channel.ts` / `stores/live.ts`, a size cap, a wipe on sign-out and on workspace switch |
+| risk / overlap | Workspace data on the device. Overlaps 066 (perceived performance) and 070 on first-screen timing: measure with their metrics. One spec for both lists. **Also mobile** |
+
+### 3.16 Themes with no new idea, and why
 
 | theme from the brief | why |
 |---|---|
@@ -212,6 +251,8 @@ layout, 5 next unread.
 | #10 Hover previews | **kept**, rank 12, after c-226 | owner 145297d8 |
 
 New from the walk: 3.4 (the wide-screen part), 3.7 window identity, 3.8
-search ergonomics, 3.11 accessibility baseline.
+search ergonomics, 3.11 accessibility baseline. Taken from the mobile list
+(c-246, marked also desktop there): 3.13 clean list titles, 3.14 Web Push,
+3.15 offline reading; its drafts idea is merged into 3.3.
 
-<!-- last-edit: 2026-10-04T21:17:00Z -->
+<!-- last-edit: 2026-10-04T21:22:47Z -->

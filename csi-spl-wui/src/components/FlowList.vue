@@ -126,8 +126,13 @@ function placeTitle(e: FlowEntry, place: string) {
 }
 
 const items = computed<SideHitItem[]>(() => flow.visible.map((e: FlowEntry) => {
-  const peer = e.kind === 'dm' ? personOf(e.where) : null
-  const where = e.kind === 'channel' ? channelName(String(e.channel)) : shownPerson(peer!.id, peer!.box, people.names.value)
+  let where: string
+  if (e.kind === 'channel') {
+    where = channelName(String(e.channel))
+  } else {
+    const peer = personOf(e.where)
+    where = shownPerson(peer.id, peer.box, people.names.value)
+  }
   const place = (e.kind === 'channel' ? '#' : '@') + where
   const reply = e.event ? e.event === 'reply' : e.reply
   return {

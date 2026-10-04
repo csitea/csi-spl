@@ -84,8 +84,16 @@ const busy = ref(false)
 const error = ref('')
 const notice = ref('')
 
-const prefixChanged = computed(() => Boolean(stored.value?.issuePrefix) && prefix.value.trim().toUpperCase() !== stored.value!.issuePrefix)
-const dirty = computed(() => Boolean(stored.value) && (name.value.trim() !== stored.value!.displayName || locale.value !== stored.value!.defaultLocale || prefixChanged.value || policy.value !== stored.value!.topicArchivePolicy))
+const prefixChanged = computed(() => {
+  const s = stored.value
+  if (!s?.issuePrefix) return false
+  return prefix.value.trim().toUpperCase() !== s.issuePrefix
+})
+const dirty = computed(() => {
+  const s = stored.value
+  if (!s) return false
+  return name.value.trim() !== s.displayName || locale.value !== s.defaultLocale || prefixChanged.value || policy.value !== s.topicArchivePolicy
+})
 
 function take(s: TenantSettings) {
   stored.value = s

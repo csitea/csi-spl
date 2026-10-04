@@ -7,9 +7,9 @@
 #     1. `paths` matches 20's push allow-list (image inputs; the cnf files and
 #        the workflow files are the only extra triggers)
 #     2. `changed`: iac / orc scripts / a non-hub cnf key / Go tests
-#        (*_test.go, testdata/) are NOT hub inputs;
-#        the Go module, the DDL, the Dockerfile, .version and the hub.image cnf
-#        key ARE
+#        (*_test.go, testdata/) / build.sh are NOT hub inputs;
+#        the Go module, the DDL, the roles DDL, hub.Dockerfile, its entrypoint,
+#        .version and the hub.image cnf key ARE (specs/072 A21)
 #     3. `decide` against the served commit: already served / env ahead /
 #        nothing new since served -> stand down; a hub input not served yet ->
 #        deploy EVEN THOUGH trunk head moved on with more hub input
@@ -75,12 +75,14 @@ a=$(git -C "$R" rev-parse HEAD); b=$(c csi-spl-iac/src/bash/run/x.func.sh);     
 a=$b; b=$(c csi-spl-orc/src/bash/run/y.func.sh);                                         chk "an orc action is not a hub input" 1 "$a" "$b"
 a=$b; b=$(c csi-spl-api/src/bash/tests/z.tst.sh);                                        chk "an api test script is not a hub input" 1 "$a" "$b"
 a=$b; b=$(y dev.env.yaml '.env.dns.note = "b"');                                         chk "a non-hub cnf key is not a hub input" 1 "$a" "$b"
-a=$b; b=$(c csi-spl-rdb/src/sql/postgres/spool-hub-roles/r.sql);                         chk "spool-hub-roles is not in the image" 1 "$a" "$b"
+a=$b; b=$(c csi-spl-rdb/src/sql/postgres/spool-hub-roles/r.sql);                         chk "spool-hub-roles is in the image" 0 "$a" "$b"
 a=$b; b=$(c csi-spl-api/src/go/hub/h_test.go);                                           chk "a Go test file only is not a hub input" 1 "$a" "$b"
 a=$b; b=$(c csi-spl-api/src/go/hub/testdata/golden.json);                                chk "Go testdata only is not a hub input" 1 "$a" "$b"
 a=$b; b=$(c csi-spl-api/src/go/hub/h.go);                                                chk "the Go module is" 0 "$a" "$b"
 a=$b; b=$(c csi-spl-rdb/src/sql/postgres/spool-hub/0099_x.sql);                          chk "the bundled DDL is" 0 "$a" "$b"
-a=$b; b=$(c csi-spl-orc/src/docker/spool-hub-api/Dockerfile);                            chk "the hub Dockerfile is" 0 "$a" "$b"
+a=$b; b=$(c csi-spl-api/src/bash/build.sh);                                             chk "build.sh (the host build) is not a hub input" 1 "$a" "$b"
+a=$b; b=$(c csi-spl-api/src/docker/hub.Dockerfile);                                     chk "the hub Dockerfile is" 0 "$a" "$b"
+a=$b; b=$(c csi-spl-api/src/docker/hub-entrypoint.sh);                                  chk "the hub entrypoint is" 0 "$a" "$b"
 a=$b; b=$(c .version);                                                                   chk ".version is" 0 "$a" "$b"
 a=$b; b=$(y prd.env.yaml '.env.hub.image.tag = "2.0.0"');                                chk "cnf hub.image.tag is" 0 "$a" "$b"
 a=$b; b=$(y all.env.yaml '.env.hub.service_name = "hub-x"');                             chk "cnf hub.service_name is" 0 "$a" "$b"

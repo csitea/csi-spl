@@ -81,20 +81,19 @@ _sai_has_verb() {
 }
 
 _sai_build() {
-  local build="$APP_PATH/$LDE_ORG_APP-api/src/bash/build.sh" ctx="$LDE_STATE_DIR/hub-ctx"
-  [[ -f "$build" ]] || { do_log "FATAL no $build"; return 1; }
-  rm -rf "$ctx" && mkdir -p "$ctx/sql" "$LDE_STATE_DIR/bin" || return 1
-  # static for the distroless image; the host CLI keeps cgo, so Go resolves
-  # <tenant>.localhost through nss (the pure-Go resolver asks DNS and fails)
-  CGO_ENABLED=0 bash "$build" "$ctx/spool" >/dev/null || { do_log "FATAL static spool build failed"; return 1; }
+  local build="$APP_PATH/$LDE_ORG_APP-api/src/bash/build.sh"
+  local dockerfile="$APP_PATH/$LDE_ORG_APP-api/src/docker/hub.Dockerfile"
+  [[ -f "$build" && -f "$dockerfile" ]] || { do_log "FATAL no $build or $dockerfile"; return 1; }
+  mkdir -p "$LDE_STATE_DIR/bin" || return 1
+  # the host CLI keeps cgo, so Go resolves <tenant>.localhost through nss (the
+  # pure-Go resolver asks DNS and fails)
   bash "$build" "$LDE_STATE_DIR/bin/spool" >/dev/null || { do_log "FATAL host spool build failed"; return 1; }
   _SAI_CLI="$LDE_STATE_DIR/bin/spool"
-  if [[ -d "$LDE_SQL_SRC" ]]; then
-    cp -p "$LDE_SQL_SRC"/*.sql "$ctx/sql/" 2>/dev/null || true
-  fi
-  do_log "INFO bundling $(find "$ctx/sql" -name '*.sql' | wc -l) sql file(s) from $LDE_SQL_SRC"
-  docker build -q --build-arg "MIGRATIONS_DIR=$LDE_MIGRATIONS_DIR" -t "$LDE_HUB_IMAGE" \
-    -f "$LDE_DOCKER_DIR/spool-hub-api/Dockerfile" "$ctx" >/dev/null || { do_log "FATAL hub image build failed"; return 1; }
+  # THE hub image (specs/072 A21), as compose and Cloud Run run it: built in
+  # Docker from the repo root, the DDL bundled at SPOOL_HUB_MIGRATIONS_DIR
+  SPL_IMAGE_SQL_SRC="$LDE_SQL_SRC" SPL_MIGRATIONS_DIR="$LDE_MIGRATIONS_DIR" spl_hub_image_matches_cnf "$dockerfile" || return 1
+  docker build -q --build-arg "SPOOL_COMMIT=$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null)" -t "$LDE_HUB_IMAGE" \
+    -f "$dockerfile" "$APP_PATH" >/dev/null || { do_log "FATAL hub image build failed"; return 1; }
   do_log "INFO built $LDE_HUB_IMAGE ($("$_SAI_CLI" version 2>/dev/null | sed -n 1p))"
 }
 

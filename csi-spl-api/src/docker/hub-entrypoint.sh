@@ -17,7 +17,11 @@
 #   serve  `spool serve` as the runtime login; the session key comes from
 #          SPOOL_HUB_AUTH_SESSION_KEY when set, else from the state dir.
 #          SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=auto (the compose default) becomes
-#          true on localhost and false anywhere else
+#          true on localhost and false anywhere else.
+#          Plain on Cloud Run (it sets K_SERVICE) and in the lde stack
+#          (SPOOL_ENTRYPOINT_PLAIN=1): `spool serve` with every value from the
+#          service env, as the hub binary alone runs it (specs/072 A21: one
+#          hub image for compose, Cloud Run and the release)
 #   *      any other argument runs `spool <args>` (e.g. `version`)
 #
 # Nothing here reads a cloud credential. Every value is an env var the compose
@@ -143,12 +147,24 @@ do_serve() {
   exec spool serve
 }
 
+# is_plain: Cloud Run or the lde stack, where the service env carries every
+# value: no state-dir session key and no localhost guess for the owner seat
+is_plain() { [ -n "${K_SERVICE:-}" ] || [ "${SPOOL_ENTRYPOINT_PLAIN:-0}" = 1 ]; }
+
+# run_serve: the image's SPOOL_HUB_FILES_DIR default yields to a bucket (the
+# hub refuses both set; Cloud Run and lde store files in a bucket)
+run_serve() {
+  [ -z "${SPOOL_HUB_FILES_BUCKET:-}" ] || unset SPOOL_HUB_FILES_DIR
+  if is_plain; then exec spool serve; fi
+  do_serve
+}
+
 # SPOOL_ENTRYPOINT_LIB=1: define the functions and stop (the unit test
 # csi-spl-api/src/bash/tests/hub-entrypoint.tst.sh sources it that way)
 [ "${SPOOL_ENTRYPOINT_LIB:-0}" = 1 ] && return 0 2>/dev/null
 
 case "${1:-serve}" in
   init) do_init ;;
-  serve) do_serve ;;
+  serve) run_serve ;;
   *) exec spool "$@" ;;
 esac

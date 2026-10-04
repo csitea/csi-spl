@@ -50,9 +50,11 @@ on:
       # '!' pattern only excludes what a line ABOVE it included: keep it here.
       - '!csi-spl-api/src/go/**/*_test.go'
       - '!csi-spl-api/src/go/**/testdata/**'
-      - 'csi-spl-api/src/bash/build.sh'                  # builds the static binary
+      - 'csi-spl-api/src/docker/hub.Dockerfile'          # THE hub image (specs/072 A21)
+      - 'csi-spl-api/src/docker/hub.Dockerfile.dockerignore'
+      - 'csi-spl-api/src/docker/hub-entrypoint.sh'
       - 'csi-spl-rdb/src/sql/postgres/spool-hub/**'      # hub DDL bundled in the image
-      - 'csi-spl-orc/src/docker/spool-hub-api/Dockerfile'
+      - 'csi-spl-rdb/src/sql/postgres/spool-hub-roles/**'
       - '.version'                                       # baked into the binary (the floor)
       - 'csi-spl-cnf/csi-spl/all.env.yaml'               # hub.image / service_name keys
       - 'csi-spl-cnf/csi-spl/dev.env.yaml'

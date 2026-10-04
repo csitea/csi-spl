@@ -8,7 +8,13 @@
 # The version (specs/047 W6): SPOOL_VERSION when given, else `git describe
 # --tags` of the checkout (v1.9.7 on a tagged commit, v1.9.7-3-g<sha> after
 # it), else the .version floor with -dev. GET /version and `spool version`
-# report it without the leading v, like the hosted hub.
+# report it without the leading v, like the hosted hub. SPOOL_COMMIT, when
+# given, is the commit /version reports (a worktree's .git is a file, so the
+# build cannot read it there).
+#
+# The ONE hub image (specs/072 A21): the root docker-compose.yml, Cloud Run
+# (do_build_push_hub_image) and the lde stack all run it; the entrypoint's
+# `serve` is plain `spool serve` on Cloud Run and in lde.
 FROM golang:1.25-alpine AS build
 ENV CGO_ENABLED=0 GOTOOLCHAIN=auto
 WORKDIR /src
@@ -19,11 +25,13 @@ RUN apk add --no-cache git
 # still builds, on the .version floor
 COPY .version .gi[t] /meta/
 ARG SPOOL_VERSION=
+ARG SPOOL_COMMIT=
 RUN set -eu; g() { git -c safe.directory='*' --git-dir=/meta "$@" 2>/dev/null; }; \
     v="$SPOOL_VERSION"; [ -n "$v" ] || v="$(g describe --tags --match 'v[0-9]*')" || true; \
     [ -n "$v" ] || v="$(tr -d ' \n' </meta/.version)-dev"; \
     printf '%s' "${v#v}" >/meta/version.txt; \
-    printf '%s' "$(g rev-parse HEAD || echo unknown)" >/meta/commit.txt; \
+    c="$SPOOL_COMMIT"; [ -n "$c" ] || c="$(g rev-parse HEAD)" || c=unknown; \
+    printf '%s' "$c" >/meta/commit.txt; \
     echo "spool version $(cat /meta/version.txt) commit $(cat /meta/commit.txt)"
 COPY csi-spl-api/src/go/spool-hub-api/ ./
 RUN go build -trimpath -ldflags "-s -w -X main.version=$(cat /meta/version.txt) -X main.commit=$(cat /meta/commit.txt) -X main.builtAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /out/spool ./cmd/spool

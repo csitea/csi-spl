@@ -7,6 +7,8 @@
 #   3. W18: off localhost the owner is seated by a one-time invite for
 #      SPOOL_OWNER_EMAIL while the tenant has no member; no email = refused
 #   4. serve: SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=auto -> true local, false public
+#   5. specs/072 A21: on Cloud Run (K_SERVICE) and in lde (SPOOL_ENTRYPOINT_PLAIN)
+#      serve is plain `spool serve`; a bucket drops the image's files-dir default
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EP="$HERE/../../docker/hub-entrypoint.sh"
@@ -17,7 +19,7 @@ T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
 cat >"$T/bin/spool" <<'STUB'
 #!/bin/sh
-echo "spool $* BOOTSTRAP=${SPOOL_HUB_AUTH_BOOTSTRAP_OWNER:-}" >>"$STUB_LOG"
+echo "spool $* FILES_DIR=${SPOOL_HUB_FILES_DIR-unset} BOOTSTRAP=${SPOOL_HUB_AUTH_BOOTSTRAP_OWNER:-}" >>"$STUB_LOG"
 STUB
 cat >"$T/bin/psql" <<'STUB'
 #!/bin/sh
@@ -88,6 +90,21 @@ serve() { : >"$T/log"; ep do_serve SPOOL_HUB_AUTH_SESSION_KEY=k "$@" >/dev/null;
 [ "$(serve SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=auto "${PUB[@]}")" = false ] && pass "4. auto on a public host -> false" || fail "4. auto public: $(cat "$T/log")"
 [ "$(serve SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=false)" = false ] && pass "4. an explicit false stays false" || fail "4. explicit false"
 [ "$(serve SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=true "${PUB[@]}")" = true ] && pass "4. an explicit true is honoured (with a WARN)" || fail "4. explicit true"
+
+# --- 5. plain serve: Cloud Run and lde -------------------------------------------------------
+IMG=(SPOOL_HUB_FILES_DIR=/var/lib/spool/files)
+plain() { : >"$T/log"; ep run_serve "${IMG[@]}" "$@"; }
+out="$(plain K_SERVICE=hub SPOOL_HUB_FILES_BUCKET=b)"; rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$T/log")" = "spool serve FILES_DIR=unset BOOTSTRAP=" ] &&
+  pass "5. Cloud Run: plain spool serve, no session key needed, no auto owner, the bucket wins" || fail "5. Cloud Run: rc $rc $out $(cat "$T/log")"
+out="$(plain SPOOL_ENTRYPOINT_PLAIN=1 SPOOL_HUB_FILES_BUCKET=b SPOOL_HUB_AUTH_BOOTSTRAP_OWNER=true)"; rc=$?
+[ $rc -eq 0 ] && [ "$(cat "$T/log")" = "spool serve FILES_DIR=unset BOOTSTRAP=true" ] &&
+  pass "5. lde: plain spool serve, its own env as given" || fail "5. lde: rc $rc $out $(cat "$T/log")"
+out="$(plain)"; rc=$?
+[ $rc -ne 0 ] && grep -q 'no session key' <<<"$out" && [ ! -s "$T/log" ] &&
+  pass "5. CONTROL: compose (no K_SERVICE) still needs the state-dir session key" || fail "5. compose: rc $rc $out $(cat "$T/log")"
+plain SPOOL_HUB_AUTH_SESSION_KEY=k >/dev/null
+grep -q 'FILES_DIR=/var/lib/spool/files' "$T/log" && pass "5. compose without a bucket keeps the image's files dir" || fail "5. compose files dir: $(cat "$T/log")"
 
 [ "$fails" -eq 0 ] && { echo "ALL hub-entrypoint CHECKS PASSED"; exit 0; }
 echo "FAILED hub-entrypoint: $fails"; exit 1

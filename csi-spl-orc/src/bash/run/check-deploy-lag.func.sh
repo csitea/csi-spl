@@ -21,9 +21,9 @@
 # @description A commit only counts as lag when it changed an INPUT of that
 # @description component, so a docs-only or iac-only trunk head is never red:
 # @description   hub -- what the image is built from, as do_build_push_hub_image
-# @description          itself defines it: the Go module, its build.sh, the DDL
-# @description          dir cnf names (env.hub.image.sql_src), the hub
-# @description          Dockerfile and .version.
+# @description          itself defines it: the Go module, the DDL dir cnf
+# @description          names (env.hub.image.sql_src) + spool-hub-roles, the
+# @description          hub Dockerfile, its entrypoint and .version.
 # @description   wui -- the allow-list workflow 30 deploys on, verbatim. The two
 # @description          lists differ ON PURPOSE: 30 deploys on every path it
 # @description          triggers on, 20 does not (only a tag bump ships).
@@ -74,10 +74,9 @@ do_check_deploy_lag() {
   [[ -n "$sql_src" && "$sql_src" != null ]] || { do_log "FATAL cnf env.hub.image.sql_src is empty for $ENV"; return 1; }
 
   # What the hub IMAGE is built from -- the ONE list, shared with workflow
-  # 20's forward guard (hub-deploy-guard.sh `paths`, CLE-77918): the static
-  # binary (build.sh over the Go module), the DDL dir cnf names, the
-  # Dockerfile, and .version (baked in by build.sh). NOT the api test scripts
-  # and NOT spool-hub-roles/: neither is copied into the image.
+  # 20's forward guard (hub-deploy-guard.sh `paths`, CLE-77918): THE hub
+  # image's inputs (specs/072 A21). NOT the api test scripts: they are not
+  # copied into the image.
   local -a hub_paths=()
   mapfile -t hub_paths < <(APP_PATH="$APP_PATH" HUB_SQL_SRC="$sql_src" bash "$PROJ_PATH/src/bash/scripts/hub-deploy-guard.sh" paths)
   (( ${#hub_paths[@]} )) || { do_log "FATAL hub-deploy-guard.sh paths printed no hub input"; return 1; }

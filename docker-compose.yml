@@ -21,6 +21,9 @@
 # passwords, mail). Nothing here reaches any hosted service.
 #
 #   pg        Postgres 16; its first boot creates the schema owner login
+#   s3        SeaweedFS 4.48 (`weed mini`): the S3 API on :9000 and the bucket
+#             spool-files. The tag is pinned. MinIO's community image is no
+#             longer published, and this one creates the bucket on start.
 #   hub-init  one shot: migrations, the hub's DML-only runtime login, the
 #             session key and the first tenant (safe to re-run)
 #   hub       `spool serve` as the runtime login (row level security binds it)
@@ -54,6 +57,25 @@ services:
       interval: 2s
       timeout: 3s
       retries: 60
+    restart: unless-stopped
+
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    command: ["mini", "-dir=/data", "-ip=s3", "-s3.port=9000"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${SPOOL_S3_ACCESS_KEY:-spool-local-s3-access}
+      AWS_SECRET_ACCESS_KEY: ${SPOOL_S3_SECRET_KEY:-spool-local-s3-secret}
+      S3_BUCKET: spool-files
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      # bucket directory, not the listen port: weed mini creates it after the
+      # S3 listener is up (4.48 mini.go, ensureMiniBuckets before ready)
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8888/buckets/spool-files/"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
     restart: unless-stopped
 
   hub-init:
@@ -92,8 +114,13 @@ services:
     command: ["serve"]
     environment:
       SPOOL_HUB_ENV: ${SPOOL_HUB_ENV:-lde}
-      # spec 076: this stack is the no-cloud provider (local files, plain Postgres)
+      # spec 076: this stack is the no-cloud provider (embedded S3, plain Postgres)
       SPOOL_CLOUD_PROVIDER: none
+      SPOOL_S3_ENDPOINT: http://s3:9000
+      SPOOL_S3_BUCKET: spool-files
+      SPOOL_S3_ACCESS_KEY: ${SPOOL_S3_ACCESS_KEY:-spool-local-s3-access}
+      SPOOL_S3_SECRET_KEY: ${SPOOL_S3_SECRET_KEY:-spool-local-s3-secret}
+      SPOOL_S3_USE_PATH_STYLE: "true"
       SPOOL_HUB_DB_DSN: postgres://${SPOOL_DB_RUNTIME:-spool_hub_rt}:${SPOOL_DB_RUNTIME_PASSWORD:-spool-local-runtime}@pg:5432/${SPOOL_DB_NAME:-spool_hub}?sslmode=disable
       SPOOL_HUB_FILES_DIR: /var/lib/spool/files
       # a tenant host is <tenant>.<domain>; the browser uses the one public
@@ -137,6 +164,8 @@ services:
       - hub-state:/var/lib/spool/state:ro
       - hub-files:/var/lib/spool/files
     depends_on:
+      s3:
+        condition: service_healthy
       hub-init:
         condition: service_completed_successfully
     healthcheck:
@@ -180,6 +209,7 @@ services:
 
 volumes:
   pg-data: {}
+  s3-data: {}
   hub-state: {}
   hub-files: {}
   web-data: {}

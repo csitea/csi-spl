@@ -5,7 +5,9 @@
 #          `docker compose up -d --wait` and prints the owner link. By CALLING
 #          it with stubbed dig / nc / docker and a stubbed SMTP login, against
 #          a temp dir holding a docker-compose.yml: no network, no real Docker.
-#          CONTROL: a wrong A record fails before `up` (up is never called).
+#          It also generates two S3 keys and starts the s3 service (bucket
+#          spool-files) before that up. CONTROL: a wrong A record fails before
+#          `up` (up is never called, and s3 is not started).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +32,11 @@ SH
 cat >"$T/stub/docker" <<'SH'
 #!/bin/sh
 echo "docker $*" >>"$STUB_LOG"
-case "$*" in "compose version") [ "${NO_COMPOSE:-0}" = 1 ] && exit 1 ;; *" ps "*) [ "${PS_WEB:-0}" = 1 ] && echo web ;; esac
+case "$*" in
+  "compose version") [ "${NO_COMPOSE:-0}" = 1 ] && exit 1 ;;
+  *" ps "*) [ "${PS_WEB:-0}" = 1 ] && echo web ;;
+  *"up -d --wait s3") [ "${S3_UP_FAIL:-0}" = 1 ] && exit 1 ;;
+esac
 exit 0
 SH
 chmod +x "$T/stub/"*
@@ -48,7 +54,9 @@ run_up() {  # [VAR=value ...] -> the action's output; calls in $T/calls.log
     spl_self_host_smtp_login() { echo "smtp $* user=$SMTP_USER" >>"$STUB_LOG"; [ "$SMTP_PASSWORD" = good-pw ]; }
     do_spl_self_host_up' </dev/null 2>&1
 }
-ups() { grep -c ' up -d --wait' "$T/calls.log"; }
+# the full-stack roll ends at `--wait`; the s3 prelude is `--wait s3`
+ups() { grep -cE ' up -d --wait$' "$T/calls.log"; }
+s3ups() { grep -cE ' up -d --wait s3$' "$T/calls.log"; }
 
 # --- all preflights pass -> up is called, the link is printed ----------------
 out=$(run_up); rc=$?
@@ -64,13 +72,26 @@ pw1=$(grep -E '^SPOOL_DB_(OWNER|RUNTIME|SUPERUSER)_PASSWORD=' "$S/.env")
   && pass "three distinct generated 48-hex Postgres passwords" || fail "passwords: $pw1"
 if grep -qF "${pw1##*=}" <<<"$out" || grep -qF good-pw <<<"$out" || grep -qF good-pw "$T/calls.log"; then
   fail "a secret appears in the output or an argv"; else pass "no secret in the output or any argv"; fi
+s3access=$(grep -E "^SPOOL_S3_ACCESS_KEY='[0-9a-f]{48}'$" "$S/.env" | sed "s/^SPOOL_S3_ACCESS_KEY='//;s/'$//")
+s3secret=$(grep -E "^SPOOL_S3_SECRET_KEY='[0-9a-f]{48}'$" "$S/.env" | sed "s/^SPOOL_S3_SECRET_KEY='//;s/'$//")
+[[ -n "$s3access" && -n "$s3secret" && "$s3access" != "$s3secret" ]]   && pass "two distinct generated 48-hex S3 keys" || fail "s3 keys: access=${#s3access} secret=${#s3secret}"
+if grep -qF "$s3access" <<<"$pw1" || grep -qF "$s3secret" <<<"$pw1"; then
+  fail "an S3 key repeats a Postgres password"; else pass "S3 keys differ from the Postgres passwords"; fi
+if grep -qF "$s3access" <<<"$out" || grep -qF "$s3secret" <<<"$out"    || grep -qF "$s3access" "$T/calls.log" || grep -qF "$s3secret" "$T/calls.log"; then
+  fail "an S3 key appears in the output or an argv"; else pass "S3 keys are not in the output or any argv"; fi
+s3n=$(grep -n 'up -d --wait s3$' "$T/calls.log" | sed -n 1p | cut -d: -f1)
+upn=$(grep -n 'up -d --wait$' "$T/calls.log" | sed -n 1p | cut -d: -f1)
+[[ -n "$s3n" && -n "$upn" && "$s3n" -lt "$upn" && $(s3ups) -eq 1 ]]   && pass "s3 is ensured once, before the hub's compose up" || fail "s3 order: s3=$s3n up=$upn log=$(cat "$T/calls.log")"
+s3before=$(grep -E '^SPOOL_S3_(ACCESS|SECRET)_KEY=' "$S/.env")
 
 # --- a re-run keeps the secrets (and a hand-set key), web holds its ports ----
 echo "SPOOL_TENANT=acme" >>"$S/.env"
 out=$(run_up PS_WEB=1 NC_BUSY="80 443"); rc=$?
 pw2=$(grep -E '^SPOOL_DB_(OWNER|RUNTIME|SUPERUSER)_PASSWORD=' "$S/.env")
 [[ $rc -eq 0 && "$pw1" == "$pw2" ]] && pass "a re-run keeps the three passwords" || fail "re-run: rc=$rc $out"
-[[ $(grep -c "kept from the existing .env" <<<"$out") -eq 3 ]] && pass "a re-run says each password was kept" || fail "kept lines: $out"
+[[ $(grep -c "kept from the existing .env" <<<"$out") -eq 5 ]] && pass "a re-run says each generated secret was kept" || fail "kept lines: $out"
+s3after=$(grep -E '^SPOOL_S3_(ACCESS|SECRET)_KEY=' "$S/.env")
+[[ "$s3before" == "$s3after" && $(s3ups) -eq 1 && $(ups) -eq 1 ]]   && pass "a re-run keeps the two S3 keys and ensures the bucket once" || fail "s3 re-run: s3ups=$(s3ups) ups=$(ups)"
 grep -qx "SPOOL_TENANT=acme" "$S/.env" && grep -qF "login?tenant=acme" <<<"$out" && pass "a hand-set key survives and names the tenant in the link" || fail "tenant: $out"
 [[ "$(stat -c %a "$S/.env")" == 600 ]] && pass ".env still mode 600 after the re-run" || fail "re-run mode"
 grep -q "port 80 (held by this stack" <<<"$out" && pass "a re-run accepts 80/443 held by its own web container" || fail "own ports: $out"
@@ -82,7 +103,7 @@ out=$(run_up SPOOL_DOMAIN= SPOOL_OWNER_EMAIL= SPOOL_MAIL_SMTP_HOST= SPOOL_MAIL_S
 # --- CONTROL: a wrong A record fails before up -------------------------------
 cp -p "$S/.env" "$T/env.before"
 out=$(run_up DIG_A=198.51.100.9); rc=$?
-[[ $rc -ne 0 && $(ups) -eq 0 ]] && pass "CONTROL: a wrong A record fails and up is never called" || fail "CONTROL: rc=$rc ups=$(ups) $out"
+[[ $rc -ne 0 && $(ups) -eq 0 && $(s3ups) -eq 0 ]] && pass "CONTROL: a wrong A record fails and up is never called" || fail "CONTROL: rc=$rc ups=$(ups) s3ups=$(s3ups) $out"
 grep -q "PREFLIGHT FAIL the A record of chat.example.com is 198.51.100.9" <<<"$out" && grep -q "fix: point the A record" <<<"$out" \
   && pass "the A-record failure names its fix" || fail "A fix line: $out"
 cmp -s "$S/.env" "$T/env.before" && pass "a failed preflight leaves .env untouched" || fail ".env changed on a failed preflight"
@@ -103,6 +124,14 @@ grep -q "PREFLIGHT FAIL port 80" <<<"$out" && grep -q "PREFLIGHT FAIL the A reco
 
 out=$(run_up SPOOL_DOMAIN=https://chat.example.com/); rc=$?
 [[ $rc -ne 0 ]] && grep -q "not a bare domain" <<<"$out" && pass "a URL as the domain is refused" || fail "url domain: $out"
+
+out=$(run_up S3_UP_FAIL=1); rc=$?
+[[ $rc -ne 0 && $(ups) -eq 0 && $(s3ups) -eq 1 ]] && grep -q "bucket spool-files is not ready" <<<"$out"   && pass "s3 failing to become healthy stops before the hub" || fail "s3 fail: rc=$rc ups=$(ups) s3ups=$(s3ups) $out"
+
+compose="$APP_ROOT/docker-compose.yml"
+grep -q 'image: chrislusf/seaweedfs:4.48' "$compose" && grep -q 'S3_BUCKET: spool-files' "$compose"   && grep -q -- '-s3.port=9000' "$compose" && grep -q 'SPOOL_S3_ENDPOINT: http://s3:9000' "$compose"   && grep -q 'SPOOL_S3_BUCKET: spool-files' "$compose" && grep -q 'SPOOL_S3_USE_PATH_STYLE: "true"' "$compose"   && pass "compose pins SeaweedFS 4.48 and names the hub S3 env" || fail "compose s3 contract missing"
+if grep -q 'seaweedfs:latest\|minio/minio:latest' "$compose"; then
+  fail "s3 image is not pinned"; else pass "s3 image tag is not latest"; fi
 
 echo
 if (( fails )); then echo "self-host-up: $fails FAIL"; exit 1; fi

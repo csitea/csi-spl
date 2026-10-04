@@ -37,7 +37,7 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Needs**: T003.
   - **Done**: `go test -v ./internal/store/s3/...` in `csi-spl-api/src/go/spool-hub-api` passes with mock S3 unit tests and local container integration test.
 
-- [ ] T005 **compose minimal s3 service & bucket provisioning** [Parallel]: Add minimal S3-compatible service container to `docker-compose.yml` (MinIO with `MINIO_BROWSER=off` or SeaweedFS). Update `spl-self-host-up.func.sh` to auto-provision default bucket `spool-files` via AWS CLI / S3 client before starting the hub container, and generate access keys in `.env` mode 600 as Compose secrets (`SPOOL_S3_ACCESS_KEY`, `SPOOL_S3_SECRET_KEY`).
+- [x] T005 **compose minimal s3 service & bucket provisioning** [Parallel]: Add minimal S3-compatible service container to `docker-compose.yml` (MinIO with `MINIO_BROWSER=off` or SeaweedFS). Update `spl-self-host-up.func.sh` to auto-provision default bucket `spool-files` via AWS CLI / S3 client before starting the hub container, and generate access keys in `.env` mode 600 as Compose secrets (`SPOOL_S3_ACCESS_KEY`, `SPOOL_S3_SECRET_KEY`).
   - **Owns**: `docker-compose.yml`, `csi-spl-orc/src/bash/run/spl-self-host-up.func.sh`, `csi-spl-orc/src/bash/tests/self-host-s3.tst.sh`.
   - **Needs**: T002.
   - **Done**: `bash csi-spl-orc/src/bash/tests/self-host-s3.tst.sh` passes; `docker compose up -d` starts S3 container, bucket `spool-files` exists, and hub connects successfully.

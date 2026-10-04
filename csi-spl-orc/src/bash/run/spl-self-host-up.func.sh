@@ -11,10 +11,16 @@
 # @description      Each failure prints its fix on one line; any failure stops
 # @description      here and nothing is started or written
 # @description   3. writes .env (mode 600): the own-domain profile of
-# @description      .env.example plus three generated Postgres passwords; a
-# @description      re-run KEEPS the passwords already there (Postgres took them
-# @description      on its first boot and never takes new ones)
-# @description   4. `docker compose up -d --wait`, then prints the owner link
+# @description      .env.example plus three generated Postgres passwords and
+# @description      two S3 keys (SPOOL_S3_ACCESS_KEY, SPOOL_S3_SECRET_KEY);
+# @description      a re-run KEEPS every one of them (Postgres took the
+# @description      passwords on its first boot, and the bucket was created
+# @description      with the S3 keys). A missing or still-local value is
+# @description      generated (48 hex). The values are never printed.
+# @description   4. starts the s3 service and waits until bucket spool-files
+# @description      is present, then `docker compose up -d --wait`, then
+# @description      prints the owner link. A second run leaves the keys and
+# @description      the bucket as they are.
 # @description Nothing reaches a hosted service but your own DNS and SMTP relay.
 # @param SPOOL_DOMAIN - the domain the stack answers on (its A record points here)
 # @param SPOOL_OWNER_EMAIL - the one address that becomes the tenant owner
@@ -38,7 +44,7 @@ SPL_SELF_HOST_ASK=(
   "SPOOL_MAIL_SMTP_PASSWORD|the SMTP password|"
 )
 # generated once, kept on every re-run
-SPL_SELF_HOST_SECRETS=(SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_DB_SUPERUSER_PASSWORD)
+SPL_SELF_HOST_SECRETS=(SPOOL_DB_OWNER_PASSWORD SPOOL_DB_RUNTIME_PASSWORD SPOOL_DB_SUPERUSER_PASSWORD SPOOL_S3_ACCESS_KEY SPOOL_S3_SECRET_KEY)
 
 # spl_self_host_env_get <file> <key> - the value of KEY=... in a dotenv file
 # (quotes stripped), empty when absent. Never sources the file.
@@ -211,7 +217,8 @@ spl_self_host_write_env() {
     umask 077
     {
       echo "# written by ./run -a do_spl_self_host_up (spec 072 A2); never commit it."
-      echo "# A re-run keeps the three Postgres passwords: Postgres took them on its first boot."
+      echo "# A re-run keeps the generated secrets: Postgres took its passwords on its first boot,"
+      echo "# and the S3 keys are the ones bucket spool-files was created with."
       for k in $(printf '%s\n' "${!put[@]}" | sort); do printf "%s='%s'\n" "$k" "${put[$k]}"; done
       if [[ -f "$envf" ]] && grep -qE '^[A-Za-z_][A-Za-z0-9_]*=' "$envf"; then
         echo "# kept from the previous .env"
@@ -237,6 +244,7 @@ do_spl_self_host_up() {
   spl_self_host_answers || return 1
   spl_self_host_preflight || return 1
   spl_self_host_write_env || return 1
+  spl_self_host_s3_ensure || return 1
 
   # step 4: up, then the owner link (Zulip's re-run that ends with it). This
   # stack IS provider none (docker-compose.yml sets SPOOL_CLOUD_PROVIDER: none
@@ -249,13 +257,30 @@ do_spl_self_host_up() {
   echo "OWNER LINK: https://$domain/login?tenant=${tenant:-main} - sign up there with $email (only that confirmed address becomes the owner)"
 }
 
+# spl_self_host_s3_ensure - start s3 and wait until bucket spool-files exists,
+# before the hub roll. The compose service creates the bucket on startup and
+# its healthcheck is that bucket. A re-run waits on the same bucket and does
+# not write new keys. The keys stay in .env; this never puts them on a command
+# line or in a log.
+spl_self_host_s3_ensure() {
+  local key secret
+  key="$(spl_self_host_env_get "$envf" SPOOL_S3_ACCESS_KEY)"
+  secret="$(spl_self_host_env_get "$envf" SPOOL_S3_SECRET_KEY)"
+  [[ "$key" =~ ^[0-9a-f]{48}$ && "$secret" =~ ^[0-9a-f]{48}$ && "$key" != "$secret" ]] ||
+    { do_log "FATAL S3 keys in $envf are missing or not 48 hex characters"; return 1; }
+  do_log "INFO starting s3 and ensuring bucket spool-files before the hub"
+  docker compose --project-directory "$dir" up -d --wait s3 ||
+    { do_log "FATAL the s3 service did not become healthy, so bucket spool-files is not ready"; return 1; }
+  do_log "INFO bucket spool-files is present"
+}
+
 #------------------------------------------------------------------------------
 # @description do_hub_deploy_roll_none <dir> - the compute deployer of
 # @description provider none (spec 076 T008): `docker compose up -d --wait` on
 # @description the stack in <dir>. do_spl_self_host_up is its one caller, after
-# @description its preflight and .env. gcp has no shell roll on purpose: cloud
-# @description hub and WUI deploys stay in workflows 20 and 30, so
-# @description `do_spl_cloud_dispatch hub_deploy roll` under gcp is the
+# @description its preflight, .env and the s3 bucket. gcp has no shell roll on
+# @description purpose: cloud hub and WUI deploys stay in workflows 20 and 30,
+# @description so `do_spl_cloud_dispatch hub_deploy roll` under gcp is the
 # @description router's FATAL (no adapter), never a gcloud call.
 #------------------------------------------------------------------------------
 do_hub_deploy_roll_none() {

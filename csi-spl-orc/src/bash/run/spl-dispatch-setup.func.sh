@@ -8,7 +8,7 @@
 # @description   2. <spool root>/dispatch/lease.conf (the lease opt-in)
 # @description   3. both briefs, rendered from features/dispatch/brief-dispatcher.tpl.md
 # @description   4. each dispatcher's worktree <repo>-wt/<id>, BEFORE its spawn
-# @description   5. its .claude/settings.local.json allowing desk replies, posts and archives (as itself)
+# @description   5. its .claude/settings.local.json allowing desk replies, posts and archives (as itself) and the unanswered sweep
 # @description      (+ the path in git's info/exclude). A running session does
 # @description      not load a settings file created after it started: that
 # @description      is reported as RELAUNCH, never done here
@@ -288,9 +288,15 @@ spl_dispatch_reply_cmd() {
 # spl_dispatch_reply_cmd.
 spl_dispatch_settings_json() {
   local a
+  {
   for a in do_spl_desk_reply do_spl_desk_post do_spl_topic_archive; do
     printf '      "Bash(sudo -u %s env ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a %s)"\n' "$DISPATCH_BOX_USER" "$ENV" "$1" "$a"
-  done | sed '$!s/$/,/' | { printf '{\n  "permissions": {\n    "allow": [\n'; cat; printf '    ]\n  }\n}\n'; }
+  done
+  # The unanswered sweep reads every workspace (no DESK_AGENT); its cron runs
+  # it every 10 min anyway (owner 2026-10-03: "The dispatcher should be doing
+  # everything as well").
+  printf '      "Bash(sudo -u %s env ENV=%s * ./run -a do_spl_unanswered_sweep)"\n' "$DISPATCH_BOX_USER" "$ENV"
+  } | sed '$!s/$/,/' | { printf '{\n  "permissions": {\n    "allow": [\n'; cat; printf '    ]\n  }\n}\n'; }
 }
 
 spl_dispatch_settings() {
@@ -299,7 +305,7 @@ spl_dispatch_settings() {
   if cmp -s "$SPL_DISPATCH_TMP/settings" "$f"; then
     spl_dispatch_ok settings "$f"
   else
-    spl_dispatch_do settings "write $f (desk reply / post / archive as $id)" \
+    spl_dispatch_do settings "write $f (desk reply / post / archive as $id, unanswered sweep)" \
       bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/settings" "$f" || return 1
   fi
   exc="$(git -C "$DISPATCH_REPO" rev-parse --git-common-dir 2>/dev/null)/info/exclude"

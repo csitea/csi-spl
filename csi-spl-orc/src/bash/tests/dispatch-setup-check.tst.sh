@@ -99,9 +99,10 @@ setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1; rc=$?
 grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_desk_reply)' "$R-wt/c-002/.claude/settings.local.json" &&
   grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_desk_post)' "$R-wt/c-002/.claude/settings.local.json" &&
   grep -qF 'Bash(sudo -u boxuser env ENV=prd TENANT_ID=* DESK_AGENT=c-002 * ./run -a do_spl_topic_archive)' "$R-wt/c-002/.claude/settings.local.json" &&
+  grep -qF 'Bash(sudo -u boxuser env ENV=prd * ./run -a do_spl_unanswered_sweep)' "$R-wt/c-002/.claude/settings.local.json" &&
   python3 -m json.tool "$R-wt/c-002/.claude/settings.local.json" >/dev/null &&
   ! grep -q 'DESK_AGENT=c-003' "$R-wt/c-002/.claude/settings.local.json" &&
-  pass "2. the settings allow reply / post / archive as the seat itself, valid JSON" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"
+  pass "2. the settings allow reply / post / archive as the seat itself + the unanswered sweep, valid JSON" || fail "2. settings: $(cat "$R-wt/c-002/.claude/settings.local.json")"
 for id in c-002 c-003; do touch -d '2025-12-31 00:00:00' "$R-wt/$id/.claude/settings.local.json"; done
 setup >"$T/o" 2>&1
 grep -v '^PLAN lease-loops' "$T/o" | grep -q '^PLAN' &&

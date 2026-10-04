@@ -1,0 +1,9 @@
+# Literal shared-temp write paths in test files.
+# Format: <file relative to the repo root>|<literal>|<count>
+# The lint fails when a file has more hits of a literal than this count.
+# A row that no longer matches is not a failure; delete it when you touch
+# the file. Per-run dirs (mkdtemp, mktemp -d, t.TempDir, SHOT_DIR) are
+# not hits, so they are not listed.
+#
+# No row is baselined: the writes that used a fixed path now use a per-run
+# directory. A new fixed path fails.

@@ -54,6 +54,7 @@ command that reproduces it.
 | `lint-semgrep` | 61 | `do_sec_semgrep` vs `.semgrep-baseline.txt` on the touched hub `.go` / WUI src files (~11 s; whole scope 152 s) | hook |
 | `lint-gomod` | — | `go mod tidy -diff` (offline) when `go.mod`/`go.sum` change | hook |
 | `lint-sigpipe` | — | touched `.sh` under pipefail (it sets it, or is a `*.func.sh` run by `./run`): no early-exit consumer (`\| grep -q`, `\| grep -m`, `\| head`) after a producer -- the producer dies of SIGPIPE (141) and the pipeline reads false. Fix: `grep ... >/dev/null`, `sed -n 1p`, a here-string; a reviewed safe site carries `# sigpipe-ok: <why>` (`sigpipe-lint.sh --list-optouts` lists them) | hook |
+| `lint-tmp-path` | — | touched e2e `.mjs`, `*.tst.sh` and Go `_test.go`: a fixed `/tmp/<name>` or `/var/tmp/<name>` write (a quoted path, a redirect, or an assignment). A per-run dir is `mkdtemp`, `mktemp -d`, `t.TempDir` or `SHOT_DIR`. Counts in `.tmp-path-baseline.txt`; a new one fails (`tmp-path-lint.py`) | hook |
 | `lint-checkov` / `lint-gosec` | 65 / 62 | the action over its whole scope (65 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
 | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
 

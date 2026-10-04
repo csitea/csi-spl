@@ -45,17 +45,18 @@ rm -f "$CTL"
 
 # --- behavioral proof (only if go is available and offline-verifiable) -------
 if command -v go >/dev/null 2>&1 && [[ -f "$HUB/go.sum" ]]; then
-  if ( cd "$HUB" && GOFLAGS=-mod=mod timeout 60 go mod verify ) >/tmp/gmv.$$ 2>&1; then
+  gmv=$(mktemp) || { fail "mktemp failed"; exit 1; }
+  if ( cd "$HUB" && GOFLAGS=-mod=mod timeout 60 go mod verify ) >"$gmv" 2>&1; then
     pass "go mod verify passes clean on the hub module (baseline)"
   else
-    if grep -qiE 'cannot find|dial tcp|timeout|network|lookup|download' /tmp/gmv.$$; then
+    if grep -qiE 'cannot find|dial tcp|timeout|network|lookup|download' "$gmv"; then
       pass "go mod verify not offline-verifiable here (network/cache) -- CI runs it; skipping behavioral check"
     else
       fail "go mod verify FAILED on the hub module (a module does not match go.sum)"
-      sed 's/^/    /' /tmp/gmv.$$
+      sed 's/^/    /' "$gmv"
     fi
   fi
-  rm -f /tmp/gmv.$$
+  rm -f "$gmv"
 else
   pass "go not on PATH here -- CI's setup-go step runs go mod verify; step assertion above stands"
 fi

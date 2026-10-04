@@ -10,7 +10,8 @@
 // PHASE=before: the run is expected to FAIL on today's sharp corners; exit 1
 // still means the assertion did its job. PHASE=after (default): exit 0 only
 // when the sweep is clean.
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { writeFileSync, mkdirSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -19,7 +20,7 @@ import { startServer } from './lib/server.mjs'
 import { INVENTORY_JS } from './lib/rounded-inventory.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
-const OUT = process.env.OUT || '/var/tmp/GRK-3376-proof'
+const OUT = process.env.OUT || mkdtempSync(join(tmpdir(), 'rounded-corners-'))
 const PHASE = process.env.PHASE || 'after'
 const CHROME = process.env.CHROME_PATH || '/usr/bin/google-chrome'
 mkdirSync(OUT, { recursive: true })

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# serial
+# The lint() calls in this file take about a minute on their own. Run beside
+# three other tests, that crosses the suite's 120s kill, so it runs alone.
 #------------------------------------------------------------------------------
 # Purpose: the LINT parts of do_check_pre_push (check-pre-push-lint.func.sh)
 #          run CI's scanner actions on the TOUCHED files and block a new
@@ -411,6 +414,8 @@ p="$(plan_of csi-spl-wui/package.json)"; [[ " $p " == *" lint-wui-lock "* ]] && 
 mkdir -p "$R/csi-spl-api/src/go/spool-hub-api"; echo 'package x' >"$R/csi-spl-api/src/go/spool-hub-api/x.go"; echo 'module x' >"$R/csi-spl-api/src/go/spool-hub-api/go.mod"
 p="$(plan_of csi-spl-api/src/go/spool-hub-api/x.go)"; [[ " $p " == *" lint-semgrep "* && " $p " != *" lint-gomod "* ]] && pass "6h. a hub .go -> semgrep on that file" || fail "6h" "$p"
 p="$(plan_of csi-spl-api/src/go/spool-hub-api/go.mod)"; [[ " $p " == *" lint-gomod "* ]] && pass "6i. go.mod -> go mod tidy -diff" || fail "6i" "$p"
+mkdir -p "$R/csi-spl-wui/tests/e2e"; echo x >"$R/csi-spl-wui/tests/e2e/a.test.mjs"
+p="$(plan_of csi-spl-wui/tests/e2e/a.test.mjs)"; [[ " $p " == *" lint-tmp-path "* ]] && pass "6j. an e2e test -> lint-tmp-path" || fail "6j" "$p"
 p="$(plan_of doc/readme.md)"
 [[ " $p " != *" lint-shellcheck "* && " $p " != *" lint-syntax "* ]] && pass "6f. a doc-only push runs no scanner but trufflehog" || fail "6f" "$p"
 unset _PPL_FILES

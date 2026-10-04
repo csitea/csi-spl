@@ -44,6 +44,11 @@
 # @description                    (`| grep -q`, `| grep -m`, `| head`) after a producer
 # @description                    -- it SIGPIPEs the producer (141) and the pipeline reads
 # @description                    false (sigpipe-lint.sh; opt-out `# sigpipe-ok: <why>`)
+# @description   lint-tmp-path    touched e2e .mjs, *.tst.sh and Go _test.go: a fixed
+# @description                    /tmp/<name> or /var/tmp/<name> write (a quoted path, a
+# @description                    redirect, or an assignment). A per-run dir is mkdtemp,
+# @description                    mktemp -d, t.TempDir or SHOT_DIR. Existing hits are counts
+# @description                    in .tmp-path-baseline.txt; a new one fails (tmp-path-lint.py)
 # @description FULL tier only (too slow for the hook, CI owns them; measured
 # @description 2026-10-01 over the whole tree): lint-checkov (65, 65 s, when
 # @description terraform is touched) and lint-gosec (62, >300 s). CodeQL (60) and DAST (68) need the whole
@@ -62,7 +67,7 @@
 # @example PRE_PUSH_MODE=full ./run -a do_check_pre_push_lint
 #------------------------------------------------------------------------------
 
-_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod lint-sigpipe"
+_PPL_FAST="lint-syntax lint-migration lint-compose lint-shellcheck lint-actionlint lint-hadolint lint-eslint lint-mdlinks lint-py lint-tf lint-trufflehog lint-gitleaks lint-wui-syntax lint-wui-lock lint-semgrep lint-gomod lint-sigpipe lint-tmp-path"
 _PPL_SLOW="lint-checkov lint-gosec"
 
 # ruff: syntax + pyflakes + the security codes with a zero baseline. Never
@@ -97,6 +102,7 @@ _ppl_select() {  # <scanner> <changed> <tree>
     lint-eslint)     own=(csi-spl-iac/src/bash/run/sec-eslint.func.sh .eslint-security.config.mjs .eslint-security-baseline.txt .github/workflows/63_eslint-security.yml) ;;
     lint-semgrep)    own=(csi-spl-iac/src/bash/run/sec-semgrep.func.sh .semgrep-baseline.txt .github/workflows/61_semgrep.yml) ;;
     lint-checkov)    own=(csi-spl-iac/src/bash/run/sec-checkov.func.sh .github/workflows/65_iac-checkov.yml) ;;
+    lint-tmp-path)   own=(csi-spl-iac/src/bash/scripts/tmp-path-lint.py .tmp-path-baseline.txt) ;;
   esac
   while IFS= read -r f; do
     [[ -z "$f" ]] && continue
@@ -142,6 +148,9 @@ _ppl_select() {  # <scanner> <changed> <tree>
         [[ ( "$f" == csi-spl-api/src/go/spool-hub-api/*.go ) \
            || ( "$f" == csi-spl-wui/src/* && "$f" =~ \.(js|mjs|ts|vue)$ ) ]] && echo "$f" ;;
       lint-gomod)      [[ "$f" == csi-spl-api/src/go/spool-hub-api/go.mod || "$f" == csi-spl-api/src/go/spool-hub-api/go.sum ]] && { echo ALL; return 0; } ;;
+      lint-tmp-path)
+        [[ "$f" == *.tst.sh || "$f" == *_test.go ]] && echo "$f"
+        [[ "$f" == csi-spl-wui/tests/e2e/*.mjs && "$f" != csi-spl-wui/tests/e2e/*/* ]] && echo "$f" ;;
       lint-gosec)      [[ "$f" == *.go || "$f" == */go.mod || "$f" == */go.sum ]] && { echo ALL; return 0; } ;;
     esac
   done <<<"$changed"
@@ -225,6 +234,7 @@ _ppl_missing() {  # <scanner>
     lint-trufflehog) _ppl_need trufflehog; _ppl_need python3 ;;
     lint-mdlinks)    _ppl_need python3 ;;
     lint-sigpipe)    _ppl_need awk ;;
+    lint-tmp-path)   _ppl_need python3 ;;
     lint-checkov)    _ppl_need checkov ;;
     lint-semgrep)    _ppl_need semgrep ;;
     lint-gosec)      _ppl_need gosec ;;
@@ -264,6 +274,9 @@ _ppl_repro() {  # <scanner>
     lint-migration|lint-compose|lint-syntax) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
     lint-mdlinks) echo "python3 csi-spl-iac/src/bash/scripts/md-rel-links.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
     lint-sigpipe) echo "bash csi-spl-iac/src/bash/scripts/sigpipe-lint.sh $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
+    lint-tmp-path)
+      if [[ "$sel" == ALL ]]; then echo "cd csi-spl-iac && PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-tmp-path ./run -a do_check_pre_push_lint"; return 0; fi
+      echo "python3 csi-spl-iac/src/bash/scripts/tmp-path-lint.py $(printf '%s\n' "$sel" | paste -sd' ' -)"; return 0 ;;
     *) echo "cd csi-spl-iac && ./run -a do_check_pre_push_lint"; return 0 ;;
   esac
   if [[ -z "${var:-}" || "$sel" == ALL ]]; then echo "cd csi-spl-iac && ./run -a $act"; return 0; fi
@@ -274,6 +287,22 @@ _ppl_repro() {  # <scanner>
 _ppl_files_env() {  # <tree> <scanner> -> the list for the action, or empty for ALL
   [[ "${_PPL_FILES[$2]:-}" == ALL ]] && return 0
   _ppl_present "$1" "$2"
+}
+
+
+# The test files lint-tmp-path scans. ALL is every tracked in-scope file.
+_ppl_tmp_files() {  # <tree>
+  local tree="$1" f src
+  if [[ "${_PPL_FILES[lint-tmp-path]:-}" == ALL ]]; then
+    src="$(git -C "$tree" ls-files 2>/dev/null)"
+  else
+    src="${_PPL_FILES[lint-tmp-path]:-}"
+  fi
+  while IFS= read -r f; do
+    [[ -n "$f" && -f "$tree/$f" ]] || continue
+    if [[ "$f" == *.tst.sh || "$f" == *_test.go ]]; then echo "$f"; continue; fi
+    [[ "$f" == csi-spl-wui/tests/e2e/*.mjs && "$f" != csi-spl-wui/tests/e2e/*/* ]] && echo "$f"
+  done <<<"$src"
 }
 
 # A lint part on <tree>: rc 0 clean, non-zero findings. On the base tree it
@@ -363,6 +392,11 @@ sys.exit(1 if bad else 0)' "${pys[@]}" ) || rc=1
     lint-sigpipe)
       local -a scripts=(); mapfile -t scripts <<<"$files"
       ( cd "$tree" && bash "$(_ppl_scripts)/sigpipe-lint.sh" "${scripts[@]}" ) || rc=1 ;;
+    lint-tmp-path)
+      local -a tf=()
+      mapfile -t tf < <(_ppl_tmp_files "$tree")
+      [[ ${#tf[@]} -eq 0 ]] && return 0
+      ( cd "$tree" && python3 "$(_ppl_scripts)/tmp-path-lint.py" "${tf[@]}" ) || rc=1 ;;
     lint-checkov)    SEC_CHECKOV_ROOT="$tree" do_sec_checkov || rc=$? ;;
     lint-semgrep)
       if [[ "${_PPL_FILES[$sc]:-}" == ALL ]]; then SEC_SEMGREP_ROOT="$tree" do_sec_semgrep || rc=$?
@@ -494,6 +528,7 @@ _pp_part_lint_semgrep()    { _ppl_run_one lint-semgrep "$1"; }
 _pp_part_lint_gomod()      { _ppl_run_one lint-gomod "$1"; }
 _pp_part_lint_gosec()      { _ppl_run_one lint-gosec "$1"; }
 _pp_part_lint_sigpipe()    { _ppl_run_one lint-sigpipe "$1"; }
+_pp_part_lint_tmp_path()   { _ppl_run_one lint-tmp-path "$1"; }
 
 # Spelling: WARN only (owner: no CI gate yet). typos-cli with the repo-root
 # _typos.toml on the touched whole files, reporting only the lines the push

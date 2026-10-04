@@ -48,7 +48,7 @@ spl-osv do_sec_scan SEC_SCAN=osv
 spl-trivy-iac do_sec_scan SEC_SCAN=iac
 spl-gitleaks do_sec_scan SEC_SCAN=secrets
 spl-pnpm-audit do_sec_scan SEC_SCAN=wui
-spl-lint-rest do_check_pre_push_lint PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-syntax+lint-mdlinks+lint-compose+lint-py+lint-tf+lint-wui-syntax
+spl-lint-rest do_check_pre_push_lint PRE_PUSH_MODE=full PRE_PUSH_LINT_ONLY=lint-syntax+lint-mdlinks+lint-compose+lint-py+lint-tf+lint-wui-syntax+lint-tmp-path
 "
 # csi-web rows (no baselines: counted, compared with last week)
 _WFS_WEB_ROWS="web-shellcheck web-actionlint web-hadolint web-config-syntax web-trufflehog web-gitleaks web-typos"

@@ -456,19 +456,8 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 	if !ok || (body.AccessUntil != nil && !notSelf(w, a, target)) {
 		return
 	}
-	// The profile (name, locale) is the person's own across every tenant:
-	// a tenant admin edits it only for an account that is in this tenant
-	// alone (046 §3).
-	if body.DisplayName != nil || body.Locale != nil {
-		shared, err := s.sharedAccount(r.Context(), target, t.ID)
-		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "internal", "member lookup failed")
-			return
-		}
-		if shared {
-			writeErr(w, http.StatusConflict, "shared_account", "this person is in other tenants too: only they can change their name and language")
-			return
-		}
+	if (body.DisplayName != nil || body.Locale != nil) && !s.profileEditable(w, r, target, t.ID) {
+		return
 	}
 	if body.Disabled != nil {
 		if err := ts.SetMemberDisabled(r.Context(), t.ID, target, *body.Disabled, s.o.Now()); err != nil {
@@ -495,6 +484,22 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 		Bool("locale", body.Locale != nil).Bool("disabled_set", body.Disabled != nil).
 		Bool("access_until_set", body.AccessUntil != nil).Msg("member.updated")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// profileEditable: the profile (name, locale) is the person's own across
+// every tenant, so a tenant admin edits it only for an account that is in this
+// tenant alone (046 §3). False when it answered an error.
+func (s *Server) profileEditable(w http.ResponseWriter, r *http.Request, target, tenant string) bool {
+	shared, err := s.sharedAccount(r.Context(), target, tenant)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "member lookup failed")
+		return false
+	}
+	if shared {
+		writeErr(w, http.StatusConflict, "shared_account", "this person is in other tenants too: only they can change their name and language")
+		return false
+	}
+	return true
 }
 
 // parseAccessUntil reads a PATCH's access_until: nil for JSON null (no end),

@@ -28,6 +28,8 @@
 #      no-op that never calls the action; a two-word box is refused client
 #      side; CONTROL: a normal lane id's done still calls it; --check runs
 #      the action --quiet (framework lines off stdout), a plain map does not
+#  10b. the same tick appends one hardware sample (rdb 0117); hub down or a
+#      refusal never fails the map
 #  10. the BOX-0 load row: a machine that reads its panes publishes
 #      `mem_kb=<n> live=<ids>` as BOX-0@<box>; the other machine's header
 #      shows that mem and busy count; BOX-0 is never a lane (table, --all,
@@ -55,6 +57,12 @@ mkdir -p "$T/bin" "$T/hub"
 cat >"$T/bin/hub" <<'STUB'
 #!/usr/bin/env bash
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
+if [ "$1" = box-stats ]; then  # box-stats put --json -: one sample per line in stats.jsonl
+  [ "${HUB_STATS_DOWN:-0}" = 1 ] && { echo "lane_op must be put or list" >&2; exit 1; }
+  [ "$2 $3 $4" = "put --json -" ] || { echo "box-stats: bad args $*" >&2; exit 2; }
+  jq -c --arg w "$SPOOL_DESK_BOX" '. + {writer_box: $w}' >>"$HUB_DIR/stats.jsonl" && echo '{"ok":true}'
+  exit
+fi
 shift
 fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" state=live
 while [ $# -gt 0 ]; do case "$1" in
@@ -263,6 +271,26 @@ out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json LANE_ALL=1 | tail -1)"
   pass "...nor in the json lanes; the load says src box" || fail "json BOX-0: $out"
 out="$(on pc 'LANE_CHECK=mem_kb=8388608 do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-77921)"; rc=$?
 [[ $rc -eq 0 ]] && pass "the collision check never reads a BOX-0 row" || fail "check BOX-0 (rc=$rc): $out"
+
+# 10b. the BOX-0 tick also appends one hardware sample (rdb 0117): loadavg,
+#      nproc, meminfo, the live agents; best effort, never the map's exit code
+S=(LANE_PANES_CMD="cat $T/panes" LANE_LOADAVG="$T/loadavg" LANE_NPROC=8 LANE_MEMINFO="$T/meminfo2" LANE_BOX_ROW_S=0)
+printf '2.50 1.75 0.47 3/900 12345\n' >"$T/loadavg"
+printf 'MemTotal: 16000000 kB\nMemFree: 1 kB\nMemAvailable: 6000000 kB\nSwapTotal: 1000 kB\nSwapFree: 400 kB\n' >"$T/meminfo2"
+rm -f "$T/hub/stats.jsonl"
+on sat do_spl_lane_map "${F[@]}" "${S[@]}" >/dev/null
+jq -s -e '. == [{"box":"sat","load1":2.5,"load5":1.75,"load15":0.47,"cpus":8,"mem_total_kb":16000000,"mem_avail_kb":6000000,"swap_used_kb":600,"agents_live":2,"writer_box":"sat"}]' "$T/hub/stats.jsonl" >/dev/null 2>&1 &&
+  pass "the BOX-0 tick appends one sample: load, cpus, memory, swap used, 2 live agents" || fail "stats sample: $(cat "$T/hub/stats.jsonl" 2>&1)"
+on sat do_spl_lane_map "${F[@]}" "${S[@]}" LANE_BOX_ROW_S=300 >/dev/null
+[[ "$(wc -l <"$T/hub/stats.jsonl")" -eq 1 ]] && pass "within LANE_BOX_ROW_S of the last BOX-0 row: no second sample" || fail "throttle: $(wc -l <"$T/hub/stats.jsonl")"
+out="$(on sat do_spl_lane_map "${F[@]}" "${S[@]}" HUB_STATS_DOWN=1 2>"$T/stats.err")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"CLE-100001@sat"* && "$(cat "$T/stats.err")" == *"stats of sat were not recorded"* && "$(wc -l <"$T/hub/stats.jsonl")" -eq 1 ]] &&
+  pass "a hub that refuses the sample: the map still prints and exits 0, one INFO line" || fail "stats refused (rc=$rc): $out / $(cat "$T/stats.err")"
+out="$(on sat do_spl_lane_map "${F[@]}" "${S[@]}" HUB_DOWN=1 2>/dev/null)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"CLE-100001@sat"* && "$(wc -l <"$T/hub/stats.jsonl")" -eq 1 ]] &&
+  pass "hub down: the map exits 0 from the local worktrees, no sample" || fail "hub down (rc=$rc): $out"
+out="$(on sat do_spl_lane_map "${F[@]}" "${S[@]}" LANE_LOADAVG="$T/nosuch" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(wc -l <"$T/hub/stats.jsonl")" -eq 1 ]] && pass "control: an unreadable /proc/loadavg sends nothing half-read, exit 0" || fail "no loadavg (rc=$rc): $out"
 
 # 11. past MAX_ARG_STRLEN. The plant is ASCII, so bytes and jq's length agree.
 #     140000 is over 131072 (32 * 4096) with room for the JSON wrapper.

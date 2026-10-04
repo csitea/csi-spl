@@ -117,6 +117,59 @@ for bad in "DESK_BODY=hi DESK_BODY_FILE=$T/body.md" "DESK_BODY_FILE=$T/no-such-f
   fi
 done
 
+# A missing file and one this run user cannot read are different FATALS.
+# The private parent is the agent scratch directory the run user cannot
+# traverse: the file is there, and "not a readable file" used to hide that.
+# chmod 000 needs a non-root user; root ignores the mode bits.
+who="$(id -un)"
+trap 'chmod -R u+rwx "$T/priv" "$T/noread.md" 2>/dev/null || true; rm -rf "$T"' EXIT
+body_file_refuses() {
+  local act="$1" label="$2" want="$3" forbid="$4"
+  shift 4
+  if SNIPPET="$act" in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL=ops "$@" >"$T/o" 2>&1; then
+    fail "$act $label was accepted: $(cat "$T/o")"
+    return
+  fi
+  if grep -F -q "$want" "$T/o" && { [[ -z "$forbid" ]] || ! grep -F -q "$forbid" "$T/o"; }; then
+    pass "$act: $label"
+  else
+    fail "$act: $label: $(cat "$T/o")"
+  fi
+}
+for act in do_spl_desk_reply do_spl_desk_post; do
+  body_file_refuses "$act" "a missing DESK_BODY_FILE says it does not exist"     "DESK_BODY_FILE does not exist: '$T/no-such-file'" "not readable"     DESK_BODY_FILE="$T/no-such-file"
+  mkdir -p "$T/notfile"
+  body_file_refuses "$act" "a directory DESK_BODY_FILE is not a regular file"     "DESK_BODY_FILE is not a regular file: '$T/notfile'" "not readable"     DESK_BODY_FILE="$T/notfile"
+done
+echo 'from a file' >"$T/post.md"
+SNIPPET=do_spl_desk_post in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL=ops   DESK_BODY_FILE="$T/post.md" >"$T/o" 2>&1
+grep -q 'OK DRY_RUN nothing was sent' "$T/o" && pass "do_spl_desk_post takes the body from DESK_BODY_FILE" ||
+  fail "do_spl_desk_post DESK_BODY_FILE: $(cat "$T/o")"
+body_file_refuses do_spl_desk_post "refuses DESK_BODY and DESK_BODY_FILE together"   "set DESK_BODY or DESK_BODY_FILE, not both" ""   DESK_BODY=hi DESK_BODY_FILE="$T/post.md"
+if [[ "$(id -u)" -eq 0 ]]; then
+  fail "DESK_BODY_FILE unreadable cases need a non-root user (mode bits do not apply to root)"
+else
+  echo secret >"$T/noread.md"
+  chmod 000 "$T/noread.md"
+  for act in do_spl_desk_reply do_spl_desk_post; do
+    body_file_refuses "$act" "an unreadable DESK_BODY_FILE names the run user"       "DESK_BODY_FILE exists but is not readable by ${who}: '$T/noread.md'" "does not exist"       DESK_BODY_FILE="$T/noread.md"
+    grep -F -q "dispatch/" "$T/o" && pass "$act: the unreadable FATAL suggests the spool root's dispatch/" ||
+      fail "$act: unreadable FATAL has no dispatch/ hint: $(cat "$T/o")"
+    grep -F -q "cannot traverse" "$T/o" && fail "$act: a mode-000 file was reported as an unsearchable parent: $(cat "$T/o")" ||
+      pass "$act: a mode-000 file is the file itself, not an unsearchable parent"
+  done
+  chmod 644 "$T/noread.md"
+  mkdir -p "$T/priv/sub"
+  echo secret >"$T/priv/sub/post.md"
+  chmod 000 "$T/priv"
+  for act in do_spl_desk_reply do_spl_desk_post; do
+    body_file_refuses "$act" "a private parent says the file is not readable by the run user"       "exists but is not readable by ${who} (cannot traverse '$T/priv')" "does not exist"       DESK_BODY_FILE="$T/priv/sub/post.md"
+    grep -F -q "dispatch/" "$T/o" && pass "$act: the private-parent FATAL suggests the spool root's dispatch/" ||
+      fail "$act: private-parent FATAL has no dispatch/ hint: $(cat "$T/o")"
+  done
+  chmod 755 "$T/priv"
+fi
+
 # SPL-950: the probe's channel mode names the channel in its dry run, and a
 # bad channel id is a FATAL before anything is sent.
 SNIPPET=do_spl_desk_probe in_orc TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_CHANNEL=spool-hub-devel >"$T/o" 2>&1

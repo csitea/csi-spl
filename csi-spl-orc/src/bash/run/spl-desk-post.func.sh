@@ -20,7 +20,10 @@
 # @param DESK_AGENT - required: the posting agent id (the pane's id)
 # @param DESK_CHANNEL - required: the channel id, e.g. spool-hub-devel ('#' and
 # @param   upper case are accepted and normalized)
-# @param DESK_BODY - required: the post text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
+# @param DESK_BODY - required unless DESK_BODY_FILE: the post text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
+# @param DESK_BODY_FILE (optional) - read the post text from this file instead,
+# @param   the same rule as do_spl_desk_reply (missing, and exists but not
+# @param   readable by this run user, are different FATALS)
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | task | result | blocker | msg
 # @param DESK_FILES (optional) - space-separated paths to attach (each put as a blob)
@@ -38,6 +41,7 @@ do_spl_desk_post() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" channel="${DESK_CHANNEL:-}" typed_by="${DESK_TYPED_BY:-}"
+  spl_desk_load_body_file body || return 1
   channel="${channel#\#}"; channel="${channel,,}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$channel" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id (e.g. spool-hub-devel), got: '${DESK_CHANNEL:-}'"; return 1; }

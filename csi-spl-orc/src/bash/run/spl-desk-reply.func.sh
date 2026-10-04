@@ -50,7 +50,9 @@
 # @param DESK_AGENT - required: the answering agent id (the pane's id)
 # @param DESK_BODY - required unless DESK_BODY_FILE: the answer text (markdown renders, no fence needed: csi-spl-doc/doc/help/how-to-post.md)
 # @param DESK_BODY_FILE (optional) - read the answer text from this file instead
-# @param   (the dispatcher's one-command form: no $(cat ...) for the harness to judge)
+# @param   (the dispatcher's one-command form: no $(cat ...) for the harness to judge).
+# @param   A missing file and a file this run user cannot read are different
+# @param   FATALS; the latter names the user and the spool root's dispatch/.
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
 # @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
@@ -255,13 +257,11 @@ _spl_desk_reply_tag() {
 }
 
 # _spl_desk_reply_body_file: DESK_BODY_FILE's text into the caller's body
-# (do_spl_desk_reply's local); 1 with the FATAL when DESK_BODY is set too or
-# the file is unreadable. Unset: body stays DESK_BODY.
+# (do_spl_desk_reply's local). The FATALS live in spl_desk_load_body_file:
+# missing, and exists-but-not-readable by this run user, are different.
+# Unset: body stays DESK_BODY.
 _spl_desk_reply_body_file() {
-  [[ -n "${DESK_BODY_FILE:-}" ]] || return 0
-  [[ -z "$body" ]] || { do_log "FATAL set DESK_BODY or DESK_BODY_FILE, not both"; return 1; }
-  [[ -f "$DESK_BODY_FILE" && -r "$DESK_BODY_FILE" ]] || { do_log "FATAL DESK_BODY_FILE is not a readable file: '$DESK_BODY_FILE'"; return 1; }
-  body="$(cat "$DESK_BODY_FILE")"
+  spl_desk_load_body_file body
 }
 
 # _spl_desk_reply_check_args <body> <kind> <to> <task> <file>...: 0 when the

@@ -1,6 +1,6 @@
 # 072: rapid deployability of the whole spool system
 
-Status: **draft v0.10** (the version log is at the end of section 9). Lead
+Status: **draft v0.11** (the version log is at the end of section 9). Lead
 and editor: c-165. Baseline tree for section 4: `origin/master` @
 `803aff49a`, 2026-10-04; each research file names its own tree. Docs only: this
 spec builds nothing.
@@ -244,6 +244,8 @@ Each row is the contributor's claim with its check; the full walk is in the file
 | F32 | The one loop over every step runs them in **lexical** order, so 005 plans before 025 (its DNS zone) and 030 before 028 / 040 (its registry and database): a from-zero sweep stops at the first dependent step | research/a2 B8 | `grep -n '| sort)' csi-spl-orc/src/bash/run/tf-sweep-steps.func.sh` -> line 73 |
 | F33 | Nothing a deployer pulls is pinned or checked: 0 of 8 Dockerfiles pin a base image by digest; `install.sh` runs vendor installers through bash and downloads yq and Go with no checksum | research/a3 B4, B5 | `git grep -cE '^FROM.*@sha256' -- '*Dockerfile*'` -> no file; `git ls-files '*Dockerfile*' \| wc -l` -> 8; `install.sh:241-245`, `:279-282` |
 | F34 | **Correction to research a3 B7** ("no rate limiting on unauthenticated routes"): the hub already answers 429 on sign-in attempts and at its edge. A load test of `/api/v1/auth/register` (a3 S8's own check) is still worth one run before the stranger tests, so no new action | lead check | `grep -n StatusTooManyRequests csi-spl-api/src/go/spool-hub-api/internal/auth/native.go csi-spl-api/src/go/spool-hub-api/internal/edge/edge.go` -> `native.go:133`, `edge.go:220` |
+| F35 | The help page a newcomer follows to connect an agent sets our hosted hub URL and a legacy agent id (`CLE-01`, a form that ended 2026-10-03), while the README says `localhost:8080` and `spool-agent` | research/a1 B2 | `grep -nE "SPOOL_HUB_URL=\|CLE-0" csi-spl-doc/doc/help/connect-an-agent.md` -> lines 31, 38, 41 |
+| F36 | The hub test suite a contributor runs first fails on a clean machine: it forces `GOPROXY=off` with a cold module cache | research/a1 B6, research/01 | `grep -n GOPROXY csi-spl-api/src/bash/tests/run-all-tests.sh` -> line 18 |
 
 ## 5. Gap table
 
@@ -363,8 +365,10 @@ Same shape as the table above; the source column names the research file and its
 | **A62** | **Open-source hygiene that keeps itself**: spec 044 restated for the one-repo reality; the export gate as a hosted ratchet in wf 11 (a new fleet id in product code fails with class, file and line), then the 1587 fleet-id hits driven to 0 per package; licence files and SPDX headers; the open false-positive secret-scanning alert triaged; Dependabot grouped with a weekly lane | 14 O1, O3, O6, O8-O10 | all | orc + docs + CI | XS-M per item | the O9 ratchet fails a planted fleet id on a throwaway branch; `grep -c 'NEW public repo' csi-spl-doc/specs/README.md` -> 0; open secret-scanning alerts -> 0 |
 | **A63** | **Evaluate on GCP with no mail relay and no Stripe**: the template sets `SPOOL_HUB_MAIL_TRANSPORT: log` (invite and confirmation links go to Cloud Logging, as lde does) and payments off; `do_spl_estate_up` prints where to read the links; a real relay is one key later | research/a2 Q4 | P2 | cnf + docs | XS | a template-rendered env has `SPOOL_HUB_MAIL_TRANSPORT: log`; the hub boots with no SMTP values (`grep -n MAIL_TRANSPORT csi-spl-cnf/csi-spl/lde.env.yaml` -> `"log"` is the working precedent) |
 | **A64** | **Pin and verify what a deployer pulls**: every Dockerfile base image pinned `@sha256:<digest>` (a weekly bump lane, like Dependabot's); `install.sh` checks the sha256 of Go and yq and fails closed on a mismatch; the vendor CLI installers run from a pinned, checksummed copy where the vendor publishes one | research/a3 S3 | P1, P3 | orc + api + CI | S | `git grep -cE '^FROM.*@sha256:' -- '*Dockerfile*'` equals the number of `FROM` lines; a corrupted tarball in the installer test fails closed |
+| **A65** | **One true set of agent-connect instructions**: the help page uses `{{api}}` (filled from the running site, as the WUI help already does) and a current agent id, and says the same as the README; a doc test fails on a literal hosted URL or a legacy id in `doc/help` | research/a1 W2 | P3, P3+ | docs | XS | `grep -cE "spool-hub\.ai\|CLE-0" csi-spl-doc/doc/help/connect-an-agent.md` -> 0 |
+| **A66** | **The hub tests run on a fresh clone**: `run-all-tests.sh` downloads modules once when the cache is cold, then runs offline as today | research/a1 B6 | P3+ (US1 step 4) | api | XS | `env -i HOME=$(mktemp -d) PATH=$PATH bash csi-spl-api/src/bash/tests/run-all-tests.sh` passes on a fresh clone |
 
-Also from the research, folded into existing rows rather than new ones: 02 G1-G9 -> A8, A10, A18-A20, A9; 03 A2, A4-A6, A8 -> A9, A18, A14, A8, A7; 04 C6-C7 -> A7; 05 H2-H8 -> A21-A25; 06 W1-W8 -> A3, A8, A23, A24, A26; 07 D1, D5-D8 -> A6, A8, A9, A25; 08 D4, D5 -> A2, A7; 09 K9, K10 -> A2, A15; 12 C5-C7 -> A16, A24, A15; 13 N4, N6 -> A7, A16; 15 C3, C5, C7 -> A3, A4, A6; 10 A4, A5, A20, A21, A24 -> A4, A5; 11 M2, M9 -> A17, A15; 16 R4, R6-R8 -> A37, A4, A39; 17 N17.3, N17.4 -> A21, A6; 18 D1 -> A15; 19 items 1-9 -> A2-A7, A15; a2 (a-184) B1-B10 and its actions confirm A1, A3-A5, A7-A10, A14, A15, A18 and their order (A8 + A7 first for a client); a3 (a-185, security) S1, S2, S4, S5, S7 -> A5, A31, A49, A32, A2 + A30.
+Also from the research, folded into existing rows rather than new ones: 02 G1-G9 -> A8, A10, A18-A20, A9; 03 A2, A4-A6, A8 -> A9, A18, A14, A8, A7; 04 C6-C7 -> A7; 05 H2-H8 -> A21-A25; 06 W1-W8 -> A3, A8, A23, A24, A26; 07 D1, D5-D8 -> A6, A8, A9, A25; 08 D4, D5 -> A2, A7; 09 K9, K10 -> A2, A15; 12 C5-C7 -> A16, A24, A15; 13 N4, N6 -> A7, A16; 15 C3, C5, C7 -> A3, A4, A6; 10 A4, A5, A20, A21, A24 -> A4, A5; 11 M2, M9 -> A17, A15; 16 R4, R6-R8 -> A37, A4, A39; 17 N17.3, N17.4 -> A21, A6; 18 D1 -> A15; 19 items 1-9 -> A2-A7, A15; a2 (a-184) B1-B10 and its actions confirm A1, A3-A5, A7-A10, A14, A15, A18 and their order (A8 + A7 first for a client); a3 (a-185, security) S1, S2, S4, S5, S7 -> A5, A31, A49, A32, A2 + A30; a1 (a-183, newcomer walk) B1, B3-B5, B7-B11 -> A46 (port), A49, A1, A40, A61, A58, A4, A15.
 
 **Not in this spec's scope (hosted path B), handed to the orchestrator for their owners:** research 13 N1 (the owner enables workflow 40) and N2 (pin box-wui when a bought tenant is claimed); research 08 D7 (a check that workflow headers match GitHub's enabled state); research 05 H1 (the version odometer at `9.9.9`). Parked with the cloud-layer topic (3.1): research 17 N17.2 (an S3-compatible blob store) and research 11 M6, M8 (fleet ranking through the hub, a GitHub identity per machine), which are fleet operations, not deployability.
 
@@ -393,6 +397,7 @@ of the table below, which keeps its ids for reference.
 | 1 | L5, then L33 | A13 fork CI on GitHub-hosted runners, then A34 estate guard (a fork never touches our estate) | 4 |
 | 2 | L6 | A15 first cut, with the contributor section of A28 | 1 |
 | 2a | L31 | A46 contributor dev stack, Docker only | 4 |
+| 2e | L59 | A65 true agent-connect help, A66 hub tests on a fresh clone | 3, 4 |
 | 2b | L32 | A35 one gate for push and pull request | 4 |
 | 2d | L55 | A60 trunk ruleset (owner go), A61 contributor rules | 4 |
 | 2c | L45 | A49 installer writes no fleet config by default, A50 installer errors a stranger owns | 3 |
@@ -466,6 +471,7 @@ of the table below, which keeps its ids for reference.
 | any | L56 | A62: open-source hygiene (one sub-lane per item) | spec 044 files, wf 11 gate job, licence files, `.github/dependabot.yml` | - |
 | 2 | L57 | A63: evaluation mode for a P2 estate | the cnf template mail/payment keys, `DEPLOY.md` | L15 |
 | 1 | L58 | A64: digest pins + installer checksums | the 8 Dockerfiles, `install.sh` and its tests | - |
+| 1 | L59 | A65 + A66: agent-connect help page, hub tests on a fresh clone | `doc/help/connect-an-agent.md` + a doc test; `run-all-tests.sh` | - |
 
 ## 8. Decisions needed from the owner
 
@@ -566,3 +572,4 @@ rule, and logs it below.
 | v0.8 | research 20 (c-176): A16 becomes the clean-room estate in the one throwaway project (CR1-CR8) | c-165 |
 | v0.9 | research a2 (a-184, client walk): F32 (lexical step order), A63 (evaluate without a mail relay), lane L57; the rest confirms existing actions | c-165 |
 | v0.10 | research a3 (a-185, security of deploy): F33, F34 (a correction: rate limits exist), A64 digest pins + installer checksums, A35 adds the security scanners, lane L58 | c-165 |
+| v0.11 | research a1 (a-183, newcomer walk): F35, F36, A65 (true agent-connect help), A66 (hub tests on a fresh clone), both in the user-story-1 order | c-165 |

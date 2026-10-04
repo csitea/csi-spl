@@ -137,6 +137,7 @@ Numbering is **kept as-is** (no dir is renamed in the redo; every existing
 | `048-agent-harness-parity/` | The agent harness for claude, agy, grok and qwen, fully in csi-spl so anyone cloning gets it: csi-spl canonical (the box engine frozen), a parity manifest + drift test, qwen as the fourth kind, skills/commands rendered by the installer | M3 | CLE-35090 (epic SPL-1152) |
 | `049-spool-auth-facebook/` | Sign in with Facebook: the 010 client and Meta data-deletion/deauthorize callbacks proven against Graph-shaped tests, a deletion status page, public /privacy and /terms, a per-tenant method policy (planned) and the owner's Meta console runbook | M3 | CLE-35097 |
 | `052-spool-auth-microsoft-study/` | Study (decision record, not a build spec) for the owner: free Office 365 / Entra ID sign-in like Google/Facebook — cost, `common` endpoint, the nOAuth email-trust rule (`xms_edov`, immutable `<tid>/<oid>`) vs Google/Facebook, and the finding that it is already coded (spec 018); go-live owner runbook | M3 | CLE-35115 |
+| `072-rapid-deployability/` | Rapid deployability of the whole system, for a client and for the open-source project: the from-zero path measured (compose, GCP estate, agent boxes), a gap table, 17 actions ranked by usability and DevEx (not cost), a lane plan and owner decisions | M3 | c-165 (HUM-10, topic `6410e374`) |
 
 **008 keeps its dir name.** Its scope widens to the whole CI/CD area: the
 pipeline (`.github/workflows/10_ci-quality.yml`, `20_hub-build-deploy.yml`) is

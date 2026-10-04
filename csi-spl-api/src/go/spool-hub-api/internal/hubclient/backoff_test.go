@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -75,14 +76,33 @@ func (h *busyHub) gaps() []time.Duration {
 
 // withDialBudget shortens the single-shot retry for one test and pins the
 // jitter to the top of its range (full = true) so spacing is deterministic.
-func withDialBudget(t *testing.T, retries int, base, maxd, hintMax time.Duration, full bool) {
+// It returns the jitter draws the client made, in order: with full jitter and
+// no Retry-After each draw IS the scheduled wait, so a test asserts the
+// backoff schedule exactly instead of trusting wall-clock gaps, which -race
+// scheduling noise stretches by tens of ms.
+func withDialBudget(t *testing.T, retries int, base, maxd, hintMax time.Duration, full bool) func() []time.Duration {
 	t.Helper()
 	r, b, m, h, j := dialRetries, dialRetryBase, dialRetryMax, dialRetryAfterMax, jitter
 	dialRetries, dialRetryBase, dialRetryMax, dialRetryAfterMax = retries, base, maxd, hintMax
+	var mu sync.Mutex
+	var draws []time.Duration
+	draw := j
 	if full {
-		jitter = func(n int64) int64 { return n - 1 }
+		draw = func(n int64) int64 { return n - 1 }
+	}
+	jitter = func(n int64) int64 {
+		d := draw(n)
+		mu.Lock()
+		draws = append(draws, time.Duration(d))
+		mu.Unlock()
+		return d
 	}
 	t.Cleanup(func() { dialRetries, dialRetryBase, dialRetryMax, dialRetryAfterMax, jitter = r, b, m, h, j })
+	return func() []time.Duration {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]time.Duration(nil), draws...)
+	}
 }
 
 func dialBusy(t *testing.T, h *busyHub) (*Session, error) {
@@ -99,7 +119,7 @@ func dialBusy(t *testing.T, h *busyHub) (*Session, error) {
 // with the exponent until the cap.
 func TestDialRetries429GrowingCapped(t *testing.T) {
 	const base, capd = 40 * time.Millisecond, 100 * time.Millisecond
-	withDialBudget(t, 4, base, capd, time.Second, true)
+	waits := withDialBudget(t, 4, base, capd, time.Second, true)
 	h := &busyHub{busy: 4, status: http.StatusTooManyRequests}
 	s, err := dialBusy(t, h)
 	if err != nil {
@@ -110,15 +130,17 @@ func TestDialRetries429GrowingCapped(t *testing.T) {
 	if len(g) != 4 {
 		t.Fatalf("want 5 upgrades (4 x 429 + 101), got gaps %v", g)
 	}
-	// pinned jitter = the ceiling: 40, 80, 100 (capped), 100 ms
+	// pinned jitter = the ceiling: 40, 80, 100 (capped), 100 ms. The schedule
+	// is asserted exactly; the wall clock only as a floor (the client really
+	// slept), since noise can lengthen a gap but never shorten it.
 	want := []time.Duration{base, 2 * base, capd, capd}
-	for i, w := range want {
-		if g[i] < w || g[i] > w+80*time.Millisecond {
-			t.Errorf("gap %d = %v, want ~%v (all gaps %v)", i, g[i], w, g)
-		}
+	if got := waits(); !slices.Equal(got, want) {
+		t.Fatalf("backoff schedule %v, want %v", got, want)
 	}
-	if !(g[1] > g[0]) {
-		t.Errorf("spacing did not grow: %v", g)
+	for i, w := range want {
+		if g[i] < w {
+			t.Errorf("gap %d = %v, shorter than its wait %v (all gaps %v)", i, g[i], w, g)
+		}
 	}
 }
 
@@ -131,8 +153,10 @@ func TestDialHonoursRetryAfter(t *testing.T) {
 		t.Fatalf("dial after 429 Retry-After 1: %v", err)
 	}
 	s.Close()
+	// The floor is the claim: at least 1 s. The upper bound only has to tell
+	// "honoured 1 s" from "waited the 3 s hintMax", so it leaves noise 2 s.
 	g := h.gaps()
-	if len(g) != 1 || g[0] < time.Second || g[0] > time.Second+500*time.Millisecond {
+	if len(g) != 1 || g[0] < time.Second || g[0] >= 3*time.Second {
 		t.Fatalf("want one ~1 s gap after Retry-After: 1, got %v", g)
 	}
 }

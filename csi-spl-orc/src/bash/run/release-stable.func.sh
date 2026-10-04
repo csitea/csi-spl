@@ -8,14 +8,23 @@
 # @description workflow 55.
 # @description   1. the commit: STABLE_FROM (a ref), else the commit the hub at
 # @description      STABLE_FROM_URL (or STABLE_FROM_ENV's hub) reports on
-# @description      /version - what prd RUNS -, else the highest v-tag
+# @description      /version - what prd RUNS -, else the NEWEST v-tag (by
+# @description      commit date, not by number: the version wraps 9.9.9 ->
+# @description      1.0.1, and the build after the wrap is still the newest)
 # @description   2. the tag: stable-<YYYY-MM-DD> (UTC), immutable. There is no
 # @description      moving `stable` tag (a tag never moves without --force); the
 # @description      newest stable is the GitHub release marked latest
 # @description   3. the notes, since the previous stable-* tag (first cut: the
 # @description      commits of the last STABLE_FIRST_SINCE): the commits by
 # @description      kind (feat / fix / perf / other), the DB migrations added
-# @description      (forward-only: take a dump first) and the upgrade steps
+# @description      (forward-only: take a dump first) and the upgrade steps.
+# @description      The migrations come from the TREE diff, not the commit
+# @description      log: a file added then renamed inside the range is
+# @description      listed once, by the name the release holds (spec 072 A55)
+# @description   4. the forward-only gate (spec 072 A55, research 16 R3): no
+# @description      migration the previous stable holds is renamed, edited or
+# @description      deleted, and no two migrations share a number (beyond
+# @description      SPL_MIGRATION_GRANDFATHERED) - else FATAL, nothing cut
 # @description Nothing new since the last stable (or today's tag already on the
 # @description same commit) = exit 0, nothing cut. Today's tag on ANOTHER
 # @description commit = FATAL (tags never move).
@@ -31,6 +40,7 @@
 # @param STABLE_NOTES_FILE (optional) - where the notes go, default a temp file
 # @param STABLE_NOTES_MAX (optional) - rows per section, default 100 (the rest is counted)
 # @param STABLE_GH_RELEASE (optional) - 1 (default) or 0: no GitHub release
+# @param SPL_MIGRATION_GRANDFATHERED (optional) - migration file names allowed to share a number, default the two 0021_*
 # @param RELEASE_REMOTE (optional) - the remote holding the tags, default origin
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_release_stable
@@ -63,6 +73,7 @@ do_release_stable() {
     do_log "OK nothing new since $prev (${sha:0:8} is already in it): nothing to cut"; return 0
   fi
 
+  spl_stable_forward_only "$prev" "$sha" || return 1
   local notes="${STABLE_NOTES_FILE:-$(mktemp)}"
   spl_stable_notes "$sha" "$prev" "$tag" "$version" >"$notes" || return 1
   cat "$notes"
@@ -88,7 +99,7 @@ do_release_stable() {
 # to stdout, so every log line here goes to stderr - the do_release_version
 # trap of run 36372654214).
 # spl_stable_commit -> the full sha to release
-# (STABLE_FROM > STABLE_FROM_URL > STABLE_FROM_ENV's hub /version > highest v-tag)
+# (STABLE_FROM > STABLE_FROM_URL > STABLE_FROM_ENV's hub /version > newest v-tag)
 spl_stable_commit() {
   local ref="${STABLE_FROM:-}" body v url="${STABLE_FROM_URL:-}"
   if [[ -z "$ref" && -z "$url" && -n "${STABLE_FROM_ENV:-}" ]]; then
@@ -106,12 +117,75 @@ spl_stable_commit() {
     do_log "INFO $url runs ${ref:0:8}: that commit is released" >&2
   fi
   if [[ -z "$ref" ]]; then
-    v="$(git -C "$APP_PATH" tag -l 'v*' | sed 's/^v//' | spl_version_max)"
+    v="$(spl_stable_newest_vtag)"
     [[ -n "$v" ]] || { do_log "FATAL no v-tag to release (and no STABLE_FROM)" >&2; return 1; }
     ref="v$v"
   fi
   git -C "$APP_PATH" rev-parse -q --verify "$ref^{commit}" ||
     { do_log "FATAL not a commit here: '$ref' (fetch it first)" >&2; return 1; }
+}
+
+# spl_stable_newest_vtag -> the version of the v-tag on the newest commit ("" if none).
+# Newest by commit date, not the highest number: the version wraps 9.9.9 ->
+# 1.0.1, and the highest number would then pin the release to the last build
+# before the wrap. Tags on the same second: the highest number among them.
+spl_stable_newest_vtag() {
+  git -C "$APP_PATH" for-each-ref --sort=-creatordate --format='%(creatordate:unix) %(refname:strip=2)' 'refs/tags/v*' |
+    awk 'NR == 1 { top = $1 } $1 == top { sub(/^v/, "", $2); print $2 }' | spl_version_max
+}
+
+# The migration files: a numbered .sql anywhere under this dir.
+SPL_MIGRATION_DIR=csi-spl-rdb/src/sql
+spl_is_migration() { [[ "${1##*/}" =~ ^[0-9]+_.*\.sql$ ]]; }
+
+# spl_stable_migrations_added <base|""> <sha> -> the migration file names <sha>'s
+# tree has and <base>'s has not, one per line, sorted ("" base = all of them).
+# A tree diff, not `git log --diff-filter=A`: the log also lists a file that
+# was added and then renamed or deleted inside the range (the published
+# stable-2026-09-29 note named a migration that release does not contain).
+spl_stable_migrations_added() {
+  local base="$1" sha="$2" f
+  if [[ -n "$base" ]]; then
+    git -C "$APP_PATH" diff --no-renames --name-only --diff-filter=A "$base" "$sha" -- "$SPL_MIGRATION_DIR"
+  else
+    git -C "$APP_PATH" ls-tree -r --name-only "$sha" -- "$SPL_MIGRATION_DIR"
+  fi | while IFS= read -r f; do spl_is_migration "$f" && echo "${f##*/}"; done | sort -u
+}
+
+# spl_stable_forward_only <stable|""> <sha> -> rc 0 when <sha> only ADDS
+# migrations to <stable>'s (no stable one renamed, edited or deleted) and no
+# two migrations in <sha> share a number beyond SPL_MIGRATION_GRANDFATHERED;
+# each violation is one FATAL line on stderr. A hub that applied a stable
+# migration by name never re-applies an edited one and silently skips a
+# renamed one, so the only safe change to a released migration is a new one.
+spl_stable_forward_only() {
+  local stable="$1" sha="$2" bad=0 st f diff
+  local grand=" ${SPL_MIGRATION_GRANDFATHERED-0021_rls_fail_closed.sql 0021_tenant_rbac.sql} "
+  if [[ -n "$stable" ]]; then
+    diff="$(git -C "$APP_PATH" diff --no-renames --name-status "$stable" "$sha" -- "$SPL_MIGRATION_DIR")" ||
+      { do_log "FATAL forward-only: cannot diff $stable..$sha" >&2; return 1; }
+    while IFS=$'\t' read -r st f; do
+      [[ -n "$f" ]] && spl_is_migration "$f" || continue
+      case "$st" in
+        A) ;;
+        M) do_log "FATAL forward-only: ${f##*/} is in $stable and was EDITED: add a new migration instead" >&2; bad=1 ;;
+        D) do_log "FATAL forward-only: ${f##*/} is in $stable and was RENAMED or DELETED: put it back" >&2; bad=1 ;;
+        *) do_log "FATAL forward-only: ${f##*/} is in $stable and changed ($st)" >&2; bad=1 ;;
+      esac
+    done <<<"$diff"
+  fi
+  local dup x others
+  dup="$(spl_stable_migrations_added "" "$sha" | awk -F_ '{ n[$1] = n[$1] " " $0; c[$1]++ }
+    END { for (k in c) if (c[k] > 1) print n[k] }')"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    others=""
+    for x in $f; do [[ "$grand" == *" $x "* ]] || others+=" $x"; done
+    [[ -z "$others" ]] && continue
+    do_log "FATAL forward-only: migrations share a number:$f" >&2; bad=1
+  done <<<"$dup"
+  ((bad == 0)) || return 1
+  do_log "OK forward-only: ${stable:-no previous stable}..${sha:0:8} only adds migrations" >&2
 }
 
 # spl_stable_notes <sha> <prev-tag|""> <tag> <version|""> -> markdown on stdout
@@ -141,9 +215,11 @@ spl_stable_notes() {
     echo; echo "## $title ($count)"; echo; head -n "$max" <<<"$rows"
     if ((count > max)); then echo "- ... and $((count - max)) more: \`git log --no-merges $more\`"; fi
   done
+  # the first cut's base: the newest commit before STABLE_FIRST_SINCE ("" = none)
+  local base="$prev"
+  [[ -n "$base" ]] || base="$(git -C "$APP_PATH" rev-list -1 --first-parent --before="${STABLE_FIRST_SINCE:-7 days ago}" "$sha")"
   local mig=()
-  mapfile -t mig < <(git -C "$APP_PATH" log --no-merges --diff-filter=A --name-only --format= "${range[@]}" \
-    -- csi-spl-rdb/src/sql | grep . | sed 's#.*/##' | sort -u)
+  mapfile -t mig < <(spl_stable_migrations_added "$base" "$sha")
   echo; echo "## Database migrations (${#mig[@]})"; echo
   if ((${#mig[@]})); then
     echo "Forward-only: there is no downgrade. Take a dump before you upgrade."

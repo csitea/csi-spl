@@ -1,6 +1,6 @@
 # Tasks: 072 rapid deployability
 
-Status per item: `[ ]` open, `[x]` landed (with its sha and the check that proved it). One lane = one task, one agent. The task text is the lane row of [spec.md](spec.md) section 7; its **acceptance check is the named action's check** in spec section 6 (A-ids). Generated from spec v0.16 sections 7.0 and 7.1; when the spec changes a lane, regenerate this list rather than editing a row by hand.
+Status per item: `[ ]` open, `[x]` landed (with its sha and the check that proved it). One lane = one task, one agent. The task text is the lane row of [spec.md](spec.md) section 7; its **acceptance check is the named action's check** in spec section 6 (A-ids). Generated from spec v0.17 sections 7.0 and 7.1; when the spec changes a lane, regenerate this list rather than editing a row by hand.
 
 Rules for every lane: the spec's ranking rule (section 2: time to first deploy, manual steps, clarity of errors; never cost); the owner's guest rules R1-R3 (section 3.2); no GCP mutation without the owner's go; GCP lanes use the per-env service account only; the cloud-provider layer is out of scope (section 3.1, topic `a5a141bc`).
 

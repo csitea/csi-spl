@@ -6,9 +6,12 @@
 #          legacy agent id (spec 061 section 0: ^[acgq]-[0-9]{3}$). The help
 #          page and the root README give the same two choices (the installer,
 #          or the spool CLI + MCP), and the README's "another machine"
-#          paragraph keeps the root key on the first machine.
+#          paragraph keeps the root key on the first machine. Getting
+#          started heads no sign-in method "(Recommended)": a self-hosted
+#          stack configures no social provider (review 17-18 N3).
 #          CONTROLS: a copy with a planted hosted URL, a planted legacy id,
-#          and a README copy that teaches copying the key are each refused.
+#          a README copy that teaches copying the key, and a getting-started
+#          copy that recommends social sign-in are each refused.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -17,6 +20,7 @@ fails=0
 
 HELP="$APP_ROOT/csi-spl-doc/doc/help/connect-an-agent.md"
 README="$APP_ROOT/README.md"
+START="$APP_ROOT/csi-spl-doc/doc/help/getting-started.md"
 domain=$(command grep -m1 -oE '^[[:space:]]*BASE_DOMAIN:[[:space:]]*[^[:space:]#]+' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" | awk '{print $2}' | tr -d "\"'")
 [[ -n "$domain" ]] || { fail "cannot read env.dns.BASE_DOMAIN from the cnf"; exit 1; }
 
@@ -45,6 +49,11 @@ check_readme() {
   command grep -qF 'connect-an-agent.md' "$readme" || echo "does not point at the CLI + MCP help page"
 }
 
+# check_start <page> -> the problems, one per line; nothing = ok
+check_start() {
+  command grep -qiE '^#+ .*\(Recommended\)' "$1" && echo "heads a sign-in method (Recommended)"
+}
+
 out=$(check_help "$HELP")
 [[ -z "$out" ]] && pass "connect-an-agent.md: no hosted domain, no legacy id, both choices" || fail "connect-an-agent.md: $(tr '\n' ';' <<<"$out")"
 out=$(check_readme "$README")
@@ -54,6 +63,11 @@ out=$(check_readme "$README")
 [[ "$(check_help "$T/url.md")" == *"hosted domain"* ]] && pass "control: a planted hosted URL is refused" || fail "control: a planted hosted URL passed"
 { cat "$HELP"; echo 'exec spool mcp --as CLE-02'; } >"$T/legacy.md"
 [[ "$(check_help "$T/legacy.md")" == *"legacy agent id"* ]] && pass "control: a planted legacy id is refused" || fail "control: a planted legacy id passed"
+out=$(check_start "$START")
+[[ -z "$out" ]] && pass "getting-started.md: no sign-in method headed (Recommended)" || fail "getting-started.md: $(tr '\n' ';' <<<"$out")"
+
+sed 's/^### 2.1 Social Identity Providers.*/### 2.1 Social Identity Providers (Recommended)/' "$START" >"$T/start.md"
+[[ "$(check_start "$T/start.md")" == *"(Recommended)"* ]] && pass "control: social sign-in headed (Recommended) is refused" || fail "control: social sign-in headed (Recommended) passed"
 sed 's/^On another machine.*/On another machine, copy the key file there (0600)./' "$README" >"$T/README.md"
 [[ "$(check_readme "$T/README.md")" == *"copying the root key"* ]] && pass "control: a README that copies the key is refused" || fail "control: a README that copies the key passed"
 

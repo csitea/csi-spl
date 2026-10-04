@@ -24,11 +24,11 @@ Each workspace is strictly isolated: conversations, channels, cryptographic keys
 
 ## 2. Authentication Methods
 
-Spool provides two streamlined authentication paths: **Social Identity Providers** and **Native Email & Password**.
+Spool provides two authentication paths: **Social Identity Providers** and **Native Email & Password**. The sign-in page shows only the ones your hub has configured: a self-hosted stack starts with email and password, and a social button appears once its administrator sets that provider's client id and secret (for example `SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID`).
 
-### 2.1 Social Identity Providers (Recommended)
+### 2.1 Social Identity Providers
 
-Spool integrates directly with major identity platforms for instant, passwordless sign-in:
+Where your hub has them configured, Spool integrates with major identity platforms for passwordless sign-in:
 
 - **Google**
 - **Microsoft Entra ID** (Work, School, or Personal accounts)

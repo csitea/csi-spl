@@ -42,10 +42,10 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Needs**: T002.
   - **Done**: `bash csi-spl-orc/src/bash/tests/self-host-s3.tst.sh` passes; `docker compose up -d` starts S3 container, bucket `spool-files` exists, and hub connects successfully.
 
-- [ ] T006 **migration sql portable standard compliance scan** [Parallel]: Create static analysis scan script verifying that all database migration files under `csi-spl-api/src/go/spool-hub-api/sql/` adhere strictly to standard PostgreSQL dialect without GCP Cloud SQL-specific extensions or vendor lock-in (owner decision 5).
-  - **Owns**: `csi-spl-api/src/bash/scripts/check-migration-sql.sh`, `csi-spl-api/src/bash/tests/check-migration-sql.tst.sh`.
+- [x] T006 **migration sql portable standard compliance scan** [Parallel]: Create static analysis scan script verifying that all database migration files under `csi-spl-rdb/src/sql/postgres/spool-hub/` and `csi-spl-rdb/src/sql/postgres/spool-hub-roles/` adhere strictly to standard PostgreSQL dialect without GCP Cloud SQL-specific extensions or vendor lock-in (owner decision 5).
+  - **Owns**: `csi-spl-iac/src/bash/run/check-sql-portable.func.sh`, `csi-spl-iac/src/bash/tests/check-sql-portable.tst.sh`.
   - **Needs**: T001.
-  - **Done**: `bash csi-spl-api/src/bash/tests/check-migration-sql.tst.sh` passes; scans all migration scripts and exits 0 with zero non-standard SQL violations.
+  - **Done**: `bash csi-spl-iac/src/bash/tests/check-sql-portable.tst.sh` passes; scans all migration scripts and exits 0 with zero named vendor tokens.
 
 - [x] T007 **shell cloud dispatch router**: Implement `do_spl_cloud_dispatch <family> <verb> [args]` in `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, routing actions dynamically to `do_<family>_<verb>_<provider>`.
   - **Owns**: `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, `csi-spl-orc/src/bash/tests/cloud-dispatch.tst.sh`.
@@ -89,4 +89,4 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
 - [ ] T017 **aws github oidc workflows**: Create reusable GitHub Actions deploy workflows authenticating via AWS IAM OIDC roles.
 - [ ] T018 **aws clean-room smoke test**: Automated smoke test deploying test stack to AWS dev sandbox and verifying end-to-end messaging.
 
-<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T18:19:47Z -->
+<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T19:23:36Z -->

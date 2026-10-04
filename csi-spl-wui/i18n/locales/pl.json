@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Skróty klawiszowe",
       "archive": "Archiwizuj / Przywróć z archiwum",
+      "archive_topic_row": "Archiwizuj zaznaczony temat (widok Tematy)",
       "move": "Przenieś lub scal…",
       "step": "Zaznacz poprzednią / następną wiadomość",
       "help": "Pokaż tę listę",

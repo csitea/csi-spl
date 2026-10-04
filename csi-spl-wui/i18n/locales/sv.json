@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Kortkommandon",
       "archive": "Arkivera / Ångra arkivering",
+      "archive_topic_row": "Arkivera det markerade ämnet (vyn Ämnen)",
       "move": "Flytta eller slå ihop…",
       "step": "Markera föregående / nästa meddelande",
       "help": "Visa den här listan",

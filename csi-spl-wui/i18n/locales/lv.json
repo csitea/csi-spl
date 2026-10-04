@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Īsinājumtaustiņi",
       "archive": "Arhivēt / Atjaunot no arhīva",
+      "archive_topic_row": "Arhivēt atlasīto tēmu (Tēmu skats)",
       "move": "Pārvietot vai apvienot…",
       "step": "Atlasīt iepriekšējo / nākamo ziņu",
       "help": "Rādīt šo sarakstu",

@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Sneltoetsen",
       "archive": "Archiveren / Dearchiveren",
+      "archive_topic_row": "Het geselecteerde onderwerp archiveren (weergave Onderwerpen)",
       "move": "Verplaatsen of samenvoegen…",
       "step": "Vorig / volgend bericht selecteren",
       "help": "Deze lijst tonen",

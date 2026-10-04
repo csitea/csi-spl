@@ -39,6 +39,15 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'D', items: ['delete-topic', 'delete'], labelKey: 'feed.msg_menu.delete' },
 ].map((s) => Object.freeze({ ...s, items: Object.freeze(s.items) })))
 
+/**
+ * HUM-10 (t1 topic 2627084c): the keys a focused topic row in the Topics view
+ * (/t) takes. Same matching (shortcutFor) and the same offer check
+ * (shortcutItem over the row menu's flags) as a message card.
+ */
+export const TOPIC_LIST_SHORTCUTS = Object.freeze([
+  { key: 'A', items: ['archive'], labelKey: 'feed.shortcuts.archive_topic_row' },
+].map((s) => Object.freeze({ ...s, items: Object.freeze(s.items) })))
+
 /** The other keys the help list names (not message actions). */
 export const NAV_SHORTCUTS = Object.freeze([
   Object.freeze({ keys: ['↑', '↓', 'j', 'k'], labelKey: 'feed.shortcuts.step' }),
@@ -151,13 +160,18 @@ export function messageShortcutsSection(label) {
     const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
     return `| **\`Shift + ${s.key}\`** | Selected message, desktop | ${action} |`
   })
+  const topicRows = TOPIC_LIST_SHORTCUTS.map((s) => {
+    const action = String(name(s.labelKey) ?? '').replace(/\|/g, '\\|')
+    return `| **\`Shift + ${s.key}\`** | Focused topic, Topics view, desktop | ${action} |`
+  })
   return [
     '## 7. Message shortcuts',
     '',
-    'These keys act on the **selected message**. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.',
+    'These keys act on the **selected message**; in the **Topics** view, the Archive key also acts on the focused topic. They work on a desktop. Turn them off under **Settings → Behaviour → Keyboard shortcuts**; while that setting is off, the keys do nothing.',
     '',
     '| Shortcut | Context | Action |',
     '|---|---|---|',
     ...rows,
+    ...topicRows,
   ].join('\n')
 }

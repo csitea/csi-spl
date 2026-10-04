@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Keyboard shortcuts",
       "archive": "Archive / Unarchive",
+      "archive_topic_row": "Archive the focused topic (Topics view)",
       "move": "Move or merge…",
       "step": "Select the previous / next message",
       "help": "Show this list",

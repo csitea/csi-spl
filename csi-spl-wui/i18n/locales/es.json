@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Atajos de teclado",
       "archive": "Archivar / Desarchivar",
+      "archive_topic_row": "Archivar el tema enfocado (vista Temas)",
       "move": "Mover o fusionar…",
       "step": "Seleccionar el mensaje anterior / siguiente",
       "help": "Mostrar esta lista",

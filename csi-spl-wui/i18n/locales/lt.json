@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Spartieji klavišai",
       "archive": "Archyvuoti / Grąžinti iš archyvo",
+      "archive_topic_row": "Archyvuoti pažymėtą temą (Temų rodinys)",
       "move": "Perkelti arba sujungti…",
       "step": "Pasirinkti ankstesnę / kitą žinutę",
       "help": "Rodyti šį sąrašą",

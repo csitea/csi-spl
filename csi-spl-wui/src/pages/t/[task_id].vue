@@ -30,6 +30,7 @@
           :data-key="row.task_id"
           :href="localePath('/t/' + row.task_id)"
           @click.exact.prevent="pick(row.task_id)"
+          @keydown="onRowKey(row.task_id, $event)"
         >
           <div class="topic-subject">{{ rowTitle(row.subject) }}</div>
           <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
@@ -115,6 +116,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMessageMenu } from '~/composables/useMessageMenu'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useLive } from '~/composables/useLive'
+import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
@@ -133,6 +135,8 @@ import { openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { dmPeerOf } from '~/utils/channel-feed.mjs'
 import { topicPaneLink } from '~/utils/msg-menu.mjs'
+import { offeredItems, shortcutFor, shortcutItem } from '~/utils/msg-shortcuts.mjs'
+import * as msgShortcutsMod from '~/utils/msg-shortcuts.mjs'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
 import { beginEdit, commitEdit, editFailureKey, editKeyAction, withDraft, type MsgEditState } from '~/utils/msg-edit.mjs'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
@@ -150,6 +154,10 @@ type CardMenuOpts = {
   mergeTopic: boolean
   locks: TopicMenuLocks
 }
+/* TOPIC_LIST_SHORTCUTS is not declared in mjs-shims.d.ts either */
+const TOPIC_LIST_SHORTCUTS = (msgShortcutsMod as unknown as {
+  TOPIC_LIST_SHORTCUTS: readonly { key: string, items: readonly string[], labelKey: string }[]
+}).TOPIC_LIST_SHORTCUTS
 const topicCardMenuOpts = (topicMenuMod as unknown as {
   topicCardMenuOpts: (msg: unknown, viewerId: string, me: MeLike, opts?: { editable?: boolean, lobbyTaskId?: string }) => CardMenuOpts
 }).topicCardMenuOpts
@@ -169,6 +177,7 @@ const stack = useMobileStack()
 const live = useLive()
 const editor = useMessageEdit()
 const archiveUndo = useArchiveUndo()
+const shortcutsOn = useMsgShortcutsOn()
 
 const taskId = computed(() => String(route.params.task_id || ''))
 const shortId = computed(() => taskId.value.slice(0, 8))
@@ -380,20 +389,59 @@ async function onMenuCopy() {
   if (href) await writeClipboard(new URL(href, window.location.origin).href)
 }
 
-async function onMenuArchive() {
-  const msg = menuMsg.value
-  const id = menuTask.value
-  hideMenu()
+async function archiveRow(msg: SpoolMessage | null, id: string) {
   const cardId = String(msg?.msg_id || '')
-  if (!cardId) return
+  if (!cardId) return false
   try {
     await api.archiveTopic(cardId, true)
     editor.dropEverywhere(cardId)
     viewer.dropTopics([id, cardId])
     archiveUndo.offerUndo(cardId, 'rail')
+    return true
   } catch (e) {
     noteError({ source: 'topic-archive', name: 'TopicArchive', message: t(topicErrorKey(e, 'archive')), error: e })
+    return false
   }
+}
+
+async function onMenuArchive() {
+  const msg = menuMsg.value
+  const id = menuTask.value
+  hideMenu()
+  await archiveRow(msg, id)
+}
+
+/* HUM-10 (t1 topic 2627084c): Shift + A on a focused row archives that topic,
+   as the channel card's key does. shortcutFor applies the same guards (a text
+   field, Ctrl / Cmd / Alt, the Settings switch, a phone); the item must be
+   one the row's menu offers enabled, so a role the menu locks it for gets
+   nothing. The key is taken here, so the feed's window listener leaves it. */
+let rowKeyTicket = 0
+function onRowKey(id: string, ev: KeyboardEvent) {
+  const overlayOpen = menuOpen.value || deleteOpen.value || Boolean(movePicker.value)
+  const hit = shortcutFor(ev, { enabled: shortcutsOn.value, overlayOpen })
+  if (!hit || hit.type !== 'action' || !TOPIC_LIST_SHORTCUTS.some((s) => s.key === hit.key)) return
+  ev.preventDefault()
+  void archiveRowByKey(id, ev.currentTarget instanceof HTMLElement ? ev.currentTarget : null)
+}
+
+async function archiveRowByKey(id: string, rowEl: HTMLElement | null) {
+  const ticket = ++rowKeyTicket
+  live.ensure()
+  if ((api.mock || String(session.state) === 'in') && !access.me) {
+    try { await access.load() } catch { /* the check follows whatever me is */ }
+  }
+  const msg = await cardOf(id)
+  if (ticket !== rowKeyTicket || !msg) return
+  const flags = topicCardMenuOpts(msg, editor.viewerId.value, (access.me ?? null) as MeLike, {
+    editable: editor.canEdit(msg),
+    lobbyTaskId: String(live.lobbyTaskId.value || ''),
+  })
+  if (shortcutItem('A', offeredItems(flags)) !== 'archive') return
+  /* the next row takes the focus, so Shift + A again archives that one */
+  const wrap = rowEl?.closest('.topic-row-wrap')
+  const next = (wrap?.nextElementSibling || wrap?.previousElementSibling)?.querySelector<HTMLElement>('a.topic-row') || null
+  if (await archiveRow(msg, id)) void nextTick(() => next?.focus())
 }
 
 function onMenuDelete() {

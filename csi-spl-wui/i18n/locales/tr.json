@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Klavye kısayolları",
       "archive": "Arşivle / Arşivden çıkar",
+      "archive_topic_row": "Seçili konuyu arşivle (Konular görünümü)",
       "move": "Taşı veya birleştir…",
       "step": "Önceki / sonraki mesajı seç",
       "help": "Bu listeyi göster",

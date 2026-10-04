@@ -8,6 +8,10 @@
         <dt><kbd>⇧</kbd> <kbd>{{ s.key }}</kbd></dt>
         <dd :data-testid="'msg-shortcuts-help-' + s.key">{{ t(s.labelKey) }}</dd>
       </template>
+      <template v-for="s in TOPIC_LIST_SHORTCUTS" :key="'topic-' + s.key">
+        <dt><kbd>⇧</kbd> <kbd>{{ s.key }}</kbd></dt>
+        <dd :data-testid="'msg-shortcuts-help-topic-' + s.key">{{ t(s.labelKey) }}</dd>
+      </template>
       <template v-for="n in NAV_SHORTCUTS" :key="n.labelKey">
         <dt><template v-for="(k, i) in n.keys" :key="k"><span v-if="i"> </span><kbd>{{ k }}</kbd></template></dt>
         <dd>{{ t(n.labelKey) }}</dd>
@@ -19,10 +23,15 @@
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
 import { MSG_SHORTCUTS, NAV_SHORTCUTS } from '~/utils/msg-shortcuts.mjs'
+import * as msgShortcutsMod from '~/utils/msg-shortcuts.mjs'
 import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
 
 const { t } = useI18n({ useScope: 'global' })
 const open = useMsgShortcutsHelp()
+/* the Topics view's keys; mjs-shims.d.ts (another lane's file) does not declare this export yet */
+const TOPIC_LIST_SHORTCUTS = (msgShortcutsMod as unknown as {
+  TOPIC_LIST_SHORTCUTS: readonly { key: string, items: readonly string[], labelKey: string }[]
+}).TOPIC_LIST_SHORTCUTS
 </script>
 
 <style scoped>

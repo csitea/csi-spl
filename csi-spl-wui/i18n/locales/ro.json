@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Comenzi rapide de la tastatură",
       "archive": "Arhivează / Dezarhivează",
+      "archive_topic_row": "Arhivează subiectul selectat (vizualizarea Subiecte)",
       "move": "Mută sau îmbină…",
       "step": "Selectează mesajul anterior / următor",
       "help": "Arată această listă",

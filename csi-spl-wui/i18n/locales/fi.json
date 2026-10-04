@@ -803,6 +803,7 @@
     "shortcuts": {
       "title": "Pikanäppäimet",
       "archive": "Arkistoi / Palauta arkistosta",
+      "archive_topic_row": "Arkistoi valittu aihe (Aiheet-näkymä)",
       "move": "Siirrä tai yhdistä…",
       "step": "Valitse edellinen / seuraava viesti",
       "help": "Näytä tämä luettelo",

@@ -49,7 +49,9 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/topics", s.stampedView(s.handleViewTopics))
 	mux.HandleFunc("GET /v1/view/topics/{task_id}", s.stampedView(s.handleViewTopic))
 	mux.HandleFunc("GET /v1/view/topics/{task_id}/children", s.stampedView(s.handleViewChildren))
-	mux.HandleFunc("GET /v1/view/locate/{id}", s.handleViewLocate)               // SPL-959 old links
+	mux.HandleFunc("GET /v1/view/locate/{id}", s.handleViewLocate)      // SPL-959 old links
+	mux.HandleFunc("POST /v1/view/ids", s.viewHandler(s.handleViewIDs)) // HUM-10 id links
+	mux.HandleFunc("OPTIONS /v1/view/ids", s.viewIDsPreflight)
 	mux.HandleFunc("GET /v1/view/archived", s.stampedView(s.handleViewArchived)) // specs/041
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/topic", s.handleViewTopicSize)
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/move", s.handleViewMove) // specs/045

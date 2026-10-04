@@ -43,9 +43,10 @@ GET  /v1/files/{file_id}                  ./http-v1.md §3: upload token or memb
 GET  /v1/view/search                      ./search-v1.md: one Gmail-style grammar, grouped     FR-029
 GET  /v1/view/search/operators            ./search-v1.md §6: the grammar as data              FR-031
 GET  /v1/view/me                          the reader's roles and permissions                  025
+POST /v1/view/ids                         the ids quoted in one body, resolved (§4.6)          HUM-10
 ```
 
-Every other method on `/v1/view/*` → `405 method_not_allowed`; an unknown GET
+Every other method on `/v1/view/*` (`POST /v1/view/ids` excepted) → `405 method_not_allowed`; an unknown GET
 path → `404 not_found`. Tenant = the member session's tenant (026,
 `./http-v1.md` header note); unknown → `404 unknown_tenant`.
 
@@ -264,6 +265,33 @@ separate tasks it spawned (`./channels-v1.md` §0). A parent with no children
 answers `200 {"threads": [], "next": null}`; a non-UUID `task_id` is
 `404 not_found`.
 
+### 4.6 `POST /v1/view/ids` (HUM-10, topic cd357c76)
+
+The ids quoted in ONE rendered body, resolved in one call, so an id the tab
+has not loaded still becomes a link. Request `{"ids": [...]}`: up to 50
+distinct tokens, each a uuid or its first 8 hex digits (any case);
+anything else, or more than 50, is `400 bad_id` / `400 too_many`. Body
+`application/json` (preflight: `POST`, `Content-Type`).
+
+```json
+{"ids": [{"id": "<token as asked>", "kind": "topic|message", "task_id": "<uuid>",
+          "msg_id": "<uuid, message only>", "channel": "<id, omitted for a DM>",
+          "peer": "<other DM end, id or id@box>", "archived": false}]}
+```
+
+- The door is a topic read's (§4.4): the session's tenant, an archived topic
+  or message answers, a DM only to one of its ends, a channel row only to a
+  reader of that channel. An id the reader may not read is left out, exactly
+  like an unknown one.
+- A topic id is `topic` even when a message carries the same string. A reply
+  is `message` with its parent topic as `task_id`. A topic opens in its first
+  channel the reader may read, else as their DM with `peer`.
+- An 8-hex token names the topic when exactly one topic starts with it, else
+  (no topic) the message when exactly one does; the count is over every row,
+  so it is the same for every reader.
+- One statement per call whatever the id count
+  (`TestNPlus1RoundTripsViewIDs`).
+
 ## 5. Hygiene and limits
 
 - Tenant-scoped on every query (FR-015); a `task_id` of another tenant is
@@ -288,4 +316,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.6.1 · updated: 2026-09-25 · last-edit: 2026-09-25T18:40:39Z -->
+<!-- version: 0.7.0 · updated: 2026-10-04 · last-edit: 2026-10-04T16:40:00Z -->

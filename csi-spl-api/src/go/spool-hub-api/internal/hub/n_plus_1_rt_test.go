@@ -136,3 +136,31 @@ func TestNPlus1RoundTripsLocate(t *testing.T) {
 		t.Fatalf("locate grows per tenant: min %d at 1 tenant, %d at 8", rts[0][0], rts[1][0])
 	}
 }
+
+// HUM-10: POST /v1/view/ids resolves every id of a body in one statement, so
+// 50 ids cost what 1 costs.
+func TestNPlus1RoundTripsViewIDs(t *testing.T) {
+	p := proxiedPG(t)
+	r := newPrivacyRig(t)
+	const n = 5
+	var rts [][]int64
+	for _, k := range []int{1, 50} {
+		ids := []string{r.priv, r.dm, r.public, r.public[:8]}
+		for len(ids) < k {
+			ids = append(ids, uuidV4())
+		}
+		ids = ids[:k]
+		ask := func() {
+			if code, _ := viewIDs(t, r, "HUM-1", ids...); code != http.StatusOK {
+				t.Fatalf("view ids: %d", code)
+			}
+		}
+		ask()
+		rt := rtSample(p, n, ask)
+		rts = append(rts, rt)
+		t.Logf("POST /v1/view/ids ids=%d RT(n=%d)=%v median=%d", k, n, rt, rt[n/2])
+	}
+	if rts[1][0] > rts[0][0]+1 {
+		t.Fatalf("view ids grows per id: min %d at 1 id, %d at 50", rts[0][0], rts[1][0])
+	}
+}

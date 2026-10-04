@@ -30,6 +30,9 @@ type Member struct {
 	Suspended bool
 	// LastSeen: tenant_memberships.last_active_at; zero = never.
 	LastSeen time.Time
+	// AccessUntil: tenant_memberships.access_until (rdb 0113, spec 072 A27),
+	// when this membership stops granting access; zero = no end.
+	AccessUntil time.Time
 	// Provenance of the invite this member accepted (rdb 0084), read by
 	// joining tenant_invites on accepted_by = human_id. All zero when the
 	// member did not come through an invite (bootstrap, or an operator seat
@@ -80,7 +83,7 @@ func (s *Memory) ListMembers(_ context.Context, tenant string) ([]Member, error)
 			continue
 		}
 		row := Member{HumanID: k[1], Role: m.role, Since: m.since, Suspended: m.disabled, LastSeen: m.lastActive,
-			OrderedBy: m.orderedBy, OrderedVia: m.orderedVia, InvitedOn: m.invitedOn}
+			AccessUntil: m.accessUntil, OrderedBy: m.orderedBy, OrderedVia: m.orderedVia, InvitedOn: m.invitedOn}
 		if hm, ok := s.hum.humans[k[1]]; ok {
 			row.DisplayName, row.Email, row.Disabled, row.Interests = hm.name, hm.email, hm.disabled, hm.interests
 		}
@@ -144,27 +147,28 @@ func (s *Memory) RevokeInvite(_ context.Context, tenant, email string) error {
 
 func (s *Postgres) ListMembers(ctx context.Context, tenant string) ([]Member, error) {
 	out := []Member{}
-	r := listMembersRead(tenant, &out)
+	r := listMembersRead(tenant, &out, s.hasAccessUntil(ctx))
 	if err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// listMembersRead is ListMembers' statement, shared with ViewRoster's batch.
-func listMembersRead(tenant string, out *[]Member) tenantRead {
+// listMembersRead is ListMembers' statement, shared with ViewRoster's batch;
+// withAccess reads rdb 0113 access_until (NULL before it).
+func listMembersRead(tenant string, out *[]Member, withAccess bool) tenantRead {
 	return tenantRead{sql: `SELECT m.human_id, coalesce(h.display_name, ''), coalesce(h.email, ''), coalesce(h.interests, ''), m.role,
 			m.created_at, h.disabled_at IS NOT NULL, m.disabled_at IS NOT NULL, m.last_active_at,
-			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via, ti.created_at
+			ti.ordered_by, coalesce(ho.display_name, ''), ti.ordered_via, ti.created_at, ` + accessUntilCol(withAccess) + `
 		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
 		LEFT JOIN tenant_invites ti ON ti.tenant_id = m.tenant_id AND ti.accepted_by = m.human_id
 		LEFT JOIN humans ho ON ho.human_id = ti.ordered_by
 		WHERE m.tenant_id = $1 AND NOT h.technical ORDER BY m.created_at, m.human_id`, args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var m Member
-		var seen, invitedOn *time.Time
+		var seen, invitedOn, until *time.Time
 		var orderedBy, orderedVia *string
 		if err := rows.Scan(&m.HumanID, &m.DisplayName, &m.Email, &m.Interests, &m.Role, &m.Since, &m.Disabled, &m.Suspended, &seen,
-			&orderedBy, &m.OrderedByName, &orderedVia, &invitedOn); err != nil {
+			&orderedBy, &m.OrderedByName, &orderedVia, &invitedOn, &until); err != nil {
 			return err
 		}
 		if seen != nil {
@@ -178,6 +182,9 @@ func listMembersRead(tenant string, out *[]Member) tenantRead {
 		}
 		if invitedOn != nil {
 			m.InvitedOn = invitedOn.UTC()
+		}
+		if until != nil {
+			m.AccessUntil = until.UTC()
 		}
 		*out = append(*out, m)
 		return nil

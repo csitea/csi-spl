@@ -31,7 +31,12 @@ type memberRow struct {
 	// Suspended: disabled in this tenant only (specs/046, rdb 0074).
 	Suspended bool    `json:"suspended"`
 	LastSeen  *string `json:"last_seen"` // null = never switched into the tenant
-	You       bool    `json:"you"`
+	// AccessUntil: when this membership stops granting access (rdb 0113,
+	// spec 072 A27); null = no end. AccessEnded: that time has passed, so
+	// the member holds no role here until an admin extends or clears it.
+	AccessUntil *string `json:"access_until"`
+	AccessEnded bool    `json:"access_ended"`
+	You         bool    `json:"you"`
 	// Manageable: the caller's role covers this member's (025 §3.4 rule 2)
 	// and it is not the caller. The hub re-checks on every write.
 	Manageable bool `json:"manageable"`
@@ -118,6 +123,10 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 		if !m.InvitedOn.IsZero() {
 			at := rfc(m.InvitedOn)
 			row.InvitedOn = &at
+		}
+		if !m.AccessUntil.IsZero() {
+			at := rfc(m.AccessUntil)
+			row.AccessUntil, row.AccessEnded = &at, !now.Before(m.AccessUntil)
 		}
 		out.Members = append(out.Members, row)
 	}

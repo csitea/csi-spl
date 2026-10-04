@@ -20,7 +20,7 @@ type RosterReader interface {
 func (s *Postgres) ViewRoster(ctx context.Context, tenant string) (Roster, error) {
 	rs := Roster{Avatars: map[string]string{}, Members: []Member{}}
 	err := s.queryTenantBatch(ctx, tenant, viewBoxesRead(tenant, &rs.Boxes, s.hasAgentSeats(ctx)),
-		tenantAvatarsRead(tenant, rs.Avatars), listMembersRead(tenant, &rs.Members))
+		tenantAvatarsRead(tenant, rs.Avatars), listMembersRead(tenant, &rs.Members, s.hasAccessUntil(ctx)))
 	if err != nil {
 		return Roster{}, err
 	}

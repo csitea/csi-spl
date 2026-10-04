@@ -25,6 +25,8 @@ type Postgres struct {
 	hot  hotCache // pins and tenant rows of the send path (hotcache.go)
 	// seats: is rdb 0107 agent_seats there yet (agent_seats.go)
 	seats seatsProbe
+	// access: is rdb 0113 tenant_memberships.access_until there yet (access_until.go)
+	access seatsProbe
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps

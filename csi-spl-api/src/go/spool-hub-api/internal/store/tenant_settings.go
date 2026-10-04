@@ -217,16 +217,26 @@ func (s *Memory) SetMemberDisabled(_ context.Context, tenant, humanID string, of
 		return ErrNotFound
 	}
 	if off && !m.disabled {
-		roles := memRoles()
-		if roles[m.role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
-			return ErrLastOwner
-		}
-		if grants(roles[m.role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
-			return ErrLastAdmin
+		if err := s.memLockoutGuard(tenant, humanID, m.role); err != nil {
+			return err
 		}
 	}
 	m.disabled = off
 	s.hum.members[k] = m
+	return nil
+}
+
+// memLockoutGuard is ErrLastOwner / ErrLastAdmin when locking humanID (role)
+// out of tenant would leave it with no enabled owner / member manager: a
+// suspension, or an end of access (access_until.go). Caller holds s.mu.
+func (s *Memory) memLockoutGuard(tenant, humanID, role string) error {
+	roles := memRoles()
+	if roles[role].TenantOwner && s.memOwnersLeft(tenant, humanID) == 0 {
+		return ErrLastOwner
+	}
+	if grants(roles[role], rbac.MembersInvite) && s.memAdminsLeft(tenant, humanID) == 0 {
+		return ErrLastAdmin
+	}
 	return nil
 }
 
@@ -318,14 +328,7 @@ func (s *Postgres) SetMemberDisabled(ctx context.Context, tenant, humanID string
 			return err
 		}
 		if off {
-			if owner {
-				if n, err := ownersLeftTx(ctx, tx, tenant, humanID); err != nil {
-					return err
-				} else if n == 0 {
-					return ErrLastOwner
-				}
-			}
-			if err := lastAdminTx(ctx, tx, tenant, humanID, cur, ""); err != nil {
+			if err := lockoutGuardTx(ctx, tx, tenant, humanID, cur, owner); err != nil {
 				return err
 			}
 		}
@@ -338,4 +341,19 @@ func (s *Postgres) SetMemberDisabled(ctx context.Context, tenant, humanID string
 			WHERE tenant_id = $1 AND human_id = $2`, tenant, humanID, at)
 		return err
 	})
+}
+
+// lockoutGuardTx is ErrLastOwner / ErrLastAdmin when locking humanID (role
+// cur, a tenant-owner role when owner) out of tenant would leave it with no
+// enabled owner / member manager: a suspension, or an end of access
+// (access_until.go). memberTx holds the tenant lock.
+func lockoutGuardTx(ctx context.Context, tx pgx.Tx, tenant, humanID, cur string, owner bool) error {
+	if owner {
+		if n, err := ownersLeftTx(ctx, tx, tenant, humanID); err != nil {
+			return err
+		} else if n == 0 {
+			return ErrLastOwner
+		}
+	}
+	return lastAdminTx(ctx, tx, tenant, humanID, cur, "")
 }

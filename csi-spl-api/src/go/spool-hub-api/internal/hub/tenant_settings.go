@@ -2,9 +2,11 @@ package hub
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -405,7 +407,7 @@ func (s *Server) memberRoleAny(ctx context.Context, h store.Humans, tenant, huma
 	return h.MemberRole(ctx, humanID, tenant)
 }
 
-// PATCH /v1/members/{human_id} {display_name?, locale?, disabled?}
+// PATCH /v1/members/{human_id} {display_name?, locale?, disabled?, access_until?}
 func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 	t, a, roles, h, ok := s.membersActor(w, r, rbac.MembersInvite)
 	if !ok {
@@ -419,11 +421,14 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 		DisplayName *string `json:"display_name"`
 		Locale      *string `json:"locale"`
 		Disabled    *bool   `json:"disabled"`
+		// AccessUntil: RFC 3339 = the membership ends then; null = no end
+		// (rdb 0113, spec 072 A27). Absent = unchanged.
+		AccessUntil json.RawMessage `json:"access_until"`
 	}
 	if !decodeMembers(w, r, &body) {
 		return
 	}
-	if body.DisplayName == nil && body.Locale == nil && body.Disabled == nil {
+	if body.DisplayName == nil && body.Locale == nil && body.Disabled == nil && body.AccessUntil == nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "nothing to change")
 		return
 	}
@@ -447,6 +452,10 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 	if body.Disabled != nil && *body.Disabled && !notSelf(w, a, target) {
 		return
 	}
+	until, ok := parseAccessUntil(w, body.AccessUntil)
+	if !ok || (body.AccessUntil != nil && !notSelf(w, a, target)) {
+		return
+	}
 	// The profile (name, locale) is the person's own across every tenant:
 	// a tenant admin edits it only for an account that is in this tenant
 	// alone (046 §3).
@@ -467,6 +476,9 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if body.AccessUntil != nil && !s.setAccessUntil(w, r, t.ID, target, until) {
+		return
+	}
 	if body.DisplayName != nil {
 		if err := h.SetDisplayName(r.Context(), target, name); err != nil {
 			writeMemberErr(w, err)
@@ -480,8 +492,46 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Bool("name", body.DisplayName != nil).
-		Bool("locale", body.Locale != nil).Bool("disabled_set", body.Disabled != nil).Msg("member.updated")
+		Bool("locale", body.Locale != nil).Bool("disabled_set", body.Disabled != nil).
+		Bool("access_until_set", body.AccessUntil != nil).Msg("member.updated")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// parseAccessUntil reads a PATCH's access_until: nil for JSON null (no end),
+// the instant for an RFC 3339 string. Anything else is a 400 (ok false).
+func parseAccessUntil(w http.ResponseWriter, raw json.RawMessage) (*time.Time, bool) {
+	if raw == nil || string(raw) == "null" {
+		return nil, true
+	}
+	var v string
+	if err := json.Unmarshal(raw, &v); err == nil {
+		if at, err := time.Parse(time.RFC3339, strings.TrimSpace(v)); err == nil {
+			at = at.UTC()
+			return &at, true
+		}
+	}
+	writeErr(w, http.StatusBadRequest, "bad_access_until", "access_until must be an RFC 3339 time or null")
+	return nil, false
+}
+
+// setAccessUntil writes a membership's end of access (spec 072 A27); false
+// when it answered an error.
+func (s *Server) setAccessUntil(w http.ResponseWriter, r *http.Request, tenant, target string, until *time.Time) bool {
+	ma, ok := s.o.Store.(store.MemberAccess)
+	if !ok {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no membership expiry")
+		return false
+	}
+	err := ma.SetMemberAccessUntil(r.Context(), tenant, target, until)
+	if errors.Is(err, store.ErrAccessUntilUnavailable) {
+		writeErr(w, http.StatusServiceUnavailable, "not_migrated", "membership expiry needs rdb 0113 on this hub's database")
+		return false
+	}
+	if err != nil {
+		writeMemberErr(w, err)
+		return false
+	}
+	return true
 }
 
 // sharedAccount reports whether humanID holds a membership in a tenant other

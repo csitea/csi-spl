@@ -61,7 +61,7 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 	}
 	var out []Membership
 	for k, m := range s.hum.members {
-		if k[1] == humanID && !m.disabled {
+		if k[1] == humanID && !m.disabled && !lapsed(m.accessUntil, time.Now()) {
 			ms := Membership{TenantID: k[0], Role: m.role}
 			if t, ok := s.tenants[k[0]]; ok {
 				ms.DisplayName, ms.SortOrder = t.DisplayName, t.SortOrder
@@ -118,10 +118,11 @@ func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membershi
 	// rdb 0078 override; on undefined_column (0078 not applied) it retries
 	// without it so the list survives (SPL-1179).
 	var out []Membership
-	err := s.asOperatorQuery(ctx, membershipsSQL(true), []any{humanID}, membershipRow(true, &out))
+	withAccess := s.hasAccessUntil(ctx)
+	err := s.asOperatorQuery(ctx, membershipsSQL(true, withAccess), []any{humanID}, membershipRow(true, &out))
 	if err != nil && isUndefinedColumn(err) {
 		out = out[:0]
-		err = s.asOperatorQuery(ctx, membershipsSQL(false), []any{humanID}, membershipRow(false, &out))
+		err = s.asOperatorQuery(ctx, membershipsSQL(false, withAccess), []any{humanID}, membershipRow(false, &out))
 	}
 	return out, err
 }
@@ -134,8 +135,9 @@ func isUndefinedColumn(err error) bool {
 }
 
 // membershipsSQL is the membership list of the human in $1; withSettings
-// folds in the rdb 0078 override column (NULL otherwise).
-func membershipsSQL(withSettings bool) string {
+// folds in the rdb 0078 override column (NULL otherwise); withAccess leaves
+// out a membership past its rdb 0113 access_until (spec 072 A27).
+func membershipsSQL(withSettings, withAccess bool) string {
 	settingsCol := "NULL::jsonb"
 	if withSettings {
 		settingsCol = "m.settings"
@@ -145,7 +147,7 @@ func membershipsSQL(withSettings bool) string {
 		FROM tenant_memberships m
 		JOIN humans h ON h.human_id = m.human_id
 		JOIN tenants tn ON tn.tenant_id = m.tenant_id
-		WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL
+		WHERE m.human_id = $1 AND h.disabled_at IS NULL AND m.disabled_at IS NULL` + accessLive(withAccess) + `
 		ORDER BY tn.sort_order NULLS LAST, m.tenant_id`
 }
 

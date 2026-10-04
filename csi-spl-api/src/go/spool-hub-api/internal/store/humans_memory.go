@@ -31,6 +31,7 @@ type memMember struct {
 	channelOrder     []string                   // channel_order (rdb 0073); nil = never set
 	settings         map[string]json.RawMessage // settings jsonb (rdb 0078); per-tenant override, nil = none
 	disabled         bool                       // disabled_at (rdb 0074): suspended in this tenant
+	accessUntil      time.Time                  // access_until (rdb 0113); zero = no end
 	// Provenance copied from the accepted invite (rdb 0084), mirroring the
 	// Postgres read that joins tenant_invites on accepted_by.
 	orderedBy, orderedVia string
@@ -269,7 +270,7 @@ func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, 
 		return "", ErrNotFound
 	}
 	m, ok := s.hum.members[[2]string{tenant, humanID}]
-	if !ok || m.disabled {
+	if !ok || m.disabled || lapsed(m.accessUntil, time.Now()) {
 		return "", ErrNotFound
 	}
 	return m.role, nil

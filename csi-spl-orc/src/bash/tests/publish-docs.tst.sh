@@ -10,7 +10,7 @@
 #      left out
 #   3. DRY_RUN (default) prints tree.json and uploads nothing
 #   4. DRY_RUN=0 uploads the stage to the cnf bucket as the pinned SA
-#   5. no docs bucket in cnf: INFO, rc 0, nothing uploaded
+#   5. no docs bucket in cnf, or publish_enabled false: INFO, rc 0, no upload
 #   6. ENV is validated
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -41,7 +41,8 @@ put csi-spl-doc/notes.txt "not md"
 git -C "$REPO" commit -qm docs
 SHA=$(git -C "$REPO" rev-parse HEAD)
 echo "# untracked" >"$REPO/csi-spl-doc/untracked.md"
-printf 'env:\n  steps:\n    051-gcs-docs:\n      docs_bucket_name: csi-spl-dev-docs\n' >"$T/cnf.yaml"
+printf 'env:\n  steps:\n    051-gcs-docs:\n      docs_bucket_name: csi-spl-dev-docs\n      publish_enabled: true\n' >"$T/cnf.yaml"
+printf 'env:\n  steps:\n    051-gcs-docs:\n      docs_bucket_name: csi-spl-dev-docs\n      publish_enabled: false\n' >"$T/cnf-off.yaml"
 printf 'env:\n  steps: {}\n' >"$T/cnf-none.yaml"
 
 # act <env...> -> stdout; stderr in $T/err; uploads logged to $UPLOADS
@@ -87,8 +88,11 @@ up=$(tail -n +2 "$UPLOADS" | paste -sd' ')
 # --- 5. no bucket in cnf: INFO, rc 0, nothing uploaded ------------------------
 rm -f "$UPLOADS"
 out=$(act ENV=prd DRY_RUN=0 CNF="$T/cnf-none.yaml"); rc=$?
-[[ $rc == 0 && ! -s "$UPLOADS" ]] && grep -q 'INFO no docs bucket in cnf for prd' "$T/err" \
-  && pass "no 051 bucket yet: INFO, rc 0, no upload" || fail "no bucket: rc $rc err '$(cat "$T/err")'"
+[[ $rc == 0 && ! -s "$UPLOADS" ]] && grep -q 'INFO docs publish is off for prd' "$T/err" \
+  && pass "no 051 bucket in cnf: INFO, rc 0, no upload" || fail "no bucket: rc $rc err '$(cat "$T/err")'"
+out=$(act ENV=dev DRY_RUN=0 CNF="$T/cnf-off.yaml"); rc=$?
+[[ $rc == 0 && ! -s "$UPLOADS" ]] && grep -q 'publish_enabled=false' "$T/err" \
+  && pass "a bucket named but publish_enabled false (051 not applied): no upload" || fail "off: rc $rc err '$(cat "$T/err")'"
 
 # --- 6. ENV is validated -------------------------------------------------------
 act ENV=lde >/dev/null; rc=$?

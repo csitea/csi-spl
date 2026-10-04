@@ -40,7 +40,7 @@ check() {
 }
 
 # --- 2. env: any cnf env name, never lde --------------------------------------
-for s in 019 020 028 040 045 046 050; do
+for s in 019 020 028 040 045 046 050 051; do
   check "$s" env "dev,prd,stg" "Dev,x,dev-1"
   f=$(ls "$TF"/"$s"-*/02-variables.tf)
   grep -qF 'var.env != "lde"' "$f" && pass "$s env refuses lde" || fail "$s env does not refuse lde"
@@ -56,6 +56,7 @@ check 045 backups_bucket_name "csi-spl-dev-db-backups,acme-spool-dev-7f3a-db-bac
 check 046 tf_key_project "csi-spl-bkp,acme-spool-bkp-7f3a" "bkp,Bad_Project,acme-"
 check 046 offsite_bucket_name "csi-spl-bkp-dev,acme-spool-bkp-7f3a-stg" "Bad,-b"
 check 050 files_bucket_name "csi-spl-dev-files,acme-spool-dev-7f3a-files" "Bad,files-"
+check 051 docs_bucket_name "csi-spl-dev-docs,acme-spool-dev-7f3a-docs" "Bad,docs-"
 
 # CONTROL: the extraction is live - an old pinned regex refuses the clone name
 grep -qE '^csi-spl-(dev|prd)-rel$' <<<"acme-spool-dev-7f3a-rel" \

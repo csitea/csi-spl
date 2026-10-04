@@ -14,8 +14,9 @@
 # @description WUI's built help copy (src/public/help-md: doc/help is
 # @description published from its source) and a path the hub would refuse.
 # @description The upload mirrors: an object no longer in the repo is deleted.
-# @description No docs bucket in cnf for ENV (051 not applied yet) = an INFO
-# @description and rc 0, so the deploy step lands before the bucket does.
+# @description Off until cnf steps.051-gcs-docs.publish_enabled is true (set
+# @description once 051 is applied): an INFO and rc 0, so the deploy step
+# @description lands before the bucket does.
 # @description As the env's project service account, never the owner account.
 # @param ENV - required: dev or prd
 # @param DRY_RUN (optional) - 1 (default): stage and print tree.json, upload nothing; 0: upload
@@ -48,10 +49,11 @@ do_publish_docs() {
 
   do_require_bin yq gcloud || return 1
   do_spl_cloud_cnf || return 1
-  local bucket
+  local bucket on
   bucket="$(yq -r '.env.steps."051-gcs-docs".docs_bucket_name // ""' "$SPL_CNF")"
-  if [[ -z "$bucket" || "$bucket" == null ]]; then
-    do_log "INFO no docs bucket in cnf for $ENV (steps.051-gcs-docs.docs_bucket_name): nothing published"
+  on="$(yq -r '.env.steps."051-gcs-docs".publish_enabled // false' "$SPL_CNF")"
+  if [[ -z "$bucket" || "$bucket" == null || "$on" != true ]]; then
+    do_log "INFO docs publish is off for $ENV (cnf steps.051-gcs-docs: docs_bucket_name='$bucket', publish_enabled=$on - true once 051 is applied): nothing published"
     return 0
   fi
   do_gcp_pin_account "$SPL_CNF" || return 1

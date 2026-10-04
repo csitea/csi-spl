@@ -48,6 +48,8 @@ do_spl_merged_cnf() {
     yq '(.env | select(.hub != null)) |= (
       .hub.env.SPOOL_HUB_ENV = (.hub.env.SPOOL_HUB_ENV // .ENV) |
       .hub.env.SPOOL_HUB_FILES_BUCKET = (.hub.env.SPOOL_HUB_FILES_BUCKET // .steps."050-gcs-files".files_bucket_name) |
+      with(select(.steps."051-gcs-docs".publish_enabled == true and .steps."051-gcs-docs".docs_bucket_name != null);
+        .hub.env.SPOOL_HUB_DOCS_BUCKET = (.hub.env.SPOOL_HUB_DOCS_BUCKET // .steps."051-gcs-docs".docs_bucket_name)) |
       .hub.env.SPOOL_HUB_TENANT_HOST_PATTERN = (.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ("{tenant}." + .dns.fqdn)))' |
     yq '(.env | select(.hub != null and .i18n.default_locale != null)) |= (
       .hub.env.SPOOL_HUB_DEFAULT_LOCALE = (.hub.env.SPOOL_HUB_DEFAULT_LOCALE // .i18n.default_locale))' |

@@ -88,6 +88,14 @@ f="$TFD/050-gcs-files/03-files-bucket.tf"
 grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "files bucket: uniform bucket-level access on" || fail "files bucket: uniform access is not true"
 grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "files bucket: public access prevention enforced" || fail "files bucket: PAP is not enforced"
 grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers' "$TFD/050-gcs-files/"*.tf && fail "a public/ACL grant appears in 050" || pass "no ACL or allUsers grant in 050"
+# the Docs section's bucket (051): private like 050, the hub reads, no CORS
+f="$TFD/051-gcs-docs/03-docs-bucket.tf"
+grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "docs bucket: uniform bucket-level access on" || fail "docs bucket: uniform access is not true"
+grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "docs bucket: public access prevention enforced" || fail "docs bucket: PAP is not enforced"
+grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers|cors' "$TFD/051-gcs-docs/"*.tf && fail "a public/ACL/CORS grant appears in 051" || pass "no ACL, allUsers or CORS in 051"
+[[ "$(cat "$TFD"/051-gcs-docs/*.tf | grep -cE '^resource "google_storage_bucket_iam_member"')" == 1 ]] \
+  && grep -qE '^\s*role\s*=\s*"roles/storage.objectViewer"' "$TFD/051-gcs-docs/04-hub-reader.tf" \
+  && pass "051: the hub SA reads (one objectViewer binding), nothing else" || fail "051 bindings are not exactly the hub's objectViewer"
 # No secret may reach tf state: no password, no generated secret, no secret
 # VERSION, no SA key anywhere in the terraform tree.
 grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \
@@ -116,6 +124,16 @@ for env in dev prd; do
   grep -E '^environment_variables ' "$v" | grep '"SPOOL_HUB_DB_DSN":' >/dev/null && fail "$env DSN is a plain env var" || pass "$env DSN is not a plain env var"
   grep -E '^secret_environment_variables ' "$v" | grep '"SPOOL_HUB_DB_DSN": "csi-spl-hub-db-dsn"' >/dev/null && pass "$env DSN comes from Secret Manager" || fail "$env DSN is not a secret_environment_variable"
   grep -q "^files_bucket_name = \"csi-spl-$env-files\"" "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/050-gcs-files.vars.tfvars" && pass "$env files bucket is csi-spl-$env-files" || fail "$env files bucket name"
+  d="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/051-gcs-docs.vars.tfvars"
+  grep -qx "docs_bucket_name = \"csi-spl-$env-docs\"" "$d" && grep -qx "hub_runtime_sa_account_id = \"csi-spl-hub-$env\"" "$d" \
+    && pass "$env docs bucket is csi-spl-$env-docs, read by csi-spl-hub-$env" || fail "$env 051 tfvars"
+  grep -q publish_enabled "$d" && fail "$env 051 tfvars carry publish_enabled (a cnf gate, not a tfvar)" || pass "$env publish_enabled stays out of the 051 tfvars"
+  # the hub is pointed at the bucket only once publish_enabled is true (after the 051 apply)
+  if yq -e '.env.steps."051-gcs-docs".publish_enabled == true' "$APP_ROOT/csi-spl-cnf/csi-spl/$env.env.yaml" >/dev/null 2>&1; then
+    grep -q "\"SPOOL_HUB_DOCS_BUCKET\": \"csi-spl-$env-docs\"" "$v" && pass "$env hub env names the 051 bucket" || fail "$env publish_enabled but SPOOL_HUB_DOCS_BUCKET is not csi-spl-$env-docs"
+  else
+    grep -q SPOOL_HUB_DOCS_BUCKET "$v" && fail "$env hub env names the docs bucket before publish_enabled" || pass "$env hub env has no docs bucket until publish_enabled"
+  fi
   # 017 T029: the schema owner's DSN has its own 040 slot, and the hub never sees it
   grep -qx 'owner_dsn_secret_id = "csi-spl-hub-db-owner-dsn"' "$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/040-cloud-sql-postgres.vars.tfvars" \
     && pass "$env 040 renders the owner DSN slot" || fail "$env 040 lacks owner_dsn_secret_id"

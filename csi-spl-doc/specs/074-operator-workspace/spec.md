@@ -24,16 +24,22 @@ Per the owner's wording rule, this specification uses the term **workspace** thr
 
 Today, workspaces are created and governed through low-level operational scripts (`do_spl_tenant_*`), direct database insertions via the spool CLI (`spool hub-tenant`, `spool hub-tenant-billing`), or raw database migrations. Each workspace operates in an isolated silo with no administrative console to govern the multi-workspace cloud instance as a unified whole. Furthermore, provisioning individual DNS subdomains (`<workspace>.<BASE_DOMAIN>`) introduces substantial latency (~30 minutes for TLS certificate provisioning) and operational fragility.
 
-The owner established the architectural requirement in prd workspace `t1`, topic `aa35699c-94ef-44b7-8f28-a51f53664d91`:
+The owner established the architectural requirements in prd workspace `t1`, topic `aa35699c-94ef-44b7-8f28-a51f53664d91`, verbatim, in chronological order:
 
-Owner HUM-10, msg `15ba3d07-3624-4591-9ddc-158a32a6447b`, verbatim:
-> "we need to make the spool-hub tenant a bit special , so thhat it will be the only place to magage the other spool-hub tenants on a cloud instance ( aka one DNS entry point )"
+1. Owner HUM-10, msg `15ba3d07-3624-4591-9ddc-158a32a6447b`:
+   > "we need to make the spool-hub tenant a bit special , so thhat it will be the only place to magage the other spool-hub tenants on a cloud instance ( aka one DNS entry point )"
 
-and msg `9e90b5d6-8bfb-4e0c-ab9a-7e55b53e2f6f`, verbatim:
-> "and it will be the only tenant to provid the ui for that as well"
+2. Owner HUM-10, msg `9e90b5d6-8bfb-4e0c-ab9a-7e55b53e2f6f`:
+   > "and it will be the only tenant to provid the ui for that as well"
 
-and msg `94071e2e-10a8-45e5-817d-fd51d8592424`, verbatim:
-> "and only the admin of the spool-hub could perform any spool-hub instance specific changes , like add or remove tenants - he has to be admin , not biz owner"
+3. Owner HUM-10, msg `94071e2e-10a8-45e5-817d-fd51d8592424`:
+   > "and only the admin of the spool-hub could perform any spool-hub instance specific changes , like add or remove tenants - he has to be admin , not biz owner"
+
+4. Owner HUM-10, msg `880e9e40-6050-4887-ac96-44bc11311337`:
+   > "first we need to create / update the api for the CRUD of tenants , than add the shell actions to e possible to create it via the CLI and than at the end create the UI for it with all ofthe possible actions to perform in order for a tenant to become useful"
+
+5. Owner HUM-10, msg `e76a7b38`:
+   > "go do it"
 
 ### Core Principles
 1. **One Designated Operator Workspace per Cloud Instance**: One workspace on the instance is configured as the operator workspace (the instance management hub). It serves as the single administrative pane of glass.
@@ -41,6 +47,10 @@ and msg `94071e2e-10a8-45e5-817d-fd51d8592424`, verbatim:
 3. **Exclusive Management Interface**: The UI to list, create, suspend, rename, configure billing, and inspect member/agent counts across workspaces exists **only** within the operator workspace. No regular workspace exposes this UI.
 4. **Strict Administrative Gate (`admin`, not `biz_owner`)**: Only a member holding the `admin` role in the operator workspace may execute instance-level actions. A business owner (`biz_owner`) of the operator workspace is explicitly refused permission for instance mutations. A workspace administrator of workspace A has zero access to workspace B.
 5. **Universal Model for Self-Hosted and Cloud Deployments**: On a self-hosted or open-source instance (spec 044, 072), the first workspace provisioned during bootstrap automatically becomes the operator workspace, empowering the self-hoster without requiring cloud infrastructure tools.
+6. **Ordered Three-Phase Implementation**:
+   - Phase 1: Hub API for full workspace CRUD (operator-admin only, built in parallel by lane c-210).
+   - Phase 2: Shell actions (`./run -a do_spl_tenant_*`) and CLI verbs (`spool hub-tenant-*`) re-routed over that API.
+   - Phase 3: The operator workspace UI incorporating every action needed to make a newly provisioned workspace immediately useful.
 
 ---
 
@@ -92,8 +102,8 @@ Every claim below is verified against master (tree `origin/master` @ `803aff49a`
     │ Role: admin                          │              │ Role: admin / biz_owner / member     │
     │  ├─ Instance Workspaces Console (UI) │              │  ├─ Intra-Workspace Settings (046)   │
     │  ├─ List / Search all workspaces     │              │  ├─ Local Members / Roles (CRUD)     │
-    │  ├─ Create new workspace             │              │  ├─ Local Seated Agents (073)        │
-    │  ├─ Suspend / Reactivate workspace   │              │  ├─ Local Channels & Topics          │
+    │  ├─ "Make Useful" Creation Wizard    │              │  ├─ Local Seated Agents (073)        │
+    │  ├─ Suspend / Reactivate / Archive   │              │  ├─ Local Channels & Topics          │
     │  ├─ Update display name & settings   │              │  │                                   │
     │  ├─ Set billing / plan tier          │              │  │  [NO Instance Workspaces UI]      │
     │  └─ Inspect members / agent counts   │              │  │  [NO Cross-Workspace Controls]    │
@@ -109,12 +119,13 @@ Every claim below is verified against master (tree `origin/master` @ `803aff49a`
                        └──────────────────────────┬──────────────────────────┘
                                                   ▼
                                       PostgreSQL + Row-Level Security
-                                (instance_operator_audit_events table)
+                                (operator_audit table, rdb 0115)
 ```
 
 ### 3.1 Designated Operator Workspace
-- **Instance Configuration**: The operator workspace is declared in configuration (`csi-spl-cnf/csi-spl/all.env.yaml` under `env.instance.operator_workspace` and rendered into environment files), exposed to the hub as the environment variable `SPOOL_HUB_OPERATOR_WORKSPACE`.
-- **No Hardcoded Slug**: The codebase contains no literal workspace identifier (such as `t1` or `operator`) hardcoded as an authority. In existing estates, `SPOOL_HUB_OPERATOR_WORKSPACE` defaults to the existing root workspace (e.g. `t1`); in fresh or self-hosted deployments, it defaults to the first created workspace.
+- **Instance Configuration**: The operator workspace is declared in configuration (`csi-spl-cnf/csi-spl/all.env.yaml` under `env.instance.operator_workspace` and rendered into environment files), exposed to the hub as the environment variable `SPOOL_HUB_OPERATOR_TENANT`.
+- **Fallback Resolution**: When `SPOOL_HUB_OPERATOR_TENANT` is unset, it defaults to `SPOOL_HUB_WUI_APEX_TENANT` (cnf `wui_default_tenant`, `t1` on dev and prd). If both are empty, operator endpoints answer HTTP 404.
+- **No Hardcoded Slug**: The codebase contains no literal workspace identifier (such as `t1` or `operator`) hardcoded as an authority. In existing estates, it defaults to the existing root workspace (e.g. `t1`); in fresh or self-hosted deployments, it defaults to the first created workspace.
 - **Dual Functionality**: The operator workspace is a standard, fully functioning workspace (carrying channels, members, topics, notes, agents, and local settings), but additionally serves as the administrative cockpit for the entire cloud instance.
 
 ### 3.2 Single DNS Entry Point and Unified Routing
@@ -135,30 +146,37 @@ Every claim below is verified against master (tree `origin/master` @ `803aff49a`
 ### 3.3 The Operator Management Interface (WUI)
 The operator management interface lives exclusively in the operator workspace:
 - **Visibility Condition**: In `csi-spl-wui`, the "Instance Workspaces" navigation tab and route (`/operator/workspaces`) appear **if and only if**:
-  1. The current active workspace matches `pub.operatorWorkspace` (rendered from `SPOOL_HUB_OPERATOR_WORKSPACE`), **and**
+  1. The current active workspace matches `pub.operatorWorkspace` (rendered from `SPOOL_HUB_OPERATOR_TENANT`), **and**
   2. The authenticated user holds the `admin` role in that workspace.
 - **Strict Isolation**: When navigating any regular workspace, or when viewing the operator workspace as a non-admin (e.g. `biz_owner`, `developer`, `member`), the navigation item is entirely omitted from DOM and router definitions. Direct navigation to `/operator/workspaces` redirects to `/lobby` with an access alert.
-- **Management Capabilities**:
-  1. **Workspace Catalogue**: Searchable, paginated table listing all workspaces on the cloud instance:
-     - Workspace ID (slug)
-     - Display name
-     - Status: `active`, `suspended`, `grace`, `unpaid`, `manual`
-     - Member count and seated agent count
-     - Creation date and last activity timestamp
-  2. **Workspace Provisioning (Create)**:
-     - Input: workspace slug (validated against `^[a-z0-9][a-z0-9-]{0,31}$` and reserved words `dev`, `prd`, `api`, `www`, `operator`), display name, initial administrator email, and plan tier.
-     - Execution: Atomically provisions the workspace record, generates its root Ed25519 keypair, stores the public key, pins `box-wui` (resolving SPL-1290), mints the initial invite or claim token, and displays credentials once in a secure modal.
-     - Latency: Immediate (no DNS or infrastructure operations).
-  3. **Lifecycle Control (Suspend / Reactivate)**:
-     - **Suspend**: Instantly blocks all user sign-ins to that workspace (`423 locked`), disconnects active agent WebSocket connections, and rejects API requests with `423 workspace_suspended`. All workspace data is preserved intact.
-     - **Reactivate**: Instantly restores regular access and connectivity.
-     - **Operator Workspace Protection**: The designated operator workspace cannot be suspended or deleted (enforced by server logic with `409 cannot_suspend_operator_workspace`).
-  4. **Settings & Metadata Modification**:
-     - Manage workspace display name, fallback responders, default locale, issue key prefix, and quota limits.
-  5. **Billing & Plan Assignment**:
-     - Manually adjust billing status (`active`, `grace`, `unpaid`, `manual`, `suspended`) and allocate seat/message quotas without requiring raw SQL or CLI invocations.
-  6. **Read-Only Inspection**:
-     - Drawer/modal displaying the member directory and seated agents of a selected workspace for troubleshooting, administrative oversight, and compliance, without granting access to private message history, channels, or DMs.
+
+### 3.4 The "Making a New Workspace Useful" Checklist (Owner msg `880e9e40`)
+When an operator creates a new workspace, creating the database row alone leaves it empty and inert. Per the owner's explicit mandate, the operator API, CLI, and UI must provide every action required for the workspace to become immediately operational:
+
+1. **Core Workspace Creation**:
+   - Slug validation (`^[a-z0-9][a-z0-9-]{0,31}$`, no reserved words `dev`, `prd`, `api`, `www`, `operator`).
+   - Root Ed25519 keypair generation; public key stored in DB.
+   - Immediate pinning of `box-wui` (signed with the root key while in memory, resolving SPL-1290) so browser posts are verified.
+2. **Initial Administrator / Member Onboarding**:
+   - Prompt for the initial workspace administrator's email and role (`first_admin_email`, `first_admin_role`, default `admin`).
+   - Option A: Mint an email invitation with an immediate join link.
+   - Option B: Create the account directly with a one-time temporary password (046 `POST /v1/members`), allowing immediate sign-in.
+3. **Workspace Configuration & Metadata**:
+   - Set the workspace display name (e.g. "Acme Engineering").
+   - Set default preferred locale (`default_locale`, e.g. `en`, `sv`, `nl`, `de`).
+   - Configure the workspace issue key prefix (e.g. `ENG-`, `OPS-`).
+   - Configure fallback responders and topic archive policies (`topic_archive_policy`).
+4. **Default Communication Channels**:
+   - Automatically seed default public channels (`#general`, `#lobby`, `#announcements`) so members have an immediate home upon landing.
+5. **Seating Agent Boxes**:
+   - Provide an immediate action to mint an initial agent join token (`spj1.<tenant>.<secret>`, spec 073) so developers can attach CLI or worker agents to the new workspace in seconds without touching the root private key.
+6. **Billing & Plan Assignment**:
+   - Assign initial billing status (`billing_status`, default `manual`, or `active`, `internal`, `grace`).
+   - Allocate seat and monthly message quotas per instance policies.
+7. **Lifecycle Controls**:
+   - Suspend / reactivate toggle: instantly cut off access (`403 workspace_suspended`) while preserving data.
+   - Soft delete: mark workspace archived (`tenants.archived_at = now()`) and suspended (`tenants.suspended_at = now()`) via `DELETE /v1/operator/workspaces/{id}`.
+   - Hard purge: explicitly refused (`?purge` returns 400).
 
 ---
 
@@ -168,10 +186,10 @@ The operator management interface lives exclusively in the operator workspace:
 The owner established a decisive security rule (msg `94071e2e-10a8-45e5-817d-fd51d8592424`):
 > "and only the admin of the spool-hub could perform any spool-hub instance specific changes , like add or remove tenants - he has to be admin , not biz owner"
 
-- **New Permission: `instance.workspaces`**:
-  - Catalogued in `internal/rbac/rbac.go` as `instance.workspaces` ("manage every workspace on the cloud instance").
+- **New Permission: `operator.workspaces`**:
+  - Catalogued in `internal/rbac/rbac.go` as `operator.workspaces` ("manage every workspace on the cloud instance").
   - Granted **strictly to the `admin` role** within the designated operator workspace.
-  - **Withheld from `biz_owner`**: The business owner (`biz_owner`) of the operator workspace does **not** receive `instance.workspaces`. An operator workspace `biz_owner` attempting to create, suspend, or modify another workspace is refused with HTTP 403 `operator_admin_required`.
+  - **Withheld from `biz_owner`**: The business owner (`biz_owner`) of the operator workspace does **not** receive `operator.workspaces`. An operator workspace `biz_owner` attempting to create, suspend, or modify another workspace is refused with HTTP 403 (`permission: operator.workspaces`).
   - **Withheld from Regular Workspaces**: Neither `admin` nor `biz_owner` of any regular workspace holds this permission.
 - **Server-Side Authorization Middleware**:
   Every operator route executes the middleware `requireOperatorAdmin(r)`:
@@ -183,58 +201,55 @@ The owner established a decisive security rule (msg `94071e2e-10a8-45e5-817d-fd5
           return nil, errUnauthorized
       }
       if sess.Tenant != s.operatorWorkspace {
-          http.Error(w, `{"error":"forbidden","reason":"operator_workspace_required"}`, http.StatusForbidden)
+          http.Error(w, `{"error":"forbidden","permission":"operator.workspaces","reason":"operator_workspace_required"}`, http.StatusForbidden)
           return nil, errForbidden
       }
       role, err := s.store.MemberRole(r.Context(), sess.Tenant, sess.HumanID)
       if err != nil || role != rbac.Admin {
-          http.Error(w, `{"error":"forbidden","reason":"operator_admin_required"}`, http.StatusForbidden)
+          http.Error(w, `{"error":"forbidden","permission":"operator.workspaces","reason":"operator_admin_required"}`, http.StatusForbidden)
           return nil, errForbidden
       }
       return sess, nil
   }
   ```
 
-### 4.2 Database Scoping & RLS Boundaries
+### 4.2 Hub Operator API Routes (Phase 1, c-210 contract)
+
+| Method & Route | Auth & Permission | Request Body | Response & Behaviour |
+|---|---|---|---|
+| `GET /v1/operator/workspaces` | Operator `admin` | - | 200 OK: array of `{id, display_name, billing_status, plan_id, created_at, suspended_at, archived_at, operator}`. |
+| `POST /v1/operator/workspaces` | Operator `admin` | `{id, display_name?, billing_status?, root_pubkey?, first_admin_email?, first_admin_role?, no_mail?}` | 201 Created: answers generated `root_private_key` once; 409 conflict if slug exists. Reuses `CreateTenant` and `PutInvite`. |
+| `GET /v1/operator/workspaces/{id}` | Operator `admin` | - | 200 OK: workspace metadata plus its last 50 `operator_audit` trail entries. |
+| `PATCH /v1/operator/workspaces/{id}` | Operator `admin` | `{display_name?, billing_status?, suspended?, default_locale?, topic_archive_policy?}` | 200 OK: updates configuration; toggles `suspended_at`. Suspended doors return 403 `workspace_suspended`. |
+| `DELETE /v1/operator/workspaces/{id}` | Operator `admin` | - | 200 OK: SOFT delete (sets `suspended_at = now()` and `archived_at = now()`, rows stay). Calling with `?purge` returns 400. |
+
+- **Suspension Door Lock**: A suspended workspace's doors (browser login, box API hello/pins, and WebSocket frames) answer **403 `workspace_suspended`**.
+- **Self-Protection**: The operator workspace cannot suspend or archive itself (`409 conflict`, self-lockout forbidden).
+
+### 4.3 Database Schema & RLS Boundaries (rdb 0115)
+- **Schema Migration (`0115_operator_workspaces.sql`)**:
+  - Adds `tenants.suspended_at timestamptz NULL`.
+  - Adds `tenants.archived_at timestamptz NULL`.
+  - Creates the immutable audit table `operator_audit`:
+  ```sql
+  CREATE TABLE operator_audit (
+      audit_id      uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+      actor_tenant  text        NOT NULL REFERENCES tenants (tenant_id),
+      actor_hum     text        NOT NULL REFERENCES humans (human_id),
+      action        text        NOT NULL CHECK (action IN (
+                        'list', 'read', 'create', 'update', 'suspend', 'resume', 'archive'
+                    )),
+      tenant_id     text        NOT NULL REFERENCES tenants (tenant_id),
+      detail        jsonb       NOT NULL DEFAULT '{}'::jsonb,
+      at            timestamptz NOT NULL DEFAULT now()
+  );
+  ```
 - **Scoped Isolation (`inTenant`)**:
   All standard member, channel, message, and agent operations continue to run strictly within the transaction-local `inTenant(workspace, fn)` scope (`SELECT set_config('app.tenant_id', $1, true)`).
 - **Operator Scope (`asOperator`)**:
   - Cross-workspace queries and mutations execute within dedicated store functions using `asOperator(ctx, fn)` (`SELECT set_config('app.rls_scope', 'operator', true)`).
-  - Explicit store methods:
-    - `ListWorkspacesOverview(ctx context.Context) ([]WorkspaceSummary, error)`
-    - `CreateWorkspaceInstance(ctx context.Context, row Tenant, initialAdmin Human) error`
-    - `SetWorkspaceSuspended(ctx context.Context, tenantID string, suspended bool) error`
-    - `SetWorkspaceBillingStatusInstance(ctx context.Context, tenantID string, status string) error`
-    - `GetWorkspaceMembersAndAgents(ctx context.Context, tenantID string) ([]MemberSummary, []BoxSummary, error)`
-  - Whitelist validation: Each method is registered in `internal/store/operator_scope_test.go` with its justification.
-
-### 4.3 Immutable Instance Audit Logging
-Every cross-workspace operation performed by an operator admin is durably recorded in an immutable database table:
-
-```sql
-CREATE TABLE instance_operator_audit_events (
-    event_id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-    operator_human_id    text        NOT NULL REFERENCES humans (human_id),
-    operator_workspace   text        NOT NULL REFERENCES tenants (tenant_id),
-    action               text        NOT NULL CHECK (action IN (
-                             'workspace.create',
-                             'workspace.suspend',
-                             'workspace.reactivate',
-                             'workspace.rename',
-                             'workspace.billing_update',
-                             'workspace.settings_update',
-                             'workspace.inspect'
-                         )),
-    target_workspace     text        NOT NULL,
-    details              jsonb       NOT NULL DEFAULT '{}'::jsonb,
-    client_ip            inet        NOT NULL,
-    user_agent           text        NOT NULL DEFAULT '',
-    created_at           timestamptz NOT NULL DEFAULT now()
-);
-```
-
-- **Retention & Integrity**: Append-only log. Updates and deletes are disallowed by SQL trigger and role privileges.
-- **Audit Coverage**: Captures timestamp, operator identity, target workspace, full payload diff, source IP address, and user-agent string.
+  - Reuses existing vetted store methods (`CreateTenant`, `SetTenantConfig`, `SetBillingStatus`, `PutInvite`).
+  - Whitelist validation: Methods registered in `operatorCallers` in `internal/store/operator_scope_test.go`.
 
 ---
 
@@ -243,7 +258,7 @@ CREATE TABLE instance_operator_audit_events (
 To maintain complete architectural parity across public cloud, private enterprise, and developer environments (spec 044 §1, spec 072 §3):
 1. **Initial Bootstrap**:
    - When a self-hosted instance boots with an empty database (e.g. via `docker compose up` or single-server deployment), the setup process or first-run wizard prompts for the initial instance configuration.
-   - The very first workspace created is automatically flagged as the designated operator workspace (`is_operator_workspace = true` in DB and `SPOOL_HUB_OPERATOR_WORKSPACE` in the environment).
+   - The very first workspace created is automatically flagged as the designated operator workspace (`SPOOL_HUB_OPERATOR_TENANT` defaults to it).
 2. **Initial Administrator Account**:
    - The initial account created during bootstrap is granted both `admin` and `biz_owner` roles in that first workspace, immediately equipping them to access the operator management console.
 3. **Zero Cloud Dependencies**:
@@ -257,7 +272,7 @@ To maintain complete architectural parity across public cloud, private enterpris
 | ID | Priority | Role | Story | Benefit |
 |---|---|---|---|---|
 | **US1** | **P1** | Operator Admin | Navigate to the Operator Workspace UI and view a catalogue of all workspaces on the cloud instance with member and agent counts. | Instant visibility into estate health and tenant activity from one place. |
-| **US2** | **P1** | Operator Admin | Create a new workspace directly from the UI without running shell scripts or connecting to the database. | Reduces workspace onboarding time from 30+ minutes of manual ops to under 2 seconds. |
+| **US2** | **P1** | Operator Admin | Create a new workspace directly from the UI and execute the complete onboarding checklist (invite admin, configure settings, seed channels, mint join token). | Reduces workspace onboarding time from 30+ minutes of manual ops to under 2 seconds. |
 | **US3** | **P1** | Operator Admin | Suspend an abusive, unpaid, or compromised workspace with a single click, instantly cutting off member and agent sessions while preserving data. | Rapid incident containment and automated billing enforcement. |
 | **US4** | **P1** | Workspace Member | Access their workspace under the single DNS entry point (`https://<BASE_DOMAIN>/w/<workspace>/`) without relying on custom subdomains. | Immediate availability, consistent cookie context, and no certificate provisioning delays. |
 | **US5** | **P1** | Security / Owner | Verify that a `biz_owner` of the operator workspace is strictly refused permission to execute instance mutations. | Guarantees technical separation of duties per the owner's explicit mandate. |
@@ -272,20 +287,20 @@ To maintain complete architectural parity across public cloud, private enterpris
 
 | ID | Description | Status |
 |---|---|---|
-| **FR-001** | **Designated Operator Workspace**: One workspace per cloud instance is designated as the operator workspace via cnf/env (`SPOOL_HUB_OPERATOR_WORKSPACE`); no literal workspace ID is hardcoded. | Planned |
+| **FR-001** | **Designated Operator Workspace**: One workspace per cloud instance is designated as the operator workspace via `SPOOL_HUB_OPERATOR_TENANT` (fallback `SPOOL_HUB_WUI_APEX_TENANT`, `t1`); no literal workspace ID is hardcoded. | Planned |
 | **FR-002** | **Single DNS Entry Point**: The cloud instance serves all workspaces under one DNS entry point; workspace context is resolved via `/w/<workspace_id>/` URL paths, session cookies, and `X-Spool-Tenant` headers. | Planned |
 | **FR-003** | **Vanity Subdomain Deprecation**: Legacy per-workspace subdomains (`<workspace>.<BASE_DOMAIN>`) issue an HTTP 301 redirect to the single DNS entry point; workflow 40 and terraform step 032 are retired for individual workspaces. | Planned |
 | **FR-004** | **Exclusive Operator UI**: The workspace management interface (`/operator/workspaces`) is exposed exclusively in the designated operator workspace to members holding the `admin` role; it is completely omitted in all other workspaces and for non-admin roles. | Planned |
-| **FR-005** | **Workspace Catalogue API & UI**: An operator admin can list all workspaces on the instance with status, display name, member count, seated agent count, creation date, and last active timestamp (`GET /v1/operator/workspaces`). | Planned |
-| **FR-006** | **Instant Workspace Provisioning**: An operator admin can create a new workspace via `POST /v1/operator/workspaces`; the hub generates root keys, stores the public key, pins `box-wui`, and returns access tokens immediately without DNS provisioning. | Planned |
-| **FR-007** | **Workspace Suspension**: An operator admin can suspend (`POST /v1/operator/workspaces/{id}/suspend`) and reactivate (`POST /v1/operator/workspaces/{id}/reactivate`) a workspace; suspended workspaces reject logins (`423 locked`) and agent delivery. | Planned |
-| **FR-008** | **Operator Workspace Immortality**: The designated operator workspace cannot be suspended or deleted; attempts fail with `409 cannot_suspend_operator_workspace`. | Planned |
-| **FR-009** | **Cross-Workspace Settings Management**: An operator admin can update display name, fallback responders, default locale, and issue prefix of any workspace (`PATCH /v1/operator/workspaces/{id}`). | Planned |
-| **FR-010** | **Cross-Workspace Billing Control**: An operator admin can update the billing status (`active`, `grace`, `unpaid`, `manual`, `suspended`) and plan tier of any workspace (`PUT /v1/operator/workspaces/{id}/billing`). | Planned |
-| **FR-011** | **Roster & Agent Inspection**: An operator admin can inspect members and seated agent boxes of any workspace in read-only mode (`GET /v1/operator/workspaces/{id}/overview`); message and channel contents remain inaccessible. | Planned |
-| **FR-012** | **Strict Role Boundary (`admin`, not `biz_owner`)**: Instance mutation routes require the `admin` role in the operator workspace; a `biz_owner` lacking the `admin` role is refused with `403 operator_admin_required`. | Planned |
+| **FR-005** | **Workspace Catalogue API & UI**: An operator admin can list all workspaces on the instance (`GET /v1/operator/workspaces`) with status, display name, created_at, suspended_at, archived_at, and operator flag. | Planned |
+| **FR-006** | **Instant Workspace Provisioning & Useful Checklist**: An operator admin can create a new workspace via `POST /v1/operator/workspaces` and complete the onboarding checklist (admin invite, display name, default channels, join token, billing) without DNS delays. | Planned |
+| **FR-007** | **Workspace Suspension & Soft Delete**: An operator admin can suspend (`PATCH /v1/operator/workspaces/{id}` with `suspended: true`) and soft-delete (`DELETE /v1/operator/workspaces/{id}`) a workspace. Suspended doors return 403 `workspace_suspended`. | Planned |
+| **FR-008** | **Operator Workspace Immortality**: The designated operator workspace cannot be suspended or deleted; attempts fail with `409 conflict`. | Planned |
+| **FR-009** | **Cross-Workspace Settings Management**: An operator admin can update display name, fallback responders, default locale, and topic archive policy of any workspace (`PATCH /v1/operator/workspaces/{id}`). | Planned |
+| **FR-010** | **Cross-Workspace Billing Control**: An operator admin can update the billing status (`active`, `grace`, `unpaid`, `manual`, `suspended`) via `PATCH /v1/operator/workspaces/{id}`. | Planned |
+| **FR-011** | **Roster & Audit Inspection**: An operator admin can view a workspace's configuration and its last 50 audit entries (`GET /v1/operator/workspaces/{id}`); message and channel contents remain inaccessible. | Planned |
+| **FR-012** | **Strict Role Boundary (`admin`, not `biz_owner`)**: Instance mutation routes require the `admin` role in the operator workspace; a `biz_owner` lacking the `admin` role is refused with `403` (`permission: operator.workspaces`). | Planned |
 | **FR-013** | **Cross-Tenant Admin Rejection**: An administrator of regular workspace A attempting to access operator endpoints or another workspace's data is refused with HTTP 403 `forbidden`. | Planned |
-| **FR-014** | **Immutable Audit Trail**: Every cross-workspace action is recorded in `instance_operator_audit_events` with operator identity, target workspace, timestamp, action, payload diff, and IP address. | Planned |
+| **FR-014** | **Immutable Audit Trail**: Every cross-workspace action is recorded in `operator_audit` with `actor_tenant`, `actor_hum`, `action`, `detail`, `at`, and `tenant_id`. | Planned |
 | **FR-015** | **Store & RLS Isolation**: Cross-workspace store methods run strictly under `asOperator(ctx, fn)`; all intra-workspace operations remain strictly bound to `inTenant(workspace, fn)`. | Planned |
 | **FR-016** | **Self-Hosted First-Run Designation**: In fresh or self-hosted environments without an explicit operator workspace configured, the first created workspace automatically becomes the operator workspace and its initial administrator is granted `admin`. | Planned |
 
@@ -297,14 +312,14 @@ To maintain complete architectural parity across public cloud, private enterpris
 |---|---|---|
 | **AC1** | **List Workspaces from Operator Workspace**: Authenticated as `admin` in the operator workspace, call `GET /v1/operator/workspaces` -> receives 200 OK with JSON array of all instance workspaces including metadata, counts, and status. | FR-004, FR-005 |
 | **AC2** | **Create Workspace via Operator API**: Call `POST /v1/operator/workspaces` with slug `acme-test` -> receives 201 Created; root public key stored in DB; `box-wui` is pinned; workspace is immediately resolvable under `/w/acme-test/`. | FR-002, FR-006 |
-| **AC3** | **Suspend and Reactivate Workspace**: Operator admin calls `/v1/operator/workspaces/acme-test/suspend` -> member sign-in returns 423 `workspace_suspended`; subsequent call to `/reactivate` -> sign-in succeeds immediately. | FR-007 |
-| **AC4** | **Owner Rule: `biz_owner` of Operator Workspace Refused**: Authenticated as `biz_owner` (without `admin` role) in the operator workspace, call `POST /v1/operator/workspaces` or `/suspend` -> receives **403 Forbidden** (`operator_admin_required`). | FR-012 (HUM-10 mandate) |
+| **AC3** | **Suspend and Reactivate Workspace**: Operator admin calls `PATCH /v1/operator/workspaces/acme-test` with `suspended: true` -> member sign-in and agent WS connect return 403 `workspace_suspended`; subsequent call with `suspended: false` -> access restored immediately. | FR-007 |
+| **AC4** | **Owner Rule: `biz_owner` of Operator Workspace Refused**: Authenticated as `biz_owner` (without `admin` role) in the operator workspace, call `POST /v1/operator/workspaces` or `DELETE /v1/operator/workspaces/acme-test` -> receives **403 Forbidden** (`permission: operator.workspaces`). | FR-012 (HUM-10 mandate) |
 | **AC5** | **Regular Workspace Admin Refused**: Authenticated as `admin` of regular workspace `acme-test`, call `GET /v1/operator/workspaces` or attempt mutation on workspace `t1` -> receives **403 Forbidden** (`operator_workspace_required`). | FR-013 |
-| **AC6** | **Operator Workspace Immortality**: Call `/v1/operator/workspaces/<operator_workspace>/suspend` -> receives **409 Conflict** (`cannot_suspend_operator_workspace`); operator workspace remains active. | FR-008 |
-| **AC7** | **Audit Log Verification**: Following AC2 and AC3, query `instance_operator_audit_events` -> records exist matching operator human_id, actions (`workspace.create`, `workspace.suspend`), target workspace, and client IP. | FR-014 |
+| **AC6** | **Operator Workspace Immortality**: Call `DELETE /v1/operator/workspaces/<operator_workspace>` or `PATCH` with `suspended: true` -> receives **409 Conflict** (`cannot_suspend_operator_workspace`); operator workspace remains active. | FR-008 |
+| **AC7** | **Audit Log Verification**: Following AC2 and AC3, query `operator_audit` -> records exist matching `actor_hum`, actions (`create`, `suspend`), `tenant_id`, and `detail`. | FR-014 |
 | **AC8** | **Single DNS Entry Point Navigation**: Accessing `https://<BASE_DOMAIN>/w/acme-test/lobby` loads the WUI in `acme-test` context with no external subdomain request; browser console shows 0 network calls to `<workspace>.<BASE_DOMAIN>`. | FR-002 |
 | **AC9** | **Vanity Subdomain 301 Redirect**: Sending HTTP request to `https://acme-test.<BASE_DOMAIN>/lobby` -> receives HTTP 301 redirecting to `https://<BASE_DOMAIN>/w/acme-test/lobby`. | FR-003 |
-| **AC10** | **Self-Hosted Bootstrap Designation**: Starting a fresh test hub with an empty database, invoke initial setup -> first workspace created is assigned `is_operator_workspace = true` and initial admin receives `admin` role. | FR-016 |
+| **AC10** | **Self-Hosted Bootstrap Designation**: Starting a fresh test hub with an empty database, invoke initial setup -> first workspace created is assigned as operator workspace and initial admin receives `admin` role. | FR-016 |
 
 ---
 
@@ -314,7 +329,7 @@ Each question is formulated for a concise, one-line answer and is paired with a 
 
 | ID | Question | Recommended Default |
 |---|---|---|
-| **Q1** | Should the operator workspace identifier be stored in cnf/environment (`SPOOL_HUB_OPERATOR_WORKSPACE`), in the database (`tenants.is_operator`), or both? | **Both**: cnf/env defines the instance authority; database column `is_operator` mirrors it with a unique constraint preventing multiple operator workspaces. |
+| **Q1** | Should the operator workspace identifier be stored in cnf/environment (`SPOOL_HUB_OPERATOR_TENANT`), in the database (`tenants.is_operator`), or both? | **Both**: cnf/env defines the instance authority; database column `is_operator` mirrors it with a unique constraint preventing multiple operator workspaces. |
 | **Q2** | For routing regular workspaces under the single DNS entry point, should the WUI use explicit path prefixes (`/w/<workspace_id>/...`) or keep URLs clean and rely solely on session switching? | **Explicit path prefixes (`/w/<workspace_id>/...`)**: allows multiple workspaces to be open in separate browser tabs and supports bookmarkable links. |
 | **Q3** | What is the grace period before retiring legacy per-workspace DNS CNAMEs and workflow 40? | **30 days**: maintain HTTP 301 redirects on existing CNAMEs for 30 days before tearing down legacy terraform step 032 resources. |
 | **Q4** | Should operator admins have read access to message channels or topics of other workspaces for technical support? | **No (metadata and rosters only)**: operator admins can view members, agents, and quotas, but never message contents or DMs (zero-trust privacy). |
@@ -336,5 +351,7 @@ Each question is formulated for a concise, one-line answer and is paired with a 
 | Version | Change | Author |
 |---|---|---|
 | v0.1 | Initial complete specification: background audit, single DNS entry point, operator workspace UI and API, strict `admin` role enforcement, audit logging, self-hosted bootstrap, user stories, requirements, acceptance scenarios, and owner questions. | a-209 |
+| v0.2 | Incorporated owner messages 880e9e40 & e76a7b38: explicit "useful workspace" onboarding checklist (admin invite, channel seed, join tokens, settings, billing), aligned Phase 1 API route contract (`GET/POST/PATCH/DELETE /v1/operator/workspaces`) with c-210 implementation. | a-209 |
+| v0.3 | Aligned with c-210 live API contract (msg 6fd5cf85): `SPOOL_HUB_OPERATOR_TENANT`, permission `operator.workspaces`, `operator_audit` table (rdb 0115), `tenants.suspended_at`/`archived_at`, 403 `workspace_suspended`. | a-209 |
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:00:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-04 · last-edit: 2026-10-04T13:12:00Z -->

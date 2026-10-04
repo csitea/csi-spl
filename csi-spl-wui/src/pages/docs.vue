@@ -6,7 +6,11 @@
      in the current theme. /docs/<repo path> is the doc's stable address;
      a relative .md link opens the target doc here. /docs shows README.md.
      Signed-in members only (signed-out-redirect + the hub's door).
-     At <= 820 px the tree folds above the doc behind its Folders button. -->
+     At <= 820 px the tree folds above the doc behind its Folders button.
+     t1 c13e8023 (owner): on a desktop the explorer is the left pane and
+     the document is the second, each scrolling on its own. The sidebar
+     keeps its icon rail (ChannelSidebar docsRailOnly) and a topic panel
+     open beside the channel the reader came from closes. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -93,6 +97,8 @@ definePageMeta({ path: '/docs/:path(.*)*' })
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOCS_HOME, buildDocsTree, docsAncestors, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
+import { useTopicStore } from '~/stores/topic'
+import { useLiveFeed } from '~/stores/live'
 
 type TreeFile = { path: string, title: string }
 
@@ -173,6 +179,16 @@ async function loadTree() {
 
 watch(docPath, () => { if (import.meta.client) void load() })
 onMounted(() => { void loadTree(); void load() })
+/* t1 c13e8023 (owner): a topic panel open beside the channel the reader
+   came from closes when Docs opens. No third pane, whichever store holds it. */
+const topic = useTopicStore()
+const livePane = useLiveFeed('pane')
+function closeTopicPanel() {
+  if (livePane.taskId) livePane.close()
+  if (topic.open) topic.close()
+}
+watch(() => [livePane.taskId, topic.open], closeTopicPanel)
+onMounted(closeTopicPanel)
 useHead(() => ({ title: t('docs.title') }))
 </script>
 
@@ -244,5 +260,36 @@ useHead(() => ({ title: t('docs.title') }))
   .docs-tree { display: none; position: static; max-height: none; border-inline-end: 0; padding: 0; }
   .docs-layout--tree-open .docs-tree { display: block; }
   .docs-tree__item { min-height: 44px; }
+}
+/* Desktop: the page body does not scroll. The explorer and the document
+   each scroll on their own, and the document fills the second pane. */
+@media (min-width: 821px) {
+  .docs-page {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .docs-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .docs-tree {
+    position: static;
+    top: auto;
+    max-height: none;
+    min-height: 0;
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .docs-content {
+    max-width: none;
+    min-height: 0;
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 </style>

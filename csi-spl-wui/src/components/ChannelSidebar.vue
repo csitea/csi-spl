@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || helpRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, topics, flow,
@@ -917,6 +917,10 @@ const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value
    two panes, its page list left and the document right. A phone keeps its
    one-pane stack (the section strip above the page). */
 const helpRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSection(route.path) === 'help')
+/* t1 c13e8023 (owner): on /docs the sidebar keeps the icon rail only; the
+   docs page is the two panes, the explorer left and the document right.
+   A phone keeps its one-pane stack. */
+const docsRailOnly = computed(() => !mobileStack.isMobile.value && railLinkSection(route.path) === 'docs')
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))

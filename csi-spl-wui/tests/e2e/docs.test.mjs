@@ -5,7 +5,14 @@
 // doc says so; on a phone the tree folds behind its Folders button.
 // The mock tenant serves a small repo-shaped tree (src/utils/docs-mock.mjs).
 //
+// t1 c13e8023 (owner): on a desktop Docs is two panes, the explorer in the
+// left-most pane and the document in the second, and a topic panel open
+// beside the channel the reader came from closes. The sidebar keeps its
+// icon rail only. Each pane scrolls on its own. A phone stays one pane.
+//
 // Control: before the section there is no [data-testid=docs-open].
+// Before the two-pane change the channel list and the topic panel both
+// stay beside Docs, so the 1440 px pane checks FAIL.
 //
 // Run:
 //   pnpm run test:e2e docs
@@ -48,6 +55,7 @@ async function shot(p, name) {
   await p.screenshot({ path: join(process.env.SHOT_DIR, `docs-${name}.png`) })
 }
 
+const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const SPEC = 'csi-spl-doc/specs/072-rapid-deployability/spec.md'
 const FEATURE = 'csi-spl-doc/doc/md/csi-spl.feature.md'
 const POST = 'csi-spl-doc/doc/help/how-to-post.md'
@@ -62,6 +70,50 @@ const clickDir = async (p, path) => {
   if (d) await d.click()
   return Boolean(d)
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/* every visible column of the shell, left to right, wider than the icon rail */
+const panes = (pg) => pg.evaluate(() => {
+  const shown = (el) => {
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const st = getComputedStyle(el)
+    return r.width > 40 && r.height > 40 && st.display !== 'none' && st.visibility !== 'hidden' ? r : null
+  }
+  const cols = []
+  const add = (name, el) => { const r = shown(el); if (r) cols.push({ name, left: Math.round(r.left), right: Math.round(r.right) }) }
+  add('sidebar-list', document.querySelector('.sidebar-body'))
+  add('docs-tree', document.querySelector('[data-test=docs-tree]'))
+  add('docs-content', document.querySelector('[data-test=docs-content]'))
+  add('topic', document.querySelector('[data-test=topic-section]'))
+  return cols.sort((a, b) => a.left - b.left)
+})
+/* one phone pane: the tree is hidden, or it stacks above the doc */
+const phoneStack = (pg) => pg.evaluate(() => {
+  const tree = document.querySelector('[data-test=docs-tree]')
+  const doc = document.querySelector('[data-test=docs-content]')
+  if (!tree || !doc) return { ok: false }
+  if (getComputedStyle(tree).display === 'none') return { ok: true, mode: 'doc-only' }
+  const tr = tree.getBoundingClientRect()
+  const dr = doc.getBoundingClientRect()
+  const sideBySide = tr.width > 80 && dr.width > 80 && tr.right <= dr.left + 4 && Math.abs(tr.top - dr.top) < 40
+  return { ok: !sideBySide, mode: sideBySide ? 'side-by-side' : 'stacked', treeTop: Math.round(tr.top), docTop: Math.round(dr.top) }
+})
+const scrollBox = (pg) => pg.evaluate(() => {
+  const box = (sel) => {
+    const el = document.querySelector(sel)
+    if (!el) return null
+    const st = getComputedStyle(el)
+    return { overflowY: st.overflowY, scrollTop: Math.round(el.scrollTop) }
+  }
+  return {
+    tree: box('[data-test=docs-tree]'),
+    doc: box('[data-test=docs-content]'),
+    body: box('[data-test=docs]'),
+    page: Math.round(document.scrollingElement ? document.scrollingElement.scrollTop : 0),
+  }
+})
 
 const server = await startServer()
 const browser = await launch()
@@ -130,6 +182,63 @@ try {
   ok('CONTROL the toggle is hidden on a desktop', await p.$eval('[data-test=docs-tree-toggle]', (e) => getComputedStyle(e).display === 'none'))
   await p.close()
 
+  /* t1 c13e8023: desktop, light and dark. From the channel view with its
+     topic panel open, Docs is the explorer then the document, and the
+     topic panel is gone. */
+  for (const theme of ['light', 'dark']) {
+    console.log(`-- 1440x900 ${theme}`)
+    const d = await browser.newPage()
+    await d.setViewport({ width: 1440, height: 900 })
+    await d.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }])
+    await d.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
+    await d.goto(server.base + '/channel/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await d.waitForSelector('[data-test=top-bar]', { timeout: NAV_TIMEOUT })
+    await sleep(600)
+    const armed = await d.evaluate((id) => {
+      const topic = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('topic')
+      if (!topic) return 'no-store'
+      topic.openTopic(id)
+      return 'ok'
+    }, TASK)
+    const third = await d.waitForSelector('[data-test=topic-section]', { visible: true, timeout: 8000 }).catch(() => null)
+    ok(`${theme}: setup - a right pane is open on the channel view`, armed === 'ok' && Boolean(third), armed)
+
+    await d.click('[data-testid=docs-open]')
+    await d.waitForFunction(() => location.pathname === '/docs', { timeout: 10000 }).catch(() => {})
+    await d.waitForSelector('[data-test=docs-content] [data-testid=md-block][data-rendered=true]', { timeout: 15000 }).catch(() => null)
+    await d.waitForSelector('[data-test=docs-tree] [data-test=docs-file]', { timeout: 10000 }).catch(() => null)
+    await sleep(500)
+    ok(`${theme}: Docs opens /docs`, new URL(d.url()).pathname === '/docs', d.url())
+    const cols = await panes(d)
+    const names = cols.map((c) => c.name)
+    const tree = cols.find((c) => c.name === 'docs-tree')
+    const content = cols.find((c) => c.name === 'docs-content')
+    ok(`${theme}: the tree is the left pane and the document is the second`, names.join(',') === 'docs-tree,docs-content' && tree.right <= content.left, cols)
+    ok(`${theme}: opening Docs leaves no right pane`, !(await d.$('[data-test=topic-section]')))
+    ok(`${theme}: the sidebar keeps its icon rail`, Boolean(await d.$('[data-testid=sidebar-rail]')) && (await d.$eval('nav.sidebar', (el) => el.getAttribute('data-docs-rail'))) === '1')
+    const scrolls = await scrollBox(d)
+    const own = (m) => Boolean(m) && (m.overflowY === 'auto' || m.overflowY === 'scroll')
+    const fixed = (m) => Boolean(m) && (m.overflowY === 'hidden' || m.overflowY === 'clip') && m.scrollTop === 0
+    ok(`${theme}: each pane scrolls on its own and the page body does not`, own(scrolls.tree) && own(scrolls.doc) && fixed(scrolls.body) && scrolls.page === 0, scrolls)
+
+    ok(`${theme}: the tree can be expanded to a file`, await clickDir(d, 'csi-spl-doc/specs') && await clickDir(d, 'csi-spl-doc/specs/072-rapid-deployability'))
+    const file = await d.$(`[data-test=docs-file][data-path="${SPEC}"]`)
+    ok(`${theme}: a file is in the tree`, Boolean(file))
+    if (file) {
+      await file.click()
+      ok(`${theme}: clicking a file loads it in pane 2`, await page(d, SPEC) && new URL(d.url()).pathname === '/docs/' + SPEC, d.url())
+      const after = await panes(d)
+      const an = after.map((c) => c.name)
+      const at = after.find((c) => c.name === 'docs-tree')
+      const ac = after.find((c) => c.name === 'docs-content')
+      ok(`${theme}: the loaded doc stays in the second pane`, an.join(',') === 'docs-tree,docs-content' && at.right <= ac.left && (await d.$eval('[data-test=docs-content]', (el) => el.getAttribute('data-page'))) === SPEC, after)
+      ok(`${theme}: the open file is highlighted`, await d.$eval(`[data-test=docs-file][data-path="${SPEC}"]`, (e) => e.getAttribute('aria-current')) === 'page')
+    }
+    const sw = await d.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
+    ok(`${theme}: no sideways scroll`, sw)
+    await d.close()
+  }
+
   console.log('-- 390x740 phone')
   const m = await browser.newPage()
   await m.setViewport({ width: 390, height: 740, isMobile: true, hasTouch: true })
@@ -159,10 +268,12 @@ try {
   await m.waitForFunction(() => location.pathname === '/docs', { timeout: 10000 }).catch(() => {})
   ok('one tap lands on /docs', new URL(m.url()).pathname === '/docs', m.url())
   ok('the README renders on a phone', await page(m, 'README.md'))
+  ok('phone: still one pane (the tree stacks, it is not a column beside the doc)', (await phoneStack(m)).ok, await phoneStack(m))
   ok('/docs on a phone shows the folders', await m.$eval('[data-test=docs-tree]', (e) => getComputedStyle(e).display !== 'none'))
   await m.goto(server.base + '/docs/' + SPEC, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok('a doc renders on a phone', await page(m, SPEC))
   ok('the tree is folded under a doc', await m.$eval('[data-test=docs-tree]', (e) => getComputedStyle(e).display === 'none'))
+  ok('phone: a doc is still one pane', (await phoneStack(m)).ok, await phoneStack(m))
   const tog = await m.$('[data-test=docs-tree-toggle]')
   const tb = tog ? await tog.boundingBox() : null
   ok('the Folders button is a 44 px target', Boolean(tb && tb.height >= 44), tb)

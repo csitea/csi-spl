@@ -148,13 +148,26 @@ spl_lane_local_row() {
 
 # Hub rows win for an agent the hub knows; a local worktree the hub has no
 # row for (or a live one when the hub says done) is kept, marked src local.
+# Both values are files, not --argjson. One argument longer than
+# MAX_ARG_STRLEN (32 pages; 131072 bytes when the page is 4096) makes the
+# kernel refuse the exec ("Argument list too long") and the map dies before
+# it prints. The fleet's hub answer crossed that line; either input can.
 spl_lane_merge() {
-  jq -c -n --argjson hub "$1" --argjson loc "$2" '
-    ($hub.lanes // [] | map(. + {src: "hub"})) as $h
-    | ($h | map({key: .agent_id, value: .}) | from_entries) as $byid
-    | $h + [ $loc[] | select(($byid[.agent_id] // null) == null) ]
-    | ([$loc[] | .agent_id]) as $here
-    | map(. as $r | if $r.src == "hub" and ($here | index($r.agent_id)) != null then .src = "hub+local" else . end)'
+  local hubf locf rc=1
+  hubf="$(mktemp)" || return 1
+  locf="$(mktemp)" || { rm -f "$hubf"; return 1; }
+  # slurpfile yields a one-element array of the JSON value in the file.
+  if printf '%s\n' "$1" >"$hubf" && printf '%s\n' "$2" >"$locf" &&
+    jq -c -n --slurpfile hub "$hubf" --slurpfile loc "$locf" '
+      ($hub[0].lanes // [] | map(. + {src: "hub"})) as $h
+      | ($h | map({key: .agent_id, value: .}) | from_entries) as $byid
+      | $h + [ $loc[0][] | select(($byid[.agent_id] // null) == null) ]
+      | ([$loc[0][] | .agent_id]) as $here
+      | map(. as $r | if $r.src == "hub" and ($here | index($r.agent_id)) != null then .src = "hub+local" else . end)'; then
+    rc=0
+  fi
+  rm -f "$hubf" "$locf"
+  return "$rc"
 }
 
 spl_lane_table() {

@@ -32,6 +32,10 @@
 #      `mem_kb=<n> live=<ids>` as BOX-0@<box>; the other machine's header
 #      shows that mem and busy count; BOX-0 is never a lane (table, --all,
 #      json, the collision check); CONTROL without panes nothing is written
+#  11. an input above MAX_ARG_STRLEN (128 KiB): the same bytes as one
+#      --argjson are "Argument list too long", and spl_lane_merge still
+#      returns the row. Both the hub answer and the local rows are planted
+#      that large, because either argument used to be one argv string
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -259,6 +263,50 @@ out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json LANE_ALL=1 | tail -1)"
   pass "...nor in the json lanes; the load says src box" || fail "json BOX-0: $out"
 out="$(on pc 'LANE_CHECK=mem_kb=8388608 do_spl_lane_map' "${F[@]}" LANE_AGENT=CLE-77921)"; rc=$?
 [[ $rc -eq 0 ]] && pass "the collision check never reads a BOX-0 row" || fail "check BOX-0 (rc=$rc): $out"
+
+# 11. past MAX_ARG_STRLEN. The plant is ASCII, so bytes and jq's length agree.
+#     140000 is over 131072 (32 * 4096) with room for the JSON wrapper.
+{
+  printf '%s' '{"lanes":[{"agent_id":"c-011","agent_box":"sat","repo":"csi-spl","branch":"big","scope":"'
+  head -c 140000 /dev/zero | tr '\0' 'x'
+  printf '%s' '","files":[],"topic":"t","state":"live","age_s":1},{"agent_id":"c-012","agent_box":"sat","repo":"csi-spl","branch":"small","scope":"s","files":[],"topic":"","state":"live","age_s":1}]}'
+} >"$T/big-hub.json"
+{
+  printf '%s' '[{"agent_id":"c-014","agent_box":"box-desk","repo":"csi-spl","branch":"local-big","scope":"'
+  head -c 140000 /dev/zero | tr '\0' 'y'
+  printf '%s' '","files":[],"topic":"","state":"live","age_s":-1,"src":"local"}]'
+} >"$T/big-loc.json"
+cat >"$T/case11.sh" <<EOF
+big=\$(cat "$T/big-hub.json")
+plant=\$(wc -c <"$T/big-hub.json")
+echo "PLANT:\${plant// /}"
+if jq -n --argjson hub "\$big" . >/dev/null 2>"$T/arg.err"; then echo ARG:ok; else echo ARG:fail; fi
+loc='[{"agent_id":"c-012","agent_box":"box-desk","repo":"csi-spl","branch":"small","scope":"","files":[],"topic":"","state":"live","age_s":-1,"src":"local"},{"agent_id":"c-013","agent_box":"box-desk","repo":"csi-spl","branch":"only-local","scope":"","files":[],"topic":"","state":"live","age_s":-1,"src":"local"}]'
+if merged=\$(spl_lane_merge "\$big" "\$loc"); then echo MERGE:0; else echo "MERGE:\$?"; fi
+printf '%s\n' "\$merged" >"$T/merged.json"
+locbig=\$(cat "$T/big-loc.json")
+if merged=\$(spl_lane_merge '{"lanes":[]}' "\$locbig"); then echo LOCMERGE:0; else echo "LOCMERGE:\$?"; fi
+printf '%s\n' "\$merged" >"$T/merged-loc.json"
+EOF
+out="$(on pc ". $T/case11.sh")"
+plant="$(sed -n 's/^PLANT://p' <<<"$out")"
+arg_err="$(cat "$T/arg.err" 2>/dev/null || true)"
+if [[ "$plant" -gt 131072 && "$out" == *ARG:fail* && "$arg_err" == *"Argument list too long"* ]]; then
+  pass "control: the planted hub answer is ${plant} bytes, past 131072, and --argjson is Argument list too long"
+else fail "control plant (plant=$plant): $out / $arg_err"; fi
+if [[ "$out" == *MERGE:0* ]] && jq -e '
+    length == 3
+    and ([.[] | select(.agent_id == "c-011")] | .[0].src == "hub" and (.[0].scope | length) == 140000)
+    and ([.[] | select(.agent_id == "c-012")] | .[0].src == "hub+local")
+    and ([.[] | select(.agent_id == "c-013")] | .[0].src == "local")
+  ' "$T/merged.json" >/dev/null; then
+  pass "a hub answer above 128 KiB merges: the long scope survives, an overlap is hub+local, a local-only row is kept"
+else fail "big hub merge: $out / $(jq -c 'map({agent_id, src, n: (.scope | length)})' "$T/merged.json" 2>/dev/null || echo 'no merged json')"; fi
+if [[ "$out" == *LOCMERGE:0* ]] && jq -e '
+    length == 1 and .[0].agent_id == "c-014" and .[0].src == "local" and (.[0].scope | length) == 140000
+  ' "$T/merged-loc.json" >/dev/null; then
+  pass "local rows above 128 KiB merge the same way"
+else fail "big local merge: $out / $(jq -c 'map({agent_id, src, n: (.scope | length)})' "$T/merged-loc.json" 2>/dev/null || echo 'no merged json')"; fi
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

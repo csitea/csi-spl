@@ -129,7 +129,12 @@ for env in dev prd; do
     && pass "$env docs bucket is csi-spl-$env-docs, read by csi-spl-hub-$env" || fail "$env 051 tfvars"
   grep -q publish_enabled "$d" && fail "$env 051 tfvars carry publish_enabled (a cnf gate, not a tfvar)" || pass "$env publish_enabled stays out of the 051 tfvars"
   # the hub is pointed at the bucket only once publish_enabled is true (after the 051 apply)
-  if yq -e '.env.steps."051-gcs-docs".publish_enabled == true' "$APP_ROOT/csi-spl-cnf/csi-spl/$env.env.yaml" >/dev/null 2>&1; then
+  # publish_enabled is read like the cnf merge does: the env file wins, else
+  # all.env.yaml (9d86549d3 set it in all.env.yaml only; reading the env file
+  # alone saw null and failed the env that the hub correctly points at).
+  pe="$(yq '.env.steps."051-gcs-docs".publish_enabled' "$APP_ROOT/csi-spl-cnf/csi-spl/$env.env.yaml" 2>/dev/null)"
+  [[ "$pe" == true || "$pe" == false ]] || pe="$(yq '.env.steps."051-gcs-docs".publish_enabled' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" 2>/dev/null)"
+  if [[ "$pe" == true ]]; then
     grep -q "\"SPOOL_HUB_DOCS_BUCKET\": \"csi-spl-$env-docs\"" "$v" && pass "$env hub env names the 051 bucket" || fail "$env publish_enabled but SPOOL_HUB_DOCS_BUCKET is not csi-spl-$env-docs"
   else
     grep -q SPOOL_HUB_DOCS_BUCKET "$v" && fail "$env hub env names the docs bucket before publish_enabled" || pass "$env hub env has no docs bucket until publish_enabled"

@@ -26,7 +26,8 @@ tenant, error and file rules).
   cursor return the same bytes.
 - **Not a send path.** Human send (`./wui-live-ws.md`) and channel creation
   (`POST /v1/channels`, `./channels-v1.md` §5.1) live outside `/v1/view/`.
-  Nothing under `/v1/view/` accepts a body.
+  The one call under `/v1/view/` that reads a body is `POST /v1/view/ids`
+  (§4.6): a list of ids to resolve, not a message to store.
 - **Not the box door.** The browser never opens `/v1/ws` (Ed25519 box door,
   `./http-v1.md` §2) and never holds a box key.
 
@@ -316,4 +317,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.7.0 · updated: 2026-10-04 · last-edit: 2026-10-04T16:40:00Z -->
+<!-- version: 0.7.1 · updated: 2026-10-04 · last-edit: 2026-10-04T16:40:00Z -->

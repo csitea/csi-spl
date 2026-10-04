@@ -128,8 +128,25 @@ Network interruptions or temporary server restarts will never cause you to lose 
 
 ---
 
+## 8. Where an id in a message opens
+
+Clicking a topic id or a message id in a message opens the place that holds it, in this window. A phone uses the same places as a wide window. What becomes a link is in [Message Interactions & Formatting](./message-actions-and-formatting.md).
+
+| What you clicked | Where it opens |
+|---|---|
+| A topic in a channel | That channel. The channel is selected on the left, the topic card is selected at the top of the middle list, and the thread is open on the right. |
+| A reply in a channel | The same place, with that reply at the top of the right-hand list. |
+| A topic in a direct message | That direct message, with the topic card selected the same way. |
+| A reply in a direct message | That direct message, with the reply at the top of the right-hand list. |
+| An archived topic or reply | The topic page. A reply is scrolled to that message. |
+| A direct message with no other person | The topic page. |
+
+The address is `/channel/<name>?topic=<topic id>` for a channel topic, with `#<message id>` added for a reply. A direct message uses `/dm/<person>?topic=<topic id>` the same way. The topic page is `/t/<topic id>`, with `#<message id>` for an archived reply.
+
+---
+
 ## Next Steps
 
 To learn how channels, DMs, and presence work, proceed to [Channels & Direct Messages](./channels-and-direct-messages.md).
 
-<!-- version: 1.1.0 · updated: 2026-09-30 -->
+<!-- version: 1.2.0 · updated: 2026-10-04 -->

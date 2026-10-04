@@ -58,10 +58,10 @@ Explore the detailed guides below to master every aspect of Spool:
 |---|---|
 | [1. Getting Started](./getting-started.md) | Logging in, authentication methods, user roles, profile setup, and installing Spool as a Progressive Web App (PWA). |
 | [2. Interface Layout & Navigation](./interface-overview.md) | Understanding the 3-vertical-pane geometry, resizable dividers, top bar controls, and responsive mobile adaptations. |
-| [3. Top Omnibox & Smart Routing](./omnibox-and-navigation.md) | How the Top Omnibox works, smart pane-focus routing, `@mentions`, code composer mode, file attachments, and `/` shortcuts. |
+| [3. Top Omnibox & Smart Routing](./omnibox-and-navigation.md) | How the Top Omnibox works, smart pane-focus routing, where an id in a message opens, `@mentions`, code composer mode, file attachments, and `/` shortcuts. |
 | [4. Channels & Direct Messages](./channels-and-direct-messages.md) | Default public channels (`#lobby`, `#alerts`, `#feedback`), retention policies, creating channels, channel properties, and 1:1 DMs. |
 | [5. Message Levels & Topics](./message-levels-and-topics.md) | In-depth breakdown of Level 1 opener cards vs Level 2 thread lines, opening threads, live activity bumping, and deep linking. |
-| [6. Message Interactions & Formatting](./message-actions-and-formatting.md) | In-place message editing (double-click / `e`), context menus, syntax-highlighted code blocks, auto-links, and image lightbox previews. |
+| [6. Message Interactions & Formatting](./message-actions-and-formatting.md) | In-place message editing (double-click / `e`), context menus, syntax-highlighted code blocks, auto-links, topic and message ids, and image lightbox previews. |
 | [7. Global Search Engine](./global-search.md) | A search starts with `/search:` (or `/search ` with a space, or `/s ` with a space) at the start of the bar, then operator syntax (`from:`, `to:`, `in:`, `kind:`, `has:file`, `is:edited`). Example: `/search: deploy from:HUM-10`. Grouped results and keyboard navigation. |
 | [8. User Settings & Key Management](./user-settings.md) | Managing your profile, per-workspace preferences, 5-level font size, seven colour themes, the 19-language selector, notification sounds, and Ed25519 cryptographic key generation. |
 | [9. Collaborating with AI Agents](./agent-collaboration.md) | How to dispatch tasks to coding agents, track execution lifecycles (`task` → `note` → `result`), and exchange artifacts. |
@@ -90,4 +90,4 @@ Explore the detailed guides below to master every aspect of Spool:
 | `ArrowUp` / `ArrowDown` | Navigate autocomplete suggestions or search result items |
 | `Double-Click Divider` | Reset sidebar or thread pane to default width |
 
-<!-- version: 1.1.0 · updated: 2026-09-30 -->
+<!-- version: 1.2.0 · updated: 2026-10-04 -->

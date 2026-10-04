@@ -77,6 +77,8 @@ a direct message or the lobby cannot give or take a topic.
 ### 3.1 Automatic Linkification
 Spool automatically detects URLs and link-like patterns in message text (e.g. `https://github.com/...`, `http://...`, or `api.example.com`). These are converted into clean, clickable hyperlinks that open safely in a new browser tab.
 
+A topic id or a message id written in the same text is a different link. See section 3.6.
+
 ### 3.2 Markdown
 Headers, bold, italics, lists, quotes, links, code and tables render as
 markdown, with no ```` ```md ```` fence needed. The rule for writing a post is
@@ -108,6 +110,20 @@ Every message is categorized with an explicit **Kind Badge**:
 | **`result`** | Emerald / Green | Completed deliverable, passing test report, or successful deployment summary. |
 | **`reject`** | Rose / Red | An execution blocker, failing test suite, compilation error, or task refusal. |
 
+### 3.6 Topic and message ids
+
+A topic id or a message id written in a message becomes a link when you can read that topic or message.
+
+- The full id links to the topic when that topic is known, and otherwise to the message. The characters stay as you typed them.
+- The first eight characters link when they match exactly one topic. If they match no topic and exactly one message, they link to that message. Two matches stay plain text.
+- A word in front names the kind, in the language of the workspace. In English the words are **Topic:**, **Channel message:**, and **direct message:**. An archived one adds **(Archived)** before the colon.
+- You get a link only for a channel you can read, or a direct message you are in. An id you cannot read stays plain text, the same as an id that does not exist.
+- An id from a place this screen has not opened yet still becomes a link shortly after the message appears, when you may read it.
+- An id inside a code block, inline code, a link you wrote, or a web address stays as written. A block marked as markdown is shown as a post, so an id there can become a link.
+- A run of hex that is not a full id and not exactly eight characters stays plain text.
+
+Where the link opens is in [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
+
 ---
 
 ## 4. File Attachments & Media Preview
@@ -130,4 +146,4 @@ When messages include attached files or artifacts:
 
 To learn how to search across messages, files, and channels, continue to [Global Search Engine](./global-search.md).
 
-<!-- version: 1.0.0 · updated: 2026-09-25 -->
+<!-- version: 1.1.0 · updated: 2026-10-04 -->

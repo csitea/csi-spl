@@ -34,6 +34,11 @@ const (
 	// and to revoke one seat from the WUI (specs/073 §4.7). admin only: the
 	// one permission biz_owner does not hold (owner 2026-10-04, Q1).
 	AgentsJoin = "agents.join"
+	// DocsRead and DocsWrite gate the workspace docs (specs/075 Phase 2).
+	// Every role holds both for now (owner, 9f0d751c: "all of the users to
+	// be able to edit docs"); "who edits what" later is a grant change.
+	DocsRead  = "docs.read"
+	DocsWrite = "docs.write"
 )
 
 // System role ids (025 §3.2). BizOwner is the tenant owner (owner decision
@@ -80,24 +85,26 @@ var Permissions = []PermissionDoc{
 	{AuditRead, "see the tenant audit trail"},
 	{MembersImpersonate, "act as a member through a temporary clone"},
 	{AgentsJoin, "mint, list and revoke agent join tokens, and revoke one seat from the WUI"},
+	{DocsRead, "read the workspace docs"},
+	{DocsWrite, "create, edit and delete the workspace docs"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
-// 0029, 0039, 0074, 0119). biz_owner holds every permission but agents.join:
+// 0029, 0039, 0074, 0119, 0123). biz_owner holds every permission but agents.join:
 // rdb 0039 had made members.invite the admin's only, and 0074 returns it
 // (owner 2026-09-28, specs/046: "the admins and the biz_owners of the tenant
 // can CRUD users"); agents.join is admin only (specs/073 §4.7, Q1).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate)},
-	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead)},
+		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite)},
+	{ID: ProductOwner, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite)},
 	{ID: Admin, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
-		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin)},
-	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
-	{ID: Tester, Perms: sorted(TopicsRead, NotesSend)},
-	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand)},
-	{ID: BizCustomer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
-	{ID: RegularUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage)},
+		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite)},
+	{ID: Developer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+	{ID: Tester, Perms: sorted(TopicsRead, NotesSend, DocsRead, DocsWrite)},
+	{ID: PureAgent, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, DocsRead, DocsWrite)},
+	{ID: BizCustomer, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
+	{ID: RegularUser, Perms: sorted(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite)},
 }
 
 // DefaultRoles is Defaults keyed by id (a fresh map each call).

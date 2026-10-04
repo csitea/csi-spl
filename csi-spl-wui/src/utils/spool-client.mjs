@@ -555,6 +555,13 @@ export function createSpoolClient({
      */
     async listMessages({ channel, peer, limit = 50, since, topics = 20, before, changedSince, rx } = {}) {
       if (mock) {
+        /* the same test hook, read again: a line an e2e adds after boot is
+           held as the hub would hold a reply its socket just delivered */
+        const extra = storageGetJson('spool.mock.extra-messages', [])
+        if (Array.isArray(extra)) {
+          const held = new Set(state.messages.map((m) => m.msg_id))
+          state.messages.push(...extra.filter((m) => m && m.msg_id && !held.has(m.msg_id)))
+        }
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
         /* specs/058: a DM is per <ID>@<box>, as the hub's peer filter is */

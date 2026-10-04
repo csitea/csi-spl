@@ -77,13 +77,25 @@ watch([name, () => session.state], async ([n, st]) => {
   notes.enterFeed('ch:' + normalizeChannel(n)) /* freeze the divider boundary before markRead */
   await channel.selectChannel(n)
   /* CLE-77930: threads with replies past the boundary keep them as "<new>/<total>" */
-  if (name.value === n) await notes.seedTopics('ch:' + normalizeChannel(n), channel.messages, channel.repliesFor, String((session.claims && session.claims.hum) || useLive().identity.value || ''))
+  if (name.value === n) await seedTopics(n)
   markRead(n)
   if (name.value !== n) return
   if (await redirectMoved(n)) return
   topicFeedReady.value = true
   releaseStaleTopic()
 }, { immediate: true })
+
+function seedTopics(n: string) {
+  return notes.seedTopics('ch:' + normalizeChannel(n), channel.messages, channel.repliesFor, String((session.claims && session.claims.hum) || useLive().identity.value || ''))
+}
+
+/* Owner (HUM-10, t1 7ef63cfc): "sometimes it works sometimes not" - a thread
+   with no mark of its own was seeded only as the channel opened, so a reply
+   that landed while the reader stayed here left its card a plain total. The
+   same seed runs on every change of the open feed's rows. */
+watch(() => channel.messages, () => {
+  if (topicFeedReady.value) void seedTopics(name.value)
+})
 
 onMounted(() => {
   events.start()

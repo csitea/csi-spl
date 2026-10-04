@@ -1,0 +1,145 @@
+# 072 research 19: prior art, how comparable self-hosted projects deploy fast
+
+Author: c-167. Tree: `origin/master` @ `79a10ef41`, 2026-10-04. Docs only.
+Scope: 9 self-hosted open-source projects whose deploy path is short, what
+each does, and which spec 072 action (A1..A17, section 6) it is the model
+for. Ranked by the spec's section 2 rule (time to first deploy, manual steps,
+clarity of errors); cost appears only as a number where one exists.
+
+External facts are quoted from the linked page as read on 2026-10-04 (n = 1
+read each). Claims about our tree cite the command and its result.
+
+## 1. Today
+
+### 1.1 The prior art (9 projects)
+
+| # | project | the deploy, as its docs give it | link | model for |
+|---|---|---|---|---|
+| 1 | **Discourse** | one pasted line `wget -qO- .../install-discourse \| sudo bash` installs Docker + git and starts a wizard: admin email, domain, SMTP. The wizard **checks DNS resolves to this host and ports 80/443 are free before bootstrapping**. Upgrade: a button in the admin UI, or `./launcher rebuild app` | https://github.com/discourse/discourse/blob/main/docs/INSTALL-cloud.md | A2, A6 |
+| 2 | **Zulip** | download a release tarball (no clone), then `scripts/setup/install --certbot --email=<e> --hostname=<h>`. **Idempotent**: "once you've corrected the cause of the failure, you can just rerun the script". Ends by printing a **one-time organisation-creation link**; `manage.py generate_realm_creation_link` re-mints it | https://zulip.readthedocs.io/en/latest/production/install.html | A2, A9 (resumable), owner link |
+| 3 | **Sentry self-hosted** | git checkout of a tag, `./install.sh`, `docker compose up --wait`. **CalVer**, monthly release on the 15th; upgrade = check out the new tag + rerun `install.sh`; documented **hard stops** (versions you must pass through for DB migrations) | https://develop.sentry.dev/self-hosted/releases/ | A6, versioning (Q1) |
+| 4 | **PostHog hobby** | one pasted line `/bin/bash -c "$(curl -fsSL .../bin/deploy-hobby)"`; asks 2 things: the release tag and the domain. Sizing stated up front: 4 vCPU, 16 GB RAM, 30 GB disk | https://posthog.com/docs/self-host | A2, A15 (state the box size) |
+| 5 | **Supabase** | `cp .env.example .env`, `sh utils/generate-keys.sh` writes the secrets, `docker compose pull`, `up -d --wait`; or one line `curl -fsSL .../setup.sh \| sh` does all four. Docs: "never start ... using these defaults" | https://supabase.com/docs/guides/self-hosting/docker | A1 (pull, not build), A2 (generated secrets) |
+| 6 | **k3s** | server: `curl -sfL https://get.k3s.io \| sh -`; agent: the **same line** plus `K3S_URL=<server> K3S_TOKEN=<token>`; the token sits in one file on the server | https://docs.k3s.io/quick-start | A4, A5 |
+| 7 | **GitHub Actions self-hosted runner** | download the runner tarball, `./config.sh --url <repo> --token <token>`; the token is minted in the UI and "expires after one hour" | https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners | A5 (short-lived, UI-minted join token) |
+| 8 | **Element Web** (Matrix client SPA) | one prebuilt image for everyone; the homeserver URL lives in `config.json`, **mounted at runtime** to `/app/config.json`, no rebuild | https://github.com/element-hq/element-web/blob/develop/docs/install.md | A3 |
+| 9 | **Cloud Run Button** | a README badge deploys a repo to the clicker's own GCP project; `app.json` declares env vars with prompts, `"generator": "secret"` for generated values, and `precreate` / `postcreate` hooks (`postcreate` gets `SERVICE_URL`) | https://github.com/GoogleCloudPlatform/cloud-run-button | A7 (declared answers), A9, A15 |
+
+Not copied: Helm charts and Kubernetes operators (several of the above ship
+one). Nothing in P1, P2 or P3 runs on Kubernetes today
+(`ls csi-spl-iac/src/terraform | grep -ciE 'gke|k8s|helm'` -> 0), so a chart
+would be a fourth path to keep green for no user asking for it.
+
+### 1.2 The patterns, and where our tree stands
+
+| # | pattern | seen in | our tree | check (`79a10ef41`) |
+|---|---|---|---|---|
+| T1 | **pull a prebuilt image**, never build on the target | 3, 4, 5, 8 | builds 3 services from source; image names are local `spool-hub:local` / `spool-web:local` | `grep -cE '^\s+build:' docker-compose.yml` -> 3; `grep -nE '^\s+image:' docker-compose.yml` -> lines 56, 80, 146 = `spool-*:${SPOOL_IMAGE_TAG:-local}`; `grep -li ghcr .github/workflows/* \| wc -l` -> 0 |
+| T2 | **one pasted line** that installs and starts | 1, 4, 5, 6 | none for the hub; the agent installer needs a clone (it resolves `ORC`/`ROOT` from its own path) | `sed -n 67,69p csi-spl-orc/src/bash/features/spool-install/install.sh` -> `ORC="$(cd "$_here/../../../.." ...)"` |
+| T3 | **interactive wizard + preflight** (DNS, 80/443, SMTP) before `up` | 1, 2, 4 | no preflight action | `ls csi-spl-orc/src/bash/run csi-spl-iac/src/bash/run \| grep -ciE 'self-host\|preflight'` -> 0 |
+| T4 | **secrets generated by a script**, defaults refused | 5, 9 | refused off localhost (047 W9) but generated by hand | `grep -n 'openssl rand' README.md` -> line 60 (`openssl rand -hex 24` makes one) |
+| T5 | **one-time admin link printed at the end** | 2 | exists, but read from the hub log | `grep -n 'one-time owner invite' README.md` -> line 62 |
+| T6 | **idempotent, rerun-to-resume** installer | 2, 3 | P1 `up` is; P2 has no whole-estate action (spec 4.3) | spec 072 G11 |
+| T7 | **SPA config at runtime** (`config.json`) | 8 | the public URL and tenant are build args | `grep -n '^ARG SPOOL_' csi-spl-wui/src/docker/wui.Dockerfile` -> lines 25, 30-33 (5 ARGs); `grep -rl config.json csi-spl-wui --include=*.ts --include=*.vue --include=*.mjs --exclude-dir=node_modules \| wc -l` -> 0 |
+| T8 | **same binary, join by URL + token** | 6, 7 | the CLI is built with Go on the box; no join token; no download is checksum-verified | `grep -n 'go.dev' install.sh` -> line 272; `grep -c 'releases/download' install.sh` -> 0; `grep -rliE 'join.?token' csi-spl-api/src/go --include=*.go \| grep -vc _test` -> 0; the 4 `sha256` hits in `install.sh` (lines 24, 396, 401, 427) are rendered-file markers, not download checks |
+| T9 | **upgrade = one command** (rebuild, or tag + rerun) | 1, 3 | 3 manual steps | spec 072 F6 |
+| T10 | **declared deploy answers** (`app.json`, `.env.example`) | 5, 9 | `.env.example` exists for P1; P2 has 1435 lines of our cnf and no template | `ls .env.example` -> present; spec 072 4.3 #3 |
+| T11 | **calendar or semver releases a stranger can read** | 3 | odometer: `.version` floor 1.1.3, highest tag v8.4.0, 1 `stable-*` tag | `cat .version` -> 1.1.3; `git ls-remote --tags origin 'v*' \| sort -V \| tail -1` -> v8.4.0; `git ls-remote --tags origin 'stable*' \| wc -l` -> 1 |
+
+What every one of the 9 shares, and we lack on all three paths: **the target
+machine never needs the source tree or a compiler** (T1 + T2 + T8).
+
+## 2. Blockers
+
+1. **No published artifact of any kind.** No image registry the public can
+   pull from (T1: `grep -li ghcr .github/workflows/*` -> 0) and no CLI
+   release asset (T8: `grep -c 'releases/download' install.sh` -> 0). Every
+   pattern in 1.2 except T3-T5 depends on one. Owner decision 072 D2 (open).
+2. **The WUI is not one image for everyone** (T7): 5 build args in
+   `csi-spl-wui/src/docker/wui.Dockerfile:25,30-33`. Even a published web
+   image would only serve `http://localhost:8080` (line 30's default), so A1
+   is unusable off localhost until A3 lands.
+3. **The agent installer assumes it runs from a clone**
+   (`install.sh:67-69` resolves the orc dir from its own path). A
+   `curl | bash` copy has no `../../../..`, so the k3s / runner pattern needs
+   that resolution changed, not only a binary download.
+4. **The version a stranger sees means nothing to them** (T11): v8.4.0 after
+   a 1.1.3 floor, minted per deploy, and research 05 measured about a day of
+   odometer left before 9.9.9 (`spl-release-version.func.sh:192` FATAL).
+   Sentry's CalVer is the prior art for a scheme that never runs out.
+
+## 3. Actions
+
+Each names the 072 action it shapes (or proposes a new one, N-id). Effort per
+spec 072 section 6 (XS < 0.5 d, S <= 1 d, M 2-5 d).
+
+1. **Copy Discourse's preflight list into A2 verbatim** (A2). `spool-up`
+   checks, in this order, before `docker compose up`: Docker present, the
+   domain's A record equals this host's public IP, ports 80/443 free, the
+   SMTP login works. Each failure prints the cause and the one command to fix
+   it. Done when: a test with a stubbed resolver returning a wrong IP exits
+   non-zero **before** any `docker compose` call, and the message names the
+   expected IP. Effort S (inside A2's S-M).
+2. **Copy Zulip's idempotency and end-link into A2** (A2). A rerun after a
+   failed preflight resumes; the last line of a successful run is the
+   one-time owner link (today in the hub log, T5), plus the command that
+   re-mints it. Done when: the A2 test runs twice and the second run exits 0
+   with "nothing to change" and prints the link again. Effort XS.
+3. **Copy Supabase's `generate-keys` step** (A2, part). Secrets in `.env` are
+   generated by the action, never typed; a value equal to the `.env.example`
+   default is refused off localhost (047 W9 already refuses). Done when:
+   `grep -c 'openssl rand' README.md` -> 0 (the README points to the action),
+   and the test shows 3 distinct 48-hex passwords in the written `.env`.
+   Effort XS.
+4. **Copy Element Web's `config.json` shape for A3** (A3). The web image
+   serves `/config.json` rendered at container start from env
+   (`SPOOL_PUBLIC_URL`, `SPOOL_TENANT`, ...); the build args remain only as
+   defaults. Done when: the existing A3 check
+   (`grep -c 'ARG SPOOL_PUBLIC_URL' wui.Dockerfile` -> 0) and an e2e that
+   starts one image twice with two URLs and sees each. Effort S-M (A3).
+5. **Copy k3s for A4 + A5: one line, two roles** (A4, A5). The same pasted
+   line installs the CLI; adding `SPOOL_HUB_URL=<url> SPOOL_JOIN_TOKEN=<t>`
+   also seats the box. Download from the release, verify against a
+   published `SHA256SUMS`, build from source only as the fallback; resolve
+   paths from `$HOME`, not from the script's location (blocker 3). Done when:
+   in a container with no Go and no clone,
+   `curl -fsSL <raw install.sh> | SPOOL_HUB_URL=... SPOOL_JOIN_TOKEN=... sh`
+   seats an agent, and a corrupted asset is refused by the checksum. Effort M
+   (split: A4 S-M, A5 its own spec).
+6. **Copy the GitHub runner token lifetime for A5** (A5). Tokens minted in
+   Tenant settings -> Agents, valid 1 hour, single use, shown once. Done when:
+   the A5 spec states lifetime and use count, and a hub test refuses a
+   token at 61 minutes and on second use with a message naming where to mint
+   a new one. Effort: part of A5.
+7. **N1: a "Deploy on Google Cloud" path modelled on Cloud Run Button**
+   (A7/A9 input, not a new lane yet). Write the P2 answers A7 asks for as a
+   declarative file in the `app.json` style (prompt, required,
+   `generator: secret`), so `do_spl_cnf_init` and any later button read one
+   list. Do **not** ship the button itself in v1: it deploys one Cloud Run
+   service, not 18 terraform steps. Done when: A7's template has one answers
+   file and `do_spl_cnf_init` reads only it
+   (`grep -c` of each answer key in the action -> 0 hard-coded prompts).
+   Effort S (inside A7).
+8. **State the box size, as PostHog does** (A15). `DEPLOY.md` gives the
+   minimum VM for P1 (CPU, RAM, disk) measured from a stranger test, not
+   guessed. Done when: the A16 run posts the size it used and `DEPLOY.md`
+   cites that run. Effort XS.
+9. **Document hard stops, as Sentry does** (A6). `do_spl_self_host_upgrade`
+   refuses a jump across a release that carries a one-way migration and
+   names the intermediate tag. Done when: a test with a fake tag list
+   containing a marked stop refuses the skip. Effort S.
+
+Top 3 for the lead: **5** (k3s pattern: one line, no Go, no clone, checksum
+verified), **1** (Discourse preflight before `up`), **4** (Element Web
+runtime `config.json`, which A1 needs to be useful off localhost).
+
+## 4. Questions for the owner
+
+| # | question | recommended answer |
+|---|---|---|
+| Q1 | Replace the odometer with a calendar version the way Sentry does (`YY.M.N`, e.g. `26.10.0`), so tags never run out and a stranger reads the age of a release from its number? | **yes**, for the next deliberate jump the floor rule allows (CLAUDE.md "Never roll the version by hand": raise `.version` only for a deliberate jump). Same decision research 05 raises as its Q1; one answer covers both |
+| Q2 | Should `install.sh` be served as a raw URL from the public repo for `curl \| sh`, as k3s, Supabase and PostHog do? | **yes**, with the checksum check of action 5 and a pinned `stable-*` tag in the URL; never `master` |
+| Q3 | Ship a Helm chart? | **no**, not in 072 v1: no user path runs on Kubernetes (1.1) |
+| Q4 | Ship the one-click "Deploy on Google Cloud" button? | **not in v1**: it fits a single Cloud Run service, not the 18-step estate; reuse its answers-file format (action 7) and revisit once A9 exists |
+
+<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T07:18:33Z -->

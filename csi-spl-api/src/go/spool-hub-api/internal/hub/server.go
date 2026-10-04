@@ -36,8 +36,10 @@ import (
 // Options configures a Server. Every duration and limit comes from cnf
 // (config.Hub); tests set them directly.
 type Options struct {
-	Store             store.Store
-	Blob              blob.Store
+	Store store.Store
+	Blob  blob.Store
+	// Docs is the docs bucket (docs.go): repo paths + tree.json. nil = off.
+	Docs              blob.Store
 	Log               zerolog.Logger
 	TenantHostPattern string // "{tenant}.<fqdn>"
 	HelloSkew         time.Duration
@@ -322,6 +324,7 @@ func (s *Server) Handler() http.Handler {
 	s.routePerfIngest(mux)     // spec 066 L2: POST /v1/perf/samples, fire-and-forget
 	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
 	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest
+	s.routeDocs(mux)           // the Docs section: GET /v1/docs/{path...}
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)
 	if s.o.Auth != nil {
 		s.o.Auth.Register(mux)

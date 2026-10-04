@@ -264,6 +264,10 @@ type Hub struct {
 	// Exactly one blob store: a GCS bucket (prod) or a local dir (tests / lde).
 	FilesBucket string `env:"SPOOL_HUB_FILES_BUCKET"`
 	FilesDir    string `env:"SPOOL_HUB_FILES_DIR"`
+	// The Docs section's bucket (the WUI deploy publishes the repo .md
+	// there); a local dir in tests / lde. Neither set = the section is off.
+	DocsBucket string `env:"SPOOL_HUB_DOCS_BUCKET"`
+	DocsDir    string `env:"SPOOL_HUB_DOCS_DIR"`
 	// TenantHostPattern is "{tenant}.<fqdn>"; the tenant comes from the Host.
 	TenantHostPattern string        `env:"SPOOL_HUB_TENANT_HOST_PATTERN"`
 	AllowTextOnly     bool          `env:"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING" envDefault:"false"`
@@ -484,6 +488,9 @@ func (h *Hub) checkStorage() error {
 	}
 	if (h.FilesBucket == "") == (h.FilesDir == "") {
 		return fmt.Errorf("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")
+	}
+	if h.DocsBucket != "" && h.DocsDir != "" {
+		return fmt.Errorf("at most one of SPOOL_HUB_DOCS_BUCKET or SPOOL_HUB_DOCS_DIR may be set")
 	}
 	if !strings.HasPrefix(h.TenantHostPattern, "{tenant}.") || len(h.TenantHostPattern) <= len("{tenant}.") {
 		return fmt.Errorf("SPOOL_HUB_TENANT_HOST_PATTERN %q must look like {tenant}.<fqdn> (no default)", h.TenantHostPattern)

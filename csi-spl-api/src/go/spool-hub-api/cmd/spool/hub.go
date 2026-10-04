@@ -108,6 +108,12 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
+	if opts.Docs, err = openDocsStore(ctx, hc); err != nil {
+		return fail(err)
+	}
+	if opts.Docs != nil {
+		defer opts.Docs.Close()
+	}
 	opts.SchemaHead = schemaHead
 	srv, err := hub.New(opts)
 	if err != nil {
@@ -266,6 +272,18 @@ func openBlobStore(ctx context.Context, hc *config.Hub) (blob.Store, error) {
 		return nil, err
 	}
 	return g, nil
+}
+
+// openDocsStore is the Docs section's bucket (or a local dir), nil when
+// neither is set: the section is off.
+func openDocsStore(ctx context.Context, hc *config.Hub) (blob.Store, error) {
+	switch {
+	case hc.DocsBucket != "":
+		return blob.OpenGCS(ctx, hc.DocsBucket)
+	case hc.DocsDir != "":
+		return blob.Dir{Root: hc.DocsDir}, nil
+	}
+	return nil, nil
 }
 
 // cicdService is the CI-logs service, or nil when it is off.

@@ -2086,3 +2086,15 @@ declare module '~/utils/save-blob.mjs' {
   export const OBJECT_URL_REVOKE_MS: number
   export function saveBlob(blob: Blob, name: string, env?: { doc?: Document, url?: typeof URL, later?: (fn: () => void, ms: number) => unknown }): void
 }
+
+declare module '~/utils/id-links.mjs' {
+  export interface IdIndex { empty: boolean }
+  export function setIdCatalogProvider(fn: (() => IdIndex) | null): void
+  export function resetIdCatalogProvider(): void
+  export function indexCatalog(input: {
+    topics?: readonly unknown[]
+    messages?: readonly unknown[]
+    self?: string
+    pathFor?: (path: string) => string
+  }): IdIndex
+}

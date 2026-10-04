@@ -29,6 +29,7 @@
 import { classifyHref, linkOpen } from './link-target.mjs'
 import { BIDI_CLASS } from './bidi.mjs'
 import { BOX_ID_SRC, PARTICIPANT_ID_SRC } from './agent-id.mjs'
+import { activeIdIndex, linkifyBlocks, linkifyMarkdown } from './id-links.mjs'
 
 const LANG_RE = /^([A-Za-z0-9_+#.-]{1,24})\n/
 
@@ -430,7 +431,10 @@ export function parseBody(src) {
   for (const region of wikiRegions(src)) {
     blocks.push(...(region.type === 'wiki' ? wikiBlocks(region.text) : plainBlocks(region.text)))
   }
-  return blocks
+  // Ids link from the catalog the front layer registered. Empty in a unit
+  // test, so this returns the same tree it always did.
+  const index = activeIdIndex()
+  return index.empty ? blocks : linkifyBlocks(blocks, index)
 }
 
 /**
@@ -608,6 +612,8 @@ function longestRun(s) {
  * (its text IS the markdown), and a {{wiki}} / {{/wiki}} line is dropped.
  */
 export function markdownSource(src) {
+  const index = activeIdIndex()
+  const plain = (s) => (index.empty ? s : linkifyMarkdown(s, index))
   let out = ''
   const block = (s) => {
     if (out && !out.endsWith('\n')) out += '\n'
@@ -615,14 +621,14 @@ export function markdownSource(src) {
     out += s + '\n\n'
   }
   for (const region of wikiRegions(src)) {
-    if (region.type === 'wiki') { block(region.text); continue }
+    if (region.type === 'wiki') { block(plain(region.text)); continue }
     for (const t of tokenize(region.text)) {
-      if (t.type === 'text') out += t.text
+      if (t.type === 'text') out += plain(t.text)
       else if (t.type === 'inline') {
         const fence = '`'.repeat(longestRun(t.text) + 1)
         const pad = t.text.startsWith('`') || t.text.endsWith('`') ? ' ' : ''
         out += fence + pad + t.text + pad + fence
-      } else if (isMarkdownLang(t.lang)) block(t.text)
+      } else if (isMarkdownLang(t.lang)) block(plain(t.text))
       else {
         const fence = '`'.repeat(Math.max(3, longestRun(t.text) + 1))
         block(fence + (t.lang || '') + '\n' + t.text + '\n' + fence)

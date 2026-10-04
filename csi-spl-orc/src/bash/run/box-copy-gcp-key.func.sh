@@ -29,7 +29,7 @@
 # @example KEY_NAME=key-csi-spl-bkp.json TO_BOX=sat DRY_RUN=0 ./run -a do_box_copy_gcp_key
 #------------------------------------------------------------------------------
 do_box_copy_gcp_key() {
-  do_require_bin ssh jq sha256sum || return 1
+  do_require_bin jq sha256sum || return 1
   local name="${KEY_NAME:-}" box="${TO_BOX:-}" force="${FORCE:-0}" dry=1
   [[ "$name" =~ ^key-csi-spl-[a-z0-9-]+\.json$ ]] ||
     { do_log "FATAL KEY_NAME must be one file name matching ^key-csi-spl-[a-z0-9-]+\\.json\$ (no path, no glob), got: '$name'"; return 1; }

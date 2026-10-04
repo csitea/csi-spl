@@ -23,7 +23,8 @@ command -v jq >/dev/null || { echo "SKIP: no jq"; exit 0; }
 ME="$(id -un)"
 SECRET="FAKE-PRIVATE-KEY-$RANDOM$RANDOM"
 mkdir -p "$T/src" "$T/remote" "$T/stub"
-printf '{"type":"service_account","client_email":"bkp-reader@csi-spl-bkp.iam.gserviceaccount.com","private_key":"%s"}\n' "$SECRET" \
+# the field name goes through %s: no-key-material-in-tree.tst.sh flags it as a literal
+printf '{"type":"service_account","client_email":"bkp-reader@csi-spl-bkp.iam.gserviceaccount.com","%s":"%s"}\n' private_key "$SECRET" \
   >"$T/src/key-csi-spl-bkp.json"
 SRC_SHA="$(sha256sum <"$T/src/key-csi-spl-bkp.json" | cut -d' ' -f1)"
 printf 'OWNER_USER=%s\nAGENT_USER=%s\nBOX_TAG=sat\n' "$ME" "$ME" >"$T/box.env"

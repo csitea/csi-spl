@@ -1,0 +1,6 @@
+Lay-What: The database can now mark a workspace as paused or closed, and keeps a log of what operators did to it.
+Lay-How: Two new date fields on each workspace and a new history table, added by one upgrade step.
+Lay-Why: The people who run the service need to pause and close customer workspaces safely and see who did what.
+Tech-What: rdb 0115 adds tenants.suspended_at/archived_at and operator_audit; store gains OperatorWorkspaces methods.
+Tech-How: Migration with RLS tenant_scope + operator_scope (NULLIF form); getTenant reads the new columns behind a catalogue probe.
+Tech-Why: Spec 074 phase 1 needs persistent workspace state and an audit trail before the operator API can act.

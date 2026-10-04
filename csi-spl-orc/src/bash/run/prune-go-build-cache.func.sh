@@ -154,13 +154,10 @@ go_cache_lock_or_stop() {
   return 2
 }
 
-do_prune_go_build_cache() {
-  local dry="${DRY_RUN:-1}" age="${GO_CACHE_MAX_AGE_MIN:-1440}" gate="${GO_CACHE_GATE:-0}"
-  local thr="${GO_CACHE_PRUNE_AT_PCT:-85}" hour="${GO_CACHE_HOURLY_MINUTE:-0}"
-  local targets u d real depth fs_line free pct mount stats
-  local files bytes before_b after_b rc=0 removed_files=0 removed_bytes=0
-  local first_free="" last_free="" first_mount="" due=0 minute pct_now lrc=0
-
+# go_cache_check_inputs <dry> <gate> <age> <thr> <hour>: 0 when every knob is
+# valid, else logs the FATAL and returns 1.
+go_cache_check_inputs() {
+  local dry="$1" gate="$2" age="$3" thr="$4" hour="$5"
   do_require_bin find df du awk readlink || return 1
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$gate" == 0 || "$gate" == 1 ]] || { do_log "FATAL GO_CACHE_GATE must be 0 or 1, got: '$gate'"; return 1; }
@@ -168,6 +165,99 @@ do_prune_go_build_cache() {
   [[ "$thr" =~ ^[0-9]+$ ]] && (( thr <= 100 )) || { do_log "FATAL GO_CACHE_PRUNE_AT_PCT must be 0..100, got: '$thr'"; return 1; }
   [[ "$hour" =~ ^[0-9]+$ ]] && (( 10#$hour <= 59 )) || { do_log "FATAL GO_CACHE_HOURLY_MINUTE must be 0..59, got: '$hour'"; return 1; }
   [[ "${GO_CACHE_LOCK:-1}" == 0 || "${GO_CACHE_LOCK:-1}" == 1 ]] || { do_log "FATAL GO_CACHE_LOCK must be 0 or 1"; return 1; }
+}
+
+# go_cache_gate <targets> <thr> <hour>: 0 prune now, 3 skip (logged), 1 FATAL.
+# Due on the hourly minute, or when the first cache's filesystem is >= thr.
+go_cache_gate() {
+  local targets="$1" thr="$2" hour="$3" minute u d pct_now due=0
+  minute="${GO_CACHE_NOW_MIN:-$(date +%M)}"
+  [[ "$minute" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_NOW_MIN is not a minute, got: '$minute'"; return 1; }
+  u="${targets%%$'\t'*}"
+  d="${targets#*$'\t'}"
+  d="${d%%$'\n'*}"
+  if [[ -n "${GO_CACHE_USED_PCT:-}" ]]; then
+    pct_now="$GO_CACHE_USED_PCT"
+  else
+    pct_now="$(go_cache_fs "$u" "$d" | awk '{ print $2 }')" || pct_now=""
+  fi
+  if [[ -n "$pct_now" && ! "$pct_now" =~ ^[0-9]+$ ]]; then
+    do_log "FATAL filesystem use is not a percent, got: '$pct_now'"
+    return 1
+  fi
+  if (( 10#$minute == 10#$hour )); then
+    due=1
+  elif [[ -z "$pct_now" ]]; then
+    do_log "FATAL cannot read how full the cache filesystem is, and this is not the hourly tick"
+    return 1
+  elif (( pct_now >= thr )); then
+    due=1
+  fi
+  if (( due == 0 )); then
+    do_log "OK skip: filesystem ${pct_now}% is under ${thr}% and minute ${minute} is not the hourly tick"
+    return 3
+  fi
+  return 0
+}
+
+# go_cache_split_fs <fs-line>: sets the caller's free, pct and mount from a
+# go_cache_fs line.
+go_cache_split_fs() {
+  free="${1%% *}"
+  mount="${1#* }"
+  mount="${mount#* }"
+  pct="${1#* }"
+  pct="${pct%% *}"
+}
+
+# go_cache_prune_one <user> <dir> <age> <dry>: check, measure, prune one cache
+# and print its BEFORE / PLAN / AFTER lines. Adds to the caller's
+# removed_files / removed_bytes and sets first_free, first_mount, last_free.
+# 1 when that cache was left untouched (the FATAL is logged).
+go_cache_prune_one() {
+  local u="$1" d="$2" age="$3" dry="$4" real depth fs_line free pct mount stats files bytes before_b after_b
+  real="$(go_cache_as "$u" readlink -f -- "$d" 2>/dev/null || true)"
+  depth=0
+  [[ -n "$real" ]] && depth="$(awk -F/ '{ print NF }' <<<"$real")"
+  if [[ "$real" != /* || "$real" == / || "$real" == *..* || "$depth" -lt 4 ]]; then
+    do_log "FATAL refusing to prune '$d' (resolved path is empty, root, or too shallow); nothing deleted there"
+    return 1
+  fi
+  if ! go_cache_is_cache "$u" "$real"; then
+    do_log "FATAL $real is not a Go build cache (want a README file and real 00 and ff directories); nothing deleted"
+    return 1
+  fi
+  before_b="$(go_cache_bytes "$u" "$real")" || { do_log "FATAL cannot measure $real"; return 1; }
+  [[ "$before_b" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot measure $real"; return 1; }
+  fs_line="$(go_cache_fs "$u" "$real")" || { do_log "FATAL cannot read the filesystem of $real"; return 1; }
+  go_cache_split_fs "$fs_line"
+  [[ "$free" =~ ^[0-9]+$ && "$pct" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot read the filesystem of $real"; return 1; }
+  [[ -z "$first_free" ]] && { first_free="$free"; first_mount="$mount"; }
+  printf 'BEFORE user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$before_b" "$free" "$pct" "$mount"
+  stats="$(go_cache_old_stats "$u" "$real" "$age")" || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; return 1; }
+  read -r files bytes <<<"$stats"
+  [[ "$files" =~ ^[0-9]+$ && "$bytes" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; return 1; }
+  printf 'PLAN user=%s files=%s bytes=%s age_min=%s dry_run=%s\n' "$u" "$files" "$bytes" "$age" "$dry"
+  if [[ "$dry" == 0 && "$files" != 0 ]]; then
+    go_cache_as "$u" find "$real" -xdev -mindepth 2 -type f -mmin "+${age}" -delete ||
+      { do_log "FATAL delete failed in $real"; return 1; }
+  fi
+  after_b="$(go_cache_bytes "$u" "$real")" || after_b="?"
+  fs_line="$(go_cache_fs "$u" "$real")" || fs_line="$free ? $mount"
+  go_cache_split_fs "$fs_line"
+  last_free="$free"
+  printf 'AFTER user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$after_b" "$free" "$pct" "$mount"
+  removed_files=$((removed_files + files))
+  removed_bytes=$((removed_bytes + bytes))
+}
+
+do_prune_go_build_cache() {
+  local dry="${DRY_RUN:-1}" age="${GO_CACHE_MAX_AGE_MIN:-1440}" gate="${GO_CACHE_GATE:-0}"
+  local thr="${GO_CACHE_PRUNE_AT_PCT:-85}" hour="${GO_CACHE_HOURLY_MINUTE:-0}"
+  local targets u d rc=0 removed_files=0 removed_bytes=0
+  local first_free="" last_free="" first_mount="" lrc=0 grc=0
+
+  go_cache_check_inputs "$dry" "$gate" "$age" "$thr" "$hour" || return 1
 
   go_cache_lock_or_stop || lrc=$?
   if (( lrc == 2 )); then
@@ -182,79 +272,14 @@ do_prune_go_build_cache() {
   fi
 
   if [[ "$gate" == 1 ]]; then
-    minute="${GO_CACHE_NOW_MIN:-$(date +%M)}"
-    [[ "$minute" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_NOW_MIN is not a minute, got: '$minute'"; return 1; }
-    u="${targets%%$'\t'*}"
-    d="${targets#*$'\t'}"
-    d="${d%%$'\n'*}"
-    if [[ -n "${GO_CACHE_USED_PCT:-}" ]]; then
-      pct_now="$GO_CACHE_USED_PCT"
-    else
-      pct_now="$(go_cache_fs "$u" "$d" | awk '{ print $2 }')" || pct_now=""
-    fi
-    if [[ -n "$pct_now" && ! "$pct_now" =~ ^[0-9]+$ ]]; then
-      do_log "FATAL filesystem use is not a percent, got: '$pct_now'"
-      return 1
-    fi
-    if (( 10#$minute == 10#$hour )); then
-      due=1
-    elif [[ -z "$pct_now" ]]; then
-      do_log "FATAL cannot read how full the cache filesystem is, and this is not the hourly tick"
-      return 1
-    elif (( pct_now >= thr )); then
-      due=1
-    fi
-    if (( due == 0 )); then
-      do_log "OK skip: filesystem ${pct_now}% is under ${thr}% and minute ${minute} is not the hourly tick"
-      return 0
-    fi
+    go_cache_gate "$targets" "$thr" "$hour" || grc=$?
+    (( grc == 3 )) && return 0
+    (( grc == 0 )) || return 1
   fi
 
   while IFS=$'\t' read -r u d; do
     [[ -n "$u" && -n "$d" ]] || continue
-    real="$(go_cache_as "$u" readlink -f -- "$d" 2>/dev/null || true)"
-    depth=0
-    [[ -n "$real" ]] && depth="$(awk -F/ '{ print NF }' <<<"$real")"
-    if [[ "$real" != /* || "$real" == / || "$real" == *..* || "$depth" -lt 4 ]]; then
-      do_log "FATAL refusing to prune '$d' (resolved path is empty, root, or too shallow); nothing deleted there"
-      rc=1
-      continue
-    fi
-    if ! go_cache_is_cache "$u" "$real"; then
-      do_log "FATAL $real is not a Go build cache (want a README file and real 00 and ff directories); nothing deleted"
-      rc=1
-      continue
-    fi
-    before_b="$(go_cache_bytes "$u" "$real")" || { do_log "FATAL cannot measure $real"; rc=1; continue; }
-    [[ "$before_b" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot measure $real"; rc=1; continue; }
-    fs_line="$(go_cache_fs "$u" "$real")" || { do_log "FATAL cannot read the filesystem of $real"; rc=1; continue; }
-    free="${fs_line%% *}"
-    mount="${fs_line#* }"
-    mount="${mount#* }"
-    pct="${fs_line#* }"
-    pct="${pct%% *}"
-    [[ "$free" =~ ^[0-9]+$ && "$pct" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot read the filesystem of $real"; rc=1; continue; }
-    [[ -z "$first_free" ]] && { first_free="$free"; first_mount="$mount"; }
-    printf 'BEFORE user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$before_b" "$free" "$pct" "$mount"
-    stats="$(go_cache_old_stats "$u" "$real" "$age")" || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; rc=1; continue; }
-    read -r files bytes <<<"$stats"
-    [[ "$files" =~ ^[0-9]+$ && "$bytes" =~ ^[0-9]+$ ]] || { do_log "FATAL cannot list old entries in $real; nothing deleted there"; rc=1; continue; }
-    printf 'PLAN user=%s files=%s bytes=%s age_min=%s dry_run=%s\n' "$u" "$files" "$bytes" "$age" "$dry"
-    if [[ "$dry" == 0 && "$files" != 0 ]]; then
-      go_cache_as "$u" find "$real" -xdev -mindepth 2 -type f -mmin "+${age}" -delete ||
-        { do_log "FATAL delete failed in $real"; rc=1; continue; }
-    fi
-    after_b="$(go_cache_bytes "$u" "$real")" || after_b="?"
-    fs_line="$(go_cache_fs "$u" "$real")" || fs_line="$free ? $mount"
-    free="${fs_line%% *}"
-    mount="${fs_line#* }"
-    mount="${mount#* }"
-    pct="${fs_line#* }"
-    pct="${pct%% *}"
-    last_free="$free"
-    printf 'AFTER user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$after_b" "$free" "$pct" "$mount"
-    removed_files=$((removed_files + files))
-    removed_bytes=$((removed_bytes + bytes))
+    go_cache_prune_one "$u" "$d" "$age" "$dry" || rc=1
   done <<<"$targets"
 
   if (( rc != 0 )); then

@@ -213,7 +213,7 @@ miss=""
 for b in $(grep -rhoE 'do_require_bin [a-z0-9 _.-]+' "$PROJ_PATH/../csi-spl-orc/src/bash/run" | sed 's/do_require_bin //' | tr ' ' '\n' | grep -E '^[a-z0-9_-]+$' | sort -u); do
   case "$b" in yq|python3|psql|curl|gcloud|jq|sha256sum|git|setsid|flock|docker|gh|crontab|setfacl|getfacl|perl|pandoc|openssl|tmux) ;;
     # coreutils / base system, or not a box-user tool: pnpm + node (WUI lanes, the agent), sudo, systemctl, install, getent, tee ...
-    sudo|pnpm|node|install|getent|tee|sed|mkdir|hostname|find|date|awk|tar|systemctl) ;;
+    sudo|pnpm|node|install|getent|tee|sed|mkdir|hostname|find|date|awk|tar|systemctl|df|du|readlink) ;;
     *) miss="$miss $b" ;; esac
 done
 [[ -z "$miss" ]] && pass "every do_require_bin tool of the orc actions is in verify's owner list or the base system" || fail "orc requires tools verify does not check for the box user:$miss"

@@ -59,6 +59,15 @@
 #      ROOT_KEY_JSON - the tenant's 0600 create JSON, or a 0600 file with the
 #      bare root key (the compose stack's tenant-root.key): pin the box yourself
 #      SPOOL_INSTALL_PREFIX - default $HOME/.local (bin/ and share/ under it)
+#      SPOOL_INSTALL_SHARED - the ONE spool binary of this machine (a file
+#      path every user can read, e.g. /var/<org>/<org>-<app>/spool/bin/spool):
+#      the build goes there and <data>/tools/bin/spool becomes a link to it (a
+#      real file there is kept as spool.bak), so one refresh reaches every
+#      user linked to it. Default: where <data>/tools/bin/spool already links.
+#      SPOOL_INSTALL_SHARED_GROUP - chgrp a newly made shared dir (mode 2775)
+#      SPOOL_INSTALL_NO_BUILD=1 - with SPOOL_INSTALL_SHARED, --binary-only only
+#      LINKS to the shared copy another user built and verified: no Go, no
+#      build; a missing shared copy fails (exit 6)
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
@@ -280,7 +289,8 @@ go_ok() {  # the first go on PATH (or in an override root) that is new enough
   return 1
 }
 GO_BIN=""
-if ! go_ok; then
+if [ "${SPOOL_INSTALL_NO_BUILD:-0}" = 1 ]; then :
+elif ! go_ok; then
   base="${SPOOL_INSTALL_URL_GO:-https://go.dev}"
   if [ "$DRY" = 1 ]; then plan "download the latest Go (>= $GO_NEED) into $TOOLS/go ($base/dl/)"; GO_BIN="$TOOLS/go/bin/go"
   else
@@ -296,7 +306,13 @@ if ! go_ok; then
   fi
 fi
 [ -n "$GO_BIN" ] && TPATH="$TPATH:$(dirname "$GO_BIN")" && export PATH="$(dirname "$GO_BIN"):$PATH"
-SPOOL="$TOOLS/bin/spool"
+TOOLS_SPOOL="$TOOLS/bin/spool"
+# One installed copy per machine: SPOOL_INSTALL_SHARED, else the file the
+# tools path already links to (so a full install by any linked user rebuilds
+# the shared copy instead of splitting it again).
+SHARED="${SPOOL_INSTALL_SHARED:-}"
+[ -z "$SHARED" ] && [ -L "$TOOLS_SPOOL" ] && SHARED="$(readlink -f "$TOOLS_SPOOL")"
+SPOOL="${SHARED:-$TOOLS_SPOOL}"
 # bin_rev <bin>: the commit a spool binary was built from - build.sh's
 # -X main.commit in the recorded -ldflags, else Go's vcs.revision.
 bin_rev() {
@@ -323,8 +339,17 @@ binary_only() {
   local want new="$SPOOL.new.$$" bak="$SPOOL.bak"
   want="${SPOOL_INSTALL_EXPECT_REV:-$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)}"
   [ -n "$want" ] || die 6 "cannot read HEAD of $ROOT (set SPOOL_INSTALL_EXPECT_REV)"
+  if [ "${SPOOL_INSTALL_NO_BUILD:-0}" = 1 ]; then
+    [ -n "$SHARED" ] || die 2 "SPOOL_INSTALL_NO_BUILD=1 needs SPOOL_INSTALL_SHARED"
+    if [ -x "$SPOOL" ]; then say "spool: link only, to $SPOOL (built and verified by the refresh)"; return 0; fi
+    [ "$DRY" = 1 ] && { plan "link only: $SPOOL is not built yet (the refresh builds it first)"; return 0; }
+    die 6 "$SPOOL is missing and SPOOL_INSTALL_NO_BUILD=1: nothing linked"
+  fi
+  if [ -x "$SPOOL" ] && bin_ok "$SPOOL" "$want" >/dev/null 2>&1; then
+    say "spool: $SPOOL is already at $want - not rebuilt"; return 0
+  fi
   if [ "$DRY" = 1 ]; then plan "build spool from $MOD into $new, verify commit $want, keep $bak, rename into $SPOOL"; return 0; fi
-  mkdir -p "$TOOLS/bin" || die 6 "cannot create $TOOLS/bin"
+  shared_dir || die 6 "cannot create ${SPOOL%/*}"
   if ! bash "$BUILD_SH" "$new" >/dev/null 2>&1; then
     say "fetching the Go modules of $MOD (first build on this machine)"
     { ( cd "$MOD" && GOFLAGS=-mod=mod "${GO_BIN:-go}" mod download ) >&2 && bash "$BUILD_SH" "$new" >&2; } ||
@@ -342,10 +367,42 @@ binary_only() {
   fi
   say "spool: $SPOOL refreshed to $want"
 }
+# shared_dir: the dir of $SPOOL; a newly made shared one is 2775 (every
+# linked user may refresh it), group SPOOL_INSTALL_SHARED_GROUP when set
+shared_dir() {
+  local d="${SPOOL%/*}"
+  [ -d "$d" ] && return 0
+  mkdir -p "$d" || return 1
+  [ -n "$SHARED" ] || return 0
+  if [ -n "${SPOOL_INSTALL_SHARED_GROUP:-}" ]; then
+    chgrp "$SPOOL_INSTALL_SHARED_GROUP" "$d" || say "WARN cannot chgrp $d to $SPOOL_INSTALL_SHARED_GROUP"
+  fi
+  chmod 2775 "$d"
+}
+# link_tools: <data>/tools/bin/spool -> the shared copy. A real file there is
+# kept as spool.bak first; a link elsewhere is repointed. Atomic: a temp link
+# renamed over the path, so a failure leaves the old file in place.
+link_tools() {
+  [ -n "$SHARED" ] || return 0
+  local cur="" tmp="$TOOLS_SPOOL.lnk.$$" real=0
+  [ -L "$TOOLS_SPOOL" ] && cur="$(readlink "$TOOLS_SPOOL")"
+  [ "$cur" = "$SHARED" ] && return 0
+  [ -f "$TOOLS_SPOOL" ] && [ ! -L "$TOOLS_SPOOL" ] && real=1
+  if [ "$DRY" = 1 ]; then
+    plan "link $TOOLS_SPOOL -> $SHARED${cur:+ (was -> $cur)}$([ "$real" = 1 ] && echo ', the real file kept as spool.bak')"
+    return 0
+  fi
+  mkdir -p "$TOOLS/bin" || die 6 "cannot create $TOOLS/bin"
+  if [ "$real" = 1 ]; then cp -p "$TOOLS_SPOOL" "$TOOLS_SPOOL.bak" || die 6 "cannot back up $TOOLS_SPOOL; nothing linked"; fi
+  if ! { ln -sfn "$SHARED" "$tmp" && mv -fT "$tmp" "$TOOLS_SPOOL"; }; then
+    rm -f "$tmp"; die 6 "cannot link $TOOLS_SPOOL -> $SHARED (the old file is untouched)"
+  fi
+  say "spool: $TOOLS_SPOOL -> $SHARED (the one installed copy)"
+}
 if [ "$BINONLY" = 1 ]; then binary_only
 elif [ "$DRY" = 1 ]; then plan "build spool from $MOD into $SPOOL"
 else
-  mkdir -p "$TOOLS/bin"
+  shared_dir
   # build.sh is offline (GOPROXY=off): a fresh machine fetches the modules
   # once, through Go's own default proxy, then builds offline ever after -
   # which is what every later do_spl_desk_up rebuild relies on.
@@ -356,18 +413,19 @@ else
   fi
   say "spool: $SPOOL ($("$SPOOL" version 2>/dev/null | sed -n 1p))"
 fi
+link_tools
 # The harness scripts (spool-send.sh, ...) call a bare `spool`: a binary only
 # in tools is not on PATH, and they fail rc 127. A symlink in <prefix>/bin
 # follows every rebuild; a <prefix>/bin/spool that is a real file is left
 # alone and named, never replaced.
 SPOOL_LINK="$BIN/spool"
-if [ "$DRY" = 1 ]; then plan "link $SPOOL_LINK -> $SPOOL"
-elif [ -L "$SPOOL_LINK" ] && [ "$(readlink "$SPOOL_LINK")" = "$SPOOL" ]; then :
+if [ -L "$SPOOL_LINK" ] && [ "$(readlink "$SPOOL_LINK")" = "$TOOLS_SPOOL" ]; then :
+elif [ "$DRY" = 1 ]; then plan "link $SPOOL_LINK -> $TOOLS_SPOOL"
 elif [ -e "$SPOOL_LINK" ] && [ ! -L "$SPOOL_LINK" ]; then
   say "WARN $SPOOL_LINK exists and is not a link: left alone (spool is at $SPOOL)"
 else
-  mkdir -p "$BIN" && ln -sfn "$SPOOL" "$SPOOL_LINK" || die 7 "cannot link $SPOOL_LINK"
-  say "spool on PATH: $SPOOL_LINK -> $SPOOL"
+  mkdir -p "$BIN" && ln -sfn "$TOOLS_SPOOL" "$SPOOL_LINK" || die 7 "cannot link $SPOOL_LINK"
+  say "spool on PATH: $SPOOL_LINK -> $TOOLS_SPOOL"
 fi
 if [ "$BINONLY" = 1 ]; then
   [ "$DRY" = 1 ] && say "DRY RUN - nothing changed"

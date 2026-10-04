@@ -8,8 +8,8 @@
 # @description   1. fetch    git fetch origin master, then --ff-only the main
 # @description               checkout (on master); when HEAD moved, the
 # @description               updated ./run runs steps 2..4 (BOX_UPDATE_FETCHED=1)
-# @description   2. refresh  do_spl_spool_refresh (the installed spool binary
-# @description               only, never the agent config)
+# @description   2. refresh  do_spl_spool_refresh (the one installed spool binary,
+# @description               every box user linked to it; never the agent config)
 # @description   3. deploy   BOX_DEPLOY_CMD=install do_spl_box_deploy in
 # @description               UPDATE mode: BOX_DEPLOY_MISSING=skip (an
 # @description               installed cron line is kept verbatim, a missing

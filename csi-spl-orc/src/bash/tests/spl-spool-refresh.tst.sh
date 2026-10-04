@@ -12,6 +12,7 @@
 #   4. a new binary with the wrong commit: refused, the old one untouched
 #   5. a failing build: the old binary untouched
 #   6. a checkout that is not at trunk: refused before any build
+# SPOOL_SHARED_BIN= : the per-user mode (the shared one: spl-spool-refresh-shared.tst.sh)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -47,7 +48,7 @@ same() {
     [ "$(ls -l "$T/snap/mcp" | awk '{print $9,$10,$11}')" = "$(ls -l "$H/.local/mcp-bot" | awk '{print $9,$10,$11}')" ]
 }
 refresh() {
-  SNIPPET='do_spl_spool_refresh' in_orc HOME="$H" XDG_CONFIG_HOME= SPOOL_INSTALL_PREFIX="$P" SPOOL_REFRESH_TRUNK=HEAD \
+  SNIPPET='do_spl_spool_refresh' in_orc HOME="$H" XDG_CONFIG_HOME= SPOOL_SHARED_BIN= SPOOL_INSTALL_PREFIX="$P" SPOOL_REFRESH_TRUNK=HEAD \
     SPOOL_INSTALL_BUILD="$T/build.sh" SPOOL_INSTALL_BINREV="$T/binrev" SPOOL_INSTALL_GO_ROOTS="$T/go" PATH="$T/go/bin:$PATH" USER=tester "$@" 2>&1
 }
 
@@ -67,6 +68,7 @@ same && grep -q 'OK config: the five config paths are byte-identical' <<<"$out" 
 ! compgen -G "$P/share/spool-agent/tools/bin/spool.new.*" >/dev/null && pass "2. ...no temp binary left behind" || fail "2. temp left ($(ls "$P/share/spool-agent/tools/bin"))"
 
 # 3. control: a build that writes a config path is caught and named
+mk_bin "$BIN" "$OLD_SHA"
 out="$(refresh DRY_RUN=0 STUB_TOUCH="$H/.bashrc")"; rc=$?
 [ "$rc" -ne 0 ] && grep -q "CHANGED config: $H/.bashrc" <<<"$out" && ! same \
   && pass "3. control: a changed config path fails the run and is named" || fail "3. control (rc $rc: $out)"

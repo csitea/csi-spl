@@ -8,7 +8,9 @@
 // them. Agents opens the agents statistics (one row per agent on box-a);
 // Hardware opens the empty box-stats state ("no history yet" - the mock
 // serves no samples, and never invents any) plus the named GCP VM slot; OS
-// reads "not reported yet". No horizontal page scroll.
+// reads "not reported yet". box-desk reported its daily facts (the mock's
+// fixture): System, OS, Run-times and Network show them with their age, and
+// the Hardware snapshot shows its CPU model. No horizontal page scroll.
 //
 // At 390 px (phone): one pane at a time - the list, the resources, the
 // statistics - and Back steps down one pane, to the list.
@@ -106,7 +108,7 @@ try {
       cols.map((c) => c.name).join(',') === 'boxes-list,resources,stats', cols)
     ok(`${theme}: the panes do not overlap`, cols.every((c, i) => i === 0 || c.left >= cols[i - 1].right - 1), cols)
     ok(`${theme}: every resource row is listed`,
-      await count(p, '[data-test^=box-resource-]:not([data-test^=box-resource-sum])') === 4)
+      await count(p, '[data-test^=box-resource-]:not([data-test^=box-resource-sum])') === 6)
     ok(`${theme}: no resource picked yet - the right pane says so`, await visible(p, '[data-test=box-stats-pick]'))
 
     /* agents -> the agents statistics on the right */
@@ -132,6 +134,31 @@ try {
     await click(p, '[data-test=box-resource-os]')
     await p.waitForSelector('[data-test=box-stats-pane][data-resource=os]', { visible: true, timeout: NAV_TIMEOUT })
     ok(`${theme}: os - "not reported yet"`, await visible(p, '[data-test=box-stats-not-reported]'))
+    ok(`${theme}: box-a - facts not reported yet`, /not reported/i.test(await p.$eval('[data-test=box-facts-age]', (e) => e.textContent)))
+
+    /* box-desk reported its facts: system, network, OS, run-times, hardware snapshot */
+    await click(p, '[data-testid=sidebar-panel-boxes] a[data-key="box-desk"]')
+    await p.waitForFunction(() => location.pathname.endsWith('/boxes/box-desk'), { timeout: NAV_TIMEOUT })
+    await click(p, '[data-test=box-resource-system]')
+    await p.waitForSelector('[data-test=box-stats-system]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`${theme}: system - hostname and service state`, /desk-01/.test(await p.$eval('[data-test=box-stats-system]', (e) => e.textContent))
+      && await p.$eval('[data-test=box-stats-system-state]', (e) => e.textContent.trim()) === 'running')
+    ok(`${theme}: system - the facts' age shows`, /ago/.test(await p.$eval('[data-test=box-stats-facts-age]', (e) => e.textContent)))
+    ok(`${theme}: system - the middle row sums it`, /desk-01/.test(await p.$eval('[data-test=box-resource-sum-system]', (e) => e.textContent)))
+    await shot(p, `boxes-system-1440-${theme}`)
+    await click(p, '[data-test=box-resource-network]')
+    await p.waitForSelector('[data-test=box-stats-network]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`${theme}: network - the IPs`, /192\.0\.2\.10/.test(await p.$eval('[data-test=box-stats-network]', (e) => e.textContent)))
+    await click(p, '[data-test=box-resource-os]')
+    await p.waitForSelector('[data-test=box-stats-os]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`${theme}: os - the release`, /trixie/.test(await p.$eval('[data-test=box-stats-os]', (e) => e.textContent)))
+    await click(p, '[data-test=box-resource-runtimes]')
+    await p.waitForSelector('[data-test=box-stats-runtimes]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`${theme}: run-times - one row each`, await count(p, '[data-test=box-stats-runtimes] tbody tr') === 6)
+    await click(p, '[data-test=box-resource-hardware]')
+    await p.waitForSelector('[data-test=box-stats-hw-snapshot]', { visible: true, timeout: NAV_TIMEOUT })
+    ok(`${theme}: hardware - the snapshot's CPU model`, /Example CPU/.test(await p.$eval('[data-test=box-stats-hw-snapshot]', (e) => e.textContent)))
+    ok(`${theme}: hardware - the middle row reads the snapshot`, /8 CPUs/.test(await p.$eval('[data-test=box-resource-sum-hardware]', (e) => e.textContent)))
     ok(`${theme}: no horizontal page scroll`, await noXScroll(p))
     await p.close()
   }

@@ -29,24 +29,36 @@ On a wide screen the Boxes page has three panes:
    (its last hello) and how many users sit on it. Below that is the
    **Resources** list:
    - **Agents**: how many agents sit on the box and how many are online,
-   - **Hardware**: the CPU count and the memory size from the box's latest
-     sample,
-   - **OS**: the operating system the box reported,
-   - **Run-times**: the run-times the box reported (for example go, node,
-     docker and the agent CLIs).
+   - **Hardware**: the CPU count and the memory size,
+   - **System**: the box's hostname and the state of its services,
+   - **OS**: the operating system and release the box reported,
+   - **Run-times**: the run-times installed on the box (for example go, node,
+     docker and the agent CLIs),
+   - **Network**: the box's IP addresses.
+
+   A box sends these facts at most once a day, as a snapshot for
+   troubleshooting. The line under **Resources** says how old the snapshot is
+   (**Facts reported 3h ago**).
 
    The box's **Agents** and **People** follow, each linking to that agent's or
    person's card.
 3. **Right: statistics for the resource you selected** in the middle pane:
    - **Agents**: total, online and offline counts, then one row per agent with
-     its kind (Claude, Antigravity, Grok, Qwen), its state, how long its current
-     holder has been seated and the box's last hello.
-   - **Hardware**: the last 24 hours of load and memory, one row per hour, with
-     the average and the peak, and the disks the box reported. This needs the
+     its kind (Claude, Antigravity, Grok, Qwen), whether it is online, how long
+     its current holder has been seated and when it was last seen.
+   - **Hardware**: the CPU model and count, total and free memory and swap in
+     use, from the daily snapshot. Then the last 24 hours of load and memory,
+     one row per hour, with the average and the peak, and the disks the box
+     reported. This needs the
      audit permission (an operator's role). A box that has not sent a sample
      yet shows **No history yet**. A **GCP VM metrics** slot is kept for the
      cloud's own numbers, which come later.
-   - **OS** and **Run-times**: what the box reported.
+   - **System**: hostname, service state (`running`, `degraded`, ...), how long
+     the box has been up, its time zone and its load.
+   - **OS**: release, name, version, kernel and architecture.
+   - **Run-times**: each run-time and its version. One that is not listed is
+     not installed.
+   - **Network**: IP addresses, gateway and DNS servers.
 
 Anything a box has not reported shows as **Not reported yet**. Spool never
 fills in a value the box did not send.

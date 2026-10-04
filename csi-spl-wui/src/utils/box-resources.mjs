@@ -5,13 +5,15 @@
 // link, a reload and the phone's Back all land on the same pane.
 //
 // The WUI reads only what the hub serves: the roster (agents, seats, the box's
-// last hello, and - once the BOX-0 hello carries them - `boxes[].os` and
-// `boxes[].runtimes`) and GET /v1/tenant/box-stats (load + memory history,
-// per-hour avg / peak). What the hub does not serve shows as "not reported
-// yet" - never made-up values.
+// last hello, and the box facts c-220 serves on `boxes[]`: os, runtimes,
+// system, network, facts_reported_at, agent_presence) and GET
+// /v1/tenant/box-stats (load + memory history, per-hour avg / peak). The facts
+// are a troubleshooting snapshot, collected at most once a day (owner
+// 7e013eab), so their age shows beside them. What the hub does not serve shows
+// as "not reported yet" - never made-up values.
 
 /** The resources a box's middle pane lists, in order. */
-export const BOX_RESOURCES = ['agents', 'hardware', 'os', 'runtimes']
+export const BOX_RESOURCES = ['agents', 'hardware', 'system', 'os', 'runtimes', 'network']
 
 /**
  * The selected resource from a route query value ('' = none selected).
@@ -92,18 +94,78 @@ export function latestBoxStat(rows, box) {
   return best
 }
 
+/** @param {unknown} v @returns {Record<string, unknown> | null} */
+const objOf = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? /** @type {Record<string, unknown>} */ (v) : null)
+/** @param {unknown} v */
+const str = (v) => (v === null || v === undefined ? '' : String(v))
+/** @param {unknown} v @returns {number | null} */
+const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+/** @param {unknown} v @returns {string[]} */
+const strs = (v) => (Array.isArray(v) ? v.map(str).filter(Boolean) : [])
+
 /**
- * The box's OS as the hub reports it (`boxes[].os`: name, version, kernel,
- * arch), or null when the hub reports none.
+ * The box's OS as the hub reports it (`boxes[].os`: name, version, pretty,
+ * kernel, arch), or null when the hub reports none.
  * @param {{ os?: unknown } | null | undefined} detail roster.boxes[box]
- * @returns {{ name: string, version: string, kernel: string, arch: string } | null}
+ * @returns {{ name: string, version: string, pretty: string, kernel: string, arch: string } | null}
  */
 export function boxOsOf(detail) {
-  const os = detail && detail.os
-  if (!os || typeof os !== 'object') return null
-  const o = /** @type {Record<string, unknown>} */ (os)
-  const out = { name: String(o.name || ''), version: String(o.version || ''), kernel: String(o.kernel || ''), arch: String(o.arch || '') }
-  return out.name || out.version || out.kernel || out.arch ? out : null
+  const o = objOf(detail && detail.os)
+  if (!o) return null
+  const out = { name: str(o.name), version: str(o.version), pretty: str(o.pretty), kernel: str(o.kernel), arch: str(o.arch) }
+  return Object.values(out).some(Boolean) ? out : null
+}
+
+/**
+ * The OS in one line for the middle pane: its pretty name, else name and
+ * version, else the kernel ('' when none).
+ * @param {{ name: string, version: string, pretty: string, kernel: string } | null} os
+ */
+export function osLine(os) {
+  if (!os) return ''
+  return os.pretty || [os.name, os.version].filter(Boolean).join(' ') || os.kernel
+}
+
+/**
+ * The box's system snapshot (`boxes[].system`), or null when not reported.
+ * Numbers stay null when a field is missing, so the pane can say so.
+ * @param {{ system?: unknown } | null | undefined} detail roster.boxes[box]
+ */
+export function boxSystemOf(detail) {
+  const o = objOf(detail && detail.system)
+  if (!o) return null
+  return {
+    hostname: str(o.hostname),
+    timezone: str(o.timezone),
+    bootAt: str(o.boot_at),
+    cpus: num(o.cpus),
+    cpuModel: str(o.cpu_model),
+    load: str(o.load),
+    memTotalMB: num(o.mem_total_mb),
+    memAvailMB: num(o.mem_avail_mb),
+    swapTotalMB: num(o.swap_total_mb),
+    swapFreeMB: num(o.swap_free_mb),
+    state: str(o.state),
+  }
+}
+
+/**
+ * The box's network snapshot (`boxes[].network`: ips, gateway, dns), or null
+ * when not reported.
+ * @param {{ network?: unknown } | null | undefined} detail roster.boxes[box]
+ */
+export function boxNetworkOf(detail) {
+  const o = objOf(detail && detail.network)
+  if (!o) return null
+  return { ips: strs(o.ips), gateway: str(o.gateway), dns: strs(o.dns) }
+}
+
+/**
+ * When the box last collected its facts (`facts_reported_at`), '' when never.
+ * @param {{ facts_reported_at?: unknown } | null | undefined} detail
+ */
+export function factsReportedAt(detail) {
+  return str(detail && detail.facts_reported_at)
 }
 
 /**
@@ -119,6 +181,15 @@ export function boxRuntimesOf(detail) {
     .filter(([name]) => name)
     .map(([name, version]) => ({ name, version: String(version ?? '') }))
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/**
+ * Megabytes as a short binary size: 512 -> "512 MiB", 32768 -> "32 GiB".
+ * '' for a missing value.
+ * @param {number | null} mb
+ */
+export function formatMB(mb) {
+  return mb === null || mb === undefined ? '' : formatKB(Number(mb) * 1024)
 }
 
 /**
@@ -165,17 +236,25 @@ export function ageOf(at, now = Date.now()) {
 
 /**
  * One row per agent on the box for the Agents statistics: the info the hub
- * already has - id, state (online), when its current holder was seated
- * (seated_at, rdb 0107) and the box's last hello. Online first, then by id.
+ * already has - id, state, when its current holder was seated (seated_at,
+ * rdb 0107) and when it was last seen. The hub's live `agent_presence`
+ * (state, last_seen) wins over the roster's online dot and the box's last
+ * hello when it names the agent. Online first, then by id.
  * @param {{ id: string, label: string, online: boolean }[]} agents BoxRow.agents
- * @param {{ last_hello_at?: string, seated_at?: Record<string, string> } | null | undefined} detail roster.boxes[box]
+ * @param {{ last_hello_at?: string, seated_at?: Record<string, string>, agent_presence?: Record<string, { state?: string, last_seen?: string | null }> } | null | undefined} detail roster.boxes[box]
  * @returns {{ id: string, label: string, online: boolean, seatedAt: string, lastHello: string }[]}
  */
 export function agentStatRows(agents, detail) {
   const seated = (detail && detail.seated_at) || {}
-  const lastHello = String((detail && detail.last_hello_at) || '')
+  const presence = objOf(detail && detail.agent_presence) || {}
+  const lastHello = str(detail && detail.last_hello_at)
   return (Array.isArray(agents) ? agents : [])
-    .map((a) => ({ id: a.id, label: a.label, online: Boolean(a.online), seatedAt: String(seated[a.id] || ''), lastHello }))
+    .map((a) => {
+      const p = objOf(presence[a.id])
+      const online = p && p.state ? p.state === 'online' : Boolean(a.online)
+      const seen = p && 'last_seen' in p ? str(p.last_seen) : lastHello
+      return { id: a.id, label: a.label, online, seatedAt: str(seated[a.id]), lastHello: seen }
+    })
     .sort((a, b) => (Number(b.online) - Number(a.online)) || a.id.localeCompare(b.id))
 }
 

@@ -4,11 +4,15 @@
      and memory history from GET /v1/tenant/box-stats (per-hour avg / peak);
      until a box has sent a sample, or on a hub without the route, a plain
      "no history yet". GCP VM metrics come later: one named slot, no data.
-     OS and run-times: what the box's hello reported, else "not reported yet".
+     System, OS, run-times, network and the hardware snapshot: the box's daily
+     facts (c-220; owner d1d9bcd3), with their age, else "not reported yet".
      Loaded lazily by pages/boxes/[id].vue (027 initial-chunk budget). -->
 <template>
   <div class="bstat" data-test="box-stats-pane" :data-resource="resource">
     <h3 class="bstat__title">{{ t(titleKey) }}</h3>
+    <p v-if="resource !== 'agents'" class="muted bstat__note" data-test="box-stats-facts-age" :title="factsAt ? isoDateTime(factsAt) : undefined">
+      {{ factsAt ? t('boxes.facts_age', { age: ageOf(factsAt) }) : t('boxes.facts_never') }}
+    </p>
 
     <!-- agents: the roster's info per agent -->
     <template v-if="resource === 'agents'">
@@ -42,8 +46,15 @@
       </div>
     </template>
 
-    <!-- hardware: the box-stats history -->
+    <!-- hardware: the daily snapshot, then the box-stats history -->
     <template v-else-if="resource === 'hardware'">
+      <dl v-if="sys" class="bstat__facts" data-test="box-stats-hw-snapshot">
+        <dt>{{ t('boxes.cpu_model') }}</dt><dd>{{ sys.cpuModel || '—' }}</dd>
+        <dt>{{ t('boxes.stat_cpus') }}</dt><dd>{{ sys.cpus ?? '—' }}</dd>
+        <dt>{{ t('boxes.stat_mem_total') }}</dt><dd>{{ formatMB(sys.memTotalMB) || '—' }}</dd>
+        <dt>{{ t('boxes.mem_avail') }}</dt><dd>{{ formatMB(sys.memAvailMB) || '—' }}</dd>
+        <dt>{{ t('boxes.swap') }}</dt><dd>{{ swapLine || '—' }}</dd>
+      </dl>
       <p v-if="stats.state === 'loading'" class="muted" data-test="box-stats-loading">{{ t('app.loading') }}</p>
       <p v-else-if="stats.state === 'forbidden'" class="muted" data-test="box-stats-forbidden">{{ t('boxes.stats_forbidden') }}</p>
       <p v-else-if="stats.state === 'failed'" class="muted" role="alert" data-test="box-stats-failed">{{ t('boxes.stats_failed') }}</p>
@@ -100,9 +111,32 @@
       </section>
     </template>
 
-    <!-- OS: the box's hello -->
+    <!-- system: the daily snapshot -->
+    <template v-else-if="resource === 'system'">
+      <dl v-if="sys" class="bstat__facts" data-test="box-stats-system">
+        <dt>{{ t('boxes.sys_hostname') }}</dt><dd><code>{{ sys.hostname || '—' }}</code></dd>
+        <dt>{{ t('boxes.sys_state') }}</dt><dd data-test="box-stats-system-state">{{ sys.state || '—' }}</dd>
+        <dt>{{ t('boxes.sys_uptime') }}</dt><dd :title="sys.bootAt ? isoDateTime(sys.bootAt) : undefined">{{ sys.bootAt ? ageOf(sys.bootAt) : '—' }}</dd>
+        <dt>{{ t('boxes.sys_timezone') }}</dt><dd>{{ sys.timezone || '—' }}</dd>
+        <dt>{{ t('boxes.sys_load') }}</dt><dd>{{ sys.load || '—' }}</dd>
+      </dl>
+      <p v-else class="muted" data-test="box-stats-not-reported">{{ t('boxes.not_reported') }}</p>
+    </template>
+
+    <!-- network: the daily snapshot -->
+    <template v-else-if="resource === 'network'">
+      <dl v-if="net" class="bstat__facts" data-test="box-stats-network">
+        <dt>{{ t('boxes.net_ips') }}</dt><dd><code v-for="ip in net.ips" :key="ip" class="bstat__chip">{{ ip }}</code><span v-if="!net.ips.length">—</span></dd>
+        <dt>{{ t('boxes.net_gateway') }}</dt><dd><code>{{ net.gateway || '—' }}</code></dd>
+        <dt>{{ t('boxes.net_dns') }}</dt><dd><code v-for="d in net.dns" :key="d" class="bstat__chip">{{ d }}</code><span v-if="!net.dns.length">—</span></dd>
+      </dl>
+      <p v-else class="muted" data-test="box-stats-not-reported">{{ t('boxes.not_reported') }}</p>
+    </template>
+
+    <!-- OS: the daily snapshot -->
     <template v-else-if="resource === 'os'">
       <dl v-if="os" class="bstat__facts" data-test="box-stats-os">
+        <dt>{{ t('boxes.os_release') }}</dt><dd>{{ os.pretty || '—' }}</dd>
         <dt>{{ t('boxes.os_name') }}</dt><dd>{{ os.name || '—' }}</dd>
         <dt>{{ t('boxes.os_version') }}</dt><dd>{{ os.version || '—' }}</dd>
         <dt>{{ t('boxes.os_kernel') }}</dt><dd>{{ os.kernel || '—' }}</dd>
@@ -129,7 +163,10 @@
 <script setup lang="ts">
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { ageOf, agentCounts, agentStatRows, boxDisksOf, boxOsOf, boxRuntimesOf, formatKB, formatLoad, hardwareSummary, latestBoxStat } from '~/utils/box-resources.mjs'
+import {
+  ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxRuntimesOf, boxSystemOf, factsReportedAt,
+  formatKB, formatLoad, formatMB, hardwareSummary, latestBoxStat,
+} from '~/utils/box-resources.mjs'
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import type { BoxDetail } from '~/stores/roster'
 
@@ -143,7 +180,10 @@ const props = defineProps<{
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 
-const TITLES: Record<string, string> = { agents: 'boxes.res_agents', hardware: 'boxes.res_hardware', os: 'boxes.res_os', runtimes: 'boxes.res_runtimes' }
+const TITLES: Record<string, string> = {
+  agents: 'boxes.res_agents', hardware: 'boxes.res_hardware', system: 'boxes.res_system',
+  os: 'boxes.res_os', runtimes: 'boxes.res_runtimes', network: 'boxes.res_network',
+}
 const titleKey = computed(() => TITLES[props.resource] || 'boxes.stats')
 const agents = computed(() => agentStatRows(props.box.agents, props.detail))
 const counts = computed(() => agentCounts(agents.value))
@@ -154,6 +194,16 @@ const hours = computed(() => [...props.stats.hours].sort((a, b) => String(b.hour
 const disks = computed(() => boxDisksOf(latest.value))
 const os = computed(() => boxOsOf(props.detail))
 const runtimes = computed(() => boxRuntimesOf(props.detail))
+const sys = computed(() => boxSystemOf(props.detail))
+const net = computed(() => boxNetworkOf(props.detail))
+const factsAt = computed(() => factsReportedAt(props.detail))
+/* swap in use of its total: "512 MiB / 2.0 GiB" */
+const swapLine = computed(() => {
+  const s = sys.value
+  if (!s || s.swapTotalMB === null) return ''
+  const used = s.swapFreeMB === null ? null : Math.max(0, s.swapTotalMB - s.swapFreeMB)
+  return used === null ? formatMB(s.swapTotalMB) : `${formatMB(used)} / ${formatMB(s.swapTotalMB)}`
+})
 </script>
 
 <style scoped>
@@ -174,6 +224,7 @@ const runtimes = computed(() => boxRuntimesOf(props.detail))
 .bstat__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; }
 .bstat__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .bstat__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.bstat__chip { display: inline-block; margin: 0 6px 4px 0; }
 .bstat__slot h4 { margin: 0 0 4px; font-size: 0.85rem; }
 .bstat__slot p { margin: 0; }
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); vertical-align: middle; }

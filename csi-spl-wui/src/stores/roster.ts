@@ -76,6 +76,8 @@ export const useRosterStore = defineStore('roster', () => {
   return { roster, online, owners, humansDetail, boxes, me, self, people, peers, refresh, isOnline, applyFrame }
 })
 
+const BOX_FACT_KEYS = ['os', 'runtimes', 'system', 'network', 'agent_presence'] as const
+
 /** view-v1 §4.1 boxes[] keyed by box_id, as the Agents and Boxes cards read it. */
 function boxDetails(list: Array<BoxDetail & { box_id?: string }>): Record<string, BoxDetail> {
   const byBox: Record<string, BoxDetail> = {}
@@ -83,10 +85,13 @@ function boxDetails(list: Array<BoxDetail & { box_id?: string }>): Record<string
     const id = String(b?.box_id || '')
     if (!id) continue
     byBox[id] = { online: Boolean(b.online), last_hello_at: String(b.last_hello_at || ''), seated_at: { ...(b.seated_at || {}) } }
-    /* HUM-10 (t1 f77c9f87): the BOX-0 hello's OS and run-times, when the
-       hub serves them (c-220); absent on an older hub */
-    if (b.os && typeof b.os === 'object') byBox[id].os = { ...b.os }
-    if (b.runtimes && typeof b.runtimes === 'object') byBox[id].runtimes = { ...b.runtimes }
+    /* HUM-10 (t1 f77c9f87, d1d9bcd3): the box facts the hub serves (c-220),
+       each absent until the box reported it; utils/box-resources reads them */
+    for (const k of BOX_FACT_KEYS) {
+      const v = b[k]
+      if (v && typeof v === 'object') (byBox[id] as unknown as Record<string, unknown>)[k] = Array.isArray(v) ? [...v] : { ...v }
+    }
+    if (b.facts_reported_at) byBox[id].facts_reported_at = String(b.facts_reported_at)
   }
   return byBox
 }
@@ -108,10 +113,18 @@ export interface BoxDetail {
   /** Spec 061 3.6 (rdb 0107): agent id -> when its current holder was seated
    *  (RFC3339). An id with no entry was seated before the hub recorded seats. */
   seated_at?: Record<string, string>
-  /** The box's OS from its BOX-0 hello (HUM-10, t1 f77c9f87); absent until
-   *  the hub serves it. */
-  os?: { name?: string, version?: string, kernel?: string, arch?: string }
-  /** Run-time name -> version from the BOX-0 hello (go, node, docker, the
-   *  agent CLIs); absent until the hub serves it. */
+  /* HUM-10 (t1 f77c9f87, d1d9bcd3): the box facts (c-220), each absent until
+     the box reported it. A troubleshooting snapshot, collected at most once a
+     day; facts_reported_at is when. */
+  os?: { name?: string, version?: string, pretty?: string, kernel?: string, arch?: string }
+  /** run-time name -> version; a name that is absent is not installed */
   runtimes?: Record<string, string>
+  system?: {
+    hostname?: string, timezone?: string, boot_at?: string, cpus?: number, cpu_model?: string, load?: string,
+    mem_total_mb?: number, mem_avail_mb?: number, swap_total_mb?: number, swap_free_mb?: number, state?: string
+  }
+  network?: { ips?: string[], gateway?: string, dns?: string[] }
+  facts_reported_at?: string
+  /** live, per agent id: online / offline and when last seen */
+  agent_presence?: Record<string, { state?: string, last_seen?: string | null }>
 }

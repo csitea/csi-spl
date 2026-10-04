@@ -8,13 +8,14 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  BOX_RESOURCES, ageOf, agentCounts, agentStatRows, boxDisksOf, boxOsOf, boxResourceOf, boxRuntimesOf,
-  boxStatsOf, formatKB, formatLoad, hardwareSummary, isBoxStatsForbidden, isNoBoxStats, latestBoxStat,
+  BOX_RESOURCES, ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf,
+  boxStatsOf, boxSystemOf, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary, isBoxStatsForbidden,
+  isNoBoxStats, latestBoxStat, osLine,
 } from '../../src/utils/box-resources.mjs'
 
 describe('boxResourceOf', () => {
   it('keeps a known resource, drops anything else', () => {
-    assert.deepEqual(BOX_RESOURCES, ['agents', 'hardware', 'os', 'runtimes'])
+    assert.deepEqual(BOX_RESOURCES, ['agents', 'hardware', 'system', 'os', 'runtimes', 'network'])
     for (const r of BOX_RESOURCES) assert.equal(boxResourceOf(r), r)
     assert.equal(boxResourceOf(['hardware', 'os']), 'hardware')
     assert.equal(boxResourceOf('people'), '')
@@ -73,9 +74,31 @@ describe('OS and run-times from the hello', () => {
   })
   it('as served: os fields, run-times sorted by name', () => {
     assert.deepEqual(boxOsOf({ os: { name: 'Debian', version: '13', kernel: '6.12', arch: 'amd64' } }),
-      { name: 'Debian', version: '13', kernel: '6.12', arch: 'amd64' })
+      { name: 'Debian', version: '13', pretty: '', kernel: '6.12', arch: 'amd64' })
+    assert.equal(osLine(boxOsOf({ os: { name: 'Debian', version: '13', pretty: 'Debian 13 (trixie)' } })), 'Debian 13 (trixie)')
+    assert.equal(osLine(boxOsOf({ os: { name: 'Debian', version: '13' } })), 'Debian 13')
+    assert.equal(osLine(boxOsOf({ os: { kernel: '6.12' } })), '6.12')
+    assert.equal(osLine(null), '')
     assert.deepEqual(boxRuntimesOf({ runtimes: { node: '20.19', go: '1.24', docker: '' } }),
       [{ name: 'docker', version: '' }, { name: 'go', version: '1.24' }, { name: 'node', version: '20.19' }])
+  })
+})
+
+describe('system and network snapshot (c-220 field names)', () => {
+  it('none until reported', () => {
+    assert.equal(boxSystemOf({}), null)
+    assert.equal(boxNetworkOf({ network: 'x' }), null)
+    assert.equal(factsReportedAt({}), '')
+  })
+  it('as served; a missing number stays null, not 0', () => {
+    const s = boxSystemOf({ system: { hostname: 'h1', cpus: 8, mem_total_mb: 1024, state: 'degraded' } })
+    assert.equal(s.hostname, 'h1')
+    assert.equal(s.cpus, 8)
+    assert.equal(s.memTotalMB, 1024)
+    assert.equal(s.memAvailMB, null)
+    assert.equal(s.state, 'degraded')
+    assert.deepEqual(boxNetworkOf({ network: { ips: ['192.0.2.1', ''], dns: ['192.0.2.53'] } }), { ips: ['192.0.2.1'], gateway: '', dns: ['192.0.2.53'] })
+    assert.equal(factsReportedAt({ facts_reported_at: '2026-10-04T00:00:00Z' }), '2026-10-04T00:00:00Z')
   })
 })
 
@@ -93,6 +116,18 @@ describe('agents statistics', () => {
     assert.equal(rows[2].lastHello, '2026-10-04T10:00:00Z')
     assert.deepEqual(agentCounts(rows), { total: 3, online: 2, offline: 1 })
   })
+  it('agent_presence (live) wins over the roster dot and the box hello', () => {
+    const rows = agentStatRows(agents, {
+      last_hello_at: '2026-10-04T10:00:00Z',
+      agent_presence: { 'GRK-03': { state: 'online', last_seen: '2026-10-04T11:00:00Z' }, 'CLE-07': { state: 'offline', last_seen: null } },
+    })
+    const by = Object.fromEntries(rows.map((r) => [r.id, r]))
+    assert.equal(by['GRK-03'].online, true)
+    assert.equal(by['GRK-03'].lastHello, '2026-10-04T11:00:00Z')
+    assert.equal(by['CLE-07'].online, false)
+    assert.equal(by['CLE-07'].lastHello, '')
+    assert.equal(by['AGY-02'].lastHello, '2026-10-04T10:00:00Z')
+  })
   it('no detail: still one row per agent', () => {
     assert.equal(agentStatRows(agents, null).length, 3)
     assert.deepEqual(agentCounts([]), { total: 0, online: 0, offline: 0 })
@@ -106,6 +141,8 @@ describe('formatting', () => {
     assert.equal(formatKB(1536), '1.5 MiB')
     assert.equal(formatKB(33554432), '32 GiB')
     assert.equal(formatKB(-1), '')
+    assert.equal(formatMB(32768), '32 GiB')
+    assert.equal(formatMB(null), '')
     assert.equal(formatLoad(1.234), '1.23')
     assert.equal(formatLoad(undefined), '')
     const now = Date.parse('2026-10-04T12:00:00Z')

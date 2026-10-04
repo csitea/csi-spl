@@ -47,6 +47,7 @@
         <!-- the box's resources: each row opens its statistics on the right -->
         <nav class="box-res__list" :aria-label="t('boxes.resources')" data-test="box-resources">
           <h3>{{ t('boxes.resources') }}</h3>
+          <p class="muted box-res__age" data-test="box-facts-age" :title="factsAt ? isoDateTime(factsAt) : undefined">{{ factsAge }}</p>
           <NuxtLink
             v-for="r in rows"
             :key="r.id"
@@ -118,7 +119,10 @@
 import { useRosterStore } from '~/stores/roster'
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { boxByID, isBrowserBox } from '~/utils/box-rows.mjs'
-import { agentCounts, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, formatKB, isBoxStatsForbidden, isNoBoxStats, latestBoxStat } from '~/utils/box-resources.mjs'
+import {
+  ageOf, agentCounts, agentStatRows, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf, boxStatsOf, boxSystemOf,
+  factsReportedAt, formatKB, formatMB, isBoxStatsForbidden, isNoBoxStats, latestBoxStat, osLine,
+} from '~/utils/box-resources.mjs'
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -165,23 +169,32 @@ async function loadStats() {
 
 const latest = computed(() => latestBoxStat(stats.value.rows, boxId.value))
 const notReported = computed(() => t('boxes.not_reported'))
-const rows = computed(() => {
-  const c = agentCounts(box.value.agents)
-  const os = boxOsOf(detail.value)
-  const rts = boxRuntimesOf(detail.value)
+const factsAt = computed(() => factsReportedAt(detail.value))
+/* the facts are a daily snapshot: say how old it is */
+const factsAge = computed(() => (factsAt.value ? t('boxes.facts_age', { age: ageOf(factsAt.value) }) : t('boxes.facts_never')))
+const rows = computed(() => [
+  { id: 'agents', icon: 'bot' as UiIconName, label: 'boxes.res_agents', summary: agentsSummary() },
+  { id: 'hardware', icon: 'server' as UiIconName, label: 'boxes.res_hardware', summary: hardwareLine() || notReported.value },
+  { id: 'system', icon: 'history' as UiIconName, label: 'boxes.res_system', summary: systemLine() || notReported.value },
+  { id: 'os', icon: 'settings' as UiIconName, label: 'boxes.res_os', summary: osLine(boxOsOf(detail.value)) || notReported.value },
+  { id: 'runtimes', icon: 'list' as UiIconName, label: 'boxes.res_runtimes', summary: boxRuntimesOf(detail.value).map((r) => r.name).join(', ') || notReported.value },
+  { id: 'network', icon: 'waves' as UiIconName, label: 'boxes.res_network', summary: (boxNetworkOf(detail.value)?.ips || []).join(', ') || notReported.value },
+])
+function agentsSummary() {
+  const c = agentCounts(agentStatRows(box.value.agents, detail.value))
+  return t('boxes.agents_sum', { total: c.total, online: c.online })
+}
+/* CPUs and memory: the daily snapshot first, else the latest box-stats sample */
+function hardwareLine() {
+  const sys = boxSystemOf(detail.value)
+  if (sys && sys.cpus !== null && sys.memTotalMB !== null) return t('boxes.hardware_sum', { cpus: sys.cpus, mem: formatMB(sys.memTotalMB) })
   const hw = latest.value
-  return [
-    { id: 'agents', icon: 'bot' as UiIconName, label: 'boxes.res_agents', summary: t('boxes.agents_sum', { total: c.total, online: c.online }) },
-    {
-      id: 'hardware',
-      icon: 'server' as UiIconName,
-      label: 'boxes.res_hardware',
-      summary: hw ? t('boxes.hardware_sum', { cpus: hw.cpus, mem: formatKB(hw.mem_total_kb) }) : notReported.value,
-    },
-    { id: 'os', icon: 'settings' as UiIconName, label: 'boxes.res_os', summary: os ? [os.name, os.version].filter(Boolean).join(' ') || os.kernel : notReported.value },
-    { id: 'runtimes', icon: 'list' as UiIconName, label: 'boxes.res_runtimes', summary: rts.length ? rts.map((r) => r.name).join(', ') : notReported.value },
-  ]
-})
+  return hw ? t('boxes.hardware_sum', { cpus: hw.cpus, mem: formatKB(hw.mem_total_kb) }) : ''
+}
+function systemLine() {
+  const sys = boxSystemOf(detail.value)
+  return sys ? [sys.hostname, sys.state].filter(Boolean).join(' · ') : ''
+}
 
 /* on a phone the open resource names the page; otherwise the box tag */
 const heading = computed(() => {
@@ -268,6 +281,7 @@ stack.rightPanel(
   color: var(--color-fg);
 }
 .box-res__label { font-weight: 600; flex-shrink: 0; }
+.box-res__age { margin: -4px 0 4px; font-size: 0.78rem; }
 .box-res__sum { margin-inline-start: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
 .box-card__n { font-weight: 400; font-size: 0.8rem; }
 .box-seat {

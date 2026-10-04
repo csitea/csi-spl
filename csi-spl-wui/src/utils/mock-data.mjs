@@ -35,12 +35,28 @@ export const MOCK_HUMANS = [
   { human_id: 'HUM-3', interests: 'Distributed systems, trail running' },
 ]
 
+/* HUM-10 (t1 f77c9f87, d1d9bcd3): the box facts the hub serves on boxes[]
+   (c-220's field names). Only box-desk reported them, so the Boxes page shows
+   both a reported box and an unreported one (box-a, box-b: "not reported
+   yet"). Documentation-range addresses (RFC 5737), a generic hostname. */
+const MOCK_DESK_FACTS = {
+  os: { name: 'Debian GNU/Linux', version: '13', pretty: 'Debian GNU/Linux 13 (trixie)', kernel: '6.12.0-cloud-amd64', arch: 'x86_64' },
+  runtimes: { go: '1.24.4', node: '20.19.2', git: '2.47.2', docker: '28.3.0', claude: '2.1.0', spool: 'v8.9.5' },
+  system: {
+    hostname: 'desk-01', timezone: 'UTC', boot_at: '2026-09-15T08:00:00Z', cpus: 8, cpu_model: 'Example CPU @ 2.20GHz',
+    load: '0.42 0.37 0.30', mem_total_mb: 32768, mem_avail_mb: 20480, swap_total_mb: 2048, swap_free_mb: 1536, state: 'running',
+  },
+  network: { ips: ['192.0.2.10', '198.51.100.7'], gateway: '192.0.2.1', dns: ['192.0.2.53'] },
+  facts_reported_at: T0,
+  agent_presence: { 'CLE-11': { state: 'online', last_seen: T0 } },
+}
+
 /* CLE-77794: the Agents section's per-box detail (view-v1 §4.1 boxes[]):
    online and last_hello_at, so the card can show a box's liveness. */
 export const MOCK_BOXES = [
   { box_id: 'box-a', online: true, last_hello_at: T0, agents: ['CLE-07', 'GRK-03'] },
   { box_id: 'box-b', online: false, last_hello_at: T0, agents: ['CLE-07', 'AGY-02'] },
-  { box_id: 'box-desk', online: true, last_hello_at: T0, agents: ['CLE-11'] },
+  { box_id: 'box-desk', online: true, last_hello_at: T0, agents: ['CLE-11'], ...MOCK_DESK_FACTS },
 ]
 
 /* CLE-77799: the act-as audit trail (GET /v1/audit/clones, specs/054 §7) the

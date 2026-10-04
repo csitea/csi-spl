@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore, skipHydrate } from 'pinia'
 import {
   escalateReason,
   channelKey,
@@ -457,7 +457,10 @@ export const useNotificationStore = defineStore('notification', () => {
     boundary,
     enterFeed,
     seedTopics,
-    topicRead,
+    /* Owner (HUM-10, t1 7ef63cfc): '/' is prerendered, and its payload's empty
+       map replaced the marks read from localStorage above - a tab opened there
+       drew every topic card a plain total. They are this browser's, not the page's. */
+    topicRead: skipHydrate(topicRead),
     markTopicRead,
     requestPush,
     ping,

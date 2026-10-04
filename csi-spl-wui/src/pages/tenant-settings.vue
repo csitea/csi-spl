@@ -56,8 +56,26 @@ const api = useSpoolApi()
 const access = useAccessStore()
 const signedIn = computed(() => (session.state === 'in' && !!session.claims) || api.mock)
 const accessReady = ref(false)
-watch(signedIn, (v) => { if (v) void access.load().finally(() => { accessReady.value = true }) }, { immediate: true })
-const sections = computed(() => tenantSettingsSections(access.me, { mock: api.mock }))
+const fleetOn = ref(false)
+let fleetSeq = 0
+async function probeFleet() {
+  const mine = ++fleetSeq
+  try {
+    await (api as unknown as { getFleetLoad: () => Promise<unknown> }).getFleetLoad()
+    if (mine === fleetSeq) fleetOn.value = true
+  } catch {
+    if (mine === fleetSeq) fleetOn.value = false
+  }
+}
+watch(signedIn, (v) => {
+  if (!v) return
+  void access.load().finally(() => { accessReady.value = true })
+  void probeFleet()
+}, { immediate: true })
+const sections = computed(() => {
+  const opts = { mock: api.mock, fleetLoad: fleetOn.value }
+  return tenantSettingsSections(access.me, opts)
+})
 const active = computed(() => tenantSettingsSectionOf(route.path))
 const stack = useMobileStack()
 /* on a phone the open section names the page; the desktop keeps "Settings" */

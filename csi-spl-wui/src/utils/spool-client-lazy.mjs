@@ -17,6 +17,7 @@ import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-cli
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 import { loadCursors } from './read-cursor.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
+import { mockFleetRead, mockFleetWrite } from './fleet-load.mjs'
 
 const HUMAN_ID_RE = /^HUM-[0-9]+$/
 
@@ -1202,6 +1203,29 @@ async function lookupIds(ctx, ids, self = '') {
   })
 }
 
+
+/**
+ * rdb 0118: GET /v1/operator/fleet-load. 403 operator.workspaces when this
+ * session is not an admin of the operator workspace. The mock answers that
+ * unless the e2e opted in (spool.mock.fleet_operator).
+ */
+async function getFleetLoad(ctx) {
+  const { live, mock } = ctx
+  if (mock) return mockFleetRead()
+  return live('/v1/operator/fleet-load')
+}
+
+/** PATCH /v1/operator/fleet-load. A JSON null resets that field to the default. */
+async function patchFleetLoad(ctx, patch = {}) {
+  const { live, mock } = ctx
+  if (mock) return mockFleetWrite(patch)
+  return live('/v1/operator/fleet-load', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
 export const lazySpoolMethods = {
   lookupIds,
   listFlow,
@@ -1223,6 +1247,8 @@ export const lazySpoolMethods = {
   archiveTenantChannel,
   getPerfSummary,
   boxStats,
+  getFleetLoad,
+  patchFleetLoad,
   editMessage,
   deleteMessage,
   mergeMessage,

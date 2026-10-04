@@ -38,6 +38,8 @@ const LAZY_METHODS = [
   'archiveTenantChannel',
   'getPerfSummary',
   'boxStats',
+  'getFleetLoad',
+  'patchFleetLoad',
   'editMessage',
   'deleteMessage',
   'mergeMessage',
@@ -306,12 +308,14 @@ export function createSpoolClient({
     if (!res.ok) {
       let token = ''
       let detail = ''
+      let permission = ''
       let pos
       let bad = ''
       try {
         const body = await res.json()
         token = (body && body.error) || ''
         detail = (body && body.detail) || ''
+        if (body && typeof body.permission === 'string') permission = body.permission
         // search-v1 §5.1: bad_query points at the offending token
         if (body && Number.isInteger(body.pos)) pos = body.pos
         if (body && typeof body.token === 'string') bad = body.token
@@ -322,6 +326,7 @@ export function createSpoolClient({
       err.status = res.status
       err.token = token
       err.detail = detail
+      if (permission) err.permission = permission
       if (pos !== undefined) err.pos = pos
       if (bad) err.badToken = bad
       if (res.status === 429) err.retryAfter = Number(res.headers.get('retry-after')) || 0

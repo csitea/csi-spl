@@ -33,6 +33,41 @@
 # @example ENV=dev ./run -a do_spl_db_bootstrap
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_db_bootstrap
 #------------------------------------------------------------------------------
+# Classify the two logins for do_spl_db_bootstrap. $1 is 1 when a fresh none
+# env was just seeded. Sets the caller's owner_dsn and runtime (fresh, split
+# or owner). The passwords stay out of the log.
+_spl_db_bootstrap_classify() {
+  local none_fresh="$1" rt_dsn rt_user
+  if (( none_fresh )); then
+    # shellcheck disable=SC2034 # caller's owner_dsn, via dynamic scope
+    owner_dsn="$(SPOOL_HUB_DB_DSN='postgres://local@127.0.0.1:5432/local' spl_read_owner_dsn)" || return 1
+    [[ -n "$owner_dsn" ]] || { do_log "FATAL no owner DSN after seeding the self-host .env"; return 1; }
+    # shellcheck disable=SC2034 # caller's runtime, via dynamic scope
+    runtime=fresh
+    return 0
+  fi
+  # shellcheck disable=SC2034 # caller's owner_dsn, via dynamic scope
+  owner_dsn="$(spl_read_owner_dsn)"
+  rt_dsn="$(spl_read_dsn)"
+  rt_user=""; [[ -n "$rt_dsn" ]] && rt_user="$(spl_dsn_user "$rt_dsn")"
+  case "$rt_user" in
+    "") runtime=fresh ;;
+    "$SPL_DB_USER") runtime='split' ;;
+    "$SPL_DB_OWNER_USER") runtime=owner ;;
+    *) do_log "FATAL $SPL_DSN_SECRET holds '$rt_user', neither $SPL_DB_USER nor $SPL_DB_OWNER_USER"; return 1 ;;
+  esac
+  if [[ -z "$owner_dsn" ]]; then
+    case "$runtime" in
+      owner) owner_dsn="$rt_dsn"
+             do_log "INFO $SPL_OWNER_DSN_SECRET is empty and $SPL_DSN_SECRET still holds the owner: migrating with it (not split: run do_spl_db_owner_split)" ;;
+      fresh) do_spl_cloud_dispatch db_login ensure || return 1
+             owner_dsn="$(spl_read_owner_dsn)"
+             [[ -n "$owner_dsn" ]] || { do_log "FATAL secret $SPL_OWNER_DSN_SECRET still has no readable version"; return 1; } ;;
+      split) do_log "FATAL $SPL_DSN_SECRET holds the runtime login but $SPL_OWNER_DSN_SECRET is empty: the owner's DSN is lost; resetting the $SPL_DB_OWNER_USER password is an owner decision, not done here"; return 1 ;;
+    esac
+  fi
+}
+
 do_spl_db_bootstrap() {
   do_require_bin yq openssl psql python3 || return 1
   do_spl_cloud_cnf || return 1
@@ -68,33 +103,8 @@ do_spl_db_bootstrap() {
 
   # runtime: split = the runtime slot holds $SPL_DB_USER; owner = not split
   # yet (the old single login); fresh = the env has no login at all
-  local owner_dsn rt_dsn rt_user runtime
-  if (( none_fresh )); then
-    owner_dsn="$(SPOOL_HUB_DB_DSN='postgres://local@127.0.0.1:5432/local' spl_read_owner_dsn)" || return 1
-    [[ -n "$owner_dsn" ]] || { do_log "FATAL no owner DSN after seeding the self-host .env"; return 1; }
-    rt_dsn=""
-    runtime=fresh
-  else
-    owner_dsn="$(spl_read_owner_dsn)"
-    rt_dsn="$(spl_read_dsn)"
-    rt_user=""; [[ -n "$rt_dsn" ]] && rt_user="$(spl_dsn_user "$rt_dsn")"
-    case "$rt_user" in
-      "") runtime=fresh ;;
-      "$SPL_DB_USER") runtime='split' ;;
-      "$SPL_DB_OWNER_USER") runtime=owner ;;
-      *) do_log "FATAL $SPL_DSN_SECRET holds '$rt_user', neither $SPL_DB_USER nor $SPL_DB_OWNER_USER"; return 1 ;;
-    esac
-  fi
-  if [[ -z "$owner_dsn" ]]; then
-    case "$runtime" in
-      owner) owner_dsn="$rt_dsn"
-             do_log "INFO $SPL_OWNER_DSN_SECRET is empty and $SPL_DSN_SECRET still holds the owner: migrating with it (not split: run do_spl_db_owner_split)" ;;
-      fresh) do_spl_cloud_dispatch db_login ensure || return 1
-             owner_dsn="$(spl_read_owner_dsn)"
-             [[ -n "$owner_dsn" ]] || { do_log "FATAL secret $SPL_OWNER_DSN_SECRET still has no readable version"; return 1; } ;;
-      split) do_log "FATAL $SPL_DSN_SECRET holds the runtime login but $SPL_OWNER_DSN_SECRET is empty: the owner's DSN is lost; resetting the $SPL_DB_OWNER_USER password is an owner decision, not done here"; return 1 ;;
-    esac
-  fi
+  local owner_dsn runtime
+  _spl_db_bootstrap_classify "$none_fresh" || return 1
   [[ "$(spl_dsn_user "$owner_dsn")" == "$SPL_DB_OWNER_USER" ]] ||
     { do_log "FATAL the owner DSN is not the login $SPL_DB_OWNER_USER (cnf hub.db_owner_user)"; return 1; }
 

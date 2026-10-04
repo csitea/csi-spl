@@ -1,11 +1,11 @@
 ---
 name: spawn-an-agent
 description: >
-  Route a piece of work to the right agent launcher and spawn it: estimate the
-  task's difficulty against your own maximum capacity, then run the launcher
-  do_spl_lane_mix picks from the box's vendor split (cnf env.box.agent_split):
-  /claude-spawn for hard, unsure or secret-bearing work, easy work to the vendor
-  under its share (grok by default). Use when
+  Route a piece of work to the right agent launcher and spawn it. Name the
+  task kind, then let do_spl_lane_mix pick from the box's vendor split
+  (cnf env.box.agent_split): spec work to /agy-spawn, secrets and the most
+  complex coding to /claude-spawn, everything else to /grok-spawn. An omitted
+  kind and an omitted difficulty are that default (grok), not claude. Use when
   the user says "spawn an agent", "give this to an agent", or hands you work that
   belongs in another lane. A leading c-NNN / g-NNN / a-NNN / q-NNN id (or a legacy CLE-nn) sends
   the rest to that agent instead.
@@ -23,27 +23,32 @@ the rest to that agent (section 2 of its launcher command) and stop.
 
 ## 2. Pick the launcher
 
-Estimate the task's difficulty against your own maximum capacity (0..100),
-then let the box's vendor split pick the launcher:
+Name the task kind, estimate difficulty against your own maximum capacity
+(0..100) when the work is coding, then let the box's vendor split pick the
+launcher:
 
 ```bash
-cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> ./run -a do_spl_lane_mix
+cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<spec|secret|hard|> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> ./run -a do_spl_lane_mix
 ```
 
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
-launcher. The split is cnf `env.box.agent_split` (all.env.yaml: claude 40,
-grok 50, agy 10, each +/- 5 over the box's last 20 spawns), an approximate
+launcher. The split is cnf `env.box.agent_split` (all.env.yaml: claude 20,
+grok 55, agy 25, each +/- 5 over the box's last 20 spawns), an approximate
 ratio, never a quota:
 
 | the task | goes to |
 |---|---|
-| personal data or secrets (credentials, keys, customer data): `LANE_MIX_SENSITIVE=1` | claude, always |
-| 60% or more, or unsure (omit `LANE_MIX_DIFFICULTY`) | claude |
-| under 60%: easy, mechanical, well specified | the vendor furthest below its share by more than the tolerance; inside the band, grok |
+| spec writing or spec review: `LANE_MIX_KIND=spec` | agy |
+| personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude, always |
+| the most complex coding: `LANE_MIX_KIND=hard`, or difficulty 60 or more | claude |
+| everything else, tests included: kind unset or `default`, difficulty omitted | grok |
+| under 60%, kind unset: easy, mechanical, well specified | the vendor furthest below its share by more than the tolerance; inside the band, the largest non-claude share |
 
 A vendor whose CLI is not installed or not signed in on this box is skipped
-and its share goes to claude. An estimate near the line counts as harder than
-it looks. A user who names a launcher wins over the pick.
+and its share goes to claude (a spec with no agy there goes to claude). An
+estimate near the line counts as harder than it looks. Omitting the
+difficulty is the default, grok, not a hard task. A user who names a
+launcher wins over the pick.
 
 ## 3. Before spawning
 

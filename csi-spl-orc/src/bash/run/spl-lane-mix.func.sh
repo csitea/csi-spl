@@ -5,15 +5,23 @@
 # @description cnf env.box.agent_split (all.env.yaml); the actual is the last
 # @description `window` spawns in $SPOOL_ROOT/registry.tsv (role seats
 # @description 001..003 left out, one row per id). APPROXIMATE, never a quota:
-# @description - secrets or personal data (LANE_MIX_SENSITIVE=1) -> claude
-# @description - hard or unsure (LANE_MIX_DIFFICULTY >= 60, or unset) -> claude
-# @description - easy -> the vendor furthest below target by MORE than the
-# @description   tolerance; inside the band, the largest non-claude share
+# @description - spec writing or review (LANE_MIX_KIND=spec) -> agy
+# @description - secrets or personal data (LANE_MIX_SENSITIVE=1, or
+# @description   LANE_MIX_KIND=secret) -> claude
+# @description - the most complex coding (LANE_MIX_KIND=hard, or
+# @description   LANE_MIX_DIFFICULTY >= 60) -> claude
+# @description - kind unset/default and difficulty unset -> grok
+# @description - easy (difficulty < 60) -> the vendor furthest below target by
+# @description   MORE than the tolerance; inside the band, the largest
+# @description   non-claude share
 # @description A vendor whose CLI is not installed, or whose cnf auth_marker is
 # @description absent from the agent user's home, is skipped and its share goes
 # @description to claude. Prints a table, then `pick=<vendor> launcher=...`.
+# @param LANE_MIX_KIND (optional) - spec, secret, hard or default; unset is
+# @param   default (grok, unless a harder signal below says otherwise)
 # @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own
-# @param   capacity; unset = unsure (claude) and prints the easy pick as `next`
+# @param   capacity; unset is the default (grok) and prints the easy pick as
+# @param   `next`. It is not claude.
 # @param LANE_MIX_SENSITIVE (optional) - 1: the work carries secrets/personal data
 # @param LANE_MIX_SPLIT (optional) - "claude=N grok=N agy=N qwen=N", overrides
 # @param   the cnf numbers (do_spl_agent_split_show prints this line)
@@ -22,6 +30,7 @@
 # @param LANE_MIX_AGENT_HOME (optional) - default the home of SPOOL_AGENT_USER
 # @param   (environment, else $SPOOL_ROOT/box.env), else $HOME
 # @example ./run -a do_spl_lane_mix
+# @example LANE_MIX_KIND=spec ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 LANE_MIX_SENSITIVE=1 ./run -a do_spl_lane_mix
 #------------------------------------------------------------------------------
@@ -36,10 +45,15 @@ do_spl_lane_mix() {
   local cnf="${LANE_MIX_CNF:-$APP_PATH/$org_app-cnf/$org_app/all.env.yaml}"
   local reg="${LANE_MIX_REGISTRY:-$root/registry.tsv}"
   local diff="${LANE_MIX_DIFFICULTY:-}" sens="${LANE_MIX_SENSITIVE:-0}"
+  local kind="${LANE_MIX_KIND:-}"
   [[ -r "$cnf" ]] || { do_log "FATAL no cnf $cnf"; return 1; }
   [[ -z "$diff" || ( "$diff" =~ ^[0-9]{1,3}$ && "$diff" -le 100 ) ]] || {
     do_log "FATAL LANE_MIX_DIFFICULTY must be 0..100, got '$diff'"; return 1; }
   [[ "$sens" =~ ^[01]$ ]] || { do_log "FATAL LANE_MIX_SENSITIVE must be 0 or 1, got '$sens'"; return 1; }
+  case "$kind" in
+    ""|default|spec|secret|hard) ;;
+    *) do_log "FATAL LANE_MIX_KIND must be spec, secret, hard or default, got '$kind'"; return 1 ;;
+  esac
 
   declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=()
   _spl_lane_mix_target "$cnf" || return 1
@@ -48,11 +62,19 @@ do_spl_lane_mix() {
   _spl_lane_mix_table "$cnf" "$reg"
   _spl_lane_mix_easy
 
-  if [[ "$sens" == 1 ]]; then
+  if [[ "$sens" == 1 || "$kind" == secret ]]; then
     _spl_lane_mix_pick claude "data rule: secrets or personal data always go to claude"
+  elif [[ "$kind" == spec ]]; then
+    if [[ "${_LM_AVAIL[agy]}" == yes ]]; then
+      _spl_lane_mix_pick agy "kind spec: specifications go to agy"
+    else
+      _spl_lane_mix_pick claude "kind spec but agy is skipped (${_LM_AVAIL[agy]}); share to claude"
+    fi
+  elif [[ "$kind" == hard ]]; then
+    _spl_lane_mix_pick claude "kind hard: the most complex coding goes to claude"
   elif [[ -z "$diff" ]]; then
-    printf 'next easy=%s (%s) hard=claude\n' "$_LM_EASY" "$_LM_EASY_WHY"
-    _spl_lane_mix_pick claude "difficulty unset: unsure counts as hard"
+    printf 'next easy=%s (%s) default=grok\n' "$_LM_EASY" "$_LM_EASY_WHY"
+    _spl_lane_mix_pick grok "difficulty unset: default is grok"
   elif (( diff >= 60 )); then
     _spl_lane_mix_pick claude "difficulty $diff >= 60: hard work goes to claude"
   else

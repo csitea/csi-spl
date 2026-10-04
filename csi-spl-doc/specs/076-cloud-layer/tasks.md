@@ -30,10 +30,11 @@ Parallelism: Tasks marked **[Parallel]** have disjoint file ownership and may ex
   - **Needs**: T002.
   - **Done**: `go test -v ./internal/cloud/...` and `go test -v ./cmd/spool/...` pass in `csi-spl-api/src/go/spool-hub-api`.
 
-- [ ] T004 **shell cloud dispatch router**: Implement `do_spl_cloud_dispatch <family> <verb> [args]` in `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, routing actions dynamically to `do_<family>_<verb>_<provider>`.
+- [x] T004 **shell cloud dispatch router**: Implement `do_spl_cloud_dispatch <family> <verb> [args]` in `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, routing actions dynamically to `do_<family>_<verb>_<provider>`.
   - **Owns**: `csi-spl-orc/lib/bash/funcs/spl-cloud-dispatch.func.sh`, `csi-spl-orc/src/bash/tests/cloud-dispatch.tst.sh`.
   - **Needs**: T002.
   - **Done**: `bash csi-spl-orc/src/bash/tests/cloud-dispatch.tst.sh` passes all dispatch routing and fallback assertions.
+  - **Landed** (c-212): `42f8d2d6`. Contract (header of `spl-cloud-dispatch.func.sh`): adapter `do_<family>_<verb>_<provider>`, family/verb `[a-z][a-z0-9_]*`; args pass through untouched, the adapter's stdout/stderr/exit code are the router's; no adapter = stderr FATAL naming the function, return 1, never a fallback (spec 4.2); unknown provider = 1, bad call = 2. `cloud-dispatch.tst.sh`: 19 assertions, stub adapters.
 
 - [ ] T005 **database proxy seam neutralization** [Parallel]: In `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, update `spl_sql_proxy_start()` to inspect `do_spl_cloud_provider`: when `none`, return exit 0 immediately with `SPL_PROXY_PORT=5432` and `SPL_PROXY_DSN=$SPOOL_HUB_DB_DSN`, allowing `do_spl_db_bootstrap` and operator scripts to execute directly against local Postgres.
   - **Owns**: `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`, `csi-spl-orc/src/bash/tests/sql-proxy-none.tst.sh`.

@@ -90,6 +90,35 @@ oss_ruleset_gaps() {
       then "trusted team \($team) cannot bypass" else empty end)'
 }
 
+# <repo> <default branch> <dry 0|1> - check 6 of do_oss_public_settings: the
+# trunk ruleset; reports through the caller's _oss_ok / _oss_bad
+oss_check_trunk_ruleset() {
+  local pub="$1" branch="$2" dry="$3" rs_name="${OSS_RULESET_NAME:-trunk}" team="" rs_id gaps set_rs=0 x
+  ((dry)) || [[ "${OSS_SET_RULESET:-0}" != 1 ]] || set_rs=1
+  if [[ -n "${OSS_TRUSTED_TEAM:-}" ]]; then
+    team="$(gh api "orgs/${pub%%/*}/teams/$OSS_TRUSTED_TEAM" --jq .id 2>/dev/null)"
+    [[ "$team" =~ ^[0-9]+$ ]] || { _oss_bad "no team $OSS_TRUSTED_TEAM in ${pub%%/*} (OSS_TRUSTED_TEAM)"; team=""; }
+  else
+    do_log "INFO OSS_TRUSTED_TEAM unset: only repo admins bypass the $rs_name ruleset"
+  fi
+  rs_id="$(gh api "repos/$pub/rulesets" --jq ".[]|select(.name==\"$rs_name\")|.id")" || { _oss_bad "cannot read the rulesets of $pub"; rs_id=""; }
+  if ((set_rs)); then
+    if [[ -z "$rs_id" ]]; then
+      oss_ruleset_body "$rs_name" "$team" | gh api -X POST "repos/$pub/rulesets" --input - >/dev/null || _oss_bad "cannot create the $rs_name ruleset"
+      rs_id="$(gh api "repos/$pub/rulesets" --jq ".[]|select(.name==\"$rs_name\")|.id")"
+    else
+      oss_ruleset_body "$rs_name" "$team" | gh api -X PUT "repos/$pub/rulesets/$rs_id" --input - >/dev/null || _oss_bad "cannot update the $rs_name ruleset"
+    fi
+  fi
+  if [[ -z "$rs_id" ]]; then
+    _oss_bad "no $rs_name ruleset on $branch: force-push, deletion and unreviewed merges are open (DRY_RUN=0 OSS_SET_RULESET=1 writes it)"
+  else
+    gaps="$(gh api "repos/$pub/rulesets/$rs_id" | oss_ruleset_gaps "$team" "$branch")" || gaps="cannot read ruleset $rs_id"
+    if [[ -z "$gaps" ]]; then _oss_ok "master ruleset $rs_name: no force-push, no deletion, 1 review + wf 11 checks on a pull request, admins${team:+ and team $OSS_TRUSTED_TEAM} bypass"
+    else while IFS= read -r x; do _oss_bad "$rs_name ruleset: $x"; done <<<"$gaps"; fi
+  fi
+}
+
 do_oss_public_settings() {
   do_require_bin gh || return 1
   do_require_bin jq || return 1
@@ -157,30 +186,7 @@ EOF
   fi
 
   # 6. the trunk ruleset (spec 072 A60)
-  local rs_name="${OSS_RULESET_NAME:-trunk}" team="" rs_id gaps set_rs=0
-  ((dry)) || [[ "${OSS_SET_RULESET:-0}" != 1 ]] || set_rs=1
-  if [[ -n "${OSS_TRUSTED_TEAM:-}" ]]; then
-    team="$(gh api "orgs/${pub%%/*}/teams/$OSS_TRUSTED_TEAM" --jq .id 2>/dev/null)"
-    [[ "$team" =~ ^[0-9]+$ ]] || { _oss_bad "no team $OSS_TRUSTED_TEAM in ${pub%%/*} (OSS_TRUSTED_TEAM)"; team=""; }
-  else
-    do_log "INFO OSS_TRUSTED_TEAM unset: only repo admins bypass the $rs_name ruleset"
-  fi
-  rs_id="$(gh api "repos/$pub/rulesets" --jq ".[]|select(.name==\"$rs_name\")|.id")" || { _oss_bad "cannot read the rulesets of $pub"; rs_id=""; }
-  if ((set_rs)); then
-    if [[ -z "$rs_id" ]]; then
-      oss_ruleset_body "$rs_name" "$team" | gh api -X POST "repos/$pub/rulesets" --input - >/dev/null || _oss_bad "cannot create the $rs_name ruleset"
-      rs_id="$(gh api "repos/$pub/rulesets" --jq ".[]|select(.name==\"$rs_name\")|.id")"
-    else
-      oss_ruleset_body "$rs_name" "$team" | gh api -X PUT "repos/$pub/rulesets/$rs_id" --input - >/dev/null || _oss_bad "cannot update the $rs_name ruleset"
-    fi
-  fi
-  if [[ -z "$rs_id" ]]; then
-    _oss_bad "no $rs_name ruleset on $branch: force-push, deletion and unreviewed merges are open (DRY_RUN=0 OSS_SET_RULESET=1 writes it)"
-  else
-    gaps="$(gh api "repos/$pub/rulesets/$rs_id" | oss_ruleset_gaps "$team" "$branch")" || gaps="cannot read ruleset $rs_id"
-    if [[ -z "$gaps" ]]; then _oss_ok "master ruleset $rs_name: no force-push, no deletion, 1 review + wf 11 checks on a pull request, admins${team:+ and team $OSS_TRUSTED_TEAM} bypass"
-    else while IFS= read -r x; do _oss_bad "$rs_name ruleset: $x"; done <<<"$gaps"; fi
-  fi
+  oss_check_trunk_ruleset "$pub" "$branch" "$dry"
 
   ((bad)) && { do_log "FATAL $pub settings are not all as required"; return 1; }
   do_log "OK $pub settings hold$( [[ "$private" == true ]] && echo ' (public-only checks pending)')"

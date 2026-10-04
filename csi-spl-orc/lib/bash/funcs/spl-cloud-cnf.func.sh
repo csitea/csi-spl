@@ -402,7 +402,28 @@ spl_sql_proxy_alive() {
   else [[ "$(docker inspect -f '{{.State.Running}}' "$_SPL_PROXY_CON" 2>/dev/null)" == true ]]; fi
 }
 
-# spl_sql_proxy_start -> the Cloud SQL Auth Proxy on 127.0.0.1:$SPL_PROXY_PORT
+# spl_sql_proxy_start -> the db_proxy start seam (spec 076 T005, 4.2): routed by
+# do_spl_cloud_dispatch to do_db_proxy_start_<provider>. Callers read
+# SPL_PROXY_PORT (and, under none, SPL_PROXY_DSN) afterwards; the adapter runs
+# in this shell, so its globals reach them. Stop it with spl_sql_proxy_stop.
+spl_sql_proxy_start() {
+  # shellcheck source=spl-cloud-dispatch.func.sh
+  declare -F do_spl_cloud_dispatch >/dev/null || source "${BASH_SOURCE[0]%/*}/spl-cloud-dispatch.func.sh"
+  do_spl_cloud_dispatch db_proxy start
+}
+
+# do_db_proxy_start_none -> no proxy (spec 076 section 7): the hub DB is a plain
+# TCP Postgres, so SPL_PROXY_PORT=5432 and SPL_PROXY_DSN=$SPOOL_HUB_DB_DSN; no
+# process, container or gcloud call is started, and spl_sql_proxy_stop no-ops.
+do_db_proxy_start_none() {
+  _SPL_PROXY_PID="" _SPL_PROXY_CON=""
+  SPL_PROXY_PORT=5432
+  # shellcheck disable=SC2034 # read by the caller after spl_sql_proxy_start
+  SPL_PROXY_DSN="${SPOOL_HUB_DB_DSN:-}"
+  return 0
+}
+
+# do_db_proxy_start_gcp -> the Cloud SQL Auth Proxy on 127.0.0.1:$SPL_PROXY_PORT
 # (default: a free port) for $SPL_SQL_CONN, as $GCP_ACCOUNT. The access token
 # goes through the environment (CSQL_PROXY_TOKEN), never argv. A cloud-sql-proxy
 # binary on PATH wins; otherwise the cnf image runs in docker on the host net.
@@ -410,7 +431,7 @@ spl_sql_proxy_alive() {
 # lost the port to a concurrent run dies on bind, and its listener is not ours
 # (2026-10-04: the fixed 55499 let one env's DSN meet another run's instance).
 # Stop it with spl_sql_proxy_stop.
-spl_sql_proxy_start() {
+do_db_proxy_start_gcp() {
   SPL_PROXY_PORT="${SPL_PROXY_PORT:-$(spl_free_port)}"
   [[ "$SPL_PROXY_PORT" =~ ^[0-9]+$ ]] || { do_log "FATAL no free local port for the Cloud SQL proxy"; return 1; }
   _SPL_PROXY_PID="" _SPL_PROXY_CON=""

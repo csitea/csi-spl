@@ -1519,7 +1519,29 @@
     "folders": "Folders",
     "off": "The docs are not published on this server yet.",
     "not_found": "There is no such doc.",
-    "load_failed": "The doc did not load — try again."
+    "load_failed": "The doc did not load — try again.",
+    "ws": {
+      "title": "Workspace docs",
+      "new": "New doc",
+      "new_path": "Path of the new doc",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Use letters, digits, - _ . and / only; it is saved as a .md file.",
+      "create": "Create",
+      "empty": "No workspace docs yet.",
+      "badge": "workspace",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleting": "Deleting…",
+      "source": "Markdown",
+      "preview": "Preview",
+      "save": "Save",
+      "saving": "Saving…",
+      "save_failed": "The doc was not saved — try again.",
+      "delete_failed": "The doc was not deleted — try again.",
+      "forbidden": "You cannot edit docs in this workspace.",
+      "delete_title": "Delete this doc?",
+      "delete_body": "{path} is removed from the workspace docs. Its earlier versions stay in the history."
+    }
   },
   "connect_agent": {
     "title": "Connect an agent",

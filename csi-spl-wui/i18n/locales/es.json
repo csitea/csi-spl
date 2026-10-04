@@ -1519,7 +1519,29 @@
     "folders": "Carpetas",
     "off": "Los documentos aún no están publicados en este servidor.",
     "not_found": "No existe ese documento.",
-    "load_failed": "El documento no se cargó — inténtalo de nuevo."
+    "load_failed": "El documento no se cargó — inténtalo de nuevo.",
+    "ws": {
+      "title": "Documentos del espacio de trabajo",
+      "new": "Nuevo documento",
+      "new_path": "Ruta del nuevo documento",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Usa solo letras, dígitos, - _ . y /; se guarda como archivo .md.",
+      "create": "Crear",
+      "empty": "Aún no hay documentos del espacio de trabajo.",
+      "badge": "espacio de trabajo",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "deleting": "Eliminando…",
+      "source": "Markdown",
+      "preview": "Vista previa",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "save_failed": "El documento no se guardó — inténtalo de nuevo.",
+      "delete_failed": "El documento no se eliminó — inténtalo de nuevo.",
+      "forbidden": "No puedes editar documentos en este espacio de trabajo.",
+      "delete_title": "¿Eliminar este documento?",
+      "delete_body": "{path} se quita de los documentos del espacio de trabajo. Sus versiones anteriores quedan en el historial."
+    }
   },
   "connect_agent": {
     "title": "Conectar un agente",

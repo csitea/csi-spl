@@ -1519,7 +1519,29 @@
     "folders": "Foldery",
     "off": "Dokumenty nie są jeszcze opublikowane na tym serwerze.",
     "not_found": "Nie ma takiego dokumentu.",
-    "load_failed": "Dokument się nie wczytał — spróbuj ponownie."
+    "load_failed": "Dokument się nie wczytał — spróbuj ponownie.",
+    "ws": {
+      "title": "Dokumenty przestrzeni roboczej",
+      "new": "Nowy dokument",
+      "new_path": "Ścieżka nowego dokumentu",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Używaj tylko liter, cyfr, - _ . i /; zostanie zapisany jako plik .md.",
+      "create": "Utwórz",
+      "empty": "Brak jeszcze dokumentów przestrzeni roboczej.",
+      "badge": "przestrzeń robocza",
+      "edit": "Edytuj",
+      "delete": "Usuń",
+      "deleting": "Usuwanie…",
+      "source": "Markdown",
+      "preview": "Podgląd",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "save_failed": "Dokument nie został zapisany — spróbuj ponownie.",
+      "delete_failed": "Dokument nie został usunięty — spróbuj ponownie.",
+      "forbidden": "Nie możesz edytować dokumentów w tej przestrzeni roboczej.",
+      "delete_title": "Usunąć ten dokument?",
+      "delete_body": "{path} zostanie usunięty z dokumentów przestrzeni roboczej. Jego wcześniejsze wersje pozostaną w historii."
+    }
   },
   "connect_agent": {
     "title": "Podłącz agenta",

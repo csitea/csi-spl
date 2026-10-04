@@ -1519,7 +1519,29 @@
     "folders": "Mappen",
     "off": "De documenten zijn nog niet gepubliceerd op deze server.",
     "not_found": "Dat document bestaat niet.",
-    "load_failed": "Het document is niet geladen — probeer het opnieuw."
+    "load_failed": "Het document is niet geladen — probeer het opnieuw.",
+    "ws": {
+      "title": "Werkruimtedocumenten",
+      "new": "Nieuw document",
+      "new_path": "Pad van het nieuwe document",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Gebruik alleen letters, cijfers, - _ . en /; het wordt opgeslagen als .md-bestand.",
+      "create": "Maken",
+      "empty": "Nog geen werkruimtedocumenten.",
+      "badge": "werkruimte",
+      "edit": "Bewerken",
+      "delete": "Verwijderen",
+      "deleting": "Verwijderen…",
+      "source": "Markdown",
+      "preview": "Voorbeeld",
+      "save": "Opslaan",
+      "saving": "Opslaan…",
+      "save_failed": "Het document is niet opgeslagen — probeer het opnieuw.",
+      "delete_failed": "Het document is niet verwijderd — probeer het opnieuw.",
+      "forbidden": "Je kunt geen documenten bewerken in deze werkruimte.",
+      "delete_title": "Dit document verwijderen?",
+      "delete_body": "{path} wordt uit de werkruimtedocumenten verwijderd. Eerdere versies blijven in de geschiedenis."
+    }
   },
   "connect_agent": {
     "title": "Een agent koppelen",

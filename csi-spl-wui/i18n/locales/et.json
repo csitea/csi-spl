@@ -1519,7 +1519,29 @@
     "folders": "Kaustad",
     "off": "Dokumente pole selles serveris veel avaldatud.",
     "not_found": "Sellist dokumenti pole.",
-    "load_failed": "Dokument ei laadinud — proovi uuesti."
+    "load_failed": "Dokument ei laadinud — proovi uuesti.",
+    "ws": {
+      "title": "Tööruumi dokumendid",
+      "new": "Uus dokument",
+      "new_path": "Uue dokumendi tee",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Kasuta ainult tähti, numbreid, - _ . ja /; see salvestatakse .md-failina.",
+      "create": "Loo",
+      "empty": "Tööruumi dokumente veel pole.",
+      "badge": "tööruum",
+      "edit": "Muuda",
+      "delete": "Kustuta",
+      "deleting": "Kustutamine…",
+      "source": "Markdown",
+      "preview": "Eelvaade",
+      "save": "Salvesta",
+      "saving": "Salvestamine…",
+      "save_failed": "Dokumenti ei salvestatud — proovi uuesti.",
+      "delete_failed": "Dokumenti ei kustutatud — proovi uuesti.",
+      "forbidden": "Sa ei saa selle tööruumi dokumente muuta.",
+      "delete_title": "Kas kustutada see dokument?",
+      "delete_body": "{path} eemaldatakse tööruumi dokumentidest. Selle varasemad versioonid jäävad ajalukku."
+    }
   },
   "connect_agent": {
     "title": "Ühenda agent",

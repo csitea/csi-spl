@@ -1519,7 +1519,29 @@
     "folders": "Klasörler",
     "off": "Belgeler bu sunucuda henüz yayımlanmadı.",
     "not_found": "Böyle bir belge yok.",
-    "load_failed": "Belge yüklenmedi — tekrar deneyin."
+    "load_failed": "Belge yüklenmedi — tekrar deneyin.",
+    "ws": {
+      "title": "Çalışma alanı belgeleri",
+      "new": "Yeni belge",
+      "new_path": "Yeni belgenin yolu",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Yalnızca harf, rakam, - _ . ve / kullanın; .md dosyası olarak kaydedilir.",
+      "create": "Oluştur",
+      "empty": "Henüz çalışma alanı belgesi yok.",
+      "badge": "çalışma alanı",
+      "edit": "Düzenle",
+      "delete": "Sil",
+      "deleting": "Siliniyor…",
+      "source": "Markdown",
+      "preview": "Önizleme",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…",
+      "save_failed": "Belge kaydedilmedi — yeniden deneyin.",
+      "delete_failed": "Belge silinmedi — yeniden deneyin.",
+      "forbidden": "Bu çalışma alanında belge düzenleyemezsiniz.",
+      "delete_title": "Bu belge silinsin mi?",
+      "delete_body": "{path} çalışma alanı belgelerinden kaldırılır. Önceki sürümleri geçmişte kalır."
+    }
   },
   "connect_agent": {
     "title": "Bir ajan bağlayın",

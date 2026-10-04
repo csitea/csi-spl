@@ -1519,7 +1519,29 @@
     "folders": "Kansiot",
     "off": "Dokumentteja ei ole vielä julkaistu tällä palvelimella.",
     "not_found": "Tällaista dokumenttia ei ole.",
-    "load_failed": "Dokumentti ei latautunut — yritä uudelleen."
+    "load_failed": "Dokumentti ei latautunut — yritä uudelleen.",
+    "ws": {
+      "title": "Työtilan dokumentit",
+      "new": "Uusi dokumentti",
+      "new_path": "Uuden dokumentin polku",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Käytä vain kirjaimia, numeroita sekä merkkejä - _ . ja /; se tallennetaan .md-tiedostona.",
+      "create": "Luo",
+      "empty": "Työtilassa ei ole vielä dokumentteja.",
+      "badge": "työtila",
+      "edit": "Muokkaa",
+      "delete": "Poista",
+      "deleting": "Poistetaan…",
+      "source": "Markdown",
+      "preview": "Esikatselu",
+      "save": "Tallenna",
+      "saving": "Tallennetaan…",
+      "save_failed": "Dokumenttia ei tallennettu — yritä uudelleen.",
+      "delete_failed": "Dokumenttia ei poistettu — yritä uudelleen.",
+      "forbidden": "Et voi muokata tämän työtilan dokumentteja.",
+      "delete_title": "Poistetaanko tämä dokumentti?",
+      "delete_body": "{path} poistetaan työtilan dokumenteista. Sen aiemmat versiot jäävät historiaan."
+    }
   },
   "connect_agent": {
     "title": "Yhdistä agentti",

@@ -1519,7 +1519,29 @@
     "folders": "Priečinky",
     "off": "Dokumenty ešte nie sú na tomto serveri zverejnené.",
     "not_found": "Taký dokument neexistuje.",
-    "load_failed": "Dokument sa nenačítal — skúste to znova."
+    "load_failed": "Dokument sa nenačítal — skúste to znova.",
+    "ws": {
+      "title": "Dokumenty pracovného priestoru",
+      "new": "Nový dokument",
+      "new_path": "Cesta nového dokumentu",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Používajte iba písmená, číslice, - _ . a /; uloží sa ako súbor .md.",
+      "create": "Vytvoriť",
+      "empty": "Pracovný priestor zatiaľ nemá žiadne dokumenty.",
+      "badge": "pracovný priestor",
+      "edit": "Upraviť",
+      "delete": "Odstrániť",
+      "deleting": "Odstraňuje sa…",
+      "source": "Markdown",
+      "preview": "Náhľad",
+      "save": "Uložiť",
+      "saving": "Ukladá sa…",
+      "save_failed": "Dokument sa neuložil — skúste to znova.",
+      "delete_failed": "Dokument sa neodstránil — skúste to znova.",
+      "forbidden": "V tomto pracovnom priestore nemôžete upravovať dokumenty.",
+      "delete_title": "Odstrániť tento dokument?",
+      "delete_body": "{path} sa odstráni z dokumentov pracovného priestoru. Jeho predchádzajúce verzie zostanú v histórii."
+    }
   },
   "connect_agent": {
     "title": "Pripojiť agenta",

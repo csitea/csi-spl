@@ -1519,7 +1519,29 @@
     "folders": "Mappar",
     "off": "Dokumenten är inte publicerade på den här servern ännu.",
     "not_found": "Det finns inget sådant dokument.",
-    "load_failed": "Dokumentet laddades inte — försök igen."
+    "load_failed": "Dokumentet laddades inte — försök igen.",
+    "ws": {
+      "title": "Arbetsytans dokument",
+      "new": "Nytt dokument",
+      "new_path": "Sökväg till det nya dokumentet",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Använd bara bokstäver, siffror, - _ . och /; det sparas som en .md-fil.",
+      "create": "Skapa",
+      "empty": "Inga dokument i arbetsytan ännu.",
+      "badge": "arbetsyta",
+      "edit": "Redigera",
+      "delete": "Ta bort",
+      "deleting": "Tar bort…",
+      "source": "Markdown",
+      "preview": "Förhandsvisning",
+      "save": "Spara",
+      "saving": "Sparar…",
+      "save_failed": "Dokumentet sparades inte — försök igen.",
+      "delete_failed": "Dokumentet togs inte bort — försök igen.",
+      "forbidden": "Du kan inte redigera dokument i den här arbetsytan.",
+      "delete_title": "Ta bort det här dokumentet?",
+      "delete_body": "{path} tas bort från arbetsytans dokument. Dess tidigare versioner finns kvar i historiken."
+    }
   },
   "connect_agent": {
     "title": "Anslut en agent",

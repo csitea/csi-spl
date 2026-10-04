@@ -1519,7 +1519,29 @@
     "folders": "Mapes",
     "off": "Dokumenti šajā serverī vēl nav publicēti.",
     "not_found": "Šāda dokumenta nav.",
-    "load_failed": "Dokuments neielādējās — mēģiniet vēlreiz."
+    "load_failed": "Dokuments neielādējās — mēģiniet vēlreiz.",
+    "ws": {
+      "title": "Darbvietas dokumenti",
+      "new": "Jauns dokuments",
+      "new_path": "Jaunā dokumenta ceļš",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Izmantojiet tikai burtus, ciparus, - _ . un /; tas tiek saglabāts kā .md fails.",
+      "create": "Izveidot",
+      "empty": "Darbvietā vēl nav dokumentu.",
+      "badge": "darbvieta",
+      "edit": "Rediģēt",
+      "delete": "Dzēst",
+      "deleting": "Dzēš…",
+      "source": "Markdown",
+      "preview": "Priekšskatījums",
+      "save": "Saglabāt",
+      "saving": "Saglabā…",
+      "save_failed": "Dokuments netika saglabāts — mēģiniet vēlreiz.",
+      "delete_failed": "Dokuments netika izdzēsts — mēģiniet vēlreiz.",
+      "forbidden": "Jūs nevarat rediģēt šīs darbvietas dokumentus.",
+      "delete_title": "Dzēst šo dokumentu?",
+      "delete_body": "{path} tiek noņemts no darbvietas dokumentiem. Tā iepriekšējās versijas paliek vēsturē."
+    }
   },
   "connect_agent": {
     "title": "Pievienot aģentu",

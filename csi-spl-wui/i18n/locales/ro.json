@@ -1519,7 +1519,29 @@
     "folders": "Dosare",
     "off": "Documentele nu sunt încă publicate pe acest server.",
     "not_found": "Nu există un astfel de document.",
-    "load_failed": "Documentul nu s-a încărcat — încercați din nou."
+    "load_failed": "Documentul nu s-a încărcat — încercați din nou.",
+    "ws": {
+      "title": "Documentele spațiului de lucru",
+      "new": "Document nou",
+      "new_path": "Calea documentului nou",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Folosiți doar litere, cifre, - _ . și /; se salvează ca fișier .md.",
+      "create": "Creează",
+      "empty": "Încă nu există documente în spațiul de lucru.",
+      "badge": "spațiu de lucru",
+      "edit": "Editează",
+      "delete": "Șterge",
+      "deleting": "Se șterge…",
+      "source": "Markdown",
+      "preview": "Previzualizare",
+      "save": "Salvează",
+      "saving": "Se salvează…",
+      "save_failed": "Documentul nu a fost salvat — încercați din nou.",
+      "delete_failed": "Documentul nu a fost șters — încercați din nou.",
+      "forbidden": "Nu puteți edita documente în acest spațiu de lucru.",
+      "delete_title": "Ștergeți acest document?",
+      "delete_body": "{path} este eliminat din documentele spațiului de lucru. Versiunile sale anterioare rămân în istoric."
+    }
   },
   "connect_agent": {
     "title": "Conectați un agent",

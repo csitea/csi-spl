@@ -74,14 +74,18 @@
               </NuxtLink>
             </li>
           </ul>
+          <DocsWorkspaceTree :active="wsPath" />
         </nav>
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
+          <DocsWorkspaceDoc v-if="wsPath" :path="wsPath" />
+          <template v-else>
           <p class="docs-content__path muted" data-test="docs-path">{{ docPath }}</p>
           <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
           <p v-else-if="state === 'off'" class="muted" role="status">{{ t('docs.off') }}</p>
           <p v-else-if="state === 'missing'" class="muted" role="alert" data-test="docs-missing">{{ t('docs.not_found') }}</p>
           <p v-else-if="state === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
           <MarkdownBlock v-else :text="text" bare />
+          </template>
         </article>
       </div>
     </div>
@@ -95,6 +99,9 @@
    the chunk and Nuxt reloads the page in a loop */
 definePageMeta({ path: '/docs/:path(.*)*' })
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
+import DocsWorkspaceDoc from '~/components/DocsWorkspaceDoc.vue'
+import DocsWorkspaceTree from '~/components/DocsWorkspaceTree.vue'
+import { wsPathOf } from '~/utils/ws-docs.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOCS_HOME, buildDocsTree, docsAncestors, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
 import { useTopicStore } from '~/stores/topic'
@@ -112,6 +119,8 @@ const docPath = computed(() => {
   return s || DOCS_HOME
 })
 const route = (p: string) => localePath('/docs/' + p)
+/* spec 075 T010: /docs/ws/<path> is a workspace doc (DocsWorkspaceDoc) */
+const wsPath = computed(() => wsPathOf(docPath.value))
 const tree = ref<DocsDir>(buildDocsTree([]))
 const open = ref<Set<string>>(new Set(['csi-spl-doc']))
 const rows = computed(() => visibleDocsRows(tree.value, open.value))
@@ -150,6 +159,7 @@ let seq = 0
 async function load() {
   const mine = ++seq
   const p = docPath.value
+  if (wsPath.value) return
   state.value = 'loading'
   if (!validDocsPath(p)) { state.value = 'missing'; return }
   for (const a of docsAncestors(p)) if (!open.value.has(a)) toggle(a)

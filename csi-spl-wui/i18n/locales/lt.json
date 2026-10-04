@@ -1519,7 +1519,29 @@
     "folders": "Aplankai",
     "off": "Dokumentai šiame serveryje dar nepaskelbti.",
     "not_found": "Tokio dokumento nėra.",
-    "load_failed": "Dokumentas neįsikėlė — bandykite dar kartą."
+    "load_failed": "Dokumentas neįsikėlė — bandykite dar kartą.",
+    "ws": {
+      "title": "Darbo srities dokumentai",
+      "new": "Naujas dokumentas",
+      "new_path": "Naujo dokumento kelias",
+      "new_placeholder": "runbooks/deploy.md",
+      "bad_path": "Naudokite tik raides, skaitmenis, - _ . ir /; jis išsaugomas kaip .md failas.",
+      "create": "Sukurti",
+      "empty": "Darbo srities dokumentų dar nėra.",
+      "badge": "darbo sritis",
+      "edit": "Redaguoti",
+      "delete": "Ištrinti",
+      "deleting": "Trinama…",
+      "source": "Markdown",
+      "preview": "Peržiūra",
+      "save": "Išsaugoti",
+      "saving": "Išsaugoma…",
+      "save_failed": "Dokumentas neišsaugotas — bandykite dar kartą.",
+      "delete_failed": "Dokumentas neištrintas — bandykite dar kartą.",
+      "forbidden": "Negalite redaguoti šios darbo srities dokumentų.",
+      "delete_title": "Ištrinti šį dokumentą?",
+      "delete_body": "{path} pašalinamas iš darbo srities dokumentų. Ankstesnės jo versijos lieka istorijoje."
+    }
   },
   "connect_agent": {
     "title": "Prijunkite agentą",

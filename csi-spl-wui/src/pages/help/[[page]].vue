@@ -58,6 +58,7 @@ import { fillHelpHosts, helpRepoBase, hostOf, rewriteHelpLinks, validHelpSlug } 
 import { boxHubUrl } from '~/utils/connect-agent.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
+import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 
 type HelpPage = { slug: string, title: string }
 
@@ -82,8 +83,11 @@ function hosts() {
   }
 }
 
+/* The help page's markdown: null for a 404, throws for any other non-2xx,
+   a network failure or a timeout. The SPA fallback (the app shell answering
+   an unknown file with 200) is detected by the caller, load(). */
 async function getText(path: string): Promise<string | null> {
-  const r = await fetch(path, { cache: 'no-cache' })
+  const r = await fetch(path, { cache: 'no-cache', signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
   if (r.status === 404) return null
   if (!r.ok) throw new Error('help ' + r.status)
   return r.text()

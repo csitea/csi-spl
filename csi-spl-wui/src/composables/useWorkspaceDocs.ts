@@ -1,5 +1,6 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { wsTreeFiles } from '~/utils/ws-docs.mjs'
+import { docFetchTimeoutMs } from '~/utils/fetch-timeouts.mjs'
 
 type TreeFile = { path: string, title: string }
 type MockBucket = { get(p: string): string | null, put(p: string, b: string): boolean, del(p: string): boolean }
@@ -21,10 +22,17 @@ export function useWorkspaceDocs() {
   const api = useSpoolApi()
   const bucket = () => (mockBucket ||= import('~/utils/ws-docs-mock.mjs').then((m) => m.createMockWsDocs() as MockBucket))
 
+  /**
+   * One hub call under /v1/workspace/docs/: adds the bearer token and a
+   * timeout (a read short, a PUT / DELETE long; a caller's own signal wins).
+   * Rejects on a network failure or timeout; the caller owns status handling
+   * (404 missing, 403 / 501 off).
+   */
   async function call(path: string, init: RequestInit = {}): Promise<Response> {
     const headers: Record<string, string> = { ...(init.headers as Record<string, string> | undefined) }
     if (api.token) headers.authorization = `Bearer ${api.token}`
-    return fetch(`${api.base}/v1/workspace/docs/${path}`, { credentials: api.credentials, cache: 'no-cache', ...init, headers })
+    const signal = init.signal ?? AbortSignal.timeout(docFetchTimeoutMs(init.method))
+    return fetch(`${api.base}/v1/workspace/docs/${path}`, { credentials: api.credentials, cache: 'no-cache', ...init, headers, signal })
   }
 
   /** The doc's markdown, null for a 404. */

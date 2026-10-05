@@ -2,6 +2,7 @@ import { cleanAs, createLiveClient, tokenStale, watchLive, wsUrl } from '~/utils
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { authOrigin, createAuthClient } from '~/utils/auth-client.mjs'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-ids.mjs'
+import { REVISION_FETCH_MS } from '~/utils/fetch-timeouts.mjs'
 
 /**
  * Identity for 2-session interop: ?as=HUM-2 (a v:1 agent id, wui-live-ws §2),
@@ -96,9 +97,10 @@ export function useLive() {
       as: identity.value,
       onState: (s: string) => { state.value = s },
       isSignedOut: async () => (await auth.session()).state === 'out',
-      // bug B (4ecb4b0d): the revision serving NEW requests; the socket's own is in its welcome
+      // bug B (4ecb4b0d): the revision serving NEW requests; the socket's own is in its welcome.
+      // May reject (a timeout included); live-ws checkRevision maps a rejection to ''.
       fetchRevision: async () => {
-        const r = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/wui/revision`, { cache: 'no-store' })
+        const r = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/wui/revision`, { cache: 'no-store', signal: AbortSignal.timeout(REVISION_FETCH_MS) })
         if (!r.ok) return ''
         const j = await r.json() as { revision?: unknown }
         return typeof j.revision === 'string' ? j.revision : ''

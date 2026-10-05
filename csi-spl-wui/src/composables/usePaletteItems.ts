@@ -18,6 +18,7 @@ import { useAccessStore } from '~/stores/access'
 import { RAIL_TABS } from '~/utils/rail-order.mjs'
 import { routeForTab } from '~/utils/sidebar-tabs.mjs'
 import { SETTINGS_QUERY, SETTINGS_SECTIONS } from '~/utils/settings-nav.mjs'
+import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { docsRoute, validDocsPath } from '~/utils/docs.mjs'
 import { wsDocsRoute } from '~/utils/ws-docs.mjs'
@@ -108,17 +109,21 @@ function settingsRows(t: Translate, here: { path: string, query: LocationQuery }
   return SETTINGS_SECTIONS.map((s) => ({ id: 'settings:' + s.id, group: 'settings', label: t(s.label), icon: 'settings', to: { path: here.path, query: { ...here.query, [SETTINGS_QUERY]: s.id } } }))
 }
 
-/** The repo docs tree.json, as pages/docs.vue reads it; [] when off or failed. */
+/**
+ * The repo docs tree.json, as pages/docs.vue reads it; [] when off, failed or
+ * a bad mock body. A network failure or timeout rejects, and load() retries
+ * on the next palette open.
+ */
 async function readRepoDocs(api: SpoolApi): Promise<TreeFile[]> {
   let body: { files?: TreeFile[] } | null
   if (api.mock) {
     const { mockDocs } = await import('~/utils/docs-mock.mjs')
     const raw = mockDocs('tree.json')
-    body = raw ? JSON.parse(raw) as { files?: TreeFile[] } : null
+    try { body = raw ? JSON.parse(raw) as { files?: TreeFile[] } : null } catch { body = null }
   } else {
     const headers: Record<string, string> = {}
     if (api.token) headers.authorization = `Bearer ${api.token}`
-    const r = await fetch(`${api.base}/v1/docs/tree.json`, { credentials: api.credentials, headers, cache: 'no-cache' })
+    const r = await fetch(`${api.base}/v1/docs/tree.json`, { credentials: api.credentials, headers, cache: 'no-cache', signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
     body = r.ok ? await r.json().catch(() => null) as { files?: TreeFile[] } | null : null
   }
   return Array.isArray(body?.files) ? body.files : []

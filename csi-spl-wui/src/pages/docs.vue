@@ -106,6 +106,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOCS_HOME, buildDocsTree, docsAncestors, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
+import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 
 type TreeFile = { path: string, title: string }
 
@@ -138,7 +139,8 @@ function toggle(path: string) {
 }
 
 /* GET /v1/docs/<path> through the hub: the body, null for a 404, 'off'
-   when the hub has no docs bucket. The mock tenant answers from docs-mock. */
+   when the hub has no docs bucket. The mock tenant answers from docs-mock.
+   Throws for any other non-2xx, a network failure or a timeout ('failed'). */
 async function hubDoc(path: string): Promise<string | null | 'off'> {
   if (api.mock) {
     const { mockDocs } = await import('~/utils/docs-mock.mjs')
@@ -146,7 +148,7 @@ async function hubDoc(path: string): Promise<string | null | 'off'> {
   }
   const headers: Record<string, string> = {}
   if (api.token) headers.authorization = `Bearer ${api.token}`
-  const r = await fetch(`${api.base}/v1/docs/${path}`, { credentials: api.credentials, headers, cache: 'no-cache' })
+  const r = await fetch(`${api.base}/v1/docs/${path}`, { credentials: api.credentials, headers, cache: 'no-cache', signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
   if (r.status === 404) {
     const body = await r.json().catch(() => null) as { error?: string } | null
     return body?.error === 'docs_off' ? 'off' : null

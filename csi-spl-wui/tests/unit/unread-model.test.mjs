@@ -106,10 +106,14 @@ const RULES = {
   unreadFor: /\.unreadFor\b/,
 }
 // Today's direct callers, each removed by the task that rewires it (tasks.md
-// T004..T006). An entry that no longer matches fails too: delete it with the fix.
+// T004..T006), plus the readers kept on purpose (a `why`). An entry that no
+// longer matches fails too: delete it with the fix.
 const TODO = [
   { file: 'src/components/ChannelSidebar.vue', rule: 'flow-keys', task: 'T004/T005' },
-  { file: 'src/components/MessageFeed.vue', rule: 'unreadFor', task: 'T006' },
+  // FR-005 (T006): the topic card keeps the local t: cursor. Hub keys let a ch:
+  // mark cover a topic's replies (062 FR-006), so the model's t: row would zero
+  // the card on opening the channel and undo CLE-77930 (owner, t1 bf737f3f).
+  { file: 'src/components/MessageFeed.vue', rule: 'unreadFor', why: 'CLE-77930' },
 ]
 
 function filesUnder(rel) {

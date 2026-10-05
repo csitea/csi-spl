@@ -44,7 +44,7 @@ One pure function, `unreadModel(inputs)`, turns the inputs (hub row keys when pr
 
 ### 3.2 The row wears the number
 
-Every row that can hold unread shows its own number: channel and DM rows (as today), **topic rows in the Topics list** (sidebar and, until 078 Phase 2 ships, the middle list), and the topic card's `<new>/<total>` (whose `<new>` is the model's `t:` value).
+Every row that can hold unread shows its own number: channel and DM rows (as today), **topic rows in the Topics list** (sidebar and, until 078 Phase 2 ships, the middle list), and the topic card's `<new>/<total>` (whose `<new>` stays the local `t:` cursor count, FR-005).
 
 ### 3.3 The title is the sum of the rows
 
@@ -70,7 +70,7 @@ The Flow rail badge keeps 062 FR-005's meaning (unseen + unread, cleared when Fl
 | **FR-002** | A composable `useUnread()` is the only reader of those inputs in components and pages | Planned |
 | **FR-003** | Channel, DM and topic rows in the sidebar show the model's number for their key | Planned |
 | **FR-004** | Topic rows in the Topics middle list show it too (until 078 Phase 2 removes that list) | Planned |
-| **FR-005** | A topic card's `<new>` equals the model's `t:` value | Planned |
+| **FR-005** | A topic card's `<new>` keeps the local `t:` cursor count (`channel.unreadFor`), not the model's `t:` row: the hub `keys` let a `ch:` mark cover a topic's replies (062 FR-006), so opening the channel would zero the card and undo CLE-77930 (owner, t1 bf737f3f) | Done (T006) |
 | **FR-006** | The tab title's `(n)` is the sum of visible row numbers, muted excluded | Planned |
 | **FR-007** | The rail section badges are the section sums from the same model | Planned |
 | **FR-008** | The Flow badge keeps 062 FR-005's number; its label says "new in Flow" in all 19 locales | Planned |
@@ -93,7 +93,7 @@ The Flow rail badge keeps 062 FR-005's meaning (unseen + unread, cleared when Fl
 
 | with | how |
 |---|---|
-| **c-253** (topic new/total, running) | restores `<new>/<total>` on cards. Phase 1 here starts after c-253 lands and rebases on it; FR-005 then rewires its `<new>` to the model |
+| **c-253** (topic new/total, running) | restores `<new>/<total>` on cards. Phase 1 here starts after c-253 lands and rebases on it; its `<new>` stays on the local `t:` cursor (FR-005, CLE-77930) |
 | 062 | the hub's counts and keys are inputs, unchanged; no hub change in this spec |
 | 078 Phase 2 | removes the Topics middle list; FR-004 then has nothing to mark. Whichever lands second drops or keeps FR-004 accordingly |
 | next-unread spec (consensus L8) | reads `useUnread()` for its target; build after this |
@@ -117,4 +117,4 @@ New hub counters or endpoints. Changing what Flow counts (062). Mobile-only pres
 |---|---|---|
 | v0.1 | First spec from the consensus (L3): one model, row numbers, title = row sum, Flow labelled | c-245 |
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:10:00Z -->
+<!-- version: 0.1.1 · updated: 2026-10-05 · last-edit: 2026-10-05T02:50:31Z -->

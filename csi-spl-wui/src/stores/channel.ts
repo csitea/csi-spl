@@ -495,7 +495,10 @@ export const useChannelStore = defineStore('channel', () => {
   }
   /* CLE-77804 (topic 35053f95): unread replies for this topic = current total
      minus what the reader had seen when they last opened it (0 if never opened,
-     so an untouched topic shows a plain total). */
+     so an untouched topic shows a plain total). Spec 079 FR-005: the topic
+     card keeps reading this, not useUnread().rowOf('t:' + id) - the hub keys
+     let a ch: mark cover a topic's replies (062 FR-006), which would zero the
+     card on opening the channel and undo CLE-77930 (owner, t1 bf737f3f). */
   function unreadFor(taskId: string) {
     return useNotificationStore().topicUnread(taskId, repliesFor(taskId))
   }

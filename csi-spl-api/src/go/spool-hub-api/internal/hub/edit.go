@@ -299,8 +299,12 @@ func (s *Server) fanoutEdited(ctx context.Context, tenant string, m store.Editab
 		return
 	}
 	frame := newEditedMsg(m, canon, e, at, by, rev)
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range targets {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 
@@ -436,8 +440,12 @@ func (s *Server) fanoutDeleted(ctx context.Context, tenant string, m store.Edita
 		return
 	}
 	frame := newDeletedMsg(m)
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range targets {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 

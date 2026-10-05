@@ -32,6 +32,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { topicErrorKey } from '~/utils/topic-archive.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { createLatest } from '~/utils/latest-only.mjs'
 
 const props = withDefaults(
   defineProps<{
@@ -57,15 +58,21 @@ const title = computed(() => {
   return n === 1 ? t('feed.topic_delete.title_one') : t('feed.topic_delete.title_n', { n })
 })
 
+/* The dialog can re-open for another topic while the last size read is in
+   flight: only the newest read may write the count and the Archive link. */
+const latest = createLatest()
 async function load() {
+  const mine = latest.next()
   error.value = ''
   replies.value = null
   canArchive.value = false
   try {
     const size = await withSessionRetry(api, () => api.topicSize(props.msgId))
+    if (!latest.isLatest(mine)) return
     replies.value = Math.max(0, Number(size?.replies) || 0)
     canArchive.value = size?.can_archive !== false
   } catch (e) {
+    if (!latest.isLatest(mine)) return
     error.value = t(topicErrorKey(e))
   }
 }
@@ -75,7 +82,7 @@ onMounted(() => { if (props.open) void load() })
 
 /* The reply count is COSMETIC — it only shapes the title. Delete never needs
    it (deleteTopic acts on msgId alone), so the button is NOT disabled while
-   the count loads. It used to be (`:disabled="replies === null"`), and on prd
+   the count loads. It used to be gated on the count being null, and on prd
    latency that made the primary action briefly disabled — which also drops it
    from UiDialog's focus trap, so a keyboard user could not Tab to it or
    activate it with Enter / Space (owner, prd t1 topic b6a7db19). */

@@ -61,6 +61,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { cloneActivityRows, filterActivity, memberActivityRows, sortActivity } from '~/utils/activity-log.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { createLatest } from '~/utils/latest-only.mjs'
 
 const props = defineProps<{ open: boolean, humanId: string }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
@@ -111,7 +112,11 @@ function when(iso: string) {
   return isoDateTime(iso) || '—'
 }
 
+/* Re-opened for another person while a read is in flight: only the newest
+   load writes rows / error and clears `loading`. */
+const latest = createLatest()
 async function load() {
+  const mine = latest.next()
   loading.value = true
   error.value = ''
   try {
@@ -119,15 +124,19 @@ async function load() {
        filtered to this person) and the member's own audit rows — membership +
        auth events (GET /v1/members/<id>/activity). Sort happens in `shown`. */
     const [clones, events] = await Promise.all([api.auditClones(), api.memberActivity(props.humanId)])
+    if (!latest.isLatest(mine)) return
     rows.value = [...cloneActivityRows(clones, props.humanId), ...memberActivityRows(events)]
   } catch (e) {
+    if (!latest.isLatest(mine)) return
     error.value = t(userErrorKey(e))
   } finally {
-    loading.value = false
+    if (latest.isLatest(mine)) loading.value = false
   }
 }
 
-/* fetch when the dialog opens (and when it opens for a different person). */
+/* fetch when the dialog opens (and when it opens for a different person);
+   only the newest read may write rows, so a slow answer for the person shown
+   before cannot replace this one's. */
 watch(() => [props.open, props.humanId] as const, ([open]) => { if (open) void load() }, { immediate: true })
 </script>
 

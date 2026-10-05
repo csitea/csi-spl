@@ -29,6 +29,7 @@ import { useMove } from '~/composables/useMove'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { mergeErrorKey } from '~/utils/move-apply.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { createLatest } from '~/utils/latest-only.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const move = useMove()
@@ -45,14 +46,20 @@ const title = computed(() => {
   return n === 1 ? t('feed.merge.title_one', { target: target.value }) : t('feed.merge.title_n', { n, target: target.value })
 })
 
+/* A new merge ask can open while the previous topic's size is in flight:
+   only the newest read may write the count. */
+const latest = createLatest()
 async function load(msgId: string) {
+  const mine = latest.next()
   error.value = ''
   count.value = null
   try {
     const size = await withSessionRetry(api, () => api.topicSize(msgId))
+    if (!latest.isLatest(mine)) return
     // The whole topic moves: the card plus its replies.
     count.value = Math.max(1, (Math.max(0, Number(size?.replies) || 0)) + 1)
   } catch (e) {
+    if (!latest.isLatest(mine)) return
     error.value = t(mergeErrorKey(e))
     count.value = 1
   }

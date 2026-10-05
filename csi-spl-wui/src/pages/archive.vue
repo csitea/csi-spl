@@ -76,6 +76,7 @@ import { useLive } from '~/composables/useLive'
 import { archivedRow, topicErrorKey, topicFrameDrops, withoutCards } from '~/utils/topic-archive.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
+import { createLatest } from '~/utils/latest-only.mjs'
 
 type Row = ReturnType<typeof archivedRow>
 
@@ -93,20 +94,28 @@ const rowError = ref<Record<string, string>>({})
 
 useHead({ title: () => t('archive.title') })
 
+/* Every load takes a token; only the newest writes. A full reload (a live
+   `topic_archived` frame) therefore drops a "Load more" page still in flight,
+   which would otherwise append to the fresh list or move `next` back. "Load
+   more" is hidden while loading, so it never supersedes a reload. */
+const latest = createLatest()
 async function load(more = false) {
+  const mine = latest.next()
   loading.value = true
   loadError.value = ''
   try {
     /* The first read of a fresh page can go out before the session door is
        armed (a 401): withSessionRetry arms it and reads again, as every view does. */
     const page = await withSessionRetry(api, () => api.listArchived({ before: more ? next.value || undefined : undefined }))
+    if (!latest.isLatest(mine)) return
     const got = page.cards.map(archivedRow)
     rows.value = more ? [...rows.value, ...got.filter((r) => !rows.value.some((o) => o.msg_id === r.msg_id))] : got
     next.value = page.next
   } catch {
+    if (!latest.isLatest(mine)) return
     loadError.value = 'archive.load_failed'
   } finally {
-    loading.value = false
+    if (latest.isLatest(mine)) loading.value = false
   }
 }
 
@@ -140,6 +149,7 @@ onMounted(() => {
   void load()
   /* Another tab archived (reload to get its row), unarchived or deleted one. */
   offTopic = live.onTopic((f) => {
+    /* the reload supersedes any in-flight "Load more" (its page is dropped) */
     if (f.type === 'topic_archived' && f.archived === true) void load()
     else if (f.type === 'topic_archived') rows.value = withoutCards(rows.value, [String(f.msg_id || '')])
     else rows.value = withoutCards(rows.value, topicFrameDrops(f))

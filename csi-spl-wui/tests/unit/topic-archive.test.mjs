@@ -182,8 +182,11 @@ describe('wiring', () => {
   it('the dialog names the reply count from the hub before it deletes', () => {
     const d = src('src/components/TopicDeleteDialog.vue')
     assert.match(d, /withSessionRetry\(api, \(\) => api\.topicSize\(props\.msgId\)\)/)
-    /* UiConfirm disables Delete while busy; the count gates it too (SPL-1001) */
-    assert.match(d, /:disabled="replies === null"/)
+    /* UiConfirm disables Delete while busy; the reply count is cosmetic and
+       must NOT gate it (a disabled primary leaves the focus trap, prd t1 b6a7db19) */
+    const template = d.slice(0, d.indexOf('<script'))
+    assert.ok(template.includes('<UiConfirm'), 'the template is read, not the script')
+    assert.doesNotMatch(template, /:disabled="replies === null"/)
     assert.match(d, /api\.deleteTopic\(props\.msgId\)/)
   })
   it('the shell drops rows on topic frames and the live client routes both types', () => {

@@ -49,6 +49,7 @@ import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { memberLabel, normalizeDirectory } from '~/utils/tenant-users.mjs'
 import type { UserMember } from '~/utils/tenant-users.mjs'
+import { createLatest } from '~/utils/latest-only.mjs'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
@@ -85,16 +86,22 @@ function label(m: UserMember) {
   return memberLabel(m)
 }
 
+/* Close and re-open starts a second read while the first may be in flight:
+   only the newest one writes the list and clears `loading`. */
+const latest = createLatest()
 async function fetchMembers() {
+  const mine = latest.next()
   loading.value = true
   error.value = ''
   try {
     const dir = normalizeDirectory(await api.listTenantUsers())
+    if (!latest.isLatest(mine)) return
     members.value = dir.members
   } catch {
+    if (!latest.isLatest(mine)) return
     error.value = t('act_as.load_failed')
   } finally {
-    loading.value = false
+    if (latest.isLatest(mine)) loading.value = false
   }
 }
 

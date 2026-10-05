@@ -538,6 +538,8 @@
     "target_new": "Nytt ämne i {target}",
     "target_dm": "Nytt ämne med {target}",
     "target_comment": "Kommenterar {target}",
+    "chip_reply": "Svar · {title}",
+    "chip_new_topic": "Nytt ämne · {target}",
     "target_search_only": "Inget inlägg här — GO söker efter texten"
   },
   "feed": {

@@ -538,6 +538,8 @@
     "target_new": "Nová téma v {target}",
     "target_dm": "Nová téma s {target}",
     "target_comment": "Komentár k {target}",
+    "chip_reply": "Odpoveď · {title}",
+    "chip_new_topic": "Nová téma · {target}",
     "target_search_only": "Tu sa nepublikuje — GO hľadá text"
   },
   "feed": {

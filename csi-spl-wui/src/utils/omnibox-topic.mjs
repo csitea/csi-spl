@@ -127,6 +127,40 @@ export function dockTargetHint(dock, text = '') {
 }
 
 /**
+ * 080 FR-006 / FR-007: the chip at the start of the box names where Enter
+ * sends, from the very target `send` uses - the page's `dock()` (reply or a
+ * new topic, an `@ID task` line is a new topic: dockTargetHint) and its
+ * `place()` (`ch:` / `dm:` / `t:`, the same replyTarget() the send reads).
+ * An `in: <title>` the line resolves to (`named`) wins, as it does in send.
+ * No chip for an empty box, a `/search` line or a page with no send target.
+ * `key` '' means `text` is the label as is (`#feedback`, `@HUM-3`); `open`
+ * is the place a click on the chip opens ('' opens nothing).
+ * @param {{ dock?: { reply?: boolean, target?: string, comment?: boolean, dm?: boolean } | null, place?: string, text?: unknown, named?: { taskId?: string, title?: string } | null, title?: string }} [opts]
+ * @returns {{ key: string, params: Record<string, string>, text: string, open: string } | null}
+ */
+export function chipLabel({ dock = null, place = '', text = '', named = null, title = '' } = {}) {
+  const line = String(text || '')
+  if (!dock || !line.trim() || /^\/search(\s|$)/i.test(line.trimStart())) return null
+  const reply = (t, open) => ({ key: 'composer.chip_reply', params: { title: t }, text: '', open })
+  if (named && named.taskId) return reply(String(named.title || named.taskId), `t:${named.taskId}`)
+  const hint = dockTargetHint(dock, line)
+  if (!hint) return null
+  const at = String(place || '')
+  if (hint.mode === 'comment') return reply(hint.target, '')
+  if (hint.mode === 'thread') {
+    const id = at.startsWith('t:') ? at.slice(2) : ''
+    return reply(String(title || id || hint.target), id ? at : '')
+  }
+  let where = ''
+  if (at.startsWith('ch:') && at.length > 3) where = '#' + at.slice(3)
+  else if (at.startsWith('dm:') && at.length > 3) where = '@' + at.slice(3)
+  else where = hint.mode === 'dm' ? '@' + hint.target.replace(/^@/, '') : hint.target
+  /* a topic is open and the line still starts a new one: say so */
+  if (dock.reply) return { key: 'composer.chip_new_topic', params: { target: where }, text: '', open: '' }
+  return { key: '', params: {}, text: where, open: where ? at : '' }
+}
+
+/**
  * HUM-24 (CLE-77879, 2026-10-01): "creating a new topic must look different
  * from writing a reply in the chat". The line over the phone / bottom dock
  * for a hint, as an i18n key and its params (the desktop bottom dock only).

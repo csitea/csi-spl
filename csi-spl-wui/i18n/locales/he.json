@@ -538,6 +538,8 @@
     "target_new": "נושא חדש ב-{target}",
     "target_dm": "נושא חדש עם {target}",
     "target_comment": "תגובה על {target}",
+    "chip_reply": "תגובה · {title}",
+    "chip_new_topic": "נושא חדש · {target}",
     "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט"
   },
   "feed": {

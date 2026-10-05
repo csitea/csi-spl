@@ -16,21 +16,6 @@
     <!-- owner, t1 2026-10-02: the grip that drags the phone dock to the
          top, the right corner or back to the bottom (OmniboxGrip) -->
     <OmniboxGrip v-if="docked" :box="formEl" />
-    <!-- Topic c6994436: over the bottom dock on a desktop the box says where
-         the post goes before it is sent. On a phone NO text line above the
-         box (owner, t1 dd98f8d7, 2026-10-01: "remove also all of the texts on
-         mobile above the omnibox"): the form's data-mode accent edge and the
-         placeholder carry the mode there (SPL-1003's line is gone) -->
-    <p
-      v-if="bottom && !docked && !searchMode && dockHint"
-      class="composer-target"
-      data-test="dock-target"
-      :data-mode="dockHint.mode"
-      aria-live="polite"
-    >
-      <UiIcon :name="modeIcon" :size="14" />
-      <span>{{ modeText }}</span>
-    </p>
     <div class="composer-box">
       <!-- 022 FR-012: operator autocomplete in /search mode (catalogue: search-v1 §6) -->
       <ul
@@ -84,7 +69,12 @@
       <span v-if="searchMode" class="omnibox-mode" data-test="omnibox-mode">
         <UiIcon name="search" :size="14" />{{ t('search.mode_chip') }}
       </span>
-      <div class="omnibox-field" :class="{ 'has-mode-glyph': modeGlyph }" ref="fieldEl">
+      <div
+        class="omnibox-field"
+        :class="{ 'has-mode-glyph': modeGlyph, 'has-target-chip': chip }"
+        :style="chip ? { '--chip-w': chipW + 'px' } : undefined"
+        ref="fieldEl"
+      >
         <!-- owner, t1 3d6d945d (2026-10-02, option "A"): one glyph inside the
              box at its start says where the post goes - "#" a new topic, the
              tree (an upside-down F) into the open thread or issue. Its name is
@@ -98,6 +88,23 @@
           :aria-label="modeText"
           :title="modeText"
         ><UiIcon :name="modeGlyph" :size="16" /></span>
+        <!-- 080 FR-006: while the box holds text, a chip after the glyph
+             names where Enter sends (#feedback, @HUM-3, Reply · <title>, New
+             topic · #lobby), top and bottom positions alike; a click opens it
+             (Q3). Inside the box, never a line over it (owner, t1 7d777e79),
+             and not on the phone dock (t1 dd98f8d7: no texts there). Replaces
+             the bottom dock's "where it goes" line (c6994436). -->
+        <button
+          v-if="chip"
+          ref="chipEl"
+          type="button"
+          class="composer-target-chip"
+          data-test="composer-target-chip"
+          :data-mode="chipMode"
+          :title="chipText"
+          @mousedown.prevent
+          @click="openChip"
+        >{{ chipText }}</button>
         <button
           v-if="global"
           type="button"
@@ -306,7 +313,7 @@ import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { perfKeydown, perfSendStart } from '~/utils/perf-mark.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
+import { chipLabel, composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
@@ -778,7 +785,6 @@ const modeText = computed(() => {
   return label ? t(label.key, label.params) : ''
 })
 const intoTree = computed(() => Boolean(dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment')))
-const modeIcon = computed(() => (intoTree.value ? 'thread-tree' : dockHint.value && dockHint.value.mode === 'new' ? 'hash' : 'plus'))
 /* owner, t1 3d6d945d "A": the glyph in the box - a new topic or into the tree;
    a DM, /search and a page with no send target show none */
 const modeGlyph = computed<'thread-tree' | 'hash' | null>(() => {
@@ -794,6 +800,63 @@ const modeAttr = computed(() => {
   return docked.value && props.sendBlocked ? 'search' : undefined
 })
 const sendKey = computed(() => composerSendKey(searchMode.value ? null : dockHint.value))
+
+/*
+ * 080 FR-006 / FR-007: the target chip. chipLabel reads what send reads - the
+ * page's dock() and place() (one replyTarget()) and the `in: <title>` the
+ * line resolves to - so it cannot name one place while the send goes to
+ * another. Top-bar box only, not on the phone dock, not in /search.
+ */
+const chipInfo = computed(() => {
+  if (!props.global || docked.value || searchMode.value || props.sendBlocked) return null
+  const place = String(omniboxTargets.target?.place?.() ?? '')
+  const resolved = /(^|\s)in:/i.test(text.value) ? resolveInClause(text.value, topicCatalogue.value) : null
+  const named = resolved && resolved.taskId ? { taskId: resolved.taskId, title: resolved.title } : null
+  const id = place.startsWith('t:') ? place.slice(2) : ''
+  const title = id ? (topicCatalogue.value.find((r) => r.taskId === id)?.title ?? '') : ''
+  return chipLabel({ dock: props.dockTarget, place, text: text.value, named, title })
+})
+const chip = computed(() => Boolean(chipInfo.value))
+const chipText = computed(() => {
+  const c = chipInfo.value
+  if (!c) return ''
+  return c.key ? t(c.key, c.params) : c.text
+})
+const chipMode = computed(() => {
+  const c = chipInfo.value
+  if (!c) return undefined
+  if (c.key === 'composer.chip_reply') return 'thread'
+  return c.text.startsWith('@') ? 'dm' : 'new'
+})
+/* the text starts after the chip: its width, live */
+const chipEl = ref<HTMLElement | null>(null)
+const chipW = ref(0)
+let chipObserver: ResizeObserver | null = null
+watch(chipEl, (el) => {
+  chipObserver?.disconnect()
+  chipObserver = null
+  if (!el) return
+  chipW.value = el.offsetWidth
+  if (typeof ResizeObserver === 'undefined') return
+  chipObserver = new ResizeObserver(() => { chipW.value = el.offsetWidth })
+  chipObserver.observe(el)
+})
+onBeforeUnmount(() => chipObserver?.disconnect())
+/* spec Q3: a chip click opens the target - the channel, the DM or the topic
+   (an open pane already shows it, so nothing moves) - and the box keeps the focus */
+const chipRoute = useRoute()
+const chipLocalePath = useLocalePath()
+function openChip() {
+  const at = chipInfo.value?.open || ''
+  const name = encodeURIComponent(at.slice(at.indexOf(':') + 1))
+  if (at.startsWith('t:')) {
+    const id = at.slice(2)
+    if (chipRoute.query.topic !== id && chipRoute.params.task_id !== id) void navigateTo(chipLocalePath('/t/' + name))
+  } else if (at === 'ch:lobby') void navigateTo(chipLocalePath('/lobby'))
+  else if (at.startsWith('ch:')) void navigateTo(chipLocalePath('/channel/' + name))
+  else if (at.startsWith('dm:')) void navigateTo(chipLocalePath('/dm/' + name))
+  inputEl.value?.focus()
+}
 
 function caret(): number {
   return inputEl.value?.selectionStart ?? text.value.length
@@ -1457,20 +1520,6 @@ textarea.in-code {
 .omnibox--bottom.omnibox--global .omnibox-field { padding: 10px 8px 0; }
 .omnibox--bottom.omnibox--global .omnibox-resize { top: 1px; bottom: auto; }
 .omnibox--bottom.omnibox--global .search-syntax-btn { top: 16px; }
-.omnibox--bottom .composer-target {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  margin: 0 0 4px;
-  padding-inline: 4px;
-  font-size: 0.8125rem;
-  line-height: 1.3;
-  color: var(--color-muted);
-}
-.omnibox--bottom .composer-target span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.omnibox--bottom .composer-target[data-mode=thread] { color: var(--color-fg); font-weight: 600; }
-.omnibox--bottom .composer-target[data-mode=thread] svg { color: var(--composer-mode, var(--color-accent)); flex: none; }
 /*
  * HUM-24 (CLE-77879): "creating a new topic must look different from writing
  * a reply". The box keeps its ONE ordinary border in every mode (owner, t1
@@ -1481,7 +1530,6 @@ textarea.in-code {
  */
 .composer[data-mode=thread],
 .composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
-.composer[data-mode] .composer-target svg { color: var(--composer-mode); flex: none; }
 /* owner, t1 3d6d945d "A": the glyph sits in the field's start corner, centred
    on the first text line (as the "?" sits in the end corner); the text starts
    after it. Muted for a new topic, the reply colour into the tree. */
@@ -1497,6 +1545,33 @@ textarea.in-code {
 .composer-mode-glyph[data-glyph=thread-tree] { color: var(--color-mode-reply, var(--color-accent)); }
 .composer.omnibox--global .has-mode-glyph textarea { padding-inline-start: 24px; }
 .omnibox--bottom.omnibox--global .composer-mode-glyph { top: 20px; }
+/* 080 FR-006: the target chip sits in the start corner after the glyph, on
+   the first text line; the text starts after it (--chip-w, measured) */
+.composer-target-chip {
+  position: absolute;
+  z-index: 1;
+  top: 9px;
+  inset-inline-start: 8px;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-hover);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.composer-target-chip[data-mode=thread] { color: var(--color-mode-reply, var(--color-accent)); }
+.composer-target-chip:hover { color: var(--color-fg); }
+.has-mode-glyph .composer-target-chip { inset-inline-start: 28px; }
+.composer.omnibox--global .has-target-chip textarea { padding-inline-start: calc(var(--chip-w, 0px) + 6px); }
+.composer.omnibox--global .has-mode-glyph.has-target-chip textarea { padding-inline-start: calc(var(--chip-w, 0px) + 26px); }
+.omnibox--bottom.omnibox--global .composer-target-chip { top: 19px; }
 /* owner, t1 932eeefc (2026-10-03): Attach + GO stay at the RIGHT end of the
    bottom bar, "just a bit 2 mm on the left to align with the scroll till
    bottom button": 8 px (~2 mm) further in, so on a phone GO's right edge

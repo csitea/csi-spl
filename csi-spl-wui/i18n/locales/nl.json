@@ -538,6 +538,8 @@
     "target_new": "Nieuw onderwerp in {target}",
     "target_dm": "Nieuw onderwerp met {target}",
     "target_comment": "Reactie op {target}",
+    "chip_reply": "Antwoord · {title}",
+    "chip_new_topic": "Nieuw onderwerp · {target}",
     "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst"
   },
   "feed": {

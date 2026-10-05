@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isParentFlag, omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic } from '../../src/utils/omnibox-topic.mjs'
+import { chipLabel, isParentFlag, omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -95,5 +95,87 @@ describe('which conversation the Omnibox writes into (CLE-3433 / OA-38)', () => 
     for (const page of ['src/pages/channel/[name].vue', 'src/pages/dm/[peer].vue', 'src/pages/index.vue', 'src/pages/lobby.vue', 'src/pages/t/[task_id].vue']) {
       assert.match(src(page), /isParentFlag/, page)
     }
+  })
+})
+
+/* 080 FR-006 / FR-007 (AC6): the chip names the target send uses. Each case
+   of the target table above is built the way a page builds its omnibox
+   target (dock() and place() from one replyTarget()), then the chip and the
+   send are compared: a reply chip opens the very topic the send hangs off,
+   and a send that starts a topic never wears a reply chip. */
+describe('080 the target chip and the send read one target (AC6)', () => {
+  const TABLE = [
+    { tab: 'topics', selectedTaskId: 'T-1' },
+    { tab: 'topics', selectedTaskId: 'T-1', namedTopicId: 'T-9' },
+    { tab: 'topics', selectedTaskId: '' },
+    { tab: 'channels', selectedTaskId: 'T-1', paneVisible: true },
+    { tab: 'channels', selectedTaskId: 'T-1' },
+    { tab: 'dm', selectedTaskId: 'T-1' },
+    {},
+  ]
+  const LINES = ['hello', '@CLE-07 do the thing', '@test', '@CLE-07']
+  const PAGES = [
+    { name: 'channel', dock: (r) => ({ reply: Boolean(r), target: '#feedback' }), place: (r) => (r ? `t:${r}` : 'ch:feedback'), plain: '#feedback' },
+    { name: 'lobby', dock: (r) => ({ reply: Boolean(r), target: '#lobby' }), place: (r) => (r ? `t:${r}` : 'ch:lobby'), plain: '#lobby' },
+    { name: 'dm', dock: (r) => ({ reply: Boolean(r), target: 'HUM-3', dm: true }), place: (r) => (r ? `t:${r}` : 'dm:HUM-3'), plain: '@HUM-3' },
+  ]
+  for (const page of PAGES) {
+    for (const row of TABLE) {
+      for (const text of LINES) {
+        it(`${page.name} ${JSON.stringify(row)} ${JSON.stringify(text)}`, () => {
+          const reply = omniboxReplyTaskId(row)
+          const c = chipLabel({ dock: page.dock(reply), place: page.place(reply), text, title: 'The title' })
+          assert.ok(c, 'a box with text and a send target has a chip')
+          const intoTopic = Boolean(reply) && !startsNewTopic(text)
+          if (intoTopic) {
+            assert.equal(c.key, 'composer.chip_reply')
+            assert.equal(c.params.title, 'The title')
+            assert.equal(c.open, `t:${reply}`)
+          } else if (reply) {
+            assert.equal(c.key, 'composer.chip_new_topic')
+            assert.equal(c.params.target, page.plain)
+          } else {
+            assert.equal(c.key, '')
+            assert.equal(c.text, page.plain)
+            assert.equal(c.open, page.place(''))
+          }
+        })
+      }
+    }
+  }
+
+  it('no chip: an empty box, a /search line, no send target', () => {
+    const dock = { reply: false, target: '#lobby' }
+    assert.equal(chipLabel({ dock, place: 'ch:lobby', text: '' }), null)
+    assert.equal(chipLabel({ dock, place: 'ch:lobby', text: '   ' }), null)
+    assert.equal(chipLabel({ dock, place: 'ch:lobby', text: '/search x' }), null)
+    assert.equal(chipLabel({ dock: null, place: '', text: 'x' }), null)
+    assert.equal(chipLabel(), null)
+  })
+
+  it('an `in: <title>` the line names wins, as it does in send', () => {
+    const c = chipLabel({ dock: { reply: false, target: '#lobby' }, place: 'ch:lobby', text: 'in: Other x', named: { taskId: 'T-9', title: 'Other' } })
+    assert.deepEqual([c && c.key, c && c.params.title, c && c.open], ['composer.chip_reply', 'Other', 't:T-9'])
+  })
+
+  it('a reply with no known title names the topic id; an issue comment names the issue', () => {
+    assert.equal(chipLabel({ dock: { reply: true, target: 'x' }, place: 't:T-1', text: 'a' })?.params.title, 'T-1')
+    const c = chipLabel({ dock: { reply: true, target: 'SPL-12', comment: true }, place: '', text: 'a' })
+    assert.deepEqual([c && c.key, c && c.params.title, c && c.open], ['composer.chip_reply', 'SPL-12', ''])
+  })
+
+  it('composer.chip_reply and composer.chip_new_topic exist in all 19 locales', () => {
+    for (const code of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const c = JSON.parse(src(`i18n/locales/${code}.json`)).composer || {}
+      assert.match(String(c.chip_reply), /\{title\}/, `${code}: composer.chip_reply`)
+      assert.match(String(c.chip_new_topic), /\{target\}/, `${code}: composer.chip_new_topic`)
+    }
+  })
+
+  it('the composer renders the chip from chipLabel, and the bottom-only line is gone', () => {
+    const vue = src('src/components/MessageComposer.vue')
+    assert.match(vue, /chipLabel\(\{ dock: props\.dockTarget, place, text: text\.value, named, title \}\)/)
+    assert.match(vue, /data-test="composer-target-chip"/)
+    assert.doesNotMatch(vue, /data-test="dock-target"/)
   })
 })

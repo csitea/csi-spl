@@ -538,6 +538,8 @@
     "target_new": "Subiect nou în {target}",
     "target_dm": "Subiect nou cu {target}",
     "target_comment": "Comentariu la {target}",
+    "chip_reply": "Răspuns · {title}",
+    "chip_new_topic": "Subiect nou · {target}",
     "target_search_only": "Aici nu se publică — GO caută textul"
   },
   "feed": {

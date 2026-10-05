@@ -538,6 +538,8 @@
     "target_new": "Nauja tema: {target}",
     "target_dm": "Nauja tema su {target}",
     "target_comment": "Komentuojama: {target}",
+    "chip_reply": "Atsakymas · {title}",
+    "chip_new_topic": "Nauja tema · {target}",
     "target_search_only": "Čia neskelbiama — GO ieško teksto"
   },
   "feed": {

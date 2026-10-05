@@ -538,6 +538,8 @@
     "target_new": "New topic in {target}",
     "target_dm": "New topic with {target}",
     "target_comment": "Commenting on {target}",
+    "chip_reply": "Reply · {title}",
+    "chip_new_topic": "New topic · {target}",
     "target_search_only": "No post here — GO searches for the text"
   },
   "feed": {

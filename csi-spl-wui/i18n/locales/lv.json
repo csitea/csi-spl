@@ -538,6 +538,8 @@
     "target_new": "Jauna tēma: {target}",
     "target_dm": "Jauna tēma ar {target}",
     "target_comment": "Komentārs: {target}",
+    "chip_reply": "Atbilde · {title}",
+    "chip_new_topic": "Jauna tēma · {target}",
     "target_search_only": "Šeit nepublicē — GO meklē tekstu"
   },
   "feed": {

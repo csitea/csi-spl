@@ -538,6 +538,8 @@
     "target_new": "Uus teema: {target}",
     "target_dm": "Uus teema kasutajaga {target}",
     "target_comment": "Kommentaar: {target}",
+    "chip_reply": "Vastus · {title}",
+    "chip_new_topic": "Uus teema · {target}",
     "target_search_only": "Siia ei postitata — GO otsib teksti"
   },
   "feed": {

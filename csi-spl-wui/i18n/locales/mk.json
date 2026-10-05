@@ -538,6 +538,8 @@
     "target_new": "Нова тема во {target}",
     "target_dm": "Нова тема со {target}",
     "target_comment": "Коментар на {target}",
+    "chip_reply": "Одговор · {title}",
+    "chip_new_topic": "Нова тема · {target}",
     "target_search_only": "Тука не се објавува — GO го пребарува текстот"
   },
   "feed": {

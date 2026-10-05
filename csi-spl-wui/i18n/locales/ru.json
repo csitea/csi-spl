@@ -538,6 +538,8 @@
     "target_new": "Новая тема в {target}",
     "target_dm": "Новая тема с {target}",
     "target_comment": "Комментарий к {target}",
+    "chip_reply": "Ответ · {title}",
+    "chip_new_topic": "Новая тема · {target}",
     "target_search_only": "Здесь не публикуется — GO ищет текст"
   },
   "feed": {

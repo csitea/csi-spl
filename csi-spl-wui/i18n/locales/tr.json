@@ -538,6 +538,8 @@
     "target_new": "{target} içinde yeni konu",
     "target_dm": "{target} ile yeni konu",
     "target_comment": "{target} için yorum",
+    "chip_reply": "Yanıt · {title}",
+    "chip_new_topic": "Yeni konu · {target}",
     "target_search_only": "Burada gönderi yok — GO metni arar"
   },
   "feed": {

@@ -538,6 +538,8 @@
     "target_new": "Νέο θέμα στο {target}",
     "target_dm": "Νέο θέμα με {target}",
     "target_comment": "Σχόλιο στο {target}",
+    "chip_reply": "Απάντηση · {title}",
+    "chip_new_topic": "Νέο θέμα · {target}",
     "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο"
   },
   "feed": {

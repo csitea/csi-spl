@@ -561,7 +561,7 @@ declare module '~/utils/auth-client.mjs' {
     saveSubmitKey(key: string): Promise<NativeResult>
     saveRailOrder(order: string[] | null): Promise<NativeResult>
     saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons', value: string | null): Promise<NativeResult>
-    saveIssueColumns(cols: Record<string, number> | null): Promise<NativeResult>
+    saveIssueColumns(cols: Record<string, number> | null, opts?: { keepalive?: boolean }): Promise<NativeResult>
     switchTenant(tenant: string): Promise<NativeResult>
     providers(): Promise<string[]>
     session(pending?: Promise<Response> | null): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
@@ -2093,6 +2093,10 @@ declare module '~/utils/issues-colw.mjs' {
   export function withColWidth(widths: ColWidths, col: string, px: number | null): ColWidths
   export function colWidthVars(widths: ColWidths): Record<string, string>
   export function colWidthClasses(widths: ColWidths): string[]
+  export function pendingSave<O extends object>(
+    run: (opts: O) => void, ms: number,
+    timers?: { setTimeout: (fn: () => void, ms: number) => unknown, clearTimeout: (id: unknown) => void },
+  ): { schedule(): void, flush(opts?: O): boolean }
 }
 
 declare module '~/utils/row-keys.mjs' {

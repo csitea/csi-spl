@@ -5,10 +5,13 @@
 // page's own per-browser store is the fallback.
 //
 // A drag writes the width many times a second; the claim follows at once and
-// the hub save is debounced, so one gesture is one PUT.
+// the hub save is debounced, so one gesture is one PUT. A save still pending
+// when the page goes (reload, tab closed) is sent on pagehide, keepalive: a
+// reload never runs the unmount hook, so the width was lost (c-340).
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { applyIssueColumns, parseIssueColumns } from '~/utils/issue-columns-pref.mjs'
+import { pendingSave } from '~/utils/issues-colw.mjs'
 
 type Widths = Record<string, number>
 
@@ -20,22 +23,21 @@ export function useIssueColumns(fallback?: { load: () => Widths, save: (w: Width
   const signedIn = computed(() => session.state === 'in')
   /* the hub's value before this gesture started (what a refusal restores) */
   let saved: Widths | null = null
-  let timer: ReturnType<typeof setTimeout> | null = null
 
   const local = ref<Widths>(fallback ? parseIssueColumns(fallback.load()) : {})
   const widths = computed<Widths>(() => (signedIn.value ? parseIssueColumns(session.claims?.issues_columns) : local.value))
 
-  async function flush() {
-    timer = null
+  async function flush(opts: { keepalive?: boolean } = {}) {
     const want = parseIssueColumns(session.claims?.issues_columns)
     const current = saved
     saved = null
     await applyIssueColumns(want, {
       current,
       apply: (v) => session.setIssuesColumns(v),
-      save: (v) => auth.saveIssueColumns(v),
+      save: (v) => auth.saveIssueColumns(v, opts),
     })
   }
+  const pending = pendingSave((opts: { keepalive?: boolean }) => void flush(opts), ISSUE_COLUMNS_SAVE_MS)
 
   /** Store `next` (column -> px; {} = the automatic layout everywhere). */
   function save(next: Widths) {
@@ -47,15 +49,16 @@ export function useIssueColumns(fallback?: { load: () => Widths, save: (w: Width
     }
     if (saved === null) saved = parseIssueColumns(session.claims?.issues_columns)
     session.setIssuesColumns(Object.keys(clean).length ? clean : null)
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(flush, ISSUE_COLUMNS_SAVE_MS)
+    pending.schedule()
   }
 
+  function onPageHide() {
+    pending.flush({ keepalive: true })
+  }
+  onMounted(() => window.addEventListener('pagehide', onPageHide))
   onBeforeUnmount(() => {
-    if (timer) {
-      clearTimeout(timer)
-      void flush()
-    }
+    window.removeEventListener('pagehide', onPageHide)
+    pending.flush()
   })
 
   return { widths, signedIn, save }

@@ -87,3 +87,30 @@ export function colWidthVars(widths) {
 export function colWidthClasses(widths) {
   return Object.keys(cleanColWidths(widths)).map((col) => 'issues-w-' + col)
 }
+
+/**
+ * A debounced save that can be sent at once: `schedule()` (re)starts the
+ * timer, `flush(opts)` runs a pending save now with `opts` (pagehide passes
+ * { keepalive: true }) and says whether one was pending. A drag then a reload
+ * inside the debounce otherwise loses the width: the page's unmount hook
+ * never runs on a reload (c-340).
+ */
+export function pendingSave(run, ms, timers = globalThis) {
+  let timer = null
+  const fire = (opts) => {
+    timer = null
+    run(opts)
+  }
+  return {
+    schedule() {
+      if (timer !== null) timers.clearTimeout(timer)
+      timer = timers.setTimeout(() => fire({}), ms)
+    },
+    flush(opts = {}) {
+      if (timer === null) return false
+      timers.clearTimeout(timer)
+      fire(opts)
+      return true
+    },
+  }
+}

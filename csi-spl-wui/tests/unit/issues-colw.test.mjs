@@ -9,9 +9,10 @@ import { fileURLToPath } from 'node:url'
 
 import {
   COLW_MAX, COLW_MIN, COLW_MIN_BY_COL, COLW_STEP, colMin, ISSUES_COLW_COLS, ISSUES_COLW_KEY,
-  clampColWidth, cleanColWidths, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, saveColWidths, withColWidth,
+  clampColWidth, cleanColWidths, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, pendingSave, saveColWidths, withColWidth,
 } from '../../src/utils/issues-colw.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
+import { createAuthClient } from '../../src/utils/auth-client.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
 
@@ -90,5 +91,49 @@ describe('issues column widths', () => {
       assert.match(vue, new RegExp(`\\.issues-table\\.issues-w-${col} \\[data-col="${col}"\\] \\{ width: var\\(--iw-${col}\\)`), col)
       assert.ok((vue.match(new RegExp(`<th data-col="${col}"|<th class="issues-c-key" data-col="${col}"`, 'g')) || []).length >= 1 || col === 'key', 'filter row ' + col)
     }
+  })
+
+  /* c-340: a drag then a reload inside the 500 ms debounce lost the width
+     (live, dev 1.5.4: no PUT before the reload, 214 -> 114). The page now
+     sends the pending save on pagehide, keepalive so it outlives the page. */
+  it('a pending save runs once: on its timer, or at once on flush (pagehide)', () => {
+    const timers = []
+    const t = { setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length }, clearTimeout: (id) => { timers[id - 1].fn = null } }
+    const runs = []
+    const s = pendingSave((opts) => runs.push(opts), 500, t)
+    assert.equal(s.flush({ keepalive: true }), false)
+    s.schedule()
+    s.schedule()
+    assert.equal(timers.filter((x) => x.fn).length, 1)
+    assert.equal(timers[1].ms, 500)
+    assert.equal(s.flush({ keepalive: true }), true)
+    assert.deepEqual(runs, [{ keepalive: true }])
+    assert.equal(s.flush({ keepalive: true }), false)
+    s.schedule()
+    timers.at(-1).fn()
+    assert.deepEqual(runs, [{ keepalive: true }, {}])
+    assert.equal(s.flush(), false)
+  })
+
+  it('the keepalive save reaches fetch; an ordinary save does not ask for it', async () => {
+    const sent = []
+    const fetchFn = async (url, init) => {
+      sent.push(init)
+      return new Response(null, { status: 204 })
+    }
+    const c = createAuthClient({ fetchFn, base: 'https://hub.example.com/api/v1/auth' })
+    await c.saveIssueColumns({ status: 214 }, { keepalive: true })
+    await c.saveIssueColumns({ status: 214 })
+    assert.equal(sent[0].keepalive, true)
+    assert.equal(sent[0].method, 'PUT')
+    assert.equal(sent[1].keepalive, undefined)
+  })
+
+  it('the sheet sends a pending width save on pagehide, keepalive', () => {
+    const ts = readFileSync(join(SRC, 'composables/useIssueColumns.ts'), 'utf8')
+    assert.match(ts, /addEventListener\('pagehide', onPageHide\)/)
+    assert.match(ts, /removeEventListener\('pagehide', onPageHide\)/)
+    assert.match(ts, /function onPageHide\(\)[\s\S]{0,80}\.flush\(\{ keepalive: true \}\)/)
+    assert.match(ts, /auth\.saveIssueColumns\(v, opts\)/)
   })
 })

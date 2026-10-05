@@ -302,11 +302,13 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
    * { ok, status, data, error, detail, retryAfter }: `error` is the envelope
    * token, 'network' when the hub was not reached, 'unavailable' for a non-JSON
    * failure; `retryAfter` is the 429 Retry-After in seconds (0 when absent).
+   * `extra` adds fetch options (keepalive, for a save sent while the page goes).
    */
-  async function post(path, body, method = 'POST') {
+  async function post(path, body, method = 'POST', extra = undefined) {
     let res
     try {
       res = await call(path, {
+        ...extra,
         method,
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body || {}),
@@ -466,11 +468,12 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
      * SPL-1132: the Issues sheet's column widths (humans.issues_columns, rdb
      * 0076). Sends ONLY that key: an object of column -> whole px, or null
      * (an empty object too) for the automatic layout. 200 → ok; 400
-     * unsupported_issues_columns; 401; 409 = no human.
+     * unsupported_issues_columns; 401; 409 = no human. `{ keepalive: true }`
+     * when the page is going (pagehide): the PUT must outlive the page.
      */
-    saveIssueColumns(cols) {
+    saveIssueColumns(cols, opts = undefined) {
       const obj = cols && typeof cols === 'object' && !Array.isArray(cols) && Object.keys(cols).length ? cols : null
-      return post('/preferences', { issues_columns: obj }, 'PUT')
+      return post('/preferences', { issues_columns: obj }, 'PUT', opts && opts.keepalive ? { keepalive: true } : undefined)
     },
     // SPL-1181: Issues list default sort, per tenant (rdb 0078); null clears.
     // Resolves (never throws), with post()'s { ok, status, data, error, ... }.

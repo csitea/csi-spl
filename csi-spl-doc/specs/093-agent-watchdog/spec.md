@@ -404,8 +404,22 @@ today's `spool-mirror.py` entries do), installed by an action
 
 The **ping test** per harness: a hook injects a random token after one tool
 call, then the agent is asked to echo it; pass = the token comes back, n >= 3.
-A mechanism is relied on only after it passes; the agy panelists' account of
-`PreInvocation` / `injectSteps` is from their reading, not yet a run.
+A mechanism is relied on only after it passes. The first run is in 7.3.1.
+
+### 7.3.1 Ping results
+
+`do_spl_hook_ping` on commit `c7bd865b486fa5dcb05c3dbc52d31b1767b8309d`, n = 3
+per installed harness. Pass means the model's reply text equals the injected
+token. A harness that fails stays on the S8 path in the table above.
+
+| harness | version | n | pass | fail | verdict |
+|---|---|---|---|---|---|
+| grok | 1.0.46 (2765805b9442) | 3 | 3 | 0 | pass |
+| agy | 1.2.17 | 3 | 3 | 0 | pass |
+| qwen | 0.24.6 | 3 | 0 | 3 | fail, stays on S8 |
+
+Qwen's three trials exited before a tool call. The headless run reported that
+no auth type is selected, so the hook never injected a token.
 
 ## 8. The takeover, built from spec 060's code
 
@@ -591,4 +605,4 @@ No panelist disagreed with section 6 (situations), 6.3 (who kills whom), 8
 Code (the lanes of [tasks.md](tasks.md)); the relay contract (git-rel); the
 WUI beyond showing a job's state (a later lane); headless stream-json agents.
 
-<!-- version: 0.2.0 · updated: 2026-10-05 · last-edit: 2026-10-05T20:05:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-05 · last-edit: 2026-10-05T21:06:00Z -->

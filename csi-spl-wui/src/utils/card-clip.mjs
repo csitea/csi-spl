@@ -82,15 +82,13 @@ function sessionBag(bag) {
   return null
 }
 
+/** A pane's mode from sessionStorage (per tab); '' when unset, unknown or blocked. */
 export function readCardClipSession(pane = 'msgs', bag) {
   const s = sessionBag(bag)
+  /* keep the "no store" guard: storageGet would fall back to localStorage */
   if (!s) return ''
-  try {
-    const raw = s.getItem(cardClipSessionKey(pane))
-    return raw && CARD_CLIP_MODES.includes(String(raw).trim()) ? String(raw).trim() : ''
-  } catch {
-    return ''
-  }
+  const raw = storageGet(cardClipSessionKey(pane), null, s)
+  return raw && CARD_CLIP_MODES.includes(String(raw).trim()) ? String(raw).trim() : ''
 }
 
 export function writeCardClipSession(mode, pane = 'msgs', bag) {

@@ -9,6 +9,8 @@
  * Node tests import this file; OperatorPane.vue and the mock client do too.
  */
 
+import { storageGetJson } from './prefs.mjs'
+
 /** The mock plays a workspace admin; this opt-in makes it the operator admin (e2e). */
 export const OPERATOR_MOCK_KEY = 'spool.mock.operator_admin'
 /** The mock's workspace rows, kept across reloads. */
@@ -125,6 +127,7 @@ function opError(status, token, detail, permission) {
   return err
 }
 
+/* Byte-identical twin: browserStore() in fleet-load.mjs (merging them is a later lane). */
 function browserStore() {
   try {
     if (typeof globalThis.localStorage !== 'undefined') return globalThis.localStorage
@@ -149,16 +152,11 @@ function mockGate(store) {
   if (on !== '1') throw opError(403, 'forbidden', 'only an admin of the operator workspace manages workspaces', 'operator.workspaces')
 }
 
+/** The mock's rows; unset, unreadable or junk reseeds. */
 function mockRead(store) {
-  let raw = null
-  try { raw = store ? store.getItem(OPERATOR_MOCK_STORE_KEY) : null } catch { raw = null }
-  if (raw) {
-    try {
-      const rows = JSON.parse(raw)
-      if (Array.isArray(rows)) return rows
-    } catch { /* reseed */ }
-  }
-  return operatorMockSeed()
+  /* keep the "no store" guard: storageGetJson would fall back to localStorage */
+  const rows = store && typeof store.getItem === 'function' ? storageGetJson(OPERATOR_MOCK_STORE_KEY, null, store) : null
+  return Array.isArray(rows) ? rows : operatorMockSeed()
 }
 
 function mockWrite(store, rows) {

@@ -5,6 +5,8 @@
  * Node tests import this file; the settings card does too.
  */
 
+import { storageGetJson } from './prefs.mjs'
+
 export const FLEET_OPERATOR_KEY = 'spool.mock.fleet_operator'
 export const FLEET_STORE_KEY = 'spool.mock.fleet_load'
 export const FLEET_BOX_MAX = 32
@@ -182,6 +184,7 @@ function fleetBody(stored) {
   }
 }
 
+/* Byte-identical twin: browserStore() in operator-console.mjs (merging them is a later lane). */
 function browserStore() {
   try {
     if (typeof globalThis.localStorage !== 'undefined') return globalThis.localStorage
@@ -189,19 +192,15 @@ function browserStore() {
   return null
 }
 
+/** The stored row; unset, unreadable or junk is all-null (the defaults). */
 function readStored(store) {
-  let raw = null
-  try { raw = store.getItem(FLEET_STORE_KEY) } catch { raw = null }
-  if (!raw) return { low: null, high: null, boxOrder: null }
-  try {
-    const p = JSON.parse(raw)
-    return {
-      low: p.low == null ? null : Number(p.low),
-      high: p.high == null ? null : Number(p.high),
-      boxOrder: p.box_order == null ? null : boxList(p.box_order),
-    }
-  } catch {
-    return { low: null, high: null, boxOrder: null }
+  /* keep the "no store" guard: storageGetJson would fall back to localStorage */
+  const p = store && typeof store.getItem === 'function' ? storageGetJson(FLEET_STORE_KEY, null, store) : null
+  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null }
+  return {
+    low: p.low == null ? null : Number(p.low),
+    high: p.high == null ? null : Number(p.high),
+    boxOrder: p.box_order == null ? null : boxList(p.box_order),
   }
 }
 

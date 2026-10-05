@@ -9,8 +9,10 @@
 // Hide is this viewer's, on this device: a list of msg ids in localStorage.
 // Nothing goes to the hub (a cross-device hide would need a hub change).
 // Every storage touch is wrapped: without storage the page still works, the
-// hide just lasts until the reload. Pure, so tests/unit/hidden-cards.test.mjs
+// hide just lasts until the reload. Pure, so tests/unit/swipe-hide.test.mjs
 // pins it.
+
+import { storageGetJson } from './prefs.mjs'
 
 /** localStorage key (per device). */
 export const HIDDEN_CARDS_KEY = 'spool.hidden-cards'
@@ -41,13 +43,10 @@ function storage(store) {
 
 /** The hidden ids on this device ([] when storage is missing or broken). */
 export function readHiddenCards(store) {
-  try {
-    const s = storage(store)
-    const raw = s ? s.getItem(HIDDEN_CARDS_KEY) : null
-    return raw ? normalizeHiddenIds(JSON.parse(raw)) : []
-  } catch {
-    return []
-  }
+  const s = storage(store)
+  /* keep the "no store" guard: storageGetJson would fall back to localStorage */
+  if (!s || typeof s.getItem !== 'function') return []
+  return normalizeHiddenIds(storageGetJson(HIDDEN_CARDS_KEY, null, s))
 }
 
 /** Keep `ids` on this device; an empty list removes the key. Never throws. */

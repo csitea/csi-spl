@@ -150,4 +150,9 @@ describe('load / save round-trip', () => {
     assert.deepEqual(loadCollapsed(bad), { channels: false, topic: false, threads: false })
     assert.doesNotThrow(() => saveCollapsed(null, { channels: true }))
   })
+  it('reads a throwing getItem and an unset key (null) as the default map', () => {
+    const closed = { channels: false, topic: false, threads: false }
+    assert.deepEqual(loadCollapsed({ getItem() { throw new Error('denied') } }), closed)
+    assert.deepEqual(loadCollapsed({ getItem: () => null }), closed)
+  })
 })

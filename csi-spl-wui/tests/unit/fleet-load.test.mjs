@@ -97,6 +97,12 @@ try { mockFleetWrite({ low: 90, high: 60 }, op) } catch (e) { bad = fleetLoadSta
 ok('mock: a bad band is 400 bad_setting with the hub sentence', bad === FLEET_BAD_SETTING && normalizeFleetLoad(mockFleetRead(op)).low === 50)
 const saved = normalizeFleetLoad(mockFleetWrite({ low: 40, high: 80, box_order: ['box-b', 'box-a'] }, op))
 ok('mock: a good patch is stored and read back', saved.low === 40 && saved.high === 80 && saved.boxOrder.join() === 'box-b,box-a' && saved.stored.low === 40)
+const opThrows = { getItem: (k) => { if (k === FLEET_OPERATOR_KEY) return '1'; throw new Error('denied') } }
+ok('mock: a throwing getItem on the stored row reads the defaults', normalizeFleetLoad(mockFleetRead(opThrows)).stored.low === null)
+const opNull = { getItem: (k) => (k === FLEET_OPERATOR_KEY ? '1' : null) }
+const opJsonNull = { getItem: (k) => (k === FLEET_OPERATOR_KEY ? '1' : 'null') }
+ok('mock: an unset (null) or JSON-null stored row reads the defaults',
+  normalizeFleetLoad(mockFleetRead(opNull)).stored.low === null && normalizeFleetLoad(mockFleetRead(opJsonNull)).stored.low === null)
 const cleared = normalizeFleetLoad(mockFleetWrite({ low: null }, op))
 ok('mock: null low is the default again, the rest stays', cleared.low === 50 && cleared.stored.low === null && cleared.high === 80 && cleared.boxOrder.join() === 'box-b,box-a')
 

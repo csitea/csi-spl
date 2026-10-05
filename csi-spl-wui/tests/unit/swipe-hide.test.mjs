@@ -118,6 +118,10 @@ describe('hidden-cards store (this device)', () => {
     assert.deepEqual(readHiddenCards(mem({ [HIDDEN_CARDS_KEY]: '{not json' })), [])
     assert.deepEqual(readHiddenCards(mem({ [HIDDEN_CARDS_KEY]: '{"a":1}' })), [])
   })
+  it('reads a throwing getItem and an unset key (null) as no hides', () => {
+    assert.deepEqual(readHiddenCards({ getItem() { throw new Error('denied') } }), [])
+    assert.deepEqual(readHiddenCards({ getItem: () => null }), [])
+  })
   it('hide adds once, show removes; the list is capped', () => {
     assert.deepEqual(withHiddenIds(['a'], ['b', 'a']), ['b', 'a'])
     assert.deepEqual(withoutHiddenIds(['a', 'b', 'c'], ['b', 'c']), ['a'])

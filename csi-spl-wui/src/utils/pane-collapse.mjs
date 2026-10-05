@@ -26,6 +26,7 @@
 // Pure and framework-free so tests/unit/pane-collapse.test.mjs can pin it.
 
 import { parseCloseButtons } from './view-prefs.mjs'
+import { storageGetJson } from './prefs.mjs'
 
 /** The three collapsible panels, in visual (left→right) order. */
 export const PANES = Object.freeze(['channels', 'topic', 'threads'])
@@ -127,14 +128,14 @@ export function arrowPointsEnd(collapsed, pane, collapsedMap, topicOpen) {
   return collapsed === true ? dir === 'start' : dir === 'end'
 }
 
-/** Read the persisted collapsed map from a Storage-like object. */
+/**
+ * Read the persisted collapsed map from a Storage-like object. No store (or
+ * one without getItem) is the default map: the guard stays here because
+ * storageGetJson would fall back to globalThis.localStorage.
+ */
 export function loadCollapsed(storage) {
-  try {
-    const raw = storage && typeof storage.getItem === 'function' ? storage.getItem(COLLAPSE_STORAGE_KEY) : null
-    return normalizeCollapsed(raw ? JSON.parse(raw) : null)
-  } catch {
-    return normalizeCollapsed(null)
-  }
+  if (!storage || typeof storage.getItem !== 'function') return normalizeCollapsed(null)
+  return normalizeCollapsed(storageGetJson(COLLAPSE_STORAGE_KEY, null, storage))
 }
 
 /** Write the collapsed map to a Storage-like object (best effort). */

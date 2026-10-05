@@ -26,6 +26,7 @@ import {
   migrateCardClip,
   readEffectiveCardClip,
   writeCardClipSession,
+  readCardClipSession,
   clearCardClipSession,
   CARD_CLIP_DEFAULT_KEY,
 } from '../../src/utils/card-clip.mjs'
@@ -280,5 +281,13 @@ describe('SPL-945: the thread pane has its own control and mode', () => {
     assert.doesNotMatch(read('src/components/MessageFeed.vue'), /clip-pane/)
     assert.match(read('src/components/CardClipControl.vue'), /useCardClip\(props\.pane\)/)
     assert.match(read('src/composables/useCardClip.ts'), /const key = cardClipKey\(pane\)/)
+  })
+})
+
+describe('readCardClipSession', () => {
+  it('is empty for a throwing getItem and an unset key (null)', () => {
+    assert.equal(readCardClipSession('msgs', { getItem() { throw new Error('denied') } }), '')
+    assert.equal(readCardClipSession('thread', { getItem: () => null }), '')
+    assert.equal(readCardClipSession('thread', memoryStore({ 'spool-card-clip-session-thread': ' rows ' })), 'rows')
   })
 })

@@ -87,6 +87,12 @@ const on = memStore({ [OPERATOR_MOCK_KEY]: '1' })
 const seed = normalizeOperatorWorkspaces(mockOperatorList(on))
 ok('mock: the seed has one row of each status and the operator', operatorConsoleVisible(seed)
   && ['active', 'suspended', 'archived'].every((st) => seed.some((r) => operatorWorkspaceStatus(r) === st)))
+const onThrows = { getItem: (k) => { if (k === OPERATOR_MOCK_KEY) return '1'; throw new Error('denied') } }
+ok('mock: a throwing getItem on the rows reseeds', mockOperatorList(onThrows).workspaces.length === seed.length)
+const onNull = { getItem: (k) => (k === OPERATOR_MOCK_KEY ? '1' : null) }
+const onJsonNull = { getItem: (k) => (k === OPERATOR_MOCK_KEY ? '1' : 'null') }
+ok('mock: unset (null) or JSON-null rows reseed',
+  mockOperatorList(onNull).workspaces.length === seed.length && mockOperatorList(onJsonNull).workspaces.length === seed.length)
 const made = mockOperatorCreate({ id: 'delta', display_name: 'Delta', first_admin_email: 'a@example.com' }, on, '2026-10-04T10:00:00Z')
 ok('mock create: the row, a root key once, the invite', made.workspace.id === 'delta' && typeof made.root_private_key === 'string' && made.invite.status === 'invited')
 let dup = null

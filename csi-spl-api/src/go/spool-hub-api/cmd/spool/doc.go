@@ -403,13 +403,17 @@ func docEndpoint(hub, urlPath string) string {
 	return strings.TrimRight(hub, "/") + urlPath
 }
 
+// docStatusError maps a hub doc-API status to a CLI error; detail = JSON
+// detail > error > raw body.
 func docStatusError(status int, body []byte) error {
 	var eb struct {
 		Error      string `json:"error"`
 		Detail     string `json:"detail"`
 		Permission string `json:"permission"`
 	}
-	_ = json.Unmarshal(body, &eb)
+	// A non-JSON body (a proxy's HTML 502, a plain-text 404) leaves eb empty;
+	// the string(body) fallback below then carries it as the detail.
+	_ = json.Unmarshal(body, &eb) //nolint:errcheck // non-JSON is handled by the raw-body fallback
 	detail := strings.TrimSpace(eb.Detail)
 	if detail == "" {
 		detail = strings.TrimSpace(eb.Error)

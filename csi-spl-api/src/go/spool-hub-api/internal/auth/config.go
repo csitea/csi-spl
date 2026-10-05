@@ -183,7 +183,7 @@ func (c *Config) checkSession() error {
 	if len(c.SessionKey) < minSessionKeyLen || isPlaceholder(c.SessionKey) {
 		return fmt.Errorf("SPOOL_HUB_AUTH_SESSION_KEY must be set to at least %d bytes (no default)", minSessionKeyLen)
 	}
-	if err := checkURL("SPOOL_HUB_AUTH_APP_URL", c.AppURL, c.requireHTTPS()); err != nil {
+	if _, err := checkURL("SPOOL_HUB_AUTH_APP_URL", c.AppURL, c.requireHTTPS()); err != nil {
 		return err
 	}
 	if c.SessionTTL <= 0 || c.StateTTL <= 0 {
@@ -199,7 +199,7 @@ func (c *Config) checkSession() error {
 		if c.Env == "prd" {
 			return fmt.Errorf("SPOOL_HUB_AUTH_IDP_BASE_URL is refused in prd")
 		}
-		if err := checkURL("SPOOL_HUB_AUTH_IDP_BASE_URL", c.IdPBaseURL, false); err != nil {
+		if _, err := checkURL("SPOOL_HUB_AUTH_IDP_BASE_URL", c.IdPBaseURL, false); err != nil {
 			return err
 		}
 	}
@@ -217,10 +217,10 @@ func (c *Config) checkClient(p string) error {
 	if secret == "" || isPlaceholder(secret) {
 		return fmt.Errorf("%sCLIENT_SECRET must be set to a real value while %s is enabled (no default)", pre, p)
 	}
-	if err := checkURL(pre+"REDIRECT_URI", redirect, c.requireHTTPS()); err != nil {
+	u, err := checkURL(pre+"REDIRECT_URI", redirect, c.requireHTTPS())
+	if err != nil {
 		return err
 	}
-	u, _ := url.Parse(redirect)
 	if want := RoutePrefix + p + "/callback"; u.Path != want {
 		return fmt.Errorf("%sREDIRECT_URI %q must have the path %s", pre, redirect, want)
 	}
@@ -255,7 +255,7 @@ func (c *Config) validateProvider(p string) error {
 			"SPOOL_HUB_AUTH_XAI_TOKEN_URL": c.XAITokenURL, "SPOOL_HUB_AUTH_XAI_USERINFO_URL": c.XAIUserinfoURL} {
 			// endpoints are always TLS, even in lde (the fake IdP override
 			// replaces them wholesale)
-			if err := checkURL(name, v, true); err != nil {
+			if _, err := checkURL(name, v, true); err != nil {
 				return err
 			}
 		}
@@ -300,16 +300,19 @@ func (c *Config) creds(p string) (id, secret, redirect string) {
 // slot until the provider apps are registered.
 func isPlaceholder(v string) bool { return strings.Contains(strings.ToUpper(v), "PLACEHOLDER") }
 
-func checkURL(name, raw string, https bool) error {
+// checkURL validates a configured URL (set, not a placeholder, absolute
+// http(s), https when required) and returns it parsed, so a caller that also
+// checks the path parses it once.
+func checkURL(name, raw string, https bool) (*url.URL, error) {
 	if raw == "" || isPlaceholder(raw) {
-		return fmt.Errorf("%s must be set (no default)", name)
+		return nil, fmt.Errorf("%s must be set (no default)", name)
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
-		return fmt.Errorf("%s %q must be an absolute http(s) URL", name, raw)
+		return nil, fmt.Errorf("%s %q must be an absolute http(s) URL", name, raw)
 	}
 	if https && u.Scheme != "https" {
-		return fmt.Errorf("%s %q must be https in dev/prd", name, raw)
+		return nil, fmt.Errorf("%s %q must be https in dev/prd", name, raw)
 	}
-	return nil
+	return u, nil
 }

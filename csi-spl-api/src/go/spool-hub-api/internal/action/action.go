@@ -114,7 +114,8 @@ func Put(cfg *config.Config, path string, dir bool) (PutResult, error) {
 }
 
 // Send builds the attachments and writes the message: locally (no hub), or in
-// hub mode ($SPOOL_HUB_URL set) through the box-signed envelope.
+// hub mode ($SPOOL_HUB_URL set) through the box-signed envelope. It is the
+// test/legacy entry (no non-test caller); SendCtx is the API.
 func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
 	return SendCtx(context.Background(), cfg, in)
 }
@@ -361,7 +362,10 @@ func Tail(cfg *config.Config, taskID string, asJSON bool) (string, error) {
 	var b strings.Builder
 	for _, m := range msgs {
 		if asJSON {
-			raw, _ := msg.Marshal(m)
+			raw, err := msg.Marshal(m)
+			if err != nil {
+				return "", fmt.Errorf("tail %s: encode %s: %w", taskID, m.MsgID, err)
+			}
 			b.Write(raw)
 			b.WriteByte('\n')
 		} else {

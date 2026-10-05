@@ -219,7 +219,10 @@ func sizeValue(term *Term, op, lv string) string {
 	if m == nil {
 		return op + ": must be bytes or <n>K, <n>M, <n>G"
 	}
-	n, _ := strconv.ParseInt(m[1], 10, 64)
+	n, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return op + ": must be bytes or <n>K, <n>M, <n>G"
+	}
 	mult := map[string]int64{"": 1, "k": 1 << 10, "m": 1 << 20, "g": 1 << 30}[m[2]]
 	if n > (1<<62)/mult {
 		return op + ": too large"
@@ -235,8 +238,8 @@ func (p *parser) date(t *Term, op, v string) string {
 		if op == OpOn {
 			return "on: takes a day (YYYY-MM-DD), not an age"
 		}
-		n, _ := strconv.Atoi(m[1])
-		if n < 1 || n > 3650 {
+		n, err := strconv.Atoi(m[1])
+		if err != nil || n < 1 || n > 3650 {
 			return op + ": age must be 1 to 3650"
 		}
 		unit := map[string]time.Duration{"h": time.Hour, "d": 24 * time.Hour, "w": 7 * 24 * time.Hour}[m[2]]

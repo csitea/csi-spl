@@ -534,3 +534,14 @@ func TestDocNeedsTenant(t *testing.T) {
 		t.Fatalf("rc %d err %q", rc, errOut)
 	}
 }
+
+// A non-JSON error body (a proxy's HTML 502) does not decode; the detail is
+// then the trimmed raw body (refactor r3-01 pin).
+func TestDocStatusErrorNonJSONBody(t *testing.T) {
+	body := []byte("\n  <html><body>502 Bad Gateway</body></html>\n")
+	err := docStatusError(http.StatusBadGateway, body)
+	want := "hub answered 502: <html><body>502 Bad Gateway</body></html>"
+	if err == nil || err.Error() != want {
+		t.Fatalf("got %v, want %q", err, want)
+	}
+}

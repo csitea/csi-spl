@@ -73,7 +73,7 @@ func (h *Handler) EnableNative(cfg *NativeConfig, d NativeDeps) error {
 	if len(h.cfg.SessionKey) < minSessionKeyLen || isPlaceholder(h.cfg.SessionKey) {
 		return fmt.Errorf("SPOOL_HUB_AUTH_SESSION_KEY must be set to at least %d bytes while SPOOL_HUB_AUTH_NATIVE_ENABLED=true", minSessionKeyLen)
 	}
-	if err := checkURL("SPOOL_HUB_AUTH_APP_URL", h.cfg.AppURL, h.cfg.requireHTTPS()); err != nil {
+	if _, err := checkURL("SPOOL_HUB_AUTH_APP_URL", h.cfg.AppURL, h.cfg.requireHTTPS()); err != nil {
 		return err
 	}
 	if h.cfg.CookieName == "" {

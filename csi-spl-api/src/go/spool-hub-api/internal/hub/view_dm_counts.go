@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/rs/zerolog"
+
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -126,7 +128,7 @@ func (s *Server) dmCountsByTopic(r *http.Request, tenant string, q store.TopicsM
 		}
 		msgs := make([]store.TopicMsgMeta, 0, len(rows))
 		for _, m := range rows {
-			msgs = append(msgs, metaOf(m))
+			msgs = append(msgs, metaOf(m, s.o.Log))
 		}
 		out[id] = store.DMPageCounts(msgs, q.Reader, reads)
 	}
@@ -134,8 +136,10 @@ func (s *Server) dmCountsByTopic(r *http.Request, tenant string, q store.TopicsM
 }
 
 // metaOf is the TopicMsgMeta of a full view row (the store without the thin
-// read): the ends from the envelope, the place from the row.
-func metaOf(m store.ViewMsg) store.TopicMsgMeta {
+// read): the ends from the envelope, the place from the row. An undecodable
+// envelope yields empty ends, so the row counts as no-party; the decode error
+// is logged at debug with the msg_id so a corrupt envelope is visible.
+func metaOf(m store.ViewMsg, log zerolog.Logger) store.TopicMsgMeta {
 	var env struct {
 		FromBox string `json:"from_box"`
 		ToBox   string `json:"to_box"`
@@ -144,7 +148,9 @@ func metaOf(m store.ViewMsg) store.TopicMsgMeta {
 			To   string `json:"to"`
 		} `json:"msg"`
 	}
-	_ = json.Unmarshal(m.Env, &env)
+	if err := json.Unmarshal(m.Env, &env); err != nil {
+		log.Debug().Err(err).Str("msg_id", m.MsgID).Msg("dm_counts: undecodable envelope, no ends")
+	}
 	ch := m.RowChannel
 	if m.Move.Moved() {
 		ch = m.Move.Channel

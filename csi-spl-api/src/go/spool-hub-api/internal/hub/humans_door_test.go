@@ -84,14 +84,19 @@ func newDoorRig(t *testing.T, mut ...func(*hub.Options)) *doorRig {
 		hooks := store.AuthHooks{H: o.Store.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: true}, Blob: o.Blob}
 		// Preferences as cmd/spool wires it, so GET /session reads what it
 		// reads in production (the round-trip budget counts those reads).
-		o.Auth = auth.New(cfg, zerolog.Nop(), auth.Options{Registrar: hooks, Membership: hooks, Preferences: hooks,
+		ao := auth.Options{Registrar: hooks, Membership: hooks, Preferences: hooks,
 			HTTP:       &http.Client{Transport: tr, Timeout: 5 * time.Second},
-			PageTenant: func(r *http.Request) string { return ot.Request(r) }})
+			PageTenant: func(r *http.Request) string { return ot.Request(r) }}
+		o.Auth = auth.New(cfg, zerolog.Nop(), ao)
 		o.ViewDoor = hub.ViewDoorSession
 		o.ViewCORSOrigins = []string{wuiOrigin}
 		o.LobbyTaskID = lobby
 		for _, m := range mut {
 			m(o)
+		}
+		if o.DemoWorkspace != "" { // specs/077 §3.8: auth fences demo seats as cmd/spool wires it
+			ao.DemoWorkspace = o.DemoWorkspace
+			o.Auth = auth.New(cfg, zerolog.Nop(), ao)
 		}
 		ot = o.OriginTenant // SPL-959: the auth side reads the same resolver
 	})

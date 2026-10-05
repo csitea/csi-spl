@@ -44,13 +44,15 @@
           @input="setSidebar"
           @reset="resetSidebar"
         />
+        <template v-if="mountMain">
         <main class="spool-main">
           <slot />
           <!-- topic c6994436 (lane B): the bottom Omnibox dock - under the
                MIDDLE pane only. TopBar teleports its one composer here when
                Settings -> Behaviour says "at the bottom" (never on a phone).
-               Always in the tree, so the Teleport has a target to move to;
-               it takes no room while empty. -->
+               In the tree whenever this pane is mounted, so the Teleport
+               has a target; it takes no room while empty. Phone level 1
+               unmounts the pane (mountMain); a phone never docks here. -->
           <div
             :id="DOCK_ID"
             ref="dockEl"
@@ -63,6 +65,7 @@
                CSS can hide every sibling and leave only this strip. -->
           <PaneCollapseToggle pane="topic" />
         </main>
+        </template>
         <PaneDivider
           v-if="topicPaneOpen && showTopicDivider && !collapse.collapsed.threads && !collapse.collapsed.topic"
           pane="topic"
@@ -178,6 +181,8 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
@@ -283,6 +288,24 @@ stack.install({
   topicOpen: topicPaneOpen,
   closeTopic: () => { livePane.close(); topic.close(); operatorPane.close() },
 })
+/* E08 (perf 20261004): phone level 1 CSS-hides this pane (main.css,
+   data-mobile-level="1") and the reader never sees its ~120 nodes. Unmount
+   it. Levels 2 and 3, and every width above 820 px, keep it: level 3 hides
+   the page with CSS so Back does not rebuild it, and a page's own right
+   panel lives inside main. While the page is unmounted, this watch holds
+   the topic-list follow the front door used to start. It returns at once
+   while main is mounted, so a desktop leave still unfollows from the page. */
+const mountMain = computed(() => !(stack.isMobile.value && stack.level.value === 1))
+const frontApi = useSpoolApi()
+const frontViewer = useViewerStore()
+let frontStarted = false
+watch([mountMain, () => frontApi.mock || String(session.state) === 'in'], ([mounted, ready]) => {
+  if (mounted || !ready || !import.meta.client || frontStarted) return
+  frontStarted = true
+  void frontViewer.loadTopics().then(() => {
+    if (shouldOpenHubSocket(session.state, frontApi.mock)) frontViewer.follow()
+  })
+}, { immediate: true, flush: 'post' })
 /* CLE-77886 (owner, t1 topic ac0fa400): a section's own page on a phone
    (Issues, People, Help, ...) keeps the section strip on top, as level 1 does */
 /* t1 6e21c7d8: on a phone the topic pane covers the page, so a link from a

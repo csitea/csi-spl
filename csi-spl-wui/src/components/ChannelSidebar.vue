@@ -814,6 +814,8 @@ const railDrag = useDragReorder<RailId>({
   items: () => [...(railEl.value?.querySelectorAll<HTMLElement>('[data-reorder-id]') || [])],
   onDrop: (next) => { void railOrder.save(next) },
   normalize: railOrder.normalize,
+  /* t1 7b48293b: on the phone strip a swipe scrolls; a long press reorders */
+  touchHoldMs: 450,
 })
 const RAIL_BY_ID = new Map(RAIL_TABS.map((item) => [item.id, item]))
 /* CLE-77904 (owner, t1 topic cb12574f): on a phone the DM section is named

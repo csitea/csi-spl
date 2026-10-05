@@ -10,6 +10,10 @@
 // control shows that section's list (the Issues epics) at level 1. At
 // 1440 px nothing of it is in the tree.
 //
+// t1 topic 7b48293b (owner): "on scrolling ... they kind of reset". A
+// finger swipe on the strip scrolls it: no reorder preview, no snap back
+// (6 px in, a swipe used to become a drag). A long press still reorders.
+//
 // Checked at 390 px in the dark and the light scheme.
 //
 //   node tests/e2e/section-strip-mobile.test.mjs
@@ -29,6 +33,7 @@ const ok = (name, pass, ev) => {
   console.log(`  ${pass ? 'OK  ' : 'FAIL'} ${name}${ev === undefined ? '' : ' ' + JSON.stringify(ev)}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 
 async function launch() {
   const require = createRequire(import.meta.url)
@@ -145,6 +150,92 @@ try {
     })
     ok(`${scheme}: the strip overflows a portrait phone and rolls endlessly (a copy each side, never at an end)`, roll.over && roll.copies === 2 && roll.afterLeft > 0 && roll.afterRight > 0, roll)
     ok(`${scheme}: the strip's copies carry no ids or test ids`, roll.ids === 0, roll)
+
+    /* t1 7b48293b: a finger swipe from a movable tab scrolls the strip */
+    /* the roll check left a copy in view: bring the real row's start in */
+    const realInView = () => p.evaluate(() => {
+      const strip = document.querySelector('[data-testid=sidebar-rail]')
+      const first = strip.querySelector('[data-reorder-id]')
+      strip.scrollLeft += first.getBoundingClientRect().left - strip.getBoundingClientRect().left - 24
+    })
+    await realInView()
+    await sleep(300)
+    const railIds = () => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.map((e) => e.getAttribute('data-reorder-id')))
+    await p.evaluate(() => {
+      const strip = document.querySelector('[data-testid=sidebar-rail]')
+      const ids = () => [...strip.querySelectorAll('[data-reorder-id]')].map((e) => e.getAttribute('data-reorder-id')).join(',')
+      window.__stripOrders = new Set([ids()])
+      window.__stripObs?.disconnect()
+      window.__stripObs = new MutationObserver(() => window.__stripOrders.add(ids()))
+      window.__stripObs.observe(strip, { childList: true, subtree: true })
+    })
+    const order0 = await railIds()
+    const tabAt = (id) => p.$eval(`[data-testid=sidebar-rail] [data-reorder-id="${id}"]`, (e) => {
+      const r = e.getBoundingClientRect()
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: r.width }
+    })
+    const pick = await p.evaluate(() => {
+      const strip = document.querySelector('[data-testid=sidebar-rail]')
+      const b = strip.getBoundingClientRect()
+      /* a movable tab inside the visible strip with a tab before it: a drag
+         of the first one to the left would preview the same order */
+      const t = [...strip.querySelectorAll('.sidebar-tab--movable[data-reorder-id]')].slice(1).find((e) => {
+        const r = e.getBoundingClientRect()
+        return r.left >= b.left + 20 && r.right <= b.right - 20
+      })
+      return t?.getAttribute('data-reorder-id') || ''
+    })
+    const from = await tabAt(pick)
+    /* Chrome's own synthetic swipe sends the finger's first few px as
+       pointermoves before the pan, as a phone does: on ddc59252 that was a
+       drag (the tabs reshuffled, then snapped back). Headless, it scrolls
+       nothing either way, so it checks the order only. */
+    const cdp = await p.createCDPSession()
+    await cdp.send('Input.synthesizeScrollGesture', { x: from.x, y: from.y, xDistance: -160, yDistance: 0, gestureSourceType: 'touch', speed: 600, preventFling: true })
+    await sleep(500)
+    const gesture = await p.evaluate(() => [...window.__stripOrders])
+    ok(`${scheme}: a synthetic finger swipe on a strip tab previews no reorder (t1 7b48293b)`, gesture.length === 1 && same(await railIds(), order0), { orders: gesture })
+    await cdp.detach()
+    const sl0 = await p.$eval('[data-testid=sidebar-rail]', (e) => e.scrollLeft)
+    /* CDP touch events, not synthesizeScrollGesture (it scrolls nothing
+       headless). A finger moves a few px per event: 2 px steps first, so the
+       6 px drag threshold comes before the browser's touch slop, as on a phone */
+    await p.touchscreen.touchStart(from.x, from.y)
+    const path = [...Array.from({ length: 10 }, (_, i) => 2 * (i + 1)), ...Array.from({ length: 10 }, (_, i) => 20 + 14 * (i + 1))]
+    for (const dx of path) { await p.touchscreen.touchMove(from.x - dx, from.y); await sleep(16) }
+    await p.touchscreen.touchEnd()
+    await sleep(500)
+    const swipe = await p.evaluate((sl0) => {
+      const strip = document.querySelector('[data-testid=sidebar-rail]')
+      const first = strip.querySelector('[data-reorder-id]')
+      const twin = strip.querySelector('[data-loop="after"] > *')
+      const set = first && twin ? Math.abs(twin.getBoundingClientRect().left - first.getBoundingClientRect().left) : 0
+      /* a wrap jumps one copy width: the same picture, so count modulo it */
+      const d = set > 0 ? ((((strip.scrollLeft - sl0) % set) + set) % set) : Math.abs(strip.scrollLeft - sl0)
+      return { sl0, sl: strip.scrollLeft, set: Math.round(set), moved: Math.round(set > 0 ? Math.min(d, set - d) : d), orders: [...window.__stripOrders] }
+    }, sl0)
+    const order1 = await railIds()
+    ok(`${scheme}: a finger swipe on the strip scrolls it (t1 7b48293b)`, swipe.moved >= 100, swipe)
+    ok(`${scheme}: the swipe reorders nothing, not even for a moment (no snap back)`, swipe.orders.length === 1 && same(order1, order0), { order0, order1, orders: swipe.orders })
+
+    /* a long press, then a move by one tab along the row: the preview moves it
+       one place; moved back before the finger lifts, nothing is saved */
+    await realInView()
+    await sleep(300)
+    const a = await tabAt(order0[1])
+    const b2 = await tabAt(order0[2])
+    await p.touchscreen.touchStart(a.x, a.y)
+    await sleep(700)
+    for (let i = 1; i <= 8; i++) { await p.touchscreen.touchMove(a.x + ((b2.x - a.x + 4) * i) / 8, a.y); await sleep(16) }
+    await sleep(100)
+    const held = await railIds()
+    for (let i = 7; i >= 0; i--) { await p.touchscreen.touchMove(a.x + ((b2.x - a.x + 4) * i) / 8, a.y); await sleep(16) }
+    await p.touchscreen.touchEnd()
+    await sleep(300)
+    const expect = [order0[0], order0[2], order0[1], ...order0.slice(3)]
+    ok(`${scheme}: a long press on a strip tab still reorders it`, same(held, expect), { held, expect })
+    ok(`${scheme}: moved back before the lift, the order stays`, same(await railIds(), order0), await railIds())
+    await p.evaluate(() => window.__stripObs?.disconnect())
 
     for (const s of PAGES) {
       await p.goto(`${srv.base}/`, { waitUntil: 'networkidle2' })

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"sort"
@@ -109,13 +110,10 @@ var ErrBadLifecycleKey = errors.New("bad lifecycle key")
 
 // CheckLifecyclePatch names the first key a patch may not carry ("" = fine),
 // with why: the hub's 400 and the store refuse the same as 0105's CHECKs.
+// Keys are checked in name order, so with several bad keys the one reported
+// is always the alphabetically first, never a map-iteration accident.
 func CheckLifecyclePatch(p LifecyclePatch) (key, why string) {
-	names := make([]string, 0, len(p))
-	for n := range p {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
+	for _, n := range slices.Sorted(maps.Keys(p)) {
 		k, ok := LifecycleKeyByName(n)
 		if !ok {
 			return n, "is not a lifecycle key"
@@ -276,7 +274,7 @@ func configChange(p LifecyclePatch, old, cur LifecycleConfig, by string, now tim
 		keys = append(keys, k)
 		ov[k], nv[k] = oe[k], ne[k]
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	raw, _ := json.Marshal(map[string]map[string]any{"old": ov, "new": nv}) //nolint:errchkjson // ints and strings only
 	detail := strings.Join(keys, ",")
 	if len(detail) > LifecycleDetailMax {

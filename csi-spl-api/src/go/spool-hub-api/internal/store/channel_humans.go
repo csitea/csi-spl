@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"time"
 )
 
@@ -113,7 +113,7 @@ func (s *Memory) ChannelHumanMembers(_ context.Context, tenant, channel string) 
 	for h := range s.ch.humansLocked()[[2]string{tenant, NormalizeChannel(channel)}] {
 		out = append(out, h)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out, nil
 }
 
@@ -127,7 +127,7 @@ func (s *Memory) HumanChannels(_ context.Context, tenant, human string) ([]strin
 			out = append(out, k[1])
 		}
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out, nil
 }
 
@@ -193,7 +193,7 @@ func (s *Memory) TopicAccess(_ context.Context, tenant, task string, now time.Ti
 	for c := range chans {
 		a.Channels = append(a.Channels, c)
 	}
-	sort.Strings(a.Channels)
-	sort.Strings(a.DMParties)
+	slices.Sort(a.Channels)
+	slices.Sort(a.DMParties)
 	return a, nil
 }

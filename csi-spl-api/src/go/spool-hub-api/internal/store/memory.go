@@ -2,9 +2,11 @@ package store
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -209,7 +211,7 @@ func (s *Memory) ListPins(_ context.Context, tenant string) ([]Pin, error) {
 			out = append(out, Pin{BoxID: k[1], PubKey: p.pub})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].BoxID < out[j].BoxID })
+	slices.SortFunc(out, func(a, b Pin) int { return cmp.Compare(a.BoxID, b.BoxID) }) // BoxID is unique per tenant: no ties
 	return out, nil
 }
 
@@ -231,7 +233,7 @@ func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []strin
 		s.boxes[[2]string{tenant, box}] = time.Time{} // the row, no hello (Postgres: last_hello_at NULL)
 	}
 	a := append([]string(nil), agents...)
-	sort.Strings(a)
+	slices.Sort(a)
 	had := map[string]bool{}
 	for _, id := range s.roster[[2]string{tenant, box}] {
 		had[id] = true
@@ -321,6 +323,10 @@ func (s *Memory) capLocked(tenant, box string, max int) int {
 	if len(q) <= max {
 		return 0
 	}
+	// receivedAt alone has ties (two rows queued in the same instant); older
+	// breaks them on seq, unique per delivery, so this unstable sort.Slice
+	// still picks the same rows to expire. Drop the seq tie-break and it would
+	// not: making that stable is a separate, deliberate change.
 	sort.Slice(q, func(i, j int) bool { return older(q[i], q[j]) })
 	n := len(q) - max
 	for _, d := range q[:n] {

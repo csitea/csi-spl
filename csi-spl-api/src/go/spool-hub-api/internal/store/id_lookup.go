@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -181,13 +183,10 @@ func sidebarEnd(id, box string) string {
 	return id + "@" + box
 }
 
+// sortedKeys is the keys of m in ascending order, so a fact built from a map
+// reads the same on every call; an empty map gives nil.
 func sortedKeys(m map[string]bool) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(m))
 }
 
 // dedupSorted is in without "" and repeats, sorted.
@@ -200,7 +199,7 @@ func dedupSorted(in []string) []string {
 			out = append(out, p)
 		}
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

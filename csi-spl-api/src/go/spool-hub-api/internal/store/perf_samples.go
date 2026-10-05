@@ -165,7 +165,7 @@ func summarizePerf(samples []PerfSample) []PerfSummaryRow {
 	}
 	out := make([]PerfSummaryRow, 0, len(vals))
 	for k, v := range vals {
-		sort.Ints(v)
+		slices.Sort(v) // in place: percentileCont reads v as ascending
 		out = append(out, PerfSummaryRow{Metric: k.m, Device: k.d, View: k.v, N: len(v),
 			P50: percentileCont(v, 0.5), P75: percentileCont(v, 0.75), P95: percentileCont(v, 0.95), Failed: fails[k]})
 	}

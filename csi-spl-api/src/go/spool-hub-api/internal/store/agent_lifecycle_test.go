@@ -271,3 +271,25 @@ func TestCheckLifecycleEvent(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckLifecyclePatchReportsFirstKeyByName pins the order the patch is
+// checked in: with several bad keys the reported one is the alphabetically
+// first, on every call, whatever order the map iterates in.
+func TestCheckLifecyclePatchReportsFirstKeyByName(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		patch LifecyclePatch
+		key   string
+	}{
+		{"fine", LifecyclePatch{"seat_max_age_min": 60, "lane_restart_ctx_k": nil}, ""},
+		{"two unknown", LifecyclePatch{"zz_unknown": 1, "aa_unknown": 1}, "aa_unknown"},
+		{"unknown before bad value", LifecyclePatch{"seat_max_age_min": 9999, "a_unknown": 1}, "a_unknown"},
+		{"bad value before unknown", LifecyclePatch{"lane_restart_ctx_k": 1, "z_unknown": 1}, "lane_restart_ctx_k"},
+	} {
+		for range 50 { // map order varies per range: one lucky pass proves nothing
+			if key, why := CheckLifecyclePatch(tc.patch); key != tc.key {
+				t.Fatalf("%s: got %q (%s), want %q", tc.name, key, why, tc.key)
+			}
+		}
+	}
+}

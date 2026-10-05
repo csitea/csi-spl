@@ -297,7 +297,7 @@ import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSessionStore } from '~/stores/session'
-import { draftPlaceOf, draftText, saveDraft } from '~/utils/drafts.mjs'
+import { draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts.mjs'
 import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
@@ -440,6 +440,7 @@ watch([draftPlace, draftHuman], ([place, human], [, oldHuman]) => {
   if (draftStored !== s) setText(draftStored)
 }, { immediate: true })
 onBeforeUnmount(flushDraftSave)
+onBeforeUnmount(registerDraftSource(() => draftPending && { human: draftHuman.value, place: draftPlace.value, text: text.value }))
 
 /*
  * SPL-991 — the phone dock. The composer is the one TopBar mounts; on a phone

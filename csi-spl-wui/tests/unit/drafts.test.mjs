@@ -6,6 +6,7 @@ import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
   DRAFTS_KEY, DRAFT_MAX_AGE_MS, DRAFT_MAX_ENTRIES,
   draftPlaceOf, pruneDrafts, loadDrafts, draftText, saveDraft, clearDraft, clearDrafts,
+  registerDraftSource, flushDraft,
 } from '../../src/utils/drafts.mjs'
 
 const NOW = Date.UTC(2026, 9, 5, 12, 0, 0)
@@ -116,5 +117,48 @@ describe('clearDrafts on sign-out (FR-008)', () => {
     assert.ok(!('HUM-1' in raw(s)))
     assert.equal(draftText(s, 'HUM-2', 'ch:feedback', NOW), 'keep')
     assert.equal(clearDrafts(s, '', NOW), false)
+  })
+})
+
+describe('flushDraft on hide (088 FR-001, AC2)', () => {
+  it('writes the pending text at once, in the same format', () => {
+    const s = memoryStore()
+    const off = registerDraftSource(() => ({ human: 'HUM-1', place: 'ch:lobby', text: 'abc' }))
+    try {
+      assert.ok(flushDraft(s, NOW))
+      assert.deepEqual(raw(s), { 'HUM-1': { 'ch:lobby': { text: 'abc', ts: NOW } } })
+    } finally { off() }
+  })
+  it('nothing pending or nothing registered writes nothing', () => {
+    const s = memoryStore()
+    const off = registerDraftSource(() => null)
+    assert.equal(flushDraft(s, NOW), false)
+    off()
+    assert.equal(flushDraft(s, NOW), false)
+    assert.equal(s._data[DRAFTS_KEY], undefined)
+  })
+  it('a pending blank text clears the place; no member or place writes nothing', () => {
+    const s = memoryStore()
+    saveDraft(s, 'HUM-1', 'ch:lobby', 'old', NOW)
+    let pending = { human: 'HUM-1', place: 'ch:lobby', text: '' }
+    const off = registerDraftSource(() => pending)
+    try {
+      assert.ok(flushDraft(s, NOW))
+      assert.deepEqual(raw(s), {})
+      pending = { human: '', place: 'ch:lobby', text: 'x' }
+      assert.equal(flushDraft(s, NOW), false)
+      pending = { human: 'HUM-1', place: 'nowhere', text: 'x' }
+      assert.equal(flushDraft(s, NOW), false)
+    } finally { off() }
+  })
+  it('an old unregister does not drop a newer source', () => {
+    const s = memoryStore()
+    const offA = registerDraftSource(() => ({ human: 'HUM-1', place: 'ch:a', text: 'A' }))
+    const offB = registerDraftSource(() => ({ human: 'HUM-1', place: 'ch:b', text: 'B' }))
+    offA()
+    try {
+      assert.ok(flushDraft(s, NOW))
+      assert.equal(draftText(s, 'HUM-1', 'ch:b', NOW), 'B')
+    } finally { offB() }
   })
 })

@@ -1645,6 +1645,9 @@ declare module '~/utils/drafts.mjs' {
   export function saveDraft(store: Storage | undefined, humanId: unknown, place: DraftTarget, text: unknown, now?: number): boolean
   export function clearDraft(store: Storage | undefined, humanId: unknown, place: DraftTarget, now?: number): boolean
   export function clearDrafts(store: Storage | undefined, humanId: unknown, now?: number): boolean
+  export type DraftPending = { human: unknown, place: unknown, text: unknown }
+  export function registerDraftSource(source: () => DraftPending | null | false | undefined): () => void
+  export function flushDraft(store?: Storage, now?: number): boolean
 }
 
 declare module '~/utils/palette.mjs' {

@@ -173,3 +173,38 @@ export function clearDrafts(store, humanId, now = Date.now()) {
   delete all[id]
   return writeAll(store, all)
 }
+
+/*
+ * 088 FR-001: a phone freezes the page as soon as the reader switches app or
+ * locks the screen, so the composer's 300 ms debounce may never fire. The
+ * composer registers a getter of its pending draft; `flushDraft()` writes it
+ * at once (drafts-flush.client.ts calls it on hide and on pagehide).
+ */
+let draftSource = null
+
+/**
+ * Register the composer's pending-draft getter: it returns
+ * `{human, place, text}` while a debounced save is pending, else null.
+ * One source at a time; the returned function unregisters it.
+ * @param {() => ({ human: unknown, place: unknown, text: unknown } | null | false | undefined)} source
+ * @returns {() => void}
+ */
+export function registerDraftSource(source) {
+  draftSource = typeof source === 'function' ? source : null
+  return () => {
+    if (draftSource === source) draftSource = null
+  }
+}
+
+/**
+ * 088 FR-001: write the pending debounced draft now, through saveDraft
+ * (same format). Nothing registered or nothing pending, nothing written.
+ * @param {Storage | undefined} [store]
+ * @param {number} [now]
+ * @returns {boolean} written
+ */
+export function flushDraft(store, now = Date.now()) {
+  const pending = draftSource?.()
+  if (!pending || typeof pending !== 'object') return false
+  return saveDraft(store, pending.human, pending.place, pending.text, now)
+}

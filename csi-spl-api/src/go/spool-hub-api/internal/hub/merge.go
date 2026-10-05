@@ -276,8 +276,12 @@ func (s *Server) fanoutMerged(ctx context.Context, tenant string, keep, src stor
 	}
 	editedFields(frame, at, by, rev)
 	kindFields(frame, keep.Kind, keep.KindSetAt, keep.KindSetBy)
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range targets {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 

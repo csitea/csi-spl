@@ -39,6 +39,10 @@
 #   VERIFY_ENDPOINTS optional -- override the cnf-derived list, one probe per
 #                    line: "<site|api> <url>" (tests, or a one-off host)
 #   APP_PATH         optional -- repo root (default: derived from this file)
+#
+# Temp state: without VERIFY_ENDPOINTS it creates one `mktemp -d` dir (the
+# SPL_STATE_DIR the cnf resolve runs under), removed by an EXIT trap on every
+# exit path; each probe's body file is a `mktemp` removed before probe returns.
 set -uo pipefail
 
 : "${ENV_NAME:?ENV_NAME must be set (dev | prd)}"
@@ -52,8 +56,12 @@ gh_warn() { echo "::warning::$*"; }
 # --- the endpoint list: from cnf, unless overridden ---------------------------
 endpoints="${VERIFY_ENDPOINTS:-}"
 if [[ -z "$endpoints" ]]; then
+  # a throwaway SPL_STATE_DIR for the cnf resolve; the EXIT trap removes it on
+  # every exit path (it used to leak one dir per CI run)
+  st="$(mktemp -d)" || { gh_err "verify-hub-endpoints: mktemp failed"; exit 1; }
+  trap 'rm -rf "$st"' EXIT
   cnf_out="$(ENV="$ENV_NAME" APP_PATH="$ROOT_DIR" PROJ_PATH="$ROOT_DIR/csi-spl-orc" \
-      SPL_STATE_DIR="$(mktemp -d)" bash -c '
+      SPL_STATE_DIR="$st" bash -c '
     set -euo pipefail
     do_log() { echo "$*" >&2; }
     source "$APP_PATH/csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh"

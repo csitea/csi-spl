@@ -11,6 +11,7 @@
 #   4. a probe that turns ok on a later attempt is ok (retries)
 #   5. with no override the list is derived from cnf: site = https://<fqdn>/,
 #      api = https://[<env_subdomain>.]api.<BASE_DOMAIN>/version, per env
+#   6. the cnf-resolve temp dir is removed on a failed run (TMPDIR stays empty)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -99,5 +100,12 @@ for e in dev prd; do
   [[ "$got" == "$want_site $want_api " ]] && pass "$e: probes derived from cnf ($want_site, $want_api)" \
     || fail "$e: probed '$got', want '$want_site $want_api'"
 done
+
+# --- 6: the cnf-resolve state dir is removed when curl fails (empty map) ----------
+mkdir -p "$T/tmp"; : >"$T/map"; : >"$T/log"
+env PATH="$T/stub:$PATH" STUB_MAP="$T/map" STUB_LOG="$T/log" ENV_NAME=dev VERIFY_ATTEMPTS=1 VERIFY_DELAY=0 \
+    GITHUB_STEP_SUMMARY= APP_PATH="$APP_ROOT" TMPDIR="$T/tmp" bash "$SCRIPT" >/dev/null 2>&1
+[[ -z "$(ls -A "$T/tmp")" ]] && pass "failed run leaves no temp dir under TMPDIR" \
+  || fail "temp left under TMPDIR: $(ls -A "$T/tmp" | tr '\n' ' ')"
 
 [[ $fails -eq 0 ]] && echo "PASS: all verify-hub-endpoints assertions" || { echo "FAILED: $fails"; exit 1; }

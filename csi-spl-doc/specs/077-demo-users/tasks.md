@@ -237,6 +237,23 @@ Rules for every task (owner Q8, spec §3.10):
   the wipe calls `do_spl_demo_greeting_seed` once it exists. Done:
   `csi-spl-orc/src/bash/tests/demo-wipe.tst.sh` (real Postgres, two CONTROLs).
 
+- [x] T025 **post audit** (FR-011, §3.11, c-306; owner msgs `542808a5`,
+  `1a3f521f`): rdb 0131 `demo_post_audit` (no FK to messages / humans /
+  tenants, append-only trigger, RLS); hub `demo_audit.go` appends every
+  demo_user send, reply and edit BEFORE the store write, fail-closed `503
+  audit_unavailable`; `GET /v1/demo/audit` for the demo workspace's
+  `biz_owner` or an operator-workspace admin; cnf
+  `env.demo.audit_retention_days` (90, owner confirmation pending); named
+  action `do_spl_demo_audit_purge`, nightly in wf 46 after the wipe. Done:
+  hub `TestDemoAuditPost`, `TestDemoAuditFailClosed`,
+  `TestDemoAuditReadRoles` (memory + Postgres), store
+  `TestCrossTenantEveryTable` seeds the table;
+  `csi-spl-orc/src/bash/tests/demo-audit-purge.tst.sh` (real Postgres: B1
+  the wipe keeps every audit row, B4 the purge drops only rows past N days).
+  CONTROLS (by hand, each red): the send hook removed, the edit hook
+  removed, the route removed, the owner rule dropped; in the bash test a bad
+  retention, and the 88-day purge. WUI: none (the JSON route only).
+
 ### Phase 4: Settings and greeting
 
 - [ ] T018 **instance settings** (FR-010): `demo.contact_email`,
@@ -302,4 +319,4 @@ Rules for every task (owner Q8, spec §3.10):
   human step: a private window, `/login`, "Try the demo with Google", a test
   account the spec allows (not the owner's).
 
-<!-- version: 0.2.5 · updated: 2026-10-05 · last-edit: 2026-10-05T14:30:00Z -->
+<!-- version: 0.2.6 · updated: 2026-10-05 · last-edit: 2026-10-05T16:10:00Z -->

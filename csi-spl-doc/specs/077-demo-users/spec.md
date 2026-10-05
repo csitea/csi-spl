@@ -325,6 +325,7 @@ Each row becomes a test or a review item in the build lane's tasks.
 | Spam and illegal content | report / hide / ban (3.6); a stay ends after 3 hours; nightly wipe |
 | A fleet agent pinned into the demo workspace | the pin refusal of 3.3, plus the route-walk test of 3.2 |
 | A prd session reused on dev | unchanged: separate cookie names and keys per env (010 OQ-A4) |
+| No record of what visitors prompted once the wipe ran | the post audit of 3.11 (FR-011), outside the wipe, fail-closed |
 
 ### 3.9 The greeting (owner, msg `56e933c0`)
 
@@ -361,6 +362,24 @@ Plus a countdown in the WUI header ("2 h 14 min left") for a `demo_user`.
    the owner.
 5. prd: flag on only on the owner's explicit go, after the dev walkthrough.
 
+### 3.11 Audit of demo posts (owner, msgs `542808a5`, `1a3f521f`)
+
+> "and there must be audit of what kind of prompts they have been running ..."
+> "aka only real persons with real emails accepted ... authenticated against real services"
+
+| question | answer |
+|---|---|
+| what is recorded | every post a `demo_user` makes in the demo workspace (send or reply, to a channel, a DM or an agent) and every edit of one: one row in rdb 0131 `demo_post_audit` |
+| a row holds | `at`, workspace, action (`post` / `edit`), human id, pseudonym (`humans.display_name`, T011's), provider + the provider's subject id, the provider-VERIFIED email (else empty), topic, channel (empty = a DM), recipient, message id, text |
+| when | in the hub, after every other check and BEFORE the store write or any delivery (`hub/demo_audit.go`) |
+| identity | a SNAPSHOT at write time: the 3-hour sweep deletes the humans and identity rows, the audit keeps what they said. Which sign-ins are accepted is another lane's rule; this only records it |
+| outside the wipe | no foreign key to messages, humans or tenants, so neither the nightly wipe nor the sweep cascades into it; proven by `demo-audit-purge.tst.sh` B1 |
+| append-only | a trigger refuses every UPDATE and every DELETE unless the transaction set `app.demo_audit_purge`; a resend of the same msg id writes nothing |
+| a failed write | **fail-closed**: the post answers `503 audit_unavailable` and is neither stored nor delivered, so an unaudited demo prompt cannot exist. Fail-open would keep the demo up through an audit outage at the cost of exactly the record the owner asked for; the demo is optional, the audit is not. Each failure is one error log line `demo audit write failed` (the log metric) with the running count |
+| who reads | `GET /v1/demo/audit?limit=&before=`: the tenant owner (`biz_owner`) of the demo workspace, or an admin of the operator workspace (074), each from a session active in that workspace; every other role, `demo_user` included, `403 demo.audit`; `404` with the demo off |
+| retention | cnf `env.demo.audit_retention_days`, default **90** (owner asked to confirm: 30 days / 90 days / 1 year / forever, t1 `4979bb24`); the named action `do_spl_demo_audit_purge` deletes older rows, run nightly by wf 46 after the wipe |
+| WUI | none yet: the owner reads the JSON route; an owner-only page is a follow-up |
+
 ## 4. Functional requirements
 
 - **FR-001** A system role `demo_user` holding `topics.read`, `notes.send` and
@@ -394,6 +413,14 @@ Plus a countdown in the WUI header ("2 h 14 min left") for a `demo_user`.
   up", countdown) reads `demo.contact_email`, `demo.max_live` and
   `demo.max_stay` from the hub; the demo cannot be enabled with an empty
   contact.
+- **FR-011** Every post and edit a `demo_user` makes is appended, before it
+  is stored or delivered, to an audit (rdb 0131 `demo_post_audit`) holding
+  the time, workspace, pseudonym, provider + provider subject, verified
+  email, topic, channel, recipient, message id and text (3.11). It is kept
+  outside the nightly wipe, append-only, read by the demo workspace's
+  `biz_owner` or an operator-workspace admin only, and purged after cnf
+  `env.demo.audit_retention_days` (default 90) by `do_spl_demo_audit_purge`.
+  A failed audit write refuses the post (fail-closed).
 
 ## 5. Not in scope
 
@@ -418,4 +445,4 @@ Plus a countdown in the WUI header ("2 h 14 min left") for a `demo_user`.
 | Q10 | When the 3 hours end, what happens to what the visitor wrote? | **Sign-out and personal data dropped at once; their posts stay (pseudonymous) until the nightly wipe**, so other visitors' threads keep their context |
 | Q11 | May the same Google / Facebook account come back after its 3 hours? | **Yes, when a slot is free, at most 2 visits per account per day**, so one person cannot hold a slot all day |
 
-<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T18:40:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-05 · last-edit: 2026-10-05T15:30:00Z -->

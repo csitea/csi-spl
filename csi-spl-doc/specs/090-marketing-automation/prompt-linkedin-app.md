@@ -1,6 +1,6 @@
 # Prompt: 090 LinkedIn developer app, end to end
 
-This is the prompt that, handed to one Claude agent on the owner's PC at the start, would have produced the LinkedIn app and every stored copy of its credentials ([`linkedin-app-setup.md`](./linkedin-app-setup.md)) in one pass. It is written after the fact. On 2026-10-05 the same work took about an hour across one blocker post, a script the owner was asked to run, a hand-run `make` with a typo, and four follow-up messages added mid-task (the browser, `~/.linked-in`, KeePassXC, `csi-spl-all`). Every one of those is in the prompt below, so nothing has to be added while the agent is working.
+This is the prompt that, handed to one Claude agent on the owner's PC at the start, would have produced the LinkedIn app and every stored copy of its credentials ([`linkedin-app-setup.md`](./linkedin-app-setup.md)) in one pass. It is written after the fact. On 2026-10-05 the same work took about an hour across one blocker post, a hand-run `make` with a typo, and four follow-up messages added mid-task (the browser, `~/.linked-in`, KeePassXC, `csi-spl-all`). Every one of those is in the prompt below, so nothing has to be added while the agent is working.
 
 Use it as written for the next app of this kind (X, Facebook Pages, an email provider), changing only section 1.
 
@@ -30,10 +30,10 @@ Read the client id and Primary Client Secret from the Auth page and **pipe** the
 | 1 | Secret Manager `csi-spl-dev` and `csi-spl-prd`: the existing empty slots `csi-spl-hub-marketing-linkedin-client-id` / `-client-secret` | `gcloud secrets versions add --data-file=-`, each env with its OWN SA key `~/.gcp/.csi/key-csi-spl-<env>.json`, throwaway `CLOUDSDK_CONFIG`, `--account` on every call; never the owner account |
 | 2 | Secret Manager `csi-spl-all`: the same two secret names | the `csi-spl-all` SA key; enable `secretmanager.googleapis.com` there first if it is off, and create the two secrets |
 | 3 | a local file | `~<AGENT_USER>/.linked-in/.csi/client_id` and `client_secret`, dirs 0700, files 0600 |
-| 4 | my KeePassXC database (path in my latest screenshot) | one entry `LinkedIn-app-Spool-Hub-csi-spl`: username = client id, password = client secret, URL = the app's Auth page. It needs my master password: write a script that asks me for it (hidden) and I run it |
+| 4 | my KeePassXC database (path in my latest screenshot) | one entry `LinkedIn-app-Spool-Hub-csi-spl`: username = client id, password = client secret, URL = the app's Auth page. It has no master password: it opens with a key file, which I select and give you for this run. Back the database up first |
 
 ## 5. Then
 
 1. Write `csi-spl-doc/specs/090-marketing-automation/linkedin-app-setup.md` (what exists, where every value lives, how to redo and rotate it) and save this prompt next to it. Push to master with the release-note trailers.
 2. Post one short "done" reply in topic `f0c3927e` so the 090 lanes flip `marketing.linkedin.inject` and apply 030.
-3. Ask me only what you cannot decide: which LinkedIn Page if Csitea is not offered, and my KeePassXC master password through the script.
+3. Ask me only what you cannot decide: which LinkedIn Page if Csitea is not offered, and the KeePassXC key file to open the database.

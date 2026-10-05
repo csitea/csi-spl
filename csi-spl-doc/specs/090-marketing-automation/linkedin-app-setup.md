@@ -37,7 +37,7 @@ One app serves every env, so the same two values are stored in each place below.
 | Secret Manager, prd | project `csi-spl-prd`, same two secrets, version 1 | the prd env SA |
 | Secret Manager, all | project `csi-spl-all`, same two secrets, version 1, labels `spec=090,app=spool-hub` | the all SA (`key-csi-spl-all.json`) |
 | agent box file | `~<AGENT_USER>/.linked-in/.csi/client_id` and `client_secret` (dirs 0700, files 0600) | the `~/.<runtime>/.<org>/` secrets layout |
-| owner's KeePassXC DB | entry `LinkedIn-app-Spool-Hub-csi-spl`: username = client id, password = client secret, URL = the app's Auth page, notes point here | the owner, with the master password (section 3.4) |
+| owner's KeePassXC DB | entry `LinkedIn-app-Spool-Hub-csi-spl`: username = client id, password = client secret, URL = the app's Auth page, notes point here | `keepassxc-cli` with the owner's key file (section 3.4) |
 
 The dev and prd slots were created empty by step 030 (T002, no version resource, so no value is in terraform state). The `csi-spl-all` secrets are **not** owned by any terraform step: on 2026-10-05 `secretmanager.googleapis.com` was enabled there and the two secrets were created with `gcloud` as the all SA. Nothing at runtime reads them; they are the estate-level copy the owner asked for.
 
@@ -71,13 +71,13 @@ Verify without printing: `gcloud secrets versions access latest ... | sha256sum`
 
 ### 3.4 Store the values in KeePassXC
 
-`keepassxc-cli` 2.7 needs the database master password, so the **owner** runs this in their own terminal. The script asks only for the master password (hidden), reads the two values from the 0600 files and checks the stored password by hash:
+The database has **no master password**: it opens with a **key file**. The owner selects the key file each time the database is needed and hands its path over for that run only; it is not recorded here or anywhere else. With it, `keepassxc-cli` 2.7 adds the entry (values read from the 0600 files) and the stored password is checked by hash:
 
 ```bash
-keepassxc-cli add -q -u "$CLIENT_ID" --url https://www.linkedin.com/developers/apps/264972293/auth --notes "<pointer to this page>" -p <OWNER_KDBX> LinkedIn-app-Spool-Hub-csi-spl
+keepassxc-cli add -q --no-password -k <KEY_FILE> -u "$CLIENT_ID" --url https://www.linkedin.com/developers/apps/264972293/auth --notes "<pointer to this page>" -p <OWNER_KDBX> LinkedIn-app-Spool-Hub-csi-spl
 ```
 
-stdin carries two lines: the master password, then the client secret. If the KeePassXC GUI has the same database open, it reloads the file on change; save any pending GUI edits first.
+stdin carries one line: the client secret. Back up the `.kdbx` before writing. If the KeePassXC GUI has the same database open, it reloads the file on change; save any pending GUI edits first.
 
 ## 4. Rotating the client secret
 

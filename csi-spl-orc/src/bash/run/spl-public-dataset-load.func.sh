@@ -43,7 +43,7 @@
 # @example SEED_FILE=./spool-hub-public-2026-10-05-v1.4.0.sql.gz SEED_ADMIN_EMAIL=admin@example.com SPOOL_HUB_DB_DSN=postgres://... ./run -a do_spl_public_dataset_load
 #------------------------------------------------------------------------------
 do_spl_public_dataset_load() {
-  do_require_bin psql jq sha256sum openssl gzip || return 1
+  do_require_bin psql jq sha256sum openssl || return 1
   local src="${SEED_FILE:-}" email="${SEED_ADMIN_EMAIL:-}" dsn="${SPOOL_HUB_DB_DSN:-}"
   spl_pdl_args "$src" "$email" "$dsn" || return 1
   email="${email,,}"

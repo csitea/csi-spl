@@ -2,12 +2,14 @@ import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
 import {
   SIDEBAR_DEFAULT,
-  TOPIC_DEFAULT,
   clampPair,
   clampSidebar,
   clampTopic,
   loadPaneWidths,
+  loadStoredTopic,
+  mainWidthFor,
   savePaneWidths,
+  topicDefaultFor,
   resetPane,
   sidebarRange,
   topicRange,
@@ -27,24 +29,33 @@ export function usePaneWidths(opts: {
 }) {
   const viewportW = ref(import.meta.client && typeof window !== 'undefined' ? window.innerWidth : 1280)
   const storedSidebar = ref(SIDEBAR_DEFAULT)
-  const storedTopic = ref(TOPIC_DEFAULT)
+  /* Spec 078 FR-006: null = never dragged; the pane then takes the
+     proportional default, which follows the window. */
+  const storedTopic = ref<number | null>(null)
   const session = useSessionStore()
   const auth = useAuthClient()
   /* SPL-1182: the last fractions written to the account, so a drag that ends
      where it began writes nothing (skip the no-op PUT). */
-  let lastSaved: { sidebar: number, topic: number } | null = null
+  let lastSaved: { sidebar: number, topic?: number } | null = null
   let commitTimer: ReturnType<typeof setTimeout> | null = null
+
+  /* The topic width in force: the dragged one, else 40 % of the space right
+     of the left pane (spec 078 FR-006). */
+  const topicW = computed(() => storedTopic.value ?? topicDefaultFor(mainWidthFor(
+    viewportW.value,
+    clampSidebar(storedSidebar.value, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value }),
+  )))
 
   const ctx = computed(() => ({
     viewportW: viewportW.value,
     topicOpen: opts.topicOpen.value,
     sidebarW: storedSidebar.value,
-    topicW: storedTopic.value,
+    topicW: topicW.value,
   }))
 
   const displayed = computed(() => clampPair(
     storedSidebar.value,
-    storedTopic.value,
+    topicW.value,
     { viewportW: viewportW.value, topicOpen: opts.topicOpen.value },
   ))
 
@@ -70,9 +81,12 @@ export function usePaneWidths(opts: {
     scheduleCommit()
   }
 
-  /* SPL-1182: the current widths as window fractions (screen-independent). */
-  function fractions() {
-    return { sidebar: FRAC(storedSidebar.value, viewportW.value), topic: FRAC(storedTopic.value, viewportW.value) }
+  /* SPL-1182: the current widths as window fractions (screen-independent).
+     An undragged topic is left out, so the account keeps the default too. */
+  function fractions(): { sidebar: number, topic?: number } {
+    const f: { sidebar: number, topic?: number } = { sidebar: FRAC(storedSidebar.value, viewportW.value) }
+    if (storedTopic.value !== null) f.topic = FRAC(storedTopic.value, viewportW.value)
+    return f
   }
 
   /* SPL-1182: keep the divider widths on the account, per (person, tenant),
@@ -100,7 +114,7 @@ export function usePaneWidths(opts: {
     storedSidebar.value = clampSidebar(n, {
       viewportW: viewportW.value,
       topicOpen: opts.topicOpen.value,
-      topicW: storedTopic.value,
+      topicW: topicW.value,
     })
     persist()
   }
@@ -120,7 +134,7 @@ export function usePaneWidths(opts: {
   }
 
   function resetTopic() {
-    storedTopic.value = resetPane('topic')
+    storedTopic.value = null
     persist()
   }
 
@@ -128,7 +142,7 @@ export function usePaneWidths(opts: {
      the account override (the read then falls back to the product default). */
   function resetAll() {
     storedSidebar.value = resetPane('sidebar')
-    storedTopic.value = resetPane('topic')
+    storedTopic.value = null
     savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value })
     if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
     if (session.state === 'in') {
@@ -150,6 +164,7 @@ export function usePaneWidths(opts: {
      through the resize listener. */
   function hydrate() {
     const loaded = loadPaneWidths()
+    const loadedTopic = loadStoredTopic()
     /* SPL-1182: on a wide screen a signed-in person's account override
        (fractions -> px, clamped) wins over this browser's localStorage, so a
        new device draws their kept layout. The result is written back to
@@ -157,15 +172,15 @@ export function usePaneWidths(opts: {
     const acct = session.claims?.pane_sizes
     if (session.state === 'in' && acct && viewportW.value > PANE_ACCOUNT_MIN_W) {
       const sb = acct.sidebar ? Math.round(acct.sidebar * viewportW.value) : loaded.sidebar
-      const tp = acct.topic ? Math.round(acct.topic * viewportW.value) : loaded.topic
-      storedSidebar.value = clampSidebar(sb, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, topicW: tp })
-      storedTopic.value = clampTopic(tp, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, sidebarW: storedSidebar.value })
+      const tp = acct.topic ? Math.round(acct.topic * viewportW.value) : loadedTopic
+      storedSidebar.value = clampSidebar(sb, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, topicW: tp ?? undefined })
+      storedTopic.value = tp === null ? null : clampTopic(tp, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, sidebarW: storedSidebar.value })
       lastSaved = fractions() // where we are now = already on the account, so no re-save
       savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value })
       return
     }
     storedSidebar.value = loaded.sidebar
-    storedTopic.value = loaded.topic
+    storedTopic.value = loadedTopic
   }
 
   onMounted(() => {

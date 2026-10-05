@@ -2234,3 +2234,12 @@ declare module '~/utils/unread-model.mjs' {
 declare module '~/utils/sidebar-tabs.mjs' {
   export function routeForTab(id: string): '/' | '/issues' | '/users' | '/events' | '/archive' | '/people' | '/agents' | '/boxes' | null
 }
+
+// 078 T004: the proportional topic default (merges with its first declare block).
+declare module '~/utils/pane-widths.mjs' {
+  export const TOPIC_DEFAULT_RATIO: number
+  export function topicDefaultFor(mainWidth: number): number
+  export function mainWidthFor(viewportW: number, sidebarW: number): number
+  export function loadStoredTopic(store?: unknown): number | null
+  export function savePaneWidths(widths: { sidebar: number, topic: number | null }, store?: unknown): boolean
+}

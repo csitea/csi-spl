@@ -33,6 +33,10 @@ import {
   loadPaneWidths,
   savePaneWidths,
   resetPane,
+  TOPIC_DEFAULT_RATIO,
+  topicDefaultFor,
+  mainWidthFor,
+  loadStoredTopic,
 } from '../../src/utils/pane-widths.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -125,6 +129,51 @@ describe('pane-widths clamp', () => {
   })
 })
 
+describe('pane-widths proportional default (spec 078 FR-006, AC5)', () => {
+  it('is 40% of the space right of the left pane: 1174 -> 470, 1654 -> 662', () => {
+    assert.equal(TOPIC_DEFAULT_RATIO, 0.4)
+    assert.equal(topicDefaultFor(1174), 470)
+    assert.equal(topicDefaultFor(1654), 662)
+  })
+
+  it('the main width is the window less the left pane and its divider', () => {
+    assert.equal(mainWidthFor(1440, 260), 1174)
+    assert.equal(mainWidthFor(1920, 260), 1654)
+    /* the stored sidebar is clamped first; the rail breakpoint has no sidebar */
+    assert.equal(mainWidthFor(1440, 9999), 1440 - sidebarMaxPx(1440) - DIVIDER_W)
+    assert.equal(mainWidthFor(SIDEBAR_NARROW_MAX, 260), SIDEBAR_NARROW_MAX)
+  })
+
+  it('clamps at TOPIC_MIN, TOPIC_MAX_RATIO and MAIN_MIN', () => {
+    assert.equal(topicDefaultFor(500), TOPIC_MIN)
+    assert.equal(topicDefaultFor(700), TOPIC_MIN)
+    assert.ok(topicDefaultFor(5000) <= Math.round(5000 * TOPIC_MAX_RATIO))
+    for (const main of [700, 900, 1000, 1174, 1654, 3000]) {
+      const t = topicDefaultFor(main)
+      assert.ok(t >= TOPIC_MIN, `main=${main} t=${t}`)
+      if (main - DIVIDER_W - MAIN_MIN >= TOPIC_MIN) assert.ok(main - t - DIVIDER_W >= MAIN_MIN, `main=${main} t=${t}`)
+    }
+    assert.equal(topicDefaultFor(0), TOPIC_DEFAULT)
+    assert.equal(topicDefaultFor('junk'), TOPIC_DEFAULT)
+  })
+
+  it('the default survives clampPair at 1440 and 1920 (no truncating 380)', () => {
+    for (const [w, want] of [[1440, 470], [1920, 662]]) {
+      const pair = clampPair(260, topicDefaultFor(mainWidthFor(w, 260)), { viewportW: w, topicOpen: true })
+      assert.equal(pair.topic, want)
+    }
+  })
+
+  it('composable uses the default only when nothing is stored, and sets --topic-w from it', () => {
+    const src = read('src/composables/usePaneWidths.ts')
+    assert.equal(src.includes('storedTopic.value ?? topicDefaultFor(mainWidthFor('), true)
+    assert.equal(src.includes('loadStoredTopic()'), true)
+    assert.equal(src.includes('ref(TOPIC_DEFAULT)'), false)
+    const css = read('src/assets/css/variables.css')
+    assert.equal(/--topic-w:\s*380px/.test(css), false, 'variables.css is no longer the source')
+  })
+})
+
 describe('pane-widths keyboard and pointer', () => {
   it('ArrowLeft/Right move the sidebar separator; Home/End snap', () => {
     assert.equal(applySeparatorKey('sidebar', 'ArrowRight', 260, 180, 420), 260 + STEP)
@@ -176,6 +225,21 @@ describe('pane-widths persist', () => {
     assert.deepEqual(loadPaneWidths(bad), { sidebar: SIDEBAR_DEFAULT, topic: TOPIC_DEFAULT })
     const partial = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 'nope', topic: 410 }) })
     assert.deepEqual(loadPaneWidths(partial), { sidebar: SIDEBAR_DEFAULT, topic: 410 })
+  })
+
+  it('loadStoredTopic is null until a topic width is dragged', () => {
+    assert.equal(loadStoredTopic(memoryStore()), null)
+    assert.equal(loadStoredTopic(memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 300 }) })), null)
+    assert.equal(loadStoredTopic(memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 300, topic: 'x' }) })), null)
+    assert.equal(loadStoredTopic(memoryStore({ [PANE_WIDTHS_KEY]: '{nope' })), null)
+    assert.equal(loadStoredTopic(memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 300, topic: 410 }) })), 410)
+  })
+
+  it('a null topic drops the stored width so the default applies again', () => {
+    const store = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 260, topic: 500, issues: 440 }) })
+    assert.equal(savePaneWidths({ sidebar: 300, topic: null }, store), true)
+    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { sidebar: 300, issues: 440 })
+    assert.equal(loadStoredTopic(store), null)
   })
 
   it('keeps the issue detail width when the sidebar is saved again', () => {

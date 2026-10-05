@@ -97,7 +97,9 @@
   --z-modal:   1100;
 
   --sidebar-w: 260px;
-  --topic-w: 380px;
+  /* Pre-hydration paint only: usePaneWidths sets --topic-w on the shell from
+     topicDefaultFor (spec 078 FR-006), 40 % of the space right of the left pane. */
+  --topic-w: clamp(280px, calc((100vw - var(--sidebar-w) - 6px) * 0.4), 65vw);
   --tap: 44px;
   --font-stack: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

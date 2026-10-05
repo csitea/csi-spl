@@ -7,7 +7,11 @@
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 
 export const SIDEBAR_DEFAULT = 260
+/** The topic pane's width before any viewport is known (prerender, tests). */
 export const TOPIC_DEFAULT = 380
+/** Spec 078 FR-006: an undragged topic pane takes this share of the space
+    right of the left pane. */
+export const TOPIC_DEFAULT_RATIO = 0.4
 export const SIDEBAR_MIN = 180
 /** The left pane's divider stops at this fraction of the viewport. */
 export const SIDEBAR_MAX_RATIO = 0.35
@@ -55,6 +59,26 @@ export function sidebarMaxPx(viewportW) {
 export function topicMaxPx(viewportW) {
   const px = Math.round(num(viewportW, 1280) * TOPIC_MAX_RATIO)
   return Math.max(TOPIC_MIN, px)
+}
+
+/**
+ * Spec 078 FR-006: the topic pane's default width for a given space right of
+ * the left pane (mainWidth): 40% of it, at least TOPIC_MIN, at most
+ * TOPIC_MAX_RATIO of it, and leaving MAIN_MIN plus a divider for the middle.
+ * A dragged width still wins; this is only the width nobody has set.
+ */
+export function topicDefaultFor(mainWidth) {
+  const main = num(mainWidth, 0)
+  if (main <= 0) return TOPIC_DEFAULT
+  const max = Math.min(Math.round(main * TOPIC_MAX_RATIO), main - DIVIDER_W - MAIN_MIN)
+  return clamp(Math.round(main * TOPIC_DEFAULT_RATIO), TOPIC_MIN, Math.max(TOPIC_MIN, max))
+}
+
+/** The space right of the left pane (and its divider) at this viewport. */
+export function mainWidthFor(viewportW, sidebarW) {
+  const w = num(viewportW, 1280)
+  if (!sidebarShown(w)) return w
+  return w - clamp(num(sidebarW, SIDEBAR_DEFAULT), SIDEBAR_MIN, sidebarMaxPx(w)) - DIVIDER_W
 }
 
 export function topicShown(viewportW, topicOpen) {
@@ -158,13 +182,27 @@ export function loadPaneWidths(store) {
   }
 }
 
+/**
+ * The dragged topic width, or null when nobody has set one (spec 078 FR-006:
+ * the pane then follows topicDefaultFor).
+ */
+export function loadStoredTopic(store) {
+  const raw = storageGetJson(PANE_WIDTHS_KEY, null, store)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.topic == null) return null
+  const n = Number(raw.topic)
+  return Number.isFinite(n) ? n : null
+}
+
 export function savePaneWidths(widths, store) {
   const raw = storageGetJson(PANE_WIDTHS_KEY, null, store)
   const prev = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
   const sidebar = Math.round(num(widths && widths.sidebar, SIDEBAR_DEFAULT))
-  const topic = Math.round(num(widths && widths.topic, TOPIC_DEFAULT))
   // Keep keys this helper does not own (the issue detail width).
-  return storageSetJson(PANE_WIDTHS_KEY, { ...prev, sidebar, topic }, store)
+  const next = { ...prev, sidebar }
+  /* A null topic is "never dragged": drop the key so the default applies. */
+  if (widths && widths.topic === null) delete next.topic
+  else next.topic = Math.round(num(widths && widths.topic, TOPIC_DEFAULT))
+  return storageSetJson(PANE_WIDTHS_KEY, next, store)
 }
 
 export function resetPane(pane) {

@@ -7,12 +7,14 @@
 //        mock's 2026-09-18 rows show `09-18 HH:MM` (the full date in
 //        another year); with the browser clock on that day the same rows
 //        show only `HH:MM`.
+//   AC5  (T004) a Flow entry whose body has `**#lobby**` shows `#lobby`,
+//        and no Flow entry text carries `**` (FR-005).
 // The browser runs in UTC so "today" is one calendar day for the check.
-// T004 adds AC5 (Flow rows) here.
 //
 // CONTROLS - plant the defect and watch it go red:
 //   PROVE_RED=prefix pnpm run test:e2e clean-list-rows   (rows get "Topic: **x**")
 //   PROVE_RED=clock  pnpm run test:e2e clean-list-rows   (row times lose the date)
+//   PROVE_RED=flow   pnpm run test:e2e clean-list-rows   (Flow texts get "**x**")
 //
 // Run:
 //   pnpm run test:e2e clean-list-rows
@@ -27,6 +29,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const RED = process.env.PROVE_RED || ''
 const MOCK_DAY = '2026-09-18'
 const ON_MOCK_DAY = Date.parse(`${MOCK_DAY}T15:00:00Z`)
+const FLOW_TEXT = '[data-testid=sidebar-panel-flow] [data-testid=left-list][data-mode=flow] [data-testid=left-entry] .side-hit__text'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -117,6 +120,29 @@ async function rowsAt(browser, server, fakeNow) {
   return { ...rows, errors }
 }
 
+/** Open `/` with the Flow sidebar tab shown, then read its entry texts. */
+async function flowTexts(browser, server) {
+  const page = watchPage(await browser.newPage(), '1440 flow')
+  const errors = []
+  page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+  /* every message, not only the viewer's (flow-left's setup): the lobby welcome is an entry */
+  await page.evaluateOnNewDocument(() => { try { localStorage.setItem('spool.flow-scope', 'all'); localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' })) } catch { /* about:blank */ } })
+  await page.setViewport({ width: 1440, height: 900 })
+  await page.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await page.waitForSelector('[data-testid=sidebar-tab-flow]', { visible: true, timeout: NAV_TIMEOUT })
+  await page.click('[data-testid=sidebar-tab-flow]')
+  await page.waitForFunction((sel) => [...document.querySelectorAll(sel)].some((el) => (el.textContent || '').includes('Welcome to')), { timeout: NAV_TIMEOUT }, FLOW_TEXT).catch(() => {})
+  await sleep(500)
+  if (RED === 'flow') {
+    await page.evaluate((sel) => {
+      for (const el of document.querySelectorAll(sel)) el.textContent = '**' + el.textContent + '**'
+    }, FLOW_TEXT)
+  }
+  const texts = await page.evaluate((sel) => [...document.querySelectorAll(sel)].map((el) => (el.textContent || '').trim()), FLOW_TEXT)
+  await page.close()
+  return { texts, errors }
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -137,7 +163,16 @@ try {
   const now = today.middle.filter((r) => r.ts.startsWith(MOCK_DAY))
   ok(`AC3 1440: with the clock on ${MOCK_DAY}, its rows show only HH:MM`,
     now.length > 0 && now.every((r) => /^\d{2}:\d{2}$/.test(r.time)), { rows: now.slice(0, 3) })
-  ok('no page error', real.errors.length === 0 && today.errors.length === 0, [...real.errors, ...today.errors])
+
+  const flow = await flowTexts(browser, server)
+  const lobby = flow.texts.filter((s) => s.includes('Welcome to'))
+  ok('AC5 1440: the Flow entry for "Welcome to **#lobby**." shows "Welcome to #lobby."',
+    lobby.length > 0 && lobby.every((s) => s.startsWith('Welcome to #lobby.')), { lobby })
+  const marked = flow.texts.filter((s) => s.includes('**'))
+  ok('AC5 1440: no Flow entry text carries "**"', flow.texts.length > 0 && marked.length === 0,
+    { entries: flow.texts.length, marked: marked.slice(0, 3) })
+  ok('no page error', real.errors.length === 0 && today.errors.length === 0 && flow.errors.length === 0,
+    [...real.errors, ...today.errors, ...flow.errors])
 } finally {
   await browser.close()
   await server.stop()

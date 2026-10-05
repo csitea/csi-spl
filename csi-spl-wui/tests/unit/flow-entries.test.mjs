@@ -24,7 +24,14 @@ const msg = (over) => ({ msg_id: 'm1', task_id: 't1', ts: '2026-09-18T10:00:00Z'
 
 describe('flowText', () => {
   it('flattens markdown to one short line', () => {
-    assert.equal(flowText('Welcome to **#lobby**.\n\nSee [the doc](https://example.com) `x`'), 'Welcome to lobby. See the doc x')
+    assert.equal(flowText('Welcome to **#lobby**.\n\nSee [the doc](https://example.com) `x`'), 'Welcome to #lobby. See the doc x')
+  })
+  it('is plainText (spec 082 FR-005): headings, quotes, bullets, fences, escapes', () => {
+    assert.equal(flowText('# Deploy\n> **done** on _dev_\n- [x] ~~old~~ step\n```sh\nls\n```'), 'Deploy done on dev old step ls')
+    assert.equal(flowText('ping @c-001 in #ops: 2 \\* 3'), 'ping @c-001 in #ops: 2 * 3')
+  })
+  it('leaves no space before the ellipsis', () => {
+    assert.equal(flowText('abcd efgh', 5), 'abcd…')
   })
   it('cuts long text with an ellipsis, not inside an emoji', () => {
     const t = flowText('😀'.repeat(200), 10)

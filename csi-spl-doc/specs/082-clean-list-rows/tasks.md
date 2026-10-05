@@ -16,9 +16,9 @@ No task changes the reply control ("3 >>", owner SPL-982): spec §9 Q4.
 - [x] T003 **use it in both lists + the date rule** (c-264): replace `topicRowTitle` in `src/pages/index.vue:161-164` and `src/components/ChannelSidebar.vue:832-835` with `rowTitle`, dropping `topic.list_title` there; desktop `rowTime` in `index.vue:158` (and the sidebar row time, if shown) uses `formatMsgListTs` (`src/utils/channel-feed.mjs:261`). Update only the list-row assertions among the `list_title` tests (spec AC6). Owns: those functions and the row time in the two files. New e2e `tests/e2e/clean-list-rows.test.mjs` (AC2, AC3, AC4 as a grep in the unit suite). Rebase on c-253 / 079 T005 / 080 T004 if they touched the row templates. Depends on T002. Done: the checks above.
 
 ### Phase 2: Flow rows (FR-005)
-- [ ] T004 **Flow text** : Flow entry text (`src/utils/flow-entries.mjs` `flowText`, `src/components/FlowList.vue:123,147`) goes through `plainText`. Owns: `flowText` and `tests/unit/flow-entries.test.mjs`. e2e AC5 added to `tests/e2e/clean-list-rows.test.mjs`. Depends on T002. Done: the checks above.
+- [x] T004 **Flow text** (c-271): Flow entry text (`src/utils/flow-entries.mjs` `flowText`, `src/components/FlowList.vue:123,147`) goes through `plainText`. Owns: `flowText` and `tests/unit/flow-entries.test.mjs`. e2e AC5 added to `tests/e2e/clean-list-rows.test.mjs`. Depends on T002. Done: the checks above.
 
 ### Phase 3: Help
 - [x] T005 **help** (c-272): `csi-spl-doc/doc/help/message-levels-and-topics.md` (how a topic row reads: plain title, date rule), then `node src/node/help/sync-help.mjs`. Done: `./run -a do_check_dist_hygiene`, `lint-mdlinks` green.
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:45:00Z -->
+<!-- version: 0.1.1 · updated: 2026-10-05 · last-edit: 2026-10-05T02:13:14Z -->

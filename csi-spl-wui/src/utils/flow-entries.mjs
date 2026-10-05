@@ -9,6 +9,7 @@ import { dmPeerOf } from './channel-feed.mjs'
 import { isUnread, when } from './read-cursor.mjs'
 import { isViewersOwn } from './typed-by.mjs'
 import { eventAsMessage, flowEventKind } from './flow-badge.mjs'
+import { plainText } from './plain-text.mjs'
 
 /** How many entries the panel holds. Older ones fall off the end. */
 export const FLOW_CAP = 200
@@ -21,20 +22,14 @@ export const FLOW_PAGE = 30
 export const FLOW_TEXT_CHARS = 90
 
 /**
- * One line of plain text from a markdown body: code fences, emphasis,
- * links and images reduced to their words, whitespace collapsed, cut at
- * `max` characters (code points, so an emoji is not split).
+ * One line of plain text from a markdown body (spec 082 FR-005): the same
+ * `plainText` the Topics rows use, so marks never show and `#lobby` /
+ * `@id` stay as text; cut at `max` characters (code points, so an emoji is
+ * not split), no space left before the "…".
  */
 export function flowText(body, max = FLOW_TEXT_CHARS) {
-  const flat = String(body || '')
-    .replace(/```[^\n]*\n?/g, ' ')
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[*_~`>#]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const chars = Array.from(flat)
-  return chars.length <= max ? flat : chars.slice(0, max).join('').trimEnd() + '…'
+  const line = plainText(body, max)
+  return line.endsWith('…') ? line.slice(0, -1).trimEnd() + '…' : line
 }
 
 /** A reply: it sits in another message's thread. */

@@ -50,7 +50,7 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
 
 ### Phase 1: LinkedIn personal feed, end to end
 
-- [ ] T002 **KMS key + LinkedIn secret slots** (iac).
+- [x] T002 **KMS key + LinkedIn secret slots** (iac) (c-290, 04fcf59b7; **apply pending owner**). Plans clean on dev and prd: 001 +1, 055 +4, 030 +2 ~1 (the ~1 is pre-existing hub drift), 0 destroy. Also in 055: `serviceAccountTokenCreator` on the runtime SA for the env's project SA, so `do_spl_kms_check` can act as the runtime SA. The secrets are injected as `SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_ID` / `_CLIENT_SECRET` only once cnf `marketing.linkedin.inject` is `"true"`, after both versions exist.
   - **Build**: a new terraform step `iac/src/terraform/055-gcp-kms-marketing/` with one key ring and one symmetric `ENCRYPT_DECRYPT` key, rotated every 90 days. Grant `roles/cloudkms.cryptoKeyEncrypterDecrypter` on that key only to the hub runtime SA (its email comes from cnf). Add `cloudkms.googleapis.com` to step 001. Add the cnf block `marketing` (`workspaces`, `kms_key`, `linkedin.client_id_secret`, `linkedin.client_secret_secret`, `post_hour_local`) in `cnf/all.env.yaml`, with env overrides if any. Add both LinkedIn secret ids to cnf `env.auth.social.secret_env` / `hub.secret_env`, so 030 creates the empty slots and injects them.
   - **Owns**: that step dir, the `marketing` cnf keys, the rendered tfvars for 001/030/055, and the step-001 API line.
   - **Tests**: tpl-gen with no diff, iac suite, lint.

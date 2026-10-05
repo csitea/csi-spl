@@ -351,7 +351,7 @@ func (s *Server) Handler() http.Handler {
 	s.routeMembers(mux)
 	s.routeOperator(mux)       // CLE-77780: backend invite create/mail/revoke
 	s.routeTenantSettings(mux) // specs/046
-	s.routeIssues(mux)         // specs/039
+	s.routeWorkItems(mux)      // specs/039 issues, specs/089 calendar
 	s.routePerfIngest(mux)     // spec 066 L2: POST /v1/perf/samples, fire-and-forget
 	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
 	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest

@@ -188,7 +188,7 @@ Rules for every task (owner Q8, spec §3.10):
   fenced seat and the tenant switch accepted it; now neither does (403
   not_member). The `authSessionGap` cut in the walk stays (owner). CONTROLS: B's owner reads B's markers through the core routes;
   `demoFenced` off = 11 routes leak; the locate fix reverted = locate leaks.
-- [ ] T016 **report / hide / ban** (§3.6).
+- [x] T016 **report / hide / ban** (§3.6).
   - report + hide done (c-331), part A: a 🚩 reaction (demo workspace only;
     a reaction row, so one reporter counts once) hides the message at the
     3rd distinct reporter; a moderator (`members.invite`: admin, biz_owner;
@@ -205,8 +205,27 @@ Rules for every task (owner Q8, spec §3.10):
     `TestDemoReportHide`, `TestDemoHiddenGoneFromEveryRead` (every hub GET
     route from the source plus the two POST reads; memory + Postgres).
     CONTROLS: threshold removed, search / topic page / previews filter
-    removed: each red. Part B (ban: member remove + the address-digest block
-    list at admission) is still open.
+    removed: each red.
+  - ban done (c-311), part B: in the demo workspace a moderator's `DELETE
+    /v1/members/{human_id}` of a `demo_user` is a ban (`hub/rbac.go`
+    `removeOrBan`): one transaction removes the membership and lists in rdb
+    0130 `demo_bans` (`tenant_id`, `key`, `banned_by`, `banned_at`; RLS) the
+    `acct:` sha256 of (provider, subject) and `mail:` sha256 of the address of
+    every identity of that human (`store/demo_bans.go`, `BanMember`). The open
+    admission refuses a listed account or address first (`ErrDemoBanned`,
+    wraps `ErrNotAdmitted`: `auth_error=not_allowed`, nothing written). A
+    removal anywhere else, or of a non-demo role, is the plain remove. No
+    unban (the spec has none). The nightly wipe keeps the list (spec 3.6).
+    Tests: store `TestDemoBan` (memory + Postgres: the member is gone, the
+    account and the same address via facebook are refused; CONTROLS bob and a
+    new visitor admitted, another workspace admits alice), hub `TestDemoBan`
+    (a demo_user's DELETE is 403 and changes nothing, the moderator's bans,
+    the identity is refused; CONTROLS the other visitor keeps the seat, a
+    removal in another workspace bans nothing), `TestCrossTenant*` seeds
+    `demo_bans`, `demo-wipe.tst.sh` B6 (2 rows survive two wipes). Controls by
+    hand (n=1 each): the admission check removed (memory, Postgres, hub on
+    Postgres), the hub ban branch removed, the wipe deleting `demo_bans`:
+    each red.
 - [x] T017 **nightly wipe** (c-314): named action `do_spl_demo_wipe` (csi-spl-orc) on a
   schedule; deletes demo messages and topics, re-seeds the channels and the
   pinned welcome. Built: wf 46 runs it nightly (03:41 UTC) on dev then prd; it

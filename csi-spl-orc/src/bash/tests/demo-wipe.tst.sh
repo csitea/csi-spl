@@ -20,6 +20,8 @@
 #   B4. CONTROL guard 2: the SQL itself refuses a workspace with a member
 #       whose role is not demo_user / admin / biz_owner, and deletes nothing
 #   B5. a missing workspace is refused; a second wipe is a no-op
+#   B6. the ban list (rdb 0130 demo_bans, T016 part B) survives the wipe: a
+#       banned visitor stays banned after the night
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -134,6 +136,8 @@ q "INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by) VALUE
      ('demo', 'HUM-1', 'admin', 'operator'), ('demo', 'HUM-2', 'demo_user', 'operator'),
      ('t1', 'HUM-1', 'biz_owner', 'operator'), ('t1', 'HUM-3', 'developer', 'HUM-1')" >/dev/null
 q "DELETE FROM channels WHERE tenant_id = 'demo' AND channel_id = 'feedback'" >/dev/null
+q "INSERT INTO demo_bans (tenant_id, key, banned_by) VALUES ('demo', 'acct:' || repeat('a', 64), 'HUM-1'), ('demo', 'mail:' || repeat('b', 64), 'HUM-1')" >/dev/null
+bans() { q "SELECT count(*) FROM demo_bans WHERE tenant_id = 'demo'"; }
 
 # runb <ws> <dry>: the SQL path of the action, through the real DB as the runtime login
 runb() {
@@ -174,5 +178,6 @@ runb nope 0; rc=$?
 runb demo 0; rc=$?
 [[ $rc -eq 0 ]] && grep -qx '"messages":0,"topics":0,"read_marks":0,"flow_watches":0,"channels_reseeded":0' "$T/o" &&
   pass "B5. a second wipe is a no-op" || fail "B5. rerun rc=$rc $(cat "$T/o")"
+[[ "$(bans)" == "2" ]] && pass "B6. the ban list survives two wipes (2 rows)" || fail "B6. demo_bans rows after the wipes: $(bans)"
 
 (( fails == 0 )) && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

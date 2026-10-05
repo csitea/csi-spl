@@ -53,7 +53,8 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 				return "", err
 			}
 		}
-		r := admitRule{p: p, open: open, access: open && access, seatEnds: seatEnds, account: demoAccountKey(id)}
+		r := admitRule{p: p, open: open, access: open && access, seatEnds: seatEnds, account: demoAccountKey(id),
+			bans: demoBanKeys(id)}
 		if id.ClientIP != "" {
 			r.ip = demoIPKey(id.ClientIP)
 		}
@@ -181,6 +182,9 @@ type admitRule struct {
 	// account and ip are the T010 counter keys of an open admission
 	// (demoAccountKey, demoIPKey); ip "" skips the per-IP limit.
 	account, ip string
+	// bans are the demo ban list keys of the identity (demoBanKeys, rdb
+	// 0130, T016 part B).
+	bans []string
 }
 
 // noMemberElsewhere reports whether hum holds no membership outside tenant,
@@ -286,6 +290,12 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 func seatDemoTx(ctx context.Context, tx pgx.Tx, hum, tenant string, r admitRule, now time.Time) error {
 	if !r.access {
 		return ErrAccessUntilUnavailable
+	}
+	// specs/077 T016 part B: a banned account or address is refused first.
+	if banned, err := demoBannedTx(ctx, tx, tenant, r.bans); err != nil {
+		return err
+	} else if banned {
+		return ErrDemoBanned
 	}
 	var live int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m

@@ -354,18 +354,34 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, _, ok := s.targetRole(w, r, h, t, a, roles)
+	target, cur, ok := s.targetRole(w, r, h, t, a, roles)
 	if !ok || !notSelf(w, a, target) {
 		return
 	}
-	if err := h.RemoveMember(r.Context(), t.ID, target); err != nil {
+	banned, err := s.removeOrBan(r.Context(), h, t.ID, target, cur, a.HumanID)
+	if err != nil {
 		writeMemberErr(w, err)
 		return
 	}
-	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Msg("member.removed")
+	detail := ""
+	if banned {
+		detail = "banned"
+	}
+	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Bool("banned", banned).Msg("member.removed")
 	// CLE-77799: the durable per-person audit row for the Activity log.
-	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "removed"})
+	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "removed", Detail: detail})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// removeOrBan removes target. In the demo workspace a demo_user's removal is
+// a ban (specs/077 3.6, T016 part B): the store also lists the account and
+// address digests of its identities, which the open admission then refuses.
+// true = banned.
+func (s *Server) removeOrBan(ctx context.Context, h store.Humans, tenant, target, role, by string) (bool, error) {
+	if b, ok := h.(store.DemoBans); ok && role == rbac.DemoUser && s.o.DemoWorkspace != "" && tenant == s.o.DemoWorkspace {
+		return true, b.BanMember(ctx, tenant, target, by, s.o.Now())
+	}
+	return false, h.RemoveMember(ctx, tenant, target)
 }
 
 func (s *Server) membersPreflight(w http.ResponseWriter, r *http.Request) {

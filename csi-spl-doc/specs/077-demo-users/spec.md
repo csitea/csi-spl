@@ -276,6 +276,20 @@ Demo users see each other's posts (Q9), so:
 | report / moderation | a "report" reaction any demo user can add; a demo-workspace admin hides the message; three reports hide it automatically | hub + WUI |
 | ban | a demo-workspace admin removes the member; the address digest is blocked for the demo workspace | existing member remove + a block list |
 
+**Ban, as built (T016 part B).** In the demo workspace a moderator's
+`DELETE /v1/members/{human_id}` of a `demo_user` IS the ban (moderator =
+`members.invite`: admin, biz_owner; never `demo_user`). In one transaction the
+membership goes and rdb 0130 `demo_bans` lists, for every identity of that
+human, `acct:` sha256 of (provider, subject) and `mail:` sha256 of the
+lowercased address; never the raw values. The open admission refuses an
+identity whose account or address is listed (`not_allowed`, nothing written),
+before the live cap and the T010 counters, so the same address through the
+other provider is refused too. A digest, not a human id: the expiry sweep drops
+the human, the ban stays. **The nightly wipe keeps the ban list**
+(`do_spl_demo_wipe` deletes messages, read marks and watches only; a ban that
+lapsed every night would be no ban). No unban route: a mistaken ban is an
+operator `DELETE FROM demo_bans` row, in tenant scope.
+
 ### 3.7 Cost controls (Q6)
 
 - The demo box carries its own AI-vendor key with a **hard spending cap set at

@@ -113,6 +113,11 @@ func (s *Memory) SetMemberRole(_ context.Context, tenant, humanID, role, from st
 func (s *Memory) RemoveMember(_ context.Context, tenant, humanID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.removeMemberLocked(tenant, humanID)
+}
+
+// removeMemberLocked is RemoveMember with s.mu held (BanMember shares it).
+func (s *Memory) removeMemberLocked(tenant, humanID string) error {
 	s.hum.init()
 	k := [2]string{tenant, humanID}
 	m, ok := s.hum.members[k]

@@ -144,21 +144,27 @@ func (s *Postgres) SetMemberRole(ctx context.Context, tenant, humanID, role, fro
 func (s *Postgres) RemoveMember(ctx context.Context, tenant, humanID string) error {
 	defer s.hot.forget() // DB payload cut 5: the door cache holds the membership
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		cur, owner, err := memberTx(ctx, tx, tenant, humanID)
-		if err != nil {
-			return err
-		}
-		if owner {
-			if n, err := ownersLeftTx(ctx, tx, tenant, humanID); err != nil {
-				return err
-			} else if n == 0 {
-				return ErrLastOwner
-			}
-		}
-		if err := lastAdminTx(ctx, tx, tenant, humanID, cur, ""); err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `DELETE FROM tenant_memberships WHERE tenant_id = $1 AND human_id = $2`, tenant, humanID)
-		return err
+		return removeMemberTx(ctx, tx, tenant, humanID)
 	})
+}
+
+// removeMemberTx is RemoveMember inside an open tenant transaction
+// (BanMember shares it).
+func removeMemberTx(ctx context.Context, tx pgx.Tx, tenant, humanID string) error {
+	cur, owner, err := memberTx(ctx, tx, tenant, humanID)
+	if err != nil {
+		return err
+	}
+	if owner {
+		if n, err := ownersLeftTx(ctx, tx, tenant, humanID); err != nil {
+			return err
+		} else if n == 0 {
+			return ErrLastOwner
+		}
+	}
+	if err := lastAdminTx(ctx, tx, tenant, humanID, cur, ""); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `DELETE FROM tenant_memberships WHERE tenant_id = $1 AND human_id = $2`, tenant, humanID)
+	return err
 }

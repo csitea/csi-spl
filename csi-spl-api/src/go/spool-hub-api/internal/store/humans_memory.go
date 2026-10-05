@@ -225,6 +225,9 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 		grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
 			orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
 	} else if p.openAdmits(id, tenant) && !(resolved && h.realElsewhere(hum, tenant)) {
+		if s.demoBannedLocked(tenant, id) { // specs/077 T016 part B: a ban outlives the seat
+			return nil, nil, ErrDemoBanned
+		}
 		if h.liveDemoSeats(tenant, now) >= p.maxLive() {
 			return nil, nil, ErrDemoFull
 		}

@@ -138,6 +138,20 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, _, err := pg.TakeQuota(ctx, s.tenant, hum, "agent_turn", now, 20); err != nil { // quota_counts (rdb 0127, specs/077 T013)
 		t.Fatal(err)
 	}
+	// demo_bans (rdb 0130, specs/077 T016 part B): a second member, banned,
+	// so the table holds rows for both tenants.
+	banned := "ban-" + s.tenant + "@example.com"
+	if err := pg.PutInvite(ctx, Invite{TenantID: s.tenant, Email: banned, Role: "developer", InvitedBy: hum,
+		ExpiresAt: now.Add(24 * time.Hour)}, now); err != nil {
+		t.Fatal(err)
+	}
+	banHum, err := pg.Admit(ctx, Identity{Provider: "google", Subject: "sub-" + banned, Email: banned}, s.tenant, AdmitPolicy{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.BanMember(ctx, s.tenant, banHum, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.PutInvite(ctx, Invite{TenantID: s.tenant, Email: "inv-" + s.tenant + "@example.com", Role: "developer", InvitedBy: hum,
 		ExpiresAt: now.Add(24 * time.Hour)}, now); err != nil { // tenant_invites
 		t.Fatal(err)

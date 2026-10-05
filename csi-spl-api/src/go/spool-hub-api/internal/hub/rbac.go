@@ -39,14 +39,21 @@ func defaultAuthorizer(st store.Store) Authorizer {
 // errNoAuthorizer: the hub has no authorizer, so a human is denied.
 var errNoAuthorizer = errors.New("hub: no authorizer")
 
+// access is the human's standing in tenant, read once per request when a
+// message write route opened the request memo (privacy.go, perf E07).
 func (s *Server) access(ctx context.Context, hum, tenant string) (rbac.Access, error) {
 	if s.o.Authorizer == nil {
 		return rbac.Access{}, errNoAuthorizer
 	}
+	mm := s.requestMemo(ctx)
+	if a, err, ok := mm.access(tenant, hum); ok {
+		return a, err
+	}
 	a, err := s.o.Authorizer.Access(ctx, hum, tenant)
 	if err == nil && s.demoFenced(a, tenant) { // specs/077: demo_user only in the open demo workspace
-		return rbac.Access{}, rbac.ErrNotMember
+		a, err = rbac.Access{}, rbac.ErrNotMember
 	}
+	mm.putAccess(tenant, hum, a, err)
 	return a, err
 }
 

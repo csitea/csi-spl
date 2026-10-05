@@ -58,6 +58,9 @@ func (s *Server) loadTenant(w http.ResponseWriter, r *http.Request, id string) (
 // still names the tenant for an anonymous read and the human is attribution
 // only ("" = anonymous); otherwise the session decides (auth.ActiveTenant).
 func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tenant, string, bool) {
+	if messageRoute(r) {
+		s.openMembersMemo(r.Context()) // perf E07: one role read per message write
+	}
 	host := s.hostTenantID(r)
 	if s.o.ViewDoor == ViewDoorOff && host != "" {
 		t, ok := s.loadTenant(w, r, host)
@@ -96,6 +99,10 @@ func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tena
 	hum := sess.HumanID
 	if s.o.SessionID != nil { // test seam: the attributed human
 		hum, _ = s.o.SessionID(r, t.ID)
+	} else {
+		// ActiveTenant just proved this session a member of t: memberID
+		// answers it for the rest of the request without a second read.
+		s.requestMemo(r.Context()).putSession(t.ID, hum)
 	}
 	if !s.permit(w, r, t.ID, hum, rbac.TopicsRead) { // specs/025: every browser door reads
 		return store.Tenant{}, "", false
@@ -109,7 +116,24 @@ func (s *Server) memberID(r *http.Request, tenant string) (string, error) {
 	if s.o.SessionID != nil {
 		return s.o.SessionID(r, tenant)
 	}
-	return s.sessionFor(r, tenant)
+	mm := s.requestMemo(r.Context())
+	if hum := mm.session(tenant); hum != "" {
+		return hum, nil
+	}
+	hum, err := s.sessionFor(r, tenant)
+	if err == nil {
+		mm.putSession(tenant, hum)
+	}
+	return hum, err
+}
+
+// messageRoute reports a message write (PATCH|DELETE|POST|PUT
+// /v1/messages/{msg_id}[/...]): none of them changes a role or a
+// membership, so their request may memoise both (perf E07).
+func messageRoute(r *http.Request) bool {
+	method, path, ok := strings.Cut(r.Pattern, " ")
+	return ok && method != http.MethodGet && method != http.MethodOptions &&
+		strings.HasPrefix(path, "/v1/messages/{msg_id}")
 }
 
 // boxTenant resolves a box request that carries no upload token (the WS

@@ -2,9 +2,11 @@ package hub
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -189,15 +191,31 @@ func (s *Server) channelMemberSet(ctx context.Context, tenant, channel string) m
 // memo on its request's context and the rest of that request reads each
 // channel once.
 //
+// Perf edition 20261004 E07: the same memo holds the writer's rbac.Access
+// and session HUM-* per tenant. A message write asked rbac for one role on
+// its door permit, its own permit and its moderator check, and the session
+// for its reader: 5 MemberRole reads per request. humanTenant opens the memo
+// for the message write routes (messageRoute), before those reads.
+//
 // It is NOT a cache: it is dropped when the request's context ends, so a
-// member removed between two requests is out on the next one (025 FR-004,
-// as store.WithMemo). It is opened only by messageDoor, whose routes never
-// change channel membership; the membership routes never carry one. A
-// lookup error is never memoised. A context that never ends (Background,
-// WithoutCancel) gets no memo, so nothing outlives the request.
+// member removed or demoted between two requests is out on the next one (025
+// FR-004, as store.WithMemo). It never reads the store's 5 s door cache
+// (hotcache.go). It is opened only by messageDoor and messageRoute, whose
+// routes never change a role or a channel membership; the membership and
+// role routes never carry one. A lookup error is never memoised. A context
+// that never ends (Background, WithoutCancel) gets no memo, so nothing
+// outlives the request.
 type membersMemo struct {
-	mu sync.Mutex
-	m  map[[2]string][]string
+	mu       sync.Mutex
+	m        map[[2]string][]string
+	roles    map[[2]string]memoAccess // (tenant, human)
+	sessions map[string]string        // tenant -> the session's HUM-*
+}
+
+// memoAccess is one access() answer: nil err or rbac.ErrNotMember.
+type memoAccess struct {
+	a   rbac.Access
+	err error
 }
 
 type membersMemoKey struct {
@@ -215,22 +233,75 @@ func (s *Server) openMembersMemo(ctx context.Context) {
 		return
 	}
 	k := membersMemoKey{s, ctx}
-	if _, loaded := membersMemos.LoadOrStore(k, &membersMemo{m: map[[2]string][]string{}}); !loaded {
+	mm := &membersMemo{m: map[[2]string][]string{}, roles: map[[2]string]memoAccess{}, sessions: map[string]string{}}
+	if _, loaded := membersMemos.LoadOrStore(k, mm); !loaded {
 		context.AfterFunc(ctx, func() { membersMemos.Delete(k) })
 	}
+}
+
+// requestMemo is the memo the request opened, nil when none.
+func (s *Server) requestMemo(ctx context.Context) *membersMemo {
+	if ctx.Done() == nil {
+		return nil
+	}
+	v, ok := membersMemos.Load(membersMemoKey{s, ctx})
+	if !ok {
+		return nil
+	}
+	return v.(*membersMemo)
+}
+
+// access answers the memoised access() of (tenant, human); ok=false when
+// there is none (or no memo).
+func (mm *membersMemo) access(tenant, human string) (rbac.Access, error, bool) {
+	if mm == nil {
+		return rbac.Access{}, nil, false
+	}
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	v, ok := mm.roles[[2]string{tenant, human}]
+	return v.a, v.err, ok
+}
+
+// putAccess keeps an access() answer: a role or "not a member", never
+// another error.
+func (mm *membersMemo) putAccess(tenant, human string, a rbac.Access, err error) {
+	if mm == nil || (err != nil && !errors.Is(err, rbac.ErrNotMember)) {
+		return
+	}
+	mm.mu.Lock()
+	mm.roles[[2]string{tenant, human}] = memoAccess{a: a, err: err}
+	mm.mu.Unlock()
+}
+
+// session is the HUM-* this request's session already proved a member of
+// tenant, "" when none was.
+func (mm *membersMemo) session(tenant string) string {
+	if mm == nil {
+		return ""
+	}
+	mm.mu.Lock()
+	defer mm.mu.Unlock()
+	return mm.sessions[tenant]
+}
+
+func (mm *membersMemo) putSession(tenant, human string) {
+	if mm == nil || human == "" {
+		return
+	}
+	mm.mu.Lock()
+	mm.sessions[tenant] = human
+	mm.mu.Unlock()
 }
 
 // channelHumans is Store.ChannelHumanMembers through the request's memo,
 // when messageDoor opened one. Callers only read the list.
 func (s *Server) channelHumans(ctx context.Context, tenant, channel string) ([]string, error) {
-	if ctx.Done() == nil {
+	mm := s.requestMemo(ctx)
+	if mm == nil {
 		return s.o.Store.ChannelHumanMembers(ctx, tenant, channel)
 	}
-	v, ok := membersMemos.Load(membersMemoKey{s, ctx})
-	if !ok {
-		return s.o.Store.ChannelHumanMembers(ctx, tenant, channel)
-	}
-	mm, k := v.(*membersMemo), [2]string{tenant, channel}
+	k := [2]string{tenant, channel}
 	mm.mu.Lock()
 	ms, hit := mm.m[k]
 	mm.mu.Unlock()

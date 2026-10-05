@@ -411,8 +411,9 @@ function flushDraftSave() {
 watch(text, (s) => {
   const human = draftHuman.value
   const place = draftPlace.value
-  if (!import.meta.client || !human || !place || !isDraftText(s) || s === draftStored) return
+  /* a later key wins: `/` then `/s` (a search) must not keep `/` */
   cancelDraftSave()
+  if (!import.meta.client || !human || !place || !isDraftText(s) || s === draftStored) return
   draftPending = () => {
     saveDraft(undefined, human, place, s)
     draftStored = s

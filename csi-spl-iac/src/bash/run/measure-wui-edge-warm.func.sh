@@ -86,6 +86,7 @@ do_measure_wui_edge_warm() {
   # the crawl paths + the sample: the RETURN trap removes the dir on every
   # return path, a failed crawl included
   work=$(mktemp -d) || return 1
+  # shellcheck disable=SC2064
   trap "rm -rf '${work:?}'; trap - RETURN" RETURN
   # the crawl at 1 worker, 2/s, capped: enough paths to sample, no burst
   if ! WARM_WUI_PARALLEL=1 WARM_WUI_RATE=2/s WARM_WUI_MAX_FILES="${MEASURE_WUI_MAX_FILES:-$(( n * 4 + 80 ))}" \

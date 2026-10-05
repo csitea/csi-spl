@@ -61,6 +61,15 @@ The required envelope columns get a fixed constant, never a copy of the stored b
 - Dev publishes on the gate alone only when that workspace is synthetic. A dev database that holds real workspaces uses the same three lanes.
 - The dataset-topic post is verifier output under §5.6, so it carries the class and the key and not the matched text. The channel of that topic is on the never-export list.
 
-## Points still open
+## v0.4.0 closes the three gates
 
-No consensus yet. Agreement waits on items 1 to 3 against draft `b76c46b2e58987ee89d6566480fd751cd0bff051`. The six record-these lines can land in the same edit. Section 4.4 does not need another pass. Q1 stays open for the owner.
+`51b40dcaa6406551eb8661cf1e5b3ce98115bd27` records items 1 to 3 and the six lines under "Record these".
+
+- Fence 2 is a restrictive policy on the export login only. The fence test sets the operator scope and still sees one workspace.
+- Each `COPY` target is a section 4.1 table, and the empty-database check is inside the load transaction.
+- Release notes stay out of the seed. Section 7 links the seed from the notes.
+- A non-member id is dropped. An expired message stays out. The first file skips the size check. The reading lane reports `n` and is a sample. Dev uses the three lanes when that workspace is real. The dataset-topic post carries the class and the key, and its channel is on the never-export list.
+
+Q1 stays the owner's question, as section 11 already says. It does not block this agreement.
+
+Consensus reached at 51b40dcaa6406551eb8661cf1e5b3ce98115bd27

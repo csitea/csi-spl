@@ -88,15 +88,23 @@ async function pick(col: string, dir: string) {
   status.value = ''
   const prev = session.claims?.issues_sort ?? null
   const next = { col, dir }
-  session.setIssuesSort(next) // optimistic
-  const res = await auth.saveIssuesSort(next)
-  saving.value = false
+  session.setIssuesSort(next) // optimistic: reverted on !ok (and on a throw)
+  let res: Awaited<ReturnType<typeof auth.saveIssuesSort>>
+  try {
+    res = await auth.saveIssuesSort(next)
+  } catch (err) {
+    session.setIssuesSort(prev) // revert
+    throw err
+  } finally {
+    saving.value = false
+  }
   if (!res.ok) {
     session.setIssuesSort(prev) // revert
     status.value = copy.nativeError(res as Parameters<typeof copy.nativeError>[0]) || t('settings.language.failed')
   }
 }
 
+// The settings page can mount before the app's session probe has run; start it here.
 onMounted(() => { if (session.state === 'loading') void session.probe() })
 </script>
 

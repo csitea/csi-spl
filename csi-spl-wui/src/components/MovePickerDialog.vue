@@ -116,15 +116,20 @@ async function load() {
 onMounted(() => { if (props.open) void load() })
 watch(() => props.open, (v) => { if (v) void load() })
 
+/* Closes the dialog BEFORE the move runs (the emit below), so the picker is
+   already gone while the move is in flight; `busy` only guards a double pick. */
 async function pick(row: Row) {
   if (busy.value) return
   busy.value = true
-  emit('update:open', false)
-  const id = String(props.msg.msg_id || '')
-  if (props.mode === 'channel') await move.run({ kind: 'topic', msgId: id, toChannel: row.id })
-  else if (props.mode === 'merge') move.askMerge({ msgId: id, toTask: row.id, sourceTitle: '', targetTitle: row.label })
-  else await move.run({ kind: 'message', msgId: id, toTask: row.id }, row.label)
-  busy.value = false
+  try {
+    emit('update:open', false)
+    const id = String(props.msg.msg_id || '')
+    if (props.mode === 'channel') await move.run({ kind: 'topic', msgId: id, toChannel: row.id })
+    else if (props.mode === 'merge') move.askMerge({ msgId: id, toTask: row.id, sourceTitle: '', targetTitle: row.label })
+    else await move.run({ kind: 'message', msgId: id, toTask: row.id }, row.label)
+  } finally {
+    busy.value = false
+  }
 }
 
 function pickFirst() {

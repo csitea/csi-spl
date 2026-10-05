@@ -68,13 +68,18 @@ async function pick(key: ViewPrefKey, want: string) {
   if (!signedIn.value || saving.value) return
   saving.value = true
   status[key] = ''
-  const res = await prefs.save(key, want)
-  saving.value = false
+  let res: Awaited<ReturnType<typeof prefs.save>>
+  try {
+    res = await prefs.save(key, want)
+  } finally {
+    saving.value = false
+  }
   if (!res.ok) {
     status[key] = copy.nativeError(((res as { out?: unknown }).out ?? null) as Parameters<typeof copy.nativeError>[0]) || t('settings.language.failed')
   }
 }
 
+// The settings page can mount before the app's session probe has run; start it here.
 onMounted(() => { if (session.state === 'loading') void session.probe() })
 </script>
 

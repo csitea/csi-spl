@@ -69,12 +69,16 @@ async function save() {
   if (!signedIn.value || saving.value) return
   saving.value = true
   status.value = ''
-  const res = await applyDisplayName(draft.value, {
-    current: current.value,
-    save: (name: string) => auth.saveDisplayName(name),
-    apply: (name: string) => session.setName(name),
-  })
-  saving.value = false
+  let res: Awaited<ReturnType<typeof applyDisplayName>>
+  try {
+    res = await applyDisplayName(draft.value, {
+      current: current.value,
+      save: (name: string) => auth.saveDisplayName(name),
+      apply: (name: string) => session.setName(name),
+    })
+  } finally {
+    saving.value = false
+  }
   failed.value = !res.ok
   if (res.ok) {
     draft.value = res.name
@@ -89,6 +93,7 @@ async function save() {
     : t('settings.display_name.failed')
 }
 
+// The settings page can mount before the app's session probe has run; start it here.
 onMounted(() => { if (session.state === 'loading') void session.probe() })
 </script>
 

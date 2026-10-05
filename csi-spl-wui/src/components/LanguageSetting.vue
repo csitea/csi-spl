@@ -84,8 +84,12 @@ async function savePreferredLocale() {
   saving.value = true
   status.value = ''
   const want = preferredLocale.value
-  const out = await auth.savePreferences({ preferred_locale: want })
-  saving.value = false
+  let out: Awaited<ReturnType<typeof auth.savePreferences>>
+  try {
+    out = await auth.savePreferences({ preferred_locale: want })
+  } finally {
+    saving.value = false
+  }
   if (out.ok) {
     session.setPreferredLocale(want)
     statusError.value = false
@@ -100,6 +104,7 @@ async function savePreferredLocale() {
   status.value = copy.nativeError(out) || t('settings.language.failed')
 }
 
+// The settings page can mount before the app's session probe has run; start it here.
 onMounted(() => { if (session.state === 'loading') void session.probe() })
 </script>
 

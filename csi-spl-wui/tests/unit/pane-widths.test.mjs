@@ -37,6 +37,12 @@ import {
   topicDefaultFor,
   mainWidthFor,
   loadStoredTopic,
+  PANE_VIEWS,
+  viewOf,
+  paneViews,
+  paneSetFor,
+  loadPaneViews,
+  clearPaneWidths,
 } from '../../src/utils/pane-widths.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -167,7 +173,7 @@ describe('pane-widths proportional default (spec 078 FR-006, AC5)', () => {
   it('composable uses the default only when nothing is stored, and sets --topic-w from it', () => {
     const src = read('src/composables/usePaneWidths.ts')
     assert.equal(src.includes('storedTopic.value ?? topicDefaultFor(mainWidthFor('), true)
-    assert.equal(src.includes('loadStoredTopic()'), true)
+    assert.equal(src.includes('loadStoredTopic(undefined, v)'), true)
     assert.equal(src.includes('ref(TOPIC_DEFAULT)'), false)
     const css = read('src/assets/css/variables.css')
     assert.equal(/--topic-w:\s*380px/.test(css), false, 'variables.css is no longer the source')
@@ -211,7 +217,7 @@ describe('pane-widths persist', () => {
     const store = memoryStore()
     assert.deepEqual(loadPaneWidths(store), { sidebar: SIDEBAR_DEFAULT, topic: TOPIC_DEFAULT })
     assert.equal(savePaneWidths({ sidebar: 300, topic: 400 }, store), true)
-    assert.equal(store.getItem(PANE_WIDTHS_KEY), JSON.stringify({ sidebar: 300, topic: 400 }))
+    assert.equal(store.getItem(PANE_WIDTHS_KEY), JSON.stringify({ views: { default: { sidebar: 300, topic: 400 } } }))
     assert.deepEqual(loadPaneWidths(store), { sidebar: 300, topic: 400 })
   })
 
@@ -238,18 +244,85 @@ describe('pane-widths persist', () => {
   it('a null topic drops the stored width so the default applies again', () => {
     const store = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 260, topic: 500, issues: 440 }) })
     assert.equal(savePaneWidths({ sidebar: 300, topic: null }, store), true)
-    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { sidebar: 300, issues: 440 })
+    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { issues: 440, views: { default: { sidebar: 300 } } })
     assert.equal(loadStoredTopic(store), null)
   })
 
   it('keeps the issue detail width when the sidebar is saved again', () => {
     const store = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 260, topic: 380, issues: 440 }) })
     assert.equal(savePaneWidths({ sidebar: 300, topic: 400 }, store), true)
-    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { sidebar: 300, topic: 400, issues: 440 })
+    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { issues: 440, views: { default: { sidebar: 300, topic: 400 } } })
   })
 
   it('PANE_WIDTHS_KEY is the FR-003 allow-list name spool.pane-widths', () => {
     assert.equal(PANE_WIDTHS_KEY, 'spool.pane-widths')
+  })
+})
+
+describe('pane-widths per view (spec 078 FR-007, AC7)', () => {
+  it('viewOf maps a route to its view; any other page is default', () => {
+    assert.deepEqual(PANE_VIEWS, ['default', 'channel', 'issues', 'help', 'docs'])
+    assert.equal(viewOf('/channel/lobby'), 'channel')
+    assert.equal(viewOf({ path: '/dm/peer-1' }), 'channel')
+    assert.equal(viewOf('/issues'), 'issues')
+    assert.equal(viewOf('/issues?id=x'), 'issues')
+    assert.equal(viewOf('/help'), 'help')
+    assert.equal(viewOf('/help/interface-overview'), 'help')
+    assert.equal(viewOf('/docs'), 'docs')
+    for (const p of ['/', '/t/abc', '/search', '/people', '/issuesx', '/documents', '', null]) {
+      assert.equal(viewOf(p), 'default', String(p))
+    }
+  })
+
+  it('AC7: drag-commit in view issues leaves channel unchanged', () => {
+    const store = memoryStore()
+    assert.equal(savePaneWidths({ sidebar: 300, topic: 520 }, store, 'channel'), true)
+    assert.equal(savePaneWidths({ sidebar: 240, topic: 360 }, store, 'issues'), true)
+    assert.deepEqual(loadPaneWidths(store, 'channel'), { sidebar: 300, topic: 520 })
+    assert.deepEqual(loadPaneWidths(store, 'issues'), { sidebar: 240, topic: 360 })
+    assert.equal(loadStoredTopic(store, 'channel'), 520)
+    // a view never dragged falls back to default, then to the product default
+    assert.deepEqual(loadPaneWidths(store, 'help'), { sidebar: SIDEBAR_DEFAULT, topic: TOPIC_DEFAULT })
+    assert.equal(loadStoredTopic(store, 'help'), null)
+  })
+
+  it('AC7: a stored flat {sidebar: .2, topic: .3} loads as default', () => {
+    assert.deepEqual(paneViews({ sidebar: 0.2, topic: 0.3 }), { default: { sidebar: 0.2, topic: 0.3 } })
+    assert.deepEqual(paneSetFor(paneViews({ sidebar: 0.2, topic: 0.3 }), 'issues'), { sidebar: 0.2, topic: 0.3 })
+    const flat = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ sidebar: 300, topic: 410, issues: 440 }) })
+    assert.deepEqual(loadPaneViews(flat), { default: { sidebar: 300, topic: 410 } })
+    assert.deepEqual(loadPaneWidths(flat, 'channel'), { sidebar: 300, topic: 410 })
+    // the first per-view save keeps the old flat pair as default
+    assert.equal(savePaneWidths({ sidebar: 250, topic: 500 }, flat, 'docs'), true)
+    assert.deepEqual(JSON.parse(flat.getItem(PANE_WIDTHS_KEY)), {
+      issues: 440,
+      views: { default: { sidebar: 300, topic: 410 }, docs: { sidebar: 250, topic: 500 } },
+    })
+  })
+
+  it('paneViews keeps known views with finite widths and drops junk', () => {
+    assert.deepEqual(paneViews(null), {})
+    assert.deepEqual(paneViews(['x']), {})
+    assert.deepEqual(paneViews({ channel: { topic: 0.4, x: 1 }, search: { topic: 0.3 }, docs: 'x', help: {} }),
+      { channel: { topic: 0.4 } })
+    assert.deepEqual(paneViews({ sidebar: 'nope', topic: 410 }), { default: { topic: 410 } })
+    assert.equal(paneSetFor({}, 'channel'), null)
+  })
+
+  it('the issue detail width is not a view: it survives saves and reset', () => {
+    const store = memoryStore({ [PANE_WIDTHS_KEY]: JSON.stringify({ issues: 440 }) })
+    savePaneWidths({ sidebar: 260, topic: 400 }, store, 'issues')
+    assert.equal(JSON.parse(store.getItem(PANE_WIDTHS_KEY)).issues, 440)
+    assert.equal(clearPaneWidths(store), true)
+    assert.deepEqual(JSON.parse(store.getItem(PANE_WIDTHS_KEY)), { issues: 440 })
+  })
+
+  it('composable: commit writes only the current view; a view change lands the pending drag first', () => {
+    const src = read('src/composables/usePaneWidths.ts')
+    assert.equal(src.includes('const view = computed(() => viewOf(route.path))'), true)
+    assert.equal(src.includes('{ ...paneViews(session.claims?.pane_sizes), [v]: f }'), true)
+    assert.equal(src.includes('if (commitTimer) commit(prev)'), true)
+    assert.equal(src.includes('paneSetFor(paneViews(session.claims?.pane_sizes), v)'), true)
   })
 })
 

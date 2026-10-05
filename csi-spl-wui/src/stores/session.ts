@@ -45,8 +45,9 @@ export interface SessionClaims {
   issues_columns?: Record<string, number> | null
   /** SPL-1181 Issues list default sort: {col, dir}; null = never picked (priority ascending). */
   issues_sort?: { col: string, dir: string } | null
-  /** SPL-1182 The two vertical dividers' widths as window fractions; null = never dragged (default layout). */
-  pane_sizes?: Record<string, number> | null
+  /** SPL-1182 The two vertical dividers' widths as window fractions; null = never dragged (default layout).
+      Spec 078 FR-007: per view ({default: {sidebar, topic}, channel?, issues?, help?, docs?}); an old flat {sidebar, topic} reads as default. */
+  pane_sizes?: Record<string, number | Record<string, number>> | null
   /** CLE-77908 The IANA zone every time prints in, per workspace; null = the browser's zone. */
   time_zone?: string | null
   /** HUM-10 ae2e5093 The message Shift+letter shortcuts, per workspace; null = never picked = on. */
@@ -166,7 +167,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   /** SPL-1182: mirror the divider widths (optimistic; reverted on a failed save). */
-  function setPaneSizes(sizes: Record<string, number> | null) {
+  function setPaneSizes(sizes: Record<string, number | Record<string, number>> | null) {
     if (claims.value) claims.value = { ...claims.value, pane_sizes: sizes }
   }
 

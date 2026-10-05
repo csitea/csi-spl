@@ -5,9 +5,12 @@ import {
   clampPair,
   clampSidebar,
   clampTopic,
+  clearPaneWidths,
   loadPaneWidths,
   loadStoredTopic,
   mainWidthFor,
+  paneSetFor,
+  paneViews,
   savePaneWidths,
   topicDefaultFor,
   resetPane,
@@ -15,6 +18,7 @@ import {
   topicRange,
   sidebarShown,
   topicShown,
+  viewOf,
 } from '~/utils/pane-widths.mjs'
 import { MOBILE_STACK_MAX_PX } from '~/utils/mobile-stack.mjs'
 
@@ -34,9 +38,13 @@ export function usePaneWidths(opts: {
   const storedTopic = ref<number | null>(null)
   const session = useSessionStore()
   const auth = useAuthClient()
-  /* SPL-1182: the last fractions written to the account, so a drag that ends
-     where it began writes nothing (skip the no-op PUT). */
-  let lastSaved: { sidebar: number, topic?: number } | null = null
+  /* Spec 078 FR-007: the view whose widths are in force (channel, issues,
+     help, docs, else default). */
+  const route = useRoute()
+  const view = computed(() => viewOf(route.path))
+  /* SPL-1182: the last fractions written to the account for a view, so a drag
+     that ends where it began writes nothing (skip the no-op PUT). */
+  let lastSaved: { view: string, sidebar: number, topic?: number } | null = null
   let commitTimer: ReturnType<typeof setTimeout> | null = null
 
   /* The topic width in force: the dragged one, else 40 % of the space right
@@ -77,7 +85,7 @@ export function usePaneWidths(opts: {
   }))
 
   function persist() {
-    savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value })
+    savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value }, undefined, view.value)
     scheduleCommit()
   }
 
@@ -93,15 +101,18 @@ export function usePaneWidths(opts: {
      ONE PUT per gesture — a trailing debounce collapses the drag's stream of
      moves into a single write after it settles (owner: "save once on drag end,
      debounce it, skip if unchanged"). Only above the phone width; a failed
-     save is left to the localStorage copy. */
-  function commit() {
+     save is left to the localStorage copy. Spec 078 FR-007: it writes only
+     view v; the account's other views go back as they were (an old flat
+     value goes back as default). */
+  function commit(v: string = view.value) {
     if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
     if (session.state !== 'in' || viewportW.value <= PANE_ACCOUNT_MIN_W) return
     const f = fractions()
-    if (lastSaved && lastSaved.sidebar === f.sidebar && lastSaved.topic === f.topic) return
-    lastSaved = f
-    session.setPaneSizes(f)
-    void auth.savePaneSizes(f).catch(() => { lastSaved = null })
+    if (lastSaved && lastSaved.view === v && lastSaved.sidebar === f.sidebar && lastSaved.topic === f.topic) return
+    lastSaved = { view: v, ...f }
+    const next = { ...paneViews(session.claims?.pane_sizes), [v]: f }
+    session.setPaneSizes(next)
+    void auth.savePaneSizes(next).catch(() => { lastSaved = null })
   }
 
   function scheduleCommit() {
@@ -143,7 +154,7 @@ export function usePaneWidths(opts: {
   function resetAll() {
     storedSidebar.value = resetPane('sidebar')
     storedTopic.value = null
-    savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value })
+    clearPaneWidths()
     if (commitTimer) { clearTimeout(commitTimer); commitTimer = null }
     if (session.state === 'in') {
       lastSaved = null
@@ -163,25 +174,35 @@ export function usePaneWidths(opts: {
      (62.7..65.8 ms self on /issues, m390 CPU 4x). A later width change comes
      through the resize listener. */
   function hydrate() {
-    const loaded = loadPaneWidths()
-    const loadedTopic = loadStoredTopic()
+    const v = view.value
+    const loaded = loadPaneWidths(undefined, v)
+    const loadedTopic = loadStoredTopic(undefined, v)
     /* SPL-1182: on a wide screen a signed-in person's account override
        (fractions -> px, clamped) wins over this browser's localStorage, so a
        new device draws their kept layout. The result is written back to
-       localStorage so the next load on this device paints it before hydrate. */
-    const acct = session.claims?.pane_sizes
+       localStorage so the next load on this device paints it before hydrate.
+       Spec 078 FR-007: the set is this view's, else the account's default. */
+    const acct = paneSetFor(paneViews(session.claims?.pane_sizes), v)
     if (session.state === 'in' && acct && viewportW.value > PANE_ACCOUNT_MIN_W) {
       const sb = acct.sidebar ? Math.round(acct.sidebar * viewportW.value) : loaded.sidebar
       const tp = acct.topic ? Math.round(acct.topic * viewportW.value) : loadedTopic
       storedSidebar.value = clampSidebar(sb, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, topicW: tp ?? undefined })
       storedTopic.value = tp === null ? null : clampTopic(tp, { viewportW: viewportW.value, topicOpen: opts.topicOpen.value, sidebarW: storedSidebar.value })
-      lastSaved = fractions() // where we are now = already on the account, so no re-save
-      savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value })
+      lastSaved = { view: v, ...fractions() } // where we are now = already on the account, so no re-save
+      savePaneWidths({ sidebar: storedSidebar.value, topic: storedTopic.value }, undefined, v)
       return
     }
     storedSidebar.value = loaded.sidebar
     storedTopic.value = loadedTopic
   }
+
+  /* Spec 078 FR-007: a view change first lands a pending drag on the view it
+     was made in, then draws the new view's widths. */
+  watch(view, (_next, prev) => {
+    if (!import.meta.client) return
+    if (commitTimer) commit(prev)
+    hydrate()
+  })
 
   onMounted(() => {
     hydrate()

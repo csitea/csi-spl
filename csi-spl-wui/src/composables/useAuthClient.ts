@@ -19,7 +19,7 @@ export function useAuthBase(): string {
 type AuthClient = ReturnType<typeof createAuthClient>
 type PerTenantPrefSaves = {
   saveIssuesSort(sort: { col: string, dir: string } | null): ReturnType<AuthClient['saveIssueColumns']>
-  savePaneSizes(sizes: Record<string, number> | null): ReturnType<AuthClient['saveIssueColumns']>
+  savePaneSizes(sizes: Record<string, number | Record<string, number>> | null): ReturnType<AuthClient['saveIssueColumns']>
   saveTimeZone(zone: string | null): ReturnType<AuthClient['saveIssueColumns']>
   saveKeyboardShortcuts(on: boolean | null): ReturnType<AuthClient['saveIssueColumns']>
   // specs/054: same reason — vue-tsc drops these from the big literal's inferred

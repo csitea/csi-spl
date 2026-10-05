@@ -1157,8 +1157,8 @@ declare module '~/utils/pane-widths.mjs' {
     startX: number,
     clientX: number,
   ): number
-  export function loadPaneWidths(store?: unknown): { sidebar: number, topic: number }
-  export function savePaneWidths(widths: { sidebar: number, topic: number }, store?: unknown): boolean
+  export function loadPaneWidths(store?: unknown, view?: string): { sidebar: number, topic: number }
+  export function savePaneWidths(widths: { sidebar: number, topic: number }, store?: unknown, view?: string): boolean
   export function resetPane(pane: 'sidebar' | 'topic'): number
 }
 
@@ -2240,6 +2240,15 @@ declare module '~/utils/pane-widths.mjs' {
   export const TOPIC_DEFAULT_RATIO: number
   export function topicDefaultFor(mainWidth: number): number
   export function mainWidthFor(viewportW: number, sidebarW: number): number
-  export function loadStoredTopic(store?: unknown): number | null
-  export function savePaneWidths(widths: { sidebar: number, topic: number | null }, store?: unknown): boolean
+  export function loadStoredTopic(store?: unknown, view?: string): number | null
+  export function savePaneWidths(widths: { sidebar: number, topic: number | null }, store?: unknown, view?: string): boolean
+  // 078 T005: per-view widths.
+  export type PaneView = 'default' | 'channel' | 'issues' | 'help' | 'docs'
+  export type PaneSet = { sidebar?: number, topic?: number }
+  export const PANE_VIEWS: PaneView[]
+  export function viewOf(route: string | { path?: string } | null | undefined): PaneView
+  export function paneViews(raw: unknown): Partial<Record<PaneView, PaneSet>>
+  export function paneSetFor(views: Partial<Record<PaneView, PaneSet>> | null | undefined, view?: string): PaneSet | null
+  export function loadPaneViews(store?: unknown): Partial<Record<PaneView, PaneSet>>
+  export function clearPaneWidths(store?: unknown): boolean
 }

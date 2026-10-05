@@ -160,6 +160,30 @@ export function chipLabel({ dock = null, place = '', text = '', named = null, ti
   return { key: '', params: {}, text: where, open: where ? at : '' }
 }
 
+/** 085 FR-002: the phone chip's cap, in characters (spec Q4: ~85 px at 14 px). */
+export const PHONE_CHIP_MAX = 12
+
+/**
+ * 085 FR-001 / FR-002: 080's chip on the phone dock. The same chipLabel, two
+ * differences: a FOCUSED empty box names where a plain line would go (spec
+ * Q3: the reader sees the destination before typing), and the words are cut
+ * to PHONE_CHIP_MAX characters, an ellipsis after. `full` is the uncut label
+ * for the chip's title and accessible name. `render` turns chipLabel's
+ * { key, params, text } into words (the composer passes its i18n t()).
+ * @param {{ dock?: { reply?: boolean, target?: string, comment?: boolean, dm?: boolean } | null, place?: string, text?: unknown, named?: { taskId?: string, title?: string } | null, title?: string }} [opts]
+ * @param {{ focused?: boolean, render?: (c: { key: string, params: Record<string, string>, text: string }) => string }} [how]
+ * @returns {{ key: string, params: Record<string, string>, text: string, open: string, full: string, short: string } | null}
+ */
+export function phoneChipLabel(opts = {}, { focused = false, render = (c) => c.text || c.key } = {}) {
+  const line = String(opts.text || '')
+  const c = chipLabel(focused && !line.trim() ? { ...opts, text: 'x' } : opts)
+  if (!c) return null
+  const full = String(render(c) || '')
+  const chars = Array.from(full)
+  const short = chars.length > PHONE_CHIP_MAX ? chars.slice(0, PHONE_CHIP_MAX).join('') + '…' : full
+  return { ...c, full, short }
+}
+
 /**
  * HUM-24 (CLE-77879, 2026-10-01): "creating a new topic must look different
  * from writing a reply in the chat". The line over the phone / bottom dock

@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chipLabel, isParentFlag, omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
+import { chipLabel, isParentFlag, PHONE_CHIP_MAX, phoneChipLabel, omniboxParentTaskId, omniboxPlaceholderKey, omniboxReplyTaskId, sendsNewTopic, startsNewTopic } from '../../src/utils/omnibox-topic.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -174,8 +174,78 @@ describe('080 the target chip and the send read one target (AC6)', () => {
 
   it('the composer renders the chip from chipLabel, and the bottom-only line is gone', () => {
     const vue = src('src/components/MessageComposer.vue')
-    assert.match(vue, /chipLabel\(\{ dock: props\.dockTarget, place, text: text\.value, named, title \}\)/)
+    assert.match(vue, /const opts = \{ dock: props\.dockTarget, place, text: text\.value, named, title \}/)
+    assert.match(vue, /const c = chipLabel\(opts\)/)
     assert.match(vue, /data-test="composer-target-chip"/)
     assert.doesNotMatch(vue, /data-test="dock-target"/)
+  })
+})
+
+/* 085 FR-002 (AC3): on a phone the chip is chipLabel(target), its words cut
+   to 12 characters with an ellipsis after, for every row of 080 AC6's target
+   table; the uncut words stay in `full` (title, aria-label). Spec Q3: a
+   focused empty box already names the target a plain line would go to. */
+describe('085 the phone chip is chipLabel cut to 12 characters (AC3)', () => {
+  const TABLE = [
+    { tab: 'topics', selectedTaskId: 'T-1' },
+    { tab: 'topics', selectedTaskId: 'T-1', namedTopicId: 'T-9' },
+    { tab: 'topics', selectedTaskId: '' },
+    { tab: 'channels', selectedTaskId: 'T-1', paneVisible: true },
+    { tab: 'channels', selectedTaskId: 'T-1' },
+    { tab: 'dm', selectedTaskId: 'T-1' },
+    {},
+  ]
+  const LINES = ['hello', '@CLE-07 do the thing', '@test', '@CLE-07']
+  const PAGES = [
+    { name: 'channel', dock: (r) => ({ reply: Boolean(r), target: '#feedback' }), place: (r) => (r ? `t:${r}` : 'ch:feedback') },
+    { name: 'lobby', dock: (r) => ({ reply: Boolean(r), target: '#lobby' }), place: (r) => (r ? `t:${r}` : 'ch:lobby') },
+    { name: 'dm', dock: (r) => ({ reply: Boolean(r), target: 'HUM-3', dm: true }), place: (r) => (r ? `t:${r}` : 'dm:HUM-3') },
+  ]
+  const WORDS = { 'composer.chip_reply': 'Reply · {title}', 'composer.chip_new_topic': 'New topic · {target}' }
+  const render = (c) => (c.key ? WORDS[c.key].replace(/\{(\w+)\}/g, (_, k) => c.params[k]) : c.text)
+  const cut = (s) => (Array.from(s).length > 12 ? Array.from(s).slice(0, 12).join('') + '…' : s)
+  for (const page of PAGES) {
+    for (const row of TABLE) {
+      for (const text of LINES) {
+        it(`${page.name} ${JSON.stringify(row)} ${JSON.stringify(text)}`, () => {
+          const reply = omniboxReplyTaskId(row)
+          const opts = { dock: page.dock(reply), place: page.place(reply), text, title: 'A long topic title' }
+          const c = phoneChipLabel(opts, { render })
+          const base = chipLabel(opts)
+          assert.ok(c && base)
+          assert.equal(c.full, render(base))
+          assert.equal(c.short, cut(render(base)))
+          assert.ok(Array.from(c.short.replace(/…$/, '')).length <= PHONE_CHIP_MAX)
+          assert.deepEqual([c.key, c.open], [base.key, base.open])
+        })
+      }
+    }
+  }
+
+  it('short labels stay whole; a long one is cut to 12 + an ellipsis', () => {
+    assert.equal(PHONE_CHIP_MAX, 12)
+    assert.equal(phoneChipLabel({ dock: { reply: false, target: '#alerts' }, place: 'ch:alerts', text: 'x' })?.short, '#alerts')
+    assert.equal(phoneChipLabel({ dock: { reply: false, target: 'GRK-03', dm: true }, place: 'dm:GRK-03', text: 'x' })?.short, '@GRK-03')
+    const long = phoneChipLabel({ dock: { reply: false, target: '#a' }, place: 'ch:spool-hub-mobile', text: 'x' })
+    assert.deepEqual([long?.short, long?.full], ['#spool-hub-m…', '#spool-hub-mobile'])
+  })
+
+  it('spec Q3: a focused empty box names the target; unfocused, or in /search, no chip', () => {
+    const opts = { dock: { reply: false, target: '#alerts' }, place: 'ch:alerts', text: '' }
+    assert.equal(phoneChipLabel(opts, { focused: true })?.short, '#alerts')
+    assert.equal(phoneChipLabel(opts), null)
+    assert.equal(phoneChipLabel({ ...opts, text: '/search x' }, { focused: true }), null)
+    assert.equal(phoneChipLabel({ dock: null, place: '', text: '' }, { focused: true }), null)
+    const reply = phoneChipLabel({ dock: { reply: true, target: '#alerts' }, place: 't:T-1', text: '', title: 'Deploy notes' }, { focused: true, render })
+    assert.deepEqual([reply?.key, reply?.short, reply?.full], ['composer.chip_reply', 'Reply · Depl…', 'Reply · Deploy notes'])
+  })
+
+  it('the phone dock renders the chip from phoneChipLabel, the full words in title and aria-label, indenting line 1 only', () => {
+    const vue = src('src/components/MessageComposer.vue')
+    assert.match(vue, /if \(docked\.value\) return phoneChipLabel\(opts, \{ focused: chipFocused\.value, render: chipWords \}\)/)
+    assert.match(vue, /:title="chipFull"/)
+    assert.match(vue, /:aria-label="docked \? chipFull : undefined"/)
+    assert.match(vue, /\.composer\.composer--dock\.composer--dock \.has-target-chip textarea \{\s*padding-inline-start: 0;\s*text-indent: calc\(var\(--chip-w, 0px\) \+ 6px\);/)
+    assert.match(vue, /\.composer--dock\.composer--dock \.composer-target-chip \{[^}]*font-size: 0.875rem;/)
   })
 })

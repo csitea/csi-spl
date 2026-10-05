@@ -91,9 +91,10 @@
         <!-- 080 FR-006: while the box holds text, a chip after the glyph
              names where Enter sends (#feedback, @HUM-3, Reply · <title>, New
              topic · #lobby), top and bottom positions alike; a click opens it
-             (Q3). Inside the box, never a line over it (owner, t1 7d777e79),
-             and not on the phone dock (t1 dd98f8d7: no texts there). Replaces
-             the bottom dock's "where it goes" line (c6994436). -->
+             (Q3). Inside the box, never a line over it (owner, t1 7d777e79 /
+             dd98f8d7). On the phone dock (085 FR-001) it shows on focus too,
+             cut to 12 characters, the full words in title and aria-label.
+             Replaces the bottom dock's "where it goes" line (c6994436). -->
         <button
           v-if="chip"
           ref="chipEl"
@@ -101,7 +102,8 @@
           class="composer-target-chip"
           data-test="composer-target-chip"
           :data-mode="chipMode"
-          :title="chipText"
+          :title="chipFull"
+          :aria-label="docked ? chipFull : undefined"
           @mousedown.prevent
           @click="openChip"
         >{{ chipText }}</button>
@@ -313,7 +315,7 @@ import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { perfKeydown, perfSendStart } from '~/utils/perf-mark.mjs'
 import { parseOmnibox } from '~/utils/feed.mjs'
-import { chipLabel, composerModeLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
+import { chipLabel, composerModeLabel, phoneChipLabel, composerSendKey, dockTargetHint } from '~/utils/omnibox-topic.mjs'
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
@@ -806,23 +808,37 @@ const sendKey = computed(() => composerSendKey(searchMode.value ? null : dockHin
  * 080 FR-006 / FR-007: the target chip. chipLabel reads what send reads - the
  * page's dock() and place() (one replyTarget()) and the `in: <title>` the
  * line resolves to - so it cannot name one place while the send goes to
- * another. Top-bar box only, not on the phone dock, not in /search.
+ * another. Top-bar box and phone dock, not in /search. 085 FR-001 / FR-002:
+ * on the phone dock phoneChipLabel shows it on focus too and cuts it to 12
+ * characters (the dock field is ~108 px of text at 360 px).
  */
+const chipFocused = ref(false)
+const chipFocus = () => { chipFocused.value = true }
+const chipBlur = () => { chipFocused.value = false }
+watch(inputEl, (el, old) => {
+  old?.removeEventListener('focus', chipFocus)
+  old?.removeEventListener('blur', chipBlur)
+  if (!el) return
+  el.addEventListener('focus', chipFocus)
+  el.addEventListener('blur', chipBlur)
+  chipFocused.value = typeof document !== 'undefined' && document.activeElement === el
+})
+const chipWords = (c: { key: string, params: Record<string, string>, text: string }) => (c.key ? t(c.key, c.params) : c.text)
 const chipInfo = computed(() => {
-  if (!props.global || docked.value || searchMode.value || props.sendBlocked) return null
+  if (!props.global || searchMode.value || props.sendBlocked) return null
   const place = String(omniboxTargets.target?.place?.() ?? '')
   const resolved = /(^|\s)in:/i.test(text.value) ? resolveInClause(text.value, topicCatalogue.value) : null
   const named = resolved && resolved.taskId ? { taskId: resolved.taskId, title: resolved.title } : null
   const id = place.startsWith('t:') ? place.slice(2) : ''
   const title = id ? (topicCatalogue.value.find((r) => r.taskId === id)?.title ?? '') : ''
-  return chipLabel({ dock: props.dockTarget, place, text: text.value, named, title })
+  const opts = { dock: props.dockTarget, place, text: text.value, named, title }
+  if (docked.value) return phoneChipLabel(opts, { focused: chipFocused.value, render: chipWords })
+  const c = chipLabel(opts)
+  return c ? { ...c, full: chipWords(c), short: chipWords(c) } : null
 })
 const chip = computed(() => Boolean(chipInfo.value))
-const chipText = computed(() => {
-  const c = chipInfo.value
-  if (!c) return ''
-  return c.key ? t(c.key, c.params) : c.text
-})
+const chipText = computed(() => chipInfo.value?.short ?? '')
+const chipFull = computed(() => chipInfo.value?.full ?? '')
 const chipMode = computed(() => {
   const c = chipInfo.value
   if (!c) return undefined
@@ -1620,6 +1636,23 @@ textarea.in-code {
   .composer--dock.composer--dock .composer-box { align-items: flex-end; gap: 4px; }
   .composer--dock.composer--dock .omnibox-field { padding: 0 8px; min-height: var(--tap); }
   .composer--dock.composer--dock .composer-mode-glyph { top: 14px; }
+  /* 085 FR-001 / FR-002: 080's chip inside the docked field, right after the
+     glyph, on the first line only - the textarea indents line 1 by the chip's
+     width (text-indent), wrapped lines take the full width. A 14 px pill of
+     at most 12 characters (phoneChipLabel); never a line over the box (owner,
+     t1 dd98f8d7) */
+  .composer--dock.composer--dock .composer-target-chip {
+    top: 11px;
+    inset-inline-start: 8px;
+    max-width: calc(100% - 16px - var(--tap));
+    font-size: 0.875rem;
+  }
+  .composer--dock.composer--dock .has-mode-glyph .composer-target-chip { inset-inline-start: 32px; }
+  .composer.composer--dock.composer--dock .has-target-chip textarea {
+    padding-inline-start: 0;
+    text-indent: calc(var(--chip-w, 0px) + 6px);
+  }
+  .composer.composer--dock.composer--dock .has-mode-glyph.has-target-chip textarea { padding-inline-start: 24px; }
   .composer--dock.composer--dock textarea {
     font-size: max(16px, 1rem);
     min-height: var(--tap);

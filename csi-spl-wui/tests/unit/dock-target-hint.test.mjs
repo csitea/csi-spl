@@ -63,9 +63,9 @@ describe('the phone dock names its target (SPL-1003)', () => {
 
   /* 080 FR-006 replaced the bottom dock's line (topic c6994436) with the
      target chip inside the box, top and bottom alike */
-  it('the target chip shows in the box in both desktop positions - never on a phone (owner, t1 dd98f8d7: "remove also all of the texts on mobile above the omnibox"), never in /search', () => {
+  it('the target chip shows in the box in both desktop positions and inside the phone dock (085 FR-001) - never a line above it (owner, t1 dd98f8d7: "remove also all of the texts on mobile above the omnibox"), never in /search', () => {
     const c = src('src/components/MessageComposer.vue')
-    assert.match(c, /if \(!props\.global \|\| docked\.value \|\| searchMode\.value \|\| props\.sendBlocked\) return null/)
+    assert.match(c, /if \(!props\.global \|\| searchMode\.value \|\| props\.sendBlocked\) return null/)
     assert.equal((c.match(/class="composer-target-chip"/g) || []).length, 1)
     assert.doesNotMatch(c, /class="composer-target"/)
     assert.match(src('src/components/TopBar.vue'), /:dock-target="dockTarget"/)

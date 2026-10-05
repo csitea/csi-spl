@@ -93,8 +93,8 @@ describe('wiring', () => {
     assert.match(topBar, /\.top-bar__omnibox--bottom \.top-bar__send-error \{ order: -1;/)
   })
   /* 080 FR-006: the target chip in the box replaced the line over the dock */
-  it('B6: the desktop bottom dock names where the post goes (080 target chip, both positions); a phone draws none (owner, t1 dd98f8d7)', () => {
-    assert.match(composer, /if \(!props\.global \|\| docked\.value \|\| searchMode\.value \|\| props\.sendBlocked\) return null/)
+  it('B6: the desktop bottom dock names where the post goes (080 target chip, both positions); a phone draws it inside the field (085 FR-001), no line over it (owner, t1 dd98f8d7)', () => {
+    assert.match(composer, /if \(!props\.global \|\| searchMode\.value \|\| props\.sendBlocked\) return null/)
     assert.match(composer, /\.omnibox--bottom\.omnibox--global \.composer-target-chip \{ top: 19px; \}/)
   })
   it('the panes that overlay the middle one at <= 1100 px end above the dock', () => {

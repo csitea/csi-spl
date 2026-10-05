@@ -382,6 +382,12 @@ type Hub struct {
 	// human (specs/077 T012, 3.6); the next is refused 429 demo_quota.
 	DemoPostsPerMinute int `env:"SPOOL_HUB_DEMO_POSTS_PER_MINUTE" envDefault:"10"`
 	DemoPostsPerDay    int `env:"SPOOL_HUB_DEMO_POSTS_PER_DAY" envDefault:"200"`
+	// DemoVisitsPerDay caps the demo stays one IdP account starts per UTC
+	// day (specs/077 Q11, T010), refused demo_visits; DemoSignupsPerIP caps
+	// the new demo accounts per client IP per UTC day (3.6), refused
+	// demo_signups.
+	DemoVisitsPerDay int `env:"SPOOL_HUB_DEMO_VISITS_PER_DAY" envDefault:"2"`
+	DemoSignupsPerIP int `env:"SPOOL_HUB_DEMO_SIGNUPS_PER_IP" envDefault:"3"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -608,6 +614,10 @@ func (h *Hub) checkViews() error {
 	if h.DemoPostsPerMinute < 1 || h.DemoPostsPerDay < 1 {
 		return fmt.Errorf("SPOOL_HUB_DEMO_POSTS_PER_MINUTE %d and SPOOL_HUB_DEMO_POSTS_PER_DAY %d must be at least 1",
 			h.DemoPostsPerMinute, h.DemoPostsPerDay)
+	}
+	if h.DemoVisitsPerDay < 1 || h.DemoSignupsPerIP < 1 {
+		return fmt.Errorf("SPOOL_HUB_DEMO_VISITS_PER_DAY %d and SPOOL_HUB_DEMO_SIGNUPS_PER_IP %d must be at least 1",
+			h.DemoVisitsPerDay, h.DemoSignupsPerIP)
 	}
 	for _, p := range h.DemoProviders {
 		if p != "google" && p != "facebook" {

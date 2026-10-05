@@ -214,7 +214,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	// The open demo admission (specs/077 T007, T008 cap) is on only with the demo flag.
 	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner,
 		OpenWorkspace: hc.DemoTenant(), OpenProviders: hc.DemoProviders, OpenMaxLive: hc.DemoMaxLive,
-		OpenMaxStay: hc.DemoMaxStay},
+		OpenMaxStay: hc.DemoMaxStay, OpenVisitsPerDay: hc.DemoVisitsPerDay, OpenSignupsPerIP: hc.DemoSignupsPerIP},
 		Blob: bs, AvatarErr: func(hum string, err error) {
 			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
 		}}

@@ -53,7 +53,10 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 				return "", err
 			}
 		}
-		r := admitRule{p: p, open: open, access: open && access, seatEnds: seatEnds}
+		r := admitRule{p: p, open: open, access: open && access, seatEnds: seatEnds, account: demoAccountKey(id)}
+		if id.ClientIP != "" {
+			r.ip = demoIPKey(id.ClientIP)
+		}
 		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, r, now); err != nil {
 			return "", err // rollback: a refusal writes nothing
 		}
@@ -175,6 +178,9 @@ type admitRule struct {
 	// seatEnds: rdb 0113 is there (probed before the transaction), so an
 	// existing seat past its access_until is no membership (liveSeat).
 	seatEnds bool
+	// account and ip are the T010 counter keys of an open admission
+	// (demoAccountKey, demoIPKey); ip "" skips the per-IP limit.
+	account, ip string
 }
 
 // noMemberElsewhere reports whether hum holds no membership outside tenant,
@@ -290,9 +296,48 @@ func seatDemoTx(ctx context.Context, tx pgx.Tx, hum, tenant string, r admitRule,
 	if live >= r.p.maxLive() {
 		return ErrDemoFull
 	}
+	if err := takeDemoAdmissionTx(ctx, tx, tenant, r, now); err != nil {
+		return err
+	}
 	_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by, access_until)
 		VALUES ($1, $2, $3, $4, $5, $6)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo, now.Add(r.p.maxStay()).UTC())
 	return err
+}
+
+// takeDemoAdmissionTx counts one demo visit for the account and, on its
+// first visit today, one new account for the client IP (specs/077 Q11, 3.6,
+// T010): ErrDemoVisits / ErrDemoSignups past the limits. It runs in
+// admitTx's transaction, so a refusal here or later rolls the takes back
+// with the seat, and a seat that is never given counts nothing.
+func takeDemoAdmissionTx(ctx context.Context, tx pgx.Tx, tenant string, r admitRule, now time.Time) error {
+	day := demoDay(now)
+	visit, ok, err := takeQuotaTx(ctx, tx, tenant, r.account, quotaDemoVisit, day, r.p.visitsPerDay())
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrDemoVisits
+	}
+	if visit > 1 || r.ip == "" {
+		return nil
+	}
+	if _, ok, err = takeQuotaTx(ctx, tx, tenant, r.ip, quotaDemoSignup, day, r.p.signupsPerIP()); err != nil {
+		return err
+	}
+	if !ok {
+		return ErrDemoSignups
+	}
+	return nil
+}
+
+// takeQuotaTx is TakeQuota inside an open transaction.
+func takeQuotaTx(ctx context.Context, tx pgx.Tx, tenant, key, kind string, window time.Time, limit int) (int, bool, error) {
+	var n int
+	err := tx.QueryRow(ctx, takeQuotaSQL, tenant, key, kind, window.UTC(), limit).Scan(&n)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return limit, false, nil
+	}
+	return n, err == nil, err
 }
 
 // refusal is admitTx's answer when nothing admitted: ErrInviteExpired when

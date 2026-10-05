@@ -183,6 +183,9 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	}
 	if grant != nil {
 		h.members[[2]string{tenant, hum}] = *grant
+		if grant.admittedBy == AdmittedDemo {
+			s.takeDemoAdmission(tenant, id, now)
+		}
 	}
 	if inv != nil {
 		inv.accepted = true
@@ -223,6 +226,9 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 		if h.liveDemoSeats(tenant, now) >= p.maxLive() {
 			return nil, nil, ErrDemoFull
 		}
+		if err := s.checkDemoAdmission(tenant, id, p, now); err != nil {
+			return nil, nil, err
+		}
 		grant = &memMember{role: rbac.DemoUser, admittedBy: AdmittedDemo, since: now,
 			accessUntil: now.Add(p.maxStay()).UTC()} // specs/077 T009: the seat ends
 	} else if p.bootstraps(tenant) && h.memberCount(tenant) == 0 {
@@ -237,6 +243,44 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 		return nil, nil, ErrSeatQuota
 	}
 	return grant, inv, nil
+}
+
+// demoCounts is the T010 view of memQuotas: the day's counters of one open
+// admission (the account's visits, the client IP's new accounts). s.mu held.
+func (s *Memory) demoCounts(tenant string, id Identity, now time.Time) (visit, ip quotaKey, rows map[quotaKey]int) {
+	rows = memQuotas[s]
+	if rows == nil {
+		rows = map[quotaKey]int{}
+		memQuotas[s] = rows
+	}
+	day := demoDay(now)
+	visit = quotaKey{tenant, demoAccountKey(id), quotaDemoVisit, day}
+	ip = quotaKey{tenant, demoIPKey(id.ClientIP), quotaDemoSignup, day}
+	return visit, ip, rows
+}
+
+// checkDemoAdmission is the Postgres takeDemoAdmissionTx's refusal, decided
+// before anything is written (Admit writes nothing on a refusal): the
+// account's visits today, then, on its first visit, the client IP's new
+// accounts today (specs/077 Q11, 3.6, T010). s.mu held.
+func (s *Memory) checkDemoAdmission(tenant string, id Identity, p AdmitPolicy, now time.Time) error {
+	visit, ip, rows := s.demoCounts(tenant, id, now)
+	if rows[visit] >= p.visitsPerDay() {
+		return ErrDemoVisits
+	}
+	if rows[visit] == 0 && id.ClientIP != "" && rows[ip] >= p.signupsPerIP() {
+		return ErrDemoSignups
+	}
+	return nil
+}
+
+// takeDemoAdmission counts the admission checkDemoAdmission allowed. s.mu held.
+func (s *Memory) takeDemoAdmission(tenant string, id Identity, now time.Time) {
+	visit, ip, rows := s.demoCounts(tenant, id, now)
+	if rows[visit] == 0 && id.ClientIP != "" {
+		rows[ip]++
+	}
+	rows[visit]++
 }
 
 // ProvisionMember seats a member by email before any sign-in (CLE-77781); see

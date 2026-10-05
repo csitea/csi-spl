@@ -27,6 +27,9 @@ type Identity struct {
 	// the IdP has none or the fetch failed (never blocks the sign-in).
 	Avatar     []byte
 	AvatarType string // image/png | image/jpeg | image/gif | image/webp
+	// ClientIP is the caller's address (edge.ClientIP), set by the callback,
+	// never by an IdP: the demo's per-IP sign-up limit (specs/077 T010).
+	ClientIP string
 }
 
 // IdP is one provider's authorization-code client: Google, Facebook,

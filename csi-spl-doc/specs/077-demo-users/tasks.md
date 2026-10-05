@@ -107,8 +107,28 @@ Rules for every task (owner Q8, spec §3.10):
   is deleted; `doorDemoExpired` removed = `401 view_door`; the frame check
   removed = the frame is answered; the socket close removed = the socket
   stays open.
-- [ ] T010 **return visits and sign-up limits** (Q11, §3.6): at most 2 visits
-  per account per day; 3 new demo accounts per client IP per day.
+- [x] T010 **return visits and sign-up limits** (Q11, §3.6, c-339): at most 2
+  visits per account per day; 3 new demo accounts per client IP per day.
+  Built: open admission (store `seatDemoTx` / memory `admitToTenant`), after
+  the live cap and before the seat INSERT, in the same transaction, counts in
+  rdb 0127 `quota_counts` (no new migration) per UTC day: kind `demo_visit`
+  keyed `acct:<sha256(provider|subject)>` (the sweep drops the human, so the
+  count outlives it), and on the account's FIRST visit of the day kind
+  `demo_signup` keyed `ip:<sha256(client IP)>`. Past the limits:
+  `auth_error=demo_visits` / `demo_signups`, nothing written (a refusal rolls
+  the takes back with the seat; a `demo_full` counts nothing). A re-login
+  inside a live stay is no visit. The auth callback hands the store
+  `edge.ClientIP` (`Identity.ClientIP`); a caller with no address skips the
+  IP rule. Limits: hub env `SPOOL_HUB_DEMO_VISITS_PER_DAY` (2) /
+  `SPOOL_HUB_DEMO_SIGNUPS_PER_IP` (3), below 1 refused at start. WUI: the two
+  codes in words on `/login` ("try again tomorrow", every locale). Done:
+  store `TestDemoReturnVisits`, `TestDemoSignupsPerIP` (memory + Postgres,
+  fake clock); auth `TestStoreBackedOpenDemoLimits` (real sign-in, CONTROL
+  another address admits); `TestLoadHubDemoAdmissionLimits`; e2e
+  `login-demo-intro` 4b. CONTROLS (by hand, each red): the take removed from
+  `seatDemoTx` and the check from `admitToTenant` = the 3rd visit and the 4th
+  account are seated; the IP rule off = the 4th account is seated; the
+  callback's `ClientIP` line removed = `demo_signups` never fires.
 
 ### Phase 3: Privacy, abuse and cost in the hub
 
@@ -175,7 +195,7 @@ Rules for every task (owner Q8, spec §3.10):
     route from the source plus the two POST reads; memory + Postgres).
     CONTROLS: threshold removed, search / topic page / previews filter
     removed: each red. Part B (ban: member remove + the address-digest block
-    list at admission) is still open, with T010.
+    list at admission) is still open.
 - [x] T017 **nightly wipe** (c-314): named action `do_spl_demo_wipe` (csi-spl-orc) on a
   schedule; deletes demo messages and topics, re-seeds the channels and the
   pinned welcome. Built: wf 46 runs it nightly (03:41 UTC) on dev then prd; it
@@ -238,4 +258,4 @@ Rules for every task (owner Q8, spec §3.10):
 - [ ] T024 **prd on**: only on the owner's explicit go after the dev
   walkthrough.
 
-<!-- version: 0.2.3 · updated: 2026-10-05 · last-edit: 2026-10-05T10:40:00Z -->
+<!-- version: 0.2.4 · updated: 2026-10-05 · last-edit: 2026-10-05T11:46:22Z -->

@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -50,6 +52,17 @@ var ErrInviteExpired = fmt.Errorf("%w: invite expired", ErrNotAdmitted)
 // demo workspace already holds AdmitPolicy.OpenMaxLive live demo_user seats.
 // It WRAPS ErrNotAdmitted like ErrInviteExpired; nothing was written.
 var ErrDemoFull = fmt.Errorf("%w: demo full", ErrNotAdmitted)
+
+// ErrDemoVisits refuses an open demo admission of an account that has had
+// AdmitPolicy.OpenVisitsPerDay demo stays today already (specs/077 Q11, T010).
+// It WRAPS ErrNotAdmitted; nothing was written.
+var ErrDemoVisits = fmt.Errorf("%w: demo visits used", ErrNotAdmitted)
+
+// ErrDemoSignups refuses an open demo admission of a new account from a
+// client IP that brought AdmitPolicy.OpenSignupsPerIP accounts to the demo
+// today already (specs/077 3.6, T010). It WRAPS ErrNotAdmitted; nothing was
+// written.
+var ErrDemoSignups = fmt.Errorf("%w: demo sign-ups from this address used", ErrNotAdmitted)
 
 // Membership roles (tenant_memberships.role) are rows since rdb 0021
 // (specs/025): any role_id visible to the tenant. These two are the ones the
@@ -111,6 +124,10 @@ type Identity struct {
 	Subject  string
 	Email    string
 	Name     string
+	// ClientIP is the caller's address (edge.ClientIP) the auth callback
+	// passes along, never a key. Only the open demo rule reads it (T010);
+	// "" (a caller that knows no address) skips the per-IP limit.
+	ClientIP string
 }
 
 // AdmitPolicy is the admission switchboard (FR-012).
@@ -138,6 +155,16 @@ type AdmitPolicy struct {
 	// access_until = admitted + OpenMaxStay. <= 0 is DefaultDemoMaxStay,
 	// never unlimited.
 	OpenMaxStay time.Duration
+	// OpenVisitsPerDay caps the demo stays one IdP account (provider,
+	// subject) starts per UTC day (hub env SPOOL_HUB_DEMO_VISITS_PER_DAY,
+	// specs/077 Q11, T010); the next is ErrDemoVisits. A re-login inside a
+	// live stay is no new visit. <= 0 is DefaultDemoVisitsPerDay.
+	OpenVisitsPerDay int
+	// OpenSignupsPerIP caps the distinct accounts one client IP brings to
+	// the demo per UTC day (hub env SPOOL_HUB_DEMO_SIGNUPS_PER_IP, specs/077
+	// 3.6, T010); the next new account is ErrDemoSignups. An account's
+	// second visit that day takes none. <= 0 is DefaultDemoSignupsPerIP.
+	OpenSignupsPerIP int
 }
 
 // DefaultDemoMaxLive is the owner's 9 visitors at a time (specs/077 1.1).
@@ -161,6 +188,53 @@ func (p AdmitPolicy) maxStay() time.Duration {
 	}
 	return p.OpenMaxStay
 }
+
+// DefaultDemoVisitsPerDay and DefaultDemoSignupsPerIP are the recommended
+// limits of specs/077 3.6 (Q11): 2 visits per account, 3 new demo accounts
+// per client IP, per UTC day.
+const (
+	DefaultDemoVisitsPerDay = 2
+	DefaultDemoSignupsPerIP = 3
+)
+
+func (p AdmitPolicy) visitsPerDay() int {
+	if p.OpenVisitsPerDay <= 0 {
+		return DefaultDemoVisitsPerDay
+	}
+	return p.OpenVisitsPerDay
+}
+
+func (p AdmitPolicy) signupsPerIP() int {
+	if p.OpenSignupsPerIP <= 0 {
+		return DefaultDemoSignupsPerIP
+	}
+	return p.OpenSignupsPerIP
+}
+
+// Demo admission counters (T010) in the rdb 0127 quota_counts table, keyed
+// by a digest, never the raw account or address: the sweep drops the
+// visitor's human (and with it the identity) at the end of a stay, so the
+// count must outlive both.
+const (
+	quotaDemoVisit  = "demo_visit"  // per account (acct:<digest>), per UTC day
+	quotaDemoSignup = "demo_signup" // per client IP (ip:<digest>), per UTC day
+)
+
+// demoAccountKey and demoIPKey are the quota_counts human_id of the two
+// counters; the prefixes cannot collide with a HUM-* id.
+func demoAccountKey(id Identity) string {
+	return "acct:" + hexDigest(id.Provider+"|"+id.Subject)
+}
+
+func demoIPKey(ip string) string { return "ip:" + hexDigest(ip) }
+
+func hexDigest(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
+
+// demoDay is the UTC day window of the T010 counters.
+func demoDay(now time.Time) time.Time { return now.UTC().Truncate(24 * time.Hour) }
 
 // AdmittedDemo marks a membership the open demo rule seated (specs/077).
 const AdmittedDemo = "demo"

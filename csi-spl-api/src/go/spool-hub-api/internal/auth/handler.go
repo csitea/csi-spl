@@ -42,7 +42,12 @@ const (
 	ErrCodeInviteExpired = "invite_expired"
 	// ErrCodeDemoFull: the open demo workspace holds its live visitors
 	// already; the login page shows "the demo is full" (specs/077 T008).
-	ErrCodeDemoFull    = "demo_full"
+	ErrCodeDemoFull = "demo_full"
+	// ErrCodeDemoVisits: this account had its demo visits for today;
+	// ErrCodeDemoSignups: this address brought its new demo accounts for
+	// today. The login page says "try again tomorrow" (specs/077 T010).
+	ErrCodeDemoVisits  = "demo_visits"
+	ErrCodeDemoSignups = "demo_signups"
 	ErrCodeUnavailable = "unavailable"
 	// ErrCodeInvalidDisplayName: PUT preferences display_name is not a name
 	// ValidDisplayName admits.
@@ -68,6 +73,14 @@ var ErrInviteExpired = errors.New("auth: invitation expired")
 // ErrDemoFull from a Registrar refuses the sign-in with auth_error=demo_full:
 // the demo workspace is at its live visitor cap (specs/077 FR-006, T008).
 var ErrDemoFull = errors.New("auth: demo full")
+
+// ErrDemoVisits and ErrDemoSignups from a Registrar refuse the sign-in with
+// auth_error=demo_visits / demo_signups: the account's demo visits, or the
+// client IP's new demo accounts, for today are used (specs/077 Q11, T010).
+var (
+	ErrDemoVisits  = errors.New("auth: demo visits used today")
+	ErrDemoSignups = errors.New("auth: demo sign-ups from this address used today")
+)
 
 // InviteLander is an optional Registrar hook (SPL-1230): the workspace a
 // sign-in that named NO tenant should land in — the newest live invite for the
@@ -387,13 +400,18 @@ func (h *Handler) registerLanding(ctx context.Context, id Identity, tenant strin
 }
 
 // registrarRefusal is the ?auth_error= code (and log reason) for a
-// Registrar error: invite_expired, demo_full, not_allowed, else unavailable.
+// Registrar error: invite_expired, demo_full, demo_visits, demo_signups,
+// not_allowed, else unavailable.
 func registrarRefusal(err error) (code, why string) {
 	switch {
 	case errors.Is(err, ErrInviteExpired):
 		return ErrCodeInviteExpired, "invite expired"
 	case errors.Is(err, ErrDemoFull):
 		return ErrCodeDemoFull, "demo full"
+	case errors.Is(err, ErrDemoVisits):
+		return ErrCodeDemoVisits, "demo visits used today"
+	case errors.Is(err, ErrDemoSignups):
+		return ErrCodeDemoSignups, "demo sign-ups from this address used today"
 	case errors.Is(err, ErrNotAllowed):
 		return ErrCodeNotAllowed, "registrar refused"
 	}
@@ -448,6 +466,7 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id.Name = CleanDisplayName(id.Name) // it seeds display_name (Admit)
+	id.ClientIP = clientIP(r, h.hops)   // the demo's per-IP sign-up limit (specs/077 T010)
 	sess := Session{V: 1, Provider: p, Subject: id.Subject, Email: id.Email, Name: id.Name,
 		Tenant: st.Tenant, IssuedAt: h.now().Unix(), Exp: h.now().Add(h.cfg.SessionTTL).Unix()}
 	if h.reg != nil {

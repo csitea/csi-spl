@@ -47,7 +47,8 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 	if a.Now != nil {
 		now = a.Now
 	}
-	hum, err := a.H.Admit(ctx, Identity{Provider: id.Provider, Subject: id.Subject, Email: id.Email, Name: id.Name},
+	hum, err := a.H.Admit(ctx, Identity{Provider: id.Provider, Subject: id.Subject, Email: id.Email, Name: id.Name,
+		ClientIP: id.ClientIP},
 		tenant, a.Policy, now().UTC())
 	// An invited address whose invite lapsed: distinct code so the login page
 	// says "ask for a fresh invite" (CLE-77781, SPL-1229). Checked before
@@ -59,6 +60,15 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 	// demo_full, so the login page says "the demo is full, try later".
 	if errors.Is(err, ErrDemoFull) {
 		return "", auth.ErrDemoFull
+	}
+	// Today's demo visits of this account, or new demo accounts from this
+	// address, are used up (specs/077 T010): the login page says "try again
+	// tomorrow".
+	if errors.Is(err, ErrDemoVisits) {
+		return "", auth.ErrDemoVisits
+	}
+	if errors.Is(err, ErrDemoSignups) {
+		return "", auth.ErrDemoSignups
 	}
 	// A new seat over the M4 cap (009 D-6): the redirect has no status, so it
 	// is not_allowed, and nothing was written.

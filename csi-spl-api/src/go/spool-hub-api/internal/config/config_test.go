@@ -455,6 +455,28 @@ func TestLoadHubDemoPosts(t *testing.T) {
 	}
 }
 
+// specs/077 T010: 2 demo visits per account and 3 new demo accounts per
+// client IP a day by default; below 1 the hub refuses to start.
+func TestLoadHubDemoAdmissionLimits(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil || h.DemoVisitsPerDay != 2 || h.DemoSignupsPerIP != 3 {
+		t.Fatalf("default: %v %v, want 2 and 3", h, err)
+	}
+	for _, k := range []string{"SPOOL_HUB_DEMO_VISITS_PER_DAY", "SPOOL_HUB_DEMO_SIGNUPS_PER_IP"} {
+		for _, bad := range []string{"0", "-1", "two"} {
+			t.Setenv(k, bad)
+			if _, err := LoadHub(); err == nil {
+				t.Fatalf("%s=%s was accepted", k, bad)
+			}
+		}
+		t.Setenv(k, "5")
+	}
+	if h, err := LoadHub(); err != nil || h.DemoVisitsPerDay != 5 || h.DemoSignupsPerIP != 5 {
+		t.Fatalf("5 and 5: %v", err)
+	}
+}
+
 func TestLoadHubDemoMaxLive(t *testing.T) {
 	setHubBase(t)
 	h, err := LoadHub()

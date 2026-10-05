@@ -1,0 +1,6 @@
+Lay-What: A self-hosted install no longer contacts the cloud to open the database or to store its password.
+Lay-How: It saves the password in a private file on the machine and talks to the database on that same machine.
+Lay-Why: An install that is not in the cloud was stopping, because those steps still called the cloud.
+Tech-What: Under provider none, database bootstrap and the database callers skip the cloud account and the secret store.
+Tech-How: Secret writes go through the cloud dispatch; none writes the private env file mode 600, and callers use the local database address.
+Tech-Why: Bootstrap pinned a cloud account before reading the address, and the other callers still opened the cloud database proxy.

@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 1 (v0.1.0)
+**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 1 (v0.2.0)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -56,8 +56,9 @@ Spool Hub, and nothing about any other workspace.**
 
 ## 3. Principles
 
-1. **A public dataset, not a dump.** What leaves is an **allow-list** of tables, columns and rows (§4). A table,
-   column or row not on it is excluded, including anything a future migration adds.
+1. **A projection, never a dump.** What leaves is built by named queries that each list their output columns; no
+   `pg_dump`, no `SELECT *` (a test greps the export code for it). It is an **allow-list** of tables, columns and
+   rows (§4); a table, column or row not on it is excluded, including anything a future migration adds.
 2. **Three fences, each enough on its own** (§5): a dedicated Postgres login that can only SELECT the allow-listed
    columns; that login's session pinned under FORCE RLS to the Spool Hub workspace; a `tenant_id = <Spool Hub>`
    filter in every query. The export fails if any row carries another workspace's id.
@@ -79,11 +80,13 @@ Source: the **prd** Spool Hub workspace, its id read from cnf (`env.public_datas
 | table | rows | columns | transform |
 |---|---|---|---|
 | `tenants` | the Spool Hub row only | `tenant_id`, `display_name`, `created_at` | `root_pubkey` NOT exported; the loader generates a new key (§9.1). `billing_status` written as `internal`, `plan_id` as `default` |
-| `channels` | `is_private = false AND deleted_at IS NULL` | `channel_id`, `name`, `description`, `created_by`, `created_at`, `archived_at` | `created_by` is a member or agent id (§4.3) |
-| `messages` | `channel` in the exported channels | `msg_id`, `task_id`, `parent_task_id`, `channel`, `ts`, `from_id`, `to_id`, `kind`, `body`, `is_parent`, `archived_at`, `received_at`, `expires_at` | `from_box` / `to_box` set to one synthetic box id; `msg`, `env`, `env_sig`, `files`, `typed_by` NOT exported (§11 Q6) |
-| `humans` | Spool Hub members who author or are named in an exported row | `human_id` | `display_name` = `human_id`; `email` NULL; `disabled_at` NULL |
+| `channels` | `is_private = false AND deleted_at IS NULL AND archived_at IS NULL` (archived channels out, §11 Q9) | `channel_id`, `name`, `description`, `created_by`, `created_at` | `created_by` is a member or agent id (§4.3) |
+| `messages` | `channel` in the exported channels; no message of an **archived task** (0065: `archived_at` sits on the card and means the whole task, so every message sharing an archived row's `task_id` is out); the thread's root message also in an exported channel | `msg_id`, `task_id`, `parent_task_id`, `channel`, `ts`, `from_id`, `to_id`, `kind`, `body`, `is_parent`, `received_at`, `expires_at` | `from_box` / `to_box` set to one synthetic box id; `msg`, `env`, `env_sig`, `files`, `typed_by` NOT exported (§11 Q6) |
+| `humans` | Spool Hub members who author or are the addressee of an exported message (membership alone is not enough) | `human_id` | `display_name` = `human_id`; `email` NULL; `disabled_at` NULL |
 | `tenant_memberships` | Spool Hub rows of the humans above | `tenant_id`, `human_id`, `role`, `created_at` | `role` forced to `member`; `admitted_by` = `seed` |
 | `release_notes` | rows whose `version` is at or below the export's version | every column | public by design (065: hygiene-filtered at ingest) |
+
+RBAC roles and permissions are not exported: the migrations seed them.
 
 Topics are not a table: a topic is a `task_id` thread, so it comes with its messages.
 
@@ -99,7 +102,7 @@ Emails and any other contact data; real names (members become their `HUM-n` id);
 `pins_history`, `env`, `env_sig`); IPs and user agents; DMs (`channel IS NULL`) and private channels; files and
 `files` columns; auth, audit and telemetry tables (`operator_audit`, `human_events`, `flow_events`,
 `wui_perf_samples`, `member_activity`); payment and seat tables; fleet tables (`fleet_*`, `boxes`, `box_stats`,
-`roster`, `deliveries`); message revisions (an earlier version may hold what an edit removed); issues (§11 Q5);
+`roster`, `deliveries`); archived tasks and archived channels (hidden on purpose); message revisions (an earlier version may hold what an edit removed); issues (§11 Q5);
 and **every row of every other workspace**.
 
 ### 4.3 Member ids
@@ -110,7 +113,9 @@ are product ids and stay. The mapping is identity: no pseudonym table that could
 ### 4.4 Changing the allow-list
 
 The allow-list lives in ONE file (`csi-spl-orc/cnf/public-dataset/allow-list.v<N>.yaml`), versioned in its name,
-and matches §4.1. A change is a spec change first (this section, a panel review), then the file, and bumps `N`.
+and matches §4.1. It classifies **every** column of every listed table as `public` or `withheld`; a live column in
+neither list (a later `ADD COLUMN`) fails the export and its CI test (gate C3), so a new column is a red gate, not
+a silent leak. A change is a spec change first (this section, a panel review), then the file, and bumps `N`.
 The verifiers check against this section, not the file (§8).
 
 ## 5. The export (`do_spl_public_dataset_export`, csi-spl-orc)
@@ -120,8 +125,9 @@ The verifiers check against this section, not the file (§8).
 A new Postgres role `spool_public_export`: `LOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`, not a table owner, never
 granted the operator scope. It holds **column-level** `GRANT SELECT (<cols>) ON <table>` for exactly the §4.1
 columns and nothing else, so a query naming any other column fails in Postgres itself. The grants are a file in
-`spool-hub-roles/`, generated from the allow-list file, with a store test that pins the two equal. Its password is
-a Secret Manager secret seeded by a named seed action, like the other `spl-*-secret-seed` actions.
+`spool-hub-roles/`, generated from the allow-list file, with a store test that pins the two equal. It is not the
+migration owner (`spool_hub`): ownership would defeat FORCE RLS. Its password is a Secret Manager secret seeded by a
+named seed action, like the other `spl-*-secret-seed` actions.
 
 ### 5.2 Fence 2: FORCE RLS pinned to Spool Hub
 
@@ -142,23 +148,41 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
 
 ### 5.5 The gate (fail closed, before staging)
 
-1. **Shape**: every table and column in the file is in the allow-list; anything else = FATAL.
-2. **Workspace**: no `tenant_id` other than Spool Hub's; `tenants` has exactly one row.
-3. **Content scan** of the whole file: e-mail addresses, IPv4/IPv6 addresses, JWTs, PEM blocks, cloud, Slack and
+1. **Shape (C3)**: every table and column in the file is a `public` column of the allow-list; every live column of a
+   listed table is classified; anything else = FATAL.
+2. **Workspace (C1, C2)**: no `tenant_id` other than Spool Hub's; `tenants` has exactly one row; every exported
+   row is re-read on a second connection pinned by RLS alone (no filter) and must be found there, so no row was
+   read around RLS.
+3. **Content scan (C4)** of the whole file: e-mail addresses, IPv4/IPv6 addresses, JWTs, PEM blocks, cloud, Slack and
    GitHub token shapes, `iam.gserviceaccount.com`, gitleaks with the repo's config, and every other workspace's id
-   and display name (read at run time, matched as whole words). A hit in a **message body** removes that message
+   and display name, matched as whole words. Those names are read by a **separate step** whose only grant is
+   `SELECT (tenant_id, display_name) ON tenants` under the operator scope (the export role cannot, by design); it
+   writes the list, and its lower-cased sha256 list for the grok lane (§8.2), to private staging only. Neither list
+   is ever published (short names are guessable, so their hashes are reversible): both are deleted when the
+   candidate is published or dropped, and the publish step proves they were not copied. A hit in a **message body** removes that message
    and counts it in the manifest by class; a hit anywhere else = FATAL. After removal the scan runs again and must
    be clean (§11 Q3: drop or fail).
-4. **Size sanity**: row counts within ±50% of the previous file unless the allow-list version changed; else FATAL
+4. **Canaries (C5, CI)**: the CI fixture (§9.3) plants a unique marker string in each of: a second workspace with a
+   channel of the SAME `channel_id` as a public one; a private channel; a DM; a reply in an archived task; an
+   archived channel; a message revision; the `msg`, `env`, `env_sig` and `files` of a public message; the e-mail of
+   a human who is a member of both workspaces; an invite; a box name; any marker
+   in the file = FATAL. This proves absence by planting what must be absent, which a ban list cannot.
+5. **Size sanity**: row counts within ±50% of the previous file unless the allow-list version changed; else FATAL
    (a mass drop or mass add is a defect until someone explains it).
 
-### 5.6 The file
+### 5.6 CI is public: logs name classes, never content
+
+The repo and its GitHub-hosted runner logs are public. Gate and verifier output names only the table, the primary
+key and the class of a hit, never the matched text. No `upload-artifact` of the candidate or of either name list,
+no `set -x` in the export, gate or publish steps; a workflow test checks for both.
+
+### 5.7 The file
 
 - `spool-hub-public-<YYYY-MM-DD>-v<X.Y.Z>.sql.gz`: plain SQL, data only (`COPY ... FROM stdin`), tables in FK
   order. `<X.Y.Z>` is the version prd's hub reports on `/version` at export time, so the file matches that
   version's migrations.
 - `<same name>.manifest.json`: the file's sha256, the version and its commit sha, the migration head, the
-  allow-list version and its sha256, row counts per table, the rows removed by class (§5.5.3), the link to that
+  allow-list version and its sha256, row counts per table, the rows removed by class (§5.5 item 3), the link to that
   version's release note, and once published the three verdicts (§8).
 
 ## 6. Storage: terraform step `053-gcs-public-dataset` (csi-spl-iac)
@@ -166,10 +190,12 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
 | bucket | cnf key (no literal name in this spec) | access | content |
 |---|---|---|---|
 | public | `env.steps."053-gcs-public-dataset".public_bucket_name` | uniform access, `allUsers` object viewer, used for this dataset only | published files, manifests, verdicts, `latest.json` |
-| staging | `env.steps."053-gcs-public-dataset".staging_bucket_name` | private; the env SA writes, the verifier lanes read and write `verdicts/` | the day's candidate and its verdicts |
+| staging | `env.steps."053-gcs-public-dataset".staging_bucket_name` | private; the export SA writes, the verifier lanes read and write `verdicts/` | the day's candidate and its verdicts |
 
-- The env SA gets object **create** on the public bucket, not delete: names are dated, a published file never
-  changes. Removal is by lifecycle rule or by the take-down action (§10).
+- **Two service accounts, no account does both** (made by the step): the **export** SA reads the database (the
+  proxy) and writes staging, and cannot write the public bucket; the **publish** SA reads staging and may only
+  **create** objects in the public bucket (plus `latest.json`), and has no database access. Names are dated, a
+  published file never changes. Removal is by lifecycle rule or by the take-down action (§10).
 - **Retention** (a lifecycle rule in the step, numbers in cnf): daily files 30 days; the file a stable release
   links (§7) is copied under `stable/` and kept 365 days (§11 Q2).
 - `latest.json` (the one overwritten object, `Cache-Control: no-cache`) names the newest published file.
@@ -199,7 +225,7 @@ verdicts before writing its own, no write access to the public bucket.
 | lane | method | checks |
 |---|---|---|
 | **claude** | **structure**: restore into a throwaway Postgres at the file's migration head | every table and column against §4.1 as written here; `tenants` has one row with the Spool Hub id; no row with another `tenant_id`; every §4.2 table empty; `humans.email` all NULL and `display_name = human_id`; no DM, no private channel (cross-checked against the live channel list read as `spool_public_export`) |
-| **grok** | **content**: its own scanners, written by that lane, not the gate's | every string token of the file against its own patterns for contact data, credentials and keys; gitleaks default rules; a list of **sha256 hashes** of every other workspace's id and display name, lower-cased, which the export stages next to the file (the verifier never sees the names in clear) |
+| **grok** | **content**: its own scanners, written by that lane, not the gate's | every string token of the file against its own patterns for contact data, credentials and keys; gitleaks default rules; a list of **sha256 hashes** of every other workspace's id and display name, lower-cased, from the names step (§5.5 item 3; the verifier never sees the names in clear, and the list is never published) |
 | **agy** | **reading**: a human-style review | a stratified random sample of at least 200 messages (every channel, every day present) plus every message new since the previous published file, read for what no pattern finds: another workspace or a customer named in prose, a quote from a private channel or DM, an internal host, path or credential described in words; and a shape diff against the previous file (new table, column or channel) |
 
 A FAIL names the row (table, primary key) and the reason. A lane may add checks; none may drop the ones above.
@@ -230,7 +256,10 @@ That trust is the fleet's lane registry, as for every other agent action.
 `SEED_FILE=<path or URL> SEED_ADMIN_EMAIL=<email> ./run -a do_spl_public_dataset_load`
 
 1. Fetches the file and its manifest; checks the sha256; refuses a manifest without three PASS verdicts.
-2. Refuses unless the target database is at the manifest's migration head (`spool migrate` first) and holds **no
+   Refuses any statement in the file other than `COPY ... FROM stdin` blocks and their data: no DDL, no `SET`, no
+   function bodies. The schema comes from the repo's migrations, never from the file.
+2. Refuses unless the target database is at the manifest's migration head (`spool migrate` first; a mismatch
+   names the release to check out) and holds **no
    workspace row**: the seed is for a fresh database only, never a merge.
 3. Loads in one transaction under the operator scope, then checks: one workspace; counts equal the manifest.
 4. Creates the instance's own secrets: a new workspace root keypair (the private key written to the operator's
@@ -253,7 +282,9 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 | fences | store tests on Postgres: `spool_public_export` cannot read a non-allow-listed column, and sees no other workspace with or without the filter | §5.1, §5.2, §5.3 each on its own |
 | grants equal allow-list | store test | §5.1 |
 | the published file boots | scheduled, daily after publish: the round trip from `latest.json` | the published artifact, not only the code |
-| the gate catches plants | gate tests with a planted e-mail, token, other workspace's name, extra column, extra workspace row | each §5.5 class fails closed |
+| the gate catches plants | gate tests with a planted e-mail, token, other workspace's name, extra column, unclassified column, extra workspace row | each §5.5 class fails closed |
+| canaries (C5) | the round-trip fixture carries the §5.5 item 4 markers | none reaches the file |
+| no `SELECT *`, no `pg_dump` | a grep test over the export code | §3, principle 1 |
 
 ## 10. Operations
 
@@ -270,6 +301,8 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 | # | question | recommendation |
 |---|---|---|
 | Q1 | **Members' consent**: are the Spool Hub workspace's members told that their public-channel messages (under their `HUM-n` id) are published daily, and can a member opt out? | not decided here. If opt-out exists, an opted-out member's messages are dropped by the export and counted in the manifest |
+| Q1b | Members appear as `HUM-n` only. May Spool Hub members' real display names be public instead? | no: `HUM-n` only |
+| Q9 | Archived channels (0092): out of the dataset, like archived tasks | yes, out |
 | Q2 | Retention: 30 days for daily files, 365 days for the stable-linked copy | yes |
 | Q3 | A scan hit in a message body: drop that message and publish the rest, or fail the whole day | drop and count; fail the day if more than 1% of messages are dropped |
 | Q4 | Workspace docs (spec 075 Phase 2 bucket) in the dataset | not in v1 |
@@ -303,3 +336,4 @@ file and answers on topic `67b63c88`.
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.2.0 | 2026-10-05 | round 1: c-288's points (projection, C2/C3/C5, archived tasks and channels out, publish SA, loader statement whitelist, Q1b; R1-1..R1-5: public-CI logging rule, the names step, hash list never published, canary list, Q9) |

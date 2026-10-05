@@ -65,7 +65,7 @@ PY
 do_measure_wui_edge_warm() {
   local base="${MEASURE_WUI_URL:-}" arms="${MEASURE_WUI_ARMS:-both}" n="${MEASURE_WUI_N:-60}"
   local ndocs="${MEASURE_WUI_DOCS:-10}" pause="${MEASURE_WUI_PAUSE:-0.5}" out="${MEASURE_WUI_OUT:-}"
-  local w run i p cls url line arm
+  local work run i p cls url line arm
   local -a todo
   command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 \
     || { do_log "FATAL curl and python3 are required"; return 1; }
@@ -83,12 +83,15 @@ do_measure_wui_edge_warm() {
   run=$(date -u +%Y%m%dT%H%M%SZ)
   [[ -n "$out" ]] || out="$HOME/.cache/csi-spl/edge-warm/${ENV:-url}-$run.tsv"
   mkdir -p "$(dirname "$out")"
-  w=$(mktemp -d)
+  # the crawl paths + the sample: the RETURN trap removes the dir on every
+  # return path, a failed crawl included
+  work=$(mktemp -d) || return 1
+  trap "rm -rf '${work:?}'; trap - RETURN" RETURN
   # the crawl at 1 worker, 2/s, capped: enough paths to sample, no burst
   if ! WARM_WUI_PARALLEL=1 WARM_WUI_RATE=2/s WARM_WUI_MAX_FILES="${MEASURE_WUI_MAX_FILES:-$(( n * 4 + 80 ))}" \
-       _warm_wui_edge_crawl "$base" "$w" >"$w/paths"; then rm -rf "${w:?}"; return 1; fi
-  { grep -v '^/_nuxt/' "$w/paths" | sed -n "1,${ndocs}p"; grep -E '^/_nuxt/.*\.(js|css)$' "$w/paths" | sed -n "1,${n}p"; } >"$w/sample"
-  do_log "INFO $base: sampling $(grep -vc '^/_nuxt/' "$w/sample") documents + $(grep -c '^/_nuxt/' "$w/sample") /_nuxt files, arms: ${todo[*]}, ${pause}s between requests -> $out"
+       _warm_wui_edge_crawl "$base" "$work" >"$work/paths"; then return 1; fi
+  { grep -v '^/_nuxt/' "$work/paths" | sed -n "1,${ndocs}p"; grep -E '^/_nuxt/.*\.(js|css)$' "$work/paths" | sed -n "1,${n}p"; } >"$work/sample"
+  do_log "INFO $base: sampling $(grep -vc '^/_nuxt/' "$work/sample") documents + $(grep -c '^/_nuxt/' "$work/sample") /_nuxt files, arms: ${todo[*]}, ${pause}s between requests -> $out"
   printf 'run\tarm\tstep\tclass\tpath\tcode\tttfb_s\tserver_ttfb_s\tx_cache\n' >"$out"
   i=0
   while IFS= read -r p; do
@@ -103,8 +106,7 @@ do_measure_wui_edge_warm() {
       line=$(_measure_wui_get "$url"); printf '%s\t%s\treader\t%s\t%s\t%s\n' "$run" "$arm" "$cls" "$p" "$line" >>"$out"
       sleep "$pause"
     done
-  done <"$w/sample"
-  rm -rf "${w:?}"
+  done <"$work/sample"
   _measure_wui_summary "$out"
   do_log "INFO samples: $out"
 }

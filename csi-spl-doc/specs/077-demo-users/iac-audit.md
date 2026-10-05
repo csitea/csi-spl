@@ -18,8 +18,8 @@ and this spec's `tasks.md`.
 | 3 | 052 workspace-docs buckets, dev + prd | `make do-provision` by the owner (one-liners 1, 2) | **yes**: step 052 | none (052 prd is the owner's, topic `199cafc7`) |
 | 4 | 055 KMS key re-run, dev + prd | `make do-provision` by the owner (one-liners 3, 4); the first run failed because the KMS API that step 001 enables was not live yet | **yes**: steps 001 + 055 | none in terraform; see section 2.2 |
 | 5 | 030 hub, dev + prd | `make do-provision` (one-liners 5, 6) | **yes**: step 030 | none |
-| 6 | demo workspace create: tenant row + root key (T023 dev by c-310, T024 prd by the owner 11:26Z) | named action `do_spl_demo_workspace_create` (wraps `do_spl_tenant_create`, `TENANT_HOST=0`), idempotent, read first | **no** | section 2.1 |
-| 7 | box-wui pin under `demo` (SPL-1290) | inside 6: `do_spl_cloud_pin_box_wui`, signed with the root key while in hand | **no** | section 2.1 (rides with 6) |
+| 6 | demo workspace create: tenant row + root key (T023 dev by c-310, T024 prd by the owner 11:26Z) | named action `do_spl_demo_workspace_create` (wraps `do_spl_tenant_create`, `TENANT_HOST=0`), idempotent, read first | **no** -> **yes**: step 036 | section 3 |
+| 7 | box-wui pin under `demo` (SPL-1290) | inside 6: `do_spl_cloud_pin_box_wui`, signed with the root key while in hand | **no** -> **yes**: step 036, inside 6 | section 3 |
 | 8 | nightly demo wipe (T017, `7243b464`) | named action `do_spl_demo_wipe`, scheduled by wf 46 | no: a data operation (deletes rows), not infra | none: stays a named action on a schedule |
 | 9 | tf-runner and desk containers restarted after the power loss | `make do-setup-app-inf`, `do_spl_desk_up_all` | no: local tooling, not GCP infra | none |
 
@@ -54,8 +54,21 @@ between two steps with separate state. A wait for the KMS API before 055's
 first resource is a possible follow-up, offered to the owner in topic
 `f0c3927e`; not built here.
 
-## 3. Decision on 2.1
+## 3. Fix for 2.1: step 036-spl-demo-workspace
 
-Open (c-001, task `4979bb24`): wrap row 6 in a terraform step after the
-tf-runner image gains `psql`, the Cloud SQL proxy, the `spool` CLI and a
-`~/.spool-hub` mount; or keep it a named action for the reasons above.
+Decision: c-001 and c-002, task `4979bb24` (option 1, the owner's
+`fe7b67be`). Each gap of 2.1, closed:
+
+| gap | closed by |
+|---|---|
+| terraform does not run it | `036-spl-demo-workspace`: one `terraform_data` whose local-exec runs `./run -a do_spl_demo_workspace_create` (`DRY_RUN=0`). It re-runs only when the env, the project or the workspace id changes. |
+| inputs | `demo_enabled` / `demo_workspace` are cnf `env.demo.{enabled,workspace}`, derived by `do_spl_merged_cnf` (one key per fact). The demo off: nothing runs. |
+| no `psql`, no proxy | tf-runner image: Debian `postgresql-client`; `cloud-sql-proxy` pinned by version (= cnf `cloud_sql_proxy_image`) and sha256 |
+| no `spool` CLI | `make do-provision` with `STEP=036-...` builds it on the host first (`csi-spl-api/src/bash/build.sh`), into the mounted tree; no Go in the image |
+| the root key | tf-runner mounts `~/.spool-hub`, which the `do-setup-app-inf*` targets create as 0700 first. The key is no input, output or trigger: it is in neither state nor plan nor log |
+| an existing workspace | the action reads first and prints `"created":false`: the first apply on dev and prd is a no-op |
+
+Test: `csi-spl-iac/src/bash/tests/demo-workspace-036.tst.sh` (the step
+applied against a stub action, plus the image, mount and make checks); the
+action's read-first behaviour stays covered by
+`csi-spl-orc/src/bash/tests/demo-workspace-create.tst.sh`.

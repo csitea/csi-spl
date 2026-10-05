@@ -371,6 +371,10 @@ type Hub struct {
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`
+	// DemoMaxStay is how long a demo seat lasts from admission (cnf
+	// demo.max_stay, specs/077 FR-005, T009); then the door answers 401
+	// demo_expired and the 5-minute sweep drops the seat. Below 1m refused.
+	DemoMaxStay time.Duration `env:"SPOOL_HUB_DEMO_MAX_STAY" envDefault:"3h"`
 	// DemoAgentTurns caps a demo_user's agent turns (fan-outs and @agent
 	// sends) per visit (specs/077 3.7); the next is refused 429 demo_quota.
 	DemoAgentTurns int `env:"SPOOL_HUB_DEMO_AGENT_TURNS" envDefault:"20"`
@@ -590,6 +594,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.DemoMaxLive < 1 {
 		return fmt.Errorf("SPOOL_HUB_DEMO_MAX_LIVE %d must be at least 1", h.DemoMaxLive)
+	}
+	if h.DemoMaxStay < time.Minute {
+		return fmt.Errorf("SPOOL_HUB_DEMO_MAX_STAY %v must be at least 1m", h.DemoMaxStay)
 	}
 	if h.DemoAgentTurns < 1 {
 		return fmt.Errorf("SPOOL_HUB_DEMO_AGENT_TURNS %d must be at least 1", h.DemoAgentTurns)

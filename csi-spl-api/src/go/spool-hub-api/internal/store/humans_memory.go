@@ -217,7 +217,8 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 		if h.liveDemoSeats(tenant, now) >= p.maxLive() {
 			return nil, nil, ErrDemoFull
 		}
-		grant = &memMember{role: rbac.DemoUser, admittedBy: AdmittedDemo, since: now}
+		grant = &memMember{role: rbac.DemoUser, admittedBy: AdmittedDemo, since: now,
+			accessUntil: now.Add(p.maxStay()).UTC()} // specs/077 T009: the seat ends
 	} else if p.bootstraps(tenant) && h.memberCount(tenant) == 0 {
 		grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}
 	} else if i, ok := h.invites[[2]string{tenant, email}]; ok && email != "" && !i.accepted && !now.Before(i.ExpiresAt) {

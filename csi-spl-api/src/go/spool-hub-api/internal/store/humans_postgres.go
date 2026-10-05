@@ -259,23 +259,24 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 
 // seatDemoTx seats hum as a demo_user (specs/077 T007) unless the demo holds
 // its live cap already: ErrDemoFull (FR-006, T008). admitTx holds the tenant
-// row lock, so two sign-ins cannot both take the last demo seat.
+// row lock, so two sign-ins cannot both take the last demo seat. The seat
+// ends at now + the stay (T009, access_until); without rdb 0113 a seat could
+// not end, so none is given (ErrAccessUntilUnavailable).
 func seatDemoTx(ctx context.Context, tx pgx.Tx, hum, tenant string, r admitRule, now time.Time) error {
-	q := `SELECT count(*) FROM tenant_memberships m WHERE m.tenant_id = $1 AND m.role = $2`
-	args := []any{tenant, rbac.DemoUser}
-	if r.access {
-		q += ` AND (m.access_until IS NULL OR m.access_until > $3)`
-		args = append(args, now)
+	if !r.access {
+		return ErrAccessUntilUnavailable
 	}
 	var live int
-	if err := tx.QueryRow(ctx, q, args...).Scan(&live); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM tenant_memberships m
+		WHERE m.tenant_id = $1 AND m.role = $2 AND (m.access_until IS NULL OR m.access_until > $3)`,
+		tenant, rbac.DemoUser, now).Scan(&live); err != nil {
 		return err
 	}
 	if live >= r.p.maxLive() {
 		return ErrDemoFull
 	}
-	_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
-		VALUES ($1, $2, $3, $4, $5)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo)
+	_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by, access_until)
+		VALUES ($1, $2, $3, $4, $5, $6)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo, now.Add(r.p.maxStay()).UTC())
 	return err
 }
 

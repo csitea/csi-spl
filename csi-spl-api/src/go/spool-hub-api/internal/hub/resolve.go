@@ -82,6 +82,8 @@ func (s *Server) humanTenant(w http.ResponseWriter, r *http.Request) (store.Tena
 	case errors.Is(err, auth.ErrTenantMismatch):
 		writeErr(w, http.StatusForbidden, "tenant_mismatch", "this host belongs to another tenant than the session")
 		return store.Tenant{}, "", false
+	case err != nil && s.doorDemoExpired(w, r): // specs/077 T009: the demo seat ended
+		return store.Tenant{}, "", false
 	case errors.Is(err, auth.ErrPageNotMember): // SPL-959: the tenant host's page, not a member
 		writeErr(w, http.StatusForbidden, "not_member", "not a member of this tenant")
 		return store.Tenant{}, "", false

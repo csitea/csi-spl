@@ -269,6 +269,9 @@ func (s *Server) handleWUIWS(w http.ResponseWriter, r *http.Request) {
 		if err := wsjson.Read(ctx, conn, &f); err != nil {
 			return
 		}
+		if s.demoFrameEnded(ctx, c) { // specs/077 T009: every frame of an ended stay
+			return
+		}
 		s.wuiFrame(ctx, c, f)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/cicdlogs"
 )
@@ -414,6 +415,24 @@ func TestLoadHubDemoProviders(t *testing.T) {
 
 // specs/077 T008: the live demo cap defaults to the owner's 9; below 1 the
 // hub refuses to start (0 must never read as unlimited).
+func TestLoadHubDemoMaxStay(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil || h.DemoMaxStay != 3*time.Hour {
+		t.Fatalf("default: %v %v, want 3h", h, err)
+	}
+	for _, bad := range []string{"59s", "0", "-1h", "three hours"} {
+		t.Setenv("SPOOL_HUB_DEMO_MAX_STAY", bad)
+		if _, err := LoadHub(); err == nil {
+			t.Fatalf("SPOOL_HUB_DEMO_MAX_STAY=%s was accepted", bad)
+		}
+	}
+	t.Setenv("SPOOL_HUB_DEMO_MAX_STAY", "1m")
+	if h, err := LoadHub(); err != nil || h.DemoMaxStay != time.Minute {
+		t.Fatalf("1m: %v", err)
+	}
+}
+
 func TestLoadHubDemoMaxLive(t *testing.T) {
 	setHubBase(t)
 	h, err := LoadHub()

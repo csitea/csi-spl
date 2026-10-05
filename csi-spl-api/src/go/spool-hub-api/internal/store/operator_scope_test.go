@@ -21,6 +21,7 @@ var operatorCallers = map[string]string{
 	"pruneCommitted":       "Sweep's committed-delivery prune (spec 059 S4), global by design; no route",
 	"ConsumerLag":          "consumer lag report (spec 059 S4), fleet-wide by design; no route",
 	"SweepClones":          "act-as clone expiry (hub sweeper goroutine), global by design; no route",
+	"SweepDemo":            "demo stay sweep (specs/077 T009, hub sweeper goroutine): ended demo seats of the cnf demo workspace, then their humans only when no membership is left anywhere; no route",
 	"SweepMemberActivity":  "Activity-log auth-row retention sweep (hub sweeper goroutine), global by design; no route",
 	"PruneLifecycleEvents": "agent_lifecycle_events 90-day retention (hub sweeper goroutine, spec 063 12), global by design; no route",
 	"PrunePerfSamples":     "wui_perf_samples 30-day retention (hub sweeper goroutine, spec 066 4), global by design; no route",

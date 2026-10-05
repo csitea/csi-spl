@@ -184,6 +184,10 @@ type Options struct {
 	// demo.go); "" = the demo is off (SPOOL_HUB_DEMO_ENABLED false, the
 	// default): a demo_user membership grants nothing and GET /v1/demo is 404.
 	DemoWorkspace string
+	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
+	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
+	// and the stay sweep gives a seat admitted before T009 that end.
+	DemoMaxStay time.Duration
 	// DemoAgentTurns caps a demo_user's agent turns per visit (specs/077
 	// 3.7, demo_quota.go); <= 0 = DefaultDemoAgentTurns.
 	DemoAgentTurns int
@@ -448,6 +452,8 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 	defer t.Stop()
 	ft := time.NewTicker(fileSweepEvery)
 	defer ft.Stop()
+	dt := time.NewTicker(demoSweepEvery) // specs/077 T009: the stay sweep
+	defer dt.Stop()
 	bt := time.NewTicker(backfillEvery)
 	defer bt.Stop()
 	for {
@@ -456,6 +462,8 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			return
 		case <-bt.C:
 			s.backfillLive(ctx)
+		case <-dt.C:
+			s.SweepDemo(ctx)
 		case <-ft.C:
 			r, err := s.SweepFiles(ctx, s.o.Now())
 			if err != nil {

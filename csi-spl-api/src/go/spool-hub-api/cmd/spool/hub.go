@@ -213,7 +213,8 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	// The IdP picture lands in the same tenant blob store (010 T044).
 	// The open demo admission (specs/077 T007, T008 cap) is on only with the demo flag.
 	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner,
-		OpenWorkspace: hc.DemoTenant(), OpenProviders: hc.DemoProviders, OpenMaxLive: hc.DemoMaxLive},
+		OpenWorkspace: hc.DemoTenant(), OpenProviders: hc.DemoProviders, OpenMaxLive: hc.DemoMaxLive,
+		OpenMaxStay: hc.DemoMaxStay},
 		Blob: bs, AvatarErr: func(hum string, err error) {
 			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
 		}}
@@ -286,6 +287,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		QuotaMessagesPerMonth: hc.QuotaMessagesPerMonth, QuotaPins: hc.QuotaPins, QuotaFileBytes: hc.QuotaFileBytes,
 		ViewDoor: hc.ViewDoor, ViewCORSOrigins: hc.ViewCORSOrigins, Env: hc.Env, LobbyTaskID: hc.LobbyTaskID,
 		OriginTenant: originTenant, OperatorTenant: hc.OperatorWorkspace(), DemoWorkspace: hc.DemoTenant(), DemoAgentTurns: hc.DemoAgentTurns,
+		DemoMaxStay:  hc.DemoMaxStay,
 		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion,
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,

@@ -133,6 +133,11 @@ type AdmitPolicy struct {
 	// demo.max_live, specs/077 FR-006, T008); the next open admission is
 	// ErrDemoFull. <= 0 is DefaultDemoMaxLive, never unlimited.
 	OpenMaxLive int
+	// OpenMaxStay is how long an open demo seat lasts (hub env
+	// SPOOL_HUB_DEMO_MAX_STAY, specs/077 FR-005, T009): admission writes
+	// access_until = admitted + OpenMaxStay. <= 0 is DefaultDemoMaxStay,
+	// never unlimited.
+	OpenMaxStay time.Duration
 }
 
 // DefaultDemoMaxLive is the owner's 9 visitors at a time (specs/077 1.1).
@@ -144,6 +149,17 @@ func (p AdmitPolicy) maxLive() int {
 		return DefaultDemoMaxLive
 	}
 	return p.OpenMaxLive
+}
+
+// DefaultDemoMaxStay is the owner's 3-hour stay (specs/077 1.1, Q5).
+const DefaultDemoMaxStay = 3 * time.Hour
+
+// maxStay is the length of an open demo seat.
+func (p AdmitPolicy) maxStay() time.Duration {
+	if p.OpenMaxStay <= 0 {
+		return DefaultDemoMaxStay
+	}
+	return p.OpenMaxStay
 }
 
 // AdmittedDemo marks a membership the open demo rule seated (specs/077).

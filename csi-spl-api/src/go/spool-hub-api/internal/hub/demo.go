@@ -16,11 +16,9 @@ import (
 // lets a request name.
 
 // Demo limits the greeting and the admission read (spec 3.6, owner answers
-// 37c34381 and ba3983eb). Settings at build of T018; constants until then.
-const (
-	demoMaxLive = 9
-	demoMaxStay = "3h"
-)
+// 37c34381 and ba3983eb). Settings at build of T018; the live cap is a
+// constant until then, the stay is Options.DemoMaxStay (demo_stay.go).
+const demoMaxLive = 9
 
 // demoFenced reports whether a's role is demo_user outside the open demo
 // workspace: such an access is treated as no membership at all.
@@ -97,5 +95,5 @@ func (s *Server) handleDemo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.o.DemoWorkspace,
-		"max_live": demoMaxLive, "max_stay": demoMaxStay})
+		"max_live": demoMaxLive, "max_stay": demoStayText(s.demoMaxStay())})
 }

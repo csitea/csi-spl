@@ -80,10 +80,33 @@ Rules for every task (owner Q8, spec §3.10):
   CONTROL: without the tenant `FOR UPDATE` all 12 are seated),
   `TestStoreBackedOpenDemoFull` (auth, `auth_error=demo_full`),
   `TestLoadHubDemoMaxLive`.
-- [ ] T009 **3-hour stay** (FR-005): admission writes `access_until =
-  admitted + demo.max_stay` (default `3h`); the door answers `401
+- [x] T009 **3-hour stay** (FR-005, c-321): admission writes `access_until =
+  admitted + demo.max_stay` (hub env `SPOOL_HUB_DEMO_MAX_STAY`, default `3h`,
+  below 1m refused at start; the cnf key is T018's); the door answers `401
   demo_expired` after it; a 5-minute sweep closes sockets and drops expired
-  memberships and the visitor's personal data. Done: hub + store tests.
+  memberships and the visitor's personal data. Built: store `demo_stay.go`
+  (`SweepDemo`, `DemoSeatEnded`), hub `demo_stay.go`. A session signed in to
+  the demo workspace whose seat ended, or was swept, gets `401 demo_expired`
+  from every `humanTenant` route (the `/v1/view/*` reads, the socket upgrade);
+  an open socket's next frame gets a `demo_expired` error and close `4401`.
+  The sweep (hub `RunSweeper`, every 5 min) drops the ended `demo_user`
+  seat, then in the demo workspace the visitor's `read_marks`,
+  `flow_watches`, `message_reactions`, `channel_humans` and
+  `member_activity` rows, then the `humans` row (name, email, settings; by
+  cascade `human_identities`, `human_keys`, `human_events`,
+  `member_clones`) only when no membership is left anywhere, and the
+  hub-wide `avatars/<file_id>` blob nobody else carries; it closes the
+  visitor's sockets `4401 demo_expired`. Posts stay until the nightly wipe
+  (Q10). A seat admitted before T009 (no `access_until`) is given admitted +
+  the stay by the sweep. Done: store `TestDemoStayAdmissionWritesAccessUntil`,
+  `TestDemoStaySweep`, `TestDemoStaySweepKeepsRealMember`,
+  `TestDemoStaySweepEndsOpenEndedSeat` (memory + Postgres, fake clock); hub
+  `TestDemoStayDoor`, `TestDemoStaySweepClosesSockets`,
+  `TestDemoStayShown`; `TestLoadHubDemoMaxStay`. CONTROLS (run by hand,
+  each red): the "no membership left" guard removed = a real member's human
+  is deleted; `doorDemoExpired` removed = `401 view_door`; the frame check
+  removed = the frame is answered; the socket close removed = the socket
+  stays open.
 - [ ] T010 **return visits and sign-up limits** (Q11, §3.6): at most 2 visits
   per account per day; 3 new demo accounts per client IP per day.
 

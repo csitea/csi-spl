@@ -175,6 +175,32 @@ absence (the repo's own rule).
 7. Owner questions: real display names or handles; are issues public; consent and opt-out; how often
    the three-vendor check runs.
 
-## 9. Status
+## 9. Round 1: compared with spec.md v0.1.0 (`d300b411`)
 
-Draft 1, independent, before reading `spec.md`. Comparison with the author's draft and the round log follow below.
+### 9.1 Already in the spec, or agreed for v0.2.0
+
+The spec already does the core of sections 2 to 6: a projection with column grants (§5.1), the
+envelope, `files`, the box names and the edit history withheld (§4.1, §4.2), direct messages and
+private channels excluded by predicate, and an export role that is not the owner and never sets the
+operator scope. The author has agreed to fold these into v0.2.0: C2 (re-read under RLS), C3 (an
+unclassified column = FATAL), C5 (canary rows), a separate publish account, a statement whitelist in
+the loader, archived messages left out, and the display-name question for the owner. Where the spec is
+stronger than my draft I take its version: the three verifiers each use a different method (§8.2),
+verdicts are bound to a hub message (§8.4), and the daily boot test runs against the published file (§9.3).
+
+On C3: the column grants in §5.1 already make a new column unreadable, so C3 is not the leak fence.
+Its value is that a new column is noticed and classified on purpose rather than quietly missing.
+
+### 9.2 New in round 1 (not in either draft)
+
+| # | Point | Why | Ask |
+|---|---|---|---|
+| R1-1 | **CI logs and artifacts are public.** §5.4 runs the export on a GitHub-hosted runner, and this repo is public (spec 044). Its workflow logs, and any uploaded artifact, can be read by anyone. | A gate FATAL that prints the matched text, a `set -x`, or an `upload-artifact` of the candidate publishes unverified data before any verifier sees it. | Gate and verifier messages name only table, primary key and class, never the matched text. The candidate never goes to a workflow artifact, only to private staging. Add a test that greps the workflow for `upload-artifact` and `set -x`. |
+| R1-2 | **Who reads the other workspaces' names?** §5.5.3 and §8.2 (grok) match against every other workspace's id and display name. The export role cannot read them under FORCE RLS, by design. | Reading them under the export role breaks fence 1 or 2. | A separate step, whose only grant is the id and display-name columns of the workspaces table, writes the list to private staging. The export role stays fenced. |
+| R1-3 | **The name hashes must never be published.** Workspace names are short and easy to guess, so a sha256 of one can be reversed by trying common names. | A published hash list tells the world which workspaces exist. | The hash list stays in staging and is deleted when the candidate is published or dropped. §8.4 copies only the file, the manifest and the verdicts, and a check proves no hash list is among them. |
+| R1-4 | **An archived task, not an archived row.** `0065_messages_archived.sql`: `archived_at` is set only on the card, and it means the whole task is archived (except in the lobby, where it hides that one row). | A filter of `archived_at IS NULL` on each row keeps every reply of an archived topic. | Exclude every message whose task's card is archived (lobby: that row only). Ask the owner whether archived **channels** (`0092`) are also out. The safe default is yes. |
+| R1-5 | **What the canaries must cover** (C5 and the §9.3 fixture). | A canary only proves absence for the path it plants. | The fixture plants a unique marker in: a second workspace's channel with the **same `channel_id`** as a Spool Hub one; a private channel; a direct message; a reply in an archived task; an earlier revision; `msg`, `env`, `env_sig` and `files` of a public message; the email of a human who belongs to **both** workspaces; an invite; a box name. No marker may appear in the output. |
+
+### 9.3 Open after round 1
+
+R1-1 to R1-5, plus the agreed v0.2.0 items until they land in spec.md.

@@ -542,8 +542,8 @@
     "chip_reply": "Odpoveď · {title}",
     "chip_new_topic": "Nová téma · {target}",
     "target_search_only": "Tu sa nepublikuje — GO hľadá text",
-    "phone_placeholder_channel": "Správa pre #{name}",
-    "phone_placeholder_dm": "Správa pre {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Odpovedať",
     "phone_placeholder_search": "Hľadať"
   },

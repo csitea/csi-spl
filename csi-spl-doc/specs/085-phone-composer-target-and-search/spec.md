@@ -57,7 +57,7 @@ Mock bundle, tree `7289ef28`, 390x844 and 360x780 with touch, n = 1 per row unle
 
 ### 3.2 A short phone placeholder
 
-At <= 820 px the placeholder is the destination only: `Message #alerts`, `Message @GRK-03`, `Reply`, and on level 1 `Search` (§3.4). The key hints (Enter, Ctrl+Enter, `/search`) leave the phone placeholder; they are listed at the top of the `?` panel instead. Desktop placeholders do not change.
+At <= 820 px the placeholder is the destination only: `#alerts`, `@GRK-03`, `Reply`, and on level 1 `Search` (§3.4). Measured 2026-10-05 (c-284, tree ddc59252, n=2): "Message #alerts" wraps at 390 and 360, so the word `Message` is left out. The key hints (Enter, Ctrl+Enter, `/search`) leave the phone placeholder; they are listed at the top of the `?` panel instead. Desktop placeholders do not change.
 
 ### 3.3 Search has a button: the `?` becomes a magnifier on a phone
 
@@ -88,7 +88,7 @@ On level 1 (the section chooser and its list) the box is a search box: placehold
 |---|---|---|
 | **FR-001** | At <= 820 px, while the docked box has focus or text and is not in search mode, 080's target chip shows inside the field after the mode glyph; never on a line above the box | Planned |
 | **FR-002** | The phone chip is a 14 px pill of at most 12 characters (`#alerts`, `@GRK-03`, `Reply`, `New topic`), ellipsis after; the full target is its `title` and accessible name; it comes from 080's `chipLabel(target)`. It indents the first line only (`text-indent`); wrapped lines use the full field width | Planned |
-| **FR-003** | At <= 820 px the placeholder is the destination only (`Message #<channel>`, `Message @<peer>`, `Reply`, `Search` on level 1); no key hints. New i18n keys `composer.phone_placeholder_*` in all 19 locales | Planned |
+| **FR-003** | At <= 820 px the placeholder is the destination only (`#<channel>`, `@<peer>`, `Reply`, `Search` on level 1); no key hints. New i18n keys `composer.phone_placeholder_*` in all 19 locales | Planned |
 | **FR-004** | At <= 820 px the `?` button shows a magnifier, is named "Search", keeps a >= 44 px target, and a tap enters search mode, focuses the field and opens the operator list; a second tap or an empty box leaves search mode | Planned |
 | **FR-005** | The operator list opened from the phone Search button starts with the key hints that left the placeholder | Planned |
 | **FR-006** | On level 1 the docked box is search-only: placeholder `Search`, magnifier glyph, Enter opens `/search?q=<text>`; it never sends a message | Planned |

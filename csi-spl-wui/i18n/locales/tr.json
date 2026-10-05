@@ -542,8 +542,8 @@
     "chip_reply": "Yanıt · {title}",
     "chip_new_topic": "Yeni konu · {target}",
     "target_search_only": "Burada gönderi yok — GO metni arar",
-    "phone_placeholder_channel": "Mesaj: #{name}",
-    "phone_placeholder_dm": "Mesaj: {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Yanıtla",
     "phone_placeholder_search": "Ara"
   },

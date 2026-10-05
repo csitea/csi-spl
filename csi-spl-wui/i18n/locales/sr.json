@@ -542,8 +542,8 @@
     "chip_reply": "Одговор · {title}",
     "chip_new_topic": "Нова тема · {target}",
     "target_search_only": "Овде се не објављује — GO претражује текст",
-    "phone_placeholder_channel": "Порука за #{name}",
-    "phone_placeholder_dm": "Порука за {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Одговори",
     "phone_placeholder_search": "Претражи"
   },

@@ -21,7 +21,7 @@
 //       the composer's chip unchanged
 //   phone 390x844 (touch), /channel/alerts:
 //     6 NO text line above the dock (owner, t1 dd98f8d7): mode new, placeholder
-//       "Message #alerts"; tap a card -> mode thread, placeholder "Reply…"
+//       "#alerts" (085 T002); tap a card -> mode thread, placeholder "Reply…"
 //     CONTROL: before HUM-24 the desktop had no data-mode and one GO label
 //     (1-4 fail), the edit box had no label (5 fails).
 //
@@ -250,8 +250,8 @@ async function phoneCase(browser) {
   await waitMode(p, 'new')
   const c1 = await cue(p)
   await shot(p, 'new-390-dark')
-  ok('390 6 no text line above the dock, no chip, no arrow: mode new, ONE plain border, placeholder "Message #alerts"',
-    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.mark === null && c1.single && c1.placeholder.startsWith('Message #alerts')), c1)
+  ok('390 6 no text line above the dock, no chip, no arrow: mode new, ONE plain border, placeholder "#alerts" (085 T002)',
+    Boolean(c1 && c1.mode === 'new' && c1.line === null && c1.chip === null && c1.mark === null && c1.single && c1.placeholder === '#alerts'), c1)
   /* owner, t1 be8fed75: "no more than 2 mm after the omnibox border" (~8 px) */
   ok('390 6 option A: "#" inside the dock box, centred on the text line, text clear of it',
     Boolean(c1 && c1.glyph && c1.glyph.kind === 'hash' && c1.glyph.inBox && Math.abs(c1.glyph.dy) <= 3 && c1.glyph.clear >= 2), c1 && c1.glyph)

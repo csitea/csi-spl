@@ -542,8 +542,8 @@
     "chip_reply": "Odpowiedź · {title}",
     "chip_new_topic": "Nowy temat · {target}",
     "target_search_only": "Tu nie publikujesz — GO wyszukuje tekst",
-    "phone_placeholder_channel": "Wiadomość do #{name}",
-    "phone_placeholder_dm": "Wiadomość do {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Odpowiedz",
     "phone_placeholder_search": "Szukaj"
   },

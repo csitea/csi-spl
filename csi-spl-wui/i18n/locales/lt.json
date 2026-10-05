@@ -542,8 +542,8 @@
     "chip_reply": "Atsakymas · {title}",
     "chip_new_topic": "Nauja tema · {target}",
     "target_search_only": "Čia neskelbiama — GO ieško teksto",
-    "phone_placeholder_channel": "Žinutė #{name}",
-    "phone_placeholder_dm": "Žinutė {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Atsakyti",
     "phone_placeholder_search": "Ieškoti"
   },

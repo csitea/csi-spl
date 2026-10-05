@@ -542,8 +542,8 @@
     "chip_reply": "Reply · {title}",
     "chip_new_topic": "New topic · {target}",
     "target_search_only": "No post here — GO searches for the text",
-    "phone_placeholder_channel": "Message #{name}",
-    "phone_placeholder_dm": "Message {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Reply",
     "phone_placeholder_search": "Search"
   },

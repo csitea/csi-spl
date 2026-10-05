@@ -542,8 +542,8 @@
     "chip_reply": "Vastus · {title}",
     "chip_new_topic": "Uus teema · {target}",
     "target_search_only": "Siia ei postitata — GO otsib teksti",
-    "phone_placeholder_channel": "Sõnum: #{name}",
-    "phone_placeholder_dm": "Sõnum: {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Vasta",
     "phone_placeholder_search": "Otsi"
   },

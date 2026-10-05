@@ -542,8 +542,8 @@
     "chip_reply": "Απάντηση · {title}",
     "chip_new_topic": "Νέο θέμα · {target}",
     "target_search_only": "Δεν γίνεται ανάρτηση εδώ — το GO αναζητά το κείμενο",
-    "phone_placeholder_channel": "Μήνυμα σε #{name}",
-    "phone_placeholder_dm": "Μήνυμα σε {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Απάντηση",
     "phone_placeholder_search": "Αναζήτηση"
   },

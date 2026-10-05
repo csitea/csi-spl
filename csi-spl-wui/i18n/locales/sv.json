@@ -542,8 +542,8 @@
     "chip_reply": "Svar · {title}",
     "chip_new_topic": "Nytt ämne · {target}",
     "target_search_only": "Inget inlägg här — GO söker efter texten",
-    "phone_placeholder_channel": "Meddelande till #{name}",
-    "phone_placeholder_dm": "Meddelande till {'@'}{peer}",
+    "phone_placeholder_channel": "#{name}",
+    "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Svara",
     "phone_placeholder_search": "Sök"
   },

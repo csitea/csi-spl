@@ -369,7 +369,14 @@ async function desktop(browser) {
   const card = await cardFacts(p)
   ok('1440px 18 the desktop time keeps its year (SPL-1000 is phones only)', Boolean(card && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(card.time)), card && card.time)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'mobile-messages-1440.png') })
-  await p.mouse.click(card.x, card.y, { button: 'right' })
+  /* right-click the card, not a control on it: the header's empty spacer.
+     The card's centre is a coincidence of its width, and since spec 078 T006
+     caps the card it lands on the emoji button, which keeps its own click */
+  const gap = await p.evaluate((id) => {
+    const r = document.querySelector(`article.msg[data-msg-id="${id}"] .msg-meta-spacer`)?.getBoundingClientRect()
+    return r && r.width > 4 ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null
+  }, card.id)
+  await p.mouse.click(gap ? gap.x : card.x, gap ? gap.y : card.y, { button: 'right' })
   await sleep(300)
   const m = await sheetFacts(p, '[data-testid=msg-menu]')
   ok('1440px 9 right-click menu is the old popover: no sheet, no Reply; menu button 32 px',

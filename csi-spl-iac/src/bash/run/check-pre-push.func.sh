@@ -489,17 +489,19 @@ _pp_capture() {  # <file> <fn> <tree>
 #   lint <line>            'SYNTAX ...:', 'COMPOSE schema:', 'HCL parse:',
 #                          'LOCKFILE', 'GO MOD:', 'terraform fmt:'
 #   panic <msg>            'panic: <msg>'
-# Normalised: the tree root, /tmp paths, hex ids (7+), colour codes and a
+# Normalised: the tree root (a bare mention reads <tree>), /tmp and $TMPDIR
+# paths (CI's TMPDIR is not /tmp), hex ids (7+), colour codes and a
 # trailing duration are stripped, so the same failure reads the same on both
 # trees. An output with no such line yields an EMPTY signature.
 _pp_sig() {  # <output-file> <tree-root>
   [[ -s "$1" ]] || return 0
-  awk -v root="${2%/}/" '
-    function lit(s, a,   i, o) { o = ""; if (a == "/") return s
-      while ((i = index(s, a)) > 0) { o = o substr(s, 1, i - 1); s = substr(s, i + length(a)) }
+  local tmpd="${TMPDIR:-/tmp}"
+  awk -v root="${2%/}" -v tmpd="${tmpd%/}" '
+    function lit(s, a, b,   i, o) { o = ""; if (a == "" || a == "/tmp") return s
+      while ((i = index(s, a)) > 0) { o = o substr(s, 1, i - 1) b; s = substr(s, i + length(a)) }
       return o s }
     function norm(s) {
-      s = lit(s, root)
+      s = lit(s, root "/", ""); s = lit(s, root, "<tree>"); s = lit(s, tmpd "/", "/tmp/")
       gsub(/\033\[[0-9;]*[A-Za-z]/, "", s); gsub(/\r/, "", s)
       gsub(/\/tmp\/[^ \t:\047")]*/, "<tmp>", s)
       gsub(/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*/, "<sha>", s)

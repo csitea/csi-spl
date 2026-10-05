@@ -1817,5 +1817,20 @@
     "error_id": "ID turi sudaryti mažosios raidės, skaitmenys ir brūkšneliai (iki 32), o pradžioje turi būti raidė arba skaitmuo.",
     "error_email": "Administratoriaus el. paštas nėra tinkamas adresas.",
     "error_billing": "Nežinoma atsiskaitymo būsena."
+  },
+  "palette": {
+    "title": "Eiti į",
+    "input_label": "Eiti į skyrių, kanalą, asmenį, temą, dokumentą ar nustatymą",
+    "placeholder": "Rašykite, kad pereitumėte…",
+    "no_results": "Atitikmenų nėra",
+    "results_label": "Rezultatai",
+    "group": {
+      "sections": "Skyrius",
+      "channels": "Kanalas",
+      "people": "Asmuo",
+      "topics": "Tema",
+      "docs": "Dokumentas",
+      "settings": "Nustatymas"
+    }
   }
 }

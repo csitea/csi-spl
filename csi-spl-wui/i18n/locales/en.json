@@ -1817,5 +1817,20 @@
     "error_id": "The id must be lowercase letters, digits and dashes (up to 32), starting with a letter or digit.",
     "error_email": "The admin email is not a valid address.",
     "error_billing": "Unknown billing status."
+  },
+  "palette": {
+    "title": "Go to",
+    "input_label": "Go to a section, channel, person, topic, doc or setting",
+    "placeholder": "Type to go to…",
+    "no_results": "Nothing matches",
+    "results_label": "Results",
+    "group": {
+      "sections": "Section",
+      "channels": "Channel",
+      "people": "Person",
+      "topics": "Topic",
+      "docs": "Doc",
+      "settings": "Setting"
+    }
   }
 }

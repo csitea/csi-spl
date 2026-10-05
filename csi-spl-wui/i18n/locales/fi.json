@@ -1817,5 +1817,20 @@
     "error_id": "Tunnuksessa saa olla pieniä kirjaimia, numeroita ja yhdysmerkkejä (enintään 32), ja sen on alettava kirjaimella tai numerolla.",
     "error_email": "Ylläpitäjän sähköposti ei ole kelvollinen osoite.",
     "error_billing": "Tuntematon laskutuksen tila."
+  },
+  "palette": {
+    "title": "Siirry",
+    "input_label": "Siirry osioon, kanavalle, henkilöön, aiheeseen, dokumenttiin tai asetukseen",
+    "placeholder": "Kirjoita siirtyäksesi…",
+    "no_results": "Ei osumia",
+    "results_label": "Tulokset",
+    "group": {
+      "sections": "Osio",
+      "channels": "Kanava",
+      "people": "Henkilö",
+      "topics": "Aihe",
+      "docs": "Dokumentti",
+      "settings": "Asetus"
+    }
   }
 }

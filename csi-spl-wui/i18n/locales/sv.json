@@ -1817,5 +1817,20 @@
     "error_id": "Id:t ska bestå av små bokstäver, siffror och bindestreck (högst 32) och börja med en bokstav eller siffra.",
     "error_email": "Administratörens e-post är inte en giltig adress.",
     "error_billing": "Okänd faktureringsstatus."
+  },
+  "palette": {
+    "title": "Gå till",
+    "input_label": "Gå till en sektion, kanal, person, ämne, dokument eller inställning",
+    "placeholder": "Skriv för att gå…",
+    "no_results": "Inga träffar",
+    "results_label": "Resultat",
+    "group": {
+      "sections": "Sektion",
+      "channels": "Kanal",
+      "people": "Person",
+      "topics": "Ämne",
+      "docs": "Dokument",
+      "settings": "Inställning"
+    }
   }
 }

@@ -1817,5 +1817,20 @@
     "error_id": "ID-ul trebuie să conțină litere mici, cifre și cratime (până la 32) și să înceapă cu o literă sau o cifră.",
     "error_email": "E-mailul administratorului nu este o adresă validă.",
     "error_billing": "Stare de facturare necunoscută."
+  },
+  "palette": {
+    "title": "Mergi la",
+    "input_label": "Mergi la o secțiune, un canal, o persoană, un subiect, un document sau o setare",
+    "placeholder": "Tastează pentru a merge…",
+    "no_results": "Nicio potrivire",
+    "results_label": "Rezultate",
+    "group": {
+      "sections": "Secțiune",
+      "channels": "Canal",
+      "people": "Persoană",
+      "topics": "Subiect",
+      "docs": "Document",
+      "settings": "Setare"
+    }
   }
 }

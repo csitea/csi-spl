@@ -1817,5 +1817,20 @@
     "error_id": "ID drīkst saturēt mazos burtus, ciparus un domuzīmes (līdz 32), un tam jāsākas ar burtu vai ciparu.",
     "error_email": "Administratora e-pasts nav derīga adrese.",
     "error_billing": "Nezināms norēķinu statuss."
+  },
+  "palette": {
+    "title": "Doties uz",
+    "input_label": "Doties uz sadaļu, kanālu, personu, tēmu, dokumentu vai iestatījumu",
+    "placeholder": "Rakstiet, lai dotos…",
+    "no_results": "Nav atbilstību",
+    "results_label": "Rezultāti",
+    "group": {
+      "sections": "Sadaļa",
+      "channels": "Kanāls",
+      "people": "Persona",
+      "topics": "Tēma",
+      "docs": "Dokuments",
+      "settings": "Iestatījums"
+    }
   }
 }

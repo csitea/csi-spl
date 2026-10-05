@@ -1817,5 +1817,20 @@
     "error_id": "ID peab koosnema väiketähtedest, numbritest ja sidekriipsudest (kuni 32) ning algama tähe või numbriga.",
     "error_email": "Administraatori e-post ei ole kehtiv aadress.",
     "error_billing": "Tundmatu arvelduse olek."
+  },
+  "palette": {
+    "title": "Mine",
+    "input_label": "Mine jaotisse, kanalisse, inimese, teema, dokumendi või seade juurde",
+    "placeholder": "Kirjuta, et minna…",
+    "no_results": "Vasteid pole",
+    "results_label": "Tulemused",
+    "group": {
+      "sections": "Jaotis",
+      "channels": "Kanal",
+      "people": "Inimene",
+      "topics": "Teema",
+      "docs": "Dokument",
+      "settings": "Seade"
+    }
   }
 }

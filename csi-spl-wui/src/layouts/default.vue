@@ -118,6 +118,8 @@
     <ClientOnly>
       <LazyMsgShortcutsHelp v-if="shortcutsHelp" />
     </ClientOnly>
+    <!-- 081 T004: Ctrl + K, the command palette; its chunk loads on the first open -->
+    <ClientOnly><LazyCommandPalette v-if="globalKeys.paletteOpen.value" /></ClientOnly>
     <!-- CLE-77840: "Deleted · Undo" after Delete on a reply; eager like the archive one -->
     <ClientOnly>
       <DeleteUndoToast v-if="deleteUndo.toast.value" />
@@ -181,6 +183,7 @@ import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 import { closeArchivedPane, useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
+import { useGlobalKeys } from '~/composables/useGlobalKeys'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
 import { useOpenMessageNotice } from '~/composables/useOpenMessage'
@@ -231,6 +234,8 @@ const archiveUndo = useArchiveUndo()
 const deleteUndo = useDeleteUndo()
 /* HUM-10 ae2e5093: Shift + ? opens the shortcuts list (useMsgShortcuts) */
 const shortcutsHelp = useMsgShortcutsHelp()
+/* 081 T004: the always-on keys (Ctrl + K) */
+const globalKeys = useGlobalKeys()
 const mentionDirect = useMentionDirectNote()
 const openNotice = useOpenMessageNotice()
 let offDeleted = () => {}

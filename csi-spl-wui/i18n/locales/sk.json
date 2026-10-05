@@ -1817,5 +1817,20 @@
     "error_id": "ID musí obsahovať malé písmená, číslice a pomlčky (najviac 32) a začínať písmenom alebo číslicou.",
     "error_email": "E-mail správcu nie je platná adresa.",
     "error_billing": "Neznámy stav fakturácie."
+  },
+  "palette": {
+    "title": "Prejsť na",
+    "input_label": "Prejsť na sekciu, kanál, osobu, tému, dokument alebo nastavenie",
+    "placeholder": "Píšte a prejdite…",
+    "no_results": "Žiadne zhody",
+    "results_label": "Výsledky",
+    "group": {
+      "sections": "Sekcia",
+      "channels": "Kanál",
+      "people": "Osoba",
+      "topics": "Téma",
+      "docs": "Dokument",
+      "settings": "Nastavenie"
+    }
   }
 }

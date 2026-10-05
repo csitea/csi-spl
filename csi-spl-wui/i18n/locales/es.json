@@ -1817,5 +1817,20 @@
     "error_id": "El identificador debe tener letras minúsculas, dígitos y guiones (hasta 32) y empezar por una letra o un dígito.",
     "error_email": "El correo del administrador no es una dirección válida.",
     "error_billing": "Estado de facturación desconocido."
+  },
+  "palette": {
+    "title": "Ir a",
+    "input_label": "Ir a una sección, canal, persona, tema, documento o ajuste",
+    "placeholder": "Escribe para ir…",
+    "no_results": "Sin coincidencias",
+    "results_label": "Resultados",
+    "group": {
+      "sections": "Sección",
+      "channels": "Canal",
+      "people": "Persona",
+      "topics": "Tema",
+      "docs": "Documento",
+      "settings": "Ajuste"
+    }
   }
 }

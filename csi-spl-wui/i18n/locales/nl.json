@@ -1817,5 +1817,20 @@
     "error_id": "De id bestaat uit kleine letters, cijfers en streepjes (maximaal 32) en begint met een letter of cijfer.",
     "error_email": "Het e-mailadres van de beheerder is ongeldig.",
     "error_billing": "Onbekende factuurstatus."
+  },
+  "palette": {
+    "title": "Ga naar",
+    "input_label": "Ga naar een sectie, kanaal, persoon, onderwerp, document of instelling",
+    "placeholder": "Typ om te gaan…",
+    "no_results": "Geen resultaten",
+    "results_label": "Resultaten",
+    "group": {
+      "sections": "Sectie",
+      "channels": "Kanaal",
+      "people": "Persoon",
+      "topics": "Onderwerp",
+      "docs": "Document",
+      "settings": "Instelling"
+    }
   }
 }

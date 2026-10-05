@@ -1817,5 +1817,20 @@
     "error_id": "Kimlik küçük harf, rakam ve tirelerden (en fazla 32) oluşmalı ve bir harf ya da rakamla başlamalıdır.",
     "error_email": "Yöneticinin e-postası geçerli bir adres değil.",
     "error_billing": "Bilinmeyen faturalama durumu."
+  },
+  "palette": {
+    "title": "Git",
+    "input_label": "Bir bölüme, kanala, kişiye, konuya, belgeye veya ayara git",
+    "placeholder": "Gitmek için yazın…",
+    "no_results": "Eşleşme yok",
+    "results_label": "Sonuçlar",
+    "group": {
+      "sections": "Bölüm",
+      "channels": "Kanal",
+      "people": "Kişi",
+      "topics": "Konu",
+      "docs": "Belge",
+      "settings": "Ayar"
+    }
   }
 }

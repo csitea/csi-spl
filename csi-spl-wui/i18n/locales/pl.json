@@ -1817,5 +1817,20 @@
     "error_id": "Identyfikator musi składać się z małych liter, cyfr i myślników (do 32) i zaczynać się literą lub cyfrą.",
     "error_email": "E-mail administratora nie jest prawidłowym adresem.",
     "error_billing": "Nieznany stan rozliczeń."
+  },
+  "palette": {
+    "title": "Przejdź do",
+    "input_label": "Przejdź do sekcji, kanału, osoby, tematu, dokumentu lub ustawienia",
+    "placeholder": "Pisz, aby przejść…",
+    "no_results": "Brak wyników",
+    "results_label": "Wyniki",
+    "group": {
+      "sections": "Sekcja",
+      "channels": "Kanał",
+      "people": "Osoba",
+      "topics": "Temat",
+      "docs": "Dokument",
+      "settings": "Ustawienie"
+    }
   }
 }

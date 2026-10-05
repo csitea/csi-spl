@@ -255,7 +255,19 @@ Rules for every task (owner Q8, spec §3.10):
   302 to the IdP, a second create changes nothing. Admission as `demo_user`
   and the cap: the T007/T008 hub tests; the live sign-in is the owner's
   walkthrough.
-- [ ] T024 **prd on**: only on the owner's explicit go after the dev
-  walkthrough.
+- [x] T024 **prd on** (owner go HUM-10 c0f96152; c-323, c-001, c-336):
+  cnf flip 2aea515b (prd `env.demo.enabled: true`), 030 prd applied by the
+  owner 11:14:51Z, workspace `demo` created on prd by the owner 11:26:31Z with
+  `do_spl_demo_workspace_create`. Verified 2026-10-05 (n=1 each, read only,
+  main checkout 96f6efb6, hub f8677d1e v1.2.7): `GET /v1/demo` 200
+  `{"max_live":9,"max_stay":"3h","workspace":"demo"}` (11:31:40Z); Google and
+  Facebook start for `tenant=demo` 302 to the IdP, state `"t":"demo"`
+  (11:31:41Z); `/login` in headless Chrome shows the T020 intro, the limit 9
+  and both "Try the demo" links with `tenant=demo` (11:33:04Z); 030 prd plan
+  had no demo change pending (11:32:10Z: 2 add / 1 change, all 090 marketing
+  plus the scaling no-op); the dry-run create printed `"created":false`
+  (c-001, 14:1xZ). The live Google or Facebook join as `demo_user` is a
+  human step: a private window, `/login`, "Try the demo with Google", a test
+  account the spec allows (not the owner's).
 
-<!-- version: 0.2.4 · updated: 2026-10-05 · last-edit: 2026-10-05T11:46:22Z -->
+<!-- version: 0.2.5 · updated: 2026-10-05 · last-edit: 2026-10-05T14:30:00Z -->

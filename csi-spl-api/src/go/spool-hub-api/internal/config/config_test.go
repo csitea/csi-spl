@@ -411,3 +411,23 @@ func TestLoadHubDemoProviders(t *testing.T) {
 		}
 	}
 }
+
+// specs/077 T008: the live demo cap defaults to the owner's 9; below 1 the
+// hub refuses to start (0 must never read as unlimited).
+func TestLoadHubDemoMaxLive(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil || h.DemoMaxLive != 9 {
+		t.Fatalf("default: %v %v, want 9", h, err)
+	}
+	for _, bad := range []string{"0", "-1", "nine"} {
+		t.Setenv("SPOOL_HUB_DEMO_MAX_LIVE", bad)
+		if _, err := LoadHub(); err == nil {
+			t.Fatalf("SPOOL_HUB_DEMO_MAX_LIVE=%s was accepted", bad)
+		}
+	}
+	t.Setenv("SPOOL_HUB_DEMO_MAX_LIVE", "3")
+	if h, err := LoadHub(); err != nil || h.DemoMaxLive != 3 {
+		t.Fatalf("3: %v", err)
+	}
+}

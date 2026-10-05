@@ -55,6 +55,11 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 	if errors.Is(err, ErrInviteExpired) {
 		return "", auth.ErrInviteExpired
 	}
+	// The demo workspace holds its live visitors already (specs/077 T008):
+	// demo_full, so the login page says "the demo is full, try later".
+	if errors.Is(err, ErrDemoFull) {
+		return "", auth.ErrDemoFull
+	}
 	// A new seat over the M4 cap (009 D-6): the redirect has no status, so it
 	// is not_allowed, and nothing was written.
 	if errors.Is(err, ErrNotAdmitted) || errors.Is(err, ErrSeatQuota) {

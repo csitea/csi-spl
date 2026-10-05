@@ -81,3 +81,28 @@ func TestStoreBackedOpenDemoAdmission(t *testing.T) {
 		}
 	})
 }
+
+// specs/077 T008 through the real sign-in: with the demo at its live cap a
+// new visitor lands on auth_error=demo_full with no session and no seat.
+func TestStoreBackedOpenDemoFull(t *testing.T) {
+	ctx := context.Background()
+	st := store.NewMemory()
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := st.CreateTenant(ctx, store.Tenant{ID: "demo", RootPubKey: pub}); err != nil {
+		t.Fatal(err)
+	}
+	full := store.AdmitPolicy{OpenWorkspace: "demo", OpenProviders: []string{"google", "facebook"}, OpenMaxLive: 1}
+	if _, err := st.Admit(ctx, store.Identity{Provider: "google", Subject: "first-visitor",
+		Email: "first-visitor@example.com"}, "demo", full, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	hooks := store.AuthHooks{H: st, Policy: full}
+	r := newRigWith(t, auth.Options{Registrar: hooks, Membership: hooks})
+	c := browser(t)
+	if u := signIn(t, c, r, "google", "?tenant=demo"); u.Query().Get("auth_error") != auth.ErrCodeDemoFull {
+		t.Fatalf("visitor past the cap: landed on %s, want auth_error=%s", u, auth.ErrCodeDemoFull)
+	}
+	if code, _ := session(t, c, r); code != http.StatusUnauthorized {
+		t.Fatalf("demo_full left a session: %d", code)
+	}
+}

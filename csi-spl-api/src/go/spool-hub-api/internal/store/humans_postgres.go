@@ -47,7 +47,8 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 				return "", err
 			}
 		}
-		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, admitRule{p, open}, now); err != nil {
+		r := admitRule{p: p, open: open, access: open && s.hasAccessUntil(ctx)}
+		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, r, now); err != nil {
 			return "", err // rollback: a refusal writes nothing
 		}
 	}
@@ -163,6 +164,8 @@ func recordIdentity(ctx context.Context, tx pgx.Tx, id Identity, f foundHuman, n
 type admitRule struct {
 	p    AdmitPolicy
 	open bool
+	// access: rdb 0113 access_until is there, so an ended seat is not live.
+	access bool
 }
 
 // noMemberElsewhere reports whether hum holds no membership outside tenant,
@@ -228,9 +231,7 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 		}
 	}
 	if r.open {
-		_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
-			VALUES ($1, $2, $3, $4, $5)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo)
-		return err
+		return seatDemoTx(ctx, tx, hum, tenant, r, now)
 	}
 	if r.p.bootstraps(tenant) {
 		tag, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
@@ -250,6 +251,28 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	// expires_at > now, so an unaccepted row with expires_at <= now is exactly
 	// the expired case (CLE-77781).
 	return refusal(ctx, tx, email, tenant, now)
+}
+
+// seatDemoTx seats hum as a demo_user (specs/077 T007) unless the demo holds
+// its live cap already: ErrDemoFull (FR-006, T008). admitTx holds the tenant
+// row lock, so two sign-ins cannot both take the last demo seat.
+func seatDemoTx(ctx context.Context, tx pgx.Tx, hum, tenant string, r admitRule, now time.Time) error {
+	q := `SELECT count(*) FROM tenant_memberships m WHERE m.tenant_id = $1 AND m.role = $2`
+	args := []any{tenant, rbac.DemoUser}
+	if r.access {
+		q += ` AND (m.access_until IS NULL OR m.access_until > $3)`
+		args = append(args, now)
+	}
+	var live int
+	if err := tx.QueryRow(ctx, q, args...).Scan(&live); err != nil {
+		return err
+	}
+	if live >= r.p.maxLive() {
+		return ErrDemoFull
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
+		VALUES ($1, $2, $3, $4, $5)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo)
+	return err
 }
 
 // refusal is admitTx's answer when nothing admitted: ErrInviteExpired when

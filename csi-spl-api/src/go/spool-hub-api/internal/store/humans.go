@@ -46,6 +46,11 @@ var ErrNotAdmitted = errors.New("not admitted to tenant")
 // checks ErrInviteExpired first.
 var ErrInviteExpired = fmt.Errorf("%w: invite expired", ErrNotAdmitted)
 
+// ErrDemoFull refuses an open demo admission (specs/077 FR-006, T008): the
+// demo workspace already holds AdmitPolicy.OpenMaxLive live demo_user seats.
+// It WRAPS ErrNotAdmitted like ErrInviteExpired; nothing was written.
+var ErrDemoFull = fmt.Errorf("%w: demo full", ErrNotAdmitted)
+
 // Membership roles (tenant_memberships.role) are rows since rdb 0021
 // (specs/025): any role_id visible to the tenant. These two are the ones the
 // store itself assigns.
@@ -124,6 +129,21 @@ type AdmitPolicy struct {
 	// env.demo.providers, default google,facebook). A native (password) or
 	// operator identity is never admitted by it, whatever this lists.
 	OpenProviders []string
+	// OpenMaxLive caps the live demo_user seats of OpenWorkspace (cnf
+	// demo.max_live, specs/077 FR-006, T008); the next open admission is
+	// ErrDemoFull. <= 0 is DefaultDemoMaxLive, never unlimited.
+	OpenMaxLive int
+}
+
+// DefaultDemoMaxLive is the owner's 9 visitors at a time (specs/077 1.1).
+const DefaultDemoMaxLive = 9
+
+// maxLive is the live demo seat cap open admission enforces.
+func (p AdmitPolicy) maxLive() int {
+	if p.OpenMaxLive <= 0 {
+		return DefaultDemoMaxLive
+	}
+	return p.OpenMaxLive
 }
 
 // AdmittedDemo marks a membership the open demo rule seated (specs/077).

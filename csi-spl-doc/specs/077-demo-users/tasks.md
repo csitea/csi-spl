@@ -69,9 +69,17 @@ Rules for every task (owner Q8, spec §3.10):
   seated (spec 3.8). Done: `TestHumansOpenDemoAdmission`,
   `TestHumansOpenDemoNeverBootstraps` (memory + Postgres),
   `TestStoreBackedOpenDemoAdmission` (auth), `TestLoadHubDemoProviders`.
-- [ ] T008 **9 live at a time** (FR-006): admission counts live demo
-  memberships under the tenant row lock; the 10th answers `demo_full`. Done:
-  a concurrent-admission test on Postgres.
+- [x] T008 **9 live at a time** (FR-006, c-258): admission counts live demo
+  memberships under the tenant row lock; the 10th answers `demo_full`. Live =
+  a `demo_user` membership whose `access_until` (rdb 0113) has not passed, so
+  T009's expiry frees the seat with no change here. Cap: hub env
+  `SPOOL_HUB_DEMO_MAX_LIVE` (default `9`, below 1 refused at start; the cnf
+  key `env.demo.max_live` lands with T023). An invite and a re-login never
+  take an open seat. Done: `TestHumansOpenDemoLiveCap`,
+  `TestHumansOpenDemoLiveCapRace` (12 racers, cap 5; memory + Postgres; its
+  CONTROL: without the tenant `FOR UPDATE` all 12 are seated),
+  `TestStoreBackedOpenDemoFull` (auth, `auth_error=demo_full`),
+  `TestLoadHubDemoMaxLive`.
 - [ ] T009 **3-hour stay** (FR-005): admission writes `access_until =
   admitted + demo.max_stay` (default `3h`); the door answers `401
   demo_expired` after it; a 5-minute sweep closes sockets and drops expired

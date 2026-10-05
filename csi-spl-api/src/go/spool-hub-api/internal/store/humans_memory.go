@@ -96,6 +96,18 @@ func (h *memHumans) memberCount(tenant string) int {
 	return n
 }
 
+// liveDemoSeats counts tenant's demo_user memberships whose access has not
+// ended at now (specs/077 T008); the caller holds s.mu.
+func (h *memHumans) liveDemoSeats(tenant string, now time.Time) int {
+	n := 0
+	for k, m := range h.members {
+		if k[0] == tenant && m.role == rbac.DemoUser && !lapsed(m.accessUntil, now) {
+			n++
+		}
+	}
+	return n
+}
+
 // verifiedHuman is the human an already-known identity proved this address
 // for, "" when no identity carries it VERIFIED (CLE-3451 defect 2). Ordered by
 // human id so the answer does not depend on map iteration order.
@@ -202,6 +214,9 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 		grant = &memMember{role: i.Role, admittedBy: i.InvitedBy, since: now,
 			orderedBy: i.OrderedBy, orderedVia: i.OrderedVia, invitedOn: i.createdAt}
 	} else if p.openAdmits(id, tenant) && !(resolved && h.realElsewhere(hum, tenant)) {
+		if h.liveDemoSeats(tenant, now) >= p.maxLive() {
+			return nil, nil, ErrDemoFull
+		}
 		grant = &memMember{role: rbac.DemoUser, admittedBy: AdmittedDemo, since: now}
 	} else if p.bootstraps(tenant) && h.memberCount(tenant) == 0 {
 		grant = &memMember{role: RoleTenantOwner, admittedBy: AdmittedBootstrap, since: now}

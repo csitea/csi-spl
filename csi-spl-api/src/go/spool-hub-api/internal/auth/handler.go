@@ -40,7 +40,10 @@ const (
 	// has lapsed — a fresh invite is needed, told apart from not_allowed so the
 	// login page can say so (CLE-77781, SPL-1229).
 	ErrCodeInviteExpired = "invite_expired"
-	ErrCodeUnavailable   = "unavailable"
+	// ErrCodeDemoFull: the open demo workspace holds its live visitors
+	// already; the login page shows "the demo is full" (specs/077 T008).
+	ErrCodeDemoFull    = "demo_full"
+	ErrCodeUnavailable = "unavailable"
 	// ErrCodeInvalidDisplayName: PUT preferences display_name is not a name
 	// ValidDisplayName admits.
 	ErrCodeInvalidDisplayName = "invalid_display_name"
@@ -61,6 +64,10 @@ var ErrNotAllowed = errors.New("auth: sign-in not allowed")
 // auth_error=invite_expired: the address is invited but the invite lapsed
 // (CLE-77781, SPL-1229). Distinct from ErrNotAllowed so the copy differs.
 var ErrInviteExpired = errors.New("auth: invitation expired")
+
+// ErrDemoFull from a Registrar refuses the sign-in with auth_error=demo_full:
+// the demo workspace is at its live visitor cap (specs/077 FR-006, T008).
+var ErrDemoFull = errors.New("auth: demo full")
 
 // InviteLander is an optional Registrar hook (SPL-1230): the workspace a
 // sign-in that named NO tenant should land in — the newest live invite for the
@@ -374,6 +381,20 @@ func (h *Handler) registerLanding(ctx context.Context, id Identity, tenant strin
 	return hum, tenant, err
 }
 
+// registrarRefusal is the ?auth_error= code (and log reason) for a
+// Registrar error: invite_expired, demo_full, not_allowed, else unavailable.
+func registrarRefusal(err error) (code, why string) {
+	switch {
+	case errors.Is(err, ErrInviteExpired):
+		return ErrCodeInviteExpired, "invite expired"
+	case errors.Is(err, ErrDemoFull):
+		return ErrCodeDemoFull, "demo full"
+	case errors.Is(err, ErrNotAllowed):
+		return ErrCodeNotAllowed, "registrar refused"
+	}
+	return ErrCodeUnavailable, err.Error()
+}
+
 func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("provider")
 	idp, ok := h.idps[p]
@@ -426,16 +447,9 @@ func (h *Handler) callback(w http.ResponseWriter, r *http.Request) {
 		Tenant: st.Tenant, IssuedAt: h.now().Unix(), Exp: h.now().Add(h.cfg.SessionTTL).Unix()}
 	if h.reg != nil {
 		hum, landed, err := h.registerLanding(r.Context(), id, st.Tenant)
-		if errors.Is(err, ErrInviteExpired) {
-			h.fail(w, r, p, st.Redirect, ErrCodeInviteExpired, "invite expired")
-			return
-		}
-		if errors.Is(err, ErrNotAllowed) {
-			h.fail(w, r, p, st.Redirect, ErrCodeNotAllowed, "registrar refused")
-			return
-		}
 		if err != nil {
-			h.fail(w, r, p, st.Redirect, ErrCodeUnavailable, err.Error())
+			code, why := registrarRefusal(err)
+			h.fail(w, r, p, st.Redirect, code, why)
 			return
 		}
 		sess.HumanID, sess.Tenant = hum, landed

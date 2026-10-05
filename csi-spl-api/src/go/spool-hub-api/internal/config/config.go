@@ -367,6 +367,9 @@ type Hub struct {
 	// DemoProviders are the sign-in providers the open demo admission takes
 	// (cnf env.demo.providers, specs/077 FR-004); never password.
 	DemoProviders []string `env:"SPOOL_HUB_DEMO_PROVIDERS" envSeparator:"," envDefault:"google,facebook"`
+	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
+	// specs/077 FR-006); the next visitor is refused demo_full.
+	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -580,6 +583,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.DemoEnabled && !tenantIDRe.MatchString(h.DemoWorkspace) {
 		return fmt.Errorf("SPOOL_HUB_DEMO_WORKSPACE %q must be a tenant id", h.DemoWorkspace)
+	}
+	if h.DemoMaxLive < 1 {
+		return fmt.Errorf("SPOOL_HUB_DEMO_MAX_LIVE %d must be at least 1", h.DemoMaxLive)
 	}
 	for _, p := range h.DemoProviders {
 		if p != "google" && p != "facebook" {

@@ -50,7 +50,7 @@ do_check_dist_hygiene() { return 0; }
 
 # Stub parts: count every run, pass iff <tree>/<dir>/flag contains 'good'.
 COUNT="$ROOT/count"
-_stub() { echo "$1" >>"$COUNT"; grep -q good "$2/$1/flag" 2>/dev/null; }
+_stub() { echo "$1" >>"$COUNT"; grep -q good "$2/$1/flag" 2>/dev/null || { echo "FAIL: $1 flag is not good"; return 1; }; }
 _pp_part_api() { _stub csi-spl-api "$1"; }
 _pp_part_iac() { _stub csi-spl-iac "$1"; }
 _pp_part_wui() { echo csi-spl-wui-unit >>"$COUNT"; grep -q good "$1/csi-spl-wui/flag" 2>/dev/null; }

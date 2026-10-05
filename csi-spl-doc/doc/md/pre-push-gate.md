@@ -54,6 +54,25 @@ migration 0119. Only a poisoned shared git config (`core.worktree` in the
 common config), which makes the gate read the wrong tree, skips them too
 (audited) so whoever fixes it can push the fix.
 
+### 1.3 Pre-existing on trunk: same failures, not the same exit code
+
+A part that fails is re-run on `origin/master`, and it WARNs
+(`WARN-pre-existing`, push allowed) only when **every** failing item on your
+tree also fails on trunk. The gate compares failure signatures, not exit
+codes: each part's output becomes a set of normalised items (`--- FAIL:`
+test names, `go-pkg`, `gofmt` files, `file: message` diagnostics from vet,
+tsc, shellcheck and hygiene with line:col dropped, bash `FAIL:` /
+`FAILED: <file>` lines, TAP / node / playwright titles, the lint parts'
+`SYNTAX` / `LOCKFILE` / `GO MOD` lines), with the tree root, `/tmp` paths,
+hex ids and durations stripped. An item trunk does not have FAILs the push
+and is logged `NEW on your tree: <items>`, beside `pre-existing: <items>`.
+A part whose output names no item FAILs too (fail closed). On 2026-10-05
+c-304's new gofmt and `TestCleanCodeGate` failures passed as
+"pre-existing" behind an unrelated trunk red, because both trees merely
+exited non-zero. A suite that stops at its first failing step (the api
+suite is `set -e`) can still hide a later new failure behind that step.
+See `_pp_sig` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`.
+
 ## 2. Lint parts
 
 **Lint parts** (CLE-77829, owner 2026-10-01: "why cannot they be ran via

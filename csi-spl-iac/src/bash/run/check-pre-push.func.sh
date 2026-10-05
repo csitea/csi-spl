@@ -419,9 +419,11 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     fi
   fi
   do_log "INFO pre-push: ==> $label"
-  "$fn" "$tree" || rc=$?
+  local out; out="$(mktemp "${TMPDIR:-/tmp}/csi-spl-pre-push-out.XXXXXX")"
+  _pp_capture "$out" "$fn" "$tree" || rc=$?
   el=$((SECONDS - start))
   if [[ "$rc" -eq 0 ]]; then
+    rm -f "$out"
     _pp_record "$label" "PASS" "$el"
     [[ -n "$part" ]] && { _pp_cache_add "$key"; _pp_verdict "$part" PASS "$el"; }
     do_log "INFO pre-push: PASS $label (${el}s)"
@@ -433,29 +435,124 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     _pp_record "$label (rc=127: a command was not found)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
     [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "rc=127-command-not-found"
     do_log "FATAL pre-push: FAIL $label -- rc=127, a command it needs is not installed (see the output above)"
-    return 0
+    rm -f "$out"; return 0
   fi
   # Pre-existing on trunk? Re-run the SAME part against the base ref.
-  local bwt brc=0 bsha
+  local bwt brc=0 bsha bout="" tsig bsig=""
   bsha="$(git -C "$tree" rev-parse --short "$base" 2>/dev/null || echo '?')"
+  tsig="$(_pp_sig "$out" "$tree")"
   if _pp_baseline_tree "$tree" "$base"; then
     bwt="$_PP_BASE_WT"
+    bout="$(mktemp "${TMPDIR:-/tmp}/csi-spl-pre-push-out.XXXXXX")"
     do_log "INFO pre-push: $label failed ($note) -- re-checking it on $base ($bsha) to see if it is your break or trunk's"
-    "$fn" "$bwt" || brc=$?
+    _pp_capture "$bout" "$fn" "$bwt" || brc=$?
+    bsig="$(_pp_sig "$bout" "$bwt")"
   else
     do_log "WARN pre-push: could not build a $base baseline for $label -- treating the failure as NEW"
-    brc=0
   fi
+  rm -f "$out" ${bout:+"$bout"}
   el=$((SECONDS - start))
-  if [[ "$brc" -ne 0 ]]; then
-    _pp_record "$label (PRE-EXISTING on $base $bsha)" "WARN" "$el"
-    [[ -n "$part" ]] && _pp_verdict "$part" WARN-pre-existing "$el" "trunk=$bsha $note"
-    do_log "WARN pre-push: $label fails on your tree AND on $base $bsha ($note) -- pre-existing trunk failure, NOT blocking your push"
-  else
+  if [[ "$brc" -eq 0 ]]; then
     _pp_record "$label" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
     [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-green"
     do_log "FATAL pre-push: FAIL $label ($note) -- a NEW failure your commits introduce"
+    return 0
   fi
+  _pp_compare "$label" "$part" "$el" "$note" "$base" "$bsha" "$tsig" "$bsig"
+}
+
+# A part's output is tee'd to <file> as it streams (stdout + stderr), and the
+# part runs in THIS shell (a process substitution, not a pipeline), so its rc
+# is its own and nothing it sets is lost.
+_pp_capture() {  # <file> <fn> <tree>
+  local f="$1" fn="$2" rc=0; shift 2
+  "$fn" "$@" > >(tee "$f") 2>&1 || rc=$?
+  wait $! 2>/dev/null || true
+  return "$rc"
+}
+
+# The FAILURE SIGNATURE of a part's output: one normalised item per failing
+# thing, sorted, unique. "Pre-existing" is decided on these, never on the rc
+# alone: c-304's new gofmt + TestCleanCodeGate failures (2026-10-05) hid
+# behind an unrelated trunk red because both trees merely exited non-zero.
+#   go-test <Name>         '--- FAIL: <Name>'          go-pkg <pkg>  'FAIL<tab><pkg> ...'
+#   gofmt <file>           the list after 'gofmt needed on:'
+#   diag <file>: <msg>     'file.ext:L[:C]: msg' (vet, compile, shellcheck,
+#                          hygiene, ruff), 'file.ts(L,C): error ...',
+#                          'file.vue:L:C - error ...' -- line:col dropped,
+#                          so an edit above a trunk finding does not "move" it
+#   fail <desc>            bash 'FAIL: <desc> -- <detail>' / 'FAIL - <desc>' (detail dropped)
+#   suite <file>           'FAILED: <file>' (the iac/orc suite runners)
+#   timeout <file>         'TIMED OUT ... killed: <file>'
+#   test <title>           TAP 'not ok N - <title>', node '✖ <title>'
+#   e2e <spec> › <title>   playwright '✘ ... › <spec> › <title>'
+#   lint <line>            'SYNTAX ...:', 'COMPOSE schema:', 'HCL parse:',
+#                          'LOCKFILE', 'GO MOD:', 'terraform fmt:'
+#   panic <msg>            'panic: <msg>'
+# Normalised: the tree root, /tmp paths, hex ids (7+), colour codes and a
+# trailing duration are stripped, so the same failure reads the same on both
+# trees. An output with no such line yields an EMPTY signature.
+_pp_sig() {  # <output-file> <tree-root>
+  [[ -s "$1" ]] || return 0
+  awk -v root="${2%/}/" '
+    function lit(s, a,   i, o) { o = ""; if (a == "/") return s
+      while ((i = index(s, a)) > 0) { o = o substr(s, 1, i - 1); s = substr(s, i + length(a)) }
+      return o s }
+    function norm(s) {
+      s = lit(s, root)
+      gsub(/\033\[[0-9;]*[A-Za-z]/, "", s); gsub(/\r/, "", s)
+      gsub(/\/tmp\/[^ \t:\047")]*/, "<tmp>", s)
+      gsub(/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*/, "<sha>", s)
+      sub(/[ \t]*\(?[0-9]+(\.[0-9]+)?m?s\)?[ \t]*$/, "", s)
+      gsub(/[ \t]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
+      return s }
+    function emit(kind, s) { s = norm(s); if (s != "") print kind " " s }
+    function after(s, re) { if (match(s, re)) return substr(s, RSTART + RLENGTH); return s }
+    { line = $0; gsub(/\033\[[0-9;]*[A-Za-z]/, "", line) }
+    fmt && line ~ /^[ \t]*[^ \t]+\.go[ \t]*$/ { emit("gofmt", line); next }
+    { fmt = 0 }
+    line ~ /^gofmt needed on:/ { fmt = 1; next }
+    line ~ /--- FAIL: / { s = after(line, "--- FAIL: "); sub(/ .*/, "", s); emit("go-test", s); next }
+    line ~ /^[ \t]*FAIL(:| -) / { s = after(line, "FAIL(:| -) "); sub(/ -- .*/, "", s); emit("fail", s); next }
+    line ~ /^FAIL[ \t]+[^ \t]+/ { split(line, f, /[ \t]+/); emit("go-pkg", f[2]); next }
+    line ~ /^FAILED: / { s = after(line, "^FAILED: "); sub(/ .*/, "", s); emit("suite", s); next }
+    line ~ /TIMED OUT .*killed: / { s = after(line, "killed: "); emit("timeout", s); next }
+    line ~ /^[ \t]*not ok [0-9]+ / { s = after(line, "not ok [0-9]+ (- )?"); sub(/ # .*/, "", s); emit("test", s); next }
+    line ~ /^[ \t]*✖ / { emit("test", after(line, "✖ ")); next }
+    line ~ /✘/ && line ~ /›/ { s = after(line, "\\] › "); gsub(/:[0-9]+:[0-9]+/, "", s); emit("e2e", s); next }
+    line ~ /^[ \t]*panic: / { emit("panic", after(line, "panic: ")); next }
+    line ~ /^(SYNTAX [^:]*|COMPOSE schema|HCL parse|LOCKFILE|GO MOD|terraform fmt):? / { emit("lint", line); next }
+    line ~ /^[^ \t]+\([0-9]+,[0-9]+\): / {
+      s = line; p = index(s, "("); f1 = substr(s, 1, p - 1); emit("diag", f1 ": " after(s, "\\([0-9]+,[0-9]+\\): ")); next }
+    line ~ /^[ \t]*(vet: )?[^ \t:]+\.[A-Za-z0-9]+:[0-9]+(:[0-9]+)?(:| - )/ {
+      s = line; sub(/^[ \t]*(vet: )?/, "", s); f1 = s; sub(/:.*/, "", f1); sub(/^\.\//, "", f1)
+      emit("diag", f1 ": " after(s, ":[0-9]+(:[0-9]+)?(:| - )[ \\t]*")); next }
+  ' "$1" | sort -u
+}
+
+# Block or WARN on two failure signatures: WARN-pre-existing only when every
+# item failing on the tree also fails on the base; an empty tree signature
+# (nothing parseable) BLOCKS -- fail closed, never "pre-existing" by default.
+_pp_compare() {  # <label> <part> <secs> <note> <base> <bsha> <tree-sig> <base-sig>
+  local label="$1" part="$2" el="$3" note="$4" base="$5" bsha="$6" tsig="$7" bsig="$8" new old
+  if [[ -z "$tsig" ]]; then
+    _pp_record "$label (no parseable failure to compare with $base $bsha)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
+    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-red unparseable"
+    do_log "FATAL pre-push: FAIL $label ($note) -- it fails on $base $bsha too, but its output names no failing item to compare (fail closed: blocked, not pre-existing)"
+    return 0
+  fi
+  new="$(comm -23 <(printf '%s\n' "$tsig") <(printf '%s\n' "$bsig" | sed '/^$/d') | paste -sd';' -)"
+  old="$(comm -12 <(printf '%s\n' "$tsig") <(printf '%s\n' "$bsig" | sed '/^$/d') | paste -sd';' -)"
+  if [[ -n "$new" ]]; then
+    _pp_record "$label (NEW on your tree: $new)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))
+    [[ -n "$part" ]] && _pp_verdict "$part" FAIL "$el" "$note trunk=$bsha-red new=$(tr ';' '\n' <<<"$new" | wc -l)"
+    do_log "FATAL pre-push: FAIL $label ($note) -- $base $bsha is red too, but NOT with these: NEW on your tree: $new"
+    [[ -n "$old" ]] && do_log "INFO pre-push: $label pre-existing: $old"
+    return 0
+  fi
+  _pp_record "$label (PRE-EXISTING on $base $bsha)" "WARN" "$el"
+  [[ -n "$part" ]] && _pp_verdict "$part" WARN-pre-existing "$el" "trunk=$bsha $note"
+  do_log "WARN pre-push: $label fails on your tree AND on $base $bsha ($note) with the same failures -- pre-existing: $old -- NOT blocking your push"
   return 0
 }
 

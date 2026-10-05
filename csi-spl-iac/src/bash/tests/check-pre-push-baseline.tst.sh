@@ -8,6 +8,12 @@
 #     2. red trunk + a real fix       -> PASS: passes on HEAD (no failure at all)
 #     3. red trunk + still broken     -> WARN, NOT blocking: fails on HEAD AND base
 #     4. a part that HANGS            -> killed by the timeout, counted, compared
+#     7. (c-304, 2026-10-05) "pre-existing" compares failure SIGNATURES, not rcs:
+#        a. same failure on HEAD and base          -> WARN, push allowed
+#        b. base fails A, HEAD fails A+B           -> FAIL naming B (c-304's case;
+#           the old rc-only compare WARNed it)
+#        c. unparseable output on HEAD and base    -> FAIL (fail closed)
+#        d. HEAD green                             -> PASS
 #   A stub part passes iff <tree>/flag contains 'good'; HEAD and the base ref
 #   carry different flags, so the same part yields different verdicts per tree.
 #------------------------------------------------------------------------------
@@ -33,8 +39,9 @@ do_log() { :; }
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
 
-# a stub part: pass iff <tree>/flag contains 'good'
-_stub_part() { grep -q good "$1/flag" 2>/dev/null; }
+# a stub part: pass iff <tree>/flag contains 'good'; a failure prints a FAIL line
+# naming the tree (normalised away), so the same red reads the same on both trees
+_stub_part() { grep -q good "$1/flag" 2>/dev/null || { echo "FAIL: flag in $1 is not good"; return 1; }; }
 
 # Build a repo whose base ref 'trunkbase' has flag=$1 and whose worktree HEAD
 # has flag=$2, then run one part and report the verdict via the arrays.
@@ -61,6 +68,33 @@ eq "1. green trunk + break -> FAIL (blocks)" "1|FAIL" "$(verdict good bad _stub_
 eq "2. red trunk + real fix -> PASS (lands)" "0|PASS" "$(verdict bad good _stub_part)"
 # 3. red trunk (base bad), still broken HEAD (bad) -> pre-existing, WARN not block
 eq "3. red trunk + still broken -> WARN (not blocking)" "0|WARN" "$(verdict bad bad _stub_part)"
+
+# 7. signatures: every flag line that is not 'good' is one failing go test,
+#    printed with a duration that differs per run (normalised away)
+_sig_part() {
+  local l rc=0
+  while IFS= read -r l; do
+    [[ "$l" == good ]] && continue
+    echo "--- FAIL: $l (0.$RANDOM""s)"; rc=1
+  done <"$1/flag"
+  return "$rc"
+}
+_mute_part() { echo "something went wrong"; return 1; }
+names() {  # <base-flag> <head-flag> <part-fn> -> "<failed>|<stat>|<name>"
+  local R; R="$ROOT/n$RANDOM$RANDOM"
+  { git init -q "$R"; printf '%b\n' "$1" >"$R/flag"; git -C "$R" add flag; git -C "$R" commit -qm base
+    git -C "$R" branch trunkbase; printf '%b\n' "$2" >"$R/flag"; git -C "$R" commit -qam head --allow-empty; } >/dev/null 2>&1
+  local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=(); local _PP_FAILED=0 _PP_BASE_WT=""
+  _pp_run "stub" "$3" "$R" trunkbase >/dev/null 2>&1
+  _pp_baseline_cleanup "$R" >/dev/null 2>&1
+  printf '%s|%s|%s' "$_PP_FAILED" "${_PP_STAT[0]:-}" "${_PP_NAMES[0]:-}"
+}
+eq "7a. same failure on HEAD and base -> WARN (push allowed)" "0|WARN" "$(names TestA TestA _sig_part | cut -d'|' -f1,2)"
+out7b="$(names TestA 'TestA\nTestB' _sig_part)"
+eq "7b. base fails A, HEAD fails A+B -> FAIL" "1|FAIL" "$(cut -d'|' -f1,2 <<<"$out7b")"
+case "$out7b" in *"NEW on your tree: go-test TestB)"*) pass "7b. ... naming only B as NEW" ;; *) fail "7b. ... naming only B as NEW" "$out7b" ;; esac
+eq "7c. unparseable output on HEAD and base -> FAIL (fail closed)" "1|FAIL" "$(names bad bad _mute_part | cut -d'|' -f1,2)"
+eq "7d. HEAD green -> PASS" "0|PASS" "$(names TestA good _sig_part | cut -d'|' -f1,2)"
 
 # 4. the per-part timeout kills a hanging suite (the tf-steps hang) instead of
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.

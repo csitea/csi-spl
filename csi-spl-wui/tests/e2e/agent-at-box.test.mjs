@@ -88,6 +88,9 @@ const held = (p, body) => p.evaluate((body) => {
 
 async function run(browser, base, width) {
   const p = await browser.newPage()
+  /* the mock roster still carries legacy ids (CLE-07): pin the clock before
+     their deadline, or the @ picker hides them as no longer active (dc6d5e3f) */
+  await p.evaluateOnNewDocument(() => { globalThis.SPOOL_AGENT_ID_NOW = '2026-10-02T12:00:00Z' })
   const phone = width < 600
   await p.setViewport({ width, height: phone ? 844 : 900, isMobile: phone, hasTouch: phone })
   await p.goto(`${base}/`, { waitUntil: 'load', timeout: NAV })

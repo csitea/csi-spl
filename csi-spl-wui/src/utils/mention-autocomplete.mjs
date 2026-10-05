@@ -1,6 +1,6 @@
 /** @mention picker over the roster. Node tests import this file; Vue wraps it. */
 
-import { agentKindOf } from './agent-id.mjs'
+import { agentKindOf, isWritableAgentId } from './agent-id.mjs'
 
 const HUMAN_RE = /^(HUM|GST)-[0-9]+$/
 
@@ -104,7 +104,11 @@ export function insertMention(text, cursor, id) {
  *   selfId?: string, query: string, ownersFirst?: boolean, isOnline?: ((id: string) => boolean) | null }} a
  */
 export function mentionCandidates({ peers = [], names = null, owners = [], selfId = '', query, ownersFirst = false, isOnline = null }) {
-  const agents = filterRosterMentions(peers, query, names).filter((p) => p.id !== selfId)
+  /* owner 2026-10-05 (t1 dc6d5e3f): "I should be able to tag only currently
+     active agents" - a retired legacy id a stale box still announces is not
+     offered (the hub refuses it too: wui.go wuiRecipient). Search's `from:`
+     keeps it, since stored history still names it. */
+  const agents = filterRosterMentions(peers, query, names).filter((p) => p.id !== selfId && (HUMAN_RE.test(p.id) || isWritableAgentId(p.id)))
   const ownerRows = ownerMentions(owners, query, names, selfId, isOnline)
   const listed = new Set([...agents, ...ownerRows].map((p) => p.id))
   const q = String(query || '').replace(/^@+/, '').trim().toLocaleLowerCase()

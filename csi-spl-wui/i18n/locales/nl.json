@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Antwoorden",
-    "phone_placeholder_search": "Zoeken"
+    "phone_placeholder_search": "Zoeken",
+    "send_failed_agent_inactive": "Niet verzonden — die agent is niet meer actief. Tag een actieve agent; je tekst staat er nog."
   },
   "feed": {
     "unknown_author": "onbekend",

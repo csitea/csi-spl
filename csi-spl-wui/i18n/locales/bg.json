@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Отговор",
-    "phone_placeholder_search": "Търсене"
+    "phone_placeholder_search": "Търсене",
+    "send_failed_agent_inactive": "Не е изпратено — този агент вече не е активен. Отбележете активен агент; текстът ви е запазен."
   },
   "feed": {
     "unknown_author": "неизвестен",

@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Răspunde",
-    "phone_placeholder_search": "Caută"
+    "phone_placeholder_search": "Caută",
+    "send_failed_agent_inactive": "Netrimis — acel agent nu mai este activ. Etichetează un agent activ; textul tău este încă aici."
   },
   "feed": {
     "unknown_author": "necunoscut",

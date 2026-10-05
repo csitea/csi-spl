@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Atsakyti",
-    "phone_placeholder_search": "Ieškoti"
+    "phone_placeholder_search": "Ieškoti",
+    "send_failed_agent_inactive": "Neišsiųsta — šis agentas nebeaktyvus. Pažymėkite aktyvų agentą; jūsų tekstas vis dar čia."
   },
   "feed": {
     "unknown_author": "nežinomas",

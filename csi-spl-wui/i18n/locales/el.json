@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Απάντηση",
-    "phone_placeholder_search": "Αναζήτηση"
+    "phone_placeholder_search": "Αναζήτηση",
+    "send_failed_agent_inactive": "Δεν στάλθηκε — αυτός ο πράκτορας δεν είναι πλέον ενεργός. Επισημάνετε έναν ενεργό πράκτορα· το κείμενό σας είναι ακόμα εδώ."
   },
   "feed": {
     "unknown_author": "άγνωστος",

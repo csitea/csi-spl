@@ -51,6 +51,8 @@ describe('classifying a failed send', () => {
     assert.equal(sendFailureKey(emptySendError()), 'composer.send_failed_empty')
     /* CLE-77795: an upload that could not get a token even after a redial */
     assert.equal(sendFailureKey({ token: 'session_expired' }), 'composer.send_failed_session_expired')
+    /* dc6d5e3f: a tag of an agent that is no longer active, refused by the hub */
+    assert.equal(sendFailureKey({ token: 'retired_id' }), 'composer.send_failed_agent_inactive')
   })
 })
 
@@ -127,7 +129,7 @@ describe('the send path cannot lose text silently any more', () => {
     assert.equal(files.length, 19)
     for (const code of files) {
       const c = JSON.parse(readFileSync(join(dir, `${code}.json`), 'utf8')).composer
-      for (const k of ['send_failed', 'send_failed_closed', 'send_failed_timeout', 'send_failed_empty', 'send_failed_session_expired', 'send_retry']) {
+      for (const k of ['send_failed', 'send_failed_closed', 'send_failed_timeout', 'send_failed_empty', 'send_failed_session_expired', 'send_failed_agent_inactive', 'send_retry']) {
         assert.equal(typeof c[k], 'string', `${code}: composer.${k} missing`)
         assert.ok(c[k].trim().length > 0, `${code}: composer.${k} empty`)
       }

@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Reply",
-    "phone_placeholder_search": "Search"
+    "phone_placeholder_search": "Search",
+    "send_failed_agent_inactive": "Not sent — that agent is no longer active. Tag an active agent; your text is still here."
   },
   "feed": {
     "unknown_author": "unknown",

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
@@ -563,7 +564,11 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		return
 	}
 	f.MsgID = id
-	to, agent := s.wuiRecipient(f)
+	to, agent, rf := s.wuiRecipient(ctx, c.tenant, f)
+	if rf != nil {
+		fail(rf)
+		return
+	}
 	m, rf := s.wuiMessage(ctx, c, f, task, to)
 	if rf != nil {
 		fail(rf)
@@ -765,7 +770,14 @@ func (s *Server) wuiMayPost(ctx context.Context, c *wuiConn, channel, asked, age
 
 // wuiRecipient is the v:1 `to` of a browser send and, when box-wui dispatch
 // is on and the body addresses an agent, that agent (else "").
-func (s *Server) wuiRecipient(f wuiIn) (to, agent string) {
+//
+// Owner 2026-10-05 (t1 dc6d5e3f: "I should be able to tag only currently
+// active agents"): a legacy id (spec 061) is resolved here, as a box frame's
+// is (resolveAgent). One with an alias goes to its successor, in the same
+// topic; one without is refused after agentid.LegacyUntil, so the sender
+// sees "not sent" instead of a delivery a box drops ("AGY-3499 is retired as
+// an id", csi-rel prd 5f0d5200).
+func (s *Server) wuiRecipient(ctx context.Context, tenant string, f wuiIn) (to, agent string, rf *frameRefusal) {
 	to = f.To
 	if s.o.WUIDispatch {
 		if agent = dispatchAgent(to, f.Body); agent != "" {
@@ -773,9 +785,20 @@ func (s *Server) wuiRecipient(f wuiIn) (to, agent string) {
 		}
 	}
 	if to == "" {
-		to = BroadcastID
+		return BroadcastID, agent, nil
 	}
-	return to, agent
+	got, err := agentid.ResolveOn(to, dispatchBox(f), s.aliasLookup(ctx, tenant))
+	var re *agentid.RetiredError
+	switch {
+	case errors.As(err, &re) && agentid.IsNew(re.New):
+		got = re.New
+	case err != nil:
+		return "", "", &frameRefusal{TokenRetiredID, http.StatusGone, err.Error() + "; that agent is no longer active"}
+	}
+	if agent != "" {
+		agent = got
+	}
+	return got, agent, nil
 }
 
 // wuiKind maps the browser's kind onto v:1: it has no chat kind (NFR-003),

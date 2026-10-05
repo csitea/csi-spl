@@ -75,6 +75,9 @@ export function sendFailureKey(err) {
     /* CLE-77795: an upload could not get a valid token even after a redial —
        the member session itself is gone. Tell the reader to sign in again. */
     case 'session_expired': return 'composer.send_failed_session_expired'
+    /* owner 2026-10-05 (t1 dc6d5e3f): a tag of an agent that is no longer
+       active (a retired id with no successor) is refused by the hub */
+    case 'retired_id': return 'composer.send_failed_agent_inactive'
     default: return 'composer.send_failed'
   }
 }

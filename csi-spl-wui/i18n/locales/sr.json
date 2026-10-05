@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Одговори",
-    "phone_placeholder_search": "Претражи"
+    "phone_placeholder_search": "Претражи",
+    "send_failed_agent_inactive": "Nije poslato — taj agent više nije aktivan. Označite aktivnog agenta; vaš tekst je i dalje tu."
   },
   "feed": {
     "unknown_author": "nepoznato",

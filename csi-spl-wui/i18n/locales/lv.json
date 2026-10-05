@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Atbildēt",
-    "phone_placeholder_search": "Meklēt"
+    "phone_placeholder_search": "Meklēt",
+    "send_failed_agent_inactive": "Nav nosūtīts — šis aģents vairs nav aktīvs. Atzīmējiet aktīvu aģentu; jūsu teksts joprojām ir šeit."
   },
   "feed": {
     "unknown_author": "nezināms",

@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Yanıtla",
-    "phone_placeholder_search": "Ara"
+    "phone_placeholder_search": "Ara",
+    "send_failed_agent_inactive": "Gönderilmedi — bu ajan artık etkin değil. Etkin bir ajanı etiketleyin; metniniz hâlâ burada."
   },
   "feed": {
     "unknown_author": "bilinmiyor",

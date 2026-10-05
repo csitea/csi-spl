@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Responder",
-    "phone_placeholder_search": "Buscar"
+    "phone_placeholder_search": "Buscar",
+    "send_failed_agent_inactive": "No enviado: ese agente ya no está activo. Etiqueta a un agente activo; tu texto sigue aquí."
   },
   "feed": {
     "unknown_author": "desconocido",

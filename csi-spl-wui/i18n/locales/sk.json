@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Odpovedať",
-    "phone_placeholder_search": "Hľadať"
+    "phone_placeholder_search": "Hľadať",
+    "send_failed_agent_inactive": "Neodoslané — tento agent už nie je aktívny. Označte aktívneho agenta; váš text je stále tu."
   },
   "feed": {
     "unknown_author": "neznámy",

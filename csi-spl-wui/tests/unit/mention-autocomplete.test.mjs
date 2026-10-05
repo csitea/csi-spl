@@ -174,8 +174,13 @@ describe('ownerMentions', () => {
 
 // SPL-985 (spec 042 P1): one candidate list for every text field.
 import { mentionCandidates } from '../../src/utils/mention-autocomplete.mjs'
+import { LEGACY_ID_UNTIL, setAgentIdNow } from '../../src/utils/agent-id.mjs'
+import { after, before } from 'node:test'
 
 describe('mentionCandidates (SPL-985)', () => {
+  /* the fixture's CLE-7 is a legacy id: pinned before its deadline (spec 061 FR-004) */
+  before(() => setAgentIdNow('2026-10-02T12:00:00Z'))
+  after(() => setAgentIdNow())
   const peers = [
     { id: 'CLE-7', box: 'box-desk', label: 'CLE-7@box-desk', online: true },
     { id: 'HUM-1', box: 'box-wui', label: 'HUM-1@box-wui', online: true },
@@ -192,5 +197,27 @@ describe('mentionCandidates (SPL-985)', () => {
   it('#feedback puts the owners first, each id once', () => {
     const ids = mentionCandidates({ peers, names, owners: ['HUM-9'], selfId: 'HUM-1', query: '', ownersFirst: true }).map((p) => p.id)
     assert.deepEqual(ids, ['HUM-9', 'CLE-7', 'HUM-2'])
+  })
+})
+
+// Owner 2026-10-05 (t1 dc6d5e3f): "I should be able to tag only currently
+// active agents". HUM-10 picked AGY-3499, a legacy id retired 2026-10-03 that
+// the csi-rel desk still announced. CONTROL: before the fix the list after the
+// deadline was ['AGY-3499', 'a-004', 'HUM-2'] (n=1).
+describe('the @ picker offers only active agents (dc6d5e3f)', () => {
+  const peers = [
+    { id: 'AGY-3499', box: 'box-desk', label: 'AGY-3499@box-desk', online: true },
+    { id: 'a-004', box: 'box-desk', label: 'a-004@box-desk', online: true },
+  ]
+  const names = { 'HUM-2': 'Some Person' }
+  after(() => setAgentIdNow())
+  it('after the legacy deadline a retired id is not offered; the new id and people are', () => {
+    setAgentIdNow(Date.parse(LEGACY_ID_UNTIL) + 1000)
+    assert.deepEqual(mentionCandidates({ peers, names, query: '' }).map((p) => p.id), ['a-004', 'HUM-2'])
+    assert.deepEqual(mentionCandidates({ peers, names, query: 'AGY' }).map((p) => p.id), [])
+  })
+  it('search keeps reading history: filterRosterMentions still lists the old id', () => {
+    setAgentIdNow(Date.parse(LEGACY_ID_UNTIL) + 1000)
+    assert.deepEqual(filterRosterMentions(peers, 'AGY').map((p) => p.id), ['AGY-3499'])
   })
 })

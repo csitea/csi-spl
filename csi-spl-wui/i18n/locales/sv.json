@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Svara",
-    "phone_placeholder_search": "Sök"
+    "phone_placeholder_search": "Sök",
+    "send_failed_agent_inactive": "Inte skickat — den agenten är inte längre aktiv. Tagga en aktiv agent; din text finns kvar."
   },
   "feed": {
     "unknown_author": "okänd",

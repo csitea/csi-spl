@@ -546,7 +546,8 @@
     "phone_placeholder_channel": "#{name}",
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Vastaa",
-    "phone_placeholder_search": "Hae"
+    "phone_placeholder_search": "Hae",
+    "send_failed_agent_inactive": "Ei lähetetty — agentti ei ole enää aktiivinen. Merkitse aktiivinen agentti; tekstisi on yhä tallessa."
   },
   "feed": {
     "unknown_author": "tuntematon",

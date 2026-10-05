@@ -20,6 +20,10 @@
 # @description env.hub.env.SPOOL_HUB_DEFAULT_LOCALE defaults to env.i18n.default_locale
 # @description (spec 021): the hub's mail fallback and the WUI's unprefixed locale
 # @description are one cnf value; a literal wins.
+# @description env.hub.env.SPOOL_HUB_WORKSPACE_DOCS_BUCKET is
+# @description steps.052-gcs-workspace-docs.bucket_prefix + "{tenant}" (spec 075):
+# @description the hub names each workspace's docs bucket exactly as 052 does; a
+# @description literal wins, no bucket_prefix = no variable (the routes are off).
 # @description env.steps in all.env.yaml holds the step settings every cloud env
 # @description shares (spec 072 A44); an env file without env.steps of its own
 # @description (lde: no terraform) gets no env.steps at all.
@@ -53,6 +57,8 @@ do_spl_merged_cnf() {
       .hub.env.SPOOL_HUB_FILES_BUCKET = (.hub.env.SPOOL_HUB_FILES_BUCKET // .steps."050-gcs-files".files_bucket_name) |
       with(select(.steps."051-gcs-docs".publish_enabled == true and .steps."051-gcs-docs".docs_bucket_name != null);
         .hub.env.SPOOL_HUB_DOCS_BUCKET = (.hub.env.SPOOL_HUB_DOCS_BUCKET // .steps."051-gcs-docs".docs_bucket_name)) |
+      with(select(.steps."052-gcs-workspace-docs".bucket_prefix != null);
+        .hub.env.SPOOL_HUB_WORKSPACE_DOCS_BUCKET = (.hub.env.SPOOL_HUB_WORKSPACE_DOCS_BUCKET // (.steps."052-gcs-workspace-docs".bucket_prefix + "{tenant}"))) |
       .hub.env.SPOOL_HUB_TENANT_HOST_PATTERN = (.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ("{tenant}." + .dns.fqdn)))' |
     yq '(.env | select(.hub != null and .i18n.default_locale != null)) |= (
       .hub.env.SPOOL_HUB_DEFAULT_LOCALE = (.hub.env.SPOOL_HUB_DEFAULT_LOCALE // .i18n.default_locale))' |

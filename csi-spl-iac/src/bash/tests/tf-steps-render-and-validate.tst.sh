@@ -144,6 +144,9 @@ for env in dev prd; do
   grep -qx "bucket_prefix = \"csi-spl-$env-docs-\"" "$w" && grep -qx "hub_runtime_sa_account_id = \"csi-spl-hub-$env\"" "$w" \
     && grep -qE '^workspaces = \["t1"' "$w" \
     && pass "$env workspace docs buckets are csi-spl-$env-docs-<slug> from t1 on, for csi-spl-hub-$env" || fail "$env 052 tfvars"
+  # spec 075: the hub names each workspace's bucket from the same 052 prefix
+  grep -q "\"SPOOL_HUB_WORKSPACE_DOCS_BUCKET\": \"csi-spl-$env-docs-{tenant}\"" "$v" \
+    && pass "$env hub env names the 052 buckets csi-spl-$env-docs-{tenant}" || fail "$env SPOOL_HUB_WORKSPACE_DOCS_BUCKET is not csi-spl-$env-docs-{tenant}"
   grep -q publish_enabled "$d" && fail "$env 051 tfvars carry publish_enabled (a cnf gate, not a tfvar)" || pass "$env publish_enabled stays out of the 051 tfvars"
   # the hub is pointed at the bucket only once publish_enabled is true (after the 051 apply)
   # publish_enabled is read like the cnf merge does: the env file wins, else

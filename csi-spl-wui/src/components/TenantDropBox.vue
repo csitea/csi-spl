@@ -115,7 +115,12 @@ const tenantSelectStyle = computed(() => {
    the font-size setting (html data-font-size), or the viewport changes.
    W4 (perf round 4): at <= 820 px the box is display:none (TopBarTenant is
    the phone's switcher), so nothing is measured there; the viewport
-   listener measures once the box is shown. */
+   listener measures once the box is shown.
+   E14 (perf edition 20261004): every measure runs in a one-shot
+   ResizeObserver callback, i.e. after the frame's own layout and before its
+   paint. The computed-font read then finds style and layout clean (no forced
+   layout at mount), and the width still lands before the first paint (no
+   jump). Observing again queues one more callback after the next layout. */
 function applyTenantSelectWidth() {
   const sel = tenantSelectEl.value
   if (!sel) return
@@ -129,22 +134,36 @@ function tenantBoxHidden(sel: HTMLElement) {
   const view = sel.ownerDocument?.defaultView
   return !!view && typeof view.matchMedia === 'function' && view.matchMedia(MOBILE_STACK_QUERY).matches
 }
+let tenantWidthRo: ResizeObserver | null = null
+function scheduleTenantSelectWidth() {
+  const sel = tenantSelectEl.value
+  if (!sel) return
+  if (!tenantWidthRo) return applyTenantSelectWidth()
+  tenantWidthRo.observe(sel)
+}
 watch(
   () => tenantDrawnLabels(tenantBox.value.options, t('sidebar.tenant')).join('\n'),
-  async () => {
-    await nextTick()
-    applyTenantSelectWidth()
-  },
+  () => scheduleTenantSelectWidth(),
 )
 let tenantWidthMq: MediaQueryList | null = null
 let tenantFontObs: MutationObserver | null = null
-function onTenantWidthViewport() { applyTenantSelectWidth() }
+function onTenantWidthViewport() { scheduleTenantSelectWidth() }
 onMounted(() => {
-  applyTenantSelectWidth()
   const doc = tenantSwitcherEl.value?.ownerDocument
   const view = doc?.defaultView
+  /* one-shot: disconnect first, so the width set here is not observed again
+     in the same frame (no "loop completed with undelivered notifications") */
+  if (view && typeof view.ResizeObserver === 'function') {
+    tenantWidthRo = new view.ResizeObserver((_entries, ro) => {
+      ro.disconnect()
+      applyTenantSelectWidth()
+    })
+  }
+  scheduleTenantSelectWidth()
+  /* a web font still loading changes the width once it is in */
+  if (doc?.fonts && doc.fonts.status !== 'loaded') void doc.fonts.ready.then(() => scheduleTenantSelectWidth())
   if (doc?.documentElement && typeof MutationObserver === 'function') {
-    tenantFontObs = new MutationObserver(() => applyTenantSelectWidth())
+    tenantFontObs = new MutationObserver(() => scheduleTenantSelectWidth())
     tenantFontObs.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-font-size'] })
   }
   if (!view) return
@@ -152,6 +171,8 @@ onMounted(() => {
   tenantWidthMq.addEventListener('change', onTenantWidthViewport)
 })
 onBeforeUnmount(() => {
+  tenantWidthRo?.disconnect()
+  tenantWidthRo = null
   tenantFontObs?.disconnect()
   tenantWidthMq?.removeEventListener('change', onTenantWidthViewport)
 })

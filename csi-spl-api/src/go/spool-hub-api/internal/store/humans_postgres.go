@@ -15,6 +15,10 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 	if err := normalizeIdentity(&id); err != nil {
 		return "", err
 	}
+	// The rdb 0113 probe takes a pool connection of its own: read it before
+	// the transaction holds one, or racing sign-ins on a small pool each hold
+	// a connection while waiting for a second (T008's race test hung so).
+	access := tenant != "" && p.openAdmits(id, tenant) && s.hasAccessUntil(ctx)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -47,7 +51,7 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 				return "", err
 			}
 		}
-		r := admitRule{p: p, open: open, access: open && s.hasAccessUntil(ctx)}
+		r := admitRule{p: p, open: open, access: open && access}
 		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, r, now); err != nil {
 			return "", err // rollback: a refusal writes nothing
 		}

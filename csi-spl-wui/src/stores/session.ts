@@ -4,6 +4,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { takeEarlySession } from '~/utils/early-session.mjs'
 import { writeSignedOutHint } from '~/utils/signed-out-hint.mjs'
 import { clearDrafts } from '~/utils/drafts.mjs'
+import { markSignedIn } from '~/utils/session-recover.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -117,6 +118,8 @@ export const useSessionStore = defineStore('session', () => {
 
   /** A native password change clears the cookie (§2 `password/change` 204). */
   function signedOut() {
+    /* its own notice (password changed), not "your session ended" */
+    if (import.meta.client) markSignedIn(false)
     state.value = 'out'
     claims.value = null
   }
@@ -185,6 +188,8 @@ export const useSessionStore = defineStore('session', () => {
     const hum = claims.value?.hum
     await auth.logout()
     if (import.meta.client) {
+      /* HUM-10 fb8d109f: a sign-out by hand is not "your session ended" */
+      markSignedIn(false)
       /* 080 FR-008: the next member on this browser never sees these drafts */
       clearDrafts(undefined, hum)
       /* 027 budget: card-clip (and file-preview behind it) is only needed on

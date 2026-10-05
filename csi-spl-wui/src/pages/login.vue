@@ -2,6 +2,9 @@
   <div class="login-card login-landing-card">
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
+    <!-- HUM-10 fb8d109f: the session this browser held ended (expired or
+         revoked), so say so plainly instead of a bare sign-in page -->
+    <p v-if="ended" class="login-error" role="status" data-test="session-ended">{{ t('auth.native_error.unauthenticated') }}</p>
     <!-- SPL-1231: arriving from an invite, say which address was invited and
          which sign-in owns it, so the invitee does not bounce between providers. -->
     <div v-if="invited && session.state !== 'in'" class="login-invite-hint" role="note" data-test="login-invite-hint">
@@ -41,6 +44,7 @@ import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 import { takeEarlyLoginFlag } from '~/utils/signed-out-hint.mjs'
 import { loadDemo } from '~/utils/demo-info.mjs'
+import { ENDED_QUERY, markSignedIn } from '~/utils/session-recover.mjs'
 
 definePageMeta({ layout: 'login' })
 
@@ -66,6 +70,11 @@ const authError = useSettledQuery('auth_error')
 const hintQ = useSettledQuery('login_hint')
 const invited = computed(() => loginHintOf(hintQ.value.value))
 const hinted = computed(() => hintedProvider(invited.value))
+/* HUM-10 fb8d109f: ?ended=1 from the signed-out redirect (session-recover.mjs) */
+const endedQ = useSettledQuery(ENDED_QUERY)
+const ended = computed(() => endedQ.value.value === '1' && session.state !== 'in' && !error.value)
+/* said once: a later visit to a bare /login on this browser is not an ending */
+watch(ended, (on) => { if (on) markSignedIn(false) }, { immediate: true })
 const redirect = computed(() => safeRedirect(redirectQ.value.value || '/'))
 /* auth-v1 §1: tenant is optional on start; send the one the viewer reads from */
 const tenant = computed(() => tenantQ.value.value || useSpoolApi().tenant || '')

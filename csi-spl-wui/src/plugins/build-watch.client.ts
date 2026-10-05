@@ -3,7 +3,10 @@
 // page is restored from the back/forward cache, and every 5 minutes while
 // visible. Idle -> a silent reload; a draft or an open dialog -> the bar,
 // and a reload by itself once the page is idle again.
-import { CHECK_EVERY_MS, IDLE_POLL_MS, MIN_GAP_MS, decide, pageBusy, readLiveCommit } from '~/utils/build-watch.mjs'
+// HUM-10 fb8d109f: a RESUME (hidden >= RESUME_AFTER_MS, the phone put away)
+// skips the 20 s gap, counts an empty focused field as idle, and retries a
+// read that failed while the radio was still waking; so does `online`.
+import { CHECK_EVERY_MS, IDLE_POLL_MS, MIN_GAP_MS, decide, isResume, pageBusy, readLiveCommit, retryDelay } from '~/utils/build-watch.mjs'
 import { readReloadGuard, reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 
 declare global {
@@ -21,6 +24,9 @@ export default defineNuxtPlugin(() => {
   let lastAt = 0
   let idleTimer: ReturnType<typeof setInterval> | null = null
   let idleSeen = 0
+  let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : 0
+  let failed = 0
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
 
   function stopIdle() {
     if (idleTimer) clearInterval(idleTimer)
@@ -28,10 +34,10 @@ export default defineNuxtPlugin(() => {
     idleSeen = 0
   }
 
-  function act() {
+  function act(resumed: boolean) {
     const live = state.value.live
     const guard = readReloadGuard()
-    const d = decide({ running, live, busy: pageBusy(), guard })
+    const d = decide({ running, live, busy: pageBusy(document, { resumed }), guard })
     if (d === 'reload') return reloadForBuild(live)
     state.value.prompt = d === 'prompt'
     // the guard forbids a second reload by ourselves: then only a tap does
@@ -46,19 +52,37 @@ export default defineNuxtPlugin(() => {
     if (d === 'none') stopIdle()
   }
 
-  async function check() {
+  async function check(resumed = false) {
     if (document.visibilityState === 'hidden') return
     const now = Date.now()
-    if (now - lastAt < MIN_GAP_MS) return
+    if (!resumed && now - lastAt < MIN_GAP_MS) return
     lastAt = now
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null }
     const { commit } = await readLiveCommit()
-    if (!commit) return
+    if (!commit) {
+      // a resume whose read failed asks again shortly (the radio waking)
+      const wait = resumed ? retryDelay(++failed) : -1
+      if (wait >= 0) retryTimer = setTimeout(() => { retryTimer = null; void check(true) }, wait)
+      return
+    }
+    failed = 0
     state.value.live = commit
-    act()
+    act(resumed)
   }
 
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void check() })
+  function resume() {
+    const resumed = isResume(hiddenAt)
+    hiddenAt = 0
+    failed = 0
+    void check(resumed)
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') { hiddenAt = hiddenAt || Date.now(); return }
+    resume()
+  })
   window.addEventListener('focus', () => { void check() })
-  window.addEventListener('pageshow', (ev) => { if ((ev as PageTransitionEvent).persisted) void check() })
+  window.addEventListener('pageshow', (ev) => { if ((ev as PageTransitionEvent).persisted) void check(true) })
+  window.addEventListener('online', () => { lastAt = 0; void check() })
   setInterval(() => { void check() }, CHECK_EVERY_MS)
 })

@@ -27,6 +27,18 @@ export const MIN_GAP_MS = 20_000
 export const IDLE_POLL_MS = 2_000
 /** sessionStorage key: the commit this tab last reloaded itself for. */
 export const GUARD_KEY = 'spool.build-reload-for'
+/**
+ * HUM-10 fb8d109f: a tab hidden at least this long that comes back is a
+ * RESUME (the phone was put away, the app reopened), not a keyboard's
+ * language picker taking the focus for a moment (HUM-27, no hidden state).
+ */
+export const RESUME_AFTER_MS = 10_000
+/**
+ * A /build.json read that failed on a resume is retried after these delays:
+ * a phone's radio is often still waking when the app comes back, the read
+ * failed, and the tab then ran the old build until the 5-minute tick.
+ */
+export const RETRY_DELAYS_MS = [2_000, 5_000, 10_000, 20_000]
 
 /** A full or short hex sha, lower-cased; '' for anything else. */
 export function normCommit(c) {
@@ -99,11 +111,16 @@ function shown(el) {
  *     switch the language")
  *   - an open dialog (UiDialog, pickers, sheets: role=dialog|alertdialog)
  *   - a message still in flight (a pending row: data-pending="true")
+ * `resumed` (HUM-10 fb8d109f): the tab was hidden for RESUME_AFTER_MS or
+ * more. An EMPTY field that kept the focus while the phone was away holds
+ * nothing to lose; counting it as busy left the reopened app on the old
+ * build with only the bar. Text, a dialog or a pending row still count.
  * @param {Document} [doc]
+ * @param {{ resumed?: boolean }} [opts]
  */
-export function pageBusy(doc = globalThis.document) {
+export function pageBusy(doc = globalThis.document, { resumed = false } = {}) {
   if (!doc) return false
-  if (typingIn(doc.activeElement)) return true
+  if (!resumed && typingIn(doc.activeElement)) return true
   for (const el of doc.querySelectorAll('textarea, input, [contenteditable=""], [contenteditable="true"]')) {
     if (holdsText(el)) return true
   }
@@ -136,4 +153,24 @@ export async function readLiveCommit(fetchImpl, { timeoutMs = BUILD_JSON_TIMEOUT
   } finally {
     if (timer) clearTimeout(timer)
   }
+}
+
+/**
+ * Delay before the next /build.json read after `failed` failed reads in a
+ * row on a resume; -1 = give up (the 5-minute tick takes over).
+ * @param {number} failed
+ */
+export function retryDelay(failed) {
+  const n = Number(failed) || 0
+  return n >= 1 && n <= RETRY_DELAYS_MS.length ? RETRY_DELAYS_MS[n - 1] : -1
+}
+
+/**
+ * Was the tab hidden long enough for its return to count as a resume?
+ * @param {number} hiddenAt epoch ms the tab went hidden, 0 = never
+ * @param {number} [now]
+ */
+export function isResume(hiddenAt, now = Date.now()) {
+  const h = Number(hiddenAt) || 0
+  return h > 0 && now - h >= RESUME_AFTER_MS
 }

@@ -65,15 +65,20 @@ export function isProductScreen(input) {
  * Login location for a settled signed-out visitor on a product screen.
  * Null means stay: not signed out, or this path must not redirect.
  * `redirect` is the path they asked for, passed through safeRedirect.
+ * `ended` (HUM-10 fb8d109f): this browser held a session it did not sign
+ * out of by hand (utils/session-recover.mjs), so the login page says the
+ * session ended (`ended=1`) instead of greeting a stranger.
  * @param {string} fullPath
  * @param {unknown} sessionState
  * @param {boolean} [mock]
- * @returns {{ path: '/login', query: { redirect: string } } | null}
+ * @param {boolean} [ended]
+ * @returns {{ path: '/login', query: { redirect: string, ended?: '1' } } | null}
  */
-export function signedOutLoginTarget(fullPath, sessionState, mock = false) {
+export function signedOutLoginTarget(fullPath, sessionState, mock = false, ended = false) {
   if (!isSignedOutVisitor(sessionState, mock)) return null
   if (!isProductScreen(fullPath)) return null
-  return { path: '/login', query: { redirect: safeRedirect(String(fullPath || '/')) } }
+  const query = { redirect: safeRedirect(String(fullPath || '/')) }
+  return { path: '/login', query: ended ? { ...query, ended: '1' } : query }
 }
 
 /**
@@ -81,15 +86,18 @@ export function signedOutLoginTarget(fullPath, sessionState, mock = false) {
  * path (`/login`, `/fi/login`). The redirect query is encoded once.
  * @param {string} loginPath
  * @param {string} redirect
+ * @param {boolean} [ended]  add `ended=1` (see signedOutLoginTarget)
  * @returns {string}
  */
-export function signedOutLoginHref(loginPath, redirect) {
+export function signedOutLoginHref(loginPath, redirect, ended = false) {
   const path = String(loginPath || '/login')
   const value = String(redirect || '')
-  if (!value) return path
+  if (!value && !ended) return path
   const hashAt = path.indexOf('#')
   const hash = hashAt >= 0 ? path.slice(hashAt) : ''
   const before = hashAt >= 0 ? path.slice(0, hashAt) : path
   const joiner = before.includes('?') ? '&' : '?'
-  return `${before}${joiner}${new URLSearchParams({ redirect: value }).toString()}${hash}`
+  const q = new URLSearchParams(value ? { redirect: value } : {})
+  if (ended) q.set('ended', '1')
+  return `${before}${joiner}${q.toString()}${hash}`
 }

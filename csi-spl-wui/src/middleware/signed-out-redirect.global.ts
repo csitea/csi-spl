@@ -14,6 +14,7 @@
 import { isProductScreen, signedOutLoginHref, signedOutLoginTarget } from '~/utils/signed-out-redirect.mjs'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { wasSignedIn } from '~/utils/session-recover.mjs'
 
 let armed = false
 let suppress = false
@@ -30,7 +31,7 @@ function armSignedOutRedirect(): void {
   // change) has no new route, so the middleware does not run again on its own.
   session.$subscribe(() => {
     if (suppress || api.mock) return
-    const dest = signedOutLoginTarget(router.currentRoute.value.fullPath, session.state, api.mock)
+    const dest = signedOutLoginTarget(router.currentRoute.value.fullPath, session.state, api.mock, wasSignedIn())
     if (!dest) return
     void nuxtApp.runWithContext(() =>
       navigateTo({ path: localePath('/login'), query: dest.query }, { replace: true }),
@@ -61,13 +62,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
       suppress = false
     }
   }
-  const dest = signedOutLoginTarget(to.fullPath, session.state, api.mock)
+  const dest = signedOutLoginTarget(to.fullPath, session.state, api.mock, wasSignedIn())
   if (!dest) return
   if (nuxtApp.isHydrating) {
     // Hold the in-app redirect. A subscriber that runs as the probe settles
     // must not also client-navigate under the shell we are about to leave.
     suppress = true
-    const href = signedOutLoginHref(localePath('/login'), dest.query.redirect)
+    const href = signedOutLoginHref(localePath('/login'), dest.query.redirect, dest.query.ended === '1')
     return nuxtApp.runWithContext(() => navigateTo(href, { external: true, replace: true }))
   }
   return nuxtApp.runWithContext(() =>

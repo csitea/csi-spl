@@ -83,6 +83,28 @@ const snap = () => {
 
 /* Open the Topics row menu and choose Archive. True once that row has left
    the list, which is what the app does after a successful archive. */
+/* Phone level 1 does not mount the home list. The topics rail is the
+   list on screen; its row menu id is th:<id>, and the row leaves after
+   Archive the same way the home row does. */
+async function archiveFromRail(p, taskId) {
+  const btn = `[data-menu-id="th:${taskId}"]`
+  await p.waitForSelector(btn, { timeout: 15000 })
+  let opened = false
+  for (let i = 0; i < 4 && !opened; i++) {
+    await p.evaluate((sel) => document.querySelector(sel)?.click(), btn)
+    opened = await until(p, () => Boolean(document.querySelector('[data-testid=sidebar-row-menu-archive]')), 4000)
+  }
+  if (!opened) return false
+  await p.evaluate(() => document.querySelector('[data-testid=sidebar-row-menu-archive]')?.click())
+  const t0 = Date.now()
+  while (Date.now() - t0 < 8000) {
+    const gone = await p.evaluate((id) => !document.querySelector(`#sidebar-panel-topics [data-key="${id}"]`), taskId)
+    if (gone) return true
+    await sleep(150)
+  }
+  return false
+}
+
 async function archiveFromList(p, taskId) {
   const btn = `[data-menu-id="home:${taskId}"]`
   await p.waitForSelector(btn, { timeout: 15000 })
@@ -116,19 +138,27 @@ async function run(browser, base, width, theme) {
 
   /* A cold dev compile can miss the first paint. One retry, then the
      visible text, so a red log says what was on screen. */
-  let listed = false
-  let listedText = ''
-  for (let i = 0; i < 2 && !listed; i++) {
-    await p.goto(`${base}/`, { waitUntil: 'load', timeout: NAV })
-    listed = await until(p, () => Boolean(document.querySelector('a.topic-row')), 20000)
-    if (!listed) listedText = await p.evaluate(() => (document.body && document.body.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 180)).catch(() => '')
-  }
-  if (!listed) throw new Error('topics list never appeared: ' + listedText)
+  await p.goto(`${base}/`, { waitUntil: 'load', timeout: NAV })
   await p.evaluate((name) => { document.documentElement.setAttribute('data-theme', name) }, theme)
-  /* Archive from the row menu. The generated bundle does not put the page
-     instance on the DOM, so a dev-only __vueParentComponent walk cannot
-     reach the mock. The menu is the same control a person uses. */
-  const archived = await archiveFromList(p, ARCH)
+  let archived = false
+  if (phone) {
+    await p.waitForSelector('[data-testid=sidebar-tab-topics]', { timeout: 15000 })
+    await p.click('[data-testid=sidebar-tab-topics]')
+    archived = await archiveFromRail(p, ARCH)
+  } else {
+    let listed = false
+    let listedText = ''
+    for (let i = 0; i < 2 && !listed; i++) {
+      if (i) await p.goto(`${base}/`, { waitUntil: 'load', timeout: NAV })
+      listed = await until(p, () => Boolean(document.querySelector('a.topic-row')), 20000)
+      if (!listed) listedText = await p.evaluate(() => (document.body && document.body.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 180)).catch(() => '')
+    }
+    if (!listed) throw new Error('topics list never appeared: ' + listedText)
+    /* Archive from the row menu. The generated bundle does not put the page
+       instance on the DOM, so a dev-only __vueParentComponent walk cannot
+       reach the mock. The menu is the same control a person uses. */
+    archived = await archiveFromList(p, ARCH)
+  }
   check(`${tag}: archived the fixture topic`, archived)
 
   const open = (path) => p.evaluate(async (to) => {

@@ -2229,3 +2229,8 @@ declare module '~/utils/unread-model.mjs' {
     self?: string
   }): UnreadModel
 }
+
+// 081 T003: the forward of tabForPath (merges with its first declare block).
+declare module '~/utils/sidebar-tabs.mjs' {
+  export function routeForTab(id: string): '/' | '/issues' | '/users' | '/events' | '/archive' | '/people' | '/agents' | '/boxes' | null
+}

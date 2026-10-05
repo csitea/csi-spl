@@ -67,6 +67,32 @@ export function tabForPath(path) {
   return null
 }
 
+/** 081 T003: the page each page-backed tab opens, tabForPath's inverse. */
+const TAB_ROUTES = {
+  topics: '/',
+  [ISSUES_TAB]: '/issues',
+  [USERS_TAB]: '/users',
+  [EVENTS_TAB]: '/events',
+  [ARCHIVE_TAB]: '/archive',
+  [PEOPLE_TAB]: '/people',
+  [AGENTS_TAB]: '/agents',
+  [BOXES_TAB]: '/boxes',
+}
+
+/**
+ * 081 T003: where a tab goes, the forward of tabForPath:
+ * tabForPath(routeForTab(id)) === id for every id it answers. Direct
+ * messages, channels and flow are sidebar lists with no page of their own
+ * (there is no /dm, and a channel is one of many), so they answer null and
+ * the caller shows the list instead (useSidePane().request). No locale
+ * prefix: the caller adds it (localePath).
+ * @param {string} id
+ * @returns {string | null}
+ */
+export function routeForTab(id) {
+  return Object.prototype.hasOwnProperty.call(TAB_ROUTES, id) ? TAB_ROUTES[id] : null
+}
+
 /**
  * CLE-77884: the search page, whose hits the left panel lists (not a rail
  * tab: the sidebar holds that list while the reader opens hits).

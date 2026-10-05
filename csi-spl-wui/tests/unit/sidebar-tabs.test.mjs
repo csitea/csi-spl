@@ -7,7 +7,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SIDE_TABS, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { SIDE_TABS, routeForTab, switchPaneOf, tabForPath } from '../../src/utils/sidebar-tabs.mjs'
+import { RAIL_IDS } from '../../src/utils/rail-order.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -41,6 +42,43 @@ describe('tabForPath', () => {
   it('does not treat a lookalike path as a tab', () => {
     assert.equal(tabForPath('/dmail'), null)
     assert.equal(tabForPath('/channels'), null)
+  })
+})
+
+describe('routeForTab (081 T003)', () => {
+  const LISTS = ['dm', 'channels', 'flow']
+
+  it('forward then back: every page tab opens a path that names it again', () => {
+    for (const id of [...RAIL_IDS, 'users']) {
+      const to = routeForTab(id)
+      if (LISTS.includes(id)) continue
+      assert.equal(typeof to, 'string', id)
+      assert.equal(tabForPath(to), id, id)
+      /* the caller adds the locale; the tab survives it */
+      assert.equal(tabForPath('/fi' + (to === '/' ? '' : to)), id, id)
+    }
+  })
+
+  it('back then forward: the tab of a page routes to a path of the same tab', () => {
+    for (const path of ['/', '/t/abc', '/issues', '/users', '/events', '/archive', '/people', '/people/HUM-1', '/agents/c-001@box-a', '/boxes/box-a', '/fi/boxes']) {
+      const tab = tabForPath(path)
+      assert.ok(tab, path)
+      assert.equal(tabForPath(routeForTab(tab)), tab, path)
+    }
+  })
+
+  it('the sidebar lists have no page: null, the caller shows the list', () => {
+    for (const id of LISTS) assert.equal(routeForTab(id), null, id)
+    assert.equal(routeForTab(tabForPath('/dm/HUM-1@box-wui')), null)
+    assert.equal(routeForTab(tabForPath('/channel/feedback')), null)
+  })
+
+  it('an unknown id has no route', () => {
+    for (const id of ['', 'nope', 'settings', 'toString', '__proto__']) assert.equal(routeForTab(id), null, id)
+  })
+
+  it('every rail tab is either a page or a list', () => {
+    for (const id of RAIL_IDS) assert.ok(routeForTab(id) !== null || LISTS.includes(id), id)
   })
 })
 

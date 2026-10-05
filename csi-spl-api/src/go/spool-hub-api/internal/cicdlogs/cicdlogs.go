@@ -165,20 +165,32 @@ func ParseSettings(enabled bool, env, token, tenantTokens, allowlist, api, fromB
 	if s.FromID == "" {
 		s.FromID = defaultFromID
 	}
-	for _, part := range splitComma(tenantTokens) {
-		tenant, tok, ok := strings.Cut(part, ":")
-		tenant, tok = strings.TrimSpace(tenant), strings.TrimSpace(tok)
-		if !ok || tenant == "" || tok == "" {
-			return Settings{}, fmt.Errorf("SPOOL_HUB_CICD_TENANT_TOKENS entries look like tenant:token")
-		}
-		s.TenantTokens[tenant] = tok
+	tt, err := parseTenantTokens(tenantTokens)
+	if err != nil {
+		return Settings{}, err
 	}
+	s.TenantTokens = tt
 	al, err := ParseAllowlist(allowlist)
 	if err != nil {
 		return Settings{}, err
 	}
 	s.Allow = al
 	return s, nil
+}
+
+// parseTenantTokens parses `tenant:token,tenant:token` into a never-nil map;
+// a later entry for the same tenant wins. The token may itself hold ':'.
+func parseTenantTokens(s string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, part := range splitComma(s) {
+		tenant, tok, ok := strings.Cut(part, ":")
+		tenant, tok = strings.TrimSpace(tenant), strings.TrimSpace(tok)
+		if !ok || tenant == "" || tok == "" {
+			return nil, errors.New("SPOOL_HUB_CICD_TENANT_TOKENS entries look like tenant:token")
+		}
+		out[tenant] = tok
+	}
+	return out, nil
 }
 
 // ParseAllowlist parses `tenant:owner/repo,tenant:owner/*`.
@@ -188,7 +200,7 @@ func ParseAllowlist(s string) (map[string][]Pattern, error) {
 		tenant, spec, ok := strings.Cut(part, ":")
 		tenant, spec = strings.TrimSpace(tenant), strings.TrimSpace(spec)
 		if !ok || tenant == "" || spec == "" {
-			return nil, fmt.Errorf("SPOOL_HUB_CICD_REPO_ALLOWLIST entries look like tenant:owner/repo")
+			return nil, errors.New("SPOOL_HUB_CICD_REPO_ALLOWLIST entries look like tenant:owner/repo")
 		}
 		p, err := parsePattern(spec)
 		if err != nil {
@@ -263,7 +275,7 @@ func (s Settings) Validate() error {
 		return nil
 	}
 	if s.GitHubAPI == "" {
-		return fmt.Errorf("SPOOL_HUB_CICD_GITHUB_API must be set when cicd-logs is enabled (no default)")
+		return errors.New("SPOOL_HUB_CICD_GITHUB_API must be set when cicd-logs is enabled (no default)")
 	}
 	u, err := url.Parse(s.GitHubAPI)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
@@ -359,7 +371,7 @@ func runIDOK(s string) bool {
 func ParseRunURL(raw string) (owner, repo, runID, job string, err error) {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return "", "", "", "", fmt.Errorf("run url must be http(s)")
+		return "", "", "", "", errors.New("run url must be http(s)")
 	}
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 	// …/{owner}/{repo}/actions/runs/{id}[/job|jobs/{job}]
@@ -372,7 +384,7 @@ func ParseRunURL(raw string) (owner, repo, runID, job string, err error) {
 			return owner, repo, runID, job, nil
 		}
 	}
-	return "", "", "", "", fmt.Errorf("run url path is not /owner/repo/actions/runs/{id}")
+	return "", "", "", "", errors.New("run url path is not /owner/repo/actions/runs/{id}")
 }
 
 // Run fetches (when configured) and delivers a v:1 note on the bus.
@@ -391,7 +403,7 @@ func (s *Service) Run(ctx context.Context, tenant string, req Request) (Result, 
 		return Result{}, ErrForbidden
 	}
 	if s.Fetch == nil {
-		return Result{}, fmt.Errorf("cicd-logs fetcher is not configured")
+		return Result{}, errors.New("cicd-logs fetcher is not configured")
 	}
 	raw, err := s.Fetch.FetchLogs(ctx, tok, s.Settings.GitHubAPI, req.Owner, req.Repo, req.RunID, req.Job)
 	if err != nil {

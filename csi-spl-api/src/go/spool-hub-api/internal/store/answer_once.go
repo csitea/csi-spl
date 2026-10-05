@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -49,17 +48,21 @@ type AnswerOnce interface {
 	ReleaseAnswer(ctx context.Context, tenant, answers, answerMsgID string) error
 }
 
-// checkAnswer is the Go side of rdb 0111's CHECKs.
+// checkAnswer is the Go side of rdb 0111's CHECKs, run by both stores before
+// they touch a row. The messages are a backstop, not the client's answer: the
+// hub (internal/hub/answer_once.go) refuses a missing or self-referencing
+// answers and a negative if_gen with its own 400 first, so an error from here
+// reaching the hub is logged and answered as 500 "answer not recorded".
 func checkAnswer(a Answer) error {
 	switch {
 	case a.Answers == "" || a.AnswerMsgID == "":
-		return fmt.Errorf("answers and the answering msg_id are required")
+		return errors.New("answers and the answering msg_id are required")
 	case a.Answers == a.AnswerMsgID:
-		return fmt.Errorf("a message cannot answer itself")
+		return errors.New("a message cannot answer itself")
 	case len(a.Seat) > AnswerSeatMax || !strings.Contains(strings.Trim(a.Seat, "@"), "@"):
-		return fmt.Errorf("seat must be <id>@<box>")
+		return errors.New("seat must be <id>@<box>")
 	case a.Gen < 0:
-		return fmt.Errorf("gen must be >= 0")
+		return errors.New("gen must be >= 0")
 	}
 	return nil
 }

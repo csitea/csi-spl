@@ -8,6 +8,7 @@
 package payments
 
 import (
+	"errors"
 	"fmt"
 	"net/mail"
 	"net/url"
@@ -139,7 +140,7 @@ func (c *Config) checkRails() error {
 	case ProviderNone, ProviderStripe:
 	case ProviderFake:
 		if !c.EnableFakePay {
-			return fmt.Errorf("SPOOL_HUB_PAYMENT_PROVIDER=fake needs SPOOL_HUB_ENABLE_FAKE_PAY=true (lde/dev only)")
+			return errors.New("SPOOL_HUB_PAYMENT_PROVIDER=fake needs SPOOL_HUB_ENABLE_FAKE_PAY=true (lde/dev only)")
 		}
 	default:
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PROVIDER %q is not a known rail (\"\", %s, %s)", c.Provider, ProviderFake, ProviderStripe)
@@ -159,7 +160,7 @@ func (c *Config) checkPayPal() error {
 	}
 	// csi-rel PayPalFirstPartyForbidden: never prd, never live mode.
 	if c.Env == "prd" || strings.EqualFold(strings.TrimSpace(c.PayPalMode), ModeLive) {
-		return fmt.Errorf("SPOOL_HUB_ENABLE_PAYPAL=true is refused in prd and with SPOOL_HUB_PAYPAL_MODE=live (not live-tested)")
+		return errors.New("SPOOL_HUB_ENABLE_PAYPAL=true is refused in prd and with SPOOL_HUB_PAYPAL_MODE=live (not live-tested)")
 	}
 	for name, v := range map[string]string{
 		"SPOOL_HUB_PAYPAL_CLIENT_ID": c.PayPalClientID, "SPOOL_HUB_PAYPAL_CLIENT_SECRET": c.PayPalClientSecret,
@@ -172,16 +173,17 @@ func (c *Config) checkPayPal() error {
 	return nil
 }
 
-// checkPrices checks the plan and seat prices, the dedicated-project env and the plan identity.
+// checkPrices checks the plan and seat prices, the dedicated-project env, the
+// currency code and the plan identity.
 func (c *Config) checkPrices() error {
 	if c.PlanCents < 0 {
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must not be negative")
+		return errors.New("SPOOL_HUB_PAYMENT_PLAN_CENTS must not be negative")
 	}
 	if c.PlanCents == 0 && (c.Provider == ProviderStripe || c.EnablePayPal) {
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_CENTS must be > 0 for a real payment rail")
+		return errors.New("SPOOL_HUB_PAYMENT_PLAN_CENTS must be > 0 for a real payment rail")
 	}
 	if c.SeatUserCents < 0 || c.SeatBotCents < 0 || c.SeatsMax < 1 {
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_SEAT_*_CENTS must be >= 0 and SPOOL_HUB_PAYMENT_SEATS_MAX >= 1")
+		return errors.New("SPOOL_HUB_PAYMENT_SEAT_*_CENTS must be >= 0 and SPOOL_HUB_PAYMENT_SEATS_MAX >= 1")
 	}
 	if c.Dedicated {
 		if _, err := store.MintProjectID("abc", "abc", c.Env, time.Time{}); err != nil {
@@ -192,7 +194,7 @@ func (c *Config) checkPrices() error {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_CURRENCY %q must be a 3-letter code", c.Currency)
 	}
 	if strings.TrimSpace(c.PlanID) == "" {
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_PLAN_ID must not be empty")
+		return errors.New("SPOOL_HUB_PAYMENT_PLAN_ID must not be empty")
 	}
 	return nil
 }
@@ -203,7 +205,7 @@ func (c *Config) checkClaim() error {
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_PUBLIC_SCHEME %q must be http or https", c.PublicScheme)
 	}
 	if c.Hold <= 0 || c.ClaimTTL <= 0 {
-		return fmt.Errorf("SPOOL_HUB_PAYMENT_HOLD and SPOOL_HUB_PAYMENT_CLAIM_TTL must be positive")
+		return errors.New("SPOOL_HUB_PAYMENT_HOLD and SPOOL_HUB_PAYMENT_CLAIM_TTL must be positive")
 	}
 	if c.ClaimTTL > store.PaidOwnerInviteTTL { // 047 W1: the owner invite outlives the claim link
 		return fmt.Errorf("SPOOL_HUB_PAYMENT_CLAIM_TTL must be at most %s (the buyer's owner invite)", store.PaidOwnerInviteTTL)

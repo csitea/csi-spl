@@ -3,7 +3,7 @@ package action
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
@@ -26,23 +26,27 @@ type ReactArgs struct {
 
 // React adds (or removes) the reaction - or, List, only reads the target's
 // reactions - and returns the hub's answer.
-// Hub mode only: reactions live on the hub.
+// Hub mode only: reactions live on the hub. It refuses, before any hub call:
+//   - no $SPOOL_HUB_URL (not in hub mode);
+//   - a --msg that is not a UUID, or a --task that is not one while it is set
+//     or --msg is empty;
+//   - an empty --emoji (unless List) or an --as that is not a valid agent id.
 func React(ctx context.Context, cfg *config.Config, in ReactArgs) (json.RawMessage, error) {
 	if cfg.HubURL == "" {
-		return nil, fmt.Errorf("reacting needs hub mode ($SPOOL_HUB_URL is not set)")
+		return nil, errors.New("reacting needs hub mode ($SPOOL_HUB_URL is not set)")
 	}
 	task, m := strings.ToLower(in.TaskID), strings.ToLower(in.MsgID)
 	if m != "" && !editMsgIDRe.MatchString(m) {
-		return nil, fmt.Errorf("--msg must be a message UUID")
+		return nil, errors.New("--msg must be a message UUID")
 	}
 	if (task != "" || m == "") && !editMsgIDRe.MatchString(task) {
-		return nil, fmt.Errorf("--task must be the topic's task UUID (or give --msg)")
+		return nil, errors.New("--task must be the topic's task UUID (or give --msg)")
 	}
 	if !in.List && strings.TrimSpace(in.Emoji) == "" {
-		return nil, fmt.Errorf("--emoji is required")
+		return nil, errors.New("--emoji is required")
 	}
 	if !msg.ValidID(in.As) {
-		return nil, fmt.Errorf("--as (the acting agent id) is required")
+		return nil, errors.New("--as (the acting agent id) is required")
 	}
 	hc := in.Hub
 	if hc == nil {

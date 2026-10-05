@@ -6,6 +6,7 @@ package config
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -139,7 +140,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("parse spool config: %w", err)
 	}
 	if c.SpoolRoot == "" {
-		return nil, fmt.Errorf("SPOOL_ROOT resolved empty")
+		return nil, errors.New("SPOOL_ROOT resolved empty")
 	}
 	if !msg.IsSupported(c.MsgVersion) {
 		return nil, fmt.Errorf("SPOOL_MSG_VERSION %d must be 1 or 2", c.MsgVersion)
@@ -169,7 +170,7 @@ func Load() (*Config, error) {
 		}
 		// FR-002 / 004 T002: hub mode is a box identity; no silent empty box_id.
 		if !msg.ValidBoxID(c.BoxID) {
-			return nil, fmt.Errorf("SPOOL_BOX_ID must be a valid box id when SPOOL_HUB_URL is set")
+			return nil, errors.New("SPOOL_BOX_ID must be a valid box id when SPOOL_HUB_URL is set")
 		}
 	}
 	return &c, nil
@@ -479,7 +480,7 @@ func (h *Hub) WUIPrivateKey() (ed25519.PrivateKey, error) {
 	if k := strings.TrimSpace(h.WUIKey); k != "" {
 		raw, err := base64.StdEncoding.DecodeString(k)
 		if err != nil || len(raw) != ed25519.PrivateKeySize {
-			return nil, fmt.Errorf("SPOOL_HUB_WUI_KEY is not a base64 ed25519 private key")
+			return nil, errors.New("SPOOL_HUB_WUI_KEY is not a base64 ed25519 private key")
 		}
 		return ed25519.PrivateKey(raw), nil
 	}
@@ -511,16 +512,16 @@ func LoadHub() (*Hub, error) {
 // checkStorage validates the database, the file store and the tenant host pattern.
 func (h *Hub) checkStorage() error {
 	if h.DBDSN == "" {
-		return fmt.Errorf("SPOOL_HUB_DB_DSN must be set (no default)")
+		return errors.New("SPOOL_HUB_DB_DSN must be set (no default)")
 	}
 	if h.DBMaxConns < 1 || h.DBMinConns < 0 || h.DBMinConns > h.DBMaxConns || h.DBMaxConnIdleTime <= 0 {
-		return fmt.Errorf("SPOOL_HUB_DB_MAX_CONNS must be >= 1, SPOOL_HUB_DB_MIN_CONNS 0..MAX_CONNS, SPOOL_HUB_DB_MAX_CONN_IDLE_TIME positive")
+		return errors.New("SPOOL_HUB_DB_MAX_CONNS must be >= 1, SPOOL_HUB_DB_MIN_CONNS 0..MAX_CONNS, SPOOL_HUB_DB_MAX_CONN_IDLE_TIME positive")
 	}
 	if (h.FilesBucket == "") == (h.FilesDir == "") {
-		return fmt.Errorf("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")
+		return errors.New("exactly one of SPOOL_HUB_FILES_BUCKET or SPOOL_HUB_FILES_DIR must be set")
 	}
 	if h.DocsBucket != "" && h.DocsDir != "" {
-		return fmt.Errorf("at most one of SPOOL_HUB_DOCS_BUCKET or SPOOL_HUB_DOCS_DIR may be set")
+		return errors.New("at most one of SPOOL_HUB_DOCS_BUCKET or SPOOL_HUB_DOCS_DIR may be set")
 	}
 	if err := h.validateWorkspaceDocs(); err != nil {
 		return err
@@ -535,14 +536,14 @@ func (h *Hub) checkStorage() error {
 func (h *Hub) checkLimits() error {
 	if h.QueueTTL <= 0 || h.HelloSkew <= 0 || h.UploadTokenTTL <= 0 || h.QueueMaxPerBox <= 0 ||
 		h.RetentionAlerts <= 0 || h.RetentionChannels <= 0 || h.CommittedRetention <= 0 || h.BillingGrace <= 0 {
-		return fmt.Errorf("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
+		return errors.New("hub durations and SPOOL_HUB_QUEUE_MAX_PER_BOX must be positive")
 	}
 	if h.TrustedProxyHops < 0 || h.EdgeWSConnsPerIP < 0 || h.EdgeWSConnsTotal < 0 ||
 		h.EdgeWSHandshakesPerIP < 0 || h.EdgeAuthPerIP < 0 || h.WSPingInterval < 0 {
-		return fmt.Errorf("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_* and SPOOL_HUB_WS_PING_INTERVAL must be zero (off) or positive")
+		return errors.New("SPOOL_HUB_TRUSTED_PROXY_HOPS, SPOOL_HUB_EDGE_* and SPOOL_HUB_WS_PING_INTERVAL must be zero (off) or positive")
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
-		return fmt.Errorf("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
+		return errors.New("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
 	}
 	if !msg.IsSupported(h.MsgVersion) {
 		return fmt.Errorf("SPOOL_HUB_MSG_VERSION %d must be 1 or 2", h.MsgVersion)
@@ -551,7 +552,7 @@ func (h *Hub) checkLimits() error {
 		return err
 	}
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
-		return fmt.Errorf("hub quotas must be zero (unlimited) or positive")
+		return errors.New("hub quotas must be zero (unlimited) or positive")
 	}
 	if err := cicdlogs.ValidateHubEnv(h.CICDLogsEnabled, h.Env, h.CICDGitHubToken, h.CICDTenantTokens, h.CICDRepoAllowlist, h.CICDGitHubAPI, h.CICDFromBox, h.CICDFromID); err != nil {
 		return err
@@ -611,7 +612,7 @@ func (h *Hub) checkWUIKey() error {
 		}
 	}
 	if h.WUIDispatch && strings.TrimSpace(h.WUIKey) == "" && !h.WUIKeyEphemeral {
-		return fmt.Errorf("SPOOL_HUB_WUI_DISPATCH=true needs SPOOL_HUB_WUI_KEY (or SPOOL_HUB_WUI_KEY_EPHEMERAL=true in lde/dev)")
+		return errors.New("SPOOL_HUB_WUI_DISPATCH=true needs SPOOL_HUB_WUI_KEY (or SPOOL_HUB_WUI_KEY_EPHEMERAL=true in lde/dev)")
 	}
 	return nil
 }
@@ -689,7 +690,7 @@ func (h *Hub) validateWorkspaceDocs() error {
 	b := h.WorkspaceDocsBucket
 	switch {
 	case b != "" && h.WorkspaceDocsDir != "":
-		return fmt.Errorf("at most one of SPOOL_HUB_WORKSPACE_DOCS_BUCKET or SPOOL_HUB_WORKSPACE_DOCS_DIR may be set")
+		return errors.New("at most one of SPOOL_HUB_WORKSPACE_DOCS_BUCKET or SPOOL_HUB_WORKSPACE_DOCS_DIR may be set")
 	case b == "":
 		return nil
 	case strings.Count(b, "{tenant}") != 1:

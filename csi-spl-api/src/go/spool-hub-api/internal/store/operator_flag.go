@@ -73,11 +73,14 @@ func (s *Postgres) hasOperatorFlag(ctx context.Context) bool {
 		err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_attribute
 			WHERE attrelid = to_regclass('tenants') AND attname = 'is_operator' AND NOT attisdropped)`).Scan(&ok)
 		return ok, err
-	}, time.Now())
+	}, s.now())
 }
 
+// OperatorTenant answers the flagged operator workspace (OperatorFlag). The
+// answer is cached for operatorTTL on s's clock; "" when no row is flagged
+// or this database has no tenants.is_operator yet (rdb 0116 not applied).
 func (s *Postgres) OperatorTenant(ctx context.Context) (string, error) {
-	now := time.Now()
+	now := s.now()
 	if id, ok := s.opCache.get(now); ok {
 		return id, nil
 	}

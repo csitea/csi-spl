@@ -63,7 +63,7 @@ func (s *Store) BounceRetired(m *msg.Message) error {
 	if !msg.ValidID(m.To) || s.KnownLocal(m.To) {
 		return nil
 	}
-	now := time.Now().UTC()
+	now := s.now().UTC()
 	at, ok := s.RetiredInQuarantine(m.To, now)
 	if !ok {
 		return nil

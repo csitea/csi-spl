@@ -87,7 +87,7 @@ func (s *Postgres) hasWorkspaceState(ctx context.Context) bool {
 		err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_attribute
 			WHERE attrelid = to_regclass('tenants') AND attname = 'suspended_at' AND NOT attisdropped)`).Scan(&ok)
 		return ok, err
-	}, time.Now())
+	}, s.now())
 }
 
 // workspaceStateCols is the select-list for suspended_at, archived_at: two

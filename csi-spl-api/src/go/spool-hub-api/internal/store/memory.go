@@ -66,6 +66,17 @@ type Memory struct {
 	opAudit []OperatorAudit
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu
 	operatorTenant string
+	// clock is the wall clock MemberRole checks access_until against; nil =
+	// time.Now. Tests set it to step across an instant without sleeping.
+	clock func() time.Time
+}
+
+// now reads s.clock, or time.Now when no clock is set.
+func (s *Memory) now() time.Time {
+	if s.clock != nil {
+		return s.clock()
+	}
+	return time.Now()
 }
 
 type memPin struct {

@@ -20,9 +20,14 @@ import (
 // Postgres is the production Store. Its queries match the DDL in
 // csi-spl-rdb/src/sql/postgres/spool-hub/ (applied by Migrate); it invents no
 // table of its own.
+//
+// clock is the store's wall clock for its TTL caches and catalogue probes
+// (opCache, seats, wsState, opFlag); nil = time.Now. Tests set it to step
+// past a TTL without sleeping.
 type Postgres struct {
-	pool *pgxpool.Pool
-	hot  hotCache // pins and tenant rows of the send path (hotcache.go)
+	pool  *pgxpool.Pool
+	clock func() time.Time
+	hot   hotCache // pins and tenant rows of the send path (hotcache.go)
 	// seats: is rdb 0107 agent_seats there yet (agent_seats.go)
 	seats seatsProbe
 	// access: is rdb 0113 tenant_memberships.access_until there yet (access_until.go)
@@ -77,6 +82,14 @@ func OpenPostgres(ctx context.Context, dsn string, limits ...PoolLimits) (*Postg
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	return &Postgres{pool: pool}, nil
+}
+
+// now reads s.clock, or time.Now when no clock is set.
+func (s *Postgres) now() time.Time {
+	if s.clock != nil {
+		return s.clock()
+	}
+	return time.Now()
 }
 
 // pingIdle is how long a connection may sit idle before Acquire pings it

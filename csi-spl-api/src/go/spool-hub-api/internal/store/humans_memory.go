@@ -351,12 +351,15 @@ func (s *Memory) ProvisionMember(_ context.Context, in ProvisionInput, now time.
 	return hum, createdHuman, nil
 }
 
+// MemberRole answers humanID's role in tenant (Humans.MemberRole). A
+// membership that is disabled, whose human is disabled, or that is at or past
+// its access_until on s's clock answers ErrNotFound (access_until.go).
 func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.hum.init()
 	m, ok := s.hum.members[[2]string{tenant, humanID}]
-	if !ok || !m.live(s.hum.humans[humanID], time.Now()) {
+	if !ok || !m.live(s.hum.humans[humanID], s.now()) {
 		return "", ErrNotFound
 	}
 	return m.role, nil

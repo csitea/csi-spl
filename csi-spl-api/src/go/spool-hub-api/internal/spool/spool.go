@@ -22,8 +22,21 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 )
 
-// Store binds the spool operations to a resolved config.
-type Store struct{ cfg *config.Config }
+// Store binds the spool operations to a resolved config. clock is the wall
+// clock BounceRetired measures the quarantine against; nil = time.Now (tests
+// set it to cross the quarantine's end without back-dating registry rows).
+type Store struct {
+	cfg   *config.Config
+	clock func() time.Time
+}
+
+// now reads s.clock, or time.Now when no clock is set.
+func (s *Store) now() time.Time {
+	if s.clock != nil {
+		return s.clock()
+	}
+	return time.Now()
+}
 
 // New returns a Store over cfg.
 func New(cfg *config.Config) *Store { return &Store{cfg: cfg} }

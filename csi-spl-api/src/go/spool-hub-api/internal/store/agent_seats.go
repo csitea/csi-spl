@@ -22,6 +22,9 @@ type seatsProbe struct {
 	check func(ctx context.Context) (bool, error)
 }
 
+// present reports whether the probed relation exists: true once seen (for the
+// life of the process); a miss is rechecked only after seatsRecheck past the
+// last lookup at now. A lookup error counts as a miss.
 func (p *seatsProbe) present(ctx context.Context, lookup func(ctx context.Context) (bool, error), now time.Time) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -46,5 +49,5 @@ func (s *Postgres) hasAgentSeats(ctx context.Context) bool {
 	return s.seats.present(ctx, func(ctx context.Context) (ok bool, err error) {
 		err = s.pool.QueryRow(ctx, `SELECT to_regclass('agent_seats') IS NOT NULL`).Scan(&ok)
 		return ok, err
-	}, time.Now())
+	}, s.now())
 }

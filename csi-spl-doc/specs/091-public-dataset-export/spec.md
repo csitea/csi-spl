@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 3 (v0.4.0)
+**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.4.1)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -375,14 +375,33 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 
 ## 13. Consensus
 
-Pending: round 1 sent to g-308 (grok), a-287 (agy), c-288 (claude). Each writes `<name>-opinion.md` next to this
-file and answers on topic `67b63c88`.
+**YES: consensus reached at `51b40dca` (v0.4.0)**, over three rounds on topic `67b63c88`. The owner's panel rule
+(c6daa209: at least 1 agy, 1 grok and 2 claude) is met. Build may start; every item in §11 stays the owner's.
+
+| lane | kind | role | verdict | where |
+|---|---|---|---|---|
+| c-307 | claude | author | YES at `51b40dca` | this file |
+| c-288 | claude | reviewer | YES at `b76c46b2`, re-signed YES at `51b40dca` | `claude-opinion.md` §10-§11; topic msg `e4fd745c` |
+| g-308 | grok | reviewer | YES at `51b40dca` | `grok-opinion.md` at `689b6e53`; topic msg `623efb09` |
+| a-287 | agy | reviewer | YES at `51b40dca` | `agy-opinion.md` at `4ff58441`; topic msg `fa240653` |
+
+What the panel changed, by round:
+
+| round | from | change |
+|---|---|---|
+| 1 | c-288 | projection, never a dump; every column classified (C3); RLS re-read (C2); canary fixture (C5); export and publish SAs apart; loader takes `COPY` only; public-CI logging rule; names step whose list is never published; archived tasks and channels out |
+| 1 | a-287 | withheld NOT NULL columns get fixed constants so the seed loads (§4.4); DM links withheld; attestation fields mapped (§8.3) |
+| 2 | g-308 | restrictive policy so fence 2 holds with the operator scope set; `COPY` targets limited to §4.1; `release_notes` out of the seed; six edge rules |
+
+Disputed and left to the owner, not blocking: Q7 cadence (c-288's change-triggered option recorded beside the
+panel's daily lanes); Q1 consent (a-287 suggests a notice plus an opt-out).
 
 ## 14. Version log
 
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.4.1 | 2026-10-05 | §13 consensus recorded; no requirement changed |
 | v0.4.0 | 2026-10-05 | round 2, g-308: restrictive policy for the export role (fence 2 holds with the operator scope set), loader COPY targets limited to §4.1, `release_notes` out of the seed; non-member ids dropped, expired out, first file skips size check, reading lane `n`, dev lanes when real, topic post class-only and its channel never exported |
 | v0.3.0 | 2026-10-05 | round 1, a-287: §4.4 withheld NOT NULL columns get fixed constants, 0112 DM links withheld, the full measured column count, Q1/Q7 panel positions |
 | v0.2.0 | 2026-10-05 | round 1: c-288's points (projection, C2/C3/C5, archived tasks and channels out, publish SA, loader statement whitelist, Q1b; R1-1..R1-5: public-CI logging rule, the names step, hash list never published, canary list, Q9) |

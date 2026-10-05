@@ -9,6 +9,10 @@
 //   -    Ctrl + K is the page's key (defaultPrevented), and with the palette
 //        open it closes it
 //   -    on a phone (390 px) Ctrl + K opens nothing
+//   -    over Settings (a routed dialog, /settings) Ctrl + K opens the
+//        palette and is the page's key; Esc leaves Settings open and the page
+//        still locked; "fee" + Enter leaves Settings for #feedback and the
+//        page scrolls again (owner bug: "nothing happens with Ctrl + K")
 //   AC4  (T005) select a topic card, Ctrl + K, type ">arch" -> an Archive
 //        row with "⇧A"; Enter archives it (Archived · Undo shows). '>' alone
 //        lists the page's actions too (new topic, a theme) and no go-to row
@@ -155,6 +159,31 @@ try {
   await until(p, shown, PALETTE, 4000)
   await ctrlK(p)
   ok('Ctrl + K with the palette open closes it', await until(p, gone, PALETTE, 4000))
+
+  /* ---- over Settings: a routed dialog is a page, the palette opens over it ---- */
+  const SETTINGS = '.ui-dialog.routed'
+  await load(p, '/settings')
+  ok('Settings is open (a routed dialog)', await until(p, shown, SETTINGS, 8000))
+  await p.evaluate(() => {
+    window.__ctrlK = null
+    window.addEventListener('keydown', (e) => { if (e.key === 'k' && e.ctrlKey) window.__ctrlK = e.defaultPrevented })
+  })
+  await ctrlK(p)
+  ok('Ctrl + K over Settings opens the palette', await until(p, shown, PALETTE, 4000))
+  ok('... and takes the key from the browser (preventDefault)', (await p.evaluate(() => window.__ctrlK)) === true)
+  ok('... with the input focused', await until(p, (s) => document.activeElement?.matches?.(s), INPUT, 3000))
+  await p.keyboard.press('Escape')
+  ok('Esc closes the palette', await until(p, gone, PALETTE, 4000))
+  ok('... and Settings stays open', await p.evaluate(shown, SETTINGS))
+  ok('... with the page still locked behind it', (await p.evaluate(() => document.documentElement.style.overflow)) === 'hidden')
+  await ctrlK(p)
+  await until(p, shown, PALETTE, 4000)
+  await p.type(INPUT, 'fee')
+  await until(p, () => document.querySelector('[data-testid=command-palette-row]')?.getAttribute('data-item') === 'channel:feedback', null, 4000)
+  await p.keyboard.press('Enter')
+  ok('"fee" + Enter over Settings goes to /channel/feedback', await until(p, () => /\/channel\/feedback$/.test(location.pathname), null, 8000), await p.evaluate(() => location.pathname))
+  ok('... Settings and the palette are closed', await until(p, (s) => !document.querySelector(s), `${SETTINGS}, ${PALETTE}`, 4000))
+  ok('... and the page scrolls again', await until(p, () => document.documentElement.style.overflow === '', null, 3000))
 
   /* ---- AC4: '>' runs the selected card's menu items ---- */
   await load(p, '/channel/alerts')

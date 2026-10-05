@@ -8,7 +8,9 @@
 // preventDefault, as GitHub and Slack do). It is off on a phone and while
 // another dialog, menu or sheet is open; pressed with the palette open, it
 // closes it. The capture phase, so a field that stops its own keys cannot
-// hide the chord.
+// hide the chord. Settings is a page that wears a dialog (UiDialog `routed`,
+// the URL is /settings): the palette opens over it as over any page (owner,
+// "nothing happens with Ctrl + K": over Settings the chord went to Chrome).
 //
 // 081 T006 (FR-006): F6 / Shift + F6 move the focus left pane -> middle ->
 // right (when open) -> Omnibox, and back. The target is the pane's selected
@@ -25,6 +27,13 @@ let listener: ((ev: KeyboardEvent) => void) | null = null
 
 /** A menu, a dialog or a sheet is open: the palette does not open over it. */
 const OVERLAY_OPEN = '.point-menu, [role="dialog"][aria-modal="true"], dialog[open]'
+/** A routed dialog is a page (Settings): Ctrl + K is not off over it. */
+const ROUTED_DIALOG = '.ui-dialog.routed'
+
+/** An overlay the palette does not open over: any but a routed dialog. */
+function overlayBlocksPalette(): boolean {
+  return [...document.querySelectorAll(OVERLAY_OPEN)].some((el) => !el.matches(ROUTED_DIALOG))
+}
 
 /** Ctrl + K, or Cmd + K: no Alt, no Shift; the K by its key or its place (non-Latin layouts). */
 function isPaletteChord(ev: KeyboardEvent): boolean {
@@ -91,7 +100,7 @@ export function useGlobalKeys() {
         paletteOpen.value = false
         return
       }
-      if (document.querySelector(OVERLAY_OPEN)) return
+      if (overlayBlocksPalette()) return
       ev.preventDefault()
       if (!ev.repeat) paletteOpen.value = true
     }

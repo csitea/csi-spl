@@ -8,6 +8,7 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 
 | Shortcut | Context | Action |
 |---|---|---|
+| **`Ctrl + K`** / **`Cmd + K`** | Global, not on a phone, also while typing and over Settings | Open the **command palette**: type to jump to a section, channel, person, topic, doc or settings page, then `Enter`; start with `>` to run an action on the selected message (Archive, Reply, …) or switch the theme. `Ctrl + K` again or `Escape` closes it. |
 | **`/`** | Global, not on a phone | Focus the **Top Omnibox** immediately. On a phone the box is docked and `/` does nothing. |
 | **`Escape`** | Omnibox focused | Blur the Omnibox and return focus to the previously active element |
 | **`Escape`** | Modal or menu open | Dismiss open modal, dialog, or context menu |
@@ -102,4 +103,4 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 
 A message shortcut runs only when that menu item would be offered for the selected message. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
 
-<!-- version: 1.2.0 · updated: 2026-10-04 -->
+<!-- version: 1.2.1 · updated: 2026-10-05 -->

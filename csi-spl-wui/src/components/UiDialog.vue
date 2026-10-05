@@ -76,6 +76,13 @@
   </Teleport>
 </template>
 
+<script lang="ts">
+/* Open dialogs holding the page's scroll lock, across every instance: the
+   page scrolls again only when the last one closes (the command palette
+   closing over Settings leaves Settings open). */
+let scrollLocks = 0
+</script>
+
 <script setup lang="ts">
 const props = withDefaults(
   defineProps<{
@@ -171,6 +178,20 @@ function onKeydown(ev: KeyboardEvent) {
   }
 }
 
+let locked = false
+function lockScroll() {
+  if (locked) return
+  locked = true
+  scrollLocks += 1
+  document.documentElement.style.overflow = 'hidden'
+}
+function unlockScroll() {
+  if (!locked) return
+  locked = false
+  scrollLocks = Math.max(0, scrollLocks - 1)
+  if (scrollLocks === 0) document.documentElement.style.overflow = ''
+}
+
 /* SPL-1001: also on MOUNT when it is already open. Every Lazy<X> confirm is
    mounted by the v-if that opens it, so `open` never CHANGES under a watch
    that is not immediate: no focus (Cancel), no Escape, no scroll lock. */
@@ -182,7 +203,7 @@ async function onOpenChange(isOpen: boolean) {
     window.addEventListener('keydown', onWindowKeydown)
     // the page must not scroll behind an open dialog (no-x-scroll invariant
     // included: the body keeps its width, only its scrolling stops)
-    document.documentElement.style.overflow = 'hidden'
+    lockScroll()
     await nextTick()
     const items = focusables()
     /* Opening a dialog puts focus where the person is meant to WORK. Without
@@ -194,7 +215,7 @@ async function onOpenChange(isOpen: boolean) {
     ;(first ?? panelEl.value)?.focus()
   } else {
     window.removeEventListener('keydown', onWindowKeydown)
-    document.documentElement.style.overflow = ''
+    unlockScroll()
     returnFocusTo?.focus?.()
     returnFocusTo = null
   }
@@ -205,7 +226,7 @@ watch(() => props.open, (isOpen) => { void onOpenChange(isOpen) })
 onUnmounted(() => {
   if (!import.meta.client) return
   window.removeEventListener('keydown', onWindowKeydown)
-  document.documentElement.style.overflow = ''
+  unlockScroll()
   /* a Lazy<X> dialog is unmounted by the same v-if that closes it */
   returnFocusTo?.focus?.()
   returnFocusTo = null

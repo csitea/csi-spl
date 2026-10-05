@@ -53,6 +53,8 @@ describe('classifying a failed send', () => {
     assert.equal(sendFailureKey({ token: 'session_expired' }), 'composer.send_failed_session_expired')
     /* dc6d5e3f: a tag of an agent that is no longer active, refused by the hub */
     assert.equal(sendFailureKey({ token: 'retired_id' }), 'composer.send_failed_agent_inactive')
+    /* a recycled id (c-NNN closed): no box announces it, the hub says unknown_agent */
+    assert.equal(sendFailureKey({ token: 'unknown_agent' }), 'composer.send_failed_agent_inactive')
   })
 })
 

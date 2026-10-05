@@ -83,6 +83,16 @@ func TestWUISendToRetiredIDGoesToSuccessorOrIsRefused(t *testing.T) {
 		t.Fatal("a refused send was stored")
 	}
 
+	// a recycled new-form id (c-NNN closed, retired: no box announces it) is
+	// refused too, and the line opens no stray topic
+	id3 := "5f0d5200-7ecf-49a6-8cd1-75193d208810"
+	if f := replyFrame(t, w, id3, thread, "@a-099 are you there"); f["type"] != "error" || f["error"] != "unknown_agent" {
+		t.Fatalf("recycled id: %v", f)
+	}
+	if has, _ := e.st.HasMessage(ctx, tid, id3); has {
+		t.Fatal("a send to a recycled id was stored")
+	}
+
 	// the successor itself and a plain reply are unchanged
 	if ack := replyFrame(t, w, "5f0d5200-7ecf-49a6-8cd1-75193d20880e", thread, "@a-004 look"); ack["type"] != "ack" || ack["task_id"] != thread {
 		t.Fatalf("new id: %v", ack)

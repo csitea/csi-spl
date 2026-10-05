@@ -60,3 +60,5 @@ Official days live in one shared table, keyed by region and date. A workspace se
 2. A version tag stays a label on a scheduled release. Confirm.
 3. A reminder as a spool message. Confirm.
 4. One audience per event (a person, an agent, or the workspace). Several names would be the next step, not this one.
+
+Consensus reached with a-270 in spec.md de98a421 (v0.3.0), section 10. No point left open.

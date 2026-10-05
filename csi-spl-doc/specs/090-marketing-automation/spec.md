@@ -1,6 +1,6 @@
 # 090: Marketing Automation (delegated social and email posting)
 
-**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Draft (v0.1.0)  
+**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Draft (v0.2.0)  
 **Created**: 2026-10-05 · **Lane**: a-273 · **Topic**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`  
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
@@ -28,6 +28,9 @@ The owner defined the requirement in topic `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa
 
 2. Owner HUM-10, msg `1c305ead`:
    > "The system should be able to impersonate a specific person and send or make posts on behalf of this person in an automated fashion."
+
+3. Owner HUM-10, msg `fd72a794`:
+   > "The aim is not to be spamming anyone. The aim is to have scheduled posts every day, which bring the new features and the new ways to use the Spool Hub system."
 
 Per the owner's standing instruction ("present me with simple specs"), this document delivers a simple, readable specification focused on core user stories, clear requirements, and concrete acceptance criteria.
 
@@ -67,7 +70,23 @@ Starting from the initial outline proposed by dispatcher c-002, this specificati
 
 ---
 
-## 4. Platform API Limits & Compliance Basics
+## 4. Anti-Spam Policy & Daily Cadence Rule
+
+Per owner msg `fd72a794` (*"The aim is not to be spamming anyone. The aim is to have scheduled posts every day..."*), the system enforces strict cadence controls:
+
+1. **Daily Frequency Cap**:
+   - Strict maximum of **one scheduled automated post per day per channel** (e.g., 1 on LinkedIn, 1 on X, 1 on Facebook).
+   - If multiple drafts are generated on the same day, they are staggered across subsequent calendar days.
+2. **High-Signal Focus**:
+   - Content is drawn exclusively from verified release notes (spec 065), concrete feature launches, and practical usage demos.
+   - Generic filler, repetitive hashtag dumps, and automated @-mention spam are strictly barred.
+3. **Audience Protection**:
+   - Social posts publish only to the user's own connected feeds/pages.
+   - Email delivers only to explicit opt-in subscribers. Cold scraping, purchased email lists, and unsolicited outreach are barred.
+
+---
+
+## 5. Platform API Limits & Compliance Basics
 
 Each marketing channel is governed by specific platform constraints and legal rules (one-line summaries):
 
@@ -79,7 +98,7 @@ Each marketing channel is governed by specific platform constraints and legal ru
 
 ---
 
-## 5. Security & Token Lifecycle
+## 6. Security & Token Lifecycle
 
 - **Secret Manager Storage**: All OAuth access tokens, refresh tokens, and API secrets are stored securely in Secret Manager, encrypted at rest.
 - **Zero Secret Exposure**: Tokens are never committed to git, never written into logs, never printed in terminal outputs, and never transmitted in spool messages.
@@ -87,7 +106,7 @@ Each marketing channel is governed by specific platform constraints and legal ru
 
 ---
 
-## 6. User Stories
+## 7. User Stories
 
 | ID | Role | Story | Benefit |
 |---|---|---|---|
@@ -100,9 +119,9 @@ Each marketing channel is governed by specific platform constraints and legal ru
 
 ---
 
-## 7. Functional Requirements & Acceptance Matrix
+## 8. Functional Requirements & Acceptance Matrix
 
-### 7.1 Functional Requirements
+### 8.1 Functional Requirements
 
 - **FR-001**: System shall provide OAuth 2.0 connection flows for social channels with official delegation scopes.
 - **FR-002**: System shall support Facebook posting strictly to authorized Facebook Pages.
@@ -112,8 +131,9 @@ Each marketing channel is governed by specific platform constraints and legal ru
 - **FR-006**: System shall display scheduled marketing posts as timed events in the Calendar (spec 089).
 - **FR-007**: Outbound email shall be sent from verified domains with SPF/DKIM authentication and one-click unsubscribe headers.
 - **FR-008**: System shall track post status (`draft`, `scheduled`, `approved`, `published`, `failed`) and capture live post links and errors.
+- **FR-009**: System shall enforce a hard daily frequency cap of at most one automated post per day per channel.
 
-### 7.2 Acceptance Scenarios
+### 8.2 Acceptance Scenarios
 
 - **AC-01 (Account Connection)**: User initiates connection -> completes OAuth consent -> system stores tokens in Secret Manager -> settings page indicates connected account status.
 - **AC-02 (Access Revocation)**: User clicks "Disconnect" -> tokens are immediately revoked and deleted from Secret Manager -> pending drafts for that channel are suspended.
@@ -122,10 +142,11 @@ Each marketing channel is governed by specific platform constraints and legal ru
 - **AC-05 (Successful Dispatch)**: At scheduled time, background dispatcher transmits payload to platform API -> receives success ID -> updates status to `published` and records URL.
 - **AC-06 (Error Handling)**: If platform rejects post due to rate limit or expired token -> status marked `failed`, diagnostic message recorded, and author notified.
 - **AC-07 (Email Unsubscribe)**: Recipient clicks unsubscribe link -> email address status updated to `unsubscribed` immediately without requiring account login.
+- **AC-08 (Anti-Spam Daily Cap)**: Two release posts drafted on the same day -> system schedules the first for today and automatically staggers the second to the following day.
 
 ---
 
-## 8. What is NOT in Scope
+## 9. What is NOT in Scope
 
 1. **Password-Based Impersonation**: Storing user passwords or logging into platforms without official OAuth delegation.
 2. **Fake or Sock-Puppet Accounts**: Creating, managing, or automating unverified bot accounts.
@@ -136,7 +157,7 @@ Each marketing channel is governed by specific platform constraints and legal ru
 
 ---
 
-## 9. Open Questions for the Owner (Max 6)
+## 10. Open Questions for the Owner (Max 6)
 
 1. **Target Accounts**: Should social marketing target the personal profiles of team members/founders (via member OAuth), dedicated Spool Hub brand pages, or both?
 2. **Approval Authority**: Who inside a workspace has authority to approve draft posts (any workspace member, or only workspace admins)?
@@ -147,7 +168,7 @@ Each marketing channel is governed by specific platform constraints and legal ru
 
 ---
 
-## 10. Appendix: Data Model Reference
+## 11. Appendix: Data Model Reference
 
 *Architectural reference for future implementation; this specification builds no database tables.*
 
@@ -201,10 +222,11 @@ CREATE TABLE marketing_email_subscribers (
 
 ---
 
-## 11. Version Log
+## 12. Version Log
 
 | Version | Date | Author | Description |
 |---|---|---|---|
 | v0.1.0 | 2026-10-05 | a-273 | Initial draft specification for marketing automation (delegated social and email posting). |
+| v0.2.0 | 2026-10-05 | a-273 | Folded owner msg `fd72a794` into spec: added anti-spam policy with strict 1 post/day/channel cap, high-signal focus, FR-009, and AC-08. |
 
-<!-- version: 0.1.0 · updated: 2026-10-05 · last-edit: 2026-10-05T04:25:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-05 · last-edit: 2026-10-05T04:24:00Z -->

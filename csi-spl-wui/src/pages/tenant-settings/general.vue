@@ -2,7 +2,8 @@
      (the tenant switcher and the tab title, SPL-959), its default locale
      (the invite mail's language when the admin's own is not sent) and the
      issue key prefix (W16, spec 047), and who can archive topics (CLE-77819,
-     owner 2026-09-30: a per-workspace setting, default everyone).
+     owner 2026-09-30: a per-workspace setting, default everyone), and the
+     marketing switch (spec 090 §15, MarketingSwitch.vue).
      tenant.settings. -->
 <template>
   <SettingsSection id="tenant-general" :title="t('tenant_settings.general_title')" data-test="tenant-settings-general">
@@ -57,12 +58,14 @@
         <p v-if="error" class="ts-error" role="alert" data-test="tenant-general-error">{{ error }}</p>
       </div>
     </form>
+    <MarketingSwitch v-if="!loading && !loadError" />
   </SettingsSection>
 </template>
 
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
 import LocaleCombobox from '~/components/LocaleCombobox.vue'
+import MarketingSwitch from '~/components/MarketingSwitch.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { issuePrefixOf, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS } from '~/utils/tenant-settings.mjs'

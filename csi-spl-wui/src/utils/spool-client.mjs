@@ -36,6 +36,8 @@ const LAZY_METHODS = [
   'patchTenantUser',
   'getTenantSettings',
   'patchTenantSettings',
+  'getMarketingSwitch',
+  'patchMarketingSwitch',
   'listTenantChannels',
   'setTenantChannelNoFallback',
   'archiveTenantChannel',

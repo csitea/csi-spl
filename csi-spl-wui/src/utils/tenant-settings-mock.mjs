@@ -21,6 +21,13 @@ export function createMockTenant() {
     { channel: 'design', name: 'Design', visibility: 'members', members: 3, agents: 1, messages: 12, no_fallback: false, archivable: true, created_by: 'HUM-3' },
     { channel: 'secret', name: 'Secret', visibility: 'members', members: 1, agents: 0, messages: 2, no_fallback: true, archivable: true, created_by: 'HUM-12' },
   ]
+  // spec 090 §15: the mock workspace is allow-listed and starts OFF, like a
+  // real one; localStorage spool.mock.marketing=unlisted plays a workspace
+  // outside the cnf allow-list (every marketing route 404).
+  const mkt = { enabled: false }
+  const mktListed = () => {
+    try { return globalThis.localStorage?.getItem('spool.mock.marketing') !== 'unlisted' } catch { return true }
+  }
   const settings = () => ({ tenant_id: 'mock', ...cfg, responders: cfg.responders.slice(), agent_split: { ...cfg.agent_split }, max_responders: 20 })
   return {
     settings,
@@ -60,6 +67,15 @@ export function createMockTenant() {
         cfg.responders = [...new Set(p.responders)]
       }
       return settings()
+    },
+    marketing() {
+      if (!mktListed()) throw mockErr(404, 'not_found')
+      return { tenant_id: 'mock', enabled: mkt.enabled }
+    },
+    setMarketing(on) {
+      if (!mktListed()) throw mockErr(404, 'not_found')
+      mkt.enabled = Boolean(on)
+      return { tenant_id: 'mock', enabled: mkt.enabled }
     },
     channels: () => ({ tenant_id: 'mock', channels: channels.map((c) => ({ ...c })) }),
     setNoFallback(id, off) {

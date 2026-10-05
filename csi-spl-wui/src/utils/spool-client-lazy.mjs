@@ -412,6 +412,28 @@ async function patchTenantSettings(ctx, patch = {}) {
   })
 }
 
+/**
+ * GET /v1/marketing/settings (spec 090 §15, tenant.settings): the workspace
+ * admin's marketing switch, { tenant_id, enabled }. 404 outside the cnf
+ * allow-list, 403 for a non-admin: the WUI then hides the toggle.
+ */
+async function getMarketingSwitch(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).marketing()
+  return live('/v1/marketing/settings')
+}
+
+/** PATCH /v1/marketing/settings { enabled } → the new switch. */
+async function patchMarketingSwitch(ctx, enabled) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).setMarketing(enabled)
+  return live('/v1/marketing/settings', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled: Boolean(enabled) }),
+  })
+}
+
 /** GET /v1/tenant/channels: every channel of the tenant (private ones too), admin view. */
 async function listTenantChannels(ctx) {
   const { live, mock, tenantMock } = ctx
@@ -1299,6 +1321,8 @@ export const lazySpoolMethods = {
   patchTenantUser,
   getTenantSettings,
   patchTenantSettings,
+  getMarketingSwitch,
+  patchMarketingSwitch,
   listTenantChannels,
   setTenantChannelNoFallback,
   archiveTenantChannel,

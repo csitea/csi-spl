@@ -89,3 +89,21 @@ describe('the client\'s lazy half (P3-30)', () => {
     assert.ok((await c.listChannels()).some((ch) => ch.channel_id === 'lane-f'))
   })
 })
+
+describe('the phone stack out of the live initial JS (stale-login plugin)', () => {
+  // A plugin is in the entry chunk. 087 T003's static import of
+  // useMobileStack carried the whole phone stack into every first load:
+  // ci_initial_gzip_kb 155.4 > 155 with it, 152.7 with import() (bdb0459a).
+  const plugin = read('../../src/plugins/mobile-stale-login.client.ts')
+  const code = plugin.replace(/\/\*[\s\S]*?\*\//g, '').replace(/'[^'\n]*'/g, "''")
+
+  it('mobile-stale-login.client.ts loads useMobileStack only with import()', () => {
+    assert.doesNotMatch(plugin, /^import[^\n]*useMobileStack/m)
+    assert.match(plugin, /import\('~\/composables\/useMobileStack'\)/)
+  })
+
+  it('names useMobileStack only as a member of the loaded module (a bare name is a Nuxt auto-import)', () => {
+    assert.doesNotMatch(code, bare('useMobileStack'))
+    assert.match(code, /\.useMobileStack\(\)\.guardStaleLogin\(\)/)
+  })
+})

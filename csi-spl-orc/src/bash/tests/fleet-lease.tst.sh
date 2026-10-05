@@ -60,6 +60,13 @@
 #      LEASE_INTERMITTENT never hands back by rank, only on stale; CONTROL:
 #      LEASE_DESK_GATE=0 LEASE_HOLDDOWN=0 hands back at once (the old rule).
 #      The older sections run with LEASE_HOLDDOWN=0 (the tick helper).
+#  20. spec 093 FR-000, the 2026-10-05 login-expired orchestrator: its pane
+#      ("Login expired · Please run /login", no spinner, no reset) with an
+#      API-error last entry is not able on the first tick, the standby box
+#      takes orch at 181 s; CONTROLS: the pre-093 spl_lease_stall is able on
+#      the same fixture, the same pane after a good turn is able; a usage
+#      limit with a reset time is as before; the pokes and their error replies
+#      are not activity, so the ask behind them is stuck.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -544,6 +551,92 @@ rm -rf "${T:?}/lap/proc"; t19 cl1 $N
 trio lap 30
 t19 lap $((N + 10)) LEASE_DESK_GATE=0 LEASE_HOLDDOWN=0
 both lap && pass "19. CONTROL: LEASE_DESK_GATE=0 LEASE_HOLDDOWN=0 hands back at once with no desk (the old rule)" || fail "19. control: $(hubh orch)/$(hubh dispatch)"
+PRIO=pc,sat
+
+# --- 20. spec 093 FR-000: the 2026-10-05 login-expired orchestrator ------------------------
+# c-001@sat answered every poke with "Login expired · Please run /login" for ~6 h:
+# idle, no spinner, no reset time, and each poke wrote a prompt + an API-error
+# reply to its transcript. Fixtures: that pane, that transcript, and the same
+# session after a good turn; the pre-093 spl_lease_stall is the control.
+FX="$TEST_DIR/fixtures/fleet-lease"
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/tr"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/tr"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+# the transcript of pid N is $T/tr/N (LEASE_TRANSCRIPT_CMD; none = unknown)
+printf '#!/usr/bin/env bash\ncat "%s/tr/$1" 2>/dev/null\n' "$T" >"$T/bin/tr"; chmod +x "$T/bin/tr"
+T20=(LEASE_TRANSCRIPT_CMD="$T/bin/tr")
+# unit <fn> "<args>" [env...]: one call of a lease function on pc's fixtures
+unit() {
+  local fn="$1" args="$2"; shift 2
+  env PROJ_PATH="$PROJ_ROOT" FX="$FX" SPOOL_ROOT="$T/pc/spool" LEASE_PROC_ROOT="$T/pc/proc" LEASE_PANE_CMD="$T/bin/pane" \
+    LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_LIMIT_TZ=Etc/GMT-3 "$@" bash -c '
+    do_log() { :; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; source "$FX/spl-lease-stall-pre-093.sh"
+    # shellcheck disable=SC2086 # the args, split on purpose
+    spl_lease_init && "$0" $1' "$fn" "$args" 2>&1
+}
+login() { cp "$FX/login-expired-2026-10-05.pane" "$T/pane/$1"; cp "$FX/${2:-login-expired}.jsonl" "$T/tr/$1"; }
+login 100
+got="$(unit spl_lease_stall 100)"
+[[ "$got" == "Please run /login, no spinner" ]] &&
+  pass "20. login expired, no spinner, last entry an API error: stalled ($got)" || fail "20. login: '$got'"
+got="$(unit spl_lease_stall_pre093 100)"
+[[ -z "$got" ]] && pass "20. CONTROL: the pre-093 spl_lease_stall returns able on the same fixture" || fail "20. control pre-093: '$got'"
+login 100 good-turn
+got="$(unit spl_lease_stall 100)"
+[[ -z "$got" ]] && pass "20. CONTROL: the same pane after a good turn (a stale banner) is able" || fail "20. good turn: '$got'"
+rm -f "$T/tr/100"
+got="$(unit spl_lease_stall 100)"
+[[ "$got" == "Please run /login, no spinner" ]] && pass "20. the banner with no readable transcript is a stall" || fail "20. no transcript: '$got'"
+# a usage-limit banner WITH a reset time behaves as before 093, whatever the transcript says
+N=1791007200
+printf '❯ [poke] status?\n  ⎿  Usage limit reached · resets 10:50am\n\n────\n❯ \n────\n  ⏵⏵ auto mode on\n' >"$T/pane/100"
+cp "$FX/login-expired.jsonl" "$T/tr/100"
+a="$(unit spl_lease_stall 100 LEASE_NOW=$((N + 60)))"; b="$(unit spl_lease_stall_pre093 100 LEASE_NOW=$((N + 60)))"
+[[ "$a" == "Usage limit reached, resets in"* && "$a" == "$b" ]] &&
+  pass "20. usage limit, reset ahead: stalled, same as pre-093 ($a)" || fail "20. limit ahead: new '$a' pre-093 '$b'"
+a="$(unit spl_lease_stall 100 LEASE_NOW=$((N + 6660)))"; b="$(unit spl_lease_stall_pre093 100 LEASE_NOW=$((N + 6660)))"
+[[ -z "$a" && -z "$b" ]] && pass "20. usage limit, reset passed (stale banner): able, same as pre-093" || fail "20. limit passed: new '$a' pre-093 '$b'"
+# activity: the pokes' prompts and their API-error replies are not activity
+t_good=$(date -ud 2026-10-05T12:38:20Z +%s); t_after=$(date -ud 2026-10-05T18:41:09Z +%s); t_first=$(date -ud 2026-10-05T12:38:20Z +%s)
+login 100
+got="$(unit spl_lease_activity 100)"
+[[ "$got" == "$t_good" ]] && pass "20. activity = the last good reply (12:38:20Z), not the 18:31Z poke" || fail "20. activity: '$got' want $t_good"
+login 100 good-turn
+got="$(unit spl_lease_activity 100)"
+[[ "$got" == "$t_after" ]] && pass "20. CONTROL: a good turn after /login moves the activity (18:41:09Z)" || fail "20. activity good: '$got' want $t_after"
+grep -v -e '"tool_result"' -e '"claude-opus"' "$FX/login-expired.jsonl" >"$T/tr/100"
+got="$(unit spl_lease_activity 100)"
+[[ "$got" == "$t_first" ]] && pass "20. only pokes, errors and system entries in the window: activity = its oldest entry (12:38:20Z)" || fail "20. activity window: '$got' want $t_first"
+# the stuck rule on that activity: an ask at 12:44Z, unread at 18:32Z
+cp "$FX/login-expired.jsonl" "$T/tr/100"
+printf '✻ Brewed for 16s\n❯ x\n────\n  ⏵⏵ auto mode on\n' >"$T/pane/100"
+msg pc CLE-001 "$(date -ud 2026-10-05T12:44:00Z +%s)"
+got="$(unit spl_fleet_stuck "CLE-001 100" LEASE_NOW="$(date -ud 2026-10-05T18:32:00Z +%s)")"
+[[ "$got" == "oldest unread "*"idle "* ]] && pass "20. the ask behind the pokes is stuck ($got)" || fail "20. stuck: '$got'"
+cp "$FX/good-turn.jsonl" "$T/tr/100"
+got="$(unit spl_fleet_stuck "CLE-001 100" LEASE_NOW="$(date -ud 2026-10-05T18:42:00Z +%s)")"
+[[ -z "$got" ]] && pass "20. CONTROL: after the good turn the same ask is read, not stuck" || fail "20. stuck good: '$got'"
+rm -rf "$T/pc/spool/CLE-001"; rm -f "$T/pane/100" "$T/tr/100"
+# the fleet: sat ranked first holds orch; its orchestrator's login expires
+PRIO=sat,pc
+tick sat $N "${T20[@]}"; tick pc $N "${T20[@]}"
+[[ "$(hubh orch)" == CLE-001@sat ]] && pass "20. sat's orchestrator holds orch" || fail "20. setup: $(hubh orch)"
+login 200
+tick sat $((N + 60)) "${T20[@]}"
+[[ "$(logc sat 'NO-LOCAL-AGENT orch.*CLE-001: stalled pid=200: Please run /login, no spinner')" == 1 && "$(hubh dispatch)" == CLE-002@sat ]] &&
+  pass "20. first tick after the poke: sat stops renewing orch (logged with why), keeps dispatch" || fail "20. sat: $(cat "$T/sat/spool/dispatch/lease.log")"
+grep -q '^stalled pid=200: Please run /login, no spinner' "$T/sat/spool/dispatch/able.CLE-001" &&
+  pass "20. able.CLE-001 names the login" || fail "20. able: $(cat "$T/sat/spool/dispatch/able.CLE-001")"
+tick pc $((N + 180)) "${T20[@]}"
+[[ "$(hubh orch)" == CLE-001@sat ]] && pass "20. 180 s is not stale yet" || fail "20. early: $(hubh orch)"
+tick pc $((N + 181)) "${T20[@]}"
+[[ "$(hubh orch)" == CLE-001@pc && "$(hubh dispatch)" == CLE-002@sat ]] &&
+  pass "20. 181 s after sat's last orch renewal pc takes orch; dispatch stays on sat" || fail "20. takeover: $(hubh orch)/$(hubh dispatch)"
+login 200 good-turn
+tick sat $((N + 240)) "${T20[@]}"
+[[ "$(hubh orch)" == CLE-001@sat ]] && pass "20. CONTROL: logged in again (a good turn), sat takes orch back on rank" || fail "20. back: $(hubh orch)"
+rm -f "$T/pane/200" "$T/tr/200"
 PRIO=pc,sat
 
 echo

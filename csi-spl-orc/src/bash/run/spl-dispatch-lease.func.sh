@@ -285,6 +285,12 @@ spl_lease_live_ids() {
 #   the banner and no spinner, so both roles stayed there ~30 min until a human
 #   moved the ranks. An idle seat whose reset has not passed is a stall on
 #   sight (spl_lease_limit_until); a reset already passed is the stale banner.
+# - ... and a banner with NO reset time is a stall with no spinner too (spec
+#   093 FR-000): on 2026-10-05 a seat's login expired and it answered every
+#   poke with "Login expired · Please run /login" for ~6 h, idle, no spinner,
+#   no reset, so it stayed able. The tie-breaker against a stale banner is the
+#   transcript's last assistant entry (spl_lease_last_turn): a real reply
+#   after the banner = able; an isApiErrorMessage one, or none readable = stall.
 # Prints the matched text when stalled, nothing otherwise. Fails OPEN: no
 # pane found (no tmux, an agent outside tmux) keeps the process-only rule, so
 # a missing tmux never drops a master.
@@ -461,7 +467,14 @@ spl_lease_stall() {
   spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$foot" | tail -1 | grep -oE '\(.*\)')"
   if [[ -n "$hit" && -z "$spin" ]]; then
     rm -f "$f"; until="$(spl_lease_limit_until "$foot")"
-    [[ -n "$until" ]] && echo "$hit, resets in $(( (until - $(spl_lease_now) + 59) / 60 )) min"
+    [[ -n "$until" ]] && { echo "$hit, resets in $(( (until - $(spl_lease_now) + 59) / 60 )) min"; return 0; }
+    # a reset time already passed: the stale usage-limit banner, able as before
+    grep -iE -- 'limit|continuing automatically' <<<"$foot" |
+      grep -iE -- '(resets|automatically)([[:space:]]+at)?[[:space:]]+[^·[:space:]]' >/dev/null && return 0
+    # no reset time (spec 093 FR-000: the 2026-10-05 login screen): a stall,
+    # unless the transcript's last turn is a good one (a stale banner)
+    [[ "$(spl_lease_last_turn "$pid")" == ok ]] && return 0
+    echo "$hit, no spinner"
     return 0
   fi
   [[ -n "$hit" && -n "$spin" ]] || { rm -f "$f"; return 0; }
@@ -1023,21 +1036,71 @@ spl_fleet_stuck() {
   echo "oldest unread $((now - oldest))s > ${max}s, idle $((now - act))s"
 }
 
-# The epoch of <pid>'s last transcript write; empty when unknown.
+# The epoch of <pid>'s last ACTIVITY: the newest transcript entry that proves
+# the model produced something (a reply that is not an API error, or a tool
+# result). A prompt (a poke), an attachment, a queue or system entry and an
+# isApiErrorMessage reply are not activity (spec 093 FR-000: on 2026-10-05
+# every poke wrote its prompt and its "Login expired" reply, so a dead login
+# looked active). With no such entry in the last LEASE_TRANSCRIPT_TAIL lines,
+# the oldest entry there (the activity is older still); empty when unknown.
 # LEASE_ACTIVITY_CMD (called with the pid) replaces it in the tests.
 spl_lease_activity() {
-  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" home cwd dir
+  local pid="$1"
+  # shellcheck disable=SC2086 # a command line, split on purpose
   [[ -n "${LEASE_ACTIVITY_CMD:-}" ]] && { $LEASE_ACTIVITY_CMD "$pid"; return; }
+  spl_lease_transcript_tail "$pid" | jq -Rrn '
+    def ts: (.timestamp // "") | sub("\\.[0-9]+"; "") | (try fromdateiso8601 catch null);
+    [inputs | fromjson? // empty | select(type == "object")] as $e
+    | ([$e[] | select((.type == "assistant" and .isApiErrorMessage != true)
+        or (.type == "user" and (.message.content | type) == "array"
+            and any(.message.content[]; type == "object" and .type == "tool_result")))
+        | ts | select(. != null)] | max) as $m
+    | if $m != null then $m else ([$e[] | ts | select(. != null)] | min // empty) end
+    | floor' 2>/dev/null
+}
+
+# "ok" when <pid>'s last assistant entry is a real reply, "error" when it is
+# an isApiErrorMessage one (Login expired, usage limit), empty when unknown.
+spl_lease_last_turn() {
+  spl_lease_transcript_tail "$1" | jq -Rrn '
+    [inputs | fromjson? // empty | select(type == "object" and .type == "assistant")] | last
+    | if . == null then empty elif .isApiErrorMessage == true then "error" else "ok" end' 2>/dev/null
+}
+
+# The last LEASE_TRANSCRIPT_TAIL (400) lines of <pid>'s transcript: the
+# session file named by <HOME>/.claude/sessions/<pid>.json, else the newest
+# *.jsonl of its project dir (<HOME>/.claude/projects/<cwd, non-alphanumerics
+# as ->), which agents sharing a cwd also write. Read through the owner when
+# it is another user's. LEASE_TRANSCRIPT_CMD (called with the pid) replaces it
+# in the tests.
+spl_lease_transcript_tail() {
+  local pid="$1" root="${LEASE_PROC_ROOT:-/proc}" n="${LEASE_TRANSCRIPT_TAIL:-400}" home cwd
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  [[ -n "${LEASE_TRANSCRIPT_CMD:-}" ]] && { $LEASE_TRANSCRIPT_CMD "$pid"; return 0; }
+  [[ "$n" =~ ^[0-9]+$ ]] || n=400
   declare -F spool_proc_environ >/dev/null || return 0
   home="$(spool_proc_environ "$root" "$pid" 2>/dev/null | tr '\0' '\n' | sed -n 's/^HOME=//p' | sed -n 1p)"
   cwd="$(readlink "$root/$pid/cwd" 2>/dev/null)"
   [[ -z "$cwd" ]] && cwd="$(spool_proc_as_owner "$root" "$pid" readlink "$root/$pid/cwd")"
   [[ -n "$home" && -n "$cwd" ]] || return 0
-  dir="$home/.claude/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<<"$cwd")"
-  local -a q=(find "$dir" -maxdepth 1 -name '*.jsonl' -printf '%T@\n')
-  # the agent user's home is its own: read it through the owner
-  if [[ -r "$dir" ]]; then "${q[@]}" 2>/dev/null; else spool_proc_as_owner "$root" "$pid" "${q[@]}"; fi |
-    sort -n | tail -1 | cut -d. -f1
+  # shellcheck disable=SC2016 # expanded by the inner shell
+  local -a q=(bash -c '
+    s="$1/.claude/sessions/$3.json" sid="" cwd="$2" f=""
+    if [ -r "$s" ]; then
+      sid="$(jq -r ".sessionId // empty" "$s" 2>/dev/null)"
+      c="$(jq -r ".cwd // empty" "$s" 2>/dev/null)"; [ -n "$c" ] && cwd="$c"
+    fi
+    d="$1/.claude/projects/$(printf "%s" "$cwd" | sed "s/[^A-Za-z0-9]/-/g")"
+    [ -n "$sid" ] && [ -f "$d/$sid.jsonl" ] && f="$d/$sid.jsonl"
+    [ -n "$f" ] || f="$(find "$d" -maxdepth 1 -name "*.jsonl" -printf "%T@ %p\n" 2>/dev/null | sort -n | tail -1 | cut -d" " -f2-)"
+    [ -n "$f" ] && tail -n "$4" "$f"' _ "$home" "$cwd" "$pid" "$n")
+  # the agent user's projects and sessions are its own (0700): nothing read
+  # directly is read through the owner
+  local out
+  out="$("${q[@]}" 2>/dev/null)"
+  [[ -n "$out" ]] || out="$(spool_proc_as_owner "$root" "$pid" "${q[@]}")"
+  [[ -n "$out" ]] && printf '%s\n' "$out"
+  return 0
 }
 
 # The owner hears ONE message per orchestrator take-over (27f01e16): a DM

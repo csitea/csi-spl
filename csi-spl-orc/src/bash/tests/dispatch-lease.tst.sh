@@ -39,7 +39,8 @@
 #      renewing at once with the reset in the why; the failover takes over
 #      after 180 s; once the reset time has passed (same pane, banner still
 #      shown) the master renews again and the renewal is the handback;
-#      control: a banner with no readable reset time keeps the spinner rule
+#      a banner with no readable reset time is a stall unless the last
+#      reply is a good one (spec 093 FR-000), with that good reply as control
 #  18c. the "Teach auto mode about your environment?" modal (2026-10-04):
 #      a pane without it is able and no Escape is sent; a mention of the
 #      title above an idle prompt, and the title alone with no picker line,
@@ -367,9 +368,17 @@ tick renew $((N + 120)); tick watch $((N + 181))
 tick renew $((N + 6660)); tick watch $((N + 6670))
 [[ "$(holder)" == M-1 && "$(logc 'handback to M-1')" == 1 ]] &&
   pass "18b. reset passed, banner still shown: the master renews again, the handback follows" || fail "18b. restore: $(cat "$D/lease.log")"
-limited 1000 'Usage limit reached'; tick renew $((N + 6720))
+# spec 093 FR-000: a banner with no reset time and no spinner is a stall,
+# unless the transcript's last assistant entry is a good reply (a stale banner)
+printf '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}\n' >"$T/good.jsonl"
+printf '{"type":"assistant","isApiErrorMessage":true,"message":{"content":[{"type":"text","text":"Usage limit reached"}]}}\n' >"$T/err.jsonl"
+printf '#!/usr/bin/env bash\ncat "%s/$TR_FILE"\n' "$T" >"$T/bin/tr"; chmod +x "$T/bin/tr"
+limited 1000 'Usage limit reached'; tick renew $((N + 6720)) LEASE_TRANSCRIPT_CMD="$T/bin/tr" TR_FILE=good.jsonl
 [[ "$(cat "$D/lease")" == "M-1 $((N + 6720))" ]] &&
-  pass "18b. control: a banner with no reset time, no spinner, still renews (the spinner rule)" || fail "18b. no time: $(cat "$D/lease.log")"
+  pass "18b. control: a banner with no reset time under a good last reply still renews (stale banner)" || fail "18b. no time, good turn: $(cat "$D/lease.log")"
+tick renew $((N + 6780)) LEASE_TRANSCRIPT_CMD="$T/bin/tr" TR_FILE=err.jsonl
+[[ "$(cat "$D/lease")" == "M-1 $((N + 6720))" && "$(cat "$D/able.M-1")" == "stalled pid=1000: Usage limit reached, no spinner" ]] &&
+  pass "18b. a banner with no reset time, no spinner, last reply an API error: renew stops (093 FR-000)" || fail "18b. no time, error: lease '$(cat "$D/lease")' able '$(cat "$D/able.M-1")'"
 
 # --- 18c. the "Teach auto mode about your environment?" modal ----------------
 rm -rf "$T/spool" "$T/sent" "$T/keys"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*

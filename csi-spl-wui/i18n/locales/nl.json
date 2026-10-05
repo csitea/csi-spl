@@ -712,6 +712,7 @@
     },
     "via_dm": "via DM",
     "dm_about": "over #{channel} / {topic}",
+    "dm_pointer": "in #{channel} / {topic} (een antwoord in het onderwerp)",
     "ai": {
       "badge": "AI",
       "title": "AI-agent"

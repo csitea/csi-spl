@@ -712,6 +712,7 @@
     },
     "via_dm": "otsesõnumi kaudu",
     "dm_about": "teemal #{channel} / {topic}",
+    "dm_pointer": "kanalis #{channel} / {topic} (vastus teemas)",
     "ai": {
       "badge": "TI",
       "title": "Tehisintellekti agent"

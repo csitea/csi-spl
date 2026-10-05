@@ -712,6 +712,7 @@
     },
     "via_dm": "caur TZ",
     "dm_about": "par #{channel} / {topic}",
+    "dm_pointer": "#{channel} / {topic} (atbilde tēmā)",
     "ai": {
       "badge": "MI",
       "title": "MI aģents"

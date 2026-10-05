@@ -712,6 +712,7 @@
     },
     "via_dm": "via DM",
     "dm_about": "about #{channel} / {topic}",
+    "dm_pointer": "in #{channel} / {topic} (a reply in the topic)",
     "ai": {
       "badge": "AI",
       "title": "AI agent"

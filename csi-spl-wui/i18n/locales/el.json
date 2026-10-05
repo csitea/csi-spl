@@ -712,6 +712,7 @@
     },
     "via_dm": "μέσω ΠΜ",
     "dm_about": "σχετικά με #{channel} / {topic}",
+    "dm_pointer": "στο #{channel} / {topic} (απάντηση στο θέμα)",
     "ai": {
       "badge": "ΤΝ",
       "title": "Πράκτορας ΤΝ"

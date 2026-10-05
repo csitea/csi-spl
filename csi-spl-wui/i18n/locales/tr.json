@@ -712,6 +712,7 @@
     },
     "via_dm": "DM üzerinden",
     "dm_about": "#{channel} / {topic} hakkında",
+    "dm_pointer": "#{channel} / {topic} içinde (konuda bir yanıt)",
     "ai": {
       "badge": "YZ",
       "title": "Yapay zekâ ajanı"

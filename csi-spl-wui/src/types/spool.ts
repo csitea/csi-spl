@@ -62,6 +62,8 @@ export interface SpoolMessage {
    */
   ref_task_id?: string
   mirror_of?: string
+  /** dc6d5e3f: a channel line shown in the DM view of its agent (utils/dm-pointer.mjs). */
+  pointer?: boolean
   /**
    * Emoji added to this message (rdb 0037). Present on an opening message
    * (is_parent 1) and on a reply (is_parent 0). Empty when nobody has added one.

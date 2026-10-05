@@ -712,6 +712,7 @@
     },
     "via_dm": "דרך הודעה ישירה",
     "dm_about": "בנושא #{channel} / {topic}",
+    "dm_pointer": "ב-#{channel} / {topic} (תשובה בנושא)",
     "ai": {
       "badge": "AI",
       "title": "סוכן בינה מלאכותית"

@@ -712,6 +712,7 @@
     },
     "via_dm": "чрез ЛС",
     "dm_about": "относно #{channel} / {topic}",
+    "dm_pointer": "в #{channel} / {topic} (отговор в темата)",
     "ai": {
       "badge": "ИИ",
       "title": "ИИ агент"

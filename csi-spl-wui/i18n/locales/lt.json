@@ -712,6 +712,7 @@
     },
     "via_dm": "per AŽ",
     "dm_about": "apie #{channel} / {topic}",
+    "dm_pointer": "#{channel} / {topic} (atsakymas temoje)",
     "ai": {
       "badge": "DI",
       "title": "DI agentas"

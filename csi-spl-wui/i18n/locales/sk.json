@@ -712,6 +712,7 @@
     },
     "via_dm": "cez SS",
     "dm_about": "o #{channel} / {topic}",
+    "dm_pointer": "v #{channel} / {topic} (odpoveď v téme)",
     "ai": {
       "badge": "AI",
       "title": "AI agent"

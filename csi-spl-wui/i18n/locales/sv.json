@@ -712,6 +712,7 @@
     },
     "via_dm": "via DM",
     "dm_about": "om #{channel} / {topic}",
+    "dm_pointer": "i #{channel} / {topic} (ett svar i ämnet)",
     "ai": {
       "badge": "AI",
       "title": "AI-agent"

@@ -1,6 +1,7 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
 import { belongsTo, parseMention } from './channel-feed.mjs'
+import { dmPointerRows, mockDmPointers } from './dm-pointer.mjs'
 import { isAgentId } from './agent-id.mjs'
 import {
   channelReadQuery,
@@ -455,6 +456,8 @@ export function createSpoolClient({
         goneTasks: (data && Array.isArray(data.gone_tasks) && data.gone_tasks) || [],
         goneMsgs: (data && Array.isArray(data.gone_msgs) && data.gone_msgs) || [],
         sync: (data && typeof data.sync === 'string' && data.sync) || '',
+        /* dc6d5e3f: ?dm=true&peer= only - the channel lines between the reader and that agent */
+        pointers: (data && Array.isArray(data.pointers) ? data.pointers : []).map((m) => normalizeViewMessage(m, '')),
       }
     },
     /**
@@ -574,7 +577,8 @@ export function createSpoolClient({
         let rows = state.messages.slice()
         if (channel) rows = rows.filter((m) => m.channel === channel)
         /* specs/058: a DM is per <ID>@<box>, as the hub's peer filter is */
-        else if (peer) rows = rows.filter((m) => belongsTo(m, { peer: String(peer) }))
+        /* dc6d5e3f: plus the channel lines between me and that agent, as pointers */
+        else if (peer) rows = [...rows.filter((m) => belongsTo(m, { peer: String(peer) })), ...mockDmPointers(rows, state.me && state.me.id, String(peer))]
         if (since) rows = rows.filter((m) => m.ts > since)
         return { messages: rows.slice(-limit), next: null }
       }
@@ -596,7 +600,10 @@ export function createSpoolClient({
       })
       const seen = new Set()
       const out = []
-      for (const page of pages) {
+      /* dc6d5e3f: a DM view's pointers - the channel lines between the reader
+         and the agent - each a card of its own topic, never a copy */
+      const pointed = peer ? [{ messages: dmPointerRows(list.pointers) }] : []
+      for (const page of [...pages, ...pointed]) {
         for (const m of page.messages) {
           if (m.msg_id && seen.has(m.msg_id)) continue
           if (m.msg_id) seen.add(m.msg_id)

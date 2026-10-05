@@ -259,6 +259,14 @@
         data-testid="msg-dm-ref"
         :data-ref-task-id="msg.ref_task_id"
       ><NuxtLink :to="localePath(`/t/${msg.ref_task_id}`)" :title="dmRefTip" @click.stop>{{ dmRefText }}</NuxtLink></p>
+      <!-- dc6d5e3f: a channel line between the reader and this DM's agent, shown
+           here as a pointer - one stored reply, opened in its topic -->
+      <p
+        v-if="msg.pointer && msg.channel"
+        class="msg-moved msg-dm-ref"
+        data-testid="msg-dm-pointer"
+        :data-pointer-task-id="msg.task_id"
+      ><NuxtLink :to="localePath(`/m/${msg.msg_id}`)" :title="pointerTip" @click.stop>{{ pointerText }}</NuxtLink></p>
       <!--
         the row BECOMES the box ("the msg becomes once again a
         textbox"), pre-filled with the old body. The rendered body is NOT
@@ -1383,6 +1391,16 @@ function dmAbout(cut: boolean) {
   return t('feed.dm_about', { channel: name, topic: cut && r.title.length > 48 ? `${r.title.slice(0, 47)}…` : r.title })
 }
 const dmRefText = computed(() => dmAbout(true))
+/* dc6d5e3f: the topic a DM-view pointer is in (its title from the same one-read cache) */
+const pointerTopic = computed(() => (props.msg.pointer && props.msg.channel ? refOf(String(props.msg.task_id || '')).value : null))
+function pointerIn(cut: boolean) {
+  const ch = String(props.msg.channel || '').replace(/^#/, '')
+  const name = channelStore.channels.find((c) => c.channel_id === ch)?.name || ch
+  const title = pointerTopic.value?.title || ''
+  return t('feed.dm_pointer', { channel: name, topic: cut && title.length > 48 ? `${title.slice(0, 47)}…` : title })
+}
+const pointerText = computed(() => pointerIn(true))
+const pointerTip = computed(() => pointerIn(false))
 const dmRefTip = computed(() => dmAbout(false))
 const removing = ref(false)
 const localePath = useLocalePath()

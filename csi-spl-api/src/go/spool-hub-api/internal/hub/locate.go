@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -33,7 +34,9 @@ func (s *Server) handleViewLocate(w http.ResponseWriter, r *http.Request) {
 	}
 	ids := make([]string, 0, len(tenants))
 	for _, t := range tenants {
-		ids = append(ids, t.TenantID)
+		if !s.demoFenced(rbac.Access{Role: t.Role}, t.TenantID) { // a fenced demo seat is no membership (specs/077 T015)
+			ids = append(ids, t.TenantID)
+		}
 	}
 	found, err := s.locateTopicOrMessage(store.WithMemo(r.Context()), ids, id)
 	switch {

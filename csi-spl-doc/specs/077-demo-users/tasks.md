@@ -103,9 +103,20 @@ Rules for every task (owner Q8, spec §3.10):
   (CONTROL: 30 racing takes on 20 take 20).
 - [ ] T014 **DMs to demo agents only** (§3.2): a `demo_user` DM to a human is
   refused in the hub.
-- [ ] T015 **exfiltration control** (§3.8): a `demo_user` session reads zero
+- [x] T015 **exfiltration control** (§3.8, c-315): a `demo_user` session reads zero
   rows of another workspace through every read route (`/v1/view/*`, search,
-  files, flow, issues).
+  files, flow, issues). Done: `TestDemoExfiltration` signs the visitor in
+  through the session door and walks every GET on the mux (hub + auth
+  source, 56 routes, 222 requests per host, the sign-in flow excepted) plus
+  the two POST reads, on the demo, api and B hosts, every path value naming
+  B's rows, B in the query and `X-Spool-Tenant`; B holds a DM topic, a
+  channel topic, a file, an issue, a workspace doc and members, all marked.
+  The visitor also holds a stray `demo_user` seat in B. Found and fixed:
+  `GET /v1/view/locate/{id}` searched that fenced seat and named B's tenant
+  (`locate.go`). Reported, not fixed (internal/auth): the auth session lists
+  the fenced seat and the tenant switch accepts it; every hub read after it
+  is refused. CONTROLS: B's owner reads B's markers through the core routes;
+  `demoFenced` off = 11 routes leak; the locate fix reverted = locate leaks.
 - [ ] T016 **report / hide / ban** (§3.6).
 - [x] T017 **nightly wipe** (c-314): named action `do_spl_demo_wipe` (csi-spl-orc) on a
   schedule; deletes demo messages and topics, re-seeds the channels and the

@@ -106,14 +106,6 @@ func admit(t *testing.T, e *env, tid, email string) {
 	}
 }
 
-// authSessionGap is the one answer allowed to name B's tenant id: the auth
-// session lists every membership, the visitor's fenced demo seat in B
-// included, and the tenant switch accepts it (internal/auth, outside this
-// lane: reported to the orchestrator under specs/077 T015). Every hub read
-// after that switch is still refused, and the session carries none of B's
-// rows: its markers are still checked.
-const authSessionGap = "GET /api/v1/auth/session"
-
 // leak is the first of B's strings in body, "" when none. With cut, what
 // the request itself named is cut out first: the search query's echo before
 // the content markers (each holds B's tenant id, so a wider cut would erase
@@ -269,9 +261,6 @@ func (b exfilB) walk(t *testing.T, r *doorRig, host string, reqs []exfilReq, cut
 	leaked := map[string]string{}
 	for _, rq := range reqs {
 		code, body := r.req(t, rq.method, host, rq.path, hdr, strings.NewReader(rq.body))
-		if cut && rq.route == authSessionGap {
-			body = strings.ReplaceAll(body, `"`+b.tenant+`"`, `"<fenced seat>"`)
-		}
 		if s := b.leak(body, cut); s != "" && leaked[rq.route] == "" {
 			leaked[rq.route] = rq.method + " " + rq.path + ": " + http.StatusText(code) + " carries " + s + ": " + body
 		}

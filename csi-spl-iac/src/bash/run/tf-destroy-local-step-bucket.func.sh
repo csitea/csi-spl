@@ -12,8 +12,9 @@ do_tf_destroy_local_step_bucket() {
   tf_destroy_log_fle=$PROJ_PATH/dat/log/tf_destroy.${ORG:-}-${APP:-}-${ENV:-}.${STEP:-}.log
   test -f $tf_destroy_log_fle && rm -f $tf_destroy_log_fle
 
-  # for do_tf_local_apply $tf_proj is evaluated as step-remote-bucket
-  main_step=$(echo ${tf_proj} | sed s/-remote-bucket//g)
+  # for do_tf_local_apply $tf_proj is evaluated as step-remote-bucket;
+  # strip that marker in-process (no sed fork, SC2001)
+  main_step="${tf_proj//-remote-bucket/}"
   # we agree that only s3 states are provisioned locally, any state that is
   # more complex than this should live in an s3.
 

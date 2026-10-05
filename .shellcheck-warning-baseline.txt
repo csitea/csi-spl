@@ -12,7 +12,6 @@
 #   SC2088 tilde quoted  - a path printed in a message, not expanded
 #   SC2155 in run.sh     - run.sh is vendored from upstream unchanged
 SC2120|csi-spl-iac/lib/bash/funcs/gcp-account-pin.func.sh|1
-SC2048|csi-spl-iac/lib/bash/funcs/require-var.func.sh|2
 SC2034|csi-spl-iac/lib/bash/funcs/satellite.func.sh|2
 SC2154|csi-spl-iac/lib/bash/funcs/tf-each-target.func.sh|2
 SC2320|csi-spl-iac/src/bash/run/divest.func.sh|1

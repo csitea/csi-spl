@@ -23,9 +23,10 @@ do_validate_params() {
     local param_def="${param_line#param=}"
     [[ -z "$param_def" ]] && continue
 
-    # Extract variable name (first word)
-    local var_name
-    var_name=$(echo "$param_def" | awk '{print $1}')
+    # Extract variable name (first word). read, not awk: this runs per
+    # @param on every ./run.
+    local var_name _rest
+    read -r var_name _rest <<<"$param_def"
 
     # Auto-resolve *_PAT vars from their *_PAT_FILE before checking required.
     # Delegates to do_load_pat, which handles both raw-token and shell-export
@@ -35,14 +36,21 @@ do_validate_params() {
       do_load_pat "${var_name%_PAT}" 2>/dev/null || true
     fi
 
-    # Check if marked as required
-    if echo "$param_def" | grep -i '(required)' >/dev/null; then
+    # Check if marked as required. Case-insensitive, same as grep -i,
+    # with no fork.
+    if [[ "${param_def,,}" == *"(required)"* ]]; then
       # Check if the env var has a value
       local var_val="${!var_name:-}"
       if [[ -z "$var_val" ]]; then
         do_log "ERROR Required parameter $var_name is not set."
+        # Description after a leading "NAME (required)" marker. The match is
+        # case-sensitive, like the sed it replaces, and anchored to that
+        # marker: a "(required)" later in the text stays in the description.
+        # A line the marker does not match is kept whole, which is what sed
+        # returned.
         local desc
-        desc=$(echo "$param_def" | sed 's/^[^ ]* *(required)[[:space:]]*-*[[:space:]]*//')
+        desc="$param_def"
+        [[ $param_def =~ ^[^[:space:]]+[[:space:]]+\(required\)[[:space:]]*-*[[:space:]]*(.*)$ ]] && desc="${BASH_REMATCH[1]}"
         if [[ -n "$desc" ]]; then
           do_log "INFO  ↳ $var_name: $desc"
         fi

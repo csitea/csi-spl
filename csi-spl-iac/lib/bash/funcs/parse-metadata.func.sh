@@ -4,8 +4,8 @@
 # @description Extracts @description, @param, @example, @output, @prereq tags.
 # @param FILE (required) - Path to the .func.sh file to parse
 # @param TAG (optional) - Specific tag to extract (default: all)
-# @example do_parse_metadata "src/bash/run/zip-jira-ticket.func.sh"
-# @example do_parse_metadata "src/bash/run/zip-jira-ticket.func.sh" "param"
+# @example do_parse_metadata "src/bash/run/tf-state-show.func.sh"
+# @example do_parse_metadata "src/bash/run/tf-state-show.func.sh" "param"
 #------------------------------------------------------------------------------
 
 # Parse all metadata from a func.sh file header
@@ -48,8 +48,12 @@ do_parse_metadata() {
 
   _emit_tag() {
     if [[ -n "$current_tag" && -n "$current_value" ]]; then
-      # Trim leading/trailing whitespace from value
-      current_value="$(echo "$current_value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      # Trim leading/trailing whitespace from value. Parameter expansion, not
+      # `echo | sed`: this runs once per tag on EVERY ./run (via
+      # do_validate_params), and the fork per line was ~0.5 s of a desk reply
+      # (csi-spl, 2026-09-25).
+      current_value="${current_value#"${current_value%%[![:space:]]*}"}"
+      current_value="${current_value%"${current_value##*[![:space:]]}"}"
       if [[ -z "$filter_tag" || "$filter_tag" == "$current_tag" ]]; then
         echo "${current_tag}=${current_value}"
       fi
@@ -58,7 +62,7 @@ do_parse_metadata() {
 
   while IFS= read -r line; do
     # Remove leading whitespace
-    line="$(echo "$line" | sed 's/^[[:space:]]*//')"
+    line="${line#"${line%%[![:space:]]*}"}"
 
     if [[ "$line" =~ ^@([a-zA-Z_]+)[[:space:]]+(.*) ]]; then
       # New tag found — emit previous

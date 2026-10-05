@@ -1,10 +1,9 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# usage example:
-# source lib/bash/funcs/require-var.func.sh
-# do_require_var ORG ${ORG:-}
-# do_require_var APP ${APP:-}
-# do_require_var ENV ${ENV:-}
+# @description Validate that a required environment variable has a value.
+# @param var_name (required) - Name of the variable to check
+# @param var_val (required) - Value of the variable
+# @example do_require_var JIRA_PAT "${JIRA_PAT:-}"
 #------------------------------------------------------------------------------
 do_require_var() {
 
@@ -12,8 +11,12 @@ do_require_var() {
   var="${2:-}"
 
   do_simple_log() {
-    type_of_msg=$(echo $* | cut -d" " -f1)
-    msg="$(echo $* | cut -d" " -f2-)"
+    # First word is the level, the rest is the text. Same bytes as
+    # `echo $* | cut -d" " -f1/-f2-` on the real call lines, with no fork.
+    # Quoted $* does not re-split (SC2048).
+    type_of_msg="${1%% *}"
+    msg="${*#"$type_of_msg"}"
+    msg="${msg# }"
     echo " [$type_of_msg] $(date "+%Y-%m-%d %H:%M:%S %Z") [$$] $msg "
   }
 

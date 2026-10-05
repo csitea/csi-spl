@@ -41,8 +41,14 @@ do_validate_params() {
       local var_val="${!var_name:-}"
       if [[ -z "$var_val" ]]; then
         do_log "ERROR Required parameter $var_name is not set."
+        # Description after a leading "NAME (required)" marker. The match is
+        # case-sensitive, like the sed it replaces, and anchored to that
+        # marker: a "(required)" later in the text stays in the description.
+        # A line the marker does not match is kept whole, which is what sed
+        # returned.
         local desc
-        desc=$(echo "$param_def" | sed 's/^[^ ]* *(required)[[:space:]]*-*[[:space:]]*//')
+        desc="$param_def"
+        [[ $param_def =~ ^[^[:space:]]+[[:space:]]+\(required\)[[:space:]]*-*[[:space:]]*(.*)$ ]] && desc="${BASH_REMATCH[1]}"
         if [[ -n "$desc" ]]; then
           do_log "INFO  ↳ $var_name: $desc"
         fi

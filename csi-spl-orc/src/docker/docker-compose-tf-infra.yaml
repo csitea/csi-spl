@@ -192,6 +192,12 @@ services:
       - "~/.config:${DOCKER_HOME}/.config"
       - "~/.aws:${DOCKER_HOME}/.aws"
       - "~/.gcp:${DOCKER_HOME}/.gcp"
+      # step 036 (077 iac audit): do_spl_demo_workspace_create writes a new
+      # workspace's root key to ~/.spool-hub/tenants/<env>-<ws>.json (0600).
+      # The host dir keeps it across container rebuilds; it never enters the
+      # image or terraform state. do-setup-app-inf makes it 0700 first, so
+      # docker does not create it as root.
+      - "~/.spool-hub:${DOCKER_HOME}/.spool-hub"
     command:
       [
         "bash",

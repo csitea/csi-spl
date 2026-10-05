@@ -128,6 +128,24 @@ RUN npm install -g firebase-tools@latest \
   && firebase --version
 # STOP  ::: install Node.js 20 + firebase-tools
 
+# START ::: psql + the Cloud SQL Auth Proxy (077 iac audit, step 036)
+# Step 036 runs do_spl_demo_workspace_create in this container: it reads and
+# writes the hub DB through the proxy with psql. postgresql-client is Debian's
+# (bookworm, apt-signed); the proxy is pinned by version AND sha256, the same
+# version as cnf env.hub.cloud_sql_proxy_image (the sha256 is the one the
+# v2.18.0 release notes publish for cloud-sql-proxy.linux.amd64).
+ARG CLOUD_SQL_PROXY_VERSION=2.18.0
+ARG CLOUD_SQL_PROXY_SHA256=e48f49397a69a1b509a74ce025dcf76019da0dcaae17f744c524dd19e9824800
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client \
+  && rm -rf /var/lib/apt/lists/* \
+  && psql --version
+RUN curl -fsSLo /usr/local/bin/cloud-sql-proxy \
+    "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64" \
+  && echo "${CLOUD_SQL_PROXY_SHA256}  /usr/local/bin/cloud-sql-proxy" | sha256sum -c - \
+  && chmod 0755 /usr/local/bin/cloud-sql-proxy \
+  && cloud-sql-proxy --version
+# STOP  ::: psql + the Cloud SQL Auth Proxy
+
 
 # START ::: Enable host to container edit of proj code on ubuntu and mac.
 RUN test -z $(getent group $GID | cut -d: -f1) || \

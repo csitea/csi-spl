@@ -48,6 +48,9 @@ do-provision: demand_var-ENV demand_var-STEP
 	@case "$(STEP)" in 030-cloud-run-hub) \
 	  ENV=$(ENV) ./run -a do_check_hub_image_regress \
 	    || { echo "REFUSED: 030 apply from this tree would move the live hub image backwards (see the verdict above). Refresh the checkout the tf-runner mounts, or set ALLOW_IMAGE_REGRESS=1 for a deliberate rollback."; exit 1; } ;; \
+	036-spl-demo-workspace) \
+	  bash ../csi-spl-api/src/bash/build.sh ../csi-spl-api/src/go/spool-hub-api/bin/spool \
+	    || { echo "REFUSED: 036 needs the spool CLI its create path signs with (step 036, 03-demo-workspace.tf); the host build failed."; exit 1; } ;; \
 	esac
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \

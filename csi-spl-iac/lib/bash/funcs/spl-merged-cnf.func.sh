@@ -27,6 +27,9 @@
 # @description env.steps in all.env.yaml holds the step settings every cloud env
 # @description shares (spec 072 A44); an env file without env.steps of its own
 # @description (lde: no terraform) gets no env.steps at all.
+# @description steps.036-spl-demo-workspace.demo_{enabled,workspace} are
+# @description env.demo.{enabled,workspace} (077 iac audit): the step that runs
+# @description do_spl_demo_workspace_create reads the same one cnf block.
 # @description env.hub.env.SPOOL_HUB_DEMO_{ENABLED,WORKSPACE,PROVIDERS,MAX_LIVE}
 # @description are env.demo.{enabled,workspace,providers,max_live} (spec 077
 # @description T023): the demo is one cnf block, never a hub.env literal.
@@ -67,6 +70,9 @@ do_spl_merged_cnf() {
       .hub.env.SPOOL_HUB_DEMO_WORKSPACE = (.demo.workspace | tostring) |
       .hub.env.SPOOL_HUB_DEMO_PROVIDERS = (.demo.providers | join(",")) |
       .hub.env.SPOOL_HUB_DEMO_MAX_LIVE = (.demo.max_live | tostring))' |
+    yq '(.env | select(.demo != null and .steps."036-spl-demo-workspace" != null)) |= (
+      .steps."036-spl-demo-workspace".demo_enabled = .demo.enabled |
+      .steps."036-spl-demo-workspace".demo_workspace = (.demo.workspace | tostring))' |
     yq '(.env | select(.hub.image.tag != null and .steps."028-gcp-artifact-registry" != null)) |= (
       .hub.image.ref = (.gcp.gcp_region + "-docker.pkg.dev/" + .gcp.gcp_project + "/" +
         .steps."028-gcp-artifact-registry".repository_id + "/" + .hub.image.name + ":" + (.hub.image.tag | tostring)))' |

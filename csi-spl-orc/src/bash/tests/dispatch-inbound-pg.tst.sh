@@ -84,7 +84,7 @@ m wr ops HUM-4 '' 100          # before a pin that is now revoked
 m wr ops HUM-4 '' 50
 
 read_hum() {
-  env PROJ_PATH="$PROJ_ROOT" SPL_PROXY_DSN="$RT_DSN" W="$1" DISPATCH_ORCH=c-001 DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 bash -c '
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/sr" SPL_PROXY_DSN="$RT_DSN" W="$1" DISPATCH_ORCH=c-001 DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -98,6 +98,15 @@ out="$(read_hum wp)"; rc=$?
   pass "2+3. pinned workspace: 4 human posts in the window, only the post-pin unsigned one counts" || fail "2. wp: $(grep '^hum|' <<<"$out")"
 [[ "$(read_hum wn | grep '^hum|')" == 'hum|2|2' ]] && pass "2. no pin: every unsigned post counts" || fail "2. wn: $(read_hum wn | grep '^hum|')"
 [[ "$(read_hum wr | grep '^hum|')" == 'hum|2|2' ]] && pass "2. a revoked pin covers nothing" || fail "2. wr: $(read_hum wr | grep '^hum|')"
+
+# c-322 (prd t1 2026-10-05): the dispatch holder changed 12 min ago, so the
+# posts before it were the previous holder's: only the signed post at 10 min
+# counts (2 min is in the grace). The old read counted all four (hum|4|1).
+mkdir -p "$T/sr/dispatch"; echo c-002@box-sat >"$T/sr/dispatch/fleet.dispatch.holder"
+touch -d "@$(( $(date +%s) - 720 ))" "$T/sr/dispatch/fleet.dispatch.holder"
+[[ "$(read_hum wp | grep '^hum|')" == 'hum|1|0' ]] &&
+  pass "5. holder changed 12 min ago: only the posts since count" || fail "5. takeover: $(read_hum wp | grep '^hum|')"
+rm -f "$T/sr/dispatch/fleet.dispatch.holder"
 
 # owner 2026-10-03 (every OD seat in every channel): the read names the
 # roster rows of the OD seats, on every box, and no other agent's

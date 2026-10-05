@@ -236,7 +236,7 @@ spl_dispatch_check_tenant() {
   fi
   if [[ -z "$bad" ]]; then
     l="$(sed -n 's/^hum|\([^|]*\)|.*/\1/p' <<<"$data" | sed -n 1p)"
-    row "$t inbound" "${l:-0} human posts in ${DISPATCH_SILENCE_WINDOW:-120} min" ok
+    row "$t inbound" "${l:-0} human posts in $(spl_dispatch_silence_win) min" ok
   else
     while IFS= read -r l; do row "$t inbound" "${l#* "$t" }" "GAP ${l%% *}"; done <<<"$bad"
   fi

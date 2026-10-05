@@ -33,7 +33,9 @@
 # @description            days of human posts and not one reached an agent):
 # @description            people posted in the workspace's channels in the last
 # @description            DISPATCH_SILENCE_WINDOW minutes, and neither
-# @description            dispatcher's desk spool received a single file
+# @description            dispatcher's desk spool received a single file.
+# @description            The window starts no earlier than the last change
+# @description            of the fleet dispatch holder (spl_dispatch_silence_win)
 # @description   UNSIGNED - REPORT ONLY: the hub stored human posts of that
 # @description            window unsigned (no box-wui pin), so no box got them;
 # @description            a post from before the workspace's current pin does
@@ -48,7 +50,7 @@
 # @param DISPATCH_FLEET_BOXES (optional) - the fleet's boxes, space or comma separated; default above
 # @param DESK_BOX (optional) - the box the agents answer from, default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param DISPATCH_SILENCE_WINDOW (optional) - minutes, default 120
+# @param DISPATCH_SILENCE_WINDOW (optional) - minutes, default 120; clipped to the minutes since the fleet dispatch holder last changed
 # @param DISPATCH_SILENCE_GRACE (optional) - minutes a post may take to arrive, default 5
 # @param DISPATCH_SILENCE_MIN (optional) - human posts it takes to call silence, default 2
 # @example ENV=prd ./run -a do_spl_dispatch_subscribe
@@ -110,7 +112,7 @@ _spl_dispatch_with_subs_all() {
 # grant nothing since rdb 0036 and are left out, as ChannelMembers does.
 _spl_dispatch_subs_read() {
   spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 -v tenant="$1" -v ods="$(spl_dispatch_od_ids)" \
-    -v win="${DISPATCH_SILENCE_WINDOW:-120}" -v grace="${DISPATCH_SILENCE_GRACE:-5}" <<'SQL'
+    -v win="$(spl_dispatch_silence_win)" -v grace="${DISPATCH_SILENCE_GRACE:-5}" <<'SQL'
 BEGIN READ ONLY;
 SET LOCAL app.tenant_id = :'tenant';
 SELECT 'chan|' || c.channel_id FROM channels c
@@ -252,12 +254,30 @@ spl_dispatch_boxes_of() {
   sed -n "s/^sub|$2|\([^|]*\)|$3|.*/\1/p" <<<"$1" | sort -u
 }
 
+# The silence window in minutes: DISPATCH_SILENCE_WINDOW (default 120), but
+# no earlier than the last change of the fleet dispatch holder. The posts
+# before it were routed to the previous holder's desk (spec 059 S5), not to
+# this one (c-322, prd t1 2026-10-05: sat took dispatch at 08:16:12Z and its
+# 08:16:49Z tick counted the previous holder's two hours of posts against
+# sat's empty desk: "GAP t1 inbound: 16 human posts in 120 min"). Rewritten
+# only on a change (spl_fleet_apply), fleet.dispatch.holder's mtime is the
+# takeover.
+spl_dispatch_silence_win() {
+  local win="${DISPATCH_SILENCE_WINDOW:-120}" f="${SPOOL_ROOT:-/var/spool-hub}/dispatch/fleet.dispatch.holder" at held
+  at="$(stat -c %Y "$f" 2>/dev/null)" || { echo "$win"; return 0; }
+  held=$(( (${DISPATCH_NOW:-$(date +%s)} - at + 59) / 60 ))
+  (( held < 0 )) && held=0
+  (( held < win )) && win=$held
+  echo "$win"
+}
+
 # spl_dispatch_inbound <tenant> <data>: the SILENT / UNSIGNED lines of one
 # workspace (none when it is healthy, a test workspace, or not seated here).
 # Inbound = files the dispatchers' desk spools received (inbox + archive,
 # by mtime: the box writes a file on delivery) since the window opened.
 spl_dispatch_inbound() {
-  local t="$1" data="$2" posts uns n=0 a d win="${DISPATCH_SILENCE_WINDOW:-120}" since
+  local t="$1" data="$2" posts uns n=0 a d win since
+  win="$(spl_dispatch_silence_win)"
   IFS='|' read -r _ posts uns < <(grep '^hum|' <<<"$data" | sed -n 1p)
   posts="${posts:-0}" uns="${uns:-0}"
   spl_test_workspace "$t" && return 0

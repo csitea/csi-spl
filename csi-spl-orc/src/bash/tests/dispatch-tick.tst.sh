@@ -133,6 +133,32 @@ grep -q '^DISPATCH cleared GAP w1 inbound' "$T/o" && ! grep -q '^DISPATCH gap GA
   pass "5c. lease held on another box: the silent desk here is no GAP" || fail "5c. remote: $(cat "$T/o")"
 cp "$T/w1.keep" "$SUBS/w1.txt"; echo "CLE-003 $(date +%s)" >"$S/dispatch/lease"; tick ENV=dev
 
+# --- 5d. the silence window starts at the dispatch takeover (c-322, prd t1 2026-10-05) -------
+# sat took dispatch at 08:16:12Z; its 08:16:49Z tick counted the previous holder's two hours
+# of posts against sat's empty desk. fleet.dispatch.holder's mtime = takeover.
+N0="$(date +%s)"
+win() { env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" DISPATCH_NOW="$N0" "$@" bash -c 'do_log() { :; }
+  source "$PROJ_PATH/src/bash/run/spl-dispatch-subscribe.func.sh"; spl_dispatch_silence_win' 2>&1; }
+H="$S/dispatch/fleet.dispatch.holder"
+rm -f "$H"
+[[ "$(win)" == 120 ]] && pass "5d. no holder file: the whole window" || fail "5d. no file: $(win)"
+echo c-002@box-desk >"$H"; touch -d "@$(( N0 - 600 ))" "$H"
+[[ "$(win)" == 10 ]] && pass "5d. holder changed 10 min ago: a 10 min window" || fail "5d. 10 min: $(win)"
+[[ "$(win DISPATCH_SILENCE_WINDOW=5)" == 5 ]] && pass "5d. a shorter configured window stays" || fail "5d. cfg 5: $(win DISPATCH_SILENCE_WINDOW=5)"
+touch -d "@$(( N0 - 18000 ))" "$H"
+[[ "$(win)" == 120 ]] && pass "5d. holder changed 5 h ago: the whole window" || fail "5d. 5 h: $(win)"
+mkdir -p "$T/state/desk/w1/box-desk/spool/c-002/archive"
+touch -d "@$(( N0 - 1800 ))" "$T/state/desk/w1/box-desk/spool/c-002/archive/old.json"
+echo c-002@box-desk >"$H"; touch -d "@$(( N0 - 600 ))" "$H"
+out="$(env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" DISPATCH_NOW="$N0" bash -c 'do_log() { :; }
+  source "$PROJ_PATH/src/bash/run/spl-dispatch-subscribe.func.sh"
+  spl_test_workspace() { return 1; }; spl_dispatch_seated() { return 0; }
+  DISPATCH_MASTER=c-002 DISPATCH_FAILOVER=c-003 DISPATCH_STATE_DIR="$1" DISPATCH_DESK_BOX=box-desk
+  spl_dispatch_inbound w1 "hum|3|0"' _ "$T/state" 2>&1)"
+[[ "$out" == "SILENT w1 3 human posts in 10 min, 0 inbound files on the dispatchers' desk: the workspace receives nothing" ]] &&
+  pass "5d. a desk file from before the takeover does not count, the line names the clipped window" || fail "5d. inbound: $out"
+rm -f "$H" "$T/state/desk/w1/box-desk/spool/c-002/archive/old.json"
+
 # --- 6. failing subscribe ------------------------------------------------------------------
 echo 'chan|other' >>"$SUBS/w1.txt"
 tick FAIL_ADD=other; rc=$?

@@ -26,6 +26,7 @@ function asElement(node) {
   return node
 }
 
+/** True when el is a place the reader is typing, so `/` must insert. */
 export function isTypingTarget(el) {
   const node = asElement(el)
   if (!node || !node.tagName) return false
@@ -45,16 +46,19 @@ export function isTypingTarget(el) {
   return false
 }
 
+/** True when root contains an open aria-modal dialog. */
 export function isOpenModal(root) {
   if (!root || typeof root.querySelector !== 'function') return false
   return Boolean(root.querySelector('[aria-modal="true"], [role="dialog"][aria-modal="true"]'))
 }
 
+/** True when width is a finite number at or under the phone fold. */
 export function isMobileViewport(width, max = MOBILE_MAX) {
   if (typeof width !== 'number' || !Number.isFinite(width)) return false
   return width <= max
 }
 
+/** True when the event target is the Omnibox textarea, or inside it. */
 export function eventInOmnibox(target, omniboxRoot) {
   if (!omniboxRoot || !target) return false
   const ta = typeof omniboxRoot.querySelector === 'function' ? omniboxRoot.querySelector('textarea') : null
@@ -84,6 +88,10 @@ export function slashFocusAction(ev, ctx = {}) {
   return 'focus'
 }
 
+/**
+ * Flags slashFocusAction reads: typing, modal, phone, omnibox,
+ * picker, code fence, and whether Escape has somewhere to return.
+ */
 export function slashFocusContext(ev, opts = {}) {
   const root = opts.omniboxRoot || null
   const target = ev && ev.target

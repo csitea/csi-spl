@@ -27,17 +27,23 @@ export const SIDEBAR_NARROW_MAX = 800
 /** Match main.css: topic pane overlays below this width. */
 export const TOPIC_NARROW_MAX = 1100
 
+/**
+ * A finite number, or fallback. Exported for the shim and the unit
+ * test. No app module imports it; the other helpers here call it.
+ */
 export function num(v, fallback) {
   const n = Number(v)
   return Number.isFinite(n) ? n : fallback
 }
 
+/** n held inside the closed range of min and max. The bounds may arrive reversed. */
 export function clamp(n, min, max) {
   const lo = Math.min(min, max)
   const hi = Math.max(min, max)
   return Math.min(hi, Math.max(lo, n))
 }
 
+/** True when the viewport is wide enough to show the left pane, not the rail. */
 export function sidebarShown(viewportW) {
   return num(viewportW, 1280) > SIDEBAR_NARROW_MAX
 }
@@ -81,6 +87,7 @@ export function mainWidthFor(viewportW, sidebarW) {
   return w - clamp(num(sidebarW, SIDEBAR_DEFAULT), SIDEBAR_MIN, sidebarMaxPx(w)) - DIVIDER_W
 }
 
+/** True when a topic is open and the viewport is wide enough to show that pane. */
 export function topicShown(viewportW, topicOpen) {
   return Boolean(topicOpen) && num(viewportW, 1280) > TOPIC_NARROW_MAX
 }
@@ -94,6 +101,7 @@ function dividersPx(ctx) {
   return n * DIVIDER_W
 }
 
+/** The left pane's width, rounded, between SIDEBAR_MIN and the 35% stop. */
 export function clampSidebar(width, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
   /* The stop is a mark on the screen, left to right. A wide topic does not
@@ -102,6 +110,7 @@ export function clampSidebar(width, ctx = {}) {
   return clamp(Math.round(num(width, SIDEBAR_DEFAULT)), SIDEBAR_MIN, max)
 }
 
+/** The topic pane's width, rounded. An open pane also leaves MAIN_MIN for the middle. */
 export function clampTopic(width, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
   const topicOpen = Boolean(ctx.topicOpen)
@@ -116,6 +125,10 @@ export function clampTopic(width, ctx = {}) {
   return clamp(Math.round(num(width, TOPIC_DEFAULT)), TOPIC_MIN, max)
 }
 
+/**
+ * Both panes clamped together. When both are open and wide, the topic
+ * yields so the left divider stays on its 35% stop.
+ */
 export function clampPair(sidebar, topic, ctx = {}) {
   const viewportW = num(ctx.viewportW, 1280)
   const topicOpen = Boolean(ctx.topicOpen)
@@ -133,6 +146,7 @@ export function clampPair(sidebar, topic, ctx = {}) {
   return { sidebar: s, topic: t }
 }
 
+/** The left pane's min and max at this viewport. */
 export function sidebarRange(ctx = {}) {
   const cap = sidebarMaxPx(num(ctx.viewportW, 1280))
   const min = clampSidebar(SIDEBAR_MIN, ctx)
@@ -140,6 +154,7 @@ export function sidebarRange(ctx = {}) {
   return { min: Math.min(min, max), max: Math.max(min, max) }
 }
 
+/** The topic pane's min and max at this viewport. */
 export function topicRange(ctx = {}) {
   const min = clampTopic(TOPIC_MIN, ctx)
   const max = clampTopic(topicMaxPx(num(ctx.viewportW, 1280)), ctx)
@@ -155,6 +170,10 @@ function separatorGrowsLeft(pane) {
   return pane === 'topic' || pane === 'issue'
 }
 
+/**
+ * The next separator width for an arrow, Home, or End. A topic or
+ * issue pane grows to the left.
+ */
 export function applySeparatorKey(pane, key, current, min, max) {
   const dir = separatorGrowsLeft(pane) ? -1 : 1
   const n = num(current, separatorGrowsLeft(pane) ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
@@ -165,6 +184,7 @@ export function applySeparatorKey(pane, key, current, min, max) {
   return clamp(Math.round(n), min, max)
 }
 
+/** Width after a pointer drag. A topic or issue pane grows as the pointer moves left. */
 export function pointerDelta(pane, startWidth, startX, clientX) {
   const dx = num(clientX, 0) - num(startX, 0)
   const start = num(startWidth, separatorGrowsLeft(pane) ? TOPIC_DEFAULT : SIDEBAR_DEFAULT)
@@ -234,10 +254,12 @@ function storedViews(raw) {
   return paneViews(isObj(raw.views) ? raw.views : raw)
 }
 
+/** Every view's stored pane set, or {} when nothing is stored. */
 export function loadPaneViews(store) {
   return storedViews(storageGetJson(PANE_WIDTHS_KEY, null, store))
 }
 
+/** Sidebar and topic widths in force for a view, filled from the defaults. */
 export function loadPaneWidths(store, view = 'default') {
   const set = paneSetFor(loadPaneViews(store), view) || {}
   return {
@@ -279,6 +301,7 @@ export function clearPaneWidths(store) {
   return storageSetJson(PANE_WIDTHS_KEY, next, store)
 }
 
+/** The default width of one pane: the topic default, or the sidebar default. */
 export function resetPane(pane) {
   return pane === 'topic' ? TOPIC_DEFAULT : SIDEBAR_DEFAULT
 }

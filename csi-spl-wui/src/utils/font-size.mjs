@@ -37,22 +37,30 @@ export function stepFontSize(level, delta) {
   return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, n))
 }
 
+/** True when level can still step down toward FONT_SIZE_MIN. */
 export function canShrinkFont(level) {
   return parseFontSize(level) > FONT_SIZE_MIN
 }
 
+/** True when level can still step up toward FONT_SIZE_MAX. */
 export function canGrowFont(level) {
   return parseFontSize(level) < FONT_SIZE_MAX
 }
 
+/**
+ * The saved level. An omitted store is localStorage via prefs.mjs.
+ * A missing or blocked store returns fallback.
+ */
 export function readStoredFontSize(store, fallback = FONT_SIZE_DEFAULT) {
   return parseFontSize(storageGet(FONT_SIZE_KEY, null, store), fallback)
 }
 
+/** Persist a parsed level. Returns whether the write landed. */
 export function writeStoredFontSize(level, store) {
   return storageSet(FONT_SIZE_KEY, parseFontSize(level), store)
 }
 
+/** Set data-font-size on el and return the level that was applied. */
 export function applyFontSizeAttr(level, el) {
   const n = parseFontSize(level)
   if (el && typeof el.setAttribute === 'function') el.setAttribute('data-font-size', String(n))

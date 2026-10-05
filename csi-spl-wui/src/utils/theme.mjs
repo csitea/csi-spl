@@ -25,6 +25,7 @@ export const THEMES = [
 
 export const THEME_IDS = THEMES.map((t) => t.id)
 
+/** A theme id from THEME_IDS, or fallback when raw is not one of them. */
 export function parseTheme(raw, fallback = THEME_DEFAULT) {
   return THEME_IDS.includes(raw) ? raw : fallback
 }
@@ -40,14 +41,20 @@ export function themeIndex(theme) {
   return THEME_IDS.indexOf(parseTheme(theme))
 }
 
+/**
+ * The saved theme. An omitted store is localStorage via prefs.mjs.
+ * A missing or blocked store returns fallback.
+ */
 export function readStoredTheme(store, fallback = THEME_DEFAULT) {
   return parseTheme(storageGet(THEME_KEY, null, store), fallback)
 }
 
+/** Persist a parsed theme. Returns whether the write landed. */
 export function writeStoredTheme(theme, store) {
   return storageSet(THEME_KEY, parseTheme(theme), store)
 }
 
+/** Set data-theme on el and return the theme that was applied. */
 export function applyThemeAttr(theme, el) {
   const t = parseTheme(theme)
   if (el && typeof el.setAttribute === 'function') el.setAttribute('data-theme', t)

@@ -113,10 +113,20 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs?filter=latest&per_page=100" \
               --jq "[.jobs[] | select(.conclusion == \"cancelled\" and ((.runner_name // \"\") == \"\") and .name != \"${2:-}\")] | length" 2>/dev/null || echo 0
           }
-          # ran_red <run id> -> how many of its jobs got a runner and went red
+          # ran_red <run id> -> how many of its jobs got a runner and went red.
+          # A job whose runner died under it is starved too: 20 run
+          # 37375283653's suite ended "The runner has received a shutdown
+          # signal" with 0 FAIL lines (c-328). That text is only in the job
+          # log, not in its annotations, so a red job's log is read.
           ran_red() {
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs?filter=latest&per_page=100" \
-              --jq '[.jobs[] | select((.conclusion == "failure" or .conclusion == "timed_out") and ((.runner_name // "") != ""))] | length' 2>/dev/null || echo 1
+            local ids j n=0
+            ids="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs?filter=latest&per_page=100" \
+              --jq '.jobs[] | select((.conclusion == "failure" or .conclusion == "timed_out") and ((.runner_name // "") != "")) | .id' 2>/dev/null)" || { echo 1; return; }
+            for j in $ids; do
+              gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$j/logs" 2>/dev/null \
+                | grep -qE 'The runner has received a shutdown signal|lost communication with the server' || n=$((n + 1))
+            done
+            echo "$n"
           }
           catchup() {  # <workflow file> <component> [job name it may lose]
             local wf="$1" comp="$2" spare="${3:-}" inflight=0 id verdict last

@@ -122,7 +122,8 @@ for ((i = 0; i < ${#args[@]}; i++)); do [[ "${args[i]}" == --jq ]] && jqf="${arg
 case "$1 $2" in
   "workflow run") echo "$3" >> "$FIX/dispatched"; exit 0 ;;
   "run list") for a in "$@"; do [[ "$a" == --workflow=* ]] && key="list-${a#--workflow=}"; done ;;
-  api*) key="$(sed -E "s#.*/runs/([0-9]+)/jobs.*#jobs-\1#" <<<"$2")" ;;
+  api*) [[ "$2" =~ /jobs/([0-9]+)/logs$ ]] && { cat "$FIX/logs-${BASH_REMATCH[1]}.txt" 2>/dev/null; exit; }
+        key="$(sed -E "s#.*/runs/([0-9]+)/jobs.*#jobs-\1#" <<<"$2")" ;;
 esac
 [[ -f "$FIX/$key.json" ]] || exit 1
 jq -r "$jqf" "$FIX/$key.json"'
@@ -159,11 +160,26 @@ catch_case() {
 }
 # the 37363944858 shape: suite + prebuild never acquired, deploy skipped, run failure
 J_STARVED='{"jobs":[{"name":"Determine deploy targets","conclusion":"success","runner_name":"GitHub Actions 1"},{"name":"Hub suite (run-all-tests.sh)","conclusion":"cancelled","runner_name":null},{"name":"Deploy hub","conclusion":"skipped","runner_name":null}]}'
-J_RED='{"jobs":[{"name":"Hub suite (run-all-tests.sh)","conclusion":"failure","runner_name":"GitHub Actions 2"}]}'
+J_RED='{"jobs":[{"id":91,"name":"Hub suite (run-all-tests.sh)","conclusion":"failure","runner_name":"GitHub Actions 2"}]}'
+J_LOST='{"jobs":[{"id":92,"name":"Hub suite (run-all-tests.sh)","conclusion":"failure","runner_name":"GitHub Actions 4"}]}'
 J_OK='{"jobs":[{"name":"Hub suite (run-all-tests.sh)","conclusion":null,"runner_name":"GitHub Actions 3"}]}'
 [[ "$(catch_case '[{"databaseId":7,"status":"completed","conclusion":"failure"}]' 7 "$J_STARVED")" == 20_hub-build-deploy.yml ]] \
   && pass "21: a run lost only to the hosted queue is starved, not broken -> dispatches 20" || fail "21: starved run did not dispatch"
-[[ "$(catch_case '[{"databaseId":7,"status":"completed","conclusion":"failure"}]' 7 "$J_RED")" == none ]] \
+lost_case() {  # the 37375283653 shape: the suite's runner died under it
+  catch_case '[{"databaseId":7,"status":"completed","conclusion":"failure"}]' 7 "$J_LOST" >/dev/null
+  printf '%s\n' 'ok   store tests' '##[error]The runner has received a shutdown signal. This can happen when the runner service is stopped' > "$FIX/logs-92.txt"
+  PATH="$T/bin:$PATH" GITHUB_REPOSITORY=o/r HUB=true WUI=false SHA=0123456789abcdef bash -c "$catch" >/dev/null 2>&1
+  cat "$FIX/dispatched" 2>/dev/null || echo none
+}
+red_case() {
+  catch_case '[{"databaseId":7,"status":"completed","conclusion":"failure"}]' 7 "$J_RED" >/dev/null
+  printf '%s\n' 'not ok 3 - store: tenant isolation' '##[error]Process completed with exit code 1.' > "$FIX/logs-91.txt"
+  PATH="$T/bin:$PATH" GITHUB_REPOSITORY=o/r HUB=true WUI=false SHA=0123456789abcdef bash -c "$catch" >/dev/null 2>&1
+  cat "$FIX/dispatched" 2>/dev/null || echo none
+}
+[[ "$(lost_case)" == 20_hub-build-deploy.yml ]] \
+  && pass "21: a suite whose runner got a shutdown signal (run 37375283653) is starved -> dispatches 20" || fail "21: runner loss read as broken"
+[[ "$(red_case)" == none ]] \
   && pass "CONTROL: 21: a suite that ran and went red is broken -> no dispatch" || fail "CONTROL: 21 dispatched over a red suite"
 [[ "$(catch_case '[{"databaseId":8,"status":"in_progress","conclusion":null},{"databaseId":7,"status":"completed","conclusion":"success"}]' 8 "$J_STARVED")" == 20_hub-build-deploy.yml ]] \
   && pass "21: an in-flight run that already lost a job is not counted on -> dispatches 20" || fail "21: doomed in-flight run still held the dispatch back"

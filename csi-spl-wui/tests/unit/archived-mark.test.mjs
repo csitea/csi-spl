@@ -115,7 +115,7 @@ describe('the Topics rows mark an archived topic, never a live one', () => {
   const sidebarRow = cut(templateOf('src/components/ChannelSidebar.vue').slice(templateOf('src/components/ChannelSidebar.vue').indexOf('id="sidebar-panel-topics"')), '<a\n          class="nav-item"')
   const homeRow = cut(templateOf('src/pages/index.vue'), '<a\n        class="topic-row"')
   const helpers = { localePath: (p) => p, tr: (k) => k, t: (k) => k, namedLine: () => ({}), people: { names: { value: {} } },
-    topicRowTitle: (s) => s, peopleLabels: () => '', topicPeople: () => ({ text: 'people' }), topicStarter: () => null, rowTime: () => '', pane: {} }
+    rowTitle: (s) => s, peopleLabels: () => '', topicPeople: () => ({ text: 'people' }), topicStarter: () => null, rowTime: () => '', pane: {} }
 
   for (const [name, row, key] of [['sidebar', sidebarRow, 'row'], ['home list', homeRow, 't']]) {
     it(`${name}: archived -> badge + muted; live -> neither (control)`, async () => {

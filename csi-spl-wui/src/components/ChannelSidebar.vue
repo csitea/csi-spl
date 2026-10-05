@@ -450,13 +450,13 @@
           :href="localePath('/t/' + row.task_id)"
           @click.exact.prevent="pane.open(row.task_id)"
         >
-          <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id) }}</span>
+          <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ rowTitle(row.subject) || peopleLabels(row.participants, people.names.value) || row.task_id }}</span>
           <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
           <span v-if="unreadOf('t:' + row.task_id)" class="badge-unread" data-testid="topic-unread">{{ notes.previewUnread(unreadOf('t:' + row.task_id)) }}</span>
         </a>
         <SidebarRowMenu
           :menu-id="'th:' + row.task_id"
-          :name="topicRowTitle(row.subject, peopleLabels(row.participants, people.names.value) || row.task_id)"
+          :name="rowTitle(row.subject) || peopleLabels(row.participants, people.names.value) || row.task_id"
           :href="localePath('/t/' + row.task_id)"
           :unread="!!unreadOf('t:' + row.task_id)"
           :open="rowMenu === 'th:' + row.task_id"
@@ -778,7 +778,7 @@ import { useMove } from '~/composables/useMove'
 import { isChannelDropTarget } from '~/utils/move.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { useOperatorPane } from '~/stores/operator-pane'
-import { topicOpening } from '~/utils/view-api.mjs'
+import { rowTitle } from '~/utils/view-api.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
@@ -828,11 +828,8 @@ const tabsBuilt = reactive<Partial<Record<SideTab, boolean>>>({})
    ref starts with is never built unless it is shown */
 watch(tab, (open) => { tabsBuilt[open] = true })
 onMounted(() => { tabsBuilt[tab.value] = true })
-/* The topics list names each row from the opening of its first message. */
-function topicRowTitle(subject: string, fallback: string) {
-  const text = topicOpening(subject)
-  return text ? t('topic.list_title', { text }) : fallback
-}
+/* spec 082 FR-002: a Topics row is named by rowTitle (plain text, no
+   `Topic:` prefix); with no opening, the people, then the id. */
 function peerName(id: string, box?: string) {
   return shownPerson(id, box, people.names.value)
 }

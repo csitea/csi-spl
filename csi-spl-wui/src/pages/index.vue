@@ -77,13 +77,13 @@
           <ArchivedBadge v-if="t.archived_at" :at="t.archived_at" />
           <span class="msg-time">{{ rowTime(t.last_ts) }}</span>
         </div>
-        <div class="topic-subject">{{ topicRowTitle(t.subject) }}</div>
+        <div class="topic-subject">{{ rowTitle(t.subject) }}</div>
         <small class="muted">{{ tr('pages.index.messages', { n: t.count }, t.count) }}</small>
         </div>
       </a>
       <SidebarRowMenu
         :menu-id="'home:' + t.task_id"
-        :name="topicRowTitle(t.subject) || t.task_id"
+        :name="rowTitle(t.subject) || t.task_id"
         :href="localePath('/t/' + t.task_id)"
         :open="rowMenu === t.task_id"
         :topic-archive="topicRowState(t.task_id)?.canArchive"
@@ -118,8 +118,7 @@ import { useOmniboxTarget } from '~/stores/omnibox'
 import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { useLiveFeed } from '~/stores/live'
-import { formatMsgListTs, formatTs, phoneCardTime } from '~/utils/channel-feed.mjs'
-import { useMobileStack } from '~/composables/useMobileStack'
+import { formatMsgListTs, phoneCardTime } from '~/utils/channel-feed.mjs'
 import { bumpTopic } from '~/utils/topic-list.mjs'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSettledQuery } from '~/composables/useSettledQuery'
@@ -131,7 +130,7 @@ import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
-import { topicOpening } from '~/utils/view-api.mjs'
+import { rowTitle } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useAccessStore } from '~/stores/access'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
@@ -150,18 +149,14 @@ const firstRunTenant = computed(() => String(session.claims?.t || api.tenant || 
 const firstRunCandidate = computed(() => (api.mock || String(session.state) === 'in') && !viewer.loading &&
   !viewer.error && tenantSettingsVisible(access.me, { mock: api.mock }))
 /* `tr`, not `t`: the topic rows below are iterated as `t` */
-const { t: tr, locale } = useI18n({ useScope: 'global' })
-/* a phone prints the row's time on the viewer's own clock, only
-   HH:MM when it is from today (phoneCardTime, as on every card); desktop
-   prints HH:MM, also the viewer's own clock (CLE-77908: it was UTC) */
-const mobile = useMobileStack().isMobile
-const rowTime = (ts: string) => (mobile.value ? phoneCardTime(formatMsgListTs(ts), ts) : formatTs(ts, locale.value))
+const { t: tr } = useI18n({ useScope: 'global' })
+/* spec 082 FR-003: phone and desktop rows alike print the viewer's own
+   clock with the list-time rule (phoneCardTime): HH:MM today, `MM-DD HH:MM`
+   this year, the full date before. A desktop row used to print HH:MM only,
+   so a two-week-old topic read like today. */
+const rowTime = (ts: string) => phoneCardTime(formatMsgListTs(ts), ts)
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
-function topicRowTitle(subject: string) {
-  const text = topicOpening(subject)
-  return text ? tr('topic.list_title', { text }) : ''
-}
 function topicPeople(list: readonly string[] | undefined) {
   return namedLine((list || []).join(', '), people.names.value)
 }

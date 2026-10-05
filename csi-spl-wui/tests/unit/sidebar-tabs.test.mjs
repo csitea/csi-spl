@@ -189,8 +189,9 @@ describe('the strip is icons, in that order', () => {
     assert.equal(en.nav.topics, 'Topics')
     assert.equal(en.topic.title, 'Topic')
     assert.equal(en.topic.list_title, 'Topic: {text}')
-    assert.match(vue, /topicOpening\(subject\)/)
-    assert.match(vue, /t\('topic\.list_title'/)
+    /* spec 082 FR-002: the Topics rows drop the `Topic:` prefix (rowTitle) */
+    assert.match(vue, /rowTitle\(row\.subject\)/)
+    assert.doesNotMatch(vue, /topic\.list_title/)
     assert.equal(en.search.group.topics, 'Topics')
   })
 })

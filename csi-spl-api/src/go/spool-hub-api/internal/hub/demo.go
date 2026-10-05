@@ -82,7 +82,8 @@ func (s *Server) archivePolicy(t store.Tenant) string {
 
 func (s *Server) routeDemo(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/demo", s.handleDemo)
-	s.routeModeration(mux) // T016: hide / unhide (demo_moderation.go)
+	mux.HandleFunc("GET /v1/demo/audit", s.handleDemoAudit) // T025: the post audit (demo_audit.go)
+	s.routeModeration(mux)                                  // T016: hide / unhide (demo_moderation.go)
 }
 
 // GET /v1/demo: the demo workspace and its limits, public (the login page's

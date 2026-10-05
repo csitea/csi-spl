@@ -96,6 +96,10 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if tok, status, detail := s.demoAuditEdit(r.Context(), t.ID, hum, m, body); tok != "" { // specs/077 T025
+		writeErr(w, status, tok, detail)
+		return
+	}
 	canon, inner, sig, err := s.editedEnvelope(m, body, pub)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("edit envelope")

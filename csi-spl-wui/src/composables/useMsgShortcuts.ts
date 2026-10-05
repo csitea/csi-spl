@@ -36,8 +36,11 @@ const cards = new Map<HTMLElement, CardEntry>()
 const helpOpen = ref(false)
 let listening: ((ev: KeyboardEvent) => void) | null = null
 
-/** A menu, a dialog or a sheet is open: no shortcut fires under it. */
-const OVERLAY_OPEN = '.point-menu, [role="dialog"][aria-modal="true"], dialog[open]'
+/** A menu, a dialog or a sheet is open: no shortcut fires under it, and
+    holdPanel waits for it to close. The kind menu (Shift + K) is teleported
+    to <body>, outside every panel: unlisted, the hold took the focus out of it
+    50 ms after it opened (HUM-10, t1 e47e0e7e). */
+const OVERLAY_OPEN = '.point-menu, .kind-picker, [role="dialog"][aria-modal="true"], dialog[open]'
 
 /** Is the switch on (Settings -> Behaviour; never picked = on)? */
 export function useMsgShortcutsOn() {

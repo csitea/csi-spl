@@ -5,6 +5,7 @@
 <template>
   <button
     v-if="settable"
+    ref="btn"
     type="button"
     class="kind kind-btn"
     :class="['kind-' + shown, { 'kind--icon': icon }]"
@@ -41,7 +42,7 @@
     :x="at.x"
     :y="at.y"
     :current="shown"
-    @close="open = false"
+    @close="onClose"
     @choose="setKind"
   />
 </template>
@@ -85,6 +86,22 @@ function toggle(ev: MouseEvent) {
   const r = el.getBoundingClientRect()
   at.value = { x: r.left, y: r.bottom + 4 }
   open.value = true
+}
+
+/* HUM-10 (t1 e47e0e7e): Enter or Esc in the menu puts the focus back on
+   the message row, so Up / Down go on from the same message; a focus the
+   reader moved elsewhere (a click outside) is left where it is */
+const btn = ref<HTMLElement | null>(null)
+function onClose() {
+  const inMenu = Boolean((document.activeElement as HTMLElement | null)?.closest?.('.kind-picker'))
+  open.value = false
+  if (!inMenu) return
+  void nextTick(() => {
+    const a = document.activeElement
+    if (a && a !== document.body) return
+    const to = btn.value?.closest<HTMLElement>('article.msg') || btn.value
+    to?.focus({ preventScroll: true })
+  })
 }
 
 async function setKind(kind: string) {

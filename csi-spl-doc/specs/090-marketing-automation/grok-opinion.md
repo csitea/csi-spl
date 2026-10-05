@@ -150,3 +150,11 @@ v0.3.1 (`350e2b9b0a57b0a9074f706cd14dcb08a0753ad1`) quotes the appendix literals
 The new row policy does not. All five tables compare `workspace_id` to `current_setting('app.current_workspace_id', true)`. Measured on origin/master `fed5700e2ac3df713e315cf80351207c8050600b`: `git grep app.current_workspace_id origin/master -- *.go *.sql` returns no hits (n=0). The hub sets the setting named in `csi-spl-rdb/src/sql/postgres/spool-hub/0091_member_activity.sql` lines 40-41, including the empty-string guard, and lines 42-44 are the operator policy. Copy those. The sketch's `workspace_id` is the prose name for the column that file already uses.
 
 The eight behaviour points stay agreed. This sketch line is the one point still open.
+
+## Closed
+
+v0.3.2 at `65d92246c069f28c6ffe1a14a8900a73b134aea2` copies both policies from `0091_member_activity.sql` lines 37-44 onto all five tables: the empty-string guard, the check on write, and the operator policy. The invented setting name is gone. `workspace_id` stays the prose name for the column that file already uses.
+
+No point remains open.
+
+Consensus reached at `65d92246c069f28c6ffe1a14a8900a73b134aea2`.

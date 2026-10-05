@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -352,4 +353,63 @@ func TestFacebookMetaCallbacks(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestExchangeKeepsDecodeError: an IdP that answers 200 with a body that does
+// not decode fails the sign-in (errExchange, as before) and the decode error
+// stays in the message, so an IdP outage is not logged as a status mismatch.
+func TestExchangeKeepsDecodeError(t *testing.T) {
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "{")
+	}))
+	t.Cleanup(idp.Close)
+	o := &auth.OIDC{Provider: auth.ProviderLinkedIn, TokenURL: idp.URL + "/token", HTTP: idp.Client()}
+	_, err := o.Exchange(context.Background(), "code")
+	if !errors.Is(err, auth.ErrExchange) {
+		t.Fatalf("err %v, want errExchange", err)
+	}
+	// readJSON uses json.Unmarshal: a truncated body is a *json.SyntaxError
+	// ("unexpected end of JSON input"), not io.ErrUnexpectedEOF.
+	var syn *json.SyntaxError
+	if !errors.As(err, &syn) || !strings.Contains(err.Error(), "unexpected end of JSON input") {
+		t.Fatalf("err %q lost the decode cause", err)
+	}
+}
+
+// TestExchangeTokenOutcomes pins exchangeToken, the token step shared by
+// Google, Facebook and the generic OIDC client: only a 200 with an access
+// token succeeds, every other reply wraps errExchange.
+func TestExchangeTokenOutcomes(t *testing.T) {
+	cases := []struct {
+		name, body, want string
+		status           int
+	}{
+		{"ok", `{"access_token":"at"}`, "", http.StatusOK},
+		{"broken body", `{`, "decode: unexpected end of JSON input", http.StatusOK},
+		{"idp error", `{"error":"invalid_grant"}`, "token status 400 invalid_grant", http.StatusBadRequest},
+		{"no access token", `{}`, "token status 200", http.StatusOK},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(c.status)
+				_, _ = io.WriteString(w, c.body)
+			}))
+			t.Cleanup(idp.Close)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, idp.URL, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tok, err := auth.ExchangeToken(idp.Client(), req)
+			if c.want == "" {
+				if err != nil || tok.AccessToken != "at" {
+					t.Fatalf("tok %+v err %v", tok, err)
+				}
+				return
+			}
+			if !errors.Is(err, auth.ErrExchange) || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("err %v, want errExchange carrying %q", err, c.want)
+			}
+		})
+	}
 }

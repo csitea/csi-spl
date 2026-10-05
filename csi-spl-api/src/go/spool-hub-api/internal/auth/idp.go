@@ -73,6 +73,10 @@ func httpClient(c *http.Client) *http.Client {
 	return &http.Client{Timeout: 15 * time.Second}
 }
 
+// readJSON decodes resp's JSON body into v. It closes resp.Body, reads at
+// most 1 MiB, and a decode error is returned, never swallowed: callers wrap
+// it before they test the status, so a 200 with a broken body is not logged
+// as a status mismatch.
 func readJSON(resp *http.Response, v any) error {
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -80,6 +84,34 @@ func readJSON(resp *http.Response, v any) error {
 		return err
 	}
 	return json.Unmarshal(body, v)
+}
+
+// tokenResp is the access-token reply of the authorization-code grant shared
+// by Google, Facebook and the generic OIDC client. Error is the RFC 6749
+// error code ("" on success).
+type tokenResp struct {
+	AccessToken string `json:"access_token"`
+	Error       string `json:"error"`
+}
+
+// exchangeToken sends the prepared token request (its context rides on req)
+// and returns the decoded reply. Every failure wraps errExchange: a transport
+// error, a body that does not decode (the decode error is kept, so an IdP
+// outage behind a 200 is not reported as a status mismatch), a non-200 status
+// or an empty access token.
+func exchangeToken(hc *http.Client, req *http.Request) (tokenResp, error) {
+	var tok tokenResp
+	resp, err := httpClient(hc).Do(req)
+	if err != nil {
+		return tok, fmt.Errorf("%w: token: %w", errExchange, err)
+	}
+	if err := readJSON(resp, &tok); err != nil {
+		return tok, fmt.Errorf("%w: token status %d: decode: %w", errExchange, resp.StatusCode, err)
+	}
+	if resp.StatusCode != http.StatusOK || tok.AccessToken == "" {
+		return tok, fmt.Errorf("%w: token status %d %s", errExchange, resp.StatusCode, tok.Error)
+	}
+	return tok, nil
 }
 
 // Google is the OIDC authorization-code client. The identity comes from the
@@ -122,16 +154,9 @@ func (g *Google) Exchange(ctx context.Context, code string) (Identity, error) {
 		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := httpClient(g.HTTP).Do(req)
+	tok, err := exchangeToken(g.HTTP, req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
-	}
-	var tok struct {
-		AccessToken string `json:"access_token"`
-		Error       string `json:"error"`
-	}
-	if err := readJSON(resp, &tok); err != nil || resp.StatusCode != http.StatusOK || tok.AccessToken == "" {
-		return Identity{}, fmt.Errorf("%w: token status %d %s", errExchange, resp.StatusCode, tok.Error)
+		return Identity{}, err
 	}
 
 	ui, err := http.NewRequestWithContext(ctx, http.MethodGet, g.UserinfoURL, nil)
@@ -150,7 +175,10 @@ func (g *Google) Exchange(ctx context.Context, code string) (Identity, error) {
 		Name          string `json:"name"`
 		Picture       string `json:"picture"`
 	}
-	if err := readJSON(uresp, &info); err != nil || uresp.StatusCode != http.StatusOK || info.Sub == "" {
+	if err := readJSON(uresp, &info); err != nil {
+		return Identity{}, fmt.Errorf("%w: userinfo status %d: decode: %w", errExchange, uresp.StatusCode, err)
+	}
+	if uresp.StatusCode != http.StatusOK || info.Sub == "" {
 		return Identity{}, fmt.Errorf("%w: userinfo status %d", errExchange, uresp.StatusCode)
 	}
 	email := strings.ToLower(strings.TrimSpace(info.Email))
@@ -203,15 +231,9 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 	if err != nil {
 		return Identity{}, fmt.Errorf("%w: %w", errExchange, err)
 	}
-	resp, err := httpClient(f.HTTP).Do(req)
+	tok, err := exchangeToken(f.HTTP, req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
-	}
-	var tok struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := readJSON(resp, &tok); err != nil || resp.StatusCode != http.StatusOK || tok.AccessToken == "" {
-		return Identity{}, fmt.Errorf("%w: token status %d", errExchange, resp.StatusCode)
+		return Identity{}, err
 	}
 
 	mq := url.Values{}
@@ -239,7 +261,10 @@ func (f *Facebook) Exchange(ctx context.Context, code string) (Identity, error) 
 			} `json:"data"`
 		} `json:"picture"`
 	}
-	if err := readJSON(mresp, &who); err != nil || mresp.StatusCode != http.StatusOK || who.ID == "" {
+	if err := readJSON(mresp, &who); err != nil {
+		return Identity{}, fmt.Errorf("%w: me status %d: decode: %w", errExchange, mresp.StatusCode, err)
+	}
+	if mresp.StatusCode != http.StatusOK || who.ID == "" {
 		return Identity{}, fmt.Errorf("%w: me status %d", errExchange, mresp.StatusCode)
 	}
 	// Graph omits email when the person declined the permission or never

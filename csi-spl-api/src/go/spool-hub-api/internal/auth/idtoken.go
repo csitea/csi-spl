@@ -81,6 +81,12 @@ func (c *jwksCache) key(ctx context.Context, kid string) (*rsa.PublicKey, error)
 	return nil, errUnknownKid
 }
 
+// fetchJWKS GETs a JWKS document and returns its usable RSA signing keys by
+// kid (kty RSA, use sig or unset, at least jwksMinRSABits). Its one caller is
+// jwksCache.key, which refetches on an unknown kid at most once per
+// minRefetch (the caching is pinned by TestMicrosoftJWKSCache). The body is
+// capped at 1 MiB by readJSON; a truncated body keeps its decode error instead
+// of reading as "status 200".
 func fetchJWKS(ctx context.Context, hc *http.Client, url string) (map[string]*rsa.PublicKey, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -96,7 +102,10 @@ func fetchJWKS(ctx context.Context, hc *http.Client, url string) (map[string]*rs
 			Kty, Use, Kid, N, E string
 		} `json:"keys"`
 	}
-	if err := readJSON(resp, &set); err != nil || resp.StatusCode != http.StatusOK {
+	if err := readJSON(resp, &set); err != nil {
+		return nil, fmt.Errorf("jwks: status %d: decode: %w", resp.StatusCode, err)
+	}
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("jwks: status %d", resp.StatusCode)
 	}
 	keys := map[string]*rsa.PublicKey{}

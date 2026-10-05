@@ -183,7 +183,10 @@ func (m *Microsoft) ExchangeNonce(ctx context.Context, code, nonce string) (Iden
 		// error_codes carries the AADSTS number (no secret, safe to log).
 		ErrorCodes []int `json:"error_codes"`
 	}
-	if err := readJSON(resp, &tok); err != nil || resp.StatusCode != http.StatusOK || tok.IDToken == "" {
+	if err := readJSON(resp, &tok); err != nil {
+		return Identity{}, fmt.Errorf("%w: token status %d: decode: %w", errExchange, resp.StatusCode, err)
+	}
+	if resp.StatusCode != http.StatusOK || tok.IDToken == "" {
 		return Identity{}, fmt.Errorf("%w: token status %d %s %v", errExchange, resp.StatusCode, tok.Error, tok.ErrorCodes)
 	}
 	var c microsoftClaims

@@ -59,16 +59,9 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	resp, err := httpClient(o.HTTP).Do(req)
+	tok, err := exchangeToken(o.HTTP, req)
 	if err != nil {
-		return Identity{}, fmt.Errorf("%w: token: %w", errExchange, err)
-	}
-	var tok struct {
-		AccessToken string `json:"access_token"`
-		Error       string `json:"error"`
-	}
-	if err := readJSON(resp, &tok); err != nil || resp.StatusCode != http.StatusOK || tok.AccessToken == "" {
-		return Identity{}, fmt.Errorf("%w: token status %d %s", errExchange, resp.StatusCode, tok.Error)
+		return Identity{}, err
 	}
 
 	ui, err := http.NewRequestWithContext(ctx, http.MethodGet, o.UserinfoURL, nil)
@@ -88,7 +81,10 @@ func (o *OIDC) Exchange(ctx context.Context, code string) (Identity, error) {
 		Name          string          `json:"name"`
 		Picture       string          `json:"picture"`
 	}
-	if err := readJSON(uresp, &info); err != nil || uresp.StatusCode != http.StatusOK || info.Sub == "" {
+	if err := readJSON(uresp, &info); err != nil {
+		return Identity{}, fmt.Errorf("%w: userinfo status %d: decode: %w", errExchange, uresp.StatusCode, err)
+	}
+	if uresp.StatusCode != http.StatusOK || info.Sub == "" {
 		return Identity{}, fmt.Errorf("%w: userinfo status %d", errExchange, uresp.StatusCode)
 	}
 	email := strings.ToLower(strings.TrimSpace(info.Email))

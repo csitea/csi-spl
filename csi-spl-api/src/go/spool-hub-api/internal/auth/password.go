@@ -56,7 +56,10 @@ func VerifyPassword(stored, candidate string) error {
 		return errors.New("auth: invalid hash encoding")
 	}
 	var version int
-	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil || version != argon2.Version {
+	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
+		return fmt.Errorf("auth: hash version parse: %w", err)
+	}
+	if version != argon2.Version {
 		return errors.New("auth: hash version mismatch")
 	}
 	var memoryKiB, iterations uint32

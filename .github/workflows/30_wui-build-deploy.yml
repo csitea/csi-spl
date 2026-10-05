@@ -580,7 +580,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
-          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          # A plan job the hosted pool never ran skips deploy, and "skipped"
+          # reads as "nothing to ship" (run 37372797065: skip no-wui-input,
+          # its own commit never shipped). Unplanned is cancelled. (c-333)
+          DEPLOY_RESULT: ${{ needs.plan.result == 'success' && needs.deploy.result || 'cancelled' }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail

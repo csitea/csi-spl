@@ -145,6 +145,10 @@ gate_case() {
 [[ "$(gate_case completed '"neutral"' 0)" == "1 0" ]] && pass "CONTROL: 30 gate: only cancelled/skipped/queued fall back (neutral fails)" || fail "CONTROL: neutral test job -> $(gate_case completed '"neutral"' 0)"
 [[ "$(gate_case completed '"cancelled"' 1)" == "1 1" ]] && pass "CONTROL: 30 gate: a red suite in the leg still fails it (never ships a red tree)" || fail "CONTROL: red inline suite -> $(gate_case completed '"cancelled"' 1)"
 
+nw="$(python3 -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["jobs"]["newest"]["steps"][-1]["env"]["DEPLOY_RESULT"])' "$W/30_wui-build-deploy.yml")"
+[[ "$nw" == *"needs.plan.result == 'success'"*"'cancelled'"* ]] && pass "30 newest: a plan the hosted pool never ran counts as cancelled (dispatches), not skipped" \
+  || fail "30 newest: DEPLOY_RESULT '$nw' reads a starved plan as skipped"
+
 catch="$(step_run "$W/21_hub-deploy-catchup.yml" catchup "Dispatch the lagging deploys")"
 # catch_case <list json> [<run id> <jobs json>]... -> what 21 dispatched for the hub
 catch_case() {

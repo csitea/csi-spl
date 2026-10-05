@@ -208,6 +208,7 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
 
 - [x] T014 **per-workspace switch** (c-334, `spec.md` §15): rdb `0129_tenant_marketing_switch.sql` (`tenants.marketing_enabled`, default off), `store.MarketingSwitch`, hub `marketing_switch.go` (`GET`/`PATCH /v1/marketing/settings`, the `marketingRoute` gate, the `GET /v1/marketing` probe), the cnf allow-list as `SPOOL_HUB_MARKETING_WORKSPACES` (ids or `all`), and the WUI toggle `MarketingSwitch.vue` in General.
   - **Rule for T006..T010**: register every `/v1/marketing` route with `s.marketingRoute(mux, "<METHOD> <path>", h)`, never `mux.HandleFunc`. The gate answers `404` unless the workspace is allow-listed and switched on, and the demo route walk scans it.
+  - **Rule for T007 and T009 (sweeps, not routes)**: the draft queue and the dispatcher do not pass through `marketingRoute`. Each one must skip a workspace unless it is allow-listed (`marketingListed`) AND `MarketingEnabled` is true. The dispatcher checks this again when it claims a post, so turning the switch off stops a post that is already approved.
   - **Tests**: hub `TestMarketingSwitch*` (on both stores), store `TestMarketingSwitch*` (RLS on Postgres), `hub-marketing-workspaces-030.tst.sh`, and e2e `marketing-switch.test.mjs`.
 
 ### Later phases (placeholders, one line each; each gets its own tasks when phase 1 is live)

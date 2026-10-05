@@ -120,10 +120,18 @@ describe('the thread pane header: X, then the title on one line, then the contro
     })
   }
 
-  it('the title never wraps: nowrap + ellipsis, and the header row does not wrap', () => {
+  it('the phone title never wraps: nowrap + ellipsis, and the header row does not wrap', () => {
     const css = read('src/assets/css/main.css')
     assert.match(css, /\.topic header \{[^}]*flex-wrap: nowrap;/)
     assert.match(css, /\.topic-heading__title \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/)
     assert.doesNotMatch(css, /\.topic-heading__title \{[^}]*overflow-wrap: anywhere/)
+  })
+
+  /* Spec 078 T004b (AC6, US3): at 1440 the 40 % pane leaves the title ~292 px,
+     so on the desktop the title wraps (clamped at 4 lines) and the controls
+     stay on the one row. The phone keeps the rule above. */
+  it('the desktop title wraps, clamped, inside a min-width: 821px rule', () => {
+    const css = read('src/assets/css/main.css')
+    assert.match(css, /@media \(min-width: 821px\) \{\s*\.topic-heading__title \{[^}]*-webkit-line-clamp: 4;[^}]*white-space: normal;/)
   })
 })

@@ -4,12 +4,12 @@
 //
 //   1  1440x900, no spool.pane-widths: each #lobby root topic opens at about
 //      470 px (1440 - 260 - 6 = 1174, x 0.4), not the old fixed 380
-//   2  MEASURED, not gated: the title's fit (scrollWidth vs clientWidth on
-//      `[data-test=topic-heading]`). At 470 px the header's X (32), clip
-//      control (99), padding (28) and gaps (16) leave ~294 px for the title;
-//      the mock's titles need 435 and 551. Spec 078 AC6's title check waits
-//      for a decision on the header (reported to the orchestrator, T004).
-//   3  1920x1080: the default follows the window, about 662 px
+//   2  AC6: each title is not cut (scrollWidth <= clientWidth AND
+//      scrollHeight <= clientHeight on `[data-test=topic-heading]`). At 470 px
+//      the header's X (32), clip control (99), padding (28) and gaps (16) leave
+//      ~292 px; the mock's titles need 435 and 551 on one line, so the desktop
+//      title wraps (T004b, up to four lines) instead of an ellipsis
+//   3  1920x1080: the default follows the window, about 662 px, title not cut
 //   4  a dragged (stored) width still wins over the default
 //
 // Run:
@@ -93,8 +93,13 @@ const measure = (p) => p.evaluate(() => {
     title: h ? h.textContent.trim() : '',
     scrollW: h ? h.scrollWidth : -1,
     clientW: h ? h.clientWidth : -1,
+    scrollH: h ? h.scrollHeight : -1,
+    clientH: h ? h.clientHeight : -1,
   }
 })
+
+/** AC6: the title is whole - nothing cut sideways or below the last line. */
+const fits = (m) => m.clientW > 0 && m.scrollW <= m.clientW && m.scrollH <= m.clientH
 
 /** Fresh shell at this viewport, with the given stored widths (null = none). */
 async function load(p, base, w, h, stored) {
@@ -121,21 +126,20 @@ try {
 
   /* ---- 1 + 2. 1440, nothing stored ------------------------------------- */
   await load(p, srv.base, 1440, 900, null)
-  let longest = null
   for (const id of ROOTS) {
     await openTopic(p, id)
     const m = await measure(p)
     ok(`1 1440: ${id.slice(0, 8)} opens at the proportional default (~470, not 380)`, near(m.paneW, 470), m)
-    if (!longest || m.title.length > longest.title.length) longest = m
+    ok(`2 1440: ${id.slice(0, 8)} title is not truncated (AC6)`, fits(m), m)
     await shot(p, `1-1440-${id.slice(0, 8)}`)
   }
-  console.log(`  INFO 2 1440: the longest mock title's fit (not gated, see header) ${JSON.stringify(longest)}`)
 
   /* ---- 3. 1920 follows the window --------------------------------------- */
   await load(p, srv.base, 1920, 1080, null)
   await openTopic(p, ROOTS[0])
   const wide = await measure(p)
   ok('3 1920: the default is ~662', near(wide.paneW, 662), wide)
+  ok('3 1920: the title is not truncated', fits(wide), wide)
   await shot(p, '3-1920')
 
   /* ---- 4. a stored (dragged) width wins --------------------------------- */

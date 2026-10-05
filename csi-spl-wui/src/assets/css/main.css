@@ -717,6 +717,21 @@ html.pane-dragging * {
   border-radius: var(--radius-sm);
   padding: 2px 8px;
 }
+/* Spec 078 T004b (AC6, US3): on the desktop the 40 % pane leaves the title
+   ~292 px at 1440, so a one-line title is cut. The title wraps instead (up to
+   four lines; the controls stay on the row, centred on it). The phone keeps
+   the one-line header above. */
+@media (min-width: 821px) {
+  .topic-heading__title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.3;
+  }
+}
 .login {
   height: 100%;
   min-height: 0;

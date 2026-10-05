@@ -69,7 +69,14 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (hub["env"].get("SPOOL_HUB_ENABLE_PAYPAL", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update({"SPOOL_HUB_PAYPAL_CLIENT_SECRET": pay_sec["SPOOL_HUB_PAYPAL_CLIENT_SECRET"]}) %}
 {%- endif %}
-{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) %}
+{#- spec 090 T002: the two LinkedIn marketing app slots always exist; injected
+    only while marketing.linkedin.inject is "true" (both versions exist) #}
+{%- set mkt_li = marketing["linkedin"] if (marketing is defined and marketing["linkedin"] is defined) else {} %}
+{%- set mkt_sec = {"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_ID": mkt_li["client_id_secret"], "SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_SECRET": mkt_li["client_secret_secret"]} if mkt_li else {} %}
+{%- if (mkt_li.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_sec.update(mkt_sec) %}
+{%- endif %}
+{%- set slot_ids = (auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) + (mkt_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
 {%- for p in listed %}

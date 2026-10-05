@@ -251,11 +251,27 @@ spl_dispatch_worktree() {
   echo "${DISPATCH_REPO}-wt/$1"
 }
 
+# The epoch this machine last took the dispatch lease from ANOTHER machine
+# (or from none): the last "FLEET dispatch: <id>@<other> -> <id>@<me>" line of
+# lease.log (spl_fleet_apply). A swap between the ids of one box is no
+# takeover. Empty when there is none.
+spl_rotate_takeover_at() {
+  local me="${LEASE_MACHINE:-$(spl_desk_box_default)}" at
+  at="$(sed -n "s/^\([^ ]*\) FLEET dispatch: \([^ ]*\) -> [^ ]*@$me\$/\1 \2/p" "${LEASE_LOG:-$LEASE_DIR/lease.log}" 2>/dev/null |
+    awk -v me="$me" '$2 !~ ("@" me "$") {t=$1} END {print t}')"
+  [[ -n "$at" ]] && date -u -d "$at" +%s 2>/dev/null
+}
+
 # The dispatcher rotation (spec 060 FR-072): a GAP when its last DONE is
 # older than DISPATCH_ROTATE_STALE s while the switch is on and this machine
-# holds the dispatch lease. Needs the lease read (LH) and row().
+# holds the dispatch lease. The age counts from the later of the last DONE
+# and the takeover: a box that took the lease from another one rotates at its
+# next :15, and its own DONE dates from before the other box held the lease
+# (c-330, prd 2026-10-05: sat took it from another box at 08:16:12Z, its tick read
+# "last done 187078s ago" until the 09:15Z rotation wrote the stamp).
+# Needs the lease read (LH) and row().
 spl_rotate_check_row() {
-  local last age stale="${DISPATCH_ROTATE_STALE:-10800}"
+  local last age took stale="${DISPATCH_ROTATE_STALE:-10800}"
   if declare -F spl_dispatch_rotate_on >/dev/null && ! spl_dispatch_rotate_on; then
     row "dispatch rotation" "switched off (rotate.conf)" ok; return 0
   fi
@@ -267,6 +283,16 @@ spl_rotate_check_row() {
     row "dispatch rotation" "never ran" "GAP DRY_RUN=0 do_spl_dispatch_rotate_install_cron, then read $LEASE_DIR/rotate.log"; return 0
   fi
   age=$(( $(spl_lease_now) - last ))
+  took="$(spl_rotate_takeover_at)"
+  if [[ "$took" =~ ^[0-9]+$ ]] && (( took > last )); then
+    age=$(( $(spl_lease_now) - took ))
+    if (( age > stale )); then
+      row "dispatch rotation" "none since this box took the lease ${age}s ago" "GAP over ${stale}s - read $LEASE_DIR/rotate.log"
+    else
+      row "dispatch rotation" "this box took the lease ${age}s ago, rotates at the next :15" ok
+    fi
+    return 0
+  fi
   if (( age > stale )); then
     row "dispatch rotation" "last done ${age}s ago" "GAP over ${stale}s - read $LEASE_DIR/rotate.log"
   else

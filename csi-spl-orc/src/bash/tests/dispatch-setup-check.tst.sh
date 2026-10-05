@@ -13,7 +13,8 @@
 #   7. check: each gap fails it - no process, not auto, missing seat, unread
 #      over the max, stale lease, holder not a dispatcher, a loop down,
 #      settings not loaded, model mismatch, the unanswered sweep never ran,
-#      a hub / WUI input unserved past the grace (CLE-77918)
+#      a hub / WUI input unserved past the grace (CLE-77918); the rotation
+#      age counts from a takeover from another box (c-330)
 #   8. setup step 11: the sweep cron line is PLANned, then written once
 #   9. the desk-reply rule (2026-10-03, c-002's prd reply refused while the
 #      check said "loaded ok"): the brief teaches ONE command, run from the
@@ -308,10 +309,28 @@ mv "$S/dispatch/unanswered.last" "$T/last.keep"; gap "the unanswered sweep never
 # spec 060 FR-072: the dispatcher rotation row
 echo $(( $(date +%s) - 20000 )) >"$S/dispatch/rotate.dispatch.last"
 gap "the dispatcher rotation is 3 h late (FR-072)" 'dispatch rotation \| last done 200[0-9][0-9]s ago \| GAP over 10800s'
+# c-330 (prd 2026-10-05): a box that took the lease from another box ages
+# from the takeover, not from its own DONE of before the other box held it;
+# a swap between the ids of one box is no takeover
+cp "$S/dispatch/lease.log" "$T/ll.keep" 2>/dev/null || : >"$T/ll.keep"
+tk() { echo "$(date -u -d "@$(( $(date +%s) - $1 ))" +%FT%TZ) FLEET dispatch: $2 -> c-002@box-desk" >>"$S/dispatch/lease.log"; }
+tk 600 c-002@pc; check >"$T/o" 2>&1
+grep -qE '\| dispatch rotation \| this box took the lease 60[0-9]s ago, rotates at the next :15 \| ok \|' "$T/o" &&
+  pass "7. took the lease 600 s ago from another box, own DONE 20000 s old: ok" || fail "7. takeover: $(grep 'dispatch rotation' "$T/o")"
+cp "$T/ll.keep" "$S/dispatch/lease.log"; tk 600 c-003@box-desk
+gap "a swap between the ids of one box is no takeover: still late" 'dispatch rotation \| last done 200[0-9][0-9]s ago \| GAP over 10800s'
+cp "$T/ll.keep" "$S/dispatch/lease.log"; tk 15000 c-002@pc
+gap "no rotation 15000 s after the takeover" 'dispatch rotation \| none since this box took the lease 150[0-9][0-9]s ago \| GAP over 10800s'
+cp "$T/ll.keep" "$S/dispatch/lease.log"; tk 30000 c-002@pc
+gap "a takeover older than the last DONE: the DONE counts" 'dispatch rotation \| last done 200[0-9][0-9]s ago \| GAP over 10800s'
+cp "$T/ll.keep" "$S/dispatch/lease.log"
 echo ROTATE_DISPATCH=0 >"$S/dispatch/rotate.conf"; check >"$T/o" 2>&1
 grep -q '| dispatch rotation | switched off (rotate.conf) | ok |' "$T/o" && pass "7. rotation switched off: no rotation GAP" || fail "7. switch: $(grep 'dispatch rotation' "$T/o")"
 rm -f "$S/dispatch/rotate.conf" "$S/dispatch/rotate.dispatch.last"
 gap "the dispatcher rotation never ran (FR-072)" 'dispatch rotation \| never ran \| GAP'
+tk 15000 c-002@pc
+gap "took the lease 15000 s ago, no DONE at all: still GAP" 'dispatch rotation \| never ran \| GAP'
+cp "$T/ll.keep" "$S/dispatch/lease.log"
 
 # --- 9. the desk-reply rule matches the taught command ------------------------------------------
 b="$S/dispatch/briefs/brief-dispatcher-c-002.md"

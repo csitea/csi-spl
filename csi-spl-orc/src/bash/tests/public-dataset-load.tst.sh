@@ -163,8 +163,10 @@ PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
 for _ in $(seq 1 60); do docker exec "$PG_CTR" pg_isready -U spool -d spool_hub -h 127.0.0.1 >/dev/null 2>&1 && break; sleep 0.5; done
 sleep 1
 SUPER_DSN="postgres://spool:spool@127.0.0.1:$PGPORT/spool_hub?sslmode=disable"
+# CREATEROLE like the Cloud SQL user that owns the schema (as hub-pg.tst.sh
+# does): rdb 0126 creates the spool_public_export role during spool migrate.
 psql -X -q -v ON_ERROR_STOP=1 "$SUPER_DSN" \
-  -c "CREATE ROLE seed_owner LOGIN NOSUPERUSER NOBYPASSRLS CREATEDB PASSWORD 'owner'" \
+  -c "CREATE ROLE seed_owner LOGIN NOSUPERUSER NOBYPASSRLS CREATEDB CREATEROLE PASSWORD 'owner'" \
   -c "CREATE DATABASE seed_tpl OWNER seed_owner" >/dev/null || { fail "create the owner role"; exit 1; }
 dsn_of() { echo "postgres://seed_owner:owner@127.0.0.1:$PGPORT/$1?sslmode=disable"; }
 "$BIN" migrate --db "$(dsn_of seed_tpl)" --sql-dir "$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub" >/dev/null \

@@ -54,7 +54,7 @@ To comply with platform policies and protect account reputation, posting "on beh
    - **Disconnect**: Deletes our local token record immediately and calls the platform's revocation endpoint where supported; the WUI also displays direct instructions for removing the app in that platform's settings.
    - **Token Expiry**: LinkedIn member tokens expire after ~60 days with no automatic refresh; the system sends a re-consent notification 7 days prior to expiration.
 3. **Approval Authority & Standing Grants**:
-   - **Per-Post Approval (Default)**: Only the member who connected the personal account (or a designated workspace reviewer) may approve posts. A workspace admin cannot unilaterally publish into someone else's personal feed.
+   - **Per-Post Approval (Default)**: For personal feeds, only the member who connected the personal account (or their explicit standing grant) may approve. A designated workspace reviewer may edit and recommend drafts, but publishing into a personal feed strictly requires the account holder's click or grant. A workspace admin cannot unilaterally publish into someone else's personal feed.
    - **Standing Delegation**: Narrow, finite, and revocable. Strictly bounded: one person, one channel, release announcement template only (no free text), maximum 30-day lifetime, with an active grant ID logged on every post.
 4. **Authentic Attribution & Immutable Audit Trail**:
    - Every post is published in that person's own name, from their authentic account.
@@ -184,7 +184,7 @@ Per owner msg `fd72a794` (*"The aim is not to be spamming anyone. The aim is to 
 - **AC-05 (Single-Flight Dispatch)**: At scheduled hour, background worker claims post -> status moves to `scheduled` -> dispatches to LinkedIn -> receives success ID -> status becomes `published` with post link.
 - **AC-06 (Failure & Token Expiry)**: If token is expired or API fails -> status marked `failed`, diagnostic recorded in audit table, and notification sent to author.
 - **AC-07 (Anti-Spam Daily Cap)**: Two posts approved for the same channel on the same day -> system schedules the first for today and staggers the second to the next calendar day.
-- **AC-08 (Stale Draft Cleanup)**: A draft pending approval for >7 days is automatically marked expired and returned for reviewer reassessment.
+- **AC-08 (Stale Draft Cleanup)**: A draft pending approval for >7 days is automatically marked `rejected` (with reason 'stale draft expired after 7 days') and returned for reviewer reassessment.
 - **AC-09 (Email Double Opt-In & Unsubscribe)**: Subscriber enters email -> receives confirmation link -> clicks link -> status becomes `subscribed`. Clicking unsubscribe header or link immediately sets status to `unsubscribed`.
 
 ---
@@ -224,12 +224,12 @@ Per owner msg `fd72a794` (*"The aim is not to be spamming anyone. The aim is to 
 CREATE TABLE marketing_channels (
     channel_id      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    text NOT NULL,
-    platform        text NOT NULL CHECK (platform IN (linkedin, x, facebook, email)),
+    platform        text NOT NULL CHECK (platform IN ('linkedin', 'x', 'facebook', 'email')),
     account_name    text NOT NULL,
-    account_type    text NOT NULL CHECK (account_type IN (personal, page, newsletter)),
+    account_type    text NOT NULL CHECK (account_type IN ('personal', 'page', 'newsletter')),
     delegated_by    text NOT NULL, -- human user ID
     auto_publish    boolean NOT NULL DEFAULT false,
-    status          text NOT NULL CHECK (status IN (active, revoked, expired)),
+    status          text NOT NULL CHECK (status IN ('active', 'revoked', 'expired')),
     expires_at      timestamptz NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
     updated_at      timestamptz NOT NULL DEFAULT now()
@@ -249,12 +249,12 @@ CREATE TABLE marketing_posts (
     post_id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    text NOT NULL,
     channel_id      uuid NOT NULL REFERENCES marketing_channels(channel_id),
-    source_type     text NOT NULL CHECK (source_type IN (release, help_doc)),
+    source_type     text NOT NULL CHECK (source_type IN ('release', 'help_doc')),
     source_ref      text NOT NULL, -- release tag v<X.Y.Z> or help doc path
     content_text    text NOT NULL,
-    media_urls      text[] NOT NULL DEFAULT {},
-    status          text NOT NULL CHECK (status IN (draft, approved, scheduled, published, failed, rejected)),
-    author_type     text NOT NULL CHECK (author_type IN (human, agent)),
+    media_urls      text[] NOT NULL DEFAULT '{}',
+    status          text NOT NULL CHECK (status IN ('draft', 'approved', 'scheduled', 'published', 'failed', 'rejected')),
+    author_type     text NOT NULL CHECK (author_type IN ('human', 'agent')),
     author_id       text NOT NULL,
     approved_by     text NULL,
     standing_grant_id uuid NULL,
@@ -273,13 +273,13 @@ CREATE TABLE marketing_post_events (
     workspace_id    text NOT NULL,
     post_id         uuid NULL REFERENCES marketing_posts(post_id),
     channel_id      uuid NOT NULL REFERENCES marketing_channels(channel_id),
-    event_type      text NOT NULL CHECK (event_type IN (channel_connect, channel_revoke, draft_created, post_edited, post_approved, post_rejected, post_scheduled, post_dispatched, post_published, post_failed)),
-    actor_type      text NOT NULL CHECK (actor_type IN (human, agent, system)),
+    event_type      text NOT NULL CHECK (event_type IN ('channel_connect', 'channel_revoke', 'draft_created', 'post_edited', 'post_approved', 'post_rejected', 'post_scheduled', 'post_dispatched', 'post_published', 'post_failed')),
+    actor_type      text NOT NULL CHECK (actor_type IN ('human', 'agent', 'system')),
     actor_id        text NOT NULL,
     standing_grant_id uuid NULL,
     body_sha256     text NULL,
     platform_post_id text NULL,
-    details         jsonb NOT NULL DEFAULT {}::jsonb,
+    details         jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -288,29 +288,39 @@ CREATE TABLE marketing_email_subscribers (
     subscriber_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     workspace_id    text NOT NULL,
     email           text NOT NULL,
-    status          text NOT NULL CHECK (status IN (pending_confirmation, subscribed, unsubscribed, bounced)),
+    status          text NOT NULL CHECK (status IN ('pending_confirmation', 'subscribed', 'unsubscribed', 'bounced')),
     opt_in_at       timestamptz NOT NULL DEFAULT now(),
     confirmed_at    timestamptz NULL,
-    opt_in_ip       text NULL,
+    opt_in_ip       text NULL, -- masked or omitted for privacy
     unsubscribed_at timestamptz NULL,
     UNIQUE (workspace_id, email)
 );
 
--- Strict Row Level Security
+-- Strict Row Level Security with Workspace Isolation Policies
 ALTER TABLE marketing_channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_channels FORCE ROW LEVEL SECURITY;
+CREATE POLICY marketing_channels_workspace_isolation ON marketing_channels
+    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
 
 ALTER TABLE marketing_channel_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_channel_tokens FORCE ROW LEVEL SECURITY;
+CREATE POLICY marketing_channel_tokens_workspace_isolation ON marketing_channel_tokens
+    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
 
 ALTER TABLE marketing_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_posts FORCE ROW LEVEL SECURITY;
+CREATE POLICY marketing_posts_workspace_isolation ON marketing_posts
+    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
 
 ALTER TABLE marketing_post_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_post_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY marketing_post_events_workspace_isolation ON marketing_post_events
+    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
 
 ALTER TABLE marketing_email_subscribers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_email_subscribers FORCE ROW LEVEL SECURITY;
+CREATE POLICY marketing_email_subscribers_workspace_isolation ON marketing_email_subscribers
+    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
 ```
 
 ---
@@ -322,7 +332,7 @@ Per owner msg `c6daa209` (*"At least one AGI, at least one Gobot, and a couple o
 ### 13.1 Panel Participants
 - **Author**: `a-273` (Antigravity)
 - **Reviewer (Grok)**: `g-276` (Opinion: `grok-opinion.md`, commit `01c9618e7`)
-- **Reviewer (Claude-A)**: `c-277` (Opinion: `claude-a-opinion.md`, commit `8ba3c6e5c`)
+- **Reviewer (Claude-A)**: `c-277` (Opinion: `claude-a-opinion.md`, commits `8ba3c6e5c`, `537b7e5b7`)
 - **Reviewer (Claude-B)**: `c-292` (Opinion: `claude-b-opinion.md`, commit `f7d9acae6`)
 
 ### 13.2 Consensus Statement: Full Agreement Reached
@@ -349,5 +359,6 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.1.0 | 2026-10-05 | a-273 | Initial draft specification for marketing automation (delegated social and email posting). |
 | v0.2.0 | 2026-10-05 | a-273 | Folded owner msg `fd72a794` into spec: added anti-spam policy with strict 1 post/day/channel cap, high-signal focus, FR-009, and AC-08. |
 | v0.3.0 | 2026-10-05 | a-273 | Full panel consensus harmonized with grok peer `g-276` (`grok-opinion.md`) and claude peers `c-277` (`claude-a-opinion.md`) and `c-292` (`claude-b-opinion.md`): append-only audit table, KMS envelope-encrypted tokens under FORCE RLS, dynamic X pricing, double opt-in email, source-backed queue ("no source, no post"), idempotent single-flight dispatcher, 3-phase rollout, and formal Consensus section. |
+| v0.3.1 | 2026-10-05 | a-273 | Round 2 consensus refinements: aligned personal feed approval authority in §2.3 with FR-005, clarified AC-08 stale draft rejection, quoted SQL enum/array literals, and added workspace isolation RLS policies in appendix data model. |
 
-<!-- version: 0.3.0 · updated: 2026-10-05 · last-edit: 2026-10-05T04:50:00Z -->
+<!-- version: 0.3.1 · updated: 2026-10-05 · last-edit: 2026-10-05T05:00:00Z -->

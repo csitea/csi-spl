@@ -113,9 +113,9 @@ Rules for every task (owner Q8, spec §3.10):
   channel topic, a file, an issue, a workspace doc and members, all marked.
   The visitor also holds a stray `demo_user` seat in B. Found and fixed:
   `GET /v1/view/locate/{id}` searched that fenced seat and named B's tenant
-  (`locate.go`). Reported, not fixed (internal/auth): the auth session lists
-  the fenced seat and the tenant switch accepts it; every hub read after it
-  is refused. CONTROLS: B's owner reads B's markers through the core routes;
+  (`locate.go`). Fixed in internal/auth (c-317, 16e51626): the auth session listed the
+  fenced seat and the tenant switch accepted it; now neither does (403
+  not_member). The `authSessionGap` cut in the walk stays (owner). CONTROLS: B's owner reads B's markers through the core routes;
   `demoFenced` off = 11 routes leak; the locate fix reverted = locate leaks.
 - [ ] T016 **report / hide / ban** (§3.6).
 - [x] T017 **nightly wipe** (c-314): named action `do_spl_demo_wipe` (csi-spl-orc) on a

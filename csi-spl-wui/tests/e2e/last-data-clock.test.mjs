@@ -1,5 +1,10 @@
-// Last-updated clock in the top bar (owner: the time of the latest data
-// the hub returned, HH:mm:ss, visible on every page so a snapshot shows it).
+// Last-updated clock (owner: the time of the latest data the hub returned,
+// HH:mm:ss, visible on every page so a snapshot shows it). Owner, t1
+// be316fdc: "It must be next to the version on the right side, exactly" -
+// on a desktop right of the sidebar footer's version, on a phone right of
+// the status strip's version. A screen that draws no version (rail-only or
+// hidden sidebar, a sheet over the phone strip) keeps it in the top bar's
+// corner (useClockHost). Exactly one clock per screen, always visible.
 //
 //   node tests/e2e/last-data-clock.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/last-data-clock.test.mjs
@@ -12,11 +17,21 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
-const PAGES = ['/lobby', '/help', '/settings', '/docs']
+const TOPIC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const PAGES = [
+  ['channels', '/channel/lobby'],
+  ['topic', `/t/${TOPIC}`],
+  ['thread', `/channel/lobby?topic=${TOPIC}`],
+  ['docs', '/docs'],
+  ['help', '/help'],
+  ['settings', '/settings'],
+]
 const WIDTHS = [
   { name: '1440', width: 1440, height: 900, touch: false },
   { name: '390', width: 390, height: 844, touch: true },
+  { name: '360', width: 360, height: 800, touch: true },
 ]
+const CLOCK = '[data-test=last-data-clock]'
 
 if (OUT) mkdirSync(OUT, { recursive: true })
 
@@ -53,34 +68,48 @@ const signIn = (p) => p.evaluate(() => {
   return true
 })
 
-const facts = (p) => p.evaluate(() => {
+// The version text it must sit beside: the sidebar footer's on a desktop,
+// the status strip's on a phone (the footer row is not drawn there).
+const facts = (p) => p.evaluate((CLOCK) => {
+  const seen = (n) => {
+    if (!n) return false
+    const r = n.getBoundingClientRect()
+    const cs = getComputedStyle(n)
+    return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0
+  }
+  const all = [...document.querySelectorAll(CLOCK)]
+  const el = all.find(seen) || all[0]
+  if (!el) return null
+  const strip = document.querySelector('[data-test=status-strip]')
   const bar = document.querySelector('[data-test=top-bar]')
-  const el = bar && bar.querySelector('[data-test=last-data-clock]')
-  if (!bar || !el) return null
-  const b = bar.getBoundingClientRect()
+  // whichever version is on screen; null when none is
+  const ver = [document.querySelector('[data-test=app-version] .vs-ver'), strip && strip.querySelector('.status-strip__ver')].find(seen) || null
   const r = el.getBoundingClientRect()
-  const cs = getComputedStyle(el)
-  const shown = cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0
-  // The phone rule is a calc(), which getPropertyValue returns unparsed.
-  const probe = document.createElement('div')
-  probe.style.cssText = 'position:absolute;visibility:hidden;height:var(--top-bar-h)'
-  document.documentElement.appendChild(probe)
-  const expectH = probe.getBoundingClientRect().height
-  probe.remove()
+  const b = bar ? bar.getBoundingClientRect() : null
+  const v = ver ? ver.getBoundingClientRect() : null
   const menu = document.querySelector('[data-test=user-menu-panel]')
   return {
+    where: strip && strip.contains(el) ? 'strip' : (el.closest('.foot-row') ? 'sidebar-foot' : (bar && bar.contains(el) ? 'top-bar' : 'elsewhere')),
+    count: all.length,
+    inBarBox: Boolean(b && r.top >= b.top - 1 && r.bottom <= b.bottom + 1),
     text: (el.textContent || '').trim(),
     title: el.getAttribute('title') || '',
     at: el.getAttribute('data-at') || '',
-    shown,
-    barH: Math.round(b.height),
-    expectH: Math.round(expectH),
-    inside: shown && r.top >= b.top - 1 && r.bottom <= b.bottom + 1 && r.left >= -1 && r.right <= window.innerWidth + 1,
+    shown: seen(el),
+    verShown: seen(ver),
+    // the version is never cut to an ellipsis to make room for the clock
+    verFull: Boolean(ver && ver.parentElement && ver.parentElement.scrollWidth <= ver.parentElement.clientWidth + 1),
+    gap: v ? Math.round((r.left - v.right) * 10) / 10 : null,
+    dy: v ? Math.round(Math.abs((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) * 10) / 10 : null,
+    onScreen: r.left >= -1 && r.right <= window.innerWidth + 1 && r.top >= -1 && r.bottom <= window.innerHeight + 1,
     scroll: document.scrollingElement.scrollWidth <= window.innerWidth + 1,
     menuOpen: Boolean(menu && menu.getClientRects().length),
-    tenant: Boolean(document.querySelector('[data-test=top-bar-tenant], [data-testid=tenant-switcher]') && [...document.querySelectorAll('[data-test=top-bar-tenant], [data-testid=tenant-switcher]')].some((n) => n.getClientRects().length)),
   }
-})
+}, CLOCK)
+const besideVersion = (f) => Boolean(f && f.shown && f.verShown && f.verFull && f.gap !== null && f.gap >= 0 && f.gap <= 16 && f.dy <= 4 && f.onScreen)
+// right of the version when one is drawn, else in the top bar
+const placed = (f) => Boolean(f && (f.verShown ? besideVersion(f) && f.where !== 'top-bar' : f.where === 'top-bar' && f.shown && f.inBarBox && f.onScreen))
+const WHERE = []
 
 async function openPage(p, base, path) {
   // domcontentloaded: a Vite dev socket never goes network-idle, and the first
@@ -92,10 +121,10 @@ async function openPage(p, base, path) {
   if (!await show()) await show()
   await p.waitForSelector('[data-test=top-bar]', { timeout: NAV_TIMEOUT })
   await signIn(p)
-  const ready = await p.waitForFunction(() => {
-    const el = document.querySelector('[data-test=top-bar] [data-test=last-data-clock]')
+  const ready = await p.waitForFunction((CLOCK) => {
+    const el = document.querySelector(CLOCK)
     return Boolean(el && /^\d{2}:\d{2}:\d{2}$/.test((el.textContent || '').trim()))
-  }, { timeout: 20000 }).then(() => true).catch(() => false)
+  }, { timeout: 20000 }, CLOCK).then(() => true).catch(() => false)
   return ready
 }
 
@@ -108,20 +137,25 @@ try {
 
   for (const vp of WIDTHS) {
     await p.setViewport({ width: vp.width, height: vp.height, isMobile: vp.touch, hasTouch: vp.touch, deviceScaleFactor: vp.touch ? 2 : 1 })
-    for (const path of PAGES) {
+    for (const [name, path] of PAGES) {
       const ready = await openPage(p, server.base, path)
       const f = await facts(p)
-      const tag = `${vp.name} ${path}`
-      ok(`${tag}: clock is in the top bar`, Boolean(f && f.shown && f.inside && !f.menuOpen), f)
+      const tag = `${vp.name} ${name}`
+      WHERE.push(`${tag}=${f ? f.where : 'none'}`)
+      ok(`${tag}: clock right of the version, or the top bar where none is drawn`, placed(f) && !f.menuOpen, f)
+      ok(`${tag}: exactly one clock`, Boolean(f && f.count === 1 && f.shown), f && { count: f.count, shown: f.shown })
       ok(`${tag}: HH:mm:ss after data`, ready && Boolean(f && /^\d{2}:\d{2}:\d{2}$/.test(f.text)), f && { text: f.text, title: f.title })
-      ok(`${tag}: bar height unchanged`, Boolean(f && f.expectH > 0 && Math.abs(f.barH - f.expectH) <= 1), f && { barH: f.barH, expectH: f.expectH })
       ok(`${tag}: no horizontal scroll`, Boolean(f && f.scroll), f && { scroll: f.scroll })
       ok(`${tag}: tooltip names last updated and the date`, Boolean(f && /last updated/i.test(f.title) && /\d{4}-\d{2}-\d{2}/.test(f.title)), f && f.title)
     }
   }
 
+  console.log('CLOCK_WHERE ' + WHERE.join(' '))
+  // the owner's case: the desktop channels screen and every phone channels screen
+  ok('the channels screen has it right of the version at every width', WIDTHS.every((vp) => WHERE.includes(`${vp.name} channels=${vp.touch ? 'strip' : 'sidebar-foot'}`)), WHERE)
+
   await p.setViewport({ width: 1440, height: 900 })
-  await openPage(p, server.base, '/lobby')
+  await openPage(p, server.base, '/channel/lobby')
   const local = await p.evaluate(() => {
     const el = document.querySelector('[data-test=last-data-clock]')
     const iso = el?.getAttribute('data-at') || ''
@@ -158,7 +192,7 @@ try {
       const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
       const channel = pinia?._s.get('channel')
       const read = () => document.querySelector('[data-test=last-data-clock]')?.getAttribute('data-at') || ''
-      const barH = () => Math.round(document.querySelector('[data-test=top-bar]')?.getBoundingClientRect().height || 0)
+      const barH = () => Math.round(document.querySelector('.foot-row')?.getBoundingClientRect().height || 0)
       const before = read()
       const h0 = barH()
       const t0 = performance.now()
@@ -173,21 +207,14 @@ try {
       return {
         ms: Math.round((performance.now() - t0) * 10) / 10,
         advanced: Boolean(after && after !== before),
-        barHeld: barH() === h0,
+        rowHeld: barH() === h0,
       }
     })
     samples.push(row)
     await sleep(8)
   }
   console.log('LAST_DATA_TIMING ' + JSON.stringify(samples))
-  ok('five refetches each advance the clock without moving the bar', samples.length === 5 && samples.every((s) => s.advanced && s.barHeld), samples)
-
-  const narrow = await (async () => {
-    await p.setViewport({ width: 360, height: 800, isMobile: true, hasTouch: true })
-    await openPage(p, server.base, '/lobby')
-    return facts(p)
-  })()
-  ok('360 px: the clock stays in the bar, fully on screen', Boolean(narrow && narrow.shown && narrow.inside && narrow.scroll && /^\d{2}:\d{2}:\d{2}$/.test(narrow.text)), narrow)
+  ok('five refetches each advance the clock without moving the version row', samples.length === 5 && samples.every((s) => s.advanced && s.rowHeld), samples)
 
   ok('no page errors', errors.length === 0, errors)
 
@@ -199,11 +226,11 @@ try {
       }, theme)
       for (const vp of WIDTHS) {
         await p.setViewport({ width: vp.width, height: vp.height, isMobile: vp.touch, hasTouch: vp.touch, deviceScaleFactor: vp.touch ? 2 : 1 })
-        await openPage(p, server.base, '/lobby')
+        await openPage(p, server.base, '/channel/lobby')
         await p.evaluate((id) => document.documentElement.setAttribute('data-theme', id), theme)
         await p.screenshot({ path: `${OUT}/lobby-${vp.name}-${theme}.png` })
-        const bar = await p.$('[data-test=top-bar]')
-        if (bar) await bar.screenshot({ path: `${OUT}/bar-lobby-${vp.name}-${theme}.png` })
+        const row = await p.$(vp.touch ? '[data-test=status-strip]' : '.sidebar-foot .foot-row')
+        if (row) await row.screenshot({ path: `${OUT}/row-lobby-${vp.name}-${theme}.png` })
       }
       await p.setViewport({ width: 1440, height: 900 })
       for (const path of ['/help', '/settings', '/docs']) {

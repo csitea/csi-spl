@@ -1,6 +1,8 @@
-<!-- The top-bar clock: local HH:mm:ss of the last hub response.
-     It is the only reader of that stamp, so a response re-renders this
-     node and not the bar. No timer: the text changes when data arrives. -->
+<!-- The last-updated clock: local HH:mm:ss of the last hub response, right
+     of the version (owner, t1 be316fdc): the sidebar footer on a desktop,
+     the phone's status strip. It is the only reader of that stamp, so a
+     response re-renders this node and not its row. No timer: the text
+     changes when data arrives. -->
 <template>
   <time
     class="last-data-clock"
@@ -35,7 +37,7 @@ const title = computed(() => {
 </script>
 
 <style scoped>
-/* Eight glyphs in every state, so the first response does not move the bar. */
+/* Eight glyphs in every state, so the first response does not move the row. */
 .last-data-clock {
   display: inline-block;
   flex: none;

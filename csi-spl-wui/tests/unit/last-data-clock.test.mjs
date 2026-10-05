@@ -161,14 +161,20 @@ describe('the shared hooks', () => {
 })
 
 describe('wiring', () => {
-  it('the clock sits in the top bar and nowhere else, and nothing ticks', () => {
+  it('the clock sits right of the version (sidebar foot, phone strip), the top bar only as the fallback, and nothing ticks', () => {
     const bar = read('src/components/TopBar.vue')
     const clock = read('src/components/LastDataClock.vue')
     const side = read('src/components/ChannelSidebar.vue')
     const strip = read('src/components/MobileStatusStrip.vue')
-    assert.match(bar, /<LastDataClock\s*\/>/)
-    assert.doesNotMatch(side, /LastDataClock/)
-    assert.doesNotMatch(strip, /LastDataClock/)
+    const host = read('src/composables/useClockHost.ts')
+    // desktop: the footer row, straight after the version wrap
+    assert.match(side, /data-test="app-version-wrap"[\s\S]*?<\/span>\s*<\/span>\s*(<!--[\s\S]*?-->\s*)?<LastDataClock v-if="clockHost\.foot\.value"/)
+    // phone: the status strip, straight after the version button
+    assert.match(strip, /data-test="status-strip-version"[\s\S]*?<\/button>\s*(<!--[\s\S]*?-->\s*)?<LastDataClock v-if="clockHost\.strip\.value"/)
+    // the top bar: only while neither version is on screen - one clock per screen
+    assert.match(bar, /<LastDataClock v-if="clockHost\.bar\.value"/)
+    assert.match(host, /bar = computed\(\(\) => !foot\.value && !strip\.value\)/)
+    for (const src of [side, strip, bar]) assert.equal((src.match(/<LastDataClock/g) || []).length, 1)
     assert.match(clock, /formatLastDataClock/)
     assert.match(clock, /data-test="last-data-clock"/)
     assert.doesNotMatch(clock, /setInterval|setTimeout/)

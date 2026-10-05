@@ -83,7 +83,9 @@
     </div>
     </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
-      <LastDataClock />
+      <!-- owner, t1 be316fdc: the clock sits right of the version; here only
+           on a screen that draws no version (useClockHost) -->
+      <LastDataClock v-if="clockHost.bar.value" />
       <!-- perf r4 W6: not mounted on a phone (the avatar sheet has it), so
            its async chunk is not fetched there either -->
       <div v-if="!phone" class="top-bar__lang"><LanguageSwitcher /></div>
@@ -109,12 +111,14 @@ import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
 import TopBarTenant from '~/components/TopBarTenant.vue'
 import LastDataClock from '@/components/LastDataClock.vue'
+import { useClockHost } from '~/composables/useClockHost'
 import TenantDropBox from '~/components/TenantDropBox.vue'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
 import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 
 const { t } = useI18n({ useScope: 'global' })
+const clockHost = useClockHost()
 const localePath = useLocalePath()
 const router = useRouter()
 const route = useRoute()

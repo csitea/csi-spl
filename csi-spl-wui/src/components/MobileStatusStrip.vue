@@ -41,6 +41,9 @@
     >
       <span class="status-strip__ver">{{ versionLabel }}</span>
     </button>
+    <!-- owner, t1 be316fdc: the last-updated clock right of the version, as
+         on the desktop footer; while a sheet hides the strip the top bar has it -->
+    <LastDataClock v-if="clockHost.strip.value" class="status-strip__clock" />
     <div v-if="open === 'health'" class="status-strip__card" role="status" data-test="status-strip-health-card">
       <ConnectionStatus />
     </div>
@@ -76,11 +79,13 @@
 <script setup lang="ts">
 import NotificationCenter from '@/components/NotificationCenter.vue'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
+import LastDataClock from '@/components/LastDataClock.vue'
 import { useLive } from '~/composables/useLive'
 import { useCopyText } from '~/composables/useCopyText'
 import { useKeyboardInset } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { setStatusStripHeight } from '~/composables/useStatusStrip'
+import { useClockHost } from '~/composables/useClockHost'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { connectionHealth } from '~/utils/channel-feed.mjs'
 import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
@@ -91,6 +96,10 @@ const stack = useMobileStack()
 const kbInset = useKeyboardInset()
 /* the layout mounts it on a phone only; the keyboard up = the composer is on it */
 const shown = computed(() => kbInset.value === 0)
+/* be316fdc: the clock is here while this version is on screen */
+const clockHost = useClockHost()
+watchEffect(() => { clockHost.strip.value = shown.value && !stack.sheetOpen.value })
+onBeforeUnmount(() => { clockHost.strip.value = false })
 
 /* the desktop footer's dot: the same state, the same words */
 const liveState = useLive().state
@@ -210,6 +219,8 @@ onBeforeUnmount(() => {
 /* as on the desktop: the version is the row's last item, at its end */
 .status-strip__version { margin-inline-start: auto; min-width: 0; }
 .status-strip__ver { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* be316fdc: the clock right after the version, the strip's last item */
+.status-strip__clock { padding-inline-end: 2px; }
 .status-strip__card {
   position: absolute;
   bottom: calc(100% + 4px);

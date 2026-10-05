@@ -715,6 +715,10 @@
             <button type="button" class="vs-pop__reload" data-test="app-version-notes" @click.stop="releaseNotesOpen = true">{{ t('release_notes.open') }}</button>
           </span>
         </span>
+        <!-- owner, t1 be316fdc: the last-updated clock right of the version,
+             while this row is on screen (useClockHost: else the phone strip
+             or the top bar has it - one clock, one listener per screen) -->
+        <LastDataClock v-if="clockHost.foot.value" class="foot-row__clock" />
       </div>
       <!-- identity, Sign in / Sign out: the top-right UserMenu -->
     </div>
@@ -765,6 +769,8 @@ import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { withDmPeers } from '~/utils/live-follow.mjs'
 import HumanName from '~/components/HumanName.vue'
+import LastDataClock from '~/components/LastDataClock.vue'
+import { useClockHost } from '~/composables/useClockHost'
 import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
@@ -1495,6 +1501,30 @@ function placeVsPop(ev?: Event) {
   const left = Math.max(8, Math.min(r.left + 8, window.innerWidth - 8 - w))
   vsPlace.value = { '--vs-left': `${Math.round(left)}px`, '--vs-bottom': `${Math.round(window.innerHeight - wrap.getBoundingClientRect().top)}px` }
 }
+/* be316fdc: the clock follows the version - here only while this row is
+   drawn: not on a phone, not rail-only, not under the topic browser. A
+   resize catches the rail / collapse, a route change the hidden sidebar. */
+const clockHost = useClockHost()
+const footRow = () => vsWrapEl.value?.closest<HTMLElement>('.foot-row') || null
+function measureFoot() {
+  const el = footRow()
+  const r = el?.getBoundingClientRect()
+  clockHost.foot.value = Boolean(!phone.value && el && r && r.width > 0 && r.height > 0 && getComputedStyle(el).visibility === 'visible')
+}
+let footObserver: ResizeObserver | null = null
+onMounted(() => {
+  measureFoot()
+  const el = footRow()
+  if (typeof ResizeObserver !== 'undefined' && el) {
+    footObserver = new ResizeObserver(measureFoot)
+    footObserver.observe(el)
+  }
+})
+watch([() => route.fullPath, phone], () => nextTick(() => requestAnimationFrame(measureFoot)))
+onBeforeUnmount(() => {
+  footObserver?.disconnect()
+  clockHost.foot.value = false
+})
 /* SPL-999: the code blocks' copy (with its insecure-origin fallback) */
 const { copied: vsCopiedId, copy: copyText } = useCopyText()
 const vsCopied = computed(() => vsCopiedId.value === 'commit')
@@ -1899,7 +1929,20 @@ async function onCreate() {
 @media (max-width: 820px) {
   .foot-row .health { display: none; }
 }
-.foot-row .vs-wrap { flex: 1 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
+.foot-row .vs-wrap { flex: 0 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
+/* be316fdc: the clock hugs the version (4 px) at the version's size. Dot,
+   bell + note, version and clock want ~246 px; the default 260 px sidebar's
+   row has 212. With the clock the row's padding and gaps tighten, the
+   version never shrinks under it, and on a mouse the bell and the note take
+   the plain .icon-btn 32 px, not the 44 px tap target (touch keeps 44): 210 */
+.foot-row:has(> .foot-row__clock) { gap: 6px; padding-inline: 12px 4px; }
+.foot-row:has(> .foot-row__clock) .vs-wrap { flex: none; }
+.foot-row:has(> .foot-row__clock) .version-stamp { padding-inline-start: 0; }
+.foot-row .foot-row__clock { margin-inline-start: -2px; font-size: calc(0.6875rem * 0.9); text-align: start; }
+@media not (pointer: coarse) {
+  .foot-row:has(> .foot-row__clock) :deep(.notify-alerts),
+  .foot-row:has(> .foot-row__clock) :deep(.notify-chime) { min-width: 32px; min-height: 32px; }
+}
 .foot-row .version-stamp {
   flex: 1 1 auto;
   min-width: 0;

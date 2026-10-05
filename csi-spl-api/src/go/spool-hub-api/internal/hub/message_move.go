@@ -20,8 +20,9 @@ import (
 // to a different channel, provided he has access to this channel", and
 // "thread level msgs / cards should be draggable to a different topic". Who
 // may is 041's rule (the author, the tenant owner, an admin); the target must
-// be a channel the mover may post in. Every route is a member-session browser
-// route: an agent has none.
+// be a channel the mover may post in. These are the member-session browser
+// routes; an agent moves a topic over its box socket (box_move.go), through
+// the same storeTopicMove.
 
 const (
 	topicMovedFrame   = "topic_moved"
@@ -128,26 +129,35 @@ func writeRefusal(w http.ResponseWriter, token string) {
 // for a members-only channel they are not in is the same 404 as a missing
 // one. ok=false means it answered.
 func (s *Server) postableChannel(w http.ResponseWriter, ctx context.Context, tenant, channel, hum string) bool {
-	missing := func() bool {
-		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+channel+" in this tenant")
+	if ie := s.targetChannel(ctx, tenant, channel, func() (bool, error) {
+		return s.canReadChannel(ctx, tenant, channel, hum)
+	}); ie != nil {
+		writeErr(w, ie.status, ie.token, ie.detail)
 		return false
 	}
+	return true
+}
+
+// targetChannel is the target door for both movers: the channel exists, is
+// not deleted or reserved, and may says the mover may post in it (a member's
+// read door, or an agent's channel membership). Every no is unknown_channel.
+func (s *Server) targetChannel(ctx context.Context, tenant, channel string, may func() (bool, error)) *issueErr {
+	missing := &issueErr{http.StatusNotFound, "unknown_channel", "no channel " + channel + " in this tenant"}
 	if !store.ValidChannelID(channel) || channel == store.ChannelIssues || channel == store.ChannelTasks {
-		return missing()
+		return missing
 	}
 	known, err := s.o.Store.ChannelKnown(ctx, tenant, channel)
 	if err == nil && known {
-		known, err = s.canReadChannel(ctx, tenant, channel, hum)
+		known, err = may()
 	}
 	switch {
 	case err != nil:
 		s.o.Log.Error().Err(err).Str("channel", channel).Msg("move target channel")
-		writeErr(w, http.StatusInternalServerError, "internal", "channel lookup failed")
-		return false
+		return &issueErr{http.StatusInternalServerError, "internal", "channel lookup failed"}
 	case !known:
-		return missing()
+		return missing
 	}
-	return true
+	return nil
 }
 
 // POST /v1/messages/{msg_id}/move (contract §2, §3).
@@ -194,20 +204,37 @@ func (s *Server) moveTopic(w http.ResponseWriter, r *http.Request, mr moveRow, c
 	if !s.postableChannel(w, r.Context(), c.t.ID, ch, mr.hum) {
 		return
 	}
-	now := s.o.Now().UTC().Truncate(time.Second)
-	res, err := s.o.Store.MoveTopic(r.Context(), c.t.ID, c.m.MsgID, c.m.TaskID, ch, c.from, now)
-	if !s.moveStored(w, err, c.m.MsgID) {
+	out, ie := s.storeTopicMove(r.Context(), c.t.ID, c.m, ch, c.from, "")
+	if ie != nil {
+		writeErr(w, ie.status, ie.token, ie.detail)
 		return
 	}
-	s.o.Log.Info().Str("tenant", c.t.ID).Str("msg_id", c.m.MsgID).Str("by", c.from).Str("from_channel", c.m.Channel).
-		Str("channel", ch).Int("rows", len(res.MsgIDs)).Msg("topic moved")
-	out := map[string]any{"kind": "topic", "msg_id": c.m.MsgID, "task_id": c.m.TaskID, "channel": ch,
-		"from_channel": c.m.Channel, "moved": res.Moved, "moved_by": c.from, "moved_at": rfc(now),
-		"msg_ids": res.MsgIDs, "undo": map[string]string{"to_channel": c.m.Channel}}
-	to := c.m
-	to.Channel = ch
-	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(topicMovedFrame, out))
 	writeJSON(w, http.StatusOK, out)
+}
+
+// storeTopicMove is the write every topic move shares, the browser's and an
+// agent's: the store move, the log line, the answer and the topic_moved
+// frame. by is the mover (moved_by); actingFor the HUM-* an agent acts for
+// ("" = none), logged beside it.
+func (s *Server) storeTopicMove(ctx context.Context, tenant string, m store.EditableMessage, ch, by, actingFor string) (map[string]any, *issueErr) {
+	now := s.o.Now().UTC().Truncate(time.Second)
+	res, err := s.o.Store.MoveTopic(ctx, tenant, m.MsgID, m.TaskID, ch, by, now)
+	if ie := s.moveStoreErr(err, m.MsgID); ie != nil {
+		return nil, ie
+	}
+	ev := s.o.Log.Info().Str("tenant", tenant).Str("msg_id", m.MsgID).Str("by", by).Str("from_channel", m.Channel).
+		Str("channel", ch).Int("rows", len(res.MsgIDs))
+	if actingFor != "" {
+		ev = ev.Str("acting_for", actingFor)
+	}
+	ev.Msg("topic moved")
+	out := map[string]any{"kind": "topic", "msg_id": m.MsgID, "task_id": m.TaskID, "channel": ch,
+		"from_channel": m.Channel, "moved": res.Moved, "moved_by": by, "moved_at": rfc(now),
+		"msg_ids": res.MsgIDs, "undo": map[string]string{"to_channel": m.Channel}}
+	to := m
+	to.Channel = ch
+	s.fanoutMove(ctx, tenant, m, to, moveFrame(topicMovedFrame, out))
+	return out, nil
 }
 
 // moveMessage is contract §3: a reply (and its thread) into topic task.
@@ -262,18 +289,26 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 
 // moveStored answers a store error; ok=true when there was none.
 func (s *Server) moveStored(w http.ResponseWriter, err error, msgID string) bool {
+	if ie := s.moveStoreErr(err, msgID); ie != nil {
+		writeErr(w, ie.status, ie.token, ie.detail)
+		return false
+	}
+	return true
+}
+
+// moveStoreErr is a move store error as an answer; nil when there was none.
+func (s *Server) moveStoreErr(err error, msgID string) *issueErr {
 	switch {
 	case err == nil:
-		return true
+		return nil
 	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return &issueErr{http.StatusNotFound, "not_found", "no such message"}
 	case errors.Is(err, store.ErrConflict):
-		writeErr(w, http.StatusConflict, "too_deep", "this topic nests deeper than a move will walk")
+		return &issueErr{http.StatusConflict, "too_deep", "this topic nests deeper than a move will walk"}
 	default:
 		s.o.Log.Error().Err(err).Str("msg_id", msgID).Msg("move store")
-		writeErr(w, http.StatusInternalServerError, "internal", "move not stored")
+		return &issueErr{http.StatusInternalServerError, "internal", "move not stored"}
 	}
-	return false
 }
 
 // moveFrame is the answer as a frame: the type added, undo left out.

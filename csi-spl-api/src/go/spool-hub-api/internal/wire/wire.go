@@ -51,6 +51,11 @@ const (
 	// PUT/DELETE /v1/messages/{card}/archive. Request and reply pair on
 	// MsgID, a request id the box picks.
 	TArchive = "archive"
+	// TMove is a box agent moving a topic to another channel of its
+	// workspace by its task id, and the hub's answer: the box twin of the
+	// browser's POST /v1/messages/{card}/move {to_channel}. Request and
+	// reply pair on MsgID, a request id the box picks.
+	TMove = "move"
 	// TReact is a box agent adding or removing an emoji reaction on a
 	// message of a topic, and the hub's answer (CLE-77895): the box twin of
 	// the browser's PUT/DELETE /v1/messages/{msg_id}/reactions. Request and
@@ -253,6 +258,13 @@ type Frame struct {
 	// archived_at, archived_by}.
 	ArchiveOp string          `json:"archive_op,omitempty"`
 	Archive   json.RawMessage `json:"archive,omitempty"`
+
+	// move: MoveTo the target channel on the request (TaskID the topic, As
+	// the acting agent, TypedBy the HUM-* it acts for, if any); Move the
+	// answer object on the reply - the browser route's body {kind, msg_id,
+	// task_id, channel, from_channel, moved, moved_by, moved_at, msg_ids}.
+	MoveTo string          `json:"move_to,omitempty"`
+	Move   json.RawMessage `json:"move,omitempty"`
 
 	// react (CLE-77895): ReactOp add | remove | list (read-only), Emoji the glyph, ReactMsg the
 	// target message ("" = the topic's opening card) on the request (TaskID

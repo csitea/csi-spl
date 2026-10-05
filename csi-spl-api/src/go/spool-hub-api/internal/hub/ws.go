@@ -156,6 +156,8 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			s.onDelete(ctx, x, f)
 		case wire.TArchive: // CLE-77869: a box agent archives a topic
 			s.onArchive(ctx, x, f)
+		case wire.TMove: // a box agent moves a topic to another channel
+			s.onMove(ctx, x, f)
 		case wire.TReact: // CLE-77895: a box agent adds / removes an emoji
 			s.onReact(ctx, x, f)
 		case wire.TLease: // CLE-77911: the fleet-wide lease, compare-and-set

@@ -23,6 +23,8 @@
 //	          a message this box sent with a new body (specs/032 §10)
 //	delete  --msg-id <uuid> [--as <id>]   hub mode: remove a message this box sent
 //	archive --task <uuid> --as <id> [--unarchive]   hub mode: archive a topic (CLE-77869)
+//	move    --task <uuid> --channel <ch> --as <id> [--acting-for <HUM-n>]   hub mode: move a topic to
+//	          another channel (the starter, or for a box operator who is an owner / admin)
 //	react   (--task <uuid> [--msg <uuid>] | --msg <uuid>) (--emoji <e> [--remove] | --list) --as <id>   hub mode:
 //	          add an emoji reaction, default on the topic's opening message (CLE-77895)
 //	lease   --fleet <f> --role <r> [--holder <id>@<box> --if-gen <n>]   hub mode: read, or
@@ -121,6 +123,7 @@ on a box (an agent's machine):
   issue               list, get, create, update, comment, label, delete issues
   edit, delete        edit or delete a message this box sent
   archive             archive (or --unarchive) a topic by its task id
+  move                move a topic by its task id to another channel
   react               add (or --remove, or --list) an emoji reaction on a topic's message
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
@@ -250,6 +253,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdDelete(cfg, rest)
 	case "archive": // CLE-77869
 		return cmdArchive(cfg, rest)
+	case "move":
+		return cmdMove(cfg, rest)
 	case "react": // CLE-77895
 		return cmdReact(cfg, rest)
 	case "lease": // CLE-77911

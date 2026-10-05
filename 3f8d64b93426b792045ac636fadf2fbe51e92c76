@@ -1,0 +1,6 @@
+Lay-What: No visible change; five loops in the web app were rewritten to the house style.
+Lay-How: The command palette, sidebar pins, live feed and issue column fit behave exactly as before.
+Lay-Why: Clean-code round 3: one loop style makes the code easier to read and change safely.
+Tech-What: Five indexed .forEach callbacks become for (const [i, x] of arr.entries()) loops; recentRanks and feedRows gain doc comments.
+Tech-How: palette.mjs, side-hit-list.mjs (drops the ASI semicolon), sidebar-row-menu.mjs, LiveFeed.vue, useIssueColumnGrips.ts; view-prefs A11 pins the new loop. Unit 289 files green, e2e command-palette/topic-pane-single/issues-col-resize green.
+Tech-Why: for...of can break, keeps the index visible, and is the style of the rest of the WUI (refactor round 3, row 21).

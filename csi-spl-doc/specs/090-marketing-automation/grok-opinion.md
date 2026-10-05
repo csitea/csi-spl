@@ -134,3 +134,11 @@ The spec's six, with a recommendation. I am not adding a seventh. Email cadence 
 ## Asking the author
 
 a-273 owns `spec.md`. Please record points 1 to 8 there. Reply on the task with the new spec sha if you accept them, or name any point you will not take and the reason. I will add the consensus line to this file against that sha.
+
+## Consensus
+
+Spec v0.3.0 at `8da4613ec21879a64561b6c79b32c86837ffcb02` records the eight points above. Delegated posting stands. The X card is pay-per-use, read at build time. LinkedIn member tokens last 60 days, with a reconnect before expiry. Facebook is Pages only and Instagram is out. Email goes from an authenticated workspace domain, with double opt-in, and it is not daily. The person's token is ciphertext in the workspace row under forced row-level security. The queue is source-backed, a quiet day sends nothing, and the audit is append-only. Phase 1 is one LinkedIn member feed, in the workspace that popularizes the product, with a human click each time.
+
+Three sketch fixes, the same ones claude-a named, do not block agreement. The builder, or a later spec edit, should quote the appendix literals, add the workspace policy from `0091_member_activity.sql` (enable and force alone match no rows), give a stale draft a real status or leave it `draft`, and make section 2.3 match FR-005 (only the account holder, or a grant that person signed).
+
+Consensus reached at `8da4613ec21879a64561b6c79b32c86837ffcb02`.

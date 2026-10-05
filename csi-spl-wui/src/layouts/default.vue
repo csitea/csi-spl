@@ -181,6 +181,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
@@ -296,6 +297,19 @@ stack.install({
    the topic-list follow the front door used to start. It returns at once
    while main is mounted, so a desktop leave still unfollows from the page. */
 const mountMain = computed(() => !(stack.isMobile.value && stack.level.value === 1))
+/* A cold load of /?topic= hydrates against the query-less prerender, so
+   the first level is 1 and this pane is unmounted. The page that would
+   open the right pane never mounts, and the pane never appears. Open it
+   from here; level 3 then mounts the page. A phone home with no topic
+   id stays unmounted. */
+const frontTopic = useSettledQuery('topic')
+watch(frontTopic.value, (id) => {
+  if (!import.meta.client || !stack.isMobile.value) return
+  if (!isMobileFrontDoor(route.path)) return
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return
+  if (String(livePane.taskId || '') === id) return
+  void livePane.open(id)
+}, { immediate: true })
 const frontApi = useSpoolApi()
 const frontViewer = useViewerStore()
 let frontStarted = false

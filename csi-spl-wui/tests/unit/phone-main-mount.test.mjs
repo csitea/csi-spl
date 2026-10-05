@@ -31,4 +31,10 @@ describe('phone level 1 does not mount the middle pane', () => {
     assert.match(layout, /frontViewer\.follow\(\)/)
     assert.match(layout, /flush: 'post'/)
   })
+
+  it('a phone front door with a topic query opens the pane while the page is unmounted', () => {
+    assert.match(layout, /useSettledQuery\('topic'\)/)
+    assert.match(layout, /isMobileFrontDoor\(route\.path\)/)
+    assert.match(layout, /livePane\.open\(id\)/)
+  })
 })

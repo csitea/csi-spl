@@ -11,6 +11,7 @@
 #      dead box's rows are counted as lag (uncommitted_dead), never an alert;
 #      CONTROL: no rows -> boxes=0, no ALERT; garbage -> non-zero
 #   4. with no key readable, the action stops before gcloud
+#      (4b: a failing gcloud activate leaves no temp dir under TMPDIR)
 #   5. spl_consumer_lag_render: ndjson prints the rows byte for byte (CONTROL:
 #      the old output, which scripts and the S4 alert read); table prints a
 #      header plus one aligned row per box, no colour off a tty; a bad
@@ -67,6 +68,13 @@ SNIPPET="spl_consumer_lag_summary 'not json'" in_orc >/dev/null 2>&1 && fail "ga
 out=$(SNIPPET=do_spl_consumer_lag in_orc ENV=dev SPL_SA_KEY="$T/none.json" 2>&1); rc=$?
 [[ $rc -ne 0 ]] && grep -q "no service-account key" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "no key: refused, no gcloud call" \
   || fail "no key: rc=$rc calls=$(cat "$T/calls.log") out=$out"
+
+# --- 4b. gcloud fails: the throwaway CLOUDSDK_CONFIG is removed ------------------------
+mkdir -p "$T/tmp"; : >"$T/calls.log"
+out=$(SNIPPET=do_spl_consumer_lag in_orc ENV=dev SPL_SA_KEY="$T/key.json" TMPDIR="$T/tmp" 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q "^gcloud auth activate-service-account" "$T/calls.log" && [[ -z "$(ls -A "$T/tmp")" ]] \
+  && pass "gcloud fails: activate tried, TMPDIR left empty" \
+  || fail "gcloud fails: rc=$rc calls=$(head -c 200 "$T/calls.log") tmp=$(ls -A "$T/tmp" | tr '\n' ' ') out=$out"
 
 # --- 5. render ------------------------------------------------------------------------
 ren_of() { SNIPPET="spl_consumer_lag_render '$1' $2" in_orc 2>&1; }

@@ -41,9 +41,14 @@ do_spl_hub_member_list() {
   fi
   local key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
+  # the SA runs under a throwaway CLOUDSDK_CONFIG holding its activated
+  # credential: the EXIT trap removes it on every subshell exit (an
+  # interrupt too), the outer rm is the backstop. The same block lives in
+  # spl-db-message-show.func.sh and spl-consumer-lag.func.sh (a shared helper is a later lane).
   local cfg rc=0
   cfg="$(mktemp -d)" || return 1
   (
+    trap 'rm -rf "$cfg"' EXIT
     export CLOUDSDK_CONFIG="$cfg"
     gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }

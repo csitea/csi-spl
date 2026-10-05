@@ -8,6 +8,7 @@
 #   2. the SQL only SELECTs (no INSERT/UPDATE/DELETE/ALTER/DROP) and reads no
 #      credential table (native_credentials, human_keys)
 #   3. with no key readable, it stops before gcloud (a stub log stays empty)
+#   4. a failing gcloud activate leaves no CLOUDSDK_CONFIG dir under TMPDIR
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -45,6 +46,13 @@ if SNIPPET=do_spl_hub_member_list in_orc TENANT_ID=t1 SPL_SA_KEY="$T/nope.json" 
 else
   grep -q gcloud "$T/calls.log" && fail "no key: gcloud was called" || pass "no key: refused before any gcloud call"
 fi
+
+# --- 4. gcloud fails: the throwaway CLOUDSDK_CONFIG is removed -------------------------
+printf '{}\n' >"$T/key.json"; mkdir -p "$T/tmp"; : >"$T/calls.log"
+SNIPPET=do_spl_hub_member_list in_orc TENANT_ID=t1 SPL_SA_KEY="$T/key.json" TMPDIR="$T/tmp" >"$T/o" 2>&1
+grep -q "^gcloud auth activate-service-account" "$T/calls.log" && [[ -z "$(ls -A "$T/tmp")" ]] \
+  && pass "gcloud fails: activate tried, TMPDIR left empty" \
+  || fail "gcloud fails: calls=$(head -c 200 "$T/calls.log") tmp=$(ls -A "$T/tmp" | tr '\n' ' ') out=$(head -c 300 "$T/o")"
 
 echo
 (( fails == 0 )) && echo "ALL HUB MEMBER LIST CHECKS PASSED" || echo "$fails CHECK(S) FAILED"

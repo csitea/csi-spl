@@ -7,12 +7,12 @@ One task per fix, each one small lane. Topic:
 while iterating) and `cd csi-spl-iac && ./run -a do_check_pre_push`. Design
 for N boxes (spec section 0): no box name in code, tests or docs.
 
-- [ ] **T001 (US1, fix 1) desk-gated lease, handback hold-down, intermittent class.**
+- [x] **T001 (US1, fix 1) desk-gated lease, handback hold-down, intermittent class.**
   Files: `orc/src/bash/run/spl-dispatch-lease.func.sh` (`spl_fleet_candidate`,
   `spl_fleet_role_tick`, new `spl_fleet_desk_able`),
   `orc/src/bash/tests/fleet-lease.tst.sh` (section 19),
   `doc/doc/md/SPEC-spool-fleet-roles.md` sections 4 and 4.1.
-- [ ] **T002 (US2, fix 2) restart policy on the tf infra containers.**
+- [x] **T002 (US2, fix 2) restart policy on the tf infra containers.**
   Files: `orc/src/docker/docker-compose-tf-infra.yaml`. Takes effect at the
   next `make do-setup-app-inf`; the lane never runs that.
 - [ ] **T003 (US3, fix 3) handover of in-flight relays on takeover.**

@@ -6,6 +6,9 @@ services:
     image: img-${ORG_APP}-conf-validator
     container_name: "${CON_PREFIX:-con-${ORG}-${APP}}-conf-validator"
     pull_policy: never
+    # spec 092 FR-003: back by itself after a power cut (a laptop box loses
+    # power routinely); unless-stopped keeps a container stopped on purpose down
+    restart: unless-stopped
     env_file: "tf-infra.env"
     build:
       context: ../../..
@@ -71,6 +74,9 @@ services:
     image: img-${ORG_APP}-tpl-gen
     container_name: "${CON_PREFIX:-con-${ORG}-${APP}}-tpl-gen"
     pull_policy: never
+    # spec 092 FR-003: back by itself after a power cut (a laptop box loses
+    # power routinely); unless-stopped keeps a container stopped on purpose down
+    restart: unless-stopped
     env_file: "tf-infra.env"
     build:
       context: ../../..
@@ -134,6 +140,9 @@ services:
     image: img-${ORG_APP}-tf-runner
     container_name: "${CON_PREFIX:-con-${ORG}-${APP}}-tf-runner"
     pull_policy: never
+    # spec 092 FR-003: back by itself after a power cut (a laptop box loses
+    # power routinely); unless-stopped keeps a container stopped on purpose down
+    restart: unless-stopped
     env_file: "tf-infra.env"
     build:
       context: ../../..

@@ -7,13 +7,19 @@
 # @description names the key minted by do_satellite_ssh_keygen, and re-pins the
 # @description VM's host key (do_satellite_pin_host_key), so a destroy +
 # @description recreate never ends in "Host key ... has changed".
+# @description The block multiplexes (perf E15): ControlMaster auto keeps one
+# @description IAP tunnel open ControlPersist seconds after the last session,
+# @description so the next ssh/scp reuses it (~4 s fresh -> ~0.1 s). The
+# @description socket lives in <ssh dir>/cm (mode 700) named by the %C hash;
+# @description the short persist bounds a stale master after a VM recreate.
 # @param SSH_CONFIG (optional) - default $HOME/.ssh/config
 # @param SATELLITE_ALIAS (optional) - default satellite
+# @param SATELLITE_SSH_PERSIST (optional) - ControlPersist seconds, default 60
 # @example ./run -a do_satellite_ssh_config
 #------------------------------------------------------------------------------
 do_satellite_ssh_config() {
   local cfg="${SSH_CONFIG:-$HOME/.ssh/config}" alias="${SATELLITE_ALIAS:-satellite}"
-  local vm zone proj user key proxy tmp
+  local vm zone proj user key proxy tmp cm persist="${SATELLITE_SSH_PERSIST:-60}"
   vm=$(do_satellite_cnf vm_name) || return 1
   zone=$(do_satellite_cnf gcp_zone) || return 1
   proj=$(do_satellite_cnf gcp_project) || return 1
@@ -22,7 +28,8 @@ do_satellite_ssh_config() {
   proxy="${PROJ_PATH}/src/bash/scripts/satellite-iap-proxy.sh"
   local begin="# >>> csi-spl satellite (do_satellite_ssh_config) >>>"
   local end="# <<< csi-spl satellite (do_satellite_ssh_config) <<<"
-  mkdir -p "$(dirname "$cfg")"; touch "$cfg"; chmod 600 "$cfg"
+  cm="$(dirname "$cfg")/cm"
+  mkdir -p "$(dirname "$cfg")" "$cm"; chmod 700 "$cm"; touch "$cfg"; chmod 600 "$cfg"
   tmp=$(mktemp) || return 1
   awk -v b="$begin" -v e="$end" '$0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip' "$cfg" >"$tmp"
   {
@@ -32,6 +39,7 @@ do_satellite_ssh_config() {
     printf '  ProxyCommand bash %s %s %s %%h %%p\n' "$proxy" "$proj" "$zone"
     printf '  StrictHostKeyChecking accept-new\n  UserKnownHostsFile ~/.ssh/known_hosts.satellite\n'
     printf '  ServerAliveInterval 30\n'
+    printf '  ControlMaster auto\n  ControlPath %s/%%C\n  ControlPersist %s\n' "$cm" "$persist"
     printf '%s\n' "$end"
   } >>"$tmp"
   cat "$tmp" >"$cfg" && rm -f "$tmp"

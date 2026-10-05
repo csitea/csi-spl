@@ -84,6 +84,12 @@ grep -q '^Host other$' "$c" && pass "the rest of ~/.ssh/config is kept" || fail 
 grep -qE "^  ProxyCommand bash .*/satellite-iap-proxy.sh test-proj europe-north1-a %h %p$" "$c" \
   && pass "ProxyCommand goes through the IAP proxy as the project" || fail "no IAP ProxyCommand in the block"
 grep -qx "  IdentityFile $key" "$c" && pass "the block names the minted private key" || fail "IdentityFile is not $key"
+# perf E15: one IAP tunnel reused (fresh ~3.9 s, reused ~0.1 s per ssh); private socket dir, short persist
+grep -qx '  ControlMaster auto' "$c" && pass "the block reuses one connection (ControlMaster auto)" || fail "no ControlMaster auto: every ssh opens a new IAP tunnel"
+grep -qx "  ControlPath $HOME/.ssh/cm/%C" "$c" && pass "ControlPath is the private cm dir, %C hash" || fail "ControlPath is not $HOME/.ssh/cm/%C"
+cp_s=$(awk '$1 == "ControlPersist" { print $2 }' "$c")
+[[ "$cp_s" =~ ^[0-9]+$ ]] && (( cp_s >= 60 && cp_s <= 300 )) && pass "ControlPersist $cp_s s is within 60..300" || fail "ControlPersist '${cp_s}' is not 60..300 s"
+[[ "$(stat -c %a "$HOME/.ssh/cm")" == 700 ]] && pass "the control socket dir is mode 700" || fail "the control socket dir is not mode 700"
 
 grep -q AAAAOLDSTALEKEY "$kh" && fail "the stale host key of a recreated VM is kept" || pass "the stale host key is dropped"
 grep -qx 'test-satellite ssh-ed25519 AAAANEWKEY1' "$kh" && grep -qx 'test-satellite ecdsa-sha2-nistp256 AAAANEWKEY2' "$kh" \

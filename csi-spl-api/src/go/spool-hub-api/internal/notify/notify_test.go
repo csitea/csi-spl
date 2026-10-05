@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -138,6 +139,24 @@ func TestRunTimesOut(t *testing.T) {
 	Run(cfg, testMsg(), "CLE-91")
 	if d := time.Since(start); d > 5*time.Second {
 		t.Fatalf("Run held the caller for %v; the timeout did not fire", d)
+	}
+}
+
+// RunCtx: cancelling the caller ctx kills a hung notifier at once, well
+// before NotifyTimeout. `exec sleep` leaves no grandchild on the pipe, so
+// WaitDelay is not what ends it.
+func TestRunCtxCancelledKillsNotifier(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("uses sleep(1)")
+	}
+	cmd, _ := fakeNotifier(t, 0, "exec sleep 5\n")
+	cfg := &config.Config{SpoolRoot: t.TempDir(), NotifyCmd: cmd, NotifyTimeout: 30 * time.Second}
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	start := time.Now()
+	RunCtx(ctx, cfg, testMsg(), "CLE-91")
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("RunCtx held the caller for %v after its ctx was cancelled", d)
 	}
 }
 

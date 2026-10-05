@@ -573,7 +573,9 @@ func openStore(ctx context.Context, dsn string, limits store.PoolLimits) (store.
 }
 
 // cmdHubTenant seeds a tenant row (006 owns tenant creation; this is the
-// operator bootstrap for M1). Idempotent for the same root key.
+// operator bootstrap for M1). Idempotent for the same root key. Like the other
+// hub-* admin verbs it runs on interruptible(), so Ctrl-C or SIGTERM cancels
+// the DB open and the insert instead of waiting on a slow or dead database.
 func cmdHubTenant(args []string) int {
 	fs := flag.NewFlagSet("hub-tenant", flag.ContinueOnError)
 	tenant := fs.String("tenant", "", "tenant id")
@@ -587,7 +589,8 @@ func cmdHubTenant(args []string) int {
 	if !msg.ValidTenantID(*tenant) || err != nil || len(pub) != ed25519.PublicKeySize || *dsn == "" {
 		return fail(fmt.Errorf("--tenant (valid, non-reserved slug), --root-pubkey (base64 32-byte key) and --db / $SPOOL_HUB_DB_DSN are required"))
 	}
-	ctx := context.Background()
+	ctx, stop := interruptible()
+	defer stop()
 	st, err := store.OpenPostgres(ctx, *dsn)
 	if err != nil {
 		return fail(err)
@@ -618,7 +621,8 @@ func cmdHubTenantBilling(args []string) int {
 	if !msg.ValidTenantID(*tenant) || *event == "" || *dsn == "" {
 		return fail(fmt.Errorf("--tenant (valid slug), --event and --db / $SPOOL_HUB_DB_DSN are required"))
 	}
-	ctx := context.Background()
+	ctx, stop := interruptible()
+	defer stop()
 	st, err := store.OpenPostgres(ctx, *dsn)
 	if err != nil {
 		return fail(err)
@@ -677,7 +681,8 @@ func cmdHubProvisionMember(args []string) int {
 			return fail(fmt.Errorf("hash password: %w", err))
 		}
 	}
-	ctx := context.Background()
+	ctx, stop := interruptible()
+	defer stop()
 	st, err := store.OpenPostgres(ctx, *dsn)
 	if err != nil {
 		return fail(err)
@@ -723,7 +728,8 @@ func cmdHubInvite(args []string) int {
 	if !msg.ValidTenantID(*tenant) || *email == "" || *ttl <= 0 || *dsn == "" {
 		return fail(fmt.Errorf("--tenant (valid slug), --email, a positive --ttl and --db / $SPOOL_HUB_DB_DSN are required"))
 	}
-	ctx := context.Background()
+	ctx, stop := interruptible()
+	defer stop()
 	st, err := store.OpenPostgres(ctx, *dsn)
 	if err != nil {
 		return fail(err)
@@ -778,7 +784,8 @@ func cmdHubInviteMail(args []string) int {
 	if !msg.ValidTenantID(*tenant) || *email == "" || *dsn == "" {
 		return fail(fmt.Errorf("--tenant (valid slug), --email and --db / $SPOOL_HUB_DB_DSN are required"))
 	}
-	ctx := context.Background()
+	ctx, stop := interruptible()
+	defer stop()
 	st, err := store.OpenPostgres(ctx, *dsn)
 	if err != nil {
 		return fail(err)

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,7 +48,13 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) ([]Applied, er
 	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrateLockKey); err != nil {
 		return nil, err
 	}
-	defer conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, migrateLockKey) //nolint:errcheck
+	defer func() {
+		// The unlock must survive a cancelled ctx (or the lock outlives the run
+		// on a pooled conn), but bounded: a dead DB must not hang the caller.
+		uctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		conn.Exec(uctx, `SELECT pg_advisory_unlock($1)`, migrateLockKey) //nolint:errcheck
+	}()
 	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS spool_schema_migrations (
 		filename   text        PRIMARY KEY,
 		sha256     text        NOT NULL,

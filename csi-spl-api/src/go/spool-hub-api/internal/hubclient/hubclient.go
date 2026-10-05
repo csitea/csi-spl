@@ -472,10 +472,15 @@ func (s *Session) keepalive() {
 		case <-s.done:
 			return
 		case <-t.C:
-			ctx, cancel := context.WithTimeout(context.Background(), wait)
+			// The session ctx, not Background: a ping in flight when Close
+			// or the read loop ends the session stops at once.
+			ctx, cancel := context.WithTimeout(s.ctx, wait)
 			err := s.conn.Ping(ctx)
 			cancel()
 			if err != nil {
+				if s.ctx.Err() != nil {
+					return // the session was ended elsewhere; that path closes the socket
+				}
 				select {
 				case <-s.done: // already ending; not our call to report
 				default:
@@ -495,6 +500,9 @@ func (s *Session) readLoop() {
 	defer close(s.done)
 	for {
 		var f wire.Frame
+		// Background on purpose: closing the socket (keepalive's CloseNow,
+		// Close's normal closure) is what ends this read. A cancelled s.ctx
+		// must not abort a frame half-read while the hub is still talking.
 		if err := wsjson.Read(context.Background(), s.conn, &f); err != nil {
 			s.mu.Lock()
 			s.closeErr = err

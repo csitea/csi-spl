@@ -56,9 +56,17 @@ func poked(code int) bool {
 // separately because a mention-routed channel message (003 channels-v1 §4) is
 // delivered to several local agents and m.To names only one of them.
 //
-// It blocks for at most cfg.NotifyTimeout and returns nothing: every outcome
-// is a log line.
+// It blocks for at most cfg.NotifyTimeout plus the one-second WaitDelay that
+// bounds a grandchild still holding the output pipe, and returns nothing:
+// every outcome is a log line.
 func Run(cfg *config.Config, m *msg.Message, to string) {
+	RunCtx(context.Background(), cfg, m, to)
+}
+
+// RunCtx is Run under a caller ctx: cancelling ctx kills the notifier at once
+// (then the same WaitDelay applies), so an owner such as Queue can stop work
+// in flight. cfg.NotifyTimeout still bounds a ctx that is never cancelled.
+func RunCtx(ctx context.Context, cfg *config.Config, m *msg.Message, to string) {
 	if !Enabled(cfg) || m == nil || to == "" {
 		return
 	}
@@ -73,7 +81,7 @@ func Run(cfg *config.Config, m *msg.Message, to string) {
 	)
 
 	trace.Mark(trace.Event{Stage: trace.StageNotifyStart, MsgID: m.MsgID, To: to})
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.NotifyTimeoutOr())
+	ctx, cancel := context.WithTimeout(ctx, cfg.NotifyTimeoutOr())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // operator-set command, no shell
 	// The notifier is a shell script that runs tmux; its OWN children inherit

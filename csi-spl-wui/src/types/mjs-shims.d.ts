@@ -1957,6 +1957,8 @@ declare module '~/utils/chunk-reload.mjs' {
   export const RELOAD_GUARD_MS: number
   export function isChunkLoadError(err: unknown): boolean
   export function shouldReload(last: number, now?: number): boolean
+  export function onPreloadError(ev: Event & { payload?: unknown }, reload: () => void): void
+  export function onUnhandledChunkError(ev: PromiseRejectionEvent, reload: () => void): void
 }
 
 declare module '~/utils/tenant-host.mjs' {

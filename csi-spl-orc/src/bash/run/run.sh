@@ -53,9 +53,10 @@ execute_step() {
       declare -A _arg_map
       while IFS= read -r _aline; do
         local _adef="${_aline#arg=}"
-        local _aflag _avar
-        _aflag=$(echo "$_adef" | awk '{print $1}')
-        _avar=$(echo "$_adef" | awk '{print $2}')
+        local _aflag _avar _aextra
+        # awk '{print $1}' / '{print $2}' with no fork. The third name keeps
+        # the second field from swallowing the rest of the line.
+        read -r _aflag _avar _aextra <<< "$_adef" || true
         [[ -n "$_aflag" && -n "$_avar" ]] && _arg_map["$_aflag"]="$_avar"
       done <<< "$_arg_lines"
       # Parse CLI args against the map. Boolean support: a known flag
@@ -233,10 +234,33 @@ do_run_actions() {
   local args=("${@:2}")
   actions_found=0
   cd ${PROJ_PATH:-}
-  actions="$(echo -e "${actions}" | tr " " "\n" | sed -e '/^$/d')"
+  # Space-separated names, empty fields dropped. Was echo | tr | sed,
+  # one fork pair on every ./run including the action-not-found path.
+  local _an_raw="${actions}" _an_piece _an_nl
+  _an_nl=$'\n'
+  actions=""
+  while [[ "${_an_raw}" == *" "* ]]; do
+    _an_piece="${_an_raw%% *}"
+    _an_raw="${_an_raw#* }"
+    if [[ -n "${_an_piece}" ]]; then
+      if [[ -n "${actions}" ]]; then
+        actions="${actions}${_an_nl}${_an_piece}"
+      else
+        actions="${_an_piece}"
+      fi
+    fi
+  done
+  if [[ -n "${_an_raw}" ]]; then
+    if [[ -n "${actions}" ]]; then
+      actions="${actions}${_an_nl}${_an_raw}"
+    else
+      actions="${_an_raw}"
+    fi
+  fi
   run_funcs=''
   do_log "DEBUG do_run_actions: actions=$actions, args=${args[*]}"
-  while read -r arg_action; do
+  while IFS= read -r arg_action || [[ -n "${arg_action:-}" ]]; do
+    [[ -z "${arg_action:-}" ]] && continue
     # Normalise to do_snake_case
     local lookup="$arg_action"
     [[ "$lookup" != do_* ]] && lookup="do_${lookup//-/_}"
@@ -244,9 +268,13 @@ do_run_actions() {
 
     if [[ -n "${_func_to_file[$lookup]:-}" ]]; then
       actions_found=$((actions_found + 1))
-      run_funcs="$(echo -e "${run_funcs}\n$lookup")"
+      if [[ -n "${run_funcs}" ]]; then
+        run_funcs="${run_funcs}${_an_nl}${lookup}"
+      else
+        run_funcs="${lookup}"
+      fi
     fi
-  done < <(echo "$actions")
+  done <<< "${actions}"
 
   do_log "DEBUG actions_found=$actions_found"
   test $actions_found -eq 0 && {
@@ -257,14 +285,14 @@ do_run_actions() {
     exit 1
   }
 
-  run_funcs="$(echo -e "${run_funcs}" | sed -e 's/^[[:space:]]*//;/^$/d')"
   local _final_rc=0
-  while read -r run_func; do
+  while IFS= read -r run_func || [[ -n "${run_func:-}" ]]; do
+    [[ -z "${run_func:-}" ]] && continue
     cd ${PROJ_PATH:-}
     execute_step "$run_func" "${args[@]}"
     local _step_rc=$?
     (( _step_rc != 0 )) && _final_rc=$_step_rc
-  done < <(echo "$run_funcs")
+  done <<< "${run_funcs}"
   return $_final_rc
 }
 
@@ -321,38 +349,66 @@ do_log() {
     echo -e "${RED_COLOR} 💣 [FATAL] ${1:-}${DEFAULT_COLOR}"
   }
 
-  type_of_msg=$(echo $* | cut -d" " -f1)
-  action=$(echo $* | cut -d" " -f2)
-  rest_of_msg=$(echo $* | cut -d" " -f3-)
+  # First two words and the remainder, the same bytes as
+  # `echo $* | cut -d" " -f1/-f2/-f3-`, with no fork. Unquoted $* collapses
+  # IFS whitespace; a line with no space has no delimiter, and cut prints
+  # that whole line for every -f. RUN_LOG_EPOCH (seconds) freezes both
+  # stamps for a byte-compare; unset means now. printf %()T matches date
+  # in the same TZ.
+  local _do_log_words=()
+  read -r -a _do_log_words <<< "$*" || true
+  if ((${#_do_log_words[@]} <= 1)); then
+    type_of_msg="${_do_log_words[0]:-}"
+    action="$type_of_msg"
+    rest_of_msg="$type_of_msg"
+  else
+    type_of_msg="${_do_log_words[0]}"
+    action="${_do_log_words[1]}"
+    if ((${#_do_log_words[@]} > 2)); then
+      rest_of_msg="${_do_log_words[*]:2}"
+    else
+      rest_of_msg=""
+    fi
+  fi
 
   local display_type="${type_of_msg/WARNING/WARN}"
   local type_padded
   type_padded=$(printf "%-7s" "[$display_type]")
 
+  local _do_log_ts _do_log_day
+  printf -v _do_log_ts '%(%Y-%m-%d %H:%M:%S %Z)T' "${RUN_LOG_EPOCH:--1}"
+  printf -v _do_log_day '%(%Y%m%d)T' "${RUN_LOG_EPOCH:--1}"
+
   if [[ "$action" == "START" || "$action" == "STOP" ]]; then
     formatted_action=$(printf "%-5s" "$action")
-    msg=" $type_padded $(date "+%Y-%m-%d %H:%M:%S %Z") [${PROJ:-}][@${HOST_NAME:-}] [$$] $formatted_action $rest_of_msg"
+    msg=" $type_padded ${_do_log_ts} [${PROJ:-}][@${HOST_NAME:-}] [$$] $formatted_action $rest_of_msg"
   else
-    msg=" $type_padded $(date "+%Y-%m-%d %H:%M:%S %Z") [${PROJ:-}][@${HOST_NAME:-}] [$$] $action $rest_of_msg"
+    msg=" $type_padded ${_do_log_ts} [${PROJ:-}][@${HOST_NAME:-}] [$$] $action $rest_of_msg"
   fi
 
-  local _log_dir
-  if [[ -n "${LOG_DIR:-}" ]]; then
-    _log_dir="$LOG_DIR"
-    mkdir -p "$_log_dir" 2>/dev/null || true
-  elif [[ -n "${PROJ:-}" && -n "${ORG:-}" && -n "${APP:-}" ]]; then
-    _log_dir="${VAR_DIR:-/var}/${ORG}/${APP}/${PROJ}/dat/log/bash"
-    if ! mkdir -p "$_log_dir" 2>/dev/null; then
+  # One mkdir per directory, not one per line. Resolve again only when
+  # LOG_DIR changes or the directory is gone.
+  if [[ "${_do_log_dir_ready:-}" != "${LOG_DIR:-}" || -z "${LOG_DIR:-}" || ! -d "${LOG_DIR:-}" ]]; then
+    local _log_dir
+    if [[ -n "${LOG_DIR:-}" ]]; then
+      _log_dir="$LOG_DIR"
+      mkdir -p "$_log_dir" 2>/dev/null || true
+    elif [[ -n "${PROJ:-}" && -n "${ORG:-}" && -n "${APP:-}" ]]; then
+      _log_dir="${VAR_DIR:-/var}/${ORG}/${APP}/${PROJ}/dat/log/bash"
+      if ! mkdir -p "$_log_dir" 2>/dev/null; then
+        _log_dir="${PROJ_PATH:-$(pwd)}/dat/log/bash"
+        mkdir -p "$_log_dir" 2>/dev/null || true
+      fi
+    else
       _log_dir="${PROJ_PATH:-$(pwd)}/dat/log/bash"
       mkdir -p "$_log_dir" 2>/dev/null || true
     fi
-  else
-    _log_dir="${PROJ_PATH:-$(pwd)}/dat/log/bash"
-    mkdir -p "$_log_dir" 2>/dev/null || true
+    log_dir="$_log_dir"
+    export LOG_DIR="$log_dir"
+    _do_log_dir_ready="$LOG_DIR"
   fi
-  log_dir="$_log_dir"
-  export LOG_DIR="$log_dir"
-  log_file="$log_dir/${PROJ:-run}."$(date "+%Y%m%d")'.log'
+  log_dir="$LOG_DIR"
+  log_file="$log_dir/${PROJ:-run}.${_do_log_day}.log"
 
   # Compact mode (do_detect_log_mode; a do_log sourced without main keeps the
   # full line): the file gets the full line, stdout `LEVEL msg`.

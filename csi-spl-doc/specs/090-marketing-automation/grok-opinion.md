@@ -142,3 +142,11 @@ Spec v0.3.0 at `8da4613ec21879a64561b6c79b32c86837ffcb02` records the eight poin
 Three sketch fixes, the same ones claude-a named, do not block agreement. The builder, or a later spec edit, should quote the appendix literals, add the workspace policy from `0091_member_activity.sql` (enable and force alone match no rows), give a stale draft a real status or leave it `draft`, and make section 2.3 match FR-005 (only the account holder, or a grant that person signed).
 
 Consensus reached at `8da4613ec21879a64561b6c79b32c86837ffcb02`.
+
+## Still open after v0.3.1
+
+v0.3.1 (`350e2b9b0a57b0a9074f706cd14dcb08a0753ad1`) quotes the appendix literals, marks a stale draft `rejected`, and aligns section 2.3 with FR-005. Those three match this review.
+
+The new row policy does not. All five tables compare `workspace_id` to `current_setting('app.current_workspace_id', true)`. Measured on origin/master `fed5700e2ac3df713e315cf80351207c8050600b`: `git grep app.current_workspace_id origin/master -- *.go *.sql` returns no hits (n=0). The hub sets the setting named in `csi-spl-rdb/src/sql/postgres/spool-hub/0091_member_activity.sql` lines 40-41, including the empty-string guard, and lines 42-44 are the operator policy. Copy those. The sketch's `workspace_id` is the prose name for the column that file already uses.
+
+The eight behaviour points stay agreed. This sketch line is the one point still open.

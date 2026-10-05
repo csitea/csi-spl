@@ -567,6 +567,12 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 	ctx := h.withSettings(r.Context(), s, override) // one settings read for the whole answer (SPL-1100)
 	out := sessionResp{Session: s, DiagnosticsEnabled: h.diagnosticsGrant(ctx, s)}
 	out.Name = h.shownName(ctx, s)
+	if demoSession(roles) { // specs/077 T011: no email, never the IdP name
+		out.Email = ""
+		if out.Name == s.Name {
+			out.Name = ""
+		}
+	}
 	h.sessionTenants(r, &out, roles)
 	if s.HumanID != "" && h.prefs != nil {
 		// A settings lookup never fails the session: the WUI then follows the browser.
@@ -1401,6 +1407,9 @@ func (h *Handler) storePref(w http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, ErrNoHuman):
 		writeErr(w, http.StatusConflict, "no_human", "the session's human no longer exists")
+		return false
+	case errors.Is(err, ErrPseudonymFixed):
+		writeErr(w, http.StatusForbidden, "pseudonym", "a demo visitor keeps its generated name")
 		return false
 	case err != nil:
 		h.log.Error().Err(err).Msg("auth.preferences store")

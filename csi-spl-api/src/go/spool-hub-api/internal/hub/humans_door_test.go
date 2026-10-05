@@ -96,6 +96,9 @@ func newDoorRig(t *testing.T, mut ...func(*hub.Options)) *doorRig {
 		}
 		if o.DemoWorkspace != "" { // specs/077 §3.8: auth fences demo seats as cmd/spool wires it
 			ao.DemoWorkspace = o.DemoWorkspace
+			// The open demo admission (T007) and its pseudonym (T011), as cmd/spool wires it.
+			hooks.Policy.OpenWorkspace, hooks.Policy.OpenProviders = o.DemoWorkspace, []string{"google", "facebook"}
+			ao.Registrar, ao.Membership, ao.Preferences = hooks, hooks, hooks
 			o.Auth = auth.New(cfg, zerolog.Nop(), ao)
 		}
 		ot = o.OriginTenant // SPL-959: the auth side reads the same resolver

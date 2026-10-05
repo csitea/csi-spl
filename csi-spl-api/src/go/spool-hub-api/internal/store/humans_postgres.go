@@ -301,7 +301,10 @@ func seatDemoTx(ctx context.Context, tx pgx.Tx, hum, tenant string, r admitRule,
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by, access_until)
 		VALUES ($1, $2, $3, $4, $5, $6)`, tenant, hum, rbac.DemoUser, now, AdmittedDemo, now.Add(r.p.maxStay()).UTC())
-	return err
+	if err != nil {
+		return err
+	}
+	return pseudonymTx(ctx, tx, hum) // specs/077 T011
 }
 
 // takeDemoAdmissionTx counts one demo visit for the account and, on its

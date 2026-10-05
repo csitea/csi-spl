@@ -185,6 +185,8 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 		h.members[[2]string{tenant, hum}] = *grant
 		if grant.admittedBy == AdmittedDemo {
 			s.takeDemoAdmission(tenant, id, now)
+			// specs/077 T011: a pseudonym, no IdP picture
+			h.humans[hum].name, h.humans[hum].avatar = DemoPseudonym(hum), ""
 		}
 	}
 	if inv != nil {

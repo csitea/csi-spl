@@ -132,8 +132,19 @@ Rules for every task (owner Q8, spec §3.10):
 
 ### Phase 3: Privacy, abuse and cost in the hub
 
-- [ ] T011 **pseudonyms** (FR-007): `visitor-xxxx` display names, generated
-  avatars, no email in any response to a `demo_user`.
+- [x] T011 **pseudonyms** (FR-007): `visitor-xxxx` display names, generated
+  avatars, no email in any response to a `demo_user`. Done (c-340): open
+  admission (`seatDemoTx`, memory grant) sets `humans.display_name` to
+  `store.DemoPseudonym` (`visitor-` + 4 hex of sha256(human_id)) and clears
+  `avatar_file_id` in the same transaction; the sign-in stores no IdP picture
+  for a demo seat, so the WUI draws its identicon; PUT preferences
+  `display_name` is `403 pseudonym` for a demo visitor; GET session answers a
+  demo visitor `email: ""` and never the IdP name. No migration. Tests:
+  `TestDemoPseudonym` (store, memory + Postgres; CONTROL a real member keeps
+  name and picture), `TestDemoSessionPseudonym` (auth), and
+  `TestDemoVisitorsSeeOnlyPseudonyms` (hub: visitor B walks every read route
+  naming visitor A; no answer carries A's email or IdP name). Each fails on
+  the old code.
 - [x] T012 **post quota and size** (FR-006): 10 posts/min, 200/day per demo
   user; 4 KiB message cap for `demo_user`. Done (c-327): hub
   `demo_post_quota.go` counts a demo_user's browser sends and replies per

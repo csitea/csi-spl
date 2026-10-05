@@ -78,7 +78,11 @@ func (a AuthHooks) Register(ctx context.Context, id auth.Identity, tenant string
 	if err != nil {
 		return "", err
 	}
-	// After admission, so a refused sign-in writes no blob either.
+	// After admission, so a refused sign-in writes no blob either. A demo
+	// visitor's IdP picture is never kept (specs/077 T011).
+	if a.demoSeat(ctx, hum, tenant) {
+		return hum, nil
+	}
 	if err := a.storeAvatar(ctx, hum, tenant, id.Avatar); err != nil && a.AvatarErr != nil {
 		a.AvatarErr(hum, err)
 	}
@@ -371,8 +375,12 @@ func (a AuthHooks) DisplayName(ctx context.Context, humanID string) (string, err
 	return name, err
 }
 
-// SetDisplayName stores it; an unknown human is auth.ErrNoHuman.
+// SetDisplayName stores it; an unknown human is auth.ErrNoHuman. A demo
+// visitor keeps the pseudonym: auth.ErrPseudonymFixed (specs/077 T011).
 func (a AuthHooks) SetDisplayName(ctx context.Context, humanID, name string) error {
+	if a.demoSeat(ctx, humanID, a.Policy.OpenWorkspace) {
+		return auth.ErrPseudonymFixed
+	}
 	err := a.H.SetDisplayName(ctx, humanID, name)
 	if errors.Is(err, ErrNotFound) {
 		return auth.ErrNoHuman

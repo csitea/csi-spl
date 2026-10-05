@@ -62,7 +62,8 @@ do_secrets_check_gcp() {
 #   <slot> <ENV_VAR> <required|optional> <gen|ask> <seed command>
 # gen: its seed makes the value itself; ask: it needs an outside value (SMTP,
 # IdP, payment) from an owner file. Reads the rendered 030 / 040 tfvars, and
-# the cnf secret_env maps for the env var of a slot 030 does not inject.
+# the cnf secret_env maps for the env var of a slot 030 does not inject, and
+# the two optional public dataset login slots of cnf public_dataset (091 T004).
 spl_secrets_slots() {
   local dir="${SPL_TFVARS_DIR:-$APP_PATH/$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf}"
   local f030="$dir/030-cloud-run-hub.vars.tfvars" f040="$dir/040-cloud-sql-postgres.vars.tfvars"
@@ -71,7 +72,12 @@ spl_secrets_slots() {
   local maps
   maps="$(yq -o=json '[.. | select(tag == "!!map") | select(has("secret_env")) | .secret_env]' "$SPL_CNF")" ||
     { do_log "FATAL cannot read the secret_env maps of $SPL_CNF"; return 1; }
-  SPL_SECRET_ENV_MAPS="$maps" python3 - "$f030" "$f040" <<'PY'
+  # spec 091 T004: the public dataset logins' password slots (no terraform
+  # step makes them; their seed creates them), never read by the hub
+  local public
+  public="$(yq -o=json '[.env.public_dataset.export_password_secret // "", .env.public_dataset.names_password_secret // ""]' "$SPL_CNF")" ||
+    { do_log "FATAL cannot read cnf public_dataset of $SPL_CNF"; return 1; }
+  SPL_SECRET_ENV_MAPS="$maps" SPL_PUBLIC_SLOTS="$public" python3 - "$f030" "$f040" <<'PY'
 import json, os, re, sys
 
 def tfvars(path):
@@ -99,6 +105,8 @@ GEN = {
     "SPOOL_HUB_AUTH_SESSION_KEY": "./run -a do_spl_auth_secrets_seed",
     "SPOOL_HUB_WUI_KEY": "./run -a do_spl_wui_key_seed",
     "SPOOL_HUB_RELEASE_NOTE_BANS": "./run -a do_spl_release_note_bans_seed",
+    "PUBLIC_EXPORT_DB_PASSWORD": "./run -a do_spl_public_export_secret_seed",
+    "PUBLIC_NAMES_DB_PASSWORD": "./run -a do_spl_public_export_secret_seed",
 }
 ASK = {
     "SPOOL_HUB_MAIL_SMTP_PASSWORD": "./run -a do_spl_mail_secret_seed",
@@ -124,6 +132,8 @@ for s, e in injected.items():
     add(s, e, "required")
 for s in v30.get("auth_secret_ids") or []:
     add(s, by_slot.get(s, ""), "optional")
+for s, e in zip(json.loads(os.environ["SPL_PUBLIC_SLOTS"]), ("PUBLIC_EXPORT_DB_PASSWORD", "PUBLIC_NAMES_DB_PASSWORD")):
+    add(s, e, "optional")
 if not rows:
     sys.exit("no secret slot in the rendered 030/040 tfvars")
 rank = lambda r: (ORDER.index(r[1]) if r[1] in ORDER else len(ORDER), r[0])

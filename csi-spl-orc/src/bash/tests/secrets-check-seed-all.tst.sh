@@ -33,7 +33,10 @@ dsn_secret_id = "$P-db-dsn"
 owner_dsn_secret_id = "$P-db-owner-dsn"
 EOF
 # the cnf maps a slot 030 does not inject to its env var; point them at the fixture names
-CNF_FIX='(.. | select(tag == "!!map") | select(has("secret_env")) | .secret_env) |= with_entries(.value |= sub("^[a-z]+-[a-z]+-hub-"; "x-y-hub-"))'
+# (and the two public dataset login slots of 091 T004)
+CNF_FIX='(.. | select(tag == "!!map") | select(has("secret_env")) | .secret_env) |= with_entries(.value |= sub("^[a-z]+-[a-z]+-hub-"; "x-y-hub-"))
+  | .env.public_dataset.export_password_secret = "x-y-public-export-db-password"
+  | .env.public_dataset.names_password_secret = "x-y-public-names-db-password"'
 
 run_act() {  # <action> [VAR=value ...]
   local act="$1"; shift
@@ -79,6 +82,7 @@ run_act() {  # <action> [VAR=value ...]
     do_spl_mail_secret_seed()        { _stub_seed mail "$P-mail-smtp-password"; }
     do_spl_auth_idp_secret_seed()    { _stub_seed idp "$P-auth-$IDP-client-secret"; }
     do_spl_payment_secret_seed()     { _stub_seed payment "$P-stripe-secret-key"; }
+    do_spl_public_export_secret_seed() { _stub_seed public x-y-public-export-db-password x-y-public-names-db-password; }
     "$ACT"' 2>&1
 }
 cnt() { local n; n=$(grep -c -- "$1" "$2" 2>/dev/null); echo "${n:-0}"; }  # <pattern> <file>: 0 when absent
@@ -120,13 +124,14 @@ out=$(run_act do_spl_secrets_seed_all); rc=$?
 
 : >"$T/seeds"
 out=$(run_act do_spl_secrets_seed_all DRY_RUN=0); rc=$?
-# empty slots it owns: 6 required + the generated release-note bans; not facebook / stripe (ask, not injected)
-[[ $rc -eq 0 && $(adds) -eq 7 ]] && pass "seed-all: DRY_RUN=0 adds one version per owned empty slot (7) and the check passes" || fail "seed-all real: rc=$rc adds=$(adds) $out"
+# empty slots it owns: 6 required + the generated release-note bans + the two
+# public dataset logins (091 T004); not facebook / stripe (ask, not injected)
+[[ $rc -eq 0 && $(adds) -eq 9 ]] && pass "seed-all: DRY_RUN=0 adds one version per owned empty slot (9) and the check passes" || fail "seed-all real: rc=$rc adds=$(adds) $out"
 [[ $(seed_calls '^idp') -eq 0 && $(seed_calls '^payment') -eq 0 && ! -f "$T/store/$P-auth-facebook-client-secret" ]] &&
   pass "seed-all: no question for an IdP or rail the tfvars do not inject" || fail "seed-all asked a disabled provider: $(cat "$T/seeds")"
 [[ -f "$T/store/$P-release-note-bans" ]] && pass "seed-all: a generated slot is seeded even when not injected" || fail "seed-all skipped the bans"
 order="$(cut -d' ' -f1 "$T/seeds" | tr '\n' ' ')"
-[[ "$order" == "db wui bans mail auth " ]] && pass "seed-all: generated seeds first, then the asked ones ($order)" || fail "seed-all order: $order"
+[[ "$order" == "db wui bans public mail auth " ]] && pass "seed-all: generated seeds first, then the asked ones ($order)" || fail "seed-all order: $order"
 sk="$(cat "$T/store/$P-auth-session-key")"
 [[ "$(base64 -d <<<"$sk" 2>/dev/null | wc -c)" -eq 48 ]] && pass "seed-all: the session key is 48 random bytes, base64" || fail "session key shape"
 if grep -qF "$sk" <<<"$out" || grep -qF "$sk" "$T/argv"; then fail "seed-all: the session key appears in output or argv"; else pass "seed-all: the session key is in no output and no gcloud argv"; fi

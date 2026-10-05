@@ -84,7 +84,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
   - **Needs from the owner**: nothing (prd bootstrap goes through the orchestrator).
   - **Deploy + prove**: bootstrap dev, then prd via the orchestrator. On both, `pg_policies` lists `public_export_scope` as `RESTRICTIVE` on each table, and `pg_roles` shows `spool_public_export` with `rolbypassrls = false` and `rolsuper = false`.
 
-- [ ] T004 **export and names logins, column grants** (fence 1, §5.1; the names step's login, §5.5 item 3).
+- [x] T004 **export and names logins, column grants** (fence 1, §5.1; the names step's login, §5.5 item 3). Done by c-315: 25 column grants on 5 tables + `public_export_workspace`; cnf `public_dataset.{export,names}_login` and `{export,names}_password_secret` (the seed creates the two slots; `do_spl_secrets_check` lists them as optional). For T006: `tenant_id` of `channels` and `messages` is withheld, so the export cannot name it; fence 3 there is the join through the exported `channels` row, and fence 2 still pins the rows.
   - **Build**:
     - `roles/public-export-role.sql`: LOGIN, NOSUPERUSER, NOBYPASSRLS, NOINHERIT, not an owner, password as a SCRAM verifier computed client side (the `runtime-role.sql` pattern).
     - `roles/public-export-grants.sql`: **generated** from the allow-list by `do_spl_public_export_grants_gen` (`orc/src/bash/run/spl-public-export-grants-gen.func.sh`): `REVOKE ALL`, then `GRANT SELECT (<public cols>) ON <table>` for exactly §4.1, plus `SELECT` on `public_export_workspace`. Nothing else.

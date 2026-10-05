@@ -123,6 +123,19 @@ rt_dsn() { # <db>
   if [ -n "$PG_CTR" ]; then echo "postgres://$RT_ROLE:$RT_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
   else echo "postgres://$RT_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi
 }
+# specs/091 T004 (fence 1): the public dataset's two logins, by the same
+# role files do_spl_public_export_role runs as the owner; the password is the
+# login's name (trust auth locally, scram in docker). The store suite reads
+# their DSNs (TestPublicExportGrantsLive, TestPublicNamesLoginReadsNamesOnly).
+login_dsn() { # <role> <db>
+  if [ -n "$PG_CTR" ]; then echo "postgres://$1:$1@127.0.0.1:$PGPORT/$2?sslmode=disable"
+  else echo "postgres://$1@/$2?host=$WORK&port=$PGPORT&sslmode=disable"; fi
+}
+public_logins() { # <db>: a migrated db
+  own_sql "$1" "$ROLES_SQL/public-export-role.sql" -v export_verifier=spool_public_export >/dev/null
+  own_sql "$1" "$ROLES_SQL/public-export-grants.sql" >/dev/null
+  own_sql "$1" "$ROLES_SQL/public-names-role.sql" -v names_verifier=spool_public_names >/dev/null
+}
 pids=()
 for pkg in store hub auth; do
   db="spool_hub_$pkg"
@@ -130,7 +143,10 @@ for pkg in store hub auth; do
   pdsn="$(app_dsn "$db")"
   "$BIN" migrate --db "$pdsn" --sql-dir "$SQL_DIR" >/dev/null # auth's suite expects a migrated db
   own_sql "$db" "$ROLES_SQL/runtime-grants.sql" -v runtime_role="$RT_ROLE" >/dev/null
+  [ "$pkg" = store ] && { public_logins "$db"; public_logins "$db"; } # the second run: idempotent
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn "$db")" \
+      SPOOL_TEST_PG_PUBLIC_EXPORT_DSN="$(login_dsn spool_public_export "$db")" \
+      SPOOL_TEST_PG_PUBLIC_NAMES_DSN="$(login_dsn spool_public_names "$db")" \
       CGO_ENABLED=1 go test -race -count=1 "./internal/$pkg/" ) &
   pids+=("$!")
 done

@@ -161,7 +161,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
   - **Needs from the owner**: nothing.
   - **Deploy + prove**: the next weekly stable release (wf 55) shows the Data section, or "no file yet" while nothing is published.
 
-- [ ] T010 **the loader** `do_spl_public_dataset_load` (§9.1, §9.2).
+- [x] T010 **the loader** `do_spl_public_dataset_load` (§9.1, §9.2).
   - **Build**: `SEED_FILE=<path or URL> SEED_ADMIN_EMAIL=<email> ./run -a do_spl_public_dataset_load` (`spl-public-dataset-load.func.sh`):
     1. Fetches the file and manifest, checks the sha256, refuses a manifest without three PASS verdicts (a `SEED_ALLOW_UNVERIFIED=1` switch exists for the CI round trip only, refused unless `CI=true`).
     2. Statement whitelist: only `COPY … FROM stdin` blocks and their data; each target a §4.1 table with exactly its public columns plus the §4.4 constants; anything else (DDL, `SET`, a function body, a `COPY` into a credential table) refuses the whole file.
@@ -174,6 +174,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
   - **Depends**: none to build (it reads the file format of §5.7). **Parallel** with T002..T008.
   - **Needs from the owner**: nothing.
   - **Deploy + prove**: T011's round trip is its proof.
+  - **Built** (c-295): the manifest keys the loader reads, which T006 writes: `sha256`, `version`, `migration_head` (a migration file name), `row_counts.{tenants,humans,tenant_memberships,channels,messages}`, `verdicts[]` of `{lane_kind, lane_id, verdict, file_sha256}`. A COPY may name `tenant_id` on every table but `humans`; the loader forces every §4.4 constant itself, whatever the file holds. The first admin reuses `spool hub-provision-member --password-stdin`, so no new Go was needed.
 
 - [ ] T011 **CI round trip and canaries** (§9.3, C5; the claude opinion's canary-row and unclassified-column tests).
   - **Build**:

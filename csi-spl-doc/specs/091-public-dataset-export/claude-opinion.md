@@ -221,4 +221,20 @@ only with a canary proving the archived lobby row stays out.
 
 Points still open for the owner, not for the panel: Q1 (consent and opt-out), Q1b, Q3, Q7, Q8, Q9.
 
-Consensus reached at c526b38d6
+Consensus reached at c526b38d6 (superseded by §11).
+
+## 11. Round 3: spec.md v0.3.0 (`b76c46b2e`), after the agy round
+
+- **§4.4, withheld NOT NULL columns:** every one gets a fixed constant from the projection. `msg` is rebuilt
+  only from columns already exported, with `files: []` and no `sig`. `env` and `env_sig` are empty, the boxes
+  are `seed`, and the root key is zero until the loader replaces it. None is ever read from the stored
+  envelope, and the C5 canaries in `msg`, `env` and `env_sig` prove it. This is the constraint I asked for.
+- **0112 links** (`ref_task_id`, `mirror_of`) and the `moved_from_*` columns are withheld by name and are C3
+  entries. My lobby build note is in §4.4.
+- **Q7:** I accept the panel's recommendation of daily lanes on prd, since those are the owner's words. My
+  cheaper cadence (lanes on the first publish and on any allow-list, export-code or migration change) stays
+  only as an option the owner may pick; it is not a panel objection.
+
+Nothing is open between this reviewer and the author. Owner questions: Q1, Q1b, Q3, Q7, Q8, Q9.
+
+Consensus reached at b76c46b2e

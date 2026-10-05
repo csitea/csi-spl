@@ -928,9 +928,12 @@ jobs:
           # is that key with one bare value -- no comment, no second value.
           # The same address anywhere else, under another key, or trailed by
           # anything on that line still fails. Not a blanket email allow.
+          # The R03 alert recipients (owner order 2026-10-05, step 070)
+          # are the same kind of config: keys alert_email_<n> in the same
+          # env.gcp section, one bare value per line, allowed exactly so.
           # CONTROL: csi-spl-iac/src/bash/tests/hygiene-owner-email-allow.tst.sh
           allow_file='^\./csi-spl-cnf/csi-spl/[a-z]+\.env\.(yaml|json)$'
-          allow_line='^[[:space:]]*"?gcp_account_owner_email"?[[:space:]]*:[[:space:]]*"?[^"[:space:]#,]+"?,?[[:space:]]*$'
+          allow_line='^[[:space:]]*"?(gcp_account_owner_email|alert_email_[0-9]+)"?[[:space:]]*:[[:space:]]*"?[^"[:space:]#,]+"?,?[[:space:]]*$'
           # Second owner-approved exception (spec 069 v0.2, section 4 row Y8:
           # "users into csi-spl-cnf"): the satellite's two OS users are
           # config, keys box_owner_user / box_agent_user in the same cnf

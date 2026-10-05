@@ -1,4 +1,4 @@
-# The alert policies of row R03. Each pages the 03 owner channel.
+# The alert policies of row R03. Each pages every 03 channel (email and sms).
 #
 # NOT here, on purpose: a policy on the workflow 45 backup. That job runs on a
 # GitHub-hosted runner, so Cloud Monitoring cannot see it fail; the one cloud
@@ -7,7 +7,10 @@
 # (measured 2026-10-03T05:35Z -> 2026-10-04T07:09Z). A red scheduled run of
 # 45 is already its alert (the workflow's own header).
 locals {
-  channels = [google_monitoring_notification_channel.owner_email.name]
+  channels = concat(
+    [for c in google_monitoring_notification_channel.email : c.name],
+    [for c in google_monitoring_notification_channel.sms : c.name],
+  )
   name     = "${var.org}-${var.app}-${var.env}"
   run      = "resource.type = \"cloud_run_revision\" AND resource.labels.service_name = \"${var.hub_service_name}\""
   requests = "metric.type = \"run.googleapis.com/request_count\" AND ${local.run}"

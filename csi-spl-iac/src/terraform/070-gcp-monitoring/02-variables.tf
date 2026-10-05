@@ -30,18 +30,48 @@ variable "gcp_region" {
 }
 
 # The page goes to the owner directly, never through the fleet (availability
-# plan 2.5.4: the fleet lease demotes when the hub is down). The address is
-# NOT rendered into the tfvars (the hygiene sweep allows it only on its own
-# cnf line): do_tf_init exports every string of the cnf env.gcp section as
-# TF_VAR_<KEY UPPERCASED>, so this is cnf env.gcp.gcp_account_owner_email,
-# set at run time.
-variable "GCP_ACCOUNT_OWNER_EMAIL" {
+# plan 2.5.4). The recipients are NOT rendered into the tfvars (the hygiene
+# sweep allows an address only on its own cnf line): do_tf_init exports every
+# string of the cnf env.gcp section as TF_VAR_<KEY UPPERCASED>, so these are
+# cnf env.gcp.alert_email_<n> / alert_sms_<n>, set at run time. An empty slot
+# is no channel; a cnf key past the last slot here needs one more variable.
+variable "ALERT_EMAIL_1" {
   type        = string
-  description = "The owner's address: cnf env.gcp.gcp_account_owner_email, exported by do_tf_init as TF_VAR_GCP_ACCOUNT_OWNER_EMAIL."
+  default     = ""
+  description = "An alert recipient's address: cnf env.gcp.alert_email_1, exported by do_tf_init."
+}
+
+variable "ALERT_EMAIL_2" {
+  type        = string
+  default     = ""
+  description = "An alert recipient's address: cnf env.gcp.alert_email_2, exported by do_tf_init."
+}
+
+variable "ALERT_EMAIL_3" {
+  type        = string
+  default     = ""
+  description = "An alert recipient's address: cnf env.gcp.alert_email_3, exported by do_tf_init."
+}
+
+variable "ALERT_SMS_1" {
+  type        = string
+  default     = ""
+  description = "An alert recipient's phone in E.164 (+<country><number>): cnf env.gcp.alert_sms_1, exported by do_tf_init."
 
   validation {
-    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[a-z]+$", var.GCP_ACCOUNT_OWNER_EMAIL))
-    error_message = "GCP_ACCOUNT_OWNER_EMAIL must be set (run through do_tf_init, which exports it from cnf env.gcp.gcp_account_owner_email)."
+    condition     = var.ALERT_SMS_1 == "" || can(regex("^\\+[1-9][0-9]{6,14}$", var.ALERT_SMS_1))
+    error_message = "ALERT_SMS_1 must be E.164: a plus, then 7..15 digits."
+  }
+}
+
+variable "ALERT_SMS_2" {
+  type        = string
+  default     = ""
+  description = "An alert recipient's phone in E.164 (+<country><number>): cnf env.gcp.alert_sms_2, exported by do_tf_init."
+
+  validation {
+    condition     = var.ALERT_SMS_2 == "" || can(regex("^\\+[1-9][0-9]{6,14}$", var.ALERT_SMS_2))
+    error_message = "ALERT_SMS_2 must be E.164: a plus, then 7..15 digits."
   }
 }
 

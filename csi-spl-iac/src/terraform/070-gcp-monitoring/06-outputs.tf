@@ -1,5 +1,10 @@
-output "notification_channel" {
-  value = google_monitoring_notification_channel.owner_email.name
+output "notification_channels" {
+  value = local.channels
+}
+
+# verification_status per sms channel: VERIFIED once the owner entered the code.
+output "sms_verification_status" {
+  value = { for k, c in google_monitoring_notification_channel.sms : k => c.verification_status }
 }
 
 output "uptime_check_id" {

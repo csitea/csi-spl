@@ -234,6 +234,14 @@ describe('M4 deliver_visible (hub clock in the collector)', () => {
     assert.equal(got.length, 1)
     assert.equal(got[0].hub, Date.parse('2026-10-03T10:00:00Z'))
   })
+  it('perfDelivered pairs the hub time with the injected wall clock', async () => {
+    const { got, sink } = capture()
+    perfAttach(sink)
+    const hub = Date.parse('2026-10-03T10:00:00Z')
+    perfDelivered({ msg_id: 'z', received_at: '2026-10-03T10:00:00Z' }, { wallNow: () => hub + 250 })
+    await painted()
+    assert.deepEqual(got, [{ metric: 'deliver', hub, wall: hub + 250 }])
+  })
 })
 
 describe('M8 reconnect_live (live-ws.mjs)', () => {

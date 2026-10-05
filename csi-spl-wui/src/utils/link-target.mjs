@@ -215,6 +215,19 @@ const tapDown = new WeakMap()
 /** @type {Map<string, number>} */
 const tapOpenedAt = new Map()
 
+/* The wall clock (ms) the tap and ghost-click windows read. A module-level
+   seam rather than a param: messageLinkPointerUp already takes five. */
+let clock = () => Date.now()
+
+/**
+ * Test seam: pin the clock the tap windows read (MESSAGE_LINK_TAP_MAX_MS,
+ * GHOST_CLICK_MS). Pass nothing to restore the real one.
+ * @param {(() => number) | null} [fn]
+ */
+export function setLinkTapClock(fn) {
+  clock = typeof fn === 'function' ? fn : () => Date.now()
+}
+
 function touchLike(event) {
   const t = event && event.pointerType
   return t === 'touch' || t === 'pen'
@@ -251,7 +264,7 @@ export function messageLinkPointerDown(event) {
   if (!touchLike(event) || (event && event.isPrimary === false)) return
   const el = event.currentTarget
   if (!el) return
-  tapDown.set(el, { x: event.clientX, y: event.clientY, id: event.pointerId, t: Date.now() })
+  tapDown.set(el, { x: event.clientX, y: event.clientY, id: event.pointerId, t: clock() })
 }
 
 /** A cancelled finger (scroll, drag) is not a tap. */
@@ -272,10 +285,10 @@ export function messageLinkPointerUp(event, href, pageHref, navigate, openExtern
   if (!el || !start || !touchLike(event)) return false
   if (start.id !== event.pointerId) return false
   if (event.button != null && event.button !== 0) return false
-  if (Date.now() - start.t > MESSAGE_LINK_TAP_MAX_MS) return false
+  if (clock() - start.t > MESSAGE_LINK_TAP_MAX_MS) return false
   if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > TAP_SLOP_PX) return false
   const opened = openMessageLink(href, pageHref, navigate, openExternal)
-  if (opened) tapOpenedAt.set(String(href), Date.now())
+  if (opened) tapOpenedAt.set(String(href), clock())
   return opened
 }
 
@@ -289,7 +302,7 @@ export function messageLinkClick(event, href, pageHref, navigate) {
   if (typeof event.stopPropagation === 'function') event.stopPropagation()
   const key = String(href)
   const opened = tapOpenedAt.get(key)
-  if (typeof opened === 'number' && Date.now() - opened < GHOST_CLICK_MS) {
+  if (typeof opened === 'number' && clock() - opened < GHOST_CLICK_MS) {
     tapOpenedAt.delete(key)
     if (typeof event.preventDefault === 'function') event.preventDefault()
     return false

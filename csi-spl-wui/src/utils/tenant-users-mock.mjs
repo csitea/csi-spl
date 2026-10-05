@@ -35,6 +35,8 @@ const MOCK_ROLES = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester'
 /**
  * The hub's rules in memory: the viewer (HUM-1) is an admin; a biz_owner is
  * beyond the admin's reach; nobody removes themselves; the last admin stays.
+ * `now` is the one clock: it drives an invite's `mailed_at` and `expired`, the
+ * mail rate limit (MOCK_MAIL_GAP_MS) and a member's `access_ended`.
  */
 export function createMockDirectory(now = () => new Date()) {
   const t0 = '2026-09-20T09:00:00Z'
@@ -95,7 +97,7 @@ export function createMockDirectory(now = () => new Date()) {
         if (id === you) throw mockErr(409, 'self')
         if (p.access_until !== null && Number.isNaN(Date.parse(p.access_until))) throw mockErr(400, 'bad_access_until')
         m.access_until = p.access_until
-        m.access_ended = p.access_until !== null && Date.parse(p.access_until) <= Date.now()
+        m.access_ended = p.access_until !== null && Date.parse(p.access_until) <= now().getTime()
       }
       return null
     },

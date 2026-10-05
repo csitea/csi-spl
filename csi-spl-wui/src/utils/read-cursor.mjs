@@ -45,10 +45,14 @@ export function advanceCursor(cursor, msg) {
   return cursor
 }
 
-export function markReadAt(cursors, key, msg) {
+/**
+ * Mark `key` read: up to `msg` (the cursor only moves forward), or, when msg
+ * is null, read now (wall clock). `now` is the clock, injectable for tests.
+ */
+export function markReadAt(cursors, key, msg, now = () => new Date()) {
   const next = { ...(cursors || {}) }
   if (msg) next[key] = advanceCursor(next[key], msg)
-  else next[key] = { ts: new Date().toISOString(), id: '' }
+  else next[key] = { ts: now().toISOString(), id: '' }
   return next
 }
 
@@ -63,13 +67,14 @@ export function topicKey(taskId) {
  * show unread = currentTotal - count as "<unread>/<total> >>", per reader, with
  * no hub round-trip. Opening the thread (or the reader's own reply) sets it to
  * the current total, clearing the unread part to a plain "<total>".
+ * `now` is the wall clock stamped on the cursor, injectable for tests.
  */
-export function markTopicReadAt(cursors, taskId, count, ownMsgId = '') {
+export function markTopicReadAt(cursors, taskId, count, ownMsgId = '', now = () => new Date()) {
   const key = topicKey(taskId)
   if (!key) return { ...(cursors || {}) }
   const next = { ...(cursors || {}) }
   const was = next[key]
-  const c = { ts: new Date().toISOString(), id: '', count: Math.max(0, Number(count) || 0) }
+  const c = { ts: now().toISOString(), id: '', count: Math.max(0, Number(count) || 0) }
   const own = withOwn(was && Array.isArray(was.own) ? was.own : [], ownMsgId)
   next[key] = own.length ? { ...c, own } : c
   return next

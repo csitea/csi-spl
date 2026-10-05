@@ -162,15 +162,19 @@ export function perfFeed(f, o) {
   } catch { /* fire and forget */ }
 }
 
-/** M4: a message from someone else arrived live and its row is in this feed. */
-export function perfDelivered(m) {
+/**
+ * M4: a message from someone else arrived live and its row is in this feed.
+ * `wallNow` is the wall clock (ms) paired with the hub's received_at, as in
+ * perf-rum.mjs perfOptions; injectable for tests.
+ */
+export function perfDelivered(m, { wallNow = () => Date.now() } = {}) {
   try {
     if (!sink || typeof sink.deliver !== 'function' || !m || m.pending) return
     const id = String(m.msg_id || '')
     const hubMs = Date.parse(String(m.received_at || ''))
     if (!id || id === st.delivered || !Number.isFinite(hubMs)) return
     st.delivered = id
-    afterPaint(() => sink && sink.deliver(hubMs, Date.now()))
+    afterPaint(() => sink && sink.deliver(hubMs, wallNow()))
   } catch { /* fire and forget */ }
 }
 

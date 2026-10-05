@@ -162,8 +162,16 @@ function isShown(el) {
  * first one. A hidden copy is skipped (on a phone the middle card is there,
  * hidden, long before the thread pane draws the copy on screen), and a copy
  * that shows DURING the hold is marked too. Gives up after `tries` without one.
+ *
+ * The timer chain stops itself: after `hold` ms once a copy is marked, or after
+ * `tries` polls when none ever shows. `now` (wall clock, ms) and `setTimer`
+ * (setTimeout's shape) default to the real ones; a test passes a manual clock
+ * and timer instead of sleeping.
  */
-export function markOpened(msgId, { tries = 100, every = 100, hold = OPEN_FOCUS_MS, doc = globalThis.document } = {}) {
+export function markOpened(msgId, {
+  tries = 100, every = 100, hold = OPEN_FOCUS_MS, doc = globalThis.document,
+  now = Date.now, setTimer = setTimeout,
+} = {}) {
   if (!doc || !msgId) return
   const sel = `.msg[data-msg-id="${CSS.escape(String(msgId))}"]`
   const marked = new Set()
@@ -175,13 +183,13 @@ export function markOpened(msgId, { tries = 100, every = 100, hold = OPEN_FOCUS_
       marked.add(el)
       for (const c of OPEN_FOCUS_CLASSES) el.classList.add(c)
     }
-    if (!until && marked.size) until = Date.now() + hold
-    if (until && Date.now() >= until) {
+    if (!until && marked.size) until = now() + hold
+    if (until && now() >= until) {
       for (const el of marked) for (const c of OPEN_FOCUS_CLASSES) el.classList.remove(c)
       return
     }
     if (!until && left-- <= 0) return
-    setTimeout(tick, until ? Math.min(every, Math.max(0, until - Date.now())) : every)
+    setTimer(tick, until ? Math.min(every, Math.max(0, until - now())) : every)
   }
   tick()
 }

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { classifyHref, followSameTabLink, linkOpen, MESSAGE_LINK_TAP_MAX_MS, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp, NEW_TAB_REL, openMessageLink, sameTabPath, setLinkSite } from '../../src/utils/link-target.mjs'
+import { classifyHref, followSameTabLink, linkOpen, MESSAGE_LINK_TAP_MAX_MS, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp, NEW_TAB_REL, openMessageLink, sameTabPath, setLinkSite, setLinkTapClock } from '../../src/utils/link-target.mjs'
 import { markdownToHtml, renderMarkdown, treeToHtml } from '../../src/utils/markdown.mjs'
 import { bodyToHtml, parseBody } from '../../src/utils/code-blocks.mjs'
 
@@ -427,6 +427,31 @@ describe('phone tap opens a message link', () => {
     messageLinkPointerCancel({ currentTarget: node })
     const armed = messageLinkPointerUp(down(node), REL, PAGE, () => {}, () => {})
     assert.equal(armed, false)
+  })
+
+  it('the click after a tap is swallowed only inside the 1000 ms ghost window (fake clock)', () => {
+    let t = 5000
+    setLinkTapClock(() => t)
+    try {
+      const node = el()
+      assert.equal(tap(node, REL).armed, true)
+      t += 999
+      const ghost = click()
+      ghost.currentTarget = node
+      const again = []
+      assert.equal(messageLinkClick(ghost, REL, PAGE, (path) => { again.push(path) }), false)
+      assert.equal(ghost.defaultPrevented, true)
+      assert.deepEqual(again, [], 'inside the window: the ghost is swallowed')
+
+      assert.equal(tap(node, REL).armed, true)
+      t += 1000
+      const late = click()
+      late.currentTarget = node
+      assert.equal(messageLinkClick(late, REL, PAGE, (path) => { again.push(path) }), true)
+      assert.deepEqual(again, [REL], 'at the window edge: a real click navigates')
+    } finally {
+      setLinkTapClock()
+    }
   })
 
   it('a long press does not open from pointerup; a later click still can', async () => {

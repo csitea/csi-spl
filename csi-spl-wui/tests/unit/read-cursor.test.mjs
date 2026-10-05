@@ -145,6 +145,14 @@ describe('per-topic unread ("2/7 >>", CLE-77804 topic 35053f95)', () => {
   })
 })
 
+describe('mark read now: the wall clock is injectable', () => {
+  it('markReadAt with no msg and markTopicReadAt stamp the given clock', () => {
+    const now = () => new Date('2026-10-06T08:00:00Z')
+    assert.deepEqual(markReadAt({}, 'ch:lobby', null, now)['ch:lobby'], { ts: '2026-10-06T08:00:00.000Z', id: '' })
+    assert.equal(markTopicReadAt({}, 'task-1', 3, '', now)[topicKey('task-1')].ts, '2026-10-06T08:00:00.000Z')
+  })
+})
+
 describe('read map for spool-client listChannels({ read })', () => {
   it('keeps only channel keys with a hub cursor', () => {
     assert.deepEqual(readMap({

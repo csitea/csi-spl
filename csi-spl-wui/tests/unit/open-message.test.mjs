@@ -214,7 +214,32 @@ test('openMessage failures navigate nowhere and say why', async () => {
   assert.deepEqual(router.log, [])
 })
 
-test('markOpened: every copy on screen gets open-focus + search-focus, cleared after the hold', async () => {
+/* A manual clock + timer for markOpened: `advance(ms)` moves the clock and
+   fires each timer that falls due, in order, so the hold is measured without
+   sleeping in real time. */
+function manualTime() {
+  let t = 0
+  let timers = []
+  return {
+    now: () => t,
+    setTimer: (fn, ms) => { timers.push({ at: t + ms, fn }) },
+    pending: () => timers.length,
+    advance(ms) {
+      const end = t + ms
+      for (;;) {
+        timers.sort((a, b) => a.at - b.at)
+        const next = timers[0]
+        if (!next || next.at > end) break
+        timers = timers.slice(1)
+        t = next.at
+        next.fn()
+      }
+      t = end
+    },
+  }
+}
+
+test('markOpened: every copy on screen gets open-focus + search-focus, cleared after the hold', () => {
   globalThis.CSS = globalThis.CSS || { escape: (s) => s }
   const mk = () => {
     const set = new Set()
@@ -222,13 +247,17 @@ test('markOpened: every copy on screen gets open-focus + search-focus, cleared a
   }
   const els = [mk(), mk()]
   const doc = { querySelectorAll: (sel) => (sel.includes(MSG) ? els : []) }
-  markOpened(MSG, { doc, hold: 20 })
+  const time = manualTime()
+  markOpened(MSG, { doc, hold: 20, now: time.now, setTimer: time.setTimer })
   for (const el of els) assert.deepEqual([...el.set].sort(), [...OPEN_FOCUS_CLASSES].sort())
-  await new Promise((r) => setTimeout(r, 40))
+  time.advance(19)
+  for (const el of els) assert.equal(el.set.size, 2, 'still marked inside the hold')
+  time.advance(1)
   for (const el of els) assert.equal(el.set.size, 0)
+  assert.equal(time.pending(), 0, 'the timer chain stopped itself after the hold')
 })
 
-test('markOpened: a copy that renders during the hold (the phone thread pane) is marked too', async () => {
+test('markOpened: a copy that renders during the hold (the phone thread pane) is marked too', () => {
   globalThis.CSS = globalThis.CSS || { escape: (s) => s }
   const mk = () => {
     const set = new Set()
@@ -238,16 +267,18 @@ test('markOpened: a copy that renders during the hold (the phone thread pane) is
   const late = mk()
   const els = [early]
   const doc = { querySelectorAll: () => els }
-  markOpened(MSG, { doc, hold: 60, every: 5 })
-  await new Promise((r) => setTimeout(r, 15))
+  const time = manualTime()
+  markOpened(MSG, { doc, hold: 60, every: 5, now: time.now, setTimer: time.setTimer })
+  time.advance(15)
   els.push(late)
-  await new Promise((r) => setTimeout(r, 15))
+  time.advance(15)
   assert.equal(late.set.has('open-focus'), true)
-  await new Promise((r) => setTimeout(r, 80))
+  time.advance(30)
   assert.equal(early.set.size + late.set.size, 0)
+  assert.equal(time.pending(), 0)
 })
 
-test('markOpened: a hidden copy is never marked; the visible one is, when it shows (phone root)', async () => {
+test('markOpened: a hidden copy is never marked; the visible one is, when it shows (phone root)', () => {
   globalThis.CSS = globalThis.CSS || { escape: (s) => s }
   const mk = (w) => {
     const set = new Set()
@@ -256,15 +287,17 @@ test('markOpened: a hidden copy is never marked; the visible one is, when it sho
   const hidden = mk(0)
   const shown = mk(10)
   const els = [hidden]
-  markOpened(MSG, { doc: { querySelectorAll: () => els }, hold: 30, every: 5 })
-  await new Promise((r) => setTimeout(r, 60))
+  const time = manualTime()
+  markOpened(MSG, { doc: { querySelectorAll: () => els }, hold: 30, every: 5, now: time.now, setTimer: time.setTimer })
+  time.advance(60)
   assert.equal(hidden.set.size, 0, 'the hidden middle card is not marked')
   els.push(shown)
-  await new Promise((r) => setTimeout(r, 15))
+  time.advance(15)
   assert.equal(shown.set.has('open-focus'), true)
   assert.equal(hidden.set.size, 0)
-  await new Promise((r) => setTimeout(r, 60))
+  time.advance(60)
   assert.equal(shown.set.size, 0, 'cleared after the hold')
+  assert.equal(time.pending(), 0)
 })
 
 /* CLE-77909 (live dev): the DM opened, but the reply sat ~37 rows deep in a

@@ -89,6 +89,17 @@ for (const tok of ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email',
 const ax = normalizeDirectory({ members: [{ human_id: 'HUM-7', access_until: '2026-11-01T22:00:00Z', access_ended: true }, { human_id: 'HUM-8', access_until: null }] })
 ok('access_until is read', ax.members[0].accessUntil === '2026-11-01T22:00:00Z' && ax.members[0].accessEnded === true)
 ok('CONTROL: no end reads empty, not ended', ax.members[1].accessUntil === '' && ax.members[1].accessEnded === false)
+// The mock's access_ended reads the injected clock, not the real one.
+let accessClock = new Date('2026-09-29T12:00:00Z')
+const am = createMockDirectory(() => accessClock)
+const endedOf = (id) => am.list().members.find((x) => x.human_id === id).access_ended
+am.patch('HUM-3', { access_until: '2026-09-30T00:00:00Z' })
+ok('mock access_ended: an end after the clock has not ended', endedOf('HUM-3') === false)
+accessClock = new Date('2026-09-30T00:00:00Z')
+am.patch('HUM-3', { access_until: '2026-09-30T00:00:00Z' })
+ok('mock access_ended: an end at the clock has ended', endedOf('HUM-3') === true)
+am.patch('HUM-3', { access_until: null })
+ok('CONTROL: mock access_ended: no end never ends', endedOf('HUM-3') === false)
 const until = accessUntilOfDate('2026-11-01')
 ok('a day ends at the next local midnight', until !== '' && new Date(until).getTime() === new Date(2026, 10, 2).getTime(), until)
 ok('the day round-trips', accessDateOf(until) === '2026-11-01', accessDateOf(until))

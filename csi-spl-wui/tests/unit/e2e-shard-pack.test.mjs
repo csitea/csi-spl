@@ -114,7 +114,10 @@ const list = (shard) => {
   // misses it (the control); a packer that returns round-robin fails too.
   assert.ok(packedMax + 60 <= oldMax, `packed ${packedMax} old ${oldMax} sums ${packedSums} vs ${oldSums}`)
   assert.ok(spread(packedSums) <= 0.05, `packed spread ${spread(packedSums)}`)
-  assert.ok(spread(oldSums) >= 0.15, `old spread ${spread(oldSums)} (control would be green if round-robin were already balanced)`)
+  // The control is "round-robin misses the pack's own 0.05", not a fixed
+  // 0.15: round-robin's spread moves with every e2e file added (one new
+  // file took it from >= 0.15 to 0.136), the pack's bound does not.
+  assert.ok(spread(oldSums) > 0.05, `old spread ${spread(oldSums)} (control would be green if round-robin were already balanced)`)
 }
 
 console.log('e2e-shard-pack: all passed')

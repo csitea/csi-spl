@@ -21,7 +21,7 @@ import (
 // stampTables are exactly the tenant tables 0103 puts change_stamp on.
 var stampTables = []string{
 	"box_operators", "channel_humans", "channel_subscriptions", "channels", "deliveries", "issues",
-	"member_clones", "message_kind_changes", "message_reactions", "message_revisions", "messages",
+	"member_clones", "message_kind_changes", "message_moderation", "message_reactions", "message_revisions", "messages",
 	"rbac_roles", "read_marks", "tenant_memberships",
 }
 

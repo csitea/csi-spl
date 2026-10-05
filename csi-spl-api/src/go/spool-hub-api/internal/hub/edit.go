@@ -295,6 +295,7 @@ func (s *Server) fanoutEdited(ctx context.Context, tenant string, m store.Editab
 		}
 	}
 	s.mu.Unlock()
+	targets = s.dropHiddenConns(ctx, tenant, m.MsgID, targets) // specs/077 T016
 	if len(targets) == 0 {
 		return
 	}

@@ -158,6 +158,24 @@ Rules for every task (owner Q8, spec §3.10):
   not_member). The `authSessionGap` cut in the walk stays (owner). CONTROLS: B's owner reads B's markers through the core routes;
   `demoFenced` off = 11 routes leak; the locate fix reverted = locate leaks.
 - [ ] T016 **report / hide / ban** (§3.6).
+  - report + hide done (c-331), part A: a 🚩 reaction (demo workspace only;
+    a reaction row, so one reporter counts once) hides the message at the
+    3rd distinct reporter; a moderator (`members.invite`: admin, biz_owner;
+    never `demo_user`) hides / unhides with `PUT` / `DELETE
+    /v1/messages/{msg_id}/hidden`, and an unhide sticks against old and new
+    reports. Store: rdb 0128 `message_moderation` (`tenant_id`, `msg_id`,
+    `hidden`, `set_by`, `set_at`; FK to messages ON DELETE CASCADE, RLS,
+    change-stamp trigger). Filter (`hub/demo_moderation.go`): topic page,
+    `per_topic`, topic list (a hidden opener takes its row), search
+    (messages, topics, files), flow, previews, id links, locate, the message
+    door of every message route (404), socket frames (edited, reaction,
+    merged, moved; a hide sends `message_deleted`, moderators get
+    `message_hidden`). Moderators read it marked `hidden: true`.
+    `TestDemoReportHide`, `TestDemoHiddenGoneFromEveryRead` (every hub GET
+    route from the source plus the two POST reads; memory + Postgres).
+    CONTROLS: threshold removed, search / topic page / previews filter
+    removed: each red. Part B (ban: member remove + the address-digest block
+    list at admission) is still open, with T010.
 - [x] T017 **nightly wipe** (c-314): named action `do_spl_demo_wipe` (csi-spl-orc) on a
   schedule; deletes demo messages and topics, re-seeds the channels and the
   pinned welcome. Built: wf 46 runs it nightly (03:41 UTC) on dev then prd; it

@@ -27,7 +27,7 @@ func (s *Server) handleViewLocate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "view_door", "a member session is required")
 		return
 	}
-	_, tenants, err := s.o.Auth.MemberTenants(r)
+	sess, tenants, err := s.o.Auth.MemberTenants(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, "view_door", "a member session is required")
 		return
@@ -38,7 +38,14 @@ func (s *Server) handleViewLocate(w http.ResponseWriter, r *http.Request) {
 			ids = append(ids, t.TenantID)
 		}
 	}
-	found, err := s.locateTopicOrMessage(store.WithMemo(r.Context()), ids, id)
+	ctx := store.WithMemo(r.Context())
+	found, err := s.locateTopicOrMessage(ctx, ids, id)
+	if err == nil && found != "" {
+		var v modView // specs/077 T016: a hidden message is not found
+		if v, err = s.moderation(ctx, found, sess.HumanID); v.drops(id) {
+			found = ""
+		}
+	}
 	switch {
 	case err != nil:
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "locate")

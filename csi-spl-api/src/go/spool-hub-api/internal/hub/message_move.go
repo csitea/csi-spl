@@ -369,6 +369,7 @@ func (s *Server) fanoutMove(ctx context.Context, tenant string, from, to store.E
 		}
 	}
 	s.mu.Unlock()
+	targets = s.dropHiddenConns(ctx, tenant, from.MsgID, targets) // specs/077 T016
 	if len(targets) == 0 {
 		return
 	}

@@ -734,11 +734,17 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		c := encCursor(rows[len(rows)-1].LastAt, rows[len(rows)-1].TaskID)
 		next = &c
 	}
+	mod, err := s.moderation(r.Context(), t.ID, sq.Reader)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
+		return
+	}
 	out := make([]viewTopic, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, topicView(row))
 	}
-	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out) {
+	out = mod.keepTopics(out) // specs/077 T016: a hidden opening message takes its topic row
+	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out, mod) {
 		return
 	}
 	if counts && !s.attachDMCounts(w, r, t, sq, reads, out) {
@@ -776,7 +782,7 @@ func (s *Server) deltaScope(w http.ResponseWriter, r *http.Request, t store.Tena
 // CLE-34985): one read for the whole page where the WUI made one request per
 // topic. The reader door is sq's, applied per message as ViewTopic applies
 // it. false = it answered with an error.
-func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, per int, out []viewTopic) bool {
+func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.Tenant, sq store.TopicQuery, per int, out []viewTopic, mod modView) bool {
 	ids := make([]string, len(out))
 	for i := range out {
 		ids[i] = out[i].TaskID
@@ -821,7 +827,9 @@ func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.
 			c := encCursor(rows[per-1].ReceivedAt, rows[per-1].MsgID)
 			out[i].MessagesNext = &c
 		}
+		rows = mod.keepMsgs(rows)
 		vs := viewMsgsIn(rows, react, out[i].TaskID)
+		mod.markMsgs(rows, vs)
 		out[i].Messages = &vs
 	}
 	return true
@@ -928,6 +936,9 @@ type viewMsg struct {
 	MovedBy          string  `json:"moved_by,omitempty"`
 	MovedFromChannel *string `json:"moved_from_channel,omitempty"`
 	MovedFromTask    string  `json:"moved_from_task,omitempty"`
+	// specs/077 T016 (rdb 0128): a moderator's read of a hidden message.
+	// Everyone else's read leaves the message out. Omitted while not hidden.
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // topicDoorReader reads the topic door's aggregate and the page in one batch
@@ -998,6 +1009,10 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
 		next = &c
 	}
+	rows, mod, ok := s.moderatedRows(w, r, t.ID, hum, rows, sq)
+	if !ok {
+		return
+	}
 	react, err := s.rowReactions(r.Context(), t.ID, rows)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("task", task).Msg("reactions")
@@ -1005,18 +1020,26 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 		return
 	}
 	body := topicBody{TaskID: task, Messages: viewMsgsIn(rows, react, task), Next: next}
-	if sq.AfterAt.IsZero() && task != s.o.LobbyTaskID {
-		at, by, err := s.o.Store.TopicArchived(r.Context(), t.ID, task, s.o.LobbyTaskID)
-		if err != nil {
-			s.o.Log.Error().Err(err).Str("task", task).Msg("topic archived")
-			writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-			return
-		}
-		if !at.IsZero() {
-			body.ArchivedAt, body.ArchivedBy = rfc(at), by
-		}
+	mod.markMsgs(rows, body.Messages)
+	if sq.AfterAt.IsZero() && task != s.o.LobbyTaskID && !s.topicArchiveStamp(w, r, t.ID, &body) {
+		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// topicArchiveStamp sets body's archive stamp (specs/041); false has
+// answered 500.
+func (s *Server) topicArchiveStamp(w http.ResponseWriter, r *http.Request, tenant string, body *topicBody) bool {
+	at, by, err := s.o.Store.TopicArchived(r.Context(), tenant, body.TaskID, s.o.LobbyTaskID)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task", body.TaskID).Msg("topic archived")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return false
+	}
+	if !at.IsZero() {
+		body.ArchivedAt, body.ArchivedBy = rfc(at), by
+	}
+	return true
 }
 
 // topicReader is the read door of one topic (rdb 0028, privacy.go): it

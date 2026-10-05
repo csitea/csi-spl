@@ -210,6 +210,10 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 	types []search.Type, cur *searchCursor, hash string, limit int) (map[string]section, []string, error) {
 	groups := map[string]section{}
 	names := []string{}
+	mod, err := s.moderation(ctx, t.ID, base.Viewer) // specs/077 T016
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, ty := range types {
 		sq := base
 		c := searchCursor{T: ty, H: hash}
@@ -225,6 +229,7 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 			s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("type", string(ty)).Msg("search failed")
 			return nil, nil, err
 		}
+		sec.Results = mod.keepResults(sec.Results)
 		groups[ty.Group()] = sec
 		names = append(names, string(ty))
 	}

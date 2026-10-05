@@ -120,7 +120,7 @@ func (s *Server) messageDoor(w http.ResponseWriter, r *http.Request, tenant stri
 		writeErr(w, http.StatusNotFound, "not_found", "no such message")
 		return false
 	}
-	return true
+	return !s.messageHidden(w, r, tenant, reader, m.MsgID) // specs/077 T016: a hidden message is gone
 }
 
 // canReadTopic applies both rules to one task_id. found=false when the

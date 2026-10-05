@@ -91,6 +91,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.AddReaction(ctx, s.tenant, m.MsgID, "HUM-1", "👍", now.Add(2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
+	// message_moderation (rdb 0128, specs/077 T016): the message hidden, so
+	// the table holds a row for both tenants.
+	if err := pg.SetHidden(ctx, s.tenant, m.MsgID, true, "HUM-1", now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	// fleet_leases (rdb 0094, CLE-77911): one lease row per tenant.
 	if _, err := pg.CASFleetLease(ctx, s.tenant, "main", "dispatch", "CLE-02@pc", "box-a", 0, now); err != nil {
 		t.Fatal(err)

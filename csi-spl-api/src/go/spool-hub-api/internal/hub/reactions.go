@@ -86,7 +86,7 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
 		return
 	}
-	emoji, ok := reactionEmoji(w, r)
+	emoji, ok := reactionEmoji(w, r, s.reportAllowed(t.ID))
 	if !ok {
 		return
 	}
@@ -129,6 +129,9 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 	}
 	grouped := groupReactions(rows[id])
 	s.fanoutReaction(r.Context(), t.ID, m, grouped)
+	if add && emoji == reportEmoji {
+		s.reported(r.Context(), t.ID, m) // after the reaction frame: a hide drops the row last
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"msg_id":    m.MsgID,
 		"task_id":   m.TaskID,
@@ -137,9 +140,10 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 }
 
 // reactionEmoji reads {emoji}, refuses anything the picker does not offer and
-// returns the picker's own spelling of it (canonicalEmoji).
+// returns the picker's own spelling of it (canonicalEmoji). report admits
+// the demo workspace's report glyph too (demo_moderation.go).
 // false means the response is already written.
-func reactionEmoji(w http.ResponseWriter, r *http.Request) (string, bool) {
+func reactionEmoji(w http.ResponseWriter, r *http.Request, report bool) (string, bool) {
 	var body reactionRequest
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
 	dec.DisallowUnknownFields()
@@ -148,6 +152,9 @@ func reactionEmoji(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	emoji := canonicalEmoji(body.Emoji)
+	if report && strings.TrimSuffix(body.Emoji, vs16) == reportEmoji {
+		emoji = reportEmoji
+	}
 	if emoji == "" {
 		writeErr(w, http.StatusBadRequest, "bad_emoji", "emoji must be one offered glyph")
 		return "", false
@@ -168,6 +175,7 @@ func (s *Server) fanoutReaction(ctx context.Context, tenant string, m store.Edit
 		}
 	}
 	s.mu.Unlock()
+	targets = s.dropHiddenConns(ctx, tenant, m.MsgID, targets)
 	if len(targets) == 0 {
 		return
 	}

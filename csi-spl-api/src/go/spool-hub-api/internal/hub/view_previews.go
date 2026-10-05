@@ -74,7 +74,11 @@ func (s *Server) handleViewPreviews(w http.ResponseWriter, r *http.Request, t st
 		writeErr(w, http.StatusInternalServerError, "internal", "previews unavailable")
 		return
 	}
-	rd := idReader{hum: hum, mine: mine}
+	rd, err := s.idReaderFor(r.Context(), t.ID, hum, mine)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "previews unavailable")
+		return
+	}
 	var hits []viewIDHit
 	var tasks, msgs []string
 	for _, id := range ids {
@@ -135,6 +139,9 @@ func viewPreviewIDs(raw []string) ([]string, *viewRefusal) {
 // readable applies the id door to one stored row: its channel, or for a DM
 // row its two ends.
 func (rd idReader) readable(p store.PreviewRow) bool {
+	if rd.mod.drops(p.MsgID) { // specs/077 T016: a hidden message prints nothing
+		return false
+	}
 	if p.Channel != "" {
 		return rd.channel(p.Channel)
 	}

@@ -42,6 +42,7 @@ type wireFlowEvent struct {
 	ParentTaskID string  `json:"parent_task_id,omitempty"`
 	Text         string  `json:"text"`
 	Files        int     `json:"files"`
+	Hidden       bool    `json:"hidden,omitempty"` // specs/077 T016: a moderator's read of a hidden message
 }
 
 func wireFlow(e store.FlowEvent) wireFlowEvent {
@@ -130,11 +131,20 @@ func (s *Server) handleViewFlow(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
 		return
 	}
+	mod, err := s.moderation(r.Context(), t.ID, hum)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "flow unavailable")
+		return
+	}
 	body := map[string]any{"counts": p.Counts, "unread": p.Unread, "keys": wireFlowKeys(p.Keys)}
 	if r.URL.Query().Get("counts_only") != "true" {
 		events := make([]wireFlowEvent, 0, len(p.Events))
 		for _, e := range p.Events {
-			events = append(events, wireFlow(e))
+			if !mod.drops(e.MsgID) { // specs/077 T016
+				ev := wireFlow(e)
+				ev.Hidden = mod.marks(e.MsgID)
+				events = append(events, ev)
+			}
 		}
 		next := ""
 		if p.More && len(p.Events) > 0 {

@@ -86,7 +86,11 @@ func (s *Server) handleViewIDs(w http.ResponseWriter, r *http.Request, t store.T
 		writeErr(w, http.StatusInternalServerError, "internal", "ids unavailable")
 		return
 	}
-	rd := idReader{hum: hum, mine: mine}
+	rd, err := s.idReaderFor(r.Context(), t.ID, hum, mine)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "ids unavailable")
+		return
+	}
 	for _, tok := range toks {
 		f, found := pickIDFact(facts, tok)
 		if !found {
@@ -164,6 +168,7 @@ func pickIDFact(facts []store.IDFact, tok string) (store.IDFact, bool) {
 type idReader struct {
 	hum  string
 	mine []string
+	mod  modView // specs/077 T016: a hidden message is no link target
 }
 
 func (rd idReader) channel(ch string) bool {
@@ -178,6 +183,9 @@ func (rd idReader) party(f store.IDFact) bool {
 // A topic opens in its first channel the reader may read, else as their DM.
 func (rd idReader) place(f store.IDFact) (viewIDHit, bool) {
 	hit := viewIDHit{Kind: f.Kind, TaskID: f.TaskID, MsgID: f.MsgID, Archived: f.Archived}
+	if f.Kind == store.IDMessage && rd.mod.drops(f.MsgID) {
+		return hit, false
+	}
 	if f.Kind == store.IDMessage {
 		if f.Channel != "" {
 			hit.Channel = f.Channel

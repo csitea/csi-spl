@@ -37,10 +37,12 @@ describe('cause 1: the handler has to ACCEPT the files', () => {
   for (const page of OMNIBOX_PAGES) {
     it(`${page}: what it registers takes (text, files)`, () => {
       const s = src(page)
-      /* a fixed window, not up to the first `})`: the registration contains
-         nested calls like t('…', { target }) and slicing at those cut the
-         `send:` line off and made this test fail on correct code */
-      const block = s.slice(s.indexOf('useOmniboxTarget('), s.indexOf('useOmniboxTarget(') + 400)
+      /* up to the registration's own closing `})` at column 0, not the first
+         `})`: it contains nested calls like t('…', { target }) and slicing at
+         those cut the `send:` line off. A fixed 400-character window did the
+         same once the phone placeholders (085 T002) lengthened the line. */
+      const at = s.indexOf('useOmniboxTarget(')
+      const block = s.slice(at, s.indexOf('\n})', at))
       /* either `send: onSend` where onSend names files, or an inline adapter
          that passes them on — both are fine, silence is not */
       const inlineAdapter = /send:\s*\(text: string, files: File\[\][^)]*\)\s*=>[^\n]*files/.test(block)

@@ -28,8 +28,9 @@ type HumanSettings struct {
 	// picked (the product default is then priority ascending).
 	IssuesSort *IssuesSort
 	// PaneSizes is the two vertical dividers' widths as fractions of the
-	// window (CLE-35099, SPL-1182), nil when never dragged.
-	PaneSizes map[string]float64
+	// window (CLE-35099, SPL-1182), flat or per view (spec 078 FR-007), kept
+	// as the WUI sent it; nil when never dragged.
+	PaneSizes json.RawMessage
 	// TimeZone is the IANA zone the WUI prints times in (CLE-77908), "" when
 	// never picked (the browser's zone). Per tenant only (rdb 0078).
 	TimeZone string
@@ -55,20 +56,20 @@ type IssuesSort struct {
 // decoded form of the settings jsonb column; display_name and the avatar are
 // NOT here (they stay per human).
 type MembershipSettings struct {
-	Locale           *string            `json:"preferred_locale,omitempty"`
-	Theme            *string            `json:"preferred_theme,omitempty"`
-	SubmitKey        *string            `json:"submit_key,omitempty"`
-	RailOrder        []string           `json:"rail_order,omitempty"`
-	MessageOrder     *string            `json:"message_order,omitempty"`
-	ComposerPosition *string            `json:"composer_position,omitempty"`
-	IssuesView       *string            `json:"issues_view,omitempty"`
-	CloseButtons     *string            `json:"close_buttons,omitempty"`
-	LinkPreviews     *string            `json:"link_previews,omitempty"`
-	IssueColumns     map[string]int     `json:"issues_columns,omitempty"`
-	Diagnostics      *bool              `json:"diagnostics_enabled,omitempty"`
-	IssuesSort       *IssuesSort        `json:"issues_sort,omitempty"`
-	PaneSizes        map[string]float64 `json:"pane_sizes,omitempty"`
-	TimeZone         *string            `json:"time_zone,omitempty"`
+	Locale           *string         `json:"preferred_locale,omitempty"`
+	Theme            *string         `json:"preferred_theme,omitempty"`
+	SubmitKey        *string         `json:"submit_key,omitempty"`
+	RailOrder        []string        `json:"rail_order,omitempty"`
+	MessageOrder     *string         `json:"message_order,omitempty"`
+	ComposerPosition *string         `json:"composer_position,omitempty"`
+	IssuesView       *string         `json:"issues_view,omitempty"`
+	CloseButtons     *string         `json:"close_buttons,omitempty"`
+	LinkPreviews     *string         `json:"link_previews,omitempty"`
+	IssueColumns     map[string]int  `json:"issues_columns,omitempty"`
+	Diagnostics      *bool           `json:"diagnostics_enabled,omitempty"`
+	IssuesSort       *IssuesSort     `json:"issues_sort,omitempty"`
+	PaneSizes        json.RawMessage `json:"pane_sizes,omitempty"`
+	TimeZone         *string         `json:"time_zone,omitempty"`
 	// KeyboardShortcuts: HUM-10 ae2e5093, nil = on.
 	KeyboardShortcuts *bool `json:"keyboard_shortcuts,omitempty"`
 }

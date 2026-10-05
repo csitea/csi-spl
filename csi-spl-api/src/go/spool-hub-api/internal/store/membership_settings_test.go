@@ -127,6 +127,33 @@ func TestMembershipSettings(t *testing.T) {
 				t.Fatalf("time_zone clear: %+v %v", got, err)
 			}
 
+			// Spec 078 FR-007 (T005): pane_sizes per view is kept as the WUI
+			// sent it, nested views and all; an old flat value reads back flat.
+			for _, in := range []string{
+				`{"default":{"sidebar":0.18,"topic":0.33},"channel":{"topic":0.4},"docs":{"sidebar":0.25}}`,
+				`{"sidebar":0.2,"topic":0.3}`,
+			} {
+				if err := ms.SetMembershipSettings(ctx, a, t1, map[string]any{"pane_sizes": json.RawMessage(in)}); err != nil {
+					t.Fatal(err)
+				}
+				if got, err = ms.MembershipSettings(ctx, a, t1); err != nil {
+					t.Fatal(err)
+				}
+				var stored, want any
+				if json.Unmarshal(got.PaneSizes, &stored) != nil || json.Unmarshal([]byte(in), &want) != nil || !reflect.DeepEqual(stored, want) {
+					t.Fatalf("pane_sizes not kept unchanged: sent %s, read %s", in, got.PaneSizes)
+				}
+				if over := base.Overlay(got); !reflect.DeepEqual(json.RawMessage(over.PaneSizes), got.PaneSizes) {
+					t.Fatalf("pane_sizes overlay: %s", over.PaneSizes)
+				}
+			}
+			if err := ms.SetMembershipSettings(ctx, a, t1, map[string]any{"pane_sizes": nil}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err = ms.MembershipSettings(ctx, a, t1); err != nil || got.PaneSizes != nil || got.MessageOrder == nil {
+				t.Fatalf("pane_sizes clear: %s %v", got.PaneSizes, err)
+			}
+
 			// No membership: write is ErrNotFound.
 			if err := ms.SetMembershipSettings(ctx, b, t2, map[string]any{"preferred_theme": "dark"}); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("write with no membership: %v", err)

@@ -418,7 +418,7 @@ type loginResp struct {
 	// IssuesSort as GET /session answers it (CLE-35099), null when unset.
 	IssuesSort *IssuesSort `json:"issues_sort"`
 	// PaneSizes as GET /session answers it (CLE-35099, SPL-1182), null when unset.
-	PaneSizes map[string]float64 `json:"pane_sizes"`
+	PaneSizes json.RawMessage `json:"pane_sizes"`
 	// TimeZone as GET /session answers it (CLE-77908), null when unset.
 	TimeZone *string `json:"time_zone"`
 	// KeyboardShortcuts as GET /session answers it (HUM-10 ae2e5093), null when unset.

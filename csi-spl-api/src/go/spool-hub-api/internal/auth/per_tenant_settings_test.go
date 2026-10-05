@@ -68,7 +68,7 @@ func TestIsPaneSizes(t *testing.T) {
 
 func TestParsePaneSizes(t *testing.T) {
 	v, has, code, _ := parsePaneSizes(json.RawMessage(`{"sidebar":0.22,"topic":0.34}`))
-	if code != "" || !has || !reflect.DeepEqual(v, map[string]float64{"sidebar": 0.22, "topic": 0.34}) {
+	if code != "" || !has || string(v) != `{"sidebar":0.22,"topic":0.34}` {
 		t.Fatalf("valid: %+v has=%v code=%q", v, has, code)
 	}
 	if v, has, _, _ := parsePaneSizes(json.RawMessage(`null`)); v != nil || !has {
@@ -79,6 +79,44 @@ func TestParsePaneSizes(t *testing.T) {
 	}
 	if _, _, code, _ := parsePaneSizes(json.RawMessage(`{"threads":0.3}`)); code == "" {
 		t.Fatal("unknown divider must be refused")
+	}
+}
+
+// Spec 078 FR-007 (T005 hub check): the per-view object is stored as sent, so
+// the WUI reads back the views it wrote; a view or a divider the hub does not
+// know, a mixed flat + view body, or a view out of range is refused.
+func TestParsePaneSizesPerView(t *testing.T) {
+	in := `{"default":{"sidebar":0.18,"topic":0.33},"channel":{"topic":0.4},"issues":{"sidebar":0.2}}`
+	v, has, code, _ := parsePaneSizes(json.RawMessage(in))
+	if code != "" || !has {
+		t.Fatalf("per view: has=%v code=%q", has, code)
+	}
+	var got, want map[string]map[string]float64
+	if json.Unmarshal(v, &got) != nil || json.Unmarshal([]byte(in), &want) != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("per view not kept unchanged: %s", v)
+	}
+	// every view the WUI keeps is accepted
+	for _, view := range PaneViews {
+		if _, _, code, _ := parsePaneSizes(json.RawMessage(`{"` + view + `":{"topic":0.3}}`)); code != "" {
+			t.Errorf("view %q refused: %s", view, code)
+		}
+	}
+	// empty views drop; all empty clears
+	if v, has, code, _ := parsePaneSizes(json.RawMessage(`{"default":{}}`)); v != nil || !has || code != "" {
+		t.Fatalf("all-empty views clear: %s has=%v code=%q", v, has, code)
+	}
+	bad := []string{
+		`{"search":{"topic":0.3}}`,                 // unknown view
+		`{"channel":{"threads":0.3}}`,              // unknown divider
+		`{"channel":{"topic":0.95}}`,               // out of range
+		`{"channel":{"sidebar":0.5,"topic":0.45}}`, // no room for the middle
+		`{"sidebar":0.2,"channel":{"topic":0.3}}`,  // mixed flat + view
+		`{"channel":0.3}`,                          // a view must be an object
+	}
+	for _, b := range bad {
+		if _, _, code, _ := parsePaneSizes(json.RawMessage(b)); code == "" {
+			t.Errorf("want refused: %s", b)
+		}
 	}
 }
 
@@ -93,7 +131,7 @@ func TestOverlay(t *testing.T) {
 	over := base.Overlay(MembershipSettings{
 		Theme: &dark, MessageOrder: &nl, Diagnostics: &diagOn,
 		IssuesSort: &IssuesSort{"priority", "asc"},
-		PaneSizes:  map[string]float64{"sidebar": 0.2},
+		PaneSizes:  json.RawMessage(`{"sidebar":0.2}`),
 	})
 	if over.Theme != "dark" {
 		t.Errorf("theme override: %q", over.Theme)
@@ -107,7 +145,7 @@ func TestOverlay(t *testing.T) {
 	if !over.Diagnostics {
 		t.Error("diagnostics override not applied")
 	}
-	if over.IssuesSort == nil || over.PaneSizes["sidebar"] != 0.2 {
+	if over.IssuesSort == nil || string(over.PaneSizes) != `{"sidebar":0.2}` {
 		t.Errorf("new settings overlay: %+v %+v", over.IssuesSort, over.PaneSizes)
 	}
 	// The base's ViewPrefs map must not be mutated by Overlay.

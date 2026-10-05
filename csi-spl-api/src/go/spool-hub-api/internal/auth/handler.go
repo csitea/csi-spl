@@ -504,8 +504,9 @@ type sessionResp struct {
 	// picked (the WUI then sorts priority ascending, 1 at the top).
 	IssuesSort *IssuesSort `json:"issues_sort"`
 	// PaneSizes is the two vertical dividers' widths as fractions of the
-	// window (CLE-35099, SPL-1182), null when never dragged (default layout).
-	PaneSizes map[string]float64 `json:"pane_sizes"`
+	// window (CLE-35099, SPL-1182), flat or per view (spec 078 FR-007), null
+	// when never dragged (default layout).
+	PaneSizes json.RawMessage `json:"pane_sizes"`
 	// TimeZone is the IANA zone the WUI prints times in (CLE-77908), per
 	// tenant, null when never picked (the WUI then follows the browser).
 	TimeZone *string `json:"time_zone"`
@@ -1037,12 +1038,12 @@ type prefsIn struct {
 	interests                                           string // humans.interests (rdb 0086), "" = null / clear
 	diag                                                bool
 	rail                                                []string
-	view                                                map[string]string  // layout key -> value, "" = null
-	cols                                                map[string]int     // issues_columns, nil = null
-	sort                                                *IssuesSort        // issues_sort, nil = null (CLE-35099)
-	panes                                               map[string]float64 // pane_sizes, nil = null (CLE-35099)
-	tz                                                  string             // time_zone, "" = null (CLE-77908)
-	kbd                                                 *bool              // keyboard_shortcuts, nil = null (HUM-10 ae2e5093)
+	view                                                map[string]string // layout key -> value, "" = null
+	cols                                                map[string]int    // issues_columns, nil = null
+	sort                                                *IssuesSort       // issues_sort, nil = null (CLE-35099)
+	panes                                               json.RawMessage   // pane_sizes, nil = null (CLE-35099, spec 078)
+	tz                                                  string            // time_zone, "" = null (CLE-77908)
+	kbd                                                 *bool             // keyboard_shortcuts, nil = null (HUM-10 ae2e5093)
 	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
 	hasInterests                                        bool
 	hasCols, hasSort, hasPanes, hasTZ, hasKbd           bool
@@ -1322,7 +1323,7 @@ func (p prefsIn) membershipPatch() map[string]any {
 		patch["issues_sort"] = nilSort(p.sort)
 	}
 	if p.hasPanes {
-		patch["pane_sizes"] = nilFloatMap(p.panes)
+		patch["pane_sizes"] = nilRaw(p.panes)
 	}
 	if p.hasTZ {
 		patch["time_zone"] = nullable(p.tz)
@@ -1333,7 +1334,7 @@ func (p prefsIn) membershipPatch() map[string]any {
 	return patch
 }
 
-// nilSlice / nilMap / nilFloatMap / nilSort answer a cleared setting as JSON
+// nilSlice / nilMap / nilRaw / nilSort answer a cleared setting as JSON
 // null (the SQL merge strips it), so the read falls back to the global.
 func nilSlice(v []string) any {
 	if v == nil {
@@ -1349,7 +1350,7 @@ func nilMap(v map[string]int) any {
 	return v
 }
 
-func nilFloatMap(v map[string]float64) any {
+func nilRaw(v json.RawMessage) any {
 	if v == nil {
 		return nil
 	}

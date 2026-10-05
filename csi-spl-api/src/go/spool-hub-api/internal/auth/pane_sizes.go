@@ -40,9 +40,28 @@ func IsPaneSizes(v map[string]float64) bool {
 	return sum < PaneSizeMax
 }
 
+// PaneViews are the views a width set is kept for (spec 078 FR-007): channels
+// and DMs, Issues, Help, Docs, and the default for every other page.
+var PaneViews = []string{"default", "channel", "issues", "help", "docs"}
+
+// IsPaneSizesPerView reports whether v holds only PaneViews, each a valid
+// IsPaneSizes set (spec 078 FR-007). An empty map is valid.
+func IsPaneSizesPerView(v map[string]map[string]float64) bool {
+	for view, sizes := range v {
+		if !inList(view, PaneViews) || !IsPaneSizes(sizes) {
+			return false
+		}
+	}
+	return true
+}
+
 // parsePaneSizes reads PUT preferences' pane_sizes: present = has, a null or an
-// empty object clears (nil). A refusal is (code, detail).
-func parsePaneSizes(raw json.RawMessage) (v map[string]float64, has bool, code, detail string) {
+// empty object clears (nil). Two shapes are kept, as sent: the flat
+// {sidebar, topic} (SPL-1182) and per view {default: {sidebar, topic},
+// channel?: ..., issues?: ..., help?: ..., docs?: ...} (spec 078 FR-007; the WUI
+// reads a flat value as default). The hub validates and stores the object; it
+// does not interpret the views. A refusal is (code, detail).
+func parsePaneSizes(raw json.RawMessage) (v json.RawMessage, has bool, code, detail string) {
 	s := strings.TrimSpace(string(raw))
 	if s == "" {
 		return nil, false, "", ""
@@ -50,19 +69,35 @@ func parsePaneSizes(raw json.RawMessage) (v map[string]float64, has bool, code, 
 	if s == "null" {
 		return nil, true, "", ""
 	}
-	if json.Unmarshal(raw, &v) != nil || v == nil || !IsPaneSizes(v) {
-		return nil, true, "unsupported_pane_sizes", "pane_sizes must be an object of " +
-			strings.Join(PaneSizeKeys, ",") + " -> a fraction of the window, or null"
+	var flat map[string]float64
+	if json.Unmarshal(raw, &flat) == nil && flat != nil && IsPaneSizes(flat) {
+		if len(flat) == 0 {
+			return nil, true, "", ""
+		}
+		v, _ = json.Marshal(flat)
+		return v, true, "", ""
 	}
-	if len(v) == 0 {
-		v = nil
+	var views map[string]map[string]float64
+	if json.Unmarshal(raw, &views) == nil && views != nil && IsPaneSizesPerView(views) {
+		for view, sizes := range views {
+			if len(sizes) == 0 {
+				delete(views, view)
+			}
+		}
+		if len(views) == 0 {
+			return nil, true, "", ""
+		}
+		v, _ = json.Marshal(views)
+		return v, true, "", ""
 	}
-	return v, true, "", ""
+	return nil, true, "unsupported_pane_sizes", "pane_sizes must be an object of " +
+		strings.Join(PaneSizeKeys, ",") + " -> a fraction of the window, or of " +
+		strings.Join(PaneViews, ",") + " -> such an object, or null"
 }
 
 // paneSizes is the session human's stored divider widths for the active
 // tenant, nil when unset. Like issuesSort it reads the overlaid snapshot.
-func (h *Handler) paneSizes(ctx context.Context, s Session) map[string]float64 {
+func (h *Handler) paneSizes(ctx context.Context, s Session) json.RawMessage {
 	if s.HumanID == "" || h.prefs == nil {
 		return nil
 	}

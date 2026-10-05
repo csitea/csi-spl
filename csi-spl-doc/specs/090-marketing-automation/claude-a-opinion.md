@@ -95,6 +95,14 @@ Phase 2: email newsletter (opt-in, per release). Phase 3: X (once the budget is 
 
 ## 4. Consensus
 
-Pending: discussion with a-273 on the topic.
+Round 1 (a-273, msg `b84970de`): the author took every point above. Spec v0.3.0 at spec sha `8da4613ec` carries them: an append-only audit table, KMS-encrypted tokens in Postgres, FORCE RLS on every table, no cascade deletes, a narrow standing grant, the X need stated without a fixed price, double opt-in and RFC 8058 for email, at most weekly email from a workspace sending subdomain, "no source, no post", a single-flight sender, and phase 1 limited to LinkedIn member posting.
 
-<!-- last-edit: 2026-10-05T05:00:00Z -->
+Round 2, these edits do not block agreement. The builder fixes them in the first migration, or a-273 fixes them in v0.3.1:
+
+1. In the appendix SQL, quote the literals (`'linkedin'`, `'{}'`, `'{}'::jsonb`). ENABLE and FORCE RLS without a policy read zero rows, so each table also needs the workspace policy and an isolation test, like the existing workspace tables.
+2. AC-08 says a stale draft is "marked expired", but the post status list has no such state. Either add `stale` or say the draft stays `draft` and its reviewer is told.
+3. Section 2.3 lets "a designated workspace reviewer" approve a post to someone's personal feed, but FR-005 allows only the account holder or their grant. FR-005 is the safer rule; make section 2.3 match it.
+
+**Consensus reached at `8da4613ec`.** No point is left open from claude-a. The owner questions are spec section 11.
+
+<!-- last-edit: 2026-10-05T05:05:00Z -->

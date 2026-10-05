@@ -25,7 +25,9 @@
         <img src="/logo.webp" alt="" width="28" height="28" decoding="async">
       </button>
       <LazyLogoDialog v-if="logoOpen" v-model:open="logoOpen" />
-      <TenantDropBox />
+      <!-- perf E14: not mounted on a phone (TopBarTenant is the switcher
+           there), so its hidden subtree is not in the phone's DOM -->
+      <template v-if="!phone"><TenantDropBox /></template>
       <ThemeToggle />
     </div>
     <!-- SPL-995: the tenant switcher, first in the phone row -->

@@ -134,7 +134,7 @@ export function badgeLabel(n) {
 /**
  * The installed app's icon badge (FR-013): setAppBadge(n), clearAppBadge()
  * at 0. Where the browser lacks the API nothing happens. Returns whether it
- * was called.
+ * was called. The badge promise is not awaited; a rejection is ignored.
  */
 export function syncAppBadge(nav, n) {
   if (!nav) return false
@@ -144,6 +144,7 @@ export function syncAppBadge(nav, n) {
     if (v && typeof nav.setAppBadge === 'function') p = nav.setAppBadge(v)
     else if (!v && typeof nav.clearAppBadge === 'function') p = nav.clearAppBadge()
     else return false
+    // A denied badge permission is not an app error.
     if (p && typeof p.catch === 'function') p.catch(() => {})
   } catch {
     return false

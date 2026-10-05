@@ -23,12 +23,17 @@ export const ARCHIVE_UNDO_MS = 700
    (useMessageEdit.dropEverywhere: the channel store, both live feeds, the
    topic-list rows); the unarchive re-reads them so the card comes back where
    it was. The other tabs get the hub's topic_archived(archived:false) frame.
-   CLE-77840: the Deleted · Undo snackbar (useDeleteUndo) re-reads the same way. */
+   CLE-77840: the Deleted · Undo snackbar (useDeleteUndo) re-reads the same way.
+   Every step is best effort and runs in order: one that fails does not stop
+   the next, and the caller never sees the error. */
 export async function rereadFeeds() {
+  // A failed re-read only leaves the card hidden until the next live frame or reconnect catch-up.
   await useChannelStore().catchUp().catch(() => {})
+  // Same: the viewer list catches up again on the next frame or reconnect.
   await useViewerStore().catchUp().catch(() => {})
   for (const key of ['main', 'pane'] as const) {
     const feed = useLiveFeed(key)
+    // Same: the open feed re-reads on the next live frame or reconnect catch-up.
     if (feed.taskId) await feed.open(String(feed.taskId)).catch(() => {})
   }
 }

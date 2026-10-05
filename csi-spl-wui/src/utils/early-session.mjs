@@ -32,10 +32,15 @@ export function takeParkedSession(win, url) {
   return parked.p
 }
 
-/** Start `probe()` once per page load; the same promise if already started. */
+/**
+ * Start `probe()` once per page load; the same promise if already started.
+ * Its rejection is swallowed here only so it is not an unhandledrejection
+ * while nobody awaits it yet; the caller that takes `early` handles it.
+ */
 export function startEarlySession(probe) {
   if (!early) {
     const p = probe()
+    // The caller awaits `early` and handles a failure; this only marks it handled meanwhile.
     p.catch(() => {})
     early = p
   }

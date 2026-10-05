@@ -78,5 +78,6 @@ function onMoved(moved: string[], marks: Record<string, Mark>) {
        applies the new rows (its dmSeed watch), as for the first paint. */
     void channel.loadDmActivity(self)
   }
+  // Best effort: a failed reload keeps the cached channel counts until the next load or live frame.
   if (moved.some((k) => k.startsWith('ch:'))) void channel.loadChannels().catch(() => {})
 }

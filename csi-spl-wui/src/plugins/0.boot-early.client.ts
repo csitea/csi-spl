@@ -22,6 +22,8 @@ export default defineNuxtPlugin({
     const parked = takeParkedSession(window, sessionProbeUrl(useAuthBase()))
     startEarlySession(() => auth.session(parked))
     if (isProductScreen(window.location.pathname + window.location.search)) {
+      // Warm-up only: the real import on render retries and triggers chunk-reload,
+      // which is why a stale chunk here does not reload the tab.
       void import('~/layouts/default.vue').catch(() => {})
       void import('~/components/LanguageSwitcher.vue').catch(() => {})
     }

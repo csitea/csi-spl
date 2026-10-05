@@ -90,3 +90,110 @@ export function paneTakesLine({ paneOpen = false } = {}) {
      until it is closed; the pane clicked last no longer decides */
   return Boolean(paneOpen)
 }
+
+/*
+ * 081 T006 (FR-006, FR-007, FR-009): the F6 cycle, the skip link and the
+ * focus after a route change. paneOfTarget above stays as it is (the left
+ * pane and the Omnibox choose no level); paneAt below names every F6 stop.
+ */
+export const LEFT = 'left'
+export const OMNIBOX = 'omnibox'
+
+/** The F6 order, left to right; Shift + F6 walks it back. */
+export const F6_ORDER = Object.freeze([LEFT, MIDDLE, RIGHT, OMNIBOX])
+
+/** Each pane's root in the shell. The docked Omnibox sits inside .spool-main, so paneAt tests it first. */
+export const PANE_ROOTS = Object.freeze({
+  [OMNIBOX]: '.top-bar__omnibox',
+  [RIGHT]: 'aside.live-pane, aside.operator-pane',
+  [MIDDLE]: '.spool-main',
+  [LEFT]: 'nav.sidebar',
+})
+
+/**
+ * Where the focus lands in a pane: its selected row, else its first row
+ * (F6 only, spec 3.2), else its heading (spec 3.3).
+ */
+export const PANE_TARGETS = Object.freeze({
+  [LEFT]: { selected: '[aria-current="true"], [aria-current="page"], .sidebar-tab[aria-selected="true"]', first: 'a[href]:not([tabindex="-1"]), button:not([tabindex="-1"]):not([disabled])', heading: 'h1, h2, h3' },
+  [MIDDLE]: { selected: '[data-selected="true"], [aria-current="true"]', first: '.msg[tabindex="0"], [role="row"], [role="option"]', heading: 'h1, h2' },
+  [RIGHT]: { selected: '[data-selected="true"], [aria-current="true"]', first: '.msg[tabindex="0"]', heading: 'h1, h2, h3' },
+  [OMNIBOX]: { selected: 'textarea', first: 'textarea, input', heading: '' },
+})
+
+/**
+ * The F6 pane an element sits in, or '' for none (a dialog, the top bar
+ * outside the Omnibox, the body).
+ * @param {unknown} el
+ * @returns {'' | 'left' | 'middle' | 'right' | 'omnibox'}
+ */
+export function paneAt(el) {
+  const e = /** @type {{ closest?: (s: string) => unknown } | null} */ (el)
+  if (!e || typeof e.closest !== 'function') return ''
+  for (const pane of [OMNIBOX, RIGHT, MIDDLE, LEFT]) {
+    if (e.closest(PANE_ROOTS[pane])) return /** @type {'left' | 'middle' | 'right' | 'omnibox'} */ (pane)
+  }
+  return ''
+}
+
+/**
+ * F6 forwards, Shift + F6 back; with Ctrl, Alt or Meta it is the browser's.
+ * @param {{ key?: string, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, metaKey?: boolean } | null} ev
+ * @returns {'' | 'next' | 'prev'}
+ */
+export function paneKey(ev) {
+  if (!ev || ev.key !== 'F6' || ev.ctrlKey || ev.altKey || ev.metaKey) return ''
+  return ev.shiftKey ? 'prev' : 'next'
+}
+
+/**
+ * The next pane in the F6 cycle from `from`, skipping the panes not there
+ * (the right pane while no topic is open). From nowhere F6 starts at the
+ * left pane and Shift + F6 at the Omnibox; '' when there is nowhere to go.
+ * @param {string} from
+ * @param {{ back?: boolean, has?: (pane: string) => boolean }} [opts]
+ * @returns {string}
+ */
+export function nextPane(from, { back = false, has = () => true } = {}) {
+  const there = F6_ORDER.filter((p) => has(p))
+  if (!there.length) return ''
+  const i = F6_ORDER.indexOf(from)
+  if (i < 0) return back ? there[there.length - 1] : there[0]
+  const n = F6_ORDER.length
+  for (let k = 1; k < n; k++) {
+    const p = F6_ORDER[(i + (back ? -k : k) + n * k) % n]
+    if (has(p)) return p
+  }
+  return ''
+}
+
+/**
+ * The element to focus in a pane root: the selected row, else the first
+ * row (unless `firstRow` is false), else the heading, else the root.
+ * `visible` drops what a collapsed panel or a closed list hides.
+ * @param {{ querySelectorAll?: (s: string) => ArrayLike<unknown> } | null} root
+ * @param {string} pane
+ * @param {{ firstRow?: boolean, visible?: (el: unknown) => boolean }} [opts]
+ * @returns {unknown}
+ */
+export function paneTarget(root, pane, { firstRow = true, visible = () => true } = {}) {
+  if (!root || typeof root.querySelectorAll !== 'function') return null
+  const q = /** @type {(s: string) => ArrayLike<unknown>} */ (root.querySelectorAll.bind(root))
+  const t = /** @type {Record<string, { selected: string, first: string, heading: string }>} */ (PANE_TARGETS)[pane]
+  if (!t) return root
+  /** @param {string} sel */
+  const pick = (sel) => (sel ? Array.from(q(sel)).find((el) => visible(el)) : undefined)
+  return pick(t.selected) || (firstRow ? pick(t.first) : undefined) || pick(t.heading) || root
+}
+
+/**
+ * Does a finished navigation move the focus into the middle pane (FR-009)?
+ * Not on the first load (the skip link is the first stop), not on Back or
+ * Forward, not when only the query changed (a topic opening on the right),
+ * not on a phone, and never out of a text field or an open dialog.
+ * @param {{ initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean }} [nav]
+ */
+export function routeTakesFocus({ initial = false, popstate = false, failed = false, mobile = false, fromPath = '', toPath = '', typing = false, dialog = false } = {}) {
+  if (initial || popstate || failed || mobile || typing || dialog) return false
+  return fromPath !== toPath
+}

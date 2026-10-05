@@ -910,7 +910,8 @@
     "collapse_messages": "כווץ הודעות",
     "expand_messages": "הרחב הודעות",
     "collapse_thread": "כווץ שרשור",
-    "expand_thread": "הרחב שרשור"
+    "expand_thread": "הרחב שרשור",
+    "skip_to_msgs": "דלג להודעות"
   },
   "pages": {
     "feed_label": "{target}, החדשות ראשונות",

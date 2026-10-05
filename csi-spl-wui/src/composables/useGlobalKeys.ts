@@ -8,8 +8,15 @@
 // preventDefault, as GitHub and Slack do). It is off on a phone and while
 // another dialog, menu or sheet is open; pressed with the palette open, it
 // closes it. The capture phase, so a field that stops its own keys cannot
-// hide the chord. T006 adds F6 here.
+// hide the chord.
+//
+// 081 T006 (FR-006): F6 / Shift + F6 move the focus left pane -> middle ->
+// right (when open) -> Omnibox, and back. The target is the pane's selected
+// row, else its first row, else its heading (utils/pane-focus.mjs). Not a
+// letter, so the keyboard_shortcuts setting does not turn it off (FR-012).
 import { usePhone } from '~/composables/useTouchUi'
+import { usePaneFocus } from '~/stores/pane-focus'
+import { LEFT, MIDDLE, PANE_ROOTS, RIGHT, nextPane, paneAt, paneKey, paneTarget, type F6Pane } from '~/utils/pane-focus.mjs'
 
 /** The command palette (CommandPalette.vue, mounted by the layout while true). */
 const paletteOpen = ref(false)
@@ -29,13 +36,55 @@ export function usePaletteOpen() {
   return paletteOpen
 }
 
+/** On screen: a collapsed panel's hidden rows and a closed list's rows are not. */
+function shown(el: Element): boolean {
+  return el.getClientRects().length > 0
+}
+
+function paneRoot(pane: F6Pane): HTMLElement | null {
+  return [...document.querySelectorAll<HTMLElement>(PANE_ROOTS[pane])].find(shown) || null
+}
+
+/**
+ * Focus a pane (081 T006): its selected row, else its first row (unless
+ * firstRow is false), else its heading, else the pane itself. A heading or a
+ * pane gets tabindex -1 so it can hold the focus. False when the pane is not
+ * on screen.
+ */
+export function focusPane(pane: F6Pane, { firstRow = true } = {}): boolean {
+  const root = paneRoot(pane)
+  if (!root) return false
+  const el = paneTarget(root, pane, { firstRow, visible: shown }) as HTMLElement | null
+  if (!el) return false
+  if (!el.matches('a[href], button, input, textarea, select, [tabindex]')) el.setAttribute('tabindex', '-1')
+  el.focus({ preventScroll: true })
+  if (pane === LEFT || pane === MIDDLE || pane === RIGHT) usePaneFocus().set(pane)
+  return root.contains(document.activeElement)
+}
+
+/** F6 / Shift + F6: the next pane on screen; true when the key was ours. */
+function onPaneKey(ev: KeyboardEvent): boolean {
+  const dir = paneKey(ev)
+  if (!dir) return false
+  const to = nextPane(paneAt(document.activeElement), { back: dir === 'prev', has: (p) => Boolean(paneRoot(p)) })
+  if (!to) return false
+  ev.preventDefault()
+  focusPane(to as F6Pane)
+  return true
+}
+
 export function useGlobalKeys() {
   const phone = usePhone()
   onMounted(() => {
     installed += 1
     if (listener) return
     listener = (ev: KeyboardEvent) => {
-      if (ev.defaultPrevented || ev.isComposing || !isPaletteChord(ev)) return
+      if (ev.defaultPrevented || ev.isComposing) return
+      if (ev.key === 'F6') {
+        if (!phone.value && !paletteOpen.value && !document.querySelector(OVERLAY_OPEN)) onPaneKey(ev)
+        return
+      }
+      if (!isPaletteChord(ev)) return
       if (phone.value) return
       if (paletteOpen.value) {
         ev.preventDefault()

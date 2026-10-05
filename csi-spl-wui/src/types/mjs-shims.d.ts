@@ -2270,3 +2270,18 @@ declare module '~/utils/offline-queue.mjs' {
   export function retryWith(msgId: string, text?: string): void
   export function takeMsgId(text: string, fresh: string): string
 }
+
+/* 081 T006: the F6 cycle, the skip link and the focus after a route change */
+declare module '~/utils/pane-focus.mjs' {
+  export const LEFT: 'left'
+  export const OMNIBOX: 'omnibox'
+  export type F6Pane = 'left' | 'middle' | 'right' | 'omnibox'
+  export const F6_ORDER: readonly F6Pane[]
+  export const PANE_ROOTS: Readonly<Record<F6Pane, string>>
+  export const PANE_TARGETS: Readonly<Record<F6Pane, { selected: string, first: string, heading: string }>>
+  export function paneAt(el: unknown): '' | F6Pane
+  export function paneKey(ev: { key?: string, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, metaKey?: boolean } | null): '' | 'next' | 'prev'
+  export function nextPane(from: string, opts?: { back?: boolean, has?: (pane: F6Pane) => boolean }): '' | F6Pane
+  export function paneTarget(root: ParentNode | null, pane: string, opts?: { firstRow?: boolean, visible?: (el: Element) => boolean }): Element | null
+  export function routeTakesFocus(nav?: { initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean }): boolean
+}

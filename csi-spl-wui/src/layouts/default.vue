@@ -11,6 +11,11 @@
      data-mobile-level is what main.css reads, above 820 px nothing does. -->
 <template>
   <div class="layout">
+    <!-- 081 T006 (FR-007): the first Tab stop; Enter puts the focus in the
+         middle pane (its selected card, else its first). The live region
+         says the page after a navigation moved the focus (FR-009). -->
+    <a class="skip-link" href="#" data-testid="skip-link" @click.prevent="skipToMsgs">{{ $t('pane.skip_to_msgs') }}</a>
+    <div class="sr-only" role="status" aria-live="polite" data-testid="route-announce">{{ routeAnnounce }}</div>
     <ClientOnly>
       <div class="app-frame">
       <TopBar />
@@ -189,7 +194,8 @@ import { DOCK_ID } from '~/utils/omnibox-dock.mjs'
 import { useMove } from '~/composables/useMove'
 import { closeArchivedPane, useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useMsgShortcutsHelp } from '~/composables/useMsgShortcuts'
-import { useGlobalKeys } from '~/composables/useGlobalKeys'
+import { focusPane, useGlobalKeys } from '~/composables/useGlobalKeys'
+import { MIDDLE, routeTakesFocus } from '~/utils/pane-focus.mjs'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
 import { useOpenMessageNotice } from '~/composables/useOpenMessage'
@@ -337,8 +343,34 @@ const offNav = router.afterEach((to, from, failure) => {
   /* spec 078 FR-004, Q3: on desktop a section page or /search closes the
      right pane too, whichever section it holds (the operator console too) */
   if (routeLeavesTopic(nav)) { livePane.close(); topic.close(); operatorPane.close() }
+  /* 081 T006 (FR-009): a navigation that is not Back / Forward puts the
+     focus on the new middle pane's selected row or heading, once the page
+     has rendered (page:finish), and the live region says its title */
+  const initial = from.matched.length === 0
+  if (routeTakesFocus({ ...nav, initial, typing: typingNow() })) routeFocusDue = Date.now()
 })
 onUnmounted(() => { offPop(); offNav() })
+/* 081 T006: the skip link and the focus after a route change */
+const routeAnnounce = ref('')
+let routeFocusDue = 0
+const ROUTE_FOCUS_MS = 3000
+function typingNow() {
+  return Boolean(document.activeElement?.closest?.('textarea, input, select, [contenteditable="true"]'))
+}
+function skipToMsgs() {
+  focusPane(MIDDLE)
+}
+function focusAfterRoute() {
+  if (!routeFocusDue || Date.now() - routeFocusDue > ROUTE_FOCUS_MS) return
+  routeFocusDue = 0
+  if (typingNow() || document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) return
+  if (!document.querySelector('.spool-main')?.contains(document.activeElement)) focusPane(MIDDLE, { firstRow: false })
+  /* the head writes the new title a frame later; clear first so the same title is said again */
+  routeAnnounce.value = ''
+  setTimeout(() => { routeAnnounce.value = document.title }, 150)
+}
+const offPageFinish = useNuxtApp().hook('page:finish', () => { void nextTick(focusAfterRoute) })
+onUnmounted(() => offPageFinish())
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
 
 /* CLE-3429, the state half of 1..1: opening one section closes the other, so
@@ -381,6 +413,21 @@ const {
 </script>
 
 <style scoped>
+/* 081 T006: off screen until it holds the focus */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -10rem;
+  z-index: var(--z-overlay);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  box-shadow: var(--focus-3d);
+}
+.skip-link:focus {
+  top: 0.5rem;
+}
 .layout {
   max-width: 100%;
   min-width: 0;

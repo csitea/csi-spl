@@ -1,14 +1,14 @@
 import { defineStore } from 'pinia'
 import { eventChoosesPane, isKeyNav, onScrollbar, paneOfTarget, RIGHT } from '~/utils/pane-focus.mjs'
 
-/** The pane the reader selected last (utils/pane-focus.mjs). */
+/** The pane the reader selected last (utils/pane-focus.mjs). 081 T006: F6 can choose the left pane too. */
 export const usePaneFocus = defineStore('pane-focus', () => {
-  const last = ref<'' | 'middle' | 'right'>('')
+  const last = ref<'' | 'left' | 'middle' | 'right'>('')
   /* SPL-996: when the reader last pressed a navigation key (a focusin after
      one is theirs; a focusin the app made is not a choice) */
   let keyNavAt = 0
 
-  function set(pane: '' | 'middle' | 'right') {
+  function set(pane: '' | 'left' | 'middle' | 'right') {
     if (pane) last.value = pane
   }
 

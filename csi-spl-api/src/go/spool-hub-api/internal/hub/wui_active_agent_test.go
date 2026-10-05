@@ -101,3 +101,36 @@ func TestWUISendToRetiredIDGoesToSuccessorOrIsRefused(t *testing.T) {
 		t.Fatalf("a mention later in the line is text: %v", ack)
 	}
 }
+
+// Owner 2026-10-05 (t1 dc6d5e3f, P2): a role id (c-001, seated on every box)
+// tagged in a thread goes to the box of its fleet lease holder, in the same
+// thread. CONTROL: before, the bare id on two boxes was ambiguous_to_box
+// (n=1); with no live lease it still is, so nothing guesses a box.
+func TestWUISendToRoleIDGoesToLeaseHolder(t *testing.T) {
+	_, key, _ := ed25519.GenerateKey(nil)
+	e := dispatchEnv(t, true, key)
+	tid, root := e.tenant()
+	ctx := context.Background()
+	a, b := e.box(tid, "box-a", "c-001"), e.box(tid, "box-b", "c-001")
+	e.pin(tid, a)
+	e.pin(tid, b)
+	if code, eb := e.postPin(tid, root, hub.WUIBox, b64(key.Public().(ed25519.PublicKey))); code != http.StatusOK {
+		t.Fatalf("pin box-wui: %d %+v", code, eb)
+	}
+	now := time.Now()
+	e.st.SetRoster(ctx, tid, "box-a", []string{"c-001"}, now) //nolint:errcheck
+	e.st.SetRoster(ctx, tid, "box-b", []string{"c-001"}, now) //nolint:errcheck
+	w := dialMember(t, e, tid, "Alice", "HUM-google-sub-1@"+tid)
+	thread := "ac43e7c8-c0e1-433e-9c0c-4d217c1ce3e7"
+
+	if f := replyFrame(t, w, "6a000000-0000-4000-8000-000000000001", thread, "@c-001 who holds it"); f["error"] != "ambiguous_to_box" {
+		t.Fatalf("no lease: %v", f)
+	}
+	if _, err := e.st.CASFleetLease(ctx, tid, "main", "orch", "c-001@box-b", "box-b", 0, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	ack := replyFrame(t, w, "6a000000-0000-4000-8000-000000000002", thread, "@c-001 take this")
+	if ack["type"] != "ack" || ack["to_box"] != "box-b" || ack["task_id"] != thread {
+		t.Fatalf("role id with a lease: %v", ack)
+	}
+}

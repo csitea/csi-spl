@@ -112,6 +112,24 @@ func (r roleSeats) filter(box string, agents []string) []string {
 	return out
 }
 
+// narrow keeps the boxes that hold id's role, so a bare role id a browser
+// tags (@c-001, seated on every box) goes to the lease holder (owner
+// 2026-10-05, t1 dc6d5e3f) instead of ambiguous_to_box. No live lease for
+// that role, or none of boxes holds it: boxes unchanged.
+func (r roleSeats) narrow(id string, boxes []string) []string {
+	held := r[roleNumber(id)]
+	var out []string
+	for _, b := range boxes {
+		if held[b] {
+			out = append(out, b)
+		}
+	}
+	if len(out) == 0 {
+		return boxes
+	}
+	return out
+}
+
 // roleNumber is an agent id's number ("" for a non-agent participant).
 func roleNumber(id string) string {
 	if !agentid.IsAgent(id) {

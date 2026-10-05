@@ -139,6 +139,9 @@ func (s *Server) dispatchCheck(ctx context.Context, c *wuiConn, m *msg.Message, 
 			boxes = append(boxes, b)
 		}
 	}
+	if want == "" && len(boxes) > 1 { // a role id: its lease holder's box
+		boxes = s.roleSeats(ctx, c.tenant).narrow(m.To, boxes)
+	}
 	switch len(boxes) {
 	case 0:
 		if want != "" {

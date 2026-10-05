@@ -118,7 +118,20 @@ Rules for every task (owner Q8, spec §3.10):
 - [ ] T020 **demo pages**: the "Try the demo" button, the "demo is full" and
   "time is up" pages, the header countdown, and the denied actions hidden for
   a `demo_user` (the hub already refuses them). Done: `pnpm run typecheck` and
-  e2e.
+  e2e. Parts:
+  - [x] **intro + "Try the demo"** (c-311, owner HUM-10 2026-10-05): on
+    `/login`, only while `GET /v1/demo` answers 200, a short intro (what the
+    demo is, what a visitor can and cannot do, the live `max_live` from the
+    hub) and one "Try the demo with <provider>" per registry provider the demo
+    admits (google, facebook), starting with `tenant=<demo id>` (T007). A 404
+    leaves the page as before. Lazy chunk, initial JS unchanged. It states no
+    stay length (T009) and no pseudonym (T011) until those are live. Done:
+    `tests/e2e/login-demo-intro.test.mjs`, `tests/unit/demo-info.test.mjs`.
+  - [x] **"demo is full"** (c-311): `auth_error=demo_full` (T008) reads "The
+    demo is full right now, try again later" on `/login` instead of "Sign-in
+    failed". The contact line waits for T018.
+  - [ ] "time is up" page and the header countdown (after T009).
+  - [ ] denied actions hidden for a `demo_user`.
 
 ### Phase 6: Demo agents (Q3 and Q6 pending the owner)
 
@@ -136,4 +149,4 @@ Rules for every task (owner Q8, spec §3.10):
 - [ ] T024 **prd on**: only on the owner's explicit go after the dev
   walkthrough.
 
-<!-- version: 0.2.1 · updated: 2026-10-05 · last-edit: 2026-10-04T23:03:00Z -->
+<!-- version: 0.2.2 · updated: 2026-10-05 · last-edit: 2026-10-05T10:05:00Z -->

@@ -19,6 +19,6 @@ No task changes the reply control ("3 >>", owner SPL-982): spec §9 Q4.
 - [ ] T004 **Flow text** : Flow entry text (`src/utils/flow-entries.mjs` `flowText`, `src/components/FlowList.vue:123,147`) goes through `plainText`. Owns: `flowText` and `tests/unit/flow-entries.test.mjs`. e2e AC5 added to `tests/e2e/clean-list-rows.test.mjs`. Depends on T002. Done: the checks above.
 
 ### Phase 3: Help
-- [ ] T005 **help** : `csi-spl-doc/doc/help/message-levels-and-topics.md` (how a topic row reads: plain title, date rule), then `node src/node/help/sync-help.mjs`. Done: `./run -a do_check_dist_hygiene`, `lint-mdlinks` green.
+- [x] T005 **help** (c-272): `csi-spl-doc/doc/help/message-levels-and-topics.md` (how a topic row reads: plain title, date rule), then `node src/node/help/sync-help.mjs`. Done: `./run -a do_check_dist_hygiene`, `lint-mdlinks` green.
 
 <!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:45:00Z -->

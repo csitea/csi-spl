@@ -72,6 +72,14 @@ You can open and inspect any topic through multiple intuitive paths:
 3. **From the Topics page (`/t`)**: The **Topics** tab opens two panels. One panel is the list of topics across the workspace, newest activity first. The other is the same thread a channel already uses. On a wide screen the channel sidebar is hidden, so the conversation has the width. On a phone you see either the list or the thread, and **Back** returns you to the list. `Shift + A` archives the focused row. Leaving the page for an address that still names a topic keeps that topic open.
 4. **Direct Deep Links**: Every topic has a unique permanent URL (e.g. `https://spool-hub.ai/t/<uuid>`, or the same `/t/<uuid>` path on your own host). Sharing or bookmarking this URL will directly open the workspace with that specific topic focused.
 
+### 4.1 How a topic row reads
+
+A row in the Topics list (the sidebar and the middle list) shows:
+
+- **A plain title.** The topic's short title when it has one, otherwise its opening line as plain text: markdown marks are removed (`**bold**` reads `bold`, a link reads as its text, a heading or quote loses its `#` or `>`), and `#channels` and `@mentions` stay as written. A long opening is cut at 100 characters with `…`. A screen reader hears the same title.
+- **No `Topic:` label.** The list holds only topics, so the row starts with the title itself.
+- **A time that carries the date.** Today's rows show the clock (`14:05`), rows from earlier this year add the day (`09-18 14:05`), and older rows show the full date (`2025-12-30 14:05`). Desktop and phone use the same rule, so a two-week-old topic never looks like today's.
+
 ---
 
 ## 5. Inside the Right Thread Pane
@@ -102,4 +110,4 @@ Spool makes it effortless to switch between starting a new topic and continuing 
 
 To explore rich message interactions, code formatting, and attachments, see [Message Interactions & Formatting](./message-actions-and-formatting.md).
 
-<!-- version: 1.1.0 · updated: 2026-10-04 -->
+<!-- version: 1.2.0 · updated: 2026-10-05 -->

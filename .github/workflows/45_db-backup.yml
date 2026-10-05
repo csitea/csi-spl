@@ -1,9 +1,9 @@
-# 45 ops: off-instance backup of the hub DB, four times a day (specs/029).
+# 45 ops: off-instance backup of the hub DB, once a day (specs/029).
 #
 # Owner order 2026-09-20, verbatim: "the same one should update the specs for
 # creating a backup job on the db - for now once daily, triggered from the
-# github actions". This is that job. The schedule is minute 17 of every sixth
-# hour. Point-in-time recovery inside the project stays the minutes-level path.
+# github actions". This is that job. The schedule is 03:17 UTC once a day.
+# Point-in-time recovery inside the project stays the minutes-level path.
 #
 # IS IT REDUNDANT? Measured 2026-09-21 on both envs (csi-spl-orc
 # do_spl_db_health, section cloudsql): the instance's OWN automated backups are
@@ -59,10 +59,12 @@ name: "45 ops: hub db backup"
 
 on:
   schedule:
-    # Four times a day. GitHub's scheduler is best-effort (a declared 10-minute
-    # job was measured ~100 min late; this 05:17 job started 112 min late on
-    # 2026-10-04), so a gap can run past six hours.
-    - cron: '17 */6 * * *'
+    # Once a day, per the owner 2026-10-05 (3f2d8a13): "no need for so tight
+    # backups - once per day is enough" (R10 had it at every 6 h). 03:17 UTC
+    # keeps clear of 00:00, GitHub's busiest hour. The scheduler is best-effort
+    # (this job started 112 min late on 2026-10-04), so the gap between two
+    # backups can run past 24 h.
+    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       environment:

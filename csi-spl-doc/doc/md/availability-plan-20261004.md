@@ -207,6 +207,8 @@ section 2; none has caused an outage in 2026-09-18..10-04.
 | R17 | one hub instance holds every socket (2.1.1) | I-01..I-03 are this class (R01 heals; only this removes it) | spec: N >= 2 instances, session affinity, a cross-instance fan-out bus. The hub already has a Postgres LISTEN/NOTIFY wake listener (`internal/hub/wake.go`), the usual bus at this scale | 0 | 1.5 | 0.6 (with R18) | no (doc) | spec on trunk with the delivery contract and a test plan | new `csi-spl-doc/specs/<next>-hub-multi-instance/spec.md` | sat |
 | R18 | the same (2.1.1) | the same | implement R17; `max_instances >= 2` | ~+45 per env (one more always-on instance) | ~6 | 0.6 (with R17) | **yes** (money; needs R15 first: 25 connections cannot carry 2 instances) | a rollout with 2 instances: 0 x 429; a message to a box on the other instance delivered in < 1 s, n >= 100 | `csi-spl-api/src/go/spool-hub-api/internal/hub/**` (except `server.go`, `read_marks.go`, `box_stats.go` while R02/R05/R08 run), `max_instances` in `all.env.yaml` | sat |
 
+R10, 2026-10-05, owner (3f2d8a13): "no need for so tight backups - once per day is enough". Workflow 45 is back to once a day (cron `17 3 * * *`, 03:17 UTC); the R10 row keeps the 6 h history. RPO is <= ~24 h plus scheduler drift (112 min measured).
+
 ### 4.4 Already owned elsewhere (named so nobody plans them twice)
 
 | incident | owner |

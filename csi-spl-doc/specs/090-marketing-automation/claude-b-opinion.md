@@ -140,4 +140,9 @@ review).
 
 ## 4. Consensus
 
-Pending: discussion with a-273 on the topic above.
+Round 1: a-273 took all nine points into v0.3.0 (`8da4613e`). Round 2 asked
+for two text fixes: the approver rule in §2.3 contradicted FR-005, and the
+appendix SQL had unquoted literals and no RLS policy. Both are fixed in v0.3.1.
+The owner questions are in spec §11.
+
+Consensus reached at `350e2b9b0a57b0a9074f706cd14dcb08a0753ad1` (spec v0.3.1).

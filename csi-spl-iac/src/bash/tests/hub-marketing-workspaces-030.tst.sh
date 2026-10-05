@@ -15,6 +15,8 @@ fails=0
 skip() { echo "SKIP: $1"; }
 ENVVAR=SPOOL_HUB_MARKETING_WORKSPACES
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
+grep -qF "env:\"$ENVVAR\"" "$APP_ROOT/csi-spl-api/src/go/spool-hub-api/internal/config/config.go" \
+  && pass "the hub reads exactly $ENVVAR (config.go MarketingWorkspaces)" || fail "config.go does not name $ENVVAR"
 
 for env in dev prd; do
   v="$CNF/$env/tf/030-cloud-run-hub.vars.tfvars"

@@ -184,6 +184,11 @@ type Options struct {
 	// demo.go); "" = the demo is off (SPOOL_HUB_DEMO_ENABLED false, the
 	// default): a demo_user membership grants nothing and GET /v1/demo is 404.
 	DemoWorkspace string
+	// MarketingWorkspaces is the outer marketing allow-list (spec 090,
+	// marketing_switch.go): workspace ids, or the one entry "all". A
+	// workspace outside it gets 404 on every /v1/marketing route; inside it,
+	// its admin turns marketing on or off (tenants.marketing_enabled).
+	MarketingWorkspaces []string
 	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
 	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
 	// and the stay sweep gives a seat admitted before T009 that end.

@@ -179,7 +179,8 @@ var demoOutOfReach = map[string]bool{
 	"POST /v1/cicd-logs":       true,
 }
 
-var routeRe = regexp.MustCompile(`HandleFunc\("((?:POST|PUT|PATCH|DELETE) [^"]*)"(?:\+(\w+)(?:\+"([^"]*)")?)?`)
+// marketingRoute(mux, "...") registers a spec 090 route behind its gate.
+var routeRe = regexp.MustCompile(`(?:HandleFunc\(|marketingRoute\(mux, )"((?:POST|PUT|PATCH|DELETE) [^"]*)"(?:\+(\w+)(?:\+"([^"]*)")?)?`)
 
 // mutatingRoutes reads every mutating route the hub registers from its
 // source, prefix constants resolved.

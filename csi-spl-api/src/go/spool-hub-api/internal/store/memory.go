@@ -56,6 +56,8 @@ type Memory struct {
 	tenantLocale map[string]string
 	// tenant_settings.go (rdb 0109): vendor split, guarded by mu. Missing = the default.
 	agentSplit map[string]AgentSplit
+	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.
+	marketingOn map[string]bool
 	// fleet_load.go (rdb 0118): the fleet load target, guarded by mu. Missing = the default.
 	fleetLoad map[string]FleetLoadStored
 	wake      memWake // wake.go (spec 059 S1), its own lock

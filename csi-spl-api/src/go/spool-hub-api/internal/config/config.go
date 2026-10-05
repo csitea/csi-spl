@@ -368,6 +368,11 @@ type Hub struct {
 	// DemoProviders are the sign-in providers the open demo admission takes
 	// (cnf env.demo.providers, specs/077 FR-004); never password.
 	DemoProviders []string `env:"SPOOL_HUB_DEMO_PROVIDERS" envSeparator:"," envDefault:"google,facebook"`
+	// MarketingWorkspaces is the outer marketing allow-list (spec 090, cnf
+	// marketing.workspaces): the workspaces whose admins may turn marketing
+	// on or off, or the one entry "all" (every workspace). Empty = off
+	// everywhere: every /v1/marketing route answers 404.
+	MarketingWorkspaces []string `env:"SPOOL_HUB_MARKETING_WORKSPACES" envSeparator:","`
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`
@@ -543,6 +548,9 @@ func (h *Hub) checkStorage() error {
 	if err := h.validateWorkspaceDocs(); err != nil {
 		return err
 	}
+	if err := h.validateMarketing(); err != nil {
+		return err
+	}
 	if !strings.HasPrefix(h.TenantHostPattern, "{tenant}.") || len(h.TenantHostPattern) <= len("{tenant}.") {
 		return fmt.Errorf("SPOOL_HUB_TENANT_HOST_PATTERN %q must look like {tenant}.<fqdn> (no default)", h.TenantHostPattern)
 	}
@@ -714,6 +722,21 @@ var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4
 // workspaceDocsBucketRe is a GCS bucket name with no dot (a dotted name needs
 // domain verification, specs/075 4.1): 3..63 of [a-z0-9_-].
 var workspaceDocsBucketRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$`)
+
+// validateMarketing fails fast on an allow-list entry that is not a
+// workspace id, or on "all" mixed with ids (spec 090).
+func (h *Hub) validateMarketing() error {
+	for _, w := range h.MarketingWorkspaces {
+		switch {
+		case w == "all" && len(h.MarketingWorkspaces) == 1:
+		case w == "all":
+			return errors.New("SPOOL_HUB_MARKETING_WORKSPACES: \"all\" stands alone")
+		case !tenantIDRe.MatchString(w):
+			return fmt.Errorf("SPOOL_HUB_MARKETING_WORKSPACES entry %q must be a tenant id or all", w)
+		}
+	}
+	return nil
+}
 
 // validateWorkspaceDocs fails fast on a workspace docs store that is set but
 // cannot name one bucket per workspace.

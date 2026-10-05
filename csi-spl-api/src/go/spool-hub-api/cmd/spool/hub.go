@@ -289,7 +289,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		OriginTenant: originTenant, OperatorTenant: hc.OperatorWorkspace(), DemoWorkspace: hc.DemoTenant(), DemoAgentTurns: hc.DemoAgentTurns,
 		DemoMaxStay: hc.DemoMaxStay, DemoPostsPerMinute: hc.DemoPostsPerMinute, DemoPostsPerDay: hc.DemoPostsPerDay,
 		HelloTimeout: hc.HelloTimeout, PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout,
-		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion,
+		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},

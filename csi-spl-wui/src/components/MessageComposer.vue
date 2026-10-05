@@ -799,10 +799,15 @@ const modeText = computed(() => {
 })
 const intoTree = computed(() => Boolean(dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment')))
 /* owner, t1 3d6d945d "A": the glyph in the box - a new topic or into the tree;
-   a DM, /search and a page with no send target show none */
+   a DM, /search and a page with no send target show none.
+   HUM-10 (t1 3ffb2dee): on the phone the placeholder is already "#{name}".
+   A hash glyph in front of it reads "# #name". Drop the glyph there; the
+   gap it opened goes with it. Desktop keeps the glyph: its placeholder
+   is "Message #name", which is not the same doubling. */
 const modeGlyph = computed<'thread-tree' | 'hash' | null>(() => {
   if (!props.global || searchMode.value || !dockHint.value) return null
   if (intoTree.value) return 'thread-tree'
+  if (docked.value && dockHint.value.mode === 'new') return null
   return dockHint.value.mode === 'new' ? 'hash' : null
 })
 /* a phone page with no send target (/issues list, /events, /settings): GO

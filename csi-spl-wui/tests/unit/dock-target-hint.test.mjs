@@ -152,12 +152,26 @@ describe('the composer looks different per mode (HUM-24)', () => {
     const c = src('src/components/MessageComposer.vue')
     assert.match(c, /class="composer-mode-glyph"\n\s+data-test="composer-mode-glyph"/)
     assert.match(c, /role="img"\n\s+:aria-label="modeText"/)
-    assert.match(c, /if \(intoTree\.value\) return 'thread-tree'\n\s+return dockHint\.value\.mode === 'new' \? 'hash' : null/)
+    assert.match(c, /if \(intoTree\.value\) return 'thread-tree'\n\s+if \(docked\.value && dockHint\.value\.mode === 'new'\) return null\n\s+return dockHint\.value\.mode === 'new' \? 'hash' : null/)
     assert.match(c, /\.composer-mode-glyph\[data-glyph=thread-tree\] \{ color: var\(--color-mode-reply/)
     /* the old reply arrow is not the hierarchy cue any more */
     assert.doesNotMatch(c, /\? 'reply' : 'plus'/)
     const icons = src('src/utils/uiIcons.ts')
     assert.match(icons, /"thread-tree": \["M6 3v13a2 2 0 0 0 2 2h11", "M6 10h11"\]/)
+  })
+
+  it('HUM-10: the phone channel omnibox is "#name", never "# #name"', () => {
+    const c = src('src/components/MessageComposer.vue')
+    /* a hash glyph in front of "#{name}" is a leading "#" plus the gap */
+    const shown = (name, withGlyph) => (withGlyph ? '# ' : '') + ('#{name}'.replace('{name}', name))
+    const suppressed = /if \(docked\.value && dockHint\.value\.mode === 'new'\) return null/.test(c)
+    assert.equal(suppressed, true, 'phone dock still draws the hash glyph')
+    assert.equal(shown('spool-hub-ops', !suppressed), '#spool-hub-ops')
+    assert.equal(shown('spool-hub-ops', true), '# #spool-hub-ops')
+    assert.equal(/^#\s+#/.test(shown('spool-hub-ops', !suppressed)), false)
+    for (const l of ALL) {
+      assert.equal(loc(l).composer.phone_placeholder_channel, '#{name}', l)
+    }
   })
 
   it('the reply arrow and edit accents are defined for the dark default and every light theme', () => {

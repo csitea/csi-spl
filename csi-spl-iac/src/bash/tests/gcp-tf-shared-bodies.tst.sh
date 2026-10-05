@@ -117,6 +117,15 @@ grep -q 'cloudrun.googleapis.com' "$log" && ! grep -q 'compute.googleapis.com' "
   && pass "project-apis-enable keeps its list (cloudrun, no compute)" || fail "enable list drifted: $(cat "$log")"
 out=$(bash -c 'do_log(){ echo "$*"; }; source "'"$LIB"'/gcp-project-apis.func.sh"; do_gcp_project_apis wipe x a.googleapis.com' 2>&1); rc=$?
 [[ $rc -ne 0 && "$out" == *"enable or disable"* ]] && pass "CONTROL: do_gcp_project_apis refuses any verb but enable/disable" || fail "verb refusal: rc=$rc $out"
+# A missing tool returns (refactor round 3, row 13): the caller survives, and the
+# check runs before the mktemp, so no private gcloud dir is left. gcloud is a
+# function, gsutil is off PATH (only mktemp + rm are on it), TMPDIR is ours.
+mkdir -p "$T/pb" "$T/tmpd"; ln -sf "$(command -v mktemp)" "$T/pb/mktemp"; ln -sf "$(command -v rm)" "$T/pb/rm"
+out=$(env PATH="$T/pb" TMPDIR="$T/tmpd" LIB="$LIB" "$BASH" -c 'do_log(){ echo "$*"; }; gcloud(){ :; }
+  source "$LIB/gcp-project-apis.func.sh"; do_gcp_project_apis enable x a.googleapis.com; echo "rc=$? after"' 2>&1)
+left=$(find "$T/tmpd" -mindepth 1 -maxdepth 1 -name 'tmp.*' | wc -l)
+[[ "$out" == *"gsutil is not installed"*"rc=1 after"* && $left -eq 0 ]] \
+  && pass "do_gcp_project_apis: no gsutil -> returns 1, the caller runs on, no tmp.* dir left" || fail "missing gsutil: left=$left out=$out"
 
 # --- do_tf_each_target: every comma-separated address -----------------------------
 declare -A TFV=([tf-taint-target]="taint -lock=false -allow-missing" [tf-untaint-target]="untaint -lock=false -allow-missing" [tf-state-show]="state show")

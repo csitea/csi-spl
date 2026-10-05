@@ -15,13 +15,13 @@
 #------------------------------------------------------------------------------
 do_gcp_004_project_apis_enable() {
 
-  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
+  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
 
-  do_gcp_spl_proj_id || exit 1
-  do_gcp_pin_bootstrap_account || exit 1
+  do_gcp_spl_proj_id || return 1
+  do_gcp_pin_bootstrap_account || return 1
 
   local dry_run="${DRY_RUN:-1}"
-  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }
+  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
 
   local acct="--account=${GCP_ACCOUNT}"
   local wanted=(cloudresourcemanager.googleapis.com serviceusage.googleapis.com storage.googleapis.com iam.googleapis.com)
@@ -37,7 +37,7 @@ do_gcp_004_project_apis_enable() {
   local enabled rc
   enabled=$(gcloud services list --enabled --project="${PROJ_ID}" "${acct}" --format='value(config.name)' 2>&1)
   rc=$?
-  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot list the enabled services of ${PROJ_ID} (rc=${rc}): ${enabled}"; exit 1; }
+  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot list the enabled services of ${PROJ_ID} (rc=${rc}): ${enabled}"; return 1; }
 
   local missing=() s
   for s in "${wanted[@]}"; do

@@ -21,13 +21,13 @@
 #------------------------------------------------------------------------------
 do_gcp_003_configure_proj_sa_permissions() {
 
-  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
+  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
 
-  do_gcp_spl_proj_id || exit 1
-  do_gcp_pin_bootstrap_account || exit 1
+  do_gcp_spl_proj_id || return 1
+  do_gcp_pin_bootstrap_account || return 1
 
   local dry_run="${DRY_RUN:-1}"
-  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }
+  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
 
   local acct="--account=${GCP_ACCOUNT}"
   local sa_email="${PROJ_ID}@${PROJ_ID}.iam.gserviceaccount.com"
@@ -47,7 +47,7 @@ do_gcp_003_configure_proj_sa_permissions() {
     else
       do_log "FATAL cannot tell whether ${sa_email} exists (rc=${rc}): ${out}"
     fi
-    exit 1
+    return 1
   fi
 
   out=$(gcloud projects get-iam-policy "${PROJ_ID}" "${acct}" \
@@ -55,7 +55,7 @@ do_gcp_003_configure_proj_sa_permissions() {
           --filter="bindings.role=${role} AND bindings.members=${member}" \
           --format='value(bindings.role)' 2>&1)
   rc=$?
-  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot read the IAM policy of ${PROJ_ID} (rc=${rc}): ${out}"; exit 1; }
+  [[ ${rc} -eq 0 ]] || { do_log "FATAL cannot read the IAM policy of ${PROJ_ID} (rc=${rc}): ${out}"; return 1; }
   if [[ -n "${out}" ]]; then
     do_log "OK ${member} already holds ${role} on ${PROJ_ID} — nothing to do"
   elif [[ "${dry_run}" == 1 ]]; then

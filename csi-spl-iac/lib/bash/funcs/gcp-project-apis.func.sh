@@ -17,6 +17,10 @@ do_gcp_project_apis() {
   [[ "${verb}" == enable || "${verb}" == disable ]] \
     || { do_log "FATAL do_gcp_project_apis: verb must be enable or disable, got '${verb}'"; return 1; }
   (( $# > 0 )) || { do_log "FATAL do_gcp_project_apis: no services given"; return 1; }
+  # Before the mktemp: a missing tool then leaves no private gcloud dir behind.
+  # return, not exit: this body is sourced into the ./run shell.
+  command -v gcloud &>/dev/null || { echo "gcloud is not installed"; return 1; }
+  command -v gsutil &>/dev/null || { echo "gsutil is not installed"; return 1; }
 
   local _spl_sdk_saved="${CLOUDSDK_CONFIG-}" _spl_sdk_dir
   _spl_sdk_dir="$(mktemp -d)"
@@ -27,9 +31,6 @@ do_gcp_project_apis() {
   local account
   account=$(do_gcp_account) || quit_on "resolve the per-env SA from its key (\$HOME/.gcp/.<org>/key-<org>-<app>-<env>.json) or set ACCOUNT / GCP_ACCOUNT"
   do_gcp_log_identity "${PROJ_ID:-<unset>}" "${account}" "${caller}"
-
-  command -v gcloud &>/dev/null || { echo "gcloud is not installed"; exit 1; }
-  command -v gsutil &>/dev/null || { echo "gsutil is not installed"; exit 1; }
 
   do_log "INFO using the gcloud version: $(gcloud --version --account="${account}")"
 

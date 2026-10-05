@@ -189,6 +189,18 @@ out=$(env RUN="$RUN" LIB="$LIB" GCP_ORG_ID=1 ENV=dev bash -c '
   do_gcp_004_project_apis_enable(){ echo 004; }
   do_gcp_000_bootstrap_gcp_env' | tr '\n' ' ')
 [[ "$out" == "001 002 " ]] && pass "000 stops at the first failing step" || fail "000 continued past a failure: $out"
+# The steps return (refactor round 3, row 13), so 000's own `|| return $?` is
+# what stops it now: a step that returns 1 ends 000 with that status, and the
+# shell that called 000 runs on.
+out=$(env RUN="$RUN" LIB="$LIB" GCP_ORG_ID=1 ENV=dev bash -c '
+  do_log(){ :; }; do_require_var(){ [[ -n "${2:-}" ]] || exit 1; }; do_resolve_oap(){ :; }
+  source "$LIB/gcp-account-pin.func.sh"; source "$RUN/gcp-000-bootstrap-gcp-env.func.sh"
+  do_gcp_001_create_project(){ echo 001; }
+  do_gcp_002_create_project_service_account(){ echo 002; }
+  do_gcp_003_configure_proj_sa_permissions(){ echo 003; return 1; }
+  do_gcp_004_project_apis_enable(){ echo 004; }
+  do_gcp_000_bootstrap_gcp_env; echo "rc=$?"' | tr '\n' ' ')
+[[ "$out" == "001 002 003 rc=1 " ]] && pass "000 stops at the first step that returns 1, and returns it" || fail "000 past a returning step: $out"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

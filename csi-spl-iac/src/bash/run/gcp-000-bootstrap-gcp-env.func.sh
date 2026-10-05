@@ -3,9 +3,9 @@
 # @description Bootstrap one env's GCP prerequisites in order: gcp-001 (project +
 # @description billing), gcp-002 (IaC SA + key), gcp-003 (roles/owner), gcp-004
 # @description (bootstrap APIs). A thin orchestrator: every step is idempotent,
-# @description dry-run by default and stops the run on its own failure (they
-# @description exit), so a later step never runs on an earlier step's unread
-# @description state. Ported from csi-rel-iac gcp-000, minus its interactive
+# @description dry-run by default and returns non-zero on its own failure; 000
+# @description stops at the first one, so a later step never runs on an
+# @description earlier step's unread state. Ported from csi-rel-iac gcp-000, minus its interactive
 # @description login and `gcloud config set account`: the caller proves the
 # @description identity (gcloud auth login GCP_ACCOUNT, as the box user) first.
 # @param ENV - required: dev, prd, bkp (csi-spl-bkp, the off-project backups of iac 046) or all (csi-spl-all, the satellite of spec 057)
@@ -26,10 +26,13 @@ do_gcp_000_bootstrap_gcp_env() {
   do_log "INFO Bootstrap GCP env ${ENV:-<unset>} DRY_RUN=${DRY_RUN:-1}"
   do_log "INFO ============================================"
 
-  do_gcp_001_create_project
-  do_gcp_002_create_project_service_account
-  do_gcp_003_configure_proj_sa_permissions
-  do_gcp_004_project_apis_enable
+  # Each step returns non-zero on failure (return, not exit: they are sourced
+  # into the ./run shell) and 000 stops at the first one, passing its status
+  # on (pinned by gcp-002-004-bootstrap.tst.sh "000 stops at the first ...").
+  do_gcp_001_create_project || return $?
+  do_gcp_002_create_project_service_account || return $?
+  do_gcp_003_configure_proj_sa_permissions || return $?
+  do_gcp_004_project_apis_enable || return $?
 
   do_log "OK Bootstrap complete for ${PROJ_ID:-?}; SA key: \$HOME/.gcp/.${ORG:-<org>}/key-${PROJ_ID:-<project>}.json"
 }

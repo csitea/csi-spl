@@ -18,9 +18,9 @@ do_tf_apply_local_step_bucket() {
   cp -r ${tf_path} ${tf_run_path}
 
   JSON_ENV_FILE="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.json"
-  do_export_json_section_vars "$JSON_ENV_FILE" ".env.aws"
-  do_export_json_section_vars "$JSON_ENV_FILE" '.env.steps."'${main_step}'"'
-  do_export_json_section_vars "$JSON_ENV_FILE" '.env.steps."'${tf_proj}'"'
+  do_export_json_section_vars "$JSON_ENV_FILE" ".env.aws" || return 1
+  do_export_json_section_vars "$JSON_ENV_FILE" '.env.steps."'${main_step}'"' || return 1
+  do_export_json_section_vars "$JSON_ENV_FILE" '.env.steps."'${tf_proj}'"' || return 1
 
   do_log "INFO tf_proj: ${main_step}"
   do_log "WARNING AWS_PROFILE: ${AWS_PROFILE}"

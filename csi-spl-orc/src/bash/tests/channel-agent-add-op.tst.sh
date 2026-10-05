@@ -5,6 +5,9 @@
 #          variables. gcloud and psql are stubbed (an absent call is absent).
 #   1. DRY_RUN (the default) prints the plan and calls no cloud. AGENT_BOX
 #      defaults to box-desk. A repeated agent id is named once.
+# The fixture pins SPOOL_DESK_BOX=box-desk with SPOOL_TEST=1 and an empty
+# SPOOL_BOX_ENV, so the live box.env and an outer SPOOL_DESK_BOX cannot
+# change that default. Agent ids are the specs/061 form (c-007, c-008).
 #   2. bad input, including a default channel and box-wui, is refused before
 #      any gcloud or psql call.
 #   3. DRY_RUN=0 with no project SA key never reaches psql.
@@ -50,7 +53,7 @@ if [[ -n "${STUB_PSQL_FILE:-}" ]]; then
 elif [[ -n "${STUB_PSQL_OUT+x}" ]]; then
   printf '%s\n' "$STUB_PSQL_OUT"
 else
-  printf '%s\n' 'added | CLE-7'
+  printf '%s\n' 'added | c-007'
 fi
 exit "${STUB_PSQL_RC:-0}"
 EOF
@@ -66,7 +69,7 @@ in_orc() {
     -u TENANT_ID -u CHANNEL -u AGENTS -u AGENT_BOX -u STUB_PSQL_OUT -u STUB_PSQL_FILE -u STUB_PSQL_RC \
     HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" \
-    ENV=dev SNIPPET="$snip" "$@" bash -c '
+    ENV=dev SPOOL_TEST=1 SPOOL_BOX_ENV= SPOOL_DESK_BOX=box-desk SNIPPET="$snip" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
@@ -83,48 +86,48 @@ sqlbody=$(awk 'index($0, "<<'\''SQL'\''") {p=1; next} $0=="SQL" {p=0} p' "$FUNC"
   || fail "0. the SQL heredoc is empty or expanded by the shell"
 
 # --- 1. DRY_RUN plan, no cloud ------------------------------------------------
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='CLE-7 CLE-8'; rc=$?
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='c-007 c-008'; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
-  && grep -q 'DRY_RUN would add CLE-7 CLE-8 on box-desk to #release-notes in t1 (origin=invite)' "$T/out" \
+  && grep -q 'DRY_RUN would add c-007 c-008 on box-desk to #release-notes in t1 (origin=invite)' "$T/out" \
   && grep -q 'on csi-spl-dev:' "$T/out" \
   && grep -q 'Re-run with DRY_RUN=0' "$T/out" \
   && pass "1. DRY_RUN (default): plan names box-desk, no cloud" \
   || fail "1. dry: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
 
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='CLE-7 CLE-7' AGENT_BOX=box-a DRY_RUN=1; rc=$?
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='c-007 c-007' AGENT_BOX=box-a DRY_RUN=1; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
-  && grep -q 'DRY_RUN would add CLE-7 on box-a to #release-notes in t1 (origin=invite)' "$T/out" \
-  && [[ $(grep -o 'CLE-7' "$T/out" | wc -l) -eq 1 ]] \
+  && grep -q 'DRY_RUN would add c-007 on box-a to #release-notes in t1 (origin=invite)' "$T/out" \
+  && [[ $(grep -o 'c-007' "$T/out" | wc -l) -eq 1 ]] \
   && pass "1. a repeated agent id is named once, and AGENT_BOX is honoured" \
   || fail "1. dedupe: rc=$rc $(cat "$T/out")"
 
-in_orc 'do_spl_channel_agent_add_op' ENV=prd TENANT_ID=t1 CHANNEL=release-notes AGENTS=CLE-7 DRY_RUN=1; rc=$?
+in_orc 'do_spl_channel_agent_add_op' ENV=prd TENANT_ID=t1 CHANNEL=release-notes AGENTS=c-007 DRY_RUN=1; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'on csi-spl-prd:' "$T/out" \
   && pass "1. prd DRY_RUN names the prd connection and calls no cloud" \
   || fail "1. prd dry: rc=$rc $(cat "$T/out")"
 
 # --- 2. bad input, before any call --------------------------------------------
-base=(TENANT_ID=t1 CHANNEL=release-notes AGENTS=CLE-7)
+base=(TENANT_ID=t1 CHANNEL=release-notes AGENTS=c-007)
 refuse() {
   local label="$1"; shift
   in_orc 'do_spl_channel_agent_add_op' "$@"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. $label refused before any call" || fail "2. $label: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
 }
-refuse "missing TENANT_ID" CHANNEL=release-notes AGENTS=CLE-7 DRY_RUN=0
-refuse "bad tenant slug" TENANT_ID=T_1 CHANNEL=release-notes AGENTS=CLE-7 DRY_RUN=0
-refuse "missing CHANNEL" TENANT_ID=t1 AGENTS=CLE-7 DRY_RUN=0
-refuse "bad channel id" TENANT_ID=t1 CHANNEL='Rel Notes' AGENTS=CLE-7 DRY_RUN=0
-refuse "default lobby" TENANT_ID=t1 CHANNEL=lobby AGENTS=CLE-7 DRY_RUN=0
-refuse "default alerts" TENANT_ID=t1 CHANNEL=alerts AGENTS=CLE-7 DRY_RUN=0
-refuse "default feedback" TENANT_ID=t1 CHANNEL=feedback AGENTS=CLE-7 DRY_RUN=0
-refuse "default tasks" TENANT_ID=t1 CHANNEL=tasks AGENTS=CLE-7 DRY_RUN=0
-refuse "general alias" TENANT_ID=t1 CHANNEL=general AGENTS=CLE-7 DRY_RUN=0
-refuse "reserved issues" TENANT_ID=t1 CHANNEL=issues AGENTS=CLE-7 DRY_RUN=0
+refuse "missing TENANT_ID" CHANNEL=release-notes AGENTS=c-007 DRY_RUN=0
+refuse "bad tenant slug" TENANT_ID=T_1 CHANNEL=release-notes AGENTS=c-007 DRY_RUN=0
+refuse "missing CHANNEL" TENANT_ID=t1 AGENTS=c-007 DRY_RUN=0
+refuse "bad channel id" TENANT_ID=t1 CHANNEL='Rel Notes' AGENTS=c-007 DRY_RUN=0
+refuse "default lobby" TENANT_ID=t1 CHANNEL=lobby AGENTS=c-007 DRY_RUN=0
+refuse "default alerts" TENANT_ID=t1 CHANNEL=alerts AGENTS=c-007 DRY_RUN=0
+refuse "default feedback" TENANT_ID=t1 CHANNEL=feedback AGENTS=c-007 DRY_RUN=0
+refuse "default tasks" TENANT_ID=t1 CHANNEL=tasks AGENTS=c-007 DRY_RUN=0
+refuse "general alias" TENANT_ID=t1 CHANNEL=general AGENTS=c-007 DRY_RUN=0
+refuse "reserved issues" TENANT_ID=t1 CHANNEL=issues AGENTS=c-007 DRY_RUN=0
 refuse "missing AGENTS" TENANT_ID=t1 CHANNEL=release-notes DRY_RUN=0
 refuse "human id as an agent" TENANT_ID=t1 CHANNEL=release-notes AGENTS=HUM-4 DRY_RUN=0
 refuse "box id as an agent" TENANT_ID=t1 CHANNEL=release-notes AGENTS=BOX-1 DRY_RUN=0
 refuse "lower-case agent" TENANT_ID=t1 CHANNEL=release-notes AGENTS=cle-7 DRY_RUN=0
-refuse "injected agent" TENANT_ID=t1 CHANNEL=release-notes "AGENTS=CLE-7' or '1'='1" DRY_RUN=0
+refuse "injected agent" TENANT_ID=t1 CHANNEL=release-notes "AGENTS=c-007' or '1'='1" DRY_RUN=0
 refuse "box-wui" "${base[@]}" AGENT_BOX=box-wui DRY_RUN=0
 refuse "bad AGENT_BOX" "${base[@]}" AGENT_BOX='Box_A' DRY_RUN=0
 refuse "DRY_RUN=2" "${base[@]}" DRY_RUN=2
@@ -164,55 +167,55 @@ sql_shape() {
 in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && sql_shape \
   && grep -q '\[tenant=t1\]' "$T/calls.log" && grep -q '\[channel=release-notes\]' "$T/calls.log" \
-  && grep -q '\[box=box-desk\]' "$T/calls.log" && grep -q '\[agents=CLE-7\]' "$T/calls.log" \
-  && ! grep -q 'CLE-7' "$T/stdin" && ! grep -q 'release-notes' "$T/stdin" && ! grep -q 'box-desk' "$T/stdin" \
+  && grep -q '\[box=box-desk\]' "$T/calls.log" && grep -q '\[agents=c-007\]' "$T/calls.log" \
+  && ! grep -q 'c-007' "$T/stdin" && ! grep -q 'release-notes' "$T/stdin" && ! grep -q 'box-desk' "$T/stdin" \
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
-  && grep -q "OK added CLE-7 on box-desk to #release-notes in t1 ($DEV_SA)" "$T/out" \
+  && grep -q "OK added c-007 on box-desk to #release-notes in t1 ($DEV_SA)" "$T/out" \
   && ! grep -q 'already a member' "$T/out" \
   && pass "4. DRY_RUN=0: one transaction, values as -v, origin=invite, as $DEV_SA" \
   || fail "4. real: rc=$rc $(cat "$T/calls.log") $(cat "$T/out") --- $(cat "$T/stdin")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" "$T/stdin" && fail "4. the DSN password leaked" || pass "4. the DSN password is in neither output, argv nor SQL"
 
-printf '%s\n' 'added | CLE-7' 'added | CLE-8' >"$T/psql-two.out"
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS="CLE-7 CLE-8" AGENT_BOX=box-a DRY_RUN=0 \
+printf '%s\n' 'added | c-007' 'added | c-008' >"$T/psql-two.out"
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS="c-007 c-008" AGENT_BOX=box-a DRY_RUN=0 \
   STUB_PSQL_FILE="$T/psql-two.out"; rc=$?
-[[ $rc -eq 0 ]] && grep -q '\[agents=CLE-7 CLE-8\]' "$T/calls.log" \
+[[ $rc -eq 0 ]] && grep -q '\[agents=c-007 c-008\]' "$T/calls.log" \
   && grep -q '\[box=box-a\]' "$T/calls.log" \
-  && ! grep -q 'CLE-7' "$T/stdin" && ! grep -q 'CLE-8' "$T/stdin" && ! grep -q 'box-a' "$T/stdin" \
+  && ! grep -q 'c-007' "$T/stdin" && ! grep -q 'c-008' "$T/stdin" && ! grep -q 'box-a' "$T/stdin" \
   && pass "4. several agents and the box reach psql as -v and are absent from the SQL text" \
   || fail "4. multi: rc=$rc $(cat "$T/calls.log") $(cat "$T/stdin") $(cat "$T/out")"
 
 # --- 5. runner messages -------------------------------------------------------
-in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT='already | CLE-7'; rc=$?
-[[ $rc -eq 0 ]] && grep -q "OK CLE-7 is already a member of #release-notes on box-desk in t1 ($DEV_SA)" "$T/out" \
+in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT='already | c-007'; rc=$?
+[[ $rc -eq 0 ]] && grep -q "OK c-007 is already a member of #release-notes on box-desk in t1 ($DEV_SA)" "$T/out" \
   && ! grep -q 'OK added' "$T/out" \
   && pass "5. an existing member is reported, not inserted again" \
   || fail "5. already: rc=$rc $(cat "$T/out")"
 
-printf '%s\n' 'added | CLE-8' 'already | CLE-7' >"$T/psql-mix.out"
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='CLE-7 CLE-8' DRY_RUN=0 \
+printf '%s\n' 'added | c-008' 'already | c-007' >"$T/psql-mix.out"
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='c-007 c-008' DRY_RUN=0 \
   STUB_PSQL_FILE="$T/psql-mix.out"; rc=$?
-[[ $rc -eq 0 ]] && grep -q "OK added CLE-8 on box-desk to #release-notes in t1 ($DEV_SA)" "$T/out" \
-  && grep -q "OK CLE-7 is already a member of #release-notes on box-desk in t1 ($DEV_SA)" "$T/out" \
+[[ $rc -eq 0 ]] && grep -q "OK added c-008 on box-desk to #release-notes in t1 ($DEV_SA)" "$T/out" \
+  && grep -q "OK c-007 is already a member of #release-notes on box-desk in t1 ($DEV_SA)" "$T/out" \
   && pass "5. a mix of new and existing seats is reported" \
   || fail "5. mix: rc=$rc $(cat "$T/out")"
 
-printf '%s\n' 'already | CLE-7' 'already | CLE-8' >"$T/psql-both.out"
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='CLE-7 CLE-8' DRY_RUN=0 \
+printf '%s\n' 'already | c-007' 'already | c-008' >"$T/psql-both.out"
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=release-notes AGENTS='c-007 c-008' DRY_RUN=0 \
   STUB_PSQL_FILE="$T/psql-both.out"; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'OK CLE-7 CLE-8 are already members' "$T/out" \
+[[ $rc -eq 0 ]] && grep -q 'OK c-007 c-008 are already members' "$T/out" \
   && pass "5. two existing seats are reported together" \
   || fail "5. both: rc=$rc $(cat "$T/out")"
 
 in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0 \
-  STUB_PSQL_OUT='refuse-not-a-member | CLE-7' STUB_PSQL_RC=1; rc=$?
-[[ $rc -ne 0 ]] && grep -q 'FATAL not_a_member: CLE-7 is not announced on box-desk in t1' "$T/out" \
+  STUB_PSQL_OUT='refuse-not-a-member | c-007' STUB_PSQL_RC=1; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'FATAL not_a_member: c-007 is not announced on box-desk in t1' "$T/out" \
   && pass "5. an agent missing from the roster is not_a_member" \
   || fail "5. roster: rc=$rc $(cat "$T/out")"
 
 in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0 \
-  STUB_PSQL_OUT='refuse-not-a-member | CLE-7' STUB_PSQL_RC=0; rc=$?
-[[ $rc -ne 0 ]] && grep -q 'FATAL not_a_member: CLE-7 is not announced on box-desk in t1' "$T/out" \
+  STUB_PSQL_OUT='refuse-not-a-member | c-007' STUB_PSQL_RC=0; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'FATAL not_a_member: c-007 is not announced on box-desk in t1' "$T/out" \
   && ! grep -q 'returned 0 added' "$T/out" \
   && pass "5. a refusal line is fatal even when psql exits 0" \
   || fail "5. quit-0 refusal: rc=$rc $(cat "$T/out")"
@@ -233,17 +236,17 @@ in_orc 'do_spl_channel_agent_add_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT=''; rc
   || fail "5. empty result: rc=$rc $(cat "$T/out")"
 
 # --- 6. ALLOW_DEFAULT_CHANNEL=1: a default channel is seated like the hub does --------
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=lobby AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=lobby AGENTS=c-007 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q '\[allowdef=1\]' "$T/calls.log" && grep -q '\[channel=lobby\]' "$T/calls.log" \
   && grep -q "INSERT INTO channels (tenant_id, channel_id, name, created_by, members_open_invite)" "$T/stdin" \
   && pass "6. ALLOW_DEFAULT_CHANNEL=1 seats #lobby, seeding its row first" || fail "6. lobby: rc=$rc $(cat "$T/out")"
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=general AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=general AGENTS=c-007 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q '\[channel=lobby\]' "$T/calls.log" && pass "6. ...and #general is #lobby" || fail "6. general: $(cat "$T/out")"
 for ch in tasks issues; do
-  in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=$ch AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
+  in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=$ch AGENTS=c-007 ALLOW_DEFAULT_CHANNEL=1 DRY_RUN=0; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "6. #$ch stays refused with ALLOW_DEFAULT_CHANNEL=1" || fail "6. #$ch accepted"
 done
-in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=lobby AGENTS=CLE-7 ALLOW_DEFAULT_CHANNEL=yes DRY_RUN=0; rc=$?
+in_orc 'do_spl_channel_agent_add_op' TENANT_ID=t1 CHANNEL=lobby AGENTS=c-007 ALLOW_DEFAULT_CHANNEL=yes DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "6. ALLOW_DEFAULT_CHANNEL=yes is refused" || fail "6. bad flag accepted"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }

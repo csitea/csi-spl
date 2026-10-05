@@ -28,9 +28,11 @@ ME="$(id -un)"
 # ── fixture: <T>/share/mcp holds the box half, <T>/share/cloud/dev the desk ──
 # The desk box defaults to this machine's (box.env SPOOL_DESK_BOX): pin it to a
 # fixture file that does not exist, so the live box id never changes a verdict.
+# Seat ids are the specs/061 form (c-007 seated, c-008 unseated). cle-07 is
+# not an id; the refusal case below keeps it.
 unset SPOOL_DESK_BOX; export SPOOL_BOX_ENV="$T/box.env"
 MCP="$T/share/mcp"; D="$T/share/cloud/dev/desk/t1/box-desk"
-mkdir -p "$MCP" "$D/spool/CLE-07/inbox" "$D/spool/.hub" "$D/keys"
+mkdir -p "$MCP" "$D/spool/c-007/inbox" "$D/spool/.hub" "$D/keys"
 cp "$SH" "$MCP/spool-mcp.sh"
 cat >"$MCP/spool" <<EOF
 #!/usr/bin/env bash
@@ -48,12 +50,12 @@ for bad in "" "not-an-id" "BOX-1" "cle-07"; do
 done
 
 # ── 2. no seat / no sidecar ─────────────────────────────────────────────────
-box --as CLE-08 dev; rc=$?
-[[ $rc -eq 5 ]] && grep -q 'CLE-08 has 0 seats' "$T/out" && pass "2. an unseated id refuses (5)" || fail "2. unseated: rc $rc $(cat "$T/out")"
-box --as CLE-07 dev; rc=$?
+box --as c-008 dev; rc=$?
+[[ $rc -eq 5 ]] && grep -q 'c-008 has 0 seats' "$T/out" && pass "2. an unseated id refuses (5)" || fail "2. unseated: rc $rc $(cat "$T/out")"
+box --as c-007 dev; rc=$?
 [[ $rc -eq 6 && ! -e "$T/served" ]] && pass "2. no sidecar pid refuses (6)" || fail "2. no sidecar: rc $rc $(cat "$T/out")"
 echo 1 >"$D/spool/.hub/hub-run.pid"   # pid 1 is alive but is not a hub-run
-box --as CLE-07 dev; rc=$?
+box --as c-007 dev; rc=$?
 [[ $rc -eq 6 ]] && pass "2. a live pid that is not hub-run refuses (6)" || fail "2. foreign pid: rc $rc $(cat "$T/out")"
 
 # ── 3. seated: the sidecar's spool settings, and --as ───────────────────────
@@ -63,9 +65,9 @@ env -i PATH=/usr/bin:/bin SPOOL_ROOT="$D/spool" SPOOL_KEYS_DIR="$D/keys" SPOOL_B
 SIDE=$!
 echo "$SIDE" >"$D/spool/.hub/hub-run.pid"
 for _ in $(seq 50); do tr '\0' ' ' <"/proc/$SIDE/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null && break; sleep 0.1; done
-box --as CLE-07 dev; rc=$?
+box --as c-007 dev; rc=$?
 if [[ $rc -eq 0 && -s "$T/served" ]]; then
-  grep -qx 'ARGV mcp --as CLE-07' "$T/served" && pass "3. runs spool mcp --as CLE-07" || fail "3. argv: $(head -1 "$T/served")"
+  grep -qx 'ARGV mcp --as c-007' "$T/served" && pass "3. runs spool mcp --as c-007" || fail "3. argv: $(head -1 "$T/served")"
   want="SPOOL_BOX_ID=box-desk SPOOL_HUB_URL=https://hub.example.net SPOOL_KEYS_DIR=$D/keys SPOOL_LOG_LEVEL=error SPOOL_ROOT=$D/spool SPOOL_TENANT=t1"
   got="$(grep -v '^ARGV' "$T/served" | tr '\n' ' ' | sed 's/ $//')"
   [[ "$got" == "$want" ]] && pass "3. only the sidecar's spool settings (no notify hook, no caller env)" ||
@@ -73,25 +75,25 @@ if [[ $rc -eq 0 && -s "$T/served" ]]; then
 else
   fail "3. seated start: rc $rc $(cat "$T/out")"
 fi
-box --as CLE-07 dev t1 box-desk; rc=$?
+box --as c-007 dev t1 box-desk; rc=$?
 [[ $rc -eq 0 ]] && pass "3. an explicit tenant + box works" || fail "3. explicit: rc $rc $(cat "$T/out")"
 
 # ── 4. the agent half: config, id resolution, the hop ───────────────────────
 CONF="$T/agent.env"
 agent() { env -u MCP_BOT_AGENT_ID -u SPOOL_AGENT_ID -u TMUX_PANE -u CLE_TMUX_PANE SPOOL_MCP_CONF="$CONF" "$@" >"$T/out" 2>&1 </dev/null; }
 rm -f "$T/served"
-agent MCP_BOT_AGENT_ID=CLE-07 "$SH" dev; rc=$?
+agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; rc=$?
 [[ $rc -eq 3 && ! -e "$T/served" ]] && pass "4. no config refuses (3)" || fail "4. no config: rc $rc $(cat "$T/out")"
 printf 'SPOOL_MCP_BOX_USER=%s\nSPOOL_MCP_SERVE=%s\n' "$ME" "$MCP/spool-mcp.sh" >"$CONF"
 agent "$SH" dev; rc=$?
 [[ $rc -eq 4 && ! -e "$T/served" ]] && grep -q 'refusing to start unseated' "$T/out" && pass "4. no agent id refuses (4)" || fail "4. no id: rc $rc $(cat "$T/out")"
-agent MCP_BOT_AGENT_ID=CLE-07 "$SH" dev; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'ARGV mcp --as CLE-07' "$T/served" && pass "4. MCP_BOT_AGENT_ID seats the server" || fail "4. env id: rc $rc $(cat "$T/out")"
+agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'ARGV mcp --as c-007' "$T/served" && pass "4. MCP_BOT_AGENT_ID seats the server" || fail "4. env id: rc $rc $(cat "$T/out")"
 rm -f "$T/served"
-agent SPOOL_AGENT_ID=CLE-07 "$SH" dev; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'ARGV mcp --as CLE-07' "$T/served" && pass "4. SPOOL_AGENT_ID seats the server" || fail "4. spool id: rc $rc $(cat "$T/out")"
+agent SPOOL_AGENT_ID=c-007 "$SH" dev; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'ARGV mcp --as c-007' "$T/served" && pass "4. SPOOL_AGENT_ID seats the server" || fail "4. spool id: rc $rc $(cat "$T/out")"
 rm -f "$T/served"
-agent MCP_BOT_AGENT_ID=CLE-08 "$SH" dev; rc=$?
+agent MCP_BOT_AGENT_ID=c-008 "$SH" dev; rc=$?
 [[ $rc -eq 5 && ! -e "$T/served" ]] && pass "4. another agent's id finds no seat of its own (5)" || fail "4. other id: rc $rc $(cat "$T/out")"
 
 # ── 5. the install action ───────────────────────────────────────────────────
@@ -194,15 +196,17 @@ probe() {
     python3() { echo "PYTHON-RAN" >>"'"$T"'/py.log"; }
     do_spl_agent_mcp_probe' >"$T/out" 2>&1
 }
-for bad in "ENV=stg" "MCP_AS=" "MCP_AS=CLE-07 MCP_CONTROL_AS=CLE-07" "MCP_N=51" "MCP_TO=EZA-1" "MCP_TO=nobody MCP_TO_BOX=box-x" "MCP_FILE=2"; do
+for bad in "ENV=stg" "MCP_AS=" "MCP_AS=c-007 MCP_CONTROL_AS=c-007" "MCP_N=51" "MCP_TO=EZA-1" "MCP_TO=nobody MCP_TO_BOX=box-x" "MCP_FILE=2"; do
   # shellcheck disable=SC2086
-  probe ENV=dev AGENT_USER="$ME" MCP_AS=CLE-07 $bad; rc=$?
+  probe ENV=dev AGENT_USER="$ME" MCP_AS=c-007 $bad; rc=$?
   [[ $rc -ne 0 && ! -e "$T/py.log" ]] && pass "6. '$bad' is refused before the probe runs" || fail "6. '$bad': rc $rc $(cat "$T/out")"
 done
-probe ENV=dev AGENT_USER="$ME" MCP_AS=CLE-07 MCP_TO=EZA-1 MCP_TO_BOX=box-e2e-a MCP_FILE=1; rc=$?
+# EZA-1 is a legacy participant: the write path refuses it after the cutoff.
+# c-009 is a specs/061 id, so this dry run still proves a send stays a dry run.
+probe ENV=dev AGENT_USER="$ME" MCP_AS=c-007 MCP_TO=c-009 MCP_TO_BOX=box-e2e-a MCP_FILE=1; rc=$?
 [[ $rc -eq 0 && ! -e "$T/py.log" ]] && grep -q 'OK DRY_RUN nothing was sent' "$T/out" &&
   pass "6. a probe that sends is a dry run unless DRY_RUN=0" || fail "6. send dry run: rc $rc $(cat "$T/out")"
-probe ENV=dev AGENT_USER="$ME" MCP_AS=CLE-07 MCP_CONTROL_AS=CLE-08; rc=$?
+probe ENV=dev AGENT_USER="$ME" MCP_AS=c-007 MCP_CONTROL_AS=c-008; rc=$?
 [[ -s "$T/py.log" ]] && pass "6. the read-only probe runs with no DRY_RUN" || fail "6. read-only probe did not run: $(cat "$T/out")"
 
 echo "agent-mcp: $fails failure(s)"

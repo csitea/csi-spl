@@ -18,6 +18,15 @@ APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 # features/spawn-agents/tests/test-agent-id.sh; L9c drops this pin when it
 # converts the fixtures to c-NNN.
 export SPOOL_NOW="${SPOOL_NOW:-2026-10-01T00:00:00Z}"
+# Hermetic by default (refactor r3-14). SPOOL_TEST=1 makes the spool test
+# guard refuse the live root. An empty SPOOL_BOX_ENV makes
+# spl_desk_box_default skip the live box.env, so this machine's box id
+# cannot change a verdict; a test that needs its own file sets SPOOL_BOX_ENV
+# again after this line. Exporting these here does not prove every test is
+# hermetic: a test that never sources this file can still read the live box.
+export SPOOL_TEST=1
+: "${SPOOL_BOX_ENV=}"
+export SPOOL_BOX_ENV
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

@@ -12,6 +12,10 @@
 #      hook of THIS checkout, the file exists, SETTINGS_OUT is written
 #   4. do_spl_desk_mirror_check: lists every seat, reads .no-mirror, and
 #      WARNs when the live sidecar runs a worktree's notifier
+# The fixture desk is box-desk, the id spl_desk_box_default returns when
+# SPOOL_TEST=1 and SPOOL_BOX_ENV is empty (the live box.env is not read).
+# in_orc also sets SPOOL_DESK_BOX=box-desk, so an outer SPOOL_DESK_BOX cannot
+# move the seat. Seat ids are the specs/061 form (c-007, c-008).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -39,7 +43,7 @@ chmod +x "$T/stub/"*
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
-    PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
+    PATH="$T/stub:$PATH" ENV=dev SPOOL_TEST=1 SPOOL_BOX_ENV= SPOOL_DESK_BOX=box-desk "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -49,17 +53,17 @@ in_orc() {
 }
 
 SEAT="$T/state/dev/desk/t1/box-desk"
-mkdir -p "$SEAT/spool/CLE-7/inbox" "$SEAT/spool/CLE-8" "$SEAT/spool/.hub" "$SEAT/keys"
+mkdir -p "$SEAT/spool/c-007/inbox" "$SEAT/spool/c-008" "$SEAT/spool/.hub" "$SEAT/keys"
 echo HUM-9 >"$SEAT/mirror-to"   # the desk's human (spec 036: no literal default id)
 
 # --- 1. dry run and refusals --------------------------------------------------------
 : >"$T/calls.log"
-SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=tok >"$T/o" 2>&1
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=c-007 SESSION_TOKEN=tok >"$T/o" 2>&1
 [[ $? -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN nothing was read or sent' "$T/o" &&
   pass "1. the dry run reads and sends nothing" || fail "1. dry run: $(cat "$T/o" "$T/calls.log")"
-SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 DRY_RUN=0 >"$T/o" 2>&1 &&
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=c-007 DRY_RUN=0 >"$T/o" 2>&1 &&
   fail "1. no SESSION_TOKEN was accepted" || pass "1. no SESSION_TOKEN is refused"
-SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=x DESK_TO=CLE-1 DRY_RUN=0 >"$T/o" 2>&1 &&
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=c-007 SESSION_TOKEN=x DESK_TO=c-001 DRY_RUN=0 >"$T/o" 2>&1 &&
   fail "1. an agent as DESK_TO was accepted" || pass "1. a non-HUM DESK_TO is refused"
 [[ ! -s "$T/calls.log" ]] && pass "1. no refusal called spool" || fail "1. a refusal called: $(cat "$T/calls.log")"
 
@@ -69,7 +73,7 @@ mkdir -p "$T/home/.claude/projects/p"
 printf '%s\n' "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"use $GH please UNIQ-TOKEN-7\"}}" \
   '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"done"}]}}' \
   >"$T/home/.claude/projects/p/s.jsonl"
-SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=UNIQ-TOKEN-7 \
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=c-007 SESSION_TOKEN=UNIQ-TOKEN-7 \
   SPOOL_AGENT_HOME="$T/home" HOME="$T/home" DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && pass "2. the live upload succeeds" || fail "2. upload rc $rc: $(cat "$T/o")"
 grep -q -- "--put-file" "$T/calls.log" && grep -q -- "--to HUM-9 --to-box box-wui" "$T/calls.log" &&
@@ -79,16 +83,16 @@ if [[ -s "$T/uploaded.md" ]] && ! grep -q "$GH" "$T/uploaded.md" && grep -q '<re
 else
   fail "2. the attached transcript: $(head -c 400 "$T/uploaded.md" 2>/dev/null)"
 fi
-grep -q "\"task\": \"$T3\"" "$SEAT/spool/CLE-7/.mirror/topic" 2>/dev/null &&
-  pass "2. the mirror adopts the backfill topic" || fail "2. topic: $(cat "$SEAT/spool/CLE-7/.mirror/topic" 2>&1)"
+grep -q "\"task\": \"$T3\"" "$SEAT/spool/c-007/.mirror/topic" 2>/dev/null &&
+  pass "2. the mirror adopts the backfill topic" || fail "2. topic: $(cat "$SEAT/spool/c-007/.mirror/topic" 2>&1)"
 grep -q "\"task_id\": \"$T3\"" "$T/o" && pass "2. the JSON line names the topic" || fail "2. output: $(cat "$T/o")"
 : >"$T/calls.log"
-SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=UNIQ-TOKEN-7 \
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=c-007 SESSION_TOKEN=UNIQ-TOKEN-7 \
   SPOOL_AGENT_HOME="$T/home" HOME="$T/home" DRY_RUN=0 >"$T/o" 2>&1
 grep -q -- "--task $T3" "$T/calls.log" && pass "2. a second upload lands in the same topic" || fail "2. second: $(cat "$T/calls.log")"
 
-rm "$SEAT/mirror-to"; : >"$T/calls.log"; rm -f "$SEAT/spool/CLE-7/.mirror/topic" "$SEAT/spool/CLE-7/.mirror/peer"
-SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=CLE-7 SESSION_TOKEN=UNIQ-TOKEN-7 \
+rm "$SEAT/mirror-to"; : >"$T/calls.log"; rm -f "$SEAT/spool/c-007/.mirror/topic" "$SEAT/spool/c-007/.mirror/peer"
+SNIPPET=do_spl_desk_session_upload in_orc TENANT_ID=t1 DESK_AGENT=c-007 SESSION_TOKEN=UNIQ-TOKEN-7 \
   SPOOL_AGENT_HOME="$T/home" HOME="$T/home" DRY_RUN=0 >"$T/o" 2>&1 &&
   fail "2. no human named anywhere was accepted" || pass "2. no human named anywhere: refused"
 [[ ! -s "$T/calls.log" ]] && grep -q 'no human to send' "$T/o" && pass "2. ... before any send, and it says why" || fail "2. no-human: $(cat "$T/o" "$T/calls.log")"
@@ -117,9 +121,9 @@ bash -c "$cmd" <<<'{}' >"$T/o" 2>&1; rc=$?
 # --- 4. the check ------------------------------------------------------------------------------
 env SPOOL_NOTIFY_CMD=/opt/x/app-wt/AGT-1/orc/spool-notify.sh sleep 300 &
 SIDECAR=$!; echo "$SIDECAR" >"$SEAT/spool/.hub/hub-run.pid"
-: >"$SEAT/spool/CLE-8/.no-mirror"
+: >"$SEAT/spool/c-008/.no-mirror"
 SNIPPET=do_spl_desk_mirror_check in_orc TENANT_ID=t1 >"$T/o" 2>&1
-grep -q '"agent": "CLE-7".*"mirror": true' "$T/o" && grep -q '"agent": "CLE-8".*"mirror": false' "$T/o" &&
+grep -q '"agent": "c-007".*"mirror": true' "$T/o" && grep -q '"agent": "c-008".*"mirror": false' "$T/o" &&
   pass "4. every seat is listed; .no-mirror reads mirror false" || fail "4. seats: $(cat "$T/o")"
 grep -q "WORKTREE's notifier" "$T/o" && pass "4. a worktree notifier is WARNed" || fail "4. no worktree warning: $(cat "$T/o")"
 

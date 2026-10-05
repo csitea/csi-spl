@@ -4,6 +4,10 @@
 # read, the #lobby post and the live-window list are stubbed; the ledger, the
 # plan and the texts are the real ones. Each run is a FRESH process, so a
 # second run is exactly what a cron tick after a restart is.
+# The fixture desk is box-desk, the id spl_desk_box_default returns when
+# SPOOL_TEST=1 and SPOOL_BOX_ENV is empty (the live box.env is not read).
+# run and gset also set SPOOL_DESK_BOX=box-desk, so an outer SPOOL_DESK_BOX
+# cannot move the seat. Greeter ids are the specs/061 form (c-NNN).
 #   1. the first run writes the tenant baseline; an older admit is never greeted
 #   2. CLE-77896: no greeter configured = nobody greets, decided once; a new
 #      admit gets ONE post into #lobby, from the configured greeter only,
@@ -40,6 +44,7 @@ POSTS="$T/posts.tsv"
 # refuses, CRASH_ON a bot whose post is accepted and then the run is killed.
 run() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$ST" ENV=prd POSTS="$POSTS" \
+    SPOOL_TEST=1 SPOOL_BOX_ENV= SPOOL_DESK_BOX=box-desk \
     ADMITS="${ADMITS:-$T/none}" LIVE="${LIVE:-}" FAIL_ON="${FAIL_ON:-}" CRASH_ON="${CRASH_ON:-}" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -62,8 +67,8 @@ posts_for() { grep -c "$1" "$POSTS" || true; }
 
 SEATS="$ST/desk/t1/box-desk"
 mkdir -p "$SEATS"; echo pub >"$SEATS/pinned"
-for a in CLE-1 CLE-2 CLE-3 CLE-4 CLE-5 GRK-9; do mkdir -p "$SEATS/spool/$a"; done
-LIVE="CLE-1 CLE-2 CLE-3 CLE-4 CLE-5 CLE-77"   # GRK-9 seated but dead, CLE-77 live but not seated
+for a in c-001 c-002 c-003 c-004 c-005 GRK-9; do mkdir -p "$SEATS/spool/$a"; done
+LIVE="c-001 c-002 c-003 c-004 c-005 c-077"   # GRK-9 seated but dead, c-077 live but not seated
 export LIVE
 greeter() { if [[ -n "$1" ]]; then printf '%s\n' "$1" >"$SEATS/greeter"; else rm -f "$SEATS/greeter"; fi; }
 
@@ -85,7 +90,7 @@ ADMITS="$T/a2a"; admit t1 HUM-19 1900 'Nobody Greets' '' >"$ADMITS"
 run DRY_RUN=0; rc=$?
 [[ $rc -eq 0 && ! -s "$POSTS" && -e "$ST/welcome/t1/HUM-19/done" ]] && grep -q 'no greeter configured' "$T/o" &&
   pass "2. no greeter configured: nobody greets, and the person is decided" || fail "2. no greeter ($rc): $(cat "$T/o") $(cat "$POSTS")"
-greeter CLE-3
+greeter c-003
 run DRY_RUN=0
 [[ ! -s "$POSTS" ]] && pass "2. a greeter configured later never greets the people admitted before it" || fail "2. late greeter: $(cat "$POSTS")"
 
@@ -93,7 +98,7 @@ run DRY_RUN=0
 ADMITS="$T/a2"; { admit t1 HUM-5 100 'Old Timer' ''; admit t1 HUM-20 2000 'Ada Lovelace' ''; } >"$ADMITS"
 run DRY_RUN=0; rc=$?
 bots="$(cut -f2 "$POSTS" | paste -sd ' ')"
-[[ $rc -eq 0 && "$(wc -l <"$POSTS")" == 1 && "$bots" == "CLE-3" ]] &&
+[[ $rc -eq 0 && "$(wc -l <"$POSTS")" == 1 && "$bots" == "c-003" ]] &&
   pass "2. the configured greeter, and only it, welcomes the new person ($bots)" || fail "2. posts ($rc, $bots): $(cat "$T/o")"
 grep -q 'Ada Lovelace' "$POSTS" && ! grep -q 'Old Timer' "$POSTS" &&
   pass "2. the text names the person; no pre-baseline member" || fail "2. texts: $(cat "$POSTS")"
@@ -105,34 +110,34 @@ run DRY_RUN=0
 
 # 4. a greeter that cannot post yet waits; a malformed one is none
 ADMITS="$T/a4"; admit t1 HUM-21 2100 'Grace Hopper' '' >"$ADMITS"
-for g in GRK-9 CLE-77; do
+for g in GRK-9 c-077; do
   greeter "$g"; run DRY_RUN=0
   [[ "$(grep -c 'Grace Hopper' "$POSTS")" == 0 && ! -e "$ST/welcome/t1/HUM-21/plan" && ! -e "$ST/welcome/t1/HUM-21/done" ]] &&
     grep -q "greeter $g is not seated and live" "$T/o" && pass "4. greeter $g (not seated + live): nobody posts, the person waits" ||
     fail "4. $g: $(cat "$T/o") $(cat "$POSTS")"
 done
-greeter CLE-2; run DRY_RUN=0
-[[ "$(grep 'Grace Hopper' "$POSTS" | cut -f2)" == CLE-2 ]] && pass "4. once the greeter is seated and live, it greets" || fail "4. live greeter: $(cat "$POSTS")"
+greeter c-002; run DRY_RUN=0
+[[ "$(grep 'Grace Hopper' "$POSTS" | cut -f2)" == c-002 ]] && pass "4. once the greeter is seated and live, it greets" || fail "4. live greeter: $(cat "$POSTS")"
 ADMITS="$T/a4b"; admit t1 HUM-27 2700 'Bad File' '' >"$ADMITS"
 greeter 'HUM-1'; run DRY_RUN=0
 [[ "$(grep -c 'Bad File' "$POSTS")" == 0 ]] && grep -q 'no greeter configured' "$T/o" &&
   pass "4. a malformed greeter file reads as none, never as any seated bot" || fail "4. malformed: $(cat "$T/o")"
-greeter CLE-2
+greeter c-002
 
 # 5. killed mid-post
 ADMITS="$T/a5"; admit t1 HUM-22 2200 'Alan Turing' '' >"$ADMITS"
-( CRASH_ON=CLE-2 run DRY_RUN=0 ) 2>/dev/null; rc=$?   # the shell reports the kill -9: keep it off the log
-[[ $rc -ne 0 && -e "$ST/welcome/t1/HUM-22/CLE-2.claim" && ! -e "$ST/welcome/t1/HUM-22/done" ]] &&
-  pass "5. CONTROL: the run died with CLE-2's claim open" || fail "5. crash rc=$rc: $(ls "$ST/welcome/t1/HUM-22")"
+( CRASH_ON=c-002 run DRY_RUN=0 ) 2>/dev/null; rc=$?   # the shell reports the kill -9: keep it off the log
+[[ $rc -ne 0 && -e "$ST/welcome/t1/HUM-22/c-002.claim" && ! -e "$ST/welcome/t1/HUM-22/done" ]] &&
+  pass "5. CONTROL: the run died with c-002's claim open" || fail "5. crash rc=$rc: $(ls "$ST/welcome/t1/HUM-22")"
 run DRY_RUN=0
 [[ "$(grep -c 'Alan Turing' "$POSTS")" == 1 && -e "$ST/welcome/t1/HUM-22/done" ]] &&
   pass "5. the rerun never posts the greeter twice" || fail "5. after crash: $(cat "$T/o")"
 
 # 6. refused, then retried once
 ADMITS="$T/a6"; admit t1 HUM-23 2300 'Hedy Lamarr' '' >"$ADMITS"
-FAIL_ON=CLE-2 run DRY_RUN=0; rc=$?
-[[ $rc -ne 0 && ! -e "$ST/welcome/t1/HUM-23/CLE-2.claim" && ! -e "$ST/welcome/t1/HUM-23/done" &&
-   "$(cat "$ST/welcome/t1/HUM-23/CLE-2.tries")" == 1 ]] &&
+FAIL_ON=c-002 run DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -e "$ST/welcome/t1/HUM-23/c-002.claim" && ! -e "$ST/welcome/t1/HUM-23/done" &&
+   "$(cat "$ST/welcome/t1/HUM-23/c-002.tries")" == 1 ]] &&
   pass "6. a refused post releases its claim and counts a try" || fail "6. refused rc=$rc: $(cat "$T/o")"
 run DRY_RUN=0
 [[ "$(grep -c 'Hedy Lamarr' "$POSTS")" == 1 && -e "$ST/welcome/t1/HUM-23/done" ]] &&
@@ -141,9 +146,9 @@ run DRY_RUN=0
 # 7. a ledger planned before CLE-77896 finishes as planned (no new pile-on is
 #    planned, but a half-posted old plan is not abandoned either)
 ADMITS="$T/a7"; admit t1 HUM-24 2400 'Old Plan' '' >"$ADMITS"
-mkdir -p "$ST/welcome/t1/HUM-24"; printf '%s\n' CLE-4 CLE-5 >"$ST/welcome/t1/HUM-24/plan"
+mkdir -p "$ST/welcome/t1/HUM-24"; printf '%s\n' c-004 c-005 >"$ST/welcome/t1/HUM-24/plan"
 run DRY_RUN=0
-[[ "$(grep 'Old Plan' "$POSTS" | cut -f2 | paste -sd ' ')" == "CLE-4 CLE-5" ]] &&
+[[ "$(grep 'Old Plan' "$POSTS" | cut -f2 | paste -sd ' ')" == "c-004 c-005" ]] &&
   pass "7. an existing plan is honoured as written" || fail "7. old plan: $(cat "$POSTS")"
 
 # 8. locale
@@ -173,9 +178,9 @@ w="$(awk -F'\t' '{ n = split($3, x, /[ \t]+/); if (n > m) m = n } END { print m 
 #     cheerful text. Run late: the footer's own newlines make that post span
 #     lines in the TSV, so it is kept off the aggregate checks above.
 ADMITS="$T/a12"; : >"$POSTS"
-printf '{"tenant":"t1","human":"HUM-40","at":4000,"name":"Ada Prov","locale":"","test":false,"invited_on":"2026-09-25","ordered_by_name":"Grace Owner","ordered_via":"CLE-34967"}\n' >"$ADMITS"
+printf '{"tenant":"t1","human":"HUM-40","at":4000,"name":"Ada Prov","locale":"","test":false,"invited_on":"2026-09-25","ordered_by_name":"Grace Owner","ordered_via":"c-967"}\n' >"$ADMITS"
 run DRY_RUN=0
-[[ "$(grep -c 'invited 2026-09-25 by Grace Owner (via CLE-34967)' "$POSTS")" == 1 && "$(grep -c 'Ada Prov' "$POSTS")" == 1 ]] &&
+[[ "$(grep -c 'invited 2026-09-25 by Grace Owner (via c-967)' "$POSTS")" == 1 && "$(grep -c 'Ada Prov' "$POSTS")" == 1 ]] &&
   pass "12. the greeter's one welcome carries the provenance footer" || fail "12. provenance footer: $(cat "$POSTS")"
 ADMITS="$T/a12b"; : >"$POSTS"
 admit t1 HUM-41 4100 'No Prov' '' >"$ADMITS"
@@ -185,18 +190,19 @@ run DRY_RUN=0
 
 # 13. do_spl_desk_greeter
 gset() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$ST" ENV=prd TENANT_ID=t1 "$@" bash -c '
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$ST" ENV=prd TENANT_ID=t1 \
+    SPOOL_TEST=1 SPOOL_BOX_ENV= SPOOL_DESK_BOX=box-desk "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     do_spl_desk_greeter' >"$T/o" 2>&1
 }
-gset; [[ $? -eq 0 ]] && grep -q 'greeter: CLE-2' "$T/o" && pass "13. it shows the current greeter" || fail "13. show: $(cat "$T/o")"
-gset DESK_GREETER=CLE-4; [[ $? -eq 0 && "$(cat "$SEATS/greeter")" == CLE-2 ]] && grep -q DRY_RUN "$T/o" &&
+gset; [[ $? -eq 0 ]] && grep -q 'greeter: c-002' "$T/o" && pass "13. it shows the current greeter" || fail "13. show: $(cat "$T/o")"
+gset DESK_GREETER=c-004; [[ $? -eq 0 && "$(cat "$SEATS/greeter")" == c-002 ]] && grep -q DRY_RUN "$T/o" &&
   pass "13. the dry run writes nothing" || fail "13. dry: $(cat "$T/o")"
-gset DESK_GREETER=CLE-4 DRY_RUN=0; [[ $? -eq 0 && "$(cat "$SEATS/greeter")" == CLE-4 ]] &&
+gset DESK_GREETER=c-004 DRY_RUN=0; [[ $? -eq 0 && "$(cat "$SEATS/greeter")" == c-004 ]] &&
   pass "13. DRY_RUN=0 sets it" || fail "13. set: $(cat "$T/o")"
-gset DESK_GREETER=HUM-3 DRY_RUN=0; [[ $? -ne 0 && "$(cat "$SEATS/greeter")" == CLE-4 ]] &&
+gset DESK_GREETER=HUM-3 DRY_RUN=0; [[ $? -ne 0 && "$(cat "$SEATS/greeter")" == c-004 ]] &&
   pass "13. a human id is refused" || fail "13. refuse: $(cat "$T/o")"
 gset DESK_GREETER=none DRY_RUN=0; [[ $? -eq 0 && ! -e "$SEATS/greeter" ]] &&
   pass "13. none clears it: nobody greets" || fail "13. clear: $(cat "$T/o")"

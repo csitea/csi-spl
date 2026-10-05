@@ -245,9 +245,12 @@ EOF_PROBES
 
 # spl_db_api_user_set <user> <secret id> -> mint a password, create (POST) or
 # reset (PUT) the Cloud SQL API user, then add its DSN as a new version of
-# <secret>. Token and password travel in files (mode 600, removed on return)
-# and on stdin only. Used for the OWNER (bootstrap, ROTATE_OWNER=1); the
-# runtime login is SQL-created by the owner instead (spl_db_runtime_ensure).
+# <secret>. HTTP: one curl to the Cloud SQL Admin users collection, POST
+# {name,password} to create, or PUT ?name=<user> when the user already
+# exists. That call is bounded (--connect-timeout 10 --max-time 60); a stall
+# is curl exit 28. Token and password travel in files (mode 600, removed on
+# return) and on stdin only. Used for the OWNER (bootstrap, ROTATE_OWNER=1);
+# the runtime login is SQL-created by the owner instead (spl_db_runtime_ensure).
 spl_db_api_user_set() {
   local user="$1" secret="$2"
   local api="https://sqladmin.googleapis.com/v1/projects/$SPL_PROJECT/instances/$SPL_SQL_INSTANCE/users"
@@ -262,7 +265,7 @@ spl_db_api_user_set() {
     method=PUT url="$api?name=$user"
     do_log "INFO user $user exists: resetting its password"
   fi
-  resp="$(curl -sS -X "$method" -H @"$tmp/h" -H 'Content-Type: application/json' --data-binary @"$tmp/body" "$url")" ||
+  resp="$(curl -sS -X "$method" --connect-timeout 10 --max-time 60 -H @"$tmp/h" -H 'Content-Type: application/json' --data-binary @"$tmp/body" "$url")" ||
     { rm -rf "$tmp"; do_log "FATAL $method $SPL_SQL_INSTANCE/users failed"; return 1; }
   op="$(yq -r '.name // ""' <<<"$resp")"
   [[ -n "$op" && "$(yq -r '.error // ""' <<<"$resp")" == "" ]] ||

@@ -61,6 +61,7 @@ _gandi_domain() {
 }
 
 # usage: _gandi_api <METHOD> <path> [json_body]  (path starts with /)
+# GANDI_MAX_TIME bounds --max-time (default 30). A timeout returns curl exit 28.
 _gandi_api() {
   local method="$1" path="$2" body="${3:-}"
   local base="${GANDI_API_BASE:-https://api.gandi.net/v5}"
@@ -68,7 +69,7 @@ _gandi_api() {
   local tok
   command -v curl >/dev/null 2>&1 || { do_log "FATAL curl is not installed" >&2; return 1; }
   tok="$(_gandi_token)" || return 1
-  local -a args=(-sS -X "$method" -H "Authorization: ${scheme} ${tok}" -H "Accept: application/json")
+  local -a args=(-sS --connect-timeout 10 --max-time "${GANDI_MAX_TIME:-30}" -X "$method" -H "Authorization: ${scheme} ${tok}" -H "Accept: application/json")
   [[ -n "$body" ]] && args+=(-H "Content-Type: application/json" -d "$body")
   curl "${args[@]}" "${base}${path}"
 }

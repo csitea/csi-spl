@@ -126,7 +126,9 @@ spl_db_health_cloudsql() {
 # last 24 h, as latest / min / max plus the 24 h delta, which is the growth
 # rate. `gcloud monitoring` has no time-series verb (measured 2026-09-21:
 # "Invalid choice: 'time-series'"), so this reads the v3 REST endpoint with an
-# access token for $GCP_ACCOUNT. The token goes in a header, never in argv.
+# access token for $GCP_ACCOUNT. The token is sent with -H "Authorization:
+# Bearer $tok", so it is on curl's argv. Moving it to a -K file would take
+# it off argv; that is a behaviour change and is not done here.
 spl_db_health_metrics() {
   do_require_bin curl python3 || return 1
   local since until m tok rc=0
@@ -137,7 +139,7 @@ spl_db_health_metrics() {
   for m in database/disk/bytes_used database/disk/quota database/cpu/utilization \
            database/postgresql/num_backends database/postgresql/transaction_id_utilization; do
     printf '%-50s ' "${m#database/}"
-    curl -s -G "https://monitoring.googleapis.com/v3/projects/$SPL_PROJECT/timeSeries" \
+    curl -s --connect-timeout 10 --max-time 30 -G "https://monitoring.googleapis.com/v3/projects/$SPL_PROJECT/timeSeries" \
       -H "Authorization: Bearer $tok" \
       --data-urlencode "filter=metric.type=\"cloudsql.googleapis.com/$m\" AND resource.labels.database_id=\"$SPL_PROJECT:$SPL_SQL_INSTANCE\"" \
       --data-urlencode "interval.startTime=$since" \

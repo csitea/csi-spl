@@ -62,7 +62,7 @@ do_spl_checkout_fake_buy() {
   local api="$base/api/v1/checkout"
 
   local plan rail
-  plan="$(curl -fsS "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
+  plan="$(curl -fsS -m 30 "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
   rail="$(jq -r .rail <<<"$plan")"
   [[ "$rail" == fake ]] || { do_log "FATAL $env checkout rail is '$rail', not fake (SPOOL_HUB_ENABLE_FAKE_PAY off or not deployed)"; return 1; }
   if [[ "$dry" == 1 ]]; then
@@ -76,7 +76,7 @@ do_spl_checkout_fake_buy() {
   _req() { # <method> <url> [json] [extra-header-line]
     local out
     out="$(mktemp)" || return 1
-    local args=(-sS -o "$out" -w '%{http_code}' -X "$1" "$2")
+    local args=(-sS -m 30 -o "$out" -w '%{http_code}' -X "$1" "$2")
     [[ -n "${3:-}" ]] && args+=(-H 'Content-Type: application/json' --data "$3")
     [[ -n "${4:-}" ]] && args+=(-H "$4")
     _code="$(curl "${args[@]}")" || { rm -f "$out"; return 1; }

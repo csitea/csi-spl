@@ -134,17 +134,19 @@ _sai_check_pg() {
     || _sai_record pg FAIL "127.0.0.1:$LDE_PG_PORT is not reachable"
 }
 
+# _sai_check_gcs -> the emulator answers. Polls ~10 s (20 x 0.5 s). Each
+# probe is bounded so a stalled handshake cannot hang the loop.
 _sai_check_gcs() {
   local base="http://127.0.0.1:$LDE_GCS_PORT/storage/v1" code
   for _ in $(seq 1 20); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' "$base/b?project=lde") && [[ "$code" == 200 ]] && break
+    code=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "$base/b?project=lde") && [[ "$code" == 200 ]] && break
     sleep 0.5
   done
   [[ "$code" == 200 ]] || { _sai_record gcs FAIL "emulator list buckets -> $code"; return; }
-  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+  code=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
     -d "{\"name\":\"$LDE_FILES_BUCKET\"}" "$base/b?project=lde")
   [[ "$code" == 200 || "$code" == 409 ]] || { _sai_record gcs FAIL "create $LDE_FILES_BUCKET -> $code"; return; }
-  code=$(curl -s -o /dev/null -w '%{http_code}' "$base/b/$LDE_FILES_BUCKET")
+  code=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' "$base/b/$LDE_FILES_BUCKET")
   [[ "$code" == 200 ]] && _sai_record gcs PASS "bucket $LDE_FILES_BUCKET -> 200 (127.0.0.1:$LDE_GCS_PORT)" \
     || _sai_record gcs FAIL "get $LDE_FILES_BUCKET -> $code"
 }
@@ -167,7 +169,7 @@ _sai_check_serve() {
   lde_compose up -d --no-deps hub >/dev/null 2>&1 || { _sai_record serve FAIL "compose up hub failed"; return; }
   local url="http://$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT/healthz" code=""
   for _ in $(seq 1 $(( ${SPOOL_HUB_READY_TIMEOUT:-30} * 2 ))); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --resolve "$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT:127.0.0.1" "$url")
+    code=$(curl -s --max-time 2 -o /dev/null -w '%{http_code}' --resolve "$LDE_SMOKE_TENANT.localhost:$LDE_HUB_PORT:127.0.0.1" "$url")
     [[ "$code" == 200 ]] && break
     sleep 0.5
   done

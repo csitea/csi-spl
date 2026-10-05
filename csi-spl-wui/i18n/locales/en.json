@@ -541,7 +541,11 @@
     "target_comment": "Commenting on {target}",
     "chip_reply": "Reply · {title}",
     "chip_new_topic": "New topic · {target}",
-    "target_search_only": "No post here — GO searches for the text"
+    "target_search_only": "No post here — GO searches for the text",
+    "phone_placeholder_channel": "Message #{name}",
+    "phone_placeholder_dm": "Message {'@'}{peer}",
+    "phone_placeholder_reply": "Reply",
+    "phone_placeholder_search": "Search"
   },
   "feed": {
     "unknown_author": "unknown",

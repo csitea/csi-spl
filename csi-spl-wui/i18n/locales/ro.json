@@ -541,7 +541,11 @@
     "target_comment": "Comentariu la {target}",
     "chip_reply": "Răspuns · {title}",
     "chip_new_topic": "Subiect nou · {target}",
-    "target_search_only": "Aici nu se publică — GO caută textul"
+    "target_search_only": "Aici nu se publică — GO caută textul",
+    "phone_placeholder_channel": "Mesaj către #{name}",
+    "phone_placeholder_dm": "Mesaj către {'@'}{peer}",
+    "phone_placeholder_reply": "Răspunde",
+    "phone_placeholder_search": "Caută"
   },
   "feed": {
     "unknown_author": "necunoscut",

@@ -541,7 +541,11 @@
     "target_comment": "Reactie op {target}",
     "chip_reply": "Antwoord · {title}",
     "chip_new_topic": "Nieuw onderwerp · {target}",
-    "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst"
+    "target_search_only": "Hier wordt niet gepost — GO zoekt naar de tekst",
+    "phone_placeholder_channel": "Bericht aan #{name}",
+    "phone_placeholder_dm": "Bericht aan {'@'}{peer}",
+    "phone_placeholder_reply": "Antwoorden",
+    "phone_placeholder_search": "Zoeken"
   },
   "feed": {
     "unknown_author": "onbekend",

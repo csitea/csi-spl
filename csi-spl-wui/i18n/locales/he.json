@@ -541,7 +541,11 @@
     "target_comment": "תגובה על {target}",
     "chip_reply": "תגובה · {title}",
     "chip_new_topic": "נושא חדש · {target}",
-    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט"
+    "target_search_only": "אין פרסום כאן — GO מחפש את הטקסט",
+    "phone_placeholder_channel": "הודעה אל #{name}",
+    "phone_placeholder_dm": "הודעה אל {'@'}{peer}",
+    "phone_placeholder_reply": "תגובה",
+    "phone_placeholder_search": "חיפוש"
   },
   "feed": {
     "unknown_author": "לא ידוע",

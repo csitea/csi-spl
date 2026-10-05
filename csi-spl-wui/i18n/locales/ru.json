@@ -541,7 +541,11 @@
     "target_comment": "Комментарий к {target}",
     "chip_reply": "Ответ · {title}",
     "chip_new_topic": "Новая тема · {target}",
-    "target_search_only": "Здесь не публикуется — GO ищет текст"
+    "target_search_only": "Здесь не публикуется — GO ищет текст",
+    "phone_placeholder_channel": "Сообщение в #{name}",
+    "phone_placeholder_dm": "Сообщение в {'@'}{peer}",
+    "phone_placeholder_reply": "Ответить",
+    "phone_placeholder_search": "Поиск"
   },
   "feed": {
     "unknown_author": "неизвестно",

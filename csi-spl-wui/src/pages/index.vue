@@ -117,6 +117,7 @@ import { namedLine, topicStarter } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { useTopicStore } from '~/stores/topic'
 import { useViewerStore } from '~/stores/viewer'
 import { useLiveFeed } from '~/stores/live'
@@ -162,6 +163,7 @@ const { t: tr } = useI18n({ useScope: 'global' })
 const rowTime = (ts: string) => phoneCardTime(formatMsgListTs(ts), ts)
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
+const stack = useMobileStack()
 function topicPeople(list: readonly string[] | undefined) {
   return namedLine((list || []).join(', '), people.names.value)
 }
@@ -247,7 +249,7 @@ function replyTarget() {
   })
 }
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
+  placeholder: () => (stack.isMobile.value && replyTarget() ? tr('composer.phone_placeholder_reply') : replyTarget() ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
   dock: () => ({ reply: Boolean(replyTarget()), target: tr('nav.topics') }),
   place: () => (replyTarget() ? `t:${replyTarget()}` : channel.peer ? `dm:${channel.peer}` : `ch:${channel.active || ''}`),
   send: onSend,

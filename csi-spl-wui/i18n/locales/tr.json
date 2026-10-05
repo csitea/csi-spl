@@ -541,7 +541,11 @@
     "target_comment": "{target} için yorum",
     "chip_reply": "Yanıt · {title}",
     "chip_new_topic": "Yeni konu · {target}",
-    "target_search_only": "Burada gönderi yok — GO metni arar"
+    "target_search_only": "Burada gönderi yok — GO metni arar",
+    "phone_placeholder_channel": "Mesaj: #{name}",
+    "phone_placeholder_dm": "Mesaj: {'@'}{peer}",
+    "phone_placeholder_reply": "Yanıtla",
+    "phone_placeholder_search": "Ara"
   },
   "feed": {
     "unknown_author": "bilinmiyor",

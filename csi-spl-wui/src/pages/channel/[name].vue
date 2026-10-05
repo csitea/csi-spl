@@ -18,6 +18,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { normalizeChannel } from '~/utils/notify.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
@@ -39,6 +40,7 @@ const name = computed(() => String(route.params.name || 'lobby'))
 const { t } = useI18n({ useScope: 'global' })
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
+const stack = useMobileStack()
 const storedDescription = computed(() => String(channel.channels.find((c) => c.channel_id === name.value)?.description || ''))
 const feedbackCopy = computed(() => feedbackChannelCopy(name.value, {
   name: t('channels.feedback.name'),
@@ -178,7 +180,7 @@ function replyTarget() {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#' + name.value })),
+  placeholder: () => (stack.isMobile.value ? t(replyTarget() ? 'composer.phone_placeholder_reply' : 'composer.phone_placeholder_channel', { name: name.value }) : replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#' + name.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: '#' + titleName.value }),
   place: () => (replyTarget() ? `t:${replyTarget()}` : `ch:${name.value}`),
   send: onSend,

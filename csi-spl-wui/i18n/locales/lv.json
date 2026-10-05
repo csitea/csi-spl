@@ -541,7 +541,11 @@
     "target_comment": "Komentārs: {target}",
     "chip_reply": "Atbilde · {title}",
     "chip_new_topic": "Jauna tēma · {target}",
-    "target_search_only": "Šeit nepublicē — GO meklē tekstu"
+    "target_search_only": "Šeit nepublicē — GO meklē tekstu",
+    "phone_placeholder_channel": "Ziņa #{name}",
+    "phone_placeholder_dm": "Ziņa {'@'}{peer}",
+    "phone_placeholder_reply": "Atbildēt",
+    "phone_placeholder_search": "Meklēt"
   },
   "feed": {
     "unknown_author": "nezināms",

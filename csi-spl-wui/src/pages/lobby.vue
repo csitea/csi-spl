@@ -45,6 +45,7 @@ import { shouldOpenHubSocket, startHubSocket, stopHubSocket } from '~/utils/shel
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { isParentFlag, omniboxReplyTaskId, sendsNewTopic, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { paneTakesLine } from '~/utils/pane-focus.mjs'
@@ -73,6 +74,7 @@ const unreadBoundary = computed(() => notes.boundary['ch:lobby'] || null)
 const { t, te } = useI18n({ useScope: 'global' })
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
+const stack = useMobileStack()
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)
 const lobbyId = computed(() => live.lobbyTaskId.value)
@@ -134,7 +136,7 @@ function lobbyReplyId() {
 }
 
 useOmniboxTarget({
-  placeholder: () => (lobbyReplyId() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#lobby' })),
+  placeholder: () => (stack.isMobile.value ? t(lobbyReplyId() ? 'composer.phone_placeholder_reply' : 'composer.phone_placeholder_channel', { name: 'lobby' }) : lobbyReplyId() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#lobby' })),
   dock: () => ({ reply: Boolean(lobbyReplyId()), target: '#lobby' }),
   place: () => (lobbyReplyId() ? `t:${lobbyReplyId()}` : 'ch:lobby'),
   send: (text: string, files: File[], topicId?: string, channelId?: string) => onSend(text, files, topicId, channelId),

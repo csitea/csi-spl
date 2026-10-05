@@ -546,7 +546,7 @@ function replyTarget() {
 }
 
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
+  placeholder: () => (stack.isMobile.value ? (replyTarget() ? t('composer.phone_placeholder_reply') : channel.peer ? t('composer.phone_placeholder_dm', { peer: channel.peer }) : t('composer.phone_placeholder_channel', { name: channel.active || shortId.value })) : replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: shortId.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: shortId.value }),
   place: () => (replyTarget() ? `t:${replyTarget()}` : channel.peer ? `dm:${channel.peer}` : `ch:${channel.active || ''}`),
   send: onSend,

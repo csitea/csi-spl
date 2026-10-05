@@ -541,7 +541,11 @@
     "target_comment": "Kommentoit: {target}",
     "chip_reply": "Vastaus · {title}",
     "chip_new_topic": "Uusi aihe · {target}",
-    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä"
+    "target_search_only": "Täällä ei julkaista — GO hakee tekstiä",
+    "phone_placeholder_channel": "Viesti: #{name}",
+    "phone_placeholder_dm": "Viesti: {'@'}{peer}",
+    "phone_placeholder_reply": "Vastaa",
+    "phone_placeholder_search": "Hae"
   },
   "feed": {
     "unknown_author": "tuntematon",

@@ -24,6 +24,7 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOmniboxTarget } from '~/stores/omnibox'
+import { useMobileStack } from '~/composables/useMobileStack'
 import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
 import { usePaneFocus } from '~/stores/pane-focus'
@@ -49,6 +50,7 @@ const session = useSessionStore()
 const { t } = useI18n({ useScope: 'global' })
 /* SPL-976: the placeholder names the keys of the person's Behaviour setting */
 const { hintFor: sk } = useSubmitKey()
+const stack = useMobileStack()
 const peer = computed(() => decodeURIComponent(String(route.params.peer || '')))
 /* The person's chosen display name in the header; the URL keeps id@box. */
 const people = useHumanNames()
@@ -180,7 +182,7 @@ function replyTarget() {
 
 /* 022: the Omnibox lives in the top bar and sends here while this page is on screen */
 useOmniboxTarget({
-  placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: peer.value })),
+  placeholder: () => (stack.isMobile.value ? t(replyTarget() ? 'composer.phone_placeholder_reply' : 'composer.phone_placeholder_dm', { peer: peer.value }) : replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: peer.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: peer.value, dm: true }),
   place: () => (replyTarget() ? `t:${replyTarget()}` : `dm:${peer.value}`),
   send: onSend,

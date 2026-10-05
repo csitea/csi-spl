@@ -1,8 +1,9 @@
 // Last-updated clock (owner: the time of the latest data the hub returned,
 // HH:mm:ss, visible on every page so a snapshot shows it). Owner, t1
 // be316fdc: "It must be next to the version on the right side, exactly" -
-// on a desktop right of the sidebar footer's version, on a phone right of
-// the status strip's version. A screen that draws no version (rail-only or
+// on a desktop right of the sidebar footer's version, right-aligned to the
+// end of that row (owner, t1 7b48293b), on a phone the strip's version
+// right next to the note and the clock flush with the strip's end. A screen that draws no version (rail-only or
 // hidden sidebar, a sheet over the phone strip) keeps it in the top bar's
 // corner (useClockHost). Exactly one clock per screen, always visible.
 //
@@ -86,6 +87,13 @@ const facts = (p) => p.evaluate((CLOCK) => {
   const ver = [document.querySelector('[data-test=app-version] .vs-ver'), strip && strip.querySelector('.status-strip__ver')].find(seen) || null
   const r = el.getBoundingClientRect()
   const b = bar ? bar.getBoundingClientRect() : null
+  const row = el.closest('.foot-row')
+  const inStrip = Boolean(strip && strip.contains(el))
+  // the footer row ends at its padding; the strip has none (no space to its end)
+  const rowEnd = row ? row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight || '0')
+    : (inStrip ? strip.getBoundingClientRect().right : null)
+  const note = inStrip ? strip.querySelector('.notify-chime .notify-glyph, .notify-chime svg') : null
+  const n = note ? note.getBoundingClientRect() : null
   const v = ver ? ver.getBoundingClientRect() : null
   const menu = document.querySelector('[data-test=user-menu-panel]')
   return {
@@ -100,13 +108,19 @@ const facts = (p) => p.evaluate((CLOCK) => {
     // the version is never cut to an ellipsis to make room for the clock
     verFull: Boolean(ver && ver.parentElement && ver.parentElement.scrollWidth <= ver.parentElement.clientWidth + 1),
     gap: v ? Math.round((r.left - v.right) * 10) / 10 : null,
+    noteGap: n && v ? Math.round((v.left - n.right) * 10) / 10 : null,
+    endGap: rowEnd === null ? null : Math.round((rowEnd - r.right) * 10) / 10,
     dy: v ? Math.round(Math.abs((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) * 10) / 10 : null,
     onScreen: r.left >= -1 && r.right <= window.innerWidth + 1 && r.top >= -1 && r.bottom <= window.innerHeight + 1,
     scroll: document.scrollingElement.scrollWidth <= window.innerWidth + 1,
     menuOpen: Boolean(menu && menu.getClientRects().length),
   }
 }, CLOCK)
-const besideVersion = (f) => Boolean(f && f.shown && f.verShown && f.verFull && f.gap !== null && f.gap >= 0 && f.gap <= 16 && f.dy <= 4 && f.onScreen)
+// right of the version and flush with its container's end; on the phone strip
+// the version also sits right next to the note (glyph to text)
+const besideVersion = (f) => Boolean(f && f.shown && f.verShown && f.verFull && f.gap !== null && f.gap >= 0 && f.dy <= 4 && f.onScreen
+  && f.endGap !== null && Math.abs(f.endGap) <= 1
+  && (f.where !== 'strip' || (f.noteGap !== null && f.noteGap >= 0 && f.noteGap <= 14)))
 // right of the version when one is drawn, else in the top bar
 const placed = (f) => Boolean(f && (f.verShown ? besideVersion(f) && f.where !== 'top-bar' : f.where === 'top-bar' && f.shown && f.inBarBox && f.onScreen))
 const WHERE = []

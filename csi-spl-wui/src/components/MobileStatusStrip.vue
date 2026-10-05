@@ -41,8 +41,9 @@
     >
       <span class="status-strip__ver">{{ versionLabel }}</span>
     </button>
-    <!-- owner, t1 be316fdc: the last-updated clock right of the version, as
-         on the desktop footer; while a sheet hides the strip the top bar has it -->
+    <!-- owner, t1 be316fdc + 7b48293b: the last-updated clock right of the
+         version, at the strip's end as on the desktop footer; while a sheet
+         hides the strip the top bar has it -->
     <LastDataClock v-if="clockHost.strip.value" class="status-strip__clock" />
     <div v-if="open === 'health'" class="status-strip__card" role="status" data-test="status-strip-health-card">
       <ConnectionStatus />
@@ -219,8 +220,14 @@ onBeforeUnmount(() => {
 /* as on the desktop: the version is the row's last item, at its end */
 .status-strip__version { margin-inline-start: auto; min-width: 0; }
 .status-strip__ver { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* be316fdc: the clock right after the version, the strip's last item */
-.status-strip__clock { padding-inline-end: 2px; }
+/* owner, t1 7b48293b: "the version should start right next to the note,
+   some space and then the clock and then no space till the end of the
+   container" - with the clock here the version leaves the end for the note's
+   side (its 16 px glyph sits in a 44 px target, so the button tucks 6 px
+   under it) and the clock takes the end, flush but for the notch inset */
+.status-strip:has(> .status-strip__clock) { padding-inline-end: env(safe-area-inset-right, 0px); }
+.status-strip:has(> .status-strip__clock) .status-strip__version { margin-inline-start: -6px; padding-inline-start: 0; }
+.status-strip__clock { margin-inline-start: auto; }
 .status-strip__card {
   position: absolute;
   bottom: calc(100% + 4px);

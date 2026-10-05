@@ -715,8 +715,8 @@
             <button type="button" class="vs-pop__reload" data-test="app-version-notes" @click.stop="releaseNotesOpen = true">{{ t('release_notes.open') }}</button>
           </span>
         </span>
-        <!-- owner, t1 be316fdc: the last-updated clock right of the version,
-             while this row is on screen (useClockHost: else the phone strip
+        <!-- owner, t1 be316fdc: the last-updated clock right of the version, at
+             the row's end (t1 7b48293b), while this row is on screen (useClockHost: else the phone strip
              or the top bar has it - one clock, one listener per screen) -->
         <LastDataClock v-if="clockHost.foot.value" class="foot-row__clock" />
       </div>
@@ -1930,15 +1930,16 @@ async function onCreate() {
   .foot-row .health { display: none; }
 }
 .foot-row .vs-wrap { flex: 0 1 auto; min-width: 0; display: flex; outline-offset: 2px; }
-/* be316fdc: the clock hugs the version (4 px) at the version's size. Dot,
+/* be316fdc: the clock at the version's size, right-aligned to the row's end
+   (owner, t1 7b48293b: "right align to the end of the container"). Dot,
    bell + note, version and clock want ~246 px; the default 260 px sidebar's
    row has 212. With the clock the row's padding and gaps tighten, the
    version never shrinks under it, and on a mouse the bell and the note take
    the plain .icon-btn 32 px, not the 44 px tap target (touch keeps 44): 210 */
-.foot-row:has(> .foot-row__clock) { gap: 6px; padding-inline: 12px 4px; }
+.foot-row:has(> .foot-row__clock) { gap: 6px; padding-inline: 12px 0; }
 .foot-row:has(> .foot-row__clock) .vs-wrap { flex: none; }
 .foot-row:has(> .foot-row__clock) .version-stamp { padding-inline-start: 0; }
-.foot-row .foot-row__clock { margin-inline-start: -2px; font-size: calc(0.6875rem * 0.9); text-align: start; }
+.foot-row .foot-row__clock { margin-inline-start: auto; font-size: calc(0.6875rem * 0.9); text-align: end; }
 @media not (pointer: coarse) {
   .foot-row:has(> .foot-row__clock) :deep(.notify-alerts),
   .foot-row:has(> .foot-row__clock) :deep(.notify-chime) { min-width: 32px; min-height: 32px; }

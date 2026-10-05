@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
@@ -18,7 +19,8 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 	// The rdb 0113 probe takes a pool connection of its own: read it before
 	// the transaction holds one, or racing sign-ins on a small pool each hold
 	// a connection while waiting for a second (T008's race test hung so).
-	access := tenant != "" && p.openAdmits(id, tenant) && s.hasAccessUntil(ctx)
+	seatEnds := tenant != "" && s.hasAccessUntil(ctx)
+	access := seatEnds && p.openAdmits(id, tenant)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -51,7 +53,7 @@ func (s *Postgres) Admit(ctx context.Context, id Identity, tenant string, p Admi
 				return "", err
 			}
 		}
-		r := admitRule{p: p, open: open, access: open && access}
+		r := admitRule{p: p, open: open, access: open && access, seatEnds: seatEnds}
 		if err := s.admitTx(ctx, tx, f.hum, id.Email, tenant, r, now); err != nil {
 			return "", err // rollback: a refusal writes nothing
 		}
@@ -170,6 +172,9 @@ type admitRule struct {
 	open bool
 	// access: rdb 0113 access_until is there, so an ended seat is not live.
 	access bool
+	// seatEnds: rdb 0113 is there (probed before the transaction), so an
+	// existing seat past its access_until is no membership (liveSeat).
+	seatEnds bool
 }
 
 // noMemberElsewhere reports whether hum holds no membership outside tenant,
@@ -199,13 +204,23 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 	if err != nil {
 		return err
 	}
-	var member bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM tenant_memberships
-		WHERE tenant_id = $1 AND human_id = $2)`, tenant, hum).Scan(&member); err != nil {
-		return err
-	}
-	if member {
+	// An existing seat admits only when the door would let it in (s077
+	// LEAK-1): live (liveSeat) and not a fenced demo seat. A suspended, ended
+	// or fenced seat is refused like a stranger: no cookie `t`, no sign_in row,
+	// no picture under its tenant.
+	var role string
+	var live bool
+	err = tx.QueryRow(ctx, `SELECT m.role, (TRUE`+liveSeat(r.seatEnds)+`) FROM tenant_memberships m
+		JOIN humans h ON h.human_id = m.human_id
+		WHERE m.tenant_id = $1 AND m.human_id = $2`, tenant, hum).Scan(&role, &live)
+	if err == nil {
+		if !live || auth.DemoFenced(role, tenant, r.p.OpenWorkspace) {
+			return ErrNotAdmitted
+		}
 		return nil // re-login never consumes a seat
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
 	}
 	if capUsers > 0 {
 		var n int
@@ -415,8 +430,7 @@ func (s *Postgres) MemberRole(ctx context.Context, humanID, tenant string) (stri
 		// A membership past its access_until is no membership (rdb 0113, spec 072 A27).
 		reads := []tenantRead{{sql: `SELECT m.role, m.channel_order FROM tenant_memberships m
 			JOIN humans h ON h.human_id = m.human_id
-			WHERE m.tenant_id = $1 AND m.human_id = $2 AND h.disabled_at IS NULL AND m.disabled_at IS NULL` +
-			accessLive(s.hasAccessUntil(ctx)),
+			WHERE m.tenant_id = $1 AND m.human_id = $2` + liveSeat(s.hasAccessUntil(ctx)),
 			args: []any{tenant, humanID}, each: func(rows pgx.Rows) error {
 				found = true
 				return rows.Scan(&v.role, &v.order)

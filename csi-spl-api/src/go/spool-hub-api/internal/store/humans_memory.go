@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
@@ -204,7 +205,12 @@ func (s *Memory) admitToTenant(tenant, hum string, id Identity, resolved bool, p
 		return nil, nil, ErrNotAdmitted
 	}
 	h := &s.hum
-	if _, member := h.members[[2]string{tenant, hum}]; resolved && member {
+	// An existing seat admits only when the door would let it in (s077
+	// LEAK-1): live and not a fenced demo seat; else refused like a stranger.
+	if m, member := h.members[[2]string{tenant, hum}]; resolved && member {
+		if !m.live(h.humans[hum], now) || auth.DemoFenced(m.role, tenant, p.OpenWorkspace) {
+			return nil, nil, ErrNotAdmitted
+		}
 		return nil, nil, nil
 	}
 	var grant *memMember
@@ -300,11 +306,8 @@ func (s *Memory) MemberRole(_ context.Context, humanID, tenant string) (string, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.hum.init()
-	if hm, ok := s.hum.humans[humanID]; !ok || hm.disabled {
-		return "", ErrNotFound
-	}
 	m, ok := s.hum.members[[2]string{tenant, humanID}]
-	if !ok || m.disabled || lapsed(m.accessUntil, time.Now()) {
+	if !ok || !m.live(s.hum.humans[humanID], time.Now()) {
 		return "", ErrNotFound
 	}
 	return m.role, nil

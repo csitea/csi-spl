@@ -47,6 +47,18 @@ func accessLive(withAccess bool) string {
 	return ` AND (m.access_until IS NULL OR m.access_until > now())`
 }
 
+// liveSeat is the door's rule for a membership (aliased m, its human joined as
+// h): neither suspended, nor past its access_until. MemberRole and admission
+// (s077 LEAK-1) both use it, so a seat the door refuses never re-admits.
+func liveSeat(withAccess bool) string {
+	return ` AND h.disabled_at IS NULL AND m.disabled_at IS NULL` + accessLive(withAccess)
+}
+
+// live is the memory store's liveSeat: hm the member's human (nil = none).
+func (m memMember) live(hm *memHuman, now time.Time) bool {
+	return hm != nil && !hm.disabled && !m.disabled && !lapsed(m.accessUntil, now)
+}
+
 // accessUntilCol is the select-list column for the end of access: NULL before
 // rdb 0113, so one scan target serves both shapes.
 func accessUntilCol(withAccess bool) string {

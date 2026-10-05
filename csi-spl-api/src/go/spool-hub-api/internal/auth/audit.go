@@ -25,8 +25,17 @@ type ActivityRecorder interface {
 // swallowed so it NEVER fails the sign-in / sign-out it audits. It is skipped
 // when auditing is off or the tenant / human is unknown (a sign-in that has not
 // yet resolved a single workspace carries no per-workspace attribution).
+// It is also skipped unless the human holds a live, unfenced seat in tenant
+// (switchable, the door's rule): a sign-out under a stale `t` writes nothing
+// into a workspace the person has left (s077 L2). No Membership fails closed.
 func (h *Handler) recordAuth(r *http.Request, tenant, humanID, kind, method string) {
-	if h.audit == nil || tenant == "" || humanID == "" {
+	if h.audit == nil || tenant == "" || humanID == "" || h.members == nil {
+		return
+	}
+	if ok, err := h.switchable(r.Context(), humanID, tenant); err != nil || !ok {
+		if err != nil {
+			h.log.Warn().Err(err).Str("tenant", tenant).Str("kind", kind).Msg("auth activity not recorded")
+		}
 		return
 	}
 	ip := maskIP(clientIP(r, h.hops))

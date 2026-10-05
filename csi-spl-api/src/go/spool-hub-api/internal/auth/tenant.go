@@ -320,9 +320,16 @@ func (h *Handler) sessionTenants(r *http.Request, out *sessionResp, roles []Tena
 // session's tenants, not as its active_tenant, not as a switch target, not as
 // a fallback or bound tenant.
 
+// DemoFenced reports whether a seat of role in tenant is a demo_user seat
+// outside the open demo workspace demoWS ("" = the demo is off). The one rule:
+// the sign-in door here and admission in the store (s077 LEAK-1) both ask it.
+func DemoFenced(role, tenant, demoWS string) bool {
+	return role == rbac.DemoUser && (demoWS == "" || tenant != demoWS)
+}
+
 // fenced reports whether t is a demo_user seat outside the open demo workspace.
 func (h *Handler) fenced(t TenantRole) bool {
-	return t.Role == rbac.DemoUser && (h.demoWS == "" || t.TenantID != h.demoWS)
+	return DemoFenced(t.Role, t.TenantID, h.demoWS)
 }
 
 // seats lists the human's memberships without the fenced demo seats.

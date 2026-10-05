@@ -1,6 +1,6 @@
 # 090: Marketing Automation (delegated social and email posting)
 
-**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Consensus (v0.3.3)  
+**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Consensus (v0.4.0)  
 **Created**: 2026-10-05 · **Lane**: a-273 (author), c-286 (owner from v0.3.3) · **Topic**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`  
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
@@ -384,5 +384,25 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.3.1 | 2026-10-05 | a-273 | Round 2 consensus refinements: aligned personal feed approval authority in §2.3 with FR-005, clarified AC-08 stale draft rejection, quoted SQL enum/array literals, and added workspace isolation RLS policies in appendix data model. |
 | v0.3.2 | 2026-10-05 | a-273 | Harmonized appendix RLS policies with csi-spl-rdb 0091_member_activity.sql shape (NULLIF empty guard on app.tenant_id and operator_scope). |
 | v0.3.3 | 2026-10-05 | c-286 | claude-a's third edit, completed: AC-08 no longer uses `rejected` (a final state) for a draft that is sent back. The stale draft stays `draft`, and the `draft_stale` audit event is added. Claude-a's other edits were already in v0.3.1/v0.3.2: quoted SQL literals, per-workspace FORCE RLS policies, and §2.3 matching FR-005. Added the build plan in `tasks.md`. |
+| v0.4.0 | 2026-10-05 | c-334 | Added §15, the per-workspace switch (owner msgs `37bcb88b` item 4 and `5cd2e544`): the cnf allow-list AND the db flag `tenants.marketing_enabled`, which defaults off; the flag never widens the list; `all` is supported but unused; the demo workspace is never on. |
 
-<!-- version: 0.3.3 · updated: 2026-10-05 · last-edit: 2026-10-05T05:30:00Z -->
+---
+
+## 15. Per-Workspace Switch
+
+Owner HUM-10, msg `37bcb88b` item 4:
+> "Make marketing SWITCHABLE per workspace: a workspace admin can turn it on/off at runtime (db flag + workspace settings toggle), with cnf marketing.workspaces as the outer allow-list."
+
+Owner HUM-10, msg `5cd2e544`, on letting dev use "all":
+> "well , no even on dev nobody should be spamming LinkedInn on Csitea Oy's behalf"
+
+1. **Effective value**: marketing is on for a workspace only when **both** of these hold:
+   - the cnf allow-list `marketing.workspaces` names the workspace, or is the literal `all`. The hub reads it as `SPOOL_HUB_MARKETING_WORKSPACES`.
+   - the workspace's database flag `tenants.marketing_enabled` (rdb `0129`) is true.
+2. **Default OFF**: the flag starts `false`. A workspace on the allow-list posts nothing until one of its admins turns marketing on.
+3. **The flag never widens the allow-list**: outside the list the flag is never read, and every `/v1/marketing` route answers `404`, the switch included. The demo workspace (spec 077) never gets marketing, even under `all`: it gets `403`.
+4. **`all`** is supported but no environment sets it: dev is `[t1, spool]`, prd is `[spool]`. `all` must stand alone in the list; the hub refuses to start otherwise.
+5. **Who may switch**: a member holding `tenant.settings` (the workspace admin), through `GET` / `PATCH /v1/marketing/settings {enabled}`. Anyone else gets `403`. The WUI shows the toggle in Tenant settings -> General, and hides it on `404` or `403`.
+6. **Every marketing route honours it**: every later route (T006..T010) is registered through the hub's `marketingRoute` gate, which answers `404` unless the effective value is on. `GET /v1/marketing` is the member probe, and it is `200` only while marketing is on.
+
+<!-- version: 0.4.0 · updated: 2026-10-05 · last-edit: 2026-10-05T12:30:00Z -->

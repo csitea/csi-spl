@@ -206,6 +206,10 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
   - **Gate**: `do_check_dist_hygiene`, `lint-mdlinks`.
   - **Deploy + prove**: `build.json` on dev and prd serves the page.
 
+- [x] T014 **per-workspace switch** (c-334, `spec.md` §15): rdb `0129_tenant_marketing_switch.sql` (`tenants.marketing_enabled`, default off), `store.MarketingSwitch`, hub `marketing_switch.go` (`GET`/`PATCH /v1/marketing/settings`, the `marketingRoute` gate, the `GET /v1/marketing` probe), the cnf allow-list as `SPOOL_HUB_MARKETING_WORKSPACES` (ids or `all`), and the WUI toggle `MarketingSwitch.vue` in General.
+  - **Rule for T006..T010**: register every `/v1/marketing` route with `s.marketingRoute(mux, "<METHOD> <path>", h)`, never `mux.HandleFunc`. The gate answers `404` unless the workspace is allow-listed and switched on, and the demo route walk scans it.
+  - **Tests**: hub `TestMarketingSwitch*` (on both stores), store `TestMarketingSwitch*` (RLS on Postgres), `hub-marketing-workspaces-030.tst.sh`, and e2e `marketing-switch.test.mjs`.
+
 ### Later phases (placeholders, one line each; each gets its own tasks when phase 1 is live)
 - [ ] T020 **Phase 2, email newsletter**: transactional provider, double opt-in, RFC 8058 headers, bounce/complaint webhooks, per-release or weekly cadence. Needs from the owner: the provider, the sending subdomain and the postal address (`spec.md` §11 Q4, Q5).
 - [ ] T021 **Phase 2, standing grants**: 30-day, one person, one channel, release template only. The grant id is logged on each post.

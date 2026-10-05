@@ -29,6 +29,9 @@
 # @param   a human id is per env, so nothing is guessed
 # @param SESSION_AGENT_USER (optional) - the user the agent CLI runs as,
 # @param   default $SPOOL_AGENT_USER, else the current user
+# @param SESSION_STAMP (optional) - UTC stamp in the transcript file name,
+# @param   YYYYmmddTHHMMSSZ. Default: date -u. A test sets it so the name is
+# @param   exact.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 SESSION_TOKEN=/var/tmp/claude/msgs/CLE-00/inbox/brief.md DRY_RUN=0 ./run -a do_spl_desk_session_upload
 #------------------------------------------------------------------------------
@@ -58,7 +61,11 @@ do_spl_desk_session_upload() {
   [[ -d "$adir" ]] || { do_log "FATAL no desk seat for $agent on $box in $tenant: run do_spl_desk_up first ($adir)"; return 1; }
   spl_host_spool || return 1
 
-  local md="$adir/.mirror/session-$agent-$(date -u +%Y%m%dT%H%M%SZ).md" counts rc=0
+  # SESSION_STAMP lets a test name the file exactly; the default is date -u.
+  local md counts rc=0 stamp
+  stamp="${SESSION_STAMP:-}"
+  [[ -n "$stamp" ]] || stamp="$(date -u +%Y%m%dT%H%M%SZ)" || return 1
+  md="$adir/.mirror/session-$agent-$stamp.md"
   mkdir -p "$adir/.mirror" && chmod 700 "$adir/.mirror" || return 1
   counts="$(spl_desk_session_export "$auser" "$agent" "$token" 2>&1 >"$md")" || rc=$?
   if (( rc != 0 )) || [[ ! -s "$md" ]]; then

@@ -92,6 +92,27 @@ EOF
   return $rc
 }
 
+# _plural <n> <one> <many>: the word for that count. 1 is <one>, every other
+# count is <many>. Kept out of the poke sentence so the sentence is a plain
+# string and a failing command is not hidden inside `local` (SC2155).
+_plural() {
+  local n="$1" one="$2" many="$3"
+  if (( n == 1 )); then
+    printf '%s' "$one"
+  else
+    printf '%s' "$many"
+  fi
+}
+
+# spl_backfill_summary <channel> <n>: the one poke sentence the probe asserts,
+# "added to #<channel>: <n> earlier message(s) in <n> topic(s)".
+spl_backfill_summary() {
+  local ch="$1" n="$2" word tword
+  word="$(_plural "$n" message messages)" || return 1
+  tword="$(_plural "$n" topic topics)" || return 1
+  printf '%s' "added to #$ch: $n earlier $word in $n $tword"
+}
+
 # spl_backfill_probe_run <dir> <box> <tenant> <hub> <api> <ch> <poster> <target>
 # <n> <wait secs> <pw file>: steps 2..6 against a live probe sidecar.
 spl_backfill_probe_run() {
@@ -125,7 +146,8 @@ spl_backfill_probe_run() {
   sleep 5
   got="$(find "$d/spool/$target/inbox" -name '*.json' | wc -l)"
   pokes="$(grep -c -- "--to $target " "$d/pokes.log" 2>/dev/null)" || pokes=0
-  local line want="added to #$ch: $n earlier $( ((n == 1)) && echo message || echo messages) in $n $( ((n == 1)) && echo topic || echo topics)"
+  local line want
+  want="$(spl_backfill_summary "$ch" "$n")" || return 1
   line="$(grep -- "--to $target " "$d/pokes.log" 2>/dev/null | sed -n 1p)"
   local ok=1 ids missing=""
   ids="$(cat "$d/spool/$target/inbox/"*.json 2>/dev/null)"

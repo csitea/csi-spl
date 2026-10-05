@@ -121,7 +121,6 @@ SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-strip-agy-optin.sh|
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-strip-two-envs.sh|1
 SC2319|csi-spl-orc/src/bash/features/spawn-agents/tests/test-tmux-close-window.sh|1
 SC1090|csi-spl-orc/src/bash/features/spool-install/install.sh|1
-SC2155|csi-spl-orc/src/bash/features/spool-install/install.sh|1
 SC2054|csi-spl-orc/src/bash/features/spool-install/tests/test-install.sh|4
 SC1090|csi-spl-orc/src/bash/run/run.sh|1
 SC2046|csi-spl-orc/src/bash/run/run.sh|1
@@ -129,8 +128,6 @@ SC2048|csi-spl-orc/src/bash/run/run.sh|3
 SC2155|csi-spl-orc/src/bash/run/run.sh|8
 SC2164|csi-spl-orc/src/bash/run/run.sh|2
 SC2319|csi-spl-orc/src/bash/run/run.sh|1
-SC2155|csi-spl-orc/src/bash/run/spl-backfill-probe.func.sh|1
-SC2155|csi-spl-orc/src/bash/run/spl-desk-session-upload.func.sh|1
 SC2318|csi-spl-orc/src/bash/run/spl-desk-up.func.sh|1
 SC2034|csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh|1
 SC2128|csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh|1

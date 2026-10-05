@@ -49,5 +49,17 @@ fi
 SNIPPET='spool keygen' in_orc >/dev/null 2>&1
 grep -q "spool keygen" "$T/calls.log" && pass "CONTROL: a spool call is recorded" || fail "CONTROL: stub log empty"
 
+# --- 5. the summary sentence: plural words, then one plain string -----------------
+# The old line hid message/messages inside `local var="$(...)"`, which swallows
+# a failing command (SC2155). These pin the sentence the probe still asserts.
+for spec in "1|added to #ch: 1 earlier message in 1 topic" \
+            "3|added to #ch: 3 earlier messages in 3 topics" \
+            "0|added to #ch: 0 earlier messages in 0 topics"; do
+  n="${spec%%|*}"
+  want="${spec#*|}"
+  out=$(SNIPPET="spl_backfill_summary ch $n" in_orc 2>"$T/e"); rc=$?
+  [[ $rc -eq 0 && "$out" == "$want" ]] && pass "summary n=$n" || fail "summary n=$n: rc=$rc out='$out' want='$want'"
+done
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'all backfill-probe.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

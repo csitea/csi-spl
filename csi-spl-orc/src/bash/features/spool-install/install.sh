@@ -435,7 +435,14 @@ elif ! go_ok; then
     go_ok || die 6 "$TOOLS/go/bin/go does not run or is older than $GO_NEED"
   fi
 fi
-[ -n "$GO_BIN" ] && TPATH="$TPATH:$(dirname "$GO_BIN")" && export PATH="$(dirname "$GO_BIN"):$PATH"
+if [ -n "$GO_BIN" ]; then
+  go_dir="$(dirname "$GO_BIN")"
+
+  # TPATH is copied into the spool-agent shim; PATH is this process, so the build below can run go.
+  TPATH="$TPATH:$go_dir"
+  PATH="$go_dir:$PATH"
+  export PATH
+fi
 # bin_rev <bin>: the commit a spool binary was built from - build.sh's
 # -X main.commit in the recorded -ldflags, else Go's vcs.revision.
 bin_rev() {

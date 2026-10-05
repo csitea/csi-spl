@@ -296,31 +296,53 @@ CREATE TABLE marketing_email_subscribers (
     UNIQUE (workspace_id, email)
 );
 
--- Strict Row Level Security with Workspace Isolation Policies
+-- Strict Row Level Security with Workspace & Operator Isolation Policies
+-- (Matches csi-spl-rdb/src/sql/postgres/spool-hub/0091_member_activity.sql shape;
+-- note: workspace_id in this prose sketch corresponds to the hub database tenant_id column)
 ALTER TABLE marketing_channels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_channels FORCE ROW LEVEL SECURITY;
-CREATE POLICY marketing_channels_workspace_isolation ON marketing_channels
-    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
+CREATE POLICY workspace_scope ON marketing_channels
+    USING (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON marketing_channels
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 
 ALTER TABLE marketing_channel_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_channel_tokens FORCE ROW LEVEL SECURITY;
-CREATE POLICY marketing_channel_tokens_workspace_isolation ON marketing_channel_tokens
-    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
+CREATE POLICY workspace_scope ON marketing_channel_tokens
+    USING (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON marketing_channel_tokens
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 
 ALTER TABLE marketing_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_posts FORCE ROW LEVEL SECURITY;
-CREATE POLICY marketing_posts_workspace_isolation ON marketing_posts
-    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
+CREATE POLICY workspace_scope ON marketing_posts
+    USING (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON marketing_posts
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 
 ALTER TABLE marketing_post_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_post_events FORCE ROW LEVEL SECURITY;
-CREATE POLICY marketing_post_events_workspace_isolation ON marketing_post_events
-    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
+CREATE POLICY workspace_scope ON marketing_post_events
+    USING (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON marketing_post_events
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 
 ALTER TABLE marketing_email_subscribers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE marketing_email_subscribers FORCE ROW LEVEL SECURITY;
-CREATE POLICY marketing_email_subscribers_workspace_isolation ON marketing_email_subscribers
-    FOR ALL USING (workspace_id = current_setting('app.current_workspace_id', true));
+CREATE POLICY workspace_scope ON marketing_email_subscribers
+    USING (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''))
+    WITH CHECK (workspace_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON marketing_email_subscribers
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 ```
 
 ---
@@ -331,7 +353,7 @@ Per owner msg `c6daa209` (*"At least one AGI, at least one Gobot, and a couple o
 
 ### 13.1 Panel Participants
 - **Author**: `a-273` (Antigravity)
-- **Reviewer (Grok)**: `g-276` (Opinion: `grok-opinion.md`, commit `01c9618e7`)
+- **Reviewer (Grok)**: `g-276` (Opinion: `grok-opinion.md`, commits `01c9618e7`, `20fe85a67`)
 - **Reviewer (Claude-A)**: `c-277` (Opinion: `claude-a-opinion.md`, commits `8ba3c6e5c`, `537b7e5b7`)
 - **Reviewer (Claude-B)**: `c-292` (Opinion: `claude-b-opinion.md`, commit `f7d9acae6`)
 
@@ -360,5 +382,6 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.2.0 | 2026-10-05 | a-273 | Folded owner msg `fd72a794` into spec: added anti-spam policy with strict 1 post/day/channel cap, high-signal focus, FR-009, and AC-08. |
 | v0.3.0 | 2026-10-05 | a-273 | Full panel consensus harmonized with grok peer `g-276` (`grok-opinion.md`) and claude peers `c-277` (`claude-a-opinion.md`) and `c-292` (`claude-b-opinion.md`): append-only audit table, KMS envelope-encrypted tokens under FORCE RLS, dynamic X pricing, double opt-in email, source-backed queue ("no source, no post"), idempotent single-flight dispatcher, 3-phase rollout, and formal Consensus section. |
 | v0.3.1 | 2026-10-05 | a-273 | Round 2 consensus refinements: aligned personal feed approval authority in §2.3 with FR-005, clarified AC-08 stale draft rejection, quoted SQL enum/array literals, and added workspace isolation RLS policies in appendix data model. |
+| v0.3.2 | 2026-10-05 | a-273 | Harmonized appendix RLS policies with csi-spl-rdb 0091_member_activity.sql shape (NULLIF empty guard on app.tenant_id and operator_scope). |
 
-<!-- version: 0.3.1 · updated: 2026-10-05 · last-edit: 2026-10-05T05:00:00Z -->
+<!-- version: 0.3.2 · updated: 2026-10-05 · last-edit: 2026-10-05T05:05:00Z -->

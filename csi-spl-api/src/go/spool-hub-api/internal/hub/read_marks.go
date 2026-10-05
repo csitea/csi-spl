@@ -14,7 +14,12 @@ import (
 // have seen" - and the cursors lived only in one browser's storage, so a line
 // read on the phone stayed new on the desktop. GET /v1/me/reads answers every
 // mark; PUT /v1/me/reads moves the marks it names forward (never back) and
-// answers them all, so a tab merges what other devices read. GET
+// answers those marks only, as stored (a later one from another device wins),
+// so a tab learns where each mark it sent now stands. The rest of the map
+// reaches a tab on its GET (load, and every time it is shown again): perf
+// edition 20261004 E11, prd 24 h n=11 113 PUTs answered the whole map at p50
+// 16.7 KB each. ?full=1 still answers every mark, for a caller that merged
+// other devices' marks off the PUT. GET
 // /v1/view/channels counts unread against these marks as well as its read=
 // (store channelMarksCTE, inside the stats batch: no extra round trip).
 
@@ -101,6 +106,7 @@ func (s *Server) handleReadMarks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "read marks unavailable")
 		return
 	}
+	var written map[string]store.ReadMark
 	if r.Method == http.MethodPut {
 		var body struct {
 			Marks map[string]wireReadMark `json:"marks"`
@@ -116,6 +122,7 @@ func (s *Server) handleReadMarks(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "bad_json", "at most 200 marks; keys ch:/t:/dm:<id>, f:seen or f:<msg_id>; each a cursor or an RFC 3339 ts")
 			return
 		}
+		written = marks
 		if err := rm.SaveReadMarks(r.Context(), t.ID, hum, marks, s.o.Now()); err != nil {
 			s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("read marks write")
 			writeErr(w, http.StatusInternalServerError, "internal", "read marks not stored")
@@ -134,7 +141,21 @@ func (s *Server) handleReadMarks(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "read marks unavailable")
 		return
 	}
+	if written != nil && r.URL.Query().Get("full") != "1" {
+		marks = onlyKeysOf(marks, written)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"marks": wireReadMarks(marks)})
+}
+
+// onlyKeysOf is the stored marks of the keys a PUT wrote (E11).
+func onlyKeysOf(stored, written map[string]store.ReadMark) map[string]store.ReadMark {
+	out := make(map[string]store.ReadMark, len(written))
+	for k := range written {
+		if m, ok := stored[k]; ok {
+			out[k] = m
+		}
+	}
+	return out
 }
 
 // readMarksPreflight: GET/PUT with the headers every browser route allows.

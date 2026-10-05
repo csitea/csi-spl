@@ -72,7 +72,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
   - **Needs from the owner**: nothing. The prd workspace id is read from the live `tenants` row through `do_spl_db_query` as the per-env SA.
   - **Deploy + prove**: tpl-gen clean on dev and prd; `./run -a do_check_dist_hygiene` green.
 
-- [ ] T003 **rdb migration** `rdb/0127_public_export_scope.sql` (fence 2, §5.2). Check the number at build time.
+- [x] T003 **rdb migration** `rdb/0126_public_export_scope.sql` (fence 2, §5.2). Check the number at build time.
   - **Build**:
     - The role must exist before a policy names it: `CREATE ROLE spool_public_export NOLOGIN` if absent (the owner may create roles, as `roles/runtime-role.sql` shows). T004 gives it LOGIN and its password.
     - Table `public_export_workspace`: one row only (a `one_row boolean` primary key with `CHECK (one_row)`), `workspace_id text NOT NULL REFERENCES tenants (tenant_id)`. The export role gets `SELECT` only; no role but the owner may write it. The row is written by T004's action from cnf, never by the migration (no literal id).

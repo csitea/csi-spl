@@ -813,7 +813,7 @@ func TestPreferencesNeedSession(t *testing.T) {
 	// a forged cookie is no session either
 	req, _ := http.NewRequest(http.MethodPut, r.url+"/api/v1/auth/preferences", strings.NewReader(`{"preferred_locale":"fi"}`))
 	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(&http.Cookie{Name: "spool_session", Value: "eyJ2IjoxfQ.forged"})
+	req.AddCookie(&http.Cookie{Name: "spool_session", Value: "eyJ2IjoxfQ.forged", HttpOnly: true, Secure: true})
 	if res, err := http.DefaultClient.Do(req); err != nil || res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("forged: %v %v", res, err)
 	}

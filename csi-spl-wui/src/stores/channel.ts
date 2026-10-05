@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useMentionPoke } from '~/composables/useMentionPoke'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
+import { createSendQueue, isNetworkFailure, isOffline, offlineError, takeMsgId } from '~/utils/offline-queue.mjs'
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import {
   applyChannelFrame,
@@ -52,6 +53,12 @@ type FeedMessage = SpoolMessage & { count?: number, topic_row?: boolean }
 /** One page of the Msgs list: the first paint and every Load more. */
 export const WINDOW = 30
 
+
+/** What landed() needs of one live send (080 T006: also after a reconnect). */
+type SentFrame = {
+  frame: SendFrame, text: string, parentTaskId?: string, channelId?: string,
+  showHere: boolean, asDm: boolean, peerId: string, channelNow: string | null, from: string,
+}
 
 function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
@@ -271,7 +278,10 @@ export const useChannelStore = defineStore('channel', () => {
         peer: peer.value || undefined,
         limit: WINDOW,
       }))
-      messages.value = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+      const fresh = (page.messages || []).map(feedRow) as unknown as FeedMessage[]
+      /* 080 T006: a send held for the network is not on the hub yet - keep its row */
+      const held = messages.value.filter((m) => m.waiting && queue.has(m.msg_id) && !fresh.some((f) => f.msg_id === m.msg_id))
+      messages.value = [...fresh, ...held]
       totals.value = page.totals || {}
       olderCursor.value = page.next || null
       follow()
@@ -343,21 +353,71 @@ export const useChannelStore = defineStore('channel', () => {
     follow()
   }
 
+  /**
+   * 080 T006 (FR-009): sends that failed for network reasons, by msg_id. Each
+   * keeps its pending row marked `waiting`; reconnect / `online` sends them
+   * again with the same msg_id (utils/offline-queue.mjs). One the hub then
+   * refuses for good is handed to TopBar (`queueFailure`) with its text.
+   */
+  const queueFailure = ref<{ err: unknown, text: string, msgId: string, topicId?: string, channelId?: string } | null>(null)
+  const heldText = new Map<string, { text: string, topicId?: string, channelId?: string }>()
+  const queue = createSendQueue({
+    stillOffline: (err) => isNetworkFailure(err, { offline: isOffline(), socket: api.mock ? 'open' : String(useLive().state.value) }),
+    onFail: (msgId, err) => {
+      messages.value = withoutMsg(messages.value, msgId) as FeedMessage[]
+      const held = heldText.get(msgId)
+      heldText.delete(msgId)
+      if (held) queueFailure.value = { err, msgId, ...held }
+    },
+  })
+  if (import.meta.client) {
+    window.addEventListener('online', () => { void queue.drain() })
+    useLive().onReconnected(() => { void queue.drain() })
+  }
+
+  /** Keep a send for the network: its row stays, marked waiting, until `resend` lands. */
+  function holdForNetwork(msgId: string, row: FeedMessage | null, ctx: { text: string, topicId?: string, channelId?: string }, resend: () => Promise<unknown>) {
+    if (row) messages.value = mergeLive(withoutMsg(messages.value, msgId), { ...row, pending: true, waiting: true }) as FeedMessage[]
+    heldText.set(msgId, ctx)
+    queue.hold(msgId, async () => {
+      await resend()
+      heldText.delete(msgId)
+    })
+  }
+
   async function send(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number) {
     if (!api.mock) return sendLive(text, parentTaskId, files, channelId, isParent)
-    const body = await api.sendMessage({
+    const req = {
       channel: channelId || active.value,
       peer: channelId ? undefined : (peer.value || undefined),
       text,
       parent_task_id: parentTaskId,
-      is_parent: isParent === 0 ? 0 : 1,
+      is_parent: (isParent === 0 ? 0 : 1) as 0 | 1,
       /* refs, as on the live path: a raw File on the row renders a card with no
          file_id, so the mock could show neither Download nor a preview */
       files: await toFileRefs(files),
-    })
+      msg_id: takeMsgId(text, newId()) || undefined,
+    }
+    const showMock = !channelId || channelId === active.value
+    /* 080 T006: the mock has no socket to lose, so an offline browser is the
+       network failure here - the row waits and `online` sends it (AC8) */
+    if (isOffline() && req.msg_id) {
+      const own = pendingRow({
+        msg_id: req.msg_id, task_id: parentTaskId || newId(), from: useLive().identity.value, to: '@channel', kind: 'note', body: text,
+        files: req.files, channel: req.channel, is_parent: req.is_parent,
+      }) as unknown as FeedMessage
+      const msgId = req.msg_id
+      holdForNetwork(msgId, showMock ? own : null, { text, topicId: parentTaskId, channelId }, async () => {
+        if (isOffline()) throw offlineError()
+        const landed = await api.sendMessage(req) as unknown as FeedMessage
+        if (messages.value.some((m) => m.msg_id === msgId)) messages.value = mergeLive(withoutMsg(messages.value, msgId), landed) as FeedMessage[]
+      })
+      return { ...own, waiting: true }
+    }
+    const body = await api.sendMessage(req)
     const row = body as unknown as FeedMessage
     /* a reply into another channel must not appear in this feed */
-    if (!channelId || channelId === active.value) messages.value = [...messages.value, row]
+    if (showMock) messages.value = [...messages.value, row]
     /* CLE-77852: the mock pokes nobody, but shows the "sent as a direct
        message" notice for a seated agent outside the channel (the e2e) */
     const pokeAt = channelId || (peer.value ? '' : active.value)
@@ -430,7 +490,7 @@ export const useChannelStore = defineStore('channel', () => {
        sends. */
     if (isEmptySend(frame.body, frame.files)) throw emptySendError()
     /* 013 US7 FR-013: our card shows at once under the msg_id we send; echo / ack replace it */
-    frame.msg_id = newId() || undefined
+    frame.msg_id = takeMsgId(text, newId()) || undefined
     const showHere = !channelId || channelId === active.value
     if (frame.msg_id && showHere) {
       const own = pendingRow({
@@ -454,13 +514,36 @@ export const useChannelStore = defineStore('channel', () => {
        of how the owner's message disappeared without a trace on 2026-09-21.
        It is removed only when the send has definitively failed, and by then
        the caller is showing the text again with a Retry. */
+    const sent: SentFrame = { frame, text, parentTaskId, channelId, showHere, asDm, peerId, channelNow, from: live.identity.value }
+    /* 080 T006 (FR-009): a send the NETWORK failed (offline, or the socket
+       down) is not rolled back: its row waits, marked, and goes again with
+       this same msg_id on reconnect. Anything else is reported as before. */
+    if (frame.msg_id && isOffline()) return waitForNetwork(sent, client)
     let ack
     try {
       ack = await sendWithResend(() => client.send(frame))
     } catch (e) {
+      if (frame.msg_id && isNetworkFailure(e, { offline: isOffline(), socket: client.state })) return waitForNetwork(sent, client)
       if (frame.msg_id && showHere) messages.value = withoutMsg(messages.value, frame.msg_id) as FeedMessage[]
+      if (e && typeof e === 'object' && frame.msg_id) Object.assign(e, { msgId: frame.msg_id })
       throw e
     }
+    return landed(sent, ack)
+  }
+
+  /** 080 T006: hold a sent frame for the network; its row stays, marked waiting. */
+  function waitForNetwork(sent: SentFrame, client: { send: (f: SendFrame) => Promise<unknown> }) {
+    const msgId = String(sent.frame.msg_id)
+    const own = messages.value.find((m) => m.msg_id === msgId) || null
+    holdForNetwork(msgId, own, { text: sent.text, topicId: sent.parentTaskId, channelId: sent.channelId }, async () => {
+      landed(sent, await client.send(sent.frame))
+    })
+    return { ...(own || {}), msg_id: msgId, pending: true, waiting: true } as FeedMessage
+  }
+
+  /** The hub stored a sent frame (at once, or later from the offline queue). */
+  function landed(sent: SentFrame, ack: unknown) {
+    const { frame, text, asDm, peerId, channelNow } = sent
     /* SPL-985 (spec 042 §3): stored - now each person or agent the text
        mentions gets a DM asking them to act. The DM peer, or the agent a
        leading @ already dispatched to, has the message itself (K3). */
@@ -469,9 +552,11 @@ export const useChannelStore = defineStore('channel', () => {
       addressee: asDm ? peerId : (frame.to || ''),
       where: asDm ? { peer: String(peer.value || ''), taskId: frame.task_id } : { channel: channelNow || '', taskId: frame.task_id },
     })
-    const row = rowFromAck(ack, frame, { from: live.identity.value, channel: channelNow })
+    const row = rowFromAck(ack as Parameters<typeof rowFromAck>[0], frame, { from: sent.from, channel: channelNow })
     if (!row.msg_id) row.msg_id = String(frame.msg_id || '')
-    if (row.msg_id && showHere) {
+    /* a held send lands later: its row is replaced only where it still shows */
+    const shown = !queue.has(row.msg_id) || messages.value.some((m) => m.msg_id === row.msg_id)
+    if (row.msg_id && sent.showHere && shown) {
       messages.value = mergeLive(messages.value, row) as FeedMessage[]
       follow()
     }
@@ -505,6 +590,7 @@ export const useChannelStore = defineStore('channel', () => {
 
   return {
     channels,
+    queueFailure,
     ordered,
     liveAt,
     dmAt,

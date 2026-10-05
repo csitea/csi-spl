@@ -246,7 +246,8 @@ describe('wiring (no view polls in live mode)', () => {
 
   it('every store send is optimistic under the msg_id it sends', () => {
     assert.match(read('stores/live.ts'), /msg_id: msgId/)
-    assert.match(read('stores/channel.ts'), /frame\.msg_id = newId\(\)/)
+    /* 080 T006: a Retry reuses the failed send's msg_id, else a fresh one */
+    assert.match(read('stores/channel.ts'), /frame\.msg_id = takeMsgId\(text, newId\(\)\)/)
     assert.match(read('components/TopicPane.vue'), /rowsForRightPane/)
   })
 })

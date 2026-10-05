@@ -527,6 +527,7 @@
     "go_comment": "Pridať komentár",
     "sending": "Odosiela sa…",
     "draft_mark": "Koncept",
+    "waiting_network": "Čaká sa na sieť…",
     "code_hint": "Blok kódu: Enter pridá riadok, zatvorte napísaním ``` alebo klávesom Esc, Ctrl+Enter alebo Cmd+Enter odošle",
     "send_failed": "Neodoslané — správa sa nedostala do hubu.",
     "send_failed_closed": "Neodoslané — spojenie sa prerušilo. Váš text tu zostal.",

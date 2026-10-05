@@ -527,6 +527,7 @@
     "go_comment": "Reactie plaatsen",
     "sending": "Versturen…",
     "draft_mark": "Concept",
+    "waiting_network": "Wacht op netwerk…",
     "code_hint": "Codeblok: Enter voegt een regel toe, typ ``` of druk op Esc om te sluiten, Ctrl+Enter of Cmd+Enter verstuurt",
     "send_failed": "Niet verzonden — het bericht bereikte de hub niet.",
     "send_failed_closed": "Niet verzonden — de verbinding viel weg. Je tekst staat er nog.",

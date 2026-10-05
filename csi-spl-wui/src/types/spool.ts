@@ -32,6 +32,8 @@ export interface SpoolMessage {
   deliveries?: { to_box: string, state: string }[]
   /** 013 US7 FR-013: our own send, shown before the hub echo / ack confirms it. */
   pending?: boolean
+  /** 080 T006 (FR-009): a pending send held for the network, resent on reconnect. */
+  waiting?: boolean
   /**
    * message-edit-v1 §2. All three are OMITTED until a message has
    * been edited — `edited_at` is an RFC3339 UTC string and its PRESENCE is

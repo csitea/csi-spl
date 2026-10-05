@@ -47,7 +47,10 @@ describe('picture preview', () => {
   })
 
   it('the mock send uploads too, so a mock card has a file_id', () => {
-    assert.match(read('src/stores/channel.ts'), /files: await toFileRefs\(files\),\n    \}\)\n    const row = body/)
+    /* 080 T006: the request is built once (an offline send is held and sent again) */
+    const s = read('src/stores/channel.ts')
+    assert.match(s, /files: await toFileRefs\(files\),\n      msg_id: takeMsgId\(text, newId\(\)\) \|\| undefined,\n    \}/)
+    assert.match(s, /const body = await api\.sendMessage\(req\)\n    const row = body/)
   })
 
   it('the composer thumbnail is a data: URL too', () => {

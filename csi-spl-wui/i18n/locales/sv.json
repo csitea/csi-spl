@@ -527,6 +527,7 @@
     "go_comment": "Publicera kommentar",
     "sending": "Skickar…",
     "draft_mark": "Utkast",
+    "waiting_network": "Väntar på nätverk…",
     "code_hint": "Kodblock: Enter lägger till en rad, skriv ``` eller tryck Esc för att stänga, Ctrl+Enter eller Cmd+Enter skickar",
     "send_failed": "Inte skickat — meddelandet nådde inte hubben.",
     "send_failed_closed": "Inte skickat — anslutningen bröts. Din text finns kvar.",

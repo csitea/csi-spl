@@ -117,7 +117,7 @@
         ><span aria-hidden="true">⚑ </span>{{ msg.responsible }}</span>
         <!-- bug B (4ecb4b0d): our own row is drawn the moment Send is pressed;
              until the hub's ack it says so, instead of a time that reads "posted" -->
-        <span v-if="msg.pending" class="msg-time msg-time--sending" data-test="msg-sending" role="status">{{ t('composer.sending') }}</span>
+        <span v-if="msg.pending" class="msg-time msg-time--sending" data-test="msg-sending" role="status" :data-waiting="msg.waiting ? 'network' : undefined">{{ msg.waiting ? t('composer.waiting_network') : t('composer.sending') }}</span>
         <span v-else class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle">{{ time }}</span>
         <span
           v-if="edited"

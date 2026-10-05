@@ -527,6 +527,7 @@
     "go_comment": "Yorumu gönder",
     "sending": "Gönderiliyor…",
     "draft_mark": "Taslak",
+    "waiting_network": "Ağ bekleniyor…",
     "code_hint": "Kod bloğu: Enter satır ekler, kapatmak için ``` yazın veya Esc'e basın, Ctrl+Enter veya Cmd+Enter gönderir",
     "send_failed": "Gönderilmedi — mesaj hub'a ulaşmadı.",
     "send_failed_closed": "Gönderilmedi — bağlantı koptu. Metniniz hâlâ burada.",

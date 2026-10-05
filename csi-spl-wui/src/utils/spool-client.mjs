@@ -682,12 +682,16 @@ export function createSpoolClient({
       const kind = 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */
       const body = peer ? String(text || '') : parsed.body
       if (mock) {
+        /* 080 T006: the hub de-dupes by msg_id, so a resend of a held send
+           (same msg_id) stores nothing new - the mock does the same */
+        const dup = msg_id ? state.messages.find((m) => m.msg_id === msg_id) : null
+        if (dup) return dup
         /* spec 068: what the hub's insert stores - <to>@<to_box> for a
            message to one agent; the mock reads a bare peer's box off the roster */
         const seatBox = toBox || Object.keys(state.roster || {}).find((b) => (state.roster[b] || []).includes(to))
         const row = {
           v: 1,
-          msg_id: uuid(),
+          msg_id: msg_id || uuid(),
           task_id: task_id || uuid(),
           ts: new Date().toISOString(),
           from: state.me.id,

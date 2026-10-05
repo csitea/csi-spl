@@ -2252,3 +2252,18 @@ declare module '~/utils/pane-widths.mjs' {
   export function loadPaneViews(store?: unknown): Partial<Record<PaneView, PaneSet>>
   export function clearPaneWidths(store?: unknown): boolean
 }
+
+declare module '~/utils/offline-queue.mjs' {
+  export type SendQueue = {
+    hold(msgId: string, resend: () => Promise<unknown>): void
+    has(msgId: unknown): boolean
+    readonly size: number
+    drain(): Promise<void>
+  }
+  export function isOffline(nav?: { onLine?: boolean } | null): boolean
+  export function isNetworkFailure(err: unknown, opts?: { offline?: boolean, socket?: string }): boolean
+  export function offlineError(): Error & { token: 'closed' }
+  export function createSendQueue(opts?: { stillOffline?: (err: unknown) => boolean, onFail?: (msgId: string, err: unknown) => void }): SendQueue
+  export function retryWith(msgId: string, text?: string): void
+  export function takeMsgId(text: string, fresh: string): string
+}

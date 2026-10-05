@@ -10,6 +10,7 @@ import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, wind
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
 import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
+import { takeMsgId } from '~/utils/offline-queue.mjs'
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
 import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
@@ -289,7 +290,7 @@ function setup(key: 'main' | 'pane') {
       if (isEmptySend(text, refs)) throw emptySendError()
       const client = live.ensure()
       /* 013 US7 FR-013: shown at once under the msg_id we send; the pushed echo replaces it */
-      msgId = crypto.randomUUID()
+      msgId = takeMsgId(body, crypto.randomUUID())
       const task = taskId.value
       const parent = opts.parentTaskId && opts.parentTaskId !== task ? opts.parentTaskId : undefined
       const channel = opts.channel || undefined
@@ -314,6 +315,8 @@ function setup(key: 'main' | 'pane') {
     } catch (e) {
       /* the row goes; the text goes back into the Omnibox with the reason */
       if (msgId) messages.value = withoutMsg(messages.value, msgId) as SpoolMessage[]
+      /* 080 T006: TopBar's Retry resends under this same msg_id */
+      if (msgId && e && typeof e === 'object') Object.assign(e, { msgId })
       throw e
     } finally {
       sending.value = false

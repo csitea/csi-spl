@@ -527,6 +527,7 @@
     "go_comment": "Skelbti komentarą",
     "sending": "Siunčiama…",
     "draft_mark": "Juodraštis",
+    "waiting_network": "Laukiama tinklo…",
     "code_hint": "Kodo blokas: Enter prideda eilutę, uždarykite įvesdami ``` arba paspausdami Esc, Ctrl+Enter arba Cmd+Enter siunčia",
     "send_failed": "Neišsiųsta — žinutė nepasiekė hub.",
     "send_failed_closed": "Neišsiųsta — ryšys nutrūko. Jūsų tekstas išsaugotas.",

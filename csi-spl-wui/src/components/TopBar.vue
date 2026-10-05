@@ -101,6 +101,8 @@ import { useSearchStore } from '~/stores/search'
 import { searchPath, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 import { sendFailureKey } from '~/utils/send-failure.mjs'
+import { retryWith } from '~/utils/offline-queue.mjs'
+import { useChannelStore } from '~/stores/channel'
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useSessionStore } from '~/stores/session'
 import TopBarTenant from '~/components/TopBarTenant.vue'
@@ -174,7 +176,13 @@ const busy = computed(() => Boolean(omnibox.target && omnibox.target.busy && omn
 
    Now a failure puts the text back in the box, names the reason and offers a
    Retry. Nothing is cleared until the send has resolved. */
-const sendError = ref<{ key: string, err: unknown, text: string, files: File[], topicId?: string, channelId?: string } | null>(null)
+const sendError = ref<{ key: string, err: unknown, text: string, files: File[], topicId?: string, channelId?: string, msgId?: string } | null>(null)
+
+/* 080 T006: the msg_id the failed send carried (stores put it on the error) */
+function msgIdOf(err: unknown) {
+  const id = err && typeof err === 'object' ? (err as { msgId?: unknown }).msgId : ''
+  return typeof id === 'string' ? id : ''
+}
 
 async function onSend(text: string, parent?: string, files?: File[], channelId?: string) {
   const target = omnibox.target
@@ -184,16 +192,33 @@ async function onSend(text: string, parent?: string, files?: File[], channelId?:
   try {
     await target.send(text, sent, parent, channelId)
   } catch (err) {
-    sendError.value = { key: sendFailureKey(err), err, text, files: sent, topicId: parent, channelId }
+    sendError.value = { key: sendFailureKey(err), err, text, files: sent, topicId: parent, channelId, msgId: msgIdOf(err) }
     composer.value?.restore(text, sent)
   }
 }
 
+/* 080 T006 (FR-009): Retry sends the SAME msg_id, so a first copy that did
+   reach the hub is de-duped instead of posted twice */
 async function retrySend() {
   const failed = sendError.value
   if (!failed) return
-  await onSend(failed.text, failed.topicId, failed.files, failed.channelId)
+  retryWith(failed.msgId || '', failed.text)
+  try {
+    await onSend(failed.text, failed.topicId, failed.files, failed.channelId)
+  } finally {
+    retryWith('')
+  }
 }
+
+/* a send held for the network that the hub then refused for good: its text
+   comes back with the reason and a Retry, as a direct failure does */
+const channelStore = useChannelStore()
+watch(() => channelStore.queueFailure, (f) => {
+  if (!f) return
+  channelStore.queueFailure = null
+  sendError.value = { key: sendFailureKey(f.err), err: f.err, text: f.text, files: [], topicId: f.topicId, channelId: f.channelId, msgId: f.msgId }
+  composer.value?.restore(f.text, [])
+})
 
 /* the reader edited the text, or moved on: the old failure is not about what
    is in the box any more */

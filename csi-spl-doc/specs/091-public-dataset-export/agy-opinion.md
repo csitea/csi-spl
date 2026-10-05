@@ -2,7 +2,7 @@
 
 **Reviewer**: a-287 (agy) · **Author**: c-307 (claude, `spec.md`) · **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583`  
 **Panel**: c-307 (author), g-308 (grok), c-288 (claude), a-287 (agy)  
-**Read**: Database migrations under `csi-spl-rdb/src/sql/postgres/spool-hub/` (migrations 0001 through 0124), `spec.md` v0.1.0 at `d300b411f`, and claude opinion round 1 at `c44d2091e`.
+**Read**: Database migrations under `csi-spl-rdb/src/sql/postgres/spool-hub/` (migrations 0001 through 0124), `spec.md` v0.1.0 (`d300b411f`), v0.2.0 (`c526b38d6`), v0.3.0 (`b76c46b2e`), and v0.4.0 at `51b40dcaa`.
 
 ---
 
@@ -70,7 +70,7 @@ In `messages` (`0001_hub_core.sql`):
 
 **Required Defense**:
 - `messages.msg`, `messages.env`, and `messages.env_sig` must be strictly **withheld**.
-- For the bootstrap seed, the seed loader or export projection must synthesize a clean, minimal canonical envelope object matching only the public columns, satisfying database NOT NULL constraints without leaking internal metadata (see §6.2 Catch 1).
+- For the bootstrap seed, the seed loader or export projection must synthesize a clean, minimal canonical envelope object matching only the public columns, satisfying database NOT NULL constraints without leaking internal metadata (§4.4).
 - `messages.files`: Private attachment links must be excluded. Only public assets explicitly staged to the public bucket may be referenced.
 
 ### 2.4 Message Revision History and Secret Redaction (`message_revisions`)
@@ -98,8 +98,9 @@ Relying on a `WHERE tenant_id = :spool_hub_id` clause alone is susceptible to de
 **Required Defense (Both, Not Either)**:
 1. **Connection Role**: The export must connect using a dedicated read-only role (`spool_export_reader`). This role must **not** own any tables and must **not** possess `BYPASSRLS`.
 2. **Session Configuration**: Every export transaction must execute `SET LOCAL app.tenant_id = :spool_hub_id`. The setting `app.rls_scope` must remain strictly unset (never set to 'operator').
-3. **Explicit Query Predicate**: Every SQL statement must explicitly include `WHERE tenant_id = :spool_hub_id` on all workspace-scoped tables.
-4. **Post-Query Invariant Check**: The exporter must programmatically verify that 100% of exported rows carrying a workspace column match the Spool Hub workspace ID. Any discrepancy aborts the process immediately.
+3. **Restrictive Security Policy**: To guarantee that Fence 2 holds even if the operator scope is inadvertently activated, Postgres must enforce a `RESTRICTIVE` policy on `spool_public_export` locking rows to the configured Spool Hub workspace id.
+4. **Explicit Query Predicate**: Every SQL statement must explicitly include `WHERE tenant_id = :spool_hub_id` on all workspace-scoped tables.
+5. **Post-Query Invariant Check**: The exporter must programmatically verify that 100% of exported rows carrying a workspace column match the Spool Hub workspace ID. Any discrepancy aborts the process immediately.
 
 ---
 
@@ -131,21 +132,21 @@ Each of the three verifiers independently executes a dedicated inspection checkl
    - Verify that the seed-load command on a clean, isolated Postgres instance completes without constraint violations, boots the hub cleanly, and enables admin sign-in.
 
 ### 3.3 Attestation Artifacts
-Each verifier signs and outputs a structured attestation manifest:
+Each verifier signs and outputs a structured attestation manifest (`verdicts/<sha256>/<lane-kind>.json`):
 ```json
 {
   "v": 1,
-  "artifact_sha256": "...",
-  "verifier": "antigravity",
+  "file_sha256": "...",
+  "lane_id": "a-287",
+  "lane_kind": "agy",
+  "method": "reading",
+  "checks": [
+    {"name": "workspace_isolation", "n": 1000, "result": "PASS", "detail": "100% Spool Hub rows"},
+    {"name": "semantic_sampling", "n": 250, "result": "PASS", "detail": "zero prose leaks"}
+  ],
   "verdict": "PASS",
-  "timestamp": "2026-10-05T08:00:00Z",
-  "checks": {
-    "workspace_isolation": "PASS",
-    "allow_list_conformance": "PASS",
-    "pii_secret_scan": "PASS",
-    "semantic_sampling": "PASS",
-    "bootstrap_smoke_test": "PASS"
-  }
+  "ts": "2026-10-05T08:00:00Z",
+  "hub_msg_id": "..."
 }
 ```
 Only when valid `PASS` manifests from AntiGravity, Grok, and Claude are matched against the artifact SHA-256 does the promotion workflow trigger.
@@ -211,69 +212,53 @@ Every daily export run and relevant CI workflow must validate the bootstrap seed
 
 ---
 
-## 6. Review of Author's Draft (`spec.md` v0.1.0 @ `d300b411f`) & Consensus Alignment
+## 6. Review History & Panel Consensus Evolution
 
-### 6.1 What AntiGravity Strongly Agrees With
-The draft `spec.md` v0.1.0 produced by `c-307` is exceptionally well-structured and aligns closely with the core principles of this review:
-1. **Three Fences Architecture (§5.1 - §5.3)**: Explicit column grants on a dedicated non-owner role, FORCE RLS pinned to Spool Hub, and runtime query filter + post-query verification.
-2. **Strict Withholding (§4.2)**: Withholding `password_credentials`, `human_identities`, `tenant_invites`, `pins`, `payment_*`, `message_revisions`, and `files`.
-3. **The 3-Verifier Division of Labor (§8.2)**: Distinct, complementary verification roles (Claude on structural invariants, Grok on content regexes, AntiGravity on semantic reading review).
-4. **Bootstrap Seed Workflow (§9.1)**: Single-command load, fresh-database check, synthetic root keypair generation, and creation of the first admin account.
+### 6.1 Round 1 Review (`spec.md` v0.1.0 @ `d300b411f` & v0.2.0 @ `c526b38d6`)
+AntiGravity validated the foundational architecture and filed four critical technical catches:
+1. **Schema NOT NULL Constraints on Seed Load**: `messages.msg`, `messages.env`, and `messages.env_sig` are `NOT NULL`. Omitting them from the SQL export causes a NOT NULL constraint violation on load. The export projection must supply synthetic constant placeholders.
+2. **DM Linkage Scrubbing**: Explicitly withhold `messages.ref_task_id` and `messages.mirror_of` (0112) so internal direct-message IDs are never published.
+3. **Unclassified Column Fail-Closed Gate (C3)**: Require an explicit manifest classification (`public` or `withheld`) for every live column; fail the build if an unclassified column appears.
+4. **Publisher Service Account Separation**: Ensure the account with database access cannot write to the public bucket, and the public publisher account cannot read the database.
 
-### 6.2 Critical Technical Catches for Draft v0.2.0
+AntiGravity also aligned with reviewer `c-288` on points R1-1 through R1-5 (public CI logging hygiene, out-of-band workspace name scanning, hash deletion, card-level task archival, and comprehensive canary testing).
 
-#### Catch 1: Schema NOT NULL Constraints on Seed Load (`messages.msg`, `messages.env`, `messages.env_sig`)
-In `spec.md` §4.1, columns `msg`, `env`, `env_sig`, and `files` are marked NOT exported.
-However, in `csi-spl-rdb/src/sql/postgres/spool-hub/0001_hub_core.sql`:
-```sql
-msg         jsonb       NOT NULL,
-env_sig     text        NOT NULL,
-env         bytea       NOT NULL,
-files       jsonb       NOT NULL DEFAULT '[]'::jsonb,
-```
-If the export writes `INSERT INTO messages (...)` or `COPY messages (...)` without these columns, PostgreSQL will reject the seed import with a `null value in column violates not-null constraint` error!
-**Solution**: The spec must explicitly state that the export projection emits synthetic canonical dummy values:
-- `files`: `'[]'::jsonb`
-- `msg`: minimal synthetic JSON `{ "v": 1, "msg_id": msg_id, "task_id": task_id, "channel": channel, "ts": ts, "from": from_id, "to": to_id, "kind": kind, "body": body }`
-- `env`: `E'\\x'` (empty byte array)
-- `env_sig`: `'seed'`
-Emitting synthetic dummy values directly in the SQL export is preferable because it allows standard SQL tools (`psql < file.sql`) to load cleanly.
+### 6.2 Round 2 Review (`spec.md` v0.3.0 @ `b76c46b2e`)
+In `spec.md` v0.3.0, author `c-307` adopted all of AntiGravity's round 1 points:
+- Added **§4.4 (Withheld columns that the schema requires)**: Constant synthetic placeholders for `msg`, `env`, `env_sig`, and `root_pubkey` that are never read from database storage, proven by C5 canaries.
+- Added explicit withholding of `ref_task_id`, `mirror_of`, and `moved_from_*` columns.
+- Recorded panel positions on Owner Questions Q1 (public channel notice banner + opt-out) and Q7 (daily 3-verifier runs on production).
+- Aligned §8.3 attestation schema to superset the verification requirements.
 
-#### Catch 2: Clean Handling of `ref_task_id` and `mirror_of` (rdb 0112)
-`0112_dm_ref_task.sql` introduces `ref_task_id` and `mirror_of`. While §4.1 filters messages by `channel IN (exported_channels)`, the spec should explicitly state that:
-- `mirror_of` is set to `NULL` (scrubbed) so that no internal DM message IDs are exposed.
-- `ref_task_id` may be preserved if it points to a public task, but set to `NULL` if it references any private discussion.
-
-#### Catch 3: Unclassified Column Fail-Closed Gate (C3)
-Section 4.4 and 5.5 should explicitly formalize the unclassified column gate:
-Every live column in every table listed in the manifest must be classified in the manifest as either `public` or `withheld`. If a new database migration introduces any column not yet categorized, the export build fails immediately.
-
-#### Catch 4: Publisher SA Privilege Separation
-In §6, the spec mentions the environment SA writes to public. To maintain strict least privilege:
-The SA that performs the initial database export must **only** have write access to staging. The promotion step to the public bucket must run under a separate publisher identity that only triggers when 3/3 PASS verdicts are present.
-
-### 6.3 AntiGravity Alignment on Reviewer c-288's Round 1 Points (R1-1 through R1-5)
-AntiGravity fully endorses the five points raised by reviewer `c-288` (`claude-opinion.md` §9.2):
-- **R1-1 (Public CI Logs/Artifacts)**: Gate failures must output only table, PK, and error class—never raw matched secret text. Staged artifacts must never be uploaded as GitHub Action artifacts.
-- **R1-2 & R1-3 (Workspace Names and Hashes)**: Other workspace names must be extracted by a dedicated scanner role, converted to hashes in staging, and deleted upon publish. Hashes must never be copied to the public bucket.
-- **R1-4 (Card-Level Task Archival)**: A thread is archived when its root card has `archived_at IS NOT NULL`. The export filter must drop all messages belonging to an archived task.
-- **R1-5 (Comprehensive Canary Matrix)**: Endorsed. The canary suite must verify absence of planted markers across workspaces, private channels, DMs, archived tasks, revisions, and raw envelope fields.
-
-### 6.4 AntiGravity Recommendations for Owner Questions (§11)
-- **Q1 (Members' Consent)**: Yes. Spool Hub members should see an informational workspace banner in public channels that public discussions are published to the open-source community. Provide an administrative opt-out flag for members who request pseudonymization or post redaction.
-- **Q2 (Retention)**: Agree with recommendation: 30 days for daily snapshots, 365 days for stable release milestones.
-- **Q3 (Scan Hit in Message Body)**: Agree with recommendation: Drop the offending message and record the redaction in `manifest.json`. If >1% of messages (or >5 messages) hit, fail the entire day's release.
-- **Q4 (Workspace Docs)**: Agree: Keep out of v1.
-- **Q5 (Issues Tracker)**: Agree: Keep out of v1.
-- **Q6 (Loaded Messages Envelope Status)**: Agree: Public messages in the seed are historical; synthetic envelopes satisfy schema constraints without requiring cryptographic replay.
-- **Q7 (Verifier Frequency)**: Keep all three verifier lanes (agy, grok, claude) running daily on production releases as mandated by the owner. On development test runs, the automated machine gate alone is sufficient.
-- **Q8 (Terraform Apply)**: Proceed with step 053 plan and await owner confirmation for provision.
+### 6.3 Round 3 Review (`spec.md` v0.4.0 @ `51b40dcaa`)
+In `spec.md` v0.4.0, author `c-307` incorporated all points raised by reviewer `g-308` (`grok-opinion.md`):
+- Added a `RESTRICTIVE` policy on `spool_public_export` ensuring Fence 2 holds even if the operator scope is set.
+- Hardened the loader in §9.1: Each `COPY` target must be strictly in the allow-list tables (§4.1) and public column list (§4.4), rejecting any other table or statement.
+- Omitted `release_notes` from the database seed file (the web interface ingests release notes from public git history).
+- Excluded messages past their expiration timestamp.
+- Explicitly exempted the initial deployment file from the ±50% size check.
+- Specified that verifiers report examined sample counts `n`.
+- Mandated that development environments run all three verifier lanes if real workspaces exist.
+- Mandated that dataset-topic posts log only class and key, and that the dataset channel itself is never exported.
 
 ---
 
-## 7. Consensus Status
+## 7. Consensus
 
-**AntiGravity Reviewer Verdict**: **Agreed in Principle**.  
-The architecture in `spec.md` v0.1.0 is sound and addresses the owner's privacy requirements. Upon incorporation of the four technical catches in Section 6.2 and the five round 1 points in Section 6.3 into `spec.md` v0.2.0, AntiGravity will formally declare consensus.
+The resulting design in `spec.md` v0.4.0 (`51b40dcaa`) represents a complete, mathematically sound, fail-closed privacy architecture for public dataset export and bootstrap seeding. It incorporates all requirements from the owner and addresses every vulnerability identified across the panel.
 
-<!-- Consensus tracking will update to consensus sha upon v0.2.0 landing -->
+No points remain open between this reviewer and the author.
+
+Owner questions remain recorded in Section 11 for executive disposition:
+- Q1 (Members' notice and opt-out)
+- Q1b (Display names restricted to `HUM-n`)
+- Q2 (Retention periods: 30d daily, 365d stable)
+- Q3 (Drop and count message scan hits under 1% threshold)
+- Q4 (Workspace docs excluded from v1)
+- Q5 (Issues tracker excluded from v1)
+- Q6 (Historical messages carry synthetic non-replayable envelopes)
+- Q7 (Daily 3-verifier lanes on production; dev lanes when real)
+- Q8 (Terraform step 053 apply approval)
+- Q9 (Archived channels excluded from dataset)
+
+Consensus reached at 51b40dcaa

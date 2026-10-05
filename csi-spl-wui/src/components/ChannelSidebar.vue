@@ -1023,13 +1023,15 @@ function listedSum(prefix: string, ids: string[]) {
   for (const id of new Set(ids)) n += unread.rowOf(prefix + id)
   return n
 }
+/* spec 079 FR-003: a DM row's "<new>/<total>" takes its new part from the
+   model too (no second count from the notification store); the row template
+   shows the plain total only when the model has nothing new for it */
 function dmBadgeLabel(label: string) {
   const key = 'dm:' + label
-  return flowKeys.value ? dmBadgeText(unreadOf(key), notes.dmTotal[key] || 0) : notes.dmBadge(key)
+  return dmBadgeText(unreadOf(key), notes.dmTotal[key] || 0)
 }
 function dmTotalLabel(label: string) {
-  const key = 'dm:' + label
-  return flowKeys.value ? dmTotalText(notes.dmTotal[key] || 0) : notes.dmTotalBadge(key)
+  return dmTotalText(notes.dmTotal['dm:' + label] || 0)
 }
 function railCount(id: SideTab) {
   if (flowKeys.value) {

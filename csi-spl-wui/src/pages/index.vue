@@ -76,6 +76,8 @@
           <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
           <ArchivedBadge v-if="t.archived_at" :at="t.archived_at" />
           <span class="msg-time">{{ rowTime(t.last_ts) }}</span>
+          <!-- spec 079 FR-004: the row wears its own unread, the sidebar Topics row's number -->
+          <span v-if="rowOf('t:' + t.task_id)" class="badge-unread" data-testid="topic-row-unread">{{ previewUnread(rowOf('t:' + t.task_id)) }}</span>
         </div>
         <div class="topic-subject">{{ rowTitle(t.subject) }}</div>
         <small class="muted">{{ tr('pages.index.messages', { n: t.count }, t.count) }}</small>
@@ -134,8 +136,11 @@ import { rowTitle } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useAccessStore } from '~/stores/access'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
+import { previewUnread } from '~/utils/notify.mjs'
+import { useUnread } from '~/composables/useUnread'
 
 const viewer = useViewerStore()
+const { rowOf } = useUnread()
 const channel = useChannelStore()
 const topicStore = useTopicStore()
 const session = useSessionStore()

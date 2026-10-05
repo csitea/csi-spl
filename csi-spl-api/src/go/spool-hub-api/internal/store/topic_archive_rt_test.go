@@ -8,7 +8,7 @@ package store
 // of the deepest topic, with no transaction and no lock. The parity test
 // pins the answers on both drivers; the others need SPOOL_TEST_PG_DSN.
 //
-//	SPOOL_TEST_PG_DSN=... go test ./internal/store -run 'TestTopicWalk|TestTopicArchiveRoundTrips' -v
+//	SPOOL_TEST_PG_DSN=... go test ./internal/store -run 'TestTopicWalk|TestTopicArchiveRoundTrips|TestTopicOfTakesNoRowLock' -v
 
 import (
 	"context"
@@ -126,8 +126,8 @@ func TestTopicWalkParity(t *testing.T) {
 }
 
 // proxiedStore opens a Postgres store behind the counting proxy of
-// write_batch_rt_test.go.
-func proxiedStore(t *testing.T) (pg *Postgres, proxy *rtProxy) {
+// write_batch_rt_test.go, and one without it.
+func proxiedStore(t *testing.T) (pg, direct *Postgres, proxy *rtProxy) {
 	t.Helper()
 	dsn := os.Getenv("SPOOL_TEST_PG_DSN")
 	if dsn == "" {
@@ -141,8 +141,7 @@ func proxiedStore(t *testing.T) (pg *Postgres, proxy *rtProxy) {
 		t.Skip("SPOOL_TEST_PG_DSN is a unix socket; the counting proxy needs TCP")
 	}
 	ctx := context.Background()
-	direct, err := OpenPostgres(ctx, dsn)
-	if err != nil {
+	if direct, err = OpenPostgres(ctx, dsn); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(direct.Close)
@@ -155,7 +154,7 @@ func proxiedStore(t *testing.T) (pg *Postgres, proxy *rtProxy) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pg.Close)
-	return pg, proxy
+	return pg, direct, proxy
 }
 
 // rtCounts runs fn n times after one warm-up and answers the sorted
@@ -178,9 +177,9 @@ func rtCounts(t *testing.T, p *rtProxy, n int, fn func() error) []int64 {
 }
 
 // TopicReplies costs one round trip per level of the deepest topic at any
-// card count.
+// card count, TopicOf the same with the card check in the first.
 func TestTopicArchiveRoundTrips(t *testing.T) {
-	pg, proxy := proxiedStore(t)
+	pg, _, proxy := proxiedStore(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	tid := newTenant(t, pg)
@@ -214,5 +213,47 @@ func TestTopicArchiveRoundTrips(t *testing.T) {
 		if rt[n/2] > 2 {
 			t.Errorf("TopicReplies k=%d: median %d round trips, budget 2 (one per topic level)", k, rt[n/2])
 		}
+	}
+	rt := rtCounts(t, proxy, n, func() error {
+		set, err := pg.TopicOf(ctx, tid, cards[0], own[0])
+		if err == nil && set.Replies() != 2 {
+			return errors.New("wrong reply count")
+		}
+		return err
+	})
+	t.Logf("TopicOf RT n=%d min/median/max %d/%d/%d", n, rt[0], rt[n/2], rt[n-1])
+	if rt[n/2] > 2 {
+		t.Errorf("TopicOf: median %d round trips, budget 2", rt[n/2])
+	}
+}
+
+// A topic preview is a read: it must not wait on a write that holds the
+// card row.
+func TestTopicOfTakesNoRowLock(t *testing.T) {
+	pg, direct, _ := proxiedStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	tid := newTenant(t, pg)
+	T := uuid4()
+	c := msgFor(tid, T, "box-b", now, now, `{"n":"`+uuid4()+`"}`)
+	c.IsParent = 1
+	if _, err := pg.InsertMessage(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := direct.Pool().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, pgScopeTenant, tid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM messages WHERE tenant_id = $1 AND msg_id = $2 FOR UPDATE`, tid, c.MsgID); err != nil {
+		t.Fatal(err)
+	}
+	wait, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if _, err := pg.TopicOf(wait, tid, c.MsgID, T); err != nil {
+		t.Fatalf("TopicOf while a write holds the card row: %v (it waited on the row lock)", err)
 	}
 }

@@ -93,8 +93,9 @@ func (s *Postgres) SetArchived(ctx context.Context, tenant, msgID, by string, at
 	return c, err
 }
 
-// topicTx walks the topic inside tx: one indexed statement per level
-// (messages_task on task_id, messages_parent on parent_task_id).
+// topicTx walks the topic inside tx, the card row held FOR UPDATE (the
+// delete path): one indexed statement per level (messages_task on task_id,
+// messages_parent on parent_task_id).
 func topicTx(ctx context.Context, tx pgx.Tx, tenant, msgID, ownTask string) (TopicSet, error) {
 	var one int
 	err := tx.QueryRow(ctx, `SELECT 1 FROM messages WHERE tenant_id = $1 AND msg_id = $2 FOR UPDATE`, tenant, msgID).Scan(&one)
@@ -120,17 +121,27 @@ func topicTx(ctx context.Context, tx pgx.Tx, tenant, msgID, ownTask string) (Top
 	})
 }
 
+// TopicOf is the topic preview, a GET: no transaction and no row lock (a
+// write on the card no longer waits for it), the card check queued with the
+// first level's read (perf E09).
 func (s *Postgres) TopicOf(ctx context.Context, tenant, msgID, ownTask string) (TopicSet, error) {
 	if !canonUUIDRe.MatchString(msgID) || (ownTask != "" && !canonUUIDRe.MatchString(ownTask)) {
 		return TopicSet{}, ErrNotFound
 	}
-	var set TopicSet
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		var err error
-		set, err = topicTx(ctx, tx, tenant, msgID, ownTask)
-		return err
+	found := false
+	sets, err := s.walkTopics(ctx, tenant, []string{msgID}, []string{ownTask}, tenantRead{
+		sql: `SELECT 1 FROM messages WHERE tenant_id = $1 AND msg_id = $2`, args: []any{tenant, msgID},
+		each: func(pgx.Rows) error { found = true; return nil },
 	})
-	return set, err
+	switch {
+	case err != nil && !errors.Is(err, ErrConflict):
+		return TopicSet{}, err
+	case !found:
+		return TopicSet{}, ErrNotFound
+	case err != nil:
+		return TopicSet{}, err
+	}
+	return sets[0], nil
 }
 
 // DeleteTopic walks and deletes in the same transaction, the card row held

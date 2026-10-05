@@ -537,10 +537,19 @@ func TestPreferencesRailOrder(t *testing.T) {
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+legacy9+`}`); got.code != http.StatusOK {
 		t.Fatalf("legacy nine: %d %s", got.code, got.raw)
 	}
-	// CLE-77799: the full ten (People + Agents + Boxes) is a valid new order.
+	// CLE-77799: the ten (People + Agents + Boxes) stores as a legacy order too.
 	ten := `["boxes","agents","people","events","archive","flow","topics","issues","channels","dm"]`
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+ten+`}`); got.code != http.StatusOK {
-		t.Fatalf("ten tabs: %d %s", got.code, got.raw)
+		t.Fatalf("legacy ten: %d %s", got.code, got.raw)
+	}
+	// spec 089 T007: the full eleven (+ Calendar) is a valid new order.
+	eleven := `["calendar","boxes","agents","people","events","archive","flow","topics","issues","channels","dm"]`
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+eleven+`}`); got.code != http.StatusOK {
+		t.Fatalf("eleven tabs: %d %s", got.code, got.raw)
+	}
+	// ten ids with Calendar but without Boxes is no set the hub admits
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["calendar","agents","people","events","archive","flow","topics","issues","channels","dm"]}`); got.code != http.StatusBadRequest {
+		t.Fatalf("ten with calendar, no boxes: %d %s", got.code, got.raw)
 	}
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":null}`); got.code != http.StatusOK || got.body["rail_order"] != nil {
 		t.Fatalf("clear: %d %s", got.code, got.raw)

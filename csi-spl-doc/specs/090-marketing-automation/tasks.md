@@ -91,7 +91,7 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
   - **Needs from the owner**: nothing.
   - **Deploy + prove**: hub `/version` on dev and prd. Gate: `PRE_PUSH_TIER=full`.
 
-- [ ] T005 **envelope seal** `api/internal/marketing/seal.go` + `seal_test.go`.
+- [x] T005 **envelope seal** (c-291) `api/internal/marketing/seal.go` + `seal_test.go`.
   - **Build**: `Seal(plaintext) -> (ciphertext, kmsKeyID)` and `Open(ciphertext)`. Each token gets its own AES-256-GCM data key, and Cloud KMS wraps that key (the key name comes from cnf `marketing.kms_key`). The code calls KMS through a small interface with an in-memory fake for tests. The plaintext type has a `String()` / `MarshalJSON` that prints `[redacted]`.
   - **Owns**: the `internal/marketing/` package files `seal*.go`, and the KMS client dependency in `go.mod`/`go.sum`.
   - **Tests**:

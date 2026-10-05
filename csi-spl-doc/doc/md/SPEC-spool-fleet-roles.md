@@ -277,6 +277,18 @@ sequenceDiagram
   The same rule picks the fleet lease's local candidates (section 4.1), so a
   machine whose whole trio is stalled lets the fleet lease go stale and the
   other machine takes over. No pane found fails open (process-only rule).
+- **A dispatcher is able only when its box can post** (spec 092 FR-002).
+  The dispatcher is the seat that posts, so in fleet mode a dispatch candidate
+  also needs the box's `LEASE_TENANT` desk: its `spool hub-run` sidecar alive
+  (`<desk>/spool/.hub/hub-run.pid`) and its current session's last word
+  `hub session up` (the last session line of `hub-run.log`, stamped no earlier
+  than the pid file). On 2026-10-05 a box back from a power cut took dispatch
+  51 s before its desk sidecar was up. The reason lands in `able.<id>` and in
+  `NO-LOCAL-AGENT` (`desk: no hub-run sidecar ...`, `desk: session not up
+  ...`, `desk: sidecar pid=<n> (re)started, no session up since`). A holder
+  whose desk drops stops renewing and fails over in 180 s, like a dead
+  process. `LEASE_DESK_GATE=0` turns it off; `LEASE_DESK_DIR` replaces the
+  desk dir (default `<state>/desk/<LEASE_TENANT>/<LEASE_DESK_BOX>`).
   Knobs: `LEASE_BLOCK_RE`, `LEASE_STALL_RE`, `LEASE_STALL_FROZEN`,
   `LEASE_PANE_TAIL`, `LEASE_MODAL_RES`, `LEASE_MODAL_WAIT`.
 - The **watch loop** promotes the failover after 180 s without renewal (never
@@ -341,9 +353,25 @@ resource, and its age would have come from each machine's own clock.
 | no live candidate (orch: `LEASE_ORCH`; dispatch: `LEASE_MASTER`, else `LEASE_FAILOVER`) | writes nothing; a lease it held goes stale |
 | holds it | renews; the local master/failover order still applies inside the machine |
 | holder silent > 180 s on the hub's clock | takes over |
-| ranks before the holder's machine in the role's ranking (`LEASE_PRIORITY_ORCH` / `LEASE_PRIORITY_DISPATCH`, else `LEASE_PRIORITY`) | takes it back (the handback) |
+| ranks before the holder's machine in the role's ranking (`LEASE_PRIORITY_ORCH` / `LEASE_PRIORITY_DISPATCH`, else `LEASE_PRIORITY`), its candidate able for `LEASE_HOLDDOWN` s without a break, and the machine not in `LEASE_INTERMITTENT` | takes it back (the handback) |
+| ranks before the holder, but able for less than `LEASE_HOLDDOWN` s, or listed in `LEASE_INTERMITTENT` | holds back, logged once as `HOLD <role>: ...` |
 | otherwise | stands by |
 
+- **A box losing power is routine** (spec 092, owner t1 368e1565: a laptop
+  box will lose power often; the fleet is N always-on cloud boxes plus such
+  intermittent boxes). The always-on boxes carry every role alone, and a
+  returning box takes nothing back until it is proven healthy:
+  - **Hold-down**: a rank handback waits until this machine's candidate has
+    been able (the desk included, for dispatch) for `LEASE_HOLDDOWN` s
+    (default 300; 0 = at once) without a break. A tick without a candidate,
+    or a gap over `LEASE_STALE` between two ticks (the machine was off; the
+    clock file `fleet.<role>.able-since` outlives a power cut), restarts the
+    clock. Taking an empty or stale role is never delayed.
+  - **Intermittent boxes**: `LEASE_INTERMITTENT` (lease.conf or env, boxes
+    comma-separated) lists the boxes that drop off without warning. A listed
+    box never hands back by rank; it takes a role only when the role is empty
+    or its holder is stale. Rank it where it should stand among the boxes
+    that ARE up; the class, not the name, keeps it from taking roles back.
 - **The standby takes over on two conditions** (owner, t1 27f01e16,
   2026-10-02: "The failover should just stand by and in certain conditions he
   should take over"). Measured 16:37Z-18:27Z that day: the orchestrator's
@@ -415,7 +443,9 @@ resource, and its age would have come from each machine's own clock.
   per-role `LEASE_PRIORITY_ORCH`, and section
   15: a stuck holder fails over with one owner DM, a busy one does not, the
   `LEASE_UNREAD_MAX=0` control renews it, a dead one still fails over at
-  181 s). The hub side is tested by
+  181 s; section 19, spec 092 with N = 3 boxes: the desk gate, the hold-down,
+  a restarted sidecar, an intermittent box, and the `LEASE_DESK_GATE=0
+  LEASE_HOLDDOWN=0` control that hands back at once). The hub side is tested by
   `TestFleetLeaseCAS` (memory + Postgres) and `TestBoxFleetLease`.
 
 ### 4.2 Messages and reports across machines (specs/058 N1)

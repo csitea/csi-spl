@@ -52,6 +52,14 @@
 #      roles, its whole trio sits IDLE on "Usage limit reached · resets
 #      10:50am" -> sat stops renewing, pc takes both roles 181 s later; after
 #      the reset (banner still shown) sat takes them back on rank
+#  19. spec 092, a box losing power is routine, N = 3 boxes: the box ranked
+#      first powers off, the next holds both roles at 181 s; back with no desk
+#      sidecar it takes nothing (FR-002), a session drop restarts the
+#      LEASE_HOLDDOWN clock, each role comes back only after 300 s able; a
+#      restarted sidecar with no session up since fails dispatch over; a box in
+#      LEASE_INTERMITTENT never hands back by rank, only on stale; CONTROL:
+#      LEASE_DESK_GATE=0 LEASE_HOLDDOWN=0 hands back at once (the old rule).
+#      The older sections run with LEASE_HOLDDOWN=0 (the tick helper).
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -112,7 +120,7 @@ tick() {
   [[ "$m" == sat ]] && ids=(LEASE_ORCH=CLE-001 LEASE_MASTER=CLE-002 LEASE_FAILOVER=CLE-003)
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/$m/spool" LEASE_PROC_ROOT="$T/$m/proc" LEASE_SEND="$T/bin/send" LEASE_PANE_CMD="$T/bin/pane" \
     SENT="$T/$m/sent" LEASE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" HUB_NOW="$now" LEASE_NOW="$now" \
-    LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" LEASE_LIMIT_TZ=Etc/GMT-3 "${ids[@]}" "$@" bash -c '
+    LEASE_FLEET=main LEASE_MACHINE="$m" LEASE_PRIORITY="$PRIO" LEASE_LIMIT_TZ=Etc/GMT-3 LEASE_HOLDDOWN=0 "${ids[@]}" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
@@ -446,6 +454,96 @@ tick pc $((N + 181))
 tick sat $((N + 6660)); tick pc $((N + 6670))
 [[ "$(hubh orch)" == CLE-001@sat && "$(hubh dispatch)" == CLE-002@sat ]] &&
   pass "18. reset passed (banner still shown): sat takes both back on rank" || fail "18. restore: $(hubh orch)/$(hubh dispatch)"
+PRIO=pc,sat
+
+# --- 19. spec 092: a box losing power is routine (N boxes, desk gate, hold-down) --------
+# Three boxes: lap (a laptop, ranked first) and two always-on boxes cl1, cl2.
+# The desk of each box is LEASE_DESK_DIR=$T/<box>/desk: hub-run.pid, a fake
+# /proc cmdline "spool hub-run", and hub-run.log session lines stamped at <t>.
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/act"; mkdir -p "$T/hub" "$T/pane"
+PRIO=lap,cl1,cl2
+INT=""
+trio() { mkdir -p "$T/$1/proc"; agent "$1" "$2"0 CLE-001; agent "$1" "$2"1 CLE-002; agent "$1" "$2"2 CLE-003; }
+# desk_start <box> <pid> <t>: a sidecar started at <t>, no session yet
+desk_start() {
+  local h="$T/$1/desk/spool/.hub"; mkdir -p "$h" "$T/$1/proc/$2"
+  printf 'spool\0hub-run\0' >"$T/$1/proc/$2/cmdline"; echo "$2" >"$h/hub-run.pid"; touch -d "@$3" "$h/hub-run.pid"
+}
+# desk_log <box> <t> <up|down>: one session line, console format with colour
+desk_log() {
+  printf '\033[90m%s\033[0m \033[32mINF\033[0m \033[1mhub session %s\033[0m box=%s component=hubclient\n' \
+    "$(date -u -d "@$2" +%FT%T+00:00)" "$3" "$1" >>"$T/$1/desk/spool/.hub/hub-run.log"
+}
+t19() { local m="$1" n="$2"; shift 2; tick "$m" "$n" LEASE_DESK_DIR="$T/$m/desk" LEASE_HOLDDOWN=300 LEASE_INTERMITTENT="$INT" "$@"; }
+both() { [[ "$(hubh orch)" == "CLE-001@$1" && "$(hubh dispatch)" == "CLE-002@$1" ]]; }
+N=1791200000
+trio lap 30; trio cl1 31; trio cl2 32
+desk_start lap 309 $N; desk_log lap $((N + 1)) up
+desk_start cl1 319 $N; desk_log cl1 $((N + 1)) up
+desk_start cl2 329 $N; desk_log cl2 $((N + 1)) up
+t19 lap $((N + 10)); t19 cl1 $((N + 10)); t19 cl2 $((N + 10))
+both lap && pass "19. three boxes, lap ranked first and healthy: lap holds both roles" || fail "19. setup: $(hubh orch)/$(hubh dispatch)"
+
+# lap loses power: nothing of it ticks; cl1 (next by rank) holds both 181 s later, no human step
+rm -rf "${T:?}/lap/proc"
+t19 cl1 $((N + 60)); t19 cl2 $((N + 60)); t19 cl1 $((N + 191)); t19 cl2 $((N + 191))
+both cl1 && pass "19. FR-001: lap powered off, cl1 holds both roles at 181 s, cl2 stands by" || fail "19. failover: $(hubh orch)/$(hubh dispatch)"
+
+# lap boots: agents back, desk sidecar not yet up
+trio lap 40
+t19 cl1 $((N + 600)); t19 lap $((N + 600))
+both cl1 && pass "19. lap back with no desk sidecar: it takes nothing" || fail "19. no desk: $(hubh orch)/$(hubh dispatch)"
+grep -q '^desk: no hub-run sidecar' "$T/lap/spool/dispatch/able.CLE-002" &&
+  pass "19. FR-002: able.CLE-002 says the desk is why" || fail "19. able: $(cat "$T/lap/spool/dispatch/able.CLE-002" 2>&1)"
+[[ "$(logc lap 'HOLD orch: lap able 0s < LEASE_HOLDDOWN 300s')" == 1 ]] &&
+  pass "19. the orch hand back is held, logged once" || fail "19. hold log: $(cat "$T/lap/spool/dispatch/lease.log")"
+
+# the sidecar comes up (its session says up), then drops once and comes back: the clock restarts
+desk_start lap 409 $((N + 695)); desk_log lap $((N + 700)) up
+t19 cl1 $((N + 700)); t19 lap $((N + 700))
+desk_log lap $((N + 800)) down
+t19 cl1 $((N + 800)); t19 lap $((N + 800))
+grep -q '^desk: session not up' "$T/lap/spool/dispatch/able.CLE-002" &&
+  pass "19. a session down is no candidate" || fail "19. down: $(cat "$T/lap/spool/dispatch/able.CLE-002")"
+desk_log lap $((N + 810)) up
+t19 cl1 $((N + 810)); t19 lap $((N + 810))
+t19 cl1 $((N + 899)); t19 lap $((N + 899))
+both cl1 && pass "19. able 299 s (orch) / 89 s (dispatch): still held" || fail "19. 899: $(hubh orch)/$(hubh dispatch)"
+t19 cl1 $((N + 900)); t19 lap $((N + 900))
+[[ "$(hubh orch)" == CLE-001@lap && "$(hubh dispatch)" == CLE-002@cl1 ]] &&
+  pass "19. FR-001: orch able 300 s -> lap takes it back; dispatch (desk drop restarted its clock) stays" || fail "19. 900: $(hubh orch)/$(hubh dispatch)"
+t19 cl1 $((N + 1000)); t19 lap $((N + 1000)); t19 cl1 $((N + 1100)); t19 lap $((N + 1100))
+[[ "$(hubh dispatch)" == CLE-002@cl1 ]] && pass "19. dispatch able 290 s since the drop: held" || fail "19. 1100: $(hubh dispatch)"
+t19 cl1 $((N + 1110)); t19 lap $((N + 1110))
+both lap && pass "19. dispatch able 300 s since the drop: lap takes it back" || fail "19. 1110: $(hubh orch)/$(hubh dispatch)"
+
+# a holder whose sidecar restarts with no session since stops renewing; cl1 takes dispatch on stale
+desk_start lap 509 $((N + 1200))
+t19 lap $((N + 1200)); t19 cl1 $((N + 1200))
+[[ "$(logc lap 'NO-LOCAL-AGENT dispatch: .*desk: sidecar pid=509 (re)started, no session up since')" == 1 ]] &&
+  pass "19. FR-002: a restarted sidecar with no session up since is not able, logged once" || fail "19. restart: $(cat "$T/lap/spool/dispatch/able.CLE-002") / $(cat "$T/lap/spool/dispatch/lease.log")"
+t19 lap $((N + 1260)); t19 cl1 $((N + 1381))
+[[ "$(hubh orch)" == CLE-001@lap && "$(hubh dispatch)" == CLE-002@cl1 ]] &&
+  pass "19. lap's desk cannot post: dispatch fails over to cl1 at 181 s, orch stays" || fail "19. desk failover: $(hubh orch)/$(hubh dispatch)"
+
+# an intermittent lap never takes a role back by rank, only on stale
+rm -rf "$T/hub" "$T/lap/spool" "$T/cl1/spool" "$T/cl2/spool"; mkdir -p "$T/hub"
+INT=lap
+rm -rf "${T:?}/lap/proc"; t19 cl1 $N
+trio lap 30; desk_start lap 309 $N; desk_log lap $((N + 1)) up
+for k in 10 400 1000; do t19 cl1 $((N + k)); t19 lap $((N + k)); done
+both cl1 && [[ "$(logc lap 'HOLD orch: lap is intermittent')" == 1 && "$(logc lap 'HOLD dispatch: lap is intermittent')" == 1 ]] &&
+  pass "19. FR-001: LEASE_INTERMITTENT=lap healthy 1000 s: takes nothing back, logged once per role" || fail "19. intermittent: $(hubh orch)/$(hubh dispatch): $(cat "$T/lap/spool/dispatch/lease.log")"
+t19 lap $((N + 1181))
+both lap && pass "19. the intermittent lap still takes both when cl1 goes stale" || fail "19. intermittent stale: $(hubh orch)/$(hubh dispatch)"
+
+# CONTROL: gate off, no hold-down, not intermittent = the old rule - lap with NO desk takes both at once
+rm -rf "$T/hub" "$T/lap/spool" "$T/cl1/spool"; mkdir -p "$T/hub"
+INT=""
+rm -rf "${T:?}/lap/proc"; t19 cl1 $N
+trio lap 30
+t19 lap $((N + 10)) LEASE_DESK_GATE=0 LEASE_HOLDDOWN=0
+both lap && pass "19. CONTROL: LEASE_DESK_GATE=0 LEASE_HOLDDOWN=0 hands back at once with no desk (the old rule)" || fail "19. control: $(hubh orch)/$(hubh dispatch)"
 PRIO=pc,sat
 
 echo

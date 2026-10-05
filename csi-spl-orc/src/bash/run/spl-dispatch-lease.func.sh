@@ -57,6 +57,9 @@
 # @param LEASE_UNREAD_MAX (optional) - fleet mode: an orchestrator idle while an inbox message newer than its last transcript write is older than this many s is stuck, no candidate (take-over condition 2), default 600, 0 = off
 # @param LEASE_OWNER (optional) - fleet mode: the owner's HUM id DMed once per orch take-over (else lease.conf ASKS_OWNER); LEASE_OWNER_CMD replaces the DM
 # @param LEASE_MIRROR_TENANTS (optional) - fleet mode: the tenants the holder copies the lease into, space-separated (default: every tenant this machine's desk box is pinned in, minus LEASE_TENANT and the test workspaces); LEASE_MIRROR_TIMEOUT (default 10 s) bounds each copy call
+# @param LEASE_HOLDDOWN (optional) - fleet mode: a rank handback waits until this machine's candidate has been able this many s without a break (spec 092), default 300, 0 = at once
+# @param LEASE_INTERMITTENT (optional) - fleet mode: boxes, comma-separated, that lose power routinely (a laptop): a listed box never hands back by rank, it takes a role only when empty or stale (env or lease.conf)
+# @param LEASE_DESK_GATE / LEASE_DESK_DIR (optional) - fleet mode: 0 turns off the desk gate of the dispatch role (spec 092 FR-002); LEASE_DESK_DIR replaces the desk dir it reads (default <state>/desk/LEASE_TENANT/LEASE_DESK_BOX)
 # @param LEASE_ENV / LEASE_TENANT / LEASE_DESK_BOX (optional) - fleet mode: the hub env, the tenant holding the lease, the pinned desk box whose key signs the calls (default spl_desk_box_default: SPOOL_DESK_BOX, else box-desk)
 # @example LEASE_CMD=show ./run -a do_spl_dispatch_lease
 # @example LEASE_CMD=ensure ./run -a do_spl_dispatch_lease
@@ -122,10 +125,10 @@ spl_lease_conf() {
   [[ -f "$LEASE_CONF" ]] || return 0
   while IFS='=' read -r k v; do
     case "$k" in
-      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_PRIORITY_ORCH|LEASE_PRIORITY_DISPATCH|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX)
+      LEASE_MASTER|LEASE_FAILOVER|LEASE_ORCH|LEASE_FLEET|LEASE_MACHINE|LEASE_PRIORITY|LEASE_PRIORITY_ORCH|LEASE_PRIORITY_DISPATCH|LEASE_ENV|LEASE_TENANT|LEASE_DESK_BOX|LEASE_INTERMITTENT|LEASE_HOLDDOWN)
         [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v" ;;
     esac
-  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$' "$LEASE_CONF")
+  done < <(grep -E '^LEASE_(MASTER|FAILOVER|ORCH)=[A-Za-z0-9_-]+$|^LEASE_(FLEET|MACHINE|ENV|TENANT|DESK_BOX)=[a-z0-9][a-z0-9-]*$|^LEASE_PRIORITY(_ORCH|_DISPATCH)?=[a-z0-9][a-z0-9,-]*$|^LEASE_INTERMITTENT=[a-z0-9][a-z0-9,-]*$|^LEASE_HOLDDOWN=[0-9]+$' "$LEASE_CONF")
   return 0
 }
 
@@ -830,6 +833,9 @@ spl_fleet_ids() {
     [[ ",${!k}," == *",$LEASE_MACHINE,"* ]] ||
       { do_log "FATAL this machine ($LEASE_MACHINE) is not in $k (${!k})"; return 1; }
   done
+  [[ -z "${LEASE_INTERMITTENT:-}" || "$LEASE_INTERMITTENT" =~ ^[a-z0-9][a-z0-9-]*(,[a-z0-9][a-z0-9-]*)*$ ]] ||
+    { do_log "FATAL LEASE_INTERMITTENT must list boxes, comma-separated"; return 1; }
+  [[ "${LEASE_HOLDDOWN:-300}" =~ ^[0-9]+$ ]] || { do_log "FATAL LEASE_HOLDDOWN must be seconds, got: '$LEASE_HOLDDOWN'"; return 1; }
 }
 
 # Resolve how this machine calls the hub. LEASE_HUB_CMD (tests) replaces the
@@ -937,7 +943,12 @@ spl_fleet_candidate() {
       [[ -z "$why" ]] && { echo "$LEASE_ORCH"; return 0; }
       printf 'stuck pid=%s: %s\n' "$pid" "$why" > "$LEASE_DIR/able.$LEASE_ORCH" 2>/dev/null ;;
     dispatch)
-      local pid why
+      local pid why desk
+      # the dispatcher is the seat that posts: no desk that can post, no candidate (spec 092 FR-002)
+      if ! desk="$(spl_fleet_desk_able)"; then
+        for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do printf '%s\n' "$desk" > "$LEASE_DIR/able.$id" 2>/dev/null; done
+        return 0
+      fi
       for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
         pid="$(spl_lease_agent_able "$id")"
         [[ -n "$pid" ]] || continue
@@ -947,6 +958,37 @@ spl_fleet_candidate() {
       done ;;
   esac
 }
+
+# Can this box's desk post (spec 092 FR-002)? 0 = yes; else prints why. On
+# 2026-10-05 a box back from a power cut took dispatch 51 s before its desk
+# sidecar was up. Able = the LEASE_TENANT desk's `spool hub-run` sidecar lives
+# AND its current session's last word is `hub session up`: the last session
+# line of hub-run.log, stamped no earlier than the pid file (an `up` of the
+# sidecar before a restart is not this session's). The gate is off with
+# LEASE_DESK_GATE=0 or when no desk dir is known (the tests' stub hub).
+spl_fleet_desk_able() {
+  [[ "${LEASE_DESK_GATE:-1}" == 0 ]] && return 0
+  local d="${LEASE_DESK_DIR:-}" h pid line ts at started
+  [[ -z "$d" && -n "${SPL_STATE_DIR:-}" && -n "${LEASE_TENANT:-}" && -n "${LEASE_DESK_BOX:-}" ]] &&
+    d="$SPL_STATE_DIR/desk/$LEASE_TENANT/$LEASE_DESK_BOX"
+  [[ -n "$d" ]] || return 0
+  h="$d/spool/.hub"
+  pid="$(cat "$h/hub-run.pid" 2>/dev/null)"
+  [[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${LEASE_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null ||
+    { echo "desk: no hub-run sidecar in $d"; return 1; }
+  line="$(tail -n "${LEASE_DESK_LOG_TAIL:-5000}" "$h/hub-run.log" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' |
+    grep -aE 'hub session (up|down)|so the session reconnects' | tail -1)"
+  [[ "$line" == *"hub session up"* ]] || { echo "desk: session not up (last: ${line:-none})"; return 1; }
+  ts="$(grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})' <<<"$line" | sed -n 1p)"
+  started="$(stat -c %Y "$h/hub-run.pid" 2>/dev/null)"
+  # an unstamped line cannot be dated: the order check above stands alone
+  [[ -n "$ts" && -n "$started" ]] && at="$(date -d "$ts" +%s 2>/dev/null)" && (( at < started )) &&
+    { echo "desk: sidecar pid=$pid (re)started, no session up since"; return 1; }
+  return 0
+}
+
+# Is <box> listed in LEASE_INTERMITTENT (a box that loses power routinely)?
+spl_fleet_intermittent() { [[ ",${LEASE_INTERMITTENT:-}," == *",$1,"* ]]; }
 
 # Take-over condition 2 (owner, 27f01e16, 2026-10-02): an orchestrator (and,
 # since t1 865b7a05, a dispatch seat) that is alive and able but STUCK - idle while a message waits. On 2026-10-02
@@ -1035,20 +1077,37 @@ spl_fleet_mirror_file() { [[ "$1" == dispatch ]] && echo "$LEASE_FILE" || echo "
 
 # One role's tick: read, decide, compare-and-set, mirror, tell.
 spl_fleet_role_tick() {
-  local role="$1" me="$LEASE_MACHINE" cand out hm want="" ok now
+  local role="$1" me="$LEASE_MACHINE" cand out hm want="" ok now since sincef hold="${LEASE_HOLDDOWN:-300}"
   ok="$LEASE_DIR/fleet.$role.ok"
   now="$(spl_lease_now)"
   cand="$(spl_fleet_candidate "$role")"
+  # the hold-down clock (spec 092): "<first> <last>", the first and the last
+  # tick of this unbroken run with a candidate. A gap over LEASE_STALE (the box
+  # was off: the file outlives a power cut) breaks the run like a tick with none.
+  local last=""; since=""
+  sincef="$LEASE_DIR/fleet.$role.able-since"
+  [[ -s "$sincef" ]] && read -r since last < "$sincef"
+  [[ "$since" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && (( now - last <= LEASE_STALE )) || since="$now"
+  if [[ -z "$cand" ]]; then rm -f "$sincef"; else echo "$since $now" > "$sincef"; fi
   if ! out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" || ! spl_fleet_read "$out"; then
     spl_fleet_unreachable "$role" "$now" "$out"; return 0
   fi
   hm=""; [[ "$FH" == *@* ]] && hm="${FH##*@}"
   if [[ -z "$cand" ]]; then
     [[ "$hm" == "$me" ]] && spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
-  elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )) ||
-       (( $(spl_fleet_rank "$me" "$role") < $(spl_fleet_rank "$hm" "$role") )); then
+  elif (( FG == 0 )) || [[ "$hm" == "$me" ]] || (( FA > LEASE_STALE )); then
     want="$cand@$me"
+  elif (( $(spl_fleet_rank "$me" "$role") < $(spl_fleet_rank "$hm" "$role") )); then
+    # the handback (spec 092 FR-001): a returning box takes nothing back until proven healthy
+    if spl_fleet_intermittent "$me"; then
+      spl_fleet_once "$role.hold-int" "HOLD $role: $me is intermittent (LEASE_INTERMITTENT): it takes $role only when $FH goes stale"
+    elif (( now - since < hold )); then
+      spl_fleet_once "$role.hold" "HOLD $role: $me able $((now - since))s < LEASE_HOLDDOWN ${hold}s: $FH keeps it"
+    else
+      want="$cand@$me"
+    fi
   fi
+  [[ -n "$want" || -z "$cand" ]] && rm -f "$LEASE_DIR/fleet.$role.hold" "$LEASE_DIR/fleet.$role.hold-int"
   [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal"
   local won=false
   if [[ -n "$want" ]]; then

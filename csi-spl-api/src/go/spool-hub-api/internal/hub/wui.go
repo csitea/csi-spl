@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -892,21 +893,21 @@ func (s *Server) fanoutWUI(ctx context.Context, row store.Message) {
 	if len(targets) == 0 {
 		return
 	}
-	var e wire.Envelope
-	if err := json.Unmarshal(env, &e); err != nil {
+	trimmed, parent, ok := wuiFrameEnv(env, taskID, channel)
+	if !ok {
 		return
 	}
 	// No `envelope` copy of env.msg (db-payload-audit-2026-10-02 cut 3): the
 	// WUI reads only `env`, and the copy was 36 % of every frame per tab.
 	// No `cursor` either (round 2, R2-3): the WUI rebuilds it, see trimWUIEnv.
 	frame := map[string]any{"type": "message", "task_id": taskID,
-		"received_at": rfc(receivedAt), "env": trimWUIEnv(env, taskID, channel),
+		"received_at": rfc(receivedAt), "env": trimmed,
 		"is_parent": isParent}
 	if channel != "" {
 		frame["channel"] = channel
 	}
-	if e.ParentTaskID != "" {
-		frame["parent_task_id"] = e.ParentTaskID
+	if parent != "" {
+		frame["parent_task_id"] = parent
 	}
 	if typedBy != "" { // specs/036 FR-011: top level, like edited_by
 		frame["typed_by"] = typedBy
@@ -955,42 +956,74 @@ const wuiFlateThreshold = 128
 // trimWUIEnvMap is that reference, byte for byte, and still handles what
 // the one pass declines.
 func trimWUIEnv(env []byte, taskID, channel string) json.RawMessage {
-	if b, ok := trimWUIEnvFast(env, taskID, channel); ok {
+	if b, _, ok := trimWUIEnvFast(env, taskID, channel); ok {
 		return b
 	}
 	return trimWUIEnvMap(env, taskID, channel)
 }
 
+// wuiFrameEnv is a `message` frame's env (trimWUIEnv) and parent_task_id
+// from one stored envelope, in the one pass when it can (E13): no
+// wire.Envelope decode beside it. ok=false exactly where that decode
+// failed, which sends no frame.
+func wuiFrameEnv(env []byte, taskID, channel string) (trimmed json.RawMessage, parent string, ok bool) {
+	if b, parent, ok := trimWUIEnvFast(env, taskID, channel); ok {
+		return b, parent, true
+	}
+	var e wire.Envelope
+	if err := json.Unmarshal(env, &e); err != nil {
+		return nil, "", false
+	}
+	return trimWUIEnvMap(env, taskID, channel), e.ParentTaskID, true
+}
+
+// envStringFields are wire.Envelope's string members. encoding/json fills
+// a field from a key equal to its name under ASCII case folding, and fails
+// on a value that is neither a string nor null.
+var envStringFields = [...]string{"from_box", "to_box", "channel", "parent_task_id", "sig"}
+
 // trimWUIEnvFast is trimWUIEnv without maps: what json.Marshal of the
-// trimmed maps returns (keys sorted, values compacted with HTML escaping).
-// It declines (false) what trimEnvFast declines: not valid JSON, not an
-// object, or an object (top or msg) with a repeated key or a key that is
-// not plain printable ASCII free of <, > and &.
-func trimWUIEnvFast(env []byte, taskID, channel string) (json.RawMessage, bool) {
+// trimmed maps returns (keys sorted, values compacted with HTML escaping),
+// and the parent_task_id a wire.Envelope decode of env reads. It declines
+// (false) what trimEnvFast declines - not valid JSON, not an object, or an
+// object (top or msg) with a repeated key or a key that is not plain
+// printable ASCII free of <, > and & - and an env whose wire.Envelope
+// decode would fail or would read a member by another case of its name.
+func trimWUIEnvFast(env []byte, taskID, channel string) (json.RawMessage, string, bool) {
 	if !json.Valid(env) {
-		return nil, false
+		return nil, "", false
 	}
 	var topBuf, msgBuf [16]envMember
 	top, ok := envMembers(topBuf[:0], env)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	var inner []envMember
-	hasMsg := false
+	parent, hasMsg, plain := "", false, true
 	for _, m := range top {
-		if string(m.key) != "msg" {
-			continue
+		p, isParent, ok := wuiEnvField(m)
+		if !ok {
+			return nil, "", false
 		}
-		if m.val[0] != '{' { // null, or not an object: sent unchanged
-			return env, true
+		if isParent {
+			parent = p
 		}
-		if inner, ok = envMembers(msgBuf[:0], m.val); !ok {
-			return nil, false
+		if strings.EqualFold(string(m.key), "msg") {
+			if string(m.key) != "msg" {
+				return nil, "", false
+			}
+			hasMsg = true
+			if m.val[0] != '{' { // null, or not an object: sent unchanged
+				plain = false
+				continue
+			}
+			if inner, ok = envMembers(msgBuf[:0], m.val); !ok {
+				return nil, "", false
+			}
 		}
-		hasMsg = true
 	}
-	if !hasMsg {
-		return env, true
+	if !hasMsg || !plain {
+		return env, parent, true
 	}
 	out := make([]byte, 0, len(env))
 	out = append(out, '{')
@@ -1033,7 +1066,35 @@ func trimWUIEnvFast(env []byte, taskID, channel string) (json.RawMessage, bool) 
 		}
 		out = append(out, '}')
 	}
-	return append(out, '}'), true
+	return append(out, '}'), parent, true
+}
+
+// wuiEnvField checks one top member as a wire.Envelope decode reads it:
+// ok=false where that decode fails on it, or would read it by another case
+// of a field name; isParent when it is parent_task_id (a string).
+func wuiEnvField(m envMember) (parent string, isParent, ok bool) {
+	for _, f := range envStringFields {
+		if !strings.EqualFold(string(m.key), f) {
+			continue
+		}
+		if string(m.key) != f || m.val[0] != '"' && string(m.val) != "null" {
+			return "", false, false
+		}
+		if f == "parent_task_id" && m.val[0] == '"' {
+			parent, ok = envString(m.val)
+			return parent, true, ok
+		}
+	}
+	return "", false, true
+}
+
+// envString decodes the JSON string v as encoding/json does.
+func envString(v []byte) (string, bool) {
+	if bytes.IndexByte(v, '\\') < 0 && utf8.Valid(v) {
+		return string(v[1 : len(v)-1]), true
+	}
+	var s string
+	return s, json.Unmarshal(v, &s) == nil
 }
 
 // wuiStringIs is trimWUIEnvMap's test of one member against s: the value

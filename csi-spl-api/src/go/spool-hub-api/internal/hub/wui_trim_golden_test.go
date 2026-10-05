@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // trimWUIEnvRef is trimWUIEnv as it was before perf edition 20261004 E13:
@@ -174,5 +176,96 @@ func BenchmarkTrimWUIEnvAB(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+// wuiFrameEnvRef is fanoutWUI's env and parent before E13 site 3: a full
+// wire.Envelope decode (no frame when it fails) beside trimWUIEnvRef.
+func wuiFrameEnvRef(env []byte, taskID, channel string) (json.RawMessage, string, bool) {
+	var e wire.Envelope
+	if err := json.Unmarshal(env, &e); err != nil {
+		return nil, "", false
+	}
+	return trimWUIEnvRef(env, taskID, channel), e.ParentTaskID, true
+}
+
+func sameWUIFrame(t *testing.T, env, taskID, channel string) {
+	t.Helper()
+	wb, wp, wok := wuiFrameEnvRef([]byte(env), taskID, channel)
+	gb, gp, gok := wuiFrameEnv([]byte(env), taskID, channel)
+	if gok != wok || gp != wp || !bytes.Equal(gb, wb) {
+		t.Errorf("wuiFrameEnv(%q, %q, %q):\n got  %v %q %q\n want %v %q %q", env, taskID, channel, gok, gp, gb, wok, wp, wb)
+	}
+}
+
+// TestWUIFrameEnvGolden: the frame's env and parent_task_id, and whether a
+// frame is sent at all, as the full decode had them.
+func TestWUIFrameEnvGolden(t *testing.T) {
+	x := wuiStoredEnv("x")
+	p := `"parent_task_id":"` + goldenTopic + `",`
+	envs := []string{
+		x, strings.Replace(x, `"sig":""`, p+`"sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"parent_task_id":"aé\/b",`+`"sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"parent_task_id":"bad`+"\xff"+`",`+`"sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"parent_task_id":null,"sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"parent_task_id":7,"sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"Parent_Task_ID":"p","sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"PARENT_TASK_ID":"p","parent_task_id":"q","sig":""`, 1),
+		strings.Replace(x, `"sig":""`, `"parent_task_id":"q","PARENT_TASK_ID":"p","sig":""`, 1),
+		`{"parent_task_id":"q","msg":{},"Parent_task_id":"p"}`,
+		strings.Replace(x, `"sig":""`, `"sig":7`, 1),
+		strings.Replace(x, `"sig":""`, `"sig":{}`, 1),
+		strings.Replace(x, `"from_box":"box-wui"`, `"from_box":["a"]`, 1),
+		strings.Replace(x, `"from_box":"box-wui"`, `"FROM_BOX":"box-wui"`, 1),
+		strings.Replace(x, `"channel":"ops"`, `"channel":false`, 1),
+		strings.Replace(x, `"msg":{`, `"MSG":1,"msg":{`, 1),
+		strings.Replace(x, `"to":"ALL-0"`, `"to":"ALL-0","to":"@dup"`, 1),
+		`{"msg":null,"parent_task_id":"p"}`, `{"msg":"s","parent_task_id":"p","sig":1}`, `{"parent_task_id":"p"}`,
+		`{"msg":7,"Msg":8}`, `{"x":{"sig":1},"msg":{}}`, `{"msg":{"sig":7,"parent_task_id":1}}`,
+		`null`, `[]`, `"x"`, `x`, ``,
+	}
+	for _, env := range envs {
+		for _, ch := range []string{"ops", ""} {
+			sameWUIFrame(t, env, goldenTopic, ch)
+		}
+	}
+}
+
+// FuzzWUIFrameEnv: any document, every task and channel.
+func FuzzWUIFrameEnv(f *testing.F) {
+	f.Add(strings.Replace(wuiStoredEnv("a <b>"), `"sig":""`, `"parent_task_id":"p","sig":""`, 1), goldenTopic, "ops")
+	f.Add(`{"Sig":1,"msg":null}`, "", "")
+	f.Fuzz(func(t *testing.T, env, taskID, channel string) {
+		sameWUIFrame(t, env, taskID, channel)
+	})
+}
+
+// wuiFrameEnvSite2 is the shape between E13 sites 2 and 3: the full decode
+// beside the one-pass trim.
+func wuiFrameEnvSite2(env []byte, taskID, channel string) (json.RawMessage, string, bool) {
+	var e wire.Envelope
+	if err := json.Unmarshal(env, &e); err != nil {
+		return nil, "", false
+	}
+	return trimWUIEnv(env, taskID, channel), e.ParentTaskID, true
+}
+
+// BenchmarkWUIFrameEnvAB is the frame's env work per live message: the full
+// decode plus the map trim (ref, before E13), the full decode plus the
+// one-pass trim (site2), and the one pass alone (new).
+//
+//	go test ./internal/hub -run '^$' -bench BenchmarkWUIFrameEnvAB -benchmem -count 6
+func BenchmarkWUIFrameEnvAB(b *testing.B) {
+	env := []byte(strings.Replace(wuiStoredEnv(strings.Repeat("a fan-out line ", 20)), `"sig":""`, `"parent_task_id":"`+goldenTopic+`","sig":""`, 1))
+	for _, impl := range []struct {
+		name string
+		f    func([]byte, string, string) (json.RawMessage, string, bool)
+	}{{"ref", wuiFrameEnvRef}, {"site2", wuiFrameEnvSite2}, {"new", wuiFrameEnv}} {
+		b.Run(impl.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				impl.f(env, goldenTopic, "ops")
+			}
+		})
 	}
 }

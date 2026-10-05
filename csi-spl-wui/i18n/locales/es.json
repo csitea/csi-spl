@@ -1914,5 +1914,12 @@
       "d6": "S",
       "d7": "D"
     }
+  },
+  "calendar_reminder": {
+    "label": "Recordatorio",
+    "open": "Abrir",
+    "dismiss": "Descartar",
+    "all_day": "todo el día",
+    "region": "Recordatorios del calendario"
   }
 }

@@ -1914,5 +1914,12 @@
       "d6": "S",
       "d7": "S"
     }
+  },
+  "calendar_reminder": {
+    "label": "Reminder",
+    "open": "Open",
+    "dismiss": "Dismiss",
+    "all_day": "all day",
+    "region": "Calendar reminders"
   }
 }

@@ -1914,5 +1914,12 @@
       "d6": "s",
       "d7": "n"
     }
+  },
+  "calendar_reminder": {
+    "label": "Pripomienka",
+    "open": "Otvoriť",
+    "dismiss": "Zavrieť",
+    "all_day": "celý deň",
+    "region": "Pripomienky kalendára"
   }
 }

@@ -1914,5 +1914,12 @@
       "d6": "C",
       "d7": "P"
     }
+  },
+  "calendar_reminder": {
+    "label": "Hatırlatıcı",
+    "open": "Aç",
+    "dismiss": "Kapat",
+    "all_day": "tüm gün",
+    "region": "Takvim hatırlatıcıları"
   }
 }

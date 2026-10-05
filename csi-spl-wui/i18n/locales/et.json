@@ -1914,5 +1914,12 @@
       "d6": "L",
       "d7": "P"
     }
+  },
+  "calendar_reminder": {
+    "label": "Meeldetuletus",
+    "open": "Ava",
+    "dismiss": "Loobu",
+    "all_day": "terve päev",
+    "region": "Kalendri meeldetuletused"
   }
 }

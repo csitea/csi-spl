@@ -1914,5 +1914,12 @@
       "d6": "Z",
       "d7": "Z"
     }
+  },
+  "calendar_reminder": {
+    "label": "Herinnering",
+    "open": "Openen",
+    "dismiss": "Sluiten",
+    "all_day": "hele dag",
+    "region": "Agendaherinneringen"
   }
 }

@@ -1914,5 +1914,12 @@
       "d6": "S",
       "d7": "D"
     }
+  },
+  "calendar_reminder": {
+    "label": "Memento",
+    "open": "Deschide",
+    "dismiss": "Închide",
+    "all_day": "toată ziua",
+    "region": "Mementouri din calendar"
   }
 }

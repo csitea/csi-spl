@@ -1914,5 +1914,12 @@
       "d6": "L",
       "d7": "S"
     }
+  },
+  "calendar_reminder": {
+    "label": "Muistutus",
+    "open": "Avaa",
+    "dismiss": "Hylkää",
+    "all_day": "koko päivä",
+    "region": "Kalenterimuistutukset"
   }
 }

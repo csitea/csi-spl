@@ -1914,5 +1914,12 @@
       "d6": "L",
       "d7": "S"
     }
+  },
+  "calendar_reminder": {
+    "label": "Påminnelse",
+    "open": "Öppna",
+    "dismiss": "Stäng",
+    "all_day": "heldag",
+    "region": "Kalenderpåminnelser"
   }
 }

@@ -183,8 +183,12 @@ func (s *Server) fanoutReaction(ctx context.Context, tenant string, m store.Edit
 	if m.Channel != "" {
 		frame["channel"] = m.Channel
 	}
+	b, err := encodeFrame(frame)
+	if err != nil {
+		return
+	}
 	for _, c := range targets {
-		c.write(ctx, frame) //nolint:errcheck
+		c.writeRaw(ctx, b) //nolint:errcheck
 	}
 }
 

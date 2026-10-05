@@ -255,7 +255,9 @@ Rules for every task (owner Q8, spec §3.10):
     `/login`, only while `GET /v1/demo` answers 200, a short intro (what the
     demo is, what a visitor can and cannot do, the live `max_live` from the
     hub) and one "Try the demo with <provider>" per registry provider the demo
-    admits (google, facebook), starting with `tenant=<demo id>` (T007). A 404
+    admits (google, facebook), starting with `tenant=<demo id>` (T007). The
+    intro sits BELOW the sign-in buttons, never above them (owner HUM-10,
+    msg 39c26092, 2026-10-05: "below the login buttons, not above them"). A 404
     leaves the page as before. Lazy chunk, initial JS unchanged. It states no
     stay length (T009) and no pseudonym (T011) until those are live. Done:
     `tests/e2e/login-demo-intro.test.mjs`, `tests/unit/demo-info.test.mjs`.

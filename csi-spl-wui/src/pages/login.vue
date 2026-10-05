@@ -2,9 +2,6 @@
   <div class="login-card login-landing-card">
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
-    <!-- specs/077 T020: the demo intro, only while GET /v1/demo answers 200;
-         Lazy: its own chunk, fetched only then -->
-    <LazyDemoIntro v-if="demo && session.state !== 'in'" :workspace="demo.workspace" :max-live="demo.maxLive" :redirect="redirect" />
     <!-- SPL-1231: arriving from an invite, say which address was invited and
          which sign-in owns it, so the invitee does not bounce between providers. -->
     <div v-if="invited && session.state !== 'in'" class="login-invite-hint" role="note" data-test="login-invite-hint">
@@ -13,6 +10,10 @@
     </div>
     <SocialAuthButtons class="idp" :redirect="socialRedirect" :tenant="tenant" :login-hint="invited" :suggested="hinted" />
     <NativeAuthForm v-if="session.state !== 'in'" :redirect="redirect" :tenant="tenant" :email="invited" />
+    <!-- specs/077 T020: the demo intro, only while GET /v1/demo answers 200;
+         Lazy: its own chunk, fetched only then. BELOW the sign-in buttons
+         (owner HUM-10, 2026-10-05, msg 39c26092). -->
+    <LazyDemoIntro v-if="demo && session.state !== 'in'" class="login-demo" :workspace="demo.workspace" :max-live="demo.maxLive" :redirect="redirect" />
     <p v-if="changed" class="muted" role="status" data-test="password-changed">{{ t('auth.login.password_changed') }}</p>
     <p v-if="session.state === 'unknown'" class="muted">{{ t('auth.login.session_unavailable') }}</p>
     <p v-if="session.state === 'in'" class="muted">
@@ -122,6 +123,10 @@ if (earlyLogin) {
 }
 .login-invite-hint p {
   margin: 4px 0;
+}
+/* the demo intro sits under the sign-in buttons: space above, not below */
+.login-landing-card .login-demo {
+  margin: 18px auto 0;
 }
 .login-landing-card :deep(input),
 .login-landing-card :deep(textarea) {

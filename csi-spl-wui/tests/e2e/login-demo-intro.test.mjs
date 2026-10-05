@@ -1,5 +1,6 @@
 // specs/077 T020 (owner HUM-10, 2026-10-05): the sign-in page explains the
-// demo before the sign-in buttons, and only while GET /v1/demo answers 200.
+// demo BELOW the sign-in buttons (owner 39c26092: "below the login buttons,
+// not above them"), and only while GET /v1/demo answers 200.
 // Flag on: the intro, the live visitor limit the hub sent, and one "Try the
 // demo" sign-in per provider the demo admits, each starting with
 // tenant=<demo id>. Flag off (404): no intro, the page as before. A 10th
@@ -89,22 +90,39 @@ try {
   const tries = await d.$$eval('[data-test^=demo-try-]', (els) => els.map((e) => ({ t: e.getAttribute('data-test'), href: e.getAttribute('href') })))
   ok('1d one Try the demo per admitted sign-in, in registry order', JSON.stringify(tries.map((x) => x.t)) === '["demo-try-google","demo-try-facebook"]', tries)
   ok('1e each starts the sign-in with tenant=<demo id> and the redirect', tries.length === 2 && tries.every((x) => /\/api\/v1\/auth\/(google|facebook)\/start\?/.test(x.href) && /[?&]tenant=demo(&|$)/.test(x.href) && /[?&]redirect=%2Flobby(&|$)/.test(x.href)), tries)
-  const order = await d.evaluate(() => {
-    const i = document.querySelector('[data-test=demo-intro]'); const s = document.querySelector('[data-test=social-auth]')
-    return Boolean(i && s && (i.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING))
+  // 1f: the intro's top is below the bottom of the LAST sign-in button (the
+  // social buttons and the native form's submit). CONTROL: move the intro
+  // back above the sign-in (the old order) and the same check must fail.
+  const belowButtons = (p) => p.evaluate(() => {
+    const i = document.querySelector('[data-test=demo-intro]')
+    const btns = [...document.querySelectorAll('[data-test=social-auth] a, [data-test=native-auth] button[type=submit]')]
+      .filter((b) => b.getBoundingClientRect().height > 0)
+    if (!i || !btns.length) return { ok: false, n: btns.length }
+    const top = i.getBoundingClientRect().top
+    const bottom = Math.max(...btns.map((b) => b.getBoundingClientRect().bottom))
+    return { ok: top >= bottom, top, bottom, n: btns.length }
   })
-  ok('1f the intro comes before the sign-in', order)
+  const below = await belowButtons(d)
+  ok('1f the intro sits below the last sign-in button', below.ok && below.n >= 4, below)
   ok('1g desktop: no sideways scroll', await noXScroll(d))
   await shot(d, 'demo-on-desktop')
+  await d.evaluate(() => {
+    const i = document.querySelector('[data-test=demo-intro]'); const s = document.querySelector('[data-test=social-auth]')
+    s.parentNode.insertBefore(i, s)
+  })
+  const old = await belowButtons(d)
+  ok('1f CONTROL: the old order (intro above) fails the same check', !old.ok && old.n >= 4, old)
   await d.close()
 
-  // 2. flag on, phones
-  for (const vp of PHONES) {
+  // 2. flag on, phones and the 1000/1440 desktops: fits, below the buttons
+  for (const vp of [...PHONES, { width: 1000, height: 800 }, { width: 1440, height: 900 }]) {
     const m = await page(vp)
     await open(m, vp)
     await m.waitForSelector('[data-test=demo-try-facebook]', { visible: true, timeout: 15000 }).catch(() => null)
     const w = await m.$eval('[data-test=demo-intro]', (e) => e.getBoundingClientRect().right <= window.innerWidth + 1).catch(() => false)
     ok(`2 ${vp.width}px: the intro fits and the page does not scroll sideways`, w && await noXScroll(m))
+    const b = await belowButtons(m)
+    ok(`2b ${vp.width}px: the intro sits below the last sign-in button`, b.ok, b)
     await shot(m, `demo-on-${vp.width}`)
     await m.close()
   }

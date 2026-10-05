@@ -457,7 +457,14 @@ jobs:
           HUB_URL: https://${{ steps.cfg.outputs.api_fqdn }}
           WANT_VERSION: ${{ steps.cfg.outputs.want_version }}
           TIMEOUT_S: '1800'
-        run: bash csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh
+        # .version is a cycle-1 floor: past the 9.9.9 wrap the hub shows
+        # 1.0.x of cycle 2, LATER than it (c-316: every WUI deploy waited
+        # 1800 s and failed on hub 1.0.8 vs floor 1.1.3). The mint step above
+        # fetched the v-tags, so the cycle is read from them.
+        run: |
+          set -euo pipefail
+          source csi-spl-orc/lib/bash/funcs/spl-release-version.func.sh
+          RELEASE_CYCLE="$(spl_release_cycle_now .)" bash csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh
 
       - name: firebase deploy --only hosting
         if: steps.ver.outputs.stale != 'true'

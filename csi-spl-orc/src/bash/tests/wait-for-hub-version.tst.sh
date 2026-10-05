@@ -5,6 +5,9 @@
 #          and the WUI workflow runs it before `firebase deploy`. The hub is
 #          faked with a file:// base (curl reads <base>/version from disk).
 #          CONTROL: a hub one patch behind must be REFUSED (exit 1).
+#          CONTROL (c-316): past the 9.9.9 wrap (cycle 2) hub 1.0.8 against
+#          the cycle-1 floor 1.1.3 must PASS, and the workflow must feed the
+#          cycle in.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,6 +45,16 @@ hub_at 1.0.1
 [[ $(run 1.1.0 20) == 0 ]] && pass "hub rolls while waiting -> deploy" || fail "did not see the hub roll: $(cat "$tmp/out")"
 wait
 
+# The 9.9.9 wrap (c-316, runs 37272855171 / 37275178867): .version 1.1.3 is a
+# cycle-1 floor; the hub at v1.0.8-c2 shows 1.0.8, which is LATER than it.
+hub_at 1.0.8
+[[ $(RELEASE_CYCLE=2 run 1.1.3) == 0 ]] && pass "CONTROL cycle 2: hub 1.0.8 is past the cycle-1 floor 1.1.3 -> deploy" || fail "CONTROL cycle 2: hub 1.0.8 refused against the cycle-1 floor: $(cat "$tmp/out")"
+grep -q 'release cycle 2' "$tmp/out" && pass "the pass names the cycle" || fail "cycle pass text: $(cat "$tmp/out")"
+[[ $(RELEASE_CYCLE=1 run 1.1.3) == 1 ]] && pass "same pair in cycle 1 -> still refused" || fail "cycle 1 lost the floor"
+rm -f "$tmp/version"
+[[ $(RELEASE_CYCLE=2 run 1.1.3) == 1 ]] && pass "cycle 2, unreachable hub -> refused" || fail "cycle 2 let an unreachable hub through"
+[[ $(HUB_URL="file://$tmp" WANT_VERSION=1.1.3 RELEASE_CYCLE=c2 TIMEOUT_S=0 bash "$S" >/dev/null 2>&1; echo $?) == 2 ]] && pass "bad RELEASE_CYCLE -> exit 2" || fail "bad RELEASE_CYCLE accepted"
+
 [[ $(HUB_URL="file://$tmp" WANT_VERSION=v1.1 bash "$S" >/dev/null 2>&1; echo $?) == 2 ]] && pass "bad WANT_VERSION -> exit 2" || fail "bad WANT_VERSION accepted"
 [[ $(WANT_VERSION=1.1.0 bash "$S" >/dev/null 2>&1; echo $?) == 2 ]] && pass "no HUB_URL -> exit 2 (no default)" || fail "missing HUB_URL accepted"
 
@@ -50,5 +63,7 @@ g=$(grep -n 'wait-for-hub-version.sh' "$WF" | sed -n 1p | cut -d: -f1)
 d=$(grep -n 'firebase-tools@13 deploy' "$WF" | sed -n 1p | cut -d: -f1)
 [[ -n "$g" && -n "$d" && "$g" -lt "$d" ]] && pass "30_wui-build-deploy.yml waits for the hub before firebase deploy" || fail "workflow 30 does not run the guard before the deploy"
 grep -q 'WANT_VERSION: \${{ steps.cfg.outputs.want_version }}' "$WF" && pass "the guard reads the repo .version via cnf step" || fail "workflow 30 guard is not fed the repo .version"
+
+grep -q 'RELEASE_CYCLE="$(spl_release_cycle_now .)" bash csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh' "$WF" && pass "the guard is fed the release cycle of the v-tags" || fail "workflow 30 guard is not cycle-aware (every WUI deploy refused past the 9.9.9 wrap)"
 
 echo "---"; (( fails == 0 )) && echo "wait-for-hub-version: all passed" || { echo "wait-for-hub-version: $fails failed"; exit 1; }

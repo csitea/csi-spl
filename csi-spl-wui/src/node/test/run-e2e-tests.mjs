@@ -23,6 +23,8 @@
 //     is missing, or when a ci-skip.txt line names no file on disk or gives
 //     no reason — an empty run must never read as a pass
 //   • the last lines name every failed file, so the job log says it once
+//   • after each file, one line `<file> <secs>` (integer seconds) so a later
+//     refresh of e2e-shard-weights.txt can be read off the job log
 //
 // Usage:
 //   node src/node/test/run-e2e-tests.mjs                     # the CI suite
@@ -30,11 +32,11 @@
 //   node src/node/test/run-e2e-tests.mjs tests/e2e/a.test.mjs # exact paths
 //   node src/node/test/run-e2e-tests.mjs --list              # print the selection, run none
 //   FAIL_FAST=1 node src/node/test/run-e2e-tests.mjs         # stop at first failure
-//   E2E_SHARD=2/3 node src/node/test/run-e2e-tests.mjs       # the 2nd of 3 round-robin shards
+//   E2E_SHARD=2/3 node src/node/test/run-e2e-tests.mjs       # shard 2 of a longest-first pack of 3
 //   E2E_LOCAL_SLOTS=1 node src/node/test/run-e2e-tests.mjs   # box-wide cap on local runs (default 2, e2e-slots.mjs)
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join, dirname, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { acquireSlot } from './e2e-slots.mjs'
 
@@ -42,113 +44,185 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const WUI = join(__dirname, '../../..')
 const E2E_REL = 'tests/e2e'
 const SKIP_REL = `${E2E_REL}/ci-skip.txt`
+const WEIGHTS_REL = 'e2e-shard-weights.txt'
 
-const argv = process.argv.slice(2)
-const listOnly = argv.includes('--list')
-const args = argv.filter((a) => !a.startsWith('--'))
-const paths = args.filter((a) => a.includes('/'))
-const filters = args.filter((a) => !a.includes('/'))
-const failFast = process.env.FAIL_FAST === '1'
+// True when node was started on this file. An import (the pack test) must
+// not discover files, take a slot, or exit.
+export function invokedDirectly() {
+  const arg = process.argv[1]
+  if (!arg) return false
+  return import.meta.url === pathToFileURL(resolve(arg)).href
+}
+
+// `<path> <seconds>` per line, `#` comments. A bad line is an error: a
+// silent skip would pack that file at the median and hide a typo.
+export function parseWeights(text) {
+  const map = new Map()
+  for (const raw of String(text).split('\n')) {
+    const line = raw.replace(/#.*/, '').trim()
+    if (!line) continue
+    const parts = line.split(/\s+/)
+    if (parts.length !== 2 || !/^[1-9]\d*$/.test(parts[1])) {
+      throw new Error(`e2e shard weights: bad line "${raw.trim()}"`)
+    }
+    if (map.has(parts[0])) throw new Error(`e2e shard weights: duplicate "${parts[0]}"`)
+    map.set(parts[0], Number(parts[1]))
+  }
+  return map
+}
+
+export function loadWeights(path) {
+  if (!existsSync(path)) return new Map()
+  return parseWeights(readFileSync(path, 'utf8'))
+}
+
+// Odd count: the middle value. Even count: the nearest integer to the mean
+// of the two middle values. No weights at all (file missing): 1, so every
+// file ties and the pack matches round-robin.
+export function medianWeight(values) {
+  if (!values.length) return 1
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  if (sorted.length % 2) return sorted[mid]
+  return Math.round((sorted[mid - 1] + sorted[mid]) / 2)
+}
+
+export function weightFor(file, weights) {
+  if (weights.has(file)) return weights.get(file)
+  return medianWeight([...weights.values()])
+}
+
+// Longest file first; a weight tie keeps discovery order. The lightest shard
+// takes the next file; a sum tie takes the lowest index. With equal weights
+// that is round-robin over the sorted list (shard k gets indexes k, k+n, …),
+// which the coverage test pins. Within a shard, discovery order, so a failure
+// is reproducible. Returns n arrays; a short list leaves the tail empty.
+export function packShards(files, n, weightOf) {
+  const shards = Array.from({ length: n }, () => [])
+  const sums = Array(n).fill(0)
+  const order = files.map((file, index) => ({ file, index, w: weightOf(file) }))
+  order.sort((a, b) => (b.w - a.w) || (a.index - b.index))
+  for (const item of order) {
+    let best = 0
+    for (let j = 1; j < n; j++) {
+      if (sums[j] < sums[best]) best = j
+    }
+    shards[best].push(item)
+    sums[best] += item.w
+  }
+  return shards.map((items) => items.sort((a, b) => a.index - b.index).map((item) => item.file))
+}
 
 const die = (msg) => {
   console.error(`e2e runner: ${msg}`)
   process.exit(1)
 }
 
-// Sorted so a failure is reproducible in the same order on every machine.
-const discovered = existsSync(join(WUI, E2E_REL))
-  ? readdirSync(join(WUI, E2E_REL)).filter((f) => f.endsWith('.test.mjs')).sort().map((f) => `${E2E_REL}/${f}`)
-  : []
-if (discovered.length === 0) die(`no *.test.mjs found in ${E2E_REL} — refusing to pass`)
+function discoveredFiles() {
+  // Sorted so a failure is reproducible in the same order on every machine.
+  const discovered = existsSync(join(WUI, E2E_REL))
+    ? readdirSync(join(WUI, E2E_REL)).filter((f) => f.endsWith('.test.mjs')).sort().map((f) => `${E2E_REL}/${f}`)
+    : []
+  if (discovered.length === 0) die(`no *.test.mjs found in ${E2E_REL} — refusing to pass`)
+  return discovered
+}
 
-// ci-skip.txt: `<file name> <reason>` per line, `#` comments. A stale line is
-// an error, not a no-op: it would hide the file that replaced it.
-const skipped = new Set()
-if (existsSync(join(WUI, SKIP_REL))) {
-  for (const raw of readFileSync(join(WUI, SKIP_REL), 'utf8').split('\n')) {
-    const line = raw.replace(/#.*/, '').trim()
-    if (!line) continue
-    const [name, ...reason] = line.split(/\s+/)
-    if (!reason.length) die(`${SKIP_REL}: "${name}" gives no reason`)
-    if (!discovered.includes(`${E2E_REL}/${name}`)) die(`${SKIP_REL}: "${name}" is not a file in ${E2E_REL}`)
+function skipSet(discovered) {
+  // ci-skip.txt: `<file name> <reason>` per line, `#` comments. A stale line is
+  // an error, not a no-op: it would hide the file that replaced it.
+  const skipped = new Set()
+  if (existsSync(join(WUI, SKIP_REL))) {
+    for (const raw of readFileSync(join(WUI, SKIP_REL), 'utf8').split('\n')) {
+      const line = raw.replace(/#.*/, '').trim()
+      if (!line) continue
+      const [name, ...reason] = line.split(/\s+/)
+      if (!reason.length) die(`${SKIP_REL}: "${name}" gives no reason`)
+      if (!discovered.includes(`${E2E_REL}/${name}`)) die(`${SKIP_REL}: "${name}" is not a file in ${E2E_REL}`)
+      skipped.add(`${E2E_REL}/${name}`)
+    }
+  }
+  // E2E_SKIP: more names to leave out of THIS run only, space-separated, same
+  // rule as a ci-skip.txt line (must exist). Workflow 11 sets it for a check
+  // whose verdict depends on the hosted runner's fonts; the workflow carries
+  // the reason next to it.
+  for (const name of (process.env.E2E_SKIP || '').split(/\s+/).filter(Boolean)) {
+    if (!discovered.includes(`${E2E_REL}/${name}`)) die(`E2E_SKIP: "${name}" is not a file in ${E2E_REL}`)
     skipped.add(`${E2E_REL}/${name}`)
   }
+  return skipped
 }
 
-// E2E_SKIP: more names to leave out of THIS run only, space-separated, same
-// rule as a ci-skip.txt line (must exist). Workflow 11 sets it for a check
-// whose verdict depends on the hosted runner's fonts; the workflow carries
-// the reason next to it.
-for (const name of (process.env.E2E_SKIP || '').split(/\s+/).filter(Boolean)) {
-  if (!discovered.includes(`${E2E_REL}/${name}`)) die(`E2E_SKIP: "${name}" is not a file in ${E2E_REL}`)
-  skipped.add(`${E2E_REL}/${name}`)
-}
-
-let files
-if (paths.length) {
-  const missing = paths.filter((f) => !existsSync(join(WUI, f)))
-  if (missing.length) die(`file(s) not found: ${missing.join(', ')}`)
-  files = paths
-} else if (filters.length) {
-  files = discovered.filter((f) => filters.some((s) => f.slice(E2E_REL.length + 1).includes(s)))
-  if (files.length === 0) die(`filter [${filters.join(', ')}] matched none of ${discovered.length} files`)
-} else {
-  files = discovered.filter((f) => !skipped.has(f))
+function selectedFiles(discovered, skipped, paths, filters) {
+  if (paths.length) {
+    const missing = paths.filter((f) => !existsSync(join(WUI, f)))
+    if (missing.length) die(`file(s) not found: ${missing.join(', ')}`)
+    return paths
+  }
+  if (filters.length) {
+    const files = discovered.filter((f) => filters.some((s) => f.slice(E2E_REL.length + 1).includes(s)))
+    if (files.length === 0) die(`filter [${filters.join(', ')}] matched none of ${discovered.length} files`)
+    return files
+  }
+  const files = discovered.filter((f) => !skipped.has(f))
   if (files.length === 0) die('every discovered file is in ci-skip.txt — refusing to pass')
+  return files
 }
 
-// E2E_SHARD=<i>/<n>: run only every n-th file of the selection, starting at
-// the i-th (1-based), so workflow 10 splits the suite across n parallel jobs.
-// One serial job took 35 min green and hit its 45 min timeout under load,
-// so the gate finished once per ~45 min and every push in between was
-// cancelled while pending (CLE-77945, 2026-10-02). Round-robin over the
-// sorted list keeps the slow mobile-* files spread across shards; the union
-// of shards 1..n is exactly the unsharded selection.
-const shard = process.env.E2E_SHARD || ''
-if (shard) {
+// E2E_SHARD=<i>/<n>: shard i of a longest-first pack of the selection
+// (1-based). Weights are e2e-shard-weights.txt beside this file; a file
+// with no weight takes the median, and a missing weights file gives every
+// file weight 1 (the same split as round-robin). One serial job took 35 min
+// green and hit its 45 min timeout under load, so the gate finished once
+// per ~45 min and every push in between was cancelled while pending
+// (CLE-77945, 2026-10-02). The union of shards 1..n is exactly the
+// unsharded selection; a shard that gets nothing refuses to pass.
+function sharded(files, shard) {
+  if (!shard) return files
   const m = /^(\d+)\/(\d+)$/.exec(shard)
   const [i, n] = m ? [Number(m[1]), Number(m[2])] : [0, 0]
   if (!m || n < 1 || i < 1 || i > n) die(`E2E_SHARD="${shard}" is not <i>/<n> with 1 <= i <= n`)
-  files = files.filter((_, k) => k % n === i - 1)
-  if (files.length === 0) die(`E2E_SHARD=${shard} selects no file — refusing to pass`)
-}
-
-if (listOnly) {
-  for (const f of files) console.log(f)
-  process.exit(0)
-}
-
-// One of E2E_LOCAL_SLOTS box-wide slots before any browser starts: lanes'
-// parallel local runs drove a 16-cpu box to load 50. GitHub Actions is not
-// capped. Waiting prints the holders; the slot frees on exit, signal or crash.
-try {
-  await acquireSlot()
-} catch (e) {
-  die(e.message)
-}
-
-const scope = paths.length || filters.length ? '' : ` (${skipped.size} skipped by ${SKIP_REL}${process.env.E2E_SKIP ? ' + E2E_SKIP' : ''})`
-console.log(`e2e runner: ${files.length} file(s)${scope}${shard ? `, shard ${shard}` : ''}\n`)
-
-const failures = []
-for (const [i, file] of files.entries()) {
-  console.log(`──[${i + 1}/${files.length}] ${file}`)
-  const started = Date.now()
-  const res = spawnSync(process.execPath, [join(WUI, file)], {
-    cwd: WUI,
-    stdio: 'inherit',
-  })
-  const secs = Math.round((Date.now() - started) / 1000)
-  // A killing signal (OOM, timeout) leaves status null — that is a failure too.
-  if (res.status !== 0) {
-    failures.push({ file, status: res.status, signal: res.signal })
-    console.log(`──[${i + 1}/${files.length}] FAIL ${file} (${secs}s)`)
-    if (failFast) break
+  let weights
+  try {
+    weights = loadWeights(join(__dirname, WEIGHTS_REL))
+  } catch (e) {
+    die(e.message)
   }
-  console.log('')
+  const packed = packShards(files, n, (file) => weightFor(file, weights))[i - 1]
+  if (packed.length === 0) die(`E2E_SHARD=${shard} selects no file — refusing to pass`)
+  return packed
 }
 
-if (failures.length) {
+async function runSelected(files, { skipped, narrowed, shard, failFast }) {
+  // One of E2E_LOCAL_SLOTS box-wide slots before any browser starts: lanes'
+  // parallel local runs drove a 16-cpu box to load 50. GitHub Actions is not
+  // capped. Waiting prints the holders; the slot frees on exit, signal or crash.
+  try {
+    await acquireSlot()
+  } catch (e) {
+    die(e.message)
+  }
+  const scope = narrowed ? '' : ` (${skipped.size} skipped by ${SKIP_REL}${process.env.E2E_SKIP ? ' + E2E_SKIP' : ''})`
+  console.log(`e2e runner: ${files.length} file(s)${scope}${shard ? `, shard ${shard}` : ''}\n`)
+  const failures = []
+  for (const [i, file] of files.entries()) {
+    console.log(`──[${i + 1}/${files.length}] ${file}`)
+    const started = Date.now()
+    const res = spawnSync(process.execPath, [join(WUI, file)], { cwd: WUI, stdio: 'inherit' })
+    const secs = Math.round((Date.now() - started) / 1000)
+    // `<file> <secs>` on every file, pass or fail, for the next weights refresh.
+    console.log(`${file} ${secs}`)
+    // A killing signal (OOM, timeout) leaves status null — that is a failure too.
+    if (res.status !== 0) {
+      failures.push({ file, status: res.status, signal: res.signal })
+      console.log(`──[${i + 1}/${files.length}] FAIL ${file} (${secs}s)`)
+      if (failFast) break
+    }
+    console.log('')
+  }
+  if (!failures.length) {
+    console.log(`\ne2e runner: all ${files.length} file(s) passed`)
+    return
+  }
   console.log(`\ne2e runner: ${failures.length} of ${files.length} file(s) FAILED`)
   for (const f of failures) {
     console.log(`  FAIL ${f.file}${f.signal ? ` (signal ${f.signal})` : ` (exit ${f.status})`}`)
@@ -156,4 +230,26 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log(`\ne2e runner: all ${files.length} file(s) passed`)
+async function main() {
+  const argv = process.argv.slice(2)
+  const listOnly = argv.includes('--list')
+  const args = argv.filter((a) => !a.startsWith('--'))
+  const paths = args.filter((a) => a.includes('/'))
+  const filters = args.filter((a) => !a.includes('/'))
+  const discovered = discoveredFiles()
+  const skipped = skipSet(discovered)
+  const shard = process.env.E2E_SHARD || ''
+  const files = sharded(selectedFiles(discovered, skipped, paths, filters), shard)
+  if (listOnly) {
+    for (const f of files) console.log(f)
+    process.exit(0)
+  }
+  await runSelected(files, {
+    skipped,
+    narrowed: paths.length > 0 || filters.length > 0,
+    shard,
+    failFast: process.env.FAIL_FAST === '1',
+  })
+}
+
+if (invokedDirectly()) await main()

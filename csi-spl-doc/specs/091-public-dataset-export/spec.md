@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 2 (v0.3.0)
+**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 3 (v0.4.0)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -81,12 +81,13 @@ Source: the **prd** Spool Hub workspace, its id read from cnf (`env.public_datas
 |---|---|---|---|
 | `tenants` | the Spool Hub row only | `tenant_id`, `display_name`, `created_at` | `root_pubkey` NOT exported; the loader generates a new key (§9.1). `billing_status` written as `internal`, `plan_id` as `default` |
 | `channels` | `is_private = false AND deleted_at IS NULL AND archived_at IS NULL` (archived channels out, §11 Q9) | `channel_id`, `name`, `description`, `created_by`, `created_at` | `created_by` is a member or agent id (§4.3) |
-| `messages` | `channel` in the exported channels; no message of an **archived task** (0065: `archived_at` sits on the card and means the whole task, so every message sharing an archived row's `task_id` is out); the thread's root message also in an exported channel | `msg_id`, `task_id`, `parent_task_id`, `channel`, `ts`, `from_id`, `to_id`, `kind`, `body`, `is_parent`, `received_at`, `expires_at` | `from_box` / `to_box` set to one synthetic box id; `msg`, `env`, `env_sig`, `files`, `typed_by` NOT exported (§11 Q6) |
+| `messages` | `channel` in the exported channels; no message of an **archived task** (0065: `archived_at` sits on the card and means the whole task, so every message sharing an archived row's `task_id` is out); the thread's root message also in an exported channel; `expires_at > now()`. A message whose `from_id` or `to_id` is a `HUM-n` that is not a member of Spool Hub is dropped and counted (no person is invented for it) | `msg_id`, `task_id`, `parent_task_id`, `channel`, `ts`, `from_id`, `to_id`, `kind`, `body`, `is_parent`, `received_at`, `expires_at` | `from_box` / `to_box` set to one synthetic box id; `msg`, `env`, `env_sig`, `files`, `typed_by` NOT exported (§11 Q6) |
 | `humans` | Spool Hub members who author or are the addressee of an exported message (membership alone is not enough) | `human_id` | `display_name` = `human_id`; `email` NULL; `disabled_at` NULL |
 | `tenant_memberships` | Spool Hub rows of the humans above | `tenant_id`, `human_id`, `role`, `created_at` | `role` forced to `member`; `admitted_by` = `seed` |
-| `release_notes` | rows whose `version` is at or below the export's version | every column | public by design (065: hygiene-filtered at ingest) |
 
-RBAC roles and permissions are not exported: the migrations seed them.
+RBAC roles and permissions are not exported: the migrations seed them. `release_notes` is not exported either: it
+is estate-wide text with no workspace column; a fresh checkout fills it from the public git history through the
+existing ingest (065), and §7 links the seed from the notes, as the owner asked.
 
 Topics are not a table: a topic is a `task_id` thread, so it comes with its messages.
 
@@ -104,7 +105,7 @@ Emails and any other contact data; real names (members become their `HUM-n` id);
 `files` columns; auth, audit and telemetry tables (`operator_audit`, `human_events`, `flow_events`,
 `wui_perf_samples`, `member_activity`); payment and seat tables; fleet tables (`fleet_*`, `boxes`, `box_stats`,
 `roster`, `deliveries`); archived tasks and archived channels (hidden on purpose); message revisions (an earlier version may hold what an edit removed); issues (§11 Q5);
-and **every row of every other workspace**.
+the channel of the dataset topic (§5.6); and **every row of every other workspace**.
 
 ### 4.3 Member ids
 
@@ -164,6 +165,14 @@ Every export transaction starts with `SET LOCAL app.tenant_id = <Spool Hub id>`;
 FORCE RLS (0014, fail closed since 0021) hides every other workspace's row from this role even if a query forgot
 its filter. Estate-wide tables (no RLS) are read only through the joins in §4.1, never whole.
 
+The operator policy applies to every role, and any login can set `app.rls_scope` for its own transaction, so
+"never set it" alone would leave fence 2 one statement away from every workspace. Fence 2 therefore also carries a
+**`RESTRICTIVE` policy `public_export_scope`** on every exported `tenant_id` table, `TO spool_public_export` only:
+`tenant_id = (SELECT workspace_id FROM public_export_workspace)`, a one-row table this role can read and cannot
+write. Restrictive policies are AND-ed with the permissive ones, so even with the operator scope set the role sees one
+workspace. The hub's roles are not this role and are unaffected. The §9.3 fence test sets the operator scope on
+purpose and must still see one workspace.
+
 ### 5.3 Fence 3: the explicit filter
 
 Every query carries `WHERE tenant_id = $1` (or joins through a row that does). After the read, every emitted row's
@@ -196,14 +205,16 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
    archived channel; a message revision; the `msg`, `env`, `env_sig` and `files` of a public message; the e-mail of
    a human who is a member of both workspaces; an invite; a box name; any marker
    in the file = FATAL. This proves absence by planting what must be absent, which a ban list cannot.
-5. **Size sanity**: row counts within ±50% of the previous file unless the allow-list version changed; else FATAL
+5. **Size sanity**: row counts within ±50% of the previous file unless the allow-list version changed, or there is no previous file (the first one); else FATAL
    (a mass drop or mass add is a defect until someone explains it).
 
 ### 5.6 CI is public: logs name classes, never content
 
 The repo and its GitHub-hosted runner logs are public. Gate and verifier output names only the table, the primary
 key and the class of a hit, never the matched text. No `upload-artifact` of the candidate or of either name list,
-no `set -x` in the export, gate or publish steps; a workflow test checks for both.
+no `set -x` in the export, gate or publish steps; a workflow test checks for both. The verifier's post on the dataset
+topic (§8.3) is verifier output too: class and key only. The channel that topic lives in is on the never-export list
+(§4.2), configured by cnf.
 
 ### 5.7 The file
 
@@ -257,7 +268,9 @@ verdicts before writing its own, no write access to the public bucket.
 | **grok** | **content**: its own scanners, written by that lane, not the gate's | every string token of the file against its own patterns for contact data, credentials and keys; gitleaks default rules; a list of **sha256 hashes** of every other workspace's id and display name, lower-cased, from the names step (§5.5 item 3; the verifier never sees the names in clear, and the list is never published) |
 | **agy** | **reading**: a human-style review | a stratified random sample of at least 200 messages (every channel, every day present) plus every message new since the previous published file, read for what no pattern finds: another workspace or a customer named in prose, a quote from a private channel or DM, an internal host, path or credential described in words; and a shape diff against the previous file (new table, column or channel) |
 
-A FAIL names the row (table, primary key) and the reason. A lane may add checks; none may drop the ones above.
+Every lane reports `n` for each check. The reading lane's sample is evidence, not proof: principle 4 applies to it
+as to a pattern list. The proof that no other workspace's rows were copied is the structure lane, C2, C5 and the
+restrictive policy (§5.2). A FAIL names the row (table, primary key) and the class, never the matched text. A lane may add checks; none may drop the ones above.
 
 ### 8.3 The verdict file
 
@@ -289,11 +302,13 @@ That trust is the fleet's lane registry, as for every other agent action.
 
 1. Fetches the file and its manifest; checks the sha256; refuses a manifest without three PASS verdicts.
    Refuses any statement in the file other than `COPY ... FROM stdin` blocks and their data: no DDL, no `SET`, no
-   function bodies. The schema comes from the repo's migrations, never from the file.
+   function bodies. Each `COPY` target must be a §4.1 table and its column list exactly that table's public columns
+   plus the §4.4 constants; any other target (a credential table is still a `COPY`) refuses the whole file. The schema comes from the repo's migrations, never from the file.
 2. Refuses unless the target database is at the manifest's migration head (`spool migrate` first; a mismatch
    names the release to check out) and holds **no
    workspace row**: the seed is for a fresh database only, never a merge.
-3. Loads in one transaction under the operator scope, then checks: one workspace; counts equal the manifest.
+3. Loads in one transaction under the operator scope, the empty-database check of step 2 inside that same
+   transaction, then checks: one workspace; counts equal the manifest.
 4. Creates the instance's own secrets: a new workspace root keypair (the private key written to the operator's
    path, mode `0600`, never into the database), and the **first admin**: a new human (`humans_seq` set past the
    highest loaded `HUM-n`), membership role `owner`, a native password credential for `SEED_ADMIN_EMAIL` with a
@@ -321,7 +336,7 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 ## 10. Operations
 
 - **Schedule**: a new workflow (next free number), daily, after the 00:17 backup slot: export to staging (prd and
-  dev), dispatch the three verifier lanes (prd), publish on 3/3 (§11 Q7 for dev).
+  dev), dispatch the three verifier lanes (prd, and dev whenever dev holds real workspaces), publish on 3/3 (§11 Q7).
 - **Kill switch**: cnf `env.public_dataset.enabled`, default `false` until the owner's go; `false` = the workflow
   says so and exits 0.
 - **Take-down**: if something wrong is found after publishing, a named action deletes that file from the public
@@ -340,7 +355,7 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 | Q4 | Workspace docs (spec 075 Phase 2 bucket) in the dataset | not in v1 |
 | Q5 | Issues (the workspace's tracker) in the dataset | not in v1 |
 | Q6 | Loaded messages carry no signed envelope; accept that they are history only (shown, never re-delivered) | yes; the build measures the hub's behaviour first |
-| Q7 | Three verifier lanes every day is ~3 agent sessions a day. Keep it daily (the owner's words), or daily gate plus each vendor's verifier script (written once by that lane, run in CI), with the three lanes re-verifying on any allow-list or schema change and weekly. Dev: gate only? | split panel: a-287 and the author keep daily lanes for prd (the owner's words); c-288 proposes lanes on the first publish and on any allow-list, export-code or migration change, machine gates alone otherwise. Dev publishes on the gate alone |
+| Q7 | Three verifier lanes every day is ~3 agent sessions a day. Keep it daily (the owner's words), or daily gate plus each vendor's verifier script (written once by that lane, run in CI), with the three lanes re-verifying on any allow-list or schema change and weekly. Dev: gate only? | split panel: a-287 and the author keep daily lanes for prd (the owner's words); c-288 proposes lanes on the first publish and on any allow-list, export-code or migration change, machine gates alone otherwise. Dev publishes on the gate alone only while its Spool Hub workspace is synthetic; a dev database holding real workspaces uses the same three lanes |
 | Q8 | Go for the terraform apply of step 053 and for `env.public_dataset.enabled: true` on prd | the owner's go each, once the build is green |
 
 ## 12. Functional requirements
@@ -368,5 +383,6 @@ file and answers on topic `67b63c88`.
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.4.0 | 2026-10-05 | round 2, g-308: restrictive policy for the export role (fence 2 holds with the operator scope set), loader COPY targets limited to §4.1, `release_notes` out of the seed; non-member ids dropped, expired out, first file skips size check, reading lane `n`, dev lanes when real, topic post class-only and its channel never exported |
 | v0.3.0 | 2026-10-05 | round 1, a-287: §4.4 withheld NOT NULL columns get fixed constants, 0112 DM links withheld, the full measured column count, Q1/Q7 panel positions |
 | v0.2.0 | 2026-10-05 | round 1: c-288's points (projection, C2/C3/C5, archived tasks and channels out, publish SA, loader statement whitelist, Q1b; R1-1..R1-5: public-CI logging rule, the names step, hash list never published, canary list, Q9) |

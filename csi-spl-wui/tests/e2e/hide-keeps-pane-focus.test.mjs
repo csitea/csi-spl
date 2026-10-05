@@ -100,10 +100,17 @@ const focusAt = (p) => p.evaluate(() => {
 const topicOrder = (p) => p.evaluate(() => [...document.querySelectorAll('aside.live-pane [role="feed"] article.msg')]
   .filter((e) => e.getClientRects().length).map((e) => e.getAttribute('data-msg-id')))
 
-/** Select a card the way a click does: the row takes the focus. */
+/**
+ * Select a card the way a click does: a pointerdown, then the row takes the
+ * focus. The pointerdown ends the hold the last shortcut left (holdPanel stops
+ * on the reader's own key or click); a bare focus() does not, and that hold's
+ * next 50 ms tick put the focus back in its own panel before the next key
+ * landed (Shift + A after Delete, red in CI 37241429083 / 37251747430).
+ */
 const select = (p, sel) => p.evaluate((sel) => {
   const el = document.querySelector(sel)
   if (!el) return false
+  el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true }))
   el.scrollIntoView({ block: 'center' })
   el.focus({ preventScroll: true })
   return document.activeElement === el
@@ -204,6 +211,8 @@ try {
   const tab = await p.evaluate(() => {
     const t = [...document.querySelectorAll('nav.sidebar [id^="sidebar-tab-"]')].find((e) => e.getClientRects().length)
     if (!t) return ''
+    /* a click's pointerdown, as select(): Shift + A's hold is still on the list */
+    t.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, composed: true }))
     t.focus()
     return document.activeElement === t ? t.id : ''
   })

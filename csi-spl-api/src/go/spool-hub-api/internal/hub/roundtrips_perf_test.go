@@ -68,6 +68,11 @@ func TestRoundTripsPerRequest(t *testing.T) {
 			channelFrame(t, c, uuid4(), task, "tasks", fmt.Sprintf("task %d line %d", i, j))
 		}
 	}
+	// A members-only channel (#tasks is hidden, so public): its creator is its member.
+	if code, body := r.req(t, "POST", tenant, "/v1/channels", map[string][]string{"Content-Type": {"application/json"}},
+		strings.NewReader(`{"channel":"perf-room"}`)); code/100 != 2 {
+		t.Fatalf("create channel: %d %s", code, body)
+	}
 	r.e.pin(tenant, r.e.box(tenant, "box-a", "CLE-07"))
 	for i := 0; i < 3; i++ { // a DM topic of 3 lines, for the DM seed
 		wsjson.Write(ctx, c, map[string]any{"type": "send", "task_id": dmTask, "to": "CLE-07", "body": fmt.Sprintf("dm %d", i)}) //nolint:errcheck
@@ -133,6 +138,14 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// DB payload cut 7: the message and its box-wui delivery (sent) in one
 		// statement; insert + enqueue + claim took three (it was 5).
 		{"WS wui send (lobby) -> ack", 2, func() error { send("probe"); return nil }},
+		// Perf edition 20261004 E13: a members-only channel adds the tag check
+		// (ChannelKnown) and the post door's channel_humans read; the live
+		// fan-out's second channel_humans read is the frame memo's (it was 5,
+		// measured 5/5 -> 4/4, n=5 x2).
+		{"WS wui send (#perf-room) -> ack", 4, func() error {
+			channelFrame(t, c, uuid4(), uuid4(), "perf-room", "probe")
+			return nil
+		}},
 	}
 	const n = 5
 	t.Logf("%-30s DB round trips (n=%d, min/max, budget)", "request", n)

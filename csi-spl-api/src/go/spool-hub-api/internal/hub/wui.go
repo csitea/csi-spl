@@ -348,7 +348,15 @@ func (s *Server) wuiFrame(ctx context.Context, c *wuiConn, f wuiIn) {
 		// One frame, one membership lookup (store.WithMemo): the channel
 		// door and both permission checks share it, and the next frame
 		// reads it again, so a demotion still bites on an open socket.
-		s.wuiSend(store.WithMemo(ctx), c, f)
+		// Perf edition 20261004 E13: the channel's members too (the request
+		// memo of privacy.go, G1) - the post door (wuiMayPost) and the live
+		// fan-out (fanoutWUI) read channel_humans once per frame, not twice.
+		// The socket's context never ends, so the frame gets one that does:
+		// the memo is dropped with the frame.
+		fctx, done := context.WithCancel(store.WithMemo(ctx))
+		s.openMembersMemo(fctx)
+		s.wuiSend(fctx, c, f)
+		done()
 	case "token":
 		tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox, c.member)
 		c.write(ctx, map[string]string{"type": "token", "upload_token": tok, "upload_token_expires_at": exp.UTC().Format(time.RFC3339)}) //nolint:errcheck
@@ -571,7 +579,9 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		fail(&frameRefusal{tok, status, detail})
 		return
 	}
-	ctx = s.wuiDMRef(ctx, c, f.RefTaskID) // spec 067 3.3, dm_ref.go
+	ref := s.wuiDMRef(ctx, c, f.RefTaskID) // spec 067 3.3, dm_ref.go
+	s.shareMembersMemo(ctx, ref)
+	ctx = ref
 	r, err := s.commitRow(ctx, c.tenant, env, m, isParent)
 	if errors.Is(err, store.ErrConflict) {
 		fail(&frameRefusal{"conflict_msg", http.StatusConflict, "msg_id exists with a different message"})
@@ -591,6 +601,20 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	// SPL-997: after the ack, so the sender never waits on it.
 	if r.inserted {
 		s.fallback(ctx, c.tenant, rt.channel, env, m)
+	}
+}
+
+// shareMembersMemo makes the request memo of from (privacy.go) the memo of
+// to as well: it is keyed on the context, so the one wuiDMRef derives would
+// otherwise read channel_humans again in fanoutWUI. to ends with from.
+func (s *Server) shareMembersMemo(from, to context.Context) {
+	mm := s.requestMemo(from)
+	if mm == nil || to.Done() == nil {
+		return
+	}
+	k := membersMemoKey{s, to}
+	if _, loaded := membersMemos.LoadOrStore(k, mm); !loaded {
+		context.AfterFunc(to, func() { membersMemos.Delete(k) })
 	}
 }
 

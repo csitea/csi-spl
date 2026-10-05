@@ -59,6 +59,15 @@ async function launch() {
 }
 
 /** Three opening cards on lobby: long prose, a short line, a code block. */
+/* The mock feed re-reads every 4s and replaces the list, which drops
+   rows added in the page. The seeded cards have to stay for the measure,
+   so later re-reads do nothing. The open's own read has already landed. */
+const holdFeed = (p) => p.evaluate(() => {
+  const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
+  const channel = pinia._s.get('channel')
+  channel.refresh = async () => {}
+})
+
 const seed = (p, bodies) => p.evaluate((bodies) => {
   const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
   const channel = pinia._s.get('channel')
@@ -115,6 +124,8 @@ try {
   await p.setViewport({ width: 1920, height: 1080 })
   await p.goto(`${srv.base}/channel/lobby`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
+  await p.waitForSelector('.feed-body .msg', { timeout: NAV_TIMEOUT })
+  await holdFeed(p)
   await sleep(1200)
   await seed(p, [LONG, 'short line', CODE])
   await p.waitForFunction(() => document.querySelector('[data-msg-id=m078-2]'), { timeout: 8000 }).catch(() => {})

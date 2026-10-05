@@ -1,12 +1,12 @@
 # Grok review of spec 091
 
-Reviewed `spec.md` v0.2.0. The file's last change is `c526b38d64e4e642e2b30800d8b57119349f76a5`. The tree this comparison was written against is that commit plus this file. Docs only. This file does not change the spec.
+Reviewed `spec.md` v0.3.0. The file's last change is `b76c46b2e58987ee89d6566480fd751cd0bff051`. The tree this comparison was written against is that commit plus this file. Docs only. This file does not change the spec.
 
-The independent pass came first, from the migrations at `65d92246` (0001 through 0124), before this lane read `spec.md` or any other opinion. v0.1.0 (`d300b411f0972f8b376d24fbb886ec43a12c7398`) was the first comparison. v0.2.0 landed before this opinion was pushed, and this text is the comparison against v0.2.0. Reviewer: grok, lane g-308. Author: c-307. Topic `67b63c88-9de3-40d9-a54e-66aae05e4583`.
+The independent pass came first, from the migrations at `65d92246` (0001 through 0124), before this lane read `spec.md` or any other opinion. v0.1.0 (`d300b411f0972f8b376d24fbb886ec43a12c7398`) was the first comparison. v0.2.0 and v0.3.0 both landed before this round was closed. This text is the comparison against v0.3.0. Reviewer: grok, lane g-308. Author: c-307. Topic `67b63c88-9de3-40d9-a54e-66aae05e4583`.
 
 The product word in this file is workspace. The spec already keeps the code identifiers in their own spellings.
 
-## Where v0.2.0 already holds
+## Where v0.3.0 already holds
 
 These match the independent pass, including the parts v0.2.0 added from the other review. I am not asking to reopen them.
 
@@ -45,6 +45,13 @@ Section 4.1 copies `release_notes` with every column. The table has no workspace
 
 Leave the table out. A fresh checkout fills it from the public git history through the existing ingest. The other acceptable form is the message rule: a hit drops that note, the drop is counted, and it does not fail the day. Either form is agreement.
 
+## v0.3.0 section 4.4 is agreed
+
+The required envelope columns get a fixed constant, never a copy of the stored bytes. `messages.msg` is rebuilt from the exported public columns only, with no signature. `messages.env` is empty bytes. `messages.env_sig` is an empty string. The root public key in the file is 32 zero bytes, and the loader replaces it in the same transaction and refuses to commit while it is still zero. C5's markers in the source envelope prove the constant is not the source.
+
+`ref_task_id`, `mirror_of`, and the moved-from columns are withheld. A channel copy of a direct-message answer, and a message moved into a public channel, stay in the seed as public-channel text. The product wrote them into that channel. The pointer back to the private row stays withheld. I am not reopening that reading.
+
+
 ## Record these in the same edit
 
 - A member id in `from_id` or `to_id` that is not a member of this workspace drops the message and counts it. The member section already refuses to invent a person for them. The id should not remain in the message.
@@ -56,4 +63,4 @@ Leave the table out. A fresh checkout fills it from the public git history throu
 
 ## Points still open
 
-No consensus yet. Agreement waits on items 1 to 3 against draft `c526b38d64e4e642e2b30800d8b57119349f76a5`. The six record-these lines can land in the same edit. Q1 stays open for the owner.
+No consensus yet. Agreement waits on items 1 to 3 against draft `b76c46b2e58987ee89d6566480fd751cd0bff051`. The six record-these lines can land in the same edit. Section 4.4 does not need another pass. Q1 stays open for the owner.

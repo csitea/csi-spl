@@ -152,14 +152,13 @@ func PayPalSignedMessage(transmissionID, transmissionTime, webhookID, body strin
 }
 
 // publicKey returns the RSA public key of the leaf certificate at certURL,
-// fetching + caching it on first use.
+// fetching + caching it on first use. The lock is not held across the fetch,
+// so two concurrent first uses of the same certURL may both fetch; the last
+// one to finish is cached (same key either way). Later calls hit the cache.
 func (v *PayPalVerifier) publicKey(ctx context.Context, certURL string) (*rsa.PublicKey, error) {
-	v.mu.Lock()
-	if key, ok := v.certs[certURL]; ok && key != nil {
-		v.mu.Unlock()
+	if key := v.cachedCert(certURL); key != nil {
 		return key, nil
 	}
-	v.mu.Unlock()
 
 	if err := validatePayPalCertURL(certURL); err != nil {
 		return nil, err
@@ -185,6 +184,13 @@ func (v *PayPalVerifier) publicKey(ctx context.Context, certURL string) (*rsa.Pu
 	v.certs[certURL] = key
 	v.mu.Unlock()
 	return key, nil
+}
+
+// cachedCert returns the cached key for certURL, or nil when none is cached.
+func (v *PayPalVerifier) cachedCert(certURL string) *rsa.PublicKey {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.certs[certURL]
 }
 
 // validatePayPalCertURL enforces https + a paypal.com host. paypal-cert-url

@@ -213,19 +213,26 @@ func (pi *perfIngest) insert(ctx context.Context, job perfJob) (err error) {
 
 // logDrop logs a drop with the counters, at most once per perfErrLogEvery.
 func (pi *perfIngest) logDrop(why string) {
-	now := pi.s.o.Now()
-	pi.mu.Lock()
-	if !pi.logged.IsZero() && now.Sub(pi.logged) < perfErrLogEvery {
-		pi.mu.Unlock()
+	if !pi.claimLogSlot(pi.s.o.Now()) {
 		return
 	}
-	pi.logged = now
-	pi.mu.Unlock()
 	pi.s.o.Log.Warn().Str("why", why).
 		Int64("queued", pi.queued.Load()).Int64("stored", pi.stored.Load()).
 		Int64("drop_full", pi.dropFull.Load()).Int64("drop_cap", pi.dropCap.Load()).
 		Int64("drop_store", pi.dropStore.Load()).Int64("drop_client", pi.dropClient.Load()).
 		Msg("wui perf samples dropped")
+}
+
+// claimLogSlot reports whether a drop may be logged at now, and if so marks
+// now as the last log: at most one caller wins per perfErrLogEvery.
+func (pi *perfIngest) claimLogSlot(now time.Time) bool {
+	pi.mu.Lock()
+	defer pi.mu.Unlock()
+	if !pi.logged.IsZero() && now.Sub(pi.logged) < perfErrLogEvery {
+		return false
+	}
+	pi.logged = now
+	return true
 }
 
 // perfPreflight: a fetch with Content-Type application/json needs one; the

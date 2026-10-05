@@ -111,18 +111,20 @@ func (p *PayPal) currency() string {
 // an in-flight call can never race the expiry boundary.
 const tokenSkew = 60 * time.Second
 
+// accessToken returns an OAuth2 client-credentials bearer token for the
+// PayPal REST API. It refuses at once, without any network call, when
+// ClientID or ClientSecret is empty. A token is cached and reused until
+// tokenSkew before PayPal's stated expires_in, then fetched afresh from
+// /v1/oauth2/token. The lock is not held across the fetch, so concurrent
+// callers on an expired cache may each fetch; the last one to finish is cached.
 func (p *PayPal) accessToken(ctx context.Context) (string, error) {
 	if strings.TrimSpace(p.ClientID) == "" || strings.TrimSpace(p.ClientSecret) == "" {
 		return "", fmt.Errorf("paypal: client credentials are empty")
 	}
 
-	p.mu.Lock()
-	if p.token != "" && p.now().Before(p.tokenExpiry) {
-		tok := p.token
-		p.mu.Unlock()
+	if tok, ok := p.cachedToken(); ok {
 		return tok, nil
 	}
-	p.mu.Unlock()
 
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
@@ -170,6 +172,17 @@ func (p *PayPal) accessToken(ctx context.Context) (string, error) {
 	p.tokenExpiry = p.now().Add(ttl)
 	p.mu.Unlock()
 	return out.AccessToken, nil
+}
+
+// cachedToken returns the cached access token while it is still before its
+// (skew-adjusted) expiry; ok=false means the caller must fetch a new one.
+func (p *PayPal) cachedToken() (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.token != "" && p.now().Before(p.tokenExpiry) {
+		return p.token, true
+	}
+	return "", false
 }
 
 // ----------------------------------------------------------------------------

@@ -64,17 +64,25 @@ func (q *Queue) Stop() {
 		return
 	}
 	installed.CompareAndSwap(q, nil)
-	q.mu.Lock()
-	if q.off {
-		q.mu.Unlock()
+	if !q.closeLanes() {
 		return
+	}
+	q.wg.Wait()
+}
+
+// closeLanes marks the queue off and closes every lane, once: it reports
+// false when the queue was already off (a repeated Stop).
+func (q *Queue) closeLanes() bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.off {
+		return false
 	}
 	q.off = true
 	for _, ch := range q.lanes {
 		close(ch)
 	}
-	q.mu.Unlock()
-	q.wg.Wait()
+	return true
 }
 
 // Deliver is what the store calls after a message lands in a local inbox. It
@@ -88,6 +96,12 @@ func Deliver(cfg *config.Config, m *msg.Message, to string) {
 }
 
 // enqueue reports whether the poke was accepted onto a lane.
+//
+// Contract with Stop: enqueue checks q.off and picks the lane under q.mu, but
+// sends on the lane AFTER releasing it. A Stop that runs in that gap closes
+// the lane, and the send then panics (send on closed channel). So enqueue is
+// NOT safe to run concurrently with Stop today: a known race (refactor round 3
+// plan, bug B1), to be fixed in its own change.
 func (q *Queue) enqueue(m *msg.Message, to string) bool {
 	if !Enabled(q.cfg) || m == nil || to == "" {
 		return false

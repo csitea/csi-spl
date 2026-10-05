@@ -39,12 +39,12 @@ func newFileUsage(ttl time.Duration) *fileUsage {
 	return &fileUsage{ttl: ttl, m: map[string]usageEntry{}}
 }
 
-// load makes tenant's entry fresh: one prefix listing when it is absent or
-// older than ttl.
+// load makes tenant's entry fresh: a prefix listing when it is absent or
+// older than ttl. It is a best-effort cache: the lock is not held across the
+// listing, so concurrent loads for the same tenant may each list, and the
+// last one to finish is stored.
 func (u *fileUsage) load(ctx context.Context, bs blob.Store, tenant string, now time.Time) error {
-	u.mu.Lock()
-	e, ok := u.m[tenant]
-	u.mu.Unlock()
+	e, ok := u.entry(tenant)
 	if ok && now.Sub(e.at) < u.ttl {
 		return nil
 	}
@@ -52,10 +52,23 @@ func (u *fileUsage) load(ctx context.Context, bs blob.Store, tenant string, now 
 	if err != nil {
 		return err
 	}
-	u.mu.Lock()
-	u.m[tenant] = usageEntry{bytes: used, at: now}
-	u.mu.Unlock()
+	u.store(tenant, used, now)
 	return nil
+}
+
+// entry returns tenant's cached entry, ok=false when there is none.
+func (u *fileUsage) entry(tenant string) (usageEntry, bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	e, ok := u.m[tenant]
+	return e, ok
+}
+
+// store records used bytes for tenant as listed at now.
+func (u *fileUsage) store(tenant string, used int64, now time.Time) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.m[tenant] = usageEntry{bytes: used, at: now}
 }
 
 // over reports whether n more bytes would put tenant over q, reserving

@@ -1,6 +1,6 @@
 # 089: the Calendar section (time coordination between people and agents)
 
-**Feature ID**: `089-calendar-section` · **Milestone**: M3 · **Status**: Planned (v0.4.0, owner decisions folded in)
+**Feature ID**: `089-calendar-section` · **Milestone**: M3 · **Status**: Planned (v0.5.0, owner decisions folded in, wire format pinned)
 **Created**: 2026-10-05 · **Lane**: a-270 · **Topic**: `6d0afac7-2d13-4cc0-99a4-3f87f4ba21b3` (spec, closed) · implementation `819d8610-4fc9-442a-9916-ef2fd691da5f`
 **Authority**: this file for the behaviour and its rules; `tasks.md` for what is built. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
@@ -225,6 +225,66 @@ RLS enforces the workspace only, in the same `NULLIF` form as every other worksp
 - `GET /v1/calendar/reminders?from=<ISO>&to=<ISO>`: The viewer's reminders in the window (events they own or are mentioned on), for the WUI's pop-up timer. Read only.
 - `DELETE /v1/calendar/events/{id}`: Removes an event.
 
+### 6.1 Wire format
+
+Every route answers JSON. Times are RFC 3339 in UTC (`2026-10-05T09:00:00Z`); a request may send any zone, and the hub stores and answers UTC. A time that is not set reads as `""`, never `null`. Every list is an array, never `null`. Routes read the session's workspace, as every `/v1/view/*` route does.
+
+#### 6.1.1 The event object
+
+One shape for every item on the grid, whatever its `source`:
+
+| field | type | meaning |
+|---|---|---|
+| `id` | string | the event's UUID; the issue key (`SPL-12`) for an issue deadline; `official:<region>:<YYYY-MM-DD>` for an official day |
+| `source` | string | `event` (a `calendar_events` row), `issue` (an `issues.deadline`, read only here), `official_day` (read only) |
+| `title` | string | 1..200 characters |
+| `description` | string | 0..4000 characters; `""` for an official day |
+| `kind` | string | `release`, `deploy`, `maintenance`, `freeze`, `agent_task`, `reminder` or `other` for an `event`; `deadline` for an `issue`; `official_day` for an `official_day` |
+| `starts_at` | string | start; an issue deadline starts and ends at its deadline |
+| `ends_at` | string | end, never before `starts_at` |
+| `all_day` | boolean | an official day is `true`, from midnight UTC to the next midnight |
+| `audience` | string | `public`, `internal` or `private`; `issue` and `official_day` items are `public` |
+| `mentions` | string[] | human ids and agent ids named with `@` |
+| `creator_type` | string | `human`, `agent` or `system` (`system` for an `official_day`) |
+| `creator_id` | string | the event's owner: the human id or agent id that created it; the issue's creator for an `issue` |
+| `remind_at` | string | the pop-up time, `""` = no reminder |
+| `topic_id` | string | the linked topic, `""` = none |
+| `release_version` | string | the `v<X.Y.Z>` badge of a release event, `""` = none; no event is made per git tag |
+| `issue_key` | string | the issue for an `issue` item (equal to `id`), `""` otherwise |
+| `created_at` | string | `""` for an `official_day` |
+| `updated_at` | string | `""` for an `official_day` |
+
+A guest or demo session never receives an `internal` item; nobody receives a `private` item they neither own nor are mentioned on.
+
+#### 6.1.2 Routes
+
+| route | request | `200` / `201` answer |
+|---|---|---|
+| `GET /v1/calendar/events?start=&end=` | both required, `start < end`, at most 400 days | `{"start": "...", "end": "...", "events": [event...]}`: the `event`, `issue` and `official_day` items overlapping `[start, end)`, by `starts_at` then `id` |
+| `GET /v1/calendar/marks?start_year=&end_year=` | 4-digit years, `start_year <= end_year`, at most 5 years | `{"start_year": 2025, "end_year": 2027, "days": [{"day": "2026-10-05", "count": 2, "kinds": ["deadline", "release"]}], "official_days": [{"day": "2026-12-25", "title": "..."}]}`: `days` counts the `event` and `issue` items the viewer can read, per UTC day, oldest first, `kinds` sorted; `official_days` are the tints |
+| `GET /v1/calendar/reminders?from=&to=` | both required, `from < to`, at most 31 days | `{"from": "...", "to": "...", "reminders": [event...]}`: `event` items the viewer created or is mentioned on whose `remind_at` is in `[from, to)`, by `remind_at` |
+| `POST /v1/calendar/events` | the event body below; `title`, `starts_at`, `ends_at` required | `201 {"event": event}` |
+| `PATCH /v1/calendar/events/{id}` | the event body below; an absent field is left as it is | `200 {"event": event}` |
+| `DELETE /v1/calendar/events/{id}` | none | `200 {"event": event}`, the event as it was |
+
+The event body (create and `PATCH`) holds only these fields; any other field is `400 bad_json`:
+`title`, `description`, `kind` (default `other`), `starts_at`, `ends_at`, `all_day`, `audience` (default `public`), `mentions`, `remind_at` (`""` clears), `topic_id` (`""` clears), `release_version` (`""` clears). `source`, `creator_*`, `issue_key` and the stamps are the hub's. An issue deadline is edited through the issue's own `PATCH /v1/issues/{ref}`, never here.
+
+#### 6.1.3 Errors
+
+Every refusal is the hub's usual body `{"error": "<token>", "detail": "<plain English>"}`:
+
+| status | `error` | when |
+|---|---|---|
+| `400` | `bad_json` | the body is not an event body |
+| `400` | `bad_range` | a range parameter is missing, unparsable, reversed or too long |
+| `400` | `bad_event` | a field breaks a rule of section 5 (title length, kind, audience, times, `release_version`, a mention longer than 64 characters or more than 50 mentions) |
+| `403` | `private_owner_only` | a `PATCH` sets `audience` to or from `private` and the caller is not the event's owner (`creator_id`); an admin or the workspace owner gets this too (FR-010). A create is always by the event's owner, so a create may set `private` |
+| `403` | `demo_read_only` | a guest or demo session calls `POST`, `PATCH` or `DELETE` (they read public events only) |
+| `403` | `forbidden` | the role lacks a permission; this body also carries `"permission": "<perm>"` (spec 025): reads need `topics.read`, writes `notes.send` |
+| `404` | `not_found` | no such event, or a `private` event the caller may not read |
+| `503` | `calendar_unavailable` | this environment's database has no `calendar_events` yet (rdb 0125); reads then answer empty lists, never this |
+
 ---
 
 ## 7. User Stories
@@ -335,5 +395,6 @@ Owner HUM-10 on topic `819d8610`, msgs `f23094d6` and `69fc0cbc`, verbatim:
 | v0.2.0 | 2026-10-05 | a-270 | Folded owner scope correction (msg `e3d63084`) for general time coordination and personal reminders. |
 | v0.3.0 | 2026-10-05 | a-270 | Full consensus specification harmonized with grok peer `g-288` (opinion `63300b4cd`): simplified structure per owner msg `2a9ce886`, updated 155 KB budget ceiling, `tenants(tenant_id)` foreign key, custom Vue 36-month strip, Schedule-X / FullCalendar fallback, spool message reminders, single audience model, dialog event modal, and formal Consensus section. |
 | v0.4.0 | 2026-10-05 | c-275 | Owner decisions 2026-10-05 (section 1.1): audience `public` by default, `private` only by the owner explicitly (4.2); reminders are app-timer pop-ups with no agent, AI or spool message (4.3); schema `audience` + `mentions` replace `for_type`/`for_id`, `reminded` dropped, RLS policy back to the workspace-only form (no `app.human_id`/`app.agent_id` setting exists; the private filter moves to the store); questions answered; future scheduled-deploy item (11.1, msgs `f23094d6`, `69fc0cbc`); `tasks.md` added. |
+| v0.5.0 | 2026-10-05 | c-326 | Section 6.1 wire format: the one event object (`source` event / issue / official_day), the marks and reminders answers, the request body, and the refusal tokens (`private_owner_only`, `demo_read_only`). |
 
-<!-- version: 0.4.0 · updated: 2026-10-05 · last-edit: 2026-10-05T04:41:00Z -->
+<!-- version: 0.5.0 · updated: 2026-10-05 · last-edit: 2026-10-05T19:58:00Z -->

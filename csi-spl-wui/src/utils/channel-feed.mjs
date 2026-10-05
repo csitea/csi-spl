@@ -817,10 +817,13 @@ export function recipientOf(msg) {
  * avatar of the sender should be visible ... remove the receiver of the msg
  * and the -> char". The card header's recipient: none for a direct message
  * (no channel), the recipientOf for a channel or topic message.
+ * dc6d5e3f: none for a DM-view pointer either (utils/dm-pointer.mjs) - it is
+ * a line between the reader and the DM's agent, which the page already
+ * names, and the "-> recipient" wrapped its header at 390 px.
  */
 export function headerRecipientOf(msg) {
   const m = msg || {}
-  if (!String(m.channel || '').trim().replace(/^#/, '')) return null
+  if (m.pointer || !String(m.channel || '').trim().replace(/^#/, '')) return null
   return recipientOf(m)
 }
 

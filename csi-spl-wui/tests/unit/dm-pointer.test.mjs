@@ -27,3 +27,12 @@ describe('dm pointers', () => {
     assert.deepEqual(mockDmPointers(all, '', 'CLE-07'), [])
   })
 })
+
+describe('dm pointer header', () => {
+  it('a pointer card draws no "-> recipient" (its header is one line at 390 px)', async () => {
+    const { headerRecipientOf } = await import('../../src/utils/channel-feed.mjs')
+    assert.equal(headerRecipientOf(dmPointerRow(tag)), null)
+    /* CONTROL: the same line in its channel keeps its recipient */
+    assert.deepEqual(headerRecipientOf(tag), { id: 'CLE-07', box: 'box-wui' })
+  })
+})

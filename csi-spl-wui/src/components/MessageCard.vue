@@ -101,10 +101,7 @@
           :data-mirror-of="msg.mirror_of"
           :title="t('feed.via_dm')"
         >{{ t('feed.via_dm') }}</span>
-        <!-- dc6d5e3f: a DM-view pointer is between the reader and this DM's
-             agent, which the page already names - no "-> recipient", so its
-             header stays one line at 390 px -->
-        <template v-if="recipient && !msg.pointer">
+        <template v-if="recipient">
           <span class="msg-to-arrow" aria-hidden="true">→</span>
           <SpoolAvatar class="avatar--to" :id="recipient.id" :box="recipient.box" :size="20" />
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />

@@ -31,7 +31,7 @@ function measureFit(table: HTMLElement, col: string): number {
     }
     need = Math.max(need, el.getBoundingClientRect().width + over)
   }
-  cells.forEach((el, i) => { el.style.cssText = saved[i] })
+  for (const [i, el] of cells.entries()) el.style.cssText = saved[i]
   return need
 }
 

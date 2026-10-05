@@ -140,7 +140,9 @@ export function peerHidden(map, label, lastDm = '') {
 export function pinRows(rows, pins, keyOf) {
   const order = Array.isArray(pins) ? pins.map((l) => String(l)) : []
   const rank = new Map()
-  order.forEach((label, i) => { if (label && !rank.has(label)) rank.set(label, i) })
+  for (const [i, label] of order.entries()) {
+    if (label && !rank.has(label)) rank.set(label, i)
+  }
   const labelOf = typeof keyOf === 'function'
     ? keyOf
     : (row) => String((row && row.label) || '')

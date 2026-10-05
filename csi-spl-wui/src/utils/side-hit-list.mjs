@@ -35,12 +35,12 @@ export function cycleIndex(i, n, key) {
  */
 export function groupRuns(items) {
   const runs = []
-  ;(items || []).forEach((item, index) => {
+  for (const [index, item] of (items || []).entries()) {
     const group = String(item.group || '')
     const last = runs[runs.length - 1]
     if (last && last.group === group) last.items.push({ item, index })
     else runs.push({ group, items: [{ item, index }] })
-  })
+  }
   return runs
 }
 

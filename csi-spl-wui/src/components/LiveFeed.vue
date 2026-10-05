@@ -286,18 +286,21 @@ const feedItems = computed<FeedItem[]>(() => {
   if (!props.holdScroll || !hiddenCards.ids.value.length) return items
   return collapseHiddenRuns(items, hiddenCards.isHidden) as FeedItem[]
 })
+/* One card per shown message, with the seat divider ahead of the new divider
+   before the card they mark; newest-first (newestLast false) flips that, so
+   the dividers follow the card in reverse order. */
 const feedRows = computed<FeedItem[]>(() => {
   const out: FeedItem[] = []
   const fid = firstNewId.value
   const sid = seatId.value
-  shown.value.forEach((m, i) => {
+  for (const [i, m] of shown.value.entries()) {
     const before: FeedItem[] = []
     if (sid && m.msg_id === sid) before.push({ key: '__seat-divider__', seat: true, i: -1 })
     if (fid && m.msg_id === fid) before.push({ key: '__new-divider__', divider: true, i: -1 })
     const card: FeedItem = { key: String(m.msg_id), msg: m, i }
     if (newestLast.value) out.push(...before, card)
     else out.push(card, ...before.reverse())
-  })
+  }
   return out
 })
 

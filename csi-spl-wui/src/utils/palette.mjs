@@ -73,12 +73,17 @@ export function matchTier(item, query) {
   return best
 }
 
+/**
+ * id -> its first (newest) position in `recent`; non-strings are skipped.
+ * @param {unknown} recent
+ * @returns {Map<string, number>}
+ */
 function recentRanks(recent) {
   const ranks = new Map()
   if (!Array.isArray(recent)) return ranks
-  recent.forEach((id, i) => {
+  for (const [i, id] of recent.entries()) {
     if (typeof id === 'string' && !ranks.has(id)) ranks.set(id, i)
-  })
+  }
   return ranks
 }
 

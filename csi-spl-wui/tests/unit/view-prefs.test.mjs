@@ -122,7 +122,7 @@ describe('displayOrder', () => {
     /* CLE-77804: the loop is over feedItems (rows + the interleaved divider),
        but its order still comes from `shown`, itself displayOrder(props.rows). */
     assert.match(feed, /v-for="it in feedItems"/)
-    assert.match(feed, /shown\.value\.forEach\(\(m, i\)/)
+    assert.match(feed, /for \(const \[i, m\] of shown\.value\.entries\(\)\)/)
     assert.match(feed, /displayOrder\(props\.rows/)
   })
 })

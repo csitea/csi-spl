@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -190,38 +191,124 @@ func (s *Postgres) ArchivedCards(ctx context.Context, tenant string, q ArchivedQ
 }
 
 func (s *Postgres) TopicReplies(ctx context.Context, tenant string, msgIDs, ownTasks []string) (map[string]int, error) {
+	var cards, owns []string
+	for i, id := range msgIDs {
+		own := ""
+		if i < len(ownTasks) {
+			own = ownTasks[i]
+		}
+		if canonUUIDRe.MatchString(id) && (own == "" || canonUUIDRe.MatchString(own)) {
+			cards, owns = append(cards, id), append(owns, own)
+		}
+	}
 	out := map[string]int{}
-	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		for i, id := range msgIDs {
-			own := ""
-			if i < len(ownTasks) {
-				own = ownTasks[i]
+	sets, err := s.walkTopics(ctx, tenant, cards, owns)
+	if err != nil {
+		return out, err
+	}
+	for i, id := range cards {
+		out[id] = sets[i].Replies()
+	}
+	return out, nil
+}
+
+// topicRowsSQL is walkTopic's next for the tasks $2, with each row's
+// parent_task_id, so one read serves every card whose frontier holds one of
+// them.
+const topicRowsSQL = `SELECT msg_id::text, task_id::text, COALESCE(parent_task_id::text, ''), received_at FROM messages
+		WHERE tenant_id = $1 AND (task_id = ANY($2::uuid[]) OR parent_task_id = ANY($2::uuid[]))`
+
+// topicRow is one messages row as the walk sees it.
+type topicRow struct {
+	msgID, taskID string
+	at            time.Time
+}
+
+// topicCache holds, for every task read so far, the rows whose task_id or
+// parent_task_id is that task.
+type topicCache map[string][]topicRow
+
+// errTopicMiss stops a walk at a task the cache has not read yet.
+var errTopicMiss = errors.New("topic walk: task not read yet")
+
+// next is walkTopic's next served from the cache, in topicTx's order
+// (received_at, msg_id). It adds the tasks it lacks to miss and then answers
+// errTopicMiss.
+func (c topicCache) next(tasks []string, miss map[string]bool) ([][2]string, error) {
+	var rows []topicRow
+	seen, missed := map[string]bool{}, false
+	for _, t := range tasks {
+		got, ok := c[t]
+		if !ok {
+			miss[t], missed = true, true
+		}
+		for _, r := range got {
+			if !seen[r.msgID] {
+				seen[r.msgID] = true
+				rows = append(rows, r)
 			}
-			if !canonUUIDRe.MatchString(id) || (own != "" && !canonUUIDRe.MatchString(own)) {
-				continue
+		}
+	}
+	if missed {
+		return nil, errTopicMiss
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if !rows[i].at.Equal(rows[j].at) {
+			return rows[i].at.Before(rows[j].at)
+		}
+		return rows[i].msgID < rows[j].msgID
+	})
+	out := make([][2]string, len(rows))
+	for i, r := range rows {
+		out[i] = [2]string{r.msgID, r.taskID}
+	}
+	return out, nil
+}
+
+// walkTopics runs walkTopic for every card against one topicCache. Each pass
+// replays every walk from the cache and reads all the tasks they missed in
+// ONE statement, so a page of cards costs one round trip per level of its
+// deepest topic, not two per card (perf E09: 3 + 2k round trips before).
+// first is queued in the first read's batch. No transaction: under READ
+// COMMITTED each statement took its own snapshot inside one too.
+func (s *Postgres) walkTopics(ctx context.Context, tenant string, cards, owns []string, first ...tenantRead) ([]TopicSet, error) {
+	cache, sets := topicCache{}, make([]TopicSet, len(cards))
+	for {
+		miss := map[string]bool{}
+		for i, card := range cards {
+			set, err := walkTopic(card, owns[i], func(tasks []string) ([][2]string, error) { return cache.next(tasks, miss) })
+			if err != nil && !errors.Is(err, errTopicMiss) {
+				return nil, err
 			}
-			set, err := walkTopic(id, own, func(tasks []string) ([][2]string, error) {
-				var rows [][2]string
-				err := eachRow(ctx, tx, `SELECT msg_id::text, task_id::text FROM messages
-					WHERE tenant_id = $1 AND (task_id = ANY($2::uuid[]) OR parent_task_id = ANY($2::uuid[]))`,
-					[]any{tenant, tasks}, func(r pgx.Rows) error {
-						var p [2]string
-						if err := r.Scan(&p[0], &p[1]); err != nil {
-							return err
-						}
-						rows = append(rows, p)
-						return nil
-					})
-				return rows, err
-			})
-			if err != nil {
+			sets[i] = set
+		}
+		if len(miss) == 0 {
+			return sets, nil
+		}
+		tasks := make([]string, 0, len(miss))
+		for t := range miss {
+			tasks = append(tasks, t)
+			cache[t] = nil
+		}
+		read := tenantRead{sql: topicRowsSQL, args: []any{tenant, tasks}, each: func(rows pgx.Rows) error {
+			var r topicRow
+			var parent string
+			if err := rows.Scan(&r.msgID, &r.taskID, &parent, &r.at); err != nil {
 				return err
 			}
-			out[id] = set.Replies()
+			if miss[r.taskID] {
+				cache[r.taskID] = append(cache[r.taskID], r)
+			}
+			if parent != r.taskID && miss[parent] {
+				cache[parent] = append(cache[parent], r)
+			}
+			return nil
+		}}
+		if err := s.queryTenantBatch(ctx, tenant, append(first, read)...); err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	return out, err
+		first = nil
+	}
 }
 
 // topicArchivedSQL is archivedTopicHideSQL's row for one task ($1 tenant,

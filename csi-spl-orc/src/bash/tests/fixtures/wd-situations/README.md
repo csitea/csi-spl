@@ -1,0 +1,14 @@
+# wd-situations fixtures
+
+Pane screens for `wd-situations.tst.sh` (spec 093 section 6). Each is read as
+the `pane` file of a situation script's context dir. The 2026-10-05 login
+screen and its transcripts are T001's, read from `../fleet-lease/`.
+
+| file | what it is | used by |
+|---|---|---|
+| `modal-auto-mode.pane` | the auto-mode offer as a dialog below the transcript | S7 hit (modal=1) |
+| `modal-mention.pane` | the same words quoted in the transcript, idle prompt below | S7 control: no hit |
+| `trust.pane` | the trust screen (a blocking screen, no Escape) | S7 hit (modal=0) |
+| `working.pane` | a turn in progress: the spinner `(12s · ...)` | S2 / S1 spinner rows |
+| `limit-reset.pane` | a usage-limit banner with a reset time, idle | S2 kind=limit |
+| `idle.pane` | an idle pane with an empty input box | S3, S1 controls |

@@ -1,0 +1,366 @@
+#!/usr/bin/env bash
+#------------------------------------------------------------------------------
+# Purpose: the box watchdog of spec 093 section 6 (T004): the situation
+#          scripts s1..s8, do_spl_watchdog and do_spl_wd_hold, in a sandbox.
+#          Every fixture has a control that flips one input and DOES fire
+#          (FR-011), so no case passes vacuously. Nothing real is touched:
+#          processes are a ps stub + a fake /proc (LEASE_PROC_ROOT), tmux is a
+#          stub keeping panes in files, spool-send.sh and the takeover are
+#          stubs that log, the clock is LEASE_NOW. The action runs under
+#          ./run's `set -E` + an ERR trap that ends the run.
+#   1. S1..S8: one fixture that hits and one control that does not, per
+#      situation of 6.1 (the scripts read only their context dir)
+#   2. the false positives of 6.2, each with its control: a 14 min Bash call,
+#      a 50 min Monitor, an idle agent with an empty inbox, a stale stub on a
+#      seat, a long turn with a moving spinner, a stale login banner after
+#      /login, a lane that finished (its workdir gone)
+#   3. a tick: one verdict line per agent, wd.<id> written, windows of
+#      another box and of a retiring session skipped
+#   4. debounce + actions: S3 pending on tick 1, takeover on tick 2; a dry run
+#      only says "would"; S2 never takes over and sends ONE blocker; S1 rings
+#      at 120 s and takes over at 240 s; S4 Escape, then takeover 60 s later
+#   5. the guards of 6.2 at tick level, each with its control: a human client
+#      active, do_spl_wd_hold (and MIN=0 lifting it), an id under rotation,
+#      a fresh session in its grace, a box back from a 2 h gap
+#   6. the limits of 6.3: two takeovers per id per hour; the third is not done,
+#      the id is held out and ONE blocker goes to the orchestrator
+#   7. FR-014: a situation script that sleeps 60 s costs the tick at most its
+#      timeout; the other scripts' verdicts are written
+#------------------------------------------------------------------------------
+set -uo pipefail
+TEST_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=test-lib.inc.sh
+source "$TEST_DIR/test-lib.inc.sh"
+fails=0
+command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
+SIT="$PROJ_ROOT/src/bash/features/watchdog/situations"
+FX="$TEST_DIR/fixtures/wd-situations"
+FL="$TEST_DIR/fixtures/fleet-lease"
+T0=1800000000   # 2027-01-15T08:00:00Z
+iso() { date -u -d "@$1" +%FT%TZ; }
+
+# ---- 1 + 2: the scripts on context dirs ---------------------------------------
+# ctx <name>: a fresh context dir at T0; then write its files
+ctx() { C="$T/ctx/$1"; rm -rf "$C"; mkdir -p "$C"; echo "$T0" > "$C/now"; }
+hb() {  # hb <state> <progress age> [jq extra]: a heartbeat.json in $C
+  jq -n --arg st "$1" --arg p "$(iso $((T0 - $2)))" --arg ts "$(iso $((T0 - ${4:-0})))" \
+    "{v: 1, id: \"c-900\", state: \$st, ts: \$ts, progress_ts: \$p, tool: null, tool_since: null, api_error: null, calls: []} ${3:-}" \
+    > "$C/heartbeat"
+}
+run_s() { WD_CTX="$C" bash "$SIT/$1.sh" "${2:-c-900}" "${3:-4242}" "${4:-%9}"; }
+hit() {  # hit <desc> <script> [args]: the script prints HIT
+  local out; out="$(run_s "${@:2}")"
+  if [[ "$out" == "HIT ${2^^} "* ]]; then pass "$1"; else fail "$1 (got: '$out')"; fi
+}
+nohit() {
+  local out; out="$(run_s "${@:2}")"
+  if [[ -z "$out" ]]; then pass "$1"; else fail "$1 (got: '$out')"; fi
+}
+
+# S1: lanes - an inbox file newer than the last progress, waiting > 120 s
+ctx s1; hb idle 600; echo "$((T0 - 130)) m1.json" > "$C/inbox"
+hit "S1 a lane's message waits 130 s past its last progress" s1
+grep -q 'age=130' <<<"$(run_s s1)" && pass "S1 reports the wait (age=130)" || fail "S1 age"
+ctx s1c; hb idle 600; echo "$((T0 - 90)) m1.json" > "$C/inbox"
+nohit "S1 control: the message waits 90 s only" s1
+# 6.2: an idle agent with an empty inbox; control: one message waits
+ctx s1e; hb idle 7200
+nohit "6.2 idle agent with an empty inbox: no S1 (2 h silent)" s1
+echo "$((T0 - 300)) m2.json" > "$C/inbox"
+hit "6.2 control: the same idle agent with a waiting message" s1
+# 6.2: a message older than the last progress (read and handled) is not waiting
+ctx s1r; hb idle 200; echo "$((T0 - 900)) old.json" > "$C/inbox"
+nohit "S1: an inbox file older than the last progress is handled, not waiting" s1
+# 6.2: a stale stub on an idle seat; control: the seat holds a job and is stale
+ctx s1s; hb idle 3600; echo c-001 > "$C/seat"; echo "$((T0 - 900)) stub.json" > "$C/inbox"
+nohit "6.2 stale stub in an idle seat's inbox: no S1 (seats read the held set)" s1 c-001
+printf 'm9 3\n' > "$C/held"
+hit "6.2 control: the seat holds a job while stale" s1 c-001
+# 6.2: a long turn whose spinner moves; control: the spinner is frozen
+ctx s1t; hb working 200; echo "$((T0 - 150)) m3.json" > "$C/inbox"; echo 3 > "$C/spin_age"
+nohit "6.2 long turn, spinner moving, progress 200 s ago: fresh, no S1" s1
+echo 300 > "$C/spin_age"
+hit "6.2 control: the same turn with a spinner frozen 300 s" s1
+# 6.2: the spinner extends fresh by ONE extra 120 s only
+ctx s1u; hb working 260; echo "$((T0 - 150)) m3.json" > "$C/inbox"; echo 3 > "$C/spin_age"
+hit "5.3: a moving spinner 260 s after the last progress is no longer fresh" s1
+
+# S2: the login screen of 2026-10-05 (T001's fixture)
+ctx s2; cp "$FL/login-expired-2026-10-05.pane" "$C/pane"; cp "$FL/login-expired.jsonl" "$C/transcript"
+hit "S2 the 2026-10-05 login screen (transcript's last entry an API error)" s2
+grep -q 'kind=login' <<<"$(run_s s2)" && pass "S2 names it a login (owner DM path)" || fail "S2 kind"
+# 6.2 stale banner after /login: the transcript's last entry is a good turn
+ctx s2c; cp "$FL/login-expired-2026-10-05.pane" "$C/pane"; cp "$FL/good-turn.jsonl" "$C/transcript"
+nohit "6.2 stale Login banner after a good turn: no S2" s2
+ctx s2h; hb idle 900 '| .api_error = "Login expired · Please run /login"'
+hit "S2 from the heartbeat's api_error (no pane)" s2
+ctx s2l; cp "$FX/limit-reset.pane" "$C/pane"
+hit "S2 a usage-limit banner, no spinner, no transcript" s2
+grep -q 'kind=limit.*resets' <<<"$(run_s s2)" && pass "S2 names a limit with its reset (no DM)" || fail "S2 limit kind"
+ctx s2w; cp "$FX/limit-reset.pane" "$C/pane"; echo 2 > "$C/spin_age"
+nohit "S2 control: the same banner under a moving spinner (working)" s2
+ctx s2o; echo '{"type":"assistant","timestamp":"2027-01-15T07:59:00Z","isApiErrorMessage":true,"message":{"content":[{"type":"text","text":"API Error: 529 overloaded"}]}}' > "$C/transcript"
+nohit "S2 control: an API error that is not a login or a limit" s2
+
+# S3: a bare shell in the agent's window
+ctx s3; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"
+hit "S3 the window runs only bash, no harness process" s3 c-900 -
+ctx s3c; cp "$FX/idle.pane" "$C/pane"; echo sh > "$C/fg"; printf 'sh\nsudo\nclaude\n' > "$C/tree"
+nohit "S3 control: a claude runs under the pane (its environ unreadable)" s3 c-900 -
+nohit "S3 control: a live pid carries the id" s3 c-900 4242
+ctx s3f; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; echo /opt/x/c-900 > "$C/rundir_gone"
+nohit "S3 control: a lane that tore down its workdir and exited (finished)" s3 c-900 -
+
+# S4: one tool call over its cap; 6.2 the 14 min Bash call and the 50 min Monitor
+ctx s4; hb in-tool 0 "| .tool = \"Bash\" | .tool_since = \"$(iso $((T0 - 960)))\""
+hit "S4 a Bash call 16 min long (cap 15)" s4
+ctx s4b; hb in-tool 0 "| .tool = \"Bash\" | .tool_since = \"$(iso $((T0 - 840)))\""
+nohit "6.2 a 14 min Bash call is not stuck" s4
+WD_CTX="$C" WD_NOW="$T0" bash -c ". '$SIT/lib.inc.sh' c-900 1 -; WD_NOW=$T0; wd_fresh" && pass "5.3 the 14 min Bash call is fresh (in-tool within its cap)" || fail "14 min Bash fresh"
+ctx s4m; hb in-tool 0 "| .tool = \"Monitor\" | .tool_since = \"$(iso $((T0 - 3000)))\""
+nohit "6.2 a 50 min Monitor is not stuck" s4
+ctx s4n; hb in-tool 0 "| .tool = \"Monitor\" | .tool_since = \"$(iso $((T0 - 3700)))\""
+hit "6.2 control: a Monitor past its 60 min cap" s4
+ctx s4w; hb in-tool 0 "| .tool = \"WebFetch\" | .tool_since = \"$(iso $((T0 - 400)))\""
+hit "S4 a WebFetch over its 5 min cap" s4
+
+# S5: the same call with the same result 5 times in the last 8
+calls() { jq -nc --argjson n "$1" --argjson m "$2" '[range(0; $m) | {sig: "aa11", res: "x1", ts: "2027-01-15T07:5\(.)"}] + [range(0; $n) | {sig: "bb22", res: "y2", ts: "2027-01-15T07:59:0\(.)"}]'; }
+ctx s5; hb working 10 "| .calls = $(calls 5 3)"
+hit "S5 five repeats of the newest call in the last 8" s5
+ctx s5c; hb working 10 "| .calls = $(calls 4 4)"
+nohit "S5 control: four repeats" s5
+
+# S6: unsent text in the input box
+ctx s6; hb idle 900; echo ": 'SPOOL c-900: 1 new message (task 9b3e7d10)'" > "$C/input"; echo 150 > "$C/input_age"
+hit "S6 a poke line sat 150 s in an idle agent's box" s6
+grep -q 'poke=1' <<<"$(run_s s6)" && pass "S6 names it poke-shaped" || fail "S6 poke=1"
+echo 30 > "$C/client_age"
+nohit "6.2 a human client active 30 s ago: no S6" s6
+ctx s6h; hb idle 900; echo "please also check the wui" > "$C/input"; echo 400 > "$C/input_age"
+grep -q 'poke=0' <<<"$(run_s s6)" && pass "S6 other text is poke=0 (never cleared)" || fail "S6 poke=0"
+ctx s6c; hb idle 900; echo "x" > "$C/input"; echo 60 > "$C/input_age"
+nohit "S6 control: text held 60 s" s6
+
+# S7: a modal dialog
+ctx s7; cp "$FX/modal-auto-mode.pane" "$C/pane"
+hit "S7 the auto-mode offer as a dialog" s7
+grep -q 'modal=1' <<<"$(run_s s7)" && pass "S7 the offer is dismissable (modal=1)" || fail "S7 modal=1"
+ctx s7c; cp "$FX/modal-mention.pane" "$C/pane"
+nohit "S7 control: the same words quoted in the transcript above the prompt" s7
+ctx s7t; cp "$FX/trust.pane" "$C/pane"
+grep -q '^HIT S7 modal=0' <<<"$(run_s s7)" && pass "S7 the trust screen blocks (modal=0: no Escape)" || fail "S7 trust"
+
+# S8: the hook is silent
+tr_ok() { printf '{"type":"assistant","timestamp":"%s","message":{"content":[{"type":"text","text":"ok"}]}}\n' "$(iso $((T0 - $1)))"; }
+ctx s8; tr_ok 60 > "$C/transcript"
+hit "S8 transcript progress 60 s ago, no heartbeat.json" s8
+ctx s8c; tr_ok 60 > "$C/transcript"; hb working 60
+nohit "S8 control: the heartbeat moved with it" s8
+ctx s8o; tr_ok 60 > "$C/transcript"; hb working 900 "" 900
+hit "S8 a heartbeat 900 s old while the transcript progresses" s8
+ctx s8i; tr_ok 3600 > "$C/transcript"
+nohit "S8 control: an idle agent (no progress for an hour) is not a gap" s8
+
+# ---- 3..7: the watchdog -----------------------------------------------------------
+S="$T/spool"; D="$S/dispatch"
+mkdir -p "$T/bin" "$T/proc" "$T/tmux" "$D" "$S/peer"
+printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\nSPOOL_BOX_TAG=box1\nSPOOL_DESK_BOX=box1\n' "$(id -un)" "$(id -un)" > "$S/box.env"
+# ps: "$T/ps" lines "pid ppid etimes comm"
+printf '#!/usr/bin/env bash\ncat "%s/ps"\n' "$T" > "$T/bin/ps"
+# tmux: panes "$T/tmux/panes" as "<pane>\t<pane_pid>\t<session>\t<window>\t<fg>";
+# screens "$T/tmux/screen.<pane>"; input "$T/tmux/input.<pane>"; keys logged
+cat > "$T/bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+P="$T/tmux/panes"; cmd="$1"; shift; tgt="" esc=0
+while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -e) esc=1; shift ;; -F) shift 2 ;; -a|-p) shift ;; *) a="$1"; shift ;; esac; done
+case "$cmd" in
+  list-panes) cat "$P" ;;
+  list-clients) cat "$T/tmux/clients" 2>/dev/null ;;
+  capture-pane) [ -f "$T/tmux/screen.$tgt" ] || exit 1; cat "$T/tmux/screen.$tgt"
+    if [ "$esc" = 1 ]; then printf '────────\n❯ %s\n────────\n' "$(cat "$T/tmux/input.$tgt" 2>/dev/null)"; fi ;;
+  send-keys) echo "keys $tgt $a" >> "$T/tmux/log" ;;
+esac
+EOF
+cat > "$T/bin/send" <<'EOF'
+#!/usr/bin/env bash
+echo "send $*" >> "$T/sent"
+EOF
+cat > "$T/bin/takeover" <<'EOF'
+#!/usr/bin/env bash
+echo "takeover $ID $REASON" >> "$T/takeovers"
+EOF
+chmod +x "$T/bin/"*
+export T
+proc() {  # proc <pid> <id> [comm]: a live process carrying SPOOL_AGENT_ID=<id>
+  mkdir -p "$T/proc/$1"; printf 'SPOOL_AGENT_ID=%s\0' "$2" > "$T/proc/$1/environ"
+}
+reset_box() {
+  unset NOW
+  rm -rf "$D" "$S"/c-* "$T/sent" "$T/takeovers" "$T/tmux/log" "$T/proc"; mkdir -p "$D" "$T/proc"
+  : > "$T/ps"; : > "$T/tmux/panes"; : > "$T/tmux/clients"
+}
+# agent <id> <pane> <pid|-> [comm] [age] [screen]: a window, maybe a process
+agent() {
+  local id="$1" pane="$2" pid="$3" comm="${4:-claude}" age="${5:-3600}" scr="${6:-$FX/idle.pane}" shellpid
+  shellpid=$(( ${pane#%} + 5000 ))
+  mkdir -p "$S/$id/inbox"
+  printf '%s\t%s\t$1\t%s@box1 a lane\t%s\n' "$pane" "$shellpid" "$id" "sh" >> "$T/tmux/panes"
+  echo "$shellpid 1 $age sh" >> "$T/ps"
+  cp "$scr" "$T/tmux/screen.$pane"
+  if [[ "$pid" != - ]]; then echo "$pid $shellpid $age $comm" >> "$T/ps"; proc "$pid" "$id"; fi
+}
+transcript_stub() { printf '#!/usr/bin/env bash\ncat "%s/tr.$1" 2>/dev/null\n' "$T" > "$T/bin/tr"; chmod +x "$T/bin/tr"; }
+transcript_stub
+# wd: one tick of do_spl_watchdog under ./run's set -E + ERR trap
+wd() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" \
+    WD_PS_CMD="$T/bin/ps" ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" WD_TAKEOVER_CMD="$T/bin/takeover" \
+    LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="${NOW:-$T0}" WD_TICKS=1 WD_TICK="${TICK:-100}" DRY_RUN="${DRY:-0}" bash -c '
+    set -E; trap "echo ERR-TRAP: \$BASH_COMMAND; exit 9" ERR
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
+    source "$PROJ_PATH/src/bash/run/spl-wd-hold.func.sh"
+    do_spl_watchdog' 2>&1 | tee -a "$T/all.out"
+}
+settle() { for _ in $(seq 1 20); do [[ -s "$T/takeovers" ]] && return; sleep 0.1; done; }
+
+# 3. a tick: one line per agent, wd.<id>, other boxes and retiring windows skipped
+reset_box
+agent c-901 %1 4001; agent c-902 %2 4002
+printf '%%3\t6003\t$1\tc-903@box2 remote lane\tssh\n%%4\t6004\t$1\tc-901-2009Z-retiring\tsh\n' >> "$T/tmux/panes"
+out="$(wd)"
+[[ "$(grep -c '^c-90[12] OK' <<<"$out")" == 2 ]] && pass "3 one OK line per live agent" || fail "3 lines: $out"
+grep -q 'c-903\|retiring' <<<"$out" && fail "3 a window of another box or a retiring one was checked: $out" || pass "3 another box's window and a retiring window are not checked"
+[[ "$(cut -f1 "$D/wd/tick/agents" | tr '\n' ' ')" == "c-901 c-902 " ]] && pass "3 the agent list is exactly the two local agents" || fail "3 agents: $(cat "$D/wd/tick/agents")"
+grep -q 'ERR-TRAP' <<<"$out" && fail "3 the ERR trap fired: $out" || pass "3 the tick runs clean under set -E + ERR trap"
+[[ "$(cat "$D/wd.c-901")" == "OK $T0" ]] && pass "3 wd.c-901 reads 'OK <epoch>'" || fail "3 wd file: $(cat "$D/wd.c-901" 2>/dev/null)"
+grep -q "c-901 OK" "$D/wd.log" && pass "3 the verdict line is in wd.log" || fail "3 wd.log"
+
+# 3. an agent outside any agent window is found by its process, its pane by
+# the process tree; the tick does not wait for ./run's tee process substitution
+reset_box; agent c-905 %5 4005
+printf '%%5\t5005\t$1\tbash\tsh\n' > "$T/tmux/panes"
+out="$(wd)"
+grep -qx "c-905	4005	%5" "$D/wd/tick/agents" && grep -q '^c-905 OK' <<<"$out" && pass "3 a process-only agent is checked in its pane (ppid chain)" || fail "3 proc-only: $(cat "$D/wd/tick/agents") / $out"
+s0=$SECONDS
+env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc" WD_PS_CMD="$T/bin/ps" \
+  ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" LEASE_TRANSCRIPT_CMD="$T/bin/tr" LEASE_NOW="$T0" WD_TICKS=1 bash -c '
+  do_log() { echo "$*"; }
+  exec > >(cat) 2> >(sleep 60)
+  source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; do_spl_watchdog' >/dev/null 2>&1
+(( SECONDS - s0 < 20 )) && pass "3 a tick under a long-lived process substitution ends ($((SECONDS - s0))s)" || fail "3 the tick waited for a process substitution ($((SECONDS - s0))s)"
+
+# 4. S3: pending on tick 1, takeover on tick 2; a dry run only says would
+reset_box; agent c-911 %1 -
+NOW=$T0 out1="$(wd)"; NOW=$((T0 + 30)) out2="$(DRY=1 wd)"
+grep -q 'c-911 OK (pending S3 1/2' <<<"$out1" && pass "4 S3 is pending on its first tick (debounce 2)" || fail "4 pending: $out1"
+grep -q 'c-911 HIT S3 .*would takeover (dry run)' <<<"$out2" && pass "4 tick 2: HIT S3, a dry run only says 'would takeover'" || fail "4 dry: $out2"
+[[ ! -s "$T/takeovers" ]] && pass "4 the dry run took nobody over" || fail "4 dry run took over"
+[[ "$(cat "$D/wd.c-911")" == "HIT S3 $((T0 + 30))" ]] && pass "4 wd.c-911 reads 'HIT S3 <epoch>'" || fail "4 wd: $(cat "$D/wd.c-911")"
+NOW=$((T0 + 60)) out3="$(wd)"; settle
+grep -q 'c-911 HIT S3 .*-> takeover$' <<<"$out3" && grep -qx 'takeover c-911 S3' "$T/takeovers" && pass "4 DRY_RUN=0: S3 takes over (ID + REASON)" || fail "4 takeover: $out3 / $(cat "$T/takeovers" 2>/dev/null)"
+NOW=$((T0 + 90)) wd >/dev/null
+[[ "$(grep -c . "$T/takeovers")" == 1 ]] && pass "4 one takeover per episode" || fail "4 twice: $(cat "$T/takeovers")"
+
+# S2 never takes over; ONE blocker to the orchestrator
+reset_box; agent c-912 %1 4012 claude 3600 "$FL/login-expired-2026-10-05.pane"; cp "$FL/login-expired.jsonl" "$T/tr.4012"
+for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done
+grep -q 'c-912 HIT S2 kind=login' <<<"$out" && pass "4 S2 on the login screen" || fail "4 S2: $out"
+[[ ! -s "$T/takeovers" ]] && pass "4 S2 never takes over (4 ticks)" || fail "4 S2 took over"
+[[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-912' "$T/sent")" == 1 ]] && pass "4 S2 sends ONE blocker to the orchestrator" || fail "4 S2 sends: $(cat "$T/sent" 2>/dev/null)"
+grep -q 'box box1, pane %1' "$T/sent" && pass "4 the blocker names the box and the pane" || fail "4 blocker text"
+
+# S1 rings at 120 s, takes over at 240 s (control: 90 s does nothing)
+reset_box; agent c-913 %1 4013
+echo '{"type":"assistant","timestamp":"2027-01-15T07:00:00Z","message":{"content":[{"type":"text","text":"done"}]}}' > "$T/tr.4013"
+touch -d "@$((T0 - 90))" "$S/c-913/inbox/m.json"
+out="$(wd)"
+grep -q 'c-913 OK' <<<"$out" && [[ ! -s "$T/sent" ]] && pass "4 S1 control: a message 90 s old, no ring" || fail "4 S1 90: $out"
+NOW=$((T0 + 40)) out="$(wd)"
+grep -q 'c-913 HIT S1 age=130 .*-> ring' <<<"$out" && grep -q -- '--poke-only --from .* --to c-913' "$T/sent" && pass "4 S1 rings at 130 s" || fail "4 S1 ring: $out"
+NOW=$((T0 + 160)) out="$(wd)"; settle
+grep -qx 'takeover c-913 S1' "$T/takeovers" && pass "4 S1 takes over at 250 s" || fail "4 S1 takeover: $out"
+
+# S4: Escape, then takeover 60 s later
+reset_box; agent c-914 %1 4014
+jq -n --arg s "$(iso $((T0 - 1000)))" '{v: 1, state: "in-tool", ts: $s, progress_ts: $s, tool: "Bash", tool_since: $s, calls: []}' > "$S/c-914/heartbeat.json"
+out="$(wd)"
+grep -q 'c-914 HIT S4 .*-> esc$' <<<"$out" && grep -qx 'keys %1 Escape' "$T/tmux/log" && pass "4 S4 sends Escape once" || fail "4 S4 esc: $out"
+NOW=$((T0 + 30)) out="$(wd)"
+[[ "$(grep -c Escape "$T/tmux/log")" == 1 && ! -s "$T/takeovers" ]] && pass "4 S4 30 s later: no second Escape, no takeover yet" || fail "4 S4 30: $out"
+NOW=$((T0 + 60)) out="$(wd)"; settle
+grep -qx 'takeover c-914 S4' "$T/takeovers" && pass "4 S4 still in the call 60 s later: takeover" || fail "4 S4 takeover: $out"
+
+# 5. guards, each with its control
+reset_box; agent c-921 %1 -
+echo "\$1 $((T0 - 20))" > "$T/tmux/clients"
+NOW=$T0 wd >/dev/null; out="$(NOW=$((T0 + 30)) wd)"
+grep -q 'c-921 HIT S3 .*would takeover (a human client was active' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "5 a human client active: no takeover" || fail "5 human: $out"
+: > "$T/tmux/clients"
+out="$(NOW=$((T0 + 60)) WD_NOW=$((T0 + 60)) ID=c-921 MIN=10 bash -c "source '$PROJ_ROOT/src/bash/run/spl-wd-hold.func.sh'; do_log() { echo \"\$*\"; }; SPOOL_ROOT='$S' do_spl_wd_hold")"
+[[ "$(cat "$S/c-921/.human-hold")" == "$((T0 + 660))" ]] && pass "5 do_spl_wd_hold writes the hold's end" || fail "5 hold file: $out"
+out="$(NOW=$((T0 + 60)) wd)"
+grep -q 'would takeover (human hold for 10 min)' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "5 a human hold: no takeover" || fail "5 hold: $out"
+ID=c-921 MIN=0 bash -c "source '$PROJ_ROOT/src/bash/run/spl-wd-hold.func.sh'; do_log() { :; }; SPOOL_ROOT='$S' do_spl_wd_hold"
+out="$(NOW=$((T0 + 90)) wd)"; settle
+[[ ! -e "$S/c-921/.human-hold" ]] && grep -qx 'takeover c-921 S3' "$T/takeovers" && pass "5 control: hold lifted (MIN=0), the takeover runs" || fail "5 lifted: $out"
+# rotation: rotate.hold names the id; control: it names another id
+reset_box; agent c-922 %1 -
+echo "c-922 $((T0 - 60)) r1" > "$D/rotate.hold"
+out="$(wd)"
+grep -q 'c-922 SKIP rotation' <<<"$out" && pass "5 an id under rotation is skipped" || fail "5 rotation: $out"
+echo "c-999 $((T0 - 60)) r1" > "$D/rotate.hold"
+out="$(wd)"
+grep -q 'c-922 OK (pending S3' <<<"$out" && pass "5 control: rotate.hold naming another id checks it" || fail "5 rotation control: $out"
+echo "$(iso $((T0 - 120))) 20270115T0758Z-wd-c-922 SPAWN OK new pane" >> "$D/rotate.log"
+out="$(wd)"
+grep -q 'c-922 SKIP rotation: .*-wd-c-922 SPAWN' <<<"$out" && pass "5 a takeover in flight in rotate.log is skipped" || fail "5 rotate.log: $out"
+echo "$(iso $((T0 - 100))) 20270115T0758Z-wd-c-922 DONE OK" >> "$D/rotate.log"; rm -f "$D/rotate.hold"
+wd >/dev/null; out="$(wd)"
+grep -q 'c-922 HIT S3' <<<"$out" && pass "5 control: its final DONE line ends the skip" || fail "5 done: $out"
+# start grace: a session 60 s old; control: 200 s old
+reset_box; agent c-923 %1 4023 claude 60 "$FX/trust.pane"
+out="$(wd)"
+grep -q 'c-923 SKIP start grace' <<<"$out" && pass "5 a session 60 s old is in its start grace" || fail "5 grace: $out"
+reset_box; agent c-923 %1 4023 claude 200 "$FX/trust.pane"
+out="$(wd)"
+grep -q 'c-923 HIT S7 modal=0' <<<"$out" && pass "5 control: 200 s old, S7 fires" || fail "5 grace control: $out"
+# a box back from a 2 h gap: debounces and graces reset; control: no gap
+reset_box; agent c-924 %1 -
+NOW=$T0 wd >/dev/null
+out="$(NOW=$((T0 + 7200)) wd)"
+grep -q 'c-924 SKIP resume grace' <<<"$out" && grep -q 'RESUME tick gap 7200s' "$D/wd.log" && pass "5 a 2 h tick gap: resume grace, logged" || fail "5 gap: $out"
+NOW=$((T0 + 7290)) wd >/dev/null; NOW=$((T0 + 7380)) wd >/dev/null; out="$(NOW=$((T0 + 7410)) wd)"
+grep -q 'c-924 HIT S3' <<<"$out" && pass "5 control: after the grace the debounce runs again (2 ticks)" || fail "5 gap control: $out"
+
+# 6. limits: 2 takeovers per id per hour; the third is held out + ONE blocker
+reset_box
+lim() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" WD_SEND="$T/bin/send" \
+    WD_TAKEOVER_CMD="$T/bin/takeover" LEASE_NOW="$1" bash -c '
+    do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; spl_wd_init >/dev/null
+    spl_wd_takeover c-931 S3 "evidence"; echo "rc=$?"'
+}
+r1="$(lim "$T0")"; r2="$(lim $((T0 + 600)))"; r3="$(lim $((T0 + 1200)))"; settle; sleep 0.3
+[[ "$r1" == rc=0 && "$r2" == rc=0 ]] && pass "6 two takeovers in an hour run" || fail "6 first two: $r1 / $r2"
+[[ "$r3" == *"held out: 2 takeovers"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 2 ]] && pass "6 the third is not done: held out" || fail "6 third: $r3 / $(cat "$T/takeovers")"
+[[ "$(grep -c -- '--kind blocker --task wd-c-931' "$T/sent")" -ge 1 ]] && [[ -s "$D/wd/c-931.heldout" ]] && pass "6 held out + a blocker to the orchestrator" || fail "6 blocker: $(cat "$T/sent" 2>/dev/null)"
+reset_box; agent c-931 %1 -; mkdir -p "$D/wd"; echo "$T0" > "$D/wd/c-931.heldout"
+TICK=2000 NOW=$T0 wd >/dev/null; out="$(TICK=2000 NOW=$((T0 + 30)) wd)"
+grep -q 'would takeover (held out after 2 takeovers' <<<"$out" && pass "6 a held-out id gets no action for an hour" || fail "6 heldout gate: $out"
+out="$(TICK=2000 NOW=$((T0 + 3630)) wd)"
+grep -q 'c-931 HIT S3 .*-> takeover$' <<<"$out" && pass "6 control: an hour later it is acted on again" || fail "6 heldout control: $out"
+
+# 7. FR-014: a script that sleeps 60 s costs the tick its timeout only
+reset_box; agent c-941 %1 -; agent c-942 %2 -
+cp -r "$SIT" "$T/sit"; printf '#!/usr/bin/env bash\nsleep 60\n' > "$T/sit/s9.sh"
+s0=$SECONDS; out="$(export WD_SITUATIONS="$T/sit" WD_SCRIPT_TIMEOUT=2; wd)"; el=$((SECONDS - s0))
+(( el < 30 )) && pass "7 FR-014: the tick ends in ${el}s with a 60 s script (< 30 s)" || fail "7 tick took ${el}s"
+grep -q 'c-941 OK (pending S3' <<<"$out" && grep -q 'c-942 OK (pending S3' <<<"$out" && [[ -s "$D/wd.c-941" && -s "$D/wd.c-942" ]] &&
+  pass "7 the other scripts' verdicts are written" || fail "7 verdicts: $out"
+
+grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
+
+echo "wd-situations: $fails failure(s)"
+exit $(( fails > 0 ))

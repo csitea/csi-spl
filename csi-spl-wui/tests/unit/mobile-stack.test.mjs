@@ -8,10 +8,12 @@ import {
   MOBILE_BELOW_KEY,
   isMobileBackSwipe,
   isMobileFrontDoor,
+  isStaleLoginStep,
   mobileHasBelow,
   mobileHistoryStep,
   mobileInPlaceStep,
   mobileInitialLevel,
+  mobileLoginFrontDoor,
   mobileLevelOf,
   mobileStaleTopicUrl,
   mobileTagState,
@@ -107,5 +109,27 @@ describe('c78fb3ec: an entry below level 3 never names a topic', () => {
   it('nothing to drop, or no URL, is null', () => {
     assert.equal(mobileStaleTopicUrl('https://x.example.com/channel/lobby?q=hi', 2), null)
     assert.equal(mobileStaleTopicUrl('not a url', 2), null)
+  })
+})
+
+describe('087 T003: Back never lands on the sign-in page while signed in', () => {
+  it('/login under any locale prefix, signed in, is a stale step', () => {
+    assert.equal(isStaleLoginStep('/login', 'in'), true)
+    assert.equal(isStaleLoginStep('/login/', 'in'), true)
+    assert.equal(isStaleLoginStep('/fi/login', 'in'), true)
+    assert.equal(isStaleLoginStep('/sr-Latn/login', 'in'), true)
+    assert.equal(isStaleLoginStep('/login?redirect=%2Fchannel%2Flobby', 'in'), true)
+  })
+  it('CONTROL: signed out, still loading or unknown keeps the sign-in page', () => {
+    for (const s of ['out', 'loading', 'unknown', '', undefined]) assert.equal(isStaleLoginStep('/login', s), false, String(s))
+  })
+  it('CONTROL: any other path is not a login step', () => {
+    for (const p of ['/', '/fi', '/channel/login', '/login/x', '/loginx', '/help/login', '', null]) assert.equal(isStaleLoginStep(p, 'in'), false, String(p))
+  })
+  it('the front door keeps the locale prefix', () => {
+    assert.equal(mobileLoginFrontDoor('/login'), '/')
+    assert.equal(mobileLoginFrontDoor('/fi/login/'), '/fi')
+    assert.equal(mobileLoginFrontDoor('/sr-Latn/login?x=1'), '/sr-Latn')
+    assert.equal(mobileLoginFrontDoor('/channel/lobby'), '/')
   })
 })

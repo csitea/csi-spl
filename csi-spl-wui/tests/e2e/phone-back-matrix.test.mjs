@@ -23,9 +23,9 @@
 // sign-in page: no `/login` URL, and a MutationObserver that runs from the
 // first byte of every document never saw `.login-landing-card`.
 //
-// Known red, by design (the control): every `login` cell fails today
-// (spec §2 row 2: Back from level 1 lands on the stale `/login` entry and
-// paints "Signed in as ... Continue"; 087 T003 fixes it). Measured while
+// Known red, by design (the control). The `login` cells failed until 087
+// T003 (spec §2 row 2: Back from level 1 landed on the stale `/login` entry
+// and painted "Signed in as ... Continue"). Measured while
 // building this file (n = 3, both widths): browser Back from every deep-link
 // entry skips levels or leaves the app, because a deep link builds no history
 // entries under itself (087 T007). Those cells print KNOWN-RED and do not
@@ -54,7 +54,8 @@ const WIDTHS = (process.env.WIDTHS || '360,390').split(',').map(Number).filter((
 /* The cells red on today's build by design: `entry/method`, `*` for any.
    The task named in each reason removes its line when it lands. */
 const KNOWN_RED = {
-  'login/*': 'spec 087 §2 row 2: Back from level 1 lands on the stale /login entry; 087 T003',
+  'login/browser': 'as deep/browser (3 -> 1 before /login is reached); 087 T007',
+  'login/sheet': 'as login/browser; 087 T007',
   'topic/browser': 'a deep link builds no entries under it: browser Back leaves the app; 087 T007',
   'topic/sheet': 'as topic/browser (the sheet column walks with browser Back); 087 T007',
   'channel/browser': 'as topic/browser, from level 2; 087 T007',
@@ -291,7 +292,7 @@ for (const width of WIDTHS) {
     console.log(`         ${entry.padEnd(8)}${row.map((v) => v.padEnd(8)).join('')}`)
   }
 }
-console.log('red* = known red by design, see KNOWN_RED (login: 087 T003; deep-link browser Back: 087 T007)')
+console.log('red* = known red by design, see KNOWN_RED (deep-link browser Back: 087 T007)')
 
 const n = (v) => cells.filter((c) => c.verdict === v).length
 const failed = cells.filter((c) => c.verdict === 'FAIL' || c.verdict === 'XPASS')

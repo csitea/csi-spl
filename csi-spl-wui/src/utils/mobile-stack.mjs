@@ -208,3 +208,32 @@ export function mobileOverlayPop(open, state, lastPos) {
   }
   return down ? { kind: 'leave' } : { kind: 'close', keep: 0 }
 }
+
+/*
+ * 087 T003 (FR-001): Back never shows the sign-in page to a signed-in member.
+ * A typed /login or an identity-provider round trip leaves a /login entry in
+ * history; Back onto it painted "Signed in as ... Continue to topics". A
+ * history step (popstate, a bfcache restore, a back_forward load) that lands
+ * there with a signed-in session is stale: the shell replaces the entry with
+ * the front door and steps back once more. A deliberate visit (typed, a link,
+ * a reload) is not a history step, so it still shows the page.
+ */
+const MOBILE_LOGIN_PATH = /^(\/[a-z]{2}(-[A-Za-z]{2,4})?)?\/login\/?$/
+
+/**
+ * True when a history step onto `path` must not paint the sign-in page:
+ * the path is /login (any locale prefix) and the session reads 'in'.
+ * 'loading', 'unknown' and 'out' are not signed in: the page stays.
+ * @param {string} path location.pathname (a query or hash is ignored)
+ * @param {string} sessionState the session store's state
+ */
+export function isStaleLoginStep(path, sessionState) {
+  if (sessionState !== 'in') return false
+  return MOBILE_LOGIN_PATH.test(String(path || '').split(/[?#]/, 1)[0])
+}
+
+/** The front door under the login path's locale prefix: `/fi/login` -> `/fi`, `/login` -> `/`. */
+export function mobileLoginFrontDoor(path) {
+  const m = MOBILE_LOGIN_PATH.exec(String(path || '').split(/[?#]/, 1)[0])
+  return (m && m[1]) || '/'
+}

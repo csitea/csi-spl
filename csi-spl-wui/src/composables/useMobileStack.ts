@@ -3,11 +3,13 @@ import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 import {
   MOBILE_STACK_QUERY,
   isMobileBackSwipe,
+  isStaleLoginStep,
   mobileHasBelow,
   mobileHistoryStep,
   mobileInPlaceStep,
   mobileInitialLevel,
   mobileLevelOf,
+  mobileLoginFrontDoor,
   mobileOverlayOf,
   mobileOverlayPop,
   mobileOverlayState,
@@ -16,6 +18,7 @@ import {
   mobileTaggedLevel,
   type MobileLevel,
 } from '~/utils/mobile-stack.mjs'
+import { useSessionStore } from '~/stores/session'
 
 /**
  * SPL-989 (epic SPL-988) — the phone / small-tablet navigation stack. THE one
@@ -238,6 +241,68 @@ function dropStaleTopic(state: unknown) {
   if (url) window.history.replaceState(state, '', url)
 }
 
+/*
+ * 087 T003 (FR-001): a history step onto /login with a signed-in session
+ * (utils/mobile-stack.mjs isStaleLoginStep) never paints the sign-in page.
+ * The entry becomes the front door and Back steps once more, so it walks on
+ * out of the app as if the stale entry were not there. Three ways to land:
+ *   - a popstate inside one document: a capture listener (beside
+ *     onPopCapture) stops it before vue-router renders the login route
+ *   - a bfcache restore of the /login document (Back from a document loaded
+ *     after it): pageshow hides the page before its next frame, then steps
+ *   - a fresh back_forward load of /login: the prerendered page is on screen
+ *     until the session probe settles; then the same step
+ * Armed by plugins/mobile-stale-login.client.ts on every document (the login
+ * layout never calls install()). Phones only (FR-007).
+ */
+let staleArmed = false
+let staleLeft = false
+let staleTimer: ReturnType<typeof setTimeout> | undefined
+
+function onPhone() {
+  return window.matchMedia(MOBILE_STACK_QUERY).matches
+}
+
+/** Replace the stale entry with the front door and step back past it. */
+function leaveStaleLogin(state: unknown, hide: boolean) {
+  const door = mobileLoginFrontDoor(window.location.pathname)
+  if (hide) document.documentElement.style.visibility = 'hidden'
+  staleLeft = hide
+  window.history.replaceState(state, '', door)
+  window.history.back()
+  /* nothing under it (the tab's first entry): the front door here, then */
+  clearTimeout(staleTimer)
+  staleTimer = setTimeout(() => window.location.replace(door), 800)
+}
+
+function guardStaleLogin() {
+  if (!import.meta.client || staleArmed) return
+  staleArmed = true
+  const session = useSessionStore()
+  const stale = () => onPhone() && isStaleLoginStep(window.location.pathname, session.state)
+  window.addEventListener('popstate', (e) => {
+    /* the step back landed in this document: no fallback */
+    clearTimeout(staleTimer)
+    if (!stale()) return
+    e.stopImmediatePropagation()
+    leaveStaleLogin(e.state, false)
+  }, { capture: true })
+  window.addEventListener('pagehide', () => clearTimeout(staleTimer))
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return
+    /* the document we stepped off, restored at the front door's URL: load it */
+    if (staleLeft) return void window.location.reload()
+    if (stale()) leaveStaleLogin(window.history.state, true)
+  })
+  const nav = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined
+  if (nav?.type !== 'back_forward' || !onPhone() || !isStaleLoginStep(window.location.pathname, 'in')) return
+  const stop = watch(() => session.state, (s) => {
+    if (s === 'loading') return
+    stop()
+    if (stale()) leaveStaleLogin(window.history.state, true)
+  }, { immediate: true })
+}
+
 function overlayOpened(o: Overlay) {
   void enqueue(() => {
     if (!installed || !isMobile.value || !o.open() || overlays.includes(o)) return
@@ -431,5 +496,7 @@ export function useMobileStack() {
     /** bind on the shell: @touchstart.passive / @touchend.passive */
     swipe: { onTouchStart, onTouchEnd, claim: claimSwipe },
     install,
+    /** 087 T003: plugins/mobile-stale-login.client.ts only */
+    guardStaleLogin,
   }
 }

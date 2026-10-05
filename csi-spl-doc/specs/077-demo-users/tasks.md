@@ -143,9 +143,16 @@ Rules for every task (owner Q8, spec §3.10):
 
 ### Phase 7: Rollout (Q8)
 
-- [ ] T023 **dev on**: cnf `env.demo.enabled: true` for dev, the demo
-  workspace created through the 074 operator API by a named action
-  (`do_spl_demo_workspace_create`), the owner's walkthrough.
+- [x] T023 **dev on** (c-310): cnf `env.demo.enabled: true` for dev (the
+  `env.demo` block of all.env.yaml; do_spl_merged_cnf derives the four
+  `SPOOL_HUB_DEMO_*`, 030 applied on dev), the demo workspace `demo` created
+  by the named action `do_spl_demo_workspace_create` (idempotent). It wraps
+  `do_spl_tenant_create` until 074 T007: the 074 operator API takes only an
+  admin browser session, which no SA holds (c-001, 2026-10-05). Proven on
+  dev: `GET /v1/demo` 200, the Google and Facebook start for `tenant=demo`
+  302 to the IdP, a second create changes nothing. Admission as `demo_user`
+  and the cap: the T007/T008 hub tests; the live sign-in is the owner's
+  walkthrough.
 - [ ] T024 **prd on**: only on the owner's explicit go after the dev
   walkthrough.
 

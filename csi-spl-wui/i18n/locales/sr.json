@@ -526,6 +526,7 @@
     "go_reply": "Пошаљи одговор",
     "go_comment": "Објави коментар",
     "sending": "Slanje…",
+    "draft_mark": "Nacrt",
     "code_hint": "Блок кода: Enter додаје ред, откуцајте ``` или притисните Esc за затварање, Ctrl+Enter или Cmd+Enter шаље",
     "send_failed": "Nije poslato — poruka nije stigla do huba.",
     "send_failed_closed": "Nije poslato — veza je prekinuta. Vaš tekst je i dalje tu.",

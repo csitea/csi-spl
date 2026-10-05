@@ -198,6 +198,8 @@
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <span class="dot" :class="{ on: p.online }" />
       <HumanName class="label" :id="p.id" :box="p.box" stacked />
+      <!-- 080 FR-005: a draft waits here; it shares the badge slot with the 079 unread -->
+      <span v-if="hasDraft('dm:' + p.label)" class="draft-mark" data-testid="draft-mark" :title="t('composer.draft_mark')" :aria-label="t('composer.draft_mark')" role="img"><UiIcon name="pencil" :size="12" /></span>
       <span v-if="unreadOf('dm:' + p.label)" class="badge-unread" data-test="dm-badge">{{ dmBadgeLabel(p.label) }}</span>
       <span v-else-if="dmTotalLabel(p.label)" class="badge-total" data-test="dm-total">{{ dmTotalLabel(p.label) }}</span>
     </NuxtLink>
@@ -291,6 +293,8 @@
       <span class="hash">#</span>
       <span class="label">{{ c.name }}</span>
       <span v-if="retentionLabel(c)" class="retention muted" :title="t('sidebar.retention_title', { retention: retentionLabel(c) })">{{ retentionLabel(c) }}</span>
+      <!-- 080 FR-005: a draft waits here; it shares the badge slot with the 079 unread -->
+      <span v-if="hasDraft('ch:' + c.channel_id)" class="draft-mark" data-testid="draft-mark" :title="t('composer.draft_mark')" :aria-label="t('composer.draft_mark')" role="img"><UiIcon name="pencil" :size="12" /></span>
       <span v-if="notes.mentions['ch:' + c.channel_id]" class="badge-mention" data-testid="mention-count">@{{ notes.previewUnread(notes.mentions['ch:' + c.channel_id]) }}</span>
       <span v-if="unreadOf('ch:' + c.channel_id)" class="badge-unread" data-testid="channel-unread">{{ notes.previewUnread(unreadOf('ch:' + c.channel_id)) }}</span>
     </NuxtLink>
@@ -452,6 +456,8 @@
         >
           <span class="label" :title="namedLine(row.participants.join(', '), people.names.value).title">{{ rowTitle(row.subject) || peopleLabels(row.participants, people.names.value) || row.task_id }}</span>
           <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
+          <!-- 080 FR-005: a draft waits here; it shares the badge slot with the 079 unread -->
+          <span v-if="hasDraft('t:' + row.task_id)" class="draft-mark" data-testid="draft-mark" :title="t('composer.draft_mark')" :aria-label="t('composer.draft_mark')" role="img"><UiIcon name="pencil" :size="12" /></span>
           <span v-if="unreadOf('t:' + row.task_id)" class="badge-unread" data-testid="topic-unread">{{ notes.previewUnread(unreadOf('t:' + row.task_id)) }}</span>
         </a>
         <SidebarRowMenu
@@ -754,6 +760,7 @@ const ChannelPropertiesDialog = defineAsyncComponent(() => import('~/components/
 /* CLE-77884: async too - only a search needs it */
 const SearchSidePanel = defineAsyncComponent(() => import('~/components/SearchSidePanel.vue'))
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useDrafts } from '~/composables/useDrafts'
 import { useNotificationStore } from '~/stores/notification'
 import { useLive } from '~/composables/useLive'
 import { withDmPeers } from '~/utils/live-follow.mjs'
@@ -1003,6 +1010,11 @@ const flowKeys = useFlowKeys()
 const unread = useUnread()
 function unreadOf(key: string) {
   return unread.rowOf(key)
+}
+/* spec 080 FR-005: a pencil on a channel / DM / topic row that holds a draft */
+const drafts = useDrafts()
+function hasDraft(key: string) {
+  return drafts.has(key)
 }
 /* a section's number: the model's rows it lists, each once (owner, t1 77540e6f:
    never more than the badges on its rows add up to) */
@@ -1781,6 +1793,17 @@ async function onCreate() {
   flex-shrink: 0;
 }
 .badge-mention + .badge-unread { margin-left: 4px; }
+/* spec 080 FR-005: the draft pencil leads the row's badge slot (079 unread) */
+.draft-mark {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+.draft-mark + .badge-mention,
+.draft-mark + .badge-unread,
+.draft-mark + .badge-total { margin-left: 4px; }
 /* CLE-77873: a read DM's plain total - the unread pill's box, muted, no fill */
 .badge-total {
   margin-left: auto;

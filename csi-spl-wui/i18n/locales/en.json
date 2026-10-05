@@ -526,6 +526,7 @@
     "go_reply": "Send reply",
     "go_comment": "Post comment",
     "sending": "Sending…",
+    "draft_mark": "Draft",
     "code_hint": "Code block: Enter adds a line, type ``` or press Esc to close, Ctrl+Enter or Cmd+Enter sends",
     "send_failed": "Not sent — the message did not reach the hub.",
     "send_failed_closed": "Not sent — the connection dropped. Your text is still here.",

@@ -526,6 +526,7 @@
     "go_reply": "Wyślij odpowiedź",
     "go_comment": "Opublikuj komentarz",
     "sending": "Wysyłanie…",
+    "draft_mark": "Wersja robocza",
     "code_hint": "Blok kodu: Enter dodaje wiersz, wpisz ``` lub naciśnij Esc, aby zamknąć, Ctrl+Enter lub Cmd+Enter wysyła",
     "send_failed": "Nie wysłano — wiadomość nie dotarła do huba.",
     "send_failed_closed": "Nie wysłano — połączenie zostało przerwane. Twój tekst jest nadal tutaj.",

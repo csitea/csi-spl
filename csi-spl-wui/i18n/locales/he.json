@@ -526,6 +526,7 @@
     "go_reply": "שליחת תגובה",
     "go_comment": "פרסום הערה",
     "sending": "שולח…",
+    "draft_mark": "טיוטה",
     "code_hint": "בלוק קוד: Enter מוסיף שורה, הקלידו ``` או לחצו Esc כדי לסגור, Ctrl+Enter או Cmd+Enter שולח",
     "send_failed": "לא נשלח — ההודעה לא הגיעה ל-hub.",
     "send_failed_closed": "לא נשלח — החיבור נותק. הטקסט שלכם נשמר.",

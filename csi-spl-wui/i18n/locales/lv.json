@@ -526,6 +526,7 @@
     "go_reply": "Sūtīt atbildi",
     "go_comment": "Publicēt komentāru",
     "sending": "Sūta…",
+    "draft_mark": "Melnraksts",
     "code_hint": "Koda bloks: Enter pievieno rindu, lai aizvērtu, ierakstiet ``` vai nospiediet Esc, Ctrl+Enter vai Cmd+Enter nosūta",
     "send_failed": "Nav nosūtīts — ziņa nesasniedza hub.",
     "send_failed_closed": "Nav nosūtīts — savienojums pārtrūka. Jūsu teksts ir saglabāts.",

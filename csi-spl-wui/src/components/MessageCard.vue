@@ -125,6 +125,15 @@
           data-test="msg-edited"
           :title="t('feed.edit.marker_title', { at: String(msg.edited_at) })"
         >{{ t('feed.edit.marker') }}</span>
+        <!-- spec 080 FR-005: a reply draft waits for this topic -->
+        <span
+          v-if="hasDraft"
+          class="msg-draft"
+          data-testid="msg-draft"
+          role="img"
+          :title="t('composer.draft_mark')"
+          :aria-label="t('composer.draft_mark')"
+        ><UiIcon name="pencil" :size="12" /></span>
         <!-- Opening messages (is_parent 1) and replies (is_parent 0) are both
              this card. The emoji control is not gated on that flag. -->
         <span class="msg-actions">
@@ -444,6 +453,7 @@ import {
   withDraft,
 } from '~/utils/msg-edit.mjs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
+import { useDrafts } from '~/composables/useDrafts'
 import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useMentionPoke, type PokeWhere } from '~/composables/useMentionPoke'
 import { useDmRef } from '~/composables/useDmRef'
@@ -1108,6 +1118,9 @@ const editEl = ref<HTMLTextAreaElement | null>(null)
 const rowEl = ref<HTMLElement | null>(null)
 const editHintId = useId()
 const edited = computed(() => isEdited(props.msg))
+/* spec 080 FR-005: a topic card whose topic holds the member's reply draft */
+const drafts = useDrafts()
+const hasDraft = computed(() => props.msg.is_parent !== 0 && Boolean(props.msg.task_id) && drafts.has('t:' + String(props.msg.task_id)))
 const { canEdit, commit, removeMessage, mergeInto, viewerId: editorId, dropEverywhere } = useMessageEdit()
 /* SPL-983 (specs/041 §3.3) / CLE-77819: Delete is the author, the tenant owner
    or an admin; Archive also a member the card is addressed to. The hub
@@ -1832,6 +1845,7 @@ async function save() {
 /* "(edited)" follows them; the spacer then pushes Open topic, the replies
    link and the menu to the right */
 .msg-meta > .msg-edited { order: 2; }
+.msg-meta > .msg-draft { order: 2; display: inline-flex; align-items: center; color: var(--color-muted); flex-shrink: 0; }
 /* SPL-1024: "moved from ..." sits beside "(edited)", muted and small */
 .msg-moved {
   margin: 0;

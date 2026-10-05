@@ -526,6 +526,7 @@
     "go_reply": "Trimite răspunsul",
     "go_comment": "Publică comentariul",
     "sending": "Se trimite…",
+    "draft_mark": "Ciornă",
     "code_hint": "Bloc de cod: Enter adaugă un rând, tastați ``` sau apăsați Esc pentru a închide, Ctrl+Enter sau Cmd+Enter trimite",
     "send_failed": "Netrimis — mesajul nu a ajuns la hub.",
     "send_failed_closed": "Netrimis — conexiunea s-a întrerupt. Textul tău este încă aici.",

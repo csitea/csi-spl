@@ -526,6 +526,7 @@
     "go_reply": "Saada vastus",
     "go_comment": "Postita kommentaar",
     "sending": "Saatmine…",
+    "draft_mark": "Mustand",
     "code_hint": "Koodiplokk: Enter lisab rea, sulgemiseks kirjuta ``` või vajuta Esc, Ctrl+Enter või Cmd+Enter saadab",
     "send_failed": "Saatmata — sõnum ei jõudnud hubi.",
     "send_failed_closed": "Saatmata — ühendus katkes. Sinu tekst on alles.",

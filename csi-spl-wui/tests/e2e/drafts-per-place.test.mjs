@@ -10,6 +10,9 @@
 //         has none), type `xyz`, reload with ?topic= -> `xyz`
 //     AC3 send from #feedback -> the box is empty, reload -> still empty, no
 //         `ch:feedback` draft is kept
+//     AC3 (T004, FR-005) the pencil: on #alerts the #feedback row shows it and
+//         the #alerts row does not; the topic card with a reply draft shows
+//         it; after the send the #feedback row has none
 //     AC7 a draft on #feedback, sign out -> `spool.drafts` has no HUM-1 entry
 //     CONTROL: before T003 the box kept `abc` on #alerts (AC1 fails) and a
 //     reload emptied it (AC2 fails).
@@ -85,6 +88,22 @@ async function clickChannel(p, id) {
   await settle(p)
 }
 
+const MARK_WAIT = 3000
+/* the marks re-read `spool.drafts` once a second (composables/useDrafts.ts) */
+const rowMark = (key) => `a.nav-item[data-key="${key}"] [data-testid=draft-mark]`
+const cardMark = (taskId) => `.spool-main article.msg[data-task-id="${taskId}"] [data-testid=msg-draft]`
+async function marked(p, sel) {
+  return p.waitForSelector(sel, { timeout: MARK_WAIT }).then(() => true, () => false)
+}
+async function unmarked(p, sel) {
+  await sleep(MARK_WAIT / 2)
+  return !(await p.$(sel))
+}
+async function showChannels(p) {
+  await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-channels]')?.click())
+  await p.waitForSelector('a.nav-item[data-key="feedback"]', { visible: true, timeout: NAV_TIMEOUT })
+}
+
 async function firstCard(p) {
   return p.evaluate(() => {
     const el = [...document.querySelectorAll('.spool-main article.msg[data-msg-id]')].find((e) => e.getBoundingClientRect().height > 30)
@@ -126,6 +145,9 @@ try {
   ok('AC2 a reload keeps the #feedback draft', afterReload === 'abc', { afterReload, drafts: await drafts(p) })
   /* the mock's #feedback has no topic yet: open one in #alerts */
   await clickChannel(p, 'alerts')
+  const feedbackMark = await marked(p, rowMark('feedback'))
+  const alertsClean = await unmarked(p, rowMark('alerts'))
+  ok('AC3 on #alerts the #feedback row shows the draft pencil, the #alerts row none', feedbackMark && alertsClean, { feedbackMark, alertsClean })
   await p.waitForSelector('.spool-main article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
   const card = await firstCard(p)
   await p.mouse.click(card.x, card.y)
@@ -137,6 +159,9 @@ try {
   await reload(p)
   const topicAfter = await boxText(p)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'drafts-per-place-topic.png') })
+  const taskId = new URL(url).searchParams.get('topic') || ''
+  const topicMark = Boolean(taskId) && await marked(p, cardMark(taskId))
+  ok('AC3 the topic card with a reply draft shows the pencil', topicMark, { taskId })
   ok('AC2 a reload with ?topic= keeps the reply draft', /[?&]topic=/.test(url) && topicAfter === 'xyz', { url, topicAfter, drafts: await drafts(p) })
 
   /* AC3 */
@@ -151,6 +176,10 @@ try {
   const kept = ((await drafts(p)) || {})[HUM] || {}
   ok('AC3 a send empties the box and drops the #feedback draft, also after a reload',
     before === 'abc' && sentBox === '' && sentReload === '' && !kept['ch:feedback'], { before, sentBox, sentReload, kept })
+  await showChannels(p)
+  const sentClean = await unmarked(p, rowMark('feedback'))
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, 'drafts-per-place-sent.png') })
+  ok('AC3 after the send the #feedback row has no pencil', sentClean)
 
   /* AC7 */
   await type(p, 'zzz')

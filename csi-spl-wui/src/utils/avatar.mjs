@@ -288,7 +288,8 @@ export function bytesToDataUri(bytes, type) {
  * credentials (017 FR-SEC-002: /v1/files needs the member session;
  * /api/v1/auth/avatar the session cookie) and only an image by its magic
  * bytes is shown. One fetch per URL for the page's lifetime, except after a
- * network error or a 5xx, which the next mount asks again.
+ * network error, a 5xx or a timeout (AVATAR_FETCH_TIMEOUT_MS), which the
+ * next mount asks again.
  *
  * `missStore` (a Storage) also remembers a 404 across reloads, for ONE url:
  * the own-picture route answers 404 to a member with no stored picture on
@@ -297,18 +298,22 @@ export function bytesToDataUri(bytes, type) {
  * is remembered; a network error or a 5xx is asked again next time.
  */
 export const AVATAR_MISS_KEY = 'spool.avatar.miss'
-export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch, missStore = null } = {}) {
+/** A picture fetch that has not answered by then is given up (and asked again on the next mount). */
+export const AVATAR_FETCH_TIMEOUT_MS = 8000
+export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = globalThis.fetch, missStore = null, timeoutMs = AVATAR_FETCH_TIMEOUT_MS } = {}) {
   if (!url) return Promise.resolve('')
   if (avatarImages.has(url)) return avatarImages.get(url)
   const readMiss = () => { try { return missStore ? missStore.getItem(AVATAR_MISS_KEY) : null } catch { return null } }
   if (readMiss() === url) return Promise.resolve('')
-  /* A 404 or a non-image answer is final for the page; a network error or a
-     5xx is not kept, so the next avatar that mounts asks again instead of
-     showing the default until a reload. */
+  /* A 404 or a non-image answer is final for the page; a network error, a
+     5xx or a timeout is not kept, so the next avatar that mounts asks again
+     instead of showing the default until a reload. */
   let transient = false
   const promise = (async () => {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null
+    const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
     try {
-      const res = await fetchFn(url, { credentials })
+      const res = await fetchFn(url, { credentials, signal: ctl?.signal })
       if (res && res.status === 404 && missStore) {
         try { missStore.setItem(AVATAR_MISS_KEY, url) } catch { /* storage full or blocked */ }
       }
@@ -322,6 +327,8 @@ export function loadAvatarImageUrl(url, { credentials = 'omit', fetchFn = global
     } catch {
       transient = true
       return ''
+    } finally {
+      if (timer) clearTimeout(timer)
     }
   })()
   avatarImages.set(url, promise)

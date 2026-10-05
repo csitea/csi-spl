@@ -138,4 +138,18 @@ describe('build watch: wiring', () => {
       assert.ok(b.new_version && b.reload && /\{commit\}/.test(b.newer_live || ''), f)
     }
   })
+
+  it('r3-07: a hung build.json read gives up after timeoutMs as "nothing to do"', async () => {
+    const calls = []
+    assert.deepEqual(await readLiveCommit(hang(calls), { timeoutMs: 5 }), { commit: '', stamp: null })
+    assert.ok(calls[0][1].signal, 'the read carries an abort signal')
+  })
 })
+
+/* a fetch that never answers, but honours init.signal like the real one */
+const hang = (calls = []) => (url, init = {}) => {
+  calls.push([url, init])
+  return new Promise((_, reject) => {
+    if (init.signal) init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+  })
+}

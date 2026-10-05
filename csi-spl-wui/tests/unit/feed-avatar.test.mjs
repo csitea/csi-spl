@@ -293,4 +293,24 @@ describe('H5: door-off guests (GST-<n>) are humans but never members', () => {
     assert.equal(avatarImageUrl('http://h', 'HUM-1', 'box-wui', { 'HUM-1': fid }), `http://h/v1/files/${fid}`)
     assert.deepEqual(avatarFilesFromView({ humans: [{ human_id: 'GST-1', avatar_file_id: fid }] }), {})
   })
+
+  it('r3-07: a hung picture fetch gives up after timeoutMs and is asked again on the next mount', async () => {
+    resetAvatarFiles()
+    const calls = []
+    const u = 'http://h/v1/files/hung'
+    assert.equal(await loadAvatarImageUrl(u, { fetchFn: hang(calls), timeoutMs: 5 }), '')
+    assert.ok(calls[0][1].signal, 'the fetch carries an abort signal')
+    await new Promise((r) => setTimeout(r, 0))
+    assert.equal(await loadAvatarImageUrl(u, { fetchFn: hang(calls), timeoutMs: 5 }), '')
+    assert.equal(calls.length, 2, 'a timeout is transient, not cached for the page')
+    resetAvatarFiles()
+  })
 })
+
+/* a fetch that never answers, but honours init.signal like the real one */
+const hang = (calls = []) => (url, init = {}) => {
+  calls.push([url, init])
+  return new Promise((_, reject) => {
+    if (init.signal) init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+  })
+}

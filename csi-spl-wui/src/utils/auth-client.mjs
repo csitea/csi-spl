@@ -207,6 +207,9 @@ export function hintedProvider(email) {
   return ''
 }
 
+/** GET /providers that has not answered by then reads as 'unavailable' / 'network'. */
+export const PROVIDERS_TIMEOUT_MS = 8000
+
 /** in-flight GET /providers per fetch function and auth origin (loadProviders) */
 const providersInFlight = new WeakMap()
 
@@ -256,10 +259,24 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     return p.then((out) => ({ ...out, providers: [...out.providers] }))
   }
 
+  /* Bounded by PROVIDERS_TIMEOUT_MS: a hung registry read would keep the
+     sign-in buttons from ever showing. Scoped to this GET only; the shared
+     call() and every write keep the fetch's own wait. A timeout reads as
+     'network'. */
   async function readProviders() {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null
+    const timer = ctl ? setTimeout(() => ctl.abort(), PROVIDERS_TIMEOUT_MS) : null
+    try {
+      return await askProviders(ctl?.signal)
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  async function askProviders(signal) {
     let res
     try {
-      res = await call('/providers')
+      res = await call('/providers', { signal })
     } catch {
       return { status: 'unavailable', reason: 'network', providers: [], native: false }
     }
@@ -374,6 +391,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     /**
      * spec 021: store the signed-in human's preferred UI + mail language.
      * 204/200 → ok; 400 = unsupported code; 401 = no session.
+     * Resolves (never throws), with post()'s { ok, status, data, error, ... }.
      */
     savePreferences({ preferred_locale } = {}) {
       return post('/preferences', { preferred_locale: String(preferred_locale || '') }, 'PUT')
@@ -390,6 +408,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
      * store the signed-in human's display name. Sends ONLY that
      * key. 200 → `data.display_name` is the stored (trimmed) name; 400
      * invalid_display_name; 401 = no session; 409 = no human.
+     * Resolves (never throws), with post()'s { ok, status, data, error, ... }.
      */
     saveDisplayName(name) {
       return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
@@ -448,6 +467,7 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
       return post('/preferences', { issues_columns: obj }, 'PUT')
     },
     // SPL-1181: Issues list default sort, per tenant (rdb 0078); null clears.
+    // Resolves (never throws), with post()'s { ok, status, data, error, ... }.
     saveIssuesSort(sort) {
       const v = sort && sort.col && sort.dir ? { col: String(sort.col), dir: String(sort.dir) } : null
       return post('/preferences', { issues_sort: v }, 'PUT')

@@ -13,6 +13,13 @@
  * disk — the footer is exactly what it was.
  */
 
+/**
+ * How long a /build.json read may take before it is given up: a hung
+ * request must not keep the footer (or the build watch) waiting forever.
+ * Same budget as tenant-host-boot's host probe.
+ */
+export const BUILD_JSON_TIMEOUT_MS = 8000
+
 /** A short commit for humans; anything that is not a hex sha is left alone. */
 export function shortCommit(commit) {
   const s = String(commit || '').trim()
@@ -44,19 +51,25 @@ export function buildStampTitle(build) {
 }
 
 /**
- * Read the deployed stamp. Never throws and never rejects: a missing or
- * malformed build.json must leave the footer alone, not break the shell.
+ * Read the deployed stamp. Never throws and never rejects, and is bounded by
+ * BUILD_JSON_TIMEOUT_MS: a missing, malformed or hung build.json must leave
+ * the footer alone, not break the shell.
  * @param {(input: string, init?: object) => Promise<Response>} [fetchImpl]
+ * @param {{ timeoutMs?: number }} [opts]  test seam for the timeout
  */
-export async function readBuildStamp(fetchImpl) {
+export async function readBuildStamp(fetchImpl, { timeoutMs = BUILD_JSON_TIMEOUT_MS } = {}) {
   const f = fetchImpl || (typeof fetch === 'function' ? fetch : null)
   if (!f) return null
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
   try {
-    const r = await f('/build.json', { cache: 'no-cache' })
+    const r = await f('/build.json', { cache: 'no-cache', signal: ctl?.signal })
     if (!r || !r.ok) return null
     const j = await r.json()
     return j && typeof j === 'object' && shortCommit(j.commit) ? j : null
   } catch {
     return null
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }

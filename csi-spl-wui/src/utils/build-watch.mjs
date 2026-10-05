@@ -17,6 +17,8 @@
  *                                   -> never again by itself: the bar only
  */
 
+import { BUILD_JSON_TIMEOUT_MS } from './build-stamp.mjs'
+
 /** How often a visible tab asks (the brief: every 5 minutes). */
 export const CHECK_EVERY_MS = 5 * 60_000
 /** Focus + visibilitychange can fire together; one fetch per this window. */
@@ -112,20 +114,26 @@ export function pageBusy(doc = globalThis.document) {
 }
 
 /**
- * Read the deployed commit. Never throws: an offline tab or a missing
+ * Read the deployed commit. Never throws, and is bounded by
+ * BUILD_JSON_TIMEOUT_MS: an offline tab, a hung request or a missing
  * build.json (lde) reads as '' and means "nothing to do".
  * @param {(input: string, init?: object) => Promise<Response>} [fetchImpl]
+ * @param {{ timeoutMs?: number }} [opts]  test seam for the timeout
  */
-export async function readLiveCommit(fetchImpl) {
+export async function readLiveCommit(fetchImpl, { timeoutMs = BUILD_JSON_TIMEOUT_MS } = {}) {
   const f = fetchImpl || (typeof fetch === 'function' ? fetch : null)
   if (!f) return { commit: '', stamp: null }
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
   try {
-    const r = await f('/build.json', { cache: 'no-store' })
+    const r = await f('/build.json', { cache: 'no-store', signal: ctl?.signal })
     if (!r || !r.ok) return { commit: '', stamp: null }
     const j = await r.json()
     const commit = normCommit(j && j.commit)
     return commit ? { commit, stamp: j } : { commit: '', stamp: null }
   } catch {
     return { commit: '', stamp: null }
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }

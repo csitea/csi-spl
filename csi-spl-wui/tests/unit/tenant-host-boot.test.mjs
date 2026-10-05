@@ -135,4 +135,18 @@ describe('tenant-host boot', () => {
     rig(SITE + '/', { state: 'out' })
     assert.equal(classifyHref('https://northwind.app.example/x', SITE).internal, true)
   })
+
+  it('r3-07: hostAnswers reads a host that never answers as down after timeoutMs', async () => {
+    const calls = []
+    assert.equal(await hostAnswers('https://a.app.example/', hang(calls), { timeoutMs: 5 }), false)
+    assert.ok(calls[0][1].signal, 'the probe carries an abort signal')
+  })
 })
+
+/* a fetch that never answers, but honours init.signal like the real one */
+const hang = (calls = []) => (url, init = {}) => {
+  calls.push([url, init])
+  return new Promise((_, reject) => {
+    if (init.signal) init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+  })
+}

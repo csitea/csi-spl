@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildStampText, buildStampTitle, readBuildStamp, shortCommit } from '../../src/utils/build-stamp.mjs'
+import { BUILD_JSON_TIMEOUT_MS, buildStampText, buildStampTitle, readBuildStamp, shortCommit } from '../../src/utils/build-stamp.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -74,4 +74,19 @@ describe('build stamp', () => {
     assert.match(s, /user-select: text;/)
     assert.match(s, /transition: opacity 0\.15s ease 0\.4s/)
   })
+
+  it('r3-07: a hung build.json read gives up after timeoutMs and leaves the footer alone', async () => {
+    const calls = []
+    assert.equal(await readBuildStamp(hang(calls), { timeoutMs: 5 }), null)
+    assert.ok(calls[0][1].signal, 'the read carries an abort signal')
+    assert.ok(BUILD_JSON_TIMEOUT_MS > 0)
+  })
 })
+
+/* a fetch that never answers, but honours init.signal like the real one */
+const hang = (calls = []) => (url, init = {}) => {
+  calls.push([url, init])
+  return new Promise((_, reject) => {
+    if (init.signal) init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+  })
+}

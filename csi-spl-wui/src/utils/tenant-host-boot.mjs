@@ -28,8 +28,11 @@ import { homeTenant, oldLinkId, tenantParamHop, tenantUrl } from './tenant-host.
 export const PENDING_POLL_MS = 30000
 const PROBE_TIMEOUT_MS = 8000
 
-/** true when url's host answers (any response; no-cors, so reaching it is enough). */
-export async function hostAnswers(url, fetchFn = globalThis.fetch) {
+/**
+ * true when url's host answers (any response; no-cors, so reaching it is
+ * enough); false for a bad url, a thrown fetch, or no answer in `timeoutMs`.
+ */
+export async function hostAnswers(url, fetchFn = globalThis.fetch, { timeoutMs = PROBE_TIMEOUT_MS } = {}) {
   let origin
   try {
     origin = new URL(String(url || '')).origin
@@ -37,7 +40,7 @@ export async function hostAnswers(url, fetchFn = globalThis.fetch) {
     return false
   }
   const ctl = typeof AbortController === 'function' ? new AbortController() : null
-  const timer = ctl ? setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS) : null
+  const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
   try {
     await fetchFn(`${origin}/build.json`, { mode: 'no-cors', cache: 'no-store', credentials: 'omit', signal: ctl?.signal })
     return true
@@ -101,16 +104,21 @@ export function bootTenantHost({ pub, page, session, notMember, win = window, fe
     if (!page) return
     const here = () => win.location.pathname + win.location.search + win.location.hash
 
+    /** The tenant that owns old-link id; '' when off, unknown, failed or slow (PROBE_TIMEOUT_MS). */
     async function locate(id) {
       const { base } = apiBaseFor(String(pub.apiBase || ''), page)
       if (!base) return ''
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null
+      const timer = ctl ? setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS) : null
       try {
-        const res = await fetchFn(`${base}/v1/view/locate/${id}`, { credentials: 'include', cache: 'no-store' })
+        const res = await fetchFn(`${base}/v1/view/locate/${id}`, { credentials: 'include', cache: 'no-store', signal: ctl?.signal })
         if (!res.ok) return ''
         const body = await res.json()
         return body && typeof body.tenant === 'string' ? body.tenant : ''
       } catch {
         return ''
+      } finally {
+        if (timer) clearTimeout(timer)
       }
     }
 

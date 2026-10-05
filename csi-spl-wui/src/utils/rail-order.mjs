@@ -46,6 +46,12 @@ export const RAIL_TABS = Object.freeze([
      like the rest; a stored order from before it is drawn with Boxes appended
      (parseRailOrder), and the hub's IsRailOrder + rdb 0089 admit the ten. */
   Object.freeze({ id: 'boxes', icon: 'server', labelKey: 'sidebar.boxes' }),
+  /* spec 089 T007 (owner HUM-10, 2026-10-05): Calendar opens /calendar, a
+     single sheet like Issues (the year strip and the main view). Reorders and
+     collapses like the rest; a stored order from before it is drawn with
+     Calendar appended (parseRailOrder), and the hub's IsRailOrder + rdb 0133
+     admit the eleven. */
+  Object.freeze({ id: 'calendar', icon: 'calendar', labelKey: 'sidebar.calendar' }),
 ])
 
 /** Every rail id, in the hub's list (auth.RailTabs) - a set, not the drawn order. */

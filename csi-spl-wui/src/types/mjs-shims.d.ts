@@ -280,7 +280,8 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const PEOPLE_TAB: 'people'
   export const AGENTS_TAB: 'agents'
   export const BOXES_TAB: 'boxes'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | null
+  export const CALENDAR_TAB: 'calendar'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null
   export function isSearchPage(path: string): boolean
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'topics' | 'flow' | '' | null
 }

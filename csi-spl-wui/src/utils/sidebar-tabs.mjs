@@ -35,6 +35,10 @@ export const AGENTS_TAB = 'agents'
  *  reorderable rail tab. */
 export const BOXES_TAB = 'boxes'
 
+/** Calendar (spec 089 T007): /calendar, a single sheet like Issues (the year
+ *  strip and the main view). A page, so not one of the sidebar lists. */
+export const CALENDAR_TAB = 'calendar'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` are the same pane. */
 const SWITCH_PANE_NAMES = {
@@ -50,7 +54,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | null}
+ * @returns {'dm' | 'channels' | 'topics' | 'flow' | 'users' | 'events' | 'issues' | 'archive' | 'people' | 'agents' | 'boxes' | 'calendar' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -64,6 +68,7 @@ export function tabForPath(path) {
   if (p === '/people' || p.startsWith('/people/')) return PEOPLE_TAB
   if (p === '/agents' || p.startsWith('/agents/')) return AGENTS_TAB
   if (p === '/boxes' || p.startsWith('/boxes/')) return BOXES_TAB
+  if (p === '/calendar') return CALENDAR_TAB
   return null
 }
 
@@ -77,6 +82,7 @@ const TAB_ROUTES = {
   [PEOPLE_TAB]: '/people',
   [AGENTS_TAB]: '/agents',
   [BOXES_TAB]: '/boxes',
+  [CALENDAR_TAB]: '/calendar',
 }
 
 /**

@@ -16,6 +16,7 @@ const SECTION_PAGES = new Set([
   '/people',
   '/agents',
   '/boxes',
+  '/calendar',
   '/help',
   '/docs',
   '/tenant-settings',

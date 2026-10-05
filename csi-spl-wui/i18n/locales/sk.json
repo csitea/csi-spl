@@ -488,6 +488,7 @@
     "people": "Ľudia",
     "agents": "Agenti",
     "boxes": "Boxes",
+    "calendar": "Kalendár",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Nemôžete nahrávať súbory, presúvať ani zlučovať témy, meniť úlohy ani kanály, ani pozývať ľudí.",
       "limit": "V deme môže byť naraz najviac {n} návštevníkov. Keď je plné, skúste to neskôr znova.",
       "try_with": "Vyskúšajte demo cez {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalendár",
+    "year_strip": "Tri roky, mesiac po mesiaci",
+    "events_n": "{n} udalos(tí)",
+    "today": "Dnes",
+    "prev_week": "Predchádzajúci týždeň",
+    "next_week": "Nasledujúci týždeň",
+    "load_failed": "Kalendár sa nepodarilo načítať. Skúste to neskôr.",
+    "months": {
+      "m1": "Január",
+      "m2": "Február",
+      "m3": "Marec",
+      "m4": "Apríl",
+      "m5": "Máj",
+      "m6": "Jún",
+      "m7": "Júl",
+      "m8": "August",
+      "m9": "September",
+      "m10": "Október",
+      "m11": "November",
+      "m12": "December"
+    },
+    "weekdays": {
+      "d1": "po",
+      "d2": "ut",
+      "d3": "st",
+      "d4": "št",
+      "d5": "pi",
+      "d6": "so",
+      "d7": "ne"
+    },
+    "weekdays_narrow": {
+      "d1": "p",
+      "d2": "u",
+      "d3": "s",
+      "d4": "š",
+      "d5": "p",
+      "d6": "s",
+      "d7": "n"
     }
   }
 }

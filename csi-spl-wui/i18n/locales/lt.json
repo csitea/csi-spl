@@ -488,6 +488,7 @@
     "people": "Žmonės",
     "agents": "Agentai",
     "boxes": "Boxes",
+    "calendar": "Kalendorius",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Negalite įkelti failų, perkelti ar sujungti temų, keisti užduočių ar kanalų, ar kviesti žmonių.",
       "limit": "Demonstracijoje vienu metu gali būti ne daugiau kaip {n} lankytojų. Kai ji pilna, bandykite vėliau.",
       "try_with": "Išbandykite demonstraciją su {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalendorius",
+    "year_strip": "Treji metai, mėnuo po mėnesio",
+    "events_n": "{n} įvyk(iai)",
+    "today": "Šiandien",
+    "prev_week": "Ankstesnė savaitė",
+    "next_week": "Kita savaitė",
+    "load_failed": "Kalendoriaus įkelti nepavyko. Bandykite vėliau.",
+    "months": {
+      "m1": "Sausis",
+      "m2": "Vasaris",
+      "m3": "Kovas",
+      "m4": "Balandis",
+      "m5": "Gegužė",
+      "m6": "Birželis",
+      "m7": "Liepa",
+      "m8": "Rugpjūtis",
+      "m9": "Rugsėjis",
+      "m10": "Spalis",
+      "m11": "Lapkritis",
+      "m12": "Gruodis"
+    },
+    "weekdays": {
+      "d1": "pr",
+      "d2": "an",
+      "d3": "tr",
+      "d4": "kt",
+      "d5": "pn",
+      "d6": "št",
+      "d7": "sk"
+    },
+    "weekdays_narrow": {
+      "d1": "P",
+      "d2": "A",
+      "d3": "T",
+      "d4": "K",
+      "d5": "P",
+      "d6": "Š",
+      "d7": "S"
     }
   }
 }

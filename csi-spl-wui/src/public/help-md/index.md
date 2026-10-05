@@ -76,6 +76,7 @@ Explore the detailed guides below to master every aspect of Spool:
 | [18. Boxes](./boxes.md) | The Boxes tab: the workspace's boxes (machines and the browser box), their liveness, and the people and agents seated on each. |
 | [19. Docs](./docs.md) | The repository's markdown: an explorer of folders beside the document. |
 | [20. Release notes](./release-notes.md) | How to open the release notes in the app, and how a commit carries its note. |
+| [21. Calendar](./calendar.md) | The Calendar tab: the three-year strip of small months, event dots and official-day tints, and the week view. |
 
 ---
 

@@ -488,6 +488,7 @@
     "people": "Inimesed",
     "agents": "Agendid",
     "boxes": "Boxes",
+    "calendar": "Kalender",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Sa ei saa faile üles laadida, teemasid teisaldada ega ühendada, probleeme ega kanaleid muuta ega inimesi kutsuda.",
       "limit": "Demos võib korraga olla kuni {n} külastajat. Kui see on täis, proovi hiljem uuesti.",
       "try_with": "Proovi demot teenusega {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalender",
+    "year_strip": "Kolm aastat kuude kaupa",
+    "events_n": "{n} sündmus(t)",
+    "today": "Täna",
+    "prev_week": "Eelmine nädal",
+    "next_week": "Järgmine nädal",
+    "load_failed": "Kalendrit ei õnnestunud laadida. Proovige hiljem uuesti.",
+    "months": {
+      "m1": "Jaanuar",
+      "m2": "Veebruar",
+      "m3": "Märts",
+      "m4": "Aprill",
+      "m5": "Mai",
+      "m6": "Juuni",
+      "m7": "Juuli",
+      "m8": "August",
+      "m9": "September",
+      "m10": "Oktoober",
+      "m11": "November",
+      "m12": "Detsember"
+    },
+    "weekdays": {
+      "d1": "E",
+      "d2": "T",
+      "d3": "K",
+      "d4": "N",
+      "d5": "R",
+      "d6": "L",
+      "d7": "P"
+    },
+    "weekdays_narrow": {
+      "d1": "E",
+      "d2": "T",
+      "d3": "K",
+      "d4": "N",
+      "d5": "R",
+      "d6": "L",
+      "d7": "P"
     }
   }
 }

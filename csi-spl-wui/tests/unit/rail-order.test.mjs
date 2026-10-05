@@ -29,32 +29,38 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('rail ids', () => {
-  it('ten tabs in the new-member order (CLE-77799 adds Boxes last)', () => {
-    assert.deepEqual([...RAIL_IDS], ['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents', 'boxes'])
-    assert.deepEqual(RAIL_TABS.map((t) => t.icon), ['hash', 'messages', 'issues', 'list', 'waves', 'archive', 'history', 'users', 'bot', 'server'])
+  it('eleven tabs in the new-member order (spec 089 T007 adds Calendar last)', () => {
+    assert.deepEqual([...RAIL_IDS], ['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents', 'boxes', 'calendar'])
+    assert.deepEqual(RAIL_TABS.map((t) => t.icon), ['hash', 'messages', 'issues', 'list', 'waves', 'archive', 'history', 'users', 'bot', 'server', 'calendar'])
   })
-  it('the hub (auth.RailTabs) and rdb 0090 hold the same list', () => {
+  it('the hub (auth.RailTabs) and rdb 0133 hold the same list', () => {
     const go = read('../csi-spl-api/src/go/spool-hub-api/internal/auth/handler.go')
-    /* CLE-77799: the hub admits the ten (rdb 0090) as well as the legacy 6 / 7 / 9 */
+    /* spec 089 T007: the hub admits the eleven (rdb 0133) as well as the legacy 6 / 7 / 9 / 10 */
     const hub = JSON.parse('[' + /\bRailTabs = \[\]string\{([^}]*)\}/.exec(go)[1] + ']')
     assert.deepEqual(hub, [...RAIL_IDS])
-    const sql = read('../csi-spl-rdb/src/sql/postgres/spool-hub/0090_human_rail_order_boxes.sql')
+    assert.match(go, /\blegacyRailTabs10 = \[\]string\{"channels", "dm", "issues", "topics", "flow", "archive", "events", "people", "agents", "boxes"\}/)
+    const sql = read('../csi-spl-rdb/src/sql/postgres/spool-hub/0133_human_rail_order_calendar.sql')
     assert.match(sql, /ARRAY\['dm','channels','issues','topics','flow','events','archive','people','agents','boxes'\]/)
+    assert.match(sql, /ARRAY\['dm','channels','issues','topics','flow','events','archive','people','agents','boxes','calendar'\]/)
   })
-  it('only a permutation of the ten is sent; the drawn order is tolerant', () => {
-    assert.ok(isRailOrder(['boxes', 'agents', 'people', 'archive', 'events', 'flow', 'topics', 'issues', 'channels', 'dm']))
+  it('only a permutation of the eleven is sent; the drawn order is tolerant', () => {
+    assert.ok(isRailOrder(['calendar', 'boxes', 'agents', 'people', 'archive', 'events', 'flow', 'topics', 'issues', 'channels', 'dm']))
+    assert.equal(isRailOrder(['boxes', 'agents', 'people', 'archive', 'events', 'flow', 'topics', 'issues', 'channels', 'dm']), false, 'the legacy ten is drawn, never sent')
     for (const bad of [null, [], ['dm'], ['events', 'flow', 'topics', 'issues', 'channels', 'dm'], ['agents', 'people', 'archive', 'events', 'flow', 'topics', 'issues', 'channels', 'dm'], [...RAIL_IDS, 'users'], 'dm']) {
       assert.equal(isRailOrder(bad), false, JSON.stringify(bad))
     }
     for (const none of [null, [], 'dm', ['users']]) assert.deepEqual(parseRailOrder(none), [...DEFAULT_RAIL_ORDER])
     /* SPL-983 / CLE-77794 / CLE-77799: an order stored before a tab existed keeps
        its place, the tabs added since (archive, people + agents, then boxes) appended */
-    assert.deepEqual(parseRailOrder(['topics', 'dm', 'channels', 'issues', 'flow', 'events']), ['topics', 'dm', 'channels', 'issues', 'flow', 'events', 'people', 'agents', 'boxes', 'archive'])
-    assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'archive'])
-    /* a legacy nine-tab order (before Boxes) keeps its place, Boxes appended */
+    assert.deepEqual(parseRailOrder(['topics', 'dm', 'channels', 'issues', 'flow', 'events']), ['topics', 'dm', 'channels', 'issues', 'flow', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
+    assert.deepEqual(parseRailOrder(['dm', 'dm', 'users', 'flow']), ['dm', 'flow', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
+    /* a legacy nine-tab order (before Boxes) keeps its place, Boxes and Calendar appended */
     assert.deepEqual(parseRailOrder(['channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents']), [...DEFAULT_RAIL_ORDER])
+    /* a legacy ten-tab order (before Calendar) keeps its place, Calendar appended before Archive */
+    assert.deepEqual(parseRailOrder(['boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'archive']),
+      ['boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'calendar', 'archive'])
     /* a stored order is kept exactly, whatever the default is (owner 2026-09-27) - but for Archive */
-    const owners = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'agents', 'people', 'boxes', 'archive']
+    const owners = ['channels', 'topics', 'issues', 'dm', 'events', 'flow', 'agents', 'people', 'calendar', 'boxes', 'archive']
     assert.deepEqual(parseRailOrder(owners), owners)
   })
 })
@@ -65,7 +71,7 @@ describe('Archive is always last and never moves', () => {
   it('the default order ends with Archive; every other tab keeps its default place', () => {
     assert.equal(RAIL_PINNED_LAST, 'archive')
     assert.equal(DEFAULT_RAIL_ORDER.at(-1), 'archive')
-    assert.deepEqual([...DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes', 'archive'])
+    assert.deepEqual([...DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
     assert.ok(isRailOrder([...DEFAULT_RAIL_ORDER]), 'the hub still admits the default (a permutation)')
     assert.equal(isRailMovable('archive'), false)
     for (const id of RAIL_IDS.filter((x) => x !== 'archive')) assert.equal(isRailMovable(id), true, id)
@@ -73,14 +79,14 @@ describe('Archive is always last and never moves', () => {
   it('a stored order with Archive first or in the middle is drawn with it last, the rest untouched', () => {
     /* the two stored orders on prd, measured 2026-10-01 (humans.rail_order) */
     assert.deepEqual(parseRailOrder(['channels', 'issues', 'topics', 'people', 'agents', 'events', 'boxes', 'dm', 'archive', 'flow']),
-      ['channels', 'issues', 'topics', 'people', 'agents', 'events', 'boxes', 'dm', 'flow', 'archive'])
+      ['channels', 'issues', 'topics', 'people', 'agents', 'events', 'boxes', 'dm', 'flow', 'calendar', 'archive'])
     assert.deepEqual(parseRailOrder(['dm', 'issues', 'topics', 'events', 'archive', 'people', 'agents', 'boxes', 'channels', 'flow']),
-      ['dm', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'channels', 'flow', 'archive'])
+      ['dm', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'channels', 'flow', 'calendar', 'archive'])
     assert.deepEqual(parseRailOrder(['archive', 'dm', 'channels']).at(-1), 'archive')
     assert.deepEqual(parseRailOrder(['archive', 'dm', 'channels']).slice(0, 2), ['dm', 'channels'])
   })
   it('an old saved order plus a tab added since: the new tab is appended, Archive stays after it', () => {
-    assert.deepEqual(parseRailOrder(['flow', 'archive', 'dm']), ['flow', 'dm', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'archive'])
+    assert.deepEqual(parseRailOrder(['flow', 'archive', 'dm']), ['flow', 'dm', 'channels', 'issues', 'topics', 'events', 'people', 'agents', 'boxes', 'calendar', 'archive'])
   })
   it('pinRailOrder moves only Archive and never invents it', () => {
     assert.deepEqual(pinRailOrder(['archive', 'dm', 'flow']), ['dm', 'flow', 'archive'])
@@ -88,7 +94,7 @@ describe('Archive is always last and never moves', () => {
   })
   it('a drag or a save that puts Archive anywhere else is saved with it last', async () => {
     const log = []
-    const want = ['archive', 'channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes']
+    const want = ['archive', 'channels', 'dm', 'issues', 'topics', 'flow', 'events', 'people', 'agents', 'boxes', 'calendar']
     const out = await applyRailOrder(want, { current: null, apply: (o) => log.push(o), save: async () => ({ ok: true }) })
     assert.equal(out.value.at(-1), 'archive')
     assert.equal(out.value[0], 'channels')
@@ -132,11 +138,11 @@ describe('dragAxis', () => {
 
 describe('moves', () => {
   it('moveTo / moveBy clamp at both ends and never lose a tab', () => {
-    assert.deepEqual(moveTo(RAIL_IDS, 'events', 0), ['events', 'channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'people', 'agents', 'boxes'])
-    assert.deepEqual(moveTo(RAIL_IDS, 'channels', 99), ['dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents', 'boxes', 'channels'])
+    assert.deepEqual(moveTo(RAIL_IDS, 'events', 0), ['events', 'channels', 'dm', 'issues', 'topics', 'flow', 'archive', 'people', 'agents', 'boxes', 'calendar'])
+    assert.deepEqual(moveTo(RAIL_IDS, 'channels', 99), ['dm', 'issues', 'topics', 'flow', 'archive', 'events', 'people', 'agents', 'boxes', 'calendar', 'channels'])
     assert.deepEqual(moveBy(RAIL_IDS, 'channels', -1), [...RAIL_IDS])
-    assert.deepEqual(moveBy(RAIL_IDS, 'issues', -1), ['channels', 'issues', 'dm', 'topics', 'flow', 'archive', 'events', 'people', 'agents', 'boxes'])
-    assert.deepEqual(moveBy(RAIL_IDS, 'boxes', 1), [...RAIL_IDS])
+    assert.deepEqual(moveBy(RAIL_IDS, 'issues', -1), ['channels', 'issues', 'dm', 'topics', 'flow', 'archive', 'events', 'people', 'agents', 'boxes', 'calendar'])
+    assert.deepEqual(moveBy(RAIL_IDS, 'calendar', 1), [...RAIL_IDS])
     assert.ok(isRailOrder(moveBy(RAIL_IDS, 'flow', 1)))
     assert.deepEqual(moveTo(RAIL_IDS, 'users', 0), [...RAIL_IDS])
   })
@@ -169,7 +175,7 @@ describe('applyRailOrder', () => {
       }),
     }
   }
-  const rev = ['boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'archive']
+  const rev = ['calendar', 'boxes', 'agents', 'people', 'events', 'flow', 'topics', 'issues', 'channels', 'dm', 'archive']
   it('mirrors at once, then saves', async () => {
     const r = rig(true)
     assert.deepEqual(await applyRailOrder(rev, r.io(null)), { ok: true, value: rev })
@@ -209,8 +215,22 @@ describe('wiring', () => {
     assert.equal(tabForPath('/fi/archive'), 'archive')
     const src = read('src/components/ChannelSidebar.vue')
     assert.match(src, /next === ARCHIVE_TAB && tabForPath\(route\.path\) !== ARCHIVE_TAB\) await navigateTo\(localePath\('\/archive'\)\)/)
-    assert.match(src, /id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB\) sidePane\.setCurrent\(id\)/)
+    assert.match(src, /id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB && id !== CALENDAR_TAB\) sidePane\.setCurrent\(id\)/)
     assert.ok(read('src/pages/archive.vue').length > 0)
+  })
+  it('Calendar (spec 089 T007) is a page tab: /calendar picks it, a click opens /calendar, the sidebar keeps the rail only', async () => {
+    const { tabForPath, routeForTab, CALENDAR_TAB } = await import('../../src/utils/sidebar-tabs.mjs')
+    const { isSectionPage } = await import('../../src/utils/section-strip.mjs')
+    assert.equal(CALENDAR_TAB, 'calendar')
+    assert.equal(tabForPath('/calendar'), 'calendar')
+    assert.equal(tabForPath('/fi/calendar'), 'calendar')
+    assert.equal(routeForTab('calendar'), '/calendar')
+    assert.equal(isSectionPage('/calendar'), true)
+    const src = read('src/components/ChannelSidebar.vue')
+    assert.match(src, /next === CALENDAR_TAB && tabForPath\(route\.path\) !== CALENDAR_TAB\) await navigateTo\(localePath\('\/calendar'\)\)/)
+    assert.match(src, /const calendarRailOnly = computed\(\(\) => tab\.value === CALENDAR_TAB\)/)
+    assert.match(src, /'sidebar--rail': issuesRailOnly \|\| calendarRailOnly/)
+    assert.ok(read('src/pages/calendar.vue').length > 0)
   })
   it('the rail draws the stored order and drags through useDragReorder; no Users icon (owner 2026-09-28)', () => {
     const src = read('src/components/ChannelSidebar.vue')

@@ -488,6 +488,7 @@
     "people": "Osoby",
     "agents": "Agenci",
     "boxes": "Boxes",
+    "calendar": "Kalendarz",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Nie możesz przesyłać plików, przenosić ani scalać wątków, zmieniać zgłoszeń ani kanałów, ani zapraszać osób.",
       "limit": "W demo może być jednocześnie najwyżej {n} odwiedzających. Gdy jest pełne, spróbuj ponownie później.",
       "try_with": "Wypróbuj demo przez {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalendarz",
+    "year_strip": "Trzy lata, miesiąc po miesiącu",
+    "events_n": "{n} wydarze(nia)",
+    "today": "Dziś",
+    "prev_week": "Poprzedni tydzień",
+    "next_week": "Następny tydzień",
+    "load_failed": "Nie udało się wczytać kalendarza. Spróbuj ponownie później.",
+    "months": {
+      "m1": "Styczeń",
+      "m2": "Luty",
+      "m3": "Marzec",
+      "m4": "Kwiecień",
+      "m5": "Maj",
+      "m6": "Czerwiec",
+      "m7": "Lipiec",
+      "m8": "Sierpień",
+      "m9": "Wrzesień",
+      "m10": "Październik",
+      "m11": "Listopad",
+      "m12": "Grudzień"
+    },
+    "weekdays": {
+      "d1": "pon.",
+      "d2": "wt.",
+      "d3": "śr.",
+      "d4": "czw.",
+      "d5": "pt.",
+      "d6": "sob.",
+      "d7": "niedz."
+    },
+    "weekdays_narrow": {
+      "d1": "P",
+      "d2": "W",
+      "d3": "Ś",
+      "d4": "C",
+      "d5": "P",
+      "d6": "S",
+      "d7": "N"
     }
   }
 }

@@ -488,6 +488,7 @@
     "people": "Personas",
     "agents": "Agentes",
     "boxes": "Equipos",
+    "calendar": "Calendario",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "No puedes subir archivos, mover ni fusionar temas, cambiar incidencias ni canales, ni invitar a personas.",
       "limit": "Como máximo {n} visitantes pueden estar en la demo a la vez. Cuando esté llena, inténtalo más tarde.",
       "try_with": "Prueba la demo con {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Calendario",
+    "year_strip": "Tres años, mes a mes",
+    "events_n": "{n} evento(s)",
+    "today": "Hoy",
+    "prev_week": "Semana anterior",
+    "next_week": "Semana siguiente",
+    "load_failed": "No se pudo cargar el calendario. Inténtalo de nuevo más tarde.",
+    "months": {
+      "m1": "Enero",
+      "m2": "Febrero",
+      "m3": "Marzo",
+      "m4": "Abril",
+      "m5": "Mayo",
+      "m6": "Junio",
+      "m7": "Julio",
+      "m8": "Agosto",
+      "m9": "Septiembre",
+      "m10": "Octubre",
+      "m11": "Noviembre",
+      "m12": "Diciembre"
+    },
+    "weekdays": {
+      "d1": "lun",
+      "d2": "mar",
+      "d3": "mié",
+      "d4": "jue",
+      "d5": "vie",
+      "d6": "sáb",
+      "d7": "dom"
+    },
+    "weekdays_narrow": {
+      "d1": "L",
+      "d2": "M",
+      "d3": "X",
+      "d4": "J",
+      "d5": "V",
+      "d6": "S",
+      "d7": "D"
     }
   }
 }

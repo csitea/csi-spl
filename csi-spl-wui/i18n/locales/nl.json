@@ -488,6 +488,7 @@
     "people": "Personen",
     "agents": "Agents",
     "boxes": "Boxes",
+    "calendar": "Agenda",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Je kunt geen bestanden uploaden, onderwerpen verplaatsen of samenvoegen, issues of kanalen wijzigen of mensen uitnodigen.",
       "limit": "Er kunnen maximaal {n} bezoekers tegelijk in de demo zijn. Is hij vol, probeer het dan later opnieuw.",
       "try_with": "Probeer de demo met {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Agenda",
+    "year_strip": "Drie jaar, maand voor maand",
+    "events_n": "{n} afspra(a)k(en)",
+    "today": "Vandaag",
+    "prev_week": "Vorige week",
+    "next_week": "Volgende week",
+    "load_failed": "De agenda kon niet worden geladen. Probeer het later opnieuw.",
+    "months": {
+      "m1": "Januari",
+      "m2": "Februari",
+      "m3": "Maart",
+      "m4": "April",
+      "m5": "Mei",
+      "m6": "Juni",
+      "m7": "Juli",
+      "m8": "Augustus",
+      "m9": "September",
+      "m10": "Oktober",
+      "m11": "November",
+      "m12": "December"
+    },
+    "weekdays": {
+      "d1": "ma",
+      "d2": "di",
+      "d3": "wo",
+      "d4": "do",
+      "d5": "vr",
+      "d6": "za",
+      "d7": "zo"
+    },
+    "weekdays_narrow": {
+      "d1": "M",
+      "d2": "D",
+      "d3": "W",
+      "d4": "D",
+      "d5": "V",
+      "d6": "Z",
+      "d7": "Z"
     }
   }
 }

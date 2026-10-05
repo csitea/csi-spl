@@ -488,6 +488,7 @@
     "people": "Cilvēki",
     "agents": "Aģenti",
     "boxes": "Boxes",
+    "calendar": "Kalendārs",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Jūs nevarat augšupielādēt failus, pārvietot vai apvienot tēmas, mainīt uzdevumus vai kanālus, ne arī uzaicināt cilvēkus.",
       "limit": "Demo vienlaikus var būt ne vairāk kā {n} apmeklētāji. Kad tas ir pilns, mēģiniet vēlāk vēlreiz.",
       "try_with": "Izmēģiniet demo ar {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalendārs",
+    "year_strip": "Trīs gadi, mēnesi pa mēnesim",
+    "events_n": "{n} notikum(i)",
+    "today": "Šodien",
+    "prev_week": "Iepriekšējā nedēļa",
+    "next_week": "Nākamā nedēļa",
+    "load_failed": "Kalendāru neizdevās ielādēt. Mēģiniet vēlāk vēlreiz.",
+    "months": {
+      "m1": "Janvāris",
+      "m2": "Februāris",
+      "m3": "Marts",
+      "m4": "Aprīlis",
+      "m5": "Maijs",
+      "m6": "Jūnijs",
+      "m7": "Jūlijs",
+      "m8": "Augusts",
+      "m9": "Septembris",
+      "m10": "Oktobris",
+      "m11": "Novembris",
+      "m12": "Decembris"
+    },
+    "weekdays": {
+      "d1": "Pirmd.",
+      "d2": "Otrd.",
+      "d3": "Trešd.",
+      "d4": "Ceturtd.",
+      "d5": "Piektd.",
+      "d6": "Sestd.",
+      "d7": "Svētd."
+    },
+    "weekdays_narrow": {
+      "d1": "P",
+      "d2": "O",
+      "d3": "T",
+      "d4": "C",
+      "d5": "P",
+      "d6": "S",
+      "d7": "S"
     }
   }
 }

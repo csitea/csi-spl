@@ -488,6 +488,7 @@
     "people": "Kişiler",
     "agents": "Ajanlar",
     "boxes": "Boxes",
+    "calendar": "Takvim",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Dosya yükleyemez, konuları taşıyamaz veya birleştiremez, iş kayıtlarını veya kanalları değiştiremez ve kimseyi davet edemezsiniz.",
       "limit": "Demoda aynı anda en fazla {n} ziyaretçi bulunabilir. Dolu olduğunda daha sonra tekrar deneyin.",
       "try_with": "Demoyu {provider} ile deneyin"
+    }
+  },
+  "calendar": {
+    "title": "Takvim",
+    "year_strip": "Üç yıl, ay ay",
+    "events_n": "{n} etkinlik",
+    "today": "Bugün",
+    "prev_week": "Önceki hafta",
+    "next_week": "Sonraki hafta",
+    "load_failed": "Takvim yüklenemedi. Daha sonra tekrar deneyin.",
+    "months": {
+      "m1": "Ocak",
+      "m2": "Şubat",
+      "m3": "Mart",
+      "m4": "Nisan",
+      "m5": "Mayıs",
+      "m6": "Haziran",
+      "m7": "Temmuz",
+      "m8": "Ağustos",
+      "m9": "Eylül",
+      "m10": "Ekim",
+      "m11": "Kasım",
+      "m12": "Aralık"
+    },
+    "weekdays": {
+      "d1": "Pzt",
+      "d2": "Sal",
+      "d3": "Çar",
+      "d4": "Per",
+      "d5": "Cum",
+      "d6": "Cmt",
+      "d7": "Paz"
+    },
+    "weekdays_narrow": {
+      "d1": "P",
+      "d2": "S",
+      "d3": "Ç",
+      "d4": "P",
+      "d5": "C",
+      "d6": "C",
+      "d7": "P"
     }
   }
 }

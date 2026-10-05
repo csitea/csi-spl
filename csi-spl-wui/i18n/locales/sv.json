@@ -488,6 +488,7 @@
     "people": "Personer",
     "agents": "Agenter",
     "boxes": "Boxes",
+    "calendar": "Kalender",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Du kan inte ladda upp filer, flytta eller slå ihop ämnen, ändra ärenden eller kanaler eller bjuda in personer.",
       "limit": "Högst {n} besökare kan vara i demot samtidigt. När det är fullt, försök igen senare.",
       "try_with": "Prova demot med {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalender",
+    "year_strip": "Tre år, månad för månad",
+    "events_n": "{n} händelse(r)",
+    "today": "Idag",
+    "prev_week": "Föregående vecka",
+    "next_week": "Nästa vecka",
+    "load_failed": "Kalendern kunde inte läsas in. Försök igen senare.",
+    "months": {
+      "m1": "Januari",
+      "m2": "Februari",
+      "m3": "Mars",
+      "m4": "April",
+      "m5": "Maj",
+      "m6": "Juni",
+      "m7": "Juli",
+      "m8": "Augusti",
+      "m9": "September",
+      "m10": "Oktober",
+      "m11": "November",
+      "m12": "December"
+    },
+    "weekdays": {
+      "d1": "mån",
+      "d2": "tis",
+      "d3": "ons",
+      "d4": "tors",
+      "d5": "fre",
+      "d6": "lör",
+      "d7": "sön"
+    },
+    "weekdays_narrow": {
+      "d1": "M",
+      "d2": "T",
+      "d3": "O",
+      "d4": "T",
+      "d5": "F",
+      "d6": "L",
+      "d7": "S"
     }
   }
 }

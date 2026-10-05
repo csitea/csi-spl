@@ -488,6 +488,7 @@
     "people": "Persoane",
     "agents": "Agenți",
     "boxes": "Boxes",
+    "calendar": "Calendar",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Nu poți încărca fișiere, muta sau uni subiecte, modifica sarcini sau canale și nici invita persoane.",
       "limit": "Cel mult {n} vizitatori pot fi în demo în același timp. Când este plin, încearcă din nou mai târziu.",
       "try_with": "Încearcă demo-ul cu {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Calendar",
+    "year_strip": "Trei ani, lună de lună",
+    "events_n": "{n} eveniment(e)",
+    "today": "Astăzi",
+    "prev_week": "Săptămâna anterioară",
+    "next_week": "Săptămâna următoare",
+    "load_failed": "Calendarul nu a putut fi încărcat. Încercați din nou mai târziu.",
+    "months": {
+      "m1": "Ianuarie",
+      "m2": "Februarie",
+      "m3": "Martie",
+      "m4": "Aprilie",
+      "m5": "Mai",
+      "m6": "Iunie",
+      "m7": "Iulie",
+      "m8": "August",
+      "m9": "Septembrie",
+      "m10": "Octombrie",
+      "m11": "Noiembrie",
+      "m12": "Decembrie"
+    },
+    "weekdays": {
+      "d1": "lun.",
+      "d2": "mar.",
+      "d3": "mie.",
+      "d4": "joi",
+      "d5": "vin.",
+      "d6": "sâm.",
+      "d7": "dum."
+    },
+    "weekdays_narrow": {
+      "d1": "L",
+      "d2": "M",
+      "d3": "M",
+      "d4": "J",
+      "d5": "V",
+      "d6": "S",
+      "d7": "D"
     }
   }
 }

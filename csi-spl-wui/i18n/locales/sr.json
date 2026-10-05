@@ -488,6 +488,7 @@
     "people": "Људи",
     "agents": "Агенти",
     "boxes": "Boxes",
+    "calendar": "Календар",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Ne možete da otpremate datoteke, premeštate ili spajate teme, menjate zadatke ili kanale, niti da pozivate ljude.",
       "limit": "U demu istovremeno može biti najviše {n} posetilaca. Kada je pun, pokušajte ponovo kasnije.",
       "try_with": "Isprobajte demo preko {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Календар",
+    "year_strip": "Три године, месец по месец",
+    "events_n": "{n} догађај(а)",
+    "today": "Данас",
+    "prev_week": "Претходна недеља",
+    "next_week": "Следећа недеља",
+    "load_failed": "Календар није могао да се учита. Покушајте поново касније.",
+    "months": {
+      "m1": "Јануар",
+      "m2": "Фебруар",
+      "m3": "Март",
+      "m4": "Април",
+      "m5": "Мај",
+      "m6": "Јун",
+      "m7": "Јул",
+      "m8": "Август",
+      "m9": "Септембар",
+      "m10": "Октобар",
+      "m11": "Новембар",
+      "m12": "Децембар"
+    },
+    "weekdays": {
+      "d1": "пон",
+      "d2": "уто",
+      "d3": "сре",
+      "d4": "чет",
+      "d5": "пет",
+      "d6": "суб",
+      "d7": "нед"
+    },
+    "weekdays_narrow": {
+      "d1": "п",
+      "d2": "у",
+      "d3": "с",
+      "d4": "ч",
+      "d5": "п",
+      "d6": "с",
+      "d7": "н"
     }
   }
 }

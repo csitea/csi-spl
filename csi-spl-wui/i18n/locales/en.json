@@ -488,6 +488,7 @@
     "people": "People",
     "agents": "Agents",
     "boxes": "Boxes",
+    "calendar": "Calendar",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "You cannot upload files, move or merge topics, change issues or channels, or invite people.",
       "limit": "At most {n} visitors can be in the demo at a time. When it is full, try again later.",
       "try_with": "Try the demo with {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Calendar",
+    "year_strip": "Three years, month by month",
+    "events_n": "{n} event(s)",
+    "today": "Today",
+    "prev_week": "Previous week",
+    "next_week": "Next week",
+    "load_failed": "The calendar could not be loaded. Try again later.",
+    "months": {
+      "m1": "January",
+      "m2": "February",
+      "m3": "March",
+      "m4": "April",
+      "m5": "May",
+      "m6": "June",
+      "m7": "July",
+      "m8": "August",
+      "m9": "September",
+      "m10": "October",
+      "m11": "November",
+      "m12": "December"
+    },
+    "weekdays": {
+      "d1": "Mon",
+      "d2": "Tue",
+      "d3": "Wed",
+      "d4": "Thu",
+      "d5": "Fri",
+      "d6": "Sat",
+      "d7": "Sun"
+    },
+    "weekdays_narrow": {
+      "d1": "M",
+      "d2": "T",
+      "d3": "W",
+      "d4": "T",
+      "d5": "F",
+      "d6": "S",
+      "d7": "S"
     }
   }
 }

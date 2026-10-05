@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, topics, flow,
@@ -781,7 +781,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
 import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
-import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
@@ -803,7 +803,7 @@ import { flowDmPeers } from '~/utils/flow-keys.mjs'
 import { useUnread } from '~/composables/useUnread'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
+type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes' | 'calendar'
 /* The six rail tabs (utils/rail-order.mjs RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -945,6 +945,9 @@ const localePath = useLocalePath()
    sidebar keeps the icon rail and the issue list takes the width. */
 const issueEpics = useState<Array<{ key: string }>>('issue-epics', () => [])
 const issuesRailOnly = computed(() => tab.value === 'issues' && issueEpics.value.length === 0)
+/* spec 089 T007: /calendar is a single sheet like Issues - the sidebar keeps
+   the icon rail only; the page holds the year strip and the main view. */
+const calendarRailOnly = computed(() => tab.value === CALENDAR_TAB)
 /* t1 67f91532 (owner: "the help section should have only 2 panes"): on
    /help the sidebar keeps the icon rail only; the help page itself is the
    two panes, its page list left and the document right. A phone keeps its
@@ -1118,6 +1121,7 @@ async function selectTab(next: SideTab) {
   if (next === PEOPLE_TAB && !phoneList && tabForPath(route.path) !== PEOPLE_TAB) await navigateTo(localePath('/people'))
   if (next === AGENTS_TAB && !phoneList && tabForPath(route.path) !== AGENTS_TAB) await navigateTo(localePath('/agents'))
   if (next === BOXES_TAB && !phoneList && tabForPath(route.path) !== BOXES_TAB) await navigateTo(localePath('/boxes'))
+  if (next === CALENDAR_TAB && tabForPath(route.path) !== CALENDAR_TAB) await navigateTo(localePath('/calendar'))
 }
 /* CLE-77884: the search list's X - back to the list the page belongs to */
 function closeSearch() {
@@ -1141,7 +1145,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== 'search' && id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB) sidePane.setCurrent(id)
+  if (id !== 'search' && id !== USERS_TAB && id !== EVENTS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== AGENTS_TAB && id !== BOXES_TAB && id !== CALENDAR_TAB) sidePane.setCurrent(id)
   if (id === 'topics' && viewer.topics.length === 0) void viewer.loadTopics()
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */

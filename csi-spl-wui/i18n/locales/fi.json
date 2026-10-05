@@ -488,6 +488,7 @@
     "people": "Ihmiset",
     "agents": "Agentit",
     "boxes": "Boxes",
+    "calendar": "Kalenteri",
     "archive_channel": {
       "title": "Archive #{name}?",
       "body": "#{name} is hidden for every member and its name stays reserved. Its topics and messages move to the Archive view; you can bring it back later.",
@@ -1871,6 +1872,47 @@
       "cannot": "Et voi ladata tiedostoja, siirtää tai yhdistää aiheita, muuttaa tehtäviä tai kanavia etkä kutsua ihmisiä.",
       "limit": "Demossa voi olla enintään {n} vierailijaa kerrallaan. Kun se on täynnä, yritä myöhemmin uudelleen.",
       "try_with": "Kokeile demoa: {provider}"
+    }
+  },
+  "calendar": {
+    "title": "Kalenteri",
+    "year_strip": "Kolme vuotta kuukausittain",
+    "events_n": "{n} tapahtuma(a)",
+    "today": "Tänään",
+    "prev_week": "Edellinen viikko",
+    "next_week": "Seuraava viikko",
+    "load_failed": "Kalenteria ei voitu ladata. Yritä myöhemmin uudelleen.",
+    "months": {
+      "m1": "Tammikuu",
+      "m2": "Helmikuu",
+      "m3": "Maaliskuu",
+      "m4": "Huhtikuu",
+      "m5": "Toukokuu",
+      "m6": "Kesäkuu",
+      "m7": "Heinäkuu",
+      "m8": "Elokuu",
+      "m9": "Syyskuu",
+      "m10": "Lokakuu",
+      "m11": "Marraskuu",
+      "m12": "Joulukuu"
+    },
+    "weekdays": {
+      "d1": "ma",
+      "d2": "ti",
+      "d3": "ke",
+      "d4": "to",
+      "d5": "pe",
+      "d6": "la",
+      "d7": "su"
+    },
+    "weekdays_narrow": {
+      "d1": "M",
+      "d2": "T",
+      "d3": "K",
+      "d4": "T",
+      "d5": "P",
+      "d6": "L",
+      "d7": "S"
     }
   }
 }

@@ -1,0 +1,114 @@
+# 46 ops: the nightly wipe of the demo workspace (spec 077 T017, §3.6).
+#
+# Deletes every message and topic of the demo workspace (cnf
+# env.demo.workspace), its read marks and topic watches, and re-seeds its
+# default channels and (once 077 T019 lands) the pinned welcome. The action is
+# csi-spl-orc do_spl_demo_wipe; its guards are the action's, not this file's:
+# any workspace other than env.demo.workspace is refused, and the SQL itself
+# aborts on a workspace with a member whose role is not demo_user / admin /
+# biz_owner. An env whose cnf env.demo.enabled is not true is SKIPPED by the
+# action (exit 0), so prd wipes nothing until 077 T024 turns its demo on.
+#
+# Same scheduler and auth as 45 (db backup): the per-env project key secrets
+# GCP_KEY_CSI_SPL_<ENV> (iac 120), activated by the action in its own
+# CLOUDSDK_CONFIG; no new credential. An env without its key is SKIPPED with a
+# notice. A red scheduled run is the alert.
+#
+# Schedule: 03:41 UTC, the quiet hour, clear of 45's 00:17 / 06:17 slots.
+#
+# Local equivalent:
+#   ENV=<env>           ./csi-spl-orc/run -a do_spl_demo_wipe   (counts only)
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_demo_wipe
+
+name: "46 ops: demo workspace nightly wipe"
+
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment ("all" = dev then prd)'
+        type: choice
+        options: [all, dev, prd]
+        default: all
+      dry_run:
+        description: "Count what the wipe would delete; delete nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  wipe:
+    name: "wipe ${{ matrix.environment }}"
+    # Estate guard (spec 072 A34): this job changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+    concurrency:
+      group: demo-wipe-${{ matrix.environment }}
+      cancel-in-progress: false
+    env:
+      ENV: ${{ matrix.environment }}
+      WANT: ${{ github.event.inputs.environment || 'all' }}
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+    # orc derives ORG/APP from the parent dirs: check out in the operator's
+    # layout <base>/csi/csi-spl (as 40 and 45 do)
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          if [[ "$WANT" != all && "$WANT" != "$ENV" ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "$ENV not selected"; exit 0; fi
+          if [[ "$HAS_KEY" != true ]]; then echo "go=0" >>"$GITHUB_OUTPUT"; echo "::notice::$ENV skipped: no secret GCP_KEY_CSI_SPL_${ENV^^} (iac 120)"; exit 0; fi
+          echo "go=1" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.sel.outputs.go == '1'
+        with:
+          path: csi/csi-spl
+          ref: master
+
+      # no auth here: the action activates the env key in its own private
+      # CLOUDSDK_CONFIG and pins --account on every call
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        if: steps.sel.outputs.go == '1'
+
+      - name: psql
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Env SA key to the path the actions resolve
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        env:
+          KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY" >"$HOME/.gcp/.csi/key-csi-spl-$ENV.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-$ENV.json" >/dev/null
+
+      - name: Wipe the demo workspace
+        if: steps.sel.outputs.go == '1'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: ./run -a do_spl_demo_wipe
+
+      - name: Drop the key
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

@@ -27,7 +27,7 @@ fails=0
 GUARD="vars.SPOOL_ESTATE == 'true'"
 
 # The live-estate workflows (spec 072 F23).
-ESTATE="00 21 22 31 40 45 55 68"
+ESTATE="00 21 22 31 40 45 46 55 68"
 # Scheduled or cnf-reading, yet touch no live host; the reason is the review.
 declare -A EXEMPT=(
   [10]="CI suites: reads cnf as test input, probes no host"

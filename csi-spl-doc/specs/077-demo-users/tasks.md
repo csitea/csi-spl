@@ -101,9 +101,16 @@ Rules for every task (owner Q8, spec §3.10):
   rows of another workspace through every read route (`/v1/view/*`, search,
   files, flow, issues).
 - [ ] T016 **report / hide / ban** (§3.6).
-- [ ] T017 **nightly wipe**: named action `do_spl_demo_wipe` (csi-spl-orc) on a
+- [x] T017 **nightly wipe** (c-314): named action `do_spl_demo_wipe` (csi-spl-orc) on a
   schedule; deletes demo messages and topics, re-seeds the channels and the
-  pinned welcome.
+  pinned welcome. Built: wf 46 runs it nightly (03:41 UTC) on dev then prd; it
+  deletes the cnf `env.demo.workspace`'s messages (their topics, deliveries,
+  reactions cascade), read marks and topic watches, re-inserts the hub's
+  default channels, in tenant RLS scope. Refuses any other workspace (cnf) and,
+  in SQL, a workspace with a member outside `demo_user` / `admin` /
+  `biz_owner`; a demo that is off is skipped. The pinned welcome is T019's:
+  the wipe calls `do_spl_demo_greeting_seed` once it exists. Done:
+  `csi-spl-orc/src/bash/tests/demo-wipe.tst.sh` (real Postgres, two CONTROLs).
 
 ### Phase 4: Settings and greeting
 
@@ -156,4 +163,4 @@ Rules for every task (owner Q8, spec §3.10):
 - [ ] T024 **prd on**: only on the owner's explicit go after the dev
   walkthrough.
 
-<!-- version: 0.2.2 · updated: 2026-10-05 · last-edit: 2026-10-05T10:05:00Z -->
+<!-- version: 0.2.3 · updated: 2026-10-05 · last-edit: 2026-10-05T10:40:00Z -->

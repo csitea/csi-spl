@@ -15,8 +15,9 @@
 //      (mock) never deleted it
 //   4  Delete again and let the snackbar close: the DELETE is sent (the reply
 //      stays gone after the topic is read again)
-//   5  Delete on the topic-level card (is_parent 1): the existing "Delete this
-//      topic?" confirm, again on a stale tab; Esc closes it, nothing deleted
+//   5  Delete on the topic-level card (is_parent 1), reached with a click: the
+//      existing "Delete this topic?" confirm, again on a stale tab; Esc closes
+//      it, nothing deleted
 //   6  CONTROL: Delete typed in the composer deletes nothing
 //
 // Run:
@@ -193,7 +194,15 @@ try {
   ok('4 control: the other reply is untouched', Boolean(await p.$(paneRow(s.r1))))
 
   /* ---- 5. Delete on the topic-level card asks first --------------------- */
+  /* The reader goes to the card with a click, as a user does: step 4's Delete
+     started holdPanel (HUM-10) on the topic pane, which puts a focus that
+     leaves it back on a reply every 50 ms for 4 s and ends only on a key or a
+     pointerdown. A bare focus() raced that tick and lost in CI, so Delete hit
+     the reply (wf10 37238838654). Waiting past one tick keeps the race out. */
+  await p.click(midCard(s.top.msg_id))
   await focusRow(p, midCard(s.top.msg_id))
+  await sleep(150)
+  ok('5 the topic-level card holds the focus', (await focused(p)) === s.top.msg_id, await focused(p))
   const stale2 = await staleTab(p)
   await p.keyboard.press('Delete')
   const asked = await until(p, () => Boolean(document.querySelector('[data-testid=topic-delete-body]')), null, 5000)

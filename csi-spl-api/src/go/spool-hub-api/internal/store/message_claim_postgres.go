@@ -19,19 +19,30 @@ import (
 // in the same transaction.
 
 const claimCols = `msg_id::text, task_id::text, coalesce(channel, ''), ts, from_box, from_id, to_box, to_id, kind, msg::text,
-	coalesce(responsible, ''), locked_until, responsible_gen, claim_n, handled_at, coalesce(handled_how, ''), not_by, needs_peer`
+	coalesce(responsible, ''), locked_until, responsible_gen, claim_n, handled_at, coalesce(handled_how, ''), not_by, needs_peer,
+	claim_state, offer_set, offer_n, offer_until, lapsed, accepted_at, touched_at, parked_until,
+	coalesce(park_reason, ''), coalesce(wait_token, '')`
 
 // claimFreeSQL is claimFree; $1 tenant, $2 now.
-const claimFreeSQL = `tenant_id = $1 AND needs_peer AND handled_at IS NULL
+const claimFreeSQL = `tenant_id = $1 AND needs_peer AND handled_at IS NULL AND claim_state <> 'offered'
 	AND (responsible IS NULL OR locked_until IS NULL OR locked_until < $2)`
 
 func scanClaim(row pgx.Row, tenant string) (Message, error) {
 	m := Message{TenantID: tenant}
 	var msg string
-	var locked, handled *time.Time
+	var locked, handled, offerUntil, accepted, touched, parked *time.Time
+	r := &m.Round
 	if err := row.Scan(&m.MsgID, &m.TaskID, &m.Channel, &m.TS, &m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.Kind, &msg,
-		&m.Responsible, &locked, &m.ResponsibleGen, &m.ClaimN, &handled, &m.HandledHow, &m.NotBy, &m.NeedsPeer); err != nil {
+		&m.Responsible, &locked, &m.ResponsibleGen, &m.ClaimN, &handled, &m.HandledHow, &m.NotBy, &m.NeedsPeer,
+		&r.State, &r.OfferSet, &r.OfferN, &offerUntil, &r.Lapsed, &accepted, &touched, &parked, &r.ParkReason, &r.WaitToken); err != nil {
 		return m, err
+	}
+	r.OfferUntil, r.AcceptedAt, r.TouchedAt, r.ParkedUntil = utcOrZero(offerUntil), utcOrZero(accepted), utcOrZero(touched), utcOrZero(parked)
+	if len(r.OfferSet) == 0 {
+		r.OfferSet = nil
+	}
+	if len(r.Lapsed) == 0 {
+		r.Lapsed = nil
 	}
 	m.Msg, m.TS = []byte(msg), m.TS.UTC()
 	if locked != nil {
@@ -62,7 +73,8 @@ func scanClaims(rows pgx.Rows, tenant string) ([]Message, error) {
 func (s *Postgres) PollMessageClaims(ctx context.Context, tenant string, p ClaimPoll, now time.Time) ([]Message, []Message, error) {
 	var claimed, dead []Message
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `UPDATE messages SET handled_at = $2, handled_how = 'dead', locked_until = NULL
+		rows, err := tx.Query(ctx, `UPDATE messages SET handled_at = $2, handled_how = 'dead', locked_until = NULL,
+				claim_state = 'done', touched_at = $2, offer_set = '{}', parked_until = NULL
 			WHERE (tenant_id, msg_id) IN (
 				SELECT tenant_id, msg_id FROM messages
 				WHERE `+claimFreeSQL+` AND claim_n >= $3
@@ -75,7 +87,8 @@ func (s *Postgres) PollMessageClaims(ctx context.Context, tenant string, p Claim
 			return err
 		}
 		rows, err = tx.Query(ctx, `UPDATE messages SET responsible = $5, locked_until = $6,
-				responsible_gen = responsible_gen + 1, claim_n = claim_n + 1
+				responsible_gen = responsible_gen + 1, claim_n = claim_n + 1,
+				claim_state = 'owned', accepted_at = $2, touched_at = $2
 			WHERE (tenant_id, msg_id) IN (
 				SELECT tenant_id, msg_id FROM messages
 				WHERE `+claimFreeSQL+` AND claim_n < $3 AND NOT ($7 = ANY (not_by))
@@ -138,20 +151,7 @@ func (s *Postgres) claimUpdate(ctx context.Context, tenant string, c ClaimClose,
 			return nil
 		}
 		apply(&m)
-		notBy := m.NotBy
-		if notBy == nil {
-			notBy = []string{}
-		}
-		var responsible, how any
-		if m.Responsible != "" {
-			responsible = m.Responsible
-		}
-		if m.HandledHow != "" {
-			how = m.HandledHow
-		}
-		if _, err = tx.Exec(ctx, `UPDATE messages SET responsible = $3, locked_until = $4, handled_at = $5,
-			handled_how = $6, not_by = $7 WHERE tenant_id = $1 AND msg_id = $2`,
-			tenant, c.MsgID, responsible, nullTime(m.LockedUntil), nullTime(m.HandledAt), how, notBy); err != nil {
+		if err = writeClaim(ctx, tx, &m); err != nil {
 			return err
 		}
 		out = m
@@ -163,13 +163,13 @@ func (s *Postgres) claimUpdate(ctx context.Context, tenant string, c ClaimClose,
 	return out, refused
 }
 
-func (s *Postgres) ReleaseMessageClaim(ctx context.Context, tenant string, c ClaimClose, _ time.Time) (Message, error) {
+func (s *Postgres) ReleaseMessageClaim(ctx context.Context, tenant string, c ClaimClose, now time.Time) (Message, error) {
 	return s.claimUpdate(ctx, tenant, c, func(m *Message) error {
 		if !m.NeedsPeer {
 			return ErrNotPeerMessage
 		}
 		return nil
-	}, func(m *Message) { applyRelease(m, c) })
+	}, func(m *Message) { applyRelease(m, c, now) })
 }
 
 func (s *Postgres) CloseMessageClaim(ctx context.Context, tenant string, c ClaimClose, now time.Time) (Message, error) {
@@ -220,9 +220,7 @@ func (s *Postgres) AdoptMessageClaim(ctx context.Context, tenant string, c Claim
 			return nil
 		}
 		applyClaim(&m, c.Seat, ttl, now)
-		if _, err = tx.Exec(ctx, `UPDATE messages SET responsible = $3, locked_until = $4,
-			responsible_gen = $5, claim_n = $6 WHERE tenant_id = $1 AND msg_id = $2`,
-			tenant, c.MsgID, m.Responsible, m.LockedUntil, m.ResponsibleGen, m.ClaimN); err != nil {
+		if err = writeClaim(ctx, tx, &m); err != nil {
 			return err
 		}
 		out, adopted = m, true
@@ -235,4 +233,168 @@ func (s *Postgres) AdoptMessageClaim(ctx context.Context, tenant string, c Claim
 		return Message{}, false, err
 	}
 	return out, adopted, nil
+}
+
+// Spec 093 (rdb 0132) on Postgres. Every call reads its rows FOR UPDATE in
+// one transaction, runs the transition Memory runs (message_claim.go) and
+// writes back only the rows it changed, every claim column at once
+// (writeClaim), so claim_state never drifts from its clocks. Two accepts of
+// one round queue on the row lock: the second reads the row the first
+// committed, is no longer told, and is refused. A poll reads the open rows
+// with SKIP LOCKED, so it never waits on another seat's poll or accept.
+
+func utcOrZero(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return t.UTC()
+}
+
+func nullText(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func textArray(ss []string) []string {
+	if ss == nil {
+		return []string{}
+	}
+	return ss
+}
+
+// writeClaim writes every claim column of m back to its row.
+func writeClaim(ctx context.Context, tx pgx.Tx, m *Message) error {
+	r := m.Round
+	_, err := tx.Exec(ctx, `UPDATE messages SET responsible = $3, locked_until = $4, responsible_gen = $5, claim_n = $6,
+		handled_at = $7, handled_how = $8, not_by = $9, claim_state = $10, offer_set = $11, offer_n = $12,
+		offer_until = $13, lapsed = $14, accepted_at = $15, touched_at = $16, parked_until = $17,
+		park_reason = $18, wait_token = $19
+		WHERE tenant_id = $1 AND msg_id = $2`,
+		m.TenantID, m.MsgID, nullText(m.Responsible), nullTime(m.LockedUntil), m.ResponsibleGen, m.ClaimN,
+		nullTime(m.HandledAt), nullText(m.HandledHow), textArray(m.NotBy), roundState(m), textArray(r.OfferSet), r.OfferN,
+		nullTime(r.OfferUntil), textArray(r.Lapsed), nullTime(r.AcceptedAt), nullTime(r.TouchedAt), nullTime(r.ParkedUntil),
+		nullText(r.ParkReason), nullText(r.WaitToken))
+	return err
+}
+
+// openClaimRows reads tenant's open peer rows (and only seat's when seat is
+// not "") FOR UPDATE, oldest first; skip = SKIP LOCKED.
+func openClaimRows(ctx context.Context, tx pgx.Tx, tenant, seat string, skip bool) ([]Message, error) {
+	lock := "FOR UPDATE"
+	if skip {
+		lock += " SKIP LOCKED"
+	}
+	rows, err := tx.Query(ctx, `SELECT `+claimCols+` FROM messages
+		WHERE tenant_id = $1 AND needs_peer AND handled_at IS NULL AND ($2 = '' OR responsible = $2)
+		ORDER BY ts, msg_id `+lock, tenant, seat)
+	if err != nil {
+		return nil, err
+	}
+	return scanClaims(rows, tenant)
+}
+
+func (s *Postgres) PollMessageRounds(ctx context.Context, tenant string, p RoundPoll, now time.Time) ([]Message, []Message, error) {
+	var offered, dead []Message
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		offered, dead = []Message{}, []Message{}
+		ms, err := openClaimRows(ctx, tx, tenant, "", true)
+		if err != nil {
+			return err
+		}
+		for i := range ms {
+			changed, got := roundPollRow(&ms[i], p, now, len(offered) < p.Max)
+			if changed {
+				if err := writeClaim(ctx, tx, &ms[i]); err != nil {
+					return err
+				}
+			}
+			switch got {
+			case ClaimDone:
+				dead = append(dead, ms[i])
+			case ClaimOffered:
+				offered = append(offered, ms[i])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return offered, dead, nil
+}
+
+func (s *Postgres) RenewMessageRounds(ctx context.Context, tenant string, r ClaimRenew, now time.Time) ([]Message, error) {
+	var out []Message
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		out = []Message{}
+		ms, err := openClaimRows(ctx, tx, tenant, r.Seat, false)
+		if err != nil {
+			return err
+		}
+		for i := range ms {
+			settled := roundSettle(&ms[i], now)
+			if settled || roundRenew(&ms[i], r, now) {
+				if err := writeClaim(ctx, tx, &ms[i]); err != nil {
+					return err
+				}
+			}
+			if !settled {
+				out = append(out, ms[i])
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// roundStep reads msgID FOR UPDATE, settles it, applies step and writes the
+// row back when either changed it; a refusal returns the settled row.
+func (s *Postgres) roundStep(ctx context.Context, tenant, msgID string, now time.Time, step func(*Message) error) (Message, error) {
+	var out Message
+	var refused error
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		m, err := scanClaim(tx.QueryRow(ctx, `SELECT `+claimCols+` FROM messages
+			WHERE tenant_id = $1 AND msg_id = $2 FOR UPDATE`, tenant, msgID), tenant)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		settled := m.NeedsPeer && m.HandledAt.IsZero() && roundSettle(&m, now)
+		refused, out = step(&m), m
+		if settled || refused == nil {
+			return writeClaim(ctx, tx, &m)
+		}
+		return nil
+	})
+	if err != nil {
+		return Message{}, err
+	}
+	return out, refused
+}
+
+func (s *Postgres) AcceptMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(ctx, tenant, a.MsgID, now, func(m *Message) error { return roundAccept(m, a, now) })
+}
+
+func (s *Postgres) ParkMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	if CheckClaimPark(a, now) != "" {
+		return Message{}, ErrClaimArg
+	}
+	return s.roundStep(ctx, tenant, a.MsgID, now, roundPark(a, now))
+}
+
+func (s *Postgres) UnparkMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(ctx, tenant, a.MsgID, now, roundUnpark(a, now))
+}
+
+func (s *Postgres) ReofferMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(ctx, tenant, a.MsgID, now, roundReoffer(a, now))
+}
+
+func (s *Postgres) TouchMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(ctx, tenant, a.MsgID, now, roundTouch(a, now))
 }

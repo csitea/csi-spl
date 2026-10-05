@@ -159,6 +159,9 @@ type Message struct {
 	HandledHow     string
 	NotBy          []string
 	NeedsPeer      bool
+	// Spec 093 (rdb 0132): the two-phase claim (round, accept) on the same
+	// row; only MessageClaims writes it.
+	Round ClaimRound
 	// Spec 067 (rdb 0112): RefTaskID is the channel topic a DM is about,
 	// MirrorOf the DM msg_id a channel copy was made from; "" = NULL. The
 	// insert path stores what the writer set; the hub sets them from L4 on.

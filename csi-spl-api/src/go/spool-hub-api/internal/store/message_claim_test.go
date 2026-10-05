@@ -323,3 +323,438 @@ func TestMessageClaimAdopt(t *testing.T) {
 		})
 	}
 }
+
+// Spec 093 section 4 (rdb 0132, T008): the two-phase claim on Memory and
+// Postgres. Each case drives the transitions T1..T10 with the hub clock in
+// the test's hands, checks every row it touched is in exactly one
+// claim_state (ClaimStateProblem), and carries a control: the same input
+// with one thing flipped, which DOES move the row (spec FR-011), so no case
+// passes because nothing happened.
+
+var (
+	rA1, rA2 = "c-001@box-a", "g-003@box-a"
+	rB1, rB2 = "c-001@box-b", "g-002@box-b"
+	rReady   = []string{rA1, rA2, rB1, rB2}
+)
+
+type roundFix struct {
+	t   *testing.T
+	st  Store
+	tid string
+	t0  time.Time
+	ids []string
+}
+
+func newRoundFix(t *testing.T, st Store) *roundFix {
+	return &roundFix{t: t, st: st, tid: newTenant(t, st), t0: time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)}
+}
+
+// job inserts a message to the peers at t0 + at.
+func (f *roundFix) job(at time.Duration) string {
+	f.t.Helper()
+	m := msgFor(f.tid, uuid4(), "box-a", f.t0.Add(at), f.t0, "env-"+uuid4())
+	m.FromID, m.ToID = "c-120", PeersID
+	if _, err := f.st.InsertMessage(context.Background(), m); err != nil {
+		f.t.Fatal(err)
+	}
+	f.ids = append(f.ids, m.MsgID)
+	return m.MsgID
+}
+
+func (f *roundFix) poll(seat string, busy bool, ready []string, at time.Duration) (offered, dead []Message) {
+	f.t.Helper()
+	offered, dead, err := f.st.PollMessageRounds(context.Background(), f.tid, RoundPoll{Seat: seat, Busy: busy, Ready: ready, Max: 3}, f.t0.Add(at))
+	if err != nil {
+		f.t.Fatalf("poll %s: %v", seat, err)
+	}
+	f.states()
+	return offered, dead
+}
+
+// offeredTo reports whether seat's poll at `at` returns id.
+func (f *roundFix) offeredTo(id, seat string, busy bool, at time.Duration) bool {
+	f.t.Helper()
+	got, _ := f.poll(seat, busy, rReady, at)
+	return slices.ContainsFunc(got, func(m Message) bool { return m.MsgID == id })
+}
+
+func (f *roundFix) get(id string) Message {
+	f.t.Helper()
+	m, err := f.st.GetMessageClaim(context.Background(), f.tid, id)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	return m
+}
+
+// states fails on any job whose claim columns disagree with its claim_state.
+func (f *roundFix) states() {
+	f.t.Helper()
+	for _, id := range f.ids {
+		if p := ClaimStateProblem(f.get(id)); p != "" {
+			f.t.Fatalf("%s: %s: %+v", id, p, f.get(id))
+		}
+	}
+}
+
+// accept is T2 by seat on the round the row is in now.
+func (f *roundFix) accept(id, seat string, at time.Duration) (Message, error) {
+	f.t.Helper()
+	m, err := f.st.AcceptMessageClaim(context.Background(), f.tid, ClaimAct{MsgID: id, Seat: seat, Round: f.get(id).Round.OfferN}, f.t0.Add(at))
+	f.states()
+	return m, err
+}
+
+func (f *roundFix) renew(seat string, fresh, able bool, age, at time.Duration) []Message {
+	f.t.Helper()
+	held, err := f.st.RenewMessageRounds(context.Background(), f.tid, ClaimRenew{Seat: seat, Fresh: fresh, Able: able, AnchorAge: age}, f.t0.Add(at))
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.states()
+	return held
+}
+
+// owned opens a round for seat on a new job at `at` and accepts it.
+func (f *roundFix) owned(seat string, at time.Duration) Message {
+	f.t.Helper()
+	id := f.job(at - time.Second)
+	if !f.offeredTo(id, seat, false, at) {
+		f.t.Fatalf("no round for %s", seat)
+	}
+	m, err := f.accept(id, seat, at)
+	if err != nil || m.Round.State != ClaimOwned || m.Responsible != seat || m.ClaimN != 1 || string(m.Msg) == "" {
+		f.t.Fatalf("accept: %+v %v", m, err)
+	}
+	return m
+}
+
+// FR-004: two accepts of one round, n = 100: exactly one gets the row and
+// the body, the other is refused with the winner's row. Control: an accept
+// of the right round by a seat that was told wins; one naming a stale round
+// or by a seat never told is refused.
+func TestMessageRoundAcceptRace(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			for i := range 100 {
+				at := time.Duration(i) * time.Minute
+				id := f.job(at)
+				if !f.offeredTo(id, rA1, false, at) || !f.offeredTo(id, rB2, false, at) {
+					t.Fatalf("round %d: %+v", i, f.get(id))
+				}
+				m := f.get(id)
+				if m.Round.State != ClaimOffered || !slices.Equal(m.Round.OfferSet, []string{rA1, rB2}) || m.Round.OfferN != 1 {
+					t.Fatalf("round %d: %+v", i, m.Round)
+				}
+				if i == 0 { // the control: a stale round and a seat never told
+					for _, a := range []ClaimAct{{MsgID: id, Seat: rA1, Round: 2}, {MsgID: id, Seat: rA2, Round: 1}} {
+						if _, err := st.AcceptMessageClaim(ctx, f.tid, a, f.t0.Add(at)); !errors.Is(err, ErrConflict) {
+							t.Fatalf("control accept %+v: %v", a, err)
+						}
+					}
+				}
+				var wg sync.WaitGroup
+				var start sync.WaitGroup
+				start.Add(1)
+				res := make([]Message, 2)
+				errs := make([]error, 2)
+				for k, seat := range []string{rA1, rB2} {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						start.Wait()
+						res[k], errs[k] = st.AcceptMessageClaim(ctx, f.tid, ClaimAct{MsgID: id, Seat: seat, Round: 1}, f.t0.Add(at+time.Second))
+					}()
+				}
+				start.Done()
+				wg.Wait()
+				win := slices.IndexFunc(errs, func(e error) bool { return e == nil })
+				if win < 0 || !errors.Is(errs[1-win], ErrConflict) {
+					t.Fatalf("race %d: %v", i, errs)
+				}
+				w, l := res[win], res[1-win]
+				if string(w.Msg) == "" || w.ResponsibleGen != 1 || w.ClaimN != 1 || w.Round.State != ClaimOwned || l.Responsible != w.Responsible {
+					t.Fatalf("race %d: winner %+v loser %+v", i, w, l)
+				}
+				if _, err := st.CloseMessageClaim(ctx, f.tid, ClaimClose{MsgID: id, Seat: w.Responsible, How: "answered", Gen: 1}, f.t0.Add(at+2*time.Second)); err != nil {
+					t.Fatalf("close %d: %v", i, err)
+				}
+				f.states()
+				f.ids = nil // closed: keep the state check on the open jobs
+			}
+		})
+	}
+}
+
+// FR-003: a round not accepted in OfferWindow lapses; the next round skips
+// the lapsed seats; once every ready seat has lapsed the skip list clears;
+// claim_n never moves on a lapse; OfferMax rounds close the job dead, once.
+func TestMessageRoundLapse(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			id := f.job(0)
+			f.offeredTo(id, rA1, false, time.Second)
+			f.offeredTo(id, rA2, false, time.Second)
+			// control: inside the window the round stands, and it is full
+			if f.offeredTo(id, rB1, false, 20*time.Second) || f.get(id).Round.OfferN != 1 {
+				t.Fatalf("round 1 moved inside its window: %+v", f.get(id).Round)
+			}
+			// past it: round 1 lapses, b1 opens round 2 in the same poll
+			if !f.offeredTo(id, rB1, false, 22*time.Second) {
+				t.Fatalf("no round 2: %+v", f.get(id).Round)
+			}
+			if r := f.get(id); r.Round.OfferN != 2 || r.ClaimN != 0 || !slices.Equal(r.Round.Lapsed, []string{rA1, rA2}) {
+				t.Fatalf("lapse: %+v claim_n %d", r.Round, r.ClaimN)
+			}
+			if f.offeredTo(id, rA1, false, 23*time.Second) || !f.offeredTo(id, rB2, false, 23*time.Second) {
+				t.Fatalf("skip list: %+v", f.get(id).Round)
+			}
+			// round 2 lapses: everyone has lapsed but a fifth ready seat (control) ...
+			if got, _ := f.poll(rA1, false, append(slices.Clone(rReady), "c-004@box-b"), 45*time.Second); len(got) != 0 {
+				t.Fatalf("skip list cleared with a ready seat untried: %+v", got)
+			}
+			// ... and once every ready seat has, the list clears and a1 opens round 3
+			if !f.offeredTo(id, rA1, false, 46*time.Second) || f.get(id).Round.OfferN != 3 || len(f.get(id).Round.Lapsed) != 0 {
+				t.Fatalf("round 3: %+v", f.get(id).Round)
+			}
+			at := 46 * time.Second
+			for n := 4; n <= OfferMax; n++ {
+				at += OfferWindow + time.Second
+				if got, dead := f.poll(rB1, false, []string{rB1}, at); len(got) != 1 || len(dead) != 0 || got[0].Round.OfferN != n {
+					t.Fatalf("round %d: %+v dead %+v", n, got, dead)
+				}
+			}
+			at += OfferWindow + time.Second
+			got, dead := f.poll(rB2, false, rReady, at)
+			if len(got) != 0 || len(dead) != 1 || dead[0].HandledHow != "dead" || dead[0].ClaimN != 0 || dead[0].Round.State != ClaimDone {
+				t.Fatalf("dead: %+v %+v", got, dead)
+			}
+			if got, dead := f.poll(rA1, false, rReady, at+time.Hour); len(got)+len(dead) != 0 {
+				t.Fatalf("dead twice: %+v %+v", got, dead)
+			}
+		})
+	}
+}
+
+// FR-002: a renew writes anchor + HBFresh on the hub clock, never now +
+// HBFresh (n = 20 anchors); a renew that is not fresh writes nothing
+// (control); past the anchor's lock the next poll frees the job (T5) and
+// opens a round, claim_n unmoved, a second before it does not.
+func TestMessageRoundRenewAnchor(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			id := f.owned(rA1, 0).MsgID
+			var at, age time.Duration
+			for i := range 20 {
+				at, age = time.Duration(i+1)*5*time.Second, time.Duration(i%7)*9*time.Second
+				held := f.renew(rA1, true, true, age, at)
+				if len(held) != 1 || !held[0].LockedUntil.Equal(f.t0.Add(at-age+HBFresh)) {
+					t.Fatalf("renew %d (age %s): %+v", i, age, held)
+				}
+				if before := f.get(id).LockedUntil; !f.renew(rA1, false, true, 0, at+time.Second)[0].LockedUntil.Equal(before) {
+					t.Fatalf("a stale renew moved the lock")
+				}
+			}
+			end := at - age + HBFresh
+			if f.offeredTo(id, rB1, false, end-time.Second) || f.get(id).Round.State != ClaimOwned {
+				t.Fatalf("taken before the lock ran out: %+v", f.get(id))
+			}
+			if !f.offeredTo(id, rB1, false, end+time.Second) {
+				t.Fatalf("not re-offered after the lock: %+v", f.get(id))
+			}
+			if m := f.get(id); m.Responsible != "" || m.ClaimN != 1 || m.ResponsibleGen != 1 {
+				t.Fatalf("expiry: %+v", m)
+			}
+			// a renew after the lock ran out never takes it back
+			if held := f.renew(rA1, true, true, 0, end+2*time.Second); len(held) != 0 {
+				t.Fatalf("expired job renewed: %+v", held)
+			}
+		})
+	}
+}
+
+// FR-006, n = 5 each: a parked job whose holder stays able is renewed for
+// its whole park; one whose holder stops being able goes free HBFresh after
+// its last renew while parked_until is still ahead, a second before it does
+// not, and the next owner inherits wait_token and park_reason. A park past
+// ParkMax or at a stale fence is refused.
+func TestMessageRoundPark(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			for i := range 5 {
+				m := f.owned(rA1, time.Duration(i)*3*time.Hour)
+				at := m.Round.AcceptedAt.Sub(f.t0)
+				park := ClaimAct{MsgID: m.MsgID, Seat: rA1, Gen: m.ResponsibleGen, Until: f.t0.Add(at + time.Hour), Wait: "c-120", Reason: "lane c-120 builds it"}
+				bad := park
+				bad.Until = park.Until.Add(time.Minute)
+				if _, err := st.ParkMessageClaim(ctx, f.tid, bad, f.t0.Add(at)); !errors.Is(err, ErrClaimArg) {
+					t.Fatalf("park past ParkMax: %v", err)
+				}
+				bad = park
+				bad.Gen++
+				if _, err := st.ParkMessageClaim(ctx, f.tid, bad, f.t0.Add(at)); !errors.Is(err, ErrConflict) {
+					t.Fatalf("park at a stale fence: %v", err)
+				}
+				if p, err := st.ParkMessageClaim(ctx, f.tid, park, f.t0.Add(at)); err != nil || p.Round.State != ClaimParked || p.Round.WaitToken != "c-120" {
+					t.Fatalf("park: %+v %v", p, err)
+				}
+				f.states()
+				// able for the first half hour: renewed every minute, never taken
+				last := at
+				for ; last < at+30*time.Minute; last += time.Minute {
+					if held := f.renew(rA1, false, true, 0, last); len(held) != 1 || !held[0].LockedUntil.Equal(f.t0.Add(last+HBFresh)) {
+						t.Fatalf("able renew at %s: %+v", last, held)
+					}
+					if f.offeredTo(m.MsgID, rB1, false, last+30*time.Second) {
+						t.Fatalf("an able holder's park was taken at %s", last)
+					}
+				}
+				last -= time.Minute
+				// not able (a dead login): renews write nothing, the job goes free at the lock
+				f.renew(rA1, false, false, 0, last+time.Minute)
+				if f.offeredTo(m.MsgID, rB1, false, last+HBFresh-time.Second) {
+					t.Fatalf("taken before its lock")
+				}
+				if !f.offeredTo(m.MsgID, rB1, false, last+HBFresh+time.Second) {
+					t.Fatalf("not able, not re-offered: %+v", f.get(m.MsgID))
+				}
+				n, err := f.accept(m.MsgID, rB1, last+HBFresh+2*time.Second)
+				if err != nil || n.Round.WaitToken != "c-120" || n.Round.ParkReason != park.Reason || n.ClaimN != 2 || n.ResponsibleGen != 2 {
+					t.Fatalf("next owner: %+v %v", n, err)
+				}
+			}
+		})
+	}
+}
+
+// T7a and T7b: the holder unparks at its fence and owns again; a parked job
+// whose wait has arrived is re-offered to the holder alone, who accepts it
+// again. Control: a non-holder's unpark and re-offer are refused.
+func TestMessageRoundUnpark(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			m := f.owned(rA1, 0)
+			act := ClaimAct{MsgID: m.MsgID, Seat: rA1, Gen: 1, Until: f.t0.Add(time.Hour), Wait: "c-120", Reason: "lane"}
+			step := func(call func(context.Context, string, ClaimAct, time.Time) (Message, error), a ClaimAct, at time.Duration) (Message, error) {
+				r, err := call(ctx, f.tid, a, f.t0.Add(at))
+				f.states()
+				return r, err
+			}
+			if _, err := step(st.ParkMessageClaim, act, time.Second); err != nil {
+				t.Fatal(err)
+			}
+			other := act
+			other.Seat = rB1
+			for _, call := range []func(context.Context, string, ClaimAct, time.Time) (Message, error){st.UnparkMessageClaim, st.ReofferMessageClaim} {
+				if _, err := step(call, other, 2*time.Second); !errors.Is(err, ErrConflict) {
+					t.Fatalf("non-holder: %v", err)
+				}
+			}
+			if r, err := step(st.UnparkMessageClaim, act, 3*time.Second); err != nil || r.Round.State != ClaimOwned || !r.LockedUntil.Equal(f.t0.Add(3*time.Second+HBFresh)) {
+				t.Fatalf("unpark: %+v %v", r, err)
+			}
+			act.Until = f.t0.Add(time.Hour)
+			if _, err := step(st.ParkMessageClaim, act, 4*time.Second); err != nil {
+				t.Fatal(err)
+			}
+			r, err := step(st.ReofferMessageClaim, act, 5*time.Second)
+			if err != nil || r.Round.State != ClaimOffered || !slices.Equal(r.Round.OfferSet, []string{rA1}) || r.Responsible != "" {
+				t.Fatalf("re-offer: %+v %v", r, err)
+			}
+			if f.offeredTo(m.MsgID, rB1, false, 6*time.Second) {
+				t.Fatalf("a re-offer to the holder alone was joined at once")
+			}
+			if r, err = f.accept(m.MsgID, rA1, 7*time.Second); err != nil || r.ResponsibleGen != 2 || r.Responsible != rA1 {
+				t.Fatalf("accept again: %+v %v", r, err)
+			}
+		})
+	}
+}
+
+// FR-007: a fresh seat that works one job and does not touch another for
+// JobIdleMax loses the other and keeps the one it touches (the control).
+func TestMessageRoundTouch(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			kept, idle := f.owned(rA1, 0), f.owned(rA1, time.Second)
+			at := time.Second
+			for ; at <= JobIdleMax+3*time.Minute; at += time.Minute {
+				if _, err := st.TouchMessageClaim(ctx, f.tid, ClaimAct{MsgID: kept.MsgID, Seat: rA1, Gen: 1}, f.t0.Add(at)); err != nil {
+					t.Fatalf("touch at %s: %v", at, err)
+				}
+				f.renew(rA1, true, true, 0, at)
+				f.poll(rB1, false, rReady, at+time.Second)
+			}
+			if m := f.get(kept.MsgID); m.Round.State != ClaimOwned || m.Responsible != rA1 {
+				t.Fatalf("touched job lost: %+v", m)
+			}
+			m := f.get(idle.MsgID)
+			if m.Responsible == rA1 || m.ResponsibleGen != 1 {
+				t.Fatalf("untouched job still held: %+v", m)
+			}
+			// it went free within HBFresh of its last renewal: idle since t0+1s, last renew at < JobIdleMax+1s
+			if !slices.Contains(m.Round.OfferSet, rB1) && m.Round.State != ClaimOffered && !slices.Contains(m.Round.Lapsed, rB1) {
+				t.Fatalf("untouched job not re-offered: %+v", m)
+			}
+			if _, err := st.TouchMessageClaim(ctx, f.tid, ClaimAct{MsgID: idle.MsgID, Seat: rA1, Gen: 1}, f.t0.Add(at)); !errors.Is(err, ErrConflict) {
+				t.Fatalf("touch of a lost job: %v", err)
+			}
+		})
+	}
+}
+
+// FR-005 on the store: an idle seat opens a round at once, a busy one only
+// BusyDelay after the job went free (control: the idle seat at the same
+// instant); a busy join waits BusyDelay and a same-harness join HarnessDelay
+// after the round opened, another harness joins at once. A release (T8)
+// frees the job as of now; a harness never polls a job it refused.
+func TestMessageRoundIdleFirst(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := newRoundFix(t, st)
+			id := f.job(0)
+			if f.offeredTo(id, rB2, true, BusyDelay-time.Second) {
+				t.Fatalf("busy seat opened inside BusyDelay")
+			}
+			if !f.offeredTo(id, rA1, false, BusyDelay-time.Second) {
+				t.Fatalf("idle seat did not open")
+			}
+			opened := BusyDelay - time.Second
+			if f.offeredTo(id, rB1, false, opened+HarnessDelay-time.Second) {
+				t.Fatalf("same harness joined inside HarnessDelay")
+			}
+			if f.offeredTo(id, rB2, true, opened+BusyDelay-time.Second) {
+				t.Fatalf("busy seat joined inside BusyDelay")
+			}
+			if !f.offeredTo(id, rB2, true, opened+BusyDelay) {
+				t.Fatalf("busy seat did not join after BusyDelay: %+v", f.get(id).Round)
+			}
+			m, err := f.accept(id, rB2, opened+BusyDelay+time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rel := opened + 2*BusyDelay
+			if m, err = st.ReleaseMessageClaim(ctx, f.tid, ClaimClose{MsgID: id, Seat: rB2, Harness: "grok", Reason: "harness-refused:prd", Gen: m.ResponsibleGen}, f.t0.Add(rel)); err != nil || m.Round.State != ClaimFree || !m.Round.OfferUntil.Equal(f.t0.Add(rel)) {
+				t.Fatalf("release: %+v %v", m, err)
+			}
+			f.states()
+			if f.offeredTo(id, rA2, false, rel+time.Second) {
+				t.Fatalf("grok seat polled a grok-refused job")
+			}
+			if f.offeredTo(id, rA1, true, rel+BusyDelay-time.Second) || !f.offeredTo(id, rA1, true, rel+BusyDelay) {
+				t.Fatalf("busy open after a release: %+v", f.get(id).Round)
+			}
+		})
+	}
+}

@@ -97,6 +97,10 @@ type MessageClaims interface {
 	// adopted is true; one another seat holds, or closed, comes back
 	// unchanged with adopted false. ErrNotPeerMessage for a one-agent message.
 	AdoptMessageClaim(ctx context.Context, tenant string, c ClaimClose, ttl time.Duration, now time.Time) (m Message, adopted bool, err error)
+	// MessageRounds is spec 093's two-phase claim on the same rows; a
+	// release (T8) and a close (T9) stay ReleaseMessageClaim and
+	// CloseMessageClaim.
+	MessageRounds
 }
 
 // ClaimHeld reports whether seat still holds m at fence gen on the hub clock:
@@ -107,10 +111,12 @@ func ClaimHeld(m Message, seat string, gen int64, now time.Time) bool {
 }
 
 // applyClaim makes m seat's for ttl; both drivers' poll and adopt share it.
+// It is 068's one-step claim: the row is owned at once (spec 093 4.1).
 func applyClaim(m *Message, seat string, ttl time.Duration, now time.Time) {
 	m.Responsible, m.LockedUntil = seat, now.Add(ttl)
 	m.ResponsibleGen++
 	m.ClaimN++
+	m.Round.State, m.Round.AcceptedAt, m.Round.TouchedAt = ClaimOwned, now, now
 }
 
 // claimDefaults resets m's claim fields to what an insert stores; the 0110
@@ -118,6 +124,7 @@ func applyClaim(m *Message, seat string, ttl time.Duration, now time.Time) {
 func claimDefaults(m *Message, seated bool) {
 	m.Responsible, m.LockedUntil, m.ResponsibleGen, m.ClaimN = "", time.Time{}, 0, 0
 	m.HandledAt, m.HandledHow, m.NotBy, m.NeedsPeer = time.Time{}, "", nil, false
+	m.Round = ClaimRound{State: ClaimFree}
 	m.Responsible = InsertResponsible(m.ToID, m.ToBox)
 	switch {
 	case m.ToID == PeersID:
@@ -170,9 +177,11 @@ func CheckClaimReason(reason string) string {
 	return ""
 }
 
-// claimFree: a peer message nobody holds a live lock on.
+// claimFree: a peer message nobody holds a live lock on, and no 093 round
+// is open on.
 func claimFree(m *Message, now time.Time) bool {
-	return m.NeedsPeer && m.HandledAt.IsZero() && (m.Responsible == "" || m.LockedUntil.IsZero() || m.LockedUntil.Before(now))
+	return m.NeedsPeer && m.HandledAt.IsZero() && m.Round.State != ClaimOffered &&
+		(m.Responsible == "" || m.LockedUntil.IsZero() || m.LockedUntil.Before(now))
 }
 
 // claimRefusal is ErrConflict when c may not release / close m: it is closed,
@@ -185,8 +194,10 @@ func claimRefusal(m *Message, c ClaimClose) error {
 }
 
 // applyRelease / applyClose change m in place; both drivers share them.
-func applyRelease(m *Message, c ClaimClose) {
+// A release is 093's T8 (free, free since now), a close its T9 (done).
+func applyRelease(m *Message, c ClaimClose, now time.Time) {
 	m.Responsible, m.LockedUntil = "", time.Time{}
+	m.Round = ClaimRound{State: ClaimFree, OfferN: m.Round.OfferN, OfferUntil: now, Lapsed: m.Round.Lapsed, TouchedAt: now}
 	if strings.HasPrefix(c.Reason, "harness-refused:") && c.Harness != "" && !slices.Contains(m.NotBy, c.Harness) {
 		m.NotBy = append(slices.Clone(m.NotBy), c.Harness)
 	}
@@ -194,6 +205,7 @@ func applyRelease(m *Message, c ClaimClose) {
 
 func applyClose(m *Message, how string, now time.Time) {
 	m.HandledAt, m.HandledHow, m.LockedUntil = now, how, time.Time{}
+	m.Round.State, m.Round.TouchedAt, m.Round.OfferSet, m.Round.ParkedUntil = ClaimDone, now, nil, time.Time{}
 }
 
 // seatedLocked reports whether tenant's roster holds a peer seat. s.mu held.
@@ -226,6 +238,7 @@ func (s *Memory) claimRowsLocked(tenant string, keep func(*Message) bool) []*Mes
 func claimCopy(m *Message) Message {
 	c := *m
 	c.NotBy = slices.Clone(m.NotBy)
+	c.Round.OfferSet, c.Round.Lapsed = slices.Clone(m.Round.OfferSet), slices.Clone(m.Round.Lapsed)
 	return c
 }
 
@@ -267,7 +280,7 @@ func (s *Memory) RenewMessageClaims(_ context.Context, tenant, seat string, ttl 
 	return out, nil
 }
 
-func (s *Memory) ReleaseMessageClaim(_ context.Context, tenant string, c ClaimClose, _ time.Time) (Message, error) {
+func (s *Memory) ReleaseMessageClaim(_ context.Context, tenant string, c ClaimClose, now time.Time) (Message, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, ok := s.messages[[2]string{tenant, c.MsgID}]
@@ -280,7 +293,7 @@ func (s *Memory) ReleaseMessageClaim(_ context.Context, tenant string, c ClaimCl
 	if !m.NeedsPeer {
 		return claimCopy(m), ErrNotPeerMessage
 	}
-	applyRelease(m, c)
+	applyRelease(m, c, now)
 	return claimCopy(m), nil
 }
 
@@ -323,4 +336,439 @@ func (s *Memory) AdoptMessageClaim(_ context.Context, tenant string, c ClaimClos
 	}
 	applyClaim(m, c.Seat, ttl, now)
 	return claimCopy(m), true, nil
+}
+
+// Spec 093 section 4 (rdb 0132, task T008): the claim in two phases. A
+// round, run by a seat's poll loop, tells up to OfferK seats about a job;
+// the job is owned only once an agent accepts it with its own call. Every
+// transition T1..T10 of 4.2 is one function below, shared by both drivers:
+// Memory runs it under its mutex, Postgres on the row read FOR UPDATE in one
+// transaction, so the two cannot drift. Every function writes claim_state
+// together with the clocks it implies, so a row is in exactly one state
+// (ClaimStateProblem names a row that is not).
+
+// The claim states (rdb 0132 claim_state).
+const (
+	ClaimFree    = "free"
+	ClaimOffered = "offered"
+	ClaimOwned   = "owned"
+	ClaimParked  = "parked"
+	ClaimDone    = "done"
+)
+
+// The round knobs the hub enforces (spec 093 4.2, 4.3, 5.3).
+const (
+	OfferWindow  = 20 * time.Second // OFFER_WINDOW: a round's accept window
+	OfferK       = 2                // OFFER_K: the seats one round tells
+	OfferMax     = 6                // OFFER_MAX: rounds without an accept before the job goes dead
+	BusyDelay    = 8 * time.Second  // BUSY_DELAY: a busy seat opens or joins only this long after an idle one could
+	HarnessDelay = 5 * time.Second  // a seat of a harness already in the round joins only this late
+	HBFresh      = 120 * time.Second
+	JobIdleMax   = 15 * time.Minute // JOB_IDLE_MAX: an owned job untouched this long is not renewed
+	ParkMax      = 60 * time.Minute // PARK_MAX: the furthest a park may reach
+)
+
+// ErrClaimArg: a claim call whose arguments are refused (a park past
+// ParkMax, a reason that is not one line). The row is not read.
+var ErrClaimArg = errors.New("claim arguments refused")
+
+// ClaimRound is the 093 half of a message's claim (rdb 0132). While the row
+// is free, OfferUntil is the moment it went free (a lapse, an expiry, a
+// release), zero = since its insert: a busy seat opens a round only
+// BusyDelay after it.
+type ClaimRound struct {
+	State                 string
+	OfferSet              []string
+	OfferN                int
+	OfferUntil            time.Time
+	Lapsed                []string
+	AcceptedAt, TouchedAt time.Time
+	ParkedUntil           time.Time
+	ParkReason, WaitToken string
+}
+
+// RoundPoll is one poll of a READY seat (T1, T1j): Busy = the seat is inside
+// a turn; Ready = every ready seat the caller knows (Seat always counts),
+// the set whose lapse clears the skip list; Max = the most rounds the seat
+// may be in at once.
+type RoundPoll struct {
+	Seat, Harness string
+	Busy          bool
+	Ready         []string
+	Max           int
+}
+
+// ClaimAct is an agent's call on one job: Round for an accept, Gen (the
+// fence) for the holder's calls, Until / Wait / Reason for a park.
+type ClaimAct struct {
+	MsgID, Seat  string
+	Round        int
+	Gen          int64
+	Until        time.Time
+	Wait, Reason string
+}
+
+// ClaimRenew is the holder seat's renew (T4): Fresh and Able are its
+// heartbeat verdicts (spec 5.3, section 9), AnchorAge how long ago its
+// anchor was, measured on the box: the hub turns it into its own clock, so
+// a box never compares its clock with a lock.
+type ClaimRenew struct {
+	Seat        string
+	Fresh, Able bool
+	AnchorAge   time.Duration
+}
+
+// MessageRounds is spec 093's claim contract. A refused call returns
+// ErrConflict and the CURRENT row; ErrNotFound when there is no such message.
+type MessageRounds interface {
+	// PollMessageRounds settles the tenant's open jobs (T5 expiry, T3
+	// lapse, T10 dead: returned once as dead), then opens or joins rounds
+	// for p.Seat (T1, T1j), oldest first. It returns every open round
+	// p.Seat is in, new or not: the poll loop's stubs.
+	PollMessageRounds(ctx context.Context, tenant string, p RoundPoll, now time.Time) (offered, dead []Message, err error)
+	// AcceptMessageClaim is T2: the first accept of an open round wins and
+	// gets the body and the new fence; the loser gets ErrConflict.
+	AcceptMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error)
+	// RenewMessageRounds is T4 on every job r.Seat holds, and returns them:
+	// an owned job to anchor + HBFresh while fresh and touched within
+	// JobIdleMax, a parked one to now + HBFresh while able and before
+	// parked_until. A lock already run out is expired (T5), never renewed.
+	RenewMessageRounds(ctx context.Context, tenant string, r ClaimRenew, now time.Time) ([]Message, error)
+	// ParkMessageClaim is T6, UnparkMessageClaim T7a, ReofferMessageClaim
+	// T7b (a round for the holder alone), TouchMessageClaim the per-job
+	// touch: each needs the holder at its fence (a.Gen).
+	ParkMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error)
+	UnparkMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error)
+	ReofferMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error)
+	TouchMessageClaim(ctx context.Context, tenant string, a ClaimAct, now time.Time) (Message, error)
+}
+
+// CheckClaimPark names what is wrong with a park ("" = fine).
+func CheckClaimPark(a ClaimAct, now time.Time) string {
+	switch {
+	case !a.Until.After(now) || a.Until.After(now.Add(ParkMax)):
+		return "until must be in the future, at most 60 min ahead"
+	case a.Wait == "" || len(a.Wait) > 200 || hasControl(a.Wait):
+		return "wait must be one line of 1..200 bytes (a lane id, a task id, a CI run)"
+	}
+	return CheckClaimReason(a.Reason)
+}
+
+// ClaimStateProblem names how m's claim columns disagree with its state
+// ("" = they agree). Only a peer message is held to it.
+func ClaimStateProblem(m Message) string {
+	r, held := m.Round, m.Responsible != "" && !m.LockedUntil.IsZero()
+	ok := map[string]bool{
+		ClaimFree:    m.Responsible == "" && m.LockedUntil.IsZero() && r.AcceptedAt.IsZero() && r.ParkedUntil.IsZero() && len(r.OfferSet) == 0 && m.HandledAt.IsZero(),
+		ClaimOffered: m.Responsible == "" && m.LockedUntil.IsZero() && len(r.OfferSet) > 0 && !r.OfferUntil.IsZero() && r.ParkedUntil.IsZero() && m.HandledAt.IsZero(),
+		ClaimOwned:   held && !r.AcceptedAt.IsZero() && len(r.OfferSet) == 0 && r.ParkedUntil.IsZero() && m.HandledAt.IsZero(),
+		ClaimParked:  held && !r.ParkedUntil.IsZero() && r.WaitToken != "" && len(r.OfferSet) == 0 && m.HandledAt.IsZero(),
+		ClaimDone:    !m.HandledAt.IsZero() && m.HandledHow != "" && m.LockedUntil.IsZero(),
+	}
+	if !m.NeedsPeer || ok[roundState(&m)] {
+		return ""
+	}
+	return "claim_state " + r.State + " disagrees with its columns"
+}
+
+// roundState is m's state; "" (a row from before 0132) is free.
+func roundState(m *Message) string {
+	if m.Round.State == "" {
+		return ClaimFree
+	}
+	return m.Round.State
+}
+
+func lapsedOrOffered(m *Message, seat string) bool {
+	return slices.Contains(m.Round.Lapsed, seat) || slices.Contains(m.Round.OfferSet, seat)
+}
+
+// roundSettle is T5 and T3 on one row, and the step every call takes first,
+// so no call ever acts on a lock or a round that has run out. It reports
+// whether m changed.
+func roundSettle(m *Message, now time.Time) bool {
+	switch st := roundState(m); {
+	case (st == ClaimOwned || st == ClaimParked) && m.LockedUntil.Before(now):
+		// T5, the owner's 2-minute rule: claim_n stays; a parked job's
+		// wait_token and park_reason go to the next owner.
+		m.Round = ClaimRound{State: ClaimFree, OfferN: m.Round.OfferN, OfferUntil: m.LockedUntil, Lapsed: m.Round.Lapsed,
+			TouchedAt: m.Round.TouchedAt, ParkReason: m.Round.ParkReason, WaitToken: m.Round.WaitToken}
+		m.Responsible, m.LockedUntil = "", time.Time{}
+		return true
+	case st == ClaimOffered && m.Round.OfferUntil.Before(now):
+		// T3: a lapse is a one-lap skip of the seats that were told.
+		lapsed := slices.Clone(m.Round.Lapsed)
+		for _, s := range m.Round.OfferSet {
+			if !slices.Contains(lapsed, s) {
+				lapsed = append(lapsed, s)
+			}
+		}
+		m.Round.State, m.Round.OfferSet, m.Round.Lapsed = ClaimFree, nil, lapsed
+		return true
+	}
+	return false
+}
+
+// roundDead is T10 on a settled free row: CLAIM_MAX accepts or OFFER_MAX
+// rounds without a close. It reports whether m went dead.
+func roundDead(m *Message, now time.Time) bool {
+	if !m.NeedsPeer || roundState(m) != ClaimFree || (m.ClaimN < ClaimMax && m.Round.OfferN < OfferMax) {
+		return false
+	}
+	applyClose(m, "dead", now)
+	return true
+}
+
+// roundOffer is T1 (open) or T1j (join) of m for p on a settled row. It
+// reports whether m changed; the caller counts m against p.Max when
+// p.Seat is in its offer_set afterwards.
+func roundOffer(m *Message, p RoundPoll, now time.Time) bool {
+	if !m.NeedsPeer || !m.HandledAt.IsZero() || slices.Contains(m.NotBy, pollHarness(p)) {
+		return false
+	}
+	switch roundState(m) {
+	case ClaimFree:
+		return roundOpen(m, p, now)
+	case ClaimOffered:
+		return roundJoin(m, p, now)
+	}
+	return false
+}
+
+func pollHarness(p RoundPoll) string {
+	if p.Harness != "" {
+		return p.Harness
+	}
+	return agentid.Kind(p.Seat)
+}
+
+// roundOpen is T1: an idle seat at once, a busy one BusyDelay after the row
+// went free. A seat on the skip list waits its lap, unless every ready seat
+// is on it: then the same step clears the list.
+func roundOpen(m *Message, p RoundPoll, now time.Time) bool {
+	freeSince := m.TS
+	if m.Round.OfferUntil.After(freeSince) {
+		freeSince = m.Round.OfferUntil
+	}
+	if p.Busy && now.Before(freeSince.Add(BusyDelay)) {
+		return false
+	}
+	lapsed := m.Round.Lapsed
+	if slices.Contains(lapsed, p.Seat) {
+		for _, s := range p.Ready {
+			if !slices.Contains(lapsed, s) {
+				return false
+			}
+		}
+		lapsed = nil
+	}
+	m.Round.State, m.Round.OfferSet, m.Round.Lapsed = ClaimOffered, []string{p.Seat}, lapsed
+	m.Round.OfferN++
+	m.Round.OfferUntil = now.Add(OfferWindow)
+	return true
+}
+
+// roundJoin is T1j: room in the round, the seat not yet told or lapsed; a
+// busy seat waits BusyDelay and a seat of a harness already told waits
+// HarnessDelay after the round opened (room for another harness).
+func roundJoin(m *Message, p RoundPoll, now time.Time) bool {
+	if len(m.Round.OfferSet) >= OfferK || lapsedOrOffered(m, p.Seat) {
+		return false
+	}
+	wait := time.Duration(0)
+	if p.Busy {
+		wait = BusyDelay
+	}
+	if slices.ContainsFunc(m.Round.OfferSet, func(s string) bool { return agentid.Kind(s) == agentid.Kind(p.Seat) }) {
+		wait = max(wait, HarnessDelay)
+	}
+	if now.Before(m.Round.OfferUntil.Add(-OfferWindow).Add(wait)) {
+		return false
+	}
+	m.Round.OfferSet = append(slices.Clone(m.Round.OfferSet), p.Seat)
+	return true
+}
+
+// roundAccept is T2. claim_n counts accepts only.
+func roundAccept(m *Message, a ClaimAct, now time.Time) error {
+	if roundState(m) != ClaimOffered || !slices.Contains(m.Round.OfferSet, a.Seat) || m.Round.OfferN != a.Round || m.Round.OfferUntil.Before(now) {
+		return ErrConflict
+	}
+	m.Responsible, m.LockedUntil = a.Seat, now.Add(HBFresh)
+	m.ResponsibleGen++
+	m.ClaimN++
+	m.Round.State, m.Round.OfferSet, m.Round.Lapsed = ClaimOwned, nil, nil
+	m.Round.AcceptedAt, m.Round.TouchedAt = now, now
+	return nil
+}
+
+// roundHolder refuses a holder call unless a.Seat holds m at fence a.Gen in
+// one of states.
+func roundHolder(m *Message, a ClaimAct, states ...string) error {
+	if !slices.Contains(states, roundState(m)) || m.Responsible != a.Seat || m.ResponsibleGen != a.Gen {
+		return ErrConflict
+	}
+	return nil
+}
+
+// roundRenew is T4 on one row a seat holds (settled first). It reports
+// whether m changed; an unchanged lock is not rewritten (a write bumps the
+// view stamp, rdb 0103).
+func roundRenew(m *Message, r ClaimRenew, now time.Time) bool {
+	want := time.Time{}
+	switch roundState(m) {
+	case ClaimOwned:
+		if r.Fresh && !m.Round.TouchedAt.Before(now.Add(-JobIdleMax)) {
+			want = now.Add(-max(r.AnchorAge, 0)).Add(HBFresh)
+		}
+	case ClaimParked:
+		if r.Able && now.Before(m.Round.ParkedUntil) {
+			want = now.Add(HBFresh)
+		}
+	}
+	if want.IsZero() || want.Equal(m.LockedUntil) {
+		return false
+	}
+	m.LockedUntil = want
+	return true
+}
+
+// The holder's single-row steps (T6, T7a, T7b, touch); each runs on a
+// settled row and returns ErrConflict to refuse.
+func roundPark(a ClaimAct, now time.Time) func(*Message) error {
+	return func(m *Message) error {
+		if err := roundHolder(m, a, ClaimOwned, ClaimParked); err != nil {
+			return err
+		}
+		m.Round.State, m.Round.ParkedUntil, m.Round.ParkReason, m.Round.WaitToken = ClaimParked, a.Until, a.Reason, a.Wait
+		m.Round.TouchedAt = now
+		return nil
+	}
+}
+
+func roundUnpark(a ClaimAct, now time.Time) func(*Message) error {
+	return func(m *Message) error {
+		if err := roundHolder(m, a, ClaimParked); err != nil {
+			return err
+		}
+		m.Round.State, m.Round.ParkedUntil, m.Round.ParkReason, m.Round.WaitToken = ClaimOwned, time.Time{}, "", ""
+		m.Round.TouchedAt, m.LockedUntil = now, now.Add(HBFresh)
+		return nil
+	}
+}
+
+func roundReoffer(a ClaimAct, now time.Time) func(*Message) error {
+	return func(m *Message) error {
+		if err := roundHolder(m, a, ClaimParked); err != nil {
+			return err
+		}
+		m.Round = ClaimRound{State: ClaimOffered, OfferSet: []string{a.Seat}, OfferN: m.Round.OfferN + 1,
+			OfferUntil: now.Add(OfferWindow), TouchedAt: now}
+		m.Responsible, m.LockedUntil = "", time.Time{}
+		return nil
+	}
+}
+
+func roundTouch(a ClaimAct, now time.Time) func(*Message) error {
+	return func(m *Message) error {
+		if err := roundHolder(m, a, ClaimOwned, ClaimParked); err != nil {
+			return err
+		}
+		m.Round.TouchedAt = now
+		return nil
+	}
+}
+
+func (s *Memory) PollMessageRounds(_ context.Context, tenant string, p RoundPoll, now time.Time) ([]Message, []Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	offered, dead := []Message{}, []Message{}
+	for _, m := range s.claimRowsLocked(tenant, func(m *Message) bool { return m.NeedsPeer && m.HandledAt.IsZero() }) {
+		switch _, got := roundPollRow(m, p, now, len(offered) < p.Max); got {
+		case ClaimDone:
+			dead = append(dead, claimCopy(m))
+		case ClaimOffered:
+			offered = append(offered, claimCopy(m))
+		}
+	}
+	return offered, dead, nil
+}
+
+// roundPollRow is one open row of a poll, oldest first: settle it, close it
+// dead, or (room = p.Seat may be in one more round) open or join its round.
+// It reports whether m changed and what the poll returns it as: ClaimDone
+// (dead), ClaimOffered (a round p.Seat is in), or "".
+func roundPollRow(m *Message, p RoundPoll, now time.Time, room bool) (bool, string) {
+	changed := roundSettle(m, now)
+	switch {
+	case roundDead(m, now):
+		return true, ClaimDone
+	case !room:
+		return changed, ""
+	case inRound(m, p.Seat):
+		return changed, ClaimOffered
+	case roundOffer(m, p, now):
+		return true, ClaimOffered
+	}
+	return changed, ""
+}
+
+// inRound: m's open round already told seat.
+func inRound(m *Message, seat string) bool {
+	return roundState(m) == ClaimOffered && slices.Contains(m.Round.OfferSet, seat)
+}
+
+func (s *Memory) AcceptMessageClaim(_ context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(tenant, a.MsgID, now, func(m *Message) error { return roundAccept(m, a, now) })
+}
+
+func (s *Memory) RenewMessageRounds(_ context.Context, tenant string, r ClaimRenew, now time.Time) ([]Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []Message{}
+	for _, m := range s.claimRowsLocked(tenant, func(m *Message) bool {
+		return m.NeedsPeer && m.HandledAt.IsZero() && m.Responsible == r.Seat
+	}) {
+		if roundSettle(m, now) {
+			continue
+		}
+		roundRenew(m, r, now)
+		out = append(out, claimCopy(m))
+	}
+	return out, nil
+}
+
+func (s *Memory) ParkMessageClaim(_ context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	if CheckClaimPark(a, now) != "" {
+		return Message{}, ErrClaimArg
+	}
+	return s.roundStep(tenant, a.MsgID, now, roundPark(a, now))
+}
+
+func (s *Memory) UnparkMessageClaim(_ context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(tenant, a.MsgID, now, roundUnpark(a, now))
+}
+
+func (s *Memory) ReofferMessageClaim(_ context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(tenant, a.MsgID, now, roundReoffer(a, now))
+}
+
+func (s *Memory) TouchMessageClaim(_ context.Context, tenant string, a ClaimAct, now time.Time) (Message, error) {
+	return s.roundStep(tenant, a.MsgID, now, roundTouch(a, now))
+}
+
+// roundStep settles one row and applies step to it under s.mu; a refusal
+// leaves the settled row and returns it with the error.
+func (s *Memory) roundStep(tenant, msgID string, now time.Time, step func(*Message) error) (Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m, ok := s.messages[[2]string{tenant, msgID}]
+	if !ok {
+		return Message{}, ErrNotFound
+	}
+	if m.NeedsPeer && m.HandledAt.IsZero() {
+		roundSettle(m, now)
+	}
+	err := step(m)
+	return claimCopy(m), err
 }

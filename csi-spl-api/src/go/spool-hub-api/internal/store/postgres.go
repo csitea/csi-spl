@@ -33,6 +33,8 @@ type Postgres struct {
 	// workspace (operator_flag.go)
 	opFlag  seatsProbe
 	opCache operatorCache
+	// cal: is rdb 0125 calendar_events there yet (calendar_postgres.go)
+	cal seatsProbe
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps

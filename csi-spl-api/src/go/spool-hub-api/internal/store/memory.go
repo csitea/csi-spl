@@ -51,6 +51,7 @@ type Memory struct {
 	operators   map[[3]string]time.Time // box_operators.go (rdb 0040), guarded by mu
 	iss         memIssues               // issues.go (rdb 0047), guarded by mu
 	fb          memFallbacks            // fallback_memory.go (rdb 0067), guarded by mu
+	cal         memCalendar             // calendar_memory.go (rdb 0125), guarded by mu
 	anyMoved    bool                    // message_move.go (rdb 0069): a row was ever moved
 	// tenant_settings.go (rdb 0074): tenants.default_locale, guarded by mu
 	tenantLocale map[string]string

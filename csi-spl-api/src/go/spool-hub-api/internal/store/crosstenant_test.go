@@ -226,13 +226,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.AppendBoxStat(ctx, s.tenant, BoxStat{Box: "sat", WriterBox: "box-seed", At: now, CPUs: 1}); err != nil {
 		t.Fatal(err)
 	}
-	// calendar_events (rdb 0125, spec 089): one public event of the seeded
-	// member. No store API yet (T003), so a plain insert in the tenant scope.
-	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO calendar_events (tenant_id, title, kind, starts_at, ends_at, creator_type, creator_id)
-			VALUES ($1, 'release', 'release', $2, $3, 'human', $4)`, s.tenant, now, now.Add(time.Hour), hum)
-		return err
-	}); err != nil {
+	// calendar_events (rdb 0125, spec 089 T003): one public event of the
+	// seeded member.
+	if _, err := pg.CreateCalendarEvent(ctx, s.tenant, CalendarEvent{Title: "release", Kind: "release", StartsAt: now,
+		EndsAt: now.Add(time.Hour), CreatorType: "human", CreatorID: hum}, now); err != nil {
 		t.Fatal(err)
 	}
 	// operator_audit (rdb 0115, spec 074): one operator action on this workspace.

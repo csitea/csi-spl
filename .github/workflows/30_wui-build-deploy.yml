@@ -306,23 +306,39 @@ jobs:
 
       # THE gate: everything above is a local build, everything below claims
       # a tag or touches the site. Polls this run's test job (the latest
-      # attempt of it); anything but a green finish fails the leg here.
+      # attempt of it): green passes, red (failure / timed_out) fails the leg.
+      #
+      # A test job that never ran is NOT a red tree (c-333, 2026-10-05): on a
+      # busy trunk the hosted pool left it queued 15 min and GitHub cancelled
+      # it ("The job was not acquired by Runner of type hosted even after
+      # multiple attempts", job 111944656358), and this gate then failed the
+      # leg, so dev and prd sat 45+ min behind. So when the test job is
+      # still queued, or ends cancelled / skipped, this leg -- which already
+      # holds a runner and an installed tree -- runs the same suite itself,
+      # and only a green suite passes. A deploy still never ships a red tree.
       - name: Wait for the suite (test job green, else no mint and no deploy)
         env:
           GH_TOKEN: ${{ github.token }}
           TEST_JOB: WUI unit tests + typecheck
         run: |
           set -uo pipefail
+          inline=""
           for _ in $(seq 1 180); do
             st="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
               --jq ".jobs[] | select(.name == \"$TEST_JOB\") | \"\(.status) \(.conclusion)\"" 2>/dev/null)" || st=""
             case "$st" in
               "completed success") echo "test job green"; exit 0 ;;
+              "completed cancelled"|"completed skipped") inline="test job finished '${st#completed }' without a verdict"; break ;;
               completed\ *) echo "::error::test job finished '${st#completed }': no mint, no deploy"; exit 1 ;;
+              queued\ *|waiting\ *|pending\ *) inline="test job still '${st%% *}' (no hosted runner took it)"; break ;;
             esac
             sleep 5
           done
-          echo "::error::test job not finished after 15 min: no mint, no deploy"; exit 1
+          [[ -n "$inline" ]] || inline="test job not finished after 15 min"
+          echo "::warning::$inline: running the suite in this leg"
+          cd csi-spl-wui && pnpm run test:unit && pnpm run typecheck \
+            && { echo "suite green in this leg"; exit 0; }
+          echo "::error::suite red in this leg: no mint, no deploy"; exit 1
 
       # The version this deploy shows in the footer, minted by CI for this
       # commit (a v<X.Y.Z> tag; the hub deploy of the same commit reuses it).

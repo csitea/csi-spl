@@ -19,6 +19,9 @@
 # already queued or running on master (it will deploy), or when its last
 # finished run FAILED (the deploy is broken, not starved -- re-dispatching
 # every 15 min would only burn runners; 00 and the dispatch GAP feed report it).
+# "Failed" means a job that got a runner went red: a run whose only losses are
+# jobs the hosted pool never acquired is starved, and an in-flight run that
+# already lost a job that way is not counted on to deploy (c-333).
 #
 # Local equivalent of the read: ENV=<env> GRACE_MINUTES=30 ./csi-spl-orc/run -a do_check_deploy_lag
 
@@ -95,15 +98,47 @@ jobs:
           SHA: ${{ steps.lag.outputs.sha }}
         run: |
           set -euo pipefail
-          catchup() {  # <workflow file> <component>
-            local wf="$1" comp="$2" inflight verdict
-            inflight="$(gh run list --workflow="$wf" --branch master --limit 20 --json status \
-              --jq '[.[] | select(.status != "completed")] | length')"
-            verdict="$(gh run list --workflow="$wf" --branch master --limit 25 --json conclusion \
-              --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | .[0].conclusion // "none"')"
-            if [[ "${inflight:-0}" -gt 0 ]]; then
+          # STARVED is not BROKEN (c-333, 2026-10-05). On a busy trunk the
+          # hosted pool leaves a job queued 15 min, then GitHub cancels it
+          # ("not acquired by Runner of type hosted"): no runner, conclusion
+          # cancelled, and the RUN concludes failure. 20 run 37363944858 did
+          # exactly that (suite + prebuild never ran, deploy skipped) and the
+          # old rules read it as a broken deploy, so nothing re-dispatched;
+          # an in-flight run that already lost a job was trusted to deploy.
+          # starved <run id> [job name it may lose] -> how many of its jobs
+          # were cancelled without ever getting a runner (0 when the jobs
+          # cannot be read). 30's legs run a starved suite themselves, so 30
+          # passes its test job's name here.
+          starved() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs?filter=latest&per_page=100" \
+              --jq "[.jobs[] | select(.conclusion == \"cancelled\" and ((.runner_name // \"\") == \"\") and .name != \"${2:-}\")] | length" 2>/dev/null || echo 0
+          }
+          # ran_red <run id> -> how many of its jobs got a runner and went red
+          ran_red() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs?filter=latest&per_page=100" \
+              --jq '[.jobs[] | select((.conclusion == "failure" or .conclusion == "timed_out") and ((.runner_name // "") != ""))] | length' 2>/dev/null || echo 1
+          }
+          catchup() {  # <workflow file> <component> [job name it may lose]
+            local wf="$1" comp="$2" spare="${3:-}" inflight=0 id verdict last
+            # an in-flight run deploys only while none of its jobs starved
+            for id in $(gh run list --workflow="$wf" --branch master --limit 20 --json databaseId,status \
+                          --jq '.[] | select(.status != "completed") | .databaseId'); do
+              if [[ "$(starved "$id" "$spare")" -eq 0 ]]; then
+                inflight=$((inflight + 1))
+              else
+                echo "::notice::$comp: $wf run $id is in flight but already lost a job to the hosted queue -- not counting on it"
+              fi
+            done
+            read -r verdict last < <(gh run list --workflow="$wf" --branch master --limit 25 --json conclusion,databaseId \
+              --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | .[0] // {} | "\(.conclusion // "none") \(.databaseId // 0)"') || true
+            verdict="${verdict:-none}"; last="${last:-0}"
+            if [[ "$verdict" != success && "$verdict" != none && "$(ran_red "$last")" -eq 0 ]]; then
+              echo "::notice::$comp: $wf run $last concluded $verdict, but no job that ran went red (starved, not broken)"
+              verdict=starved
+            fi
+            if [[ "$inflight" -gt 0 ]]; then
               echo "::notice::$comp lags, but a $wf run is already queued/running on master -- it deploys; not dispatching"
-            elif [[ "$verdict" != success && "$verdict" != none ]]; then
+            elif [[ "$verdict" != success && "$verdict" != none && "$verdict" != starved ]]; then
               echo "::warning::$comp lags and $wf last concluded $verdict -- the deploy is broken, not starved; not dispatching"
             else
               echo "::warning::$comp lags at ${SHA:0:8} -- dispatching $wf (environment=all, forward-guarded)"
@@ -111,5 +146,5 @@ jobs:
             fi
           }
           [[ "$HUB" == true ]] && catchup 20_hub-build-deploy.yml hub
-          [[ "$WUI" == true ]] && catchup 30_wui-build-deploy.yml wui
+          [[ "$WUI" == true ]] && catchup 30_wui-build-deploy.yml wui 'WUI unit tests + typecheck'
           exit 0

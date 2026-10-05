@@ -1833,7 +1833,13 @@
       "people": "Inimene",
       "topics": "Teema",
       "docs": "Dokument",
-      "settings": "Seade"
+      "settings": "Seade",
+      "actions": "Toiming"
+    },
+    "action": {
+      "new_topic": "Uus teema siia",
+      "mark_read": "Märgi siin kõik loetuks",
+      "theme": "Teema: {theme}"
     }
   }
 }

@@ -1833,7 +1833,13 @@
       "people": "Persoon",
       "topics": "Onderwerp",
       "docs": "Document",
-      "settings": "Instelling"
+      "settings": "Instelling",
+      "actions": "Actie"
+    },
+    "action": {
+      "new_topic": "Nieuw onderwerp hier",
+      "mark_read": "Alles hier als gelezen markeren",
+      "theme": "Thema: {theme}"
     }
   }
 }

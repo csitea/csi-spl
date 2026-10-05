@@ -1833,7 +1833,13 @@
       "people": "אדם",
       "topics": "נושא",
       "docs": "מסמך",
-      "settings": "הגדרה"
+      "settings": "הגדרה",
+      "actions": "פעולה"
+    },
+    "action": {
+      "new_topic": "נושא חדש כאן",
+      "mark_read": "סמן הכול כנקרא כאן",
+      "theme": "ערכת נושא: {theme}"
     }
   }
 }

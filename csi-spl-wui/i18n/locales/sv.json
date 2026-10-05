@@ -1833,7 +1833,13 @@
       "people": "Person",
       "topics": "Ämne",
       "docs": "Dokument",
-      "settings": "Inställning"
+      "settings": "Inställning",
+      "actions": "Åtgärd"
+    },
+    "action": {
+      "new_topic": "Nytt ämne här",
+      "mark_read": "Markera allt här som läst",
+      "theme": "Tema: {theme}"
     }
   }
 }

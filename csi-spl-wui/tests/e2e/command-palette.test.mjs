@@ -9,6 +9,9 @@
 //   -    Ctrl + K is the page's key (defaultPrevented), and with the palette
 //        open it closes it
 //   -    on a phone (390 px) Ctrl + K opens nothing
+//   AC4  (T005) select a topic card, Ctrl + K, type ">arch" -> an Archive
+//        row with "⇧A"; Enter archives it (Archived · Undo shows). '>' alone
+//        lists the page's actions too (new topic, a theme) and no go-to row
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/command-palette.test.mjs
@@ -18,6 +21,12 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
+/* AC4's topic card, seeded into the mock's #alerts */
+const ARCH = '081a4c40-0005-4b8f-bfba-52e153b30a01'
+const EXTRA = [{
+  v: 1, msg_id: ARCH, task_id: ARCH, ts: '2026-10-05T10:00:00Z', from: 'HUM-1', from_box: 'box-wui',
+  to: '@channel', to_box: 'box-wui', kind: 'note', body: 'palette archive me', channel: 'alerts', parent_task_id: null, is_parent: 1, files: [],
+}]
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -58,6 +67,17 @@ const INPUT = '[data-testid=command-palette-input]'
 const COMPOSER = 'form.omnibox--global textarea'
 const shown = (sel) => Boolean([...document.querySelectorAll(sel)].find((e) => e.getClientRects().length))
 const gone = (sel) => !document.querySelector(sel)
+const midCard = (id) => `.spool-main article.msg[data-msg-id="${id}"]`
+const rowIds = () => [...document.querySelectorAll('[data-testid=command-palette-row]')].map((r) => r.getAttribute('data-item'))
+
+/** Select a card the way a click does: the row takes the focus. */
+const select = (p, sel) => p.evaluate((sel) => {
+  const el = document.querySelector(sel)
+  if (!el) return false
+  el.scrollIntoView({ block: 'center' })
+  el.focus({ preventScroll: true })
+  return document.activeElement === el
+}, sel)
 
 async function ctrlK(p) {
   await p.keyboard.down('Control')
@@ -78,12 +98,13 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)
-  await p.evaluateOnNewDocument(() => {
+  await p.evaluateOnNewDocument((extra) => {
     try {
       localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' }))
+      localStorage.setItem('spool.mock.extra-messages', JSON.stringify(extra))
       localStorage.removeItem('spool.palette-recent')
     } catch { /* private mode */ }
-  })
+  }, EXTRA)
   await p.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
 
   /* ---- AC1: Ctrl + K, "fee", Enter -> #feedback ---- */
@@ -134,6 +155,25 @@ try {
   await until(p, shown, PALETTE, 4000)
   await ctrlK(p)
   ok('Ctrl + K with the palette open closes it', await until(p, gone, PALETTE, 4000))
+
+  /* ---- AC4: '>' runs the selected card's menu items ---- */
+  await load(p, '/channel/alerts')
+  ok('the topic card to archive is there', await until(p, shown, midCard(ARCH), 8000))
+  ok('the topic card is selected', await select(p, midCard(ARCH)))
+  await ctrlK(p)
+  ok('Ctrl + K on a selected card opens the palette', await until(p, shown, PALETTE, 4000))
+  await p.type(INPUT, '>')
+  const all = await (until(p, () => document.querySelectorAll('[data-testid=command-palette-row]').length > 0, null, 3000)).then(() => p.evaluate(rowIds))
+  ok('">" lists the card\'s menu items, new topic and the themes, and no go-to row',
+    all.includes('msg:archive') && all.includes('msg:copy') && all.includes('action:new-topic') && all.some((id) => id.startsWith('theme:')) && !all.some((id) => /^(channel|tab|page):/.test(id)), all)
+  await p.type(INPUT, 'arch')
+  ok('">arch" lists Archive first', await until(p, () => document.querySelector('[data-testid=command-palette-row]')?.getAttribute('data-item') === 'msg:archive', null, 3000), await p.evaluate(rowIds))
+  const arch = await p.$eval('[data-testid=command-palette-row]', (r) => ({ label: r.querySelector('.palette__label')?.textContent.trim(), key: r.querySelector('[data-testid=command-palette-key]')?.textContent.trim() }))
+  ok('... named Archive, with its key ⇧A', /archive/i.test(arch.label || '') && arch.key === '⇧A', arch)
+  await p.keyboard.press('Enter')
+  ok('Enter closes the palette', await until(p, gone, PALETTE, 4000))
+  ok('... and archives the card: it leaves the feed', await until(p, (s) => !document.querySelector(s), midCard(ARCH), 6000))
+  ok('... and Archived · Undo is offered', await until(p, (s) => Boolean(document.querySelector(s)), '[data-testid=archive-toast]', 3000))
 
   /* ---- a phone: no palette ---- */
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 1 })

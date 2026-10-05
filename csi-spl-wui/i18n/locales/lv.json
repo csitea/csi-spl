@@ -1833,7 +1833,13 @@
       "people": "Persona",
       "topics": "Tēma",
       "docs": "Dokuments",
-      "settings": "Iestatījums"
+      "settings": "Iestatījums",
+      "actions": "Darbība"
+    },
+    "action": {
+      "new_topic": "Jauna tēma šeit",
+      "mark_read": "Atzīmēt visu kā izlasītu šeit",
+      "theme": "Motīvs: {theme}"
     }
   }
 }

@@ -1833,7 +1833,13 @@
       "people": "Persoană",
       "topics": "Subiect",
       "docs": "Document",
-      "settings": "Setare"
+      "settings": "Setare",
+      "actions": "Acțiune"
+    },
+    "action": {
+      "new_topic": "Subiect nou aici",
+      "mark_read": "Marchează totul ca citit aici",
+      "theme": "Temă: {theme}"
     }
   }
 }

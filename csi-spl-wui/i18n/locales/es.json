@@ -1833,7 +1833,13 @@
       "people": "Persona",
       "topics": "Tema",
       "docs": "Documento",
-      "settings": "Ajuste"
+      "settings": "Ajuste",
+      "actions": "Acción"
+    },
+    "action": {
+      "new_topic": "Nuevo tema aquí",
+      "mark_read": "Marcar todo como leído aquí",
+      "theme": "Tema: {theme}"
     }
   }
 }

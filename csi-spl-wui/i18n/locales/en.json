@@ -1833,7 +1833,13 @@
       "people": "Person",
       "topics": "Topic",
       "docs": "Doc",
-      "settings": "Setting"
+      "settings": "Setting",
+      "actions": "Action"
+    },
+    "action": {
+      "new_topic": "New topic here",
+      "mark_read": "Mark all read here",
+      "theme": "Theme: {theme}"
     }
   }
 }

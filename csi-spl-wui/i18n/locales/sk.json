@@ -1833,7 +1833,13 @@
       "people": "Osoba",
       "topics": "Téma",
       "docs": "Dokument",
-      "settings": "Nastavenie"
+      "settings": "Nastavenie",
+      "actions": "Akcia"
+    },
+    "action": {
+      "new_topic": "Nová téma tu",
+      "mark_read": "Označiť všetko tu ako prečítané",
+      "theme": "Motív: {theme}"
     }
   }
 }

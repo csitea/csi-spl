@@ -220,3 +220,17 @@ export function useMsgShortcuts(opts: Pick<CardEntry, 'flags' | 'run' | 'busy'> 
     }
   })
 }
+
+/**
+ * 081 T005 (FR-004): the card the command palette's actions mode acts on, read
+ * as the palette opens (the focus is still where the reader was): the focused
+ * card, else the selected one. `flags` are its MessageMenu props and `run` its
+ * menu items' handler, so a palette row runs what that menu item would.
+ */
+export function paletteCard(): { row: HTMLElement, flags: CardEntry['flags'], run: CardEntry['run'] } | null {
+  const active = document.activeElement as HTMLElement | null
+  const row = active?.closest?.<HTMLElement>('article.msg') || document.querySelector<HTMLElement>('article.msg[data-selected="true"]')
+  const entry = row ? cards.get(row) : undefined
+  if (!row || !entry || entry.busy()) return null
+  return { row, flags: entry.flags, run: entry.run }
+}

@@ -1833,7 +1833,13 @@
       "people": "Henkilö",
       "topics": "Aihe",
       "docs": "Dokumentti",
-      "settings": "Asetus"
+      "settings": "Asetus",
+      "actions": "Toiminto"
+    },
+    "action": {
+      "new_topic": "Uusi aihe tähän",
+      "mark_read": "Merkitse kaikki luetuiksi täällä",
+      "theme": "Teema: {theme}"
     }
   }
 }

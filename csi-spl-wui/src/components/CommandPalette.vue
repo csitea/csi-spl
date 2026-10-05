@@ -7,7 +7,10 @@
      Enter goes there. UiDialog owns Escape, the focus trap and giving the
      focus back. Mounted by the layout only while open (useGlobalKeys), so
      its chunk loads on the first Ctrl + K. It only navigates: it never sends
-     a message (FR-005). -->
+     a message (FR-005).
+     081 T005 (FR-004): a leading '>' lists the actions instead
+     (usePaletteActions): the selected card's menu items, each with its Shift
+     key, then the page's own; Enter runs the item's own handler. -->
 <template>
   <UiDialog v-model:open="open" :title="t('palette.title')" size="md">
     <div class="palette" data-testid="command-palette">
@@ -54,6 +57,7 @@
         >
           <UiIcon v-if="row.icon" class="palette__icon" :name="row.icon" :size="16" />
           <span class="palette__label">{{ row.label }}</span>
+          <kbd v-if="hintOf(row)" class="palette__key" data-testid="command-palette-key">{{ hintOf(row) }}</kbd>
           <span class="muted palette__group">{{ t('palette.group.' + row.group) }}</span>
         </li>
       </ul>
@@ -64,7 +68,8 @@
 <script setup lang="ts">
 import UiDialog from '~/components/UiDialog.vue'
 import { usePaletteOpen } from '~/composables/useGlobalKeys'
-import { usePaletteItems, type PaletteGoItem } from '~/composables/usePaletteItems'
+import { usePaletteActions, usePaletteItems, type PaletteActionItem, type PaletteGoItem } from '~/composables/usePaletteItems'
+import { holdPanel, paletteCard } from '~/composables/useMsgShortcuts'
 import { loadRecent, parseQuery, rankItems } from '~/utils/palette.mjs'
 
 /** Rows drawn at most: the ranking puts the good ones first. */
@@ -79,14 +84,22 @@ const listEl = ref<HTMLElement | null>(null)
 const listId = useId()
 const optionId = (i: number) => `${listId}-opt-${i}`
 
+/* the card the actions act on, read before the dialog takes the focus */
+const card = paletteCard()
+const paletteActions = usePaletteActions()
+const actions = computed(() => paletteActions.actions(card))
+
+type PaletteRow = PaletteGoItem | PaletteActionItem
+const isAction = (row: PaletteRow): row is PaletteActionItem => row.group === 'actions'
+const hintOf = (row: PaletteRow) => (isAction(row) ? row.hint : '')
+
 const recent = ref<string[]>([])
 try { recent.value = loadRecent(window.localStorage) } catch { /* storage off: no recents */ }
 palette.load()
 
-const rows = computed<PaletteGoItem[]>(() => {
+const rows = computed<PaletteRow[]>(() => {
   const q = parseQuery(query.value)
-  /* T005 fills the actions mode ('>'); until then it lists nothing */
-  if (q.mode === 'actions') return []
+  if (q.mode === 'actions') return (q.text ? rankItems(actions.value, q.text) : actions.value).slice(0, MAX_ROWS)
   const ranked = rankItems(palette.items.value, q.text, recent.value)
   if (!q.text && !ranked.length) return palette.sections.value.slice(0, MAX_ROWS)
   return ranked.slice(0, MAX_ROWS)
@@ -122,7 +135,8 @@ function focusMiddle() {
   target.focus({ preventScroll: true })
 }
 
-async function run(row: PaletteGoItem) {
+async function run(row: PaletteRow) {
+  if (isAction(row)) return runAction(row)
   /* go() starts the navigation before closing unmounts this dialog */
   const going = palette.go(row)
   open.value = false
@@ -131,6 +145,15 @@ async function run(row: PaletteGoItem) {
   if (!row.to || row.group === 'settings') return
   await nextTick()
   focusMiddle()
+}
+
+/** An action runs once the dialog is gone and the focus is back where it was. */
+async function runAction(row: PaletteActionItem) {
+  open.value = false
+  await nextTick()
+  /* as a Shift key does: the focus stays in the card's panel */
+  if (row.row) holdPanel(row.row)
+  await row.run()
 }
 </script>
 
@@ -161,4 +184,13 @@ async function run(row: PaletteGoItem) {
 .palette__icon { flex: none; color: var(--color-muted); }
 .palette__label { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette__group { flex: none; font-size: 0.75rem; }
+.palette__key {
+  flex: none;
+  padding: 0 0.375rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.75rem;
+}
 </style>

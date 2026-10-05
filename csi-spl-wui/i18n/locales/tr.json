@@ -1833,7 +1833,13 @@
       "people": "Kişi",
       "topics": "Konu",
       "docs": "Belge",
-      "settings": "Ayar"
+      "settings": "Ayar",
+      "actions": "Eylem"
+    },
+    "action": {
+      "new_topic": "Burada yeni konu",
+      "mark_read": "Buradaki her şeyi okundu işaretle",
+      "theme": "Tema: {theme}"
     }
   }
 }

@@ -24,6 +24,16 @@ import { wsDocsRoute } from '~/utils/ws-docs.mjs'
 import { pushRecent, type PaletteItem } from '~/utils/palette.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 import type { TopicRow } from '~/types/spool'
+import { useTheme } from '~/composables/useTheme'
+import { useAuthClient } from '~/composables/useAuthClient'
+import { paletteCard } from '~/composables/useMsgShortcuts'
+import { useOmniboxStore } from '~/stores/omnibox'
+import { useNotificationStore } from '~/stores/notification'
+import { useSessionStore } from '~/stores/session'
+import { msgMenuItems } from '~/utils/msg-menu.mjs'
+import { shortcutHint } from '~/utils/msg-shortcuts.mjs'
+import { queryWithTopic } from '~/utils/topic-open.mjs'
+import { THEMES, saveThemeToAccount, type SpoolTheme } from '~/utils/theme.mjs'
 
 /** The palette's groups, in the order the dialog draws them (spec 3.1). */
 export const PALETTE_GROUPS = ['sections', 'channels', 'people', 'topics', 'docs', 'settings'] as const
@@ -160,4 +170,100 @@ export function usePaletteItems() {
   }
 
   return { items, sections, channels, people, topics, docs, settings, load, go }
+}
+
+// 081 T005 (FR-004): the actions mode ('>'). The message menu's items for the
+// card the reader had selected (the menu's own list and gating: msgMenuItems
+// over the card's MessageMenu flags, the desktop menu and the phone sheet
+// together, as the Shift keys read it), then New topic here, Mark all read
+// here and one row per other theme. Each row shows its Shift key
+// (shortcutHint) and runs the handler its menu item, sidebar row menu or
+// theme picker runs. None of them sends a message (FR-005).
+
+/** One action row: what it runs, and the key that runs it outside the palette. */
+export type PaletteActionItem = PaletteItem & {
+  group: 'actions'
+  icon?: UiIconName
+  hint: string
+  /** the card the action works on: the focus is held in its panel after */
+  row?: HTMLElement
+  run: () => unknown
+}
+
+/** The menu items with no palette row: Add emoji opens a picker at the pointer. */
+const NO_PALETTE_ROW = new Set(['react'])
+
+/** The composer the Omnibox is (TopBar.vue). */
+const COMPOSER = 'form.omnibox--global textarea'
+
+export function usePaletteActions() {
+  const { t } = useI18n()
+  const route = useRoute()
+  const router = useRouter()
+  const omnibox = useOmniboxStore()
+  const channel = useChannelStore()
+  const notes = useNotificationStore()
+  const session = useSessionStore()
+  const auth = useAuthClient()
+  const { theme, setTheme } = useTheme()
+
+  /** The message rows for `card` (read as the palette opens; null: none selected). */
+  function messageRows(card: ReturnType<typeof paletteCard>): PaletteActionItem[] {
+    if (!card) return []
+    const flags = card.flags()
+    const seen = new Set<string>()
+    const rows: PaletteActionItem[] = []
+    for (const touch of [false, true]) {
+      for (const it of msgMenuItems({ ...flags, touch })) {
+        if (it.disabled || seen.has(it.id) || NO_PALETTE_ROW.has(it.id)) continue
+        seen.add(it.id)
+        const id = it.id
+        rows.push({ id: 'msg:' + id, group: 'actions', label: t(it.labelKey), icon: it.icon as UiIconName, hint: shortcutHint(id), row: card.row, run: () => card.run(id) })
+      }
+    }
+    return rows
+  }
+
+  /** The place the page shows (`ch:<id>` / `dm:<peer>`), '' on a page with no feed of its own. */
+  function place(): string {
+    if (!/^\/(?:[a-z]{2}\/)?(?:lobby|channel\/|dm\/)/.test(route.path)) return ''
+    if (channel.peer) return 'dm:' + channel.peer
+    return channel.active ? 'ch:' + channel.active : ''
+  }
+
+  /** New topic here: close the topic pane (the next post starts a topic) and put the caret in the composer. */
+  async function newTopic(): Promise<void> {
+    if (route.query.topic || route.query.in) await router.replace({ query: queryWithTopic(route.query, null) })
+    await nextTick()
+    document.querySelector<HTMLTextAreaElement>(COMPOSER)?.focus()
+  }
+
+  /** The theme picker's choose(): this device, and the account when signed in. */
+  function chooseTheme(id: SpoolTheme): void {
+    setTheme(id)
+    void saveThemeToAccount(id, {
+      claims: session.claims,
+      save: (next) => auth.saveTheme(next),
+      apply: (next) => session.setPreferredTheme(next),
+    })
+  }
+
+  function pageRows(): PaletteActionItem[] {
+    const rows: PaletteActionItem[] = []
+    if (omnibox.target) rows.push({ id: 'action:new-topic', group: 'actions', label: t('palette.action.new_topic'), icon: 'plus', hint: '', run: newTopic })
+    const key = place()
+    if (key) rows.push({ id: 'action:mark-read', group: 'actions', label: t('palette.action.mark_read'), icon: 'check', hint: '', run: () => notes.markRead(key) })
+    for (const th of THEMES) {
+      if (th.id === theme.value) continue
+      rows.push({ id: 'theme:' + th.id, group: 'actions', label: t('palette.action.theme', { theme: t(th.labelKey) }), keywords: [t('theme.picker')], icon: 'palette', hint: '', run: () => chooseTheme(th.id as SpoolTheme) })
+    }
+    return rows
+  }
+
+  /** Every action row for `card`: its message actions first, then the page's. */
+  function actions(card: ReturnType<typeof paletteCard>): PaletteActionItem[] {
+    return [...messageRows(card), ...pageRows()]
+  }
+
+  return { actions }
 }

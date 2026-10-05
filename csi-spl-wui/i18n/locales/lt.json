@@ -1833,7 +1833,13 @@
       "people": "Asmuo",
       "topics": "Tema",
       "docs": "Dokumentas",
-      "settings": "Nustatymas"
+      "settings": "Nustatymas",
+      "actions": "Veiksmas"
+    },
+    "action": {
+      "new_topic": "Nauja tema čia",
+      "mark_read": "Pažymėti viską kaip perskaitytą čia",
+      "theme": "Tema: {theme}"
     }
   }
 }

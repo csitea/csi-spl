@@ -2097,6 +2097,11 @@ declare module '~/utils/issues-colw.mjs' {
     run: (opts: O) => void, ms: number,
     timers?: { setTimeout: (fn: () => void, ms: number) => unknown, clearTimeout: (id: unknown) => void },
   ): { schedule(): void, flush(opts?: O): boolean }
+  export const ISSUES_COLW_STASH_KEY: string
+  export const COLW_STASH_MAX_MS: number
+  export function tabStore(): Storage | null
+  export function stashColWidths(widths: ColWidths, hum: string | undefined, store: Storage | null, now?: number): boolean
+  export function takeColWidthsStash(store: Storage | null, now?: number): { hum: string, w: ColWidths } | null
 }
 
 declare module '~/utils/row-keys.mjs' {

@@ -114,3 +114,42 @@ export function pendingSave(run, ms, timers = globalThis) {
     },
   }
 }
+
+/*
+ * The keepalive PUT outlives the page, but the reloaded page asks the hub
+ * for its session ~130 ms in, before that PUT lands (live, dev 1.5.5: the
+ * hub held the new width right after the reload, the page showed the old
+ * one). So pagehide also stashes the widths in this tab's sessionStorage and
+ * the next load of the sheet puts them back (and saves them again, which is
+ * a no-op when the PUT already landed). One person, one minute, read once.
+ */
+export const ISSUES_COLW_STASH_KEY = 'spool.issues.colw.pending'
+export const COLW_STASH_MAX_MS = 60000
+
+/** This tab's sessionStorage, or null when the browser denies it. */
+export function tabStore() {
+  try {
+    return globalThis.sessionStorage || null
+  } catch {
+    return null
+  }
+}
+
+/** Stash `widths` for `hum` (the person) in `store` at `now`; false without a store or a person. */
+export function stashColWidths(widths, hum, store, now = Date.now()) {
+  if (!store || !hum) return false
+  return storageSetJson(ISSUES_COLW_STASH_KEY, { hum: String(hum), w: widths || {}, at: now }, store)
+}
+
+/** The stash, removed as it is read: { hum, w } when fresh and well-formed, else null. */
+export function takeColWidthsStash(store, now = Date.now()) {
+  if (!store) return null
+  const s = storageGetJson(ISSUES_COLW_STASH_KEY, null, store)
+  if (s == null) return null
+  storageSetJson(ISSUES_COLW_STASH_KEY, null, store)
+  if (!s || typeof s !== 'object' || typeof s.hum !== 'string' || !s.hum) return null
+  if (!s.w || typeof s.w !== 'object' || Array.isArray(s.w)) return null
+  const age = now - Number(s.at)
+  if (!Number.isFinite(age) || age < 0 || age > COLW_STASH_MAX_MS) return null
+  return { hum: s.hum, w: s.w }
+}

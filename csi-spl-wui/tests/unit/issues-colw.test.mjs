@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import {
   COLW_MAX, COLW_MIN, COLW_MIN_BY_COL, COLW_STEP, colMin, ISSUES_COLW_COLS, ISSUES_COLW_KEY,
   clampColWidth, cleanColWidths, colWidthClasses, colWidthVars, dragWidth, keyWidth, loadColWidths, pendingSave, saveColWidths, withColWidth,
+  COLW_STASH_MAX_MS, ISSUES_COLW_STASH_KEY, stashColWidths, takeColWidthsStash,
 } from '../../src/utils/issues-colw.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import { createAuthClient } from '../../src/utils/auth-client.mjs'
@@ -135,5 +136,32 @@ describe('issues column widths', () => {
     assert.match(ts, /removeEventListener\('pagehide', onPageHide\)/)
     assert.match(ts, /function onPageHide\(\)[\s\S]{0,80}\.flush\(\{ keepalive: true \}\)/)
     assert.match(ts, /auth\.saveIssueColumns\(v, opts\)/)
+  })
+
+  /* the reloaded page read its session ~130 ms in, before the keepalive PUT
+     landed (live, dev 1.5.5: hub {"status":214}, page 114) */
+  it('the pagehide stash is read once, by the same person, within a minute', () => {
+    const store = memoryStore()
+    assert.equal(takeColWidthsStash(store, 1000), null)
+    assert.equal(stashColWidths({ status: 214 }, 'HUM-4', store, 1000), true)
+    assert.deepEqual(takeColWidthsStash(store, 1200), { hum: 'HUM-4', w: { status: 214 } })
+    assert.equal(takeColWidthsStash(store, 1300), null)
+    stashColWidths({ status: 214 }, 'HUM-4', store, 1000)
+    assert.equal(takeColWidthsStash(store, 1000 + COLW_STASH_MAX_MS + 1), null)
+    assert.equal(takeColWidthsStash(store, 1000), null)
+    assert.equal(stashColWidths({ status: 214 }, '', store, 1000), false)
+    assert.equal(stashColWidths({ status: 214 }, 'HUM-4', null, 1000), false)
+    assert.equal(takeColWidthsStash(memoryStore({ [ISSUES_COLW_STASH_KEY]: '{bad' }), 1000), null)
+    assert.equal(takeColWidthsStash(memoryStore({ [ISSUES_COLW_STASH_KEY]: '{"hum":"HUM-4","w":[1],"at":1000}' }), 1000), null)
+  })
+
+  it('the sheet stashes on pagehide and gives the stash back on its next load', () => {
+    const ts = readFileSync(join(SRC, 'composables/useIssueColumns.ts'), 'utf8')
+    assert.match(ts, /if \(pending\.flush\(\{ keepalive: true \}\)\) stashColWidths\(now, person\(\), tabStore\(\)\)/)
+    assert.match(ts, /takeColWidthsStash\(tabStore\(\)\)/)
+    assert.match(ts, /person\(\) === stash\.hum\) save\(stash\.w\)/)
+    assert.match(ts, /onMounted\(\(\) => \{[\s\S]{0,120}restoreStash\(\)/)
+    /* hum is omitempty on the hub (only "when wired"): the email stands in */
+    assert.match(ts, /const person = \(\) => String\(session\.claims\?\.hum \|\| session\.claims\?\.email \|\| ''\)/)
   })
 })

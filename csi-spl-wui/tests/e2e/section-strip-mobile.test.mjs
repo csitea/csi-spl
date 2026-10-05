@@ -90,7 +90,9 @@ const state = (p, sel, title, list) => p.evaluate((sel, title, list) => {
   const cs = ctl ? getComputedStyle(ctl) : null
   const label = ctl?.querySelector('.sidebar-tab__label')
   const main = document.querySelector('.spool-main')
-  const titled = [...main.querySelectorAll('h1,h2')].filter(vis).filter((h) => h.textContent.trim() === title).length
+  /* E08: phone level 1 does not mount the middle pane. Titles and Back
+     live in that pane, so a missing one is none of either. */
+  const titled = main ? [...main.querySelectorAll('h1,h2')].filter(vis).filter((h) => h.textContent.trim() === title).length : 0
   return {
     level: shell.getAttribute('data-mobile-level'),
     section: shell.getAttribute('data-mobile-section'),
@@ -102,7 +104,7 @@ const state = (p, sel, title, list) => p.evaluate((sel, title, list) => {
     shadow: cs ? cs.boxShadow !== 'none' : false,
     bold: label ? Number(getComputedStyle(label).fontWeight) >= 700 : null,
     title: titled,
-    back: [...main.querySelectorAll('[data-testid=mobile-back]')].filter(vis).length,
+    back: main ? [...main.querySelectorAll('[data-testid=mobile-back]')].filter(vis).length : 0,
     xscroll: document.scrollingElement.scrollWidth > innerWidth,
     list: list ? vis(document.getElementById('sidebar-panel-' + list)) : null,
   }

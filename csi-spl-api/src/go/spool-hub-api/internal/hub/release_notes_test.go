@@ -123,9 +123,16 @@ func TestReleaseNotesIngestAndRead(t *testing.T) {
 	if code != http.StatusOK || len(vs) != 1 || vs[0].(map[string]any)["version"] != "v7.4.1" || out["next_before"] != "" {
 		t.Fatalf("list page 2: %d %v", code, out)
 	}
+	// the rolling # (t1 55b6de46): the oldest change is 1, the newest of the six is 6
+	if seq := vs[0].(map[string]any)["notes"].([]any)[0].(map[string]any)["seq"]; seq != float64(1) {
+		t.Fatalf("oldest seq: %v", seq)
+	}
 	code, out = call(t, e, tid, http.MethodGet, "/v1/release-notes/v7.4.2", hum, nil)
 	if code != http.StatusOK || len(out["notes"].([]any)) != 2 {
 		t.Fatalf("version: %d %v", code, out)
+	}
+	if seq := out["notes"].([]any)[0].(map[string]any)["seq"]; seq != float64(3) {
+		t.Fatalf("version seq: %v", seq)
 	}
 }
 

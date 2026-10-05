@@ -212,6 +212,56 @@ func TestReleaseNotes(t *testing.T) {
 	}
 }
 
+// The rolling number (owner, t1 55b6de46): seq counts the versioned rows
+// from the oldest (1) up, the list order reversed, so the newest listed row
+// carries the highest; an untagged row has none and is not counted, and the
+// row a later deploy tags takes the next number. Postgres shares its table
+// with other tests, so there the numbers are checked relative to each other;
+// a fresh memory store starts at 1.
+func TestReleaseNotesSeq(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			rs := st.(ReleaseNotes)
+			mj, _ := rand.Int(rand.Reader, big.NewInt(800000))
+			major := int(mj.Int64()) + 100000
+			v := func(minor int) string { return fmt.Sprintf("v%d.%d.0", major, minor) }
+			top := fmt.Sprintf("v%d.0.0", major+1)
+			t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+
+			a, b, c, d := randSHA(), randSHA(), randSHA(), randSHA()
+			untagged := noteOK(d, "", t0.Add(3*time.Minute))
+			batch := []ReleaseNote{noteOK(a, v(9), t0), noteOK(b, v(10), t0.Add(time.Minute)), noteOK(c, v(10), t0.Add(2*time.Minute)), untagged}
+			if err := rs.PutReleaseNotes(ctx, batch, t0.Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			ls, err := rs.ListReleaseNotes(ctx, top, 2)
+			if err != nil || len(ls) != 3 || ls[0].SHA != c || ls[2].SHA != a {
+				t.Fatalf("list: %+v %v", ls, err)
+			}
+			if ls[2].Seq < 1 || ls[1].Seq != ls[2].Seq+1 || ls[0].Seq != ls[2].Seq+2 {
+				t.Fatalf("seq not counted up from the oldest: %d %d %d", ls[0].Seq, ls[1].Seq, ls[2].Seq)
+			}
+			if name == "memory" && ls[2].Seq != 1 {
+				t.Fatalf("the oldest row is %d, want 1", ls[2].Seq)
+			}
+			of, err := rs.ReleaseNotesOfVersion(ctx, v(10))
+			if err != nil || len(of) != 2 || of[0].Seq != ls[0].Seq || of[1].Seq != ls[1].Seq {
+				t.Fatalf("of version seq: %+v %v", of, err)
+			}
+			// the deploy that tags d gives it the next number; the others keep theirs
+			untagged.Version = v(11)
+			if err = rs.PutReleaseNotes(ctx, []ReleaseNote{untagged}, t0.Add(2*time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			ls2, err := rs.ListReleaseNotes(ctx, top, 3)
+			if err != nil || len(ls2) != 4 || ls2[0].SHA != d || ls2[0].Seq != ls[0].Seq+1 || ls2[3].Seq != ls[2].Seq {
+				t.Fatalf("tagged row seq: %+v %v", ls2, err)
+			}
+		})
+	}
+}
+
 // Cycle 1 vs cycle 2 of one X.Y.Z (owner t1 1c5b6d53: after 9.9.9 start over
 // at 1.0.1): v<M>.0.1 and v<M>.0.1-c<N> are two versions, never merged, and
 // the later cycle pages first even though its X.Y.Z reads lower than a

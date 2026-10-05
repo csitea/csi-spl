@@ -51,7 +51,10 @@ var ErrAmbiguousRef = errors.New("ambiguous sha prefix")
 // (after 9.9.9 the mint starts over at 1.0.1), so two cycles' same X.Y.Z
 // stay two versions; ReleaseDisplay is what a reader sees. Version "" is
 // NULL: the commit is on trunk but no deploy has minted a tag over it yet. Reverts is the sha a
-// revert row reverts ("" otherwise).
+// revert row reverts ("" otherwise). Seq is the row's rolling number among
+// the versioned rows, 1 = the oldest (the list order reversed), so the
+// newest row carries n (owner, t1 55b6de46: "# rolling id, starting from
+// the oldest"); set by ListReleaseNotes and ReleaseNotesOfVersion, 0 elsewhere.
 type ReleaseNote struct {
 	SHA         string    `json:"sha"`
 	Version     string    `json:"version,omitempty"`
@@ -69,6 +72,7 @@ type ReleaseNote struct {
 	Reverts     string    `json:"reverts,omitempty"`
 	Link        string    `json:"link"`
 	IngestedAt  time.Time `json:"ingested_at"`
+	Seq         int       `json:"seq,omitempty"`
 }
 
 // ReleaseNotes is the store half of spec 065. Optional: the hub's routes
@@ -87,11 +91,11 @@ type ReleaseNotes interface {
 	// ListReleaseNotes is every row of the newest `versions` versions
 	// (capped at ReleaseVersionsMax) strictly older than before ("" = from
 	// the newest): version newest first (numeric: cycle, then X.Y.Z), then
-	// newest commit first.
+	// newest commit first, each with its Seq.
 	// Rows with no version yet are not listed.
 	ListReleaseNotes(ctx context.Context, before string, versions int) ([]ReleaseNote, error)
-	// ReleaseNotesOfVersion is one version's rows, newest commit first
-	// (spec 7.2: /releases/v<X.Y.Z>[-c<N>]); version is the full key.
+	// ReleaseNotesOfVersion is one version's rows, newest commit first, each
+	// with its Seq (spec 7.2: /releases/v<X.Y.Z>[-c<N>]); version is the full key.
 	ReleaseNotesOfVersion(ctx context.Context, version string) ([]ReleaseNote, error)
 }
 
@@ -182,6 +186,25 @@ func sortReleaseNotes(ns []ReleaseNote) {
 		b, _ := releaseVersionKey(y.Version)
 		return cmp.Or(slices.Compare(b[:], a[:]), y.CommittedAt.Compare(x.CommittedAt), cmp.Compare(x.SHA, y.SHA))
 	})
+}
+
+// numberReleaseNotes sets Seq on the rows of out from every versioned row of
+// all: the list order reversed, so the oldest is 1.
+func numberReleaseNotes(all map[string]ReleaseNote, out []ReleaseNote) {
+	var versioned []ReleaseNote
+	for _, n := range all {
+		if _, ok := releaseVersionKey(n.Version); ok {
+			versioned = append(versioned, n)
+		}
+	}
+	sortReleaseNotes(versioned)
+	seq := make(map[string]int, len(versioned))
+	for i, n := range versioned {
+		seq[n.SHA] = len(versioned) - i
+	}
+	for i := range out {
+		out[i].Seq = seq[out[i].SHA]
+	}
 }
 
 // Memory side: a per-store map beside the Memory struct, as the perf samples
@@ -275,6 +298,7 @@ func (s *Memory) ListReleaseNotes(_ context.Context, before string, versions int
 		}
 	}
 	sortReleaseNotes(out)
+	numberReleaseNotes(s.releases(), out)
 	return out, nil
 }
 
@@ -291,5 +315,6 @@ func (s *Memory) ReleaseNotesOfVersion(_ context.Context, version string) ([]Rel
 		}
 	}
 	sortReleaseNotes(out)
+	numberReleaseNotes(s.releases(), out)
 	return out, nil
 }

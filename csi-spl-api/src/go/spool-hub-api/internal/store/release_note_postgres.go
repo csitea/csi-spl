@@ -24,15 +24,28 @@ func releaseKeySQL(expr string) string {
                     string_to_array(substring(` + expr + ` from '^v([0-9.]+)'), '.')::int[])`
 }
 
-func scanReleaseNote(row pgx.Row) (ReleaseNote, error) {
+// releaseNumberedSQL is every versioned row with its seq, the list order
+// reversed (numberReleaseNotes in SQL): the oldest is 1.
+func releaseNumberedSQL() string {
+	vk := releaseKeySQL("version")
+	return `SELECT *, row_number() OVER (ORDER BY ` + vk + `, committed_at, sha DESC) AS seq,
+		` + vk + ` AS k FROM release_notes WHERE version IS NOT NULL`
+}
+
+// scanReleaseNote reads releaseNoteCols, and the seq after them when withSeq.
+func scanReleaseNote(row pgx.Row, withSeq bool) (ReleaseNote, error) {
 	var n ReleaseNote
-	err := row.Scan(&n.SHA, &n.Version, &n.CommittedAt, &n.Kind, &n.Area, &n.Subject,
-		&n.LayWhat, &n.LayHow, &n.LayWhy, &n.TechWhat, &n.TechHow, &n.TechWhy, &n.State, &n.Reverts, &n.Link, &n.IngestedAt)
+	dest := []any{&n.SHA, &n.Version, &n.CommittedAt, &n.Kind, &n.Area, &n.Subject,
+		&n.LayWhat, &n.LayHow, &n.LayWhy, &n.TechWhat, &n.TechHow, &n.TechWhy, &n.State, &n.Reverts, &n.Link, &n.IngestedAt}
+	if withSeq {
+		dest = append(dest, &n.Seq)
+	}
+	err := row.Scan(dest...)
 	n.CommittedAt, n.IngestedAt = n.CommittedAt.UTC(), n.IngestedAt.UTC()
 	return n, err
 }
 
-func (s *Postgres) queryReleaseNotes(ctx context.Context, sql string, args ...any) ([]ReleaseNote, error) {
+func (s *Postgres) queryReleaseNotes(ctx context.Context, withSeq bool, sql string, args ...any) ([]ReleaseNote, error) {
 	rows, err := s.pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -40,7 +53,7 @@ func (s *Postgres) queryReleaseNotes(ctx context.Context, sql string, args ...an
 	defer rows.Close()
 	out := []ReleaseNote{}
 	for rows.Next() {
-		n, err := scanReleaseNote(rows)
+		n, err := scanReleaseNote(rows, withSeq)
 		if err != nil {
 			return nil, err
 		}
@@ -109,7 +122,7 @@ func (s *Postgres) ReleaseNote(ctx context.Context, ref string) (ReleaseNote, er
 		return ReleaseNote{}, err
 	}
 	// The ref is hex only, so it carries no LIKE wildcard.
-	hit, err := s.queryReleaseNotes(ctx, `SELECT `+releaseNoteCols+` FROM release_notes
+	hit, err := s.queryReleaseNotes(ctx, false, `SELECT `+releaseNoteCols+` FROM release_notes
 		WHERE sha LIKE $1 || '%' ORDER BY sha LIMIT 2`, ref)
 	switch {
 	case err != nil:
@@ -127,12 +140,13 @@ func (s *Postgres) ListReleaseNotes(ctx context.Context, before string, versions
 		return nil, err
 	}
 	vk := releaseKeySQL("version")
-	out, err := s.queryReleaseNotes(ctx, `WITH page AS (
+	out, err := s.queryReleaseNotes(ctx, true, `WITH page AS (
 			SELECT DISTINCT `+vk+` AS k FROM release_notes
 			WHERE version IS NOT NULL AND ($1 = '' OR `+vk+` < `+releaseKeySQL("$1::text")+`)
-			ORDER BY k DESC LIMIT $2)
-		SELECT `+releaseNoteCols+` FROM release_notes
-		WHERE version IS NOT NULL AND `+vk+` IN (SELECT k FROM page)`, before, ClampReleaseVersions(versions))
+			ORDER BY k DESC LIMIT $2),
+		numbered AS (`+releaseNumberedSQL()+`)
+		SELECT `+releaseNoteCols+`, seq FROM numbered
+		WHERE k IN (SELECT k FROM page)`, before, ClampReleaseVersions(versions))
 	sortReleaseNotes(out)
 	return out, err
 }
@@ -141,8 +155,8 @@ func (s *Postgres) ReleaseNotesOfVersion(ctx context.Context, version string) ([
 	if _, ok := releaseVersionKey(version); !ok {
 		return nil, fmt.Errorf("version must be v<X.Y.Z> or v<X.Y.Z>-c<N>")
 	}
-	out, err := s.queryReleaseNotes(ctx, `SELECT `+releaseNoteCols+` FROM release_notes
-		WHERE version = $1`, version)
+	out, err := s.queryReleaseNotes(ctx, true, `WITH numbered AS (`+releaseNumberedSQL()+`)
+		SELECT `+releaseNoteCols+`, seq FROM numbered WHERE version = $1`, version)
 	sortReleaseNotes(out)
 	return out, err
 }

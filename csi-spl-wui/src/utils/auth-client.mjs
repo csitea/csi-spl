@@ -20,6 +20,10 @@ const ERRORS = {
   invite_expired: 'Your invitation has expired — ask your admin to send a new one.',
   // specs/077 T008: the open demo admission refused a 10th live visitor
   demo_full: 'The demo is full right now — try again later.',
+  // specs/077 T010: the account's demo visits, or this address's new demo
+  // accounts, for today are used
+  demo_visits: "You have used today's demo visits — come back tomorrow.",
+  demo_signups: 'Too many new demo accounts from this network today — try again tomorrow.',
   unavailable: 'Sign-in is unavailable right now.',
 }
 

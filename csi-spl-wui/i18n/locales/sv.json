@@ -224,7 +224,9 @@
       "unavailable": "Inloggning är inte tillgänglig just nu.",
       "failed": "Inloggningen misslyckades.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "Demot är fullt just nu — försök igen senare."
+      "demo_full": "Demot är fullt just nu — försök igen senare.",
+      "demo_visits": "Du har använt dagens demobesök — kom tillbaka i morgon.",
+      "demo_signups": "För många nya demokonton från det här nätverket i dag — försök igen i morgon."
     },
     "native_error": {
       "invalid_credentials": "Fel e-postadress eller lösenord.",

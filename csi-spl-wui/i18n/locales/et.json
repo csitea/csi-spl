@@ -224,7 +224,9 @@
       "unavailable": "Sisselogimine pole praegu saadaval.",
       "failed": "Sisselogimine ebaõnnestus.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "Demo on praegu täis — proovi hiljem uuesti."
+      "demo_full": "Demo on praegu täis — proovi hiljem uuesti.",
+      "demo_visits": "Oled tänased demokülastused ära kasutanud — tule homme tagasi.",
+      "demo_signups": "Sellest võrgust on täna liiga palju uusi demokontosid — proovi homme uuesti."
     },
     "native_error": {
       "invalid_credentials": "E-post või parool on vale.",

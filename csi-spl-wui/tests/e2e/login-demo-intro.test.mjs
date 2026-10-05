@@ -129,6 +129,17 @@ try {
   ok('4 demo_full: the demo is full, try later', /demo is full/i.test(await text(f, '.login-error')), await text(f, '.login-error'))
   await f.close()
 
+  // 4b. specs/077 T010: the day's visits of an account, or the day's new
+  // accounts from an address, are used: in words, "try again tomorrow"
+  for (const [code, re] of [['demo_visits', /today's demo visits/i], ['demo_signups', /new demo accounts/i]]) {
+    const g = await page(DESKTOP)
+    await open(g, DESKTOP, `?auth_error=${code}`)
+    await g.waitForSelector('.login-error', { visible: true, timeout: 15000 }).catch(() => null)
+    const said = await text(g, '.login-error')
+    ok(`4b ${code}: in words, try again tomorrow`, re.test(said) && /tomorrow/i.test(said), said)
+    await g.close()
+  }
+
   ok('5 no page errors', errors.length === 0, errors)
 } finally {
   await browser.close()

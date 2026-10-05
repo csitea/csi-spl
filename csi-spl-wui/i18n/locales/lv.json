@@ -224,7 +224,9 @@
       "unavailable": "Pieteikšanās pašlaik nav pieejama.",
       "failed": "Pieteikšanās neizdevās.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "Demo pašlaik ir pilns — mēģiniet vēlāk vēlreiz."
+      "demo_full": "Demo pašlaik ir pilns — mēģiniet vēlāk vēlreiz.",
+      "demo_visits": "Jūs esat izmantojis šodienas demo apmeklējumus — atgriezieties rīt.",
+      "demo_signups": "Šodien no šī tīkla ir pārāk daudz jaunu demo kontu — mēģiniet vēlreiz rīt."
     },
     "native_error": {
       "invalid_credentials": "Nepareizs e-pasts vai parole.",

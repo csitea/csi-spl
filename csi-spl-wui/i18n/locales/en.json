@@ -224,7 +224,9 @@
       "unavailable": "Sign-in is unavailable right now.",
       "failed": "Sign-in failed.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "The demo is full right now — try again later."
+      "demo_full": "The demo is full right now — try again later.",
+      "demo_visits": "You have used today's demo visits — come back tomorrow.",
+      "demo_signups": "Too many new demo accounts from this network today — try again tomorrow."
     },
     "native_error": {
       "invalid_credentials": "Email or password is wrong.",

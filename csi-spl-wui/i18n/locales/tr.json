@@ -224,7 +224,9 @@
       "unavailable": "Giriş şu anda kullanılamıyor.",
       "failed": "Giriş başarısız.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "Demo şu anda dolu — daha sonra tekrar deneyin."
+      "demo_full": "Demo şu anda dolu — daha sonra tekrar deneyin.",
+      "demo_visits": "Bugünkü demo ziyaretlerinizi kullandınız — yarın tekrar gelin.",
+      "demo_signups": "Bugün bu ağdan çok fazla yeni demo hesabı açıldı — yarın tekrar deneyin."
     },
     "native_error": {
       "invalid_credentials": "E-posta veya parola hatalı.",

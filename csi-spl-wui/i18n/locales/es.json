@@ -224,7 +224,9 @@
       "unavailable": "El inicio de sesión no está disponible ahora mismo.",
       "failed": "No se pudo iniciar sesión.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "La demo está llena ahora mismo — inténtalo más tarde."
+      "demo_full": "La demo está llena ahora mismo — inténtalo más tarde.",
+      "demo_visits": "Ya has usado las visitas de hoy a la demo — vuelve mañana.",
+      "demo_signups": "Demasiadas cuentas demo nuevas desde esta red hoy — inténtalo de nuevo mañana."
     },
     "native_error": {
       "invalid_credentials": "El correo o la contraseña no son correctos.",

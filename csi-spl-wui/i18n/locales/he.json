@@ -224,7 +224,9 @@
       "unavailable": "ההתחברות אינה זמינה כרגע.",
       "failed": "ההתחברות נכשלה.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "הדמו מלא כרגע — נסו שוב מאוחר יותר."
+      "demo_full": "הדמו מלא כרגע — נסו שוב מאוחר יותר.",
+      "demo_visits": "ניצלת את ביקורי הדמו של היום — חזרו מחר.",
+      "demo_signups": "יותר מדי חשבונות דמו חדשים מהרשת הזו היום — נסו שוב מחר."
     },
     "native_error": {
       "invalid_credentials": "האימייל או הסיסמה שגויים.",

@@ -224,7 +224,9 @@
       "unavailable": "Inloggen is op dit moment niet beschikbaar.",
       "failed": "Inloggen mislukt.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "De demo is nu vol — probeer het later opnieuw."
+      "demo_full": "De demo is nu vol — probeer het later opnieuw.",
+      "demo_visits": "Je hebt je demobezoeken van vandaag gebruikt — kom morgen terug.",
+      "demo_signups": "Te veel nieuwe demo-accounts vanaf dit netwerk vandaag — probeer het morgen opnieuw."
     },
     "native_error": {
       "invalid_credentials": "E-mailadres of wachtwoord is onjuist.",

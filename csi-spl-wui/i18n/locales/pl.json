@@ -224,7 +224,9 @@
       "unavailable": "Logowanie jest teraz niedostępne.",
       "failed": "Logowanie nie powiodło się.",
       "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
-      "demo_full": "Demo jest teraz pełne — spróbuj ponownie później."
+      "demo_full": "Demo jest teraz pełne — spróbuj ponownie później.",
+      "demo_visits": "Wykorzystałeś dzisiejsze wizyty w demo — wróć jutro.",
+      "demo_signups": "Zbyt wiele nowych kont demo z tej sieci dzisiaj — spróbuj ponownie jutro."
     },
     "native_error": {
       "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",

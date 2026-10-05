@@ -204,3 +204,21 @@ Its value is that a new column is noticed and classified on purpose rather than 
 ### 9.3 Open after round 1
 
 R1-1 to R1-5, plus the agreed v0.2.0 items until they land in spec.md.
+
+## 10. Round 2: spec.md v0.2.0 (`c526b38d6`)
+
+v0.2.0 adopts every point above: a projection with no `pg_dump` and no `SELECT *` (§3); every column
+classified, with an unclassified one FATAL (C3, §4.4); the RLS re-read (C2); the canary fixture with the
+full R1-5 list (C5, §5.5 item 4); the public-CI logging rule (§5.6); the names step with its own
+column grant, whose name and hash lists never leave staging (§5.5 item 3); archived tasks and archived
+channels out (§4.1, Q9); separate export and publish accounts (§6); a COPY-only loader (§9.1); and the
+display-name question (Q1b).
+
+One build note, not blocking: §4.1 drops every message that shares an archived row's `task_id`. In the
+lobby, 0065 hides only the archived row itself, so this rule also drops the rest of the lobby thread. That
+is the safe direction (less is published). The build may narrow it to the single row for the lobby, but
+only with a canary proving the archived lobby row stays out.
+
+Points still open for the owner, not for the panel: Q1 (consent and opt-out), Q1b, Q3, Q7, Q8, Q9.
+
+Consensus reached at c526b38d6

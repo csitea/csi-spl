@@ -19,6 +19,7 @@
 # Local equivalent:
 #   ENV=<env>           ./csi-spl-orc/run -a do_spl_demo_wipe   (counts only)
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_demo_wipe
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_demo_audit_purge   (077 T025)
 
 name: "46 ops: demo workspace nightly wipe"
 
@@ -107,6 +108,15 @@ jobs:
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: ./run -a do_spl_demo_wipe
+
+      # 077 T025: the demo post audit outlives the wipe (rdb 0131); this
+      # drops only its rows older than cnf env.demo.audit_retention_days.
+      # It runs with the demo off too: an audit is kept either way.
+      - name: Purge the demo audit past its retention
+        if: steps.sel.outputs.go == '1'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: ./run -a do_spl_demo_audit_purge
 
       - name: Drop the key
         if: always()

@@ -57,6 +57,9 @@ variable "crypto_key" {
 variable "rotation_period" {
   type        = string
   description = "The key's automatic rotation period in seconds with an s suffix (cnf marketing.kms_key.rotation_period; 7776000s = 90 days)."
+  # the default lets checkov (wf 65, CKV_GCP_43) see a <= 90-day rotation;
+  # the tfvars from cnf still set it
+  default = "7776000s"
 
   validation {
     # GCP: at least one day; spec 090 T002: at most 90 days

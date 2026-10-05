@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 1 (v0.2.0)
+**Feature ID**: `091-public-dataset-export` · **Status**: Draft, panel round 2 (v0.3.0)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -99,7 +99,8 @@ not the database, and are out of v1 (§11 Q4).
 Emails and any other contact data; real names (members become their `HUM-n` id); `password_credentials`,
 `human_identities`, `human_keys`, sessions, `tenant_invites`, `email_verification_tokens`,
 `password_reset_tokens`, `agent_join_tokens`; tokens, keys and signatures of any kind (`root_pubkey`, `pins`,
-`pins_history`, `env`, `env_sig`); IPs and user agents; DMs (`channel IS NULL`) and private channels; files and
+`pins_history`, `env`, `env_sig`); DM links (`messages.ref_task_id`, `messages.mirror_of`, 0112), each a C3
+`withheld` entry; IPs and user agents; DMs (`channel IS NULL`) and private channels; files and
 `files` columns; auth, audit and telemetry tables (`operator_audit`, `human_events`, `flow_events`,
 `wui_perf_samples`, `member_activity`); payment and seat tables; fleet tables (`fleet_*`, `boxes`, `box_stats`,
 `roster`, `deliveries`); archived tasks and archived channels (hidden on purpose); message revisions (an earlier version may hold what an edit removed); issues (§11 Q5);
@@ -110,10 +111,38 @@ and **every row of every other workspace**.
 A member is published as the `HUM-n` id the workspace already shows, nothing else. Agent ids (`c-NNN` and the like)
 are product ids and stay. The mapping is identity: no pseudonym table that could itself leak.
 
-### 4.4 Changing the allow-list
+### 4.4 Withheld columns that the schema requires (seed-load NOT NULL)
+
+The tables carry far more columns than §4.1 exports (measured from the migrations, multi-line `ADD COLUMN`
+included: `messages` gains 30 columns after 0001, `tenants` 24, `humans` 15, `tenant_memberships` 5; a single-line
+grep finds about half of them, which is why gate C3 reads the live catalog, not a grep). A withheld column with a
+default simply takes its default on load (the `COPY` names its columns). A withheld column that is `NOT NULL` with no
+default gets a **fixed constant emitted by the projection, never read from the database**. It is never derived from the
+stored `msg`, `env` or `env_sig`, not even a trimmed copy; the C5 canaries planted in those three columns prove it:
+
+| column | constant | why |
+|---|---|---|
+| `messages.msg` | the v:1 object rebuilt from the exported public columns only (`v`, `msg_id`, `task_id`, `ts`, `from`, `to`, `kind`, `body`, `files: []`), no `sig` | the stored object holds the original addressing, files and signature (L3 in the claude opinion) |
+| `messages.env` | empty bytea | the signed envelope is never exported |
+| `messages.env_sig` | empty string | as above |
+| `messages.from_box`, `to_box` | the synthetic box id `seed` | box names are estate data |
+| `tenants.root_pubkey` | 32 zero bytes | the loader replaces it with the new key in the same transaction and refuses to commit while it is zero (§9.1) |
+
+Withheld by name, beyond §4.2: `messages.ref_task_id` and `messages.mirror_of` (0112: they point at DMs),
+`moved_from_channel` / `moved_from_parent` / `moved_from_task` (may name a private channel), `responsible`,
+`handled_*`, `claim_n`, `locked_until`, `edited_by`, `kind_set_by`, `typed_by`, `search_tsv` (the loader's
+migration-level trigger or a rebuild recomputes search from `body`); every per-person preference column of `humans`;
+`tenant_memberships.settings`, `channel_order`, `last_active_at`, `access_until`; every `tenants` column except the
+three in §4.1. A channel copy of a person's DM answer (a row with `mirror_of` set) is a channel row and follows the
+channel's rule; only its link to the DM is withheld.
+
+Build note (c-288): in the lobby, `archived_at` marks one row, not a task, so the archived-task rule drops the whole
+lobby thread. That is the safe direction; narrowing it needs its own canary first.
+
+### 4.5 Changing the allow-list
 
 The allow-list lives in ONE file (`csi-spl-orc/cnf/public-dataset/allow-list.v<N>.yaml`), versioned in its name,
-and matches §4.1. It classifies **every** column of every listed table as `public` or `withheld`; a live column in
+and matches §4.1 and §4.4. It classifies **every** column of every listed table as `public` or `withheld`; a live column in
 neither list (a later `ADD COLUMN`) fails the export and its CI test (gate C3), so a new column is a red gate, not
 a silent leak. A change is a spec change first (this section, a panel review), then the file, and bumps `N`.
 The verifiers check against this section, not the file (§8).
@@ -235,7 +264,10 @@ A FAIL names the row (table, primary key) and the reason. A lane may add checks;
 `verdicts/<sha256>/<lane-kind>.json` in staging: `{v:1, file_sha256, lane_id, lane_kind (agy|grok|claude),
 method, checks:[{name, n, result, detail}], verdict (PASS|FAIL), ts, hub_msg_id}`. The lane also posts the same
 verdict as a spool message on the dataset topic from its own id; `hub_msg_id` is that message, carried in the box's
-signed envelope like every hub message.
+signed envelope like every hub message. This is a superset of the agy opinion's attestation (§3.3 there): `artifact_sha256` = `file_sha256`,
+`verifier` = `lane_kind` plus `lane_id`, `timestamp` = `ts`, and its named checks are entries of `checks` with an
+`n` (rows or tokens examined) so a PASS states how much it looked at. The three are consolidated into the published
+manifest (§5.7); the file layout stays date plus version (§5.7), as the owner's brief asks.
 
 ### 8.4 Enforcement (`do_spl_public_dataset_publish`)
 
@@ -300,7 +332,7 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 
 | # | question | recommendation |
 |---|---|---|
-| Q1 | **Members' consent**: are the Spool Hub workspace's members told that their public-channel messages (under their `HUM-n` id) are published daily, and can a member opt out? | not decided here. If opt-out exists, an opted-out member's messages are dropped by the export and counted in the manifest |
+| Q1 | **Members' consent**: are the Spool Hub workspace's members told that their public-channel messages (under their `HUM-n` id) are published daily, and can a member opt out? | not decided by the panel. a-287 suggests a notice in the public channels plus an opt-out; if opt-out exists, an opted-out member's messages are dropped by the export and counted in the manifest |
 | Q1b | Members appear as `HUM-n` only. May Spool Hub members' real display names be public instead? | no: `HUM-n` only |
 | Q9 | Archived channels (0092): out of the dataset, like archived tasks | yes, out |
 | Q2 | Retention: 30 days for daily files, 365 days for the stable-linked copy | yes |
@@ -308,7 +340,7 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 | Q4 | Workspace docs (spec 075 Phase 2 bucket) in the dataset | not in v1 |
 | Q5 | Issues (the workspace's tracker) in the dataset | not in v1 |
 | Q6 | Loaded messages carry no signed envelope; accept that they are history only (shown, never re-delivered) | yes; the build measures the hub's behaviour first |
-| Q7 | Three verifier lanes every day is ~3 agent sessions a day. Keep it daily (the owner's words), or daily gate plus each vendor's verifier script (written once by that lane, run in CI), with the three lanes re-verifying on any allow-list or schema change and weekly. Dev: gate only? | daily lanes for prd as the owner said; dev publishes on the gate alone |
+| Q7 | Three verifier lanes every day is ~3 agent sessions a day. Keep it daily (the owner's words), or daily gate plus each vendor's verifier script (written once by that lane, run in CI), with the three lanes re-verifying on any allow-list or schema change and weekly. Dev: gate only? | split panel: a-287 and the author keep daily lanes for prd (the owner's words); c-288 proposes lanes on the first publish and on any allow-list, export-code or migration change, machine gates alone otherwise. Dev publishes on the gate alone |
 | Q8 | Go for the terraform apply of step 053 and for `env.public_dataset.enabled: true` on prd | the owner's go each, once the build is green |
 
 ## 12. Functional requirements
@@ -336,4 +368,5 @@ file and answers on topic `67b63c88`.
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.3.0 | 2026-10-05 | round 1, a-287: §4.4 withheld NOT NULL columns get fixed constants, 0112 DM links withheld, the full measured column count, Q1/Q7 panel positions |
 | v0.2.0 | 2026-10-05 | round 1: c-288's points (projection, C2/C3/C5, archived tasks and channels out, publish SA, loader statement whitelist, Q1b; R1-1..R1-5: public-CI logging rule, the names step, hash list never published, canary list, Q9) |

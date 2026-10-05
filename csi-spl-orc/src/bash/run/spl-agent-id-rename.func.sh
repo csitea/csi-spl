@@ -20,6 +20,8 @@
 # @param RENAME_NOTE_FROM (optional) - the id the note is sent from (default
 # @param   SPOOL_AGENT_ID)
 # @param RENAME_ROLES (optional) - 1: rename the role rows 001-003 instead
+# @param HUB_ENV (optional) - dev or prd: also write the renamed ids' alias
+# @param   rows into that hub's agent_id_aliases (prd needs the owner's go)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_id_rename
 # @example DRY_RUN=0 RENAME_DESK_ENVS="dev prd" RENAME_NOTE_FROM=c-015 ./run -a do_spl_agent_id_rename
@@ -35,5 +37,8 @@ do_spl_agent_id_rename() {
   for id in ${RENAME_IDS:-}; do args+=("$id"); done
   # The desks live under <state root>/<env>/desk; SPL_STATE_DIR names one env's.
   [[ -z "${DESK_STATE_ROOT:-}" && -n "${SPL_STATE_DIR:-}" ]] && export DESK_STATE_ROOT="${SPL_STATE_DIR%/*}"
-  bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/agent-id-rename.sh" "${args[@]}"
+  [[ -z "${HUB_ENV:-}" || "$HUB_ENV" == dev || "$HUB_ENV" == prd ]] || { do_log "FATAL HUB_ENV must be dev or prd, got: '$HUB_ENV'"; return 1; }
+  bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/agent-id-rename.sh" "${args[@]}" || return 1
+  [[ -n "${HUB_ENV:-}" ]] || return 0
+  ENV="$HUB_ENV" spl_agent_id_map_hub "$dry"
 }

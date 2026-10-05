@@ -15,29 +15,45 @@
 #   identity record agents/<ID>.json
 #       -> agents/retired/<ID>.<spawned-utc>.json; index.json re-hashed
 #   hub lane row -> state done (lane-map.sh done), best effort
+#   alias row   -> agent-id-aliases.tsv: <ID> -> --successor, else "retired"
+#                  (old<TAB>new<TAB>kind<TAB>box<TAB>mapped-utc; every reader
+#                  takes only a new-grammar new id, so "retired" maps nothing).
+#                  A legacy id keeps a row the map already wrote.
+#   desk seats  -> each hub desk of this box that seats <ID> moves the seat
+#                  aside (desk-seat-drop.sh): its sidecar stops announcing it
+#                  as a member / tag target (owner 2026-10-05, t1 dc6d5e3f)
 #
 # Refused: a role id (001-003, CLE-001..003), and an id a tmux window still
 # carries (the agent may still be running: closing the window comes first).
 # Hub DM and channel history stays as it is.
 #
 # Usage:
-#   agent-id-retire.sh [--apply] <ID>    # without --apply: PLAN lines only
+#   agent-id-retire.sh [--apply] [--successor NEW] <ID>
+#     without --apply: PLAN lines only
+#     --successor  the new id that takes over (a legacy <ID> only: the alias
+#                  table maps legacy -> new, spec 061 section 5)
 #
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET (the box's), SPOOL_NOW (the clock),
-# RETIRE_LANE=0|1 (default 1; 0 under SPOOL_TEST=1).
+# SPOOL_DESK_BOX, RETIRE_LANE=0|1 (default 1; 0 under SPOOL_TEST=1),
+# RETIRE_DESKS=0|1 (default 1; 0 under SPOOL_TEST=1 unless DESK_STATE_ROOT is
+# set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id,
-# 3 a window still carries the id, 4 nothing on this machine holds the id.
+# 3 a window still carries the id, 4 nothing on this machine holds the id
+# (no spool dir, registry row, record or desk seat).
 set -euo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
 spool_env_resolve
+# shellcheck source=/dev/null
+. "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 
-APPLY=0; ID=""
+APPLY=0; ID=""; SUCC=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift ;;
+    --successor) [ "$#" -ge 2 ] || { echo "agent-id-retire: --successor needs an id" >&2; exit 2; }; SUCC="${2%%@*}"; shift 2 ;;
     -h|--help) sed -n '/^# Usage:/,/^# Exit/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
     -*) echo "agent-id-retire: unknown argument: $1" >&2; exit 2 ;;
     *) [ -z "$ID" ] || { echo "agent-id-retire: one id only" >&2; exit 2; }; ID="$1"; shift ;;
@@ -48,6 +64,13 @@ ID="${ID%%@*}"
 [[ "$ID" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || { echo "agent-id-retire: '${ID}' is not an agent id" >&2; exit 2; }
 case "${ID#*-}" in 1|01|001|2|02|002|3|03|003)
   echo "agent-id-retire: ${ID} is a role id; roles are rotated, never retired" >&2; exit 2 ;; esac
+LEGACY_RX='^(CLE|GRK|AGY|QWN)-[0-9]+$'
+if [ -n "$SUCC" ]; then
+  [[ "$ID" =~ $LEGACY_RX ]] || { echo "agent-id-retire: --successor maps a legacy id only; ${ID} is retired with no alias" >&2; exit 2; }
+  [[ "$SUCC" =~ ^${SPOOL_AGENT_ID_NEW_RX}$ ]] || { echo "agent-id-retire: --successor '${SUCC}' is not a new agent id (c-004)" >&2; exit 2; }
+fi
+BOX="$(spl_desk_box_default)"
+[[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "agent-id-retire: '$BOX' is not a box id (SPOOL_DESK_BOX)" >&2; exit 2; }
 
 R="$SPOOL_ROOT"
 VERB=PLAN; [ "$APPLY" = 1 ] && VERB=DO
@@ -115,7 +138,29 @@ if [ -e "$R/agents/${ID}.json" ]; then
   step identity "$R/agents/${ID}.json -> $R/agents/retired/${ID}.${SPAWNED}.json, index.json re-hashed"
 fi
 
+# ---- 4. the desk seats (counted here: a seat alone is a hold) ---------------
+desks="${RETIRE_DESKS:-}"
+[ -n "$desks" ] || { desks=1; [ "${SPOOL_TEST:-}" = 1 ] && [ -z "${DESK_STATE_ROOT:-}" ] && desks=0; }
+DROP=(bash "$_here/desk-seat-drop.sh" --box "$BOX" "$ID")
+seated=0
+if [ "$desks" = 1 ]; then
+  plan="$("${DROP[@]}" 2>&1)" || echo "agent-id-retire: WARN desk seats not read (${plan##*$'\n'}); as the desk owner: $(printf '%q ' "${DROP[@]}")--apply" >&2
+  seated="$(grep -c '^PLAN drop' <<<"$plan" || true)"
+  [ "$seated" -gt 0 ] && held=1
+fi
+
 [ "$held" = 1 ] || { echo "agent-id-retire: nothing on this machine holds ${ID} (${R})" >&2; exit 4; }
+
+# ---- 5. the alias row -------------------------------------------------------
+TABLE="$R/agent-id-aliases.tsv"
+alias_row=""
+if [[ "$ID" =~ $LEGACY_RX ]] && [ -r "$TABLE" ] \
+    && awk -F'\t' -v id="$ID" -v b="$BOX" '$1 == id && $4 == b { f = 1 } END { exit !f }' "$TABLE"; then
+  step alias "${ID}@${BOX} keeps its row in ${TABLE}"
+else
+  alias_row="$(printf '%s\t%s\t%s\t%s\t%s' "$ID" "${SUCC:-retired}" "$(spl_kind_of_agent_id "$ID" || true)" "$BOX" "$(date -u -d "$NOW" +%Y-%m-%dT%H:%M:%SZ)")"
+  step alias "${ID} -> ${SUCC:-retired} (${BOX}) -> ${TABLE}"
+fi
 
 if [ "$APPLY" = 1 ]; then
   (
@@ -141,9 +186,21 @@ if [ "$APPLY" = 1 ]; then
   if [ -e "$R/agents/${ID}.json" ]; then
     python3 "$_here/agent-identity.py" --dir "$R/agents" retire "$ID" "$SPAWNED" >/dev/null
   fi
+  if [ -n "$alias_row" ]; then
+    ( flock -w 30 9 || { echo "agent-id-retire: ${TABLE}.lock stayed locked" >&2; exit 1; }
+      printf '%s\n' "$alias_row" >>"$TABLE"; chmod 0664 "$TABLE" 2>/dev/null || true
+    ) 9>>"$TABLE.lock"
+  fi
+fi
+if [ "$seated" -gt 0 ]; then
+  if [ "$APPLY" = 1 ]; then
+    "${DROP[@]}" --apply | grep '^DO drop' || echo "agent-id-retire: WARN the desk seats of ${ID} were not dropped" >&2
+  else
+    grep '^PLAN drop' <<<"$plan"
+  fi
 fi
 
-# ---- 4. the hub lane row ----------------------------------------------------
+# ---- 6. the hub lane row ----------------------------------------------------
 lane="${RETIRE_LANE:-}"
 [ -n "$lane" ] || { lane=1; [ "${SPOOL_TEST:-}" = 1 ] && lane=0; }
 if [ "$lane" = 1 ]; then

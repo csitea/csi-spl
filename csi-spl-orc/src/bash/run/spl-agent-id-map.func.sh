@@ -43,6 +43,8 @@ spl_agent_id_map_hub() {
   [[ -s "$table" ]] || { do_log "FATAL no alias table $table: run DRY_RUN=0 ./run -a do_spl_agent_id_map first"; return 1; }
   local values="" n=0 old new kind b at t d
   while IFS=$'\t' read -r old new kind b at; do
+    # A retire's row (agent-id-retire.sh): no successor, or not a legacy id.
+    if [[ "$new" == retired || ! "$old" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ ]]; then continue; fi
     [[ "$old" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ && "$new" =~ ^[acgq]-[0-9]{3}$ && "$kind" =~ ^(agy|claude|grok|qwen)$ \
       && "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
       || { do_log "FATAL $table has a malformed row: $old $new $kind $b $at"; return 1; }

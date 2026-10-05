@@ -249,6 +249,7 @@ function replyTarget() {
 useOmniboxTarget({
   placeholder: () => (replyTarget() ? tr(sk('topic.reply_placeholder')) : tr(sk('search.placeholder_target'), { target: tr('nav.topics') })),
   dock: () => ({ reply: Boolean(replyTarget()), target: tr('nav.topics') }),
+  place: () => (replyTarget() ? `t:${replyTarget()}` : channel.peer ? `dm:${channel.peer}` : `ch:${channel.active || ''}`),
   send: onSend,
 })
 

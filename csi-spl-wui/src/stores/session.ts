@@ -3,6 +3,7 @@ import { useAuthClient } from '~/composables/useAuthClient'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { takeEarlySession } from '~/utils/early-session.mjs'
 import { writeSignedOutHint } from '~/utils/signed-out-hint.mjs'
+import { clearDrafts } from '~/utils/drafts.mjs'
 
 export type SessionState = 'in' | 'out' | 'unknown' | 'loading'
 
@@ -180,8 +181,11 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   async function logout() {
+    const hum = claims.value?.hum
     await auth.logout()
     if (import.meta.client) {
+      /* 080 FR-008: the next member on this browser never sees these drafts */
+      clearDrafts(undefined, hum)
       /* 027 budget: card-clip (and file-preview behind it) is only needed on
          sign-out here, so it is not part of the initial chunk */
       const { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } = await import('~/utils/card-clip.mjs')

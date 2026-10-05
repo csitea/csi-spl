@@ -20,6 +20,12 @@ export interface OmniboxTarget {
    * `dm` true on a direct-message page (HUM-24: "New topic with <peer>").
    */
   dock?: () => { reply: boolean, target: string, comment?: boolean, dm?: boolean }
+  /**
+   * 080 FR-001: the draft place a send goes to - `ch:<channel>`, `dm:<peer>`
+   * or `t:<task_id>` (a reply; on `/` from omniboxReplyTaskId). The composer
+   * keeps one draft per place (utils/drafts.mjs); '' or absent keeps none.
+   */
+  place?: () => string
 }
 
 export const useOmniboxStore = defineStore('omnibox', () => {

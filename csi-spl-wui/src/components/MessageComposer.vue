@@ -288,6 +288,9 @@ import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
+import { useOmniboxStore } from '~/stores/omnibox'
+import { useSessionStore } from '~/stores/session'
+import { draftPlaceOf, draftText, saveDraft } from '~/utils/drafts.mjs'
 import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
 import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
@@ -374,6 +377,61 @@ const channelFeed = useChannelStore()
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+
+/*
+ * 080 FR-001..FR-003: one draft per place. The page's omnibox target names
+ * its place (`ch:` / `dm:` / `t:`); a change of place keeps the text under
+ * the old one and brings back the new one's, typing keeps it (300 ms), and
+ * the box a send empties drops it - a failed send puts the text back (TopBar
+ * restore), which keeps it again. A search line is never a draft. Only the
+ * top-bar box keeps drafts.
+ */
+const omniboxTargets = useOmniboxStore()
+const session = useSessionStore()
+const DRAFT_SAVE_MS = 300
+const draftPlace = computed(() => (props.global ? draftPlaceOf(omniboxTargets.target?.place?.() ?? '') : ''))
+const draftHuman = computed(() => String(session.claims?.hum || ''))
+/* what the store holds for this place: a load is not a save */
+let draftStored = ''
+let draftTimer: ReturnType<typeof setTimeout> | null = null
+let draftPending: (() => void) | null = null
+function isDraftText(s: string) {
+  return omniboxMode(s) !== 'search' && switchPaneOf(s) === null
+}
+function cancelDraftSave() {
+  if (draftTimer) clearTimeout(draftTimer)
+  draftTimer = null
+  draftPending = null
+}
+function flushDraftSave() {
+  const run = draftPending
+  cancelDraftSave()
+  run?.()
+}
+watch(text, (s) => {
+  const human = draftHuman.value
+  const place = draftPlace.value
+  if (!import.meta.client || !human || !place || !isDraftText(s) || s === draftStored) return
+  cancelDraftSave()
+  draftPending = () => {
+    saveDraft(undefined, human, place, s)
+    draftStored = s
+  }
+  draftTimer = setTimeout(flushDraftSave, DRAFT_SAVE_MS)
+})
+watch([draftPlace, draftHuman], ([place, human], [, oldHuman]) => {
+  if (!import.meta.client || !props.global) return
+  const s = text.value
+  if (human === oldHuman) flushDraftSave()
+  /* signed out or another member: nothing more is written for the old one */
+  else cancelDraftSave()
+  if (!isDraftText(s)) return
+  /* the session arrived after the reader started typing: keep that text */
+  if (!oldHuman && s) return
+  draftStored = human && place ? draftText(undefined, human, place) : ''
+  if (draftStored !== s) setText(draftStored)
+}, { immediate: true })
+onBeforeUnmount(flushDraftSave)
 
 /*
  * SPL-991 — the phone dock. The composer is the one TopBar mounts; on a phone

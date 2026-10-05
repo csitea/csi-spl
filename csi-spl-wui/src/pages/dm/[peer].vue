@@ -182,6 +182,7 @@ function replyTarget() {
 useOmniboxTarget({
   placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: peer.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: peer.value, dm: true }),
+  place: () => (replyTarget() ? `t:${replyTarget()}` : `dm:${peer.value}`),
   send: onSend,
 })
 </script>

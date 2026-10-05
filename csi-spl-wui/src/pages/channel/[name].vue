@@ -180,6 +180,7 @@ function replyTarget() {
 useOmniboxTarget({
   placeholder: () => (replyTarget() ? t(sk('topic.reply_placeholder')) : t(sk('search.placeholder_target'), { target: '#' + name.value })),
   dock: () => ({ reply: Boolean(replyTarget()), target: '#' + titleName.value }),
+  place: () => (replyTarget() ? `t:${replyTarget()}` : `ch:${name.value}`),
   send: onSend,
 })
 </script>

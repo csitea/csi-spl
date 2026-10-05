@@ -54,13 +54,13 @@ grep -qx "ARG CLOUD_SQL_PROXY_VERSION=${img##*:}" "$DF" && pass "tf-runner proxy
 grep -qE '^ARG CLOUD_SQL_PROXY_SHA256=[0-9a-f]{64}$' "$DF" && grep -q 'sha256sum -c' "$DF" \
   && pass "tf-runner checks the proxy's sha256" || fail "tf-runner proxy is not pinned by sha256"
 grep -qE 'install .*postgresql-client' "$DF" && pass "tf-runner installs psql" || fail "tf-runner has no postgresql-client"
-awk '/^  tf-runner:/,/^volumes:/' "$ORC/src/docker/docker-compose-tf-infra.yaml" | grep -qF '"~/.spool-hub:${DOCKER_HOME}/.spool-hub"' \
+awk '/^  tf-runner:/,/^volumes:/' "$ORC/src/docker/docker-compose-tf-infra.yaml" | grep -F '"~/.spool-hub:${DOCKER_HOME}/.spool-hub"' >/dev/null \
   && pass "tf-runner mounts ~/.spool-hub" || fail "tf-runner does not mount ~/.spool-hub"
 MK="$ORC/src/make/setup-app-inf.func.mk"
 n=$(grep -cE '^do-setup-app-inf(-no-cache|-up)?:.* do-spool-hub-dir$' "$MK")
 [[ "$n" == 3 ]] && pass "all 3 setup targets make ~/.spool-hub first" || fail "do-spool-hub-dir prereq on $n of 3 setup targets"
-grep -q 'mkdir -p -m 700 $(HOME)/.spool-hub' "$MK" && pass "~/.spool-hub is made 0700" || fail "~/.spool-hub mode"
-grep -A2 '036-spl-demo-workspace)' "$ORC/src/make/tf-tasks.func.mk" | grep -q 'csi-spl-api/src/bash/build.sh' \
+grep -q 'mkdir -p -m 700 $(HOME)/.spool-hub' "$MK" && pass "the setup makes .spool-hub 0700" || fail ".spool-hub mode"
+grep -A2 '036-spl-demo-workspace)' "$ORC/src/make/tf-tasks.func.mk" | grep 'csi-spl-api/src/bash/build.sh' >/dev/null \
   && pass "do-provision builds spool for 036" || fail "do-provision does not build spool for 036"
 
 # --- behaviour -----------------------------------------------------------------

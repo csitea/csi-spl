@@ -949,7 +949,105 @@ const wuiFlateThreshold = 128
 // back and rebuilds the frame's `cursor` from received_at + msg_id
 // (encCursor), so its stores hold the same message as before. A shape it
 // cannot parse is sent unchanged.
+//
+// It rewrites env in one pass (perf edition 20261004 E13, view.go's G9
+// shape) instead of decoding env and msg into maps and encoding both back;
+// trimWUIEnvMap is that reference, byte for byte, and still handles what
+// the one pass declines.
 func trimWUIEnv(env []byte, taskID, channel string) json.RawMessage {
+	if b, ok := trimWUIEnvFast(env, taskID, channel); ok {
+		return b
+	}
+	return trimWUIEnvMap(env, taskID, channel)
+}
+
+// trimWUIEnvFast is trimWUIEnv without maps: what json.Marshal of the
+// trimmed maps returns (keys sorted, values compacted with HTML escaping).
+// It declines (false) what trimEnvFast declines: not valid JSON, not an
+// object, or an object (top or msg) with a repeated key or a key that is
+// not plain printable ASCII free of <, > and &.
+func trimWUIEnvFast(env []byte, taskID, channel string) (json.RawMessage, bool) {
+	if !json.Valid(env) {
+		return nil, false
+	}
+	var topBuf, msgBuf [16]envMember
+	top, ok := envMembers(topBuf[:0], env)
+	if !ok {
+		return nil, false
+	}
+	var inner []envMember
+	hasMsg := false
+	for _, m := range top {
+		if string(m.key) != "msg" {
+			continue
+		}
+		if m.val[0] != '{' { // null, or not an object: sent unchanged
+			return env, true
+		}
+		if inner, ok = envMembers(msgBuf[:0], m.val); !ok {
+			return nil, false
+		}
+		hasMsg = true
+	}
+	if !hasMsg {
+		return env, true
+	}
+	out := make([]byte, 0, len(env))
+	out = append(out, '{')
+	for _, m := range top {
+		switch string(m.key) {
+		case "sig":
+			if wuiStringIs(m.val, "") {
+				continue
+			}
+		case "from_box", "to_box":
+			if wuiStringIs(m.val, WUIBox) {
+				continue
+			}
+		case "channel":
+			if channel != "" && wuiStringIs(m.val, channel) {
+				continue
+			}
+		}
+		if len(out) > 1 {
+			out = append(out, ',')
+		}
+		out = append(append(append(out, '"'), m.key...), '"', ':')
+		if string(m.key) != "msg" {
+			out = appendCompactHTML(out, m.val)
+			continue
+		}
+		out = append(out, '{')
+		first := true
+		for _, f := range inner {
+			if string(f.key) == "files" && string(f.val) == "[]" ||
+				string(f.key) == "task_id" && wuiStringIs(f.val, taskID) {
+				continue
+			}
+			if !first {
+				out = append(out, ',')
+			}
+			first = false
+			out = append(append(append(out, '"'), f.key...), '"', ':')
+			out = appendCompactHTML(out, f.val)
+		}
+		out = append(out, '}')
+	}
+	return append(out, '}'), true
+}
+
+// wuiStringIs is trimWUIEnvMap's test of one member against s: the value
+// decodes into a Go string equal to s, and JSON null decodes into "".
+func wuiStringIs(v []byte, s string) bool {
+	if string(v) == "null" {
+		return s == ""
+	}
+	return envStringIs(v, s)
+}
+
+// trimWUIEnvMap is trimWUIEnv by decoding into maps (the shape before
+// E13): the reference the one pass matches, and its fallback.
+func trimWUIEnvMap(env []byte, taskID, channel string) json.RawMessage {
 	var e map[string]json.RawMessage
 	if json.Unmarshal(env, &e) != nil {
 		return env

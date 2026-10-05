@@ -27,6 +27,8 @@ spl_hub_operator_url() {
 # code. Returns non-zero only when no token could be minted or no HTTP response
 # came back. The id token never rides argv (a -K config file, 0600), like the
 # relay password never did.
+# @output SPL_HUB_OP_STATUS — the HTTP code
+# @output SPL_HUB_OP_BODY — the response body
 spl_hub_operator_call() {
   local method="$1" path="$2" body="${3:-}"
   [[ -n "${SPL_HUB_URL:-}" ]] || { do_log "FATAL SPL_HUB_URL is empty (do_spl_cloud_cnf did not run)"; return 1; }
@@ -47,7 +49,9 @@ spl_hub_operator_call() {
     rm -f "$out"
     return 1
   fi
+  # shellcheck disable=SC2034 # SPL_HUB_OP_STATUS: contract in the header above
   SPL_HUB_OP_STATUS="$code"
+  # shellcheck disable=SC2034 # SPL_HUB_OP_BODY: contract in the header above
   SPL_HUB_OP_BODY="$(cat "$out" 2>/dev/null)"
   rm -f "$out"
   return 0

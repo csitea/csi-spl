@@ -13,6 +13,7 @@
 #            nothing; PayPal is seeded only while cnf enables it
 #          - no secret value in any output or gcloud argv; every gcloud call
 #            carries --account
+#          - SPL_STRIPE_KEY_DIR is set after spl_stripe_key_dir (out-param)
 #          Key-shaped values are built at run time: no literal key in git.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -133,6 +134,11 @@ leak=0
 for v in "$SK_TEST" "$SK_LIVE" "$SK_LIVE2" "$WH" "$PP" "$REL_WH"; do grep -qF "$v" <<<"$all_out" && leak=1; done
 (( leak == 0 )) && pass "no secret value in any output or gcloud argv" || fail "a secret value leaked into output or argv"
 [[ $(grep -vc -- '--account=stub-sa@example.com' "$T/argv") -eq 0 ]] && pass "every gcloud call carries --account" || fail "unpinned gcloud call: $(grep -v -- '--account=' "$T/argv" | sed -n 1,2p)"
+
+# pins the out-param contract: the caller reads SPL_STRIPE_KEY_DIR after the call
+out=$(in_orc HOME="$T/home" SNIPPET='spl_stripe_key_dir csi spl || exit 9; printf "KEYDIR=%s\n" "${SPL_STRIPE_KEY_DIR:-}"')
+key=$(sed -n 's/^KEYDIR=//p' <<<"$out" | tail -n 1)
+[[ "$key" == "$T/home/.stripe/.csi/.spl" ]] && pass "SPL_STRIPE_KEY_DIR is set after spl_stripe_key_dir" || fail "out-param SPL_STRIPE_KEY_DIR: ${key:-<empty>} ($out)"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

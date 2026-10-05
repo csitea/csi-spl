@@ -55,6 +55,9 @@ do_satellite_private_key() {
 # @description Fill the array SATELLITE_SSH (ssh options + user@host) that
 # @description reach the satellite over the IAP tunnel. The host key is pinned
 # @description on first use into ~/.ssh/known_hosts.satellite.
+# @output SATELLITE_SSH (array). The caller must not run this function inside
+# @output $( ): a command substitution is a subshell, so the array would not
+# @output survive it.
 #------------------------------------------------------------------------------
 do_satellite_ssh_opts() {
   local vm zone proj user key proxy
@@ -65,7 +68,9 @@ do_satellite_ssh_opts() {
   key=$(do_satellite_private_key) || return 1
   [[ -f "$key" ]] || { do_log "FATAL no private key $key: run ./run -a do_satellite_ssh_keygen" >&2; return 1; }
   proxy="${PROJ_PATH}/src/bash/scripts/satellite-iap-proxy.sh"
+  # shellcheck disable=SC2034 # SATELLITE_HOST has no reader (grep -rn SATELLITE_HOST csi-spl-iac --include='*.sh' finds only this assignment)
   SATELLITE_HOST="$vm"
+  # shellcheck disable=SC2034 # read by satellite-verify.func.sh:167,173
   SATELLITE_SSH=(
     -o "ProxyCommand=bash ${proxy} ${proj} ${zone} %h %p"
     -o "IdentityFile=${key}" -o IdentitiesOnly=yes

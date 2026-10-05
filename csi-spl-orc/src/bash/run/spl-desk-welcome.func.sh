@@ -295,7 +295,17 @@ spl_desk_welcome_post() {
 # test: an @example.com address (every harness and proof account uses one), or
 # e2e / proof in the address or the display name (the m3-e2e accounts).
 spl_desk_welcome_admits() {
-  SPL_PROXY_PORT="${WELCOME_PROXY_PORT:-$([[ "$ENV" == prd ]] && echo 55488 || echo 55487)}"
+  # 55487 is the dev db proxy port and 55488 the prd one. The none-provider
+  # helper pins 5432 at spl-cloud-cnf.func.sh:488; these are the desk's fixed
+  # ports so the two envs do not share a listener.
+  # shellcheck disable=SC2034 # consumed by the db proxy helpers in spl-cloud-cnf.func.sh:475-494
+  if [[ -n "${WELCOME_PROXY_PORT:-}" ]]; then
+    SPL_PROXY_PORT="$WELCOME_PROXY_PORT"
+  elif [[ "$ENV" == prd ]]; then
+    SPL_PROXY_PORT=55488
+  else
+    SPL_PROXY_PORT=55487
+  fi
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   spl_via_proxy _spl_desk_welcome_admits_run "$1" "$2"

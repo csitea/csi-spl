@@ -71,10 +71,10 @@ Verify without printing: `gcloud secrets versions access latest ... | sha256sum`
 
 ### 3.4 Store the values in KeePassXC
 
-The database has **no master password**: it opens with a **key file**. The owner selects the key file each time the database is needed and hands its path over for that run only; it is not recorded here or anywhere else. With it, `keepassxc-cli` 2.7 adds the entry (values read from the 0600 files) and the stored password is checked by hash:
+Open the database with the **key file**: the owner selects it each time the database is needed, for that run only; it is not recorded here or anywhere else. Then `keepassxc-cli` 2.7 adds the entry (values read from the 0600 files) and the stored password is checked by hash:
 
 ```bash
-keepassxc-cli add -q --no-password -k <KEY_FILE> -u "$CLIENT_ID" --url https://www.linkedin.com/developers/apps/264972293/auth --notes "<pointer to this page>" -p <OWNER_KDBX> LinkedIn-app-Spool-Hub-csi-spl
+keepassxc-cli add -q <UNLOCK_OPTS> -u "$CLIENT_ID" --url https://www.linkedin.com/developers/apps/264972293/auth --notes "<pointer to this page>" -p <OWNER_KDBX> LinkedIn-app-Spool-Hub-csi-spl
 ```
 
 stdin carries one line: the client secret. Back up the `.kdbx` before writing. If the KeePassXC GUI has the same database open, it reloads the file on change; save any pending GUI edits first.

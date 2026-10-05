@@ -30,7 +30,7 @@ Read the client id and Primary Client Secret from the Auth page and **pipe** the
 | 1 | Secret Manager `csi-spl-dev` and `csi-spl-prd`: the existing empty slots `csi-spl-hub-marketing-linkedin-client-id` / `-client-secret` | `gcloud secrets versions add --data-file=-`, each env with its OWN SA key `~/.gcp/.csi/key-csi-spl-<env>.json`, throwaway `CLOUDSDK_CONFIG`, `--account` on every call; never the owner account |
 | 2 | Secret Manager `csi-spl-all`: the same two secret names | the `csi-spl-all` SA key; enable `secretmanager.googleapis.com` there first if it is off, and create the two secrets |
 | 3 | a local file | `~<AGENT_USER>/.linked-in/.csi/client_id` and `client_secret`, dirs 0700, files 0600 |
-| 4 | my KeePassXC database (path in my latest screenshot) | one entry `LinkedIn-app-Spool-Hub-csi-spl`: username = client id, password = client secret, URL = the app's Auth page. It has no master password: it opens with a key file, which I select and give you for this run. Back the database up first |
+| 4 | my KeePassXC database (path in my latest screenshot) | one entry `LinkedIn-app-Spool-Hub-csi-spl`: username = client id, password = client secret, URL = the app's Auth page. Open it with the key file I select for this run. Back the database up first |
 
 ## 5. Then
 

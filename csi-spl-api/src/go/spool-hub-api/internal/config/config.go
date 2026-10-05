@@ -378,6 +378,10 @@ type Hub struct {
 	// DemoAgentTurns caps a demo_user's agent turns (fan-outs and @agent
 	// sends) per visit (specs/077 3.7); the next is refused 429 demo_quota.
 	DemoAgentTurns int `env:"SPOOL_HUB_DEMO_AGENT_TURNS" envDefault:"20"`
+	// DemoPostsPerMinute and DemoPostsPerDay cap a demo_user's posts per
+	// human (specs/077 T012, 3.6); the next is refused 429 demo_quota.
+	DemoPostsPerMinute int `env:"SPOOL_HUB_DEMO_POSTS_PER_MINUTE" envDefault:"10"`
+	DemoPostsPerDay    int `env:"SPOOL_HUB_DEMO_POSTS_PER_DAY" envDefault:"200"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -600,6 +604,10 @@ func (h *Hub) checkViews() error {
 	}
 	if h.DemoAgentTurns < 1 {
 		return fmt.Errorf("SPOOL_HUB_DEMO_AGENT_TURNS %d must be at least 1", h.DemoAgentTurns)
+	}
+	if h.DemoPostsPerMinute < 1 || h.DemoPostsPerDay < 1 {
+		return fmt.Errorf("SPOOL_HUB_DEMO_POSTS_PER_MINUTE %d and SPOOL_HUB_DEMO_POSTS_PER_DAY %d must be at least 1",
+			h.DemoPostsPerMinute, h.DemoPostsPerDay)
 	}
 	for _, p := range h.DemoProviders {
 		if p != "google" && p != "facebook" {

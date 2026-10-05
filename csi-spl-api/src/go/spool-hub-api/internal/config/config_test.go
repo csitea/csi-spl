@@ -433,6 +433,28 @@ func TestLoadHubDemoMaxStay(t *testing.T) {
 	}
 }
 
+// specs/077 T012: a demo_user posts 10 a minute and 200 a day by default;
+// below 1 the hub refuses to start (0 must never read as unlimited).
+func TestLoadHubDemoPosts(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil || h.DemoPostsPerMinute != 10 || h.DemoPostsPerDay != 200 {
+		t.Fatalf("default: %v %v, want 10 and 200", h, err)
+	}
+	for _, k := range []string{"SPOOL_HUB_DEMO_POSTS_PER_MINUTE", "SPOOL_HUB_DEMO_POSTS_PER_DAY"} {
+		for _, bad := range []string{"0", "-1", "ten"} {
+			t.Setenv(k, bad)
+			if _, err := LoadHub(); err == nil {
+				t.Fatalf("%s=%s was accepted", k, bad)
+			}
+		}
+		t.Setenv(k, "3")
+	}
+	if h, err := LoadHub(); err != nil || h.DemoPostsPerMinute != 3 || h.DemoPostsPerDay != 3 {
+		t.Fatalf("3 and 3: %v", err)
+	}
+}
+
 func TestLoadHubDemoMaxLive(t *testing.T) {
 	setHubBase(t)
 	h, err := LoadHub()

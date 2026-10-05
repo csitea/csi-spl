@@ -191,6 +191,10 @@ type Options struct {
 	// DemoAgentTurns caps a demo_user's agent turns per visit (specs/077
 	// 3.7, demo_quota.go); <= 0 = DefaultDemoAgentTurns.
 	DemoAgentTurns int
+	// DemoPostsPerMinute and DemoPostsPerDay cap a demo_user's posts
+	// (specs/077 T012, demo_post_quota.go); <= 0 = the Default*.
+	DemoPostsPerMinute int
+	DemoPostsPerDay    int
 }
 
 // Server is one hub process.

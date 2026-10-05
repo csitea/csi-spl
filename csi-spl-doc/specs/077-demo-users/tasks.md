@@ -114,8 +114,20 @@ Rules for every task (owner Q8, spec §3.10):
 
 - [ ] T011 **pseudonyms** (FR-007): `visitor-xxxx` display names, generated
   avatars, no email in any response to a `demo_user`.
-- [ ] T012 **post quota and size** (FR-006): 10 posts/min, 200/day per demo
-  user; 4 KiB message cap for `demo_user`.
+- [x] T012 **post quota and size** (FR-006): 10 posts/min, 200/day per demo
+  user; 4 KiB message cap for `demo_user`. Done (c-327): hub
+  `demo_post_quota.go` counts a demo_user's browser sends and replies per
+  human in rdb 0127 `quota_counts` (kinds `post_min` per UTC minute,
+  `post_day` per UTC day; a resend of a stored msg_id is no new post), checked
+  in `admit` BEFORE the store write: `429 demo_quota`; limits
+  `SPOOL_HUB_DEMO_POSTS_PER_MINUTE` (10) / `SPOOL_HUB_DEMO_POSTS_PER_DAY`
+  (200). A demo_user body over 4 KiB is `413 too_large` on send, reply,
+  edit (PATCH /v1/messages/{id}) and merge (POST .../merge); every other role
+  keeps 64 KiB. Tests: `TestDemoPostQuotaPerMinute` (CONTROL limit 11),
+  `TestDemoPostQuotaPerDay` (fake clock, CONTROL limit 201),
+  `TestDemoPostQuotaOthersUnaffected`, `TestDemoBodyCap`,
+  `TestLoadHubDemoPosts`. CONTROLS (by hand, each red): `demoSend` removed
+  from `admit`; `demoBodyFits` removed from the edit, then the merge.
 - [x] T013 **agent-turn quota** (§3.7): the 21st agent turn of a visit answers
   `429 demo_quota` before any box delivery is built. Done (c-298): hub
   `demo_quota.go` counts a demo_user's fan-outs and @agent sends per visit

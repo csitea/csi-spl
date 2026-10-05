@@ -83,6 +83,10 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 		older, newer = src.Body, keep.Body
 	}
 	merged := joinBodies(older, newer)
+	if tok, status, detail := s.demoBodyFits(r.Context(), t.ID, hum, merged); tok != "" { // specs/077 T012
+		writeErr(w, status, tok, detail)
+		return
+	}
 	if len(merged) > bodyMax {
 		writeErr(w, http.StatusRequestEntityTooLarge, "too_large", "the merged body would be over 65536 bytes")
 		return

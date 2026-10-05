@@ -23,7 +23,10 @@ import (
 func quotaEnv(t *testing.T, mut ...func(*hub.Options)) (*env, string) {
 	t.Helper()
 	pub, key, _ := ed25519.GenerateKey(nil)
-	e, demo := demoEnv(t, append([]func(*hub.Options){func(o *hub.Options) { o.WUIKey = key }}, mut...)...)
+	e, demo := demoEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
+		o.WUIKey = key
+		o.DemoPostsPerMinute = 1000 // T012's post quota is its own test (demo_post_quota_test.go)
+	}}, mut...)...)
 	e.pin(demo, e.box(demo, "box-a", "CLE-07"))
 	e.pinKey(demo, hub.WUIBox, pub)
 	return e, demo

@@ -853,7 +853,8 @@ func (s *Server) wuiEnvelope(ctx context.Context, tenant string, m *msg.Message,
 }
 
 // admit applies the 006 billing / quota rules and the OQ-11 file rule to a
-// hub-built message (the box path runs the same checks inline in onSend).
+// hub-built message (the box path runs the same checks inline in onSend),
+// and a demo_user's size cap and post quota (demo_post_quota.go).
 func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Message) (string, int, string) {
 	trow, err := s.o.Store.GetTenant(ctx, tenant)
 	if err != nil {
@@ -876,7 +877,7 @@ func (s *Server) admit(ctx context.Context, tenant, member string, m *msg.Messag
 			return "missing_file", http.StatusBadRequest, "file_id " + f + " is not held by the hub"
 		}
 	}
-	return "", 0, ""
+	return s.demoSend(ctx, tenant, member, m) // specs/077 T012: before the store write
 }
 
 // fanoutWUI pushes one stored message row to every browser subscribed to its task,

@@ -14,8 +14,8 @@ import (
 // Demo quotas (specs/077 3.7). A demo_user's work is counted in the store
 // (store.QuotaCounter, rdb 0127) and the unit past the limit is refused
 // 429 demo_quota BEFORE the work is built. T013 counts agent turns per
-// visit; T012's posts per minute and per day reuse takeDemoQuota with their
-// own kind and window.
+// visit; T012's posts per minute and per day (demo_post_quota.go) reuse
+// takeDemoQuota with their own kind and window.
 
 // DefaultDemoAgentTurns is the owner's 20 agent turns per visit (spec 3.7,
 // Q6); Options.DemoAgentTurns <= 0 is this, never unlimited.

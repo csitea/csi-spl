@@ -88,6 +88,10 @@ func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if tok, status, detail := s.demoBodyFits(r.Context(), t.ID, hum, body); tok != "" { // specs/077 T012
+		writeErr(w, status, tok, detail)
+		return
+	}
 	m, pub, ok := s.editTarget(w, r, t.ID, hum, id, from)
 	if !ok {
 		return

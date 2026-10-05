@@ -11,6 +11,7 @@
 #   5. the read-then-create path is do_spl_tenant_create TODAY; the SWITCH to
 #      the 074 operator API (POST /v1/operator/workspaces as the env SA) is due
 #      when 074 T007 lands. This test fails if the action stops naming it.
+#   6. the read's answer is not buried by the proxy's log on stdout
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -66,6 +67,15 @@ f="$T/home/.spool-hub/tenants/dev-demo.json"
 run no ENV=dev DRY_RUN=0; rc=$?
 [[ $rc -ne 0 ]] && ! grep -q '^create' "$T/calls" && grep -q SECRETKEY "$f" &&
   pass "4. a saved key file is never overwritten" || fail "4. overwrite rc=$rc $(cat "$T/calls")"
+
+# 6. the read answers yes/no alone on stdout although the proxy logs there
+# (dev 2026-10-05: the log buried "yes" and a second run saw no workspace)
+got=$(env FUNC="$FUNC" bash -c '
+  source "$FUNC"
+  spl_via_proxy() { echo "INFO proxy up"; shift; printf "%s\n" "$CNT" >"$1"; }
+  for CNT in 1 0; do export CNT; spl_demo_workspace_exists demo; done' 2>/dev/null | paste -sd,)
+[[ "$got" == yes,no ]] && pass "6. the read prints only yes/no, the proxy log goes to stderr" ||
+  fail "6. read got '$got'"
 
 grep -q '074 T007' "$FUNC" && grep -q 'POST /v1/operator/workspaces' "$FUNC" &&
   grep -q 'do_spl_tenant_create' "$FUNC" &&

@@ -62,11 +62,12 @@ do_spl_demo_workspace_create() {
 }
 
 # spl_demo_workspace_exists <id> -> "yes" or "no" on stdout: one READ ONLY
-# transaction in operator RLS scope as the env SA, through the proxy.
+# transaction in operator RLS scope as the env SA, through the proxy. The
+# proxy's own log goes to stderr: on stdout it would bury the answer.
 spl_demo_workspace_exists() {
   local tmp rc=0
   tmp="$(mktemp)" || return 1
-  DEMO_WS="$1" spl_via_proxy _spl_demo_workspace_read "$tmp" || rc=1
+  DEMO_WS="$1" spl_via_proxy _spl_demo_workspace_read "$tmp" >&2 || rc=1
   (( rc == 0 )) && { [[ "$(tr -d '[:space:]' <"$tmp")" == 1 ]] && echo yes || echo no; }
   rm -f "$tmp"
   return $rc

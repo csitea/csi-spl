@@ -33,10 +33,12 @@ for env in dev prd; do
   grep -qE 'SESSION_KEY|CLIENT_SECRET' <<<"$envline" && fail "$env an auth secret is a plain env var" || pass "$env no auth secret is a plain env var"
   # the injected set follows from the rendered env itself, whatever the cnf
   # state: DSN + session key (a listed provider OR native on) + each listed
-  # provider's client secret + the SMTP password (transport smtp) -- no more
+  # provider's client secret + the SMTP password (transport smtp) + the LinkedIn
+  # app pair (marketing.linkedin.inject) -- no more
   wui_inject=$(yq -r '.env.hub.wui_key.inject // "false"' "$CNF/$env.env.json")
   rnb_inject=$(yq -r '.env.hub.release_note_bans.inject // "false"' "$CNF/$env.env.json")
-  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" <<'PY'
+  mkt_inject=$(yq -r '.env.marketing.linkedin.inject // "false"' "$CNF/$env.env.json")
+  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" <<'PY'
 import json, sys
 env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
 listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
@@ -45,6 +47,8 @@ if listed or env.get("SPOOL_HUB_AUTH_NATIVE_ENABLED") == "true": want.add("SPOOL
 if env.get("SPOOL_HUB_MAIL_TRANSPORT") == "smtp": want.add("SPOOL_HUB_MAIL_SMTP_PASSWORD")
 if sys.argv[3] == "true": want.add("SPOOL_HUB_WUI_KEY")
 if sys.argv[4] == "true": want.add("SPOOL_HUB_RELEASE_NOTE_BANS")
+# spec 090 T002: the LinkedIn app pair only while marketing.linkedin.inject is "true"
+if sys.argv[5] == "true": want |= {"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_ID", "SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_SECRET"}
 # 006 T022 (payment.secret_env): the stripe pair only while PROVIDER is stripe, PayPal only while enabled
 if env.get("SPOOL_HUB_PAYMENT_PROVIDER") == "stripe": want |= {"SPOOL_HUB_STRIPE_SECRET_KEY", "SPOOL_HUB_STRIPE_WEBHOOK_SECRET"}
 if env.get("SPOOL_HUB_ENABLE_PAYPAL") == "true": want.add("SPOOL_HUB_PAYPAL_CLIENT_SECRET")

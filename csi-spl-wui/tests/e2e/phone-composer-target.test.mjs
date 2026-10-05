@@ -20,6 +20,8 @@
 //     (62 px in a 44 px field, n = 2); reported to the orchestrator in topic
 //     c893c3a9 - the font is not to shrink. Remove the entry once fixed.
 //   desktop (1440x900): /channel/alerts keeps the key-hint placeholder.
+//   T005 (FR-001, FR-002), the target chip on the phone dock: see chipCase
+//     below (AC1, AC2 at 390 and 360; AC3's wrap check at 360).
 //
 // Run:
 //   pnpm run test:e2e phone-composer-target
@@ -165,6 +167,139 @@ async function desktopCase(browser) {
   await p.close()
 }
 
+/* ---- 085 T005 (FR-001, FR-002): the target chip on the phone dock ----
+ *   phone (390x844 and 360x780, touch), /channel/alerts:
+ *     AC1 tap the box (level 2): the chip reads "#alerts" before any typing;
+ *         type "x": still "#alerts"; tap a card (level 3), tap the box: the
+ *         chip starts "Reply", at most 12 characters + an ellipsis, its full
+ *         words in title and aria-label
+ *     AC2 in each of those states the chip's rect lies inside the field's,
+ *         and no text in the composer sits above the field (owner dd98f8d7)
+ *     AC3 (360 only) type 60 characters on #alerts: line 1 starts after the
+ *         chip, line 2 at the field's start padding (text-indent, line 1 only)
+ *     CONTROL: before T005 the docked box drew no chip (AC1 fails), and a
+ *     padding-inline-start indent (080's desktop rule) moves line 2 too. */
+function dockChip(p) {
+  return p.evaluate((sel) => {
+    const vis = (el) => Boolean(el) && el.getClientRects().length > 0
+    const ta = [...document.querySelectorAll(sel)].find(vis)
+    const form = ta && ta.closest('form')
+    const field = form && form.querySelector('.omnibox-field')
+    if (!field) return null
+    const c = [...field.querySelectorAll('[data-test=composer-target-chip]')].find(vis)
+    const fr = field.getBoundingClientRect()
+    /* any visible text of the composer drawn above the field (AC2) */
+    const above = []
+    const walk = document.createTreeWalker(form, NodeFilter.SHOW_TEXT)
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.textContent.trim() || !vis(n.parentElement)) continue
+      const r = n.parentElement.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0 && r.bottom <= fr.top + 1 && getComputedStyle(n.parentElement).visibility !== 'hidden') above.push(n.textContent.trim().slice(0, 30))
+    }
+    if (!c) return { chip: null, above, docked: form.classList.contains('composer--dock') }
+    const a = c.getBoundingClientRect()
+    return {
+      docked: form.classList.contains('composer--dock'),
+      chip: c.textContent.trim(),
+      title: c.getAttribute('title'),
+      aria: c.getAttribute('aria-label'),
+      /* 0.875rem: 14 px at a 16 px root, scaled by the reader's font level */
+      font: parseFloat(getComputedStyle(c).fontSize) / parseFloat(getComputedStyle(document.documentElement).fontSize),
+      inField: a.left >= fr.left - 0.5 && a.right <= fr.right + 0.5 && a.top >= fr.top - 0.5 && a.bottom <= fr.bottom + 0.5,
+      above,
+      level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || '',
+    }
+  }, TA)
+}
+
+/** AC3: where the textarea's lines start, from a mirror div in the field's
+ *  own font, width, padding and text-indent (a textarea's lines cannot be
+ *  measured directly). `indent` overrides the mirror's indent (the CONTROL). */
+function lineStarts(p, mode = '') {
+  return p.evaluate((sel, how) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    const chip = ta && ta.closest('.omnibox-field')?.querySelector('[data-test=composer-target-chip]')
+    if (!ta || !chip) return null
+    const cs = getComputedStyle(ta)
+    const r = ta.getBoundingClientRect()
+    const m = document.createElement('div')
+    for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'paddingLeft', 'paddingRight', 'paddingTop', 'textIndent', 'boxSizing', 'borderLeftWidth', 'borderRightWidth', 'wordSpacing', 'direction']) m.style[k] = cs[k]
+    if (how === 'padding') { m.style.paddingLeft = `${parseFloat(cs.paddingLeft) + parseFloat(cs.textIndent)}px`; m.style.textIndent = '0px' }
+    Object.assign(m.style, { position: 'fixed', left: `${r.left}px`, top: '0px', width: `${r.width}px`, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', borderStyle: 'solid', borderColor: 'transparent', visibility: 'hidden' })
+    m.textContent = ta.value
+    document.body.appendChild(m)
+    const range = document.createRange()
+    range.selectNodeContents(m)
+    const tops = new Map()
+    for (const rect of range.getClientRects()) {
+      const k = Math.round(rect.top)
+      if (!tops.has(k) || rect.left < tops.get(k)) tops.set(k, rect.left)
+    }
+    m.remove()
+    const lines = [...tops.entries()].sort((x, y) => x[0] - y[0]).map(([, left]) => Math.round(left))
+    return { lines, padStart: Math.round(r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)), chipRight: Math.round(chip.getBoundingClientRect().right), indent: cs.textIndent }
+  }, TA, mode)
+}
+
+async function chipCase(browser, width, height) {
+  const tag = `${width}px chip`
+  const vp = { width, height, isMobile: true, hasTouch: true }
+  const { p, errors } = await open(browser, vp, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
+  const tapBox = async () => {
+    const r = await p.evaluate((sel) => {
+      const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+      const b = ta.getBoundingClientRect()
+      return { x: Math.round(b.right - 60), y: Math.round(b.top + b.height / 2) }
+    }, TA)
+    await p.touchscreen.tap(r.x, r.y)
+    await sleep(400)
+  }
+  const ac2 = (s) => Boolean(s && s.inField && s.above.length === 0)
+
+  const s0 = await dockChip(p)
+  ok(`${tag} unfocused empty box: no chip`, Boolean(s0 && s0.docked && s0.chip === null), s0)
+  await tapBox()
+  const s1 = await dockChip(p)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-focus.png`) })
+  ok(`${tag} AC1 tap the box (level 2): the chip reads "#alerts" before typing, 0.875rem`, Boolean(s1 && s1.level === '2' && s1.chip === '#alerts' && s1.title === '#alerts' && s1.aria === '#alerts' && s1.font === 0.875), s1)
+  ok(`${tag} AC2 focused: the chip is inside the field, no text above it`, ac2(s1), s1)
+  await p.keyboard.type('x')
+  await sleep(200)
+  const s2 = await dockChip(p)
+  ok(`${tag} AC1 type "x": still "#alerts"`, Boolean(s2 && s2.chip === '#alerts'), s2)
+  ok(`${tag} AC2 with text: inside the field, no text above it`, ac2(s2), s2)
+
+  if (width === 360) {
+    await p.keyboard.type(' ' + 'abcd efgh '.repeat(6).slice(0, 58))
+    await sleep(300)
+    const l = await lineStarts(p)
+    if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-wrap.png`) })
+    ok(`${tag} AC3 60 characters: line 1 starts after the chip, line 2 at the field's start padding`, Boolean(l && l.lines.length >= 2 && l.lines[0] >= l.chipRight && Math.abs(l.lines[1] - l.padStart) <= 1), l)
+    const ctl = await lineStarts(p, 'padding')
+    ok(`${tag} CONTROL an indent by padding (080's desktop rule) starts line 2 after the chip too`, Boolean(ctl && ctl.lines.length >= 2 && ctl.lines[1] >= ctl.chipRight), ctl)
+  }
+  await p.evaluate((sel) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    ta.value = ''
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    ta.blur()
+  }, TA)
+  await sleep(300)
+
+  const card = await firstCard(p)
+  await p.touchscreen.tap(card.x, card.y)
+  await sleep(700)
+  await tapBox()
+  const s3 = await dockChip(p)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-reply.png`) })
+  const capped = (s) => Array.from(s.replace(/…$/, '')).length <= 12
+  ok(`${tag} AC1 a topic open (level 3), tap the box: the chip reads "Reply", cut to 12, full words in title/aria-label`, Boolean(s3 && s3.level === '3' && s3.chip.startsWith('Reply') && capped(s3.chip) && s3.title.startsWith('Reply · ') && s3.aria === s3.title && s3.title.startsWith(s3.chip.replace(/…$/, ''))), s3)
+  ok(`${tag} AC2 level 3: inside the field, no text above it`, ac2(s3), s3)
+  ok(`${tag} no page error`, errors.length === 0, errors)
+  await p.close()
+}
+/* ---- end 085 T005 ---- */
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -172,6 +307,8 @@ try {
   await (await open(browser, { width: 1440, height: 900 }, '/channel/alerts')).p.close()
   await phoneCase(browser, 390, 844)
   await phoneCase(browser, 360, 780)
+  await chipCase(browser, 390, 844)
+  await chipCase(browser, 360, 780)
   await desktopCase(browser)
 } finally {
   await browser.close()

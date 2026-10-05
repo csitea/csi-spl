@@ -102,13 +102,17 @@ _spl_rebox_all() {
   do_log "OK TENANT_ID=all: $n tenant(s)"
 }
 
-# _spl_rebox_root_key <tenant> -> ROOT_KEY_JSON, or the newest saved create JSON.
+# _spl_rebox_root_key <tenant> -> ROOT_KEY_JSON, or the newest saved create JSON
+# (spl_newest_tenant_key: the lexically last <tenant>.*.json).
 _spl_rebox_root_key() {
   [[ -n "${ROOT_KEY_JSON:-}" ]] && { printf '%s\n' "$ROOT_KEY_JSON"; return 0; }
   local org="${SPL_ORG_APP%%-*}" dir k
   dir="${SPL_TENANTS_DIR:-/var/$org/$SPL_ORG_APP/tenants/$ENV}"
-  k="$(ls -1 "$dir/$1".*.json 2>/dev/null | sort | tail -n 1)"
-  [[ -n "$k" ]] || { do_log "FATAL no root key for $1: pass ROOT_KEY_JSON or keep it as $dir/$1.<ts>.json"; return 1; }
+  # shellcheck source=../../../lib/bash/funcs/spl-newest-tenant-key.func.sh
+  declare -F spl_newest_tenant_key >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-newest-tenant-key.func.sh"
+  k="$(spl_newest_tenant_key "$dir" "$1")" || {
+    do_log "FATAL no root key for $1: pass ROOT_KEY_JSON or keep it as $dir/$1.<ts>.json"; return 1; }
   printf '%s\n' "$k"
 }
 

@@ -191,11 +191,18 @@ fi
 # ── 7. session env, then run the server ─────────────────────────────────────
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [ "${MCP_BOT_CHROME_HEADLESS:-1}" = "0" ]; then
-  # headed: Chrome needs a display. Xwayland (:0) works for the desktop user;
-  # find the mutter Xauthority cookie rather than hard-coding its random name.
+  # headed: Chrome needs a display. Xwayland (:0) works for the desktop user.
+  # Mutter rotates .mutter-Xwaylandauth.* per session and leaves the previous
+  # cookie in place, so the newest file is the live display's authority.
+  # The name is random; do not hard-code it.
   export DISPLAY="${DISPLAY:-:0}"
   if [ -z "${XAUTHORITY:-}" ]; then
-    XAUTHORITY=$(ls -1t "$XDG_RUNTIME_DIR"/.mutter-Xwaylandauth.* 2>/dev/null | head -1 || true)
+    # sed -n 1p is the pipefail-safe form of head -1 (lint-sigpipe). || true
+    # keeps a missing runtime dir from aborting under set -e, as the old ls did.
+    XAUTHORITY=$(
+      find "$XDG_RUNTIME_DIR" -maxdepth 1 -name '.mutter-Xwaylandauth.*' \
+        -printf '%T@ %p\n' 2>/dev/null |
+        sort -rn | sed -n 1p | cut -d' ' -f2- || true)
     [ -n "$XAUTHORITY" ] && export XAUTHORITY
   fi
   log "headed mode: DISPLAY=$DISPLAY XAUTHORITY=${XAUTHORITY:-<none>}"

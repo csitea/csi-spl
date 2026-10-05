@@ -147,6 +147,8 @@ do_spl_m3_e2e() {
 # spl_m3_prd_prepare <tenant>: the prd guards and the tenant key. Only a test
 # tenant (^e2e(-[a-z0-9]+)?$) runs: prd t1 is the owner's real tenant, and this
 # harness pins boxes, invites humans and writes messages into its tenant.
+# The key file is the lexically last <dir>/<tenant>.*.json, the same lookup
+# desk rebox uses (spl_newest_tenant_key).
 spl_m3_prd_prepare() {
   local tenant="$1"
   [[ "$tenant" =~ ^e2e(-[a-z0-9]+)?$ ]] || {
@@ -154,7 +156,10 @@ spl_m3_prd_prepare() {
   [[ -n "${ROOT_KEY_JSON:-}${ROOT_KEY:-}" ]] && return 0
   local org="${SPL_ORG_APP%%-*}" dir
   dir="${SPL_TENANTS_DIR:-/var/$org/$SPL_ORG_APP/tenants/$ENV}"
-  ROOT_KEY_JSON="$(ls -1 "$dir/$tenant".*.json 2>/dev/null | sort | tail -n 1)"
+  # shellcheck source=../../../lib/bash/funcs/spl-newest-tenant-key.func.sh
+  declare -F spl_newest_tenant_key >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-newest-tenant-key.func.sh"
+  ROOT_KEY_JSON="$(spl_newest_tenant_key "$dir" "$tenant")" || ROOT_KEY_JSON=""
   if [[ -z "$ROOT_KEY_JSON" ]]; then
     [[ "${M3_CREATE_TENANT:-0}" == 1 ]] || {
       do_log "FATAL no $dir/$tenant.*.json: create the test tenant with M3_CREATE_TENANT=1 (or pass ROOT_KEY_JSON)"; return 1; }

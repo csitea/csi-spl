@@ -1,0 +1,6 @@
+Lay-What: Nothing on screen changes. The pieces that set text size, theme, how much detail a message shows, pane widths and the slash key now carry a short note.
+Lay-How: A sentence was written above each of those pieces, and a check stops a new one from landing without a note.
+Lay-Why: Those pieces had no note, so the next change had to guess what they did.
+Tech-What: Prose JSDoc on the undocumented exports of verbosity, slash-focus, font-size, theme and pane-widths.
+Tech-How: tests/unit/util-docs.test.mjs ratchets bare export-function counts under src/utils; those five modules are pinned at 0.
+Tech-Why: Those exports had no doc, so a caller of parseLevel or num had only the implementation to read.

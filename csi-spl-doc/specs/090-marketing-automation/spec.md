@@ -1,7 +1,7 @@
 # 090: Marketing Automation (delegated social and email posting)
 
-**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Consensus (v0.3.0)  
-**Created**: 2026-10-05 · **Lane**: a-273 · **Topic**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`  
+**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Consensus (v0.3.3)  
+**Created**: 2026-10-05 · **Lane**: a-273 (author), c-286 (owner from v0.3.3) · **Topic**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`  
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4).
 
 Builds on, and does not repeat:
@@ -184,7 +184,7 @@ Per owner msg `fd72a794` (*"The aim is not to be spamming anyone. The aim is to 
 - **AC-05 (Single-Flight Dispatch)**: At scheduled hour, background worker claims post -> status moves to `scheduled` -> dispatches to LinkedIn -> receives success ID -> status becomes `published` with post link.
 - **AC-06 (Failure & Token Expiry)**: If token is expired or API fails -> status marked `failed`, diagnostic recorded in audit table, and notification sent to author.
 - **AC-07 (Anti-Spam Daily Cap)**: Two posts approved for the same channel on the same day -> system schedules the first for today and staggers the second to the next calendar day.
-- **AC-08 (Stale Draft Cleanup)**: A draft pending approval for >7 days is automatically marked `rejected` (with reason 'stale draft expired after 7 days') and returned for reviewer reassessment.
+- **AC-08 (Stale Draft Cleanup)**: A draft pending approval for >7 days keeps status `draft` (there is no separate stale or expired state), gets a `draft_stale` audit event, and its reviewer and the account holder are told. It is never scheduled or published until it is edited and approved again, and the daily queue skips it.
 - **AC-09 (Email Double Opt-In & Unsubscribe)**: Subscriber enters email -> receives confirmation link -> clicks link -> status becomes `subscribed`. Clicking unsubscribe header or link immediately sets status to `unsubscribed`.
 
 ---
@@ -273,7 +273,7 @@ CREATE TABLE marketing_post_events (
     workspace_id    text NOT NULL,
     post_id         uuid NULL REFERENCES marketing_posts(post_id),
     channel_id      uuid NOT NULL REFERENCES marketing_channels(channel_id),
-    event_type      text NOT NULL CHECK (event_type IN ('channel_connect', 'channel_revoke', 'draft_created', 'post_edited', 'post_approved', 'post_rejected', 'post_scheduled', 'post_dispatched', 'post_published', 'post_failed')),
+    event_type      text NOT NULL CHECK (event_type IN ('channel_connect', 'channel_revoke', 'draft_created', 'post_edited', 'post_approved', 'post_rejected', 'draft_stale', 'post_scheduled', 'post_dispatched', 'post_published', 'post_failed')),
     actor_type      text NOT NULL CHECK (actor_type IN ('human', 'agent', 'system')),
     actor_id        text NOT NULL,
     standing_grant_id uuid NULL,
@@ -383,5 +383,6 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.3.0 | 2026-10-05 | a-273 | Full panel consensus harmonized with grok peer `g-276` (`grok-opinion.md`) and claude peers `c-277` (`claude-a-opinion.md`) and `c-292` (`claude-b-opinion.md`): append-only audit table, KMS envelope-encrypted tokens under FORCE RLS, dynamic X pricing, double opt-in email, source-backed queue ("no source, no post"), idempotent single-flight dispatcher, 3-phase rollout, and formal Consensus section. |
 | v0.3.1 | 2026-10-05 | a-273 | Round 2 consensus refinements: aligned personal feed approval authority in §2.3 with FR-005, clarified AC-08 stale draft rejection, quoted SQL enum/array literals, and added workspace isolation RLS policies in appendix data model. |
 | v0.3.2 | 2026-10-05 | a-273 | Harmonized appendix RLS policies with csi-spl-rdb 0091_member_activity.sql shape (NULLIF empty guard on app.tenant_id and operator_scope). |
+| v0.3.3 | 2026-10-05 | c-286 | claude-a's third edit, completed: AC-08 no longer uses `rejected` (a final state) for a draft that is sent back. The stale draft stays `draft`, and the `draft_stale` audit event is added. Claude-a's other edits were already in v0.3.1/v0.3.2: quoted SQL literals, per-workspace FORCE RLS policies, and §2.3 matching FR-005. Added the build plan in `tasks.md`. |
 
-<!-- version: 0.3.2 · updated: 2026-10-05 · last-edit: 2026-10-05T05:05:00Z -->
+<!-- version: 0.3.3 · updated: 2026-10-05 · last-edit: 2026-10-05T05:30:00Z -->

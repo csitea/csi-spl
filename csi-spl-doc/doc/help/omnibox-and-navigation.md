@@ -110,7 +110,8 @@ Network interruptions or temporary server restarts will never cause you to lose 
 - If a send fails to reach the hub:
   1. The Omnibox **does not clear** your typed text.
   2. A clear error banner appears beside the Omnibox explaining the failure reason.
-  3. A **Retry** button appears next to the notice. Clicking it attempts to resend the exact text and attachments immediately.
+  3. A **Try again** button appears next to the notice. Clicking it attempts to resend the exact text and attachments immediately, with the same message id, so the hub never keeps a second copy.
+- If the network is gone, the message waits in the feed and goes out by itself when the connection is back (section 10.4).
 - Once the send succeeds, the composer smoothly clears and resets focus.
 
 ---
@@ -170,8 +171,71 @@ setting: the box is docked, and the grip above chooses where.
 
 ---
 
+## 10. Drafts and the target chip
+
+### 10.1 One draft per place
+
+The box keeps what you typed for each place a send can go to: a channel, a
+direct message, and a reply in a topic. Move to another channel and the box
+empties; come back and your text is there again. A new topic in a channel
+uses that channel's draft.
+
+- The text is kept about a third of a second after you stop typing.
+- Drafts survive a reload and a closed tab. They are kept in this browser
+  only; they do not follow you to another device.
+- A send that goes through clears that place's draft. A send that fails puts
+  the text back, and the draft stays.
+- A `/search` line is never a draft. Attached files are not kept in a draft,
+  only the text.
+- Drafts older than 30 days are dropped, and so is everything beyond your 50
+  newest.
+- **Sign out** removes your drafts from this browser. Someone else who signs
+  in on the same browser never sees them.
+
+### 10.2 The pencil mark
+
+A small pencil on a channel or direct-message row in the sidebar, or on a
+topic card, means a draft waits there. Point at it to read **Draft**.
+
+### 10.3 The target chip
+
+While the box holds text, a chip at its start says where **Enter** will
+send:
+
+| The chip reads | Enter sends |
+|---|---|
+| `#feedback` | a new topic in that channel |
+| `@HUM-3` | a new topic in that direct message |
+| `Reply · <topic title>` | a reply in that topic, also when the line names it with `in: <topic>` |
+| `New topic · #lobby` | a new topic, although a topic is open: the line starts one (for example `@<agent> task …`) |
+
+The chip follows the pane you last clicked, the same rule as in
+section 2, and it is read from the
+same target the send uses, so it cannot name one place while the message
+goes to another. Click the chip to open that channel, direct message or
+topic. It is hidden in search mode and while the box is empty.
+
+The chip shows in the box in the top bar and at the bottom of the middle
+pane (**Settings → Behaviour → Omnibox position**). The docked box on a phone
+has no chip.
+
+### 10.4 Sent without a network
+
+A message you send while the network is gone is not lost. Its row stays in
+the feed with **Waiting for network…** where its time would be. When the connection comes
+back it is sent again by itself, with the same message id, so the hub keeps
+exactly one copy even if the first try did arrive. Keep the tab open until
+the row turns into a normal message: a waiting send lives in that tab.
+
+A send that fails for another reason (the hub did not answer in time on a
+working connection) shows the notice and **Try again** from
+section 6. **Try again** also
+reuses the message id, so it never posts a second copy.
+
+---
+
 ## Next Steps
 
 To learn how channels, DMs, and presence work, proceed to [Channels & Direct Messages](./channels-and-direct-messages.md).
 
-<!-- version: 1.2.0 · updated: 2026-10-04 -->
+<!-- version: 1.3.0 · updated: 2026-10-05 -->

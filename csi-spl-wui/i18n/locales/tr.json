@@ -1796,7 +1796,12 @@
     "off": "This workspace keeps no release notes yet.",
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
-    "bad_ref": "Not a commit or a version: {ref}"
+    "bad_ref": "Not a commit or a version: {ref}",
+    "col_seq": "#",
+    "col_version": "Sürüm",
+    "col_commit": "Commit",
+    "col_title": "Değişiklik",
+    "latest": "En son {n} değişiklik, en yenisi önce"
   },
   "link_preview": {
     "topic": "Konu",

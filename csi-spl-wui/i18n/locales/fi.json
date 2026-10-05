@@ -1796,7 +1796,12 @@
     "off": "This workspace keeps no release notes yet.",
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
-    "bad_ref": "Not a commit or a version: {ref}"
+    "bad_ref": "Not a commit or a version: {ref}",
+    "col_seq": "#",
+    "col_version": "Versio",
+    "col_commit": "Commit",
+    "col_title": "Muutos",
+    "latest": "{n} viimeisintä muutosta, uusin ensin"
   },
   "link_preview": {
     "topic": "Aihe",

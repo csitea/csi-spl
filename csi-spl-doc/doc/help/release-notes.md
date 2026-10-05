@@ -13,14 +13,23 @@ as trailers; the hub reads them into the release notes table the WUI shows.
 Click the version at the bottom of the left pane. On a phone it is on the
 status strip. Choose **Release notes**.
 
-The dialog lists every version, newest first. Each commit has a note in
-plain words and a technical note. A filter matches a version, a commit, an
-area or words. **you are here** marks the version this tab is running. A
-commit with no note says **no note**. **Load older versions** pages back.
+The dialog is one table of the 30 latest changes, newest first, already
+open: nothing to expand. Its columns:
 
-The address `/releases/<ref>` opens the same dialog on one commit (seven or
-more hex characters) or one version (`v` and three numbers). **Copy the
-link to this note** copies that address.
+| column | shows |
+|---|---|
+| `#` | the change's number, counted from the oldest change (1) up, so the newest row has the highest number and a change keeps its number |
+| Version | the version it shipped in, `v1.3.1` |
+| Commit | the short commit hash |
+| Change | the title of the change; click it for the note: what, how and why, in plain words and then technically |
+
+A version's own row sits above its changes and carries only the version.
+**you are here** marks the version this tab is running. A change with no
+note says **no note**.
+
+The address `/releases/<ref>` opens the same dialog on one change (seven or
+more hex characters) or one version (`v` and three numbers); the title of
+each row links there. **Copy the link to this note** copies that address.
 
 The rest of this page is how a commit carries the note the dialog shows.
 

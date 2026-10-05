@@ -3,18 +3,24 @@
 // the desktop footer's version card and the phone strip's - and from the
 // stable link /releases/<sha | 8+ prefix | v<X.Y.Z>>.
 //
-// Against the mock tenant (70 versions, two commits each, every state), at
-// 1280x800 (desktop) and 390x844 (phone):
+// Owner, t1 55b6de46: one table, already expanded, the 30 latest changes;
+// columns # (1 = the oldest change of all), version, short sha, title; the
+// version a level-2 row carrying only the version; the title links to the
+// change's why / how note.
+//
+// Against the mock tenant (70 versions, two commits each, 140 changes,
+// every state), at 1280x800 (desktop) and 390x844 (phone):
 //   1 the card's "Release notes" button opens the modal (xl on desktop, full
 //     screen on a phone)
-//   2 it lists the newest 50 versions; the running one is first, open and
-//     marked "you are here"; each row shows a short sha, subject, kind, area
-//   3 scrolling to the end loads the older versions (70 in all)
-//   4 a click on a sha shows that note: plain words first, technical below,
-//     the full 40-char sha
+//   2 one table, 30 rows newest first under 15 version rows, nothing to
+//     expand or load; the running version is first and marked "you are
+//     here"; a row shows #, version, 7-char sha and title
+//   3 # counts from the oldest: the newest row is 140, then 139 ... 111;
+//     a version row carries only its version
+//   4 the title links to /releases/<sha>; a click shows that note: plain
+//     words first, technical below, the full 40-char sha
 //   5 a state=backfill row says "written after the fact", in the list and in
 //     the note; a state=missing row says it has no note
-//   6 the filter box narrows the list to one commit by its sha prefix
 //   7 Escape closes it
 //   8 /releases/<sha prefix> opens that note, /releases/v<X.Y.Z> that version,
 //     a ref that is neither says so
@@ -99,6 +105,7 @@ const listFacts = (p) => p.evaluate(() => {
   const first = vers[0]
   const r = dlg?.getBoundingClientRect()
   const body = document.querySelector('[data-testid=ui-dialog-body]')
+  const rows = [...document.querySelectorAll('[data-test=release-row]')]
   return {
     open: Boolean(dlg && document.querySelector('[data-test=release-notes]')),
     title: dlg?.querySelector('.ui-dialog__title')?.textContent.trim() || '',
@@ -107,15 +114,23 @@ const listFacts = (p) => p.evaluate(() => {
     vw: window.innerWidth,
     vh: window.innerHeight,
     xOverflow: body ? body.scrollWidth - body.clientWidth : -1,
+    table: Boolean(document.querySelector('table[data-test=release-table]')),
+    heads: [...document.querySelectorAll('[data-test=release-table] thead th')].map((th) => th.textContent.trim()),
     versions: vers.length,
+    versionHeads: vers.map((v) => v.querySelector('[data-test=release-version-head]')?.textContent.replace(/\s+/g, ' ').trim() || ''),
+    versionLevel: first?.querySelector('[data-test=release-version-head] [role=heading]')?.getAttribute('aria-level') || '',
     firstCurrent: first?.dataset.current === 'true',
     firstHere: first?.querySelector('[data-test=release-version-here]')?.textContent.trim() || '',
-    firstOpen: first?.querySelector('[data-test=release-version-head]')?.getAttribute('aria-expanded') === 'true',
-    firstRows: first ? [...first.querySelectorAll('[data-test=release-row]')].map((row) => ({
-      sha: row.querySelector('[data-test=release-note-sha]')?.textContent.trim() || '',
-      text: row.textContent.replace(/\s+/g, ' ').trim(),
-    })) : [],
+    rows: rows.map((row) => ({
+      seq: row.querySelector('[data-test=release-row-seq]')?.textContent.trim() || '',
+      cells: [...row.children].map((c) => c.textContent.replace(/\s+/g, ' ').trim()),
+      sha: row.querySelector('[data-test=release-row-sha]')?.textContent.trim() || '',
+      href: row.querySelector('[data-test=release-row-title]')?.getAttribute('href') || '',
+      title: row.querySelector('[data-test=release-row-title]')?.textContent.trim() || '',
+    })),
+    expanders: document.querySelectorAll('[data-test=release-notes] [aria-expanded]').length,
     more: Boolean(document.querySelector('[data-test=release-notes-more]')),
+    filter: Boolean(document.querySelector('[data-test=release-notes-filter]')),
   }
 })
 
@@ -179,61 +194,50 @@ try {
     if (vp.mobile) ok(`${vp.name} 1c full screen on a phone`, f.rect && f.rect.l <= 0 && f.rect.w >= f.vw - 1 && f.rect.h >= f.vh - 60, f.rect)
     else ok(`${vp.name} 1c the xl size on desktop`, f.xl && f.rect && f.rect.w >= f.vw * 0.8, f.rect)
 
-    /* 2 the newest 50, the running one first, open, "you are here" */
-    ok(`${vp.name} 2a 50 versions on the first page, more to load`, f.versions === 50 && f.more, { versions: f.versions, more: f.more })
-    ok(`${vp.name} 2b the running version is first, open and marked "you are here"`, f.firstCurrent && f.firstOpen && f.firstHere === 'you are here', { here: f.firstHere, open: f.firstOpen })
-    ok(`${vp.name} 2c its rows show a 7-char sha, the subject, kind and area`,
-      f.firstRows.length === 2 && f.firstRows[0].sha === mockSha(0).slice(0, 7) && /mock change 1/.test(f.firstRows[0].text) && /feat/.test(f.firstRows[0].text) && /wui/.test(f.firstRows[0].text), f.firstRows)
+    /* 2 one expanded table of the 30 latest, the running version first */
+    ok(`${vp.name} 2a one table: #, version, commit, change`, f.table && f.heads.join('|') === '#|Version|Commit|Change', f.heads)
+    ok(`${vp.name} 2b 30 rows under 15 version rows, nothing to expand, filter or load`,
+      f.rows.length === 30 && f.versions === 15 && f.expanders === 0 && !f.more && !f.filter, { rows: f.rows.length, versions: f.versions, expanders: f.expanders, more: f.more, filter: f.filter })
+    ok(`${vp.name} 2c the running version is first and marked "you are here"`, f.firstCurrent && f.firstHere === 'you are here', { here: f.firstHere })
+    const r0 = f.rows[0] || {}
+    ok(`${vp.name} 2d a row shows #, version, 7-char sha and title`,
+      r0.cells?.length === 4 && r0.cells[0] === '140' && /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1]) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
 
-    /* 5a the backfill row says so in the list */
-    const backfillBadge = await p.evaluate((sha) => {
-      const row = document.querySelector(`[data-test=release-note-sha][data-sha="${sha}"]`)?.closest('[data-test=release-row]')
+    /* 3 # counts from the oldest change: newest first, 140 down to 111 */
+    const seqs = f.rows.map((x) => Number(x.seq))
+    ok(`${vp.name} 3a # runs 140, 139 ... 111 (1 = the oldest change)`, seqs.length === 30 && seqs.every((n, i) => n === 140 - i), seqs)
+    ok(`${vp.name} 3b newest first: row i is the mock's change i`, f.rows.every((x, i) => x.sha === mockSha(i).slice(0, 7)), f.rows.slice(0, 3).map((x) => x.sha))
+    ok(`${vp.name} 3c a version row is a level-2 heading carrying only the version`,
+      f.versionLevel === '2' && f.versionHeads.slice(1).every((h) => /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(h)) && f.versionHeads[1] === 'v0.1.69', f.versionHeads.slice(0, 3))
+    ok(`${vp.name} 3d no horizontal overflow in the modal`, f.xOverflow <= 0, f.xOverflow)
+
+    /* 5a the backfill row says so in the list; 5c the missing one says no note */
+    const rowBadge = (sha) => p.evaluate((sha) => {
+      const row = document.querySelector(`[data-test=release-row-title][data-sha="${sha}"]`)?.closest('[data-test=release-row]')
       return row ? { state: row.dataset.state, badge: row.querySelector('[data-test=release-row-badge]')?.textContent.trim() || '' } : null
-    }, mockSha(1))
+    }, sha)
+    const backfillBadge = await rowBadge(mockSha(1))
     ok(`${vp.name} 5a a state=backfill row reads "written after the fact"`, backfillBadge?.state === 'backfill' && /written after the fact/i.test(backfillBadge.badge), backfillBadge)
+    const missing = await rowBadge(mockSha(2))
+    ok(`${vp.name} 5c a state=missing row says it has no note`, missing?.state === 'missing' && missing.badge === 'no note', missing)
 
-    /* 3 the end of the list loads the older versions */
-    await p.evaluate(() => {
-      const b = document.querySelector('[data-testid=ui-dialog-body]')
-      if (b) b.scrollTop = b.scrollHeight
-    })
-    const all = await until(p, () => document.querySelectorAll('[data-test=release-version]').length === 70, null, 8000)
-    const g = await listFacts(p)
-    ok(`${vp.name} 3 scrolling to the end loads the older versions (70 in all)`, all && !g.more, { versions: g.versions, more: g.more })
-    ok(`${vp.name} 3b no horizontal overflow in the modal`, g.xOverflow <= 0, g.xOverflow)
-
-    /* 4 a click on a sha shows its note */
-    await p.evaluate(() => { const b = document.querySelector('[data-testid=ui-dialog-body]'); if (b) b.scrollTop = 0 })
-    await press(p, vp, `[data-test=release-note-sha][data-sha="${mockSha(0)}"]`)
+    /* 4 the title links to the change's note */
+    ok(`${vp.name} 4a the title links to /releases/<sha>`, r0.href?.endsWith('/releases/' + mockSha(0)), r0.href)
+    await press(p, vp, `[data-test=release-row-title][data-sha="${mockSha(0)}"]`)
     await until(p, () => Boolean(document.querySelector('[data-test=release-note]')), null, 3000)
     const n0 = await noteFacts(p)
-    ok(`${vp.name} 4a a click on a sha shows that commit's note`, n0?.sha === mockSha(0) && n0.state === 'ok', n0 && { sha: n0.sha, state: n0.state })
-    ok(`${vp.name} 4b plain words first (What / How / Why), technical below`,
+    ok(`${vp.name} 4b a click on the title shows that change's note`, n0?.sha === mockSha(0) && n0.state === 'ok', n0 && { sha: n0.sha, state: n0.state })
+    ok(`${vp.name} 4c plain words first (What / How / Why), technical below`,
       n0?.layFirst && /What/.test(n0.lay) && /How/.test(n0.lay) && /Why/.test(n0.lay) && /Mock module 1/.test(n0.tech), n0 && { lay: n0.lay, tech: n0.tech })
-    ok(`${vp.name} 4c the full 40-char sha`, n0?.fullSha === mockSha(0), n0?.fullSha)
+    ok(`${vp.name} 4d the full 40-char sha`, n0?.fullSha === mockSha(0), n0?.fullSha)
 
     /* 5b the backfill note itself */
     await press(p, vp, '[data-test=release-note-back]')
-    await until(p, () => document.querySelectorAll('[data-test=release-version]').length > 0, null, 3000)
-    await press(p, vp, `[data-test=release-note-sha][data-sha="${mockSha(1)}"]`)
+    await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 30, null, 3000)
+    await press(p, vp, `[data-test=release-row-title][data-sha="${mockSha(1)}"]`)
     await until(p, (sha) => document.querySelector('[data-test=release-note]')?.dataset.sha === sha, mockSha(1), 3000)
     const n1 = await noteFacts(p)
     ok(`${vp.name} 5b the backfill note says "written after the fact"`, n1?.state === 'backfill' && /written after the fact/i.test(n1.stateText), n1 && { state: n1.state, text: n1.stateText })
-
-    /* 6 the filter: one commit by its sha prefix (the missing one, version 2) */
-    await press(p, vp, '[data-test=release-note-back]')
-    await until(p, () => Boolean(document.querySelector('[data-test=release-notes-filter]')), null, 3000)
-    await p.type('[data-test=release-notes-filter]', mockSha(2).slice(0, 8))
-    const narrowed = await until(p, (sha) => {
-      const rows = [...document.querySelectorAll('[data-test=release-row]')]
-      return rows.length === 1 && rows[0].querySelector('[data-test=release-note-sha]')?.dataset.sha === sha
-    }, mockSha(2), 3000)
-    const missing = await p.evaluate(() => {
-      const row = document.querySelector('[data-test=release-row]')
-      return row ? { state: row.dataset.state, badge: row.querySelector('[data-test=release-row-badge]')?.textContent.trim() || '' } : null
-    })
-    ok(`${vp.name} 6 the filter narrows to one commit by sha prefix`, narrowed, missing)
-    ok(`${vp.name} 5c a state=missing row says it has no note`, missing?.state === 'missing' && missing.badge === 'no note', missing)
 
     /* 7 Escape closes it */
     await p.keyboard.press('Escape')
@@ -247,9 +251,9 @@ try {
     await p.goto(server.base + '/releases/v0.1.60', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const viaVer = await until(p, () => {
       const vers = [...document.querySelectorAll('[data-test=release-version]')]
-      return vers.length === 1 && vers[0].dataset.version === 'v0.1.60' && vers[0].querySelector('[data-test=release-version-head]')?.getAttribute('aria-expanded') === 'true'
+      return vers.length === 1 && vers[0].dataset.version === 'v0.1.60' && vers[0].querySelectorAll('[data-test=release-row]').length === 2
     }, null, 15000)
-    ok(`${vp.name} 8b /releases/v<X.Y.Z> opens that version, expanded`, viaVer)
+    ok(`${vp.name} 8b /releases/v<X.Y.Z> opens that version with its changes`, viaVer)
     await p.goto(server.base + '/releases/not-a-ref', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const bad = await until(p, () => /Not a commit or a version/.test(document.querySelector('[data-test=release-notes-message]')?.textContent || ''), null, 15000)
     ok(`${vp.name} 8c a ref that is neither says so`, bad)

@@ -1796,7 +1796,12 @@
     "off": "This workspace keeps no release notes yet.",
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
-    "bad_ref": "Not a commit or a version: {ref}"
+    "bad_ref": "Not a commit or a version: {ref}",
+    "col_seq": "#",
+    "col_version": "Версия",
+    "col_commit": "Комит",
+    "col_title": "Промяна",
+    "latest": "Последните {n} промени, най-новите първи"
   },
   "link_preview": {
     "topic": "Тема",

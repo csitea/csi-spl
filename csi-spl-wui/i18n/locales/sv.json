@@ -1796,7 +1796,12 @@
     "off": "This workspace keeps no release notes yet.",
     "error": "Could not load the release notes.",
     "not_found": "No release note for {ref} yet: it may not be deployed yet.",
-    "bad_ref": "Not a commit or a version: {ref}"
+    "bad_ref": "Not a commit or a version: {ref}",
+    "col_seq": "#",
+    "col_version": "Version",
+    "col_commit": "Commit",
+    "col_title": "Ändring",
+    "latest": "De {n} senaste ändringarna, nyaste först"
   },
   "link_preview": {
     "topic": "Ämne",

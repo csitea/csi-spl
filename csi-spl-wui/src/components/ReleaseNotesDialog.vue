@@ -3,16 +3,20 @@
      (desktop footer, ChannelSidebar; phone strip, MobileStatusStrip) and the
      stable link /releases/<ref> (pages/releases/[ref].vue).
 
-     It lists every version newest first, 50 per page (the hub's page size,
-     spec 7.1 item 4), older ones fetched when the list is scrolled to its
-     end. The running version is open and marked "you are here". Each version
-     shows its commits (short sha, subject, kind, area); a click on a sha
-     shows that commit's note: the plain-words What / How / Why first, the
-     technical three below, the full sha with a copy button and the link.
+     One table, already expanded (owner, t1 55b6de46): the 30 latest changes,
+     newest first, columns # / version / short sha / title. # is the hub's
+     rolling `seq`, 1 = the oldest change of all, so the newest row shows n
+     and a row keeps its number across loads. A version is a level-2 row
+     inside the table carrying only the version ("you are here" on the
+     running one), above the changes released under it. The title links to
+     /releases/<sha>; a plain click shows that note in place: the plain-words
+     What / How / Why first, the technical three below, the full sha with a
+     copy button and the link.
 
      Reads (spec 065 L4, every signed-in member, Q11):
-       GET /v1/release-notes?before=<version>&limit=50
-           -> { off?, versions: [{ version, display, notes: [note] }], next_before }
+       GET /v1/release-notes?limit=30
+           -> { off?, versions: [{ version, display, notes: [note + seq] }], next_before }
+           (30 versions carry at least 30 changes; the newest 30 are shown)
        GET /v1/release-notes/<sha | 7+ prefix>  -> { note }
        GET /v1/release-notes/v<X.Y.Z>[-c<N>]    -> { version, display, notes }
      A version is keyed by its release key, the full tag (after 9.9.9 the
@@ -78,54 +82,49 @@
         </article>
       </template>
       <template v-else>
-        <input
-          v-model="filter"
-          type="search"
-          class="rn__filter"
-          data-test="release-notes-filter"
-          :placeholder="t('release_notes.filter')"
-          :aria-label="t('release_notes.filter')"
-        >
+        <p class="rn__lead muted" data-test="release-notes-lead">{{ t('release_notes.latest', { n: LATEST }) }}</p>
         <p v-if="message" class="muted" role="status" data-test="release-notes-message">{{ message }}</p>
         <p v-else-if="loading && !versions.length" class="muted">{{ t('common.loading') }}</p>
         <p v-else-if="!versions.length" class="muted" data-test="release-notes-empty">{{ t('release_notes.empty') }}</p>
-        <p v-else-if="!shown.length" class="muted" data-test="release-notes-no-match">{{ t('release_notes.no_match') }}</p>
-        <section
-          v-for="v in shown"
-          :key="v.version || '-'"
-          class="rn-ver"
-          data-test="release-version"
-          :data-version="v.version"
-          :data-current="v.version === currentKey ? 'true' : undefined"
-        >
-          <button
-            type="button"
-            class="rn-ver__head"
-            data-test="release-version-head"
-            :aria-expanded="isOpen(v)"
-            @click="toggle(v)"
+        <table v-else class="rn-table" data-test="release-table">
+          <thead>
+            <tr>
+              <th scope="col" class="rn-table__seq">{{ t('release_notes.col_seq') }}</th>
+              <th scope="col" class="rn-table__ver">{{ t('release_notes.col_version') }}</th>
+              <th scope="col" class="rn-table__sha">{{ t('release_notes.col_commit') }}</th>
+              <th scope="col">{{ t('release_notes.col_title') }}</th>
+            </tr>
+          </thead>
+          <tbody
+            v-for="v in latest"
+            :key="v.version || '-'"
+            data-test="release-version"
+            :data-version="v.version"
+            :data-current="v.version === currentKey ? 'true' : undefined"
           >
-            <UiIcon :name="isOpen(v) ? 'chevron-up' : 'chevron-down'" :size="16" />
-            <span class="rn-ver__name">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
-            <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
-            <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
-            <span class="rn-ver__n muted">{{ v.notes.length }}</span>
-          </button>
-          <ul v-if="isOpen(v)" class="rn-ver__rows">
-            <li v-for="n in v.notes" :key="n.sha" class="rn-row" data-test="release-row" :data-state="n.state">
-              <button type="button" class="rn-row__sha" data-test="release-note-sha" :data-sha="n.sha" @click="openNote(n)">
-                <code dir="ltr">{{ shortSha(n.sha) }}</code>
-              </button>
-              <span class="rn-row__subject">{{ n.subject }}</span>
-              <span v-if="n.kind" class="rn-row__tag">{{ n.kind }}</span>
-              <span v-if="n.area" class="rn-row__tag">{{ n.area }}</span>
-              <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
-            </li>
-          </ul>
-        </section>
-        <div v-if="nextBefore" ref="moreEl" class="rn__more">
-          <button type="button" class="rn__linkbtn" data-test="release-notes-more" :disabled="loading" @click="loadMore">{{ t('release_notes.load_older') }}</button>
-        </div>
+            <tr class="rn-ver" data-test="release-version-head">
+              <th colspan="4" scope="rowgroup" class="rn-ver__head">
+                <span class="rn-ver__name" role="heading" aria-level="2">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
+                <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
+                <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
+              </th>
+            </tr>
+            <tr v-for="n in v.notes" :key="n.sha" class="rn-row" data-test="release-row" :data-state="n.state" :data-seq="n.seq || undefined">
+              <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
+              <td class="rn-table__ver">{{ shownVersion(v) }}</td>
+              <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
+              <td class="rn-row__title">
+                <a
+                  :href="localePath('/releases/' + n.sha)"
+                  data-test="release-row-title"
+                  :data-sha="n.sha"
+                  @click="onTitle($event, n)"
+                >{{ n.subject || shortSha(n.sha) }}</a>
+                <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </template>
     </div>
   </UiDialog>
@@ -152,7 +151,9 @@ interface ReleaseNote {
   state: string
   reverts?: string
   link?: string
-  [k: string]: string | undefined
+  /** the rolling #, 1 = the oldest change (the hub's seq) */
+  seq?: number
+  [k: string]: string | number | undefined
 }
 interface ReleaseVersion { version: string, display?: string, notes: ReleaseNote[] }
 
@@ -170,7 +171,8 @@ const localePath = useLocalePath()
 const buildWatch = useBuildWatch()
 const { copied, copy } = useCopyText()
 
-const PAGE = 50
+/* the changes shown; one page of this many versions carries at least as many */
+const LATEST = 30
 const PARTS = ['what', 'how', 'why'] as const
 const SHA_RE = /^[0-9a-f]{7,40}$/
 const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$/
@@ -183,13 +185,9 @@ const shownVersion = (v: ReleaseVersion) => v.display || plainVersion(v.version)
 /* the running build's version is plain, so two cycles share it: the newest
    (first listed) release key carrying it is the one "you are here" marks */
 const currentKey = computed(() => versions.value.find((v) => plainVersion(v.version) === running.value)?.version || '')
-const nextBefore = ref('')
 const loading = ref(false)
 const message = ref('')
-const filter = ref('')
 const note = ref<ReleaseNote | null>(null)
-const opened = ref<Set<string>>(new Set())
-const moreEl = ref<HTMLElement | null>(null)
 
 function onOpen(v: boolean) { emit('update:open', v) }
 const shortSha = (s: string) => String(s || '').slice(0, 7)
@@ -212,36 +210,17 @@ function liveIn(v: ReleaseVersion) {
   return v.notes.some((n) => n.sha.startsWith(live) || live.startsWith(n.sha))
 }
 
-const isOpen = (v: ReleaseVersion) => opened.value.has(v.version)
-function toggle(v: ReleaseVersion) {
-  const s = new Set(opened.value)
-  if (s.has(v.version)) s.delete(v.version)
-  else s.add(v.version)
-  opened.value = s
-}
-
-/* the filter box: a version, a sha prefix, an area or words of the subject / note */
-const shown = computed(() => {
-  const q = filter.value.trim().toLowerCase()
-  if (!q) return versions.value
-  const words = q.split(/\s+/)
-  const hit = (n: ReleaseNote) => {
-    const hay = [n.kind, n.area, n.subject, n.lay_what, n.lay_how, n.lay_why, n.tech_what, n.tech_how, n.tech_why].join(' ').toLowerCase()
-    /* a sha matches by its prefix only, as the link does */
-    return words.every((w) => n.sha.startsWith(w) || hay.includes(w))
-  }
+/* the newest LATEST changes, still grouped under their versions */
+const latest = computed(() => {
   const out: ReleaseVersion[] = []
+  let left = LATEST
   for (const v of versions.value) {
-    if (v.version.toLowerCase().startsWith(q) || shownVersion(v).toLowerCase().startsWith(q)) { out.push(v); continue }
-    const notes = v.notes.filter(hit)
+    if (left <= 0) break
+    const notes = v.notes.slice(0, left)
+    left -= notes.length
     if (notes.length) out.push({ ...v, notes })
   }
   return out
-})
-/* a filtered version opens, so the match is in sight */
-watch(filter, (q) => {
-  if (!q.trim()) return
-  opened.value = new Set([...opened.value, ...shown.value.slice(0, 10).map((v) => v.version)])
 })
 
 async function hubGet(path: string): Promise<unknown> {
@@ -253,32 +232,28 @@ async function hubGet(path: string): Promise<unknown> {
   return r.json()
 }
 
-async function loadPage(before: string) {
+async function loadLatest() {
   if (loading.value) return
   loading.value = true
   try {
-    const q = new URLSearchParams({ limit: String(PAGE) })
-    if (before) q.set('before', before)
-    const body = await hubGet(`/v1/release-notes?${q}`) as { off?: boolean, versions?: ReleaseVersion[], next_before?: string }
+    const body = await hubGet(`/v1/release-notes?limit=${LATEST}`) as { off?: boolean, versions?: ReleaseVersion[] }
     if (body?.off) message.value = t('release_notes.off')
-    const have = new Set(versions.value.map((v) => v.version))
-    const add = (body?.versions || []).filter((v) => !have.has(v.version))
-    versions.value = [...versions.value, ...add]
-    nextBefore.value = String(body?.next_before || '')
-    if (!before && !opened.value.size) {
-      const first = versions.value.find((v) => v.version === currentKey.value) || versions.value[0]
-      if (first) opened.value = new Set([first.version])
-    }
+    versions.value = body?.versions || []
   } catch {
     message.value = t('release_notes.error')
   } finally {
     loading.value = false
   }
 }
-function loadMore() { if (nextBefore.value) void loadPage(nextBefore.value) }
 
 function openNote(n: ReleaseNote) { note.value = n }
 function showList() { note.value = null }
+/* a plain click shows the note in place; a modified one opens /releases/<sha> */
+function onTitle(e: MouseEvent, n: ReleaseNote) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  openNote(n)
+}
 
 /* the /releases/<ref> link: a sha (or 7+ prefix) opens its note, v<X.Y.Z> its version */
 async function openRef(raw: string) {
@@ -294,9 +269,7 @@ async function openRef(raw: string) {
       note.value = body.note
     } else if (body?.version) {
       const v = { version: body.version, display: body.display, notes: body.notes || [] }
-      versions.value = [v, ...versions.value.filter((x) => x.version !== v.version)]
-      opened.value = new Set([v.version])
-      filter.value = v.version
+      versions.value = [v]
     }
   } catch (e) {
     const status = (e as { status?: number }).status
@@ -304,20 +277,10 @@ async function openRef(raw: string) {
   }
 }
 
-/* older versions load when the end of the list scrolls into view */
-let io: IntersectionObserver | null = null
-watch(moreEl, (el) => {
-  io?.disconnect()
-  io = null
-  if (!el || typeof IntersectionObserver === 'undefined') return
-  io = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) loadMore() })
-  io.observe(el)
-})
-onBeforeUnmount(() => io?.disconnect())
-
 /* The mock tenant's release notes: 70 versions, two commits each, every
    state; the running version is the newest. Kept here so the dialog stays
    one file; it only runs on a mock build. */
+const MOCK_VERSIONS = 70
 const MOCK_STATES = ['ok', 'backfill', 'missing', 'ok', 'skip', 'revert']
 const MOCK_KINDS = ['feat', 'fix', 'perf', 'docs']
 const MOCK_AREAS = ['wui', 'hub', 'orc', 'iac']
@@ -339,12 +302,13 @@ function mockNote(j: number, version: string): ReleaseNote {
     tech_why: full ? 'The old path skipped the check.' : '',
     state,
     link: '',
+    seq: MOCK_VERSIONS * 2 - j,
   }
 }
 function mockVersions(top: string): ReleaseVersion[] {
   const out: ReleaseVersion[] = []
-  for (let i = 0; i < 70; i++) {
-    const version = i === 0 && VERSION_RE.test(top) ? top : `v0.1.${70 - i}`
+  for (let i = 0; i < MOCK_VERSIONS; i++) {
+    const version = i === 0 && VERSION_RE.test(top) ? top : `v0.1.${MOCK_VERSIONS - i}`
     out.push({ version, notes: [mockNote(i * 2, version), mockNote(i * 2 + 1, version)] })
   }
   return out
@@ -355,7 +319,7 @@ function mockReleaseNotes(path: string, top: string): unknown {
   const want = decodeURIComponent(u.pathname.replace(/^\/v1\/release-notes\/?/, ''))
   if (!want) {
     const before = u.searchParams.get('before') || ''
-    const limit = Number(u.searchParams.get('limit')) || PAGE
+    const limit = Number(u.searchParams.get('limit')) || LATEST
     const from = before ? rows.findIndex((v) => v.version === before) + 1 : 0
     const page = rows.slice(from, from + limit)
     return { versions: page, next_before: from + limit < rows.length ? page[page.length - 1]?.version || '' : '' }
@@ -376,7 +340,7 @@ let started = false
 async function start() {
   if (started) return
   started = true
-  await loadPage('')
+  await loadLatest()
   if (props.initialRef) await openRef(props.initialRef)
 }
 watch(() => props.open, (o) => { if (o) void start() }, { immediate: true })
@@ -390,24 +354,23 @@ watch(() => props.initialRef, (r, old) => {
 
 <style scoped>
 .rn { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
-.rn__filter { font: inherit; width: 100%; padding: 0.4rem 0.6rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-fg); }
+.rn__lead { margin: 0; }
 .rn__back, .rn__linkbtn { font: inherit; color: var(--color-accent); background: none; border: 0; padding: 0.25rem 0; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem; align-self: flex-start; }
 .rn__linkbtn { text-decoration: underline; }
 .rn__icon { font: inherit; color: var(--color-muted); background: none; border: 0; padding: 0.25rem; cursor: pointer; display: inline-flex; }
-.rn__more { padding: 0.5rem 0; }
-.rn-ver { border-bottom: 1px solid var(--color-border); }
-.rn-ver__head { font: inherit; color: var(--color-fg); width: 100%; background: none; border: 0; padding: 0.5rem 0.25rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; text-align: start; }
-.rn-ver__head:hover { background: var(--color-surface-hover); }
-.rn-ver__name { font-weight: 600; }
-.rn-ver__here, .rn-ver__newer { font-size: 0.8125rem; padding: 0 0.4rem; border-radius: var(--radius-pill); border: 1px solid currentColor; }
+.rn-table { width: 100%; border-collapse: collapse; }
+.rn-table th, .rn-table td { padding: 0.25rem 0.4rem; text-align: start; vertical-align: baseline; }
+.rn-table thead th { font-size: 0.8125rem; color: var(--color-muted); font-weight: 600; border-bottom: 1px solid var(--color-border); }
+.rn-table__seq, .rn-table__ver, .rn-table__sha { white-space: nowrap; }
+.rn-table td.rn-table__seq { color: var(--color-muted); font-variant-numeric: tabular-nums; text-align: end; }
+.rn-table .rn-ver__head { padding-top: 0.75rem; border-bottom: 1px solid var(--color-border); }
+.rn-ver__name { font-weight: 600; margin-inline-end: 0.5rem; }
+.rn-ver__here, .rn-ver__newer { font-size: 0.8125rem; font-weight: 400; padding: 0 0.4rem; border-radius: var(--radius-pill); border: 1px solid currentColor; }
 .rn-ver__here { color: var(--color-ok); }
 .rn-ver__newer { color: var(--color-warn); }
-.rn-ver__n { margin-inline-start: auto; font-size: 0.8125rem; }
-.rn-ver__rows { list-style: none; margin: 0; padding: 0 0 0.5rem 1.5rem; }
-.rn-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; padding: 0.2rem 0; min-width: 0; }
-.rn-row__sha { font: inherit; color: var(--color-accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
-.rn-row__subject { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
-.rn-row__tag { font-size: 0.8125rem; color: var(--color-muted); }
+.rn-row__title { overflow-wrap: anywhere; min-width: 0; }
+.rn-row__title a { color: var(--color-accent); }
+.rn-row__badge { margin-inline-start: 0.4rem; }
 .rn-row__badge, .rn-note__state { font-size: 0.8125rem; color: var(--color-muted); font-style: italic; }
 .rn-row__badge.is-missing, .rn-note__state.is-missing { color: var(--color-warn); font-style: normal; }
 .rn-note { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
@@ -422,6 +385,7 @@ watch(() => props.initialRef, (r, old) => {
 .rn-note__sha code { overflow-wrap: anywhere; }
 .rn-note__links { margin: 0; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
 @media (pointer: coarse) {
-  .rn-row__sha, .rn__linkbtn, .rn__back, .rn__icon { min-height: 44px; }
+  .rn__linkbtn, .rn__back, .rn__icon { min-height: 44px; }
+  .rn-row td { padding-block: 0.6rem; }
 }
 </style>

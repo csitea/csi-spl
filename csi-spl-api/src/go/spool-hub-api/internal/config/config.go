@@ -371,6 +371,9 @@ type Hub struct {
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`
+	// DemoAgentTurns caps a demo_user's agent turns (fan-outs and @agent
+	// sends) per visit (specs/077 3.7); the next is refused 429 demo_quota.
+	DemoAgentTurns int `env:"SPOOL_HUB_DEMO_AGENT_TURNS" envDefault:"20"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -587,6 +590,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.DemoMaxLive < 1 {
 		return fmt.Errorf("SPOOL_HUB_DEMO_MAX_LIVE %d must be at least 1", h.DemoMaxLive)
+	}
+	if h.DemoAgentTurns < 1 {
+		return fmt.Errorf("SPOOL_HUB_DEMO_AGENT_TURNS %d must be at least 1", h.DemoAgentTurns)
 	}
 	for _, p := range h.DemoProviders {
 		if p != "google" && p != "facebook" {

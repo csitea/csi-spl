@@ -571,6 +571,9 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	if rf == nil {
 		rf = frameRefusalOf(s.admit(ctx, c.tenant, c.member, m))
 	}
+	if rf == nil && (rt.signing.agent != "" || rt.signing.fanOut) { // specs/077 T013, before any delivery is built
+		rf = frameRefusalOf(s.demoAgentTurn(ctx, c.tenant, c.member, m.MsgID))
+	}
 	if rf != nil {
 		fail(rf)
 		return

@@ -184,6 +184,9 @@ type Options struct {
 	// demo.go); "" = the demo is off (SPOOL_HUB_DEMO_ENABLED false, the
 	// default): a demo_user membership grants nothing and GET /v1/demo is 404.
 	DemoWorkspace string
+	// DemoAgentTurns caps a demo_user's agent turns per visit (specs/077
+	// 3.7, demo_quota.go); <= 0 = DefaultDemoAgentTurns.
+	DemoAgentTurns int
 }
 
 // Server is one hub process.

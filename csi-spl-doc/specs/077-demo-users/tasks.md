@@ -93,8 +93,14 @@ Rules for every task (owner Q8, spec §3.10):
   avatars, no email in any response to a `demo_user`.
 - [ ] T012 **post quota and size** (FR-006): 10 posts/min, 200/day per demo
   user; 4 KiB message cap for `demo_user`.
-- [ ] T013 **agent-turn quota** (§3.7): the 21st agent turn of a visit answers
-  `429 demo_quota` before any box delivery is built.
+- [x] T013 **agent-turn quota** (§3.7): the 21st agent turn of a visit answers
+  `429 demo_quota` before any box delivery is built. Done (c-298): hub
+  `demo_quota.go` counts a demo_user's fan-outs and @agent sends per visit
+  (window = the membership's created_at) in rdb 0127 `quota_counts`, limit
+  `SPOOL_HUB_DEMO_AGENT_TURNS` (default 20); T012 reuses `takeDemoQuota`.
+  Tests: `TestDemoAgentTurnQuota` (CONTROL limit 21),
+  `TestDemoAgentTurnQuotaOthersUnaffected`, store `TestQuotaCounter`
+  (CONTROL: 30 racing takes on 20 take 20).
 - [ ] T014 **DMs to demo agents only** (§3.2): a `demo_user` DM to a human is
   refused in the hub.
 - [ ] T015 **exfiltration control** (§3.8): a `demo_user` session reads zero

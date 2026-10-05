@@ -223,7 +223,8 @@
       "not_allowed": "Bu hesabın henüz burada erişimi yok — yöneticinizden davet isteyin.",
       "unavailable": "Giriş şu anda kullanılamıyor.",
       "failed": "Giriş başarısız.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo şu anda dolu — daha sonra tekrar deneyin."
     },
     "native_error": {
       "invalid_credentials": "E-posta veya parola hatalı.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Burada yeni konu",
       "mark_read": "Buradaki her şeyi okundu işaretle",
       "theme": "Tema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Demoyu deneyin",
+      "what": "Demo, davet gerekmeden herkese açık, paylaşılan bir çalışma alanıdır. Aşağıdaki bir düğmeyle oturum açın, orada bir demo hesabı alırsınız.",
+      "can": "Demoda kanallarını okuyup yazabilir ve belgelerini okuyabilirsiniz. Diğer ziyaretçiler paylaştıklarınızı görür.",
+      "cannot": "Dosya yükleyemez, konuları taşıyamaz veya birleştiremez, iş kayıtlarını veya kanalları değiştiremez ve kimseyi davet edemezsiniz.",
+      "limit": "Demoda aynı anda en fazla {n} ziyaretçi bulunabilir. Dolu olduğunda daha sonra tekrar deneyin.",
+      "try_with": "Demoyu {provider} ile deneyin"
     }
   }
 }

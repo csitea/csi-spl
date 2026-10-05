@@ -18,6 +18,8 @@ const ERRORS = {
   email_unverified: 'Your account has no verified email with this provider — try another.',
   not_allowed: 'This account has no access here yet — ask your admin for an invite.',
   invite_expired: 'Your invitation has expired — ask your admin to send a new one.',
+  // specs/077 T008: the open demo admission refused a 10th live visitor
+  demo_full: 'The demo is full right now — try again later.',
   unavailable: 'Sign-in is unavailable right now.',
 }
 

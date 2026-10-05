@@ -223,7 +223,8 @@
       "not_allowed": "This account has no access here yet — ask your admin for an invite.",
       "unavailable": "Sign-in is unavailable right now.",
       "failed": "Sign-in failed.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "The demo is full right now — try again later."
     },
     "native_error": {
       "invalid_credentials": "Email or password is wrong.",
@@ -1848,6 +1849,16 @@
       "new_topic": "New topic here",
       "mark_read": "Mark all read here",
       "theme": "Theme: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Try the demo",
+      "what": "The demo is a shared workspace open to anyone, no invite needed. Sign in with a button below and you get a demo account there.",
+      "can": "In the demo you can read and post in its channels and read its docs. The other visitors see what you post.",
+      "cannot": "You cannot upload files, move or merge topics, change issues or channels, or invite people.",
+      "limit": "At most {n} visitors can be in the demo at a time. When it is full, try again later.",
+      "try_with": "Try the demo with {provider}"
     }
   }
 }

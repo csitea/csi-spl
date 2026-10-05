@@ -223,7 +223,8 @@
       "not_allowed": "Šim kontam šeit vēl nav piekļuves — palūdziet savam administratoram uzaicinājumu.",
       "unavailable": "Pieteikšanās pašlaik nav pieejama.",
       "failed": "Pieteikšanās neizdevās.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo pašlaik ir pilns — mēģiniet vēlāk vēlreiz."
     },
     "native_error": {
       "invalid_credentials": "Nepareizs e-pasts vai parole.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Jauna tēma šeit",
       "mark_read": "Atzīmēt visu kā izlasītu šeit",
       "theme": "Motīvs: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Izmēģiniet demo",
+      "what": "Demo ir koplietota darbvieta, kas atvērta ikvienam, uzaicinājums nav vajadzīgs. Pierakstieties ar pogu zemāk, un jūs tur saņemsiet demo kontu.",
+      "can": "Demo varat lasīt un publicēt tā kanālos un lasīt tā dokumentāciju. Citi apmeklētāji redz, ko jūs publicējat.",
+      "cannot": "Jūs nevarat augšupielādēt failus, pārvietot vai apvienot tēmas, mainīt uzdevumus vai kanālus, ne arī uzaicināt cilvēkus.",
+      "limit": "Demo vienlaikus var būt ne vairāk kā {n} apmeklētāji. Kad tas ir pilns, mēģiniet vēlāk vēlreiz.",
+      "try_with": "Izmēģiniet demo ar {provider}"
     }
   }
 }

@@ -223,7 +223,8 @@
       "not_allowed": "To konto nie ma tu jeszcze dostępu — poproś swojego administratora o zaproszenie.",
       "unavailable": "Logowanie jest teraz niedostępne.",
       "failed": "Logowanie nie powiodło się.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo jest teraz pełne — spróbuj ponownie później."
     },
     "native_error": {
       "invalid_credentials": "Nieprawidłowy e-mail lub hasło.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Nowy temat tutaj",
       "mark_read": "Oznacz wszystko tutaj jako przeczytane",
       "theme": "Motyw: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Wypróbuj demo",
+      "what": "Demo to wspólna przestrzeń robocza otwarta dla każdego, bez zaproszenia. Zaloguj się jednym z przycisków poniżej, a dostaniesz tam konto demo.",
+      "can": "W demo możesz czytać i pisać na jego kanałach oraz czytać jego dokumentację. Inni odwiedzający widzą, co publikujesz.",
+      "cannot": "Nie możesz przesyłać plików, przenosić ani scalać wątków, zmieniać zgłoszeń ani kanałów, ani zapraszać osób.",
+      "limit": "W demo może być jednocześnie najwyżej {n} odwiedzających. Gdy jest pełne, spróbuj ponownie później.",
+      "try_with": "Wypróbuj demo przez {provider}"
     }
   }
 }

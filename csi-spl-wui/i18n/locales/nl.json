@@ -223,7 +223,8 @@
       "not_allowed": "Dit account heeft hier nog geen toegang — vraag je beheerder om een uitnodiging.",
       "unavailable": "Inloggen is op dit moment niet beschikbaar.",
       "failed": "Inloggen mislukt.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "De demo is nu vol — probeer het later opnieuw."
     },
     "native_error": {
       "invalid_credentials": "E-mailadres of wachtwoord is onjuist.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Nieuw onderwerp hier",
       "mark_read": "Alles hier als gelezen markeren",
       "theme": "Thema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Probeer de demo",
+      "what": "De demo is een gedeelde werkruimte die voor iedereen openstaat, zonder uitnodiging. Meld je aan met een knop hieronder en je krijgt daar een demo-account.",
+      "can": "In de demo kun je lezen en berichten plaatsen in de kanalen en de documentatie lezen. Andere bezoekers zien wat je plaatst.",
+      "cannot": "Je kunt geen bestanden uploaden, onderwerpen verplaatsen of samenvoegen, issues of kanalen wijzigen of mensen uitnodigen.",
+      "limit": "Er kunnen maximaal {n} bezoekers tegelijk in de demo zijn. Is hij vol, probeer het dan later opnieuw.",
+      "try_with": "Probeer de demo met {provider}"
     }
   }
 }

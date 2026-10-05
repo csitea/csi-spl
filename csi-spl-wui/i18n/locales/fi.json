@@ -223,7 +223,8 @@
       "not_allowed": "Tällä tilillä ei ole vielä pääsyä tänne — pyydä kutsu ylläpitäjältäsi.",
       "unavailable": "Kirjautuminen ei ole juuri nyt käytettävissä.",
       "failed": "Kirjautuminen epäonnistui.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo on juuri nyt täynnä — yritä myöhemmin uudelleen."
     },
     "native_error": {
       "invalid_credentials": "Sähköposti tai salasana on väärin.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Uusi aihe tähän",
       "mark_read": "Merkitse kaikki luetuiksi täällä",
       "theme": "Teema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Kokeile demoa",
+      "what": "Demo on kaikille avoin jaettu työtila, kutsua ei tarvita. Kirjaudu alla olevalla painikkeella, niin saat sinne demotilin.",
+      "can": "Demossa voit lukea ja kirjoittaa sen kanaville sekä lukea sen dokumentaatiota. Muut vierailijat näkevät, mitä kirjoitat.",
+      "cannot": "Et voi ladata tiedostoja, siirtää tai yhdistää aiheita, muuttaa tehtäviä tai kanavia etkä kutsua ihmisiä.",
+      "limit": "Demossa voi olla enintään {n} vierailijaa kerrallaan. Kun se on täynnä, yritä myöhemmin uudelleen.",
+      "try_with": "Kokeile demoa: {provider}"
     }
   }
 }

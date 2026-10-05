@@ -223,7 +223,8 @@
       "not_allowed": "Det här kontot har ingen åtkomst här ännu — be din administratör om en inbjudan.",
       "unavailable": "Inloggning är inte tillgänglig just nu.",
       "failed": "Inloggningen misslyckades.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demot är fullt just nu — försök igen senare."
     },
     "native_error": {
       "invalid_credentials": "Fel e-postadress eller lösenord.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Nytt ämne här",
       "mark_read": "Markera allt här som läst",
       "theme": "Tema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Prova demot",
+      "what": "Demot är en delad arbetsyta som är öppen för alla, ingen inbjudan behövs. Logga in med en knapp nedan så får du ett demokonto där.",
+      "can": "I demot kan du läsa och skriva i dess kanaler och läsa dess dokumentation. Andra besökare ser vad du skriver.",
+      "cannot": "Du kan inte ladda upp filer, flytta eller slå ihop ämnen, ändra ärenden eller kanaler eller bjuda in personer.",
+      "limit": "Högst {n} besökare kan vara i demot samtidigt. När det är fullt, försök igen senare.",
+      "try_with": "Prova demot med {provider}"
     }
   }
 }

@@ -223,7 +223,8 @@
       "not_allowed": "Acest cont nu are încă acces aici — cereți o invitație administratorului dvs.",
       "unavailable": "Autentificarea nu este disponibilă momentan.",
       "failed": "Autentificarea a eșuat.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo-ul este plin acum — încearcă din nou mai târziu."
     },
     "native_error": {
       "invalid_credentials": "E-mailul sau parola sunt greșite.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Subiect nou aici",
       "mark_read": "Marchează totul ca citit aici",
       "theme": "Temă: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Încearcă demo-ul",
+      "what": "Demo-ul este un spațiu de lucru comun, deschis oricui, fără invitație. Conectează-te cu un buton de mai jos și primești acolo un cont demo.",
+      "can": "În demo poți citi și posta în canalele lui și îi poți citi documentația. Ceilalți vizitatori văd ce postezi.",
+      "cannot": "Nu poți încărca fișiere, muta sau uni subiecte, modifica sarcini sau canale și nici invita persoane.",
+      "limit": "Cel mult {n} vizitatori pot fi în demo în același timp. Când este plin, încearcă din nou mai târziu.",
+      "try_with": "Încearcă demo-ul cu {provider}"
     }
   }
 }

@@ -223,7 +223,8 @@
       "not_allowed": "Esta cuenta aún no tiene acceso aquí — pide una invitación a tu administrador.",
       "unavailable": "El inicio de sesión no está disponible ahora mismo.",
       "failed": "No se pudo iniciar sesión.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "La demo está llena ahora mismo — inténtalo más tarde."
     },
     "native_error": {
       "invalid_credentials": "El correo o la contraseña no son correctos.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Nuevo tema aquí",
       "mark_read": "Marcar todo como leído aquí",
       "theme": "Tema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Prueba la demo",
+      "what": "La demo es un espacio de trabajo compartido abierto a cualquiera, sin invitación. Inicia sesión con un botón de abajo y obtendrás allí una cuenta de demo.",
+      "can": "En la demo puedes leer y publicar en sus canales y leer su documentación. Los demás visitantes ven lo que publicas.",
+      "cannot": "No puedes subir archivos, mover ni fusionar temas, cambiar incidencias ni canales, ni invitar a personas.",
+      "limit": "Como máximo {n} visitantes pueden estar en la demo a la vez. Cuando esté llena, inténtalo más tarde.",
+      "try_with": "Prueba la demo con {provider}"
     }
   }
 }

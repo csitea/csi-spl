@@ -223,7 +223,8 @@
       "not_allowed": "Ši paskyra čia dar neturi prieigos — paprašykite savo administratoriaus pakvietimo.",
       "unavailable": "Prisijungimas šiuo metu neprieinamas.",
       "failed": "Prisijungti nepavyko.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demonstracija šiuo metu pilna — bandykite vėliau."
     },
     "native_error": {
       "invalid_credentials": "Neteisingas el. paštas arba slaptažodis.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Nauja tema čia",
       "mark_read": "Pažymėti viską kaip perskaitytą čia",
       "theme": "Tema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Išbandykite demonstraciją",
+      "what": "Demonstracija yra bendra darbo erdvė, atvira visiems, kvietimo nereikia. Prisijunkite mygtuku žemiau ir gausite ten demonstracinę paskyrą.",
+      "can": "Demonstracijoje galite skaityti ir rašyti jos kanaluose bei skaityti jos dokumentaciją. Kiti lankytojai mato, ką paskelbiate.",
+      "cannot": "Negalite įkelti failų, perkelti ar sujungti temų, keisti užduočių ar kanalų, ar kviesti žmonių.",
+      "limit": "Demonstracijoje vienu metu gali būti ne daugiau kaip {n} lankytojų. Kai ji pilna, bandykite vėliau.",
+      "try_with": "Išbandykite demonstraciją su {provider}"
     }
   }
 }

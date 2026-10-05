@@ -223,7 +223,8 @@
       "not_allowed": "Sellel kontol pole siin veel ligipääsu — küsi oma administraatorilt kutset.",
       "unavailable": "Sisselogimine pole praegu saadaval.",
       "failed": "Sisselogimine ebaõnnestus.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo on praegu täis — proovi hiljem uuesti."
     },
     "native_error": {
       "invalid_credentials": "E-post või parool on vale.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Uus teema siia",
       "mark_read": "Märgi siin kõik loetuks",
       "theme": "Teema: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Proovi demot",
+      "what": "Demo on kõigile avatud ühine tööruum, kutset pole vaja. Logi sisse allpool oleva nupuga ja saad seal demokonto.",
+      "can": "Demos saad lugeda ja postitada selle kanalites ning lugeda selle dokumente. Teised külastajad näevad, mida postitad.",
+      "cannot": "Sa ei saa faile üles laadida, teemasid teisaldada ega ühendada, probleeme ega kanaleid muuta ega inimesi kutsuda.",
+      "limit": "Demos võib korraga olla kuni {n} külastajat. Kui see on täis, proovi hiljem uuesti.",
+      "try_with": "Proovi demot teenusega {provider}"
     }
   }
 }

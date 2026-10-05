@@ -2,6 +2,9 @@
   <div class="login-card login-landing-card">
     <h1>{{ t('auth.login.where_humans_meet') }}</h1>
     <p v-if="error" class="login-error" role="alert">{{ error }}</p>
+    <!-- specs/077 T020: the demo intro, only while GET /v1/demo answers 200;
+         Lazy: its own chunk, fetched only then -->
+    <LazyDemoIntro v-if="demo && session.state !== 'in'" :workspace="demo.workspace" :max-live="demo.maxLive" :redirect="redirect" />
     <!-- SPL-1231: arriving from an invite, say which address was invited and
          which sign-in owns it, so the invitee does not bounce between providers. -->
     <div v-if="invited && session.state !== 'in'" class="login-invite-hint" role="note" data-test="login-invite-hint">
@@ -36,6 +39,7 @@ import { hostTenant, useSpoolApi } from '~/composables/useSpoolApi'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthCopy } from '~/composables/useAuthCopy'
 import { takeEarlyLoginFlag } from '~/utils/signed-out-hint.mjs'
+import { loadDemo } from '~/utils/demo-info.mjs'
 
 definePageMeta({ layout: 'login' })
 
@@ -83,7 +87,15 @@ watch(authError.value, (code) => {
   void router.replace({ query: rest })
 }, { immediate: true })
 
-onMounted(() => { void session.probe() })
+/* specs/077 T020: the demo and its live limits; null (flag off, 404) = no
+   intro. The mock tenant has no hub: it asks its own origin, which never
+   answers a demo (e2e answers it in the browser). */
+const demo = ref<{ workspace: string, maxLive: number } | null>(null)
+onMounted(() => {
+  void session.probe()
+  const api = useSpoolApi()
+  void loadDemo(api.mock ? '' : api.base).then((d) => { demo.value = d })
+})
 
 /* P3-02: the document-head script sent this tab here on this browser's
    "signed out" hint. A hint can be stale (signed in where the WUI did not

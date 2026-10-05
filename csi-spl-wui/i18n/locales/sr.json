@@ -223,7 +223,8 @@
       "not_allowed": "Ovaj nalog još nema pristup ovde — zatražite pozivnicu od svog administratora.",
       "unavailable": "Prijava trenutno nije dostupna.",
       "failed": "Prijava nije uspela.",
-      "invite_expired": "Your invitation has expired — ask your admin to send a new one."
+      "invite_expired": "Your invitation has expired — ask your admin to send a new one.",
+      "demo_full": "Demo je trenutno pun — pokušajte ponovo kasnije."
     },
     "native_error": {
       "invalid_credentials": "Imejl ili lozinka nisu ispravni.",
@@ -1848,6 +1849,16 @@
       "new_topic": "Нова тема овде",
       "mark_read": "Означи све овде као прочитано",
       "theme": "Тема: {theme}"
+    }
+  },
+  "demo": {
+    "intro": {
+      "title": "Isprobajte demo",
+      "what": "Demo je zajednički radni prostor otvoren za svakoga, bez pozivnice. Prijavite se dugmetom ispod i tamo ćete dobiti demo nalog.",
+      "can": "U demu možete da čitate i objavljujete u njegovim kanalima i da čitate njegovu dokumentaciju. Ostali posetioci vide šta objavljujete.",
+      "cannot": "Ne možete da otpremate datoteke, premeštate ili spajate teme, menjate zadatke ili kanale, niti da pozivate ljude.",
+      "limit": "U demu istovremeno može biti najviše {n} posetilaca. Kada je pun, pokušajte ponovo kasnije.",
+      "try_with": "Isprobajte demo preko {provider}"
     }
   }
 }

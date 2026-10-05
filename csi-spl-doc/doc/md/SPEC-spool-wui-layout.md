@@ -68,8 +68,14 @@ focusable `role="separator"` resizers (`PaneDivider.vue`):
   `--thread-w: 380px`);
 - clamp so the middle feed stays at least 360px (the main pane never
   collapses) and each side pane stays in 180–420 / 280–560;
-- chosen widths persist per browser in `localStorage` `spool.pane-widths`
-  (JSON `{sidebar, thread}`, try/catch; defaults when storage is denied);
+- ~~chosen widths persist per browser in `localStorage` `spool.pane-widths`
+  (JSON `{sidebar, thread}`, try/catch; defaults when storage is denied);~~
+  **Replaced by [spec 078](../../specs/078-desktop-wide-thread-layout/spec.md)
+  §3.3, §3.4:** the topic pane defaults to 40 % of the space right of the
+  sidebar (not 380px), and widths are stored per view (`channel`, `issues`,
+  `help`, `docs`, `default`) in `spool.pane-widths` and the account
+  `pane_sizes`; an old flat value reads as `default`. The 380px / 280–560 and
+  `--thread-w` figures in this section are stale for the topic pane;
 - no divider where a pane is hidden: sidebar rail at `max-width: 800px`,
   thread overlay at `max-width: 1100px`, and no thread divider when the
   thread pane is closed.

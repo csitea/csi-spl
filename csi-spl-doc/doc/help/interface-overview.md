@@ -25,9 +25,30 @@ The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vert
 | • Connection Health Dot  |                                                  |                               |
 | • Notification Center    | --- SCROLL DOWN FOR OLDER HISTORY -------------- |                               |
 +--------------------------+--------------------------------------------------+-------------------------------+
-| Resizable: from 180px    | Flexible width: min 360px (collapsible too)      | Resizable: from 280px         |
+| Resizable: from 180px    | Flexible width: min 360px (collapsible too)      | Resizable: from 280px,        |
+|                          |                                                  | opens at 40% of the space     |
+|                          |                                                  | right of Pane 1               |
 +--------------------------+--------------------------------------------------+-------------------------------+
 ```
+
+How the three panes share a wide screen:
+
+- **The thread gets the width.** The right pane opens at **40 %** of the space
+  to the right of the left pane: about 470 px on a 1440 px wide screen, about
+  660 px at 1920 px. It never gets narrower than 280 px, never wider than
+  about two-thirds of that space, and it always leaves the middle feed at least
+  360 px. A width you drag wins over this default (see
+  [§6](#6-draggable-pane-dividers)).
+- **The right pane belongs to what you are doing.** Opening another section
+  (Topics, Issues, Events, Archive, People, Agents, Boxes, Help, Docs,
+  Workspace settings, or a search) closes it. Moving from one channel to
+  another, or to a direct message, does not (see [§5](#5-pane-3-right-thread-context)).
+- **Lines stay readable.** A message card is at most about 100 characters
+  wide, so on a wide screen a line does not run across the whole pane; the
+  card's buttons sit at the end of the card. Code blocks wrap inside it.
+- **Topics.** On the Topics page (`/`) the middle pane is the list of every
+  topic and a topic opens in the right pane. The address `/t/<topic>` is two
+  panes: the list on the left and that topic in the wide pane beside it.
 
 ---
 
@@ -117,10 +138,12 @@ The Middle Pane is where active conversations take place:
 
 When you click on a message or its **Replies** button in the Middle Pane, the Right Pane opens:
 
-- **Header**: Displays the topic's title (derived from the opening message) and a close button (`✕`).
+- **Width**: The pane opens at 40 % of the space right of the left pane (about 470 px at 1440 px, 660 px at 1920 px), or at the width you last dragged it to in this view. See [§6](#6-draggable-pane-dividers).
+- **Header**: Displays the topic's title (derived from the opening message) and a close button (`✕`). On a wide screen a long title wraps onto up to four lines instead of being cut off; the close button and the card controls stay on the first row. On a phone the title keeps one line.
 - **Pinned Root Card**: The Level 1 message that started this topic remains pinned at the top for constant context.
 - **Live Thread Replies**: Displays all Level 2 replies in reverse-prepend order, complete with avatars, relative age timestamps (e.g. `sent 2m ago`), syntax-highlighted code, and attachments.
 - **Closing the Pane**: Clicking the close button (`✕`) collapses Pane 3 and expands the Middle Pane to fill the remaining space. On a phone the browser Back (or a right swipe) closes it.
+- **Changing section closes it**: On a wide screen, opening another section from the rail or a link (Topics, Issues, Events, Archive, People, Agents, Boxes, Help, Docs, Workspace settings) or running a search closes the right pane, whatever it holds: a topic, a channel's topic, or the operator console. Its rail button opens the console again. Moving between channels and direct messages keeps the pane, and the browser **Back** never closes it. Opening a topic link (`/?topic=<id>`) opens that topic instead.
 
 > [!NOTE]
 > Where the `✕` sits — the top-left corner (**Mac style**, the default) or the
@@ -136,9 +159,9 @@ The vertical borders separating Pane 1, Pane 2, and Pane 3 are interactive, acce
 ### 6.1 Mouse & Touch Controls
 - **Hover**: Hovering over the seam reveals a subtle highlight bar and a horizontal resize cursor (`col-resize`).
 - **Drag**: Click and drag to expand or narrow the sidebar or thread pane.
-- **Double-Click Reset**: Double-clicking either divider immediately snaps that pane back to its factory default width:
+- **Double-Click Reset**: Double-clicking either divider immediately snaps that pane back to its default width:
   - Sidebar default: `260px` (from `180px`, up to about a third of the window).
-  - Thread pane default: `380px` (from `280px`, up to about two-thirds of the window).
+  - Thread pane default: **40 %** of the space right of the sidebar (from `280px`, up to about two-thirds of that space): about `470px` at 1440 px wide, `660px` at 1920 px. Because it is a share, it follows the window and the sidebar.
   - Middle feed safety: The middle feed will never shrink below `360px`, guaranteeing that message text and Omnibox inputs remain readable.
 
 ### 6.2 Keyboard Controls
@@ -146,8 +169,28 @@ The vertical borders separating Pane 1, Pane 2, and Pane 3 are interactive, acce
 - Press `ArrowLeft` or `ArrowRight` to step the width by `16px`.
 - Press `Home` to snap to minimum width, or `End` to snap to maximum width.
 
+### 6.3 Widths Are Kept Per View
+
+The widths you drag are remembered **per view**, so a wide thread pane in your
+channels does not force the same width on Issues:
+
+| View | Where |
+|---|---|
+| **Channels** | every channel (`/channel/…`) and every direct message (`/dm/…`) |
+| **Issues** | the issue list and an issue (`/issues…`) |
+| **Help** | these pages (`/help…`) |
+| **Docs** | the repository docs (`/docs…`) |
+| **Everything else** | Topics, Flow, People, Boxes and the other sections share one set |
+
+Dragging a divider changes only the view you are in. A view you never resized
+uses the defaults above.
+
 > [!NOTE]
-> Your customized pane widths are automatically saved in browser `localStorage` (`spool.pane-widths`) and persist across browser reloads.
+> Your pane widths are saved in this browser (`localStorage`, `spool.pane-widths`)
+> and, when you are signed in, with your account, so they follow you to another
+> browser. Widths saved before the per-view change are kept: they become the
+> **Everything else** set. Double-click a divider to put that pane of the
+> current view back to its default.
 
 ---
 
@@ -193,4 +236,4 @@ Spool adapts gracefully to different screen sizes:
 
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
 
-<!-- version: 1.1.1 · updated: 2026-10-04 -->
+<!-- version: 1.2.0 · updated: 2026-10-05 -->

@@ -1,0 +1,197 @@
+# Public dataset allow-list, version 1 (spec 091 section 4, T002).
+# The ONE file that says what the daily public seed may carry. The version is
+# in the name and in `version`; a change is a spec change first (section 4.5),
+# then this file as allow-list.v<N+1>.yaml.
+#
+# Every LIVE column of every listed table is either `public` (exported, section
+# 4.1) or `withheld` (never read by the export, section 4.4). The columns were
+# measured from the migrations applied in order to an empty Postgres (multi-line
+# ADD COLUMN included), read back from information_schema.columns. Gate C3 reads
+# the live catalog: a column in neither list fails the export and its test.
+#
+# `rows` names the row rule of section 4.1; the export's projection query for
+# that table implements it. `constants` are the values the projection EMITS for
+# a withheld column (never read from the database: the NOT NULL ones of section
+# 4.4 and the transforms of section 4.1). `forced` overrides a public column's
+# value. `never` is section 4.2: tables the gate refuses whatever this file says.
+version: 1
+
+tables:
+  tenants:
+    rows: spool_hub_workspace_only
+    public: [tenant_id, display_name, created_at]
+    withheld:
+      - root_pubkey
+      - billing_status
+      - plan_id
+      - org
+      - app
+      - project_id
+      - bought_at
+      - seats_users
+      - seats_bots
+      - sort_order
+      - responders
+      - default_locale
+      - topic_archive_policy
+      - agent_split_claude
+      - agent_split_grok
+      - agent_split_agy
+      - agent_split_qwen
+      - suspended_at
+      - archived_at
+      - is_operator
+      - fleet_load_low
+      - fleet_load_high
+      - fleet_box_order
+      - calendar_region
+    constants:
+      # 32 zero bytes; the loader replaces it with a new key in the same
+      # transaction and refuses to commit while it is zero (section 9.1)
+      root_pubkey: zero_bytes_32
+      billing_status: internal
+      plan_id: default
+
+  channels:
+    rows: public_not_deleted_not_archived
+    public: [channel_id, name, description, created_by, created_at]
+    withheld:
+      - tenant_id
+      - is_private
+      - members_open_invite
+      - deleted_at
+      - deleted_by
+      - no_fallback
+      - archived_at
+      - archived_by
+
+  messages:
+    rows: exported_channel_live_unarchived_task_member_ids
+    public:
+      - msg_id
+      - task_id
+      - parent_task_id
+      - channel
+      - ts
+      - from_id
+      - to_id
+      - kind
+      - body
+      - is_parent
+      - received_at
+      - expires_at
+    withheld:
+      - tenant_id
+      - from_box
+      - to_box
+      - files
+      - msg
+      - env_sig
+      - env
+      - edited_at
+      - edited_by
+      - typed_by
+      - search_tsv
+      - kind_set_by
+      - kind_set_at
+      - archived_at
+      - archived_by
+      - moved_at
+      - moved_by
+      - moved_from_channel
+      - moved_from_task
+      - moved_from_parent
+      - has_files
+      - responsible
+      - locked_until
+      - responsible_gen
+      - claim_n
+      - handled_at
+      - handled_how
+      - not_by
+      - needs_peer
+      - ref_task_id
+      - mirror_of
+    constants:
+      # the v:1 object rebuilt from the exported public columns only
+      # (v, msg_id, task_id, ts, from, to, kind, body, files: []), no sig
+      msg: v1_object_from_public_columns
+      env: empty_bytea
+      env_sig: empty_string
+      from_box: seed
+      to_box: seed
+
+  humans:
+    rows: spool_hub_member_author_or_addressee
+    public: [human_id]
+    withheld:
+      - display_name
+      - email
+      - created_at
+      - disabled_at
+      - avatar_file_id
+      - preferred_locale
+      - diagnostics_enabled
+      - preferred_theme
+      - submit_key
+      - rail_order
+      - message_order
+      - composer_position
+      - issues_view
+      - issues_columns
+      - close_buttons
+      - interests
+      - technical
+      - link_previews
+    constants:
+      display_name: human_id
+      email: null_value
+      disabled_at: null_value
+
+  tenant_memberships:
+    rows: spool_hub_rows_of_exported_humans
+    public: [tenant_id, human_id, role, created_at]
+    withheld:
+      - admitted_by
+      - last_active_at
+      - channel_order
+      - disabled_at
+      - settings
+      - access_until
+    constants:
+      admitted_by: seed
+    forced:
+      role: member
+
+never:
+  - password_credentials
+  - human_identities
+  - human_keys
+  - tenant_invites
+  - email_verification_tokens
+  - password_reset_tokens
+  - agent_join_tokens
+  - pins
+  - pins_history
+  - operator_audit
+  - human_events
+  - flow_events
+  - wui_perf_samples
+  - member_activity
+  - payment_checkouts
+  - tenant_seat_periods
+  - agent_seats
+  - webhook_events_seen
+  - fleet_asks
+  - fleet_lanes
+  - fleet_leases
+  - boxes
+  - box_stats
+  - box_operators
+  - roster
+  - deliveries
+  - fallback_deliveries
+  - message_revisions
+  - issues
+  - issue_counters
+  - issue_labels

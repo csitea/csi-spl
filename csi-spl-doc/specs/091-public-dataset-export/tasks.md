@@ -61,7 +61,7 @@ The serial spine is T002 -> T004 -> T006 -> T008 -> T012 -> T013..T015 (first li
 
 ### Phase 1: the fences and the allow-list
 
-- [ ] T002 **allow-list v1 + cnf** (orc, cnf).
+- [x] T002 **allow-list v1 + cnf** (orc, cnf). Done by c-294: 5 tables, 112 live columns classified (25 public, 87 withheld), measured on a fresh Postgres from all 127 migrations (0125 added `tenants.calendar_region`); workspace `t1` on dev and prd (live `tenants` read).
   - **Build**:
     - `orc/cnf/public-dataset/allow-list.v1.yaml`: `version: 1`; for each §4.1 table (`tenants`, `channels`, `messages`, `humans`, `tenant_memberships`) its row rule name, its `public` columns (§4.1), its `withheld` columns (every other live column, §4.4, measured from the migrations including multi-line `ADD COLUMN`), and the §4.4 constants for the NOT NULL withheld ones. A top-level `never` list carries the §4.2 tables.
     - cnf block `public_dataset` in `cnf/all.env.yaml` (env overrides in `dev.env.yaml` / `prd.env.yaml`): `enabled: false`, `workspace_id`, `allow_list_version: 1`, `topic_channel` (the dataset topic's channel, never exported), `body_drop_cap_pct: 1`, `size_tolerance_pct: 50`, `candidate_ttl_hours: 24`, `dev_synthetic: true` (dev publishes on the gate alone only while this is true, §11 Q7).

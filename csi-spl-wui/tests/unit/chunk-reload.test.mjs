@@ -25,6 +25,10 @@ describe('chunk reload', () => {
     assert.equal(shouldReload(now - 1000, now), false)
     assert.equal(shouldReload(now - RELOAD_GUARD_MS, now), true)
   })
+  it('080 T006: offline, a failed chunk is the network - no reload that would blank the tab', () => {
+    const src = readFileSync(join(WUI, 'src/plugins/chunk-reload.client.ts'), 'utf8')
+    assert.match(src, /if \(navigator\.onLine === false \|\| !shouldReload\(last\)\) return/)
+  })
   it('the plugin listens to vite:preloadError and app:chunkError', () => {
     const src = readFileSync(join(WUI, 'src/plugins/chunk-reload.client.ts'), 'utf8')
     assert.match(src, /'vite:preloadError'/)

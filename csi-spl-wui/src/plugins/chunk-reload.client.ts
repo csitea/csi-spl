@@ -9,7 +9,10 @@ export default defineNuxtPlugin((nuxtApp) => {
   function reloadOnce() {
     let last = 0
     try { last = Number(sessionStorage.getItem(KEY) || 0) } catch { /* storage blocked */ }
-    if (!shouldReload(last)) return
+    /* 080 T006: offline, a failed chunk is the network, not a stale build -
+       and a reload with no network blanks the tab, with any send held for
+       the network in it. Never then. */
+    if (navigator.onLine === false || !shouldReload(last)) return
     try { sessionStorage.setItem(KEY, String(Date.now())) } catch { /* storage blocked */ }
     window.location.reload()
   }

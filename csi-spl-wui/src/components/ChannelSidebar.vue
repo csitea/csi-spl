@@ -135,7 +135,7 @@
     </div>
     <div class="sidebar-body">
       <div
-        v-if="tab === 'dm' || tabsBuilt.dm"
+        v-if="tab === 'dm' || (tabsBuilt.dm && !phone)"
         v-show="tab === 'dm'"
         id="sidebar-panel-dm"
         class="sidebar-panel"
@@ -228,7 +228,7 @@
     </div>
       </div>
       <div
-        v-if="tab === 'channels' || tabsBuilt.channels"
+        v-if="tab === 'channels' || (tabsBuilt.channels && !phone)"
         v-show="tab === 'channels'"
         id="sidebar-panel-channels"
         class="sidebar-panel"
@@ -420,7 +420,7 @@
     />
       </div>
       <div
-        v-if="tab === 'topics' || tabsBuilt.topics"
+        v-if="tab === 'topics' || (tabsBuilt.topics && !phone)"
         v-show="tab === 'topics'"
         id="sidebar-panel-topics"
         class="sidebar-panel"
@@ -473,7 +473,7 @@
         </div>
       </div>
       <div
-        v-if="tab === 'flow' || tabsBuilt.flow"
+        v-if="tab === 'flow' || (tabsBuilt.flow && !phone)"
         v-show="tab === 'flow'"
         id="sidebar-panel-flow"
         class="sidebar-panel"
@@ -500,7 +500,7 @@
       </div>
       <!-- Issues, third rail tab. The list is the middle pane. -->
       <div
-        v-if="tab === 'issues' || tabsBuilt.issues"
+        v-if="tab === 'issues' || (tabsBuilt.issues && !phone)"
         v-show="tab === 'issues' && issueEpics.length"
         id="sidebar-panel-issues"
         class="sidebar-panel"
@@ -515,7 +515,7 @@
       </div>
       <!-- the personal Event log; the list lives on /events -->
       <div
-        v-if="tab === 'events' || tabsBuilt.events"
+        v-if="tab === 'events' || (tabsBuilt.events && !phone)"
         v-show="tab === 'events'"
         id="sidebar-panel-events"
         class="sidebar-panel"
@@ -530,7 +530,7 @@
            person's card (avatar, role, last seen, interests) opens in the
            middle pane at /people/<id>, like a DM feed. -->
       <div
-        v-if="tab === 'people' || tabsBuilt.people"
+        v-if="tab === 'people' || (tabsBuilt.people && !phone)"
         v-show="tab === 'people'"
         id="sidebar-panel-people"
         class="sidebar-panel"
@@ -566,7 +566,7 @@
            (Claude / Antigravity / Grok / Qwen, from the id prefix). The card at
            /agents/<id@box> shows the kind, box and liveness. -->
       <div
-        v-if="tab === 'agents' || tabsBuilt.agents"
+        v-if="tab === 'agents' || (tabsBuilt.agents && !phone)"
         v-show="tab === 'agents'"
         id="sidebar-panel-agents"
         class="sidebar-panel"
@@ -602,7 +602,7 @@
            and grouped by status so it scales past one box; the chosen box's
            card at /boxes/<id> lists the people AND agents on it. -->
       <div
-        v-if="tab === 'boxes' || tabsBuilt.boxes"
+        v-if="tab === 'boxes' || (tabsBuilt.boxes && !phone)"
         v-show="tab === 'boxes'"
         id="sidebar-panel-boxes"
         class="sidebar-panel"
@@ -824,6 +824,9 @@ const PHONE_LIST_TABS = new Set<SideTab>(['dm', 'channels', 'flow', 'people', 'a
    (dev host, local bundles, A/B interleaved, n=10): first-screen DOM
    3 739 -> 2 165 nodes (phone 3 880 -> 2 554); main-thread JS between the
    rail and the Flow list 4.6 -> 0.5 s (phone CPU 4x: 2.2 -> 0.5 s). */
+/* E08: on a phone a kept panel is still in the document and hidden (the
+   DM list was 112 hidden nodes after Flow opened). Mount it only while it
+   is the open tab. Desktop keeps tabsBuilt so a switch back is instant. */
 const tabsBuilt = reactive<Partial<Record<SideTab, boolean>>>({})
 /* not immediate: the route sets the real tab during setup, so the 'dm' the
    ref starts with is never built unless it is shown */

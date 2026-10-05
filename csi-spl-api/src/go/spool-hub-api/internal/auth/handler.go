@@ -196,6 +196,7 @@ type Handler struct {
 	imp        Impersonation // specs/054 act-as; nil = act-as routes off
 	now        func() time.Time
 	pageTenant func(*http.Request) string // SPL-959; nil = off
+	demoWS     string                     // specs/077 open demo workspace; "" = the demo is off
 	audit      ActivityRecorder           // CLE-77799 auth events; nil = off
 	hops       int                        // trusted proxy hops, for the audit's client IP
 }
@@ -223,6 +224,10 @@ type Options struct {
 	// PageTenant names the tenant of the WUI page a request comes from (its
 	// tenant host, SPL-959); nil or "" = the session's `t` decides, as before.
 	PageTenant func(*http.Request) string
+	// DemoWorkspace is the open demo workspace (specs/077, hub
+	// Options.DemoWorkspace); "" = the demo is off. A demo_user seat in any
+	// other workspace is fenced: never listed, never switched into (§3.8).
+	DemoWorkspace string
 	// Impersonation backs the act-as routes (specs/054); nil = they are not
 	// mounted (e.g. the memory store, which has no clone support).
 	Impersonation Impersonation
@@ -242,7 +247,7 @@ func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 		cfg: cfg, idps: map[string]IdP{}, log: log.With().Str("component", "auth").Logger(),
 		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences,
 		federated: o.Federated, now: o.Now, imp: o.Impersonation,
-		defLocale: o.DefaultLocale, pageTenant: o.PageTenant,
+		defLocale: o.DefaultLocale, pageTenant: o.PageTenant, demoWS: o.DemoWorkspace,
 		audit: o.Audit, hops: o.TrustedProxyHops,
 	}
 	if h.now == nil {

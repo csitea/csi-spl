@@ -221,6 +221,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	// locale is cnf, validated by LoadHub.
 	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
 		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request,
+		DemoWorkspace: hc.DemoTenant(),          // specs/077 §3.8: fenced demo seats name no tenant
 		Impersonation: hub.NewActAs(st, 0, nil), // specs/054 act-as; nil under the memory store
 		// CLE-77799: record sign-in / sign-out to member_activity for the
 		// per-person Activity log; the same trusted-proxy hops as the edge.

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
 
 // The active tenant (specs/026 §3). The session's `t` claim is the tenant
@@ -132,7 +134,7 @@ func (h *Handler) fallbackTenant(ctx context.Context, humanID, hostTenant string
 		}
 		return hostTenant, nil
 	}
-	ts, err := tl.Tenants(ctx, humanID)
+	ts, err := h.seats(ctx, tl, humanID)
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +169,7 @@ func (h *Handler) MemberTenants(r *http.Request) (Session, []TenantRole, error) 
 	if tl == nil {
 		return Session{}, nil, ErrNoMembership
 	}
-	ts, err := tl.Tenants(r.Context(), s.HumanID)
+	ts, err := h.seats(r.Context(), tl, s.HumanID)
 	return s, ts, err
 }
 
@@ -217,13 +219,13 @@ func (h *Handler) switchTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	member, err := h.members.Member(ctx, s.HumanID, req.Tenant)
+	member, err := h.switchable(ctx, s.HumanID, req.Tenant)
 	if err != nil {
 		h.log.Error().Err(err).Msg("auth.tenant_switch membership")
 		writeErr(w, http.StatusServiceUnavailable, ErrCodeUnavailable, "membership")
 		return
 	}
-	if !member { // the same answer for an unknown tenant: no tenant is revealed
+	if !member { // the same answer for an unknown tenant or a fenced demo seat: no tenant is revealed
 		h.log.Warn().Str("hum", s.HumanID).Str("tenant", req.Tenant).Msg("auth.tenant_switch_refused")
 		writeErr(w, http.StatusForbidden, "not_member", "not a member of that tenant")
 		return
@@ -270,7 +272,7 @@ func (h *Handler) bindTenant(ctx context.Context, s *Session) {
 	if tl == nil {
 		return
 	}
-	if ts, err := tl.Tenants(ctx, s.HumanID); err == nil && len(ts) == 1 {
+	if ts, err := h.seats(ctx, tl, s.HumanID); err == nil && len(ts) == 1 {
 		s.Tenant = ts[0].TenantID
 	}
 }
@@ -287,7 +289,7 @@ func (h *Handler) memberRoles(ctx context.Context, s Session) []TenantRole {
 	if !ok {
 		return nil
 	}
-	roles, err := tl.Tenants(ctx, s.HumanID)
+	roles, err := h.seats(ctx, tl, s.HumanID)
 	if err != nil {
 		h.log.Warn().Err(err).Msg("auth.session tenants")
 		return nil
@@ -306,9 +308,65 @@ func (h *Handler) sessionTenants(r *http.Request, out *sessionResp, roles []Tena
 	if roles != nil {
 		out.Tenants = roles
 	}
-	if _, t, err := h.ActiveTenant(r, ""); err == nil {
+	// A `t` or page host naming a fenced demo seat is no active tenant either.
+	if _, t, err := h.ActiveTenant(r, ""); err == nil && (roles == nil || listed(roles, t)) {
 		out.ActiveTenant = &t
 	}
+}
+
+// Fenced demo seats (specs/077 §3.8, T015). A demo_user seat outside the open
+// demo workspace (the demo id changed, or the demo is off) is no membership to
+// the hub (demoFenced); auth names its tenant nowhere either: not in GET
+// session's tenants, not as its active_tenant, not as a switch target, not as
+// a fallback or bound tenant.
+
+// fenced reports whether t is a demo_user seat outside the open demo workspace.
+func (h *Handler) fenced(t TenantRole) bool {
+	return t.Role == rbac.DemoUser && (h.demoWS == "" || t.TenantID != h.demoWS)
+}
+
+// seats lists the human's memberships without the fenced demo seats.
+func (h *Handler) seats(ctx context.Context, tl TenantLister, humanID string) ([]TenantRole, error) {
+	ts, err := tl.Tenants(ctx, humanID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]TenantRole, 0, len(ts))
+	for _, t := range ts {
+		if !h.fenced(t) {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// switchable reports whether the human may switch into tenant: a member, and
+// not through a fenced demo seat. Without a lister there is no role to read,
+// and Membership alone decides.
+func (h *Handler) switchable(ctx context.Context, humanID, tenant string) (bool, error) {
+	ok, err := h.members.Member(ctx, humanID, tenant)
+	if err != nil || !ok {
+		return false, err
+	}
+	tl, _ := h.members.(TenantLister)
+	if tl == nil {
+		return true, nil
+	}
+	ts, err := h.seats(ctx, tl, humanID)
+	if err != nil {
+		return false, err
+	}
+	return listed(ts, tenant), nil
+}
+
+// listed reports whether tenant is one of ts.
+func listed(ts []TenantRole, tenant string) bool {
+	for _, t := range ts {
+		if t.TenantID == tenant {
+			return true
+		}
+	}
+	return false
 }
 
 // requestTenant is a CHEAP tenant guess for the per-tenant settings overlay

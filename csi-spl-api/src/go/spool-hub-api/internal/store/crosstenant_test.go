@@ -152,6 +152,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.BanMember(ctx, s.tenant, banHum, hum, now); err != nil {
 		t.Fatal(err)
 	}
+	if err := pg.AppendDemoAudit(ctx, DemoAudit{TenantID: s.tenant, At: now, Action: DemoAuditPost, HumanID: hum,
+		MsgID: m.MsgID, Body: "audited"}); err != nil { // demo_post_audit (rdb 0131, specs/077 T025)
+		t.Fatal(err)
+	}
 	if err := pg.PutInvite(ctx, Invite{TenantID: s.tenant, Email: "inv-" + s.tenant + "@example.com", Role: "developer", InvitedBy: hum,
 		ExpiresAt: now.Add(24 * time.Hour)}, now); err != nil { // tenant_invites
 		t.Fatal(err)
@@ -290,6 +294,10 @@ func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 	return n
 }
 
+// appendOnlyTables refuse every UPDATE and DELETE outside their purge
+// (rdb 0131 demo_post_audit).
+var appendOnlyTables = map[string]bool{"demo_post_audit": true}
+
 // TestCrossTenantEveryTable: with A and B seeded in every tenant table, A's
 // scope sees none of B's rows in any of them, and A's unscoped UPDATE /
 // DELETE / a B-stamped INSERT change none of them. CONTROL: B's rows are
@@ -346,6 +354,12 @@ func TestCrossTenantEveryTable(t *testing.T) {
 				}
 				return rolledBack
 			})
+			if appendOnlyTables[tb] { // refused outright: stronger than reaching only A's rows
+				if err == nil || errors.Is(err, rolledBack) || !strings.Contains(err.Error(), "append-only") {
+					t.Errorf("%s: %s from A's scope: %v, want the append-only refusal", tb, w, err)
+				}
+				continue
+			}
 			if !errors.Is(err, rolledBack) {
 				t.Errorf("%s: %s: %v", tb, w, err)
 				continue

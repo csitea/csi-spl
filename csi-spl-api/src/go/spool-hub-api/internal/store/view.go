@@ -277,27 +277,32 @@ func (s *Memory) ViewTopic(_ context.Context, tenant string, q TopicMsgQuery) ([
 		if q.Reader != "" && !readableBy(m.Channel, m.FromID, m.ToID, q.Reader, q.ReaderChannels) {
 			continue
 		}
-		v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
-			EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Responsible: m.Responsible,
-			RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf, Move: viewMove(m), RowChannel: m.Channel}
-		if !m.KindSetAt.IsZero() {
-			v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
-		}
-		if revs := s.revisions[[2]string{tenant, m.MsgID}]; len(revs) > 0 {
-			v.Revision = revs[len(revs)-1].Revision
-		}
-		for k, d := range s.deliveries {
-			if k[0] == tenant && k[1] == m.MsgID {
-				v.Deliveries = append(v.Deliveries, ViewDelivery{ToBox: k[2], State: d.state})
-			}
-		}
-		sort.Slice(v.Deliveries, func(i, j int) bool { return v.Deliveries[i].ToBox < v.Deliveries[j].ToBox })
-		out = append(out, v)
+		out = append(out, s.viewMsgLocked(tenant, m))
 		if q.Limit > 0 && len(out) == q.Limit {
 			break
 		}
 	}
 	return out, nil
+}
+
+// viewMsgLocked is m as a view row, with its revision and deliveries.
+func (s *Memory) viewMsgLocked(tenant string, m *Message) ViewMsg {
+	v := ViewMsg{MsgID: m.MsgID, ReceivedAt: m.ReceivedAt, Env: m.Env, Deliveries: []ViewDelivery{},
+		EditedAt: m.EditedAt, EditedBy: m.EditedBy, IsParent: parentBit(m.IsParent), TypedBy: m.TypedBy, Responsible: m.Responsible,
+		RefTaskID: m.RefTaskID, MirrorOf: m.MirrorOf, Move: viewMove(m), RowChannel: m.Channel}
+	if !m.KindSetAt.IsZero() {
+		v.Kind, v.KindSetAt, v.KindSetBy = m.Kind, m.KindSetAt, m.KindSetBy
+	}
+	if revs := s.revisions[[2]string{tenant, m.MsgID}]; len(revs) > 0 {
+		v.Revision = revs[len(revs)-1].Revision
+	}
+	for k, d := range s.deliveries {
+		if k[0] == tenant && k[1] == m.MsgID {
+			v.Deliveries = append(v.Deliveries, ViewDelivery{ToBox: k[2], State: d.state})
+		}
+	}
+	sort.Slice(v.Deliveries, func(i, j int) bool { return v.Deliveries[i].ToBox < v.Deliveries[j].ToBox })
+	return v
 }
 
 func (s *Memory) ViewChannels(_ context.Context, tenant string, now time.Time) ([]ChannelRow, error) {

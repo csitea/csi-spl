@@ -559,6 +559,10 @@ type topicsBody struct {
 	// Sync is the hub's clock at this read as a cursor: the next since= may
 	// start here, so a change already caught up is not sent again.
 	Sync *string `json:"sync,omitempty"`
+	// dm=true&peer=<agent> only (dm_pointers.go): the channel lines between
+	// the reader and that agent, as pointers into their topics. Omitted
+	// while there are none.
+	Pointers []viewMsg `json:"pointers,omitempty"`
 }
 
 type topicBody struct {
@@ -748,6 +752,9 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 		return
 	}
 	if counts && !s.attachDMCounts(w, r, t, sq, reads, out) {
+		return
+	}
+	if !s.attachDMPointers(w, r, t, sq, mod, &body) {
 		return
 	}
 	body.Topics, body.Next = out, next

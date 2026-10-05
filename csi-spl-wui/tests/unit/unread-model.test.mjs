@@ -5,6 +5,9 @@
 // Run: node tests/unit/unread-model.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { unreadModel } from '../../src/utils/unread-model.mjs'
 
 // AC1's fixed input: 2 unread in t:A, 1 in dm:B, 3 in muted ch:C.
@@ -87,5 +90,74 @@ describe('unreadModel: defensive input', () => {
   it('zero, negative and junk counts are left out of rows', () => {
     const m = unreadModel({ keys: { 'ch:a': 0, 'ch:b': -2, 'dm:c': 'x', 't:d': 1.9 } })
     assert.deepEqual([...m.rows], [['t:d', 1]])
+  })
+})
+
+// AC3 (FR-002): useUnread() is the only reader of the unread inputs. No
+// component, page, layout or other composable imports flow-keys.mjs, reads
+// tab-title.mjs's unreadTotal, or reads the channel store's unreadFor; the
+// stores themselves and src/utils (the model's own inputs) are not scanned.
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const SCANNED = ['src/components', 'src/pages', 'src/layouts', 'src/composables', 'src/app.vue']
+const ALLOWED = new Set(['src/composables/useUnread.ts'])
+const RULES = {
+  'flow-keys': /flow-keys\.mjs/,
+  unreadTotal: /\bunreadTotal\b/,
+  unreadFor: /\.unreadFor\b/,
+}
+// Today's direct callers, each removed by the task that rewires it (tasks.md
+// T004..T006). An entry that no longer matches fails too: delete it with the fix.
+const TODO = [
+  { file: 'src/app.vue', rule: 'unreadTotal', task: 'T004' },
+  { file: 'src/components/ChannelSidebar.vue', rule: 'flow-keys', task: 'T004/T005' },
+  { file: 'src/components/MessageFeed.vue', rule: 'unreadFor', task: 'T006' },
+]
+
+function filesUnder(rel) {
+  const abs = join(WUI, rel)
+  if (!statSync(abs, { throwIfNoEntry: false })) return []
+  if (!statSync(abs).isDirectory()) return [rel]
+  return readdirSync(abs, { recursive: true })
+    .map((f) => join(rel, String(f)))
+    .filter((f) => /\.(vue|ts|mjs|js)$/.test(f))
+}
+
+function directReads() {
+  const hits = []
+  for (const file of SCANNED.flatMap(filesUnder)) {
+    if (ALLOWED.has(file)) continue
+    const src = readFileSync(join(WUI, file), 'utf8')
+    for (const [rule, re] of Object.entries(RULES)) if (re.test(src)) hits.push(`${file} ${rule}`)
+  }
+  return hits.sort()
+}
+
+describe('unread gate AC3: only useUnread reads the unread inputs', () => {
+  const hits = directReads()
+  const todo = new Set(TODO.map((t) => `${t.file} ${t.rule}`))
+
+  it('scans real files (an empty scan is no proof)', () => {
+    assert.ok(SCANNED.flatMap(filesUnder).length > 50)
+  })
+
+  it('no direct reader outside useUnread and the todo list', () => {
+    assert.deepEqual(hits.filter((h) => !todo.has(h)), [], 'read it from useUnread() instead')
+  })
+
+  it('every todo entry is still a direct reader (remove it with its fix)', () => {
+    assert.deepEqual([...todo].filter((t) => !hits.includes(t)), [])
+  })
+
+  it('the gate sees a planted direct read', () => {
+    for (const [rule, re] of Object.entries(RULES)) {
+      const line = { 'flow-keys': "import { rowUnread } from '~/utils/flow-keys.mjs'", unreadTotal: 'unreadTotal(notes.unread)', unreadFor: 'channel.unreadFor(id)' }[rule]
+      assert.ok(re.test(line), rule)
+    }
+  })
+
+  it('useUnread itself reads the model', () => {
+    const src = readFileSync(join(WUI, 'src/composables/useUnread.ts'), 'utf8')
+    assert.match(src, /unread-model\.mjs/)
+    assert.match(src, /export function useUnread\(/)
   })
 })

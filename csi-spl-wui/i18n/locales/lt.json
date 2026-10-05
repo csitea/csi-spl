@@ -980,7 +980,9 @@
       "issues": "Problemos"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
+    "phone_hints": "Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "placeholder_target_enter": "Žinutė: {target} — Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
+    "phone_hints_enter": "Enter siunčia · Shift+Enter prideda eilutę · /search ieško visur",
     "unreachable": "Paieškos paslauga nepasiekiama. Netrukus bandykite dar kartą.",
     "help_button": "Paieškos sintaksė",
     "help_title": "Paieškos sintaksė",

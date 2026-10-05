@@ -107,6 +107,9 @@
           @mousedown.prevent
           @click="openChip"
         >{{ chipText }}</button>
+        <!-- 085 FR-004: on the phone dock the "?" is the Search button - the
+             magnifier, named "Search"; a tap enters search mode, focuses the
+             field and opens the operator list, a second tap leaves it -->
         <button
           v-if="global"
           type="button"
@@ -114,11 +117,12 @@
           data-test="search-syntax-help"
           :aria-expanded="syntaxOpen ? 'true' : 'false'"
           :aria-controls="syntaxId"
-          :aria-label="t('search.help_button')"
-          :title="t('search.help_button')"
+          :aria-pressed="docked ? (searchMode ? 'true' : 'false') : undefined"
+          :aria-label="docked ? t('search.title') : t('search.help_button')"
+          :title="docked ? t('search.title') : t('search.help_button')"
           @mousedown.prevent
-          @click="syntaxOpen = !syntaxOpen"
-        >?</button>
+          @click="onSyntaxButton"
+        ><UiIcon v-if="docked" name="search" :size="18" /><template v-else>?</template></button>
         <div
           v-if="global && syntaxOpen"
           :id="syntaxId"
@@ -128,6 +132,10 @@
           :aria-label="t('search.help_title')"
           @mousedown.prevent
         >
+          <!-- 085 FR-005: the key hints the short phone placeholder dropped -->
+          <ul v-if="docked" class="search-syntax__keys" data-test="search-phone-hints">
+            <li v-for="h in phoneHints" :key="h">{{ h }}</li>
+          </ul>
           <p class="muted">{{ t('search.help_intro') }}</p>
           <p class="muted">{{ t('search.help_content') }}</p>
           <p class="search-syntax__label">{{ t('search.help_operators') }}</p>
@@ -775,10 +783,12 @@ defineExpose({ setText, focus: focusInput, restore, leaveSearch })
 
 const { t, te } = useI18n({ useScope: 'global' })
 /* SPL-976: Enter follows Settings -> Behaviour -> "Text fields" */
-const { keyAction, mode: submitMode } = useSubmitKey()
+const { keyAction, mode: submitMode, hintFor } = useSubmitKey()
 const syntaxOpen = ref(false)
 const syntaxId = useId()
 const fieldEl = ref<HTMLElement | null>(null)
+/* 085 FR-005: one row per key hint, in the Enter mode the reader set */
+const phoneHints = computed(() => t(hintFor('search.phone_hints')).split(' · ').map((h) => h.trim()).filter(Boolean))
 const syntaxRows = computed(() => operatorHelpRows(props.operators && props.operators.length ? props.operators : undefined))
 const placeholder = computed(() => props.placeholder || t('composer.placeholder_default', { mention: '@CLE-07' }))
 /* HUM-24 (CLE-77879): one mode, one look - the label, its icon, the field's
@@ -977,6 +987,26 @@ function insertOperator(op: string) {
     el.focus()
     el.setSelectionRange(next.length, next.length)
   })
+}
+
+/* 085 FR-004: the phone Search button. Search mode is the state `/search `
+   sets, so a typed line that was there becomes the query; a second tap clears
+   the search line (omniboxTextLeavingSearch) and closes the list */
+function onSyntaxButton() {
+  if (!docked.value) {
+    syntaxOpen.value = !syntaxOpen.value
+    return
+  }
+  if (searchMode.value) {
+    syntaxOpen.value = false
+    setText(omniboxTextLeavingSearch(text.value))
+    return
+  }
+  setText(text.value.trim() ? `/search ${text.value.trim()}` : '/search ')
+  focusInput()
+  /* after the text watcher, which closes the list on every edit - and so
+     closes it again once the box is emptied (search mode left) */
+  void nextTick(() => { syntaxOpen.value = true })
 }
 
 function onSyntaxPointerDown(ev: PointerEvent) {
@@ -1496,6 +1526,8 @@ textarea.in-code {
   text-transform: uppercase;
 }
 .search-syntax ul { list-style: none; margin: 0; padding: 0; }
+.search-syntax .search-syntax__keys { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--color-border); }
+.search-syntax__keys li { padding: 2px 0; overflow-wrap: anywhere; }
 .search-syntax__op {
   display: flex;
   flex-wrap: wrap;
@@ -1659,27 +1691,19 @@ textarea.in-code {
     padding: 10px 0;
     padding-inline-end: var(--tap);
   }
-  /* the syntax "?" is a 44 px target in the field's end corner (22 px drawn) */
+  /* 085 FR-004: the Search button (magnifier), a 44 px target in the
+     field's end corner; lit while the box is in search mode */
   .composer--dock.composer--dock .search-syntax-btn {
     top: 0;
     inset-inline-end: 0;
+    display: inline-grid;
+    place-items: center;
     width: var(--tap);
     height: var(--tap);
     border: 0;
     background: transparent;
   }
-  .composer--dock.composer--dock .search-syntax-btn::before {
-    content: "?";
-    display: inline-grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
-  }
-  .composer--dock.composer--dock .search-syntax-btn { font-size: 0; }
-  .composer--dock.composer--dock .search-syntax-btn::before { font-size: 0.875rem; }
+  .composer--dock.composer--dock .search-syntax-btn[aria-pressed=true] { color: var(--color-accent); }
   /* one line of hint: the long key wording must not wrap under the box */
   .composer--dock.composer--dock textarea::placeholder {
     white-space: nowrap;

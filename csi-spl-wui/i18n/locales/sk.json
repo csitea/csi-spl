@@ -980,7 +980,9 @@
       "issues": "Úlohy"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
+    "phone_hints": "Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "placeholder_target_enter": "Správa pre {target} — Enter odošle · Shift+Enter pridá riadok · /search hľadá všade",
+    "phone_hints_enter": "Enter odošle · Shift+Enter pridá riadok · /search hľadá všade",
     "unreachable": "Služba vyhľadávania nie je dostupná. Skúste to o chvíľu znova.",
     "help_button": "Syntax vyhľadávania",
     "help_title": "Syntax vyhľadávania",

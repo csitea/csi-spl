@@ -980,7 +980,9 @@
       "issues": "Ärenden"
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
+    "phone_hints": "Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "placeholder_target_enter": "Meddelande till {target} — Enter skickar · Shift+Enter lägger till en rad · /search söker överallt",
+    "phone_hints_enter": "Enter skickar · Shift+Enter lägger till en rad · /search söker överallt",
     "unreachable": "Söktjänsten kunde inte nås. Försök igen om en stund.",
     "help_button": "Söksyntax",
     "help_title": "Söksyntax",

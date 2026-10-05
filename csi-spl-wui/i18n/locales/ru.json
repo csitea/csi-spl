@@ -980,7 +980,9 @@
       "issues": "Заявки"
     },
     "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
+    "phone_hints": "Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
     "placeholder_target_enter": "Сообщение для {target} — Enter отправляет · Shift+Enter добавляет строку · /search ищет везде",
+    "phone_hints_enter": "Enter отправляет · Shift+Enter добавляет строку · /search ищет везде",
     "unreachable": "Сервис поиска недоступен. Попробуйте чуть позже.",
     "help_button": "Синтаксис поиска",
     "help_title": "Синтаксис поиска",

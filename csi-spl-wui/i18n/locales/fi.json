@@ -980,7 +980,9 @@
       "issues": "Asiat"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
+    "phone_hints": "Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "placeholder_target_enter": "Viesti: {target} — Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
+    "phone_hints_enter": "Enter lähettää · Shift+Enter lisää rivin · /search hakee kaikkialta",
     "unreachable": "Hakupalveluun ei saatu yhteyttä. Yritä hetken päästä uudelleen.",
     "help_button": "Hakusyntaksi",
     "help_title": "Hakusyntaksi",

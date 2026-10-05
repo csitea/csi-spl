@@ -980,7 +980,9 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порака до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
+    "phone_hints": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за праќање · /search за пребарување насекаде",
     "placeholder_target_enter": "Порака до {target} — Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
+    "phone_hints_enter": "Enter испраќа · Shift+Enter додава ред · /search за пребарување насекаде",
     "unreachable": "Услугата за пребарување не е достапна. Обидете се повторно наскоро.",
     "help_button": "Синтакса на пребарување",
     "help_title": "Синтакса на пребарување",

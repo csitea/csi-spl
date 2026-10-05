@@ -980,7 +980,9 @@
       "issues": "Дела"
     },
     "placeholder_target": "Съобщение до {target} — Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
+    "phone_hints": "Enter за нов ред · Ctrl+Enter или Cmd+Enter за изпращане · /search за търсене навсякъде",
     "placeholder_target_enter": "Съобщение до {target} — Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
+    "phone_hints_enter": "Enter изпраща · Shift+Enter добавя ред · /search за търсене навсякъде",
     "unreachable": "Услугата за търсене не е достъпна. Опитайте отново след малко.",
     "help_button": "Синтаксис на търсене",
     "help_title": "Синтаксис на търсене",

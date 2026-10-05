@@ -980,7 +980,9 @@
       "issues": "Konular"
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
+    "phone_hints": "Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "placeholder_target_enter": "{target} için mesaj — Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
+    "phone_hints_enter": "Enter gönderir · Shift+Enter satır ekler · /search her yerde arar",
     "unreachable": "Arama hizmetine ulaşılamadı. Birazdan tekrar deneyin.",
     "help_button": "Arama sözdizimi",
     "help_title": "Arama sözdizimi",

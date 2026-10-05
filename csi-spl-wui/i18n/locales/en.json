@@ -980,7 +980,9 @@
       "issues": "Issues"
     },
     "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
+    "phone_hints": "Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
     "placeholder_target_enter": "Message {target} — Enter sends · Shift+Enter adds a line · /search to search everything",
+    "phone_hints_enter": "Enter sends · Shift+Enter adds a line · /search to search everything",
     "unreachable": "The search service could not be reached. Try again shortly.",
     "help_button": "Search syntax",
     "help_title": "Search syntax",

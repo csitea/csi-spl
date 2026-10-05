@@ -980,7 +980,9 @@
       "issues": "Probleme"
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
+    "phone_hints": "Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
     "placeholder_target_enter": "Mesaj către {target} — Enter trimite · Shift+Enter adaugă un rând · /search pentru a căuta peste tot",
+    "phone_hints_enter": "Enter trimite · Shift+Enter adaugă un rând · /search pentru a căuta peste tot",
     "unreachable": "Serviciul de căutare nu poate fi contactat. Încercați din nou în curând.",
     "help_button": "Sintaxa căutării",
     "help_title": "Sintaxa căutării",

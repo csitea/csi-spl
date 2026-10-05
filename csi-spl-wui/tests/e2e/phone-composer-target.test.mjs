@@ -22,6 +22,8 @@
 //   desktop (1440x900): /channel/alerts keeps the key-hint placeholder.
 //   T005 (FR-001, FR-002), the target chip on the phone dock: see chipCase
 //     below (AC1, AC2 at 390 and 360; AC3's wrap check at 360).
+//   T003 (FR-004, FR-005), the phone Search button: see searchCase below
+//     (AC5 at 390 and 360; the placeholder backstop at 360).
 //
 // Run:
 //   pnpm run test:e2e phone-composer-target
@@ -300,6 +302,140 @@ async function chipCase(browser, width, height) {
 }
 /* ---- end 085 T005 ---- */
 
+/* ---- 085 T003 (FR-004, FR-005): the phone Search button ----
+ *   phone (390x844 and 360x780, touch), /channel/alerts (level 2):
+ *     AC5 the "?" slot (search-syntax-help) is the magnifier, >= 44x44,
+ *         named "Search"; tap it -> the form has omnibox--search, the field
+ *         is focused, search-syntax-panel is open and its first rows are the
+ *         key hints (search-phone-hints, 3 rows); type "scaffold", tap the
+ *         dock's GO -> /search?q=scaffold (2 taps + typing from level 2)
+ *     second tap -> search mode is left, the panel closes, the box is empty
+ *     an emptied box -> search mode is left and the panel closes
+ *     (360) the placeholder backstop (::placeholder nowrap + ellipsis, in
+ *         the dock CSS since SPL-991): on a DM with a long peer, the
+ *         placeholder is drawn on ONE line (the empty field does not
+ *         overflow); CONTROL: with the ::placeholder nowrap overridden the
+ *         same field overflows - the check bites
+ *   desktop (1440x900): the button stays "?" named "Search syntax" (FR-008). */
+function searchState(p) {
+  return p.evaluate((sel) => {
+    const vis = (el) => Boolean(el) && el.getClientRects().length > 0
+    const ta = [...document.querySelectorAll(sel)].find(vis)
+    const form = ta && ta.closest('form')
+    if (!form) return null
+    const b = form.querySelector('[data-test=search-syntax-help]')
+    const r = b && b.getBoundingClientRect()
+    const panel = form.querySelector('[data-test=search-syntax-panel]')
+    const first = panel && panel.firstElementChild
+    return {
+      level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || '',
+      search: form.classList.contains('omnibox--search'),
+      focused: document.activeElement === ta,
+      value: ta.value,
+      panel: vis(panel),
+      firstRows: first && first.getAttribute('data-test') === 'search-phone-hints' ? [...first.querySelectorAll('li')].map((li) => li.textContent.trim()) : null,
+      btn: b ? { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), label: b.getAttribute('aria-label'), text: b.textContent.trim(), icon: Boolean(b.querySelector('svg')), pressed: b.getAttribute('aria-pressed') } : null,
+    }
+  }, TA)
+}
+
+/** The empty docked field with its placeholder: does the drawn placeholder
+ *  overflow the field? `wrap` overrides the ::placeholder nowrap (CONTROL). */
+function placeholderLines(p, wrap = false) {
+  return p.evaluate((sel, w) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    if (!ta) return null
+    let st = null
+    if (w) {
+      st = document.createElement('style')
+      st.textContent = 'form.composer textarea::placeholder { white-space: normal !important; }'
+      document.head.appendChild(st)
+    }
+    const cs = getComputedStyle(ta, '::placeholder')
+    const r = { placeholder: ta.placeholder, value: ta.value, scrollH: ta.scrollHeight, clientH: ta.clientHeight, ws: cs.whiteSpace, to: cs.textOverflow }
+    r.oneLine = r.value === '' && r.scrollH <= r.clientH + 1
+    if (st) st.remove()
+    return r
+  }, TA, wrap)
+}
+
+async function searchCase(browser, width, height) {
+  const tag = `${width}px search`
+  const vp = { width, height, isMobile: true, hasTouch: true }
+  const { p, errors } = await open(browser, vp, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
+  const s0 = await searchState(p)
+  ok(`${tag} AC5 the "?" slot is the magnifier, >= 44x44, named "Search"`, Boolean(s0 && s0.level === '2' && s0.btn && s0.btn.w >= 44 && s0.btn.h >= 44 && s0.btn.label === 'Search' && s0.btn.icon && s0.btn.text === '' && !s0.search && !s0.panel), s0)
+
+  await p.touchscreen.tap(s0.btn.x, s0.btn.y)
+  await sleep(400)
+  const s1 = await searchState(p)
+  if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-search.png`) })
+  ok(`${tag} AC5 tap Search: omnibox--search, the field focused, the operator list open`, Boolean(s1 && s1.search && s1.focused && s1.panel && s1.btn.pressed === 'true'), s1)
+  ok(`${tag} FR-005 the list's first rows are the key hints the placeholder dropped`, Boolean(s1 && s1.firstRows && s1.firstRows.length === 3 && s1.firstRows[0].startsWith('Enter') && s1.firstRows[2].startsWith('/search')), s1 && s1.firstRows)
+
+  await p.keyboard.type('scaffold')
+  await sleep(200)
+  const go = await p.evaluate((sel) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    const g = [...ta.closest('form').querySelectorAll('.composer-row .composer-go')].find((el) => el.getClientRects().length > 0)
+    if (!g) return null
+    const r = g.getBoundingClientRect()
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), test: g.getAttribute('data-test') }
+  }, TA)
+  await p.touchscreen.tap(go.x, go.y)
+  await sleep(1000)
+  const url = new URL(p.url())
+  ok(`${tag} AC5 type "scaffold", tap GO: /search?q=scaffold (2 taps + typing)`, url.pathname.replace(/\/$/, '') === '/search' && url.searchParams.get('q') === 'scaffold', { go, url: url.pathname + url.search })
+  ok(`${tag} no page error`, errors.length === 0, errors)
+  await p.close()
+
+  const b = await open(browser, vp, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
+  const t0 = await searchState(b.p)
+  await b.p.touchscreen.tap(t0.btn.x, t0.btn.y)
+  await sleep(400)
+  /* search mode swaps Attach + Send for the one search GO, so the field is
+     wider and the button sits further along: tap it where it is now */
+  const tIn = await searchState(b.p)
+  await b.p.touchscreen.tap(tIn.btn.x, tIn.btn.y)
+  await sleep(400)
+  const t1 = await searchState(b.p)
+  ok(`${tag} a second tap leaves search mode: no omnibox--search, the list closed, the box empty`, Boolean(t1 && !t1.search && !t1.panel && t1.value === '' && t1.btn.pressed === 'false'), t1)
+  await b.p.touchscreen.tap(t0.btn.x, t0.btn.y)
+  await sleep(400)
+  const t2 = await searchState(b.p)
+  await b.p.keyboard.down('Control')
+  await b.p.keyboard.press('a')
+  await b.p.keyboard.up('Control')
+  await b.p.keyboard.press('Backspace')
+  await sleep(300)
+  const t3 = await searchState(b.p)
+  ok(`${tag} an emptied box leaves search mode and closes the list`, Boolean(t2 && t2.search && t2.panel && t3 && !t3.search && !t3.panel && t3.value === ''), { before: t2, after: t3 })
+  ok(`${tag} no page error (second tap, emptied box)`, b.errors.length === 0, b.errors)
+  await b.p.close()
+
+  if (width === 360) {
+    const d = await open(browser, vp, DM)
+    const pl = await placeholderLines(d.p)
+    if (SHOTS) await d.p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-dm-placeholder.png`) })
+    /* text-overflow: ellipsis is set too; Chrome computes it as clip on a
+       textarea's ::placeholder, so only the one line is asserted */
+    ok(`${tag} backstop: the DM placeholder "${pl && pl.placeholder}" is drawn on one line (nowrap)`, Boolean(pl && pl.oneLine && pl.ws === 'nowrap'), pl)
+    const ctl = await placeholderLines(d.p, true)
+    ok(`${tag} CONTROL with the nowrap overridden the same placeholder overflows the field`, Boolean(ctl && !ctl.oneLine), ctl)
+    ok(`${tag} no page error (DM)`, d.errors.length === 0, d.errors)
+    await d.p.close()
+  }
+}
+
+async function searchDesktop(browser) {
+  const { p, errors } = await open(browser, { width: 1440, height: 900 }, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
+  const s = await searchState(p)
+  ok('1440px search: the button stays "?" named "Search syntax" (FR-008)', Boolean(s && s.btn && s.btn.text === '?' && s.btn.label === 'Search syntax' && !s.btn.icon && s.btn.pressed === null), s)
+  ok('1440px search: no page error', errors.length === 0, errors)
+  await p.close()
+}
+/* ---- end 085 T003 ---- */
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -309,6 +445,9 @@ try {
   await phoneCase(browser, 360, 780)
   await chipCase(browser, 390, 844)
   await chipCase(browser, 360, 780)
+  await searchCase(browser, 390, 844)
+  await searchCase(browser, 360, 780)
+  await searchDesktop(browser)
   await desktopCase(browser)
 } finally {
   await browser.close()

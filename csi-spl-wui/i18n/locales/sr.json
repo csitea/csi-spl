@@ -980,7 +980,9 @@
       "issues": "Проблеми"
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
+    "phone_hints": "Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "placeholder_target_enter": "Порука за {target} — Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
+    "phone_hints_enter": "Enter šalje · Shift+Enter dodaje red · /search претражује свуда",
     "unreachable": "Услуга претраге није доступна. Покушајте ускоро поново.",
     "help_button": "Sintaksa pretrage",
     "help_title": "Sintaksa pretrage",

@@ -980,7 +980,9 @@
       "issues": "Zgłoszenia"
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
+    "phone_hints": "Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
     "placeholder_target_enter": "Wiadomość do {target} — Enter wysyła · Shift+Enter dodaje wiersz · /search szuka wszędzie",
+    "phone_hints_enter": "Enter wysyła · Shift+Enter dodaje wiersz · /search szuka wszędzie",
     "unreachable": "Usługa wyszukiwania jest nieosiągalna. Spróbuj ponownie za chwilę.",
     "help_button": "Składnia wyszukiwania",
     "help_title": "Składnia wyszukiwania",

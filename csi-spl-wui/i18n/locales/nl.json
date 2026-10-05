@@ -980,7 +980,9 @@
       "issues": "Kwesties"
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
+    "phone_hints": "Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "placeholder_target_enter": "Bericht aan {target} — Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
+    "phone_hints_enter": "Enter verstuurt · Shift+Enter voegt een regel toe · /search om overal te zoeken",
     "unreachable": "De zoekdienst is niet bereikbaar. Probeer het zo opnieuw.",
     "help_button": "Zoeksyntaxis",
     "help_title": "Zoeksyntaxis",

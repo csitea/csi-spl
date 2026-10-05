@@ -980,7 +980,9 @@
       "issues": "סוגיות"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
+    "phone_hints": "Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "placeholder_target_enter": "הודעה אל {target} — Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
+    "phone_hints_enter": "Enter שולח · Shift+Enter מוסיף שורה · ‎/search לחיפוש בכל מקום",
     "unreachable": "לא ניתן להגיע לשירות החיפוש. נסו שוב בעוד רגע.",
     "help_button": "תחביר חיפוש",
     "help_title": "תחביר חיפוש",

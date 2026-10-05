@@ -980,7 +980,9 @@
       "issues": "Problēmas"
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
+    "phone_hints": "Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
     "placeholder_target_enter": "Ziņa: {target} — Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
+    "phone_hints_enter": "Enter nosūta · Shift+Enter pievieno rindu · /search meklē visur",
     "unreachable": "Meklēšanas pakalpojums nav sasniedzams. Drīz mēģiniet vēlreiz.",
     "help_button": "Meklēšanas sintakse",
     "help_title": "Meklēšanas sintakse",

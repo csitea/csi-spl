@@ -980,7 +980,9 @@
       "issues": "Probleemid"
     },
     "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
+    "phone_hints": "Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
     "placeholder_target_enter": "Sõnum: {target} — Enter saadab · Shift+Enter lisab rea · /search otsib kõikjalt",
+    "phone_hints_enter": "Enter saadab · Shift+Enter lisab rea · /search otsib kõikjalt",
     "unreachable": "Otsinguteenusega ei saanud ühendust. Proovi varsti uuesti.",
     "help_button": "Otsingu süntaks",
     "help_title": "Otsingu süntaks",

@@ -980,7 +980,9 @@
       "issues": "Θέματα"
     },
     "placeholder_target": "Μήνυμα προς {target} — Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για αναζήτηση παντού",
+    "phone_hints": "Enter για νέα γραμμή · Ctrl+Enter ή Cmd+Enter για αποστολή · /search για αναζήτηση παντού",
     "placeholder_target_enter": "Μήνυμα προς {target} — Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για αναζήτηση παντού",
+    "phone_hints_enter": "Το Enter στέλνει · το Shift+Enter προσθέτει γραμμή · /search για αναζήτηση παντού",
     "unreachable": "Η υπηρεσία αναζήτησης δεν είναι διαθέσιμη. Δοκιμάστε ξανά σε λίγο.",
     "help_button": "Σύνταξη αναζήτησης",
     "help_title": "Σύνταξη αναζήτησης",

@@ -14,8 +14,6 @@
  * Omnibox does not read them.
  */
 
-import { parseMention } from './channel-feed.mjs'
-
 /**
  * The task a send from this page should hang off, or '' for a new one.
  * Reads a topic store's public shape, so it is the same rule on every page
@@ -51,15 +49,16 @@ export function sendsNewTopic({ paneOpen = false, namedTopicId = '' } = {}) {
  * "the pane you clicked last decides" rule: a post goes into the OPEN topic
  * until the reader closes it (X, or Back on a phone). A click on a middle
  * card no longer changes the target; `lastPane` is accepted and ignored.
- * A new topic is explicit: the pane closed, a line that starts with
- * `@someone` (`newTopic`, see startsNewTopic), or `in:` naming another topic.
+ * A new topic is explicit: the pane closed, or `in:` naming another topic.
  * Topics with a selected row replies there as before.
+ * Owner 2026-10-05 (t1 dc6d5e3f, "reply in topic created a new topic"): a
+ * line that starts with `@agent <task>` no longer leaves the open topic;
+ * `newTopic` is accepted and ignored, like `lastPane`.
  * @param {{ tab?: string, selectedTaskId?: string, namedTopicId?: string, paneVisible?: boolean, lastPane?: string, newTopic?: boolean }} [opts]
  */
-export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false, newTopic = false } = {}) {
+export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId = '', paneVisible = false } = {}) {
   const named = String(namedTopicId || '')
   if (named) return named
-  if (newTopic) return ''
   const selected = String(selectedTaskId || '')
   if (paneVisible && selected) return selected
   if (tab === 'topics' && selected) return selected
@@ -67,21 +66,21 @@ export function omniboxReplyTaskId({ tab = '', selectedTaskId = '', namedTopicId
 }
 
 /**
- * SPL-996 B: a line that DISPATCHES a task to an addressed agent
- * (`@CLE-07 do X`) is the explicit "new topic", even while a topic is open.
+ * Whether the line alone opens a new topic while one is open: never.
  *
- * e09a72f7 (owner): it must be a real dispatch, not merely a leading `@`. The
- * owner typed `@test` inside an open thread and every one became its own topic
- * instead of a reply. Plain text that happens to start with `@` (`@test`), a
- * BARE mention with nothing after it (`@CLE-07`), a lone `@`, and an `@` later
- * in the line address no task, so they are ordinary messages and reply into
- * the open thread. parseMention is the single source of what "addresses a
- * task" is — kind 'task' only for `@<ID> <instructions>` — so this follows it,
- * and the two can never drift apart. Leading whitespace is ignored.
- * @param {unknown} text
+ * SPL-996 B (2026-09-27) made `@CLE-07 do X` the explicit new topic even
+ * inside an open thread. Owner 2026-10-05 (t1 dc6d5e3f, decision msg
+ * c3f0f2cf: "overrule my previous decision"): "reply in topic
+ * created a new topic ?!" - a reply typed in a thread or the topics view,
+ * tagging an agent, went out under a fresh task_id (5f0d5200, n=1). A tag
+ * now stays ONE reply in the topic; the agent still gets it (the hub routes
+ * `to`). A new topic is the pane closed or `in:` naming another topic.
+ * Kept so every page reads the same rule from one place.
+ * @param {unknown} _text
+ * @returns {false}
  */
-export function startsNewTopic(text) {
-  return parseMention(String(text || '').replace(/^\s+/, '')).kind === 'task'
+export function startsNewTopic(_text) {
+  return false
 }
 
 /**
@@ -107,9 +106,8 @@ export function isParentFlag({ paneVisible = false, replyTaskId = '' } = {}) {
  * thread (a reply, is_parent 0) or a new topic in the page's feed. The
  * owner's 12:10Z line was typed in an open thread and stored as a new topic
  * (is_parent 1) with nothing on screen to tell him.
- * `dock` is the page's omnibox target `dock()`; `text` the line as typed:
- * a line that opens with `@someone` is the explicit new topic (SPL-996 B)
- * even while a thread is open, so the hint follows it.
+ * `dock` is the page's omnibox target `dock()`; `text` the line as typed
+ * (it no longer changes the hint: startsNewTopic, owner 2026-10-05).
  * HUM-24 (CLE-77879): `dm` marks a direct-message page (a new topic there is
  * "with" the peer).
  * @param {{ reply?: boolean, target?: string, comment?: boolean, dm?: boolean } | null | undefined} dock
@@ -129,7 +127,7 @@ export function dockTargetHint(dock, text = '') {
 /**
  * 080 FR-006 / FR-007: the chip at the start of the box names where Enter
  * sends, from the very target `send` uses - the page's `dock()` (reply or a
- * new topic, an `@ID task` line is a new topic: dockTargetHint) and its
+ * new topic: dockTargetHint) and its
  * `place()` (`ch:` / `dm:` / `t:`, the same replyTarget() the send reads).
  * An `in: <title>` the line resolves to (`named`) wins, as it does in send.
  * No chip for an empty box, a `/search` line or a page with no send target.

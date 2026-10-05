@@ -12,9 +12,9 @@
 //     3 open a topic, the reader CLICKS the middle list -> still a reply into
 //       the open topic (owner answer B, 2026-09-27, replaced the 09-25 "last
 //       clicked pane decides" rule). CONTROL: before B this became a new topic.
-//     4 open a topic, the line starts with `@someone` (the explicit new
-//       topic) -> a new topic, drawn once: a middle card, no copy in the
-//       right pane. CONTROL: before SPL-996 it was also a born card there.
+//     4 open a topic, the line starts with `@CLE-07 <task>` -> still a reply
+//       into the open topic (owner 2026-10-05, t1 dc6d5e3f, decision c3f0f2cf
+//       retired SPL-996 B). CONTROL: under SPL-996 B it became a new topic.
 //   phone (360x740, 820x1180, touch): tap a card (level 3), send from the
 //     docked composer -> is_parent 0 into the open topic, not a middle card.
 //
@@ -189,7 +189,7 @@ try {
     await p.mouse.click(spot.x, spot.y)
     await sleep(300)
   }, true)
-  await desktopCase(browser, 4, 'topic open, the line dispatches a task (@CLE-07 …, explicit new topic)', async () => {}, false, '@CLE-07 ')
+  await desktopCase(browser, 4, 'topic open, the line dispatches a task (@CLE-07 …) - a reply, the tag does not re-topic (dc6d5e3f)', async () => {}, true, '@CLE-07 ')
   /* e09a72f7 (owner): a leading @ that addresses no task (@test) is an ordinary
      message and replies into the open topic - it must NOT become its own topic.
      The owner typed @test in a thread and each one opened a new topic. */

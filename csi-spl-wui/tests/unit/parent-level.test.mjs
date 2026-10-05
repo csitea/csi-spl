@@ -192,13 +192,13 @@ describe('the last selected pane decides the level', () => {
       assert.equal(omniboxReplyTaskId({ tab, selectedTaskId: T, paneVisible, lastPane: 'middle' }), T)
     })
   }
-  it('SPL-996 B: an addressed task dispatch is the explicit new topic, pane open or not', () => {
-    assert.equal(startsNewTopic('@CLE-001 please look'), true)
-    assert.equal(startsNewTopic('  @HUM-10 hi'), true)
-    assert.equal(startsNewTopic('ask @CLE-001 later'), false)
-    assert.equal(startsNewTopic('@ alone'), false)
-    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, paneVisible: true, newTopic: true }), '')
-    assert.equal(isParentFlag({ paneVisible: true && !startsNewTopic('@CLE-001 x') }), 1)
+  /* owner 2026-10-05 (t1 dc6d5e3f) retired SPL-996 B: an addressed task
+     dispatch typed in an open topic is a reply there (reply-keeps-topic.test.mjs) */
+  it('an addressed task dispatch replies into the open topic (dc6d5e3f)', () => {
+    assert.equal(startsNewTopic('@CLE-001 please look'), false)
+    assert.equal(startsNewTopic('  @HUM-10 hi'), false)
+    assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, paneVisible: true, newTopic: true }), T)
+    assert.equal(isParentFlag({ paneVisible: true && !startsNewTopic('@CLE-001 x') }), 0)
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, namedTopicId: U, paneVisible: true, newTopic: true }), U)
   })
   /* e09a72f7 (owner): a leading `@` that addresses no task is an ordinary
@@ -210,9 +210,9 @@ describe('the last selected pane decides the level', () => {
     assert.equal(startsNewTopic('@CLE-07'), false) /* a bare mention is a note, not a dispatch */
     assert.equal(startsNewTopic('@notanid something'), false)
     assert.equal(startsNewTopic(''), false)
-    /* the real dispatch still starts one */
-    assert.equal(startsNewTopic('@CLE-07 review the patch'), true)
-    /* so in an open pane, `@test` replies into it (is_parent 0), a dispatch does not */
+    /* a real dispatch no longer starts one either (dc6d5e3f) */
+    assert.equal(startsNewTopic('@CLE-07 review the patch'), false)
+    /* so in an open pane, `@test` replies into it (is_parent 0) */
     assert.equal(isParentFlag({ paneVisible: true && !startsNewTopic('@test'), replyTaskId: T }), 0)
     assert.equal(omniboxReplyTaskId({ tab: 'channels', selectedTaskId: T, paneVisible: true, newTopic: startsNewTopic('@test') }), T)
   })

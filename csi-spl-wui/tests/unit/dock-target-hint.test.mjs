@@ -25,8 +25,8 @@ describe('the phone dock names its target (SPL-1003)', () => {
     assert.deepEqual(dockTargetHint({ reply: false, target: '#alerts' }, 'hello'), { mode: 'new', target: '#alerts' })
   })
 
-  it('an addressed task dispatch is the explicit new topic with a thread open (SPL-996 B); the hint follows the text', () => {
-    assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, '@CLE-07 look').mode, 'new')
+  it('an addressed task dispatch with a thread open is a thread reply (dc6d5e3f retired SPL-996 B)', () => {
+    assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, '@CLE-07 look').mode, 'thread')
     assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, 'ping @CLE-07').mode, 'thread')
     /* e09a72f7: a leading @ that addresses no task stays a thread reply */
     assert.equal(dockTargetHint({ reply: true, target: '#alerts' }, '@test').mode, 'thread')
@@ -85,8 +85,8 @@ describe('the composer looks different per mode (HUM-24)', () => {
     assert.deepEqual(dockTargetHint({ reply: false, target: 'CLE-07@box-a', dm: true }, 'x'), { mode: 'dm', target: 'CLE-07@box-a' })
     /* a DM with its thread open is a reply, like anywhere else */
     assert.equal(dockTargetHint({ reply: true, target: 'CLE-07@box-a', dm: true }, 'x').mode, 'thread')
-    /* an addressed line starts a new topic in the DM */
-    assert.equal(dockTargetHint({ reply: true, target: 'CLE-07@box-a', dm: true }, '@CLE-07 go').mode, 'dm')
+    /* an addressed line stays in the open DM thread (dc6d5e3f, owner c3f0f2cf) */
+    assert.equal(dockTargetHint({ reply: true, target: 'CLE-07@box-a', dm: true }, '@CLE-07 go').mode, 'thread')
   })
 
   it('one label per mode for the desktop bottom dock line', () => {

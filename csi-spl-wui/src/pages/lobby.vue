@@ -228,7 +228,7 @@ function parentBit(replyTaskId = '', fresh = false) {
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const here = String(store.taskId || '')
-  /* SPL-996 B: the open topic takes the line; `@someone` first starts a new one */
+  /* the open topic takes the line, `@agent <text>` too (owner c3f0f2cf retired SPL-996 B) */
   const fresh = startsNewTopic(text)
   if (topicId && topicId !== here) {
     await channel.send(text, topicId, files, channelId, parentBit(topicId))

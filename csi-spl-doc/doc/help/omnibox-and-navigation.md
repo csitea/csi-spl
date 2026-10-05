@@ -206,8 +206,7 @@ send:
 |---|---|
 | `#feedback` | a new topic in that channel |
 | `@HUM-3` | a new topic in that direct message |
-| `Reply · <topic title>` | a reply in that topic, also when the line names it with `in: <topic>` |
-| `New topic · #lobby` | a new topic, although a topic is open: the line starts one (for example `@<agent> task …`) |
+| `Reply · <topic title>` | a reply in that topic, also when the line names it with `in: <topic>` or starts with `@<agent> task …`: the agent gets it, and it stays in the topic |
 
 The chip follows the pane you last clicked, the same rule as in
 section 2, and it is read from the

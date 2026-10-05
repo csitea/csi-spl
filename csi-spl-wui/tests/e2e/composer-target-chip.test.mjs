@@ -7,7 +7,8 @@
 //     1 an empty box: no chip (owner, t1 7d777e79: nothing outside the text)
 //     2 type `abc` -> the chip reads `#lobby`, inside the box, the text after it
 //     3 click a topic card (the right pane opens), type -> `Reply · <title>`
-//     4 a line that dispatches (`@CLE-07 do x`) -> `New topic · #lobby`
+//     4 a line that dispatches (`@CLE-07 do x`) -> still `Reply · <title>`
+//       (owner 2026-10-05, t1 dc6d5e3f, decision c3f0f2cf retired SPL-996 B)
 //     5 `/search x` -> no chip
 //     6 close the pane, pick a topic with `in:` -> `Reply · <that title>`;
 //       a click on the chip opens it (spec Q3: /t/<task_id>)
@@ -153,7 +154,7 @@ try {
 
   await setText(p, '@CLE-07 do x')
   const c4 = await chip(p)
-  ok('4 a line that dispatches is a new topic even with the pane open: "New topic · #lobby"', c4.text === 'New topic · #lobby', c4)
+  ok('4 a line that dispatches stays a reply with the pane open: "Reply · <title>"', c4.text === c3.text && c4.mode === 'thread', { c3: c3.text, ...c4 })
 
   await setText(p, '/search x')
   const c5 = await chip(p)

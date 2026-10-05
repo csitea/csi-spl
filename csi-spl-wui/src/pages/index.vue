@@ -214,7 +214,7 @@ function paneOpen() {
 }
 
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
-  /* SPL-996 B: the open topic takes the line; `@someone` first starts a new one */
+  /* the open topic takes the line, `@agent <text>` too (owner c3f0f2cf retired SPL-996 B) */
   const fresh = startsNewTopic(text)
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,

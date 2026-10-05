@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -142,6 +143,18 @@ func TestSignInURL(t *testing.T) {
 	for _, bad := range []string{"http://spool-hub.example", "https://x.example/app", "https://x.example?a=1", "", "spool-hub.example"} {
 		if _, err := SignInURL(bad, "bg", "bg", "t1", true); err == nil {
 			t.Errorf("accepted %q", bad)
+		}
+	}
+}
+
+// TestMessageIDShape: messageID is <24 hex>.<template>@<app host>, falling back
+// to spool-hub.invalid, and two calls never collide.
+func TestMessageIDShape(t *testing.T) {
+	for app, host := range map[string]string{"https://app.example.com/x": "app.example.com", "": "spool-hub.invalid", "::bad": "spool-hub.invalid"} {
+		re := regexp.MustCompile(`^<[0-9a-f]{24}\.` + mail.TemplateTenantInvite + `@` + regexp.QuoteMeta(host) + `>$`)
+		a, b := messageID(app), messageID(app)
+		if !re.MatchString(a) || a == b {
+			t.Errorf("messageID(%q) = %q, %q; want %s, distinct", app, a, b, re)
 		}
 	}
 }

@@ -288,7 +288,9 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if req.DisplayName != "" {
-		s.setWorkspaceConfig(r, req.ID, store.TenantConfigPatch{DisplayName: &req.DisplayName})
+		// The workspace exists, so the 201 stands; setWorkspaceConfig has
+		// logged a failed display-name write.
+		_ = s.setWorkspaceConfig(r, req.ID, store.TenantConfigPatch{DisplayName: &req.DisplayName})
 	}
 	out := map[string]any{}
 	if priv != nil {
@@ -297,20 +299,32 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 	if req.FirstAdminEmail != "" {
 		out["invite"] = s.inviteFirstAdmin(r, a, req)
 	}
-	ws, _ := a.ws.GetWorkspace(r.Context(), req.ID)
-	out["workspace"] = s.workspaceJSON(ws, a.tenant)
+	s.putWorkspace(r, a, req.ID, out)
 	s.opAudit(r, a, req.ID, store.AuditCreate, map[string]any{"billing_status": req.BillingStatus,
 		"display_name": req.DisplayName, "first_admin_email": req.FirstAdminEmail, "key_generated": priv != nil})
 	writeJSON(w, http.StatusCreated, out)
 }
 
-// setWorkspaceConfig applies a settings patch; the error is logged and answered.
+// putWorkspace sets out["workspace"] to the stored workspace id after a
+// write. A failed read is logged and leaves the key out, never a zero
+// Workspace: the write itself has already succeeded.
+func (s *Server) putWorkspace(r *http.Request, a opActor, id string, out map[string]any) {
+	ws, err := a.ws.GetWorkspace(r.Context(), id)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", id).Msg("operator.workspace_read_back")
+		return
+	}
+	out["workspace"] = s.workspaceJSON(ws, a.tenant)
+}
+
+// setWorkspaceConfig applies a settings patch. It logs a failure and returns
+// it; it writes no answer, so the caller decides the status.
 func (s *Server) setWorkspaceConfig(r *http.Request, id string, p store.TenantConfigPatch) error {
 	ts, ok := s.o.Store.(store.TenantSettings)
-	if !ok {
-		return errors.New("store keeps no workspace settings")
+	err := errors.New("store keeps no workspace settings")
+	if ok {
+		err = ts.SetTenantConfig(r.Context(), id, p)
 	}
-	err := ts.SetTenantConfig(r.Context(), id, p)
 	if err != nil {
 		s.o.Log.Warn().Err(err).Str("tenant", id).Msg("operator.workspace_config")
 	}
@@ -370,8 +384,9 @@ func (s *Server) handleOperatorWorkspacePatch(w http.ResponseWriter, r *http.Req
 	if !ok || !s.patchWorkspace(w, r, a, ws, req) {
 		return
 	}
-	ws, _ = a.ws.GetWorkspace(r.Context(), ws.ID)
-	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws, a.tenant)})
+	out := map[string]any{}
+	s.putWorkspace(r, a, ws.ID, out)
+	writeJSON(w, http.StatusOK, out)
 }
 
 // patchWorkspace applies req to ws and audits each change; false = answered.
@@ -473,8 +488,9 @@ func (s *Server) handleOperatorWorkspaceDelete(w http.ResponseWriter, r *http.Re
 	if !s.setWorkspaceState(w, r, a, ws.ID, true, true) {
 		return
 	}
-	ws, _ = a.ws.GetWorkspace(r.Context(), ws.ID)
-	writeJSON(w, http.StatusOK, map[string]any{"workspace": s.workspaceJSON(ws, a.tenant)})
+	out := map[string]any{}
+	s.putWorkspace(r, a, ws.ID, out)
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) operatorWorkspacesPreflight(w http.ResponseWriter, r *http.Request) {

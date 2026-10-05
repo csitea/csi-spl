@@ -47,8 +47,14 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	key, _ := blob.Key(t.ID, id)
-	if exists, _ := s.o.Blob.Exists(r.Context(), key); exists {
+	key, err := blob.Key(t.ID, id)
+	if err != nil { // id is our own sha256 hex, so this is a hub fault
+		s.o.Log.Error().Err(err).Msg("upload key")
+		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
+		writeErr(w, http.StatusInternalServerError, "internal", "upload not stored")
+		return
+	}
+	if s.blobExists(r.Context(), key) {
 		s.o.Blob.Delete(bg, tmp) //nolint:errcheck
 		s.touchUpload(bg, key)
 		writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
@@ -58,6 +64,16 @@ func (s *Server) handlePutFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, wire.FileResult{FileID: id, SHA256: id, Bytes: n})
+}
+
+// blobExists is the upload dedup probe. A failed lookup is logged and reads as
+// "not there", so keepUpload stores the bytes again rather than refusing.
+func (s *Server) blobExists(ctx context.Context, key string) bool {
+	exists, err := s.o.Blob.Exists(ctx, key)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("key", key).Msg("upload dedup lookup; storing again")
+	}
+	return exists && err == nil
 }
 
 // uploadFitsDeclared refuses, before reading any byte, a body whose

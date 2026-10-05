@@ -21,11 +21,13 @@ import (
 
 // PinArgs are the inputs of spool-pin. RootKey is the tenant root private key
 // (--root-key / $SPOOL_TENANT_ROOT_KEY) as ReadRootKey takes it. HTTP is an optional
-// client (tests inject the in-process hub transport).
+// client (tests inject the in-process hub transport). Now is an optional clock
+// for the signed ts (tests order two ops without sleeping); nil is time.Now.
 type PinArgs struct {
 	Box, PubKey, RootKey string
 	Force, Revoke        bool
 	HTTP                 *http.Client
+	Now                  func() time.Time
 }
 
 // Pin writes (or with Revoke removes) the local pin file and, when a tenant
@@ -97,19 +99,15 @@ func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now
+	if in.Now != nil {
+		now = in.Now
+	}
 	// Sub-second ts: the hub requires each pin op to be later than the last one
 	// (004 pin-semantics §5), so two ops in one second must still order.
-	ts := time.Now().UTC().Format(time.RFC3339Nano)
-	var method, path string
-	var body any
-	if in.Revoke {
-		p, _ := wire.RevokePayload(in.Box, ts)
-		method, path = http.MethodDelete, "/v1/pins/"+in.Box
-		body = wire.RevokeRequest{BoxID: in.Box, TS: ts, Sig: sign.Sign(priv, p)}
-	} else {
-		p, _ := wire.PinPayload(in.Box, in.PubKey, ts, in.Force)
-		method, path = http.MethodPost, "/v1/pins"
-		body = wire.PinRequest{BoxID: in.Box, PubKey: in.PubKey, TS: ts, Force: in.Force, Sig: sign.Sign(priv, p)}
+	method, path, body, err := pinRequest(in, priv, now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, err
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -142,4 +140,22 @@ func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
 		return out, &hubclient.HubError{Token: eb.Error, Status: resp.StatusCode, Detail: eb.Detail}
 	}
 	return out, nil
+}
+
+// pinRequest is the signed pin (or revoke) body of PublishPin and its method
+// and path. A payload that cannot be canonicalised is an error, never a
+// signature over a nil payload.
+func pinRequest(in PinArgs, priv ed25519.PrivateKey, ts string) (method, path string, body any, err error) {
+	if in.Revoke {
+		p, err := wire.RevokePayload(in.Box, ts)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("revoke payload: %w", err)
+		}
+		return http.MethodDelete, "/v1/pins/" + in.Box, wire.RevokeRequest{BoxID: in.Box, TS: ts, Sig: sign.Sign(priv, p)}, nil
+	}
+	p, err := wire.PinPayload(in.Box, in.PubKey, ts, in.Force)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("pin payload: %w", err)
+	}
+	return http.MethodPost, "/v1/pins", wire.PinRequest{BoxID: in.Box, PubKey: in.PubKey, TS: ts, Force: in.Force, Sig: sign.Sign(priv, p)}, nil
 }

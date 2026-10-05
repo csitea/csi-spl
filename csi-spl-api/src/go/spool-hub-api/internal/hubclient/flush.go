@@ -413,7 +413,9 @@ type SyncReport struct {
 
 // Sync is one role=box session: hello, pin sync, drain the hub queue, flush
 // pending, close. A refused recv frame (e.g. unsynced sender pin) is returned
-// as the error after the rest has run.
+// as the error after the rest has run. SyncReport.Pending is the outbox left
+// after the flush, or -1 (logged) when the outbox cannot be scanned, so an
+// unreadable outbox never reads as "nothing pending".
 func (c *Client) Sync(ctx context.Context) (SyncReport, error) {
 	var r SyncReport
 	sess, err := c.Dial(ctx, wire.RoleBox)
@@ -425,8 +427,7 @@ func (c *Client) Sync(ctx context.Context) (SyncReport, error) {
 		return r, err
 	}
 	r.Flushed, err = sess.Flush(ctx)
-	left, _ := c.Pending()
-	r.Pending = len(left)
+	r.Pending = c.pendingCount()
 	r.Delivered = sess.Delivered()
 	rerrs := sess.RecvErrors()
 	r.Refused = len(rerrs)
@@ -442,6 +443,17 @@ func (c *Client) Sync(ctx context.Context) (SyncReport, error) {
 		return r, sess.pinConflict
 	}
 	return r, nil
+}
+
+// pendingCount is len(Pending()), or -1 with a warning when the outbox scan
+// fails.
+func (c *Client) pendingCount() int {
+	left, err := c.Pending()
+	if err != nil {
+		c.Log.Warn().Err(err).Str("box", c.Cfg.BoxID).Msg("outbox scan; pending unknown")
+		return -1
+	}
+	return len(left)
 }
 
 // Run is the box daemon (`spool hub-run`): it holds the role=box session,

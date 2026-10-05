@@ -100,9 +100,12 @@ func SignInURL(appURL, locale, defaultLocale, tenant string, toLobby bool) (stri
 	return out, nil
 }
 
+// messageID is a fresh RFC 5322 Message-ID for one invite mail:
+// <24 hex chars>.<template>@<host>, where host is the app URL's host, or
+// spool-hub.invalid when appURL has none.
 func messageID(appURL string) string {
 	b := make([]byte, 12)
-	_, _ = rand.Read(b)
+	rand.Read(b) //nolint:errcheck // crypto/rand.Read never fails since Go 1.24 (it panics instead)
 	host := "spool-hub.invalid"
 	if u, err := url.Parse(appURL); err == nil && u.Hostname() != "" {
 		host = u.Hostname()

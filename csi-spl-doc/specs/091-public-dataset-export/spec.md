@@ -376,12 +376,12 @@ The real box keys (`pins`) are not exported, so no real box can talk to a seeded
 ## 13. Consensus
 
 **YES: consensus reached at `51b40dca` (v0.4.0)**, over three rounds on topic `67b63c88`. The owner's panel rule
-(c6daa209: at least 1 agy, 1 grok and 2 claude) is met. Build may start; every item in §11 stays the owner's.
+(c6daa209: at least 1 agy, 1 grok and 2 claude) is met. Build may start (tasks.md is a separate lane); Q1-Q9 and Q1b in §11 stay the owner's.
 
 | lane | kind | role | verdict | where |
 |---|---|---|---|---|
 | c-307 | claude | author | YES at `51b40dca` | this file |
-| c-288 | claude | reviewer | YES at `b76c46b2`, re-signed YES at `51b40dca` | `claude-opinion.md` §10-§11; topic msg `e4fd745c` |
+| c-288 | claude | reviewer | YES at `b76c46b2`, re-signed YES at `51b40dca` | `claude-opinion.md` at `71b9af0d`; topic msg `e4fd745c` |
 | g-308 | grok | reviewer | YES at `51b40dca` | `grok-opinion.md` at `689b6e53`; topic msg `623efb09` |
 | a-287 | agy | reviewer | YES at `51b40dca` | `agy-opinion.md` at `4ff58441`; topic msg `fa240653` |
 

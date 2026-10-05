@@ -185,9 +185,28 @@ spl_sweep_rows() {
 # space so a row is one line; an agent's body is not read at all.
 _spl_sweep_rows_read() {
   PGOPTIONS='-c default_transaction_read_only=on' spl_pg_env "$SPL_PROXY_DSN" \
-    psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v days="${SWEEP_DAYS:-7}" > "$1" <<'SQL'
+    psql -X -q -At -F $'\t' -v ON_ERROR_STOP=1 -v days="${SWEEP_DAYS:-7}" > "$1" <<SQL
 BEGIN READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
+$(_spl_sweep_rows_sql);
+COMMIT;
+SQL
+}
+
+# The sweep's one statement (psql variable :days). The last message of each
+# topic is picked on its key alone (k: tenant_id, msg_id; MATERIALIZED, so it
+# runs once whatever the join order), then only those rows are read whole.
+# Perf edition 20261004 E17: DISTINCT ON over m.* sorted every 7-day row at
+# full width (bodies, envelopes) and spilled 8 MB to disk each run; prd
+# EXPLAIN ANALYZE 110..448 ms -> 71..78 ms, dev 55..59 -> 11..13 ms (n=3 each,
+# interleaved), identical rows. Pinned by unanswered-sweep-narrow-pg.tst.sh.
+_spl_sweep_rows_sql() {
+  cat <<'SQL'
+WITH k AS MATERIALIZED (
+  SELECT DISTINCT ON (m.tenant_id, m.task_id) m.tenant_id, m.msg_id
+    FROM messages m
+   WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
+   ORDER BY m.tenant_id DESC, m.task_id DESC, m.received_at DESC, m.msg_id DESC)
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
        extract(epoch FROM l.received_at)::bigint, coalesce(l.typed_by, l.from_id), l.to_id,
        CASE WHEN l.typed_by IS NOT NULL THEN 'terminal'
@@ -200,14 +219,11 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
        CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
             THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END
-  FROM (SELECT DISTINCT ON (m.tenant_id, m.task_id) m.*
-          FROM messages m
-         WHERE m.expires_at > now() AND m.received_at > now() - make_interval(days => :days)
-         ORDER BY m.tenant_id, m.task_id, m.received_at DESC, m.msg_id DESC) l
+  FROM k
+  JOIN messages l ON l.tenant_id = k.tenant_id AND l.msg_id = k.msg_id
   JOIN tenants t ON t.tenant_id = l.tenant_id
   LEFT JOIN channels c ON c.tenant_id = l.tenant_id AND c.channel_id = l.channel
- ORDER BY 1, 6;
-COMMIT;
+ ORDER BY 1, 6
 SQL
 }
 

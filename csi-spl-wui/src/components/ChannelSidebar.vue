@@ -786,7 +786,8 @@ import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, row
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
 import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
-import { flowDmPeers, rowUnread, sectionTotal } from '~/utils/flow-keys.mjs'
+import { flowDmPeers } from '~/utils/flow-keys.mjs'
+import { useUnread } from '~/composables/useUnread'
 import type { UiIconName } from '~/utils/uiIcons'
 
 type SideTab = 'dm' | 'channels' | 'topics' | 'flow' | 'search' | 'issues' | 'events' | 'archive' | 'users' | 'people' | 'agents' | 'boxes'
@@ -995,8 +996,17 @@ const flowRail = useFlowRail()
    section's number is the sum of the badges on the rows it lists - one map
    for both, so "7 new" never sits over rows that show nothing */
 const flowKeys = useFlowKeys()
+/* spec 079 FR-003, FR-007: rows and rail read the one unread model */
+const unread = useUnread()
 function unreadOf(key: string) {
-  return rowUnread(flowKeys.value, notes.unread, key)
+  return unread.rowOf(key)
+}
+/* a section's number: the model's rows it lists, each once (owner, t1 77540e6f:
+   never more than the badges on its rows add up to) */
+function listedSum(prefix: string, ids: string[]) {
+  let n = 0
+  for (const id of new Set(ids)) n += unread.rowOf(prefix + id)
+  return n
 }
 function dmBadgeLabel(label: string) {
   const key = 'dm:' + label
@@ -1007,11 +1017,10 @@ function dmTotalLabel(label: string) {
   return flowKeys.value ? dmTotalText(notes.dmTotal[key] || 0) : notes.dmTotalBadge(key)
 }
 function railCount(id: SideTab) {
-  const k = flowKeys.value
-  if (k) {
-    if (id === 'channels') return countLabel(sectionTotal(k, 'ch:', channelRows.value.map((c) => String(c.channel_id || ''))))
-    if (id === 'dm') return countLabel(sectionTotal(k, 'dm:', peers.value.map((p) => p.label)))
-    if (id === 'topics') return countLabel(sectionTotal(k, 't:', topicRows.value.map((t) => String(t.task_id || ''))))
+  if (flowKeys.value) {
+    if (id === 'channels') return countLabel(listedSum('ch:', channelRows.value.map((c) => String(c.channel_id || ''))))
+    if (id === 'dm') return countLabel(listedSum('dm:', peers.value.map((p) => p.label)))
+    if (id === 'topics') return countLabel(listedSum('t:', topicRows.value.map((t) => String(t.task_id || ''))))
     return ''
   }
   const r = flowRail.value

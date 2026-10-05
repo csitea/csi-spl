@@ -49,8 +49,11 @@ describe('tab title: unread count', () => {
     assert.equal(withUnread('hooli.spool-hub', 0), 'hooli.spool-hub')
     assert.equal(withUnread('spool-hub', 150), '(99+) spool-hub')
   })
-  it('app.vue feeds the notification store unread into the title', () => {
+  it('app.vue feeds the unread model title (spec 079 FR-006) into the tab title', () => {
     const app = readFileSync(join(WUI, 'src/app.vue'), 'utf8')
     assert.match(app, /withUnread\(tabTitle\(page, name\), unread\)/)
+    assert.match(app, /useUnread\(\)/)
+    assert.match(app, /unreadRows\.section\('channels'\) - muted\) \+ unreadRows\.section\('dms'\)/)
+    assert.doesNotMatch(app, /useFlowBadge|unreadTotal/, 'the title is the row sum, not the Flow total (spec 079 Q1)')
   })
 })

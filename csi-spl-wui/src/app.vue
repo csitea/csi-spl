@@ -14,9 +14,8 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { hostTenant } from '~/composables/useSpoolApi'
-import { tabTitle, tenantTabName, unreadTotal, withUnread } from '~/utils/tab-title.mjs'
-import { useNotificationStore } from '~/stores/notification'
-import { useFlowBadge } from '~/composables/useFlowBadge'
+import { tabTitle, tenantTabName, withUnread } from '~/utils/tab-title.mjs'
+import { useUnread } from '~/composables/useUnread'
 import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 import { setTimeZoneSource } from '~/utils/date-iso.mjs'
@@ -65,13 +64,17 @@ setTimeZoneSource(() => String(session.claims?.time_zone || ''))
 const apexTenant = String(useRuntimeConfig().public.tenant || '')
 const tabName = computed(() => tenantTabName(session.claims, (import.meta.client && hostTenant()) || apexTenant, apexTenant))
 
-const notes = useNotificationStore()
-/* spec 062 FR-013: once the hub counts the Flow, its number leads the title
-   ("(8) Spool"); before that (or on a hub without it) the channel/DM total */
-const flowBadge = useFlowBadge()
+/* spec 079 FR-006 (Q1, Q2): the title's "(n)" is the sum of the row numbers
+   the person can see, muted channels left out - one model with the rows and
+   the rail, no longer the Flow total (that stays on the Flow badge). Each
+   unread line sits on one channel or DM row; its topic row (t:) shows the
+   same line again (flow-v1 section 2), so topic rows are not added twice. */
+const unreadRows = useUnread()
 const unreadCount = computed(() => {
   if (!import.meta.client) return 0
-  return flowBadge.value >= 0 ? flowBadge.value : unreadTotal(notes.unread, loadMutedChannels())
+  let muted = 0
+  for (const c of new Set(loadMutedChannels())) muted += unreadRows.rowOf('ch:' + c)
+  return Math.max(0, unreadRows.section('channels') - muted) + unreadRows.section('dms')
 })
 
 useHead(() => {

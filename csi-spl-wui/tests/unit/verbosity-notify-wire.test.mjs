@@ -33,8 +33,9 @@ describe('verbosity + notify wiring', () => {
   it('sidebar unread badges read the notification store', () => {
     const src = readFileSync(join(WUI, 'src/components/ChannelSidebar.vue'), 'utf8')
     assert.equal(src.includes('useNotificationStore'), true)
-    /* owner t1 77540e6f: a row reads the hub's per-row keys, else notes.unread */
-    assert.equal(src.includes("notes.unread['ch:'") || src.includes('rowUnread(flowKeys.value, notes.unread, key)'), true)
+    /* owner t1 77540e6f, spec 079 FR-003: a row reads the one unread model
+       (the hub's per-row keys, else notes.unread) */
+    assert.equal(src.includes('unread.rowOf(key)'), true)
     assert.equal(src.includes('channel.unread['), false)
   })
 

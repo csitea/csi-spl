@@ -4,7 +4,8 @@
 // (one DM to HUM-1, 7a7a...); in live mode the hub counts (FR-008).
 //
 //   - before the pane opens, the Flow tab shows the number 1 and the title "(1) ..."
-//   - opening the Flow clears the number (Q4) and lists Mine: only 7a7a...
+//   - opening the Flow clears the number (Q4) and lists Mine: only 7a7a...;
+//     the title stays "(1) ..." (spec 079: it sums the unread rows, not Flow)
 //   - the chips: DM 1, mention / reply 0 (dimmed, no filter); the DM chip filters
 //   - All shows today's stream (every message); the choice survives a reload
 //   - 1440x900 and 390x844 (the phone's level-1 strip carries the number too)
@@ -112,7 +113,10 @@ try {
     f = await facts(p)
     ok(`${tag}: Mine is the default`, f.mine === 'true' && f.all === 'false', { mine: f.mine, all: f.all })
     ok(`${tag}: Mine lists only what concerns me`, f.ids.length === 1 && f.ids[0] === MINE, f.ids)
-    ok(`${tag}: opening the Flow clears the number`, f.count === '' && !/^\(\d+\+?\) /.test(f.title), { count: f.count, title: f.title })
+    ok(`${tag}: opening the Flow clears the number`, f.count === '', { count: f.count })
+    /* spec 079 FR-006 (Q1, Q4): the title is the sum of the unread rows, not the
+       Flow number, so the still-unread DM keeps it at (1) */
+    ok(`${tag}: opening the Flow keeps the title on the unread DM row`, f.title.startsWith('(1) '), { title: f.title })
     ok(`${tag}: opening the Flow keeps the DM number (it counts unread, not unseen)`, f.rail.dm === '1', f.rail)
     ok(`${tag}: the chips split the unread (DM 1, mention 0, reply 0)`, f.chips.dm?.n === 1 && f.chips.mention?.n === 0 && f.chips.reply?.n === 0, f.chips)
 

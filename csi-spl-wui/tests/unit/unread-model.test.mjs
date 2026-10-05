@@ -108,7 +108,6 @@ const RULES = {
 // Today's direct callers, each removed by the task that rewires it (tasks.md
 // T004..T006). An entry that no longer matches fails too: delete it with the fix.
 const TODO = [
-  { file: 'src/app.vue', rule: 'unreadTotal', task: 'T004' },
   { file: 'src/components/ChannelSidebar.vue', rule: 'flow-keys', task: 'T004/T005' },
   { file: 'src/components/MessageFeed.vue', rule: 'unreadFor', task: 'T006' },
 ]

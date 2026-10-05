@@ -571,6 +571,9 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	}
 	f.ParentTaskID = strings.ToLower(f.ParentTaskID)
 	rt, rf := s.wuiRoute(ctx, c, f, m, isParent, agent)
+	if rf == nil { // specs/077 T014, demo_dm.go
+		rf = frameRefusalOf(s.demoDM(ctx, c, rt.channel, m))
+	}
 	if rf == nil {
 		rf = frameRefusalOf(s.admit(ctx, c.tenant, c.member, m))
 	}

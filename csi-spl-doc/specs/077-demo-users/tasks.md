@@ -124,8 +124,13 @@ Rules for every task (owner Q8, spec §3.10):
   Tests: `TestDemoAgentTurnQuota` (CONTROL limit 21),
   `TestDemoAgentTurnQuotaOthersUnaffected`, store `TestQuotaCounter`
   (CONTROL: 30 racing takes on 20 take 20).
-- [ ] T014 **DMs to demo agents only** (§3.2): a `demo_user` DM to a human is
-  refused in the hub.
+- [x] T014 **DMs to demo agents only** (§3.2): a `demo_user` DM to a human is
+  refused in the hub. Done: `demo_dm.go` refuses `403 demo_dm_human` in
+  `wuiSend` (the one send path a browser session has; box sends need a pin,
+  no HTTP route creates a message) when the DM's `to`, or any DM end the task
+  already holds, is a person other than the sender. `TestDemoDMHumanRefused`
+  (memory + Postgres; CONTROL: the same 4 frames by a developer are stored,
+  and with the guard removed all 4 are stored).
 - [x] T015 **exfiltration control** (§3.8, c-315): a `demo_user` session reads zero
   rows of another workspace through every read route (`/v1/view/*`, search,
   files, flow, issues). Done: `TestDemoExfiltration` signs the visitor in

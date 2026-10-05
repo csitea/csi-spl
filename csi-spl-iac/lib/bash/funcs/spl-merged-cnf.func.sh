@@ -23,6 +23,9 @@
 # @description env.steps in all.env.yaml holds the step settings every cloud env
 # @description shares (spec 072 A44); an env file without env.steps of its own
 # @description (lde: no terraform) gets no env.steps at all.
+# @description env.hub.env.SPOOL_HUB_DEMO_{ENABLED,WORKSPACE,PROVIDERS,MAX_LIVE}
+# @description are env.demo.{enabled,workspace,providers,max_live} (spec 077
+# @description T023): the demo is one cnf block, never a hub.env literal.
 # @description steps.120-github-general-secrets.gh_repo defaults to
 # @description steps.017-github-wif-deploy.github_repository: one key per fact.
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
@@ -53,6 +56,11 @@ do_spl_merged_cnf() {
       .hub.env.SPOOL_HUB_TENANT_HOST_PATTERN = (.hub.env.SPOOL_HUB_TENANT_HOST_PATTERN // ("{tenant}." + .dns.fqdn)))' |
     yq '(.env | select(.hub != null and .i18n.default_locale != null)) |= (
       .hub.env.SPOOL_HUB_DEFAULT_LOCALE = (.hub.env.SPOOL_HUB_DEFAULT_LOCALE // .i18n.default_locale))' |
+    yq '(.env | select(.hub != null and .demo != null)) |= (
+      .hub.env.SPOOL_HUB_DEMO_ENABLED = (.demo.enabled | tostring) |
+      .hub.env.SPOOL_HUB_DEMO_WORKSPACE = (.demo.workspace | tostring) |
+      .hub.env.SPOOL_HUB_DEMO_PROVIDERS = (.demo.providers | join(",")) |
+      .hub.env.SPOOL_HUB_DEMO_MAX_LIVE = (.demo.max_live | tostring))' |
     yq '(.env | select(.hub.image.tag != null and .steps."028-gcp-artifact-registry" != null)) |= (
       .hub.image.ref = (.gcp.gcp_region + "-docker.pkg.dev/" + .gcp.gcp_project + "/" +
         .steps."028-gcp-artifact-registry".repository_id + "/" + .hub.image.name + ":" + (.hub.image.tag | tostring)))' |

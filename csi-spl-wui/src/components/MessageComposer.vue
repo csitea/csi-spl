@@ -76,9 +76,10 @@
         ref="fieldEl"
       >
         <!-- owner, t1 3d6d945d (2026-10-02, option "A"): one glyph inside the
-             box at its start says where the post goes - "#" a new topic, the
-             tree (an upside-down F) into the open thread or issue. Its name is
-             the mode's own words; the placeholder and GO say it too. -->
+             box at its start says where the post goes. HUM-10: a new topic
+             draws no hash glyph, because the name already begins with #.
+             The tree (an upside-down F) stays for the open thread or issue.
+             Its name is the mode's own words; the placeholder and GO say it too. -->
         <span
           v-if="modeGlyph"
           class="composer-mode-glyph"
@@ -798,17 +799,18 @@ const modeText = computed(() => {
   return label ? t(label.key, label.params) : ''
 })
 const intoTree = computed(() => Boolean(dockHint.value && (dockHint.value.mode === 'thread' || dockHint.value.mode === 'comment')))
-/* owner, t1 3d6d945d "A": the glyph in the box - a new topic or into the tree;
-   a DM, /search and a page with no send target show none.
-   HUM-10 (t1 3ffb2dee): on the phone the placeholder is already "#{name}".
-   A hash glyph in front of it reads "# #name". Drop the glyph there; the
-   gap it opened goes with it. Desktop keeps the glyph: its placeholder
-   is "Message #name", which is not the same doubling. */
+/* owner, t1 3d6d945d "A": the glyph in the box marks a post into the tree.
+   A DM, /search and a page with no send target show none.
+   HUM-10: a new topic already shows the channel as #name (the phone
+   placeholder is "#{name}"; the desktop placeholder and the target chip
+   both carry that same hash). A hash glyph in front of it reads "# #name"
+   on the desktop and on the phone. Drop the glyph on both; the gap it
+   opened goes with it. The tree glyph stays for a reply. */
 const modeGlyph = computed<'thread-tree' | 'hash' | null>(() => {
   if (!props.global || searchMode.value || !dockHint.value) return null
   if (intoTree.value) return 'thread-tree'
-  if (docked.value && dockHint.value.mode === 'new') return null
-  return dockHint.value.mode === 'new' ? 'hash' : null
+  if (dockHint.value.mode === 'new') return null
+  return null
 })
 /* a phone page with no send target (/issues list, /events, /settings): GO
    there searches for the text, never nothing - data-mode="search", no accent */
@@ -1584,9 +1586,9 @@ textarea.in-code {
  */
 .composer[data-mode=thread],
 .composer[data-mode=comment] { --composer-mode: var(--color-mode-reply); }
-/* owner, t1 3d6d945d "A": the glyph sits in the field's start corner, centred
-   on the first text line (as the "?" sits in the end corner); the text starts
-   after it. Muted for a new topic, the reply colour into the tree. */
+/* owner, t1 3d6d945d "A": the tree glyph sits in the field's start corner,
+   centred on the first text line; the text starts after it, in the reply
+   colour. HUM-10: a new topic draws no glyph, so this rule is the reply. */
 .composer-mode-glyph {
   position: absolute;
   z-index: 1;

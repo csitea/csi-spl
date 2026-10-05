@@ -12,7 +12,9 @@
 //     "reply : <<the title>> is a bug", then at 14:24Z "some kind of reply
 //     button there in the wrong place" - the one-word "Reply" chip)
 //     1 the list: data-mode new, one plain border, GO "Start topic",
-//       placeholder "Message #alerts - ..." (unchanged), one line in the bar
+//       placeholder "Message #alerts - ..." (unchanged), one line in the bar,
+//       NO hash glyph in front of it (HUM-10: a glyph plus "#alerts" reads
+//       "# #alerts" on the desktop the same way it did on the phone)
 //     2 click a card (its thread opens): data-mode thread, the same border, GO
 //       "Send reply", placeholder "Reply - ..."
 //     3 close the thread: back to 1
@@ -130,6 +132,11 @@ function cue(p) {
         return { top: Math.round(b.top - a.top), left: Math.round(b.left - a.left) }
       })(),
       placeholder: f.querySelector('textarea')?.placeholder || '',
+      /* the chip after a typed line: "#alerts", never a second hash */
+      targetChip: (() => {
+        const el = [...f.querySelectorAll('[data-test=composer-target-chip]')].find(vis)
+        return el ? el.textContent.trim() : null
+      })(),
       go: go ? go.getAttribute('aria-label') : '',
     }
   })
@@ -179,9 +186,13 @@ async function desktopCase(browser, theme) {
     Boolean(c1 && c1.mode === 'new' && c1.chip === null && c1.line === null && c1.mark === null), c1)
   ok(`${tag} 1 GO says "Start topic", the placeholder is the old "Message #alerts", ONE plain 1px border (no lilac edge)`,
     Boolean(c1 && c1.go === 'Start topic' && c1.placeholder.startsWith('Message #alerts') && c1.single), c1)
-  /* a long chip squeezed the placeholder in the first cut (4.8.7) */
-  ok(`${tag} 1 option A: "#" inside the box at its start, named "New topic in #alerts", centred on the text line, the text clear of it`,
-    Boolean(c1 && c1.glyph && c1.glyph.kind === 'hash' && c1.glyph.role === 'img' && c1.glyph.name === 'New topic in #alerts' && c1.glyph.inBox && Math.abs(c1.glyph.dy) <= 3 && c1.glyph.clear >= 2 && c1.glyph.w === 16), c1 && c1.glyph)
+  /* HUM-10: the placeholder already contains "#alerts". A hash glyph in
+     front of it is a leading "#" plus the field's start gap. CONTROL: return
+     'hash' for an undocked new topic and shown becomes "# Message #alerts". */
+  const shown1 = (c1 && c1.glyph && c1.glyph.kind === 'hash' ? '# ' : '') + (c1 ? c1.placeholder : '')
+  ok(`${tag} 1 HUM-10: no hash glyph before "#alerts"; the channel hash appears once`,
+    Boolean(c1 && c1.glyph === null && c1.placeholder.startsWith('Message #alerts') && (c1.placeholder.match(/#/g) || []).length === 1 && !/^#\s+/.test(shown1)),
+    { placeholder: c1 && c1.placeholder, glyph: c1 && c1.glyph, shown: shown1 })
   ok(`${tag} 1 the field stays one line in the bar (<= 50 px)`,
     Boolean(c1 && c1.fieldH > 0 && c1.fieldH <= 50), { fieldH: c1 && c1.fieldH })
 
@@ -193,8 +204,8 @@ async function desktopCase(browser, theme) {
   await shot(p, `reply-1440-${theme}`)
   ok(`${tag} 2 a thread open: no chip, no text, no arrow (owner t1 3d6d945d: "remove this arrow")`,
     Boolean(c2 && c2.mode === 'thread' && c2.chip === null && c2.line === null && c2.mark === null), c2)
-  ok(`${tag} 2 option A: the tree (upside-down F) inside the box, named "Replying in the open thread", in the reply colour, not the "#" colour`,
-    Boolean(c2 && c2.glyph && c2.glyph.kind === 'thread-tree' && c2.glyph.name === 'Replying in the open thread' && c2.glyph.inBox && Math.abs(c2.glyph.dy) <= 3 && c2.glyph.clear >= 2 && c1.glyph && c2.glyph.color !== c1.glyph.color), { new: c1 && c1.glyph, reply: c2 && c2.glyph })
+  ok(`${tag} 2 option A: the tree (upside-down F) inside the box, named "Replying in the open thread"`,
+    Boolean(c2 && c2.glyph && c2.glyph.kind === 'thread-tree' && c2.glyph.name === 'Replying in the open thread' && c2.glyph.inBox && Math.abs(c2.glyph.dy) <= 3 && c2.glyph.clear >= 2), { reply: c2 && c2.glyph })
   ok(`${tag} 2 GO says "Send reply", the placeholder says reply`, Boolean(c2 && c2.go === 'Send reply' && c2.placeholder.startsWith('Reply')), c2)
   ok(`${tag} 2 the reply box has the very same single border as a new topic`, Boolean(c1 && c2 && c2.single && c1.edge === c2.edge), { new: c1 && c1.edge, reply: c2 && c2.edge })
 
@@ -204,7 +215,7 @@ async function desktopCase(browser, theme) {
   })
   await waitMode(p, 'new')
   const c3 = await cue(p)
-  ok(`${tag} 3 the thread closed: back to a new topic, the "#" again`, Boolean(c3 && c3.mode === 'new' && c3.chip === null && c3.glyph && c3.glyph.kind === 'hash'), c3)
+  ok(`${tag} 3 the thread closed: back to a new topic, still no hash glyph`, Boolean(c3 && c3.mode === 'new' && c3.chip === null && c3.glyph === null), c3)
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }
@@ -277,11 +288,55 @@ async function phoneCase(browser) {
   await p.close()
 }
 
+/** HUM-10 at the widths the owner named. A new topic shows "#alerts"
+ *  once. CONTROL: today's master still returns the hash glyph on the desktop
+ *  (1280), so the empty box reads "# Message #alerts" and a typed line reads
+ *  "# #alerts". Both checks go red there. 390 already dropped the glyph. */
+async function newTopicOnce(browser, width, height, mobile) {
+  const tag = String(width)
+  const { p, errors } = await open(
+    browser,
+    mobile ? { width, height, isMobile: true, hasTouch: true } : { width, height },
+    '/channel/alerts',
+  )
+  await firstCard(p)
+  await waitMode(p, 'new')
+  const empty = await cue(p)
+  await shot(p, `hash-empty-${width}`)
+  const emptyShown = (empty && empty.glyph && empty.glyph.kind === 'hash' ? '# ' : '') + (empty ? empty.placeholder : '')
+  const hashes = empty && empty.placeholder ? (empty.placeholder.match(/#/g) || []).length : 0
+  ok(`${tag} HUM-10 empty: "#alerts" once, no hash glyph in front of it`,
+    Boolean(empty && empty.mode === 'new' && empty.glyph === null && empty.placeholder.includes('#alerts') && hashes === 1 && !/^#\s+/.test(emptyShown)),
+    { placeholder: empty && empty.placeholder, glyph: empty && empty.glyph, shown: emptyShown, hashes })
+  const box = await p.evaluate(() => {
+    const vis = (el) => Boolean(el) && el.getClientRects().length > 0
+    const f = [...document.querySelectorAll('form.composer.omnibox--global')].find(vis)
+    const ta = f && f.querySelector('textarea')
+    if (!ta) return null
+    const r = ta.getBoundingClientRect()
+    return { x: Math.round(r.left + Math.min(48, r.width / 2)), y: Math.round(r.top + r.height / 2) }
+  })
+  if (mobile) await p.touchscreen.tap(box.x, box.y)
+  else await p.mouse.click(box.x, box.y)
+  await p.keyboard.type('hello')
+  await sleep(300)
+  const typed = await cue(p)
+  await shot(p, `hash-once-${width}`)
+  const chipShown = (typed && typed.glyph && typed.glyph.kind === 'hash' ? '# ' : '') + (typed && typed.targetChip ? typed.targetChip : '')
+  ok(`${tag} HUM-10 typed: the target is exactly "#alerts", no hash glyph and no space before it`,
+    Boolean(typed && typed.mode === 'new' && typed.glyph === null && typed.targetChip === '#alerts' && chipShown === '#alerts' && !/^#\s+#/.test(chipShown)),
+    { chip: typed && typed.targetChip, glyph: typed && typed.glyph, shown: chipShown })
+  ok(`${tag} HUM-10 no page error`, errors.length === 0, errors)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
   /* warm the dev server's chunks: a cold nuxi dev can fail the first dynamic import */
   await (await open(browser, { width: 1440, height: 900 }, '/channel/alerts')).p.close()
+  await newTopicOnce(browser, 1280, 800, false)
+  await newTopicOnce(browser, 390, 844, true)
   await desktopCase(browser, 'dark')
   await desktopCase(browser, 'light')
   await dmCase(browser)

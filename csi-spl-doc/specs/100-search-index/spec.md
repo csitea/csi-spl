@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.5 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.6 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -112,8 +112,13 @@ Semantic search would also cost more than its price tag:
 - a vector of 768 float4 is 3 KB per row (arithmetic), the same order as
   today's 5.9 KB average row. That is +56 MB now and +560 MB at 10x-A, on a
   0.6 GB instance (**unchecked** machine size);
-- pgvector's distance operators are, I believe, unchecked, no more LEAKPROOF
-  than `@@`, so they would need the same lift as S1r;
+- r2 measured pgvector (local, vector 0.8.7, n=1; r2 section 3.6). Its distance
+  operators are not LEAKPROOF. Even so, `ORDER BY emb <-> $q LIMIT n` DOES use
+  HNSW under FORCE RLS, with the tenant check as a Filter after the index. With
+  many tenants that returns short or empty pages: a recall bug, not a leak.
+  KNN also always returns the nearest rows, even when nothing matches, and has
+  no phrase, negation or exact word, which the search-v1 contract promises.
+  The reason to reject it is semantics and recall, not leakproofness;
 - every post would go to an embedding provider (owner question Q2).
 
 Cost in section 4.
@@ -186,7 +191,12 @@ figure is **unchecked** unless it is marked otherwise.
   and deletes by the row's own words (a FK cascade cost 17.6 ms a message,
   LOCAL, n=1, r3 section 4).
 - It cannot check a phrase without going back to `messages`.
-- B is the fallback if the owner refuses any lift (Q1).
+- B is the fallback if the owner refuses any lift (Q1), or if Cloud SQL dev
+  refuses P0. Its correctness conditions (r2 section 3.5):
+  - the word column is `COLLATE "C"`, so a prefix range is exact;
+  - the prefix upper bound is `term < p || chr(1114111)`, not an
+    incremented last character;
+  - a body edit deletes and re-inserts the message's words in the trigger.
 
 ### 4.3 What S0 is now
 
@@ -246,7 +256,19 @@ spool_search_page(q tsquery, viewer text, viewer_channels text[], public_channel
 - `q` is built in SQL from bind parameters exactly as today. All positive
   text terms are ANDed with `&&`, and `:*` is appended for a prefix. NOT
   terms and non-text operators stay in the outer statement.
-- A query with no positive text term (`from:` only) keeps today's path.
+- A query with no positive text term (`from:` only, OR-only, NOT-only) keeps
+  today's path. The candidate set never replaces `cond()`: the outer `@@`
+  stays, so phrase positions and the `COALESCE` / `NOT` semantics stay exact
+  (r2 3.3.2).
+- The function declares `ROWS` (the SETOF default estimate is 1 000), so the
+  outer plan is not a guess (r2 3.3.4). SECURITY DEFINER is never inlined, as
+  intended: inlining would bring the caller's RLS back.
+
+**The rule for any index outside `messages`' own RLS: the index proposes,
+Postgres disposes** (r2 3.7). The index returns candidate ids for the
+session tenant. The final statement is today's, under RLS, with `cond()`,
+the read door, expiry and archive. A leak in the index then surfaces no row,
+and a stale index gives false negatives only.
 
 ### 5.2 Sections
 
@@ -256,6 +278,19 @@ spool_search_page(q tsquery, viewer text, viewer_channels text[], public_channel
 | topics | `topicCandidates` takes its task ids from the same function. The per-topic aggregate stays as it is; that is spec 099's topic head, out of scope here |
 | relevance sort | ranks the newest 2 000 matches only (`lim` = 2 000) instead of every match, which bounds r1's U4 TOAST reads. A contract change: Q6 |
 | files, `has:code` | unchanged, out of scope (r1 U5, U7) |
+| topics, the title | `array_agg(body)` detoasts every body of every scoped task to build the title (r2 2.3, read from code, unmeasured). No index fixes it; it belongs to spec 099's topic head |
+
+**The budget is per request, not per statement** (r2 2.5,
+`hub/search.go`). `statement_timeout` is 5 s per section, and the sections
+run in sequence under one context of budget + 1 s. Two sections of 3 s each
+return a 503 with no statement past 5 s. Section 8 measures both, per
+request and per statement.
+
+**While 0135 stays as the fallback**, one invariant query belongs in the
+post-migrate and post-upgrade checks, because `hashtext` is not documented
+as stable across major versions and a change would make silent false
+negatives (r2 2.1.5). It must return 0:
+`SELECT count(*) FROM messages WHERE search_sig IS NOT NULL AND search_sig <> spool_search_sig(search_tsv)`.
 
 ## 6. Tenant isolation: the tests that must fail on a leak
 
@@ -296,6 +331,8 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | Q-rare | a word in 1..3 rows of t1, chosen by a read-only count before the run |
 | Q-prefix | `refact*` (r1: 0135 never helps a prefix) |
 | Q-from | `from:<a t1 member>` with no text (r1 U3; must not regress) |
+| Q-zero | a word in no row of t1: the true worst case of the backward scan, which stops only when the page fills (r2 1.2) |
+| Q-rel | Q-common with `sort=relevance` (`ts_rank_cd` reads the TOAST of every match, r2 2.2) |
 
 **Metrics.**
 - **Primary:** `shared hit` + `shared read` from `EXPLAIN (ANALYZE, BUFFERS)`.
@@ -304,11 +341,13 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 - Secondary: ms, with `read` and `hit` shown separately.
 - A run is "cold" only if its `shared read` is > 0 on `messages` or the GIN,
   and is reported as such. A true cold run n>=5 needs a prd clone (Q3);
-  without one, cold is "as found".
+  without one, the first sample after an idle gap is reported apart from the
+  rest, and says which it is (r2 5.1).
 
 **Acceptance.**
-- Q-owner, Q-rare and Q-prefix use at most 2 000 buffers, and their p95 is
-  under 1 s.
+- Q-owner, Q-rare, Q-zero and Q-prefix use at most 2 000 buffers, and their
+  p95 per REQUEST is under 1 s.
+- Q-rel stays under the budget per request.
 - Q-common and Q-from use no more than 1.2x their BEFORE buffers.
 - No 503 in n=5.
 - The perf test in CI seeds the query's OWN common words (owner lesson 5).
@@ -333,6 +372,7 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | G3 | insert cost with the GIN on the prd shape | P4 |
 | G4 | a true cold n>=5 | Q3 |
 | G5 | ~~B's real size on prd~~ **closed**: 82.1 words a post, ~190 MB (2.1) | - |
+| G7 | whether the migrate login on Cloud SQL can `ALTER FUNCTION ... OWNER TO spool_search_reader`. On pg 16 it must hold that role's membership, and the creator of the role does (r2 3.3) | P0 |
 | G6 | `btree_gin` 1.3 is available on prd (2.1); still open: whether the migrate login can `CREATE EXTENSION btree_gin` (a trusted extension since pg 13, like `unaccent` in rdb 0048: **unchecked**). Without it, the GIN on `search_tsv` alone filters tenants after the index (10x-B cost) | P0 |
 
 ## 11. Questions for the owner (one list, to c-002)
@@ -360,13 +400,24 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 |---|---|---|---|
 | author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r |
 | r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1 with r3's role-scoped policy and `gin (tenant_id, search_tsv)` (r1 section 8, `712ff98d`), i.e. S1r. **SIGNED v0.4** (`e9829578`, msg 1b2a4f4d); v0.5 adds prd data only |
-| r2 | c-370 (claude) | pending | pending |
+| r2 | c-370 (claude) | `research/r2-claude.md` | S1 with its 3.3.1..3.3.5 as acceptance criteria (all in v0.6: T4, 5.1, 7, P1) and 3.3.6 as an owner question (Q1). Agreement with v0.6: pending |
 | r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). S1r on v0.3; signs v0.4 with the prd reads folded in (v0.5) |
 
 Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.6 (2026-10-06): takes in r2.
+  - pgvector is rejected on semantics and recall: HNSW does run under RLS
+    for an ORDER BY.
+  - Conditions for fallback B: `COLLATE "C"`, the prefix bound, the edit
+    trigger.
+  - "The index proposes, Postgres disposes." The function declares `ROWS`.
+  - The budget is per request.
+  - The 0135 invariant check while it is the fallback.
+  - Benchmark adds Q-zero and Q-rel; acceptance is per request.
+  - The topic title's `array_agg` goes to spec 099.
+  - G7 (`ALTER FUNCTION OWNER` on Cloud SQL).
 - v0.5 (2026-10-06): r3's objections. Prd reads in 2.1 (19 244 t1 messages,
   1.79 M postings, 943 posts a day, LEAKPROOF flags, `btree_gin` and `vector`
   available). Sizes in section 4 come from prd. G5 is closed and G6 narrowed.

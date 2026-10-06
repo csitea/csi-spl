@@ -122,6 +122,11 @@ function onLink(e: MouseEvent, href: string) {
   min-width: 0;
   max-width: 100%;
 }
+/* t1 b58ce5fe (owner: "only the fonts of the preview from links should be
+   smaller", "20% smaller than the regular fonts"): a card's text is 0.8 of
+   the message text it sits under - title and excerpt 0.8 x the 0.875rem
+   .msg-body, kind and meta 0.8 x the 0.75rem .msg-time. Rem, so the five
+   --font-root levels scale them; the same in every pane. */
 .link-preview {
   display: grid;
   gap: 2px;
@@ -139,12 +144,13 @@ function onLink(e: MouseEvent, href: string) {
 .link-preview:hover,
 .link-preview:focus-visible { border-inline-start-color: var(--color-accent); }
 .link-preview__kind {
-  font-size: 0.6875rem;
+  font-size: calc(0.75rem * 0.8);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--color-muted);
 }
 .link-preview__title {
+  font-size: calc(0.875rem * 0.8);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -158,13 +164,13 @@ function onLink(e: MouseEvent, href: string) {
   overflow: hidden;
   white-space: pre-line;
   overflow-wrap: anywhere;
-  font-size: 0.8125rem;
+  font-size: calc(0.875rem * 0.8);
 }
 .link-preview__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * 0.8);
   color: var(--color-muted);
 }
 </style>

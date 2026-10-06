@@ -50,7 +50,6 @@ const SURFACES = ['--color-bg', '--color-bg-2', '--color-surface', '--color-surf
 const PAIRS = [
   ['text', '--color-fg', [...SURFACES, '--color-selected', '--color-composer'], 4.5],
   ['muted text', '--color-muted', SURFACES, 4.5],
-  ['preview title', '--color-preview-title', SURFACES, 4.5],
   ['accent text', '--color-accent', ['--color-bg', '--color-surface'], 4.5],
   ['button text', '--color-on-accent', ['--color-accent', '--color-accent-pressed'], 4.5],
   ['error text', '--color-danger', ['--color-bg', '--color-surface'], 4.5],

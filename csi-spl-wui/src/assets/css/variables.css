@@ -32,10 +32,6 @@
   --color-fg: #eaf2ff;
   --color-heading: #f4f8ff;
   --color-muted: #93a6c4;
-  /* t1 b58ce5fe: the open topic (preview) title. Light themes: the
-     lightest grey that still clears 4.5:1 on every surface. Dark: the
-     muted grey, never brighter than the body text. */
-  --color-preview-title: #93a6c4;
   --color-border: rgba(130, 200, 255, 0.16);
   --color-border-strong: rgba(130, 200, 255, 0.32);
   --color-accent: #34d5f0;
@@ -125,7 +121,6 @@
   --color-fg: #0c1626;
   --color-heading: #0c1626;
   --color-muted: #47597a;
-  --color-preview-title: #516282;
   --color-border: rgba(12, 60, 110, 0.16);
   --color-border-strong: rgba(12, 60, 110, 0.32);
   --color-accent: #0a97c4;
@@ -175,7 +170,6 @@
   --color-fg: #1b1030;
   --color-heading: #1b1030;
   --color-muted: #54467a;
-  --color-preview-title: #615384;
   --color-border: rgba(70, 30, 140, 0.16);
   --color-border-strong: rgba(70, 30, 140, 0.32);
   --color-accent: #6a3fd0;
@@ -209,7 +203,6 @@
   --color-fg: #0d1f14;
   --color-heading: #0d1f14;
   --color-muted: #3d5a47;
-  --color-preview-title: #4d6856;
   --color-border: rgba(20, 90, 50, 0.16);
   --color-border-strong: rgba(20, 90, 50, 0.32);
   --color-accent: #16733f;
@@ -243,7 +236,6 @@
   --color-fg: #231b05;
   --color-heading: #231b05;
   --color-muted: #5a4b1c;
-  --color-preview-title: #716338;
   --color-border: rgba(110, 80, 0, 0.18);
   --color-border-strong: rgba(110, 80, 0, 0.34);
   --color-accent: #855400;
@@ -280,7 +272,6 @@
   --color-fg: #2a1608;
   --color-heading: #2a1608;
   --color-muted: #6b4a28;
-  --color-preview-title: #795b3b;
   --color-border: rgba(140, 70, 0, 0.18);
   --color-border-strong: rgba(140, 70, 0, 0.34);
   --color-accent: #a34b00;
@@ -318,7 +309,6 @@
   --color-fg: #2a1012;
   --color-heading: #2a1012;
   --color-muted: #6a3840;
-  --color-preview-title: #7e5158;
   --color-border: rgba(120, 30, 50, 0.16);
   --color-border-strong: rgba(120, 30, 50, 0.32);
   --color-accent: #9a3d58;
@@ -352,7 +342,6 @@
   --color-fg: #eaf2ff;
   --color-heading: #f4f8ff;
   --color-muted: #93a6c4;
-  --color-preview-title: #93a6c4;
   --color-border: rgba(130, 200, 255, 0.16);
   --color-border-strong: rgba(130, 200, 255, 0.32);
   --color-accent: #34d5f0;

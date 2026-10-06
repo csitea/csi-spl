@@ -308,7 +308,11 @@ func TestWelcomeStatusSnapshot(t *testing.T) {
 	b := seat(t, e, tid, rbac.Developer)
 	c := seat(t, e, tid, rbac.Developer)
 	putStatus(t, e, tid, a, map[string]any{"state": "unavailable", "note": "On leave"})
+	watch := dialWUI(t, e, tid, a)
 	dialWUI(t, e, tid, b) // b online: one presence frame in the snapshot
+	// b counts as online only after its welcome; wait until another socket
+	// saw it, so c's snapshot is sure to carry it (CI raced here).
+	watch.presence(b+"@box-wui", "online")
 
 	v := dialWUI(t, e, tid, c)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

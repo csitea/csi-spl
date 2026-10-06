@@ -23,7 +23,7 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
-orc_stub 0 gcloud docker firebase
+orc_stub 0 gcloud docker firebase pnpm
 printf '#!/bin/sh\necho "curl $*" >>"$STUB_LOG"\nexit 7\n' >"$T/stub/curl"
 chmod +x "$T/stub/curl"
 
@@ -106,8 +106,8 @@ for a in do_deploy_hub do_deploy_wui; do
   [[ $rc -eq 0 ]] && grep -q "PLAN dev ${HEAD_SHA:0:12}" "$T/out.$a" && grep -q 'v1.5.7 (predicted' "$T/out.$a" \
     && pass "6. $a DRY_RUN prints the plan with the predicted version" || fail "6. $a rc=$rc $(cat "$T/out.$a")"
 done
-grep -qE '^(gcloud|docker|firebase) ' "$T/calls.log" && fail "6. a dry run called: $(grep -E '^(gcloud|docker|firebase)' "$T/calls.log")" \
-  || pass "6. the dry runs made no gcloud / docker / firebase call"
+grep -qE '^(gcloud|docker|firebase|pnpm) ' "$T/calls.log" && fail "6. a dry run called: $(grep -E '^(gcloud|docker|firebase|pnpm)' "$T/calls.log")" \
+  || pass "6. the dry runs made no gcloud / docker / firebase / pnpm call"
 
 # --- 7. build.json + config.json ------------------------------------------------------------
 mkdir -p "$T/wui/.output/public"

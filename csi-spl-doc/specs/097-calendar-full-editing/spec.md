@@ -1,9 +1,10 @@
 # 097 Calendar: full editing, Google Calendar style
 
-Status: **v0.4, 2026-10-06: mobile-first specification added.** The owner approved
-the v1 feature list (section 0.1, E1..E3) and answered Q1..Q9 "as proposed"
-(section 10, msg `92b3e0d6`). Mobile-first section 5.1 defines phone layout,
-touch interactions, and 360/390 px acceptance checks for all 10 features, with
+Status: **v0.4, 2026-10-06: mobile-first specification added and approved.** The owner
+approved the v1 feature list (section 0.1, E1..E3), answered Q1..Q9 "as proposed"
+(section 10, msg `92b3e0d6`), and approved the mobile-first feature list and rule in
+t1 52aee116 (HUM-10 msg `adf16567`, "look good . go"). Mobile-first section 5.1 defines
+phone layout, touch interactions, and 360/390 px acceptance checks for all 10 features, with
 open owner questions M1..M5. Building may start (tasks.md).
 Topic: t1 `70484be0-ed1d-4fc0-bebb-44874cc2661e` (owner HUM-10, msg
 `88405d88`). Author: c-397.
@@ -403,10 +404,11 @@ and the event dialog), not instead of it.
 ### 5.1 Mobile first
 
 Mobile first (owner HUM-10 msg `8d181e85`, t1 `70484be0`; mobile channel
-`#spool-hub-mobile` `52aee116-fe6a-4776-bc5c-0076b40cbc56`, c-002 msg `5c1a9e2d`):
-the screens and interactions are designed for the phone first (viewport <= 820 px,
-mobile stack Level 2 per spec 089 section 2.2). **Where phone and desktop
-conflict, the phone wins.**
+`#spool-hub-mobile` `52aee116-fe6a-4776-bc5c-0076b40cbc56`, c-002 msg `5c1a9e2d`;
+approved by owner HUM-10 in t1 `52aee116`, msg `adf16567-43e0-4ce1-aa55-5b4fa91e0da4`,
+verbatim: "look good . go"): the screens and interactions are designed for the
+phone first (viewport <= 820 px, mobile stack Level 2 per spec 089 section 2.2).
+**Where phone and desktop conflict, the phone wins.**
 
 Every v1 editing feature (section 6) adapts to a small touchscreen:
 - **Baseline viewports:** tested and verified at 360 px width (compact phone,
@@ -739,7 +741,7 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
-| v0.4 | 2026-10-06 | a-424 | Mobile-first section 5.1 (phone layout, touch gestures, full-screen dialogs, thumb reach, 360/390 px acceptance checks for all 10 v1 features, owner questions M1..M5). |
+| v0.4 | 2026-10-06 | a-424 | Mobile-first section 5.1 (phone layout, touch gestures, full-screen dialogs, thumb reach, 360/390 px acceptance checks for all 10 v1 features, owner questions M1..M5); owner HUM-10 approved feature list and mobile-first rule (msg `adf16567`). |
 | v0.3 | 2026-10-06 | c-363 | Owner answered Q1..Q9 "as proposed" (msg `92b3e0d6`): every row of section 10 DECIDED as proposed; with E1..E3 the spec is fully decided. |
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |

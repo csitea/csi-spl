@@ -4,7 +4,8 @@ Authority for what is built (`spec.md` holds the behaviour and the owner's
 decisions, sections 0.1 and 10). Each task is one lane: one agent, one task, the
 files it owns, the tests that prove it, its dependencies. Status vocabulary:
 `../README.md` §2.3. The owner answered Q1..Q9 "as proposed"
-(spec section 10, msg `92b3e0d6`); the spec is fully decided; v0.4 adds
+(spec section 10, msg `92b3e0d6`) and approved the mobile-first feature list and rule
+in t1 52aee116 (msg `adf16567`); the spec is fully decided; v0.4 adds
 mobile-first phone acceptance to WUI tasks.
 
 Paths: `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`,

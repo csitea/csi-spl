@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.6 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.7 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -50,6 +50,8 @@ Read-only prd reads by c-001 as the runtime login `spool_hub_rt`: hub 2.0.5 /
 | `shared_buffers` | 128 MB |
 | extensions `btree_gin` / `vector` | 1.3 / 0.8.5 **available**, neither installed |
 | `texteq`, `text_lt`, `text_ge` / `ts_match_vq` LEAKPROOF | true / false (the local catalogue holds on prd) |
+| tier / all 7 tenants | db-f1-micro (measured); 22 369 rows, 132 MB, t1 ~84% (the 10x-B baseline). r1 section 9, `53f836f3` |
+| BYPASSRLS | only `cloudsqladmin` (owned by Cloud SQL); no login we own has it, so S1r or B are the only paths (r1 section 9) |
 
 
 ### 2.2 From the author's scratch probe (this spec)
@@ -220,7 +222,7 @@ price.
 1. **S1r.** Bring back the GIN on `messages`, built as
    `USING gin (tenant_id, search_tsv)` with `btree_gin` (r3) so one tenant
    never pays for another tenant's matches (10x-B). Read it only through
-   `spool_search_page(...)`, a SECURITY DEFINER SQL function owned by the
+   `spool_search_candidates(...)`, a SECURITY DEFINER SQL function owned by the
    NOLOGIN role `spool_search_reader`, pinned to the session tenant. The hub's
    statement stays under FORCE RLS.
 2. **No vector search and no external engine.** Revisit only when the owner
@@ -232,37 +234,55 @@ price.
 ### 5.1 The function's shape
 
 ```sql
-spool_search_page(q tsquery, viewer text, viewer_channels text[], public_channels text[],
-                  lobby uuid, now timestamptz, after_at timestamptz, after_id text, lim int)
-    RETURNS TABLE (msg_id uuid)
-    LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
+spool_search_candidates(q tsquery, cap int)
+    RETURNS TABLE (msg_id uuid, received_at timestamptz)
+    LANGUAGE sql STABLE SECURITY DEFINER ROWS 200
+    SET search_path = pg_catalog, public, pg_temp
+AS $$
+    SELECT m.msg_id, m.received_at FROM public.messages m
+    WHERE m.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')
+      AND m.search_tsv @@ q
+    LIMIT cap + 1
+$$;
 ```
 
-- **LANGUAGE sql, never plpgsql** (r1). The SQL body is planned with each
-  call's actual values. A plpgsql body switches to a generic plan after five
-  calls, which can pin the GIN for a common word or the backward scan for a
-  rare one. T10 checks this.
+**The function returns the whole candidate set, never a page** (r2 O1). An
+earlier draft (v0.3) put the read door, the keyset and the LIMIT inside the
+function. NOT, `from:`, `in:`, `is:` and `has:` would then drop rows from a
+page that was already limited, and the next keyset would start after rows
+never shown: rows skipped for good.
 
-- It applies every door the hub's statement applies today: tenant from the
-  session, `expires_at`, the DM / channel read door (rdb 0028) and
-  `archivedHideSQL`.
-- It returns ids newest first, after the keyset, at most `lim`. Inside it,
-  with no RLS barrier, the planner chooses the GIN for a rare word and the
-  `messages_received` backward scan for a common one. Today's fast common-word
-  path is kept: 8.4 ms on prd (v1.7.5, n=3).
-- The hub's outer statement joins the ids to `messages` on
-  `(tenant_id, msg_id)` and re-applies every door. A row that the function
-  returns and the outer query drops is a bug, and T7 catches it.
-- `q` is built in SQL from bind parameters exactly as today. All positive
-  text terms are ANDed with `&&`, and `:*` is appended for a prefix. NOT
-  terms and non-text operators stay in the outer statement.
-- A query with no positive text term (`from:` only, OR-only, NOT-only) keeps
-  today's path. The candidate set never replaces `cond()`: the outer `@@`
-  stays, so phrase positions and the `COALESCE` / `NOT` semantics stay exact
-  (r2 3.3.2).
-- The function declares `ROWS` (the SETOF default estimate is 1 000), so the
-  outer plan is not a guess (r2 3.3.4). SECURITY DEFINER is never inlined, as
+- **Order, keyset, LIMIT and every predicate stay in the hub's outer
+  statement**, exactly as today. The outer statement adds
+  `AND m.msg_id IN (SELECT msg_id FROM spool_search_candidates($q, $cap))`,
+  and nothing else changes.
+- **Above the cap, the hub takes today's path.** If the function returns
+  `cap + 1` rows, the word is common, and today's `messages_received`
+  backward scan fills a page fast exactly then (8.4 ms on prd, v1.7.5, n=3).
+  Over the cap is a plan choice, not an answer change. `cap` starts at 2 000,
+  and P4 tunes it from the Q-common and Q-rare numbers.
+- **Relevance sort ranks every candidate** when there are no more than `cap`;
+  above it, today's ranking path. No contract change, so Q6 is withdrawn.
+- **`q` is built from the AND-chain walk** that `sigAll` uses
+  (`store/search_postgres.go`: only AND chains from the root, never under an
+  Or or a Not; r2 O2). It is NOT built from `Query.Positive`, which holds both
+  sides of an OR (`search/grammar.go`). The walk's text terms (phrase or not)
+  are combined with `&&`, and a prefix term carries `:*`. When the root has no
+  such term (`from:` only, OR-only, NOT-only), the query keeps today's path.
+  The outer `@@` stays, so phrase positions and the `COALESCE` / `NOT`
+  semantics stay exact (r2 3.3.2).
+- **Definer hygiene** (r2 O3). The body names `public.messages`, and
+  `search_path` ends in `pg_temp`. Otherwise `pg_temp` is searched FIRST for
+  tables, and a temp table the runtime creates named `messages` would shadow
+  the real one inside the definer. T3 asserts both.
+- **LANGUAGE sql, never plpgsql** (r1). The body is planned with each call's
+  values. T10 checks this.
+- **`ROWS 200`** gives the outer planner an estimate instead of the SETOF
+  default of 1 000 (r2 3.3.4). SECURITY DEFINER is never inlined, as
   intended: inlining would bring the caller's RLS back.
+- **The function holds no read door, expiry or archive.** It is the tenant pin
+  and a match, nothing more, so the privileged surface is four lines. Its only
+  output is ids the outer statement refilters under FORCE RLS.
 
 **The rule for any index outside `messages`' own RLS: the index proposes,
 Postgres disposes** (r2 3.7). The index returns candidate ids for the
@@ -274,9 +294,9 @@ and a stale index gives false negatives only.
 
 | section | after S1r |
 |---|---|
-| messages | `spool_search_page` |
+| messages | `spool_search_candidates` |
 | topics | `topicCandidates` takes its task ids from the same function. The per-topic aggregate stays as it is; that is spec 099's topic head, out of scope here |
-| relevance sort | ranks the newest 2 000 matches only (`lim` = 2 000) instead of every match, which bounds r1's U4 TOAST reads. A contract change: Q6 |
+| relevance sort | ranks every candidate up to `cap`; above it, today's path (5.1). No contract change |
 | files, `has:code` | unchanged, out of scope (r1 U5, U7) |
 | topics, the title | `array_agg(body)` detoasts every body of every scoped task to build the title (r2 2.3, read from code, unmeasured). No index fixes it; it belongs to spec 099's topic head |
 
@@ -300,15 +320,15 @@ and a DM between two other members.
 
 | # | test | fails when |
 |---|---|---|
-| T1 | `spool_search_page` with scope A returns A's ids only; scope B returns B's only; scope unset or `''` returns 0 rows | the tenant pin is wrong or missing (door 1, on its own) |
+| T1 | `spool_search_candidates` with scope A returns A's ids only; scope B returns B's only; scope unset or `''` returns 0 rows, also under the operator scope (`app.rls_scope = 'operator'` leaves `app.tenant_id` unset; r1 section 9) | the tenant pin is wrong or missing (door 1, on its own) |
 | T2 | **planted leak** (r3 T5), in a ROLLED-BACK transaction inside the test, so it runs in CI on every push and never turns trunk red. Replace the function with one that has no tenant pin, **as the migrate / owner login** (the runtime cannot, by T4; never weaken T4 so that T2 can pass). T1's direct call must then FAIL, and the API-level T6 must still PASS (the outer RLS still filters) | T1 is vacuous, or door 2 is gone |
-| T3 | catalogue: the policy is `FOR SELECT` and `TO spool_search_reader` only; `messages` is still FORCE RLS; `spool_search_reader` is NOLOGIN NOBYPASSRLS, has no members (`pg_auth_members`), owns exactly one function, holds column SELECT on `messages` only. The function has no tenant parameter, `prosecdef`, and a pinned `search_path` | the role can be logged into, joined or widened |
+| T3 | catalogue: the policy is `FOR SELECT` and `TO spool_search_reader` only; `messages` is still FORCE RLS; `spool_search_reader` is NOLOGIN NOBYPASSRLS, has no members (`pg_auth_members`), owns exactly one function, holds column SELECT on `messages` only. The function has no tenant parameter, `prosecdef`, `search_path` = `pg_catalog, public, pg_temp` (pg_temp LAST), and its body names `public.messages` (r2 O3) | the role can be logged into, joined or widened |
 | T4 | `NOT pg_has_role(<runtime login>, 'spool_search_reader', 'MEMBER')` (r1 section 8). The runtime login cannot `SET ROLE spool_search_reader` and cannot `ALTER` or `CREATE OR REPLACE` the function. Plant once, in a rolled-back transaction: `GRANT spool_search_reader TO <runtime login>` must turn T4 red | the runtime can read every tenant through the `USING (true)` policy, outside the function (017 FR-SEC-014 (e)) |
-| T5 | `do_spl_db_rls_check`: the SECURITY DEFINER functions the runtime can EXECUTE are exactly `{spool_search_page}`. Any other one reports `liftable` | a second lift path appears unnoticed |
+| T5 | `do_spl_db_rls_check`: the SECURITY DEFINER functions the runtime can EXECUTE are exactly `{spool_search_candidates}`. Any other one reports `liftable` | a second lift path appears unnoticed |
 | T6 | `TestCrossTenant*` search cases run on the S1r path (the probe is on) as well as the 0135 path | door 2 regresses |
-| T7 | for each seeded query, the function's ids for viewer V equal the hub's result ids (the doors agree) | the function shows the viewer a row the outer statement hides, or the reverse |
-| T8 | answer unchanged (r3 T1): on a fixed corpus, every search-v1 form (word, phrase, prefix, AND, OR, NOT, mixed) returns the same rows in the same order through the index path and the scan path, also after edit, delete, expiry, archive, move and merge | the index adds or drops a row |
-| T10 | in one session, Q-common and Q-rare (section 8) each run 6+ times through the function: Q-rare's plan uses the GIN and Q-common's uses the `received_at` scan on every call | a generic plan was pinned (plpgsql, or a prepared statement) |
+| T7 | **paging never skips** (r2 O1): for every seeded query that mixes text with NOT, `from:`, `in:`, `is:` or `has:`, walking every page with the keyset through the candidate path returns exactly the rows, in the order, that today's scan path returns. Run it for both a below-cap and an above-cap word | a page comes back short, or a row is skipped across pages |
+| T8 | answer unchanged (r3 T1): on a fixed corpus, every search-v1 form (word, phrase, prefix, AND, OR, NOT, mixed; including `foo OR bar`, which an AND of `Query.Positive` would break, r2 O2) returns the same rows in the same order through the index path and the scan path, also after edit, delete, expiry, archive, move and merge | the index adds or drops a row |
+| T10 | in one session, 6+ calls each: Q-rare's candidate call uses the GIN on every call, and Q-common's returns `cap + 1` and the hub takes the scan path on every call | a generic plan was pinned (plpgsql, or a prepared statement), or the cap switch is wrong |
 | T9 | two tenants in the perf seed, one 10x the other: the small tenant's rare-word buffers do not grow with the big one | the GIN lost its tenant column |
 
 ## 7. Index freshness
@@ -387,7 +407,8 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 - **Q4** Which 10x is planned (one bigger workspace, or more workspaces)? Is a
   DB tier change acceptable as its own cost line?
 - **Q5** Hold the queued 512-char signature lane, since S1r supersedes it?
-- **Q6** Relevance sort ranks the newest 2 000 matches: is that acceptable?
+- ~~**Q6**~~ withdrawn in v0.7: relevance ranks every candidate up to the cap,
+  and above it takes today's path, so the contract does not change.
 - **Q7** The GIN build holds a SHARE lock on `messages`, so writes wait for
   its build time (the dev number comes first). Is a few seconds of write stall
   in one migration acceptable? If not, a CONCURRENTLY build needs its own task
@@ -407,6 +428,17 @@ Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.7 (2026-10-06): r2's correctness objections O1..O3.
+  - The function is now `spool_search_candidates(q, cap)`: the whole
+    candidate set, with no page, door or keyset inside. Order, keyset and
+    LIMIT stay outer, and above the cap the hub takes today's scan.
+  - `q` comes from the AND-chain walk, never `Query.Positive`.
+  - `public.messages`, with `pg_temp` last in `search_path`.
+  - T7 is now "paging never skips". T8 gains an OR case, and T10 checks the
+    cap switch.
+  - Q6 is withdrawn.
+  - r1 section 9 prd reads: the tier, 7 tenants with 22 369 rows, BYPASSRLS
+    held only by `cloudsqladmin`. T1 adds the operator-scope case.
 - v0.6 (2026-10-06): takes in r2.
   - pgvector is rejected on semantics and recall: HNSW does run under RLS
     for an ORDER BY.
@@ -418,6 +450,8 @@ Consensus: **not yet.**
   - Benchmark adds Q-zero and Q-rel; acceptance is per request.
   - The topic title's `array_agg` goes to spec 099.
   - G7 (`ALTER FUNCTION OWNER` on Cloud SQL).
+  - Fallback B's btree leads with `tenant_id` (`(tenant_id, word, msg_id)`),
+    queried with the explicit `tenant_id = $t` that the store always adds.
 - v0.5 (2026-10-06): r3's objections. Prd reads in 2.1 (19 244 t1 messages,
   1.79 M postings, 943 posts a day, LEAKPROOF flags, `btree_gin` and `vector`
   available). Sizes in section 4 come from prd. G5 is closed and G6 narrowed.

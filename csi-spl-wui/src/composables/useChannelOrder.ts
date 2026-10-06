@@ -41,6 +41,7 @@ export function useChannelOrder() {
     if (timer || inflight) return
     order.value = Array.isArray(list) ? list.slice() : []
   }
+  /* a warm-up only: a chunk that fails here is asked again by set() and step() on first use */
   onMounted(() => { setTimeout(() => { loadEdits().catch(() => {}) }, 3000) })
   if (api.mock) seed(api.mockChannelOrder())
   else watch(() => access.me?.channelOrder, (v) => { if (access.me) seed(v) }, { immediate: true })
@@ -66,6 +67,7 @@ export function useChannelOrder() {
 
   /** The person reordered the list: `displayed` is the whole order on screen. */
   async function set(displayed: string[]) {
+    /* the chunk failed to load (a deploy in between): the order stays as shown, the next move asks again */
     const m = await loadEdits().catch(() => null)
     if (!m) return
     const { mergeChannelOrder, sameChannelOrder } = m
@@ -78,6 +80,7 @@ export function useChannelOrder() {
 
   /** Move up (-1) / Move down (+1) from the row menu: swap with the neighbour. */
   async function step(displayed: string[], id: string, by: -1 | 1) {
+    /* the chunk failed to load: no move this time, the next one asks again */
     const m = await loadEdits().catch(() => null)
     const next = m ? m.stepChannelOrder(displayed, id, by) : null
     if (next) await set(next)

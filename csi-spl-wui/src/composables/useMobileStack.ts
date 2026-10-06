@@ -152,6 +152,8 @@ let lastPos: number | null = null
 
 function enqueue(op: () => void | Promise<void>): Promise<void> {
   queued++
+  /* one failed history op must not reject the shared chain, or every later move would be skipped;
+     the failed op leaves the overlays as they were, and stepBack never rejects (it times out) */
   queue = queue.then(op).catch(() => {}).finally(() => { queued-- })
   return queue
 }

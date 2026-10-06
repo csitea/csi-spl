@@ -252,6 +252,7 @@ function onOutside(ev: PointerEvent) {
 }
 onMounted(() => {
   sizeField()
+  /* re-measure once the web font lands; if it never does, the size measured above with the fallback font stands */
   document.fonts?.ready.then(sizeField).catch(() => {})
   document.addEventListener('pointerdown', onOutside, true)
   window.addEventListener('resize', place)

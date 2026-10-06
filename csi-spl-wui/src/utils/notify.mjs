@@ -502,6 +502,8 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
   if (typeof Ctx !== 'function') return false
   const spec = SOUND_LIBRARY[name] || SOUND_LIBRARY[DEFAULT_SOUND]
   let ctx = null
+  /* close() rejects on a context already closed or never running: the sound is
+     over either way, so a failed close costs the reader nothing */
   const drop = () => { if (ctx) void Promise.resolve().then(() => ctx.close()).catch(() => {}) }
   /* the notes are scheduled from the clock as it reads when they can play */
   const schedule = () => {
@@ -539,6 +541,7 @@ export function playSound(name, Ctx = typeof AudioContext === 'undefined' ? unde
     }
     if (last) {
       last.onended = () => {
+        /* the motif has played: a context that is already closed rejects close(), harmlessly */
         later(() => { void Promise.resolve(ctx.close()).catch(() => {}) }, closeDelayMs(ctx))
       }
     }

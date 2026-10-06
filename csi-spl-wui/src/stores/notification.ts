@@ -153,6 +153,7 @@ export const useNotificationStore = defineStore('notification', () => {
       window.removeEventListener('pointerdown', ask, true)
       window.removeEventListener('keydown', ask, true)
       readPermission()
+      /* an unprompted ask: a browser that throws instead of answering leaves `permission` as it was, and the bell asks again */
       if (alertsEnabled.value && permission.value === 'default') void requestPush().catch(() => {})
     }
     window.addEventListener('pointerdown', ask, true)

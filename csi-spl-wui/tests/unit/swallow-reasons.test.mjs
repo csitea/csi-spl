@@ -23,26 +23,28 @@ const WUI = join(__dirname, '../..')
 const SRC = join(WUI, 'src')
 const SWALLOW = '.catch(() => {})'
 
-// Measured on trunk 2026-10-06 after row 20 gave its five sites a reason.
+// Measured on trunk 2026-10-06 after round 4 row 06 gave its five files a reason.
 const UNCOMMENTED = new Map([
-  ['src/components/DeadlinePicker.vue', 1],
-  ['src/composables/useChannelOrder.ts', 1],
-  ['src/composables/useMobileStack.ts', 1],
   ['src/composables/usePaneWidths.ts', 1],
   ['src/plugins/pwa.client.ts', 1],
   ['src/public/sw.js', 1],
-  ['src/stores/notification.ts', 1],
   ['src/utils/move-apply.mjs', 3],
-  ['src/utils/notify.mjs', 2],
 ])
 
-// The row's five sites: they must stay reasoned (never re-enter the list).
+// The reasoned sites of round 3 row 20 and round 4 row 06: they must stay
+// reasoned (never re-enter the list).
 const REASONED = [
   'src/composables/useArchiveUndo.ts',
   'src/utils/read-sync-boot.ts',
   'src/plugins/0.boot-early.client.ts',
   'src/utils/flow-badge.mjs',
   'src/utils/early-session.mjs',
+  // round 4 row 06
+  'src/utils/notify.mjs',
+  'src/composables/useChannelOrder.ts',
+  'src/components/DeadlinePicker.vue',
+  'src/composables/useMobileStack.ts',
+  'src/stores/notification.ts',
 ]
 
 function walk(dir, out = []) {
@@ -119,7 +121,7 @@ for (const [rel, allowed] of UNCOMMENTED) {
   if (n < allowed) fail(rel, `UNCOMMENTED says ${allowed}, the file holds ${n}: lower its number`)
 }
 for (const rel of REASONED) {
-  if (UNCOMMENTED.has(rel)) fail(rel, 'a reasoned row-20 site is back on the allow-list')
+  if (UNCOMMENTED.has(rel)) fail(rel, 'a reasoned site is back on the allow-list')
   const text = readFileSync(join(WUI, rel), 'utf8')
   text.includes(SWALLOW) ? pass(`${rel} keeps its reasoned swallow`) : fail(rel, 'the swallow is gone: was it replaced by reporting?')
 }

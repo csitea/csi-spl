@@ -1,13 +1,16 @@
 # 095 Web Push: a new message reaches my other devices
 
-Status: **v0.4, 2026-10-06.** v0.4 records the owner's answers to Q1 to Q6
+Status: **v0.5, 2026-10-06.** v0.5 records the owner's pick for quiet hours
+(t1 `a477c187`, msg `5083c336-5766-4955-b572-16b8aa654e30`, "no no
+everything"): quiet hours silence **every level**, High included (section
+6.6, lane 9). Nothing is left for the owner.
+v0.4 recorded the owner's answers to Q1 to Q6
 (t1 `a477c187`, msgs `d3d8e225-38a2-4cbe-a45a-a27ec6daf047`,
 `51f96f43-d781-4cef-92ce-53942be73a39`, `5517673c-7452-4d04-9171-63dbeacb2b3e`):
 Q1 to Q5 as proposed; Q5 in memory for this build, with a durable
 fire-and-forget outbox as a planned follow-up; Q6 **changed**: quiet hours are
-in this build (section 6.6, lane 9). **Q1 to Q10 are all decided**; the one
-choice left for the owner is which levels quiet hours silence (section 6.6,
-a proposal). The owner gave the go to build (msg `39d77db2`).
+in this build (section 6.6, lane 9). **Q1 to Q10 are all decided.**
+The owner gave the go to build (msg `39d77db2`).
 v0.3 recorded Q7 to Q10 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`);
 v0.2 added section 13, notification priority levels (msg `b87a487a`,
 author c-386). Spec only: no code, no key, no secret slot, no terraform, no
@@ -307,16 +310,17 @@ CREATE TABLE push_quiet (
 ```
 
 Read and written via `GET` / `PUT /v1/me/push-quiet`. The **push sender skips
-a push** whose send time, in the member's `tz`, falls inside the window: one
+a push** whose send time, in the member's `tz`, falls inside the window,
+**whatever its level**: one
 more "minus" step in 6.2, next to Unavailable. A skipped push is not queued
 for later (the Flow badge and the in-tab alert still count the line), and a
 counter `push_skipped_quiet` records it. The in-tab alert is not affected.
 
-**Levels it silences: a proposal for the owner, not decided.** Consistent
-with Q9 (Unavailable silences only the levels below High), quiet hours
-silence **Action required, Attention, Information and System**; **High
-priority** (a mention, a DM, a poke) still pushes. A member who wants total
-silence at night uses the OS's do-not-disturb or sets channels to Off.
+**Levels it silences: every level. DECIDED** (msg `5083c336`, "no no
+everything"). High priority (a mention, a DM, a poke), Action required,
+Attention, Information and System are all skipped inside the window. This
+differs on purpose from Unavailable (Q9), which silences only the levels
+below High.
 
 ## 7. The service worker
 
@@ -451,7 +455,7 @@ counters: pushes sent, 404/410 deletions, drops, p95 send delay.
 
 ## 11. Open questions for the owner
 
-All ten are **DECIDED**. Q1 to Q6 on 2026-10-06 (msg `d3d8e225-38a2-4cbe-a45a-a27ec6daf047`; Q5 also msgs `51f96f43-d781-4cef-92ce-53942be73a39` and `5517673c-7452-4d04-9171-63dbeacb2b3e`); Q7 to Q10 on 2026-10-06 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Left for the owner: which levels quiet hours silence (section 6.6, a proposal).
+All ten are **DECIDED**. Q1 to Q6 on 2026-10-06 (msg `d3d8e225-38a2-4cbe-a45a-a27ec6daf047`; Q5 also msgs `51f96f43-d781-4cef-92ce-53942be73a39` and `5517673c-7452-4d04-9171-63dbeacb2b3e`); Q7 to Q10 on 2026-10-06 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Which levels quiet hours silence: every level, High included, on 2026-10-06 (msg `5083c336-5766-4955-b572-16b8aa654e30`). Nothing is left for the owner.
 
 | # | question | answer |
 |---|---|---|
@@ -460,7 +464,7 @@ All ten are **DECIDED**. Q1 to Q6 on 2026-10-06 (msg `d3d8e225-38a2-4cbe-a45a-a2
 | **Q3** | Merge the per-browser chime mute into the new per-member channel choice? | **DECIDED.** Yes, later (as proposed): one "Notify" menu, held in the hub, read by the in-tab alert too; **not in this build's lanes** (section 12, follow-up F2). Msg `d3d8e225` |
 | **Q4** | Message text on the lock screen: on by default, a per-device switch, and an admin may force it off? | **DECIDED.** Yes to all three (as proposed). Msg `d3d8e225` |
 | **Q5** | Is an in-memory send queue reliable enough, or a durable outbox table (survives an instance restart, one more write per line)? | **DECIDED.** In memory for this build, with a drop counter (the owner's own answer, msg `51f96f43`). The owner added (msg `5517673c`) that a durable outbox, written fire-and-forget and asynchronously so the send path never waits on it, is a planned follow-up regardless; the 7-day prd watch informs when to build it, not whether (section 12, follow-up F1) |
-| **Q6** | Quiet hours (no pushes at night in the member's time zone)? | **DECIDED, changed from the proposal ("Later").** In scope: each member configures quiet hours in their own user settings (section 6.6, lane 9). Msg `d3d8e225`. Which levels the window silences is a proposal for the owner (6.6: all below High) |
+| **Q6** | Quiet hours (no pushes at night in the member's time zone)? | **DECIDED, changed from the proposal ("Later").** In scope: each member configures quiet hours in their own user settings (section 6.6, lane 9). Msg `d3d8e225`. The window silences **every level**, High included (6.6), msg `5083c336` |
 | **Q7** | Are these the five levels (section 13.1), or fewer? | **DECIDED.** Five levels. A DM and a poke count as High. |
 | **Q8** | Push default per level once a device is on? | **DECIDED.** On by default: High, Action required, Attention. Off for Information (turned on per channel via "Every message") and for System (one switch). Section 13.3 (a) |
 | **Q9** | Does Unavailable (096 Q1, when the member chose to pause) silence every level, or only the levels below High? | **DECIDED.** Unavailable (spec 096) silences only the levels below High. A mention, a DM or a poke still reaches the member. |
@@ -481,15 +485,15 @@ on its own:
 | 6 | **proof** (claude) | section 10.3 on dev with real devices, then 10.4 on prd with the owner's go; help page `user-settings.md` section 6 | S |
 | 7 | **assign event** (Q10, claude) | a Flow event `assign` when an issue's assignee becomes another member (widen `flow_events.kind`, DDL first), level Action required, push on (Q8), silenced by Unavailable (Q9). Test: one `assign` at level `action` that pushes; a self-assign writes nothing (13.4) | S |
 | 8 | **system event** (Q7, claude) | a v:1 `kind: result` line in a topic the member started is System (13.2); push off until the one per-member switch (Q8); Unavailable silences it (Q9) | XS |
-| 9 | **quiet hours** (Q6, claude) | the `push_quiet` table (in lane 2's migration if it has not landed, else the next one), `GET`/`PUT /v1/me/push-quiet`, the sender's skip step and `push_skipped_quiet` counter (section 6.6), the "Quiet hours" row in the Notifications block (start, end, time zone). Tests: a push inside the window (across midnight, in a non-UTC `tz`) is skipped for the silenced levels and sent for High | S |
+| 9 | **quiet hours** (Q6, claude) | the `push_quiet` table (in lane 2's migration if it has not landed, else the next one), `GET`/`PUT /v1/me/push-quiet`, the sender's skip step and `push_skipped_quiet` counter (section 6.6), the "Quiet hours" row in the Notifications block (start, end, time zone). Tests: a push inside the window (across midnight, in a non-UTC `tz`) is skipped at every level, High included; outside the window it is sent | S |
 
 Lane 3 starts once lane 2's DDL is on trunk; lanes 4 and 5 run against a mock
 hub from day one. The priority levels (section 13) add one `level` field to
 the recipient query, the payload and the in-tab alert: a few hours inside
 lanes 3, 4 and 5, not a new lane. Lanes 7 and 8 are in (Q10 and Q7 decided)
 and small; their push defaults and the Unavailable rule follow Q8 and Q9.
-Lane 9 (Q6) is in and small; its silenced levels await the owner's pick
-(6.6). The total stays **L**.
+Lane 9 (Q6) is in and small; quiet hours silence every level (6.6). The
+total stays **L**.
 
 Planned follow-ups, **not lanes in this build**:
 
@@ -582,6 +586,8 @@ Rules behind the table:
   member from every level **below High**. A mention, a DM or a poke still
   reaches them. It is one more "minus" step in 6.2 and one more check in
   `shouldPing`.
+- **Quiet hours** (6.6) skip the push at **every level**, High included,
+  unlike Unavailable. The in-tab alert is not affected.
 
 ### 13.4 Tests added to section 10
 
@@ -601,6 +607,7 @@ Rules behind the table:
 
 | version | date | change |
 |---|---|---|
+| v0.5 | 2026-10-06 | Quiet hours silence every level, High included (owner, msg `5083c336`, t1 `a477c187`): sections 6.6, 11 (Q6 row, intro), 12 (lane 9 test), 13.3. Nothing is left for the owner. |
 | v0.4 | 2026-10-06 | Q1 to Q6 decided (msgs `d3d8e225`, `51f96f43`, `5517673c`). Q5 in memory for this build; durable fire-and-forget outbox is follow-up F1. Q6 changed to in scope: section 6.6, lane 9; its levels are a proposal for the owner. Q3's merge is follow-up F2. |
 | v0.3 | 2026-10-06 | Q7 to Q10 decided (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Section 13 is that design. Lane 7 is the assign event, with its test. |
 

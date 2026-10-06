@@ -25,9 +25,9 @@
 
 ## Phase 5 — Live (blocked on the owner: `~/.gcp/.csi/.spl/linkedin-client-{dev,prd}.json`)
 
-- [ ] T050 Owner: `owner-runbook.md` §2–§3 for dev and prd.
-- [ ] T051 dev: client id in `dev.env.yaml`, seed (`IDP=linkedin ENV=dev DRY_RUN=0`), list `linkedin`, deploy, SC-L3. The running hub image must be built from a tree containing `e9815b8` (T010): image blocker cleared by edf0991 (hub 0.1.6 = 4dc854e, which contains e9815b8; cnf tag 0.5.7 on 2026-09-25). Only the owner's LinkedIn app files remain (`linkedin` unlisted, client id `PLACEHOLDER-*` in dev and prd cnf).
-- [ ] T052 prd: the same, after T051 and T030 are live in prd (OQ-L5).
+- [x] T050 Owner: `owner-runbook.md` §2–§3 for dev and prd. Done 2026-10-05 with ONE app for both envs (OQ-L1 (b)): "Spool Hub", Client ID `77sza3iug33kc2`, record `specs/090-marketing-automation/linkedin-app-setup.md`; both `/api/v1/auth/linkedin/callback` URLs registered, OIDC granted (authorize probe 303).
+- [x] T051 dev: client id in `dev.env.yaml`, seed (`IDP=linkedin ENV=dev DRY_RUN=0`), list `linkedin`, deploy, SC-L3. The running hub image must be built from a tree containing `e9815b8` (T010): image blocker cleared by edf0991 (hub 0.1.6 = 4dc854e, which contains e9815b8; cnf tag 0.5.7 on 2026-09-25). Only the owner's LinkedIn app files remain (`linkedin` unlisted, client id `PLACEHOLDER-*` in dev and prd cnf).
+- [x] T052 prd: the same, after T051 and T030 are live in prd (OQ-L5). Done 2026-10-06: a28fca275 (client id dev+prd), 95140f931 (dev list), 668377a6c (prd list); secret seeded by the owner (sha256-checked); the env reaches Cloud Run only by the 030 apply (dev revision 00454, prd 00453), not the image deploy. Live: providers = google,facebook,linkedin on dev and prd; start = 302 to LinkedIn. The owner's dev test sign-in passed.
 
 ## Spec sync 2026-09-25 (CLE-34983, tree bbe04d26)
 

@@ -89,7 +89,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   exceptions and cancellations, the 2000-occurrence cap, occurrence ids.
   Tests: table tests incl. AC-04's DST case, `-1FR`, `COUNT` vs `UNTIL`, a
   refused rule. Depends: none.
-- [ ] T006 **recurrence in store + hub**: series and exception rows; the
+- [x] T006 **recurrence in store + hub** (c-441, `7b4265210`; hub v2.3.7 live on dev and prd): series and exception rows; the
   range and marks reads expand series; `?scope=this|following|all` on PATCH
   and DELETE (spec 4.4 table). Tests on Postgres: AC-04 end to end, a
   cross-workspace `recurring_event_id` is refused. Depends: T004, T005.

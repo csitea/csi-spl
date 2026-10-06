@@ -2,8 +2,8 @@ import { useChannelStore } from '~/stores/channel'
 import { useNotificationStore } from '~/stores/notification'
 import { useSessionStore } from '~/stores/session'
 import { useLive } from '~/composables/useLive'
-import { useLiveFeed } from '~/stores/live'
-import { useTopicStore } from '~/stores/topic'
+import type { useLiveFeed } from '~/stores/live'
+import type { useTopicStore } from '~/stores/topic'
 import { normalizeChannel } from '~/utils/notify.mjs'
 
 function activeKey(path: string, peer: string | null, channel: string | null) {
@@ -16,15 +16,24 @@ function activeKey(path: string, peer: string | null, channel: string | null) {
   return ''
 }
 
+/* The topic and live-feed stores load lazily: a static import put both into
+   the initial chunk (ci_initial_gzip_kb 154.2 -> 158.4, over the 027 budget).
+   The default layout imports them too, so they are in memory by the time a
+   feed renders; until then no thread is open and no feed is held. */
+const lazy: { useLiveFeed?: typeof useLiveFeed; useTopicStore?: typeof useTopicStore } = {}
+
 /** HUM-24 (t1 cd9b0f47): the threads on screen - a reply into any other
  *  topic of the open feed is off screen and signals (offScreenReply). */
 function openTopics(path: string) {
-  const topic = useTopicStore()
-  /* a channel's thread pane (stores/topic), the Topics view's (the pane feed) */
-  const out = [topic.open ? String(topic.parentTaskId || '') : '', String(useLiveFeed('pane').taskId || '')]
+  const out: string[] = []
+  if (lazy.useTopicStore && lazy.useLiveFeed) {
+    const topic = lazy.useTopicStore()
+    /* a channel's thread pane (stores/topic), the Topics view's (the pane feed) */
+    out.push(topic.open ? String(topic.parentTaskId || '') : '', String(lazy.useLiveFeed('pane').taskId || ''))
+  }
   if (path.startsWith('/t/')) out.push(decodeURIComponent(path.slice(3).split('/')[0]))
   /* the lobby room's own lines are its middle pane */
-  if (path.startsWith('/t/') || path === '/lobby' || path === '/') out.push(String(useLiveFeed('main').taskId || ''))
+  if (lazy.useLiveFeed && (path.startsWith('/t/') || path === '/lobby' || path === '/')) out.push(String(lazy.useLiveFeed('main').taskId || ''))
   return out.filter(Boolean)
 }
 
@@ -39,7 +48,7 @@ function pageCtx(channel: ReturnType<typeof useChannelStore>, selfId: string, pa
     peer,
     isDm: Boolean(peer) || path.startsWith('/dm/'),
     /* the lobby's topics live in the main feed store (pages/lobby), a channel's in the channel store */
-    feed: [...channel.messages, ...useLiveFeed('main').messages],
+    feed: [...channel.messages, ...(lazy.useLiveFeed ? lazy.useLiveFeed('main').messages : [])],
     openTopics: openTopics(path),
   }
 }
@@ -71,6 +80,8 @@ export default defineNuxtPlugin(() => {
   const live = useLive()
   const route = useRoute()
   notes.hydrate()
+  void import('~/stores/live').then((m) => (lazy.useLiveFeed = m.useLiveFeed))
+  void import('~/stores/topic').then((m) => (lazy.useTopicStore = m.useTopicStore))
 
   const ctx = () => pageCtx(channel, String((session.claims && session.claims.hum) || live.identity.value || ''), String(route.path || ''))
 

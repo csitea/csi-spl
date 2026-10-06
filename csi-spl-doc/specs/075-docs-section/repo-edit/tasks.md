@@ -65,7 +65,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: on Postgres: `TestRLSPoliciesFailClosed`, `TestCrossTenantEveryTable`, the migration catalogue gate; applied on dev with `ENV=dev DRY_RUN=0 ./run -a do_spl_db_bootstrap`, prd command sent to the orchestrator; `information_schema` shows the tables on both envs.
   - **Depends**: none.
 
-- [ ] T03 **publish: keep overlays, add blob shas, workflow 32** (S).
+- [x] T03 **publish: keep overlays, add blob shas, workflow 32** (S). Done `61ad3b4a` (c-414): workflow 32 run 37527265240 green, `tree.json` on dev and prd holds `blob` (565/565).
   - **Build**: `orc/src/bash/run/publish-docs.func.sh`: `spl_docs_upload` excludes `^\.edits/` from `rsync --delete-unmatched-destination-objects`, `do_docs_publish_none` skips `.edits/` the same; `tree.json` files gain `blob` (the git blob sha, `git ls-files -s`). New `wf/32_docs-publish.yml`: `push` to master, `paths: ['**/*.md', '!csi-spl-wui/**', '!.github/**']`, runs `do_publish_docs` for dev then prd, no build, no version; concurrency group `docs-publish-<env>` (`cancel-in-progress: false`), and the SAME group on workflow 30's publish step.
   - **Owns**: `publish-docs.func.sh`, its test `orc/src/bash/tests/publish-docs.tst.sh`, `wf/32_docs-publish.yml`, the concurrency line in `wf/30_wui-build-deploy.yml`.
   - **Done-proof**: orc tests: the rsync argument list carries the exclude; provider none keeps a planted `.edits/x/y.md`; `tree.json` has `blob`; actionlint green; after landing, workflow 32 runs green on its own commit (it touches no `.md`, so run it once with `gh workflow run 32_docs-publish.yml`) and `tree.json` on dev and prd holds `blob`.

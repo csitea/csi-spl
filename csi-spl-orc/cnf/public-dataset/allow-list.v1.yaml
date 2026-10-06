@@ -187,6 +187,7 @@ never:
   - fleet_leases
   - boxes
   - box_stats
+  - box_facts
   - box_operators
   - roster
   - deliveries

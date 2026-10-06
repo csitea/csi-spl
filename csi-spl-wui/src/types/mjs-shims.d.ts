@@ -1211,6 +1211,17 @@ declare module '~/utils/omnibox-size.mjs' {
     measured: number
     keep: boolean
   }): number | null
+  export function omniboxOneLinePad(s?: {
+    glyph?: boolean
+    chip?: boolean
+    chipWidth?: number
+    phone?: boolean
+  }): number
+  export function omniboxIsMultiline(s?: {
+    text?: string
+    textWidth?: number
+    contentWidth?: number
+  }): boolean
 }
 
 declare module '~/utils/code-view.mjs' {

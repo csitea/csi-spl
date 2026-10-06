@@ -105,6 +105,8 @@ tests/e2e/omnibox-bottom.test.mjs 27
 tests/e2e/omnibox-caret-color.test.mjs 7
 tests/e2e/omnibox-focus-ring.test.mjs 13
 tests/e2e/omnibox-grip.test.mjs 40
+# omnibox-multiline.test.mjs: local estimate (2026-10-06), until a CI run measures it.
+tests/e2e/omnibox-multiline.test.mjs 35
 tests/e2e/open-in-channels-from-flow.test.mjs 12
 tests/e2e/open-in-dm-view.test.mjs 14
 tests/e2e/open-in-place.test.mjs 13

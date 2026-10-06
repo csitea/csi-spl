@@ -71,7 +71,8 @@
       </span>
       <div
         class="omnibox-field"
-        :class="{ 'has-mode-glyph': modeGlyph, 'has-target-chip': chip }"
+        :class="{ 'has-mode-glyph': modeGlyph, 'has-target-chip': chip, 'is-multiline': multilineLayout }"
+        :data-multiline="multilineLayout ? 'true' : undefined"
         :style="chip ? { '--chip-w': chipW + 'px' } : undefined"
         ref="fieldEl"
       >
@@ -79,7 +80,11 @@
              box at its start says where the post goes. HUM-10: a new topic
              draws no hash glyph, because the name already begins with #.
              The tree (an upside-down F) stays for the open thread or issue.
-             Its name is the mode's own words; the placeholder and GO say it too. -->
+             Its name is the mode's own words; the placeholder and GO say it too.
+             t1 26282b6e: once the draft is more than one line, this prefix
+             (display: contents while it is one line) becomes the row above
+             the text. -->
+        <div v-if="modeGlyph || chip" class="omnibox-prefix">
         <span
           v-if="modeGlyph"
           class="composer-mode-glyph"
@@ -108,6 +113,7 @@
           @mousedown.prevent
           @click="openChip"
         >{{ chipText }}</button>
+        </div>
         <!-- 085 FR-004: on the phone dock the "?" is the Search button - the
              magnifier, named "Search"; a tap enters search mode, focuses the
              field and opens the operator list, a second tap leaves it -->
@@ -318,7 +324,7 @@ import { useSessionStore } from '~/stores/session'
 import { draftPlaceOf, draftText, registerDraftSource, saveDraft } from '~/utils/drafts.mjs'
 import { closeOpenFence, exitFence, fenceStateAt } from '~/utils/code-blocks.mjs'
 import { useSubmitKey } from '~/composables/useSubmitKey'
-import { omniboxFocusHeight, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
+import { omniboxFocusHeight, omniboxIsMultiline, omniboxOneLinePad, omniboxRememberHeight } from '~/utils/omnibox-size.mjs'
 import { sendLimitError } from '~/utils/code-view.mjs'
 import { fileKind, isPreviewableImage, readDataUrl } from '~/utils/file-preview.mjs'
 import { carriesFiles, filesOf, pasteAttaches } from '~/utils/transfer-files.mjs'
@@ -575,9 +581,10 @@ function onOmniboxFocus() {
   if (!props.global) return
   parked.value = false
   contentUntilFocus.value = false
+  const changed = syncMultiline()
   const px = omniboxFocusHeight(userHeight.value, openHeight.value, omniboxMax())
   const el = inputEl.value
-  if (px != null && el) {
+  if (px != null && el && !changed) {
     el.style.height = `${px}px`
     return
   }
@@ -648,13 +655,20 @@ function startResize(ev: PointerEvent) {
 }
 watch(text, () => {
   if (!props.global) return
+  /* same flush as the new text, so the prefix row and the indent change
+     together and the caret is not rebuilt */
+  const changed = syncMultiline()
   const serial = fitSerial
   void nextTick(() => {
     if (serial !== fitSerial) return
+    if (changed) syncMultiline()
     fitGlobalBox()
   })
 })
-onMounted(() => { fitGlobalBox() })
+onMounted(() => {
+  syncMultiline()
+  fitGlobalBox()
+})
 /* owner, t1 21:53Z: a new phone size (or a place with another size). The
    field's own height was measured under the old floor; measure it again
    under the new one, so a smaller size really shrinks it */
@@ -883,6 +897,93 @@ watch(chipEl, (el) => {
   chipObserver.observe(el)
 })
 onBeforeUnmount(() => chipObserver?.disconnect())
+/* Owner, t1 26282b6e: more than one line lifts the glyph and the chip onto
+   a row above the text. The answer is the one-line content box (the indent
+   below), so it does not flip again when that indent is removed. A blur
+   parks the bar at one line; the row comes back with the caret. */
+const multiline = ref(false)
+const multilineLayout = computed(() =>
+  Boolean(props.global) && multiline.value && !parked.value && (Boolean(modeGlyph.value) || chip.value))
+let measureEl: HTMLSpanElement | null = null
+function draftWidth(el: HTMLTextAreaElement, value: string): number {
+  if (typeof document === 'undefined') return 0
+  if (!measureEl) {
+    measureEl = document.createElement('span')
+    measureEl.setAttribute('aria-hidden', 'true')
+    measureEl.style.cssText = 'position:fixed;inset-inline-start:0;top:0;visibility:hidden;white-space:pre;pointer-events:none;'
+    document.body.appendChild(measureEl)
+  }
+  const cs = getComputedStyle(el)
+  measureEl.style.fontStyle = cs.fontStyle
+  measureEl.style.fontWeight = cs.fontWeight
+  measureEl.style.fontSize = cs.fontSize
+  measureEl.style.fontFamily = cs.fontFamily
+  measureEl.style.letterSpacing = cs.letterSpacing
+  measureEl.style.wordSpacing = cs.wordSpacing
+  measureEl.textContent = value
+  return measureEl.getBoundingClientRect().width
+}
+function oneLineContentWidth(el: HTMLTextAreaElement): number {
+  const end = parseFloat(getComputedStyle(el).paddingInlineEnd) || 0
+  const pad = omniboxOneLinePad({
+    glyph: Boolean(modeGlyph.value),
+    chip: chip.value,
+    chipWidth: chipW.value,
+    phone: docked.value,
+  })
+  return Math.max(0, el.clientWidth - end - pad)
+}
+function syncMultiline(): boolean {
+  const el = inputEl.value
+  if (!el || !props.global || typeof document === 'undefined') {
+    if (multiline.value) { multiline.value = false; return true }
+    return false
+  }
+  const value = text.value
+  const start = el.selectionStart
+  const endSel = el.selectionEnd
+  const dir = el.selectionDirection
+  const focused = document.activeElement === el
+  const next = omniboxIsMultiline({
+    text: value,
+    textWidth: draftWidth(el, value),
+    contentWidth: oneLineContentWidth(el),
+  })
+  if (next === multiline.value) return false
+  multiline.value = next
+  void nextTick(() => {
+    const box = inputEl.value
+    if (!box) return
+    if (focused && document.activeElement !== box) box.focus({ preventScroll: true })
+    if (box.selectionStart !== start || box.selectionEnd !== endSel) {
+      try { box.setSelectionRange(start, endSel, dir || 'none') } catch { /* the box was replaced */ }
+    }
+  })
+  return true
+}
+watch(chipW, () => {
+  if (!props.global) return
+  if (syncMultiline()) void nextTick(() => fitGlobalBox())
+})
+watch([modeGlyph, chip, docked], () => {
+  if (!props.global) return
+  if (syncMultiline()) void nextTick(() => fitGlobalBox())
+})
+let widthObserver: ResizeObserver | null = null
+watch(fieldEl, (el) => {
+  widthObserver?.disconnect()
+  widthObserver = null
+  if (!el || typeof ResizeObserver === 'undefined') return
+  widthObserver = new ResizeObserver(() => {
+    if (syncMultiline()) void nextTick(() => fitGlobalBox())
+  })
+  widthObserver.observe(el)
+})
+onBeforeUnmount(() => {
+  widthObserver?.disconnect()
+  measureEl?.remove()
+  measureEl = null
+})
 /* spec Q3: a chip click opens the target - the channel, the DM or the topic
    (an open pane already shows it, so nothing moves) - and the box keeps the focus */
 const chipRoute = useRoute()
@@ -1848,6 +1949,51 @@ textarea.in-code {
   }
   .composer.composer--dock.composer--dock[data-phone-pos=right][data-phone-size=set] {
     width: clamp(min(280px, 100vw - 48px), calc(100vw * var(--dock-width-share, 0.84)), calc(100vw - 48px));
+  }
+}
+/* One line: the prefix generates no box, so the glyph and the chip stay
+   absolutely placed on the first text line (the rules above). More than
+   one line (t1 26282b6e): they become a row on top, the text starts at the
+   inline start, and 0.25rem (~1 mm at the default font) separates that row
+   from the first line. The same rules cover the top bar, the bottom dock
+   and the phone dock. */
+.omnibox-prefix { display: contents; }
+.composer.omnibox--global .omnibox-field.is-multiline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  row-gap: 0.25rem;
+}
+.composer.omnibox--global .omnibox-field.is-multiline .omnibox-prefix {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: calc(100% - 1.75rem);
+}
+.composer.omnibox--global .omnibox-field.is-multiline .composer-mode-glyph,
+.composer.omnibox--global .omnibox-field.is-multiline .composer-target-chip {
+  position: static;
+  top: auto;
+  inset-inline-start: auto;
+  margin: 0;
+}
+.composer.omnibox--global .omnibox-field.is-multiline .composer-target-chip {
+  min-width: 0;
+  max-width: 40%;
+}
+.composer.omnibox--global .omnibox-field.is-multiline textarea,
+.composer.composer--dock.composer--dock .omnibox-field.is-multiline textarea {
+  width: 100%;
+  min-width: 0;
+  padding-top: 0;
+  padding-inline-start: 0;
+  text-indent: 0;
+}
+@media (max-width: 820px) {
+  .composer--dock.composer--dock .omnibox-field.is-multiline .omnibox-prefix {
+    max-width: calc(100% - var(--tap));
   }
 }
 </style>

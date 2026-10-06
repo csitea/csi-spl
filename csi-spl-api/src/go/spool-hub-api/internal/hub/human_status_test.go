@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -134,8 +135,10 @@ func TestHumanStatusExpiresOnRead(t *testing.T) {
 }
 
 // waitStatusFrame reads raw frames until want arrives, byte for byte (the
-// encoder's trailing newline aside); any other `status` frame first fails.
-func waitStatusFrame(t *testing.T, w *wuiClient, want string) {
+// encoder's trailing newline aside); any other `status` frame first fails,
+// except a repeat of one in seen: a socket whose welcome snapshot races a
+// set gets that frame twice, which is harmless (last writer wins per peer).
+func waitStatusFrame(t *testing.T, w *wuiClient, want string, seen ...string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -148,7 +151,7 @@ func waitStatusFrame(t *testing.T, w *wuiClient, want string) {
 		if got == want {
 			return
 		}
-		if strings.Contains(got, `"type":"status"`) {
+		if strings.Contains(got, `"type":"status"`) && !slices.Contains(seen, got) {
 			t.Fatalf("waiting for %s: got status frame %s", want, got)
 		}
 	}
@@ -185,7 +188,8 @@ func TestHumanStatusSweepFrame(t *testing.T) {
 	if code, out := putStatus(t, e, tid, a, map[string]any{"state": "busy", "note": "On leave", "until": until}); code != http.StatusOK {
 		t.Fatalf("put: %d %v", code, out)
 	}
-	waitStatusFrame(t, w, `{"type":"status","peer":"`+a+`@box-wui","state":"busy","note":"On leave","until":"`+until+`"}`)
+	busy := `{"type":"status","peer":"` + a + `@box-wui","state":"busy","note":"On leave","until":"` + until + `"}`
+	waitStatusFrame(t, w, busy)
 
 	// Not expired yet: the sweep deletes nothing (and the strict wait below
 	// fails on any frame it would have sent).
@@ -196,7 +200,7 @@ func TestHumanStatusSweepFrame(t *testing.T) {
 
 	clk.add(3 * time.Minute)
 	e.srv.Relay(context.Background())
-	waitStatusFrame(t, w, `{"type":"status","peer":"`+a+`@box-wui","state":"available"}`)
+	waitStatusFrame(t, w, `{"type":"status","peer":"`+a+`@box-wui","state":"available"}`, busy)
 
 	m, err := e.st.(store.HumanStatuses).HumanStatuses(context.Background(), tid, time.Time{})
 	if err != nil || len(m) != 0 {

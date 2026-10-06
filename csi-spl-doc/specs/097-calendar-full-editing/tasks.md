@@ -70,7 +70,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   the id, the trash lists only the caller's deletions, a stale precondition
   is refused, workspace A cannot restore B's event (AC-07, AC-08). Depends:
   T002. (FR-002, FR-008)
-- [ ] T004 **hub base** `api/internal/hub/calendar.go` (+ a
+- [x] T004 **hub base** (c-399, `d0d750bb` + `09ac94da`; the purge action is in csi-spl-orc, beside its DB proxy) `api/internal/hub/calendar.go` (+ a
   `calendar_props.go` registry): the 3.3 registry, the new body fields,
   `reminders` as typed `{amount, unit}` (a whole number 1 or more, minutes /
   hours / days, at most 4 weeks, up to 5; owner E2) with the `remind_at`

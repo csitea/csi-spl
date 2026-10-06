@@ -30,15 +30,15 @@
 #------------------------------------------------------------------------------
 do_gcp_002_create_project_service_account() {
 
-  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
+  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
 
-  do_gcp_spl_proj_id || exit 1
-  do_gcp_pin_bootstrap_account || exit 1
+  do_gcp_spl_proj_id || return 1
+  do_gcp_pin_bootstrap_account || return 1
   GCP_ORG_ID=$(do_gcp_org_id)
   do_require_var GCP_ORG_ID "${GCP_ORG_ID:-}"
 
   local dry_run="${DRY_RUN:-1}"
-  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }
+  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
 
   local acct="--account=${GCP_ACCOUNT}"
   local sa_id="${PROJ_ID}"
@@ -64,13 +64,13 @@ do_gcp_002_create_project_service_account() {
   else
     do_log "ERROR cannot tell whether ${sa_email} exists (rc=${rc}): ${out}"
     do_log "FATAL refusing to create an SA or a key on an unread answer"
-    exit 1
+    return 1
   fi
   [[ -f "${key_file}" ]] || need_key=true
 
   if [[ "${need_sa}" == true && "${need_key}" == false ]]; then
     do_log "FATAL ${key_file} exists but ${sa_email} does not: the key is stale. Move it away and re-run."
-    exit 1
+    return 1
   fi
   if [[ "${need_sa}" == false && "${need_key}" == false ]]; then
     do_log "OK ${sa_email} and ${key_file} already present — nothing to do"
@@ -103,7 +103,7 @@ do_gcp_002_create_project_service_account() {
   if [[ ${rc} -eq 0 ]]; then
     printf '%s' "${out}" | grep -E 'enforce: *true' >/dev/null && enforced=true
   elif [[ "${dry_run}" != 1 ]]; then
-    do_log "FATAL cannot read the effective ${constraint} on ${PROJ_ID} (rc=${rc}): ${out}"; exit 1
+    do_log "FATAL cannot read the effective ${constraint} on ${PROJ_ID} (rc=${rc}): ${out}"; return 1
   fi
 
   if [[ "${dry_run}" == 1 ]]; then
@@ -115,7 +115,7 @@ do_gcp_002_create_project_service_account() {
   fi
 
   local tmp
-  tmp=$(mktemp -d) || exit 1
+  tmp=$(mktemp -d) || return 1
   _gcp002_policy() {  # <true|false>
     printf 'name: organizations/%s/policies/%s\nspec:\n  rules:\n    - enforce: %s\n' \
       "${GCP_ORG_ID}" "${constraint}" "$1" >"${tmp}/policy-$1.yaml"
@@ -174,6 +174,6 @@ do_gcp_002_create_project_service_account() {
   rm -rf "${tmp}"
   unset -f _gcp002_policy
 
-  [[ -z "${failed}" ]] || { do_log "FATAL Failed to ${failed}"; exit 1; }
+  [[ -z "${failed}" ]] || { do_log "FATAL Failed to ${failed}"; return 1; }
   do_log "OK ${sa_email} ready; key at ${key_file} (mode 600, not printed)"
 }

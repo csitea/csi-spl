@@ -51,12 +51,12 @@ _gcp_001_cnf_envs() {
 
 do_gcp_001_create_project() {
 
-  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; exit 1; }
+  command -v gcloud &>/dev/null || { do_log "FATAL gcloud is not installed"; return 1; }
 
   do_resolve_oap ORG
   do_resolve_oap APP
   do_require_var ENV "${ENV:-}"
-  do_gcp_pin_bootstrap_account || exit 1
+  do_gcp_pin_bootstrap_account || return 1
   do_require_var GCP_BILLING_ACCOUNT_ID "${GCP_BILLING_ACCOUNT_ID:-}"
 
   # the envs are the cnf's <env>.env.yaml files (spec 072 A8), plus
@@ -65,24 +65,24 @@ do_gcp_001_create_project() {
   local cnf_dir="${APP_PATH}/${ORG}-${APP}-cnf/${ORG}-${APP}"
   local envs
   envs=$(_gcp_001_cnf_envs "${cnf_dir}")
-  [[ " ${envs} " == *" ${ENV} "* ]] || { do_log "FATAL ENV must be one of: ${envs}, got: ${ENV}"; exit 1; }
+  [[ " ${envs} " == *" ${ENV} "* ]] || { do_log "FATAL ENV must be one of: ${envs}, got: ${ENV}"; return 1; }
 
   # the org comes from cnf env.gcp.gcp_org_id unless the env names a parent
   [[ -n "${GCP_FOLDER_ID:-}" ]] || GCP_ORG_ID=$(do_gcp_org_id)
 
   local parent_flag
   if [[ -n "${GCP_ORG_ID:-}" && -n "${GCP_FOLDER_ID:-}" ]]; then
-    do_log "FATAL set exactly one of GCP_ORG_ID and GCP_FOLDER_ID, not both"; exit 1
+    do_log "FATAL set exactly one of GCP_ORG_ID and GCP_FOLDER_ID, not both"; return 1
   elif [[ -n "${GCP_ORG_ID:-}" ]]; then
     parent_flag="--organization=${GCP_ORG_ID}"
   elif [[ -n "${GCP_FOLDER_ID:-}" ]]; then
     parent_flag="--folder=${GCP_FOLDER_ID}"
   else
-    do_log "FATAL the environment variable GCP_ORG_ID or GCP_FOLDER_ID must have a value (no default)"; exit 1
+    do_log "FATAL the environment variable GCP_ORG_ID or GCP_FOLDER_ID must have a value (no default)"; return 1
   fi
 
   local dry_run="${DRY_RUN:-1}"
-  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; exit 1; }
+  [[ "${dry_run}" == 0 || "${dry_run}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: ${dry_run}"; return 1; }
 
   # The id comes from the committed config (spec 072 A8): a GCP project id is
   # global, so the directory names cannot be what names it. The convention
@@ -93,14 +93,14 @@ do_gcp_001_create_project() {
   if [[ "${ENV}" != all && -f "${cnf_file}" ]]; then
     # an unread cnf must not fall back to the convention: that names a project
     # the cnf may not mean
-    command -v yq &>/dev/null || { do_log "FATAL yq is needed to read env.gcp.gcp_project from ${cnf_file}"; exit 1; }
+    command -v yq &>/dev/null || { do_log "FATAL yq is needed to read env.gcp.gcp_project from ${cnf_file}"; return 1; }
     cnf_proj=$(yq -r '.env.gcp.gcp_project // ""' "${cnf_file}" 2>/dev/null)
   fi
   local proj_id="${cnf_proj:-${ORG}-${APP}-${ENV}}"
   # GCP's own rule: 6-30 chars, lowercase letters, digits, hyphens, a letter first
   if [[ ! "${proj_id}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]]; then
     do_log "FATAL project id ${proj_id} is not a GCP project id (6-30 lowercase letters, digits or -, a letter first); set env.gcp.gcp_project in ${cnf_file}"
-    exit 1
+    return 1
   fi
   export PROJ_ID="${proj_id}"
 
@@ -135,7 +135,7 @@ do_gcp_001_create_project() {
     do_log "ERROR Cannot determine whether project ${PROJ_ID} exists (rc=${describe_rc})"
     do_log "ERROR gcloud said: ${describe_out}"
     do_log "FATAL Error: Failed to establish the state of ${PROJ_ID} — refusing to run 'projects create' on an unread answer"
-    exit "${describe_rc}"
+    return "${describe_rc}"
   fi
 
   # ---- Link billing (idempotent) -------------------------------------------

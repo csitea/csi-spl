@@ -8,11 +8,11 @@ do_export_json_section_vars_as_tf_vars(){
    json_file="$1"
    shift 1;
    test -f "$json_file" || do_log "FATAL the json_file: $json_file does not exist !!! Nothing to do"
-   test -f "$json_file" || exit 1
+   test -f "$json_file" || return 1
 
    section="$1"
    test -z "$section" && do_log "FATAL the section in do_export_json_section_vars_as_tf_vars is empty !!! Nothing to do !!!"
-   test -z "$section" && exit 1
+   test -z "$section" && return 1
    shift 1;
 
    sensitiveness="${1:-}"

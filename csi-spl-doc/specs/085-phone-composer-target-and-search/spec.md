@@ -52,7 +52,7 @@ Mock bundle, tree `7289ef28`, 390x844 and 360x780 with touch, n = 1 per row unle
 - At <= 820 px the chip shows **inside** the field, right after the mode glyph, never on a line above it (owner `dd98f8d7`).
 - It shows whenever the box has focus or text, not only with text, so the reader sees where Enter goes before typing.
 - It is short: `#alerts`, `@GRK-03`, `Reply`, `New topic`. A 14 px pill of at most 12 characters, then an ellipsis. The full target is in its `title` and its accessible name.
-- It takes the start of the **first line only** (the textarea's `text-indent` is the chip's width); wrapped lines use the full width. At 360 px line 1 keeps ~23 px, so typing in practice starts on line 2, under the chip (Q4).
+- While the draft fits one line, the chip takes the start of that line (the textarea's `text-indent` is the chip's width). Once the draft is more than one line, the multi-line omnibox (v1.9.2, t1 26282b6e) lifts the mode glyph and the chip onto a row on top of the text, still inside the field; the text then starts at the field's inline start on every line and uses the full field width. Owner pick "Chip 2" (HUM-10, t1 a477c187, msg `0b5cc9db-0fd7-402a-a8af-19cc5e478988`): keep that layout, so the earlier "line 1 indented, line 2 under the chip" rule (Q4) is replaced.
 - It is 080's `chipLabel(target)`, read from the same target `send` uses (080 FR-007). No second label function.
 
 ### 3.2 A short phone placeholder
@@ -87,7 +87,7 @@ On level 1 (the section chooser and its list) the box is a search box: placehold
 | ID | Description | Status |
 |---|---|---|
 | **FR-001** | At <= 820 px, while the docked box has focus or text and is not in search mode, 080's target chip shows inside the field after the mode glyph; never on a line above the box | Planned |
-| **FR-002** | The phone chip is a 14 px pill of at most 12 characters (`#alerts`, `@GRK-03`, `Reply`, `New topic`), ellipsis after; the full target is its `title` and accessible name; it comes from 080's `chipLabel(target)`. It indents the first line only (`text-indent`); wrapped lines use the full field width | Planned |
+| **FR-002** | The phone chip is a 14 px pill of at most 12 characters (`#alerts`, `@GRK-03`, `Reply`, `New topic`), ellipsis after; the full target is its `title` and accessible name; it comes from 080's `chipLabel(target)`. It indents a one-line draft (`text-indent`); a multi-line draft puts the chip on a row on top and the text uses the full field width from its inline start (owner pick msg `0b5cc9db`) | Planned |
 | **FR-003** | At <= 820 px the placeholder is the destination only (`#<channel>`, `@<peer>`, `Reply`, `Search` on level 1); no key hints. New i18n keys `composer.phone_placeholder_*` in all 19 locales | Planned |
 | **FR-004** | At <= 820 px the `?` button shows a magnifier, is named "Search", keeps a >= 44 px target, and a tap enters search mode, focuses the field and opens the operator list; a second tap or an empty box leaves search mode | Planned |
 | **FR-005** | The operator list opened from the phone Search button starts with the key hints that left the placeholder | Planned |
@@ -104,7 +104,7 @@ All e2e run against a generated mock bundle (`BASE_URL=<bundle> pnpm run test:e2
 |---|---|---|
 | **AC1** | open `#alerts` (level 2), tap the box: the chip reads `#alerts` before any typing; type `x`: still `#alerts`; open a topic (level 3), tap the box: `Reply` | FR-001, FR-002 |
 | **AC2** | in every state of AC1, `getBoundingClientRect()` of the chip lies inside the field's rect, and no element with text sits between the box's top edge and the feed | FR-001, FR-007 |
-| **AC3** | unit (`omnibox-topic`): the phone chip label is `chipLabel(target)` truncated to 12 characters for every row of 080 AC6's target table; e2e at 360: type 60 characters on `#alerts` -> the second line of text starts at the field's left padding (not after the chip) | FR-002 |
+| **AC3** | unit (`omnibox-topic`): the phone chip label is `chipLabel(target)` truncated to 12 characters for every row of 080 AC6's target table; e2e at 360: type 60 characters on `#alerts` -> the field is multi-line (`data-multiline="true"`): the marker and the chip are a row on top (chip bottom <= the text's top), every line of text starts at the field's inline start (left edge, no indent), and the textarea spans the field's full inner width. Owner pick "Chip 2", msg `0b5cc9db-0fd7-402a-a8af-19cc5e478988` | FR-002 |
 | **AC4** | the placeholder's `scrollWidth <= clientWidth` on `#alerts`, a DM and a topic, at 360 (it fits) | FR-003 |
 | **AC5** | level 2: tap Search (the magnifier, >= 44x44) -> the form has `omnibox--search`, the field is focused, `search-syntax-panel` is open; type `scaffold`, tap Send -> `/search?q=scaffold`; total taps from level 2: 2 + typing (today: 2 + `/search ` syntax) | FR-004, FR-005 |
 | **AC6** | level 1 (Messages, then Channels, then Flow): the placeholder reads `Search` on each; type `abc`, Enter -> `/search?q=abc`, and the mock feed has no new message | FR-006 |

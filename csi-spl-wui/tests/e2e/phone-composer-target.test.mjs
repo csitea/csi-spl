@@ -21,7 +21,7 @@
 //     c893c3a9 - the font is not to shrink. Remove the entry once fixed.
 //   desktop (1440x900): /channel/alerts keeps the key-hint placeholder.
 //   T005 (FR-001, FR-002), the target chip on the phone dock: see chipCase
-//     below (AC1, AC2 at 390 and 360; AC3's wrap check at 360).
+//     below (AC1, AC2 at 390 and 360; AC3's multi-line check at 360).
 //   T003 (FR-004, FR-005), the phone Search button: see searchCase below
 //     (AC5 at 390 and 360; the placeholder backstop at 360).
 //
@@ -177,10 +177,13 @@ async function desktopCase(browser) {
  *         words in title and aria-label
  *     AC2 in each of those states the chip's rect lies inside the field's,
  *         and no text in the composer sits above the field (owner dd98f8d7)
- *     AC3 (360 only) type 60 characters on #alerts: line 1 starts after the
- *         chip, line 2 at the field's start padding (text-indent, line 1 only)
- *     CONTROL: before T005 the docked box drew no chip (AC1 fails), and a
- *     padding-inline-start indent (080's desktop rule) moves line 2 too. */
+ *     AC3 (360 only) type 60 characters on #alerts: the field turns
+ *         multi-line (t1 26282b6e, owner pick "Chip 2", msg 0b5cc9db) - the
+ *         chip sits on a row above the text, every line starts at the
+ *         field's inline start, and the text spans the field's full width
+ *     CONTROL: before T005 the docked box drew no chip (AC1 fails), and the
+ *     one-line layout's chip indent (text-indent = the chip's width) starts
+ *     line 1 after the chip - the line-1 check bites. */
 function dockChip(p) {
   return p.evaluate((sel) => {
     const vis = (el) => Boolean(el) && el.getClientRects().length > 0
@@ -216,7 +219,8 @@ function dockChip(p) {
 
 /** AC3: where the textarea's lines start, from a mirror div in the field's
  *  own font, width, padding and text-indent (a textarea's lines cannot be
- *  measured directly). `indent` overrides the mirror's indent (the CONTROL). */
+ *  measured directly), plus the field, chip and textarea rects. `indent`
+ *  gives the mirror the one-line layout's chip indent (the CONTROL). */
 function lineStarts(p, mode = '') {
   return p.evaluate((sel, how) => {
     const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
@@ -226,7 +230,8 @@ function lineStarts(p, mode = '') {
     const r = ta.getBoundingClientRect()
     const m = document.createElement('div')
     for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'paddingLeft', 'paddingRight', 'paddingTop', 'textIndent', 'boxSizing', 'borderLeftWidth', 'borderRightWidth', 'wordSpacing', 'direction']) m.style[k] = cs[k]
-    if (how === 'padding') { m.style.paddingLeft = `${parseFloat(cs.paddingLeft) + parseFloat(cs.textIndent)}px`; m.style.textIndent = '0px' }
+    const c = chip.getBoundingClientRect()
+    if (how === 'indent') m.style.textIndent = `${c.right - (r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft))}px`
     Object.assign(m.style, { position: 'fixed', left: `${r.left}px`, top: '0px', width: `${r.width}px`, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', borderStyle: 'solid', borderColor: 'transparent', visibility: 'hidden' })
     m.textContent = ta.value
     document.body.appendChild(m)
@@ -239,7 +244,21 @@ function lineStarts(p, mode = '') {
     }
     m.remove()
     const lines = [...tops.entries()].sort((x, y) => x[0] - y[0]).map(([, left]) => Math.round(left))
-    return { lines, padStart: Math.round(r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)), chipRight: Math.round(chip.getBoundingClientRect().right), indent: cs.textIndent }
+    const f = ta.closest('.omnibox-field')
+    const fs = getComputedStyle(f)
+    const fr = f.getBoundingClientRect()
+    return {
+      lines,
+      multiline: f.getAttribute('data-multiline') === 'true',
+      padStart: Math.round(r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)),
+      fieldStart: Math.round(fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft)),
+      fieldInner: Math.round(fr.width - parseFloat(fs.borderLeftWidth) - parseFloat(fs.borderRightWidth) - parseFloat(fs.paddingLeft) - parseFloat(fs.paddingRight)),
+      taWidth: Math.round(r.width),
+      chipRight: Math.round(c.right),
+      chipBottom: Math.round(c.bottom),
+      textTop: Math.round(r.top + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop)),
+      indent: cs.textIndent,
+    }
   }, TA, mode)
 }
 
@@ -276,9 +295,11 @@ async function chipCase(browser, width, height) {
     await sleep(300)
     const l = await lineStarts(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-wrap.png`) })
-    ok(`${tag} AC3 60 characters: line 1 starts after the chip, line 2 at the field's start padding`, Boolean(l && l.lines.length >= 2 && l.lines[0] >= l.chipRight && Math.abs(l.lines[1] - l.padStart) <= 1), l)
-    const ctl = await lineStarts(p, 'padding')
-    ok(`${tag} CONTROL an indent by padding (080's desktop rule) starts line 2 after the chip too`, Boolean(ctl && ctl.lines.length >= 2 && ctl.lines[1] >= ctl.chipRight), ctl)
+    const ac3 = (x) => Boolean(x && x.multiline && x.lines.length >= 2 && x.chipBottom <= x.textTop + 1
+      && x.lines.every((left) => Math.abs(left - x.fieldStart) <= 1) && x.taWidth >= x.fieldInner - 1)
+    ok(`${tag} AC3 60 characters: multi-line, the chip on a row above the text, every line from the field's start, full width`, ac3(l), l)
+    const ctl = await lineStarts(p, 'indent')
+    ok(`${tag} CONTROL the one-line chip indent (text-indent = chip width) starts line 1 after the chip - AC3 fails`, Boolean(ctl && ctl.lines.length >= 2 && ctl.lines[0] >= ctl.chipRight - 1 && !ac3(ctl)), ctl)
   }
   await p.evaluate((sel) => {
     const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)

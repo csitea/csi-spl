@@ -1,6 +1,8 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.8 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v1.0 (2026-10-06). **Panel consensus recorded** (section 12). Doc only;
+the build starts on consensus (owner rule 2026-10-05). Each rdb file still
+needs the owner's go before it is applied.
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -354,7 +356,10 @@ and a DM between two other members.
 ## 7. Index freshness
 
 Section 3.4: 0 lag for every event. The GIN pending list (`fastupdate`) is
-searched by every scan, so a new post is findable at commit. One unmeasured
+searched by every scan, so a new post is findable at commit, by every
+candidate probe that starts after it. The probe and the statement are two
+batches, so a post committed between them can be missing from that one page.
+That is a false negative only, and the next page or search shows it (r1, r2). One unmeasured
 cost: the GIN on insert. Locally it was 730 vs 544 ms per 20k inserts (rdb
 0122, scratch pg16, n=3, so +34%). That is DB CPU on a fixed tier, so it adds
 no $. It must be measured on the prd shape (r1 U8, P4).
@@ -444,15 +449,29 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 
 | seat | agent | research | position on v0.1 |
 |---|---|---|---|
-| author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r |
-| r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1 with r3's role-scoped policy and `gin (tenant_id, search_tsv)` (r1 section 8, `712ff98d`), i.e. S1r. **SIGNED v0.4** (`e9829578`, msg 1b2a4f4d); v0.5 adds prd data only |
-| r2 | c-370 (claude) | `research/r2-claude.md` | S1 with its 3.3.1..3.3.5 as acceptance criteria (all in v0.6: T4, 5.1, 7, P1) and 3.3.6 as an owner question (Q1). **SIGNED v0.7** (`9ba4a3c1`, msg df3466e9; `research/r2-claude.md` section 6.1). v0.8 writes down its build note |
-| r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). S1r on v0.3; signs v0.4 with the prd reads folded in (v0.5) |
+| author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r. **SIGNED v0.8** |
+| r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1r. **SIGNED v0.8** (`0b326afa`, msg 4f1eb11e) |
+| r2 | c-370 (claude) | `research/r2-claude.md` | S1r. **SIGNED v0.8** (`0b326afa`, msg 93ece0bd; section 6.2) |
+| r3 | c-371 (claude) | `research/r3-claude.md` | S1r. **SIGNED v0.8** (`0b326afa`, msg a5396afa) |
 
-Consensus: **not yet.**
+**Consensus, 2026-10-06: all four seats signed v0.8 (`0b326afa`). The
+recommendation is S1r**: a GIN on `messages (tenant_id, search_tsv)`
+(`btree_gin`), read only through `spool_search_candidates(q, cap)`. That is
+one SECURITY DEFINER SQL function, owned by NOLOGIN `spool_search_reader`
+and pinned to the session tenant. It returns at most `cap + 1` ids; the hub
+filters on them only when there are at most `cap`, and every door, order and
+page stays under FORCE RLS. Fallback: B (a word table under RLS, no lift).
+No vector, no external engine. v1.0 differs from v0.8 only by this line,
+the panel table, and r1's non-blocking clause in section 7.
+
+Build: P0..P5 (section 9). The owner questions in section 11 go to c-002 as
+one list, and the build does not wait on them. Q1 decides S1r against B
+before P1 is applied.
 
 ## 13. Changes
 
+- v1.0 (2026-10-06): consensus recorded (section 12); r1's clause in
+  section 7.
 - v0.8 (2026-10-06): r1's objections on the cap switch.
   - Probe, then statement: the hub passes at most `cap` ids as
     `= ANY($ids)`, and the id filter is never applied to a truncated set.

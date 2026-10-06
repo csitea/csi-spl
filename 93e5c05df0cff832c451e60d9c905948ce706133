@@ -1,0 +1,6 @@
+Lay-What: Pages that load settings, pictures, payments or keys no longer wait forever on a dead connection.
+Lay-How: Each of those requests now gives up after a fixed time and shows the same failure it shows when offline.
+Lay-Why: A connection that silently stalls left the sign-in, avatars or checkout spinning for as long as the page was open.
+Tech-What: WUI utils demo-info, runtime-config, avatar roster, checkout-client and human-keys pass an AbortSignal.timeout to fetch.
+Tech-How: New budgets in utils/fetch-timeouts.mjs: boot 10 s, roster 15 s, checkout/keys = DOC_WRITE_TIMEOUT_MS 60 s; a keys caller signal still wins.
+Tech-Why: A fetch with no signal never settles on a half-open TCP connection; every caller already maps a rejection to network/null.

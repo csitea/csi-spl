@@ -1904,6 +1904,11 @@
     "today": "Bugün",
     "prev_week": "Önceki hafta",
     "next_week": "Sonraki hafta",
+    "view": "Görünüm",
+    "view_day": "Gün",
+    "view_week": "Hafta",
+    "prev_day": "Önceki gün",
+    "next_day": "Sonraki gün",
     "load_failed": "Takvim yüklenemedi. Daha sonra tekrar deneyin.",
     "months": {
       "m1": "Ocak",

@@ -1904,6 +1904,11 @@
     "today": "Šiandien",
     "prev_week": "Ankstesnė savaitė",
     "next_week": "Kita savaitė",
+    "view": "Rodinys",
+    "view_day": "Diena",
+    "view_week": "Savaitė",
+    "prev_day": "Ankstesnė diena",
+    "next_day": "Kita diena",
     "load_failed": "Kalendoriaus įkelti nepavyko. Bandykite vėliau.",
     "months": {
       "m1": "Sausis",

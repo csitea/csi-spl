@@ -1904,6 +1904,11 @@
     "today": "Šodien",
     "prev_week": "Iepriekšējā nedēļa",
     "next_week": "Nākamā nedēļa",
+    "view": "Skats",
+    "view_day": "Diena",
+    "view_week": "Nedēļa",
+    "prev_day": "Iepriekšējā diena",
+    "next_day": "Nākamā diena",
     "load_failed": "Kalendāru neizdevās ielādēt. Mēģiniet vēlāk vēlreiz.",
     "months": {
       "m1": "Janvāris",

@@ -1904,6 +1904,11 @@
     "today": "Täna",
     "prev_week": "Eelmine nädal",
     "next_week": "Järgmine nädal",
+    "view": "Vaade",
+    "view_day": "Päev",
+    "view_week": "Nädal",
+    "prev_day": "Eelmine päev",
+    "next_day": "Järgmine päev",
     "load_failed": "Kalendrit ei õnnestunud laadida. Proovige hiljem uuesti.",
     "months": {
       "m1": "Jaanuar",

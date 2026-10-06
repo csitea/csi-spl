@@ -1904,6 +1904,11 @@
     "today": "Hoy",
     "prev_week": "Semana anterior",
     "next_week": "Semana siguiente",
+    "view": "Vista",
+    "view_day": "Día",
+    "view_week": "Semana",
+    "prev_day": "Día anterior",
+    "next_day": "Día siguiente",
     "load_failed": "No se pudo cargar el calendario. Inténtalo de nuevo más tarde.",
     "months": {
       "m1": "Enero",

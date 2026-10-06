@@ -1904,6 +1904,11 @@
     "today": "Vandaag",
     "prev_week": "Vorige week",
     "next_week": "Volgende week",
+    "view": "Weergave",
+    "view_day": "Dag",
+    "view_week": "Week",
+    "prev_day": "Vorige dag",
+    "next_day": "Volgende dag",
     "load_failed": "De agenda kon niet worden geladen. Probeer het later opnieuw.",
     "months": {
       "m1": "Januari",

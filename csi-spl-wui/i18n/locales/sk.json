@@ -1904,6 +1904,11 @@
     "today": "Dnes",
     "prev_week": "Predchádzajúci týždeň",
     "next_week": "Nasledujúci týždeň",
+    "view": "Zobrazenie",
+    "view_day": "Deň",
+    "view_week": "Týždeň",
+    "prev_day": "Predchádzajúci deň",
+    "next_day": "Nasledujúci deň",
     "load_failed": "Kalendár sa nepodarilo načítať. Skúste to neskôr.",
     "months": {
       "m1": "Január",

@@ -1904,6 +1904,11 @@
     "today": "Idag",
     "prev_week": "Föregående vecka",
     "next_week": "Nästa vecka",
+    "view": "Vy",
+    "view_day": "Dag",
+    "view_week": "Vecka",
+    "prev_day": "Föregående dag",
+    "next_day": "Nästa dag",
     "load_failed": "Kalendern kunde inte läsas in. Försök igen senare.",
     "months": {
       "m1": "Januari",

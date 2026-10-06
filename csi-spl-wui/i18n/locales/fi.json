@@ -1904,6 +1904,11 @@
     "today": "Tänään",
     "prev_week": "Edellinen viikko",
     "next_week": "Seuraava viikko",
+    "view": "Näkymä",
+    "view_day": "Päivä",
+    "view_week": "Viikko",
+    "prev_day": "Edellinen päivä",
+    "next_day": "Seuraava päivä",
     "load_failed": "Kalenteria ei voitu ladata. Yritä myöhemmin uudelleen.",
     "months": {
       "m1": "Tammikuu",

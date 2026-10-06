@@ -1904,6 +1904,11 @@
     "today": "Astăzi",
     "prev_week": "Săptămâna anterioară",
     "next_week": "Săptămâna următoare",
+    "view": "Vizualizare",
+    "view_day": "Zi",
+    "view_week": "Săptămână",
+    "prev_day": "Ziua anterioară",
+    "next_day": "Ziua următoare",
     "load_failed": "Calendarul nu a putut fi încărcat. Încercați din nou mai târziu.",
     "months": {
       "m1": "Ianuarie",

@@ -99,7 +99,7 @@
              topic · #lobby), top and bottom positions alike; a click opens it
              (Q3). Inside the box, never a line over it (owner, t1 7d777e79 /
              dd98f8d7). On the phone dock (085 FR-001) it shows on focus too,
-             cut to 12 characters, the full words in title and aria-label.
+             cut to 9 characters (PHONE_CHIP_MAX), the full words in title and aria-label.
              Replaces the bottom dock's "where it goes" line (c6994436). -->
         <button
           v-if="chip"
@@ -1845,7 +1845,7 @@ textarea.in-code {
   /* 085 FR-001 / FR-002: 080's chip inside the docked field, right after the
      glyph, on the first line only - the textarea indents line 1 by the chip's
      width (text-indent), wrapped lines take the full width. A 14 px pill of
-     at most 12 characters (phoneChipLabel); never a line over the box (owner,
+     at most 9 characters (phoneChipLabel); never a line over the box (owner,
      t1 dd98f8d7) */
   .composer--dock.composer--dock .composer-target-chip {
     top: 11px;

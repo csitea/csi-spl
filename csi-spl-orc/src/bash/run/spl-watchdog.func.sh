@@ -25,9 +25,12 @@
 # @param WD_TAKEOVER_MAX (optional) - takeovers per id per rolling hour, default 2
 # @param WD_JOBS (optional) - agents checked at once, default 8
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
+# @param WD_ONLY (optional) - space-separated ids: check only these (a drill on scratch ids next to the live loop)
+# @param WD_STATE_DIR (optional) - the state dir (lock, debounces, ctx), default <spool root>/dispatch/wd; another one runs beside the live loop
 # @param WD_PS_CMD / WD_SEND / WD_TAKEOVER_CMD / ROTATE_TMUX (optional) - seams for the tests: ps, spool-send.sh, the takeover, tmux
 # @example WD_TICKS=1 ./run -a do_spl_watchdog
 # @example DRY_RUN=0 ./run -a do_spl_watchdog
+# @example WD_ONLY="c-981 c-982" WD_STATE_DIR=/var/tmp/wd-drill DRY_RUN=0 WD_TICKS=20 ./run -a do_spl_watchdog
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
@@ -56,7 +59,7 @@ do_spl_watchdog() {
 
 spl_wd_init() {
   spl_rotate_conf || return 1
-  WD_DIR="$LEASE_DIR/wd"
+  WD_DIR="${WD_STATE_DIR:-$LEASE_DIR/wd}"
   WD_LOG="$LEASE_DIR/wd.log"
   WD_SITUATIONS="${WD_SITUATIONS:-$SPL_WD_RUN_DIR/../features/watchdog/situations}"
   : "${WD_TICKS:=0}" "${WD_TICK:=30}" "${WD_SCRIPT_TIMEOUT:=5}" "${WD_START_GRACE:=180}"
@@ -182,8 +185,14 @@ spl_wd_agents() {
             p = (i in pid) ? pid[i] : "-"; w = (i in wp) ? wp[i] : "-"
             # an id names files: a SPOOL_AGENT_ID of any other shape is not checked
             if (i ~ /^[A-Za-z][A-Za-z0-9-]*$/) print i "\t" p "\t" w } }' "$tick/win" "$tick/procs" |
-    sort > "$tick/agents.raw"
+    sort | spl_wd_only > "$tick/agents.raw"
   spl_wd_pane_of_pids "$tick"
+}
+
+# The agent lines whose id is in WD_ONLY; all of them when it is empty.
+spl_wd_only() {
+  if [[ -z "${WD_ONLY:-}" ]]; then cat; return 0; fi
+  awk -F'\t' -v only=" ${WD_ONLY//,/ } " 'index(only, " " $1 " ")'
 }
 
 # The pane of an agent found by its process only: the pane whose pane_pid is

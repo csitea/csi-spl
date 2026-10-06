@@ -15,7 +15,8 @@
 #      seat, a long turn with a moving spinner, a stale login banner after
 #      /login, a lane that finished (its workdir gone)
 #   3. a tick: one verdict line per agent, wd.<id> written, windows of
-#      another box and of a retiring session skipped
+#      another box and of a retiring session skipped; WD_ONLY + WD_STATE_DIR
+#      (a drill on scratch ids beside the live loop)
 #   4. debounce + actions: S3 pending on tick 1, takeover on tick 2; a dry run
 #      only says "would"; S2 never takes over and sends ONE blocker; S1 rings
 #      at 120 s and takes over at 240 s; S4 Escape, then takeover 60 s later;
@@ -279,6 +280,19 @@ env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC
   exec > >(cat) 2> >(sleep 60)
   source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; do_spl_watchdog' >/dev/null 2>&1
 (( SECONDS - s0 < 20 )) && pass "3 a tick under a long-lived process substitution ends ($((SECONDS - s0))s)" || fail "3 the tick waited for a process substitution ($((SECONDS - s0))s)"
+
+# 3. a drill beside the live loop: WD_ONLY checks the named ids only, and
+# WD_STATE_DIR keeps its own lock; control: without WD_ONLY every agent
+reset_box; agent c-906 %1 4006; agent c-907 %2 4007
+out="$(WD_ONLY="c-907" WD_STATE_DIR="$T/drill" wd)"
+grep -q '^c-907 OK' <<<"$out" && ! grep -q 'c-906' <<<"$out" && [[ -e "$T/drill/run.lock" && ! -e "$D/wd/run.lock" ]] &&
+  pass "3 WD_ONLY=c-907 checks c-907 only, in WD_STATE_DIR" || fail "3 WD_ONLY: $out"
+exec 8>>"$D/wd/run.lock"; flock -n 8
+out="$(WD_ONLY="c-906 c-907" WD_STATE_DIR="$T/drill" wd)"
+exec 8>&-
+grep -q '^c-906 OK' <<<"$out" && grep -q '^c-907 OK' <<<"$out" && pass "3 a drill runs while the live loop holds its lock" || fail "3 drill beside the loop: $out"
+out="$(wd)"
+grep -q '^c-906 OK' <<<"$out" && grep -q '^c-907 OK' <<<"$out" && pass "3 control: without WD_ONLY both are checked" || fail "3 WD_ONLY control: $out"
 
 # 4. S3: pending on tick 1, takeover on tick 2; a dry run only says would
 reset_box; agent c-911 %1 -

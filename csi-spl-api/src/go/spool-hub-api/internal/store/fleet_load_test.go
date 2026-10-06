@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"testing"
 )
@@ -38,7 +39,7 @@ func TestFleetLoadTarget(t *testing.T) {
 				{LowSet: true, Low: n(85)},                     // low above high in force
 				{LowSet: true, Low: n(0)},                      // below the CHECK
 				{HighSet: true, High: n(101)},                  // above the CHECK
-				{OrderSet: true, BoxOrder: []string{"Sat"}},    // not a box id
+				{OrderSet: true, BoxOrder: []string{"Box-s"}},  // not a box id
 				{OrderSet: true, BoxOrder: []string{"a", "a"}}, // not distinct
 			} {
 				if _, err := fl.SetFleetLoad(ctx, tid, bad); !errors.Is(err, ErrBadFleetLoad) {
@@ -60,6 +61,51 @@ func TestFleetLoadTarget(t *testing.T) {
 			}
 			if _, err := fl.FleetLoadOf(ctx, "no-such-tenant"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("missing tenant: %v, want ErrNotFound", err)
+			}
+		})
+	}
+}
+
+// rdb 0134: a per-box band overrides the fleet band for the boxes it names.
+// A patch replaces the whole map, an empty map resets it, a bad entry (not a
+// box id, a mark out of range, low >= high) is refused and leaves the row,
+// and the fleet band stays the default for every other box.
+func TestFleetLoadBoxBands(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			fl := st.(FleetLoadTarget)
+			tid := newTenant(t, st)
+			bands := map[string]BoxBand{"box-s": {Low: 60, High: 90}, "box-t": {Low: 20, High: 40}}
+			got, err := fl.SetFleetLoad(ctx, tid, FleetLoadPatch{BoxesSet: true, Boxes: bands})
+			if err != nil || !maps.Equal(got.Boxes, bands) || got.Low != nil {
+				t.Fatalf("set boxes = %+v, %v", got, err)
+			}
+			if got, _ = fl.FleetLoadOf(ctx, tid); !maps.Equal(got.Boxes, bands) {
+				t.Fatalf("read back = %+v", got.Boxes)
+			}
+			if e := got.Effective(); e.Low != 50 || e.High != 75 || e.Boxes["box-s"].High != 90 {
+				t.Fatalf("in force = %+v", e)
+			}
+			for _, bad := range []map[string]BoxBand{
+				{"Box-s": {Low: 60, High: 90}},  // not a box id
+				{"box-s": {Low: 90, High: 90}},  // low == high
+				{"box-s": {Low: 0, High: 50}},   // low below 1
+				{"box-s": {Low: 50, High: 101}}, // high above 100
+			} {
+				if _, err := fl.SetFleetLoad(ctx, tid, FleetLoadPatch{BoxesSet: true, Boxes: bad}); !errors.Is(err, ErrBadFleetLoad) {
+					t.Errorf("boxes %+v: %v, want ErrBadFleetLoad", bad, err)
+				}
+			}
+			if got, _ = fl.FleetLoadOf(ctx, tid); !maps.Equal(got.Boxes, bands) {
+				t.Fatalf("a refused patch changed the boxes: %+v", got.Boxes)
+			}
+			got, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{BoxesSet: true, Boxes: map[string]BoxBand{}})
+			if err != nil || got.Boxes != nil {
+				t.Fatalf("reset boxes = %+v, %v", got, err)
+			}
+			if got, _ = fl.FleetLoadOf(ctx, tid); got.Boxes != nil || len(got.Effective().Boxes) != 0 {
+				t.Fatalf("after reset = %+v", got)
 			}
 		})
 	}

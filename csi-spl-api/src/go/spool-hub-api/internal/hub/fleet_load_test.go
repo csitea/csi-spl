@@ -95,3 +95,46 @@ func TestFleetLoadBox(t *testing.T) {
 		t.Fatalf("no operator workspace: %s %v", raw, err)
 	}
 }
+
+// rdb 0134 (owner HUM-10 t1 29b19f85: "target hw load per box"): the
+// operator admin sets a band per box; it is admin-only like the rest, a bad
+// entry is a 400 that leaves the row, null resets the map, and a box reads
+// the per-box bands next to the fleet band.
+func TestFleetLoadBoxBands(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	bands := map[string]any{"box-s": map[string]any{"low": 60, "high": 90}}
+	if code, _ := call(t, e, other, http.MethodPatch, fleetLoadPath, whoOther[rbac.Admin], map[string]any{"boxes": bands}); code != http.StatusForbidden {
+		t.Fatalf("another workspace's admin set a box band: %d", code)
+	}
+	admin := who[rbac.Admin]
+	code, body := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"boxes": bands})
+	bs, _ := body["boxes"].(map[string]any)["box-s"].(map[string]any)
+	if code != http.StatusOK || bs["low"] != 60.0 || bs["high"] != 90.0 || body["low"] != 50.0 {
+		t.Fatalf("admin PATCH boxes = %d %v", code, body)
+	}
+	for _, bad := range []map[string]any{
+		{"boxes": map[string]any{"Box-s": map[string]any{"low": 1, "high": 2}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 80, "high": 70}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 10}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 10, "high": 20, "hi": 30}}},
+		{"boxes": []string{"box-s"}},
+	} {
+		if code, _ := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, bad); code != http.StatusBadRequest {
+			t.Errorf("PATCH %v = %d, want 400", bad, code)
+		}
+	}
+	b := e.box(other, "box-b", "CLE-08")
+	e.pin(other, b)
+	raw, err := b.c.Lane(context.Background(), "fleet_load_get", "", nil)
+	var got struct {
+		Low   int                       `json:"low"`
+		Boxes map[string]map[string]int `json:"boxes"`
+	}
+	if err != nil || json.Unmarshal(raw, &got) != nil || got.Low != 50 || got.Boxes["box-s"]["high"] != 90 {
+		t.Fatalf("box read %s %v", raw, err)
+	}
+	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"boxes": nil})
+	if code != http.StatusOK || len(body["boxes"].(map[string]any)) != 0 {
+		t.Fatalf("reset = %d %v", code, body)
+	}
+}

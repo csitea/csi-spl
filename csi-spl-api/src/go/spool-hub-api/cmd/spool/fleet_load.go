@@ -11,7 +11,10 @@ import (
 // cmdFleetLoad is the box's read of the instance's fleet load target (rdb
 // 0118), over the authenticated hello like `spool lane`:
 //
-//	fleet-load get   {low, high, box_order, source} as JSON
+//	fleet-load get   {low, high, box_order, boxes, source} as JSON
+//
+// boxes (rdb 0134) is the per-box band, {"<box>": {"low", "high"}}, that
+// overrides low / high for the boxes it names.
 //
 // Only the operator workspace's admin changes it, through
 // PATCH /v1/operator/fleet-load; a box never writes it.

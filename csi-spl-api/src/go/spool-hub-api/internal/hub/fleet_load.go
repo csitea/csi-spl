@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -22,7 +24,11 @@ import (
 // admin (operatorActor); everyone else gets 403 operator.workspaces.
 //
 //	GET   /v1/operator/fleet-load   the target in force, what is stored, the defaults
-//	PATCH /v1/operator/fleet-load   {low?, high?, box_order?}; null resets one to the default
+//	PATCH /v1/operator/fleet-load   {low?, high?, box_order?, boxes?}; null resets one to the default
+//
+// boxes (rdb 0134, owner HUM-10 t1 29b19f85: "target hw load per box") is
+// {"<box>": {"low": n, "high": n}}: that box's own band, overriding low /
+// high for it only. A PATCH replaces the whole map; null or {} resets it.
 //
 // Box side, over the authenticated hello on a one-shot role=cli session (the
 // `spool lane` path), any box of any workspace of the instance, read only:
@@ -60,6 +66,9 @@ func adminFleetLoadBody(f store.FleetLoadStored) fleetLoadBody {
 	if f.BoxOrder == nil {
 		f.BoxOrder = []string{}
 	}
+	if f.Boxes == nil {
+		f.Boxes = map[string]store.BoxBand{}
+	}
 	return fleetLoadBody{FleetLoad: f.Effective(), Source: "hub", Stored: &f, Defaults: &d}
 }
 
@@ -87,9 +96,10 @@ type fleetLoadPatchReq struct {
 	Low      json.RawMessage `json:"low"`
 	High     json.RawMessage `json:"high"`
 	BoxOrder json.RawMessage `json:"box_order"`
+	Boxes    json.RawMessage `json:"boxes"`
 }
 
-const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32"
+const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges"
 
 // patch turns the request into a store patch; ok=false: a field is not
 // its JSON type.
@@ -114,7 +124,41 @@ func (q fleetLoadPatchReq) patch() (store.FleetLoadPatch, bool) {
 			return p, false
 		}
 	}
+	if q.Boxes != nil {
+		p.BoxesSet = true
+		if !isNull(q.Boxes) && !decodeBoxBands(q.Boxes, &p.Boxes) {
+			return p, false
+		}
+	}
 	return p, true
+}
+
+// decodeBoxBands is a strict read of the boxes map: each band carries both
+// marks as integers and nothing else, so a typo is a 400, not a 0.
+func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
+	var m map[string]map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil {
+		return false
+	}
+	*out = make(map[string]store.BoxBand, len(m))
+	for box, f := range m {
+		var b store.BoxBand
+		if len(f) != 2 || json.Unmarshal(f["low"], &b.Low) != nil || json.Unmarshal(f["high"], &b.High) != nil {
+			return false
+		}
+		(*out)[box] = b
+	}
+	return true
+}
+
+// boxBandsAudit is the boxes map as one sorted "box=low..high" string.
+func boxBandsAudit(m map[string]store.BoxBand) string {
+	parts := make([]string, 0, len(m))
+	for box, b := range m {
+		parts = append(parts, box+"="+strconv.Itoa(b.Low)+".."+strconv.Itoa(b.High))
+	}
+	slices.Sort(parts)
+	return strings.Join(parts, ",")
 }
 
 // PATCH /v1/operator/fleet-load
@@ -147,7 +191,7 @@ func (s *Server) handlePatchFleetLoad(w http.ResponseWriter, r *http.Request) {
 	}
 	e := f.Effective()
 	s.opAudit(r, a, a.tenant, store.AuditUpdate, map[string]any{"setting": "fleet_load",
-		"low": e.Low, "high": e.High, "box_order": strings.Join(e.BoxOrder, ",")})
+		"low": e.Low, "high": e.High, "box_order": strings.Join(e.BoxOrder, ","), "boxes": boxBandsAudit(e.Boxes)})
 	writeJSON(w, http.StatusOK, adminFleetLoadBody(f))
 }
 

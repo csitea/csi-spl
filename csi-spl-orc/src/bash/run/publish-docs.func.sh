@@ -5,7 +5,8 @@
 # @description tracked *.md of the repo at the deployed commit - the module
 # @description READMEs, csi-spl-doc incl. specs/ (the git-spec docs) - to the
 # @description env's docs bucket (iac step 051-gcs-docs), repo paths as the
-# @description object keys, plus tree.json: {v, sha, files: [{path, title}]},
+# @description object keys, plus tree.json: {v, sha, files: [{path, blob, title}]}
+# @description (blob = the file's git blob sha, the editor's If-Match base),
 # @description the index the WUI's /docs explorer and the git-spec linking
 # @description lane read. The hub serves both (GET /v1/docs/<repo path>) to
 # @description signed-in members; the bucket itself is private.
@@ -13,7 +14,9 @@
 # @description AGENTS.md), anything under node_modules/, tpl-gen/ or bin/, the
 # @description WUI's built help copy (src/public/help-md: doc/help is
 # @description published from its source) and a path the hub would refuse.
-# @description The upload mirrors: an object no longer in the repo is deleted.
+# @description The upload mirrors: an object no longer in the repo is deleted,
+# @description except the edit overlays under .edits/ (spec 075 repo-edit §6:
+# @description the hub writes them, its worker drops them once published).
 # @description Off until cnf steps.051-gcs-docs.publish_enabled is true (set
 # @description once 051 is applied): an INFO and rc 0, so the deploy step
 # @description lands before the bucket does.
@@ -83,7 +86,8 @@ do_docs_publish_gcp() {
 # (default SPOOL_HUB_DOCS_DIR, the hub's docs dir / its mounted volume): every
 # staged file copied at its repo path, then each *.md the stage no longer holds
 # removed and the dirs that leaves empty pruned. Only .md is ever deleted, so a
-# mistyped dir loses no other file. No cloud call.
+# mistyped dir loses no other file; .edits/ (the hub's edit overlays) is never
+# entered. No cloud call.
 do_docs_publish_none() {
   local stage="$1" sha="$2" n="$3" dir="${DOCS_DIR:-${SPOOL_HUB_DOCS_DIR:-}}" p
   [[ -n "$dir" ]] || {
@@ -94,20 +98,23 @@ do_docs_publish_none() {
   while IFS= read -r -d '' p; do
     p="${p#"$dir"/}"
     [[ -f "$stage/$p" ]] || rm -f "$dir/$p" || { do_log "FATAL cannot remove $dir/$p"; return 1; }
-  done < <(find "$dir" -type f -name '*.md' -print0)
-  find "$dir" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+  done < <(find "$dir" -path "$dir/.edits" -prune -o -type f -name '*.md' -print0)
+  find "$dir" -mindepth 1 -type d -empty ! -path "$dir/.edits" ! -path "$dir/.edits/*" -delete 2>/dev/null || true
   jq -cn --arg env "$ENV" --arg dir "$dir" --arg sha "${sha:0:8}" --argjson n "$n" '{env: $env, dir: $dir, sha: $sha, docs: $n}'
   do_log "OK $n doc(s) of ${sha:0:8} published to $dir"
 }
 
 # spl_docs_stage <dir> <sha> -> <dir>/<repo path> for every published .md and
 # <dir>/tree.json. The hub's key rule (internal/hub/docs.go ValidDocsPath):
-# segments of [A-Za-z0-9._-], none starting with a dot, ending in .md.
+# segments of [A-Za-z0-9._-], none starting with a dot, ending in .md. Each
+# file's blob is its git blob sha (git ls-files -s), the base an edit starts on.
 spl_docs_stage() {
-  local out="$1" sha="$2" p title files="$1.files.jsonl"
+  local out="$1" sha="$2" e p blob title files="$1.files.jsonl"
   mkdir -p "$out" || return 1
   : >"$files"
-  while IFS= read -r -d '' p; do
+  while IFS= read -r -d '' e; do
+    p="${e#*$'\t'}" blob="${e%%$'\t'*}"
+    blob="${blob#* }" blob="${blob%% *}"
     case "/$p" in
       */CLAUDE.md | */GEMINI.md | */AGENTS.md) continue ;;
       */node_modules/* | /tpl-gen/* | */bin/* | /csi-spl-wui/src/public/help-md/*) continue ;;
@@ -119,15 +126,17 @@ spl_docs_stage() {
     [[ -f "$APP_PATH/$p" ]] || continue
     mkdir -p "$out/$(dirname "$p")" && cp "$APP_PATH/$p" "$out/$p" || return 1
     title="$(sed -n '/^#[[:space:]]\{1,\}[^[:space:]]/{s/^#[[:space:]]\{1,\}\(.*[^[:space:]]\)[[:space:]]*$/\1/p;q;}' "$out/$p")"
-    jq -cn --arg path "$p" --arg title "$title" '{path: $path} + (if $title != "" then {title: $title} else {} end)' >>"$files" || return 1
-  done < <(git -C "$APP_PATH" ls-files -z -- '*.md')
+    jq -cn --arg path "$p" --arg blob "$blob" --arg title "$title" \
+      '{path: $path, blob: $blob} + (if $title != "" then {title: $title} else {} end)' >>"$files" || return 1
+  done < <(git -C "$APP_PATH" ls-files -s -z -- '*.md')
   jq -s --arg sha "$sha" '{v: 1, sha: $sha, files: .}' "$files" >"$out/tree.json" || return 1
   rm -f "$files"
 }
 
 # spl_docs_upload <dir> <bucket>: mirror <dir> onto the bucket (deletes what
-# the repo no longer holds), as the pinned project SA.
+# the repo no longer holds), as the pinned project SA. The exclude holds on
+# the destination too: the hub's edit overlays under .edits/ are never deleted.
 spl_docs_upload() {
   gcloud storage rsync "$1" "gs://$2" --recursive --delete-unmatched-destination-objects \
-    --account="$GCP_ACCOUNT" --quiet
+    --exclude='^\.edits/' --account="$GCP_ACCOUNT" --quiet
 }

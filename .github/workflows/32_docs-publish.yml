@@ -1,0 +1,77 @@
+# ci-cd: publish the repo docs (spec 075 repo-edit §6, T03)
+#
+# A push that changes a .md outside csi-spl-wui/ mirrors the repo docs onto
+# each env's 051 docs bucket with do_publish_docs: dev, then prd. No build, no
+# version mint, no new secret: the env's project key SA already publishes
+# them in workflow 30. A csi-spl-wui/** push is published by 30 itself; a
+# .github/** .md fires 85 and holds CI, so it is left out here too.
+#
+# This is how an edit saved in the Docs section reaches readers: the hub's
+# worker commits it to master, this publishes it, and each env's worker drops
+# its .edits/ overlay once its tree.json.sha contains the commit.
+#
+# TRUNK HEAD, not the triggering sha: every run (and 30's docs job) checks out
+# master as it is when the job starts, so a run that waited in the queue never
+# puts older docs back over newer ones.
+#
+# ONE MIRROR PER BUCKET: two `rsync --delete` runs on one bucket must not
+# overlap, so this and 30's docs job share the group docs-publish-<env>, never
+# cancelled once running. An env with no project key secret is skipped with a
+# notice (a fork, or before the key exists).
+
+name: "32 ci-cd: docs publish"
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '**/*.md'
+      - '!csi-spl-wui/**'
+      - '!.github/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish the repo docs to ${{ matrix.environment }}
+    # Estate guard (spec 072 A34): this job changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo).
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: docs-publish-${{ matrix.environment }}
+      cancel-in-progress: false
+    strategy:
+      # dev, then prd; a red dev leaves prd alone
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        environment: [dev, prd]
+    env:
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+    steps:
+      - name: No project key for this env
+        if: env.HAS_KEY != 'true'
+        env:
+          ENV: ${{ matrix.environment }}
+        run: echo "::notice::docs publish skipped, no GCP_KEY_CSI_SPL secret for ${ENV}"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: env.HAS_KEY == 'true'
+        with:
+          ref: master
+
+      - name: Authenticate to Google Cloud (project key)
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: Publish the repo docs (do_publish_docs)
+        if: env.HAS_KEY == 'true'
+        env:
+          ENV: ${{ matrix.environment }}
+        run: DRY_RUN=0 GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" DOCS_SHA="$(git rev-parse HEAD)" ./csi-spl-orc/run -a do_publish_docs

@@ -12,6 +12,10 @@
 #   4. DRY_RUN=0 uploads the stage to the cnf bucket as the pinned SA
 #   5. no docs bucket in cnf, or publish_enabled false: INFO, rc 0, no upload
 #   6. ENV is validated
+#   7. each tree.json file carries its git blob sha (spec 075 repo-edit §6)
+#   8. the real spl_docs_upload, against a gcloud stub: the rsync argument
+#      list excludes ^\.edits/ (the hub's edit overlays) from the mirror
+#   9. provider none keeps a planted .edits/ overlay, still removes a stale doc
 #------------------------------------------------------------------------------
 set -uo pipefail
 export LC_ALL=C
@@ -56,7 +60,7 @@ act() {
     do_spl_cloud_cnf() { SPL_CNF="$CNF"; }
     do_gcp_pin_account() { GCP_ACCOUNT=sa@test.invalid; }
     do_gcp_require_live_account() { :; }
-    spl_docs_upload() {
+    [[ -n "${REAL_UPLOAD:-}" ]] || spl_docs_upload() {
       echo "$2 $GCP_ACCOUNT" >>"$UPLOADS"
       (cd "$1" && find . -type f | sed "s|^\./||" | sort) >>"$UPLOADS"
     }
@@ -97,5 +101,34 @@ out=$(act ENV=dev DRY_RUN=0 CNF="$T/cnf-off.yaml"); rc=$?
 # --- 6. ENV is validated -------------------------------------------------------
 act ENV=lde >/dev/null; rc=$?
 [[ $rc != 0 ]] && grep -q 'FATAL ENV must be dev or prd' "$T/err" && pass "ENV=lde refused" || fail "ENV: rc $rc"
+
+# --- 7. blob: the git blob sha per file ------------------------------------------
+out=$(act ENV=dev); rc=$?
+b=$(jq -r '.files[] | select(.path == "csi-spl-doc/doc/help/how-to-post.md") | .blob' <<<"$out")
+[[ $rc == 0 && "$b" == "$(git -C "$REPO" rev-parse HEAD:csi-spl-doc/doc/help/how-to-post.md)" ]] \
+  && pass "tree.json blob = the file's git blob sha" || fail "blob: rc $rc '$b'"
+[[ "$(jq '[.files[] | select(.blob | test("^[0-9a-f]{40}$"))] | length' <<<"$out")" == 4 ]] \
+  && pass "every published file has a 40-hex blob" || fail "blobs: $(jq -c '[.files[].blob]' <<<"$out")"
+
+# --- 8. the rsync argument list excludes .edits/ ----------------------------------
+mkdir -p "$T/stub"
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" >"$GCLOUD_ARGS"\n' >"$T/stub/gcloud"
+chmod +x "$T/stub/gcloud"
+export GCLOUD_ARGS="$T/gcloud-args"
+out=$(act ENV=dev DRY_RUN=0 REAL_UPLOAD=1 PATH="$T/stub:$PATH"); rc=$?
+grep -Fqx -- '--delete-unmatched-destination-objects' "$GCLOUD_ARGS" 2>/dev/null && grep -Fqx -- '--exclude=^\.edits/' "$GCLOUD_ARGS" \
+  && pass "rsync mirrors with --delete-unmatched-destination-objects and --exclude=^\.edits/" \
+  || fail "rsync args: rc $rc '$(paste -sd' ' "$GCLOUD_ARGS" 2>/dev/null)' err '$(cat "$T/err")'"
+python3 -c 'import re,sys; sys.exit(0 if re.match(r"^\.edits/", ".edits/csi-spl-doc/a.md/e1.md") and not re.match(r"^\.edits/", "csi-spl-doc/a.md") else 1)' \
+  && pass "CONTROL the exclude regex matches an overlay key and no doc key" || fail "exclude regex"
+
+# --- 9. provider none keeps the overlays --------------------------------------------
+OUT="$T/docs"
+mkdir -p "$OUT/.edits/x" "$OUT/.edits/README.md" "$OUT/old"
+echo "# overlay" >"$OUT/.edits/x/y.md"; echo "# overlay" >"$OUT/.edits/README.md/e1.md"; echo "# stale" >"$OUT/old/gone.md"
+out=$(act ENV=dev DRY_RUN=0 SPOOL_CLOUD_PROVIDER=none DOCS_DIR="$OUT"); rc=$?
+[[ $rc == 0 && -f "$OUT/.edits/x/y.md" && -f "$OUT/.edits/README.md/e1.md" ]] \
+  && pass "provider none keeps a planted .edits/x/y.md" || fail "overlay gone: rc $rc err '$(cat "$T/err")'"
+[[ ! -e "$OUT/old" && -f "$OUT/README.md" ]] && pass "CONTROL the same run still removes a stale doc" || fail "stale doc kept"
 
 [[ $fails == 0 ]] && echo "publish-docs: all passed" || { echo "publish-docs: $fails FAILED"; exit 1; }

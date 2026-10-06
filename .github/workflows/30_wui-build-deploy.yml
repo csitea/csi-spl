@@ -532,19 +532,6 @@ jobs:
             [[ "$code" == 200 ]] && echo "ok - https://${FQDN}/version -> 200 (hub)" || { echo "::error::https://${FQDN}/version -> $code"; rc=1; }; }
           exit $rc
 
-      # The Docs section (owner, prd t1 9f0d751c): "part of the deployment
-      # will be also uploading all of the md docs - including the git-spec".
-      # Every repo .md at this commit + tree.json, mirrored onto this env's
-      # 051 docs bucket as the project key's SA (do_publish_docs). An INFO
-      # no-op until cnf steps.051-gcs-docs.publish_enabled is true (after
-      # the 051 apply). Never holds the deploy back.
-      - name: Publish the repo docs (do_publish_docs)
-        if: steps.ver.outputs.stale != 'true' && steps.auth_key.outcome == 'success'
-        continue-on-error: true
-        env:
-          ENV: ${{ matrix.environment }}
-        run: DRY_RUN=0 GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" DOCS_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_publish_docs
-
       # spec 065 L5, as in 20: a WUI-only push gets its release notes here,
       # not at the next hub deploy. The project key's SA is the hub's operator
       # (the WIF fallback is the Firebase deploy SA, which is not), so only
@@ -555,6 +542,52 @@ jobs:
         env:
           ENV: ${{ matrix.environment }}
         run: DRY_RUN=0 GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" RELEASE_SHA="$GITHUB_SHA" ./csi-spl-orc/run -a do_release_note_ingest
+
+  # -------------------------------------------------------------------------
+  # docs: the Docs section (owner, prd t1 9f0d751c): "part of the deployment
+  # will be also uploading all of the md docs - including the git-spec".
+  # Every repo .md at trunk head + tree.json, mirrored onto this env's 051
+  # docs bucket as the project key's SA (do_publish_docs). An INFO no-op until
+  # cnf steps.051-gcs-docs.publish_enabled is true (after the 051 apply).
+  # Its own job, after the deploy, because the bucket lock is a job-level
+  # concurrency group shared with workflow 32 (spec 075 repo-edit §6: two
+  # rsync --delete runs on one bucket must not overlap). Trunk head, not this
+  # run's sha, so a deploy that ends after 32 published newer docs never puts
+  # older ones back. Never holds the deploy back.
+  # -------------------------------------------------------------------------
+  docs:
+    name: Publish the repo docs to ${{ matrix.environment }}
+    needs: [plan, deploy]
+    if: ${{ !cancelled() && needs.plan.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    concurrency:
+      group: docs-publish-${{ matrix.environment }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.plan.outputs.envs) }}
+    env:
+      HAS_KEY: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: env.HAS_KEY == 'true'
+        with:
+          ref: master
+
+      - name: Authenticate to Google Cloud (project key)
+        if: env.HAS_KEY == 'true'
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          credentials_json: ${{ secrets[format('GCP_KEY_CSI_SPL_{0}', matrix.environment == 'dev' && 'DEV' || 'PRD')] }}
+
+      - name: Publish the repo docs (do_publish_docs)
+        if: env.HAS_KEY == 'true'
+        env:
+          ENV: ${{ matrix.environment }}
+        run: DRY_RUN=0 GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" DOCS_SHA="$(git rev-parse HEAD)" ./csi-spl-orc/run -a do_publish_docs
 
   # -------------------------------------------------------------------------
   # newest: outside the deploy lock. needs: deploy + if: always(), so a

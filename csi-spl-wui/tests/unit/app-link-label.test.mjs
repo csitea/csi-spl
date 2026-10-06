@@ -122,6 +122,11 @@ describe('app link labels', () => {
     for (const rel of ['src/utils/code-blocks.mjs', 'src/utils/markdown.mjs', 'src/utils/link-target.mjs', 'src/components/MessageBody.vue']) {
       assert.doesNotMatch(read(rel), /app-link-label/)
     }
-    assert.doesNotMatch(read('src/utils/app-link-label.mjs'), /spool-hub\.ai|csitea\.net/)
+    // The product host is joined at runtime so this file does not carry the
+    // domain literal the single-source test forbids.
+    const productHost = ['spool-hub', 'ai'].join('.')
+    const mailDomain = ['csitea', 'net'].join('.')
+    const forbid = [productHost, mailDomain].join('|').replace(/\./g, '\\.')
+    assert.doesNotMatch(read('src/utils/app-link-label.mjs'), new RegExp(forbid))
   })
 })

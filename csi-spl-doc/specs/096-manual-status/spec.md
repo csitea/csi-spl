@@ -129,6 +129,8 @@ also silence the member's own alerts. If the owner says yes:
   status clears.
 - `busy` never silences.
 
+Decided in spec [095 §13](../095-web-push/spec.md): a pause silences only the levels below High.
+
 **Relation to the other lanes, without changing their scope:**
 
 - **Spec 095 Web Push** decides *who is pushed a line*. This spec adds at

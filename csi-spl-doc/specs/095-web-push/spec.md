@@ -1,8 +1,10 @@
 # 095 Web Push: a new message reaches my other devices
 
-Status: **v0.2, DRAFT for the owner's approval, 2026-10-06.** v0.2 adds
+Status: **v0.3, 2026-10-06.** v0.2 added
 section 13, notification priority levels (t1 `a477c187`, msg `b87a487a`,
-author c-386), and Q7 to Q10. Spec only: no
+author c-386), and Q7 to Q10. v0.3 records those four as **DECIDED**
+(msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`, 2026-10-06) and folds them
+into section 13. Q1 to Q6 stay open. Spec only: no
 code, no key, no secret slot, no terraform, no cnf value was touched by this
 lane. Building waits for the owner's go on the open questions (section 11).
 Topic: t1 `cd9b0f47-a5cb-4a5e-bc92-c3723aecba67` (a member's ask, msg
@@ -407,7 +409,9 @@ counters: pushes sent, 404/410 deletions, drops, p95 send delay.
 
 ## 11. Open questions for the owner
 
-| # | question | proposed answer |
+Q7 to Q10 are **DECIDED** on 2026-10-06 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Q1 to Q6 stay open.
+
+| # | question | answer |
 |---|---|---|
 | **Q1** | Default for a channel once a device is on: only mentions and replies, or every message? | **Mentions and replies**; "Every message" is one tap per channel (the member's case) |
 | **Q2** | Push every device even while the member has a Spool tab focused somewhere? | **Yes** (the ask is the other device); the shared tag prevents a double alert on the device in use |
@@ -415,10 +419,10 @@ counters: pushes sent, 404/410 deletions, drops, p95 send delay.
 | **Q4** | Message text on the lock screen: on by default, a per-device switch, and an admin may force it off? | **Yes** to all three |
 | **Q5** | Is an in-memory send queue reliable enough, or a durable outbox table (survives an instance restart, one more write per line)? | **In memory first**, with a drop counter; the outbox only if the 7-day prd watch shows losses |
 | **Q6** | Quiet hours (no pushes at night in the member's time zone)? | **Later**: the OS's own do-not-disturb covers it today |
-| **Q7** | Are these the five levels (section 13.1), or fewer? | **Five**, with a DM and a poke inside High priority. If fewer: fold System into Information (System has no producer today), leaving four |
-| **Q8** | Push default per level once a device is on? | **On**: High priority, Action required, Attention. **Off**: Information (on per channel with "Every message"), System (on per member with one switch). Section 13.3 (a) |
-| **Q9** | Does Unavailable (096 Q1, when the member chose to pause) silence every level, or only the levels below High? | **Only below High**: a mention, DM or poke still reaches the member, because the composer already showed the sender the Unavailable line (096) and they chose to send. Everything else waits in Flow and unread counts |
-| **Q10** | "You were assigned a task" has no producer today (section 13.2). Build it (an issue's assignee set to me writes a Flow event), or drop the level until issues need it? | **Build it**, one small lane (section 12, lane 7); until then Action required covers only a `kind: task` line sent to me |
+| **Q7** | Are these the five levels (section 13.1), or fewer? | **DECIDED.** Five levels. A DM and a poke count as High. |
+| **Q8** | Push default per level once a device is on? | **DECIDED.** On by default: High, Action required, Attention. Off for Information (turned on per channel via "Every message") and for System (one switch). Section 13.3 (a) |
+| **Q9** | Does Unavailable (096 Q1, when the member chose to pause) silence every level, or only the levels below High? | **DECIDED.** Unavailable (spec 096) silences only the levels below High. A mention, a DM or a poke still reaches the member. |
+| **Q10** | "You were assigned a task" has no producer today (section 13.2). Build it (an issue's assignee set to me writes a Flow event), or drop the level until issues need it? | **DECIDED.** Build the missing "assigned a task" event as its own small lane (section 12, lane 7). |
 
 ## 12. Effort: lanes
 
@@ -433,22 +437,26 @@ on its own:
 | 4 | **WUI settings** (grok) | the Notifications block, the device list, Turn on / Remove / Send a test, platform hints, the sign-out delete, i18n ("workspace", never "tenant") | M |
 | 5 | **WUI menus + sw** (grok) | channel / topic / DM "Notify my devices" items (after the topic-menu and CSS lanes land), the `push` and `pushsubscriptionchange` listeners, the sw test | S |
 | 6 | **proof** (claude) | section 10.3 on dev with real devices, then 10.4 on prd with the owner's go; help page `user-settings.md` section 6 | S |
-
-| 7 | **assign event** (claude), only if Q10 = build | a Flow event `assign` when an issue's assignee becomes a member (migration widening the `flow_events.kind` CHECK, DDL first), level Action required | S |
-| 8 | **system event** (claude), only if Q7 keeps System | a v:1 `kind: result` line in a topic the member started marks it System (section 13.2) | XS |
+| 7 | **assign event** (Q10, claude) | a Flow event `assign` when an issue's assignee becomes another member (widen `flow_events.kind`, DDL first), level Action required, push on (Q8), silenced by Unavailable (Q9). Test: one `assign` at level `action` that pushes; a self-assign writes nothing (13.4) | S |
+| 8 | **system event** (Q7, claude) | a v:1 `kind: result` line in a topic the member started is System (13.2); push off until the one per-member switch (Q8); Unavailable silences it (Q9) | XS |
 
 Lane 3 starts once lane 2's DDL is on trunk; lanes 4 and 5 run against a mock
 hub from day one. The priority levels (section 13) add one `level` field to
 the recipient query, the payload and the in-tab alert: a few hours inside
-lanes 3, 4 and 5, not a new lane. Lanes 7 and 8 are new and small; the total
-stays **L**.
+lanes 3, 4 and 5, not a new lane. Lanes 7 and 8 are in (Q10 and Q7 decided)
+and small; their push defaults and the Unavailable rule follow Q8 and Q9.
+The total stays **L**.
 
-## 13. Priority levels (v0.2)
+## 13. Priority levels (v0.3)
 
-A member's ask (msg `b87a487a`): "Better notification priorities:
-High priority - You were mentioned; Action required - You were assigned a
-task; Attention - Someone replied to your message; Information - New
-activity; System - Agent completed a workflow".
+Decided 2026-10-06 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`): five levels;
+push on by default for High, Action required and Attention; push off for
+Information (on per channel via "Every message") and for System (one switch);
+Unavailable silences only the levels below High; the missing "assigned a
+task" event is built as lane 7. The member's ask (msg `b87a487a`) was:
+"Better notification priorities: High priority - You were mentioned; Action
+required - You were assigned a task; Attention - Someone replied to your
+message; Information - New activity; System - Agent completed a workflow".
 
 ### 13.1 The five levels
 
@@ -459,7 +467,7 @@ mention before poke before DM before reply).
 
 | level | id | event |
 |---|---|---|
-| **High priority** | `high` | you were mentioned; also a **DM** to you and a **poke** (both are addressed to you alone; Q7) |
+| **High priority** | `high` | you were mentioned; also a **DM** to you and a **poke** (both are addressed to you alone) |
 | **Action required** | `action` | you were assigned a task |
 | **Attention** | `attention` | someone replied in a topic you watch (you posted in it, were mentioned in it, or were its `to`) |
 | **Information** | `info` | any other new line you may read in a channel set to "Every message" |
@@ -476,17 +484,18 @@ mention before poke before DM before reply).
 | Information | new line in a channel | **yes, in-tab only**: `shouldPing` pings every line from someone else unless its channel is muted (bug A) | `csi-spl-wui/src/utils/notify.mjs` `shouldPing` |
 | System | agent completed a workflow | **no producer today**: no workflow-completed event anywhere; the nearest is a v:1 `kind: result` line, which no alert rule reads | `grep -rliE 'workflow_(run\|complete)\|workflow.?completed' csi-spl-api/src/go/spool-hub-api csi-spl-wui/src \| wc -l` -> 0; `grep -cE "'result'" csi-spl-wui/src/utils/notify.mjs` -> 0 |
 
-The proposed producers for the two missing events (Q10, section 12 lanes 7
+The producers for the two events that have none today (section 12, lanes 7
 and 8):
 
-- **Action required**: an issue's `assignee` changing to a member writes a
-  Flow event of a new kind `assign` for that member (its line is the issue's
-  update), and a `kind: task` line whose `to` is the member is `action`
-  instead of `dm`. Assigning to yourself raises nothing (the sender rule,
-  section 6.2 step 4).
-- **System**: a `kind: result` line from an agent, in a topic the member
-  started or addressed to the member. A `result` anywhere else is
-  Information.
+- **Action required** (lane 7): an issue's `assignee` changing to another
+  member writes a Flow event of kind `assign` for that member (its line is
+  the issue's update), and a `kind: task` line whose `to` is the member is
+  `action` instead of `dm`. Assigning to yourself raises nothing (the sender
+  rule, section 6.2 step 4). Push for this level is on (13.3).
+- **System** (lane 8): a `kind: result` line from an agent, in a topic the
+  member started or addressed to the member. A `result` anywhere else is
+  Information. Push for this level stays off until the member's one switch
+  (13.3).
 
 ### 13.3 What a level changes
 
@@ -518,9 +527,10 @@ Rules behind the table:
   section 3.1 block.
 - **Rate limits** (6.4) are per level: High and Action are never folded into
   a "many new messages" push and never dropped from the queue.
-- **Unavailable** (spec 096 Q1, when the member chose to pause): proposed to
-  remove the member from every level **below High** (Q9), as one more
-  "minus" step in 6.2 and one more check in `shouldPing`.
+- **Unavailable** (spec 096, when the member chose to pause) removes the
+  member from every level **below High**. A mention, a DM or a poke still
+  reaches them. It is one more "minus" step in 6.2 and one more check in
+  `shouldPing`.
 
 ### 13.4 Tests added to section 10
 
@@ -532,6 +542,14 @@ Rules behind the table:
 - an Information line in a feed with an open High notification leaves that
   notification in place;
 - a full send queue drops Information before System and never drops High or
-  Action.
+  Action;
+- setting an issue's assignee to another member writes one Flow event
+  `assign` at level `action` and pushes; assigning to yourself writes nothing.
+
+## Changelog
+
+| version | date | change |
+|---|---|---|
+| v0.3 | 2026-10-06 | Q7 to Q10 decided (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Section 13 is that design. Lane 7 is the assign event, with its test. |
 
 <!-- last-edit: 2026-10-06T10:25:00Z -->

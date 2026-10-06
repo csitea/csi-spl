@@ -1,0 +1,6 @@
+Lay-What: On the phone, the reply marker above a multi-line message is no longer cut off at the top of the box.
+Lay-How: The row above the text keeps the same space at the top that the box had for one line.
+Lay-Why: The marker touched the box edge and was partly hidden.
+Tech-What: .omnibox-prefix in the is-multiline layout gets the one-line textarea top padding (6px, 10px on the phone dock).
+Tech-How: CSS padding-top on the prefix row; e2e omnibox-multiline asserts the glyph inset from the field top border.
+Tech-Why: The multi-line layout zeroed the textarea padding-top, so the prefix row started at the field border (field padding-top 0).

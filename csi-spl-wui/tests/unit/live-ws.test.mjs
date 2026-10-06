@@ -430,3 +430,26 @@ describe('R2-3 trimmed message frame', () => {
     assert.equal('files' in e, false)
   })
 })
+
+/* r3 B06: JSON.parse yields null, a number or a string for a valid frame.
+   handle() must ignore those; a null used to throw on `switch (f.type)`. */
+describe('non-object frames (r3 B06)', () => {
+  function open() {
+    const { FakeWS, sockets } = fakeWs()
+    const got = []
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, onMessage: (m) => got.push(m) })
+    c.connect(); sockets[0].open(); sockets[0].recv({ type: 'welcome' })
+    return { c, sockets, got }
+  }
+
+  for (const [name, frame] of [['null', null], ['a number', 0], ['a string', 'not-a-frame']]) {
+    it(`ignores ${name} and still delivers the next message`, () => {
+      const { c, sockets, got } = open()
+      sockets[0].recv(frame)
+      sockets[0].recv({ type: 'message', msg: { msg_id: 'm1', task_id: 'L', body: 'after' } })
+      assert.equal(c.state, 'open')
+      assert.equal(got.length, 1)
+      assert.equal(got[0].body, 'after')
+    })
+  }
+})

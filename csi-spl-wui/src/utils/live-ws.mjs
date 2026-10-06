@@ -424,7 +424,9 @@ export function createLiveClient({
 
   function handle(f) {
     // A frame the hub delivered. An error frame is a refusal, not data.
-    if (f && typeof f === 'object' && f.type !== FRAMES.error) noteLastData()
+    // typeof null === 'object', so a null frame must return before f.type.
+    if (!f || typeof f !== 'object') return
+    if (f.type !== FRAMES.error) noteLastData()
     switch (f.type) {
       case FRAMES.welcome:
         welcome = f

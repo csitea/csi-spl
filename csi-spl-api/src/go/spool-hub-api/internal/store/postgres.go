@@ -40,6 +40,8 @@ type Postgres struct {
 	opCache operatorCache
 	// cal: is rdb 0125 calendar_events there yet (calendar_postgres.go)
 	cal seatsProbe
+	// sig: is rdb 0135 messages.search_sig there yet (search_postgres.go)
+	sig seatsProbe
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps
@@ -624,7 +626,44 @@ func (s *Postgres) Sweep(ctx context.Context, now time.Time) (SweepResult, error
 	if _, err := chunks(flowMarkSweepSQL); err != nil { // spec 062: f:<msg_id> marks go with their line
 		return SweepResult{}, err
 	}
+	if s.hasSearchSig(ctx) {
+		if err := s.backfillSearchSig(ctx); err != nil {
+			return SweepResult{}, err
+		}
+	}
 	return s.pruneCommitted(ctx, now, r)
+}
+
+// searchSigChunk bounds one search_sig backfill transaction: ~0.4 s of
+// signing at 0.25 vCPU (scratch pg 16, ~3 KB bodies).
+const searchSigChunk = 500
+
+// searchSigBackfillSQL signs the long rows (1024+ characters, rdb 0135)
+// written before the trigger, from their stored search_tsv (a NULL one signs
+// as all zeros, so no row is picked twice).
+// SKIP LOCKED: a row another transaction holds (a claim, an edit) waits for
+// the next sweep instead of stalling this one.
+const searchSigBackfillSQL = `UPDATE messages SET search_sig = coalesce(spool_search_sig(search_tsv), B'0'::bit(1024))
+	WHERE (tenant_id, msg_id) IN (SELECT tenant_id, msg_id FROM messages
+		WHERE search_sig IS NULL AND length(body) >= 1024 LIMIT $1 FOR UPDATE SKIP LOCKED)`
+
+// backfillSearchSig fills search_sig (rdb 0135) chunk by chunk until a chunk
+// comes back short; once every row is signed it is one probe of the empty
+// messages_search_sig_todo index.
+func (s *Postgres) backfillSearchSig(ctx context.Context) error {
+	for {
+		var n int64
+		if err := s.asOperator(ctx, func(tx pgx.Tx) error {
+			tag, err := tx.Exec(ctx, searchSigBackfillSQL, searchSigChunk)
+			n = tag.RowsAffected()
+			return err
+		}); err != nil {
+			return err
+		}
+		if n < searchSigChunk {
+			return nil
+		}
+	}
 }
 
 // CountMessagesSince reads the trigger-kept counters (rdb 0023) when since is a

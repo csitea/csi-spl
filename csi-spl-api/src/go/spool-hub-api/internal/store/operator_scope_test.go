@@ -19,6 +19,7 @@ import (
 var operatorCallers = map[string]string{
 	"Sweep":                "retention sweeper (hub goroutine), global by design; no route",
 	"pruneCommitted":       "Sweep's committed-delivery prune (spec 059 S4), global by design; no route",
+	"backfillSearchSig":    "Sweep's search_sig backfill (rdb 0135): signs pre-trigger long rows of every tenant, global by design; no route",
 	"ConsumerLag":          "consumer lag report (spec 059 S4), fleet-wide by design; no route",
 	"SweepClones":          "act-as clone expiry (hub sweeper goroutine), global by design; no route",
 	"SweepDemo":            "demo stay sweep (specs/077 T009, hub sweeper goroutine): ended demo seats of the cnf demo workspace, then their humans only when no membership is left anywhere; no route",

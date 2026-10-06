@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -21,8 +22,12 @@ import (
 // Every statement runs inside inTenant (RLS, 0014) and also says
 // WHERE tenant_id; the statement_timeout is transaction-local.
 
-// sqlc accumulates bind parameters.
-type sqlc struct{ args []any }
+// sqlc accumulates bind parameters. sig: messages.search_sig (rdb 0135) is
+// there to check before a text match.
+type sqlc struct {
+	args []any
+	sig  bool
+}
 
 func (c *sqlc) arg(v any) string {
 	c.args = append(c.args, v)
@@ -79,6 +84,25 @@ func (c *sqlc) tsq(t *search.Term) string {
 	return fn + "(" + searchConfig + ", " + c.arg(t.Value) + "::text)"
 }
 
+// textMatch is a text term's match on alias a's search_tsv, read only when
+// a's lexeme signature (rdb 0135, search_sig) holds every lexeme of the term.
+// The GIN cannot serve @@ under FORCE RLS (0122), so each row of the scan
+// pays for its match; on a long body search_tsv is TOASTed, and the
+// signature in the heap row lets most rows skip that read. A Bloom check has
+// no false negatives, so the @@ still decides: the rows are the same. A
+// prefix term's last lexeme is partial and cannot be signed: plain @@. A NULL
+// signature (a short body, whose search_tsv is inline, or a long one the
+// sweep has not signed yet) always goes on to the @@.
+func (c *sqlc) textMatch(a string, t *search.Term) string {
+	match := a + ".search_tsv @@ " + c.tsq(t)
+	if !c.sig || (t.Prefix && !t.Phrase) {
+		return match
+	}
+	mask := "(SELECT spool_search_sig(to_tsvector(" + searchConfig + ", " + c.arg(t.Value) + "::text)))"
+	return "CASE WHEN " + a + ".search_sig IS NULL OR (" + a + ".search_sig & " + mask + ") = " + mask +
+		" THEN " + match + " ELSE false END"
+}
+
 func (c *sqlc) party(idCol, boxCol string, t *search.Term) string {
 	if t.Box != "" {
 		return fmt.Sprintf("%s = %s AND %s = %s", idCol, c.arg(t.ID), boxCol, c.arg(t.Box))
@@ -127,7 +151,7 @@ func (c *sqlc) messageLeaf(t *search.Term) string {
 	}
 	switch t.Op {
 	case search.OpText:
-		return "m.search_tsv @@ " + c.tsq(t)
+		return c.textMatch("m", t)
 	case search.OpIs:
 		return "m.kind = " + c.arg(t.Enum)
 	case search.OpHas:
@@ -229,8 +253,36 @@ func (s *Postgres) search(ctx context.Context, tenant string, q SearchQuery, sql
 	return err
 }
 
+// hasSearchSig is the catalogue probe for rdb 0135. The hub may roll before
+// the migration reaches its database (a trunk push deploys dev and prd
+// together), so until the column is there a text match is the plain @@.
+func (s *Postgres) hasSearchSig(ctx context.Context) bool {
+	return s.sig.present(ctx, func(ctx context.Context) (ok bool, err error) {
+		err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_attribute
+			WHERE attrelid = to_regclass('messages') AND attname = 'search_sig' AND NOT attisdropped)`).Scan(&ok)
+		return ok, err
+	}, time.Now())
+}
+
 func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
-	c := &sqlc{}
+	sql, args := searchMessagesSQL(tenant, q, s.hasSearchSig(ctx))
+	var out []SearchMsgRow
+	err := s.search(ctx, tenant, q, sql, args, func(rows pgx.Rows) error {
+		var r SearchMsgRow
+		if err := rows.Scan(&r.MsgID, &r.TaskID, &r.Parent, &r.Channel, &r.Kind, &r.Body, &r.FromID, &r.FromBox,
+			&r.ToID, &r.ToBox, &r.TS, &r.ReceivedAt, &r.Files); err != nil {
+			return err
+		}
+		out = append(out, r)
+		return nil
+	})
+	return out, err
+}
+
+// searchMessagesSQL is SearchMessages' statement and its bind parameters;
+// sig: check search_sig before each text match.
+func searchMessagesSQL(tenant string, q SearchQuery, sig bool) (string, []any) {
+	c := &sqlc{sig: sig}
 	t, now := c.arg(tenant), c.arg(q.Now)
 	priv := "true"
 	if q.Viewer != "" {
@@ -266,17 +318,7 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 		FROM messages m
 		WHERE m.tenant_id = ` + t + ` AND m.expires_at > ` + now + ` AND ` + priv + ` AND ` + where + page + `
 		` + order + ` LIMIT ` + c.arg(pgLimit(q.Limit))
-	var out []SearchMsgRow
-	err := s.search(ctx, tenant, q, sql, c.args, func(rows pgx.Rows) error {
-		var r SearchMsgRow
-		if err := rows.Scan(&r.MsgID, &r.TaskID, &r.Parent, &r.Channel, &r.Kind, &r.Body, &r.FromID, &r.FromBox,
-			&r.ToID, &r.ToBox, &r.TS, &r.ReceivedAt, &r.Files); err != nil {
-			return err
-		}
-		out = append(out, r)
-		return nil
-	})
-	return out, err
+	return sql, c.args
 }
 
 func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery) ([]SearchFileRow, error) {
@@ -332,7 +374,7 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 }
 
 func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error) {
-	c := &sqlc{}
+	c := &sqlc{sig: s.hasSearchSig(ctx)}
 	t, now := c.arg(tenant), c.arg(q.Now)
 	// The read door per MESSAGE, before the aggregate: a topic's
 	// title, parties, kinds and count come only from rows the viewer may read,
@@ -405,7 +447,7 @@ func (c *sqlc) topicCandidates(root *search.Node, tenant, now string) string {
 		}
 		switch t := k.Term; t.Op {
 		case search.OpText, search.OpTitle:
-			preds = append(preds, "k.search_tsv @@ "+c.tsq(t))
+			preds = append(preds, c.textMatch("k", t))
 		case search.OpIn:
 			if t.DM {
 				preds = append(preds, "k.channel IS NULL")

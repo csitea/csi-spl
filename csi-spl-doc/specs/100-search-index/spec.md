@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.1 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.2 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -62,6 +62,16 @@ owner split. S1 works only as **S1r**: a separate NOLOGIN role owns the
 function, and one policy lets that role through. S1r needs no BYPASSRLS, which
 answers r1's U10 in part. r1 asked for this to be proven on Cloud SQL, and
 that check is still open as phase P0 (section 9).
+
+r3 (c-371, `research/r3-claude.md` section 1.2) proved the same mechanism
+independently, on local pg 16.15 with 3 tenants x 60k rows (n=1). It used a
+`FOR SELECT TO spool_search_reader USING (true)` policy, and the plan was a
+Bitmap Index Scan on the GIN with 5 buffers. It also found that
+`tenant_id` is only a Filter there: one GIN serves every tenant.
+
+Real word counts, from dev t1 (dev hub 2.0.5, `0c9203ca`, schema 0137, n=1,
+via c-001, in r3 section 3): 13 026 messages hold 1 018 536 distinct-word
+rows, avg 78 and max 1 021 per message.
 
 ## 3. The owner's questions, answered
 
@@ -135,9 +145,9 @@ figure is **unchecked** unless it is marked otherwise.
 | # | option | isolation | sync lag | messages row width | storage now -> 10x-A | $ / month now -> 10x | rare word, cold, 10x-A |
 |---|---|---|---|---|---|---|---|
 | S0 | 0135 + the 512-char lane (status quo) | unchanged | 0 | +128 B on signed rows | 0 | 0 -> 0 | scan of the whole tenant, ~10x today's buffers (arithmetic). Over budget cold (r1 section 1.2) |
-| **S1r** | **GIN on `messages.search_tsv`, read through one definer function owned by NOLOGIN `spool_search_reader`** | 2 doors (3.3); a new role-scoped policy | **0** | unchanged | GIN 12 MB (prd, 0122) -> ~120 MB | ~0 (DB storage; the tier is fixed) | GIN pages + matching rows: grows with log(rows) + hits |
+| **S1r** | **GIN on `messages (tenant_id, search_tsv)` (`btree_gin`), read through one definer function owned by NOLOGIN `spool_search_reader`** | 2 doors (3.3); a new role-scoped policy | **0** | unchanged | 12 MB when 0122 dropped it (prd); r3 estimates ~30 MB now -> ~0.3 GB (arithmetic) | ~0 (DB storage; the tier is fixed) | GIN pages + matching rows: grows with log(rows) + hits |
 | S2 | side table `message_search` + GIN, RLS not forced | 2 doors; a new table | 0 (trigger) | unchanged | + a copy of `search_tsv` (scratch: side 20 MB for 23 MB of messages) | ~0 | as S1r |
-| B | word table under FORCE RLS, btree on `word` | **no lift**: plain RLS + NULLIF policy | 0 (trigger, one row per word) | unchanged | scratch: 2x messages at ~4 words a row; real posts carry far more words: **unmeasured** | ~0 storage, a large write cost | ~4 buffers (scratch); no phrase positions (rechecked on `messages`) |
+| B | word table under FORCE RLS, btree on `word` (r3's option A) | **no lift**: plain RLS + NULLIF policy | 0 (trigger, one row per word, no FK: r3 section 4) | unchanged | dev t1: 1.0 M rows, ~110 MB, 1.4x `messages` (n=1, r3). Prd ~160 MB -> ~1.6 GB (arithmetic) | ~0 storage, a large write cost | ~4 buffers (scratch); no phrase positions (rechecked on `messages`) |
 | S3 | in-process index in the hub | moves into Go code | rebuild on every deploy | n/a | hub RAM | hub CPU is ~80% of ~$60/env (relayed) | n/a |
 | S4 | hosted engine | a vendor filter or key | async, seconds | n/a | vendor | a paid tier, tens of $ (**unchecked**) against ~$60/env | n/a |
 | S5 | pgvector, semantic | needs S1r's lift as well | an async embedding call | +3 KB a row, or a side table | +56 MB -> +560 MB plus HNSW | an embedding API (**unchecked**, cents) | does not answer exact words |
@@ -153,8 +163,11 @@ figure is **unchecked** unless it is marked otherwise.
 
 - B is the only option with no lift at all, and that is its whole case.
 - It pays for it with one row per distinct word per message, rewritten on
-  every edit. On real posts that is about 100+ rows a message (**unmeasured**;
-  the scratch data has ~4).
+  every edit: 78 rows a message on dev t1 (r3, n=1). In r3's local test the
+  side table was 5x the GIN (73 vs 15 MB).
+- It needs a chunked backfill and a per-tenant flag that marks it complete,
+  and deletes by the row's own words (a FK cascade cost 17.6 ms a message,
+  LOCAL, n=1, r3 section 4).
 - It cannot check a phrase without going back to `messages`.
 - B is the fallback if the owner refuses any lift (Q1).
 
@@ -177,7 +190,9 @@ price.
 
 ## 5. Recommendation
 
-1. **S1r.** Bring back the GIN on `messages.search_tsv`. Read it only through
+1. **S1r.** Bring back the GIN on `messages`, built as
+   `USING gin (tenant_id, search_tsv)` with `btree_gin` (r3) so one tenant
+   never pays for another tenant's matches (10x-B). Read it only through
    `spool_search_page(...)`, a SECURITY DEFINER SQL function owned by the
    NOLOGIN role `spool_search_reader`, pinned to the session tenant. The hub's
    statement stays under FORCE RLS.
@@ -229,12 +244,14 @@ and a DM between two other members.
 | # | test | fails when |
 |---|---|---|
 | T1 | `spool_search_page` with scope A returns A's ids only; scope B returns B's only; scope unset or `''` returns 0 rows | the tenant pin is wrong or missing (door 1, on its own) |
-| T2 | **control**, on a throwaway branch only (repo CLAUDE.md): delete the pin from the function; T1 must go red | T1 cannot see a leak |
-| T3 | catalogue: `spool_search_reader` is NOLOGIN, has no members (`pg_auth_members`), owns exactly one function, holds column SELECT on `messages` only. The function has no tenant parameter, `prosecdef`, and a pinned `search_path` | the role can be logged into, joined or widened |
+| T2 | **planted leak** (r3 T5), in a ROLLED-BACK transaction inside the test, so it runs in CI on every push and never turns trunk red. Replace the function with one that has no tenant pin. T1's direct call must then FAIL, and the API-level T6 must still PASS (the outer RLS still filters) | T1 is vacuous, or door 2 is gone |
+| T3 | catalogue: the policy is `FOR SELECT` and `TO spool_search_reader` only; `messages` is still FORCE RLS; `spool_search_reader` is NOLOGIN NOBYPASSRLS, has no members (`pg_auth_members`), owns exactly one function, holds column SELECT on `messages` only. The function has no tenant parameter, `prosecdef`, and a pinned `search_path` | the role can be logged into, joined or widened |
 | T4 | the runtime login cannot `SET ROLE spool_search_reader` and cannot `ALTER` or `CREATE OR REPLACE` the function | the runtime can lift RLS for itself (017 FR-SEC-014 (e)) |
 | T5 | `do_spl_db_rls_check`: the SECURITY DEFINER functions the runtime can EXECUTE are exactly `{spool_search_page}`. Any other one reports `liftable` | a second lift path appears unnoticed |
 | T6 | `TestCrossTenant*` search cases run on the S1r path (the probe is on) as well as the 0135 path | door 2 regresses |
 | T7 | for each seeded query, the function's ids for viewer V equal the hub's result ids (the doors agree) | the function shows the viewer a row the outer statement hides, or the reverse |
+| T8 | answer unchanged (r3 T1): on a fixed corpus, every search-v1 form (word, phrase, prefix, AND, OR, NOT, mixed) returns the same rows in the same order through the index path and the scan path, also after edit, delete, expiry, archive, move and merge | the index adds or drops a row |
+| T9 | two tenants in the perf seed, one 10x the other: the small tenant's rare-word buffers do not grow with the big one | the GIN lost its tenant column |
 
 ## 7. Index freshness
 
@@ -277,9 +294,9 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 
 | phase | what | where |
 |---|---|---|
-| P0 | prove the S1r plan on Cloud SQL **dev**. The migration creates the NOLOGIN role (precedent: rdb 0126 creates `spool_public_export` NOLOGIN), hands it the function, and EXPLAIN shows the GIN as the runtime login | the migration from P1, on dev first |
-| P1 | rdb 01NN: role, column grant, `CREATE POLICY search_reader_all ON messages TO spool_search_reader USING (true)` (no WITH CHECK, no write grant), `CREATE INDEX messages_search ... USING gin (search_tsv)`, the function. Grant EXECUTE to the runtime in `spool-hub-roles/runtime-grants.sql`. GIN build time on prd 110 MB: **unmeasured** (it holds a SHARE lock on messages); measure on scratch at prd size first | rdb, spool-hub-roles |
-| P2 | hub: the function probe, as `hasSearchSig`. Messages section and `topicCandidates` through the function; the 0135 path stays as the fallback | store |
+| P0 | prove the S1r plan on Cloud SQL **dev**, and that `btree_gin` is available there. The migration creates the NOLOGIN role (precedent: rdb 0126 creates `spool_public_export` NOLOGIN), hands it the function, and EXPLAIN shows the GIN as the runtime login | the migration from P1, on dev first |
+| P1 | rdb 01NN: role, column grant, `CREATE POLICY search_reader_all ON messages TO spool_search_reader USING (true)` (no WITH CHECK, no write grant), `CREATE INDEX messages_search ... USING gin (search_tsv)`, the function. Grant EXECUTE to the runtime in `spool-hub-roles/runtime-grants.sql`. GIN build time: **unmeasured**. It holds a SHARE lock on `messages`, so writes wait. Measure it on dev first (1.0 M word rows, close to prd). If it takes more than a few seconds, build the index CONCURRENTLY as its own named step outside the migrate transaction (r3, Q7). Insert p50 / p95, n >= 20, 3 KB real-text bodies, with and without the index, on dev (r3 T7) | rdb, spool-hub-roles |
+| P2 | hub: the function probe, as `hasSearchSig`. Messages section and `topicCandidates` through the function; the 0135 path stays as the fallback. A kill switch `SPOOL_HUB_SEARCH_INDEX=off` (env, r3) returns every query to today's path without a code deploy | store, hub |
 | P3 | T1..T7, plus a buffer-budget test seeded with real-shaped words | store, hub-pg |
 | P4 | prd benchmark (section 8), dev then prd, by the orchestrator | read-only |
 | P5 | retire 0135: drop the trigger, `search_sig` and `spool_search_sig`, which narrows the long rows by 128 B. Owner go | rdb |
@@ -292,8 +309,8 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | G2 | GIN build time and lock at prd size | P1, scratch |
 | G3 | insert cost with the GIN on the prd shape | P4 |
 | G4 | a true cold n>=5 | Q3 |
-| G5 | B's real size (words per real post) | only if Q1 = no lift |
-| G6 | 10x-B: a GIN on `search_tsv` alone also returns other tenants' matches before the tenant filter. `btree_gin` `(tenant_id, search_tsv)` would avoid it, if Cloud SQL allows the extension (**unchecked**) | P0 |
+| G5 | B's real size on prd (dev: 78 words a post, r3) | only if Q1 = no lift |
+| G6 | whether Cloud SQL dev offers `btree_gin` (**unchecked**). Without it, the GIN on `search_tsv` alone filters tenants after the index (10x-B cost) | P0 |
 
 ## 11. Questions for the owner (one list, to c-002)
 
@@ -308,6 +325,10 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
   DB tier change acceptable as its own cost line?
 - **Q5** Hold the queued 512-char signature lane, since S1r supersedes it?
 - **Q6** Relevance sort ranks the newest 2 000 matches: is that acceptable?
+- **Q7** The GIN build holds a SHARE lock on `messages`, so writes wait for
+  its build time (the dev number comes first). Is a few seconds of write stall
+  in one migration acceptable, or must it be built CONCURRENTLY? (r3)
+- **Q8** What added p95 per send is acceptable for indexing? (r3)
 
 ## 12. Panel and consensus
 
@@ -316,12 +337,17 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r |
 | r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1, before the S1r correction: pending |
 | r2 | c-370 (claude) | pending | pending |
-| r3 | c-371 (claude) | pending | pending |
+| r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). Agreement with v0.2: pending |
 
 Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.2 (2026-10-06): takes in r3. The GIN gets a leading tenant column
+  (`btree_gin`), the policy is `FOR SELECT`, B is sized from dev, and the kill
+  switch is added. The planted leak moves into a rolled-back transaction
+  (runs in CI). T8 (answer unchanged) and T9 (tenant-size independence) are
+  new, and so are Q7 (build lock) and Q8 (insert budget).
 - v0.1 (2026-10-06): first draft. Takes in r1 (10x-A / 10x-B, cold as buffers,
   U1..U10, the benchmark's prefix and from: queries). Corrects S1 to S1r from
   the scratch probe.

@@ -1,6 +1,6 @@
 # 101: four orchestrator-dispatchers acting at once
 
-Status: **v0.4, r3, r1 and r2 folded in, 2026-10-06** (v0.1 `366acebe`, v0.2 `56783cf5`, v0.3 `055a0cf6`). Spec only: no code, cnf,
+Status: **v0.4.1, panel consensus, 2026-10-06** (v0.1 `366acebe`, v0.2 `56783cf5`, v0.3 `055a0cf6`, v0.4 `7ca00033`). Build: lanes start on consensus (owner rule 2026-10-05); M2 and M4 still need the owner's go (section 10). Spec only: no code, cnf,
 `lease.conf`, crontab or seat was touched by this lane.
 Author: c-387@sat (the pen; claude, standing in for the agy seat: no agy
 binary on sat). Reviewers: r1, r2, r3 (claude, standing in for agy and grok),
@@ -415,6 +415,22 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 | r2 | c-389 | [research/r2-claude.md](research/r2-claude.md) | `b727a5bc` | agree on the finding; changes 3, 4, 7, 8; **blocked 6 until D13** - all folded in v0.4 (r2's D10..D13 = this spec's D12, D5, D13, D14) |
 | r3 | c-390 | [research/r3-claude.md](research/r3-claude.md) | `b4cbe0ce` | agree on the finding; changes 3.2, 5, 7, 8.1, 8.3 - all folded in v0.2 |
 
-Consensus: not yet.
+**Consensus: recorded 2026-10-06 on v0.4 (`7ca00033`), 4 of 4 seats.**
+Author c-387; r2 c-389 "sign v0.4" (spool msg `ac56ee50`); r3 c-390
+"re-sign v0.4" (msg `89c03da0`, after r2 corrected its M4 claim). r1 c-388
+exited at 17:13:45Z, before v0.3, so it signed no version. Its note's verdict
+was "no section is blocked, but 8.1 is close ... should not record consensus
+on A without (a), (b) or (c)" (msg `cccccd65`). v0.3 took that condition word
+for word (8.1), so r1 is counted as agreeing on its own stated terms. Every
+change any seat asked for is in; none was declined.
 
-<!-- version: 0.4.0 · updated: 2026-10-06 · last-edit: 2026-10-06T18:40:00Z -->
+**What was agreed:**
+1. The four ODs are 068 + 093 P2, already mostly on trunk. No second
+   mechanism is built.
+2. Routing comes first (M0.5). Then the build: D1, D2, D3, D5, D12..D15, T010,
+   L7. Then a dev drill, a 24 h prd shadow, and a one-action cut-over with a
+   rollback.
+3. Placement: four seats on sat, only with two logins, or 3 + 1 with the PC,
+   or the owner accepting the one-login risk in words.
+
+<!-- version: 0.4.1 · updated: 2026-10-06 · last-edit: 2026-10-06T18:55:00Z -->

@@ -132,10 +132,13 @@ send_to_peers_on() {
 
 # The hub-down leg of a peers send: ONE v:1 object in <root>/peers/inbox (the
 # seats' local lock reads it) and the sender's outbox copy; prints spool's
-# result shape with delivery "peers-local".
+# result shape with delivery "peers-local". Its msg_id is PEERS_MSGID, the id
+# the hub leg was handed (spec 101 D14), so a hub that committed the message
+# and lost its reply holds the SAME id: `claim --adopt` inserts if absent, one
+# row. A fresh id here made two rows, two owners (101 r2 3.5).
 send_peers_local() {
   local id task ts f
-  id="$(cat /proc/sys/kernel/random/uuid)"; task="${TASK:-$(cat /proc/sys/kernel/random/uuid)}"
+  id="${PEERS_MSGID:-$(cat /proc/sys/kernel/random/uuid)}"; task="${TASK:-$(cat /proc/sys/kernel/random/uuid)}"
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   f="$(date -u +%Y%m%dT%H%M%SZ)--${FROM}--${id:0:8}.json"
   mkdir -p "$SPOOL_ROOT/peers/inbox" "$SPOOL_ROOT/$FROM/outbox" || return 1
@@ -248,9 +251,15 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     # local peers inbox only when the hub leg fails, so no message is ever
     # both on the hub and in the local lock.
     [ "${#EXTRA[@]}" -eq 0 ] || { echo "ERROR: a message to the peers carries no --file-*/--dir-* attachment (send a path in the body). Nothing was sent." >&2; exit 2; }
+    # spec 101 D14: ONE msg_id, minted before the hub leg and reused by the
+    # local leg: a non-zero relay exit does not mean "not committed" (a
+    # timeout after the commit, a sidecar crash). The relay gets it as
+    # SPOOL_SEND_MSG_ID in its environment, not as an argument: the box-side
+    # relay refuses an unknown argument.
+    PEERS_MSGID="$(cat /proc/sys/kernel/random/uuid)"
     rargs=(--from "$FROM" --to peers --kind "$KIND" --body "$BODY")
     [ -n "$TASK" ] && rargs+=(--task "$TASK")
-    if out="$(spool_fleet_relay "${rargs[@]}")"; then
+    if out="$(export SPOOL_SEND_MSG_ID="$PEERS_MSGID"; spool_fleet_relay "${rargs[@]}")"; then
       RELAY=1
     else
       rc=$?

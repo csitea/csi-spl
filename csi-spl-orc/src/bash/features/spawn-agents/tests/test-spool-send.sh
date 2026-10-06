@@ -92,6 +92,36 @@ hasnt "R2 control: a note from c-002 does not WARN" "lane: WARN" "$err"
 err="$(ask --from c-002 --to orchestrator --kind task --body 'prd deploy of v1.4.2 needs your go')"
 hasnt "R2 control: a task from c-002 that asks no lane does not WARN" "lane: WARN" "$err"
 
+# ---- spec 101 D14: one msg_id across both legs of a peers send -------------
+# A hub that COMMITS the message and then loses its reply (a timeout after the
+# commit, a sidecar crash): the relay exits non-zero and the local leg runs.
+# The stub keeps the id it was handed (SPOOL_SEND_MSG_ID) the way the hub's
+# primary key does; HUB_MINTS=1 makes it mint its own, the control.
+D14="$T_TMP/d14"; mkdir -p "$D14"
+cat >"$T_TMP/d14-hub" <<'SH'
+#!/usr/bin/env bash
+id="${SPOOL_SEND_MSG_ID:-}"
+[ "${HUB_MINTS:-0}" = 1 ] || [ -z "$id" ] && id="$(cat /proc/sys/kernel/random/uuid)"
+printf '%s\n' "$id" >>"$D14_ROWS"
+echo "relay: timeout after commit" >&2; exit 1
+SH
+chmod +x "$T_TMP/d14-hub"
+d14() {  # ROWS-FILE [env...]: one peers send through the lossy hub; prints the union of ids
+  local rows="$1"; shift; rm -rf "$SPOOL_ROOT/peers"; : >"$rows"
+  env "$@" D14_ROWS="$rows" SPOOL_TO_PEERS=1 SPOOL_FLEET_RELAY_CMD="$T_TMP/d14-hub" \
+    bash "$SS" --from CLE-90 --to peers --kind result --body 'd14 report' >"$rows.out" 2>&1
+  echo "rc=$?" >>"$rows.out"
+  { cat "$rows"; jq -r .msg_id "$SPOOL_ROOT"/peers/inbox/*.json; } | sort -u
+}
+ids="$(d14 "$D14/rows")"
+has "D14: the hub leg failed, the local leg wrote it (exit 0)" "rc=0" "$(cat "$D14/rows.out")"
+eq "D14: the hub committed one row, the local peers inbox holds one file" "1 1" \
+  "$(grep -c . "$D14/rows") $(find "$SPOOL_ROOT/peers/inbox" -name '*.json' | wc -l)"
+eq "D14: ONE msg_id on both legs (adopt inserts if absent: one row)" 1 "$(grep -c . <<<"$ids")"
+has "D14: ... the id the sender reports is that id" "\"msg_id\":\"${ids}\"" "$(cat "$D14/rows.out")"
+ids="$(d14 "$D14/ctl" HUB_MINTS=1)"
+eq "D14 CONTROL: a hub leg that mints its own id leaves two ids, two rows" 2 "$(grep -c . <<<"$ids")"
+
 # ---- usage -----------------------------------------------------------------
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"
 bash "$SS" --from BOX-1 --to CLE-91 --kind note --body x >/dev/null 2>&1;  eq "BOX sender: exit 2" 2 "$?"

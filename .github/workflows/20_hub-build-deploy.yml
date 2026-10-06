@@ -617,6 +617,16 @@ jobs:
           }
           ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_bootstrap
 
+      # Spec 100 5.2 (T010): while rdb 0135's search_sig is the search
+      # fallback, every stored signature must still equal spool_search_sig of
+      # its row; a hashtext drift would make silent false negatives. Read-only.
+      # Removed by T013 with the 0135 read path.
+      - name: Check the 0135 search_sig invariant (do_spl_search_sig_check)
+        if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'
+        run: |
+          set -euo pipefail
+          ENV="$ENV" GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_spl_search_sig_check
+
       - name: Roll the 030 service to the minted image
         id: deploy
         if: steps.guard.outputs.ok == 'true' && steps.ver.outputs.stale != 'true'

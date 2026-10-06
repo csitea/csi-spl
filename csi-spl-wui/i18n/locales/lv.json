@@ -978,7 +978,7 @@
     "count_messages": "{n} ziņa | {n} ziņas",
     "revoked": "atsaukts",
     "rate_limited": "Pārāk daudz meklējumu. Mēģiniet vēlreiz pēc {s} s.",
-    "budget": "Meklēšana ilga pārāk ilgi. Sašauriniet vaicājumu.",
+    "budget": "Šī meklēšana ilga vairāk nekā {s} sekundes. Mēģiniet mazāk vai precīzākus vārdus vai meklējiet vēlreiz pēc brīža.",
     "failed": "Meklēšana neizdevās ({detail}).",
     "group": {
       "robots": "Roboti",

@@ -3,6 +3,9 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { SEARCH_OPERATORS, ensureSearchOperators, type SearchOperator, type SearchResult } from '~/utils/search.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 
+/** The hub's search time budget in seconds (hub searchBudgetDefault, search-v1 §5.1): a 503 search_budget says it. */
+export const SEARCH_BUDGET_S = 5
+
 type SearchError = { status: number, token: string, detail: string, pos: number, badToken: string, retryAfter: number, raw: unknown }
 
 /**

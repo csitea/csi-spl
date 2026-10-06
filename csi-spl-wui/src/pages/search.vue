@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import ErrorNotice from '~/components/common/ErrorNotice.vue'
 import { useLiveFeed } from '~/stores/live'
-import { useSearchStore } from '~/stores/search'
+import { SEARCH_BUDGET_S, useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { useTopicRoute } from '~/composables/useTopicRoute'
 import { operatorHelpRows, searchPath } from '~/utils/search.mjs'
@@ -117,7 +117,7 @@ const errorLine = computed(() => {
   const e = search.error
   if (!e) return ''
   if (e.status === 429) return t('search.rate_limited', { s: e.retryAfter || 60 })
-  if (e.status === 503) return t('search.budget')
+  if (e.status === 503) return t('search.budget', { s: SEARCH_BUDGET_S })
   // status 0 = no HTTP answer the page may read (network, CORS on a hub without the route)
   if (!e.status && !e.token) return t('search.unreachable')
   return t('search.failed', { detail: e.detail || e.token || String(e.status || '') })

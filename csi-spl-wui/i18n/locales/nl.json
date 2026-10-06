@@ -978,7 +978,7 @@
     "count_messages": "{n} bericht | {n} berichten",
     "revoked": "ingetrokken",
     "rate_limited": "Te veel zoekopdrachten. Probeer het over {s} s opnieuw.",
-    "budget": "De zoekopdracht duurde te lang. Maak hem specifieker.",
+    "budget": "Deze zoekopdracht duurde langer dan {s} seconden. Probeer minder of specifiekere woorden, of zoek zo meteen opnieuw.",
     "failed": "Zoeken mislukt ({detail}).",
     "group": {
       "robots": "Robots",

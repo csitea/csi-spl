@@ -978,7 +978,7 @@
     "count_messages": "{n} sõnum | {n} sõnumit",
     "revoked": "tühistatud",
     "rate_limited": "Liiga palju otsinguid. Proovi uuesti {s} s pärast.",
-    "budget": "Otsing võttis liiga kaua. Kitsenda päringut.",
+    "budget": "See otsing kestis kauem kui {s} sekundit. Proovi vähem või täpsemaid sõnu või otsi mõne hetke pärast uuesti.",
     "failed": "Otsing ebaõnnestus ({detail}).",
     "group": {
       "robots": "Robotid",

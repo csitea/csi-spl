@@ -978,7 +978,7 @@
     "count_messages": "{n} wiadomość | {n} wiadomości",
     "revoked": "unieważniony",
     "rate_limited": "Zbyt wiele wyszukiwań. Spróbuj ponownie za {s} s.",
-    "budget": "Wyszukiwanie trwało zbyt długo. Zawęź zapytanie.",
+    "budget": "To wyszukiwanie trwało dłużej niż {s} s. Spróbuj użyć mniej lub bardziej konkretnych słów albo wyszukaj ponownie za chwilę.",
     "failed": "Wyszukiwanie nie powiodło się ({detail}).",
     "group": {
       "robots": "Roboty",

@@ -978,7 +978,7 @@
     "count_messages": "{n} správa | {n} správ",
     "revoked": "zrušený",
     "rate_limited": "Príliš veľa vyhľadávaní. Skúste to znova o {s} s.",
-    "budget": "Vyhľadávanie trvalo príliš dlho. Zúžte dopyt.",
+    "budget": "Toto vyhľadávanie trvalo dlhšie ako {s} sekúnd. Skúste menej alebo konkrétnejšie slová, alebo vyhľadajte znova o chvíľu.",
     "failed": "Vyhľadávanie zlyhalo ({detail}).",
     "group": {
       "robots": "Roboty",

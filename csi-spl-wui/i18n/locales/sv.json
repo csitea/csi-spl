@@ -978,7 +978,7 @@
     "count_messages": "{n} meddelande | {n} meddelanden",
     "revoked": "återkallad",
     "rate_limited": "För många sökningar. Försök igen om {s} s.",
-    "budget": "Sökningen tog för lång tid. Smalna av frågan.",
+    "budget": "Sökningen tog längre tid än {s} sekunder. Prova färre eller mer specifika ord, eller sök igen om en stund.",
     "failed": "Sökningen misslyckades ({detail}).",
     "group": {
       "robots": "Robotar",

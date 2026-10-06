@@ -978,7 +978,7 @@
     "count_messages": "{n} viesti | {n} viestiä",
     "revoked": "peruttu",
     "rate_limited": "Liian monta hakua. Yritä uudelleen {s} s kuluttua.",
-    "budget": "Haku kesti liian kauan. Rajaa hakua.",
+    "budget": "Haku kesti yli {s} sekuntia. Kokeile vähemmän tai tarkempia sanoja tai hae hetken päästä uudelleen.",
     "failed": "Haku epäonnistui ({detail}).",
     "group": {
       "robots": "Robotit",

@@ -978,7 +978,7 @@
     "count_messages": "{n} mesaj | {n} mesaj",
     "revoked": "iptal edildi",
     "rate_limited": "Çok fazla arama. {s} sn sonra tekrar deneyin.",
-    "budget": "Arama çok uzun sürdü. Sorguyu daraltın.",
+    "budget": "Bu arama {s} saniyeden uzun sürdü. Daha az veya daha belirli kelimeler deneyin ya da biraz sonra yeniden arayın.",
     "failed": "Arama başarısız ({detail}).",
     "group": {
       "robots": "Robotlar",

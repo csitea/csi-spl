@@ -978,7 +978,7 @@
     "count_messages": "{n} mensaje | {n} mensajes",
     "revoked": "revocado",
     "rate_limited": "Demasiadas búsquedas. Inténtalo de nuevo en {s} s.",
-    "budget": "La búsqueda tardó demasiado. Acota la consulta.",
+    "budget": "Esta búsqueda tardó más de {s} segundos. Prueba con menos palabras o más específicas, o vuelve a buscar en un momento.",
     "failed": "La búsqueda falló ({detail}).",
     "group": {
       "robots": "Robots",

@@ -29,7 +29,7 @@
     <p v-if="!inPage && search.q" class="side-search__q"><code dir="ltr">{{ search.q }}</code></p>
     <div ref="scrollEl" class="sidebar-scroll side-search__scroll" @scroll.passive="noteScroll">
       <p v-if="search.loading" class="muted side-search__note" data-test="side-search-loading" aria-live="polite">{{ t('search.loading') }}</p>
-      <p v-else-if="search.error" class="muted side-search__note" data-test="side-search-error">{{ t('search.failed', { detail: search.error.detail || search.error.token || String(search.error.status || '') }) }}</p>
+      <p v-else-if="search.error" class="muted side-search__note" data-test="side-search-error">{{ search.error.status === 503 ? t('search.budget', { s: SEARCH_BUDGET_S }) : t('search.failed', { detail: search.error.detail || search.error.token || String(search.error.status || '') }) }}</p>
       <p v-else-if="search.result && !rows.length" class="muted side-search__note" data-test="side-search-empty">{{ t('search.no_results') }}</p>
       <SideHitList
         v-else-if="rows.length"
@@ -80,7 +80,7 @@ import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
 import { useOmniboxStore } from '~/stores/omnibox'
-import { useSearchStore } from '~/stores/search'
+import { SEARCH_BUDGET_S, useSearchStore } from '~/stores/search'
 import { useTopicStore } from '~/stores/topic'
 import { searchPath, type SearchRow } from '~/utils/search.mjs'
 import { flattenGroups, highlightSegments, isPlacedRow, originalHref, rowAt, searchRowMenuItems, searchTarget, topicPageOf } from '~/utils/search-results.mjs'

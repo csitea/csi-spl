@@ -978,7 +978,7 @@
     "count_messages": "{n} mesaj | {n} mesaje",
     "revoked": "revocat",
     "rate_limited": "Prea multe căutări. Încercați din nou peste {s} s.",
-    "budget": "Căutarea a durat prea mult. Restrângeți interogarea.",
+    "budget": "Această căutare a durat mai mult de {s} secunde. Încercați mai puține cuvinte sau cuvinte mai specifice, ori căutați din nou peste câteva clipe.",
     "failed": "Căutarea a eșuat ({detail}).",
     "group": {
       "robots": "Roboți",

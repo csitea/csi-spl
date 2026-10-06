@@ -978,7 +978,7 @@
     "count_messages": "{n} žinutė | {n} žinutės",
     "revoked": "atšauktas",
     "rate_limited": "Per daug paieškų. Bandykite po {s} s.",
-    "budget": "Paieška užtruko per ilgai. Susiaurinkite užklausą.",
+    "budget": "Ši paieška truko ilgiau nei {s} sek. Pabandykite mažiau arba tikslesnių žodžių arba ieškokite dar kartą po akimirkos.",
     "failed": "Paieška nepavyko ({detail}).",
     "group": {
       "robots": "Robotai",

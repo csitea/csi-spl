@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.4 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.5 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -37,11 +37,27 @@ panel consensus.
 | A signature on every row: hidden-unread budget 4 435 -> 6 759 buffers | `TestHiddenUnreadBufferBudget`, LOCAL pg16 only |
 | Retention is 30 days (`grep -n retention_days csi-spl-cnf/csi-spl/prd.env.yaml` -> 128) | cnf on `ebfe1fbc` |
 
+Read-only prd reads by c-001 as the runtime login `spool_hub_rt`: hub 2.0.5 /
+`0c9203ca` / schema 0137, 2026-10-06T15:29Z, n=1 each (r3 section 3,
+`7e96185f`):
+
+| read | value |
+|---|---|
+| t1 messages / word postings / avg / max per message | 19 244 / 1 580 634 / 82.1 / 1 024 |
+| all tenants: word postings | 1 787 260 |
+| database / `messages` total | 162 MB / 132 MB (heap 39, TOAST 76, indexes 16) |
+| posts in the last 24 h, all tenants | 943, so ~28k rows in steady state at 30-day retention |
+| `shared_buffers` | 128 MB |
+| extensions `btree_gin` / `vector` | 1.3 / 0.8.5 **available**, neither installed |
+| `texteq`, `text_lt`, `text_ge` / `ts_match_vq` LEAKPROOF | true / false (the local catalogue holds on prd) |
+
+
 ### 2.2 From the author's scratch probe (this spec)
 
 `research/author-scratch-pg16.md`: PostgreSQL 16.15 in local docker (**not
 Cloud SQL**), tree `ebfe1fbc`, 60k synthetic rows, n=1 per plan. It shows
-which PLAN Postgres picks, not prd ratios.
+which PLAN Postgres picks, not prd ratios. The LEAKPROOF flags below hold on
+prd as well (2.1).
 
 | path (run as a non-owner runtime role) | plan | buffers |
 |---|---|---|
@@ -92,6 +108,7 @@ vector search answers none of it better than a GIN does.
 
 Semantic search would also cost more than its price tag:
 
+- pgvector 0.8.5 is available on prd (2.1), so the cost is not the extension;
 - a vector of 768 float4 is 3 KB per row (arithmetic), the same order as
   today's 5.9 KB average row. That is +56 MB now and +560 MB at 10x-A, on a
   0.6 GB instance (**unchecked** machine size);
@@ -145,9 +162,9 @@ figure is **unchecked** unless it is marked otherwise.
 | # | option | isolation | sync lag | messages row width | storage now -> 10x-A | $ / month now -> 10x | rare word, cold, 10x-A |
 |---|---|---|---|---|---|---|---|
 | S0 | 0135 + the 512-char lane (status quo) | unchanged | 0 | +128 B on signed rows | 0 | 0 -> 0 | scan of the whole tenant, ~10x today's buffers (arithmetic). Over budget cold (r1 section 1.2) |
-| **S1r** | **GIN on `messages (tenant_id, search_tsv)` (`btree_gin`), read through one definer function owned by NOLOGIN `spool_search_reader`** | 2 doors (3.3); a new role-scoped policy | **0** | unchanged | 12 MB when 0122 dropped it (prd); r3 estimates ~30 MB now -> ~0.3 GB (arithmetic) | ~0 (DB storage; the tier is fixed) | GIN pages + matching rows: grows with log(rows) + hits |
+| **S1r** | **GIN on `messages (tenant_id, search_tsv)` (`btree_gin`), read through one definer function owned by NOLOGIN `spool_search_reader`** | 2 doors (3.3); a new role-scoped policy | **0** | unchanged | 12 MB when 0122 dropped it (prd); ~40 MB now -> ~0.4 GB at 10x (arithmetic from 1.79 M prd postings x ~22 B, r3) | ~0 (DB storage; the tier is fixed) | GIN pages + matching rows: grows with log(rows) + hits |
 | S2 | side table `message_search` + GIN, RLS not forced | 2 doors; a new table | 0 (trigger) | unchanged | + a copy of `search_tsv` (scratch: side 20 MB for 23 MB of messages) | ~0 | as S1r |
-| B | word table under FORCE RLS, btree on `word` (r3's option A) | **no lift**: plain RLS + NULLIF policy | 0 (trigger, one row per word, no FK: r3 section 4) | unchanged | dev t1: 1.0 M rows, ~110 MB, 1.4x `messages` (n=1, r3). Prd ~160 MB -> ~1.6 GB (arithmetic) | ~0 storage, a large write cost | ~4 buffers (scratch); no phrase positions (rechecked on `messages`) |
+| B | word table under FORCE RLS, btree on `word` (r3's option A) | **no lift**: plain RLS + NULLIF policy | 0 (trigger, one row per word, no FK: r3 section 4) | unchanged | ~190 MB now -> ~1.9 GB at 10x (arithmetic from 1.79 M prd postings x ~106 B, r3), 1.4x `messages` | ~0 storage, a large write cost | ~4 buffers (scratch); no phrase positions (rechecked on `messages`) |
 | S3 | in-process index in the hub | moves into Go code | rebuild on every deploy | n/a | hub RAM | hub CPU is ~80% of ~$60/env (relayed) | n/a |
 | S4 | hosted engine | a vendor filter or key | async, seconds | n/a | vendor | a paid tier, tens of $ (**unchecked**) against ~$60/env | n/a |
 | S5 | pgvector, semantic | needs S1r's lift as well | an async embedding call | +3 KB a row, or a side table | +56 MB -> +560 MB plus HNSW | an embedding API (**unchecked**, cents) | does not answer exact words |
@@ -315,8 +332,8 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | G2 | GIN build time and lock at prd size | P1, scratch |
 | G3 | insert cost with the GIN on the prd shape | P4 |
 | G4 | a true cold n>=5 | Q3 |
-| G5 | B's real size on prd (dev: 78 words a post, r3) | only if Q1 = no lift |
-| G6 | whether the migrate login on Cloud SQL dev can `CREATE EXTENSION btree_gin` (a trusted extension since pg 13, like `unaccent` in rdb 0048: **unchecked**). Without it, the GIN on `search_tsv` alone filters tenants after the index (10x-B cost) | P0 |
+| G5 | ~~B's real size on prd~~ **closed**: 82.1 words a post, ~190 MB (2.1) | - |
+| G6 | `btree_gin` 1.3 is available on prd (2.1); still open: whether the migrate login can `CREATE EXTENSION btree_gin` (a trusted extension since pg 13, like `unaccent` in rdb 0048: **unchecked**). Without it, the GIN on `search_tsv` alone filters tenants after the index (10x-B cost) | P0 |
 
 ## 11. Questions for the owner (one list, to c-002)
 
@@ -342,14 +359,17 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | seat | agent | research | position on v0.1 |
 |---|---|---|---|
 | author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r |
-| r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1 with r3's role-scoped policy and `gin (tenant_id, search_tsv)` (r1 section 8, `712ff98d`), i.e. S1r. Agreement with v0.3: pending |
+| r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1 with r3's role-scoped policy and `gin (tenant_id, search_tsv)` (r1 section 8, `712ff98d`), i.e. S1r. **SIGNED v0.4** (`e9829578`, msg 1b2a4f4d); v0.5 adds prd data only |
 | r2 | c-370 (claude) | pending | pending |
-| r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). Agreement with v0.2: pending |
+| r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). S1r on v0.3; signs v0.4 with the prd reads folded in (v0.5) |
 
 Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.5 (2026-10-06): r3's objections. Prd reads in 2.1 (19 244 t1 messages,
+  1.79 M postings, 943 posts a day, LEAKPROOF flags, `btree_gin` and `vector`
+  available). Sizes in section 4 come from prd. G5 is closed and G6 narrowed.
 - v0.4 (2026-10-06): r1's objection. P1 builds the GIN on
   `(tenant_id, search_tsv)` with `btree_gin` and the policy `FOR SELECT`, as 5
   and T9 say. The function is LANGUAGE sql (T10). The T2 plant runs as the

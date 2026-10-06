@@ -17,6 +17,7 @@ import {
   mayMoveTopic,
   mayPromoteMessage,
   movedNote,
+  paneOpenerId,
 } from '../../src/utils/move.mjs'
 import {
   applyMoveRows,
@@ -103,7 +104,7 @@ describe('who may move (spec 3.4)', () => {
     assert.equal(mayMoveMessage({ ...reply, from: 'CLE-07' }, 'HUM-9', { role: 'admin' }, ctx), true)
     assert.equal(mayMoveMessage(reply, 'HUM-2', member, ctx), false)
     assert.equal(mayMoveMessage({ ...reply, msg_id: 'c1' }, 'HUM-1', member, ctx), false, 'the opener')
-    assert.equal(mayMoveMessage({ ...reply, is_parent: 1 }, 'HUM-1', member, ctx), false, 'a card (is_card)')
+    assert.equal(mayMoveMessage({ ...reply, is_parent: 1 }, 'HUM-1', member, { ...ctx, openerId: '' }), false, 'a card (is_card): no pane opener known')
     assert.equal(mayMoveMessage({ ...reply, task_id: LOBBY, channel: 'lobby' }, 'HUM-1', member, ctx), false)
     assert.equal(mayMoveMessage({ ...reply, channel: null }, 'HUM-1', member, { ...ctx, channel: '' }), false, 'a DM')
     assert.equal(mayMoveMessage({ ...reply, channel: null }, 'HUM-1', member, ctx), true, 'no tag: the pane channel')
@@ -117,7 +118,8 @@ describe('who may move (spec 3.4)', () => {
     assert.equal(mayMoveMessage({ ...reply, from: 'CLE-07' }, 'HUM-2', null, ctx), true, 'legacy agent, no me loaded')
     assert.equal(mayMoveMessage({ ...reply, from: 'HUM-3' }, 'HUM-2', member, ctx), false, 'another person')
     assert.equal(mayMoveMessage({ ...reply, from: 'GST-3' }, 'HUM-2', member, ctx), false, 'a guest is a person')
-    assert.equal(mayMoveMessage({ ...reply, from: 'c-004', is_parent: 1 }, 'HUM-2', member, ctx), false, 'still never a card')
+    assert.equal(mayMoveMessage({ ...reply, from: 'c-004', is_parent: 1 }, 'HUM-2', member, { ...ctx, openerId: '' }), false, 'still never a card')
+    assert.equal(mayMoveMessage({ ...reply, msg_id: 'c1', from: 'c-004', is_parent: 1 }, 'HUM-2', member, ctx), false, 'still never the opener')
     assert.equal(mayMoveMessage({ ...reply, from: 'c-004', task_id: LOBBY, channel: 'lobby' }, 'HUM-2', member, ctx), false, 'still never the lobby')
     assert.equal(mayMoveMessage({ ...reply, from: 'c-004', channel: null, to: 'HUM-1' }, 'HUM-2', member, { ...ctx, channel: '' }), false, 'a DM row to someone else')
   })
@@ -129,10 +131,31 @@ describe('who may move (spec 3.4)', () => {
     assert.equal(mayMoveMessage(bot, 'HUM-10', null, dm), true, 'no me loaded: still the viewer\'s DM')
     assert.equal(mayMoveMessage(bot, 'HUM-2', { role: 'admin' }, dm), false, 'an admin who is not the DM\'s human')
     assert.equal(mayMoveMessage({ ...bot, from: 'HUM-10', to: 'c-002' }, 'HUM-10', member, dm), false, 'a person\'s DM row stays')
-    assert.equal(mayMoveMessage({ ...bot, is_parent: 1 }, 'HUM-10', member, dm), false, 'never the DM\'s card')
+    assert.equal(mayMoveMessage({ ...bot, msg_id: 'c1', is_parent: 1 }, 'HUM-10', member, dm), false, 'never the DM\'s card')
     assert.equal(mayPromoteMessage(bot, 'HUM-10', member, dm), false, 'a DM row is never promoted')
     assert.equal(isPromoteDropTarget({ kind: 'message', msgId: 'r1', channel: '' }), false, 'nor dropped on the topics list')
     assert.equal(isPromoteDropTarget({ kind: 'message', msgId: 'r1', channel: 'devel' }), true)
+  })
+
+  it('in a thread pane a LATER level-1 row is a reply: the real hub stores an agent\'s DM answer at level 1', () => {
+    const dm = { openerId: 'c1', lobbyTaskId: LOBBY, channel: '' }
+    const bot = { ...reply, msg_id: 'r9', from: 'c-002', to: 'HUM-10', channel: null, is_parent: 1 }
+    assert.equal(mayMoveMessage(bot, 'HUM-10', member, dm), true, 'a level-1 DM answer that is not the opener')
+    assert.equal(mayMoveMessage({ ...bot, msg_id: 'c1' }, 'HUM-10', member, dm), false, 'the opener itself')
+    assert.equal(mayMoveMessage(bot, 'HUM-10', member, { ...dm, openerId: '' }), false, 'no opener known: a level-1 row stays a card')
+    assert.equal(mayMoveMessage({ ...card, msg_id: 'c2', from: 'c-004' }, 'HUM-2', member, { ...dm, channel: 'devel' }), true, 'a later level-1 agent line in a channel thread')
+  })
+
+  it('paneOpenerId: the earliest card by time, in any display order', () => {
+    const rows = [
+      { msg_id: 'b', is_parent: 1, received_at: '2026-10-06T08:19:00Z' },
+      { msg_id: 'r', is_parent: 0, received_at: '2026-10-06T08:00:00Z' },
+      { msg_id: 'a', is_parent: 1, received_at: '2026-10-06T08:10:00Z' },
+    ]
+    assert.equal(paneOpenerId(rows), 'a')
+    assert.equal(paneOpenerId([...rows].reverse()), 'a')
+    assert.equal(paneOpenerId([{ msg_id: 'r', is_parent: 0 }]), '')
+    assert.equal(paneOpenerId(null), '')
   })
 })
 

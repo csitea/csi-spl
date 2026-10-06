@@ -58,7 +58,10 @@ export function mayMoveTopic(msg, viewerId, me, lobbyTaskId = '') {
 export function mayMoveMessage(msg, viewerId, me, { openerId = '', lobbyTaskId = '', channel = '' } = {}) {
   const m = msg && typeof msg === 'object' ? msg : null
   if (!m || m.pending || !m.msg_id || m.topic_row) return false
-  if (m.is_parent === 1) return false
+  /* a level-1 row is a card, except in a thread pane that knows its opener:
+     there a LATER level-1 row is a reply (an agent's DM answer is stored at
+     level 1: the hub's boxLevel finds no channel on a DM task) */
+  if (m.is_parent === 1 && !openerId) return false
   if (openerId && String(m.msg_id) === String(openerId)) return false
   const lobby = String(lobbyTaskId || '')
   if (lobby && (String(m.task_id || '') === lobby || String(m.parent_task_id || '') === lobby)) return false
@@ -71,6 +74,22 @@ export function mayMoveMessage(msg, viewerId, me, { openerId = '', lobbyTaskId =
 function isDmOut(m, viewerId) {
   const id = String(viewerId || '')
   return Boolean(id) && isAgentId(m.from) && String(m.to || '') === id
+}
+
+/**
+ * The opener of a thread pane's rows: its EARLIEST card (is_parent not 0) by
+ * time, whatever order the pane shows them in - the row the hub treats as the
+ * topic's card (spec 041 resolveCard). '' when no row is a card.
+ */
+export function paneOpenerId(rows) {
+  let best = null
+  let bestAt = ''
+  for (const m of Array.isArray(rows) ? rows : []) {
+    if (!isTopicCard(m)) continue
+    const at = String(m.received_at || m.ts || '')
+    if (!best || (at && (!bestAt || at < bestAt))) { best = m; bestAt = at }
+  }
+  return best ? String(best.msg_id) : ''
 }
 
 /** A left-rail channel row lights up (and takes the drop) for this drag. */

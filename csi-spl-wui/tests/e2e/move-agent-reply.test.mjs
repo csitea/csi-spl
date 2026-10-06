@@ -4,7 +4,8 @@
 // menu and carries the drag handle; another PERSON's reply in the same topic
 // offers neither (CONTROL: the author / owner / admin rule still holds there).
 // Then the owner's own case (t1 ffc3b83c was a DM): in the viewer's DM with
-// GRK-03, the agent's DM reply offers Move to topic… (never Make it a topic),
+// GRK-03, the agent's level-1 DM answer offers Move to topic… (never Make it
+// a topic) while only the DM's opener carries the topic menu,
 // the viewer's own DM message does not, and the pick moves it into a channel
 // topic.
 //
@@ -31,7 +32,9 @@ const PERSON_REPLY = 'e3730001-0000-4000-8000-000000000002'
 const DM_PATH = '/dm/' + encodeURIComponent('GRK-03@box-a')
 const DM_TOPIC = '99999999-9999-4999-8999-999999999999'
 const DM_CARD = '77777777-7777-4777-8777-777777777777'
-const DM_REPLY = '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a'
+/* GRK-03's answer in that DM at LEVEL 1, as the hub stores an agent's DM
+   answer (boxLevel: a DM task has no channel) - the owner's c-002 rows */
+const DM_REPLY = 'e3730001-0000-4000-8000-000000000003'
 const EXTRA = [
   { v: 1, msg_id: AGENT_REPLY, task_id: 'e3730002-0000-4000-8000-000000000001', ts: '2026-09-18T10:05:30Z',
     from: 'c-004', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', kind: 'note', body: 'an agent reply',
@@ -39,6 +42,9 @@ const EXTRA = [
   { v: 1, msg_id: PERSON_REPLY, task_id: 'e3730002-0000-4000-8000-000000000002', ts: '2026-09-18T10:05:40Z',
     from: 'HUM-3', from_box: 'box-wui', to: 'ALL-0', to_box: 'box-wui', kind: 'note', body: 'a person reply',
     files: [], channel: 'alerts', parent_task_id: TOPIC, is_parent: 0 },
+  { v: 1, msg_id: 'e3730001-0000-4000-8000-000000000003', task_id: 'e3730002-0000-4000-8000-000000000003', ts: '2026-09-18T10:06:45Z',
+    from: 'GRK-03', from_box: 'box-a', to: 'HUM-1', to_box: 'box-wui', kind: 'note', body: 'an agent DM answer',
+    files: [], channel: null, parent_task_id: '99999999-9999-4999-8999-999999999999', is_parent: 1 },
 ]
 
 const results = []

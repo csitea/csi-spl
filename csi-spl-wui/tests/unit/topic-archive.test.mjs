@@ -171,7 +171,9 @@ describe('wiring', () => {
   it('the middle feed marks its cards, the card offers the entries, the dialog is mounted on demand', () => {
     assert.match(src('src/components/LiveFeed.vue'), /:topic-menu="topicMenuFor\(it\.msg\)"/)
     assert.match(src('src/components/LiveFeed.vue'), /if \(props\.openButton\) return true/)
-    assert.match(src('src/components/LiveFeed.vue'), /props\.topicCardMenu\) && isTopicCard\(m\)/)
+    assert.match(src('src/components/LiveFeed.vue'), /!props\.topicCardMenu \|\| !isTopicCard\(m\)/)
+    /* t1 ffc3b83c: only the thread's opener (its earliest card), not every level-1 row */
+    assert.match(src('src/components/LiveFeed.vue'), /String\(m\.msg_id\) === openerId\.value/)
     assert.match(src('src/components/TopicPane.vue'), /\btopic-card-menu\b/)
     assert.match(src('src/components/LiveTopicPane.vue'), /\btopic-card-menu\b/)
     const cardSrc = src('src/components/MessageCard.vue')

@@ -95,7 +95,7 @@
           :current-task-id="currentTaskId"
           :clip-mode="clipModeFor()"
           :topic-menu="topicMenuFor(it.msg)"
-          :move-ctx="moveCtx"
+          :move-ctx="paneMoveCtx"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
           :data-pending="it.msg.pending ? 'true' : undefined"
@@ -167,6 +167,7 @@ import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
 import { isTopicCard } from '~/utils/topic-archive.mjs'
+import { paneOpenerId } from '~/utils/move.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
@@ -518,11 +519,17 @@ function openable(m: SpoolMessage) {
   if (props.openButton) return Boolean(m.task_id)
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)
 }
-/* The middle pane marks every card. A thread marks only its opening card. */
+/* The middle pane marks every card. A thread marks only its opening card:
+   its earliest card, not every level-1 row - an agent's DM answer is stored
+   at level 1 and is a reply that may move (owner, t1 ffc3b83c). */
+const openerId = computed(() => (props.topicCardMenu ? String(props.moveCtx?.opener || '') || paneOpenerId(props.rows) : ''))
 function topicMenuFor(m: SpoolMessage) {
   if (props.openButton) return true
-  return Boolean(props.topicCardMenu) && isTopicCard(m)
+  if (!props.topicCardMenu || !isTopicCard(m)) return false
+  return !openerId.value || String(m.msg_id) === openerId.value
 }
+/* the pane's move context names that opener, so a later level-1 row moves as a reply */
+const paneMoveCtx = computed(() => (props.moveCtx && openerId.value ? { ...props.moveCtx, opener: openerId.value } : props.moveCtx))
 
 /* The row the open topic is rooted at stays selected. The title in the
    right pane is selected as well, so selecting that pane does not clear this row. */

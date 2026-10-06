@@ -732,6 +732,7 @@ declare module '~/utils/move.mjs' {
   export function isMergeCardDropTarget(drag: MoveDrag | null, card: unknown, lobbyTaskId?: string): boolean
   export function mayPromoteMessage(msg: unknown, viewerId: string, me: MeLike, opts?: { openerId?: string, lobbyTaskId?: string, channel?: string | null }): boolean
   export function isPromoteDropTarget(drag: MoveDrag | null): boolean
+  export function paneOpenerId(rows: unknown[]): string
   export function movedNote(msg: unknown): { kind: 'channel', channel: string } | { kind: 'topic', task: string } | null
 }
 

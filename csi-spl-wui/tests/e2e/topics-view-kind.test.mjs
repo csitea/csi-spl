@@ -175,7 +175,6 @@ try {
   check('a topic the viewer did not open has no Kind item', other && otherKind === false, { other, otherKind })
   check('no page error', errors.length === 0, errors)
 
-  await p.screenshot({ path: '/tmp/g399-topics-kind-desktop.png' })
   await p.close()
 
   const phone = await browser.newPage()
@@ -206,7 +205,6 @@ try {
     }
   }
   check('phone page has no error', phoneErr.length === 0, phoneErr)
-  await phone.screenshot({ path: '/tmp/g399-topics-kind-phone.png' })
 } finally {
   await browser.close()
   await srv.stop()

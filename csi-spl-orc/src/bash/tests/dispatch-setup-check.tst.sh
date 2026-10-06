@@ -303,6 +303,26 @@ check DISPATCH_LAG_CMD='echo "$ENV hub unknown url=x reason=unreachable"; echo "
   pass "7. an unreadable endpoint is 'cannot tell', never a GAP" || fail "7. unknown: rc=$rc $(grep 'deploy lag' "$T/o")"
 check DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1
 grep -q 'deploy lag' "$T/o" && fail "7. DISPATCH_DEPLOY_LAG=0 still printed lag rows" || pass "7. DISPATCH_DEPLOY_LAG=0 skips the lag rows"
+# r4-B2: the real do_check_deploy_lag path renders the cnf into a fresh
+# SPL_STATE_DIR per env; none of them may outlive the check, on success or on
+# an interrupted probe (rc 130).
+do_check_deploy_lag() {
+  mkdir -p "$SPL_STATE_DIR/cnf"; echo "$SPL_STATE_DIR" >>"$LAG_DIRS_LOG"
+  [[ "${LAG_STUB_RC:-0}" == 0 ]] || return "$LAG_STUB_RC"
+  echo "$ENV hub current served=a"; echo "$ENV wui current served=a"
+}
+export -f do_check_deploy_lag
+for lag_rc in 0 130; do
+  mkdir -p "$T/lagtmp"; : >"$T/lag-dirs"
+  check DISPATCH_LAG_CMD= TMPDIR="$T/lagtmp" LAG_DIRS_LOG="$T/lag-dirs" LAG_STUB_RC="$lag_rc" >"$T/o" 2>&1
+  left="$(find "$T/lagtmp" -mindepth 1 | wc -l)"
+  [[ "$(wc -l <"$T/lag-dirs")" == 2 && "$left" == 0 ]] &&
+    pass "7. probe rc=$lag_rc: both per-env state dirs are removed (r4-B2)" ||
+    fail "7. probe rc=$lag_rc: dirs=$(wc -l <"$T/lag-dirs") left=$left $(find "$T/lagtmp")"
+done
+[[ "$lag_rc" == 130 ]] && grep -qE '\| deploy lag prd \| no verdict \| cannot tell \|' "$T/o" &&
+  pass "7. an interrupted probe is still 'cannot tell'" || fail "7. rc=130 rows: $(grep 'deploy lag' "$T/o")"
+unset -f do_check_deploy_lag
 kill "$H2" 2>/dev/null; wait "$H2" 2>/dev/null; sleep 0.2; gap "watch loop down" 'lease watch loop \| not running \| GAP'
 kill "$H1" 2>/dev/null; wait "$H1" 2>/dev/null
 mv "$S/dispatch/unanswered.last" "$T/last.keep"; gap "the unanswered sweep never ran" 'unanswered sweep \| never ran \| GAP'

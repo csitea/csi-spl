@@ -37,14 +37,19 @@ do_spl_dispatch_deploy_lag() {
 # Appends one row per env+component through the caller's row().
 spl_dispatch_deploy_lag_rows() {
   [[ "${DISPATCH_DEPLOY_LAG:-1}" != 0 ]] || return 0
-  local grace="${DISPATCH_LAG_GRACE:-30}" sha e out line comp verdict rest app
+  local grace="${DISPATCH_LAG_GRACE:-30}" sha e out line comp verdict rest app state_root
+  # r4-B2: do_spl_cloud_cnf renders the cnf into SPL_STATE_DIR, so each env
+  # gets a fresh dir under one root that the RETURN trap removes on every
+  # return path (2,046 leaked /tmp/tmp.*/cnf dirs before).
+  state_root="$(mktemp -d)"
+  trap 'rm -rf "$state_root"; trap - RETURN' RETURN
   app="${APP_PATH:-$(cd "${PROJ_PATH:-.}/.." && pwd)}"
   sha="${DISPATCH_LAG_SHA:-$(git -C "$app" rev-parse -q --verify origin/master 2>/dev/null || git -C "$app" rev-parse HEAD 2>/dev/null)}"
   for e in ${DISPATCH_LAG_ENVS:-dev prd}; do
     if [[ -n "${DISPATCH_LAG_CMD:-}" ]]; then
       out="$(ENV="$e" SHA="$sha" GRACE_MINUTES="$grace" bash -c "$DISPATCH_LAG_CMD" 2>/dev/null)"
     elif declare -F do_check_deploy_lag >/dev/null; then
-      out="$( (ENV="$e" SHA="$sha" GRACE_MINUTES="$grace" SPL_STATE_DIR="$(mktemp -d)" do_check_deploy_lag) 2>/dev/null)"
+      out="$( (ENV="$e" SHA="$sha" GRACE_MINUTES="$grace" SPL_STATE_DIR="$(mktemp -d -p "$state_root")" do_check_deploy_lag) 2>/dev/null)"
     else
       row "deploy lag $e" "do_check_deploy_lag is not loaded" "cannot tell"; continue
     fi

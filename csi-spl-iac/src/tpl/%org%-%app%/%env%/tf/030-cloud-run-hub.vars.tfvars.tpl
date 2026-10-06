@@ -80,6 +80,14 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
     value, the workspace ids joined with commas, or the literal "all" #}
 {%- set mkt_ws = marketing["workspaces"] if (marketing is defined and marketing["workspaces"] is defined) else [] %}
 {%- set _ = run_env.update({"SPOOL_HUB_MARKETING_WORKSPACES": (mkt_ws if mkt_ws is string else (mkt_ws | join(",")))}) %}
+{#- spec 075 repo-edit T01: the GitHub App key's slot is 07's own resource
+    (imported, never in auth_secret_ids); SPOOL_GITHUB_APP_KEY is injected
+    only while docs.repo_edit.inject is "true" (a version exists) #}
+{%- set gh_app = docs["repo_edit"] if (docs is defined and docs["repo_edit"] is defined) else {} %}
+{%- set gh_sec = gh_app["secret_env"] if gh_app["secret_env"] is defined else {} %}
+{%- if (gh_app.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_sec.update(gh_sec) %}
+{%- endif %}
 {%- set slot_ids =(auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) + (mkt_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
@@ -91,3 +99,4 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 environment_variables        = {{ run_env | tojson }}
 secret_environment_variables = {{ run_sec | tojson }}
 auth_secret_ids              = {{ slot_ids | tojson }}
+github_app_key_secret_id     = {{ gh_sec["SPOOL_GITHUB_APP_KEY"] | tojson }}

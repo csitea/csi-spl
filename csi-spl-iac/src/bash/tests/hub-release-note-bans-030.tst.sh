@@ -41,7 +41,7 @@ done
 
 TFD="$PROJ_ROOT/src/terraform/030-cloud-run-hub"
 grep -q 'resource "google_secret_manager_secret_version"' "$TFD"/*.tf && fail "030 has a secret version resource" || pass "030 has no secret version resource (no value in state)"
-grep -q 'for_each = toset(values(var.secret_environment_variables))' "$TFD/03-runtime-sa.tf" \
+grep -qE 'for_each = (setsubtract\()?toset\(values\(var.secret_environment_variables\)\)' "$TFD/03-runtime-sa.tf" \
   && pass "030 grants the runtime SA every injected secret, this one included" || fail "03-runtime-sa.tf no longer binds every injected secret"
 
 # --- control: inject flips the reference, never the slot ---------------------

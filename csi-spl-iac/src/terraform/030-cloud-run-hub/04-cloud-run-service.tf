@@ -137,6 +137,7 @@ resource "google_cloud_run_v2_service" "hub" {
   # The secret accessor must exist before a revision tries to read the DSN.
   depends_on = [
     google_secret_manager_secret_iam_member.hub_secret_accessor,
+    google_secret_manager_secret_iam_member.hub_github_app_key_accessor,
     google_project_iam_member.hub_cloudsql_client,
   ]
 

@@ -16,8 +16,9 @@ resource "google_project_iam_member" "hub_cloudsql_client" {
   member  = "serviceAccount:${google_service_account.hub.email}"
 }
 
+# the GitHub App key's slot is bound in 07, injected or not
 resource "google_secret_manager_secret_iam_member" "hub_secret_accessor" {
-  for_each = toset(values(var.secret_environment_variables))
+  for_each = setsubtract(toset(values(var.secret_environment_variables)), [var.github_app_key_secret_id])
 
   project   = var.gcp_project
   secret_id = each.value

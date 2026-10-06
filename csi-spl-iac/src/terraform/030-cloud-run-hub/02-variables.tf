@@ -151,3 +151,13 @@ variable "deletion_protection" {
   description = "google_cloud_run_v2_service.deletion_protection (cnf hub.cloud_run.deletion_protection). true in the committed config; flipped false through cnf ONLY for a destroy run, then back to true (owner, 2026-09-19)."
   default     = true
 }
+
+variable "github_app_key_secret_id" {
+  type        = string
+  description = "Secret Manager id of the GitHub App private key (cnf env.docs.repo_edit.secret_env.SPOOL_GITHUB_APP_KEY, spec 075 repo-edit). 07 imports the existing slot and grants the runtime SA read; the version is added out of band (do_spl_gh_app_key_put)."
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.github_app_key_secret_id))
+    error_message = "github_app_key_secret_id must be a Secret Manager secret id."
+  }
+}

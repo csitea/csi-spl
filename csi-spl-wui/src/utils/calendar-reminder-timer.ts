@@ -11,6 +11,7 @@ import {
   CALENDAR_CHANGED_EVENT, REMINDER_DISMISSED_KEY, REMINDER_FOCUS_GAP_MS, REMINDER_REFRESH_MS,
   dueReminders, parseDismissed, readReminders, reminderWindow, withDismissed,
 } from '~/utils/calendar-reminders.mjs'
+import { hubJsonHeaders } from '~/utils/hub-headers'
 
 type Reminder = CalendarReminder
 type Popup = ComponentPublicInstance & { set(list: Reminder[]): void }
@@ -31,8 +32,7 @@ function saveDismissed(ev: Reminder) {
 /** One read of the viewer's reminders in [from, to); null when the hub has none to give. */
 async function fetchReminders(api: Api, from: string, to: string): Promise<unknown> {
   if (api.mock) return (await import('~/utils/calendar-reminders-mock.mjs')).sharedMockReminders().reminders(from, to)
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (api.token) headers.authorization = `Bearer ${api.token}`
+  const headers = hubJsonHeaders(api.token)
   const q = new URLSearchParams({ from, to })
   const r = await fetch(`${api.base}/v1/calendar/reminders?${q}`, {
     credentials: api.credentials, cache: 'no-cache', headers, signal: AbortSignal.timeout(15000),

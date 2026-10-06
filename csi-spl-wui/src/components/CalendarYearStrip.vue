@@ -55,6 +55,7 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { calAddDays, calMarks, calMarksQuery, calStripMonths, calStripYears, calWeekDays, calWeekStart, calWeekday, type CalMarks, type CalMonth } from '~/utils/calendar-year.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { hubJsonHeaders } from '~/utils/hub-headers'
 
 const props = defineProps<{
   /** the UTC day 'YYYY-MM-DD' the main view shows; its week is highlighted */
@@ -110,8 +111,7 @@ async function loadMarks() {
       const { mockCalendarMarks } = await import('~/utils/calendar-mock.mjs')
       body = mockCalendarMarks(Math.min(...years.value), Math.max(...years.value), props.today)
     } else {
-      const headers: Record<string, string> = { accept: 'application/json' }
-      if (api.token) headers.authorization = `Bearer ${api.token}`
+      const headers = hubJsonHeaders(api.token)
       const r = await fetch(`${api.base}/v1/calendar/marks?${q}`, { credentials: api.credentials, headers, signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
       if (!r.ok) throw new Error('calendar marks ' + r.status)
       body = await r.json()

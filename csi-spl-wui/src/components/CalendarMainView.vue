@@ -53,6 +53,7 @@ import { calAddDays, calWeekday, calWeekDays, calWeekStart } from '~/utils/calen
 import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { hubJsonHeaders } from '~/utils/hub-headers'
 
 const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -98,8 +99,7 @@ async function load() {
       const { mockCalendarEvents } = await import('~/utils/calendar-mock.mjs')
       body = mockCalendarEvents(start, end, props.today)
     } else {
-      const headers: Record<string, string> = { accept: 'application/json' }
-      if (api.token) headers.authorization = `Bearer ${api.token}`
+      const headers = hubJsonHeaders(api.token)
       const q = new URLSearchParams({ start, end })
       const r = await fetch(`${api.base}/v1/calendar/events?${q}`, { credentials: api.credentials, headers, signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
       if (!r.ok) throw new Error('calendar events ' + r.status)

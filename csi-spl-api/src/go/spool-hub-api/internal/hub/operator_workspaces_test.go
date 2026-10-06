@@ -277,3 +277,23 @@ func assertAudit(t *testing.T, e *env, op, admin, id string, want []string) {
 		t.Fatalf("audit %v does not hold %v in order", got, want)
 	}
 }
+
+// r3-B03: a display name the store refuses (a newline passes the create
+// check but not SetTenantConfig) still creates the workspace and answers its
+// root key once, so the answer stays 201 - and says the name was NOT stored
+// instead of hiding it. CONTROL: a plain name reports "stored".
+func TestOperatorWorkspaceCreateReportsDisplayName(t *testing.T) {
+	e, op, _, who, _ := operatorEnv(t, func(op, _ string) string { return op })
+	admin := who[rbac.Admin]
+	for _, c := range []struct{ name, want string }{{"Bad\nName", "not_stored"}, {"Good Name", "stored"}} {
+		id := newTenantID("nw")
+		code, body := call(t, e, op, http.MethodPost, opPath, admin, map[string]any{"id": id, "display_name": c.name})
+		if code != http.StatusCreated || body["root_private_key"] == nil {
+			t.Fatalf("create %q: %d %v", c.name, code, body)
+		}
+		dn, _ := body["display_name"].(map[string]any)
+		if dn["status"] != c.want {
+			t.Fatalf("create %q: display_name = %v, want status %q", c.name, body["display_name"], c.want)
+		}
+	}
+}

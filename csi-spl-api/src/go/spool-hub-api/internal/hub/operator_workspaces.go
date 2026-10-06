@@ -261,6 +261,7 @@ func (c *createWorkspaceReq) check() (ed25519.PublicKey, ed25519.PrivateKey, str
 // POST /v1/operator/workspaces: create a workspace (409 when the id exists),
 // optionally invite its first admin. A generated root private key is in the
 // 201 body ONCE and is never stored or logged (the shell action's contract).
+// display_name.status (stored|not_stored) says whether the name was saved.
 func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Request) {
 	a, ok := s.operatorActor(w, r)
 	if !ok {
@@ -287,12 +288,16 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 		writeErr(w, code, tk, "workspace not created")
 		return
 	}
-	if req.DisplayName != "" {
-		// The workspace exists, so the 201 stands; setWorkspaceConfig has
-		// logged a failed display-name write.
-		_ = s.setWorkspaceConfig(r, req.ID, store.TenantConfigPatch{DisplayName: &req.DisplayName})
-	}
 	out := map[string]any{}
+	if req.DisplayName != "" {
+		// The workspace exists and its root key is answered only here, so the
+		// 201 stands; a failed display-name write is reported in the body
+		// (as the invite is), never dropped.
+		out["display_name"] = map[string]any{"status": "stored"}
+		if s.setWorkspaceConfig(r, req.ID, store.TenantConfigPatch{DisplayName: &req.DisplayName}) != nil {
+			out["display_name"] = map[string]any{"status": "not_stored"}
+		}
+	}
 	if priv != nil {
 		out["root_private_key"] = base64.StdEncoding.EncodeToString(priv)
 	}

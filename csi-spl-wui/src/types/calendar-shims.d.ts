@@ -52,6 +52,27 @@ declare module '~/utils/calendar-events-api.mjs' {
   type Item = import('~/utils/calendar-mock.mjs').CalendarItem
   type Api = { mock?: boolean, base?: string, token?: string, credentials?: RequestCredentials }
   export function calendarCreate(api: Api, body: Record<string, unknown>): Promise<Item>
-  export function calendarUpdate(api: Api, id: string, patch: Record<string, unknown>, todayIso: string): Promise<Item>
+  export function calendarUpdate(api: Api, id: string, patch: Record<string, unknown>, todayIso: string, ifMatch?: string): Promise<Item>
   export function calendarDelete(api: Api, id: string, todayIso: string): Promise<Item>
+}
+
+/* spec 097 T013: drag to move / resize / create on the main view */
+declare module '~/utils/calendar-drag.mjs' {
+  export const CAL_SNAP_MIN: number
+  export const CAL_DAY_MIN: number
+  export const CAL_HOLD_MS: number
+  export const CAL_DRAG_PX: number
+  export const CAL_TOUCH_SLOP_PX: number
+  export type CalTimes = { starts_at: string, ends_at: string }
+  type Timed = { id: string, starts_at: string, ends_at: string }
+  export function calHhmm(min: number): string
+  export function calMinuteOf(value: string): number
+  export function calSnap(min: number, lo?: number, hi?: number): number
+  export function calEventDay(ev: { starts_at: string, all_day?: boolean }): string
+  export function calMoveTo(ev: Timed & { all_day?: boolean }, day: string, startMin?: number | null): CalTimes | null
+  export function calResizeTo(ev: Timed & { all_day?: boolean }, endMin: number): CalTimes | null
+  export function calCreateSlot(a: number, b: number): { start: string, end: string }
+  export function calSameTimes(ev: CalTimes, next: CalTimes): boolean
+  export function calDragErrorKey(e: { status?: number, token?: string } | null | undefined): string
+  export function calDayLayout<T extends Timed>(events: T[]): { ev: T, top: number, len: number, col: number, cols: number }[]
 }

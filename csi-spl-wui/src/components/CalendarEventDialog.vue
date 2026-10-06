@@ -100,6 +100,8 @@ const props = defineProps<{
   event: CalendarItem | null
   day: string
   today: string
+  /** 097 T013: the HH:MM start and end a drag on empty time picked (a new event only) */
+  span?: { start: string, end: string } | null
 }>()
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -122,6 +124,7 @@ const confirmDelete = ref(false)
    closed half-typed is a cancel */
 function reset() {
   form.value = calFormFromEvent(props.event, props.day || props.today)
+  if (!props.event && props.span) form.value = { ...form.value, start: props.span.start, end: props.span.end }
   error.value = ''
   confirmDelete.value = false
 }

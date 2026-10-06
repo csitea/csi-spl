@@ -143,7 +143,9 @@ try {
   const other = days.find((d) => d !== today) || today
   const col = await p.$(`[data-test=calendar-week-day][data-day="${other}"]`)
   const box = col ? await col.boundingBox() : null
-  if (box) await p.mouse.click(box.x + box.width / 2, box.y + box.height - 12)
+  /* 097 T013: the day is a 24-hour grid in its own scroller: click its visible bottom */
+  const seen = await p.$eval('[data-test=calendar-week]', (el) => Math.min(el.getBoundingClientRect().bottom, window.innerHeight))
+  if (box) await p.mouse.click(box.x + box.width / 2, Math.min(box.y + box.height, seen) - 12)
   ok('a click on an empty day opens the dialog', await dialog(p))
   s = await state(p)
   ok('the dialog is for the clicked day', s.mode === 'create' && s.date === other, { s, other })

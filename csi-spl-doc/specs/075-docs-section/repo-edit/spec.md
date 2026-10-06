@@ -1,9 +1,9 @@
 # 075 Phase 1b: editable Repo Docs, saved to the docs bucket, pushed to git asynchronously
 
-**Feature ID**: `075-docs-section/repo-edit` · **Milestone**: M3 · **Status**: Draft (v0.1)
+**Feature ID**: `075-docs-section/repo-edit` · **Milestone**: M3 · **Status**: Draft (v0.2, panel consensus)
 **Created**: 2026-10-06 · **Lane**: c-380 (spec author, claude) · **Panel**: g-381 (grok), a-382 (agy)
 **Topic**: t1 `2e20d6d4-16b7-4be2-b7d7-45c4f1fbf56e`
-**Authority**: this file for the behaviour of editing Repo Docs; [`../spec.md`](../spec.md) for the Docs section as a whole. Panel record: `consensus.md` in this dir (written once both panel opinions land). Docs only: this spec builds nothing (`../../README.md` §2.4).
+**Authority**: this file for the behaviour of editing Repo Docs; [`../spec.md`](../spec.md) for the Docs section as a whole. Panel record: [`consensus.md`](consensus.md); the panel's opinions: [`grok-opinion.md`](grok-opinion.md), [`agy-opinion.md`](agy-opinion.md). Docs only: this spec builds nothing (`../../README.md` §2.4).
 
 Builds on, and does not repeat:
 - [075 the Docs section](../spec.md): §3 Phase 1 (Repo Docs, read-only) and §4.5 (workspace docs history).
@@ -43,10 +43,11 @@ This reverses 075 §10's "Direct bidirectional Git push from browser to GitHub r
 | The env's docs bucket (iac step `051-gcs-docs`) is filled ONLY by `do_publish_docs`, a step of the WUI deploy (workflow 30); it mirrors `git ls-files '*.md'` at the deployed sha (deleting objects no longer in the repo) and writes `tree.json` `{v, sha, files:[{path,title}]}` | `csi-spl-orc/src/bash/run/publish-docs.func.sh` |
 | Skipped by the publish: `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`, `node_modules/`, `tpl-gen/`, `bin/`, the WUI's built help copy | `publish-docs.func.sh` `spl_docs_stage` |
 | Workflow 30 runs only on its path allow-list (`csi-spl-wui/**`, the publish script, ...): a commit touching only `csi-spl-doc/**` does NOT republish | `.github/workflows/30_wui-build-deploy.yml` |
-| Workflow 20 (hub) runs only on its allow-list; no `.md` path is in it | `.github/workflows/20_hub-build-deploy.yml` |
+| Workflow 20 (hub) runs only on its allow-list, but `csi-spl-api/src/go/**` and the two `csi-spl-rdb/src/sql/postgres/spool-hub*/**` prefixes match a `.md` too: a doc there deploys the hub (g-381) | `.github/workflows/20_hub-build-deploy.yml` |
 | Workflow 10 (CI quality) runs on EVERY push to master, no path filter | `.github/workflows/10_ci-quality.yml` |
 | Workspace Docs (075 Phase 2) are editable: `PUT/DELETE /v1/workspace/docs/{path}`, `docs.write`, 1 MiB cap, no lock, last save wins, every write also kept under `.history/` (owner `15134701`: "no need for ultra high level ACID Like doc locking mechanisms") | `internal/hub/workspace_docs.go` |
-| `docs.write` is granted to admin, product owner, developer, tester roles and to agents | `internal/rbac/rbac.go` |
+| `docs.write` is on every default role except `demo_user` (biz owner, product owner, admin, developer, tester, biz customer, regular user) and on `pure_agent` (g-381) | `internal/rbac/rbac.go` `Defaults` |
+| The publish upload is `gcloud storage rsync --delete-unmatched-destination-objects`: today it deletes EVERY bucket object the stage lacks, a dot-prefixed one included | `publish-docs.func.sh` `spl_docs_upload` |
 | The hub reads secrets as env vars from Secret Manager (`secret_environment_variables` -> `secret_key_ref`), and its CPU is always allocated (`cpu_idle = false`), so a background worker in the hub runs between requests | `csi-spl-iac/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf` |
 | The repo holds 574 tracked `.md` (495 under `csi-spl-doc/`, 38 `csi-spl-orc/`, 24 `csi-spl-wui/`); the largest is ~96 KB | `git ls-files '*.md' \| wc -l` -> 574 |
 | The last 500 commits carry ONE author identity | `git log -500 --format='%an <%ae>' \| sort -u \| wc -l` -> 1 |
@@ -92,7 +93,7 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 
 - **Queue**: one row per save (data model §10). Written in the same request as the bucket write, so a 200 means both the text is in the bucket and the push is owed.
 - **Who pushes**: the hub, in a worker goroutine started with the server. Only one worker per env runs at a time: it takes `pg_try_advisory_lock(<repo_edit lock id>)`; a second hub instance idles. Cloud Run keeps CPU between requests (`cpu_idle = false`), so the goroutine runs. Wake-up: a `NOTIFY repo_doc_edits` on insert plus a 30 s poll.
-- **Ordering**: FIFO by `created_at` per path; paths in parallel are not needed (volume is tiny). Consecutive queued edits of the SAME path by the SAME author are coalesced into one commit (the newest text wins, the earlier rows go `superseded`). Different authors are never coalesced: each gets its own commit and its own authorship.
+- **Ordering**: FIFO by `created_at` per path; paths in parallel are not needed (volume is tiny). Consecutive edits of the SAME path by the SAME author that are still `queued` are coalesced into one commit (the newest text wins, the earlier rows go `superseded`). A `pushing` row is frozen: a save during it is a new `queued` row (a-382). Different authors are never coalesced: each gets its own commit and its own authorship.
 - **Retries**: transient errors (GitHub 5xx, 429, network, ref moved during update) retry with backoff 30 s, 1 m, 2 m, 5 m, 10 m, 30 m, 1 h (7 tries, ~2 h); then `failed`. Permanent errors (403 permission, 422 validation, path now denied) go `failed` at once. A user (or an admin) may `retry` a `failed` row.
 - **What the user sees**: a status chip on the doc header and in "My edits":
 
@@ -124,7 +125,7 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 
 - **Committer**: `<app-slug>[bot]` and its noreply address, fixed. The author/committer split is git's own: GitHub shows "<author> committed with <app-slug>[bot]".
 - **Message**: `docs: edit <path>` then a body `Edited in the Docs section of workspace <workspace>. Edit <edit_id>.` **No `Co-Authored-By:`, no `Generated with`, no session URL, no other AI trailer** (the repo's leak-gate rule).
-- **Agents** (they hold `docs.write`): NOT allowed to edit Repo Docs in v0.1 (owner question O4): an agent's edit has no human author by D5.
+- **Agents** (`pure_agent` holds `docs.write` for workspace docs): NOT allowed to edit Repo Docs in v0.1 (owner question O4): an agent's edit has no human author by D5. The route accepts a **member session only**; an agent token gets 403, whatever its permissions (g-381).
 - The repo's own CLAUDE.md rule that commits carry one canonical address governs agents' commits, not members' edits through this feature; the two do not collide because members are a different person each.
 
 **Rejected**:
@@ -138,13 +139,14 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 
 **Recommended**:
 
-- **Who** (D1): every member whose role holds `docs.write`, in a workspace where the setting `repo_docs_edit` is on. The setting is off by default and switched on per workspace by an operator (cnf `env.docs.repo_edit.workspaces`), because the docs bucket and the repo are SHARED by every workspace of the env: a member of a customer or demo workspace would otherwise write into the product's public repo. Owner question O1.
-- **Editable paths** (D2 "any md", bounded by what the publish serves): every path the publish puts in `tree.json`, plus new files under an editable dir, EXCEPT a deny list:
+- **Who** (D1): every member (a session, never an agent token) whose role holds `docs.write` (every default role but `demo_user`), in a workspace where the setting `repo_docs_edit` is on. The setting is off by default and switched on per workspace by an operator (cnf `env.docs.repo_edit.workspaces`), because the docs bucket and the repo are SHARED by every workspace of the env: a member of a customer or demo workspace would otherwise write into the product's public repo. Owner question O1.
+- **Editable paths, v1** (panel consensus; D2 "any md" bounded for v1, widening is O9): an ALLOW-list, `csi-spl-doc/**` plus the root docs `README.md`, `CONTRIBUTING.md`, `DEPLOY.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md` (about 500 of the 574 tracked `.md`; a-382), plus new files under an editable dir. The deny list below applies on top, and is the whole rule if O9 widens the set to "any published .md" (g-381's form):
 
 | denied | why |
 |---|---|
 | `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` anywhere | agent instructions; not published; a prompt-injection door into every agent of the fleet |
 | `csi-spl-wui/**` | a commit there fires workflow 30: a full WUI build, deploy and version mint per save |
+| `csi-spl-api/src/go/**`, `csi-spl-rdb/src/sql/postgres/spool-hub/**`, `csi-spl-rdb/src/sql/postgres/spool-hub-roles/**` | workflow 20's globs match a `.md`: a hub deploy per save (g-381) |
 | `.github/**` | workflow docs; owner-governed |
 | `csi-spl-doc/specs/*/tasks.md` | build authority with shas and checks; edited by lanes |
 | anything `ValidDocsPath` refuses | same rule as the read route |
@@ -152,7 +154,7 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
   The allow and deny lists live in cnf (`env.docs.repo_edit.deny`), read by the hub, so changing them is a config change.
 - **New files and deletes**: create allowed under an existing editable dir; delete and rename NOT in v0.1 (O5).
 - **Size**: 1 MiB per doc (the workspace docs cap, 10x the largest repo doc).
-- **Rate**: 30 saves per member per hour, 300 per env per day; over it: 429 `rate_limited`, nothing written.
+- **Rate**: 30 saves per member per hour, 300 per env per day (2 of 3; a-382 proposed 20/200); over it: 429 `rate_limited`, nothing written.
 - **Text gates in the hub, before the bucket write** (the push bypasses the developer pre-push hook, so the hub runs the cheap gates itself):
   - the distribution-hygiene sweep's patterns (the same list `do_check_dist_hygiene` reads from workflow 10, baked into the hub image at build) on the NEW lines only;
   - a secret scan: PEM private-key blocks, cloud key JSON (`"private_key"`), common token prefixes. A hit: 422 `rejected_text` naming the rule and line, nothing written.
@@ -175,9 +177,9 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 | `prd` | `master` | the owner's trunk rule: direct to trunk, no PR |
 | `dev` | `docs-edit-dev` (a long-lived branch) | dev and prd share ONE repo; a dev proof must not write to master |
 
-- **Pre-push hook**: client-side, so it never runs for an API push. Its cheap part that matters for a `.md` (dist hygiene) and a secret scan run in the hub (§5). The full CI (workflow 10) still runs on master for every pushed commit: a red there is reported to the editor's status (`pushed`, CI red) and to the ops channel, never auto-reverted.
+- **Pre-push hook**: client-side, so it never runs for an API push. Its cheap part that matters for a `.md` (dist hygiene) and a secret scan run in the hub (§5). CI (workflow 10) still runs on master for every pushed commit. The chip turns red only when the docs-publish workflow fails, or a job fails that ran because of this push; a red inherited from another push is an ops note, not the editor's failure (g-381). Never auto-reverted.
 - **Deploy triggers**: with `csi-spl-wui/**` denied (§5), a doc commit fires workflow 10 and the new docs-publish workflow (§7) only: no hub or WUI deploy, no version tag minted.
-- **CI load**: workflow 10 per doc commit is the cost; coalescing (§3) bounds it. Lane L7 adds a `paths` skip of the heavy jobs when a push changes only `*.md` (O6).
+- **CI load**: workflow 10 per doc commit is the cost; coalescing (§3) bounds it. Lane L7 adds a `.md`-only fast path INSIDE workflow 10: the hygiene and link-check jobs still run, the builds and e2e are skipped. It is a **prerequisite before prd is switched on** (a-382, agreed by c-380; O6). **No `[skip ci]`** in the commit message: it would skip every workflow, the docs-publish and hygiene runs included.
 - **Branch protection**: if master later requires PRs or status checks, the App is added as a bypass actor; if the owner prefers PRs, §6.1 is the switch.
 
 ### 6.1 Rejected alternatives
@@ -191,10 +193,10 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 
 **Recommended**: the bucket's main keys stay a mirror of master; an edit lives in an **overlay** until master holds it and the publish has run.
 
-1. Save writes `.edits/<path>/<edit_id>.md` (D3: the edit IS in the bucket). The overlay prefix starts with a dot, so the read route never serves it by key and the publish never deletes it (it mirrors only `ValidDocsPath` keys; lane L3 makes that explicit and tested).
+1. Save writes `.edits/<path>/<edit_id>.md` (D3: the edit IS in the bucket). The overlay prefix starts with a dot, so the read route never serves it by key. **The publish deletes it today** (`rsync --delete-unmatched-destination-objects`, §1.1): lane L3 adds an exclude of `^\.edits/` to `spl_docs_upload` (and the same skip to `do_docs_publish_none`) with a test, and the overlay does not ship before L3.
 2. `GET /v1/docs/<path>` serves the newest overlay of `<path>` whose row is `queued`, `pushing`, `pushed` or `conflict` (the editor's own text), else the main key. `tree.json` is merged with overlay-only (new) paths in the hub's answer.
-3. After the push, a NEW workflow `32_docs-publish.yml` (paths: `**/*.md`, minus the deny list) runs `do_publish_docs` for dev then prd: no build, no version mint. It needs no new secret (the env project SA already publishes).
-4. The worker, on its poll, reads `tree.json.sha`; when that sha contains the edit's commit (GitHub compare API: `ahead` or `identical`), the row goes `published` and the overlay is deleted.
+3. After the push, a NEW workflow `32_docs-publish.yml` (paths: the editable prefixes of §5 only; `**/*.md` would also match a `csi-spl-wui/**` push and race workflow 30's publish, g-381) runs `do_publish_docs` for dev then prd: no build, no version mint. It needs no new secret (the env project SA already publishes).
+4. The worker, on its poll, reads `tree.json.sha`; equal to the edit's commit, or containing it (GitHub compare API: `ahead` or `identical`), the row goes `published` and the overlay is deleted. One compare call per NEW `tree.json.sha`, cached, never one per poll (a-382); `sha == commit` alone would miss a commit landing on top.
 5. The dev target ref is not master, so on dev step 3 publishes `docs-edit-dev` only when lane L6 points dev's publish there; until then dev overlays stay until the 30-day sweep (O7).
 
 Why overlay, not overwrite: a WUI deploy of an older sha in flight republishes and would silently overwrite a just-saved edit; the overlay cannot be clobbered.
@@ -211,9 +213,9 @@ Why overlay, not overwrite: a WUI deploy of an older sha in flight republishes a
 **Recommended**: optimistic, with a 3-way merge; refuse only a real line conflict.
 
 - The editor opens a doc at `base` = the git blob sha of the text it shows (the publish adds `blob` per file to `tree.json`; an overlay records its own `base`). Save sends `If-Match: <base>`.
-- **Two users, one file, in the app**: both saves succeed (owner `15134701`: no heavy locking); each is its own row with its own base, pushed in FIFO order. The second push sees master moved and merges.
+- **Two users, one file, in the app**: both saves succeed (owner `15134701`: no heavy locking); each is its own row with its own base, pushed in strict FIFO order: B never uses A's unpushed overlay as its base; once A lands, B merges onto A's commit (a-382).
 - **Master moved** (a lane pushed the same file, or the first user's edit landed): the worker 3-way merges `base`, `head`, `edit` (line diff3).
-  - clean -> commit the merged text, author = the editor; the status says "merged with <sha7>".
+  - clean -> the §5 text gates run again on the MERGED bytes (two clean halves can join into a banned string; g-381): a hit is `conflict`, no ref update; else commit the merged text, author = the editor; the status says "merged with <sha7>".
   - conflict -> `conflict`; nothing pushed; the overlay stays; the editor gets a side-by-side (theirs / mine) view, edits, and saves again with `base = head`. Their text is never lost (overlay + row).
 - **Ref moved between read and update** (a push in the same second): the fast-forward update fails 422; the worker re-reads and retries (counts as transient).
 
@@ -228,7 +230,7 @@ Why overlay, not overwrite: a WUI deploy of an older sha in flight republishes a
 
 **Recommended**: a **GitHub App** installed on this one repo, permission `contents: write` (and `metadata: read`), nothing else.
 
-- **Tokens**: the hub signs a JWT with the App private key and exchanges it for a 1 h installation token per push batch. Nothing long-lived reaches GitHub.
+- **Tokens**: the hub signs a JWT with the App private key and exchanges it for a 1 h installation token, cached in memory for 50 min and never written to disk or a log (a-382). Nothing long-lived reaches GitHub.
 - **Secret**: the App private key, one Secret Manager secret per env project, named `spool-hub-github-app-key`, exposed to the hub as env var `SPOOL_GITHUB_APP_KEY` through the existing `secret_environment_variables` map. App id and installation id are not secret: cnf `env.docs.repo_edit.github_app_id` / `installation_id`. The key never enters git, cnf, terraform state or a log.
 - **Terraform**: step `030-cloud-run-hub` gains the secret container and the accessor grant to the hub runtime SA (no secret version: the value is put out of band). As the env's project SA, never the owner account.
 - **Out of band, named actions** (repo rule: nothing ad hoc): `do_put_github_app_key` (adds a secret version from a file the owner downloaded from GitHub, then shreds the file) and `do_rotate_github_app_key` (new key in GitHub, new version, hub roll, old key deleted in GitHub). Rotation yearly or on suspicion.
@@ -303,7 +305,9 @@ API:
 | App key missing or revoked | every push 401 -> `failed` (permanent) | ops alert; `do_put_github_app_key`; bulk retry |
 | master moved, clean merge | pushed as merged | none |
 | master moved, real conflict | `conflict`, nothing pushed | editor resolves (§8) |
-| CI red on the pushed doc commit | master red | editor and ops told; fixed by a new edit or a lane |
+| CI red caused by the pushed doc commit | master red | chip red, editor and ops told; fixed by a new edit or a lane |
+| CI red inherited from another push | master red already | ops note only; the chip stays `pushed` |
+| publish run without the L3 exclude | every overlay deleted | L3 ships before the overlay; its test is the gate |
 | hub instance dies mid-push | row stuck `pushing` | a `pushing` row older than 10 min returns to `queued`; before a new commit the worker checks whether head already holds a commit naming this `edit_id`, so a repeat never double-commits |
 | docs-publish workflow fails | overlay keeps serving the new text | workflow rerun; row stays `pushed` |
 | two hub instances | one holds the advisory lock | none |
@@ -318,7 +322,9 @@ Unit / module (`bash csi-spl-api/src/bash/tests/run-all-tests.sh`, store tests o
 - hygiene + secret gate: each rule hits; clean text passes; only new lines scanned.
 - author resolution: mapping row, history match, noreply fallback; message has no AI trailer (anchored grep `^(Co-Authored-By:|Claude-Session:)` = 0).
 - worker against a fake GitHub (httptest): unchanged base -> commit; moved + clean -> merged; moved + conflict -> `conflict`, no ref update; 5xx -> backoff; 401 -> `failed`; coalescing same author; never coalesce two authors; ref-moved 422 -> retry; stuck `pushing` reclaim without a double commit.
-- overlay read: overlay wins until `published`; publish never deletes `.edits/` (bash test on `do_publish_docs` provider none).
+- overlay read: overlay wins until `published`; publish never deletes `.edits/` (bash tests on `do_publish_docs` provider none and on the `spl_docs_upload` rsync argument list).
+- door: an agent token on `PUT /v1/docs/...` gets 403; a `demo_user` session gets 403; a workspace with the switch off gets 403.
+- merged text: a clean merge that forms a banned string goes `conflict`, no ref update.
 - RLS: a workspace reads only its own rows.
 
 Dev proof (live, `enabled` on dev only, target `docs-edit-dev`):
@@ -338,14 +344,14 @@ Prd proof (after the owner's go): one real edit to a doc under `csi-spl-doc/`, a
 |---|---|---|
 | L1 | rdb migration: 3 tables, RLS policies, isolation tests | S |
 | L2 | hub: `PUT /v1/docs`, gates (paths, size, rate, hygiene, secrets), overlay write/read, `tree.json` merge, edits API | M |
-| L3 | publish: `blob` per file in `tree.json`, `.edits/` never mirrored, workflow `32_docs-publish.yml` | S |
+| L3 | publish: `blob` per file in `tree.json`, rsync exclude of `^\.edits/` + its test, workflow `32_docs-publish.yml` on the editable prefixes | S |
 | L4 | hub worker: queue claim, GitHub App client (JWT, Git Data API, compare), 3-way merge, retries, coalescing, published sweep | L |
 | L5 | WUI: Edit button, editor, status chip, "My edits", conflict view, i18n x19 | M |
 | L6 | iac: secret container + accessor in 030, cnf keys, `do_put_github_app_key`, `do_rotate_github_app_key`; GitHub App creation is an owner step | S |
-| L7 | CI: skip heavy jobs of workflow 10 for `*.md`-only pushes (if O6 = yes) | S |
+| L7 | CI: a `.md`-only fast path in workflow 10 (hygiene + links run, builds skipped); prerequisite before prd (O6) | S |
 | L8 | dev proof, then prd proof (§12) | S |
 
-L1 -> L2 -> L4; L3, L5, L6 in parallel after L1; L8 last.
+L1 -> L2 -> L4; L3, L5, L6 in parallel after L1; L3 before any overlay reaches an env; L7 before prd; L8 last.
 
 ---
 
@@ -356,9 +362,10 @@ L1 -> L2 -> L4; L3, L5, L6 in parallel after L1; L8 last.
 - **O3. Author for a member with no history in this repo?** a) display name + a noreply address of the product domain (recommended: the repo is public) · b) the member's own sign-in email.
 - **O4. May agents edit Repo Docs?** a) no, members only in v0.1 (recommended: D5 needs a human author) · b) yes, authored as the agent's requester.
 - **O5. Delete and rename of repo docs from the app?** a) not in v0.1 (recommended) · b) yes.
-- **O6. Skip the heavy CI jobs for a `.md`-only push?** a) yes, lane L7 (recommended: one doc save would otherwise cost a full CI run) · b) no.
+- **O6. A `.md`-only fast path in workflow 10, required before prd?** a) yes, lane L7: hygiene and link checks still run, builds skipped (recommended by claude and agy: one doc save would otherwise cost a full CI run) · b) no, coalescing is enough (grok's reading: a risk, not a blocker).
 - **O7. Dev target**: a) a `docs-edit-dev` branch (recommended: dev never writes master) · b) master from dev as well.
 - **O8. Create the GitHub App** (an owner step on GitHub; the spool then stores its key with `do_put_github_app_key`): go?
+- **O9. How wide is the editable set?** a) v1 = `csi-spl-doc/**` + the root docs (recommended by claude and agy: ~500 of 574 docs, no module tree) · b) any published `.md` minus the deny list of §5 (grok: closest to "any md docs").
 
 ---
 
@@ -374,5 +381,6 @@ L1 -> L2 -> L4; L3, L5, L6 in parallel after L1; L8 last.
 | Version | Date | Author | Description |
 |---|---|---|---|
 | v0.1 | 2026-10-06 | c-380 | First draft for the panel (g-381, a-382): Q1-Q7 each with one recommendation and rejected alternatives, data model, sequence, failure modes, test plan, lanes, owner questions O1-O8. |
+| v0.2 | 2026-10-06 | c-380 | Panel consensus (`consensus.md`): queued-only coalescing; FIFO chaining; text gates re-run on merged bytes; member session only, agent token 403; corrected `docs.write` role fact and workflow 20 globs (deny-listed); v1 allow-list `csi-spl-doc/**` + root docs (O9 widening); workflow 32 on editable prefixes; one compare per new tree sha; rsync exclude of `.edits/` (found in consolidation: today's publish deletes it); `.md` fast path in workflow 10 before prd, no `[skip ci]`; inherited CI red is not the editor's failure; token cached in memory. |
 
-<!-- version: 0.1 · updated: 2026-10-06 -->
+<!-- version: 0.2 · updated: 2026-10-06 -->

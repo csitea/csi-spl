@@ -3,5 +3,8 @@
   "agentPushNotifEnabled": true,
   "skillOverrides": {
     "auto-mode-setup": "off"
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions"
   }
 }

@@ -278,6 +278,27 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		ActorHum: hum, Action: AuditCreate}); err != nil {
 		t.Fatal(err)
 	}
+	// repo_doc_edits, repo_doc_authors, repo_doc_author_notices (rdb 0142,
+	// spec 075 repo-edit T02): one queued edit of the seeded member, their
+	// git identity and its consent. No store API yet (T06), so rows under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		email := hum + "@example.com"
+		if _, err := tx.Exec(ctx, `INSERT INTO repo_doc_edits (edit_id, tenant_id, human_id, actor_kind, path, base_blob,
+			overlay_key, text_sha256, author_name, author_email, author_source, status, next_try_at, first_saved_at)
+			VALUES ($1::uuid, $2, $3, 'member', 'README.md', 'blob0', '.edits/README.md/' || $1 || '.md', 'sha0',
+			'FirstName LastName', $4, 'signin', 'queued', $5, $5)`, uuid4(), s.tenant, hum, email, now); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO repo_doc_authors (tenant_id, human_id, git_name, git_email)
+			VALUES ($1, $2, 'FirstName LastName', $3)`, s.tenant, hum, email); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO repo_doc_author_notices (tenant_id, human_id, git_name, git_email)
+			VALUES ($1, $2, 'FirstName LastName', $3)`, s.tenant, hum, email)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

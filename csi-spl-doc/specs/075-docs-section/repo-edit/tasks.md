@@ -53,13 +53,13 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
 
 ### Phase 2: foundations (parallel)
 
-- [ ] T01 **iac: secret slot + cnf keys** (S).
+- [x] T01 **iac: secret slot + cnf keys** (S). Done `b6dec7e1` + `7f7d1f76` (code; the 030 apply on dev/prd is not verified here).
   - **Build**: in `iac/src/terraform/030-cloud-run-hub/`, the secret container `spool-hub-github-app-key` (no version) and `secretAccessor` for the hub runtime SA, injected as `SPOOL_GITHUB_APP_KEY` only when cnf `docs.repo_edit.inject` is `"true"` (after a version exists). cnf block `env.docs.repo_edit` in `cnf/all.env.yaml`: `enabled: false`, `inject: "false"`, `github_app_id`, `installation_id`, `github_api`, `deny` (the 13 globs of spec §5.2), `coalesce_after: 120s`, `coalesce_max: 10m`, rate caps (member 30/h, agent 60/h, workspace 100/day, env 300/day; `dev.env.yaml` env cap 50), `min_member_age: 24h`, `blocked_workspaces: []`; the rendered tfvars; the hub env passthrough of these keys.
   - **Owns**: those cnf keys, 030's new secret resources, the rendered tfvars.
   - **Done-proof**: tpl-gen with no diff, iac suite green, `make do-tf-plan` for 030 on dev and prd shows only the new secret + binding (owner's go for the apply).
   - **Depends**: none.
 
-- [ ] T02 **rdb migration** `rdb/0134_repo_doc_edits.sql` (S). Take the next free number on the sha you build on (`ls csi-spl-rdb/src/sql/postgres/spool-hub | tail -1` -> `0133_...` on `7f67bb604`).
+- [x] T02 **rdb migration** `rdb/0142_repo_doc_edits.sql` (S; 0134 was taken). Done (c-413): migration + `seedTenantAll` seeds, hub-pg suite green. Take the next free number on the sha you build on (`ls csi-spl-rdb/src/sql/postgres/spool-hub | tail -1` -> `0133_...` on `7f67bb604`).
   - **Build**: the four tables of spec §10 (`repo_doc_edits`, `repo_doc_authors`, `repo_doc_author_notices`, `repo_doc_known_authors`); ENABLE + FORCE RLS with the `NULLIF` `tenant_scope` + `operator_scope` on the three tenant tables (`repo_doc_known_authors` is hub-wide, no tenant column); grants for the runtime role; in the SAME commit, seeds in `seedTenantAll` (`api/internal/store/crosstenant_test.go`).
   - **Owns**: that `.sql` and that seed.
   - **Done-proof**: on Postgres: `TestRLSPoliciesFailClosed`, `TestCrossTenantEveryTable`, the migration catalogue gate; applied on dev with `ENV=dev DRY_RUN=0 ./run -a do_spl_db_bootstrap`, prd command sent to the orchestrator; `information_schema` shows the tables on both envs.

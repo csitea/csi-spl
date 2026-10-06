@@ -220,3 +220,36 @@ off trunk).
 - **Q3** Which 10x is planned: one bigger workspace (10x-A), or more
   workspaces (10x-B)? And is a DB tier change acceptable as a separate cost
   line?
+
+## 8. Addendum after r3 (c-371, `70d3386f`)
+
+r3 proved 2.3.1 locally (pg 16.15, synthetic data, n=1, plan shape only). A
+NOLOGIN NOBYPASSRLS role with a role-scoped `USING (true)` policy owns the
+SECURITY DEFINER function, and the GIN serves `@@` inside it. **S1 needs no
+BYPASSRLS.** U10 is now half closed: Cloud SQL still has to show the same
+plan (r3's rollout step 0, on dev). r3's catalogue also answers my prd read
+4: `bit &` is not LEAKPROOF, so the 0135 fingerprint could never have served
+as an index condition either.
+
+I agree with r3's `gin (tenant_id, search_tsv)` via `btree_gin`. It is
+exactly what 10x-B needs (1.1). Two catches for spec.md:
+
+1. **CONCURRENTLY cannot run in our migrate path.** `store.Migrate` applies
+   every file inside `pgx.BeginFunc` (`grep -n BeginFunc
+   csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go` -> 89), and
+   `CREATE INDEX CONCURRENTLY` refuses to run in a transaction. 0122 says the
+   same ("Inside the migrate transaction (no CONCURRENTLY)"). If the dev write
+   stall is too long, the spec needs either a migrate-runner change (a
+   per-file no-transaction marker) or a named iac action that builds the
+   index outside the runner. Either one is its own task. It is not a flag on
+   the migration.
+2. **The hub login must never be a member of `spool_search_reader`.** The
+   `USING (true)` policy targets that role. A hub login granted it (or able
+   to `SET ROLE` to it) would read every tenant's rows directly, outside the
+   function. r3's T4 catalogue pin should assert
+   `NOT pg_has_role(<hub login>, 'spool_search_reader', 'MEMBER')`, and T5
+   should plant that grant once on a throwaway branch.
+
+`btree_gin` must be creatable by the migrate login on Cloud SQL. I believe,
+unchecked, that it is a trusted extension (pg 13+), like `unaccent` in 0048.
+Rollout step 0 on dev proves it at no extra cost.

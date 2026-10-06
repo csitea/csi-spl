@@ -1953,6 +1953,7 @@
     "region": "Kalendri meeldetuletused"
   },
   "calendar_event": {
+    "drag_conflict": "Keegi teine muutis vahepeal seda sündmust. Nüüd on näha tema versioon.",
     "new": "Uus sündmus",
     "new_title": "Uus sündmus",
     "edit_title": "Muuda sündmust",

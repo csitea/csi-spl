@@ -1953,6 +1953,7 @@
     "region": "Kalenderpåminnelser"
   },
   "calendar_event": {
+    "drag_conflict": "Någon annan ändrade händelsen under tiden. Deras version visas nu.",
     "new": "Ny händelse",
     "new_title": "Ny händelse",
     "edit_title": "Redigera händelse",

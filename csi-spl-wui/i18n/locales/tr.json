@@ -1953,6 +1953,7 @@
     "region": "Takvim hatırlatıcıları"
   },
   "calendar_event": {
+    "drag_conflict": "Bu etkinliği bu arada başka biri değiştirdi. Şimdi onun sürümü gösteriliyor.",
     "new": "Yeni etkinlik",
     "new_title": "Yeni etkinlik",
     "edit_title": "Etkinliği düzenle",

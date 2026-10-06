@@ -1953,6 +1953,7 @@
     "region": "Pripomienky kalendára"
   },
   "calendar_event": {
+    "drag_conflict": "Niekto iný medzitým zmenil túto udalosť. Teraz sa zobrazuje jeho verzia.",
     "new": "Nová udalosť",
     "new_title": "Nová udalosť",
     "edit_title": "Upraviť udalosť",

@@ -1953,6 +1953,7 @@
     "region": "Kalenterimuistutukset"
   },
   "calendar_event": {
+    "drag_conflict": "Joku muu muutti tätä tapahtumaa sillä välin. Nyt näkyy hänen versionsa.",
     "new": "Uusi tapahtuma",
     "new_title": "Uusi tapahtuma",
     "edit_title": "Muokkaa tapahtumaa",

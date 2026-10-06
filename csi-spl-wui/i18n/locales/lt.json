@@ -1953,6 +1953,7 @@
     "region": "Kalendoriaus priminimai"
   },
   "calendar_event": {
+    "drag_conflict": "Kažkas kitas tuo metu pakeitė šį įvykį. Dabar rodoma jo versija.",
     "new": "Naujas įvykis",
     "new_title": "Naujas įvykis",
     "edit_title": "Redaguoti įvykį",

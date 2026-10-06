@@ -1953,6 +1953,7 @@
     "region": "Kalendāra atgādinājumi"
   },
   "calendar_event": {
+    "drag_conflict": "Kāds cits pa to laiku mainīja šo notikumu. Tagad redzama viņa versija.",
     "new": "Jauns notikums",
     "new_title": "Jauns notikums",
     "edit_title": "Rediģēt notikumu",

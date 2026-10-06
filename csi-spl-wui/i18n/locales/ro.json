@@ -1953,6 +1953,7 @@
     "region": "Mementouri din calendar"
   },
   "calendar_event": {
+    "drag_conflict": "Altcineva a modificat între timp acest eveniment. Acum este afișată versiunea sa.",
     "new": "Eveniment nou",
     "new_title": "Eveniment nou",
     "edit_title": "Editează evenimentul",

@@ -1953,6 +1953,7 @@
     "region": "Przypomnienia kalendarza"
   },
   "calendar_event": {
+    "drag_conflict": "Ktoś inny w międzyczasie zmienił to wydarzenie. Teraz widać jego wersję.",
     "new": "Nowe wydarzenie",
     "new_title": "Nowe wydarzenie",
     "edit_title": "Edytuj wydarzenie",

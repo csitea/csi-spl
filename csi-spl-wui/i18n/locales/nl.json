@@ -1953,6 +1953,7 @@
     "region": "Agendaherinneringen"
   },
   "calendar_event": {
+    "drag_conflict": "Iemand anders heeft deze afspraak intussen gewijzigd. Hun versie wordt nu getoond.",
     "new": "Nieuwe afspraak",
     "new_title": "Nieuwe afspraak",
     "edit_title": "Afspraak bewerken",

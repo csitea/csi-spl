@@ -3,8 +3,10 @@ package hubclient
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -64,8 +66,8 @@ func TestCollectHost(t *testing.T) {
 	}
 	wantSys := wire.HostSystem{Hostname: "box-a", Timezone: "Europe/Helsinki", BootAt: time.Unix(1759500000, 0).UTC().Format(time.RFC3339),
 		CPUs: 8, CPUModel: "AMD EPYC 7B13", Load: "0.12 0.20 0.30", MemTotalMB: 16000, MemAvailMB: 8000,
-		SwapTotalMB: 2000, SwapFreeMB: 1000, State: "degraded"}
-	if h.System == nil || *h.System != wantSys {
+		SwapTotalMB: mib(2000), SwapFreeMB: mib(1000), State: "degraded"}
+	if h.System == nil || !reflect.DeepEqual(*h.System, wantSys) {
 		t.Fatalf("system = %+v\nwant %+v", h.System, wantSys)
 	}
 	wantNet := wire.HostNetwork{IPs: []string{"10.0.0.5", "fd00::5"}, Gateway: "10.0.0.1", DNS: []string{"10.0.0.2", "1.1.1.1"}}
@@ -75,6 +77,74 @@ func TestCollectHost(t *testing.T) {
 	wantRT := map[string]string{"go": "1.25.1", "node": "22.1.0", "python": "3.13.5", "git": "2.47.3", "docker": "27.3.1", "claude": "2.1.3"}
 	if !reflect.DeepEqual(h.Runtimes, wantRT) {
 		t.Fatalf("runtimes = %v, want %v", h.Runtimes, wantRT)
+	}
+}
+
+func mib(n int64) *int64 { return &n }
+
+// t1 950d5562 (sat): a box without swap says 0, not "not read", and the agent
+// CLIs are probed as the agent user first - the sidecar's user has none of
+// them - falling back to the sidecar's own PATH.
+func TestCollectHostNoSwapAgentUser(t *testing.T) {
+	files := map[string]string{"/proc/meminfo": "MemTotal: 65848876 kB\nMemAvailable: 30000000 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\n"}
+	env := fakeHostEnv(files, map[string]string{"go": "go version go1.25.1 linux/amd64", "qwen": "0.9.0"})
+	var mu sync.Mutex // the probes run in parallel
+	var asked []string
+	env.asAgent = func(_ context.Context, argv []string) (string, error) {
+		mu.Lock()
+		asked = append(asked, argv[0])
+		mu.Unlock()
+		switch argv[0] {
+		case "claude":
+			return "2.1.291 (Claude Code)", nil
+		case "grok":
+			return "grok 1.4.0", nil
+		}
+		return "", errors.New("sudo: command not found")
+	}
+	h := collectHost(context.Background(), env)
+	if h.System == nil || h.System.SwapTotalMB == nil || *h.System.SwapTotalMB != 0 || h.System.SwapFreeMB == nil || *h.System.SwapFreeMB != 0 {
+		t.Fatalf("swap 0 not reported as 0: %+v", h.System)
+	}
+	want := map[string]string{"go": "1.25.1", "claude": "2.1.291", "grok": "1.4.0", "qwen": "0.9.0"}
+	if !reflect.DeepEqual(h.Runtimes, want) {
+		t.Fatalf("runtimes = %v, want %v", h.Runtimes, want)
+	}
+	for _, a := range asked {
+		if a == "go" || a == "git" || a == "docker" {
+			t.Fatalf("a system run-time was probed as the agent user: %v", asked)
+		}
+	}
+	// no SwapTotal line at all (not Linux /proc): not read, so nil
+	h = collectHost(context.Background(), fakeHostEnv(nil, nil))
+	if h.System.SwapTotalMB != nil || h.System.SwapFreeMB != nil {
+		t.Fatalf("unread swap reported: %+v", h.System)
+	}
+}
+
+// The agent user: $SPOOL_AGENT_USER, else the satellite's box.env under the
+// fleet root (a desk sidecar is not started with it), else none.
+func TestAgentUser(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "box.env"), []byte("SPOOL_DESK_BOX=sat\nSPOOL_AGENT_USER=agent-u\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SPOOL_AGENT_USER", "")
+	if u := AgentUser(root); u != "agent-u" {
+		t.Fatalf("box.env agent user = %q", u)
+	}
+	if u := AgentUser(t.TempDir()); u != "" {
+		t.Fatalf("no box.env: %q", u)
+	}
+	if u := AgentUser(""); u != "" {
+		t.Fatalf("no fleet root: %q", u)
+	}
+	t.Setenv("SPOOL_AGENT_USER", "env-u")
+	if u := AgentUser(root); u != "env-u" {
+		t.Fatalf("env agent user = %q", u)
+	}
+	if agentProbe("") != nil {
+		t.Fatal("a probe without an agent user")
 	}
 }
 

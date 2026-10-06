@@ -224,9 +224,9 @@ type viewBox struct {
 	// spec 061 3.6), agent id -> RFC3339; omitted when no agent has one.
 	// A DM with a reused id draws "new holder since" at that time.
 	SeatedAt map[string]string `json:"seated_at,omitempty"`
-	// The box's fact sheet from its last hello (box_facts.go), collected by
-	// the box at FactsReportedAt; every key is omitted for a box that has
-	// not sent one to this hub ("not reported yet").
+	// The box's fact sheet from its last hello that carried one (box_facts.go,
+	// kept in rdb 0140), collected by the box at FactsReportedAt; every key is
+	// omitted for a box that has never sent one ("not reported yet").
 	OS              *wire.HostOS      `json:"os,omitempty"`
 	Runtimes        map[string]string `json:"runtimes,omitempty"`
 	System          *wire.HostSystem  `json:"system,omitempty"`
@@ -270,6 +270,7 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		online[i] = s.boxOnlineLocked(t.ID, b, now)
 	}
 	s.mu.Unlock()
+	s.loadHostFacts(r.Context(), t.ID)
 	out := make([]viewBox, 0, len(rs.Boxes))
 	for i, b := range rs.Boxes {
 		v := viewBox{BoxID: b.BoxID, PubKey: base64.StdEncoding.EncodeToString(b.PubKey), Revoked: b.Revoked, Agents: b.Agents, Online: online[i]}

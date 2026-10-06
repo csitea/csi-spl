@@ -755,7 +755,8 @@ type HostOS struct {
 
 // HostSystem is the machine as of BoxHost.ReportedAt: Load is the 1/5/15
 // minute load average ("0.12 0.20 0.30"), State `systemctl
-// is-system-running`, the memory figures MiB. Zero / empty = not read.
+// is-system-running`, the memory figures MiB. Zero / empty = not read,
+// except swap: nil = not read, 0 = the box has no swap (a GCP VM).
 type HostSystem struct {
 	Hostname    string `json:"hostname,omitempty"`
 	Timezone    string `json:"timezone,omitempty"`
@@ -765,8 +766,8 @@ type HostSystem struct {
 	Load        string `json:"load,omitempty"`
 	MemTotalMB  int64  `json:"mem_total_mb,omitempty"`
 	MemAvailMB  int64  `json:"mem_avail_mb,omitempty"`
-	SwapTotalMB int64  `json:"swap_total_mb,omitempty"`
-	SwapFreeMB  int64  `json:"swap_free_mb,omitempty"`
+	SwapTotalMB *int64 `json:"swap_total_mb,omitempty"`
+	SwapFreeMB  *int64 `json:"swap_free_mb,omitempty"`
 	State       string `json:"state,omitempty"`
 }
 

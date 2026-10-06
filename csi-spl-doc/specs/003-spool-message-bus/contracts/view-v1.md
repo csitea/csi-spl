@@ -168,17 +168,23 @@ The §4.4 view `env` carries no `sig` since DB payload cut 4.
 fact sheet (t1 f77c9f87, d1d9bcd3: what a Unix admin reads first when
 troubleshooting a box), sent in the `host` field of its role=box hello. The
 box collects it at most once a day (owner: "once per day - no more often"),
-keeps it in `$SPOOL_ROOT/.hub/host-facts.json` and re-sends that sheet on
+keeps it in `$SPOOL_ROOT/.hub/host-facts-v2.json` and re-sends that sheet on
 every hello; `facts_reported_at` is when it was collected, so `load`,
-`mem_avail_mb`, `swap_free_mb` and `state` are snapshots of that moment.
+`mem_avail_mb`, `swap_free_mb` and `state` are snapshots of that moment. The
+hub stores the last sheet per box (rdb 0140), so a restarted or newly rolled
+hub serves it before the box redials; a hello without a sheet keeps it.
 
 - `os`: `name`, `version`, `pretty` (os-release), `kernel`, `arch`.
 - `runtimes`: run-time or CLI name (`go`, `node`, `python`, `git`, `spool`,
   `docker`, `claude`, `grok`, `qwen`, `agy`) to version; one the box lacks is
-  absent. `spool` is the version of the box's running spool binary.
+  absent. `spool` is the version of the box's running spool binary. The agent
+  CLIs (`claude`, `grok`, `qwen`, `agy`) are probed as the box's agent user
+  (`SPOOL_AGENT_USER`, else its `box.env`) through `sudo -n`, then as the
+  sidecar's own user.
 - `system`: `hostname`, `timezone`, `boot_at`, `cpus`, `cpu_model`, `load`
   (1/5/15 min), `mem_total_mb`, `mem_avail_mb`, `swap_total_mb`,
-  `swap_free_mb` (MiB), `state` (`systemctl is-system-running`).
+  `swap_free_mb` (MiB; `0` = no swap, absent = not read), `state`
+  (`systemctl is-system-running`).
 - `network`: `ips` (the box's own addresses, primary first; no public-IP
   lookup), `gateway`, `dns`.
 

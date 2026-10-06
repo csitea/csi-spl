@@ -31,7 +31,7 @@ declare -A SPEC_PUBLIC=(
 NEVER_COLS="email msg env env_sig files typed_by ref_task_id mirror_of root_pubkey"
 NEVER_TABLES="password_credentials human_identities human_keys tenant_invites email_verification_tokens
   password_reset_tokens agent_join_tokens pins pins_history operator_audit human_events flow_events
-  wui_perf_samples member_activity boxes box_stats roster deliveries"
+  wui_perf_samples member_activity boxes box_stats box_facts roster deliveries"
 
 files=("$DIR"/allow-list.v*.yaml)
 [[ -f "${files[0]}" ]] && pass "${#files[@]} allow-list file(s) found" || { fail "no allow-list under $DIR"; files=(); }

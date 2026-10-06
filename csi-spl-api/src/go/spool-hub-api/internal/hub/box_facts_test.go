@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"github.com/rs/zerolog"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -85,7 +91,7 @@ func TestBoxFactsOnRoster(t *testing.T) {
 		OS:         &wire.HostOS{Name: "Debian GNU/Linux", Version: "13", Pretty: "Debian GNU/Linux 13 (trixie)", Kernel: "6.12.111+deb13-cloud-amd64", Arch: "amd64"},
 		Runtimes:   map[string]string{"go": "1.25.1", "node": "22.1.0", "claude": "2.1.3", "spool": "8.9.6"},
 		System: &wire.HostSystem{Hostname: "box-a", Timezone: "Europe/Helsinki", BootAt: "2026-10-02T13:58:04Z", CPUs: 16,
-			CPUModel: "AMD EPYC 7B12", Load: "0.12 0.20 0.30", MemTotalMB: 64305, MemAvailMB: 40756, SwapTotalMB: 2048, SwapFreeMB: 1024, State: "running"},
+			CPUModel: "AMD EPYC 7B12", Load: "0.12 0.20 0.30", MemTotalMB: 64305, MemAvailMB: 40756, SwapTotalMB: mb(2048), SwapFreeMB: mb(1024), State: "running"},
 		Network: &wire.HostNetwork{IPs: []string{"10.0.0.2", "fd00::2"}, Gateway: "10.0.0.1", DNS: []string{"169.254.169.254"}},
 	}
 	c := helloHost(t, e, tid, a, host, "c-001")
@@ -99,7 +105,7 @@ func TestBoxFactsOnRoster(t *testing.T) {
 	if fmt.Sprint(got.Runtimes) != fmt.Sprint(host.Runtimes) {
 		t.Fatalf("runtimes = %v, want %v", got.Runtimes, host.Runtimes)
 	}
-	if got.System == nil || *got.System != *host.System {
+	if got.System == nil || !reflect.DeepEqual(*got.System, *host.System) {
 		t.Fatalf("system = %+v, want %+v", got.System, host.System)
 	}
 	if got.Network == nil || fmt.Sprint(*got.Network) != fmt.Sprint(*host.Network) {
@@ -133,11 +139,80 @@ func TestBoxFactsOnRoster(t *testing.T) {
 		t.Fatal("facts dropped on disconnect")
 	}
 
-	// Last hello wins: a redial without host (a downgraded binary) clears them.
+	// t1 950d5562: a redial without host (an older binary, a one-shot sync)
+	// keeps the last sheet; the next hello with one replaces it.
 	connectBox(t, e, tid, a, "c-001")
-	if got := rosterBoxes(t, e, tid)["box-a"]; got.OS != nil || got.Runtimes != nil || got.System != nil || got.FactsReportedAt != nil {
-		t.Fatalf("a hello without host left the old facts: %+v", got)
+	if got := rosterBoxes(t, e, tid)["box-a"]; got.OS == nil || got.FactsReportedAt == nil {
+		t.Fatalf("a hello without host cleared the facts: %+v", got)
 	}
+	newer := *host
+	newer.ReportedAt, newer.OS = "2026-10-05T12:00:00Z", &wire.HostOS{Name: "Debian GNU/Linux", Version: "14"}
+	helloHost(t, e, tid, a, &newer, "c-001")
+	if got := rosterBoxes(t, e, tid)["box-a"]; got.OS == nil || got.OS.Version != "14" || *got.FactsReportedAt != "2026-10-05T12:00:00Z" {
+		t.Fatalf("a newer sheet did not win: %+v", got)
+	}
+}
+
+func mb(n int64) *int64 { return &n }
+
+// t1 950d5562 ("the sat box has a lot of box info unreported"): the facts
+// were hub memory only, and a Cloud Run roll's NEW revision - which answers
+// every fresh roster read - said "not reported yet" until the box redialled.
+// The sheet is stored (rdb 0140): a second hub process on the same store,
+// which no box has said hello to, serves it. A box without swap reads 0.
+func TestBoxFactsSurviveHubRestart(t *testing.T) {
+	e := newEnv(t, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorOff })
+	tid, _ := e.tenant()
+	a := e.box(tid, "box-a", "c-001")
+	e.pin(tid, a)
+	host := &wire.BoxHost{ReportedAt: "2026-10-05T19:10:22Z",
+		OS:       &wire.HostOS{Name: "Debian GNU/Linux", Version: "13"},
+		Runtimes: map[string]string{"go": "1.25.14", "claude": "2.1.291"},
+		System:   &wire.HostSystem{Hostname: "box-a", CPUs: 16, MemTotalMB: 64305, SwapTotalMB: mb(0), SwapFreeMB: mb(0)},
+		Network:  &wire.HostNetwork{IPs: []string{"10.80.0.2"}, Gateway: "10.80.0.1"}}
+	helloHost(t, e, tid, a, host, "c-001")
+	if s := rosterBoxes(t, e, tid)["box-a"].System; s == nil || s.SwapTotalMB == nil || *s.SwapTotalMB != 0 {
+		t.Fatalf("swap 0 dropped: %+v", s)
+	}
+
+	next := secondHub(t, e, func(o *hub.Options) { o.ViewDoor = hub.ViewDoorOff })
+	got := rosterBoxes(t, next, tid)["box-a"]
+	if got.FactsReportedAt == nil || *got.FactsReportedAt != "2026-10-05T19:10:22Z" {
+		t.Fatalf("a fresh hub lost the facts: %+v", got)
+	}
+	if got.OS == nil || *got.OS != *host.OS || !reflect.DeepEqual(got.Runtimes, host.Runtimes) ||
+		got.System == nil || !reflect.DeepEqual(*got.System, *host.System) ||
+		got.Network == nil || !reflect.DeepEqual(*got.Network, *host.Network) {
+		t.Fatalf("a fresh hub served %+v", got)
+	}
+}
+
+// secondHub is another hub process on e's store (a new Cloud Run revision),
+// as an env whose requests reach only it.
+func secondHub(t *testing.T, e *env, mut ...func(*hub.Options)) *env {
+	t.Helper()
+	o := hub.Options{
+		Store: e.st, Blob: blob.Dir{Root: e.blobs}, Log: zerolog.Nop(),
+		TenantHostPattern: "{tenant}" + domain, HelloSkew: 300 * time.Second, HelloTimeout: 2 * time.Second,
+		UploadTokenTTL: 5 * time.Minute, QueueTTL: 7 * 24 * time.Hour, QueueMaxPerBox: 1000,
+		RetentionAlerts: 7 * 24 * time.Hour, RetentionChannels: 30 * 24 * time.Hour, Version: "test-next",
+	}
+	for _, m := range mut {
+		m(&o)
+	}
+	srv, err := hub.New(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := &env{t: t, st: e.st, srv: srv, ts: httptest.NewServer(srv.Handler()), blobs: e.blobs}
+	t.Cleanup(func() { srv.Shutdown(); n.ts.Close() })
+	addr := n.ts.Listener.Addr().String()
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+	n.client = &http.Client{Transport: tr}
+	return n
 }
 
 // The host report is untrusted: an oversized or hostile field is cut, never
@@ -166,7 +241,7 @@ func TestBoxFactsHostileCut(t *testing.T) {
 	}, Runtimes: rt,
 		ReportedAt: "2999-01-01T00:00:00Z", // in the future: dated by the hello instead
 		System: &wire.HostSystem{Hostname: "box\x1b[31m-a", BootAt: "2999-01-01T00:00:00Z", CPUs: -4,
-			MemTotalMB: -1, MemAvailMB: 1 << 50, SwapTotalMB: 512, Load: strings.Repeat("9 ", 1000)},
+			MemTotalMB: -1, MemAvailMB: 1 << 50, SwapTotalMB: mb(512), SwapFreeMB: mb(-5), Load: strings.Repeat("9 ", 1000)},
 		Network: &wire.HostNetwork{
 			IPs:     append([]string{"not-an-ip", "10.0.0.1; rm -rf /", "::ffff:10.0.0.9"}, ips(20)...),
 			Gateway: "999.1.1.1",
@@ -195,7 +270,7 @@ func TestBoxFactsHostileCut(t *testing.T) {
 	}
 	s := got.System
 	if s == nil || s.Hostname != "box[31m-a" || s.BootAt != "" || s.CPUs != 0 || s.MemTotalMB != 0 || s.MemAvailMB != 0 ||
-		s.SwapTotalMB != 512 || s.Load == "" || len(s.Load) > 64 {
+		s.SwapTotalMB == nil || *s.SwapTotalMB != 512 || s.SwapFreeMB != nil || s.Load == "" || len(s.Load) > 64 {
 		t.Fatalf("system not cut: %+v", s)
 	}
 	n := got.Network

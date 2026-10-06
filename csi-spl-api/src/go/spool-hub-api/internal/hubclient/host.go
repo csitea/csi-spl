@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -37,20 +38,24 @@ const hostProbeTimeout = 3 * time.Second
 const maxHostIPs = 8
 
 // hostProbes is every run-time the sheet reports and the command that prints
-// its version. One the box does not have is left out.
+// its version. One the box does not have is left out. An agent CLI (agent)
+// is probed as the box's agent user first: the agents run as that user
+// (SPOOL_AGENT_USER), and its CLIs sit in its own ~/.local/bin, which the
+// sidecar's user cannot see (t1 950d5562: sat reported none of them).
 var hostProbes = []struct {
-	name string
-	argv []string
+	name  string
+	argv  []string
+	agent bool
 }{
-	{"go", []string{"go", "version"}},
-	{"node", []string{"node", "--version"}},
-	{"python", []string{"python3", "--version"}},
-	{"git", []string{"git", "--version"}},
-	{"docker", []string{"docker", "--version"}},
-	{"claude", []string{"claude", "--version"}},
-	{"grok", []string{"grok", "--version"}},
-	{"qwen", []string{"qwen", "--version"}},
-	{"agy", []string{"agy", "--version"}},
+	{"go", []string{"go", "version"}, false},
+	{"node", []string{"node", "--version"}, false},
+	{"python", []string{"python3", "--version"}, false},
+	{"git", []string{"git", "--version"}, false},
+	{"docker", []string{"docker", "--version"}, false},
+	{"claude", []string{"claude", "--version"}, true},
+	{"grok", []string{"grok", "--version"}, true},
+	{"qwen", []string{"qwen", "--version"}, true},
+	{"agy", []string{"agy", "--version"}, true},
 }
 
 // versionRe is the first dotted version in a --version line:
@@ -62,8 +67,11 @@ var versionRe = regexp.MustCompile(`\d+(\.\d+)+([-+][0-9A-Za-z.]+)?`)
 type hostRunner func(ctx context.Context, argv []string) (string, error)
 
 // hostEnv is everything the collector reads, so a test can stand in for it.
+// asAgent runs a probe as the box's agent user; nil = no such user, or the
+// sidecar already is it.
 type hostEnv struct {
 	run      hostRunner
+	asAgent  hostRunner
 	read     func(string) ([]byte, error)
 	readlink func(string) (string, error)
 	hostname func() (string, error)
@@ -73,17 +81,18 @@ type hostEnv struct {
 	cpus     int
 }
 
-func liveHostEnv() hostEnv {
-	return hostEnv{run: runProbe, read: os.ReadFile, readlink: os.Readlink, hostname: os.Hostname,
-		ips: localIPs, goos: runtime.GOOS, arch: runtime.GOARCH, cpus: runtime.NumCPU()}
+func liveHostEnv(agentUser string) hostEnv {
+	return hostEnv{run: runProbe, asAgent: agentProbe(agentUser), read: os.ReadFile, readlink: os.Readlink,
+		hostname: os.Hostname, ips: localIPs, goos: runtime.GOOS, arch: runtime.GOARCH, cpus: runtime.NumCPU()}
 }
 
 // HostFacts answers the production Client.Host: the sheet kept in path,
 // collected again only once it is hostEvery old. spoolVersion is this
 // binary's own version, stamped into runtimes on every hello (an upgrade
-// shows at once without a new collection).
-func HostFacts(path, spoolVersion string) func(context.Context) *wire.BoxHost {
-	env := liveHostEnv()
+// shows at once without a new collection). agentUser is the box's agent
+// user ("" = none), whose agent CLIs the sheet reports.
+func HostFacts(path, spoolVersion, agentUser string) func(context.Context) *wire.BoxHost {
+	env := liveHostEnv(agentUser)
 	s := &hostSheet{path: path, version: spoolVersion, now: time.Now,
 		collect: func(ctx context.Context) *wire.BoxHost { return collectHost(ctx, env) }}
 	return s.get
@@ -155,6 +164,13 @@ func collectHost(ctx context.Context, env hostEnv) *wire.BoxHost {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			if p.agent && env.asAgent != nil {
+				if out, err := probeWith(ctx, env.asAgent, p.argv); err == nil {
+					if vers[i] = versionRe.FindString(out); vers[i] != "" {
+						return
+					}
+				}
+			}
 			if out, err := probe(ctx, env, p.argv...); err == nil {
 				vers[i] = versionRe.FindString(out)
 			}
@@ -175,9 +191,13 @@ func collectHost(ctx context.Context, env hostEnv) *wire.BoxHost {
 
 // probe runs one command under hostProbeTimeout, its output trimmed.
 func probe(ctx context.Context, env hostEnv, argv ...string) (string, error) {
+	return probeWith(ctx, env.run, argv)
+}
+
+func probeWith(ctx context.Context, run hostRunner, argv []string) (string, error) {
 	pctx, cancel := context.WithTimeout(ctx, hostProbeTimeout)
 	defer cancel()
-	out, err := env.run(pctx, argv)
+	out, err := run(pctx, argv)
 	return strings.TrimSpace(out), err
 }
 
@@ -244,7 +264,8 @@ func hostSystem(ctx context.Context, env hostEnv) *wire.HostSystem {
 		}
 		mem := parseKV(fileText(env, "/proc/meminfo"), ":")
 		s.MemTotalMB, s.MemAvailMB = kibToMiB(mem["MemTotal"]), kibToMiB(mem["MemAvailable"])
-		s.SwapTotalMB, s.SwapFreeMB = kibToMiB(mem["SwapTotal"]), kibToMiB(mem["SwapFree"])
+		// a box without swap reports 0, not "not read" (the hub keeps a 0)
+		s.SwapTotalMB, s.SwapFreeMB = meminfoMiB(mem, "SwapTotal"), meminfoMiB(mem, "SwapFree")
 		if out, _ := probe(ctx, env, "systemctl", "is-system-running"); out != "" {
 			s.State = out // degraded exits 1 and still prints its state
 		}
@@ -409,6 +430,20 @@ func kibToMiB(v string) int64 {
 	return n >> 10
 }
 
+// meminfoMiB is one meminfo key as MiB, nil when the key is absent or
+// unreadable (a 0 stays a 0).
+func meminfoMiB(mem map[string]string, key string) *int64 {
+	f := strings.Fields(mem[key])
+	if len(f) == 0 {
+		return nil
+	}
+	if _, err := strconv.ParseInt(f[0], 10, 64); err != nil {
+		return nil
+	}
+	n := kibToMiB(mem[key])
+	return &n
+}
+
 func firstOf(vs ...string) string {
 	for _, v := range vs {
 		if v != "" {
@@ -439,4 +474,58 @@ func runProbe(ctx context.Context, argv []string) (string, error) {
 	out, err := cmd.Output()
 	line, _, _ := strings.Cut(string(out), "\n")
 	return line, err
+}
+
+// agentProbe runs a probe as agentUser through a non-interactive sudo (-n:
+// never a password prompt; a box without the grant just gets an error), from
+// the user's ~/.local/bin (where the agent CLIs install; its home may be
+// closed to the sidecar's user), else from sudo's own PATH. nil when there
+// is no agent user, it is the sidecar's own user, or the box has no sudo.
+func agentProbe(agentUser string) hostRunner {
+	if agentUser == "" {
+		return nil
+	}
+	if me, err := user.Current(); err == nil && me.Username == agentUser {
+		return nil
+	}
+	u, err := user.Lookup(agentUser)
+	if err != nil {
+		return nil
+	}
+	sudo, err := exec.LookPath("sudo")
+	if err != nil {
+		return nil
+	}
+	return func(ctx context.Context, argv []string) (string, error) {
+		var line string
+		var err error
+		for _, bin := range []string{filepath.Join(u.HomeDir, ".local", "bin", argv[0]), argv[0]} {
+			args := append([]string{"-n", "-H", "-u", u.Username, "--", bin}, argv[1:]...)
+			cmd := exec.CommandContext(ctx, sudo, args...) //nolint:gosec // a fixed probe list (hostProbes), no shell
+			var out []byte
+			out, err = cmd.Output()
+			line, _, _ = strings.Cut(string(out), "\n")
+			if err == nil {
+				return line, nil
+			}
+		}
+		return line, err
+	}
+}
+
+// AgentUser is the box's agent user: $SPOOL_AGENT_USER, else the
+// SPOOL_AGENT_USER line of <fleetRoot>/box.env (the satellite's box config,
+// which a desk sidecar is not started with), else "".
+func AgentUser(fleetRoot string) string {
+	if u := strings.TrimSpace(os.Getenv("SPOOL_AGENT_USER")); u != "" {
+		return u
+	}
+	if fleetRoot == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(filepath.Join(fleetRoot, "box.env"))
+	if err != nil {
+		return ""
+	}
+	return parseKV(string(raw), "=")["SPOOL_AGENT_USER"]
 }

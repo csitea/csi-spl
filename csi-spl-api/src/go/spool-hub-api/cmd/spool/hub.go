@@ -898,8 +898,10 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 	}
 	c := hubclient.New(cfg)
 	c.Log = logging.New(cfg).With().Str("component", "hubclient").Str("box", cfg.BoxID).Logger()
-	// role=box hellos only: the box's fact sheet, collected once a day (the Boxes page)
-	c.Host = hubclient.HostFacts(filepath.Join(cfg.HubDir(), "host-facts.json"), version)
+	// role=box hellos only: the box's fact sheet, collected once a day (the
+	// Boxes page). The v2 file name: a v1 sheet lacks the agent user's CLIs
+	// and swap 0, and would hide them for up to a day after an upgrade.
+	c.Host = hubclient.HostFacts(filepath.Join(cfg.HubDir(), "host-facts-v2.json"), version, hubclient.AgentUser(cfg.FleetRoot))
 	return c, nil
 }
 

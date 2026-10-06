@@ -244,6 +244,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.AppendBoxStat(ctx, s.tenant, BoxStat{Box: "sat", WriterBox: "box-seed", At: now, CPUs: 1}); err != nil {
 		t.Fatal(err)
 	}
+	// box_facts (rdb 0140): one box's fact sheet.
+	if err := pg.PutBoxFacts(ctx, s.tenant, BoxFactSheet{Box: "sat", ReportedAt: now, Sheet: []byte(`{"os":{"name":"Debian GNU/Linux"}}`)}); err != nil {
+		t.Fatal(err)
+	}
 	// calendar_events (rdb 0125, spec 089 T003): one public event of the
 	// seeded member.
 	ev, err := pg.CreateCalendarEvent(ctx, s.tenant, CalendarEvent{Title: "release", Kind: "release", StartsAt: now,

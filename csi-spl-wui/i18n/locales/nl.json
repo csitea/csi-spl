@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Kaarthoogte",
+      "pane": {
+        "msgs": "Berichtenlijst",
+        "thread": "Draadpaneel"
+      },
       "mode": {
         "titles": "Titels",
         "rows": "5 rijen",

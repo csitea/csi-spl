@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Kortin korkeus",
+      "pane": {
+        "msgs": "Viestilista",
+        "thread": "Ketjupaneeli"
+      },
       "mode": {
         "titles": "Otsikot",
         "rows": "5 riviä",

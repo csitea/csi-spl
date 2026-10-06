@@ -29,6 +29,8 @@ import {
   readCardClipSession,
   clearCardClipSession,
   CARD_CLIP_DEFAULT_KEY,
+  CARD_CLIP_DEFAULT_THREAD_KEY,
+  cardClipBuiltinDefault,
 } from '../../src/utils/card-clip.mjs'
 import { PREVIEW_MAX_BYTES } from '../../src/utils/file-preview.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
@@ -158,65 +160,108 @@ describe('read and write the mode', () => {
 })
 
 describe('appearance default and a per-view session override', () => {
-  it('a fresh sign-in follows the appearance default, and a view can override it', () => {
+  it('a fresh sign-in follows that pane\'s default, and a view can override it', () => {
     const durable = memoryStore()
     const session = memoryStore()
     assert.equal(CARD_CLIP_DEFAULT_KEY, 'spool-card-clip-default')
+    assert.equal(CARD_CLIP_DEFAULT_THREAD_KEY, 'spool-card-clip-default-thread')
+    assert.equal(cardClipBuiltinDefault('msgs'), 'rows')
+    assert.equal(cardClipBuiltinDefault('thread'), 'full')
     assert.equal(readCardClipDefault(durable), 'rows')
+    assert.equal(readCardClipDefault(durable, 'msgs'), 'rows')
+    assert.equal(readCardClipDefault(durable, 'thread'), 'full')
     assert.equal(readEffectiveCardClip('msgs', durable, session), 'rows')
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
     writeCardClipDefault('titles', durable)
     assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
+    writeCardClipDefault('titles', durable, 'thread')
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), 'titles')
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_THREAD_KEY), 'titles')
     assert.equal(readEffectiveCardClip('thread', durable, session), 'titles')
     writeCardClipSession('full', 'thread', session)
     assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
     assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
     clearCardClipSession(session)
     assert.equal(readEffectiveCardClip('thread', durable, session), 'titles')
+    assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
+    durable.setItem(CARD_CLIP_DEFAULT_THREAD_KEY, 'nope')
+    assert.equal(readCardClipDefault(durable, 'thread'), 'full')
   })
 
-  it('the appearance page offers the three list modes', () => {
+  it('the appearance page offers each pane its own three list modes', () => {
     const src = read('src/components/settings/appearance.vue')
-    assert.match(src, /data-test="list-clip-default"/)
-    assert.match(src, /data-test="`list-clip-\$\{m\}`"/)
-    assert.match(src, /setClipDefault/)
+    assert.match(src, /data-test="list-clip-default-msgs"/)
+    assert.match(src, /data-test="list-clip-default-thread"/)
+    assert.match(src, /data-test="`list-clip-msgs-\$\{m\}`"/)
+    assert.match(src, /data-test="`list-clip-thread-\$\{m\}`"/)
+    assert.match(src, /useCardClipDefault\('msgs'\)/)
+    assert.match(src, /useCardClipDefault\('thread'\)/)
+    assert.match(src, /t\('feed\.clip\.pane\.msgs'\)/)
+    assert.match(src, /t\('feed\.clip\.pane\.thread'\)/)
+    const en = JSON.parse(read('i18n/locales/en.json'))
+    assert.equal(en.feed.clip.pane.msgs, 'Message list')
+    assert.equal(en.feed.clip.pane.thread, 'Thread panel')
   })
 
   it('the header control writes the session, and sign-out clears it', () => {
     const clip = read('src/composables/useCardClip.ts')
     assert.match(clip, /writeCardClipSession/)
     assert.match(clip, /readEffectiveCardClip/)
+    assert.match(clip, /cardClipBuiltinDefault\(pane\)/)
+    assert.match(clip, /cardClipDefaultKey\(pane\)/)
     const session = read('src/stores/session.ts')
     assert.match(session, /clearCardClipSession\(\)/)
+    assert.match(session, /readCardClipDefault\(undefined, 'msgs'\)/)
+    assert.match(session, /readCardClipDefault\(undefined, 'thread'\)/)
   })
 
-  it('an old per-pane value becomes the default, and a differing thread stays for this sign-in', () => {
+  it('old per-pane values become that pane\'s default and survive sign-out', () => {
     const durable = memoryStore()
     const session = memoryStore()
     durable.setItem(CARD_CLIP_KEY, 'titles')
     durable.setItem(CARD_CLIP_THREAD_KEY, '  full  ')
     assert.deepEqual(migrateCardClip(durable, session), { migrated: true })
     assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), 'titles')
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_THREAD_KEY), 'full')
     assert.equal(durable.getItem(CARD_CLIP_KEY), null)
     assert.equal(durable.getItem(CARD_CLIP_THREAD_KEY), null)
-    assert.equal(session.getItem('spool-card-clip-session-thread'), 'full')
+    assert.equal(session.getItem('spool-card-clip-session-thread'), null)
     assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
     assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
     clearCardClipSession(session)
-    assert.equal(readEffectiveCardClip('thread', durable, session), 'titles')
+    assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
     durable.setItem(CARD_CLIP_KEY, 'rows')
     assert.deepEqual(migrateCardClip(durable, session), { migrated: false })
     assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), 'titles')
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_THREAD_KEY), 'full')
     assert.equal(durable.getItem(CARD_CLIP_KEY), null)
   })
 
-  it('a pane that was never stored stays on rows for this sign-in when the other becomes the default', () => {
+  it('a message list that was never stored stays on 5 rows when only the thread was stored', () => {
     const durable = memoryStore()
     const session = memoryStore()
-    durable.setItem(CARD_CLIP_THREAD_KEY, 'full')
+    durable.setItem(CARD_CLIP_THREAD_KEY, 'titles')
     assert.equal(migrateCardClip(durable, session).migrated, true)
-    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), 'full')
-    assert.equal(session.getItem('spool-card-clip-session-msgs'), 'rows')
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), null)
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_THREAD_KEY), 'titles')
+    assert.equal(session.getItem('spool-card-clip-session-msgs'), null)
     assert.equal(readEffectiveCardClip('msgs', durable, session), 'rows')
+    assert.equal(readEffectiveCardClip('thread', durable, session), 'titles')
+  })
+
+  it('an existing default stays the message list, and the thread stays full', () => {
+    const durable = memoryStore()
+    const session = memoryStore()
+    durable.setItem(CARD_CLIP_DEFAULT_KEY, 'titles')
+    durable.setItem(CARD_CLIP_THREAD_KEY, 'rows')
+    assert.deepEqual(migrateCardClip(durable, session), { migrated: false })
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), 'titles')
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_THREAD_KEY), null)
+    assert.equal(durable.getItem(CARD_CLIP_THREAD_KEY), null)
+    assert.equal(readCardClipDefault(durable, 'thread'), 'full')
+    assert.equal(readEffectiveCardClip('msgs', durable, session), 'titles')
     assert.equal(readEffectiveCardClip('thread', durable, session), 'full')
   })
 
@@ -227,7 +272,9 @@ describe('appearance default and a per-view session override', () => {
     assert.deepEqual(migrateCardClip(durable, session), { migrated: false })
     assert.equal(durable.getItem(CARD_CLIP_KEY), null)
     assert.equal(durable.getItem(CARD_CLIP_DEFAULT_KEY), null)
+    assert.equal(durable.getItem(CARD_CLIP_DEFAULT_THREAD_KEY), null)
     assert.equal(readCardClipDefault(durable), 'rows')
+    assert.equal(readCardClipDefault(durable, 'thread'), 'full')
   })
 
   it('opening a list again reads the default, so a settings change is not stuck', () => {

@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Korthöjd",
+      "pane": {
+        "msgs": "Meddelandelista",
+        "thread": "Trådpanel"
+      },
       "mode": {
         "titles": "Titlar",
         "rows": "5 rader",

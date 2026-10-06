@@ -196,9 +196,10 @@ export const useSessionStore = defineStore('session', () => {
          sign-out here, so it is not part of the initial chunk */
       const { CARD_CLIP_KEY, CARD_CLIP_THREAD_KEY, clearCardClipSession, readCardClipDefault } = await import('~/utils/card-clip.mjs')
       clearCardClipSession()
-      const d = readCardClipDefault() as 'titles' | 'rows' | 'full'
-      useState(CARD_CLIP_KEY, () => d).value = d
-      useState(CARD_CLIP_THREAD_KEY, () => d).value = d
+      const msgs = readCardClipDefault(undefined, 'msgs') as 'titles' | 'rows' | 'full'
+      const thread = readCardClipDefault(undefined, 'thread') as 'titles' | 'rows' | 'full'
+      useState(CARD_CLIP_KEY, () => msgs).value = msgs
+      useState(CARD_CLIP_THREAD_KEY, () => thread).value = thread
     }
     state.value = 'out'
     claims.value = null

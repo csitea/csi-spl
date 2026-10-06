@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Kartītes augstums",
+      "pane": {
+        "msgs": "Ziņu saraksts",
+        "thread": "Pavediena panelis"
+      },
       "mode": {
         "titles": "Virsraksti",
         "rows": "5 rindas",

@@ -20,6 +20,10 @@
  *  a pane's mode. The middle pane (msgs): lobby, channel, DM, search
  *  results. The right pane (thread): the thread with its root card, the /t
  *  page, the new-topic cards (BornTopics), and the issue discussion.
+ *  Settings keep one default per pane in this browser. The message list
+ *  starts at 5 rows. The thread panel starts at the whole text. A browser
+ *  that already stored spool-card-clip-default keeps that value for the
+ *  message list.
  */
 import { storageGet, storageSet } from './prefs.mjs'
 import { isPreviewableImage } from './file-preview.mjs'
@@ -56,17 +60,31 @@ export function writeCardClipMode(mode, store, pane = 'msgs') {
   return storageSet(cardClipKey(pane), parseCardClipMode(mode), store)
 }
 
-/** The appearance-page default. It outlives a sign-in. Unset means rows. */
+/** Message-list appearance default. It outlives a sign-in. Unset means 5 rows. */
 export const CARD_CLIP_DEFAULT_KEY = 'spool-card-clip-default'
+/** Thread-panel appearance default. It outlives a sign-in. Unset means the whole text. */
+export const CARD_CLIP_DEFAULT_THREAD_KEY = 'spool-card-clip-default-thread'
 
-export function readCardClipDefault(store) {
-  const raw = storageGet(CARD_CLIP_DEFAULT_KEY, null, store)
-  if (raw == null || String(raw).trim() === '') return CARD_CLIP_DEFAULT
-  return parseCardClipMode(raw)
+/** The localStorage key of one pane's appearance default. The message list keeps the original key. */
+export function cardClipDefaultKey(pane) {
+  return pane === 'thread' ? CARD_CLIP_DEFAULT_THREAD_KEY : CARD_CLIP_DEFAULT_KEY
 }
 
-export function writeCardClipDefault(mode, store) {
-  return storageSet(CARD_CLIP_DEFAULT_KEY, parseCardClipMode(mode), store)
+/** The mode a pane uses when its default was never stored: 5 rows, or the whole thread. */
+export function cardClipBuiltinDefault(pane) {
+  return pane === 'thread' ? 'full' : CARD_CLIP_DEFAULT
+}
+
+export function readCardClipDefault(store, pane = 'msgs') {
+  const builtin = cardClipBuiltinDefault(pane)
+  const raw = storageGet(cardClipDefaultKey(pane), null, store)
+  if (raw == null || String(raw).trim() === '') return builtin
+  return parseCardClipMode(raw, builtin)
+}
+
+export function writeCardClipDefault(mode, store, pane = 'msgs') {
+  const builtin = cardClipBuiltinDefault(pane)
+  return storageSet(cardClipDefaultKey(pane), parseCardClipMode(mode, builtin), store)
 }
 
 /** A pane's override for this sign-in only (sessionStorage). */
@@ -111,11 +129,11 @@ export function clearCardClipSession(bag) {
   } catch { /* private mode */ }
 }
 
-/** Session override, else the appearance default, else rows. */
+/** Session override, else that pane's appearance default. */
 export function readEffectiveCardClip(pane = 'msgs', store, bag) {
   const over = readCardClipSession(pane, bag)
   if (over) return over
-  return readCardClipDefault(store)
+  return readCardClipDefault(store, pane)
 }
 
 function modeOrNull(raw) {
@@ -133,31 +151,35 @@ function localBag(store) {
 }
 
 /**
- * SPL-954: an old lasting per-pane value becomes the appearance default.
- * The middle pane wins when both panes stored one. A pane whose old value
- * differs, and a pane that was never stored when that default is not rows,
- * is pinned for this sign-in so the screen does not jump. The old keys are
- * then removed. A browser that already has a default is left alone, apart
- * from dropping leftover old keys.
+ * SPL-954, per pane: an old lasting per-pane value becomes that pane's
+ * appearance default, and only while the message list has no default yet.
+ * A browser that already stored spool-card-clip-default keeps it as the
+ * message-list default. The thread default stays unset (the whole text)
+ * until the user sets it. Leftover old keys are removed either way.
+ * The session bag is accepted and not written: a sign-in override stays
+ * whatever the user set, and each pane falls back to its own default.
  */
 export function migrateCardClip(store, bag) {
   const loc = localBag(store)
   if (!loc) return { migrated: false }
   const had = storageGet(CARD_CLIP_DEFAULT_KEY, null, loc)
   const hadDefault = had != null && String(had).trim() !== ''
+  const hadThread = storageGet(CARD_CLIP_DEFAULT_THREAD_KEY, null, loc)
+  const hadThreadDefault = hadThread != null && String(hadThread).trim() !== ''
   const msgsRaw = storageGet(CARD_CLIP_KEY, null, loc)
   const threadRaw = storageGet(CARD_CLIP_THREAD_KEY, null, loc)
   const msgs = modeOrNull(msgsRaw)
   const thread = modeOrNull(threadRaw)
   let migrated = false
-  if (!hadDefault && (msgs || thread)) {
-    const chosen = msgs || thread
-    writeCardClipDefault(chosen, loc)
-    if (msgs && msgs !== chosen) writeCardClipSession(msgs, 'msgs', bag)
-    if (thread && thread !== chosen) writeCardClipSession(thread, 'thread', bag)
-    if (!msgs && chosen !== CARD_CLIP_DEFAULT) writeCardClipSession(CARD_CLIP_DEFAULT, 'msgs', bag)
-    if (!thread && chosen !== CARD_CLIP_DEFAULT) writeCardClipSession(CARD_CLIP_DEFAULT, 'thread', bag)
-    migrated = true
+  if (!hadDefault) {
+    if (msgs) {
+      writeCardClipDefault(msgs, loc, 'msgs')
+      migrated = true
+    }
+    if (!hadThreadDefault && thread) {
+      writeCardClipDefault(thread, loc, 'thread')
+      migrated = true
+    }
   }
   if (msgsRaw != null) {
     try { loc.removeItem(CARD_CLIP_KEY) } catch { /* private mode */ }
@@ -165,6 +187,7 @@ export function migrateCardClip(store, bag) {
   if (threadRaw != null) {
     try { loc.removeItem(CARD_CLIP_THREAD_KEY) } catch { /* private mode */ }
   }
+  void bag
   return { migrated }
 }
 

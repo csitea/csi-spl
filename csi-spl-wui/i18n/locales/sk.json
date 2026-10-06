@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Výška karty",
+      "pane": {
+        "msgs": "Zoznam správ",
+        "thread": "Panel vlákna"
+      },
       "mode": {
         "titles": "Názvy",
         "rows": "5 riadkov",

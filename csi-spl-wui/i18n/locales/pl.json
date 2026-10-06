@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Wysokość karty",
+      "pane": {
+        "msgs": "Lista wiadomości",
+        "thread": "Panel wątku"
+      },
       "mode": {
         "titles": "Tytuły",
         "rows": "5 wierszy",

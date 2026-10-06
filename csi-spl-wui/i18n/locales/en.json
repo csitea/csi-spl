@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Card height",
+      "pane": {
+        "msgs": "Message list",
+        "thread": "Thread panel"
+      },
       "mode": {
         "titles": "Titles",
         "rows": "5 rows",

@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Altura de la tarjeta",
+      "pane": {
+        "msgs": "Lista de mensajes",
+        "thread": "Panel del hilo"
+      },
       "mode": {
         "titles": "Títulos",
         "rows": "5 filas",

@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Kortelės aukštis",
+      "pane": {
+        "msgs": "Žinučių sąrašas",
+        "thread": "Gijos skydelis"
+      },
       "mode": {
         "titles": "Pavadinimai",
         "rows": "5 eilutės",

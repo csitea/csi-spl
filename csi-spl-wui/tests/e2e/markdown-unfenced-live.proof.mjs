@@ -81,7 +81,9 @@ async function signIn(browser) {
     window.__csp = []
     try {
       localStorage.setItem('spool-card-clip-default', 'full')
+      localStorage.setItem('spool-card-clip-default-thread', 'full')
       sessionStorage.setItem('spool-card-clip-session-msgs', 'full')
+      sessionStorage.setItem('spool-card-clip-session-thread', 'full')
     } catch { /* private mode */ }
     document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(`${e.violatedDirective} ${e.blockedURI}`))
   })

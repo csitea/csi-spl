@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Kaardi kõrgus",
+      "pane": {
+        "msgs": "Sõnumite loend",
+        "thread": "Lõimepaneel"
+      },
       "mode": {
         "titles": "Pealkirjad",
         "rows": "5 rida",

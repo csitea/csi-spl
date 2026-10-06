@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Kart yüksekliği",
+      "pane": {
+        "msgs": "Mesaj listesi",
+        "thread": "Konu paneli"
+      },
       "mode": {
         "titles": "Başlıklar",
         "rows": "5 satır",

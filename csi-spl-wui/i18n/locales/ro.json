@@ -722,6 +722,10 @@
     },
     "clip": {
       "label": "Înălțimea cardului",
+      "pane": {
+        "msgs": "Lista de mesaje",
+        "thread": "Panoul firului"
+      },
       "mode": {
         "titles": "Titluri",
         "rows": "5 rânduri",

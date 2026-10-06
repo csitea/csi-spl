@@ -71,7 +71,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: orc tests: the rsync argument list carries the exclude; provider none keeps a planted `.edits/x/y.md`; `tree.json` has `blob`; actionlint green; after landing, workflow 32 runs green on its own commit (it touches no `.md`, so run it once with `gh workflow run 32_docs-publish.yml`) and `tree.json` on dev and prd holds `blob`.
   - **Depends**: none. **Must be live on both envs before T13.**
 
-- [ ] T05 **hub: path policy + text gates** (S, pure Go, no store).
+- [x] T05 **hub: path policy + text gates** (S, pure Go, no store). Done `6ce1e20b` (c-404).
   - **Build**: `api/internal/repodocs/` (new package): `Editable(path, tree, deny) (bool, reason)` = spec §5.2 (published, not denied, or new in an editable dir; `ValidDocsPath`); `Gate(old, new []byte) []Hit` = the hygiene patterns on new lines + the secret scan of spec §5.1. The hygiene patterns come from the same list `do_check_dist_hygiene` reads, copied into an embedded file by a sync script with a drift test (the help-sync pattern), so the hub image needs no other tree.
   - **Owns**: that package, the embedded patterns file, its sync script and drift test.
   - **Done-proof**: one sample path per deny row denied; an editable doc, a new file in an editable dir allowed; traversal refused; each gate rule hits; clean text passes; only new lines scanned; the drift test fails when the list changes.

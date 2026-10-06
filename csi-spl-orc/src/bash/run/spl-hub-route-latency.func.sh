@@ -48,7 +48,7 @@ do_spl_hub_route_latency() {
     "$ENV" "$SPL_PROJECT" "$svc" "$hours" "$since" "$until"
   gcloud logging read "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"$svc\" AND httpRequest.requestUrl:\"/\" AND timestamp>=\"$since\" AND timestamp<\"$until\"" \
     --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --limit="$limit" --format=json |
-    spl_hub_route_latency_table "$top" "$query"
+    spl_hub_route_latency_table "$top" "$query" "$limit"
 }
 
 # spl_hub_route_latency_check_args <hours> <top> <limit> <since> -> 0 when sane.
@@ -62,9 +62,12 @@ spl_hub_route_latency_check_args() {
     { do_log "FATAL ROUTE_SINCE must be RFC 3339 UTC (YYYY-MM-DDThh:mm:ssZ), got '$4'"; return 1; }
 }
 
-# spl_hub_route_latency_table <top> [query 0|1] -> a `gcloud logging read
-# --format=json` array on stdin, printed as one row per (method, folded
-# route), or per (method, folded route + query shape) when query is 1.
+# spl_hub_route_latency_table <top> [query 0|1] [limit] -> a `gcloud logging
+# read --format=json` array on stdin, printed as one row per (method, folded
+# route), or per (method, folded route + query shape) when query is 1. When
+# the read stopped at limit (ROUTE_LIMIT), the window is cut short: gcloud
+# reads newest first, so the oldest entries are missing, and a TRUNCATED line
+# says so with the span actually read (api perf ap-00).
 spl_hub_route_latency_table() {
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   SPL_ID_RX="$SPOOL_PARTICIPANT_RX" python3 -c '
@@ -72,6 +75,7 @@ import json, os, re, sys
 from urllib.parse import urlparse, parse_qsl
 top = int(sys.argv[1])
 by_query = len(sys.argv) > 2 and sys.argv[2] == "1"
+limit = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3] else 0
 W = 78 if by_query else 46
 try:
     entries = json.load(sys.stdin)
@@ -116,6 +120,8 @@ def pct(a, q):
     a = sorted(a)
     return a[min(len(a) - 1, int(round(q * (len(a) - 1))))]
 print("entries=%d routes=%d first=%s last=%s revisions=%s" % (len(entries), len(rows), t0, t1, ",".join(sorted(revs))))
+if limit and len(entries) >= limit:
+    print("TRUNCATED: ROUTE_LIMIT=%d entries were read; the span is only %s..%s, not the whole window (raise ROUTE_LIMIT, max 200000, or narrow ROUTE_HOURS)" % (limit, t0, t1))
 hdr = "%6s %-7s %-*s %8s %8s %8s %5s %5s %8s %8s" % ("n", "method", W, "route", "p50_ms", "p95_ms", "max_ms", "4xx", "5xx", "p50_kb", "p95_kb")
 def line(k, r):
     m = r["ms"]
@@ -129,5 +135,5 @@ if ws:
     print(); print("--- websockets (latency = the socket life; 4xx = refused upgrades)"); print(hdr)
     for k, r in sorted(ws.items()):
         print(line(k, r))
-' "$1" "${2:-0}"
+' "$1" "${2:-0}" "${3:-}"
 }

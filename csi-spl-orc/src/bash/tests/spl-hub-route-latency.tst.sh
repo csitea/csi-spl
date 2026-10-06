@@ -7,7 +7,8 @@
 #   2. the only cloud call is `gcloud logging read`, pinned with --account
 #   3. spl_hub_route_latency_table folds ids into one route, gives
 #      n / p50 / p95 / max / 4xx / 5xx / KB, lists websockets apart, and says
-#      so plainly on an empty or non-JSON body
+#      so plainly on an empty or non-JSON body; a read that stopped at
+#      ROUTE_LIMIT prints TRUNCATED and the span it covers (api perf ap-00)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -91,5 +92,17 @@ SNIPPET=do_spl_hub_route_latency in_orc ROUTE_QUERY=2 >"$T/o" 2>&1 && fail "ROUT
 
 grep -q 'no request log entries' <<<"$(table '[]')" && pass "empty window said plainly" || fail "empty window"
 grep -q 'no data' <<<"$(table 'not json')" && pass "non-JSON body said plainly" || fail "non-JSON"
+
+# api perf ap-00: a read that stopped at ROUTE_LIMIT says so, with the span it covers.
+three='[{"httpRequest":{"requestUrl":"https://x/v1/a","latency":"0.1s","requestMethod":"GET","status":200},"timestamp":"2026-10-06T00:00:00Z"},
+{"httpRequest":{"requestUrl":"https://x/v1/a","latency":"0.1s","requestMethod":"GET","status":200},"timestamp":"2026-10-06T02:00:00Z"},
+{"httpRequest":{"requestUrl":"https://x/v1/a","latency":"0.1s","requestMethod":"GET","status":200},"timestamp":"2026-10-06T01:00:00Z"}]'
+cut=$(SNIPPET='spl_hub_route_latency_table 10 0 3' in_orc <<<"$three" 2>&1)
+grep -q '^TRUNCATED: ROUTE_LIMIT=3 .* 2026-10-06T00:00:00Z\.\.2026-10-06T02:00:00Z' <<<"$cut" &&
+  pass "a read that hit ROUTE_LIMIT prints TRUNCATED and the real first..last span" || fail "truncation: $cut"
+grep -q TRUNCATED <<<"$(SNIPPET='spl_hub_route_latency_table 10 0 4' in_orc <<<"$three" 2>&1)" &&
+  fail "CONTROL: TRUNCATED under the limit" || pass "CONTROL: under ROUTE_LIMIT no TRUNCATED line"
+grep -q '"\$limit"$' <(grep 'spl_hub_route_latency_table "\$top"' "$PROJ_ROOT/src/bash/run/spl-hub-route-latency.func.sh") &&
+  pass "the action passes ROUTE_LIMIT to the table" || fail "ROUTE_LIMIT not passed"
 
 ((fails == 0)) && echo "OK spl-hub-route-latency: all checks passed" || { echo "FAIL spl-hub-route-latency: $fails check(s)"; exit 1; }

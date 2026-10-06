@@ -40,6 +40,8 @@ type Postgres struct {
 	opCache operatorCache
 	// cal: is rdb 0125 calendar_events there yet (calendar_postgres.go)
 	cal seatsProbe
+	// calEdit: are rdb 0139's calendar_events columns there yet (calendar_postgres.go)
+	calEdit seatsProbe
 	// sig: is rdb 0135 messages.search_sig there yet (search_postgres.go)
 	sig seatsProbe
 	// kv: is rdb 0136 tenants.settings there yet (tenant_kv.go)

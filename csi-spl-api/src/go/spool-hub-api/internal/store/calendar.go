@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -22,6 +23,12 @@ import (
 // FR-010) and dropping internal events for a guest are the hub's (T004).
 // The hub may roll before 0125 reaches its database: reads then answer
 // empty and writes ErrCalendarUnavailable, never a 500.
+//
+// specs/097 T003 (rdb 0139): props, time_zone and a soft delete. Every read
+// but the trash adds deleted_at IS NULL; a patch or a delete may carry the
+// updated_at the caller last read (ErrEditConflict when it is stale). Until
+// 0139 reaches a database the Postgres store probes for its columns and
+// answers 089's shape: props {}, time_zone UTC, a hard delete, an empty trash.
 
 // Calendar audiences (rdb 0125 check). An empty audience on create is public
 // (owner decision D2).
@@ -45,8 +52,22 @@ var ErrInvalidCalendarEvent = errors.New("invalid calendar event")
 // (rdb 0125). HTTP 503.
 var ErrCalendarUnavailable = errors.New("store: the calendar needs rdb 0125")
 
+// ErrEditConflict: the event changed since the caller read it (its updated_at
+// is not the precondition's). The store answers the current event with it
+// (spec 097 4.2, HTTP 409 edit_conflict).
+var ErrEditConflict = errors.New("store: the calendar event changed since it was read")
+
+// CalendarUTC is time_zone's default (rdb 0139): every 089 event is UTC.
+const CalendarUTC = "UTC"
+
+// calendarPropsMax is rdb 0139's octet_length(props::text) check.
+const calendarPropsMax = 16384
+
 // CalendarEvent is one calendar_events row. A zero RemindAt is no reminder;
-// "" TopicID / ReleaseVersion are NULL.
+// "" TopicID / ReleaseVersion are NULL. Props holds the hub registry's keys
+// (spec 097 3.3; the store checks only that it is a small JSON object), never
+// nil once stored. A zero DeletedAt is a live event; DeletedBy is the viewer
+// who deleted it.
 type CalendarEvent struct {
 	ID             string
 	Title          string
@@ -64,10 +85,16 @@ type CalendarEvent struct {
 	ReleaseVersion string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	Props          map[string]any
+	TimeZone       string // IANA zone; "" on create is UTC
+	DeletedAt      time.Time
+	DeletedBy      string
 }
 
 // CalendarPatch is an update: a nil field is left as it is. A zero *RemindAt
 // clears the reminder; an empty *TopicID / *ReleaseVersion clears that column.
+// *Props replaces the whole object. A non-zero IfUpdatedAt is the precondition:
+// the event's updated_at must equal it, else ErrEditConflict.
 type CalendarPatch struct {
 	Title          *string
 	Description    *string
@@ -80,6 +107,9 @@ type CalendarPatch struct {
 	RemindAt       *time.Time
 	TopicID        *string
 	ReleaseVersion *string
+	Props          *map[string]any
+	TimeZone       *string
+	IfUpdatedAt    time.Time
 }
 
 // CalendarMark is one UTC day of the year strip with events the viewer can
@@ -109,7 +139,18 @@ type Calendar interface {
 	CreateCalendarEvent(ctx context.Context, tenant string, e CalendarEvent, now time.Time) (CalendarEvent, error)
 	GetCalendarEvent(ctx context.Context, tenant, viewer, id string) (CalendarEvent, error)
 	UpdateCalendarEvent(ctx context.Context, tenant, viewer, id string, p CalendarPatch, now time.Time) (CalendarEvent, error)
+	// DeleteCalendarEvent is TrashCalendarEvent without a precondition, at
+	// the store's clock (089's call).
 	DeleteCalendarEvent(ctx context.Context, tenant, viewer, id string) error
+	// TrashCalendarEvent soft-deletes a live event the viewer can read and
+	// answers it with DeletedAt set. A non-zero ifUpdated is the precondition
+	// (ErrEditConflict with the current event).
+	TrashCalendarEvent(ctx context.Context, tenant, viewer, id string, ifUpdated, now time.Time) (CalendarEvent, error)
+	// RestoreCalendarEvent brings back an event the viewer deleted, same id.
+	RestoreCalendarEvent(ctx context.Context, tenant, viewer, id string) (CalendarEvent, error)
+	// CalendarTrash answers the events the viewer deleted at or after since,
+	// newest deletion first.
+	CalendarTrash(ctx context.Context, tenant, viewer string, since time.Time) ([]CalendarEvent, error)
 	// ListCalendarEvents answers the overlapping events, by start then id.
 	ListCalendarEvents(ctx context.Context, tenant, viewer string, r CalendarRange) ([]CalendarEvent, error)
 	// CalendarMarks answers the days in r that have an event, oldest first.
@@ -130,7 +171,9 @@ var (
 // calendarMaxEvents caps one range or reminder read.
 const calendarMaxEvents = 2000
 
-// normalizeCalendarEvent fills the defaults and applies rdb 0125's checks.
+// normalizeCalendarEvent fills the defaults and applies rdb 0125's and
+// 0139's checks. Props is copied through JSON, so both stores hold the same
+// value (numbers as float64) and the caller's map is never shared.
 func normalizeCalendarEvent(e *CalendarEvent) error {
 	if e.Audience == "" {
 		e.Audience = CalendarPublic
@@ -138,11 +181,70 @@ func normalizeCalendarEvent(e *CalendarEvent) error {
 	if e.Mentions == nil {
 		e.Mentions = []string{}
 	}
+	if e.TimeZone == "" {
+		e.TimeZone = CalendarUTC
+	}
 	e.StartsAt, e.EndsAt = e.StartsAt.UTC(), e.EndsAt.UTC()
 	if !e.RemindAt.IsZero() {
 		e.RemindAt = e.RemindAt.UTC()
 	}
+	props, err := normalizeCalendarProps(e.Props)
+	if err != nil {
+		return err
+	}
+	e.Props = props
 	return validateCalendarEvent(e)
+}
+
+// normalizeCalendarProps is a deep copy of p through JSON, {} for nil,
+// refused when larger than rdb 0139's check allows.
+func normalizeCalendarProps(p map[string]any) (map[string]any, error) {
+	if p == nil {
+		return map[string]any{}, nil
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("%w: props must be JSON", ErrInvalidCalendarEvent)
+	}
+	if jsonbTextLen(b) > calendarPropsMax {
+		return nil, fmt.Errorf("%w: props must be at most %d bytes", ErrInvalidCalendarEvent, calendarPropsMax)
+	}
+	out := map[string]any{}
+	return out, json.Unmarshal(b, &out)
+}
+
+// jsonbTextLen bounds the length of compact JSON b as Postgres prints jsonb
+// (a space after every ':' and ',' outside strings). Go's escapes are never
+// shorter than Postgres', so the bound is safe for the 0139 check.
+func jsonbTextLen(b []byte) int {
+	n, inStr, esc := len(b), false, false
+	for _, c := range b {
+		switch {
+		case esc:
+			esc = false
+		case inStr && c == '\\':
+			esc = true
+		case c == '"':
+			inStr = !inStr
+		case !inStr && (c == ':' || c == ','):
+			n++
+		}
+	}
+	return n
+}
+
+// calendarPrecondition: a non-zero ifUpdated must be e's updated_at.
+func calendarPrecondition(e *CalendarEvent, ifUpdated time.Time) error {
+	if !ifUpdated.IsZero() && !ifUpdated.Equal(e.UpdatedAt) {
+		return ErrEditConflict
+	}
+	return nil
+}
+
+// calendarNow is a write's time at Postgres' precision (microseconds), so an
+// updated_at read back from either store equals the one a precondition names.
+func calendarNow(now time.Time) time.Time {
+	return now.UTC().Truncate(time.Microsecond)
 }
 
 func validateCalendarEvent(e *CalendarEvent) error {
@@ -164,6 +266,8 @@ func validateCalendarEvent(e *CalendarEvent) error {
 		return bad("ends_at must not be before starts_at")
 	case e.ReleaseVersion != "" && !calendarRelease.MatchString(e.ReleaseVersion):
 		return bad("release_version must be v<X.Y.Z>")
+	case len(e.TimeZone) > 64:
+		return bad("time_zone must be 1..64 characters")
 	}
 	return nil
 }
@@ -196,6 +300,10 @@ func applyCalendarPatch(e *CalendarEvent, p CalendarPatch) {
 	if p.RemindAt != nil {
 		e.RemindAt = *p.RemindAt
 	}
+	if p.Props != nil {
+		e.Props = *p.Props
+	}
+	set(&e.TimeZone, p.TimeZone)
 }
 
 // calendarOwnsOrNamed: the viewer created the event or is mentioned on it.

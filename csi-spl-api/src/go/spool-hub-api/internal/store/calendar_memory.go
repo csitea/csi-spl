@@ -16,19 +16,22 @@ type memCalendar struct {
 	events map[string]map[string]*CalendarEvent
 }
 
+// cloneCalendarEvent copies e; Props is copied deep (normalizeCalendarProps
+// cannot fail on a map it built itself).
 func cloneCalendarEvent(e *CalendarEvent) CalendarEvent {
 	c := *e
 	c.Mentions = slices.Clone(e.Mentions)
+	c.Props, _ = normalizeCalendarProps(e.Props)
 	return c
 }
 
-// calendarEventLocked is the tenant's event id as the viewer may see it.
+// calendarEventLocked is the tenant's live event id as the viewer may see it.
 func (s *Memory) calendarEventLocked(tenant, viewer, id string) (*CalendarEvent, error) {
 	if err := checkTenant(tenant); err != nil {
 		return nil, err
 	}
 	e, ok := s.cal.events[tenant][id]
-	if !ok || !calendarVisible(e, viewer) {
+	if !ok || !e.DeletedAt.IsZero() || !calendarVisible(e, viewer) {
 		return nil, ErrNotFound
 	}
 	return e, nil
@@ -53,7 +56,8 @@ func (s *Memory) CreateCalendarEvent(_ context.Context, tenant string, e Calenda
 		s.cal.events[tenant] = map[string]*CalendarEvent{}
 	}
 	e.ID = uuid.New() // rdb 0125's gen_random_uuid() shape
-	e.CreatedAt, e.UpdatedAt = now.UTC(), now.UTC()
+	e.CreatedAt, e.UpdatedAt = calendarNow(now), calendarNow(now)
+	e.DeletedAt, e.DeletedBy = time.Time{}, ""
 	s.cal.events[tenant][e.ID] = &e
 	return cloneCalendarEvent(&e), nil
 }
@@ -75,24 +79,74 @@ func (s *Memory) UpdateCalendarEvent(_ context.Context, tenant, viewer, id strin
 	if err != nil {
 		return CalendarEvent{}, err
 	}
+	if err := calendarPrecondition(e, p.IfUpdatedAt); err != nil {
+		return cloneCalendarEvent(e), err
+	}
 	next := cloneCalendarEvent(e)
 	applyCalendarPatch(&next, p)
 	if err := normalizeCalendarEvent(&next); err != nil {
 		return CalendarEvent{}, err
 	}
-	next.UpdatedAt = now.UTC()
+	next.UpdatedAt = calendarNow(now)
 	*e = next
 	return cloneCalendarEvent(e), nil
 }
 
-func (s *Memory) DeleteCalendarEvent(_ context.Context, tenant, viewer, id string) error {
+func (s *Memory) DeleteCalendarEvent(ctx context.Context, tenant, viewer, id string) error {
+	_, err := s.TrashCalendarEvent(ctx, tenant, viewer, id, time.Time{}, s.now())
+	return err
+}
+
+// TrashCalendarEvent marks the event deleted; updated_at stays, so an Undo
+// gives back the very version the caller last read.
+func (s *Memory) TrashCalendarEvent(_ context.Context, tenant, viewer, id string, ifUpdated, now time.Time) (CalendarEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := s.calendarEventLocked(tenant, viewer, id); err != nil {
-		return err
+	e, err := s.calendarEventLocked(tenant, viewer, id)
+	if err != nil {
+		return CalendarEvent{}, err
 	}
-	delete(s.cal.events[tenant], id)
-	return nil
+	if err := calendarPrecondition(e, ifUpdated); err != nil {
+		return cloneCalendarEvent(e), err
+	}
+	e.DeletedAt, e.DeletedBy = calendarNow(now), viewer
+	return cloneCalendarEvent(e), nil
+}
+
+// RestoreCalendarEvent: only the viewer who deleted the event brings it back.
+func (s *Memory) RestoreCalendarEvent(_ context.Context, tenant, viewer, id string) (CalendarEvent, error) {
+	if err := checkTenant(tenant); err != nil {
+		return CalendarEvent{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.cal.events[tenant][id]
+	if !ok || !calendarDeletedBy(e, viewer) {
+		return CalendarEvent{}, ErrNotFound
+	}
+	e.DeletedAt, e.DeletedBy = time.Time{}, ""
+	return cloneCalendarEvent(e), nil
+}
+
+func (s *Memory) CalendarTrash(_ context.Context, tenant, viewer string, since time.Time) ([]CalendarEvent, error) {
+	if err := checkTenant(tenant); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
+		return calendarDeletedBy(e, viewer) && !e.DeletedAt.Before(since)
+	}, func(a, b *CalendarEvent) bool {
+		if !a.DeletedAt.Equal(b.DeletedAt) {
+			return a.DeletedAt.After(b.DeletedAt)
+		}
+		return a.ID < b.ID
+	}), nil
+}
+
+// calendarDeletedBy: e is in the trash, deleted by viewer, who can read it.
+func calendarDeletedBy(e *CalendarEvent, viewer string) bool {
+	return !e.DeletedAt.IsZero() && viewer != "" && e.DeletedBy == viewer && calendarVisible(e, viewer)
 }
 
 // calendarSelectLocked is the tenant's events keep accepts, sorted by less.
@@ -128,7 +182,7 @@ func (s *Memory) ListCalendarEvents(_ context.Context, tenant, viewer string, r 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
-		return calendarVisible(e, viewer) && calendarOverlaps(e, r)
+		return e.DeletedAt.IsZero() && calendarVisible(e, viewer) && calendarOverlaps(e, r)
 	}, byCalendarStart), nil
 }
 
@@ -147,7 +201,8 @@ func (s *Memory) CalendarReminders(_ context.Context, tenant, viewer string, r C
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
-		return !e.RemindAt.IsZero() && !e.RemindAt.Before(r.Start) && e.RemindAt.Before(r.End) && calendarOwnsOrNamed(e, viewer)
+		return e.DeletedAt.IsZero() && !e.RemindAt.IsZero() && !e.RemindAt.Before(r.Start) && e.RemindAt.Before(r.End) &&
+			calendarOwnsOrNamed(e, viewer)
 	}, func(a, b *CalendarEvent) bool {
 		if !a.RemindAt.Equal(b.RemindAt) {
 			return a.RemindAt.Before(b.RemindAt)

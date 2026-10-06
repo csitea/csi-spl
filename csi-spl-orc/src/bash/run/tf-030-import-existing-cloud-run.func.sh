@@ -2,12 +2,15 @@
 #------------------------------------------------------------------------------
 # @description Import live Cloud Run (and the other 030 addresses that already
 #   exist) into the 030-cloud-run-hub terraform state. IMPORT ONLY — never
-#   apply. Mirrors tf-120-import-existing-secrets.sh: a POSIX importer runs
-#   inside a throwaway hashicorp/terraform image against a scratch copy of
-#   the step. Idempotent (address already in state = skip); a resource that
+#   apply. The POSIX importer
+#   src/bash/scripts/tf-030-import-existing-cloud-run.sh runs inside a
+#   throwaway hashicorp/terraform image against a scratch copy of the step
+#   (later steps read src/bash/scripts/tf-import-table.sh). Idempotent
+#   (address already in state = skip); a resource that
 #   is not live is reported and skipped, non-fatal. Does not use the
 #   decommissioned inf SA key; credentials are the per-env key under
 #   $HOME/.gcp/.<org>/key-<gcp-project>.json.
+# @output run log - $LOG_DIR/$PROJ.YYYYMMDD.log (do_log; LOG_DIR is $PROJ_PATH/dat/log/bash)
 # @param ENV - target environment (dev or prd) [required]
 # @param TF_IMAGE - terraform image (optional; default hashicorp/terraform:1.9)
 # @param TF_030_WORK - scratch work dir (optional; default /var/tmp/tf-030-<env>)

@@ -2,6 +2,9 @@
 
 #------------------------------------------------------------------------------
 # @description export GCP Secret Manager secrets to a .env file for the API
+# @description OUTPUT_FILE is ${APP_PATH}/${ORG}-${APP}-api/backend_api/djangorest/.env.
+# @description That directory does not exist in this tree (a dead csi-rel port;
+# @description removal is its own lane).
 # @example ORG=csi APP=csi-spl ENV=dev ./run -a do_gcp_sm_secrets_to_env_file
 #------------------------------------------------------------------------------
 do_gcp_sm_secrets_to_env_file() {
@@ -43,7 +46,7 @@ do_gcp_sm_secrets_to_env_file() {
 	# Prefix to match for secrets
 	SECRET_PREFIX=$(echo "${ORG}_${APP}_${ENV}_API_" | tr '[:lower:]' '[:upper:]')
 
-	# Fetch all secrets starting with "csi-spl-dev-api-"
+	# Fetch all secrets starting with "<org>-<app>-<env>-api-"
 	secrets=($(gcloud secrets list --filter="name:${ORG}-${APP}-${ENV}-api-" --format="value(name)" --account="${account}" --project="${ORG}-${APP}-${ENV}"))
 
 	# Write secrets to a temporary file for processing
@@ -75,7 +78,7 @@ do_gcp_sm_secrets_to_env_file() {
 				# Convert secret name to UPPER_SNAKE_CASE
 				variable_name=$(echo "$secret" | sed -E 's/-/_/g' | tr '[:lower:]' '[:upper:]')
 
-				# Remove the prefix (e.g., "ILM_OPA_DEV_API_")
+				# Remove the prefix (e.g., "<ORG>_<APP>_<ENV>_API_")
 				clean_variable_name=$(echo "$variable_name" | perl -ne  "s|${SECRET_PREFIX}||g;print")
 
         # skip any json containing secret values and write the rest to the .env file

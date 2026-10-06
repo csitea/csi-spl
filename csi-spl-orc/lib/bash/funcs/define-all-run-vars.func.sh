@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# File: lib/bash/funcs/define-all-run-vars.sh
+# File: lib/bash/funcs/define-all-run-vars.func.sh
+# @description Runs `set -u -o pipefail` as its first statement and so changes
+# @description the CALLER's shell options. There is no `local -`, so nounset
+# @description and pipefail stay set after the function returns.
 
 do_define_all_run_vars() {
-  set -u -o pipefail
+  set -u -o pipefail # leaks into the caller: options are not restored on return
 
   # Determine the directory of this script
   local script_dir

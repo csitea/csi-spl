@@ -4,8 +4,8 @@
 # @description Extracts @description, @param, @example, @output, @prereq tags.
 # @param FILE (required) - Path to the .func.sh file to parse
 # @param TAG (optional) - Specific tag to extract (default: all)
-# @example do_parse_metadata "src/bash/run/zip-jira-ticket.func.sh"
-# @example do_parse_metadata "src/bash/run/zip-jira-ticket.func.sh" "param"
+# @example do_parse_metadata "src/bash/run/tf-030-import-existing-cloud-run.func.sh"
+# @example do_parse_metadata "src/bash/run/tf-030-import-existing-cloud-run.func.sh" "param"
 #------------------------------------------------------------------------------
 
 # Parse all metadata from a func.sh file header

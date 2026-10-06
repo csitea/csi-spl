@@ -87,8 +87,9 @@ do_spl_tenant_host_provision() {
 SPL_TH_STEPS="019-firebase-static-site 025-gcp-dns-zone"
 
 # spl_th_valid_slug <tenant>: the hub's tenant alphabet and reserved labels
-# (csi-spl-api internal/msg ValidTenantID; spl-tenant-host.tst.sh keeps the
-# two lists equal).
+# (csi-spl-api internal/msg ValidTenantID;
+# csi-spl-orc/src/bash/tests/tenant-host.tst.sh keeps the two lists equal
+# by comparing SPL_TH_RESERVED).
 SPL_TH_RESERVED="dev prd lde stg tst www api app hub wui admin auth login mail status docs help support"
 spl_th_valid_slug() {
   [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || {

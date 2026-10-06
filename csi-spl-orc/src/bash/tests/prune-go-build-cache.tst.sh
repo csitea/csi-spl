@@ -4,8 +4,12 @@
 #   1. a fixture cache with an old file and a fresh file: only the old one goes
 #   2. a directory that is not a Go cache: untouched, non-zero exit
 #   3. DRY_RUN=1 changes nothing
+#   4. the gate is per cache: two caches on two fake filesystems, only the
+#      one at/over the percent is pruned; an unreadable user is a WARN; the
+#      default users include the CI runner user when it exists
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
-#   line are covered with the same fixtures. No real cache, crontab or sudo.
+#   line are covered with the same fixtures. No real cache, crontab or sudo:
+#   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -21,7 +25,7 @@ run_prune() {
   # GO_CACHE_USERS is empty on purpose: a bug that ignores GO_CACHE_DIRS must
   # not discover the live users and prune their caches.
   # shellcheck disable=SC2086
-  env GO_CACHE_DIRS="$1" GO_CACHE_USERS="" GO_CACHE_LOCK=0 DRY_RUN="$2" \
+  env SPOOL_TEST=1 GO_CACHE_DIRS="$1" GO_CACHE_USERS="" GO_CACHE_LOCK=0 DRY_RUN="$2" \
     GO_CACHE_MAX_AGE_MIN="${GO_CACHE_MAX_AGE_MIN:-10}" ${3:-} \
     bash -c '
       set -uo pipefail
@@ -107,6 +111,99 @@ out="$(run_prune "$G" 2)"; rc=$?
 [[ $rc -ne 0 && -f "$G/ff/bb/new" && "$out" == FATAL* ]] &&
   pass "a bad DRY_RUN is refused" ||
   fail "bad dry (rc=$rc): $out"
+
+# per-cache gate: two caches on two fake filesystems ---------------------------
+# A stubbed df puts any path under FAKE_FULL on a 93% "/fake/root" and the rest
+# on a 23% "/fake/data": only the cache on the full filesystem is pruned.
+mkdir -p "$T/stub"
+cat >"$T/stub/df" <<'STUB'
+#!/usr/bin/env bash
+d="${*: -1}"
+echo "Filesystem 1-blocks Used Available Capacity Mounted on"
+case "$d" in
+  "$FAKE_FULL"*) echo "fake-root 1000 930 70 93% /fake/root" ;;
+  *) echo "fake-data 1000 230 770 23% /fake/data" ;;
+esac
+STUB
+chmod +x "$T/stub/df"
+F1="$T/full/cache"; F2="$T/roomy/cache"
+mk_cache "$F1"; mk_cache "$F2"
+out="$(run_prune "$F1 $F2" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_GATE=1 GO_CACHE_NOW_MIN=30 GO_CACHE_PRUNE_AT_PCT=85" 2>&1)"; rc=$?
+[[ $rc -eq 0 && ! -e "$F1/00/aa/old" && -f "$F2/00/aa/old" && -f "$F1/ff/bb/new" \
+  && "$out" == *"CACHE user=$(id -un) path=$F1 fs=/fake/root used_pct=93 threshold=85 action=prune"* \
+  && "$out" == *"CACHE user=$(id -un) path=$F2 fs=/fake/data used_pct=23 threshold=85 action=skip"* ]] &&
+  pass "each cache is gated by ITS filesystem: the 93% one is pruned, the 23% one is not; one CACHE line each" ||
+  fail "per-cache gate (rc=$rc): $out"
+
+mk_cache "$F1"
+out="$(run_prune "$F2" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_GATE=1 GO_CACHE_NOW_MIN=30" 2>&1)"; rc=$?
+[[ $rc -eq 0 && -f "$F2/00/aa/old" && "$out" == *'action=skip'* && "$out" == *'OK skip:'* ]] &&
+  pass "only roomy caches: nothing removed, one skip line" ||
+  fail "all skip (rc=$rc): $out"
+
+# a user whose cache cannot be read: a loud WARN, the others still pruned -----
+# A stubbed sudo refuses 'nouser' and answers 'okuser' with a fixture cache, so
+# no real user, cache or sudo is touched.
+cat >"$T/stub/sudo" <<'STUB'
+#!/usr/bin/env bash
+u=""
+while [ $# -gt 0 ]; do
+  case "$1" in -n|-H) shift ;; -u) u="$2"; shift 2 ;; --) shift; break ;; *) break ;; esac
+done
+[ "$u" = okuser ] || { echo "sudo: unknown user $u" >&2; exit 1; }
+case "$*" in *"go env GOCACHE"*) echo "$FAKE_GOCACHE"; exit 0 ;; esac
+exec "$@"
+STUB
+chmod +x "$T/stub/sudo"
+U="$T/users/okuser/cache"
+mk_cache "$U"
+out="$(env SPOOL_TEST=1 GO_CACHE_USERS="nouser okuser" GO_CACHE_LOCK=0 DRY_RUN=0 GO_CACHE_MAX_AGE_MIN=10 \
+  PATH="$T/stub:$PATH" FAKE_GOCACHE="$U" bash -c '
+    set -uo pipefail
+    do_log() { printf "%s\n" "$*"; }
+    do_require_bin() { command -v "$1" >/dev/null; }
+    source "'"$PROJ_ROOT"'/src/bash/run/prune-go-build-cache.func.sh"
+    do_prune_go_build_cache' 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'WARN user=nouser cache NOT pruned'* && ! -e "$U/00/aa/old" && -f "$U/ff/bb/new" ]] &&
+  pass "an unreadable user is a WARN line and the readable user's cache is still pruned" ||
+  fail "warn user (rc=$rc): $out"
+
+out="$(env -u GO_CACHE_USERS -u GO_CACHE_DIRS SPOOL_TEST=1 GO_CACHE_LOCK=0 DRY_RUN=1 bash -c '
+    set -uo pipefail
+    do_log() { printf "%s\n" "$*"; }
+    do_require_bin() { command -v "$1" >/dev/null; }
+    source "'"$PROJ_ROOT"'/src/bash/run/prune-go-build-cache.func.sh"
+    do_prune_go_build_cache' 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$out" == *'SPOOL_TEST=1'* ]] &&
+  pass "SPOOL_TEST=1 with no named caches refuses to discover the live users" ||
+  fail "test guard (rc=$rc): $out"
+
+# the default users include the CI runner user when it exists -----------------
+cat >"$T/stub/getent" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  group) echo "spool-agents:x:900:a1,a2" ;;
+  passwd) for x in $FAKE_USERS; do [ "$x" = "$2" ] && { echo "$2:x:1:1::/nonexistent:/bin/false"; exit 0; }; done; exit 2 ;;
+esac
+STUB
+chmod +x "$T/stub/getent"
+users() {
+  env SPOOL_BOX_USER=boxu SPOOL_AGENT_USER=agu PATH="$T/stub:$PATH" "$@" bash -c '
+    source "'"$PROJ_ROOT"'/src/bash/run/prune-go-build-cache.func.sh"
+    go_cache_discover_users'
+}
+out="$(users FAKE_USERS="ghrunner" GH_RUNNER_USER=)"
+[[ "$out" == "boxu agu a1 a2 ghrunner" ]] &&
+  pass "the default users include the runner user (GH_RUNNER_USER default) when it exists" ||
+  fail "runner default: '$out'"
+out="$(users FAKE_USERS="ci-a" GH_RUNNER_USER="ci-a ci-b")"
+[[ "$out" == "boxu agu a1 a2 ci-a" ]] &&
+  pass "GH_RUNNER_USER names the runner users; one that does not exist is left out" ||
+  fail "runner env: '$out'"
+out="$(users FAKE_USERS="")"
+[[ "$out" == "boxu agu a1 a2" ]] &&
+  pass "no runner user on the box: the default set is unchanged" ||
+  fail "no runner: '$out'"
 
 # cron script: calls the action with the gate on, refuses a worktree ----------
 SH="$T/shared"

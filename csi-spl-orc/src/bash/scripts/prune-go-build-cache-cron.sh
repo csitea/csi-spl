@@ -3,9 +3,13 @@
 # crontab, every 5 min. Installed by do_setup_go_cache_prune_cron as ONE line
 # tagged `# <org>-<app>:go-cache-prune`, the same way as the box-stats line.
 #
-# The action decides. GO_CACHE_GATE=1 prunes on the hourly tick (minute 0)
-# and on any tick where the filesystem that holds the cache is at or over
-# GO_CACHE_PRUNE_AT_PCT (default 85). Every other tick deletes nothing.
+# The action decides, per cache. GO_CACHE_GATE=1 prunes every cache on the
+# hourly tick (minute 0), and on any other tick each cache whose OWN
+# filesystem is at or over GO_CACHE_PRUNE_AT_PCT (default 85). The default
+# users include the CI runner user (GH_RUNNER_USER) when it exists, so a
+# runner cache on / is pruned even when the agents' caches sit on another
+# filesystem. cron.out gets one CACHE line per cache and a WARN for any user
+# whose cache cannot be read.
 #
 #   prune-go-build-cache-cron.sh
 #

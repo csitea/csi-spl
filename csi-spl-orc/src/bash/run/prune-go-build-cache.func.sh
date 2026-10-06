@@ -12,15 +12,22 @@
 # @description us). DRY_RUN=1 (the default) prints counts and bytes only.
 # @description Before and after, the cache size and the free space on the
 # @description filesystem that holds it are printed.
-# @description GO_CACHE_GATE=1 (the cron) prunes only on the hourly minute
-# @description (GO_CACHE_HOURLY_MINUTE, default 0) or when that filesystem is
-# @description at or over GO_CACHE_PRUNE_AT_PCT (default 85).
+# @description GO_CACHE_GATE=1 (the cron) decides PER CACHE: a cache is
+# @description pruned on the hourly minute (GO_CACHE_HOURLY_MINUTE, default 0)
+# @description or when the filesystem that holds THAT cache is at or over
+# @description GO_CACHE_PRUNE_AT_PCT (default 85). One CACHE line per cache
+# @description names the user, path, filesystem, use % and the action.
+# @description A user whose cache cannot be resolved is a WARN line, and the
+# @description other caches are still pruned.
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param GO_CACHE_MAX_AGE_MIN (optional) - age in minutes, default 1440
 # @param GO_CACHE_USERS (optional) - space-separated users; default the box
-# @param   user, SPOOL_AGENT_USER and the spool-agents group
+# @param   user, SPOOL_AGENT_USER, the spool-agents group and the CI runner
+# @param   user(s) GH_RUNNER_USER (gh-runner-add's, default ghrunner) when
+# @param   that user exists on the box
 # @param GO_CACHE_DIRS (optional) - space-separated cache dirs (tests); when
 # @param   set, GO_CACHE_USERS is not consulted
+# @param SPOOL_TEST (optional) - 1 refuses to discover the live users
 # @param GO_CACHE_GATE (optional) - 1 applies the hourly / percent gate
 # @param GO_CACHE_PRUNE_AT_PCT (optional) - 0..100, default 85
 # @param GO_CACHE_NOW_MIN / GO_CACHE_USED_PCT (optional) - test seams
@@ -42,17 +49,31 @@ go_cache_as() {
   fi
 }
 
-# go_cache_discover_users: the box user, SPOOL_AGENT_USER and the spool group,
-# each once, space-separated. Empty when none of those resolve.
+# go_cache_runner_users: the CI runner user(s) that exist on this box, one per
+# line. GH_RUNNER_USER is the user gh-runner-add creates the runner as.
+go_cache_runner_users() {
+  local r
+  set -f
+  # shellcheck disable=SC2086 # space-separated user names
+  for r in ${GH_RUNNER_USER:-ghrunner}; do
+    getent passwd "$r" >/dev/null 2>&1 && printf '%s\n' "$r"
+  done
+  set +f
+  return 0
+}
+
+# go_cache_discover_users: the box user, SPOOL_AGENT_USER, the spool group and
+# the CI runner user(s), each once, space-separated. Empty when none resolve.
 go_cache_discover_users() {
-  local box="" members=""
+  local box="" members="" runners=""
   box="${SPOOL_BOX_USER:-}"
   if [[ -z "$box" && -n "${PROJ_PATH:-}" && -e "${PROJ_PATH}" ]]; then
     box="$(stat -c %U "$PROJ_PATH" 2>/dev/null || true)"
   fi
   members="$(getent group "${SPOOL_ROOT_GROUP:-spool-agents}" 2>/dev/null | awk -F: 'NR==1 { print $4 }' | tr ',' ' ' || true)"
+  runners="$(go_cache_runner_users)"
   # shellcheck disable=SC2086 # the lists are space-separated user names
-  printf '%s\n' $box ${SPOOL_AGENT_USER:-} $members | awk 'NF && !seen[$0]++' | paste -sd' ' - || true
+  printf '%s\n' $box ${SPOOL_AGENT_USER:-} $members $runners | awk 'NF && !seen[$0]++' | paste -sd' ' - || true
 }
 
 # go_cache_resolve <user>: absolute GOCACHE, one line. Refuses a path that is
@@ -101,8 +122,9 @@ go_cache_old_stats() {
     awk '{ n++; s += $1 } END { printf "%d %d\n", n + 0, s + 0 }'
 }
 
-# go_cache_targets: one "<user>\t<dir>" line per cache that exists. A resolve
-# failure returns 1 and the caller deletes nothing.
+# go_cache_targets: one "<user>\t<dir>" line per cache that exists. A user
+# whose cache cannot be resolved (no such user, no sudo, no go) is a WARN on
+# stderr and is skipped; the other users' caches are still listed.
 go_cache_targets() {
   local u d list
   if [[ -n "${GO_CACHE_DIRS:-}" ]]; then
@@ -117,18 +139,24 @@ go_cache_targets() {
   fi
   if [[ -n "${GO_CACHE_USERS+x}" ]]; then
     list="${GO_CACHE_USERS}"
+  elif [[ "${SPOOL_TEST:-}" == 1 ]]; then
+    do_log "FATAL SPOOL_TEST=1 and no GO_CACHE_DIRS / GO_CACHE_USERS: a test must name its caches, never the live users'" >&2
+    return 1
   else
     list="$(go_cache_discover_users)"
   fi
   set -f
   # shellcheck disable=SC2086 # space-separated user names
   for u in $list; do
-    [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { set +f; do_log "FATAL refusing a user name that is not a single token: '$u'"; return 1; }
-    d="$(go_cache_resolve "$u")" || { set +f; do_log "FATAL cannot read GOCACHE for $u (go env, as that user)"; return 1; }
-    if go_cache_as "$u" test -d "$d"; then
+    [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { set +f; do_log "FATAL refusing a user name that is not a single token: '$u'" >&2; return 1; }
+    if ! d="$(go_cache_resolve "$u" 2>/dev/null)"; then
+      do_log "WARN user=$u cache NOT pruned: cannot read its GOCACHE (go env as that user; no such user, no sudo -n, or no go)" >&2
+      continue
+    fi
+    if go_cache_as "$u" test -d "$d" 2>/dev/null; then
       printf '%s\t%s\n' "$u" "$d"
     else
-      do_log "INFO $u has no Go build cache yet"
+      do_log "INFO $u has no Go build cache yet" >&2
     fi
   done
   set +f
@@ -167,36 +195,27 @@ go_cache_check_inputs() {
   [[ "${GO_CACHE_LOCK:-1}" == 0 || "${GO_CACHE_LOCK:-1}" == 1 ]] || { do_log "FATAL GO_CACHE_LOCK must be 0 or 1"; return 1; }
 }
 
-# go_cache_gate <targets> <thr> <hour>: 0 prune now, 3 skip (logged), 1 FATAL.
-# Due on the hourly minute, or when the first cache's filesystem is >= thr.
-go_cache_gate() {
-  local targets="$1" thr="$2" hour="$3" minute u d pct_now due=0
-  minute="${GO_CACHE_NOW_MIN:-$(date +%M)}"
-  [[ "$minute" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_NOW_MIN is not a minute, got: '$minute'"; return 1; }
-  u="${targets%%$'\t'*}"
-  d="${targets#*$'\t'}"
-  d="${d%%$'\n'*}"
-  if [[ -n "${GO_CACHE_USED_PCT:-}" ]]; then
-    pct_now="$GO_CACHE_USED_PCT"
-  else
-    pct_now="$(go_cache_fs "$u" "$d" | awk '{ print $2 }')" || pct_now=""
-  fi
-  if [[ -n "$pct_now" && ! "$pct_now" =~ ^[0-9]+$ ]]; then
-    do_log "FATAL filesystem use is not a percent, got: '$pct_now'"
-    return 1
-  fi
+# go_cache_due <user> <dir> <thr> <hour> <minute>: logs ONE line for this
+# cache (user, path, filesystem, use %, action) and returns 0 prune now,
+# 3 skip, 1 its filesystem cannot be read off the hourly tick (a WARN).
+# The percent is the filesystem that holds THIS cache, not the first one.
+go_cache_due() {
+  local u="$1" d="$2" thr="$3" hour="$4" minute="$5" fs_line free="" pct="" mount="?" action
+  fs_line="$(go_cache_fs "$u" "$d" 2>/dev/null)" || fs_line=""
+  [[ -n "$fs_line" ]] && go_cache_split_fs "$fs_line"
+  [[ -n "${GO_CACHE_USED_PCT:-}" ]] && pct="$GO_CACHE_USED_PCT"
   if (( 10#$minute == 10#$hour )); then
-    due=1
-  elif [[ -z "$pct_now" ]]; then
-    do_log "FATAL cannot read how full the cache filesystem is, and this is not the hourly tick"
+    action=prune-hourly
+  elif [[ ! "$pct" =~ ^[0-9]+$ ]]; then
+    do_log "WARN CACHE user=$u path=$d fs=$mount used_pct=${pct:-?} threshold=$thr action=none: cannot read how full its filesystem is"
     return 1
-  elif (( pct_now >= thr )); then
-    due=1
+  elif (( pct >= thr )); then
+    action=prune
+  else
+    action=skip
   fi
-  if (( due == 0 )); then
-    do_log "OK skip: filesystem ${pct_now}% is under ${thr}% and minute ${minute} is not the hourly tick"
-    return 3
-  fi
+  do_log "CACHE user=$u path=$d fs=$mount used_pct=${pct:-?} threshold=$thr action=$action"
+  [[ "$action" == skip ]] && return 3
   return 0
 }
 
@@ -254,7 +273,7 @@ go_cache_prune_one() {
 do_prune_go_build_cache() {
   local dry="${DRY_RUN:-1}" age="${GO_CACHE_MAX_AGE_MIN:-1440}" gate="${GO_CACHE_GATE:-0}"
   local thr="${GO_CACHE_PRUNE_AT_PCT:-85}" hour="${GO_CACHE_HOURLY_MINUTE:-0}"
-  local targets u d rc=0 removed_files=0 removed_bytes=0
+  local targets u d rc=0 removed_files=0 removed_bytes=0 minute="" pruned=0
   local first_free="" last_free="" first_mount="" lrc=0 grc=0
 
   go_cache_check_inputs "$dry" "$gate" "$age" "$thr" "$hour" || return 1
@@ -272,16 +291,29 @@ do_prune_go_build_cache() {
   fi
 
   if [[ "$gate" == 1 ]]; then
-    go_cache_gate "$targets" "$thr" "$hour" || grc=$?
-    (( grc == 3 )) && return 0
-    (( grc == 0 )) || return 1
+    minute="${GO_CACHE_NOW_MIN:-$(date +%M)}"
+    [[ "$minute" =~ ^[0-9]+$ ]] || { do_log "FATAL GO_CACHE_NOW_MIN is not a minute, got: '$minute'"; return 1; }
+    [[ -z "${GO_CACHE_USED_PCT:-}" || "$GO_CACHE_USED_PCT" =~ ^[0-9]+$ ]] ||
+      { do_log "FATAL filesystem use is not a percent, got: '$GO_CACHE_USED_PCT'"; return 1; }
   fi
 
-  while IFS=$'\t' read -r u d; do
+  # fd 3, so nothing run as a cache's user can read the list off stdin
+  while IFS=$'\t' read -r -u 3 u d; do
     [[ -n "$u" && -n "$d" ]] || continue
+    if [[ "$gate" == 1 ]]; then
+      grc=0
+      go_cache_due "$u" "$d" "$thr" "$hour" "$minute" || grc=$?
+      (( grc == 3 )) && continue
+      (( grc == 0 )) || { rc=1; continue; }
+    fi
+    pruned=$((pruned + 1))
     go_cache_prune_one "$u" "$d" "$age" "$dry" || rc=1
-  done <<<"$targets"
+  done 3<<<"$targets"
 
+  if (( rc == 0 && pruned == 0 )); then
+    do_log "OK skip: no cache filesystem is at or over ${thr}% and minute ${minute} is not the hourly tick"
+    return 0
+  fi
   if (( rc != 0 )); then
     do_log "FAIL go build cache prune left at least one cache untouched"
     return "$rc"

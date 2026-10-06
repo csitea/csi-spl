@@ -102,7 +102,9 @@ async function withPolicy(p, policy, path, role = 'developer') {
 }
 
 const SHAPE = ['msg-menu-open', 'msg-menu-copy', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-archive', 'msg-menu-delete-topic']
-const bare = (ids) => ids.map((i) => i.replace(/:off$/, ''))
+/* t1 b6c742f0: a PERSON's card also ends with the AI actions group (never an
+   agent's, by the owner's order) - the topic entries are what stays the same */
+const bare = (ids) => ids.filter((i) => !i.startsWith('msg-menu-ai-')).map((i) => i.replace(/:off$/, ''))
 const offs = (ids) => ids.filter((i) => i.endsWith(':off')).map((i) => i.replace(/:off$/, ''))
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 const why = (p, id) => p.evaluate((id) => document.querySelector(`[data-testid=msg-menu-${id}]`)?.getAttribute('title') || '', id)

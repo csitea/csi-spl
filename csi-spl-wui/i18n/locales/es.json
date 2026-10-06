@@ -648,6 +648,17 @@
         "archive_admins": "En este espacio de trabajo solo el propietario o un administrador puede archivar temas",
         "archive_starter": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede archivar este tema",
         "delete": "Solo quien inició el tema, el propietario del espacio de trabajo o un administrador puede eliminar este tema"
+      },
+      "ai": {
+        "group": "Acciones de IA",
+        "debate": "Debatir",
+        "spec": "Especificar",
+        "implement": "Implementar",
+        "analyse": "Analizar",
+        "issue": "Convertir en incidencia",
+        "risks": "Buscar riesgos",
+        "calendar": "Añadir al calendario",
+        "failed": "La acción de IA no se completó. Inténtalo de nuevo."
       }
     },
     "emoji": {

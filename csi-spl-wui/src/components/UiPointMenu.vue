@@ -32,7 +32,10 @@
       @contextmenu.prevent
     >
       <ul role="menu" class="point-menu__items" :class="block + '__items'" :aria-label="label">
-        <li v-for="item in items" :key="item.id" role="none">
+        <li v-for="item in items" :key="item.id" role="none" :class="{ 'point-menu__grouped': item.groupKey }">
+          <!-- t1 b6c742f0: a group (the message menu's AI actions) starts
+               with a rule and its name; the entries stay plain menuitems -->
+          <span v-if="item.groupKey" class="point-menu__group" :data-testid="testid + '-group-' + item.id">{{ t(item.groupKey) }}</span>
           <button
             type="button"
             role="menuitem"
@@ -101,6 +104,8 @@ export type PointMenuItem = {
   hintKey?: string
   /** HUM-10 ae2e5093: the entry's keyboard shortcut ("⇧H"), shown muted on the right */
   keyHint?: string
+  /** t1 b6c742f0: the i18n key of the group this entry starts (a rule and a heading above it) */
+  groupKey?: string
 }
 
 const props = defineProps<{
@@ -210,6 +215,13 @@ function choose(id: string, disabled?: boolean, ev?: MouseEvent) {
   outline: none;
 }
 .point-menu__item--danger { color: var(--color-danger); }
+.point-menu__grouped { border-top: 1px solid var(--color-border); margin-top: 4px; padding-top: 4px; }
+.point-menu__group {
+  display: block;
+  padding: 2px 12px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
 /* a phone row is a 44 px touch target */
 .touch-sheet .point-menu__item { min-height: var(--tap, 44px); }
 </style>

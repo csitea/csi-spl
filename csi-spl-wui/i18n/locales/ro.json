@@ -648,6 +648,17 @@
         "archive_admins": "În acest spațiu de lucru doar proprietarul sau un administrator poate arhiva subiecte",
         "archive_starter": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate arhiva acest subiect",
         "delete": "Doar cel care a început subiectul, proprietarul spațiului de lucru sau un administrator poate șterge acest subiect"
+      },
+      "ai": {
+        "group": "Acțiuni AI",
+        "debate": "Dezbatere",
+        "spec": "Specificație",
+        "implement": "Implementează",
+        "analyse": "Analizează",
+        "issue": "Transformă în tichet (issue)",
+        "risks": "Găsește riscuri",
+        "calendar": "Adaugă în calendar",
+        "failed": "Acțiunea AI nu a reușit. Încercați din nou."
       }
     },
     "emoji": {

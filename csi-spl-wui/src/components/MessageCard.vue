@@ -358,6 +358,10 @@
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ t(editError) }}</span>
       </p>
+      <p v-if="aiError" class="msg-edit-error" role="alert" data-testid="msg-ai-error">
+        <UiIcon name="alert-triangle" :size="14" />
+        <span>{{ t(aiError) }}</span>
+      </p>
       <p v-if="reactError" class="msg-edit-error" role="alert" data-testid="msg-emoji-error">
         <UiIcon name="alert-triangle" :size="14" />
         <span>{{ reactError }}</span>
@@ -383,6 +387,8 @@
       :promote-topic="canPromoteMsg"
       :hide="menuHide"
       :locks="menuLocks"
+      :ai-msg="ai ? undefined : msg"
+      :ai-fail="onAiFail"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"
       @open="onMenuOpen"
@@ -1381,6 +1387,13 @@ function onPromote() {
 
 /* "moved from #x" on a card, "moved from <topic>" on a reply */
 const channelStore = useChannelStore()
+
+/* t1 b6c742f0 (HUM-10): MessageMenu runs a person's message's AI actions;
+   a failure is shown here, under the card */
+const aiError = ref('')
+function onAiFail(key: string) {
+  aiError.value = key
+}
 const movedInfo = computed(() => movedNote(props.msg))
 const movedFrom = computed(() => {
   const n = movedInfo.value

@@ -83,6 +83,8 @@
       :move-channel="menuFlags.moveChannel"
       :merge-topic="menuFlags.mergeTopic"
       :locks="menuFlags.locks"
+      :ai-msg="menuMsg"
+      :ai-fail="onAiFail"
       @close="hideMenu()"
       @escape="focusMenuRow()"
       @open="onMenuOpen"
@@ -93,6 +95,7 @@
       @move-channel="onMenuMove('channel')"
       @merge-topic="onMenuMove('merge')"
     />
+    <p v-if="aiError" class="msg-edit-error" role="alert" data-test="topic-list-ai-error">{{ t(aiError) }}</p>
     <LazyMovePickerDialog
       v-if="movePicker && menuMsg"
       :open="true"
@@ -388,6 +391,12 @@ async function saveEdit() {
     editSaving.value = false
     editError.value = editFailureKey(e)
   }
+}
+
+/* t1 b6c742f0: the card's AI actions run in MessageMenu; a failure shows here */
+const aiError = ref('')
+function onAiFail(key: string) {
+  aiError.value = key
 }
 
 async function onMenuCopy() {

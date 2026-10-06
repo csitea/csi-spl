@@ -648,6 +648,17 @@
         "archive_admins": "Selles tööruumis saavad teemasid arhiveerida ainult omanik või administraator",
         "archive_starter": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat arhiveerida",
         "delete": "Ainult teema algataja, tööruumi omanik või administraator saab seda teemat kustutada"
+      },
+      "ai": {
+        "group": "AI toimingud",
+        "debate": "Arutelu",
+        "spec": "Spetsifikatsioon",
+        "implement": "Teosta",
+        "analyse": "Analüüsi",
+        "issue": "Tee sellest probleem (issue)",
+        "risks": "Leia riskid",
+        "calendar": "Lisa kalendrisse",
+        "failed": "AI toiming ei õnnestunud. Proovi uuesti."
       }
     },
     "emoji": {

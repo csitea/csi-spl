@@ -648,6 +648,17 @@
         "archive_admins": "In this workspace only the owner or an admin can archive topics",
         "archive_starter": "Only the topic starter, the workspace owner or an admin can archive this topic",
         "delete": "Only the topic starter, the workspace owner or an admin can delete this topic"
+      },
+      "ai": {
+        "group": "AI actions",
+        "debate": "Debate",
+        "spec": "Spec",
+        "implement": "Implement",
+        "analyse": "Analyse",
+        "issue": "Turn into an issue",
+        "risks": "Find risks",
+        "calendar": "Add to calendar",
+        "failed": "The AI action did not go through. Try again."
       }
     },
     "emoji": {

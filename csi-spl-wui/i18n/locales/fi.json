@@ -648,6 +648,17 @@
         "archive_admins": "Tässä työtilassa vain omistaja tai ylläpitäjä voi arkistoida aiheita",
         "archive_starter": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi arkistoida tämän aiheen",
         "delete": "Vain aiheen aloittaja, työtilan omistaja tai ylläpitäjä voi poistaa tämän aiheen"
+      },
+      "ai": {
+        "group": "AI-toiminnot",
+        "debate": "Väittely",
+        "spec": "Määrittely",
+        "implement": "Toteuta",
+        "analyse": "Analysoi",
+        "issue": "Muuta tiketiksi",
+        "risks": "Etsi riskit",
+        "calendar": "Lisää kalenteriin",
+        "failed": "AI-toiminto ei onnistunut. Yritä uudelleen."
       }
     },
     "emoji": {

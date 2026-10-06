@@ -648,6 +648,17 @@
         "archive_admins": "V tomto pracovnom priestore môže témy archivovať len vlastník alebo správca",
         "archive_starter": "Túto tému môže archivovať len jej zakladateľ, vlastník pracovného priestoru alebo správca",
         "delete": "Túto tému môže odstrániť len jej zakladateľ, vlastník pracovného priestoru alebo správca"
+      },
+      "ai": {
+        "group": "Akcie AI",
+        "debate": "Debata",
+        "spec": "Špecifikácia",
+        "implement": "Implementovať",
+        "analyse": "Analyzovať",
+        "issue": "Premeniť na úlohu (issue)",
+        "risks": "Nájsť riziká",
+        "calendar": "Pridať do kalendára",
+        "failed": "Akcia AI sa nepodarila. Skúste to znova."
       }
     },
     "emoji": {

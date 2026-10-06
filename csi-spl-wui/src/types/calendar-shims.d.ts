@@ -23,6 +23,7 @@ declare module '~/utils/calendar-mock.mjs' {
     release_version: string, issue_key: string, created_at: string, updated_at: string,
   }
   export function mockCalendarItems(todayIso: string): CalendarItem[]
+  export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, topic_id?: string }): CalendarItem
   export function mockCalendarEvents(start: string, end: string, todayIso: string): { start: string, end: string, events: CalendarItem[] }
   export function mockCalendarMarks(startYear: number, endYear: number, todayIso: string): {
     start_year: number, end_year: number,

@@ -13,13 +13,17 @@
     block="msg-menu"
     testid="msg-menu"
     @choose="choose"
-    @close="emit('close')"
+    @close="onClose"
     @escape="emit('escape')"
   />
 </template>
 
 <script setup lang="ts">
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
+import { aiMenuItems } from '~/utils/msg-ai-actions.mjs'
+import { runAiAction } from '~/utils/msg-ai-run'
+import { useChannelStore } from '~/stores/channel'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
 import { usePhone } from '~/composables/useTouchUi'
 import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
@@ -56,6 +60,10 @@ const props = defineProps<{
   hide?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
   locks?: Partial<TopicMenuLocks>
+  /** t1 b6c742f0: the message, for the AI actions group (a person's message only) */
+  aiMsg?: unknown
+  /** t1 b6c742f0: told the i18n key when an AI action fails (the menu is closed by then, so no emit) */
+  aiFail?: (key: string) => void
 }>()
 
 const emit = defineEmits<{
@@ -86,7 +94,34 @@ const { t } = useI18n({ useScope: 'global' })
 const sheet = usePhone()
 /* HUM-10 ae2e5093: each entry's Shift + letter on its right, while the setting is on */
 const keysOn = useMsgShortcutsOn()
-const items = computed(() => withKeys(msgMenuItems({
+/* t1 b6c742f0: the AI actions group closes the list, on a person's message
+   only. The phone sheet opens WHOLE (t1 7a6be5a3), Delete last: there the
+   group is one "AI actions" entry before Delete that turns the same sheet
+   into the seven actions. */
+const aiOnly = ref(false)
+/* the pick of "AI actions" is not a close: UiPointMenu emits close after every pick */
+let keepOpen = false
+function onClose() {
+  if (keepOpen) { keepOpen = false; return }
+  emit('close')
+}
+/* the menu runs the pick itself: it outlives the close (the promise keeps it) */
+const aiDeps = { api: useSpoolApi(), router: useRouter(), localePath: useLocalePath(), send: useChannelStore().send }
+async function runAi(id: string) {
+  const key = await runAiAction(id, props.aiMsg, aiDeps)
+  if (key) props.aiFail?.(key)
+}
+const AI_MORE = { id: 'ai-more', icon: 'bot' as const, labelKey: 'feed.msg_menu.ai.group' }
+const items = computed(() => {
+  const ai = aiMenuItems(props.aiMsg)
+  if (aiOnly.value) return withKeys(ai.map(({ groupKey: _g, ...it }) => it))
+  const base = topicItems.value
+  if (!ai.length) return withKeys(base)
+  if (!sheet.value) return withKeys([...base, ...ai])
+  const del = base.findIndex((it) => it.id === 'delete' || it.id === 'delete-topic')
+  return withKeys(del < 0 ? [...base, AI_MORE] : [...base.slice(0, del), AI_MORE, ...base.slice(del)])
+})
+const topicItems = computed(() => msgMenuItems({
   touch: sheet.value,
   kind: props.kind,
   editable: props.editable,
@@ -103,7 +138,7 @@ const items = computed(() => withKeys(msgMenuItems({
   promoteTopic: props.promoteTopic,
   hide: props.hide,
   locks: props.locks,
-})))
+}))
 function withKeys<T extends { id: string }>(list: T[]): (T & { keyHint?: string })[] {
   return keysOn.value ? list.map((it) => ({ ...it, keyHint: shortcutHint(it.id) || undefined })) : list
 }
@@ -127,6 +162,8 @@ function choose(id: string) {
   else if (id === 'merge-topic') emit('merge-topic')
   else if (id === 'promote-topic') emit('promote-topic')
   else if (id === 'hide-flow') emit('hide-flow')
+  else if (id === 'ai-more') { aiOnly.value = true; keepOpen = true }
+  else if (id.startsWith('ai-')) void runAi(id)
 }
 </script>
 

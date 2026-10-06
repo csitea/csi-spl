@@ -648,6 +648,17 @@
         "archive_admins": "Šajā darbvietā tēmas arhivēt var tikai īpašnieks vai administrators",
         "archive_starter": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var arhivēt šo tēmu",
         "delete": "Tikai tēmas aizsācējs, darbvietas īpašnieks vai administrators var dzēst šo tēmu"
+      },
+      "ai": {
+        "group": "MI darbības",
+        "debate": "Debates",
+        "spec": "Specifikācija",
+        "implement": "Īstenot",
+        "analyse": "Analizēt",
+        "issue": "Pārvērst par problēmu (issue)",
+        "risks": "Atrast riskus",
+        "calendar": "Pievienot kalendāram",
+        "failed": "MI darbība neizdevās. Mēģiniet vēlreiz."
       }
     },
     "emoji": {

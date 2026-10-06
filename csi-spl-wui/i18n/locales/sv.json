@@ -648,6 +648,17 @@
         "archive_admins": "I den här arbetsytan kan bara ägaren eller en administratör arkivera ämnen",
         "archive_starter": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan arkivera det här ämnet",
         "delete": "Bara den som startade ämnet, arbetsytans ägare eller en administratör kan ta bort det här ämnet"
+      },
+      "ai": {
+        "group": "AI-åtgärder",
+        "debate": "Debattera",
+        "spec": "Specifikation",
+        "implement": "Implementera",
+        "analyse": "Analysera",
+        "issue": "Gör om till ärende",
+        "risks": "Hitta risker",
+        "calendar": "Lägg till i kalendern",
+        "failed": "AI-åtgärden gick inte igenom. Försök igen."
       }
     },
     "emoji": {

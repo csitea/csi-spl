@@ -32,6 +32,44 @@ function item(fields) {
   }
 }
 
+/* t1 b6c742f0: events the mock workspace created (a message's Add to
+   calendar), kept in this browser only */
+const ADDED_KEY = 'spool.mock.calendar-added'
+
+function mockAddedEvents() {
+  try {
+    const list = JSON.parse(globalThis.localStorage?.getItem(ADDED_KEY) || '[]')
+    return Array.isArray(list) ? list.map((x) => item(x)) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * POST /v1/calendar/events (6.1.2) in the mock workspace: the created event,
+ * kept so GET events / marks show it.
+ * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, topic_id?: string }} body
+ */
+export function mockCalendarCreate(body = {}) {
+  const now = new Date().toISOString()
+  const ev = item({
+    id: globalThis.crypto?.randomUUID?.() || `00000000-0000-4000-8000-${String(Date.now()).slice(-12).padStart(12, '0')}`,
+    title: String(body.title || ''),
+    description: String(body.description || ''),
+    starts_at: String(body.starts_at || ''),
+    ends_at: String(body.ends_at || ''),
+    topic_id: String(body.topic_id || ''),
+    created_at: now,
+    updated_at: now,
+  })
+  try {
+    const raw = JSON.parse(globalThis.localStorage?.getItem(ADDED_KEY) || '[]')
+    const list = Array.isArray(raw) ? raw : []
+    globalThis.localStorage?.setItem(ADDED_KEY, JSON.stringify([...list, ev]))
+  } catch { /* private mode: the event is returned, not kept */ }
+  return ev
+}
+
 /**
  * The mock items around `todayIso`: a release, a maintenance window, an issue
  * deadline this week, an event next month, and one official day (25 December
@@ -44,6 +82,7 @@ export function mockCalendarItems(todayIso) {
   const at = (offset, hhmm) => `${calAddDays(today, offset)}T${hhmm}:00Z`
   const year = today.slice(0, 4)
   return [
+    ...mockAddedEvents(),
     item({ id: '00000000-0000-4000-8000-000000000101', title: 'Release', kind: 'release', starts_at: at(0, '09:00'), ends_at: at(0, '10:00'), release_version: 'v1.4.0' }),
     item({ id: '00000000-0000-4000-8000-000000000102', title: 'Database maintenance', kind: 'maintenance', starts_at: at(2, '10:00'), ends_at: at(2, '11:00'), creator_type: 'agent', creator_id: 'c-007' }),
     item({ id: 'SPL-12', source: 'issue', title: 'Issue deadline', kind: 'deadline', starts_at: at(2, '17:00'), ends_at: at(2, '17:00'), issue_key: 'SPL-12' }),

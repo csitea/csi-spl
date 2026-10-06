@@ -648,6 +648,17 @@
         "archive_admins": "W tej przestrzeni roboczej tylko właściciel lub administrator może archiwizować tematy",
         "archive_starter": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może zarchiwizować ten temat",
         "delete": "Tylko autor tematu, właściciel przestrzeni roboczej lub administrator może usunąć ten temat"
+      },
+      "ai": {
+        "group": "Akcje AI",
+        "debate": "Debata",
+        "spec": "Specyfikacja",
+        "implement": "Zaimplementuj",
+        "analyse": "Analizuj",
+        "issue": "Zamień w zgłoszenie",
+        "risks": "Znajdź ryzyka",
+        "calendar": "Dodaj do kalendarza",
+        "failed": "Akcja AI nie powiodła się. Spróbuj ponownie."
       }
     },
     "emoji": {

@@ -648,6 +648,17 @@
         "archive_admins": "In deze werkruimte kunnen alleen de eigenaar of een beheerder onderwerpen archiveren",
         "archive_starter": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp archiveren",
         "delete": "Alleen wie het onderwerp startte, de eigenaar van de werkruimte of een beheerder kan dit onderwerp verwijderen"
+      },
+      "ai": {
+        "group": "AI-acties",
+        "debate": "Debatteren",
+        "spec": "Specificatie",
+        "implement": "Implementeren",
+        "analyse": "Analyseren",
+        "issue": "Omzetten in issue",
+        "risks": "Risico's vinden",
+        "calendar": "Toevoegen aan agenda",
+        "failed": "De AI-actie is niet gelukt. Probeer het opnieuw."
       }
     },
     "emoji": {

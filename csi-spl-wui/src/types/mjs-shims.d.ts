@@ -704,6 +704,23 @@ declare module '~/utils/touch-ui.mjs' {
   }
 }
 
+declare module '~/utils/msg-ai-actions.mjs' {
+  export type AiActionMode = 'post' | 'issue' | 'calendar'
+  export interface AiActionDef { id: string, icon: import('~/utils/uiIcons').UiIconName, key: string, mode: AiActionMode, name: string, instruction: string }
+  export const AI_ACTIONS: AiActionDef[]
+  export function aiAction(id: string): AiActionDef | null
+  export function offersAiActions(msg: unknown): boolean
+  export function aiMenuItems(msg: unknown): { id: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string, groupKey?: string }[]
+  export function aiPostTarget(msg: unknown): { taskId: string, channel: string }
+  export function aiActionPost(msg: unknown, actionId: string, where?: { workspace?: string, link?: string }): string
+  export function aiIssueBody(msg: unknown, where?: { workspace?: string, link?: string }): { title: string, description: string }
+  export function aiIssueRoute(key: string): { path: string, query: Record<string, string> }
+  export interface AiEventBody { title: string, description: string, starts_at: string, ends_at: string, topic_id: string }
+  export function aiEventBody(msg: unknown, where?: { workspace?: string, link?: string }, nowMs?: number): AiEventBody
+  export function aiCalendarRoute(event: { starts_at?: string } | null | undefined): { path: string, query: Record<string, string> }
+  export function createCalendarEvent(api: { mock?: boolean, base?: string, token?: string, credentials?: RequestCredentials }, body: AiEventBody): Promise<{ id: string, starts_at: string }>
+}
+
 declare module '~/utils/msg-menu.mjs' {
   export function msgMenuItems(opts?: { editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, hide?: boolean, locks?: Partial<import('~/utils/topic-menu.mjs').TopicMenuLocks> }): { id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]
   export function messageLink(msg: unknown, pathFor: (path: string) => string): string

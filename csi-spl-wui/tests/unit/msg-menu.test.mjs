@@ -192,7 +192,7 @@ describe('every locale names the message actions', () => {
     const dir = join(WUI, 'i18n/locales')
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8')).feed.msg_menu
     assert.equal(en.hide_flow, 'Hide from flow')
-    assert.deepEqual(Object.keys(en).sort(), ['archive', 'copy_link', 'copy_text', 'delete', 'edit', 'hide_flow', 'kind', 'label', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_in_channels', 'open_in_dm', 'open_parent', 'promote_topic', 'reply', 'unarchive', 'why'])
+    assert.deepEqual(Object.keys(en).sort(), ['ai', 'archive', 'copy_link', 'copy_text', 'delete', 'edit', 'hide_flow', 'kind', 'label', 'merge_next', 'merge_prev', 'merge_topic', 'move_channel', 'move_topic', 'open', 'open_in_channels', 'open_in_dm', 'open_parent', 'promote_topic', 'reply', 'unarchive', 'why'])
     const codes = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'en.json').map((f) => f.replace(/\.json$/, ''))
     assert.ok(codes.length >= 18)
     for (const code of codes) {

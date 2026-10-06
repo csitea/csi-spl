@@ -648,6 +648,17 @@
         "archive_admins": "Šioje darbo erdvėje temas archyvuoti gali tik savininkas arba administratorius",
         "archive_starter": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali archyvuoti šią temą",
         "delete": "Tik temos pradininkas, darbo erdvės savininkas arba administratorius gali ištrinti šią temą"
+      },
+      "ai": {
+        "group": "DI veiksmai",
+        "debate": "Diskusija",
+        "spec": "Specifikacija",
+        "implement": "Įgyvendinti",
+        "analyse": "Analizuoti",
+        "issue": "Paversti užduotimi (issue)",
+        "risks": "Rasti rizikas",
+        "calendar": "Pridėti į kalendorių",
+        "failed": "DI veiksmas nepavyko. Bandykite dar kartą."
       }
     },
     "emoji": {

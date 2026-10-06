@@ -648,6 +648,17 @@
         "archive_admins": "Bu çalışma alanında konuları yalnızca sahip veya bir yönetici arşivleyebilir",
         "archive_starter": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici arşivleyebilir",
         "delete": "Bu konuyu yalnızca konuyu başlatan kişi, çalışma alanı sahibi veya bir yönetici silebilir"
+      },
+      "ai": {
+        "group": "Yapay zekâ işlemleri",
+        "debate": "Tartış",
+        "spec": "Şartname",
+        "implement": "Uygula",
+        "analyse": "Analiz et",
+        "issue": "Kayda (issue) dönüştür",
+        "risks": "Riskleri bul",
+        "calendar": "Takvime ekle",
+        "failed": "Yapay zekâ işlemi tamamlanamadı. Yeniden deneyin."
       }
     },
     "emoji": {

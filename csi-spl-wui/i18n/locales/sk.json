@@ -1566,6 +1566,8 @@
     "folders": "Priečinky",
     "off": "Dokumenty ešte nie sú na tomto serveri zverejnené.",
     "not_found": "Taký dokument neexistuje.",
+    "not_published": "Tento dokument ešte nie je v úložisku dokumentov.",
+    "open_in_repo": "Otvoriť ho v repozitári",
     "load_failed": "Dokument sa nenačítal — skúste to znova.",
     "ws": {
       "title": "Dokumenty pracovného priestoru",

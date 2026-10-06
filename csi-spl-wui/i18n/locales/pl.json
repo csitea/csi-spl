@@ -1566,6 +1566,8 @@
     "folders": "Foldery",
     "off": "Dokumenty nie są jeszcze opublikowane na tym serwerze.",
     "not_found": "Nie ma takiego dokumentu.",
+    "not_published": "Tego dokumentu nie ma jeszcze w magazynie dokumentów.",
+    "open_in_repo": "Otwórz go w repozytorium",
     "load_failed": "Dokument się nie wczytał — spróbuj ponownie.",
     "ws": {
       "title": "Dokumenty przestrzeni roboczej",

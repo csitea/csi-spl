@@ -1350,7 +1350,7 @@ declare module '~/utils/markdown.mjs' {
   export const TAGS: Set<string>
   export const ATTRS: Record<string, Set<string>>
   export function safeHref(raw: string): string
-  export interface MdOptions { breaks?: boolean, html?: boolean }
+  export interface MdOptions { breaks?: boolean, html?: boolean, docsRepo?: string }
   export function markdownTree(src: string, opts?: MdOptions): MdNode[]
   export function htmlTableNodes(html: string): MdNode[]
   export function treeToHtml(nodes: MdNode[], origin?: string): string
@@ -1597,6 +1597,8 @@ declare module '~/utils/docs.mjs' {
   export function docsRoute(path: string): string
   export function docsHref(raw: unknown, from: string, route?: (path: string) => string): string
   export function rewriteDocsLinks(md: unknown, from: string, route?: (path: string) => string): string
+  export function docsLinkHref(raw: unknown, webUrl: unknown, route?: (path: string) => string): string | null
+  export function docsRepoUrl(path: string, webUrl: unknown, helpPath: unknown): string
   export function buildDocsTree(files: unknown): DocsDir
   export function docsAncestors(path: string): string[]
   export function visibleDocsRows(root: DocsDir, open: Set<string>): DocsRow[]

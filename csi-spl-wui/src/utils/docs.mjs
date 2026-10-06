@@ -61,6 +61,60 @@ export function docsHref(raw, from, route = docsRoute) {
   return DOCS_REPO_BASE + joined + (m && m[2] ? m[2] : '')
 }
 
+/*
+ * SPL-1291 (owner, t1 2b25c535): a link to a doc in a MESSAGE opens our own
+ * docs store. A link to a .md file of THIS repository, <repoWebUrl>/blob/
+ * <ref>/<path>.md (GitLab: /-/blob/), and a bare repo-relative <path>.md
+ * become /docs/<path>, the anchor kept. The repository is cnf
+ * env.wui.repo_web_url (/config.json repoWebUrl), never a literal host;
+ * unset = only the relative form rewrites. Commit, PR, tree, raw, a non-.md
+ * file, a ?query (?plain=1 line links) and any other host stay as written.
+ */
+const BLOB_RE = /^(?:\/-)?\/blob\/[^/]+\/([^?#]+)$/
+
+/**
+ * The /docs route for a link to a doc of the repository at `webUrl`, or null
+ * when the link is not one (it then stays as written).
+ */
+export function docsLinkHref(raw, webUrl, route = docsRoute) {
+  const s = String(raw ?? '').trim()
+  if (!s || s.startsWith('/') || s.startsWith('#') || s.startsWith('?')) return null
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) {
+    let u, base
+    try {
+      u = new URL(s)
+      base = new URL(String(webUrl ?? '').trim())
+    } catch {
+      return null
+    }
+    if (!/^https?:$/.test(u.protocol) || !/^https?:$/.test(base.protocol) || u.search) return null
+    const host = (h) => h.toLowerCase().replace(/^www\./, '')
+    if (host(u.host) !== host(base.host)) return null
+    const root = base.pathname.replace(/\/+$/, '')
+    if (!root || !u.pathname.startsWith(root + '/')) return null
+    const m = BLOB_RE.exec(u.pathname.slice(root.length))
+    if (!m) return null
+    let path
+    try { path = decodeURIComponent(m[1]) } catch { return null }
+    return validDocsPath(path) ? route(path) + u.hash : null
+  }
+  const m = /^(?:\.\/)?([^?#]+)(#.*)?$/.exec(s)
+  if (!m || !validDocsPath(m[1])) return null
+  return route(m[1]) + (m[2] || '')
+}
+
+/**
+ * The page of a doc in the repository at `webUrl`, on the branch named by
+ * `helpPath` (cnf repo_help_path, "/blob/<branch>/..."), for a doc the store
+ * has not published; '' when either is unset.
+ */
+export function docsRepoUrl(path, webUrl, helpPath) {
+  const b = String(webUrl ?? '').trim().replace(/\/+$/, '')
+  const m = /^((?:\/-)?\/blob\/[^/?#\s]+\/)/.exec(String(helpPath ?? '').trim())
+  if (!/^https?:\/\/[^\s"'<>]+$/i.test(b) || !m || !validDocsPath(path)) return ''
+  return b + m[1] + path
+}
+
 /** The markdown with every inline link target rewritten by docsHref. */
 export function rewriteDocsLinks(md, from, route) {
   return String(md ?? '').replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (_, href, title) => '](' + docsHref(href, from, route) + title + ')')

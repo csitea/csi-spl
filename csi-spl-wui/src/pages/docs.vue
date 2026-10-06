@@ -85,6 +85,12 @@
           <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
           <p v-else-if="state === 'off'" class="muted" role="status">{{ t('docs.off') }}</p>
           <p v-else-if="state === 'missing'" class="muted" role="alert" data-test="docs-missing">{{ t('docs.not_found') }}</p>
+          <!-- SPL-1291: a doc link from a message lands here; a doc the store
+               has not published still opens, on the repository (no dead link) -->
+          <p v-if="(state === 'missing' || state === 'off') && repoUrl" class="docs-content__repo" data-test="docs-repo">
+            {{ t('docs.not_published') }}
+            <a :href="repoUrl" target="_blank" rel="noopener noreferrer nofollow" data-test="docs-repo-link">{{ t('docs.open_in_repo') }}</a>
+          </p>
           <p v-else-if="state === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
           <MarkdownBlock v-else :text="text" bare />
           </template>
@@ -105,7 +111,7 @@ import DocsWorkspaceDoc from '~/components/DocsWorkspaceDoc.vue'
 import DocsWorkspaceTree from '~/components/DocsWorkspaceTree.vue'
 import { wsPathOf } from '~/utils/ws-docs.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { DOCS_HOME, buildDocsTree, docsAncestors, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
+import { DOCS_HOME, buildDocsTree, docsAncestors, docsRepoUrl, rewriteDocsLinks, validDocsPath, visibleDocsRows, type DocsDir } from '~/utils/docs.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
@@ -122,6 +128,9 @@ const docPath = computed(() => {
   return s || DOCS_HOME
 })
 const route = (p: string) => localePath('/docs/' + p)
+const pub = useRuntimeConfig().public
+/* the doc on the repository (cnf repo_web_url + repo_help_path's branch) */
+const repoUrl = computed(() => docsRepoUrl(docPath.value, pub.repoWebUrl, pub.repoHelpPath))
 /* spec 075 T010: /docs/ws/<path> is a workspace doc (DocsWorkspaceDoc) */
 const wsPath = computed(() => wsPathOf(docPath.value))
 const tree = ref<DocsDir>(buildDocsTree([]))
@@ -252,6 +261,8 @@ useHead(() => ({ title: t('docs.title') }))
 :global([dir="rtl"]) .docs-tree__chev[data-icon="chevron-right"] { transform: scaleX(-1); }
 .docs-content { min-width: 0; max-width: 900px; display: flex; flex-direction: column; gap: 8px; }
 .docs-content__path { margin: 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
+.docs-content__repo { margin: 0; overflow-wrap: anywhere; }
+.docs-content__repo a { color: var(--color-accent); text-decoration: underline; }
 .docs-content :deep(h1) { font-size: 1.5rem; margin: 0 0 0.5em; }
 .docs-content :deep(h2) { font-size: 1.2rem; margin: 1.2em 0 0.4em; }
 .docs-content :deep(h3) { font-size: 1.05rem; margin: 1em 0 0.3em; }

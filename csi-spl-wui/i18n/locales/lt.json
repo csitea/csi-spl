@@ -1566,6 +1566,8 @@
     "folders": "Aplankai",
     "off": "Dokumentai šiame serveryje dar nepaskelbti.",
     "not_found": "Tokio dokumento nėra.",
+    "not_published": "Šio dokumento dar nėra dokumentų saugykloje.",
+    "open_in_repo": "Atidaryti jį saugykloje",
     "load_failed": "Dokumentas neįsikėlė — bandykite dar kartą.",
     "ws": {
       "title": "Darbo srities dokumentai",

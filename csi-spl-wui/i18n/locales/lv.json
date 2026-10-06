@@ -1566,6 +1566,8 @@
     "folders": "Mapes",
     "off": "Dokumenti šajā serverī vēl nav publicēti.",
     "not_found": "Šāda dokumenta nav.",
+    "not_published": "Šī dokumenta vēl nav dokumentu krātuvē.",
+    "open_in_repo": "Atvērt to repozitorijā",
     "load_failed": "Dokuments neielādējās — mēģiniet vēlreiz.",
     "ws": {
       "title": "Darbvietas dokumenti",

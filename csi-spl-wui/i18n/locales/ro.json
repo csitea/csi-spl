@@ -1566,6 +1566,8 @@
     "folders": "Dosare",
     "off": "Documentele nu sunt încă publicate pe acest server.",
     "not_found": "Nu există un astfel de document.",
+    "not_published": "Acest document nu este încă în depozitul de documente.",
+    "open_in_repo": "Deschide-l în depozit",
     "load_failed": "Documentul nu s-a încărcat — încercați din nou.",
     "ws": {
       "title": "Documentele spațiului de lucru",

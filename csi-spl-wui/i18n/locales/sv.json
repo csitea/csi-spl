@@ -1566,6 +1566,8 @@
     "folders": "Mappar",
     "off": "Dokumenten är inte publicerade på den här servern ännu.",
     "not_found": "Det finns inget sådant dokument.",
+    "not_published": "Det här dokumentet finns inte i dokumentlagret ännu.",
+    "open_in_repo": "Öppna det i repot",
     "load_failed": "Dokumentet laddades inte — försök igen.",
     "ws": {
       "title": "Arbetsytans dokument",

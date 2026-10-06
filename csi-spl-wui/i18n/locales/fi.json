@@ -1566,6 +1566,8 @@
     "folders": "Kansiot",
     "off": "Dokumentteja ei ole vielä julkaistu tällä palvelimella.",
     "not_found": "Tällaista dokumenttia ei ole.",
+    "not_published": "Tätä dokumenttia ei ole vielä dokumenttivarastossa.",
+    "open_in_repo": "Avaa se repositoriossa",
     "load_failed": "Dokumentti ei latautunut — yritä uudelleen.",
     "ws": {
       "title": "Työtilan dokumentit",

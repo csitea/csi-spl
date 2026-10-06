@@ -1566,6 +1566,8 @@
     "folders": "Mappen",
     "off": "De documenten zijn nog niet gepubliceerd op deze server.",
     "not_found": "Dat document bestaat niet.",
+    "not_published": "Dit document staat nog niet in de documentopslag.",
+    "open_in_repo": "Open het in de repository",
     "load_failed": "Het document is niet geladen — probeer het opnieuw.",
     "ws": {
       "title": "Werkruimtedocumenten",

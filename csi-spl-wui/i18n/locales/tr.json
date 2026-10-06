@@ -1566,6 +1566,8 @@
     "folders": "Klasörler",
     "off": "Belgeler bu sunucuda henüz yayımlanmadı.",
     "not_found": "Böyle bir belge yok.",
+    "not_published": "Bu belge henüz belge deposunda değil.",
+    "open_in_repo": "Depoda aç",
     "load_failed": "Belge yüklenmedi — tekrar deneyin.",
     "ws": {
       "title": "Çalışma alanı belgeleri",

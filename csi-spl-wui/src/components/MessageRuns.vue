@@ -1,5 +1,5 @@
 <template>
-  <template v-for="(p, j) in parts" :key="j">
+  <template v-for="(p, j) in runs" :key="j">
     <code v-if="p.type === 'inline'" class="code-inline">{{ p.text }}</code>
     <strong v-else-if="p.type === 'strong'">{{ p.text }}</strong>
     <em v-else-if="p.type === 'em'">{{ p.text }}</em>
@@ -32,6 +32,7 @@
 import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { bodyTimeRuns } from '~/utils/body-times.mjs'
+import { docsLinkHref } from '~/utils/docs.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
 
@@ -40,13 +41,20 @@ import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
    Internal links (relative, or the same origin) stay in this tab and the
    router moves the SPA. Everything else is a new tab with no opener
    (link-target.mjs). A click, double-click or Enter on the link does not
-   also open the row's topic. */
-defineProps<{ parts: { type: string, text: string, href?: string }[] }>()
+   also open the row's topic.
+   SPL-1291: a link to a doc of this repository (cnf repoWebUrl) or a bare
+   repo-relative .md path opens our own /docs/<path> (docsLinkHref). */
+const props = defineProps<{ parts: { type: string, text: string, href?: string }[] }>()
 const people = useHumanNames()
 const labelMod = useAppLinkLabel()
 const pub = useRuntimeConfig().public
 const requestURL = useRequestURL()
 const router = useRouter()
+const runs = computed(() => props.parts.map((p) => {
+  if (p.type !== 'link' || !p.href) return p
+  const doc = docsLinkHref(p.href, pub.repoWebUrl)
+  return doc ? { ...p, href: doc } : p
+}))
 
 function originNow() {
   if (import.meta.client) return window.location.origin

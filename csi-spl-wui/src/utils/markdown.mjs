@@ -34,6 +34,7 @@
  */
 import MarkdownIt from 'markdown-it'
 import { classifyHref, linkOpen, NEW_TAB_REL } from './link-target.mjs'
+import { docsLinkHref } from './docs.mjs'
 
 /** Every element the tree may hold. */
 export const TAGS = new Set([
@@ -105,8 +106,10 @@ function textOf(children) {
   return (children || []).map((c) => (c.type === 'image' ? textOf(c.children) : c.content || '')).join('')
 }
 
-/** One inline token list -> nodes. `breaks`: a single newline is a <br>. */
-function inline(tokens, breaks = false) {
+/** One inline token list -> nodes. `breaks`: a single newline is a <br>.
+ * `docsRepo` (a string, '' allowed): a doc link becomes /docs/<path>
+ * (docsLinkHref, SPL-1291); undefined leaves every link as written. */
+function inline(tokens, breaks = false, docsRepo = undefined) {
   const root = el(null)
   const stack = [root]
   const top = () => stack.at(-1)
@@ -114,7 +117,9 @@ function inline(tokens, breaks = false) {
     if (tok.nesting === 1) {
       let node
       if (tok.type === 'link_open') {
-        const href = classifyHref(tok.attrGet('href'))?.href || ''
+        const raw = tok.attrGet('href')
+        const doc = typeof docsRepo === 'string' ? docsLinkHref(raw, docsRepo) : null
+        const href = classifyHref(doc ?? raw)?.href || ''
         node = href ? el('a', { href, title: href }) : el(null)
       } else {
         node = el(TAGS.has(tok.tag) ? tok.tag : null)
@@ -286,9 +291,11 @@ export function htmlTableNodes(html) {
  * The node tree of one markdown source. Always an array; an empty source is
  * an empty array. `breaks` makes a single newline a <br> and `html` lets an
  * HTML table through htmlTableNodes: both are for a whole message or
- * description (SPL-975); a ```md fence uses neither.
+ * description (SPL-975); a ```md fence uses neither. `docsRepo` is the
+ * repository web URL (cnf repo_web_url, '' = none): set, a link to one of its
+ * docs, or a bare repo-relative .md path, opens /docs/<path> (SPL-1291).
  */
-export function markdownTree(src, { breaks = false, html = false } = {}) {
+export function markdownTree(src, { breaks = false, html = false, docsRepo = undefined } = {}) {
   const tokens = md(html).parse(String(src ?? ''), {})
   const root = el(null)
   const stack = [root]
@@ -314,7 +321,7 @@ export function markdownTree(src, { breaks = false, html = false } = {}) {
       continue
     }
     if (tok.type === 'inline') {
-      top().children.push(...inline(tok.children, breaks))
+      top().children.push(...inline(tok.children, breaks, docsRepo))
     } else if (tok.type === 'fence' || tok.type === 'code_block') {
       const lang = String(tok.info || '').trim().split(/\s+/)[0].slice(0, 24)
       const text = tok.content.endsWith('\n') ? tok.content.slice(0, -1) : tok.content

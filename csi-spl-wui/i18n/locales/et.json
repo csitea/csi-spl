@@ -1566,6 +1566,8 @@
     "folders": "Kaustad",
     "off": "Dokumente pole selles serveris veel avaldatud.",
     "not_found": "Sellist dokumenti pole.",
+    "not_published": "Seda dokumenti pole veel dokumendihoidlas.",
+    "open_in_repo": "Ava see repositooriumis",
     "load_failed": "Dokument ei laadinud — proovi uuesti.",
     "ws": {
       "title": "Tööruumi dokumendid",

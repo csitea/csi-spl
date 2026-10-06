@@ -1566,6 +1566,8 @@
     "folders": "Carpetas",
     "off": "Los documentos aún no están publicados en este servidor.",
     "not_found": "No existe ese documento.",
+    "not_published": "Este documento aún no está en el almacén de documentos.",
+    "open_in_repo": "Ábrelo en el repositorio",
     "load_failed": "El documento no se cargó — inténtalo de nuevo.",
     "ws": {
       "title": "Documentos del espacio de trabajo",

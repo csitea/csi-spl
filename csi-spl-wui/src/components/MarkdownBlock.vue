@@ -76,7 +76,9 @@ watch(
       const { markdownTree, TAGS } = await import('~/utils/markdown.mjs')
       if (mine !== seq) return
       tags = TAGS
-      tree.value = markdownTree(src, props.bare ? { breaks: true, html: true } : {})
+      /* SPL-1291: a doc link opens /docs/<path> (cnf repoWebUrl) */
+      const docsRepo = String(pub.repoWebUrl || '')
+      tree.value = markdownTree(src, { ...(props.bare ? { breaks: true, html: true } : {}), docsRepo })
       emit('rendered', true)
     } catch {
       /* the source stays readable */

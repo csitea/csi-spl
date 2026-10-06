@@ -33,6 +33,15 @@ comments and issue descriptions.
    to a channel, to ALL-0 or to a HUM-* (`IsFiller` in
    `csi-spl-api/src/go/spool-hub-api/internal/action/filler.go`); agent to
    agent spool files are not checked.
+8. Link a doc of this repository as `/docs/<repo path>`, for example
+   `[how to post](/docs/csi-spl-doc/doc/help/how-to-post.md#1-the-rule)`.
+   It opens in the WUI's own docs store, in the same tab (SPL-1291). A link
+   to the code host's copy (`<repo>/blob/<ref>/<path>.md`) and a bare
+   repo-relative `<path>.md` link are turned into the same `/docs/<path>`
+   when the post is shown, the `#anchor` kept. Commit, pull request and
+   folder links, and files that are not `.md`, stay on the code host. A doc
+   the store has not published yet opens to a short note and its code host
+   link.
 
 ## 2. Example
 
@@ -73,6 +82,8 @@ allow-list, including `htmlTableNodes`), and `MessageBody.vue` /
 `MarkdownBlock.vue`. The tests are `tests/unit/markdown-unfenced.test.mjs` and
 `tests/unit/markdown-hostile.test.mjs`. Times: `csi-spl-wui/src/utils/date-iso.mjs`
 and `body-times.mjs`, tested by `tests/unit/local-time-zone.test.mjs`.
+Doc links: `docsLinkHref` in `csi-spl-wui/src/utils/docs.mjs`, tested by
+`tests/unit/docs-links.test.mjs` and `tests/e2e/docs-links.test.mjs`.
 
 ## 6. Agents: DM a person only to reply to their DM (spec 067, rule 2)
 

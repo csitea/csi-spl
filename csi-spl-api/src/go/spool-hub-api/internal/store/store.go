@@ -72,6 +72,10 @@ type Tenant struct {
 	// workspace_suspended; archived = soft-deleted (also suspended).
 	SuspendedAt time.Time
 	ArchivedAt  time.Time
+	// Settings is the stored part of rdb 0136 tenants.settings (spec 098),
+	// decoded once per cache fill. Read-only; read a key with
+	// Settings.Bool/Int/String, which fall back to the registered default.
+	Settings TenantSettingValues
 }
 
 func normalizeTenant(t *Tenant) error {

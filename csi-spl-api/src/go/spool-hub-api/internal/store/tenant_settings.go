@@ -24,6 +24,9 @@ type TenantConfig struct {
 	// AgentSplit is the vendor guideline (rdb 0109). A fresh tenant is
 	// DefaultAgentSplit; the zero struct is not a stored value.
 	AgentSplit AgentSplit
+	// Settings is the stored part of tenants.settings (rdb 0136, spec 098);
+	// Settings.Effective() adds every registered default.
+	Settings TenantSettingValues
 }
 
 // TenantConfigPatch changes the fields that are not nil; a pointer to ""
@@ -171,7 +174,7 @@ func (s *Memory) TenantConfig(_ context.Context, tenant string) (TenantConfig, e
 		}
 	}
 	return TenantConfig{DisplayName: t.DisplayName, DefaultLocale: s.tenantLocale[tenant],
-		TopicArchivePolicy: t.TopicArchivePolicy, AgentSplit: sp}, nil
+		TopicArchivePolicy: t.TopicArchivePolicy, AgentSplit: sp, Settings: t.Settings}, nil
 }
 
 func (s *Memory) SetTenantConfig(_ context.Context, tenant string, p TenantConfigPatch) error {
@@ -266,14 +269,17 @@ func (s *Postgres) MemberState(ctx context.Context, tenant, humanID string) (str
 
 func (s *Postgres) TenantConfig(ctx context.Context, tenant string) (TenantConfig, error) {
 	var c TenantConfig
+	var kv []byte
 	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(display_name, ''), COALESCE(default_locale, ''),
 		COALESCE(topic_archive_policy, ''),
-		agent_split_claude, agent_split_grok, agent_split_agy, agent_split_qwen
+		agent_split_claude, agent_split_grok, agent_split_agy, agent_split_qwen,
+		`+tenantSettingsCol(s.hasTenantSettings(ctx))+`
 		FROM tenants WHERE tenant_id = $1`, []any{tenant}, &c.DisplayName, &c.DefaultLocale, &c.TopicArchivePolicy,
-		&c.AgentSplit.Claude, &c.AgentSplit.Grok, &c.AgentSplit.Agy, &c.AgentSplit.Qwen)
+		&c.AgentSplit.Claude, &c.AgentSplit.Grok, &c.AgentSplit.Agy, &c.AgentSplit.Qwen, &kv)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TenantConfig{}, ErrNotFound
 	}
+	c.Settings = decodeTenantSettings(kv)
 	return c, err
 }
 

@@ -56,6 +56,9 @@ type tenantSettingsBody struct {
 	IssuePrefix string `json:"issue_prefix"`
 	// AgentSplit is the vendor guideline (rdb 0109). The hub does not enforce it.
 	AgentSplit agentSplitJSON `json:"agent_split"`
+	// Settings is every registered generic setting (rdb 0136, spec 098) with
+	// the value in force: the stored one, else the registered default.
+	Settings map[string]any `json:"settings"`
 }
 
 func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t store.Tenant, ts store.TenantSettings, fb store.Fallbacks) {
@@ -82,7 +85,7 @@ func (s *Server) writeTenantSettings(w http.ResponseWriter, r *http.Request, t s
 	writeJSON(w, http.StatusOK, tenantSettingsBody{TenantID: t.ID, DisplayName: cfg.DisplayName,
 		DefaultLocale: cfg.DefaultLocale, TopicArchivePolicy: store.EffectiveArchivePolicy(cfg.TopicArchivePolicy),
 		Responders: resp, MaxResponders: store.MaxResponders, IssuePrefix: prefix,
-		AgentSplit: agentSplitJSONFrom(cfg.AgentSplit)})
+		AgentSplit: agentSplitJSONFrom(cfg.AgentSplit), Settings: cfg.Settings.Effective()})
 }
 
 // GET /v1/tenant/settings
@@ -98,7 +101,7 @@ func (s *Server) handleTenantSettings(w http.ResponseWriter, r *http.Request) {
 	s.writeTenantSettings(w, r, t, ts, fb)
 }
 
-// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?, agent_split?}
+// PATCH /v1/tenant/settings {display_name?, default_locale?, responders?, issue_prefix?, agent_split?, settings?}
 func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Request) {
 	t, a, _, _, ok := s.membersActor(w, r, rbac.TenantSettings)
 	if !ok {
@@ -115,8 +118,14 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 		Responders         *[]string        `json:"responders"`
 		IssuePrefix        *string          `json:"issue_prefix"`
 		AgentSplit         *agentSplitPatch `json:"agent_split"`
+		// Settings: {"<key>": <value> | null}; null resets a key to its default.
+		Settings map[string]json.RawMessage `json:"settings"`
 	}
 	if !decodeMembers(w, r, &body) {
+		return
+	}
+	kv, ok := settingsPatch(w, body.Settings)
+	if !ok {
 		return
 	}
 	var list []string
@@ -125,19 +134,15 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	is, hasIssues := s.o.Store.(store.Issues)
-	if body.IssuePrefix != nil {
-		if !hasIssues {
-			writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no issues")
-			return
-		}
-		if _, err := store.CheckIssuePrefix(*body.IssuePrefix); err != nil {
-			writeErr(w, http.StatusBadRequest, "bad_setting", "issue_prefix is 1..10 of A-Z and 0-9, starting with a letter")
-			return
-		}
+	is, ok := s.issuePrefixStore(w, body.IssuePrefix)
+	if !ok {
+		return
 	}
 	split, okSplit := patchAgentSplit(w, body.AgentSplit)
 	if !okSplit {
+		return
+	}
+	if kv != nil && !s.saveSettings(w, r, t.ID, *kv) {
 		return
 	}
 	if body.DisplayName != nil || body.DefaultLocale != nil || body.TopicArchivePolicy != nil || split != nil {
@@ -168,8 +173,84 @@ func (s *Server) handlePatchTenantSettings(w http.ResponseWriter, r *http.Reques
 		Bool("locale", body.DefaultLocale != nil).Bool("archive_policy", body.TopicArchivePolicy != nil).
 		Bool("responders", body.Responders != nil).
 		Bool("issue_prefix", body.IssuePrefix != nil).
-		Bool("agent_split", split != nil).Msg("tenant.settings_changed")
+		Bool("agent_split", split != nil).Bool("settings", kv != nil).Msg("tenant.settings_changed")
 	s.writeTenantSettings(w, r, t, ts, fb)
+}
+
+// issuePrefixStore checks an optional issue_prefix of PATCH
+// /v1/tenant/settings and returns the issues store that will write it (nil
+// when prefix is nil). ok=false: it already answered.
+func (s *Server) issuePrefixStore(w http.ResponseWriter, prefix *string) (store.Issues, bool) {
+	if prefix == nil {
+		return nil, true
+	}
+	is, has := s.o.Store.(store.Issues)
+	if !has {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no issues")
+		return nil, false
+	}
+	if _, err := store.CheckIssuePrefix(*prefix); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_setting", "issue_prefix is 1..10 of A-Z and 0-9, starting with a letter")
+		return nil, false
+	}
+	return is, true
+}
+
+// settingsPatch reads the optional settings object of PATCH /v1/tenant/settings
+// into a store patch: null resets a key, anything else sets it. The store
+// checks every key and value. A nil patch: no settings object. ok=false: it
+// already answered bad_setting.
+func settingsPatch(w http.ResponseWriter, in map[string]json.RawMessage) (*store.TenantSettingsPatch, bool) {
+	if len(in) == 0 {
+		return nil, true
+	}
+	p := store.TenantSettingsPatch{Set: map[string]any{}}
+	for k, raw := range in {
+		if string(raw) == "null" {
+			p.Unset = append(p.Unset, k)
+			continue
+		}
+		dec := json.NewDecoder(strings.NewReader(string(raw)))
+		dec.UseNumber()
+		var v any
+		if err := dec.Decode(&v); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_setting", "settings."+k+" is not a JSON value")
+			return nil, false
+		}
+		p.Set[k] = v
+	}
+	if err := p.Check(); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_setting", badSettingDetail(err))
+		return nil, false
+	}
+	return &p, true
+}
+
+// badSettingDetail is the store's rule text without its package prefix.
+func badSettingDetail(err error) string {
+	return strings.TrimPrefix(err.Error(), store.ErrBadTenantSetting.Error()+": ")
+}
+
+// saveSettings writes the generic settings (rdb 0136). ok=false: it answered.
+func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request, tenant string, p store.TenantSettingsPatch) bool {
+	kv, ok := s.o.Store.(store.TenantKV)
+	if !ok {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no workspace settings")
+		return false
+	}
+	_, err := kv.SetTenantSettings(r.Context(), tenant, p)
+	switch {
+	case errors.Is(err, store.ErrBadTenantSetting):
+		writeErr(w, http.StatusBadRequest, "bad_setting", badSettingDetail(err))
+		return false
+	case errors.Is(err, store.ErrTenantSettingsUnavailable):
+		writeErr(w, http.StatusServiceUnavailable, "settings_unavailable", "workspace settings are not available until the database is migrated")
+		return false
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "workspace settings not saved")
+		return false
+	}
+	return true
 }
 
 // agentSplitPatch is the optional agent_split object on PATCH /v1/tenant/settings.

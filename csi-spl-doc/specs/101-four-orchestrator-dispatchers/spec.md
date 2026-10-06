@@ -1,6 +1,6 @@
 # 101: four orchestrator-dispatchers acting at once
 
-Status: **v0.3, r3 and r1 folded in, 2026-10-06** (v0.1 `366acebe`, v0.2 `56783cf5`). Spec only: no code, cnf,
+Status: **v0.4, r3, r1 and r2 folded in, 2026-10-06** (v0.1 `366acebe`, v0.2 `56783cf5`, v0.3 `055a0cf6`). Spec only: no code, cnf,
 `lease.conf`, crontab or seat was touched by this lane.
 Author: c-387@sat (the pen; claude, standing in for the agy seat: no agy
 binary on sat). Reviewers: r1, r2, r3 (claude, standing in for agy and grok),
@@ -103,7 +103,8 @@ cut-over (section 8).
 | `lease.conf` (`LEASE_*` keys) | `LEASE_ORCH=c-001`, `LEASE_MASTER=c-002`, `LEASE_FAILOVER=c-003`, `LEASE_PRIORITY_ORCH=<pc box>,sat,...`: **the interim flip had not landed on sat yet** |
 | `dispatch/lease`, `dispatch/lease.orch` | both held by the `<pc box>` (`c-002@<pc box>`, `c-001@<pc box>`) |
 | 093 hooks for the OD seats on sat (r1) | not live: `ls /var/spool-hub/c-001/heartbeat.json` -> no such file; `crontab -l \| grep -cE 'csi-spl:(wd\|peer)'` -> 1 (`wd-ensure` only). The inject hook (093 7.2), the fix for the missed doorbell, is not running |
-| rdb 0110 / 0111 / 0132 applied on dev and prd | **unknown to this lane** (prd reads refused to its harness): asked of c-001, section 10 |
+| rdb 0110 / 0111 / 0132 applied on dev and prd | **yes, inferred** (c-001@sat, msg `ca4e9399`, ~17:1xZ, n = 1): hub `/version` on dev and prd reports `schema_head 0139_calendar_full_edit.sql` (commit `351d63e8`, v2.1.5), and the deploy's migrate step applies every file in order. Not checked: the migration table rows (a prd DB read). M2 re-checks them before M4 |
+| interim flip (M0) | **done** on both boxes after this reading (c-001, msg `ca4e9399`): `LEASE_PRIORITY_ORCH` sat first; sat has held the orch role since 17:06:08Z |
 
 ## 2. Words
 
@@ -121,12 +122,31 @@ hourly. **Job** = a `messages` row that needs an OD.
 | a. static, per box (each box's OD owns its box's lanes) | by origin box | its box's items wait for a takeover | still possible across boxes for a web post (every OD seat is in every channel) | no: re-creates one SPOF per box; sat idle, PC overloaded stays so |
 | b. static, per workspace / tenant / channel | a hash or a table of ownership | that partition starves until reassigned | prevented only if the table is right everywhere at once (068's F5: a half-applied rank flipped the orch 203 times in 3 h) | no: a reassignment is exactly the lease problem, times N |
 | c. claim per topic, first writer wins on the hub | per topic | the topic is stuck until its claim expires | prevented | partly: this IS (d) for the opening post |
-| **d. claim per message, two-phase, on the hub (068 4.1 + 093 4)** | per job: the first accept wins; a follow-up's first round goes to the topic's owner seat (093 4.3 stickiness) | its jobs go free at `anchor + 120 s` and the next round goes to another seat | prevented by the claim + the fence + the `spawn` mutex | **recommended: it is the owner's 068 design, and it is built** |
+| **d. claim per message, two-phase, on the hub (068 4.1 + 093 4)** | per job: the first accept wins; a follow-up's first round goes to the topic's owner seat (093 4.3 stickiness) | its jobs go free at `anchor + 120 s` and the next round goes to another seat | prevented per job by the claim (r2 2.1), per topic by D12, per lane by D5 (intent before act) | **recommended: it is the owner's 068 design, and it is built** |
 
 **Recommendation: d.** Exactly one decider per job is a database property
 (one `UPDATE ... WHERE claim_state = 'offered' AND offer_n = $n`), not an
-agreement between sessions. A topic has one owner because its follow-ups go
-first to the seat that owns its opening job.
+agreement between sessions.
+
+**But d alone is exclusive per MESSAGE, not per topic, ask or lane** (r2,
+[research/r2-claude.md](research/r2-claude.md) sections 2..3, proof in its
+section 7). What is proven and what is added:
+
+| unit | exclusive by | proof / delta |
+|---|---|---|
+| a message, hub actions (post, answer, forward, park, done) | the accept row lock + gen-checked holder calls + answer-once's key | proven on trunk (r2 2.1: `message_claim.go` 594, 608; `answer_once_postgres.go` 19); `go test ./internal/store/ -run 'Claim\|Round\|Lease\|Answer'` -> ok (tree `ccd87045`, n = 1) |
+| a topic | **D12**: the accept (T2) is refused while another seat holds a live owned or parked job of the same `(tenant, task_id)`, the topic's open rows locked in `msg_id` order (or an advisory lock on the topic) before the check; T1 opens no non-sticky round for a row whose topic is held, so a follow-up waits for its owner (at most 125 s when the owner is dead) instead of lapsing away after 20 s | stickiness alone is a preference: a fresh owner inside a 10-min tool call misses its 20 s round, and another seat owns the follow-up (r2 3.1) |
+| a lane (and any local side effect: spawn, kill, deploy) | **D5 as merged with r2's D11**: intent before act. Before the spawn, the holder writes the lane id (derived from `(task_id, slot)`) to the job under its gen (`--park --wait <lane id>`); the spawn refuses when that lane or worktree exists; the next owner inherits `wait_token` | the gate is check-then-act: a pause past the 120 s mutex, or a death between spawn and park, gives a duplicate lane (r2 2.2) |
+| a seat across a restart or takeover | **D13**: before the new session starts, one hub op (`spool claim --rebind <seat>`) bumps `responsible_gen` on every job the seat holds and seeds the new gens; a failed spawn re-bumps and hands them back | the restart and the takeover SPAWN before they RETIRE (`sed -n 202,215p csi-spl-orc/src/bash/run/spl-peer-restart.func.sh`): two sessions hold one seat at one gen for up to 330 s and both pass the fence (r2 3.3) |
+| one message sent while the hub is unreachable | **D14**: one `msg_id` minted before the hub leg and reused by the local leg | a hub commit with a lost reply makes the local leg mint a second id (`spool-send.sh:138`): two rows, two owners (r2 3.5) |
+
+**Assumptions** (r2 1): A1 Postgres row locks and the `READ COMMITTED`
+re-check of an `UPDATE ... WHERE`; A2 "the hub's clock" is each Cloud Run
+instance's wall clock (`internal/hub/server.go:252`, `o.Now = time.Now`), not
+the database's `now()`: milliseconds of skew against 20 s / 120 s margins,
+acceptable, stated here as an assumption; A3 a process may pause for any time
+at any instruction (092: power loss is routine). **093 4.6's local fence is
+settled as exit 2**: no local-only job acts until the hub confirms.
 
 ### 3.2 Today's failure modes, and what closes each
 
@@ -145,6 +165,13 @@ The table and the `lease cas` frame stay, under new role names, as **short
 mutexes** for the few resources that need one actor at a time: `spawn` (the
 40-window ceiling is a count), `prd-<target>`, `fleet-config` (068 section 5).
 A dead holder's mutex runs out in 120 s. No ranking, no handback, no standby.
+
+**The mutex gets a release** (r2 4.2): today it is never released
+(`grep -n 'The mutex is never released' csi-spl-orc/src/bash/run/spl-peer-gate.func.sh`
+-> 18), so one `spawn` row lets the fleet spawn about once per 120 s - against
+the owner's "bottleneck". With D5's idempotent spawn the `spawn` mutex guards
+only the 40-window count-and-create step (seconds), released at once by a CAS
+to an explicit free holder on the won gen (**D15**).
 
 Until L10 the roles and the seats live side by side; section 8 says who acts
 in each step so there is never a window with two deciders.
@@ -200,6 +227,7 @@ How a lane finds the right one: it does not. It sends to `orchestrator`
 | its open asks | the ask's lock is the message's lock (068 L4): the ask moves with the job | the same |
 | its owned topics' context | the investigation blocker (093 8.2) lists the dead seat's owned TOPICS, not only its jobs: a follow-up in a topic whose last job is `done` reaches a new owner who must read the topic on the hub (r3 4.2) | with the blocker |
 | its session | the box watchdog: S1..S8, then `do_spl_wd_takeover` (a fresh session under the same id from the 060 handoff); at most 2 per id per hour | per situation, 093 6.1 |
+| the old session of a restarted or taken-over seat | its gen is dead before the new session exists (D13): its fence says lost, its answers 409. **Section 6 was blocked by r2 until D13; D13 is now a build item of M1** | 0 s |
 | a parked job (waiting on a lane) | renewed only while the holder is able; not able: free within 120 s, the next owner inherits `wait_token` | 125 s |
 
 ## 7. Rotation and the asks book per OD (brief question 5)
@@ -283,17 +311,27 @@ is the ceiling: one login's weekly limit stopped the whole fleet on
 
 | step | what | who acts during it | rollback |
 |---|---|---|---|
-| M0 | flip `LEASE_PRIORITY_ORCH` to sat first (in progress, c-001; the PC flips first, then sat) | the fleet lease, as today | flip back |
+| M0 | flip `LEASE_PRIORITY_ORCH` to sat first (**done** 17:06Z, c-001; the PC flipped first, then sat) | the fleet lease, as today | flip back |
 | M0.5 | **routing first** (r1 R1..R3, R5; no owner go, no migration, no cut-over): (R1) lanes placed on sat by default, the spawn box pick weighing load; (R2) the taking dispatcher spawns real lane work itself, as fleet-roles 3 already says, instead of a `task` ask "new lane please" - `spool-send.sh` warns on such an ask from 002/003; (R3) a lane reports to its spawner (`--to <spawner>@<box>` written into its brief), `orchestrator` stays for decisions and prd; (R5) the 093 hooks installed for the OD seats, so the inject hook shows asks mid-turn | the fleet lease, as today | revert the brief template / the warning |
-| M1 | build: D1 (hub router ignores mutex rows), 093 T010 (two-phase poll loop), 068 L7 (`do_spl_peer_setup` + drill tooling), D2 (capability per seat), D3 (the cut-over action, below) | the fleet lease | none needed: all inert without `peer/seats` |
-| M2 | confirm rdb 0110 / 0111 / 0132 are applied on dev and prd; apply what is not (**owner go**: a hub migration is a GCP mutation) | the fleet lease | the migrations are additive columns with constant defaults (093 4.1) |
+| M1 | build: D1 (hub router ignores mutex rows), 093 T010 (two-phase poll loop), 068 L7 (`do_spl_peer_setup` + drill tooling), D2 (capability per seat), D3 (the cut-over action, below), D5 + D12..D15 (r2: topic guard, intent before act, gen rotation, one msg_id, mutex release) | the fleet lease | none needed: all inert without `peer/seats` |
+| M2 | confirm rdb 0110 / 0111 / 0132 in the migration table on dev and prd (inferred applied from `schema_head` 0139, 1.3); only a missing one needs applying (**owner go**: a hub migration is a GCP mutation) | the fleet lease | the migrations are additive columns with constant defaults (093 4.1) |
 | M3 | drill on dev: four seats on sat against the dev hub, 068 L7's drill (kill one OD, SIGSTOP the box, 20 posts, each delay of 068 section 7, n >= 5) | prd: the fleet lease | remove the dev `peer/seats` |
 | M3b | **prd shadow, 24 h** (r3): `peer/seats` on sat with `PEER_SHADOW=1` (**D8**): the seats poll and log which seat WOULD own each job; no stub, no ring, every accept refused. The lease still decides everything | the fleet lease only: a shadow seat decides nothing | delete `peer/seats` on sat |
-| M4 | **cut-over on prd, ONE action** `do_spl_fleet_od_cutover` (D3) under the `fleet-config` mutex: on every box, in this order: stop the lease loops (`LEASE_CMD=stop`) and move `lease.conf` aside, remove `orch-rotate` / `dispatch-rotate` (the sweep stays, D7), then write `peer/seats` and install the peer crons. **Per id the hand-over is a 060 rotation** (r3: the seat ids ARE the role ids; two `c-001@sat` sessions cannot co-run, `spl_peer_pids`, and they share one inbox): the role session writes its handoff and exits, the new session under the same id is seeded as a seat (the seat seed + the handoff), one id at a time, the next after the new one acks; `c-004` is a plain spawn. The first poll of each seat lists the open asks once. D6's rewrite is on from here | from the first seats write: the seats only | `do_spl_fleet_od_cutover ROLLBACK=1`: remove `peer/seats` on every box (every peer piece goes inert at once), restore `lease.conf` and the crons, `LEASE_CMD=ensure`; the PC's trio carries the roles while sat's seat sessions are rotated back into role sessions (the same 060 path, reversed) |
+| M4 | **cut-over on prd, ONE action** `do_spl_fleet_od_cutover` (D3) under the `fleet-config` mutex: on every box, in this order: stop the lease loops (`LEASE_CMD=stop`) and move `lease.conf` aside, remove `orch-rotate` / `dispatch-rotate` (the sweep stays, D7), then write `peer/seats` and install the peer crons. **Per id the hand-over is a 060 rotation** (r3: the seat ids ARE the role ids, and the two sessions share one inbox. Corrected by r2: the 060 / restart path DOES run two sessions of one id for up to 330 s - only the gate's `spl_peer_pids` refuses a duplicate - so the hand-over carries D13's gen bump before the new session starts): the role session writes its handoff and exits, the new session under the same id is seeded as a seat (the seat seed + the handoff), one id at a time, the next after the new one acks; `c-004` is a plain spawn. The first poll of each seat lists the open asks once. D6's rewrite is on from here | from the first seats write: the seats only | `do_spl_fleet_od_cutover ROLLBACK=1`: remove `peer/seats` on every box (every peer piece goes inert at once), restore `lease.conf` and the crons, `LEASE_CMD=ensure`; the PC's trio carries the roles while sat's seat sessions are rotated back into role sessions (the same 060 path, reversed) |
 | M5 | soak: a week of the seats on prd, the sweep still running (D7); `do_spl_dispatch_check` reports the seats instead of the lease | the seats | M4's rollback |
 | M6 | 068 L10 + L9 + 093 T012: delete the role code, rewrite fleet-roles. Only after the M5 numbers pass AND a second box holds a seat (8.1) | the seats | git revert + `do_spl_dispatch_setup` on both boxes |
 
-### 8.4 Pass numbers per step (r3 5.3)
+### 8.4 The interim (M0..M4) runs on the fleet lease, which is not a fence
+
+r2 section 5: a takeover leaves a double-act window until the old agent reads
+its STANDBY note; a dead lease loop with a live agent never tells it STANDBY;
+`spool_fleet_orchestrator` ignores the epoch of `lease.orch`
+(`spool-fleet.inc.sh:76`). Accepted while M4 lands within days. If the
+interim runs longer, two cheap guards (**D16**): a `lease.orch` older than
+`LEASE_STALE` is treated as unknown and relayed through the hub; the desk
+reconcile alerts on a box with a role agent and no lease loop.
+
+### 8.5 Pass numbers per step (r3 5.3)
 
 Every number carries the tree sha, the switch states (`PEER_SHADOW`,
 `SPOOL_TO_PEERS`) and n.
@@ -330,9 +368,14 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 | D2 | a capability per seat (`prd-read`, `prd-write`, `deploy`), recorded by the seat drill, read by the first round of a `needs=prd` job | 068 L7's setup + 093 T010's round | 3.2: the 2026-10-06 prd-read misroute |
 | D3 | one cut-over action with a rollback, under the `fleet-config` mutex | a new `do_spl_fleet_od_cutover` in csi-spl-orc | 8.3: two deciders on prd during a hand edit |
 | D4 | placement A: four on sat over two logins (else A': 3 + 1), the PC's four when its load allows | the seats file per box | 8.1, owner questions 1, 5 |
+| D16 | interim guards if M4 is more than a few days away: stale `lease.orch` = unknown; alert on a role agent without a lease loop | `spool-fleet.inc.sh`, desk reconcile | 8.4 (r2 5) |
 | D10 | from M4 the spawn launchers take the `spawn` mutex for every caller, so no non-seat (a leftover role session, a human-relayed order) spawns beside the seats | spawn launchers | 3.2 (r1 E10) |
 | D11 | M0.5: lanes on sat, dispatcher spawns its own lanes, lane reports to the spawner, OD hooks installed | spawn box pick, brief template, `spool-send.sh` warning, the hook installer | 1, 8.3 (r1) |
-| D5 | ask key `ask=<topic>:<slug>` on every spawn, checked under the `spawn` mutex; only the topic's owner instructs a lane | spawn launchers + `spl-peer-gate.func.sh` | 3.2 row 1 (r3) |
+| D5 | ask key `ask=<topic>:<slug>` on every spawn; **intent before act** (r2 D11 merged): the lane id, derived from `(task_id, slot)`, is written to the job under the holder's gen (`--park --wait`) BEFORE the spawn, and the spawn refuses an existing lane or worktree; only the topic's owner instructs a lane (enforced by D12) | spawn launchers, `spawn-window.sh`, `spl-peer-gate.func.sh`, 093 T010 | 3.2 row 1 (r3), 3.1 (r2 2.2) |
+| D12 | topic guard in the accept (r2 D10) | `roundAccept` / `roundOpen` + maybe an index on `(tenant_id, task_id) WHERE claim_state IN ('owned','parked')` | 3.1 (r2 3.1) |
+| D13 | rotate the gen with the session (r2 D12) | `spl_peer_restart_seat`, `do_spl_wd_takeover`, a hub op `spool claim --rebind` | 3.1, 6 (r2 3.3) |
+| D14 | one msg_id across both legs of a peers send (r2 D13) | `spool-send.sh` `send_peers_local` + the relay | 3.1 (r2 3.5) |
+| D15 | a release for the mutex; `spawn` held only for count-and-create | `spl-peer-gate.func.sh` + the lease frame | 4 (r2 4.2) |
 | D6 | a bare `c-00[1-4]` from a lane is rewritten to `peers` (M4..M6), refused after L10; brief templates stop writing it | `spool-send.sh`, the spawn seeds | 3.2 row 3 (r3) |
 | D7 | the unanswered sweep stays through the soak, from every box, as a `to: peers` note | `do_spl_unanswered_sweep` | 7 (r3) |
 | D8 | `PEER_SHADOW=1`: rounds logged, no stub, no ring, no accept | `spl-peer-poll.func.sh` (`grep -rn PEER_SHADOW csi-spl-orc/src/bash` -> 0 on `ccd87045`) | 8.3 M3b (r3) |
@@ -345,11 +388,12 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 2. Harness mix while grok is at its weekly limit and agy has no binary on
    sat: four claude seats now, the two grok seats swapped in when grok is
    back?
-3. (c-001, prd read) Are rdb 0110, 0111 and 0132 applied on dev and prd? If
-   not: the go to apply them (M2).
+3. ~~rdb 0110 / 0111 / 0132 applied?~~ Answered by c-001: applied on dev and
+   prd, inferred from `schema_head` 0139 (1.3). No go needed unless M2's row
+   check finds one missing.
 4. The cut-over (M4) retires the PC's role sessions and the fleet lease
    roles on prd in one step: go when the dev drill (M3) and the 24 h prd
-   shadow (M3b) pass their numbers (8.4)?
+   shadow (M3b) pass their numbers (8.5)?
 5. May the four seats run under two logins (a second agent user with its own
    claude account), so one expired login stops at most two? If not: three on
    sat + one on the PC.
@@ -368,9 +412,9 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 |---|---|---|---|---|
 | author | c-387 | this file | - | - |
 | r1 | c-388 | [research/r1-grok-standin.md](research/r1-grok-standin.md) | `b96a1de3` | agree on the finding; changes 1, 3.2, 5, 7, 8.1 (near block), 8.2, 8.3 - folded in v0.3 |
-| r2 | - | research/r2.md | - | - |
+| r2 | c-389 | [research/r2-claude.md](research/r2-claude.md) | `b727a5bc` | agree on the finding; changes 3, 4, 7, 8; **blocked 6 until D13** - all folded in v0.4 (r2's D10..D13 = this spec's D12, D5, D13, D14) |
 | r3 | c-390 | [research/r3-claude.md](research/r3-claude.md) | `b4cbe0ce` | agree on the finding; changes 3.2, 5, 7, 8.1, 8.3 - all folded in v0.2 |
 
 Consensus: not yet.
 
-<!-- version: 0.3.0 · updated: 2026-10-06 · last-edit: 2026-10-06T18:00:00Z -->
+<!-- version: 0.4.0 · updated: 2026-10-06 · last-edit: 2026-10-06T18:40:00Z -->

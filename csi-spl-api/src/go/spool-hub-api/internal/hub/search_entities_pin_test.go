@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -66,9 +67,11 @@ func TestSearchEntityRows(t *testing.T) {
 		{"type:channel", "channels", `[{"channel":"alerts","count":1,"default":true,"last_ts":"` + at.Add(2*time.Minute).Format(time.RFC3339) + `","name":{"text":"alerts","highlights":[]}},` +
 			`{"channel":"feedback","count":0,"default":true,"last_ts":null,"name":{"text":"feedback","highlights":[]}},` +
 			`{"channel":"lobby","count":0,"default":true,"last_ts":null,"name":{"text":"lobby","highlights":[]}}]`},
+		// t1 2b15a748: "#lobby", as the WUI writes a channel, finds it too
+		{"type:channel #lobby", "channels", `[{"channel":"lobby","count":0,"default":true,"last_ts":null,"name":{"text":"lobby","highlights":[]}}]`},
 		{"type:box box-a", "boxes", `[{"agents":["CLE-07","GRK-03"],"box_id":"box-a","last_hello_at":<H>,"name":{"text":"box-a","highlights":[[0,5]]},"online":false,"revoked":false}]`},
 	} {
-		code, _, body := viewGet(t, e, ta, "/v1/view/search?q="+strings.ReplaceAll(c.q, " ", "+"))
+		code, _, body := viewGet(t, e, ta, "/v1/view/search?q="+url.QueryEscape(c.q))
 		var out struct {
 			Groups map[string]struct {
 				Results json.RawMessage `json:"results"`

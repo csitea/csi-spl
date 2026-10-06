@@ -493,7 +493,9 @@ func (s *Server) channelEntities(ctx context.Context, tenant string, sq store.Se
 			l := rfc(c.LastAt)
 			last = &l
 		}
-		add(search.Entity{Name: c.ChannelID, Text: []string{c.ChannelID, c.Name}},
+		// t1 2b15a748: the WUI writes a channel "#lobby" everywhere, so a
+		// search for "#lobby" must reach it as well as "lobby".
+		add(search.Entity{Name: c.ChannelID, Text: []string{c.ChannelID, c.Name, "#" + c.ChannelID}},
 			map[string]any{"channel": c.ChannelID, "default": c.Default, "count": c.Count, "last_ts": last})
 	}
 	return nil

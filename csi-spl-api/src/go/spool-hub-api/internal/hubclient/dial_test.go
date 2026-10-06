@@ -131,7 +131,7 @@ func TestDialHandshakeFailures(t *testing.T) {
 		role string
 		want string
 	}{
-		{"no challenge", &scriptedHub{first: wire.Frame{Type: wire.TWelcome}}, "cli", "hub unreachable: no challenge: <nil>"},
+		{"no challenge", &scriptedHub{first: wire.Frame{Type: wire.TWelcome}}, "cli", `hub unreachable: expected challenge, got "welcome"`},
 		{"not a welcome", &scriptedHub{first: challenge, afterHello: wire.Frame{Type: wire.TSent}}, "cli", `hub unreachable: expected welcome, got "sent"`},
 		{"normal close", &scriptedHub{first: challenge, closeCode: websocket.StatusNormalClosure}, "cli", "hub unreachable: "},
 		{"pins fail", &scriptedHub{first: challenge, afterHello: welcome, pinsStatus: http.StatusInternalServerError}, wire.RoleBox, "boom"},

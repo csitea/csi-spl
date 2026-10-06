@@ -163,6 +163,16 @@ func (c *Client) restTimeout() time.Duration {
 	return c.RESTTimeout
 }
 
+// RESTContext bounds a REST call by RESTTimeout when ctx has no deadline of
+// its own. HTTPClient() has no Timeout because it also does the WS upgrade,
+// so a REST caller outside a Session (spool pin) takes its deadline here.
+func (c *Client) RESTContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, c.restTimeout())
+}
+
 func (c *Client) timeout() time.Duration {
 	if c.ReadyTimeout <= 0 {
 		return 30 * time.Second
@@ -361,8 +371,11 @@ const maxFrameBytes = 1 << 20
 // the welcome frame. A hub refusal (close code >= 4000) is a *HubError.
 func (c *Client) handshake(ctx context.Context, conn *websocket.Conn, role, box string, priv ed25519.PrivateKey, host *wire.BoxHost) (wire.Frame, error) {
 	var ch wire.Frame
-	if err := wsjson.Read(ctx, conn, &ch); err != nil || ch.Type != wire.TChallenge {
-		return wire.Frame{}, fmt.Errorf("%w: no challenge: %v", ErrUnreachable, err)
+	if err := wsjson.Read(ctx, conn, &ch); err != nil {
+		return wire.Frame{}, fmt.Errorf("%w: no challenge: %w", ErrUnreachable, err)
+	}
+	if ch.Type != wire.TChallenge {
+		return wire.Frame{}, fmt.Errorf("%w: expected challenge, got %q", ErrUnreachable, ch.Type)
 	}
 	hello, err := c.hello(role, box, priv, ch.Nonce, host)
 	if err != nil {
@@ -930,11 +943,8 @@ func (s *Session) rest(ctx context.Context, method, path string, body io.Reader,
 	if err != nil {
 		return err
 	}
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, s.c.restTimeout())
-		defer cancel()
-	}
+	ctx, cancel := s.c.RESTContext(ctx)
+	defer cancel()
 	tok, err := s.uploadToken(ctx)
 	if err != nil {
 		return err

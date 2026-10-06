@@ -1,10 +1,12 @@
 package action
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -69,5 +72,39 @@ func TestPublishPinSignsInjectedClock(t *testing.T) {
 	}
 	if err := sign.Verify(pub, p, got[1].Sig); err != nil {
 		t.Errorf("sig does not cover the injected ts: %v", err)
+	}
+}
+
+// TestPublishPinBoundedOnSilentHub: a hub that accepts the request and never
+// answers ends the call at the deadline with ErrUnreachable (r3-B02); before,
+// the default client had no Timeout and the request no ctx, so it hung.
+func TestPublishPinBoundedOnSilentHub(t *testing.T) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+	in := PinArgs{Box: "box-a", PubKey: "pk", RootKey: base64.StdEncoding.EncodeToString(priv),
+		Timeout: 50 * time.Millisecond}
+	done := make(chan error, 1)
+	go func() {
+		_, err := PublishPin(&config.Config{HubURL: srv.URL, Tenant: "t1"}, in)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, hubclient.ErrUnreachable) || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("err = %v, want ErrUnreachable wrapping a deadline", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("PublishPin still blocked 5s after a 50ms deadline on a silent hub")
 	}
 }

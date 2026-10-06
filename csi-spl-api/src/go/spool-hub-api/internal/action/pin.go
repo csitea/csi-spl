@@ -2,6 +2,7 @@ package action
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -28,6 +29,8 @@ type PinArgs struct {
 	Force, Revoke        bool
 	HTTP                 *http.Client
 	Now                  func() time.Time
+	// Timeout bounds the hub call; 0 = the hub client's REST default.
+	Timeout time.Duration
 }
 
 // Pin writes (or with Revoke removes) the local pin file and, when a tenant
@@ -116,17 +119,22 @@ func PublishPin(cfg *config.Config, in PinArgs) ([]byte, error) {
 	if bytes.Contains(bytes.ToLower(b), []byte(`"priv`)) || bytes.Contains(b, priv) {
 		return nil, fmt.Errorf("pin JSON must not carry a private key")
 	}
-	req, err := http.NewRequest(method, strings.TrimSuffix(cfg.HubURL, "/")+path, bytes.NewReader(b))
+	hc := hubclient.New(cfg)
+	if in.HTTP != nil {
+		hc.HTTP = in.HTTP
+	}
+	hc.RESTTimeout = in.Timeout
+	// r3-B02: the client has no Timeout; without this a hub that accepts and
+	// never answers blocks spool pin for ever.
+	ctx, cancel := hc.RESTContext(context.Background())
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimSuffix(cfg.HubURL, "/")+path, bytes.NewReader(b))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if t := cfg.TenantID(); t != "" { // specs/026: named, proven by the root signature
 		req.Header.Set(hubclient.TenantHeader, t)
-	}
-	hc := hubclient.New(cfg)
-	if in.HTTP != nil {
-		hc.HTTP = in.HTTP
 	}
 	resp, err := hc.HTTPClient().Do(req)
 	if err != nil {

@@ -1,0 +1,6 @@
+Lay-What: The every-minute starter now installs on a machine that already runs other scheduled jobs.
+Lay-How: The safety check looks only at the starter's own line. An observe switch on that line makes the supervisor watch without stepping in.
+Lay-Why: The starter refused to install wherever any other scheduled job failed the same check.
+Tech-What: do_spl_wd_ensure_install_cron applies spec 068 section 8.1 to the csi-spl:wd-ensure line only.
+Tech-How: spl_wd_cron_gate extracts that tagged line before the check. WD_ENSURE_WATCH_DRY=0 or 1 is copied onto the line and exported as DRY_RUN for do_spl_watchdog.
+Tech-Why: Judging the whole crontab failed on foreign lines and on the existing box-update line, so the keeper could not be installed.

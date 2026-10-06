@@ -46,16 +46,23 @@ slow query is the one that matches least. The benchmark has to include a
 **zero-hit** word, because that is the true worst case. The owner's query
 is close to it (29 candidates, P8).
 
-### 1.3 Requested from c-001, pending (msg 575f8c4d on this task)
+### 1.3 prd reads for this seat (c-001, msg af518ea4)
 
-| # | read | what it settles |
-|---|---|---|
-| R1 | `version()`, `rolbypassrls` of the hub login, db collation, `shared_buffers`, `gin_pending_list_limit`, `proleakproof` of `ts_match_vq` / `texteq` / `text_lt` / `text_ge`, available `vector` / `pg_trgm` / `btree_gin` | whether section 3's local proofs hold on Cloud SQL itself (also r3's open `btree_gin` check) |
-| R2 | `messages` relpages, heap / TOAST / index size | the 10x baseline (0135 quotes heap 4,443 pages, n=3) |
-| R3 | per tenant: rows, `sum(length(search_tsv))`, avg / max lexemes, long-row avg | replaces the dev-average arithmetic in r3 section 3 with prd |
+Read-only, `do_spl_db_query` as `spool_hub_rt`, **prd hub 2.0.5, commit
+0c9203ca, schema_head 0137, 2026-10-06T15:29Z, n=1 each** (catalogue values
+and counts, so n=1 is enough).
 
-They land here as a revision when c-001 answers. The position does not wait on
-them.
+| # | read | prd value | what it settles |
+|---|---|---|---|
+| R1a | server | PostgreSQL 16.15 (Cloud SQL) | same minor as every local proof here |
+| R1b | `proleakproof` | `ts_match_vq=false`, `texteq` / `text_lt` / `text_ge` `=true` | **3.1's rule holds on Cloud SQL prd**, not only in docker |
+| R1c | hub login `rolbypassrls` | `f` (`spool_hub_rt`) | the runtime cannot bypass; S1r's lift is the only one |
+| R1d | db collation | `en_US.UTF8` | option A's word column needs `COLLATE "C"` (3.5.1) |
+| R1e | `shared_buffers` / `effective_cache_size` / `gin_pending_list_limit` | 128 MB / 394,816 kB / 4 MB | the cache r1 sizes against; the GIN pending list cap |
+| R1f | extensions available (installed/default) | `btree_gin -/1.3`, `pg_trgm -/1.6`, `vector -/0.8.5`, `unaccent 1.1/1.1` | `btree_gin` is offered on prd (whether the migrate login may create it: still P0) |
+| R2 | `messages` | relpages 4,939, reltuples 22,038, heap 39 MB, TOAST 76 MB, indexes 16 MB | 2/3 of the table is TOAST: the cost driver of 1.2 |
+| R3 | t1 | 19,244 msgs, **1,580,634** word postings, avg 82.1, max 1,024, long rows 3,366 with avg 228.6 | B on prd (replaces the dev arithmetic); Bloom fill on long rows ~20% (2.1.4) |
+| R3 | other tenants | niba-consult 1,133 / 89,626; e2e 1,050 / 63,448; csi-rel 542 / 41,549; csitea 366 / 11,281; two under 20 msgs | t1 is 88% of rows: today's 10x-B is far off |
 
 ## 2. The existing code paths, and whether each is correct
 
@@ -81,8 +88,8 @@ them.
    correct.
 4. **Fill rate limits it, by arithmetic.** One hash per lexeme into 1024 bits:
    the share of bits set is `1 - e^(-n/1024)` for n distinct lexemes, so
-   7.3% at the dev average of 78, 25.4% at 300, 62.3% at the dev max of
-   1,021. A one-word query passes about that share of non-matching rows. P7
+   7.3% at the dev average of 78, 20.0% at prd t1's long-row average of
+   228.6 (R3), 63.2% at prd's max of 1,024. A one-word query passes about that share of non-matching rows. P7
    fits this: the longest bucket passes the all-words check 25 of 537 times,
    against 3 of 1,882 in the shortest. The fingerprint thins out exactly on
    the long posts it is meant for.
@@ -142,7 +149,8 @@ Proofs marked local ran on `postgres:16-alpine` (16.15, `en_US.utf8`) and
 `pgvector/pgvector:pg16` (vector 0.8.7) in throwaway docker, with policies
 shaped like rdb 0014 (`tenant_scope` + `operator_scope`), FORCE RLS, a
 non-bypass login, 60k rows / 3 tenants (30k for vector). They show **plan
-shape**, n=1 each, and say nothing about Cloud SQL until R1 is back.
+shape**, n=1 each. R1b confirms the operator flags they rest on are the
+same on Cloud SQL prd; the plans themselves are still docker-only (G1).
 
 ### 3.1 The rule, measured (local; agrees with r3 1)
 
@@ -222,7 +230,7 @@ Agree with r3 1.1. I proved it separately (local, n=1): `lexeme =` and a
 prefix range run as Index Cond under FORCE RLS. Correctness conditions r3
 does not state:
 1. **The term column must be `COLLATE "C"`.** Under a linguistic collation
-   (my container was `en_US.utf8`; prd's is pending, R1) a `[p, p_next)`
+   (prd is `en_US.UTF8`, R1d) a `[p, p_next)`
    range is not guaranteed to be exactly the strings that start with p,
    because the collation orders by more than bytes. In C collation it is
    exact.
@@ -315,9 +323,79 @@ the common word with `sort=relevance` (2.2). "Cold" on Cloud SQL cannot be
 forced (no cache drop), so report the first sample after an idle gap
 separately from the rest, and say which it is.
 
-### 5.2 Question for the owner (to c-002 as one list, via the author)
+### 5.2 Measured: does `gin (tenant_id, search_tsv)` partition by tenant? (local)
+
+A multi-column GIN keeps each column's keys apart, so I checked that it really
+spares a small tenant. Local pg16, `btree_gin`, tenant `big` 200k rows (the
+word `shared` in 100k of them) and tenant `small` 2k rows (`shared` in 10),
+`EXPLAIN (ANALYZE, BUFFERS)`, n=1:
+
+| index | query | index buffers | heap blocks |
+|---|---|---|---|
+| `gin (tsv)` | small, `shared` | 18 | 1,766 (100,010 candidate rows rechecked) |
+| `gin (tenant_id, tsv)` | small, `shared` | 9 | 10 |
+| `gin (tsv)` | big, rare word | 3 | 29 |
+| `gin (tenant_id, tsv)` | big, rare word | 57 | 29 |
+
+It works: the posting lists are intersected inside the index, so the small
+tenant never visits the big tenant's rows. The price is that the big tenant
+walks its own tenant posting tree (57 vs 3 buffers here). That is small, but
+it means T9 should assert the small tenant's buffers, not equality of both.
+
+### 5.3 Question for the owner (to c-002 as one list, via the author)
 
 1. S1 needs one Postgres role with `USING (true)` on `messages`, reachable only
    through one SECURITY DEFINER function that pins the session tenant. Is that
    exception to "isolation is by RLS" acceptable? If not, A (RLS-native, ~5x
    the GIN's size per r3) is the alternative.
+
+## 6. Review of spec.md v0.3 (`308a86f7`)
+
+Position: **S1r, same as v0.3.** Sign-off waits on O1-O3, which are
+correctness. O4-O6 are accuracy and can land in the same version.
+
+- **O1 (5.1, correctness): the function's `LIMIT` runs before predicates only
+  the outer statement applies.** v0.3 has `spool_search_page` return at most
+  `lim` ids after the keyset. NOT terms, `from:`, `in:`, `is:` and `has:` stay
+  in the outer statement. Any of them then drops rows from an already-limited
+  page: the page comes back short, and the next keyset starts after the
+  function's last id, **so the rows the function never returned are skipped
+  for good**. T7 ("the function's ids equal the hub's result ids") cannot hold
+  for such a query either. Change: the function returns the **unlimited
+  candidate set** of the AND'ed tsquery (ids, plus `received_at` for the
+  order), with a cap. Above the cap, the hub falls back to today's backward
+  scan, which is fast exactly when a word is common (prd P2: 8.4 ms). Order,
+  keyset and LIMIT then stay in the outer statement, under every predicate.
+  T7 becomes: outer result == today's scan result.
+- **O2 (5.1, correctness): "all positive text terms are ANDed with `&&`" must
+  be the AND-chain walk, not `Query.Positive`.** `Positive` is "text-bearing
+  terms not under a Not" (`search/grammar.go:256,612`), so it includes both
+  sides of an OR. ANDing it would make `foo OR bar` require both words, and
+  rows would go missing. Use the walk `sigAll` uses (`search_postgres.go:115-131`:
+  only AND chains from the root, no Or, no Not). A query whose root has no
+  such term keeps today's path. Add an OR case to T8 that would fail on this.
+- **O3 (5.1 / T3, security): `SET search_path = pg_catalog, public` leaves
+  `pg_temp` first for relations.** When `pg_temp` is not listed, Postgres
+  searches it **before** the path for tables (it is never searched for
+  functions). The runtime holds TEMP by default, so a temp table named
+  `messages` would shadow the real one inside the definer. That is no
+  cross-tenant leak, but it is the documented SECURITY DEFINER pitfall. Write
+  `public.messages` in the body **and** `SET search_path = pg_catalog, public,
+  pg_temp`. Make T3 assert both.
+- **O4 (3.2 and the S5 row of 4): pgvector is measured now.** It is not "I
+  believe, unchecked, no more LEAKPROOF". My 3.6, local vector 0.8.7, n=1: the
+  operators are not LEAKPROOF (a WHERE threshold cannot use HNSW). But
+  `ORDER BY emb <-> q LIMIT k` **does** use HNSW under FORCE RLS, with the
+  tenant filter applied after the index: short or empty pages for small
+  tenants (a recall bug, not a leak). prd offers `vector` 0.8.5, not installed
+  (R1f). Same verdict, corrected reason: semantics and recall, not the lift.
+- **O5 (2.1, 4, 10, 11): fold in the prd reads (1.3).** R1b turns "16.15
+  docker only" into "operator flags confirmed on prd" (G1 narrows to the
+  plan). R1f closes half of G6 (`btree_gin` 1.3 offered). B on prd is 1.58 M
+  word rows (R3), replacing "~160 MB by arithmetic from dev". B needs `COLLATE
+  "C"` (R1d) and its btree should lead with `tenant_id` (`(tenant_id, word,
+  msg_id)`), or a prefix range walks every tenant's words.
+- **O6 (1, 8): the budget is per request.** The sections run in sequence
+  under one context of budget + 1 s (2.5). Acceptance should be per request at
+  `/v1/view/search`. Add a **zero-hit** word to the benchmark: it is today's
+  true worst case (1.2), and it shows the GIN's best case.

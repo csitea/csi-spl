@@ -246,8 +246,18 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}
 	// calendar_events (rdb 0125, spec 089 T003): one public event of the
 	// seeded member.
-	if _, err := pg.CreateCalendarEvent(ctx, s.tenant, CalendarEvent{Title: "release", Kind: "release", StartsAt: now,
-		EndsAt: now.Add(time.Hour), CreatorType: "human", CreatorID: hum}, now); err != nil {
+	ev, err := pg.CreateCalendarEvent(ctx, s.tenant, CalendarEvent{Title: "release", Kind: "release", StartsAt: now,
+		EndsAt: now.Add(time.Hour), CreatorType: "human", CreatorID: hum}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// calendar_guests (rdb 0139, spec 097 T002): the seeded member is the
+	// guest of that event. No store API yet (T007), so a row under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO calendar_guests (tenant_id, event_id, guest_type, guest_id, invited_by)
+			VALUES ($1, $2, 'human', $3, $3)`, s.tenant, ev.ID, hum)
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	// operator_audit (rdb 0115, spec 074): one operator action on this workspace.

@@ -1,0 +1,6 @@
+Lay-What: You can now change a topic's kind straight from the topics list.
+Lay-How: Click the topic's kind icon, or choose Change kind in the row menu, then pick the new kind.
+Lay-Why: Before, the kind in the topics list could only be looked at, not changed, unless you knew a keyboard shortcut.
+Tech-What: WUI topics view: the opener's KindBadge is settable and SidebarRowMenu offers a Kind item gated by canSetKind.
+Tech-How: index.vue fetches the opener once (getTopic + openingCardId), KindBadge emits pending/applied/revert and the row retargets its kinds map optimistically, rolled back on a hub error.
+Tech-Why: index.vue rendered KindBadge without msg, so settable was false and only Shift+K reached a topic row.

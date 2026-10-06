@@ -16,10 +16,18 @@ import (
 
 // Postgres side of payments.go (rdb 0003 + 0011).
 
-func isUniqueViolation(err error) bool {
+// sqlState is the Postgres SQLSTATE in err's chain ("" when there is none).
+// The interface form matches *pgconn.PgError however it is wrapped.
+func sqlState(err error) string {
 	var pe interface{ SQLState() string }
-	return errors.As(err, &pe) && pe.SQLState() == "23505"
+	if errors.As(err, &pe) {
+		return pe.SQLState()
+	}
+	return ""
 }
+
+// isUniqueViolation reports a unique_violation (SQLSTATE 23505).
+func isUniqueViolation(err error) bool { return sqlState(err) == "23505" }
 
 func (s *Postgres) HoldCheckout(ctx context.Context, c Checkout, now time.Time, hold time.Duration) error {
 	if err := normalizeCheckout(&c); err != nil {

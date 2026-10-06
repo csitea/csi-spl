@@ -2,12 +2,10 @@ package store
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // The operator workspace is a database flag (rdb 0116, spec 074 phase 1b;
@@ -112,7 +110,7 @@ func (s *Postgres) ClaimOperatorTenant(ctx context.Context, tenant string) (stri
 		return err
 	})
 	// 23505 = tenants_operator_unique: another hub claimed first; read its flag.
-	if pe := (*pgconn.PgError)(nil); err != nil && !(errors.As(err, &pe) && pe.Code == "23505") {
+	if err != nil && !isUniqueViolation(err) {
 		return "", err
 	}
 	return s.OperatorTenant(ctx)

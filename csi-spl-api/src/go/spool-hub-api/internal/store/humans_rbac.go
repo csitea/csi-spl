@@ -31,9 +31,10 @@ func (r RBACSource) TenantRoles(ctx context.Context, tenant string) (map[string]
 // memRoles is Memory's role table: the phase-1 seed (no custom roles).
 func memRoles() map[string]rbac.Role { return rbac.DefaultRoles() }
 
+// isFKViolation reports a foreign_key_violation (SQLSTATE 23503) on constraint.
 func isFKViolation(err error, constraint string) bool {
 	var pe *pgconn.PgError
-	return errors.As(err, &pe) && pe.Code == "23503" && pe.ConstraintName == constraint
+	return sqlState(err) == "23503" && errors.As(err, &pe) && pe.ConstraintName == constraint
 }
 
 func (s *Memory) TenantRoles(context.Context, string) (map[string]rbac.Role, error) {

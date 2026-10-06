@@ -3,12 +3,10 @@ package store
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sort"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Membership is one tenant a human belongs to (rdb 0006 tenant_memberships).
@@ -129,10 +127,7 @@ func (s *Postgres) Memberships(ctx context.Context, humanID string) ([]Membershi
 
 // isUndefinedColumn reports a Postgres undefined_column error (SQLSTATE 42703),
 // the shape of a read of a column a migration has not added yet.
-func isUndefinedColumn(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "42703"
-}
+func isUndefinedColumn(err error) bool { return sqlState(err) == "42703" }
 
 // membershipsSQL is the membership list of the human in $1; withSettings
 // folds in the rdb 0078 override column (NULL otherwise); withAccess leaves

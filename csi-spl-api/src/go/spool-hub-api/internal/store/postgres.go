@@ -741,8 +741,7 @@ func mapFK(err error) error {
 	if err == nil {
 		return nil
 	}
-	var pe interface{ SQLState() string }
-	if errors.As(err, &pe) && pe.SQLState() == "23503" {
+	if sqlState(err) == "23503" {
 		return ErrNotFound
 	}
 	return err

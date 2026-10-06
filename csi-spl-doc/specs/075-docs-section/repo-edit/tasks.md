@@ -97,7 +97,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: store tests on Postgres for each method; coalescing never joins two authors; a workspace reads only its rows.
   - **Depends**: T02.
 
-- [ ] T07 **hub: author resolution, notice, agent requester** (S).
+- [x] T07 **hub: author resolution, notice, agent requester** (S). Done `be63f865` (c-419): `repodocs/author.go`, each rule and each 403 reason tested over a fake `Directory`, anchored trailer grep over generated messages = 0. For T08: implement `repodocs.Directory` on the store (sign-in email + verified flag from `humans`/`human_identities`, `Can` via rbac, `SeatHuman` = `agent_join_tokens.for_human` by `consumed_box`); an unverified mapping row is 403 `email_unverified`; an opt-out-only mapping row (no identity) falls through to rules 2-3.
   - **Build**: in `api/internal/repodocs/`: `ResolveAuthor` (mapping row > history match > display name + verified sign-in email; unverified -> `email_unverified`), `NeedsNotice` (no consent row for the resolved identity), `CheckRequester` (spec §4.3 a-e, reading `agent_join_tokens.for_human`), commit subject/body (`docs:` / `docs(dev):`, agent line, no AI trailer).
   - **Owns**: those files and tests.
   - **Done-proof**: each rule and each 403 reason tested; anchored grep `^(Co-Authored-By:|Claude-Session:)` over generated messages = 0.

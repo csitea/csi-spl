@@ -1,8 +1,8 @@
 # 096 Manual status: "Busy", "Unavailable until 14:00"
 
-Status: **v0.1, DRAFT for the owner's approval, 2026-10-06.** Spec only: no
-code, no migration, no cnf value was touched by this lane. Building waits for
-the owner's go on the open questions (section 12).
+Status: **v0.2, DECIDED, 2026-10-06.** The owner accepted every proposal
+(section 12, msg `cb7a9cec`); building runs in lanes L1..L5
+([tasks.md](tasks.md)).
 Topic: t1 `3ea05d6c-58f8-4520-a4d8-dd5d3b519f33` (a member's ask, msg
 `13205fb5`). Author: c-384.
 Builds on: the live presence frame (`wui-live-ws.md` section 3.2), spec
@@ -118,8 +118,9 @@ not write; Q4).
 
 ## 6. The member's own notifications
 
-A status **mutes nothing by default.** Q1 asks whether `unavailable` should
-also silence the member's own alerts. If the owner says yes:
+A status **mutes nothing by default.** Decided (Q1): the picker has a
+checkbox *"Pause my notifications while unavailable"*, off by default. When
+the member ticks it:
 
 - `unavailable` silences the member's in-tab sound and system notification
   (`csi-spl-wui/src/utils/notify.mjs`, one more check in `shouldPing`) and,
@@ -152,7 +153,7 @@ about the other (section 9). The cost is setting "on leave" twice; the
 picker gets a checkbox *"Set in all my workspaces"* that writes one row per
 workspace the member belongs to (Q2 may drop it).
 
-### 7.2 Table (migration `0134_human_status.sql`, forward-only)
+### 7.2 Table (migration `0141_human_status.sql`, forward-only)
 
 ```sql
 CREATE TABLE human_status (
@@ -161,23 +162,32 @@ CREATE TABLE human_status (
     status     text        NOT NULL CHECK (status IN ('busy', 'unavailable')),
     note       text        CHECK (note IS NULL OR char_length(note) <= 80),
     until_at   timestamptz,
+    pause_notify boolean   NOT NULL DEFAULT false,
     set_at     timestamptz NOT NULL DEFAULT now(),
     set_by     text        NOT NULL,
-    PRIMARY KEY (tenant_id, human_id)
+    PRIMARY KEY (tenant_id, human_id),
+    FOREIGN KEY (tenant_id, human_id) REFERENCES tenant_memberships (tenant_id, human_id) ON DELETE CASCADE
 );
 ALTER TABLE human_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE human_status FORCE ROW LEVEL SECURITY;
-CREATE POLICY human_status_tenant ON human_status
+CREATE POLICY tenant_scope ON human_status
     USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''));
+CREATE POLICY operator_scope ON human_status
+    USING (current_setting('app.rls_scope', true) = 'operator')
+    WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
 CREATE INDEX human_status_until ON human_status (until_at) WHERE until_at IS NOT NULL;
 ```
 
 - `available` is **no row**: clearing deletes the row. Most members never
   have one, so the roster join stays cheap.
+- `pause_notify` is the Q1 checkbox, off by default; it acts only while
+  `status = 'unavailable'` (section 6).
+- The key is the membership: leaving a workspace deletes the row.
 - `set_by` is the member's own id today (section 8, Q5 keeps room for more).
-- Runtime grants: `spool_hub_rt` gets SELECT / INSERT / UPDATE / DELETE in
-  `runtime-grants.sql`, like every tenant table; one row in the existing
+- Runtime grants: `spool_hub_rt` gets SELECT / INSERT / UPDATE / DELETE
+  from the default privileges in `runtime-grants.sql`, like every tenant
+  table (no edit there); one row in the existing
   tenant-isolation guard (workspace B reads 0 rows of A).
 - The DDL lands on dev **and** prd before any hub code reads it (DDL first).
 
@@ -249,7 +259,8 @@ A **new frame type** carries status, so no old client misreads it:
 - **Set for a human: no** in this version (Q5). `set_by` is kept so a later
   "set from my calendar" needs no migration.
 - **Dispatchers**: **no routing change**; they route member posts to agents,
-  not to humans. The one proposal (Q7): when a dispatcher or orchestrator
+  not to humans. Not in this version (Q7 decided: no change, L6 dropped);
+  the idea kept for later: when a dispatcher or orchestrator
   raises a *blocker question to a human* who is `unavailable`, its post says
   so in its first line ("FirstName LastName is unavailable until 14:00;
   holding") and it does not re-ask or escalate on a timer until the status
@@ -311,36 +322,37 @@ footer version recorded, after the dev proof is green.
 
 | # | lane | size | depends on |
 |---|---|---|---|
-| L1 | rdb `0134_human_status.sql`, grants, isolation guard row; applied dev and prd | S | owner go |
+| L1 | rdb `0141_human_status.sql`, grants, isolation guard row; applied dev and prd | S | owner go |
 | L2 | hub: store, `PUT` / `DELETE /v1/me/status`, roster + search field, `status` frame, welcome snapshot, sweep, tests 10.1 | M | L1 on dev and prd |
 | L3 | WUI: store map, dot ring, picker (desktop + phone), composer line, i18n, e2e 10.2 | M | L2 contract (can start on the mock) |
 | L4 | help 3.1 + "Setting your status"; dev then prd proof 10.3 / 10.4 | S | L2, L3 deployed |
-| L5 | only if Q1 = yes: mute check in `notify.mjs`; one recipient filter in 095 section 6.2 once 095 is built | S | c-376 landed; the 095 lane |
-| L6 | only if Q7 = yes: dispatcher handoff text | XS | L2 |
+| L5 | Q1 = checkbox: the "Pause my notifications" check in `notify.mjs`; one recipient filter in 095 section 6.2 once 095 is built | S | c-376 landed; the 095 lane |
+| ~~L6~~ | dropped: Q7 = no dispatcher change | - | - |
 
 Roughly 2 to 3 lane-days for L1 to L4.
 
-## 12. Open questions for the owner
+## 12. Decided (owner, 2026-10-06, msg cb7a9cec: accept the proposals)
 
-1. **Mute**: should `unavailable` also silence the member's own alerts
-   (in-tab sound, system notification, later Web Push)? Proposal: no by
-   default; a picker checkbox *"Pause my notifications while unavailable"*,
-   off by default.
-2. **Scope**: per workspace (proposal) or one status for the whole account?
-   Keep the *"Set in all my workspaces"* shortcut?
-3. **Busy in the composer**: show the sender the line for Busy too, or only
-   for Unavailable? Proposal: both, Busy in a softer colour.
-4. **Auto-reply**: should a DM to an Unavailable member get an automatic
-   reply with the note? Proposal: no; the composer line tells the sender
-   before they send.
-5. **Agents setting a human's status** (e.g. from the calendar, spec 089):
-   later, or never? Proposal: not in this version; the column is there.
-6. **Longest "until"**: 90 days (proposal), or unlimited?
-7. **Dispatchers**: should an orchestrator or dispatcher hold a blocker
-   question for an Unavailable human and say so, instead of re-asking?
-8. **Audit**: keep a history of status changes for workspace admins?
-   Proposal: none.
-9. **Message header**: show nothing on a post's author line (proposal), or
-   the current ring there too?
+The owner (HUM-10, t1 `3ea05d6c`) accepted every proposal of v0.1 (msgs
+`cb7a9cec`, `ddfccf96`: "start implementing according to it. If something
+is wrong, we will iterate after it").
 
-<!-- version: 0.1.0 · updated: 2026-10-06 -->
+1. **Mute**: a picker checkbox *"Pause my notifications while unavailable"*,
+   **off by default**. When on, `unavailable` silences the member's in-tab
+   sound, system notification and (once 095 is built) Web Push, as section 6
+   describes. `busy` never silences.
+2. **Scope**: **per workspace**, with the *"Set in all my workspaces"*
+   shortcut in the picker (section 7.1).
+3. **Composer line**: shown for **both** `busy` and `unavailable`; Busy in a
+   softer colour (section 5.1).
+4. **Auto-reply**: **none**. The composer line tells the sender before they
+   send.
+5. **Agents**: agents **do not set** a status, not for themselves and not
+   for a human, in this version. `set_by` stays for a later "set from my
+   calendar".
+6. **Longest "until"**: **90 days** (the hub's write check, section 7.3).
+7. **Dispatchers**: **no change** in this version. Lane L6 is dropped.
+8. **Audit**: **none**. A cleared or expired status is deleted, not kept.
+9. **Message header**: **nothing** on a post's author line.
+
+<!-- version: 0.2.0 · updated: 2026-10-06 -->

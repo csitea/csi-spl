@@ -1,0 +1,6 @@
+Lay-What: When your message runs onto a second line, the small reply marker moves above the text and the text starts at the left edge.
+Lay-How: The box switches to a two-row layout as soon as the text wraps or you press Shift+Enter, and switches back for one line.
+Lay-Why: Every line used to be pushed to the right by the marker, which made longer messages awkward to read and write.
+Tech-What: MessageComposer.vue lifts the mode glyph and target chip into an .omnibox-prefix row when the draft is multi-line.
+Tech-How: omniboxIsMultiline (newline or measured width vs the one-line content box) drives an is-multiline flex column; caret and focus restored on switch.
+Tech-Why: The glyph and chip were absolutely placed with a padding-inline-start/text-indent on the textarea, indenting every line.

@@ -459,10 +459,15 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   return {
-    permission,
-    chime,
-    sound,
-    alertsEnabled,
+    /* HUM-24 (t1 cd9b0f47): '/' is prerendered, and its payload's server
+       values (chime off, permission 'unsupported') replaced what this
+       browser had stored - and the chime watch then SAVED the off. Every
+       load of the home page switched the reader's sound off. These are the
+       browser's, not the page's (as topicRead below). */
+    permission: skipHydrate(permission),
+    chime: skipHydrate(chime),
+    sound: skipHydrate(sound),
+    alertsEnabled: skipHydrate(alertsEnabled),
     alertsOn,
     alertStatus,
     toggleAlerts,

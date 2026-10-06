@@ -15,6 +15,11 @@
 //   2 CONTROL: a new topic in the open channel (its own card) -> silent
 //   3 CONTROL: a reply with that topic open in the right pane -> silent
 //   4 the alert's click target opens the reply, marked (open-focus), in its thread
+// And the second cause, measured on dev the same day: the prerendered '/'
+// carried the store's server values in its payload (chime off), which replaced
+// the browser's stored switch and were then SAVED - one visit to the home page
+// switched the member's sound off for good:
+//   0 the chime saved ON survives a load of '/' and then of the channel
 //
 //   node tests/e2e/notify-offscreen-reply.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/notify-offscreen-reply.test.mjs
@@ -57,7 +62,8 @@ function recorders(extra, mark) {
     localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'hum-1@example.com', name: 'FirstName LastName', t: 't1' }))
     localStorage.setItem('spool.mock.extra-messages', JSON.stringify(extra))
     localStorage.setItem('spool.read-cursors', JSON.stringify(mark))
-    localStorage.setItem('spool.chime', '1')
+    /* once: the member switched the sound on; a later load must not undo it */
+    if (localStorage.getItem('spool.chime') == null) localStorage.setItem('spool.chime', '1')
     localStorage.setItem('spool.alerts', '1')
   } catch { /* about:blank */ }
   window.__sounds = []
@@ -107,6 +113,15 @@ try {
   p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
   await p.evaluateOnNewDocument(recorders, EXTRA, { 'ch:alerts': { ts: MARK, id: '' } })
   await p.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false })
+  const chimeNow = () => p.evaluate(() => ({
+    path: location.pathname,
+    chime: document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notification').chime,
+    saved: localStorage.getItem('spool.chime'),
+  }))
+  await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+  const home = await chimeNow()
+  ok('0 the chime saved ON is still on after loading / (the prerendered page)', home.chime === true && home.saved === '1', home)
   await p.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
   const card = `.feed-body article.msg[data-msg-id="${TASK}"]`
   await p.waitForSelector(card, { timeout: NAV })
@@ -115,11 +130,9 @@ try {
   ok('precondition: the tab is in front and focused (else nothing below is measured)', !f.hidden && f.focus, f)
   const pre = await p.evaluate(() => {
     const n = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notification')
-    /* the member's own setting: "the sounds are on" (the note switch, as a click on it sets it) */
-    n.chime = true
     return { chime: n.chime, alertsOn: n.alertsOn }
   })
-  ok('precondition: the chime and browser alerts are on', pre.chime === true && pre.alertsOn === true, pre)
+  ok('0 ... and still on in the channel, so the alerts below can ring', pre.chime === true && pre.alertsOn === true, pre)
 
   /* 1: the member's case - an answer lands in their topic, thread closed */
   const REPLY = '7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a02'

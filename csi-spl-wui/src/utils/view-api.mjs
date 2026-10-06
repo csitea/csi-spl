@@ -79,6 +79,8 @@ export function topicsFromMessages(messages) {
       row = {
         task_id: key, first_ts: m.ts, last_ts: m.ts, count: 0,
         kinds: {}, participants: [], subject: subjectOf(m.body),
+        /* view-v1 §4.3 names the topic's channel (null = a DM); the move picker reads it */
+        channel: m.channel || null,
       }
       by.set(key, row)
     }

@@ -380,7 +380,7 @@
       :move-channel="canMoveTopic"
       :merge-topic="canMoveTopic"
       :move-topic="canMoveMsg"
-      :promote-topic="canMoveMsg"
+      :promote-topic="canPromoteMsg"
       :hide="menuHide"
       :locks="menuLocks"
       @close="closeMenu()"
@@ -469,7 +469,7 @@ import { useMessageMenu } from '~/composables/useMessageMenu'
 import { holdPanel, stepSelection, useMsgShortcuts } from '~/composables/useMsgShortcuts'
 import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
-import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, movedNote, type MoveDrag } from '~/utils/move.mjs'
+import { isCardDropTarget, isMergeCardDropTarget, mayMoveMessage, mayMoveTopic, mayPromoteMessage, movedNote, type MoveDrag } from '~/utils/move.mjs'
 import { createEdgeScroll, createHandleDrag } from '~/utils/move-drag.mjs'
 import { useMove } from '~/composables/useMove'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
@@ -1161,6 +1161,12 @@ const canMoveMsg = computed(() => Boolean(props.moveCtx) && !props.topicMenu && 
   lobbyTaskId: lobbyTask.value,
   channel: props.moveCtx?.channel || '',
 }))
+/* a DM row an agent sent may move out to a channel topic, never become a topic of its own */
+const canPromoteMsg = computed(() => canMoveMsg.value && mayPromoteMessage(props.msg, editorId.value, access.me, {
+  openerId: props.moveCtx?.opener || '',
+  lobbyTaskId: lobbyTask.value,
+  channel: props.moveCtx?.channel || '',
+}))
 const movable = computed(() => (canMoveTopic.value || canMoveMsg.value) && !editing.value)
 /* CLE-77891 (HUM-24): a topic card's menu has the same entries for everyone;
    what this viewer may not do is shown disabled with the reason. */
@@ -1440,7 +1446,7 @@ useMsgShortcuts({
     editable: !!props.editable && !editing.value, parent: showParent.value, parentKind: parentKind.value,
     topicArchive: showTopicArchive.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
     moveChannel: canMoveTopic.value, mergeTopic: canMoveTopic.value, moveTopic: canMoveMsg.value,
-    promoteTopic: canMoveMsg.value, hide: menuHide.value, locks: menuLocks.value,
+    promoteTopic: canPromoteMsg.value, hide: menuHide.value, locks: menuLocks.value,
   }),
 })
 const { viewerId, setReaction, applyEverywhere } = useMessageEmoji()

@@ -5,6 +5,8 @@
 # the nearest integer and at least 1. 158 files have 3 samples;
 # section-closes-pane.test.mjs has 2. A file with no line here takes the
 # median of these weights when the runner packs a shard.
+# move-agent-reply.test.mjs: a local estimate (2026-10-06, 13 s for its channel half + the DM
+# half), until a CI run measures it.
 tests/e2e/act-as.test.mjs 10
 tests/e2e/agent-at-box.test.mjs 11
 tests/e2e/agent-id-mention.test.mjs 8
@@ -90,6 +92,7 @@ tests/e2e/mobile-messages.test.mjs 34
 tests/e2e/mobile-overlay.test.mjs 84
 tests/e2e/mobile-stack.test.mjs 43
 tests/e2e/mobile-status-strip.test.mjs 30
+tests/e2e/move-agent-reply.test.mjs 20
 tests/e2e/move-by-drag.test.mjs 19
 tests/e2e/msg-edit.test.mjs 30
 tests/e2e/msg-shortcuts.test.mjs 11

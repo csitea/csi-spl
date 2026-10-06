@@ -7,6 +7,7 @@
 // rows already on screen. Pure: the Node tests import it.
 
 import { isTopicCard, TOPIC_ADMIN_ROLES } from './topic-archive.mjs'
+import { isAgentId } from './agent-id.mjs'
 
 /** Channels a topic can never move into or out of (spec 3.1): the shared lobby and the issues channel. */
 export const MOVE_BLOCKED_CHANNELS = Object.freeze(['lobby', 'general', 'issues'])
@@ -47,7 +48,11 @@ export function mayMoveTopic(msg, viewerId, me, lobbyTaskId = '') {
 
 /**
  * The viewer may drag this reply to another topic / is offered Move to topic.
- * `openerId` is the card the pane was opened on (never movable: spec 3.2
+ * An AGENT's reply moves for anyone who sees it (owner, t1 ffc3b83c: "the
+ * humans should be able to move the bots msgs to a desired topic"); a
+ * person's reply keeps the author / owner / admin rule. A DM row (no channel)
+ * moves only when an agent sent it to this viewer: out of the DM, into a
+ * channel topic (t1 ffc3b83c was such a DM). `openerId` is the card the pane was opened on (never movable: spec 3.2
  * `is_card`); `channel` is the pane's channel when the row carries none.
  */
 export function mayMoveMessage(msg, viewerId, me, { openerId = '', lobbyTaskId = '', channel = '' } = {}) {
@@ -57,8 +62,15 @@ export function mayMoveMessage(msg, viewerId, me, { openerId = '', lobbyTaskId =
   if (openerId && String(m.msg_id) === String(openerId)) return false
   const lobby = String(lobbyTaskId || '')
   if (lobby && (String(m.task_id || '') === lobby || String(m.parent_task_id || '') === lobby)) return false
+  if (!moveChan(m.channel || channel)) return isDmOut(m, viewerId)
   if (moveBlocked(m.channel || channel)) return false
-  return mayChange(m, viewerId, me)
+  return isAgentId(m.from) || mayChange(m, viewerId, me)
+}
+
+/** A DM row an agent sent to this viewer: the one DM row that may leave its DM. */
+function isDmOut(m, viewerId) {
+  const id = String(viewerId || '')
+  return Boolean(id) && isAgentId(m.from) && String(m.to || '') === id
 }
 
 /** A left-rail channel row lights up (and takes the drop) for this drag. */
@@ -107,11 +119,12 @@ export function isMergeCardDropTarget(drag, card, lobbyTaskId = '') {
 /**
  * The viewer may PROMOTE this reply into a new topic of its own (8f588edd) /
  * is offered "Make it a topic". The same gate as Move to topic: a reply (never
- * a card, never the opener) the viewer authored, owns or admins, in a real
- * channel (not a DM, not the lobby).
+ * a card, never the opener) an agent wrote, or the viewer authored, owns or
+ * admins, in a real channel (not a DM, not the lobby).
  */
 export function mayPromoteMessage(msg, viewerId, me, opts = {}) {
-  return mayMoveMessage(msg, viewerId, me, opts)
+  const m = msg && typeof msg === 'object' ? msg : {}
+  return Boolean(moveChan(m.channel || opts.channel)) && mayMoveMessage(msg, viewerId, me, opts)
 }
 
 /**
@@ -121,7 +134,8 @@ export function mayPromoteMessage(msg, viewerId, me, opts = {}) {
  */
 export function isPromoteDropTarget(drag) {
   const d = drag && typeof drag === 'object' ? drag : null
-  return Boolean(d && d.kind === 'message')
+  /* a DM row (no channel) only ever goes to a channel topic, never a new one */
+  return Boolean(d && d.kind === 'message' && (d.channel === undefined || moveChan(d.channel)))
 }
 
 /**

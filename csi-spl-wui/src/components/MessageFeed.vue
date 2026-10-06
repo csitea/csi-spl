@@ -47,7 +47,7 @@ import { useTopicRoute } from '~/composables/useTopicRoute'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMove } from '~/composables/useMove'
-import { moveBlocked } from '~/utils/move.mjs'
+import { isPromoteDropTarget, moveBlocked } from '~/utils/move.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 /* 013 on /channel and /dm (X3): the lobby's LiveFeed over the channel store, newest first. */
@@ -64,7 +64,7 @@ const topic = useTopicStore()
    dragged (a message drag). */
 const move = useMove()
 const promotable = computed(() => !channel.peer && !moveBlocked(channel.active))
-const promoteDrag = computed(() => Boolean(move.drag.value && move.drag.value.kind === 'message'))
+const promoteDrag = computed(() => isPromoteDropTarget(move.drag.value))
 
 /* the same message can be on screen in the feed AND as the pinned
    root of the 3rd panel, so every store that may hold it is told. */

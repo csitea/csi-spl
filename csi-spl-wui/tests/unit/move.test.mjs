@@ -12,8 +12,10 @@ import {
   isCardDropTarget,
   isChannelDropTarget,
   isMovableTopic,
+  isPromoteDropTarget,
   mayMoveMessage,
   mayMoveTopic,
+  mayPromoteMessage,
   movedNote,
 } from '../../src/utils/move.mjs'
 import {
@@ -106,6 +108,31 @@ describe('who may move (spec 3.4)', () => {
     assert.equal(mayMoveMessage({ ...reply, channel: null }, 'HUM-1', member, { ...ctx, channel: '' }), false, 'a DM')
     assert.equal(mayMoveMessage({ ...reply, channel: null }, 'HUM-1', member, ctx), true, 'no tag: the pane channel')
     assert.equal(mayMoveMessage({ ...reply, pending: true }, 'HUM-1', member, ctx), false)
+  })
+
+  it('an agent reply moves for any member; a person\'s reply does not (t1 ffc3b83c)', () => {
+    const ctx = { openerId: 'c1', lobbyTaskId: LOBBY, channel: 'devel' }
+    assert.equal(mayMoveTopic({ ...card, from: 'c-004' }, 'HUM-2', member, LOBBY), false, 'an agent topic keeps 041')
+    assert.equal(mayMoveMessage({ ...reply, from: 'c-004' }, 'HUM-2', member, ctx), true, 'new-form agent')
+    assert.equal(mayMoveMessage({ ...reply, from: 'CLE-07' }, 'HUM-2', null, ctx), true, 'legacy agent, no me loaded')
+    assert.equal(mayMoveMessage({ ...reply, from: 'HUM-3' }, 'HUM-2', member, ctx), false, 'another person')
+    assert.equal(mayMoveMessage({ ...reply, from: 'GST-3' }, 'HUM-2', member, ctx), false, 'a guest is a person')
+    assert.equal(mayMoveMessage({ ...reply, from: 'c-004', is_parent: 1 }, 'HUM-2', member, ctx), false, 'still never a card')
+    assert.equal(mayMoveMessage({ ...reply, from: 'c-004', task_id: LOBBY, channel: 'lobby' }, 'HUM-2', member, ctx), false, 'still never the lobby')
+    assert.equal(mayMoveMessage({ ...reply, from: 'c-004', channel: null, to: 'HUM-1' }, 'HUM-2', member, { ...ctx, channel: '' }), false, 'a DM row to someone else')
+  })
+
+  it('a DM row moves out only when an agent sent it to the viewer, and never becomes a topic', () => {
+    const dm = { openerId: 'c1', lobbyTaskId: LOBBY, channel: '' }
+    const bot = { ...reply, from: 'c-002', to: 'HUM-10', channel: null }
+    assert.equal(mayMoveMessage(bot, 'HUM-10', member, dm), true, 'the agent wrote to the viewer')
+    assert.equal(mayMoveMessage(bot, 'HUM-10', null, dm), true, 'no me loaded: still the viewer\'s DM')
+    assert.equal(mayMoveMessage(bot, 'HUM-2', { role: 'admin' }, dm), false, 'an admin who is not the DM\'s human')
+    assert.equal(mayMoveMessage({ ...bot, from: 'HUM-10', to: 'c-002' }, 'HUM-10', member, dm), false, 'a person\'s DM row stays')
+    assert.equal(mayMoveMessage({ ...bot, is_parent: 1 }, 'HUM-10', member, dm), false, 'never the DM\'s card')
+    assert.equal(mayPromoteMessage(bot, 'HUM-10', member, dm), false, 'a DM row is never promoted')
+    assert.equal(isPromoteDropTarget({ kind: 'message', msgId: 'r1', channel: '' }), false, 'nor dropped on the topics list')
+    assert.equal(isPromoteDropTarget({ kind: 'message', msgId: 'r1', channel: 'devel' }), true)
   })
 })
 

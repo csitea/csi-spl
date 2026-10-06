@@ -126,11 +126,16 @@ const heading = computed(() => (titleText.value ? t('topic.list_title', { text: 
  * it onto a middle card, or its menu's Move to topic…). A DM pane offers
  * nothing. This pane reads its rows into a ref of its own, so a move is
  * applied here too: a reply that left the open topic goes, a topic that
- * gained one is read again.
+ * gained one is read again. With no channel page behind it (the /t/ topic
+ * browser, a DM) each row's own channel decides: a DM row moves only when an
+ * agent sent it to the viewer, out to a channel topic (move.mjs; owner, t1
+ * ffc3b83c).
  */
-const moveCtx = computed(() => (channel.active && !channel.peer
-  ? { channel: channel.active, opener: String(topic.target?.rootMsgId || ''), topic: String(topic.parentTaskId || '') }
-  : null))
+const moveCtx = computed(() => ({
+  channel: channel.peer ? '' : channel.active || '',
+  opener: String(topic.target?.rootMsgId || ''),
+  topic: String(topic.parentTaskId || ''),
+}))
 const offMoved = useMove().onMoved((f, m) => {
   const id = String(topic.parentTaskId || '')
   // 714c7028: a merge / unmerge touching this pane's topic re-reads it (the rows

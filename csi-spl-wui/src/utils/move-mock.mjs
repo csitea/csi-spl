@@ -5,10 +5,12 @@
 // bundle's initial JS.
 
 import { isoSeconds } from './iso-seconds.mjs'
+import { isAgentId } from './agent-id.mjs'
 
 /**
  * SPL-1024: the lde mock's move, with the hub's refusals (move-v1 §2/§3)
- * and the author-only gate (the mock viewer has no role), so the browser
+ * and the author-only gate (the mock viewer has no role; an agent's reply
+ * moves for anyone, as on the hub's mayReply), so the browser
  * e2e drives the whole path (drag, menu, undo) without a hub. A mock reply
  * is its own task with parent_task_id = the topic; a card has neither.
  */
@@ -61,9 +63,11 @@ export function mockMove(state, id, body) {
   if (!inTask.length) throw fail(404, 'not_found')
   const card = inTask.find(isCard)
   if (!card) throw fail(409, 'not_a_card')
-  if (!row.channel || !card.channel) throw fail(409, 'not_in_channel')
+  /* a DM row leaves its DM only when an agent sent it to the viewer (the hub's dmOut) */
+  const dmOut = !row.channel && isAgentId(row.from) && row.to === state.me.id
+  if ((!row.channel && !dmOut) || !card.channel) throw fail(409, 'not_in_channel')
   if (isLobby(row.channel) || isLobby(card.channel)) throw fail(409, 'lobby')
-  if (row.from !== state.me.id) throw fail(403, 'not_allowed')
+  if (row.from !== state.me.id && !isAgentId(row.from)) throw fail(403, 'not_allowed')
   const fromChannel = norm(row.channel)
   const home = String(row.moved_from_task || fromTask)
   const moved = to !== home
@@ -183,7 +187,7 @@ export function mockPromoteTopic(state, id, body) {
   if (isCard(row)) throw fail(409, 'is_card')
   if (!row.channel) throw fail(409, 'not_in_channel')
   if (isLobby(row.channel)) throw fail(409, 'lobby')
-  if (row.from !== state.me.id) throw fail(403, 'not_allowed')
+  if (row.from !== state.me.id && !isAgentId(row.from)) throw fail(403, 'not_allowed')
   const newTask = mint()
   const fromChannel = norm(row.channel)
   const thread = state.messages.filter((m) => m.task_id === id && m.parent_task_id === srcTask)

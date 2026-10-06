@@ -8,7 +8,12 @@
 //     2 Shift+Enter: the glyph (and the chip) sit above the text, the
 //       textarea's inline-start padding equals the no-glyph padding, the
 //       caret stays in the box at the end of the text
-//     3 back to one short line: the indent returns
+//     3 back to one short line: the indent returns, the text starts after
+//       the chip, and the layout holds. "Short" is measured: on the phone
+//       dock the cut chip leaves ~7 px beside it under DejaVu Sans (the sat
+//       runners), so "hi" (16.4 px) really is a wrap there; the check then
+//       takes "i" for the one-line case and asserts "hi" settles multi-line
+//       (3b) instead of flipping (wf10 37489221858, 2026-10-06)
 //     4 a long line with no newline wraps into the same layout
 //   desktop 1440, composer_position bottom: the same two-line layout
 //   phone 390, the dock: the same two-line layout
@@ -76,6 +81,10 @@ function readBox(p) {
     const textStart = tb.left + padStart
     const fieldStart = fb.left + (parseFloat(fcs.borderLeftWidth) || 0) + (parseFloat(fcs.paddingLeft) || 0)
     const lineMid = textTop + lh / 2
+    const indent = parseFloat(tcs.textIndent) || 0
+    /* room for text on the first line of the ONE-LINE layout */
+    const room = ta.clientWidth - padStart - (parseFloat(tcs.paddingInlineEnd) || 0) - indent
+    const chipEl = f.querySelector('[data-test=composer-target-chip]')
     const place = (el) => {
       if (!el || !vis(el)) return null
       const b = el.getBoundingClientRect()
@@ -91,6 +100,10 @@ function readBox(p) {
     return {
       multiline: field.getAttribute('data-multiline') === 'true',
       padStart,
+      room: Math.round(room * 10) / 10,
+      font: tcs.font,
+      firstStart: Math.round(tb.left + padStart + indent),
+      chipRight: chipEl && vis(chipEl) ? Math.round(chipEl.getBoundingClientRect().right) : null,
       startGap: Math.round((textStart - fieldStart) * 10) / 10,
       focused: document.activeElement === ta,
       caret: ta.selectionStart,
@@ -99,7 +112,7 @@ function readBox(p) {
       bottom: f.classList.contains('omnibox--bottom'),
       docked: f.getAttribute('data-docked') === 'true',
       glyph: place(f.querySelector('[data-test=composer-mode-glyph]')),
-      chip: place(f.querySelector('[data-test=composer-target-chip]')),
+      chip: place(chipEl),
     }
   })
 }
@@ -199,12 +212,39 @@ async function exercise(p, tag, basePad) {
   ok(`${tag} 2b the glyph row clears the field's top border`,
     Boolean(two && two.glyph && two.glyph.inset >= 4), two && two.glyph && { inset: two.glyph.inset })
 
-  await replaceText(p, 'hi')
+  /* the short line is one that fits the one-line room step 1 measured, in
+     the box's own font: the chip's width (and so the room) follows the fonts */
+  const width = (s) => p.evaluate((font, s) => {
+    const c = document.createElement('canvas').getContext('2d')
+    c.font = font
+    return c.measureText(s).width
+  }, one ? one.font : '16px sans-serif', s)
+  const room = one ? one.room : 0
+  const hiW = await width('hi')
+  const short = hiW <= room ? 'hi' : 'i'
+  const shortW = short === 'hi' ? hiW : await width('i')
+  if (hiW > room + 1) {
+    await replaceText(p, 'hi')
+    await sleep(100)
+    const a = await readBox(p)
+    await sleep(400)
+    const b = await readBox(p)
+    ok(`${tag} 3b a line wider than the room beside the chip settles multi-line`,
+      Boolean(a && b && a.multiline && b.multiline && b.value === 'hi'),
+      { room, hiW: Math.round(hiW * 10) / 10, multi: [a && a.multiline, b && b.multiline] })
+  }
+  await replaceText(p, short)
   await sleep(100)
   const back = await readBox(p)
-  ok(`${tag} 3 one short line again: the indent is back and the glyph is on the line`,
-    Boolean(back && !back.multiline && back.value === 'hi' && back.glyph && !back.glyph.above && Math.abs(back.glyph.dy) <= 8 && back.padStart >= basePad + 16 && back.focused),
-    back && { pad: back.padStart, dy: back.glyph && back.glyph.dy, multi: back.multiline, focused: back.focused })
+  await sleep(400)
+  const held = await readBox(p)
+  const clear = (r) => r && (r.chipRight == null || r.firstStart >= r.chipRight)
+  ok(`${tag} 3 one short line again: the indent is back, clears the chip, the glyph is on the line`,
+    Boolean(shortW <= room && back && held && !back.multiline && !held.multiline && back.value === short &&
+      back.glyph && !back.glyph.above && Math.abs(back.glyph.dy) <= 8 && back.padStart >= basePad + 16 &&
+      clear(held) && back.focused),
+    back && { short, room, shortW: Math.round(shortW * 10) / 10, pad: back.padStart, dy: back.glyph && back.glyph.dy,
+      multi: [back.multiline, held && held.multiline], start: held && held.firstStart, chipRight: held && held.chipRight, focused: back.focused })
 
   await replaceText(p, LONG)
   await p.waitForFunction(() => {

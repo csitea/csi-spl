@@ -883,7 +883,11 @@ const chipMode = computed(() => {
   if (c.key === 'composer.chip_reply') return 'thread'
   return c.text.startsWith('@') ? 'dm' : 'new'
 })
-/* the text starts after the chip: its width, live */
+/* the text starts after the chip: its ONE-LINE width, live. The lifted row
+   caps the chip narrower (40% vs the dock's full width), and the wrap is
+   judged against the one-line box, so that row's width is not taken: it fed
+   back into the judgement and flipped a short draft between the layouts
+   (measured on the 390 dock, DejaVu: chip 127 px one-line, 66 px lifted). */
 const chipEl = ref<HTMLElement | null>(null)
 const chipW = ref(0)
 let chipObserver: ResizeObserver | null = null
@@ -893,7 +897,7 @@ watch(chipEl, (el) => {
   if (!el) return
   chipW.value = el.offsetWidth
   if (typeof ResizeObserver === 'undefined') return
-  chipObserver = new ResizeObserver(() => { chipW.value = el.offsetWidth })
+  chipObserver = new ResizeObserver(() => { if (!multilineLayout.value) chipW.value = el.offsetWidth })
   chipObserver.observe(el)
 })
 onBeforeUnmount(() => chipObserver?.disconnect())

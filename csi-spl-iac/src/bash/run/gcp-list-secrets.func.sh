@@ -28,7 +28,7 @@ do_gcp_list_secrets() {
       do_log "INFO no SA key for ${env} (${key}), skipped"
       continue
     fi
-    account=$(jq -r '.client_email // ""' "${key}" 2>/dev/null)
+    account=$(do_gcp_sa_key_email "${key}")
     project=$(jq -r '.project_id // ""' "${key}" 2>/dev/null)
     if [[ -z "${account}" || -z "${project}" ]]; then
       do_log "ERROR the SA key ${key} has no client_email or project_id"

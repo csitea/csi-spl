@@ -53,7 +53,8 @@ echo '{"client_email":"sa@csi-spl-dev.iam.gserviceaccount.com"}' >"$DNS_T/home/.
 run_dns_env() {  # <ok|exit|ctrl-c> [cmd prefix...] -> rc; stdout+stderr in $DNS_T/out
   local mode="$1"; shift
   env ORG=csi HOME="$DNS_T/home" APP_PATH="$DNS_T/app" TMPDIR="$DNS_T/tmp" ENV=dev MODE="$mode" ACTION="$PROJ_ROOT/src/bash/run/provision-firebase-dns-env.func.sh" \
-    "$@" bash -c '
+    PIN="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh" "$@" bash -c '
+    source "$PIN"
     do_require_var() { [[ -n "$2" ]] || exit 1; }
     quit_on() { rv=$?; [[ $rv -eq 0 ]] || { echo "FATAL $1"; exit $rv; }; }
     gcloud() { return 0; }

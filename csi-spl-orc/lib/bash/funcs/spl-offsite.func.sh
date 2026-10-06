@@ -25,7 +25,7 @@ spl_offsite_cnf() {
 spl_bkp_gcloud() {
   local key account cfg rc=0
   key="$(spl_bkp_key)" || return 1
-  account="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["client_email"])' "$key" 2>/dev/null)" ||
+  account="$(do_gcp_sa_key_email "$key")" ||
     { do_log "FATAL $key carries no client_email"; return 1; }
   cfg="$(umask 077 && mktemp -d)" || return 1
   CLOUDSDK_CONFIG="$cfg" CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$key" \

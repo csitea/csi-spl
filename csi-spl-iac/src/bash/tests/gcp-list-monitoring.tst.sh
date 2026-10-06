@@ -40,8 +40,8 @@ done
 run_action() {
   : >"$T/calls.log"; rm -f "$T/calls.log.cfg"
   env -u ENV -u CLOUDSDK_CONFIG PATH="$T/bin:$PATH" GC_CALLS="$T/calls.log" ACTION="$ACTION" \
-    HOME="$T/home" ORG=o APP=a "$@" \
-    bash -c 'do_log(){ echo "$*"; }; do_require_var(){ [[ -n "$2" ]] || exit 1; }
+    PIN="$PROJ_ROOT/lib/bash/funcs/gcp-account-pin.func.sh" HOME="$T/home" ORG=o APP=a "$@" \
+    bash -c 'source "$PIN"; do_log(){ echo "$*"; }; do_require_var(){ [[ -n "$2" ]] || exit 1; }
       do_gcp_log_identity(){ echo "identity $1 $2"; }
       source "$ACTION"; do_gcp_list_monitoring' >"$T/out.log" 2>&1
 }

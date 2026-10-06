@@ -121,6 +121,21 @@ do_gcp_sa_key_file() {
 }
 
 #------------------------------------------------------------------------------
+# @description Print the client_email of the SA key $1, or nothing and return 1
+# @description when the key is unreadable, is no JSON or carries no
+# @description client_email (jq's own error is dropped: the caller logs its
+# @description failure in its own words). The key itself is never printed.
+# @param $1 the SA key file
+# @example account=$(do_gcp_sa_key_email "${key}") || return 1
+#------------------------------------------------------------------------------
+do_gcp_sa_key_email() {
+  local email
+  email=$(jq -r '.client_email // ""' "${1:?key}" 2>/dev/null)
+  [[ -n "${email}" && "${email}" != null ]] || return 1
+  printf '%s' "${email}"
+}
+
+#------------------------------------------------------------------------------
 # @description Activate the SA key $1 in the PRIVATE gcloud config (refuses the
 # @description shared one) unless it is already there, and print its
 # @description client_email. The key itself is never printed.
@@ -128,8 +143,7 @@ do_gcp_sa_key_file() {
 #------------------------------------------------------------------------------
 do_gcp_activate_sa_key() {
   local key="${1:?key}" email have
-  email=$(jq -r '.client_email // ""' "${key}" 2>/dev/null)
-  [[ -n "${email}" && "${email}" != null ]] || { do_log "FATAL no client_email in the SA key ${key}" >&2; return 1; }
+  email=$(do_gcp_sa_key_email "${key}") || { do_log "FATAL no client_email in the SA key ${key}" >&2; return 1; }
   if ! do_gcp_config_isolated; then
     do_log "FATAL refusing to activate ${email} in the shared gcloud config: run under a private CLOUDSDK_CONFIG (do_gcp_pin_account makes one)" >&2
     return 1

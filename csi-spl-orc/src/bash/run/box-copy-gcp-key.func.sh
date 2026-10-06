@@ -40,7 +40,7 @@ do_box_copy_gcp_key() {
 
   local src="${GCP_KEY_DIR:-$HOME/.gcp/.csi}/$name" sha email
   [[ -f "$src" && ! -L "$src" && -r "$src" ]] || { do_log "FATAL no readable key file $src"; return 1; }
-  email="$(jq -r '.client_email // ""' "$src" 2>/dev/null)"
+  email="$(do_gcp_sa_key_email "$src")"
   [[ "$email" == *@*.* ]] || { do_log "FATAL $src is no service-account key (no client_email)"; return 1; }
   sha="$(sha256sum <"$src" | cut -d' ' -f1)"
 

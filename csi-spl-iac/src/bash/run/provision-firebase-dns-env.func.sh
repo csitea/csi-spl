@@ -47,7 +47,8 @@ PY
   # shellcheck disable=SC2064
   trap "rm -rf '${cfg:?}'" EXIT
   trap 'rm -rf "${cfg}"; eval "${caller_exit_trap:-trap - EXIT}"; trap - RETURN' RETURN
-  sa=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["client_email"])' "${key}")
+  # an unreadable key leaves sa empty; the activate below then quits on it
+  sa=$(do_gcp_sa_key_email "${key}")
   CLOUDSDK_CONFIG="${cfg}" gcloud auth activate-service-account --key-file="${key}" >/dev/null 2>&1 \
     || { rm -rf "${cfg}"; quit_on "could not activate ${sa} from ${key}"; }
 

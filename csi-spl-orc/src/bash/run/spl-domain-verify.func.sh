@@ -37,8 +37,13 @@ do_spl_domain_verify() {
   key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
 
+  # cfg holds the SA's activated credential. The subshell's EXIT trap removes
+  # it on an interrupt (bash then dies without returning, so no RETURN trap
+  # runs); the RETURN trap removes it on every return of this function.
   cfg="$(mktemp -d)" || return 1
+  trap 'rm -rf "$cfg"; trap - RETURN' RETURN
   (
+    trap 'rm -rf "$cfg"' EXIT
     export CLOUDSDK_CONFIG="$cfg"
     gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
@@ -80,6 +85,5 @@ do_spl_domain_verify() {
     do_log "OK token for $account on $domain: add the entry above to steps.005-gcp-domain-verification in $ENV.env.yaml, re-render, provision 005, then VERIFY=1"
   )
   local rc=$?
-  rm -rf "$cfg"
   return $rc
 }

@@ -34,8 +34,13 @@ do_spl_wait_for_firebase_domain() {
   key="${SPL_SA_KEY:-$HOME/.gcp/.${SPL_ORG_APP%%-*}/key-$SPL_PROJECT.json}"
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
 
+  # cfg holds the SA's activated credential. The subshell's EXIT trap removes
+  # it on an interrupt (bash then dies without returning, so no RETURN trap
+  # runs); the RETURN trap removes it on every return of this function.
   cfg="$(mktemp -d)" || return 1
+  trap 'rm -rf "$cfg"; trap - RETURN' RETURN
   (
+    trap 'rm -rf "$cfg"' EXIT
     export CLOUDSDK_CONFIG="$cfg"
     gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
@@ -46,7 +51,6 @@ do_spl_wait_for_firebase_domain() {
       "${TIMEOUT_SECONDS:-3600}" "${POLL_SECONDS:-30}"
   )
   local rc=$?
-  rm -rf "$cfg"
   return $rc
 }
 

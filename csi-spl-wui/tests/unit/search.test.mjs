@@ -13,6 +13,7 @@ import {
   searchPath,
   searchQueryOf,
   channelLookupOf,
+  channelNamedIn,
   ensureSearchOperators,
   OP_PICKER_CAP,
   operatorHelpRows,
@@ -72,6 +73,33 @@ describe('channelLookupOf: a one-word #name or /name line looks a channel up', (
       '/switch-pane: flow', '/etc/hosts', '#-x', '/csi fina', '```\n#lobby\n```', '@CLE-07']) {
       assert.equal(channelLookupOf(s), null, s)
     }
+  })
+})
+
+// t1 2b15a748 option A: the bare word was left posting. The same matcher
+// now also recognises it when a visible channel has that name.
+describe('channelNamedIn: one word that is a visible channel', () => {
+  const channels = [
+    { channel_id: 'lobby', name: 'lobby' },
+    { channel_id: 'csi-fina', name: 'CSI-Fina' },
+  ]
+  it('bare, # and / match case-insensitively and keep the visible name', () => {
+    assert.deepEqual(channelNamedIn('lobby', channels), { name: 'lobby', id: 'lobby' })
+    assert.deepEqual(channelNamedIn('  Lobby \n', channels), { name: 'lobby', id: 'lobby' })
+    assert.deepEqual(channelNamedIn('#lobby', channels), { name: 'lobby', id: 'lobby' })
+    assert.deepEqual(channelNamedIn('/LOBBY', channels), { name: 'lobby', id: 'lobby' })
+    assert.deepEqual(channelNamedIn('csi-fina', channels), { name: 'CSI-Fina', id: 'csi-fina' })
+    assert.deepEqual(channelNamedIn('#CSI-Fina', channels), { name: 'CSI-Fina', id: 'csi-fina' })
+  })
+  it('an id matches when the visible name differs', () => {
+    assert.deepEqual(channelNamedIn('csi-fina', [{ channel_id: 'csi-fina', name: 'Finance' }]), { name: 'Finance', id: 'csi-fina' })
+  })
+  it('CONTROL: a sentence, an unknown word, a command or a non-name is not a channel', () => {
+    for (const s of ['', 'hello world', 'nosuchchannel', 'hello #lobby', '/search', '/search lobby', '/s', '#', '/', '```', '/etc/hosts']) {
+      assert.equal(channelNamedIn(s, channels), null, s)
+    }
+    assert.equal(channelNamedIn('lobby', []), null)
+    assert.equal(channelNamedIn('lobby', null), null)
   })
 })
 

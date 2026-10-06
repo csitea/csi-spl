@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Vasta",
     "phone_placeholder_search": "Otsi",
-    "send_failed_agent_inactive": "Ei saadetud — see agent pole enam aktiivne. Märgi aktiivne agent; sinu tekst on alles."
+    "send_failed_agent_inactive": "Ei saadetud — see agent pole enam aktiivne. Märgi aktiivne agent; sinu tekst on alles.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "tundmatu",

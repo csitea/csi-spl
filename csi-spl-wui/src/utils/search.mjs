@@ -155,6 +155,36 @@ export function channelLookupOf(text) {
 }
 
 /**
+ * t1 2b15a748 option A. A one-word line that names a channel the member can
+ * see: bare (`lobby`), `#name` or `/name`, case-insensitive. The name grammar
+ * is channelLookupOf's (a bare word is asked as `#word`), so there is one
+ * matcher. Returns the visible channel, or null when the line is not that
+ * one word or no visible channel has that name or id.
+ * @param {unknown} text
+ * @param {Array<{ channel_id?: unknown, name?: unknown }> | null | undefined} channels
+ * @returns {{ name: string, id: string } | null}
+ */
+export function channelNamedIn(text, channels) {
+  const s = String(text || '').trim()
+  if (!s || /\s/u.test(s)) return null
+  const marked = s[0] === '#' || s[0] === '/' ? s : '#' + s
+  const lookup = channelLookupOf(marked)
+  if (!lookup) return null
+  const want = (lookup[0] === '#' ? lookup.slice(1) : lookup).toLowerCase()
+  if (!want) return null
+  const list = Array.isArray(channels) ? channels : []
+  let byId = null
+  for (const c of list) {
+    if (!c || typeof c !== 'object') continue
+    const name = String(c.name || '')
+    const id = String(c.channel_id || '')
+    if (name && name.toLowerCase() === want) return { name, id: id || name }
+    if (!byId && id && id.toLowerCase() === want) byId = { name: name || id, id }
+  }
+  return byId
+}
+
+/**
  * The omnibox line once the reader leaves /search (SPL-13). A search line
  * left behind keeps the omnibox in search mode on every page, and search
  * mode has no Attach and no Send, so it is cleared. A send draft is kept.

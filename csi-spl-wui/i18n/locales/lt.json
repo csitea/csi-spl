@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Atsakyti",
     "phone_placeholder_search": "Ieškoti",
-    "send_failed_agent_inactive": "Neišsiųsta — šis agentas nebeaktyvus. Pažymėkite aktyvų agentą; jūsų tekstas vis dar čia."
+    "send_failed_agent_inactive": "Neišsiųsta — šis agentas nebeaktyvus. Pažymėkite aktyvų agentą; jūsų tekstas vis dar čia.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "nežinomas",

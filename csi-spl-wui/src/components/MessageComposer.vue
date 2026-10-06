@@ -223,6 +223,13 @@
           <UiIcon name="alert-triangle" :size="16" />
           <span>{{ t(sizeError.key, sizeError.params) }}</span>
         </p>
+        <ComposerOpenAsk
+          v-if="openAsk.hit"
+          :name="openAsk.hit.name"
+          @open="openAsk.confirm()"
+          @post="openAsk.post()"
+          @dismiss="openAsk.dismiss()"
+        />
         <button
           v-if="global"
           type="button"
@@ -935,6 +942,24 @@ function syncMention(ev?: Event) {
 const mp = useMentionPicker({ text, el: inputEl, blocked: () => searchMode.value || inCode.value })
 const pickerOpen = computed(() => mp.open)
 
+/* t1 2b15a748 option A. The buttons are ComposerOpenAsk. This hook only
+   decides: one visible channel name asks, anything else falls through. */
+const openAsk = useOpenChannelAsk({
+  text,
+  pickedCount: () => picked.value.length,
+  channels: () => channelFeed.channels,
+  replyOrComment: () => Boolean(props.dockTarget && (props.dockTarget.reply || props.dockTarget.comment)),
+  clearAndGo: (id) => {
+    text.value = ''
+    picked.value = []
+    mp.close()
+    inQuery.value = null
+    void navigateTo(chipLocalePath('/channel/' + encodeURIComponent(id)))
+  },
+  send: () => onSend(),
+})
+watch(text, (s) => openAsk.note(s))
+
 const topicCatalogue = computed(() => topicChoices({
   topics: viewer.topics,
   messages: [...channelFeed.messages, ...liveMain.messages],
@@ -1027,6 +1052,8 @@ function onKeydown(ev: KeyboardEvent) {
   /* spec 066 M6: keydown -> the next paint (one in ten; a no-op with RUM off) */
   perfKeydown(ev.timeStamp)
   if (ev.isComposing) return
+  /* the choice is up: Enter opens, Esc keeps the text */
+  if (openAsk.onKey(ev)) return
   if (syntaxOpen.value && ev.key === 'Escape') {
     ev.preventDefault()
     syntaxOpen.value = false
@@ -1123,8 +1150,8 @@ function searchInstead(): boolean {
     opClosed.value = true
     return true
   }
-  /* t1 2b15a748: `#lobby` or `/csi-fina` alone looks a channel up; it is
-     not posted. A file picked with it is a post. */
+  /* t1 2b15a748: a # or / word that is not a visible channel still
+     searches. A visible one was asked above. A file picked with it is a post. */
   const lookup = (props.global || props.omnibox) && !picked.value.length ? channelLookupOf(text.value) : null
   if (!lookup) return false
   emit('search', lookup)
@@ -1148,6 +1175,7 @@ function onSend() {
       return
     }
   }
+  if (openAsk.beforeSend()) return
   if (searchInstead()) return
   if (props.global && props.sendBlocked) {
     /* (owner: "clicking the GO button does not create a comment"):

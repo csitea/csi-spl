@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Odpovedať",
     "phone_placeholder_search": "Hľadať",
-    "send_failed_agent_inactive": "Neodoslané — tento agent už nie je aktívny. Označte aktívneho agenta; váš text je stále tu."
+    "send_failed_agent_inactive": "Neodoslané — tento agent už nie je aktívny. Označte aktívneho agenta; váš text je stále tu.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "neznámy",

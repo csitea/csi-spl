@@ -1347,6 +1347,7 @@ declare module '~/utils/search.mjs' {
   export function omniboxTextLeavingSearch(text: string): string
   export function searchQueryOf(text: string): string
   export function channelLookupOf(text: string): string | null
+  export function channelNamedIn(text: string, channels?: { channel_id?: string, name?: string }[] | null): { name: string, id: string } | null
   export function searchPath(q: string): string
   export function searchApiQuery(o: { q?: string, cursor?: string, limit?: number, sort?: string }): string
   export function operatorTokenAt(text: string, caret?: number): { token: string, start: number, end: number } | null

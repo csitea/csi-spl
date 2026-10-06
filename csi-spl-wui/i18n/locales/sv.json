@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Svara",
     "phone_placeholder_search": "Sök",
-    "send_failed_agent_inactive": "Inte skickat — den agenten är inte längre aktiv. Tagga en aktiv agent; din text finns kvar."
+    "send_failed_agent_inactive": "Inte skickat — den agenten är inte längre aktiv. Tagga en aktiv agent; din text finns kvar.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "okänd",

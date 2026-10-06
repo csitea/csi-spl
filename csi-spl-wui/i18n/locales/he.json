@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "תגובה",
     "phone_placeholder_search": "חיפוש",
-    "send_failed_agent_inactive": "לא נשלח — הסוכן הזה כבר אינו פעיל. תייגו סוכן פעיל; הטקסט שלכם נשמר."
+    "send_failed_agent_inactive": "לא נשלח — הסוכן הזה כבר אינו פעיל. תייגו סוכן פעיל; הטקסט שלכם נשמר.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "לא ידוע",

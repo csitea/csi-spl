@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Відповісти",
     "phone_placeholder_search": "Пошук",
-    "send_failed_agent_inactive": "Не надіслано — цей агент більше не активний. Позначте активного агента; ваш текст збережено."
+    "send_failed_agent_inactive": "Не надіслано — цей агент більше не активний. Позначте активного агента; ваш текст збережено.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "невідомо",

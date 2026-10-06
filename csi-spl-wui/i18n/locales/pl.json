@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Odpowiedz",
     "phone_placeholder_search": "Szukaj",
-    "send_failed_agent_inactive": "Nie wysłano — ten agent nie jest już aktywny. Oznacz aktywnego agenta; Twój tekst jest nadal tutaj."
+    "send_failed_agent_inactive": "Nie wysłano — ten agent nie jest już aktywny. Oznacz aktywnego agenta; Twój tekst jest nadal tutaj.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "nieznany",

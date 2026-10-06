@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Vastaa",
     "phone_placeholder_search": "Hae",
-    "send_failed_agent_inactive": "Ei lähetetty — agentti ei ole enää aktiivinen. Merkitse aktiivinen agentti; tekstisi on yhä tallessa."
+    "send_failed_agent_inactive": "Ei lähetetty — agentti ei ole enää aktiivinen. Merkitse aktiivinen agentti; tekstisi on yhä tallessa.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "tuntematon",

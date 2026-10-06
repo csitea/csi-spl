@@ -550,7 +550,9 @@
     "phone_placeholder_dm": "{'@'}{peer}",
     "phone_placeholder_reply": "Atbildēt",
     "phone_placeholder_search": "Meklēt",
-    "send_failed_agent_inactive": "Nav nosūtīts — šis aģents vairs nav aktīvs. Atzīmējiet aktīvu aģentu; jūsu teksts joprojām ir šeit."
+    "send_failed_agent_inactive": "Nav nosūtīts — šis aģents vairs nav aktīvs. Atzīmējiet aktīvu aģentu; jūsu teksts joprojām ir šeit.",
+    "open_channel": "Open #{name}?",
+    "post_anyway": "Post anyway"
   },
   "feed": {
     "unknown_author": "nezināms",

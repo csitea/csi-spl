@@ -1,9 +1,9 @@
 # 097 Calendar: full editing, Google Calendar style
 
-Status: **v0.2, the owner approved the v1 feature list (section 0.1),
-2026-10-06.** Spec only: no code, no migration, no cnf value was touched by
-this lane. Building waits for the owner's go on the open questions
-(section 10); "as proposed" answers all of them.
+Status: **v0.3, 2026-10-06: fully decided.** The owner approved the v1
+feature list (section 0.1, E1..E3) and answered Q1..Q9 "as proposed"
+(section 10, msg `92b3e0d6`). Spec only: no code, no migration, no cnf value
+was touched by this lane. Building may start (tasks.md).
 Topic: t1 `70484be0-ed1d-4fc0-bebb-44874cc2661e` (owner HUM-10, msg
 `88405d88`). Author: c-397.
 Builds on, and does not repeat: [089 the Calendar section](../089-calendar-section/spec.md)
@@ -477,24 +477,29 @@ working-hours and out-of-office events, appointment schedules, tasks inside
 the calendar, several calendars per person (the workspace has one calendar;
 `kind` and `color` group events). Each can get its own spec if the owner asks.
 
-## 10. Questions for the owner (reply "as proposed" to accept all)
+## 10. Questions for the owner: all decided
 
-| # | Question | Proposal |
-|---|---|---|
-| Q1 | Recurrence: our own small expander, or the MIT library `rrule-go`? | `rrule-go` (MIT, mature, handles daylight saving), wrapped so only the 4.4 subset gets in; one dependency, checked by the licence and vulnerability gates. |
-| Q2 | Can agents be guests and answer, like members? | Yes: agents are guests and answer through the CLI / MCP (`spool calendar rsvp`). |
-| Q3 | 089 D4 says nothing is sent for reminders. May an **invitation** send a notice: a Flow item for a human, a spool note for an agent? | Yes, for invitations, changes and cancels only; reminders stay pop-ups with nothing sent. E-mail invites come later, opt-in per workspace. |
-| Q4 | Who may edit an event: anyone in the workspace (today), or only its owner and its guests? | Keep today's rule for `public` / `internal`; a per-event "guests can modify" switch later if wanted. A `private` event is already owner-and-guests only. |
-| Q5 | Should others see your `private` event as an anonymous "Busy" block, as Google shows it? | No: private stays invisible (089 4.2), and E3 drops busy / free altogether. |
-| Q6 | Trash: keep deleted events 30 days, then remove them for good? | Yes, 30 days, a workspace setting. |
-| Q7 | An `.ics` subscribe link (for a phone calendar app) needs a per-person secret in the URL. Wanted? | Later, not v1: a download in v1; the link only with a revocable token when asked for. |
-| Q8 | Quick add: a fixed English grammar, no AI? | Yes, fixed grammar, English first; other languages when the WUI locale needs them. |
-| Q9 | Event colours: Google's 11 named colours, or free colour codes? | The 11 named colours, mapped to theme variables, so dark mode stays readable. |
+Owner HUM-10 on t1 `70484be0`, msg `92b3e0d6`, 2026-10-06, verbatim: "as
+proposed". Every row below is **DECIDED (as proposed).** With E1..E3
+(section 0.1) the spec has no open question left.
+
+| # | Question | Proposal | Decision |
+|---|---|---|---|
+| Q1 | Recurrence: our own small expander, or the MIT library `rrule-go`? | `rrule-go` (MIT, mature, handles daylight saving), wrapped so only the 4.4 subset gets in; one dependency, checked by the licence and vulnerability gates. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q2 | Can agents be guests and answer, like members? | Yes: agents are guests and answer through the CLI / MCP (`spool calendar rsvp`). | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q3 | 089 D4 says nothing is sent for reminders. May an **invitation** send a notice: a Flow item for a human, a spool note for an agent? | Yes, for invitations, changes and cancels only; reminders stay pop-ups with nothing sent. E-mail invites come later, opt-in per workspace. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q4 | Who may edit an event: anyone in the workspace (today), or only its owner and its guests? | Keep today's rule for `public` / `internal`; a per-event "guests can modify" switch later if wanted. A `private` event is already owner-and-guests only. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q5 | Should others see your `private` event as an anonymous "Busy" block, as Google shows it? | No: private stays invisible (089 4.2), and E3 drops busy / free altogether. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q6 | Trash: keep deleted events 30 days, then remove them for good? | Yes, 30 days, a workspace setting. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q7 | An `.ics` subscribe link (for a phone calendar app) needs a per-person secret in the URL. Wanted? | Later, not v1: a download in v1; the link only with a revocable token when asked for. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q8 | Quick add: a fixed English grammar, no AI? | Yes, fixed grammar, English first; other languages when the WUI locale needs them. | **DECIDED (as proposed).** msg `92b3e0d6` |
+| Q9 | Event colours: Google's 11 named colours, or free colour codes? | The 11 named colours, mapped to theme variables, so dark mode stays readable. | **DECIDED (as proposed).** msg `92b3e0d6` |
 
 ## 11. Version log
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.3 | 2026-10-06 | c-363 | Owner answered Q1..Q9 "as proposed" (msg `92b3e0d6`): every row of section 10 DECIDED as proposed; with E1..E3 the spec is fully decided. |
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 

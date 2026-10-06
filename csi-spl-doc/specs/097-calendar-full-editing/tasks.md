@@ -1,10 +1,10 @@
 # 097 Calendar full editing: tasks
 
 Authority for what is built (`spec.md` holds the behaviour and the owner's
-open questions, section 10). Each task is one lane: one agent, one task, the
+decisions, sections 0.1 and 10). Each task is one lane: one agent, one task, the
 files it owns, the tests that prove it, its dependencies. Status vocabulary:
-`../README.md` §2.3. Nothing here starts before the owner answers Q1..Q9
-("as proposed" is enough).
+`../README.md` §2.3. The owner answered Q1..Q9 "as proposed"
+(spec section 10, msg `92b3e0d6`); the spec is fully decided.
 
 Paths: `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`,
 `api/` = `csi-spl-api/src/go/spool-hub-api/`, `wui/` = `csi-spl-wui/`,
@@ -81,8 +81,8 @@ T005 and T010 are pure packages with no dependency and may start at once.
   FR-007, FR-008)
 
 ### Phase 3: Recurrence (serial)
-- [ ] T005 **rrule package** `api/internal/calrecur/` (pure; Q1 decides
-  `rrule-go` behind a wrapper or our own): parse and validate the 4.4 subset,
+- [ ] T005 **rrule package** `api/internal/calrecur/` (pure; Q1 decided
+  `rrule-go` behind a wrapper): parse and validate the 4.4 subset,
   compute `recur_until`, expand `[start, end)` in a time zone with
   exceptions and cancellations, the 2000-occurrence cap, occurrence ids.
   Tests: table tests incl. AC-04's DST case, `-1FR`, `COUNT` vs `UNTIL`, a
@@ -102,7 +102,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   and cancel, `notify_guests: false` sends none; a human gets a Flow item (062)
   with Yes / Maybe / No, an agent a spool `note` from `system` (per Q3).
   `TestCalendarSendsNothing` narrowed to the reminder path. Tests: AC-06.
-  Depends: T007 and the owner's Q3. (FR-006)
+  Depends: T007. (FR-006)
 
 ### Phase 5: Find, add, export (parallel)
 - [ ] T009 **search** `GET /v1/calendar/search` (spec 4.7) + tests (private,
@@ -152,4 +152,4 @@ T005 and T010 are pure packages with no dependency and may start at once.
 - [ ] L3 `push` reminders (after 095) and `email` reminders (mail relay).
 - [ ] L4 e-mail invitations, opt-in per workspace (Q3).
 
-<!-- version: 0.2 · updated: 2026-10-06 -->
+<!-- version: 0.3 · updated: 2026-10-06 -->

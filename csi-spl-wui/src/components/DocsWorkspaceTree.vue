@@ -1,5 +1,6 @@
 <!-- spec 075 T010 (owner, prd t1 9f0d751c): the Workspace docs section of
-     the Docs explorer, under the repo tree. The workspace's own docs
+     the Docs explorer, ABOVE the repo tree (t1 199cafc7: under a long repo
+     tree the owner could not find it), with New doc a labelled button. The workspace's own docs
      (GET /v1/workspace/docs/tree.json), each opening at /docs/ws/<path>.
      New doc asks for a path and opens the editor on it; nothing is written
      until Save. Shows nothing while the hub has no workspace docs routes
@@ -14,11 +15,10 @@
         class="ws-tree__new"
         data-test="ws-docs-new"
         :aria-expanded="adding ? 'true' : 'false'"
-        :title="t('docs.ws.new')"
-        :aria-label="t('docs.ws.new')"
         @click="adding = !adding"
       >
         <UiIcon name="plus" :size="16" />
+        <span>{{ t('docs.ws.new') }}</span>
       </button>
     </div>
     <form v-if="adding" class="ws-tree__form" data-test="ws-docs-new-form" @submit.prevent="create">
@@ -132,19 +132,24 @@ onMounted(() => { void loadTree(); if (!access.me) void access.load() })
 </script>
 
 <style scoped>
-.ws-tree { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--color-border); text-align: start; }
+.ws-tree { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); text-align: start; }
 .ws-tree__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .ws-tree__title { margin: 0; padding-inline-start: 8px; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-muted); }
 .ws-tree__new {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   min-width: 32px;
   min-height: 32px;
+  padding: 0 10px 0 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm, 8px);
   background: none;
   color: var(--color-fg);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 .ws-tree__new:hover { background: var(--color-bg-2); }

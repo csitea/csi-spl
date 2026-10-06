@@ -7,6 +7,7 @@
 // Run: node tests/unit/ws-docs.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { DOCS_WRITE, canWriteDocs, newDocBody, newDocPath, wsDocsRoute, wsPathOf, wsTreeFiles } from '../../src/utils/ws-docs.mjs'
 import { createMockWsDocs } from '../../src/utils/ws-docs-mock.mjs'
 
@@ -76,5 +77,20 @@ describe('the mock bucket', () => {
     assert.equal(b.del('a.md'), true)
     assert.equal(b.get('a.md'), null)
     assert.equal(b.del('a.md'), false)
+  })
+})
+
+describe('placement (t1 199cafc7: the owner could not find Edit / New doc)', () => {
+  const read = (p) => readFileSync(new URL('../../' + p, import.meta.url), 'utf8')
+  it('the Workspace docs section comes before the repo tree in the docs nav', () => {
+    const s = read('src/pages/docs.vue')
+    const ws = s.indexOf('<DocsWorkspaceTree')
+    assert.ok(ws > s.indexOf('<nav id="docs-tree"'), 'inside the nav')
+    assert.ok(ws < s.indexOf('<ul v-else role="tree"'), 'before the repo tree')
+    assert.equal(s.split('<DocsWorkspaceTree').length, 2, 'once')
+  })
+  it('New doc carries its text label next to the +', () => {
+    const s = read('src/components/DocsWorkspaceTree.vue')
+    assert.match(s, /data-test="ws-docs-new"[\s\S]*?<UiIcon name="plus"[^>]*\/>\s*<span>\{\{ t\('docs\.ws\.new'\) \}\}<\/span>/)
   })
 })

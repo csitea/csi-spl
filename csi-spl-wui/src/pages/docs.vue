@@ -33,6 +33,9 @@
           <span>{{ t('docs.folders') }}</span>
         </button>
         <nav id="docs-tree" class="docs-tree" :aria-label="t('docs.tree_label')" data-test="docs-tree">
+          <!-- t1 199cafc7 (owner could not find Edit / New doc): the workspace
+               docs, the editable ones, come first; the repo tree is long -->
+          <DocsWorkspaceTree :active="wsPath" />
           <p v-if="treeState === 'loading'" class="muted">{{ t('common.loading') }}</p>
           <p v-else-if="treeState === 'off'" class="muted" role="status">{{ t('docs.off') }}</p>
           <p v-else-if="treeState === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
@@ -74,7 +77,6 @@
               </NuxtLink>
             </li>
           </ul>
-          <DocsWorkspaceTree :active="wsPath" />
         </nav>
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
           <DocsWorkspaceDoc v-if="wsPath" :path="wsPath" />

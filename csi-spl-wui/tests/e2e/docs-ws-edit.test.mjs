@@ -1,6 +1,7 @@
 // spec 075 T010 (owner, prd t1 9f0d751c: "simple editing functionality"
-// first): the Docs explorer gets a Workspace docs section under the repo
-// tree, and a workspace doc at /docs/ws/<path> opens, edits in a plain
+// first): the Docs explorer gets a Workspace docs section ABOVE the repo
+// tree (t1 199cafc7: under it the owner could not find it), New doc is a
+// labelled button in the first screen, and a workspace doc at /docs/ws/<path> opens, edits in a plain
 // markdown textarea with a live preview, saves (last write wins), cancels,
 // is created with New doc and deleted after a confirm. Edit and New doc are
 // hidden from a reader who cannot write (a member without docs.write, a
@@ -74,6 +75,11 @@ const wsDoc = (p, path, mode = 'view') => p.waitForFunction((want, mode) => {
   return mode === 'edit' || Boolean(d.querySelector('[data-testid=md-block][data-rendered=true]'))
 }, { timeout: 15000 }, path, mode).then(() => true, () => false)
 const h1 = (p, sel = '[data-test=ws-doc]') => p.$eval(sel, (el) => el.querySelector('h1')?.textContent?.trim() || '').catch(() => '')
+/** The New doc button's label and box, null when it is not rendered. */
+const newDocButton = (p) => p.$eval('[data-test=ws-docs-new]', (e) => {
+  const r = e.getBoundingClientRect()
+  return { text: e.textContent.trim(), bottom: Math.round(r.bottom), right: Math.round(r.right), h: Math.round(r.height) }
+}).catch(() => null)
 const wsFiles = (p) => p.$$eval('[data-test=ws-docs-file]', (els) => els.map((e) => e.getAttribute('data-path')))
 /* v-model listens for input: set the value as typing would */
 const typeSource = (p, text) => p.$eval('[data-test=ws-doc-source]', (el, text) => {
@@ -103,7 +109,13 @@ try {
     await p.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const section = await p.waitForSelector('[data-test=ws-docs][data-state=ready]', { timeout: 15000 }).catch(() => null)
     ok(`${theme}: the explorer has a Workspace docs section`, Boolean(section))
-    ok(`${theme}: it sits under the repo tree, in the left pane`, await p.$eval('[data-test=docs-tree]', (t) => Boolean(t.querySelector('[data-test=ws-docs]'))).catch(() => false))
+    ok(`${theme}: it sits above the repo tree, in the left pane`, await p.$eval('[data-test=docs-tree]', (t) => {
+      const ws = t.querySelector('[data-test=ws-docs]')
+      const repo = t.querySelector('[data-test=docs-dir], [data-test=docs-file]')
+      return Boolean(ws && repo && (ws.compareDocumentPosition(repo) & Node.DOCUMENT_POSITION_FOLLOWING))
+    }).catch(() => false))
+    const nb = await newDocButton(p)
+    ok(`${theme}: New doc is a labelled button in the first screen`, Boolean(nb && nb.text === 'New doc' && nb.bottom <= 900), nb)
     ok(`${theme}: it lists the workspace's docs`, (await wsFiles(p)).includes(WELCOME), await wsFiles(p))
     ok(`${theme}: CONTROL a repo doc offers no Edit`, !(await has(p, '[data-test=ws-doc-edit]')))
 
@@ -203,6 +215,8 @@ try {
     await m.evaluateOnNewDocument((t) => { try { localStorage.setItem('spool-theme', t) } catch { /* private mode */ } }, theme)
     await m.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     ok(`phone ${theme}: the folded-open tree shows Workspace docs`, Boolean(await m.waitForSelector('[data-test=ws-docs][data-state=ready]', { visible: true, timeout: 15000 }).catch(() => null)))
+    const mb = await newDocButton(m)
+    ok(`phone ${theme}: New doc is labelled, in the first screen, a 44 px target`, Boolean(mb && mb.text === 'New doc' && mb.bottom <= 740 && mb.right <= 390 && mb.h >= 44), mb)
     const f = await m.$(`[data-test=ws-docs-file][data-path="${WELCOME}"]`)
     const fb = f ? await f.boundingBox() : null
     ok(`phone ${theme}: a workspace doc is a 44 px target`, Boolean(fb && fb.height >= 44), fb)

@@ -8,7 +8,8 @@
 //
 //   phone (390x844, hasTouch):
 //     1 no camera button, no capture input; Back, Attach, Send left to right,
-//       Attach centred between them, each a 44 px target
+//       Attach 2 px left of the midpoint between them (t1 842e581f moved
+//       Back's arrow 4 px right), each a 44 px target
 //     2 level 1: Back is shown but disabled (nothing below to go back to)
 //     3 level 3: the dock's Back lands where the top bar's "<" lands
 //     4 level 2: the same, 2 -> 1
@@ -128,9 +129,9 @@ async function phone(browser) {
   const r1 = await rowFacts(p)
   const ids = r1 ? r1.buttons.map((b) => b.id) : []
   const [back, attach, send] = r1 ? r1.buttons : []
-  ok('390px 1 no camera; Back, Attach, Send left to right; Attach centred; 44 px targets',
+  ok('390px 1 no camera; Back, Attach, Send left to right; Attach 2 px left of centre; 44 px targets',
     Boolean(r1 && r1.docked && !r1.camera && ids.join(',') === 'dock-back,attach,send'
-      && Math.abs(attach.cx - (back.cx + send.cx) / 2) <= 1 && back.label
+      && Math.abs(attach.cx - (back.cx + send.cx) / 2 + 2) <= 1 && back.label
       && r1.buttons.every((b) => b.w >= TAP && b.h >= TAP)), r1)
   ok('390px 2 level 1: Back is shown and disabled', Boolean(back && back.id === 'dock-back' && back.disabled), back)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'dock-buttons-390-level1.png') })

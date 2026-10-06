@@ -1872,7 +1872,17 @@ textarea.in-code {
   }
   .composer--dock.composer--dock .omnibox-resize,
   .composer--dock.composer--dock .composer-go__tip { display: none; }
-  .composer--dock.composer--dock .composer-row { align-self: flex-end; gap: 2px; }
+  /* owner, t1 842e581f: "the OmniBox could be 2 mm bigger on the right, but
+     the back arrow could be 1 mm on the right, and the other controls should
+     stay in the same place" - the row starts on the field's edge (-4 px
+     against the box gap) and Back reaches 2 px under Attach (-4 px against
+     the row gap): the field is 8 px wider, Back's arrow 4 px further right,
+     still a 44 px target, Attach and Send unmoved. Attach is positioned so
+     it stays on top of those 2 px even while a disabled Back (opacity) is
+     painted as its own layer */
+  .composer--dock.composer--dock .composer-row { align-self: flex-end; gap: 2px; margin-inline-start: -4px; }
+  .composer--dock.composer--dock .composer-row .dock-back { margin-inline-end: -4px; }
+  .composer--dock.composer--dock .composer-row .attach { position: relative; }
   .composer--dock.composer--dock:not([data-phone-pos=top]) .composer-row { margin-inline-end: 8px; }
   .composer--dock.composer--dock .composer-row button,
   .composer--dock.composer--dock .composer-row .composer-go {

@@ -5,8 +5,8 @@
 #          the cnf block env.docs.repo_edit:
 #          - cnf docs.repo_edit.secret_env maps SPOOL_GITHUB_APP_KEY to ONE
 #            Secret Manager slot; 030 IMPORTS that slot (do_spl_gh_app_manifest
-#            created it with the key) with the arguments of that create, so the
-#            plan never replaces it, and has no version resource;
+#            created it with the key) with the live slot's arguments (no
+#            labels), so the import changes nothing, and has no version resource;
 #          - the runtime SA reads the slot whether or not it is injected, and
 #            the generic binding of 03 skips it (one member, managed once);
 #          - SPOOL_GITHUB_APP_KEY is injected exactly while inject is "true";
@@ -59,8 +59,8 @@ grep -q 'resource "google_secret_manager_secret_version"' "$TFD"/*.tf && fail "0
 f07="$TFD/07-github-app-key.tf"
 grep -qE '^import \{' "$f07" && grep -q 'to = google_secret_manager_secret.github_app_key' "$f07" \
   && pass "07 imports the existing slot" || fail "07 has no import block for the slot"
-grep -q 'role = "hub-github-app"' "$f07" && grep -q 'location = var.gcp_region' "$f07" \
-  && pass "07 matches do_spl_gh_app_key_put's create (user-managed, region, role label)" || fail "07 replication or labels drift from the create"
+grep -q 'location = var.gcp_region' "$f07" && ! grep -qE '^\s*labels\s*=' "$f07" \
+  && pass "07 matches the live slot (user-managed in the region, no labels): a no-op import" || fail "07 replication or labels drift from the live slot"
 grep -q 'secretmanager.secretAccessor' "$f07" && grep -q 'google_service_account.hub.email' "$f07" \
   && pass "07 grants the hub runtime SA read on the slot" || fail "07 lacks the accessor binding"
 grep -q 'setsubtract(toset(values(var.secret_environment_variables)), \[var.github_app_key_secret_id\])' "$TFD/03-runtime-sa.tf" \

@@ -2,9 +2,10 @@
 # (cnf env.docs.repo_edit.secret_env) and the hub runtime SA's read on it.
 #
 # The slot already exists in dev and prd: do_spl_gh_app_manifest created it
-# (do_spl_gh_app_key_put: user-managed in the region, labels role=hub-github-app)
-# and added the key version out of band. So it is IMPORTED here, never created,
-# and its arguments match that create exactly, or the plan would replace it.
+# (user-managed in the region) and added the key version out of band. So it is
+# IMPORTED here, never created, and its arguments match the live slot exactly,
+# or the plan would change or replace it. The live slot carries no labels
+# (plan on dev, 2026-10-06), so none are declared here.
 # No google_secret_manager_secret_version: a version resource puts the value
 # into state.
 #
@@ -27,13 +28,6 @@ resource "google_secret_manager_secret" "github_app_key" {
         location = var.gcp_region
       }
     }
-  }
-
-  labels = {
-    org  = var.org
-    app  = var.app
-    env  = var.env
-    role = "hub-github-app"
   }
 }
 

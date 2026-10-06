@@ -19,7 +19,7 @@ Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-re
 | `c-NNN` | lane agents | one brief each: build, test, land, prove live, report to `c-001` | route other lanes' traffic |
 
 Every agent runs in **auto** permission mode on the current default model. The
-spawner sets `--permission-mode auto`; the model comes from the agent user's
+spawner sets `--dangerously-skip-permissions`; the model comes from the agent user's
 settings, and a relaunch (`restore-claude-plain.sh`) passes it explicitly
 because `--resume` keeps the session's old model.
 

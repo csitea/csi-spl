@@ -351,7 +351,7 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 
 ### 4.7 Launch flags (owner R4)
 
-- **FR-060** A rotated session starts with `--permission-mode auto
+- **FR-060** A rotated session starts with `--dangerously-skip-permissions
   --dangerously-skip-permissions` on the default model (the agent user's
   settings). It never uses `--resume`: that keeps the old session's model
   and context, the very thing rotation drops.
@@ -366,7 +366,7 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   - CLE-77939 leaves it out today for the same reason;
   - so agents do NOT add the flag. The fallback is owner-applied: the owner
     makes the FR-061 one-line change, or allows it for one lane;
-  - until then the helper prints `--permission-mode auto` only, and rotation
+  - until then the helper prints `--dangerously-skip-permissions` only, and rotation
     works unchanged;
   - each implementing lane reports the exact one-line diff to `CLE-001`.
 - **FR-063** `do_spl_rotate_status` shows the flags the live role sessions

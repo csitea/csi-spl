@@ -166,7 +166,7 @@ A session started before the mirror keeps running without it. Close its
 window (`tmux kill-window -t <its pane>`), then restore it from any pane: the
 identity map's record gives its session and worktree, and the restore starts it
 in a NEW window through `restore-claude*.sh`, which launches through
-`spool-harness.sh --mirror` (`--resume <session>` and `--permission-mode auto`
+`spool-harness.sh --mirror` (`--resume <session>` and `--dangerously-skip-permissions`
 kept). While its process is alive the action SKIPs it. Run it from a checkout
 on trunk.
 

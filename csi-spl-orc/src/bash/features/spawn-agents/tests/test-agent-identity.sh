@@ -55,7 +55,7 @@ rec() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.
 # CLE-1's claude was launched with a stale --resume; its sessions json is the truth.
 proc 100 1 500 /bin/bash "$T_TMP" ""
 proc 101 100 501 /bin/bash "$W/CLE-1" ""
-proc 102 101 502 /usr/bin/claude "$W/CLE-1" CLE-1 --resume stale-sid --permission-mode auto --model opus-x
+proc 102 101 502 /usr/bin/claude "$W/CLE-1" CLE-1 --resume stale-sid --dangerously-skip-permissions --model opus-x
 sess 102 s-1 "$W/CLE-1" 502
 proc 200 1 600 /bin/bash "$T_TMP" ""
 proc 202 200 602 /usr/bin/claude "$W/CLE-2" CLE-2 --session-id s-2

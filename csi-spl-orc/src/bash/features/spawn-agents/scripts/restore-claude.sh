@@ -10,7 +10,7 @@ RESTORE_ID_PREFIX=CLE
 RESTORE_BIN_VAR=CLAUDE_BIN
 RESTORE_KICK_FLAG=
 RESTORE_KICK_MODE=brief
-restore_args() { printf "%s" "--resume $1 --permission-mode auto"; }
+restore_args() { printf "%s" "--resume $1 --dangerously-skip-permissions"; }
 RESTORE_ARGS=restore_args
 _rs_core="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh

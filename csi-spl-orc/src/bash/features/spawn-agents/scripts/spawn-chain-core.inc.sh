@@ -19,7 +19,7 @@ spool_env_resolve
 
 _ch_bin() { if [ "$CHAIN_KIND" = claude ]; then printf '%s' "$CLAUDE_BIN"; else printf '%s' "$GROK_BIN"; fi; }
 _ch_flags() {  # [NAME]
-  if [ "$CHAIN_KIND" = claude ]; then printf "%s--permission-mode auto" "${1:+--name '$1' }"
+  if [ "$CHAIN_KIND" = claude ]; then printf "%s--dangerously-skip-permissions" "${1:+--name '$1' }"
   else printf '%s' "--dangerously-skip-permissions --permission-mode bypassPermissions"; fi
 }
 _ch_run() {  # WORKDIR NAME PROMPT

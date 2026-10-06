@@ -191,7 +191,7 @@ grep -q 'working on the gate' "$H/ctx-063-05-lane-restart/c-900.pane.txt" && ! g
   pass "3. the raw pane only in c-900.pane.txt, never named by the distil or the seed" || fail "3. pane.txt"
 grep -qx "respawn %2 -c $T/wt" "$T/tmux/log" && pass "3. respawn-pane -k in the SAME pane, cwd = the worktree" || fail "3. respawn: $(cat "$T/tmux/log")"
 launch="$(grep -oE 'printf %s [A-Za-z0-9+/=]+ ' "$T/tmux/respawn.cmd" | cut -d' ' -f3 | base64 -d)"
-[[ "$launch" == *"--as 'c-900' --mirror -- '/agent/home/.local/bin/claude' --name 'c-900@box' --permission-mode auto \"Read $DIST, then continue the task\""* &&
+[[ "$launch" == *"--as 'c-900' --mirror -- '/agent/home/.local/bin/claude' --name 'c-900@box' --dangerously-skip-permissions \"Read $DIST, then continue the task\""* &&
   "$launch" != *--resume* && "$(cat "$T/tmux/respawn.cmd")" == *"SPOOL_AGENT_USER='$(id -un)'"*"spool_agent_exec"* ]] &&
   pass "3. as the agent user, its claude, the perm flags, the distil seed, never --resume" || fail "3. launch: $launch | $(cat "$T/tmux/respawn.cmd")"
 grep -qx 'adopt c-900 2001' "$T/ai.log" && grep -q ' SPAWN OK c-900 pid 2001 in %2' "$T/o" && pass "3. the map adopts the new pid" || fail "3. adopt"

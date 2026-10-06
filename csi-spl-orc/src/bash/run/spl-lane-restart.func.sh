@@ -219,7 +219,7 @@ spl_lane_restart_pane_cmd() {
   local bin flags esc launch b64
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
   [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
-  if declare -F spool_claude_perm_flags >/dev/null; then flags="$(spool_claude_perm_flags)"; else flags="--permission-mode auto"; fi
+  if declare -F spool_claude_perm_flags >/dev/null; then flags="$(spool_claude_perm_flags)"; else flags="--dangerously-skip-permissions"; fi
   spool_dq_escape esc "$(spl_lane_restart_seed)"
   launch="export SPOOL_ROOT='$SPOOL_ROOT' SPOOL_AGENT_ID='$ID' CLE_TMUX_PANE='$LANE_RESTART_PANE'; cd '$LANE_RESTART_WT' && exec bash '$ROTATE_FEAT/scripts/spool-harness.sh' --as '$ID' --mirror -- '${bin:-claude}' --name '$(spool_decorate "$ID")' $flags \"$esc\""
   b64="$(printf '%s' "$launch" | base64 | tr -d '\n')"

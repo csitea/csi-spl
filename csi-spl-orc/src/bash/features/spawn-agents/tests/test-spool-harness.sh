@@ -64,8 +64,8 @@ for c in claude grok agy qwen othercli; do
   printf '#!/usr/bin/env bash\nprintf "ARGV:%%s\\n" "$*"\n' >"$T_TMP/mbin/$c"; chmod +x "$T_TMP/mbin/$c"
 done
 MH="$HOME/.local/state/spool-agent/mirror-hooks-CLE-41.json"
-out="$(bash "$H" --as CLE-41 --mirror -- "$T_TMP/mbin/claude" --resume S1 --permission-mode auto 2>"$T_TMP/err")"
-eq "mirror: claude gets --settings right after the binary" "ARGV:--settings $MH --resume S1 --permission-mode auto" "$out"
+out="$(bash "$H" --as CLE-41 --mirror -- "$T_TMP/mbin/claude" --resume S1 --dangerously-skip-permissions 2>"$T_TMP/err")"
+eq "mirror: claude gets --settings right after the binary" "ARGV:--settings $MH --resume S1 --dangerously-skip-permissions" "$out"
 has "mirror: the per-agent hooks file runs this checkout's spool-mirror.py" "$T_SCRIPTS/spool-mirror.py hook" "$(cat "$MH")"
 has "mirror: ...for UserPromptSubmit" UserPromptSubmit "$(cat "$MH")"
 has "mirror: ...and Stop" '"Stop"' "$(cat "$MH")"

@@ -84,6 +84,7 @@
       :merge-topic="menuFlags.mergeTopic"
       :locks="menuFlags.locks"
       @close="hideMenu()"
+      @escape="focusMenuRow()"
       @open="onMenuOpen"
       @edit="onMenuEdit"
       @copy="onMenuCopy"
@@ -274,15 +275,32 @@ async function openRowMenu(id: string, x: number, y: number) {
   openAt(x, y)
 }
 
+/* The row Esc returns to. The menu button is a sibling of the link. */
+let menuRow: HTMLElement | null = null
+function noteMenuRow(ev: Event) {
+  const t = ev.target
+  if (!(t instanceof Element)) return
+  menuRow = t.closest<HTMLElement>('a.topic-row')
+    || t.closest('.topic-row-wrap')?.querySelector<HTMLElement>('a.topic-row')
+    || null
+}
+function focusMenuRow() {
+  const to = menuRow
+  menuRow = null
+  void nextTick(() => to?.focus({ preventScroll: true }))
+}
+
 /* A phone long-press stays the browser's. This list has no swipe. The
    button still opens the menu. Desktop right-click opens it here. */
 function onRowContext(id: string, ev: MouseEvent) {
   if (stack.isMobile.value) return
   ev.preventDefault()
+  noteMenuRow(ev)
   void openRowMenu(id, ev.clientX, ev.clientY)
 }
 
 function onRowMenuButton(id: string, ev: MouseEvent) {
+  noteMenuRow(ev)
   if (menuOpen.value && menuTask.value === id) {
     hideMenu()
     return

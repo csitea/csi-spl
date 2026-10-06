@@ -37,7 +37,7 @@ Typos happen. Spool allows you to edit any message you have sent—whether it is
 
 ## 2. The Message Context Menu
 
-Every message row features a dedicated action menu. You can access it by clicking the **⋮** button on the right side of the message header, or by **right-clicking** anywhere on the message card:
+Every message row features a dedicated action menu. You can access it by clicking the **⋮** button on the right side of the message header, by **right-clicking** anywhere on the message card, or, on a desktop, with **Shift + R** on the selected message. The menu opens on that message, its first item focused. Arrows move, Enter runs an item, and Esc closes it and returns to the message.
 
 | Action | Description | Shortcut |
 |---|---|---|
@@ -47,7 +47,7 @@ Every message row features a dedicated action menu. You can access it by clickin
 | **Edit Message** | Enters inline editing mode (available on your own messages). | `Double-Click` / `e` / `Shift + E` |
 | **Copy Link to Message** | Copies a permanent direct deep-link URL to your clipboard. | `Shift + L` |
 | **Copy text** | Copies the message text. On a phone this is on the menu; on a desktop it is `Shift + C`. | `Shift + C` |
-| **Reply** | Starts a reply. On a phone the menu begins with Reply, then **Add emoji**. | `Shift + R` |
+| **Reply** | Starts a reply. On a phone the menu begins with Reply, then **Add emoji**. | — |
 | **Change kind** | On a phone, when you may re-type the message, sets its kind. On a desktop the kind badge does this, and the key does it too. | `Shift + K` |
 | **Merge with Previous** | Combines this message into the preceding message in the same thread. | — |
 | **Merge with Next** | Combines this message into the following message in the same thread. | — |

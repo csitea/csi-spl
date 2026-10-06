@@ -7,7 +7,7 @@
      screen and the Back overlay (SPL-993 / SPL-994). -->
 <template>
   <UiDialog :open="open" :title="title" size="md" @update:open="emit('update:open', $event)">
-    <div class="move-picker" :data-testid="`move-picker-${mode}`">
+    <div ref="root" class="move-picker" :data-testid="`move-picker-${mode}`" @keydown="onListKey">
       <input
         v-model="query"
         class="move-picker__filter"
@@ -70,6 +70,7 @@ const live = useLive()
 const move = useMove()
 const channel = useChannelStore()
 const query = ref('')
+const root = ref<HTMLElement | null>(null)
 const loading = ref(false)
 const busy = ref(false)
 const topics = ref<{ task_id: string, channel?: string | null, subject?: string, last_ts?: string }[]>([])
@@ -136,6 +137,25 @@ function pickFirst() {
   const first = rows.value[0]
   if (first) void pick(first)
 }
+
+/* Arrows leave the filter for the rows and move between them, so a menu
+   that opened this picker (Shift + R, then Move) can finish from the keyboard. */
+function onListKey(ev: KeyboardEvent) {
+  if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return
+  const box = root.value
+  if (!box) return
+  const list = [...box.querySelectorAll<HTMLButtonElement>('[data-testid=move-picker-row]:not([disabled])')]
+  if (!list.length) return
+  const at = list.findIndex((el) => el === document.activeElement)
+  ev.preventDefault()
+  if (ev.key === 'ArrowDown') {
+    const next = at < 0 ? list[0] : list[Math.min(list.length - 1, at + 1)]
+    next.focus()
+    return
+  }
+  if (at <= 0) box.querySelector<HTMLElement>('[data-testid=move-picker-filter]')?.focus()
+  else list[at - 1].focus()
+}
 </script>
 
 <style scoped>
@@ -166,7 +186,8 @@ function pickFirst() {
   text-align: start;
   cursor: pointer;
 }
-.move-picker__row:hover { background: var(--color-surface-hover); }
+.move-picker__row:hover,
+.move-picker__row:focus-visible { background: var(--color-surface-hover); outline: none; }
 .move-picker__hash { color: var(--color-muted); }
 .move-picker__label { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .move-picker__hint { flex: none; font-size: 0.75rem; }

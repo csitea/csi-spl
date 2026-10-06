@@ -12,6 +12,8 @@
 // from msgMenuItems(), so the permission check is the menu's own. Reply,
 // Copy text and Kind are phone-sheet items (the desktop has them on the row's
 // own buttons), so the offer is the union of both menus.
+// Shift + R is the exception (HUM-10 t1 4c5161e3): it opens that menu on the
+// selected row instead of running an item. Reply stays on the phone sheet.
 //
 // ArrowUp / ArrowDown and j / k move the selection; Shift + ? lists the keys.
 // The key map and the matching rules live here so node can test them; the
@@ -26,7 +28,7 @@ import { msgMenuItems } from './msg-menu.mjs'
  */
 export const MSG_SHORTCUTS = Object.freeze([
   { key: 'H', items: ['hide-flow'], labelKey: 'feed.msg_menu.hide_flow' },
-  { key: 'R', items: ['reply'], labelKey: 'feed.msg_menu.reply' },
+  { key: 'R', items: [], labelKey: 'feed.shortcuts.open_menu' },
   { key: 'E', items: ['edit'], labelKey: 'feed.msg_menu.edit' },
   { key: 'A', items: ['archive'], labelKey: 'feed.shortcuts.archive' },
   { key: 'O', items: ['open'], labelKey: 'feed.msg_menu.open' },

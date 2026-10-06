@@ -86,7 +86,7 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 | Shortcut | Context | Action |
 |---|---|---|
 | **`Shift + H`** | Selected message, desktop | Hide from flow |
-| **`Shift + R`** | Selected message, desktop | Reply |
+| **`Shift + R`** | Selected message, desktop | Open menu |
 | **`Shift + E`** | Selected message, desktop | Edit |
 | **`Shift + A`** | Selected message, desktop | Archive / Unarchive |
 | **`Shift + O`** | Selected message, desktop | Open |
@@ -101,6 +101,6 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 
 ## 8. When these keys stay quiet
 
-A message shortcut runs only when that menu item would be offered for the selected message. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
+A message shortcut runs only when that menu item would be offered for the selected message. **`Shift + R`** opens the selected message's menu. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
 
 <!-- version: 1.2.1 · updated: 2026-10-05 -->

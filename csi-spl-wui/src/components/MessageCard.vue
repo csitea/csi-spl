@@ -1419,10 +1419,23 @@ const shortcutRun: Record<string, () => unknown> = {
   'move-channel': () => openMovePicker('channel'), 'move-topic': () => openMovePicker('topic'),
   'merge-topic': () => openMovePicker('merge'), 'promote-topic': onPromote, 'hide-flow': onMenuHide,
 }
+/* HUM-10 t1 4c5161e3: Shift + R opens this card's menu at the row, the
+   same point as the … button, so the first item can take the focus. */
+function openMenuFromShortcut() {
+  const row = rowEl.value
+  if (!row) return
+  const btn = row.querySelector<HTMLElement>('[data-testid="msg-menu-btn"]')
+  const anchor = btn ?? row
+  const r = anchor.getBoundingClientRect()
+  row.focus({ preventScroll: true })
+  if (btn) openMenuAt(r.left, r.bottom + 4)
+  else openMenuAt(r.left + 12, r.top + 12)
+}
 useMsgShortcuts({
   row: rowEl,
   busy: () => editing.value || removing.value,
   run: (id) => shortcutRun[id]?.(),
+  openMenu: openMenuFromShortcut,
   flags: () => ({
     editable: !!props.editable && !editing.value, parent: showParent.value, parentKind: parentKind.value,
     topicArchive: showTopicArchive.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,

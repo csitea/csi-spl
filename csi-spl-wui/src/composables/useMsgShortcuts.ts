@@ -28,6 +28,8 @@ type CardEntry = {
   archiveUndo: ReturnType<typeof useArchiveUndo>
   flags: () => Parameters<typeof offeredItems>[0]
   run: (itemId: string) => unknown
+  /** Shift + R: open this card's right-click menu, anchored on the row */
+  openMenu: () => void
   busy: () => boolean
 }
 
@@ -191,6 +193,30 @@ function install() {
       void undo.undo()
       return
     }
+    /* Shift + R opens the row's menu (first item focused by the menu).
+       It is not an item id, so it does not go through shortcutItem.
+       A focused topic-list row (no message card) gets the same key: its
+       own contextmenu handler opens that row's menu. */
+    if (hit.key === 'R') {
+      if (entry && !entry.busy()) {
+        ev.preventDefault()
+        entry.openMenu()
+        return
+      }
+      const active = document.activeElement as HTMLElement | null
+      const topicRow = !entry && active ? active.closest<HTMLElement>('a.topic-row') : null
+      if (topicRow) {
+        ev.preventDefault()
+        const rect = topicRow.getBoundingClientRect()
+        topicRow.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true, cancelable: true,
+          clientX: Math.round(rect.left + 16),
+          clientY: Math.round(rect.top + 20),
+          button: 2, buttons: 2,
+        }))
+      }
+      return
+    }
     if (!entry || entry.busy()) return
     const id = shortcutItem(hit.key, offeredItems(entry.flags()))
     if (!id) return
@@ -206,14 +232,14 @@ function install() {
  * MessageMenu gets; `run` the handler of one menu item id; `busy` true while
  * it is being edited.
  */
-export function useMsgShortcuts(opts: Pick<CardEntry, 'flags' | 'run' | 'busy'> & { row: Ref<HTMLElement | null> }) {
+export function useMsgShortcuts(opts: Pick<CardEntry, 'flags' | 'run' | 'busy' | 'openMenu'> & { row: Ref<HTMLElement | null> }) {
   const on = useMsgShortcutsOn()
   const archiveUndo = useArchiveUndo()
   let el: HTMLElement | null = null
   onMounted(() => {
     el = opts.row.value
     if (!el) return
-    cards.set(el, { on, archiveUndo, flags: opts.flags, run: opts.run, busy: opts.busy })
+    cards.set(el, { on, archiveUndo, flags: opts.flags, run: opts.run, busy: opts.busy, openMenu: opts.openMenu })
     if (!listening) install()
   })
   onBeforeUnmount(() => {

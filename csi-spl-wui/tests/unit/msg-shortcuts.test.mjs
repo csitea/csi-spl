@@ -93,6 +93,14 @@ describe('shortcutItem / offeredItems: the menu decides', () => {
     assert.equal(shortcutItem('Q', ['archive']), '')
   })
 
+  it('Shift + R opens the menu: it names no item, so Reply keeps no key', () => {
+    const row = MSG_SHORTCUTS.find((s) => s.key === 'R')
+    assert.equal(row.labelKey, 'feed.shortcuts.open_menu')
+    assert.deepEqual([...row.items], [])
+    assert.equal(shortcutItem('R', offeredItems({ editable: true })), '')
+    assert.equal(shortcutHint('reply'), '')
+  })
+
   it('Move or merge takes whichever picker the message offers; Delete the topic\'s first', () => {
     assert.equal(shortcutItem('M', new Set(['move-topic'])), 'move-topic')
     assert.equal(shortcutItem('M', new Set(['merge-topic', 'move-channel'])), 'move-channel')

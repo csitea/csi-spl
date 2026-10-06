@@ -15,6 +15,8 @@
 #             literal self-hosted runs-on is caught by the static check.
 #------------------------------------------------------------------------------
 set -uo pipefail
+# Inherited from a git hook, these make `git -C "$T/app"` write the CALLER's repo.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 FUNC="$PROJ_ROOT/src/bash/run/gh-set-ci-vars.func.sh"
@@ -52,7 +54,9 @@ case "$1 $2" in
 esac
 STUB
 chmod +x "$T/bin/gh"
-git -C "$T/app" init -q && git -C "$T/app" remote add origin git@github.com:o/app.git
+git -C "$T/app" init -q
+[[ "$(git -C "$T/app" rev-parse --absolute-git-dir)" == "$T/app/.git" ]] || { echo "FAIL: fixture repo is not isolated"; exit 1; }
+git -C "$T/app" remote add origin git@github.com:o/app.git
 
 act() {  # runs the action in a clean shell; output in $T/out
   : >"$T/log"

@@ -22,6 +22,8 @@
 #   planted in the state outside the wired outputs never reaches the output.
 #------------------------------------------------------------------------------
 set -uo pipefail
+# Inherited from a git hook, these make `git -C "$T/app"` write the CALLER's repo.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 FUNC="$PROJ_ROOT/src/bash/run/spl-gh-wire.func.sh"
@@ -43,7 +45,9 @@ have_names=$(for e in DEV PRD; do bash -c 'source "$1"; _sgw_map' _ "$FUNC" | cu
 
 # --- fixtures -----------------------------------------------------------------
 mkdir -p "$T/bin" "$T/vars" "$T/gcs" "$T/home/.gcp/.o" "$T/home/.config/gcloud" "$T/app/o-app-iac"
-git -C "$T/app" init -q && git -C "$T/app" remote add origin git@github.com:o/app.git
+git -C "$T/app" init -q
+[[ "$(git -C "$T/app" rev-parse --absolute-git-dir)" == "$T/app/.git" ]] || { echo "FAIL: fixture repo is not isolated"; exit 1; }
+git -C "$T/app" remote add origin git@github.com:o/app.git
 for e in dev prd; do
   printf '{"type":"service_account","client_email":"o-app-%s@o-app-%s.iam.gserviceaccount.com"}\n' "$e" "$e" \
     >"$T/home/.gcp/.o/key-o-app-$e.json"

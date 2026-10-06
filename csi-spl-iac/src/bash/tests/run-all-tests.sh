@@ -25,6 +25,10 @@
 # loaded runner is not a hang, and every other file keeps the tight bound. Each
 # file's verdict block ends with its wall time, so the next such red is measured.
 set -uo pipefail
+# A git hook (pre-push) exports GIT_DIR (+ GIT_PREFIX): inherited, it turns a
+# test fixture's `git -C "$T/app" init/remote` into a write on the CALLER's
+# repo (2026-10-06: a shared .git/config got core.bare=true and a fixture origin).
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
 dir=$(cd "$(dirname "$0")" && pwd)
 to="${IAC_TEST_TIMEOUT:-120}"
 tier="${IAC_TEST_TIER:-full}"

@@ -8,6 +8,8 @@
       v-else-if="p.type === 'link'"
       class="msg-link"
       :href="hrefOf(p.href)"
+      :title="linkTitle(p)"
+      :data-test="linkTitle(p) ? 'app-link' : undefined"
       :target="openOf(p.href).target"
       :rel="openOf(p.href).rel"
       draggable="false"
@@ -17,7 +19,7 @@
       @click.stop="onLink($event, p.href)"
       @dblclick.stop
       @keydown.enter.stop
-    >{{ p.text }}</a>
+    >{{ linkText(p) }}</a>
     <template v-else>
       <!-- SPL-1009: a member id in plain text ("HUM-10 needs you in ...") reads the name -->
       <!-- CLE-77908: an ISO time with a zone reads in the viewer's zone; the hover keeps it as written -->
@@ -31,6 +33,7 @@ import { mentionDisplay, namedRuns } from '~/utils/channel-feed.mjs'
 import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointerDown, messageLinkPointerUp } from '~/utils/link-target.mjs'
 import { bodyTimeRuns } from '~/utils/body-times.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
+import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
 
 /* One run of a message body. Text interpolation only: a wiki region never
    becomes HTML, same rule as the rest of the body.
@@ -40,6 +43,8 @@ import { useHumanNames } from '~/composables/useHumanNames'
    also open the row's topic. */
 defineProps<{ parts: { type: string, text: string, href?: string }[] }>()
 const people = useHumanNames()
+const labelMod = useAppLinkLabel()
+const pub = useRuntimeConfig().public
 const requestURL = useRequestURL()
 const router = useRouter()
 
@@ -67,6 +72,23 @@ function hrefOf(href?: string): string | undefined {
   if (!href) return href
   const open = linkOpen(href, originNow())
   return open && open.internal ? open.href : href
+}
+
+/* A bare URL of this app reads as `topic: <8 hex>` (and the workspace in
+   front, when it is another one). The chunk is lazy. Until it arrives the
+   address stays. An author-written label is not an address, so it stays. */
+function labelOf(href?: string, text?: string) {
+  const m = labelMod.value
+  if (!m || !href || !text || !m.linkTextIsAddress(text)) return null
+  return m.appLinkLabel(href, m.appLinkLabelContext(hrefNow(), pub))
+}
+
+function linkText(p: { text: string, href?: string }) {
+  return labelOf(p.href, p.text)?.text || p.text
+}
+
+function linkTitle(p: { text: string, href?: string }) {
+  return labelOf(p.href, p.text)?.title || undefined
 }
 
 /* a phone drops the click on a link inside the card; pointerup still fires

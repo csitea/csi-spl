@@ -23,7 +23,7 @@
       :aria-pressed="showSource"
       @click.stop="showSource = !showSource"
     >{{ showSource ? t('markdown.show_rendered') : t('markdown.show_source') }}</button>
-    <MdNodes v-if="tree && !showSource" :nodes="tree" />
+    <MdNodes v-if="tree && !showSource" :nodes="tree" :stamp="labelStamp" />
     <p v-else-if="!bare" class="md-src" dir="auto">{{ text }}</p>
   </div>
 </template>
@@ -36,12 +36,29 @@ import { mentionParts } from '~/utils/code-blocks.mjs'
 import { hasBodyTime } from '~/utils/body-times.mjs'
 import CodeBlock from '~/components/CodeBlock.vue'
 import MessageRuns from '~/components/MessageRuns.vue'
+import { useAppLinkLabel } from '~/composables/useAppLinkLabel'
 
 const props = defineProps<{ text: string, bare?: boolean }>()
 const emit = defineEmits<{ rendered: [on: boolean] }>()
 const { t } = useI18n({ useScope: 'global' })
 const router = useRouter()
 const showSource = ref(false)
+const labelMod = useAppLinkLabel()
+const pub = useRuntimeConfig().public
+const requestURL = useRequestURL()
+/* stamp changes when the lazy label chunk arrives, so the tree paints again */
+const labelStamp = computed(() => (labelMod.value ? 1 : 0))
+
+function pageHrefNow() {
+  if (import.meta.client) return window.location.href
+  return requestURL.href
+}
+
+function labelFor(href: string, written: string) {
+  const m = labelMod.value
+  if (!m || !m.linkTextIsAddress(written)) return null
+  return m.appLinkLabel(href, m.appLinkLabelContext(pageHrefNow(), pub))
+}
 
 const tree = shallowRef<MdNode[] | null>(null)
 let tags: Set<string> = new Set()
@@ -123,11 +140,13 @@ function node(n: MdNode, inCode = false): VNodeChild {
     // (SPL-951 regression: a www or http link to this site loads); an external
     // link keeps the href as written.
     const href = open.internal ? open.href : n.attrs.href
+    const written = n.children.length === 1 && typeof n.children[0] === 'string' ? n.children[0] : ''
+    const lab = written ? labelFor(href, written) : null
     const anchor: Record<string, unknown> = {
       class: 'msg-link',
       href,
       draggable: 'false',
-      title: n.attrs.title,
+      title: lab ? lab.title : n.attrs.title,
       onPointerdown: onPointerDown,
       onPointerup: (e: PointerEvent) => onPointerUp(e, href),
       onPointercancel: onPointerCancel,
@@ -139,7 +158,8 @@ function node(n: MdNode, inCode = false): VNodeChild {
       anchor.target = open.target
       anchor.rel = open.rel
     }
-    return h('a', anchor, kids)
+    if (lab) anchor['data-test'] = 'app-link'
+    return h('a', anchor, lab ? [lab.text] : kids)
   }
   if (n.tag === 'table') return h('div', { class: 'md-table' }, [h('table', null, kids)])
   const attrs: Record<string, string> = {}
@@ -147,8 +167,11 @@ function node(n: MdNode, inCode = false): VNodeChild {
   return h(n.tag, attrs, kids)
 }
 
-const MdNodes: FunctionalComponent<{ nodes: MdNode[] }> = (p) => p.nodes.map((n) => node(n))
-MdNodes.props = ['nodes']
+const MdNodes: FunctionalComponent<{ nodes: MdNode[], stamp: number }> = (p) => {
+  void p.stamp
+  return p.nodes.map((n) => node(n))
+}
+MdNodes.props = ['nodes', 'stamp']
 </script>
 
 <style scoped>

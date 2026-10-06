@@ -1300,6 +1300,15 @@ declare module '~/utils/link-target.mjs' {
   ): boolean
 }
 
+declare module '~/utils/app-link-label.mjs' {
+  export type AppLinkSegment = { kind: 'instance' | 'workspace' | 'type', value: string, id?: string }
+  export type AppLinkLabel = { segments: AppLinkSegment[], text: string, title: string }
+  export function linkTextIsAddress(text: string): boolean
+  export function formatAppLinkSegments(segments: AppLinkSegment[]): string
+  export function appLinkLabelContext(pageHref: string, pub?: { tenantHosts?: unknown, siteUrl?: unknown, tenant?: unknown }): { pageHref: string, siteUrl: string, apexTenant: string }
+  export function appLinkLabel(href: string, ctx: { pageHref: string, siteUrl?: string, apexTenant?: string }): AppLinkLabel | null
+}
+
 declare module '~/utils/markdown.mjs' {
   export type MdNode = string | { tag: string, attrs: Record<string, string>, children: MdNode[] }
   export const TAGS: Set<string>

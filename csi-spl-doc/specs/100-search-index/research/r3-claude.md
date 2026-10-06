@@ -123,7 +123,7 @@ Every step is a named path (repo CLAUDE.md: nothing ad hoc).
 | # | step | gate | rollback |
 |---|---|---|---|
 | 0 | **prove on dev Cloud SQL first**: the migration of step 1 on dev, then `EXPLAIN (ANALYZE, BUFFERS)` of the function body as the reader role shows the GIN; `btree_gin` available | if it fails: switch to option A, same test plan (section 5 marks the A-only tests) | `DROP` the function, policy, role, index |
-| 1 | rdb `01NN_search_gin.sql`: `CREATE EXTENSION btree_gin`, the GIN on `(tenant_id, search_tsv)`, role, `FOR SELECT TO` policy, function, grants | owner go; orchestrator applies dev, then prd. The build runs inside the migrate transaction (no CONCURRENTLY, as 0122) and holds a SHARE lock on `messages`: **measure its time on dev** (dev t1 has 1.0 M lexeme rows, close to prd); if it is more than a few seconds on prd, ship the index as its own CONCURRENTLY step outside the migrate transaction | `DROP INDEX` |
+| 1 | rdb `01NN_search_gin.sql`: `CREATE EXTENSION btree_gin`, the GIN on `(tenant_id, search_tsv)`, role, `FOR SELECT TO` policy, function, grants | owner go; orchestrator applies dev, then prd. The build runs inside the migrate transaction (no CONCURRENTLY, as 0122) and holds a SHARE lock on `messages`: **measure its time on dev** (dev t1 has 1.0 M lexeme rows, close to prd); CONCURRENTLY is not available here: `store.Migrate` wraps every file in `pgx.BeginFunc` (`grep -n BeginFunc csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go` -> 89), and CONCURRENTLY refuses a transaction (r1 section 8). If the dev stall is too long, a non-transactional build is a runner change or a named iac action: its own task, not a flag on this migration | `DROP INDEX` |
 | 2 | hub: probe the function like `hasSearchSig` (a trunk push rolls dev AND prd together; the migration may lag). Read path: positive text terms go through the candidate set; NOT-only / OR-only / no-text queries keep today's path and 0135 | `bash csi-spl-api/src/bash/tests/run-all-tests.sh` on postgres | redeploy the previous tag |
 | 3 | an env switch `SPOOL_HUB_SEARCH_INDEX=off` returns every query to today's path without a code deploy | flip on dev, then prd | flip off |
 | 4 | prd benchmark (5.4) before and after, n >= 5 | owner reads it | step 3 |
@@ -168,8 +168,8 @@ All store tests run on POSTGRES (deploy-gate b): `PRE_PUSH_TIER=full ./run -a do
 | id | test | fails when |
 |---|---|---|
 | T3 | two tenants share a unique word; as the hub runtime role (`NOBYPASSRLS`) tenant A gets only A's rows through the API, through the store, AND through a direct call of the function; with no scope the function returns 0 | any cross-tenant id at the SQL level |
-| T4 | catalogue pin: the function is SECURITY DEFINER, has `search_path` set, takes no text tenant argument, its body references `app.tenant_id`; its owner is NOLOGIN and NOBYPASSRLS; EXECUTE is not granted to PUBLIC; the `USING (true)` policy is `FOR SELECT` and `TO` that role only; `messages` is still FORCE RLS | a later migration widens any of these |
-| T5 | planted leak (the test can fail): in a rolled-back transaction, replace the function with one missing the tenant pin; T3's direct call must turn red, and the API-level T3 must stay green (the outer RLS still filters) | T3 is vacuous, or defence in depth is gone |
+| T4 | catalogue pin: the function is SECURITY DEFINER, has `search_path` set, takes no text tenant argument, its body references `app.tenant_id`; its owner is NOLOGIN and NOBYPASSRLS; the hub runtime login is NOT a member of it (`NOT pg_has_role(<hub login>, 'spool_search_reader', 'MEMBER')`: a member would get every tenant through the `USING (true)` policy directly, r1 section 8); EXECUTE is not granted to PUBLIC; the `USING (true)` policy is `FOR SELECT` and `TO` that role only; `messages` is still FORCE RLS | a later migration widens any of these |
+| T5 | planted leak (the test can fail): in a rolled-back transaction, replace the function with one missing the tenant pin; T3's direct call must turn red, and the API-level T3 must stay green (the outer RLS still filters). Second plant, same rolled-back way: `GRANT spool_search_reader TO <hub login>`; T4's membership pin must turn red | T3 or T4 is vacuous, or defence in depth is gone |
 
 ### 5.3 Lifecycle (owner question 4)
 
@@ -209,7 +209,8 @@ tenant's message count; the 10x claim rests on that, not on extrapolated ms.
 
 1. The GIN build on prd holds a SHARE lock on `messages` (writes wait) for its
    build time; the dev number comes first. Accept a few seconds of write stall
-   in one migration, or require the CONCURRENTLY path?
+   in one migration, or require a non-transactional build (a new runner path,
+   its own task)?
 2. Insert budget: what added p95 per send is acceptable for indexing (T7)?
 3. Semantic search: is meaning-search a need at all? Option A answers exact and
    prefix only; C is a separate, costed decision.

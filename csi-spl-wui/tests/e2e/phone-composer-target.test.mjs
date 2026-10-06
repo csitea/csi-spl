@@ -361,23 +361,37 @@ function searchState(p) {
 }
 
 /** The empty docked field with its placeholder: does the drawn placeholder
- *  overflow the field? `wrap` overrides the ::placeholder nowrap (CONTROL). */
-function placeholderLines(p, wrap = false) {
-  return p.evaluate((sel, w) => {
+ *  overflow the field? `wrap` overrides the ::placeholder nowrap (CONTROL).
+ *  `long` swaps in the placeholder repeated until it measures >= 2x the
+ *  field's inner width, so the CONTROL does not ride on the peer string
+ *  happening to be wider than the field: "@CLE-07@box-a" sits near one line
+ *  at 360 since 410d8aec, and wrapped locally but not on the CI runners'
+ *  fonts (wf 10 runs 37532211210, 37535696171: scrollH 44 = clientH 44). */
+function placeholderLines(p, wrap = false, long = false) {
+  return p.evaluate((sel, w, lg) => {
     const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
     if (!ta) return null
-    let st = null
-    if (w) {
-      st = document.createElement('style')
-      st.textContent = 'form.composer textarea::placeholder { white-space: normal !important; }'
-      document.head.appendChild(st)
-    }
+    const orig = ta.placeholder
+    const st = document.createElement('style')
+    if (w) st.textContent = 'form.composer textarea::placeholder { white-space: normal !important; }'
+    document.head.appendChild(st)
     const cs = getComputedStyle(ta, '::placeholder')
-    const r = { placeholder: ta.placeholder, value: ta.value, scrollH: ta.scrollHeight, clientH: ta.clientHeight, ws: cs.whiteSpace, to: cs.textOverflow }
+    const tcs = getComputedStyle(ta)
+    const inner = ta.clientWidth - parseFloat(tcs.paddingLeft) - parseFloat(tcs.paddingRight)
+    const ctx = document.createElement('canvas').getContext('2d')
+    ctx.font = cs.font || tcs.font
+    const width = (t) => Math.round(ctx.measureText(t).width)
+    if (lg) {
+      let t = orig
+      while (width(t) < 2 * inner) t += ' ' + orig
+      ta.placeholder = t
+    }
+    const r = { placeholder: ta.placeholder, value: ta.value, textW: width(ta.placeholder), innerW: Math.round(inner), scrollH: ta.scrollHeight, clientH: ta.clientHeight, ws: cs.whiteSpace, to: cs.textOverflow }
     r.oneLine = r.value === '' && r.scrollH <= r.clientH + 1
-    if (st) st.remove()
+    ta.placeholder = orig
+    st.remove()
     return r
-  }, TA, wrap)
+  }, TA, wrap, long)
 }
 
 async function searchCase(browser, width, height) {
@@ -441,8 +455,12 @@ async function searchCase(browser, width, height) {
     /* text-overflow: ellipsis is set too; Chrome computes it as clip on a
        textarea's ::placeholder, so only the one line is asserted */
     ok(`${tag} backstop: the DM placeholder "${pl && pl.placeholder}" is drawn on one line (nowrap)`, Boolean(pl && pl.oneLine && pl.ws === 'nowrap'), pl)
-    const ctl = await placeholderLines(d.p, true)
-    ok(`${tag} CONTROL with the nowrap overridden the same placeholder overflows the field`, Boolean(ctl && !ctl.oneLine), ctl)
+    /* the same check on a placeholder >= 2x the field, then its CONTROL:
+       the nowrap holds the long one to one line, and without it it wraps */
+    const lg = await placeholderLines(d.p, false, true)
+    ok(`${tag} backstop: the DM placeholder repeated to >= 2x the field is drawn on one line (nowrap)`, Boolean(lg && lg.textW >= 2 * lg.innerW && lg.oneLine && lg.ws === 'nowrap'), lg)
+    const ctl = await placeholderLines(d.p, true, true)
+    ok(`${tag} CONTROL with the nowrap overridden the same long placeholder overflows the field`, Boolean(ctl && ctl.textW >= 2 * ctl.innerW && !ctl.oneLine), ctl)
     ok(`${tag} no page error (DM)`, d.errors.length === 0, d.errors)
     await d.p.close()
   }

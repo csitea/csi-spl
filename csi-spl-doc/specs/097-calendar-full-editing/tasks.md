@@ -62,7 +62,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   (FR-012)
 
 ### Phase 2: Hub, base (serial)
-- [ ] T003 **store base** `api/internal/store/calendar*.go`: `Props`,
+- [x] T003 **store base** `api/internal/store/calendar*.go` (c-383): `Props`,
   `TimeZone`, `DeletedAt` on `CalendarEvent`; a patch precondition on
   `updated_at` (`ErrEditConflict`); soft delete, `RestoreCalendarEvent`,
   `CalendarTrash`; `deleted_at IS NULL` on every other read; the

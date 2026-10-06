@@ -25,7 +25,6 @@ LONG="
   csi-spl-iac/src/bash/run/gcp-import-to-cloudsql.func.sh do_gcp_import_to_cloudsql  # 175
   csi-spl-iac/src/bash/run/gcp-project-delete.func.sh do_gcp_project_delete  # 120
   csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh do_gcp_s3_download_all  # 130
-  csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh do_gcp_sm_secrets_to_env_file  # 94
   csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh do_gcp_tail_logs  # 117
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns  # 169
   csi-spl-iac/src/bash/run/run.sh do_log  # 90

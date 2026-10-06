@@ -19,8 +19,6 @@ SC2155|csi-spl-iac/src/bash/run/gcp-project-delete.func.sh|1
 SC2024|csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh|1
 SC2155|csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh|1
 SC2238|csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh|1
-SC2188|csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh|1
-SC2207|csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh|1
 SC2034|csi-spl-iac/src/bash/run/gcp-sync-local-to-s3.func.sh|4
 SC2034|csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh|2
 SC2155|csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh|1

@@ -228,15 +228,30 @@ grep -q 'src/bash/run/tf-030-import-existing-cloud-run.func.sh' "$pm" \
   && pass "site 4 example is a real action" || fail "site 4 example is not the 030 action"
 
 sm="$APP_ROOT/csi-spl-iac/src/bash/run/gcp-sm-secrets-to-env-file.func.sh"
-grep -q 'csi-spl-dev-api-' "$sm" && fail "site 5 still hardcodes csi-spl-dev-api-" || pass "site 5 dropped csi-spl-dev-api-"
-grep -F -q '<org>-<app>-<env>-api-' "$sm" \
-  && pass "site 5 uses the generic secret prefix" || fail "site 5 missing <org>-<app>-<env>-api-"
-grep -q 'ILM_OPA' "$sm" && fail "site 5 still names another org prefix" || pass "site 5 dropped the other-org prefix"
-grep -F -q '<ORG>_<APP>_<ENV>_API_' "$sm" \
-  && pass "site 5 uses the generic variable prefix" || fail "site 5 missing the generic variable prefix"
-grep -F -q 'does not exist in this tree' "$sm" \
-  && pass "site 5 header says OUTPUT_FILE directory is absent" \
-  || fail "site 5 header does not say the OUTPUT_FILE directory is absent"
+# B18 removed the dead action. Row 30 checked comments inside that file;
+# those comments left with it. These five checks are the absence.
+[[ ! -e "$sm" ]] && pass "site 5 dead action file is gone" \
+  || fail "site 5 dead action file is still present"
+[[ ! -d "$APP_ROOT/csi-spl-api/backend_api" ]] \
+  && pass "site 5 backend_api directory is absent" \
+  || fail "site 5 backend_api directory exists"
+_site5_clear() {
+  local needle="$1" hit
+  hit=$(grep -R -l -F -e "$needle" --include='*.sh' --include='*.func.sh' \
+    "$APP_ROOT/csi-spl-iac/src/bash" "$APP_ROOT/csi-spl-iac/lib/bash" \
+    "$APP_ROOT/csi-spl-orc/src/bash" "$APP_ROOT/csi-spl-orc/lib/bash" \
+    "$APP_ROOT/csi-spl-cnf/src/bash" 2>/dev/null | grep -v '/tests/' || true)
+  [[ -z "$hit" ]]
+}
+_site5_clear 'backend_api/djangorest' \
+  && pass "site 5 no production shell names backend_api/djangorest" \
+  || fail "site 5 production shell still names backend_api/djangorest"
+_site5_clear 'bck_srvs.json' \
+  && pass "site 5 no production shell names bck_srvs.json" \
+  || fail "site 5 production shell still names bck_srvs.json"
+_site5_clear 'do_gcp_sm_secrets_to_env_file' \
+  && pass "site 5 no production shell names do_gcp_sm_secrets_to_env_file" \
+  || fail "site 5 production shell still names the dead function"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"

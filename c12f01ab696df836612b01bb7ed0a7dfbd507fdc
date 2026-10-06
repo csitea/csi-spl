@@ -1,0 +1,6 @@
+Lay-What: Nothing on the screen changes.
+Lay-How: A few checks that could never succeed were taken out of the browser startup.
+Lay-Why: Those checks made it look as if the same code might also run on the server, which it never does.
+Tech-What: Five client plugins no longer return on import.meta.client at the start of the default export.
+Tech-How: A client-only plugin file loads only in the client bundle, so the guard was dead. Locale and theme storage marks are module constants. A unit test scans the plugin directory.
+Tech-Why: The guard implied a server path that the file suffix already rules out. The nested guard in the runtime-config plugin stays.

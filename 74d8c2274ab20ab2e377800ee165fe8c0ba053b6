@@ -1,0 +1,6 @@
+Lay-What: The title at the top of an open topic is smaller, not bold, and grey.
+Lay-How: It uses a slightly smaller size, ordinary weight, and the same grey as other quiet text, in every colour theme.
+Lay-Why: The title was too big and too bold, so it stood out more than the messages under it.
+Tech-What: .topic-heading__title is 0.9375rem, font-weight normal, and color var(--color-muted).
+Tech-How: The rule is in main.css and overrides the bold weight the title element gets from the browser.
+Tech-Why: The title inherited 1rem and rendered at weight 700, in the full foreground colour.

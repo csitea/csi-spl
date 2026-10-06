@@ -110,15 +110,15 @@ _deploy_hub_steps() {
 
   spl_ld_run "$wt" do_spl_db_bootstrap "${acct[@]}" DRY_RUN=0 || { do_log "FATAL do_spl_db_bootstrap failed: not rolling"; return 1; }
 
-  local -a gsvc=(--project="$SPL_PROJECT" --region="$SPL_REGION" --account="$GCP_ACCOUNT")
+  local -a gsvc=(--project="$SPL_PROJECT" --region="$SPL_REGION")
   local live rolled=0
-  live="$(gcloud run services describe "$svc" "${gsvc[@]}" --format='value(spec.template.spec.containers[0].image)')" ||
+  live="$(gcloud run services describe "$svc" "${gsvc[@]}" --account="$GCP_ACCOUNT" --format='value(spec.template.spec.containers[0].image)')" ||
     { do_log "FATAL Cloud Run service $svc does not exist in $SPL_PROJECT/$SPL_REGION (apply 030 first; this never creates it)"; return 1; }
   if [[ "$live" == "$ref" ]]; then
     echo "deploy-hub $ENV $svc already runs $ref: nothing to roll"
   else
     echo "deploy-hub $ENV rolling $svc: $live -> $ref"
-    gcloud run services update "$svc" "${gsvc[@]}" --image "$ref" --quiet || { do_log "FATAL gcloud run services update $svc failed"; return 1; }
+    gcloud run services update "$svc" "${gsvc[@]}" --account="$GCP_ACCOUNT" --image "$ref" --quiet || { do_log "FATAL gcloud run services update $svc failed"; return 1; }
     rolled=1
   fi
   ((rolled)) && { spl_ld_run "$wt" do_heal_hub_deploy "${acct[@]}" DRY_RUN=0 || return 1; }

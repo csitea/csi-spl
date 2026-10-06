@@ -80,6 +80,9 @@ for line in open(rows_f, encoding="utf-8", errors="replace"):
         c["answered"] += 1; continue
     if topic == "archived" or cstate in ("archived", "deleted"):
         c["closed"] += 1; continue
+    # Addressed to a person, or a null-channel ALL-0 in a topic no agent has
+    # posted in (cstate dm). cstate thread is that null channel once an agent
+    # has posted: the human's ALL-0 follow-up is open, not to-human.
     if re.match(r"(HUM|GST)-", to_id) or (cstate == "dm" and to_id == "ALL-0"):
         c["to-human"] += 1; continue
     if chan in skip_ch:

@@ -6,8 +6,11 @@
 #          spool binary, no real crontab is touched.
 #   1. classification: human-last listed; agent-last, archived topic, archived
 #      channel, test workspace (list + name pattern), human DM, a channel post
-#      to a human, a terminal-typed line, the probe human HUM-1 (prd), #issues
-#      and a fresh post left out; ack-only listed apart and never sent
+#      to a human, a null-channel ALL-0 with no agent, a null-channel post
+#      addressed to a human even after an agent, a terminal-typed line, the
+#      probe human HUM-1 (prd), #issues and a fresh post left out; a
+#      null-channel ALL-0 after an agent post (cstate thread) is open;
+#      ack-only listed apart and never sent
 #   2. DELIVER=0 sends and writes nothing
 #   3. DELIVER=1: one note to the lease holder with the NEW items only; state
 #      + last written; an immediate second sweep sends nothing
@@ -66,6 +69,9 @@ ROWS="$T/rows.tsv"
   r t1 "" dev 00000000-0000-4000-8000-0000000000e2 10000000-0000-4000-8000-0000000000e2 $H HUM-3 HUM-5 human open live - "for you, not an agent"
   r t1 "" dev 00000000-0000-4000-8000-0000000000e3 10000000-0000-4000-8000-0000000000e3 $H HUM-1 box-desk human open live - "probe post"
   r leiden "" "" 00000000-0000-4000-8000-00000000000d 10000000-0000-4000-8000-00000000000d $H HUM-9 CLE-5 human open dm files ""
+  r t1 "" "" 00000000-0000-4000-8000-0000000000e4 10000000-0000-4000-8000-0000000000e4 $H HUM-10 ALL-0 human open thread - "null channel after an agent"
+  r t1 "" "" 00000000-0000-4000-8000-0000000000e7 10000000-0000-4000-8000-0000000000e7 $H HUM-8 HUM-9 human open thread - "addressed to a human even after an agent"
+  r csitea "" "" 00000000-0000-4000-8000-0000000000e6 10000000-0000-4000-8000-0000000000e6 $H HUM-3 ALL-0 human open dm - "humans only, no agent in the topic"
 } >"$ROWS"
 
 sweep() {
@@ -85,19 +91,20 @@ printf 'LEASE_MASTER=CLE-002\nLEASE_FAILOVER=CLE-003\nLEASE_ORCH=CLE-001\n' >"$S
 # --- 1 + 2. classification, report only ------------------------------------------------
 sweep >"$T/o" 2>&1; rc=$?
 open_rows="$(grep -c '^| open |' "$T/o")"
-[[ $rc -eq 0 && "$open_rows" == 3 ]] &&
+[[ $rc -eq 0 && "$open_rows" == 4 ]] &&
   grep -q '^| open | t1 | #development | 00000000-0000-4000-8000-000000000001 |' "$T/o" &&
   grep -q '^| open | csitea | #spool-hub | 00000000-0000-4000-8000-00000000000c | .* | yes |' "$T/o" &&
   grep -q '^| open | leiden | dm CLE-5 | .* | (files) |' "$T/o" &&
-  pass "1. human-last topics are listed (a 'yes' and a files-only DM count)" || fail "1. open rows=$open_rows rc=$rc $(cat "$T/o")"
+  grep -q '^| open | t1 | dm ALL-0 | 00000000-0000-4000-8000-0000000000e4 |' "$T/o" &&
+  pass "1. human-last topics are listed (a 'yes', a files-only DM, a null-channel follow-up)" || fail "1. open rows=$open_rows rc=$rc $(cat "$T/o")"
 grep -q 'broken on the release page \\| please look' "$T/o" && pass "1. a | in a body is escaped in the table" || fail "1. pipe escape"
-for t in 02 03 04 05 06 07 08 09 e1 e2 e3; do
+for t in 02 03 04 05 06 07 08 09 e1 e2 e3 e6 e7; do
   grep -q "^| open .*0000000000$t" "$T/o" && fail "1. topic ..$t should be left out"
 done
 pass "1. agent-last, archived topic/channel, e2e, proof-*, to a human, terminal, HUM-1, #issues, fresh: left out"
 [[ "$(grep -c '^| ack |' "$T/o")" == 2 ]] && pass "1. 'ok thanks!' and an emoji-only post are listed as acks" || fail "1. acks: $(grep '^| ack' "$T/o")"
-grep -q '^| t1 | 1 | 0 | 0 | 0 | 2 | 1 | 1 | 1 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 1 | 1 | 0 | 0 |$' "$T/o" &&
-  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=3 ack=2 new=3 resend=0 escalate=0$' "$T/o" &&
+grep -q '^| t1 | 2 | 0 | 0 | 0 | 2 | 1 | 1 | 2 | 0 | 1 | 0 |$' "$T/o" && grep -q '^| csitea | 1 | 2 | 0 | 1 | 0 | 0 | 0 | 2 | 1 | 0 | 0 |$' "$T/o" &&
+  grep -q '^| e2e | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |$' "$T/o" && grep -q '^SUM open=4 ack=2 new=4 resend=0 escalate=0$' "$T/o" &&
   pass "1. per-workspace counts" || fail "1. counts: $(grep -A10 'Per workspace' "$T/o")"
 [[ ! -e "$T/sent" && ! -e "$S/dispatch/unanswered.state" && ! -e "$S/dispatch/unanswered.last" ]] &&
   grep -q '^PLAN send to CLE-002: \*\*Unanswered sweep\*\*' "$T/o" &&
@@ -106,23 +113,24 @@ grep -q '^| t1 | 1 | 0 | 0 | 0 | 2 | 1 | 1 | 1 | 0 | 1 | 0 |$' "$T/o" && grep -q
 # --- 3. deliver ----------------------------------------------------------------------------
 sweep DELIVER=1 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(sends)" == 1 ]] && grep -q '^TO CLE-002$' "$T/sent" &&
-  [[ "$(grep -c '^| NEW |' "$T/sent")" == 3 ]] && ! grep -q 'ok thanks' "$T/sent" &&
-  pass "3. ONE note to the lease holder, the 3 NEW items, no ack" || fail "3. rc=$rc $(cat "$T/o") $(cat "$T/sent" 2>/dev/null)"
-[[ "$(wc -l <"$S/dispatch/unanswered.state")" == 3 ]] && grep -qx "ts=$NOW" "$S/dispatch/unanswered.last" &&
-  grep -qx 'open=3' "$S/dispatch/unanswered.last" && grep -qx 'sent=ok' "$S/dispatch/unanswered.last" &&
-  grep -qx 'per=csitea=1,leiden=1,t1=1' "$S/dispatch/unanswered.last" &&
-  pass "3. state (3 items) and last written" || fail "3. state/last: $(cat "$S/dispatch/unanswered.state" "$S/dispatch/unanswered.last")"
+  [[ "$(grep -c '^| NEW |' "$T/sent")" == 4 ]] && ! grep -q 'ok thanks' "$T/sent" &&
+  grep -q '00000000-0000-4000-8000-0000000000e4' "$T/sent" &&
+  pass "3. ONE note to the lease holder, the 4 NEW items, no ack" || fail "3. rc=$rc $(cat "$T/o") $(cat "$T/sent" 2>/dev/null)"
+[[ "$(wc -l <"$S/dispatch/unanswered.state")" == 4 ]] && grep -qx "ts=$NOW" "$S/dispatch/unanswered.last" &&
+  grep -qx 'open=4' "$S/dispatch/unanswered.last" && grep -qx 'sent=ok' "$S/dispatch/unanswered.last" &&
+  grep -qx 'per=csitea=1,leiden=1,t1=2' "$S/dispatch/unanswered.last" &&
+  pass "3. state (4 items) and last written" || fail "3. state/last: $(cat "$S/dispatch/unanswered.state" "$S/dispatch/unanswered.last")"
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 600)) >"$T/o" 2>&1
 [[ "$(sends)" == 1 ]] && pass "3. the next sweep re-sends nothing" || fail "3. re-sent: $(cat "$T/sent")"
 
 # --- 4. re-send once, escalate once --------------------------------------------------------
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 7200)) >"$T/o" 2>&1
-[[ "$(sends)" == 2 && "$(grep -c '^| AGAIN |' "$T/sent")" == 3 ]] && [[ "$(grep -c '^TO CLE-002$' "$T/sent")" == 2 ]] &&
+[[ "$(sends)" == 2 && "$(grep -c '^| AGAIN |' "$T/sent")" == 4 ]] && [[ "$(grep -c '^TO CLE-002$' "$T/sent")" == 2 ]] &&
   pass "4. 2 h later: AGAIN to the holder" || fail "4. resend: $(cat "$T/sent")"
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 7800)) >"$T/o" 2>&1
 [[ "$(sends)" == 2 ]] && pass "4. the re-send happens once" || fail "4. resent twice"
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 14400)) >"$T/o" 2>&1
-[[ "$(sends)" == 3 ]] && grep -q '^TO CLE-001$' "$T/sent" && [[ "$(grep -c '^| ESC |' "$T/sent")" == 3 ]] &&
+[[ "$(sends)" == 3 ]] && grep -q '^TO CLE-001$' "$T/sent" && [[ "$(grep -c '^| ESC |' "$T/sent")" == 4 ]] &&
   grep -q 'ESCALATION' "$T/sent" && pass "4. 2 h after the re-send: escalated to the orchestrator" || fail "4. escalate: $(cat "$T/sent")"
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 30000)) >"$T/o" 2>&1
 [[ "$(sends)" == 3 ]] && pass "4. after the escalation: silence" || fail "4. sent after escalation"
@@ -130,7 +138,7 @@ sweep DELIVER=1 SWEEP_NOW=$((NOW + 30000)) >"$T/o" 2>&1
 # --- 5. a new human post in a known topic --------------------------------------------------
 sed -i 's/10000000-0000-4000-8000-000000000001\t[0-9]*/10000000-0000-4000-8000-0000000000f1\t'"$((NOW + 29000))"'/' "$ROWS"
 sweep DELIVER=1 SWEEP_NOW=$((NOW + 31000)) >"$T/o" 2>&1
-[[ "$(sends)" == 4 ]] && [[ "$(tail -n 20 "$T/sent" | grep -c '^| NEW |')" == 1 ]] && [[ "$(wc -l <"$S/dispatch/unanswered.state")" == 3 ]] &&
+[[ "$(sends)" == 4 ]] && [[ "$(tail -n 20 "$T/sent" | grep -c '^| NEW |')" == 1 ]] && [[ "$(wc -l <"$S/dispatch/unanswered.state")" == 4 ]] &&
   pass "5. a new post in a known topic is NEW; the answered item leaves the state" || fail "5. $(cat "$S/dispatch/unanswered.state") $(tail -12 "$T/sent")"
 
 # --- 5b. the dispatcher ack -----------------------------------------------------------------

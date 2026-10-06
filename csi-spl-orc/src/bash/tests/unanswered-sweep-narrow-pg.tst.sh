@@ -69,10 +69,22 @@ SELECT s.tenant, md5(s.tenant || s.topic || '-' || s.n)::uuid, md5(s.tenant || s
           CROSS JOIN LATERAL generate_series(1, tp.cnt) g(n)) s;
 UPDATE messages SET archived_at = now(), archived_by = 'HUM-1'
  WHERE task_id IN (SELECT DISTINCT task_id FROM messages WHERE tenant_id = 'w2' ORDER BY task_id LIMIT 4);
+-- Pin both null-channel shapes independent of the random seed: an agent post
+-- then a human ALL-0 (thread), and a lone human ALL-0 (dm).
+INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, received_at, expires_at)
+VALUES
+  ('t1', '10000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1', NULL, now(),
+   'box-x', 'c-003', 'box-x', 'HUM-10', 'note', 'agent outage', '{}'::jsonb, 'sig', '\x00', now() - interval '50 minutes', now() + interval '30 days'),
+  ('t1', '10000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1', NULL, now(),
+   'box-x', 'HUM-10', 'box-x', 'ALL-0', 'note', 'human follow-up', '{}'::jsonb, 'sig', '\x00', now() - interval '40 minutes', now() + interval '30 days'),
+  ('t1', '10000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a3', NULL, now(),
+   'box-x', 'HUM-3', 'box-x', 'ALL-0', 'note', 'humans only', '{}'::jsonb, 'sig', '\x00', now() - interval '40 minutes', now() + interval '30 days');
 ANALYZE messages;
 PSQL
 
-# The statement before E17, verbatim (with :days), as the reference.
+# The pre-E17 FROM shape (DISTINCT ON over m.*), with the current SELECT
+# list, as the reference. The null-channel cstate split (thread vs dm) is in
+# both, so a row difference is the scan shape, not the rule.
 old_sql() {
   cat <<'SQL'
 SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.task_id, l.msg_id,
@@ -82,8 +94,14 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
        CASE WHEN EXISTS (SELECT 1 FROM messages a WHERE a.tenant_id = l.tenant_id
                           AND a.task_id = l.task_id AND a.archived_at IS NOT NULL)
             THEN 'archived' ELSE 'open' END,
-       CASE WHEN l.channel IS NULL THEN 'dm' WHEN c.deleted_at IS NOT NULL THEN 'deleted'
-            WHEN c.archived_at IS NOT NULL THEN 'archived' ELSE 'live' END,
+       CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
+            WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
+            WHEN l.channel IS NOT NULL THEN 'live'
+            WHEN EXISTS (SELECT 1 FROM messages g
+                          WHERE g.tenant_id = l.tenant_id AND g.task_id = l.task_id
+                            AND g.typed_by IS NULL
+                            AND g.from_id NOT LIKE 'HUM-%' AND g.from_id NOT LIKE 'GST-%')
+            THEN 'thread' ELSE 'dm' END,
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
        CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
             THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END
@@ -124,8 +142,18 @@ else
   fail "1. rows differ (old $(wc -l <"$T/old.rows"), new $n): $(diff "$T/old.rows" "$T/new.rows" >"$T/diff"; sed -n 1,6p "$T/diff")"
 fi
 [[ "$(awk -F'\t' '$10 == "archived"' "$T/new.rows" | wc -l)" -ge 1 && "$(awk -F'\t' '$11 == "dm"' "$T/new.rows" | wc -l)" -ge 1 &&
-   "$(awk -F'\t' '$11 == "archived"' "$T/new.rows" | wc -l)" -ge 1 ]] &&
-  pass "1. the fixture carries archived cards, DMs and archived channels" || fail "1. fixture lacks a case: $(cut -f10,11 "$T/new.rows" | sort | uniq -c)"
+   "$(awk -F'\t' '$11 == "archived"' "$T/new.rows" | wc -l)" -ge 1 && "$(awk -F'\t' '$11 == "thread"' "$T/new.rows" | wc -l)" -ge 1 ]] &&
+  pass "1. the fixture carries archived cards, DMs, threads and archived channels" || fail "1. fixture lacks a case: $(cut -f10,11 "$T/new.rows" | sort | uniq -c)"
+if awk -F'\t' '$4 == "00000000-0000-4000-8000-0000000000a1" && $11 == "thread" && $8 == "ALL-0" && $9 == "human" { found=1 } END { exit found ? 0 : 1 }' "$T/new.rows"; then
+  pass "1. a null channel after an agent post is thread"
+else
+  fail "1. thread pin: $(awk -F'\t' '$4 ~ /0a1$/ { print }' "$T/new.rows")"
+fi
+if awk -F'\t' '$4 == "00000000-0000-4000-8000-0000000000a3" && $11 == "dm" && $8 == "ALL-0" { found=1 } END { exit found ? 0 : 1 }' "$T/new.rows"; then
+  pass "1. a null channel with no agent stays dm"
+else
+  fail "1. dm pin: $(awk -F'\t' '$4 ~ /0a3$/ { print }' "$T/new.rows")"
+fi
 
 # narrow_scan <sql file> -> "<max output columns> <max loops>" of every scan of
 # messages m in the EXPLAIN (ANALYZE, VERBOSE, FORMAT JSON) plan

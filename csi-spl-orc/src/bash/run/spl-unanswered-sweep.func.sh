@@ -20,8 +20,10 @@
 # @description   test     - a test workspace (SWEEP_SKIP_TENANTS, SWEEP_SKIP_RE)
 # @description   closed   - the topic card is archived, or its channel is
 # @description              archived or deleted
-# @description   to-human - a post addressed to a human (DM or channel
-# @description              post with to=HUM-n/GST-n): no agent is asked
+# @description   to-human - a post addressed to a human (to=HUM-n/GST-n),
+# @description              or a null-channel post to ALL-0 in a topic no
+# @description              agent has posted in. A null-channel post to
+# @description              ALL-0 after an agent post is open (cstate thread)
 # @description   channel  - a channel in SWEEP_SKIP_CHANNELS (#issues, #tasks)
 # @description   fresh    - younger than SWEEP_MIN_AGE (the live path has it)
 # @description   ack      - a pure acknowledgement ("ok", "thanks", emoji
@@ -196,6 +198,10 @@ SQL
 # The sweep's one statement (psql variable :days). The last message of each
 # topic is picked on its key alone (k: tenant_id, msg_id; MATERIALIZED, so it
 # runs once whatever the join order), then only those rows are read whole.
+# A null channel is a DM (cstate dm) only when no agent has posted in the
+# topic. Once one has (from_id not HUM-/GST-, and not a terminal mirror),
+# cstate is thread: the classifier then keeps a later human post to ALL-0
+# open. A human-to-human DM, and a null-channel ALL-0 with no agent, stay dm.
 # Perf edition 20261004 E17: DISTINCT ON over m.* sorted every 7-day row at
 # full width (bodies, envelopes) and spilled 8 MB to disk each run; prd
 # EXPLAIN ANALYZE 110..448 ms -> 71..78 ms, dev 55..59 -> 11..13 ms (n=3 each,
@@ -214,8 +220,14 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
        CASE WHEN EXISTS (SELECT 1 FROM messages a WHERE a.tenant_id = l.tenant_id
                           AND a.task_id = l.task_id AND a.archived_at IS NOT NULL)
             THEN 'archived' ELSE 'open' END,
-       CASE WHEN l.channel IS NULL THEN 'dm' WHEN c.deleted_at IS NOT NULL THEN 'deleted'
-            WHEN c.archived_at IS NOT NULL THEN 'archived' ELSE 'live' END,
+       CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
+            WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
+            WHEN l.channel IS NOT NULL THEN 'live'
+            WHEN EXISTS (SELECT 1 FROM messages g
+                          WHERE g.tenant_id = l.tenant_id AND g.task_id = l.task_id
+                            AND g.typed_by IS NULL
+                            AND g.from_id NOT LIKE 'HUM-%' AND g.from_id NOT LIKE 'GST-%')
+            THEN 'thread' ELSE 'dm' END,
        CASE WHEN coalesce(l.has_files, false) THEN 'files' ELSE '-' END,
        CASE WHEN l.typed_by IS NULL AND (l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%')
             THEN regexp_replace(left(l.body, 400), '[[:space:]]+', ' ', 'g') ELSE '' END

@@ -20,12 +20,20 @@ import (
 // policy that lets a statement without a tenant read a tenant's row or write
 // any row. A new table (RBAC, search, keys, M2/M4, ...) that forgets any of
 // that turns this red.
+//
+// One kind of policy is not a tenant statement's policy and is left out: a
+// FOR SELECT policy TO roles that are all confined - NOLOGIN, not superuser,
+// not BYPASSRLS, and no non-superuser login holds their privileges by
+// inheritance (pg_has_role USAGE). Only a SECURITY DEFINER function owned by
+// such a role reaches it (rdb 0141, spool_search_reader). A login that
+// inherits the role, or a role that can log in, makes it a gap again.
 
 // policyRow is one pg_policies row with its expressions as SQL text.
 type policyRow struct {
 	name, cmd      string
 	permissive     bool
 	using, withChk string // "" = absent
+	confined       bool   // FOR SELECT TO confined roles only: not a tenant statement's policy
 }
 
 // tenantPolicyGaps returns one line per violation. It runs on a FRESH
@@ -80,14 +88,19 @@ func tenantPolicyGaps(ctx context.Context, dsn string, setup func(pgx.Tx) error)
 	}
 	for _, tb := range tables {
 		prow, err := tx.Query(ctx, `SELECT policyname, cmd, permissive = 'PERMISSIVE',
-				COALESCE(qual, ''), COALESCE(with_check, '')
+				COALESCE(qual, ''), COALESCE(with_check, ''),
+				cmd = 'SELECT' AND NOT ('public' = ANY (roles)) AND NOT EXISTS (
+					SELECT 1 FROM unnest(roles) AS pr (name) JOIN pg_roles g ON g.rolname = pr.name
+					WHERE g.rolcanlogin OR g.rolsuper OR g.rolbypassrls
+					   OR EXISTS (SELECT 1 FROM pg_roles l WHERE l.rolcanlogin AND NOT l.rolsuper
+					              AND l.oid <> g.oid AND pg_has_role(l.oid, g.oid, 'USAGE')))
 			FROM pg_policies WHERE schemaname = current_schema() AND tablename = $1 ORDER BY 1`, tb.name)
 		if err != nil {
 			return nil, err
 		}
 		for prow.Next() {
 			var p policyRow
-			if err := prow.Scan(&p.name, &p.cmd, &p.permissive, &p.using, &p.withChk); err != nil {
+			if err := prow.Scan(&p.name, &p.cmd, &p.permissive, &p.using, &p.withChk, &p.confined); err != nil {
 				prow.Close()
 				return nil, err
 			}
@@ -142,8 +155,8 @@ func tenantPolicyGaps(ctx context.Context, dsn string, setup func(pgx.Tx) error)
 		}
 		for _, tb := range tables {
 			for _, p := range tb.policies {
-				if !p.permissive {
-					continue // a restrictive policy only narrows
+				if !p.permissive || p.confined {
+					continue // a restrictive policy only narrows; a confined one is no tenant statement's
 				}
 				if p.using != "" {
 					for _, tn := range []*string{str(""), str("t-gate-x"), nil} {
@@ -187,7 +200,7 @@ func tenantPolicyGaps(ctx context.Context, dsn string, setup func(pgx.Tx) error)
 		}
 		var reads, writes bool
 		for _, p := range tb.policies {
-			if !p.permissive {
+			if !p.permissive || p.confined {
 				continue
 			}
 			if p.using != "" && (p.cmd == "ALL" || p.cmd == "SELECT") {
@@ -269,6 +282,21 @@ func TestRLSGateControl(t *testing.T) {
 			ALTER TABLE scratch_gate ENABLE ROW LEVEL SECURITY; ALTER TABLE scratch_gate FORCE ROW LEVEL SECURITY;
 			CREATE POLICY tenant_scope ON scratch_gate USING (tenant_id IS NOT NULL AND current_setting('app.tenant_id', true) <> '')`,
 			"tenant t-gate-x reads a t-gate-y row"},
+		// rdb 0141's shape, made unsafe: USING (true) TO a role that can log
+		// in, or TO a NOLOGIN role a login inherits, is a gap.
+		{"USING (true) TO a login", goodGate + `;
+			CREATE ROLE scratch_gate_login LOGIN;
+			CREATE POLICY wide ON scratch_gate FOR SELECT TO scratch_gate_login USING (true)`,
+			`scratch_gate.wide: tenant unset: USING is TRUE for a row with tenant_id ""`},
+		{"USING (true) TO an inherited role", goodGate + `;
+			CREATE ROLE scratch_gate_reader NOLOGIN;
+			CREATE ROLE scratch_gate_login LOGIN IN ROLE scratch_gate_reader;
+			CREATE POLICY wide ON scratch_gate FOR SELECT TO scratch_gate_reader USING (true)`,
+			`scratch_gate.wide: tenant unset: USING is TRUE for a row with tenant_id ""`},
+		{"USING (true) FOR ALL TO a confined role", goodGate + `;
+			CREATE ROLE scratch_gate_reader NOLOGIN;
+			CREATE POLICY wide ON scratch_gate TO scratch_gate_reader USING (true)`,
+			`scratch_gate.wide: tenant unset: USING is TRUE for a row with tenant_id ""`},
 	}
 	for _, c := range cases {
 		gaps, err := tenantPolicyGaps(ctx, dsn, func(tx pgx.Tx) error {
@@ -282,23 +310,31 @@ func TestRLSGateControl(t *testing.T) {
 			t.Errorf("CONTROL %s: the gate did not report %q; gaps: %q", c.name, c.want, gaps)
 		}
 	}
-	// And the good form passes: the gate is not red for everything.
-	gaps, err := tenantPolicyGaps(ctx, dsn, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `CREATE TABLE scratch_gate (tenant_id text NOT NULL);
-			ALTER TABLE scratch_gate ENABLE ROW LEVEL SECURITY; ALTER TABLE scratch_gate FORCE ROW LEVEL SECURITY;
-			CREATE POLICY tenant_scope ON scratch_gate USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))
-				WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))`)
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, g := range gaps {
-		if strings.Contains(g, "scratch_gate") {
-			t.Errorf("a correctly protected table was reported: %s", g)
+	// And the good forms pass: the gate is not red for everything. The second
+	// is rdb 0141's: FOR SELECT USING (true) TO a confined NOLOGIN role.
+	for _, ddl := range []string{goodGate, goodGate + `;
+		CREATE ROLE scratch_gate_reader NOLOGIN;
+		CREATE POLICY wide ON scratch_gate FOR SELECT TO scratch_gate_reader USING (true)`} {
+		gaps, err := tenantPolicyGaps(ctx, dsn, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, ddl)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, g := range gaps {
+			if strings.Contains(g, "scratch_gate") {
+				t.Errorf("a correctly protected table was reported: %s", g)
+			}
 		}
 	}
 }
+
+// goodGate is a correctly protected scratch tenant table.
+const goodGate = `CREATE TABLE scratch_gate (tenant_id text NOT NULL);
+	ALTER TABLE scratch_gate ENABLE ROW LEVEL SECURITY; ALTER TABLE scratch_gate FORCE ROW LEVEL SECURITY;
+	CREATE POLICY tenant_scope ON scratch_gate USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))
+		WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))`
 
 // TestRLSEmptySettingControl: on real rows, the 0014 form leaks a tenant_id
 // empty-string row to a statement whose setting is empty and the 0021 form does not.

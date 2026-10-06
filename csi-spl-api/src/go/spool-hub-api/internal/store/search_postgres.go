@@ -138,6 +138,35 @@ func (c *sqlc) sigAll(a string, root *search.Node, pred string, ops ...string) s
 		" THEN " + pred + " ELSE false END"
 }
 
+// candidateQuery is the tsquery the candidate probe (spec 100 section 5.1,
+// spool_search_candidates($q, cap)) is called with: the text terms of the
+// root's AND chain, the same walk as sigAll (never under an Or or a Not, never
+// from Query.Positive, which holds both sides of an OR), joined with &&. A
+// phrase keeps phraseto_tsquery; a prefix term carries ':*' (tsq). The values
+// reach SQL only as bind parameters. false when the root has no such term
+// (from:-only, OR-only, NOT-only): the caller keeps today's path. The outer
+// @@ still decides, so the candidates only ever narrow the rows.
+func (c *sqlc) candidateQuery(root *search.Node, ops ...string) (string, bool) {
+	var tq []string
+	var walk func(n *search.Node)
+	walk = func(n *search.Node) {
+		switch {
+		case n == nil:
+		case n.Kind == search.And:
+			for _, k := range n.Kids {
+				walk(k)
+			}
+		case n.Kind == search.Leaf && slices.Contains(ops, n.Term.Op):
+			tq = append(tq, c.tsq(n.Term))
+		}
+	}
+	walk(root)
+	if len(tq) == 0 {
+		return "", false
+	}
+	return "(" + strings.Join(tq, " && ") + ")", true
+}
+
 func (c *sqlc) party(idCol, boxCol string, t *search.Term) string {
 	if t.Box != "" {
 		return fmt.Sprintf("%s = %s AND %s = %s", idCol, c.arg(t.ID), boxCol, c.arg(t.Box))

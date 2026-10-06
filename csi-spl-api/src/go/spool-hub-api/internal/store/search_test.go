@@ -362,3 +362,48 @@ func TestSearchP95(t *testing.T) {
 		t.Fatalf("budget: %v", err)
 	}
 }
+
+// TestCandidateQuery is spec 100 T005: the probe's tsquery is the root's
+// AND-chain text terms joined with &&, never a term under an Or or a Not and
+// never from Query.Positive; the values are bind parameters only. A trailing
+// space keeps the last bare word from turning into an as-you-type prefix.
+func TestCandidateQuery(t *testing.T) {
+	now := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	plain := func(n int) string { return fmt.Sprintf("plainto_tsquery('spool_search', $%d::text)", n) }
+	pfx := func(n int) string {
+		p := plain(n)
+		return "(CASE WHEN numnode(" + p + ") = 0 THEN " + p + " ELSE (" + p + "::text || ':*')::tsquery END)"
+	}
+	for _, tc := range []struct {
+		q    string
+		want string
+		args []any
+		ok   bool
+	}{
+		{"deploy ", "(" + plain(1) + ")", []any{"deploy"}, true},
+		{"deplo", "(" + pfx(1) + ")", []any{"deplo"}, true}, // as you type (search 1.1)
+		{`"rolling deploy"`, "(phraseto_tsquery('spool_search', $1::text))", []any{"rolling deploy"}, true},
+		{"deplo*", "(" + pfx(1) + ")", []any{"deplo"}, true},
+		{"deploy rollback ", "(" + plain(1) + " && " + plain(2) + ")", []any{"deploy", "rollback"}, true},
+		{"foo OR bar", "", nil, false},
+		{"-foo", "", nil, false},
+		{"from:x foo ", "(" + plain(1) + ")", []any{"foo"}, true},
+		{"from:x", "", nil, false},
+		{`from:x "a b" deplo* (c OR d) -e f `,
+			"(phraseto_tsquery('spool_search', $1::text) && " + pfx(2) + " && " + plain(3) + ")",
+			[]any{"a b", "deplo", "f"}, true},
+	} {
+		p, err := search.Parse(tc.q, now)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.q, err)
+		}
+		c := &sqlc{}
+		got, ok := c.candidateQuery(p.Root, search.OpText)
+		if ok != tc.ok || got != tc.want {
+			t.Errorf("%q: got (%q, %v), want (%q, %v)", tc.q, got, ok, tc.want, tc.ok)
+		}
+		if fmt.Sprint(c.args) != fmt.Sprint(tc.args) {
+			t.Errorf("%q: args %v, want %v", tc.q, c.args, tc.args)
+		}
+	}
+}

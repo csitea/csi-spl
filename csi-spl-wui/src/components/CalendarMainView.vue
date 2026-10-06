@@ -19,6 +19,7 @@
     :data-state="state"
   >
     <div class="cal-main__bar">
+      <button type="button" class="btn cal-main__new" data-test="calendar-new" @click="openCreate(focus)"><UiIcon name="plus" :size="16" />{{ t('calendar_event.new') }}</button>
       <button type="button" class="btn ghost" data-test="calendar-today" @click="emit('move', today)">{{ t('calendar.today') }}</button>
       <button type="button" class="icon-btn" data-test="calendar-prev" :aria-label="prevLabel" :title="prevLabel" @click="step(-1)">
         <UiIcon name="chevron-left" :size="18" />
@@ -48,6 +49,7 @@
         :class="{ 'cal-week__day--today': day === today }"
         data-test="calendar-week-day"
         :data-day="day"
+        @click="openCreate(day)"
       >
         <h4 class="cal-week__head">{{ dayHead(day) }}</h4>
         <ul class="cal-week__list">
@@ -59,24 +61,33 @@
             :data-id="ev.id"
             :data-source="ev.source"
             :data-kind="ev.kind"
+            :data-audience="ev.audience"
+            :class="{ 'cal-week__item--edit': calEditable(ev) }"
+            :role="calEditable(ev) ? 'button' : undefined"
+            :tabindex="calEditable(ev) ? 0 : undefined"
+            @click.stop="openEdit(ev)"
+            @keydown.enter.prevent.stop="openEdit(ev)"
           >
             <span v-if="!ev.all_day" class="cal-week__time" dir="ltr">{{ isoClock(ev.starts_at) }}</span>
             <span class="cal-week__title">{{ ev.title }}</span>
             <span v-if="ev.release_version" class="cal-week__badge" dir="ltr">{{ ev.release_version }}</span>
+            <span v-if="ev.audience === 'private'" class="cal-week__badge" data-test="calendar-item-private">{{ t('calendar_event.private_badge') }}</span>
           </li>
         </ul>
       </div>
     </div>
+    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :day="dialogDay" :today="today" @saved="reload" @deleted="reload" />
   </section>
 </template>
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { calAddDays, calWeekday, calWeekDays, calWeekStart } from '~/utils/calendar-year.mjs'
-import { isoClock } from '~/utils/date-iso.mjs'
+import { isoClock, isoDate } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
+import { calEditable } from '~/utils/calendar-event-form.mjs'
 
 const props = defineProps<{ focus: string, today: string, phone?: boolean }>()
 const emit = defineEmits<{ move: [iso: string] }>()
@@ -111,11 +122,12 @@ const range = computed(() => {
 
 const items = shallowRef<CalendarItem[]>([])
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
-/* each item on the UTC day it starts (an official day starts at 00:00 UTC) */
+/* each item on the day it starts: an all-day item (an official day) on its
+   UTC day, a timed one on the viewer's day, the zone its clock prints in */
 const byDay = computed(() => {
   const out = new Map<string, CalendarItem[]>()
   for (const ev of items.value) {
-    const day = String(ev.starts_at || '').slice(0, 10)
+    const day = ev.all_day ? String(ev.starts_at || '').slice(0, 10) : isoDate(ev.starts_at)
     out.set(day, [...(out.get(day) || []), ev])
   }
   return out
@@ -152,6 +164,39 @@ async function load() {
 }
 watch(weekStart, () => { void load() })
 onMounted(() => { void load() })
+
+/* 089 T008 v1 (owner msg 72db6282): New event, or a click on a day, opens
+   CalendarEventDialog for a new event on that day; a click on a stored
+   event opens it to edit or delete. An issue deadline and an official day
+   are not edited here. /calendar?event=<id> (a reminder's Open, T006) opens
+   that event once it is in the shown week. 097 T013 adds drag here. */
+const route = useRoute()
+const dialogOpen = ref(false)
+const dialogEvent = shallowRef<CalendarItem | null>(null)
+const dialogDay = ref(props.focus)
+function openCreate(day: string) {
+  dialogEvent.value = null
+  dialogDay.value = day
+  dialogOpen.value = true
+}
+function openEdit(ev: CalendarItem) {
+  if (!calEditable(ev)) return
+  dialogEvent.value = ev
+  dialogDay.value = String(ev.starts_at || '').slice(0, 10)
+  dialogOpen.value = true
+}
+function reload() {
+  void load()
+}
+let askedEvent = ''
+watch([items, () => route.query.event], () => {
+  const id = String(route.query.event || '')
+  if (!id || id === askedEvent) return
+  const ev = items.value.find((x) => x.id === id)
+  if (!ev) return
+  askedEvent = id
+  openEdit(ev)
+})
 </script>
 
 <style scoped>
@@ -176,6 +221,10 @@ onMounted(() => { void load() })
   background: var(--color-surface); border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
 }
+.cal-week__item--edit { cursor: pointer; }
+.cal-week__item--edit:hover { background: var(--color-bg-2); }
+.cal-week__item--edit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.cal-main__new { display: inline-flex; align-items: center; gap: 4px; }
 .cal-week__time { color: var(--color-muted); }
 .cal-week__badge { font-size: 0.6875rem; padding: 0 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 

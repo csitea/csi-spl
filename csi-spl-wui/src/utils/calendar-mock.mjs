@@ -48,7 +48,7 @@ function mockAddedEvents() {
 /**
  * POST /v1/calendar/events (6.1.2) in the mock workspace: the created event,
  * kept so GET events / marks show it.
- * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, topic_id?: string }} body
+ * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string }} body
  */
 export function mockCalendarCreate(body = {}) {
   const now = new Date().toISOString()
@@ -58,6 +58,8 @@ export function mockCalendarCreate(body = {}) {
     description: String(body.description || ''),
     starts_at: String(body.starts_at || ''),
     ends_at: String(body.ends_at || ''),
+    all_day: Boolean(body.all_day),
+    audience: ['public', 'internal', 'private'].includes(String(body.audience)) ? String(body.audience) : 'public',
     topic_id: String(body.topic_id || ''),
     created_at: now,
     updated_at: now,
@@ -68,6 +70,68 @@ export function mockCalendarCreate(body = {}) {
     globalThis.localStorage?.setItem(ADDED_KEY, JSON.stringify([...list, ev]))
   } catch { /* private mode: the event is returned, not kept */ }
   return ev
+}
+
+/* 089 T008: a seeded event the mock workspace edited or deleted is hidden by
+   id; an edited one lives on in ADDED_KEY with its new fields */
+const HIDDEN_KEY = 'spool.mock.calendar-hidden'
+
+function mockHidden() {
+  try {
+    const list = JSON.parse(globalThis.localStorage?.getItem(HIDDEN_KEY) || '[]')
+    return new Set(Array.isArray(list) ? list.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function mockKeep(added, hidden) {
+  try {
+    globalThis.localStorage?.setItem(ADDED_KEY, JSON.stringify(added))
+    globalThis.localStorage?.setItem(HIDDEN_KEY, JSON.stringify([...hidden]))
+  } catch { /* private mode: nothing is kept */ }
+}
+
+/** The stored (source `event`) mock item `id`, or a 404 like the hub's. */
+function mockFind(id, todayIso) {
+  const ev = mockCalendarItems(todayIso).find((x) => x.id === id && x.source === 'event')
+  if (!ev) throw Object.assign(new Error('calendar event 404'), { status: 404 })
+  return ev
+}
+
+/**
+ * PATCH /v1/calendar/events/{id} (6.1.2) in the mock workspace: the set
+ * fields of `patch` over the event. Like the hub, only the event's creator
+ * (the mock viewer is HUM-1) moves it to or from `private` (403).
+ * @param {string} id
+ * @param {Record<string, unknown>} patch
+ * @param {string} todayIso
+ */
+export function mockCalendarUpdate(id, patch, todayIso) {
+  const cur = mockFind(id, todayIso)
+  const aud = patch.audience
+  if (aud !== undefined && aud !== cur.audience && (aud === 'private' || cur.audience === 'private') && cur.creator_id !== 'HUM-1') {
+    throw Object.assign(new Error('calendar event 403'), { status: 403, token: 'private_owner_only' })
+  }
+  const ev = { ...cur, ...patch, id, updated_at: new Date().toISOString() }
+  const added = mockAddedEvents().filter((x) => x.id !== id)
+  const hidden = mockHidden()
+  hidden.add(id)
+  mockKeep([...added, ev], hidden)
+  return ev
+}
+
+/**
+ * DELETE /v1/calendar/events/{id} (6.1.2) in the mock workspace: the event as it was.
+ * @param {string} id
+ * @param {string} todayIso
+ */
+export function mockCalendarDelete(id, todayIso) {
+  const cur = mockFind(id, todayIso)
+  const hidden = mockHidden()
+  hidden.add(id)
+  mockKeep(mockAddedEvents().filter((x) => x.id !== id), hidden)
+  return cur
 }
 
 /**
@@ -81,14 +145,15 @@ export function mockCalendarItems(todayIso) {
   const today = Number.isNaN(calDayMs(todayIso)) ? calIsoDay(Date.now()) : todayIso
   const at = (offset, hhmm) => `${calAddDays(today, offset)}T${hhmm}:00Z`
   const year = today.slice(0, 4)
-  return [
-    ...mockAddedEvents(),
+  const hidden = mockHidden()
+  const seeded = [
     item({ id: '00000000-0000-4000-8000-000000000101', title: 'Release', kind: 'release', starts_at: at(0, '09:00'), ends_at: at(0, '10:00'), release_version: 'v1.4.0' }),
     item({ id: '00000000-0000-4000-8000-000000000102', title: 'Database maintenance', kind: 'maintenance', starts_at: at(2, '10:00'), ends_at: at(2, '11:00'), creator_type: 'agent', creator_id: 'c-007' }),
     item({ id: 'SPL-12', source: 'issue', title: 'Issue deadline', kind: 'deadline', starts_at: at(2, '17:00'), ends_at: at(2, '17:00'), issue_key: 'SPL-12' }),
     item({ id: '00000000-0000-4000-8000-000000000103', title: 'Planning', kind: 'other', starts_at: at(30, '13:00'), ends_at: at(30, '14:00') }),
     item({ id: `official:XX:${year}-12-25`, source: 'official_day', title: 'Official day', description: '', kind: 'official_day', starts_at: `${year}-12-25T00:00:00Z`, ends_at: `${calAddDays(`${year}-12-25`, 1)}T00:00:00Z`, all_day: true, creator_type: 'system', creator_id: '', created_at: '', updated_at: '' }),
   ]
+  return [...mockAddedEvents(), ...seeded.filter((x) => !hidden.has(x.id))]
 }
 
 /**

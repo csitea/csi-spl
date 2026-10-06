@@ -130,6 +130,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   preference); event pop-over with Duplicate. No video link, no busy / free
   (owner E3). Depends: T013.
   (G6..G9, G11)
+  - The dialog exists (089 T008 v1, c-378): `wui/src/components/CalendarEventDialog.vue`, its rules in `wui/src/utils/calendar-event-form.mjs` (add a field: one key in `calFormFromEvent`, one entry in `calFormBody`), its slot for these fields marked `097 T014..T016` between all day and the Private switch.
 - [ ] T015 **repeat + scope**: the repeat menu and Custom editor, the
   "This / This and following / All" prompt on save and delete. Depends: T014,
   T006.

@@ -1,0 +1,6 @@
+Lay-What: A stopped agent supervisor is started again every minute.
+Lay-How: One schedule line starts only that supervisor, and it runs even when the machine has no agent seats.
+Lay-Why: After the supervisor died, nothing brought it back.
+Tech-What: do_spl_wd_ensure starts do_spl_watchdog when the watchdog lock is free.
+Tech-How: do_spl_wd_ensure_install_cron writes one every-minute crontab line tagged csi-spl:wd-ensure and refuses the write when the path check fails.
+Tech-Why: The supervisor had no keeper, and a keeper that also started poll loops would be wrong where seats are absent.

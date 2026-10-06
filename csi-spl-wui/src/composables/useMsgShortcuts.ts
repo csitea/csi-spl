@@ -64,6 +64,24 @@ function targetCard(): HTMLElement | null {
   return document.querySelector<HTMLElement>('article.msg[data-selected="true"]')
 }
 
+/* A heading, a skip, or the pane itself holds the focus after a route change
+   (focusPane, firstRow false). Shift + K still means the selected card of
+   THAT pane, else its first card. Topic rows, the flow list and issue rows
+   have their own kind key (KindKeyHost); a card must not steal it. */
+const KIND_ELSEWHERE = 'a.topic-row, .topic-browse__list, #sidebar-panel-topics, [data-testid="left-list"], tr.issues-row, .issues-card, [data-test="issues-heading"], .omnibox-dock, .top-bar__omnibox, dialog, [role="dialog"]'
+
+function kindCardInPanel(): HTMLElement | null {
+  const active = document.activeElement as HTMLElement | null
+  if (!active || active === document.body || active === document.documentElement) return null
+  if (active.closest(KIND_ELSEWHERE)) return null
+  const panel = active.closest<HTMLElement>(PANEL)
+  if (!panel) return null
+  const visible = (el: HTMLElement) => cards.has(el) && el.getClientRects().length > 0
+  const selected = panel.querySelector<HTMLElement>('article.msg[data-selected="true"]')
+  if (selected && visible(selected)) return selected
+  return [...panel.querySelectorAll<HTMLElement>('article.msg')].find(visible) || null
+}
+
 /** Move the selection (the focus) `step` messages along `row`'s feed. True when it moved. */
 export function stepSelection(row: HTMLElement | null, step: number): boolean {
   const feed = row?.closest('[role="feed"]')
@@ -178,7 +196,11 @@ function install() {
       helpOpen.value = true
       return
     }
-    const card = targetCard()
+    let card = targetCard()
+    /* HUM-10 t1 ffc3b83c: Shift + K in the middle (or any pane) opens the
+       kind menu of the selected card there, even when the focus is the
+       heading rather than the card. */
+    if (!card && hit.type === 'action' && hit.key === 'K') card = kindCardInPanel()
     const entry = card ? cards.get(card) : undefined
     if (hit.type === 'step') {
       if (card && stepSelection(card, hit.step)) ev.preventDefault()

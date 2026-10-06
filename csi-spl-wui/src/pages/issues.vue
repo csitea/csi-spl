@@ -2192,6 +2192,8 @@ function onDocKeyCapture(ev: KeyboardEvent) {
 }
 function onDocKey(ev: KeyboardEvent) {
   if (tabForPath(route.path) !== 'issues') return
+  /* the kind menu is teleported to <body>; Enter and Esc are its own */
+  if (document.querySelector('.kind-picker')) return
   const inModal = Boolean(document.querySelector('[aria-modal="true"]'))
   if (inModal && !issueModal()) return
   const key = ev.key
@@ -2227,8 +2229,10 @@ function onDocKey(ev: KeyboardEvent) {
   const k = key.toLowerCase()
   /* in the issue modal only its own keys: E and the S / P / A / L pickers */
   if (inModal && !['e', 's', 'p', 'a', 'l'].includes(k)) return
+  if (document.querySelector('.kind-picker, .point-menu')) return
   if (k === 'j' || key === 'ArrowDown') { move(1); focusCell(); ev.preventDefault(); return }
-  if (k === 'k' || key === 'ArrowUp') { move(-1); focusCell(); ev.preventDefault(); return }
+  /* Shift + K is the message kind menu (HUM-10 t1 ffc3b83c), not move-up. */
+  if ((k === 'k' && !ev.shiftKey) || key === 'ArrowUp') { move(-1); focusCell(); ev.preventDefault(); return }
   /* SPL-1027: Left / Right move the cell cursor, Enter edits the cell */
   if (!phone.value && (key === 'ArrowRight' || key === 'ArrowLeft')) { stepCol(key === 'ArrowRight' ? 1 : -1); ev.preventDefault(); return }
   if (key === 'Enter') {

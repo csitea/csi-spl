@@ -115,6 +115,8 @@ function keepFocus() {
   const back = () => {
     if (Date.now() > until) return release()
     if (!list.isConnected) return release()
+    /* Shift + K opens the kind menu (teleported). Leave its focus alone. */
+    if (document.querySelector('.kind-picker')) return
     const a = document.activeElement
     if (!a || a === document.body || !list.contains(a)) list.focus({ preventScroll: true })
   }

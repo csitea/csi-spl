@@ -120,6 +120,38 @@ export function createEventsClient({ fetchFn = globalThis.fetch, base = '' } = {
 }
 
 /**
+ * What the hub's answer to one batch means (pure), and the failure count after it:
+ *   sent  - taken; the batch leaves the queue
+ *   clear - 401 / 403: no longer signed in as anyone who owns a log, so
+ *           nothing queued is worth keeping
+ *   retry - 429 / no answer / 5xx with retries left: wait, then send again
+ *   drop  - out of retries, or any other 4xx: the hub will never take it
+ *
+ * @param {{ ok: boolean, status: number }} res
+ * @param {number} failures transient failures in a row so far
+ */
+function batchVerdict(res, failures) {
+  if (res.ok) return { verdict: 'sent', failures: 0 }
+  if (res.status === 401 || res.status === 403) return { verdict: 'clear', failures }
+  if (res.status === 429 || res.status === 0 || res.status >= 500) {
+    if (failures + 1 > EVENT_RETRY_MAX) return { verdict: 'drop', failures: 0 }
+    return { verdict: 'retry', failures: failures + 1 }
+  }
+  return { verdict: 'drop', failures }
+}
+
+/** createEventShipper's options with every default filled in. */
+function shipperOptions(opts) {
+  return {
+    client: opts.client,
+    session: opts.session,
+    setTimer: opts.setTimer || ((fn, ms) => setTimeout(fn, ms)),
+    clearTimer: opts.clearTimer || ((h) => clearTimeout(h)),
+    delay: Number.isFinite(opts.delayMs) && opts.delayMs >= 0 ? opts.delayMs : EVENT_FLUSH_DELAY_MS,
+  }
+}
+
+/**
  * Batch journal records to the hub.
  *
  * `session()` answers 'in' | 'out' | 'unknown' | 'loading'. While it is not
@@ -136,11 +168,7 @@ export function createEventsClient({ fetchFn = globalThis.fetch, base = '' } = {
  * }} opts
  */
 export function createEventShipper(opts) {
-  const client = opts.client
-  const session = opts.session
-  const setTimer = opts.setTimer || ((fn, ms) => setTimeout(fn, ms))
-  const clearTimer = opts.clearTimer || ((h) => clearTimeout(h))
-  const delay = Number.isFinite(opts.delayMs) && opts.delayMs >= 0 ? opts.delayMs : EVENT_FLUSH_DELAY_MS
+  const { client, session, setTimer, clearTimer, delay } = shipperOptions(opts)
 
   /** @type {object[]} */
   let queue = []
@@ -183,30 +211,15 @@ export function createEventShipper(opts) {
       while (queue.length) {
         const batch = queue.slice(0, EVENT_BATCH_MAX)
         const res = await client.add(batch)
-        if (res.ok) {
-          queue.splice(0, batch.length)
-          sent += batch.length
-          failures = 0
-          continue
-        }
-        if (res.status === 401 || res.status === 403) {
-          // No longer signed in as anyone who owns a log: nothing to keep.
-          queue = []
+        const next = batchVerdict(res, failures)
+        failures = next.failures
+        if (next.verdict === 'clear') { queue = []; break }
+        if (next.verdict === 'retry') {
+          schedule(res.retryAfter > 0 ? res.retryAfter * 1000 : delay * 2 ** failures)
           break
         }
-        if (res.status === 429 || res.status === 0 || res.status >= 500) {
-          failures += 1
-          if (failures > EVENT_RETRY_MAX) {
-            queue.splice(0, batch.length)
-            failures = 0
-            continue
-          }
-          const wait = res.retryAfter > 0 ? res.retryAfter * 1000 : delay * 2 ** failures
-          schedule(wait)
-          break
-        }
-        // Any other 4xx: the hub will never take this batch. Drop it.
         queue.splice(0, batch.length)
+        if (next.verdict === 'sent') sent += batch.length
       }
     } catch {
       /* never throws */
@@ -221,7 +234,7 @@ export function createEventShipper(opts) {
     const st = session()
     if (st === 'out') {
       queue = []
-      if (timer != null) { clearTimer(timer); timer = null }
+      stop()
     } else if (st === 'in' && queue.length) {
       schedule(0)
     }

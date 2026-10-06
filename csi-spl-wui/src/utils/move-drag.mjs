@@ -52,6 +52,31 @@ export function sameHit(a, b) {
   return a.kind === b.kind && a.id === b.id && a.scope === b.scope && a.ok === b.ok
 }
 
+/** createHandleDrag's options with every default filled in. */
+function handleDragOptions(opts) {
+  return {
+    startPx: opts.startPx ?? MOVE_DRAG_START_PX,
+    holdMs: opts.holdMs ?? MOVE_TOUCH_HOLD_MS,
+    slopPx: opts.slopPx ?? MOVE_TOUCH_SLOP_PX,
+    setTimer: opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms)),
+    clearTimer: opts.clearTimer ?? ((id) => clearTimeout(/** @type {any} */ (id))),
+  }
+}
+
+/**
+ * Where a press that has not lifted yet goes after the pointer moved (pure):
+ * 'release' = a finger slid past the slop, so it was not holding;
+ * 'lift' = a mouse / pen travelled far enough to start the drag; else 'wait'.
+ *
+ * @param {{ touch: boolean, x0: number, y0: number, x: number, y: number }} g
+ * @param {{ startPx: number, slopPx: number }} cfg
+ */
+function pressedMove(g, cfg) {
+  const d = Math.hypot(g.x - g.x0, g.y - g.y0)
+  if (g.touch) return d > cfg.slopPx ? 'release' : 'wait'
+  return d >= cfg.startPx ? 'lift' : 'wait'
+}
+
 /**
  * The handle's gesture. The host feeds it pointer events and gets:
  *   onStart(x, y)  - the drag lifted (mouse / pen: 4 px of travel; touch: a hold)
@@ -70,97 +95,81 @@ export function sameHit(a, b) {
  *   setTimer?: (fn: () => void, ms: number) => unknown, clearTimer?: (id: unknown) => void }} opts
  */
 export function createHandleDrag(opts) {
-  const startPx = opts.startPx ?? MOVE_DRAG_START_PX
-  const holdMs = opts.holdMs ?? MOVE_TOUCH_HOLD_MS
-  const slopPx = opts.slopPx ?? MOVE_TOUCH_SLOP_PX
-  const setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms))
-  const clearTimer = opts.clearTimer ?? ((id) => clearTimeout(/** @type {any} */ (id)))
-  /** @type {'idle' | 'pressed' | 'lifted' | 'held'} */
-  let state = 'idle'
-  let pointerId = -1
-  let touch = false
-  let x0 = 0
-  let y0 = 0
-  let x = 0
-  let y = 0
-  /** @type {unknown} */
-  let timer = null
-  let swallow = false
+  const cfg = handleDragOptions(opts)
+  /** The gesture so far. x0/y0 = where the press began, x/y = the pointer now.
+   * @type {{ state: 'idle' | 'pressed' | 'lifted' | 'held', pointerId: number, touch: boolean,
+   *   x0: number, y0: number, x: number, y: number, timer: unknown, swallow: boolean }} */
+  const g = { state: 'idle', pointerId: -1, touch: false, x0: 0, y0: 0, x: 0, y: 0, timer: null, swallow: false }
 
   function stopTimer() {
-    if (timer !== null) clearTimer(timer)
-    timer = null
+    if (g.timer !== null) cfg.clearTimer(g.timer)
+    g.timer = null
   }
   function lift() {
-    state = 'lifted'
-    swallow = true
-    opts.onStart(x, y)
+    g.state = 'lifted'
+    g.swallow = true
+    opts.onStart(g.x, g.y)
+  }
+  /** A finger stayed down for holdMs. */
+  function holdEnded() {
+    g.timer = null
+    if (g.state !== 'pressed') return
+    if (!opts.onHold || opts.onHold()) lift()
+    else {
+      g.state = 'held'
+      g.swallow = true
+    }
+  }
+  /** Back to idle. True when the card was lifted, so the host hears the end. */
+  function settle() {
+    stopTimer()
+    const was = g.state
+    g.state = 'idle'
+    return was === 'lifted'
   }
 
   return {
-    get state() { return state },
+    get state() { return g.state },
     /** @param {{ pointerId: number, pointerType?: string, button?: number, clientX: number, clientY: number }} ev */
     down(ev) {
-      if (state !== 'idle') return false
+      if (g.state !== 'idle') return false
       if (ev.pointerType === 'mouse' && ev.button !== 0) return false
-      state = 'pressed'
-      pointerId = ev.pointerId
-      touch = ev.pointerType === 'touch'
-      x0 = x = ev.clientX
-      y0 = y = ev.clientY
-      swallow = false
-      if (touch) {
-        timer = setTimer(() => {
-          timer = null
-          if (state !== 'pressed') return
-          if (!opts.onHold || opts.onHold()) lift()
-          else {
-            state = 'held'
-            swallow = true
-          }
-        }, holdMs)
-      }
+      g.state = 'pressed'
+      g.pointerId = ev.pointerId
+      g.touch = ev.pointerType === 'touch'
+      g.x0 = g.x = ev.clientX
+      g.y0 = g.y = ev.clientY
+      g.swallow = false
+      if (g.touch) g.timer = cfg.setTimer(holdEnded, cfg.holdMs)
       return true
     },
     /** @param {{ pointerId: number, clientX: number, clientY: number }} ev */
     move(ev) {
-      if (ev.pointerId !== pointerId || state === 'idle' || state === 'held') return
-      x = ev.clientX
-      y = ev.clientY
-      if (state === 'lifted') {
-        opts.onMove(x, y)
+      if (ev.pointerId !== g.pointerId || g.state === 'idle' || g.state === 'held') return
+      g.x = ev.clientX
+      g.y = ev.clientY
+      if (g.state === 'lifted') {
+        opts.onMove(g.x, g.y)
         return
       }
-      const d = Math.hypot(x - x0, y - y0)
-      if (touch) {
-        if (d > slopPx) {
-          stopTimer()
-          state = 'idle'
-        }
-        return
-      }
-      if (d >= startPx) {
+      const next = pressedMove(g, cfg)
+      if (next === 'release') settle()
+      else if (next === 'lift') {
         lift()
-        opts.onMove(x, y)
+        opts.onMove(g.x, g.y)
       }
     },
     /** @param {{ pointerId: number, clientX: number, clientY: number }} ev */
     up(ev) {
-      if (ev.pointerId !== pointerId) return
-      stopTimer()
-      const was = state
-      state = 'idle'
-      if (was === 'lifted') opts.onDrop(ev.clientX, ev.clientY)
+      if (ev.pointerId !== g.pointerId) return
+      if (settle()) opts.onDrop(ev.clientX, ev.clientY)
     },
     cancel() {
-      stopTimer()
-      const was = state
-      state = 'idle'
-      if (was === 'lifted') opts.onCancel()
+      if (settle()) opts.onCancel()
     },
     takeClick() {
-      const s = swallow
-      swallow = false
+      const s = g.swallow
+      g.swallow = false
       return s
     },
   }

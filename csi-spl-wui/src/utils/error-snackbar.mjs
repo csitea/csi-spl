@@ -63,30 +63,67 @@ function sameKey(rec, text) {
     String(Number(rec.status) || 0), text].join('\u0001')
 }
 
+/** createSnackbarQueue's options with every default filled in. */
+function snackbarOptions(opts) {
+  return {
+    now: typeof opts.now === 'function' ? opts.now : () => Date.now(),
+    max: Number.isFinite(opts.max) && opts.max > 0 ? opts.max : SNACKBAR_MAX,
+    ttl: Number.isFinite(opts.ttlMs) && opts.ttlMs > 0 ? opts.ttlMs : SNACKBAR_TTL_MS,
+    coalesce: Number.isFinite(opts.coalesceMs) && opts.coalesceMs >= 0 ? opts.coalesceMs : SNACKBAR_COALESCE_MS,
+  }
+}
+
+/** A repeat of the error `hit` shows at time t: count it and restart its clock. */
+function bumpRow(hit, rec, t, ttl) {
+  hit.count += 1
+  hit.lastAt = t
+  hit.expiresAt = t + ttl
+  hit.errorId = String(rec.errorId || hit.errorId)
+  hit.at = String(rec.at || hit.at)
+}
+
+/** A fresh row for journal record `rec`, first shown at time t. */
+function newRow({ id, key, text, rec, t, ttl }) {
+  return {
+    id,
+    key,
+    errorId: String(rec.errorId || ''),
+    text,
+    source: String(rec.source || ''),
+    status: Number(rec.status) || 0,
+    count: 1,
+    at: String(rec.at || ''),
+    lastAt: t,
+    expiresAt: t + ttl,
+    held: false,
+  }
+}
+
+/** The rows as subscribers see them: without the coalescing key and clock. */
+function publicRows(rows) {
+  return rows.map(({ key, lastAt, ...pub }) => ({ ...pub }))
+}
+
+/** Hand every subscriber the same snapshot. */
+function notifyAll(listeners, snap) {
+  for (const fn of listeners) {
+    try { fn(snap) } catch { /* a bad subscriber must not break the queue */ }
+  }
+}
+
 /**
  * @param {{ now?: () => number, max?: number, ttlMs?: number, coalesceMs?: number }} [opts]
  */
 export function createSnackbarQueue(opts = {}) {
-  const now = typeof opts.now === 'function' ? opts.now : () => Date.now()
-  const max = Number.isFinite(opts.max) && opts.max > 0 ? opts.max : SNACKBAR_MAX
-  const ttl = Number.isFinite(opts.ttlMs) && opts.ttlMs > 0 ? opts.ttlMs : SNACKBAR_TTL_MS
-  const coalesce = Number.isFinite(opts.coalesceMs) && opts.coalesceMs >= 0 ? opts.coalesceMs : SNACKBAR_COALESCE_MS
+  const { now, max, ttl, coalesce } = snackbarOptions(opts)
 
   /** @type {any[]} newest first */
   let rows = []
   let nextId = 0
   const listeners = new Set()
 
-  function view() {
-    return rows.map(({ key, lastAt, ...pub }) => ({ ...pub }))
-  }
-
-  function emit() {
-    const snap = view()
-    for (const fn of listeners) {
-      try { fn(snap) } catch { /* a bad subscriber must not break the queue */ }
-    }
-  }
+  const view = () => publicRows(rows)
+  const emit = () => notifyAll(listeners, view())
 
   /**
    * Show one journal record. Returns the row's id, or '' when the record is
@@ -101,32 +138,15 @@ export function createSnackbarQueue(opts = {}) {
       const t = now()
       const hit = rows.find((r) => r.key === key && t - r.lastAt <= coalesce)
       if (hit) {
-        hit.count += 1
-        hit.lastAt = t
-        hit.expiresAt = t + ttl
-        hit.errorId = String(rec.errorId || hit.errorId)
-        hit.at = String(rec.at || hit.at)
+        bumpRow(hit, rec, t, ttl)
         rows = [hit, ...rows.filter((r) => r !== hit)]
-        emit()
-        return hit.id
+      } else {
+        nextId += 1
+        rows = [newRow({ id: `snack-${nextId}`, key, text, rec, t, ttl }), ...rows].slice(0, max)
       }
-      nextId += 1
-      const row = {
-        id: `snack-${nextId}`,
-        key,
-        errorId: String(rec.errorId || ''),
-        text,
-        source: String(rec.source || ''),
-        status: Number(rec.status) || 0,
-        count: 1,
-        at: String(rec.at || ''),
-        lastAt: t,
-        expiresAt: t + ttl,
-        held: false,
-      }
-      rows = [row, ...rows].slice(0, max)
       emit()
-      return row.id
+      // The row this record landed on is the newest, so it is first.
+      return rows[0].id
     } catch {
       return ''
     }

@@ -148,6 +148,119 @@ function mockErr(status, token) {
   return Object.assign(new Error(`spool ${status} ${token}`), { status, token })
 }
 
+/* The mock hub's steps (createMockIssues below). Each one takes the tab's
+   current `issues` (and `labels`, `now`) so the factory stays a thin shell. */
+
+/** The issue a ref names (`SPL-7` or `7`), or undefined. */
+function mockFind(issues, ref) {
+  const n = Number(String(ref || '').replace(/^[A-Za-z][A-Za-z0-9]*-/, ''))
+  return issues.find((i) => i.number === n)
+}
+
+/* SPL-1226: the keys of every descendant of key (its children, then theirs). */
+function mockSubtree(issues, key) {
+  const out = []
+  const queue = [key]
+  while (queue.length) {
+    const p = queue.shift()
+    for (const c of issues) {
+      if (c.parent === p) { out.push(c.key); queue.push(c.key) }
+    }
+  }
+  return out
+}
+
+/** Issue i with patch b applied by `by`, stamped by `now`. */
+function mockApplyPatch(i, b, by, now) {
+  const out = { ...i }
+  for (const k of ['title', 'description', 'status', 'priority', 'assignee', 'labels', 'deadline']) {
+    if (b[k] !== undefined && b[k] !== null) out[k] = k === 'labels' ? b[k].slice() : b[k]
+  }
+  if (b.epic !== undefined || b.parent !== undefined) out.parent = String(b.epic ?? b.parent ?? '')
+  if (b.kind === 'epic' || b.kind === 'feature' || b.kind === 'issue') {
+    out.kind = b.kind
+    if (isTopKind(b.kind)) out.parent = ''
+  }
+  out.status = normalizeStatus(out.status)
+  if (out.status !== i.status) {
+    out.completed_at = out.status === 'done' ? now() : ''
+    out.canceled_at = out.status === 'diss' ? now() : ''
+  }
+  out.updated_by = by
+  out.updated_at = now()
+  return out
+}
+
+/** The hub's checks on a row about to be stored; throws its error. */
+function mockCheck(issues, labels, i) {
+  if (!String(i.title || '').trim()) throw mockErr(400, 'bad_issue')
+  if (!ISSUE_STATUSES.includes(i.status)) throw mockErr(400, 'bad_issue')
+  if (!(i.priority >= 1 && i.priority <= 5)) throw mockErr(400, 'bad_issue')
+  if (i.labels.some((l) => !labels.some((x) => x.id === l))) throw mockErr(400, 'unknown_label')
+  const kids = issues.some((x) => x.parent && x.parent === i.key)
+  if (isTopKind(i.kind)) {
+    if (i.parent) throw mockErr(400, 'bad_epic')
+    return
+  }
+  const was = mockFind(issues, i.key)
+  if (was && isTopKind(was.kind) && kids) throw mockErr(409, 'epic_has_issues')
+  if (!i.parent) return /* W16: a lone level-2 issue */
+  const parent = mockFind(issues, i.parent)
+  if (!parent) throw mockErr(400, 'unknown_parent')
+  if (isTopKind(parent.kind)) return
+  /* a subtask: its parent is level 2, under a level-1 row or under none */
+  const grand = parent.parent ? mockFind(issues, parent.parent) : null
+  if ((parent.parent && (!grand || !isTopKind(grand.kind))) || kids) throw mockErr(400, 'bad_epic')
+}
+
+/* hub checkEpicField: `epic` names a level-1 row; `parent` also takes a level-2 issue */
+function mockEpicField(issues, b) {
+  if (!b || !b.epic) return
+  const e = mockFind(issues, b.epic)
+  if (e && !isTopKind(e.kind)) throw mockErr(400, 'bad_epic')
+}
+
+/* the stored row -> what the hub answers: kind subtask, the level-1 key and
+   the tree's level (rdb 0056: 1 epic / feature, 2 issue, 3 subtask) */
+function mockView(issues, i) {
+  if (isTopKind(i.kind)) return { ...i, epic: '', level: 1 }
+  const p = mockFind(issues, i.parent)
+  if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent || '', level: 3 }
+  return { ...i, kind: 'issue', epic: i.parent, level: 2 }
+}
+
+/* hub setLevel: a level in the body is only checked against the tree's */
+function mockLevelField(issues, b, i, create) {
+  const lv = b ? b.level : undefined
+  if (lv === undefined || lv === null || (create && lv === 0)) return
+  if (!(lv >= 1 && lv <= 3) || lv !== mockView(issues, i).level) throw mockErr(400, 'bad_issue')
+}
+
+/** Each level-1 row with the status counts of its level-2 issues. */
+function mockSummaries(issues) {
+  return issues.filter((e) => isTopKind(e.kind)).map((e) => {
+    const mine = issues.filter((i) => !isTopKind(i.kind) && i.parent === e.key)
+    const counts = Object.fromEntries(ISSUE_STATUSES.map((st) => [st, mine.filter((i) => i.status === st).length]))
+    return { key: e.key, kind: e.kind, number: e.number, title: e.title, status: e.status, total: mine.length, done: counts.done, canceled: counts.diss, counts }
+  })
+}
+
+/** The filter matchIssue reads, from the hub's list query (issueQuery's inverse). */
+function mockFilterOf(q) {
+  const csv = (k) => (q.get(k) ? q.get(k).split(',') : [])
+  return { kind: q.get('kind') || '', epic: csv('epic'), parent: csv('parent'), status: csv('status'), priority: csv('priority').map(Number), level: csv('level').map(Number),
+    assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '' }
+}
+
+/** A new row numbered n from a create body, before the hub's checks. */
+function mockNewIssue(body, n, me, at) {
+  const lbl = Array.isArray(body.labels) ? body.labels : []
+  const kind = isTopKind(body.kind) ? body.kind : lbl.includes('epic') ? 'epic' : 'issue'
+  return normalizeIssue({ status: 'eval', ...body, kind, labels: lbl, parent: isTopKind(kind) ? '' : (body.epic || body.parent || ''), key: `SPL-${n}`, number: n,
+    task_id: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
+    created_by: me, created_at: at, updated_by: me, updated_at: at })
+}
+
 /**
  * The mock hub's issues (mock mode, no hub): the same answers as issues-v1,
  * held in memory for the tab. `now` is injectable for tests.
@@ -159,95 +272,28 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
   let issues = [normalizeIssue({ key: 'SPL-1', number: 1, title: 'random', kind: 'epic', labels: ['epic'], status: 'in_progress',
     task_id: '00000000-0000-4000-8000-000000000001', created_by: me, updated_by: me, created_at: now(), updated_at: now() })]
   let labels = [normalizeLabel({ id: 'bug', name: 'Bug', color: '#ef4444' }), normalizeLabel({ id: 'epic', name: 'epic', color: '#8b5cf6' })]
-  const find = (ref) => {
-    const n = Number(String(ref || '').replace(/^[A-Za-z][A-Za-z0-9]*-/, ''))
-    return issues.find((i) => i.number === n)
+  const find = (ref) => mockFind(issues, ref)
+  const view = (i) => mockView(issues, i)
+  /* SPL-1027 / SPL-1226: the hub's soft delete (remove) and archive - for the
+     mock (no archived store) both hide the row. Without cascade a parent with
+     a live child is refused; with it the whole epic / feature and its
+     descendants go, and the answer names them. */
+  const drop = (ref, cascade) => {
+    const i = find(ref)
+    if (!i) throw mockErr(404, 'not_found')
+    const kids = mockSubtree(issues, i.key)
+    if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
+    const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
+    issues = issues.filter((x) => !gone.has(x.key))
+    return { issue: view(i), descendants: cascade ? kids : [] }
   }
-  /* SPL-1226: the keys of every descendant of key (its children, then theirs). */
-  const subtree = (key) => {
-    const out = []
-    const queue = [key]
-    while (queue.length) {
-      const p = queue.shift()
-      for (const c of issues) {
-        if (c.parent === p) { out.push(c.key); queue.push(c.key) }
-      }
-    }
-    return out
-  }
-  const apply = (i, b, by) => {
-    const out = { ...i }
-    for (const k of ['title', 'description', 'status', 'priority', 'assignee', 'labels', 'deadline']) {
-      if (b[k] !== undefined && b[k] !== null) out[k] = k === 'labels' ? b[k].slice() : b[k]
-    }
-    if (b.epic !== undefined || b.parent !== undefined) out.parent = String(b.epic ?? b.parent ?? '')
-    if (b.kind === 'epic' || b.kind === 'feature' || b.kind === 'issue') {
-      out.kind = b.kind
-      if (isTopKind(b.kind)) out.parent = ''
-    }
-    out.status = normalizeStatus(out.status)
-    if (out.status !== i.status) {
-      out.completed_at = out.status === 'done' ? now() : ''
-      out.canceled_at = out.status === 'diss' ? now() : ''
-    }
-    out.updated_by = by
-    out.updated_at = now()
-    return out
-  }
-  const check = (i) => {
-    if (!String(i.title || '').trim()) throw mockErr(400, 'bad_issue')
-    if (!ISSUE_STATUSES.includes(i.status)) throw mockErr(400, 'bad_issue')
-    if (!(i.priority >= 1 && i.priority <= 5)) throw mockErr(400, 'bad_issue')
-    if (i.labels.some((l) => !labels.some((x) => x.id === l))) throw mockErr(400, 'unknown_label')
-    const kids = issues.some((x) => x.parent && x.parent === i.key)
-    if (isTopKind(i.kind)) {
-      if (i.parent) throw mockErr(400, 'bad_epic')
-      return
-    }
-    const was = find(i.key)
-    if (was && isTopKind(was.kind) && kids) throw mockErr(409, 'epic_has_issues')
-    if (!i.parent) return /* W16: a lone level-2 issue */
-    const parent = find(i.parent)
-    if (!parent) throw mockErr(400, 'unknown_parent')
-    if (isTopKind(parent.kind)) return
-    /* a subtask: its parent is level 2, under a level-1 row or under none */
-    const grand = parent.parent ? find(parent.parent) : null
-    if ((parent.parent && (!grand || !isTopKind(grand.kind))) || kids) throw mockErr(400, 'bad_epic')
-  }
-  /* hub checkEpicField: `epic` names a level-1 row; `parent` also takes a level-2 issue */
-  const epicField = (b) => {
-    if (!b || !b.epic) return
-    const e = find(b.epic)
-    if (e && !isTopKind(e.kind)) throw mockErr(400, 'bad_epic')
-  }
-  /* the stored row -> what the hub answers: kind subtask, the level-1 key and
-     the tree's level (rdb 0056: 1 epic / feature, 2 issue, 3 subtask) */
-  const view = (i) => {
-    if (isTopKind(i.kind)) return { ...i, epic: '', level: 1 }
-    const p = find(i.parent)
-    if (p && !isTopKind(p.kind)) return { ...i, kind: 'subtask', epic: p.parent || '', level: 3 }
-    return { ...i, kind: 'issue', epic: i.parent, level: 2 }
-  }
-  /* hub setLevel: a level in the body is only checked against the tree's */
-  const levelField = (b, i, create) => {
-    const lv = b ? b.level : undefined
-    if (lv === undefined || lv === null || (create && lv === 0)) return
-    if (!(lv >= 1 && lv <= 3) || lv !== view(i).level) throw mockErr(400, 'bad_issue')
-  }
-  const summaries = () => issues.filter((e) => isTopKind(e.kind)).map((e) => {
-    const mine = issues.filter((i) => !isTopKind(i.kind) && i.parent === e.key)
-    const counts = Object.fromEntries(ISSUE_STATUSES.map((st) => [st, mine.filter((i) => i.status === st).length]))
-    return { key: e.key, kind: e.kind, number: e.number, title: e.title, status: e.status, total: mine.length, done: counts.done, canceled: counts.diss, counts }
-  })
   return {
     list(query = '') {
       const q = new URLSearchParams(query)
-      const csv = (k) => (q.get(k) ? q.get(k).split(',') : [])
-      const f = { kind: q.get('kind') || '', epic: csv('epic'), parent: csv('parent'), status: csv('status'), priority: csv('priority').map(Number), level: csv('level').map(Number),
-        assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '' }
+      const f = mockFilterOf(q)
       const kept = sortIssues(issues.map(view).filter((i) => matchIssue(i, f, me)), q.get('sort') || 'priority')
       const counts = Object.fromEntries(ISSUE_STATUSES.map((s) => [s, kept.filter((i) => i.status === s).length]))
-      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: kept, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: summaries() }
+      return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: kept, labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues) }
     },
     get(ref) {
       const i = find(ref)
@@ -255,52 +301,26 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       return { issue: view(i) }
     },
     create(body = {}) {
-      epicField(body)
-      const at = now()
-      const lbl = Array.isArray(body.labels) ? body.labels : []
-      const kind = isTopKind(body.kind) ? body.kind : lbl.includes('epic') ? 'epic' : 'issue'
-      const i = normalizeIssue({ status: 'eval', ...body, kind, labels: lbl, parent: isTopKind(kind) ? '' : (body.epic || body.parent || ''), key: `SPL-${last + 1}`, number: last + 1,
-        task_id: `00000000-0000-4000-8000-${String(last + 1).padStart(12, '0')}`, channel: ISSUE_CHANNEL,
-        created_by: me, created_at: at, updated_by: me, updated_at: at })
-      check(i)
-      levelField(body, i, true)
+      mockEpicField(issues, body)
+      const i = mockNewIssue(body, last + 1, me, now())
+      mockCheck(issues, labels, i)
+      mockLevelField(issues, body, i, true)
       last++
       issues = [...issues, i]
       return { issue: view(i) }
     },
     update(ref, patch = {}) {
-      epicField(patch)
+      mockEpicField(issues, patch)
       const i = find(ref)
       if (!i) throw mockErr(404, 'not_found')
-      const next = normalizeIssue(apply(i, patch, me))
-      check(next)
-      levelField(patch, next, false)
+      const next = normalizeIssue(mockApplyPatch(i, patch, me, now))
+      mockCheck(issues, labels, next)
+      mockLevelField(issues, patch, next, false)
       issues = issues.map((x) => (x.key === i.key ? next : x))
       return { issue: view(next) }
     },
-    /* SPL-1027 / SPL-1226: the hub's soft delete. Without cascade a parent with
-       a live child is refused; with it the whole epic / feature and its
-       descendants go, and the answer names them. */
-    remove(ref, cascade = false) {
-      const i = find(ref)
-      if (!i) throw mockErr(404, 'not_found')
-      const kids = subtree(i.key)
-      if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
-      const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
-      issues = issues.filter((x) => !gone.has(x.key))
-      return { issue: view(i), descendants: cascade ? kids : [] }
-    },
-    /* SPL-1226: archive - for the mock (no archived store) it hides the row the
-       same way a delete does, and names the cascade. */
-    archive(ref, cascade = false) {
-      const i = find(ref)
-      if (!i) throw mockErr(404, 'not_found')
-      const kids = subtree(i.key)
-      if (!cascade && kids.length) throw mockErr(409, 'issue_has_children')
-      const gone = cascade ? new Set([i.key, ...kids]) : new Set([i.key])
-      issues = issues.filter((x) => !gone.has(x.key))
-      return { issue: view(i), descendants: cascade ? kids : [] }
-    },
+    remove(ref, cascade = false) { return drop(ref, cascade) },
+    archive(ref, cascade = false) { return drop(ref, cascade) },
     label({ name = '', color = '' } = {}) {
       const id = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
       if (!id) throw mockErr(400, 'bad_issue')

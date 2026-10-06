@@ -122,7 +122,7 @@ func TestCalendarRefusals(t *testing.T) {
 		{http.MethodGet, "/v1/calendar/events?start=2026-10-05T00:00:00Z&end=2028-10-05T00:00:00Z", nil, 400, "bad_range"},
 		{http.MethodGet, "/v1/calendar/marks?start_year=2020&end_year=2026", nil, 400, "bad_range"},
 		{http.MethodGet, "/v1/calendar/reminders?from=2026-10-05T00:00:00Z&to=2026-12-05T00:00:00Z", nil, 400, "bad_range"},
-		{http.MethodPost, "/v1/calendar/events", map[string]any{"title": "x", "color": "red"}, 400, "bad_json"},
+		{http.MethodPost, "/v1/calendar/events", map[string]any{"title": "x", "video_link": "https://example.com"}, 400, "bad_json"},
 		{http.MethodPost, "/v1/calendar/events", map[string]any{"title": "x"}, 400, "bad_event"},
 		{http.MethodPost, "/v1/calendar/events", calBody("x", map[string]any{"kind": "party"}), 400, "bad_event"},
 		{http.MethodPost, "/v1/calendar/events", calBody("x", map[string]any{"audience": "secret"}), 400, "bad_event"},
@@ -236,13 +236,16 @@ func toStrings(v any) []string {
 	return out
 }
 
-// D4: reminders are the WUI's own pop-up. calendar.go imports nothing that
+// D4: reminders are the WUI's own pop-up. calendar.go (and 097's
+// calendar_props.go, the reminders' registry) imports nothing that
 // sends (msg, spool, notify, wire) and calls no fan-out or send, and no file
 // of the hub package imports internal/notify. CONTROL: the same scan finds
 // issues.go's fan-out, so it can see one.
 func TestCalendarSendsNothing(t *testing.T) {
-	if bad := sendersIn(t, "calendar.go"); len(bad) != 0 {
-		t.Fatalf("calendar.go reaches a sender: %v", bad)
+	for _, f := range []string{"calendar.go", "calendar_props.go"} {
+		if bad := sendersIn(t, f); len(bad) != 0 {
+			t.Fatalf("%s reaches a sender: %v", f, bad)
+		}
 	}
 	if got := sendersIn(t, "issues.go"); len(got) == 0 {
 		t.Fatal("CONTROL: the scan finds no sender in issues.go")

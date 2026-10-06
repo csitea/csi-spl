@@ -31,6 +31,12 @@ import (
 // Reminders are the WUI's own timer (D4): this file serves the list and
 // sends nothing: no frame, no spool message, no notification
 // (TestCalendarSendsNothing).
+//
+// specs/097 T004 grows it without changing a field's meaning (FR-001): the
+// event object's new fields (spec 4.1) at their defaults, time_zone and the
+// props registry (calendar_props.go) on the body, several reminders,
+// If-Match on PATCH and DELETE (409 edit_conflict with the current event), a
+// soft DELETE, POST .../restore and GET /v1/calendar/trash.
 
 const (
 	calendarMaxBody         = 32 << 10
@@ -39,6 +45,8 @@ const (
 	calendarMaxYears        = 5
 	calendarMaxMentions     = 50
 	calendarMentionMax      = 64
+	calendarTrashDays       = 30 // spec 4.8 (Q6)
+	calendarPatchTries      = 3  // a PATCH without If-Match re-reads on a race
 
 	calendarSourceEvent  = "event"
 	calendarSourceIssue  = "issue"
@@ -46,26 +54,45 @@ const (
 	calendarDefaultKind  = "other"
 )
 
-// calendarEventJSON is the one item shape of spec 6.1.1.
+// calendarEventJSON is the one item shape of spec 6.1.1, plus 097's 4.1.
 type calendarEventJSON struct {
-	ID             string   `json:"id"`
-	Source         string   `json:"source"`
-	Title          string   `json:"title"`
-	Description    string   `json:"description"`
-	Kind           string   `json:"kind"`
-	StartsAt       string   `json:"starts_at"`
-	EndsAt         string   `json:"ends_at"`
-	AllDay         bool     `json:"all_day"`
-	Audience       string   `json:"audience"`
-	Mentions       []string `json:"mentions"`
-	CreatorType    string   `json:"creator_type"`
-	CreatorID      string   `json:"creator_id"`
-	RemindAt       string   `json:"remind_at"`
-	TopicID        string   `json:"topic_id"`
-	ReleaseVersion string   `json:"release_version"`
-	IssueKey       string   `json:"issue_key"`
-	CreatedAt      string   `json:"created_at"`
-	UpdatedAt      string   `json:"updated_at"`
+	ID               string              `json:"id"`
+	Source           string              `json:"source"`
+	Title            string              `json:"title"`
+	Description      string              `json:"description"`
+	Kind             string              `json:"kind"`
+	StartsAt         string              `json:"starts_at"`
+	EndsAt           string              `json:"ends_at"`
+	AllDay           bool                `json:"all_day"`
+	Audience         string              `json:"audience"`
+	Mentions         []string            `json:"mentions"`
+	CreatorType      string              `json:"creator_type"`
+	CreatorID        string              `json:"creator_id"`
+	RemindAt         string              `json:"remind_at"`
+	TopicID          string              `json:"topic_id"`
+	ReleaseVersion   string              `json:"release_version"`
+	IssueKey         string              `json:"issue_key"`
+	CreatedAt        string              `json:"created_at"`
+	UpdatedAt        string              `json:"updated_at"`
+	TimeZone         string              `json:"time_zone"`
+	RRule            string              `json:"rrule"`
+	RecurringEventID string              `json:"recurring_event_id"`
+	OriginalStart    string              `json:"original_start"`
+	Location         string              `json:"location"`
+	Color            string              `json:"color"`
+	Reminders        []calendarReminder  `json:"reminders"`
+	Guests           []calendarGuestJSON `json:"guests"`
+	MyResponse       string              `json:"my_response"`
+	DeletedAt        string              `json:"deleted_at"`
+}
+
+// calendarGuestJSON is one guest and their answer (spec 4.1); the list stays
+// empty until guests land (097 T007).
+type calendarGuestJSON struct {
+	Type     string `json:"type"`
+	ID       string `json:"id"`
+	Response string `json:"response"`
+	Comment  string `json:"comment"`
 }
 
 type calendarMarkJSON struct {
@@ -86,15 +113,23 @@ func optCalTime(t time.Time) string {
 	return rfc(t)
 }
 
-func toCalendarJSON(e store.CalendarEvent) calendarEventJSON {
+// toCalendarJSON is a stored event on the wire; now picks remind_at's
+// earliest coming reminder.
+func toCalendarJSON(e store.CalendarEvent, now time.Time) calendarEventJSON {
 	mentions := e.Mentions
 	if mentions == nil {
 		mentions = []string{}
 	}
+	tz := e.TimeZone
+	if tz == "" {
+		tz = store.CalendarUTC
+	}
 	return calendarEventJSON{ID: e.ID, Source: calendarSourceEvent, Title: e.Title, Description: e.Description,
 		Kind: e.Kind, StartsAt: rfc(e.StartsAt), EndsAt: rfc(e.EndsAt), AllDay: e.AllDay, Audience: e.Audience,
-		Mentions: mentions, CreatorType: e.CreatorType, CreatorID: e.CreatorID, RemindAt: optCalTime(e.RemindAt),
-		TopicID: e.TopicID, ReleaseVersion: e.ReleaseVersion, CreatedAt: rfc(e.CreatedAt), UpdatedAt: rfc(e.UpdatedAt)}
+		Mentions: mentions, CreatorType: e.CreatorType, CreatorID: e.CreatorID, RemindAt: optCalTime(wireRemindAt(e, now)),
+		TopicID: e.TopicID, ReleaseVersion: e.ReleaseVersion, CreatedAt: rfc(e.CreatedAt), UpdatedAt: rfc(e.UpdatedAt),
+		TimeZone: tz, Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
+		Reminders: eventReminders(e), Guests: []calendarGuestJSON{}, DeletedAt: optCalTime(e.DeletedAt)}
 }
 
 // deadlineJSON is an issue's deadline as a read-only grid item.
@@ -102,25 +137,33 @@ func deadlineJSON(i store.Issue) calendarEventJSON {
 	at := rfc(*i.Deadline)
 	return calendarEventJSON{ID: i.Key(), Source: calendarSourceIssue, Title: i.Title, Description: i.Description,
 		Kind: calendarKindDeadline, StartsAt: at, EndsAt: at, Audience: store.CalendarPublic, Mentions: []string{},
-		CreatorType: "human", CreatorID: i.CreatedBy, IssueKey: i.Key(), CreatedAt: rfc(i.CreatedAt), UpdatedAt: rfc(i.UpdatedAt)}
+		CreatorType: "human", CreatorID: i.CreatedBy, IssueKey: i.Key(), CreatedAt: rfc(i.CreatedAt), UpdatedAt: rfc(i.UpdatedAt),
+		TimeZone: store.CalendarUTC, Reminders: []calendarReminder{}, Guests: []calendarGuestJSON{}}
 }
 
 // ---- requests --------------------------------------------------------------------
 
 // calendarRequest is the event body of a create and of a PATCH (spec 6.1.2):
 // an absent field is left alone; remind_at, topic_id, release_version "" clear.
+// 097 4.2 adds time_zone, location, color and reminders ("" / [] reset them)
+// and props, the registry's keys as one object (a typed field wins over it).
 type calendarRequest struct {
-	Title          *string   `json:"title"`
-	Description    *string   `json:"description"`
-	Kind           *string   `json:"kind"`
-	StartsAt       *string   `json:"starts_at"`
-	EndsAt         *string   `json:"ends_at"`
-	AllDay         *bool     `json:"all_day"`
-	Audience       *string   `json:"audience"`
-	Mentions       *[]string `json:"mentions"`
-	RemindAt       *string   `json:"remind_at"`
-	TopicID        *string   `json:"topic_id"`
-	ReleaseVersion *string   `json:"release_version"`
+	Title          *string        `json:"title"`
+	Description    *string        `json:"description"`
+	Kind           *string        `json:"kind"`
+	StartsAt       *string        `json:"starts_at"`
+	EndsAt         *string        `json:"ends_at"`
+	AllDay         *bool          `json:"all_day"`
+	Audience       *string        `json:"audience"`
+	Mentions       *[]string      `json:"mentions"`
+	RemindAt       *string        `json:"remind_at"`
+	TopicID        *string        `json:"topic_id"`
+	ReleaseVersion *string        `json:"release_version"`
+	TimeZone       *string        `json:"time_zone"`
+	Location       *string        `json:"location"`
+	Color          *string        `json:"color"`
+	Reminders      *[]any         `json:"reminders"`
+	Props          map[string]any `json:"props"`
 }
 
 func badCalendar(detail string) *issueErr {
@@ -167,9 +210,10 @@ func calMentions(in []string) ([]string, *issueErr) {
 	return out, nil
 }
 
-// patch turns the request into a store patch (shape checks; the store checks
-// the rest of rdb 0125's rules).
-func (q calendarRequest) patch() (store.CalendarPatch, *issueErr) {
+// patch turns the request into a store patch against cur, the event as
+// stored (zero for a create): shape checks, the props registry and the
+// reminders' remind_at column; the store checks the rest of rdb 0125's rules.
+func (q calendarRequest) patch(cur store.CalendarEvent) (store.CalendarPatch, *issueErr) {
 	p := store.CalendarPatch{Title: q.Title, Description: q.Description, Kind: q.Kind, AllDay: q.AllDay,
 		Audience: q.Audience, TopicID: q.TopicID, ReleaseVersion: q.ReleaseVersion}
 	var ie *issueErr
@@ -189,14 +233,83 @@ func (q calendarRequest) patch() (store.CalendarPatch, *issueErr) {
 		}
 		p.Mentions = &m
 	}
-	return p, nil
+	if q.TimeZone != nil {
+		tz := strings.TrimSpace(*q.TimeZone)
+		if tz == "" {
+			tz = store.CalendarUTC
+		}
+		if ie := checkTimeZone(tz); ie != nil {
+			return p, ie
+		}
+		p.TimeZone = &tz
+	}
+	return p, q.patchProps(cur, &p)
+}
+
+// propsSet is what the request writes into props: props, then the typed
+// fields over it, then remind_at as reminders unless reminders is sent.
+func (q calendarRequest) propsSet(start time.Time, remindAt *time.Time) (map[string]any, *issueErr) {
+	set := map[string]any{}
+	for k, v := range q.Props {
+		set[k] = v
+	}
+	for k, v := range map[string]*string{calPropLocation: q.Location, calPropColor: q.Color} {
+		if v != nil {
+			set[k] = *v
+		}
+	}
+	if q.Reminders != nil {
+		set[calPropReminders] = *q.Reminders
+	}
+	if _, sent := set[calPropReminders]; !sent && remindAt != nil {
+		rs, ie := remindAtAsReminders(*remindAt, start)
+		if ie != nil {
+			return nil, ie
+		}
+		set[calPropReminders] = rs
+	}
+	return set, nil
+}
+
+// patchProps sets p.Props and, when the reminders or the start change, the
+// remind_at column (the earliest fire time). A move keeps an 089 event's
+// remind_at as many minutes before the new start.
+func (q calendarRequest) patchProps(cur store.CalendarEvent, p *store.CalendarPatch) *issueErr {
+	start := cur.StartsAt
+	if p.StartsAt != nil {
+		start = *p.StartsAt
+	}
+	set, ie := q.propsSet(start, p.RemindAt)
+	if ie != nil {
+		return ie
+	}
+	_, hasStored := storedReminders(cur)
+	if _, sent := set[calPropReminders]; !sent && p.StartsAt != nil && !hasStored {
+		if r, ok := legacyReminder(cur.RemindAt, cur.StartsAt); ok {
+			set[calPropReminders] = []any{map[string]any{"amount": float64(r.Amount), "unit": r.Unit}}
+		}
+	}
+	p.RemindAt = nil
+	if len(set) == 0 && (p.StartsAt == nil || !hasStored) {
+		return nil
+	}
+	merged, ie := mergeCalendarProps(cur.Props, set)
+	if ie != nil {
+		return ie
+	}
+	p.Props = &merged
+	if rs, ok := storedReminders(store.CalendarEvent{Props: merged}); ok || hasStored || set[calPropReminders] != nil {
+		at := remindAtColumn(rs, start)
+		p.RemindAt = &at
+	}
+	return nil
 }
 
 // calendarPatchEmpty: the PATCH changes nothing.
 func calendarPatchEmpty(p store.CalendarPatch) bool {
 	return p.Title == nil && p.Description == nil && p.Kind == nil && p.StartsAt == nil && p.EndsAt == nil &&
 		p.AllDay == nil && p.Audience == nil && p.Mentions == nil && p.RemindAt == nil && p.TopicID == nil &&
-		p.ReleaseVersion == nil
+		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil
 }
 
 // newEvent is a create: the defaults of spec 6.1.2 (kind other, audience
@@ -205,12 +318,22 @@ func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr)
 	if q.Title == nil || q.StartsAt == nil || q.EndsAt == nil {
 		return store.CalendarEvent{}, badCalendar("title, starts_at and ends_at are required")
 	}
-	p, ie := q.patch()
+	start, ie := optCalTimePtr("starts_at", q.StartsAt, false)
+	if ie != nil {
+		return store.CalendarEvent{}, ie
+	}
+	p, ie := q.patch(store.CalendarEvent{StartsAt: *start})
 	if ie != nil {
 		return store.CalendarEvent{}, ie
 	}
 	e := store.CalendarEvent{Kind: calendarDefaultKind, Audience: store.CalendarPublic, Mentions: []string{},
-		CreatorType: "human", CreatorID: actor, StartsAt: *p.StartsAt, EndsAt: *p.EndsAt}
+		CreatorType: "human", CreatorID: actor, StartsAt: *p.StartsAt, EndsAt: *p.EndsAt, TimeZone: store.CalendarUTC}
+	if p.Props != nil {
+		e.Props = *p.Props
+	}
+	if p.TimeZone != nil {
+		e.TimeZone = *p.TimeZone
+	}
 	for _, f := range []struct{ dst, src *string }{{&e.Title, p.Title}, {&e.Description, p.Description},
 		{&e.Kind, p.Kind}, {&e.Audience, p.Audience}, {&e.TopicID, p.TopicID}, {&e.ReleaseVersion, p.ReleaseVersion}} {
 		if f.src != nil && *f.src != "" {
@@ -233,6 +356,7 @@ func decodeCalendarRequest(w http.ResponseWriter, r *http.Request) (calendarRequ
 	var q calendarRequest
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, calendarMaxBody))
 	dec.DisallowUnknownFields()
+	dec.UseNumber() // a reminder's amount: 1.5 and "10" stay distinguishable from 10
 	if err := dec.Decode(&q); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be a calendar event (spec 089 section 6.1)")
 		return q, false
@@ -253,6 +377,8 @@ func storeCalendarErr(err error) *issueErr {
 		return &issueErr{http.StatusNotFound, "not_found", "no such event"}
 	case errors.Is(err, store.ErrCalendarUnavailable):
 		return calendarUnavailable()
+	case errors.Is(err, store.ErrEditConflict):
+		return &issueErr{http.StatusConflict, "edit_conflict", calendarConflictDetail}
 	}
 	return &issueErr{http.StatusInternalServerError, "internal", "calendar not stored"}
 }
@@ -360,9 +486,9 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request, t 
 		s.calendarFail(w, t.ID, "deadlines", err)
 		return
 	}
-	out := make([]calendarEventJSON, 0, len(evs)+len(dls))
+	out, now := make([]calendarEventJSON, 0, len(evs)+len(dls)), s.o.Now()
 	for _, e := range evs {
-		out = append(out, toCalendarJSON(e))
+		out = append(out, toCalendarJSON(e, now))
 	}
 	for _, i := range dls {
 		out = append(out, deadlineJSON(i))
@@ -469,7 +595,32 @@ func (s *Server) handleCalendarMarks(w http.ResponseWriter, r *http.Request, t s
 		"official_days": []calendarOfficialJSON{}})
 }
 
-// GET /v1/calendar/reminders?from=&to=
+// reminderEvents is every event that may remind the viewer inside rg: they
+// own it or are named on it (D4), it starts in [rg.Start, rg.End + 4 weeks)
+// (the reminder cap, spec 4.3), plus any 089 remind_at the store finds in rg.
+func (s *Server) reminderEvents(ctx context.Context, tenant, viewer string, demo bool, rg store.CalendarRange) ([]store.CalendarEvent, error) {
+	c := s.calendarStore()
+	wide, err := c.ListCalendarEvents(ctx, tenant, viewer, store.CalendarRange{Start: rg.Start, End: rg.End.Add(calendarReminderMax)})
+	if err != nil {
+		return nil, err
+	}
+	legacy, err := c.CalendarReminders(ctx, tenant, viewer, rg)
+	if err != nil {
+		return nil, err
+	}
+	seen, out := map[string]bool{}, []store.CalendarEvent{}
+	for _, e := range append(wide, legacy...) {
+		if seen[e.ID] || (e.CreatorID != viewer && !slices.Contains(e.Mentions, viewer)) {
+			continue
+		}
+		seen[e.ID] = true
+		out = append(out, e)
+	}
+	return visibleTo(out, demo), nil
+}
+
+// GET /v1/calendar/reminders?from=&to=: one item per reminder that fires in
+// the window, its remind_at the fire time (089 T006's pop-up reads it).
 func (s *Server) handleCalendarReminders(w http.ResponseWriter, r *http.Request, t store.Tenant) {
 	rg, ie := calendarRange(r, "from", "to", calendarMaxReminderDays)
 	if ie != nil {
@@ -477,18 +628,48 @@ func (s *Server) handleCalendarReminders(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	viewer, demo := s.calendarViewer(r, t)
-	out := []calendarEventJSON{}
-	if c := s.calendarStore(); c != nil && viewer != "" {
-		evs, err := c.CalendarReminders(r.Context(), t.ID, viewer, rg)
+	out, now := []calendarEventJSON{}, s.o.Now()
+	if s.calendarStore() != nil && viewer != "" {
+		evs, err := s.reminderEvents(r.Context(), t.ID, viewer, demo, rg)
 		if err != nil {
 			s.calendarFail(w, t.ID, "reminders", err)
 			return
 		}
-		for _, e := range visibleTo(evs, demo) {
-			out = append(out, toCalendarJSON(e))
+		for _, e := range evs {
+			for _, f := range reminderFires(e) {
+				if !f.Before(rg.Start) && f.Before(rg.End) {
+					item := toCalendarJSON(e, now)
+					item.RemindAt = rfc(f)
+					out = append(out, item)
+				}
+			}
 		}
 	}
+	sort.SliceStable(out, func(a, b int) bool {
+		if out[a].RemindAt != out[b].RemindAt {
+			return out[a].RemindAt < out[b].RemindAt
+		}
+		return out[a].ID < out[b].ID
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"from": rfc(rg.Start), "to": rfc(rg.End), "reminders": out})
+}
+
+// GET /v1/calendar/trash: the events the viewer deleted in the last 30 days,
+// newest deletion first (spec 4.8). A demo visitor deletes nothing.
+func (s *Server) handleCalendarTrash(w http.ResponseWriter, r *http.Request, t store.Tenant) {
+	viewer, demo := s.calendarViewer(r, t)
+	out, now := []calendarEventJSON{}, s.o.Now()
+	if c := s.calendarStore(); c != nil && viewer != "" && !demo {
+		evs, err := c.CalendarTrash(r.Context(), t.ID, viewer, now.Add(-calendarTrashDays*24*time.Hour))
+		if err != nil {
+			s.calendarFail(w, t.ID, "trash", err)
+			return
+		}
+		for _, e := range evs {
+			out = append(out, toCalendarJSON(e, now))
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"events": out})
 }
 
 // ---- writes ----------------------------------------------------------------------
@@ -549,7 +730,7 @@ func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Reques
 		s.writeCalendarErr(w, t.ID, "create", err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"event": toCalendarJSON(out)})
+	writeJSON(w, http.StatusCreated, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
 }
 
 // privateOwnerOnly (FR-010): moving audience to or from private is the event
@@ -564,6 +745,54 @@ func privateOwnerOnly(cur store.CalendarEvent, p store.CalendarPatch, actor stri
 	return &issueErr{http.StatusForbidden, "private_owner_only", "only the event's owner sets or clears private"}
 }
 
+const calendarConflictDetail = "the event changed since it was read; event is the current one"
+
+// ifMatch reads If-Match: "<updated_at>" (spec 4.2); zero when absent.
+func ifMatch(r *http.Request) (time.Time, *issueErr) {
+	v := strings.TrimSpace(r.Header.Get("If-Match"))
+	if v == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339Nano, strings.Trim(strings.TrimPrefix(v, "W/"), `"`))
+	if err != nil {
+		return time.Time{}, badCalendar(`If-Match must be the event's updated_at in quotes, e.g. "2026-10-06T09:00:00.123456Z"`)
+	}
+	return t.UTC(), nil
+}
+
+// writeCalendarConflict is 409 edit_conflict with the current event.
+func (s *Server) writeCalendarConflict(w http.ResponseWriter, cur store.CalendarEvent) {
+	writeJSON(w, http.StatusConflict, map[string]any{"error": "edit_conflict", "detail": calendarConflictDetail,
+		"event": toCalendarJSON(cur, s.o.Now())})
+}
+
+// patchCalendarOnce reads the event, builds the patch against it and writes
+// it under the precondition: the caller's If-Match, else the version read.
+func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, actor string, q calendarRequest,
+	want time.Time) (store.CalendarEvent, *issueErr, error) {
+	id := r.PathValue("id")
+	cur, err := c.GetCalendarEvent(r.Context(), tenant, actor, id)
+	if err != nil {
+		return cur, nil, err
+	}
+	if !want.IsZero() && !want.Equal(cur.UpdatedAt) {
+		return cur, nil, store.ErrEditConflict
+	}
+	p, ie := q.patch(cur)
+	if ie == nil && calendarPatchEmpty(p) {
+		ie = badCalendar("nothing to change")
+	}
+	if ie == nil {
+		ie = privateOwnerOnly(cur, p, actor)
+	}
+	if ie != nil {
+		return cur, ie, nil
+	}
+	p.IfUpdatedAt = cur.UpdatedAt
+	out, err := c.UpdateCalendarEvent(r.Context(), tenant, actor, id, p, s.o.Now())
+	return out, nil, err
+}
+
 // PATCH /v1/calendar/events/{id}
 func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request) {
 	t, actor, c, ok := s.calendarWriter(w, r)
@@ -574,55 +803,74 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	p, ie := q.patch()
-	if ie == nil && calendarPatchEmpty(p) {
-		ie = badCalendar("nothing to change")
-	}
+	want, ie := ifMatch(r)
 	if ie != nil {
 		writeIssueErr(w, ie)
 		return
 	}
-	id := r.PathValue("id")
-	cur, err := c.GetCalendarEvent(r.Context(), t.ID, actor, id)
-	if err != nil {
-		s.writeCalendarErr(w, t.ID, "get", err)
-		return
+	var out store.CalendarEvent
+	var err error
+	for try := 0; try < calendarPatchTries; try++ {
+		out, ie, err = s.patchCalendarOnce(r, c, t.ID, actor, q, want)
+		if !errors.Is(err, store.ErrEditConflict) || !want.IsZero() {
+			break // without If-Match, a race with another write re-reads
+		}
 	}
-	if ie := privateOwnerOnly(cur, p, actor); ie != nil {
+	switch {
+	case ie != nil:
 		writeIssueErr(w, ie)
-		return
-	}
-	out, err := c.UpdateCalendarEvent(r.Context(), t.ID, actor, id, p, s.o.Now())
-	if err != nil {
+	case errors.Is(err, store.ErrEditConflict) && !want.IsZero():
+		s.writeCalendarConflict(w, out)
+	case err != nil:
 		s.writeCalendarErr(w, t.ID, "update", err)
-		return
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out)})
 }
 
-// DELETE /v1/calendar/events/{id}: 200 with the event as it was.
+// DELETE /v1/calendar/events/{id}: a soft delete (spec 4.8), 200 with the
+// event, its deleted_at set; If-Match as on PATCH.
 func (s *Server) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Request) {
 	t, actor, c, ok := s.calendarWriter(w, r)
 	if !ok {
 		return
 	}
-	id := r.PathValue("id")
-	cur, err := c.GetCalendarEvent(r.Context(), t.ID, actor, id)
-	if err == nil {
-		err = c.DeleteCalendarEvent(r.Context(), t.ID, actor, id)
-	}
-	if err != nil {
-		s.writeCalendarErr(w, t.ID, "delete", err)
+	want, ie := ifMatch(r)
+	if ie != nil {
+		writeIssueErr(w, ie)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(cur)})
+	out, err := c.TrashCalendarEvent(r.Context(), t.ID, actor, r.PathValue("id"), want, s.o.Now())
+	switch {
+	case errors.Is(err, store.ErrEditConflict):
+		s.writeCalendarConflict(w, out)
+	case err != nil:
+		s.writeCalendarErr(w, t.ID, "delete", err)
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
+	}
+}
+
+// POST /v1/calendar/events/{id}/restore: the caller's own deletion back,
+// same id (spec 4.8, the WUI's Undo).
+func (s *Server) handleRestoreCalendarEvent(w http.ResponseWriter, r *http.Request) {
+	t, actor, c, ok := s.calendarWriter(w, r)
+	if !ok {
+		return
+	}
+	out, err := c.RestoreCalendarEvent(r.Context(), t.ID, actor, r.PathValue("id"))
+	if err != nil {
+		s.writeCalendarErr(w, t.ID, "restore", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
 }
 
 func (s *Server) calendarPreflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
 		h.Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE")
-		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale, If-Match")
 		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -635,10 +883,14 @@ func (s *Server) routeCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/calendar/events", s.handleCreateCalendarEvent)
 	mux.HandleFunc("PATCH /v1/calendar/events/{id}", s.handlePatchCalendarEvent)
 	mux.HandleFunc("DELETE /v1/calendar/events/{id}", s.handleDeleteCalendarEvent)
+	mux.HandleFunc("POST /v1/calendar/events/{id}/restore", s.handleRestoreCalendarEvent)
+	mux.HandleFunc("GET /v1/calendar/trash", s.viewHandler(s.handleCalendarTrash))
 	mux.HandleFunc("OPTIONS /v1/calendar/events", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/marks", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/reminders", s.calendarPreflight)
+	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}/restore", s.calendarPreflight)
+	mux.HandleFunc("OPTIONS /v1/calendar/trash", s.calendarPreflight)
 }
 
 // routeWorkItems registers the issues (specs/039) and the calendar that

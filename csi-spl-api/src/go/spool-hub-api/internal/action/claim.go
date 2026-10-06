@@ -20,6 +20,14 @@ import (
 //	          Gen > 0 is a compare-and-set on the fence
 //	check     the fence: the answer's held says whether Seat still holds MsgID at Gen
 //	adopt     insert-if-absent: take MsgID if no live lock holds it (hub-down recovery)
+//
+// Spec 093 (task T009), the two-phase claim:
+//
+//	poll      with State idle|busy: the round poll; Ready = the ready seats known
+//	renew     with HB fresh|able|stale (+ AnchorAgeS when fresh): the heartbeat renew
+//	accept    take MsgID's round Round: the first accept wins the body and the fence
+//	park      the holder waits (Until, Wait, Reason) at fence Gen
+//	unpark, reoffer, touch   the holder's calls at fence Gen
 type ClaimArgs struct {
 	Op     string
 	Seat   string // <ID> or <ID>@<box>; a bare id is this box's
@@ -29,7 +37,15 @@ type ClaimArgs struct {
 	Gen    int64
 	How    string
 	Reason string
-	Hub    *hubclient.Client // nil = hubclient.New(cfg)
+	// spec 093
+	State      string            // poll: idle | busy
+	Ready      []string          // poll
+	Round      int               // accept
+	Until      string            // park: RFC 3339, or a duration on the hub clock
+	Wait       string            // park
+	HB         string            // renew: fresh | able | stale
+	AnchorAgeS int               // renew, with HB fresh
+	Hub        *hubclient.Client // nil = hubclient.New(cfg)
 }
 
 // Claim runs one op and returns the hub's answer {seat, msgs, dead}. Hub
@@ -64,8 +80,18 @@ func claimBody(in ClaimArgs) (json.RawMessage, error) {
 		if in.Max < 0 || in.Max > store.ClaimPollMax {
 			return nil, fmt.Errorf("claim: --max must be 1..%d", store.ClaimPollMax)
 		}
-		v["max"] = in.Max
+		if in.State != "" && in.State != "idle" && in.State != "busy" {
+			return nil, fmt.Errorf("claim: --state must be idle or busy")
+		}
+		v["max"], v["state"], v["ready"] = in.Max, in.State, in.Ready
 	case "renew":
+		if err := claimHB(in, v); err != nil {
+			return nil, err
+		}
+	case "accept", "park", "unpark", "reoffer", "touch":
+		if err := claimAct(in, v); err != nil {
+			return nil, err
+		}
 	case "check", "adopt":
 		if !store.AskIDRe.MatchString(in.MsgID) {
 			return nil, fmt.Errorf("claim: --%s needs --msg, the message id (a lowercase UUID)", in.Op)
@@ -92,9 +118,49 @@ func claimBody(in ClaimArgs) (json.RawMessage, error) {
 		}
 		v["msg_id"], v["gen"], v["how"], v["reason"] = in.MsgID, in.Gen, in.How, in.Reason
 	default:
-		return nil, fmt.Errorf("claim: one of --poll, --renew, --release <msg>, --done <msg>, --check, --adopt")
+		return nil, fmt.Errorf("claim: one of --poll, --renew, --accept, --park, --unpark, --reoffer, --touch, --release, --done, --check, --adopt")
 	}
 	return json.Marshal(v)
+}
+
+// claimHB adds a heartbeat renew's verdict (spec 093 T4) to v; no HB keeps
+// 068's renew.
+func claimHB(in ClaimArgs, v map[string]any) error {
+	switch in.HB {
+	case "":
+		return nil
+	case "fresh":
+		v["fresh"], v["able"] = true, true
+	case "able":
+		v["fresh"], v["able"] = false, true
+	case "stale":
+		v["fresh"], v["able"] = false, false
+	default:
+		return fmt.Errorf("claim: --hb must be fresh, able or stale")
+	}
+	if in.AnchorAgeS < 0 {
+		return fmt.Errorf("claim: --anchor-age must be >= 0 seconds")
+	}
+	v["anchor_age_s"] = in.AnchorAgeS
+	return nil
+}
+
+// claimAct adds one job call (spec 093 T2, T6, T7a, T7b, touch) to v.
+func claimAct(in ClaimArgs, v map[string]any) error {
+	if !store.AskIDRe.MatchString(in.MsgID) {
+		return fmt.Errorf("claim: --%s needs the message id (a lowercase UUID)", in.Op)
+	}
+	if in.Op == "accept" && in.Round < 1 {
+		return fmt.Errorf("claim: --accept needs --round, the round number of the stub")
+	}
+	if in.Op != "accept" && in.Gen < 1 {
+		return fmt.Errorf("claim: --%s needs --gen, the fence the accept returned", in.Op)
+	}
+	if in.Op == "park" && (in.Until == "" || in.Wait == "" || store.CheckClaimReason(in.Reason) != "") {
+		return fmt.Errorf("claim: --park needs --until, --wait <lane|task|run> and --reason")
+	}
+	v["msg_id"], v["round"], v["gen"], v["until"], v["wait"], v["reason"] = in.MsgID, in.Round, in.Gen, in.Until, in.Wait, in.Reason
+	return nil
 }
 
 // ClaimFlat turns a claim answer into the JSON array the peer poll loop

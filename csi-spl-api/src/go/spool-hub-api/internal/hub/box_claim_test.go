@@ -12,7 +12,9 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // Spec 068 L1: the claim frame through the real front end (action.Claim ==
@@ -27,6 +29,10 @@ import (
 //     fence +1, and the old holder's close with the old fence is refused
 //  4. a claude seat's harness refusal sends it to a grok seat only
 //  5. four claims without a close: the next poll returns it dead, once
+//  6. spec 068 L3's calls: the fence, the hub-down adopt, the flat array
+//  7. spec 093's two-phase claim (claimRounds): a round across both boxes,
+//     the accept race, a park that lapses on a not-able holder, and the late
+//     holder stopped by the fence and by answer-once (FR-009)
 type claimOut struct {
 	Seat    string         `json:"seat"`
 	Msgs    []hub.ClaimRow `json:"msgs"`
@@ -268,11 +274,200 @@ func TestBoxMessageClaim(t *testing.T) {
 		t.Fatalf("flat row for the poll loop: %v", r)
 	}
 
+	// 7. spec 093: close the last 068 claim so the pool is empty, then rounds
+	mustClaim(t, sat, action.ClaimArgs{Op: "done", Seat: "c-001", MsgID: fresh, Gen: 2})
+	claimRounds(t, roundEnv{e: e, tid: tid, sat: sat, pc: pc, advance: advance, peerMsg: peerMsg})
+
 	// the client refuses what the hub would, before dialling
 	if _, err := claimCall(t, sat, action.ClaimArgs{Op: "done", Seat: "c-001", MsgID: id, How: "maybe"}); err == nil || !strings.Contains(err.Error(), "--how") {
 		t.Fatalf("bad how: %v", err)
 	}
 	if _, err := claimCall(t, sat, action.ClaimArgs{Op: "release", Seat: "c-001", MsgID: id}); err == nil || !strings.Contains(err.Error(), "--reason") {
 		t.Fatalf("release without a reason: %v", err)
+	}
+}
+
+type roundEnv struct {
+	e       *env
+	tid     string
+	sat, pc *box
+	advance func(time.Duration)
+	peerMsg func() string
+}
+
+// claimRounds is TestBoxMessageClaim's step 7, spec 093 section 4 through
+// the claim frame (task T009). Seats: c-001 and g-003 on box-b (sat),
+// c-001 and g-004 on box-c (pc).
+func claimRounds(t *testing.T, r roundEnv) {
+	t.Helper()
+	sat, pc := r.sat, r.pc
+	ctx := context.Background()
+	stub := func(out claimOut, id string) *hub.ClaimRow {
+		for i := range out.Msgs {
+			if out.Msgs[i].MsgID == id {
+				return &out.Msgs[i]
+			}
+		}
+		return nil
+	}
+
+	// 7a. a round: an idle seat opens it at once; a busy seat waits
+	// BUSY_DELAY, a second claude seat waits for room for another harness;
+	// an idle grok seat on the other box joins; then the round is full
+	jobs := make([]string, 10)
+	for i := range jobs {
+		jobs[i] = r.peerMsg()
+	}
+	ready := []string{"g-003", "c-001@box-c", "g-004@box-c"}
+	got := mustClaim(t, sat, action.ClaimArgs{Op: "poll", Seat: "c-001", State: "idle", Ready: ready, Max: 10})
+	if len(got.Msgs) != len(jobs) {
+		t.Fatalf("idle poll opened %d rounds, want %d: %+v", len(got.Msgs), len(jobs), got)
+	}
+	for _, row := range got.Msgs {
+		if row.State != store.ClaimOffered || row.Round != 1 || len(row.OfferSet) != 1 || row.OfferSet[0] != "c-001@box-b" ||
+			row.Responsible != "" || len(row.Msg) != 0 || row.OfferUntil == "" {
+			t.Fatalf("stub (no body, nobody owns it): %+v", row)
+		}
+	}
+	if got = mustClaim(t, pc, action.ClaimArgs{Op: "poll", Seat: "g-004", State: "busy", Max: 10}); len(got.Msgs) != 0 {
+		t.Fatalf("a busy seat joined before BUSY_DELAY: %+v", got)
+	}
+	if got = mustClaim(t, pc, action.ClaimArgs{Op: "poll", Seat: "c-001", State: "idle", Max: 10}); len(got.Msgs) != 0 {
+		t.Fatalf("a second claude seat joined before HarnessDelay: %+v", got)
+	}
+	got = mustClaim(t, pc, action.ClaimArgs{Op: "poll", Seat: "g-004", State: "idle", Max: 10})
+	if len(got.Msgs) != len(jobs) || len(got.Msgs[0].OfferSet) != store.OfferK {
+		t.Fatalf("an idle grok seat on the other box did not join: %+v", got)
+	}
+	r.advance(store.HarnessDelay + time.Second)
+	if got = mustClaim(t, pc, action.ClaimArgs{Op: "poll", Seat: "c-001", State: "idle", Max: 10}); len(got.Msgs) != 0 {
+		t.Fatalf("a full round (OFFER_K) took a third seat: %+v", got)
+	}
+
+	// 7b. the accept race, once per job: exactly one wins the body and the
+	// fence, the other is refused naming the winner; a stale round number
+	// and a seat that was not told are refused first
+	refusedClaim(t, sat, action.ClaimArgs{Op: "accept", Seat: "c-001", MsgID: jobs[0], Round: 2}, "claim_refused", "the round is 1")
+	refusedClaim(t, sat, action.ClaimArgs{Op: "accept", Seat: "g-003", MsgID: jobs[0], Round: 1}, "claim_refused", "not offered to g-003@box-b")
+	winner := map[string]string{}
+	gens := map[string]int64{}
+	for _, id := range jobs {
+		var wg sync.WaitGroup
+		outs, errs := make([]claimOut, 2), make([]error, 2)
+		for i, c := range []struct {
+			b    *box
+			seat string
+		}{{sat, "c-001"}, {pc, "g-004"}} {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				outs[i], errs[i] = claimCall(t, c.b, action.ClaimArgs{Op: "accept", Seat: c.seat, MsgID: id, Round: 1})
+			}()
+		}
+		wg.Wait()
+		win, lose := 0, 1
+		if errs[0] != nil {
+			win, lose = 1, 0
+		}
+		if errs[win] != nil {
+			t.Fatalf("%s: no accept won: %v / %v", id, errs[0], errs[1])
+		}
+		row := outs[win].Msgs[0]
+		if row.State != store.ClaimOwned || row.Responsible != outs[win].Seat || row.Gen != 1 || row.ClaimN != 1 ||
+			!strings.Contains(string(row.Msg), "report "+id) {
+			t.Fatalf("%s: the winner's row: %+v", id, row)
+		}
+		var he *hubclient.HubError
+		if !errors.As(errs[lose], &he) || he.Token != "claim_refused" || !strings.Contains(he.Detail, "responsible is "+row.Responsible) {
+			t.Fatalf("%s: the loser: %v", id, errs[lose])
+		}
+		winner[id], gens[id] = row.Responsible, row.Gen
+	}
+
+	// 7c. park on a lane; renewed while the holder is able, free within
+	// HB_FRESH once it is not, although parked_until is 30 min ahead
+	job, holder := jobs[0], winner[jobs[0]]
+	hb := sat
+	hseat := "c-001"
+	if holder == "g-004@box-c" {
+		hb, hseat = pc, "g-004"
+	}
+	refusedClaim(t, hb, action.ClaimArgs{Op: "park", Seat: hseat, MsgID: job, Gen: gens[job], Until: "2h", Wait: "c-130", Reason: "waits on a lane"},
+		"bad_frame", "at most 60 min")
+	pk := mustClaim(t, hb, action.ClaimArgs{Op: "park", Seat: hseat, MsgID: job, Gen: gens[job], Until: "30m", Wait: "c-130", Reason: "waits on a lane"})
+	if row := pk.Msgs[0]; row.State != store.ClaimParked || row.WaitToken != "c-130" || row.ParkedUntil == "" || len(row.Msg) != 0 {
+		t.Fatalf("park: %+v", row)
+	}
+	mustClaim(t, hb, action.ClaimArgs{Op: "touch", Seat: hseat, MsgID: job, Gen: gens[job]})
+	refusedClaim(t, hb, action.ClaimArgs{Op: "touch", Seat: hseat, MsgID: job, Gen: gens[job] + 1}, "claim_refused", "the fence moved")
+	r.advance(time.Minute)
+	rn := mustClaim(t, hb, action.ClaimArgs{Op: "renew", Seat: hseat, HB: "able"})
+	if p := stub(rn, job); p == nil || p.State != store.ClaimParked {
+		t.Fatalf("an able holder's park is renewed: %+v", rn)
+	}
+	r.advance(time.Minute)
+	mustClaim(t, hb, action.ClaimArgs{Op: "renew", Seat: hseat, HB: "stale"}) // a dead login: no renew
+	r.advance(store.HBFresh/2 + time.Second)
+	got = mustClaim(t, sat, action.ClaimArgs{Op: "poll", Seat: "g-003", State: "idle", Max: 50})
+	re := stub(got, job)
+	if re == nil || re.State != store.ClaimOffered || re.Round != 2 || re.OfferSet[0] != "g-003@box-b" || re.WaitToken != "c-130" || re.Responsible != "" {
+		t.Fatalf("the parked job of a not-able holder is in a new round, wait token inherited: %+v", got)
+	}
+	refusedClaim(t, hb, action.ClaimArgs{Op: "unpark", Seat: hseat, MsgID: job, Gen: gens[job]}, "claim_refused", "nobody holds it")
+
+	// 7d. FR-009: the new owner accepts; the late holder's fence says lost
+	// and its answer on the old generation is 409; the owner's first answer
+	// stands and a second is 409
+	acc := mustClaim(t, sat, action.ClaimArgs{Op: "accept", Seat: "g-003", MsgID: job, Round: 2})
+	if acc.Msgs[0].Gen != gens[job]+1 || acc.Msgs[0].ClaimN != 2 {
+		t.Fatalf("re-accept: %+v", acc.Msgs[0])
+	}
+	if ck := mustClaim(t, hb, action.ClaimArgs{Op: "check", Seat: hseat, MsgID: job, Gen: gens[job]}); ck.Held {
+		t.Fatalf("the late holder's fence: %+v", ck)
+	}
+	if ck := mustClaim(t, sat, action.ClaimArgs{Op: "check", Seat: "g-003", MsgID: job, Gen: gens[job] + 1}); !ck.Held {
+		t.Fatalf("the owner's fence: %+v", ck)
+	}
+	answer := func(b *box, from string, gen int64) error {
+		s, err := b.c.Dial(ctx, wire.RoleCLI)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer s.Close()
+		env := signedIn(t, b, "box-b", "", "", &msg.Message{V: 1, MsgID: uuidV4(), TaskID: uuidV4(),
+			TS: time.Now().UTC().Format(time.RFC3339), From: from, To: "c-120", Kind: "result", Body: "the answer", Files: []msg.Attachment{}})
+		_, err = s.SendAnswer(ctx, env, job, gen)
+		return err
+	}
+	var he *hubclient.HubError
+	if err := answer(hb, hseat, gens[job]); !errors.As(err, &he) || he.Token != hub.TokenNotResponsible {
+		t.Fatalf("the late holder's answer: %v", err)
+	}
+	if err := answer(sat, "g-003", gens[job]+1); err != nil {
+		t.Fatalf("the owner's answer: %v", err)
+	}
+	if err := answer(sat, "g-003", gens[job]+1); !errors.As(err, &he) || he.Token != hub.TokenAnswered {
+		t.Fatalf("a second answer: %v", err)
+	}
+	if d := mustClaim(t, sat, action.ClaimArgs{Op: "done", Seat: "g-003", MsgID: job, Gen: gens[job] + 1}); d.Msgs[0].State != store.ClaimDone {
+		t.Fatalf("done: %+v", d.Msgs[0])
+	}
+
+	// the client refuses what the hub would, before dialling
+	for _, in := range []action.ClaimArgs{
+		{Op: "accept", Seat: "c-001", MsgID: job},
+		{Op: "park", Seat: "c-001", MsgID: job, Gen: 1, Until: "30m"},
+		{Op: "unpark", Seat: "c-001", MsgID: job},
+		{Op: "poll", Seat: "c-001", State: "asleep"},
+		{Op: "renew", Seat: "c-001", HB: "maybe"},
+	} {
+		if _, err := claimCall(t, sat, in); err == nil || errors.As(err, &he) {
+			t.Fatalf("%+v: want a client refusal, got %v", in, err)
+		}
+	}
+	// a fresh renew without its anchor is refused by the hub (FR-002)
+	raw, _ := json.Marshal(map[string]any{"seat": "c-001", "fresh": true})
+	if _, err := sat.c.Claim(ctx, "renew", raw); !errors.As(err, &he) || !strings.Contains(he.Detail, "anchor_age_s") {
+		t.Fatalf("a fresh renew without anchor_age_s: %v", err)
 	}
 }

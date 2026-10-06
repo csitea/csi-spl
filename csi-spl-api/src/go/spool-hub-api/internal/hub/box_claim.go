@@ -37,6 +37,24 @@ import (
 // seat id's kind (c- claude, g- grok, ...), never the client's word. Every
 // time is the hub's clock. A refused release or close is 409 naming the
 // responsible seat, the close it already had, or the fence it moved to.
+//
+// Spec 093 section 4 (task T009) adds the two-phase claim on the same frame:
+//
+//	claim_op poll + state idle|busy  - a ready seat's round poll (T1, T1j, and
+//	                    the T3 / T5 / T10 it settles first): every open round
+//	                    the seat is in comes back as a stub (no body), the dead
+//	                    with theirs. Without state, poll stays 068's
+//	claim_op accept   - the agent takes round n (T2): the first wins, gets the
+//	                    body and the new fence; the loser is 409 claim_refused
+//	claim_op park     - the holder waits on something outside itself (T6):
+//	                    until (RFC 3339, or a duration on the hub clock), wait, reason
+//	claim_op unpark   - parked -> owned (T7a)
+//	claim_op reoffer  - parked -> a round for the holder alone (T7b, the poll loop)
+//	claim_op touch    - the per-job touch (FR-007)
+//	claim_op renew + fresh / able / anchor_age_s - T4 on the seat's heartbeat:
+//	                    owned to anchor + 120 s while fresh, parked while able
+//
+// park, unpark, reoffer and touch need the holder at its fence (gen).
 
 // ClaimRow is one message on the wire, in a claim reply.
 type ClaimRow struct {
@@ -54,6 +72,14 @@ type ClaimRow struct {
 	HandledAt   string          `json:"handled_at,omitempty"`
 	HandledHow  string          `json:"handled_how,omitempty"`
 	NotBy       []string        `json:"not_by,omitempty"`
+	State       string          `json:"claim_state,omitempty"`
+	Round       int             `json:"round,omitempty"` // offer_n: the number --accept --round names
+	OfferUntil  string          `json:"offer_until,omitempty"`
+	OfferSet    []string        `json:"offer_set,omitempty"`
+	TouchedAt   string          `json:"touched_at,omitempty"`
+	ParkedUntil string          `json:"parked_until,omitempty"`
+	ParkReason  string          `json:"park_reason,omitempty"`
+	WaitToken   string          `json:"wait_token,omitempty"`
 	Msg         json.RawMessage `json:"msg,omitempty"` // the v:1 message, on poll: the loop writes it to the inbox
 }
 
@@ -66,7 +92,19 @@ type claimIn struct {
 	Gen    int64  `json:"gen"`
 	How    string `json:"how"`
 	Reason string `json:"reason"`
+	// spec 093
+	State      string   `json:"state"` // poll: idle | busy; "" = 068's one-step poll
+	Ready      []string `json:"ready"` // poll: the ready seats the loop knows
+	Round      int      `json:"round"` // accept
+	Until      string   `json:"until"` // park
+	Wait       string   `json:"wait"`  // park
+	Fresh      *bool    `json:"fresh"` // renew: set = 093's heartbeat renew
+	Able       *bool    `json:"able"`
+	AnchorAgeS *int     `json:"anchor_age_s"`
 }
+
+// hbRenew: the renew carries a heartbeat verdict (spec 093 T4).
+func (in claimIn) hbRenew() bool { return in.Fresh != nil || in.Able != nil || in.AnchorAgeS != nil }
 
 // claimAnswer is the reply object.
 type claimAnswer struct {
@@ -81,11 +119,23 @@ func claimRow(m store.Message, withMsg bool) ClaimRow {
 	r := ClaimRow{MsgID: m.MsgID, TaskID: m.TaskID, Channel: m.Channel, TS: askTime(m.TS),
 		From: m.FromID + "@" + m.FromBox, To: m.ToID + "@" + m.ToBox, Kind: m.Kind, Responsible: m.Responsible,
 		LockedUntil: askTime(m.LockedUntil), Gen: m.ResponsibleGen, ClaimN: m.ClaimN,
-		HandledAt: askTime(m.HandledAt), HandledHow: m.HandledHow, NotBy: m.NotBy}
+		HandledAt: askTime(m.HandledAt), HandledHow: m.HandledHow, NotBy: m.NotBy,
+		State: claimState(m), Round: m.Round.OfferN, OfferUntil: askTime(m.Round.OfferUntil), OfferSet: m.Round.OfferSet,
+		TouchedAt: askTime(m.Round.TouchedAt), ParkedUntil: askTime(m.Round.ParkedUntil), ParkReason: m.Round.ParkReason,
+		WaitToken: m.Round.WaitToken}
 	if withMsg && json.Valid(m.Msg) {
 		r.Msg = json.RawMessage(m.Msg)
 	}
 	return r
+}
+
+// claimState is m's claim_state on the wire: a peer message from before
+// rdb 0132 is free; a message to one agent has none.
+func claimState(m store.Message) string {
+	if m.Round.State == "" && m.NeedsPeer {
+		return store.ClaimFree
+	}
+	return m.Round.State
 }
 
 func claimRows(ms []store.Message, withMsg bool) []ClaimRow {
@@ -129,13 +179,18 @@ func (s *Server) boxClaim(ctx context.Context, x *session, f wire.Frame) (claimA
 	out := claimAnswer{Seat: seat, Msgs: []ClaimRow{}, Dead: []ClaimRow{}}
 	switch f.ClaimOp {
 	case "poll", "renew":
+		if in.State != "" || (f.ClaimOp == "renew" && in.hbRenew()) {
+			return s.claimRound(ctx, x, f.ClaimOp, seat, in, out)
+		}
 		return s.claimRead(ctx, x, f.ClaimOp, seat, in.Max, ttl, out)
+	case "accept", "park", "unpark", "reoffer", "touch":
+		return s.claimAct(ctx, x, f.ClaimOp, seat, in, out)
 	case "release", "done":
 		return s.claimClose(ctx, x, f.ClaimOp, seat, in, out)
 	case "check", "adopt":
 		return s.claimOne(ctx, x, f.ClaimOp, seat, ttl, in, out)
 	}
-	return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "claim_op must be poll, renew, release, done, check or adopt"}
+	return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "claim_op must be poll, renew, accept, park, unpark, reoffer, touch, release, done, check or adopt"}
 }
 
 // claimSeat resolves the seat to <id>@<box> on the dialling box, and the lock TTL.
@@ -279,4 +334,169 @@ func claimRefusalDetail(m store.Message, c store.ClaimClose) string {
 	default:
 		return "the fence moved: gen is " + strconv.FormatInt(m.ResponsibleGen, 10) + ", not " + strconv.FormatInt(c.Gen, 10)
 	}
+}
+
+// claimRound runs spec 093's round poll (state idle|busy) or heartbeat renew.
+func (s *Server) claimRound(ctx context.Context, x *session, op, seat string, in claimIn, out claimAnswer) (claimAnswer, *issueErr) {
+	now := s.o.Now()
+	if op == "renew" {
+		r, ae := roundRenewArgs(seat, in)
+		if ae != nil {
+			return claimAnswer{}, ae
+		}
+		held, err := s.o.Store.RenewMessageRounds(ctx, x.tenant, r, now)
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("seat", seat).Msg("claim round renew")
+			return claimAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "claims unavailable"}
+		}
+		out.Msgs = claimRows(held, false)
+		return out, nil
+	}
+	p, ae := roundPollArgs(seat, x.box, in)
+	if ae != nil {
+		return claimAnswer{}, ae
+	}
+	offered, dead, err := s.o.Store.PollMessageRounds(ctx, x.tenant, p, now)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("seat", seat).Msg("claim round poll")
+		return claimAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "claims unavailable"}
+	}
+	if len(dead) > 0 {
+		s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("seat", seat).Int("rounds", len(offered)).Int("dead", len(dead)).Msg("claim round poll")
+	}
+	// a round's stub carries no body (spec 093 4.3): the accept returns it
+	out.Msgs, out.Dead = claimRows(offered, false), claimRows(dead, true)
+	return out, nil
+}
+
+// roundPollArgs checks a round poll: the state, max, and the ready seats
+// (a bare id is the dialling box's; the polling seat always counts).
+func roundPollArgs(seat, box string, in claimIn) (store.RoundPoll, *issueErr) {
+	if in.State != "idle" && in.State != "busy" {
+		return store.RoundPoll{}, &issueErr{http.StatusBadRequest, "bad_frame", "state must be idle or busy"}
+	}
+	if in.Max == 0 {
+		in.Max = 3
+	}
+	if in.Max < 1 || in.Max > store.ClaimPollMax {
+		return store.RoundPoll{}, &issueErr{http.StatusBadRequest, "bad_frame", "max must be 1..50"}
+	}
+	if len(in.Ready) > store.ClaimPollMax {
+		return store.RoundPoll{}, &issueErr{http.StatusBadRequest, "bad_frame", "ready names at most 50 seats"}
+	}
+	ready := []string{seat}
+	for _, r := range in.Ready {
+		r = store.AskAtBox(r, box)
+		if why := store.CheckClaimSeat(r); why != "" {
+			return store.RoundPoll{}, &issueErr{http.StatusBadRequest, "bad_frame", "ready: " + why}
+		}
+		if r != seat {
+			ready = append(ready, r)
+		}
+	}
+	return store.RoundPoll{Seat: seat, Harness: agentid.Kind(seat), Busy: in.State == "busy", Ready: ready, Max: in.Max}, nil
+}
+
+// roundRenewArgs checks a heartbeat renew: a fresh seat names its anchor.
+func roundRenewArgs(seat string, in claimIn) (store.ClaimRenew, *issueErr) {
+	r := store.ClaimRenew{Seat: seat, Fresh: in.Fresh != nil && *in.Fresh, Able: in.Able != nil && *in.Able}
+	r.Able = r.Able || r.Fresh
+	if r.Fresh && in.AnchorAgeS == nil {
+		return r, &issueErr{http.StatusBadRequest, "bad_frame", "a fresh renew needs anchor_age_s: the lock runs from the anchor, never from now"}
+	}
+	if in.AnchorAgeS != nil {
+		if *in.AnchorAgeS < 0 || *in.AnchorAgeS > 86400 {
+			return r, &issueErr{http.StatusBadRequest, "bad_frame", "anchor_age_s must be 0..86400"}
+		}
+		r.AnchorAge = time.Duration(*in.AnchorAgeS) * time.Second
+	}
+	return r, nil
+}
+
+// claimAct runs an agent's call on one job: accept (T2), park (T6), unpark
+// (T7a), reoffer (T7b), touch.
+func (s *Server) claimAct(ctx context.Context, x *session, op, seat string, in claimIn, out claimAnswer) (claimAnswer, *issueErr) {
+	now := s.o.Now()
+	a, ae := claimActArgs(op, seat, in, now)
+	if ae != nil {
+		return claimAnswer{}, ae
+	}
+	steps := map[string]func(context.Context, string, store.ClaimAct, time.Time) (store.Message, error){
+		"accept": s.o.Store.AcceptMessageClaim, "park": s.o.Store.ParkMessageClaim, "unpark": s.o.Store.UnparkMessageClaim,
+		"reoffer": s.o.Store.ReofferMessageClaim, "touch": s.o.Store.TouchMessageClaim,
+	}
+	m, err := steps[op](ctx, x.tenant, a, now)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return claimAnswer{}, &issueErr{http.StatusNotFound, "unknown_message", "no such message in this tenant"}
+	case errors.Is(err, store.ErrClaimArg):
+		return claimAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", store.CheckClaimPark(a, now)}
+	case errors.Is(err, store.ErrConflict):
+		return claimAnswer{}, &issueErr{http.StatusConflict, "claim_refused", roundRefusalDetail(op, m, a)}
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("seat", seat).Str("msg", a.MsgID).Msg("claim " + op)
+		return claimAnswer{}, &issueErr{http.StatusInternalServerError, "internal", "claims unavailable"}
+	}
+	if op != "touch" {
+		s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("seat", seat).Str("msg", m.MsgID).
+			Str("op", op).Int64("gen", m.ResponsibleGen).Str("wait", a.Wait).Msg("claim " + op)
+	}
+	out.Msgs = []ClaimRow{claimRow(m, op == "accept")}
+	return out, nil
+}
+
+// claimActArgs checks one job call: the message id, round (accept) or the
+// fence (the holder's calls), and a park's until / wait / reason.
+func claimActArgs(op, seat string, in claimIn, now time.Time) (store.ClaimAct, *issueErr) {
+	a := store.ClaimAct{MsgID: in.MsgID, Seat: seat, Round: in.Round, Gen: in.Gen, Wait: in.Wait, Reason: in.Reason}
+	bad := func(why string) (store.ClaimAct, *issueErr) {
+		return a, &issueErr{http.StatusBadRequest, "bad_frame", why}
+	}
+	switch {
+	case !uuidRe.MatchString(in.MsgID):
+		return bad("msg_id must be the job's message id (a UUID)")
+	case op == "accept" && in.Round < 1:
+		return bad("accept needs round, the round number of the stub")
+	case op != "accept" && in.Gen < 1:
+		return bad(op + " needs gen, the fence the accept returned")
+	case op != "park":
+		return a, nil
+	}
+	until, err := time.Parse(time.RFC3339, in.Until)
+	if err != nil {
+		d, derr := time.ParseDuration(in.Until)
+		if derr != nil {
+			return bad("until must be an RFC 3339 time or a duration such as 30m")
+		}
+		until = now.Add(d)
+	}
+	a.Until = until.UTC()
+	if why := store.CheckClaimPark(a, now); why != "" {
+		return bad(why)
+	}
+	return a, nil
+}
+
+// roundRefusalDetail says why a job call lost: closed, another seat holds
+// it, the round moved or is not the seat's, the lock ran out, the fence
+// moved, or the job is in a state the call does not act on.
+func roundRefusalDetail(op string, m store.Message, a store.ClaimAct) string {
+	st := claimState(m)
+	switch {
+	case !m.HandledAt.IsZero():
+		return "already closed " + m.HandledHow + " at " + askTime(m.HandledAt)
+	case m.Responsible != "" && m.Responsible != a.Seat:
+		return "lost: responsible is " + m.Responsible
+	case op == "accept" && st == store.ClaimOffered && m.Round.OfferN != a.Round:
+		return "the round is " + strconv.Itoa(m.Round.OfferN) + ", not " + strconv.Itoa(a.Round)
+	case op == "accept" && st == store.ClaimOffered:
+		return "round " + strconv.Itoa(a.Round) + " is not offered to " + a.Seat
+	case op == "accept":
+		return "no open round (claim_state " + st + "): it lapsed or was taken, drop the stub"
+	case m.Responsible == "":
+		return "nobody holds it (claim_state " + st + "): the lock ran out"
+	case m.ResponsibleGen != a.Gen:
+		return "the fence moved: gen is " + strconv.FormatInt(m.ResponsibleGen, 10) + ", not " + strconv.FormatInt(a.Gen, 10)
+	}
+	return "claim_state is " + st + ": " + op + " does not act on it"
 }

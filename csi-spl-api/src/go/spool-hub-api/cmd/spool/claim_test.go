@@ -2,9 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
 // The exit codes and shapes do_spl_peer_poll (spec 068 L3) reads from
@@ -50,5 +54,34 @@ func TestClaimPrintForThePollLoop(t *testing.T) {
 	}
 	if _, out = quiet(func() int { return claimPrint("poll", json.RawMessage(ans), true) }); out[0] != '{' {
 		t.Fatalf("--full: %q", out)
+	}
+}
+
+// Spec 093 4.7 (FR-009): the fence's three exits. 1 is "lost" only on an
+// answer that says so; a hub that cannot be reached is 2 ("unconfirmed": do
+// not act, do not assume lost); the op flags take exactly one op.
+func TestClaimFenceExitsAndOps(t *testing.T) {
+	cfg := &config.Config{SpoolRoot: t.TempDir(), KeysDir: t.TempDir(), BoxID: "box-b", HubURL: "http://127.0.0.1:1"}
+	msg := "0b0c2f6e-3d4f-4a51-9c7e-1f2a3b4c5d6e"
+	if code := cmdClaim(cfg, []string{"--check", "--as", "c-001", "--msg", msg, "--gen", "3"}); code != 2 {
+		t.Fatalf("--check with the hub down: exit %d, want 2", code)
+	}
+	for _, args := range [][]string{
+		{"--as", "c-001"},
+		{"--poll", "--accept", msg, "--as", "c-001"},
+		{"--park", msg, "--touch", msg, "--as", "c-001"},
+	} {
+		if code := cmdClaim(cfg, args); code != 1 {
+			t.Fatalf("%v: exit %d, want 1 (exactly one op)", args, code)
+		}
+	}
+	fs := flag.NewFlagSet("t", flag.ContinueOnError)
+	ops := claimOpFlags(fs)
+	if err := fs.Parse([]string{"--accept", msg}); err != nil {
+		t.Fatal(err)
+	}
+	in := action.ClaimArgs{}
+	if !claimPickOp(ops, &in) || in.Op != "accept" || in.MsgID != msg {
+		t.Fatalf("--accept <msg>: %+v", in)
 	}
 }

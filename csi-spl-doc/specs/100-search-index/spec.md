@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.3 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.4 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -211,6 +211,11 @@ spool_search_page(q tsquery, viewer text, viewer_channels text[], public_channel
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public
 ```
 
+- **LANGUAGE sql, never plpgsql** (r1). The SQL body is planned with each
+  call's actual values. A plpgsql body switches to a generic plan after five
+  calls, which can pin the GIN for a common word or the backward scan for a
+  rare one. T10 checks this.
+
 - It applies every door the hub's statement applies today: tenant from the
   session, `expires_at`, the DM / channel read door (rdb 0028) and
   `archivedHideSQL`.
@@ -244,13 +249,14 @@ and a DM between two other members.
 | # | test | fails when |
 |---|---|---|
 | T1 | `spool_search_page` with scope A returns A's ids only; scope B returns B's only; scope unset or `''` returns 0 rows | the tenant pin is wrong or missing (door 1, on its own) |
-| T2 | **planted leak** (r3 T5), in a ROLLED-BACK transaction inside the test, so it runs in CI on every push and never turns trunk red. Replace the function with one that has no tenant pin. T1's direct call must then FAIL, and the API-level T6 must still PASS (the outer RLS still filters) | T1 is vacuous, or door 2 is gone |
+| T2 | **planted leak** (r3 T5), in a ROLLED-BACK transaction inside the test, so it runs in CI on every push and never turns trunk red. Replace the function with one that has no tenant pin, **as the migrate / owner login** (the runtime cannot, by T4; never weaken T4 so that T2 can pass). T1's direct call must then FAIL, and the API-level T6 must still PASS (the outer RLS still filters) | T1 is vacuous, or door 2 is gone |
 | T3 | catalogue: the policy is `FOR SELECT` and `TO spool_search_reader` only; `messages` is still FORCE RLS; `spool_search_reader` is NOLOGIN NOBYPASSRLS, has no members (`pg_auth_members`), owns exactly one function, holds column SELECT on `messages` only. The function has no tenant parameter, `prosecdef`, and a pinned `search_path` | the role can be logged into, joined or widened |
 | T4 | `NOT pg_has_role(<runtime login>, 'spool_search_reader', 'MEMBER')` (r1 section 8). The runtime login cannot `SET ROLE spool_search_reader` and cannot `ALTER` or `CREATE OR REPLACE` the function. Plant once, in a rolled-back transaction: `GRANT spool_search_reader TO <runtime login>` must turn T4 red | the runtime can read every tenant through the `USING (true)` policy, outside the function (017 FR-SEC-014 (e)) |
 | T5 | `do_spl_db_rls_check`: the SECURITY DEFINER functions the runtime can EXECUTE are exactly `{spool_search_page}`. Any other one reports `liftable` | a second lift path appears unnoticed |
 | T6 | `TestCrossTenant*` search cases run on the S1r path (the probe is on) as well as the 0135 path | door 2 regresses |
 | T7 | for each seeded query, the function's ids for viewer V equal the hub's result ids (the doors agree) | the function shows the viewer a row the outer statement hides, or the reverse |
 | T8 | answer unchanged (r3 T1): on a fixed corpus, every search-v1 form (word, phrase, prefix, AND, OR, NOT, mixed) returns the same rows in the same order through the index path and the scan path, also after edit, delete, expiry, archive, move and merge | the index adds or drops a row |
+| T10 | in one session, Q-common and Q-rare (section 8) each run 6+ times through the function: Q-rare's plan uses the GIN and Q-common's uses the `received_at` scan on every call | a generic plan was pinned (plpgsql, or a prepared statement) |
 | T9 | two tenants in the perf seed, one 10x the other: the small tenant's rare-word buffers do not grow with the big one | the GIN lost its tenant column |
 
 ## 7. Index freshness
@@ -295,7 +301,7 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | phase | what | where |
 |---|---|---|
 | P0 | prove the S1r plan on Cloud SQL **dev**, and that `btree_gin` is available there. The migration creates the NOLOGIN role (precedent: rdb 0126 creates `spool_public_export` NOLOGIN), hands it the function, and EXPLAIN shows the GIN as the runtime login | the migration from P1, on dev first |
-| P1 | rdb 01NN: role, column grant, `CREATE POLICY search_reader_all ON messages TO spool_search_reader USING (true)` (no WITH CHECK, no write grant), `CREATE INDEX messages_search ... USING gin (search_tsv)`, the function. Grant EXECUTE to the runtime in `spool-hub-roles/runtime-grants.sql`. GIN build time: **unmeasured**. It holds a SHARE lock on `messages`, so writes wait. Measure it on dev first (1.0 M word rows, close to prd). If it takes more than a few seconds, it cannot simply be made CONCURRENTLY: `store.Migrate` runs every file inside `pgx.BeginFunc` (`grep -n BeginFunc csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go` -> 89, r1 section 8), and CONCURRENTLY refuses to run in a transaction. That needs its own task: either a per-file no-transaction marker in the runner, or a named iac action that builds the index outside it (Q7). Insert p50 / p95, n >= 20, 3 KB real-text bodies, with and without the index, on dev (r3 T7) | rdb, spool-hub-roles |
+| P1 | rdb 01NN: role, column grant, `CREATE POLICY search_reader_all ON messages FOR SELECT TO spool_search_reader USING (true)` (no write grant), `CREATE EXTENSION IF NOT EXISTS btree_gin; CREATE INDEX messages_search ON messages USING gin (tenant_id, search_tsv)` (the tenant column leads: T9), the function. Grant EXECUTE to the runtime in `spool-hub-roles/runtime-grants.sql`. GIN build time: **unmeasured**. It holds a SHARE lock on `messages`, so writes wait. Measure it on dev first (1.0 M word rows, close to prd). If it takes more than a few seconds, it cannot simply be made CONCURRENTLY: `store.Migrate` runs every file inside `pgx.BeginFunc` (`grep -n BeginFunc csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go` -> 89, r1 section 8), and CONCURRENTLY refuses to run in a transaction. That needs its own task: either a per-file no-transaction marker in the runner, or a named iac action that builds the index outside it (Q7). Insert p50 / p95, n >= 20, 3 KB real-text bodies, with and without the index, on dev (r3 T7) | rdb, spool-hub-roles |
 | P2 | hub: the function probe, as `hasSearchSig`. Messages section and `topicCandidates` through the function; the 0135 path stays as the fallback. A kill switch `SPOOL_HUB_SEARCH_INDEX=off` (env, r3) returns every query to today's path without a code deploy | store, hub |
 | P3 | T1..T7, plus a buffer-budget test seeded with real-shaped words | store, hub-pg |
 | P4 | prd benchmark (section 8), dev then prd, by the orchestrator | read-only |
@@ -344,6 +350,10 @@ Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.4 (2026-10-06): r1's objection. P1 builds the GIN on
+  `(tenant_id, search_tsv)` with `btree_gin` and the policy `FOR SELECT`, as 5
+  and T9 say. The function is LANGUAGE sql (T10). The T2 plant runs as the
+  owner login.
 - v0.3 (2026-10-06): takes in r1 section 8. The migrate path cannot build
   CONCURRENTLY, so a long build becomes its own task (P1, Q7). T4 asserts the
   runtime login is never a member of `spool_search_reader`, with a planted

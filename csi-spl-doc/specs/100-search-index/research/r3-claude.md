@@ -96,7 +96,7 @@ rate, not an age).
 | option | migration / rollout risk | ops cost now | at 10x | r3 verdict |
 |---|---|---|---|---|
 | **S1. GIN `(tenant_id, search_tsv)` + one definer function via a role-scoped policy** | low-medium: one index build (locks writes for its build time, section 4), one role, one policy, one function; the privileged surface is that function | disk ~0: 12 MB on prd when 0122 dropped it; insert +34% median in 0122's local scratch (544 -> 730 ms per 20k, n=3) | GIN grows with lexeme rows, ~1/5 of A's size; a rare word stays a few buffers cold in both 10x cases (with the tenant column leading) | **recommend** |
-| A. side term table, btree, own RLS policy | low: additive, no privileged code; but a second copy of the content and its own delete path (section 4) | disk: dev t1 1,018,536 lexeme rows (n=1, dev 2.0.5 / 0c9203ca / 0137, c-001) at ~110 B -> ~110 MB, i.e. 1.4x `messages` itself; prd pending | 10x-A ~1.5 GB of a 10 GB disk and far past 128 MB shared_buffers (point lookups survive that; disk and backups grow) | **fallback** if Cloud SQL refuses S1's role-scoped policy |
+| A. side term table, btree, own RLS policy | low: additive, no privileged code; but a second copy of the content and its own delete path (section 4) | disk: dev t1 1,018,536 lexeme rows (n=1, dev 2.0.5 / 0c9203ca / 0137, c-001) at ~110 B -> ~110 MB, i.e. 1.4x `messages` itself; prd all tenants 1.79 M postings -> ~190 MB (section 3) | 10x-A ~1.9 GB of a 10 GB disk and far past 128 MB shared_buffers (point lookups survive that; disk and backups grow) | **fallback** if Cloud SQL refuses S1's role-scoped policy |
 | C. pgvector / semantic | high: extension, an embedding call per insert and per query, a new secret, data leaves the estate; `<=>` needs S1's bypass anyway | embedding API + a ~3..6 KB vector per row (TOAST again) | doubles the table at 10x-A | reject for this need |
 | D. hosted search service | high: a second store synced from every message-mutating path (`cat csi-spl-api/src/go/spool-hub-api/internal/store/*_postgres.go \| grep -cE "UPDATE messages\|DELETE FROM messages"` -> 30, trunk 6f128452), isolation by an API filter we write, its outage is ours | ~$25..100 / env / month: 40..160% of today's env | a tier step | reject |
 | E. in-process index in the hub | high: rebuilt from a full read of `messages` on every deploy (r1 section 4) | hub memory, the bill's dominant line | grows with data | reject |
@@ -104,17 +104,34 @@ rate, not an age).
 
 ## 3. Sizing
 
-Dev t1, n=1 (c-001, dev hub 2.0.5, commit 0c9203ca, schema 0137): 13,026
-messages, 1,018,536 lexeme rows, avg 78 / max 1,021 per message; database 98 MB,
-`messages` 78 MB; 10 messages per 24 h (a thin copy). Prd: the same three reads
-are with the active orchestrator; until they return, prd = 18.8k x 78 = ~1.47 M lexeme rows
-**by arithmetic from the dev average**, i.e. side table ~160 MB, GIN ~30 MB
-(the local 1 : 5 ratio).
+**Prd**, read-only, run by the orchestrator (c-001) as the runtime role
+`spool_hub_rt`, n=1 each, hub 2.0.5 / `0c9203ca` / schema 0137, 2026-10-06T15:29Z:
 
-| | now (arithmetic) | 10x-A | 10x-B |
+| read | value |
+|---|---|
+| t1 messages / lexeme postings / avg / max per message | 19,244 / 1,580,634 / 82.1 / 1,024 |
+| t1 long rows (1024+ chars), avg lexemes on them | 3,366, 228.6 |
+| all tenants: lexeme postings | 1,787,260 (sum of the 7 rows) |
+| database / `messages` total | 162 MB / 132 MB (heap 39, TOAST 76, indexes 16 MB) |
+| messages in the last 24 h (all tenants) | 943 |
+| `shared_buffers` / `effective_cache_size` | 128 MB / 394,816 kB |
+| `btree_gin` / `vector` / `pg_trgm` | available 1.3 / 0.8.5 / 1.6, none installed |
+| `texteq`, `text_lt`, `text_ge` / `ts_match_vq` LEAKPROOF | true / false (the local catalogue holds on prd) |
+
+Dev t1 for comparison (c-001, n=1, same hub): 13,026 messages, 1,018,536
+postings, avg 78.
+
+Arithmetic from those (sizes per posting from the local ratio: GIN 15 MB and
+side table 73 MB for 719,960 postings, i.e. ~22 B and ~106 B):
+
+| | now (prd, 1.79 M postings) | 10x-A | 10x-B |
 |---|---|---|---|
-| S1 GIN | ~30 MB | ~0.3 GB | ~0.3 GB total |
-| A side table | ~160 MB | ~1.6 GB | ~1.6 GB total |
+| S1 GIN | ~40 MB | ~0.4 GB | ~0.4 GB total |
+| A side table | ~190 MB | ~1.9 GB | ~1.9 GB total |
+
+943 posts a day over the 30-day retention is ~28k rows in steady state, so
+today's 22k is close to steady state at today's rate: 10x is a rate (r1), and
+the table above is that rate's steady state.
 
 ## 4. Rollout of S1, dev then prd
 

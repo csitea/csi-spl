@@ -414,3 +414,13 @@ it picks a path. Either make one candidate call and branch in Go, or use one
 statement with a `MATERIALIZED` CTE of the function and a `count(*) <= cap`
 guard. Do not call the function twice: a write between the two calls could
 switch the path mid-page.
+
+### 6.2 spec.md v0.8 (`0b326afa`): **SIGN**
+
+The only change is the cap switch, and it is the one-call form of 6.1: one
+candidate call per page, `m.msg_id = ANY($ids)` only when at most `cap` came
+back, today's statement unchanged at `cap + 1`. The id filter is `uuid =`
+(`uuid_eq`, LEAKPROOF, 3.1), so it can use the primary key under FORCE RLS.
+A post written between the candidate call and the statement is missed by that
+page only: a false negative, never a wrong row (3.7). `cap` 500 against the
+sqrt(N x page) crossover (~640 for t1) is a sound start for P4 to tune.

@@ -7,7 +7,7 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 | # | lane | depends on | done when |
 |---|---|---|---|
 | T001 | L1 rdb | owner go (msg cb7a9cec) | 0141 applied on dev and prd: done, ae4a3608 (wf 20 run 37513524382) |
-| T002 | L2 hub | T001 | hub on dev and prd serves the contract |
+| T002 | L2 hub | T001 | hub on dev and prd serves the contract: done, a71b55d3 (dev proof PUT/GET/roster/DELETE 200) |
 | T003 | L3 WUI | T002 contract (may start on the mock) | WUI on dev and prd shows and sets a status |
 | T004 | L4 help + proof | T002, T003 deployed | dev and prd proof posted |
 | T005 | L5 notify | T003; c-376 landed; the 095 lane for the push half | the pause checkbox silences alerts |
@@ -32,19 +32,23 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 
 ## T002 - L2: hub (spec 7.3, 7.4, tests 10.1)
 
-- [ ] store: get / put / delete own row; reads treat `until_at <= now()` as
+- [x] store: get / put / delete own row; reads treat `until_at <= now()` as
       absent; a missing-table probe until T001 is applied everywhere.
-- [ ] `PUT /v1/me/status` `{state, note?, until?}` and `DELETE
+- [x] `PUT /v1/me/status` `{state, note?, until?}` and `DELETE
       /v1/me/status`: own row only, agents 403, note trimmed and
       control-stripped, `until` in the future and at most 90 days out
       (Q6), `"all_workspaces": true` writes one row per membership (Q2).
-- [ ] Roster (`viewHuman`) and search: optional `status {state, note,
+- [x] Roster (`viewHuman`) and search: optional `status {state, note,
       until}`, omitted when available or expired.
-- [ ] New `status` frame to the workspace's browser sockets on set, clear
+- [x] New `status` frame to the workspace's browser sockets on set, clear
       and expiry; `wuiWelcome` snapshot after presence; the presence frame
       unchanged byte for byte.
-- [ ] Expiry sweep on the relay tick, at most once a minute per tenant.
-- [ ] Tests 10.1; contract doc `view-v1.md` gains the field and the frame.
+- [x] Expiry sweep on the relay tick, at most once a minute per tenant.
+- [x] Tests 10.1; contract doc `view-v1.md` gains the field and the frame.
+- [x] Landed a71b55d3; hub on dev and prd serves it (v2.2.9). Also built:
+      `GET /v1/me/status` (own status incl. `pause_notify`, for the picker),
+      `DELETE ?all_workspaces=true`, demo_user 403 on writes (`self.keys`),
+      wui-live-ws §3.2 `status` row.
 
 ## T003 - L3: WUI (spec 5, 7.5, tests 10.2)
 
@@ -79,4 +83,4 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
       (only the levels below High, 095 section 13).
 - [ ] Unit tests for both halves.
 
-<!-- version: 0.1.0 · updated: 2026-10-06 -->
+<!-- version: 0.2.0 · updated: 2026-10-06 -->

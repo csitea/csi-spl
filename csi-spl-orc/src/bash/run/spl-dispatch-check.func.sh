@@ -4,7 +4,8 @@
 # @description do_spl_dispatch_setup). Prints one markdown table, a row per
 # @description fact, then exits 1 when any row is a GAP:
 # @description   per dispatcher: its claude process (found by SPOOL_AGENT_ID),
-# @description   model, permission mode (must be auto), desk settings loaded
+# @description   model, permission mode (must be --dangerously-skip-permissions,
+# @description   owner 2026-10-06: bypass is the only mode), desk settings loaded
 # @description   (the session started after its settings.local.json's desk
 # @description   rules were written - the file's birth time; a rewrite for
 # @description   another rule does not unload them) and their
@@ -54,7 +55,11 @@ do_spl_dispatch_check() {
     else
       row "$id process" "pid $pid, SPOOL_AGENT_ID=$id" ok
       mode="$(spl_dispatch_cmd_flag "$pid" --permission-mode)"
-      [[ "$mode" == auto ]] && row "$id permission mode" auto ok || row "$id permission mode" "${mode:-default}" "GAP not auto"
+      if [[ -z "$mode" ]] && spl_dispatch_cmd_has "$pid" --dangerously-skip-permissions; then
+        row "$id permission mode" skip-permissions ok
+      else
+        row "$id permission mode" "${mode:-default}" "GAP not skip-permissions"
+      fi
       model="$(spl_dispatch_model "$pid")"
       if [[ -n "${DISPATCH_MODEL:-}" && -n "$model" && "$model" != "$DISPATCH_MODEL"* ]]; then
         row "$id model" "$model" "GAP not $DISPATCH_MODEL"
@@ -125,6 +130,15 @@ spl_dispatch_cmd_flag() {
     prev="$a"
   done < "$root/$1/cmdline"
   return 0
+}
+
+# 0 when the process's command line carries the bare flag <2>.
+spl_dispatch_cmd_has() {
+  local a root="${LEASE_PROC_ROOT:-/proc}"
+  while IFS= read -r -d '' a; do
+    [[ "$a" == "$2" ]] && return 0
+  done < "$root/$1/cmdline"
+  return 1
 }
 
 # --model from the command line, else the last model the session's transcript

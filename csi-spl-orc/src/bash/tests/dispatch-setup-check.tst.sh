@@ -10,7 +10,7 @@
 #   5. setup refuses a bad ENV, a bad id, master == failover
 #   6. check: a complete box reports no gap and exits 0; a rotation restarts
 #      the dispatcher in its setup worktree, so the check stays gap-free
-#   7. check: each gap fails it - no process, not auto, missing seat, unread
+#   7. check: each gap fails it - no process, mode not skip-permissions, missing seat, unread
 #      over the max, stale lease, holder not a dispatcher, a loop down,
 #      settings not loaded, model mismatch, the unanswered sweep never ran,
 #      a hub / WUI input unserved past the grace (CLE-77918); the rotation
@@ -52,12 +52,17 @@ chmod +x "$T/bin/crontab"
 cp "$PROJ_ROOT/src/bash/scripts/unanswered-sweep-cron.sh" "$T/shared/csi-spl-orc/src/bash/scripts/"
 git init -q "$R" && git -C "$R" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
 
-# agent <pid> <id> [perm] [model]
+# agent <pid> <id> [perm] [model] - perm skip (the default) = --dangerously-skip-permissions,
+# anything else = --permission-mode <perm>
 agent() {
   mkdir -p "$P/$1" "$R-wt/$2"
   echo claude >"$P/$1/comm"
   printf 'HOME=%s\0SPOOL_AGENT_ID=%s\0' "$T/home" "$2" >"$P/$1/environ"
-  printf 'claude\0--permission-mode\0%s\0%s' "${3:-auto}" "${4:+--model}" >"$P/$1/cmdline"
+  if [[ "${3:-skip}" == skip ]]; then
+    printf 'claude\0--dangerously-skip-permissions\0%s' "${4:+--model}" >"$P/$1/cmdline"
+  else
+    printf 'claude\0--permission-mode\0%s\0%s' "$3" "${4:+--model}" >"$P/$1/cmdline"
+  fi
   [[ -n "${4:-}" ]] && printf '\0%s\0' "$4" >>"$P/$1/cmdline"
   ln -sfn "$R-wt/$2" "$P/$1/cwd"
   touch -d '+1 hour' "$P/$1"
@@ -255,8 +260,12 @@ gap() { # <label> <expected verdict regex> -- env...
   [[ $rc -ne 0 ]] && grep -qE "$re" "$T/o" && pass "7. $label" || fail "7. $label: rc=$rc $(cat "$T/o")"
 }
 mv "$P/200" "$T/p200"; gap "no failover process" 'c-003 process .*GAP not running'; mv "$T/p200" "$P/200"
-agent 100 c-002 default; gap "permission mode not auto" 'c-002 permission mode \| default \| GAP'; agent 100 c-002
-agent 100 c-002 auto claude-other-1; gap "model mismatch" 'c-002 model \| claude-other-1 \| GAP' DISPATCH_MODEL=claude-opus; agent 100 c-002
+agent 100 c-002 default; gap "permission mode default is a gap" 'c-002 permission mode \| default \| GAP not skip-permissions'; agent 100 c-002
+agent 100 c-002 auto; gap "permission mode auto is a gap (owner 2026-10-06)" 'c-002 permission mode \| auto \| GAP not skip-permissions'; agent 100 c-002
+check DISPATCH_CHECK_SUBS=0 DISPATCH_SWEEP=0 DISPATCH_DEPLOY_LAG=0 >"$T/o" 2>&1
+grep -qF '| c-002 permission mode | skip-permissions | ok |' "$T/o" && ! grep -q 'permission mode.*GAP' "$T/o" &&
+  pass "7. --dangerously-skip-permissions is ok" || fail "7. skip-permissions: $(grep 'permission mode' "$T/o")"
+agent 100 c-002 skip claude-other-1; gap "model mismatch" 'c-002 model \| claude-other-1 \| GAP' DISPATCH_MODEL=claude-opus; agent 100 c-002
 rm -rf "$ST/desk/w2/box-desk/spool/c-002"; gap "missing seat" 'c-002 desks \| 1/2, missing: w2'; seat c-002 w2
 mkdir -p "$S/c-003/inbox"; for i in 1 2 3; do touch "$S/c-003/inbox/m$i.json"; done
 gap "unread over the max" 'c-003 unread \| 3 \| GAP' DISPATCH_UNREAD_MAX=2; rm -rf "$S/c-003/inbox"

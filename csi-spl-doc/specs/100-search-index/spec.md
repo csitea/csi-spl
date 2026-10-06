@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.7 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.8 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -253,15 +253,35 @@ page that was already limited, and the next keyset would start after rows
 never shown: rows skipped for good.
 
 - **Order, keyset, LIMIT and every predicate stay in the hub's outer
-  statement**, exactly as today. The outer statement adds
-  `AND m.msg_id IN (SELECT msg_id FROM spool_search_candidates($q, $cap))`,
-  and nothing else changes.
+  statement**, exactly as today.
+- **One candidate call per page, then the hub branches in Go** (r1 O-r1-2, r2's
+  build note). The function is never called twice for one page, so a write in
+  between cannot switch the path mid-page:
+  1. **Probe.** A batch of the tenant scope plus
+     `SELECT msg_id FROM spool_search_candidates($q, $cap)` returns at most
+     `cap + 1` ids to the hub.
+  2. **Statement.** At most `cap` ids: the hub's statement adds
+     `AND m.msg_id = ANY($ids::uuid[])` and nothing else changes. Exactly
+     `cap + 1` ids: the hub discards them and runs today's statement
+     unchanged.
+- **The rule: the id filter is never applied to a truncated set.** The
+  function's `LIMIT cap + 1` has no ORDER, so a full set is an arbitrary
+  subset, and filtering against it would silently drop matches. T7's
+  above-cap run checks exactly this.
+- Each statement is its own batch under the same scope and the same per-request
+  budget (section 5.2). The probe costs one extra round trip.
 - **Above the cap, the hub takes today's path.** If the function returns
   `cap + 1` rows, the word is common, and today's `messages_received`
   backward scan fills a page fast exactly then (8.4 ms on prd, v1.7.5, n=3).
-  Over the cap is a plan choice, not an answer change. `cap` starts at 2 000,
-  and P4 tunes it from the Q-common and Q-rare numbers.
-- **Relevance sort ranks every candidate** when there are no more than `cap`;
+  Over the cap is a plan choice, not an answer change.
+- **Where to set `cap`** (arithmetic, to be tuned in P4). The probe
+  heap-fetches up to `cap + 1` rows: the GIN holds TIDs, not `msg_id`, and r1
+  is right on this. The backward scan for a word with k matches among N rows
+  reads about N / k x page rows before its page fills. The two cost the same
+  near k = sqrt(N x page). For t1 that is sqrt(19 244 x 21), about 640 rows,
+  and about 2 000 at 10x-A. **`cap` starts at 500.** P4 tunes it against
+  Q-common's probe cost and Q-rare's candidate cost.
+- **Relevance sort ranks every candidate** when there are no more than `cap` (500);
   above it, today's ranking path. No contract change, so Q6 is withdrawn.
 - **`q` is built from the AND-chain walk** that `sigAll` uses
   (`store/search_postgres.go`: only AND chains from the root, never under an
@@ -296,7 +316,7 @@ and a stale index gives false negatives only.
 |---|---|
 | messages | `spool_search_candidates` |
 | topics | `topicCandidates` takes its task ids from the same function. The per-topic aggregate stays as it is; that is spec 099's topic head, out of scope here |
-| relevance sort | ranks every candidate up to `cap`; above it, today's path (5.1). No contract change |
+| relevance sort | ranks every candidate up to `cap` (500); above it, today's path (5.1). No contract change |
 | files, `has:code` | unchanged, out of scope (r1 U5, U7) |
 | topics, the title | `array_agg(body)` detoasts every body of every scoped task to build the title (r2 2.3, read from code, unmeasured). No index fixes it; it belongs to spec 099's topic head |
 
@@ -368,7 +388,12 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 - Q-owner, Q-rare, Q-zero and Q-prefix use at most 2 000 buffers, and their
   p95 per REQUEST is under 1 s.
 - Q-rel stays under the budget per request.
-- Q-common and Q-from use no more than 1.2x their BEFORE buffers.
+- Q-common: its BEFORE buffers plus the probe, the probe reading at most
+  `cap + 1` heap pages, and p95 per request under 100 ms (r1 O-r1-1). The
+  probe runs before today's scan, so "1.2x BEFORE" would fail by
+  construction.
+- Q-from uses no more than 1.2x its BEFORE buffers (it never calls the
+  function).
 - No 503 in n=5.
 - The perf test in CI seeds the query's OWN common words (owner lesson 5).
 
@@ -421,13 +446,20 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 |---|---|---|---|
 | author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r |
 | r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1 with r3's role-scoped policy and `gin (tenant_id, search_tsv)` (r1 section 8, `712ff98d`), i.e. S1r. **SIGNED v0.4** (`e9829578`, msg 1b2a4f4d); v0.5 adds prd data only |
-| r2 | c-370 (claude) | `research/r2-claude.md` | S1 with its 3.3.1..3.3.5 as acceptance criteria (all in v0.6: T4, 5.1, 7, P1) and 3.3.6 as an owner question (Q1). Agreement with v0.6: pending |
+| r2 | c-370 (claude) | `research/r2-claude.md` | S1 with its 3.3.1..3.3.5 as acceptance criteria (all in v0.6: T4, 5.1, 7, P1) and 3.3.6 as an owner question (Q1). **SIGNED v0.7** (`9ba4a3c1`, msg df3466e9; `research/r2-claude.md` section 6.1). v0.8 writes down its build note |
 | r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). S1r on v0.3; signs v0.4 with the prd reads folded in (v0.5) |
 
 Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.8 (2026-10-06): r1's objections on the cap switch.
+  - Probe, then statement: the hub passes at most `cap` ids as
+    `= ANY($ids)`, and the id filter is never applied to a truncated set.
+    The function is called once per page, so the path is decided once (r2's
+    build note).
+  - `cap` starts at 500 (the crossover is about sqrt(N x page)).
+  - Q-common's acceptance counts the probe; Q-from stays at 1.2x.
 - v0.7 (2026-10-06): r2's correctness objections O1..O3.
   - The function is now `spool_search_candidates(q, cap)`: the whole
     candidate set, with no page, door or keyset inside. Order, keyset and

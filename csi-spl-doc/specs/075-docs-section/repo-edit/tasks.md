@@ -77,7 +77,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: one sample path per deny row denied; an editable doc, a new file in an editable dir allowed; traversal refused; each gate rule hits; clean text passes; only new lines scanned; the drift test fails when the list changes.
   - **Depends**: none.
 
-- [ ] T09 **hub: GitHub App client + fake GitHub** (M, no store).
+- [x] T09 **hub: GitHub App client + fake GitHub** (M, no store). Done `16c64252`: its done-proof tests green (10/10, checked by c-420 before T10). T10 added `Commits` (the commit list) to the client and the fake.
   - **Build**: `api/internal/github/` (new package): JWT from the App key, installation token cached in memory 50 min (never logged); `HeadBlob(path)`, `Commit(path, bytes, author, message, parent)` via blob -> tree -> commit -> `PATCH ref force:false`; `Compare(base, head)`. A reusable `githubtest` fake (httptest) holding an in-memory repo, which refuses a non-fast-forward ref update with 422 and can inject 5xx/401.
   - **Owns**: those two packages.
   - **Done-proof**: tests against the fake: a commit lands with author != committer; a stale parent -> 422 surfaced as `ErrRefMoved`; 401 -> permanent; token reused within 50 min; no key bytes in any log line.

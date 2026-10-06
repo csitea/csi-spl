@@ -27,6 +27,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST "+repoPrefix+"/git/trees", s.authed(s.postTree))
 	mux.HandleFunc("POST "+repoPrefix+"/git/commits", s.authed(s.postCommit))
 	mux.HandleFunc("GET "+repoPrefix+"/compare/{spec}", s.authed(s.compare))
+	mux.HandleFunc("GET "+repoPrefix+"/commits", s.authed(s.listCommits))
 	return s.recordAndFault(mux)
 }
 

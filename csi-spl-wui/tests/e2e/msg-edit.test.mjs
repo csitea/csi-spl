@@ -56,6 +56,17 @@ const THEIR_TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
    3rd panel's pinned-root path, which step 8's feed path does not reach */
 const BOT_MSG = '33333333-3333-4333-8333-333333333333'
 const BOT_TASK = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+/* a reply in the message-rooted pane. The opener (OWN_MSG) is a topic card,
+   so its menu is the topic menu. Step 7b's message menu is this reply
+   (is_parent 0). Step 7c Delete stays on the opener. Its task id is its
+   own, so it is not a merge neighbour of the opener. */
+const REPLY = '13131313-1313-4313-8313-131313131313'
+const REPLY_ROW = {
+  v: 1, msg_id: REPLY, task_id: REPLY, ts: '2026-10-06T10:06:00Z',
+  from: 'HUM-1', from_box: 'box-wui', to: '@channel', to_box: 'box-wui',
+  kind: 'note', body: 'a reply line, edited as a message', channel: 'lobby',
+  parent_task_id: OWN_MSG, is_parent: 0, files: [],
+}
 
 /* specs/054: the lde mock is signed-OUT by default, so .spool-shell never
  * mounts until a browser opts into a mock session (utils/mock; the same
@@ -246,6 +257,9 @@ try {
 
   const vp = { name: 'desktop 1280x800', width: 1280, height: 800 }
   await setPageViewport(page, vp)
+  await page.evaluateOnNewDocument((row) => {
+    try { localStorage.setItem('spool.mock.extra-messages', JSON.stringify([row])) } catch { /* about:blank */ }
+  }, REPLY_ROW)
   await openLobbyShell(page)
   await applyViewport(page, vp)
   await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT })
@@ -380,18 +394,46 @@ try {
     { body: reread.body && reread.body.slice(0, 60), edited_at: reread.edited_at, why: reread.why })
 
   /* ---- 7b. a right-click opens the same kind of menu as a channel row -- */
-  const threadRow = await page.$(`${PANE} article.msg[data-msg-id="${OWN_MSG}"] .msg-body`)
-  if (threadRow) await threadRow.click({ button: 'right' })
-  await sleep(300)
-  const menuIds = await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
+  /* The opener is a topic card: its menu is Archive / Delete topic / Move /
+     Merge. A reply (is_parent 0) is the row whose menu is the message menu.
+     A topic-view reply also offers Hide from flow; the opener does not.
+     The gesture is the card's contextmenu. A Puppeteer right-click on this
+     row returned no menu once while the node was already in the pane. */
+  const replySel = `${PANE} article.msg[data-msg-id="${REPLY}"] .msg-body`
+  const replyReady = await page.waitForFunction((sel) => {
+    const el = document.querySelector(sel)
+    if (!el) return false
+    el.scrollIntoView({ block: 'center' })
+    const r = el.getBoundingClientRect()
+    return r.width > 0 && r.height > 0
+  }, { timeout: 8000 }, replySel).then(() => true).catch(() => false)
+  if (replyReady) {
+    await page.evaluate((sel) => {
+      const el = document.querySelector(sel)
+      const r = el.getBoundingClientRect()
+      el.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, cancelable: true, view: window,
+        clientX: Math.round(r.left + r.width / 2),
+        clientY: Math.round(r.top + Math.min(20, r.height / 2)),
+        button: 2, buttons: 2,
+      }))
+    }, replySel)
+  }
+  const menuUp = await page.waitForFunction(
+    () => Boolean(document.querySelector('[data-testid=msg-menu] [role=menuitem]')),
+    { timeout: 5000 },
+  ).then(() => true).catch(() => false)
+  const menuIds = menuUp
+    ? await page.$$eval('[data-testid=msg-menu] [role=menuitem]', (els) => els.map((el) => el.getAttribute('data-testid')))
+    : []
   /* a thread line also goes back to its parent section */
-  ok('right-click opens a menu with open, open parent section, copy link, edit, and delete',
-    menuIds.join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-edit,msg-menu-delete',
-    { menuIds })
+  ok('right-click opens a menu with open, open parent section, copy link, hide from flow, edit, and delete',
+    replyReady && menuIds.join(',') === 'msg-menu-open,msg-menu-parent,msg-menu-copy,msg-menu-hide-flow,msg-menu-edit,msg-menu-delete',
+    { menuIds, replyReady })
   await page.click('[data-testid=msg-menu-edit]')
   await sleep(400)
-  seen = await readRow(page, OWN_MSG, PANE)
-  ok('Edit in the right-click menu opens the thread message', seen.editing, { editing: seen.editing })
+  seen = await readRow(page, REPLY, PANE)
+  ok('Edit in the right-click menu opens the reply', seen.editing, { editing: seen.editing })
   await page.keyboard.press('Escape')
   await sleep(300)
 

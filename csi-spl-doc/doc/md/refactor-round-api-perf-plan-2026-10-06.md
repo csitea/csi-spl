@@ -1,4 +1,4 @@
-# API (hub) performance round: measured baseline and v0.1 proposal (2026-10-06)
+# API (hub) performance round: measured baseline, v0.1 proposal and v0.2 panel consensus (2026-10-06)
 
 Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in order:
 
@@ -11,6 +11,76 @@ Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in 
 **What this doc is:** the measured baseline, plus a v0.1 list of every candidate row, ordered by measured gain. The panel (c-001 seats it) picks the 10 small commits from it, and the owner reviews those 10 before the build. Each row says in one plain sentence what changes and why, so it can be reviewed without reading SQL. This lane changes no product code.
 
 **Basis:** trunk `929edfa3e`. Live hub revisions, from the request log: prd `csi-spl-hub-prd-00451..`, dev `csi-spl-hub-dev-00441..00444`. Row slug **`ap-NN`**. Status is generated, never hand-kept: `git log origin/master --grep='ap-[0-9][0-9]'` plus the served `/version`.
+
+## 0. v0.2: the panel's consensus (2026-10-06)
+
+**Status:** this is the list the owner reviews. **No build lane starts before the owner's go** (msg 6a16e1fd). Sections 1..8 below are the v0.1 baseline the panel debated. Where they differ, this section wins.
+
+**Panel:** 6 seats, 2 claude (c-401 correctness, c-402 measurement) and 4 grok (g-403 Go read paths, g-404 WUI, g-405 Postgres write path, g-406 plan shape). Each wrote an independent round 1 and a rebuttal round 2. All 12 files are in, none missing: `/var/spool-hub/dispatch/api-perf-panel/opinions/<id>.r{1,2}.md`. The panel read the code on trunk `4ff91fbc1` / `c1927a3c`. c-001 ran the panel's prd reads (read-only, 12:27..12:29Z, n=1 snapshot each).
+
+### 0.1 Answer
+
+1. **The panel recommends 6 small commits, not 10.** All 6 seats refused to pad the list: the other candidates either lost their A/B already (ap-03, ap-09) or have no measured cost yet (ap-06, ap-08). Three more are kept, gated on a named read or on the owner's decision.
+2. **A new top finding (g-404, confirmed by all 6 in round 2): the browser re-reads the channel list every 5 s per open channel.**
+   - The cause: the WUI stores an open channel's read cursor with an empty message id (`read-cursor.mjs:175`). The hub's echo of the tab's own PUT carries the real id at the same timestamp, so `laterThan` (`read-sync.mjs:29-33`) judges the echo "later".
+   - `read-sync-boot.ts:82` then reloads `/v1/view/channels`. The reload resets the id to empty, and the next 5 s tick (`PUSH_MS`, `read-sync.mjs:19`) repeats it.
+   - It fits the prd ratio: 4 670 channel GETs vs 4 817 PUTs in 8.4 h, which is 6 048 ticks.
+   - That loop feeds the channel statements (602.6 s/day, 26.3 % of DB time) and wakes a Flow-count recompute on every PUT.
+3. **Two corrections to v0.1, from the code and the prd reads:**
+   - **A move or merge rewrites a message's channel, task and `received_at`** (`message_move_postgres.go:55-58,154-165`, `:157` GREATEST; `topic_merge_postgres.go:57,104`), **and nothing updates `flow_events`.** prd now (n=5 051 events): `at` stale 0, `task_id` stale **6**. That `task_id` staleness is why the `-c` rewrite returned a different md5 on prd. So ap-01a stores its keys with an UPDATE trigger, and never seeks on or rewrites `flow_events.at` (it is the `f:seen` clock, `flow_postgres.go:97-98`).
+   - **Migrations 0134 and 0135 are taken on trunk.** ap-01a reserves **0136**, ap-04 reserves **0137**.
+4. **The proof tool is the first fix (ap-00).** `do_spl_db_hot_measure` already runs the hub's planner settings (`spl-db-hot-measure.func.sh:89-95`). What is stale is its statement text (`grep -c archived_at` on it gives 0), and it has no Flow-count or channel statements. So 64 % of prd DB time has no hub-conditions lab proof today.
+
+### 0.2 The 6 commits, in review order (gain per risk)
+
+| # | commit | what and why, in one plain sentence | files | measured cost now (n, span) | expected gain | risk | proof before / after (same method, same n) | gate | box | agent | wave |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **ap-05** | Stop the browser re-reading the channel list after its own read-mark save: an echo at the same time that only fills in the empty message id is not a new mark. | `csi-spl-wui/src/utils/read-sync.mjs` (`mergeMarks` / `laterThan` tie on an empty local id), or the id kept in `read-cursor.mjs` `cursorFromChannel`; one unit test | prd 8.4 h: 4 670 channel GETs vs 4 817 PUTs; the channel statements are 602.6 s / 24 h (Insights n=11 734 each) | most of the 4 670 GETs per 8.4 h and the Flow-count wakes behind them; the seconds are quoted only from ap-05's own 24 h window | low-med: a real mark from another device must still merge and reload | **before:** dev browser network log, n>=20 PUTs on an open channel: channel GETs per PUT, plus the `moved` keys per reply. **after:** the same (expected ~0), and prd 24 h `ROUTE_LIMIT=200000` GET and PUT n with the span; Insights `WITH fc` calls | the dev log shows >= 50 % of PUTs followed by a GET; under 10 %: drop. Roll it **alone**: no other row's after-window may contain this roll | main (Chrome) | grok | 1 |
+| 2 | **ap-00** | Make the measuring action run the statements the hub actually sends (walks, Flow counts and the 3 channel reads, each under the hub's own session settings), with a gate that goes red when the copy drifts. | `csi-spl-orc/src/bash/run/spl-db-hot-measure.func.sh` + its `.tst.sh` (drift gate); a new `internal/store/stmt_print_test.go` (prints the builders' text, skipped unless asked); the route action prints `TRUNCATED` and the real `first..last` span when it hits `ROUTE_LIMIT` | prd hot `walk_dm` 22.0 ms p50 (n=20), against the store text 114..286 ms (n=3) and Insights 456 ms mean (n=245) | 0 for a user; it is the proof for #3, #4, #5 and every gated row | low | the printed statement md5 equals the builder's output; prd `walk_dm` n=20 lands in the Insights range | none | main | grok | 1 |
+| 3 | **ap-02** | Build the archived-line set only for channels the reader has no read mark on, filtering on each line's own channel, so a reader who has read every channel stops building ~4 850 lines just to drop them all. | `api:internal/store/channels_postgres.go` `hiddenUnreadRead` (:469-491), plus the e04 pin test if its string changes | prd 24 h: 308.4 s (13.5 %), n=11 734 x 26.3 ms; EXPLAIN 24.5 / 36.0 / 27.8 ms, 0 rows out for HUM-10 (n=3) | an all-marked reader 26 -> ~2 ms (estimate); up to ~-280 s/day | low-med: the filter must be on the line's `m.channel`, never on the archived card's channel (a move re-channels single lines) | ap-00 `ch_hidden` n=20 under `pgScopeTenant` (jit on, plan cache auto), for HUM-10 and a reader with no marks; result md5 old vs new for every t1 human + a NULL reader + one `read=` cursor case; `channel_stats_oracle_test.go` and the e04 test green | none (ap-00 for the n=20 number) | sat | claude | 1 |
+| 4 | **ap-04** | Let autovacuum visit the messages table after ~640 new rows instead of ~5 400, so the channel counts' index-only scan stops reading the table for half its rows. | new migration `0137_messages_autovacuum.sql` only: `ALTER TABLE messages SET (autovacuum_vacuum_insert_scale_factor = 0.02, autovacuum_vacuum_insert_threshold = 200)` | Heap Fetches 3 691 of 6 917 (n=3). prd read: `n_ins_since_vacuum` 4 892, `n_tup_upd` 2 216 of `n_tup_ins` 22 433, last autovacuum 2026-10-03, all-visible 0.62, reloptions empty. Inserts, not updates, are what the map lags on | counts 17..22 -> ~10..12 ms (estimate), ~-100 s/day | low-med: prd DDL; more autovacuum runs on a micro instance. spec 029 section 3.6 says "no reloptions"; that paragraph is about 3-row HOT tables, and the owner has to name messages as the exception | EXPLAIN n=3 (Heap Fetches near 0) after one autovacuum pass; `ENV=prd SECTION=vacuum ./run -a do_spl_db_health`; ap-00 `ch_counts` n=20 | **owner's DDL go**, and the spec 029 exception | sat | claude | 1 |
+| 5 | **ap-01a** | Store on each Flow event the place it belongs to and the time used for read coverage, and keep both current when a line is moved or merged, so the badge count can later skip everything already read. | new migration `0136_flow_events_place_key.sql`: `place_key` (the keys expression, `flow_postgres.go:93-95`) + `cov_at` (= the message's `received_at`), backfill **by msg_id**, index `(tenant_id, member_id, place_key, cov_at, msg_id)`, one `AFTER UPDATE OF channel, task_id, from_id, from_box, received_at ON messages` trigger that refreshes both and **never `at`**; `api:internal/store/flow_postgres.go` `flowInsertCTE` (:26-50) writes them | enabler: 0 on its own; the write cost is one index entry per event | 0 | med: prd DDL, the migration deploys before the hub; a stale key would undercount | backfill rows = flow_events rows; after the backfill, a prd read of `place_key` / `cov_at` vs the message = **0** mismatches (n = all events); a Postgres store test (mark, move a line, merge a topic, `FlowRead` equals today's statement); message-insert Insights mean within noise | **owner's DDL go** | main | claude | 1 |
+| 6 | **ap-01b** | Count a member's Flow unread only from the events after each read mark (seek on the stored place and time), then run today's per-message rules on that short tail, instead of checking every event the member ever got. | `api:internal/store/flow_postgres.go` `flowCountsSQL` only (:91-119; `FlowRead` :155 and `FlowFanout` :193 use it unchanged); both DM marks (`dm:<from>`, `dm:<from>@<box>`) applied at read time | prd 24 h: 865.5 s (37.8 %), n=11 229 x 77.1 ms + `FlowFanout` 59.1 s, n=680 x 87.0 ms; per call ~3 530 events x 3 probes (n=3) | 77 -> under 10 ms per call (estimate), up to ~-800 s/day | med: the door, archive, `f:` and `t:` rules must stay per message on the tail | result md5 old vs new for **every** member with flow_events in prd t1 and dev (n = all members, not 3); ap-00 `flow_counts` n=20 before/after under `pgScopeTenant`; Insights `WITH fc` and `FlowFanout` mean (the per-call number gates, not the daily total) | ap-01a served + its 0-mismatch read + the move/merge test; and c-402's generic-plan / JIT read (below) | main | claude | 2 |
+
+### 0.3 Gated, not in the first wave
+
+| item | why it waits | the read that opens it |
+|---|---|---|
+| **flow-scope** (new, c-402) | `FlowRead` and `FlowFanout` run under plain `pgScopeTenant` (`rls.go:118`): plan cache auto and JIT on. No A/B reproduced that, so v0.1's "the hub already runs the good shape" is suggested, not demonstrated. If a generic plan or JIT is slower, a one-line scope commit lands **before** ap-01b | after ap-00: `ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_JIT=both MEASURE_PLAN_CACHE=auto MEASURE_BITMAPSCAN=on MEASURE_SORT=on MEASURE_ONLY=flow_counts ./run -a do_spl_db_hot_measure`, against the same with `MEASURE_PLAN_CACHE=force_custom_plan`. Two runs each, 10 min apart (the noise floor) |
+| **ap-03** (archived OR split in the walk) | exact by De Morgan, and md5-equal on prd and dev, but the only timing was 20x worse (n=3, operator scope, bitmap scans on) | ap-00 `walk_dm` + `walk_all` n=20 A/B under the hub settings, and only if ap-07 is deferred |
+| **ap-08** (message insert 46 / 86 ms, n=590 / 247 per 24 h) | no single piece is measured yet. Named suspect (g-405): every insert parses the body with `to_tsvector` for `search_tsv` (`0048:40`), and a body of 1 024+ chars is parsed again by the `messages_search_sig` trigger (`0135:57-58`). prd: 3 274 of 18 931 live t1 messages are that long | lab, local pg16, prd-sized rows, a rolled-back insert, `EXPLAIN (ANALYZE, BUFFERS, WAL)` n=20, pieces split out. A commit only if one piece is >= 10 ms |
+| **ap-07** (a topic "head" row) | the owner's decision, not a small commit. Each topic list p50 150..350 ms (n=446 in 8.4 h) is what users wait for, but a head must store the count, kinds, parties and subject (the 2 301 visits are `summary()`'s aggregate, `view_postgres.go:354-360`). It must also handle a latest line that expires with no write, moved lines and merges. ap-09 folds into it | a written spec plus a Postgres fixture oracle (moved, merged, expired-latest, multi-channel topics) md5-equal to today's walk; the insert trigger under 5 ms (n=20) |
+
+**Out of this round (all 6 seats):**
+- ap-06: once ap-05 stops the 5 s loop, most wakes are real. If it ever reopens, trailing-edge only.
+- ap-09: folds into ap-07.
+- d-01 .. d-06 stay dropped. d-07 stays with lane c-389.
+- section 7: fea8f905 (CPU / memory per class) is not a speed commit. 45c69721 is ap-05's gate (ap-06 dropped). c8dae717 is ap-00. 3df41296 is a rule: every route proof uses `ROUTE_LIMIT=200000` and states n and the span, and ap-00 makes truncation visible.
+
+**Where the panel did not fully agree, and how this doc decided:**
+- **ap-05 shape.** g-404 would delete the reload line. c-401 and c-402 would fix the echo instead, so a real cross-device mark still refreshes the `notes.unread` fallback, and g-404 accepts that in round 2. Decision: the echo fix.
+- **ap-01a key columns.** g-403 wants one `place_key` with both DM marks applied at read time. c-401 and g-406 want separate DM columns. Decision: one column; the move/merge fixture is the arbiter, and a failing fixture adds the columns.
+- **ap-01a maintenance.** A trigger, not Go move and merge writers: 4 of 6 seats, and it keeps the move and merge files out of the batch.
+- **ap-03.** Some seats keep it alive behind ap-00, others drop it. Decision: gated, not reserved.
+
+### 0.4 Waves: 4 lanes, 2 per box, files disjoint
+
+| wave | main lane A | main lane B | sat lane A | sat lane B |
+|---|---|---|---|---|
+| 1 | ap-01a (0136, `flow_postgres.go` insert CTE) | ap-00, then ap-05 (WUI, after its dev log) | ap-02 (`channels_postgres.go`) | ap-04 (0137 only) |
+| 2 | ap-01b (`flow_postgres.go` counts), after its gates | flow-scope only if its read says so (`rls.go` / `flow_postgres.go`: serial with ap-01b) | ap-08 lab profile (no product file) | ap-03 only if ap-00 n=20 wins and ap-07 is deferred |
+
+- Only ap-01a and ap-01b share a file (`flow_postgres.go`), and they run serially in one lane.
+- ap-00 alone moves `.shellcheck-warning-baseline.txt`.
+- Migration numbers are reserved: 0136 for ap-01a, 0137 for ap-04.
+- **Proof windows:** one hub roll per 24 h after-window, and ap-05 rolls alone. For ap-01b, ap-02 and ap-04 the gating number is per call (ap-00 n=20, twice before and twice after, plus the Insights mean); daily seconds are reported but do not gate.
+- **Done = served:** dev and prd `/version` (hub) or `build.json` (WUI) contain the sha, and the proof is re-run with the same n.
+
+### 0.5 Summary for the owner (3 lines)
+
+1. The panel (2 claude + 4 grok, 12 opinions) agrees on 6 small commits, and asks you not to pad to 10: the other candidates either lost their speed test already or have no measured cost yet.
+2. The cheapest big win is in the browser: an open channel makes each tab re-read the whole channel list every 5 s, and those reads are about a quarter of all database time. Next come two database fixes (the channel list and the Flow badge count) and the measuring tool that proves them.
+3. You decide three things: go for the two prd schema changes (0136 for the Flow badge, 0137 for the messages autovacuum setting), whether the "topic head" redesign (ap-07) gets a spec, and go for the build.
 
 ## 1. Answer
 

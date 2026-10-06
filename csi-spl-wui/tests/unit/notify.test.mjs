@@ -5,6 +5,7 @@ import { execSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  offScreenReply,
   shouldEscalate,
   escalateReason,
   mentionedIds,
@@ -307,7 +308,7 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
 
   it('the plugin ingests live frames with the page identity only, not its peer', () => {
     const plugin = src('src/plugins/notify.client.ts')
-    assert.match(plugin, /notes\.ingest\(\[m\], \{ selfId: page\.selfId, activeKey: page\.activeKey \}/)
+    assert.match(plugin, /notes\.ingest\(\[m\], \{ selfId: page\.selfId, activeKey: page\.activeKey, feed: page\.feed, openTopics: page\.openTopics \}/)
     assert.equal(plugin.includes('applyChannels'), true)
   })
 
@@ -510,7 +511,9 @@ describe('bug A: a new message signals', () => {
 
   it('the open feed pings when the reader is away, for any message, not only an escalated one', () => {
     const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
-    assert.match(note, /away\(\) && shouldPing\(m, ctx, loadMutedChannels\(\)\)/)
+    /* HUM-24: or for a reply whose thread is not open */
+    assert.match(note, /const unseenHere = away\(\) \|\| offScreenReply\(/)
+    assert.match(note, /unseenHere && shouldPing\(m, ctx, loadMutedChannels\(\)\)/)
     assert.match(note, /document\.hasFocus\(\)/)
     assert.doesNotMatch(note, /if \(reason\) \{\s*const copy = copyFor/)
   })
@@ -732,5 +735,32 @@ describe('bug A: a new message signals', () => {
     playSound('plain', Ctx, () => {})
     const peak = SOUND_LIBRARY.plain.segs[0].gain
     assert.ok(ramps.some(([v]) => Math.abs(v - peak / 3) < 1e-9), JSON.stringify(ramps))
+  })
+})
+
+describe('HUM-24: a reply whose thread is not open is off screen (t1 cd9b0f47)', () => {
+  const T = 'cd9b0f47-a5cb-4a5e-bc92-c3723aecba67'
+  const starter = { msg_id: 's1', task_id: T, channel: 'lobby' }
+  const reply = { msg_id: 'r1', task_id: T, channel: 'lobby', from: 'c-002', to: 'HUM-24' }
+  it('a later message of a topic the feed holds, thread closed: off screen', () => {
+    assert.equal(offScreenReply(reply, [starter, reply], []), true)
+  })
+  it('the same reply with its thread open (right pane or /t/): on screen', () => {
+    assert.equal(offScreenReply(reply, [starter, reply], [T]), false)
+  })
+  it('a new topic is its own card in the middle: on screen', () => {
+    assert.equal(offScreenReply({ msg_id: 'n1', task_id: 'new-topic', channel: 'lobby' }, [starter], []), false)
+  })
+  it('the message alone in the feed is not a reply of itself', () => {
+    assert.equal(offScreenReply(starter, [starter], []), false)
+  })
+  it('is_parent 0 or a parent_task_id marks a reply the feed does not hold', () => {
+    assert.equal(offScreenReply({ msg_id: 'r2', task_id: T, is_parent: 0 }, [], []), true)
+    assert.equal(offScreenReply({ msg_id: 'r3', task_id: 'child', parent_task_id: T }, [], []), true)
+    assert.equal(offScreenReply({ msg_id: 'r3', task_id: 'child', parent_task_id: T }, [], [T]), false)
+  })
+  it('no message, no task: never', () => {
+    assert.equal(offScreenReply(null), false)
+    assert.equal(offScreenReply({ msg_id: 'x' }, [{ msg_id: 'y' }]), false)
   })
 })

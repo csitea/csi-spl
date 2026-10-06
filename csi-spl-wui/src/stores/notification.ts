@@ -15,6 +15,7 @@ import {
   dmBadgeText,
   dmTotalText,
   shouldPing,
+  offScreenReply,
   loadMutedChannels,
   playSound,
   loadChimeSound,
@@ -46,6 +47,10 @@ type Ctx = {
   channel?: string
   peer?: string | null
   isDm?: boolean
+  /** the open feed's messages, to tell a reply from a new topic (offScreenReply) */
+  feed?: Msg[]
+  /** task ids whose thread is on screen (the right pane, a /t/ page, the lobby room) */
+  openTopics?: string[]
 }
 
 type Msg = {
@@ -53,6 +58,7 @@ type Msg = {
   task_id?: string
   parent_task_id?: string | null
   topic_row?: boolean
+  is_parent?: 0 | 1
   from?: string
   to?: string
   body?: string
@@ -432,8 +438,10 @@ export const useNotificationStore = defineStore('notification', () => {
       }
       if (ctx.activeKey && ctx.activeKey === key) {
         markRead(key, m)
-        /* the open feed signals only while the reader is away from the tab */
-        if (import.meta.client && away() && shouldPing(m, ctx, loadMutedChannels())) {
+        /* the open feed signals while the reader is away from the tab, or
+           for a reply whose thread is not open (HUM-24, offScreenReply) */
+        const unseenHere = away() || offScreenReply(m, ctx.feed || rows, ctx.openTopics || [])
+        if (import.meta.client && unseenHere && shouldPing(m, ctx, loadMutedChannels())) {
           const copy = copyFor(m, escalateReason(m, ctx) || '')
           ping(copy.title, copy.body, key, m)
         }

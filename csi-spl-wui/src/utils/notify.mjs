@@ -113,6 +113,31 @@ export function shouldPing(msg, ctx = {}, muted = []) {
   return !set.has(ch)
 }
 
+/**
+ * HUM-24 (t1 cd9b0f47, a member: "when a new message arrives I get no
+ * notification"): the open feed pinged only while the reader was away from
+ * the tab, as if every message in it were on screen. A reply is not: the
+ * middle pane shows one card per topic, and a reply only moves that card's
+ * count. So a reply into a topic whose thread is not open is off screen and
+ * signals like a message in another channel.
+ * A reply: it names a parent topic, it was written in a thread pane
+ * (is_parent 0), or another message of the feed already holds its task_id.
+ * @param {object} msg the new message
+ * @param {object[]} [feed] the open feed's messages (msg itself may be in it)
+ * @param {string[]} [openTopics] task ids whose thread is on screen
+ * @returns {boolean}
+ */
+export function offScreenReply(msg, feed = [], openTopics = []) {
+  if (!msg || !msg.task_id) return false
+  const task = String(msg.task_id)
+  const parent = msg.parent_task_id && String(msg.parent_task_id) !== task ? String(msg.parent_task_id) : ''
+  const reply = Boolean(parent) || msg.is_parent === 0
+    || (feed || []).some((m) => m && String(m.task_id || '') === task && m.msg_id !== msg.msg_id)
+  if (!reply) return false
+  const open = new Set((openTopics || []).filter(Boolean).map(String))
+  return !open.has(task) && !(parent && open.has(parent))
+}
+
 export function notifyCopy(msg, reason) {
   const from = String((msg && msg.from) || 'spool')
   const body = String((msg && msg.body) || '').slice(0, 140)

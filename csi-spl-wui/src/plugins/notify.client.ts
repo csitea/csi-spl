@@ -2,6 +2,8 @@ import { useChannelStore } from '~/stores/channel'
 import { useNotificationStore } from '~/stores/notification'
 import { useSessionStore } from '~/stores/session'
 import { useLive } from '~/composables/useLive'
+import { useLiveFeed } from '~/stores/live'
+import { useTopicStore } from '~/stores/topic'
 import { normalizeChannel } from '~/utils/notify.mjs'
 
 function activeKey(path: string, peer: string | null, channel: string | null) {
@@ -12,6 +14,34 @@ function activeKey(path: string, peer: string | null, channel: string | null) {
   if (peer) return `dm:${peer}`
   if (channel) return `ch:${normalizeChannel(channel)}`
   return ''
+}
+
+/** HUM-24 (t1 cd9b0f47): the threads on screen - a reply into any other
+ *  topic of the open feed is off screen and signals (offScreenReply). */
+function openTopics(path: string) {
+  const topic = useTopicStore()
+  /* a channel's thread pane (stores/topic), the Topics view's (the pane feed) */
+  const out = [topic.open ? String(topic.parentTaskId || '') : '', String(useLiveFeed('pane').taskId || '')]
+  if (path.startsWith('/t/')) out.push(decodeURIComponent(path.slice(3).split('/')[0]))
+  /* the lobby room's own lines are its middle pane */
+  if (path.startsWith('/t/') || path === '/lobby' || path === '/') out.push(String(useLiveFeed('main').taskId || ''))
+  return out.filter(Boolean)
+}
+
+/** What the notification store needs to know about the page the reader is on. */
+function pageCtx(channel: ReturnType<typeof useChannelStore>, selfId: string, path: string) {
+  const peer = channel.peer
+  const name = channel.active
+  return {
+    selfId,
+    activeKey: activeKey(path, peer, name),
+    channel: name || (path === '/lobby' ? 'lobby' : ''),
+    peer,
+    isDm: Boolean(peer) || path.startsWith('/dm/'),
+    /* the lobby's topics live in the main feed store (pages/lobby), a channel's in the channel store */
+    feed: [...channel.messages, ...useLiveFeed('main').messages],
+    openTopics: openTopics(path),
+  }
 }
 
 /**
@@ -42,18 +72,7 @@ export default defineNuxtPlugin(() => {
   const route = useRoute()
   notes.hydrate()
 
-  function ctx() {
-    const peer = channel.peer
-    const name = channel.active
-    const path = String(route.path || '')
-    return {
-      selfId: (session.claims && session.claims.hum) || live.identity.value || '',
-      activeKey: activeKey(path, peer, name),
-      channel: name || (path === '/lobby' ? 'lobby' : ''),
-      peer,
-      isDm: Boolean(peer) || path.startsWith('/dm/'),
-    }
-  }
+  const ctx = () => pageCtx(channel, String((session.claims && session.claims.hum) || live.identity.value || ''), String(route.path || ''))
 
   watch(
     () => channel.messages.map((m) => m.msg_id).join('\n'),
@@ -108,6 +127,6 @@ export default defineNuxtPlugin(() => {
   live.onMessage((m) => {
     const page = ctx()
     notes.countDmLive(m, page.selfId)
-    notes.ingest([m], { selfId: page.selfId, activeKey: page.activeKey }, { hydrate: false })
+    notes.ingest([m], { selfId: page.selfId, activeKey: page.activeKey, feed: page.feed, openTopics: page.openTopics }, { hydrate: false })
   })
 })

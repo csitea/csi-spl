@@ -8,11 +8,18 @@
 // shape. Internal keys stay put: data-version is the release key, and the
 // row link is still /releases/<sha>.
 //
+// The 1.2.4 below reaches only a `nuxi dev` this file starts itself. Under
+// BASE_URL (CI serves the bundle wui-generate built) the version is baked
+// in at build time from .version, so the expectation is that bundle's own
+// public.appVersion, shown with one leading v (c-379: a fixed v1.2.4 read
+// v1.1.3 on every CI run).
+//
 // Run:
 //   pnpm run test:e2e version-v-prefix
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
+import { displayVersion } from '../../src/utils/display-version.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 process.env.NUXT_PUBLIC_APP_VERSION = '1.2.4'
@@ -103,17 +110,24 @@ try {
   }
   ok('the shell hydrated and the footer is in the document', hydrated, failedReqs.slice(0, 3))
   if (!hydrated) throw new Error('footer never mounted')
+  /* the raw version this bundle carries: the env above when this file
+     started nuxi dev, the build-time value under BASE_URL */
+  const raw = server.started
+    ? process.env.NUXT_PUBLIC_APP_VERSION
+    : await p.evaluate(() => String(document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$config?.public?.appVersion ?? ''))
+  const want = displayVersion(raw)
+  ok('the bundle carries a semver version', VER.test(want), { raw, want })
   /* read the stamp before sign-in: adopt() can navigate, and the footer is
      already on the signed-out shell */
   const foot = await p.$eval('[data-test=app-version] .vs-ver', (el) => el.textContent.trim())
-  ok('footer shows v<digits>.<digits>.<digits>', foot === 'v1.2.4' && VER.test(foot), { foot })
+  ok('footer shows v<digits>.<digits>.<digits>', foot === want && VER.test(foot), { foot, want })
   const meta = await p.$eval('meta[name=version]', (el) => el.getAttribute('content') || '')
-  ok('the document version meta shows the same v prefix', meta === 'v1.2.4', { meta })
+  ok('the document version meta shows the same v prefix', meta === want, { meta, want })
 
   await p.click('[data-test=top-bar-logo]')
   await p.waitForSelector('[data-testid=logo-dialog-version] code', { timeout: 5000 })
   const logo = await p.$eval('[data-testid=logo-dialog-version] code', (el) => el.textContent.trim())
-  ok('the logo dialog shows v1.2.4', logo === 'v1.2.4', { logo })
+  ok('the logo dialog shows the same v prefix', logo === want, { logo, want })
   await p.keyboard.press('Escape')
   await until(p, () => !document.querySelector('[data-testid=logo-dialog]'), null, 3000)
 

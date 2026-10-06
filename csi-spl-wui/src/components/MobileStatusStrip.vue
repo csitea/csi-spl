@@ -90,6 +90,7 @@ import { useClockHost } from '~/composables/useClockHost'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { connectionHealth } from '~/utils/channel-feed.mjs'
 import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
+import { displayVersion } from '~/utils/display-version.mjs'
 import { isNewer } from '~/utils/build-watch.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -117,8 +118,8 @@ const running = computed(() => buildWatch.value.running
   ? { commit: buildWatch.value.running, built_at: String(config.public.buildAt || ''), run: String(config.public.buildRun || '') }
   : build.value)
 const newerLive = computed(() => (isNewer(buildWatch.value.running, buildWatch.value.live) ? shortCommit(buildWatch.value.live) : ''))
-const versionText = computed(() => buildStampText(version.value, running.value))
-const versionLabel = computed(() => String(version.value || '').trim())
+const versionText = computed(() => buildStampText(displayVersion(version.value), running.value))
+const versionLabel = computed(() => displayVersion(version.value))
 const buildCommit = computed(() => String((running.value as { commit?: string } | null)?.commit || '').trim())
 const buildMeta = computed(() => {
   const b = running.value as { built_at?: string, run?: string } | null

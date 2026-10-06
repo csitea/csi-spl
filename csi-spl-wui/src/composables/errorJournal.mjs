@@ -24,6 +24,7 @@
 // node_modules. A test that cannot import the real thing ends up asserting
 // against a re-implementation of it.
 import { isAbortError, statusFrom } from './apiHealth.mjs'
+import { displayVersion } from '../utils/display-version.mjs'
 
 /** Ring-buffer cap. 50 × ≤2 KB ≈ 100 KB worst case, and it dies with the tab. */
 export const ERROR_JOURNAL_LIMIT = 50
@@ -746,7 +747,7 @@ export function summariseRecord(rec) {
 export function formatRecords(recs, ctx) {
   const head = [
     `spool WUI diagnostics`,
-    ctx && ctx.version ? `version ${ctx.version}` : '',
+    ctx && ctx.version ? `version ${displayVersion(ctx.version)}` : '',
     ctx && ctx.env ? `env ${ctx.env}` : '',
     ctx && ctx.page ? `read on ${normaliseRoute(ctx.page)}` : '',
   ].filter(Boolean).join(' · ')

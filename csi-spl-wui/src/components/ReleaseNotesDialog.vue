@@ -33,7 +33,7 @@
         <article class="rn-note" data-test="release-note" :data-state="note.state" :data-sha="note.sha">
           <h3 class="rn-note__subject">{{ note.subject || shortSha(note.sha) }}</h3>
           <p class="rn-note__meta muted">
-            <span v-if="note.version" data-test="release-note-version">{{ plainVersion(note.version) }}</span>
+            <span v-if="note.version" data-test="release-note-version">{{ displayVersion(plainVersion(note.version)) }}</span>
             <span v-if="note.kind">{{ note.kind }}</span>
             <span v-if="note.area">{{ note.area }}</span>
           </p>
@@ -134,6 +134,7 @@
 import { useCopyText } from '~/composables/useCopyText'
 import { useBuildWatch } from '~/composables/useBuildWatch'
 import { isNewer } from '~/utils/build-watch.mjs'
+import { displayVersion } from '~/utils/display-version.mjs'
 
 interface ReleaseNote {
   sha: string
@@ -181,7 +182,7 @@ const running = computed(() => String(config.public.appVersion || '').trim())
 const versions = ref<ReleaseVersion[]>([])
 /* a release key as a reader sees it: v1.0.1-c2 -> v1.0.1 */
 const plainVersion = (v: string) => String(v || '').replace(/-c[0-9]+$/, '')
-const shownVersion = (v: ReleaseVersion) => v.display || plainVersion(v.version)
+const shownVersion = (v: ReleaseVersion) => displayVersion(v.display || plainVersion(v.version))
 /* the running build's version is plain, so two cycles share it: the newest
    (first listed) release key carrying it is the one "you are here" marks */
 const currentKey = computed(() => versions.value.find((v) => plainVersion(v.version) === running.value)?.version || '')

@@ -774,6 +774,7 @@ import { useClockHost } from '~/composables/useClockHost'
 import { channelActivity, channelSlug, connectionHealth, namedLine, orderPeers, peopleLabels, retentionDays, shownPerson } from '~/utils/channel-feed.mjs'
 import { feedbackChannelCopy } from '~/utils/feedback-channel.mjs'
 import { buildStampText, readBuildStamp, shortCommit } from '~/utils/build-stamp.mjs'
+import { displayVersion } from '~/utils/display-version.mjs'
 import { isNewer } from '~/utils/build-watch.mjs'
 import { reloadForBuild, useBuildWatch } from '~/composables/useBuildWatch'
 import { useSidePane } from '~/composables/useSidePane'
@@ -1442,9 +1443,9 @@ const running = computed(() => buildWatch.value.running
   ? { commit: buildWatch.value.running, built_at: String(config.public.buildAt || ''), run: String(config.public.buildRun || '') }
   : build.value)
 const newerLive = computed(() => (isNewer(buildWatch.value.running, buildWatch.value.live) ? shortCommit(buildWatch.value.live) : ''))
-const versionText = computed(() => buildStampText(version.value, running.value))
+const versionText = computed(() => buildStampText(displayVersion(version.value), running.value))
 /* owner, 2026-09-26: the version smaller, the commit smaller still, a tight gap */
-const versionLabel = computed(() => String(version.value || '').trim())
+const versionLabel = computed(() => displayVersion(version.value))
 const buildCommit = computed(() => String((running.value as { commit?: string } | null)?.commit || '').trim())
 /* the card also opens by a tap (touch has no hover) and closes on Esc */
 const vsOpen = ref(false)

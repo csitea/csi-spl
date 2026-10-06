@@ -127,6 +127,7 @@
 
 <script setup lang="ts">
 import { writeClipboard } from '~/utils/clipboard.mjs'
+import { displayVersion } from '~/utils/display-version.mjs'
 import UiIcon from '@/components/UiIcon.vue'
 import { useErrorJournal } from '@/composables/useErrorJournal'
 import { isoDateTimeSec } from '~/utils/date-iso.mjs'
@@ -234,11 +235,11 @@ function ageOf(r: ErrorRecord): string {
   }
 }
 
-// `appVersion` ALREADY carries its leading `v` (wuiAppVersion() in
-// nuxt.config.ts returns `vMAJOR.MINOR.PATCH`); never prepend another.
+// The baked appVersion is the bare semver on a deploy (Nuxt keeps
+// NUXT_PUBLIC_APP_VERSION as-is). Show one leading v, never two.
 const meta = computed(() =>
   [
-    appVersion,
+    displayVersion(appVersion),
     envName,
     route.path,
     String(locale.value || ''),

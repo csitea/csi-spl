@@ -20,6 +20,7 @@ import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 import { setTimeZoneSource } from '~/utils/date-iso.mjs'
 import { settingsQuerySection } from '~/utils/settings-nav.mjs'
+import { displayVersion } from '~/utils/display-version.mjs'
 
 // Site-wide head, shaped like the donor WUI's app.vue: the version stamp is a
 // <meta name="version"> so a deployed page says which build it is without a
@@ -90,7 +91,7 @@ useHead(() => {
       /* SPL-1133: which corner the close buttons sit in (UiCloseButton) */
       'data-close-buttons': parseCloseButtons(session.claims?.close_buttons),
     },
-    meta: appVersion ? [{ name: 'version', content: appVersion }] : [],
+    meta: appVersion ? [{ name: 'version', content: displayVersion(appVersion) }] : [],
   }
 })
 </script>

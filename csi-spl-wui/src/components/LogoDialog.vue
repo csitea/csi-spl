@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { displayVersion } from '~/utils/display-version.mjs'
 defineProps<{ open: boolean }>()
 const emit = defineEmits<{ 'update:open': [boolean] }>()
 const { t } = useI18n()
@@ -53,7 +54,7 @@ const { t } = useI18n()
 /* the public repository (spec 044: one public repo) and its help pages */
 const SOURCE_URL = 'https://github.com/csitea/csi-spl'
 const DOCS_URL = 'https://github.com/csitea/csi-spl/tree/master/csi-spl-doc/doc/help'
-const version = computed(() => String(useRuntimeConfig().public.appVersion || '').trim() || 'dev')
+const version = computed(() => displayVersion(String(useRuntimeConfig().public.appVersion || '').trim() || 'dev'))
 </script>
 
 <style scoped>

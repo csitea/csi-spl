@@ -33,7 +33,9 @@
 # @param SPEC_IMPORT_REDACT   by <REDACTED>; a first.last@ address always becomes <EMAIL>
 # @param SPEC_IMPORT_LIMIT (optional) - max writes this run (0 = all)
 # @param SPEC_IMPORT_INTERVAL (optional) - seconds between writes, default 0.25
-# @param SPEC_IMPORT_OUT (optional) - where the markdown report is written
+# @param SPEC_IMPORT_OUT (optional) - where the markdown report is written.
+# @param SPEC_IMPORT_OUT   Unset, the report is copied out of the work directory
+# @param SPEC_IMPORT_OUT   before return, so the logged path still exists
 # @param SPEC_IMPORT_OFFLINE (optional) - 1 parses and prints only; no hub
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=GRK-00 SPEC_IMPORT_OUT=/tmp/spec-import.md ./run -a do_spl_spec_import_issues
@@ -67,8 +69,11 @@ do_spl_spec_import_issues() {
   local work report
   work="$(mktemp -d)"
   report="${SPEC_IMPORT_OUT:-$work/report.md}"
+  # Reset on the way out. Without it the trap stays set and fires again when
+  # the caller returns. A report that lives in $work is copied out before the
+  # log below, so the path in that log still exists after this removal.
   # shellcheck disable=SC2064
-  trap "rm -rf '$work'" RETURN
+  trap "rm -rf '$work'; trap - RETURN" RETURN
 
   python3 "$py" parse --specs "$specs" "${parsearg[@]}" --out "$work/plan.json" || return 1
 
@@ -99,6 +104,7 @@ do_spl_spec_import_issues() {
   cat "$report"
 
   if (( dry )); then
+    report="$(_spl_spec_publish_report "$report" "$work")" || return 1
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0. Report: $report"
     return 0
   fi
@@ -110,8 +116,23 @@ do_spl_spec_import_issues() {
   local n=0 fails=0
   _spl_spec_apply_rows "$work" "$interval" "$limit"
 
+  report="$(_spl_spec_publish_report "$report" "$work")" || return 1
   do_log "INFO spec import wrote $n issue(s), $fails failed. Report: $report"
   (( fails == 0 ))
+}
+
+# _spl_spec_publish_report <report> <work>: the path to log. The RETURN trap
+# removes <work>, so a report inside it would be gone once this function
+# returns. Copy that one out. A path outside <work> is already kept.
+_spl_spec_publish_report() {
+  local report="$1" work="$2" kept
+  if [[ "$report" != "$work"/* ]]; then
+    printf '%s\n' "$report"
+    return 0
+  fi
+  kept="$(mktemp)" || return 1
+  cp -- "$report" "$kept" || { rm -f "$kept"; return 1; }
+  printf '%s\n' "$kept"
 }
 
 # _spl_spec_check_args <parser> <spec dir> <pause secs> <limit>: 0 when the

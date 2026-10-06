@@ -509,5 +509,62 @@ else
   fail "row read shifted: action=$action ref=$ref pkey=$pkey pitem=$pitem status=$status title=$title"
 fi
 
+# The dry-run log names a report, then the function's RETURN trap removes the
+# work directory that held it and stays set. After the call the logged path
+# must exist, and no RETURN trap may remain. A caller-chosen SPEC_IMPORT_OUT
+# is that path (kept as given, not a copy under the work directory).
+spl_dry_run() { [[ "${DRY_RUN:-1}" == 1 ]]; }
+do_spl_issue_list() {
+  if [[ "${ISSUE_KIND:-}" == epic ]]; then
+    printf '%s\n' '{"op":"list","result":{"epics":[{"key":"SPL-19","title":"Spec 001 - sample checklist"},{"key":"SPL-20","title":"Spec 026 - sample mixed"}],"issues":[{"key":"SPL-19","title":"Spec 001 - sample checklist","labels":["epic"],"parent":"","status":"wip"},{"key":"SPL-20","title":"Spec 026 - sample mixed","labels":["epic"],"parent":"","status":"wip"}],"labels":[{"id":"epic"},{"id":"task"}]}}'
+  else
+    printf '%s\n' '{"op":"list","result":{"issues":[],"labels":[]}}'
+  fi
+}
+_b14_dry() {
+  local outf="$1" kept="${2:-}" rc path
+  trap - RETURN
+  if [[ -n "$kept" ]]; then
+    SPEC_IMPORT_OUT="$kept" SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" DRY_RUN=1 do_spl_spec_import_issues >"$outf" 2>&1
+  else
+    unset SPEC_IMPORT_OUT
+    SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" DRY_RUN=1 do_spl_spec_import_issues >"$outf" 2>&1
+  fi
+  rc=$?
+  path=$(grep 'Report:' "$outf" | tail -1 | sed 's/.*Report: //')
+  printf '%s\n' "$rc"
+  printf '%s\n' "$path"
+  printf '%s\n' "$(trap -p RETURN)"
+}
+b14out="$FIX_TMP/b14.out"
+{
+  read -r b14rc
+  read -r b14path
+  read -r b14trap
+} < <(_b14_dry "$b14out")
+b14ok=1
+b14why=""
+if [[ "$b14rc" -ne 0 || -z "$b14path" || ! -s "$b14path" || -n "$b14trap" ]]; then
+  b14ok=0
+  b14why="default rc=$b14rc path=$b14path exists=$([[ -n "$b14path" && -f "$b14path" ]] && echo yes || echo no) trap=$b14trap"
+fi
+rm -f -- "$b14path"
+b14kept="$FIX_TMP/kept-report.md"
+{
+  read -r b14rc
+  read -r b14path
+  read -r b14trap
+} < <(_b14_dry "$b14out" "$b14kept")
+if [[ "$b14rc" -ne 0 || "$b14path" != "$b14kept" || ! -s "$b14kept" || -n "$b14trap" ]]; then
+  b14ok=0
+  b14why="$b14why; SPEC_IMPORT_OUT rc=$b14rc path=$b14path trap=$b14trap"
+fi
+trap - RETURN
+if [[ "$b14ok" -eq 1 ]]; then
+  pass "logged report exists after return and the RETURN trap is reset"
+else
+  fail "logged report exists after return and the RETURN trap is reset ($b14why)"
+fi
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'spec-import-issues: ALL PASS' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

@@ -94,6 +94,7 @@ allow_unauth=$(tf_get allow_unauthenticated)
 files_bucket=$(tf_get files_bucket_name)
 secret_envs=$(tf_get secret_environment_variables)
 auth_ids=$(tf_get auth_secret_ids)
+gh_key_id=$(tf_get github_app_key_secret_id)
 
 [ -n "$project" ] || { echo "FATAL: gcp_project missing from $VARS_FILE" >&2; exit 1; }
 [ -n "$region" ] || { echo "FATAL: gcp_region missing from $VARS_FILE" >&2; exit 1; }
@@ -156,10 +157,22 @@ if is_empty "$secret_envs"; then
   echo "SKIP  google_secret_manager_secret_iam_member.hub_secret_accessor (secret_environment_variables empty)"
   skipped=$((skipped + 1))
 else
-  for sid in $(map_values "$secret_envs" | sort -u); do
+  # 03 skips the GitHub App key slot (07 binds it), so it is no instance here
+  for sid in $(map_values "$secret_envs" | sort -u | grep -vxF "${gh_key_id:-}"); do
     try_import "google_secret_manager_secret_iam_member.hub_secret_accessor[\"${sid}\"]" \
       "projects/${project}/secrets/${sid} roles/secretmanager.secretAccessor serviceAccount:${declared_sa}"
   done
+fi
+
+# --- 4b. GitHub App key slot + its accessor (07, spec 075 repo-edit T01) ---
+if is_empty "$gh_key_id"; then
+  echo "SKIP  google_secret_manager_secret.github_app_key (github_app_key_secret_id empty)"
+  skipped=$((skipped + 1))
+else
+  try_import "google_secret_manager_secret.github_app_key" \
+    "projects/${project}/secrets/${gh_key_id}"
+  try_import "google_secret_manager_secret_iam_member.hub_github_app_key_accessor" \
+    "projects/${project}/secrets/${gh_key_id} roles/secretmanager.secretAccessor serviceAccount:${declared_sa}"
 fi
 
 # --- 5. files-bucket object user (always declared) -------------------------

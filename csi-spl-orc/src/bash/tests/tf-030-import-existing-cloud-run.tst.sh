@@ -67,7 +67,8 @@ for e in dev prd; do
   project=$(sed -nE 's/^gcp_project *= *"([^"]+)".*/\1/p' "$vars")
   sa_id=$(sed -nE 's/^runtime_sa_account_id *= *"([^"]+)".*/\1/p' "$vars")
   n_auth=$(sed -nE 's/^auth_secret_ids *= *\[(.*)\]/\1/p' "$vars" | tr ',' '\n' | command grep -c '"')
-  n_dsn=$(sed -nE 's/^secret_environment_variables *= *\{(.*)\}/\1/p' "$vars" | command grep -oE ':[[:space:]]*"[^"]+"' | sort -u | wc -l)
+  gh_key=$(sed -nE 's/^github_app_key_secret_id *= *"([^"]+)".*/\1/p' "$vars")
+  n_dsn=$(sed -nE 's/^secret_environment_variables *= *\{(.*)\}/\1/p' "$vars" | command grep -oE ':[[:space:]]*"[^"]+"' | command grep -vF "\"$gh_key\"" | sort -u | wc -l)
 
   out=$(run_importer "$e"); rc=$?
   [[ $rc -eq 0 ]] && pass "$e: importer exit 0" || fail "$e: importer rc=$rc: $out"
@@ -75,9 +76,9 @@ for e in dev prd; do
   # 1. the address set and its ids
   addrs=$(sed -n 's/^ADDR //p' "$T/calls.log")
   n_inv=0; command grep -qE '^allow_unauthenticated *= *true' "$vars" && n_inv=1
-  want=$((4 + n_auth + n_dsn + n_inv))
+  want=$((6 + n_auth + n_dsn + n_inv))
   got=$(printf '%s\n' "$addrs" | command grep -c .)
-  [[ $got -eq $want ]] && pass "$e: $got imports (4 fixed + $n_auth auth slots + $n_dsn accessor + $n_inv invoker)" \
+  [[ $got -eq $want ]] && pass "$e: $got imports (6 fixed + $n_auth auth slots + $n_dsn accessor + $n_inv invoker)" \
     || fail "$e: $got imports, want $want: $addrs"
   command grep -qF "google_service_account.hub projects/$project/serviceAccounts/$sa_id@$project.iam.gserviceaccount.com" "$T/calls.log" \
     && pass "$e: SA imported as the declared runtime_sa_account_id" || fail "$e: SA import id"
@@ -85,6 +86,8 @@ for e in dev prd; do
     && fail "$e: default compute SA used in an import" || pass "$e: default compute SA never imported"
   command grep -qF "google_storage_bucket_iam_member.hub_files_object_user b/$project-files roles/storage.objectUser serviceAccount:$sa_id@" "$T/calls.log" \
     && pass "$e: files bucket binding id" || fail "$e: files bucket binding id"
+  command grep -qF "google_secret_manager_secret_iam_member.hub_github_app_key_accessor projects/$project/secrets/$gh_key roles/secretmanager.secretAccessor serviceAccount:$sa_id@" "$T/calls.log" \
+    && pass "$e: GitHub App key slot accessor id" || fail "$e: GitHub App key slot accessor id"
   command grep -qE "google_cloud_run_v2_service.hub projects/$project/locations/[a-z0-9-]+/services/" "$T/calls.log" \
     && pass "$e: service id" || fail "$e: service id"
   command grep -E '^terraform import' "$T/calls.log" | command grep -vF -- "-var-file=" >/dev/null \

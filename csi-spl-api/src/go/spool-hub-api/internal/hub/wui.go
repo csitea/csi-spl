@@ -691,6 +691,12 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	if rf := frameRefusalOf(s.wuiMayPost(ctx, c, rt.channel, f.Channel, agent)); rf != nil {
 		return rt, rf
 	}
+	if agent == "" { // a channel-less ALL-0 reply goes to the topic's agent (topic_reply.go)
+		if rt.signing = s.topicReplyAgent(ctx, c, m, rt.channel, isParent); rt.signing.agent != "" {
+			m.To = rt.signing.agent
+			return rt, nil
+		}
+	}
 	rt.signing = wuiSigning{agent: agent, fanOut: agent == "" && rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
 		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
 	if agent != "" {

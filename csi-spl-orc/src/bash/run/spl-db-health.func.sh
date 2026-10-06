@@ -126,8 +126,9 @@ spl_db_health_cloudsql() {
 # last 24 h, as latest / min / max plus the 24 h delta, which is the growth
 # rate. `gcloud monitoring` has no time-series verb (measured 2026-09-21:
 # "Invalid choice: 'time-series'"), so this reads the v3 REST endpoint with an
-# access token for $GCP_ACCOUNT. The token never rides curl's argv (visible
-# in ps): it goes in a -K config file, 0600, removed after the loop.
+# access token for $GCP_ACCOUNT. The bearer header moved off curl argv into a
+# 0600 -K config file, removed after the loop. That move is a behaviour change
+# from -H "Authorization: Bearer ...".
 spl_db_health_metrics() {
   do_require_bin curl python3 || return 1
   local since until m tok hdr rc=0

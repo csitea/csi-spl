@@ -1,163 +1,209 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description READ-ONLY latency of the hub's HOT statements on one tenant
-# @description (SPL-984, spec 029 §8): the statements Query Insights ranks top
-# @description by total time (do_spl_db_insights), each PREPAREd with the
-# @description store's own text and run MEASURE_N times as EXPLAIN (ANALYZE)
-# @description EXECUTE - so the plan cache behaves as it does under pgx (custom
-# @description plans first, then generic). The session is
-# @description default_transaction_read_only=on (Postgres refuses any write)
-# @description and takes the TENANT row-level-security scope the hub uses, as
-# @description the hub's runtime login. Prints p50 / p95 / max of Postgres' own
-# @description Execution Time per statement, per JIT setting, so one run gives
-# @description the JIT on/off pair.
-# @description Statement texts are copied from the store (tree at SPL-984):
-# @description walk_all / walk_dm = view_postgres.go viewTopicsSQL as
-# @description handleViewTopics calls it (Roots, NoIssues, read door, limit 51;
-# @description walk_dm adds DM + Viewer); walk_all_pre = walk_all with the
-# @description aggregate before CLE-35061 ((array_agg(m.msg))[1]), the CONTROL;
-# @description the defaults (bitmap off, sort off, custom plans) are the walk's scope; thread = ViewTopic desc page of the
-# @description tenant's biggest topic; channels = ViewChannels; issues =
-# @description ListIssues; file_door = FileReadableByHuman.
+# @description (SPL-984, spec 029 §8; api perf round ap-00): the statements
+# @description Query Insights ranks top by total time, each PREPAREd with the
+# @description text the hub SENDS TODAY and run MEASURE_N times as EXPLAIN
+# @description (ANALYZE) EXECUTE, so the plan cache behaves as it does under pgx
+# @description (an untyped PREPARE, as pgx's Parse; custom plans first, then
+# @description generic). The session is default_transaction_read_only=on
+# @description (Postgres refuses any write) and takes the TENANT row-level-
+# @description security scope the hub uses, as the hub's runtime login.
+# @description Prints p50 / p95 / max of Postgres' own Execution Time per
+# @description statement and the sha256 of every statement text it prepared.
+# @description The texts are NOT hand copies: spl-db-hot-measure.stmt.sql beside
+# @description this file is printed by the store's own builders
+# @description (csi-spl-api internal/store/stmt_print_test.go), and its Go test
+# @description goes red when a builder changes and the copy does not. Each
+# @description statement runs under the hub's OWN session settings for it, read
+# @description from the scope statement the hub sends first in its batch: the
+# @description walks (walk_all, walk_dm: viewTopicsSQL as handleViewTopics calls
+# @description it) under the walk scope (jit off, bitmap scans off, sorts off,
+# @description custom plans); thread (the topic page, desc), flow_counts
+# @description (FlowRead's counts), ch_counts / ch_marked / ch_hidden
+# @description (ViewChannelStats' reads, no read= cursor) under the plain tenant
+# @description scope (the server's defaults).
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant measured (e.g. t1)
 # @param READER - required: the human the read door is evaluated for (e.g. HUM-10)
 # @param MEASURE_N (optional) - samples per statement, 3..50, default 10
-# @param MEASURE_JIT (optional) - both (default) | on | off
 # @param MEASURE_ONLY (optional) - a comma list of statement names; default all
-# @param MEASURE_BITMAPSCAN (optional) - both | on | off (default); the walk's scope turns it off since SPL-984
-# @param MEASURE_SORT (optional) - both | on | off (default): enable_sort; the walk's scope turns it off
-# @param   since CLE-77914 (the recursive step stays on the ordered messages_received scan)
-# @param MEASURE_PLAN_CACHE (optional) - force_custom_plan (default, the walk's scope since CLE-35061) | auto (pgx without it) | force_generic_plan
+# @param MEASURE_JIT (optional) - hub (default: the statement's own scope) | on | off | both
+# @param MEASURE_BITMAPSCAN (optional) - hub (default) | on | off | both: enable_bitmapscan
+# @param MEASURE_SORT (optional) - hub (default) | on | off | both: enable_sort
+# @param MEASURE_PLAN_CACHE (optional) - hub (default) | auto | force_custom_plan | force_generic_plan
+# @param   A setting other than hub applies to every measured statement and is
+# @param   named in the row's tag (e.g. flow_counts.pc_auto.jit_off); all hub = .hub
+# @param MEASURE_LOBBY (optional) - the lobby task uuid; default the cnf's
+# @param   env.hub.env.SPOOL_HUB_LOBBY_TASK_ID (what the hub binds)
 # @param MEASURE_PLANS (optional) - 1 also prints one EXPLAIN (ANALYZE, BUFFERS) per statement
 # @param MEASURE_TIMEOUT_MS (optional) - per statement, 100..60000, default 10000
 # @param SPL_PROXY_PORT (optional) - local proxy port, default: a free port
-# @example ENV=prd TENANT_ID=t1 READER=HUM-10 ./run -a do_spl_db_hot_measure
-# @example ENV=dev TENANT_ID=t1 READER=HUM-4 MEASURE_ONLY=walk_all MEASURE_PLANS=1 ./run -a do_spl_db_hot_measure
+# @example ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_ONLY=walk_dm ./run -a do_spl_db_hot_measure
+# @example ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_JIT=both MEASURE_ONLY=flow_counts ./run -a do_spl_db_hot_measure
+# @example ENV=dev TENANT_ID=t1 READER=HUM-4 MEASURE_ONLY=ch_hidden MEASURE_PLANS=1 ./run -a do_spl_db_hot_measure
 #------------------------------------------------------------------------------
 do_spl_db_hot_measure() {
-  do_require_bin yq psql python3 || return 1
-  spl_db_hot_measure_sql "${TENANT_ID:-}" "${READER:-}" "${MEASURE_N:-10}" "${MEASURE_JIT:-both}" \
-    "${MEASURE_ONLY:-}" "${MEASURE_PLANS:-0}" >/dev/null || return 1
+  do_require_bin yq psql python3 sha256sum || return 1
+  spl_db_hot_measure_sql "${TENANT_ID:-}" "${READER:-}" "${MEASURE_N:-10}" "${MEASURE_JIT:-hub}" \
+    "${MEASURE_ONLY:-}" "${MEASURE_PLANS:-0}" "${MEASURE_LOBBY:-}" >/dev/null || return 1
   do_spl_cloud_cnf || return 1
+  local lobby="${MEASURE_LOBBY:-}"
+  [[ -n "$lobby" ]] || lobby="$(yq -r '.env.hub.env.SPOOL_HUB_LOBBY_TASK_ID // ""' "$SPL_CNF")" || return 1
+  [[ "$lobby" != null ]] || lobby=""
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  spl_via_proxy _spl_db_hot_measure_run "${TENANT_ID:-}" "${READER:-}" "${MEASURE_N:-10}" "${MEASURE_JIT:-both}" \
-    "${MEASURE_ONLY:-}" "${MEASURE_PLANS:-0}"
+  spl_via_proxy _spl_db_hot_measure_run "${TENANT_ID:-}" "${READER:-}" "${MEASURE_N:-10}" "${MEASURE_JIT:-hub}" \
+    "${MEASURE_ONLY:-}" "${MEASURE_PLANS:-0}" "$lobby"
 }
 
-# spl_db_hot_measure_names -> the statement names, one per line.
+# spl_db_hot_measure_stmt_file -> the builders' printed copy of the statements.
+spl_db_hot_measure_stmt_file() {
+  echo "${SPL_HOT_STMT_FILE:-$(dirname "${BASH_SOURCE[0]}")/spl-db-hot-measure.stmt.sql}"
+}
+
+# spl_db_hot_measure_names -> the statement names, one per line, in file order.
 spl_db_hot_measure_names() {
-  printf '%s\n' walk_all walk_all_pre walk_dm thread channels issues file_door
+  awk '/^-- @@stmt /{print $3}' "$(spl_db_hot_measure_stmt_file)"
 }
 
-# spl_db_hot_measure_prepare -> the PREPAREs (store text, pgx parameter types).
-spl_db_hot_measure_prepare() {
-  echo "PREPARE walk_all (text, timestamptz, text, text[], text[], int) AS $(spl_db_hot_measure_walk all);"
-  echo "PREPARE walk_all_pre (text, timestamptz, text, text[], text[], int) AS $(spl_db_hot_measure_walk all_pre);"
-  echo "PREPARE walk_dm (text, timestamptz, text, text, text[], text[], int) AS $(spl_db_hot_measure_walk dm);"
-  cat <<'EOF_SQL'
-PREPARE thread (text, uuid, timestamptz, text, text[], text[], int) AS SELECT msg_id::text, received_at, env, edited_at, edited_by, CASE WHEN edited_at IS NULL THEN 0 ELSE COALESCE((SELECT MAX(revision) FROM message_revisions r WHERE r.tenant_id = messages.tenant_id AND r.msg_id = messages.msg_id), 0) END, is_parent, typed_by, kind, kind_set_at, kind_set_by FROM messages WHERE tenant_id = $1 AND task_id = $2 AND expires_at > $3 AND ((channel IS NULL AND (from_id = $4 OR to_id = $4)) OR channel = ANY($5::text[]) OR channel = ANY($6::text[])) ORDER BY received_at DESC, msg_id::text DESC LIMIT $7;
-PREPARE channels (text, timestamptz) AS SELECT channel, count(*)::int, max(received_at) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL AND expires_at > $2 GROUP BY channel ORDER BY channel;
-PREPARE issues (text) AS SELECT number, title, description, status, priority, level, assignee, labels, deadline, COALESCE(parent_number, 0), task_id::text, created_by, created_at, updated_by, updated_at, completed_at, canceled_at, kind FROM issues WHERE tenant_id = $1 ORDER BY number DESC;
-PREPARE file_door (text, text, timestamptz, text, text[], text[]) AS SELECT EXISTS (SELECT 1 FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $3 AND (m.files @> jsonb_build_array(jsonb_build_object('file_id', $2::text)) OR m.files @> jsonb_build_array(jsonb_build_object('sha256', $2::text))) AND ((m.channel IS NULL AND (m.from_id = $4 OR m.to_id = $4)) OR m.channel = ANY($5::text[]) OR m.channel = ANY($6::text[])));
-EOF_SQL
+# spl_db_hot_measure_field <name> <sha256|scope|exec> -> that header field.
+spl_db_hot_measure_field() {
+  awk -v n="$1" -v f="$2" '$1 == "--" && $2 == "@@stmt" && $3 == n {
+    for (i = 4; i <= NF; i++) if (index($i, f "=") == 1) { print substr($i, length(f) + 2); exit } }' \
+    "$(spl_db_hot_measure_stmt_file)"
 }
 
-# spl_db_hot_measure_exec <name> -> the EXECUTE for one statement; :'t', :'r',
-# :'pub', :'mine', :'task' and :'fid' are psql variables set by the preamble.
-spl_db_hot_measure_exec() {
-  case "$1" in
-    walk_all)  echo "EXECUTE walk_all(:'t', now(), :'r', :'pub', :'mine', 51)" ;;
-    walk_all_pre) echo "EXECUTE walk_all_pre(:'t', now(), :'r', :'pub', :'mine', 51)" ;;
-    walk_dm)   echo "EXECUTE walk_dm(:'t', now(), :'r', :'r', :'pub', :'mine', 51)" ;;
-    thread)    echo "EXECUTE thread(:'t', :'task', now(), :'r', :'pub', :'mine', 51)" ;;
-    channels)  echo "EXECUTE channels(:'t', now())" ;;
-    issues)    echo "EXECUTE issues(:'t')" ;;
-    file_door) echo "EXECUTE file_door(:'t', :'fid', now(), :'r', :'pub', :'mine')" ;;
-    *) return 1 ;;
-  esac
+# spl_db_hot_measure_body <name> -> the statement text, byte for byte the
+# builder's (the lines after its @@scope line, up to the next @@stmt).
+spl_db_hot_measure_body() {
+  local body
+  body="$(awk -v n="$1" '/^-- @@stmt /{p = ($3 == n); next} p && /^-- @@scope /{next} p' "$(spl_db_hot_measure_stmt_file)")"
+  printf '%s' "$body"
 }
 
-# spl_db_hot_measure_sql <tenant> <reader> <n> <jit> <only> <plans> -> the psql script.
+# spl_db_hot_measure_headers -> one line per statement, in one pass:
+# <name> <sha256> <scope> <exec> <jit> <enable_bitmapscan> <enable_sort>
+# <plan_cache_mode>, each setting the value the hub's scope statement for it
+# sets, or DEFAULT when the scope leaves it to the server.
+spl_db_hot_measure_headers() {
+  awk 'function f(k,   i) { for (i = 4; i <= NF; i++) if (index($i, k "=") == 1) return substr($i, length(k) + 2) }
+    function g(k,   m) { if (match(sc, "set_config\\(\x27" k "\x27, \x27[a-z_]+\x27")) { m = substr(sc, RSTART, RLENGTH); sub(/.*, \x27/, "", m); sub(/\x27$/, "", m); return m } return "DEFAULT" }
+    /^-- @@stmt / { n = $3; h = n " " f("sha256") " " f("scope") " " f("exec"); next }
+    /^-- @@scope / && n != "" { sc = $0; print h, g("jit"), g("enable_bitmapscan"), g("enable_sort"), g("plan_cache_mode"); n = "" }' \
+    "$(spl_db_hot_measure_stmt_file)"
+}
+
+# spl_db_hot_measure_check -> 0 when every statement's text still has the
+# sha256 its builder printed (a hand edit of the copy is refused).
+spl_db_hot_measure_check() {
+  local name want have n=0
+  while IFS= read -r name; do
+    want="$(spl_db_hot_measure_field "$name" sha256)"
+    have="$(spl_db_hot_measure_body "$name" | sha256sum | cut -d' ' -f1)"
+    [[ -n "$want" && "$want" == "$have" ]] ||
+      { do_log "FATAL $name's text in $(spl_db_hot_measure_stmt_file) is not its builder's (sha256 $have, printed $want)" >&2; return 1; }
+    n=$((n + 1))
+  done < <(spl_db_hot_measure_names)
+  ((n > 0)) || { do_log "FATAL no statement in $(spl_db_hot_measure_stmt_file)" >&2; return 1; }
+}
+
+# spl_db_hot_measure_knob <env-name> <value> <allowed...> -> the values one
+# MEASURE_* knob expands to (both = on off), one per line; refuses the rest.
+spl_db_hot_measure_knob() {
+  local name="$1" v="$2"
+  shift 2
+  [[ "$v" == both && " $* " == *" on "* ]] && { printf '%s\n' on off; return 0; }
+  [[ " $* " == *" $v "* ]] || { do_log "FATAL $name must be one of: $* (or both for on/off), got: $v" >&2; return 1; }
+  echo "$v"
+}
+
+# spl_db_hot_measure_set <name> <guc> <knob value> <tag prefix> -> the SET for
+# guc before name's samples: the hub's own value when the knob is hub, else
+# the knob's, which is then named in the caller's tag.
+spl_db_hot_measure_set() {
+  local v="$3"
+  if [[ "$v" == hub ]]; then
+    v="${_hm_set[$1.$2]:-DEFAULT}"
+  else
+    tag+=".$4${v#force_}"
+  fi
+  echo "SET $2 = $v;"
+}
+
+# spl_db_hot_measure_sql <tenant> <reader> <n> <jit> <only> <plans> [lobby] -> the psql script.
 spl_db_hot_measure_sql() {
-  local tenant="$1" reader="$2" n="$3" jit="$4" only="$5" plans="$6" to="${MEASURE_TIMEOUT_MS:-10000}"
+  local tenant="$1" reader="$2" n="$3" jit="$4" only="$5" plans="$6" lobby="${7:-}" to="${MEASURE_TIMEOUT_MS:-10000}"
   [[ "$tenant" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID must be a tenant slug, got: '$tenant'" >&2; return 1; }
   [[ "$reader" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { do_log "FATAL READER must be a human id (e.g. HUM-10), got: '$reader'" >&2; return 1; }
   [[ "$n" =~ ^[0-9]{1,2}$ ]] && ((n >= 3 && n <= 50)) || { do_log "FATAL MEASURE_N must be 3..50, got: $n" >&2; return 1; }
   [[ "$to" =~ ^[0-9]{3,5}$ ]] && ((to >= 100 && to <= 60000)) || { do_log "FATAL MEASURE_TIMEOUT_MS must be 100..60000, got: $to" >&2; return 1; }
-  local pc="${MEASURE_PLAN_CACHE:-force_custom_plan}"
-  [[ "$pc" =~ ^(auto|force_custom_plan|force_generic_plan)$ ]] ||
-    { do_log "FATAL MEASURE_PLAN_CACHE must be auto, force_custom_plan or force_generic_plan, got: $pc" >&2; return 1; }
+  [[ -z "$lobby" || "$lobby" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    { do_log "FATAL MEASURE_LOBBY must be a lowercase uuid, got: '$lobby'" >&2; return 1; }
   local -a jits bms sorts
-  case "${MEASURE_SORT:-off}" in both) sorts=(on off) ;; on|off) sorts=("${MEASURE_SORT:-off}") ;;
-    *) do_log "FATAL MEASURE_SORT must be both, on or off, got: ${MEASURE_SORT}" >&2; return 1 ;; esac
-  case "${MEASURE_BITMAPSCAN:-off}" in both) bms=(on off) ;; on|off) bms=("${MEASURE_BITMAPSCAN:-off}") ;;
-    *) do_log "FATAL MEASURE_BITMAPSCAN must be both, on or off, got: ${MEASURE_BITMAPSCAN}" >&2; return 1 ;; esac
-  case "$jit" in both) jits=(on off) ;; on|off) jits=("$jit") ;; *) do_log "FATAL MEASURE_JIT must be both, on or off, got: $jit" >&2; return 1 ;; esac
-  local name found=0 j i
+  local pc
+  mapfile -t jits < <(spl_db_hot_measure_knob MEASURE_JIT "$jit" hub on off) && ((${#jits[@]})) || return 1
+  mapfile -t bms < <(spl_db_hot_measure_knob MEASURE_BITMAPSCAN "${MEASURE_BITMAPSCAN:-hub}" hub on off) && ((${#bms[@]})) || return 1
+  mapfile -t sorts < <(spl_db_hot_measure_knob MEASURE_SORT "${MEASURE_SORT:-hub}" hub on off) && ((${#sorts[@]})) || return 1
+  pc="$(spl_db_hot_measure_knob MEASURE_PLAN_CACHE "${MEASURE_PLAN_CACHE:-hub}" hub auto force_custom_plan force_generic_plan)" || return 1
+  spl_db_hot_measure_check || return 1
+  local name
+  local -a names=()
+  mapfile -t names < <(spl_db_hot_measure_names)
   if [[ -n "$only" ]]; then
     for name in ${only//,/ }; do
-      # A here-string, not a pipe: grep -q exits on its first match and, under
-      # pipefail, the producer's SIGPIPE would fail the check (CI 37092928543).
-      grep -qxF -- "$name" <<<"$(spl_db_hot_measure_names)" || { do_log "FATAL MEASURE_ONLY names no statement: $name" >&2; return 1; }
+      [[ " ${names[*]} " == *" $name "* ]] || { do_log "FATAL MEASURE_ONLY names no statement: $name (have: ${names[*]})" >&2; return 1; }
     done
+    local -a keep=()
+    for name in "${names[@]}"; do [[ ",$only," == *",$name,"* ]] && keep+=("$name"); done
+    names=("${keep[@]}")
   fi
-  echo "SELECT set_config('app.tenant_id', '$tenant', false), set_config('statement_timeout', '$to', false), set_config('plan_cache_mode', '$pc', false);"
+  echo "SELECT set_config('app.tenant_id', '$tenant', false), set_config('statement_timeout', '$to', false);"
   echo "\\set t '$tenant'"
   echo "\\set r '$reader'"
-  echo "\\set pub '{lobby,alerts,feedback,issues,tasks}'"
-  # The reader's channels, the tenant's biggest topic and one attached file id:
-  # the real arguments, read in the same tenant scope the statements run in.
+  echo "\\set lobby '$lobby'"
+  echo "\\set pub '$(awk '/^-- @@pub /{print $3; exit}' "$(spl_db_hot_measure_stmt_file)")'"
+  # The reader's channels and the tenant's biggest topic: the real arguments,
+  # read in the same tenant scope the statements run in.
   echo "SELECT COALESCE(array_agg(channel_id ORDER BY channel_id), '{}')::text AS mine FROM channel_humans WHERE tenant_id = '$tenant' AND human_id = '$reader' \\gset"
   echo "SELECT COALESCE((SELECT task_id::text FROM messages WHERE tenant_id = '$tenant' GROUP BY task_id ORDER BY count(*) DESC LIMIT 1), '00000000-0000-0000-0000-000000000000') AS task \\gset"
-  echo "SELECT COALESCE((SELECT f->>'file_id' FROM messages m, jsonb_array_elements(m.files) f WHERE m.tenant_id = '$tenant' AND f ? 'file_id' ORDER BY m.received_at LIMIT 1), 'none') AS fid \\gset"
-  echo "\\echo @@args tenant=:t reader=:r mine=:mine task=:task"
-  spl_db_hot_measure_prepare
-  local b tag so
+  echo "\\echo @@args tenant=:t reader=:r mine=:mine task=:task lobby=:lobby"
+  # Read each statement's header once: the script has n x settings lines per statement.
+  local -A _hm_exec=() _hm_set=()
+  local h_sum h_scope h_exec h_jit h_bm h_sort h_pc
+  while read -r name h_sum h_scope h_exec h_jit h_bm h_sort h_pc; do
+    [[ " ${names[*]} " == *" $name "* ]] || continue
+    echo "\\echo @@stmt $name sha256=$h_sum scope=$h_scope"
+    _hm_exec[$name]="$h_exec"
+    _hm_set[$name.jit]="$h_jit" _hm_set[$name.enable_bitmapscan]="$h_bm"
+    _hm_set[$name.enable_sort]="$h_sort" _hm_set[$name.plan_cache_mode]="$h_pc"
+  done < <(spl_db_hot_measure_headers)
+  for name in "${names[@]}"; do
+    printf 'PREPARE %s AS %s;\n' "$name" "$(spl_db_hot_measure_body "$name")"
+  done
+  local j b so tag i
   for so in "${sorts[@]}"; do
-  for b in "${bms[@]}"; do
-    for j in "${jits[@]}"; do
-      echo "SET enable_bitmapscan = $b;"
-      echo "SET enable_sort = $so;"
-      echo "SET jit = $j;"
-      tag="jit_$j"
-      [[ "$b" == off ]] && tag="$tag.nobitmap"
-      [[ "$so" == on ]] && tag="$tag.sort"
-      while IFS= read -r name; do
-        [[ -z "$only" || ",$only," == *",$name,"* ]] || continue
-        found=1
-        if [[ "$plans" == 1 ]]; then
-          echo "\\echo @@plan $name $tag"
-          echo "EXPLAIN (ANALYZE, BUFFERS) $(spl_db_hot_measure_exec "$name");"
-        fi
-        for ((i = 0; i < n; i++)); do
-          echo "\\echo @@ ${name}.$tag"
-          echo "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF) $(spl_db_hot_measure_exec "$name");"
+    for b in "${bms[@]}"; do
+      for j in "${jits[@]}"; do
+        for name in "${names[@]}"; do
+          tag=""
+          spl_db_hot_measure_set "$name" jit "$j" jit_ || return 1
+          spl_db_hot_measure_set "$name" enable_bitmapscan "$b" bitmap_ || return 1
+          spl_db_hot_measure_set "$name" enable_sort "$so" sort_ || return 1
+          spl_db_hot_measure_set "$name" plan_cache_mode "$pc" pc_ || return 1
+          tag="${tag:-.hub}"
+          if [[ "$plans" == 1 ]]; then
+            echo "\\echo @@plan $name$tag"
+            echo "EXPLAIN (ANALYZE, BUFFERS) EXECUTE $name(${_hm_exec[$name]});"
+          fi
+          for ((i = 0; i < n; i++)); do
+            echo "\\echo @@ $name$tag"
+            echo "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF) EXECUTE $name(${_hm_exec[$name]});"
+          done
         done
-      done < <(spl_db_hot_measure_names)
+      done
     done
   done
-  done
-  ((found)) || { do_log "FATAL MEASURE_ONLY names no statement: $only" >&2; return 1; }
-}
-
-# spl_db_hot_measure_walk <all|dm> -> viewTopicsSQL's text for that shape.
-spl_db_hot_measure_walk() {
-  case "$1" in
-    all) cat <<'EOF_SQL'
-WITH RECURSIVE w (task_id, received_at, n) AS ( (SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1) UNION ALL SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL ( SELECT l.task_id, l.received_at FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.received_at <= w.received_at AND (l.received_at, l.task_id::text) < (w.received_at, w.task_id::text) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1 ) s WHERE w.n < $6 ) SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg FROM w CROSS JOIN LATERAL ( SELECT count(*)::int AS n, array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds, array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text) || array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3))) ) a LEFT JOIN LATERAL ( SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent, m.received_at AS first_at, m.msg AS first_msg FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3))) ORDER BY m.received_at, m.msg_id::text LIMIT 1 ) f ON true ORDER BY w.received_at DESC, w.task_id::text DESC
-EOF_SQL
-      ;;
-    all_pre) cat <<'EOF_SQL'
-WITH RECURSIVE w (task_id, received_at, n) AS ( (SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1) UNION ALL SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL ( SELECT l.task_id, l.received_at FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.task_id = l.task_id ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.from_id = $3 OR d.to_id = $3))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.received_at <= w.received_at AND (l.received_at, l.task_id::text) < (w.received_at, w.task_id::text) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1 ) s WHERE w.n < $6 ) SELECT w.task_id::text, a.channel, a.parent, a.first_at, w.received_at, a.n, a.kinds, a.parties, a.first_msg FROM w CROSS JOIN LATERAL ( SELECT (array_agg(COALESCE(m.channel, '') ORDER BY m.received_at, m.msg_id::text))[1] AS channel, (array_agg(COALESCE(m.parent_task_id::text, '') ORDER BY m.received_at, m.msg_id::text))[1] AS parent, min(m.received_at) AS first_at, count(*)::int AS n, array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds, array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text) || array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties, (array_agg(m.msg ORDER BY m.received_at, m.msg_id::text))[1] AS first_msg FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3))) ) a ORDER BY w.received_at DESC, w.task_id::text DESC
-EOF_SQL
-      ;;
-    dm) cat <<'EOF_SQL'
-WITH RECURSIVE w (task_id, received_at, n) AS ( (SELECT l.task_id, l.received_at, 1 FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND l.channel IS NULL AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.channel IS NULL AND x.task_id = l.task_id ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages v WHERE v.tenant_id = $1 AND v.expires_at > $2 AND v.channel IS NULL AND v.task_id = l.task_id AND (v.from_id = $3 OR v.to_id = $3) LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.channel IS NULL AND d.task_id = l.task_id AND (d.channel = ANY($5::text[]) OR d.channel = ANY($6::text[]) OR (d.channel IS NULL AND (d.from_id = $4 OR d.to_id = $4))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1) UNION ALL SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL ( SELECT l.task_id, l.received_at FROM messages l WHERE l.tenant_id = $1 AND l.expires_at > $2 AND l.channel IS NULL AND (SELECT x.msg_id = l.msg_id FROM messages x WHERE x.tenant_id = $1 AND x.expires_at > $2 AND x.channel IS NULL AND x.task_id = l.task_id ORDER BY x.received_at DESC, x.msg_id DESC LIMIT 1) AND (SELECT true FROM messages v WHERE v.tenant_id = $1 AND v.expires_at > $2 AND v.channel IS NULL AND v.task_id = l.task_id AND (v.from_id = $3 OR v.to_id = $3) LIMIT 1) AND (SELECT true FROM messages d WHERE d.tenant_id = $1 AND d.expires_at > $2 AND d.channel IS NULL AND d.task_id = l.task_id AND (d.channel = ANY($5::text[]) OR d.channel = ANY($6::text[]) OR (d.channel IS NULL AND (d.from_id = $4 OR d.to_id = $4))) LIMIT 1) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL AND l.received_at <= w.received_at AND (l.received_at, l.task_id::text) < (w.received_at, w.task_id::text) ORDER BY l.received_at DESC, l.task_id::text DESC LIMIT 1 ) s WHERE w.n < $7 ) SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg FROM w CROSS JOIN LATERAL ( SELECT count(*)::int AS n, array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds, array_agg(m.from_id || '@' || m.from_box ORDER BY m.received_at, m.msg_id::text) || array_agg(m.to_id || '@' || m.to_box ORDER BY m.received_at, m.msg_id::text) AS parties FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($5::text[]) OR m.channel = ANY($6::text[]) OR (m.channel IS NULL AND (m.from_id = $4 OR m.to_id = $4))) ) a LEFT JOIN LATERAL ( SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent, m.received_at AS first_at, m.msg AS first_msg FROM messages m WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($5::text[]) OR m.channel = ANY($6::text[]) OR (m.channel IS NULL AND (m.from_id = $4 OR m.to_id = $4))) ORDER BY m.received_at, m.msg_id::text LIMIT 1 ) f ON true ORDER BY w.received_at DESC, w.task_id::text DESC
-EOF_SQL
-      ;;
-  esac
 }
 
 _spl_db_hot_measure_run() {
@@ -167,6 +213,7 @@ _spl_db_hot_measure_run() {
     spl_pg_env "$SPL_PROXY_DSN" psql -X -q -P pager=off -f - 2>&1)"
   grep -q "Execution Time" <<<"$out" || { printf '%s\n' "$out" | tail -8; do_log "FATAL no sample was measured"; return 1; }
   printf '%s\n' "$out" | grep '^@@args' | sed 's/^@@args /args: /'
+  printf '%s\n' "$out" | grep '^@@stmt' | sed 's/^@@stmt /statement: /'
   printf '%s\n' "$out" | grep -E '^(ERROR|FATAL)' | sort | uniq -c
   [[ "${6:-0}" == 1 ]] && printf '%s\n' "$out" | awk '/^@@plan/{p=1} /^@@ /{p=0} p'
   printf '%s\n' "$out" | spl_search_measure_summary

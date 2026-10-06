@@ -139,12 +139,12 @@ function onCancel() {
   clearDrag()
 }
 
+/* one controller per drag: abort() removes the drag's three listeners */
+let dragListeners: AbortController | null = null
+
 function detach() {
-  const b = btnEl.value
-  if (!b) return
-  b.removeEventListener('pointermove', onMove)
-  b.removeEventListener('pointerup', onUp)
-  b.removeEventListener('pointercancel', onCancel)
+  dragListeners?.abort()
+  dragListeners = null
 }
 
 function onDown(e: PointerEvent) {
@@ -153,9 +153,12 @@ function onDown(e: PointerEvent) {
   dragging = false
   swallowClick = false
   try { btnEl.value.setPointerCapture(e.pointerId) } catch { /* a synthetic event has no capture */ }
-  btnEl.value.addEventListener('pointermove', onMove)
-  btnEl.value.addEventListener('pointerup', onUp)
-  btnEl.value.addEventListener('pointercancel', onCancel)
+  detach()
+  dragListeners = new AbortController()
+  const { signal } = dragListeners
+  btnEl.value.addEventListener('pointermove', onMove, { signal })
+  btnEl.value.addEventListener('pointerup', onUp, { signal })
+  btnEl.value.addEventListener('pointercancel', onCancel, { signal })
 }
 
 function onClick(e: MouseEvent) {
@@ -237,13 +240,13 @@ function onSizeUp(e: PointerEvent) {
   setSize(size.value[pos.value] ?? null)
 }
 
+/* one controller per resize: abort() removes the resize's three listeners */
+let sizeListeners: AbortController | null = null
+
 function detachSize() {
   sizing = null
-  const b = sizeEl.value
-  if (!b) return
-  b.removeEventListener('pointermove', onSizeMove)
-  b.removeEventListener('pointerup', onSizeUp)
-  b.removeEventListener('pointercancel', detachSize)
+  sizeListeners?.abort()
+  sizeListeners = null
 }
 
 function onSizeDown(e: PointerEvent) {
@@ -254,9 +257,12 @@ function onSizeDown(e: PointerEvent) {
   sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room: sizeRoom(), moved: false }
   swallowSizeClick = false
   try { sizeEl.value.setPointerCapture(e.pointerId) } catch { /* a synthetic event has no capture */ }
-  sizeEl.value.addEventListener('pointermove', onSizeMove)
-  sizeEl.value.addEventListener('pointerup', onSizeUp)
-  sizeEl.value.addEventListener('pointercancel', detachSize)
+  sizeListeners?.abort()
+  sizeListeners = new AbortController()
+  const { signal } = sizeListeners
+  sizeEl.value.addEventListener('pointermove', onSizeMove, { signal })
+  sizeEl.value.addEventListener('pointerup', onSizeUp, { signal })
+  sizeEl.value.addEventListener('pointercancel', detachSize, { signal })
 }
 
 function onSizeClick() {

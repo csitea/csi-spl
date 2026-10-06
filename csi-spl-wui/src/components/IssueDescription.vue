@@ -71,19 +71,21 @@ const mp = useMentionPicker({ text: draft, el: area, onPick: (v) => emit('draft'
 let saving = false
 let pressed = false
 
+/* document-level and capture: the editor's blur fires before the click that
+ * caused it lands, so close() must already know a press is down anywhere on
+ * the page (a press inside a child that stops propagation included) */
 function onPress() { pressed = true }
 function onRelease() { pressed = false }
+/* one controller for the group: abort() removes all three, flags and all */
+const listeners = new AbortController()
 onMounted(() => {
   if (editing.value) draft.value = mp.decode(props.text)
-  document.addEventListener('pointerdown', onPress, true)
-  document.addEventListener('pointerup', onRelease, true)
-  document.addEventListener('pointercancel', onRelease, true)
+  const opts = { capture: true, signal: listeners.signal }
+  document.addEventListener('pointerdown', onPress, opts)
+  document.addEventListener('pointerup', onRelease, opts)
+  document.addEventListener('pointercancel', onRelease, opts)
 })
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', onPress, true)
-  document.removeEventListener('pointerup', onRelease, true)
-  document.removeEventListener('pointercancel', onRelease, true)
-})
+onBeforeUnmount(() => listeners.abort())
 
 /* back to the rendered view, after the click that blurred the editor */
 function close() {

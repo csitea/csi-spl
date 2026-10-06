@@ -108,7 +108,8 @@ export function focusWithoutScroll(el) {
 
 /**
  * Headless UI shows and hides its list itself. Whenever that list is on
- * screen, pin it inside the viewport. Returns a stop function.
+ * screen, pin it inside the viewport. Returns a stop function, which
+ * removes the observer and all three listeners; safe to call twice.
  */
 export function observePopover(host, opts) {
   if (!host || typeof MutationObserver === 'undefined') return () => {}
@@ -138,13 +139,13 @@ export function observePopover(host, opts) {
     attributes: true,
     attributeFilter: ['data-headlessui-state', 'hidden', 'class', 'aria-expanded'],
   })
-  host.addEventListener('click', later)
-  host.addEventListener('focusin', later)
-  host.addEventListener('keydown', later)
+  const ctl = new AbortController()
+  const { signal } = ctl
+  host.addEventListener('click', later, { signal })
+  host.addEventListener('focusin', later, { signal })
+  host.addEventListener('keydown', later, { signal })
   return () => {
     obs.disconnect()
-    host.removeEventListener('click', later)
-    host.removeEventListener('focusin', later)
-    host.removeEventListener('keydown', later)
+    ctl.abort()
   }
 }

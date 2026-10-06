@@ -113,11 +113,12 @@ export function holdPanel(origin: HTMLElement | null) {
   const at = row ? rows.indexOf(row) : -1
   let settled = Date.now()
   let timer: ReturnType<typeof setInterval> | null = null
+  /* one controller per hold: abort() removes both reader listeners */
+  const listeners = new AbortController()
   const stop = () => {
     if (timer) clearInterval(timer)
     timer = null
-    document.removeEventListener('keydown', onUser, true)
-    document.removeEventListener('pointerdown', onUser, true)
+    listeners.abort()
     if (held === stop) held = null
   }
   /* the reader moves on: no longer ours to hold (keys typed into an open dialog are its own) */
@@ -156,8 +157,9 @@ export function holdPanel(origin: HTMLElement | null) {
   /* after this key's own dispatch, so the key itself does not end the hold */
   setTimeout(() => {
     if (held !== stop) return
-    document.addEventListener('keydown', onUser, true)
-    document.addEventListener('pointerdown', onUser, true)
+    const opts = { capture: true, signal: listeners.signal }
+    document.addEventListener('keydown', onUser, opts)
+    document.addEventListener('pointerdown', onUser, opts)
     timer = setInterval(tick, HOLD_EVERY_MS)
   }, 0)
 }

@@ -11,10 +11,15 @@
 // long without moving; a move before then is the browser's scroll.
 import { DRAG_THRESHOLD_PX, dragAxis, dropIndex, isDrag, moveTo, sameOrder } from '~/utils/rail-order.mjs'
 
+/* how long after a drag ends its click may still land and be swallowed; a
+ * click later than this is the reader's own. Unrelated to the 400 ms in
+ * useIssueColumnGrips. */
+const SWALLOW_CLICK_MS = 400
+
 function swallowClick() {
   const stop = (e: Event) => { e.preventDefault(); e.stopPropagation() }
   window.addEventListener('click', stop, { capture: true, once: true })
-  setTimeout(() => window.removeEventListener('click', stop, { capture: true }), 400)
+  setTimeout(() => window.removeEventListener('click', stop, { capture: true }), SWALLOW_CLICK_MS)
 }
 
 export function useDragReorder<T extends string>(opts: {
@@ -35,6 +40,8 @@ export function useDragReorder<T extends string>(opts: {
   let mids: number[] = []
   let base: T[] = []
   let along = (ev: PointerEvent) => ev.clientY
+  /* one per press: abort() removes all down() added; finish() aborts it before `start` frees down() again */
+  let listeners: AbortController | null = null
 
   function onMove(ev: PointerEvent) {
     if (!start || ev.pointerId !== start.pointerId) return
@@ -60,10 +67,7 @@ export function useDragReorder<T extends string>(opts: {
 
   function unlisten() {
     clearTimeout(hold)
-    window.removeEventListener('pointermove', onMove)
-    window.removeEventListener('pointerup', onUp)
-    window.removeEventListener('pointercancel', onCancel)
-    window.removeEventListener('touchmove', onTouchMove)
+    listeners?.abort()
   }
 
   function finish(ev: PointerEvent, drop: boolean) {
@@ -88,10 +92,11 @@ export function useDragReorder<T extends string>(opts: {
     const s = { x: ev.clientX, y: ev.clientY, id, pointerId: ev.pointerId, el: ev.currentTarget as HTMLElement, held: wait <= 0 }
     start = s
     if (!s.held) hold = setTimeout(() => { s.held = true }, wait)
-    window.addEventListener('pointermove', onMove, { passive: false })
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onCancel)
-    if (wait > 0) window.addEventListener('touchmove', onTouchMove, { passive: false })
+    const { signal } = (listeners = new AbortController())
+    window.addEventListener('pointermove', onMove, { passive: false, signal })
+    window.addEventListener('pointerup', onUp, { signal })
+    window.addEventListener('pointercancel', onCancel, { signal })
+    if (wait > 0) window.addEventListener('touchmove', onTouchMove, { passive: false, signal })
   }
   onBeforeUnmount(unlisten)
 

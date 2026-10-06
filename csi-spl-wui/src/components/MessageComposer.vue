@@ -969,18 +969,26 @@ watch([modeGlyph, chip, docked], () => {
   if (!props.global) return
   if (syncMultiline()) void nextTick(() => fitGlobalBox())
 })
-let widthObserver: ResizeObserver | null = null
-watch(fieldEl, (el) => {
-  widthObserver?.disconnect()
-  widthObserver = null
-  if (!el || typeof ResizeObserver === 'undefined') return
-  widthObserver = new ResizeObserver(() => {
+/* t1 26282b6e: a new viewport width re-judges the wrap on the next frame; the
+   text, focus, chip, glyph and dock watchers above cover the rest. Not a
+   ResizeObserver on the field: the top bar's tenant drop box sets its width
+   inside its own ResizeObserver callback (TenantDropBox.vue, E14), which
+   resizes this field in the same frame, and an observed field then raises
+   "ResizeObserver loop completed with undelivered notifications". */
+let widthFrame = 0
+function onViewportWidth() {
+  if (widthFrame) return
+  widthFrame = requestAnimationFrame(() => {
+    widthFrame = 0
     if (syncMultiline()) void nextTick(() => fitGlobalBox())
   })
-  widthObserver.observe(el)
+}
+onMounted(() => {
+  if (props.global) window.addEventListener('resize', onViewportWidth, { passive: true })
 })
 onBeforeUnmount(() => {
-  widthObserver?.disconnect()
+  window.removeEventListener('resize', onViewportWidth)
+  if (widthFrame) cancelAnimationFrame(widthFrame)
   measureEl?.remove()
   measureEl = null
 })

@@ -35,12 +35,13 @@ func ValidDocsPath(p string) bool {
 
 func (s *Server) routeDocs(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/docs/{path...}", s.handleGetDoc)
-	mux.HandleFunc("OPTIONS /v1/docs/{path...}", s.preflight)
+	mux.HandleFunc("OPTIONS /v1/docs/{path...}", s.docsPreflight)
+	s.routeRepoDocsEdit(mux) // spec 075 repo-edit T08: PUT + the edits routes
 }
 
 func (s *Server) handleGetDoc(w http.ResponseWriter, r *http.Request) {
 	s.allowOrigin(w, r)
-	_, hum, ok := s.humanTenant(w, r)
+	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
 		return
 	}
@@ -55,6 +56,10 @@ func (s *Server) handleGetDoc(w http.ResponseWriter, r *http.Request) {
 	p := r.PathValue("path")
 	if !ValidDocsPath(p) {
 		writeErr(w, http.StatusNotFound, "not_found", "no such doc")
+		return
+	}
+	if st, on := s.repoEdit(); on { // spec 075 repo-edit: overlays and the editable flags
+		s.getRepoDoc(w, r, st, t.ID, hum, p)
 		return
 	}
 	rc, err := s.o.Docs.Get(r.Context(), p)
@@ -81,4 +86,22 @@ func (s *Server) handleGetDoc(w http.ResponseWriter, r *http.Request) {
 	h.Add("Vary", "Authorization")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, rc) //nolint:errcheck
+}
+
+// getRepoDoc is the read with repo editing on: tree.json merged with the
+// overlays, a doc from its newest live overlay (repo_docs_edit.go).
+func (s *Server) getRepoDoc(w http.ResponseWriter, r *http.Request, st repoDocStore, tenant, hum, p string) {
+	if p == DocsIndex {
+		if err := s.serveRepoDocsTree(w, r, st, tenant, hum); err != nil {
+			writeErrCause(w, http.StatusServiceUnavailable, "internal", "docs store unavailable", err)
+		}
+		return
+	}
+	found, err := s.serveRepoDoc(w, r, st, tenant, hum, p)
+	switch {
+	case err != nil:
+		writeErrCause(w, http.StatusServiceUnavailable, "internal", "docs store unavailable", err)
+	case !found:
+		writeErr(w, http.StatusNotFound, "not_found", "no such doc")
+	}
 }

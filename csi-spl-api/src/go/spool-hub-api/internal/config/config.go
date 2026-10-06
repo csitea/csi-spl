@@ -276,6 +276,25 @@ type Hub struct {
 	// /v1/workspace/docs routes are off.
 	WorkspaceDocsBucket string `env:"SPOOL_HUB_WORKSPACE_DOCS_BUCKET"`
 	WorkspaceDocsDir    string `env:"SPOOL_HUB_WORKSPACE_DOCS_DIR"`
+	// Editable Repo Docs (spec 075 repo-edit; cnf env.docs.repo_edit, which
+	// do_spl_merged_cnf derives into SPOOL_HUB_DOCS_EDIT_*). Enabled false is
+	// the kill switch: the edit routes 404 and no worker pushes. The App key
+	// is SPOOL_GITHUB_APP_KEY, read at start and never kept here.
+	DocsEditEnabled          bool          `env:"SPOOL_HUB_DOCS_EDIT_ENABLED" envDefault:"false"`
+	DocsEditDeny             []string      `env:"SPOOL_HUB_DOCS_EDIT_DENY" envSeparator:","`
+	DocsEditBlocked          []string      `env:"SPOOL_HUB_DOCS_EDIT_BLOCKED_WORKSPACES" envSeparator:","`
+	DocsEditCoalesceAfter    time.Duration `env:"SPOOL_HUB_DOCS_EDIT_COALESCE_AFTER" envDefault:"120s"`
+	DocsEditCoalesceMax      time.Duration `env:"SPOOL_HUB_DOCS_EDIT_COALESCE_MAX" envDefault:"10m"`
+	DocsEditMinMemberAge     time.Duration `env:"SPOOL_HUB_DOCS_EDIT_MIN_MEMBER_AGE" envDefault:"24h"`
+	DocsEditRateMemberHour   int           `env:"SPOOL_HUB_DOCS_EDIT_RATE_MEMBER_PER_HOUR" envDefault:"30"`
+	DocsEditRateAgentHour    int           `env:"SPOOL_HUB_DOCS_EDIT_RATE_AGENT_PER_HOUR" envDefault:"60"`
+	DocsEditRateWorkspaceDay int           `env:"SPOOL_HUB_DOCS_EDIT_RATE_WORKSPACE_PER_DAY" envDefault:"100"`
+	DocsEditRateEnvDay       int           `env:"SPOOL_HUB_DOCS_EDIT_RATE_ENV_PER_DAY" envDefault:"300"`
+	DocsEditGitHubAPI        string        `env:"SPOOL_HUB_DOCS_EDIT_GITHUB_API"`
+	DocsEditGitHubAppID      string        `env:"SPOOL_HUB_DOCS_EDIT_GITHUB_APP_ID"`
+	DocsEditInstallationID   string        `env:"SPOOL_HUB_DOCS_EDIT_INSTALLATION_ID"`
+	// DocsEditGitHubRepo is "<owner>/<repo>", the one repository edits land in.
+	DocsEditGitHubRepo string `env:"SPOOL_HUB_DOCS_EDIT_GITHUB_REPO"`
 	// TenantHostPattern is "{tenant}.<fqdn>"; the tenant comes from the Host.
 	TenantHostPattern string        `env:"SPOOL_HUB_TENANT_HOST_PATTERN"`
 	AllowTextOnly     bool          `env:"SPOOL_HUB_ALLOW_TEXT_ONLY_WHEN_FILE_MISSING" envDefault:"false"`

@@ -51,6 +51,7 @@ var operatorCallers = map[string]string{
 	"PushedRepoDocEdits":    "repo-edit worker: the published sweep over every workspace's pushed edits; no route",
 	"PublishRepoDocEdits":   "repo-edit worker: the published sweep, keyed by commit sha; no route",
 	"RepoDocEditStatuses":   "repo-edit worker (T10): the 30-day overlay sweep, keyed by the edit_ids of bucket objects; statuses only; no route",
+	"RepoDocOverlays":       "GET /v1/docs/{path} + tree.json (spec 075 T08): the newest live overlay of a repo doc path; the docs bucket is env-wide, every workspace reads the same doc",
 }
 
 // operatorEntries are the only functions that set the operator scope:

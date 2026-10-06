@@ -45,7 +45,11 @@ type Options struct {
 	Docs blob.Store
 	// WorkspaceDocs resolves each workspace's own docs store (specs/075
 	// Phase 2, workspace_docs.go). nil = the routes are off.
-	WorkspaceDocs     *WorkspaceDocs
+	WorkspaceDocs *WorkspaceDocs
+	// RepoEdit switches on editing the Repo Docs (spec 075 repo-edit, T08,
+	// repo_docs_edit.go): cnf env.docs.repo_edit. nil = off, every edit
+	// route 404s; it also needs Docs and a store with the edit queue.
+	RepoEdit          *RepoEdit
 	Log               zerolog.Logger
 	TenantHostPattern string // "{tenant}.<fqdn>"
 	HelloSkew         time.Duration

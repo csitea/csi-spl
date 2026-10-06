@@ -125,6 +125,7 @@ func cmdServe() int {
 	if opts.Docs != nil {
 		defer opts.Docs.Close()
 	}
+	opts.RepoEdit = repoEdit(ctx, hc, log, st, opts.Docs) // spec 075 repo-edit T08; nil = off
 	if opts.WorkspaceDocs, err = workspaceDocs(cf, hc); err != nil {
 		return fail(err)
 	}

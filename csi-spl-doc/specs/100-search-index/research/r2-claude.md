@@ -399,3 +399,18 @@ correctness. O4-O6 are accuracy and can land in the same version.
   under one context of budget + 1 s (2.5). Acceptance should be per request at
   `/v1/view/search`. Add a **zero-hit** word to the benchmark: it is today's
   true worst case (1.2), and it shows the GIN's best case.
+
+### 6.1 spec.md v0.7 (`9ba4a3c1`): **SIGN**
+
+O1-O6 are all taken in. 5.1 now returns the candidate set (tenant pin + `@@`,
+`LIMIT cap + 1`) with order, keyset, LIMIT and every door outer, plus the
+cap switch to today's scan. O2: the AND-chain walk. O3: `public.messages`,
+`pg_temp` last, both asserted in T3. O4: 3.2. O5: section 2 and fallback B.
+O6: per-request acceptance, Q-zero and Q-rel. T7 (paging never skips), the
+T8 OR case and T10 (cap switch, per-call plan) make them testable.
+
+One build note, not an objection: the hub needs the candidate count before
+it picks a path. Either make one candidate call and branch in Go, or use one
+statement with a `MATERIALIZED` CTE of the function and a `count(*) <= cap`
+guard. Do not call the function twice: a write between the two calls could
+switch the path mid-page.

@@ -1,0 +1,6 @@
+Lay-What: The database now tidies up the message history much sooner after new messages arrive.
+Lay-How: A setting tells the database to do its routine clean-up after a few hundred new messages, not thousands.
+Lay-Why: The clean-up ran only every few days, so counting unread messages kept doing slow extra reading.
+Tech-What: rdb 0138 sets autovacuum_vacuum_insert_scale_factor 0.02 and autovacuum_vacuum_insert_threshold 200 on messages.
+Tech-How: ALTER TABLE messages SET (storage parameters) under SHARE UPDATE EXCLUSIVE, no rewrite; spec 029 section 3.6 names it the one exception.
+Tech-Why: The default insert trigger (~5 400 inserts) let the visibility map lag: all-visible 0.62, index-only scan Heap Fetches 3 691 of 6 917.

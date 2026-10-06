@@ -146,7 +146,7 @@ type Options struct {
 	SessionID func(r *http.Request, tenant string) (string, error)
 	// SearchRatePerMin caps GET /v1/view/search per (tenant, reader) per
 	// minute (search-v1 §5.1); 0 = 30. SearchBudget is the per-statement time
-	// budget; 0 = 2 s.
+	// budget; 0 = 5 s.
 	SearchRatePerMin int
 	SearchBudget     time.Duration
 	// KeysWriteLimit is the per-human hourly ceiling on key writes (specs/023

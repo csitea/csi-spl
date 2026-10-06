@@ -331,7 +331,7 @@ source and route.
 | 404 | `unknown_tenant` | no tenant for the Host |
 | 405 | `method_not_allowed` | anything but `GET` / `OPTIONS` |
 | 429 | `rate_limited` | more than **30** searches per minute per (tenant, reader); the reader is the member `HUM-*`, else the client IP (017 FR-SEC-006). `Retry-After` in seconds |
-| 503 | `search_budget` | the query exceeded its time budget (**2 s**, Postgres `statement_timeout` set per transaction); narrow the query |
+| 503 | `search_budget` | the query exceeded its time budget (**5 s**; 2 s until 2026-10-06, owner in t1 6d5bd334; Postgres `statement_timeout` set per transaction); narrow the query |
 
 Every answer, errors included, carries the view CORS headers (view-v1 §3)
 for an allow-listed `Origin`; the `429` adds
@@ -371,7 +371,7 @@ rate-limited beyond the edge limits.
 - Messages: `messages.search_tsv` = `to_tsvector('simple', body)` (generated,
   stored) with a GIN index (rdb `0020_message_search.sql`); files and threads
   read the same tenant's rows through the existing `(tenant_id, …)` indexes.
-- Budget: 2 s per search statement (`SET LOCAL statement_timeout`), plus the
+- Budget: 5 s per search statement (`SET LOCAL statement_timeout`), plus the
   request context. Rate: §5.1.
 - Measured (`SPOOL_TEST_SEARCH_STRICT=1 SPOOL_TEST_SEARCH_N=20000 go test
   -run TestSearchP95 ./internal/store`; CI runs the same test on 2,000 rows,

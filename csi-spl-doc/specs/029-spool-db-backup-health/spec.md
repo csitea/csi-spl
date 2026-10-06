@@ -139,6 +139,17 @@ today and none should. The consequence for §4: **any alert we add must key on
 absolute dead tuples AND table size, never on `dead_pct` alone**, or it will
 fire forever on a 3-row table and be muted, and then be silent when it matters.
 
+**The one exception: `messages`** (owner's go, HUM-10 msg 31d742b3,
+2026-10-06; rdb `0138_messages_autovacuum.sql`). The paragraph above is about
+small HOT-updated tables. `messages` is the opposite case: large and
+insert-heavy (prd `n_tup_upd` 2 216 of `n_tup_ins` 22 433), so the default
+insert trigger (1 000 + 0.2 x live rows, ~5 400 inserts) let the visibility
+map lag for days: `n_ins_since_vacuum` 4 892, all-visible 0.62, and the
+channel counts' index-only scan read Heap Fetches 3 691 of 6 917 rows (n=3).
+It carries `autovacuum_vacuum_insert_scale_factor = 0.02` and
+`autovacuum_vacuum_insert_threshold = 200`. Any other table still gets no
+override without its own measurement and the owner's go.
+
 ### 3.7 Structure
 
 Sound. Measured, not assumed:

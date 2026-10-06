@@ -688,14 +688,15 @@ spl_rotate_ack_send() {
 
 # ---- ALERT (FR-075) ----------------------------------------------------------------
 
-# spl_rotate_alert ROLE RID PHASE REASON: an ask in the ask book (kind
+# spl_rotate_alert ROLE RID PHASE REASON [STATE]: an ask in the ask book (kind
 # blocker, topic <family>-rotate-<rid>) and, at once, a DM to the owner
 # (ASKS_OWNER_CMD, else ASKS_OWNER from lease.conf through do_spl_desk_reply).
 # No owner setting: one WARN, the ask alone. Best effort, logged.
 spl_rotate_alert() {
   local role="$1" rid="$2" phase="$3" reason="$4" id body ask owner
   id="$(spl_rotate_role_id "$role")"
-  body="ROTATION FAILED $role $phase $reason; old session kept: $id@$ROTATE_BOX pid ${ROTATE_OLD_PID:-?}"
+  # a 5th argument replaces "old session kept" once RETIRE OK has run
+  body="ROTATION FAILED $role $phase $reason; ${5:-old session kept: $id@$ROTATE_BOX pid ${ROTATE_OLD_PID:-?}}"
   ask="$(cat /proc/sys/kernel/random/uuid)"
   if env ASK_ID="$ask" ASK_KIND=blocker ASK_FROM="$id" ASK_TO="${LEASE_ORCH:-}" ASK_TOPIC="$(spl_rotate_ack_task "$rid")" \
       ASK_SUMMARY="$body" timeout 120 "$ROTATE_RUN" -a do_spl_ask_put >/dev/null 2>&1 7>&- 8>&- 9>&-; then

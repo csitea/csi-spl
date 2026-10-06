@@ -29,6 +29,9 @@
 #  11. ROTATE_CMD=heal: dead -> healed (rotate.log, no rotation), alive or on
 #      a usage-limit pane -> untouched, back within the confirm window ->
 #      untouched, two at once -> one heal, gates (in flight, ROTATE_HEAL=0)
+#  12. RELEASE with the fleet lease on another machine -> SKIP standby, DONE,
+#      no alert, no resume; on this machine a wrong holder still FAILs and
+#      the alert names the new pid (20261006T1315Z-master on sat)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -107,7 +110,7 @@ EOF
 cat >"$T/bin/run" <<'EOF'
 #!/usr/bin/env bash
 a="$2"
-echo "$a ASK_KIND=${ASK_KIND:-} ASK_FROM=${ASK_FROM:-} ASK_TOPIC=${ASK_TOPIC:-} DESK_TO=${DESK_TO:-} DISPATCH_MASTER=${DISPATCH_MASTER:-}" >>"$T/run.log"
+echo "$a ASK_KIND=${ASK_KIND:-} ASK_FROM=${ASK_FROM:-} ASK_TOPIC=${ASK_TOPIC:-} DESK_TO=${DESK_TO:-} DISPATCH_MASTER=${DISPATCH_MASTER:-} ASK_SUMMARY=${ASK_SUMMARY:-}" >>"$T/run.log"
 case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
@@ -441,6 +444,34 @@ act ROTATE_CMD=heal ROTATE_HEAL_CONFIRM=0 >"$T/o" 2>&1
 [[ "$(nsetup)" == 0 && ! -e "$D/rotate.log" ]] && grep -q ' HEAL PLAN do_spl_dispatch_setup spawns: c-903' "$T/o" &&
   pass "11. dry run: HEAL PLAN, nothing spawned or logged" || fail "11. dry: $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" "$T/o1" "$T/o2" && pass "11. no stray failing command under the ERR trap" || fail "11. ERRTRAP"
+
+# --- 12. RELEASE on a standby box (20261006T1315Z-master on sat) ---------------------------------
+# the live shape: RETIRE OK (old 102 gone, new 2902 alive), the ctx at RELEASE,
+# the fleet lease moved to another machine mid-rotation
+at_release() {  # <lease holder>
+  world; echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "$1 $(date +%s)" >"$D/lease"
+  rm -rf "$T/proc/102"; "$T/bin/proc" 2902 c-902 0; printf '%%2902\t2902\t$0\tc-902@box\n' >>"$T/tmux/panes"; echo 2902 >"$T/ai.c-902"
+  date +%s >"$D/rotate.dispatch.last"
+  printf 'ROTATE_RID=20261006T1315Z-master\nROTATE_PHASE=RELEASE\nROTATE_OLD_PID=102\nROTATE_OLD_PANE=%%2\nROTATE_NEW_PID=2902\nROTATE_NEW_PANE=%%2902\n' >"$D/rotate.dispatch.ctx"
+}
+at_release c-903@box-main
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q ' RELEASE SKIP standby (lease c-903@box-main)' "$T/o" &&
+  grep -q ' DONE OK fresh c-902 pid 2902; standby (lease c-903@box-main)' "$T/o" &&
+  pass "12. the fleet lease on another machine: RELEASE SKIP standby, the ctx ends DONE" || fail "12. standby rc=$rc phase=$(ctx ROTATE_PHASE) $(cat "$T/o")"
+! grep -qE '^do_spl_(ask_put|desk_reply) ' "$T/run.log" 2>/dev/null && ! grep -q 'ALERT' "$T/o" && ! grep -q 'ROTATION DONE' "$T/send.log" 2>/dev/null &&
+  ! grep -q REFRESH "$T/o" && pass "12. ... no ask, no owner DM, no refresh, no DONE note" || fail "12. alerted: $(cat "$T/run.log" "$T/o" 2>&1)"
+act DRY_RUN=0 >"$T/o" 2>&1
+! grep -q RESUME "$T/o" && ! grep -q ALERT "$T/o" && pass "12. ... and the next run does not RESUME or alert again" || fail "12. resumed: $(cat "$T/o")"
+# control: the lease on THIS machine with the wrong holder still FAILs, and
+# the alert names the new pid, never "old session kept" for a retired one
+at_release c-903@box-desk
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q ' RELEASE FAIL the lease is still c-903@box-desk' "$T/o" && ! grep -q 'RELEASE SKIP' "$T/o" &&
+  grep -q '^do_spl_ask_put .*ASK_SUMMARY=ROTATION FAILED master RELEASE .*old session retired (pid 102); new session: c-902@box-desk pid 2902' "$T/run.log" &&
+  ! grep -q 'old session kept' "$T/run.log" &&
+  pass "12. control: the lease here on the wrong holder FAILs, the alert names the new pid" || fail "12. control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+! grep -q ERRTRAP "$T/o" && pass "12. no stray failing command under the ERR trap" || fail "12. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

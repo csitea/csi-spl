@@ -389,9 +389,21 @@ spl_disp_close() {
   spl_lease_log "ROTATE $role $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
   [[ "$role" == master ]] || return 0
   spl_disp_release
-  if ! spl_disp_wait_holder "$LEASE_MASTER"; then
+  # FR-044 (spec 061): the fleet lease moved to ANOTHER machine mid-rotation,
+  # so this box is standby and its master is never handed the lease back
+  # (20261006T1315Z-master on sat: the lease went to the fleet main, RELEASE FAILed
+  # and alerted "old session kept" for a pid already gone, every hour)
+  spl_lease_read
+  if spl_lease_remote || { ! spl_disp_wait_holder "$LEASE_MASTER" && spl_lease_remote; }; then
+    ROTATE_STANDBY="$LH"
+    spl_disp_step RELEASE SKIP "standby (lease $LH)"
+    return 0
+  fi
+  if [[ "$LH" != "$LEASE_MASTER" && "$LH" != "$LEASE_MASTER@$ROTATE_BOX" ]]; then
     spl_disp_step RELEASE FAIL "the lease is still $LH ${ROTATE_PROMOTE_WAIT}s after the release; $LEASE_FAILOVER keeps acting"
-    spl_rotate_alert master "$ROTATE_RID" RELEASE "the lease did not come back to $LEASE_MASTER"
+    # RETIRE OK has run: the old session is gone, the new one is the master
+    spl_rotate_alert master "$ROTATE_RID" RELEASE "the lease did not come back to $LEASE_MASTER" \
+      "old session retired (pid $ROTATE_OLD_PID); new session: $LEASE_MASTER@$ROTATE_BOX pid ${ROTATE_NEW_PID:-?}"
     return 1
   fi
   spl_disp_step RELEASE OK "the lease is $LH"
@@ -486,6 +498,12 @@ spl_disp_refresh() {
 spl_disp_run_all() {
   local master_rid="$ROTATE_RID" rc=0
   date +%s > "$LEASE_DIR/rotate.dispatch.last"
+  if [[ -n "${ROTATE_STANDBY:-}" ]]; then
+    # standby: the lease is on another machine, so no refresh and no
+    # "holds the dispatch lease" note; the ctx ends DONE, nothing resumes
+    spl_disp_step DONE OK "fresh $LEASE_MASTER pid ${ROTATE_NEW_PID:-?}; standby (lease $ROTATE_STANDBY): no release, no refresh"
+    return 0
+  fi
   spl_disp_refresh || rc=1
   ROTATE_RID="$master_rid"
   # through the ctx too: a phase left at the failover's CLOSE reads as in

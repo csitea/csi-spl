@@ -2,6 +2,8 @@
 // when the page has mounted (utils/lobby-warm.mjs says why and how nothing is
 // lost). Only on a load that lands on /lobby, only with a lobby id in the
 // build, never in the mock tenant.
+// Client-only by file suffix: Nuxt loads a *.client.ts plugin only in the
+// client bundle, so an import.meta.client guard here is dead.
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
@@ -10,7 +12,6 @@ import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { isLobbyPath, startLobbyWarm } from '~/utils/lobby-warm.mjs'
 
 export default defineNuxtPlugin(() => {
-  if (!import.meta.client) return
   const api = useSpoolApi()
   if (api.mock || !isLobbyPath(window.location.pathname)) return
   const live = useLive()

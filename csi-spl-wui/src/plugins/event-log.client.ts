@@ -6,12 +6,13 @@
 // talks to fetch directly and never calls noteError) — a POST that fails can
 // never become an event, so there is no loop.
 //
-// Client-only: there is no session on the server and nothing to ship.
+// Client-only by file suffix: there is no session on the server and nothing
+// to ship. Nuxt loads a *.client.ts plugin only in the client bundle, so an
+// import.meta.client guard here is dead.
 import { getErrors, subscribeErrors } from '@/composables/errorJournal.mjs'
 import { useSessionStore } from '~/stores/session'
 
 export default defineNuxtPlugin(() => {
-  if (!import.meta.client) return
   const session = useSessionStore()
   // 027 budget: the shipper (event-log.mjs) never renders and only observes,
   // so it rides a lazy chunk loaded after boot rather than the initial chunk.

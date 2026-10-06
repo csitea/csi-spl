@@ -1,16 +1,18 @@
 // A signed-in human's stored colour theme wins once per tab.
 // 'light' is the light-blue palette. After that the palette picker is free
 // to change it, and a reload does not undo that choice.
+// The plugin is client-only by file suffix: Nuxt loads a *.client.ts plugin
+// only in the client bundle, so an import.meta.client guard here is dead.
 import { useSessionStore } from '~/stores/session'
 import { useTheme } from '~/composables/useTheme'
 import { parseTheme, THEME_IDS } from '~/utils/theme.mjs'
 
+const MARK = 'csi-spl-pref-theme-applied'
+
 export default defineNuxtPlugin(() => {
-  if (!import.meta.client) return
   const session = useSessionStore()
   const { theme, setTheme } = useTheme()
   let applied = false
-  const MARK = 'csi-spl-pref-theme-applied'
   const read = () => { try { return sessionStorage.getItem(MARK) || '' } catch { return '' } }
   const mark = (v: string) => { try { sessionStorage.setItem(MARK, v) } catch { /* private mode */ } }
 

@@ -8,14 +8,16 @@
 // locale-cookie plugin then remembers it). Once per signed-in human per tab
 // (sessionStorage marker): after that the header switcher is free to change
 // the language, as in the donor, and a reload does not undo that choice.
+// Client-only by file suffix: Nuxt loads a *.client.ts plugin only in the
+// client bundle, so an import.meta.client guard here is dead.
 import { useSessionStore } from '~/stores/session'
 import { registerLocaleRoutes } from '~/utils/locale-routes.mjs'
 
+const MARK = 'csi-spl-pref-locale-applied'
+
 export default defineNuxtPlugin((nuxtApp) => {
-  if (!import.meta.client) return
   const i18n = nuxtApp.$i18n as { locale?: unknown, localeCodes?: unknown } | undefined
   let applied = false
-  const MARK = 'csi-spl-pref-locale-applied'
   const read = () => { try { return sessionStorage.getItem(MARK) || '' } catch { return '' } }
   const mark = (v: string) => { try { sessionStorage.setItem(MARK, v) } catch { /* private mode */ } }
 

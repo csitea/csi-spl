@@ -91,7 +91,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: iac suite green; `grep -rn do_put_github_app_key --include='*.sh' .` -> >= 1; a dry run on dev names the secret and prints no key byte.
   - **Depends**: T01 (the secret container). Live run: T00.
 
-- [ ] T06 **hub store: edits, authors, notices** (M).
+- [x] T06 **hub store: edits, authors, notices** (M). Done `7a1f6199` (c-416): store tests on Postgres per method, coalescing never joins two authors, a workspace reads only its rows. Not in T06: the newest-live-overlay read for `GET /v1/docs/{path}` (T08).
   - **Build**: `api/internal/store/repo_doc_edits_postgres.go`: insert (with `next_try_at`, `first_saved_at`), coalesce (same path + author + agent + requester, `queued` only, capped by `coalesce_max`), claim (`FOR UPDATE SKIP LOCKED`, due rows), status transitions, stuck-`pushing` reclaim, rate counts (member/agent/workspace/env), "My edits" list (incl. the requester's agents), authors + notices + known authors CRUD. Tenant calls via `inTenant`, the worker's via `asOperator`.
   - **Owns**: that file and its `_test.go`.
   - **Done-proof**: store tests on Postgres for each method; coalescing never joins two authors; a workspace reads only its rows.

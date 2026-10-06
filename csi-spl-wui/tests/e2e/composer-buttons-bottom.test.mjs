@@ -8,7 +8,8 @@
 //   phone (390x844, hasTouch):
 //     1 a long thread: the arrow is shown, and GO's right edge lines up with
 //       the arrow's right edge (within 1 px); Back, Attach, GO right of the
-//       field in that order
+//       field in that order, Back reaching 2 px under Attach (t1 842e581f
+//       moved Back's arrow 4 px right) with Attach on top
 //     2 channel, topic, DM: the same place - GO's right edge 16 px (15..17)
 //       from the bar's right edge (8 px padding + the 8 px move), every
 //       button the topmost element at its centre
@@ -170,9 +171,10 @@ async function phone(browser) {
   await sleep(600)
   const t = await layout(p)
   await shot(p, '390-thread-arrow')
-  ok('390px 1 long thread: GO\'s right edge lines up with the scroll-to-bottom arrow (1 px); Back, Attach, GO after the field',
-    Boolean(t && t.jump && t.send && near(t.send.r, t.jump.r) && t.back && t.field.r <= t.back.l && t.back.r <= t.attach.l),
-    t && { send: t.send, jump: t.jump, back: t.back, field: t.field })
+  ok('390px 1 long thread: GO\'s right edge lines up with the scroll-to-bottom arrow (1 px); Back, Attach, GO after the field, Back 2 px under Attach',
+    Boolean(t && t.jump && t.send && near(t.send.r, t.jump.r) && t.back && t.attach && t.field.r <= t.back.l
+      && near(t.back.r - t.attach.l, 2) && t.attach.onTop && t.attach.r <= t.send.l),
+    t && { send: t.send, jump: t.jump, attach: t.attach, back: t.back, field: t.field })
 
   const where = {}
   await p.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

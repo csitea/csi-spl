@@ -70,7 +70,8 @@ spl_wd_init() {
   [[ -d "$WD_SITUATIONS" ]] || { do_log "FATAL no situation scripts in $WD_SITUATIONS"; return 1; }
   WD_FROM="${WD_FROM:-${LEASE_ORCH:-c-001}}"
   WD_SEND="${WD_SEND:-$ROTATE_SEND}"
-  export WD_JOB_WAIT WD_LOOP_N
+  WD_BOX="${ROTATE_BOX:-}"
+  export WD_JOB_WAIT WD_LOOP_N WD_BOX
   mkdir -p "$WD_DIR/ctx" || { do_log "FATAL cannot create $WD_DIR"; return 1; }
   return 0
 }
@@ -270,8 +271,7 @@ spl_wd_gather() {
   cp "$SPOOL_ROOT/$id/heartbeat.json" "$ctx/heartbeat" 2>/dev/null || true
   cp "$SPOOL_ROOT/peer/$id/held" "$ctx/held" 2>/dev/null || true
   if awk -v i="$id" '$1 == i {f = 1} END {exit !f}' "$SPOOL_ROOT/peer/seats" 2>/dev/null; then echo "$id" > "$ctx/seat"; fi
-  find "$SPOOL_ROOT/$id/inbox" -maxdepth 1 -type f -name '*.json' -printf '%T@ %f\n' 2>/dev/null |
-    sed 's/\.[0-9]* / /' > "$ctx/inbox" || true
+  spl_wd_inbox "$SPOOL_ROOT/$id/inbox" > "$ctx/inbox"
   rundir="$(awk -F'\t' -v i="$id" '$1 == i {d = $4} END {print d}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
   if [[ "$rundir" == /* && ! -d "$rundir" ]]; then echo "$rundir" > "$ctx/rundir_gone"; fi
   if [[ -n "$pid" ]]; then
@@ -291,6 +291,26 @@ spl_wd_gather() {
   # shellcheck disable=SC2317 # called by spl_rotate_input
   ( spl_rotate_tmux() { spl_wd_tmux "$@"; }; spl_rotate_input "$pane" ) > "$ctx/input" 2>/dev/null || : > "$ctx/input"
   spl_wd_since "$id" input "$(cat "$ctx/input")" "$now" "$ctx/input_age"
+  return 0
+}
+
+# "<mtime epoch> <file> <kind> <from>" per <dir>/*.json, one jq for the
+# whole inbox; a file that does not parse reads "- -" (S1 counts it as a job).
+spl_wd_inbox() {
+  local dir="$1" q f
+  local -a fs=()
+  q='[.kind, .from] | map(. // "-" | tostring | gsub("[[:space:]]"; "") | if . == "" then "-" else . end)
+    | "\(input_filename | sub(".*/"; "")) \(join(" "))"'
+  mapfile -t fs < <(find "$dir" -maxdepth 1 -type f -name '*.json' 2>/dev/null)
+  (( ${#fs[@]} )) || return 0
+  {
+    # a file that does not parse stops jq: then one jq per file
+    jq -r "$q" "${fs[@]}" 2>/dev/null ||
+      for f in "${fs[@]}"; do jq -r "$q" "$f" 2>/dev/null || true; done
+    echo "--"
+    find "$dir" -maxdepth 1 -type f -name '*.json' -printf '%T@ %f\n' 2>/dev/null | sed 's/\.[0-9]* / /'
+  } | awk '$0 == "--" {m = 1; next} !m {k[$1] = $2 " " $3; next}
+      {print $1, $2, (($2 in k) ? k[$2] : "- -")}'
   return 0
 }
 
@@ -452,7 +472,9 @@ spl_wd_act() {
   local id="$1" code="$2" ev="$3" pane="$4" now="$5" ctx="$6" age
   case "$code" in
     S1) age="${ev#age=}"; age="${age%% *}"
-        if (( age >= 2 * WD_JOB_WAIT )); then spl_wd_once "$id" S1 takeover "$now" "$ctx" spl_wd_takeover "$id" S1 "$ev"
+        # no progress signal at all (no heartbeat, no readable transcript):
+        # "no progress" is unproven, so a ring, never a takeover
+        if (( age >= 2 * WD_JOB_WAIT )) && [[ " $ev " != *" prog=unknown "* ]]; then spl_wd_once "$id" S1 takeover "$now" "$ctx" spl_wd_takeover "$id" S1 "$ev"
         else spl_wd_once "$id" S1 ring "$now" "$ctx" spl_wd_ring "$id"; fi ;;
     S2) if [[ "$ev" == kind=login* ]]; then
           spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \

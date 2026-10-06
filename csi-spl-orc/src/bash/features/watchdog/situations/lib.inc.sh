@@ -17,7 +17,8 @@
 #   heartbeat    a copy of <spool root>/<id>/heartbeat.json (spec 5.2)
 #   held         a copy of <spool root>/peer/<id>/held (seats only)
 #   seat         present when <id> is a seat of <spool root>/peer/seats
-#   inbox        "<mtime epoch> <file>" per <spool root>/<id>/inbox/*.json
+#   inbox        "<mtime epoch> <file> <kind> <from>" per <spool root>/<id>/inbox/*.json
+#                (kind, from "-" when unreadable; old two-field lines still read)
 #   rundir_gone  the registry workdir of a lane that no longer exists
 #   proc_age     s since the harness process started; user: its OS user
 # It prints one line `HIT <code> <evidence>` or nothing, and exits 0.

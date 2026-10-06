@@ -18,7 +18,9 @@
 #      another box and of a retiring session skipped
 #   4. debounce + actions: S3 pending on tick 1, takeover on tick 2; a dry run
 #      only says "would"; S2 never takes over and sends ONE blocker; S1 rings
-#      at 120 s and takes over at 240 s; S4 Escape, then takeover 60 s later
+#      at 120 s and takes over at 240 s; S4 Escape, then takeover 60 s later;
+#      the dry-run false positives of 2026-10-06: a note, an id's own
+#      re-raise, and a wait with no progress signal (ring only)
 #   5. the guards of 6.2 at tick level, each with its control: a human client
 #      active, do_spl_wd_hold (and MIN=0 lifting it), an id under rotation,
 #      a fresh session in its grace, a box back from a 2 h gap
@@ -84,6 +86,28 @@ hit "6.2 control: the same turn with a spinner frozen 300 s" s1
 # 6.2: the spinner extends fresh by ONE extra 120 s only
 ctx s1u; hb working 260; echo "$((T0 - 150)) m3.json" > "$C/inbox"; echo 3 > "$C/spin_age"
 hit "5.3: a moving spinner 260 s after the last progress is no longer fresh" s1
+# dry-run triage 2026-10-06 (drill-20261006.md 1): what S1 must not count.
+# A kind=note is FYI, not a job (g-343); control: the same message as a task
+ctx s1n; hb idle 600; echo "$((T0 - 300)) n.json note c-002" > "$C/inbox"
+nohit "S1 a note (FYI) waiting 300 s is not a job" s1
+echo "$((T0 - 300)) n.json task c-002" > "$C/inbox"
+hit "S1 control: the same message as a task is a job" s1
+# a message the id sent itself (the asks journal re-raise, c-001); control: a peer's
+ctx s1m; hb idle 600; echo "$((T0 - 300)) r.json blocker c-900" > "$C/inbox"
+nohit "S1 a blocker the agent's own id sent itself is not a job" s1
+echo "$((T0 - 300)) r.json blocker c-900@box1" > "$C/inbox"
+out="$(WD_BOX=box1 run_s s1)"
+[[ -z "$out" ]] && pass "S1 the same from <id>@<this box> is not a job" || fail "S1 self@box: $out"
+echo "$((T0 - 300)) r.json blocker c-900@box2" > "$C/inbox"
+out="$(WD_BOX=box1 run_s s1)"
+[[ "$out" == "HIT S1 "* ]] && pass "S1 control: the same id on ANOTHER box is a peer, a job" || fail "S1 other box: $out"
+echo "$((T0 - 300)) r.json blocker c-002" > "$C/inbox"
+hit "S1 control: the same blocker from a peer is a job" s1
+# no heartbeat and no transcript progress (grok today, g-366): prog=unknown
+ctx s1x; echo "$((T0 - 300)) s.json task c-002" > "$C/inbox"
+grep -q '^HIT S1 age=300 prog=unknown ' <<<"$(run_s s1)" && pass "S1 with no progress signal says prog=unknown" || fail "S1 unknown: $(run_s s1)"
+hb idle 600
+grep -q 'prog=unknown' <<<"$(run_s s1)" && fail "S1 control: a known progress still says prog=unknown" || pass "S1 control: a known progress is not prog=unknown"
 
 # S2: the login screen of 2026-10-05 (T001's fixture)
 ctx s2; cp "$FL/login-expired-2026-10-05.pane" "$C/pane"; cp "$FL/login-expired.jsonl" "$C/transcript"
@@ -141,6 +165,11 @@ ctx s6h; hb idle 900; echo "please also check the wui" > "$C/input"; echo 400 > 
 grep -q 'poke=0' <<<"$(run_s s6)" && pass "S6 other text is poke=0 (never cleared)" || fail "S6 poke=0"
 ctx s6c; hb idle 900; echo "x" > "$C/input"; echo 60 > "$C/input_age"
 nohit "S6 control: text held 60 s" s6
+# agy's empty prompt reads back as ">" (a-323/a-324: 34000 s of noise); control: text after it
+ctx s6g; hb idle 900; echo ">" > "$C/input"; echo 34000 > "$C/input_age"
+nohit "S6 a bare prompt glyph '>' is an empty box" s6
+echo "> fix the wui" > "$C/input"
+hit "S6 control: text after the glyph is text" s6
 
 # S7: a modal dialog
 ctx s7; cp "$FX/modal-auto-mode.pane" "$C/pane"
@@ -281,6 +310,37 @@ NOW=$((T0 + 40)) out="$(wd)"
 grep -q 'c-913 HIT S1 age=130 .*-> ring' <<<"$out" && grep -q -- '--poke-only --from .* --to c-913' "$T/sent" && pass "4 S1 rings at 130 s" || fail "4 S1 ring: $out"
 NOW=$((T0 + 160)) out="$(wd)"; settle
 grep -qx 'takeover c-913 S1' "$T/takeovers" && pass "4 S1 takes over at 250 s" || fail "4 S1 takeover: $out"
+# the dry-run false positives at tick level, on real inbox JSON (spl_wd_inbox)
+# g-343: a note waits 250 s: no ring, no takeover; control: the same as a task rings
+reset_box; agent c-916 %1 4016
+echo '{"type":"assistant","timestamp":"2027-01-15T07:00:00Z","message":{"content":[{"type":"text","text":"done"}]}}' > "$T/tr.4016"
+echo '{"v":1,"kind":"note","from":"c-002","to":"c-916","body":"fyi"}' > "$S/c-916/inbox/n.json"
+touch -d "@$((T0 - 250))" "$S/c-916/inbox/n.json"
+out="$(wd)"
+grep -q 'c-916 OK' <<<"$out" && [[ ! -s "$T/sent" && ! -s "$T/takeovers" ]] && pass "4 a note 250 s unread: OK, no ring, no takeover" || fail "4 note: $out"
+grep -q '^[0-9]* n.json note c-002$' "$D/wd/ctx/c-916/inbox" && pass "4 the ctx inbox carries kind and from" || fail "4 ctx inbox: $(cat "$D/wd/ctx/c-916/inbox")"
+echo '{"v":1,"kind":"task","from":"c-002","to":"c-916","body":"do"}' > "$S/c-916/inbox/n.json"
+touch -d "@$((T0 - 250))" "$S/c-916/inbox/n.json"
+out="$(wd)"; settle
+grep -qx 'takeover c-916 S1' "$T/takeovers" && pass "4 control: the same as a task 250 s unread is taken over" || fail "4 task control: $out"
+# c-001: its own asks re-raise (from == to) waits 1400 s while idle: not a job
+reset_box; agent c-917 %1 4017
+echo '{"type":"assistant","timestamp":"2027-01-15T07:00:00Z","message":{"content":[{"type":"text","text":"done"}]}}' > "$T/tr.4017"
+echo '{"v":1,"kind":"blocker","from":"c-917","to":"c-917","body":"ASKS STILL OPEN"}' > "$S/c-917/inbox/r.json"
+touch -d "@$((T0 - 1400))" "$S/c-917/inbox/r.json"
+out="$(wd)"
+grep -q 'c-917 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "4 an id's own re-raise 1400 s unread: OK, no takeover" || fail "4 self: $out"
+# g-366: a task waits 375 s, no heartbeat, no transcript: ring only, never takeover
+reset_box; agent c-918 %1 4018
+echo '{"v":1,"kind":"task","from":"c-002","to":"c-918","body":"stop"}' > "$S/c-918/inbox/s.json"
+touch -d "@$((T0 - 375))" "$S/c-918/inbox/s.json"
+out="$(wd)"; NOW=$((T0 + 30)) out2="$(wd)"; sleep 0.5
+grep -q 'c-918 HIT S1 age=375 prog=unknown .*-> ring$' <<<"$out" && grep -q -- '--poke-only --from .* --to c-918' "$T/sent" &&
+  [[ ! -s "$T/takeovers" ]] && grep -q 'c-918 HIT S1 .*ring done' <<<"$out2" &&
+  pass "4 progress unknown: S1 rings once, no takeover at 375 s and 405 s" || fail "4 unknown: $out / $out2 / $(cat "$T/takeovers" 2>/dev/null)"
+echo '{"type":"assistant","timestamp":"2027-01-15T07:00:00Z","message":{"content":[{"type":"text","text":"done"}]}}' > "$T/tr.4018"
+NOW=$((T0 + 60)) out="$(wd)"; settle
+grep -qx 'takeover c-918 S1' "$T/takeovers" && pass "4 control: with a known stale progress the same wait is taken over" || fail "4 unknown control: $out"
 
 # S4: Escape, then takeover 60 s later
 reset_box; agent c-914 %1 4014

@@ -126,26 +126,28 @@ spl_db_health_cloudsql() {
 # last 24 h, as latest / min / max plus the 24 h delta, which is the growth
 # rate. `gcloud monitoring` has no time-series verb (measured 2026-09-21:
 # "Invalid choice: 'time-series'"), so this reads the v3 REST endpoint with an
-# access token for $GCP_ACCOUNT. The token is sent with -H "Authorization:
-# Bearer $tok", so it is on curl's argv. Moving it to a -K file would take
-# it off argv; that is a behaviour change and is not done here.
+# access token for $GCP_ACCOUNT. The token never rides curl's argv (visible
+# in ps): it goes in a -K config file, 0600, removed after the loop.
 spl_db_health_metrics() {
   do_require_bin curl python3 || return 1
-  local since until m tok rc=0
+  local since until m tok hdr rc=0
   until="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)" || return 1
   tok="$(gcloud auth print-access-token --account="$GCP_ACCOUNT" 2>/dev/null)"
   [[ -n "$tok" ]] || { do_log "ERROR no access token for $GCP_ACCOUNT: no platform metrics"; return 1; }
+  hdr="$(mktemp)" || return 1
+  ( umask 077; printf 'header = "Authorization: Bearer %s"\n' "$tok" >"$hdr"; )
   for m in database/disk/bytes_used database/disk/quota database/cpu/utilization \
            database/postgresql/num_backends database/postgresql/transaction_id_utilization; do
     printf '%-50s ' "${m#database/}"
     curl -s --connect-timeout 10 --max-time 30 -G "https://monitoring.googleapis.com/v3/projects/$SPL_PROJECT/timeSeries" \
-      -H "Authorization: Bearer $tok" \
+      -K "$hdr" \
       --data-urlencode "filter=metric.type=\"cloudsql.googleapis.com/$m\" AND resource.labels.database_id=\"$SPL_PROJECT:$SPL_SQL_INSTANCE\"" \
       --data-urlencode "interval.startTime=$since" \
       --data-urlencode "interval.endTime=$until" |
       spl_db_health_series || rc=1
   done
+  rm -f "$hdr"
   return $rc
 }
 

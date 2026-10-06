@@ -10,6 +10,8 @@
 #      the operator RLS scope, and keeps the login out of argv
 #   5. spl_db_health_series turns a Monitoring v3 body into one summary line,
 #      and says so plainly on an error body or an empty window
+#   6. spl_db_health_metrics keeps the access token off curl's argv (it rides
+#      a -K config file, 0600, removed after). CONTROL: the fake curl sees it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -92,5 +94,33 @@ o=$(series '{"timeSeries":[]}')
 [[ "$o" == *"no points"* ]] && pass "an empty window says so" || fail "empty body: $o"
 o=$(series 'not json')
 [[ "$o" == *"no data"* ]] && pass "a non-JSON body says so" || fail "garbage body: $o"
+
+# --- 6. the Monitoring access token never rides curl argv (B16) -----------------
+FAKE_TOK='fake-tok-B16-not-real'
+mkdir -p "$T/stub6"
+printf '#!/bin/sh\necho "%s"\n' "$FAKE_TOK" >"$T/stub6/gcloud"
+cat >"$T/stub6/curl" <<'SH'
+#!/bin/sh
+echo "ARGV $*" >>"$STUB_LOG"
+while [ $# -gt 0 ]; do
+  if [ "$1" = "-K" ]; then echo "KFILE $(stat -c %a "$2") $(cat "$2")" >>"$STUB_LOG"; echo "$2" >>"$STUB_LOG.kpath"; fi
+  shift
+done
+echo '{"timeSeries":[]}'
+SH
+chmod +x "$T/stub6/gcloud" "$T/stub6/curl"
+: >"$T/calls.log"
+SNIPPET='spl_db_health_metrics' in_orc PATH="$T/stub6:$PATH" GCP_ACCOUNT=sa@example.test \
+  SPL_PROJECT=p-test SPL_SQL_INSTANCE=i-test >"$T/o6" 2>&1
+n=$(grep -c '^ARGV' "$T/calls.log")
+(( n == 5 )) && pass "metrics: curl called once per metric (n=$n)" || fail "metrics: curl calls n=$n: $(cat "$T/o6")"
+grep '^ARGV' "$T/calls.log" | grep -F "$FAKE_TOK" >/dev/null && fail "metrics: the token is on curl argv" ||
+  pass "metrics: the token is not on curl argv"
+k=$(grep -c "^KFILE 600 header = \"Authorization: Bearer $FAKE_TOK\"" "$T/calls.log")
+(( k == n && n > 0 )) && pass "CONTROL: the token reaches curl through a 0600 -K file" || fail "-K file: $(cat "$T/calls.log")"
+left=0
+while read -r kp; do [[ -e "$kp" ]] && left=1; done <"$T/calls.log.kpath" 2>/dev/null
+[[ -s "$T/calls.log.kpath" ]] && (( left == 0 )) && pass "metrics: every -K file is removed after its call" ||
+  fail "metrics: -K file left behind or none written"
 
 (( fails == 0 )) && echo "OK spl-db-health: all checks passed" || { echo "FAIL spl-db-health: $fails check(s)"; exit 1; }

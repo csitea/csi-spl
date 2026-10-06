@@ -7,6 +7,8 @@
 #   4. set-nameservers (option A, 2026-09-18): dry-run without CONFIRM; with
 #      CONFIRM=yes PUTs ns-cloud-* targets; refuses fewer than two NS
 #   5. set-dns-record refuses apex @ A; dry-runs * A; CONFIRM=yes PUTs * A
+#   6. _gandi_api keeps the token off curl's argv (a -K config file, 0600,
+#      removed after). CONTROL: the fake curl sees it in the -K file
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -153,6 +155,31 @@ if grep -q 'API PUT /livedns/domains/example.test/records/\*/A' "$api"; then
 else
   fail "CONFIRM=yes did not PUT * A (api=$(cat "$api") out=$out)"
 fi
+
+# --- 6. the token never rides curl argv (B16) -------------------------------------
+FAKE_TOK='fake-tok-B16-not-real'
+mkdir -p "$tmp/stub"
+cat >"$tmp/stub/curl" <<'SH'
+#!/bin/sh
+echo "ARGV $*" >>"$API_LOG"
+while [ $# -gt 0 ]; do
+  if [ "$1" = "-K" ]; then echo "KFILE $(stat -c %a "$2") $(cat "$2")" >>"$API_LOG"; echo "$2" >>"$API_LOG.kpath"; fi
+  shift
+done
+echo '[]'
+SH
+chmod +x "$tmp/stub/curl"
+api=$(mktemp)
+env APP_PATH="$tmp" HOME="$tmp" ORG=csi GANDI_PAT="$FAKE_TOK" API_LOG="$api" LIB="$LIB" PATH="$tmp/stub:$PATH" \
+  bash -c 'do_log(){ echo "$*"; }; source "$LIB"; _gandi_api PUT /livedns/x "{\"a\":1}"' >/dev/null 2>&1
+grep -q '^ARGV .*-X PUT' "$api" && pass "_gandi_api calls curl with the method" || fail "_gandi_api argv: $(cat "$api")"
+grep '^ARGV' "$api" | grep -F "$FAKE_TOK" >/dev/null && fail "_gandi_api puts the token on curl argv" ||
+  pass "_gandi_api keeps the token off curl argv"
+grep -qF "KFILE 600 header = \"Authorization: Bearer $FAKE_TOK\"" "$api" &&
+  pass "CONTROL: the token reaches curl through a 0600 -K file" || fail "-K file: $(cat "$api")"
+kp=$(cat "$api.kpath" 2>/dev/null)
+[[ -n "$kp" && ! -e "$kp" ]] && pass "the -K file is removed after the call" || fail "-K file left behind: ${kp:-<none>}"
+rm -f "$api.kpath"
 
 rm -rf "$tmp"
 rm -f "$api"

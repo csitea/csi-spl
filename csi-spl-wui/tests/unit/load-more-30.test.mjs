@@ -102,7 +102,9 @@ describe('TopicPane: the newest 30 replies, then older pages', () => {
   it('Load more reads before=<next> and merges by msg_id', () => {
     const older = pane.slice(pane.indexOf('async function loadOlder'), pane.indexOf('async function loadOldestRow'))
     assert.match(older, /order: 'desc', limit: WINDOW, before: olderCursor\.value \|\| undefined/)
-    assert.match(older, /mergeById\(liveRows\.value, data\.messages \|\| \[\]\)/)
+    /* the mock's first page (mockHead) joins the held rows: empty on live */
+    assert.match(older, /mergeById\(\[\.\.\.liveRows\.value, \.\.\.mockHead\.value\], data\.messages \|\| \[\]\)/)
+
     assert.match(pane, /:has-older="hasOlder"/)
   })
 

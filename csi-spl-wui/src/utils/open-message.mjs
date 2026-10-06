@@ -1,5 +1,6 @@
 import { withSessionRetry } from './live-follow.mjs'
 import { parentSection } from './parent-section.mjs'
+import { requestMessageJump } from './msg-jump.mjs'
 
 /**
  * CLE-77882 (Flow + Search rework, lane A, owner t1 635f8072): open ANY
@@ -233,5 +234,8 @@ export async function openMessage(ref, deps) {
     kind = 'topic'
   }
   ;(deps.mark || markOpened)(msgId)
+  /* the place may be the address already shown: the thread feed scrolls to it itself (msg-jump.mjs) */
+  requestMessageJump(msgId)
   return { ok: true, kind, msgId }
+
 }

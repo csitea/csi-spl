@@ -1425,7 +1425,16 @@ declare module '~/utils/search-original.mjs' {
   export function markHit(msgId: string, opts?: { tries?: number, every?: number, hold?: number }): void
 }
 
+declare module '~/utils/msg-jump.mjs' {
+  export const JUMP_FOCUS_MS: number
+  export function messageIdOfPath(path: string): string
+  export function onMessageJump(fn: (msgId: string) => void): () => void
+  export function requestMessageJump(msgId: string): boolean
+  export function navigateAndJump(path: string, navigate: (path: string) => void): void
+}
+
 declare module '~/utils/open-message.mjs' {
+
   export type OpenMessageReason = 'not_found' | 'deleted' | 'no_access' | 'archived' | 'error'
   export type OpenMessageResult = { ok: true, kind: string, msgId: string } | { ok: false, reason: OpenMessageReason, msgId: string }
   export const OPEN_FOCUS_MS: number

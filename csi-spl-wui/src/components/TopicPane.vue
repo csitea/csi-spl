@@ -107,11 +107,15 @@ const loadingOlder = ref(false)
 const oldestRow = ref<SpoolMessage | null>(null)
 /* t1 8fb802cd: the open topic's archive stamp ('' = live), from its first read */
 const archivedAt = ref('')
-const hasOlder = computed(() => !api.mock && Boolean(olderCursor.value))
+/* the mock pane shows the channel store's rows; older replies past them
+   are read with Load more as live does (a jump to an old reply needs them) */
+const mockHead = shallowRef<SpoolMessage[]>([])
+const hasOlder = computed(() => Boolean(olderCursor.value))
 /* A reply with is_parent 0 lives in the channel store as well as here.
    Keep it on this pane after the send stops being pending. */
 const messages = computed(() => {
-  const base = (api.mock ? topic.messages : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId || '')) as SpoolMessage[]
+  const mockRows = liveRows.value.length ? mergeById(topic.messages, liveRows.value).rows : topic.messages
+  const base = (api.mock ? mockRows : rowsForRightPane(liveRows.value, channel.messages, topic.parentTaskId || '')) as SpoolMessage[]
   return newestFirst(base.filter((m) => matchesSearch(m, search.value))) as SpoolMessage[]
 })
 /* The open topic's own title, selected at the top of this pane. */
@@ -192,10 +196,17 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
   olderCursor.value = null
   oldestRow.value = null
   archivedAt.value = ''
+  mockHead.value = []
   if (!open || !id) return
   if (api.mock) {
-    /* t1 404cd808: the mock pane holds no read, but marks an archived topic as the live one does */
-    void withSessionRetry(api, () => api.getTopic(id, { limit: 1 })).then((d) => { if (topic.parentTaskId === id) archivedAt.value = archiveStamp(d) }).catch(() => {})
+    /* t1 404cd808: the mock pane shows no read, but marks an archived topic as the live one does */
+    void withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW })).then((d) => {
+      if (topic.parentTaskId !== id) return
+      archivedAt.value = archiveStamp(d)
+      mockHead.value = (d.messages || []) as SpoolMessage[]
+      olderCursor.value = d.next || null
+    }).catch(() => {}) /* no answer: the pane shows the held rows, unmarked, without Load more */
+
     return
   }
   loading.value = true
@@ -217,12 +228,14 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
 /** Load more: the next WINDOW older replies (before=<next>), merged by msg_id. */
 async function loadOlder() {
   const id = topic.parentTaskId
-  if (api.mock || !id || !olderCursor.value || loadingOlder.value) return
+  if (!id || !olderCursor.value || loadingOlder.value) return
   loadingOlder.value = true
   try {
     const data = await withSessionRetry(api, () => api.getTopic(id, { order: 'desc', limit: WINDOW, before: olderCursor.value || undefined })) as { messages?: SpoolMessage[], next?: string | null }
     if (topic.parentTaskId !== id) return
-    liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
+    liveRows.value = mergeById([...liveRows.value, ...mockHead.value], data.messages || []).rows as SpoolMessage[]
+    mockHead.value = []
+
     olderCursor.value = data.next || null
   } catch {
     loadError.value = t('feed.error.load_older_failed')

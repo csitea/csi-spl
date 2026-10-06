@@ -40,6 +40,7 @@
  */
 
 import { isTenantHostOf } from './tenant-host-core.mjs'
+import { navigateAndJump } from './msg-jump.mjs'
 
 export const NEW_TAB_REL = 'noopener noreferrer nofollow'
 
@@ -198,7 +199,7 @@ export function followSameTabLink(event, href, pageHref, navigate) {
   const path = sameTabPath(href, pageHref)
   if (path == null) return false
   if (typeof event.preventDefault === 'function') event.preventDefault()
-  navigate(path)
+  navigateAndJump(path, navigate)
   return true
 }
 
@@ -247,9 +248,10 @@ function touchLike(event) {
 export function openMessageLink(href, pageHref, navigate, openExternal) {
   const path = sameTabPath(href, pageHref)
   if (path != null) {
-    navigate(path)
+    navigateAndJump(path, navigate)
     return true
   }
+
   if (typeof openExternal !== 'function') return false
   let page
   try { page = new URL(pageHref) } catch { return false }

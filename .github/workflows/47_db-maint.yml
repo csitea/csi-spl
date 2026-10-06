@@ -1,0 +1,171 @@
+# 47 ops: the nightly maintenance of the hub DB, dev then prd.
+#
+# Owner, t1 ea9dc09a msg d0aa6c7a: "If anything, what you are doing here should
+# be done on a regular basis. Create the cron scheduling and the actual code
+# which will run after the cron is executed. Emphasize running during the
+# hours after 1:00 Helsinki time up till 5:00 Helsinki time. During this time,
+# we can do much more maintenance and even allow some small availability
+# breaks."
+#
+# The action is csi-spl-orc do_spl_db_maint (spec 029 4.7): a BEFORE snapshot
+# (dead rows, last (auto)vacuum/analyze, estimated heap and index bloat, the
+# Query Insights top statements by mean time), VACUUM (ANALYZE) and REINDEX
+# INDEX CONCURRENTLY where the thresholds say so, VACUUM FULL of a badly
+# bloated heap (a short lock of that one table: the "small availability
+# break"), an AFTER snapshot, and one before/after report, uploaded as this
+# run's artifact. The action itself refuses DRY_RUN=0 outside 01:00-05:00
+# Europe/Helsinki unless forced, and the locking FULL step outside it always.
+#
+# Schedule: 23:23 UTC = 02:23 Helsinki in summer (UTC+3), 01:23 in winter
+# (UTC+2), so the same cron lands inside the window across DST. It keeps
+# clear of 45's 03:17 UTC backup, of 46's 03:41 UTC wipe, of the instance's
+# own 01:00 UTC backup (which drifts to ~02:17 UTC) and of 00:00, GitHub's
+# busiest hour. The scheduler is best-effort: a run that starts more than
+# ~2.5 h late leaves the window and is refused - red, as it should be.
+#
+# Dev first, prd after dev passes: the two envs are sequential steps of ONE
+# job, so a failed dev step skips every prd step.
+#
+# Auth: ONLY the per-env project key secrets GCP_KEY_CSI_SPL_<ENV> (iac 120),
+# as 45 and 46. An env without its key is SKIPPED with a notice. A red
+# scheduled run is the alert.
+#
+# Local equivalent:
+#   ENV=<env>                         ./csi-spl-orc/run -a do_spl_db_maint   (plan + report only)
+#   ENV=<env> DRY_RUN=0               ./csi-spl-orc/run -a do_spl_db_maint   (inside the window)
+#   ENV=<env> DRY_RUN=0 MAINT_FORCE=1 ./csi-spl-orc/run -a do_spl_db_maint   (outside it, no FULL)
+
+name: "47 ops: hub db nightly maintenance"
+
+on:
+  schedule:
+    - cron: '23 23 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment ("all" = dev then prd)'
+        type: choice
+        options: [all, dev, prd]
+        default: all
+      dry_run:
+        description: "Snapshot and plan only; change nothing"
+        type: boolean
+        default: false
+      force:
+        description: "Run the non-blocking steps outside 01:00-05:00 Helsinki"
+        type: boolean
+        default: false
+      heavy:
+        description: "Also VACUUM FULL a badly bloated table (locks it; window only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # never two maintenance runs on one instance; never cancel one mid-REINDEX
+  group: db-maint
+  cancel-in-progress: false
+
+jobs:
+  maint:
+    name: "maint dev then prd"
+    # Estate guard (spec 072 A34): this job changes OUR live estate, so it
+    # runs only where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      WANT: ${{ github.event.inputs.environment || 'all' }}
+      HAS_DEV: ${{ secrets.GCP_KEY_CSI_SPL_DEV != '' }}
+      HAS_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
+      DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+      MAINT_FORCE: ${{ github.event.inputs.force == 'true' && '1' || '0' }}
+      # the schedule takes the owner's allowed small breaks; a dispatch asks
+      MAINT_HEAVY: ${{ (github.event_name == 'schedule' || github.event.inputs.heavy == 'true') && '1' || '0' }}
+      MAINT_REPORT_DIR: ${{ github.workspace }}/db-maint-reports
+    # orc derives ORG/APP from the parent dirs: check out in the operator's
+    # layout <base>/csi/csi-spl (as 45 and 46 do)
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          for e in dev prd; do
+            has=HAS_${e^^}; go=1
+            if [[ "$WANT" != all && "$WANT" != "$e" ]]; then go=0; echo "$e not selected"
+            elif [[ "${!has}" != true ]]; then go=0; echo "::notice::$e skipped: no secret GCP_KEY_CSI_SPL_${e^^} (iac 120)"; fi
+            echo "$e=$go" >>"$GITHUB_OUTPUT"
+          done
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1'
+        with:
+          path: csi/csi-spl
+          ref: master
+
+      # no auth here: the action activates the env key in its own private
+      # CLOUDSDK_CONFIG and pins --account on every call
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+        if: steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1'
+
+      - name: psql
+        if: steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1'
+        working-directory: .
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: dev SA key to the path the actions resolve
+        if: steps.sel.outputs.dev == '1'
+        working-directory: .
+        env:
+          KEY: ${{ secrets.GCP_KEY_CSI_SPL_DEV }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY" >"$HOME/.gcp/.csi/key-csi-spl-dev.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-dev.json" >/dev/null
+
+      - name: Maintain dev
+        if: steps.sel.outputs.dev == '1'
+        env:
+          ENV: dev
+        run: ./run -a do_spl_db_maint
+
+      - name: prd SA key to the path the actions resolve
+        if: steps.sel.outputs.prd == '1'
+        working-directory: .
+        env:
+          KEY: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY" >"$HOME/.gcp/.csi/key-csi-spl-prd.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-prd.json" >/dev/null
+
+      - name: Maintain prd
+        if: steps.sel.outputs.prd == '1'
+        env:
+          ENV: prd
+        run: ./run -a do_spl_db_maint
+
+      # the before/after reports: sizes, counts and normalised statement
+      # texts only (Query Insights replaces literals), no row value
+      - name: Upload the before/after reports
+        if: always() && (steps.sel.outputs.dev == '1' || steps.sel.outputs.prd == '1')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: db-maint-reports-${{ github.run_id }}
+          path: db-maint-reports/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Drop the keys
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

@@ -279,6 +279,60 @@ own backup window, an export and a backup cannot overlap, and the window
 per env (`db-backup-<env>`, `cancel-in-progress: false`) means two runs never
 overlap and an export is never cancelled mid-flight.
 
+### 4.7 The nightly maintenance window (workflow 47)
+
+Owner, t1 ea9dc09a msg d0aa6c7a: *"If anything, what you are doing here should
+be done on a regular basis. [...] Emphasize running during the hours after 1:00
+Helsinki time up till 5:00 Helsinki time. During this time, we can do much more
+maintenance and even allow some small availability breaks."*
+
+**The window is 01:00-05:00 Europe/Helsinki.** Small availability breaks of the
+hub are allowed inside it, and only inside it.
+
+| what | value |
+|---|---|
+| workflow | `.github/workflows/47_db-maint.yml`, cron `23 23 * * *` |
+| when | 23:23 UTC = 02:23 Helsinki in summer (UTC+3), 01:23 in winter (UTC+2) |
+| order | dev, then prd only after dev passed (sequential steps of one job) |
+| identity | the per-env project SA key `GCP_KEY_CSI_SPL_<ENV>`, never the owner account |
+| action | `csi-spl-orc` `do_spl_db_maint`, as the schema owner through the Cloud SQL proxy |
+| report | one before/after text file per env, the run's artifact `db-maint-reports-<run id>` (30 days) |
+
+The cron keeps clear of the 45 backup (03:17 UTC), the 46 wipe (03:41 UTC) and
+the instance's own backup (01:00 UTC, drifting to ~02:17 UTC). The report
+lands as a run artifact, not in the 045 bucket: that bucket holds only dumps,
+and `spl_db_backup_newest` takes the newest object in it by name.
+
+What one run does, per env:
+
+1. **BEFORE snapshot** (read-only, operator RLS scope): per table live and
+   dead rows, rows changed since the last analyze, last (auto)vacuum and
+   (auto)analyze, heap and total bytes, an estimated heap bloat; per index
+   bytes, scans and an estimated btree bloat; the Query Insights top 10
+   statements by mean time (`pg_stat_statements` is not installed, 6.3). The
+   bloat estimate samples at most 2000 rows per table for the average row and
+   key width, because `pg_stats` hides FORCE-RLS tables from the owner.
+2. **Non-blocking steps** (SHARE UPDATE EXCLUSIVE, the hub keeps reading and
+   writing): `VACUUM (ANALYZE)` of a table with >= 1000 dead rows that are
+   >= 5 % of it, or >= 1000 rows (and >= 10 %) changed since its last analyze;
+   `REINDEX INDEX CONCURRENTLY` of a btree with >= 30 % estimated bloat and
+   >= 1 MB.
+3. **The small availability break** (`MAINT_HEAVY=1`; the schedule sets it):
+   `VACUUM (FULL, ANALYZE)` of a heap with >= 40 % estimated bloat and >= 8 MB.
+   It locks that one table for the rewrite; `lock_timeout` 5 s makes it give up
+   rather than queue behind the hub. It never runs outside the window, forced
+   or not.
+4. **AFTER snapshot** and the before/after table (n tables, dead rows, MB,
+   bloat %), plus every step's OK/FAILED and seconds.
+
+Any failed step turns the run red (the alert, 4.5); the other steps still run.
+`DRY_RUN=1` snapshots and prints the plan at any hour. `DRY_RUN=0` outside the
+window is refused unless `MAINT_FORCE=1`, which still runs only step 2.
+
+```bash
+ENV=dev ./run -a do_spl_db_maint
+```
+
 ## 5. Requirements
 
 - **FR-001** The health report is READ-ONLY three ways over: `PGOPTIONS`

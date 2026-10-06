@@ -29,6 +29,13 @@ import (
 // updated_at the caller last read (ErrEditConflict when it is stale). Until
 // 0139 reaches a database the Postgres store probes for its columns and
 // answers 089's shape: props {}, time_zone UTC, a hard delete, an empty trash.
+//
+// specs/097 T006: recurrence (calendar_series.go). A series row carries
+// rrule; a changed or cancelled occurrence is an exception row
+// (recurring_event_id, original_start, status) of the series' workspace.
+// The range and marks reads expand series in Go; an id is a row's uuid or an
+// occurrence id <event_id>_<YYYYMMDDTHHMMSSZ>, and a write to a series has a
+// scope (this, following, all; spec 4.4).
 
 // Calendar audiences (rdb 0125 check). An empty audience on create is public
 // (owner decision D2).
@@ -60,6 +67,24 @@ var ErrEditConflict = errors.New("store: the calendar event changed since it was
 // CalendarUTC is time_zone's default (rdb 0139): every 089 event is UTC.
 const CalendarUTC = "UTC"
 
+// Exception row statuses (rdb 0139): cancelled is one deleted occurrence.
+const (
+	CalendarConfirmed = "confirmed"
+	CalendarCancelled = "cancelled"
+)
+
+// Write scopes on a series (spec 4.4). "" is this for an occurrence id and
+// all for a series id; a single event ignores the scope.
+const (
+	CalendarScopeThis      = "this"
+	CalendarScopeFollowing = "following"
+	CalendarScopeAll       = "all"
+)
+
+// ErrCalendarTooMany: the range holds more occurrences than one response may
+// (spec 4.4: HTTP 400 bad_range, never a silent cut).
+var ErrCalendarTooMany = errors.New("store: too many calendar occurrences in the range")
+
 // calendarPropsMax is rdb 0139's octet_length(props::text) check.
 const calendarPropsMax = 16384
 
@@ -89,12 +114,21 @@ type CalendarEvent struct {
 	TimeZone       string // IANA zone; "" on create is UTC
 	DeletedAt      time.Time
 	DeletedBy      string
+	// specs/097 T006. RRule is set on a series row and on each of its
+	// occurrences; RecurUntil is the series' end (zero: none). An exception
+	// row and an occurrence carry RecurringEventID and OriginalStart.
+	RRule            string
+	RecurUntil       time.Time
+	RecurringEventID string
+	OriginalStart    time.Time
+	Status           string // confirmed | cancelled; "" on create is confirmed
 }
 
 // CalendarPatch is an update: a nil field is left as it is. A zero *RemindAt
 // clears the reminder; an empty *TopicID / *ReleaseVersion clears that column.
-// *Props replaces the whole object. A non-zero IfUpdatedAt is the precondition:
-// the event's updated_at must equal it, else ErrEditConflict.
+// *Props replaces the whole object; an empty *RRule ends the repeat. A non-zero
+// IfUpdatedAt is the precondition: the event's updated_at must equal it, else
+// ErrEditConflict. Scope applies to a series (CalendarScope*).
 type CalendarPatch struct {
 	Title          *string
 	Description    *string
@@ -109,7 +143,9 @@ type CalendarPatch struct {
 	ReleaseVersion *string
 	Props          *map[string]any
 	TimeZone       *string
+	RRule          *string
 	IfUpdatedAt    time.Time
+	Scope          string
 }
 
 // CalendarMark is one UTC day of the year strip with events the viewer can
@@ -138,6 +174,8 @@ type CalendarRange struct {
 type Calendar interface {
 	CreateCalendarEvent(ctx context.Context, tenant string, e CalendarEvent, now time.Time) (CalendarEvent, error)
 	GetCalendarEvent(ctx context.Context, tenant, viewer, id string) (CalendarEvent, error)
+	// UpdateCalendarEvent writes p to a single event, or to a series in
+	// p.Scope (id a series id or an occurrence id).
 	UpdateCalendarEvent(ctx context.Context, tenant, viewer, id string, p CalendarPatch, now time.Time) (CalendarEvent, error)
 	// DeleteCalendarEvent is TrashCalendarEvent without a precondition, at
 	// the store's clock (089's call).
@@ -146,12 +184,18 @@ type Calendar interface {
 	// answers it with DeletedAt set. A non-zero ifUpdated is the precondition
 	// (ErrEditConflict with the current event).
 	TrashCalendarEvent(ctx context.Context, tenant, viewer, id string, ifUpdated, now time.Time) (CalendarEvent, error)
-	// RestoreCalendarEvent brings back an event the viewer deleted, same id.
+	// TrashCalendarScope is TrashCalendarEvent in a scope: on an occurrence
+	// this cancels it, following ends the series before it, all trashes the
+	// series (spec 4.4). TrashCalendarEvent is scope "".
+	TrashCalendarScope(ctx context.Context, tenant, viewer, id, scope string, ifUpdated, now time.Time) (CalendarEvent, error)
+	// RestoreCalendarEvent brings back an event the viewer deleted, same id
+	// (an occurrence the viewer cancelled, too).
 	RestoreCalendarEvent(ctx context.Context, tenant, viewer, id string) (CalendarEvent, error)
 	// CalendarTrash answers the events the viewer deleted at or after since,
 	// newest deletion first.
 	CalendarTrash(ctx context.Context, tenant, viewer string, since time.Time) ([]CalendarEvent, error)
-	// ListCalendarEvents answers the overlapping events, by start then id.
+	// ListCalendarEvents answers the overlapping events and occurrences, by
+	// start then id; ErrCalendarTooMany past calendarMaxEvents.
 	ListCalendarEvents(ctx context.Context, tenant, viewer string, r CalendarRange) ([]CalendarEvent, error)
 	// CalendarMarks answers the days in r that have an event, oldest first.
 	CalendarMarks(ctx context.Context, tenant, viewer string, r CalendarRange) ([]CalendarMark, error)
@@ -168,8 +212,13 @@ var (
 	_ Calendar = (*Postgres)(nil)
 )
 
-// calendarMaxEvents caps one range or reminder read.
+// calendarMaxEvents caps one range or reminder read; past it a range read
+// with series is ErrCalendarTooMany (spec 4.4).
 const calendarMaxEvents = 2000
+
+// calendarMaxMarkOccurrences caps the occurrences the year strip folds into
+// days: up to 5 years, so a daily series fits many times over.
+const calendarMaxMarkOccurrences = 50000
 
 // normalizeCalendarEvent fills the defaults and applies rdb 0125's and
 // 0139's checks. Props is copied through JSON, so both stores hold the same
@@ -184,6 +233,9 @@ func normalizeCalendarEvent(e *CalendarEvent) error {
 	if e.TimeZone == "" {
 		e.TimeZone = CalendarUTC
 	}
+	if e.Status == "" {
+		e.Status = CalendarConfirmed
+	}
 	e.StartsAt, e.EndsAt = e.StartsAt.UTC(), e.EndsAt.UTC()
 	if !e.RemindAt.IsZero() {
 		e.RemindAt = e.RemindAt.UTC()
@@ -193,7 +245,10 @@ func normalizeCalendarEvent(e *CalendarEvent) error {
 		return err
 	}
 	e.Props = props
-	return validateCalendarEvent(e)
+	if err := validateCalendarEvent(e); err != nil {
+		return err
+	}
+	return normalizeCalendarRecurrence(e)
 }
 
 // normalizeCalendarProps is a deep copy of p through JSON, {} for nil,
@@ -304,6 +359,7 @@ func applyCalendarPatch(e *CalendarEvent, p CalendarPatch) {
 		e.Props = *p.Props
 	}
 	set(&e.TimeZone, p.TimeZone)
+	set(&e.RRule, p.RRule)
 }
 
 // calendarOwnsOrNamed: the viewer created the event or is mentioned on it.

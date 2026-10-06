@@ -25,13 +25,14 @@ func cloneCalendarEvent(e *CalendarEvent) CalendarEvent {
 	return c
 }
 
-// calendarEventLocked is the tenant's live event id as the viewer may see it.
+// calendarEventLocked is the tenant's live event id as the viewer may see it
+// (a single event or a series row; an exception row has no id of its own).
 func (s *Memory) calendarEventLocked(tenant, viewer, id string) (*CalendarEvent, error) {
 	if err := checkTenant(tenant); err != nil {
 		return nil, err
 	}
 	e, ok := s.cal.events[tenant][id]
-	if !ok || !e.DeletedAt.IsZero() || !calendarVisible(e, viewer) {
+	if !ok || !e.DeletedAt.IsZero() || e.RecurringEventID != "" || !calendarVisible(e, viewer) {
 		return nil, ErrNotFound
 	}
 	return e, nil
@@ -58,6 +59,7 @@ func (s *Memory) CreateCalendarEvent(_ context.Context, tenant string, e Calenda
 	e.ID = uuid.New() // rdb 0125's gen_random_uuid() shape
 	e.CreatedAt, e.UpdatedAt = calendarNow(now), calendarNow(now)
 	e.DeletedAt, e.DeletedBy = time.Time{}, ""
+	e.RecurringEventID, e.OriginalStart, e.Status = "", time.Time{}, CalendarConfirmed
 	s.cal.events[tenant][e.ID] = &e
 	return cloneCalendarEvent(&e), nil
 }
@@ -65,6 +67,14 @@ func (s *Memory) CreateCalendarEvent(_ context.Context, tenant string, e Calenda
 func (s *Memory) GetCalendarEvent(_ context.Context, tenant, viewer, id string) (CalendarEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if series, orig := calendarRef(id); !orig.IsZero() {
+		b, err := s.calendarBundleLocked(tenant, viewer, series)
+		if err != nil {
+			return CalendarEvent{}, err
+		}
+		occ, _, err := b.occurrence(orig)
+		return occ, err
+	}
 	e, err := s.calendarEventLocked(tenant, viewer, id)
 	if err != nil {
 		return CalendarEvent{}, err
@@ -72,9 +82,66 @@ func (s *Memory) GetCalendarEvent(_ context.Context, tenant, viewer, id string) 
 	return cloneCalendarEvent(e), nil
 }
 
+// calendarBundleLocked is the live series id the viewer can read, with its
+// exception rows.
+func (s *Memory) calendarBundleLocked(tenant, viewer, id string) (*calendarBundle, error) {
+	e, err := s.calendarEventLocked(tenant, viewer, id)
+	if err != nil {
+		return nil, err
+	}
+	if e.RRule == "" {
+		return nil, ErrNotFound
+	}
+	b := &calendarBundle{series: cloneCalendarEvent(e)}
+	for _, x := range s.cal.events[tenant] {
+		if x.RecurringEventID == id {
+			b.excs = append(b.excs, cloneCalendarEvent(x))
+		}
+	}
+	sort.Slice(b.excs, func(i, j int) bool { return b.excs[i].OriginalStart.Before(b.excs[j].OriginalStart) })
+	return b, nil
+}
+
+// applyCalendarPlanLocked writes a plan's rows into the series' workspace.
+func (s *Memory) applyCalendarPlanLocked(tenant string, plan calendarPlan) CalendarEvent {
+	for i := range plan.writes {
+		row := cloneCalendarEvent(&plan.writes[i])
+		s.cal.events[tenant][row.ID] = &row
+	}
+	return plan.out
+}
+
+// calendarSeriesWriteLocked runs plan on the series of id (a series id or an
+// occurrence id); ok is false when id names a single event.
+func (s *Memory) calendarSeriesWriteLocked(tenant, viewer, id string,
+	plan func(*calendarBundle, time.Time) (calendarPlan, error)) (CalendarEvent, bool, error) {
+	series, orig := calendarRef(id)
+	if orig.IsZero() {
+		e, err := s.calendarEventLocked(tenant, viewer, id)
+		if err != nil || e.RRule == "" {
+			return CalendarEvent{}, false, err
+		}
+	}
+	b, err := s.calendarBundleLocked(tenant, viewer, series)
+	if err != nil {
+		return CalendarEvent{}, true, err
+	}
+	pl, err := plan(b, orig)
+	if err != nil {
+		return pl.out, true, err
+	}
+	return s.applyCalendarPlanLocked(tenant, pl), true, nil
+}
+
 func (s *Memory) UpdateCalendarEvent(_ context.Context, tenant, viewer, id string, p CalendarPatch, now time.Time) (CalendarEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	out, series, err := s.calendarSeriesWriteLocked(tenant, viewer, id, func(b *calendarBundle, orig time.Time) (calendarPlan, error) {
+		return planCalendarEdit(b, orig, p, now)
+	})
+	if series || err != nil {
+		return out, err
+	}
 	e, err := s.calendarEventLocked(tenant, viewer, id)
 	if err != nil {
 		return CalendarEvent{}, err
@@ -99,9 +166,19 @@ func (s *Memory) DeleteCalendarEvent(ctx context.Context, tenant, viewer, id str
 
 // TrashCalendarEvent marks the event deleted; updated_at stays, so an Undo
 // gives back the very version the caller last read.
-func (s *Memory) TrashCalendarEvent(_ context.Context, tenant, viewer, id string, ifUpdated, now time.Time) (CalendarEvent, error) {
+func (s *Memory) TrashCalendarEvent(ctx context.Context, tenant, viewer, id string, ifUpdated, now time.Time) (CalendarEvent, error) {
+	return s.TrashCalendarScope(ctx, tenant, viewer, id, "", ifUpdated, now)
+}
+
+func (s *Memory) TrashCalendarScope(_ context.Context, tenant, viewer, id, scope string, ifUpdated, now time.Time) (CalendarEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	out, series, err := s.calendarSeriesWriteLocked(tenant, viewer, id, func(b *calendarBundle, orig time.Time) (calendarPlan, error) {
+		return planCalendarDelete(b, orig, scope, viewer, ifUpdated, now)
+	})
+	if series || err != nil {
+		return out, err
+	}
 	e, err := s.calendarEventLocked(tenant, viewer, id)
 	if err != nil {
 		return CalendarEvent{}, err
@@ -120,8 +197,19 @@ func (s *Memory) RestoreCalendarEvent(_ context.Context, tenant, viewer, id stri
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if series, orig := calendarRef(id); !orig.IsZero() {
+		b, err := s.calendarBundleLocked(tenant, viewer, series)
+		if err != nil {
+			return CalendarEvent{}, err
+		}
+		pl, err := planCalendarRestore(b, orig, viewer, s.now())
+		if err != nil {
+			return CalendarEvent{}, err
+		}
+		return s.applyCalendarPlanLocked(tenant, pl), nil
+	}
 	e, ok := s.cal.events[tenant][id]
-	if !ok || !calendarDeletedBy(e, viewer) {
+	if !ok || e.RecurringEventID != "" || !calendarDeletedBy(e, viewer) {
 		return CalendarEvent{}, ErrNotFound
 	}
 	e.DeletedAt, e.DeletedBy = time.Time{}, ""
@@ -135,7 +223,7 @@ func (s *Memory) CalendarTrash(_ context.Context, tenant, viewer string, since t
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
-		return calendarDeletedBy(e, viewer) && !e.DeletedAt.Before(since)
+		return e.RecurringEventID == "" && calendarDeletedBy(e, viewer) && !e.DeletedAt.Before(since)
 	}, func(a, b *CalendarEvent) bool {
 		if !a.DeletedAt.Equal(b.DeletedAt) {
 			return a.DeletedAt.After(b.DeletedAt)
@@ -176,18 +264,34 @@ func byCalendarStart(a, b *CalendarEvent) bool {
 }
 
 func (s *Memory) ListCalendarEvents(_ context.Context, tenant, viewer string, r CalendarRange) ([]CalendarEvent, error) {
+	return s.listCalendar(tenant, viewer, r, calendarMaxEvents)
+}
+
+// listCalendar is the range read: the single events, and the series that may
+// reach r expanded with their exceptions (calendarWithSeries).
+func (s *Memory) listCalendar(tenant, viewer string, r CalendarRange, limit int) ([]CalendarEvent, error) {
 	if err := checkTenant(tenant); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
-		return e.DeletedAt.IsZero() && calendarVisible(e, viewer) && calendarOverlaps(e, r)
-	}, byCalendarStart), nil
+	singles := s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
+		return calendarSingle(e) && e.DeletedAt.IsZero() && calendarVisible(e, viewer) && calendarOverlaps(e, r)
+	}, byCalendarStart)
+	series := s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
+		return e.RRule != "" && e.DeletedAt.IsZero() && calendarVisible(e, viewer) && e.StartsAt.Before(r.End) &&
+			(e.RecurUntil.IsZero() || !e.RecurUntil.Before(r.Start))
+	}, byCalendarStart)
+	ids := map[string]bool{}
+	for _, e := range series {
+		ids[e.ID] = true
+	}
+	excs := s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool { return ids[e.RecurringEventID] }, byCalendarStart)
+	return calendarWithSeries(singles, series, excs, viewer, r, limit)
 }
 
-func (s *Memory) CalendarMarks(ctx context.Context, tenant, viewer string, r CalendarRange) ([]CalendarMark, error) {
-	evs, err := s.ListCalendarEvents(ctx, tenant, viewer, r)
+func (s *Memory) CalendarMarks(_ context.Context, tenant, viewer string, r CalendarRange) ([]CalendarMark, error) {
+	evs, err := s.listCalendar(tenant, viewer, r, calendarMaxMarkOccurrences)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +305,7 @@ func (s *Memory) CalendarReminders(_ context.Context, tenant, viewer string, r C
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calendarSelectLocked(tenant, func(e *CalendarEvent) bool {
-		return e.DeletedAt.IsZero() && !e.RemindAt.IsZero() && !e.RemindAt.Before(r.Start) && e.RemindAt.Before(r.End) &&
+		return calendarSingle(e) && e.DeletedAt.IsZero() && !e.RemindAt.IsZero() && !e.RemindAt.Before(r.Start) && e.RemindAt.Before(r.End) &&
 			calendarOwnsOrNamed(e, viewer)
 	}, func(a, b *CalendarEvent) bool {
 		if !a.RemindAt.Equal(b.RemindAt) {

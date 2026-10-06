@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/calrecur"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -37,6 +38,12 @@ import (
 // props registry (calendar_props.go) on the body, several reminders,
 // If-Match on PATCH and DELETE (409 edit_conflict with the current event), a
 // soft DELETE, POST .../restore and GET /v1/calendar/trash.
+//
+// specs/097 T006 adds recurrence (spec 4.4): rrule on the body (the calrecur
+// subset, else 400 bad_event), occurrences on the range, marks and reminders
+// reads (the store expands them; past 2000 in one range it is 400 bad_range),
+// and ?scope=this|following|all on PATCH and DELETE of a series id or an
+// occurrence id <event_id>_<YYYYMMDDTHHMMSSZ>.
 
 const (
 	calendarMaxBody         = 32 << 10
@@ -128,7 +135,8 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time) calendarEventJSON {
 		Kind: e.Kind, StartsAt: rfc(e.StartsAt), EndsAt: rfc(e.EndsAt), AllDay: e.AllDay, Audience: e.Audience,
 		Mentions: mentions, CreatorType: e.CreatorType, CreatorID: e.CreatorID, RemindAt: optCalTime(wireRemindAt(e, now)),
 		TopicID: e.TopicID, ReleaseVersion: e.ReleaseVersion, CreatedAt: rfc(e.CreatedAt), UpdatedAt: rfc(e.UpdatedAt),
-		TimeZone: tz, Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
+		TimeZone: tz, RRule: e.RRule, RecurringEventID: e.RecurringEventID, OriginalStart: optCalTime(e.OriginalStart),
+		Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
 		Reminders: eventReminders(e), Guests: []calendarGuestJSON{}, DeletedAt: optCalTime(e.DeletedAt)}
 }
 
@@ -146,7 +154,8 @@ func deadlineJSON(i store.Issue) calendarEventJSON {
 // calendarRequest is the event body of a create and of a PATCH (spec 6.1.2):
 // an absent field is left alone; remind_at, topic_id, release_version "" clear.
 // 097 4.2 adds time_zone, location, color and reminders ("" / [] reset them)
-// and props, the registry's keys as one object (a typed field wins over it).
+// and props, the registry's keys as one object (a typed field wins over it);
+// T006 adds rrule ("" ends the repeat).
 type calendarRequest struct {
 	Title          *string        `json:"title"`
 	Description    *string        `json:"description"`
@@ -164,6 +173,7 @@ type calendarRequest struct {
 	Color          *string        `json:"color"`
 	Reminders      *[]any         `json:"reminders"`
 	Props          map[string]any `json:"props"`
+	RRule          *string        `json:"rrule"`
 }
 
 func badCalendar(detail string) *issueErr {
@@ -243,6 +253,13 @@ func (q calendarRequest) patch(cur store.CalendarEvent) (store.CalendarPatch, *i
 		}
 		p.TimeZone = &tz
 	}
+	if q.RRule != nil {
+		rule := strings.TrimPrefix(strings.TrimSpace(*q.RRule), "RRULE:")
+		if _, err := calrecur.Parse(rule); rule != "" && err != nil {
+			return p, badCalendar("rrule: " + strings.TrimPrefix(err.Error(), calrecur.ErrBadRule.Error()+": "))
+		}
+		p.RRule = &rule
+	}
 	return p, q.patchProps(cur, &p)
 }
 
@@ -309,7 +326,7 @@ func (q calendarRequest) patchProps(cur store.CalendarEvent, p *store.CalendarPa
 func calendarPatchEmpty(p store.CalendarPatch) bool {
 	return p.Title == nil && p.Description == nil && p.Kind == nil && p.StartsAt == nil && p.EndsAt == nil &&
 		p.AllDay == nil && p.Audience == nil && p.Mentions == nil && p.RemindAt == nil && p.TopicID == nil &&
-		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil
+		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil && p.RRule == nil
 }
 
 // newEvent is a create: the defaults of spec 6.1.2 (kind other, audience
@@ -333,6 +350,9 @@ func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr)
 	}
 	if p.TimeZone != nil {
 		e.TimeZone = *p.TimeZone
+	}
+	if p.RRule != nil {
+		e.RRule = *p.RRule
 	}
 	for _, f := range []struct{ dst, src *string }{{&e.Title, p.Title}, {&e.Description, p.Description},
 		{&e.Kind, p.Kind}, {&e.Audience, p.Audience}, {&e.TopicID, p.TopicID}, {&e.ReleaseVersion, p.ReleaseVersion}} {
@@ -453,7 +473,13 @@ func (s *Server) deadlinesIn(ctx context.Context, tenant string, rg store.Calend
 	}), nil
 }
 
+// calendarFail answers a failed read: too many occurrences is the caller's
+// range (400 bad_range), anything else a 500.
 func (s *Server) calendarFail(w http.ResponseWriter, tenant, what string, err error) {
+	if errors.Is(err, store.ErrCalendarTooMany) {
+		writeIssueErr(w, badCalendarRange("the range holds more than 2000 occurrences; narrow the range"))
+		return
+	}
 	s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("calendar " + what)
 	writeErrCause(w, http.StatusInternalServerError, "internal", "calendar not read", err)
 }
@@ -747,6 +773,16 @@ func privateOwnerOnly(cur store.CalendarEvent, p store.CalendarPatch, actor stri
 
 const calendarConflictDetail = "the event changed since it was read; event is the current one"
 
+// calendarScope reads ?scope= of a PATCH or DELETE (spec 4.4); "" leaves the
+// store's default (this for an occurrence id, all for a series id).
+func calendarScope(r *http.Request) (string, *issueErr) {
+	switch v := r.URL.Query().Get("scope"); v {
+	case "", store.CalendarScopeThis, store.CalendarScopeFollowing, store.CalendarScopeAll:
+		return v, nil
+	}
+	return "", badCalendar("scope must be this, following or all")
+}
+
 // ifMatch reads If-Match: "<updated_at>" (spec 4.2); zero when absent.
 func ifMatch(r *http.Request) (time.Time, *issueErr) {
 	v := strings.TrimSpace(r.Header.Get("If-Match"))
@@ -769,7 +805,7 @@ func (s *Server) writeCalendarConflict(w http.ResponseWriter, cur store.Calendar
 // patchCalendarOnce reads the event, builds the patch against it and writes
 // it under the precondition: the caller's If-Match, else the version read.
 func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, actor string, q calendarRequest,
-	want time.Time) (store.CalendarEvent, *issueErr, error) {
+	want time.Time, scope string) (store.CalendarEvent, *issueErr, error) {
 	id := r.PathValue("id")
 	cur, err := c.GetCalendarEvent(r.Context(), tenant, actor, id)
 	if err != nil {
@@ -788,12 +824,25 @@ func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, ac
 	if ie != nil {
 		return cur, ie, nil
 	}
-	p.IfUpdatedAt = cur.UpdatedAt
+	p.IfUpdatedAt, p.Scope = cur.UpdatedAt, scope
 	out, err := c.UpdateCalendarEvent(r.Context(), tenant, actor, id, p, s.o.Now())
 	return out, nil, err
 }
 
-// PATCH /v1/calendar/events/{id}
+// calendarWriteArgs reads If-Match and ?scope= of a PATCH or DELETE.
+func calendarWriteArgs(w http.ResponseWriter, r *http.Request) (time.Time, string, bool) {
+	want, ie := ifMatch(r)
+	if ie == nil {
+		var scope string
+		if scope, ie = calendarScope(r); ie == nil {
+			return want, scope, true
+		}
+	}
+	writeIssueErr(w, ie)
+	return time.Time{}, "", false
+}
+
+// PATCH /v1/calendar/events/{id}?scope=
 func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request) {
 	t, actor, c, ok := s.calendarWriter(w, r)
 	if !ok {
@@ -803,15 +852,15 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	want, ie := ifMatch(r)
-	if ie != nil {
-		writeIssueErr(w, ie)
+	want, scope, ok := calendarWriteArgs(w, r)
+	if !ok {
 		return
 	}
 	var out store.CalendarEvent
+	var ie *issueErr
 	var err error
 	for try := 0; try < calendarPatchTries; try++ {
-		out, ie, err = s.patchCalendarOnce(r, c, t.ID, actor, q, want)
+		out, ie, err = s.patchCalendarOnce(r, c, t.ID, actor, q, want, scope)
 		if !errors.Is(err, store.ErrEditConflict) || !want.IsZero() {
 			break // without If-Match, a race with another write re-reads
 		}
@@ -828,19 +877,19 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// DELETE /v1/calendar/events/{id}: a soft delete (spec 4.8), 200 with the
-// event, its deleted_at set; If-Match as on PATCH.
+// DELETE /v1/calendar/events/{id}?scope=: a soft delete (spec 4.8), 200 with
+// the event, its deleted_at set; If-Match as on PATCH. On a series, this
+// cancels one occurrence and following ends the series before it (4.4).
 func (s *Server) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Request) {
 	t, actor, c, ok := s.calendarWriter(w, r)
 	if !ok {
 		return
 	}
-	want, ie := ifMatch(r)
-	if ie != nil {
-		writeIssueErr(w, ie)
+	want, scope, ok := calendarWriteArgs(w, r)
+	if !ok {
 		return
 	}
-	out, err := c.TrashCalendarEvent(r.Context(), t.ID, actor, r.PathValue("id"), want, s.o.Now())
+	out, err := c.TrashCalendarScope(r.Context(), t.ID, actor, r.PathValue("id"), scope, want, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrEditConflict):
 		s.writeCalendarConflict(w, out)

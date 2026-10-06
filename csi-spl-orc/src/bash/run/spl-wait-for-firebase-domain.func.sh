@@ -67,7 +67,7 @@ spl_firebase_domain_poll() {
   while :; do
     attempt=$((attempt + 1))
     tok="$(gcloud auth print-access-token --account="$account" 2>/dev/null)"
-    js="$(curl -sS -H "Authorization: Bearer $tok" -H "x-goog-user-project: $project" "$url" 2>/dev/null)"
+    js="$(curl -sS --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $tok" -H "x-goog-user-project: $project" "$url" 2>/dev/null)"
     [[ -n "$js" ]] || js='{}'
     state="$(spl_firebase_domain_state "$js")"
     if [[ $attempt == 1 ]]; then

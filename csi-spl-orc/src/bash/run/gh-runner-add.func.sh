@@ -191,7 +191,7 @@ ghr_tarball() {
   ver="${rel%% *}"; ver="${ver#v}"; sha="${rel#* }"
   tarball="$GHR_ROOT/actions-runner-linux-x64-$ver.tar.gz"
   url="https://github.com/actions/runner/releases/download/v$ver/actions-runner-linux-x64-$ver.tar.gz"
-  sudo test -s "$tarball" || sudo curl -fsSL -o "$tarball" "$url" \
+  sudo test -s "$tarball" || sudo curl -fsSL --connect-timeout 30 --max-time 1800 --speed-limit 1024 --speed-time 60 -o "$tarball" "$url" \
     || { do_log "FATAL download $url failed"; return 1; }
   echo "$sha  $tarball" | sudo sha256sum -c --quiet - \
     || { sudo rm -f "$tarball"; do_log "FATAL sha256 mismatch for $tarball"; return 1; }

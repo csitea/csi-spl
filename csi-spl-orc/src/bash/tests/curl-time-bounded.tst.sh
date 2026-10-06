@@ -12,6 +12,9 @@
 #          tool downloads (_ilt_fetch, _ilt_fetch_sums: --speed-limit too).
 #          The setup-app-inf probes are pinned in source: calling them sleeps
 #          through the readiness loop.
+#          Round 4 row 14 adds do_spl_domain_verify (LIST, VERIFY, TOKEN),
+#          spl_firebase_domain_poll and the downloads ghr_tarball,
+#          oss_gitleaks_bin and install.sh's fetch (--speed-limit too).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -227,6 +230,70 @@ roles="$PROJ_ROOT/lib/bash/funcs/spl-db-roles.func.sh"
 grep -q 'HTTP:' "$roles" && grep -q 'POST' "$roles" && grep -Fq 'PUT ?name=' "$roles" \
   && pass "spl_db_api_user_set header lists its HTTP calls" \
   || fail "spl_db_api_user_set header does not list the HTTP calls"
+
+# --- round 4 row 14 -----------------------------------------------------------
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/spl-domain-verify.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/spl-wait-for-firebase-domain.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/gh-runner-add.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/oss-gate.func.sh"
+
+: >"$T/sa-key.json"
+# domain_verify_run <LIST|VERIFY|TOKEN>: the action with its gcp helpers stubbed.
+domain_verify_run() (
+  spl_require_cloud_env() { return 0; }
+  # shellcheck disable=SC2034 # read by do_spl_domain_verify
+  do_spl_cloud_cnf() { SPL_CNF=/dev/null SPL_PROJECT=proj-stub SPL_ORG_APP=csi-spl; }
+  yq() { echo example.test; }
+  do_gcp_isolated_active_account() { echo sa@example.test; }
+  do_gcp_log_identity() { return 0; }
+  export LIST=0 VERIFY=0
+  [[ "$1" == TOKEN ]] || export "$1=1"
+  ENV=dev SPL_SA_KEY="$T/sa-key.json" do_spl_domain_verify
+)
+declare -A verify_url=([LIST]='/webResource$' [VERIFY]='webResource[?]verificationMethod=DNS_CNAME -d' [TOKEN]='/token -d')
+for mode in LIST VERIFY TOKEN; do
+  run_bounded "do_spl_domain_verify $mode" domain_verify_run "$mode"
+  bounds_are "do_spl_domain_verify $mode" 10 30
+  grep -Eq -- "${verify_url[$mode]}" "$STUB_LOG" && pass "do_spl_domain_verify $mode called its own endpoint" \
+    || fail "do_spl_domain_verify $mode did not call ${verify_url[$mode]}"
+done
+
+run_bounded spl_firebase_domain_poll spl_firebase_domain_poll example.test proj-stub site-stub sa@example.test 0 1
+bounds_are spl_firebase_domain_poll 10 30
+
+ghr_tarball_run() (
+  sudo() { "$@"; }
+  gh() { echo "v9.9.9 $(printf '0%.0s' {1..64})"; }
+  unset GH_RUNNER_TARBALL
+  GHR_ROOT="$T" ghr_tarball
+)
+run_bounded ghr_tarball ghr_tarball_run
+bounds_are ghr_tarball 30 1800
+
+gitleaks_run() (
+  unset GITLEAKS_BIN
+  XDG_CACHE_HOME="$T/cache" oss_gitleaks_bin
+)
+run_bounded oss_gitleaks_bin gitleaks_run
+bounds_are oss_gitleaks_bin 30 900
+
+sed -n '/^fetch() {/,/^}/p' "$PROJ_ROOT/src/bash/features/spool-install/install.sh" >"$T/fetch.sh"
+# shellcheck disable=SC1090,SC1091
+source "$T/fetch.sh"
+run_bounded "install.sh fetch" fetch https://dl.example.test/go.tgz "$T/go.tgz"
+bounds_are "install.sh fetch" 30 1800
+
+: >"$STUB_LOG"
+ghr_tarball_run >/dev/null 2>&1
+gitleaks_run >/dev/null 2>&1
+fetch https://dl.example.test/go.tgz "$T/go.tgz" >/dev/null 2>&1
+n=$(grep -c -- '--speed-limit 1024 --speed-time 60' "$STUB_LOG" || true)
+[[ "$n" -eq 3 ]] && pass "row 14 downloads cut only a stalled mirror (--speed-limit/--speed-time)" \
+  || fail "row 14 downloads with --speed-limit/--speed-time: $n of 3"
 
 if [[ "$fails" -eq 0 ]]; then
   echo "PASS: all curl-time-bounded.tst.sh assertions"

@@ -61,7 +61,7 @@ oss_gitleaks_bin() {
     if [[ ! -x "$bin" ]]; then
       mkdir -p "$cache" || return 1
       tgz="$cache/gitleaks.tgz"
-      curl -fsSL -o "$tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${OSS_GITLEAKS_VERSION}/gitleaks_${OSS_GITLEAKS_VERSION}_linux_x64.tar.gz" \
+      curl -fsSL --connect-timeout 30 --max-time 900 --speed-limit 1024 --speed-time 60 -o "$tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${OSS_GITLEAKS_VERSION}/gitleaks_${OSS_GITLEAKS_VERSION}_linux_x64.tar.gz" \
         || { echo "gitleaks download failed" >&2; return 1; }
       got=$(sha256sum "$tgz" | cut -d' ' -f1)
       [[ "$got" == "$OSS_GITLEAKS_SHA256" ]] \

@@ -230,7 +230,7 @@ done
 command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
 
 fetch() {  # URL OUT
-  if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 2 -o "$2" "$1"; else wget -q -O "$2" "$1"; fi
+  if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 30 --max-time 1800 --speed-limit 1024 --speed-time 60 --retry 2 -o "$2" "$1"; else wget -q -O "$2" "$1"; fi
 }
 plan() { [ "$DRY" = 1 ] && echo "would: $*"; }
 # The hub answers before anything is installed: a wrong URL, bad TLS or a 404

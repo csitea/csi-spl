@@ -8,6 +8,8 @@
  * every call; hiding is convenience. Node tests import this file.
  */
 
+import { isoSeconds } from './iso-seconds.mjs'
+
 /** The permission behind the Users entry and every members.invite route. */
 export const USERS_PERMISSION = 'members.invite'
 
@@ -89,13 +91,14 @@ export function memberLabel(row) {
 
 /**
  * Spec 072 A27: the access_until a date input means — the END of that local
- * day (the next local midnight), as RFC 3339 UTC. '' for no / a bad date.
+ * day (the next local midnight), as RFC 3339 UTC, seconds precision, no
+ * fraction. '' for no / a bad date.
  */
 export function accessUntilOfDate(day) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ''))
   if (!m) return ''
   const at = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1)
-  return Number.isNaN(at.getTime()) ? '' : at.toISOString().replace(/\.\d{3}Z$/, 'Z')
+  return Number.isNaN(at.getTime()) ? '' : isoSeconds(at)
 }
 
 /** The local day (YYYY-MM-DD) a stored access_until ends; '' for none. The inverse of accessUntilOfDate. */

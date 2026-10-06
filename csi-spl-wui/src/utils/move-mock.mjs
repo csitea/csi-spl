@@ -4,6 +4,8 @@
 // Loaded on the first mock move only, so it never weighs on a deployed
 // bundle's initial JS.
 
+import { isoSeconds } from './iso-seconds.mjs'
+
 /**
  * SPL-1024: the lde mock's move, with the hub's refusals (move-v1 §2/§3)
  * and the author-only gate (the mock viewer has no role), so the browser
@@ -17,7 +19,8 @@ export function mockMove(state, id, body) {
   const isCard = (m) => m.is_parent !== 0 && !m.parent_task_id
   const row = state.messages.find((m) => m.msg_id === id)
   if (!row) throw fail(404, 'not_found')
-  const at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  // Each mock op stamps its own now, so one move's rows can differ by a second.
+  const at = isoSeconds()
   const stamp = (m, moved, fromChannel) => {
     if (moved) {
       m.moved_at = at
@@ -93,7 +96,8 @@ export function mockMergeTopic(state, id, body) {
   const norm = (c) => String(c || '').replace(/^#/, '').toLowerCase()
   const isLobby = (c) => norm(c) === 'lobby' || norm(c) === 'general'
   const isCard = (m) => m.is_parent !== 0 && !m.parent_task_id
-  const at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  // Each mock op stamps its own now, so one move's rows can differ by a second.
+  const at = isoSeconds()
   const row = state.messages.find((m) => m.msg_id === id)
   if (!row) throw fail(404, 'not_found')
 
@@ -154,7 +158,8 @@ export function mockPromoteTopic(state, id, body) {
   const norm = (c) => String(c || '').replace(/^#/, '').toLowerCase()
   const isLobby = (c) => norm(c) === 'lobby' || norm(c) === 'general'
   const isCard = (m) => m.is_parent !== 0 && !m.parent_task_id
-  const at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  // Each mock op stamps its own now, so one move's rows can differ by a second.
+  const at = isoSeconds()
   const mint = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'mock-' + Math.abs(Date.parse(at)).toString(16) + '-' + id.slice(0, 8))
   const row = state.messages.find((m) => m.msg_id === id)
   if (!row) throw fail(404, 'not_found')

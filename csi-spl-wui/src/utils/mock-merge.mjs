@@ -3,6 +3,8 @@
 // in mock mode, from spool-client.mjs mergeMessage, so it stays out of the
 // initial chunk.
 
+import { isoSeconds } from './iso-seconds.mjs'
+
 /**
  * @param {{ me: { id: string, box: string }, messages: any[] }} state
  * @param {string} src the row that goes away
@@ -27,7 +29,7 @@ export function mockMerge(state, src, into) {
   const o = String(older || '').replace(/\s+$/, '')
   const n = String(newer || '').replace(/^\s+/, '')
   b.body = o && n ? `${o}\n\n${n}` : o || n
-  b.edited_at = new Date().toISOString().replace(/\.\d+Z$/, 'Z')
+  b.edited_at = isoSeconds()
   b.edited_by = state.me.id
   b.revision = (Number(b.revision) || 1) + 1
   state.messages.splice(state.messages.indexOf(a), 1)

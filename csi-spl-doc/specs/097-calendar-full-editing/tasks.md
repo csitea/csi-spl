@@ -50,7 +50,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   the owner's decisions E1..E3 (spec section 0.1).
 
 ### Phase 1: Data
-- [ ] T002 **rdb migration** `rdb/NNNN_calendar_full_edit.sql` (the next free
+- [x] T002 **rdb migration** `rdb/0139_calendar_full_edit.sql` (c-421, `351d63e8a`; applied on dev and prd 2026-10-06; the next free
   number on the sha you build on), exactly spec 3.1: the `calendar_events`
   columns, constraints and indexes, the `calendar_guests` table with its RLS
   and composite foreign key. **The same commit** seeds `calendar_guests` in

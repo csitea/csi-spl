@@ -57,14 +57,14 @@ svc() {
 
 PRE="cd $C && git fetch -q origin master && git checkout -q --detach origin/master; "
 PD="\$HOME/.local/share/$OA/cloud/prd/m3-e2e/e2e"
-DEV3="*/3 * * * * ${PRE}ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 $SCRIPT >> $L/cron.out 2>&1 # $OA:desk-reconcile"
-PRD3="1-59/3 * * * * ${PRE}ENV=prd TENANT_ID=t1 DESK_MUTE=CLE-00 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human $SCRIPT >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd"
+DEV3="*/3 * * * * ${PRE}ENV=dev TENANT_ID=t1 DESK_MUTE=c-010 $SCRIPT >> $L/cron.out 2>&1 # $OA:desk-reconcile"
+PRD3="1-59/3 * * * * ${PRE}ENV=prd TENANT_ID=t1 DESK_MUTE=c-010 PROBE_EMAIL=\$(cat $PD/human-email) PROBE_PW_FILE=$PD/pw-human $SCRIPT >> $L/cron-prd.out 2>&1 # $OA:desk-reconcile-prd"
 OTHER="0 4 * * * /usr/bin/true # someone-elses-job"
 
 # --- 1. the target state is a fixed point ---------------------------------------------
 printf '%s\n%s\n%s\n' "$OTHER" "$DEV3" "$PRD3" >"$CT"; cp "$CT" "$T/target"
-svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=CLE-00 DRY_RUN=0 >"$T/o"
-svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=CLE-00 DRY_RUN=0 >>"$T/o"
+svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >"$T/o"
+svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >>"$T/o"
 sort "$CT" >"$T/a"; sort "$T/target" >"$T/b"
 cmp -s "$T/a" "$T/b" && pass "1. the */3 dev + 1-59/3 prd target state is reproduced exactly" ||
   fail "1. drift: $(diff "$T/b" "$T/a") $(cat "$T/o")"
@@ -72,27 +72,27 @@ cmp -s "$T/a" "$T/b" && pass "1. the */3 dev + 1-59/3 prd target state is reprod
 # --- 2. a dev install leaves the prd line alone --------------------------------------
 DEV5="${DEV3/\*\/3 /*/5 }"; PRD5="${PRD3/1-59\/3 /2-59/5 }"
 printf '%s\n%s\n%s\n' "$DEV5" "$PRD5" "$OTHER" >"$CT"
-svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=CLE-00 DRY_RUN=0 >"$T/o"
+svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >"$T/o"
 grep -qxF "$PRD5" "$CT" && grep -qxF "$OTHER" "$CT" &&
   pass "2. a dev install keeps the prd line and the unrelated line byte-identical" || fail "2. crontab: $(cat "$CT")"
 grep -qxF "$DEV3" "$CT" && [[ "$(grep -c "# $OA:desk-reconcile\$" "$CT")" == 1 ]] &&
   pass "2. ...and rewrites only the dev line, self-update step included" || fail "2. dev line: $(cat "$CT")"
 
 # --- 3. prd install ---------------------------------------------------------------------------
-svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=CLE-00 DRY_RUN=0 >"$T/o"
+svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=c-010 DRY_RUN=0 >"$T/o"
 grep -qxF "$PRD3" "$CT" && grep -qxF "$DEV3" "$CT" && [[ "$(wc -l <"$CT")" == 3 ]] &&
   pass "3. a prd install writes the -prd line (offset, PROBE_*, cron-prd.out) and keeps dev" || fail "3. crontab: $(cat "$CT")"
 
 # --- 4. dry run: a diff, no write -----------------------------------------------------------
 cp "$CT" "$T/before"
-out="$(svc ENV=dev DESK_CRON_EVERY=7 DESK_MUTE=CLE-00)"
+out="$(svc ENV=dev DESK_CRON_EVERY=7 DESK_MUTE=c-010)"
 cmp -s "$CT" "$T/before" && [[ "$out" == *"crontab diff (before -> after)"* && "$out" == *"-$DEV3"* && "$out" == *"+*/7 * * * * cd $C"* ]] &&
   pass "4. the dry run shows the before/after diff and writes nothing" || fail "4. out: $out"
-out="$(svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=CLE-00)"
+out="$(svc ENV=dev DESK_CRON_EVERY=3 DESK_MUTE=c-010)"
 [[ "$out" == *"(no change)"* ]] && pass "4. ...and says so when nothing would change" || fail "4. no-change: $out"
 
 # --- 5. check reads the script, not the cd -----------------------------------------------
-out="$(svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=CLE-00 DESK_SERVICE_ACTION=check)"; rc=$?
+out="$(svc ENV=prd DESK_CRON_EVERY=3 DESK_MUTE=c-010 DESK_SERVICE_ACTION=check)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'"matches": true'* ]] && pass "5. check passes on the installed prd line" || fail "5. rc=$rc $out"
 chmod -x "$SCRIPT"
 svc ENV=prd DESK_SERVICE_ACTION=check >/dev/null; rc=$?

@@ -47,7 +47,7 @@ if [[ -n "${STUB_PSQL_FILE:-}" ]]; then
 elif [[ -n "${STUB_PSQL_OUT+x}" ]]; then
   printf '%s\n' "$STUB_PSQL_OUT"
 else
-  printf '%s\n' 'removed | CLE-1'
+  printf '%s\n' 'removed | c-001'
 fi
 exit "${STUB_PSQL_RC:-0}"
 EOF
@@ -60,8 +60,8 @@ in_orc() {
   local snip="$1"; shift
   : >"$T/calls.log"; : >"$T/stdin"
   env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u DRY_RUN -u HUMAN_ID -u EMAIL \
-    -u TENANT_ID -u CHANNEL -u AGENTS -u AGENT_BOX -u STUB_PSQL_OUT -u STUB_PSQL_FILE -u STUB_PSQL_RC \
-    HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" \
+    -u TENANT_ID -u CHANNEL -u AGENTS -u AGENT_BOX -u SPOOL_DESK_BOX -u STUB_PSQL_OUT -u STUB_PSQL_FILE -u STUB_PSQL_RC \
+    HOME="$T/home" PATH="$T/stub:$PATH" STUB_LOG="$T/calls.log" T_STDIN="$T/stdin" SPOOL_BOX_ENV="$T/box.env" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" \
     ENV=dev SNIPPET="$snip" "$@" bash -c '
     set -uo pipefail
@@ -79,12 +79,12 @@ sqlbody=$(awk 'index($0, "<<'\''SQL'\''") {p=1; next} $0=="SQL" {p=0} p' "$FUNC"
   && pass "0. the SQL heredoc has no shell expansion" || fail "0. the SQL heredoc is empty or expanded by the shell"
 
 # --- 1. DRY_RUN --------------------------------------------------------------------
-in_orc 'do_spl_channel_agent_remove_op' TENANT_ID=t1 CHANNEL=spool-hub-devel AGENTS='CLE-1 CLE-1'; rc=$?
+in_orc 'do_spl_channel_agent_remove_op' TENANT_ID=t1 CHANNEL=spool-hub-devel AGENTS='c-001 c-001'; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls.log" ]] \
-  && grep -q 'DRY_RUN would remove CLE-1 on box-desk from #spool-hub-devel in t1 (origin=removed)' "$T/out" \
-  && [[ $(grep -o 'CLE-1' "$T/out" | wc -l) -eq 1 ]] \
+  && grep -q 'DRY_RUN would remove c-001 on box-desk from #spool-hub-devel in t1 (origin=removed)' "$T/out" \
+  && [[ $(grep -o 'c-001' "$T/out" | wc -l) -eq 1 ]] \
   && pass "1. DRY_RUN (default): plan, deduped, no cloud" || fail "1. dry: rc=$rc $(cat "$T/out") $(cat "$T/calls.log")"
-in_orc 'do_spl_channel_agent_remove_op' TENANT_ID=t1 CHANNEL=general AGENTS=CLE-1; rc=$?
+in_orc 'do_spl_channel_agent_remove_op' TENANT_ID=t1 CHANNEL=general AGENTS=c-001; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'from #lobby in t1' "$T/out" && pass "1. #general is #lobby, and a default channel is allowed" || fail "1. general: $(cat "$T/out")"
 
 # --- 2. refusals -------------------------------------------------------------------
@@ -93,14 +93,14 @@ refuse() {
   in_orc 'do_spl_channel_agent_remove_op' "$@"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "2. $label refused before any call" || fail "2. $label: rc=$rc $(cat "$T/out")"
 }
-base=(TENANT_ID=t1 CHANNEL=spool-hub-devel AGENTS=CLE-1)
-refuse "reserved issues" TENANT_ID=t1 CHANNEL=issues AGENTS=CLE-1 DRY_RUN=0
-refuse "retired tasks" TENANT_ID=t1 CHANNEL=tasks AGENTS=CLE-1 DRY_RUN=0
-refuse "bad tenant" TENANT_ID=T_1 CHANNEL=x AGENTS=CLE-1 DRY_RUN=0
-refuse "bad channel" TENANT_ID=t1 CHANNEL='A b' AGENTS=CLE-1 DRY_RUN=0
+base=(TENANT_ID=t1 CHANNEL=spool-hub-devel AGENTS=c-001)
+refuse "reserved issues" TENANT_ID=t1 CHANNEL=issues AGENTS=c-001 DRY_RUN=0
+refuse "retired tasks" TENANT_ID=t1 CHANNEL=tasks AGENTS=c-001 DRY_RUN=0
+refuse "bad tenant" TENANT_ID=T_1 CHANNEL=x AGENTS=c-001 DRY_RUN=0
+refuse "bad channel" TENANT_ID=t1 CHANNEL='A b' AGENTS=c-001 DRY_RUN=0
 refuse "missing AGENTS" TENANT_ID=t1 CHANNEL=x DRY_RUN=0
 refuse "human id" TENANT_ID=t1 CHANNEL=x AGENTS=HUM-4 DRY_RUN=0
-refuse "injected agent" TENANT_ID=t1 CHANNEL=x "AGENTS=CLE-1' or '1'='1" DRY_RUN=0
+refuse "injected agent" TENANT_ID=t1 CHANNEL=x "AGENTS=c-001' or '1'='1" DRY_RUN=0
 refuse "box-wui" "${base[@]}" AGENT_BOX=box-wui DRY_RUN=0
 refuse "DRY_RUN=2" "${base[@]}" DRY_RUN=2
 
@@ -110,21 +110,21 @@ in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0; rc=$?
   && grep -qx "SET LOCAL app.tenant_id = :'tenant';" "$T/stdin" \
   && grep -q "SET origin = 'removed'" "$T/stdin" && grep -q "c.origin <> 'removed'" "$T/stdin" \
   && ! grep -qiE '\b(delete|insert|drop|truncate|alter)\b' "$T/stdin" \
-  && grep -q '\[channel=spool-hub-devel\]' "$T/calls.log" && grep -q '\[agents=CLE-1\]' "$T/calls.log" \
-  && ! grep -q 'CLE-1' "$T/stdin" && ! grep -q 'spool-hub-devel' "$T/stdin" \
+  && grep -q '\[channel=spool-hub-devel\]' "$T/calls.log" && grep -q '\[agents=c-001\]' "$T/calls.log" \
+  && ! grep -q 'c-001' "$T/stdin" && ! grep -q 'spool-hub-devel' "$T/stdin" \
   && grep -qx "proxy-start as $DEV_SA" "$T/calls.log" \
-  && grep -q "OK removed CLE-1 on box-desk from #spool-hub-devel in t1 ($DEV_SA)" "$T/out" \
+  && grep -q "OK removed c-001 on box-desk from #spool-hub-devel in t1 ($DEV_SA)" "$T/out" \
   && pass "3. DRY_RUN=0: one UPDATE-only transaction, values as -v, as $DEV_SA" \
   || fail "3. real: rc=$rc $(cat "$T/calls.log") $(cat "$T/out")"
 grep -qF "$DSN_PW" "$T/out" "$T/calls.log" "$T/stdin" && fail "3. the DSN password leaked" || pass "3. the DSN password is in neither output, argv nor SQL"
 
 # --- 4. runner messages -------------------------------------------------------------------
-in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT='absent | CLE-1'; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'OK CLE-1 had no seat in #spool-hub-devel on box-desk in t1 - nothing to remove' "$T/out" \
+in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT='absent | c-001'; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'OK c-001 had no seat in #spool-hub-devel on box-desk in t1 - nothing to remove' "$T/out" \
   && pass "4. an agent with no seat is reported, nothing changes" || fail "4. absent: rc=$rc $(cat "$T/out")"
-printf '%s\n' 'removed | CLE-1' 'absent | CLE-2' >"$T/mix.out"
-in_orc 'do_spl_channel_agent_remove_op' TENANT_ID=t1 CHANNEL=x AGENTS='CLE-1 CLE-2' DRY_RUN=0 STUB_PSQL_FILE="$T/mix.out"; rc=$?
-[[ $rc -eq 0 ]] && grep -q 'OK removed CLE-1' "$T/out" && grep -q 'OK CLE-2 had no seat' "$T/out" \
+printf '%s\n' 'removed | c-001' 'absent | c-002' >"$T/mix.out"
+in_orc 'do_spl_channel_agent_remove_op' TENANT_ID=t1 CHANNEL=x AGENTS='c-001 c-002' DRY_RUN=0 STUB_PSQL_FILE="$T/mix.out"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'OK removed c-001' "$T/out" && grep -q 'OK c-002 had no seat' "$T/out" \
   && pass "4. a mix is reported per agent" || fail "4. mix: $(cat "$T/out")"
 in_orc 'do_spl_channel_agent_remove_op' "${base[@]}" DRY_RUN=0 STUB_PSQL_OUT='refuse-count'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'unexpected number of rows; rolled back' "$T/out" && pass "4. a count mismatch is FATAL" || fail "4. count: $(cat "$T/out")"

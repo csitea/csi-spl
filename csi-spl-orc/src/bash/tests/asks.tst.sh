@@ -16,7 +16,7 @@
 #   4. KILL-MID-ASK: the pc orchestrator holds the role, gets the HANDOVER
 #      list (it HAS received both asks) and dies before acking. The lease
 #      moves to sat: pc's tick stands down, sat's first tick hands BOTH open
-#      asks to CLE-001@sat - from the hub, sat's own journal was empty
+#      asks to c-001@sat - from the hub, sat's own journal was empty
 #   5. re-raise: an unacked ask quiet past ASKS_RERAISE_MIN goes again (one
 #      message, raised_n counts); an acked one does not, unless overdue
 #   6. owner leg: unacked past ASKS_OWNER_MIN -> ASKS_OWNER_CMD once; with
@@ -157,8 +157,8 @@ STUB
 chmod +x "$T/bin/owner"
 
 for m in pc sat; do
-  mkdir -p "$T/$m/spool/CLE-001/inbox" "$T/$m/spool/CLE-002/inbox" "$T/$m/spool/CLE-77929/inbox" "$T/$m/spool/dispatch"
-  printf 'LEASE_ORCH=CLE-001\nLEASE_FLEET=main\n' >"$T/$m/spool/dispatch/lease.conf"
+  mkdir -p "$T/$m/spool/c-001/inbox" "$T/$m/spool/c-002/inbox" "$T/$m/spool/c-929/inbox" "$T/$m/spool/dispatch"
+  printf 'LEASE_ORCH=c-001\nLEASE_FLEET=main\n' >"$T/$m/spool/dispatch/lease.conf"
 done
 
 # env for a machine: its root, its box, the hub stub; no delivery limit
@@ -167,7 +167,7 @@ done
 menv() {
   local m="$1" box=box-desk; [[ "$m" == sat ]] && box=sat
   printf '%s\n' "SPOOL_ROOT=$T/$m/spool" "SPOOL_BOX_ENV=$T/$m/spool/box.env" "SPOOL_DESK_BOX=$box" \
-    "ASKS_HUB_CMD=$T/bin/hub" "HUB_DIR=$T/hub" "SPOOL_BIN=$T/bin/spool" "SPOOL_ORCHESTRATOR_ID=CLE-001" \
+    "ASKS_HUB_CMD=$T/bin/hub" "HUB_DIR=$T/hub" "SPOOL_BIN=$T/bin/spool" "SPOOL_ORCHESTRATOR_ID=c-001" \
     "SPOOL_TMUX_SOCKET=$T/tmux.sock" "SPOOL_FLEET_RELAY=0" "ASKS_SEND=$T/bin/send" "SEND_LOG=$T/$m/send.log" \
     "ASKS_MAX_RAISES=0" "SPOOL_AGENT_ID="
 }
@@ -194,29 +194,29 @@ msgid() { sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p' <<<"$1" | sed -n 1p; }
 hubrow() { jq -c --arg i "$1" '.[] | select(.ask_id == $i)' "$T/hub/main.json" 2>/dev/null; }
 
 # 1. CONTROL ----------------------------------------------------------------
-send pc --from CLE-77929 --to orchestrator --kind note --body 'fyi: tests green' >/dev/null 2>&1
-send pc --from CLE-77929 --to CLE-002 --kind blocker --body 'peer blocker' >/dev/null 2>&1
-send pc --from CLE-001 --to CLE-001 --kind task --body 'note to self' >/dev/null 2>&1
+send pc --from c-929 --to orchestrator --kind note --body 'fyi: tests green' >/dev/null 2>&1
+send pc --from c-929 --to c-002 --kind blocker --body 'peer blocker' >/dev/null 2>&1
+send pc --from c-001 --to c-001 --kind task --body 'note to self' >/dev/null 2>&1
 n="$(find "$T/pc/spool/asks" -name '*.json' 2>/dev/null | wc -l)"
 [[ "$n" -eq 0 ]] && pass "control: a note to the orchestrator, a blocker to a peer and the orchestrator's note to itself are not asks" || fail "control: $n ask(s) journaled"
 
 # 2. fire and forget -----------------------------------------------------------
 printf '#!/usr/bin/env bash\necho "$1" >>"%s/synclog"\n' "$T" >"$T/bin/synclog"; chmod +x "$T/bin/synclog"
 # the sender's first copy, re-sent below as the old habit was: two asks, one declined as a duplicate in this step
-SYNC_CMD="$T/bin/synclog" send pc --from CLE-002 --to orchestrator --kind blocker --task 692aefe8 --body 'BLOCKER: 692aefe8, first copy' >/dev/null 2>&1
-out="$(SYNC_CMD="$T/bin/synclog" send pc --from CLE-002 --to orchestrator --kind blocker --task 692aefe8 \
+SYNC_CMD="$T/bin/synclog" send pc --from c-002 --to orchestrator --kind blocker --task 692aefe8 --body 'BLOCKER: 692aefe8, first copy' >/dev/null 2>&1
+out="$(SYNC_CMD="$T/bin/synclog" send pc --from c-002 --to orchestrator --kind blocker --task 692aefe8 \
   --body $'**BLOCKER: t1 692aefe8 has had NO lane for ~6 h**\nDecide now.' 2>&1)"
 A1="$(msgid "$out")"
 [[ -n "$A1" ]] || fail "the first ask was not sent: $out"
 j="$(jrn pc "$A1")"
-if [[ -n "$A1" && "$(jq -r .state <<<"$j")" == open && "$(jq -r .synced <<<"$j")" == false && "$(jq -r .from <<<"$j")" == CLE-002@box-desk \
+if [[ -n "$A1" && "$(jq -r .state <<<"$j")" == open && "$(jq -r .synced <<<"$j")" == false && "$(jq -r .from <<<"$j")" == c-002@box-desk \
       && "$(jq -r .summary <<<"$j")" == "BLOCKER: t1 692aefe8 has had NO lane for ~6 h" && "$out" == *"ask: open ${A1:0:8}"* ]]; then
-  pass "a blocker to the orchestrator is journaled before spool-send returns: open, unsynced, from CLE-002@box-desk, summary = first line"
+  pass "a blocker to the orchestrator is journaled before spool-send returns: open, unsynced, from c-002@box-desk, summary = first line"
 else fail "journal: $out / $j"; fi
 grep -qx "$A1" "$T/synclog" 2>/dev/null && pass "the hub leg was started with the ask id (fire and forget)" || fail "sync not started"
 A0=""
 for f in "$T/pc/spool/asks/"*.json; do f="$(basename "$f" .json)"; [[ "$f" != "$A1" ]] && A0="$f"; done
-grep -q "open $A1 CLE-002@box-desk open" "$T/pc/spool/asks/journal.log" && pass "journal.log records the open event" || fail "journal.log: $(cat "$T/pc/spool/asks/journal.log")"
+grep -q "open $A1 c-002@box-desk open" "$T/pc/spool/asks/journal.log" && pass "journal.log records the open event" || fail "journal.log: $(cat "$T/pc/spool/asks/journal.log")"
 out="$(on pc do_spl_asks_sync ASKS_FLEET=main)"
 [[ "$(hubrow "$A1" | jq -r .state)" == open && "$(jq -r .synced <<<"$(jrn pc "$A1")")" == true ]] && pass "do_spl_asks_sync puts it on the hub and marks the journal synced" || fail "sync: $out"
 on pc do_spl_asks_sync ASKS_FLEET=main >/dev/null
@@ -225,7 +225,7 @@ out="$(on pc 'ASK_ID='"${A0:0:8}"' ASK_STATE=declined ASK_REASON="duplicate send
 [[ "$(hubrow "$A0" | jq -r .state)" == declined ]] && pass "an ask closes by its 8-hex prefix (the duplicate, declined with a reason)" || fail "decline: $out"
 
 # 3. hub down ------------------------------------------------------------------
-out="$(HUB_DOWN=1 send pc --from CLE-77929 --to CLE-001 --kind task --task 2f7996aa-0dc8-45b2-a16e-bc001b104595 --ask-deadline 2026-10-01T03:00:00Z --body 'Give 2f7996aa an owner' 2>&1)"
+out="$(HUB_DOWN=1 send pc --from c-929 --to c-001 --kind task --task 2f7996aa-0dc8-45b2-a16e-bc001b104595 --ask-deadline 2026-10-01T03:00:00Z --body 'Give 2f7996aa an owner' 2>&1)"
 A2="$(msgid "$out")"
 [[ -n "$A2" ]] || fail "the hub-down ask was not sent: $out"
 out="$(on pc do_spl_asks_open ASKS_FLEET=main HUB_DOWN=1 2>&1)"
@@ -235,22 +235,22 @@ else fail "hub down: $out"; fi
 grep -E "^${A2:0:8} .* open! " <<<"$out" >/dev/null && pass "an open ask past its deadline is flagged (open!)" || fail "overdue flag: $out"
 
 # 4. KILL-MID-ASK --------------------------------------------------------------
-echo "CLE-001@box-desk 1790906467" >"$T/pc/spool/dispatch/lease.orch"
-echo "CLE-001@box-desk 1790906467" >"$T/sat/spool/dispatch/lease.orch"
+echo "c-001@box-desk 1790906467" >"$T/pc/spool/dispatch/lease.orch"
+echo "c-001@box-desk 1790906467" >"$T/sat/spool/dispatch/lease.orch"
 out="$(on pc do_spl_asks_tick ASKS_FLEET=main)"
 [[ -n "$(hubrow "$A2")" ]] && pass "the holder's tick pushed the ask written while the hub was down" || fail "tick push: $out"
-if grep -q "^CLE-001 CLE-001 \*\*ASKS HANDOVER: 2 open ask(s) for CLE-001@box-desk" "$T/pc/send.log" && grep -q "${A1:0:8}" "$T/pc/send.log" && grep -q "${A2:0:8}" "$T/pc/send.log"; then
+if grep -q "^c-001 c-001 \*\*ASKS HANDOVER: 2 open ask(s) for c-001@box-desk" "$T/pc/send.log" && grep -q "${A1:0:8}" "$T/pc/send.log" && grep -q "${A2:0:8}" "$T/pc/send.log"; then
   pass "the pc orchestrator's first tick hands it both open asks in ONE blocker (it has now received them)"
 else fail "pc handover: $(cat "$T/pc/send.log" 2>/dev/null) / $out"; fi
 # ... and dies before acking: no ack, no close. The lease moves to sat.
-echo "CLE-001@sat 1790906600" >"$T/pc/spool/dispatch/lease.orch"
-echo "CLE-001@sat 1790906600" >"$T/sat/spool/dispatch/lease.orch"
+echo "c-001@sat 1790906600" >"$T/pc/spool/dispatch/lease.orch"
+echo "c-001@sat 1790906600" >"$T/sat/spool/dispatch/lease.orch"
 : >"$T/pc/send.log"
 out="$(on pc do_spl_asks_tick ASKS_FLEET=main)"
 [[ ! -s "$T/pc/send.log" && "$out" == *"held on sat"* ]] && pass "pc's tick stands down: the role is held on sat" || fail "pc stand-down: $out"
 [[ -z "$(ls "$T/sat/spool/asks/"*.json 2>/dev/null)" ]] && pass "sat's own journal holds none of the asks (they were sent on pc)" || fail "sat journal not empty"
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main)"
-if grep -q "^CLE-001 CLE-001 \*\*ASKS HANDOVER: 2 open ask(s) for CLE-001@sat\*\* (the orch role was not seen on this machine)" "$T/sat/send.log" \
+if grep -q "^c-001 c-001 \*\*ASKS HANDOVER: 2 open ask(s) for c-001@sat\*\* (the orch role was not seen on this machine)" "$T/sat/send.log" \
    && grep -q "${A1:0:8}" "$T/sat/send.log" && grep -q "${A2:0:8}" "$T/sat/send.log"; then
   pass "KILL-MID-ASK: the successor on sat gets BOTH asks the dead holder received and never acked"
 else fail "sat handover: $(cat "$T/sat/send.log" 2>/dev/null) / $out"; fi
@@ -265,13 +265,13 @@ sleep 0.5
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=15 ASKS_TICK_WAIT=20)"
 wait
 [[ ! -s "$T/sat/send.log" ]] && pass "no re-raise inside ASKS_RERAISE_MIN" || fail "early re-raise: $(cat "$T/sat/send.log")"
-[[ "$out" == *"asks tick: holder CLE-001@sat, hub ok: 2 open (2 unacked, 0 acked); re-raise due 0 (quiet >= 15 min); owner due 0 (open >= 60 min)"* ]] &&
+[[ "$out" == *"asks tick: holder c-001@sat, hub ok: 2 open (2 unacked, 0 acked); re-raise due 0 (quiet >= 15 min); owner due 0 (open >= 60 min)"* ]] &&
   pass "a tick with nothing due says so in one summary line - and it ran after waiting out the held lock" || fail "summary / lock wait: $out"
 n1="$(grep -c ' mirror ' "$T/sat/spool/asks/journal.log")"
 on sat do_spl_asks_open ASKS_FLEET=main >/dev/null; on sat do_spl_asks_open ASKS_FLEET=main >/dev/null
 [[ "$(grep -c ' mirror ' "$T/sat/spool/asks/journal.log")" == "$n1" ]] && pass "an unchanged hub row is not re-mirrored on every read" || fail "mirror churn: $(tail -3 "$T/sat/spool/asks/journal.log")"
 on sat 'ASK_ID='"${A1:0:8}"' do_spl_ask_ack' ASKS_FLEET=main >/dev/null
-[[ "$(hubrow "$A1" | jq -r '.state + " " + .acked_by')" == "acked CLE-001@sat" ]] && pass "ack: in progress, by CLE-001@sat (the default actor is this machine's orchestrator)" || fail "ack: $(hubrow "$A1")"
+[[ "$(hubrow "$A1" | jq -r '.state + " " + .acked_by')" == "acked c-001@sat" ]] && pass "ack: in progress, by c-001@sat (the default actor is this machine's orchestrator)" || fail "ack: $(hubrow "$A1")"
 on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 >/dev/null
 if grep -q "ASKS STILL OPEN: 1 ask(s)" "$T/sat/send.log" && grep -q "${A2:0:8}" "$T/sat/send.log" && ! grep -q "${A1:0:8}" "$T/sat/send.log"; then
   pass "re-raise: the unacked ask goes again in one message; the acked one (no deadline) does not"
@@ -281,13 +281,13 @@ else fail "re-raise: $(cat "$T/sat/send.log")"; fi
 # spool-send.sh with the host spool (SPL_SPOOL), never a stale tree build that
 # refuses kind blocker; a failed send says why
 printf '#!/usr/bin/env bash\necho "spool: kind \\"blocker\\" is not one of task|result|note|reject" >&2; exit 1\n' >"$T/bin/oldspool"; chmod +x "$T/bin/oldspool"
-before="$(ls "$T/sat/spool/CLE-001/inbox" | wc -l)"
+before="$(ls "$T/sat/spool/c-001/inbox" | wc -l)"
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 ASKS_SEND= SPOOL_BIN="$T/bin/oldspool" SPL_SPOOL="$T/bin/spool")"
-if [[ "$(ls "$T/sat/spool/CLE-001/inbox" | wc -l)" -eq $((before + 1)) ]] && grep -l '"task_id":"asks-open"' "$T/sat/spool/CLE-001/inbox/"*.json >/dev/null && [[ "$out" == *"re-raised 1 ask(s)"* ]]; then
-  pass "the real send leg: the re-raise blocker lands in CLE-001's inbox (task asks-open) via the host spool, past a stale tree build"
-else fail "real send: $out / $(ls "$T/sat/spool/CLE-001/inbox")"; fi
+if [[ "$(ls "$T/sat/spool/c-001/inbox" | wc -l)" -eq $((before + 1)) ]] && grep -l '"task_id":"asks-open"' "$T/sat/spool/c-001/inbox/"*.json >/dev/null && [[ "$out" == *"re-raised 1 ask(s)"* ]]; then
+  pass "the real send leg: the re-raise blocker lands in c-001's inbox (task asks-open) via the host spool, past a stale tree build"
+else fail "real send: $out / $(ls "$T/sat/spool/c-001/inbox")"; fi
 out="$(on sat do_spl_asks_tick ASKS_FLEET=main ASKS_RERAISE_MIN=0 ASKS_SEND= SPOOL_BIN="$T/bin/oldspool" SPL_SPOOL="$T/bin/oldspool")"
-[[ "$out" == *"did NOT reach CLE-001@sat (spool-send exit 11)"* && "$out" == *'kind "blocker" is not one of'* && "$out" != *"re-raised"* ]] &&
+[[ "$out" == *"did NOT reach c-001@sat (spool-send exit 11)"* && "$out" == *'kind "blocker" is not one of'* && "$out" != *"re-raised"* ]] &&
   pass "a failed send is a WARN naming the exit code and the spool error, never a silent tick" || fail "failed send: $out"
 
 # 6. owner leg -----------------------------------------------------------------
@@ -301,43 +301,43 @@ if [[ "$(wc -l <"$T/owner.log")" -eq 1 && "$(jq -r .ask_id "$T/owner.log")" == "
 else fail "owner leg: $(cat "$T/owner.log" 2>/dev/null)"; fi
 
 # 7. close ---------------------------------------------------------------------
-out="$(on sat 'ASK_ID='"${A1:0:8}"' ASK_REASON="given to CLE-77915, 50-commit target" do_spl_ask_close' ASKS_FLEET=main)"
-[[ "$(hubrow "$A1" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "done|CLE-001@sat|given to CLE-77915, 50-commit target" ]] && pass "close: done by CLE-001@sat with the reason" || fail "close: $out"
-out="$(on pc 'ASK_ID='"$A1"' ASK_BY=CLE-001@box-desk do_spl_ask_close' ASKS_FLEET=main)"; rc=$?
-[[ $rc -eq 3 && "$out" == *"CLE-001@sat"* && "$out" == *"given to CLE-77915"* ]] && pass "the dead holder's late close: exit 3, names the closer and the reason" || fail "late close (rc=$rc): $out"
+out="$(on sat 'ASK_ID='"${A1:0:8}"' ASK_REASON="given to c-915, 50-commit target" do_spl_ask_close' ASKS_FLEET=main)"
+[[ "$(hubrow "$A1" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "done|c-001@sat|given to c-915, 50-commit target" ]] && pass "close: done by c-001@sat with the reason" || fail "close: $out"
+out="$(on pc 'ASK_ID='"$A1"' ASK_BY=c-001@box-desk do_spl_ask_close' ASKS_FLEET=main)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"c-001@sat"* && "$out" == *"given to c-915"* ]] && pass "the dead holder's late close: exit 3, names the closer and the reason" || fail "late close (rc=$rc): $out"
 out="$(on pc 'ASK_ID='"${A2:0:8}"' ASK_STATE=declined do_spl_ask_close' ASKS_FLEET=main)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"needs ASK_REASON"* ]] && pass "a decline without a reason is refused" || fail "decline no reason (rc=$rc): $out"
-f="$(grep -l "$A2" "$T/pc/spool/CLE-001/inbox/"*.json 2>/dev/null)"
-out="$(on pc 'ASK_ID='"${A2:0:8}"' ASK_REASON="CLE-77929 owns it" do_spl_ask_close' ASKS_FLEET=main)"
-[[ -n "$f" && ! -e "$f" && -e "$T/pc/spool/CLE-001/archive/$(basename "$f")" ]] && pass "a closed ask's inbox file moves to archive/" || fail "archive on close: $out"
+f="$(grep -l "$A2" "$T/pc/spool/c-001/inbox/"*.json 2>/dev/null)"
+out="$(on pc 'ASK_ID='"${A2:0:8}"' ASK_REASON="c-929 owns it" do_spl_ask_close' ASKS_FLEET=main)"
+[[ -n "$f" && ! -e "$f" && -e "$T/pc/spool/c-001/archive/$(basename "$f")" ]] && pass "a closed ask's inbox file moves to archive/" || fail "archive on close: $out"
 
 # 8. the orchestrator's view ----------------------------------------------------
 # the lease is back on pc (its orchestrator was restarted)
-echo "CLE-001@box-desk 1790907000" >"$T/pc/spool/dispatch/lease.orch"
-send pc --from CLE-002 --to CLE-001 --kind task --no-ask --body 'untracked old-style ask' >/dev/null 2>&1
-for i in 1 2 3; do STUB_TS=2026-10-01T10:0$i:00Z send pc --from CLE-77911 --to CLE-001 --kind note --body "lease note $i" >/dev/null 2>&1; done
-out="$(send pc --from CLE-77924 --to orchestrator --kind blocker --body 'naming window needs a go' 2>&1)"; A3="$(msgid "$out")"
+echo "c-001@box-desk 1790907000" >"$T/pc/spool/dispatch/lease.orch"
+send pc --from c-002 --to c-001 --kind task --no-ask --body 'untracked old-style ask' >/dev/null 2>&1
+for i in 1 2 3; do STUB_TS=2026-10-01T10:0$i:00Z send pc --from c-911 --to c-001 --kind note --body "lease note $i" >/dev/null 2>&1; done
+out="$(send pc --from c-924 --to orchestrator --kind blocker --body 'naming window needs a go' 2>&1)"; A3="$(msgid "$out")"
 [[ -n "$A3" ]] || fail "the third ask was not sent: $out"
 out="$(on pc do_spl_orch_inbox ASKS_FLEET=main ORCH_INBOX_KEEP_MIN=0)"
 o1="$(grep -n '== 1. OPEN ASKS' <<<"$out" | cut -d: -f1)"; o2="$(grep -n '== 2. UNTRACKED' <<<"$out" | cut -d: -f1)"; o3="$(grep -n '== 3. FYI' <<<"$out" | cut -d: -f1)"
 sec1="$(sed -n "${o1},${o2}p" <<<"$out")"; sec2="$(sed -n "${o2},${o3}p" <<<"$out")"; sec3="$(sed -n "${o3},\$p" <<<"$out")"
 [[ "$sec1" == *"${A3:0:8}"* && "$sec1" != *"${A1:0:8}"* ]] && pass "view 1: the open ask leads; closed ones are gone" || fail "view 1: $sec1"
 [[ "$sec2" == *"untracked old-style ask"* && "$sec2" != *"naming window"* ]] && pass "view 2: a blocker/task outside the book is listed as untracked" || fail "view 2: $sec2"
-grep -E '^CLE-77911 +3x ' <<<"$sec3" >/dev/null && pass "view 3: three FYI notes from one sender collapse to one row (3x)" || fail "view 3: $sec3"
+grep -E '^c-911 +3x ' <<<"$sec3" >/dev/null && pass "view 3: three FYI notes from one sender collapse to one row (3x)" || fail "view 3: $sec3"
 [[ "$out" == *"can move to archive/"* ]] && pass "without ORCH_INBOX_ARCHIVE it only counts what it would move" || fail "dry archive: $out"
-before="$(ls "$T/pc/spool/CLE-001/inbox" | wc -l)"
+before="$(ls "$T/pc/spool/c-001/inbox" | wc -l)"
 out="$(on pc do_spl_orch_inbox ASKS_FLEET=main ORCH_INBOX_KEEP_MIN=0 ORCH_INBOX_ARCHIVE=1)"
-left="$(cat "$T/pc/spool/CLE-001/inbox/"*.json | jq -r .kind | sort | tr '\n' ' ')"
-if grep -q "$A3" "$T/pc/spool/CLE-001/inbox/"*.json && [[ "$left" != *note* && "$(ls "$T/pc/spool/CLE-001/inbox" | wc -l)" -lt "$before" ]]; then
+left="$(cat "$T/pc/spool/c-001/inbox/"*.json | jq -r .kind | sort | tr '\n' ' ')"
+if grep -q "$A3" "$T/pc/spool/c-001/inbox/"*.json && [[ "$left" != *note* && "$(ls "$T/pc/spool/c-001/inbox" | wc -l)" -lt "$before" ]]; then
   pass "ORCH_INBOX_ARCHIVE=1 moves the FYI and the closed asks' messages; the open ask's message stays (left: $left)"
 else fail "archive: $left / $out"; fi
 
-# 10. share-group deltas: lock timeout + delivery limit (fleet kq, holder CLE-001@sat)
+# 10. share-group deltas: lock timeout + delivery limit (fleet kq, holder c-001@sat)
 hub() { env HUB_DIR="$T/hub" SPOOL_DESK_BOX="${HBOX:-sat}" HUB_SKEW="${HUB_SKEW:-0}" "$T/bin/hub" ask "$@" >/dev/null; }
 kqrow() { jq -c --arg i "$1" '.[] | select(.ask_id == $i)' "$T/hub/kq.json" 2>/dev/null; }
 B1=aaaaaaaa-1111-4111-8111-111111111111 B2=bbbbbbbb-2222-4222-8222-222222222222 B3=cccccccc-3333-4333-8333-333333333333
-for b in "$B1" "$B2"; do hub put --fleet kq --id "$b" --kind blocker --from CLE-002@sat --summary "share-group ${b:0:4}"; done
-HBOX=box-desk hub ack --fleet kq --id "$B1" --by CLE-001@box-desk
+for b in "$B1" "$B2"; do hub put --fleet kq --id "$b" --kind blocker --from c-002@sat --summary "share-group ${b:0:4}"; done
+HBOX=box-desk hub ack --fleet kq --id "$B1" --by c-001@box-desk
 tick() { on sat do_spl_asks_tick ASKS_FLEET=kq ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=999 "$@"; }
 : >"$T/sat/send.log"
 out="$(tick HUB_SKEW=3700 ASKS_LOCK_MIN=0)"
@@ -347,17 +347,17 @@ out="$(tick HUB_SKEW=1800 ASKS_LOCK_MIN=60)"
 [[ "$(kqrow "$B1" | jq -r .state)" == acked && ! -s "$T/sat/send.log" && "$out" == *"lock expired 0 (acked quiet >= 60 min)"* ]] &&
   pass "inside ASKS_LOCK_MIN the holder keeps its lock" || fail "inside the lock: $out"
 out="$(tick HUB_SKEW=3700 ASKS_LOCK_MIN=60)"
-if [[ "$(kqrow "$B1" | jq -r '.state + " " + .acked_by + " " + (.raised_n | tostring)')" == "open CLE-001@box-desk 1" && "$out" == *"lock expired 1 (acked quiet >= 60 min)"* ]] &&
-   grep -q "${B1:0:8}.*LOCK EXPIRED, acked by CLE-001@box-desk" "$T/sat/send.log" && ! grep -q "${B2:0:8}" "$T/sat/send.log"; then
+if [[ "$(kqrow "$B1" | jq -r '.state + " " + .acked_by + " " + (.raised_n | tostring)')" == "open c-001@box-desk 1" && "$out" == *"lock expired 1 (acked quiet >= 60 min)"* ]] &&
+   grep -q "${B1:0:8}.*LOCK EXPIRED, acked by c-001@box-desk" "$T/sat/send.log" && ! grep -q "${B2:0:8}" "$T/sat/send.log"; then
   pass "KILL-MID-ASK: pc's holder acked and died; sat's tick releases the expired lock (open, last holder kept), re-raises it labelled LOCK EXPIRED and counts it"
 else fail "lock expiry: $(kqrow "$B1") / $(cat "$T/sat/send.log") / $out"; fi
 [[ "$(jq -r .state <<<"$(jrn sat "$B1")")" == open ]] && pass "sat's journal records the release" || fail "journal release: $(jrn sat "$B1")"
-HBOX=sat HUB_SKEW=3700 hub ack --fleet kq --id "$B1" --by CLE-001@sat
+HBOX=sat HUB_SKEW=3700 hub ack --fleet kq --id "$B1" --by c-001@sat
 : >"$T/sat/send.log"
 out="$(tick HUB_SKEW=3800 ASKS_LOCK_MIN=60)"
 [[ "$(kqrow "$B1" | jq -r .state)" == acked && ! -s "$T/sat/send.log" ]] && pass "the successor's ack takes the lock again (a re-ack renews it)" || fail "renew: $(kqrow "$B1") / $out"
 
-for i in 1 2 3; do hub raise --fleet kq --id "$B2" --by CLE-001@sat; done
+for i in 1 2 3; do hub raise --fleet kq --id "$B2" --by c-001@sat; done
 out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4)"
 [[ "$(kqrow "$B2" | jq -r '.state + " " + (.raised_n | tostring)')" == "open 4" ]] && pass "below the delivery limit the ask is re-raised (3 -> 4)" || fail "below the limit: $(kqrow "$B2") / $out"
 : >"$T/sat/send.log"
@@ -368,7 +368,7 @@ out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=0)"
 out="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
 out2="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="$T/bin/owner" OWNER_LOG="$T/dlq.log")"
 dl1="$(sed -n '1p' "$T/dlq.log")"; dl2="$(sed -n '2p' "$T/dlq.log")"
-if [[ "$(kqrow "$B2" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "dead|CLE-001@sat|max delivery count 4 reached (raised 5x); the owner was told" ]] &&
+if [[ "$(kqrow "$B2" | jq -r '.state + "|" + .closed_by + "|" + .reason')" == "dead|c-001@sat|max delivery count 4 reached (raised 5x); the owner was told" ]] &&
    [[ "$(wc -l <"$T/dlq.log")" -eq 2 && "$(jq -r .ask_id <<<"$dl1")" == "$B2" && "$(jq -r .owner_text <<<"$dl1")" == "**Dead-lettered"* && "$(jq -r .owner_text <<<"$dl1")" == *"Ask id $B2"* ]] &&
    [[ "$(jq -r .owner_text <<<"$dl2")" == "resolved: it was closed because nobody answered" && "$(jq -r .ask_id <<<"$dl2")" == "$B2" && "$(jq -r .owner_task <<<"$dl1")" == "$(jq -r .owner_task <<<"$dl2")" ]] &&
    [[ "$out" != *"reminder resolved"* && "$out2" == *"reminder resolved: it was closed because nobody answered"* ]] &&
@@ -379,9 +379,9 @@ out3="$(tick HUB_SKEW=3800 ASKS_RERAISE_MIN=0 ASKS_MAX_RAISES=4 ASKS_OWNER_CMD="
 [[ "$(wc -l <"$T/dlq.log")" -eq 2 && "$out3" != *"reminder resolved"* ]] && pass "a third tick adds no second resolved reply" || fail "third tick: $(wc -l <"$T/dlq.log") / $out3"
 [[ "$(jq -r '.state + " " + .reason' <<<"$(jrn sat "$B2")")" == "dead max delivery count 4 reached (raised 5x); the owner was told" ]] && pass "the journal holds the dead-letter and its reason" || fail "journal dead: $(jrn sat "$B2")"
 out="$(on sat 'ASK_ID='"${B2:0:8}"' do_spl_ask_ack' ASKS_FLEET=kq)"; rc=$?
-[[ $rc -eq 3 && "$out" == *"already dead by CLE-001@sat"* ]] && pass "a late ack of a dead-lettered ask: exit 3, names who and why" || fail "late ack dead (rc=$rc): $out"
-hub put --fleet kq --id "$B3" --kind task --from CLE-002@sat --summary "share-group ${B3:0:4}"
-for i in 1 2 3 4; do hub raise --fleet kq --id "$B3" --by CLE-001@sat; done
+[[ $rc -eq 3 && "$out" == *"already dead by c-001@sat"* ]] && pass "a late ack of a dead-lettered ask: exit 3, names who and why" || fail "late ack dead (rc=$rc): $out"
+hub put --fleet kq --id "$B3" --kind task --from c-002@sat --summary "share-group ${B3:0:4}"
+for i in 1 2 3 4; do hub raise --fleet kq --id "$B3" --by c-001@sat; done
 out="$(tick HUB_SKEW=3800 ASKS_MAX_RAISES=4)"
 [[ "$(kqrow "$B3" | jq -r '.state + "|" + .reason')" == "dead|max delivery count 4 reached (raised 4x); no owner leg configured, nobody was told" && "$out" == *"no owner leg is configured"* ]] &&
   pass "no owner leg: at the limit it is still dead-lettered, the reason says nobody was told" || fail "dead no owner: $(kqrow "$B3") / $out"
@@ -389,7 +389,7 @@ out="$(on sat do_spl_asks_open ASKS_FLEET=kq)"
 [[ "$out" == *"${B1:0:8}"* && "$out" != *"${B2:0:8}"* ]] && pass "the open book drops the dead-lettered asks" || fail "open book: $out"
 
 # 9. no fleet: the journal is the whole book ---------------------------------
-printf 'LEASE_ORCH=CLE-001\n' >"$T/pc/spool/dispatch/lease.conf"
+printf 'LEASE_ORCH=c-001\n' >"$T/pc/spool/dispatch/lease.conf"
 out="$(on pc do_spl_asks_open HUB_DOWN=1)"
 [[ "$out" == *"${A3:0:8}"* && "$out" == *"hub: off"* ]] && pass "without a fleet the journal alone answers (one-machine behaviour)" || fail "no fleet: $out"
 
@@ -397,9 +397,9 @@ out="$(on pc do_spl_asks_open HUB_DOWN=1)"
 python3 - "$T/hub/big.json" <<'PY'
 import json, sys, time
 t = time.time() - 600
-rows = [{"ask_id": "dddddddd-%04d-4444-8444-444444444444" % i, "role": "orch", "kind": "blocker", "from": "CLE-002@sat", "topic": "",
+rows = [{"ask_id": "dddddddd-%04d-4444-8444-444444444444" % i, "role": "orch", "kind": "blocker", "from": "c-002@sat", "topic": "",
          "summary": "big %04d " % i + "x" * 100000, "deadline_at": "", "state": "open" if i == 0 else "done", "acked_by": "",
-         "closed_by": "CLE-001@sat" if i else "", "reason": "", "raised_n": 0, "writer_box": "sat", "c": t + i, "u": t + i} for i in range(30)]
+         "closed_by": "c-001@sat" if i else "", "reason": "", "raised_n": 0, "writer_box": "sat", "c": t + i, "u": t + i} for i in range(30)]
 json.dump(rows, open(sys.argv[1], "w"))
 PY
 book="$(env HUB_DIR="$T/hub" "$T/bin/hub" ask list --fleet big --role orch --all | jq -c .asks)"
@@ -415,12 +415,12 @@ out="$(on sat do_spl_asks_open ASKS_FLEET=big 2>&1)"; rc=$?
 # 12. the orchestrator's view on a big inbox and the big book (2026-10-03:
 # spl-orch-inbox.func.sh lines 42 and 84 "jq: Argument list too long", so
 # section 2 and the archive count were silently empty)
-ib="$T/sat/spool/CLE-77929/inbox"
+ib="$T/sat/spool/c-929/inbox"
 python3 - "$ib" <<'PY'
 import json, os, sys
 d = sys.argv[1]
 def put(i, kind, mid, body, ts):
-    json.dump({"v": 1, "msg_id": mid, "task_id": "eeeeeeee-%04d" % i, "ts": ts, "from": "CLE-0%03d" % (i % 7 + 2), "to": "CLE-77929",
+    json.dump({"v": 1, "msg_id": mid, "task_id": "eeeeeeee-%04d" % i, "ts": ts, "from": "c-%03d" % (i % 7 + 2), "to": "c-929",
                "kind": kind, "body": body, "files": []}, open(os.path.join(d, "20261003T080000Z--x--%05d.json" % i), "w"))
 put(0, "blocker", "ffffffff-0000-4fff-8fff-ffffffffffff", "untracked big-inbox ask", "2026-10-03T08:00:00Z")
 put(1, "blocker", "dddddddd-0000-4444-8444-444444444444", "tracked open ask", "2026-10-03T07:00:00Z")
@@ -434,7 +434,7 @@ err="$(jq -r --argjson asks "$rows" '.[0].file' <<<"$msgs" 2>&1 >/dev/null)"; rc
 (( ${#rows} > 3000000 )) && [[ "$(jq length <<<"$msgs")" == 5000 && $rc -ne 0 && "$err" == *"Argument list too long"* ]] &&
   pass "CONTROL: 5000 inbox files with the ${#rows}-byte book as --argjson asks (the old lines 42/84) fail: Argument list too long" ||
   fail "big inbox control (rc=$rc, ${#rows} bytes, $(jq length <<<"$msgs") msgs): $err"
-out="$(on sat do_spl_orch_inbox ORCH_ID=CLE-77929 ASKS_FLEET=big ORCH_INBOX_KEEP_MIN=0 2>&1)"; rc=$?
+out="$(on sat do_spl_orch_inbox ORCH_ID=c-929 ASKS_FLEET=big ORCH_INBOX_KEEP_MIN=0 2>&1)"; rc=$?
 o2="$(grep -n '== 2. UNTRACKED' <<<"$out" | cut -d: -f1)"; o3="$(grep -n '== 3. FYI' <<<"$out" | cut -d: -f1)"
 sec2="$(sed -n "${o2:-1},${o3:-1}p" <<<"$out")"
 [[ $rc -eq 0 && "$out" != *"too long"* && "$sec2" == *"untracked big-inbox ask"* && "$sec2" != *"tracked open ask"* && "$sec2" != *"tracked closed ask"* ]] &&
@@ -489,7 +489,7 @@ SEATS="c-001 c-002 g-003 g-004"
 mkdir -p "$T/sat/spool/peer"; printf 'c-001 claude\nc-002 claude\ng-003 grok\ng-004 grok\n' >"$T/sat/spool/peer/seats"
 mapfile -t e < <(menv sat)
 out="$(env "${e[@]}" SPOOL_ASKS_SYNC_CMD=true PEERS_HUB="$PH" SPOOL_FLEET_RELAY=1 SPOOL_FLEET_RELAY_CMD="$T/bin/peers" \
-  bash "$SCRIPTS/spool-send.sh" --from CLE-002 --to orchestrator --kind blocker --body 'BLOCKER: peers own this' 2>&1)"
+  bash "$SCRIPTS/spool-send.sh" --from c-002 --to orchestrator --kind blocker --body 'BLOCKER: peers own this' 2>&1)"
 P1="$(msgid "$out")"
 [[ -n "$P1" && "$out" == *"orchestrator = peers"* && "$(jq length "$PH/db.json")" == 1 && "$(jq -r '.[0].to' "$PH/db.json")" == peers ]] &&
   pass "peers: one blocker --to orchestrator is ONE hub message to peers" || fail "peers send: $out"
@@ -561,11 +561,11 @@ got="$(tread "$T/title-from.json")"
   pass "a channel post from the owner is readable" || fail "from owner: $got"
 
 # the set-aside wording, when the title is known (the dead-letter above has none)
-printf '%s\n' '{"ask_id":"abababab-1111-4111-8111-111111111111","from":"CLE-176@sat","topic":"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1","summary":"sum","age_s":120,"raised_n":5,"kind":"blocker"}' >"$T/wrow.json"
+printf '%s\n' '{"ask_id":"abababab-1111-4111-8111-111111111111","from":"c-176@sat","topic":"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1","summary":"sum","age_s":120,"raised_n":5,"kind":"blocker"}' >"$T/wrow.json"
 printf '%s\n' '{"title":"Needs one owner go","readable":true,"channel":"tasks","ask":"Approve it."}' >"$T/wctx.json"
-words="$(on sat "spl_asks_owner_words \"\$(cat $T/wrow.json)\" CLE-001@sat true \"\$(cat $T/wctx.json)\" 4" ASKS_OWNER=HUM-10)"
+words="$(on sat "spl_asks_owner_words \"\$(cat $T/wrow.json)\" c-001@sat true \"\$(cat $T/wctx.json)\" 4" ASKS_OWNER=HUM-10)"
 if [[ "$words" == "Topic: Needs one owner go (#tasks)"* && "$words" == *"@HUM-10"* && "$words" == *"Set aside after 5 raises (the limit is 4): nobody answered (2 min)."* &&
-      "$words" == *"Waiting: CLE-176."* && "$words" == *"Summary: sum"* && "$words" == *"What to do: Approve it."* && "$words" == *"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1"* &&
+      "$words" == *"Waiting: c-176."* && "$words" == *"Summary: sum"* && "$words" == *"What to do: Approve it."* && "$words" == *"11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1"* &&
       "$words" != *"Ask id"* ]]; then
   pass "a dead-letter whose title is known says set aside, who is waiting, and what to do"
 else fail "set aside words: $words"; fi
@@ -585,9 +585,9 @@ case "\$1" in
 esac
 EOF
 chmod +x "$T/bin/topic"
-hub put --fleet ctx --id "$C_READ" --kind blocker --from CLE-176@sat --topic "$C_TOPIC" --summary "needs one owner go, a repo-settings change"
-hub put --fleet ctx --id "$C_NOR" --kind blocker --from CLE-176@sat --topic "$C_PRIV" --summary "the private summary"
-hub put --fleet ctx --id "$C_OLD" --kind task --from CLE-002@sat --topic "$C_MISS" --summary "lookup misses"
+hub put --fleet ctx --id "$C_READ" --kind blocker --from c-176@sat --topic "$C_TOPIC" --summary "needs one owner go, a repo-settings change"
+hub put --fleet ctx --id "$C_NOR" --kind blocker --from c-176@sat --topic "$C_PRIV" --summary "the private summary"
+hub put --fleet ctx --id "$C_OLD" --kind task --from c-002@sat --topic "$C_MISS" --summary "lookup misses"
 : >"$T/ctx.log"
 ctx_tick() { on sat do_spl_asks_tick ASKS_FLEET=ctx ASKS_RERAISE_MIN=99 ASKS_OWNER_MIN=0 ASKS_MAX_RAISES=0 ASKS_OWNER=HUM-10 ASKS_OWNER_CMD="$T/bin/owner" ASKS_TOPIC_CMD="$T/bin/topic" OWNER_LOG="$T/ctx.log" HUB_SKEW=0; }
 ctx_row() { jq -c --arg id "$1" 'select(.ask_id == $id and (.owner_text | startswith("resolved:") | not))' "$T/ctx.log"; }
@@ -595,7 +595,7 @@ out="$(ctx_tick)"
 rread="$(ctx_row "$C_READ")"; rnor="$(ctx_row "$C_NOR")"; rold="$(ctx_row "$C_OLD")"
 uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [[ "$(jq -r .owner_task <<<"$rread")" == "$C_TOPIC" && "$(jq -r .owner_text <<<"$rread")" == "Topic: Needs one owner go (#tasks)"* &&
-      "$(jq -r .owner_text <<<"$rread")" == *"@HUM-10"* && "$(jq -r .owner_text <<<"$rread")" == *"Waiting: CLE-176."* &&
+      "$(jq -r .owner_text <<<"$rread")" == *"@HUM-10"* && "$(jq -r .owner_text <<<"$rread")" == *"Waiting: c-176."* &&
       "$(jq -r .owner_text <<<"$rread")" == *"Summary: needs one owner go, a repo-settings change"* &&
       "$(jq -r .owner_text <<<"$rread")" == *"What to do: Approve the repo-settings change."* &&
       "$(jq -r .owner_text <<<"$rread")" == *"$C_TOPIC"* && "$(jq -r .owner_text <<<"$rread")" != *"Ask id"* &&
@@ -605,7 +605,7 @@ else fail "readable reminder: $rread"; fi
 if [[ "$(jq -r .owner_task <<<"$rnor")" != "$C_PRIV" && "$(jq -r .owner_task <<<"$rnor")" =~ $uuid_re &&
       "$(jq -r .owner_text <<<"$rnor")" == "Topic: Private thread"* && "$(jq -r .owner_text <<<"$rnor")" == *"$C_PRIV"* &&
       "$(jq -r .owner_text <<<"$rnor")" != *"@HUM-10"* && "$(jq -r .owner_text <<<"$rnor")" != *"Ask id"* &&
-      "$(jq -r .owner_text <<<"$rnor")" == *"Waiting: CLE-176."* && "$(jq -r .owner_text <<<"$rnor")" == *"Summary: the private summary"* ]]; then
+      "$(jq -r .owner_text <<<"$rnor")" == *"Waiting: c-176."* && "$(jq -r .owner_text <<<"$rnor")" == *"Summary: the private summary"* ]]; then
   pass "a title the owner cannot read: a new topic that names the title and the source uuid"
 else fail "unreadable reminder: $rnor"; fi
 if [[ "$(jq -r .owner_task <<<"$rold")" != "$C_MISS" && "$(jq -r .owner_task <<<"$rold")" =~ $uuid_re &&

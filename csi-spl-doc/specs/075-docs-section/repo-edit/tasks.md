@@ -85,7 +85,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
 
 ### Phase 3: hub
 
-- [ ] T04 **iac: `do_put_github_app_key` + `do_rotate_github_app_key`** (S).
+- [x] T04 **iac: `do_put_github_app_key` + `do_rotate_github_app_key`** (S). Done `badbc8a3` (c-415).
   - **Build**: `iac/src/bash/run/put-github-app-key.func.sh` and `rotate-github-app-key.func.sh` (csi-rel naming), as the env's project SA: add a secret version from `KEY_FILE` (refuse a file that is not a PEM private key; never echo it), shred the file only when `SHRED=1` (the prd call); rotate = new version, hub roll, then a reminder to delete the old key in GitHub. Tests with a stubbed gcloud.
   - **Owns**: those two actions and their `.tst.sh`.
   - **Done-proof**: iac suite green; `grep -rn do_put_github_app_key --include='*.sh' .` -> >= 1; a dry run on dev names the secret and prints no key byte.

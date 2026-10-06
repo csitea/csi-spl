@@ -137,7 +137,7 @@ public_logins() { # <db>: a migrated db
   own_sql "$1" "$ROLES_SQL/public-names-role.sql" -v names_verifier=spool_public_names >/dev/null
 }
 pids=()
-for pkg in store hub auth; do
+for pkg in store hub auth repodocs; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
   db="spool_hub_$pkg"
   mkdb "$db"
   pdsn="$(app_dsn "$db")"
@@ -153,7 +153,7 @@ done
 rc=0
 for p in "${pids[@]}"; do wait "$p" || rc=1; done
 [ "$rc" -eq 0 ] || { echo "FAIL - Postgres package suites"; exit 1; }
-echo "ok   - internal/store + internal/hub + internal/auth (015 CredStore) suites green against Postgres"
+echo "ok   - internal/store + internal/hub + internal/auth (015 CredStore) + internal/repodocs (075 worker) suites green against Postgres"
 
 # 017 T021 + FR-SEC-014 CONTROL: EVERY ^TestRLS test must RUN and PASS (a
 # skip is a failure), counted from the source so a new one cannot hide.

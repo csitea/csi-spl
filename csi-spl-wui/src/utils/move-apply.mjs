@@ -140,6 +140,17 @@ export function mergeFrameFromAnswer(answer) {
 }
 
 /**
+ * Re-read topic `task` (a string) and admit its newest window into the live
+ * store `s`, unless `s` opened another topic while the read was in flight.
+ */
+function refetchAndAdmit(s, task, getTopic) {
+  void Promise.resolve(getTopic(task)).then((d) => {
+    if (String(s.taskId) === task) s.admit((d && d.messages) || [])
+  // a failed re-read leaves the rows the pane already shows; the next frame or a reopen reads again
+  }).catch(() => {})
+}
+
+/**
  * A merge (or its undo) applied to every store that can hold its rows. A merge
  * folds the whole source topic into the target, so - unlike a move - the
  * source topic disappears; the safe, idempotent way to reflect that on screen
@@ -167,9 +178,7 @@ export function applyMergeToStores(frame, { channel, main, pane, viewer, getTopi
     if (!s || !s.taskId) continue
     const t = String(s.taskId)
     if (t === f.task_id && typeof getTopic === 'function') {
-      void Promise.resolve(getTopic(t)).then((d) => {
-        if (String(s.taskId) === t) s.admit((d && d.messages) || [])
-      }).catch(() => {})
+      refetchAndAdmit(s, t, getTopic)
     } else if (f.type === 'topic_unmerged' && t === f.from_task && typeof s.drop === 'function') {
       for (const id of ids) s.drop(id)
     }
@@ -232,9 +241,7 @@ export function applyPromoteToStores(frame, { channel, main, pane, viewer, getTo
     // source on an undo, both f.task_id) re-reads its window; the pane they
     // left (f.from_task) drops them.
     if (t === f.task_id && typeof getTopic === 'function') {
-      void Promise.resolve(getTopic(t)).then((d) => {
-        if (String(s.taskId) === t) s.admit((d && d.messages) || [])
-      }).catch(() => {})
+      refetchAndAdmit(s, t, getTopic)
     } else if (t === f.from_task && typeof s.drop === 'function') {
       for (const id of ids) s.drop(id)
     }
@@ -368,10 +375,7 @@ export function applyMoveToStores(frame, { channel, main, pane, viewer, topic, g
     if (next !== s.messages) s.messages = next
     for (const id of moveLeavesTask(f, s.taskId)) s.drop(id)
     if (moveJoinsTask(f, s.taskId) && typeof getTopic === 'function') {
-      const task = s.taskId
-      void Promise.resolve(getTopic(task)).then((d) => {
-        if (s.taskId === task) s.admit((d && d.messages) || [])
-      }).catch(() => {})
+      refetchAndAdmit(s, String(s.taskId), getTopic)
     }
   }
   if (viewer && f.type === 'topic_moved' && f.channel && Array.isArray(viewer.topics) && viewer.topics.some((r) => r.task_id === f.task_id)) {

@@ -28,11 +28,10 @@ const UNCOMMENTED = new Map([
   ['src/composables/usePaneWidths.ts', 1],
   ['src/plugins/pwa.client.ts', 1],
   ['src/public/sw.js', 1],
-  ['src/utils/move-apply.mjs', 3],
 ])
 
-// The reasoned sites of round 3 row 20 and round 4 row 06: they must stay
-// reasoned (never re-enter the list).
+// The reasoned sites of round 3 row 20 and round 4 rows 05 and 06: they must
+// stay reasoned (never re-enter the list).
 const REASONED = [
   'src/composables/useArchiveUndo.ts',
   'src/utils/read-sync-boot.ts',
@@ -45,6 +44,8 @@ const REASONED = [
   'src/components/DeadlinePicker.vue',
   'src/composables/useMobileStack.ts',
   'src/stores/notification.ts',
+  // round 4 row 05: the one swallow left after refetchAndAdmit
+  'src/utils/move-apply.mjs',
 ]
 
 function walk(dir, out = []) {

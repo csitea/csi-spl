@@ -255,6 +255,29 @@ describe('a move applied to the stores on screen', () => {
     assert.deepEqual(dropped, ['r1'])
     assert.deepEqual(admitted.map((r) => r.msg_id), ['r1'])
   })
+  it('the pane that gained the reply re-reads its own task id and admits only while it still shows that task (r4-05)', async () => {
+    const run = async (switchTo) => {
+      const asked = []
+      const admitted = []
+      const s = { taskId: 't2', messages: [], drop: () => {}, admit: (rows) => admitted.push(...rows) }
+      let answer
+      const read = new Promise((r) => { answer = r })
+      applyMoveToStores(frame, { pane: s, getTopic: (id) => { asked.push(id); return read } })
+      if (switchTo !== undefined) s.taskId = switchTo
+      answer({ messages: [{ msg_id: 'r1' }] })
+      await new Promise((r) => setTimeout(r, 0))
+      return { asked, admitted: admitted.map((r) => r.msg_id) }
+    }
+    assert.deepEqual(await run(), { asked: ['t2'], admitted: ['r1'] })
+    assert.deepEqual(await run('t3'), { asked: ['t2'], admitted: [] })
+    assert.deepEqual(await run(null), { asked: ['t2'], admitted: [] })
+  })
+  it('a failed re-read is swallowed: the pane keeps its rows, nothing throws (r4-05)', async () => {
+    const s = { taskId: 't2', messages: [], drop: () => {}, admit: () => { throw new Error('must not admit') } }
+    applyMoveToStores(frame, { pane: s, getTopic: async () => { throw new Error('hub down') } })
+    await new Promise((r) => setTimeout(r, 0))
+    assert.deepEqual(s.messages, [])
+  })
   it('a topic that left the open channel leaves its feed; the topic list row names the new channel', () => {
     const channel = { active: 'devel', messages: [{ msg_id: 'c1', task_id: 't1', channel: 'devel' }, { msg_id: 'z', task_id: 'tz', channel: 'devel' }], catchUp: () => {} }
     const viewer = { topics: [{ task_id: 't1', channel: 'devel' }] }

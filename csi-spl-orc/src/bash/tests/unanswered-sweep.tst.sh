@@ -26,6 +26,13 @@
 #      9b. a stale failed file while another machine holds the lease is ok
 #  10. the cron install: dry run writes nothing, DRY_RUN=0 one exact tagged
 #      line, idempotent, dev and prd lines apart, check, remove, worktree refused
+#  11. seats (spec 101 D7): with a seat line in peer/seats every box sends,
+#      the lease held on another box: one `peers` note per item (NEW, AGAIN,
+#      ESC); a planted claim bug (a topic whose job is owned by a seat whose
+#      gen is dead) is still listed, and the hub read names no claim column;
+#      the check row judges a seated box. Control: no seats (or a seats file
+#      with no seat line) -> today's single note to the lease holder, and
+#      nothing from a box whose lease is remote
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -255,6 +262,59 @@ cron DESK_CRON_SRC="$T/repo-wt/X" >"$T/o" 2>&1 && fail "10. a worktree source ac
 SWEEP_CRON_TOOLS=bash bash "$SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh" --check-tools >"$T/o" 2>&1 &&
   SWEEP_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh" --check-tools >"$T/o" 2>&1
 [[ $? -eq 3 ]] && grep -q 'no-such-tool-x' "$T/o" && pass "10. the cron script names a missing tool (exit 3)" || fail "10. tools: $(cat "$T/o")"
+
+# --- 11. seats: the sweep stays, from every box, one peers note per item (D7) -------------------
+S="$T/spool11"; mkdir -p "$S/dispatch" "$S/peer"; rm -f "$T/sent"
+CB=00000000-0000-4000-8000-0000000000cb
+{
+  r t1 "" development 00000000-0000-4000-8000-0000000000c1 10000000-0000-4000-8000-0000000000c1 $H HUM-27 box-desk human open live - "first open item"
+  r csitea "" spool-hub 00000000-0000-4000-8000-0000000000c2 10000000-0000-4000-8000-0000000000c2 $H HUM-3 box-desk human open live - "second open item"
+  # the planted claim bug: the hub says a seat owns this job, but that seat's
+  # gen is dead and nobody answers. The sweep reads the last message, never
+  # the claim, so it must still be listed
+  r t1 "" development $CB 10000000-0000-4000-8000-0000000000cb $H HUM-27 box-desk human open live - "owned by a dead gen"
+  r t1 "" development 00000000-0000-4000-8000-0000000000c3 10000000-0000-4000-8000-0000000000c3 $H CLE-77 HUM-27 agent open live - ""
+} >"$T/rows11.tsv"
+echo "c-002@box-b $NOW" >"$S/dispatch/lease"
+printf 'LEASE_MASTER=c-002\nLEASE_FAILOVER=c-003\nLEASE_ORCH=c-001\n' >"$S/dispatch/lease.conf"
+printf '# seats of this box\nc-001 claude\nc-002 claude\n' >"$S/peer/seats"
+s11() { sweep SWEEP_ROWS_FILE="$T/rows11.tsv" LEASE_MACHINE=box-a "$@"; }
+# per note in the fake send log: "<to> <item rows in it>"
+notes() { awk '/^TO /{to=$2; n=0} /^\| (NEW|AGAIN|ESC) \|/{n++} /^END$/{print to, n}' "$T/sent" 2>/dev/null; }
+s11 >"$T/o" 2>&1
+grep -q '^PLAN send to peers: 3 note(s), one per item:' "$T/o" && [[ ! -e "$T/sent" ]] &&
+  pass "11. DELIVER=0 with seats: the plan is 3 peers notes, nothing sent" || fail "11. plan: $(grep PLAN "$T/o")"
+s11 DELIVER=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(notes | sort | uniq -c | sed 's/^ *//')" == "3 peers 1" ]] &&
+  pass "11. seats + the lease on another box: this box sends, 3 notes to peers, one item each" || fail "11. rc=$rc notes=$(notes) $(cat "$T/o")"
+grep -q "^| NEW | t1 | #development | $CB | .* | owned by a dead gen |" "$T/sent" &&
+  pass "11. the planted claim bug (owned, holder gen dead) is still reported" || fail "11. claim bug missing: $(cat "$T/sent")"
+grep -q '^\*\*Unanswered sweep\*\*' "$T/sent" && [[ "$(grep -c '^| | workspace |' "$T/sent")" == 3 ]] &&
+  pass "11. each note carries the heading and the table header" || fail "11. note shape: $(cat "$T/sent")"
+grep -qx 'to=peers' "$S/dispatch/unanswered.last" && grep -qx 'sent=ok' "$S/dispatch/unanswered.last" &&
+  pass "11. last records to=peers" || fail "11. last: $(cat "$S/dispatch/unanswered.last")"
+n_sql="$(PROJ_PATH="$PROJ_ROOT" bash -c 'source "$PROJ_PATH/src/bash/run/spl-unanswered-sweep.func.sh"; _spl_sweep_rows_sql' | grep -ciE 'claim|responsible|offer_n|handled_at')"
+[[ "$n_sql" == 0 ]] && pass "11. the hub read names no claim column (it does not trust the claim)" || fail "11. the sweep SQL reads the claim: $n_sql line(s)"
+s11 DELIVER=1 SWEEP_NOW=$((NOW + 7200)) >"$T/o" 2>&1
+[[ "$(notes | tail -3 | sort -u)" == "peers 1" && "$(grep -c '^| AGAIN |' "$T/sent")" == 3 ]] &&
+  pass "11. 2 h later: 3 AGAIN notes to peers" || fail "11. again: $(notes)"
+s11 DELIVER=1 SWEEP_NOW=$((NOW + 14400)) >"$T/o" 2>&1
+[[ "$(notes | wc -l)" == 9 && "$(notes | tail -3 | sort -u)" == "peers 1" && "$(grep -c '^| ESC |' "$T/sent")" == 3 ]] &&
+  grep -q 'ESCALATION' "$T/sent" && ! grep -q '^TO c-001$' "$T/sent" &&
+  pass "11. the escalation: 3 ESC notes to peers, none to a fixed id" || fail "11. esc: $(notes)"
+crow $((NOW + 14460)) LEASE_MACHINE=box-a >"$T/o" 2>&1
+grep -q '| unanswered sweep | last 60s ago to peers, 3 open' "$T/o" && ! grep -q 'remote holder' "$T/o" &&
+  pass "11. the check row judges a seated box (no remote-holder pass)" || fail "11. check row: $(cat "$T/o")"
+# control: no seat line -> today's recipient
+rm -f "$T/sent" "$S/dispatch/unanswered.state"
+printf '# no seat yet\n' >"$S/peer/seats"
+s11 DELIVER=1 >"$T/o" 2>&1
+[[ ! -e "$T/sent" ]] && grep -q 'held by c-002@box-b: this machine.s sweep sends nothing' "$T/o" &&
+  pass "11. control: a seats file with no seat + a remote lease: nothing sent from here (today)" || fail "11. control remote: $(cat "$T/o") $(cat "$T/sent" 2>/dev/null)"
+rm -f "$S/peer/seats"
+s11 DELIVER=1 LEASE_MACHINE=box-b >"$T/o" 2>&1
+[[ "$(notes)" == "c-002 3" ]] && ! grep -q '^TO peers' "$T/sent" &&
+  pass "11. control: no seats file + a local lease: ONE note with 3 items to the lease holder (today)" || fail "11. control local: notes=$(notes) $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "unanswered-sweep: all passed"; exit 0; }

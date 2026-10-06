@@ -37,7 +37,15 @@
 # @description a topic's last message: a new human post in it is a new item),
 # @description and <spool root>/dispatch/unanswered.last holds the last
 # @description delivered sweep's time and counts (do_spl_dispatch_check reads
-# @description it). Without DELIVER=1 nothing is written or sent: the report
+# @description it).
+# @description Seats (spec 101 D7): while <spool root>/peer/seats holds a seat
+# @description line (the same switch as spool-send.sh's peers leg), every box
+# @description sends - the fleet-lease skip is off - and each NEW, AGAIN or
+# @description ESC item is its OWN note to `peers`, so one seat claims it.
+# @description The sweep reads the last message of each topic, never the
+# @description claim, so a job owned by a dead holder is still listed. No
+# @description seats file: today's single note to the lease holder.
+# @description Without DELIVER=1 nothing is written or sent: the report
 # @description and the PLAN lines only. The cron line is
 # @description do_spl_unanswered_sweep_install_cron.
 # @description Read-only on the hub: one statement set in a READ ONLY
@@ -53,7 +61,7 @@
 # @param SWEEP_SKIP_HUMANS (optional) - posters left out; default HUM-1 on prd (the e2e probe owner), none on dev
 # @param SWEEP_MAX_ITEMS (optional) - rows per delivered note, default 40
 # @param SWEEP_ROWS_FILE (optional) - read the rows from this file instead of the hub (tests, an export)
-# @param SWEEP_TO / SWEEP_ORCH / SWEEP_FROM (optional) - recipient, escalation target, sender; default the lease holder, LEASE_ORCH (lease.conf) or CLE-001, the orchestrator
+# @param SWEEP_TO / SWEEP_ORCH / SWEEP_FROM (optional) - recipient, escalation target, sender; default the lease holder, LEASE_ORCH (lease.conf) or CLE-001, the orchestrator; with seats both recipients are peers
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ENV=prd ./run -a do_spl_unanswered_sweep
 # @example ENV=prd DELIVER=1 ./run -a do_spl_unanswered_sweep
@@ -72,7 +80,9 @@ do_spl_unanswered_sweep() {
   SWEEP_FROM="${SWEEP_FROM:-$SWEEP_ORCH}"
   # fleet mode (CLE-77911): another machine holds the dispatch lease, so its
   # own sweep sends; sending from here too would deliver every item twice
-  if (( ${DELIVER:-0} )) && [[ -z "${SWEEP_TO:-}" ]] && spl_lease_read && spl_lease_remote; then
+  # with seats (spec 101 D7) every box sends: its notes go to peers, not to
+  # the lease holder, and one seat claims each
+  if (( ${DELIVER:-0} )) && [[ -z "${SWEEP_TO:-}" ]] && ! spl_sweep_seated && spl_lease_read && spl_lease_remote; then
     do_log "INFO the fleet's dispatch lease is held by $LH: this machine's sweep sends nothing"
     return 0
   fi
@@ -92,22 +102,30 @@ do_spl_unanswered_sweep() {
 
 # spl_sweep_run <tmp> <deliver>: read, classify, report, then send + record.
 spl_sweep_run() {
-  local tmp="$1" deliver="$2" to f ok=1
+  local tmp="$1" deliver="$2" to f ok=1 orch="$SWEEP_ORCH" seats=0
   spl_sweep_rows "$tmp/rows" || return 1
   to="$(spl_sweep_holder)"
-  SWEEP_NOW="${SWEEP_NOW:-$(date +%s)}" SWEEP_TO_ID="$to" SWEEP_ORCH_ID="$SWEEP_ORCH" ENVN="$ENV" \
+  if [[ -z "${SWEEP_TO:-}" ]] && spl_sweep_seated; then seats=1 to=peers orch=peers; fi
+  SWEEP_NOW="${SWEEP_NOW:-$(date +%s)}" SWEEP_TO_ID="$to" SWEEP_ORCH_ID="$orch" ENVN="$ENV" \
     spl_sweep_classify "$tmp/rows" "$LEASE_DIR/unanswered.state" "$tmp" || return 1
   cat "$tmp/report.md"
   if (( ! deliver )); then
     for f in holder orch; do
       [[ -s "$tmp/$f.md" ]] || continue
-      echo "PLAN send to $([[ $f == holder ]] && echo "$to" || echo "$SWEEP_ORCH"): $(head -1 "$tmp/$f.md")"
+      if (( seats )); then echo "PLAN send to peers: $(spl_sweep_items "$tmp/$f.md" | wc -l) note(s), one per item: $(head -1 "$tmp/$f.md")"
+      else echo "PLAN send to $([[ $f == holder ]] && echo "$to" || echo "$orch"): $(head -1 "$tmp/$f.md")"; fi
     done
     do_log "OK report only - DELIVER=1 sends the NEW items and records them"
     return 0
   fi
-  [[ -s "$tmp/holder.md" ]] && { spl_sweep_send "$to" "$tmp/holder.md" || ok=0; }
-  [[ -s "$tmp/orch.md" ]] && { spl_sweep_send "$SWEEP_ORCH" "$tmp/orch.md" || ok=0; }
+  if (( seats )); then
+    for f in holder orch; do
+      [[ -s "$tmp/$f.md" ]] && { spl_sweep_send_items "$tmp/$f.md" "$tmp" || ok=0; }
+    done
+  else
+    [[ -s "$tmp/holder.md" ]] && { spl_sweep_send "$to" "$tmp/holder.md" || ok=0; }
+    [[ -s "$tmp/orch.md" ]] && { spl_sweep_send "$orch" "$tmp/orch.md" || ok=0; }
+  fi
   # the memory moves only when every send landed: a failed one is re-tried
   # as NEW on the next sweep rather than forgotten
   if (( ok )); then
@@ -117,6 +135,29 @@ spl_sweep_run() {
     mv -f "$LEASE_DIR/unanswered.last.tmp" "$LEASE_DIR/unanswered.last"
   (( ok )) || { do_log "FATAL a sweep note was not delivered; the items stay NEW for the next sweep"; return 1; }
   return 0
+}
+
+# 0 when this machine has a seat (spec 068 L3 / 101 D7): a seat line in
+# <spool root>/peer/seats, parsed as spool-send.sh's send_to_peers_on does.
+spl_sweep_seated() {
+  local f="${SPOOL_ROOT:-/var/spool-hub}/peer/seats"
+  [[ -r "$f" ]] && sed 's/#.*//' "$f" | awk '$1 ~ /^[acgq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+}
+
+# spl_sweep_items <note>: the item rows of a holder.md / orch.md table.
+spl_sweep_items() { grep -E '^\| (NEW|AGAIN|ESC) \|' "$1"; }
+
+# spl_sweep_send_items <note> <tmp>: one peers note per item row, each the
+# note's text above its table, the table header and that one row; a seat
+# claims each. Every item is tried; 1 when any send failed.
+spl_sweep_send_items() {
+  local note="$1" head="$2/item.head" one="$2/item.md" line rc=0
+  sed '/^| |/,$d' "$note" >"$head"
+  while IFS= read -r line; do
+    { cat "$head"; grep -m2 -E '^\| \||^\|---' "$note"; echo "$line"; } >"$one"
+    spl_sweep_send peers "$one" || rc=1
+  done < <(spl_sweep_items "$note")
+  return $rc
 }
 
 # The dispatcher to send to: SWEEP_TO, else the lease holder, else the master
@@ -151,7 +192,7 @@ spl_sweep_send() {
 spl_sweep_check_row() {
   local f="$LEASE_DIR/unanswered.last" k v ts="" open="" per="" sent="" to="" age stale="${DISPATCH_SWEEP_STALE:-1800}"
   spl_lease_read; spl_lease_conf
-  if spl_lease_remote && [[ "$LH" != *@unreachable ]]; then
+  if ! spl_sweep_seated && spl_lease_remote && [[ "$LH" != *@unreachable ]]; then
     row "unanswered sweep" "not sent from here" "ok (remote holder $LH: that machine sends)"; return 0
   fi
   if [[ ! -f "$f" ]]; then

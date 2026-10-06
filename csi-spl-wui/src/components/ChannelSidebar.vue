@@ -1946,7 +1946,12 @@ async function onCreate() {
 .foot-row:has(> .foot-row__clock) { gap: 6px; padding-inline: 12px 0; }
 .foot-row:has(> .foot-row__clock) .vs-wrap { flex: none; }
 .foot-row:has(> .foot-row__clock) .version-stamp { padding-inline-start: 0; }
-.foot-row .foot-row__clock { margin-inline-start: auto; font-size: calc(0.6875rem * 0.9); text-align: end; transform: translateY(1rem); }
+.foot-row .foot-row__clock { margin-inline-start: auto; font-size: calc(0.6875rem * 0.9); text-align: end; }
+/* owner, t1 747c7e47: the version and the clock on ONE line, their lowest
+   parts level. Both share one last-baseline group at the row's bottom, so
+   their baselines meet; the bell, the note and the row height stay put. */
+.foot-row .vs-wrap,
+.foot-row .foot-row__clock { align-self: last baseline; }
 @media not (pointer: coarse) {
   .foot-row:has(> .foot-row__clock) :deep(.notify-alerts),
   .foot-row:has(> .foot-row__clock) :deep(.notify-chime) { min-width: 32px; min-height: 32px; }
@@ -1960,10 +1965,6 @@ async function onCreate() {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: default;
-  /* owner, t1 747c7e47: 2 mm lower (~0.5rem). The clock rule above is 4 mm
-     (~1rem). translateY keeps the row box, the bell, the note and the
-     hover card where they are. */
-  transform: translateY(0.5rem);
 }
 /* the commit card: directly above the version (no gap to fall through),
    shown on hover / keyboard focus, hidden only 0.6 s after the pointer

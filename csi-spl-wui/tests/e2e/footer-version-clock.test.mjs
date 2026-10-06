@@ -1,7 +1,12 @@
-// Owner, t1 747c7e47: the sidebar footer version sits 2 mm (~0.5rem) lower
-// and the last-updated clock 4 mm (~1rem) lower than the row lays them out.
-// translateY only, so the row height, the bell, the note and the hover card
-// stay put, and neither glyph crosses the sidebar's bottom edge.
+// Owner, t1 747c7e47: the sidebar footer's version and last-updated clock sit
+// on ONE line, their lowest parts level ("they should be just on one line
+// vertically - their lowest parts"). c-414's per-item drops (version 0.5rem,
+// clock 1rem) were too much; both now share the row's last-baseline group.
+// Rule: their baselines (both are the same mono font and size) and their box
+// bottoms differ by <= 1 px; the bell, the note and the row height do not
+// move; neither crosses the sidebar's bottom edge; the version card opens.
+//
+// "before" re-applies c-414's drops with a sheet, for the comparison shot.
 //
 // Default size is the 260 px sidebar at 1280x800. The short pass is 480 px
 // tall, the shortest desktop height this suite already drives.
@@ -59,44 +64,60 @@ const signIn = (p) => p.evaluate(() => {
   return true
 })
 
-/* layout (transform none) versus the painted shift. Tops are relative to
-   the footer row so a viewport change does not hide the delta. */
+/* Positions are relative to the footer row so a viewport change does not
+   hide a delta. The baseline is a zero-size inline-block appended for one
+   read: its bottom is the line's baseline, where the digits stand. */
 const measure = (p) => p.evaluate(() => {
   const row = document.querySelector('.sidebar-foot .foot-row')
   const side = row?.closest('.sidebar')
-  const ver = document.querySelector('[data-test=app-version]')
+  const ver = document.querySelector('[data-test=app-version] .vs-ver')
   const clock = document.querySelector('.foot-row .foot-row__clock')
   const bell = document.querySelector('.foot-row .notify-alerts')
   const note = document.querySelector('.foot-row .notify-chime')
   if (!row || !side || !ver || !clock || !bell || !note) return { missing: true }
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
   const rr = row.getBoundingClientRect()
   const sr = side.getBoundingClientRect()
-  const topOf = (el) => Math.round((el.getBoundingClientRect().top - rr.top) * 10) / 10
+  const r1 = (n) => Math.round(n * 100) / 100
+  const topOf = (el) => r1(el.getBoundingClientRect().top - rr.top)
+  const botOf = (el) => r1(el.getBoundingClientRect().bottom - rr.top)
+  const baseOf = (el) => {
+    const probe = document.createElement('span')
+    probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'
+    el.appendChild(probe)
+    const b = probe.getBoundingClientRect().bottom
+    probe.remove()
+    return r1(b - rr.top)
+  }
+  const font = (el) => { const c = getComputedStyle(el); return `${c.fontSize} ${c.fontFamily.split(',')[0]}` }
   const bot = (el) => el.getBoundingClientRect().bottom
   return {
-    rem,
-    sideW: Math.round(sr.width * 10) / 10,
-    rowH: Math.round(rr.height * 10) / 10,
-    verTop: topOf(ver),
-    clockTop: topOf(clock),
+    sideW: r1(sr.width),
+    rowH: r1(rr.height),
+    verFont: font(ver),
+    clockFont: font(clock),
+    verBase: baseOf(ver),
+    clockBase: baseOf(clock),
+    verBot: botOf(ver),
+    clockBot: botOf(clock),
     bellTop: topOf(bell),
     noteTop: topOf(note),
-    verPast: Math.round((bot(ver) - sr.bottom) * 10) / 10,
-    clockPast: Math.round((bot(clock) - sr.bottom) * 10) / 10,
-    verWindow: Math.round((bot(ver) - window.innerHeight) * 10) / 10,
-    clockWindow: Math.round((bot(clock) - window.innerHeight) * 10) / 10,
+    verPast: r1(bot(ver) - sr.bottom),
+    clockPast: r1(bot(clock) - sr.bottom),
+    verWindow: r1(bot(ver) - window.innerHeight),
+    clockWindow: r1(bot(clock) - window.innerHeight),
   }
 })
 
 /* a sheet, not an inline style: the clock re-renders every second and Vue's
-   patch drops an inline transform, so the "before" shot showed the shift. */
-const setShift = (p, on) => p.evaluate((on) => {
-  document.getElementById('fvc-no-shift')?.remove()
-  if (on) return true
+   patch drops an inline style. "before" is c-414's v1.8.9 footer. */
+const setBefore = (p, on) => p.evaluate((on) => {
+  document.getElementById('fvc-before')?.remove()
+  if (!on) return true
   const s = document.createElement('style')
-  s.id = 'fvc-no-shift'
-  s.textContent = '[data-test=app-version], .foot-row .foot-row__clock { transform: none !important; }'
+  s.id = 'fvc-before'
+  s.textContent = '.foot-row .vs-wrap, .foot-row .foot-row__clock { align-self: auto !important; }'
+    + ' [data-test=app-version] { transform: translateY(0.5rem); }'
+    + ' .foot-row .foot-row__clock { transform: translateY(1rem); }'
   document.head.appendChild(s)
   return true
 }, on)
@@ -163,11 +184,11 @@ try {
     await p.waitForFunction(() => /^\d{2}:\d{2}:\d{2}$/.test((document.querySelector('.foot-row .foot-row__clock')?.textContent || '').trim()), { timeout: 20000 }).catch(() => null)
     await sleep(200)
 
-    await setShift(p, false)
+    await setBefore(p, true)
     await sleep(50)
     const before = await measure(p)
     await shot(p, `footer-${vp.name}-before`)
-    await setShift(p, true)
+    await setBefore(p, false)
     await sleep(50)
     const after = await measure(p)
     await shot(p, `footer-${vp.name}-after`)
@@ -177,15 +198,16 @@ try {
     const tag = vp.name
     ok(`${tag}: the footer clock is on screen`, clockReady, errors)
     ok(`${tag}: sidebar is the default 260 px`, near(after.sideW, 260, 1), after)
-    ok(`${tag}: version top is 0.5rem lower than its layout`, !before.missing && near(after.verTop - before.verTop, before.rem * 0.5, 1), { before: before.verTop, after: after.verTop, rem: before.rem })
-    ok(`${tag}: clock top is 1rem lower than its layout`, !before.missing && near(after.clockTop - before.clockTop, before.rem, 1), { before: before.clockTop, after: after.clockTop, rem: before.rem })
-    ok(`${tag}: bell and note stay put`, near(after.bellTop, before.bellTop, 0.6) && near(after.noteTop, before.noteTop, 0.6), { bell: [before.bellTop, after.bellTop], note: [before.noteTop, after.noteTop] })
+    ok(`${tag}: version and clock share one font and size`, !after.missing && after.verFont === after.clockFont, { ver: after.verFont, clock: after.clockFont })
+    ok(`${tag}: version and clock baselines level (<= 1 px)`, !after.missing && near(after.verBase, after.clockBase, 1), { ver: after.verBase, clock: after.clockBase })
+    ok(`${tag}: version and clock bottoms level (<= 1 px)`, !after.missing && near(after.verBot, after.clockBot, 1), { ver: after.verBot, clock: after.clockBot })
+    ok(`${tag}: bell and note stay put`, !before.missing && near(after.bellTop, before.bellTop, 0.6) && near(after.noteTop, before.noteTop, 0.6), { bell: [before.bellTop, after.bellTop], note: [before.noteTop, after.noteTop] })
     ok(`${tag}: footer row height stays put`, near(after.rowH, before.rowH, 0.6), { before: before.rowH, after: after.rowH })
     ok(`${tag}: version and clock stay inside the sidebar and the window`, after.verPast <= 0.5 && after.clockPast <= 0.5 && after.verWindow <= 0.5 && after.clockWindow <= 0.5, { verPast: after.verPast, clockPast: after.clockPast, verWindow: after.verWindow, clockWindow: after.clockWindow })
   }
 
   await applyViewport(p, { width: 1280, height: 800 })
-  await setShift(p, true)
+  await setBefore(p, false)
   await p.click('[data-test=app-version-wrap]').catch(() => null)
   await sleep(300)
   await shot(p, 'footer-1280x800-card')

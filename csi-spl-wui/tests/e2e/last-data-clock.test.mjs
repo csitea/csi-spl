@@ -96,7 +96,6 @@ const facts = (p) => p.evaluate((CLOCK) => {
   const n = note ? note.getBoundingClientRect() : null
   const v = ver ? ver.getBoundingClientRect() : null
   const menu = document.querySelector('[data-test=user-menu-panel]')
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
   return {
     where: strip && strip.contains(el) ? 'strip' : (el.closest('.foot-row') ? 'sidebar-foot' : (bar && bar.contains(el) ? 'top-bar' : 'elsewhere')),
     count: all.length,
@@ -111,11 +110,9 @@ const facts = (p) => p.evaluate((CLOCK) => {
     gap: v ? Math.round((r.left - v.right) * 10) / 10 : null,
     noteGap: n && v ? Math.round((v.left - n.right) * 10) / 10 : null,
     endGap: rowEnd === null ? null : Math.round((rowEnd - r.right) * 10) / 10,
-    /* signed: positive when the clock's centre is below the version's.
-       t1 747c7e47 drops the footer clock 0.5rem further than the version
-       (1rem vs 0.5rem). The phone strip is not that row, so it stays level. */
-    dy: v ? Math.round(((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) * 10) / 10 : null,
-    dyWant: el.closest('.foot-row') ? Math.round((rem / 2) * 10) / 10 : 0,
+    /* t1 747c7e47: level with the version on every row; the footer's exact
+       bottom rule (<= 1 px) is footer-version-clock's */
+    dy: v ? Math.round(Math.abs((r.top + r.bottom) / 2 - (v.top + v.bottom) / 2) * 10) / 10 : null,
     onScreen: r.left >= -1 && r.right <= window.innerWidth + 1 && r.top >= -1 && r.bottom <= window.innerHeight + 1,
     scroll: document.scrollingElement.scrollWidth <= window.innerWidth + 1,
     menuOpen: Boolean(menu && menu.getClientRects().length),
@@ -123,7 +120,7 @@ const facts = (p) => p.evaluate((CLOCK) => {
 }, CLOCK)
 // right of the version and flush with its container's end; on the phone strip
 // the version also sits right next to the note (glyph to text)
-const besideVersion = (f) => Boolean(f && f.shown && f.verShown && f.verFull && f.gap !== null && f.gap >= 0 && f.dy !== null && Math.abs(f.dy - f.dyWant) <= 3 && f.onScreen
+const besideVersion = (f) => Boolean(f && f.shown && f.verShown && f.verFull && f.gap !== null && f.gap >= 0 && f.dy !== null && f.dy <= 4 && f.onScreen
   && f.endGap !== null && Math.abs(f.endGap) <= 1
   && (f.where !== 'strip' || (f.noteGap !== null && f.noteGap >= 0 && f.noteGap <= 14)))
 // right of the version when one is drawn, else in the top bar

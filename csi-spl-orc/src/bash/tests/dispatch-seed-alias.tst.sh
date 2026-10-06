@@ -23,6 +23,8 @@ out="$(seed c-002)"; rc=$?
   pass "2. the legacy brief is used, its ids read as the new ones" || fail "2. legacy brief (rc $rc): $out"
 grep -q 'spool recv --as c-002 (not CLE-0022, not XCLE-002)' <<<"$out" && pass "2. ... other words left alone" || fail "2. words: $out"
 grep -q 'Hourly rotation 20261002T2015Z-master' <<<"$out" && pass "2. ... with the rotation line" || fail "2. rotation line: $out"
+grep -q 'Real lane work is spawned by the dispatcher that took it (SPEC-spool-fleet-roles.md section 3: /spawn-an-agent), not asked of the orchestrator' <<<"${out//$'\n'/ }" &&
+  pass "2. ... and the spec 101 R2 rule: the taking dispatcher spawns its own lanes" || fail "2. R2 rule: $out"
 
 # 1 --------------------------------------------------------------------------
 echo 'the new brief of c-002' >"$B/brief-dispatcher-c-002.md"

@@ -147,6 +147,17 @@ send_peers_local() {
   printf '{"delivery":"peers-local","msg_id":"%s","task_id":"%s","ts":"%s"}\n' "$id" "$task" "$ts"
 }
 
+# Spec 101 R2 (fleet-roles 3): the dispatcher that takes real lane work spawns
+# the lane itself. A `task` from a dispatcher (c-002 / c-003) to the
+# orchestrator whose body asks for a new lane is that work handed back to the
+# orch: one WARN on stderr; the message is still sent.
+send_lane_ask_warn() {  # FROM TO KIND BODY
+  [ "$3" = task ] && [[ "$1" =~ ^c-00[23]$ ]] || return 0
+  [ "$2" = orchestrator ] || [[ "$2" =~ ^c-001(@.*)?$ ]] || return 0
+  grep -qiE '(new|another|fresh|separate) (lane|agent|worker)|spawn (a |an |one )?(lane|agent|worker)|lane,? please' <<<"$4" || return 0
+  echo "lane: WARN ${1} asks the orchestrator for a new lane: the dispatcher that takes real lane work spawns it itself (/spawn-an-agent; SPEC-spool-fleet-roles.md section 3). Sent anyway." >&2
+}
+
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
 ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""
 EXTRA=()
@@ -175,6 +186,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$TO" ] || { echo "ERROR: --to is required" >&2; usage; }
+send_lane_ask_warn "$FROM" "$TO" "$KIND" "$BODY"
 PEERS=0
 if [ "$TO" = orchestrator ] || [ "$TO" = peers ]; then
   if send_to_peers_on; then

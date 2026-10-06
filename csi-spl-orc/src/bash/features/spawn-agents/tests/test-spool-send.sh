@@ -67,6 +67,31 @@ t_window CLE-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 6
 sleep 0.3
 bash "$SS" --from CLE-90 --to CLE-97 --kind note --body x >/dev/null; eq "dim ghost suggestion is not typed text: exit 0" 0 "$?"
 
+# ---- spec 101 R2: a dispatcher asking the orch for a new lane --------------
+# The dispatcher that takes real lane work spawns it (fleet-roles 3): a task
+# "new lane please" from c-002 to the orchestrator WARNs and is still sent.
+for id in c-001 c-002 c-003; do mkdir -p "$SPOOL_ROOT/$id/inbox"; done
+ask() {  # stderr only, with the send's exit code
+  SPOOL_ORCHESTRATOR_ID=c-001 bash "$SS" --no-poke --no-ask "$@" >/dev/null 2>"$T_TMP/ask.err"
+  local rc=$?; cat "$T_TMP/ask.err"; return "$rc"
+}
+inbox_n() { find "$SPOOL_ROOT/c-001/inbox" -maxdepth 1 -name '*.json' | wc -l; }
+n0="$(inbox_n)"
+err="$(ask --from c-002 --to orchestrator --kind task --body 'please spawn a new lane for the hub fix')"; rc=$?
+eq "R2: the ask from c-002 is still sent (exit 0)" 0 "$rc"
+has "R2: a task asking for a new lane from c-002 WARNs" "lane: WARN c-002 asks the orchestrator for a new lane" "$err"
+eq "R2: ... and is delivered to the orchestrator" $((n0 + 1)) "$(inbox_n)"
+eq "R2: one WARN line" 1 "$(grep -c 'lane: WARN' <<<"$err")"
+err="$(ask --from c-003 --to c-001 --kind task --body 'New lane please: the wui typo')"
+has "R2: from c-003 to the orch's id WARNs too" "lane: WARN c-003" "$err"
+err="$(ask --from CLE-90 --to orchestrator --kind task --body 'please spawn a new lane for the hub fix')"; rc=$?
+eq "R2 control: the same ask from a lane is sent" 0 "$rc"
+hasnt "R2 control: ... with no WARN" "lane: WARN" "$err"
+err="$(ask --from c-002 --to orchestrator --kind note --body 'please spawn a new lane for the hub fix')"
+hasnt "R2 control: a note from c-002 does not WARN" "lane: WARN" "$err"
+err="$(ask --from c-002 --to orchestrator --kind task --body 'prd deploy of v1.4.2 needs your go')"
+hasnt "R2 control: a task from c-002 that asks no lane does not WARN" "lane: WARN" "$err"
+
 # ---- usage -----------------------------------------------------------------
 bash "$SS" --from CLE-90 --to CLE-91 --kind chat --body x >/dev/null 2>&1; eq "bad kind: exit 2" 2 "$?"
 bash "$SS" --from BOX-1 --to CLE-91 --kind note --body x >/dev/null 2>&1;  eq "BOX sender: exit 2" 2 "$?"

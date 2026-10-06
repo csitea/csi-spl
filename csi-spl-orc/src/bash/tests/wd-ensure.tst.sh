@@ -12,8 +12,9 @@
 #      line; a re-install changes no byte; check and remove
 #   7. spec 068 8.1 on the fixture before and after (0 failing), and a
 #      control whose script is outside any checkout (the check DOES fire)
-#   8. an agent-worktree source is refused; a crontab that would fail 8.1
-#      is not written
+#   8. foreign lines that fail a whole-crontab 8.1 do not block the install;
+#      a wd-ensure line outside any checkout is still not written; a worktree
+#      source is refused. WD_ENSURE_WATCH_DRY=1 is copied onto the cron line.
 # No real crontab, tmux or live spool is touched.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -140,7 +141,7 @@ want="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bi
 
 out="$(run_act do_spl_wd_ensure_install_cron)"; rc=$?
 grep -F -q "+$want" <<<"$out" && has_want=1 || has_want=0
-[[ $rc -eq 0 && "$out" == *"DRY_RUN nothing was touched"* && "$has_want" == 1 && "$out" == *"OK 8.1 2 command line(s), 0 failing"* ]] &&
+[[ $rc -eq 0 && "$out" == *"DRY_RUN nothing was touched"* && "$has_want" == 1 && "$out" == *"OK 8.1 1 command line(s), 0 failing"* ]] &&
   cmp -s "$T/crontab" "$T/crontab.before" &&
   pass "6. dry run: the every-minute line and 8.1, nothing written" ||
   fail "6. dry rc=$rc has_want=$has_want out=$out"
@@ -172,6 +173,19 @@ cmp -s "$T/crontab" "$T/crontab.before" && [[ $rc -eq 0 ]] &&
   pass "6. CRON_REMOVE=1 takes only its own line" ||
   fail "6. remove rc=$rc crontab=$(cat "$T/crontab")"
 
+want_obs="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin WD_ENSURE_WATCH_DRY=1 $SH/csi-spl-orc/run -a do_spl_wd_ensure >> $T/log/wd/ensure.out 2>&1 # csi-spl:wd-ensure"
+out="$(WD_ENSURE_WATCH_DRY=1 run_act do_spl_wd_ensure_install_cron)"; rc=$?
+grep -F -q "+$want_obs" <<<"$out" && has_obs=1 || has_obs=0
+[[ $rc -eq 0 && "$has_obs" == 1 ]] && cmp -s "$T/crontab" "$T/crontab.before" &&
+  pass "6. observe-only: the cron line carries WD_ENSURE_WATCH_DRY=1" ||
+  fail "6. observe rc=$rc has_obs=$has_obs out=$out"
+
+out="$(WD_ENSURE_WATCH_DRY=2 run_act do_spl_wd_ensure_install_cron)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"WD_ENSURE_WATCH_DRY must be 0 or 1"* ]] &&
+  cmp -s "$T/crontab" "$T/crontab.before" &&
+  pass "6. WD_ENSURE_WATCH_DRY=2 is refused" ||
+  fail "6. bad-dry rc=$rc out=$out"
+
 # 8.1 before / after, and the failing control
 c81() { ( do_log() { :; }; source "$PROJ_ROOT/src/bash/run/spl-peer-crons.func.sh"; SPL_ORG_APP=csi-spl; spl_peer_cron_8_1 "$1" ); }
 c81 "$T/crontab.before" > "$T/o81b"; rb=$?
@@ -191,11 +205,26 @@ c81 "$T/crontab.bad" > "$T/o"; rc=$?
   pass "7. control: a script outside any checkout, and a line with no script, each named" ||
   fail "7. control rc=$rc: $(cat "$T/o")"
 
-cp "$T/crontab.bad" "$T/crontab"
+{ cat "$T/crontab.before"
+  echo "*/5 * * * * $T/adhoc/loop.sh >> /dev/null 2>&1"
+  echo "0 1 * * * tmux new -d"
+  echo "* * * * * /var/tmp/no-such-checkout/box-update.lock >> /dev/null 2>&1 # csi-spl:box-update"
+} > "$T/crontab.foreign"
+cp "$T/crontab.foreign" "$T/crontab"
 out="$(DRY_RUN=0 run_act do_spl_wd_ensure_install_cron)"; rc=$?
-cmp -s "$T/crontab" "$T/crontab.bad" && [[ $rc -eq 1 && "$out" == *"fails spec 068 8.1"* ]] &&
-  pass "8. a crontab that would fail 8.1 is not written" ||
-  fail "8. refuse rc=$rc out=$out"
+[[ $rc -eq 0 && "$(grep -F -x -c "$want" "$T/crontab")" -eq 1   && "$(grep -c 'csi-spl:box-update$' "$T/crontab")" -eq 1   && "$(grep -c 'tmux new -d' "$T/crontab")" -eq 1   && "$(grep -F -c "$T/adhoc/loop.sh" "$T/crontab")" -eq 1 ]] &&
+  pass "8. foreign lines stay, and they do not block the install" ||
+  fail "8. foreign rc=$rc out=$out crontab=$(cat "$T/crontab")"
+
+OUT="$T/outside"
+mkdir -p "$OUT/csi-spl-orc"
+printf '#!/bin/sh\n' > "$OUT/csi-spl-orc/run"
+chmod +x "$OUT/csi-spl-orc/run"
+cp "$T/crontab.before" "$T/crontab"
+out="$(DESK_CRON_SRC="$OUT" DRY_RUN=0 run_act do_spl_wd_ensure_install_cron)"; rc=$?
+cmp -s "$T/crontab" "$T/crontab.before" && [[ $rc -eq 1 && "$out" == *"fails spec 068 8.1"* ]] &&
+  pass "8. a wd-ensure line outside any checkout is not written" ||
+  fail "8. own-bad rc=$rc out=$out"
 
 cp "$T/crontab.before" "$T/crontab"
 WT="$T/csi-spl-wt/g-999"

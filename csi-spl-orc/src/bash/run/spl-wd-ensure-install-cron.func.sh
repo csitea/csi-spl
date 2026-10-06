@@ -9,16 +9,21 @@
 # @description (<shared checkout>-desk-cron, DESK_CRON_SRC overrides; an agent
 # @description worktree is refused). No fetch on the line: a fetch every minute
 # @description buys nothing the desk reconcile's five-minute one does not.
-# @description The crontab after the change is held to spec 068 section 8.1
-# @description (every command line resolves inside a checkout of this repo).
+# @description Spec 068 section 8.1 is applied to THIS line only. Other crontab
+# @description lines belong to other jobs and do not block the install. A
+# @description wd-ensure line whose script is outside a checkout is still refused.
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param WD_CRON_ACTION (optional) - install (default) | remove | check
 # @param CRON_REMOVE (optional) - 1 = WD_CRON_ACTION=remove
+# @param WD_ENSURE_WATCH_DRY (optional) - 0 or 1, copied onto the cron line.
+# @param   Unset: the line sets nothing and the keeper acts. 1: the watchdog
+# @param   only observes (no ring, no takeover) for that run.
 # @param WD_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/wd
 # @param DESK_CRON_SRC / DESK_CRON_SELF_UPDATE / DESK_CRON_TRUNK (optional) - as do_spl_desk_install_service
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_wd_ensure_install_cron
 # @example DRY_RUN=0 ./run -a do_spl_wd_ensure_install_cron
+# @example WD_ENSURE_WATCH_DRY=1 DRY_RUN=0 ./run -a do_spl_wd_ensure_install_cron
 # @example WD_CRON_ACTION=check ./run -a do_spl_wd_ensure_install_cron
 #------------------------------------------------------------------------------
 declare -F spl_desk_cron_render >/dev/null ||
@@ -47,7 +52,13 @@ spl_wd_cron_prep() {
   SPL_WD_CRON_TAG="$SPL_ORG_APP:wd-ensure"
   SPL_WD_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/run"
   SPL_WD_CRON_LOGDIR="${WD_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/wd}"
-  SPL_WD_CRON_LINE="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SPL_WD_CRON_SCRIPT -a do_spl_wd_ensure >> $SPL_WD_CRON_LOGDIR/ensure.out 2>&1 # $SPL_WD_CRON_TAG"
+  local watch=""
+  if [[ -n "${WD_ENSURE_WATCH_DRY:-}" ]]; then
+    [[ "$WD_ENSURE_WATCH_DRY" == 0 || "$WD_ENSURE_WATCH_DRY" == 1 ]] ||
+      { do_log "FATAL WD_ENSURE_WATCH_DRY must be 0 or 1, got: '$WD_ENSURE_WATCH_DRY'"; return 1; }
+    watch="WD_ENSURE_WATCH_DRY=$WD_ENSURE_WATCH_DRY "
+  fi
+  SPL_WD_CRON_LINE="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ${watch}$SPL_WD_CRON_SCRIPT -a do_spl_wd_ensure >> $SPL_WD_CRON_LOGDIR/ensure.out 2>&1 # $SPL_WD_CRON_TAG"
   return 0
 }
 
@@ -57,10 +68,18 @@ spl_wd_cron_rendered() {
   { crontab -l 2>/dev/null || true; } | spl_desk_cron_render "$SPL_WD_CRON_TAG" "$2" > "$1"
 }
 
-spl_wd_cron_show_8_1() {
-  local out rc=0
-  out="$(spl_wd_cron_8_1 "$1")" || rc=$?
-  echo "---- spec 068 8.1 on the crontab after:"
+# 8.1 on the wd-ensure line only. Other lines are other jobs.
+spl_wd_cron_gate() {
+  local tmp rc=0 out
+  tmp="$(mktemp)" || return 1
+  grep -E " # ${SPL_WD_CRON_TAG}$" "$1" > "$tmp" || true
+  if [[ -s "$tmp" ]]; then
+    out="$(spl_wd_cron_8_1 "$tmp")" || rc=$?
+  else
+    out="OK 8.1 0 command line(s), 0 failing"
+  fi
+  rm -f "$tmp"
+  echo "---- spec 068 8.1 on the wd-ensure line:"
   printf '%s\n' "$out" | sed 's/^/    /'
   return "$rc"
 }
@@ -94,7 +113,7 @@ spl_wd_cron_dry() {
   tmp="$(mktemp -d)" || return 1
   spl_wd_cron_rendered "$tmp/after" "$line"
   spl_wd_cron_diff "$line"
-  spl_wd_cron_show_8_1 "$tmp/after" || rc=$?
+  spl_wd_cron_gate "$tmp/after" || rc=$?
   rm -rf "$tmp"
   if (( rc != 0 )); then
     do_log "FATAL the crontab after fails spec 068 8.1 - nothing was touched"
@@ -119,7 +138,7 @@ spl_wd_cron_install() {
   mkdir -p "$SPL_WD_CRON_LOGDIR" 2>/dev/null || { do_log "FATAL cannot create $SPL_WD_CRON_LOGDIR"; return 1; }
   tmp="$(mktemp)" || return 1
   spl_wd_cron_rendered "$tmp" "$SPL_WD_CRON_LINE"
-  if ! spl_wd_cron_show_8_1 "$tmp"; then
+  if ! spl_wd_cron_gate "$tmp"; then
     rm -f "$tmp"
     do_log "FATAL the crontab after fails spec 068 8.1 - nothing written"
     return 1

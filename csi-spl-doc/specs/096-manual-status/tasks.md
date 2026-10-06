@@ -8,7 +8,7 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 |---|---|---|---|
 | T001 | L1 rdb | owner go (msg cb7a9cec) | 0141 applied on dev and prd: done, ae4a3608 (wf 20 run 37513524382) |
 | T002 | L2 hub | T001 | hub on dev and prd serves the contract: done, a71b55d3 (dev proof PUT/GET/roster/DELETE 200) |
-| T003 | L3 WUI | T002 contract (may start on the mock) | WUI on dev and prd shows and sets a status |
+| T003 | L3 WUI | T002 contract (may start on the mock) | WUI on dev and prd shows and sets a status: done, f524a1c01 (v2.3.7) |
 | T004 | L4 help + proof | T002, T003 deployed | dev and prd proof posted |
 | T005 | L5 notify | T003; c-376 landed; the 095 lane for the push half | the pause checkbox silences alerts |
 
@@ -52,20 +52,24 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 
 ## T003 - L3: WUI (spec 5, 7.5, tests 10.2)
 
-- [ ] `statusByPeer` store map from the roster read and the `status`
+- [x] `statusByPeer` store map from the roster read and the `status`
       frame; client-side expiry check every minute.
-- [ ] One dot component with the ring (amber Busy, red Unavailable,
+- [x] One dot component with the ring (amber Busy, red Unavailable,
       `aria-label`), used in the People rail, member lists, DM list, DM
       header, mention picker, People card and search results; nothing on a
-      post's author line (Q9).
-- [ ] Picker (self row + avatar menu; bottom sheet on a phone), loaded
+      post's author line (Q9). Search shows no people rows, so no ring there.
+- [x] Picker (self row + avatar menu; bottom sheet on a phone), loaded
       lazily: state, note with counter, until choices, *Set in all my
       workspaces* (Q2), *Pause my notifications while unavailable* (Q1,
       off), *Save*, *Clear status*.
-- [ ] Composer line for Busy (softer) and Unavailable (Q3); no auto-reply
+- [x] Composer line for Busy (softer) and Unavailable (Q3); no auto-reply
       (Q4).
-- [ ] i18n English and Bulgarian; "workspace", never "tenant".
-- [ ] Unit and e2e 10.2 (mock hub), phone width.
+- [x] i18n English and Bulgarian; "workspace", never "tenant".
+- [x] Unit and e2e 10.2 (mock hub), phone width.
+- [x] Landed f524a1c01 (+ comment fix bb1ed3399); dev and prd build.json
+      serve bb1ed3399 (v2.3.7). Dev proof `tests/e2e/human-status-live.proof.mjs`
+      6/6 (t1, test member: set Busy, roster carries it, reload, clear).
+      Budget: initial JS 154.9 KB vs trunk 154.6 KB, ceiling 155 KB.
 
 ## T004 - L4: help and proof (spec 7.6, 10.3, 10.4)
 

@@ -69,7 +69,7 @@ try {
     step('avatar button: named, member avatar, top-right', trRe('user_menu.account_menu_for').test(label) && hasImg && box.x + box.width > 1200 && box.y < 60,
       { label: tr('user_menu.account_menu_for', { who: '<user>' }), matched: trRe('user_menu.account_menu_for').test(label), hasImg, box })
     await p.screenshot({ path: `${OUT}/signed-in-desktop.png` })
-    // keyboard: focus + Enter opens on Settings, ArrowDown -> Sign out, Escape closes back to the button
+    // keyboard: focus + Enter opens on Settings, ArrowDown -> Set a status (spec 096), Escape closes back to the button
     await trig.focus()
     await p.keyboard.press('Enter')
     await new Promise((r) => setTimeout(r, 300))
@@ -81,10 +81,10 @@ try {
     await p.keyboard.press('Escape')
     const a3 = await p.evaluate(() => document.activeElement?.getAttribute('data-test'))
     const exp2 = await trig.evaluate((b) => b.getAttribute('aria-expanded'))
-    step('keyboard menu button', a1 === 'user-menu-settings' && exp === 'true' && a2 === 'user-menu-signout' && a3 === 'user-menu-trigger' && exp2 === 'false',
+    step('keyboard menu button', a1 === 'user-menu-settings' && exp === 'true' && a2 === 'user-menu-status' && a3 === 'user-menu-trigger' && exp2 === 'false',
       { enter: a1, expanded: exp, arrowDown: a2, escape: a3, expandedAfter: exp2 })
     const roles = await p.evaluate(() => [...document.querySelectorAll('[role=menu] [role=menuitem]')].map((e) => e.textContent.trim()))
-    step('dropdown items', JSON.stringify(roles) === JSON.stringify([tr('user_menu.settings'), tr('user_menu.sign_out')]), { roles })
+    step('dropdown items', JSON.stringify(roles) === JSON.stringify([tr('user_menu.settings'), tr('status.set'), tr('user_menu.sign_out')]), { roles })
     // Settings
     await trig.click()
     await p.click('[data-test=user-menu-settings]')

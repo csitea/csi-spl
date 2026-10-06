@@ -248,6 +248,15 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.PutBoxFacts(ctx, s.tenant, BoxFactSheet{Box: "sat", ReportedAt: now, Sheet: []byte(`{"os":{"name":"Debian GNU/Linux"}}`)}); err != nil {
 		t.Fatal(err)
 	}
+	// human_status (rdb 0141, spec 096 L1): the seeded member is Unavailable
+	// with a note. No store API yet (L2), so a row under inTenant.
+	if err := pg.inTenant(ctx, s.tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO human_status (tenant_id, human_id, status, note, until_at, set_by)
+			VALUES ($1, $2, 'unavailable', $3, $4, $2)`, s.tenant, hum, "in a meeting", now.Add(time.Hour))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 	// calendar_events (rdb 0125, spec 089 T003): one public event of the
 	// seeded member.
 	ev, err := pg.CreateCalendarEvent(ctx, s.tenant, CalendarEvent{Title: "release", Kind: "release", StartsAt: now,

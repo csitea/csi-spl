@@ -40,6 +40,12 @@
     "node": ">=20.0.0"
   },
   "pnpm": {
+    "overrides": {
+      "simple-git": "^4.0.2",
+      "@simple-git/argv-parser": "^2.0.1",
+      "shell-quote": "^1.11.0",
+      "source-map-js": "^1.2.2"
+    },
     "auditConfig": {
       "ignoreGhsas": [
         "GHSA-86w9-cpqp-85rv",

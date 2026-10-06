@@ -274,7 +274,11 @@ try {
     ok(`${w}: a swipe without a hold moves no event`, Date.parse(it?.starts) === Date.parse(iso(today, '10:00')) && !(await p.$(DIALOG)), it)
     ok(`${w}: the swipe scrolls the day`, s1.top !== s0.top, { s0, s1 })
 
-    /* hold 300 ms, drag one hour down */
+    /* hold 300 ms, drag one hour down. The swipe may have carried the event
+       under the sticky day head: bring it back to the middle first, as a
+       person would (wf 10 red on d1693452: the hold landed on the head) */
+    await p.evaluate((t) => [...document.querySelectorAll('[data-test=calendar-item]')].find((e) => e.querySelector('.cal-week__title')?.textContent === t)?.scrollIntoView({ block: 'center' }), 'Hold me')
+    await settled(p)
     it = await item(p, 'Hold me')
     let g = await gridAt(p, today, 0)
     const sBefore = await scroller(p)

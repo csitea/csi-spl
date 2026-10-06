@@ -63,7 +63,7 @@
         :class="{ 'cal-week__day--today': day === today }"
         data-test="calendar-week-day"
         :data-day="day"
-        @click="onDayClick(day)"
+        @click="onDayClick($event, day)"
       >
         <div class="cal-week__top">
           <h4 class="cal-week__head">{{ dayHead(day) }}</h4>
@@ -73,7 +73,7 @@
               :key="ev.id"
               v-bind="itemAttrs(ev)"
               @pointerdown="onItemDown($event, ev, day)"
-              @click.stop="onItemClick(ev)"
+              @click.stop="onItemClick($event, ev)"
               @keydown.enter.prevent.stop="openEdit(ev)"
               @contextmenu="onContextMenu"
             >
@@ -102,7 +102,7 @@
             v-bind="itemAttrs(b.ev)"
             :style="boxStyle(b)"
             @pointerdown="onItemDown($event, b.ev, day)"
-            @click.stop="onItemClick(b.ev)"
+            @click.stop="onItemClick($event, b.ev)"
             @keydown.enter.prevent.stop="openEdit(b.ev)"
           >
             <span class="cal-ev__body">
@@ -337,6 +337,7 @@ type Gesture = {
   touch: boolean
   x0: number
   y0: number
+  t0: number
   live: boolean
   timer: ReturnType<typeof setTimeout> | undefined
   grab: number
@@ -351,8 +352,9 @@ const ghost = ref<{ day: string, a: number, b: number } | null>(null)
 const saving = ref('')
 const notice = ref('')
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
-/* the click that ends a drag is not a click on the day or the event */
-let swallowUntil = 0
+/* the click a drag's release makes is not a click on the day or the event */
+let upStamp = Number.NEGATIVE_INFINITY
+const dragClick = (e: Event) => e.timeStamp - upStamp < 100
 
 function itemAttrs(ev: CalendarItem) {
   const edit = calEditable(ev)
@@ -399,14 +401,13 @@ function begin(e: PointerEvent, kind: Gesture['kind'], ev: CalendarItem | null, 
   const min = hit?.min ?? null
   gesture = {
     kind, ev, day, pointerId: e.pointerId, touch: e.pointerType !== 'mouse',
-    x0: e.clientX, y0: e.clientY, live: false, timer: undefined,
+    x0: e.clientX, y0: e.clientY, t0: e.timeStamp, live: false, timer: undefined,
     grab: ev && min !== null && !ev.all_day ? min - calMinuteOf(ev.starts_at) : 0,
     from: min === null ? 0 : Math.floor(min / CAL_SNAP_MIN) * CAL_SNAP_MIN,
   }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
   window.addEventListener('pointercancel', onCancel)
-  window.addEventListener('touchmove', onTouchMove, { passive: false })
   /* a resize handle is its own target: it drags at once, finger or mouse */
   if (kind === 'resize') liftOff()
   else if (gesture.touch) gesture.timer = setTimeout(liftOff, CAL_HOLD_MS)
@@ -444,9 +445,12 @@ function onMove(e: PointerEvent) {
   if (!g || e.pointerId !== g.pointerId) return
   if (!g.live) {
     const far = Math.hypot(e.clientX - g.x0, e.clientY - g.y0)
-    if (g.touch && far > CAL_TOUCH_SLOP_PX) stop() /* a swipe: the list scrolls */
+    /* a hold is judged by the input's own clock: a busy page may run the
+       timer after the finger has already held long enough and moved */
+    if (g.touch && e.timeStamp - g.t0 >= CAL_HOLD_MS) liftOff()
+    else if (g.touch && far > CAL_TOUCH_SLOP_PX) stop() /* a swipe: the list scrolls */
     else if (!g.touch && far > CAL_DRAG_PX) liftOff()
-    return
+    if (!g.live) return
   }
   e.preventDefault()
   follow(g, e.clientX, e.clientY)
@@ -479,9 +483,15 @@ function edgeScroll(y: number) {
   else if (y > r.bottom - 32) box.scrollTop += 12
 }
 
+/* a live drag keeps the finger from scrolling. The listener is on the
+   scroller for good: the browser decides at touchstart whether a touch may
+   be cancelled, so one added at pointerdown is too late (every touchmove
+   then arrives uncancelable and the day scrolls under the drag) */
 function onTouchMove(e: TouchEvent) {
   if (gesture?.live && e.cancelable) e.preventDefault()
 }
+onMounted(() => weekEl.value?.addEventListener('touchmove', onTouchMove, { passive: false }))
+onBeforeUnmount(() => weekEl.value?.removeEventListener('touchmove', onTouchMove))
 function onContextMenu(e: Event) {
   if (gesture) e.preventDefault()
 }
@@ -495,7 +505,6 @@ function stop() {
   window.removeEventListener('pointermove', onMove)
   window.removeEventListener('pointerup', onUp)
   window.removeEventListener('pointercancel', onCancel)
-  window.removeEventListener('touchmove', onTouchMove)
 }
 function onCancel(e: PointerEvent) {
   if (!gesture || e.pointerId !== gesture.pointerId) return
@@ -509,7 +518,7 @@ function onUp(e: PointerEvent) {
   const live = g.live
   stop()
   if (!live) return
-  swallowUntil = Date.now() + 400
+  upStamp = e.timeStamp
   if (g.kind === 'create') {
     const gh = ghost.value
     ghost.value = null
@@ -528,13 +537,13 @@ onBeforeUnmount(() => {
   if (noticeTimer) clearTimeout(noticeTimer)
 })
 
-function onItemClick(ev: CalendarItem) {
-  if (Date.now() < swallowUntil) return
+function onItemClick(e: Event, ev: CalendarItem) {
+  if (dragClick(e)) return
   picked.value = ''
   openEdit(ev)
 }
-function onDayClick(day: string) {
-  if (Date.now() < swallowUntil) return
+function onDayClick(e: Event, day: string) {
+  if (dragClick(e)) return
   openCreate(day)
 }
 

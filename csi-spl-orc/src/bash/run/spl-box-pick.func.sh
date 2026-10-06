@@ -5,8 +5,12 @@
 # @description Each box has a band (low / high, % of cores = load5 / cpus * 100):
 # @description its own per-box band when the hub names it (rdb 0134, `boxes`),
 # @description else the fleet band. The pick, in the fill order: the first box
-# @description below its LOW mark; else the first below its HIGH mark; every
-# @description box at or above its HIGH -> "hold" (queue the lane, spawn
+# @description below its LOW mark; else the first below its HIGH mark; else
+# @description (every box at or above its HIGH) the box least far past its band,
+# @description load% / high, while that box is below its OVERFLOW mark (high *
+# @description BOX_PICK_OVERFLOW / 100): a weight, so an overloaded box hands its
+# @description lanes to the one with room (spec 101 R1); every box at or above
+# @description its OVERFLOW -> "hold" (queue the lane, spawn
 # @description nothing). So every box reaches its own min before any box goes
 # @description past its min, and the lanes split in the proportion of the bands
 # @description the admin set. The bands and the order are the hub's instance
@@ -20,6 +24,7 @@
 # @description line per box with its band, then `pick=<box> reason=...` or
 # @description `pick=hold reason=...`.
 # @param BOX_PICK_SINCE (optional) - the sample window, default 15m (3 lane-map ticks)
+# @param BOX_PICK_OVERFLOW (optional) - the overflow mark as % of each box's high mark, default 200 (100 = hold at high)
 # @param BOX_PICK_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param ENV (optional) - dev or prd: the hub to read, default LANE_ENV / lease.conf LEASE_ENV
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get` or `box-stats list ...`
@@ -31,8 +36,10 @@ declare -F spl_lane_init >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/sp
 
 do_spl_box_pick() {
   do_require_bin yq || return 1
-  local since="${BOX_PICK_SINCE:-15m}" org_app cnf target stats seed
+  local since="${BOX_PICK_SINCE:-15m}" overflow="${BOX_PICK_OVERFLOW:-200}" org_app cnf target stats seed
   [[ "$since" =~ ^[0-9]+[smhd]$ ]] || { do_log "FATAL BOX_PICK_SINCE must be a duration (15m, 1h), got '$since'"; return 1; }
+  [[ "$overflow" =~ ^[0-9]+$ ]] && ((overflow >= 100)) ||
+    { do_log "FATAL BOX_PICK_OVERFLOW must be a whole % of the high mark, at least 100, got '$overflow'"; return 1; }
   [[ "$(basename "${PROJ_PATH:?PROJ_PATH unset}")" =~ ^([a-z]+-[a-z]+)-orc$ ]] || {
     do_log "FATAL cannot read <org>-<app> from $PROJ_PATH"; return 1; }
   org_app="${BASH_REMATCH[1]}"
@@ -53,13 +60,13 @@ do_spl_box_pick() {
   stats="$(spl_lane_spool box-stats list --since "$since" 2>&1)"
   jq -e '.rows | type == "array"' >/dev/null 2>&1 <<<"$stats" ||
     { do_log "FATAL the hub did not answer the box stats read: $(tail -1 <<<"$stats" | head -c 200)"; return 1; }
-  spl_box_pick_decide "$target" "$stats" "$seed" "$since"
+  spl_box_pick_decide "$target" "$stats" "$seed" "$since" "$overflow"
 }
 
-# spl_box_pick_decide TARGET STATS SEED SINCE -> the band line, one line per
-# box in fill order, a WARN per box with no sample, then the pick line.
+# spl_box_pick_decide TARGET STATS SEED SINCE [OVERFLOW] -> the band line, one
+# line per box in fill order, a WARN per box with no sample, then the pick line.
 spl_box_pick_decide() {
-  jq -r --argjson seed "$3" --arg since "$4" --slurpfile st <(printf '%s' "$2") '
+  jq -r --argjson seed "$3" --arg since "$4" --argjson over "${5:-200}" --slurpfile st <(printf '%s' "$2") '
     . as $t
     | (if ($t.box_order | length) > 0 then {o: $t.box_order, src: "hub"} else {o: $seed, src: "cnf seed"} end) as $ord
     | ($st[0].rows | group_by(.box) | map(max_by(.at)) | map({key: .box, value: .}) | from_entries) as $last
@@ -75,12 +82,15 @@ spl_box_pick_decide() {
     | ([$rows[] | select(.miss | not)]) as $seen
     | ((first($seen[] | select(.pct < .band.low)) | . + {why: "low"})
        // (first($seen[] | select(.pct < .band.high)) | . + {why: "high"})
+       // ([$seen[] | select(.pct < .band.high * $over / 100)] | min_by(.pct / .band.high) | if . == null then null else . + {why: "over"} end)
        // null) as $pick
     | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
         else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high) (\(.band.src))\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
       (if $pick == null then
-         "pick=hold reason=no box with a sample is below its high mark: queue the lane, spawn nothing"
+         "pick=hold reason=no box with a sample is below its overflow mark (\($over)% of its high): queue the lane, spawn nothing"
+       elif $pick.why == "over" then
+         "pick=\($pick.box) reason=every box is at or above its high mark; \($pick.box) is the least past its band (\($pick.pct | floor)% on high \($pick.band.high)%, overflow \($pick.band.high * $over / 100 | floor)%)"
        elif $pick.why == "low" then
          "pick=\($pick.box) reason=\($pick.box) is the first box in order below its low mark (\($pick.pct | floor)% < \($pick.band.low)%)"
        else

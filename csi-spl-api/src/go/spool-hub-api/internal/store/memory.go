@@ -128,7 +128,7 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 	}
 	t.BoughtAt = t.BoughtAt.UTC()
 	s.tenants[t.ID] = t
-	s.ch.seedLocked(t.ID, time.Now().UTC())
+	s.ch.seedLocked(t.ID, s.now().UTC())
 	return nil
 }
 

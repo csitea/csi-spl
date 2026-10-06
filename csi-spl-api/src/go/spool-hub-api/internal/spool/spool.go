@@ -156,7 +156,7 @@ func (s *Store) KnownLocal(id string) bool {
 // sender's inbox, ErrRetiredRecipient).
 func (s *Store) SendKnown(from, to, taskID, kind, body string, atts []msg.Attachment) (*msg.Message, error) {
 	if msg.ValidID(to) && !s.KnownLocal(to) {
-		if _, ok := s.RetiredInQuarantine(to, time.Now().UTC()); ok {
+		if _, ok := s.RetiredInQuarantine(to, s.now().UTC()); ok {
 			m, err := s.Compose(from, to, taskID, kind, body, atts)
 			if err != nil {
 				return nil, err
@@ -198,7 +198,7 @@ func (s *Store) Compose(from, to, taskID, kind, body string, atts []msg.Attachme
 	}
 	m := &msg.Message{
 		V: s.cfg.WriteVersion(), MsgID: uid.New(), TaskID: taskID,
-		TS: msg.Now(time.Now()), From: from, To: to, Kind: kind, Body: body,
+		TS: msg.Now(s.now()), From: from, To: to, Kind: kind, Body: body,
 		Files: atts,
 	}
 	if m.Files == nil {

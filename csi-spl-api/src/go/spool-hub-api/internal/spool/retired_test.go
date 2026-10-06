@@ -102,3 +102,32 @@ func TestRetiredInQuarantineRows(t *testing.T) {
 		t.Fatal("a prefix matched")
 	}
 }
+
+// TestSendKnownQuarantineReadsTheStoreClock: SendKnown measures the
+// quarantine on the store's clock, the one BounceRetired uses. Inside it the
+// send bounces; with the clock stepped past its end the id is unknown.
+// CONTROL: the same retired row both times; only the clock moves.
+func TestSendKnownQuarantineReadsTheStoreClock(t *testing.T) {
+	cfg := newCfg(t)
+	st := New(cfg)
+	retire(t, cfg.SpoolRoot, time.Hour, "c-004")
+	at := time.Now()
+	st.clock = func() time.Time { return at }
+	if _, err := st.SendKnown("c-005", "c-004", "", "note", "hi", nil); !errors.Is(err, ErrRetiredRecipient) {
+		t.Fatalf("inside the quarantine: %v, want ErrRetiredRecipient", err)
+	}
+	at = at.Add(cfg.IDQuarantine())
+	if _, err := st.SendKnown("c-005", "c-004", "", "note", "hi", nil); !errors.Is(err, ErrUnknownRecipient) {
+		t.Fatalf("past the quarantine on the store clock: %v, want ErrUnknownRecipient", err)
+	}
+}
+
+// TestComposeStampsTheStoreClock: a composed message's ts is the store's clock.
+func TestComposeStampsTheStoreClock(t *testing.T) {
+	st := New(newCfg(t))
+	st.clock = func() time.Time { return time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC) }
+	m, err := st.Compose("c-005", "c-004", "", "note", "hi", nil)
+	if err != nil || m.TS != "2020-01-02T03:04:05Z" {
+		t.Fatalf("compose: ts %q %v, want 2020-01-02T03:04:05Z", m.TS, err)
+	}
+}

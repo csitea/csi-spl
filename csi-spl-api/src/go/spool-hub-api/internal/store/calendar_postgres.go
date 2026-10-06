@@ -28,7 +28,7 @@ func (s *Postgres) hasCalendar(ctx context.Context) bool {
 	return s.cal.present(ctx, func(ctx context.Context) (ok bool, err error) {
 		err = s.pool.QueryRow(ctx, `SELECT to_regclass('calendar_events') IS NOT NULL`).Scan(&ok)
 		return ok, err
-	}, time.Now())
+	}, s.now())
 }
 
 func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {

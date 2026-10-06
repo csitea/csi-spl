@@ -61,7 +61,7 @@ func (s *Memory) Memberships(_ context.Context, humanID string) ([]Membership, e
 	}
 	var out []Membership
 	for k, m := range s.hum.members {
-		if k[1] == humanID && !m.disabled && !lapsed(m.accessUntil, time.Now()) {
+		if k[1] == humanID && !m.disabled && !lapsed(m.accessUntil, s.now()) {
 			ms := Membership{TenantID: k[0], Role: m.role}
 			if t, ok := s.tenants[k[0]]; ok {
 				ms.DisplayName, ms.SortOrder = t.DisplayName, t.SortOrder

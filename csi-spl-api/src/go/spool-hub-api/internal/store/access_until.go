@@ -77,7 +77,7 @@ func (s *Postgres) hasAccessUntil(ctx context.Context) bool {
 		err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_attribute
 			WHERE attrelid = to_regclass('tenant_memberships') AND attname = 'access_until' AND NOT attisdropped)`).Scan(&ok)
 		return ok, err
-	}, time.Now())
+	}, s.now())
 }
 
 func (s *Memory) SetMemberAccessUntil(_ context.Context, tenant, humanID string, until *time.Time) error {

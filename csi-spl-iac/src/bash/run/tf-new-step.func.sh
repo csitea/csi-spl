@@ -10,9 +10,9 @@ do_tf_new_step() {
   # check if step with same name exists
   step_exists=0
 
-  if [[ $(ls src/terraform | grep ${step} | wc -l) -ne 0 ]]; then
+  if compgen -G "src/terraform/*${step}*" >/dev/null; then
     do_log "FATAL there already exists terraform files for this step in src/terraform"
-  elif [[ $(ls src/tpl/cnf/env/%org%/%app%/%env%/tf | grep ${step} | wc -l) -ne 0 ]]; then
+  elif compgen -G "src/tpl/cnf/env/%org%/%app%/%env%/tf/*${step}*" >/dev/null; then
     do_log "FATAL there already exists template files for this step in src/tpl/cnf/env/%org%/%app%/%env%/tf"
   fi
 

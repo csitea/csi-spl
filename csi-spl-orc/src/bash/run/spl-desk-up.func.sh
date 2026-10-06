@@ -350,9 +350,12 @@ spl_desk_detach() {
 
 # spl_desk_wait_roster <state dir> <box> <agent> <secs>: 0 once the sidecar's
 # roster cache announces AGENT under BOX - the same fact that turns the agent
-# ONLINE in the WUI roster.
+# ONLINE in the WUI roster. ROSTER gets its own `local`: bash expands every
+# word of one `local` before it assigns any, so a sibling `$d` there would read
+# the caller's `d`, not this function's.
 spl_desk_wait_roster() {
-  local d="$1" box="$2" agent="$3" secs="$4" roster="$d/spool/.hub/roster.json" i
+  local d="$1" box="$2" agent="$3" secs="$4" i
+  local roster="$d/spool/.hub/roster.json"
   for ((i = 0; i < secs * 5; i++)); do
     if [[ -r "$roster" ]] && grep -oE "\"$box\":\[[^]]*\]" "$roster" 2>/dev/null | grep "\"$agent\"" >/dev/null; then
       do_log "INFO the hub announces $agent on $box (roster $roster)"; return 0

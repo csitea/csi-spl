@@ -37,6 +37,7 @@ do_spl_db_insights() {
   # cumulative distribution gives the calls and the latency sum inside it.
   curl -s -G "https://monitoring.googleapis.com/v3/projects/$SPL_PROJECT/timeSeries" \
     -H "Authorization: Bearer $tok" \
+    --connect-timeout 10 --max-time 60 \
     --data-urlencode "filter=metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/perquery/latencies\" AND resource.labels.resource_id=\"$SPL_PROJECT:$SPL_SQL_INSTANCE\"" \
     --data-urlencode "interval.startTime=$since" \
     --data-urlencode "interval.endTime=$until" \

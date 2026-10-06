@@ -52,7 +52,7 @@ _spl_stripe_api() {
   local arg
   for arg in "$@"; do form+=(--data-urlencode "$arg"); done
   printf 'header = "Authorization: Bearer %s"\n' "$(cat "$skf")" |
-    curl -sS --config - -w '\n%{http_code}' -X "$method" "${form[@]}" "${base}${path}" 2>/dev/null
+    curl -sS --connect-timeout 10 --max-time 30 --config - -w '\n%{http_code}' -X "$method" "${form[@]}" "${base}${path}" 2>/dev/null
 }
 
 # _spl_stripe_json_get <dotted.key> <- JSON on stdin

@@ -44,7 +44,7 @@ do_spl_checkout_stripe_test_buy() {
   local api="$base/api/v1/checkout"
 
   local plan
-  plan="$(curl -fsS "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
+  plan="$(curl -fsS --connect-timeout 10 --max-time 30 "$api/plan")" || { do_log "FATAL GET $api/plan failed"; return 1; }
   [[ "$(jq -r .rail <<<"$plan")" == card && "$(jq -r .available <<<"$plan")" == true ]] ||
     { do_log "FATAL dev checkout is not an available card rail: $(jq -c '{rail, available}' <<<"$plan")"; return 1; }
   if [[ "$dry" == 1 ]]; then
@@ -63,7 +63,7 @@ do_spl_checkout_stripe_test_buy() {
 
   local _code _body
   _req() { # <method> <url> [json] [extra-header-line]
-    local args=(-sS -o "$h/body" -w '%{http_code}' -X "$1" "$2")
+    local args=(-sS --connect-timeout 10 --max-time 30 -o "$h/body" -w '%{http_code}' -X "$1" "$2")
     [[ -n "${3:-}" ]] && args+=(-H 'Content-Type: application/json' --data "$3")
     [[ -n "${4:-}" ]] && args+=(-H "$4")
     _code="$(curl "${args[@]}")" || return 1
@@ -93,7 +93,7 @@ do_spl_checkout_stripe_test_buy() {
   # the browser's confirmPayment, server-side: test card, return_url = the success page
   local pm="${TEST_PAYMENT_METHOD:-pm_card_visa}" out status
   out="$(printf 'header = "Authorization: Bearer %s"\n' "$(cat "$h/sk")" |
-    curl -sS --config - -w '\n%{http_code}' -X POST --data-urlencode "payment_method=$pm" \
+    curl -sS --connect-timeout 10 --max-time 30 --config - -w '\n%{http_code}' -X POST --data-urlencode "payment_method=$pm" \
       --data-urlencode "return_url=$base/checkout/success" "$sbase/v1/payment_intents/$pi/confirm" 2>/dev/null)"
   status="${out##*$'\n'}"
   [[ "$status" == 200 && "$(jq -r .status <<<"${out%$'\n'*}")" == succeeded ]] ||

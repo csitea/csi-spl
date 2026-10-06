@@ -6,6 +6,10 @@
 #          do_spl_checkout_fake_buy; the test lifts that body and calls it).
 #          Every logged line has --max-time or -m . CONTROL: the stub exits
 #          28 and each caller returns non-zero.
+#          Round 4 row 10 adds spl_claim_tag_api, do_spl_db_insights,
+#          do_spl_checkout_stripe_test_buy (GET /plan, its own _req; the
+#          confirm curl is pinned in source), _spl_stripe_api and the lint
+#          tool downloads (_ilt_fetch, _ilt_fetch_sums: --speed-limit too).
 #          The setup-app-inf probes are pinned in source: calling them sleeps
 #          through the readiness loop.
 #------------------------------------------------------------------------------
@@ -121,6 +125,85 @@ grep -q -- '-m 30' "$STUB_LOG" && pass "GET /plan passes -m 30" || fail "GET /pl
 
 run_bounded _req _req GET http://127.0.0.1:9/healthz
 grep -q -- '-m 30' "$STUB_LOG" && pass "_req passes -m 30" || fail "_req has no -m 30"
+
+# --- round 4 row 10 -----------------------------------------------------------
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/lib/bash/funcs/spl-release-version.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/spl-db-insights.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/spl-checkout-stripe-test-buy.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/src/bash/run/spl-provision-stripe-endpoints.func.sh"
+# shellcheck disable=SC1090,SC1091
+source "$PROJ_ROOT/../csi-spl-iac/src/bash/run/install-lint-tools.func.sh"
+
+# bounds_are <label> <connect> <max>: every stub line carries both values.
+bounds_are() {
+  local n c all
+  all=$(wc -l <"$STUB_LOG")
+  n=$(grep -c -- "--max-time $3" "$STUB_LOG" || true)
+  c=$(grep -c -- "--connect-timeout $2" "$STUB_LOG" || true)
+  [[ "$all" -gt 0 && "$n" -eq "$all" && "$c" -eq "$all" ]] \
+    && pass "$1 uses connect-timeout $2 and max-time $3" \
+    || fail "$1 bounds: lines=$all max-time=$n connect=$c"
+}
+
+run_bounded spl_claim_tag_api spl_claim_tag_api o/r 0123abc v9.9.9 tok-stub
+bounds_are spl_claim_tag_api 10 30
+
+insights_run() (
+  do_spl_cloud_cnf() { return 0; }
+  do_gcp_pin_account() { return 0; }
+  do_gcp_require_live_account() { return 0; }
+  ENV=dev SPL_CNF=/dev/null do_spl_db_insights
+)
+run_bounded do_spl_db_insights insights_run
+bounds_are do_spl_db_insights 10 60
+
+stripe_buy_run() (
+  spl_checkout_require_locale() { return 0; }
+  spl_checkout_require_buyer() { return 0; }
+  # shellcheck disable=SC2034 # read by do_spl_checkout_stripe_test_buy
+  do_spl_cloud_cnf() { SPL_FQDN=dev.example.test SPL_STATE_DIR="$T"; }
+  ENV=dev DRY_RUN=1 TENANT_ID=acme BUYER_EMAIL=buyer@example.com \
+    STRIPE_API_BASE=https://stripe.example.test do_spl_checkout_stripe_test_buy
+)
+run_bounded "stripe test buy GET /plan" stripe_buy_run
+bounds_are "stripe test buy GET /plan" 10 30
+
+buy="$PROJ_ROOT/src/bash/run/spl-checkout-stripe-test-buy.func.sh"
+awk '
+  /^  _req\(\)/ { on = 1 }
+  on && /^  }$/ { sub(/^  /, ""); print; exit }
+  on { sub(/^  /, ""); print }
+' "$buy" >"$T/buy-req.sh"
+# shellcheck disable=SC1090,SC1091
+source "$T/buy-req.sh"
+# shellcheck disable=SC2034 # the lifted _req writes $h/body
+h="$T"
+run_bounded "stripe test buy _req" _req GET https://dev.example.test/api/v1/checkout
+bounds_are "stripe test buy _req" 10 30
+grep -Fq 'curl -sS --connect-timeout 10 --max-time 30 --config - -w' "$buy" \
+  && pass "stripe test buy confirm curl is bounded in source" \
+  || fail "stripe test buy confirm curl has no bounds"
+
+printf 'sk_test_stub\n' >"$T/sk"
+run_bounded _spl_stripe_api _spl_stripe_api GET /v1/webhook_endpoints https://stripe.example.test "$T/sk"
+bounds_are _spl_stripe_api 10 30
+
+_ILT_BIN="$T/ilt-bin"
+mkdir -p "$_ILT_BIN"
+run_bounded _ilt_fetch _ilt_fetch tool 1.0 abc https://dl.example.test/tool ""
+bounds_are _ilt_fetch 30 900
+run_bounded _ilt_fetch_sums _ilt_fetch_sums tool 1.0 https://dl.example.test/a https://dl.example.test/sums a ""
+bounds_are _ilt_fetch_sums 30 900
+grep -q -- '--speed-limit 1024 --speed-time 60' "$STUB_LOG" \
+  && pass "lint tool downloads cut only a stalled mirror (--speed-limit/--speed-time)" \
+  || fail "lint tool downloads have no --speed-limit/--speed-time"
+n=$(grep -c '"${_ILT_CURL_DL_LIMIT\[@\]}"' "$PROJ_ROOT/../csi-spl-iac/src/bash/run/install-lint-tools.func.sh" || true)
+[[ "$n" -eq 3 ]] && pass "install-lint-tools bounds its 3 checked downloads" \
+  || fail "install-lint-tools _ILT_CURL_DL_LIMIT count is $n"
 
 sai="$PROJ_ROOT/src/bash/run/setup-app-inf.func.sh"
 n=$(grep -c 'curl -s --max-time 2' "$sai" || true)

@@ -44,6 +44,9 @@ _ILT_RUFF_VER=0.16.9
 _ILT_RUFF_SHA=1bfbb819b5d4f9af501748862276b60e412d336034d99387691a4d4bce7a6f13
 # The zip digest for the cnf's terraform_version (CLE-77834 measured it).
 _ILT_TF_ZIP_SHA_1_9_8=186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8
+# Every download is time-bounded: a stalled mirror (under 1 KiB/s for 60 s)
+# or a transfer past 15 min is cut; a slow but moving mirror is not.
+_ILT_CURL_DL_LIMIT=(--connect-timeout 30 --max-time 900 --speed-limit 1024 --speed-time 60)
 
 _ilt_root() {
   local base="${APP_PATH:-}"
@@ -75,7 +78,7 @@ _ilt_fetch() {  # <name> <ver> <sha> <url> <member>
   if _ilt_have "$dst" "$ver"; then do_log "INFO $name $ver already installed at $dst"; return 0; fi
   [[ -n "$ver" && -n "$sha" ]] || { do_log "FATAL could not read the $name pin (v= / sha=) from its workflow"; return 1; }
   tmp="$(mktemp -d)" || return 1
-  if ! curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/dl" "$url"; then
+  if ! curl -fsSL "${_ILT_CURL_DL_LIMIT[@]}" --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/dl" "$url"; then
     do_log "FATAL $name: download failed: $url"; rm -rf "$tmp"; return 1
   fi
   if ! echo "$sha  $tmp/dl" | sha256sum -c - >/dev/null 2>&1; then
@@ -167,8 +170,8 @@ _ilt_fetch_sums() {  # <name> <ver> <asset-url> <sums-url> <asset-name> <member 
   if _ilt_have "$dst" "$ver"; then do_log "INFO $name $ver already installed at $dst"; return 0; fi
   [[ -n "$ver" ]] || { do_log "FATAL could not read the $name version from its workflow"; return 1; }
   tmp="$(mktemp -d)" || return 1
-  if ! curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/$asset" "$url" \
-     || ! curl -fsSL --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/sums" "$sums"; then
+  if ! curl -fsSL "${_ILT_CURL_DL_LIMIT[@]}" --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/$asset" "$url" \
+     || ! curl -fsSL "${_ILT_CURL_DL_LIMIT[@]}" --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -o "$tmp/sums" "$sums"; then
     do_log "FATAL $name: download failed"; rm -rf "$tmp"; return 1
   fi
   if ! (cd "$tmp" && grep -E " \*?$asset\$" sums | sed 's/ \*/  /' | sha256sum -c - >/dev/null 2>&1); then

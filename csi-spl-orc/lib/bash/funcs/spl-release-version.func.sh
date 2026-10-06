@@ -192,7 +192,7 @@ spl_claim_tag_api() {
   SPL_CLAIM_ERR=""
   do_require_bin curl || { SPL_CLAIM_ERR="curl not found"; return 1; }
   tmp="$(mktemp)"
-  code="$(curl -sS -o "$tmp" -w '%{http_code}' \
+  code="$(curl -sS --connect-timeout 10 --max-time 30 -o "$tmp" -w '%{http_code}' \
     -X POST \
     -H "Authorization: Bearer $token" \
     -H "Accept: application/vnd.github+json" \

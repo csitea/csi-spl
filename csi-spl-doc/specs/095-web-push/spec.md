@@ -1,12 +1,17 @@
 # 095 Web Push: a new message reaches my other devices
 
-Status: **v0.3, 2026-10-06.** v0.2 added
-section 13, notification priority levels (t1 `a477c187`, msg `b87a487a`,
-author c-386), and Q7 to Q10. v0.3 records those four as **DECIDED**
-(msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`, 2026-10-06) and folds them
-into section 13. Q1 to Q6 stay open. Spec only: no
-code, no key, no secret slot, no terraform, no cnf value was touched by this
-lane. Building waits for the owner's go on the open questions (section 11).
+Status: **v0.4, 2026-10-06.** v0.4 records the owner's answers to Q1 to Q6
+(t1 `a477c187`, msgs `d3d8e225-38a2-4cbe-a45a-a27ec6daf047`,
+`51f96f43-d781-4cef-92ce-53942be73a39`, `5517673c-7452-4d04-9171-63dbeacb2b3e`):
+Q1 to Q5 as proposed; Q5 in memory for this build, with a durable
+fire-and-forget outbox as a planned follow-up; Q6 **changed**: quiet hours are
+in this build (section 6.6, lane 9). **Q1 to Q10 are all decided**; the one
+choice left for the owner is which levels quiet hours silence (section 6.6,
+a proposal). The owner gave the go to build (msg `39d77db2`).
+v0.3 recorded Q7 to Q10 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`);
+v0.2 added section 13, notification priority levels (msg `b87a487a`,
+author c-386). Spec only: no code, no key, no secret slot, no terraform, no
+cnf value was touched by this lane.
 Topic: t1 `cd9b0f47-a5cb-4a5e-bc92-c3723aecba67` (a member's ask, msg
 `3e2b31ea`). Author: c-378.
 Builds on: [062 per-user Flow](../062-flow-per-user-counts/spec.md) (who an
@@ -107,7 +112,8 @@ These choices are **per member, held in the hub**, and apply to every device
 of that member: the member wants to be told on the device they are NOT using,
 so a choice made on one device has to reach the others. The existing
 per-browser chime mute (`spool.muted-channels`) stays as it is for the in-tab
-chime; Q3 asks whether the two should merge.
+chime in this build. Q3 is decided: the two merge into one "Notify" menu
+held in the hub, **later**, not in this build's lanes (section 12).
 
 ## 4. What a notification shows, and where a click lands
 
@@ -252,7 +258,8 @@ The hub cannot know which device the member is looking at, and the point of
 the ask is the device they are NOT looking at. So **every** device of a
 recipient gets the push. On a device whose Spool tab is open, the push and the
 in-tab alert share the feed's tag, so the member sees one notification, not
-two. Q2 asks whether to skip all pushes while the member has a focused tab.
+two. Q2 is decided: pushes go to every device even while the member has a
+focused Spool tab.
 
 ### 6.4 Rate limits and coalescing
 
@@ -265,9 +272,11 @@ two. Q2 asks whether to skip all pushes while the member has a focused tab.
 | `Urgency` header | by level (section 13.3): `high` for High priority and Action required, `normal` for Attention, `low` for Information, `very-low` for System |
 | `TTL` header | 24 h; an older push is not worth showing |
 
-The queue is in memory: an instance killed mid-send loses at most the pushes
-of its last seconds. Q5 asks whether that is acceptable or a durable outbox
-table is wanted.
+The queue is in memory (Q5, decided for this build): an instance killed
+mid-send loses at most the pushes of its last seconds, and the drop counter
+shows it. A durable outbox, written fire-and-forget and asynchronously so the
+send path never waits on it, is a planned follow-up after this build
+(section 12, follow-up F1); the 7-day prd watch informs when, not whether.
 
 ### 6.5 The library
 
@@ -275,6 +284,39 @@ Encryption (RFC 8291, `aes128gcm`) and VAPID signing (RFC 8292): either a
 small vetted Go module (`webpush-go`), or the stdlib (`crypto/ecdh`,
 `crypto/ecdsa`) plus `golang.org/x/crypto/hkdf`. The build lane picks one and
 states why; a new direct dependency goes through the usual pre-push scanners.
+
+### 6.6 Quiet hours (Q6)
+
+Each member sets a **quiet-hours window** in their own user settings (the
+Notifications block, section 3.1): `Quiet hours` off (default) or on, a start
+and an end time (e.g. 22:00 to 07:00, may cross midnight) and the member's
+time zone (IANA name, defaulted from the browser on first save). It is held
+**per member in the hub**, one row in `push_quiet`, so it applies to every
+device of that member:
+
+```sql
+CREATE TABLE push_quiet (
+    tenant_id   text     NOT NULL REFERENCES tenants (tenant_id) ON DELETE CASCADE,
+    member_id   text     NOT NULL,
+    enabled     boolean  NOT NULL DEFAULT false,
+    start_min   smallint NOT NULL CHECK (start_min BETWEEN 0 AND 1439),
+    end_min     smallint NOT NULL CHECK (end_min BETWEEN 0 AND 1439),
+    tz          text     NOT NULL,
+    PRIMARY KEY (tenant_id, member_id)
+);
+```
+
+Read and written via `GET` / `PUT /v1/me/push-quiet`. The **push sender skips
+a push** whose send time, in the member's `tz`, falls inside the window: one
+more "minus" step in 6.2, next to Unavailable. A skipped push is not queued
+for later (the Flow badge and the in-tab alert still count the line), and a
+counter `push_skipped_quiet` records it. The in-tab alert is not affected.
+
+**Levels it silences: a proposal for the owner, not decided.** Consistent
+with Q9 (Unavailable silences only the levels below High), quiet hours
+silence **Action required, Attention, Information and System**; **High
+priority** (a mention, a DM, a poke) still pushes. A member who wants total
+silence at night uses the OS's do-not-disturb or sets channels to Off.
 
 ## 7. The service worker
 
@@ -409,16 +451,16 @@ counters: pushes sent, 404/410 deletions, drops, p95 send delay.
 
 ## 11. Open questions for the owner
 
-Q7 to Q10 are **DECIDED** on 2026-10-06 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Q1 to Q6 stay open.
+All ten are **DECIDED**. Q1 to Q6 on 2026-10-06 (msg `d3d8e225-38a2-4cbe-a45a-a27ec6daf047`; Q5 also msgs `51f96f43-d781-4cef-92ce-53942be73a39` and `5517673c-7452-4d04-9171-63dbeacb2b3e`); Q7 to Q10 on 2026-10-06 (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Left for the owner: which levels quiet hours silence (section 6.6, a proposal).
 
 | # | question | answer |
 |---|---|---|
-| **Q1** | Default for a channel once a device is on: only mentions and replies, or every message? | **Mentions and replies**; "Every message" is one tap per channel (the member's case) |
-| **Q2** | Push every device even while the member has a Spool tab focused somewhere? | **Yes** (the ask is the other device); the shared tag prevents a double alert on the device in use |
-| **Q3** | Merge the per-browser chime mute into the new per-member channel choice? | **Yes, later**: one "Notify" menu, held in the hub, read by the in-tab alert too; not in this build |
-| **Q4** | Message text on the lock screen: on by default, a per-device switch, and an admin may force it off? | **Yes** to all three |
-| **Q5** | Is an in-memory send queue reliable enough, or a durable outbox table (survives an instance restart, one more write per line)? | **In memory first**, with a drop counter; the outbox only if the 7-day prd watch shows losses |
-| **Q6** | Quiet hours (no pushes at night in the member's time zone)? | **Later**: the OS's own do-not-disturb covers it today |
+| **Q1** | Default for a channel once a device is on: only mentions and replies, or every message? | **DECIDED.** Mentions and replies (as proposed); "Every message" is one tap per channel (the member's case). Msg `d3d8e225` |
+| **Q2** | Push every device even while the member has a Spool tab focused somewhere? | **DECIDED.** Yes (as proposed); the shared tag prevents a double alert on the device in use. Msg `d3d8e225` |
+| **Q3** | Merge the per-browser chime mute into the new per-member channel choice? | **DECIDED.** Yes, later (as proposed): one "Notify" menu, held in the hub, read by the in-tab alert too; **not in this build's lanes** (section 12, follow-up F2). Msg `d3d8e225` |
+| **Q4** | Message text on the lock screen: on by default, a per-device switch, and an admin may force it off? | **DECIDED.** Yes to all three (as proposed). Msg `d3d8e225` |
+| **Q5** | Is an in-memory send queue reliable enough, or a durable outbox table (survives an instance restart, one more write per line)? | **DECIDED.** In memory for this build, with a drop counter (the owner's own answer, msg `51f96f43`). The owner added (msg `5517673c`) that a durable outbox, written fire-and-forget and asynchronously so the send path never waits on it, is a planned follow-up regardless; the 7-day prd watch informs when to build it, not whether (section 12, follow-up F1) |
+| **Q6** | Quiet hours (no pushes at night in the member's time zone)? | **DECIDED, changed from the proposal ("Later").** In scope: each member configures quiet hours in their own user settings (section 6.6, lane 9). Msg `d3d8e225`. Which levels the window silences is a proposal for the owner (6.6: all below High) |
 | **Q7** | Are these the five levels (section 13.1), or fewer? | **DECIDED.** Five levels. A DM and a poke count as High. |
 | **Q8** | Push default per level once a device is on? | **DECIDED.** On by default: High, Action required, Attention. Off for Information (turned on per channel via "Every message") and for System (one switch). Section 13.3 (a) |
 | **Q9** | Does Unavailable (096 Q1, when the member chose to pause) silence every level, or only the levels below High? | **DECIDED.** Unavailable (spec 096) silences only the levels below High. A mention, a DM or a poke still reaches the member. |
@@ -439,13 +481,22 @@ on its own:
 | 6 | **proof** (claude) | section 10.3 on dev with real devices, then 10.4 on prd with the owner's go; help page `user-settings.md` section 6 | S |
 | 7 | **assign event** (Q10, claude) | a Flow event `assign` when an issue's assignee becomes another member (widen `flow_events.kind`, DDL first), level Action required, push on (Q8), silenced by Unavailable (Q9). Test: one `assign` at level `action` that pushes; a self-assign writes nothing (13.4) | S |
 | 8 | **system event** (Q7, claude) | a v:1 `kind: result` line in a topic the member started is System (13.2); push off until the one per-member switch (Q8); Unavailable silences it (Q9) | XS |
+| 9 | **quiet hours** (Q6, claude) | the `push_quiet` table (in lane 2's migration if it has not landed, else the next one), `GET`/`PUT /v1/me/push-quiet`, the sender's skip step and `push_skipped_quiet` counter (section 6.6), the "Quiet hours" row in the Notifications block (start, end, time zone). Tests: a push inside the window (across midnight, in a non-UTC `tz`) is skipped for the silenced levels and sent for High | S |
 
 Lane 3 starts once lane 2's DDL is on trunk; lanes 4 and 5 run against a mock
 hub from day one. The priority levels (section 13) add one `level` field to
 the recipient query, the payload and the in-tab alert: a few hours inside
 lanes 3, 4 and 5, not a new lane. Lanes 7 and 8 are in (Q10 and Q7 decided)
 and small; their push defaults and the Unavailable rule follow Q8 and Q9.
-The total stays **L**.
+Lane 9 (Q6) is in and small; its silenced levels await the owner's pick
+(6.6). The total stays **L**.
+
+Planned follow-ups, **not lanes in this build**:
+
+| # | follow-up | why |
+|---|---|---|
+| F1 | **durable push outbox** (Q5): each push written to an outbox table fire-and-forget and asynchronously, so the send path never waits on it, and replayed after an instance restart | the owner's direction (msg `5517673c-7452-4d04-9171-63dbeacb2b3e`); planned regardless; the 7-day prd watch of the drop counter informs when |
+| F2 | **one "Notify" menu** (Q3): the per-browser chime mute merges into the per-member channel choice held in the hub | Q3 decided "yes, later" (msg `d3d8e225`) |
 
 ## 13. Priority levels (v0.3)
 
@@ -550,6 +601,7 @@ Rules behind the table:
 
 | version | date | change |
 |---|---|---|
+| v0.4 | 2026-10-06 | Q1 to Q6 decided (msgs `d3d8e225`, `51f96f43`, `5517673c`). Q5 in memory for this build; durable fire-and-forget outbox is follow-up F1. Q6 changed to in scope: section 6.6, lane 9; its levels are a proposal for the owner. Q3's merge is follow-up F2. |
 | v0.3 | 2026-10-06 | Q7 to Q10 decided (msg `08477fa7-802b-4a2f-ab74-f46852a3e8be`). Section 13 is that design. Lane 7 is the assign event, with its test. |
 
-<!-- last-edit: 2026-10-06T10:25:00Z -->
+<!-- last-edit: 2026-10-06T14:20:00Z -->

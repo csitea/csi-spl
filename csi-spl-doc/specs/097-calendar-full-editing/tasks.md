@@ -127,13 +127,23 @@ No new backend tasks for mobile: all backend routes (T002..T012) are platform-ne
 REST / JSON / ICS endpoints; touch gestures, full-screen sheets, virtual keyboard adaptation,
 and responsive pickers are handled entirely within the WUI surface (T013..T019).
 
-- [ ] T013 **drag move / resize** in `wui/src/components/CalendarMainView.vue`:
+- [x] T013 **drag move / resize** (c-443, `d1693452` + i18n `f944aca3` + e2e/drag fix `3370905e`; WUI v2.4.4 on dev and prd) in `wui/src/components/CalendarMainView.vue`:
   drag, bottom-edge resize, drag on empty time to create, `If-Match` on every
   save, `edit_conflict` reload with a short notice. e2e: two tabs drag the
   same event. Phone acceptance (360 and 390 px): touch hold-to-drag (>= 250 ms)
   moves event without page scroll; bottom resize handle has >= 44x44 px touch
   hit area; drag on empty slot creates event; zero sideways scroll.
   Depends: 089 T008, T004. (G1, spec 5.1.1)
+  - **Built** (c-443): the desktop week and the Day view are a 24-hour time grid
+    (all-day items on top); the phone Week list moves between days. Pure rules in
+    `wui/src/utils/calendar-drag.mjs` (+ `tests/unit/calendar-drag.test.mjs`);
+    `calendarUpdate(api, id, patch, today, ifMatch)` sends `If-Match` (the mock
+    checks it too); `CalendarEventDialog` takes an optional `span` (HH:MM start /
+    end) for a drag-created event; i18n `calendar_event.drag_conflict`. The
+    dragged node stays mounted and a ghost shows the drop (a touch must keep its
+    target node); the non-passive touchmove guard lives on the scroller for good.
+    The hub's event has no `updated_by`, so the notice says "someone else", not
+    who. e2e `tests/e2e/calendar-drag.test.mjs` 54/54 (wf 10 green for it on `3370905e`).
 - [ ] T014 **dialog fields** in `CalendarEventDialog.vue`: reminders list (up
   to 5, each a whole-number field and a minutes / hours / days choice; a
   fraction or 0 cannot be typed), location, colour swatches (theme variables,

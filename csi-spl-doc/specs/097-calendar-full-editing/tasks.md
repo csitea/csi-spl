@@ -107,9 +107,10 @@ T005 and T010 are pure packages with no dependency and may start at once.
   Depends: T007. (FR-006)
 
 ### Phase 5: Find, add, export (parallel)
-- [ ] T009 **search** `GET /v1/calendar/search` (spec 4.7) + tests (private,
-  demo, deleted filters; cursor; AC-08). Depends: T004; a series matches once
-  after T006. (FR-009)
+- [x] T009 **search** `GET /v1/calendar/search` (spec 4.7) + tests (private,
+  demo, deleted filters; cursor; AC-08) (c-442, `a905f380e`; hub v2.3.9 on dev
+  and prd). Depends: T004; a series matches once after T006: T006's follow-up
+  in `store/calendar_search.go`. (FR-009)
 - [ ] T010 **quick add** `api/internal/calquick/` (pure parser, the 4.6
   grammar, table tests incl. AC-09) and the route
   `POST /v1/calendar/events/quick` with `dry_run`. Parser: no dependency; the

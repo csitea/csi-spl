@@ -41,7 +41,10 @@ do_gcp_list_monitoring() {
 
     do_gcp_log_identity "${project}" "${account}" "${FUNCNAME[0]}"
     cfg="$(umask 077 && mktemp -d)" || return 1
+    # the subshell's EXIT trap removes the config on every exit, an interrupt
+    # too (a RETURN trap does not run when bash dies of SIGINT)
     (
+      trap 'rm -rf "${cfg}"' EXIT
       export CLOUDSDK_CONFIG="${cfg}" CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="${key}"
       set -o pipefail
       echo "== ${env} uptime checks"
@@ -54,7 +57,6 @@ do_gcp_list_monitoring() {
       gcloud beta monitoring channels list --project="${project}" --account="${account}" \
         --format='table(displayName:label=NAME,type:label=TYPE,enabled:label=ENABLED,verificationStatus:label=VERIFICATION)' || exit 1
     ) || { do_log "ERROR listing the monitoring of ${project} as ${account} failed"; rc=1; }
-    rm -rf "${cfg}"
     n_seen=$((n_seen + 1))
   done
 

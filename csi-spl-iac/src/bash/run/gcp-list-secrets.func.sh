@@ -38,13 +38,15 @@ do_gcp_list_secrets() {
 
     do_gcp_log_identity "${project}" "${account}" "${FUNCNAME[0]}"
     cfg="$(umask 077 && mktemp -d)" || return 1
+    # the subshell's EXIT trap removes the config on every exit, an interrupt
+    # too (a RETURN trap does not run when bash dies of SIGINT)
     (
+      trap 'rm -rf "${cfg}"' EXIT
       export CLOUDSDK_CONFIG="${cfg}" CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="${key}"
       gcloud secrets list --project="${project}" --account="${account}" \
         ${FILTER:+--filter="${FILTER}"} \
         --format='table(name.basename():label=NAME,createTime.date(tz=UTC):label=CREATED,replication.automatic.yesno(yes=automatic,no=user-managed):label=REPLICATION,labels.list():label=LABELS)'
     ) || { do_log "ERROR listing the secrets of ${project} as ${account} failed"; rc=1; }
-    rm -rf "${cfg}"
     n_seen=$((n_seen + 1))
   done
 

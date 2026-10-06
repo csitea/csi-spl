@@ -48,7 +48,7 @@ run_seed() {  # [VAR=value ...] -> stdout+stderr of the action; gcloud argv in $
       echo "$*" >>"$ARGV"
       echo "${CLOUDSDK_CONFIG:-<unset>}" >>"$CFGS"
       case "$*" in
-        "auth activate-service-account"*) return 0 ;;
+        "auth activate-service-account"*) [[ -z "${GC_INTERRUPT:-}" ]] || kill -INT 0; return 0 ;;
         "auth list"*) echo "csi-spl-dev-sa@csi-spl-dev.iam.gserviceaccount.com" ;;
         "secrets versions access latest --secret="*)
           local s="${5#--secret=}"; [[ -f "$STORE/$s" ]] || return 1; cat "$STORE/$s" ;;
@@ -73,6 +73,17 @@ if grep -qF "$SECRET" "$T/argv"; then fail "the value appears in gcloud argv"; e
   && pass "every secrets call carries --account=<the project SA>" || fail "unpinned secrets call"
 if grep -qxE '<unset>|.*/\.config/gcloud' "$T/cfgs"; then fail "a gcloud call ran on the shared/ambient config"; else pass "every gcloud call ran in a throwaway CLOUDSDK_CONFIG"; fi
 [[ ! -e "$(head -1 "$T/cfgs")" ]] && pass "the throwaway config is removed afterwards" || fail "throwaway config left behind"
+
+# CTRL_C <cmd...>: a Ctrl-C. It runs <cmd> in its own process group with SIGINT
+# at its default (a runner may start tests with it ignored), so the stub's
+# `kill -INT 0` reaches the whole action and nothing else.
+CTRL_C=(python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])')
+mkdir -p "$T/tmp"; before=$(ls -A "$T/tmp"); : >"$T/cfgs"
+run_seed DRY_RUN=0 GC_INTERRUPT=1 TMPDIR="$T/tmp" "${CTRL_C[@]}" >/dev/null; rc=$?
+after=$(ls -A "$T/tmp")
+[[ $rc -ne 0 && -s "$T/cfgs" && -z "$before" && -z "$after" ]] \
+  && pass "Ctrl-C at activate: the throwaway config is removed (temp root empty before and after)" \
+  || fail "Ctrl-C: rc=$rc temp root before='$before' after='$after'"
 
 n=$(adds)
 out=$(run_seed DRY_RUN=0)

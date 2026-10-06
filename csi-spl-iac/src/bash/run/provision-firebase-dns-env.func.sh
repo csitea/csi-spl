@@ -38,8 +38,15 @@ PY
   local key="${HOME}/.gcp/.${ORG:-csi}/key-${proj}.json"
   [[ -f "${key}" ]] || quit_on "SA key not found: ${key}"
 
-  local cfg sa
+  # the config holds the activated SA credential. A RETURN trap alone misses an
+  # exit and an interrupt, so an EXIT trap removes it too until this function
+  # returns; the RETURN trap then puts the caller's EXIT trap back.
+  local cfg sa caller_exit_trap
   cfg=$(mktemp -d)
+  caller_exit_trap=$(trap -p EXIT)
+  # shellcheck disable=SC2064
+  trap "rm -rf '${cfg:?}'" EXIT
+  trap 'rm -rf "${cfg}"; eval "${caller_exit_trap:-trap - EXIT}"; trap - RETURN' RETURN
   sa=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["client_email"])' "${key}")
   CLOUDSDK_CONFIG="${cfg}" gcloud auth activate-service-account --key-file="${key}" >/dev/null 2>&1 \
     || { rm -rf "${cfg}"; quit_on "could not activate ${sa} from ${key}"; }
@@ -48,6 +55,5 @@ PY
   CLOUDSDK_CONFIG="${cfg}" ACCOUNT="${sa}" DNS_ZONE="${zone}" DNS_ZONE_PROJECT="${proj}" \
     FIREBASE_PROJECT="${proj}" SITE_ID="${site}" \
     do_provision_firebase_dns || rc=$?
-  rm -rf "${cfg}"
   return "${rc}"
 }

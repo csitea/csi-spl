@@ -35,6 +35,48 @@ fi
 grep -q 'do_provision_firebase_dns || rc' "$PROJ_ROOT/src/bash/run/provision-firebase-dns-env.func.sh" \
   && grep -q 'activate-service-account --key-file' "$PROJ_ROOT/src/bash/run/provision-firebase-dns-env.func.sh" \
   && pass "do_provision_firebase_dns_env runs csi-rel's action as the env SA" || fail "provision-firebase-dns-env wrapper"
+# its throwaway CLOUDSDK_CONFIG holds the activated SA credential: gone after a
+# clean run, after csi-rel's action exits (its quit_on) and after a Ctrl-C, and
+# the caller's own EXIT trap is back once the wrapper returns
+
+# CTRL_C <cmd...>: a Ctrl-C. It runs <cmd> in its own process group with SIGINT
+# at its default (a runner may start tests with it ignored), so the stub's
+# `kill -INT 0` reaches the whole action and nothing else.
+CTRL_C=(python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])')
+DNS_T=$(mktemp -d)
+# shellcheck disable=SC2064
+trap "rm -rf '${DNS_T:?}'" EXIT
+mkdir -p "$DNS_T/app/csi-spl-cnf/csi-spl" "$DNS_T/home/.gcp/.csi" "$DNS_T/tmp"
+echo '{"env":{"gcp":{"gcp_project":"csi-spl-dev"},"steps":{"025-gcp-dns-zone":{"zone_name":"z"},"019-firebase-static-site":{"site_id":"s"}}}}' \
+  >"$DNS_T/app/csi-spl-cnf/csi-spl/dev.env.json"
+echo '{"client_email":"sa@csi-spl-dev.iam.gserviceaccount.com"}' >"$DNS_T/home/.gcp/.csi/key-csi-spl-dev.json"
+run_dns_env() {  # <ok|exit|ctrl-c> [cmd prefix...] -> rc; stdout+stderr in $DNS_T/out
+  local mode="$1"; shift
+  env ORG=csi HOME="$DNS_T/home" APP_PATH="$DNS_T/app" TMPDIR="$DNS_T/tmp" ENV=dev MODE="$mode" ACTION="$PROJ_ROOT/src/bash/run/provision-firebase-dns-env.func.sh" \
+    "$@" bash -c '
+    do_require_var() { [[ -n "$2" ]] || exit 1; }
+    quit_on() { rv=$?; [[ $rv -eq 0 ]] || { echo "FATAL $1"; exit $rv; }; }
+    gcloud() { return 0; }
+    source "$ACTION"
+    do_provision_firebase_dns() {
+      [[ -d "$CLOUDSDK_CONFIG" ]] && echo "ran in a config"
+      case "$MODE" in exit) exit 7 ;; ctrl-c) kill -INT 0 ;; esac
+    }
+    trap "echo caller-exit-trap" EXIT
+    do_provision_firebase_dns_env' >"$DNS_T/out" 2>&1
+}
+for mode in ok exit ctrl-c; do
+  if [[ $mode == ctrl-c ]]; then run_dns_env "$mode" "${CTRL_C[@]}"; else run_dns_env "$mode"; fi
+  rc=$?; left=$(ls -A "$DNS_T/tmp")
+  if [[ $mode == ok ]]; then rc_ok=$(( rc == 0 )); else rc_ok=$(( rc != 0 )); fi
+  if [[ -z "$left" && $rc_ok -eq 1 ]] && grep -q "ran in a config" "$DNS_T/out"; then
+    pass "provision-firebase-dns-env ($mode): the throwaway config is removed"
+  else
+    fail "provision-firebase-dns-env ($mode): rc=$rc left='$left' out=$(cat "$DNS_T/out")"
+  fi
+done
+run_dns_env ok
+grep -qx "caller-exit-trap" "$DNS_T/out" && pass "provision-firebase-dns-env puts the caller's EXIT trap back" || fail "the caller's EXIT trap is lost: $(cat "$DNS_T/out")"
 
 # a deleted Firebase site id can never be reused: the site must refuse a destroy
 awk '/resource "google_firebase_hosting_site" "default"/,/^}/' "$TFD/019-firebase-static-site/03-firebase-site.tf" | grep 'prevent_destroy = true' >/dev/null \

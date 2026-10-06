@@ -9,6 +9,7 @@
 #   3. spl_db_period_count_equal: true -> 0; false, garbage or empty -> non-zero
 #      (CONTROL: a mismatch is never read as equal)
 #   4. with no key readable, the action stops before gcloud
+#   5. a Ctrl-C while gcloud runs still removes the throwaway CLOUDSDK_CONFIG
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -51,6 +52,21 @@ done
 out=$(SNIPPET=do_spl_db_period_count_check in_orc TENANT_ID=t1 SPL_SA_KEY="$T/none.json" 2>&1); rc=$?
 [[ $rc -ne 0 ]] && grep -q "no service-account key" <<<"$out" && [[ ! -s "$T/calls.log" ]] && pass "no key: refused, no gcloud call" \
   || fail "no key: rc=$rc calls=$(cat "$T/calls.log") out=$out"
+
+# --- 5. Ctrl-C mid gcloud ------------------------------------------------------------
+# CTRL_C <cmd...>: a Ctrl-C. It runs <cmd> in its own process group with SIGINT
+# at its default (a runner may start tests with it ignored), so the stub's
+# `kill -INT 0` reaches the whole action and nothing else.
+CTRL_C=(python3 -c 'import os,signal,sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])')
+mkdir -p "$T/istub" "$T/tmp"
+printf '#!/bin/sh\necho "gcloud $*" >>"$STUB_LOG"\nkill -INT 0\n' >"$T/istub/gcloud"; chmod +x "$T/istub/gcloud"
+: >"$T/calls.log"; before=$(ls -A "$T/tmp")
+SNIPPET=do_spl_db_period_count_check in_orc TENANT_ID=t1 SPL_SA_KEY="$T/key.json" PATH="$T/istub:$T/stub:$PATH" \
+  TMPDIR="$T/tmp" "${CTRL_C[@]}" >"$T/o" 2>&1; rc=$?
+after=$(ls -A "$T/tmp")
+[[ $rc -ne 0 && -s "$T/calls.log" && -z "$before" && -z "$after" ]] \
+  && pass "Ctrl-C mid gcloud: the throwaway config is removed (temp root empty before and after)" \
+  || fail "Ctrl-C: rc=$rc calls=$(cat "$T/calls.log") temp root before='$before' after='$after' out=$(cat "$T/o")"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all period-count-check.tst.sh assertions"

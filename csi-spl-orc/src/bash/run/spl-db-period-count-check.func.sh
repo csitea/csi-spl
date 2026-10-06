@@ -38,7 +38,10 @@ do_spl_db_period_count_check() {
   [[ -r "$key" ]] || { do_log "FATAL no service-account key for $SPL_PROJECT at $key (set SPL_SA_KEY)"; return 1; }
   local cfg rc=0
   cfg="$(mktemp -d)" || return 1
+  # the config holds the activated SA credential: the subshell's EXIT trap
+  # removes it on every exit, an interrupt too (a RETURN trap would not run)
   (
+    trap 'rm -rf "$cfg"' EXIT
     export CLOUDSDK_CONFIG="$cfg"
     gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
@@ -48,7 +51,6 @@ do_spl_db_period_count_check() {
     _spl_db_period_count_query
     exit $?
   ) || rc=$?
-  rm -rf "$cfg"
   return $rc
 }
 

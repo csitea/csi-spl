@@ -76,6 +76,7 @@ PY
   local cfg rc=0
   cfg="$(mktemp -d)" || return 1
   (
+    trap 'rm -rf "$cfg"' EXIT
     export CLOUDSDK_CONFIG="$cfg"
     gcloud auth activate-service-account --key-file="$key" >/dev/null 2>&1 ||
       { do_log "FATAL cannot activate the $SPL_PROJECT key $key"; exit 1; }
@@ -103,6 +104,5 @@ PY
       { do_log "FATAL $slot latest version does not match $(basename "$f") after the add"; exit 1; }
     do_log "OK $slot: version added and verified by sha256 in $SPL_PROJECT (value not logged). Next: list $idp in SPOOL_HUB_AUTH_PROVIDERS for $ENV."
   ) || rc=$?
-  rm -rf "$cfg"
   return $rc
 }

@@ -25,6 +25,7 @@ const LAZY_METHODS = [
   'lookupIds',
   'previewLinks',
   'setChannelOrder',
+  'putMyStatus',
   'removeMember',
   'listTenantUsers',
   'inviteTenantUser',

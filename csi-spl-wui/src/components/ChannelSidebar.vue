@@ -163,9 +163,9 @@
       <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
       <!-- CLE-77862 (HUM-24): this dot is the READER's status, and says so;
            a DM's peer status is in the DM header, beside the peer's name. -->
-      <span
-        class="dot"
-        :class="{ on: roster.self.online }"
+      <StatusDot
+        :id="roster.self.id"
+        :online="roster.self.online"
         role="img"
         data-test="self-status-dot"
         :title="selfStatus"
@@ -176,6 +176,15 @@
            lands on the wrong side of an RTL label (he), because the bidi
            algorithm resolves neutral punctuation from its surroundings. -->
       <span class="muted self-row__you">{{ t('sidebar.you') }}</span>
+      <!-- spec 096 §7.5: the reader's own manual status, set from here -->
+      <button
+        type="button"
+        class="self-row__status"
+        data-testid="status-open"
+        :aria-label="selfManual ? t('status.change', { status: selfManual.full }) : t('status.set')"
+        :title="selfManual ? selfManual.full : t('status.set')"
+        @click="statusPicker.show()"
+      ><UiIcon name="smile" :size="16" /></button>
     </div>
     <div
       v-for="(p, peerIndex) in peers"
@@ -196,7 +205,7 @@
       :to="localePath('/dm/' + encodeURIComponent(p.label))"
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
-      <span class="dot" :class="{ on: p.online }" />
+      <StatusDot :id="p.id" :online="p.online" />
       <HumanName class="label" :id="p.id" :box="p.box" stacked />
       <!-- 080 FR-005: a draft waits here; it shares the badge slot with the 079 unread -->
       <span v-if="hasDraft('dm:' + p.label)" class="draft-mark" data-testid="draft-mark" :title="t('composer.draft_mark')" :aria-label="t('composer.draft_mark')" role="img"><UiIcon name="pencil" :size="12" /></span>
@@ -560,8 +569,12 @@
               :to="localePath('/people/' + encodeURIComponent(p.id))"
             >
               <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
-              <span class="dot" :class="{ on: p.online }" />
-              <HumanName class="label" :id="p.id" :box="p.box" />
+              <StatusDot :id="p.id" :online="p.online" />
+              <span class="people-row__who">
+                <HumanName class="label" :id="p.id" :box="p.box" />
+                <!-- spec 096 §5: the status note under the name, one line -->
+                <span v-if="humanStatus.statusLabel(p.id, t)" class="muted people-row__status" data-testid="people-status">{{ humanStatus.statusLabel(p.id, t)?.full }}</span>
+              </span>
               <span v-if="p.self" class="muted people-row__tag">{{ t('sidebar.you') }}</span>
               <span v-else-if="p.owner" class="muted people-row__tag">{{ t('people.owner') }}</span>
             </NuxtLink>
@@ -751,6 +764,8 @@ import { useMentionPicker } from '~/composables/useMentionPicker'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
+import { useHumanStatusStore } from '~/stores/human-status'
+import { useStatusPicker } from '~/composables/useStatusPicker'
 import { useViewerStore } from '~/stores/viewer'
 import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
@@ -938,7 +953,14 @@ const notes = useNotificationStore()
 const live = useLive()
 const { t, te } = useI18n({ useScope: 'global' })
 /* CLE-77862: the tooltip / accessible name of the reader's own status dot */
-const selfStatus = computed(() => t(roster.self?.online ? 'sidebar.your_status_online' : 'sidebar.your_status_offline'))
+/* spec 096: the reader's manual status rides the same words, after presence */
+const statusPicker = useStatusPicker()
+const humanStatus = useHumanStatusStore()
+const selfManual = computed(() => humanStatus.statusLabel(roster.self?.id || '', t))
+const selfStatus = computed(() => {
+  const presence = t(roster.self?.online ? 'sidebar.your_status_online' : 'sidebar.your_status_offline')
+  return selfManual.value ? `${presence} · ${selfManual.value.full}` : presence
+})
 /* SPL-976: the description's submit key creates the channel, as the button does */
 const { onKeydown: onSubmitKey } = useSubmitKey()
 const localePath = useLocalePath()
@@ -1776,6 +1798,26 @@ async function onCreate() {
 /* shrinks last, after the id: which row is yours matters more than the tail
    of a long label, and the 72px rail hides both (main.css max-width 800) */
 .self-row__you { font-size: 12px; flex-shrink: 0; }
+/* spec 096: the "Set a status" button at the end of the reader's own row */
+.self-row__status {
+  margin-inline-start: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.self-row__status:hover { color: var(--color-fg); background: var(--color-surface); }
+/* spec 096 §5: name over the status note; the note is one truncated line */
+.people-row__who { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.people-row__status { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the heading row: title on the left, the one + on the right */
 .sidebar-head {
   display: flex;

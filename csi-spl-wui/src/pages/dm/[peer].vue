@@ -4,7 +4,8 @@
       :title="peerName"
       :title-tip="peer"
       :status="presence.status"
-      :status-text="t(presence.key, presence.params)"
+      :status-text="headerStatus"
+      :ring="peerManual?.ring || ''"
       status-shown
       :archived-at="openArchive.at"
       :topic-title="openArchive.title"
@@ -19,6 +20,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
+import { useHumanStatusStore } from '~/stores/human-status'
 import { useTopicStore } from '~/stores/topic'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolEvents } from '~/composables/useSpoolEvents'
@@ -71,6 +73,11 @@ const presence = computed(() => {
     || (box && box !== BROWSER_BOX ? roster.boxes[box]?.last_hello_at : '')
   return dmPresence({ online: online.value, lastSeen: lastSeen || '' })
 })
+
+/* spec 096 §5: a peer's manual status replaces the presence words ("online",
+   "last seen ...") in the header; the dot's fill still says presence */
+const peerManual = computed(() => useHumanStatusStore().statusLabel(peer.value, t))
+const headerStatus = computed(() => peerManual.value?.full || t(presence.value.key, presence.value.params))
 
 /* Spec 061 3.6 (lane L10): when this agent id@box was seated by its current
    holder. A reused id's DM draws "new holder since" there; '' = none. */

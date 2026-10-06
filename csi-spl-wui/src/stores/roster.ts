@@ -4,6 +4,7 @@ import { useLive } from '~/composables/useLive'
 import { applyPresence, mergeSnapshotOnline, peopleRows, withSessionRetry } from '~/utils/live-follow.mjs'
 import { BROWSER_BOX } from '~/utils/view-api.mjs'
 
+
 export const useRosterStore = defineStore('roster', () => {
   const api = useSpoolApi()
   const live = useLive()
@@ -61,7 +62,7 @@ export const useRosterStore = defineStore('roster', () => {
       const byId: Record<string, HumanDetail> = {}
       for (const h of data.humans) {
         const id = String(h?.human_id || '')
-        if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || '') }
+        if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || ''), status: h.status }
       }
       humansDetail.value = byId
     }
@@ -103,6 +104,24 @@ export interface HumanDetail {
   interests: string
   /** tenant_memberships.last_active_at (RFC3339), "" when never. */
   last_seen: string
+  /** spec 096: the manual status as the hub sent it (stores/human-status.ts reads it) */
+  status?: unknown
+}
+
+/** Spec 096: a member's manual status; `until` '' = no end (RFC3339 UTC otherwise). */
+export interface HumanStatus {
+  state: 'busy' | 'unavailable'
+  /** up to 80 characters, '' when none */
+  note: string
+  until: string
+}
+
+/** Spec 096: a status in words, for a dot's label and the text beside a name. */
+export interface StatusLabel {
+  short: string
+  full: string
+  note: string
+  ring: 'busy' | 'unavailable'
 }
 
 /** view-v1 §4.1 boxes[] detail the Agents card reads (CLE-77794). */

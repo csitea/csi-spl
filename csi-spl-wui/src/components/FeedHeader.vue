@@ -18,8 +18,9 @@
     <span
       v-if="status"
       class="dot"
-      :class="{ on: status === 'on' }"
+      :class="[{ on: status === 'on' }, ring ? 'dot--' + ring : '']"
       :title="statusText"
+      :data-status="ring || undefined"
       data-test="feed-header-status"
     />
     <div class="feed-header__who" :class="{ 'feed-header__who--status': statusText && statusShown }">
@@ -49,6 +50,8 @@ defineProps<{
       boolean: Vue casts an absent boolean prop to false) */
   status?: 'on' | 'off'
   statusText?: string
+  /** spec 096: a DM peer's manual status - the ring around the dot */
+  ring?: '' | 'busy' | 'unavailable'
   /** print statusText beside the title (DM: the peer's presence); omitted =
       the words stay in the dot's tooltip and for screen readers (lobby) */
   statusShown?: boolean

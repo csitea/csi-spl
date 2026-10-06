@@ -88,7 +88,7 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue'])
     /* the one place that renders it: a second mount without the gate would leave it keyless */
     const tags = (dir, out = []) => {
       for (const n of readdirSync(dir, { withFileTypes: true })) {

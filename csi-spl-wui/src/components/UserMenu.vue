@@ -107,6 +107,21 @@
               <span>{{ t('user_menu.settings') }}</span>
             </NuxtLink>
           </li>
+          <!-- spec 096 §7.5: Set a status (Busy / Unavailable) -->
+          <li role="none">
+            <button
+              ref="itemStatus"
+              role="menuitem"
+              tabindex="-1"
+              type="button"
+              class="user-menu__item"
+              data-test="user-menu-status"
+              @click="openStatus"
+            >
+              <UiIcon name="smile" :size="18" />
+              <span>{{ t('status.set') }}</span>
+            </button>
+          </li>
           <!-- SPL-1037 (specs/046): Tenant settings for admins and biz_owners;
                on desktop the same entry is the sidebar's bottom-left icon -->
           <li v-if="tenantSettingsShown" role="none">
@@ -189,6 +204,7 @@
 </template>
 
 <script setup lang="ts">
+import { useStatusPicker } from '~/composables/useStatusPicker'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 /* SPL-990: only a phone's sheet mounts these two; async keeps them out of
    the first paint */
@@ -254,10 +270,11 @@ const item0 = ref<{ $el: HTMLElement } | null>(null)
 const item1 = ref<HTMLButtonElement | null>(null)
 const itemTenant = ref<{ $el: HTMLElement } | null>(null)
 const itemActAs = ref<HTMLButtonElement | null>(null)
+const itemStatus = ref<HTMLButtonElement | null>(null)
 const itemActAsStop = ref<HTMLButtonElement | null>(null)
 
 function items(): HTMLElement[] {
-  return [item0.value?.$el, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
+  return [item0.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
@@ -352,6 +369,12 @@ async function signOut() {
 async function stopActing() {
   close(false)
   await session.stopActingAs()
+}
+
+const statusPicker = useStatusPicker()
+function openStatus() {
+  close(false)
+  statusPicker.show()
 }
 
 function openActAs() {

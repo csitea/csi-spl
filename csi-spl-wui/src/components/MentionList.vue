@@ -32,11 +32,13 @@
         @mousedown.prevent="picker.pick(p)"
       >
         <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
-        <span class="dot" :class="{ on: p.online }" />
+        <StatusDot :id="p.id" :online="Boolean(p.online)" />
         <HumanName class="mention-label" :id="p.id" :box="p.box" />
         <!-- SPL-1009: two members chose one name - the id tells them apart -->
         <span v-if="p.sameName" class="muted mention-id" data-id-suffix data-testid="mention-id-suffix">{{ p.id }}</span>
         <span v-if="p.owner" class="muted" data-testid="mention-owner">{{ t('composer.biz_owner') }}</span>
+        <!-- spec 096 §5: the member's status in grey after the name -->
+        <span v-if="status.statusLabel(p.id, t)" class="muted mention-status" data-testid="mention-status">{{ status.statusLabel(p.id, t)?.full }}</span>
       </button>
     </li>
   </ul>
@@ -44,10 +46,12 @@
 
 <script setup lang="ts">
 import HumanName from '~/components/HumanName.vue'
+import { useHumanStatusStore } from '~/stores/human-status'
 import type { MentionPicker } from '~/composables/useMentionPicker'
 
 const props = defineProps<{ picker: MentionPicker, placement?: 'below' | 'above' | 'inline' }>()
 const { t } = useI18n({ useScope: 'global' })
+const status = useHumanStatusStore()
 /* SPL-994: on a phone the @ list is a sheet, the top level while open - Back closes it first */
 /* SPL-1005: the dock's own picker - the dock stays on screen under it */
 useMobileStack().overlay(() => props.picker.open, () => props.picker.close(), { keepsDock: true })
@@ -137,6 +141,14 @@ function setList(el: unknown) {
 }
 .mention-id {
   flex: none;
+  font-size: 0.75rem;
+}
+/* spec 096: the status gives way (ellipsis) before the name does */
+.mention-status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
 }
 </style>

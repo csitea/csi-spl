@@ -23,6 +23,9 @@ export const FIRST_SCREEN_PAGES = {
 export const ON_DEMAND_COMPONENTS = {
   // app.vue mounts it once ?settings=<section> is in the address.
   "components/SettingsDialog.vue": "settings",
+  // spec 096: both render once the second catalogue is merged (te() of their keys)
+  "components/StatusPicker.vue": "idle",
+  "components/ComposerStatusLine.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

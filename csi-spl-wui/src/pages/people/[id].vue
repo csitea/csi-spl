@@ -18,9 +18,11 @@
           <div class="person-card__heroText">
             <p class="person-card__name"><HumanName :id="humanId" box="box-wui" /></p>
             <p class="person-card__status" data-test="person-status">
-              <span class="status-dot" :class="{ on: online }" aria-hidden="true" />
+              <span class="status-dot" :class="[{ on: online }, manual ? 'dot--' + manual.ring : '']" aria-hidden="true" />
               {{ online ? t('people.online') : t('people.offline') }}
             </p>
+            <!-- spec 096 §5: the full manual status - state, until, note -->
+            <p v-if="manual" class="person-card__manual" data-testid="person-manual-status">{{ manual.full }}</p>
           </div>
         </div>
         <dl class="person-card__facts">
@@ -73,6 +75,7 @@
 import UiDialog from '~/components/UiDialog.vue'
 import PersonActivityDialog from '~/components/PersonActivityDialog.vue'
 import { useRosterStore } from '~/stores/roster'
+import { useHumanStatusStore } from '~/stores/human-status'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useHumanNames } from '~/composables/useHumanNames'
@@ -93,6 +96,7 @@ const detail = computed(() => roster.humansDetail[humanId.value] || { owner: fal
 const isOwner = computed(() => detail.value.owner || roster.owners.includes(humanId.value))
 const interests = computed(() => String(detail.value.interests || '').trim())
 const online = computed(() => roster.isOnline(humanId.value, 'box-wui'))
+const manual = computed(() => useHumanStatusStore().statusLabel(humanId.value, t))
 const isSelf = computed(() => roster.self?.id === humanId.value)
 const lastSeen = computed(() => (detail.value.last_seen ? isoDateTime(detail.value.last_seen) : t('people.never_seen')))
 const personName = computed(() => names.label(humanId.value, 'box-wui') || humanId.value)
@@ -154,6 +158,9 @@ async function removeMember() {
 .person-card__status { margin: 4px 0 0; display: flex; align-items: center; gap: 6px; color: var(--color-muted); font-size: 0.85rem; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); flex-shrink: 0; }
 .status-dot.on { background: var(--color-ok); }
+.status-dot.dot--busy { box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 3px var(--color-warn); }
+.status-dot.dot--unavailable { box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 3px var(--color-danger); }
+.person-card__manual { margin: 4px 0 0; font-size: 0.85rem; overflow-wrap: anywhere; }
 .person-card__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; }
 .person-card__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .person-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }

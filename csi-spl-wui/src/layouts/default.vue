@@ -129,6 +129,8 @@
     </ClientOnly>
     <!-- 081 T004: Ctrl + K, the command palette; its chunk loads on the first open -->
     <ClientOnly><LazyCommandPalette v-if="globalKeys.paletteOpen.value" /></ClientOnly>
+    <!-- spec 096: "Set a status"; its chunk loads on the first open -->
+    <ClientOnly><LazyStatusPicker v-if="statusPicker.open.value" /></ClientOnly>
     <!-- CLE-77840: "Deleted · Undo" after Delete on a reply; eager like the archive one -->
     <ClientOnly>
       <DeleteUndoToast v-if="deleteUndo.toast.value" />
@@ -155,6 +157,7 @@
 </template>
 
 <script setup lang="ts">
+import { useStatusPicker } from '~/composables/useStatusPicker'
 import { usePaneFocus } from '~/stores/pane-focus'
 /* which pane the reader selected last decides where the Omnibox line goes */
 const paneFocus = usePaneFocus()
@@ -249,6 +252,8 @@ const deleteUndo = useDeleteUndo()
 const shortcutsHelp = useMsgShortcutsHelp()
 /* 081 T004: the always-on keys (Ctrl + K) */
 const globalKeys = useGlobalKeys()
+/* spec 096: the status picker's open state (self row + avatar menu) */
+const statusPicker = useStatusPicker()
 const mentionDirect = useMentionDirectNote()
 const openNotice = useOpenMessageNotice()
 let offDeleted = () => {}

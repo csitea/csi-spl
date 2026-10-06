@@ -448,7 +448,10 @@ export function createLiveClient({
           if (woke) Promise.resolve(caught).then(timedReconnect, timedReconnect)
         }
         return
+      /* spec 096 §7.4: a member's manual status, its own frame type (a tab that
+         predates it ignores it); it rides the presence listener (the roster's) */
       case FRAMES.presence:
+      case 'status':
         onPresence(f)
         return
       case FRAMES.channel:

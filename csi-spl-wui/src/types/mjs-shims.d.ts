@@ -88,6 +88,8 @@ declare module '~/utils/spool-client.mjs' {
     me(): Promise<Record<string, unknown> | null>
     mockChannelOrder(): string[] | null
     setChannelOrder(ids: string[]): Promise<{ channel_order: string[] | null }>
+    /** spec 096 §7.3: PUT /v1/me/status (a body) or DELETE it (null); mock: localStorage spool.mock.human-status. */
+    putMyStatus(body: Record<string, unknown> | null, opts?: { allWorkspaces?: boolean }): Promise<unknown>
     removeMember(humanId: string): Promise<null>
     listTenantUsers(): Promise<unknown>
     inviteTenantUser(opts: { email: string, role?: string, locale?: string, noMail?: boolean }): Promise<{ email?: string, role?: string, mail?: string } | null>
@@ -2173,6 +2175,40 @@ declare module '~/utils/row-keys.mjs' {
     msg: Partial<SpoolMessage> | null | undefined,
     opts?: { topicDelete?: boolean, editable?: boolean },
   ): '' | 'confirm-topic' | 'confirm-message' | 'delete-undo'
+}
+
+declare module '~/utils/human-status.mjs' {
+  export interface HumanStatusValue { state: 'busy' | 'unavailable', note: string, until: string }
+  export const STATUS_NOTE_MAX: number
+  export function cleanStatusNote(note: unknown): string
+  export function normalizeHumanStatus(raw: unknown): HumanStatusValue | null
+  export function liveStatus<T extends { until?: string } | null>(st: T, now?: number): T | null
+  export function statusMapFromHumans(humans: unknown, now?: number): Record<string, HumanStatusValue>
+  export function applyStatusFrame<M extends Record<string, HumanStatusValue>>(map: M, frame: unknown): M
+  export function pruneExpired<M extends Record<string, HumanStatusValue>>(map: M, now?: number): M
+  export function msToNextExpiry(map: Record<string, { until?: string }>, now?: number): number | null
+  export function statusRing(st: { state?: string } | null | undefined): '' | 'busy' | 'unavailable'
+  export function statusUntilLabel(until: unknown, now?: number): string
+  export function statusWords(st: HumanStatusValue | null | undefined, now?: number): { key: string, params: Record<string, string>, note: string } | null
+  export function statusLabel(st: HumanStatusValue | null | undefined, t: (key: string, params?: Record<string, string>) => string, now?: number): { short: string, full: string, note: string, ring: 'busy' | 'unavailable' } | null
+  export const STATUS_RECHECK_MS: number
+  export function statusController(map: { value: Record<string, HumanStatusValue> }, timers?: { set: (fn: () => void, ms: number) => unknown, clear: (id: unknown) => void }): {
+    apply(frame: unknown): void
+    fill(humans: readonly object[], mock?: boolean): void
+    of(id: string): HumanStatusValue | null
+    label(id: string, t: (key: string, params?: Record<string, string>) => string): ReturnType<typeof statusLabel>
+  }
+  export const STATUS_STATES: readonly string[]
+  export const STATUS_UNTIL_MAX_DAYS: number
+  export const STATUS_UNTIL_CHOICES: readonly string[]
+  export function wallInstant(base: unknown, addDays: number, h: number, mi: number): Date | null
+  export function parseWallDateTime(value: unknown): Date | null
+  export function defaultUntilChoice(state: string): string
+  export function untilFromChoice(choice: string, now?: number, custom?: string): string | null
+  export function untilProblem(until: string | null, now?: number): string
+  export function statusBody(p: { state: string, note?: string, until?: string, allWorkspaces?: boolean, pauseNotify?: boolean }): Record<string, unknown> | null
+  export function composerStatusTargets(p: { dmPeer?: string, mentionIds?: string[], selfId?: string, statusOf: (id: string) => HumanStatusValue | null }): Array<{ id: string, status: HumanStatusValue }>
+  export function draftMentionIds(text: string, people: Array<{ id: string, name?: string }>): string[]
 }
 
 declare module '~/utils/dm-presence.mjs' {

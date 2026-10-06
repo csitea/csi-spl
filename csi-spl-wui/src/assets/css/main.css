@@ -261,6 +261,9 @@ html.pane-dragging * {
   flex-shrink: 0;
 }
 .dot.on { background: var(--color-ok); }
+/* spec 096 §4: the manual status is a ring around the presence dot */
+.dot.dot--busy { box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 3px var(--color-warn); }
+.dot.dot--unavailable { box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 3px var(--color-danger); }
 
 .feed-header {
   display: flex;

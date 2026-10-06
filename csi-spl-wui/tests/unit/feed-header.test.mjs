@@ -39,7 +39,10 @@ describe('FeedHeader: one header for channel, DM and lobby', () => {
 
   it('DM and lobby keep their status as the dot plus its tooltip', () => {
     /* CLE-77862: the DM's is the PEER's presence, also printed beside the name */
-    assert.match(template(PAGES[1]), /:status="presence\.status"[\s\S]*?:status-text="t\(presence\.key, presence\.params\)"[\s\S]*?status-shown/)
+    /* spec 096 §5: a peer's manual status replaces the presence words; the
+       presence words stay the fallback, and the ring rides the same dot */
+    assert.match(template(PAGES[1]), /:status="presence\.status"[\s\S]*?:status-text="headerStatus"[\s\S]*?:ring="peerManual\?\.ring \|\| ''"[\s\S]*?status-shown/)
+    assert.match(read(PAGES[1]), /const headerStatus = computed\(\(\) => peerManual\.value\?\.full \|\| t\(presence\.value\.key, presence\.value\.params\)\)/)
     assert.doesNotMatch(template(PAGES[2]), /status-shown/, 'the lobby keeps its words in the tooltip')
     assert.match(template(PAGES[2]), /:status="live\.state\.value === 'open' \? 'on' : 'off'"[\s\S]*?pages\.lobby\.status/)
   })

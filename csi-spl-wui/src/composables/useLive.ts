@@ -35,7 +35,7 @@ let live: ReturnType<typeof createLiveClient> | null = null
 const listeners = new Set<Listener>()
 /** wui-live-ws §7: fired once per reconnect (an open after a drop), after the re-subscribes. */
 const reconnectListeners = new Set<() => void>()
-/** wui-live-ws §3 `presence` frames ({ peer, status }). */
+/** wui-live-ws §3 `presence` frames ({ peer, status }), and spec 096 `status` frames. */
 const presenceListeners = new Set<Listener>()
 /** CLE-3425 `channel` frames ({ channel, name, created_at }): a channel created in the tenant. */
 const channelListeners = new Set<Listener>()

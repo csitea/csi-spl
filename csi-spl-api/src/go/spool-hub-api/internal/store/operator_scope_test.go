@@ -39,6 +39,17 @@ var operatorCallers = map[string]string{
 	"ListWorkspaces":       "GET /v1/operator/workspaces (spec 074): every workspace by design; only an admin of the operator workspace reaches it",
 	"OperatorTenant":       "which workspace is the operator one (rdb 0116, spec 074): one flagged row of the instance, unknown until read; returns its id only",
 	"ClaimOperatorTenant":  "hub start (spec 074): flags the cnf operator workspace while no row is flagged; no route",
+
+	// spec 075 repo-edit (T06): the repo-doc edit queue, rdb 0142.
+	"RepoDocEditsEnvDay":    "PUT /v1/docs/{path} (spec 075 repo-edit 5.1): the env-wide daily save cap; a count only, no row leaves",
+	"ClaimRepoDocEdits":     "repo-edit worker (spec 075 T10, the env's one pusher, hub goroutine): claims due edits of every workspace; no route",
+	"PushedRepoDocEdit":     "repo-edit worker: its verdict on a claimed edit, keyed by edit_id; no route",
+	"RetryLaterRepoDocEdit": "repo-edit worker: its verdict on a claimed edit, keyed by edit_id; no route",
+	"FailRepoDocEdit":       "repo-edit worker: its verdict on a claimed edit, keyed by edit_id; no route",
+	"ConflictRepoDocEdit":   "repo-edit worker: its verdict on a claimed edit, keyed by edit_id; no route",
+	"ReclaimRepoDocEdits":   "repo-edit worker: stuck-pushing reclaim of every workspace; no route",
+	"PushedRepoDocEdits":    "repo-edit worker: the published sweep over every workspace's pushed edits; no route",
+	"PublishRepoDocEdits":   "repo-edit worker: the published sweep, keyed by commit sha; no route",
 }
 
 // operatorEntries are the only functions that set the operator scope:

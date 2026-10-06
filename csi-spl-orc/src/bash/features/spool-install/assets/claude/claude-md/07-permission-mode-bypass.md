@@ -3,7 +3,7 @@
 Standing order from the human, 2026-10-06. **The only permission mode allowed
 on any box of the fleet is the most permissive one:
 `--dangerously-skip-permissions` (`bypassPermissions`).** No
-`--permission-mode auto`, `default`, `acceptEdits`, `plan` or `dontAsk`
+other `--permission-mode` value (auto, default, acceptEdits, plan or dontAsk)
 anywhere: launchers, restore scripts, worktrees, settings, docs or tests.
 This never changes.
 

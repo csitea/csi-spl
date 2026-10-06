@@ -4,7 +4,8 @@
 # @description the hub Postgres, as one JSON line each — "does prd already have
 # @description <someone>?" without ad hoc psql. A member line carries the
 # @description human id, email, display name, role, when and by whom admitted,
-# @description disabled_at, and the sign-in providers with the last login; an
+# @description disabled_at, access_until and access_ended (rdb 0113: at or past
+# @description access_until the hub refuses the member), and the sign-in providers with the last login; an
 # @description invite line carries the email, role, created / expires /
 # @description accepted and the mail count.
 # @description Same path as do_spl_db_message_show: the env's project service
@@ -91,6 +92,8 @@ spl_hub_member_list_sql() {
 SELECT json_build_object('type', 'member', 'tenant_id', tm.tenant_id, 'human_id', h.human_id,
   'email', h.email, 'display_name', h.display_name, 'role', tm.role, 'admitted_by', tm.admitted_by,
   'member_since', tm.created_at, 'disabled_at', h.disabled_at,
+  'access_until', to_jsonb(tm)->'access_until',
+  'access_ended', COALESCE((to_jsonb(tm)->>'access_until')::timestamptz <= now(), false),
   'identities', COALESCE((SELECT json_agg(json_build_object('provider', hi.provider, 'last_login_at', hi.last_login_at)
                                   ORDER BY hi.provider)
                           FROM human_identities hi WHERE hi.human_id = h.human_id), '[]'::json))

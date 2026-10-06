@@ -62,7 +62,7 @@ export const useRosterStore = defineStore('roster', () => {
       const byId: Record<string, HumanDetail> = {}
       for (const h of data.humans) {
         const id = String(h?.human_id || '')
-        if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || ''), status: h.status }
+        if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || '') }
       }
       humansDetail.value = byId
     }
@@ -104,8 +104,6 @@ export interface HumanDetail {
   interests: string
   /** tenant_memberships.last_active_at (RFC3339), "" when never. */
   last_seen: string
-  /** spec 096: the manual status as the hub sent it (stores/human-status.ts reads it) */
-  status?: unknown
 }
 
 /** Spec 096: a member's manual status; `until` '' = no end (RFC3339 UTC otherwise). */

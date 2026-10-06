@@ -11,7 +11,7 @@
  */
 import { channelSlug } from './channel-feed.mjs'
 import { channelsFromView, normalizeViewMessage } from './view-api.mjs'
-import { storageGet, storageGetJson, storageSetJson } from './prefs.mjs'
+import { storageGet, storageSetJson } from './prefs.mjs'
 import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from './channel-order.mjs'
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
@@ -275,37 +275,6 @@ async function setChannelOrder(ctx, ids) {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ channel_order: ids }),
-  })
-}
-
-/* spec 096: the mock's statuses, read back by utils/human-status.mjs statusController */
-const MOCK_STATUS_KEY = 'spool.mock.human-status'
-
-function mockStatusWrite(ctx, value) {
-  const id = String((ctx.state && ctx.state.me && ctx.state.me.id) || 'HUM-1')
-  const map = { ...(storageGetJson(MOCK_STATUS_KEY, {}) || {}) }
-  if (value) map[id] = value
-  else delete map[id]
-  storageSetJson(MOCK_STATUS_KEY, map)
-}
-
-/**
- * Spec 096 §7.3: PUT /v1/me/status { state, note?, until?, all_workspaces?,
- * pause_notify? } with a body; with `null`, DELETE /v1/me/status (back to
- * available; `allWorkspaces` adds ?all_workspaces=true). The hub answers 400
- * on a bad note / until / state.
- */
-async function putMyStatus(ctx, body, opts = {}) {
-  const { live, mock } = ctx
-  if (mock) {
-    mockStatusWrite(ctx, body ? { state: body.state, note: body.note || '', until: body.until || '' } : null)
-    return null
-  }
-  if (!body) return live(`/v1/me/status${opts && opts.allWorkspaces ? '?all_workspaces=true' : ''}`, { method: 'DELETE' })
-  return live('/v1/me/status', {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
   })
 }
 
@@ -1336,7 +1305,6 @@ async function archiveOperatorWorkspace(ctx, id) {
 }
 
 export const lazySpoolMethods = {
-  putMyStatus,
   lookupIds,
   previewLinks,
   listFlow,

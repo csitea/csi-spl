@@ -14,7 +14,9 @@
  * The whole module loads on demand: with the first status the roster sees,
  * or with the picker / composer line (the 027 initial-chunk budget).
  */
-import { isoClock, isoDate, isoDateTime, isoDateTimeSec, parseIsoDate } from './date-iso.mjs'
+/* only helpers the first screen already uses: importing another one from
+   date-iso.mjs would keep it in the entry chunk for this lazy module (027) */
+import { isoClock, isoDate, isoDateTime, isoDateTimeSec } from './date-iso.mjs'
 
 export const STATUS_NOTE_MAX = 80
 
@@ -199,7 +201,7 @@ export function statusController(map, timers = { set: (fn, ms) => setTimeout(fn,
       let list = humans
       if (mock) {
         let st = {}
-        try { st = JSON.parse(localStorage.getItem('spool.mock.human-status') || '{}') || {} } catch { /* none */ }
+        try { st = JSON.parse(localStorage.getItem(MOCK_STATUS_KEY) || '{}') || {} } catch { /* none */ }
         list = humans.map((h) => (st[h.human_id] ? { ...h, status: st[h.human_id] } : h))
       }
       put(statusMapFromHumans(list))
@@ -252,12 +254,13 @@ export function wallInstant(base, addDays, h, mi) {
 export function parseWallDateTime(value) {
   const m = String(value || '').trim().match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})$/)
   if (!m) return null
-  const day = parseIsoDate(m[1])
+  const day = m[1]
   const h = Number(m[2])
   const mi = Number(m[3])
-  if (!day || h > 23 || mi > 59) return null
-  /* noon UTC of the typed day is within one day of it in every zone */
+  /* noon UTC of the typed day is within one day of it in every zone; a day
+     that does not exist (2026-02-30) comes back as another one */
   const noon = Date.parse(`${day}T12:00:00Z`)
+  if (Number.isNaN(noon) || new Date(noon).toISOString().slice(0, 10) !== day || h > 23 || mi > 59) return null
   const seen = isoDate(noon)
   return wallInstant(noon, seen === day ? 0 : seen < day ? 1 : -1, h, mi)
 }
@@ -375,3 +378,36 @@ export function draftMentionIds(text, people) {
   }
   return [...new Set(out)]
 }
+
+/** the lde mock's statuses, read back by statusController's fill */
+const MOCK_STATUS_KEY = 'spool.mock.human-status'
+
+/**
+ * Spec 096 §7.3: PUT /v1/me/status with a body, DELETE it with `null` (back
+ * to available; `allWorkspaces` adds ?all_workspaces=true). Here, not in the
+ * spool client, so the first screen carries none of it (027). `api` is the
+ * spool client (base, token, credentials, mock); the mock writes localStorage.
+ * Throws { status } on a refusal (400: bad note / until / state).
+ */
+export async function putMyStatus(api, selfId, body, { allWorkspaces = false } = {}) {
+  if (api.mock) {
+    let map = {}
+    try { map = JSON.parse(localStorage.getItem(MOCK_STATUS_KEY) || '{}') || {} } catch { /* none */ }
+    if (body) map[selfId] = { state: body.state, note: body.note || '', until: body.until || '' }
+    else delete map[selfId]
+    localStorage.setItem(MOCK_STATUS_KEY, JSON.stringify(map))
+    return null
+  }
+  const headers = { accept: 'application/json' }
+  if (api.token) headers.authorization = `Bearer ${api.token}`
+  if (body) headers['content-type'] = 'application/json'
+  const res = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/me/status${!body && allWorkspaces ? '?all_workspaces=true' : ''}`, {
+    method: body ? 'PUT' : 'DELETE',
+    credentials: api.credentials,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw Object.assign(new Error(`status ${res.status}`), { status: res.status })
+  return res.status === 204 ? null : res.json().catch(() => null)
+}
+

@@ -29,10 +29,11 @@
           <legend class="sr-only">{{ t('status_edit.title') }}</legend>
           <label v-for="s in STATUS_STATES" :key="s" class="status-picker__state" :data-state="s">
             <input
-              v-model="state"
               type="radio"
               name="spool-status-state"
               :value="s"
+              :checked="state === s"
+              @change="state = s"
               :data-testid="'status-state-' + s"
             >
             <span class="dot" :class="s === 'available' ? 'on' : 'on dot--' + s" aria-hidden="true" />
@@ -99,7 +100,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useStatusPicker } from '~/composables/useStatusPicker'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { STATUS_NOTE_MAX, STATUS_STATES, STATUS_UNTIL_CHOICES, cleanStatusNote, defaultUntilChoice, liveStatus, statusBody, untilFromChoice, untilProblem } from '~/utils/human-status.mjs'
+import { STATUS_NOTE_MAX, STATUS_STATES, STATUS_UNTIL_CHOICES, cleanStatusNote, defaultUntilChoice, liveStatus, putMyStatus, statusBody, untilFromChoice, untilProblem } from '~/utils/human-status.mjs'
 
 const { t, te } = useI18n({ useScope: 'global' })
 /* its words are in the second catalogue (i18n-first-screen ON_DEMAND_COMPONENTS),
@@ -146,9 +147,9 @@ async function run(body: Record<string, unknown> | null) {
   busy.value = true
   error.value = ''
   try {
-    await api.putMyStatus(body, { allWorkspaces: allWs })
+    const peer = roster.self?.id || ''
+    await putMyStatus(api, peer, body, { allWorkspaces: allWs })
     /* the hub's frame follows; the reader's own row shows at once */
-    const peer = roster.self?.id
     if (peer) await status.applyStatus(body ? { type: 'status', peer, ...body } : { type: 'status', peer, state: 'available' })
     close()
   } catch (e) {

@@ -88,8 +88,6 @@ declare module '~/utils/spool-client.mjs' {
     me(): Promise<Record<string, unknown> | null>
     mockChannelOrder(): string[] | null
     setChannelOrder(ids: string[]): Promise<{ channel_order: string[] | null }>
-    /** spec 096 §7.3: PUT /v1/me/status (a body) or DELETE it (null); mock: localStorage spool.mock.human-status. */
-    putMyStatus(body: Record<string, unknown> | null, opts?: { allWorkspaces?: boolean }): Promise<unknown>
     removeMember(humanId: string): Promise<null>
     listTenantUsers(): Promise<unknown>
     inviteTenantUser(opts: { email: string, role?: string, locale?: string, noMail?: boolean }): Promise<{ email?: string, role?: string, mail?: string } | null>
@@ -2209,6 +2207,7 @@ declare module '~/utils/human-status.mjs' {
   export function statusBody(p: { state: string, note?: string, until?: string, allWorkspaces?: boolean, pauseNotify?: boolean }): Record<string, unknown> | null
   export function composerStatusTargets(p: { dmPeer?: string, mentionIds?: string[], selfId?: string, statusOf: (id: string) => HumanStatusValue | null }): Array<{ id: string, status: HumanStatusValue }>
   export function draftMentionIds(text: string, people: Array<{ id: string, name?: string }>): string[]
+  export function putMyStatus(api: { mock?: boolean, base?: string, token?: string, credentials?: RequestCredentials }, selfId: string, body: Record<string, unknown> | null, opts?: { allWorkspaces?: boolean }): Promise<unknown>
 }
 
 declare module '~/utils/dm-presence.mjs' {

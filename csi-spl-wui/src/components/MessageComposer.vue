@@ -321,7 +321,6 @@ import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
 import { useRosterStore } from '~/stores/roster'
-import { useHumanStatusStore } from '~/stores/human-status'
 import { useViewerStore } from '~/stores/viewer'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSessionStore } from '~/stores/session'
@@ -409,7 +408,6 @@ watch(picked, async (files) => {
 const roster = useRosterStore()
 const viewer = useViewerStore()
 const channelFeed = useChannelStore()
-const humanStatus = useHumanStatusStore()
 /* spec 096 §5.1: the DM this box sends to (a reply inside a DM too); the
    line itself (whom it names, @mentions included) loads only once a DM
    peer has a status, or the draft holds an @ while anyone has one */
@@ -417,8 +415,10 @@ const statusDmPeer = computed(() => {
   const place = String(omniboxTargets.target?.place?.() ?? '')
   return place.startsWith('dm:') ? place.slice(3) : place.startsWith('t:') ? String(channelFeed.peer || '') : ''
 })
-const statusLineDue = computed(() => !searchMode.value && (Boolean(humanStatus.statusByPeer[statusDmPeer.value.split('@')[0]])
-  || (text.value.includes('@') && Object.keys(humanStatus.statusByPeer).length > 0)))
+/* a DM to a member (HUM-*) or an @ in the draft; the lazy line itself shows
+   nothing unless someone named has a status (the composer keeps no status
+   state, so its chunks do not depend on the status store - 027 budget) */
+const statusLineDue = computed(() => !searchMode.value && (/^HUM-/.test(statusDmPeer.value) || text.value.includes('@')))
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)

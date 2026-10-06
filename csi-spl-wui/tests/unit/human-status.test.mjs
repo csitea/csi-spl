@@ -67,7 +67,7 @@ describe('the status frame (spec 7.4)', () => {
   it('the socket client hands it to the presence listener; the roster tells the two apart', () => {
     const ws = read('src/utils/live-ws.mjs')
     assert.match(ws, /case FRAMES\.presence:\s*\n\s*case 'status':\s*\n\s*onPresence\(f\)/)
-    assert.match(read('src/stores/human-status.ts'), /useLive\(\)\.onPresence\(\(f\) => \{ if \(f\.type === 'status'\) void applyStatus\(f\) \}\)/)
+    assert.match(read('src/stores/human-status.ts'), /live\.onPresence\(\(f\) => \{ if \(f\.type === 'status'\) void applyStatus\(f\) \}\)/)
   })
 })
 
@@ -183,6 +183,7 @@ describe('the picker values (spec 3, 7.3, 9, 12)', () => {
       assert.equal(parseWallDateTime('2026-10-25T02:30')?.toISOString(), '2026-10-24T23:30:00.000Z')
       assert.equal(parseWallDateTime('2026-10-25T05:00')?.toISOString(), '2026-10-25T03:00:00.000Z')
       assert.equal(parseWallDateTime('2026-13-01T00:00'), null)
+      assert.equal(parseWallDateTime('2026-02-30T10:00'), null, 'a day that does not exist')
     } finally {
       setTimeZoneSource(() => '')
     }
@@ -245,12 +246,20 @@ describe('where it shows (spec 5)', () => {
     }
     assert.match(read('src/stores/human-status.ts'), /import\('~\/utils\/human-status\.mjs'\)/)
     /* the entry chunk's roster store only keeps the raw status per member */
-    assert.doesNotMatch(read('src/stores/roster.ts'), /from '~\/stores\/human-status'|human-status\.mjs/)
+    assert.doesNotMatch(read('src/stores/roster.ts'), /human-status|status:/, 'the entry chunk roster store knows nothing of statuses')
+    assert.doesNotMatch(read('src/utils/spool-client.mjs'), /MyStatus/, 'nor does the spool client (the write is in the lazy module)')
+    assert.doesNotMatch(read('src/components/MessageComposer.vue'), /useHumanStatusStore/, 'the composer gate keeps no status state')
     /* the picker and the line are on-demand components: their words wait in the second catalogue */
     for (const f of ['StatusPicker', 'ComposerStatusLine']) {
       assert.match(read('src/utils/i18n-first-screen.mjs'), new RegExp(`"components/${f}\\.vue": "idle"`))
       assert.match(read(`src/components/${f}.vue`), /const i18nReady = computed\(\(\) => te\('status_edit\./)
     }
+  })
+  it('the lazy half imports only date helpers the entry chunk already keeps', () => {
+    /* parseIsoDate added 307 bytes to the entry chunk (node gzip, CI AC-02) */
+    assert.match(read('src/utils/human-status.mjs'), /import \{ isoClock, isoDate, isoDateTime, isoDateTimeSec \} from '\.\/date-iso\.mjs'/)
+    /* a radio v-model pulls Vue's vModelRadio into the shared runtime chunk */
+    assert.doesNotMatch(read('src/components/StatusPicker.vue'), /v-model="state"/)
   })
   it('the picker is lazy: the layout mounts it only while open', () => {
     assert.match(read('src/layouts/default.vue'), /<LazyStatusPicker v-if="statusPicker\.open\.value"/)

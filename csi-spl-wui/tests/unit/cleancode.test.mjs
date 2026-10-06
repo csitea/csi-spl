@@ -46,12 +46,8 @@ const LONG = new Set([
   'src/stores/topic.ts <anon>', // 117
   'src/stores/viewer.ts <anon>', // 143
   'src/utils/auth-client.mjs createAuthClient', // 297
-  'src/utils/error-snackbar.mjs createSnackbarQueue', // 107
-  'src/utils/event-log.mjs createEventShipper', // 98
-  'src/utils/issues.mjs createMockIssues', // 159
   'src/utils/live-ws.mjs createLiveClient', // 475
   'src/utils/live-ws.mjs handle', // 105
-  'src/utils/move-drag.mjs createHandleDrag', // 96
   'src/utils/spool-client.mjs createSpoolClient', // 1415
 ])
 

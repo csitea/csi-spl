@@ -12,9 +12,12 @@ import (
 // of the statement that stores the message, so a send pays no extra round
 // trip. They write only when `ins` stored the row (never on a resend), and
 // read flow_watches as of the statement's snapshot, so the watches this line
-// adds take effect from the next line. Parameters: the insert's ($1 tenant,
-// $2 msg_id, $3 task_id, $4 channel, $9 to_id, $16 received_at, $17
-// expires_at) and four of its own from $n: the author seat ("" = an agent),
+// adds take effect from the next line. Each event stores its place_key and
+// cov_at (rdb 0137: spool_flow_place_key, the line's received_at), which the
+// messages trigger keeps current on a move or merge. Parameters: the
+// insert's ($1 tenant, $2 msg_id, $3 task_id, $4 channel, $6 from_box, $7
+// from_id, $9 to_id, $16 received_at, $17 expires_at) and four of its own
+// from $n: the author seat ("" = an agent),
 // the human seats mentioned, the task a poke DM links to (NULL = not a
 // poke) and whether the channel is public.
 //
@@ -42,8 +45,9 @@ func flowInsertCTE(n int) string {
 		SELECT $1, $3, x.member_id, $16 FROM (SELECT ` + a + ` AS member_id WHERE ` + a + ` <> '' UNION SELECT member_id FROM flow_cand WHERE rnk < 4) x
 		WHERE EXISTS (SELECT 1 FROM ins)
 		ON CONFLICT DO NOTHING),
-	flow_e AS (INSERT INTO flow_events (tenant_id, member_id, msg_id, task_id, kind, at, expires_at)
-		SELECT $1, f.member_id, $2, $3, (ARRAY['mention', 'poke', 'dm', 'reply'])[f.rnk], $16, $17 FROM flow_cand f
+	flow_e AS (INSERT INTO flow_events (tenant_id, member_id, msg_id, task_id, kind, at, expires_at, place_key, cov_at)
+		SELECT $1, f.member_id, $2, $3, (ARRAY['mention', 'poke', 'dm', 'reply'])[f.rnk], $16, $17,
+			spool_flow_place_key($4::text, $7::text, $6::text), $16 FROM flow_cand f
 		WHERE EXISTS (SELECT 1 FROM ins) AND NOT (f.rnk = 2 AND EXISTS (SELECT 1 FROM flow_events x
 			WHERE x.tenant_id = $1 AND x.member_id = f.member_id AND x.task_id = ` + pk + ` AND x.kind = 'mention'))
 		ON CONFLICT DO NOTHING)`

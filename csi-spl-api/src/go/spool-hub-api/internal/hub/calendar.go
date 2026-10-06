@@ -940,6 +940,7 @@ func (s *Server) routeCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/calendar/reminders", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}/restore", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/trash", s.calendarPreflight)
+	s.routeCalendarSearch(mux) // specs/097 T009
 }
 
 // routeWorkItems registers the issues (specs/039) and the calendar that

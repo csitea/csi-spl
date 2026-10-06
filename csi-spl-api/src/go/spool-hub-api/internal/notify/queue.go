@@ -97,11 +97,10 @@ func Deliver(cfg *config.Config, m *msg.Message, to string) {
 
 // enqueue reports whether the poke was accepted onto a lane.
 //
-// Contract with Stop: enqueue checks q.off and picks the lane under q.mu, but
-// sends on the lane AFTER releasing it. A Stop that runs in that gap closes
-// the lane, and the send then panics (send on closed channel). So enqueue is
-// NOT safe to run concurrently with Stop today: a known race (refactor round 3
-// plan, bug B1), to be fixed in its own change.
+// Contract with Stop: enqueue checks q.off, picks the lane AND sends on it
+// all under q.mu, the lock Stop closes every lane under, so a lane is never
+// closed between the check and the send. The send never blocks (a full lane
+// drops the poke), so holding the lock across it costs nothing.
 func (q *Queue) enqueue(m *msg.Message, to string) bool {
 	if !Enabled(q.cfg) || m == nil || to == "" {
 		return false
@@ -118,12 +117,15 @@ func (q *Queue) enqueue(m *msg.Message, to string) bool {
 		q.wg.Add(1)
 		go q.serve(ch)
 	}
-	q.mu.Unlock()
-
+	var sent bool
 	select {
 	case ch <- queued{m: m, to: to}:
-		return true
+		sent = true
 	default:
+	}
+	q.mu.Unlock()
+
+	if !sent {
 		// The lane is full: this agent's pane is not keeping up. Say so once
 		// per dropped poke and move on - blocking here would put the read
 		// loop back behind the very leg this queue exists to get off it.
@@ -131,8 +133,8 @@ func (q *Queue) enqueue(m *msg.Message, to string) bool {
 		log.Warn().Str("to", to).Str("msg_id", m.MsgID).
 			Int("lane_depth", laneDepth).
 			Msg("terminal delivery not shown: the pane's queue is full; the message is still in the inbox")
-		return true
 	}
+	return true
 }
 
 func (q *Queue) serve(ch chan queued) {

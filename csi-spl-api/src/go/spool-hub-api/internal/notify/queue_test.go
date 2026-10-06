@@ -3,6 +3,7 @@ package notify
 import (
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -132,4 +133,34 @@ func TestAQueueDoesNotResurrectADisabledTerminalLeg(t *testing.T) {
 	q := Start(cfg)
 	defer q.Stop()
 	Deliver(cfg, qmsg("off-1", "CLE-91"), "CLE-91") // must not panic, must do nothing
+}
+
+// Stop and a delivery race on a box daemon shutting down while its read loop
+// still hands over pokes. enqueue used to pick its lane under q.mu but send
+// AFTER releasing it, so a Stop in that gap closed the lane and the send
+// panicked "send on closed channel" (refactor round 3, bug B1). Drive both
+// at once, many times: a panic in any goroutine fails the whole test binary.
+func TestStopRacingEnqueueNeverSendsOnAClosedLane(t *testing.T) {
+	cfg := &config.Config{NotifyCmd: "true", SpoolRoot: t.TempDir()}
+	for round := 0; round < 300; round++ {
+		q := &Queue{cfg: cfg, lanes: map[string]chan queued{}}
+		q.enqueue(qmsg("warm", "CLE-91"), "CLE-91") // the lane exists, so every enqueue reaches the send
+		var ready, done sync.WaitGroup
+		start := make(chan struct{})
+		for i := 0; i < 8; i++ {
+			ready.Add(1)
+			done.Add(1)
+			go func() {
+				defer done.Done()
+				ready.Done()
+				<-start
+				for n := 0; n < 4 && q.enqueue(qmsg("race", "CLE-91"), "CLE-91"); n++ {
+				}
+			}()
+		}
+		ready.Wait()
+		close(start)
+		q.Stop()
+		done.Wait()
+	}
 }

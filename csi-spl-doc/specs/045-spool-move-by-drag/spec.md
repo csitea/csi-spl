@@ -105,6 +105,12 @@ desired topic"): the hub's `mayReply` and the WUI's `mayMoveMessage` both read t
 agent id (`agentid.IsAgent` / `isAgentId`: `c-004`, legacy `CLE-07`; never `HUM-*` / `GST-*`). A
 person's reply, a topic move and a merge keep the author / owner / admin rule.
 
+A DM row has no channel, so it never moves (`not_in_channel`) - except an **agent's DM message to
+the caller** (`from_id` an agent id, `to_id` the caller; the hub's `dmOut`): that one human may move
+it out of the DM into a channel topic they may post in, and back home into the DM (the undo,
+`dmHome`, stored with channel NULL). It is never promoted (a DM row does not open a channel topic),
+and a person's DM message never moves. The owner's case, t1 ffc3b83c, was such a DM.
+
 Plus, in the hub and not only in the UI:
 
 - the **source** is read through the message door (a row the caller may not read is `404`);

@@ -15,6 +15,8 @@ Spec: `../spec.md`. Every route is a browser (member session) route of the activ
 7. the row is movable (spec 3.1 / 3.2 refusals), else `409 <token>`;
 8. the move: the caller is the row's author, the tenant owner or an `admin`, else `403 not_allowed`;
    a REPLY (§3, and a promote) an agent wrote passes for any caller who got past 1-7 (spec 3.4).
+   Check 7's `not_in_channel` does not refuse a §3 move of an agent's DM message to the caller
+   (spec 3.4): it goes to a channel topic, and its undo `{to_task: <the DM>}` brings it home.
 
 ## 2. `POST /v1/messages/{msg_id}/move` `{"to_channel": "<channel id>"}`
 

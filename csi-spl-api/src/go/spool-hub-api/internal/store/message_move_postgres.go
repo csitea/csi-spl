@@ -110,7 +110,7 @@ func (s *Postgres) MoveMessage(ctx context.Context, tenant, msgID, toTask, toCha
 			}
 		}
 		res.MsgIDs, res.TaskIDs = set.MsgIDs, set.TaskIDs
-		err = tx.QueryRow(ctx, moveMessageCTE, tenant, msgID, set.MsgIDs, toTask, toChannel, notBefore, at, by).
+		err = tx.QueryRow(ctx, moveMessageCTE, tenant, msgID, set.MsgIDs, toTask, nullText(toChannel), notBefore, at, by).
 			Scan(&res.Moved, &res.ReceivedAt)
 		return err
 	})
@@ -127,7 +127,8 @@ func (s *Postgres) MoveMessage(ctx context.Context, tenant, msgID, toTask, toCha
 //	home      the moved row ($2) records its home task/parent on its first
 //	          message move, then is re-homed into $4 (not a parent, received_at
 //	          not before $6)
-//	mark      every row of the topic ($3) -> channel $5 (markTx)
+//	mark      every row of the topic ($3) -> channel $5 (markTx); NULL = back
+//	          into the DM an agent's reply was moved out of
 //	back      the moved row landed in its home task: home parent restored
 //	repoint   a thread row whose parent was the old task now points at $4
 //	clear     a row back home with no home task left drops its mark (clearHome)

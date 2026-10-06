@@ -24,7 +24,9 @@ import (
 // be a channel the mover may post in. An agent's reply is wider (owner, t1
 // ffc3b83c: "the humans should be able to move the bots msgs to a desired
 // topic"): any member who reaches it may move it to another topic, or promote
-// it; a human's reply, a topic and a merge keep 041's rule. These are the
+// it; a human's reply, a topic and a merge keep 041's rule. An agent's DM
+// message moves too, out of the DM into a channel topic, by the human it was
+// sent to (and back home, the undo); a person's DM message never moves. These are the
 // member-session browser routes; an agent moves a topic over its box socket
 // (box_move.go), through the same storeTopicMove.
 
@@ -46,6 +48,7 @@ type moveRow struct {
 	lobby   bool // the row is on the lobby task
 	isCard  bool // the row opens its task (a topic's card)
 	byAgent bool // the row's author is an agent (spec 061 id), not a person
+	dmOut   bool // an agent's DM message to this caller: it may leave the DM
 	refusal string
 }
 
@@ -105,6 +108,7 @@ func (s *Server) resolveMove(w http.ResponseWriter, r *http.Request, mutate bool
 	mr.isCard = st.IsParent == 1 && st.FirstOfTask && !mr.lobby
 	mr.card.may = s.mayChangeTopic(r.Context(), t.ID, hum, from, m.FromID)
 	mr.byAgent = agentid.IsAgent(m.FromID)
+	mr.dmOut = m.Channel == "" && mr.byAgent && from != "" && from == m.ToID
 	switch {
 	case mr.lobby:
 		mr.refusal = "lobby"
@@ -129,6 +133,24 @@ var moveRefusals = map[string]string{
 // mayReply is who may move or promote a reply: 041's rule, or anyone at all
 // when an agent wrote it (the read door and topics.manage already ran).
 func (mr moveRow) mayReply() bool { return mr.card.may || mr.byAgent }
+
+// replyRefusal is mr.refusal for a message move: an agent's DM message to the
+// caller (dmOut) is not refused as not_in_channel - it may go to a channel
+// topic. A promote and a topic move keep mr.refusal.
+func (mr moveRow) replyRefusal() string {
+	if mr.refusal == "not_in_channel" && mr.dmOut {
+		return ""
+	}
+	return mr.refusal
+}
+
+// dmHome reports whether task is the DM an agent's message was moved out of,
+// asked by the human it was sent to: the undo of a dmOut move.
+func (mr moveRow) dmHome(task string) bool {
+	mv := mr.card.m.Move
+	return mr.byAgent && mv.Moved() && mv.FromChannel == "" && mv.FromTask == task &&
+		mr.card.from != "" && mr.card.from == mr.card.m.ToID
+}
 
 func writeRefusal(w http.ResponseWriter, token string) {
 	writeErr(w, http.StatusConflict, token, moveRefusals[token])
@@ -254,8 +276,8 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 	case !uuidRe.MatchString(task):
 		writeErr(w, http.StatusBadRequest, "bad_json", "to_task must be a UUID")
 		return
-	case mr.refusal != "":
-		writeRefusal(w, mr.refusal)
+	case mr.replyRefusal() != "":
+		writeRefusal(w, mr.replyRefusal())
 		return
 	case mr.isCard:
 		writeRefusal(w, "is_card")
@@ -271,7 +293,13 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 		return
 	}
 	now := s.o.Now()
-	card, ok := s.moveTarget(w, r, mr, task, now, "move")
+	var card store.TaskCard
+	var ok bool
+	if mr.dmHome(task) {
+		card, ok = s.dmHomeTarget(w, r, mr, task, now)
+	} else {
+		card, ok = s.moveTarget(w, r, mr, task, now, "move")
+	}
 	if !ok {
 		return
 	}
@@ -343,7 +371,7 @@ func (s *Server) handleViewMove(w http.ResponseWriter, r *http.Request) {
 	}
 	m := mr.card.m
 	out := map[string]any{"msg_id": m.MsgID, "task_id": m.TaskID, "channel": m.Channel, "is_card": mr.isCard,
-		"can_move": (mr.card.may || (mr.byAgent && !mr.isCard)) && mr.refusal == ""}
+		"can_move": canMove(mr)}
 	if m.Move.Moved() {
 		out["moved_from_channel"] = m.Move.FromChannel
 		if m.Move.FromTask != "" {
@@ -354,6 +382,44 @@ func (s *Server) handleViewMove(w http.ResponseWriter, r *http.Request) {
 		out["refusal"] = mr.refusal
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// canMove is the view's can_move: check 8 for this caller plus check 7 for
+// the row (a card by 041's rule, a reply by mayReply).
+func canMove(mr moveRow) bool {
+	if mr.isCard {
+		return mr.card.may && mr.refusal == ""
+	}
+	return mr.mayReply() && mr.replyRefusal() == ""
+}
+
+// dmHomeTarget is moveTarget for the undo of a dmOut move: the DM the row came
+// from, which the caller may still read and which still opens with a card. It
+// has no channel, so none of the channel checks apply. ok=false = answered.
+func (s *Server) dmHomeTarget(w http.ResponseWriter, r *http.Request, mr moveRow, task string, now time.Time) (store.TaskCard, bool) {
+	c := mr.card
+	switch ok, found, err := s.canReadTopic(r.Context(), c.t.ID, task, mr.hum); {
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("task_id", task).Msg("move dm home topic")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return store.TaskCard{}, false
+	case !found || !ok:
+		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
+		return store.TaskCard{}, false
+	}
+	card, err := s.o.Store.TaskCard(r.Context(), c.t.ID, task, now)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeRefusal(w, "not_a_card")
+		return store.TaskCard{}, false
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("task_id", task).Msg("move dm home card")
+		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
+		return store.TaskCard{}, false
+	case card.Channel != "": // no longer a DM: the ordinary target checks
+		return s.moveTarget(w, r, mr, task, now, "move")
+	}
+	return card, true
 }
 
 // fanoutMove sends frame to every browser socket that was shown the row at

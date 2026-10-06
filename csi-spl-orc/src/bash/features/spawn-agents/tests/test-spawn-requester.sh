@@ -111,6 +111,23 @@ eq "retired-utc stays column 6" "20261002T120000Z" "$(awk -F'\t' '{ print $6 }' 
 eq "the requester is kept after it" "c-001" "$(awk -F'\t' '{ print $7 }' "$SPOOL_ROOT/registry.retired.tsv")"
 eq "the quarantine still reads column 6" "c-030" "$(awk -F'\t' -v from=20261002T000000Z '$6 >= from { print $1 }' "$SPOOL_ROOT/registry.retired.tsv")"
 
+# --- the seed sends reports to the spawner (spec 101 R3) ---------------------
+echo brief >"$T_TMP/brief.md"
+seed() {  # DIR [env assignments]
+  local d="$T_TMP/$1"; shift
+  mkdir -p "$d"
+  env -u SPOOL_AGENT_ID -u MCP_BOT_AGENT_ID -u TMUX_PANE "$@" SPAWN_DRY_RUN=1 SPAWN_PLAN_DIR="$d" \
+    bash "$T_SCRIPTS/spawn-claude.sh" c-070 "$WD" "$T_TMP/brief.md" r3 >/dev/null 2>&1
+  cat "$d/prompt.txt" 2>/dev/null
+}
+p="$(seed r3 SPAWN_REQUESTER=c-002 SPOOL_BOX_TAG=b)"
+has "a requester on box b gets the reports" "spool-send.sh --to c-002@b (kind result" "$p"
+has "decisions and prd stay with the orchestrator" "decisions and prd go --to orchestrator" "$p"
+hasnt "the old report-all sentence is gone" "final summary to the orchestrator" "$p"
+p="$(seed r3-none SPAWN_REQUESTER=- SPOOL_BOX_TAG=b)"
+has "control: no requester reports to the orchestrator" "final summary to the orchestrator with spool-send.sh --to orchestrator" "$p"
+hasnt "control: no spawner address" "c-002@b" "$p"
+
 # --- a direct launcher call gates too ----------------------------------------
 out="$(SPAWN_DRY_RUN=1 SPOOL_AGENT_ID=g-010 bash "$T_SCRIPTS/spawn-grok.sh" g-011 "$WD" 2>"$T_TMP/err")"; RC=$?
 eq "spawn-grok.sh refuses a lane before a spool dir" 9 "$RC"

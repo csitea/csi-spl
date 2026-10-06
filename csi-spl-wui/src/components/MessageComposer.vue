@@ -1971,6 +1971,9 @@ textarea.in-code {
   gap: 0.25rem;
   min-width: 0;
   max-width: calc(100% - 1.75rem);
+  /* the top padding the one-line textarea had: the row keeps the glyph
+     where it was, never against the border */
+  padding-top: 6px;
 }
 .composer.omnibox--global .omnibox-field.is-multiline .composer-mode-glyph,
 .composer.omnibox--global .omnibox-field.is-multiline .composer-target-chip {
@@ -1994,6 +1997,7 @@ textarea.in-code {
 @media (max-width: 820px) {
   .composer--dock.composer--dock .omnibox-field.is-multiline .omnibox-prefix {
     max-width: calc(100% - var(--tap));
+    padding-top: 10px;
   }
 }
 </style>

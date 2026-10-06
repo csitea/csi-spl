@@ -85,6 +85,7 @@ function readBox(p) {
         dy: Math.round(mid - lineMid),
         left: Math.round(b.left),
         bottom: Math.round(b.bottom),
+        inset: Math.round(b.top - fb.top - (parseFloat(fcs.borderTopWidth) || 0)),
       }
     }
     return {
@@ -142,7 +143,16 @@ async function openThread(p) {
 }
 
 async function focusBox(p) {
-  await p.click('form.composer.omnibox--global textarea')
+  /* under load a late re-render can take the focus back; wait until the
+     box really holds it before typing */
+  for (let i = 0; i < 5; i++) {
+    await p.click('form.composer.omnibox--global textarea')
+    const held = await p.waitForFunction(() => {
+      const ta = document.querySelector('form.composer.omnibox--global textarea')
+      return ta && document.activeElement === ta
+    }, { timeout: 2000 }).then(() => true, () => false)
+    if (held) { await sleep(150); if (await p.evaluate(() => document.activeElement === document.querySelector('form.composer.omnibox--global textarea'))) return }
+  }
 }
 
 async function replaceText(p, value) {
@@ -184,6 +194,10 @@ async function exercise(p, tag, basePad) {
   ok(`${tag} 2 two lines: glyph above the text, left padding equals the no-glyph padding, caret still in the box`,
     Boolean(two && two.multiline && two.value === 'hello\nworld' && above && chipAbove && padBack && two.startGap <= 2 && two.focused && two.caret === two.len),
     two)
+  /* the row on top keeps the one-line top padding: the glyph is not
+     pressed against (or clipped by) the field's top border */
+  ok(`${tag} 2b the glyph row clears the field's top border`,
+    Boolean(two && two.glyph && two.glyph.inset >= 4), two && two.glyph && { inset: two.glyph.inset })
 
   await replaceText(p, 'hi')
   await sleep(100)

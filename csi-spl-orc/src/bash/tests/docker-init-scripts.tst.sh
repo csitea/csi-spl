@@ -8,6 +8,7 @@
 #          3. tpl-gen success -> rc 0 and the ~/.bashrc source + cd lines
 #          4. conf-validator success -> rc 0 and the ~/.bashrc source + cd lines
 #          5. tf-runner success -> rc 0 and the ~/.bashrc PATH + cd lines
+#          6. tf-runner: a planted gsheet-secrets-to-gcp venv is not copied
 #          CONTROL: HOME_IAC_PROJ_PATH unset -> tf-runner rc != 0
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -150,6 +151,28 @@ if [[ "$rc" != 0 ]] && [[ ! -f "$home/.bashrc" ]]; then
   pass "control: HOME_IAC_PROJ_PATH unset -> tf-runner rc $rc"
 else
   fail "control HOME_IAC_PROJ_PATH unset (rc $rc): $(tr '\n' ' ' <"$home/out")"
+fi
+
+# B19: the start path must not copy a gsheet-secrets-to-gcp venv. The module
+# is not in this tree, so a planted tree is the case that used to be a no-op
+# only because the directory was absent.
+home="$root/tf-nogs"
+proj="$root/proj-tf-nogs"
+mount="$root/mount-tf-nogs"
+mkdir -p "$proj/src/python/gsheet-secrets-to-gcp/.venv/bin" "$mount"
+printf '%s\n' 'echo planted' >"$proj/src/python/gsheet-secrets-to-gcp/.venv/bin/activate"
+write_poetry 0
+run_init "$home" "$tf" APPUSR=appusr HOME_IAC_PROJ_PATH="$proj" IAC_PROJ_PATH="$mount"
+rc=$(cat "$home/rc")
+copied=no
+[[ -e "$mount/src/python/gsheet-secrets-to-gcp" ]] && copied=yes
+if [[ "$rc" == 0 && "$copied" == no ]] \
+  && ! grep -q 'gsheet-secrets-to-gcp' "$tf" \
+  && grep -qF 'export PATH=$PATH:$HOME/.local/bin/' "$home/.bashrc" \
+  && grep -qF "cd $proj" "$home/.bashrc"; then
+  pass "tf-runner: start path does not copy a gsheet-secrets-to-gcp venv"
+else
+  fail "tf-runner gsheet venv (rc $rc, copied=$copied): $(tr '\n' ' ' <"$home/out")"
 fi
 
 echo "fails=$fails"

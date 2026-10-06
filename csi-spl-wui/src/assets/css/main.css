@@ -716,6 +716,11 @@ html.pane-dragging * {
   white-space: nowrap;
   border-radius: var(--radius-sm);
   padding: 2px 8px;
+  /* t1 b58ce5fe: the open topic title is one rem step under the inherited
+     1rem, normal weight, and the muted grey on every theme. */
+  font-size: 0.9375rem;
+  font-weight: normal;
+  color: var(--color-muted);
 }
 /* Spec 078 T004b (AC6, US3): on the desktop the 40 % pane leaves the title
    ~292 px at 1440, so a one-line title is cut. The title wraps instead (up to

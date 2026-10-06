@@ -13,8 +13,14 @@
 #          whose user can reach this daemon's socket: waited for up to
 #          PRUNE_BUSY_WAIT_S, then a WARN skip. A job on a rootless daemon of
 #          its own is logged and does not hold the prune.
+#   PIN    every container whose image has NO tag: the image gets the tag
+#          csi-spl-prune-keep:<container>. Measured 2026-10-06 on a
+#          containerd-store daemon: prune -a removed the untagged images of
+#          two RUNNING stack containers and kept every tagged in-use one.
+#          The pin goes stale with its container and is pruned a week later.
 #   KEEP   each infra stack container (PRUNE_PROTECT_RE, con-csi-csi-spl-*):
-#          its image is in use, so docker keeps it; checked again AFTER
+#          its image must exist BEFORE (else a WARN: it was gone already)
+#          and AFTER the prune (else a FAIL)
 #   PLAN   (dry run) the images and build cache a live run would remove
 #   PRUNE  docker image prune -a / docker builder prune, --filter until=
 #   RESULT box=<box> reclaimed_bytes=<n> (docker's count) + the disk's free
@@ -138,19 +144,36 @@ while why="$(busy "$S")"; [[ -n "$why" ]]; do
 done
 [[ -z "$why" ]] && say "BUSY none: no ci job or build reaches $S (waited ${waited}s)"
 
-# 4. KEEP - the infra stack's images are in use, so docker keeps them
+# 4. PIN - tag every untagged image a container uses, so prune -a keeps it
+while read -r name; do
+  [[ -n "$name" ]] || continue
+  id="$(docker inspect --format '{{.Image}}' "$name" 2>/dev/null || true)"
+  [[ -n "$id" ]] || continue
+  tags="$(docker image inspect --format '{{len .RepoTags}}' "$id" 2>/dev/null || true)"
+  [[ "$tags" == 0 ]] || continue
+  pin="csi-spl-prune-keep:$name"
+  if [[ "$DRY_RUN" == 1 ]]; then say "PIN PLAN $name image=${id:7:12} has no tag: a live run tags it $pin"
+  elif docker tag "$id" "$pin" >/dev/null 2>&1; then say "PIN $name image=${id:7:12} had no tag: tagged $pin"
+  else loud WARN "cannot tag the untagged image ${id:7:12} of $name - skipped, nothing pruned"; exit 0; fi
+done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | sort)
+
+# 5. KEEP - the infra stack's images must exist now and after the prune
 declare -A keep=()
 while read -r name; do
   [[ -n "$name" ]] || continue
-  keep[$name]="$(docker inspect --format '{{.Image}}' "$name" 2>/dev/null || true)"
-  if [[ -z "${keep[$name]}" ]]; then
+  id="$(docker inspect --format '{{.Image}}' "$name" 2>/dev/null || true)"
+  if [[ -z "$id" ]]; then
     loud WARN "cannot read the image of $name - skipped, nothing pruned"; exit 0
   fi
-  say "KEEP $name image=${keep[$name]:7:12} (in use, never pruned)"
+  if ! docker image inspect "$id" >/dev/null 2>&1; then
+    loud WARN "$name runs image ${id:7:12}, which was gone BEFORE this prune (re-create the stack)"; continue
+  fi
+  keep[$name]="$id"
+  say "KEEP $name image=${id:7:12} (in use, present, checked again after)"
 done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E "$PROTECT_RE" | sort)
-(( ${#keep[@]} )) || say "KEEP no infra stack container matches $PROTECT_RE on this daemon"
+(( ${#keep[@]} )) || say "KEEP no present infra stack image matches $PROTECT_RE on this daemon"
 
-# 5. PLAN - the dry run counts what a live run would remove
+# 6. PLAN - the dry run counts what a live run would remove
 if [[ "$DRY_RUN" == 1 ]]; then
   used="$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Image}}' 2>/dev/null | sort -u)"
   cand="$(docker image ls -a --no-trunc --filter "until=$UNTIL" --format '{{.ID}}' 2>/dev/null | sort -u | grep -vxF -f <(echo "${used:-none}") || true)"
@@ -162,7 +185,7 @@ if [[ "$DRY_RUN" == 1 ]]; then
   exit 0
 fi
 
-# 6. PRUNE - images, then build cache; never volumes, never containers
+# 7. PRUNE - images, then build cache; never volumes, never containers
 out_i="$(docker image prune -a -f --filter "until=$UNTIL" 2>&1)"; rc_i=$?
 ri="$(reclaimed "$out_i")"
 say "PRUNE images rc=$rc_i deleted=$(grep -c '^deleted:' <<<"$out_i") reclaimed_bytes=$ri"
@@ -170,7 +193,7 @@ out_b="$(docker builder prune -f --filter "until=$UNTIL" 2>&1)"; rc_b=$?
 rb="$(reclaimed "$out_b")"
 say "PRUNE builder rc=$rc_b reclaimed_bytes=$rb"
 
-# 7. KEEP again - every protected image must still be there
+# 8. KEEP again - every protected image must still be there
 lost=""
 for name in "${!keep[@]}"; do
   docker image inspect "${keep[$name]}" >/dev/null 2>&1 || lost+="$name "

@@ -9,6 +9,9 @@
 #      user reaches the socket is waited for, then a loud WARN skip with no
 #      prune; a CI job on a daemon of its own does not hold it; a held lock
 #      is a WARN skip
+#      an in-use image with no tag is pinned (tagged) before a live prune,
+#      only planned in a dry run; a stack image gone BEFORE the prune is a
+#      WARN, not blamed on the prune
 #   2. CONTROL: a prune that removes an infra stack image is a loud FAIL -
 #      and the same run with the stack pattern switched off is not, so the
 #      KEEP check (not luck) is what catches it
@@ -42,6 +45,7 @@ case "\$1 \$2" in
     shift 3; for a in "\$@"; do case "\$a" in con-csi-csi-spl-tf-runner|c1) echo sha256:aaa1111111111111 ;; *) echo sha256:bbb2222222222222 ;; esac; done ;;
   "image ls") cat "\$T/old" ;;
   "image inspect")
+    [ "\$4" = "{{len .RepoTags}}" ] && { case "\$5" in sha256:bbb*) echo 0 ;; *) echo 1 ;; esac; exit 0; }
     [ "\$4" = "{{.Size}}" ] && { shift 4; for a in "\$@"; do echo 1000; done; exit 0; }
     [ -f "\$T/gone.\$3" ] && exit 1; exit 0 ;;
   "image prune")
@@ -80,7 +84,7 @@ out="$(prune)"; rc=$?
   && pass "1. the CHECK line names the box, user, socket, root and disk" || fail "1. CHECK ($out)"
 grep -q 'PLAN docker image prune -a --filter until=168h: 1 unused image(s), at most 1000 bytes' <<<"$out" && [ "$(pruned)" = 0 ] \
   && pass "1. the dry run (default) plans the one unused old image and prunes nothing" || fail "1. dry run ($out / $(cat "$STUB_LOG"))"
-grep -q 'KEEP con-csi-csi-spl-tf-runner image=aaa111111111 (in use' <<<"$out" && ! grep -q 'KEEP some-pg' <<<"$out" \
+grep -q 'KEEP con-csi-csi-spl-tf-runner image=aaa111111111 (in use, present' <<<"$out" && ! grep -q 'KEEP some-pg' <<<"$out" \
   && pass "1. the infra stack container is named KEEP, only it" || fail "1. KEEP ($out)"
 
 out="$(prune DRY_RUN=0)"; rc=$?
@@ -91,6 +95,19 @@ grep -q 'RESULT box=testbox .* reclaimed_bytes=1750000000 images_bytes=150000000
   && pass "1. the RESULT line logs the reclaimed bytes and the disk" || fail "1. RESULT ($out)"
 ! grep -qE 'volume|system prune|container prune|rmi| rm ' "$STUB_LOG" && [ ! -s "$T/sent" ] \
   && pass "1. never a volume or container, and a clean run sends no note" || fail "1. touched more ($(cat "$STUB_LOG"); sent: $(cat "$T/sent"))"
+
+grep -q '^docker tag sha256:bbb2222222222222 csi-spl-prune-keep:some-pg$' "$STUB_LOG" && ! grep -q 'docker tag sha256:aaa' "$STUB_LOG" \
+  && grep -q 'PIN some-pg image=bbb222222222 had no tag: tagged csi-spl-prune-keep:some-pg' <<<"$out" \
+  && pass "1. the untagged in-use image (only it) is pinned before the prune" || fail "1. pin ($out / $(cat "$STUB_LOG"))"
+[ "$(grep -n '^docker tag' "$STUB_LOG" | cut -d: -f1)" -lt "$(grep -n '^docker image prune' "$STUB_LOG" | cut -d: -f1)" ] \
+  && pass "1. ...and the pin comes before the prune" || fail "1. pin order ($(cat "$STUB_LOG"))"
+out="$(prune)"
+grep -q 'PIN PLAN some-pg' <<<"$out" && ! grep -q '^docker tag' "$STUB_LOG" && pass "1. the dry run only plans the pin" || fail "1. dry pin ($out)"
+touch "$T/gone.sha256:aaa1111111111111"
+out="$(prune DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'WARN con-csi-csi-spl-tf-runner runs image aaa111111111, which was gone BEFORE this prune' <<<"$out" \
+  && ! grep -q 'FAIL' <<<"$out" && pass "1. a stack image gone before the prune is a WARN, not a FAIL" || fail "1. gone before (rc $rc: $out)"
+rm -f "$T"/gone.*
 
 echo "0 /srv/r/runner-01/bin/Runner.Worker spawnclient 1 2" >"$T/procs"
 out="$(prune DRY_RUN=0)"; rc=$?

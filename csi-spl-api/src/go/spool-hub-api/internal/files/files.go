@@ -334,11 +334,15 @@ func createTemp(dir, prefix string) (*os.File, error) {
 
 // writeDeterministicTar writes a tar of root with cleared mtime/uid/gid and
 // sorted entries, so identical trees produce identical bytes (stable file_id).
-func writeDeterministicTar(w io.Writer, root string) error {
+func writeDeterministicTar(w io.Writer, root string) (err error) {
 	tw := tar.NewWriter(w)
-	defer tw.Close()
+	defer func() {
+		if cerr := tw.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	var paths []string
-	err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+	err = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

@@ -1,6 +1,10 @@
 package files
 
 import (
+	"archive/tar"
+	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -53,3 +57,68 @@ func TestGetFileHonoursUmask(t *testing.T) {
 }
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+// trailerFailWriter accepts the archive body and fails on the tar footer.
+// archive/tar.Writer.Close writes that footer as 512-byte zero blocks after
+// any short entry padding, so the first full zero block is the trailer.
+type trailerFailWriter struct {
+	err error
+}
+
+func (w *trailerFailWriter) Write(p []byte) (int, error) {
+	if isTarTrailerBlock(p) {
+		return 0, w.err
+	}
+	return len(p), nil
+}
+
+func isTarTrailerBlock(p []byte) bool {
+	if len(p) != 512 {
+		return false
+	}
+	for _, b := range p {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// TestWriteDeterministicTarTrailerWriteFails: a trailer write that fails must
+// fail the pack. defer tw.Close() used to drop that error, so PutDir minted a
+// file_id for a truncated tar.
+func TestWriteDeterministicTarTrailerWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var ok bytes.Buffer
+	if err := writeDeterministicTar(&ok, dir); err != nil {
+		t.Fatal(err)
+	}
+	tr := tar.NewReader(&ok)
+	hdr, err := tr.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hdr.Name != "a.txt" {
+		t.Fatalf("name %q", hdr.Name)
+	}
+	body, err := io.ReadAll(tr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "hello" {
+		t.Fatalf("body %q", body)
+	}
+	if _, err := tr.Next(); err != io.EOF {
+		t.Fatalf("archive tail: %v", err)
+	}
+
+	boom := errors.New("trailer write failed")
+	err = writeDeterministicTar(&trailerFailWriter{err: boom}, dir)
+	if !errors.Is(err, boom) {
+		t.Fatalf("trailer failure: got %v, want %v", err, boom)
+	}
+}

@@ -57,6 +57,9 @@ describe('build stamp', () => {
     assert.ok(ih > 0 && ih < inc && inc < iv, 'order must be dot, bell/note, version')
     assert.match(s, /\.foot-row \{ display: flex; align-items: center; gap: 8px; padding: 8px 16px 4px; \}/)
     assert.match(s, /\.foot-row \.version-stamp \{[^}]*white-space: nowrap;[^}]*text-overflow: ellipsis;/)
+    // owner t1 747c7e47: version 2 mm (~0.5rem) and clock 4 mm (~1rem) lower, paint only
+    assert.match(s, /\.foot-row \.version-stamp \{[^}]*transform: translateY\(0\.5rem\);/)
+    assert.match(s, /\.foot-row \.foot-row__clock \{[^}]*transform: translateY\(1rem\);/)
     // owner 2026-09-26: only the version shows; the commit is in a card that
     // stays open (hover/focus/tap), closes on Esc after a grace delay, copyable
     assert.doesNotMatch(s, /class="vs-sha"/)

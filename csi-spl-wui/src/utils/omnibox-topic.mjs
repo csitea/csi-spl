@@ -158,8 +158,8 @@ export function chipLabel({ dock = null, place = '', text = '', named = null, ti
   return { key: '', params: {}, text: where, open: where ? at : '' }
 }
 
-/** 085 FR-002: the phone chip's cap, in characters (spec Q4: ~85 px at 14 px). */
-export const PHONE_CHIP_MAX = 12
+/** 085 FR-002: the phone chip's cap, in characters (spec Q4: ~64 px at 14 px; 12 -> 9 by owner msg 89704e48: more tap room to paste). */
+export const PHONE_CHIP_MAX = 9
 
 /**
  * 085 FR-001 / FR-002: 080's chip on the phone dock. The same chipLabel, two

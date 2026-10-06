@@ -173,7 +173,7 @@ async function desktopCase(browser) {
  *   phone (390x844 and 360x780, touch), /channel/alerts:
  *     AC1 tap the box (level 2): the chip reads "#alerts" before any typing;
  *         type "x": still "#alerts"; tap a card (level 3), tap the box: the
- *         chip starts "Reply", at most 12 characters + an ellipsis, its full
+ *         chip starts "Reply", at most 9 characters + an ellipsis, its full
  *         words in title and aria-label
  *     AC2 in each of those states the chip's rect lies inside the field's,
  *         and no text in the composer sits above the field (owner dd98f8d7)
@@ -315,8 +315,8 @@ async function chipCase(browser, width, height) {
   await tapBox()
   const s3 = await dockChip(p)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-reply.png`) })
-  const capped = (s) => Array.from(s.replace(/…$/, '')).length <= 12
-  ok(`${tag} AC1 a topic open (level 3), tap the box: the chip reads "Reply", cut to 12, full words in title/aria-label`, Boolean(s3 && s3.level === '3' && s3.chip.startsWith('Reply') && capped(s3.chip) && s3.title.startsWith('Reply · ') && s3.aria === s3.title && s3.title.startsWith(s3.chip.replace(/…$/, ''))), s3)
+  const capped = (s) => Array.from(s.replace(/…$/, '')).length <= 9
+  ok(`${tag} AC1 a topic open (level 3), tap the box: the chip reads "Reply", cut to 9, full words in title/aria-label`, Boolean(s3 && s3.level === '3' && s3.chip.startsWith('Reply') && capped(s3.chip) && s3.title.startsWith('Reply · ') && s3.aria === s3.title && s3.title.startsWith(s3.chip.replace(/…$/, ''))), s3)
   ok(`${tag} AC2 level 3: inside the field, no text above it`, ac2(s3), s3)
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()

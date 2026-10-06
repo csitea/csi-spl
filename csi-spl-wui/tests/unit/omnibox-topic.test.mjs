@@ -182,10 +182,10 @@ describe('080 the target chip and the send read one target (AC6)', () => {
 })
 
 /* 085 FR-002 (AC3): on a phone the chip is chipLabel(target), its words cut
-   to 12 characters with an ellipsis after, for every row of 080 AC6's target
+   to PHONE_CHIP_MAX (9) characters with an ellipsis after, for every row of 080 AC6's target
    table; the uncut words stay in `full` (title, aria-label). Spec Q3: a
    focused empty box already names the target a plain line would go to. */
-describe('085 the phone chip is chipLabel cut to 12 characters (AC3)', () => {
+describe('085 the phone chip is chipLabel cut to 9 characters (AC3)', () => {
   const TABLE = [
     { tab: 'topics', selectedTaskId: 'T-1' },
     { tab: 'topics', selectedTaskId: 'T-1', namedTopicId: 'T-9' },
@@ -203,7 +203,7 @@ describe('085 the phone chip is chipLabel cut to 12 characters (AC3)', () => {
   ]
   const WORDS = { 'composer.chip_reply': 'Reply · {title}', 'composer.chip_new_topic': 'New topic · {target}' }
   const render = (c) => (c.key ? WORDS[c.key].replace(/\{(\w+)\}/g, (_, k) => c.params[k]) : c.text)
-  const cut = (s) => (Array.from(s).length > 12 ? Array.from(s).slice(0, 12).join('') + '…' : s)
+  const cut = (s) => (Array.from(s).length > 9 ? Array.from(s).slice(0, 9).join('') + '…' : s)
   for (const page of PAGES) {
     for (const row of TABLE) {
       for (const text of LINES) {
@@ -222,12 +222,12 @@ describe('085 the phone chip is chipLabel cut to 12 characters (AC3)', () => {
     }
   }
 
-  it('short labels stay whole; a long one is cut to 12 + an ellipsis', () => {
-    assert.equal(PHONE_CHIP_MAX, 12)
+  it('short labels stay whole; a long one is cut to 9 + an ellipsis', () => {
+    assert.equal(PHONE_CHIP_MAX, 9)
     assert.equal(phoneChipLabel({ dock: { reply: false, target: '#alerts' }, place: 'ch:alerts', text: 'x' })?.short, '#alerts')
     assert.equal(phoneChipLabel({ dock: { reply: false, target: 'GRK-03', dm: true }, place: 'dm:GRK-03', text: 'x' })?.short, '@GRK-03')
     const long = phoneChipLabel({ dock: { reply: false, target: '#a' }, place: 'ch:spool-hub-mobile', text: 'x' })
-    assert.deepEqual([long?.short, long?.full], ['#spool-hub-m…', '#spool-hub-mobile'])
+    assert.deepEqual([long?.short, long?.full], ['#spool-hu…', '#spool-hub-mobile'])
   })
 
   it('spec Q3: a focused empty box names the target; unfocused, or in /search, no chip', () => {
@@ -237,7 +237,7 @@ describe('085 the phone chip is chipLabel cut to 12 characters (AC3)', () => {
     assert.equal(phoneChipLabel({ ...opts, text: '/search x' }, { focused: true }), null)
     assert.equal(phoneChipLabel({ dock: null, place: '', text: '' }, { focused: true }), null)
     const reply = phoneChipLabel({ dock: { reply: true, target: '#alerts' }, place: 't:T-1', text: '', title: 'Deploy notes' }, { focused: true, render })
-    assert.deepEqual([reply?.key, reply?.short, reply?.full], ['composer.chip_reply', 'Reply · Depl…', 'Reply · Deploy notes'])
+    assert.deepEqual([reply?.key, reply?.short, reply?.full], ['composer.chip_reply', 'Reply · D…', 'Reply · Deploy notes'])
   })
 
   it('the phone dock renders the chip from phoneChipLabel, the full words in title and aria-label, indenting line 1 only', () => {

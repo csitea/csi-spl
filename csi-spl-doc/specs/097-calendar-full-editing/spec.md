@@ -1,9 +1,10 @@
 # 097 Calendar: full editing, Google Calendar style
 
-Status: **v0.3, 2026-10-06: fully decided.** The owner approved the v1
-feature list (section 0.1, E1..E3) and answered Q1..Q9 "as proposed"
-(section 10, msg `92b3e0d6`). Spec only: no code, no migration, no cnf value
-was touched by this lane. Building may start (tasks.md).
+Status: **v0.4, 2026-10-06: mobile-first specification added.** The owner approved
+the v1 feature list (section 0.1, E1..E3) and answered Q1..Q9 "as proposed"
+(section 10, msg `92b3e0d6`). Mobile-first section 5.1 defines phone layout,
+touch interactions, and 360/390 px acceptance checks for all 10 features, with
+open owner questions M1..M5. Building may start (tasks.md).
 Topic: t1 `70484be0-ed1d-4fc0-bebb-44874cc2661e` (owner HUM-10, msg
 `88405d88`). Author: c-397.
 Builds on, and does not repeat: [089 the Calendar section](../089-calendar-section/spec.md)
@@ -399,6 +400,245 @@ and the event dialog), not instead of it.
 | Undo | the toast after a delete; the trash list in the calendar menu |
 | export | "Export .ics" in the calendar menu |
 
+### 5.1 Mobile first
+
+Mobile first (owner HUM-10 msg `8d181e85`, t1 `70484be0`; mobile channel
+`#spool-hub-mobile` `52aee116-fe6a-4776-bc5c-0076b40cbc56`, c-002 msg `5c1a9e2d`):
+the screens and interactions are designed for the phone first (viewport <= 820 px,
+mobile stack Level 2 per spec 089 section 2.2). **Where phone and desktop
+conflict, the phone wins.**
+
+Every v1 editing feature (section 6) adapts to a small touchscreen:
+- **Baseline viewports:** tested and verified at 360 px width (compact phone,
+  e.g. 360x780 / 360x740) and 390 px width (standard phone, 390x844).
+- **Thumb zone:** primary actions (navigation, "+ New event", view switcher,
+  dialog Save/Cancel/Delete, RSVP buttons) sit in the lower half of the
+  screen (`y >= ih / 2`), reachable with one thumb.
+- **Touch targets:** interactive controls meet the 44 px target standard
+  (`min-height: var(--tap); min-width: var(--tap)`).
+- **No sideways scroll:** `scrollWidth <= clientWidth` (`xScroll <= 1 px`) across
+  all views, sheets, and dialogs.
+- **Safe-area insets:** insets respect `env(safe-area-inset-bottom)` and the
+  composer dock height (`var(--composer-dock-h, 0px)`).
+
+#### 1. Drag to move and resize (G1)
+- **What the phone does:**
+  - **Move:** Tapping an event opens its pop-over/sheet. A **touch-and-hold**
+    (long press >= 250 ms, accompanied by visual card elevation and border tint)
+    enters drag-move mode; dragging vertically moves the event across time slots
+    or across days in the Week list. Releasing drops the event and issues `PATCH`
+    with `If-Match`. Swiping without holding scrolls the day/week list smoothly
+    without initiating a drag.
+  - **Resize:** When an event is selected in Day view, an explicit bottom
+    **resize handle** (a grab bar/pill) appears with a dedicated >= 44x44 px touch
+    hit area. Dragging the handle up or down adjusts the event's duration in
+    15-minute increments; releasing submits `PATCH` with the new `ends_at` and
+    `If-Match`.
+- **How it differs from desktop:** Desktop relies on immediate mouse click-drag
+  and 3 px edge hover cursors (`ns-resize`). On a phone touch screen, immediate
+  drag would intercept scrolling; touch hold-to-drag disambiguates scrolling from
+  repositioning, and touch resizing requires a visible >= 44 px hit handle instead
+  of hover.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Hold >= 250 ms initiates event drag without scrolling; vertical
+    drag adjusts time slot; tap without hold opens event; swipe without hold
+    scrolls schedule; bottom resize handle has >= 44x44 px touch area; drag
+    updates duration; `xScroll <= 1 px`.
+  - **390 px:** Tested at 390x844; hold-to-drag moves event across day/hour
+    boundaries; bottom resize handle cleanly resizes; `edit_conflict` shows
+    in-view toast without horizontal clipping.
+
+#### 2. Several reminders (G6, owner E2)
+- **What the phone does:** The dialog provides "+ Add reminder" (up to 5). Each
+  reminder is an inline row with:
+  - Amount input configured with `inputmode="numeric"` and `pattern="[0-9]*"`,
+    which opens the compact numeric keypad on iOS and Android rather than the full
+    alphanumeric keyboard.
+  - Unit dropdown (`minutes`, `hours`, `days`) sized at >= 44 px tap height.
+  - Delete icon button with >= 44x44 px touch target.
+  - Up to 5 reminder rows stack cleanly inside the scrollable dialog. Non-whole
+    numbers or values > 4 weeks show immediate inline validation.
+- **How it differs from desktop:** Desktop uses compact horizontal stepper inputs.
+  Phone uses `inputmode="numeric"` to preserve vertical viewport space, full-width
+  stacked rows, and >= 44 px touch targets for unit pickers and deletion buttons.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Each reminder row (amount input, unit select, remove button) fits
+    in 360 px width without line wrapping; amount input summons numeric keyboard;
+    unit select and delete button have >= 44 px touch targets; non-whole numbers
+    rejected; up to 5 reminders scroll cleanly.
+  - **390 px:** Tested at 390x844; numeric keypad does not conceal active input or
+    dialog controls; 5 stacked reminders persist and reload as typed `{amount, unit}`.
+
+#### 3. Repeating events (G2, G3)
+- **What the phone does:**
+  - Repeat options ("Does not repeat", "Daily", "Weekly...", "Every weekday",
+    "Custom...") render via a full-width mobile picker or bottom sheet.
+  - "Custom..." repeat editor stacks vertically: interval stepper, weekday chips
+    (`M`, `T`, `W`, `T`, `F`, `S`, `S` as touchable circles >= 40 px each), and
+    until/count choices.
+  - On saving or deleting an occurrence, the scope prompt ("This event",
+    "This and following events", "All events") displays as a **bottom action sheet**
+    with large, vertically stacked buttons (>= 44 px height each) directly in the
+    lower thumb zone.
+- **How it differs from desktop:** Desktop displays small radio/dropdown menus
+  and floating modal prompts. Phone uses touch-friendly chip rows, full-width
+  pickers, and a bottom action sheet for thumb-reachable scope selection.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Repeat select fits within 360 px; Custom repeat weekday chips fit
+    in a single 7-chip row or wrap cleanly; scope prompt renders 3 stacked buttons
+    with >= 44 px height in the bottom thumb zone; `xScroll <= 1 px`.
+  - **390 px:** Tested at 390x844; tapping scope prompt applies selected scope
+    to `PATCH`/`DELETE` and dismisses sheet; bottom safe area padding respected.
+
+#### 4. Undo delete (G13)
+- **What the phone does:** When an event is deleted, the Undo bar ("Event deleted · Undo")
+  floats for 10 seconds. On a phone, it is anchored **directly above the calendar's
+  bottom navigation bar and composer dock**:
+  `bottom: calc(var(--cal-bottom-bar-h, 48px) + var(--composer-dock-h, 0px) + 8px)`,
+  spanning the width with 8 px side margins. It leaves the Today/prev/next controls
+  and the iOS home indicator fully visible and accessible. The "Undo" action button
+  has a >= 44 px touch target.
+- **How it differs from desktop:** Desktop toast floats at the bottom-left or
+  center of the screen. On a phone, a bottom toast would collide with the sticky
+  bottom toolbar or iOS home gesture zone; phone positions it safely above the
+  bottom bar without obstructing date navigation.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Undo bar sits above bottom bar with >= 8 px separation; Today,
+    prev, next buttons remain 100% visible and clickable while Undo bar is shown;
+    Undo button has >= 44 px touch target; tapping Undo restores event within 10 s;
+    bar auto-dismisses after 10 s; `xScroll <= 1 px`.
+  - **390 px:** Tested at 390x844; toast width is 374 px (390 px minus margins);
+    zero overlap with bottom navigation or system gesture areas.
+
+#### 5. Guests who answer (G4, G5)
+- **What the phone does:**
+  - **RSVP:** In the event pop-over / detail sheet, the viewer's RSVP choices
+    ("Yes", "Maybe", "No") render as a segmented bar or prominent buttons in the
+    bottom thumb zone (>= 44 px height each).
+  - **Guest picker:** In the edit dialog, the guest search field expands a
+    touch-friendly dropdown of workspace members and agents with avatars and badges
+    (>= 44 px row height). Selected guests display as removable chips (>= 44 px
+    tap target on remove). "Notify guests" toggle switch has >= 44 px tap target.
+- **How it differs from desktop:** Desktop places RSVP inside compact popover
+  headers. Phone places RSVP in the primary thumb zone at the bottom of the card;
+  guest autocomplete supports touch scroll and large touch targets for quick selection.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Yes / Maybe / No buttons fit in a single 3-column row in thumb
+    reach (each >= 44 px height); tapping records RSVP via `POST .../rsvp` with
+    instant active state; guest autocomplete list and chips fit within 360 px;
+    "Notify guests" switch is >= 44 px; `xScroll <= 1 px`.
+  - **390 px:** Tested at 390x844; RSVP buttons positioned in lower third of screen;
+    guest search results scroll smoothly on touch.
+
+#### 6. Event details (G7..G9)
+- **What the phone does:** Clicking "+ New event", an empty slot, or an event
+  opens `CalendarEventDialog` as a **full-screen sheet/modal** (`width: 100vw;
+  height: 100dvh; max-height: 100%`) rather than a centered popup.
+  - Single-column vertical scroll holds all fields: title, date, start/end or
+    all-day, time zone picker, repeat rule, location, guests, reminders, colour
+    swatches, private switch, and description.
+  - Colour picker wraps into a grid of touchable circles (>= 44x44 px).
+  - Time zone picker is a full-width select with searchable modal list.
+  - **Primary actions at the bottom:** Save, Cancel, and Delete are anchored in a
+    sticky bottom action bar inside the thumb zone, with Save and Delete having
+    >= 44 px height.
+- **How it differs from desktop:** Desktop uses a floating modal dialog (`size="md"`)
+  with a 4-column form grid. Phone uses a full-screen takeover with single-column
+  scrolling and sticky thumb-zone actions at the bottom.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Dialog fills 100% width and height without horizontal scrolling;
+    fields stack in 1 column; color swatches >= 44x44 px; sticky bottom bar holds
+    Save and Cancel (>= 44 px height); scrolling reveals all fields smoothly.
+  - **390 px:** Tested at 390x844; sticky bottom bar stays visible when keyboard is
+    dismissed; active inputs scroll into view above virtual keyboard; header close
+    button and bottom Save button work reliably.
+
+#### 7. Search (G14)
+- **What the phone does:** Tapping Search in the mobile calendar header opens a
+  **full-screen search view**.
+  - The search input auto-focuses with an instant "Clear" (X) button and a "Cancel"
+    header button.
+  - Below the input, filter chips (kind, guest, date range) scroll horizontally
+    in a touch-friendly chip bar (`overflow-x: auto`).
+  - Search results render as a full-width vertical list with date header, time,
+    title, and location, with each result row having >= 48 px height.
+  - Tapping a result jumps directly to that day in the Day view, opens the event,
+    and closes the search view.
+- **How it differs from desktop:** Desktop renders a drop-down results list below
+  the header search bar. Phone uses a full-screen overlay to provide maximum
+  readability and keyboard room.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Search opens full screen; search input, clear button, and cancel
+    button fit 360 px width; filter chips scroll horizontally without expanding
+    page width; result items have >= 44 px height; tapping result navigates to day;
+    `xScroll <= 1 px`.
+  - **390 px:** Tested at 390x844; live debounced queries query `GET /v1/calendar/search`;
+    results list remains scrollable above virtual keyboard.
+
+#### 8. Quick add (G12)
+- **What the phone does:** Opening Quick add displays a compact input bar
+  **docked directly above the virtual keyboard** (`interactive-widget=resizes-content`
+  / `visualViewport`-safe).
+  - A 1-line text input accepts the sentence ("Sync tomorrow 10am @bot #infra").
+  - Immediately attached above the input, a compact live `dry_run` preview card
+    displays the parsed title, time, date, and guests as chips.
+  - The phone keyboard stays open continuously while typing and updating preview.
+  - A Send/Create button (>= 44x44 px) commits the event via `POST /v1/calendar/events/quick`
+    and dismisses the keyboard.
+- **How it differs from desktop:** Desktop uses an expanding input box in the
+  desktop header. Phone must keep the virtual keyboard open without hiding the input
+  or the live preview, docking above the keyboard and fitting within the visible height budget.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** Input bar and preview card fit within visible height above software
+    keyboard (~350 px height budget); keyboard stays open during live `dry_run`;
+    Send button is >= 44x44 px; submitting creates event and closes Quick add;
+    `xScroll <= 1 px`.
+  - **390 px:** Tested at 390x844; preview text and chips wrap without overflowing;
+    unrecognized syntax displays inline validation message without jumping.
+
+#### 9. Duplicate (G11)
+- **What the phone does:** In the event pop-over or detail sheet, tapping "Duplicate"
+  opens the full-screen event dialog populated with all fields copied from the
+  selected event (title, duration, location, colour, reminders, time zone, description),
+  with guest RSVP states reset and ready for creation. Primary Save button sits in the
+  bottom thumb zone.
+- **How it differs from desktop:** Desktop opens the desktop modal dialog. Phone
+  opens the full-screen dialog with sticky thumb-zone actions at the bottom.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** "Duplicate" action in event sheet has >= 44 px tap height; opens
+    full-screen dialog pre-filled; Save button is reachable by thumb at bottom;
+    saving creates event and returns to calendar view.
+  - **390 px:** Tested at 390x844; duplicate flow executes smoothly without
+    horizontal scroll.
+
+#### 10. Export on a phone (G15)
+- **What the phone does:** "Export .ics" in the calendar menu triggers
+  `GET /v1/calendar/export.ics?start=...&end=...` with
+  `Content-Disposition: attachment; filename="calendar.ics"` and
+  `Content-Type: text/calendar; charset=utf-8`. On mobile Safari (iOS) and mobile
+  Chrome/Firefox (Android), this automatically prompts the native OS modal ("Open
+  in Calendar" / "Add to Calendar" / download prompt), allowing 1-tap import into
+  the device's native calendar app.
+- **How it differs from desktop:** Desktop silently saves the `.ics` file to the
+  browser's Downloads directory. On mobile, browsers hand off `.ics` files directly
+  to the device's native calendar application.
+- **Acceptance check (360 px and 390 px widths):**
+  - **360 px:** "Export .ics" menu entry has >= 44 px tap height; tapping triggers
+    download request; browser receives `200` with `text/calendar` and triggers OS
+    calendar import/download prompt without page reload or layout corruption.
+  - **390 px:** Tested at 390x844; date range parameters correctly passed; download
+    completes cleanly.
+
+#### Owner questions (Mx)
+
+| # | Question | Proposal |
+|---|---|---|
+| M1 | On touch screens, should moving an event require a 250 ms long-press anywhere on the event card, or an explicit touch drag handle icon on the card? | 250 ms long-press anywhere on the card to lift and drag, with subtle haptic/visual elevation feedback. This avoids cluttering small event cards with extra icons while preventing scroll conflicts. |
+| M2 | The event dialog is full-screen on phones (<= 600 px). On larger mobile screens (601–820 px, e.g. tablets or unfolded phones in landscape), should it remain full-screen or use the desktop centered modal (`size="md"`)? | Use full-screen for <= 600 px (phones); switch to centered modal for 601–820 px (tablets/landscape), keeping form fields from becoming excessively wide while maintaining touch-sized targets. |
+| M3 | When Quick add is opened on mobile, should it dock directly above the software keyboard as a bottom bar, or open as a full-screen input view? | Dock directly above the software keyboard with the live dry-run preview card attached, keeping the calendar view visible behind it so the user can see their existing schedule while typing. |
+| M4 | When an event is deleted, should the 10-second Undo toast float immediately above the Calendar bottom toolbar (Today/prev/next), or should it temporarily replace the bottom toolbar? | Float immediately above the bottom toolbar (`bottom: calc(var(--cal-bottom-bar-h) + var(--composer-dock-h) + 8px)`), so date navigation remains available while the Undo option is visible. |
+| M5 | In the mobile Day view, should tapping an empty time slot directly create/open the event dialog pre-filled with that hour, or should event creation only be triggered by the bottom "+ New event" button? | Both: tapping an empty time slot opens the dialog pre-filled with that specific hour; tapping the bottom "+ New event" button defaults to the next full hour. |
+
 ## 6. Ranked value to the owner, and v1
 
 | rank | item | v1 |
@@ -499,8 +739,9 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.4 | 2026-10-06 | a-424 | Mobile-first section 5.1 (phone layout, touch gestures, full-screen dialogs, thumb reach, 360/390 px acceptance checks for all 10 v1 features, owner questions M1..M5). |
 | v0.3 | 2026-10-06 | c-363 | Owner answered Q1..Q9 "as proposed" (msg `92b3e0d6`): every row of section 10 DECIDED as proposed; with E1..E3 the spec is fully decided. |
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 0.2 · updated: 2026-10-06 -->
+<!-- version: 0.4 · updated: 2026-10-06 -->

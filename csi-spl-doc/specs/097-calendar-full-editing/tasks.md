@@ -4,7 +4,8 @@ Authority for what is built (`spec.md` holds the behaviour and the owner's
 decisions, sections 0.1 and 10). Each task is one lane: one agent, one task, the
 files it owns, the tests that prove it, its dependencies. Status vocabulary:
 `../README.md` §2.3. The owner answered Q1..Q9 "as proposed"
-(spec section 10, msg `92b3e0d6`); the spec is fully decided.
+(spec section 10, msg `92b3e0d6`); the spec is fully decided; v0.4 adds
+mobile-first phone acceptance to WUI tasks.
 
 Paths: `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`,
 `api/` = `csi-spl-api/src/go/spool-hub-api/`, `wui/` = `csi-spl-wui/`,
@@ -119,33 +120,59 @@ T005 and T010 are pure packages with no dependency and may start at once.
   089 T005 and each call it wraps.
 
 ### Phase 6: WUI (on top of 089 T008)
+
+No new backend tasks for mobile: all backend routes (T002..T012) are platform-neutral
+REST / JSON / ICS endpoints; touch gestures, full-screen sheets, virtual keyboard adaptation,
+and responsive pickers are handled entirely within the WUI surface (T013..T019).
+
 - [ ] T013 **drag move / resize** in `wui/src/components/CalendarMainView.vue`:
   drag, bottom-edge resize, drag on empty time to create, `If-Match` on every
   save, `edit_conflict` reload with a short notice. e2e: two tabs drag the
-  same event. Depends: 089 T008, T004. (G1)
+  same event. Phone acceptance (360 and 390 px): touch hold-to-drag (>= 250 ms)
+  moves event without page scroll; bottom resize handle has >= 44x44 px touch
+  hit area; drag on empty slot creates event; zero sideways scroll.
+  Depends: 089 T008, T004. (G1, spec 5.1.1)
 - [ ] T014 **dialog fields** in `CalendarEventDialog.vue`: reminders list (up
   to 5, each a whole-number field and a minutes / hours / days choice; a
   fraction or 0 cannot be typed), location, colour swatches (theme variables,
   light and dark), time zone picker (default the member's `time_zone`
   preference); event pop-over with Duplicate. No video link, no busy / free
-  (owner E3). Depends: T013.
-  (G6..G9, G11)
+  (owner E3). Phone acceptance (360 and 390 px): dialog opens full-screen
+  (100vw x 100dvh); fields stack in 1 column without horizontal scroll; reminder
+  amount inputs use `inputmode="numeric"`; colour swatches and time zone select
+  meet >= 44 px touch targets; Duplicate opens full-screen create form; Save, Cancel,
+  and Delete are anchored in a sticky bottom bar reachable by thumb.
+  Depends: T013. (G6..G9, G11, spec 5.1.2, 5.1.6, 5.1.9)
   - The dialog exists (089 T008 v1, c-378): `wui/src/components/CalendarEventDialog.vue`, its rules in `wui/src/utils/calendar-event-form.mjs` (add a field: one key in `calFormFromEvent`, one entry in `calFormBody`), its slot for these fields marked `097 T014..T016` between all day and the Private switch.
 - [ ] T015 **repeat + scope**: the repeat menu and Custom editor, the
-  "This / This and following / All" prompt on save and delete. Depends: T014,
-  T006.
+  "This / This and following / All" prompt on save and delete. Phone acceptance
+  (360 and 390 px): repeat dropdown and Custom cadence editor fit small screen
+  without clipping; "This / This and following / All" scope prompt displays as
+  a stacked bottom action sheet with >= 44 px buttons reachable by thumb.
+  Depends: T014, T006. (spec 5.1.3)
 - [ ] T016 **guests**: the guests picker (members and agents), "notify
-  guests", answers in the pop-over, Yes / Maybe / No for the viewer. Depends:
-  T015, T007, T008.
+  guests", answers in the pop-over, Yes / Maybe / No for the viewer. Phone
+  acceptance (360 and 390 px): Yes / Maybe / No RSVP buttons sit in the bottom
+  thumb-reach zone (>= 44 px height); guest picker input and suggestions dropdown
+  scroll smoothly on touch with >= 44 px tap targets; "Notify guests" switch is
+  >= 44 px. Depends: T015, T007, T008. (spec 5.1.5)
 - [ ] T017 **Undo + trash**: the 10-second Undo toast after a delete, the
-  trash list in the calendar menu. Depends: 089 T008, T004. Parallel with
-  T013..T016.
+  trash list in the calendar menu. Phone acceptance (360 and 390 px): Undo
+  toast floats above bottom navigation bar and composer dock (`--composer-dock-h`),
+  never obscuring bottom controls or system gestures; Undo button is >= 44 px;
+  trash list renders as full-width mobile view. Depends: 089 T008, T004. Parallel with
+  T013..T016. (spec 5.1.4)
 - [ ] T018 **quick add, search, export** in the header: the `+` sentence box
   with live `dry_run` preview, the search field and result list, "Export
-  .ics". Depends: T009, T010, T011.
+  .ics". Phone acceptance (360 and 390 px): Quick add docks above software
+  keyboard with live `dry_run` preview without layout jump; search opens full-screen
+  with touch filter chips and >= 48 px result rows; "Export .ics" triggers native
+  mobile browser calendar import/download. Depends: T009, T010, T011.
+  (spec 5.1.7, 5.1.8, 5.1.10)
 - [ ] T019 **help**: extend `doc/doc/help/calendar.md` (repeat, guests,
-  reminders, Undo, quick add, search, export), then the help sync. Depends:
-  T018 and T016.
+  reminders, Undo, quick add, search, export), then the help sync. Phone
+  acceptance: includes mobile gestures (touch-and-hold drag, resize handle,
+  thumb reach, mobile Quick add and RSVP). Depends: T018 and T016.
 
 ### Later (spec section 6, rank 11; each waits for the owner)
 - [ ] L1 `.ics` import (`POST /v1/calendar/import`, `dry_run`).
@@ -153,4 +180,4 @@ T005 and T010 are pure packages with no dependency and may start at once.
 - [ ] L3 `push` reminders (after 095) and `email` reminders (mail relay).
 - [ ] L4 e-mail invitations, opt-in per workspace (Q3).
 
-<!-- version: 0.3 · updated: 2026-10-06 -->
+<!-- version: 0.4 · updated: 2026-10-06 -->

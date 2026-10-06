@@ -17,6 +17,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/rs/zerolog v1.33.0
+	github.com/teambition/rrule-go v1.8.2
 	golang.org/x/crypto v0.55.0
 	golang.org/x/text v0.41.0
 	google.golang.org/api v0.278.0

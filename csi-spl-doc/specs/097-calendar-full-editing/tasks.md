@@ -81,7 +81,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   FR-007, FR-008)
 
 ### Phase 3: Recurrence (serial)
-- [ ] T005 **rrule package** `api/internal/calrecur/` (pure; Q1 decided
+- [x] T005 **rrule package** `api/internal/calrecur/` (c-422; pure; Q1 decided
   `rrule-go` behind a wrapper): parse and validate the 4.4 subset,
   compute `recur_until`, expand `[start, end)` in a time zone with
   exceptions and cancellations, the 2000-occurrence cap, occurrence ids.

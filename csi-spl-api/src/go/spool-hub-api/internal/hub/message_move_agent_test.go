@@ -111,7 +111,8 @@ func TestMoveAgentDMMessageIntoChannelTopic(t *testing.T) {
 	}
 	put(dm, "HUM-1", "c-004", 1, 0)
 	own := put(dm, "HUM-1", "c-004", 0, 1)
-	bot := put(dm, "c-004", "HUM-1", 0, 2)
+	// level 1, as the hub stores an agent's DM answer (boxLevel: no channel)
+	bot := put(dm, "c-004", "HUM-1", 1, 2)
 	to := func(task string) map[string]string { return map[string]string{"to_task": task} }
 
 	if code, out := g.move(t, own, "HUM-1", to(g.U)); code != http.StatusConflict || out["error"] != "not_in_channel" {

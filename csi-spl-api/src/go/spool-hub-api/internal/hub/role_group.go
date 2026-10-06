@@ -16,8 +16,9 @@ import (
 //
 // Who is a role agent: the reserved ids of the role (spec 058 §3.0: 001 the
 // orchestrator, 002 / 003 the master and failover dispatchers), in either id
-// grammar, on every box. A role the hub does not know groups only the
-// holder's own number.
+// grammar, on every box. Only the orch and dispatch rows are read: any other
+// row in fleet_leases (a `spawn` / `deploy` mutex of spec 068 L5, a
+// watchdog) is no seat and never re-routes a channel (spec 101 D1).
 //
 // Handover (the lease moves by CAS on gen, spec 058 §3.5; a spec 060 rotation
 // keeps <ID>@<box>, so it moves nothing here):
@@ -60,12 +61,9 @@ func (s *Server) roleSeats(ctx context.Context, tenant string) roleSeats {
 	var out roleSeats
 	for _, l := range leases {
 		id, box := agentid.SplitAtBox(l.Holder)
-		if l.Gen == 0 || l.Age > stale || box == "" || !agentid.IsAgent(id) {
-			continue
-		}
 		nums := roleNumbers[l.Role]
-		if nums == nil {
-			nums = []string{agentid.Number(id)}
+		if nums == nil || l.Gen == 0 || l.Age > stale || box == "" || !agentid.IsAgent(id) {
+			continue
 		}
 		for _, n := range nums {
 			if out == nil {

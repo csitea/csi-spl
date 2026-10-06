@@ -178,3 +178,70 @@ func TestChannelPostRoleGroup(t *testing.T) {
 		t.Fatalf("sat drained %v, want p0 p2 p3 p4 p5 = %v", got, want)
 	}
 }
+
+// TestChannelPostRoleGroupIgnoresMutex is spec 101 D1: the router reads only
+// the orch / dispatch rows of fleet_leases. A live `spawn` mutex row held by
+// c-002@sat (068 L5's spl_peer_mutex writes it in the same fleet and tenant)
+// leaves agent 002's channel routing unchanged: the post still fans out to
+// both seated boxes. CONTROL: a `dispatch` row with the same holder does
+// narrow it to sat (S5's behaviour). Runs on memory and, with
+// SPOOL_TEST_PG_DSN, on Postgres.
+func TestChannelPostRoleGroupIgnoresMutex(t *testing.T) {
+	_, withLog := traceOnFailure(t)
+	e := newEnv(t, withLog)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := e.box(tid, "box-a", "GRK-03")
+	desk := e.box(tid, "box-desk", "c-002")
+	sat := e.box(tid, "sat", "c-002")
+	for _, b := range []*box{a, desk, sat} {
+		e.pin(tid, b)
+	}
+	for _, s := range [][2]string{{"box-a", "GRK-03"}, {"box-desk", "c-002"}, {"sat", "c-002"}} {
+		if err := e.st.InviteChannelAgent(ctx, tid, "feedback", s[0], s[1], time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cli, err := a.c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cli.Close()
+	task := uuidV4()
+	post := func(body string) string {
+		t.Helper()
+		m := chanMsg(task, "ALL-0", "note", body)
+		if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "feedback", "", m)); err != nil {
+			t.Fatalf("post %q: %v", body, err)
+		}
+		return m.MsgID
+	}
+	routed := func(id, box string) bool {
+		t.Helper()
+		_, err := e.st.DeliveryState(ctx, tid, id, box)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			t.Fatal(err)
+		}
+		return err == nil
+	}
+	hold := func(role string) {
+		t.Helper()
+		if _, err := e.st.CASFleetLease(ctx, tid, "fleet-a", role, "c-002@sat", "sat", 0, time.Now()); err != nil {
+			t.Fatalf("%s row: %v", role, err)
+		}
+	}
+
+	// 1. A live spawn mutex held by c-002@sat: no narrowing, both boxes get it.
+	hold("spawn")
+	p1 := post("spawn mutex held on sat")
+	if !routed(p1, "box-desk") || !routed(p1, "sat") {
+		t.Fatalf("spawn mutex re-routed agent 002: box-desk %v sat %v, want both", routed(p1, "box-desk"), routed(p1, "sat"))
+	}
+
+	// 2. CONTROL: a dispatch row with the same holder narrows to sat.
+	hold("dispatch")
+	p2 := post("dispatch lease held on sat")
+	if routed(p2, "box-desk") || !routed(p2, "sat") {
+		t.Fatalf("dispatch lease: box-desk %v sat %v, want sat only", routed(p2, "box-desk"), routed(p2, "sat"))
+	}
+}

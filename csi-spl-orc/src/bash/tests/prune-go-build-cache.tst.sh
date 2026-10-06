@@ -29,7 +29,10 @@ run_prune() {
     GO_CACHE_MAX_AGE_MIN="${GO_CACHE_MAX_AGE_MIN:-10}" ${3:-} \
     bash -c '
       set -uo pipefail
-      do_log() { printf "%s\n" "$*"; }
+      do_log() {
+        [[ "${CLOBBER_LOG:-0}" == 1 ]] && { type_of_msg="${1%% *}"; action="${*:2:1}"; rest_of_msg=x; msg=x; log_dir=x; log_file=x; }
+        printf "%s\n" "$*"
+      }
       do_require_bin() { command -v "$1" >/dev/null; }
       source "'"$PROJ_ROOT"'/src/bash/run/prune-go-build-cache.func.sh"
       do_prune_go_build_cache'
@@ -134,6 +137,14 @@ out="$(run_prune "$F1 $F2" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_GATE
   && "$out" == *"CACHE user=$(id -un) path=$F2 fs=/fake/data used_pct=23 threshold=85 action=skip"* ]] &&
   pass "each cache is gated by ITS filesystem: the 93% one is pruned, the 23% one is not; one CACHE line each" ||
   fail "per-cache gate (rc=$rc): $out"
+
+# ./run's do_log assigns unscoped globals (action, msg, log_dir, ...): a
+# do_log that clobbers them must not turn a skip into a prune.
+mk_cache "$F1"
+out="$(run_prune "$F1 $F2" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_GATE=1 GO_CACHE_NOW_MIN=30 CLOBBER_LOG=1" 2>&1)"; rc=$?
+[[ $rc -eq 0 && ! -e "$F1/00/aa/old" && -f "$F2/00/aa/old" ]] &&
+  pass "a do_log that sets globals (as ./run's does) still leaves the roomy cache alone" ||
+  fail "clobbering do_log (rc=$rc): $out"
 
 mk_cache "$F1"
 out="$(run_prune "$F2" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_GATE=1 GO_CACHE_NOW_MIN=30" 2>&1)"; rc=$?

@@ -200,23 +200,24 @@ go_cache_check_inputs() {
 # 3 skip, 1 its filesystem cannot be read off the hourly tick (a WARN).
 # The percent is the filesystem that holds THIS cache, not the first one.
 go_cache_due() {
-  local u="$1" d="$2" thr="$3" hour="$4" minute="$5" fs_line free="" pct="" mount="?" action
+  local u="$1" d="$2" thr="$3" hour="$4" minute="$5" fs_line free="" pct="" mount="?" verdict due=0
   fs_line="$(go_cache_fs "$u" "$d" 2>/dev/null)" || fs_line=""
   [[ -n "$fs_line" ]] && go_cache_split_fs "$fs_line"
   [[ -n "${GO_CACHE_USED_PCT:-}" ]] && pct="$GO_CACHE_USED_PCT"
+  # decided before do_log: ./run's do_log sets an unscoped 'action'
   if (( 10#$minute == 10#$hour )); then
-    action=prune-hourly
+    verdict=prune-hourly
   elif [[ ! "$pct" =~ ^[0-9]+$ ]]; then
     do_log "WARN CACHE user=$u path=$d fs=$mount used_pct=${pct:-?} threshold=$thr action=none: cannot read how full its filesystem is"
     return 1
   elif (( pct >= thr )); then
-    action=prune
+    verdict=prune
   else
-    action=skip
+    verdict=skip
+    due=3
   fi
-  do_log "CACHE user=$u path=$d fs=$mount used_pct=${pct:-?} threshold=$thr action=$action"
-  [[ "$action" == skip ]] && return 3
-  return 0
+  do_log "CACHE user=$u path=$d fs=$mount used_pct=${pct:-?} threshold=$thr action=$verdict"
+  return "$due"
 }
 
 # go_cache_split_fs <fs-line>: sets the caller's free, pct and mount from a
@@ -231,7 +232,8 @@ go_cache_split_fs() {
 
 # go_cache_prune_one <user> <dir> <age> <dry>: check, measure, prune one cache
 # and print its BEFORE / PLAN / AFTER lines. Adds to the caller's
-# removed_files / removed_bytes and sets first_free, first_mount, last_free.
+# removed_files / removed_bytes and sets first_free, first_mount and last_free
+# (the free space on first_mount only, never another filesystem's).
 # 1 when that cache was left untouched (the FATAL is logged).
 go_cache_prune_one() {
   local u="$1" d="$2" age="$3" dry="$4" real depth fs_line free pct mount stats files bytes before_b after_b
@@ -264,7 +266,7 @@ go_cache_prune_one() {
   after_b="$(go_cache_bytes "$u" "$real")" || after_b="?"
   fs_line="$(go_cache_fs "$u" "$real")" || fs_line="$free ? $mount"
   go_cache_split_fs "$fs_line"
-  last_free="$free"
+  [[ "$mount" == "$first_mount" ]] && last_free="$free"
   printf 'AFTER user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$after_b" "$free" "$pct" "$mount"
   removed_files=$((removed_files + files))
   removed_bytes=$((removed_bytes + bytes))

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -20,9 +21,12 @@ import (
 // to a different channel, provided he has access to this channel", and
 // "thread level msgs / cards should be draggable to a different topic". Who
 // may is 041's rule (the author, the tenant owner, an admin); the target must
-// be a channel the mover may post in. These are the member-session browser
-// routes; an agent moves a topic over its box socket (box_move.go), through
-// the same storeTopicMove.
+// be a channel the mover may post in. An agent's reply is wider (owner, t1
+// ffc3b83c: "the humans should be able to move the bots msgs to a desired
+// topic"): any member who reaches it may move it to another topic, or promote
+// it; a human's reply, a topic and a merge keep 041's rule. These are the
+// member-session browser routes; an agent moves a topic over its box socket
+// (box_move.go), through the same storeTopicMove.
 
 const (
 	topicMovedFrame   = "topic_moved"
@@ -41,6 +45,7 @@ type moveRow struct {
 	hum     string
 	lobby   bool // the row is on the lobby task
 	isCard  bool // the row opens its task (a topic's card)
+	byAgent bool // the row's author is an agent (spec 061 id), not a person
 	refusal string
 }
 
@@ -99,6 +104,7 @@ func (s *Server) resolveMove(w http.ResponseWriter, r *http.Request, mutate bool
 	mr.lobby = s.o.LobbyTaskID != "" && m.TaskID == s.o.LobbyTaskID
 	mr.isCard = st.IsParent == 1 && st.FirstOfTask && !mr.lobby
 	mr.card.may = s.mayChangeTopic(r.Context(), t.ID, hum, from, m.FromID)
+	mr.byAgent = agentid.IsAgent(m.FromID)
 	switch {
 	case mr.lobby:
 		mr.refusal = "lobby"
@@ -119,6 +125,10 @@ var moveRefusals = map[string]string{
 	"same_place":     "it is already there",
 	"cycle":          "a message cannot move into its own thread",
 }
+
+// mayReply is who may move or promote a reply: 041's rule, or anyone at all
+// when an agent wrote it (the read door and topics.manage already ran).
+func (mr moveRow) mayReply() bool { return mr.card.may || mr.byAgent }
 
 func writeRefusal(w http.ResponseWriter, token string) {
 	writeErr(w, http.StatusConflict, token, moveRefusals[token])
@@ -250,8 +260,8 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 	case mr.isCard:
 		writeRefusal(w, "is_card")
 		return
-	case !c.may:
-		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may move this message")
+	case !mr.mayReply():
+		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may move a person's message")
 		return
 	case task == c.m.TaskID:
 		writeRefusal(w, "same_place")
@@ -333,7 +343,7 @@ func (s *Server) handleViewMove(w http.ResponseWriter, r *http.Request) {
 	}
 	m := mr.card.m
 	out := map[string]any{"msg_id": m.MsgID, "task_id": m.TaskID, "channel": m.Channel, "is_card": mr.isCard,
-		"can_move": mr.card.may && mr.refusal == ""}
+		"can_move": (mr.card.may || (mr.byAgent && !mr.isCard)) && mr.refusal == ""}
 	if m.Move.Moved() {
 		out["moved_from_channel"] = m.Move.FromChannel
 		if m.Move.FromTask != "" {

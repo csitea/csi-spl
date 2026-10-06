@@ -13,7 +13,8 @@ Spec: `../spec.md`. Every route is a browser (member session) route of the activ
 5. the row exists in retention and in this tenant, else `404 not_found`;
 6. the read door (`messageDoor`): a row the caller may not read is `404`;
 7. the row is movable (spec 3.1 / 3.2 refusals), else `409 <token>`;
-8. the move: the caller is the row's author, the tenant owner or an `admin`, else `403 not_allowed`.
+8. the move: the caller is the row's author, the tenant owner or an `admin`, else `403 not_allowed`;
+   a REPLY (§3, and a promote) an agent wrote passes for any caller who got past 1-7 (spec 3.4).
 
 ## 2. `POST /v1/messages/{msg_id}/move` `{"to_channel": "<channel id>"}`
 

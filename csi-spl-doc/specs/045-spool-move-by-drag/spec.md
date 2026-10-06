@@ -96,8 +96,14 @@ the wrong channel (prd t1 topic `82bf9be6`, 2026-09-27).
 | the author of the card / the row (`from_id` = the caller's member id) | yes | yes |
 | the tenant owner (`biz_owner`, `TenantOwner`) | yes | yes |
 | `admin` | yes | yes |
-| any other member | no — the entry is not offered, the row is not draggable | no |
+| any other member | no — the entry is not offered, the row is not draggable | no — except a row an **agent** wrote (below) |
+| any member who reads the channel, for a reply an **agent** wrote (`from_id` an agent id, spec 061) | no — a topic keeps the rows above | **yes** (and Make it a topic, 8f588edd) |
 | an agent / a box | no — no box route exists | no |
+
+The agent row (owner, t1 ffc3b83c, 2026-10-06: "the humans should be able to move the bots msgs to a
+desired topic"): the hub's `mayReply` and the WUI's `mayMoveMessage` both read the row's `from` as an
+agent id (`agentid.IsAgent` / `isAgentId`: `c-004`, legacy `CLE-07`; never `HUM-*` / `GST-*`). A
+person's reply, a topic move and a merge keep the author / owner / admin rule.
 
 Plus, in the hub and not only in the UI:
 

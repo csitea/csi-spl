@@ -23,8 +23,9 @@ import (
 //
 // The message becomes the opening card of a NEW topic in its own channel; its
 // sub-thread moves with it, and the source topic keeps the rest. Who may is
-// 041's rule on the source row (author / owner / admin) run by resolveMove -
-// the same gate as specs/045's message move; a card cannot be promoted (it is
+// 041's rule on the source row (author / owner / admin) run by resolveMove,
+// or any member for an agent's reply - the same gate as specs/045's message
+// move (mayReply); a card cannot be promoted (it is
 // already a topic). The new task_id is minted here: it is hub metadata (a move
 // re-homes task_id freely), so nothing signs it and a fresh UUID cannot collide
 // with an existing topic. The refusals reuse the move tokens (moveRefusals).
@@ -85,8 +86,8 @@ func (s *Server) promoteMessage(w http.ResponseWriter, r *http.Request, mr moveR
 	case mr.isCard:
 		writeRefusal(w, "is_card")
 		return
-	case !c.may:
-		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may promote this message")
+	case !mr.mayReply():
+		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may promote a person's message")
 		return
 	}
 	newTask := uuid.NewString()
@@ -114,7 +115,7 @@ func (s *Server) promoteMessage(w http.ResponseWriter, r *http.Request, mr moveR
 // demoteTopic reverses a promote from its answer's undo payload.
 func (s *Server) demoteTopic(w http.ResponseWriter, r *http.Request, mr moveRow, u *promoteUndo) {
 	c := mr.card
-	from, ids, ok := undoRows(w, c.may, u.FromTask, u.MsgIDs, "promote")
+	from, ids, ok := undoRows(w, mr.mayReply(), u.FromTask, u.MsgIDs, "promote")
 	if !ok {
 		return
 	}

@@ -1,6 +1,8 @@
 # 095 Web Push: a new message reaches my other devices
 
-Status: **v0.1, DRAFT for the owner's approval, 2026-10-06.** Spec only: no
+Status: **v0.2, DRAFT for the owner's approval, 2026-10-06.** v0.2 adds
+section 13, notification priority levels (t1 `a477c187`, msg `b87a487a`,
+author c-386), and Q7 to Q10. Spec only: no
 code, no key, no secret slot, no terraform, no cnf value was touched by this
 lane. Building waits for the owner's go on the open questions (section 11).
 Topic: t1 `cd9b0f47-a5cb-4a5e-bc92-c3723aecba67` (a member's ask, msg
@@ -81,7 +83,8 @@ previous member's pushes. A member removed from the workspace loses every row
 
 Once a device is on, it gets, **by default**, the events the Flow badge counts
 (062): a **mention** of me, a **DM** to me, a **poke**, and a **reply in a
-topic I watch** (I posted in it, was mentioned in it, or was its `to`).
+topic I watch** (I posted in it, was mentioned in it, or was its `to`). Each event carries a
+priority level (section 13), which sets its push urgency and its in-tab sound.
 
 ### 3.3 Per channel and per topic (the member's ask: "this channel")
 
@@ -255,9 +258,9 @@ two. Q2 asks whether to skip all pushes while the member has a focused tab.
 |---|---|
 | per (device, feed) | at most **one push per 10 s**; later lines in the window are folded into one push (`3 new messages in #ops`) sent when the window ends |
 | per device | at most **60 pushes per hour**; past it, one "many new messages" push per 10 minutes |
-| per hub instance | a bounded worker pool (4 senders, queue 2 000); a full queue drops the oldest `all`-mode pushes first, never a mention or a DM, and counts the drop |
+| per hub instance | a bounded worker pool (4 senders, queue 2 000); a full queue drops the oldest pushes of the lowest level first (section 13: Information, then System), never High priority or Action required, and counts the drop |
 | Web Push `Topic` header | the feed key, hashed to 32 url-safe characters, so a device that is offline keeps only the newest push per feed at the push service |
-| `Urgency` header | `high` for a mention, poke or DM; `normal` for the rest |
+| `Urgency` header | by level (section 13.3): `high` for High priority and Action required, `normal` for Attention, `low` for Information, `very-low` for System |
 | `TTL` header | 24 h; an older push is not worth showing |
 
 The queue is in memory: an instance killed mid-send loses at most the pushes
@@ -412,6 +415,10 @@ counters: pushes sent, 404/410 deletions, drops, p95 send delay.
 | **Q4** | Message text on the lock screen: on by default, a per-device switch, and an admin may force it off? | **Yes** to all three |
 | **Q5** | Is an in-memory send queue reliable enough, or a durable outbox table (survives an instance restart, one more write per line)? | **In memory first**, with a drop counter; the outbox only if the 7-day prd watch shows losses |
 | **Q6** | Quiet hours (no pushes at night in the member's time zone)? | **Later**: the OS's own do-not-disturb covers it today |
+| **Q7** | Are these the five levels (section 13.1), or fewer? | **Five**, with a DM and a poke inside High priority. If fewer: fold System into Information (System has no producer today), leaving four |
+| **Q8** | Push default per level once a device is on? | **On**: High priority, Action required, Attention. **Off**: Information (on per channel with "Every message"), System (on per member with one switch). Section 13.3 (a) |
+| **Q9** | Does Unavailable (096 Q1, when the member chose to pause) silence every level, or only the levels below High? | **Only below High**: a mention, DM or poke still reaches the member, because the composer already showed the sender the Unavailable line (096) and they chose to send. Everything else waits in Flow and unread counts |
+| **Q10** | "You were assigned a task" has no producer today (section 13.2). Build it (an issue's assignee set to me writes a Flow event), or drop the level until issues need it? | **Build it**, one small lane (section 12, lane 7); until then Action required covers only a `kind: task` line sent to me |
 
 ## 12. Effort: lanes
 
@@ -427,7 +434,104 @@ on its own:
 | 5 | **WUI menus + sw** (grok) | channel / topic / DM "Notify my devices" items (after the topic-menu and CSS lanes land), the `push` and `pushsubscriptionchange` listeners, the sw test | S |
 | 6 | **proof** (claude) | section 10.3 on dev with real devices, then 10.4 on prd with the owner's go; help page `user-settings.md` section 6 | S |
 
-Lane 3 starts once lane 2's DDL is on trunk; lanes 4 and 5 run against a mock
-hub from day one.
+| 7 | **assign event** (claude), only if Q10 = build | a Flow event `assign` when an issue's assignee becomes a member (migration widening the `flow_events.kind` CHECK, DDL first), level Action required | S |
+| 8 | **system event** (claude), only if Q7 keeps System | a v:1 `kind: result` line in a topic the member started marks it System (section 13.2) | XS |
 
-<!-- last-edit: 2026-10-06T09:20:00Z -->
+Lane 3 starts once lane 2's DDL is on trunk; lanes 4 and 5 run against a mock
+hub from day one. The priority levels (section 13) add one `level` field to
+the recipient query, the payload and the in-tab alert: a few hours inside
+lanes 3, 4 and 5, not a new lane. Lanes 7 and 8 are new and small; the total
+stays **L**.
+
+## 13. Priority levels (v0.2)
+
+A member's ask (msg `b87a487a`): "Better notification priorities:
+High priority - You were mentioned; Action required - You were assigned a
+task; Attention - Someone replied to your message; Information - New
+activity; System - Agent completed a workflow".
+
+### 13.1 The five levels
+
+Every alert, pushed (sections 6, 7) or in-tab (`notify.mjs`), carries exactly
+one level. When one line is several events for a member, the **highest level
+wins**, the rule `flowInsertCTE` already applies to Flow kinds (`min(rnk)`:
+mention before poke before DM before reply).
+
+| level | id | event |
+|---|---|---|
+| **High priority** | `high` | you were mentioned; also a **DM** to you and a **poke** (both are addressed to you alone; Q7) |
+| **Action required** | `action` | you were assigned a task |
+| **Attention** | `attention` | someone replied in a topic you watch (you posted in it, were mentioned in it, or were its `to`) |
+| **Information** | `info` | any other new line you may read in a channel set to "Every message" |
+| **System** | `system` | an agent finished a piece of work for you |
+
+### 13.2 Measured: which events exist today (tree `1aa29e990`)
+
+| level | event | producer today | check |
+|---|---|---|---|
+| High priority | mention, poke, DM | **yes**: Flow kinds `mention`, `poke`, `dm`, written in the message insert | `grep -c "kind IN ('mention', 'poke', 'dm', 'reply')" csi-spl-rdb/src/sql/postgres/spool-hub/0104_flow_events.sql` -> 1; `grep -c "'mention'" csi-spl-api/src/go/spool-hub-api/internal/store/flow_postgres.go` -> 4 |
+| Action required | issue assignee set to you | **no producer today**: issues have an `assignee` field, but setting it writes no Flow event and raises no alert | `grep -ciE 'flow_events\|fanoutFlow\|notify' internal/hub/issues.go internal/store/issues_postgres.go internal/hub/issues_agent.go` (under `csi-spl-api/src/go/spool-hub-api`) -> 0, 0, 0 |
+| Action required | a v:1 `kind: task` line sent to you | partly: the kind exists (`internal/msg/msg.go` `KindList = "task\|result\|note\|reject\|blocker\|msg"`), and such a line is recorded as a Flow `dm` / `mention`; nothing marks it as a task | `grep -n KindList csi-spl-api/src/go/spool-hub-api/internal/msg/msg.go` -> line 56 |
+| Attention | reply in a topic you watch | **yes**: Flow kind `reply` (`flow_watches`); broader than "a reply to *your message*" (it also counts topics you were mentioned in) | `grep -c "'reply'" csi-spl-api/src/go/spool-hub-api/internal/store/flow_postgres.go` -> 3 |
+| Information | new line in a channel | **yes, in-tab only**: `shouldPing` pings every line from someone else unless its channel is muted (bug A) | `csi-spl-wui/src/utils/notify.mjs` `shouldPing` |
+| System | agent completed a workflow | **no producer today**: no workflow-completed event anywhere; the nearest is a v:1 `kind: result` line, which no alert rule reads | `grep -rliE 'workflow_(run\|complete)\|workflow.?completed' csi-spl-api/src/go/spool-hub-api csi-spl-wui/src \| wc -l` -> 0; `grep -cE "'result'" csi-spl-wui/src/utils/notify.mjs` -> 0 |
+
+The proposed producers for the two missing events (Q10, section 12 lanes 7
+and 8):
+
+- **Action required**: an issue's `assignee` changing to a member writes a
+  Flow event of a new kind `assign` for that member (its line is the issue's
+  update), and a `kind: task` line whose `to` is the member is `action`
+  instead of `dm`. Assigning to yourself raises nothing (the sender rule,
+  section 6.2 step 4).
+- **System**: a `kind: result` line from an agent, in a topic the member
+  started or addressed to the member. A `result` anywhere else is
+  Information.
+
+### 13.3 What a level changes
+
+| level | (a) Web Push default | (b) in-tab alert | (c) OS notification | (d) channel choice (Q1) that includes it |
+|---|---|---|---|---|
+| High priority | **on** | chime + system notification, title "<sender> mentioned you" / "DM from <sender>" (today's `notifyCopy`) | `Urgency: high`; tag `<feed>:hi`; `requireInteraction: true` on desktop | Mentions and replies, Every message |
+| Action required | **on** | chime + system notification, title "<sender> assigned you <issue>" | `Urgency: high`; tag `<feed>:hi`; `requireInteraction: true` | Mentions and replies, Every message |
+| Attention | **on** | chime + system notification | `Urgency: normal`; tag `<feed>` | Mentions and replies, Every message |
+| Information | **off** (on only in a channel set to Every message) | system notification + chime, as today, unless the channel's chime is muted | `Urgency: low`; tag `<feed>` | Every message |
+| System | **off** (one per-member switch "Agent results") | system notification, **no chime** (`silent: true`) | `Urgency: very-low`; tag `<feed>:sys` | Every message, or the switch |
+
+Rules behind the table:
+
+- **Tags keep a high alert from being overwritten.** A burst in one feed
+  still shows one notification (section 4), but a later Information line
+  must not replace an unread mention: High and Action share the tag
+  `<feed>:hi`, System uses `<feed>:sys`, the rest keep `<feed>`. So a feed
+  shows at most three notifications at once.
+- **Channel "Off" silences every level** in that channel, a mention included
+  (section 3.3 unchanged). A DM peer set to Off silences that peer's DMs.
+- **The level is computed by the hub** in the recipient query (6.2), from
+  the Flow kind of step 1 (`mention`/`poke`/`dm` -> `high`, `assign` ->
+  `action`, `reply` -> `attention`) and from step 2 (`all` -> `info`, or
+  `system` for a `result` line). It travels in the payload as `level`; the
+  service worker maps it to the options above and needs no other logic.
+- **In-tab** the same mapping lives in `notify.mjs` (`escalateReason` grows
+  to return a level); the per-browser chime mute stays the noise control for
+  Information. No new settings UI beyond the "Agent results" switch in the
+  section 3.1 block.
+- **Rate limits** (6.4) are per level: High and Action are never folded into
+  a "many new messages" push and never dropped from the queue.
+- **Unavailable** (spec 096 Q1, when the member chose to pause): proposed to
+  remove the member from every level **below High** (Q9), as one more
+  "minus" step in 6.2 and one more check in `shouldPing`.
+
+### 13.4 Tests added to section 10
+
+- the level of a line that is both a mention and a reply is `high`;
+- each Flow kind maps to its level; `all` mode yields `info`; a `result` in
+  the member's own topic yields `system`;
+- the payload carries `level`; the service worker sets the per-level options
+  (`requireInteraction`, `silent`, tag suffix);
+- an Information line in a feed with an open High notification leaves that
+  notification in place;
+- a full send queue drops Information before System and never drops High or
+  Action.
+
+<!-- last-edit: 2026-10-06T10:25:00Z -->

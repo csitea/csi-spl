@@ -1,9 +1,9 @@
 # 097 Calendar: full editing, Google Calendar style
 
-Status: **v0.1, DRAFT for the owner's approval, 2026-10-06.** Spec only: no
-code, no migration, no cnf value was touched by this lane. Building waits for
-the owner's go on the open questions (section 10); "as proposed" answers all
-of them.
+Status: **v0.2, the owner approved the v1 feature list (section 0.1),
+2026-10-06.** Spec only: no code, no migration, no cnf value was touched by
+this lane. Building waits for the owner's go on the open questions
+(section 10); "as proposed" answers all of them.
 Topic: t1 `70484be0-ed1d-4fc0-bebb-44874cc2661e` (owner HUM-10, msg
 `88405d88`). Author: c-397.
 Builds on, and does not repeat: [089 the Calendar section](../089-calendar-section/spec.md)
@@ -32,6 +32,19 @@ in. This spec lists what Google Calendar's editor lets a person do, what the
 spool calendar can do today, and the calls, columns and screens that close
 the gap, each as one small build task (`tasks.md`).
 
+### 0.1 Owner decisions on the v1 list (2026-10-06)
+
+Owner HUM-10 on t1 `70484be0`, verbatim. These override anything else in
+this file.
+
+| # | msg | Owner text | What it decides |
+|---|---|---|---|
+| E1 | `74b55a55` | "1 Drag to move and resize ... yes. [...] 3 Repeating events ... yes 4 Undo delete ... yes 5 Guests who answer ... yes [...] 7 Search ... yes 8 Quick add ... yes 9 Duplicate ... yes 10 Export ... yes" | Items 1, 3, 4, 5, 7, 8, 9 and 10 of section 6 are in v1 as written. |
+| E2 | `74b55a55` | "2 Several reminders [...] should be able to type how many an dwhat - minutes , hours, days" | A reminder is a typed number and a unit, minutes, hours or days before the event; the person adds as many as they want, up to 5 (section 4.3). |
+| E2 | `68ac36bd` | "yes only whole number accepted" | The number is a whole number, 1 or more; `1.5` or `0` is refused. |
+| E3 | `74b55a55` | "6 Event details Location, video-call link with a Join button( not needed) , colour, time zone per event, now need to change the status based on busy or free." | Location, colour and time zone per event stay in v1. |
+| E3 | `68ac36bd` | "on 6 - yes no need [...] no need for video call link - too much glutter" | **Dropped:** the video-call link and its Join button, and busy / free. |
+
 ## 1. Measured before (tree `bb135572d`)
 
 | fact | check |
@@ -41,7 +54,7 @@ the gap, each as one small build task (`tasks.md`).
 | one reminder per event, a time, no lead or channel | `calendar_events.remind_at timestamptz NULL` in `rdb/0125_calendar.sql` |
 | `@mentions` widen a private event's readers, no answer is stored | `mentions text[]`, GIN index `calendar_events_mentions` |
 | delete is a hard `DELETE` | `DeleteCalendarEvent` in `internal/store/calendar_postgres.go` |
-| no recurrence, location, colour, time zone, busy/free | none of them in `rdb/0125_calendar.sql` |
+| no recurrence, location, colour, time zone | none of them in `rdb/0125_calendar.sql` |
 | the WUI main view is still 089 T007's placeholder week | `wc -l csi-spl-wui/src/components/CalendarMainView.vue` -> 145; 089 `tasks.md` T008 (dialog, drag, Day/Week/Month) is open |
 | a human already stores a display time zone | `time_zone` in the preferences of `internal/auth/handler.go` |
 | next free migration number | `ls csi-spl-rdb/src/sql/postgres/spool-hub/ \| tail -1` -> `0134_fleet_load_box_bands.sql`; 098 takes the next one, so this spec says `rdb/NNNN` and the build lane takes the next free number |
@@ -62,11 +75,11 @@ working (section 4.3).
 | G3 | edit or delete "this / this and following / all" | none | `scope=this\|following\|all` on PATCH and DELETE | |
 | G4 | guests (people) with Yes / No / Maybe | `@mentions`, no answer | `guests` with RSVP, members **and** agents | optional guests |
 | G5 | invitation and update notices to guests | nothing is sent (089 D4) | an in-app notice per invite, change, cancel, with "notify guests?" | e-mail notice |
-| G6 | several reminders, "10 min before", pop-up or e-mail | one `remind_at` time, pop-up only | up to 5 reminders, minutes before, `popup` | `push` (095), `email` |
-| G7 | location, video-call link | none | `location`, `video_url` | generated meeting links |
+| G6 | several reminders, "10 min before", pop-up or e-mail | one `remind_at` time, pop-up only | up to 5 reminders, a whole number of minutes, hours or days before (E2), `popup` | `push` (095), `email` |
+| G7 | location, video-call link | none | `location`; no video link (E3) | |
 | G8 | colour per event | colour from `kind` | `color` from a fixed palette | |
 | G9 | time zone per event | UTC only | `time_zone` per event (IANA) | separate start and end zones |
-| G10 | visibility and busy / free | `audience` public / internal / private | `audience` kept; `busy` true / false | a free/busy view of others |
+| G10 | visibility and busy / free | `audience` public / internal / private | `audience` kept; no busy / free (E3) | |
 | G11 | duplicate | none | WUI "Duplicate" fills the create dialog; no new call | |
 | G12 | quick add from text | none | `POST /v1/calendar/events/quick`, a fixed grammar, no AI | more phrasings, more languages |
 | G13 | undo delete, trash | hard delete | soft delete, Undo toast, restore, 30-day trash | |
@@ -83,7 +96,7 @@ ordinary DDL change. Applied to the calendar:
 
 | value | where | why |
 |---|---|---|
-| `location`, `video_url`, `color`, `busy`, `reminders` | `props` jsonb | read with the row, never filtered in SQL. A new presentational setting needs no DDL. |
+| `location`, `color`, `reminders` | `props` jsonb | read with the row, never filtered in SQL. A new presentational setting needs no DDL. |
 | `rrule`, `recur_until` | columns | the range read filters on `recur_until` for every recurring event |
 | `recurring_event_id`, `original_start`, `status` | columns | an exception row is found by `(recurring_event_id, original_start)` on every expansion |
 | `time_zone` | column | the expansion of every recurring event needs it; a check refuses junk |
@@ -176,10 +189,8 @@ and the store keeps a missing-column probe so a hub that rolls early answers
 | key | type | default | rule |
 |---|---|---|---|
 | `location` | string | `""` | at most 300 characters |
-| `video_url` | string | `""` | `https://` only, at most 500 characters; shown as a "Join" button |
 | `color` | string | `""` (= the `kind`'s colour) | one of 11 palette names (`tomato`, `flamingo`, `tangerine`, `banana`, `sage`, `basil`, `peacock`, `blueberry`, `lavender`, `grape`, `graphite`); the WUI maps each to a theme variable, light and dark |
-| `busy` | boolean | `true` | `false` = "show as free" |
-| `reminders` | array | `[]` | at most 5 of `{"minutes": 0..40320, "method": "popup"}`; `method` widens later (section 4.3) |
+| `reminders` | array | `[]` | at most 5 of `{"amount": <whole number>, "unit": "minutes\|hours\|days", "method": "popup"}`, at most 4 weeks before (section 4.3); `method` widens later |
 
 An unknown key is `400 bad_event`. A key added later is one registry line and
 a test, no DDL. The size check (16 KB) keeps a row small.
@@ -202,9 +213,8 @@ grows one flag or tool per call as each task lands.
 | `rrule` | string | the repeat rule (section 4.4) on each occurrence of a series, `""` otherwise |
 | `recurring_event_id` | string | the series an occurrence belongs to, `""` otherwise |
 | `original_start` | string | the occurrence's unchanged start, `""` otherwise |
-| `location`, `video_url`, `color` | string | from `props`, `""` = unset |
-| `busy` | boolean | `true` unless shown as free |
-| `reminders` | array | `[{"minutes": 10, "method": "popup"}]` |
+| `location`, `color` | string | from `props`, `""` = unset |
+| `reminders` | array | `[{"amount": 10, "unit": "minutes", "method": "popup"}]`, as the person typed them |
 | `guests` | array | `[{"type": "human", "id": "<human_id>", "response": "yes", "comment": ""}]`; the owner is not listed |
 | `my_response` | string | the viewer's own answer when they are a guest, `""` otherwise |
 | `deleted_at` | string | `""` except in the trash read |
@@ -216,7 +226,7 @@ only its occurrences.
 ### 4.2 Create and PATCH: the body grows
 
 The 089 body fields stay; these are added, all optional:
-`time_zone`, `rrule`, `location`, `video_url`, `color`, `busy`, `reminders`,
+`time_zone`, `rrule`, `location`, `color`, `reminders`,
 `guests` (a list of `{"type", "id"}`; on PATCH the full new list),
 `notify_guests` (section 4.5).
 
@@ -232,20 +242,28 @@ The 089 body fields stay; these are added, all optional:
 - **Duplicate (G11)** needs no new call: the WUI opens the create dialog with
   the event's fields filled in and guests' answers reset, and `POST`s it.
 
-### 4.3 Several reminders (G6)
+### 4.3 Several reminders (G6, owner E2)
 
-- `reminders` is up to 5 `{"minutes", "method"}`. `method` is `popup` in v1:
-  089's in-app pop-up, still the WUI's own timer, still no agent, no AI and no
-  spool message (089 D4 stands).
+- `reminders` is a list of up to 5 `{"amount", "unit", "method"}`, kept as
+  the person typed them, so "1 day before" reads back as 1 day, not 1440
+  minutes:
+  - `amount` is a **whole number**, 1 or more (E2). A fraction (`1.5`), `0`,
+    a negative number or a string is `400 bad_event`.
+  - `unit` is `minutes`, `hours` or `days`. The reminder is at most 4 weeks
+    before the event: `amount` at most 40320 minutes, 672 hours or 28 days.
+  - Two equal reminders are stored once.
+  - `method` is `popup` in v1: 089's in-app pop-up, still the WUI's own timer,
+    still no agent, no AI and no spool message (089 D4 stands).
 - `remind_at` stays on the wire for c-394 and old clients. **Written**, it
-  becomes one reminder with `minutes = starts_at - remind_at` (refused if it
-  is after the start). **Read**, it is the earliest coming reminder time of
+  becomes one reminder of the whole minutes between it and `starts_at`
+  (`{"amount": 15, "unit": "minutes"}`), seconds dropped; a `remind_at` after
+  the start is refused. **Read**, it is the earliest coming reminder time of
   the event (of its next occurrence for a series), `""` when none.
 - `GET /v1/calendar/reminders?from=&to=` keeps its shape and answers one item
   per reminder that fires in the window, with the item's `remind_at` set to
   that fire time, so the shipped pop-up code (089 T006) works unchanged. The
-  store reads events starting in `[from, to + 28 days)` (the 40320-minute cap)
-  and computes fire times in Go.
+  store reads events starting in `[from, to + 28 days)` (the 4-week cap) and
+  computes fire times in Go.
 - Later: `push` (web push, after 095 ships) and `email` (the existing mail
   relay, `internal/mail`). Both are technical deliveries, not agents.
 
@@ -373,8 +391,8 @@ and the event dialog), not instead of it.
 | surface | what the person does |
 |---|---|
 | main view | drag an event to move it, drag its bottom edge to resize, drag on empty time to create; an `edit_conflict` reloads the event and says who changed it |
-| event pop-over (click) | title, time, location, Join button, guests with their answers, Edit / Delete / Duplicate, and for a guest Yes / Maybe / No |
-| event dialog (Edit) | Google's full editor: title; date, time, all-day, time zone; "Does not repeat / Daily / Weekly on <day> / Monthly on the <n>th <day> / Annually / Every weekday / Custom..."; location; video link; guests picker (members and agents) with "notify guests"; reminders list (up to 5, minutes / hours / days before); colour swatches; busy / free; audience (`private` only for the owner, 089 4.2); description |
+| event pop-over (click) | title, time, location, guests with their answers, Edit / Delete / Duplicate, and for a guest Yes / Maybe / No |
+| event dialog (Edit) | Google's full editor: title; date, time, all-day, time zone; "Does not repeat / Daily / Weekly on <day> / Monthly on the <n>th <day> / Annually / Every weekday / Custom..."; location; guests picker (members and agents) with "notify guests"; reminders list ("+ Add reminder", up to 5, each a whole-number field and a minutes / hours / days choice, E2); colour swatches; audience (`private` only for the owner, 089 4.2); description |
 | scope prompt | on save or delete of a repeating event: "This event / This and following events / All events" |
 | quick add | the `+` box accepts a sentence and shows the `dry_run` preview before saving |
 | search | a search field over the main view; results as a list, a click jumps to that day |
@@ -386,16 +404,16 @@ and the event dialog), not instead of it.
 | rank | item | v1 |
 |---|---|---|
 | 1 | drag move / resize + conflict-safe `If-Match` (G1) | yes |
-| 2 | several reminders with minutes before (G6) | yes |
+| 2 | several reminders, a typed whole number of minutes, hours or days before (G6, E2) | yes |
 | 3 | recurrence + this / following / all (G2, G3) | yes |
 | 4 | soft delete + Undo + trash (G13) | yes |
 | 5 | guests + RSVP + in-app notices (G4, G5) | yes |
-| 6 | location, video link, colour, time zone, busy / free (G7..G10) | yes |
+| 6 | location, colour, time zone (G7..G9); the video link and busy / free are dropped (E3) | yes |
 | 7 | search (G14) | yes |
 | 8 | quick add (G12) | yes |
 | 9 | duplicate (G11) | yes, WUI only |
 | 10 | export `.ics` (G15) | yes |
-| 11 | import `.ics`, subscribe link, push / e-mail reminders, e-mail invites, free/busy of others | later |
+| 11 | import `.ics`, subscribe link, push / e-mail reminders, e-mail invites | later |
 
 ## 7. Requirements
 
@@ -403,7 +421,8 @@ and the event dialog), not instead of it.
   fields only stores exactly what it stores today (c-394's "Add to calendar").
 - **FR-002** `PATCH` / `DELETE` honour `If-Match: "<updated_at>"` with
   `409 edit_conflict`.
-- **FR-003** An event holds up to 5 reminders (`minutes`, `method`);
+- **FR-003** An event holds up to 5 reminders (`amount` a whole number,
+  `unit` minutes / hours / days, `method`);
   `remind_at` reads and writes as in 4.3; reminders stay pop-ups with no
   agent, AI or spool message.
 - **FR-004** `rrule` (the 4.4 subset) repeats an event in its `time_zone`;
@@ -413,7 +432,7 @@ and the event dialog), not instead of it.
   `/rsvp`, for themselves only; guests are kept in `mentions`.
 - **FR-006** An invite, a change of time or place, and a cancel notify each
   guest once, unless `notify_guests: false`.
-- **FR-007** `location`, `video_url`, `color`, `busy`, `reminders` live in
+- **FR-007** `location`, `color`, `reminders` live in
   `props` behind a hub registry; an unknown key is `400`.
 - **FR-008** Delete is soft; restore within 30 days; a named purge action.
 - **FR-009** `GET /v1/calendar/search` filters by text, kind, guest, audience
@@ -430,9 +449,11 @@ and the event dialog), not instead of it.
   shape plus the new fields at their defaults.
 - **AC-02** Two `PATCH`es with the same `If-Match`: the second is `409` with
   the first one's result.
-- **AC-03** An event with reminders 10 and 60 minutes: `/reminders` answers two
-  items; an old body with `remind_at` 15 minutes before the start reads back
-  `reminders = [{"minutes": 15, "method": "popup"}]`.
+- **AC-03** An event with reminders 10 minutes and 1 day: `/reminders` answers
+  two items and the event reads back `1 days`, not `1440 minutes`;
+  `{"amount": 1.5, "unit": "hours"}` and `{"amount": 0, ...}` are `400`; an
+  old body with `remind_at` 15 minutes before the start reads back
+  `reminders = [{"amount": 15, "unit": "minutes", "method": "popup"}]`.
 - **AC-04** `FREQ=WEEKLY;BYDAY=MO,WE;COUNT=6` in `Europe/Helsinki` across the
   October daylight-saving change: six occurrences, all at 09:00 local; edit
   "this" moves one; delete "following" from the 4th leaves three; edit "all"
@@ -464,7 +485,7 @@ the calendar, several calendars per person (the workspace has one calendar;
 | Q2 | Can agents be guests and answer, like members? | Yes: agents are guests and answer through the CLI / MCP (`spool calendar rsvp`). |
 | Q3 | 089 D4 says nothing is sent for reminders. May an **invitation** send a notice: a Flow item for a human, a spool note for an agent? | Yes, for invitations, changes and cancels only; reminders stay pop-ups with nothing sent. E-mail invites come later, opt-in per workspace. |
 | Q4 | Who may edit an event: anyone in the workspace (today), or only its owner and its guests? | Keep today's rule for `public` / `internal`; a per-event "guests can modify" switch later if wanted. A `private` event is already owner-and-guests only. |
-| Q5 | Should others see your `private` event as an anonymous "Busy" block, as Google shows it? | No in v1: private stays invisible (089 4.2). A free/busy view is a later item. |
+| Q5 | Should others see your `private` event as an anonymous "Busy" block, as Google shows it? | No: private stays invisible (089 4.2), and E3 drops busy / free altogether. |
 | Q6 | Trash: keep deleted events 30 days, then remove them for good? | Yes, 30 days, a workspace setting. |
 | Q7 | An `.ics` subscribe link (for a phone calendar app) needs a per-person secret in the URL. Wanted? | Later, not v1: a download in v1; the link only with a revocable token when asked for. |
 | Q8 | Quick add: a fixed English grammar, no AI? | Yes, fixed grammar, English first; other languages when the WUI locale needs them. |
@@ -474,6 +495,7 @@ the calendar, several calendars per person (the workspace has one calendar;
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 0.1 · updated: 2026-10-06 -->
+<!-- version: 0.2 · updated: 2026-10-06 -->

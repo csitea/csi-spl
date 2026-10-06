@@ -44,7 +44,8 @@ T005 and T010 are pure packages with no dependency and may start at once.
 ---
 
 ### Phase 0: Specification
-- [x] T001 **spec + tasks** (c-397): `spec.md` v0.1 and this file.
+- [x] T001 **spec + tasks** (c-397): `spec.md` v0.1 and this file; v0.2 folds in
+  the owner's decisions E1..E3 (spec section 0.1).
 
 ### Phase 1: Data
 - [ ] T002 **rdb migration** `rdb/NNNN_calendar_full_edit.sql` (the next free
@@ -69,7 +70,9 @@ T005 and T010 are pure packages with no dependency and may start at once.
   T002. (FR-002, FR-008)
 - [ ] T004 **hub base** `api/internal/hub/calendar.go` (+ a
   `calendar_props.go` registry): the 3.3 registry, the new body fields,
-  `reminders` with the `remind_at` mapping both ways, `/reminders` answering
+  `reminders` as typed `{amount, unit}` (a whole number 1 or more, minutes /
+  hours / days, at most 4 weeks, up to 5; owner E2) with the `remind_at`
+  mapping both ways, `/reminders` answering
   one item per fire time, `If-Match` -> `409 edit_conflict`, soft `DELETE`,
   `POST .../restore`, `GET /v1/calendar/trash`, the daily
   `./run -a do_spl_calendar_purge_trash` action in `csi-spl-iac` (+ its
@@ -121,10 +124,12 @@ T005 and T010 are pure packages with no dependency and may start at once.
   save, `edit_conflict` reload with a short notice. e2e: two tabs drag the
   same event. Depends: 089 T008, T004. (G1)
 - [ ] T014 **dialog fields** in `CalendarEventDialog.vue`: reminders list (up
-  to 5), location, video link with Join, colour swatches (theme variables,
+  to 5, each a whole-number field and a minutes / hours / days choice; a
+  fraction or 0 cannot be typed), location, colour swatches (theme variables,
   light and dark), time zone picker (default the member's `time_zone`
-  preference), busy / free; event pop-over with Duplicate. Depends: T013.
-  (G6..G11)
+  preference); event pop-over with Duplicate. No video link, no busy / free
+  (owner E3). Depends: T013.
+  (G6..G9, G11)
 - [ ] T015 **repeat + scope**: the repeat menu and Custom editor, the
   "This / This and following / All" prompt on save and delete. Depends: T014,
   T006.
@@ -146,6 +151,5 @@ T005 and T010 are pure packages with no dependency and may start at once.
 - [ ] L2 private subscribe link with a revocable token (Q7).
 - [ ] L3 `push` reminders (after 095) and `email` reminders (mail relay).
 - [ ] L4 e-mail invitations, opt-in per workspace (Q3).
-- [ ] L5 free/busy view of others (Q5).
 
-<!-- version: 0.1 · updated: 2026-10-06 -->
+<!-- version: 0.2 · updated: 2026-10-06 -->

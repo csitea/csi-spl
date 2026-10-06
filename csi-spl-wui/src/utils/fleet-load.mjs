@@ -2,6 +2,8 @@
  * Fleet load target (rdb 0118, GET/PATCH /v1/operator/fleet-load).
  * The hub keeps it on the operator workspace. A 403 names permission
  * operator.workspaces for everyone else. NULL on a field is the default.
+ * rdb 0134: `boxes` is a per-box band {box: {low, high}} that overrides the
+ * fleet band for the boxes it names; a PATCH replaces the whole map.
  * Node tests import this file; the settings card does too.
  */
 
@@ -14,7 +16,7 @@ export const FLEET_BOX_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const FLEET_DEFAULT_LOW = 50
 export const FLEET_DEFAULT_HIGH = 75
 /** The hub's 400 bad_setting detail (internal/hub/fleet_load.go). */
-export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32'
+export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges'
 
 export function validFleetBox(id) {
   return FLEET_BOX_RE.test(String(id || ''))
@@ -42,6 +44,40 @@ function boxList(v) {
   return v.map((x) => String(x))
 }
 
+/** {box: {low, high}} → [{box, low, high}] sorted by box; junk entries dropped. */
+export function fleetBandList(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return []
+  const out = []
+  for (const [box, b] of Object.entries(v)) {
+    const low = intOrNull(b && b.low)
+    const high = intOrNull(b && b.high)
+    if (low == null || high == null) continue
+    out.push({ box: String(box), low, high })
+  }
+  return out.sort((a, b) => (a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
+}
+
+/** [{box, low, high}] → {box: {low, high}}. */
+export function fleetBandMap(list) {
+  const out = {}
+  for (const b of Array.isArray(list) ? list : []) out[b.box] = { low: Number(b.low), high: Number(b.high) }
+  return out
+}
+
+/** True when one per-box band is a box id with both marks in range and low < high. */
+export function fleetBandOk(b) {
+  if (!b || !validFleetBox(b.box)) return false
+  const low = Number(b.low)
+  const high = Number(b.high)
+  return Number.isInteger(low) && Number.isInteger(high) && low >= 1 && low <= 99 && high >= 2 && high <= 100 && low < high
+}
+
+function sameBands(a, b) {
+  const x = fleetBandList(fleetBandMap(a))
+  const y = fleetBandList(fleetBandMap(b))
+  return JSON.stringify(x) === JSON.stringify(y)
+}
+
 /** GET body → the card's view. Junk becomes the defaults. */
 export function normalizeFleetLoad(body) {
   const b = body && typeof body === 'object' ? body : {}
@@ -56,6 +92,7 @@ export function normalizeFleetLoad(body) {
     low: s.low == null ? null : intOrNull(s.low),
     high: s.high == null ? null : intOrNull(s.high),
     boxOrder: s.box_order == null ? null : boxList(s.box_order),
+    boxes: s.boxes == null ? null : fleetBandList(s.boxes),
   }
   const boxOrder = Array.isArray(b.box_order)
     ? boxList(b.box_order)
@@ -64,6 +101,7 @@ export function normalizeFleetLoad(body) {
     low: intOrNull(b.low) ?? (stored.low ?? defaults.low),
     high: intOrNull(b.high) ?? (stored.high ?? defaults.high),
     boxOrder,
+    boxes: b.boxes != null ? fleetBandList(b.boxes) : (stored.boxes ? stored.boxes.slice() : []),
     source: typeof b.source === 'string' ? b.source : '',
     stored,
     defaults,
@@ -84,6 +122,9 @@ export function fleetLoadPatchBody(saved, draft) {
   const order = Array.isArray(draft.boxOrder) ? draft.boxOrder : []
   if (draft.resetOrder) body.box_order = null
   else if (order.join('\n') !== (saved.boxOrder || []).join('\n')) body.box_order = order.slice()
+  const bands = Array.isArray(draft.boxes) ? draft.boxes : []
+  if (draft.resetBoxes) body.boxes = null
+  else if (!sameBands(bands, saved.boxes || [])) body.boxes = fleetBandMap(bands)
   return body
 }
 
@@ -125,14 +166,18 @@ export function fleetStoredOk(stored) {
   const eHigh = high == null ? FLEET_DEFAULT_HIGH : high
   if (eLow >= eHigh) return false
   const order = stored.boxOrder
-  if (order == null) return true
-  if (!Array.isArray(order) || order.length > FLEET_BOX_MAX) return false
-  const seen = new Set()
-  for (const b of order) {
-    if (!validFleetBox(b) || seen.has(b)) return false
-    seen.add(b)
+  if (order != null) {
+    if (!Array.isArray(order) || order.length > FLEET_BOX_MAX) return false
+    const seen = new Set()
+    for (const b of order) {
+      if (!validFleetBox(b) || seen.has(b)) return false
+      seen.add(b)
+    }
   }
-  return true
+  const bands = stored.boxes
+  if (bands == null) return true
+  if (!Array.isArray(bands) || bands.length > FLEET_BOX_MAX) return false
+  return bands.every(fleetBandOk)
 }
 
 /**
@@ -144,6 +189,7 @@ export function applyFleetPatch(stored, patch) {
     low: stored && stored.low != null ? stored.low : null,
     high: stored && stored.high != null ? stored.high : null,
     boxOrder: stored && Array.isArray(stored.boxOrder) ? stored.boxOrder.slice() : null,
+    boxes: stored && Array.isArray(stored.boxes) ? stored.boxes.slice() : null,
   }
   const p = patch && typeof patch === 'object' ? patch : {}
   if (Object.prototype.hasOwnProperty.call(p, 'low')) {
@@ -163,6 +209,18 @@ export function applyFleetPatch(stored, patch) {
       next.boxOrder = ids.length === 0 ? null : ids
     } else return null
   }
+  if (Object.prototype.hasOwnProperty.call(p, 'boxes')) {
+    if (p.boxes === null) next.boxes = null
+    else if (p.boxes && typeof p.boxes === 'object' && !Array.isArray(p.boxes)) {
+      const list = []
+      for (const [box, b] of Object.entries(p.boxes)) {
+        if (!b || typeof b !== 'object' || Object.keys(b).length !== 2) return null
+        if (!Number.isInteger(b.low) || !Number.isInteger(b.high)) return null
+        list.push({ box, low: b.low, high: b.high })
+      }
+      next.boxes = list.length === 0 ? null : fleetBandList(fleetBandMap(list))
+    } else return null
+  }
   return fleetStoredOk(next) ? next : null
 }
 
@@ -174,13 +232,15 @@ function fleetBody(stored) {
     low,
     high,
     box_order: boxOrder,
+    boxes: stored.boxes == null ? {} : fleetBandMap(stored.boxes),
     source: 'hub',
     stored: {
       low: stored.low,
       high: stored.high,
       box_order: stored.boxOrder == null ? null : stored.boxOrder.slice(),
+      boxes: stored.boxes == null ? null : fleetBandMap(stored.boxes),
     },
-    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [] },
+    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [], boxes: {} },
   }
 }
 
@@ -196,11 +256,12 @@ function browserStore() {
 function readStored(store) {
   /* keep the "no store" guard: storageGetJson would fall back to localStorage */
   const p = store && typeof store.getItem === 'function' ? storageGetJson(FLEET_STORE_KEY, null, store) : null
-  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null }
+  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null }
   return {
     low: p.low == null ? null : Number(p.low),
     high: p.high == null ? null : Number(p.high),
     boxOrder: p.box_order == null ? null : boxList(p.box_order),
+    boxes: p.boxes == null ? null : fleetBandList(p.boxes),
   }
 }
 
@@ -225,6 +286,7 @@ export function mockFleetWrite(patch, store) {
     low: next.low,
     high: next.high,
     box_order: next.boxOrder,
+    boxes: next.boxes == null ? null : fleetBandMap(next.boxes),
   }))
   return fleetBody(next)
 }

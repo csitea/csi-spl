@@ -2,7 +2,9 @@
      order the boxes take a new agent. GET/PATCH /v1/operator/fleet-load.
      Shown only when that GET succeeds. A 403 operator.workspaces hides the
      card (the nav entry is hidden by the same probe in tenant-settings.vue).
-     A reset sends JSON null, which is the hub's "back to the default". -->
+     A reset sends JSON null, which is the hub's "back to the default".
+     Per-box bands (rdb 0134): a box listed there uses its own low / high
+     instead of the fleet band; the PATCH sends the whole map. -->
 <template>
   <div data-test="tenant-fleet-root" :data-state="state">
     <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -127,6 +129,73 @@
         </div>
       </div>
 
+      <div class="fl-field">
+        <span id="tenant-fleet-bands-label">{{ t('tenant_settings.fleet_load_bands') }}</span>
+        <small class="muted">{{ t('tenant_settings.fleet_load_bands_hint') }}</small>
+        <small v-if="bandsUseDefault" class="muted" data-test="tenant-fleet-bands-using">{{ t('tenant_settings.fleet_load_bands_default') }}</small>
+        <ul v-if="bands.length" class="fl-list" data-test="tenant-fleet-bands" aria-labelledby="tenant-fleet-bands-label">
+          <li v-for="(b, i) in bands" :key="b.box" class="fl-row fl-band" data-test="tenant-fleet-band" :data-box="b.box">
+            <code class="fl-row__id">{{ b.box }}</code>
+            <input
+              :value="b.low"
+              type="number"
+              min="1"
+              max="99"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              :aria-label="t('tenant_settings.fleet_load_low') + ' ' + b.box"
+              data-test="tenant-fleet-band-low"
+              @input="editBand(i, 'low', ($event.target as HTMLInputElement).value)"
+            >
+            <input
+              :value="b.high"
+              type="number"
+              min="2"
+              max="100"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              :aria-label="t('tenant_settings.fleet_load_high') + ' ' + b.box"
+              data-test="tenant-fleet-band-high"
+              @input="editBand(i, 'high', ($event.target as HTMLInputElement).value)"
+            >
+            <button
+              type="button"
+              class="icon-btn"
+              :disabled="saving"
+              :title="t('tenant_settings.remove')"
+              :aria-label="t('tenant_settings.remove') + ' ' + b.box"
+              data-test="tenant-fleet-band-remove"
+              @click="removeBand(i)"
+            >
+              <UiIcon name="x" :size="16" />
+            </button>
+          </li>
+        </ul>
+        <p v-else class="muted" data-test="tenant-fleet-bands-empty">{{ t('tenant_settings.fleet_load_bands_empty') }}</p>
+        <div class="fl-add">
+          <input
+            v-model="bandBox"
+            type="text"
+            list="tenant-fleet-suggest"
+            maxlength="32"
+            autocomplete="off"
+            spellcheck="false"
+            :placeholder="t('tenant_settings.fleet_load_box_placeholder')"
+            :aria-label="t('tenant_settings.fleet_load_bands') + ': ' + t('tenant_settings.fleet_load_box_placeholder')"
+            data-test="tenant-fleet-band-input"
+            @keydown.enter.prevent="addBand"
+          >
+          <button type="button" class="btn ghost" :disabled="saving || !bandBox.trim()" data-test="tenant-fleet-band-add" @click="addBand">
+            {{ t('tenant_settings.add') }}
+          </button>
+          <button type="button" class="btn ghost" :disabled="saving || bandsUseDefault" data-test="tenant-fleet-bands-reset" @click="resetToDefault('boxes')">
+            {{ t('tenant_settings.fleet_load_reset') }}
+          </button>
+        </div>
+      </div>
+
       <div class="fl-actions">
         <button type="button" class="btn" :disabled="saving || !dirty" data-test="tenant-fleet-save" @click="save">
           {{ t('tenant_settings.save') }}
@@ -147,6 +216,7 @@ import { useSettingSave } from '~/composables/useSettingSave'
 import { moveItem } from '~/utils/tenant-settings.mjs'
 import {
   FLEET_BOX_MAX,
+  fleetBandOk,
   fleetLoadForbidden,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
@@ -154,7 +224,7 @@ import {
   suggestFleetBoxes,
   validFleetBox,
 } from '~/utils/fleet-load.mjs'
-import type { FleetLoadView } from '~/utils/fleet-load.mjs'
+import type { FleetBoxBand, FleetLoadView } from '~/utils/fleet-load.mjs'
 
 type FleetApi = {
   mock: boolean
@@ -177,6 +247,9 @@ const boxes = ref<string[]>([])
 const resetLow = ref(false)
 const resetHigh = ref(false)
 const resetOrder = ref(false)
+const bands = ref<FleetBoxBand[]>([])
+const resetBoxes = ref(false)
+const bandBox = ref('')
 const candidate = ref('')
 const suggestions = ref<string[]>([])
 const notice = ref('')
@@ -202,6 +275,12 @@ const orderUsesDefault = computed(() => {
   if (resetOrder.value) return true
   return s.stored.boxOrder == null && boxes.value.length === 0
 })
+const bandsUseDefault = computed(() => {
+  const s = view.value
+  if (!s) return false
+  if (resetBoxes.value) return true
+  return s.stored.boxes == null && bands.value.length === 0
+})
 const dirty = computed(() => {
   const s = view.value
   if (!s) return false
@@ -216,6 +295,8 @@ function draft() {
     resetLow: resetLow.value,
     resetHigh: resetHigh.value,
     resetOrder: resetOrder.value,
+    boxes: bands.value.map((b) => ({ ...b })),
+    resetBoxes: resetBoxes.value,
   }
 }
 
@@ -227,6 +308,8 @@ function take(next: FleetLoadView) {
   resetLow.value = false
   resetHigh.value = false
   resetOrder.value = false
+  bands.value = next.boxes.map((b) => ({ ...b }))
+  resetBoxes.value = false
 }
 
 function editLow(raw: string) {
@@ -238,7 +321,7 @@ function editHigh(raw: string) {
   high.value = raw === '' ? '' : Number(raw)
 }
 
-function resetToDefault(which: 'low' | 'high' | 'order') {
+function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes') {
   const s = view.value
   if (!s) return
   formError.value = ''
@@ -248,10 +331,44 @@ function resetToDefault(which: 'low' | 'high' | 'order') {
   } else if (which === 'high') {
     high.value = s.defaults.high
     resetHigh.value = true
-  } else {
+  } else if (which === 'order') {
     boxes.value = []
     resetOrder.value = true
+  } else {
+    bands.value = []
+    resetBoxes.value = true
   }
+}
+
+function editBand(i: number, field: 'low' | 'high', raw: string) {
+  bands.value = bands.value.map((b, j) => (j === i ? { ...b, [field]: raw === '' ? NaN : Number(raw) } : b))
+  resetBoxes.value = false
+}
+function removeBand(i: number) {
+  bands.value = bands.value.filter((_, j) => j !== i)
+  resetBoxes.value = false
+}
+/* A new band starts on the fleet band in force, for the admin to edit. */
+function addBand() {
+  const id = bandBox.value.trim().toLowerCase()
+  formError.value = ''
+  if (!validFleetBox(id)) {
+    formError.value = t('tenant_settings.fleet_load_bad_box')
+    return
+  }
+  if (bands.value.some((b) => b.box === id)) {
+    bandBox.value = ''
+    return
+  }
+  if (bands.value.length >= FLEET_BOX_MAX) {
+    formError.value = t('tenant_settings.fleet_load_full')
+    return
+  }
+  const lo = Number(low.value) || view.value?.defaults.low || 50
+  const hi = Number(high.value) || view.value?.defaults.high || 75
+  bands.value = bands.value.concat({ box: id, low: lo, high: hi })
+  resetBoxes.value = false
+  bandBox.value = ''
 }
 
 function move(i: number, delta: number) {
@@ -300,6 +417,11 @@ async function persist(): Promise<{ ok: boolean, out?: { error: string, detail: 
 }
 
 async function save() {
+  if (!resetBoxes.value && !bands.value.every(fleetBandOk)) {
+    formError.value = t('tenant_settings.fleet_load_band_bad')
+    return
+  }
+  formError.value = ''
   let detail = ''
   let ran = false
   await run(async () => {
@@ -366,6 +488,8 @@ watch(() => session.state, (st) => {
 .fl-row { display: flex; align-items: center; gap: 8px; min-height: 36px; min-width: 0; }
 .fl-row__n { width: 2.5ch; color: var(--color-muted); flex: none; }
 .fl-row__id { min-width: 0; overflow-wrap: anywhere; }
+.fl-band .fl-row__id { flex: 1 1 8ch; }
+.fl-band input { width: 6em; min-width: 0; padding: 4px 6px; background: var(--color-surface); color: var(--color-fg); border: 1px solid var(--color-border-strong); }
 .fl-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 100%; }
 .fl-add input { flex: 1 1 10em; }
 .fl-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -376,6 +500,7 @@ watch(() => session.state, (st) => {
   .fl-add input { width: 100%; min-height: var(--tap, 44px); }
   .fl-row { min-height: var(--tap, 44px); }
   .fl-row .icon-btn { width: var(--tap, 44px); height: var(--tap, 44px); }
+  .fl-band input { width: 4.5em; min-height: var(--tap, 44px); }
   .fl-actions .btn, .fl-add .btn, .fl-field .btn { min-height: var(--tap, 44px); }
 }
 </style>

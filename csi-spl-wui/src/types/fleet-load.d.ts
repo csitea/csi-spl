@@ -7,15 +7,22 @@ declare module '~/utils/fleet-load.mjs' {
   export const FLEET_DEFAULT_LOW: number
   export const FLEET_DEFAULT_HIGH: number
 
+  export interface FleetBoxBand {
+    box: string
+    low: number
+    high: number
+  }
   export interface FleetLoadStored {
     low: number | null
     high: number | null
     boxOrder: string[] | null
+    boxes?: FleetBoxBand[] | null
   }
   export interface FleetLoadView {
     low: number
     high: number
     boxOrder: string[]
+    boxes: FleetBoxBand[]
     source: string
     stored: FleetLoadStored
     defaults: { low: number, high: number, boxOrder: string[] }
@@ -27,9 +34,14 @@ declare module '~/utils/fleet-load.mjs' {
     resetLow: boolean
     resetHigh: boolean
     resetOrder: boolean
+    boxes?: FleetBoxBand[]
+    resetBoxes?: boolean
   }
 
   export function validFleetBox(id: unknown): boolean
+  export function fleetBandList(v: unknown): FleetBoxBand[]
+  export function fleetBandMap(list: FleetBoxBand[]): Record<string, { low: number, high: number }>
+  export function fleetBandOk(b: unknown): boolean
   export function fleetLoadForbidden(err: unknown): boolean
   export function fleetLoadStatusDetail(err: unknown): string
   export function normalizeFleetLoad(body: unknown): FleetLoadView

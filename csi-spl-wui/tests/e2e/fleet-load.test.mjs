@@ -1,4 +1,5 @@
-// Fleet load (rdb 0118) in a real browser, against the mock bundle.
+// Fleet load (rdb 0118, per-box bands rdb 0134) in a real browser, against
+// the mock bundle.
 //
 // An admin of the operator workspace sees the card, edits the low and high
 // marks, reorders boxes, saves, reloads and sees the values. A workspace
@@ -137,6 +138,43 @@ try {
   }
   ok('10 reset to default clears the low mark and keeps the rest', reset.low === '50' && reset.high === '80' && reset.order.join() === 'box-a,box-b', reset)
 
+  // rdb 0134: a per-box band. Adding a box starts it on the fleet band; the
+  // admin edits it, saves, and a reload shows it. A band with low >= high is
+  // refused in the form. Reset clears every band.
+  const bands = (q) => q.$$eval('[data-test=tenant-fleet-band]', (els) => els.map((e) => ({
+    box: e.getAttribute('data-box'),
+    low: e.querySelector('[data-test=tenant-fleet-band-low]').value,
+    high: e.querySelector('[data-test=tenant-fleet-band-high]').value,
+  })))
+  ok('12 no per-box band at first', !!(await p.$('[data-test=tenant-fleet-bands-empty]')))
+  await setField(p, '[data-test=tenant-fleet-band-input]', 'box-s')
+  await p.click('[data-test=tenant-fleet-band-add]')
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-s]', { timeout: NAV_TIMEOUT })
+  const added = await bands(p)
+  ok('13 a new band starts on the fleet band in force (50..80)', JSON.stringify(added) === '[{"box":"box-s","low":"50","high":"80"}]', added)
+  await setField(p, '[data-test=tenant-fleet-band-low]', '90')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-form-error]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('14 a band with low above high is refused in the form', true)
+  await setField(p, '[data-test=tenant-fleet-band-low]', '60')
+  await setField(p, '[data-test=tenant-fleet-band-high]', '90')
+  await setField(p, '[data-test=tenant-fleet-band-input]', 'box-t')
+  await p.click('[data-test=tenant-fleet-band-add]')
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-t]', { timeout: NAV_TIMEOUT })
+  const tnkLow = (await p.$$('[data-test=tenant-fleet-band-low]'))[1]
+  const tnkHigh = (await p.$$('[data-test=tenant-fleet-band-high]'))[1]
+  for (const [el, v] of [[tnkLow, '20'], [tnkHigh, '40']]) {
+    await el.evaluate((e, next) => { e.value = next; e.dispatchEvent(new Event('input', { bubbles: true })) }, v)
+  }
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-t]', { timeout: NAV_TIMEOUT })
+  const keptBands = await bands(p)
+  ok('15 a reload shows both per-box bands; the fleet band is unchanged',
+    JSON.stringify(keptBands) === '[{"box":"box-s","low":"60","high":"90"},{"box":"box-t","low":"20","high":"40"}]' &&
+    (await value(p, '[data-test=tenant-fleet-high]')) === '80', keptBands)
+
   await p.setViewport({ width: 390, height: 800 })
   await p.waitForSelector('[data-test=tenant-settings-fleet-load]', { visible: true, timeout: NAV_TIMEOUT })
   const phone = await p.$eval('[data-test=tenant-settings-fleet-load]', (e) => ({
@@ -144,6 +182,14 @@ try {
     wide: document.documentElement.scrollWidth - document.documentElement.clientWidth,
   }))
   ok('11 phone: the card fits the width', phone.overflow <= 1 && phone.wide <= 1, phone)
+
+  await p.setViewport({ width: 1400, height: 900 })
+  await p.click('[data-test=tenant-fleet-bands-reset]')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-bands-empty]', { timeout: NAV_TIMEOUT })
+  ok('16 reset clears every per-box band', (await bands(p)).length === 0)
 
   ok('no page error', errors.length === 0, errors)
 } finally {

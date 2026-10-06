@@ -7,6 +7,9 @@ import {
   FLEET_BAD_SETTING,
   FLEET_OPERATOR_KEY,
   applyFleetPatch,
+  fleetBandList,
+  fleetBandMap,
+  fleetBandOk,
   fleetLoadForbidden,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
@@ -105,6 +108,30 @@ ok('mock: an unset (null) or JSON-null stored row reads the defaults',
   normalizeFleetLoad(mockFleetRead(opNull)).stored.low === null && normalizeFleetLoad(mockFleetRead(opJsonNull)).stored.low === null)
 const cleared = normalizeFleetLoad(mockFleetWrite({ low: null }, op))
 ok('mock: null low is the default again, the rest stays', cleared.low === 50 && cleared.stored.low === null && cleared.high === 80 && cleared.boxOrder.join() === 'box-b,box-a')
+
+// rdb 0134: per-box bands. A patch replaces the whole map, a bad entry is
+// refused and leaves the row, null resets it, and the PATCH body sends the
+// map only when it changed.
+const banded = normalizeFleetLoad(mockFleetWrite({ boxes: { 'box-t': { low: 20, high: 40 }, 'box-s': { low: 60, high: 90 } } }, op))
+ok('bands: a per-box band is stored and read back sorted by box',
+  JSON.stringify(banded.boxes) === '[{"box":"box-s","low":60,"high":90},{"box":"box-t","low":20,"high":40}]' && banded.low === 50)
+for (const b of [{ 'box-s': { low: 90, high: 60 } }, { 'Box-s': { low: 1, high: 2 } }, { 'box-s': { low: 10 } }, { 'box-s': { low: 10, high: 20, x: 1 } }]) {
+  let refused = ''
+  try { mockFleetWrite({ boxes: b }, op) } catch (e) { refused = fleetLoadStatusDetail(e) }
+  ok(`bands: ${JSON.stringify(b)} is 400 bad_setting and leaves the row`,
+    refused === FLEET_BAD_SETTING && normalizeFleetLoad(mockFleetRead(op)).boxes.length === 2)
+}
+ok('bands: fleetBandOk takes 1..99 / 2..100 with low < high',
+  fleetBandOk({ box: 'box-s', low: 1, high: 100 }) && !fleetBandOk({ box: 'box-s', low: 50, high: 50 }) && !fleetBandOk({ box: '', low: 1, high: 2 }))
+ok('bands: list and map round-trip', JSON.stringify(fleetBandList(fleetBandMap(banded.boxes))) === JSON.stringify(banded.boxes))
+const draftOf = (v, extra) => ({ low: v.low, high: v.high, boxOrder: v.boxOrder, resetLow: false, resetHigh: false, resetOrder: false, boxes: v.boxes, ...extra })
+ok('bands: an unchanged map (in any order) is left out of the PATCH',
+  Object.keys(fleetLoadPatchBody(banded, draftOf(banded, { boxes: banded.boxes.slice().reverse() }))).length === 0)
+ok('bands: a changed map is sent whole',
+  JSON.stringify(fleetLoadPatchBody(banded, draftOf(banded, { boxes: [{ box: 'box-s', low: 70, high: 95 }] }))) === '{"boxes":{"box-s":{"low":70,"high":95}}}')
+ok('bands: reset sends boxes null', fleetLoadPatchBody(banded, draftOf(banded, { resetBoxes: true })).boxes === null)
+const unbanded = normalizeFleetLoad(mockFleetWrite({ boxes: null }, op))
+ok('bands: null resets the map; the fleet band stays', unbanded.boxes.length === 0 && unbanded.stored.boxes === null && unbanded.high === 80)
 
 const admin = normalizeMe({ human_id: 'HUM-1', role: 'admin', permissions: ['tenant.settings', 'members.invite'] })
 const ids = (opts) => tenantSettingsSections(admin, opts).map((s) => s.id).join(',')

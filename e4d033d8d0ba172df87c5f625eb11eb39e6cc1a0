@@ -1,0 +1,6 @@
+Lay-What: Messages in a shared channel are no longer sent to only one computer just because a helper briefly held a work lock there.
+Lay-How: The server now only listens to the two real 'who is in charge' records when deciding where a channel message goes.
+Lay-Why: A short-lived lock could silently hide channel messages from the other computer running the same helper.
+Tech-What: hub roleSeats reads only the orch and dispatch fleet_leases rows; any other row (spawn/deploy mutex, watchdog) is skipped.
+Tech-How: role_group.go skips a lease whose role is not in roleNumbers instead of falling back to the holder's own agent number.
+Tech-Why: spec 101 D1: 068 L5 mutexes CAS rows into the same fleet and tenant, so a spawn mutex would narrow that agent's channel posts.

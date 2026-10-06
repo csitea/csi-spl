@@ -6,7 +6,7 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 
 | # | lane | depends on | done when |
 |---|---|---|---|
-| T001 | L1 rdb | owner go (msg cb7a9cec) | 0141 applied on dev and prd |
+| T001 | L1 rdb | owner go (msg cb7a9cec) | 0141 applied on dev and prd: done, ae4a3608 (wf 20 run 37513524382) |
 | T002 | L2 hub | T001 | hub on dev and prd serves the contract |
 | T003 | L3 WUI | T002 contract (may start on the mock) | WUI on dev and prd shows and sets a status |
 | T004 | L4 help + proof | T002, T003 deployed | dev and prd proof posted |
@@ -14,19 +14,19 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 
 ## T001 - L1: rdb migration (spec 7.2)
 
-- [ ] `csi-spl-rdb/src/sql/postgres/spool-hub/0141_human_status.sql`:
+- [x] `csi-spl-rdb/src/sql/postgres/spool-hub/0141_human_status.sql`:
       `human_status` keyed by the membership `(tenant_id, human_id)`, FK
       ON DELETE CASCADE, CHECKs on `status` and the 80-character note,
       `pause_notify` (Q1, default off), partial index on `until_at`,
       FORCE RLS with the NULLIF tenant policy and the operator policy.
-- [ ] Runtime grants: covered by the default privileges in
+- [x] Runtime grants: covered by the default privileges in
       `spool-hub-roles/runtime-grants.sql` (no edit).
-- [ ] Isolation guard: one seeded row in `seedTenantAll`
+- [x] Isolation guard: one seeded row in `seedTenantAll`
       (`internal/store/crosstenant_test.go`), plus
       `internal/store/human_status_test.go` (B reads 0 of A, CHECKs, FK,
       cascade).
-- [ ] `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; land on master.
-- [ ] `ENV=dev` then `ENV=prd` `DRY_RUN=0 ./run -a do_spl_db_bootstrap`
+- [x] `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; land on master.
+- [x] `ENV=dev` then `ENV=prd` `DRY_RUN=0 ./run -a do_spl_db_bootstrap`
       (per-env SA key); verify the table with `do_spl_db_query` on
       `information_schema.tables`.
 

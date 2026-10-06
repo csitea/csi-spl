@@ -232,6 +232,8 @@ type Server struct {
 	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes
 
 	backfilling sync.Map // backfill.go: [4]string seat -> in flight
+
+	statusSwept statusSweeps // human_status.go: last expiry sweep per tenant, its own lock
 }
 
 type uploadToken struct {
@@ -340,10 +342,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/topic", s.handleDeleteTopic)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/archive", s.topicPreflight)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/topic", s.topicPreflight)
-	s.routeMoves(mux)                                                   // specs/045 + 714c7028
-	s.routePromote(mux)                                                 // 8f588edd
-	mux.HandleFunc("PUT /v1/me/channel-order", s.handleSetChannelOrder) // SPL-1034
-	mux.HandleFunc("OPTIONS /v1/me/channel-order", s.channelOrderPreflight)
+	s.routeMoves(mux)   // specs/045 + 714c7028
+	s.routePromote(mux) // 8f588edd
+	s.routeMe(mux)      // SPL-1034, spec 096
 	mux.HandleFunc("DELETE /v1/messages/{msg_id}/reactions", s.handleDeleteReaction)
 	mux.HandleFunc("OPTIONS /v1/messages/{msg_id}/reactions", s.reactionPreflight)
 	mux.HandleFunc("OPTIONS /v1/channels", s.channelsPreflight)

@@ -462,6 +462,7 @@ func (s *Server) userEntities(ctx context.Context, tenant string, add entityAdd)
 	if err != nil {
 		return err
 	}
+	now := s.o.Now()
 	for _, h := range hs {
 		s.mu.Lock()
 		online := s.online[[2]string{tenant, h.HumanID}] > 0
@@ -470,8 +471,11 @@ func (s *Server) userEntities(ctx context.Context, tenant string, add entityAdd)
 		if h.DisplayName != "" {
 			label, text = h.DisplayName+" ("+h.HumanID+")", append(text, h.DisplayName)
 		}
-		add(search.Entity{Name: label, Text: text, Online: online},
-			map[string]any{"id": h.HumanID, "display_name": strPtr(h.DisplayName), "avatar_file_id": strPtr(h.AvatarFileID), "online": online})
+		row := map[string]any{"id": h.HumanID, "display_name": strPtr(h.DisplayName), "avatar_file_id": strPtr(h.AvatarFileID), "online": online}
+		if h.Status != nil && h.Status.Live(now) { // spec 096
+			row["status"] = toViewStatus(*h.Status)
+		}
+		add(search.Entity{Name: label, Text: text, Online: online}, row)
 	}
 	return nil
 }

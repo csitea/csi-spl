@@ -44,6 +44,8 @@ type Postgres struct {
 	calEdit seatsProbe
 	// sig: is rdb 0135 messages.search_sig there yet (search_postgres.go)
 	sig seatsProbe
+	// humStatus: is rdb 0141 human_status there yet (human_status.go)
+	humStatus seatsProbe
 	// kv: is rdb 0136 tenants.settings there yet (tenant_kv.go)
 	kv seatsProbe
 }

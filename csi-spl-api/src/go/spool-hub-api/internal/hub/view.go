@@ -305,7 +305,7 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 		}
 		out = append(out, v)
 	}
-	writeJSON(w, http.StatusOK, rosterBody{Boxes: out, Humans: viewHumans(rs)})
+	writeJSON(w, http.StatusOK, rosterBody{Boxes: out, Humans: viewHumans(rs, now)})
 }
 
 // readRoster is the roster's three reads: in ONE store call when the store
@@ -325,7 +325,12 @@ func (s *Server) readRoster(ctx context.Context, tenant string) (rs store.Roster
 		}
 	}
 	if md, ok := s.o.Store.(store.MemberDirectory); ok {
-		rs.Members, err = md.ListMembers(ctx, tenant)
+		if rs.Members, err = md.ListMembers(ctx, tenant); err != nil {
+			return rs, err
+		}
+	}
+	if hs, ok := s.o.Store.(store.HumanStatuses); ok {
+		rs.Statuses, err = hs.HumanStatuses(ctx, tenant, s.o.Now())
 	}
 	return rs, err
 }
@@ -349,13 +354,17 @@ type viewHuman struct {
 	// (tenant_memberships.last_active_at); omitted when never. Like the online
 	// flag it is presence, not a role, so it is not covered by the role guard.
 	LastSeen *string `json:"last_seen,omitempty"`
+	// Status is the member's manual status (spec 096, rdb 0141): {state,
+	// note, until}; omitted when available or expired. Like last_seen it is
+	// presence, not a role, so it is not covered by the role guard.
+	Status *viewStatus `json:"status,omitempty"`
 }
 
 // viewHumans lists the tenant's member HUM-* with the stored IdP picture
 // (view-v1 §4.1; 010 T044): a file_id the WUI loads with GET /v1/files/{id}
 // on this same tenant host, null = draw the deterministic default. Members
 // of this tenant only; a store without the 010 tables lists none.
-func viewHumans(rs store.Roster) []viewHuman {
+func viewHumans(rs store.Roster, now time.Time) []viewHuman {
 	out := make([]viewHuman, 0, len(rs.Avatars))
 	names := map[string]string{}
 	owners := map[string]bool{}
@@ -385,6 +394,9 @@ func viewHumans(rs store.Roster) []viewHuman {
 				at := rfc(m.LastSeen)
 				v.LastSeen = &at
 			}
+		}
+		if st, ok := rs.Statuses[id]; ok && st.Live(now) {
+			v.Status = toViewStatus(st)
 		}
 		out = append(out, v)
 	}

@@ -78,6 +78,9 @@ type HumanEntry struct {
 	HumanID      string
 	DisplayName  string
 	AvatarFileID string
+	// Status is the member's live manual status (spec 096), nil = available;
+	// read in the same statement, so search pays no extra round trip.
+	Status *HumanStatus
 }
 
 // Searcher is implemented by Memory and Postgres.
@@ -271,7 +274,12 @@ func (s *Memory) TenantHumans(_ context.Context, tenant string) ([]HumanEntry, e
 	out := []HumanEntry{}
 	for k := range s.hum.members {
 		if hm, ok := s.hum.humans[k[1]]; k[0] == tenant && ok && !hm.disabled {
-			out = append(out, HumanEntry{HumanID: k[1], DisplayName: hm.name, AvatarFileID: hm.avatar})
+			e := HumanEntry{HumanID: k[1], DisplayName: hm.name, AvatarFileID: hm.avatar}
+			if st := s.hum.members[k].status; st != nil && st.Live(time.Now()) {
+				c := *st
+				e.Status = &c
+			}
+			out = append(out, e)
 		}
 	}
 	sortHumans(out)

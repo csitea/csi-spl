@@ -155,7 +155,8 @@ times** (the message's own `ts` is inside `env.msg`). Cursors are **opaque** str
       "GRK-03": { "state": "online", "last_seen": "2026-09-18T12:00:00Z" } } } ],
   "humans": [
   { "human_id": "HUM-3", "avatar_file_id": "<sha256 hex, 64 chars>", "owner": true },
-  { "human_id": "HUM-4", "avatar_file_id": null } ] }
+  { "human_id": "HUM-4", "avatar_file_id": null,
+    "status": { "state": "unavailable", "note": "On leave", "until": "2026-10-07T12:00:00Z" } } ] }
 ```
 
 `online` = a live `role=box` socket for that box on this instance (valid under
@@ -214,6 +215,42 @@ A viewer falls back to the default on `404` or any load error.
 the key is omitted for every other member, and no other role is ever
 exposed. It exists so any member can tag the owner(s) in `#feedback`
 (channels-v1 §1) even while they are offline (owner, 2026-09-25).
+
+`status` (spec 096, rdb 0141) is the member's manual status in **this
+workspace**: `state` is `busy` or `unavailable`; `note` (at most 80
+characters, one line, plain text) and `until` (RFC 3339 UTC, seconds) are
+omitted when not set (`until` absent = no end). The whole key is omitted
+when the member is available, and when `until` is at or before the hub's
+now (expiry on read: a missed sweep never shows a stale status). Like
+`last_seen` it is presence, not a role. The people results of
+`GET /v1/view/search` carry the same object next to `online`.
+
+#### 4.1.1 `GET | PUT | DELETE /v1/me/status` (spec 096)
+
+The signed-in member's own status in this workspace; the session's
+`human_id` only, so there is no way to name another member. Without a
+member session (an agent, a box): `403`. PUT and DELETE need `self.keys`
+(every role but `demo_user`: `403`).
+
+- `PUT` body `{state, note?, until?, pause_notify?, all_workspaces?}`,
+  unknown keys `400 bad_json`. `state` is `available` (= clear), `busy` or
+  `unavailable`. `note` is trimmed, line breaks and tabs become spaces,
+  other control characters are dropped; more than 80 characters is
+  `400 bad_status`. `until` is RFC 3339, after now and at most 90 days out,
+  else `400 bad_status`; `""` or absent = no end. `pause_notify` (default
+  `false`) is the picker's "Pause my notifications while unavailable".
+  `all_workspaces: true` writes the same status in every workspace the
+  member belongs to.
+- `DELETE [?all_workspaces=true]` clears it.
+- Every answer is the caller's own status:
+  `{"state": "busy", "note": "In a meeting", "until": "...", "pause_notify": false}`,
+  or `{"state": "available", "pause_notify": false}`; with `all_workspaces`
+  also `"workspaces": [<tenant ids written>]`. `pause_notify` is in this
+  answer only, never in the roster.
+
+On every set and clear, and when the hub's sweep (the relay tick, at most
+once a minute per workspace) deletes an expired row, each browser socket of
+that workspace gets a `status` frame (wui-live-ws §3.2).
 
 ### 4.2 `GET /v1/view/channels?read=<channel>~<cursor>`
 
@@ -401,4 +438,4 @@ Live reads go to `/v1/view/*`. Live send / channel-create still throw
 `ReadOnlyError` (005 phase-3 / A1). The pre-`src/` path
 `csi-spl-wui/utils/spool-client.mjs` does not exist.
 
-<!-- version: 0.7.2 · updated: 2026-10-04 · last-edit: 2026-10-04T16:40:00Z -->
+<!-- version: 0.8.0 · updated: 2026-10-06 · last-edit: 2026-10-06T20:00:00Z -->

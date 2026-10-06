@@ -35,6 +35,7 @@ type memMember struct {
 	settings         map[string]json.RawMessage // settings jsonb (rdb 0078); per-tenant override, nil = none
 	disabled         bool                       // disabled_at (rdb 0074): suspended in this tenant
 	accessUntil      time.Time                  // access_until (rdb 0113); zero = no end
+	status           *HumanStatus               // human_status (rdb 0141); nil = available
 	// Provenance copied from the accepted invite (rdb 0084), mirroring the
 	// Postgres read that joins tenant_invites on accepted_by.
 	orderedBy, orderedVia string

@@ -58,6 +58,7 @@ func (s *Server) RunRelay(ctx context.Context, interval time.Duration) {
 
 // Relay is one relay tick (exported for the tests' clock).
 func (s *Server) Relay(ctx context.Context) {
+	s.sweepHumanStatus(ctx) // spec 096: expired statuses, at most once a minute per tenant
 	boxes := s.relayBoxes()
 	tenants := map[string]bool{}
 	for _, x := range boxes {

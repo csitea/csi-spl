@@ -319,7 +319,8 @@ func (s *Server) wuiHello(ctx context.Context, conn *websocket.Conn, tenant, hum
 }
 
 // wuiWelcome writes the welcome (the socket's id, its upload token, the
-// lobby) and the presence snapshot (wui-live-ws.md §3.2).
+// lobby), the presence snapshot (wui-live-ws.md §3.2) and one `status` frame
+// per live manual status (spec 096).
 func (s *Server) wuiWelcome(ctx context.Context, c *wuiConn) bool {
 	tok, exp := s.slotToken(&c.upload, c.tenant, WUIBox, c.member)
 	welcome := map[string]any{"type": "welcome", "as": c.from, "name": c.as,
@@ -334,6 +335,7 @@ func (s *Server) wuiWelcome(ctx context.Context, c *wuiConn) bool {
 	for _, p := range s.onlinePeers(ctx, c.tenant) {
 		c.write(ctx, presenceFrame(p, "online")) //nolint:errcheck
 	}
+	s.statusSnapshot(ctx, c) // spec 096: after the presence snapshot
 	return true
 }
 

@@ -529,19 +529,48 @@ func (c *sqlc) topicCandidates(root *search.Node, tenant, now string) string {
 
 func (s *Postgres) TenantHumans(ctx context.Context, tenant string) ([]HumanEntry, error) {
 	out := []HumanEntry{}
-	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.display_name, ''), coalesce(h.avatar_file_id, '')
-		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id
-		WHERE m.tenant_id = $1 AND h.disabled_at IS NULL AND NOT h.technical`, []any{tenant}, func(rows pgx.Rows) error {
+	cols, join, args := "", "", []any{tenant}
+	if s.hasHumanStatus(ctx) { // spec 096: the live status in the same statement
+		cols = ", st.status, coalesce(st.note, ''), st.until_at"
+		join = ` LEFT JOIN human_status st ON st.tenant_id = m.tenant_id AND st.human_id = m.human_id
+			AND (st.until_at IS NULL OR st.until_at > $2)`
+		args = append(args, s.now())
+	}
+	err := s.queryTenant(ctx, tenant, `SELECT h.human_id, coalesce(h.display_name, ''), coalesce(h.avatar_file_id, '')`+cols+`
+		FROM tenant_memberships m JOIN humans h ON h.human_id = m.human_id`+join+`
+		WHERE m.tenant_id = $1 AND h.disabled_at IS NULL AND NOT h.technical`, args, func(rows pgx.Rows) error {
 		var e HumanEntry
-		if err := rows.Scan(&e.HumanID, &e.DisplayName, &e.AvatarFileID); err != nil {
-			return err
+		if cols == "" {
+			if err := rows.Scan(&e.HumanID, &e.DisplayName, &e.AvatarFileID); err != nil {
+				return err
+			}
+			out = append(out, e)
+			return nil
 		}
-		out = append(out, e)
-		return nil
+		return scanHumanEntryStatus(rows, &e, &out)
 	})
 	if err != nil {
 		return nil, err
 	}
 	sortHumans(out)
 	return out, nil
+}
+
+// scanHumanEntryStatus scans a TenantHumans row that carries the status
+// columns; a NULL status is available.
+func scanHumanEntryStatus(rows pgx.Rows, e *HumanEntry, out *[]HumanEntry) error {
+	var state *string
+	var note string
+	var until *time.Time
+	if err := rows.Scan(&e.HumanID, &e.DisplayName, &e.AvatarFileID, &state, &note, &until); err != nil {
+		return err
+	}
+	if state != nil {
+		e.Status = &HumanStatus{HumanID: e.HumanID, State: *state, Note: note}
+		if until != nil {
+			e.Status.Until = until.UTC()
+		}
+	}
+	*out = append(*out, *e)
+	return nil
 }

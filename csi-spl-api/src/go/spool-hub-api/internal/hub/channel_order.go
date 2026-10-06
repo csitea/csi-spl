@@ -104,6 +104,14 @@ func (s *Server) handleSetChannelOrder(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"channel_order": out})
 }
 
+// routeMe registers the member's own /v1/me routes: the Channels order
+// (SPL-1034) and the manual status (spec 096, human_status.go).
+func (s *Server) routeMe(mux *http.ServeMux) {
+	mux.HandleFunc("PUT /v1/me/channel-order", s.handleSetChannelOrder)
+	mux.HandleFunc("OPTIONS /v1/me/channel-order", s.channelOrderPreflight)
+	s.routeHumanStatus(mux)
+}
+
 // channelOrderPreflight: PUT with the headers every browser route allows (no
 // new request header: a new header is a new preflight, see 032).
 func (s *Server) channelOrderPreflight(w http.ResponseWriter, r *http.Request) {

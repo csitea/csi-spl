@@ -193,6 +193,8 @@ func (s *SMTP) dial(ctx context.Context, addr string) (net.Conn, bool, error) {
 	if err != nil {
 		return nil, false, fmt.Errorf("mail: dial %s: %w", addr, err)
 	}
+	// Safe to ignore: SetDeadline fails only on a conn that is already
+	// closed, and the first read or write on it then fails anyway.
 	_ = conn.SetDeadline(deadline)
 	if s.mode() != TLSImplicit {
 		return conn, false, nil

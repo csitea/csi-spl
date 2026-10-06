@@ -144,6 +144,8 @@ func releaseVersionKey(v string) ([4]int, bool) {
 	if m == nil {
 		return [4]int{}, false
 	}
+	// The Atoi errors are safe to drop: releaseVersionRe matched, so every
+	// group is 1..6 ASCII digits, which always parse and fit an int.
 	k := [4]int{1}
 	if m[4] != "" {
 		k[0], _ = strconv.Atoi(m[4])

@@ -348,6 +348,8 @@ func (c *Client) Dial(ctx context.Context, role string) (*Session, error) {
 		done: make(chan struct{}),
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
+	// A stamp that fails to parse leaves the zero time: uploadToken then
+	// treats the token as expired and asks the hub for a fresh one.
 	s.tokenExp, _ = time.Parse(time.RFC3339, wel.UploadTokenExpiresAt)
 	c.saveRoster(wel.Roster)
 	if role == wire.RoleBox {
@@ -813,6 +815,7 @@ func (s *Session) uploadToken(ctx context.Context) (string, error) {
 	}
 	s.mu.Lock()
 	s.token = r.UploadToken
+	// A bad stamp leaves the zero time, so the next call refreshes again.
 	s.tokenExp, _ = time.Parse(time.RFC3339, r.UploadTokenExpiresAt)
 	s.mu.Unlock()
 	return r.UploadToken, nil

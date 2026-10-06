@@ -29,9 +29,12 @@ type scriptedHub struct {
 	afterHello wire.Frame
 	closeCode  websocket.StatusCode
 	pinsStatus int // 0 = 200 with an empty list
+	// tokenReply, when set, answers every token request after the welcome.
+	tokenReply *wire.Frame
 
-	mu    sync.Mutex
-	hello wire.Frame
+	mu        sync.Mutex
+	hello     wire.Frame
+	tokenAsks int
 }
 
 func (h *scriptedHub) start(t *testing.T) string {
@@ -70,6 +73,21 @@ func (h *scriptedHub) start(t *testing.T) string {
 		}
 		if wsjson.Write(ctx, conn, h.afterHello) != nil {
 			return
+		}
+		for h.tokenReply != nil {
+			var f wire.Frame
+			if wsjson.Read(ctx, conn, &f) != nil {
+				return
+			}
+			if f.Type != wire.TToken {
+				continue
+			}
+			h.mu.Lock()
+			h.tokenAsks++
+			h.mu.Unlock()
+			if wsjson.Write(ctx, conn, *h.tokenReply) != nil {
+				return
+			}
 		}
 		for { // keep the socket until the client goes
 			if _, _, err := conn.Read(ctx); err != nil {
@@ -120,6 +138,34 @@ func TestDialHelloPerRole(t *testing.T) {
 		}
 		if !box && (hl.Agents != nil || hl.Channels != nil || hl.Features != nil) {
 			t.Errorf("%s: a non-box hello announced %v / %v / %v", role, hl.Agents, hl.Channels, hl.Features)
+		}
+	}
+}
+
+// A token stamp that does not parse leaves the zero expiry, which uploadToken
+// reads as expired: it asks the hub again rather than trusting the token.
+func TestUploadTokenRefreshesOnBadStamp(t *testing.T) {
+	fresh := wire.Frame{Type: wire.TToken, UploadToken: "tok2", UploadTokenExpiresAt: "not-a-time"}
+	h := &scriptedHub{first: challenge, tokenReply: &fresh,
+		afterHello: wire.Frame{Type: wire.TWelcome, UploadToken: "tok", UploadTokenExpiresAt: "not-a-time"}}
+	s, err := dialScripted(t, h, "cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if !s.tokenExp.IsZero() {
+		t.Fatalf("bad welcome stamp parsed to %v, want the zero time", s.tokenExp)
+	}
+	for i := 1; i <= 2; i++ {
+		tok, err := s.uploadToken(context.Background())
+		if err != nil || tok != "tok2" {
+			t.Fatalf("call %d: token %q err %v, want tok2", i, tok, err)
+		}
+		h.mu.Lock()
+		asks := h.tokenAsks
+		h.mu.Unlock()
+		if asks != i {
+			t.Fatalf("call %d: hub asked %d times, want %d (a bad stamp must refresh)", i, asks, i)
 		}
 	}
 }

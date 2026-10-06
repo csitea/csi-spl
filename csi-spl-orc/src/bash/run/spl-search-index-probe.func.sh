@@ -145,14 +145,41 @@ EOF_SQL
 # spl_search_index_probe_sql <tenant> <runtime role> [word] -> the psql script:
 # BEGIN, the steps, ROLLBACK. ROLLBACK is the last SQL statement on every path.
 spl_search_index_probe_sql() {
-  local t="$1" rt="$2" word="${3:-}" n="${PROBE_N:-20}" cap="${PROBE_CAP:-500}" b="${PROBE_BODY_CHARS:-3072}"
-  local q="plainto_tsquery('spool_search', :'w')"
+  local t="$1" rt="$2" word="${3:-}" n="${PROBE_N:-20}" b="${PROBE_BODY_CHARS:-3072}"
   cat <<EOF_SQL
 \\set ON_ERROR_STOP 0
 \\set ON_ERROR_ROLLBACK on
 BEGIN;
 SELECT set_config('app.tenant_id', '$t', true), set_config('lock_timeout', '${PROBE_LOCK_TIMEOUT:-5s}', true),
        set_config('statement_timeout', '${PROBE_STATEMENT_TIMEOUT:-10min}', true) \\g /dev/null
+EOF_SQL
+  spl_search_index_probe_head "$t" "$word"
+  spl_search_index_probe_step ins_noindex "$(spl_search_index_probe_inserts "$t" noindex "$n" "$b")"
+  # The inserts queue deferred trigger events (change_stamp), and CREATE INDEX
+  # refuses a table with pending ones: fire them now, then defer again.
+  echo "SET CONSTRAINTS ALL IMMEDIATE; SET CONSTRAINTS ALL DEFERRED;"
+  spl_search_index_probe_ddl "$rt"
+  spl_search_index_probe_step ins_index "$(spl_search_index_probe_inserts "$t" index "$n" "$b")"
+  cat <<EOF_SQL
+SELECT '@@ins ' || phase || ' n=' || count(*) || ' p50_ms=' || round(percentile_cont(0.5) WITHIN GROUP (ORDER BY ms)::numeric, 2)
+    || ' p95_ms=' || round(percentile_cont(0.95) WITHIN GROUP (ORDER BY ms)::numeric, 2)
+    || ' max_ms=' || round(max(ms)::numeric, 2)
+  FROM pg_temp.spl_probe_ins GROUP BY phase ORDER BY phase DESC;
+EOF_SQL
+  spl_search_index_probe_step policy "CREATE POLICY search_reader_all ON public.messages FOR SELECT TO spool_search_reader USING (true);"
+  spl_search_index_probe_plans "$rt" "${PROBE_CAP:-500}"
+  cat <<EOF_SQL
+ROLLBACK;
+\\echo @@rolled_back
+EOF_SQL
+}
+
+# spl_search_index_probe_head <tenant> [word] -> the context line, the
+# timing table and the rare word (psql :w), picked before the probe's own
+# inserts, which copy recent bodies.
+spl_search_index_probe_head() {
+  local t="$1" word="${2:-}"
+  cat <<EOF_SQL
 SELECT '@@ctx login=' || current_user || ' server=' || current_setting('server_version')
     || ' messages_rows~' || (SELECT reltuples::bigint FROM pg_class WHERE oid = 'public.messages'::regclass)
     || ' btree_gin_available=' || COALESCE((SELECT default_version FROM pg_available_extensions WHERE name = 'btree_gin'), 'none')
@@ -162,7 +189,6 @@ SELECT '@@ctx login=' || current_user || ' server=' || current_setting('server_v
     || ' fn=' || COALESCE(to_regprocedure('public.spool_search_candidates(tsquery,integer)')::text, 'none');
 CREATE TEMP TABLE spl_probe_ins (phase text, ms float8);
 EOF_SQL
-  # The word is picked before the probe's own inserts, which copy recent bodies.
   if [[ -n "$word" ]]; then
     echo "\\set w '$word'"
   else
@@ -171,10 +197,12 @@ SELECT COALESCE((SELECT word FROM ts_stat(\$s\$SELECT search_tsv FROM public.mes
   WHERE ndoc = 1 AND word ~ '^[a-z]{7,30}\$' ORDER BY word LIMIT 1), 'zzqprobe') AS w \\gset
 EOF_SQL
   fi
-  spl_search_index_probe_step ins_noindex "$(spl_search_index_probe_inserts "$t" noindex "$n" "$b")"
-  # The inserts queue deferred trigger events (change_stamp), and CREATE INDEX
-  # refuses a table with pending ones: fire them now, then defer again.
-  echo "SET CONSTRAINTS ALL IMMEDIATE; SET CONSTRAINTS ALL DEFERRED;"
+}
+
+# spl_search_index_probe_ddl <runtime role> -> the P1 DDL steps (spec 100
+# section 9) but the policy, with the OWNER TO fallbacks.
+spl_search_index_probe_ddl() {
+  local rt="$1"
   spl_search_index_probe_step role "CREATE ROLE spool_search_reader NOLOGIN NOBYPASSRLS;"
   spl_search_index_probe_step grant "GRANT SELECT (tenant_id, msg_id, received_at, search_tsv) ON public.messages TO spool_search_reader;"
   spl_search_index_probe_step ext "CREATE EXTENSION IF NOT EXISTS btree_gin;"
@@ -205,14 +233,13 @@ GRANT EXECUTE ON FUNCTION public.spool_search_candidates(tsquery, int) TO $rt;"
   spl_search_index_probe_step owner_after_schema_grant "ALTER FUNCTION public.spool_search_candidates(tsquery, int) OWNER TO spool_search_reader;"
   echo "\\endif"
   echo "\\endif"
-  spl_search_index_probe_step ins_index "$(spl_search_index_probe_inserts "$t" index "$n" "$b")"
-  cat <<EOF_SQL
-SELECT '@@ins ' || phase || ' n=' || count(*) || ' p50_ms=' || round(percentile_cont(0.5) WITHIN GROUP (ORDER BY ms)::numeric, 2)
-    || ' p95_ms=' || round(percentile_cont(0.95) WITHIN GROUP (ORDER BY ms)::numeric, 2)
-    || ' max_ms=' || round(max(ms)::numeric, 2)
-  FROM pg_temp.spl_probe_ins GROUP BY phase ORDER BY phase DESC;
-EOF_SQL
-  spl_search_index_probe_step policy "CREATE POLICY search_reader_all ON public.messages FOR SELECT TO spool_search_reader USING (true);"
+}
+
+# spl_search_index_probe_plans <runtime role> <cap> -> as the runtime login,
+# EXPLAIN the call (G1) and count its index scans; as spool_search_reader,
+# EXPLAIN the body. Ends at role reset, inside the transaction.
+spl_search_index_probe_plans() {
+  local rt="$1" cap="$2" q="plainto_tsquery('spool_search', :'w')"
   cat <<EOF_SQL
 \\echo @@word :w
 SELECT COALESCE(pg_stat_get_xact_numscans(to_regclass('public.messages_search'))::text, 'none') AS probe_idx0 \\gset
@@ -249,8 +276,6 @@ EXPLAIN (ANALYZE, BUFFERS) SELECT m.msg_id, m.received_at FROM public.messages m
 \\echo @@plan reader end
 RESET ROLE;
 \\endif
-ROLLBACK;
-\\echo @@rolled_back
 EOF_SQL
 }
 

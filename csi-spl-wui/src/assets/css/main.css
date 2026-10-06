@@ -716,12 +716,21 @@ html.pane-dragging * {
   white-space: nowrap;
   border-radius: var(--radius-sm);
   padding: 2px 8px;
-  /* t1 b58ce5fe: the open topic title is one rem step under the inherited
-     1rem, normal weight, and the muted grey on every theme. */
-  font-size: 0.9375rem;
+  /* t1 b58ce5fe round 2 (owner: "still too big", three times): the open
+     topic title reads as secondary - 0.8rem (was 1rem, then 0.9375rem),
+     normal weight, and --color-preview-title (a lighter grey on the light
+     themes, never brighter than the body text on dark). */
+  font-size: 0.8rem;
   font-weight: normal;
-  color: var(--color-muted);
+  color: var(--color-preview-title);
 }
+/* t1 b58ce5fe round 2 (owner: "the regular font on the preview could be 20%
+   smaller than the regular fonts"): in the open topic pane a message's author,
+   body and time are 0.8 of the same rules outside it. Rem, so the five
+   --font-root levels still scale them. */
+.topic .msg-author { font-size: calc(0.875rem * 0.8); }
+.topic .msg-body { font-size: calc(0.875rem * 0.8); }
+.topic .msg-time { font-size: calc(0.75rem * 0.8); }
 /* Spec 078 T004b (AC6, US3): on the desktop the 40 % pane leaves the title
    ~292 px at 1440, so a one-line title is cut. The title wraps instead (up to
    four lines; the controls stay on the row, centred on it). The phone keeps

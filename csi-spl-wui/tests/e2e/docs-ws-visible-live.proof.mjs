@@ -4,11 +4,13 @@
 // (does it carry docs.write), GET /v1/workspace/docs/tree.json (status), the
 // Workspace docs section's state, and where it sits: ABOVE the repo tree,
 // with New doc as a labelled button inside the first screen, at desktop and
-// phone widths, then Edit on a workspace doc. Read-only: it never presses
-// Save or Delete, so nothing is written.
+// phone widths, then Edit on a workspace doc. Read-only by default: it
+// never presses Save or Delete. WRITE=1 (a test tenant only) creates
+// proofs/c-370-visible.md through New doc when no doc is listed, checks
+// Edit on it, and deletes it again.
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=t1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
+//     [TENANT=t1] [WRITE=1] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
 //     node tests/e2e/docs-ws-visible-live.proof.mjs
 //
 // The password is read from PW_FILE and never printed. Exit 0 = every step PASS.
@@ -74,16 +76,37 @@ try {
       !!st.add && st.addText.length > 0 && st.add.y >= 0 && st.add.y + st.add.h <= st.vh && st.add.x >= 0 && st.add.x + st.add.w <= w,
       { add: st.add, addText: st.addText, vh: st.vh })
   }
-  // Edit on a workspace doc: open the first one listed
+  // Edit on a workspace doc: open the first one listed (WRITE=1: make one)
   await p.setViewport({ width: 1280, height: 800 })
-  const first = await p.$('[data-test=ws-docs-file]')
+  await p.goto(BASE + '/docs', { waitUntil: 'networkidle2' })
+  await p.waitForSelector('[data-test=ws-docs][data-state=ready]', { timeout: 20000 }).catch(() => null)
+  let first = await p.$('[data-test=ws-docs-file]')
+  let made = false
+  if (!first && process.env.WRITE === '1') {
+    await p.click('[data-test=ws-docs-new]')
+    await p.waitForSelector('[data-test=ws-docs-new-path]', { visible: true, timeout: 5000 })
+    await p.type('[data-test=ws-docs-new-path]', 'proofs/c-370-visible')
+    await p.click('[data-test=ws-docs-new-create]')
+    await p.waitForSelector('[data-test=ws-doc-save]', { visible: true, timeout: 15000 })
+    await p.click('[data-test=ws-doc-save]')
+    first = await p.waitForSelector('[data-test=ws-docs-file][data-path="proofs/c-370-visible.md"]', { timeout: 15000 }).catch(() => null)
+    made = !!first
+    step('WRITE=1: New doc + Save creates a doc', made)
+  }
   if (first) {
     await first.click()
-    const edit = await p.waitForSelector('[data-test=ws-doc-edit]', { timeout: 15000 }).catch(() => null)
+    const edit = await p.waitForSelector('[data-test=ws-doc-edit]', { visible: true, timeout: 15000 }).catch(() => null)
     step('a workspace doc shows Edit', !!edit, { url: p.url() })
     await p.screenshot({ path: `${OUT}/docs-ws-doc.png` })
+    if (made) {
+      await p.click('[data-test=ws-doc-delete]')
+      await p.waitForSelector('[data-testid=ws-doc-delete-confirm-confirm]', { visible: true, timeout: 5000 })
+      await p.click('[data-testid=ws-doc-delete-confirm-confirm]')
+      await sleep(1500)
+      step('WRITE=1: the proof doc is deleted again', !(await p.$('[data-test=ws-docs-file][data-path="proofs/c-370-visible.md"]')))
+    }
   } else {
-    step('a workspace doc shows Edit', false, { skipped: 'no workspace doc listed' })
+    step('a workspace doc shows Edit', false, { skipped: 'no workspace doc listed (WRITE=1 makes one)' })
   }
 } finally {
   writeFileSync(`${OUT}/results.json`, JSON.stringify(res, null, 2))

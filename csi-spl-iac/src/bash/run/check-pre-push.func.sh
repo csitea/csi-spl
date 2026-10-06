@@ -40,7 +40,8 @@
 # @param PRE_PUSH_LOG (optional) - per-part verdict log, default ~/.cache/csi-spl/pre-push.log
 # @param PRE_PUSH_CACHE (optional) - per-part green cache, default ~/.cache/csi-spl/pre-push.parts.green
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
-# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300
+# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the api full-tier default too)
+# @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier, default 900
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
@@ -306,8 +307,18 @@ _pp_missing_tools() {  # <part> <tree>
 _pp_timeout="${PRE_PUSH_PART_TIMEOUT:-300}"
 # hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
 _pp_part_hygiene() { HYGIENE_TREE="$1" do_check_dist_hygiene; }
+# The FULL-tier api suite cannot fit 300 s: the hub Postgres gate alone is
+# ~384 s. Measured uncapped on sat (n=3, GOFLAGS=-timeout=15m): 514 s at load
+# 1.85 (master 712ff98d), 319 s at load 13.08 (848e20c0), 318 s (d5611241).
+# 900 s is 1.75x the slowest; every full-tier push timed out at 300 s. The fast
+# tier keeps the 300 s default; PRE_PUSH_PART_TIMEOUT overrides both.
+_pp_api_timeout() {
+  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
+  elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_API_FULL_TIMEOUT:-900}"
+  else echo "$_pp_timeout"; fi
+}
 _pp_part_api() {
-  SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
+  SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_api_timeout)" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
 }
 _pp_part_iac() {
   IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"

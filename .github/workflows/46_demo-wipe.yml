@@ -20,6 +20,10 @@
 #   ENV=<env>           ./csi-spl-orc/run -a do_spl_demo_wipe   (counts only)
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_demo_wipe
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_demo_audit_purge   (077 T025)
+#   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_calendar_purge_trash   (097 T004)
+#
+# The same nightly slot also empties the calendar trash: events deleted more
+# than cnf env.calendar.trash_retention_days (30) ago, every workspace.
 
 name: "46 ops: demo workspace nightly wipe"
 
@@ -117,6 +121,14 @@ jobs:
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
         run: ./run -a do_spl_demo_audit_purge
+
+      # 097 T004 (spec 4.8): a calendar DELETE is soft; this removes for good
+      # the events deleted more than env.calendar.trash_retention_days ago.
+      - name: Purge the calendar trash past its retention
+        if: steps.sel.outputs.go == '1'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+        run: ./run -a do_spl_calendar_purge_trash
 
       - name: Drop the key
         if: always()

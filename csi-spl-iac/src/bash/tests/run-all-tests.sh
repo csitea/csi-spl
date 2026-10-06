@@ -19,6 +19,11 @@
 # verdict, exactly as a serial run prints it. A test whose first 40 lines carry
 # the line '# serial' (it shares a fixed /tmp path, $HOME or tmux state with
 # another test) runs alone, after the pool.
+#
+# A test whose first 40 lines carry '# test-timeout: <s>' gets max(<s>,
+# IAC_TEST_TIMEOUT) instead (c-411): a named heavy test that is merely slow on a
+# loaded runner is not a hang, and every other file keeps the tight bound. Each
+# file's verdict block ends with its wall time, so the next such red is measured.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 to="${IAC_TEST_TIMEOUT:-120}"
@@ -34,6 +39,12 @@ work="$(mktemp -d)"
 trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$work"' EXIT
 trap 'exit 130' INT TERM
 pool=() serial=()
+# file_to <file>: that file's timeout in seconds.
+file_to() {
+  local own
+  own=$(sed -nE '1,40{/^# test-timeout: [1-9][0-9]*( |$)/{s/^# test-timeout: ([0-9]+).*/\1/p;q}}' "$1")
+  if [[ -n "$own" ]] && (( own > to )); then echo "$own"; else echo "$to"; fi
+}
 for t in "$dir"/*.tst.sh; do
   [[ -f "$t" ]] || continue
   if [[ "$tier" == fast ]] && head -40 "$t" | grep -E '^# pre-push-tier: slow( |$)' >/dev/null; then
@@ -47,7 +58,8 @@ n=${#files[@]}
 # start <i>: run file i in the background under the timeout; <i>.rc appears
 # only once the file is done, so an existing <i>.rc means <i>.out is complete.
 start() {
-  ( rc=0; timeout -k 5 "$to" bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1 || rc=$?
+  ( rc=0 t0=$SECONDS; timeout -k 5 "$(file_to "${files[$1]}")" bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1 || rc=$?
+    echo "$((SECONDS - t0))" >"$work/$1.secs"
     echo "$rc" >"$work/$1.rc.tmp"; mv "$work/$1.rc.tmp" "$work/$1.rc" ) &
 }
 next=0
@@ -58,13 +70,14 @@ flush() {
     echo "=== $name"
     cat "$out"
     if [[ "$rc" -eq 124 || "$rc" -eq 137 ]]; then
-      echo "TIMED OUT (>${to}s), killed: $name"; fails=$((fails + 1))
+      echo "TIMED OUT (>$(file_to "${files[$next]}")s), killed: $name"; fails=$((fails + 1))
     elif [[ "$rc" -ne 0 ]]; then
       echo "FAILED: $name"; fails=$((fails + 1))
     elif [[ "$tier" == fast ]] && grep -q '^SKIP:' "$out"; then
       echo "FAILED: $name SKIPPED a check in the fast tier ($(grep -m1 '^SKIP:' "$out")) -- install what it names, or mark the test '# pre-push-tier: slow' so CI owns it"
       fails=$((fails + 1))
     fi
+    echo "--- $name took $(cat "$work/$next.secs")s"
     next=$((next + 1))
   done
 }

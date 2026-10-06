@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # pre-push-tier: slow -- terraform validate of every step, minutes (CI workflow 10 iac-suite runs it)
+# test-timeout: 480 -- <=66..109 s on green CI, 284..322 s solo at load 57..107 on 16 cores (c-411, n=3); the 120 s default killed it
 #------------------------------------------------------------------------------
 # Purpose: the committed tfvars are what tpl-gen renders from the committed
 #          yaml TODAY (an edited yaml that was never re-rendered fails here),

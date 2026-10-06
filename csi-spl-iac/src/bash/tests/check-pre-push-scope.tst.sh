@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-timeout: 300 -- 20..39 s on green CI, 66..112 s solo at load 70..110 on 16 cores (c-411, n=3); the 120 s default killed it twice
 #------------------------------------------------------------------------------
 # Purpose: the controls CLE-77824 promised for the diff-scoped, cached, loud
 #          pre-push gate -- end to end through do_check_pre_push, with STUB parts

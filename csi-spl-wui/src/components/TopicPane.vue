@@ -157,8 +157,8 @@ async function catchUp() {
       liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
       archivedAt.value = archiveStamp(data)
     }
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : t('topic.load_failed')
+  } catch {
+    loadError.value = t('topic.load_failed')
   }
 }
 
@@ -200,8 +200,8 @@ watch(() => [topic.open, topic.parentTaskId] as const, async ([open, id]) => {
     olderCursor.value = data.next || null
     archivedAt.value = archiveStamp(data)
     if (olderCursor.value && !topic.rootMsg) void loadOldestRow(id)
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : t('topic.load_failed')
+  } catch {
+    loadError.value = t('topic.load_failed')
   } finally {
     loading.value = false
   }
@@ -218,8 +218,8 @@ async function loadOlder() {
     if (topic.parentTaskId !== id) return
     liveRows.value = mergeById(liveRows.value, data.messages || []).rows as SpoolMessage[]
     olderCursor.value = data.next || null
-  } catch (e) {
-    loadError.value = e instanceof Error ? e.message : t('feed.error.load_older_failed')
+  } catch {
+    loadError.value = t('feed.error.load_older_failed')
     olderCursor.value = null
   } finally {
     loadingOlder.value = false

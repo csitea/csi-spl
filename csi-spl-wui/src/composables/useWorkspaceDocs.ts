@@ -20,7 +20,12 @@ let treeSeq = 0
  */
 export function useWorkspaceDocs() {
   const api = useSpoolApi()
-  const bucket = () => (mockBucket ||= import('~/utils/ws-docs-mock.mjs').then((m) => m.createMockWsDocs() as MockBucket))
+  const bucket = () => (mockBucket ??= import('~/utils/ws-docs-mock.mjs')
+    .then((m) => m.createMockWsDocs() as MockBucket)
+    .catch((e) => {
+      mockBucket = null /* a chunk that failed to load (a deploy in between) is asked again next time */
+      throw e
+    }))
 
   /**
    * One hub call under /v1/workspace/docs/: adds the bearer token and a

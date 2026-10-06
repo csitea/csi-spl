@@ -94,7 +94,7 @@
           :merge-next="mergeTarget(it.msg, 'next')"
           :current-task-id="currentTaskId"
           :clip-mode="clipModeFor()"
-          :topic-menu="openButton"
+          :topic-menu="topicMenuFor(it.msg)"
           :move-ctx="moveCtx"
           :class="{ pending: it.msg.pending, 'msg--new': isNew(it.msg) }"
           :data-key="it.msg.msg_id"
@@ -166,6 +166,7 @@ import { collapseHiddenRuns } from '~/utils/hidden-cards.mjs'
 import { useHiddenCards } from '~/composables/useHiddenCards'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { isViewersOwn } from '~/utils/typed-by.mjs'
+import { isTopicCard } from '~/utils/topic-archive.mjs'
 import { useCardClip, type CardClipPane } from '~/composables/useCardClip'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { displayOrder } from '~/utils/view-prefs.mjs'
@@ -208,6 +209,12 @@ const props = defineProps<{
       be displayed only on the middle pane and it should work so that it will
       open the topic". A thread pane never passes it. */
   openButton?: boolean
+  /** A thread pane: its opening card carries the topic menu (Archive,
+      Delete, Move, Merge), the same entries the middle card shows. Replies
+      stay message menus. The Open button stays middle-only. Without this,
+      the menu on the opener while the discussion is open is a message menu,
+      so the topic options never appear (t1 cd9b0f47). */
+  topicCardMenu?: boolean
   /** a middle-pane feed of level-1 cards takes the pane's height
       mode (titles / 5 rows / full). SPL-945: a thread (the right pane, the
       /t page) passes it too, with clipPane="thread" - its own mode. SPL-963:
@@ -510,6 +517,11 @@ watch(() => props.lastLive, (m) => {
 function openable(m: SpoolMessage) {
   if (props.openButton) return Boolean(m.task_id)
   return Boolean(m.task_id && props.currentTaskId && m.task_id !== props.currentTaskId)
+}
+/* The middle pane marks every card. A thread marks only its opening card. */
+function topicMenuFor(m: SpoolMessage) {
+  if (props.openButton) return true
+  return Boolean(props.topicCardMenu) && isTopicCard(m)
 }
 
 /* The row the open topic is rooted at stays selected. The title in the

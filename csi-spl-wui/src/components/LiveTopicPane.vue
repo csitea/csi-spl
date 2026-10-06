@@ -34,6 +34,7 @@
         clip
         clip-pane="thread"
         hold-scroll
+        topic-card-menu
         :label="t('topic.replies_label')"
         :rows="messages"
         :has-older="pane.hasOlder"

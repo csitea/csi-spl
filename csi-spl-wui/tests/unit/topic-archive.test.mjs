@@ -169,7 +169,11 @@ describe('errors and the Archive rows', () => {
 
 describe('wiring', () => {
   it('the middle feed marks its cards, the card offers the entries, the dialog is mounted on demand', () => {
-    assert.match(src('src/components/LiveFeed.vue'), /:topic-menu="openButton"/)
+    assert.match(src('src/components/LiveFeed.vue'), /:topic-menu="topicMenuFor\(it\.msg\)"/)
+    assert.match(src('src/components/LiveFeed.vue'), /if \(props\.openButton\) return true/)
+    assert.match(src('src/components/LiveFeed.vue'), /props\.topicCardMenu\) && isTopicCard\(m\)/)
+    assert.match(src('src/components/TopicPane.vue'), /\btopic-card-menu\b/)
+    assert.match(src('src/components/LiveTopicPane.vue'), /\btopic-card-menu\b/)
     const cardSrc = src('src/components/MessageCard.vue')
     assert.match(cardSrc, /:topic-archive="showTopicArchive"/)
     assert.match(cardSrc, /:topic-delete="showTopicDelete"/)

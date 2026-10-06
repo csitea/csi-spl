@@ -205,5 +205,8 @@ describe('wiring', () => {
     assert.match(p, /withSessionRetry\(api, \(\) => api\.listArchived\(/)
     assert.match(p, /api\.archiveTopic\(id, false\)/)
     assert.match(p, /LazyTopicDeleteDialog/)
+    /* t1 58b8055d: a row click opens the shell pane and stays on Archive */
+    assert.match(p, /topic\.openTopic\(id\)/)
+    assert.match(p, /ev\.preventDefault\(\)/)
   })
 })

@@ -2,7 +2,10 @@
      tenant this member may read (GET /v1/view/archived), newest archived
      first. Each row opens its topic, and carries Unarchive and - for its
      author, the tenant owner or an admin - Delete. The left-rail entry that
-     opens this page is SPL-979's. -->
+     opens this page is SPL-979's. A row click opens the thread in the shell's
+     right pane and stays here (t1 58b8055d): /t/:id hides the rail, and
+     closing that page leaves the Topics list with no way back. A modified
+     click still follows the topic permalink. -->
 <template>
   <div class="feed-col" data-test="archive-page">
     <header class="feed-header">
@@ -21,7 +24,7 @@
       <p v-else-if="!rows.length" class="muted" data-test="archive-empty">{{ t('archive.empty') }}</p>
       <ul v-else class="archive-list" data-test="archive-list">
         <li v-for="r in rows" :key="r.msg_id" class="archive-row" data-test="archive-row" :data-msg-id="r.msg_id">
-          <NuxtLink class="archive-row__open" :to="openPath(r)" data-test="archive-open">
+          <a class="archive-row__open" :href="openPath(r)" data-test="archive-open" @click="openRow($event, r)">
             <span class="archive-row__title">{{ r.title || r.msg_id }}</span>
             <span class="archive-row__meta muted">
               <span v-if="r.channel" dir="ltr">#{{ r.channel }}</span>
@@ -29,7 +32,7 @@
               <span>{{ t('feed.replies', { n: r.replies }, r.replies) }}</span>
               <span dir="ltr">{{ t('archive.archived_at', { when: isoDateTime(r.archived_at) }) }}</span>
             </span>
-          </NuxtLink>
+          </a>
           <div class="archive-row__actions">
             <button
               type="button"
@@ -73,6 +76,8 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
+import { useTopicStore } from '~/stores/topic'
+import { useChannelStore } from '~/stores/channel'
 import { archivedRow, topicErrorKey, topicFrameDrops, withoutCards } from '~/utils/topic-archive.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -83,6 +88,8 @@ type Row = ReturnType<typeof archivedRow>
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 const live = useLive()
+const topic = useTopicStore()
+const channel = useChannelStore()
 const localePath = useLocalePath()
 const rows = ref<Row[]>([])
 const next = ref<string | null>(null)
@@ -120,9 +127,34 @@ async function load(more = false) {
 }
 
 /** A lobby card's topic is its own thread (task_id = its msg_id). */
+function topicIdOf(r: Row) {
+  return r.task_id && r.task_id !== live.lobbyTaskId.value ? r.task_id : r.msg_id
+}
+
 function openPath(r: Row) {
-  const task = r.task_id && r.task_id !== live.lobbyTaskId.value ? r.task_id : r.msg_id
-  return localePath(`/t/${task}`)
+  return localePath(`/t/${topicIdOf(r)}`)
+}
+
+/* TopicPane's mock path reads the channel store, not its own fetch.
+   Seed that store from the same read before opening, or the thread is empty. */
+async function seedMockThread(id: string) {
+  if (!api.mock || !id) return
+  const data = await api.getTopic(id, { order: 'desc', limit: 50 }) as { messages?: { msg_id?: string }[] }
+  const got = data.messages || []
+  const have = new Set(channel.messages.map((m) => String(m.msg_id || '')))
+  const add = got.filter((m) => m && m.msg_id && !have.has(String(m.msg_id)))
+  if (add.length) channel.messages = [...channel.messages, ...(add as typeof channel.messages)]
+}
+
+/** Stay on Archive. /t/:id is the topic browser: it hides the rail, and
+    closing the thread leaves that list with no way back to the shell. */
+async function openRow(ev: MouseEvent, r: Row) {
+  if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button !== 0) return
+  ev.preventDefault()
+  const id = topicIdOf(r)
+  if (!id) return
+  await seedMockThread(id)
+  topic.openTopic(id)
 }
 
 async function unarchive(id: string) {

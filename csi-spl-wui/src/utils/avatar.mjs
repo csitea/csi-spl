@@ -7,6 +7,7 @@
  */
 
 import { idPrefix } from './agent-id.mjs'
+import { ROSTER_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /** FNV-1a 32-bit, then a small xorshift stream for independent picks. */
 export function hashSeed(s) {
@@ -212,7 +213,7 @@ export function loadAvatarFiles({ base = '', token = '', credentials = 'omit', f
     try {
       if (typeof read === 'function') return (await read()) || null
       if (typeof fetchFn !== 'function') return null
-      const res = await fetchFn(`${root}/v1/view/roster`, { credentials, headers })
+      const res = await fetchFn(`${root}/v1/view/roster`, { credentials, headers, signal: AbortSignal.timeout(ROSTER_READ_TIMEOUT_MS) })
       return res && res.ok ? await res.json() : null
     } catch {
       return null

@@ -25,6 +25,7 @@ describe('loadDemo', () => {
     const out = await loadDemo('https://api.example.com/', async (url, opts) => { seen = { url, opts }; return reply(200, { workspace: 'demo', max_live: 9 })() })
     assert.equal(seen.url, `https://api.example.com${DEMO_PATH}`)
     assert.equal(seen.opts.credentials, 'omit')
+    assert.ok(seen.opts.signal instanceof AbortSignal, 'a hung connection times out (refactor r4-03)')
     assert.deepEqual(out, { workspace: 'demo', maxLive: 9 })
   })
   it('is null for a 404 (flag off), HTML, or a network error', async () => {

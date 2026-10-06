@@ -16,6 +16,8 @@
 // sha256 goes into the Hosting CSP. Unit-tested by
 // tests/unit/runtime-config.test.mjs.
 
+import { BOOT_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
+
 /** The served file. Same origin: connect-src 'self' admits it. */
 export const RUNTIME_CONFIG_PATH = '/config.json'
 
@@ -155,6 +157,7 @@ export function takeParkedConfig(win, fetchFn) {
   if (win) win[EARLY_CONFIG_KEY] = undefined
   if (parked && typeof parked.then === 'function') return parked.then((b) => b, () => null)
   if (typeof fetchFn !== 'function') return Promise.resolve(null)
-  return fetchFn(RUNTIME_CONFIG_PATH, { cache: 'no-cache', headers: { accept: 'application/json' } })
+  const init = { cache: 'no-cache', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(BOOT_READ_TIMEOUT_MS) }
+  return fetchFn(RUNTIME_CONFIG_PATH, init)
     .then(readConfigResponse, () => null)
 }

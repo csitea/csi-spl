@@ -12,6 +12,7 @@
  */
 
 import { AUTH_PREFIX, authOrigin } from './auth-client.mjs'
+import { ACCOUNT_CALL_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 const SSH_ED25519 = 'ssh-ed25519'
 
@@ -123,6 +124,7 @@ export function createKeysClient({ fetchFn = globalThis.fetch, base = '' } = {})
         cache: 'no-store',
         ...opts,
         headers: { accept: 'application/json', ...(opts.body ? { 'content-type': 'application/json' } : {}) },
+        signal: opts.signal ?? AbortSignal.timeout(ACCOUNT_CALL_TIMEOUT_MS),
       })
     } catch {
       return { ok: false, status: 0, data: null, error: 'network', retryAfter: 0 }

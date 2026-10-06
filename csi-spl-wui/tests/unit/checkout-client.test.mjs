@@ -90,6 +90,7 @@ describe('checkout-v1 client', () => {
     ])
     for (const s of seen) {
       assert.equal(s.opts.credentials, 'same-origin')
+      assert.ok(s.opts.signal instanceof AbortSignal, `no timeout on ${s.url} (refactor r4-03)`)
       assert.ok(!s.url.includes(TOKEN), `token in URL ${s.url}`)
     }
     assert.deepEqual(JSON.parse(seen[3].opts.body), { checkout_id: 'co_1', claim_token: TOKEN })

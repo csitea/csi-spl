@@ -5,6 +5,8 @@
  * body without a workspace) reads as "off", so the sign-in page stays as it
  * was.
  */
+import { BOOT_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
+
 export const DEMO_PATH = '/v1/demo'
 
 /**
@@ -33,7 +35,11 @@ export function demoProviders(list) {
 export async function loadDemo(base = '', fetchFn = globalThis.fetch) {
   try {
     const root = String(base || '').replace(/\/+$/, '')
-    const res = await fetchFn(`${root}${DEMO_PATH}`, { credentials: 'omit', headers: { accept: 'application/json' } })
+    const res = await fetchFn(`${root}${DEMO_PATH}`, {
+      credentials: 'omit',
+      headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(BOOT_READ_TIMEOUT_MS),
+    })
     if (!res || res.status !== 200) return null
     return parseDemo(await res.json())
   } catch {

@@ -9,6 +9,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   DOC_READ_TIMEOUT_MS, DOC_WRITE_TIMEOUT_MS, REVISION_FETCH_MS, docFetchTimeoutMs,
+  BOOT_READ_TIMEOUT_MS, ROSTER_READ_TIMEOUT_MS, ACCOUNT_CALL_TIMEOUT_MS,
 } from '../../src/utils/fetch-timeouts.mjs'
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '../../src')
@@ -18,6 +19,12 @@ describe('fetch timeouts', () => {
     assert.ok(DOC_READ_TIMEOUT_MS > 0)
     assert.ok(DOC_WRITE_TIMEOUT_MS > DOC_READ_TIMEOUT_MS)
     assert.ok(REVISION_FETCH_MS > 0)
+  })
+
+  it('gives the boot and roster reads a budget and a checkout / keys call no less than a doc write (refactor r4-03)', () => {
+    assert.ok(BOOT_READ_TIMEOUT_MS > 0)
+    assert.ok(ROSTER_READ_TIMEOUT_MS > 0)
+    assert.ok(ACCOUNT_CALL_TIMEOUT_MS >= DOC_WRITE_TIMEOUT_MS)
   })
 
   it('gives a workspace docs GET the read budget and a PUT / DELETE the write one', () => {

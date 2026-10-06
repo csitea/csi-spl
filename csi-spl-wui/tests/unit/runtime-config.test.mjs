@@ -114,8 +114,10 @@ const res = (ok, body) => ({ ok, json: async () => body })
 {
   const { win, calls } = run(buildEarlyConfigScript(), undefined)
   eq(calls.length, 0, 'no fetch in the browser: the script does nothing')
-  const got = await takeParkedConfig(win, async (u) => res(true, { tenant: u === RUNTIME_CONFIG_PATH ? 'own' : 'x' }))
+  let ownInit
+  const got = await takeParkedConfig(win, async (u, init) => { ownInit = init; return res(true, { tenant: u === RUNTIME_CONFIG_PATH ? 'own' : 'x' }) })
   eq(got, { tenant: 'own' }, 'nothing parked: the plugin fetches /config.json itself')
+  eq(ownInit.signal instanceof AbortSignal, true, 'its own fetch times out on a hung connection (refactor r4-03)')
 }
 
 // ── the compose container's start script ─────────────────────────────────

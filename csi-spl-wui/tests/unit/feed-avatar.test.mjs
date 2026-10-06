@@ -136,6 +136,7 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     assert.equal(calls[0][0], 'http://t1.test/v1/view/roster')
     assert.equal(calls[0][1].credentials, 'include')
     assert.equal(calls[0][1].headers.authorization, 'Bearer tok')
+    assert.ok(calls[0][1].signal instanceof AbortSignal, 'a hung roster read times out (refactor r4-03)')
     t += 60_001
     await loadAvatarFiles(o)
     assert.equal(calls.length, 2)

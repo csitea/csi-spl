@@ -12,6 +12,7 @@
  */
 import { validTenant } from './tenant.mjs'
 import { cardKeyUsable } from './card-element.mjs'
+import { ACCOUNT_CALL_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 export const CHECKOUT_PREFIX = '/api/v1/checkout'
 
@@ -196,6 +197,7 @@ export function createCheckoutClient({ fetchFn = globalThis.fetch, base = '' } =
           ? { accept: 'application/json' }
           : { accept: 'application/json', 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(ACCOUNT_CALL_TIMEOUT_MS),
       })
     } catch {
       return { ok: false, status: 0, data: null, error: 'network' }

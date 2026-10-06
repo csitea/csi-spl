@@ -1,19 +1,24 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description READ-ONLY: the box a new agent lane should start on, by the
-# @description fleet load target (owner HUM-10, t1 c13e8023): the first box in
-# @description the fill order whose load is below its HIGH mark, as % of cores
-# @description (load5 / cpus * 100); every box at or above HIGH -> "hold" (queue
-# @description the lane, spawn nothing). The band (low / high) and the order are
-# @description the hub's instance setting (rdb 0118, `spool fleet-load get`;
-# @description only the operator workspace's admin changes them). A hub that
-# @description does not answer -> the defaults 50 / 75 and the cnf seed order
-# @description env.box.fleet_load.box_order, with a WARN. A hub order that is
-# @description empty -> the cnf seed. A box seen in the samples but in neither
-# @description order comes after them, by name. The load is each box's latest
-# @description box_stats row (rdb 0117) in the window; a box without one is
-# @description skipped with a WARN. Prints the band, one line per box, then
-# @description `pick=<box> reason=...` or `pick=hold reason=...`.
+# @description fleet load target (owner HUM-10, t1 c13e8023 + t1 29b19f85).
+# @description Each box has a band (low / high, % of cores = load5 / cpus * 100):
+# @description its own per-box band when the hub names it (rdb 0134, `boxes`),
+# @description else the fleet band. The pick, in the fill order: the first box
+# @description below its LOW mark; else the first below its HIGH mark; every
+# @description box at or above its HIGH -> "hold" (queue the lane, spawn
+# @description nothing). So every box reaches its own min before any box goes
+# @description past its min, and the lanes split in the proportion of the bands
+# @description the admin set. The bands and the order are the hub's instance
+# @description setting (`spool fleet-load get`; only the operator workspace's
+# @description admin changes them). A hub that does not answer -> the defaults
+# @description 50 / 75 and the cnf seed order env.box.fleet_load.box_order, with a
+# @description WARN. A hub order that is empty -> the cnf seed. A box seen in the
+# @description samples but in neither order comes after them, by name. The load
+# @description is each box's latest box_stats row (rdb 0117) in the window; a box
+# @description without one is skipped with a WARN. Prints the fleet band, one
+# @description line per box with its band, then `pick=<box> reason=...` or
+# @description `pick=hold reason=...`.
 # @param BOX_PICK_SINCE (optional) - the sample window, default 15m (3 lane-map ticks)
 # @param BOX_PICK_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param ENV (optional) - dev or prd: the hub to read, default LANE_ENV / lease.conf LEASE_ENV
@@ -60,18 +65,25 @@ spl_box_pick_decide() {
     | ($st[0].rows | group_by(.box) | map(max_by(.at)) | map({key: .box, value: .}) | from_entries) as $last
     | ($ord.o + (($last | keys) - $ord.o | sort)) as $boxes
     | [$boxes[] as $b | ($last[$b]) as $r
+        | (($t.boxes // {})[$b]) as $own
+        | (if $own != null then {low: $own.low, high: $own.high, src: "box"} else {low: $t.low, high: $t.high, src: "fleet"} end) as $band
         | if $r == null or ($r.cpus // 0) < 1 then {box: $b, miss: true}
           else ($r.load5 * 100 / $r.cpus) as $p
-          | {box: $b, load5: $r.load5, cpus: $r.cpus, pct: $p, at: $r.at,
-             state: (if $p >= $t.high then "full" elif $p >= $t.low then "in band" else "under" end)}
+          | {box: $b, load5: $r.load5, cpus: $r.cpus, pct: $p, at: $r.at, band: $band,
+             state: (if $p >= $band.high then "full" elif $p >= $band.low then "in band" else "under" end)}
           end] as $rows
-    | (first($rows[] | select((.miss | not) and .pct < $t.high)) // null) as $pick
-    | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
+    | ([$rows[] | select(.miss | not)]) as $seen
+    | ((first($seen[] | select(.pct < .band.low)) | . + {why: "low"})
+       // (first($seen[] | select(.pct < .band.high)) | . + {why: "high"})
+       // null) as $pick
+    | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
-        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
-      (if $pick != null then
-         "pick=\($pick.box) reason=\($pick.box) is the first box in order below its high mark (\($pick.pct | floor)% < \($t.high)%)"
+        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high) (\(.band.src))\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
+      (if $pick == null then
+         "pick=hold reason=no box with a sample is below its high mark: queue the lane, spawn nothing"
+       elif $pick.why == "low" then
+         "pick=\($pick.box) reason=\($pick.box) is the first box in order below its low mark (\($pick.pct | floor)% < \($pick.band.low)%)"
        else
-         "pick=hold reason=no box with a sample is below its high mark (\($t.high)%): queue the lane, spawn nothing"
+         "pick=\($pick.box) reason=\($pick.box) is the first box in order below its high mark (\($pick.pct | floor)% < \($pick.band.high)%), every box is at or above its low mark"
        end)' <<<"$1"
 }

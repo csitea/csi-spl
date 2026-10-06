@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_box_pick (owner HUM-10, t1 c13e8023) prints the box a new
-#          lane starts on: the first box in the fill order below its HIGH
-#          mark (load5 / cpus); every box at or above HIGH -> hold. The band
-#          and the order come from the hub (`spool fleet-load get`, rdb 0118);
+# Purpose: do_spl_box_pick (owner HUM-10, t1 c13e8023 + t1 29b19f85) prints
+#          the box a new lane starts on: the first box in the fill order below
+#          its LOW mark, else the first below its HIGH mark (load5 / cpus);
+#          every box at or above its HIGH -> hold. A box's band is its own
+#          per-box band (rdb 0134 `boxes`) or the fleet band. The bands and
+#          the order come from the hub (`spool fleet-load get`, rdb 0118);
 #          an empty hub order -> the cnf seed; a hub that does not answer ->
 #          50 / 75 and the cnf seed with a WARN; a box with no sample is
 #          skipped with a WARN; no box stats answer -> FATAL.
@@ -31,8 +33,8 @@ STUB
 chmod +x "$T/bin/hub"
 printf 'env:\n  box:\n    fleet_load:\n      box_order: [box-a, box-b]\n' >"$T/cnf.yaml"
 
-# target LOW HIGH ORDER_JSON
-target() { printf '{"low":%s,"high":%s,"box_order":%s,"source":"hub"}\n' "$1" "$2" "$3" >"$T/target.json"; }
+# target LOW HIGH ORDER_JSON [BOXES_JSON]
+target() { printf '{"low":%s,"high":%s,"box_order":%s,"boxes":%s,"source":"hub"}\n' "$1" "$2" "$3" "${4:-{\}}" >"$T/target.json"; }
 # stats BOX:LOAD5:CPUS ... (one older sample of every box first, which the latest overrides)
 stats() {
   local rows="" s b l c
@@ -56,14 +58,15 @@ run() {
 }
 pick() { grep '^pick=' <<<"$1" | sed 's/^pick=\([^ ]*\).*/\1/'; }
 
-# 1. band edges on box-a (8 cores): 49% and 50% pick it, 75% and 76% pass it on.
+# 1. band edges on box-a (8 cores), box-b in band at 56%: 49% (under low) and
+#    50% (in band, no box under low) pick box-a; 75% and 76% pass it on.
 target 50 75 '["box-a","box-b"]'
 for c in 3.92:box-a 4:box-a 6:box-b 6.08:box-b; do
-  stats "box-a:${c%%:*}:8" "box-b:1:8"
+  stats "box-a:${c%%:*}:8" "box-b:4.5:8"
   out="$(run)"; got="$(pick "$out")"
   [[ "$got" == "${c#*:}" ]] && pass "1. box-a load5 ${c%%:*} / 8 cores -> pick=$got" || fail "1. edge ${c%%:*}: $out"
 done
-grep -q '^BOX box-a  load5 6.08  cpus 8  76%  full$' <<<"$out" && pass "1. the per-box line says 76% full" || fail "1. line: $out"
+grep -q '^BOX box-a  load5 6.08  cpus 8  76%  full  band 50..75 (fleet)$' <<<"$out" && pass "1. the per-box line says 76% full" || fail "1. line: $out"
 
 # 2. fill order: the hub order wins; both boxes under HIGH -> the first named.
 target 50 75 '["box-b","box-a"]'
@@ -93,14 +96,14 @@ out="$(run)"
 target 20 40 '[]'
 stats "box-a:3.5:8" "box-b:3:8"
 out="$(run)"
-[[ "$(pick "$out")" == box-b ]] && grep -q '20..40 % of cores (source hub), order box-a box-b (cnf seed)' <<<"$out" &&
+[[ "$(pick "$out")" == box-b ]] && grep -q '20..40 % of cores (source hub), 0 per-box band(s), order box-a box-b (cnf seed)' <<<"$out" &&
   pass "5. hub band 20..40: box-a 43% is full, box-b 37% takes it; empty hub order = cnf seed" || fail "5. band: $out"
 
 # 6. hub unreachable for the target: defaults 50 / 75 + cnf seed, with a WARN.
-stats "box-a:5:8" "box-b:1:8"
+stats "box-a:5:8" "box-b:4.5:8"
 out="$(run TARGET_DOWN=1 2>&1)"
 [[ "$(pick "$out")" == box-a ]] && grep -q '^WARN the hub did not answer the fleet load target' <<<"$out" &&
-  grep -q '50..75 % of cores (source built-in default), order box-a box-b (cnf seed)' <<<"$out" &&
+  grep -q '50..75 % of cores (source built-in default), 0 per-box band(s), order box-a box-b (cnf seed)' <<<"$out" &&
   pass "6. no hub target: WARN, 50 / 75 and the cnf seed (box-a 62% < 75%)" || fail "6. hub down: $out"
 
 # 7. no box stats answer -> FATAL, non-zero, no pick line.
@@ -114,6 +117,50 @@ out="$(run STATS_DOWN=1 2>&1)"; rc=$?
   pass "8. one fleet-load get, one box-stats list --since 15m" || fail "8. calls: $(cat "$T/calls")"
 out="$(run BOX_PICK_SINCE=yesterday 2>&1)"; rc=$?
 [[ $rc -ne 0 && "$out" == *"FATAL BOX_PICK_SINCE"* ]] && pass "8. a bad BOX_PICK_SINCE is refused" || fail "8. since: $out"
+
+# 9. a per-box band (rdb 0134) overrides the fleet band for that box only.
+#    box-a 40% is under the fleet low 50 but its own band is 20..35 -> full;
+#    box-b 56% (fleet band, in band) takes the lane.
+target 50 75 '["box-a","box-b"]' '{"box-a":{"low":20,"high":35}}'
+stats "box-a:3.2:8" "box-b:4.5:8"
+out="$(run)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a  load5 3.2  cpus 8  40%  full  band 20..35 (box)$' <<<"$out" &&
+  grep -q '1 per-box band(s)' <<<"$out" &&
+  pass "9. box-a's own band 20..35 holds it at 40%; box-b on the fleet band takes the lane" || fail "9. per-box: $out"
+# the low mark comes first: box-b under ITS low wins over box-a first in order.
+target 50 75 '["box-a","box-b"]' '{"box-b":{"low":60,"high":90}}'
+stats "box-a:4.5:8" "box-b:4.5:8"
+out="$(run)"
+[[ "$(pick "$out")" == box-b ]] && grep -q 'below its low mark (56% < 60%)' <<<"$out" &&
+  pass "9. box-b 56% under its own low 60 wins over box-a in band" || fail "9. low first: $out"
+
+# 10. ACCEPTANCE (owner HUM-10, t1 29b19f85 msg b339245d: "the load will be
+#     distributed also between the boxes the way the admin desires"): place
+#     lanes one by one, each adding 0.5 load5 to the box it picked, until
+#     hold. The lanes split in the proportion of the bands the admin set.
+#     sim BOXES_JSON -> "<lanes on box-a> <lanes on box-b> <order of picks>"
+sim() {
+  local la=0 lb=0 picks="" p
+  target 50 75 '["box-a","box-b"]' "$1"
+  for _ in $(seq 1 60); do
+    stats "box-a:$(jq -n "$la * 0.5"):8" "box-b:$(jq -n "$lb * 0.5"):8"
+    p="$(pick "$(run)")"
+    case "$p" in box-a) la=$((la + 1)) ;; box-b) lb=$((lb + 1)) ;; *) break ;; esac
+    picks+="${p#box-}"
+  done
+  echo "$la $lb $picks"
+}
+# no override: both on 50..75 of 8 cores -> 12 lanes each (6.0 load5 = 75%).
+read -r la lb picks <<<"$(sim '{}')"
+[[ "$la $lb" == "12 12" ]] && pass "10. no per-box band: box-a $la, box-b $lb lanes (1:1)" || fail "10. fleet band: $la $lb $picks"
+# box-a 20..40, box-b 60..90: box-a stops at 40% (7 lanes, 3.5 = 43%),
+# box-b at 90% (15 lanes, 7.5 = 93%) -> 7:15, the 40:90 the admin set.
+read -r la lb picks <<<"$(sim '{"box-a":{"low":20,"high":40},"box-b":{"low":60,"high":90}}')"
+[[ "$la $lb" == "7 15" ]] && pass "10. bands 20..40 / 60..90: box-a $la, box-b $lb lanes (40:90)" || fail "10. per-box: $la $lb $picks"
+# and every box reaches its own low before any box goes past its low:
+# box-a takes 4 (to 25%, past 20), box-b then 10 (to 62%, past 60), then box-a again.
+[[ "$picks" == aaaabbbbbbbbbbaaabbbbb ]] && pass "10. fill order: box-a to its low, box-b to its low, then each to its high ($picks)" ||
+  fail "10. pick order: $picks"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

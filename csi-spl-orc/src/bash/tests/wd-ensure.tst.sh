@@ -15,6 +15,15 @@
 #   8. foreign lines that fail a whole-crontab 8.1 do not block the install;
 #      a wd-ensure line outside any checkout is still not written; a worktree
 #      source is refused. WD_ENSURE_WATCH_DRY=1 is copied onto the cron line.
+#   9. watching the watchdog (093 6.4), each with a control that must not alert:
+#      a restart of a dead loop sends ONE blocker naming the box, the dead pid
+#      and run.out's last 5 lines (first start and a live loop: none); a second
+#      restart within 30 min is debounced; 4 restarts in an hour is a crash
+#      loop (blocker + owner DM; 3 is not); alive with no tick for 3 min is
+#      hung (blocker + owner DM; a fresh tick and a keeper back from suspend
+#      are not)
+#  10. retention: a log a day old is copied to .1 and emptied, a younger one
+#      is kept; the keeper rotates run.out and ensure.out, the watchdog wd.log
 # No real crontab, tmux or live spool is touched.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -54,6 +63,19 @@ exec python3 -c "import time; time.sleep(120)"
 EOF
 chmod +x "$T/bin/wd"
 
+# the blocker sender and the owner DM: stubs that record their call
+SENT="$T/sent"; OWNER="$T/owner"
+cat > "$T/bin/send" << EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$SENT"
+EOF
+cat > "$T/bin/owner" << EOF
+#!/usr/bin/env bash
+cat >> "$OWNER"
+EOF
+chmod +x "$T/bin/send" "$T/bin/owner"
+: > "$SENT"; : > "$OWNER"
+
 cat > "$T/bin/crontab" << 'EOF'
 #!/usr/bin/env bash
 if [ "${1:-}" = -l ]; then cat "$FAKE_CRONTAB" 2>/dev/null; exit 0; fi
@@ -62,7 +84,9 @@ EOF
 chmod +x "$T/bin/crontab"
 
 export SPOOL_TEST=1 SPOOL_ROOT="$T/spool" PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" \
-  PATH="$T/bin:$PATH" WD_RUN="$T/bin/wd" DRY_RUN=1 WD_TICKS=3
+  PATH="$T/bin:$PATH" WD_RUN="$T/bin/wd" DRY_RUN=1 WD_TICKS=3 \
+  WD_ENSURE_SEND="$T/bin/send" WD_ENSURE_OWNER_CMD="$T/bin/owner" WD_ENSURE_OUT="$T/log/ensure.out" \
+  LEASE_MACHINE=box-t LEASE_ORCH=c-001
 unset WD_ENSURE_WATCH_DRY SPOOL_BOX_ENV SPOOL_DESK_BOX
 
 run_act() { "$T/bin/act" "$@"; }
@@ -95,18 +119,30 @@ wait_held || true
 [[ $rc -eq 0 && "$out" == *"no seats"* && "$out" == *"watchdog started"* && "$(cat "$CALLS")" == "DRY_RUN=0 WD_TICKS= -a do_spl_watchdog" ]] &&
   pass "1. no seats: one start of do_spl_watchdog, DRY_RUN=0, WD_TICKS cleared (parent had DRY_RUN=1 WD_TICKS=3)" ||
   fail "1. start rc=$rc out=$out calls=$(cat "$CALLS" 2>&1)"
+[[ ! -s "$SENT" ]] && pass "9. control: the first start on a box (no run.pid) sends nothing" ||
+  fail "9. first start sent: $(cat "$SENT")"
 
 out="$(run_act do_spl_wd_ensure)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"watchdog running"* && "$(wc -l < "$CALLS")" -eq 1 ]] &&
   pass "2. loop alive: the next run starts nothing" ||
   fail "2. alive rc=$rc out=$out calls=$(cat "$CALLS" 2>&1)"
+[[ ! -s "$SENT" ]] && pass "9. control: a live loop that ticks sends nothing" ||
+  fail "9. live loop sent: $(cat "$SENT")"
 
+dead1="$(cat "$D/run.pid")"
 stop_loop || fail "3. the loop did not release the lock"
+printf 'old line %s\n' 1 2 3 4 5 6 7 >> "$D/run.out"
 out="$(run_act do_spl_wd_ensure)"; rc=$?
 wait_held || true
 [[ $rc -eq 0 && "$out" == *"watchdog started"* && "$(wc -l < "$CALLS")" -eq 2 && "$(sed -n 2p "$CALLS")" == "DRY_RUN=0 WD_TICKS= -a do_spl_watchdog" ]] &&
   pass "3. dead loop: the next run starts it again, still only the watchdog" ||
   fail "3. restart rc=$rc out=$out calls=$(cat "$CALLS" 2>&1)"
+s="$(cat "$SENT")"
+[[ "$(wc -l < "$SENT")" -eq 1 && "$s" == *"--from c-001 --to orchestrator --kind blocker --task wd-keeper-box-t"* &&
+   "$s" == *"box box-t was dead (pid $dead1)"* && "$s" == *"old line 3;old line 4;old line 5;old line 6;old line 7;"* &&
+   "$s" != *"old line 2"* && ! -s "$OWNER" ]] &&
+  pass "9. restart: ONE blocker to the orchestrator naming the box, the dead pid and run.out's last 5 lines; no owner DM" ||
+  fail "9. restart sent=$s owner=$(cat "$OWNER")"
 
 stop_loop || true
 mkdir -p "$T/spool/peer"
@@ -116,12 +152,101 @@ wait_held || true
 [[ $rc -eq 0 && "$out" != *"no seats"* && "$out" == *"watchdog started"* && "$(wc -l < "$CALLS")" -eq 3 && "$(grep -c 'do_spl_peer_' "$CALLS")" -eq 0 ]] &&
   pass "4. three seats: still one watchdog, no poll loop" ||
   fail "4. seats rc=$rc out=$out calls=$(cat "$CALLS" 2>&1)"
+[[ "$(wc -l < "$SENT")" -eq 1 && "$out" == *"restart alert already sent"* ]] &&
+  pass "9. a second restart within 30 min is debounced: still one message" ||
+  fail "9. debounce sent=$(cat "$SENT") out=$out"
 
 stop_loop || true
 out="$(WD_RUN="$T/bin/missing" run_act do_spl_wd_ensure)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"missing or not executable"* && "$(wc -l < "$CALLS")" -eq 3 ]] &&
   pass "5. a missing runner is refused and starts nothing" ||
   fail "5. missing rc=$rc out=$out calls=$(wc -l < "$CALLS")"
+
+# --- 9. crash loop and hung -----------------------------------------------------
+now=$(date +%s)
+stop_loop || true
+# 2 restarts in the hour (one 66 min old does not count) + this one = 3: no crash loop
+printf '%s\n' $((now - 4000)) $((now - 600)) $((now - 300)) > "$D/ensure.restarts"
+rm -f "$D/ensure.alert."*; : > "$SENT"
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+wait_held || true
+[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 1 && "$(cat "$SENT")" == *"3 restart(s) in the last hour"* && "$(cat "$SENT")" != *"CRASH LOOP"* && ! -s "$OWNER" ]] &&
+  pass "9. control: 3 restarts in the hour is no crash loop (an older one is not counted)" ||
+  fail "9. crash control rc=$rc sent=$(cat "$SENT") owner=$(cat "$OWNER")"
+
+stop_loop || true
+rm -f "$D/ensure.alert."*; : > "$SENT"
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+wait_held || true
+[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 2 && "$(sed -n 2p "$SENT")" == *"--kind blocker"*"CRASH LOOP - the watchdog on box box-t was started 4 times"* &&
+   "$(cat "$OWNER")" == *"CRASH LOOP"* ]] &&
+  pass "9. crash loop: 4 restarts in an hour, the restart blocker, the crash-loop blocker and ONE owner DM" ||
+  fail "9. crash rc=$rc sent=$(cat "$SENT") owner=$(cat "$OWNER")"
+
+# hung: the loop lives (wait_held above); its tick is fresh, then 10 min old
+: > "$SENT"; : > "$OWNER"
+now=$(date +%s)
+touch -d @$((now - 900)) "$D/run.pid"
+echo $((now - 30)) > "$D/last.tick"
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+[[ $rc -eq 0 && ! -s "$SENT" && ! -s "$OWNER" ]] &&
+  pass "9. control: a live loop whose last tick is 30 s old is not hung" ||
+  fail "9. hung control rc=$rc out=$out sent=$(cat "$SENT")"
+
+echo $((now - 600)) > "$D/last.tick"
+echo $((now - 900)) > "$D/ensure.last"
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+[[ $rc -eq 0 && ! -s "$SENT" && "$out" == *"keeper was silent"* ]] &&
+  pass "9. control: a keeper back from 15 min of suspend does not call a stale tick hung" ||
+  fail "9. suspend control rc=$rc out=$out sent=$(cat "$SENT")"
+
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+[[ $rc -eq 0 && "$(wc -l < "$SENT")" -eq 1 && "$(cat "$SENT")" == *"--kind blocker"*"HUNG - the watchdog on box box-t"*"has not ticked for 6"* &&
+   "$(cat "$OWNER")" == *"HUNG"* ]] &&
+  pass "9. hung: alive, no tick for 10 min: ONE blocker and ONE owner DM" ||
+  fail "9. hung rc=$rc out=$out sent=$(cat "$SENT") owner=$(cat "$OWNER")"
+
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+[[ "$(wc -l < "$SENT")" -eq 1 && "$(grep -c HUNG "$OWNER")" -eq 1 ]] &&
+  pass "9. hung a minute later: debounced, no second message" ||
+  fail "9. hung debounce sent=$(cat "$SENT")"
+stop_loop || true
+
+# --- 10. retention ------------------------------------------------------------
+now=$(date +%s)
+L="$T/rot.log"
+printf 'a\nb\n' > "$L"
+run_act spl_wd_log_rotate "$L" "$now" >/dev/null
+[[ "$(cat "$L.since")" == "$now" && ! -e "$L.1" && "$(wc -l < "$L")" -eq 2 ]] &&
+  pass "10. a log seen first: its generation starts now, nothing rotated" ||
+  fail "10. first since=$(cat "$L.since" 2>&1)"
+echo $((now - 86000)) > "$L.since"
+run_act spl_wd_log_rotate "$L" "$now" >/dev/null
+[[ ! -e "$L.1" && "$(wc -l < "$L")" -eq 2 ]] &&
+  pass "10. control: a log 23.9 h old is kept as is" ||
+  fail "10. young rotated"
+echo $((now - 86400)) > "$L.since"
+run_act spl_wd_log_rotate "$L" "$now" >/dev/null
+[[ "$(cat "$L.1")" == $'a\nb' && ! -s "$L" && "$(cat "$L.since")" == "$now" ]] &&
+  pass "10. a log a day old goes to .1 and is emptied in place" ||
+  fail "10. old: .1=$(cat "$L.1" 2>&1) log=$(cat "$L")"
+
+echo ensure-line > "$T/log/ensure.out"
+echo $((now - 90000)) > "$T/log/ensure.out.since"
+echo $((now - 90000)) > "$D/run.out.since"
+out="$(run_act do_spl_wd_ensure)"; rc=$?
+wait_held || true
+[[ "$(cat "$T/log/ensure.out.1" 2>/dev/null)" == ensure-line && -s "$D/run.out.1" ]] &&
+  pass "10. the keeper rotates run.out and its own ensure.out" ||
+  fail "10. keeper rotate rc=$rc out=$out"
+stop_loop || true
+
+W="$T/wdlog"; mkdir -p "$W"
+printf 'x\n' > "$W/wd.log"; echo $((now - 90000)) > "$W/wd.log.since"
+o="$(bash -c 'do_log() { :; }; source "$1"; WD_LOG="$2"; spl_wd_log_trim' _ "$PROJ_ROOT/src/bash/run/spl-watchdog.func.sh" "$W/wd.log" 2>&1)"
+[[ "$(cat "$W/wd.log.1" 2>/dev/null)" == x && ! -s "$W/wd.log" ]] &&
+  pass "10. the watchdog rotates wd.log a day old (no 5000-line cap)" ||
+  fail "10. wd.log o=$o"
 
 # --- 6-8. the cron ------------------------------------------------------------
 SH="$T/shared"

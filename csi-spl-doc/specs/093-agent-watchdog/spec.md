@@ -360,6 +360,27 @@ slot restart takes). A third takeover within the hour is not done: the id is
 held out and the owner gets one DM with the three verdicts. A fleet-wide cause
 (every claude login expired) produces one DM per box, not a restart storm.
 
+### 6.4 Watching the watchdog (owner HUM-10, t1 b55065a2)
+
+The keeper `do_spl_wd_ensure` (every minute) also watches the loop it keeps.
+State lives in `<spool root>/dispatch/wd/` (`ensure.restarts`, `ensure.last`,
+`ensure.alert.<condition>`).
+
+| condition | detected by | sends |
+|---|---|---|
+| restart | the loop was dead and `run.pid` named an earlier one | one `blocker` to `orchestrator` naming the box, the dead pid and the last 5 lines of `run.out` |
+| crash loop | more than `WD_ENSURE_LOOP_MAX` (3) restarts in the last hour | the blocker and one owner DM |
+| hung | the loop holds `run.lock` but `last.tick` (written at every tick start) is older than `WD_ENSURE_HUNG` (180 s) | the blocker and one owner DM |
+
+- **Debounce**: each condition sends at most once per `WD_ENSURE_DEBOUNCE` (30 min).
+- **Suspend**: a keeper that was itself silent for longer than `WD_ENSURE_HUNG` (the box was suspended, or cron did not run) skips the hung check for that one run.
+- **Topic and sender**: blockers go on task `wd-keeper-<box>`, sent from `LEASE_ORCH`.
+- **Owner DM**: the owner DM is `do_spl_desk_reply` to `ASKS_OWNER` of `lease.conf`. This is the same path as the orch take-over DM. The R03 email (070-gcp-monitoring) alerts only on hub metrics in Cloud Monitoring and has no entry point a box can call. Feeding it would need a new log metric or a hub change, both outside this keeper.
+
+**Cross-box watch: not built.** The one cross-box channel, the hub fleet lease, needs a holder `<agent id>@<box>`. The hub's channel router (`roleSeats`) reads every live lease row as a seat for that agent number. A `wd-<box>` heartbeat row would therefore re-route that agent's channel posts to the box. A per-minute spool message between boxes would be one more message stream for each pair of boxes. Each box's keeper reports its own watchdog instead.
+
+**Retention**: `wd.log` (written by the loop), and `run.out` and `ensure.out` (rotated by the keeper), are copied to `<file>.1` and emptied in place once a day (`WD_LOG_KEEP`, 86400 s) or when they pass `WD_LOG_MAX_BYTES` (64 MiB). So each log holds between one and two days. `<file>.since` holds the start of the current generation. The 5000-line cap it replaces held about an hour on a busy box. Measured 2026-10-06: about 5000 lines/h on one box and about 600 lines/h on another.
+
 ## 7. The hooks, and the inbox-inject hook
 
 ### 7.1 Events (Claude Code first)

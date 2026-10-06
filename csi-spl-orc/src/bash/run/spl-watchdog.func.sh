@@ -34,6 +34,8 @@
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
+declare -F spl_wd_log_rotate >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-ensure.func.sh"
 
 SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -130,14 +132,11 @@ spl_wd_running() {
 
 spl_wd_log() { echo "$(date -u +%FT%TZ) $*" >> "$WD_LOG"; }
 
-# wd.log keeps its last 5000 lines.
+# wd.log keeps a day or two: spl_wd_log_rotate copies it to wd.log.1 once a
+# day (WD_LOG_KEEP) or past WD_LOG_MAX_BYTES. A line cap held about an hour on
+# a busy box (5000 lines; 2026-10-06: ~5000/h on one box, ~600/h on another).
 spl_wd_log_trim() {
-  local n
-  n="$(wc -l < "$WD_LOG" 2>/dev/null || echo 0)"
-  if (( n > 6000 )); then
-    tail -n 5000 "$WD_LOG" > "$WD_LOG.tmp.$$" && mv -f "$WD_LOG.tmp.$$" "$WD_LOG"
-  fi
-  return 0
+  spl_wd_log_rotate "$WD_LOG" "$(spl_lease_now)"
 }
 
 # tmux, bounded: a hung server costs one call 5 s. ROTATE_TMUX replaces it in tests.

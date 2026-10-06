@@ -1,6 +1,6 @@
 # 100 Search index: a message search that stays fast as a workspace grows
 
-Version v0.2 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
+Version v0.3 (2026-10-06). Draft, doc only, **no consensus yet** (section 12).
 Owner order: t1 2b25c535, msg 64a4990e (HUM-10). The lessons it carries come
 from t1 6d5bd334. Spec panel: the author holds the pen, plus three reviewers.
 **Seat note:** agy has no binary on the box this panel runs on, so a claude
@@ -246,7 +246,7 @@ and a DM between two other members.
 | T1 | `spool_search_page` with scope A returns A's ids only; scope B returns B's only; scope unset or `''` returns 0 rows | the tenant pin is wrong or missing (door 1, on its own) |
 | T2 | **planted leak** (r3 T5), in a ROLLED-BACK transaction inside the test, so it runs in CI on every push and never turns trunk red. Replace the function with one that has no tenant pin. T1's direct call must then FAIL, and the API-level T6 must still PASS (the outer RLS still filters) | T1 is vacuous, or door 2 is gone |
 | T3 | catalogue: the policy is `FOR SELECT` and `TO spool_search_reader` only; `messages` is still FORCE RLS; `spool_search_reader` is NOLOGIN NOBYPASSRLS, has no members (`pg_auth_members`), owns exactly one function, holds column SELECT on `messages` only. The function has no tenant parameter, `prosecdef`, and a pinned `search_path` | the role can be logged into, joined or widened |
-| T4 | the runtime login cannot `SET ROLE spool_search_reader` and cannot `ALTER` or `CREATE OR REPLACE` the function | the runtime can lift RLS for itself (017 FR-SEC-014 (e)) |
+| T4 | `NOT pg_has_role(<runtime login>, 'spool_search_reader', 'MEMBER')` (r1 section 8). The runtime login cannot `SET ROLE spool_search_reader` and cannot `ALTER` or `CREATE OR REPLACE` the function. Plant once, in a rolled-back transaction: `GRANT spool_search_reader TO <runtime login>` must turn T4 red | the runtime can read every tenant through the `USING (true)` policy, outside the function (017 FR-SEC-014 (e)) |
 | T5 | `do_spl_db_rls_check`: the SECURITY DEFINER functions the runtime can EXECUTE are exactly `{spool_search_page}`. Any other one reports `liftable` | a second lift path appears unnoticed |
 | T6 | `TestCrossTenant*` search cases run on the S1r path (the probe is on) as well as the 0135 path | door 2 regresses |
 | T7 | for each seeded query, the function's ids for viewer V equal the hub's result ids (the doors agree) | the function shows the viewer a row the outer statement hides, or the reverse |
@@ -295,7 +295,7 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | phase | what | where |
 |---|---|---|
 | P0 | prove the S1r plan on Cloud SQL **dev**, and that `btree_gin` is available there. The migration creates the NOLOGIN role (precedent: rdb 0126 creates `spool_public_export` NOLOGIN), hands it the function, and EXPLAIN shows the GIN as the runtime login | the migration from P1, on dev first |
-| P1 | rdb 01NN: role, column grant, `CREATE POLICY search_reader_all ON messages TO spool_search_reader USING (true)` (no WITH CHECK, no write grant), `CREATE INDEX messages_search ... USING gin (search_tsv)`, the function. Grant EXECUTE to the runtime in `spool-hub-roles/runtime-grants.sql`. GIN build time: **unmeasured**. It holds a SHARE lock on `messages`, so writes wait. Measure it on dev first (1.0 M word rows, close to prd). If it takes more than a few seconds, build the index CONCURRENTLY as its own named step outside the migrate transaction (r3, Q7). Insert p50 / p95, n >= 20, 3 KB real-text bodies, with and without the index, on dev (r3 T7) | rdb, spool-hub-roles |
+| P1 | rdb 01NN: role, column grant, `CREATE POLICY search_reader_all ON messages TO spool_search_reader USING (true)` (no WITH CHECK, no write grant), `CREATE INDEX messages_search ... USING gin (search_tsv)`, the function. Grant EXECUTE to the runtime in `spool-hub-roles/runtime-grants.sql`. GIN build time: **unmeasured**. It holds a SHARE lock on `messages`, so writes wait. Measure it on dev first (1.0 M word rows, close to prd). If it takes more than a few seconds, it cannot simply be made CONCURRENTLY: `store.Migrate` runs every file inside `pgx.BeginFunc` (`grep -n BeginFunc csi-spl-api/src/go/spool-hub-api/internal/store/migrate.go` -> 89, r1 section 8), and CONCURRENTLY refuses to run in a transaction. That needs its own task: either a per-file no-transaction marker in the runner, or a named iac action that builds the index outside it (Q7). Insert p50 / p95, n >= 20, 3 KB real-text bodies, with and without the index, on dev (r3 T7) | rdb, spool-hub-roles |
 | P2 | hub: the function probe, as `hasSearchSig`. Messages section and `topicCandidates` through the function; the 0135 path stays as the fallback. A kill switch `SPOOL_HUB_SEARCH_INDEX=off` (env, r3) returns every query to today's path without a code deploy | store, hub |
 | P3 | T1..T7, plus a buffer-budget test seeded with real-shaped words | store, hub-pg |
 | P4 | prd benchmark (section 8), dev then prd, by the orchestrator | read-only |
@@ -310,7 +310,7 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | G3 | insert cost with the GIN on the prd shape | P4 |
 | G4 | a true cold n>=5 | Q3 |
 | G5 | B's real size on prd (dev: 78 words a post, r3) | only if Q1 = no lift |
-| G6 | whether Cloud SQL dev offers `btree_gin` (**unchecked**). Without it, the GIN on `search_tsv` alone filters tenants after the index (10x-B cost) | P0 |
+| G6 | whether the migrate login on Cloud SQL dev can `CREATE EXTENSION btree_gin` (a trusted extension since pg 13, like `unaccent` in rdb 0048: **unchecked**). Without it, the GIN on `search_tsv` alone filters tenants after the index (10x-B cost) | P0 |
 
 ## 11. Questions for the owner (one list, to c-002)
 
@@ -327,7 +327,8 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 - **Q6** Relevance sort ranks the newest 2 000 matches: is that acceptable?
 - **Q7** The GIN build holds a SHARE lock on `messages`, so writes wait for
   its build time (the dev number comes first). Is a few seconds of write stall
-  in one migration acceptable, or must it be built CONCURRENTLY? (r3)
+  in one migration acceptable? If not, a CONCURRENTLY build needs its own task
+  first: a migrate-runner change or a named iac action (r3, r1).
 - **Q8** What added p95 per send is acceptable for indexing? (r3)
 
 ## 12. Panel and consensus
@@ -335,7 +336,7 @@ Run by the orchestrator (c-001), read-only, with `do_spl_search_measure`
 | seat | agent | research | position on v0.1 |
 |---|---|---|---|
 | author (pen) | c-372 (claude for agy) | `research/author-scratch-pg16.md` | S1r |
-| r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1, before the S1r correction: pending |
+| r1 (grok seat) | c-369 (claude for grok) | `research/r1-grok-standin.md` | S1 with r3's role-scoped policy and `gin (tenant_id, search_tsv)` (r1 section 8, `712ff98d`), i.e. S1r. Agreement with v0.3: pending |
 | r2 | c-370 (claude) | pending | pending |
 | r3 | c-371 (claude) | `research/r3-claude.md` | S1, the same mechanism as S1r and proven on its own (r3 section 1.2). Agreement with v0.2: pending |
 
@@ -343,6 +344,10 @@ Consensus: **not yet.**
 
 ## 13. Changes
 
+- v0.3 (2026-10-06): takes in r1 section 8. The migrate path cannot build
+  CONCURRENTLY, so a long build becomes its own task (P1, Q7). T4 asserts the
+  runtime login is never a member of `spool_search_reader`, with a planted
+  grant. `btree_gin` creatability is part of P0.
 - v0.2 (2026-10-06): takes in r3. The GIN gets a leading tenant column
   (`btree_gin`), the policy is `FOR SELECT`, B is sized from dev, and the kill
   switch is added. The planted leak moves into a rolled-back transaction

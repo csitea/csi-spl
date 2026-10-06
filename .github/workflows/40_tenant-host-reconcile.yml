@@ -100,7 +100,7 @@ jobs:
 
       # gcloud + its beta component (domain-mappings describe); no auth here:
       # every action activates the env key in a private CLOUDSDK_CONFIG
-      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         if: steps.sel.outputs.go == '1'
         with:
           install_components: beta

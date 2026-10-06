@@ -1167,7 +1167,15 @@ const canPromoteMsg = computed(() => canMoveMsg.value && mayPromoteMessage(props
   lobbyTaskId: lobbyTask.value,
   channel: props.moveCtx?.channel || '',
 }))
-const movable = computed(() => (canMoveTopic.value || canMoveMsg.value) && !editing.value)
+const movable = computed(() => {
+  if (editing.value) return false
+  /* A reply drags out of the thread. A topic drags from the middle card
+     only: the opener in the open discussion keeps Move in the menu and
+     does not grow a second handle (spec 045, the opening card has none). */
+  if (canMoveMsg.value) return true
+  if (inTopicPane.value) return false
+  return canMoveTopic.value
+})
 /* CLE-77891 (HUM-24): a topic card's menu has the same entries for everyone;
    what this viewer may not do is shown disabled with the reason. */
 const menuLocks = computed(() => props.topicMenu && !editing.value

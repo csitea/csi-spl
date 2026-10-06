@@ -35,6 +35,15 @@ const THEMES = (process.env.THEMES || 'dark,light').split(',')
 /* the lde mock #lobby root, from HUM-1@box-wui: our own, so both deletes are offered */
 const OWN_MSG = '11111111-1111-4111-8111-111111111111'
 const LOBBY_TASK = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+/* a reply in that topic. The opener is a topic card (topic Delete). Message
+   Delete stays on a reply (is_parent 0). */
+const REPLY = '12121212-1212-4212-8212-121212121212'
+const REPLY_ROW = {
+  v: 1, msg_id: REPLY, task_id: LOBBY_TASK, ts: '2026-10-06T10:05:00Z',
+  from: 'HUM-1', from_box: 'box-wui', to: '@channel', to_box: 'box-wui',
+  kind: 'note', body: 'a reply line, deleted as a message', channel: 'lobby',
+  parent_task_id: LOBBY_TASK, is_parent: 0, files: [],
+}
 const CHANNEL = 'spl-1001-doomed'
 
 if (OUT) mkdirSync(OUT, { recursive: true })
@@ -193,13 +202,16 @@ try {
       d = await waitDialog(page, false)
       ok(`${at} topic: Escape closes`, !d.open)
 
-      /* ---- 2. the message confirm, from a thread row's menu -------------- */
-      /* the #lobby thread page: its rows are thread lines (not topic cards),
-         the rows whose menu carries a plain Delete */
+      /* ---- 2. the message confirm, from a reply's menu ------------------- */
+      /* The opener is a topic card: its menu Deletes the topic. A reply
+         (is_parent 0) is the row whose menu carries a plain Delete. */
+      await page.evaluate((row) => {
+        localStorage.setItem('spool.mock.extra-messages', JSON.stringify([row]))
+      }, REPLY_ROW)
       await page.goto(`${srv.base}/t/${LOBBY_TASK}`, { waitUntil: 'networkidle2' })
-      await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: 15000 }).catch(() => {})
+      await page.waitForSelector(`article.msg[data-msg-id="${REPLY}"]`, { timeout: 15000 }).catch(() => {})
       await sleep(800)
-      await click(page, `article.msg[data-msg-id="${OWN_MSG}"] [data-testid=msg-menu-btn]`)
+      await click(page, `article.msg[data-msg-id="${REPLY}"] [data-testid=msg-menu-btn]`)
       await sleep(300)
       const offered = await click(page, '[data-testid=msg-menu-delete]')
       d = await waitDialog(page, true)
@@ -208,7 +220,7 @@ try {
       await shot(page, `message-${width}-${theme}`)
       await page.keyboard.press('Enter')
       d = await waitDialog(page, false)
-      const kept = Boolean(await page.$(`article.msg[data-msg-id="${OWN_MSG}"]`))
+      const kept = Boolean(await page.$(`article.msg[data-msg-id="${REPLY}"]`))
       ok(`${at} message: Enter = Cancel (nothing is deleted)`, !d.open && kept, { open: d.open, kept })
 
       /* ---- 3. the channel confirm, from the channel row's menu ----------- */

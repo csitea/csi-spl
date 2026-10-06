@@ -26,6 +26,15 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* the lde mock #lobby root, from HUM-1@box-wui: our own, so both deletes are offered */
 const OWN_MSG = '11111111-1111-4111-8111-111111111111'
 const LOBBY_TASK = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+/* a reply in that topic. The opener is a topic card (topic Delete). Message
+   Delete stays on a reply (is_parent 0). */
+const REPLY = '12121212-1212-4212-8212-121212121212'
+const REPLY_ROW = {
+  v: 1, msg_id: REPLY, task_id: LOBBY_TASK, ts: '2026-10-06T10:05:00Z',
+  from: 'HUM-1', from_box: 'box-wui', to: '@channel', to_box: 'box-wui',
+  kind: 'note', body: 'a reply line, deleted as a message', channel: 'lobby',
+  parent_task_id: LOBBY_TASK, is_parent: 0, files: [],
+}
 /* long enough that the Tab + activate below all land inside the count's load */
 const DELAY_MS = 2000
 
@@ -110,10 +119,13 @@ try {
 
   /* ---- the message confirm (a thread row's Delete): no load gate ---- */
   for (const key of ['Enter', 'Space']) {
+    await page.evaluate((row) => {
+      localStorage.setItem('spool.mock.extra-messages', JSON.stringify([row]))
+    }, REPLY_ROW)
     await page.goto(`${server.base}/t/${LOBBY_TASK}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    await page.waitForSelector(`article.msg[data-msg-id="${OWN_MSG}"]`, { timeout: NAV_TIMEOUT }).catch(() => {})
+    await page.waitForSelector(`article.msg[data-msg-id="${REPLY}"]`, { timeout: NAV_TIMEOUT }).catch(() => {})
     await sleep(500)
-    await click(page, `article.msg[data-msg-id="${OWN_MSG}"] [data-testid=msg-menu-btn]`)
+    await click(page, `article.msg[data-msg-id="${REPLY}"] [data-testid=msg-menu-btn]`)
     await sleep(300)
     const offered = await click(page, '[data-testid=msg-menu-delete]')
     await waitDialog(page, true)
@@ -122,7 +134,7 @@ try {
     await page.keyboard.press(key)
     await waitDialog(page, false)
     await sleep(400)
-    const deleted = !(await dialogOpen(page)) && !(await cardThere(page, OWN_MSG))
+    const deleted = !(await dialogOpen(page)) && !(await cardThere(page, REPLY))
     ok(`message ${key}: ${key} on the focused Delete button deletes the message`, deleted, { deleted })
   }
 } finally {

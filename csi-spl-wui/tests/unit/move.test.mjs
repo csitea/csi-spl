@@ -338,6 +338,7 @@ describe('menu and wiring', () => {
     /* SPL-1134: no HTML5 drag left on the row: the handle's pointer stream is the only start */
     assert.doesNotMatch(card, /draggable=|@dragstart|dataTransfer/)
     assert.match(card, /class="msg-move-handle"[\s\S]*?@pointerdown\.stop="onHandleDown"/)
+    assert.match(card, /if \(inTopicPane\.value\) return false/)
     assert.match(card, /\.msg-move-handle \{[^}]*width: 12px;[^}]*cursor: grab;[^}]*touch-action: none;/)
   })
   it('the rail rows name themselves as drop rows; the shell routes the frames; the toast is eager (CLE-77840)', () => {

@@ -25,7 +25,7 @@ do_gcp_s3_download_all() {
   local GCLOUD="/opt/google-cloud-sdk/bin/gcloud"
   local GSUTIL="/opt/google-cloud-sdk/bin/gsutil"
   local TARGET_DIR="${TARGET_BASE}/${ORG}-${APP}-${ENV}/dat/s3"
-  local KEY_FILE="$(eval echo ~/.gcp/.${ORG}/key-${GCP_PROJECT}.json)"
+  local KEY_FILE="$HOME/.gcp/.${ORG}/key-${GCP_PROJECT}.json"
 
   do_log "INFO GCP_PROJECT: ${GCP_PROJECT}"
   do_log "INFO TARGET_DIR: ${TARGET_DIR}"

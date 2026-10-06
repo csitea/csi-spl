@@ -56,7 +56,7 @@ do_tf_init() {
   # later step onto the wrong key.
   local key_project
   key_project=$(jq -r --arg s "$STEP" '.env.steps[$s].tf_key_project // empty' "$ENV_CONF_JSON_FLE" 2>/dev/null)
-  export GOOGLE_APPLICATION_CREDENTIALS=$(eval echo "~/.gcp/.$ORG/key-${key_project:-$GCP_PROJECT}.json")
+  export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/.$ORG/key-${key_project:-$GCP_PROJECT}.json"
   export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache/$ORG/$APP/$ENV/$STEP"
 
   # env | sort

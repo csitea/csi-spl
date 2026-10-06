@@ -29,13 +29,16 @@ func TestSearchMessagesSkipsUnsignedToast(t *testing.T) {
 	tid := newTenant(t, pg)
 	const rows = 1000
 	// ~4 KB bodies of 120 distinct incompressible words: search_tsv is
-	// TOASTed, like a long markdown post's.
+	// TOASTed, like a long markdown post's. Every second one also carries
+	// four of the query's five words (not "refactoring"), as common words do
+	// on prd: a per-word check lets those rows through, the all-words one not.
 	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `INSERT INTO messages (tenant_id, msg_id, task_id, ts, from_box, from_id, to_box, to_id,
 				kind, body, files, msg, env_sig, env, received_at, expires_at, channel)
 			SELECT $1, gen_random_uuid(), gen_random_uuid(), $2::timestamptz - i * interval '1 minute', 'box-a', 'GRK-03',
 				'box-b', 'CLE-07', 'note',
-				(SELECT string_agg(md5($1 || i || '-' || g), ' ') FROM generate_series(1, 120) g),
+				CASE WHEN i % 2 = 0 THEN 'Example prompt round 4 ' ELSE '' END
+					|| (SELECT string_agg(md5($1 || i || '-' || g), ' ') FROM generate_series(1, 120) g),
 				'[]', '{"v":1}', 'sig', '\x00', $2::timestamptz - i * interval '1 minute', $2::timestamptz + interval '30 days', 'lobby'
 			FROM generate_series(1, $3::int) i`, tid, now, rows)
 		return err
@@ -107,7 +110,8 @@ func TestSearchMessagesSkipsUnsignedToast(t *testing.T) {
 
 // TestSearchSigOnlyWhenProbed: before rdb 0135 reaches a database the hub
 // must not name search_sig (a 500 on every search); after it, every
-// signable text term is guarded and a prefix term is not.
+// signable text term is guarded, a prefix term is not, and the terms the
+// query ANDs share one all-words check.
 func TestSearchSigOnlyWhenProbed(t *testing.T) {
 	q, err := search.Parse("Example refactoring deplo*", time.Now())
 	if err != nil {
@@ -118,8 +122,9 @@ func TestSearchSigOnlyWhenProbed(t *testing.T) {
 		t.Fatalf("probe off, search_sig named:\n%s", sql)
 	}
 	sql, _ := searchMessagesSQL("t1", sq, true)
-	if n := strings.Count(sql, "m.search_sig IS NULL"); n != 2 {
-		t.Fatalf("probe on: want 2 guarded terms (not the prefix one), got %d:\n%s", n, sql)
+	// 2 guarded terms (not the prefix one) + 1 all-words check of those two.
+	if n := strings.Count(sql, "m.search_sig IS NULL"); n != 3 {
+		t.Fatalf("probe on: want 2 guarded terms and 1 all-words check, got %d:\n%s", n, sql)
 	}
 }
 

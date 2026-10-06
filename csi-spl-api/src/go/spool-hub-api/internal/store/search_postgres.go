@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -101,6 +102,40 @@ func (c *sqlc) textMatch(a string, t *search.Term) string {
 	mask := "(SELECT spool_search_sig(to_tsvector(" + searchConfig + ", " + c.arg(t.Value) + "::text)))"
 	return "CASE WHEN " + a + ".search_sig IS NULL OR (" + a + ".search_sig & " + mask + ") = " + mask +
 		" THEN " + match + " ELSE false END"
+}
+
+// sigAll is one signature check for every text term the whole query ANDs
+// (the root, and AND groups under it): a row goes on to its matches only when
+// its signature holds the lexemes of ALL of them. textMatch checks one term
+// at a time, so a row that has the first word's bit (a common word: prd t1,
+// "example" passed 705 of 3 277 signed rows) was read for that word's @@;
+// all five of the owner's words pass 29. pred is wrapped, so the check runs
+// first. pred unchanged when there is no signature, or fewer than two terms
+// (textMatch already guards one).
+func (c *sqlc) sigAll(a string, root *search.Node, pred string, ops ...string) string {
+	if !c.sig {
+		return pred
+	}
+	var words []string
+	var walk func(n *search.Node)
+	walk = func(n *search.Node) {
+		switch {
+		case n == nil:
+		case n.Kind == search.And:
+			for _, k := range n.Kids {
+				walk(k)
+			}
+		case n.Kind == search.Leaf && slices.Contains(ops, n.Term.Op) && (n.Term.Phrase || !n.Term.Prefix):
+			words = append(words, n.Term.Value)
+		}
+	}
+	walk(root)
+	if len(words) < 2 {
+		return pred
+	}
+	mask := "(SELECT spool_search_sig(to_tsvector(" + searchConfig + ", " + c.arg(strings.Join(words, " ")) + "::text)))"
+	return "CASE WHEN " + a + ".search_sig IS NULL OR (" + a + ".search_sig & " + mask + ") = " + mask +
+		" THEN " + pred + " ELSE false END"
 }
 
 func (c *sqlc) party(idCol, boxCol string, t *search.Term) string {
@@ -296,7 +331,7 @@ func searchMessagesSQL(tenant string, q SearchQuery, sig bool) (string, []any) {
 		priv = `((m.channel IS NULL AND (m.from_id = ` + v + ` OR m.to_id = ` + v + `))
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
-	where := "(" + c.cond(q.Q.Root, c.messageLeaf) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
+	where := "(" + c.sigAll("m", q.Q.Root, c.cond(q.Q.Root, c.messageLeaf), search.OpText) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
 	order, page := "ORDER BY m.received_at DESC, m.msg_id::text DESC", ""
 	if q.Relevance {
 		var tq []string
@@ -460,7 +495,7 @@ func (c *sqlc) topicCandidates(root *search.Node, tenant, now string) string {
 		return ""
 	}
 	return " AND task_id IN (SELECT k.task_id FROM messages k WHERE k.tenant_id = " + tenant +
-		" AND k.expires_at > " + now + " AND " + strings.Join(preds, " AND ") + ")"
+		" AND k.expires_at > " + now + " AND " + c.sigAll("k", root, "("+strings.Join(preds, " AND ")+")", search.OpText, search.OpTitle) + ")"
 }
 
 func (s *Postgres) TenantHumans(ctx context.Context, tenant string) ([]HumanEntry, error) {

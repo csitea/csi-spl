@@ -73,7 +73,12 @@
         <div class="topic-row__main">
         <div class="msg-meta">
           <span class="msg-author" :title="topicPeople(t.participants).title || undefined">{{ topicPeople(t.participants).text || t.task_id }}</span>
-          <KindBadge v-for="k in Object.keys(t.kinds)" :key="k" :kind="k" />
+          <span v-for="k in Object.keys(t.kinds)" :key="k" class="topic-kind" :data-topic-kind="k" @click.stop.prevent="onKindClick(t, k)">
+            <KindBadge :kind="shownKind(t, k)" :msg="badgeMsg(t, k)"
+              @pending="onKindPending(t.task_id, $event)"
+              @revert="onKindRevert(t.task_id)"
+              @applied="onKindApplied(t.task_id, $event)" />
+          </span>
           <ArchivedBadge v-if="t.archived_at" :at="t.archived_at" />
           <span class="msg-time">{{ rowTime(t.last_ts) }}</span>
           <!-- spec 079 FR-004: the row wears its own unread, the sidebar Topics row's number -->
@@ -91,9 +96,11 @@
         :topic-archive="topicRowState(t.task_id)?.canArchive"
         :topic-delete="topicRowState(t.task_id)?.canDelete"
         :topic-state="topicRowState(t.task_id)?.state || ''"
+        :topic-kind="maySetTopicKind(t)"
         @toggle="rowMenu === t.task_id ? (rowMenu = '') : openTopicMenu(t.task_id)"
         @close="rowMenu = ''"
         @open="pane.open(t.task_id)"
+        @kind="openTopicKind(t.task_id)"
         @archive="archiveTopicRow(t.task_id)"
         @delete-topic="askDeleteTopic(t.task_id)"
       />
@@ -128,6 +135,10 @@ import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useScrollAnchor } from '~/composables/useScrollAnchor'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useLive } from '~/composables/useLive'
+import { useMessageEdit } from '~/composables/useMessageEdit'
+import { openerMessage, retargetKinds, topicRowKind } from '~/utils/topic-kind.mjs'
+import type { SpoolMessage } from '~/types/spool'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
@@ -146,6 +157,8 @@ const channel = useChannelStore()
 const topicStore = useTopicStore()
 const session = useSessionStore()
 const api = useSpoolApi()
+const live = useLive()
+const edit = useMessageEdit()
 /* W15 (spec 047): the first-run checklist, a lazy chunk loaded only for a
    viewer who may open Tenant settings (an admin or the business owner) */
 const FirstRunChecklist = defineAsyncComponent(() => import('~/components/FirstRunChecklist.vue'))
@@ -260,7 +273,11 @@ watch(() => api.mock || String(session.state) === 'in', (ready) => {
   if (!ready || listStarted) return
   listStarted = true
   /* the mock tenant has no door and no socket: it reads at once and follows
-     nothing (viewer.follow() returns early there) */
+     nothing (viewer.follow() returns early there). ensure() only names the
+     mock viewer (HUM-1); it does not open a socket. Without that id the
+     author test in canSetKind stays closed and a badge click only opens
+     the topic. */
+  if (api.mock && import.meta.client) live.ensure()
   void viewer.loadTopics().then(() => {
     if (shouldOpenHubSocket(session.state, api.mock)) viewer.follow()
   })
@@ -282,6 +299,89 @@ const {
 function openTopicMenu(taskId: string) {
   rowMenu.value = taskId
   void resolveTopicRow(taskId)
+  void ensureOpener(taskId)
+}
+/* The opener is not on the topic list. One getTopic per row, and only once
+   the reader asks (a badge click or the row menu), shared by both. */
+type Opener = SpoolMessage | 'none'
+const openers = shallowRef<Record<string, Opener>>({})
+const pendingKind = ref<Record<string, { from: string, to: string }>>({})
+const openerInflight = new Map<string, Promise<SpoolMessage | null>>()
+
+function heldOpener(taskId: string): SpoolMessage | null {
+  const held = openers.value[String(taskId || '')]
+  return held && held !== 'none' ? held : null
+}
+function viewerRole(): string | null {
+  return access.me?.role ?? null
+}
+function maySetTopicKind(t: { task_id: string, kinds: Record<string, number> }) {
+  return Boolean(topicRowKind(heldOpener(t.task_id), edit.viewerId.value, viewerRole(), t.kinds))
+}
+function badgeMsg(t: { task_id: string, kinds: Record<string, number> }, k: string) {
+  const msg = heldOpener(t.task_id)
+  if (!msg || topicRowKind(msg, edit.viewerId.value, viewerRole(), t.kinds) !== k) return null
+  return msg
+}
+function shownKind(t: { task_id: string }, k: string) {
+  const p = pendingKind.value[t.task_id]
+  return p && p.from === k ? p.to : k
+}
+async function ensureOpener(taskId: string): Promise<SpoolMessage | null> {
+  const task = String(taskId || '')
+  if (!task) return null
+  if (Object.prototype.hasOwnProperty.call(openers.value, task)) return heldOpener(task)
+  const pending = openerInflight.get(task)
+  if (pending) return pending
+  const run = (async () => {
+    try {
+      const page = await api.getTopic(task, { limit: 40 }) as { messages?: SpoolMessage[] }
+      const msg = openerMessage(page.messages || [], '') as SpoolMessage | null
+      openers.value = { ...openers.value, [task]: msg || 'none' }
+      return msg
+    } catch {
+      return null
+    } finally {
+      openerInflight.delete(task)
+    }
+  })()
+  openerInflight.set(task, run)
+  return run
+}
+function onKindPending(taskId: string, payload: { from: string, to: string }) {
+  pendingKind.value = { ...pendingKind.value, [taskId]: payload }
+}
+function onKindRevert(taskId: string) {
+  if (!pendingKind.value[taskId]) return
+  const next = { ...pendingKind.value }
+  delete next[taskId]
+  pendingKind.value = next
+}
+function onKindApplied(taskId: string, payload: { from: string, to: string }) {
+  onKindRevert(taskId)
+  const msg = heldOpener(taskId)
+  if (msg) openers.value = { ...openers.value, [taskId]: { ...msg, kind: payload.to } }
+  viewer.topics = viewer.topics.map((row) => row.task_id !== taskId ? row
+    : { ...row, kinds: retargetKinds(row.kinds, payload.from, payload.to) })
+}
+async function onKindClick(t: { task_id: string, kinds: Record<string, number> }, k: string) {
+  await ensureOpener(t.task_id)
+  await nextTick()
+  const row = listTop.value?.querySelector(`a.topic-row[data-key="${CSS.escape(t.task_id)}"]`)
+  const host = row?.querySelector(`[data-topic-kind="${CSS.escape(k)}"]`)
+  const btn = host?.querySelector<HTMLElement>('[data-testid="kind-badge-btn"]')
+  if (btn && topicRowKind(heldOpener(t.task_id), edit.viewerId.value, viewerRole(), t.kinds) === k) {
+    btn.click()
+    return
+  }
+  pane.open(t.task_id)
+}
+async function openTopicKind(taskId: string) {
+  await ensureOpener(taskId)
+  await nextTick()
+  const btn = listTop.value?.querySelector<HTMLElement>(
+    `a.topic-row[data-key="${CSS.escape(taskId)}"] [data-testid="kind-badge-btn"]`)
+  btn?.click()
 }
 /* HUM-10 (owner, t1 548c17ae): a phone swipe LEFT on a row archives its
    topic, through the row menu's own Archive above */
@@ -317,6 +417,8 @@ const {
   align-items: start;
 }
 .topic-row__main { min-width: 0; }
+/* The wrapper is not a box: the badges stay flex items of .msg-meta. */
+.topic-kind { display: contents; }
 /* HUM-10: the phone row swipe (useTopicRowSwipe), MessageCard's look. pan-y
    leaves the vertical scroll to the browser and gives the horizontal move to
    the row; the row slides by --swipe-dx and the strip, pinned just past the

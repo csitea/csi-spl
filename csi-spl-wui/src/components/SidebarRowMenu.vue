@@ -96,6 +96,8 @@ const props = defineProps<{
   topicDelete?: boolean
   /** SPL-986: '' | 'loading' | 'ready' | 'none' - the row's card lookup, for tests */
   topicState?: string
+  /** Topics view: the viewer may set the opener's kind. Opens the kind picker. */
+  topicKind?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -115,6 +117,7 @@ const emit = defineEmits<{
   deleteTopic: []
   moveUp: []
   moveDown: []
+  kind: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -142,6 +145,7 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   moveDown: props.moveDown,
   topicArchive: props.topicArchive,
   topicDelete: props.topicDelete,
+  topicKind: props.topicKind,
 }))
 
 function itemEls(): HTMLElement[] {
@@ -263,6 +267,8 @@ function choose(id: string) {
     emit('moveUp')
   } else if (id === 'move-down') {
     emit('moveDown')
+  } else if (id === 'kind') {
+    emit('kind')
   } else {
     emit('open')
   }

@@ -1003,6 +1003,14 @@ declare module '~/utils/topic-list.mjs' {
   export function mergeTopicPage<T>(topics: T[], page: T[]): T[]
 }
 
+declare module '~/utils/topic-kind.mjs' {
+  export function messageKind(msg: { kind?: string } | null | undefined): string
+  export function openerMessage(messages: unknown, fallbackId?: string): import('./spool').SpoolMessage | null
+  export function openerKindKey(kinds: Record<string, number> | null | undefined, msg: { msg_id?: string, kind?: string, pending?: boolean } | null | undefined): string
+  export function topicRowKind(msg: unknown, viewerId: string, role: string | null | undefined, kinds: Record<string, number> | null | undefined): string
+  export function retargetKinds(kinds: Record<string, number> | null | undefined, from: string, to: string): Record<string, number>
+}
+
 declare module '~/utils/avatar.mjs' {
   export function hashSeed(s: string): number
   export function isHuman(id: string): boolean

@@ -16,7 +16,7 @@
     aria-haspopup="menu"
     :aria-expanded="open ? 'true' : 'false'"
     :disabled="busy"
-    @click.stop="toggle"
+    @click.stop.prevent="toggle"
     @keydown.enter.stop
     @keydown.space.stop
   >
@@ -57,6 +57,14 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { noteError } from '~/composables/errorJournal.mjs'
 
 const props = defineProps<{ kind: string, msg?: SpoolMessage | null }>()
+const emit = defineEmits<{
+  /** before the hub call, so a topic row can show the new kind at once */
+  pending: [payload: { from: string, to: string }]
+  /** the hub refused: the row puts the old kind back */
+  revert: []
+  /** the hub accepted */
+  applied: [payload: { from: string, to: string }]
+}>()
 const { t, te } = useI18n({ useScope: 'global' })
 
 /* the kind this badge shows: the row's, or the one just set while the hub's
@@ -67,10 +75,13 @@ const shown = computed(() => pending.value || props.kind)
 const label = computed(() => (te('feed.kind.' + shown.value) ? t('feed.kind.' + shown.value) : shown.value))
 const icon = computed(() => kindIcon(shown.value) as UiIconName | '')
 
-const access = props.msg ? useAccessStore() : null
-const edit = props.msg ? useMessageEdit() : null
-const settable = computed(() => Boolean(props.msg && edit
-  && canSetKind(props.msg, edit.viewerId.value, access?.me?.role ?? null)))
+/* Always, not only when `msg` was set on the first render. A topic row
+   learns its opener after the click, and a composable called from setup
+   cannot start on a later prop. With no msg, settable stays false. */
+const access = useAccessStore()
+const edit = useMessageEdit()
+const settable = computed(() => Boolean(props.msg
+  && canSetKind(props.msg, edit.viewerId.value, access.me?.role ?? null)))
 
 const open = ref(false)
 const busy = ref(false)
@@ -107,13 +118,19 @@ function onClose() {
 async function setKind(kind: string) {
   const m = props.msg
   if (!m || !m.msg_id || kind === shown.value || busy.value) return
+  /* props.kind is the aggregate key the row rendered. Capture it before the
+     parent paints the pending kind over this same badge. */
+  const from = props.kind
   busy.value = true
   pending.value = kind
+  emit('pending', { from, to: kind })
   try {
     const row = await useSpoolApi().setMessageKind(String(m.msg_id), kind)
     edit?.applyEverywhere(row)
+    emit('applied', { from, to: kind })
   } catch (err) {
     pending.value = ''
+    emit('revert')
     noteError({ source: 'kind-set', message: t('feed.kind_set.failed'), code: (err as { token?: string })?.token, error: err })
   } finally {
     busy.value = false

@@ -14,9 +14,13 @@ import { storageGetJson, storageSetJson } from './prefs.mjs'
  * A Channels row (SPL-1034) offers Move up / Move down, each only when there
  * is a neighbour that way (not on the first / last row).
  *
- * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, archivable?: boolean, moveUp?: boolean, moveDown?: boolean, topicArchive?: boolean, topicDelete?: boolean }} [opts]
+ * A topic row whose opener the viewer may re-type (topicKind) offers Kind,
+ * the card menu's own words (feed.msg_menu.kind). Only when the caller
+ * already knows they may: a row never offers a kind change the hub refuses.
+ *
+ * @param {{ person?: boolean, admin?: boolean, blocked?: boolean, muted?: boolean, pinned?: boolean, channel?: boolean, properties?: boolean, deletable?: boolean, archivable?: boolean, moveUp?: boolean, moveDown?: boolean, topicArchive?: boolean, topicDelete?: boolean, topicKind?: boolean }} [opts]
  */
-/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'delete' | 'chevron-up' | 'chevron-down', labelKey: string }[]} */
+/** @returns {{ id: string, icon: 'open' | 'copy' | 'check' | 'ban' | 'user-check' | 'bell' | 'bell-off' | 'pin' | 'x' | 'trash' | 'settings' | 'archive' | 'delete' | 'chevron-up' | 'chevron-down' | 'tag', labelKey: string }[]} */
 export function rowMenuItems(unread, opts = {}) {
   const o = opts && typeof opts === 'object' ? opts : {}
   const items = [
@@ -24,6 +28,9 @@ export function rowMenuItems(unread, opts = {}) {
     { id: 'copy', icon: 'copy', labelKey: 'sidebar.row_menu.copy_link' },
   ]
   if (unread) items.push({ id: 'read', icon: 'check', labelKey: 'sidebar.row_menu.mark_read' })
+  /* tag is the kind glyph (uiIcons). The label is the card menu's, already
+     translated: no second catalogue entry. */
+  if (o.topicKind) items.push({ id: 'kind', icon: 'tag', labelKey: 'feed.msg_menu.kind' })
   if (o.channel) {
     items.push({
       id: 'mute',

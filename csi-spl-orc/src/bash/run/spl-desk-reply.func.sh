@@ -40,7 +40,12 @@
 # @description ask the lane to add the line do_release_note_link prints. A
 # @description warning only - the answer is still sent, unchanged.
 # @description Prints one JSON line (msg_id, task_id, to, kind, the answered
-# @description message's id and its first characters). No secret is read.
+# @description message's id and its first characters, and `permalink`: the
+# @description WUI deep link <wui>/m/<msg_id> of the post just sent), then the
+# @description permalink on its own OK line. A post that asks the owner a
+# @description question (DESK_KIND=blocker at least) keeps that link and cites
+# @description it whenever it refers to the question again (owner, t1 48d09034;
+# @description csi-spl-doc/doc/help/how-to-post.md rule 9). No secret is read.
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -54,6 +59,7 @@
 # @param   A missing file and a file this run user cannot read are different
 # @param   FATALS; the latter names the user and the spool root's dispatch/.
 # @param DESK_BOX (optional) - default box-desk, the same value do_spl_desk_up used
+# @param DESK_WUI_URL (optional) - the WUI base of the permalink, default the env's WUI (cnf env.dns.fqdn)
 # @param DESK_KIND (optional) - note (default) | result | reject | blocker | msg
 # @param   (blocker = the agent cannot proceed without the human's input; SPL-952)
 # @param DESK_TO (optional) - answer THIS human id instead of the newest sender
@@ -104,8 +110,12 @@ do_spl_desk_reply() {
 
   local sent route=dm sent_task="$ans_task"
   _spl_desk_reply_send || return 1
-  SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" \
-    _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head"
+  local summary link
+  summary="$(SPL_SENT="$sent" SPL_ROUTE="$route" SPL_REF="$ans_ref" SPL_LINK_BASE="${DESK_WUI_URL:-${SPL_WUI_URL:-}}" \
+    _spl_desk_reply_summary "$ENV" "$tenant" "$box" "$agent" "$kind" "$ans_to" "$sent_task" "$ans_msg" "$ans_head")"
+  printf '%s\n' "$summary"
+  link="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("permalink",""))' "$summary" 2>/dev/null)"
+  [[ -n "$link" ]] && do_log "OK permalink $link - keep it; cite it whenever you refer to this post (how-to-post.md rule 9)"
   # The watermark of this desk's conversation: what "newer than the last
   # answer" means next time. It is a hint, not a record - losing it only makes
   # the next run ask instead of choosing.
@@ -190,7 +200,9 @@ _spl_desk_reply_send() {
 # _spl_desk_reply_summary <env> <tenant> <box> <agent> <kind> <to> <task>
 # <answered msg> <answered head>: the JSON line of an answer, with the send
 # result from SPL_SENT. With SPL_REF (spec 067) it adds ref_task_id and route:
-# topic (answered in it), dm-fallback (edge 2) or dm.
+# topic (answered in it), dm-fallback (edge 2) or dm. With SPL_LINK_BASE and a
+# sent msg_id it adds permalink: <base>/m/<msg_id>, the WUI deep link that
+# opens exactly that post (owner, t1 48d09034).
 _spl_desk_reply_summary() {
   python3 - "$@" <<'EOF_PY'
 import json, os, sys
@@ -205,7 +217,12 @@ row = {"env": env, "tenant": tenant, "box": box, "agent": agent, "kind": kind,
        "send": sent}
 if os.environ.get("SPL_REF"):
     row["ref_task_id"], row["route"] = os.environ["SPL_REF"], os.environ.get("SPL_ROUTE", "")
+base = os.environ.get("SPL_LINK_BASE", "").rstrip("/")
+sent_id = sent.get("msg_id", "") if isinstance(sent, dict) else ""
+if base and sent_id:
+    row["permalink"] = base + "/m/" + sent_id
 print(json.dumps(row, sort_keys=True))
+
 EOF_PY
 }
 

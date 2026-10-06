@@ -42,6 +42,14 @@ comments and issue descriptions.
    folder links, and files that are not `.md`, stay on the code host. A doc
    the store has not published yet opens to a short note and its code host
    link.
+9. A post that asks a human a question keeps its own link (owner HUM-10,
+   2026-10-06, t1 topic 48d09034). `do_spl_desk_reply` prints it as
+   `permalink` (`<wui>/m/<msg_id>`) for every post, a `blocker` included.
+   Store it with the question. Whenever you refer to that question again,
+   cite that link (or the message id, which also links), never "see above".
+   A click opens exactly that message, scrolled into view and highlighted,
+   on a phone and on a desktop, even inside the same topic.
+
 
 ## 2. Example
 

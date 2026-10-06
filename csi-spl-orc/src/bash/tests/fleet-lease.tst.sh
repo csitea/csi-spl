@@ -67,6 +67,9 @@
 #      the same fixture, the same pane after a good turn is able; a usage
 #      limit with a reset time is as before; the pokes and their error replies
 #      are not activity, so the ask behind them is stuck.
+#  21. spec 093 T006: the lease reads the watchdog's dispatch/wd.<id>: a HIT
+#      at most 90 s old is not able ("wd <code>"), the standby box takes orch
+#      at 181 s; an OK, a stale HIT, a garbled file or no file are as before.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -637,6 +640,52 @@ login 200 good-turn
 tick sat $((N + 240)) "${T20[@]}"
 [[ "$(hubh orch)" == CLE-001@sat ]] && pass "20. CONTROL: logged in again (a good turn), sat takes orch back on rank" || fail "20. back: $(hubh orch)"
 rm -f "$T/pane/200" "$T/tr/200"
+PRIO=pc,sat
+
+# --- 21. spec 093 T006: the lease reads the watchdog's verdict ---------------------------
+# dispatch/wd.<id> is "HIT <code> <epoch>" or "OK <epoch>" (spl-watchdog.func.sh).
+# A HIT at most 90 s old makes the agent not able ("wd <code>"); an older HIT,
+# an OK, a garbled file or none changes nothing.
+rm -rf "$T/pc" "$T/sat" "$T/hub" "$T/pane" "$T/tr"; mkdir -p "$T/hub" "$T/pc/proc" "$T/sat/proc" "$T/pane" "$T/tr"
+agent pc 100 CLE-001; agent pc 101 CLE-002; agent pc 102 CLE-003
+agent sat 200 CLE-001; agent sat 201 CLE-002; agent sat 202 CLE-003
+N=1791007200; WD="$T/pc/spool/dispatch/wd.CLE-001"; mkdir -p "$T/pc/spool/dispatch"
+got="$(unit spl_lease_agent_able CLE-001 LEASE_NOW=$N)"
+[[ "$got" == 100 && ! -e "$WD" ]] && pass "21. no wd file: able as before" || fail "21. no file: '$got'"
+for v in "OK $N" "HIT S3 $((N - 91))" "HIT S3" "garbage"; do
+  echo "$v" >"$WD"
+  got="$(unit spl_lease_agent_able CLE-001 LEASE_NOW=$N)"
+  [[ "$got" == 100 && "$(cat "$T/pc/spool/dispatch/able.CLE-001")" == able ]] && pass "21. wd '$v': able" || fail "21. wd '$v': '$got'"
+done
+echo "HIT S3 $((N - 90))" >"$WD"
+got="$(unit spl_lease_agent_able CLE-001 LEASE_NOW=$N)"
+[[ -z "$got" && "$(cat "$T/pc/spool/dispatch/able.CLE-001")" == "wd S3: HIT 90s ago" ]] &&
+  pass "21. a HIT 90 s old: not able (wd S3)" || fail "21. 90 s: '$got' $(cat "$T/pc/spool/dispatch/able.CLE-001")"
+printf 'HIT S2 %s' "$N" >"$WD"
+got="$(unit spl_lease_agent_able CLE-001 LEASE_NOW=$N)"
+[[ -z "$got" && "$(cat "$T/pc/spool/dispatch/able.CLE-001")" == "wd S2: HIT 0s ago" ]] &&
+  pass "21. a HIT with no trailing newline is read" || fail "21. no newline: '$got'"
+echo "HIT S3 $((N - 30))" >"$WD"
+got="$(unit spl_lease_agent_able CLE-001 LEASE_NOW=$N WD_FRESH=20)"
+[[ "$got" == 100 ]] && pass "21. WD_FRESH bounds the window" || fail "21. WD_FRESH: '$got'"
+rm -f "$WD"
+# the fleet: sat ranked first holds orch; its orchestrator's watchdog verdict turns HIT S3
+PRIO=sat,pc
+tick sat $N; tick pc $N
+[[ "$(hubh orch)" == CLE-001@sat ]] && pass "21. sat's orchestrator holds orch" || fail "21. setup: $(hubh orch)"
+echo "HIT S3 $((N + 50))" >"$T/sat/spool/dispatch/wd.CLE-001"
+tick sat $((N + 60))
+[[ "$(logc sat 'NO-LOCAL-AGENT orch.*CLE-001: wd S3: HIT 10s ago')" == 1 && "$(hubh dispatch)" == CLE-002@sat ]] &&
+  pass "21. a fresh HIT S3: sat stops renewing orch (logged with why), keeps dispatch" || fail "21. sat: $(cat "$T/sat/spool/dispatch/lease.log")"
+tick pc $((N + 180))
+[[ "$(hubh orch)" == CLE-001@sat ]] && pass "21. 180 s is not stale yet" || fail "21. early: $(hubh orch)"
+tick pc $((N + 181))
+[[ "$(hubh orch)" == CLE-001@pc && "$(hubh dispatch)" == CLE-002@sat ]] &&
+  pass "21. 181 s after sat's last orch renewal pc takes orch; dispatch stays on sat" || fail "21. takeover: $(hubh orch)/$(hubh dispatch)"
+tick sat $((N + 141))
+[[ "$(hubh orch)" == CLE-001@sat && "$(cat "$T/sat/spool/dispatch/able.CLE-001")" == able ]] &&
+  pass "21. the HIT now 91 s old is stale and ignored: sat takes orch back on rank" || fail "21. back: $(hubh orch) $(cat "$T/sat/spool/dispatch/able.CLE-001")"
+rm -f "$T/sat/spool/dispatch/wd.CLE-001"
 PRIO=pc,sat
 
 echo

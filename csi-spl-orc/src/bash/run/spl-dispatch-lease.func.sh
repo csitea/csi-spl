@@ -574,11 +574,18 @@ spl_lease_send_esc() {
 # The pid of <id> when it is live AND able to act (spl_lease_stall); empty
 # otherwise. A dismissable modal is Escape once, then re-checked, before
 # that verdict. Why not is left in $LEASE_DIR/able.<id> for the loggers.
+# Spec 093 P1 (section 9): the watchdog's verdict $LEASE_DIR/wd.<id>
+# ("HIT <code> <epoch>" or "OK <epoch>") is read too; a HIT at most
+# WD_FRESH s (default 90) old is "wd <code>"; an older one, an OK or no file
+# changes nothing.
 spl_lease_agent_able() {
-  local id="$1" pid why
+  local id="$1" pid why wd=() wd_age=-1
   pid="$(spl_lease_agent_pid "$id")"
+  read -r -a wd 2>/dev/null < "$LEASE_DIR/wd.$id" || true
+  [[ "${wd[0]:-}" == HIT && "${wd[2]:-}" =~ ^[0-9]+$ ]] && wd_age=$(( $(spl_lease_now) - wd[2] ))
   if [[ -z "$pid" ]]; then why="no live process"
   elif why="$(spl_lease_held "$id")" && [[ -n "$why" ]]; then :
+  elif (( wd_age >= 0 && wd_age <= ${WD_FRESH:-90} )); then why="wd ${wd[1]:-?}: HIT ${wd_age}s ago"
   else
     spl_lease_dismiss_modal "$id" "$pid"
     why="$(spl_lease_stall "$pid")"

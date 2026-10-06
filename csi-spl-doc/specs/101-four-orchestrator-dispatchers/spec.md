@@ -1,10 +1,10 @@
 # 101: four orchestrator-dispatchers acting at once
 
-Status: **v0.1, draft for the panel, 2026-10-06.** Spec only: no code, cnf,
+Status: **v0.2, r3 folded in, 2026-10-06** (v0.1 `366acebe`). Spec only: no code, cnf,
 `lease.conf`, crontab or seat was touched by this lane.
 Author: c-387@sat (the pen; claude, standing in for the agy seat: no agy
 binary on sat). Reviewers: r1, r2, r3 (claude, standing in for agy and grok),
-notes under `research/`.
+notes under [research/](research/).
 Topic: owner DM t1 `e05fb2f8-cba5-46f8-b101-0a5a57cdb8e8`; panel spool task
 `cc7726e7-55b7-43a7-865b-eeeab5c75c3a`.
 Builds on: [068 peer seats](../068-peer-seats/spec.md) (four ODs per box, the
@@ -112,10 +112,10 @@ first to the seat that owns its opening job.
 
 | failure seen 2026-10-06 | cause | closed by |
 |---|---|---|
-| the same task spawned twice by two orchestrators | two role holders acted on one ask (no per-item owner) | the claim (one owner per job), the fence before the spawn, the `spawn` mutex (068 L5) |
+| the same task spawned twice by two orchestrators | two role holders acted on one ask; and one ask can arrive as two MESSAGES (an owner post plus its relay, a blocker sent to two ids, a `cc:`) | the claim gives one owner per message only; the `spawn` mutex orders spawns but does not drop a repeat. Closed by **D5**: an ask key `ask=<topic>:<slug>` on every spawn, checked under the `spawn` mutex against the registry and `fleet_asks`; a repeat is refused naming the first lane's `<ID>@<box>`. Only the topic's owner seat instructs a running lane; any other seat forwards to the owner (r3 F1) |
 | owner posts nobody answered | a post reached a seat that was not the lease holder, or arrived in a gap | a job is a row with `handled_at IS NULL`: every poll sees it until it closes; T10 dead-letters with an owner DM after 6 rounds / 4 owners |
-| results landed in the wrong orchestrator's inbox (`c-001` resolves locally) | a bare `c-001` means this box's | `--to orchestrator` becomes `to_id = 'peers'` on the hub (068 L4), claimed like a human post; a lane's report goes first to the seat that spawned it (093 4.4) |
-| a prd-read request routed to a seat whose harness refuses it | the role decided the actor, not the capability | release with `--reason harness-refused:<step>` puts the harness in `not_by`; the next round skips it (068 F6). Section 5 adds a per-seat capability so the first round is right |
+| results landed in the wrong orchestrator's inbox (`c-001` resolves locally) | a bare `c-001` means this box's | `--to orchestrator` becomes `to_id = 'peers'` on the hub (068 L4), claimed like a human post; a lane's report goes first to the seat that spawned it (093 4.4). Not enough alone: briefs and lanes write a bare `c-001`, which still resolves locally. **D6**: from the first seat, `spool-send.sh --to c-00[1-4]` without `@box` from a lane is rewritten to `peers` with one warning; after L10 it is refused; the brief templates stop writing "report to c-001" in the same build step (r3 F2) |
+| a prd-read request routed to a seat whose harness refuses it | the role decided the actor, not the capability | release with `--reason harness-refused:<step>` puts the harness in `not_by`; the next round skips it (068 F6). Section 5 adds a per-session capability (D2) so the first round is right |
 
 ## 4. The lease model (brief question 2)
 
@@ -152,9 +152,12 @@ the owner allowed grok seats the same powers (068 1.3, `220915e8`).
 What 068 lacks is a way to send a prd job to a seat that CAN run it on the
 first round, rather than learning it from a refusal (the 2026-10-06 failure).
 
-**Delta D2: a capability per seat.** The seat drill (068 L7) records, per
-seat, which of `prd-read`, `prd-write`, `deploy` its harness ran (one dry or
-read-only probe each). The seats file carries it; a job tagged `needs=prd`
+**Delta D2: a capability per session, re-probed** (r3: a refusal is a
+property of the SESSION - harness, settings, the model's judgement - not of
+the seat). At every seat start, the L7 setup and every hourly restart alike,
+a read-only probe through `do_spl_peer_prd` with a no-op action (e.g.
+`do_spl_dispatch_check`) writes `prd=yes|no` into `peer/seats/<id>` before
+the seat's first poll. The seats file carries it; a job tagged `needs=prd`
 (a message whose sender asked for a prd step: the ask book's `--ask` kinds,
 or a lane's blocker naming a prd action) opens its first round only among
 seats that hold the capability. No seat on any box holds it: the job goes to
@@ -172,6 +175,7 @@ How a lane finds the right one: it does not. It sends to `orchestrator`
 | its jobs | the poll loop stops renewing (heartbeat not fresh); `locked_until = anchor + 120 s` passes; the next poll of any seat on any box frees it and opens a round | 125 s from the last progress |
 | its open topics | a follow-up in its topic: the first round goes to it only while it is fresh; stale, the row starts `free`, the new accepter becomes the topic's owner (093 4.3, 8.4) | the same |
 | its open asks | the ask's lock is the message's lock (068 L4): the ask moves with the job | the same |
+| its owned topics' context | the investigation blocker (093 8.2) lists the dead seat's owned TOPICS, not only its jobs: a follow-up in a topic whose last job is `done` reaches a new owner who must read the topic on the hub (r3 4.2) | with the blocker |
 | its session | the box watchdog: S1..S8, then `do_spl_wd_takeover` (a fresh session under the same id from the 060 handoff); at most 2 per id per hour | per situation, 093 6.1 |
 | a parked job (waiting on a lane) | renewed only while the holder is able; not able: free within 120 s, the next owner inherits `wait_token` | 125 s |
 
@@ -185,8 +189,15 @@ How a lane finds the right one: it does not. It sends to `orchestrator`
   the dead-letter stay. The handover blocker and the re-raise to ONE holder go:
   an ask is a job, and a job is offered to every ready seat. The book stays
   fleet-wide, not per OD: an ask belongs to whoever holds its message.
-- **Unanswered sweep**: removed (068 6.2): an unanswered human post is a row
-  with `handled_at IS NULL`, which every poll sees.
+- **Unanswered sweep: kept through the soak (D7, changes 068 6.2).** It is
+  the only check that does not trust the claim, so it is what sees a claim
+  bug. From M4 it runs from every box; its note is itself a `to: peers`
+  message, so one seat takes it. It is retired only by a separate decision
+  after the M5 numbers (owner question 7).
+- **Two schedulers** (r3 4.3): while an id has a seat file,
+  `do_spl_orch_rotate` / `do_spl_dispatch_rotate` skip it (`SKIP seat`), and a
+  watchdog takeover of a seat writes no `rotate.hold` (**D9**). This matters
+  in M3b and after a rollback, when an id is both a lease role and a seat.
 
 ## 8. Where the four run, the cost, the migration and the rollback (brief questions 6, 7)
 
@@ -204,6 +215,17 @@ now**: 068 3.1 already holds that each box carries the whole job alone.
 
 Recommendation A, with B as the target once the PC is not overloaded: the
 design takes N boxes and nothing in it names one. Owner question 1.
+
+**Two conditions on A before the cut-over** (r3 4.4, F5: at 04:27:02Z today
+sat's c-002 and c-003 were both stalled on `/login` at once, one login):
+
+1. **Two logins.** The four seats split over two agent users (two claude
+   accounts), or two harnesses once grok is back, so one expired login stops
+   at most two. If no second login is available: **A' = three on sat + one on
+   the PC** (the PC's agent user is a different login, and one seat costs the
+   PC less than today's three role sessions). Owner question 5.
+2. **M6 waits until a second box holds a seat.** Until M6 a rollback brings
+   the PC's role trio back; after it, sat down = no OD at all.
 
 **Harness mix.** 068 fixed two claude + two grok per box against one login
 freezing every seat (068 F2). Today agy has no binary on sat and grok is at
@@ -227,9 +249,29 @@ box), so option A runs **fewer** decider sessions than today, not more.
 | M1 | build: D1 (hub router ignores mutex rows), 093 T010 (two-phase poll loop), 068 L7 (`do_spl_peer_setup` + drill tooling), D2 (capability per seat), D3 (the cut-over action, below) | the fleet lease | none needed: all inert without `peer/seats` |
 | M2 | confirm rdb 0110 / 0111 / 0132 are applied on dev and prd; apply what is not (**owner go**: a hub migration is a GCP mutation) | the fleet lease | the migrations are additive columns with constant defaults (093 4.1) |
 | M3 | drill on dev: four seats on sat against the dev hub, 068 L7's drill (kill one OD, SIGSTOP the box, 20 posts, each delay of 068 section 7, n >= 5) | prd: the fleet lease | remove the dev `peer/seats` |
-| M4 | **cut-over on prd, ONE action** `do_spl_fleet_od_cutover` (D3) under the `fleet-config` mutex: on every box, in this order: stop the lease loops (`LEASE_CMD=stop`) and move `lease.conf` aside, remove `orch-rotate` / `dispatch-rotate` / `unanswered-sweep`, then write `peer/seats` on sat and install the peer crons; the old role sessions write their 060 handoff, an OD acks it, they exit one at a time | from the first seats write: the four seats only | `do_spl_fleet_od_cutover ROLLBACK=1`: remove `peer/seats` on every box (every peer piece goes inert at once), restore `lease.conf` and the three crons, `LEASE_CMD=ensure`; the lease elects a holder within one tick |
-| M5 | soak: a week of the seats on prd; `do_spl_dispatch_check` reports the seats instead of the lease | the seats | M4's rollback |
-| M6 | 068 L10 + L9 + 093 T012: delete the role code, rewrite fleet-roles | the seats | git revert |
+| M3b | **prd shadow, 24 h** (r3): `peer/seats` on sat with `PEER_SHADOW=1` (**D8**): the seats poll and log which seat WOULD own each job; no stub, no ring, every accept refused. The lease still decides everything | the fleet lease only: a shadow seat decides nothing | delete `peer/seats` on sat |
+| M4 | **cut-over on prd, ONE action** `do_spl_fleet_od_cutover` (D3) under the `fleet-config` mutex: on every box, in this order: stop the lease loops (`LEASE_CMD=stop`) and move `lease.conf` aside, remove `orch-rotate` / `dispatch-rotate` (the sweep stays, D7), then write `peer/seats` and install the peer crons. **Per id the hand-over is a 060 rotation** (r3: the seat ids ARE the role ids; two `c-001@sat` sessions cannot co-run, `spl_peer_pids`, and they share one inbox): the role session writes its handoff and exits, the new session under the same id is seeded as a seat (the seat seed + the handoff), one id at a time, the next after the new one acks; `c-004` is a plain spawn. The first poll of each seat lists the open asks once. D6's rewrite is on from here | from the first seats write: the seats only | `do_spl_fleet_od_cutover ROLLBACK=1`: remove `peer/seats` on every box (every peer piece goes inert at once), restore `lease.conf` and the crons, `LEASE_CMD=ensure`; the PC's trio carries the roles while sat's seat sessions are rotated back into role sessions (the same 060 path, reversed) |
+| M5 | soak: a week of the seats on prd, the sweep still running (D7); `do_spl_dispatch_check` reports the seats instead of the lease | the seats | M4's rollback |
+| M6 | 068 L10 + L9 + 093 T012: delete the role code, rewrite fleet-roles. Only after the M5 numbers pass AND a second box holds a seat (8.1) | the seats | git revert + `do_spl_dispatch_setup` on both boxes |
+
+### 8.4 Pass numbers per step (r3 5.3)
+
+Every number carries the tree sha, the switch states (`PEER_SHADOW`,
+`SPOOL_TO_PEERS`) and n.
+
+| step | measured | pass |
+|---|---|---|
+| M3 dev drill | kill one OD, SIGSTOP a box's ODs, expire one login (fixture) | each job moves within 125 s, n >= 5 each |
+| M3b prd shadow, 24 h | per human post: the lease holder that answered vs the seat the shadow picked; rounds per job; lapses; prd jobs with no capable seat | every post has exactly one shadow owner; median shadow pickup <= 5 s |
+| M5 soak, 7 days | lane reports in an old role inbox; first agent reply per human post; posts with two agent answers; sweep items | 0 reports in an old role inbox; p95 <= 180 s; 0 double answers; sweep items not above the 7 days before M4; every prd job with no capable seat at the owner leg within one tick |
+
+The build carries one regression test per failure seen, each with a control
+(r3 section 5.1, R1..R12): dup ask over two messages, two relays to one lane,
+a bare `c-001` from a lane, a result during a role flip, a prd job with and
+without a capable seat, the re-probe after restart, the one-decider cut-over
+and its half-applied control, shadow decides nothing, the same-id hand-over,
+four seats on one login, a seat that is also a lease role, two schedulers,
+and the sweep still seeing a claim bug.
 
 **Delta D3: the cut-over is one fleet action, not a sequence of hand edits.**
 While the PC's role sessions hold the lease and sat's seats claim from the
@@ -247,7 +289,12 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 | D1 | the hub's channel router reads only the `orch` / `dispatch` roles, never a mutex row | `internal/hub/role_group.go` (`roleSeats`) + its test | 4: a `spawn` mutex would re-route an agent number's channel posts |
 | D2 | a capability per seat (`prd-read`, `prd-write`, `deploy`), recorded by the seat drill, read by the first round of a `needs=prd` job | 068 L7's setup + 093 T010's round | 3.2: the 2026-10-06 prd-read misroute |
 | D3 | one cut-over action with a rollback, under the `fleet-config` mutex | a new `do_spl_fleet_od_cutover` in csi-spl-orc | 8.3: two deciders on prd during a hand edit |
-| D4 | placement A: four on sat, the PC none until its load allows | the seats file per box | 8.1, owner question 1 |
+| D4 | placement A: four on sat over two logins (else A': 3 + 1), the PC's four when its load allows | the seats file per box | 8.1, owner questions 1, 5 |
+| D5 | ask key `ask=<topic>:<slug>` on every spawn, checked under the `spawn` mutex; only the topic's owner instructs a lane | spawn launchers + `spl-peer-gate.func.sh` | 3.2 row 1 (r3) |
+| D6 | a bare `c-00[1-4]` from a lane is rewritten to `peers` (M4..M6), refused after L10; brief templates stop writing it | `spool-send.sh`, the spawn seeds | 3.2 row 3 (r3) |
+| D7 | the unanswered sweep stays through the soak, from every box, as a `to: peers` note | `do_spl_unanswered_sweep` | 7 (r3) |
+| D8 | `PEER_SHADOW=1`: rounds logged, no stub, no ring, no accept | `spl-peer-poll.func.sh` (`grep -rn PEER_SHADOW csi-spl-orc/src/bash` -> 0 on `ccd87045`) | 8.3 M3b (r3) |
+| D9 | the 060 rotations skip an id with a seat file; a seat's takeover writes no `rotate.hold` | `spl-orch-rotate`, `spl-dispatch-rotate`, `spl-wd-takeover` | 7 (r3) |
 
 ## 10. Owner questions (one list, to c-001@sat)
 
@@ -259,7 +306,15 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 3. (c-001, prd read) Are rdb 0110, 0111 and 0132 applied on dev and prd? If
    not: the go to apply them (M2).
 4. The cut-over (M4) retires the PC's role sessions and the fleet lease
-   roles on prd in one step, after the dev drill (M3): go when M3 is green?
+   roles on prd in one step: go when the dev drill (M3) and the 24 h prd
+   shadow (M3b) pass their numbers (8.4)?
+5. May the four seats run under two logins (a second agent user with its own
+   claude account), so one expired login stops at most two? If not: three on
+   sat + one on the PC.
+6. Is a standing read-only prd probe per seat session acceptable (D2)? It is
+   how a seat learns, after each hourly restart, whether its harness runs prd.
+7. Keep the unanswered sweep until a week after the cut-over, and retire it
+   only by a separate decision (D7)?
 
 ## 11. Panel
 
@@ -268,8 +323,8 @@ writes every machine or none (068 section 5's `fleet-config` rule, born of
 | author | c-387 | this file | - | - |
 | r1 | - | research/r1.md | - | - |
 | r2 | - | research/r2.md | - | - |
-| r3 | - | research/r3.md | - | - |
+| r3 | c-390 | [research/r3-claude.md](research/r3-claude.md) | `b4cbe0ce` | agree on the finding; changes 3.2, 5, 7, 8.1, 8.3 - all folded in v0.2 |
 
 Consensus: not yet.
 
-<!-- version: 0.1.0 · updated: 2026-10-06 · last-edit: 2026-10-06T17:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-06 · last-edit: 2026-10-06T17:40:00Z -->

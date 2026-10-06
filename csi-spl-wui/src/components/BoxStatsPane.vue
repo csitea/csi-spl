@@ -201,10 +201,12 @@ const runtimes = computed(() => boxRuntimesOf(props.detail))
 const sys = computed(() => boxSystemOf(props.detail))
 const net = computed(() => boxNetworkOf(props.detail))
 const factsAt = computed(() => factsReportedAt(props.detail))
-/* swap in use of its total: "512 MiB / 2.0 GiB" */
+/* swap in use of its total: "512 MiB / 2.0 GiB"; "0" on a box without
+   swap (t1 950d5562: sat read "—", as if never reported) */
 const swapLine = computed(() => {
   const s = sys.value
   if (!s || s.swapTotalMB === null) return ''
+  if (s.swapTotalMB === 0) return '0'
   const used = s.swapFreeMB === null ? null : Math.max(0, s.swapTotalMB - s.swapFreeMB)
   return used === null ? formatMB(s.swapTotalMB) : `${formatMB(used)} / ${formatMB(s.swapTotalMB)}`
 })

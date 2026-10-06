@@ -103,7 +103,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: each rule and each 403 reason tested; anchored grep `^(Co-Authored-By:|Claude-Session:)` over generated messages = 0.
   - **Depends**: T06.
 
-- [ ] T08 **hub routes** (M).
+- [x] T08 **hub routes** (M). Done `3d902622` (c-421): every §10 API answer tested on Postgres (`repo_docs_edit_test.go`), `demo_user` 403, every write route 404 while off; the T10 worker started from `cmd/spool/hub_repo_edit.go` only when enabled. For T13: the hub also needs `SPOOL_HUB_DOCS_EDIT_GITHUB_REPO` (`<owner>/<repo>`, no default; not yet derived in cnf), else editing stays off with a logged reason.
   - **Build**: `api/internal/hub/repo_docs_edit.go`: `PUT /v1/docs/{path}` (session or agent token, `docs.write`, `enabled`, `blocked_workspaces`, `min_member_age`, rate, size, T05 gates, T07 author + 428 + requester, overlay write `.edits/<path>/<edit_id>.md`, row insert), `POST /v1/docs/author-notice`, `GET /v1/docs/edits`, `POST .../retry`, `GET .../conflict`; `GET /v1/docs/{path}` serves the newest live overlay; `tree.json` merged with overlay-only paths. Wiring of the cnf keys into `Options`.
   - **Owns**: that file, its tests, the small edits in `docs.go` and the server wiring.
   - **Done-proof**: hub tests for every answer in the spec §10 API table; `demo_user` 403; with `enabled: false` every write route 404s; deployed dark to dev and prd (`/version` shows the commit's version on both).

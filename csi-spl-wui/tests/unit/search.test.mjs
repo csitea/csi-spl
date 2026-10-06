@@ -12,6 +12,7 @@ import {
   searchApiQuery,
   searchPath,
   searchQueryOf,
+  channelLookupOf,
   ensureSearchOperators,
   OP_PICKER_CAP,
   operatorHelpRows,
@@ -54,6 +55,23 @@ describe('omnibox mode switch', () => {
     assert.equal(searchQueryOf('/search:from:EZB-1 is:task'), 'from:EZB-1 is:task')
     assert.equal(searchQueryOf('/search:'), '')
     assert.equal(searchQueryOf('hello'), '')
+  })
+})
+
+// t1 2b15a748: `lobby`, `/csi-fina` typed to find a channel were posted.
+describe('channelLookupOf: a one-word #name or /name line looks a channel up', () => {
+  it('#name is searched as typed, /name without the slash', () => {
+    assert.equal(channelLookupOf('#lobby'), '#lobby')
+    assert.equal(channelLookupOf('  #csi-fina \n'), '#csi-fina')
+    assert.equal(channelLookupOf('/csi-fina'), 'csi-fina')
+    assert.equal(channelLookupOf('/lobby'), 'lobby')
+    assert.equal(channelLookupOf('#общи'), '#общи')
+  })
+  it('CONTROL: a message, a command, a path or a bare word is not a lookup', () => {
+    for (const s of ['', 'lobby', 'hello #lobby', '#lobby is down', '#', '/', '/search', '/s', '/search lobby',
+      '/switch-pane: flow', '/etc/hosts', '#-x', '/csi fina', '```\n#lobby\n```', '@CLE-07']) {
+      assert.equal(channelLookupOf(s), null, s)
+    }
   })
 })
 
@@ -532,6 +550,16 @@ describe('mock matcher (lde only)', () => {
   it('CONTROL: no match → empty; an operator the mock does not model warns', () => {
     assert.deepEqual(mockSearch(msgs, 'nothing-like-this').groups.messages.results, [])
     assert.equal(mockSearch(msgs, 'larger:1M deploy').warnings.length, 1)
+  })
+  it('t1 2b15a748: a channel by its name, #name or part of it (as the hub)', () => {
+    const chans = [{ channel_id: 'lobby', name: 'lobby' }, { channel_id: 'csi-fina', name: 'csi-fina' }]
+    for (const q of ['lobby', '#lobby', 'lob']) {
+      assert.deepEqual(mockSearch(msgs, q, chans).groups.channels.results.map((c) => c.channel), ['lobby'], q)
+    }
+    assert.deepEqual(mockSearch(msgs, '#lobby', chans).groups.channels.results[0].name, { text: 'lobby', highlights: [[0, 5]] })
+    assert.deepEqual(mockSearch(msgs, 'csi-fina', chans).groups.channels.results.map((c) => c.channel), ['csi-fina'])
+    assert.deepEqual(mockSearch(msgs, 'in:#lobby', chans).groups.channels.results, [])
+    assert.deepEqual(mockSearch(msgs, 'deploy', chans).groups.channels.results, [])
   })
 })
 

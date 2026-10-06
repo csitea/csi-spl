@@ -332,7 +332,7 @@ export function originalHref(row, opts = {}) {
  * over body, plus `from:` `to:` `in:` `is:`. Anything else is ignored with a
  * warning — the real grammar is the hub's.
  */
-export function mockSearch(messages, q) {
+export function mockSearch(messages, q, channels = []) {
   const words = []
   const filters = []
   const warnings = []
@@ -362,5 +362,19 @@ export function mockSearch(messages, q) {
     results.push({ ...msg, created_at: msg.ts, snippet: { text: body, highlights } })
   }
   results.sort((a, b) => String(b.ts).localeCompare(String(a.ts)))
-  return { query: String(q || ''), sort: 'newest', types: ['message'], warnings, groups: { messages: { results, next: null } } }
+  /* the hub's channel section (t1 2b15a748): free words only, over the id,
+     the name and `#id` */
+  const chans = filters.length || !words.length ? [] : (channels || []).filter((c) => {
+    const id = String((c && (c.channel_id || c.channel)) || '')
+    const hay = [id, String((c && c.name) || ''), '#' + id].map((x) => x.toLowerCase())
+    return id && words.every((w) => hay.some((h) => h.includes(w)))
+  }).map((c) => {
+    const id = String(c.channel_id || c.channel)
+    const w = words.map((x) => x.replace(/^#/, '')).find((x) => x && id.toLowerCase().includes(x)) || ''
+    const at = w ? id.toLowerCase().indexOf(w) : -1
+    return { channel: id, default: false, count: (messages || []).filter((m) => m.channel === id).length, last_ts: null,
+      name: { text: id, highlights: at >= 0 ? [[at, at + w.length]] : [] } }
+  })
+  return { query: String(q || ''), sort: 'newest', types: ['message', 'channel'], warnings,
+    groups: { messages: { results, next: null }, channels: { results: chans, next: null } } }
 }

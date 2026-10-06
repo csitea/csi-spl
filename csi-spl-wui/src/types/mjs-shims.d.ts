@@ -1345,6 +1345,7 @@ declare module '~/utils/search.mjs' {
   export function omniboxMode(text: string): 'search' | 'send'
   export function omniboxTextLeavingSearch(text: string): string
   export function searchQueryOf(text: string): string
+  export function channelLookupOf(text: string): string | null
   export function searchPath(q: string): string
   export function searchApiQuery(o: { q?: string, cursor?: string, limit?: number, sort?: string }): string
   export function operatorTokenAt(text: string, caret?: number): { token: string, start: number, end: number } | null
@@ -1364,7 +1365,7 @@ declare module '~/utils/search-results.mjs' {
   export function flattenGroups(groups: SearchGroup[]): SearchRow[]
   export function moveIndex(i: number, n: number, key: string): number
   export function searchTarget(row: unknown): { topic: string, focus: string } | { path: string } | { search: string } | { tenant: string } | null
-  export function mockSearch(messages: unknown[], q: string): unknown
+  export function mockSearch(messages: unknown[], q: string, channels?: unknown[]): unknown
   /** 022 §10: the right menu of a row and its original */
   export function isPlacedRow(row: unknown): boolean
   export function searchRowMenuItems(row: unknown): { id: 'original' | 'here' | 'copy', icon: import('~/utils/uiIcons').UiIconName, labelKey: string }[]

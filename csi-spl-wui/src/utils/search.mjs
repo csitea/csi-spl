@@ -137,6 +137,23 @@ export function omniboxMode(text) {
   return SEARCH_CMD_RE.test(String(text || '')) ? 'search' : 'send'
 }
 
+/** A one-word `#name` or `/name` line (letters, digits, `.`, `_`, `-`). */
+const CHANNEL_LOOKUP_RE = /^([#/])([\p{L}\p{N}][\p{L}\p{N}._-]*)$/u
+
+/**
+ * t1 2b15a748: a member typed `lobby`, `/csi-fina` into the Omnibox to find
+ * a channel, and each was POSTED as a message. A line that is one word written
+ * as a channel (`#lobby`) or as a slash word that is no command (`/csi-fina`)
+ * is a lookup, never a post: this is the search it runs (`#lobby` as typed,
+ * the hub matches a channel by it; `/csi-fina` without the slash), else null.
+ */
+export function channelLookupOf(text) {
+  const s = String(text || '').trim()
+  const m = s.match(CHANNEL_LOOKUP_RE)
+  if (!m || SEARCH_CMD_RE.test(s)) return null
+  return m[1] === '#' ? s : m[2]
+}
+
 /**
  * The omnibox line once the reader leaves /search (SPL-13). A search line
  * left behind keeps the omnibox in search mode on every page, and search

@@ -328,7 +328,7 @@ import { chipLabel, composerModeLabel, phoneChipLabel, composerSendKey, dockTarg
 import { omniboxMaxHeight, resizeHeight } from '~/utils/omnibox-dock.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
 import { switchPaneOf } from '~/utils/sidebar-tabs.mjs'
-import { applyCompletion, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
+import { applyCompletion, channelLookupOf, completeOperators, omniboxMode, omniboxTextLeavingSearch, operatorHelpRows, operatorTokenAt, OP_PICKER_CAP, searchQueryOf, type SearchOperator } from '~/utils/search.mjs'
 import {
   activeInQuery,
   filterTopicTitles,
@@ -1115,6 +1115,23 @@ function onGlobalKey(ev: KeyboardEvent): boolean {
   return false
 }
 
+/** The line is a search, not a post: it has been run (true). */
+function searchInstead(): boolean {
+  if (props.global && searchMode.value) {
+    // the rest of the line goes to the hub verbatim (search-v1 §0)
+    emit('search', searchQueryOf(text.value))
+    opClosed.value = true
+    return true
+  }
+  /* t1 2b15a748: `#lobby` or `/csi-fina` alone looks a channel up; it is
+     not posted. A file picked with it is a post. */
+  const lookup = (props.global || props.omnibox) && !picked.value.length ? channelLookupOf(text.value) : null
+  if (!lookup) return false
+  emit('search', lookup)
+  text.value = props.global ? `/search ${lookup}` : ''
+  return true
+}
+
 function onSend() {
   /* `/switch-pane: messages|channels|topics|flow` changes the left pane
      and is never sent. `topic` is the same pane. An unknown name stays in the box. */
@@ -1131,12 +1148,7 @@ function onSend() {
       return
     }
   }
-  if (props.global && searchMode.value) {
-    // the rest of the line goes to the hub verbatim (search-v1 §0)
-    emit('search', searchQueryOf(text.value))
-    opClosed.value = true
-    return
-  }
+  if (searchInstead()) return
   if (props.global && props.sendBlocked) {
     /* (owner: "clicking the GO button does not create a comment"):
        on a phone GO is the only button, so with no send target the text is

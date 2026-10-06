@@ -253,3 +253,22 @@ exactly what 10x-B needs (1.1). Two catches for spec.md:
 `btree_gin` must be creatable by the migrate login on Cloud SQL. I believe,
 unchecked, that it is a trusted extension (pg 13+), like `unaccent` in 0048.
 Rollout step 0 on dev proves it at no extra cost.
+
+## 9. Prd reads (c-001, 2026-10-06T15:32Z, ENV=prd, `do_spl_db_query` as `spool_hub_rt`, hub 2.0.5 `0c9203ca506e`, schema_head 0137, n=1 each)
+
+| read | result | closes |
+|---|---|---|
+| tier | `db-f1-micro`, ENTERPRISE, POSTGRES_16 | the tier in 1.2 is now measured |
+| `shared_buffers` | 16384 x 8 kB = **128 MB** | 1.2 |
+| `effective_cache_size` | 49352 x 8 kB = **~386 MB** (the planner's cache estimate; RAM itself is still unchecked) | 1.2: ~1.1 GB at 10x is ~3x what the planner even assumes is cacheable |
+| `max_connections` | 25 | matches the owner text |
+| `messages`, all 7 tenants | **132 MB, 22 369 rows** (the read ran in the operator scope, which sees every tenant) | 10x-B baseline: t1 is ~84% of the rows |
+| roles with `rolbypassrls` | only `cloudsqladmin`, which Cloud SQL owns. `spool_hub`, `spool_hub_rt`, `cloudsqlsuperuser`: all `f` | 2.3.1 on prd: S1 with an owner bypass is impossible. Only S1r (a role-scoped policy) or B remain, as spec v0.4 says |
+| `proleakproof` | `ts_match_vq` f, `bitand` f, `biteq` t | prd agrees with r3's local catalogue |
+
+The operator scope is `app.rls_scope = 'operator'` (`grep -n pgScopeOperator
+csi-spl-api/src/go/spool-hub-api/internal/store/rls.go` -> 19), a different
+setting from `app.tenant_id`. A function pinned to
+`NULLIF(current_setting('app.tenant_id', true), '')` therefore returns 0 rows
+in the operator scope. Spec v0.4 T1's "scope unset" case covers that, as long
+as the operator scope runs in it too.

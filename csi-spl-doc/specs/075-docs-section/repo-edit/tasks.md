@@ -109,7 +109,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: hub tests for every answer in the spec §10 API table; `demo_user` 403; with `enabled: false` every write route 404s; deployed dark to dev and prd (`/version` shows the commit's version on both).
   - **Depends**: T05, T06, T07.
 
-- [ ] T10 **hub worker** (M).
+- [x] T10 **hub worker** (M). Done `63dad9b7` + `3dc4ad52` (c-420): every spec §12 worker case tested against the T09 fake on Postgres (`hub-pg.tst.sh` runs `internal/repodocs` on its own database), incl. the dev/prd race and no double commit after a reclaim. For T08: start `repodocs.NewWorker(WorkerConfig{Env, Queue: pg, Repo: github.New(...), Bucket: Options.Docs, Deny, Lock: <adapter of pg.LockRepoDocWorker>}).Run` only when `enabled`. Overlays of published rows are deleted by the 30-day sweep (§5.1 audit), not at once.
   - **Build**: `api/internal/repodocs/worker.go`: advisory lock per env, `NOTIFY` + 30 s poll, claim due rows, coalescing window, head check, diff3 merge, gates again on merged bytes, commit via T09, fast-forward only, retries with the backoff of spec §3, 422 ref-moved = transient, stuck-`pushing` reclaim with the "commit naming this edit_id" check, the `published` sweep (one compare per new `tree.json.sha`), the daily `repo_doc_known_authors` refresh, the 30-day orphan-overlay sweep.
   - **Owns**: that file and its tests.
   - **Done-proof**: worker tests against the T09 fake for every case in spec §12 "worker", including two workers on one fake repo (the dev/prd race) and no double commit after a reclaim.

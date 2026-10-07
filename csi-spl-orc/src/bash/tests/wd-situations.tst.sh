@@ -21,7 +21,9 @@
 #      only says "would"; S2 never takes over and sends ONE blocker; S1 rings
 #      at 120 s and takes over at 240 s; S4 Escape, then takeover 60 s later;
 #      the dry-run false positives of 2026-10-06: a note, an id's own
-#      re-raise, and a wait with no progress signal (ring only)
+#      re-raise, and a wait with no progress signal (ring only); S7 on the
+#      default-mode offer: Down to "No, keep bypass permissions", then Enter,
+#      never Escape or Yes; no Enter while the cursor is not on No
 #   5. the guards of 6.2 at tick level, each with its control: a human client
 #      active, do_spl_wd_hold (and MIN=0 lifting it), an id under rotation,
 #      a fresh session in its grace, a box back from a 2 h gap
@@ -180,6 +182,17 @@ ctx s7c; cp "$FX/modal-mention.pane" "$C/pane"
 nohit "S7 control: the same words quoted in the transcript above the prompt" s7
 ctx s7t; cp "$FX/trust.pane" "$C/pane"
 grep -q '^HIT S7 modal=0' <<<"$(run_s s7)" && pass "S7 the trust screen blocks (modal=0: no Escape)" || fail "S7 trust"
+# the default-mode offer of 2026-10-06/07 (five seats frozen for hours)
+ctx s7d; cp "$FX/modal-default-mode.pane" "$C/pane"
+grep -q '^HIT S7 modal=2 cursor=yes ' <<<"$(run_s s7)" && pass "S7 the default-mode offer: modal=2, cursor on Yes" || fail "S7 offer: $(run_s s7)"
+cp "$FX/modal-default-mode-no.pane" "$C/pane"
+grep -q '^HIT S7 modal=2 cursor=no ' <<<"$(run_s s7)" && pass "S7 the offer with the cursor on No: cursor=no" || fail "S7 offer no: $(run_s s7)"
+sed 's/^\( *\)❯ 2\. No, keep bypass permissions/\1❯ No, keep bypass permissions/; s/^\( *\)1\. Yes/\1Yes/' "$FX/modal-default-mode-no.pane" > "$C/pane"
+grep -q '^HIT S7 modal=2 cursor=no ' <<<"$(run_s s7)" && pass "S7 unnumbered options: the No cursor is not a composer" || fail "S7 unnumbered: $(run_s s7)"
+ctx s7q; cp "$FX/modal-default-quote.pane" "$C/pane"
+nohit "S7 control: the offer quoted in a reply above the prompt" s7
+{ cat "$FX/modal-default-quote.pane"; printf '\n%.0s' 1 2 3; tail -n 9 "$FX/modal-default-mode.pane"; } > "$C/pane"
+grep -q '^HIT S7 modal=2 ' <<<"$(run_s s7)" && pass "S7 control: the same screen with the live dialog at the bottom hits" || fail "S7 quote control: $(run_s s7)"
 
 # S8: the hook is silent
 tr_ok() { printf '{"type":"assistant","timestamp":"%s","message":{"content":[{"type":"text","text":"ok"}]}}\n' "$(iso $((T0 - $1)))"; }
@@ -209,7 +222,8 @@ case "$cmd" in
   list-clients) cat "$T/tmux/clients" 2>/dev/null ;;
   capture-pane) [ -f "$T/tmux/screen.$tgt" ] || exit 1; cat "$T/tmux/screen.$tgt"
     if [ "$esc" = 1 ]; then printf '────────\n❯ %s\n────────\n' "$(cat "$T/tmux/input.$tgt" 2>/dev/null)"; fi ;;
-  send-keys) echo "keys $tgt $a" >> "$T/tmux/log" ;;
+  send-keys) echo "keys $tgt $a" >> "$T/tmux/log"
+    if [ -f "$T/tmux/screen.$tgt.$a" ]; then cp "$T/tmux/screen.$tgt.$a" "$T/tmux/screen.$tgt"; fi ;;
 esac
 EOF
 cat > "$T/bin/send" <<'EOF'
@@ -227,7 +241,7 @@ proc() {  # proc <pid> <id> [comm]: a live process carrying SPOOL_AGENT_ID=<id>
 }
 reset_box() {
   unset NOW
-  rm -rf "$D" "$S"/c-* "$T/sent" "$T/takeovers" "$T/tmux/log" "$T/proc"; mkdir -p "$D" "$T/proc"
+  rm -rf "$D" "$S"/c-* "$T/sent" "$T/takeovers" "$T/tmux/log" "$T/proc"; mkdir -p "$D" "$T/proc"; rm -f "$T/tmux/screen."*
   : > "$T/ps"; : > "$T/tmux/panes"; : > "$T/tmux/clients"
 }
 # agent <id> <pane> <pid|-> [comm] [age] [screen]: a window, maybe a process
@@ -365,6 +379,20 @@ NOW=$((T0 + 30)) out="$(wd)"
 [[ "$(grep -c Escape "$T/tmux/log")" == 1 && ! -s "$T/takeovers" ]] && pass "4 S4 30 s later: no second Escape, no takeover yet" || fail "4 S4 30: $out"
 NOW=$((T0 + 60)) out="$(wd)"; settle
 grep -qx 'takeover c-914 S4' "$T/takeovers" && pass "4 S4 still in the call 60 s later: takeover" || fail "4 S4 takeover: $out"
+
+# S7 the default-mode offer: Down to No, re-read, Enter; never Escape or Yes
+reset_box; agent c-915 %1 4015 claude 3600 "$FX/modal-default-mode.pane"
+cp "$FX/modal-default-mode-no.pane" "$T/tmux/screen.%1.Down"
+out="$(WD_KEY_WAIT=0 wd)"
+grep -q 'c-915 HIT S7 modal=2 cursor=yes .*-> no$' <<<"$out" && [[ "$(cat "$T/tmux/log")" == $'keys %1 Down\nkeys %1 Enter' ]] &&
+  pass "4 S7 offer: Down, the cursor read on No, then Enter (no Escape)" || fail "4 S7 no: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+reset_box; agent c-916 %1 4016 claude 3600 "$FX/modal-default-mode.pane"
+out="$(WD_KEY_WAIT=0 wd)"
+! grep -qE 'Enter|Escape' "$T/tmux/log" && grep -q 'c-916 HIT S7 .*no not done: cursor never reached No' <<<"$out" &&
+  pass "4 S7 control: the cursor stays on Yes, no Enter is pressed" || fail "4 S7 stuck: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+reset_box; agent c-919 %1 4019 claude 3600 "$FX/modal-default-quote.pane"
+out="$(WD_KEY_WAIT=0 wd)"
+[[ ! -s "$T/tmux/log" ]] && ! grep -q 'c-919 HIT S7' <<<"$out" && pass "4 S7 control: a quoted offer gets no key" || fail "4 S7 quote: $out"
 
 # 5. guards, each with its control
 reset_box; agent c-921 %1 -

@@ -8,6 +8,9 @@ screen and its transcripts are T001's, read from `../fleet-lease/`.
 |---|---|---|
 | `modal-auto-mode.pane` | the auto-mode offer as a dialog below the transcript | S7 hit (modal=1) |
 | `modal-mention.pane` | the same words quoted in the transcript, idle prompt below | S7 control: no hit |
+| `modal-default-mode.pane` | "Make auto mode your default permission mode?", cursor on Yes | S7 hit (modal=2 cursor=yes) |
+| `modal-default-mode-no.pane` | the same dialog after Down: cursor on "No, keep bypass permissions" | S7 cursor=no, the Enter |
+| `modal-default-quote.pane` | the same dialog quoted in a reply, idle prompt below | S7 control: no hit, no key |
 | `trust.pane` | the trust screen (a blocking screen, no Escape) | S7 hit (modal=0) |
 | `working.pane` | a turn in progress: the spinner `(12s · ...)` | S2 / S1 spinner rows |
 | `limit-reset.pane` | a usage-limit banner with a reset time, idle | S2 kind=limit |

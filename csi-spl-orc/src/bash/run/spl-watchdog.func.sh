@@ -13,7 +13,8 @@
 # @description acts: S1 rings at 120 s and takes over at 240 s, S2 never
 # @description restarts (a login: ONE blocker to the orchestrator), S3 takes
 # @description over, S4 Escape then takeover, S5 Escape + note then takeover,
-# @description S6 clears a poke-shaped box and re-pokes, S7 Escape once, S8
+# @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
+# @description default-mode offer: "No, keep bypass permissions"), S8
 # @description reports the hook GAP once. A takeover is do_spl_wd_takeover
 # @description (T005); until it exists the wish is logged. DRY_RUN=1 (the
 # @description default) writes the verdicts and only prints the actions.
@@ -493,7 +494,8 @@ spl_wd_act() {
     S5) spl_wd_s5 "$id" "$ev" "$pane" "$now" "$ctx" ;;
     S6) if [[ "$ev" == poke=1* ]]; then spl_wd_once "$id" S6 repoke "$now" "$ctx" spl_wd_repoke "$id" "$pane"
         else echo "not poke-shaped: left alone"; fi ;;
-    S7) if [[ "$ev" == modal=1* && ! -e "$WD_DIR/$id.ep.S7.esc" ]]; then spl_wd_once "$id" S7 esc "$now" "$ctx" spl_wd_key "$pane" Escape
+    S7) if [[ "$ev" == modal=2* && ! -e "$WD_DIR/$id.ep.S7.no" ]]; then spl_wd_once "$id" S7 no "$now" "$ctx" spl_wd_s7_no "$id" "$pane"
+        elif [[ "$ev" == modal=1* && ! -e "$WD_DIR/$id.ep.S7.esc" ]]; then spl_wd_once "$id" S7 esc "$now" "$ctx" spl_wd_key "$pane" Escape
         else spl_wd_once "$id" S7 note "$now" "$ctx" spl_wd_send peers note "$id" "WATCHDOG (093 S7): $id is blocked by a dialog (${ev#modal=? }) and is not able."; fi ;;
     S8) spl_wd_once "$id" S8 gap "$now" "$ctx" spl_wd_send peers note "$id" \
           "WATCHDOG (093 S8): GAP $id - its hook is silent ($ev). Progress is read from its transcript until spool-agent-hook.sh runs for it." ;;
@@ -557,6 +559,35 @@ spl_wd_s5() {
 spl_wd_s5_esc() {
   spl_wd_key "$2" Escape &&
     spl_wd_send peers note "$1" "WATCHDOG (093 S5): $1 repeated the same call with the same result $3 times; Escape was sent once."
+}
+
+# S7 modal=2, "Make auto mode your default permission mode?": the owner allows
+# bypassPermissions only, so the one answer is "No, keep bypass permissions".
+# Never Escape, never Yes: Down while s7.sh reads the cursor on Yes, then Enter
+# only once it reads the cursor on No, from a fresh capture each time.
+spl_wd_s7_no() {
+  local id="$1" pane="$2" cur _
+  for _ in 1 2 3; do
+    cur="$(spl_wd_s7_cursor "$id" "$pane")"
+    case "$cur" in
+      no) spl_wd_key "$pane" Enter; return ;;
+      yes) spl_wd_key "$pane" Down || return 1; sleep "${WD_KEY_WAIT:-0.5}" ;;
+      *) echo "cursor ${cur:-gone}, no key"; return 1 ;;
+    esac
+  done
+  echo "cursor never reached No"
+  return 1
+}
+
+# yes|no|? from s7.sh on a fresh capture of <pane>; nothing when it is gone.
+spl_wd_s7_cursor() {
+  local d out
+  d="$(mktemp -d)"
+  spl_wd_tmux capture-pane -p -t "$2" > "$d/pane" 2>/dev/null || true
+  out="$(WD_CTX="$d" timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s7.sh" "$1" act "$2" 2>/dev/null 7>&- || true)"
+  rm -rf "$d"
+  [[ "$out" =~ ^HIT\ S7\ modal=2\ cursor=([a-z?]+) ]] && echo "${BASH_REMATCH[1]}"
+  return 0
 }
 
 # ---- the outside world (seams: ROTATE_TMUX, WD_SEND, WD_TAKEOVER_CMD) ---------------

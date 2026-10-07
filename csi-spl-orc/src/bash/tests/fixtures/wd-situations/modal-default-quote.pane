@@ -1,0 +1,12 @@
+● c-101: three panes still show the dialog:
+ Make auto mode your default permission mode?
+ ❯ 1. Yes, set auto mode as my default permission mode
+   2. No, keep bypass permissions
+ The fix per pane is to choose No, then press Enter on the restore prompt.
+
+✻ Worked for 21s
+
+────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

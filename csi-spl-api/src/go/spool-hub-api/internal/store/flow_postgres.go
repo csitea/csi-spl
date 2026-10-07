@@ -90,18 +90,38 @@ func flowCoveredSQL(e, m, lobby string) string {
 
 // flowCountsSQL selects the ten counts (badge mention/reply/dm/channels/dms,
 // then the same unread) of member in tenant at now, and the unread per
-// sidebar row as a jsonb object (FlowKeys: flowPlaceKey and t:<task_id>):
-// one scan of the member's flow_events_member_at range.
+// sidebar row as a jsonb object (FlowKeys: flowPlaceKey and t:<task_id>).
+//
+// It reads only the tail past each place's read mark (api perf ap-01b):
+// fp walks the member's distinct place_key values on flow_events_place (one
+// probe each, rdb 0137), fb takes each place's newest place mark (a DM place
+// dm:<from>@<box> also takes dm:<from>), and ft seeks past it on cov_at.
+// Every event before that mark is covered by it, so it can be skipped; the
+// cut is inclusive (a tie on cov_at is decided by msg_id below). An event
+// whose keys are not stored yet is always in the tail. The per-message rules
+// (the door, the archive, f: and t: marks and both DM marks) then run as
+// before, on that tail only.
 func flowCountsSQL(tenant, member, now, pub, lobby string) string {
-	return `WITH fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
+	return `WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + `
+			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + ` AND x.place_key > fp.k)
+			FROM fp WHERE fp.k IS NOT NULL),
+		ft AS (SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM fp
+			CROSS JOIN LATERAL (SELECT max(r.at) AS at FROM read_marks r WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + `
+				AND r.mark_key IN (fp.k, CASE WHEN fp.k LIKE 'dm:%@%' THEN regexp_replace(fp.k, '@[^@]*$', '') END)) fb
+			JOIN flow_events fe ON fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.place_key = fp.k
+				AND fe.cov_at >= coalesce(fb.at, '-infinity'::timestamptz)
+			WHERE fp.k IS NOT NULL
+			UNION ALL SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
+			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND (fe.place_key IS NULL OR fe.cov_at IS NULL)),
+		fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
 				CASE WHEN fm.channel IS NOT NULL THEN 'ch:' || fm.channel
 					WHEN coalesce(fm.from_box, '') <> '' THEN 'dm:' || fm.from_id || '@' || fm.from_box
 					ELSE 'dm:' || fm.from_id END AS place_key,
 				't:' || fm.task_id::text AS topic_key,
 				fe.at > coalesce((SELECT s.at FROM read_marks s
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
-			FROM flow_events fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
-			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
+			FROM ft fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
+			WHERE fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
 		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),
 			count(*) FILTER (WHERE fc.unseen AND fc.kind = 'reply'),

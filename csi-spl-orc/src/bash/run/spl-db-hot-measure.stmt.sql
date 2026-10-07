@@ -86,17 +86,28 @@ SELECT msg_id::text, received_at, env, edited_at, edited_by,
 			OR channel = ANY($10::text[]) OR channel = ANY($11::text[]))
 			ORDER BY received_at DESC, msg_id::text DESC
 			LIMIT $6
--- @@stmt flow_counts sha256=5bdc5d5dc37fe03f6b1043d138e71d7bfee0219bfdd8cd852c82b174df829394 scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
+-- @@stmt flow_counts sha256=7c94ae25f00c29775e29d0b20e7bca25aadf8d3cebfecb716f7798e3347d417f scope=tenant exec=:'t',:'r',now(),:'pub',:'lobby'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
-WITH fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
+WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2
+			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = $1 AND x.member_id = $2 AND x.place_key > fp.k)
+			FROM fp WHERE fp.k IS NOT NULL),
+		ft AS (SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM fp
+			CROSS JOIN LATERAL (SELECT max(r.at) AS at FROM read_marks r WHERE r.tenant_id = $1 AND r.member_id = $2
+				AND r.mark_key IN (fp.k, CASE WHEN fp.k LIKE 'dm:%@%' THEN regexp_replace(fp.k, '@[^@]*$', '') END)) fb
+			JOIN flow_events fe ON fe.tenant_id = $1 AND fe.member_id = $2 AND fe.place_key = fp.k
+				AND fe.cov_at >= coalesce(fb.at, '-infinity'::timestamptz)
+			WHERE fp.k IS NOT NULL
+			UNION ALL SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
+			WHERE fe.tenant_id = $1 AND fe.member_id = $2 AND (fe.place_key IS NULL OR fe.cov_at IS NULL)),
+		fc AS (SELECT fe.kind, fm.channel IS NOT NULL AS in_ch,
 				CASE WHEN fm.channel IS NOT NULL THEN 'ch:' || fm.channel
 					WHEN coalesce(fm.from_box, '') <> '' THEN 'dm:' || fm.from_id || '@' || fm.from_box
 					ELSE 'dm:' || fm.from_id END AS place_key,
 				't:' || fm.task_id::text AS topic_key,
 				fe.at > coalesce((SELECT s.at FROM read_marks s
 				WHERE s.tenant_id = $1 AND s.member_id = $2 AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
-			FROM flow_events fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
-			WHERE fe.tenant_id = $1 AND fe.member_id = $2 AND fe.expires_at > $3 AND fm.expires_at > $3 AND CASE WHEN fm.channel IS NULL THEN fe.member_id IN (fm.to_id, fm.from_id)
+			FROM ft fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
+			WHERE fe.expires_at > $3 AND fm.expires_at > $3 AND CASE WHEN fm.channel IS NULL THEN fe.member_id IN (fm.to_id, fm.from_id)
 		WHEN fm.channel = ANY($4::text[]) THEN true
 		ELSE EXISTS (SELECT 1 FROM channel_humans h WHERE h.tenant_id = fe.tenant_id AND h.channel_id = fm.channel AND h.human_id = fe.member_id)
 			AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = fe.tenant_id AND dc.channel_id = fm.channel AND dc.archived_at IS NOT NULL) END AND NOT (NOT (true AND NOT EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = fe.tenant_id AND z.archived_at IS NOT NULL

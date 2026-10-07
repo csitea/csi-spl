@@ -163,6 +163,9 @@ spl_th_cnf_paths() {
     "$SPL_ORG_APP-cnf/$SPL_ORG_APP/$ENV/tf/025-gcp-dns-zone.vars.tfvars"
 }
 
+# (th_msg, never msg: do_log assigns a global msg, which bash's dynamic scope
+# lets overwrite a caller's local - the dev demo cnf commit 2691e80d carried a
+# log line as its message.)
 # spl_th_cnf_push <message> -> lands this run's edit of the env's cnf +
 # rendered files on the trunk, and fails loudly (non-zero) when it cannot.
 # The tree the tf-runner mounts keeps the edit (the apply needs it) and is
@@ -174,7 +177,7 @@ spl_th_cnf_paths() {
 # aleko-gik hour). Afterwards the tree is brought onto the trunk
 # (spl_th_root_sync). Sets SPL_TH_PUSHED to the landed sha.
 spl_th_cnf_push() {
-  local msg="$1" br="${CNF_GIT_BRANCH:-master}" root tmp rc
+  local th_msg="$1" br="${CNF_GIT_BRANCH:-master}" root tmp rc
   root="$(git -C "$APP_PATH" rev-parse --show-toplevel)" || return 1
   local -a paths; mapfile -t paths < <(spl_th_cnf_paths)
   git -C "$root" fetch -q origin "$br" || { do_log "FATAL CNF push: cannot fetch origin/$br"; return 1; }
@@ -192,7 +195,7 @@ spl_th_cnf_push() {
   git -C "$root" worktree add -q --detach "$tmp/wt" "origin/$br" 2>"$tmp/err" ||
     { do_log "FATAL CNF push: cannot add a throwaway worktree: $(cat "$tmp/err")"; rm -rf "$tmp"; return 1; }
   do_log "INFO cnf push from the throwaway worktree $tmp/wt (origin/$br)"
-  _spl_th_push_in "$tmp" "$br" "$msg" "$root"; rc=$?
+  _spl_th_push_in "$tmp" "$br" "$th_msg" "$root"; rc=$?
   git -C "$root" worktree remove --force "$tmp/wt" 2>/dev/null; git -C "$root" worktree prune 2>/dev/null
   rm -rf "$tmp"
   (( rc == 0 )) || return "$rc"
@@ -203,7 +206,7 @@ spl_th_cnf_push() {
 # _spl_th_push_in <tmp> <br> <message> <root>: commit + push from <tmp>/wt,
 # up to 5 tries; the push's own output is shown when the last one fails.
 _spl_th_push_in() {
-  local tmp="$1" br="$2" msg="$3" root="$4" wt="$1/wt" name email i
+  local tmp="$1" br="$2" th_msg="$3" root="$4" wt="$1/wt" name email i
   name="$(git -C "$wt" log -1 --no-mailmap --format=%an -- "$SPL_ORG_APP-cnf")"
   email="$(git -C "$wt" log -1 --no-mailmap --format=%ae -- "$SPL_ORG_APP-cnf")"
   [[ -n "$name" && -n "$email" && "$email" != *noreply* ]] || { do_log "FATAL CNF push: cannot read the cnf author from the history"; return 1; }
@@ -214,12 +217,12 @@ _spl_th_push_in() {
     if git -C "$wt" diff --cached --quiet; then
       do_log "OK cnf already on origin/$br: nothing to push"; return 0
     fi
-    git -C "$wt" "${id[@]}" commit -q -m "$msg" || { do_log "FATAL CNF push: commit failed"; return 1; }
+    git -C "$wt" "${id[@]}" commit -q -m "$th_msg" || { do_log "FATAL CNF push: commit failed"; return 1; }
     git -C "$wt" push origin "HEAD:$br" >"$tmp/push.out" 2>&1
     git -C "$wt" fetch -q origin "$br"
     if git -C "$wt" merge-base --is-ancestor HEAD "origin/$br"; then
       SPL_TH_PUSHED="$(git -C "$wt" rev-parse HEAD)"
-      do_log "OK cnf pushed: ${SPL_TH_PUSHED:0:9} $msg"
+      do_log "OK cnf pushed: ${SPL_TH_PUSHED:0:9} $th_msg"
       spl_th_output pushed 1 >/dev/null
       return 0
     fi

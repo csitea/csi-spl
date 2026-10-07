@@ -83,7 +83,7 @@ export STUB_LOG="$T/make.log" STUB_CNF="$CNF" STUB_TFV="$FAKE/csi-spl-cnf/csi-sp
 in_orc() {
   env PATH="$T/bin:$PATH" PROJ_PATH="$FAKE/csi-spl-orc" APP_PATH="$FAKE" ENV=dev SPOOL_ROOT="$T/spool" SPL_TH_NOTIFY_FN=stub_notify "$@" bash -c '
     set -uo pipefail
-    do_log() { echo "$*"; }
+    do_log() { msg="clobbered by do_log"; echo "$*"; }  # the real do_log sets a global msg
     for f in '"$PROJ_ROOT"'/lib/bash/funcs/*.func.sh '"$PROJ_ROOT"'/src/bash/run/*.func.sh; do source "$f"; done
     do_spl_cloud_cnf() { SPL_ORG_APP=csi-spl SPL_FQDN=dev.example.test SPL_CNF=/dev/null SPL_STATE_DIR='"$T"'; mkdir -p "$SPL_STATE_DIR"; }
     do_gcp_pin_account() { GCP_ACCOUNT=sa@example.test; }
@@ -204,7 +204,7 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 CHECK_ONLY=1 STUB_
   pass "reconcile CHECK_ONLY: the unmapped newt is listed, never applied; t1 checked -> ready" || fail "CHECK_ONLY rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
 
 # --- 5b. every WUI entry point is mapped ------------------------------------------
-LIVE_ENVS="${LIVE_ENVS:-prd}"  # dev joins once its demo is mapped (dispatch c7b6e8db)
+LIVE_ENVS="${LIVE_ENVS:-dev prd}"
 for e in $LIVE_ENVS; do
   out=$(SNIPPET='spl_th_entry_check "$C"' in_orc ENV=$e C="$APP_ROOT/csi-spl-cnf/csi-spl/$e.env.yaml" 2>&1) &&
     pass "live $e cnf: every WUI entry point (052 workspaces, enabled demo) is in env.dns.mapped_tenants" || fail "live $e cnf: $out"
@@ -267,6 +267,7 @@ body=$(git -C "$G/origin.git" log -1 --format=%B master)
   pass "cnf push landed on the moved trunk as the history's cnf author, the peer's commit kept" || fail "cnf push rc=$rc id=$head_ae :: $out"
 [[ "$files" == "csi-spl-cnf/csi-spl/dev.env.yaml" ]] && pass "cnf push commits only the env's cnf paths (the dirty other.txt is not in it)" || fail "pushed files: $files"
 grep -qiE '^(Co-Authored-By|Claude-Session|Generated with)' <<<"$body" && fail "AI trailer in the cnf commit" || pass "no AI trailer in the cnf commit"
+[[ "$body" == "cnf(024): dev tenant hosts +newt" ]] && pass "the cnf commit carries the caller's message (do_log's global msg does not leak in)" || fail "commit message: $body"
 [[ $(git -C "$G/wc" worktree list | wc -l) == 1 ]] && pass "the throwaway worktree is gone" || fail "worktree left: $(git -C "$G/wc" worktree list)"
 grep -q "throwaway worktree $G/\.wc-cnf-push\.[A-Za-z0-9]*/wt" <<<"$out" && ! compgen -G "$G/.wc-cnf-push.*" >/dev/null &&
   pass "the throwaway worktree sat beside the checkout (its filesystem, not /tmp: pnpm store EACCES) and is removed" || fail "throwaway dir: $(ls -a "$G") :: $out"

@@ -29,6 +29,8 @@
 //   - cards/home-topic: a topic row of the home list (/) ends with the group;
 //     Analyse opens the topic and posts on its opening message
 //   - cards/sidebar-topic: a row of the sidebar Topics tab ends with it
+//     (t1 b6c742f0) a failed pick there shows the AI action error;
+//     control: a pick that goes through shows none
 //   - cards/issue: an issue row's menu ends with six (no "Turn into an
 //     issue"); Analyse posts in the issue's discussion
 //   - cards/epic: an epic in the sidebar ends with the six
@@ -44,6 +46,7 @@
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/msg-ai-actions.test.mjs
 import { createRequire } from 'node:module'
+import { mkdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
@@ -281,6 +284,41 @@ try {
   ok('cards/sidebar-topic: the Topics tab lists the topic', topicsTab && await p.waitForSelector(sideRow, { visible: true, timeout: 10000 }).then(() => true, () => false))
   const side = await rowMenuOf(p, sideRow)
   ok('cards/sidebar-topic: the row menu ends with the 7 AI actions', hasGroup(side), side)
+  await p.keyboard.press('Escape')
+
+  /* t1 b6c742f0: a failed pick on a sidebar row says so, as the home list
+     does. Control first: a pick that goes through shows no error. */
+  const sideError = '#sidebar-panel-topics [data-testid=msg-ai-error]'
+  const analysed = () => p.evaluate(() => [...document.querySelectorAll('article.msg')]
+    .filter((e) => /AI action: Analyse/.test(e.textContent) && /ai-actions topic starter/.test(e.textContent)).length)
+  const before = await analysed()
+  await rowMenuOf(p, sideRow)
+  await p.click('[data-testid=sidebar-row-menu-ai-analyse]').catch(() => {})
+  const sidePosted = await until(p, (n) => [...document.querySelectorAll('article.msg')]
+    .filter((e) => /AI action: Analyse/.test(e.textContent) && /ai-actions topic starter/.test(e.textContent)).length > n, before, 10000)
+  ok('cards/sidebar-topic: control: a pick that goes through posts and shows no error', sidePosted && !(await p.$(sideError)), sidePosted)
+  /* the send fails: the channel store's send rejects for this one pick */
+  await p.setViewport({ width: 1440, height: 900, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  await p.evaluate(() => {
+    const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+    window.__aiSend = store.send
+    store.send = () => Promise.reject(new Error('e2e: the send fails'))
+  })
+  await rowMenuOf(p, sideRow)
+  await p.click('[data-testid=sidebar-row-menu-ai-analyse]').catch(() => {})
+  const failText = await p.waitForSelector(sideError, { visible: true, timeout: 10000 })
+    .then((el) => el.evaluate((e) => e.textContent.trim()), () => '')
+  ok('cards/sidebar-topic: a failed pick shows the AI action error', failText === 'The AI action did not go through. Try again.', failText)
+  if (process.env.SHOT_DIR) {
+    mkdirSync(process.env.SHOT_DIR, { recursive: true })
+    await p.screenshot({ path: `${process.env.SHOT_DIR}/msg-ai-actions-sidebar-fail-1440.png` })
+  }
+  await p.evaluate(() => {
+    const store = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel')
+    store.send = window.__aiSend
+  })
+  await rowMenuOf(p, sideRow)
+  ok('cards/sidebar-topic: the next row menu clears the error', !(await p.$(sideError)))
   await p.keyboard.press('Escape')
 
   /* the phone sheet opens WHOLE, Delete last (t1 7a6be5a3): one "AI actions"

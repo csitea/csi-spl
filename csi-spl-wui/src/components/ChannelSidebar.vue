@@ -485,8 +485,11 @@
           @open="pane.open(row.task_id)"
           @archive="archiveTopicRow(row.task_id)"
           @delete-topic="askDeleteTopic(row.task_id)"
+          @ai-fail="topicAiError = $event"
         />
         </div>
+        <!-- t1 b6c742f0: a failed AI pick on a row says so, as the home list does -->
+        <p v-if="topicAiError" class="msg-edit-error" role="alert" data-testid="msg-ai-error">{{ t(topicAiError) }}</p>
         </div>
       </div>
       <div
@@ -891,13 +894,18 @@ const {
   askDelete: askDeleteTopic,
   onDeleted: onTopicRowDeleted,
 } = useTopicRowActions()
+/* t1 b6c742f0: the last failed AI pick on a topic row; the next row menu clears it */
+const topicAiError = ref('')
 function openTopicMenu(key: string, taskId: string) {
+  topicAiError.value = ''
   rowMenu.value = key
   void resolveTopicRow(taskId)
 }
 function toggleTopicMenu(key: string, taskId: string) {
   toggleRowMenu(key)
-  if (rowMenu.value === key) void resolveTopicRow(taskId)
+  if (rowMenu.value !== key) return
+  topicAiError.value = ''
+  void resolveTopicRow(taskId)
 }
 /* The flow list stays up while a row from it is opened. Another icon clears it. */
 const holdFlow = ref(false)

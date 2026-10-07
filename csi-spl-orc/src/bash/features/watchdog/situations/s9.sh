@@ -9,8 +9,10 @@
 #      the bottom WD_S9_STATUS_ROWS (1) rows removed), covers the window give
 #      or take WD_S9_SLACK s (60)
 #   5. a keystroke reached the pane and not the model: the oldest line of
-#      <id>/lifetime/input.log ("<ts> <kind>", written by every poke sender)
-#      after the last UserPromptSubmit (heartbeat turn_since + heartbeat.log)
+#      <id>/lifetime/input.log ("<ts> <kind>", written by every poke sender;
+#      "refused-<kind>" when the sender refused it because the screen reads as
+#      unsent text, as a select dialog's "❯ 1. ..." row does) after the last
+#      UserPromptSubmit (heartbeat turn_since + heartbeat.log)
 # A harness whose hook emits no UserPromptSubmit (heartbeat harness is not
 # claude, or no heartbeat) reads 5 as "an input after the last progress" and
 # waits 2 x WD_STUCK_MIN. A dialog of any wording swallows the keystroke; an

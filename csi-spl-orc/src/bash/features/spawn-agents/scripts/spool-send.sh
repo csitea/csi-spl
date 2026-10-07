@@ -373,10 +373,14 @@ fi
 spool_notify "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 rc=$?
 # spec 102 8.1 (S9): a keystroke that reached <to>'s pane is "<ts> <kind>" in
-# <to>/lifetime/input.log; S9 asks whether a UserPromptSubmit followed it.
-if [ "$rc" -eq 0 ] && [ -d "$SPOOL_ROOT/$TO" ]; then
-  _il="$SPOOL_ROOT/$TO/lifetime/input.log"
-  { mkdir -p "${_il%/*}" && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) ${KIND:-poke}" >>"$_il"; } 2>/dev/null || true
+# <to>/lifetime/input.log; S9 asks whether a UserPromptSubmit followed it. A
+# poke REFUSED for "unsent text" (6) is "<ts> refused-<kind>": a select dialog's
+# cursor row ("❯ 1. Yes, ...") reads as typed text, so on the 2026-10-06 frozen
+# pane every poke was refused and none reached the model either.
+if { [ "$rc" -eq 0 ] || [ "$rc" -eq 6 ]; } && [ -d "$SPOOL_ROOT/$TO" ]; then
+  _il="$SPOOL_ROOT/$TO/lifetime/input.log" _ik="${KIND:-poke}"
+  [ "$rc" -eq 6 ] && _ik="refused-$_ik"
+  { mkdir -p "${_il%/*}" && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $_ik" >>"$_il"; } 2>/dev/null || true
   if [ "$(stat -c %s "$_il" 2>/dev/null || echo 0)" -gt 16384 ]; then
     tail -n 200 "$_il" >"$_il.tmp.$$" 2>/dev/null && mv -f "$_il.tmp.$$" "$_il" 2>/dev/null || rm -f "$_il.tmp.$$"
   fi

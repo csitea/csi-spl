@@ -500,6 +500,9 @@ s9ctx s9
 hit "8 S9 hit: unknown dialog, progress 11 min old, a poke 10 min ago, no UserPromptSubmit after it" s9
 grep -q '^HIT S9 input=600s prog=660s pane=600s rule=ups$' <<<"$(run_s s9)" && pass "8 S9 names its evidence" || fail "8 S9 evidence: $(run_s s9)"
 nohit "8 control 1: today's S7 misses the same pane (the list-based guard)" s7
+echo "$(iso $((T0 - 600))) refused-note" > "$C/input_log"
+hit "8 S9 a poke refused on the dialog's cursor row (refused-note) counts as input that never reached the model" s9
+echo "$(iso $((T0 - 600))) note" > "$C/input_log"
 echo "$(iso $((T0 - 3600))) SessionStart starting" > "$C/hblog"
 hit "8 S9 an old UserPromptSubmit before the poke does not answer it" s9
 s9ctx s9c2; hb idle 660 "| .harness = \"claude\" | .turn_since = \"$(iso $((T0 - 500)))\""
@@ -601,15 +604,19 @@ if command -v tmux >/dev/null; then
   tmux -S "$SOCK" -f /dev/null new-session -d -s t -n home -x 200 -y 50 'sleep 600'
   p1="$(tmux -S "$SOCK" new-window -d -t t: -n c-961 -P -F '#{pane_id}' 'sleep 600')"
   p2="$(tmux -S "$SOCK" new-window -d -t t: -n c-962 -P -F '#{pane_id}' 'bash --norc')"
-  printf 'c-961\tclaude\t%s\t/x\t20260101T000000Z\nc-962\tclaude\t%s\t/x\t20260101T000000Z\n' "$p1" "$p2" > "$SR/registry.tsv"
+  p3="$(tmux -S "$SOCK" new-window -d -t t: -n c-963 -P -F '#{pane_id}' "sh -c 'cat $FX/s9-unknown-dialog.pane; sleep 600'")"
+  mkdir -p "$SR/c-963/inbox"
+  printf 'c-961\tclaude\t%s\t/x\t20260101T000000Z\nc-962\tclaude\t%s\t/x\t20260101T000000Z\nc-963\tclaude\t%s\t/x\t20260101T000000Z\n' "$p1" "$p2" "$p3" > "$SR/registry.tsv"
   sleep 0.3
   ssend() { env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u SPOOL_BOX_ENV SPOOL_TEST=1 SPOOL_ROOT="$SR" SPOOL_TMUX_SOCKET="$SOCK" \
     SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)" SPOOL_BOX_TAG="" \
     bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-send.sh" --poke-only --from c-900 --to "$1" >/dev/null 2>&1; }
-  ssend c-961; r1=$?; ssend c-962; r2=$?
+  ssend c-961; r1=$?; ssend c-962; r2=$?; ssend c-963; r3=$?
   [[ "$r1" == 0 ]] && grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z poke$' "$SR/c-961/lifetime/input.log" &&
     pass "8 spool-send.sh: a poke shown in the pane appends '<ts> poke' to input.log" || fail "8 input.log: rc=$r1 $(cat "$SR/c-961/lifetime/input.log" 2>&1)"
   [[ "$r2" != 0 && ! -e "$SR/c-962/lifetime/input.log" ]] && pass "8 spool-send.sh control: a poke refused (bare shell, rc=$r2) logs nothing" || fail "8 input.log control: rc=$r2"
+  [[ "$r3" == 6 ]] && grep -qE '^[0-9T:Z-]+ refused-poke$' "$SR/c-963/lifetime/input.log" 2>/dev/null &&
+    pass "8 spool-send.sh: the frozen dialog's cursor row refuses the poke (rc=6), logged as refused-poke" || fail "8 refused: rc=$r3 $(cat "$SR/c-963/lifetime/input.log" 2>&1)"
   tmux -S "$SOCK" kill-server 2>/dev/null || true
 else
   echo "SKIP 8 spool-send.sh input.log: no tmux on this box"

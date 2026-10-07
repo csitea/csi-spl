@@ -89,7 +89,7 @@
               :today="today"
               :items="pg.dir === 0 ? items : []"
               :state="pg.dir === 0 ? state : 'loading'"
-              @add="openPanel('add')"
+              @add="openSheet({ day: $event })"
             />
             <div v-else class="calphone__slot" :data-test="`calphone-slot-${view}`" :data-period="pg.period">
               <p class="calphone__slot-title">{{ pg.title }}</p>
@@ -110,7 +110,7 @@
         data-test="calphone-add"
         :aria-label="t('calendar_phone.add')"
         :title="t('calendar_phone.add')"
-        @click="openPanel('add')"
+        @click="openSheet()"
       >
         <UiIcon name="plus" :size="26" />
       </button>
@@ -175,6 +175,15 @@
     </nav>
     <!-- T008 (add sheet), T009 (peek), T010 (picker, search) open here -->
     <div v-if="panel" hidden data-test="calphone-panel" :data-panel="panel" />
+    <CalendarPhoneSheet
+      v-if="sheetUsed || panel === 'add'"
+      :open="panel === 'add'"
+      :event="sheetFor.event"
+      :day="sheetFor.day || shownDay"
+      :today="today"
+      :hour="sheetFor.hour"
+      @update:open="(v: boolean) => { if (!v && panel === 'add') panel = '' }"
+    />
   </section>
 </template>
 
@@ -246,6 +255,20 @@ watch(title, (v) => { announced.value = v })
 
 const panel = ref<'' | 'picker' | 'search' | 'menu' | 'add'>('')
 function openPanel(kind: 'picker' | 'search' | 'menu' | 'add') { panel.value = kind }
+
+/* T008: the add / edit sheet, its own chunk on first open. The views and
+   the peek open it with inject('calphone-sheet'): a new event on a day (at a
+   tapped hour), or an event to edit */
+const CalendarPhoneSheet = defineAsyncComponent(() => import('~/components/CalendarPhoneSheet.vue'))
+type SheetFor = { event: CalendarItem | null, day: string, hour: number }
+const sheetFor = shallowRef<SheetFor>({ event: null, day: '', hour: -1 })
+const sheetUsed = ref(false)
+function openSheet(o: Partial<SheetFor> = {}) {
+  sheetFor.value = { event: o.event ?? null, day: o.day ?? '', hour: o.hour ?? -1 }
+  sheetUsed.value = true
+  panel.value = 'add'
+}
+provide('calphone-sheet', openSheet)
 
 function goToday() {
   if (shownDay.value === props.today) return

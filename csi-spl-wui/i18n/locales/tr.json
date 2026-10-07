@@ -2138,6 +2138,14 @@
     "duplicate": "Çoğalt",
     "edit": "Düzenle"
   },
+  "calendar_phone_week": {
+    "strip": "Haftanın günleri",
+    "folded": "{days}: plan yok",
+    "empty": "Plan yok",
+    "add_on": "{day} için yeni etkinlik",
+    "span": "Gün {n}/{of}",
+    "all_day": "Tüm gün"
+  },
   "calendar_phone": {
     "pick_month": "Ay seç",
     "search": "Etkinlik ara",

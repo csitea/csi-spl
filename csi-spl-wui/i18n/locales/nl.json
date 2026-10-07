@@ -2138,6 +2138,14 @@
     "duplicate": "Dupliceren",
     "edit": "Bewerken"
   },
+  "calendar_phone_week": {
+    "strip": "Dagen van de week",
+    "folded": "{days}: niets gepland",
+    "empty": "Niets gepland",
+    "add_on": "Nieuwe afspraak op {day}",
+    "span": "Dag {n} van {of}",
+    "all_day": "Hele dag"
+  },
   "calendar_phone": {
     "pick_month": "Kies een maand",
     "search": "Afspraken zoeken",

@@ -2138,6 +2138,14 @@
     "duplicate": "Дублювати",
     "edit": "Редагувати"
   },
+  "calendar_phone_week": {
+    "strip": "Дні тижня",
+    "folded": "{days}: нічого не заплановано",
+    "empty": "Нічого не заплановано",
+    "add_on": "Нова подія на {day}",
+    "span": "День {n} з {of}",
+    "all_day": "Увесь день"
+  },
   "calendar_phone": {
     "pick_month": "Вибрати місяць",
     "search": "Пошук подій",

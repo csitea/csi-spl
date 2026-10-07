@@ -2138,6 +2138,14 @@
     "duplicate": "Monista",
     "edit": "Muokkaa"
   },
+  "calendar_phone_week": {
+    "strip": "Viikon päivät",
+    "folded": "{days}: ei suunniteltua",
+    "empty": "Ei suunniteltua",
+    "add_on": "Uusi tapahtuma {day}",
+    "span": "Päivä {n}/{of}",
+    "all_day": "Koko päivä"
+  },
   "calendar_phone": {
     "pick_month": "Valitse kuukausi",
     "search": "Hae tapahtumia",

@@ -2138,6 +2138,14 @@
     "duplicate": "Dubliuoti",
     "edit": "Redaguoti"
   },
+  "calendar_phone_week": {
+    "strip": "Savaitės dienos",
+    "folded": "{days}: nieko nesuplanuota",
+    "empty": "Nieko nesuplanuota",
+    "add_on": "Naujas įvykis {day}",
+    "span": "{n} diena iš {of}",
+    "all_day": "Visą dieną"
+  },
   "calendar_phone": {
     "pick_month": "Pasirinkti mėnesį",
     "search": "Ieškoti įvykių",

@@ -83,7 +83,15 @@
           <!-- T005 / T006 / T007 replace these slots with CalendarPhoneMonth,
                CalendarPhoneWeek and CalendarPhoneDay (each async on first show) -->
           <div class="calphone__scroll">
-            <div class="calphone__slot" :data-test="`calphone-slot-${view}`" :data-period="pg.period">
+            <CalendarPhoneWeek
+              v-if="view === 'week'"
+              :day="pg.period"
+              :today="today"
+              :items="pg.dir === 0 ? items : []"
+              :state="pg.dir === 0 ? state : 'loading'"
+              @add="openPanel('add')"
+            />
+            <div v-else class="calphone__slot" :data-test="`calphone-slot-${view}`" :data-period="pg.period">
               <p class="calphone__slot-title">{{ pg.title }}</p>
               <p class="calphone__slot-note">{{ t('calendar_phone.placeholder') }}</p>
               <ul v-if="pg.dir === 0 && state === 'ready'" class="calphone__slot-list">
@@ -179,6 +187,8 @@ import { hubJsonHeaders } from '~/utils/hub-headers'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
+
+const CalendarPhoneWeek = defineAsyncComponent(() => import('./CalendarPhoneWeek.vue'))
 
 type View = 'month' | 'week' | 'day'
 type Point = { x: number, y: number, t: number }

@@ -2138,6 +2138,14 @@
     "duplicate": "Duplică",
     "edit": "Editează"
   },
+  "calendar_phone_week": {
+    "strip": "Zilele săptămânii",
+    "folded": "{days}: nimic planificat",
+    "empty": "Nimic planificat",
+    "add_on": "Eveniment nou pe {day}",
+    "span": "Ziua {n} din {of}",
+    "all_day": "Toată ziua"
+  },
   "calendar_phone": {
     "pick_month": "Alege luna",
     "search": "Caută evenimente",

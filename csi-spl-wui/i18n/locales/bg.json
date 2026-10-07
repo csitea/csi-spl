@@ -2138,6 +2138,14 @@
     "duplicate": "Дублиране",
     "edit": "Редактиране"
   },
+  "calendar_phone_week": {
+    "strip": "Дни от седмицата",
+    "folded": "{days}: нищо планирано",
+    "empty": "Нищо планирано",
+    "add_on": "Ново събитие на {day}",
+    "span": "Ден {n} от {of}",
+    "all_day": "Цял ден"
+  },
   "calendar_phone": {
     "pick_month": "Избери месец",
     "search": "Търсене на събития",

@@ -2138,6 +2138,14 @@
     "duplicate": "Duplikovať",
     "edit": "Upraviť"
   },
+  "calendar_phone_week": {
+    "strip": "Dni v týždni",
+    "folded": "{days}: nič naplánované",
+    "empty": "Nič naplánované",
+    "add_on": "Nová udalosť {day}",
+    "span": "Deň {n} z {of}",
+    "all_day": "Celý deň"
+  },
   "calendar_phone": {
     "pick_month": "Vybrať mesiac",
     "search": "Hľadať udalosti",

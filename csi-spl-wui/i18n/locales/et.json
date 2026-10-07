@@ -2138,6 +2138,14 @@
     "duplicate": "Paljunda",
     "edit": "Muuda"
   },
+  "calendar_phone_week": {
+    "strip": "Nädala päevad",
+    "folded": "{days}: midagi pole plaanis",
+    "empty": "Midagi pole plaanis",
+    "add_on": "Uus sündmus {day}",
+    "span": "Päev {n}/{of}",
+    "all_day": "Terve päev"
+  },
   "calendar_phone": {
     "pick_month": "Vali kuu",
     "search": "Otsi sündmusi",

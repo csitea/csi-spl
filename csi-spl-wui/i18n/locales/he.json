@@ -2138,6 +2138,14 @@
     "duplicate": "שכפול",
     "edit": "עריכה"
   },
+  "calendar_phone_week": {
+    "strip": "ימי השבוע",
+    "folded": "{days}: אין תוכניות",
+    "empty": "אין תוכניות",
+    "add_on": "אירוע חדש ב-{day}",
+    "span": "יום {n} מתוך {of}",
+    "all_day": "כל היום"
+  },
   "calendar_phone": {
     "pick_month": "בחירת חודש",
     "search": "חיפוש אירועים",

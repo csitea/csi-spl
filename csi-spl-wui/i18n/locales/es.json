@@ -2138,6 +2138,14 @@
     "duplicate": "Duplicar",
     "edit": "Editar"
   },
+  "calendar_phone_week": {
+    "strip": "Días de la semana",
+    "folded": "{days}: nada previsto",
+    "empty": "Nada previsto",
+    "add_on": "Nuevo evento el {day}",
+    "span": "Día {n} de {of}",
+    "all_day": "Todo el día"
+  },
   "calendar_phone": {
     "pick_month": "Elegir mes",
     "search": "Buscar eventos",

@@ -2138,6 +2138,14 @@
     "duplicate": "Duplicera",
     "edit": "Redigera"
   },
+  "calendar_phone_week": {
+    "strip": "Veckans dagar",
+    "folded": "{days}: inget planerat",
+    "empty": "Inget planerat",
+    "add_on": "Ny händelse {day}",
+    "span": "Dag {n} av {of}",
+    "all_day": "Heldag"
+  },
   "calendar_phone": {
     "pick_month": "Välj månad",
     "search": "Sök händelser",

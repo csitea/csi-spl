@@ -2138,6 +2138,14 @@
     "duplicate": "Dublēt",
     "edit": "Rediģēt"
   },
+  "calendar_phone_week": {
+    "strip": "Nedēļas dienas",
+    "folded": "{days}: nekas nav plānots",
+    "empty": "Nekas nav plānots",
+    "add_on": "Jauns notikums {day}",
+    "span": "{n}. diena no {of}",
+    "all_day": "Visu dienu"
+  },
   "calendar_phone": {
     "pick_month": "Izvēlēties mēnesi",
     "search": "Meklēt notikumus",

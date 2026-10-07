@@ -199,6 +199,8 @@
     />
     <!-- T009: an event's peek, its own chunk on the first tap (openPeek is provided to the views) -->
     <LazyCalendarPhonePeek v-if="peekOn" :event="peekEv" :today="today" @close="peekEv = null" @edit="fromPeek($event, false)" @duplicate="fromPeek($event, true)" />
+    <CalendarPhoneYear v-if="panel === 'picker'" :day="shownDay" :today="today" @pick="jump('month', $event)" @close="panel = ''" />
+    <CalendarPhoneSearch v-if="panel === 'search'" :today="today" @open="(day, ev) => { jump('day', day); openPeek(ev) }" @close="panel = ''" />
   </section>
 </template>
 
@@ -320,6 +322,18 @@ function fromPeek(ev: CalendarItem, copy: boolean) {
   peekEv.value = null
   if (!copy) return openSheet({ event: ev })
   openSheet({ day: ev.all_day ? ev.starts_at.slice(0, 10) : isoDate(ev.starts_at), hour: ev.all_day ? -1 : Number(isoClock(ev.starts_at).slice(0, 2)) })
+}
+
+/* T010: the month picker and search are async on first open (spec 9.4 #8) */
+const CalendarPhoneYear = defineAsyncComponent(() => import('~/components/CalendarPhoneYear.vue'))
+const CalendarPhoneSearch = defineAsyncComponent(() => import('~/components/CalendarPhoneSearch.vue'))
+/** a picked month opens Month on it, a search result Day on its day (and its peek) */
+function jump(v: View, day: string) {
+  panel.value = ''
+  setView(v)
+  if (day === shownDay.value) return
+  shownDay.value = day
+  emit('move', day)
 }
 
 function goToday() {

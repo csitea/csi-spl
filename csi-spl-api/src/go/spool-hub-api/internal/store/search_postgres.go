@@ -344,15 +344,16 @@ func (s *Postgres) hasSearchIndex(ctx context.Context) bool {
 // word, and today's backward scan fills a page fast exactly then.
 const searchIndexCap = 500
 
-// candidateProbeSQL is the probe of one message page: the candidate ids of
-// the root's AND-chain text terms, at most cap + 1 of them. false: no probe,
+// candidateProbeSQL is the probe of one page: the candidate ids of the
+// root's AND-chain terms of ops (the message section: text; the topic
+// section: text and title:), at most cap + 1 of them. false: no probe,
 // today's path (the kill switch, or no such term).
-func candidateProbeSQL(q SearchQuery, limit int) (string, []any, bool) {
+func candidateProbeSQL(q SearchQuery, limit int, ops ...string) (string, []any, bool) {
 	if q.ScanOnly || q.Q == nil {
 		return "", nil, false
 	}
 	c := &sqlc{}
-	tq, ok := c.candidateQuery(q.Q.Root, search.OpText)
+	tq, ok := c.candidateQuery(q.Q.Root, ops...)
 	if !ok {
 		return "", nil, false
 	}
@@ -363,8 +364,8 @@ func candidateProbeSQL(q SearchQuery, limit int) (string, []any, bool) {
 // statement filters by; nil keeps today's statement unchanged: no probe, or
 // cap + 1 ids (a truncated set, an arbitrary subset: the id filter is never
 // applied to it).
-func (s *Postgres) searchCandidates(ctx context.Context, tenant string, q SearchQuery, limit int) ([]string, error) {
-	sql, args, ok := candidateProbeSQL(q, limit)
+func (s *Postgres) searchCandidates(ctx context.Context, tenant string, q SearchQuery, limit int, ops ...string) ([]string, error) {
+	sql, args, ok := candidateProbeSQL(q, limit, ops...)
 	if !ok || !s.hasSearchIndex(ctx) {
 		return nil, nil
 	}
@@ -388,7 +389,7 @@ func (s *Postgres) searchCandidates(ctx context.Context, tenant string, q Search
 // path mid-page. Order, keyset, LIMIT and every predicate stay in the
 // statement; the candidate ids only narrow it, and the outer @@ decides.
 func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
-	ids, err := s.searchCandidates(ctx, tenant, q, searchIndexCap)
+	ids, err := s.searchCandidates(ctx, tenant, q, searchIndexCap, search.OpText)
 	if err != nil {
 		return nil, err
 	}
@@ -505,8 +506,32 @@ func (s *Postgres) SearchFiles(ctx context.Context, tenant string, q SearchQuery
 	return out, err
 }
 
+// SearchTopics, like SearchMessages, is one probe, then one statement (spec
+// 100 section 5.2): the probe's ids narrow topicCandidates' task ids; the
+// per-topic aggregate and its title are unchanged (spec 099).
 func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuery) ([]SearchTopicRow, error) {
-	c := &sqlc{sig: s.hasSearchSig(ctx)}
+	ids, err := s.searchCandidates(ctx, tenant, q, searchIndexCap, search.OpText, search.OpTitle)
+	if err != nil {
+		return nil, err
+	}
+	sql, args := searchTopicsSQL(tenant, q, s.hasSearchSig(ctx), ids)
+	var out []SearchTopicRow
+	err = s.search(ctx, tenant, q, sql, args, func(rows pgx.Rows) error {
+		var r SearchTopicRow
+		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.Title, &r.FirstAt, &r.LastAt, &r.Count,
+			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
+			return err
+		}
+		out = append(out, r)
+		return nil
+	})
+	return out, err
+}
+
+// searchTopicsSQL is SearchTopics' statement and its bind parameters; sig and
+// ids as searchMessagesSQL's, but ids narrow topicCandidates' task ids only.
+func searchTopicsSQL(tenant string, q SearchQuery, sig bool, ids []string) (string, []any) {
+	c := &sqlc{sig: sig}
 	t, now := c.arg(tenant), c.arg(q.Now)
 	// The read door per MESSAGE, before the aggregate: a topic's
 	// title, parties, kinds and count come only from rows the viewer may read,
@@ -520,7 +545,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 			" OR channel = ANY(" + pub + "::text[]) OR channel = ANY(" + mine + "::text[]))"
 	}
 	door += archivedHideSQL("messages", t, c.arg(q.Lobby)) // specs/041
-	door += c.topicCandidates(q.Q.Root, t, now)
+	door += c.topicCandidates(q.Q.Root, t, now, ids)
 	where := c.cond(q.Q.Root, c.topicLeaf)
 	page := ""
 	if !q.AfterAt.IsZero() {
@@ -546,17 +571,7 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 		WHERE ` + where + page + `
 		ORDER BY last_at DESC, task_id DESC
 		LIMIT ` + c.arg(pgLimit(q.Limit))
-	var out []SearchTopicRow
-	err := s.search(ctx, tenant, q, sql, c.args, func(rows pgx.Rows) error {
-		var r SearchTopicRow
-		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.Title, &r.FirstAt, &r.LastAt, &r.Count,
-			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
-			return err
-		}
-		out = append(out, r)
-		return nil
-	})
-	return out, err
+	return sql, c.args
 }
 
 // topicCandidates narrows the topic aggregate to the tasks the message index
@@ -567,7 +582,10 @@ func (s *Postgres) SearchTopics(ctx context.Context, tenant string, q SearchQuer
 // decides on the aggregate, so this only drops rows it would have dropped
 // (bar a word cut at the 140-character title edge). "" when the query has no
 // such term (an OR, a negation, from: only): the full aggregate, as before.
-func (c *sqlc) topicCandidates(root *search.Node, tenant, now string) string {
+// ids (non-nil, at most cap): the probe's candidates (spec 100 T007), every
+// message matching the root's AND-chain text and title: terms, so the first
+// message of every topic that can match; they narrow k and nothing else.
+func (c *sqlc) topicCandidates(root *search.Node, tenant, now string, ids []string) string {
 	kids := []*search.Node{root}
 	if root != nil && root.Kind == search.And {
 		kids = root.Kids
@@ -591,8 +609,12 @@ func (c *sqlc) topicCandidates(root *search.Node, tenant, now string) string {
 	if len(preds) == 0 {
 		return ""
 	}
+	match := c.sigAll("k", root, "("+strings.Join(preds, " AND ")+")", search.OpText, search.OpTitle)
+	if ids != nil {
+		match += " AND k.msg_id = ANY(" + c.arg(ids) + "::uuid[])"
+	}
 	return " AND task_id IN (SELECT k.task_id FROM messages k WHERE k.tenant_id = " + tenant +
-		" AND k.expires_at > " + now + " AND " + c.sigAll("k", root, "("+strings.Join(preds, " AND ")+")", search.OpText, search.OpTitle) + ")"
+		" AND k.expires_at > " + now + " AND " + match + ")"
 }
 
 func (s *Postgres) TenantHumans(ctx context.Context, tenant string) ([]HumanEntry, error) {

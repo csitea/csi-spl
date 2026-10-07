@@ -119,7 +119,8 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// spec 100 T006: the message section's candidate probe is one batch
 		// before its statement (spec 5.1, "the probe costs one extra round
 		// trip"); SPOOL_HUB_SEARCH_INDEX=off is 6 again (it was 6, measured 7/16).
-		{"GET /v1/view/search?q=seed", 7, get("/v1/view/search?q=seed")},
+		// T007: the topic section probes too (measured 8/17, n=5).
+		{"GET /v1/view/search?q=seed", 8, get("/v1/view/search?q=seed")},
 		// SPL-1206: the grammar is built once (sync.Once), so operators is only
 		// the view door's one membership read — it must never grow a read of its
 		// own (measured 1/1 against Postgres).

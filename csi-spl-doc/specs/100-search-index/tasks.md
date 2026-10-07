@@ -189,6 +189,12 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T007 P2: topics section through the function
 
+- Status: **done** (2026-10-07): `SearchTopics` probes `searchCandidates`
+  with text and `title:` terms; at most `cap` ids add `AND k.msg_id =
+  ANY($ids)` inside `topicCandidates`, `cap + 1` leaves it unchanged.
+  `TestSearchTopicsIndexPathEqualsScan` (index == scan on every page, and a
+  control that fails on a set missing one first message). The search
+  round-trip budget rises 7 -> 8.
 - Lane: **store**. Phase P2, spec 5.2.
 - Files: `store/search_postgres.go` (`topicCandidates` only).
 - What: task ids from the same probe; the per-topic aggregate and the title

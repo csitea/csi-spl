@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -430,7 +431,7 @@ func TestCandidateProbeSQL(t *testing.T) {
 	} {
 		q := sq(t, tc.q, now)
 		q.ScanOnly = tc.scanOnly
-		sql, args, ok := candidateProbeSQL(q, searchIndexCap)
+		sql, args, ok := candidateProbeSQL(q, searchIndexCap, search.OpText)
 		if ok != tc.ok {
 			t.Fatalf("%q scanOnly=%v: probe %v, want %v", tc.q, tc.scanOnly, ok, tc.ok)
 		}
@@ -499,7 +500,7 @@ func TestSearchIndexPathEqualsScan(t *testing.T) {
 	}
 	for _, text := range []string{"rare ", "rare in:lobby ", "rare -in:ops ", "common ", "common rare ", "rar", "from:GRK-03 common "} {
 		base := sq(t, text, now)
-		sql, args, ok := candidateProbeSQL(base, searchIndexCap)
+		sql, args, ok := candidateProbeSQL(base, searchIndexCap, search.OpText)
 		if !ok {
 			t.Fatalf("%q: no probe", text)
 		}
@@ -509,7 +510,7 @@ func TestSearchIndexPathEqualsScan(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		ids, err := pg.searchCandidates(ctx, tid, base, searchIndexCap)
+		ids, err := pg.searchCandidates(ctx, tid, base, searchIndexCap, search.OpText)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -545,10 +546,185 @@ func TestSearchIndexPathEqualsScan(t *testing.T) {
 	}
 	off := sq(t, "rare ", now)
 	off.ScanOnly = true
-	if _, _, ok := candidateProbeSQL(off, searchIndexCap); ok {
+	if _, _, ok := candidateProbeSQL(off, searchIndexCap, search.OpText); ok {
 		t.Fatal("switch off: probe built")
 	}
-	if ids, err := pg.searchCandidates(ctx, tid, off, searchIndexCap); ids != nil || err != nil {
+	if ids, err := pg.searchCandidates(ctx, tid, off, searchIndexCap, search.OpText); ids != nil || err != nil {
+		t.Fatalf("switch off: probed (%v, %v)", ids, err)
+	}
+}
+
+// TestSearchTopicsSQLIds is spec 100 T007 without a database: the topic
+// probe takes text and title: terms (the kill switch never probes); ids add
+// one filter inside topicCandidates and nothing else changes; nil ids leave
+// the statement as it was.
+func TestSearchTopicsSQLIds(t *testing.T) {
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		q  string
+		ok bool
+	}{{"deploy ", true}, {"title:deploy", true}, {"in:ops title:deploy", true}, {"in:ops", false}, {"foo OR bar", false}} {
+		if _, _, ok := candidateProbeSQL(sq(t, tc.q, now), searchIndexCap, search.OpText, search.OpTitle); ok != tc.ok {
+			t.Fatalf("%q: topic probe %v, want %v", tc.q, ok, tc.ok)
+		}
+	}
+	q := sq(t, "deploy in:ops ", now)
+	plain, pargs := searchTopicsSQL("t1", q, true, nil)
+	ids := []string{uuid4(), uuid4()}
+	narrow, nargs := searchTopicsSQL("t1", q, true, ids)
+	if strings.Contains(plain, "::uuid[])") {
+		t.Fatalf("nil ids filtered the statement:\n%s", plain)
+	}
+	m := regexp.MustCompile(` AND k\.msg_id = ANY\(\$(\d+)::uuid\[\]\)\)`).FindStringSubmatch(narrow)
+	if m == nil {
+		t.Fatalf("ids did not filter topicCandidates:\n%s", narrow)
+	}
+	n, _ := strconv.Atoi(m[1])
+	if got := renumber(strings.Replace(narrow, m[0], ")", 1), n); got != plain || len(nargs) != len(pargs)+1 {
+		t.Fatalf("ids changed more than the filter:\n%s\nvs\n%s", got, plain)
+	}
+	if fmt.Sprint(nargs[n-1]) != fmt.Sprint(ids) {
+		t.Fatalf("ids arg %v", nargs[n-1])
+	}
+}
+
+// TestSearchTopicsIndexPathEqualsScan is spec 100 T007 on Postgres: below the
+// cap (the id filter in topicCandidates) and above it (cap + 1 candidates:
+// today's statement), topics via the index equal topics via the scan, row for
+// row and in order, on every keyset page; the switch off never probes.
+// CONTROL: the same comparison against ids missing ONE topic's first message
+// (what a truncated set could be) fails.
+func TestSearchTopicsIndexPathEqualsScan(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("SPOOL_TEST_PG_DSN unset (run hub-pg.tst.sh)")
+	}
+	ctx, now := context.Background(), time.Now().UTC()
+	tid := newTenant(t, pg)
+	// 300 topics of 3 messages (900 say "common"). Every 20th topic's first
+	// message says "rare" (15 titles); every 30th topic's replies say "rare"
+	// (never its title); every 7th topic is in another channel; one reply is
+	// expired.
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO messages (tenant_id, msg_id, task_id, ts, from_box, from_id, to_box, to_id,
+				kind, body, files, msg, env_sig, env, received_at, expires_at, channel)
+			SELECT $1, gen_random_uuid(), md5('topic' || i)::uuid, $2::timestamptz - i * interval '1 minute', 'box-a',
+				CASE WHEN j = 2 THEN 'CLE-07' ELSE 'GRK-03' END, 'box-b', 'CLE-07', 'note',
+				CASE WHEN j = 1 THEN 'common word ' || CASE WHEN i % 20 = 0 THEN 'rare ' ELSE '' END || md5(i::text)
+					ELSE 'reply common ' || CASE WHEN i % 30 = 0 THEN 'rare ' ELSE '' END || md5(i || 'r' || j) END,
+				'[]', '{"v":1}', 'sig', '\x00', $2::timestamptz - i * interval '1 minute' + j * interval '1 second',
+				CASE WHEN i = 60 AND j = 3 THEN $2::timestamptz - interval '1 minute' ELSE $2::timestamptz + interval '30 days' END,
+				CASE WHEN i % 7 = 0 THEN 'ops' ELSE 'lobby' END
+			FROM generate_series(1, 300) i, generate_series(1, 3) j`, tid, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !pg.hasSearchIndex(ctx) {
+		t.Fatal("rdb 0143 spool_search_candidates not found by the probe")
+	}
+	ops := []string{search.OpText, search.OpTitle}
+	walk := func(text string, base SearchQuery, scanOnly bool, limit int) []string {
+		var out []string
+		q := base
+		q.ScanOnly, q.Limit, q.Budget = scanOnly, limit, 5*time.Second
+		for page := 0; page < 200; page++ {
+			rows, err := pg.SearchTopics(ctx, tid, q)
+			if err != nil {
+				t.Fatalf("%q scanOnly=%v: %v", text, scanOnly, err)
+			}
+			for _, r := range rows {
+				out = append(out, fmt.Sprint(r.TaskID, r.Title, r.Count, r.LastAt.UnixNano(), r.Channel, r.Kinds, r.Parties))
+			}
+			if len(rows) < q.Limit {
+				return out
+			}
+			last := rows[len(rows)-1]
+			q.AfterAt, q.AfterID = last.LastAt, last.TaskID
+		}
+		t.Fatalf("%q: paging did not end", text)
+		return nil
+	}
+	for _, text := range []string{"rare ", "title:rare", "rare in:lobby ", "rare -in:ops ", "rar", "from:GRK-03 rare ",
+		"common ", "common rare ", "title:common"} {
+		base := sq(t, text, now)
+		sql, args, ok := candidateProbeSQL(base, searchIndexCap, ops...)
+		if !ok {
+			t.Fatalf("%q: no probe", text)
+		}
+		var n int
+		if err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `SELECT count(*) FROM (`+sql+`) c`, args...).Scan(&n)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ids, err := pg.searchCandidates(ctx, tid, base, searchIndexCap, ops...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if above := n > searchIndexCap; above != (ids == nil) {
+			t.Fatalf("%q: %d candidates, ids nil=%v: the id filter must apply exactly at or below the cap", text, n, ids == nil)
+		}
+		// small pages below the cap (several keyset pages of the id filter);
+		// above it both paths run today's statement, so fewer, larger pages
+		limit := 4
+		if ids == nil {
+			limit = 40
+		}
+		scan, idx := walk(text, base, true, limit), walk(text, base, false, limit)
+		if len(scan) == 0 || fmt.Sprint(scan) != fmt.Sprint(idx) {
+			t.Fatalf("%q: index path %d topics != scan path %d topics\n%v\n%v", text, len(idx), len(scan), idx, scan)
+		}
+		t.Logf("%q: %d candidates, filter=%v, %d topics", text, n, ids != nil, len(scan))
+	}
+
+	// CONTROL: drop the first message of the newest "rare" topic from the
+	// candidates; that topic must go, so the equality above can fail.
+	base := sq(t, "rare ", now)
+	base.Limit, base.Budget = 50, 5*time.Second
+	scan, err := pg.SearchTopics(ctx, tid, SearchQuery{Q: base.Q, Now: now, Limit: 50, Budget: 5 * time.Second, ScanOnly: true})
+	if err != nil || len(scan) == 0 {
+		t.Fatalf("control scan: %d topics, %v", len(scan), err)
+	}
+	ids, err := pg.searchCandidates(ctx, tid, base, searchIndexCap, ops...)
+	if err != nil || ids == nil {
+		t.Fatalf("control probe: %v, %v", ids, err)
+	}
+	var first string
+	if err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT msg_id::text FROM messages WHERE task_id = $1::uuid ORDER BY received_at, msg_id LIMIT 1`,
+			scan[0].TaskID).Scan(&first)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cut := slices.DeleteFunc(slices.Clone(ids), func(id string) bool { return id == first })
+	if len(cut) != len(ids)-1 {
+		t.Fatalf("control: first message %s not among the %d candidates", first, len(ids))
+	}
+	sql, args := searchTopicsSQL(tid, base, pg.hasSearchSig(ctx), cut)
+	var got []string
+	if err := pg.search(ctx, tid, base, sql, args, func(rows pgx.Rows) error {
+		var id string
+		var skip any
+		dst := []any{&id}
+		for range rows.FieldDescriptions()[1:] {
+			dst = append(dst, &skip)
+		}
+		if err := rows.Scan(dst...); err != nil {
+			return err
+		}
+		got = append(got, id)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(scan)-1 || slices.Contains(got, scan[0].TaskID) {
+		t.Fatalf("control: a candidate set missing topic %s's first message still returned %d of %d topics", scan[0].TaskID, len(got), len(scan))
+	}
+
+	off := sq(t, "rare ", now)
+	off.ScanOnly = true
+	if ids, err := pg.searchCandidates(ctx, tid, off, searchIndexCap, ops...); ids != nil || err != nil {
 		t.Fatalf("switch off: probed (%v, %v)", ids, err)
 	}
 }

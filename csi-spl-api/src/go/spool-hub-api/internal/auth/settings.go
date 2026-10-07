@@ -72,6 +72,9 @@ type MembershipSettings struct {
 	TimeZone         *string         `json:"time_zone,omitempty"`
 	// KeyboardShortcuts: HUM-10 ae2e5093, nil = on.
 	KeyboardShortcuts *bool `json:"keyboard_shortcuts,omitempty"`
+	// HoursIdleMinutes: the member's own idle cutoff N (spec 107, owner Q3 =
+	// B), nil = the workspace's hours.idle_minutes. Read by the hours store.
+	HoursIdleMinutes *int `json:"hours_idle_minutes,omitempty"`
 }
 
 // Overlay returns b with every set field of the per-tenant override o applied

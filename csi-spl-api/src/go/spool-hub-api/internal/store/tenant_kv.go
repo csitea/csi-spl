@@ -61,6 +61,10 @@ type TenantSettingDef struct {
 	Max     int
 	MaxLen  int      // SettingString: at most this many runes (0 = MaxTenantSettingString)
 	OneOf   []string // SettingString: when set, the only allowed values
+	// Valid, SettingString: when set, a value it refuses is refused; ValidHint
+	// says what it takes ("an IANA zone name").
+	Valid     func(string) bool
+	ValidHint string
 }
 
 // MaxTenantSettingString bounds a string value with no MaxLen of its own.
@@ -193,6 +197,9 @@ func (d TenantSettingDef) normalizeString(v any) (any, error) {
 			}
 		}
 		return nil, d.bad("is one of %s", strings.Join(d.OneOf, ", "))
+	}
+	if d.Valid != nil && !d.Valid(s) {
+		return nil, d.bad("is %s", d.ValidHint)
 	}
 	return s, nil
 }

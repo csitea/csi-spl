@@ -102,15 +102,26 @@ type headFix struct {
 }
 
 // lineOpt shapes one line; the zero value is a #lobby line AGT-1@box-a ->
-// HUM-1@box-wui, kind task, 30 days to live. ch "-" is a DM.
+// HUM-1@box-wui, kind task, 30 days to live. ch "-" is a DM. mirror names
+// the DM line this one is the channel copy of (spec 067, messages.mirror_of).
 type lineOpt struct {
-	ch, from, fromBox, to, toBox, kind, body, parent string
-	card                                             bool // msg_id = task_id (the topic's card)
-	ttl                                              time.Duration
+	ch, from, fromBox, to, toBox, kind, body, parent, mirror string
+	card                                                     bool // msg_id = task_id (the topic's card)
+	ttl                                                      time.Duration
 }
 
 // line inserts one line named name into the task named task, ago before t0.
 func (f *headFix) line(name, task string, ago time.Duration, o lineOpt) string {
+	f.t.Helper()
+	m := f.lineMsg(name, task, ago, o)
+	if _, err := f.pg.InsertMessage(context.Background(), m); err != nil {
+		f.t.Fatalf("insert %s: %v", name, err)
+	}
+	return m.MsgID
+}
+
+// lineMsg is the row line inserts, named but not stored yet.
+func (f *headFix) lineMsg(name, task string, ago time.Duration, o lineOpt) Message {
 	f.t.Helper()
 	if f.task[task] == "" {
 		f.task[task] = uuid4()
@@ -144,11 +155,12 @@ func (f *headFix) line(name, task string, ago time.Duration, o lineOpt) string {
 		m.Body = name + " line"
 	}
 	m.Msg, _ = json.Marshal(map[string]any{"v": 1, "body": m.Body})
-	if _, err := f.pg.InsertMessage(context.Background(), m); err != nil {
-		f.t.Fatalf("insert %s: %v", name, err)
+	if o.mirror != "" { // the copy's own envelope, as editMirrorsTx re-encodes it
+		m.MirrorOf = f.msg[o.mirror]
+		m.Env, _ = json.Marshal(map[string]any{"from_box": m.FromBox, "to_box": m.ToBox, "msg": json.RawMessage(m.Msg), "sig": ""})
 	}
 	f.msg[name] = m.MsgID
-	return m.MsgID
+	return m
 }
 
 // edit is an Edit to body.
@@ -255,7 +267,7 @@ var dmHumAgt = lineOpt{ch: "-", from: "HUM-1", fromBox: "box-wui", to: "AGT-1", 
 // E25 (tenant delete) has nothing to compare before heads exist: T003.
 func headCases() []headCase {
 	ctx := context.Background()
-	return []headCase{
+	return append([]headCase{
 		{id: "E01", what: "insert a channel line", apply: func(f *headFix) { f.line("a3", "A", time.Minute, lineOpt{}) },
 			expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "A", 4) }},
 		{id: "E02", what: "insert a DM line", apply: func(f *headFix) { f.line("d2", "D", time.Minute, dmHumAgt) },
@@ -399,14 +411,16 @@ func headCases() []headCase {
 			f.line("n0", "N", 15*time.Minute, lineOpt{card: true, ch: "-", from: "HUM-1", fromBox: "box-wui", to: "AGT-1", toBox: "box-a"})
 			f.line("n1", "N", 14*time.Minute, lineOpt{ch: "-", from: "HUM-2", fromBox: "box-wui", to: "AGT-1", toBox: "box-a"})
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "N", 2) }},
-		{id: "E28", what: "equal received_at across topics", apply: func(f *headFix) {
-			f.line("t0", "T1", 2*time.Minute, lineOpt{card: true})
+		{id: "E28", what: "5 topics at one received_at, a page boundary inside the tie", apply: func(f *headFix) {
+			f.line("t1", "T1", 2*time.Minute, lineOpt{card: true})
 			o := dmHumAgt
 			o.card = true
-			f.line("u0", "T2", 2*time.Minute, o)
-			f.line("v0", "T3", 2*time.Minute, lineOpt{card: true, ch: "crew"})
+			f.line("t2", "T2", 2*time.Minute, o)
+			f.line("t3", "T3", 2*time.Minute, lineOpt{card: true, ch: "crew"})
+			f.line("t4", "T4", 2*time.Minute, lineOpt{card: true, from: "AGT-2", fromBox: "box-b"})
+			f.line("t5", "T5", 2*time.Minute, lineOpt{card: true, to: "AGT-1", toBox: "box-a"})
 		}, expect: func(f *headFix, r map[string]TopicRow) string {
-			return firstOf(countIs(f, r, "T1", 1), countIs(f, r, "T2", 1), countIs(f, r, "T3", 1))
+			return firstOf(countIs(f, r, "T1", 1), countIs(f, r, "T5", 1), boundaryAt(f, f.t0.Add(-2*time.Minute), 2))
 		}},
 		{id: "E29", what: "archive a channel (stamps its topic cards)", apply: func(f *headFix) {
 			f.must("archive channel", f.pg.ArchiveChannel(ctx, f.tn, "crew", "HUM-1", f.t0))
@@ -414,6 +428,168 @@ func headCases() []headCase {
 		{id: "E30", what: "a child topic gains a line in another channel", apply: func(f *headFix) {
 			f.line("k1", "K", time.Minute, lineOpt{parent: "A", ch: "crew"})
 		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "K", 2) }},
+	}, headCasesT001b()...)
+}
+
+// boundaryAt pages the plain list at limit 3 and asserts the page that ends
+// after `pages` pages is cut between two topics both last at `at`: the cursor
+// lands inside a tie (E28), or on a due topic (E20p, pages 1 and at = its
+// key once its newest line expired).
+func boundaryAt(f *headFix, at time.Time, pages int) string {
+	q := TopicQuery{Now: f.now, Lobby: f.task["lobby"], Limit: 3}
+	var all []TopicRow
+	for p := 0; p < pages; p++ {
+		rows, err := f.pg.ViewTopics(context.Background(), f.tn, q)
+		f.must("page", err)
+		all = append(all, rows...)
+		if len(rows) < q.Limit {
+			break
+		}
+		q.BeforeAt, q.BeforeTask = rows[len(rows)-1].LastAt, rows[len(rows)-1].TaskID
+	}
+	if len(all) < 3 || (pages > 1 && len(all) < 4) {
+		return fmt.Sprintf("only %d rows on the first %d pages", len(all), pages)
+	}
+	if !all[2].LastAt.Equal(at) {
+		return "page 1 ends at " + all[2].LastAt.String() + ", want " + at.String()
+	}
+	if pages > 1 && !all[3].LastAt.Equal(at) {
+		return "page 2 starts at " + all[3].LastAt.String() + ": the boundary is not inside the tie"
+	}
+	return ""
+}
+
+// parentIs asserts task's listed parent.
+func parentIs(f *headFix, rows map[string]TopicRow, task, parent string) string {
+	if p := rows[f.task[task]].Parent; p != f.task[parent] {
+		return fmt.Sprintf("%s parent %q, want %s %q", task, p, parent, f.task[parent])
+	}
+	return ""
+}
+
+// bodyOf is the stored body of the line named name.
+func bodyOf(f *headFix, name string) string {
+	var b string
+	f.must("body "+name, f.pg.queryRowTenant(context.Background(), f.tn,
+		`SELECT body FROM messages WHERE tenant_id = $1 AND msg_id = $2`, []any{f.tn, f.msg[name]}, &b))
+	return b
+}
+
+// dropHeads deletes task's head rows as operator, standing for a topic
+// written before the DDL (E41); before T002 there are no head tables and it
+// does nothing, so E41 is E01 today.
+func dropHeads(f *headFix, task string) {
+	ctx := context.Background()
+	var reg *string
+	f.must("probe", f.pg.pool.QueryRow(ctx, `SELECT to_regclass('topic_heads')::text`).Scan(&reg))
+	if reg == nil {
+		return
+	}
+	f.must("drop heads", f.pg.asOperator(ctx, func(tx pgx.Tx) error {
+		for _, tbl := range []string{"topic_head_parts", "topic_heads"} {
+			if _, err := tx.Exec(ctx, `DELETE FROM `+tbl+` WHERE tenant_id = $1 AND task_id = $2`, f.tn, f.task[task]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+}
+
+// headCasesT001b are spec 099 T001b's cases: E20p and E31..E41 (claude-3
+// F3, F4), each the fixture one reference control or one writer needs.
+func headCasesT001b() []headCase {
+	ctx := context.Background()
+	return []headCase{
+		{id: "E20p", what: "a due topic exactly at a page boundary", apply: func(f *headFix) {
+			f.line("q0", "Q", 27*time.Minute, lineOpt{card: true})
+			expireOne(f, "q1", "Q", lineOpt{})
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(countIs(f, r, "Q", 1), boundaryAt(f, f.t0.Add(-27*time.Minute), 1))
+		}},
+		{id: "E31", what: "a card that has left its topic is archived", apply: func(f *headFix) {
+			_, err := f.pg.MoveMessage(ctx, f.tn, f.msg["b0"], f.task["lobby"], ChannelLobby, "HUM-1", f.t0, time.Time{})
+			f.must("move card", err)
+			archive(f, "b0", true)
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(absent(f, r, "B"), countIs(f, r, "lobby", 3))
+		}},
+		{id: "E32", what: "one agent on two boxes", apply: func(f *headFix) {
+			f.line("b2", "B", 33*time.Minute, lineOpt{ch: "crew", from: "AGT-1", fromBox: "box-b", to: "HUM-1"})
+		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "B", 3) }},
+		{id: "E33", what: "a child topic whose first line is in a created channel", apply: func(f *headFix) {
+			f.line("c0", "C", 24*time.Minute, lineOpt{card: true, ch: "crew", parent: "A", body: "crew child"})
+			f.line("c1", "C", 23*time.Minute, lineOpt{from: "AGT-2", fromBox: "box-b", to: "ALL-0"})
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(countIs(f, r, "C", 2), parentIs(f, r, "C", "A"))
+		}},
+		{id: "E34", what: "a duplicate resend", apply: func(f *headFix) {
+			m := f.lineMsg("a3", "A", time.Minute, lineOpt{})
+			for i, want := range []bool{true, false} {
+				ok, err := f.pg.InsertMessage(ctx, m)
+				f.must("resend", err)
+				if ok != want {
+					f.t.Fatalf("insert %d of one line: inserted=%v", i+1, ok)
+				}
+			}
+		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "A", 4) }},
+		{id: "E35", what: "a DM card with a mirror is archived", apply: func(f *headFix) {
+			f.line("cp", "A", 44*time.Minute, lineOpt{from: "HUM-1", fromBox: "box-wui", to: "AGT-1", toBox: "box-a", mirror: "d0"})
+			archive(f, "d0", true)
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(absent(f, r, "D"), absent(f, r, "A"))
+		}},
+		{id: "E35b", what: "a DM card with a mirror is archived, then unarchived", apply: func(f *headFix) {
+			f.line("cp", "A", 44*time.Minute, lineOpt{from: "HUM-1", fromBox: "box-wui", to: "AGT-1", toBox: "box-a", mirror: "d0"})
+			archive(f, "d0", true)
+			archive(f, "d0", false)
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(countIs(f, r, "D", 2), countIs(f, r, "A", 4))
+		}},
+		{id: "E36", what: "a mirrored line is edited", apply: func(f *headFix) {
+			f.line("cp", "A", 29*time.Minute, lineOpt{from: "AGT-1", fromBox: "box-a", to: "HUM-1", toBox: "box-wui", kind: "result", mirror: "d1"})
+			_, err := f.pg.ApplyEdit(ctx, f.tn, f.msg["d1"], f.edit("edited dm answer"))
+			f.must("edit", err)
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			if b := bodyOf(f, "cp"); b != "edited dm answer" {
+				return "the copy's body is " + b
+			}
+			return firstOf(countIs(f, r, "A", 4), countIs(f, r, "D", 2))
+		}},
+		{id: "E37", what: "a channel is unarchived", apply: func(f *headFix) {
+			f.must("archive channel", f.pg.ArchiveChannel(ctx, f.tn, "crew", "HUM-1", f.t0))
+			f.must("unarchive channel", f.pg.UnarchiveChannel(ctx, f.tn, "crew"))
+		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "B", 2) }},
+		{id: "E38", what: "a topic that has a child is merged", apply: func(f *headFix) {
+			_, err := f.pg.MergeTopic(ctx, f.tn, f.msg["a0"], f.task["A"], f.task["B"], "crew", "HUM-1", f.t0)
+			f.must("merge", err)
+			f.parent = f.task["B"] // parent= now names the child's new parent
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(absent(f, r, "A"), countIs(f, r, "B", 5), parentIs(f, r, "K", "B"))
+		}},
+		{id: "E39", what: "an archived reply is moved", apply: func(f *headFix) {
+			archive(f, "a1", true)
+			_, err := f.pg.MoveMessage(ctx, f.tn, f.msg["a1"], f.task["B"], "crew", "HUM-1", f.t0, time.Time{})
+			f.must("move", err)
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			return firstOf(countIs(f, r, "A", 2), absent(f, r, "B"))
+		}},
+		{id: "E40", what: "two lines at the same instant in one topic", apply: func(f *headFix) {
+			f.line("e0", "E", 22*time.Minute, lineOpt{card: true, body: "tie lobby"})
+			f.line("e1", "E", 22*time.Minute, lineOpt{ch: "crew", from: "AGT-2", fromBox: "box-b", body: "tie crew"})
+		}, expect: func(f *headFix, r map[string]TopicRow) string {
+			want, ch := "tie lobby", ChannelLobby
+			if f.msg["e1"] < f.msg["e0"] {
+				want, ch = "tie crew", "crew"
+			}
+			if c := r[f.task["E"]].Channel; c != ch {
+				return "E channel " + c + ", want " + ch
+			}
+			return firstOf(countIs(f, r, "E", 2), subjectIs(f, r, "E", want))
+		}},
+		{id: "E41", what: "an insert into a topic whose head rows are deleted", apply: func(f *headFix) {
+			dropHeads(f, "A")
+			f.line("a3", "A", time.Minute, lineOpt{})
+		}, expect: func(f *headFix, r map[string]TopicRow) string { return countIs(f, r, "A", 4) }},
 	}
 }
 
@@ -571,46 +747,104 @@ func TestTopicHeadCases(t *testing.T) {
 	}
 }
 
-// TestTopicHeadReferenceControl: the reference must be able to fail. Each
-// control breaks one rule of spec section 2 in a copy of the reference and
-// asserts the walk then disagrees on at least one shape of a fixture that
-// holds a mixed topic and an archived reply.
-func TestTopicHeadReferenceControl(t *testing.T) {
-	pg := pgOnly(t)
-	ctx := context.Background()
-	f := seedHeadFix(t, pg, time.Now().UTC().Truncate(time.Microsecond))
+// refControl breaks one rule of spec section 2 in a copy of the reference:
+// every from is replaced by its to. onCase names the case whose fixture can
+// fail it ("" = the mixed fixture of controlFix).
+type refControl struct {
+	name, onCase string
+	from, to     string
+}
+
+// refControls is spec 7.1's list: the first three caught on T001's mixed
+// fixture, the five T001b added each on the one case that can fail it.
+var refControls = []refControl{
+	{"no door per line (count)", "", "FROM s JOIN d ON d.task_id = s.task_id AND d.door", "FROM s JOIN d ON d.task_id = s.task_id"},
+	{"no archived hide", "", "AND NOT EXISTS (SELECT 1 FROM messages z WHERE", "AND NOT EXISTS (SELECT 1 FROM messages z WHERE false AND"},
+	{"order key under the door", "", "SELECT task_id, max(received_at) AS last_at", "SELECT task_id, max(received_at) FILTER (WHERE door) AS last_at"},
+	{"tie-break ASC", "E28", "ORDER BY t.last_at DESC, t.task_id::text DESC LIMIT $17", "ORDER BY t.last_at DESC, t.task_id::text ASC LIMIT $17"},
+	{"cursor ignores the task", "E28", "(t.last_at, t.task_id::text) < ($15::timestamptz, $16::text)", "(t.last_at < $15::timestamptz AND $16::text = $16::text)"},
+	{"card rule dropped", "E31", "z.msg_id = t.task_id OR", "false OR"},
+	{"agent box ignored", "E32", "($6::text = '' OR", "(true OR"},
+	{"first parent under the door", "E33", "(array_agg(parent_task_id::text ORDER BY received_at, msg_id::text))[1] AS first_parent",
+		"(array_agg(parent_task_id::text ORDER BY received_at, msg_id::text) FILTER (WHERE door))[1] AS first_parent"},
+}
+
+// controlFix is T001's control fixture: the seed plus a mixed channel + DM
+// topic and an archived reply.
+func controlFix(f *headFix) {
 	f.line("m0", "M", 15*time.Minute, lineOpt{card: true, from: "AGT-2", fromBox: "box-b", to: "ALL-0"})
 	f.line("m1", "M", 5*time.Minute, lineOpt{ch: "-", from: "HUM-2", fromBox: "box-wui", to: "AGT-2", toBox: "box-b", kind: "note"})
 	f.line("w0", "W", 12*time.Minute, lineOpt{card: true})
 	f.line("w1", "W", 11*time.Minute, lineOpt{})
 	archive(f, "w1", true)
-	controls := map[string][2]string{
-		"no door per line (count)": {"FROM s JOIN d ON d.task_id = s.task_id AND d.door", "FROM s JOIN d ON d.task_id = s.task_id"},
-		"no archived hide":         {"AND NOT EXISTS (SELECT 1 FROM messages z WHERE", "AND NOT EXISTS (SELECT 1 FROM messages z WHERE false AND"},
-		"order key under the door": {"SELECT task_id, max(received_at) AS last_at", "SELECT task_id, max(received_at) FILTER (WHERE door) AS last_at"},
+}
+
+// controlCaught pages every shape of f as compareAll does (the walk's
+// cursor), comparing the walk with the broken reference on each page; it
+// names the first shape and page where they differ, "" if none.
+func controlCaught(t *testing.T, f *headFix, broken string) string {
+	t.Helper()
+	ctx := context.Background()
+	names := make([]string, 0, 300)
+	shapes := topicHeadShapes(f)
+	for n := range shapes {
+		names = append(names, n)
 	}
-	for name, sub := range controls {
-		if !strings.Contains(refTopicsSQL, sub[0]) {
-			t.Fatalf("control %q: %q not in the reference", name, sub[0])
-		}
-		broken := strings.Replace(refTopicsSQL, sub[0], sub[1], 1)
-		caught := false
-		for _, q := range topicHeadShapes(f) {
-			walk, err := pg.ViewTopics(ctx, f.tn, q)
+	sort.Strings(names)
+	for _, name := range names {
+		q := shapes[name]
+		for page := 0; ; page++ {
+			walk, err := f.pg.ViewTopics(ctx, f.tn, q)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("%s: walk: %v", name, err)
 			}
-			ref, err := refTopicsWith(ctx, pg, broken, f.tn, q)
+			ref, err := refTopicsWith(ctx, f.pg, broken, f.tn, q)
 			if err != nil {
-				t.Fatalf("%s: %v", name, err)
+				t.Fatalf("%s: broken reference: %v", name, err)
 			}
-			if sameRows(walk, ref) != "" {
-				caught = true
+			if d := sameRows(walk, ref); d != "" {
+				return fmt.Sprintf("%s page %d: %s", name, page, strings.ReplaceAll(d, "\n", " |"))
+			}
+			if q.Limit == 0 || len(walk) < q.Limit {
 				break
 			}
+			q.BeforeAt, q.BeforeTask = walk[len(walk)-1].LastAt, walk[len(walk)-1].TaskID
 		}
-		if !caught {
-			t.Fatalf("CONTROL %q: a reference with that rule broken still equals the walk on every shape", name)
-		}
+	}
+	return ""
+}
+
+// TestTopicHeadReferenceControl: the reference must be able to fail. Each
+// control breaks one rule of spec section 2 in a copy of the reference and,
+// as a hard assertion, the walk then disagrees with it on some shape and
+// page of the case that control needs.
+func TestTopicHeadReferenceControl(t *testing.T) {
+	pg := pgOnly(t)
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	cases := map[string]headCase{}
+	for _, c := range headCases() {
+		cases[c.id] = c
+	}
+	for _, rc := range refControls {
+		rc := rc
+		t.Run(rc.name, func(t *testing.T) {
+			t.Parallel()
+			if !strings.Contains(refTopicsSQL, rc.from) {
+				t.Fatalf("%q not in the reference", rc.from)
+			}
+			f := seedHeadFix(t, pg, t0)
+			if c, ok := cases[rc.onCase]; ok {
+				c.apply(f)
+			} else if rc.onCase != "" {
+				t.Fatalf("no case %s", rc.onCase)
+			} else {
+				controlFix(f)
+			}
+			where := controlCaught(t, f, strings.ReplaceAll(refTopicsSQL, rc.from, rc.to))
+			if where == "" {
+				t.Fatalf("CONTROL %q on %q: a reference with that rule broken still equals the walk on every shape and page", rc.name, rc.onCase)
+			}
+			t.Logf("control %q on case %q caught: %s", rc.name, rc.onCase, where)
+		})
 	}
 }

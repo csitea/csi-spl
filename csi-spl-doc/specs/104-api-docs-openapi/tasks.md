@@ -33,17 +33,17 @@ Every build task is done only when:
 
 ### Phase 2: serving
 
-- [ ] T003 **serve the embedded file at `GET /v1/openapi.json`**
+- [x] T003 **serve the embedded file at `GET /v1/openapi.json`** (lane c-489, `59940a27`)
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.go` (creates), `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_serve_test.go` (creates); edits `openapi.json` only to add the `GET /v1/openapi.json` operation; one registration line in the hub's route setup (`server.go` `Handler()`).
   - **Depends on**: T002 landed.
   - **Builds**: spec §4.2: `go:embed`, member-session door, `Content-Type: application/json; charset=utf-8`, `Cache-Control: private, no-cache`, `info.version` = running version.
   - **Positive test**: with a member session, 200, the content type above, body parses, `.openapi == "3.0.3"`, `.info.version` equals `/version`.
-  - **Negative test**: no session -> 403 `forbidden` with `{error, detail}`; the gate fails if the route is registered without its operation.
-  - **Live**: dev and prd, against the hub host (cnf `env.dns.api_fqdn`, never a literal), with a member session: `jq -r .openapi` -> `3.0.3`; without one -> 403.
+  - **Negative test**: no session -> `{error, detail}`: a live hub answers 401 `view_door` from `humanTenant` (spec §4.2, FR-004); the test hub (view door off) reaches the handler's own 403 `forbidden` branch, `TestOpenAPINoSessionForbidden`. The gate fails if the route is registered without its operation.
+  - **Live**: dev and prd, against the hub host (cnf `env.dns.api_fqdn`, never a literal), with a member session: `jq -r .openapi` -> `3.0.3`; without one -> 401 `view_door`.
 
 ### Phase 3: schemas
 
-- [ ] T004 **request and response bodies from the 49 contracts**
+- [x] T004 **request and response bodies from the 49 contracts** (lane c-492, `e0d7049d` + `6167e44c`)
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` (edits only).
   - **Depends on**: T003 landed. One lane at a time on the file; if split, split by tag and run the lanes in sequence, never in parallel.
   - **Builds**: `requestBody` and 2xx schemas for every operation that has a contract under `csi-spl-doc/specs/*/contracts/*.md`; `nullable: true` (3.0), not `type: [x, "null"]`; each schema cites its contract in `description`.
@@ -53,7 +53,7 @@ Every build task is done only when:
 
 ### Phase 4: viewer
 
-- [ ] T005 **lazy viewer component**
+- [x] T005 **lazy viewer component** (lane c-490, `b95b9f78`)
   - **Owns**: `csi-spl-wui/src/components/ApiDocViewer.vue`, `csi-spl-wui/src/components/ApiRouteCard.vue`, `csi-spl-wui/tests/unit/api-doc-viewer.test.mjs` (all created).
   - **Depends on**: T002 landed (file shape; the unit test uses a small fixture, not the hub).
   - **Builds**: spec §4.4: operations grouped by tag, method badges, search by path / tag / method, params, body and responses; scope toggle (member default, operator on demand, UX only); no "Try it out"; theme tokens only, no inline `style=`, no runtime `<style>`, no `eval`.
@@ -61,7 +61,7 @@ Every build task is done only when:
   - **Negative tests**: malformed JSON shows the error state without throwing; the component issues no request other than the spec fetch.
   - **Live**: covered by T006.
 
-- [ ] T006 **`/docs/api` route, pinned row, CSP e2e, budget**
+- [x] T006 **`/docs/api` route, pinned row, CSP e2e, budget** (`bd283b21`)
   - **Owns**: `csi-spl-wui/src/pages/docs.vue` (edits), the new strings in `csi-spl-wui/i18n/`, `csi-spl-wui/tests/e2e/docs-api.test.mjs` (creates).
   - **Depends on**: T005 landed; T003 deployed (the page fetches `GET /v1/openapi.json`).
   - **Builds**: `api` reserved in the `docs.vue` catch-all, rendered with `defineAsyncComponent(() => import('~/components/ApiDocViewer.vue'))`; an "API Reference" row pinned at the top of the Docs tree, like `/docs/ws`. No import of the viewer or its helpers from a plugin, a layout or statically from `docs.vue`.
@@ -71,7 +71,7 @@ Every build task is done only when:
 
 ### Phase 5: close-out
 
-- [ ] T007 **status to Done**
+- [x] T007 **status to Done** (lane c-499; dev and prd `build.json` `401023aa` carries T002..T006)
   - **Owns**: `csi-spl-doc/specs/104-api-docs-openapi/spec.md` (status line), `tasks.md` (checkboxes).
   - **Depends on**: T002..T006 live in dev and prd.
   - **Done**: release note links for the T003 and T006 shas (`SHA=<sha> ENV=<env> ./run -a do_release_note_link`, dev and prd) in the lane report.

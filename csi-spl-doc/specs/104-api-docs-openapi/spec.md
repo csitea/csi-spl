@@ -1,6 +1,6 @@
 # 104 API docs (OpenAPI 3.0.3 reference, served by the hub, viewed in Docs)
 
-**Feature ID**: `104-api-docs-openapi` · **Milestone**: M3 · **Status**: **v1.1, panel consensus, 2026-10-07**  
+**Feature ID**: `104-api-docs-openapi` · **Milestone**: M3 · **Status**: **Done, 2026-10-07** (v1.1, panel consensus; T002..T006 live on dev and prd, `tasks.md` T007)  
 **Created**: 2026-10-07 · **Lane**: a-518 (draft v1.0), c-485 (v1.1 fold) · **Topic**: `7dfe8a9d-8606-4993-8df5-63a44fb46c77`  
 **Authority**: this file for normative behaviour and schema policy; `plan.md` for architecture; `tasks.md` for build order, ownership and done checks. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing.
 
@@ -169,7 +169,7 @@ A Go test in `internal/hub` (no production change):
 - **An e2e proves it renders under the real WUI CSP**: no `eval` / `new Function`, no `unsafe-inline` (no runtime `<style>` injection, no inline `style=` / `on*=`), zero `securitypolicyviolation` events on `/docs/api`.
 
 ### 4.5 Not-allowed and error states
-- No member session: hub answers 403 `forbidden` with the `{error, detail}` envelope; the WUI's signed-out redirect applies to `/docs/api`.
+- No member session: hub answers 401 `view_door` with the `{error, detail}` envelope (§4.2, FR-004); the WUI's signed-out redirect applies to `/docs/api`.
 - Spec fetch fails: the viewer shows an error state, never a blank page.
 
 ### 4.6 No `swagger.html`
@@ -207,7 +207,7 @@ There is no `swagger.html` in v1.1, in the hub, the docs bucket or WUI `public/`
 | 3 | `ErrorEnvelope {error, reason}` | `{error, detail}` (`wire.go:936-937`) | rev-1 §1.4 |
 | 4 | file in `csi-spl-doc/.../contracts/`, published to the docs bucket, `ValidDocsPath` + `tree.json` change | file in the hub module, `go:embed`, `GET /v1/openapi.json`; no bucket, `ValidDocsPath`, `tree.json` or wf 32 change | rev-1 §3.1 (rev-2 §1.2 conceded) |
 | 5 | standalone `swagger.html` in bucket, hub and WUI `public/` | dropped; later separate task | rev-1 §1.7/3.2, rev-2 §1.4 |
-| 6 | FR-004: 404 when unauthenticated | 403 `forbidden` | rev-1 §1.8, rev-2 §1.2.5 |
+| 6 | FR-004: 404 when unauthenticated | 401 `view_door`, the Docs door (v1.1 said 403 `forbidden`; amended in `e0d7049d` to what dev and prd answer) | rev-1 §1.8, rev-2 §1.2.5 |
 | 7 | `OperatorAuth` scheme; future "Try it out" rules with `ALLOW_LIVE_API_MUTATIONS` | one session scheme + `x-role`; future rules struck | rev-1 §3.5, rev-2 §3.3/3.4 |
 | 8 | server `https://{tenant}.{baseDomain}/v1` | server without `/v1`; paths equal Go patterns | rev-2 §3.2 |
 | 9 | "API Reference" as a `tree.json` entry | pinned WUI row like `/docs/ws` | rev-1 §2.3, rev-2 §2 |

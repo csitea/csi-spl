@@ -11,7 +11,8 @@ import (
 )
 
 // GET /v1/openapi.json (spec 104 §4.2, T003): the embedded reference, served
-// to a signed-in member with info.version = /version; no session -> 403.
+// to a signed-in member with info.version = /version. No session: 401 view_door
+// from humanTenant on a live hub (FR-004); 403 forbidden on this view-door-off test hub.
 
 func getOpenAPI(t *testing.T, e *env, tid, path, as string) (int, []byte, http.Header) {
 	t.Helper()

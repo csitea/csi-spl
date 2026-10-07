@@ -21,9 +21,12 @@
 #      in its own session and kills it on return (a-420/a-424/a-474 kept their
 #      windows). Control: the old in-session closer (TCW_NO_SETSID=1) dies
 #   9. an agy pane: the closer types /exit once agy is idle at an empty `>`,
-#      agy exits by itself, then the window closes - long before the timeout
+#      agy exits by itself, then the window closes - long before the timeout,
+#      though the pane's pid lives on as a shell (a-479 waited the full 180 s)
 #  10. controls: an idle agy with NO closer scheduled is never typed into nor
-#      closed; a busy agy (screen still changing) never gets /exit
+#      closed; a busy agy (screen still changing) never gets /exit; nor does
+#      one paused mid-turn on a STATIC screen (footer `esc to cancel`) - the
+#      live a-479 got three /exit tries in that state on screen stability alone
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -138,12 +141,15 @@ tmux -S "$SPOOL_TMUX_SOCKET" kill-pane -t "$P8B" 2>/dev/null
 mkdir -p "$T_TMP/bin"
 cat >"$T_TMP/bin/agy" <<'FAKEAGY'
 #!/usr/bin/env bash
-# fake agy: an input box, reads lines into $1, leaves on /exit; $2=busy keeps the screen moving
-if [ "${2:-}" = busy ]; then n=0; while :; do n=$((n + 1)); printf 'working %s\n>\n' "$n"; sleep 0.2; done; fi
-printf '%s\n' '-----' '>' '-----'
+# fake agy: an input box, reads lines into $1, leaves on /exit; $2=busy keeps the
+# screen moving, $2=paused holds a static mid-turn screen (real agy's footers)
+if [ "${2:-}" = busy ]; then n=0; while :; do n=$((n + 1)); printf 'working %s\n>\nesc to cancel\n' "$n"; sleep 0.2; done; fi
+if [ "${2:-}" = paused ]; then printf '%s\n' 'Generating...' '-----' '>' '-----' 'esc to cancel'
+else printf '%s\n' '-----' '>' '-----' '? for shortcuts'; fi
 while IFS= read -r line; do
   printf '%s\n' "$line" >>"$1"
-  [ "$line" = /exit ] && { echo AGY-EXITED >>"$1"; exit 0; }
+  # the pane's pid lives on as a shell, as spawn-core's `exec bash` does
+  [ "$line" = /exit ] && { echo AGY-EXITED >>"$1"; exec sleep 600; }
 done
 sleep 600
 FAKEAGY
@@ -165,5 +171,10 @@ sleep 1
 in_agy_session bash "$SUT" --agent a-303 --defer --timeout 5
 check "10. a busy agy is closed only by the timeout" wait_gone "$P10B" 30
 eq "10. control: ... and never got /exit while busy" "" "$(cat "$T_TMP/got-303" 2>/dev/null)"
+P10C="$(t_window 'a-304@tbox' "bash $T_TMP/bin/agy $T_TMP/got-304 paused")"
+sleep 1
+in_agy_session bash "$SUT" --agent a-304 --defer --timeout 6
+check "10. an agy paused mid-turn is closed only by the timeout" wait_gone "$P10C" 30
+eq "10. control: ... and never got /exit on a static mid-turn screen" "" "$(cat "$T_TMP/got-304" 2>/dev/null)"
 check "10. the idle agy without a closer is still there" alive "$P10"
 t_done

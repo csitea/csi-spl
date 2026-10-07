@@ -51,8 +51,9 @@
 # returns, so a plain `( ... ) & disown` closer died with it: a finished agy
 # agent's window then stayed open for good (a-420, a-424, a-474: empty or
 # missing close logs). agy has a /exit command but its model cannot type it,
-# so for an agy pane the closer types `/exit` itself once agy sits idle at an
-# empty `>` prompt. The scheduled closer is the done marker: only /exit-clean
+# so for an agy pane the closer types `/exit` itself once agy is idle: its
+# footer reads `? for shortcuts` (mid-turn it reads `esc to cancel`, and the
+# empty `>` input line shows either way). The scheduled closer is the done marker: only /exit-clean
 # schedules one, and an idle agy with no closer is never touched.
 #
 # Usage:
@@ -73,6 +74,8 @@
 set -uo pipefail
 TCW_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 TCW_ARGS=("$@")
+# The detached copy (below) is in its own session by now: tell the caller.
+[[ -n "${TCW_READY:-}" ]] && : >"$TCW_READY"
 
 # The tmux server owner, its socket, the box tag and the spool root (which
 # holds the spawn registry) come from the one resolver; explicit env vars win.
@@ -497,8 +500,11 @@ collect_agent_pids_for_pane() {
 }
 
 pid_alive() {
-  # Cross-user safe (kill -0 EPERM on other uids)
-  [[ -n "${1:-}" && -d "/proc/$1" ]]
+  # Cross-user safe (kill -0 EPERM on other uids). Still the AGENT: a pane's
+  # own pid that exec'd a shell once agy/claude left keeps its /proc entry,
+  # and waiting on it ran every close into the timeout (a-479, c-463, c-475).
+  [[ -n "${1:-}" && -d "/proc/$1" ]] &&
+    ps -p "$1" -o args= 2>/dev/null | grep -E '(^|[[:space:]/])(claude|grok|agy|qwen)([[:space:]]|$)' >/dev/null
 }
 
 do_kill_window() {
@@ -564,7 +570,11 @@ GUARD_PANE="$PANE"
 # same target from the same args and env, and writes to this LOG.
 # TCW_NO_SETSID=1 keeps the old in-session closer (the tests' control).
 if [[ -z "${TCW_DETACHED:-}" && -z "${TCW_NO_SETSID:-}" ]] && command -v setsid >/dev/null 2>&1; then
-  if TCW_DETACHED=1 TCW_LOG="$LOG" setsid -f bash "$TCW_SELF" "${TCW_ARGS[@]}" </dev/null >>"$LOG" 2>&1; then
+  # setsid -f returns before the child has left this session: wait for its
+  # ready file, or a session kill right after we return still takes it.
+  if TCW_DETACHED=1 TCW_LOG="$LOG" TCW_READY="$LOG.ready" setsid -f bash "$TCW_SELF" "${TCW_ARGS[@]}" </dev/null >>"$LOG" 2>&1; then
+    for _ in $(seq 1 50); do [[ -e "$LOG.ready" ]] && break; sleep 0.1; done
+    rm -f "$LOG.ready"
     echo "tmux-close-window: scheduled defer-close of $WINDOW_TARGET ('${WINDOW_NAME}') via ${SOURCE} (log=$LOG timeout=${TIMEOUT}s agent_pids=${AGENT_PIDS[*]:-none} session=detached)"
     exit 0
   fi
@@ -577,17 +587,22 @@ for _pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
   ps -p "$_pid" -o args= 2>/dev/null | grep -E '(^|[[:space:]/])agy([[:space:]]|$)' >/dev/null && AGY_PIDS+=("$_pid")
 done
 
-# Idle = the input line is an empty `>` and the screen did not change for 3
-# polls in a row (a turn still streaming its last message changes it).
-AGY_LAST="" AGY_SAME=0 AGY_TRIES=0
+# Idle = the footer reads `? for shortcuts`, never `esc to cancel` (a turn in
+# progress, even one paused on a static screen: a-479 got three /exit tries
+# mid-turn on the screen-stability rule alone), the input line is an empty
+# `>`, and the screen did not change for 3 polls. Tries are >= 10 s apart.
+# An agy whose footer never reads idle is closed by the timeout, as before.
+AGY_LAST="" AGY_SAME=0 AGY_TRIES=0 AGY_NEXT=0
 agy_type_exit_when_idle() {
-  (( ${#AGY_PIDS[@]} > 0 && AGY_TRIES < 3 )) || return 0
+  (( ${#AGY_PIDS[@]} > 0 && AGY_TRIES < 3 && SECONDS >= AGY_NEXT )) || return 0
   local screen
   screen="$("${TM[@]}" capture-pane -p -t "$GUARD_PANE" 2>/dev/null)" || return 0
   if [[ "$screen" == "$AGY_LAST" ]]; then AGY_SAME=$((AGY_SAME + 1)); else AGY_SAME=0; AGY_LAST="$screen"; fi
   (( AGY_SAME >= 3 )) || return 0
   printf '%s\n' "$screen" | grep -E '^>[[:space:]]*$' >/dev/null || return 0
-  AGY_TRIES=$((AGY_TRIES + 1)) AGY_SAME=0
+  printf '%s\n' "$screen" | grep -E '^[[:space:]]*\? for shortcuts' >/dev/null || return 0
+  printf '%s\n' "$screen" | grep -F 'esc to cancel' >/dev/null && return 0
+  AGY_TRIES=$((AGY_TRIES + 1)) AGY_SAME=0 AGY_NEXT=$((SECONDS + 10))
   echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agy idle at an empty prompt: typing /exit (try $AGY_TRIES)"
   "${TM[@]}" send-keys -t "$GUARD_PANE" -l '/exit' 2>/dev/null
   sleep 1

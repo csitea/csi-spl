@@ -101,6 +101,7 @@ POST   /v1/members/invites                        invite                        
 DELETE /v1/members/invites                        revoke an invite                                 025
 PUT    /v1/members/{human_id}/role                set a role                                       025
 DELETE /v1/members/{human_id}                     remove a member                                  025
+POST   /v1/members/{human_id}/password-reset      mail a reset link, sign out (t1 ea0af569)        025
 OPTIONS (preflight for each browser route above)  CORS, allow-listed origins only                  003 FR-021
 ```
 

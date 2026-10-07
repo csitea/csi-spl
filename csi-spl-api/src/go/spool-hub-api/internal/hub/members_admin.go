@@ -47,6 +47,9 @@ type memberRow struct {
 	OrderedByName string  `json:"ordered_by_name"`
 	OrderedVia    string  `json:"ordered_via"`
 	InvitedOn     *string `json:"invited_on"`
+	// SignIn: how the member signs in, provider slugs sorted ("password" =
+	// a native password the admin may reset, t1 ea0af569). null = unknown.
+	SignIn []string `json:"sign_in"`
 }
 
 type inviteRow struct {
@@ -109,6 +112,11 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "invites unavailable")
 		return
 	}
+	ids := make([]string, 0, len(ms))
+	for _, m := range ms {
+		ids = append(ids, m.HumanID)
+	}
+	signIns := s.signIns(r.Context(), ids)
 	now := s.o.Now().UTC()
 	out := membersBody{TenantID: t.ID, You: a.HumanID, Members: []memberRow{}, Invites: []inviteRow{}, Roles: []roleRow{}}
 	for _, m := range ms {
@@ -116,6 +124,9 @@ func (s *Server) handleMemberList(w http.ResponseWriter, r *http.Request) {
 			Role: m.Role, Since: rfc(m.Since), Disabled: m.Disabled, Suspended: m.Suspended, You: m.HumanID == a.HumanID,
 			Manageable: m.HumanID != a.HumanID && a.Covers(roles[m.Role]),
 			OrderedBy:  m.OrderedBy, OrderedByName: m.OrderedByName, OrderedVia: m.OrderedVia}
+		if signIns != nil {
+			row.SignIn = providersOf(signIns[m.HumanID])
+		}
 		if !m.LastSeen.IsZero() {
 			at := rfc(m.LastSeen)
 			row.LastSeen = &at

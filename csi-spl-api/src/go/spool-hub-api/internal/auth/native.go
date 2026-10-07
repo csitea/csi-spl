@@ -305,23 +305,32 @@ func (n *native) handleRegister(w http.ResponseWriter, r *http.Request) {
 // issue mints, stores and mails one token under the account floor. It
 // returns the plaintext only for the debug body; "" = nothing issued.
 func (n *native) issue(ctx context.Context, kind, email, pwHash string, now time.Time, loc string) string {
+	plain, _, _ := n.mint(ctx, kind, email, pwHash, now, loc)
+	return plain
+}
+
+// mint is issue with the outcome spelled out for a caller that must answer
+// it (the admin reset, admin_reset.go): issued=false = nothing stored (the
+// floor refused, or the store failed), sent = the mail left this hub. The
+// plaintext is returned once issued, even when the mail failed.
+func (n *native) mint(ctx context.Context, kind, email, pwHash string, now time.Time, loc string) (plain string, issued, sent bool) {
 	plain, th, err := newToken()
 	if err != nil {
-		return ""
+		return "", false, false
 	}
 	ttl, page := n.cfg.VerifyTTL, "/verify-email"
 	if kind == TokenReset {
 		ttl, page = n.cfg.ResetTTL, "/reset-password"
 	}
-	issued, err := n.store.IssueToken(ctx, kind, email, th, pwHash, now, now.Add(ttl),
+	issued, err = n.store.IssueToken(ctx, kind, email, th, pwHash, now, now.Add(ttl),
 		MailFloor{MinInterval: n.cfg.MailMinInterval, MaxPerDay: n.cfg.MailMaxPerDay})
 	if err != nil {
 		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_token_issue")
-		return ""
+		return "", false, false
 	}
 	if !issued {
 		n.log.Warn().Str("kind", kind).Str("email", digest(email)).Msg("auth.native_mail_floor")
-		return ""
+		return "", false, false
 	}
 	link := n.link(page, plain, loc)
 	render := mail.EmailVerification
@@ -331,14 +340,15 @@ func (n *native) issue(ctx context.Context, kind, email, pwHash string, now time
 	msg, err := render(email, loc, link, ttl)
 	if err != nil {
 		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_mail_render (non-fatal)")
-		return plain
+		return plain, true, false
 	}
 	n.log.Info().Str("kind", kind).Str("locale", msg.Locale).Msg("auth.native_mail_locale")
 	if err := n.sender.Send(ctx, msg); err != nil {
 		// Best effort: the answer stays enumeration-safe; the person can retry.
 		n.log.Error().Err(err).Str("kind", kind).Msg("auth.native_mail_send (non-fatal)")
+		return plain, true, false
 	}
-	return plain
+	return plain, true, true
 }
 
 type tokenReq struct {
@@ -680,7 +690,55 @@ func (n *native) handleReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n.log.Info().Str("email", digest(subject)).Msg("auth.native_password_reset")
+	if n.signInAfterReset(ctx, w, r, subject) {
+		return
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// signInAfterReset opens a session for the person who just set a password
+// with a reset link (owner HUM-10, t1 ea0af569 msg 2a57fe20: "open link, set
+// new password, land in the app"), from the self-service forgot mail and the
+// admin's alike. The link proved the mailbox, the same proof a login's
+// verified credential rests on. Every OTHER session of the human ends first
+// (revoke.go), so the new one is the only one. It answers 200 with the login
+// body; false = nothing written, the caller answers 204 (the password is set
+// either way, so a refused sign-in never undoes the reset).
+func (n *native) signInAfterReset(ctx context.Context, w http.ResponseWriter, r *http.Request, subject string) bool {
+	cred, err := n.store.GetCredential(ctx, subject)
+	if err != nil {
+		n.log.Warn().Err(err).Msg("auth.native_reset_sign_in credential (non-fatal)")
+		return false
+	}
+	now := n.h.now()
+	sess := Session{V: 1, Provider: ProviderPassword, Subject: subject, Email: subject, Name: cred.DisplayName,
+		IssuedAt: now.Unix(), Exp: now.Add(n.h.cfg.SessionTTL).Unix()}
+	if n.h.reg != nil && cred.Verified() {
+		hum, landed, err := n.h.registerLanding(ctx, Identity{Provider: ProviderPassword, Subject: subject, Email: subject,
+			Name: cred.DisplayName}, "")
+		if err != nil {
+			n.log.Warn().Err(err).Str("email", digest(subject)).Msg("auth.native_reset_sign_in registrar (non-fatal)")
+			return false
+		}
+		sess.HumanID, sess.Tenant = hum, landed
+		n.h.bindTenant(ctx, &sess)
+	}
+	if err := n.h.RevokeSessions(ctx, sess.HumanID, now); err != nil {
+		n.log.Error().Err(err).Msg("auth.native_reset_sign_in revoke")
+		return false
+	}
+	tok, err := signToken(n.h.sessionKey, sess)
+	if err != nil {
+		return false
+	}
+	if err := n.store.TouchLogin(ctx, subject, now); err != nil {
+		n.log.Warn().Err(err).Msg("auth.native_reset_sign_in touch (non-fatal)")
+	}
+	http.SetCookie(w, n.h.sessionCookie(tok, int(n.h.cfg.SessionTTL.Seconds())))
+	n.log.Info().Str("email", digest(subject)).Str("tenant", sess.Tenant).Msg("auth.login_ok_after_reset")
+	n.h.recordAuth(r, sess.Tenant, sess.HumanID, "sign_in", ProviderPassword)
+	writeJSON(w, http.StatusOK, n.loginAnswer(ctx, sess, "/"))
+	return true
 }
 
 type changeReq struct {

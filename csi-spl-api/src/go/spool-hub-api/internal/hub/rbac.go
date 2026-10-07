@@ -403,9 +403,11 @@ func (s *Server) routeMembers(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/members/invites", s.handleInviteRevoke)
 	mux.HandleFunc("PUT /v1/members/{human_id}/role", s.handleMemberRole)
 	mux.HandleFunc("DELETE /v1/members/{human_id}", s.handleMemberRemove)
+	mux.HandleFunc("POST /v1/members/{human_id}/password-reset", s.handleMemberPasswordReset) // t1 ea0af569
 	mux.HandleFunc("OPTIONS /v1/members", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/invites", s.membersPreflight)
 	s.routeDemo(mux) // specs/077: the demo membership, GET /v1/demo (404 while off)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}", s.membersPreflight)
 	mux.HandleFunc("OPTIONS /v1/members/{human_id}/role", s.membersPreflight)
+	mux.HandleFunc("OPTIONS /v1/members/{human_id}/password-reset", s.membersPreflight)
 }

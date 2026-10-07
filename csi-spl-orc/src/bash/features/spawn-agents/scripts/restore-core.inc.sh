@@ -14,6 +14,7 @@
 #   RESTORE_ID_PREFIX   CLE | GRK | AGY | QWN (the <PREFIX>_TMUX_PANE it exports)
 #   RESTORE_BIN_VAR     CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN
 #   RESTORE_ARGS        a function: SESSION_ID -> the CLI args that resume it
+#                       (the permission flags come from spool_claude_perm_flags)
 #   RESTORE_KICK_FLAG   the flag before the kick prompt, or "" (positional)
 #   RESTORE_KICK_MODE   brief (arg 4 is a brief file; the kick is composed:
 #                       worker or neutral) | prompt (arg 4 is the kick itself)
@@ -74,9 +75,9 @@ restore_main() {
     [ -n "$cur" ] && [ "$(an_decorate "$cur")" != "$cur" ] && tmux -u rename-window -t "$pane" "$(an_decorate "$cur")" 2>/dev/null
   fi
 
-  args="$("$RESTORE_ARGS" "$sid")"
+  args="$(spool_claude_perm_flags "$RESTORE_KIND") $("$RESTORE_ARGS" "$sid")" || _rs_fail "no permission flags for ${RESTORE_KIND}"
   [ "$RESTORE_KIND" = claude ] && args="--name '${display}' ${args}"
-  cmd="export ${RESTORE_ID_PREFIX}_TMUX_PANE='${pane}' ${RESTORE_ID_PREFIX}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}'; cd '${rundir}' && exec bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
+  cmd="export ${RESTORE_ID_PREFIX}_TMUX_PANE='${pane}' ${RESTORE_ID_PREFIX}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
   stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${bin##*/} ${args}'"
   if [ -n "$kick" ]; then spool_dq_escape kick_esc "$kick"; fi
   if [ "${RESTORE_PRINT:-0}" = 1 ]; then

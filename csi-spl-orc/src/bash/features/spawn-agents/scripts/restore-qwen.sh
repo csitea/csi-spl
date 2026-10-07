@@ -10,7 +10,7 @@ RESTORE_ID_PREFIX=QWN
 RESTORE_BIN_VAR=QWEN_BIN
 RESTORE_KICK_FLAG=--prompt-interactive
 RESTORE_KICK_MODE=prompt
-restore_args() { printf "%s" "--yolo --resume $1"; }
+restore_args() { printf "%s" "--resume $1"; }
 RESTORE_ARGS=restore_args
 _rs_core="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh

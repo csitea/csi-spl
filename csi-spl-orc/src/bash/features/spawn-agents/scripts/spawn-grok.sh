@@ -15,13 +15,6 @@ SPAWN_ID_PREFIX=GRK
 SPAWN_BIN_VAR=GROK_BIN
 SPAWN_NAME_FLAG=
 SPAWN_PROMPT_FLAG=
-# Claude's one flag is --dangerously-skip-permissions. This grok build accepts
-# that name (it is registered, and hidden from --help) and also the explicit
-# mode. Passing both means a spawn does not depend on ~/.grok/config.toml
-# having permission_mode = always-approve. Measured grok 1.0.41: the pair
-# parses, a positional prompt skips the welcome screen, and the pane reports
-# alternate_on=1 with a ❯ composer, which is what the notice poke expects.
-SPAWN_PERM_FLAGS='--dangerously-skip-permissions --permission-mode bypassPermissions'
 SPAWN_RESUME_FLAG=--resume
 SPAWN_RESUME_ID=SESSION_ID
 SPAWN_CONTINUE_FLAG=--continue

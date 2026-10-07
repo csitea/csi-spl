@@ -23,8 +23,6 @@ SPAWN_NAME_FLAG=
 # A bare positional prompt is ONE-SHOT (qwen answers and exits):
 # --prompt-interactive runs it and keeps the TUI up.
 SPAWN_PROMPT_FLAG=--prompt-interactive
-# --yolo approves every tool call: claude's --dangerously-skip-permissions.
-SPAWN_PERM_FLAGS=--yolo
 SPAWN_RESUME_FLAG=--resume
 SPAWN_RESUME_ID=SESSION_ID
 SPAWN_CONTINUE_FLAG=--continue

@@ -16,7 +16,7 @@ s() { bash "$T_SCRIPTS/spawn-$1.sh" "${@:2}" 2>&1; }
 D="$T_TMP/wd"; mkdir -p "$D"
 
 out="$(s claude-chain - "$D" /b/one.md /b/two.md)"
-eq "claude chain: one command per brief" 2 "$(printf '%s\n' "$out" | grep -c "^cd '$D' && 'claude'")"
+eq "claude chain: one command per brief" 2 "$(printf '%s\n' "$out" | grep -c "^export DISABLE_AUTOUPDATER='1'; cd '$D' && 'claude'")"
 has "claude chain: runs the first brief first" "(1/2) starting brief: /b/one.md" "$(printf '%s\n' "$out" | sed -n 1p)"
 has "claude chain: named 'chain', auto permission mode" "'claude' --name 'chain' --dangerously-skip-permissions" "$out"
 has "claude chain: renames its session" "/rename" "$out"

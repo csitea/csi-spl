@@ -10,7 +10,7 @@ RESTORE_ID_PREFIX=GRK
 RESTORE_BIN_VAR=GROK_BIN
 RESTORE_KICK_FLAG=
 RESTORE_KICK_MODE=prompt
-restore_args() { printf "%s" "--dangerously-skip-permissions --permission-mode bypassPermissions --resume $1"; }
+restore_args() { printf "%s" "--resume $1"; }
 RESTORE_ARGS=restore_args
 _rs_core="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh

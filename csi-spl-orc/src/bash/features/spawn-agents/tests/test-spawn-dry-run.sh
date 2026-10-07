@@ -121,4 +121,35 @@ has "git: deploy-gate footer: a scanner red on your sha is yours" "a scanner red
 # ... and NOT on a non-git session (checked at the top loop).
 hasnt "claude: no deploy-gate footer outside a repo" "DEPLOY-GATE (SPL-1250" "$(cat "$T_TMP/plan-claude/prompt.txt")"
 
+# ---- 102 T001: the flags come from ONE helper, the updater is off ------------
+# spec 9.1, 9.2 (060 FR-061). Each harness's launch carries exactly the
+# helper's flags and DISABLE_AUTOUPDATER=1 in the env that crosses the user hop.
+. "$T_FEAT/lib/spool-env.inc.sh"
+for k in claude grok agy qwen; do
+  flags="$(spool_claude_perm_flags "$k")"
+  check "T001 $k: the helper has flags for the harness" test -n "$flags"
+  has "T001 $k: the launch carries the helper's flags" " ${flags}" "$(cat "$T_TMP/plan-$k/launch.cmd")"
+  has "T001 $k: the launch env carries DISABLE_AUTOUPDATER=1" "DISABLE_AUTOUPDATER='1'" "$(cat "$T_TMP/plan-$k/launch.cmd")"
+done
+spool_claude_perm_flags nosuch >/dev/null 2>&1; eq "T001: an unknown harness gets no flags (rc 2)" 2 "$?"
+# The harness exports it as the agent user even when the hop dropped the env.
+out="$(env -u DISABLE_AUTOUPDATER bash "$T_SCRIPTS/spool-harness.sh" --as CLE-77 env 2>/dev/null)"
+has "T001: spool-harness hands DISABLE_AUTOUPDATER=1 to the CLI" "DISABLE_AUTOUPDATER=1" "$out"
+orc="$(cd "$T_FEAT/../.." && pwd)"
+eq "T001: one definition of spool_claude_perm_flags under orc/" 1 "$(grep -rn 'spool_claude_perm_flags''()' "$orc" | wc -l)"
+# A launcher that writes a permission flag itself bypasses the helper. The
+# grep reads code lines only (comments may name a flag).
+t001_literal() {  # DIR -> the launcher lines with a literal permission flag
+  grep -nE -- '--dangerously-skip-permissions|--permission-mode|--yolo' "$1"/spawn-*.sh "$1"/restore-*.sh 2>/dev/null \
+    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#'
+}
+eq "T001: no spawn/restore script writes its own permission flag" "" "$(t001_literal "$T_SCRIPTS")"
+# CONTROL: a fixture copy of a launcher with a literal flag is caught.
+FX="$T_TMP/t001-fixture"; mkdir -p "$FX"; cp "$T_SCRIPTS"/spawn-*.sh "$T_SCRIPTS"/restore-*.sh "$FX/"
+sed -i 's/^SPAWN_KIND=qwen$/SPAWN_KIND=qwen\nSPAWN_PERM_FLAGS=--yolo/' "$FX/spawn-qwen.sh"
+eq "T001 control: a launcher with a literal flag is caught (1 line)" 1 "$(t001_literal "$FX" | wc -l)"
+has "T001 control: ... and named" "spawn-qwen.sh" "$(t001_literal "$FX")"
+fleet="$T_FEAT/../spool-install/assets/claude/settings/00-fleet.json"
+eq "T001: 00-fleet.json env block turns the updater off" 1 "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["env"]["DISABLE_AUTOUPDATER"])' "$fleet")"
+
 t_done

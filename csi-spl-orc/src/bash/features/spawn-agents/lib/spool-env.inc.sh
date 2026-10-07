@@ -386,6 +386,30 @@ spool_agent_exec() {  # "<command string>"
 
 spool_agent_cmd_text() { spool_agent_argv --tty >/dev/null 2>&1 || return 0; printf '%s' "${SPOOL_AGENT_ARGV[*]}"; }
 
+# The permission / autonomy flags of each harness: the ONE place they live
+# (060 FR-061, 102 spec 9.2). Spawn, restore, chain, rotation and the lane
+# restart take them from here; no launcher writes its own. claude and agy:
+# --dangerously-skip-permissions (bypass, the fleet's only mode); grok: that
+# name plus the explicit mode, so a spawn does not depend on its config.toml
+# (measured grok 1.0.41: the pair parses); qwen: --yolo.
+spool_claude_perm_flags() {  # [KIND]   default claude
+  case "${1:-claude}" in
+    claude|agy) printf '%s' '--dangerously-skip-permissions' ;;
+    grok)       printf '%s' '--dangerously-skip-permissions --permission-mode bypassPermissions' ;;
+    qwen)       printf '%s' '--yolo' ;;
+    *) echo "spool-env: no permission flags for harness '${1}'" >&2; return 2 ;;
+  esac
+}
+
+# Self-update is off for every agent CLI (102 spec 9.1): the controlled update
+# (do_spl_cli_update) is the only path to a new version. Exported here, so
+# spool-harness.sh (which sources this file as the agent user, right before it
+# exec-s the CLI) hands it to every launch; SPOOL_CLI_ENV is the same pair for
+# the launch lines that cross the user hop, where an export does not survive.
+export DISABLE_AUTOUPDATER=1
+# shellcheck disable=SC2034  # read by the launchers that source this file
+SPOOL_CLI_ENV="DISABLE_AUTOUPDATER='1'"
+
 # STRING escaped for a double-quoted argument that a shell parses again: only
 # \ " $ and ` are live inside double quotes. Stored in VAR so trailing
 # newlines survive.

@@ -34,7 +34,6 @@
 #   SPAWN_BIN_VAR        CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN (resolved by spool-env)
 #   SPAWN_NAME_FLAG      the flag that names the session, or ""
 #   SPAWN_PROMPT_FLAG    the flag before the seed prompt, or "" (positional)
-#   SPAWN_PERM_FLAGS     permission / autonomy flags
 #   SPAWN_RESUME_FLAG    SPAWN_RESUME_ID   how the CLI resumes one session
 #   SPAWN_CONTINUE_FLAG  how it resumes the most recent one in a directory
 #   spawn_rename_how     function: the instruction that makes the agent
@@ -226,6 +225,8 @@ spawn_main() {
   . "${_SP_DIR}/../lib/spool-env.inc.sh" || _sp_fail "cannot load ${_SP_DIR}/../lib/spool-env.inc.sh"
   spool_env_resolve
   SPAWN_BIN="${!SPAWN_BIN_VAR}"
+  # The permission flags come from the ONE helper (060 FR-061), never the adapter.
+  SPAWN_PERM_FLAGS="$(spool_claude_perm_flags "$SPAWN_KIND")" || _sp_fail "no permission flags for ${SPAWN_KIND}"
 
   # Guard: TITLE is the agent's spool id. An empty or garbled one would
   # collapse WORKTREE_DIR to "<repo>-wt/" and MSGDIR to the spool root itself.
@@ -342,7 +343,7 @@ spawn_main() {
   # specs/012 T013: the CLI starts THROUGH spool-harness (dirs, identity,
   # sidecar in hub mode, SPOOL_* env, and with --mirror the terminal mirror
   # hooks of specs/036), not with the env prepared inline here.
-  LAUNCH="export ${SPAWN_ID_PREFIX}_TMUX_PANE='${PANE}' ${SPAWN_ID_PREFIX}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}'; cd '${RUNDIR}' && exec bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${_sp_prompt_args}"
+  LAUNCH="export ${SPAWN_ID_PREFIX}_TMUX_PANE='${PANE}' ${SPAWN_ID_PREFIX}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${_sp_prompt_args}"
 
   if ! _sp_live; then
     _sp_shown="$LAUNCH"

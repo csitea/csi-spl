@@ -19,13 +19,13 @@ spool_env_resolve
 
 _ch_bin() { if [ "$CHAIN_KIND" = claude ]; then printf '%s' "$CLAUDE_BIN"; else printf '%s' "$GROK_BIN"; fi; }
 _ch_flags() {  # [NAME]
-  if [ "$CHAIN_KIND" = claude ]; then printf "%s--dangerously-skip-permissions" "${1:+--name '$1' }"
-  else printf '%s' "--dangerously-skip-permissions --permission-mode bypassPermissions"; fi
+  if [ "$CHAIN_KIND" = claude ]; then printf '%s' "${1:+--name '$1' }"; fi
+  spool_claude_perm_flags "$CHAIN_KIND"
 }
 _ch_run() {  # WORKDIR NAME PROMPT
   local esc cmd
   spool_dq_escape esc "$3"
-  cmd="cd '$1' && '$(_ch_bin)' $(_ch_flags "$2") \"${esc}\""
+  cmd="export ${SPOOL_CLI_ENV}; cd '$1' && '$(_ch_bin)' $(_ch_flags "$2") \"${esc}\""
   if [ "${CHAIN_PRINT:-0}" = 1 ]; then printf '%s\n' "$cmd"; else spool_agent_exec "$cmd"; fi
 }
 _ch_keep_pane() { [ "${CHAIN_PRINT:-0}" = 1 ] && return 0; echo "$1"; exec bash; }

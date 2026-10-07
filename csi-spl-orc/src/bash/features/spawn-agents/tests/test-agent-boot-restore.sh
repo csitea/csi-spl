@@ -149,7 +149,7 @@ has "6. the restored window keeps the @box suffix (after the reconcile too)" "CL
 eq "6. the adapter gets the box tag" "CLE-61|sat" "$(cat "$T_TMP/started-tag" 2>/dev/null)"
 hasnt "6. the reconcile strips nothing" "-> 'CLE-61" "$(printf '%s\n' "$out" | grep '^RENAMED' | grep -v "> 'CLE-61@sat")"
 out="$(env -u SPOOL_BOX_TAG -u BOX_TAG RESTORE_PRINT=1 CLAUDE_BIN=claude bash "$T_SCRIPTS/restore-claude.sh" CLE-61 "$W/CLE-61" s-61 2>&1)"
-has "6. the real claude adapter passes --name '<ID>@<tag>'" "--name 'CLE-61@sat' --resume s-61" "$out"
+has "6. the real claude adapter passes --name '<ID>@<tag>'" "--name 'CLE-61@sat' --dangerously-skip-permissions --resume s-61" "$out"
 tm kill-server 2>/dev/null
 
 t_done

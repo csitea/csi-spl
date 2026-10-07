@@ -105,10 +105,7 @@ do_spl_agent_identity_restore() {
         _ai_rlog "$rid" RESTORE START "$kind session $sid in $wt"
         pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
           "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"
-        if [[ -z "$pane" ]]; then
-          echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1))
-          _ai_rlog "$rid" FAIL FAIL "tmux new-window printed no pane"; continue
-        fi
+        [[ -n "$pane" ]] || { echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1)); _ai_rlog "$rid" FAIL FAIL "tmux new-window printed no pane"; continue; }
         now="$(date -u +%Y%m%dT%H%M%SZ)"
         printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$reg" 2>/dev/null
         [[ -n "${IDENTITY_LEGACY_REGISTRY:-}" ]] && printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$IDENTITY_LEGACY_REGISTRY" 2>/dev/null

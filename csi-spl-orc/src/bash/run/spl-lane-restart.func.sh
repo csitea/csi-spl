@@ -57,10 +57,7 @@ do_spl_lane_restart() {
     { do_log "FATAL SEAT_FAIL_ACTION must be compact or respawn"; return 1; }
   # the detached second half of a lane restarting itself: it takes the id
   # lock over from the first half, which ends right after starting it
-  if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then
-    spl_lane_restart_id_lock "$ID" "$LANE_RESTART_RID" 15 || return
-    spl_lane_restart_spawn; return
-  fi
+  if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then spl_lane_restart_id_lock "$ID" "$LANE_RESTART_RID" 15 || return; spl_lane_restart_spawn; return; fi
   local rid id="$ID" wt pid pane task brief split n tr ctx
   rid="$(date -u +%Y%m%dT%H%M%SZ)-$id"
   spl_lane_restart_id_lock "$id" "$rid" || return

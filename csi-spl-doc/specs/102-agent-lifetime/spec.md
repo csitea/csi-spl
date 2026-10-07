@@ -1,8 +1,10 @@
 # 102 Agent lifetime: 1 h rebirth, 2 h hard end, one restart path, generic stuck detection
 
-Status: **v0.1, author draft, 2026-10-07.** For the panel (2 agy + 1 more
-claude); section 15 will record their verdicts. Spec only: no code, cron,
-table, setting or seat was touched by this lane.
+Status: **v1.0, panel consensus, 2026-10-07.** v0.1 (`8f32ffd8`) was read by
+three reviewers (agy-1, agy-2, claude-2); section 15 records each verdict,
+the scores and the agreement. Spec only: no code, cron, table, setting or
+seat was touched by this lane. Build: [tasks.md](tasks.md). Owner rule
+(consensus, then build, no go): the build starts now.
 Topic: t1 `637269bb-d97b-4861-b45e-87200652b169` (HUM-10). Dispatcher and
 topic owner: c-002. Author: c-471 (claude panelist 1).
 Extends: [060 role rotation](../060-role-rotation/spec.md) (handoff, fresh
@@ -14,7 +16,7 @@ restart, the per-workspace numbers table), [101 four orchestrator-dispatchers](.
 
 `<pc box>` and `<box B>` stand for box tags (box tags are banned literals in
 this tree, as in specs 064, 068, 093 and 101). "Machine" in the owner's
-answers is a box.
+answers is a box. Paths: `orc/` = `csi-spl-orc/src/bash/`.
 
 ## 0. What the owner asked (HUM-10, t1 637269bb, verbatim where the owner wrote words)
 
@@ -111,47 +113,55 @@ msg `ad749994`. Where round R differs from round W, **R wins** (the brief).
 | about 30 agents were over 2 h on 2026-10-07 04:56Z, the oldest 3 days (c-097..c-102, q-100, q-101); c-101 had run 21 h | c-002@sat's task in topic 637269bb, 04:56:05Z (`spool tail --task 637269bb-...`) |
 | the box page's "Online 2d" for c-002 / c-003 was the id's first registry row, not the session: both rotate hourly | same message |
 | nothing ends a lane by age today: 063's wall-clock restart is off by default | `grep -n lane_restart_wall_min csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go` -> `Default: 0 ... ZeroOff: true` |
-| the 2026-10-06 stuck dialog: a Claude Code self-update left the settings on auto while agents started with bypass, and the "Make auto mode your default?" dialog froze six seats for hours. S7 caught it only after the dialog was added to its list | `/var/spool-hub/dispatch/c-003-f9112852-generic.md`; `sed -n 1,9p csi-spl-orc/src/bash/features/watchdog/situations/s7.sh` (modal=2 is that one dialog, by its words) |
+| the 2026-10-06 stuck dialog: a Claude Code self-update left the settings on auto while agents started with bypass, and the "Make auto mode your default?" dialog froze six seats for hours. S7 caught it only after the dialog was added to its list | `/var/spool-hub/dispatch/c-003-f9112852-generic.md`; `sed -n 1,9p orc/features/watchdog/situations/s7.sh` (modal=2 is that one dialog, by its words) |
 | the CLI updates itself in place, and a box runs mixed versions | as the agent user: `ls ~/.local/share/claude/versions` -> 2.1.289 (10-04 02:10Z), 2.1.290 (10-06 02:33Z), 2.1.291 (10-06 06:56Z), 2.1.292 (10-06 22:10Z); `readlink /proc/<pid>/exe` over the live claude processes -> 12 on 2.1.292, 1 on 2.1.289 (2026-10-07, n = 13) |
-| the single launch-flag helper of 060 FR-061 is gone: `spl-lane-restart` still asks for it and falls back to a literal | `grep -rn 'spool_claude_perm_flags()' csi-spl-orc/src/bash` -> 0 definitions; `grep -n spool_claude_perm_flags csi-spl-orc/src/bash/run/spl-lane-restart.func.sh` -> 1 caller with a fallback |
+| the single launch-flag helper of 060 FR-061 is gone: `spl-lane-restart` still asks for it and falls back to a literal | `grep -rn 'spool_claude_perm_flags()' orc/` -> 0 definitions; `orc/run/spl-lane-restart.func.sh:222` -> 1 caller with a fallback |
+| four actors start or stop agents today, under three different locks or none (claude-2 R-a, R-b) | `grep -c 'restart\.lock' orc/run/spl-lane-restart.func.sh` -> 0; the orch and dispatch rotations hold `rotate.orch.lock` / `rotate.dispatch.lock`; the takeover holds `peer/restart.lock` (`orc/run/spl-wd-takeover.func.sh:78`) |
+| ids are unique only as `<id>@<box>` (spec 061) | `grep -n 'PRIMARY KEY' csi-spl-rdb/src/sql/postgres/spool-hub/0102_agent_at_box_key.sql` -> `(tenant_id, fleet, agent_id, agent_box)` |
 
 **Lesson, the core of this spec:** a list of known bad screens cannot catch
 the next one. Stuck must be defined by what is ABSENT (progress, input
-reaching the model), not by what text is present (section 8).
+reaching the model), not by what text is present (section 8). And one
+restart path means one lock that every actor takes (4.2).
 
 ## 2. Words
 
 | word | means |
 |---|---|
 | **agent** | any spool agent: a seat (ids 001..004 of a box) or a lane (005..999), any harness |
-| **session** | one harness process under an agent id, from its start to its end. A rebirth ends one session and starts the next under the same id |
-| **session age** | now minus the session's start (the harness process's start time, `/proc/<pid>/stat`), never the id's first registry row |
+| **session** | one run of an agent from one restart to the next. A `--resume` of the same transcript (a restore script) is the SAME session |
+| **session age** | now minus `started` in `<spool root>/<id>/lifetime/session.json`, written by the SEED step of 4.1 with a session number. `/proc/<pid>/stat` is only a cross-check: on a mismatch the older wins (claude-2 H5: a resume would otherwise reset the 2 h) |
 | **rebirth** | a planned end of a session followed by the next session (section 3) |
 | **crash** | an unplanned end or a stuck session: S1, S3, S4, S5 of 093, the new S9 (section 8) |
 | **restart** | what the watchdog does after a rebirth or a crash: ONE path (section 4) |
-| **handoff** | `<spool root>/<id>/handoff.md`, kept current after every step (section 5) |
-| **done marker** | `<spool root>/<id>/lifetime/done`, written by `/exit-clean` when the task is finished: the one thing that tells the watchdog "do not restart" |
-| **wip branch** | `wip/<id>`: the lane's uncommitted and unpushed work, pushed by the script (5.4) |
-| **home box** | the box an agent was spawned on; **running box** = where its session runs now (section 10) |
+| **id lock** | `<spool root>/<id>/lifetime/restart.lock`: the one lock every actor that starts or stops a session takes (4.2) |
+| **handoff** | `<spool root>/<id>/handoff.md`, composed after every step (section 5) |
+| **done** | the agent is finished: its rundir is gone (today's `/exit-clean`, `s3.sh` `rundir_gone`) or `lifetime/done` is newer than the session start. Never restarted |
+| **wip ref** | `wip/<lane branch>`: the lane's uncommitted and unpushed work, pushed by the watchdog's job (5.4). Lane branches are fleet-unique; ids are not |
+| **home box / running box** | the box an agent was spawned on / where its session runs now (section 10) |
+| **guest** | a lane running on a box other than its home box, under `<spool root>/guest/<id>@<home>/` (10.2) |
+| **fenced** | a box whose own beat has not been acknowledged by the hub for `box_down_min`: it starts nothing (10.2) |
 | **the lifetime settings** | the fleet-wide admin numbers of section 11 |
 
 ## 3. The lifetime of one session (A1, A2, R0, R1, R2, R3, W1)
 
 | session age | what happens | who |
 |---|---|---|
-| 0 | the seed says: "your session lives at most 2 h: at 1 h you are asked to hand over and exit; at 1 h 50 you take no new work; at 2 h you are stopped. Keep `<handoff path>` current after every step." | the spawn's seed (every harness, every agent) |
-| every step | the agent's notes go into the handoff's NOTES section; the script refreshes the mechanical sections (5.2) | agent + hook + watchdog |
-| **1 h** (`REBIRTH_AT`, 60 min) | **rebirth asked**: the hook injects (and the watchdog pokes an idle agent once) "rebirth: finish the current step, land what is green, add your notes to the handoff, then run `/exit-clean --rebirth`" | watchdog |
-| 1 h .. 1 h 50 | the agent exits by itself at a step boundary (`--rebirth` writes `lifetime/rebirth`, never `done`); the watchdog sees the empty pane with a fresh rebirth marker and restarts it (section 4). A busy agent may finish its step: the 1 h is soft | agent, then watchdog |
+| 0 | the seed says: "your session lives at most 2 h: at 1 h you are asked to hand over and exit; at 1 h 50 you take no new work; at 2 h you are stopped. After every step write your next step with `do_spl_agent_handoff_note`." | the spawn's seed (every harness, every agent) |
+| every step | the agent writes its own handoff parts (5.2); the script composes the file | agent + hook + watchdog |
+| 30 min, 1 h, 1 h 50 | a lane's dirty tree is pushed to its wip ref when it changed since the last push (5.4) | watchdog job |
+| **1 h** (`REBIRTH_AT`, 60 min) | **rebirth asked**: the hook injects (and the watchdog pokes an idle agent once) "rebirth: finish the current step, land what is green, write your notes, then run `/exit-clean --rebirth`" | watchdog |
+| 1 h .. 1 h 50 | the agent exits by itself at a step boundary (`--rebirth` writes `lifetime/rebirth`, never `done`); the watchdog sees no process with a fresh rebirth marker and restarts it (section 4). A busy agent may finish its step: the 1 h is soft | agent, then watchdog |
 | **1 h 50** (`FINAL_AT`) | **final notice**: injected at every hook from now on: "no new work; final handoff; exit now". An idle agent is poked once | watchdog |
-| **2 h** (`HARD_END`, 120 min) | **hard end**: TERM, then KILL after `ROTATE_TERM_WAIT`, whatever is running (R2), even with a human typing (R3); then the restart (section 4) with the handoff as it stands | watchdog |
+| **2 h** (`HARD_END`, 120 min) | **hard end** for a lane: TERM, then KILL after `ROTATE_TERM_WAIT`, whatever is running (R2), even with a human typing (R3); then the restart (section 4) with the handoff as it stands, `hard_killed: true` in its header | watchdog |
+| seat | a seat's restart is start-first (4.1), so it STARTS at `HARD_END - WD_START_WAIT - ROTATE_ACK_TIMEOUT` at the latest and the old session is gone by 2 h (claude-2 H8) | watchdog |
 
 - "Rebirth does not succeed" (9bc777da) has two cases, and both fall through
   to the next row: the agent does not exit by 1 h 50, or the next session
-  does not start or ack (4.3). A failed new session leaves nothing running,
-  so the restart is retried at the next tick within the limit (6.1).
+  does not start or ack (4.3). A failed lane start leaves nothing running, so
+  the restart is retried at the next tick within the limits (6).
 - Each session gets a new 2 h (A1). A task that spans many sessions is capped
-  by rebirths, not by time (6.2).
+  by rebirths and total restarts, not by time (6.2).
 - 060 D1 (rotate a busy session mid-task at once) is replaced: the 1 h is a
   request, the 2 h is the forced end.
 - R3 overrides 093 6.2's human guard **for the 2 h end only**: the watchdog
@@ -163,106 +173,149 @@ reaching the model), not by what text is present (section 8).
 
 ### 4.1 The action
 
-`do_spl_agent_restart ID=<id> CAUSE=<rebirth|hard-end|S1|S3|S4|S5|S9|reboot|box-down>`
-(csi-spl-orc). The watchdog is its only automatic caller; a seat may request
-it as it may request a takeover today (093 6.3, exit 3 when nothing hits).
-It is today's `do_spl_wd_takeover` with the cause widened: every step below
-already exists there (`csi-spl-orc/src/bash/run/spl-wd-takeover.func.sh`,
-whose phases are 060's functions).
+`do_spl_agent_restart ID=<id> CAUSE=<rebirth|hard-end|S1|S3|S4|S5|S9|reboot|box-down|login-reset>`
+(`orc/run/spl-agent-restart.func.sh`). The watchdog is its only automatic
+caller; a seat may request it as it may request a takeover today (093 6.3,
+exit 3 when nothing hits). It is **new code built from the takeover's
+phases** (`orc/run/spl-wd-takeover.func.sh`, whose steps are 060's
+functions): today's takeover is start-first for every agent
+(`spl_wdt_steps`, claude-2 C17), so the lane order below is new and has its
+own failure handling.
 
-| step | today (093 takeover) | change |
+**Lane** (stop first; two sessions never share one worktree):
+
+| # | step | what |
 |---|---|---|
-| GATE | 6.2 guards, `peer/restart.lock`, duplicates, `WD_TAKEOVER_MAX` (2), re-run the situations | the limit becomes the admin's `restart_max_per_hour` (3) and **counts rebirths** (W3); a planned cause (rebirth, hard-end) skips the situation re-run; the done marker refuses (exit 3) |
-| HANDOFF | `spl_rotate_handoff` + a `## watchdog` section, written at takeover time | the continuous handoff (section 5) is the base; the script adds its final mechanical refresh and, for a crash, the `## watchdog` section. A rebirth marker younger than 5 min = "fresh"; else "stale since <ts>" in the header (W2: only freshness differs) |
-| WIP | none | a lane: the script pushes `wip/<id>` (5.4) before RETIRE when the tree differs from the last push (A3) |
-| SEED | the old session's first prompt + the handoff | the same, plus the lifetime text of section 3 row 0 and the rebirth count (6.2) |
-| SPAWN | same id, harness, workdir (`SPAWN_REUSE_ID=1`) | a lane on another box gets a fresh worktree from `wip/<id>` (10.2) |
-| RETIRE | TERM, KILL after `ROTATE_TERM_WAIT` | unchanged; nothing to retire when the agent already exited (rebirth, S3) |
-| REPORT | a blocker `wd-<id>-<rid>` to the peers | **crash only**. A rebirth sends ONE line to the orchestrator and posts nothing in topics (W5): `REBORN <id>@<box> #<n> cause=<c> handoff=<path>` |
-| LOG | `rotate.log`, phases `WD-*` | phases `RS-*`; one `agent_lifecycle_events` row per restart (063 section 12) |
+| 1 | GATE | the id lock (4.2); a restart slot (4.2); the 6.2 guards (except R3 at 2 h); the limits of 6; done = refuse (exit 3); for a crash cause, re-run the situation and refuse when it no longer hits |
+| 2 | RETIRE | TERM, KILL after `ROTATE_TERM_WAIT`; wait until the pid is gone. Nothing to retire when the agent already exited (rebirth, S3) |
+| 3 | CLEANUP | remove a stale `.git/index.lock` (no git process alive in the worktree); note a rebase or merge in progress (`.git/rebase-merge`, `rebase-apply`, `MERGE_HEAD`) |
+| 4 | WIP | push the wip ref (5.4) from the now quiet tree. Mid-rebase or mid-merge: push `ORIG_HEAD` and put the dirty diff in the handoff as a patch file, never the conflicted tree (claude-2 R-f) |
+| 5 | HANDOFF | the final compose (5.2) and, for a crash, a `## watchdog` section (code, evidence, `heartbeat.json`, `heartbeat.log` tail, the transcript's last entry types and error texts). A rebirth marker younger than 5 min = "fresh", else "stale since <ts>" (W2: only freshness differs). The rebirth marker is **consumed** here (moved to `lifetime/last-rebirth`), so a crash of the next session is never read as a rebirth (agy-1) |
+| 6 | SEED | the brief + the handoff + the lifetime text of section 3 row 0 + the rebirth and restart counts; writes a new `lifetime/session.json` |
+| 7 | SPAWN | same id, harness, workdir (`SPAWN_REUSE_ID=1`); a guest gets a fresh worktree (10.2). Not started within `WD_START_WAIT`: nothing runs; counted (6.1); the next tick retries |
+| 8 | REPORT | crash: a blocker `wd-<id>-<rid>` to the peers (093 8.2). Rebirth: ONE line to the orchestrator, nothing in topics (W5): `REBORN <id>@<box> #<n> cause=<c> handoff=<path>` |
+| 9 | LOG | `rotate.log`, phases `RS-*`; one `agent_lifecycle_events` row (063 section 12) |
 
-### 4.2 Order: lanes stop first, seats start first
+**Seat** (start first; 060 I1/I3: never zero acting orchestrators or
+dispatchers): GATE, then a role id under the fleet lease writes
+`rotate.hold`, then HANDOFF, SEED, SPAWN, the ack (060 FR-041), RETIRE the
+old session (TERM, KILL), REPORT, LOG. A failed start or ack keeps the old
+session (060 D2) until `HARD_END`; at `HARD_END` the old one is retired
+anyway (R2) and the next tick starts a fresh one. No WIP step: seats have no
+lane worktree.
 
-| agent | order | why |
-|---|---|---|
-| lane | stop the old session, then start the new one | two sessions must never share one worktree |
-| seat (001..004) | start the new one, wait for its ack (060 FR-041), then retire the old one; a role id under the fleet lease writes `rotate.hold` first, as 093's takeover does | 060's I1/I3: never zero acting orchestrators or dispatchers |
+### 4.2 One id lock, and slots for throughput (claude-2 H4, H6)
+
+- **Every** actor that starts or stops a session takes the id lock
+  (`flock -n`, refuse = exit 4) for its whole run: this action,
+  `do_spl_lane_restart` (063), `do_spl_orch_rotate`,
+  `do_spl_dispatch_rotate`, `do_spl_peer_restart`, the boot / identity
+  restore and the reaper `do_spl_agent_id_reap`. Each also logs its phases to
+  `rotate.log`, so `spl_wd_rotating` sees every one of them.
+- Box-wide, the single `peer/restart.lock` becomes `RESTART_SLOTS` (default
+  4) slot locks `peer/restart.slot.<n>`; lanes take any free slot; a seat
+  takes slot 0. Measured need: one lane restart is about `WD_START_WAIT`
+  120 s + `ROTATE_TERM_WAIT` 30 s, so one slot does about 24 an hour and a
+  box of 30 agents reborn hourly needs at least 2 (claude-2 R-c).
 
 ### 4.3 Done or died
 
 | state the watchdog sees | meaning | action |
 |---|---|---|
-| no process, `lifetime/done` present | finished | nothing; the registry row is closed; the window closes as `/exit-clean` asked |
+| rundir gone (today's `/exit-clean`), or `lifetime/done` newer than `session.json` | finished | nothing. A `done` older than the session start is a stale one from the previous task under a reused id and is ignored |
 | no process, `lifetime/rebirth` present | planned rebirth | restart, cause `rebirth` |
-| no process, no marker, pane on a shell or gone | crash | restart, cause `S3` (093's bare shell, widened to a gone pane while the registry row is open) |
+| no process, no marker, rundir present, registry row open, pane on a shell or gone | crash | restart, cause `S3` (093's bare shell, widened to a gone pane) |
 | process alive, session age >= `HARD_END` | hard end | restart, cause `hard-end` |
-| new session not started in `WD_START_WAIT`, or no ack in `ROTATE_ACK_TIMEOUT` | failed restart | counted against the limit; retried at the next tick; past the limit: 6.1 |
+| new session not started in `WD_START_WAIT`, or a seat's ack not in `ROTATE_ACK_TIMEOUT` | failed restart | counted (6.1); retried at the next tick |
+
+The rundir rule is P0 (section 17): without it every lane that finished
+under today's `/exit-clean` would be resurrected on the first tick.
 
 ### 4.4 The seats join this path (R11, dispatcher reading; the owner may flip it)
 
 The hourly crons `csi-spl:orch-rotate` (`:05`), `csi-spl:dispatch-rotate`
-(`:15`), `csi-spl:dispatch-heal` and 068's `csi-spl:peer-restart` stop being
-the trigger: the watchdog's session-age rule (section 3) triggers every
-seat's rebirth, staggered so no two seats of one box are reborn within
-`SEAT_STAGGER` (15 min) of each other. The 060 mechanics stay (hold, ack,
-start-first, I1..I8); only the trigger moves. If the owner picks (b), the
-seats keep their own hourly crons and this section is dropped; nothing else
-in the spec depends on it.
+(`:15`) and, where a box has them, `csi-spl:dispatch-heal` and 068's
+`csi-spl:peer-restart` stop being the trigger: the watchdog's session-age
+rule (section 3) triggers every seat's restart, staggered so no two seats of
+one box start within `SEAT_STAGGER` (15 min) of each other. The 060
+mechanics stay (hold, ack, start-first, I1..I8); only the trigger moves, and
+only after the rotations take the id lock (4.2), else the old cron and the
+watchdog both fire at `:05`. The crons differ per box (claude-2 C16): the
+task measures each box's crontab before removing lines. If the owner picks
+(b), the seats keep their own hourly crons and this section is dropped;
+nothing else in the spec depends on it.
 
 ## 5. The handoff (H1..H4, R7, W2)
 
-### 5.1 One file, kept current
+### 5.1 Files, one writer each
 
-`<spool root>/<id>/handoff.md`, mode 0640, owned by the agent user, in the
-agent's own spool folder (H4), never in git. One previous copy is kept as
-`handoff.prev.md`. The rotation's `dispatch/handoff/<rid>-<id>.md` (060
-section 6) becomes a snapshot of this file at restart time.
+All under `<spool root>/<id>/`, mode 0640, owned by the agent user, in the
+agent's own spool folder (H4), never in git:
 
-### 5.2 Sections and writers
+| file | writer | how |
+|---|---|---|
+| `handoff.d/next.md`, `handoff.d/notes.md`, `handoff.d/lessons.md` | the agent only, through `./run -a do_spl_agent_handoff_note SECTION=<next\|notes\|lesson> TEXT=...` | tmp + rename |
+| `handoff.md` (composed) | the script only, `do_spl_agent_handoff ID=<id>` | under `lifetime/handoff.lock` (`flock -x`, 10 s), written to `handoff.md.tmp.$$`, the old one renamed to `handoff.prev.md`, then the tmp renamed in |
 
-| # | section | source | writer | refreshed |
-|---|---|---|---|---|
-| 1 | header: id, box, harness, session start, age, rebirth count, freshness | `/proc`, `lifetime/` | script | every refresh |
-| 2 | **the brief** (H1) | the seed's brief path | script | once |
-| 3 | **done**: commits since the base, sha, pushed or not | `git log origin/master..HEAD`, `git branch -r --contains` | script | every refresh |
-| 4 | **in flight**: dirty files, the running tool, the last 30 terminal lines | `git status --porcelain`, `heartbeat.json`, `capture-pane -J` | script | every refresh |
-| 5 | **next step** | the agent | agent | after every step |
-| 6 | **open questions and who has them** | the agent's outbox (kind blocker or msg without a reply) + the agent | script + agent | every refresh |
-| 7 | **owned topics** | the outbox's task ids + the hub's held set (093 4.5) | script | every refresh |
-| 8 | NOTES (free text, the agent's own words) | the agent | agent | when it can (H2) |
-| 9 | lessons sent to the shared memory (names only) | section 12 | agent | when it has one |
+One writer per file and an atomic rename: a kill at any moment leaves the
+previous complete file (H3; claude-2 R-d, R-e; agy-1). The script reads the
+agent's files and never writes them. The rotation's
+`dispatch/handoff/<rid>-<id>.md` (060 section 6) becomes a snapshot of
+`handoff.md` at restart time.
 
-- **The script** is `do_spl_agent_handoff ID=<id>`, run by the PostToolUse
-  hook at most once per `HANDOFF_EVERY` (60 s), by the watchdog when the
-  file is older than 5 min, and by the restart (4.1). It rewrites sections
-  1-4, 6, 7 and keeps 5, 8, 9 byte for byte (H3: a kill leaves a usable one).
-- **The agent** writes 5, 8 and 9 with `./run -a do_spl_agent_handoff_note
-  SECTION=<next|notes|lesson> TEXT=...`, never by editing the file, so the
-  script and the agent never race on one write.
-- Cap: about 250 lines, like 060's handoff.
+### 5.2 Sections
+
+| # | section | source | refreshed |
+|---|---|---|---|
+| 1 | header: id, box, harness, session number and start, age, rebirth and restart counts, freshness, `hard_killed` | `lifetime/` | every compose |
+| 2 | **the brief** (H1) | the seed's brief path | once |
+| 3 | **done**: commits since the base, sha, pushed or not | `git log origin/master..HEAD`, `git branch -r --contains` | every compose |
+| 4 | **in flight**: dirty files, the running tool, the last 30 terminal lines | `git status --porcelain`, `heartbeat.json`, `capture-pane -J` | every compose |
+| 5 | **next step** | `handoff.d/next.md` | as the agent writes it |
+| 6 | **open questions and who has them** | the outbox (kind blocker or msg without a reply) + `handoff.d/notes.md` | every compose |
+| 7 | **owned topics** | the outbox's task ids + the hub's held set (093 4.5) | every compose |
+| 8 | NOTES | `handoff.d/notes.md` | as the agent writes it (H2) |
+| 9 | lessons sent to the shared memory (titles) | `handoff.d/lessons.md` | as the agent writes it |
+
+The compose runs from the PostToolUse hook at most once per `HANDOFF_EVERY`
+(60 s), detached so it never blocks the agent; from the watchdog when the
+file is older than 5 min; and in the restart (4.1). Cap: about 250 lines.
+Terminal lines (section 4) are scrubbed as 5.3 before they are written.
 
 ### 5.3 The hub copy (R7, W7)
 
-After every refresh whose content changed, the box sends the file to the hub
+After a compose whose content changed, the box sends `handoff.md` to the hub
 next to the agent's record (the fleet lane row, rdb 0096) as one blob,
-**sealed with the hub's KMS key** the way `internal/marketing/seal_kms.go`
-seals, and **scrubbed first**: the hygiene sweep's secret patterns (keys,
-tokens, PEM blocks, `password=`) are replaced by `[scrubbed]`, and a file
-that still matches after the scrub is not sent (one WARN). Only another
-box's watchdog, acting under 10.2, and the operator workspace's admin may
-read it back. Retention: the last 3 copies per agent, deleted 7 days after
-the agent's done marker.
+**sealed with the hub's KMS key**. The seal moves from
+`internal/marketing/seal_kms.go` into a shared package first, so lifecycle
+code does not import marketing (claude-2). It is **scrubbed first**: the
+hygiene sweep's secret patterns (keys, tokens, PEM blocks, `password=`)
+become `[scrubbed]`, and a file that still matches is not sent (one WARN).
+Only a box's watchdog acting under 10.2 and the operator workspace's admin
+may read it back. Retention: the last 3 copies per agent, deleted 7 days
+after the agent is done.
 
-### 5.4 The wip branch (A3, W4)
+### 5.4 The wip ref (A3, W4)
 
-For a lane, the handoff refresh at 1 h, at 1 h 50 and at every restart
-pushes `wip/<id>`: a commit of the dirty tree on top of HEAD, made in a
-temporary index (never the lane's own index, never `git stash`), under the
-repo's canonical author with message `wip(<id>): <ts> handoff`, pushed with
-`--force-with-lease` **to `wip/<id>` only** (never master; 16 Q10). The next
-session (same box or another) starts from the lane branch and applies
-`wip/<id>` if it is newer than the branch. A lane that finishes deletes its
-wip branch in `/exit-clean`.
+- **Name**: `wip/<lane branch>` (claude-2 H2: `wip/<id>` collides across
+  boxes; lane branch names are fleet-unique).
+- **When**: at 30 min, 1 h and 1 h 50 of a session when the dirty diff
+  changed since the last push (agy-1's midpoint push), and in the restart's
+  WIP step (4.1). Never from a hook (a hook must not block on the network).
+- **How**: the watchdog's detached job commits the dirty tree on top of HEAD
+  in a temporary index (never the lane's own index, never `git stash`), under
+  the repo's canonical author, message `wip(<id>): <ts> handoff`, and pushes
+  `--force-with-lease` to `refs/heads/wip/<lane branch>` ONLY. The push
+  wrapper refuses any other refspec.
+- **The pre-push gate**: the hook skips refs that are all
+  `refs/heads/wip/*` (a scoped exemption read from the hook's stdin), not
+  the global `SPL_PREPUSH_OVERRIDE` and not `--no-verify` (agy-2, claude-2).
+  CI does not run on them: the push-triggered workflows filter on branches
+  and tags (`grep -A4 '^  push:' .github/workflows/*.yml`, claude-2).
+- **Use**: the next session (same box or a guest) starts from the lane
+  branch and applies the wip ref when it is newer; no wip ref = the lane
+  branch alone (agy-2). A lane that finishes deletes its wip ref in
+  `/exit-clean`.
 
 ## 6. Limits (W3, R4, R12)
 
@@ -270,22 +323,29 @@ wip branch in `/exit-clean`.
 
 `restart_max_per_hour` (default 3, admin only) counts every restart of an id
 in a rolling hour, rebirths included (W3). It replaces 093's
-`WD_TAKEOVER_MAX` (2). Past it (R4): the id is **held out**, nothing else
-happens automatically (no new lane, no other harness), and the admin gets
-ONE message (11.2) naming the id, the box, the causes of the three restarts
-and the handoff. The admin's "restart" button clears the hold.
+`WD_TAKEOVER_MAX` (2) and its two counters (`spl_wd_takeover` in
+`spl-watchdog.func.sh` and `spl_wdt_limit` in `spl-wd-takeover.func.sh`,
+claude-2 C6) with ONE counter in `lifetime/restarts`. Past it (R4): the id
+is **held out**, nothing else happens automatically (no new lane, no other
+harness), and the admin gets ONE message (11.2) naming the id, the box, the
+causes of the restarts and the handoff. **The hold does not expire** (today
+it does after 3600 s, `spl-watchdog.func.sh:474`, claude-2 H7); the admin's
+"restart" button clears it.
 
-S2 (a login, limit or access screen) still never restarts (W3, W6): it goes
-to section 7.
+An S2 hit right after a "login reset" restart re-arms the S2 hold and does
+not count (agy-2): the login, not the agent, is what failed.
 
-### 6.2 Rebirths per task (R12)
+### 6.2 Per task (R12)
 
-`rebirth_max` (default 7, admin only) caps the planned rebirths of one task
-(a lane's brief). The count lives in `lifetime/rebirths` and in the fleet
-lane row. At the cap the restart does not start a new session: it pushes the
-wip branch, sends the orchestrator `REBIRTH CAP <id> <n> wip=<sha>`, puts one
-message to the admin (11.2), and holds the id out until the admin acts.
-Crashes do not count toward this cap (they count in 6.1). Seats: 16 Q3.
+| cap | default | counts | applies to |
+|---|---|---|---|
+| `rebirth_max` | 7 | planned rebirths of one task (R12) | lanes (16 Q3) |
+| `task_restart_max` | 12 | every restart of one task, rebirths and crashes (agy-1: a lane that crashes every 25 min never hits 3/hour and never counts a rebirth) | lanes |
+
+The counts live in `lifetime/` and in the fleet lane row. At either cap the
+restart does not start a new session: it pushes the wip ref, sends the
+orchestrator `TASK CAP <id> <cap> <n> wip=<sha>`, puts one message to the
+admin (11.2), and holds the id out until the admin acts.
 
 ## 7. Out of quota and login screens (W6, R8)
 
@@ -293,27 +353,34 @@ Crashes do not count toward this cap (they count in 6.1). Seats: 16 Q3.
 |---|---|---|
 | login or access screen | ONE owner DM, no restart | ONE admin message (web app + email, 11.2) with a **"login reset"** button; no restart until it is pressed |
 | usage limit with a reset time | out until the reset + 120 s, then back by itself; no DM unless every seat of that harness is out | the admin gets ONE message with two buttons, **"login reset"** and **"no tokens left"**; with no answer the agent is restarted after the reset time + 120 s as today (16 Q4) |
-| "no tokens left" pressed | - | the id stays held out; the script pushes the wip branch and sends the orchestrator one line; no switch of login or harness (W6) |
-| "login reset" pressed | - | the hub writes a `login-reset` event for that OS user and box; that box's watchdog restarts every held-out agent of that OS user and harness (one restart each, counted in 6.1) |
+| "no tokens left" pressed | - | the id stays held out; a lane's wip ref is pushed (seats: none); the orchestrator gets one line; no switch of login or harness (W6) |
+| "login reset" pressed | - | the hub writes a `login-reset` event for that OS user and box; that box's watchdog restarts every held-out agent of that OS user and harness, cause `login-reset` (6.1's exception applies) |
 
 ## 8. Generic stuck detection (G1, R13)
 
 ### 8.1 The rule: what is absent, never what text is present
 
-**S9 "stuck"** is a new situation script, `situations/s9.sh`. An agent is
-stuck when ALL of these hold for `stuck_min` (default 10 min, admin only):
+**S9 "stuck"** is a new situation script, `orc/features/watchdog/situations/s9.sh`.
+An agent is stuck when ALL of these hold for `stuck_min` (default 10 min,
+admin only):
 
 | # | condition | source | why it is text-free |
 |---|---|---|---|
 | 1 | the harness process is alive | `/proc` | - |
 | 2 | no progress: `heartbeat.progress_ts` older than `stuck_min` (093 5.2) | heartbeat | a model event, not a screen |
 | 3 | not in a tool within its cap (`state != in-tool`, or past 093 S4's cap) | heartbeat | - |
-| 4 | the pane did not change: the same hash of `capture-pane -p` (the spinner line included) on every tick of the window | tmux | any moving spinner, timer or output breaks it |
-| 5 | **there was input for the model**: an unread inbox file, a poke, or a 1 h / 1 h 50 notice was delivered in the window, and no `UserPromptSubmit` followed it | spool dir + `heartbeat.log` | a dialog of any wording swallows the poke: the prompt never reaches the model. An idle agent with nothing to do is never stuck |
+| 4 | the pane did not change **since the input of condition 5 was delivered**: the same hash of `capture-pane -p` on every tick, after removing poke lines (`: 'SPOOL ...'`) and the bottom `WD_S9_STATUS_ROWS` (default 1) status row | tmux | a moving spinner, timer or output breaks it; a poke's echo or a ticking clock does not (agy-2, claude-2) |
+| 5 | **a keystroke reached the pane and not the model**: a poke or a 1 h / 1 h 50 notice was typed (each sender logs it with its ts in `<id>/lifetime/input.log`), and no `UserPromptSubmit` followed it | `input.log` + `heartbeat.log` | a dialog of any wording swallows the keystroke: the prompt never reaches the model |
 
-Condition 5 is the key: it asks "did what we typed reach the model", which no
-dialog can fake. An idle agent at its prompt with an empty inbox fails 5 and
-is left alone (093 6.2 row "idle agent").
+- Condition 5 asks "did what we typed reach the model", which no dialog can
+  fake. An idle agent at its prompt with nothing typed into it fails 5 and
+  is left alone.
+- An unread inbox file that nobody poked (a plain `spool send`, a hub relay)
+  is not input yet: the watchdog pokes it ONCE, and that poke starts the
+  window (claude-2 R-g).
+- A harness whose hook does not emit `UserPromptSubmit` (agy, grok, qwen
+  until their ping proves it, 093 7.3) uses conditions 1-4 with `2 x
+  stuck_min`.
 
 ### 8.2 The action
 
@@ -328,32 +395,43 @@ depends on it growing.
 
 ### 8.3 The proof (G1's fixture control)
 
+Fixtures under `orc/tests/fixtures/wd-situations/`:
+
 | case | fixture | expected |
 |---|---|---|
-| hit | the 2026-10-06 frozen pane (`tests/fixtures/wd-situations/modal-default-mode.pane`) with its dialog words replaced by words no list contains, a heartbeat whose `progress_ts` is 11 min old, a poke delivered 9 min ago and no UserPromptSubmit after it | S9 HIT; the action is snapshot + restart |
+| hit | the 2026-10-06 frozen pane (`modal-default-mode.pane`) with its dialog words replaced by words no list contains, a heartbeat whose `progress_ts` is 11 min old, a poke in `input.log` 10 min ago and no UserPromptSubmit after it | S9 HIT; the action is snapshot + restart |
 | control 1 (the old guard) | the same fixture through today's S7 | no hit: the list-based check misses it |
 | control 2 | the same, but a UserPromptSubmit after the poke | no hit |
-| control 3 | the same, but the pane hash changes once in the window | no hit |
-| control 4 | an idle pane, empty inbox, no poke, progress 3 h old | no hit |
+| control 3 | the same, but the pane body changes once after the poke | no hit |
+| control 4 | an idle pane, empty inbox, nothing typed, progress 3 h old | no hit |
+| control 5 | an idle pane with an unread inbox file and nothing typed | no hit; the watchdog pokes once |
+| control 6 | the hit fixture with a status row whose clock changes every tick, and a second poke echo mid-window | still a hit |
 
 ## 9. CLI updates under control (G1, R14)
 
 ### 9.1 Who updates
 
-Self-update is turned off on every agent user (the setting
-`env.DISABLE_AUTOUPDATER=1` in `settings/00-fleet.json`; I believe, unchecked,
-that the native installer honours it, and the first task proves it before
-anything relies on it). `do_spl_cli_update` (csi-spl-orc) updates the CLIs,
-run nightly by its cron (`csi-spl:cli-update`, `UPDATE_WINDOW` 02:00-05:00 UTC):
+Self-update is turned off for every agent user and harness, in the process
+environment: `DISABLE_AUTOUPDATER=1` exported by the launch path
+(`orc/features/spawn-agents/lib/spool-env.inc.sh`, which the spawn and
+restore scripts source) and in the `env` block of `settings/00-fleet.json`;
+the mode check (9.2) asserts it in each live process's
+`/proc/<pid>/environ` (agy-1, agy-2). The first task proves that it stops
+the update (a box with a newer version published and the variable set:
+`ls ~/.local/share/claude/versions` unchanged after 24 h, n = 1 box per
+harness) before anything relies on it.
+
+`do_spl_cli_update` (csi-spl-orc) updates the CLIs, run nightly by its cron
+(`csi-spl:cli-update`, `UPDATE_WINDOW` 02:00-05:00 UTC):
 
 1. **one box at a time**: a hub lease `cli-update` (one row, CAS, 30 min) so
    two boxes never update in the same window;
 2. on that box: install the new version beside the old (the native installer
    keeps both), **without** switching the live agents;
 3. **a test agent first**: spawn a scratch lane on the new version with a
-   one-line brief ("run `./run -a do_spl_cli_selftest`, report, exit-clean");
-   it must start, show no dialog, carry the 9.2 flags and settings, and pass
-   S9 for 5 min. Fail: roll back the symlink, one admin message, stop;
+   one-line brief ("run `./run -a do_spl_cli_selftest`, report,
+   exit-clean"); it must start, show no dialog, carry the 9.2 flags and
+   settings, and pass S9 for 5 min. Fail: roll back, one admin message, stop;
 4. pass: switch the symlink; live agents pick the new version at their next
    rebirth (no mass restart);
 5. the next box takes the lease the next night (or the same night after
@@ -366,6 +444,7 @@ run nightly by its cron (`csi-spl:cli-update`, `UPDATE_WINDOW` 02:00-05:00 UTC):
 | what | must be | source today |
 |---|---|---|
 | launch flags of each live process | `--dangerously-skip-permissions` (claude); the harness's own auto-approve flag otherwise | `/proc/<pid>/cmdline` (060 FR-063) |
+| `DISABLE_AUTOUPDATER` in each live process | `1` | `/proc/<pid>/environ` |
 | `permissions.defaultMode` | `bypassPermissions` | `settings/00-fleet.json` |
 | `skipDangerousModePermissionPrompt` | `true` | same |
 | `permissions.disableAutoMode` | `disable` | same |
@@ -376,8 +455,8 @@ restart** (the spawn re-asserts the settings file from `00-fleet.json`
 first, and refuses with one note if it still differs). Any mismatch is
 re-asserted to the most permissive mode (R14) and reported once. The flags
 come from ONE helper again (060 FR-061's `spool_claude_perm_flags`,
-restored), used by spawn, restore, rotation, lane restart and the restart
-path.
+restored in `orc/features/spawn-agents/lib/spool-env.inc.sh`), used by
+spawn, restore, rotation, lane restart and the restart path.
 
 ## 10. Boxes: reboot, down, back (W7, R5, R6)
 
@@ -385,36 +464,56 @@ path.
 
 After a reboot, the box's own watchdog keeper (`do_spl_wd_ensure`, every
 minute) starts the watchdog, and the watchdog restarts every agent whose
-registry row is open, whose running box is this box (10.2) and that has no
-done marker, cause `reboot`, through section 4. This replaces the `@reboot`
-`do_spl_agent_boot_restore` and the restore scripts as the path; they stay
-for one release as a fallback behind `BOOT_RESTORE=1`. 093 6.2's suspend
-guard (a tick gap over 3 x `WD_TICK` resets debounces) stays.
+registry row is open, that is not done (4.3) and whose `running_box` is this
+box (10.2), cause `reboot`, through section 4: a new session from the
+handoff, not a `--resume`. The `@reboot` `do_spl_agent_boot_restore` and
+the `--resume` restore scripts stop being a path: once the reboot path has
+passed its drill (tasks T014) their cron line is removed, and the scripts
+stay only as a manual tool that also takes the id lock (claude-2: two
+automatic paths are the R-b race again). 093 6.2's suspend guard stays.
 
-### 10.2 Down
+### 10.2 Down, and the fence
 
 - **Box beat**: every box's watchdog writes one row per tick into a new hub
-  table `box_beats` (box, `beat_at` at the hub's clock, watchdog pid). Not the
-  fleet lease table: 093 6.4 showed a lease row would re-route an agent's
-  channel posts.
+  table `box_beats` (box, `beat_at` at the hub's clock, watchdog pid); the
+  hub's reply carries the beat's ack. Not the fleet lease table: 093 6.4
+  showed a lease row would re-route an agent's channel posts.
 - **Down** = no beat for `box_down_min` (default 2 min, admin only, R5).
-- **Takeover of a down box's agents**: each live box's watchdog, on the tick
-  it sees a down box, tries ONE hub CAS per agent of that box: `running_box`
-  from the down box to itself, in the fleet lane row. The CAS winner restarts
-  that agent from the hub copy of its handoff (5.3) and, for a lane, a fresh
-  worktree from its pushed branch and `wip/<id>` (5.4). A box that lacks the
-  agent's harness does not CAS that agent (16 Q6).
-- **Never two copies**: a box restarts an agent only while it is the
-  `running_box` in the hub. A box that cannot reach the hub restarts only its
-  own agents whose `running_box` was itself at its last good read.
+- **The fence** (all three reviewers): a box whose own beat has not been
+  acked for `box_down_min` is **fenced**. It starts and restarts nothing,
+  and it TERMs its own **lanes** (the wip job pushes first when origin is
+  reachable), because another box will start copies of them. Its seats keep
+  running: seats never move (next point). Once it reaches the hub again, it
+  reads `running_box` for each of its agents: a lane now running elsewhere
+  is not started here (10.3); the rest restart through section 4.
+- **What moves**: only lanes. A seat is a slot of its box (001..004); the
+  other boxes' seats take its jobs by the 093 claim (093 10), so a down
+  box's seats simply wait for their box.
+- **Takeover of a down box's lanes**: each live box's watchdog, on the tick
+  it sees a down box, tries ONE hub CAS per lane of that box: `running_box`
+  from the down box to itself, in the lane's fleet row (keyed by its HOME
+  box, `agent_box = home`). The CAS also requires a second witness: the lane
+  branch on origin has not moved for `box_down_min` (claude-2 H3). The
+  winner restarts the lane as a **guest**: rundir
+  `<spool root>/guest/<id>@<home>/`, tmux window `<id>@<home>`, a fresh
+  worktree from the lane branch plus its wip ref, the handoff from the hub
+  copy (5.3). The hub routes messages for `<id>@<home>` to `running_box`. A
+  box that lacks the lane's harness does not CAS it (16 Q6).
+- **Never two copies**: a box starts a lane only while it is that lane's
+  `running_box` in the hub, and a fenced box starts nothing.
 
 ### 10.3 Back (R6)
 
-A returning box reads `running_box` before it restarts anything (10.1): an
-agent now running elsewhere is not started at home. At that agent's next
-rebirth, the restart path runs on the home box when the home box is beating
-(CAS `running_box` back), and the remote box retires its session. A lane's
-remote worktree is removed after its push.
+- A box returning from **down** (it was off) reads `running_box` before it
+  restarts anything: a lane now running elsewhere is not started at home. At
+  that lane's next rebirth the restart runs on the home box when the home
+  box is beating (CAS `running_box` back), and the guest box retires its
+  session and removes its worktree after the push.
+- A box returning from a **partition** that finds its own copy of a lane
+  still running (it should have been fenced; e.g. its watchdog was dead)
+  kills that copy at once, pushes its tree to
+  `wip/<lane branch>-fenced-<ts>`, and sends the orchestrator one line
+  (claude-2). The guest stays until its next rebirth.
 
 ## 11. The admin (R8, R10)
 
@@ -430,6 +529,7 @@ by an admin only (R8). NULL = default, as 063 section 11.
 |---|---|---|---|
 | `restart_max_per_hour` | 3 | 1..10 | 6.1 (W3) |
 | `rebirth_max` | 7 | 1..50 | 6.2 (R12) |
+| `task_restart_max` | 12 | 1..100 | 6.2 (agy-1) |
 | `stuck_min` | 10 | 2..60 | 8.1 (R13) |
 | `box_down_min` | 2 | 1..30 | 10.2 (R5) |
 
@@ -448,11 +548,13 @@ in the operator workspace (a DM to each admin) plus an email through
 | login or access screen (7) | login reset |
 | usage limit (7) | login reset, no tokens left |
 | restart limit reached (6.1) | restart, leave stopped |
-| rebirth cap reached (6.2) | one more rebirth cycle, leave stopped |
+| task cap reached (6.2) | one more cycle, leave stopped |
+| a fenced box, or a lane that cannot move (10.2, 16 Q6) | none (information) |
 | CLI test agent failed (9.1) | none (information) |
 
 Each button writes one hub event; the box's watchdog reads its events at
-every tick. One message per (id, cause) until it is answered.
+every tick. One message per (id, cause) until it is answered. The keeper's
+owner DMs of 093 6.4 move to this type.
 
 ## 12. Shared memory (H6, R9)
 
@@ -465,38 +567,42 @@ do and its context come from the web app (topics, briefs).
   (or an admin merges two) instead of piling up.
 - Each agent's seed gets the index (titles + one line), never the bodies;
   `spool memory show <title>` reads one.
-- The per-user memory files under the agent user's `.claude/projects/<slug>/memory/`
-  stay as they are for now; moving them in is a later task (16 Q7).
+- The per-user memory files under the agent user's
+  `.claude/projects/<slug>/memory/` stay as they are; moving them in is a
+  later task (16 Q7).
 
-## 13. What changes in 060 and 093, and what exists today
+## 13. What changes in 060, 063 and 093, and what exists today
 
 | spec rule | today (code) | 102 | check |
 |---|---|---|---|
-| 060 hourly seat rotation at `:05` / `:15`, its crons | `spl-orch-rotate.func.sh`, `spl-dispatch-rotate.func.sh`, crons `csi-spl:orch-rotate`, `csi-spl:dispatch-rotate`, `csi-spl:dispatch-heal` | trigger moves to the watchdog's session age; mechanics kept (4.4, R11) | `crontab -l \| grep -c 'csi-spl:\(orch\|dispatch\)-rotate'` as the box user -> 2 on the `<pc box>` |
-| 060 D1 busy rotated at once | `spl_rotate_quiesce` (grace, Escape) | 1 h is a request; 2 h is the forced end (3) | `grep -n '^spl_rotate_quiesce' csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh` |
-| 060 section 6 handoff written at rotation | `spl_rotate_handoff` | continuous `<id>/handoff.md` + hub copy; the rotation's file is its snapshot (5) | `grep -n '^spl_rotate_handoff' csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh` |
-| 060 9 "rotating lane agents: out of scope" | 063's `do_spl_lane_restart` restarts lanes on size | lanes are in (W4) | `sed -n 1,10p csi-spl-orc/src/bash/run/spl-lane-restart.func.sh` |
-| 060 FR-061 one flag helper | the helper is gone; a caller falls back to a literal | restored, used by every start (9.2) | section 1 row 6 |
-| 093 6.3 `WD_TAKEOVER_MAX` 2 | `spl-watchdog.func.sh` | `restart_max_per_hour` 3, rebirths count (6.1) | `grep -n 'WD_TAKEOVER_MAX:=' csi-spl-orc/src/bash/run/spl-watchdog.func.sh` |
-| 093 6.3 third takeover -> owner DM | `spl_wd_takeover` | admin message + email + button (11.2) | `sed -n 666,690p csi-spl-orc/src/bash/run/spl-watchdog.func.sh` |
-| 093 S2 limit: back after reset, no DM | `situations/s2.sh` | the admin is told; buttons (7) | `sed -n 1,8p csi-spl-orc/src/bash/features/watchdog/situations/s2.sh` |
-| 093 S3 bare shell | `situations/s3.sh` | + a gone pane with an open registry row and no marker (4.3) | `cat csi-spl-orc/src/bash/features/watchdog/situations/s3.sh` |
-| 093 S7 list of dialogs | `situations/s7.sh`, `spl_lease_modal_hit` | kept as the fast path; S9 is the net (8) | `ls csi-spl-orc/src/bash/features/watchdog/situations/` -> `lib.inc.sh`, s1..s8 |
-| 093 6.2 human guard | `spl_wd_gate` (`WD_HUMAN_IDLE` 120 s) | not for the 2 h end (R3) | `grep -n WD_HUMAN_IDLE csi-spl-orc/src/bash/run/spl-watchdog.func.sh` |
-| 093 8 takeover | `spl-wd-takeover.func.sh` | becomes `do_spl_agent_restart`, cause widened (4) | `sed -n 1,30p csi-spl-orc/src/bash/run/spl-wd-takeover.func.sh` |
-| 093 10 "no watchdog needs to reach another box" | no box beat; `box_stats` every 5 min (rdb 0117) | `box_beats` + CAS on `running_box` (10.2) | `ls csi-spl-rdb/src/sql/postgres/spool-hub \| grep -c box_beats` -> 0 |
-| 093 6.4 owner DM via `ASKS_OWNER` | `spl-wd-ensure.func.sh` | the keeper's alerts become admin messages (11.2) | `grep -c ASKS_OWNER csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh` -> 4 |
-| boot restore | `spl-agent-boot-restore.func.sh` (@reboot) | the watchdog's reboot path; the old one behind a switch (10.1) | `sed -n 1,16p csi-spl-orc/src/bash/run/spl-agent-boot-restore.func.sh` |
+| 060 hourly seat rotation at `:05` / `:15`, its crons | `spl-orch-rotate.func.sh`, `spl-dispatch-rotate.func.sh`; the cron set differs per box | trigger moves to the watchdog's session age once the rotations take the id lock (4.4, R11) | as the box user: `crontab -l \| grep -oE 'csi-spl:[a-z-]+' \| sort -u` per box |
+| 060 D1 busy rotated at once | `spl_rotate_quiesce` (grace, Escape) | 1 h is a request; 2 h is the forced end (3) | `grep -n '^spl_rotate_quiesce' orc/run/spl-rotate-lib.func.sh` |
+| 060 section 6 handoff written at rotation, in place | `spl_rotate_handoff`; the takeover writes `> "$hand"` | continuous, composed, atomic, one writer per file, hub copy (5) | `grep -n '^spl_rotate_handoff' orc/run/spl-rotate-lib.func.sh` |
+| 060 9 "rotating lane agents: out of scope" | 063's `do_spl_lane_restart` restarts lanes on size, no shared lock, its own log | lanes are in (W4); the lane restart takes the id lock and logs to `rotate.log` (4.2) | `grep -c 'restart\.lock' orc/run/spl-lane-restart.func.sh` -> 0 |
+| 060 FR-061 one flag helper | gone; a caller falls back to a literal | restored, used by every start (9.2) | section 1 row 6 |
+| 093 6.3 `WD_TAKEOVER_MAX` 2, two counters, hold expires in 1 h | `spl-watchdog.func.sh:70`, `:474`, `:676`; `spl-wd-takeover.func.sh` `spl_wdt_limit` | ONE counter, `restart_max_per_hour` 3, rebirths count, the hold does not expire (6.1) | `grep -n 'WD_TAKEOVER_MAX' orc/run/spl-watchdog.func.sh orc/run/spl-wd-takeover.func.sh` |
+| 093 6.3 past the limit | the watchdog sends an orchestrator blocker; the takeover sends an ask + owner DM (`spl_rotate_alert`) | one admin message + email + button (11.2) | `sed -n 666,690p orc/run/spl-watchdog.func.sh`; `grep -n '^# spl_wdt_limit' -A4 orc/run/spl-wd-takeover.func.sh` |
+| 093 S2 limit: back after reset, no DM | `situations/s2.sh` | the admin is told; buttons (7) | `sed -n 1,8p orc/features/watchdog/situations/s2.sh` |
+| 093 S3 bare shell; `rundir_gone` = finished | `situations/s3.sh:11` | + a gone pane with an open registry row (4.3); `rundir_gone` stays the done rule | `grep -n rundir_gone orc/features/watchdog/situations/s3.sh` |
+| 093 S7 list of dialogs | `situations/s7.sh`, `spl_lease_modal_hit` | kept as the fast path; S9 is the net (8) | `ls orc/features/watchdog/situations/` -> `lib.inc.sh`, s1..s8 |
+| 093 6.2 human guard | `spl_wd_gate` (`WD_HUMAN_IDLE` 120 s) | not for the 2 h end (R3) | `grep -n WD_HUMAN_IDLE orc/run/spl-watchdog.func.sh` |
+| 093 8 takeover, start-first for every agent | `spl_wdt_steps` (spawn, then kill) | `do_spl_agent_restart`: lanes stop-first (new code, 4.1), seats start-first; slots instead of one box lock (4.2) | `sed -n 217,258p orc/run/spl-wd-takeover.func.sh` |
+| 093 10 "no watchdog needs to reach another box" | no box beat; `box_stats` every 5 min (rdb 0117) | `box_beats`, the fence, lane CAS on `running_box`, guests (10.2) | `ls csi-spl-rdb/src/sql/postgres/spool-hub \| grep -c box_beats` -> 0 |
+| 093 6.4 owner DM via `ASKS_OWNER` | `spl-wd-ensure.func.sh` | admin messages (11.2) | `grep -c ASKS_OWNER orc/run/spl-wd-ensure.func.sh` -> 4 |
+| the reaper | `spl-agent-id-reap.func.sh` retires ids dead for 6 h (cron `*/15`, dry run today) | skips ids held out or with a hub handoff and no done; takes the id lock (claude-2 R-h) | `sed -n 1,20p orc/run/spl-agent-id-reap.func.sh` |
+| boot restore | `spl-agent-boot-restore.func.sh` (@reboot, `--resume`) | the watchdog's reboot path; the cron line removed after the drill (10.1) | `sed -n 1,16p orc/run/spl-agent-boot-restore.func.sh` |
+| the pre-push hook | runs `do_check_pre_push` on every push | skips `refs/heads/wip/*`-only pushes (5.4) | `orc/features/spawn-agents/hooks/pre-push` |
 | CLI version | self-updates in place (section 1 row 5) | off; `do_spl_cli_update` nightly, one box, test agent (9) | `ls ~/.local/share/claude/versions` as the agent user |
-| settings | `00-fleet.json`: `defaultMode=bypassPermissions`, `disableAutoMode=disable`, no autoupdate key | + `DISABLE_AUTOUPDATER`; re-checked before every start (9.2) | `cat csi-spl-orc/src/bash/features/spool-install/assets/claude/settings/00-fleet.json` |
-| per-workspace numbers | `agent_lifecycle_config` (063, rdb 0105), 11 keys | + 4 keys, read from the operator workspace only (11.1) | `grep -c 'Key: "' csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go` -> 11 |
+| settings | `00-fleet.json`: `defaultMode=bypassPermissions`, `disableAutoMode=disable`, no `env` block | + `DISABLE_AUTOUPDATER` in the env and the launch path; re-checked before every start (9.2) | `cat orc/features/spool-install/assets/claude/settings/00-fleet.json` |
+| per-workspace numbers | `agent_lifecycle_config` (063, rdb 0105), 11 keys | + 5 keys, read from the operator workspace only (11.1) | `grep -c 'Key: "' csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go` -> 11 |
+| fleet lane row | PK `(tenant_id, fleet, agent_id, agent_box)` | + `running_box`, keyed by the home box (10.2) | `grep -n 'PRIMARY KEY' csi-spl-rdb/src/sql/postgres/spool-hub/0102_agent_at_box_key.sql` |
 
 ## 14. Trace: every owner answer to its section
 
 | answer | section |
 |---|---|
 | 26db0bb6, 9596fee0, 9bc777da | 3 |
-| A1 | 3, 6.2 |
+| A1 | 2 (session age), 3, 6.2 |
 | A2 | 3 row 0 (every seed, seats included) |
 | A3 | 4.1 WIP, 5.4 |
 | A4 | 17 (rollout), 16 Q9 |
@@ -525,38 +631,120 @@ do and its context come from the web app (topics, briefs).
 | R14 | 9 |
 | G1 | 8, 9 |
 
-## 15. Opinion panel
+## 15. Opinion panel and consensus
 
-To be filled in v1.0: the opinions of agy-1, agy-2 and claude-2
-(`opinions/<seat>.md`), each verdict, and the agreement.
+Owner 0900d5ec asked for 2 agy + 2 claude; 56e95fbe for consensus, then the
+build. Each reviewer read v0.1 (`8f32ffd8`) and the code it cites,
+independently.
+
+| panelist | agent | file | sha |
+|---|---|---|---|
+| claude 1 | c-471 | v0.1 of this file | `8f32ffd8` |
+| claude 2 | c-459 | [opinions/claude-2.md](opinions/claude-2.md) | `f479f4a6` |
+| agy 1 | a-473 | [opinions/agy-1.md](opinions/agy-1.md) | `de123a46` |
+| agy 2 | a-474 | [opinions/agy-2.md](opinions/agy-2.md) | `4f99a6c6` |
+
+### 15.1 Verdicts
+
+| panelist | verdict | biggest findings |
+|---|---|---|
+| claude 2 | shape right, not yet failover-proof | no id lock across four restart actors; ids unique only as `<id>@<box>` (guest collisions, `wip/<id>`); no fence for a partitioned box; one box lock cannot do 30 rebirths an hour; takeover is start-first today, so lane stop-first is new code; the hold expires in 1 h; a resume resets `/proc` age; S9 fires on an un-poked inbox file; the reaper; two handoff writers; `rundir_gone` = done belongs in P0 |
+| agy 1 | agree with replacements in 4, 5, 6, 9, 10 | split brain on a partition; handoff race without a lock; stale `.git/index.lock` after a 2 h kill; WIP before RETIRE; the rebirth marker read again after a crash; slow crash loops under 3/hour; set `DISABLE_AUTOUPDATER` in the process environment |
+| agy 2 | agree with replacements in 5.4, 7, 8.1, 9.1, 10.2 | the pre-push gate blocks wip pushes; a poke's echo resets S9's pane hash; the partition fence; an S2 re-hit after "login reset" must not burn the limit; `DISABLE_AUTOUPDATER` is read from the process environment; no wip ref = fall back to the lane branch |
+
+All three verified section 1 and 13's check commands; two found the 8.3
+fixture path missing its `orc/` prefix, and agy-1 and claude-2 found that
+the 093 limit's owner DM is in `spl-wd-takeover.func.sh`, not the watchdog
+lines cited. Both are fixed here.
+
+### 15.2 Scores (1 weak .. 5 strong), v0.1 as each scored it
+
+| property | agy 1 | agy 2 | claude 2 |
+|---|---|---|---|
+| robust | 4 | 4 | 3 |
+| failover-proof | 3 | 4 | 2 |
+| simple | 4 | 4 | 4 |
+| uninterruptible | 4 | 4 | 3 |
+
+**This spec v1.0**, scored by c-471 against the same yardstick:
+
+| property | score | why |
+|---|---|---|
+| robust | 4 | one id lock for every actor; one writer per handoff file with atomic renames; stuck = absent progress and a swallowed keystroke. Open: a harness without `UserPromptSubmit` relies on conditions 1-4 at 2 x `stuck_min` |
+| failover-proof | 4 | a fenced box starts nothing and stops its lanes; only lanes move, by one CAS with a second witness, as guests under their home id. Not 5: the hub is the one arbiter, and a 2 min hub blip fences every box (16 Q11) |
+| simple | 4 | one action, one lock, one handoff, one admin message type, five settings |
+| uninterruptible | 4 | soft 1 h, final notice, hard 2 h; wip pushed at 30 min, 1 h, 1 h 50 and every restart; seats start-first. Open: up to 30 min of work lost when a box dies between wip pushes |
+
+### 15.3 What was agreed, and where it landed
+
+| # | agreed change | proposed by | section |
+|---|---|---|---|
+| C1 | one id lock that every start/stop actor takes; all log to `rotate.log` | claude 2 | 4.2 |
+| C2 | `RESTART_SLOTS` (4) instead of one box lock | claude 2 | 4.2 |
+| C3 | lanes: RETIRE, CLEANUP (`index.lock`, rebase state), WIP, HANDOFF, SPAWN; lane stop-first is new code with its own failure handling | agy 1, claude 2 | 4.1 |
+| C4 | consume the rebirth marker before the spawn; ignore a `done` older than the session | agy 1, claude 2 | 4.1, 4.3 |
+| C5 | `rundir_gone` stays the done rule, in P0 | claude 2 | 4.3, 17 |
+| C6 | session age from `lifetime/session.json`, survives a resume | claude 2 | 2 |
+| C7 | a seat's restart starts early enough to end the old session by 2 h | claude 2 | 3 |
+| C8 | handoff: agent files and script file separate, one writer each, flock + tmp + rename | agy 1, claude 2 | 5.1 |
+| C9 | wip ref = `wip/<lane branch>`, pushed by the watchdog's job, never a hook; exempt from the pre-push gate by refspec; fall back to the lane branch | claude 2, agy 2 | 5.4 |
+| C10 | a 30 min wip push | agy 1 | 3, 5.4 |
+| C11 | ONE restart counter; the hold does not expire | claude 2 | 6.1 |
+| C12 | `task_restart_max` (12) caps rebirths + crashes per task | agy 1 | 6.2, 11.1 |
+| C13 | an S2 re-hit after "login reset" does not count | agy 2 | 6.1, 7 |
+| C14 | S9 condition 5 counts keystrokes from `input.log`; an un-poked inbox file gets one poke first; condition 4 ignores poke echoes and the status row and starts at the input | claude 2, agy 2 | 8.1, 8.3 |
+| C15 | `DISABLE_AUTOUPDATER` in the process environment, asserted by the mode check | agy 1, agy 2 | 9.1, 9.2 |
+| C16 | the fence: a box without an acked beat for `box_down_min` starts nothing and stops its lanes; on return a surviving copy is killed and pushed to a `-fenced-` ref | agy 1, agy 2, claude 2 | 10.2, 10.3 |
+| C17 | guests run as `<id>@<home>`; the lane row keyed by the home box gains `running_box`; a second witness (branch not moved) on the CAS | claude 2 | 10.2 |
+| C18 | the `--resume` boot restore stops being an automatic path once the reboot drill passes | claude 2 | 10.1 |
+| C19 | the reaper and the 063 lane restart take the id lock; the reaper skips held-out ids | claude 2 | 4.2, 13 |
+| C20 | the KMS seal moves to a shared package | claude 2 | 5.3 |
+
+### 15.4 Where the panel differed, and the choice made
+
+| question | positions | chosen | why |
+|---|---|---|---|
+| Q5 wip push frequency | (a) 1 h, 1 h 50, restart (agy 2, claude 2); + a 30 min push (agy 1) | 30 min, 1 h, 1 h 50, restart, only when the diff changed | the objection to (b) was churn every 60 s; one more push per session costs little and halves the loss window on a dead box |
+| Q9 the over-2 h agents at rollout | 1 per box per minute (agy 1, agy 2); `RESTART_SLOTS` at a time, oldest first (claude 2) | `RESTART_SLOTS` at a time, oldest session first, starts at least 60 s apart | both goals hold: no herd, and the backlog clears within about 2 h |
+| Q10 the wip ref | `wip/<id>` with a refspec assertion (agy 1, agy 2); `wip/<lane branch>` (claude 2) | `wip/<lane branch>`, `--force-with-lease`, the wrapper refuses any other refspec | ids collide across boxes; the agy concern (never a force push elsewhere) is kept by the assertion |
+| handoff concurrency | flock on one file (agy 1); separate files per writer (claude 2) | both: separate files, and the script's own compose under flock | one writer per file removes the agent/script race; the flock covers the hook, watchdog and restart all composing |
+| boot restore | keep as fallback (v0.1, agy 2); retire it (claude 2) | its cron line goes after the reboot drill; the scripts stay as a manual tool under the id lock | two automatic paths race; a manual tool under the lock does not |
+
+No reviewer disagreed with sections 0, 1, 3 (beyond C7), 7 (beyond C13),
+11, 12, 14 or the 17 phase order. All kept the defaults of Q1-Q4 and Q6-Q8.
 
 ## 16. Open questions (a safe default is chosen and marked; nothing waits)
 
 | # | question | options | **default** (why) |
 |---|---|---|---|
-| Q1 | does the 1 h rebirth force a busy agent | (a) ask, the agent picks the step boundary until 1 h 50; (b) Escape at 1 h like 060 D1 | **(a)**: R1/R2 put the force at 2 h; a forced 1 h would make the 1 h 50 notice pointless |
-| Q2 | the seats' order (4.2) | (a) start-first with ack (060); (b) stop-first like lanes | **(a)**: keeps 060's never-zero invariants |
-| Q3 | does `rebirth_max` apply to seats | (a) lanes only; (b) seats too | **(a)**: a seat's role never ends by design; 7 rebirths would stop the orchestrator after 7 h |
-| Q4 | usage limit with a reset time and no admin answer | (a) restart after the reset + 120 s, as 093; (b) wait for the button | **(a)**: the button is the fast path; waiting for a human on a known reset time loses hours |
-| Q5 | how often the wip branch is pushed | (a) at 1 h, 1 h 50 and every restart; (b) at every handoff refresh | **(a)**: bounds pushes; a box that dies between pushes loses at most the work since the last one (the hub handoff still says what it was) |
-| Q6 | an agent whose harness exists only on the down box (agy today) | (a) it waits for its box, with one admin message; (b) it moves to another harness | **(a)**: W6 forbids switching harness |
-| Q7 | the per-user memory files | (a) stay, the hub memory takes new lessons only; (b) imported once | **(a)**, import as a later task |
-| Q8 | where the box beat lives | (a) a new `box_beats` table; (b) the fleet lease table | **(a)**: 093 6.4 showed (b) re-routes channel posts |
-| Q9 | the agents over 2 h when the rule goes live (A4) | (a) the watchdog's first ticks reborn them, at most one per box per minute; (b) the orchestrator closes them by hand | **(a)**: no box restarts 30 at once, and nothing is done by hand |
-| Q10 | `--force-with-lease` to `wip/<id>` | (a) allowed, wip branches only; (b) a new branch name per push | **(a)**: the repo rule bans force pushes to master; one moving wip ref per lane keeps the remote clean. Panel to confirm |
+| Q1 | does the 1 h rebirth force a busy agent | (a) ask, the agent picks the step boundary until 1 h 50; (b) Escape at 1 h like 060 D1 | **(a)**, all reviewers: R1/R2 put the force at 2 h |
+| Q2 | the seats' order | (a) start-first with ack (060); (b) stop-first like lanes | **(a)**, all reviewers, with C7's timing |
+| Q3 | does `rebirth_max` apply to seats | (a) lanes only; (b) seats too | **(a)**, all reviewers: a seat's role never ends; 6.1 still guards seats |
+| Q4 | usage limit with a reset time and no admin answer | (a) restart after the reset + 120 s, as 093; (b) wait for the button | **(a)**, all reviewers |
+| Q5 | how often the wip ref is pushed | see 15.4 | **30 min, 1 h, 1 h 50, restart** |
+| Q6 | a lane whose harness exists only on the down box (agy today) | (a) it waits for its box, with one admin message; (b) it moves to another harness | **(a)**, all reviewers: W6 forbids switching harness |
+| Q7 | the per-user memory files | (a) stay, the hub memory takes new lessons only; (b) imported once | **(a)**, all reviewers |
+| Q8 | where the box beat lives | (a) a new `box_beats` table; (b) the fleet lease table | **(a)**, all reviewers |
+| Q9 | the agents over 2 h when the rule goes live (A4) | see 15.4 | **`RESTART_SLOTS` at a time, oldest first, 60 s apart** |
+| Q10 | the wip ref | see 15.4 | **`wip/<lane branch>`** |
+| Q11 | a 2 min hub blip fences every box and stops every lane | (a) accept, 2 min is the owner's default (R5) and an admin can raise it; (b) fence only after 2 x `box_down_min` | **(a)**: the owner chose 2 min; a fenced box's lanes restart within a tick of the hub's return, from their wip ref |
 
 ## 17. Rollout (A4)
 
-1. P0: S9 + its fixture control (8.3), the settings check (9.2) and the
-   restored flag helper: these close the 2026-10-06 class alone.
-2. P1: the continuous handoff (5.1, 5.2), the restart path (4) with the
-   session-age rule (3) for lanes; the over-2 h agents are reborn only now
-   (A4, Q9).
-3. P2: the admin settings and messages (11), the hub handoff copy (5.3),
-   S2's buttons (7).
-4. P3: the box beat and cross-box restart (10), the seats onto the path
-   (4.4), controlled CLI updates (9.1), the shared memory (12).
+1. **P0** (the 2026-10-06 class, and the base everything else needs): the id
+   lock in every actor (4.2), `rundir_gone` = done (4.3), S9 + its fixture
+   controls (8), the settings check, `DISABLE_AUTOUPDATER` and the restored
+   flag helper (9.2).
+2. **P1**: the handoff files (5.1, 5.2), the wip job and the pre-push
+   exemption (5.4), the restart action with lanes stop-first and slots (4),
+   the session-age rule (3) for lanes, one restart counter and the caps (6);
+   the over-2 h agents are reborn only now (A4, Q9).
+3. **P2**: the admin settings and messages (11), the hub handoff copy (5.3),
+   S2's buttons (7), the seats onto the path (4.4).
+4. **P3**: the box beat, the fence and guests (10), controlled CLI updates
+   (9.1), the shared memory (12), the reboot path replacing the boot
+   restore (10.1).
 
-Tasks: `tasks.md` (written with v1.0).
+Tasks: [tasks.md](tasks.md).
 
-<!-- version: 0.1.0 · updated: 2026-10-07 · last-edit: 2026-10-07T08:30:00Z -->
+<!-- version: 1.0.0 · updated: 2026-10-07 · last-edit: 2026-10-07T08:20:00Z -->

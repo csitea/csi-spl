@@ -2001,6 +2001,17 @@
       "d7": "n"
     }
   },
+  "calendar_trash": {
+    "menu": "Ponuka kalendára",
+    "title": "Kôš",
+    "deleted": "Udalosť odstránená",
+    "undo": "Späť",
+    "restore": "Obnoviť",
+    "restore_failed": "Udalosť sa nepodarilo obnoviť. Skúste to znova.",
+    "load_failed": "Kôš sa nepodarilo načítať.",
+    "empty": "Kôš je prázdny.",
+    "hint": "Odstránené udalosti tu zostávajú 30 dní, potom sa odstránia natrvalo."
+  },
   "calendar_reminder": {
     "label": "Pripomienka",
     "open": "Otvoriť",
@@ -2025,7 +2036,7 @@
     "field_description": "Popis",
     "private_badge": "Súkromné",
     "delete": "Odstrániť",
-    "delete_confirm": "Odstrániť natrvalo?",
+    "delete_confirm": "Odstrániť túto udalosť?",
     "save": "Uložiť",
     "saving": "Ukladá sa…",
     "error_title": "Dajte udalosti názov.",

@@ -2001,6 +2001,17 @@
       "d7": "P"
     }
   },
+  "calendar_trash": {
+    "menu": "Kalendri menüü",
+    "title": "Prügikast",
+    "deleted": "Sündmus kustutatud",
+    "undo": "Võta tagasi",
+    "restore": "Taasta",
+    "restore_failed": "Sündmust ei õnnestunud taastada. Proovi uuesti.",
+    "load_failed": "Prügikasti ei õnnestunud laadida.",
+    "empty": "Prügikast on tühi.",
+    "hint": "Kustutatud sündmused jäävad siia 30 päevaks, seejärel eemaldatakse need lõplikult."
+  },
   "calendar_reminder": {
     "label": "Meeldetuletus",
     "open": "Ava",
@@ -2025,7 +2036,7 @@
     "field_description": "Kirjeldus",
     "private_badge": "Privaatne",
     "delete": "Kustuta",
-    "delete_confirm": "Kas kustutada lõplikult?",
+    "delete_confirm": "Kas kustutada see sündmus?",
     "save": "Salvesta",
     "saving": "Salvestamine…",
     "error_title": "Anna sündmusele pealkiri.",

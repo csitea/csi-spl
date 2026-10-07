@@ -2001,6 +2001,17 @@
       "d7": "D"
     }
   },
+  "calendar_trash": {
+    "menu": "Meniul calendarului",
+    "title": "Coș",
+    "deleted": "Eveniment șters",
+    "undo": "Anulează",
+    "restore": "Restaurează",
+    "restore_failed": "Evenimentul nu a putut fi restaurat. Încearcă din nou.",
+    "load_failed": "Coșul nu a putut fi încărcat.",
+    "empty": "Coșul este gol.",
+    "hint": "Evenimentele șterse rămân aici 30 de zile, apoi sunt eliminate definitiv."
+  },
   "calendar_reminder": {
     "label": "Memento",
     "open": "Deschide",
@@ -2025,7 +2036,7 @@
     "field_description": "Descriere",
     "private_badge": "Privat",
     "delete": "Șterge",
-    "delete_confirm": "Ștergi definitiv?",
+    "delete_confirm": "Ștergi acest eveniment?",
     "save": "Salvează",
     "saving": "Se salvează…",
     "error_title": "Dă-i evenimentului un titlu.",

@@ -2001,6 +2001,17 @@
       "d7": "S"
     }
   },
+  "calendar_trash": {
+    "menu": "Kalendāra izvēlne",
+    "title": "Atkritne",
+    "deleted": "Notikums izdzēsts",
+    "undo": "Atsaukt",
+    "restore": "Atjaunot",
+    "restore_failed": "Notikumu neizdevās atjaunot. Mēģiniet vēlreiz.",
+    "load_failed": "Atkritni neizdevās ielādēt.",
+    "empty": "Atkritne ir tukša.",
+    "hint": "Izdzēstie notikumi šeit paliek 30 dienas, pēc tam tie tiek dzēsti neatgriezeniski."
+  },
   "calendar_reminder": {
     "label": "Atgādinājums",
     "open": "Atvērt",
@@ -2025,7 +2036,7 @@
     "field_description": "Apraksts",
     "private_badge": "Privāts",
     "delete": "Dzēst",
-    "delete_confirm": "Dzēst neatgriezeniski?",
+    "delete_confirm": "Dzēst šo notikumu?",
     "save": "Saglabāt",
     "saving": "Saglabā…",
     "error_title": "Piešķiriet notikumam nosaukumu.",

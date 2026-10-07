@@ -2001,6 +2001,17 @@
       "d7": "א׳"
     }
   },
+  "calendar_trash": {
+    "menu": "תפריט היומן",
+    "title": "אשפה",
+    "deleted": "האירוע נמחק",
+    "undo": "ביטול",
+    "restore": "שחזור",
+    "restore_failed": "לא ניתן היה לשחזר את האירוע. נסו שוב.",
+    "load_failed": "לא ניתן היה לטעון את האשפה.",
+    "empty": "האשפה ריקה.",
+    "hint": "אירועים שנמחקו נשמרים כאן 30 יום ואז נמחקים לצמיתות."
+  },
   "calendar_reminder": {
     "label": "תזכורת",
     "open": "פתח",
@@ -2025,7 +2036,7 @@
     "field_description": "תיאור",
     "private_badge": "פרטי",
     "delete": "מחיקה",
-    "delete_confirm": "למחוק לצמיתות?",
+    "delete_confirm": "למחוק את האירוע?",
     "save": "שמירה",
     "saving": "שומר…",
     "error_title": "תנו לאירוע כותרת.",

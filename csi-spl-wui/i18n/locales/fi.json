@@ -2001,6 +2001,17 @@
       "d7": "S"
     }
   },
+  "calendar_trash": {
+    "menu": "Kalenterin valikko",
+    "title": "Roskakori",
+    "deleted": "Tapahtuma poistettu",
+    "undo": "Kumoa",
+    "restore": "Palauta",
+    "restore_failed": "Tapahtumaa ei voitu palauttaa. Yritä uudelleen.",
+    "load_failed": "Roskakoria ei voitu ladata.",
+    "empty": "Roskakori on tyhjä.",
+    "hint": "Poistetut tapahtumat säilyvät täällä 30 päivää, minkä jälkeen ne poistetaan lopullisesti."
+  },
   "calendar_reminder": {
     "label": "Muistutus",
     "open": "Avaa",
@@ -2025,7 +2036,7 @@
     "field_description": "Kuvaus",
     "private_badge": "Yksityinen",
     "delete": "Poista",
-    "delete_confirm": "Poistetaanko lopullisesti?",
+    "delete_confirm": "Poistetaanko tämä tapahtuma?",
     "save": "Tallenna",
     "saving": "Tallennetaan…",
     "error_title": "Anna tapahtumalle otsikko.",

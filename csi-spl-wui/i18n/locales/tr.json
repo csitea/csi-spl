@@ -2001,6 +2001,17 @@
       "d7": "P"
     }
   },
+  "calendar_trash": {
+    "menu": "Takvim menüsü",
+    "title": "Çöp kutusu",
+    "deleted": "Etkinlik silindi",
+    "undo": "Geri al",
+    "restore": "Geri yükle",
+    "restore_failed": "Etkinlik geri yüklenemedi. Yeniden deneyin.",
+    "load_failed": "Çöp kutusu yüklenemedi.",
+    "empty": "Çöp kutusu boş.",
+    "hint": "Silinen etkinlikler burada 30 gün kalır, ardından kalıcı olarak kaldırılır."
+  },
   "calendar_reminder": {
     "label": "Hatırlatıcı",
     "open": "Aç",
@@ -2025,7 +2036,7 @@
     "field_description": "Açıklama",
     "private_badge": "Özel",
     "delete": "Sil",
-    "delete_confirm": "Kalıcı olarak silinsin mi?",
+    "delete_confirm": "Bu etkinlik silinsin mi?",
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
     "error_title": "Etkinliğe bir başlık verin.",

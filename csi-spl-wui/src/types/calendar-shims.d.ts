@@ -28,6 +28,8 @@ declare module '~/utils/calendar-mock.mjs' {
   export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem
   export function mockCalendarUpdate(id: string, patch: Record<string, unknown>, todayIso: string): CalendarItem
   export function mockCalendarDelete(id: string, todayIso: string): CalendarItem
+  export function mockCalendarRestore(id: string): CalendarItem
+  export function mockCalendarTrash(nowMs?: number): (CalendarItem & { deleted_at: string })[]
   export function mockCalendarEvents(start: string, end: string, todayIso: string): { start: string, end: string, events: CalendarItem[] }
   export function mockCalendarMarks(startYear: number, endYear: number, todayIso: string): {
     start_year: number, end_year: number,
@@ -70,6 +72,8 @@ declare module '~/utils/calendar-events-api.mjs' {
   export function calendarCreate(api: Api, body: Record<string, unknown>): Promise<Item>
   export function calendarUpdate(api: Api, id: string, patch: Record<string, unknown>, todayIso: string, ifMatch?: string): Promise<Item>
   export function calendarDelete(api: Api, id: string, todayIso: string): Promise<Item>
+  export function calendarRestore(api: Api, id: string, todayIso: string): Promise<Item>
+  export function calendarTrash(api: Api): Promise<Item[]>
 }
 
 /* spec 097 T013: drag to move / resize / create on the main view */

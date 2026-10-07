@@ -2001,6 +2001,17 @@
       "d7": "N"
     }
   },
+  "calendar_trash": {
+    "menu": "Menu kalendarza",
+    "title": "Kosz",
+    "deleted": "Wydarzenie usunięte",
+    "undo": "Cofnij",
+    "restore": "Przywróć",
+    "restore_failed": "Nie udało się przywrócić wydarzenia. Spróbuj ponownie.",
+    "load_failed": "Nie udało się wczytać kosza.",
+    "empty": "Kosz jest pusty.",
+    "hint": "Usunięte wydarzenia zostają tu przez 30 dni, potem są usuwane na stałe."
+  },
   "calendar_reminder": {
     "label": "Przypomnienie",
     "open": "Otwórz",
@@ -2025,7 +2036,7 @@
     "field_description": "Opis",
     "private_badge": "Prywatne",
     "delete": "Usuń",
-    "delete_confirm": "Usunąć na stałe?",
+    "delete_confirm": "Usunąć to wydarzenie?",
     "save": "Zapisz",
     "saving": "Zapisywanie…",
     "error_title": "Nadaj wydarzeniu tytuł.",

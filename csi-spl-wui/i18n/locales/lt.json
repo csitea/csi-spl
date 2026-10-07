@@ -2001,6 +2001,17 @@
       "d7": "S"
     }
   },
+  "calendar_trash": {
+    "menu": "Kalendoriaus meniu",
+    "title": "Šiukšlinė",
+    "deleted": "Įvykis ištrintas",
+    "undo": "Anuliuoti",
+    "restore": "Atkurti",
+    "restore_failed": "Nepavyko atkurti įvykio. Bandykite dar kartą.",
+    "load_failed": "Nepavyko įkelti šiukšlinės.",
+    "empty": "Šiukšlinė tuščia.",
+    "hint": "Ištrinti įvykiai čia lieka 30 dienų, po to pašalinami visam laikui."
+  },
   "calendar_reminder": {
     "label": "Priminimas",
     "open": "Atidaryti",
@@ -2025,7 +2036,7 @@
     "field_description": "Aprašymas",
     "private_badge": "Privatus",
     "delete": "Ištrinti",
-    "delete_confirm": "Ištrinti visam laikui?",
+    "delete_confirm": "Ištrinti šį įvykį?",
     "save": "Išsaugoti",
     "saving": "Išsaugoma…",
     "error_title": "Suteikite įvykiui pavadinimą.",

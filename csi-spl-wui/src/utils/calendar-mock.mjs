@@ -130,8 +130,29 @@ export function mockCalendarUpdate(id, patch, todayIso) {
   return ev
 }
 
+/* 097 T017 (4.8): a delete is soft - the event goes to the trash with its
+   deleted_at, and restore brings it back with the same id */
+const TRASH_KEY = 'spool.mock.calendar-trash'
+const TRASH_DAYS = 30
+
+function mockTrashList() {
+  try {
+    const list = JSON.parse(globalThis.localStorage?.getItem(TRASH_KEY) || '[]')
+    return Array.isArray(list) ? list.map((x) => item(x)) : []
+  } catch {
+    return []
+  }
+}
+
+function mockKeepTrash(list) {
+  try {
+    globalThis.localStorage?.setItem(TRASH_KEY, JSON.stringify(list))
+  } catch { /* private mode: nothing is kept */ }
+}
+
 /**
- * DELETE /v1/calendar/events/{id} (6.1.2) in the mock workspace: the event as it was.
+ * DELETE /v1/calendar/events/{id} (6.1.2, 4.8) in the mock workspace: the
+ * event as it was; it waits in the trash.
  * @param {string} id
  * @param {string} todayIso
  */
@@ -140,7 +161,35 @@ export function mockCalendarDelete(id, todayIso) {
   const hidden = mockHidden()
   hidden.add(id)
   mockKeep(mockAddedEvents().filter((x) => x.id !== id), hidden)
+  mockKeepTrash([{ ...cur, deleted_at: new Date().toISOString() }, ...mockTrashList().filter((x) => x.id !== id)])
   return cur
+}
+
+/**
+ * POST /v1/calendar/events/{id}/restore (4.8) in the mock workspace: the
+ * event back with the same id, or a 404 like the hub's when it is not in the trash.
+ * @param {string} id
+ */
+export function mockCalendarRestore(id) {
+  const trash = mockTrashList()
+  const gone = trash.find((x) => x.id === id)
+  if (!gone) throw Object.assign(new Error('calendar event 404'), { status: 404 })
+  const { deleted_at: _deletedAt, ...ev } = gone
+  mockKeepTrash(trash.filter((x) => x.id !== id))
+  mockKeep([...mockAddedEvents().filter((x) => x.id !== id), ev], mockHidden())
+  return ev
+}
+
+/**
+ * GET /v1/calendar/trash (4.8) in the mock workspace: the events deleted in
+ * the last 30 days, newest deletion first.
+ * @param {number} [nowMs]
+ */
+export function mockCalendarTrash(nowMs = Date.now()) {
+  const since = nowMs - TRASH_DAYS * 86400000
+  return mockTrashList()
+    .filter((x) => Date.parse(x.deleted_at) >= since)
+    .sort((a, b) => b.deleted_at.localeCompare(a.deleted_at) || a.id.localeCompare(b.id))
 }
 
 /**

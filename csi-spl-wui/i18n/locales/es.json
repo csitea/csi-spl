@@ -2001,6 +2001,17 @@
       "d7": "D"
     }
   },
+  "calendar_trash": {
+    "menu": "Menú del calendario",
+    "title": "Papelera",
+    "deleted": "Evento eliminado",
+    "undo": "Deshacer",
+    "restore": "Restaurar",
+    "restore_failed": "No se pudo restaurar el evento. Inténtalo de nuevo.",
+    "load_failed": "No se pudo cargar la papelera.",
+    "empty": "La papelera está vacía.",
+    "hint": "Los eventos eliminados se quedan aquí 30 días y después se borran definitivamente."
+  },
   "calendar_reminder": {
     "label": "Recordatorio",
     "open": "Abrir",
@@ -2025,7 +2036,7 @@
     "field_description": "Descripción",
     "private_badge": "Privado",
     "delete": "Eliminar",
-    "delete_confirm": "¿Eliminar definitivamente?",
+    "delete_confirm": "¿Eliminar este evento?",
     "save": "Guardar",
     "saving": "Guardando…",
     "error_title": "Ponle un título al evento.",

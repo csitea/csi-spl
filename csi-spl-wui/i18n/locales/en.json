@@ -2001,6 +2001,17 @@
       "d7": "S"
     }
   },
+  "calendar_trash": {
+    "menu": "Calendar menu",
+    "title": "Trash",
+    "deleted": "Event deleted",
+    "undo": "Undo",
+    "restore": "Restore",
+    "restore_failed": "The event could not be restored. Try again.",
+    "load_failed": "The trash could not be loaded.",
+    "empty": "The trash is empty.",
+    "hint": "Deleted events stay here for 30 days, then they are removed for good."
+  },
   "calendar_reminder": {
     "label": "Reminder",
     "open": "Open",
@@ -2025,7 +2036,7 @@
     "field_description": "Description",
     "private_badge": "Private",
     "delete": "Delete",
-    "delete_confirm": "Delete for good?",
+    "delete_confirm": "Delete this event?",
     "save": "Save",
     "saving": "Saving…",
     "error_title": "Give the event a title.",

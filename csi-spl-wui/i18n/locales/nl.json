@@ -2001,6 +2001,17 @@
       "d7": "Z"
     }
   },
+  "calendar_trash": {
+    "menu": "Agendamenu",
+    "title": "Prullenbak",
+    "deleted": "Afspraak verwijderd",
+    "undo": "Ongedaan maken",
+    "restore": "Herstellen",
+    "restore_failed": "De afspraak kon niet worden hersteld. Probeer het opnieuw.",
+    "load_failed": "De prullenbak kon niet worden geladen.",
+    "empty": "De prullenbak is leeg.",
+    "hint": "Verwijderde afspraken blijven hier 30 dagen en worden daarna definitief verwijderd."
+  },
   "calendar_reminder": {
     "label": "Herinnering",
     "open": "Openen",
@@ -2025,7 +2036,7 @@
     "field_description": "Beschrijving",
     "private_badge": "Privé",
     "delete": "Verwijderen",
-    "delete_confirm": "Definitief verwijderen?",
+    "delete_confirm": "Deze afspraak verwijderen?",
     "save": "Opslaan",
     "saving": "Opslaan…",
     "error_title": "Geef de afspraak een titel.",

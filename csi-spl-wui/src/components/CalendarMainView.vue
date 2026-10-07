@@ -14,7 +14,12 @@
      a drag on empty time opens a new event for that span. The phone Week list
      moves an event between days. A finger holds 250 ms first (a swipe still
      scrolls); a held event shows its 44 px resize handle. Every save is a
-     PATCH with If-Match; edit_conflict takes the other change and says so. -->
+     PATCH with If-Match; edit_conflict takes the other change and says so.
+     097 T017 (G13, spec 4.8 / 5.1.4): a delete shows "Event deleted · Undo"
+     for 10 s (the shared UndoSnackbar); Undo restores it with the same id. On
+     a phone it floats 8 px above the bottom bar, full width less 8 px margins,
+     so Today / previous / next stay usable. The calendar menu (the ... button)
+     opens the trash: CalendarTrash, its own lazy chunk. -->
 <template>
   <section
     class="cal-main"
@@ -25,7 +30,7 @@
     :data-view="view"
     :data-state="state"
   >
-    <div class="cal-main__bar">
+    <div ref="barEl" class="cal-main__bar">
       <button type="button" class="btn cal-main__new" data-test="calendar-new" @click="openCreate(focus)"><UiIcon name="plus" :size="16" />{{ t('calendar_event.new') }}</button>
       <button type="button" class="btn ghost" data-test="calendar-today" @click="emit('move', today)">{{ t('calendar.today') }}</button>
       <button type="button" class="icon-btn" data-test="calendar-prev" :aria-label="prevLabel" :title="prevLabel" @click="step(-1)">
@@ -35,6 +40,18 @@
         <UiIcon name="chevron-right" :size="18" />
       </button>
       <h3 class="cal-main__range" data-test="calendar-range" aria-live="polite">{{ range }}</h3>
+      <button
+        type="button"
+        class="icon-btn cal-main__menu"
+        data-test="calendar-menu"
+        :aria-label="t('calendar_trash.menu')"
+        :title="t('calendar_trash.menu')"
+        aria-haspopup="menu"
+        :aria-expanded="menu ? 'true' : 'false'"
+        @click="openMenu"
+      >
+        <UiIcon name="more" :size="18" />
+      </button>
       <div v-if="phone" class="cal-main__views" role="group" :aria-label="t('calendar.view')">
         <button
           v-for="v in PHONE_VIEWS"
@@ -141,8 +158,36 @@
         </div>
       </div>
     </div>
-    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" @saved="reload" @deleted="reload" />
+    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" @saved="reload" @deleted="onDeleted" />
     <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" />
+    <UiPointMenu
+      :open="menu !== null"
+      :x="menu?.x || 0"
+      :y="menu?.y || 0"
+      :items="MENU_ITEMS"
+      :label="t('calendar_trash.menu')"
+      block="cal-menu"
+      testid="calendar-menu-panel"
+      @choose="onMenu"
+      @close="menu = null"
+    />
+    <LazyCalendarTrash v-if="trashMounted" v-model:open="trashOpen" :today="today" @restored="reload" />
+    <UndoSnackbar
+      v-if="undoEv"
+      :key="undoEv.id"
+      class="cal-undo"
+      :style="{ '--cal-bottom-bar-h': undoLift }"
+      testid="calendar-undo"
+      :data-id="undoEv.id"
+      icon="trash"
+      :text="t('calendar_trash.deleted')"
+      :undo-label="t('calendar_trash.undo')"
+      :close-label="t('common.close')"
+      :busy="undoBusy"
+      :duration="CAL_UNDO_MS"
+      @undo="undoDelete"
+      @dismiss="undoEv = null"
+    />
   </section>
 </template>
 
@@ -154,7 +199,8 @@ import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
 import { CAL_COLORS, calEditable } from '~/utils/calendar-event-form.mjs'
-import { calendarUpdate } from '~/utils/calendar-events-api.mjs'
+import { calendarRestore, calendarUpdate } from '~/utils/calendar-events-api.mjs'
+import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import {
@@ -338,6 +384,58 @@ function openDuplicate(ev: CalendarItem) {
 }
 function reload() {
   void load()
+}
+
+/* ---- 097 T017: Undo after a delete, the menu, the trash ------------------ */
+
+const CAL_UNDO_MS = 10000
+const undoEv = shallowRef<CalendarItem | null>(null)
+const undoBusy = ref(false)
+/* a phone: the bottom bar's height over the composer dock, so the toast
+   floats 8 px above it (spec M4: bar + dock + 8 px) */
+const undoLift = ref('48px')
+const barEl = ref<HTMLElement | null>(null)
+function measureBar() {
+  const bar = barEl.value
+  if (!props.phone || !bar) return
+  undoLift.value = `calc(${Math.max(0, Math.round(window.innerHeight - bar.getBoundingClientRect().top))}px - var(--composer-dock-h, 0px))`
+}
+function onDeleted(ev: CalendarItem) {
+  reload()
+  measureBar()
+  undoEv.value = ev
+}
+async function undoDelete() {
+  const ev = undoEv.value
+  if (!ev || undoBusy.value) return
+  undoBusy.value = true
+  try {
+    await withSessionRetry(api, () => calendarRestore(api, ev.id, props.today))
+    window.dispatchEvent(new Event(CALENDAR_CHANGED_EVENT))
+    reload()
+  } catch {
+    say('calendar_trash.restore_failed')
+  } finally {
+    undoBusy.value = false
+    undoEv.value = null
+  }
+}
+onMounted(() => window.addEventListener('resize', measureBar))
+onBeforeUnmount(() => window.removeEventListener('resize', measureBar))
+
+const MENU_ITEMS: PointMenuItem[] = [{ id: 'trash', icon: 'trash', labelKey: 'calendar_trash.title' }]
+const menu = ref<{ x: number, y: number } | null>(null)
+function openMenu(e: MouseEvent) {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  menu.value = menu.value ? null : { x: r.left, y: r.bottom }
+}
+const trashOpen = ref(false)
+const trashMounted = ref(false)
+function onMenu(id: string) {
+  menu.value = null
+  if (id !== 'trash') return
+  trashMounted.value = true
+  trashOpen.value = true
 }
 let askedEvent = ''
 watch([items, () => route.query.event], () => {
@@ -804,4 +902,17 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 }
 .cal-main--phone .cal-main__views { display: flex; gap: 2px; margin-inline-start: auto; }
 .cal-main__view[aria-pressed='true'] { font-weight: 700; background: var(--color-surface); }
+/* 097 T017 (spec 5.1.4, M4): on a phone the Undo toast floats 8 px above the
+   bottom bar and the composer dock, full width less 8 px margins (the shared
+   snackbar's own phone place is the top) */
+.cal-main--phone .cal-undo {
+  top: auto;
+  bottom: calc(var(--cal-bottom-bar-h, 48px) + var(--composer-dock-h, 0px) + 8px);
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-width: none;
+  transform: none;
+}
+.cal-main--phone .cal-main__menu { min-height: var(--tap); min-width: var(--tap); }
 </style>

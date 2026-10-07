@@ -2001,6 +2001,17 @@
       "d7": "S"
     }
   },
+  "calendar_trash": {
+    "menu": "Kalendermeny",
+    "title": "Papperskorg",
+    "deleted": "Händelsen togs bort",
+    "undo": "Ångra",
+    "restore": "Återställ",
+    "restore_failed": "Händelsen kunde inte återställas. Försök igen.",
+    "load_failed": "Papperskorgen kunde inte läsas in.",
+    "empty": "Papperskorgen är tom.",
+    "hint": "Borttagna händelser ligger kvar här i 30 dagar och tas sedan bort för gott."
+  },
   "calendar_reminder": {
     "label": "Påminnelse",
     "open": "Öppna",
@@ -2025,7 +2036,7 @@
     "field_description": "Beskrivning",
     "private_badge": "Privat",
     "delete": "Ta bort",
-    "delete_confirm": "Ta bort för gott?",
+    "delete_confirm": "Ta bort den här händelsen?",
     "save": "Spara",
     "saving": "Sparar…",
     "error_title": "Ge händelsen en titel.",

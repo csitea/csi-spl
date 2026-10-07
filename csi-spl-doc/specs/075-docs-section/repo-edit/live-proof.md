@@ -9,4 +9,4 @@ saves, one per save, so this file's history is the proof record.
 Nothing here is normative: the spec is [`spec.md`](spec.md).
 
 ## Proof saves
-
+- 2026-10-07T05:53:59Z dev desktop 1280x800: saved from the WUI Docs view

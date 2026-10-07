@@ -38,7 +38,8 @@ PATTERN=(
 )
 
 # "basename path" for a citation this row must not rewrite.
-# config.sh is the GitHub runner program, named only from oss-runners-move.
+# config.sh is the GitHub runner program, named only from oss-runners-move
+# and gh-runner-remove.
 # zip-jira-ticket.func.sh remains in the row-28 validate-params copies.
 # The harvest notes (destroy.sh, sweep.sh, d-tenants.sh, t1-owner.sh,
 # inbox-send.sh, agent-id-restart.sh) and the pas-psf log.func.sh history
@@ -46,6 +47,7 @@ PATTERN=(
 KNOWN=(
   "agent-id-restart.sh csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-name-resume.sh"
   "config.sh csi-spl-orc/src/bash/run/oss-runners-move.func.sh"
+  "config.sh csi-spl-orc/src/bash/run/gh-runner-remove.func.sh"
   "d-tenants.sh csi-spl-orc/src/bash/run/spl-db-query.func.sh"
   "destroy.sh csi-spl-orc/src/bash/run/tf-deprovision-steps.func.sh"
   "inbox-send.sh csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"

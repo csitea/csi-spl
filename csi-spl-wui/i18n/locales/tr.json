@@ -443,7 +443,7 @@
     "you": "(siz)",
     "flow": "Flow",
     "help": {
-      "channels": "Bir kanalı açmak için tıklayın. Satır menüsü bağlantıyı kopyalar veya okundu işaretler. Sırayı belirlemek için bir satırı sürükleyin; yeni bir kanal düzenlediğiniz satırların altında kalır.",
+      "channels": "Bir kanalı açmak için tıklayın. Satır menüsü bağlantıyı kopyalar veya okundu işaretler. Sırayı belirlemek için bir satırı sürükleyin; yeni bir kanal düzenlediğiniz satırların altında kalır. Bir tıklamadan sonra ↑ ve ↓ sonraki veya önceki kanalı açar; Enter kanalın mesajlarına geçer.",
       "direct_messages": "Konuşmayı açmak için bir kişiye veya bota tıklayın. Menü engelleyebilir, sessize alabilir veya sabitleyebilir; bir yönetici kaldırabilir de. Sırayı belirlemek için bir satırı sürükleyin; yeni biri düzenlediğiniz satırların altında kalır.",
       "people": "Sağda kartını görmek için bir kişiye tıklayın — ilgi alanları, rolü ve en son ne zaman görüldüğü. Kişiler bölümünün yerini ayarlamak için bölüm simgesini sürükleyin.",
       "agents": "Ne olduğunu görmek için bir ajana tıklayın — Claude, Antigravity, Grok ya da Qwen — hangi box üzerinde çalıştığını ve çevrimiçi olup olmadığını. Ajanlar bölümünün yerini ayarlamak için bölüm simgesini sürükleyin.",

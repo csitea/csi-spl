@@ -298,6 +298,8 @@
       :data-ts="channelActivity(c, channel.liveAt) || undefined"
       :title="c.description || undefined"
       :to="localePath('/channel/' + c.channel_id)"
+      @click="keepRowFocus"
+      @keydown="onChannelRowKey"
     >
       <span class="hash">#</span>
       <span class="label">{{ c.name }}</span>
@@ -813,7 +815,10 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { useTopicRowActions } from '~/composables/useTopicRowActions'
 import { canDeleteChannel, viewerHumanId } from '~/utils/channel-members.mjs'
 import { dropIndex, hidePeer, loadHiddenPeers, moveKey, peerHidden, pinRows, rowMenuAdmin, saveHiddenPeers } from '~/utils/sidebar-row-menu.mjs'
-import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { scrollRowIntoPane, scrollRowToTop } from '~/utils/pane-scroll.mjs'
+import { listRowKey, stepRow } from '~/utils/row-keys.mjs'
+import { focusPane } from '~/composables/useGlobalKeys'
+import { MIDDLE } from '~/utils/pane-focus.mjs'
 import { useChannelOrder } from '~/composables/useChannelOrder'
 import { useFlowBadge, useFlowKeys, useFlowRail } from '~/composables/useFlowBadge'
 import { flowDmPeers } from '~/utils/flow-keys.mjs'
@@ -1398,6 +1403,39 @@ function rowPointerDown(e: PointerEvent, list: DragList, key: string) {
 /* SPL-1034 keyboard / touch: Move up / Move down in a channel row's menu */
 function stepChannel(id: string, step: -1 | 1) {
   void stepChannelOrder(channelRows.value.map((c) => String(c.channel_id || '')), id, step)
+}
+/* HUM-10 (t1 7d9e1681): after a click on a channel the focus stays on its
+   row (layouts/default.vue keeps it: routeTakesFocus channelList), and
+   ArrowDown / ArrowUp (j / k with the keyboard shortcuts switch on) open the
+   next / previous channel at once - the focus follows, like a list box -,
+   Home / End the first / last. The ends do not wrap (the feed's rows do not).
+   Enter on the open channel goes into its messages. Desktop only. j / k
+   read the switch the way utils/msg-shortcuts.mjs shortcutsOn does (never
+   picked = on), without pulling the lazy message-shortcut code in here. */
+function keepRowFocus(e: MouseEvent) {
+  /* Safari leaves the focus on <body> after a click on a link */
+  if (!phone.value) (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true })
+}
+function onChannelRowKey(e: KeyboardEvent) {
+  if (phone.value) return
+  const what = listRowKey(e, { letters: session.claims?.keyboard_shortcuts !== false })
+  if (!what) return
+  const row = e.currentTarget as HTMLElement
+  if (what === 'enter') {
+    if (!row.classList.contains('active')) return
+    e.preventDefault()
+    focusPane(MIDDLE)
+    return
+  }
+  e.preventDefault()
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('#sidebar-panel-channels a.nav-item[data-key]'))
+    .filter((el) => el.getClientRects().length > 0)
+  const to = what === 'first' ? rows[0] : what === 'last' ? rows[rows.length - 1] : stepRow(rows, row, what === 'next' ? 1 : -1)
+  if (!to || to === row) return
+  to.focus({ preventScroll: true })
+  const scroller = to.closest<HTMLElement>('.sidebar-scroll')
+  if (scroller) scrollRowIntoPane(scroller, to)
+  void navigateTo(localePath('/channel/' + to.dataset.key))
 }
 function swallowDragClick(e: MouseEvent) {
   if (!suppressDragClick) return

@@ -2172,6 +2172,7 @@ declare module '~/utils/row-keys.mjs' {
   import type { SpoolMessage } from './spool'
   export function rowStep(ev: KeyboardEvent): -1 | 0 | 1
   export function stepRow<T>(rows: Iterable<T> | ArrayLike<T>, current: T, step: number): T | null
+  export function listRowKey(ev: KeyboardEvent, opts?: { letters?: boolean }): '' | 'next' | 'prev' | 'first' | 'last' | 'enter'
   export function isReply(msg: Partial<SpoolMessage> | null | undefined): boolean
   export function deleteKeyAction(
     ev: KeyboardEvent,
@@ -2402,5 +2403,5 @@ declare module '~/utils/pane-focus.mjs' {
   export function paneKey(ev: { key?: string, shiftKey?: boolean, ctrlKey?: boolean, altKey?: boolean, metaKey?: boolean } | null): '' | 'next' | 'prev'
   export function nextPane(from: string, opts?: { back?: boolean, has?: (pane: F6Pane) => boolean }): '' | F6Pane
   export function paneTarget(root: ParentNode | null, pane: string, opts?: { firstRow?: boolean, visible?: (el: Element) => boolean }): Element | null
-  export function routeTakesFocus(nav?: { initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean }): boolean
+  export function routeTakesFocus(nav?: { initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean, channelList?: boolean }): boolean
 }

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { deleteKeyAction, isReply, rowStep, stepRow } from '../../src/utils/row-keys.mjs'
+import { deleteKeyAction, isReply, listRowKey, rowStep, stepRow } from '../../src/utils/row-keys.mjs'
 
 const row = {}
 const key = (k, extra = {}) => ({ key: k, target: row, currentTarget: row, ...extra })
@@ -92,5 +92,37 @@ describe('wiring (source pins)', () => {
     const c = src('composables/useDeleteUndo.ts')
     assert.match(c, /function dismiss\(\) \{\s*toast\.value = null\s*commit\(\)/)
     assert.match(c, /addEventListener\('pagehide'/)
+  })
+})
+
+describe('listRowKey: HUM-10 (t1 7d9e1681) the arrows walk the Channels list after a click', () => {
+  const src = (p) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../src', p), 'utf8')
+  it('ArrowDown / ArrowUp next / prev, Home / End first / last, Enter enter', () => {
+    assert.equal(listRowKey(key('ArrowDown')), 'next')
+    assert.equal(listRowKey(key('ArrowUp')), 'prev')
+    assert.equal(listRowKey(key('Home')), 'first')
+    assert.equal(listRowKey(key('End')), 'last')
+    assert.equal(listRowKey(key('Enter')), 'enter')
+    assert.equal(listRowKey(key('ArrowLeft')), '')
+    assert.equal(listRowKey(key('x')), '')
+  })
+  it('j / k only while the keyboard shortcuts switch is on (control: off = nothing)', () => {
+    assert.equal(listRowKey(key('j')), 'next')
+    assert.equal(listRowKey(key('k')), 'prev')
+    assert.equal(listRowKey(key('j'), { letters: false }), '')
+    assert.equal(listRowKey(key('k'), { letters: false }), '')
+    assert.equal(listRowKey(key('ArrowDown'), { letters: false }), 'next')
+  })
+  it('never inside a child control, with a modifier or an IME (control)', () => {
+    assert.equal(listRowKey({ key: 'ArrowDown', target: {}, currentTarget: row }), '')
+    for (const m of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey', 'isComposing']) assert.equal(listRowKey(key('ArrowDown', { [m]: true })), '', m)
+    assert.equal(listRowKey(null), '')
+  })
+  it('ChannelSidebar wires it on the channel rows, desktop only, and opens the stepped-to channel', () => {
+    const v = src('components/ChannelSidebar.vue')
+    assert.match(v, /:to="localePath\('\/channel\/' \+ c\.channel_id\)"\s*@click="keepRowFocus"\s*@keydown="onChannelRowKey"/)
+    assert.match(v, /function onChannelRowKey\(e: KeyboardEvent\) \{\s*if \(phone\.value\) return/)
+    assert.match(v, /listRowKey\(e, \{ letters: session\.claims\?\.keyboard_shortcuts !== false \}\)/)
+    assert.match(v, /void navigateTo\(localePath\('\/channel\/' \+ to\.dataset\.key\)\)/)
   })
 })

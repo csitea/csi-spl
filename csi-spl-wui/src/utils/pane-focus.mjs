@@ -191,9 +191,12 @@ export function paneTarget(root, pane, { firstRow = true, visible = () => true }
  * Not on the first load (the skip link is the first stop), not on Back or
  * Forward, not when only the query changed (a topic opening on the right),
  * not on a phone, and never out of a text field or an open dialog.
- * @param {{ initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean }} [nav]
+ * HUM-10 (t1 7d9e1681): nor out of the Channels list (`channelList`, the focus
+ * on a channel row): a click there, or its arrow keys, opens the channel and
+ * the next ArrowDown / ArrowUp walks on to the next channel.
+ * @param {{ initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean, channelList?: boolean }} [nav]
  */
-export function routeTakesFocus({ initial = false, popstate = false, failed = false, mobile = false, fromPath = '', toPath = '', typing = false, dialog = false } = {}) {
-  if (initial || popstate || failed || mobile || typing || dialog) return false
+export function routeTakesFocus({ initial = false, popstate = false, failed = false, mobile = false, fromPath = '', toPath = '', typing = false, dialog = false, channelList = false } = {}) {
+  if (initial || popstate || failed || mobile || typing || dialog || channelList) return false
   return fromPath !== toPath
 }

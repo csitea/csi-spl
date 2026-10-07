@@ -28,6 +28,32 @@ export function stepRow(rows, current, step) {
   return list[at + step] || null
 }
 
+/**
+ * HUM-10 (t1 7d9e1681): "It should be possible to navigate up and down on the
+ * channels with the keyboard ... once one clicks on a channel from the channel
+ * view". What a key on a focused Channels-list row does:
+ *   'next' / 'prev' - ArrowDown / ArrowUp (and j / k while `letters`, the
+ *                     Settings -> Behaviour keyboard shortcuts switch)
+ *   'first' / 'last' - Home / End
+ *   'enter'          - Enter
+ *   ''               - not ours: a modifier, an IME, or a key inside the row
+ */
+export function listRowKey(ev, { letters = true } = {}) {
+  if (!ev || ev.isComposing) return ''
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return ''
+  if (ev.target !== ev.currentTarget) return ''
+  switch (ev.key) {
+    case 'ArrowDown': return 'next'
+    case 'ArrowUp': return 'prev'
+    case 'Home': return 'first'
+    case 'End': return 'last'
+    case 'Enter': return 'enter'
+    case 'j': return letters ? 'next' : ''
+    case 'k': return letters ? 'prev' : ''
+    default: return ''
+  }
+}
+
 /** A reply is is_parent 0; anything else (1, or not stated) is topic-level. */
 export function isReply(msg) {
   return Boolean(msg) && msg.is_parent != null && Number(msg.is_parent) === 0

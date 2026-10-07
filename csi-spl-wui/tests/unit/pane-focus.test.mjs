@@ -118,6 +118,13 @@ describe('081 T006 (FR-009): which navigations move the focus', () => {
     assert.equal(routeTakesFocus({ ...nav, typing: true }), false)
     assert.equal(routeTakesFocus({ ...nav, dialog: true }), false)
   })
+  it('HUM-10 (t1 7d9e1681): never out of the Channels list, so the arrows walk on', () => {
+    assert.equal(routeTakesFocus({ ...nav, channelList: true }), false)
+    assert.equal(routeTakesFocus({ ...nav, channelList: false }), true)
+    const tpl = read('layouts/default.vue')
+    assert.match(tpl, /channelList: inChannelList\(\)/)
+    assert.match(tpl, /closest\?\.\('#sidebar-panel-channels a\.nav-item'\)/)
+  })
 })
 
 describe('081 T006: wiring', () => {

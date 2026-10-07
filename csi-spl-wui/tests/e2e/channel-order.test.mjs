@@ -15,6 +15,12 @@
 //   5  SPL-1024 still works on the same rows: an own topic card dragged by
 //      its handle (SPL-1134) onto a channel row lights it up and the drop
 //      moves it
+//   6  HUM-10 (t1 7d9e1681): a click on a channel keeps the focus on its row;
+//      ArrowDown / ArrowUp open the next / previous channel (the focus
+//      follows), Home / End the first / last, j / k as the arrows, Enter on the
+//      open one goes into its messages. Controls: ArrowDown on the last row
+//      stays, a key typed in the composer moves nothing, the rail tabs' own
+//      ArrowDown still walks the tabs
 //
 // Run:
 //   node tests/e2e/channel-order.test.mjs
@@ -219,6 +225,51 @@ try {
   const gone = await until(p, (sel) => !document.querySelector(sel), midCard(card))
   ok('5 the card left its channel', gone)
   ok('5 the topic drop did not reorder the channels', same(await order(p), [...want3, NEW]), await order(p))
+
+  /* ---- 6. HUM-10: the arrows walk the Channels list after a click ------------- */
+  const ids = await order(p)
+  const path = () => p.evaluate(() => location.pathname.replace(/^.*\/channel\//, ''))
+  const focusKey = () => p.evaluate(() => document.activeElement?.closest?.('#sidebar-panel-channels a.nav-item')?.getAttribute('data-key') || '')
+  /** on channel `id`, its row focused, still so after the route focus would have moved (FR-009) */
+  const at = async (id) => {
+    const there = await until(p, (want) => location.pathname.endsWith('/channel/' + want), id, 6000)
+    await sleep(700)
+    return there && (await path()) === id && (await focusKey()) === id
+  }
+  await p.click(`${railRow(ids[0])} .nav-item`)
+  ok('6 a click opens the channel and the focus stays on its row', await at(ids[0]), [await path(), await focusKey()])
+  await p.keyboard.press('ArrowDown')
+  ok('6 ArrowDown opens the next channel, the focus follows', await at(ids[1]), [await path(), await focusKey()])
+  await p.keyboard.press('ArrowUp')
+  ok('6 ArrowUp goes back', await at(ids[0]), [await path(), await focusKey()])
+  await p.keyboard.press('End')
+  ok('6 End opens the last channel', await at(ids[ids.length - 1]), [await path(), await focusKey()])
+  await p.keyboard.press('ArrowDown')
+  ok('6 control: ArrowDown on the last channel stays (no wrap)', await at(ids[ids.length - 1]), [await path(), await focusKey()])
+  await p.keyboard.press('Home')
+  ok('6 Home opens the first channel', await at(ids[0]), [await path(), await focusKey()])
+  await p.keyboard.press('j')
+  ok('6 j is ArrowDown', await at(ids[1]), [await path(), await focusKey()])
+  await p.keyboard.press('k')
+  ok('6 k is ArrowUp', await at(ids[0]), [await path(), await focusKey()])
+  await shot(p, '6-channel-keys')
+  await p.keyboard.press('Enter')
+  ok('6 Enter on the open channel moves the focus into its messages', await until(p, () => Boolean(document.activeElement?.closest?.('.spool-main')), null, 3000),
+    await p.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className))
+  const typed = await p.evaluate(() => {
+    const ta = [...document.querySelectorAll('.composer textarea, .omnibox-field textarea, textarea')].find((e) => e.getClientRects().length > 0)
+    ta?.focus()
+    return Boolean(ta)
+  })
+  await p.keyboard.type('x')
+  await p.keyboard.press('ArrowDown')
+  await sleep(700)
+  ok('6 control: ArrowDown typed in the composer moves no channel', typed && (await path()) === ids[0] && !(await focusKey()), [typed, await path(), await focusKey()])
+  await p.focus('[data-testid=sidebar-tab-channels]')
+  await p.keyboard.press('ArrowDown')
+  const tabNow = await p.evaluate(() => document.activeElement?.getAttribute('data-testid') || '')
+  ok('6 control: the rail tabs\' own ArrowDown still walks the tabs', /^sidebar-tab-/.test(tabNow) && tabNow !== 'sidebar-tab-channels'
+    && (await p.$eval(`[data-testid=${tabNow}]`, (e) => e.getAttribute('aria-selected'))) === 'true', tabNow)
 
   ok('no page errors', errors.length === 0, errors)
   await p.close()

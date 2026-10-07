@@ -443,7 +443,7 @@
     "you": "(sina)",
     "flow": "Flow",
     "help": {
-      "channels": "Klõpsake kanalit, et see avada. Rea menüü kopeerib lingi või märgib selle loetuks. Lohistage rida, et seada järjekord; uus kanal jääb seatud ridade alla.",
+      "channels": "Klõpsake kanalit, et see avada. Rea menüü kopeerib lingi või märgib selle loetuks. Lohistage rida, et seada järjekord; uus kanal jääb seatud ridade alla. Pärast klõpsu avavad ↑ ja ↓ järgmise või eelmise kanali; Enter viib selle sõnumitesse.",
       "direct_messages": "Klõpsake inimest või botti, et avada vestlus. Menüü saab blokeerida, vaigistada või kinnitada, ja administraator saab ka eemaldada. Lohistage rida, et seada järjekord; uus inimene jääb seatud ridade alla.",
       "people": "Klõpsa inimesel, et näha paremal tema kaarti — huvid, roll ja millal teda viimati nähti. Lohista sektsiooni ikooni, et määrata, kus Inimesed asub.",
       "agents": "Klõpsa agendil, et näha, mis see on — Claude, Antigravity, Grok või Qwen — millisel boxil see töötab ja kas on võrgus. Lohista sektsiooni ikooni, et määrata, kus Agendid asub.",

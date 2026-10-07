@@ -14,6 +14,10 @@ Spool is designed with a **keyboard-first philosophy**, enabling software engine
 | **`Escape`** | Modal or menu open | Dismiss open modal, dialog, or context menu |
 | **`Escape`** | Message editor active | Cancel in-place message edit and restore original text |
 | **`Tab`** / **`Shift + Tab`** | Global | Navigate forward or backward through interactive focus stops |
+| **`ArrowDown` / `ArrowUp`** | Channels list, a channel row focused (a click on it keeps the focus there), desktop | Open the next or previous channel at once; the focus moves with it. The list does not wrap at its ends |
+| **`j` / `k`** | Channels list, a channel row focused, desktop | The same as `ArrowDown` / `ArrowUp`; off while **Settings → Behaviour → Keyboard shortcuts** is off |
+| **`Home` / `End`** | Channels list, a channel row focused, desktop | Open the first or the last channel |
+| **`Enter`** | Channels list, the open channel's row, desktop | Move the focus into the channel's messages |
 
 ---
 

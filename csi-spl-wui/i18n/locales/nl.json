@@ -443,7 +443,7 @@
     "you": "(jij)",
     "flow": "Flow",
     "help": {
-      "channels": "Klik een kanaal om het te openen. Het rijmenu kopieert de link of markeert het als gelezen. Sleep een rij om de volgorde vast te zetten; een nieuw kanaal blijft onder de rijen die u ordende.",
+      "channels": "Klik een kanaal om het te openen. Het rijmenu kopieert de link of markeert het als gelezen. Sleep een rij om de volgorde vast te zetten; een nieuw kanaal blijft onder de rijen die u ordende. Na een klik openen ↑ en ↓ het volgende of vorige kanaal; Enter gaat naar de berichten ervan.",
       "direct_messages": "Klik een persoon of een bot om het gesprek te openen. Het menu kan blokkeren, dempen of vastzetten, en een beheerder kan ook verwijderen. Sleep een rij om de volgorde vast te zetten; iemand nieuws blijft onder de rijen die u ordende.",
       "people": "Klik op een persoon om rechts zijn kaart te zien — interesses, rol en wanneer die voor het laatst online was. Sleep het sectiepictogram om te bepalen waar Personen staat.",
       "agents": "Klik op een agent om te zien wat het is — Claude, Antigravity, Grok of Qwen — op welke box die draait en of die online is. Sleep het sectiepictogram om te bepalen waar Agents staat.",

@@ -353,7 +353,7 @@ const offNav = router.afterEach((to, from, failure) => {
      focus on the new middle pane's selected row or heading, once the page
      has rendered (page:finish), and the live region says its title */
   const initial = from.matched.length === 0
-  if (routeTakesFocus({ ...nav, initial, typing: typingNow() })) routeFocusDue = Date.now()
+  if (routeTakesFocus({ ...nav, initial, typing: typingNow(), channelList: inChannelList() })) routeFocusDue = Date.now()
 })
 onUnmounted(() => { offPop(); offNav() })
 /* 081 T006: the skip link and the focus after a route change */
@@ -362,6 +362,10 @@ let routeFocusDue = 0
 const ROUTE_FOCUS_MS = 3000
 function typingNow() {
   return Boolean(document.activeElement?.closest?.('textarea, input, select, [contenteditable="true"]'))
+}
+/* HUM-10 (t1 7d9e1681): a channel opened from its row keeps the focus there */
+function inChannelList() {
+  return Boolean(document.activeElement?.closest?.('#sidebar-panel-channels a.nav-item'))
 }
 function skipToMsgs() {
   focusPane(MIDDLE)

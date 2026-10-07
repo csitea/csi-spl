@@ -443,7 +443,7 @@
     "you": "(tú)",
     "flow": "Flow",
     "help": {
-      "channels": "Pulse un canal para abrirlo. El menú de la fila copia el enlace o lo marca como leído. Arrastre una fila para fijar el orden; un canal nuevo queda debajo de las filas que ordenó.",
+      "channels": "Pulse un canal para abrirlo. El menú de la fila copia el enlace o lo marca como leído. Arrastre una fila para fijar el orden; un canal nuevo queda debajo de las filas que ordenó. Tras un clic, ↑ y ↓ abren el canal siguiente o el anterior; Enter entra en sus mensajes.",
       "direct_messages": "Pulse una persona o un bot para abrir la conversación. El menú puede bloquear, silenciar o fijar, y un administrador también puede quitar. Arrastre una fila para fijar el orden; alguien nuevo queda debajo de las filas que ordenó.",
       "people": "Haz clic en una persona para ver su ficha —sus intereses, su rol y cuándo se le vio por última vez— a la derecha. Arrastra el icono de la sección para colocar Personas donde quieras.",
       "agents": "Haz clic en un agente para ver qué es —Claude, Antigravity, Grok o Qwen—, en qué equipo se ejecuta y si está conectado. Arrastra el icono de la sección para colocar Agentes donde quieras.",

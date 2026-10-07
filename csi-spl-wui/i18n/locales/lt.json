@@ -443,7 +443,7 @@
     "you": "(jūs)",
     "flow": "Flow",
     "help": {
-      "channels": "Spustelėkite kanalą, kad jį atidarytumėte. Eilutės meniu nukopijuoja nuorodą arba pažymi kaip perskaitytą. Vilkite eilutę, kad nustatytumėte tvarką; naujas kanalas lieka po sutvarkytomis eilutėmis.",
+      "channels": "Spustelėkite kanalą, kad jį atidarytumėte. Eilutės meniu nukopijuoja nuorodą arba pažymi kaip perskaitytą. Vilkite eilutę, kad nustatytumėte tvarką; naujas kanalas lieka po sutvarkytomis eilutėmis. Spustelėjus ↑ ir ↓ atidaro kitą arba ankstesnį kanalą; Enter pereina į jo žinutes.",
       "direct_messages": "Spustelėkite asmenį arba botą, kad atidarytumėte pokalbį. Meniu gali užblokuoti, nutildyti arba prisegti, o administratorius gali ir pašalinti. Vilkite eilutę, kad nustatytumėte tvarką; naujas asmuo lieka po sutvarkytomis eilutėmis.",
       "people": "Spustelėkite asmenį, kad dešinėje pamatytumėte jo kortelę — pomėgius, vaidmenį ir kada paskutinį kartą matytas. Vilkite skilties piktogramą, kad nustatytumėte, kur yra Žmonės.",
       "agents": "Spustelėkite agentą, kad pamatytumėte, kas tai — Claude, Antigravity, Grok ar Qwen — kuriame box veikia ir ar prisijungęs. Vilkite skilties piktogramą, kad nustatytumėte, kur yra Agentai.",

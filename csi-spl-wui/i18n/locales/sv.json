@@ -443,7 +443,7 @@
     "you": "(du)",
     "flow": "Flow",
     "help": {
-      "channels": "Klicka en kanal för att öppna den. Radens meny kopierar länken eller markerar den som läst. Dra en rad för att sätta ordningen; en ny kanal stannar under raderna du ordnade.",
+      "channels": "Klicka en kanal för att öppna den. Radens meny kopierar länken eller markerar den som läst. Dra en rad för att sätta ordningen; en ny kanal stannar under raderna du ordnade. Efter ett klick öppnar ↑ och ↓ nästa eller föregående kanal; Enter går till dess meddelanden.",
       "direct_messages": "Klicka en person eller en bot för att öppna samtalet. Menyn kan blockera, tysta eller fästa, och en administratör kan också ta bort. Dra en rad för att sätta ordningen; någon ny stannar under raderna du ordnade.",
       "people": "Klicka på en person för att se kortet till höger — intressen, roll och när personen senast sågs. Dra sektionsikonen för att bestämma var Personer ligger.",
       "agents": "Klicka på en agent för att se vad det är — Claude, Antigravity, Grok eller Qwen — vilken box den kör på och om den är online. Dra sektionsikonen för att bestämma var Agenter ligger.",

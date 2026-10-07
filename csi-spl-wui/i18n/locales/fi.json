@@ -443,7 +443,7 @@
     "you": "(sinä)",
     "flow": "Flow",
     "help": {
-      "channels": "Avaa kanava napsauttamalla sitä. Rivin valikko kopioi linkin tai merkitsee kanavan luetuksi. Vedä riviä, niin järjestys säilyy; uusi kanava jää järjestämiesi rivien alle.",
+      "channels": "Avaa kanava napsauttamalla sitä. Rivin valikko kopioi linkin tai merkitsee kanavan luetuksi. Vedä riviä, niin järjestys säilyy; uusi kanava jää järjestämiesi rivien alle. Napsautuksen jälkeen ↑ ja ↓ avaavat seuraavan tai edellisen kanavan; Enter siirtyy sen viesteihin.",
       "direct_messages": "Avaa keskustelu napsauttamalla henkilöä tai bottia. Valikko voi estää, mykistää tai kiinnittää, ja ylläpitäjä voi myös poistaa. Vedä riviä, niin järjestys säilyy; uusi tulokas jää järjestämiesi rivien alle.",
       "people": "Napsauta henkilöä nähdäksesi oikealla hänen korttinsa — kiinnostuksen kohteet, roolin ja milloin hänet nähtiin viimeksi. Vedä osion kuvaketta asettaaksesi Ihmiset-osion paikan.",
       "agents": "Napsauta agenttia nähdäksesi mikä se on — Claude, Antigravity, Grok vai Qwen — millä boxilla se on ja onko se linjoilla. Vedä osion kuvaketta asettaaksesi Agentit-osion paikan.",

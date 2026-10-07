@@ -443,7 +443,7 @@
     "you": "(jūs)",
     "flow": "Flow",
     "help": {
-      "channels": "Noklikšķiniet kanālu, lai to atvērtu. Rindas izvēlne kopē saiti vai atzīmē kā lasītu. Velciet rindu, lai iestatītu secību; jauns kanāls paliek zem sakārtotajām rindām.",
+      "channels": "Noklikšķiniet kanālu, lai to atvērtu. Rindas izvēlne kopē saiti vai atzīmē kā lasītu. Velciet rindu, lai iestatītu secību; jauns kanāls paliek zem sakārtotajām rindām. Pēc klikšķa ↑ un ↓ atver nākamo vai iepriekšējo kanālu; Enter pāriet uz tā ziņām.",
       "direct_messages": "Noklikšķiniet personu vai botu, lai atvērtu sarunu. Izvēlne var bloķēt, apklusināt vai piespraust, un administrators var arī noņemt. Velciet rindu, lai iestatītu secību; jauns cilvēks paliek zem sakārtotajām rindām.",
       "people": "Noklikšķiniet uz personas, lai pa labi redzētu tās kartīti — intereses, lomu un kad pēdējo reizi redzēta. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Cilvēki.",
       "agents": "Noklikšķiniet uz aģenta, lai redzētu, kas tas ir — Claude, Antigravity, Grok vai Qwen — uz kura box tas darbojas un vai ir tiešsaistē. Velciet sadaļas ikonu, lai noteiktu, kur atrodas Aģenti.",

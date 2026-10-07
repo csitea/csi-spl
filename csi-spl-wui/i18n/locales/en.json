@@ -443,7 +443,7 @@
     "you": "(you)",
     "flow": "Flow",
     "help": {
-      "channels": "Click a channel to open it. The menu on a row copies its link or marks it read. Drag a row to set the order; a new channel stays below the rows you arranged.",
+      "channels": "Click a channel to open it. The menu on a row copies its link or marks it read. Drag a row to set the order; a new channel stays below the rows you arranged. After a click, ↑ and ↓ open the next or previous channel; Enter goes into its messages.",
       "direct_messages": "Click a person or a bot to open the conversation. The menu can block, mute, or pin them, and an admin can remove them. Drag a row to set the order; someone new stays below the rows you arranged.",
       "people": "Click a person to see their card — interests, role and when they were last seen — on the right. Drag the section icon to set where People sits.",
       "agents": "Click an agent to see what it is — Claude, Antigravity, Grok or Qwen — the box it runs on and whether it is online. Drag the section icon to set where Agents sits.",

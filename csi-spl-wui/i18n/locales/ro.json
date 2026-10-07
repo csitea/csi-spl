@@ -443,7 +443,7 @@
     "you": "(tu)",
     "flow": "Flow",
     "help": {
-      "channels": "Faceți clic pe un canal ca să-l deschideți. Meniul rândului copiază legătura sau îl marchează ca citit. Trageți un rând ca să fixați ordinea; un canal nou rămâne sub rândurile aranjate.",
+      "channels": "Faceți clic pe un canal ca să-l deschideți. Meniul rândului copiază legătura sau îl marchează ca citit. Trageți un rând ca să fixați ordinea; un canal nou rămâne sub rândurile aranjate. După un clic, ↑ și ↓ deschid canalul următor sau anterior; Enter intră în mesajele lui.",
       "direct_messages": "Faceți clic pe o persoană sau un bot ca să deschideți conversația. Meniul poate bloca, amuți sau fixa, iar un administrator poate și elimina. Trageți un rând ca să fixați ordinea; cineva nou rămâne sub rândurile aranjate.",
       "people": "Dă clic pe o persoană pentru a-i vedea fișa în dreapta — interese, rol și când a fost văzută ultima dată. Trage pictograma secțiunii pentru a stabili unde stă Persoane.",
       "agents": "Dă clic pe un agent pentru a vedea ce este — Claude, Antigravity, Grok sau Qwen — pe ce box rulează și dacă este online. Trage pictograma secțiunii pentru a stabili unde stă Agenți.",

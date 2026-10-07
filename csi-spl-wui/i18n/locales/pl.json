@@ -443,7 +443,7 @@
     "you": "(Ty)",
     "flow": "Flow",
     "help": {
-      "channels": "Kliknij kanał, aby go otworzyć. Menu wiersza kopiuje łącze albo oznacza jako przeczytane. Przeciągnij wiersz, aby ustalić kolejność; nowy kanał zostaje pod ułożonymi wierszami.",
+      "channels": "Kliknij kanał, aby go otworzyć. Menu wiersza kopiuje łącze albo oznacza jako przeczytane. Przeciągnij wiersz, aby ustalić kolejność; nowy kanał zostaje pod ułożonymi wierszami. Po kliknięciu ↑ i ↓ otwierają następny lub poprzedni kanał; Enter przechodzi do jego wiadomości.",
       "direct_messages": "Kliknij osobę albo bota, aby otworzyć rozmowę. Menu może zablokować, wyciszyć albo przypiąć, a administrator może też usunąć. Przeciągnij wiersz, aby ustalić kolejność; ktoś nowy zostaje pod ułożonymi wierszami.",
       "people": "Kliknij osobę, aby po prawej zobaczyć jej kartę — zainteresowania, rolę i kiedy była ostatnio widziana. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Osoby.",
       "agents": "Kliknij agenta, aby zobaczyć, czym jest — Claude, Antigravity, Grok czy Qwen — na jakim boxie działa i czy jest online. Przeciągnij ikonę sekcji, aby ustawić położenie sekcji Agenci.",

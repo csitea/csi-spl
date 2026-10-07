@@ -629,6 +629,16 @@ retire_agent() {
 # Idle: no turn running (classify_screen: no `esc to interrupt` / `Esc:cancel`
 # / live spinner, no dialog; agy: no `esc to cancel`), an EMPTY prompt line
 # (`>` / `❯` / `›`, nothing typed after it), the screen unchanged for 3 polls.
+# Never into a window a human is looking at: while a tmux client whose current
+# window is the pane's window was active in the last WD_HUMAN_IDLE s (120),
+# the /exit waits (the watchdog's own guard reads the same clients).
+rebirth_human_watching() {
+  local wid
+  wid="$("${TM[@]}" display-message -p -t "$1" '#{window_id}' 2>/dev/null)" || return 1
+  [[ -n "$wid" ]] || return 1
+  "${TM[@]}" list-clients -F '#{window_id} #{client_activity}' 2>/dev/null |
+    awk -v w="$wid" -v now="$(date +%s)" -v idle="${WD_HUMAN_IDLE:-120}" '$1 == w && now - $2 < idle { f = 1 } END { exit !f }'
+}
 rebirth_idle_screen() {
   # The finished-turn line ("✻ Crunched for 4s · done 12.34") dropped, NBSP read as space.
   "${TM[@]}" capture-pane -p -t "$1" 2>/dev/null | sed 's/\xc2\xa0/ /g' |
@@ -642,7 +652,7 @@ rebirth_screen_idle() {
   printf '%s\n' "$scr" | grep -E '^[[:space:]│|]*(>|❯|›)[[:space:]]*[│|]?[[:space:]]*$' >/dev/null
 }
 rebirth_closer() {
-  local log="${TCW_LOG:-${CLOSE_LOG_DIR:-/tmp}/rebirth-exit-$$.log}" pids=() p last="" same=0 tries=0 next=0 deadline scr alive
+  local log="${TCW_LOG:-${CLOSE_LOG_DIR:-/tmp}/rebirth-exit-$$.log}" pids=() p last="" same=0 tries=0 next=0 watched=0 deadline scr alive
   if [[ -z "$PANE_ARG" ]] && ! [[ -n "$_caller" && "$_caller" == "$PANE" ]]; then
     echo "tmux-close-window: --rebirth: no proven own pane (\$TMUX_PANE / \$CLE_TMUX_PANE ... or --pane); marker only, nothing typed"
     return 0
@@ -669,7 +679,9 @@ rebirth_closer() {
     if (( tries < 3 && SECONDS >= next )); then
       scr="$(rebirth_idle_screen "$PANE")"
       if [[ "$scr" == "$last" ]]; then same=$((same + 1)); else same=0; last="$scr"; fi
-      if (( same >= 3 )) && rebirth_screen_idle "$scr"; then
+      if (( same >= 3 )) && rebirth_screen_idle "$scr" && rebirth_human_watching "$PANE"; then
+        (( watched++ )) || echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) idle, but a human is active in this window: /exit waits"
+      elif (( same >= 3 )) && rebirth_screen_idle "$scr"; then
         tries=$((tries + 1)) same=0 next=$((SECONDS + 10))
         echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) idle at an empty prompt: typing /exit (try $tries)"
         "${TM[@]}" send-keys -t "$PANE" -l '/exit' 2>/dev/null

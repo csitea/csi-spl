@@ -41,7 +41,9 @@
 #      detached closer that types /exit ONCE into a harness idle at an empty
 #      prompt (a claude-like `❯` screen here), then leaves: the window and the
 #      registry row stay. Controls: a busy pane gets nothing; the script with
-#      the fork spliced out (the old marker-only --rebirth) types nothing
+#      the fork spliced out (the old marker-only --rebirth) types nothing.
+#      A human client active in THAT window: nothing typed; one active in
+#      ANOTHER window of the same session: /exit typed once
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -293,4 +295,28 @@ sleep 1
 in_agy_session env CLE_TMUX_PANE="$P13C" bash "$T_TMP/pre13/scripts/tmux-close-window.sh" --agent c-417 --rebirth --timeout 20
 sleep 8
 eq "13. control: without the fork the idle session is never ended" "" "$(cat "$T_TMP/got-417" 2>/dev/null)"
+# A human looking at the window: an attached client whose current window it is.
+attach_human() {  # WINDOW-TARGET -> a client on it (script gives tmux a tty)
+  setsid -f script -qfc "tmux -S '$SPOOL_TMUX_SOCKET' attach -t '$1'" /dev/null </dev/null >/dev/null 2>&1
+  for _ in $(seq 1 20); do [ -n "$(tmux -S "$SPOOL_TMUX_SOCKET" list-clients -F x 2>/dev/null)" ] && return 0; sleep 0.25; done
+  return 1
+}
+detach_humans() { tmux -S "$SPOOL_TMUX_SOCKET" list-clients -F '#{client_tty}' | while read -r c; do tmux -S "$SPOOL_TMUX_SOCKET" detach-client -t "$c"; done; }
+P13D="$(t_window 'c-418@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-418")"
+W13D="$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P13D" '#{session_name}:#{window_index}')"
+check "13. a human client is attached to c-418's window" attach_human "$W13D"
+sleep 1
+in_agy_session env CLE_TMUX_PANE="$P13D" WD_HUMAN_IDLE=120 bash "$SUT" --agent c-418 --rebirth --timeout 8
+sleep 10
+eq "13. a human active in THAT window: nothing typed" "" "$(cat "$T_TMP/got-418" 2>/dev/null)"
+has "13. ... and the log says /exit waits" "a human is active in this window" "$(cat "$CLOSE_LOG_DIR"/rebirth-exit-*.log 2>/dev/null)"
+detach_humans
+P13E="$(t_window 'c-419@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-419")"
+check "13. a human client is attached to ANOTHER window of the session" attach_human "$VICTIM"
+sleep 1
+in_agy_session env CLE_TMUX_PANE="$P13E" WD_HUMAN_IDLE=120 bash "$SUT" --agent c-419 --rebirth --timeout 60
+check "13. a human in another window: the idle harness gets /exit and leaves" got_exit "$T_TMP/got-419" 40
+sleep 3
+eq "13. ... /exit was typed exactly once" 1 "$(grep -cx /exit "$T_TMP/got-419" 2>/dev/null)"
+detach_humans
 t_done

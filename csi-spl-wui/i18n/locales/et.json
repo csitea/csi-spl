@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Te ei ole tööruumi {tenant} liige.",
     "open_mine": "Ava minu tööruum",
-    "preparing": "Sinu tööruumi aadressi {host} valmistatakse ette — tavaliselt umbes 30 minutit pärast makset. See leht avab selle kohe, kui see vastab."
+    "preparing": "Aadress {host} ei ole veel valmis. Uue tööruumi aadress hakkab tavaliselt tööle umbes 30 minuti jooksul pärast selle loomist. See leht kontrollib iga 30 sekundi järel ja avab selle kohe, kui see vastab."
   },
   "picker": {
     "open": "Ava kalender",

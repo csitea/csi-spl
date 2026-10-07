@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "{tenant} çalışma alanının üyesi değilsiniz.",
     "open_mine": "Çalışma alanımı aç",
-    "preparing": "Çalışma alanı adresiniz {host} hazırlanıyor — genellikle ödemeden yaklaşık 30 dakika sonra. Bu sayfa, adres yanıt verir vermez onu açar."
+    "preparing": "{host} adresi henüz hazır değil. Yeni bir çalışma alanının adresi genellikle oluşturulmasından sonraki yaklaşık 30 dakika içinde çalışır. Bu sayfa her 30 saniyede bir kontrol eder ve adres yanıt verir vermez onu açar."
   },
   "picker": {
     "open": "Takvimi aç",

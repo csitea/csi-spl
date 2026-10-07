@@ -4,8 +4,9 @@
 // 40 maps it (CLE-35094, dev n=2). Now:
 //   1. /login?tenant=<T> on the apex stays on the apex (the form is usable)
 //   2. native sign-in with the buyer's address
-//   3. the page says "your address <T>.<fqdn> is being prepared" and stays on
-//      the apex (no navigation into the unmapped host)
+//   3. the page says "the address <T>.<fqdn> is not ready yet" (an estimate,
+//      no payment wording) and stays on the apex (no navigation into the
+//      unmapped host). Works for a demo tenant too (TENANT=<demo id>).
 //
 //   SITE=https://dev.<domain> API=https://dev.api.<domain> TENANT=<paid tenant, host not mapped> \
 //     EMAIL=<the checkout email> PW_FILE=<0600 file> OUT=<dir> [REGISTER=1] [CHROME_PATH=...] \
@@ -70,7 +71,11 @@ try {
   // 3. "being prepared", on the apex
   const el = await p.waitForSelector('[data-test=tenant-host-preparing]', { visible: true, timeout: 45000 }).catch(() => null)
   const shown = el ? await p.$eval('[data-test=tenant-host-preparing]', (e) => ({ host: e.getAttribute('data-host'), text: e.textContent.trim() })) : null
-  step('2 signed in: "your address <T>.<fqdn> is being prepared"', !!shown && shown.host === want, shown || {})
+  step('2 signed in: "the address <T>.<fqdn> is not ready yet"', !!shown && shown.host === want, shown || {})
+  // c7b6e8db: the same page shows to a demo visitor, so no payment wording; the
+  // ~30 min estimate stays. CONTROL: the old text ("... after the payment") fails here.
+  step('2b the text gives the 30-minute estimate and never says payment',
+    !!shown && shown.text.includes('30') && !/payment|paid/i.test(shown.text), { text: shown?.text || '' })
   await sleep(3000)
   step('3 still on the apex, never navigated to the unmapped host',
     new URL(p.url()).hostname === siteHost && !visited.some((u) => u.includes(want)), { url: p.url(), visited })

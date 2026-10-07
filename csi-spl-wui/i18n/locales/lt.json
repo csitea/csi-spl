@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Jūs nesate darbo srities {tenant} narys.",
     "open_mine": "Atidaryti mano darbo sritį",
-    "preparing": "Jūsų darbo srities adresas {host} ruošiamas — paprastai apie 30 minučių po apmokėjimo. Šis puslapis jį atvers, kai tik jis atsakys."
+    "preparing": "Adresas {host} dar neparuoštas. Naujos darbo srities adresas paprastai pradeda veikti per maždaug 30 minučių nuo jos sukūrimo. Šis puslapis tikrina kas 30 sekundžių ir jį atvers, kai tik jis atsakys."
   },
   "picker": {
     "open": "Atverti kalendorių",

@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Nu sunteți membru al spațiului de lucru {tenant}.",
     "open_mine": "Deschide spațiul meu de lucru",
-    "preparing": "Adresa spațiului dvs. de lucru {host} este în pregătire — de obicei în jur de 30 de minute după plată. Această pagină o va deschide imediat ce răspunde."
+    "preparing": "Adresa {host} nu este încă pregătită. Adresa unui spațiu de lucru nou funcționează de obicei în aproximativ 30 de minute de la crearea lui. Această pagină verifică la fiecare 30 de secunde și o deschide imediat ce răspunde."
   },
   "picker": {
     "open": "Deschide calendarul",

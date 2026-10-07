@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Niste član radnog prostora {tenant}.",
     "open_mine": "Otvori moj radni prostor",
-    "preparing": "Adresa vašeg radnog prostora {host} se priprema — obično oko 30 minuta posle plaćanja. Ova stranica će je otvoriti čim odgovori."
+    "preparing": "Adresa {host} još nije spremna. Adresa novog radnog prostora obično proradi za oko 30 minuta od njegovog kreiranja. Ova stranica proverava na svakih 30 sekundi i otvoriće je čim odgovori."
   },
   "picker": {
     "open": "Otvori kalendar",

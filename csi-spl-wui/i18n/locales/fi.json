@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Et ole työtilan {tenant} jäsen.",
     "open_mine": "Avaa oma työtila",
-    "preparing": "Työtilasi osoitetta {host} valmistellaan — yleensä noin 30 minuuttia maksun jälkeen. Tämä sivu avaa sen heti, kun se vastaa."
+    "preparing": "Osoite {host} ei ole vielä valmis. Uuden työtilan osoite toimii yleensä noin 30 minuutin kuluessa sen luomisesta. Tämä sivu tarkistaa 30 sekunnin välein ja avaa sen heti, kun se vastaa."
   },
   "picker": {
     "open": "Avaa kalenteri",

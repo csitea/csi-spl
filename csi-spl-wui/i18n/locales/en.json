@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "You are not a member of the workspace {tenant}.",
     "open_mine": "Open my workspace",
-    "preparing": "Your workspace address {host} is being prepared — usually about 30 minutes after the payment. This page opens it as soon as it answers."
+    "preparing": "The address {host} is not ready yet. A new workspace's address usually works within about 30 minutes of its creation. This page checks every 30 seconds and opens it as soon as it answers."
   },
   "picker": {
     "open": "Open the calendar",

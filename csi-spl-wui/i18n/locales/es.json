@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "No eres miembro del espacio de trabajo {tenant}.",
     "open_mine": "Abrir mi espacio de trabajo",
-    "preparing": "La dirección de tu espacio de trabajo {host} se está preparando: suele tardar unos 30 minutos tras el pago. Esta página la abrirá en cuanto responda."
+    "preparing": "La dirección {host} aún no está lista. La dirección de un espacio de trabajo nuevo suele funcionar unos 30 minutos después de crearlo. Esta página comprueba cada 30 segundos y la abre en cuanto responda."
   },
   "picker": {
     "open": "Abrir el calendario",

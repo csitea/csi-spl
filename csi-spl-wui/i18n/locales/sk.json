@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Nie ste členom pracovného priestoru {tenant}.",
     "open_mine": "Otvoriť môj pracovný priestor",
-    "preparing": "Adresa vášho pracovného priestoru {host} sa pripravuje — zvyčajne asi 30 minút po platbe. Táto stránka ju otvorí, hneď ako odpovie."
+    "preparing": "Adresa {host} ešte nie je pripravená. Adresa nového pracovného priestoru zvyčajne začne fungovať asi do 30 minút od jeho vytvorenia. Táto stránka kontroluje každých 30 sekúnd a otvorí ju, hneď ako odpovie."
   },
   "picker": {
     "open": "Otvoriť kalendár",

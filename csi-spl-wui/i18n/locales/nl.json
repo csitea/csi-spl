@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "U bent geen lid van de werkruimte {tenant}.",
     "open_mine": "Mijn werkruimte openen",
-    "preparing": "Het adres van je werkruimte {host} wordt voorbereid — meestal ongeveer 30 minuten na de betaling. Deze pagina opent het zodra het antwoordt."
+    "preparing": "Het adres {host} is nog niet klaar. Het adres van een nieuwe werkruimte werkt meestal binnen ongeveer 30 minuten na het aanmaken. Deze pagina controleert elke 30 seconden en opent het zodra het antwoordt."
   },
   "picker": {
     "open": "Kalender openen",

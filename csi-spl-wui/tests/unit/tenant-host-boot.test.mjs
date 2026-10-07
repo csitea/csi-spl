@@ -1,6 +1,7 @@
 // SPL-959: the arrival hops of a tenant host (utils/tenant-host-boot.mjs).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync, readdirSync } from 'node:fs'
 import { reactive, ref, nextTick } from 'vue'
 
 import { activeElsewhere, bootTenantHost, hostAnswers } from '../../src/utils/tenant-host-boot.mjs'
@@ -150,3 +151,26 @@ const hang = (calls = []) => (url, init = {}) => {
     if (init.signal) init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
   })
 }
+
+/* c7b6e8db option 5: the "being prepared" page shows to a demo visitor and to
+   a buyer alike, so it never says "payment" (a demo nobody pays for got
+   "about 30 minutes after the payment", prd 2026-10-07 15:39Z), and it keeps
+   the time estimate and the {host} slot. Stems of the old payment words, per
+   locale. */
+const PAY_STEMS = /payment|paid|плащан|πληρωμ|pago|maks[eu]|תשלום|apmokėj|maksāj|плаќањ|betal|płatn|plat[aă]|оплат|platb|plaćan|ödem/i
+const LOCALES = new URL('../../i18n/locales/', import.meta.url)
+const preparing = (f) => JSON.parse(readFileSync(new URL(f, LOCALES), 'utf8')).tenant_host.preparing
+const prepOk = (v) => typeof v === 'string' && v.includes('{host}') && v.includes('30') && !PAY_STEMS.test(v)
+
+describe('tenant_host.preparing in every locale', () => {
+  const files = readdirSync(LOCALES).filter((f) => f.endsWith('.json'))
+  it('19 locales: {host}, a 30-minute estimate, no payment wording', () => {
+    assert.equal(files.length, 19)
+    for (const f of files) assert.ok(prepOk(preparing(f)), `${f}: ${preparing(f)}`)
+  })
+  it('CONTROL: the old paid-only wording fails the guard', () => {
+    assert.equal(prepOk('Your workspace address {host} is being prepared — usually about 30 minutes after the payment.'), false)
+    assert.equal(prepOk('Адрес вашего рабочего пространства {host} готовится — обычно около 30 минут после оплаты.'), false)
+    assert.equal(prepOk('The address is not ready yet, usually within about 30 minutes.'), false, 'no {host}')
+  })
+})

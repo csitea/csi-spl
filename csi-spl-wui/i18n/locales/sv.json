@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Du är inte medlem i arbetsytan {tenant}.",
     "open_mine": "Öppna min arbetsyta",
-    "preparing": "Adressen till din arbetsyta {host} förbereds — vanligtvis cirka 30 minuter efter betalningen. Den här sidan öppnar den så snart den svarar."
+    "preparing": "Adressen {host} är inte klar än. En ny arbetsytas adress fungerar oftast inom cirka 30 minuter efter att den skapats. Den här sidan kontrollerar var 30:e sekund och öppnar den så snart den svarar."
   },
   "picker": {
     "open": "Öppna kalendern",

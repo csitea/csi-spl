@@ -15,7 +15,8 @@
  * certificate, ~30 min), and a hop before that lands on NXDOMAIN. So each
  * hop to another host first reads <host>/build.json (no-cors: reaching it is
  * the answer). Not reachable: the sign-in return (1) stays where it is, and a
- * signed-in hop (2, 3) shows "your address is being prepared" and retries
+ * signed-in hop (2, 3) shows "the address is not ready yet" (no payment
+ * wording: a demo tenant's host can be pending too, c7b6e8db) and retries
  * every PENDING_POLL_MS. The page's CSP admits only the mapped tenant hosts,
  * so an unmapped host is refused before DNS; the WUI re-deploy that maps it
  * reloads an open tab (SPL-1006 build watch), and the retry then gets through.

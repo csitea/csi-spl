@@ -1328,7 +1328,7 @@
   "tenant_host": {
     "not_member": "Jūs neesat darbvietas {tenant} dalībnieks.",
     "open_mine": "Atvērt manu darbvietu",
-    "preparing": "Jūsu darbvietas adrese {host} tiek sagatavota — parasti apmēram 30 minūtes pēc maksājuma. Šī lapa to atvērs, tiklīdz tā atbildēs."
+    "preparing": "Adrese {host} vēl nav gatava. Jaunas darbvietas adrese parasti sāk darboties apmēram 30 minūšu laikā pēc tās izveides. Šī lapa pārbauda ik pēc 30 sekundēm un to atvērs, tiklīdz tā atbildēs."
   },
   "picker": {
     "open": "Atvērt kalendāru",

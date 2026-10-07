@@ -7,7 +7,10 @@
 // CONTROLS (each next to a passing case):
 //   - with no picture (GET 404) there is no "Remove picture" item;
 //   - a gif is refused before any request (no PUT), with a message;
-//   - the hub's 413 is shown as "too big" and the avatar is unchanged.
+//   - the hub's 413 is shown as "too big" and the avatar is unchanged;
+//   - a reload after the upload still fetches it (dev, 2026-10-07: the
+//     pre-upload 404 was remembered in localStorage, so after a reload the
+//     menu had no picture and no "Remove picture").
 //
 // SHOT_DIR=<dir> also writes the menu and the changed picture as PNGs.
 //
@@ -175,6 +178,14 @@ async function run(p, base, width, height, files) {
   await openMenu(page)
   check(`${tag}: now "Remove picture" is offered`, await shown(page, '[data-test=user-menu-remove-picture]'))
   if (SHOT_DIR) await page.screenshot({ path: join(SHOT_DIR, `own-picture-changed-${width}.png`) })
+
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-test=top-bar]')
+  await signIn(page)
+  const kept = await waitFor(async () => (await triggerPic(page)).startsWith('data:image/png'))
+  check(`${tag}: after a reload the menu still fetches the upload`, kept)
+  await openMenu(page)
+  check(`${tag}: after a reload "Remove picture" is still offered`, await shown(page, '[data-test=user-menu-remove-picture]'))
 
   await page.click('[data-test=user-menu-remove-picture]')
   const gone = await waitFor(async () => !(await triggerPic(page)))

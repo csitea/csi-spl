@@ -281,7 +281,7 @@ import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
 import { avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
-import { forgetRosterRead, loadAvatarImageUrl } from '~/utils/avatar.mjs'
+import { AVATAR_MISS_KEY, forgetRosterRead, loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
 import { useMobileStack } from '~/composables/useMobileStack'
 
@@ -455,6 +455,8 @@ async function pictureChanged(run: (m: typeof import('~/utils/own-picture.mjs'))
     const got = await run(await import('~/utils/own-picture.mjs'))
     pictureError.value = got
     if (got) return
+    /* the remembered pre-upload 404 would hide the new picture after a reload */
+    try { window.localStorage.removeItem(AVATAR_MISS_KEY) } catch { /* blocked */ }
     forgetRosterRead()
     picRev.value++
     close(false)

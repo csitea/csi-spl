@@ -75,7 +75,7 @@ func TestSearchMessagesSkipsUnsignedToast(t *testing.T) {
 	if !pg.hasSearchSig(ctx) {
 		t.Fatal("rdb 0135 search_sig not found by the probe")
 	}
-	sql, args := searchMessagesSQL(tid, sq, true)
+	sql, args := searchMessagesSQL(tid, sq, true, nil)
 	signed := explainBuffers(t, pg, tid, sql, args)
 
 	// A row the sweep has not signed yet is still found.
@@ -118,10 +118,10 @@ func TestSearchSigOnlyWhenProbed(t *testing.T) {
 		t.Fatal(err)
 	}
 	sq := SearchQuery{Q: q, Now: time.Now(), Limit: 7}
-	if sql, _ := searchMessagesSQL("t1", sq, false); strings.Contains(sql, "search_sig") {
+	if sql, _ := searchMessagesSQL("t1", sq, false, nil); strings.Contains(sql, "search_sig") {
 		t.Fatalf("probe off, search_sig named:\n%s", sql)
 	}
-	sql, _ := searchMessagesSQL("t1", sq, true)
+	sql, _ := searchMessagesSQL("t1", sq, true, nil)
 	// 2 guarded terms (not the prefix one) + 1 all-words check of those two.
 	if n := strings.Count(sql, "m.search_sig IS NULL"); n != 3 {
 		t.Fatalf("probe on: want 2 guarded terms and 1 all-words check, got %d:\n%s", n, sql)

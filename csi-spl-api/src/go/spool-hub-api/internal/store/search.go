@@ -45,6 +45,11 @@ type SearchQuery struct {
 	Limit  int
 	Budget time.Duration // Postgres statement_timeout; 0 = none
 
+	// ScanOnly is the search index kill switch (SPOOL_HUB_SEARCH_INDEX=off,
+	// spec 100 T006): the message section never calls
+	// spool_search_candidates and runs the 0135 statement alone.
+	ScanOnly bool
+
 	Relevance bool // messages: rank, paged by Offset
 	Offset    int
 	// Keyset (newest first): strictly older than (AfterAt, AfterID[, AfterIdx]).

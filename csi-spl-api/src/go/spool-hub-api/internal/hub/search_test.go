@@ -338,3 +338,75 @@ func TestSearchTenantsAndEvents(t *testing.T) {
 		t.Fatalf("type:thread: %d %s", code, body)
 	}
 }
+
+// scanOnlyStore records the kill switch of every message search the hub
+// sends to its store.
+type scanOnlyStore struct {
+	store.Store
+	got []bool
+}
+
+func (s *scanOnlyStore) se() store.Searcher { return s.Store.(store.Searcher) }
+
+func (s *scanOnlyStore) SearchMessages(ctx context.Context, tenant string, q store.SearchQuery) ([]store.SearchMsgRow, error) {
+	s.got = append(s.got, q.ScanOnly)
+	return s.se().SearchMessages(ctx, tenant, q)
+}
+
+func (s *scanOnlyStore) SearchFiles(ctx context.Context, tenant string, q store.SearchQuery) ([]store.SearchFileRow, error) {
+	return s.se().SearchFiles(ctx, tenant, q)
+}
+
+func (s *scanOnlyStore) SearchTopics(ctx context.Context, tenant string, q store.SearchQuery) ([]store.SearchTopicRow, error) {
+	return s.se().SearchTopics(ctx, tenant, q)
+}
+
+func (s *scanOnlyStore) TenantHumans(ctx context.Context, tenant string) ([]store.HumanEntry, error) {
+	return s.se().TenantHumans(ctx, tenant)
+}
+
+// TestSearchIndexKillSwitch is spec 100 T006: SPOOL_HUB_SEARCH_INDEX=off
+// sends every message search to the store as ScanOnly, so the store never
+// calls spool_search_candidates (store TestCandidateProbeSQL: ScanOnly never
+// probes); unset or on keeps the index. The rows are the same either way.
+func TestSearchIndexKillSwitch(t *testing.T) {
+	var rec *scanOnlyStore
+	e := newEnv(t, func(o *hub.Options) {
+		rec = &scanOnlyStore{Store: o.Store}
+		o.Store = rec
+		o.ViewDoor = hub.ViewDoorOff
+		o.SearchRatePerMin = 10000
+		o.Authorizer = rbac.Fixed(rbac.Developer)
+		o.SessionID = func(r *http.Request, _ string) (string, error) { return "", nil }
+	})
+	tid, _ := e.tenant()
+	at := fixtureAt()
+	for i := 0; i < 3; i++ {
+		putMsg(t, e.st, tid, uuidV4(), "tasks", "CLE-01", "box-a", "CLE-02", fmt.Sprintf("deploy step %d", i), at.Add(time.Duration(i)*time.Minute), "")
+	}
+	var want []string
+	for _, c := range []struct {
+		env      string
+		scanOnly bool
+	}{{"", false}, {"on", false}, {"off", true}, {" OFF ", true}, {"bogus", false}} {
+		t.Setenv(hub.SearchIndexEnv, c.env)
+		rec.got = nil
+		code, _, r, raw := searchGet(t, e, tid, "type:message deploy", "")
+		if code != http.StatusOK {
+			t.Fatalf("%q: %d %+v", c.env, code, raw)
+		}
+		if len(rec.got) != 1 || rec.got[0] != c.scanOnly {
+			t.Fatalf("%s=%q: store saw ScanOnly %v, want [%v]", hub.SearchIndexEnv, c.env, rec.got, c.scanOnly)
+		}
+		var ids []string
+		for _, m := range r.Groups["messages"].Results {
+			ids = append(ids, fmt.Sprint(m["msg_id"]))
+		}
+		if want == nil {
+			want = ids
+		}
+		if len(ids) != 3 || fmt.Sprint(ids) != fmt.Sprint(want) {
+			t.Fatalf("%q: rows %v, want %v", c.env, ids, want)
+		}
+	}
+}

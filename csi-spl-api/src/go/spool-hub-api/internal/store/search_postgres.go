@@ -328,10 +328,73 @@ func (s *Postgres) hasSearchSig(ctx context.Context) bool {
 	}, time.Now())
 }
 
-func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
-	sql, args := searchMessagesSQL(tenant, q, s.hasSearchSig(ctx))
-	var out []SearchMsgRow
+// hasSearchIndex is the catalogue probe for rdb 0143: spool_search_candidates
+// is there and this login may EXECUTE it (roles/runtime-grants.sql). Until
+// then the message section takes the 0135 path.
+func (s *Postgres) hasSearchIndex(ctx context.Context) bool {
+	return s.idx.present(ctx, func(ctx context.Context) (ok bool, err error) {
+		err = s.pool.QueryRow(ctx, `SELECT COALESCE(has_function_privilege(
+			to_regprocedure('public.spool_search_candidates(tsquery, integer)'), 'EXECUTE'), false)`).Scan(&ok)
+		return ok, err
+	}, time.Now())
+}
+
+// searchIndexCap is the candidate probe's cap (spec 100 section 5.1, to be
+// tuned in P4): at most cap ids filter the statement; cap + 1 means a common
+// word, and today's backward scan fills a page fast exactly then.
+const searchIndexCap = 500
+
+// candidateProbeSQL is the probe of one message page: the candidate ids of
+// the root's AND-chain text terms, at most cap + 1 of them. false: no probe,
+// today's path (the kill switch, or no such term).
+func candidateProbeSQL(q SearchQuery, limit int) (string, []any, bool) {
+	if q.ScanOnly || q.Q == nil {
+		return "", nil, false
+	}
+	c := &sqlc{}
+	tq, ok := c.candidateQuery(q.Q.Root, search.OpText)
+	if !ok {
+		return "", nil, false
+	}
+	return "SELECT msg_id::text FROM spool_search_candidates(" + tq + ", " + c.arg(limit) + ")", c.args, true
+}
+
+// searchCandidates runs the probe once for the page and returns the ids the
+// statement filters by; nil keeps today's statement unchanged: no probe, or
+// cap + 1 ids (a truncated set, an arbitrary subset: the id filter is never
+// applied to it).
+func (s *Postgres) searchCandidates(ctx context.Context, tenant string, q SearchQuery, limit int) ([]string, error) {
+	sql, args, ok := candidateProbeSQL(q, limit)
+	if !ok || !s.hasSearchIndex(ctx) {
+		return nil, nil
+	}
+	ids := []string{}
 	err := s.search(ctx, tenant, q, sql, args, func(rows pgx.Rows) error {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+		return nil
+	})
+	if err != nil || len(ids) > limit {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// SearchMessages is one probe, then one statement (spec 100 section 5.1):
+// the hub branches between the two, so a write in between cannot switch the
+// path mid-page. Order, keyset, LIMIT and every predicate stay in the
+// statement; the candidate ids only narrow it, and the outer @@ decides.
+func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQuery) ([]SearchMsgRow, error) {
+	ids, err := s.searchCandidates(ctx, tenant, q, searchIndexCap)
+	if err != nil {
+		return nil, err
+	}
+	sql, args := searchMessagesSQL(tenant, q, s.hasSearchSig(ctx), ids)
+	var out []SearchMsgRow
+	err = s.search(ctx, tenant, q, sql, args, func(rows pgx.Rows) error {
 		var r SearchMsgRow
 		if err := rows.Scan(&r.MsgID, &r.TaskID, &r.Parent, &r.Channel, &r.Kind, &r.Body, &r.FromID, &r.FromBox,
 			&r.ToID, &r.ToBox, &r.TS, &r.ReceivedAt, &r.Files); err != nil {
@@ -344,8 +407,10 @@ func (s *Postgres) SearchMessages(ctx context.Context, tenant string, q SearchQu
 }
 
 // searchMessagesSQL is SearchMessages' statement and its bind parameters;
-// sig: check search_sig before each text match.
-func searchMessagesSQL(tenant string, q SearchQuery, sig bool) (string, []any) {
+// sig: check search_sig before each text match; ids (non-nil): the candidate
+// ids of the probe, at most cap of them, which the statement adds as
+// AND m.msg_id = ANY(ids) and nothing else changes.
+func searchMessagesSQL(tenant string, q SearchQuery, sig bool, ids []string) (string, []any) {
 	c := &sqlc{sig: sig}
 	t, now := c.arg(tenant), c.arg(q.Now)
 	priv := "true"
@@ -361,6 +426,9 @@ func searchMessagesSQL(tenant string, q SearchQuery, sig bool) (string, []any) {
 			OR m.channel = ANY(` + pub + `::text[]) OR m.channel = ANY(` + mine + `::text[]))`
 	}
 	where := "(" + c.sigAll("m", q.Q.Root, c.cond(q.Q.Root, c.messageLeaf), search.OpText) + ")" + archivedHideSQL("m", t, c.arg(q.Lobby))
+	if ids != nil {
+		where += " AND m.msg_id = ANY(" + c.arg(ids) + "::uuid[])"
+	}
 	order, page := "ORDER BY m.received_at DESC, m.msg_id::text DESC", ""
 	if q.Relevance {
 		var tq []string

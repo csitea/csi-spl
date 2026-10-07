@@ -9,9 +9,11 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,16 @@ const (
 	searchGroupedDefault = 5
 	searchGroupedMax     = 20
 )
+
+// SearchIndexEnv is the search index kill switch (spec 100 T006): on (the
+// default) or off. off is the 0135 path: the store never calls
+// spool_search_candidates. Read per request, so a revision's env flips it.
+const SearchIndexEnv = "SPOOL_HUB_SEARCH_INDEX"
+
+// searchIndexOff reports the kill switch; any value but off keeps the index.
+func searchIndexOff() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(SearchIndexEnv)), "off")
+}
 
 func (s *Server) routeSearch(mux interface {
 	HandleFunc(string, func(http.ResponseWriter, *http.Request))
@@ -141,7 +153,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		return
 	}
 	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine, Lobby: s.o.LobbyTaskID, // specs/041
-		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance"}
+		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance", ScanOnly: searchIndexOff()}
 	groups, names, err := s.searchSections(ctx, t, q, base, types, cur, hash, limit)
 	if errors.Is(err, store.ErrSearchBudget) {
 		writeErr(w, http.StatusServiceUnavailable, "search_budget", "the search ran past its time budget; narrow the query")

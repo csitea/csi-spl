@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -405,5 +408,147 @@ func TestCandidateQuery(t *testing.T) {
 		if fmt.Sprint(c.args) != fmt.Sprint(tc.args) {
 			t.Errorf("%q: args %v, want %v", tc.q, c.args, tc.args)
 		}
+	}
+}
+
+// TestCandidateProbeSQL is spec 100 T006 without a database: the kill switch
+// (ScanOnly) and a query with no AND-chain text term never probe; ids filter
+// the statement and nothing else changes; nil ids leave it as it was.
+func TestCandidateProbeSQL(t *testing.T) {
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		q        string
+		scanOnly bool
+		ok       bool
+	}{
+		{"deploy ", false, true},
+		{"deploy ", true, false},
+		{"from:x deploy ", false, true},
+		{"from:x", false, false},
+		{"foo OR bar", false, false},
+		{"-foo", false, false},
+	} {
+		q := sq(t, tc.q, now)
+		q.ScanOnly = tc.scanOnly
+		sql, args, ok := candidateProbeSQL(q, searchIndexCap)
+		if ok != tc.ok {
+			t.Fatalf("%q scanOnly=%v: probe %v, want %v", tc.q, tc.scanOnly, ok, tc.ok)
+		}
+		if ok && (!strings.HasPrefix(sql, "SELECT msg_id::text FROM spool_search_candidates(") || args[len(args)-1] != searchIndexCap) {
+			t.Fatalf("%q: probe %s %v", tc.q, sql, args)
+		}
+	}
+	q := sq(t, "deploy ", now)
+	plain, pargs := searchMessagesSQL("t1", q, true, nil)
+	ids := []string{uuid4(), uuid4()}
+	narrow, nargs := searchMessagesSQL("t1", q, true, ids)
+	if strings.Contains(plain, "::uuid[])") {
+		t.Fatalf("nil ids filtered the statement:\n%s", plain)
+	}
+	m := regexp.MustCompile(` AND m\.msg_id = ANY\(\$(\d+)::uuid\[\]\)`).FindStringSubmatch(narrow)
+	if m == nil {
+		t.Fatalf("ids did not filter the statement:\n%s", narrow)
+	}
+	n, _ := strconv.Atoi(m[1])
+	if got := renumber(strings.Replace(narrow, m[0], "", 1), n); got != plain || len(nargs) != len(pargs)+1 {
+		t.Fatalf("ids changed more than the filter:\n%s\nvs\n%s", got, plain)
+	}
+	if fmt.Sprint(nargs[n-1]) != fmt.Sprint(ids) {
+		t.Fatalf("ids arg %v", nargs[n-1])
+	}
+}
+
+// renumber shifts every bind parameter above $from down by one (the
+// statement without the ids filter, whose parameter sits at $from).
+func renumber(sql string, from int) string {
+	for n := from + 1; n <= from+10; n++ {
+		sql = strings.ReplaceAll(sql, fmt.Sprintf("$%d", n), fmt.Sprintf("$%d", n-1))
+	}
+	return sql
+}
+
+// TestSearchIndexPathEqualsScan is spec 100 T006 on Postgres: below the cap
+// (the id filter) and above it (cap + 1 candidates: today's statement), the
+// index path returns the scan path's rows, row for row and in order, on every
+// keyset page and by relevance; the switch off never probes.
+func TestSearchIndexPathEqualsScan(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("SPOOL_TEST_PG_DSN unset (run hub-pg.tst.sh)")
+	}
+	ctx, now := context.Background(), time.Now().UTC()
+	tid := newTenant(t, pg)
+	// 700 rows say "common", every 50th also says "rare" (14); every 7th is
+	// in another channel; one is expired.
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO messages (tenant_id, msg_id, task_id, ts, from_box, from_id, to_box, to_id,
+				kind, body, files, msg, env_sig, env, received_at, expires_at, channel)
+			SELECT $1, gen_random_uuid(), gen_random_uuid(), $2::timestamptz - i * interval '1 minute', 'box-a', 'GRK-03',
+				'box-b', 'CLE-07', 'note',
+				'common word ' || CASE WHEN i % 50 = 0 THEN 'rare rare ' ELSE '' END || md5(i::text),
+				'[]', '{"v":1}', 'sig', '\x00', $2::timestamptz - (i % 3) * interval '1 minute',
+				CASE WHEN i = 100 THEN $2::timestamptz - interval '1 minute' ELSE $2::timestamptz + interval '30 days' END,
+				CASE WHEN i % 7 = 0 THEN 'ops' ELSE 'lobby' END
+			FROM generate_series(1, 700) i`, tid, now)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !pg.hasSearchIndex(ctx) {
+		t.Fatal("rdb 0143 spool_search_candidates not found by the probe")
+	}
+	for _, text := range []string{"rare ", "rare in:lobby ", "rare -in:ops ", "common ", "common rare ", "rar", "from:GRK-03 common "} {
+		base := sq(t, text, now)
+		sql, args, ok := candidateProbeSQL(base, searchIndexCap)
+		if !ok {
+			t.Fatalf("%q: no probe", text)
+		}
+		var n int
+		if err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `SELECT count(*) FROM (`+sql+`) c`, args...).Scan(&n)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		ids, err := pg.searchCandidates(ctx, tid, base, searchIndexCap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if above := n > searchIndexCap; above != (ids == nil) {
+			t.Fatalf("%q: %d candidates, ids nil=%v: the id filter must apply exactly at or below the cap", text, n, ids == nil)
+		}
+		walk := func(scanOnly, relevance bool) []string {
+			var out []string
+			q := base
+			q.ScanOnly, q.Relevance, q.Limit, q.Budget = scanOnly, relevance, 40, 5*time.Second
+			for page := 0; page < 50; page++ {
+				rows, err := pg.SearchMessages(ctx, tid, q)
+				if err != nil {
+					t.Fatalf("%q scanOnly=%v: %v", text, scanOnly, err)
+				}
+				out = append(out, msgIDs(rows)...)
+				if len(rows) < q.Limit {
+					return out
+				}
+				last := rows[len(rows)-1]
+				q.AfterAt, q.AfterID, q.Offset = last.ReceivedAt, last.MsgID, q.Offset+len(rows)
+			}
+			t.Fatalf("%q: paging did not end", text)
+			return nil
+		}
+		for _, rel := range []bool{false, true} {
+			scan, idx := walk(true, rel), walk(false, rel)
+			if len(scan) == 0 || fmt.Sprint(scan) != fmt.Sprint(idx) {
+				t.Fatalf("%q relevance=%v: index path %d rows != scan path %d rows", text, rel, len(idx), len(scan))
+			}
+		}
+		t.Logf("%q: %d candidates, filter=%v", text, n, ids != nil)
+	}
+	off := sq(t, "rare ", now)
+	off.ScanOnly = true
+	if _, _, ok := candidateProbeSQL(off, searchIndexCap); ok {
+		t.Fatal("switch off: probe built")
+	}
+	if ids, err := pg.searchCandidates(ctx, tid, off, searchIndexCap); ids != nil || err != nil {
+		t.Fatalf("switch off: probed (%v, %v)", ids, err)
 	}
 }

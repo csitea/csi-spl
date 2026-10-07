@@ -166,6 +166,9 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T006 P2: messages section through the function, with the kill switch
 
+- Status: **done** (2026-10-07): `candidateProbeSQL` / `searchCandidates` /
+  `hasSearchIndex` in `store/search_postgres.go`, `SPOOL_HUB_SEARCH_INDEX` in
+  `hub/search.go`; tests green with the switch `on` and `off`.
 - Lane: **store** + **hub** (one lane: the switch is read in `hub/`, used in
   `store/`). Phase P2.
 - Files: `store/search_postgres.go`, `store/postgres.go` (the probe

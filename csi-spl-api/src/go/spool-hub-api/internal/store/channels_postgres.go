@@ -459,24 +459,34 @@ func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Tim
 // from the archived cards, so the counts read keeps its index-only scan.
 //
 // z/h is the tenant's archived set: it does not depend on the reader. h
-// carries channel, from_id and expires_at out of that one pass, and the
-// reader predicate is only the outer WHERE. The old shape kept msg_id and
-// joined messages again on the primary key, one probe per hidden line
-// (prd t1, same trunk and method, n=3: 69.424 / 45.916 / 44.742 ms,
-// 19 762 buffers, estimate 1 vs 4 878 ids -> 23.993 / 18.599 / 25.518 ms,
-// 5 368 buffers). A reader with no mark still sees the same per-channel
-// counts (4 334 lines, 5 channels, no row different).
+// carries channel, from_id and expires_at out of that one pass. The old shape
+// kept msg_id and joined messages again on the primary key, one probe per
+// hidden line (prd t1, same trunk and method, n=3: 69.424 / 45.916 /
+// 44.742 ms, 19 762 buffers, estimate 1 vs 4 878 ids -> 23.993 / 18.599 /
+// 25.518 ms, 5 368 buffers).
+//
+// ap-02: the set is built only for channels with no mark. Each branch drops a
+// line whose own m.channel is marked (never the archived card's channel: a
+// move re-channels single lines), and z is empty unless um finds a channel
+// with no mark: a walk of messages_channel, one probe per channel, that stops
+// at the first unmarked one. A reader whose marks cover every channel built
+// ~4 850 lines only to throw them all away (prd t1 HUM-10, EXPLAIN n=3:
+// 24.5 / 36.0 / 27.8 ms, 0 rows out). The counts do not change: a line of a
+// marked channel never reached the outer count.
 func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
-	return tenantRead{`WITH ` + channelMarksCTE + `,
-		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL),
+	const unmarked = ` AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)`
+	return tenantRead{`WITH RECURSIVE ` + channelMarksCTE + `,
+		cl AS (SELECT (SELECT min(channel) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL) AS ch
+			UNION ALL SELECT (SELECT min(x.channel) FROM messages x WHERE x.tenant_id = $1 AND x.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL),
+		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch) LIMIT 1),
+		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL AND EXISTS (SELECT 1 FROM um)),
 		h AS (
-			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id
-			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id
-			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7
-			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7)
+			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id` + unmarked + `
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.msg_id` + unmarked + `
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.task_id = z.task_id AND z.task_id::text <> $7` + unmarked + `
+			UNION SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.parent_task_id = z.task_id AND z.task_id::text <> $7` + unmarked + `)
 		SELECT h.channel, count(*)::int FROM h
-		WHERE h.channel IS NOT NULL AND h.expires_at > $2 AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = h.channel)
-			AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
+		WHERE h.expires_at > $2 AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
 		GROUP BY h.channel`,
 		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {
 			var id string

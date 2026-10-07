@@ -12,6 +12,8 @@
 # @param SEC_GOSEC_BIN (optional) - override the tool, used by the hermetic test
 # @param SEC_GOSEC_BASELINE (optional) - baseline file; default <root>/.gosec-baseline.txt
 # @param SEC_GOSEC_WRITE_BASELINE (optional) - 1 to rewrite the baseline counts
+# @param SEC_GOSEC_GO_FALLBACK (optional) - dir holding go when go is not on PATH;
+# @param   default /usr/local/go/bin (sudo's secure_path drops it)
 # @example ./run -a do_sec_gosec
 #------------------------------------------------------------------------------
 
@@ -30,6 +32,31 @@ _sec_gosec_need() {
   command -v "$1" >/dev/null 2>&1 && return 0
   do_log "FATAL $1 is not on PATH -- the scan proved nothing"
   return 1
+}
+
+# gosec loads packages through the go toolchain: without go on PATH it reports
+# nothing (control issues=-1). Put go on PATH from the fallback dir, or refuse.
+_sec_gosec_go() {
+  command -v go >/dev/null 2>&1 && return 0
+  local fb="${SEC_GOSEC_GO_FALLBACK:-/usr/local/go/bin}"
+  if [[ -x "$fb/go" ]]; then
+    export PATH="$fb:$PATH"
+    do_log "INFO go is not on PATH -- using $fb/go"
+    return 0
+  fi
+  do_log "FATAL go is not on PATH and not at $fb/go -- gosec cannot load packages; install go or set SEC_GOSEC_GO_FALLBACK"
+  return 1
+}
+
+# A bare gosec name that is not on PATH resolves to $(go env GOPATH)/bin, where
+# 'go install' puts it. Prints the command to run.
+_sec_gosec_bin() {
+  local bin="$1" gp
+  if [[ "$bin" != */* ]] && ! command -v "$bin" >/dev/null 2>&1; then
+    gp=$(go env GOPATH 2>/dev/null) || gp=""
+    [[ -n "$gp" && -x "$gp/bin/$bin" ]] && bin="$gp/bin/$bin"
+  fi
+  printf '%s\n' "$bin"
 }
 
 # A minimal buildable module gosec flags with G404 (weak rng), HIGH severity.
@@ -55,7 +82,9 @@ EOF
 }
 
 do_sec_gosec() {
-  local bin="${SEC_GOSEC_BIN:-gosec}"
+  _sec_gosec_go || return 1
+  local bin
+  bin=$(_sec_gosec_bin "${SEC_GOSEC_BIN:-gosec}")
   _sec_gosec_need "$bin" || return 1
   local root mod baseline ctl rc
   root=$(_sec_gosec_root) || return 1

@@ -3,7 +3,9 @@
 # Purpose: do_sec_gosec fails closed, its negative control can fail, and a NEW
 #          high-severity finding beyond the baseline reddens the gate while the
 #          baselined ones pass. gosec here is a stub emitting JSON. The real
-#          gosec runs from .github/workflows/62_gosec.yml.
+#          gosec runs from .github/workflows/62_gosec.yml. With go missing from
+#          PATH (sudo's secure_path) the action falls back to SEC_GOSEC_GO_FALLBACK
+#          and to $(go env GOPATH)/bin for gosec, or refuses.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -29,6 +31,18 @@ printf 'module example.com/hub\n\ngo 1.25.0\n' >"$ROOT/csi-spl-api/src/go/spool-
 printf '# header\nG101|internal/auth/idp.go|1\n' >"$ROOT/.gosec-baseline.txt"
 
 F="$ROOT/csi-spl-api/src/go/spool-hub-api"   # path fragment for "spool-hub-api/"
+
+# A stub go in the fallback dir, so the cases below never depend on the box's go.
+GOFB="$T/gofb"
+mkdir -p "$GOFB" "$T/gopath/bin"
+printf '#!/bin/bash\n[[ "$1 $2" == "env GOPATH" ]] && echo %q\nexit 0\n' "$T/gopath" >"$GOFB/go"
+chmod +x "$GOFB/go"
+export SEC_GOSEC_GO_FALLBACK="$GOFB"
+
+# A PATH with the tools the action needs and no go at all.
+SYS="$T/sys"
+mkdir -p "$SYS"
+for t in python3 mktemp rm sed cat; do ln -s "$(command -v "$t")" "$SYS/$t"; done
 
 # --- missing binary fails closed --------------------------------------------
 set +e
@@ -67,6 +81,35 @@ out=$(PATH="$T/bin:$PATH" SEC_GOSEC_ROOT="$ROOT" do_sec_gosec 2>&1); rc=$?
 set -e
 [[ "$rc" -ne 0 ]] && grep -q 'NEW high-severity' <<<"$out" \
   && pass "a new gosec finding fails the gate" || fail "new finding did not fail (rc=$rc)"
+
+# --- go not on PATH: the fallback dir puts it there --------------------------
+# gosec without go cannot load packages: the stub then prints no JSON, as the
+# real one gives the control issues=-1. The pre-fallback action failed here.
+reset_bin
+stub gosec 'command -v go >/dev/null || { echo "go: not found"; exit 1; }; if [[ "${SEC_GOSEC_PHASE:-}" == control ]]; then echo "{\"Issues\":[{\"rule_id\":\"G404\",\"file\":\"/x/spool-hub-api/main.go\"}]}"; else echo "{\"Issues\":[]}"; fi'
+set +e
+out=$(PATH="$T/bin:$SYS" SEC_GOSEC_ROOT="$ROOT" do_sec_gosec 2>&1); rc=$?
+set -e
+[[ "$rc" -eq 0 ]] && grep -qF "using $GOFB/go" <<<"$out" \
+  && pass "PATH without go: falls back to SEC_GOSEC_GO_FALLBACK and the gate passes" \
+  || { fail "PATH without go did not fall back (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
+
+# --- go nowhere: fails fast, naming the fix ---------------------------------
+set +e
+out=$(PATH="$T/bin:$SYS" SEC_GOSEC_GO_FALLBACK="$T/no-go" SEC_GOSEC_ROOT="$ROOT" do_sec_gosec 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'go is not on PATH and not at' <<<"$out" \
+  && pass "no go anywhere fails fast with a clear message" || fail "missing go not refused (rc=$rc)"
+
+# --- gosec not on PATH: found in $(go env GOPATH)/bin -----------------------
+cp "$T/bin/gosec" "$T/gopath/bin/gosec"
+reset_bin
+set +e
+out=$(PATH="$SYS" SEC_GOSEC_ROOT="$ROOT" do_sec_gosec 2>&1); rc=$?
+set -e
+[[ "$rc" -eq 0 ]] && grep -q 'no new high-severity' <<<"$out" \
+  && pass "gosec off PATH resolves from \$(go env GOPATH)/bin" \
+  || { fail "gosec in GOPATH/bin not found (rc=$rc)"; sed 's/^/    | /' <<<"$out"; }
 
 # --- the workflow actually invokes the action -------------------------------
 if [[ -f "$WF" ]]; then

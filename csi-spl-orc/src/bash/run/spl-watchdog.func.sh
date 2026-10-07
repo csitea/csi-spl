@@ -37,6 +37,8 @@
 # @description its two peers and the crontab starter (spl-wd-peers.func.sh);
 # @description every start goes through spl_wd_inst_start
 # @description (spl-wd-inst-start.func.sh).
+# @description Spec 102 10.4.4 (T025): after its peer checks an instance
+# @description rolls out new desk-cron code by exec (spl-wd-self-update.func.sh).
 # @param WD_INST / INSTANCE (optional) - this loop's instance 1..3; empty = the one 093 loop (run.lock, tick/, ctx/)
 # @param WD_INST_START (optional) - instances to start detached when missing ("1 2 3"), then return: the cron entry (spl_wd_inst_start)
 # @param WD_PEERS (optional) - 1 (default; 0 under SPOOL_TEST=1): an instance checks its peers and the crontab starter
@@ -66,6 +68,8 @@ declare -F spl_wd_log_rotate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-ensure.func.sh"
 declare -F spl_wd_peers >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-peers.func.sh"
+declare -F spl_wd_self_update >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-self-update.func.sh"
 
 SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -81,7 +85,8 @@ do_spl_watchdog() {
     do_log "INFO watchdog instance 1 runs on this box: no 093 loop beside it ($WD_DIR/run.1.lock)"
     return 0
   fi
-  exec 7>>"$WD_DIR/run$WD_SFX.lock"
+  # an instance that self-updated (exec, 10.4.4) still holds its lock on fd 7
+  [[ -n "${WD_UPD_EXEC:-}" ]] && flock -n 7 2>/dev/null || exec 7>>"$WD_DIR/run$WD_SFX.lock"
   if ! flock -w "$(( WD_TICKS > 0 ? WD_TICK : 0 ))" 7; then
     do_log "INFO watchdog${WD_INST:+ instance $WD_INST} already runs on this box ($WD_DIR/run$WD_SFX.lock)"
     return 0
@@ -94,7 +99,7 @@ do_spl_watchdog() {
     n=$((n + 1))
     if (( WD_TICKS > 0 && n >= WD_TICKS )); then break; fi
     left=$(( WD_TICK - ($(date +%s) - t0) ))
-    if (( left > 0 )); then sleep "$left"; fi
+    if (( left > 0 )); then spl_wd_upd_sleep "$left"; fi
   done
   return 0
 }
@@ -122,7 +127,8 @@ spl_wd_init() {
   WD_INST="${WD_INST:-${INSTANCE:-}}"
   [[ -z "$WD_INST" || "$WD_INST" =~ ^[1-3]$ ]] || { do_log "FATAL WD_INST (INSTANCE) must be 1, 2 or 3, got: '$WD_INST'"; return 1; }
   WD_SFX="${WD_INST:+.$WD_INST}"
-  WD_SHA="$(git -C "$SPL_WD_RUN_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  WD_CODE_SHA="$(spl_wd_code_sha "$SPL_WD_RUN_DIR")"
+  WD_SHA="${WD_CODE_SHA:0:9}"
   WD_TICK_SEQ=0 WD_PROGRESS_SEQ=0
   : "${WD_TICKS:=0}" "${WD_TICK:=30}" "${WD_SCRIPT_TIMEOUT:=5}" "${WD_START_GRACE:=180}"
   : "${WD_TAKEOVER_MAX:=2}" "${WD_JOBS:=8}" "${WD_JOB_WAIT:=120}" "${WD_LOOP_N:=5}" "${RESTART_MAX_PER_HOUR:=3}" "${WD_S1_TOOL_CAP:=900}"
@@ -142,6 +148,7 @@ spl_wd_init() {
   export WD_JOB_WAIT WD_LOOP_N WD_BOX WD_S1_TOOL_CAP
   mkdir -p "$WD_DIR/ctx$WD_SFX" || { do_log "FATAL cannot create $WD_DIR"; return 1; }
   spl_wd_peers_conf || return 1
+  spl_wd_upd_conf || return 1
   return 0
 }
 
@@ -166,6 +173,8 @@ spl_wd_tick() {
   # peers only from a judge that wrote its heartbeat and did not just resume (10.4.2)
   [[ "$last" =~ ^[0-9]+$ ]] || last="$now"
   spl_wd_peers "$now" "$(( now - last ))"
+  # desk-cron moved: the rolling restart of 10.4.4 (may exec into the new code)
+  spl_wd_self_update "$now"
   rm -rf "$tick" && mkdir -p "$tick"
   spl_wd_ps > "$tick/ps"
   spl_wd_tmux_lists "$tick"
@@ -195,6 +204,8 @@ spl_wd_tick() {
     rm -f "$WD_LOG.tmp.$$"
   fi
   spl_wd_log_trim
+  # the first tick after a self-update exec is its self-check (10.4.4)
+  spl_wd_upd_checked "$tick"
   return 0
 }
 
@@ -528,7 +539,7 @@ spl_wd_one() {
     exec 6>>"$WD_DIR/$id.judge.lock"
     flock -n 6 || return 0
     read -r jt ji < "$WD_DIR/$id.judged" 2>/dev/null || true
-    if [[ "$jt" =~ ^[0-9]+$ && "$ji" != "${WD_INST:-0}" ]] && (( now - jt < WD_TICK - 5 )); then return 0; fi
+    if [[ "$jt" =~ ^[0-9]+$ && "$ji" != "${WD_INST:-0}" ]] && (( now - jt < WD_TICK - 5 )) && ! spl_wd_upd_force "$id"; then return 0; fi
   fi
   ctx="$WD_DIR/ctx$WD_SFX/$id"
   rm -rf "$ctx" && mkdir -p "$ctx"

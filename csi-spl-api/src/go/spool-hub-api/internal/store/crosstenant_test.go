@@ -104,6 +104,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.PutFleetLane(ctx, s.tenant, FleetLane{Fleet: "main", AgentID: "CLE-02", AgentBox: "box-a", State: "live"}, "box-a", now); err != nil {
 		t.Fatal(err)
 	}
+	// shared_memory_lessons (rdb 0146, spec 102 T020): one lesson per tenant.
+	if _, _, err := pg.AddLesson(ctx, s.tenant, "lesson", "a trap", "box-a", now); err != nil {
+		t.Fatal(err)
+	}
 	// agent_id_aliases (rdb 0101, spec 061): one alias per tenant.
 	if _, _, err := pg.PutAgentAlias(ctx, s.tenant, AgentAlias{OldID: "CLE-02", NewID: "c-004", Kind: "claude", BoxID: "box-a"}, now); err != nil {
 		t.Fatal(err)

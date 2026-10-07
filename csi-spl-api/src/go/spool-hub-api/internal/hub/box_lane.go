@@ -64,6 +64,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onLifecycleLane(ctx, x, f)
 		return
 	}
+	if isMemoryLaneOp(f.LaneOp) { // spec 102 12: the shared memory
+		s.onMemoryLane(ctx, x, f)
+		return
+	}
 	id := f.MsgID
 	if !uuidRe.MatchString(id) {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a lane frame needs msg_id (a UUID) to pair the reply")

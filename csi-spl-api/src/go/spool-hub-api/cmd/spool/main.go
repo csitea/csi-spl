@@ -33,6 +33,8 @@
 //	          hub mode: list, or write one row of, the fleet-wide lane map (CLE-77920)
 //	lifecycle config | lifecycle event --json <file|-> [--fleet <f>]
 //	          hub mode: the agent lifecycle config as KEY=VALUE lines, or append one event (spec 063)
+//	memory  add --title <t> --text <t|-> | memory show <title> | memory index
+//	          hub mode: the shared memory of the agents: add or merge a lesson, read one, the index (spec 102 12)
 //	box-stats put --json <file|-> | box-stats list [--box <b>] [--since 20h]
 //	          hub mode: append one box load + memory sample, or read the history (rdb 0117)
 //	fleet-load get
@@ -128,6 +130,7 @@ on a box (an agent's machine):
   lease               read, or compare-and-set (--holder --if-gen), a fleet-wide lease
   lane                list, or write (--agent ...), the fleet-wide lane map (who owns what)
   lifecycle           print the agent lifecycle config (config), or append one event (event --json)
+  memory              add or merge a lesson in the shared memory (add), read one (show), the titles (index)
   box-stats           append one box load + memory sample (put --json), or read the history (list)
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
@@ -267,6 +270,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdFleetLoad(cfg, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
+	case "memory": // spec 102 12
+		return cmdMemory(cfg, rest)
 	case "ask": // CLE-77929
 		return cmdAsk(cfg, rest)
 	case "claim": // spec 068 4.1

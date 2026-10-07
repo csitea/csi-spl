@@ -1,0 +1,6 @@
+Lay-What: The daily backup check can now run an extra check on its test copy of the data before throwing it away.
+Lay-How: The step that rebuilds the backup in a temporary place lets another check look at it while it still exists.
+Lay-Why: A new check of the topic summaries needs the restored copy, and it used to vanish before anything else could read it.
+Tech-What: spl_db_backup_restore_counts calls the function named by SPL_RESTORE_CHECK with the live restore container.
+Tech-How: Called after the per-table counts and before the RETURN trap removes the container; stdout to stderr, a failure returns its rc.
+Tech-Why: Spec 099 T007 verifies topic heads on the restored throwaway copy; the container was private to the function.

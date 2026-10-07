@@ -58,7 +58,7 @@ parallel with T002.
   - Two hooks: `topicHeadRead` and `headDiffEmpty`.
 - Results: `test-results.md`.
 
-### T001b More fixtures and controls (no product change)
+### T001b More fixtures and controls (DONE, `c613cb647`)
 
 - Files: `store/topic_head_harness_test.go`.
 - What it adds:
@@ -85,6 +85,11 @@ parallel with T002.
     - first parent under the door.
 - Test: green against today's walk, and each control is caught.
 - Depends on: nothing.
+- Result (Postgres 16, `c613cb647`, n=1 run): `TestTopicHeadCases` 44 cases
+  green; `TestTopicHeadReferenceControl` pages every shape, and all 8
+  controls are caught: tie-break ASC on E28 page 0, cursor ignores the task
+  on E28 page 1, card rule on E31, agent box on E32 (`agent=AGT-1@box-a`),
+  first parent on E33 (reader HUM-3, `parent=`).
 
 ### T001c The lab as a committed perf cell (DONE)
 

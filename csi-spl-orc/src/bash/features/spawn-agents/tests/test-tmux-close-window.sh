@@ -33,6 +33,10 @@
 #      agent that had exited on purpose); --rebirth writes lifetime/rebirth,
 #      drops a stale done, closes and retires nothing. Control: a role id
 #      (c-001) writes no done
+#  12. 2026-10-07 09:22:21Z: --agent c-002 --defer with the pane vars stripped
+#      (an outer sudo) while a NEWER c-002 window exists is refused and closes
+#      nothing, nor does a stale caller pane; --pane still works. Control: the
+#      script with that guard spliced out kills the fresh c-002
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -69,7 +73,7 @@ check "4. ... and nothing was closed" alive "$VICTIM"
 
 # --- 5. --defer --------------------------------------------------------------------------
 P8="$(t_window 'tbox: QWN-08 done' 'sleep 600')"
-bash "$SUT" --agent QWN-08 --defer --timeout 10 >"$T_TMP/o" 2>&1; eq "5. --defer returns 0 at once" 0 "$?"
+QWN_TMUX_PANE="$P8" bash "$SUT" --agent QWN-08 --defer --timeout 10 >"$T_TMP/o" 2>&1; eq "5. --defer returns 0 at once" 0 "$?"
 has "5. it names the scheduled target" "scheduled defer-close" "$(cat "$T_TMP/o")"
 for _ in $(seq 1 20); do alive "$P8" || break; sleep 0.5; done
 check "5. the deferred close lands" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$P8'"
@@ -134,11 +138,11 @@ in_agy_session() {  # run CMD... the way agy runs a command: own session, killed
   setsid -f -w bash -c '"$@"; kill -KILL -- -$$' _ "$@" >/dev/null 2>&1; return 0
 }
 P8B="$(t_window 'q-201@tbox' 'sleep 600')"
-in_agy_session env TCW_NO_SETSID=1 bash "$SUT" --agent q-201 --defer --timeout 4
+in_agy_session env TCW_NO_SETSID=1 QWN_TMUX_PANE="$P8B" bash "$SUT" --agent q-201 --defer --timeout 4
 sleep 5
 check "8. control: the in-session closer dies with agy's session (window stays)" alive "$P8B"
 P8C="$(t_window 'q-202@tbox' 'sleep 600')"
-in_agy_session bash "$SUT" --agent q-202 --defer --timeout 4
+in_agy_session env QWN_TMUX_PANE="$P8C" bash "$SUT" --agent q-202 --defer --timeout 4
 check "8. the detached closer survives the session kill and closes the window" wait_gone "$P8C" 20
 check "8. ... the victim survives" alive "$VICTIM"
 tmux -S "$SPOOL_TMUX_SOCKET" kill-pane -t "$P8B" 2>/dev/null
@@ -168,7 +172,7 @@ sleep 600
 FAKEPANE
 P9="$(t_window 'a-301@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-301")"
 sleep 1
-in_agy_session bash "$SUT" --agent a-301 --defer --timeout 60
+in_agy_session env AGY_TMUX_PANE="$P9" bash "$SUT" --agent a-301 --defer --timeout 60
 check "9. the agy window closes well before the 60 s timeout" wait_gone "$P9" 30
 has "9. agy got /exit typed and left by itself" "AGY-EXITED" "$(cat "$T_TMP/got-301" 2>/dev/null)"
 has "9. the log names the /exit it typed" "typing /exit" "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null)"
@@ -180,23 +184,23 @@ check "10. control: an idle agy with no closer scheduled stays" alive "$P10"
 eq "10. control: ... and nothing was typed into it" "" "$(cat "$T_TMP/got-302" 2>/dev/null)"
 P10B="$(t_window 'a-303@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-303 busy")"
 sleep 1
-in_agy_session bash "$SUT" --agent a-303 --defer --timeout 5
+in_agy_session env AGY_TMUX_PANE="$P10B" bash "$SUT" --agent a-303 --defer --timeout 5
 check "10. a busy agy is closed only by the timeout" wait_gone "$P10B" 30
 eq "10. control: ... and never got /exit while busy" "" "$(cat "$T_TMP/got-303" 2>/dev/null)"
 P10C="$(t_window 'a-304@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-304 paused")"
 sleep 1
-in_agy_session bash "$SUT" --agent a-304 --defer --timeout 6
+in_agy_session env AGY_TMUX_PANE="$P10C" bash "$SUT" --agent a-304 --defer --timeout 6
 check "10. an agy paused mid-turn is closed only by the timeout" wait_gone "$P10C" 30
 eq "10. control: ... and never got /exit on a static mid-turn screen" "" "$(cat "$T_TMP/got-304" 2>/dev/null)"
 check "10. the idle agy without a closer is still there" alive "$P10"
 
 # --- 11. the lifetime markers (specs/102 4.3) --------------------------------------------------
 for h in claude grok agy; do ln -sf "$(command -v sleep)" "$T_TMP/bin/$h"; done
-for hid in claude:c-411 grok:g-412 agy:a-413; do
-  h="${hid%%:*}" id="${hid#*:}"
+for hid in claude:c-411:CLE grok:g-412:GRK agy:a-413:AGY; do
+  h="${hid%%:*}" id="${hid#*:}" pfx="${hid##*:}"; id="${id%:*}"
   P="$(t_window "$id@tbox" "$T_TMP/bin/$h 600")"
   sleep 0.5
-  bash "$SUT" --agent "$id" --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. $h: --defer returns 0" 0 "$?"
+  env "${pfx}_TMUX_PANE=$P" bash "$SUT" --agent "$id" --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. $h: --defer returns 0" 0 "$?"
   check "11. $h: lifetime/done is written before the $h process ends (it still runs)" bash -c "test -s '$SPOOL_ROOT/$id/lifetime/done' && tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id} #{pane_current_command}' | grep -qx '$P $h'"
 done
 P11="$(t_window 'c-414@tbox' 'sleep 600')"
@@ -207,7 +211,34 @@ check "11. --rebirth drops a stale done" test ! -e "$SPOOL_ROOT/c-414/lifetime/d
 sleep 2
 check "11. --rebirth closes nothing: the window stays" alive "$P11"
 hasnt "11. --rebirth schedules no close" "scheduled defer-close" "$(cat "$T_TMP/o")"
-t_window 'c-001@tbox' 'sleep 600' >/dev/null
-bash "$SUT" --agent c-001 --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. control: a role id's --defer returns 0" 0 "$?"
+P11R="$(t_window 'c-001@tbox' 'sleep 600')"
+CLE_TMUX_PANE="$P11R" bash "$SUT" --agent c-001 --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. control: a role id's --defer returns 0" 0 "$?"
 check "11. control: a role id writes no done (its successor keeps the id)" test ! -e "$SPOOL_ROOT/c-001/lifetime/done"
+
+# --- 12. a rotation's deferred close never kills the fresh seat (2026-10-07 09:22:21Z) ----
+# The old c-002 ran `sudo -u <owner> bash tmux-close-window.sh --agent c-002
+# --defer`: sudo strips the pane vars (the suite unset them at the top), so
+# --agent resolved to the NEW c-002 and the closer killed it at its timeout.
+NEW12="$(t_window 'c-002@tbox' 'sleep 600')"
+printf 'c-002\tclaude\t%s\t/x\t20261007T092100Z\n' "$NEW12" >>"$SPOOL_ROOT/registry.tsv"  # the fresh seat's spawn row
+OLD12="$(t_window 'c-002-0921Z-retiring' 'sleep 600')"
+bash "$SUT" --agent c-002 --defer --timeout 2 >"$T_TMP/o" 2>&1; eq "12. --defer by id with no caller pane is refused (3)" 3 "$?"
+has "12. ... and says why" "without the caller's own live pane" "$(cat "$T_TMP/o")"
+hasnt "12. ... and schedules nothing" "scheduled defer-close" "$(cat "$T_TMP/o")"
+CLE_TMUX_PANE=%99999 bash "$SUT" --agent c-002 --defer --timeout 2 >"$T_TMP/o" 2>&1; eq "12. a stale caller pane proves nothing either (3)" 3 "$?"
+sleep 5
+check "12. the fresh c-002 survives past the timeout" alive "$NEW12"
+check "12. ... and so does the retiring one (closed nothing)" alive "$OLD12"
+bash "$SUT" --pane "$OLD12" --defer --timeout 2 >"$T_TMP/o" 2>&1; eq "12. --pane is the sudo-proof --defer (0)" 0 "$?"
+check "12. ... it closes the retiring window" wait_gone "$OLD12" 20
+check "12. ... and the fresh c-002 survives" alive "$NEW12"
+# Control: the same script with the guard spliced out kills the fresh seat.
+mkdir -p "$T_TMP/pre/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre/lib"
+awk '/^# A --defer is a self-teardown/ { skip = 1 } skip { if (/^fi$/) skip = 0; next } { print }' "$SUT" >"$T_TMP/pre/scripts/tmux-close-window.sh"
+hasnt "12. control: the guard is spliced out" "without the caller's own live pane" "$(cat "$T_TMP/pre/scripts/tmux-close-window.sh")"
+OLD12B="$(t_window 'c-002-1021Z-retiring' 'sleep 600')"
+has "12. control: the old code resolves --agent c-002 to the fresh seat" "pane=$NEW12 " "$(bash "$T_TMP/pre/scripts/tmux-close-window.sh" --agent c-002 --defer --dry-run 2>&1)"
+bash "$T_TMP/pre/scripts/tmux-close-window.sh" --agent c-002 --defer --timeout 2 >"$T_TMP/o" 2>&1; eq "12. control: the old code schedules the close (0)" 0 "$?"
+check "12. control: the old code kills the FRESH c-002" wait_gone "$NEW12" 20
+check "12. control: ... and leaves the retiring window open" alive "$OLD12B"
 t_done

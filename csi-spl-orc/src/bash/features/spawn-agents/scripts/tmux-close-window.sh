@@ -42,6 +42,8 @@
 # (e.g. an agent running as $SPOOL_AGENT_USER) we transparently `sudo -u $BOX_USER`. Because THIS script self-elevates only
 # its tmux calls, callers must invoke it WITHOUT an outer sudo, so that the
 # pane/agent env vars above are still visible. Better still: pass --agent.
+# A --defer (self-teardown) resolved by an agent id is REFUSED without the
+# caller's own live pane: after a role rotation the id names the NEW seat.
 #
 # Never SIGKILL agent binaries; --defer waits for claude|grok|agy|qwen to leave the
 # pane, then kill-window.
@@ -109,7 +111,9 @@ Options:
   --agent ID         Agent id (CLE-07 / GRK-2 / AGY-03 / QWN-01). Resolved via
                      $SPOOL_ROOT/registry.tsv and the tmux window names; the
                      resolved window MUST carry that id or the run is refused.
-                     THIS IS THE ONLY FORM THAT SURVIVES A sudo HOP.
+                     THIS IS THE ONLY FORM THAT SURVIVES A sudo HOP, for an
+                     immediate close: with --defer it also needs the caller's
+                     own live pane ($TMUX_PANE / $CLE_TMUX_PANE ...) or --pane.
   --pane %N          Explicit tmux pane id. Verified to exist.
   --defer            Fork a background closer that waits for claude|grok|agy|qwen in
                      the resolved pane to exit (or --timeout), then kill-window.
@@ -340,6 +344,8 @@ resolve_pane_for_agent() {
 PANE=""
 SOURCE=""
 AGENT_ID=""
+# The caller's own pane: the env vars only, never a lookup (sudo strips them).
+_caller="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-}}}}}"
 
 if [[ -n "$AGENT_ARG" ]]; then
   if ! AGENT_ID="$(norm_id "$AGENT_ARG")"; then
@@ -369,7 +375,6 @@ elif [[ -n "$AGENT_ARG" ]]; then
   # id (its own pane, $TMUX_PANE / $CLE_TMUX_PANE ...) closes ITS window.
   # A --defer (the self-teardown of /exit-clean) whose own pane is a
   # different window is refused: it would close another session's window.
-  _caller="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-}}}}}"
   if [[ -n "$_caller" && "$_caller" != "$PANE" ]] && pane_exists "$_caller"; then
     _cname="$(pane_window_name "$_caller")"
     if [[ "$_cname" =~ ^${AGENT_ID}-[0-9]{4}Z-retiring ]]; then
@@ -414,6 +419,22 @@ tmux-close-window: REFUSED — cannot prove which window to close; closed nothin
 
       tmux-close-window.sh --agent CLE-07 --defer
 EOF
+  exit 3
+fi
+
+# A --defer is a self-teardown: it closes the CALLER's window once the caller
+# has exited. An agent id alone does not prove which window that is: --agent
+# finds the NEWEST window of the id, and after a role rotation (spec 060) that
+# is the fresh seat. 2026-10-07 09:22:21Z on a desk box: the old c-002 ran this under
+# `sudo -u <owner>`, which stripped its pane vars, so the retiring-window
+# check above never ran; --agent c-002 resolved to the NEW c-002 and the
+# deferred close killed it at its timeout. So a --defer resolved by id needs
+# the caller's live pane as well, or it closes nothing.
+if [[ "$DEFER" -eq 1 && "$REBIRTH" -eq 0 && -z "$PANE_ARG" && -z "$TARGET_ARG" ]] &&
+   ! { [[ -n "$_caller" ]] && pane_exists "$_caller"; }; then
+  echo "tmux-close-window: REFUSED — --defer via ${SOURCE:-an agent id} without the caller's own live pane" >&2
+  echo "                   (\$TMUX_PANE / \$CLE_TMUX_PANE ... are ${_caller:-unset}${_caller:+, not live}; an outer sudo strips them) or --pane;" >&2
+  echo "                   an id may name a newer window than yours; closed nothing" >&2
   exit 3
 fi
 

@@ -55,6 +55,9 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/agent-send.sh --from <YOU
 ## 3. Schedule the window close, then exit
 
 Pass YOUR OWN id; the helper refuses any window that does not carry it.
+Run it with NO outer `sudo`: `--defer` also needs your own pane
+(`$CLE_TMUX_PANE` ...), which sudo strips, and without it the helper refuses
+and closes nothing (an id alone may name your rotation successor's window).
 `--retire` then retires the id once the window is gone (specs/061 3.6): your
 spool dir, registry row and identity record move aside, so the number can be
 handed out again after a 24 h quarantine. A role id (001-003) is never retired.
@@ -78,9 +81,10 @@ Then end your turn: your last message is the one-line report, nothing after it.
 
 `/exit` is a built-in CLI command, not a tool: you cannot run it, and asking
 the human to type it is wrong. Whoever invoked `/exit-clean` ends the session
-once your turn is over: the hourly rotation's RETIRE step types `/exit` into
-this pane when it reads idle (and closes the window itself, so a retiring
-session whose successor carries the same id skips the close above), and the
+once your turn is over: the hourly rotation's RETIRE step sends
+`/exit-clean no-close` and types `/exit` into this pane when it reads idle
+(it closes the window itself: a retiring session whose successor carries the
+same id never schedules the close above), and the
 deferred close kills the window after its timeout. On agy the closer types
 `/exit` itself once agy sits idle at an empty `>` prompt, so agy leaves with
 status 0 and the window closes then; it runs detached, so agy ending your

@@ -7,7 +7,8 @@
 # @description (same inbox, same asks, same lease) and the old one ends.
 # @description Mechanical (FR-001): no step calls a model; the new session only
 # @description reads its handoff and runs the ack command. ROTATE_CMD picks:
-# @description   auto    - the gates (FR-010: switch, LEASE_ORCH, this machine
+# @description   auto    - the gates (FR-010: the id lock of spec 102 4.2,
+# @description             held = exit 4; switch, LEASE_ORCH, this machine
 # @description             holds the orch lease, boot grace, exactly ONE live
 # @description             process, older than ROTATE_MIN_AGE, not stalled),
 # @description             then QUIESCE (idle grace, Escape: a busy session is
@@ -61,6 +62,12 @@ spl_orch_rotate_auto() {
   rid="$(spl_rotate_new_rid orch)"
   exec 7>> "$LEASE_DIR/rotate.orch.lock"
   flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
+  # spec 102 4.2: the id lock, so no takeover, lane restart or restore acts
+  # on the orchestrator while it rotates (the ack and abort take none: they
+  # run inside a rotation)
+  local idl=0
+  spl_agent_id_lock "$id" do_spl_orch_rotate "$rid" || idl=$?
+  (( idl == 0 )) || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$idl"; }
   # a rotation left mid-way is resumed or failed first (FR-003)
   if spl_rotate_ctx_load orch && [[ -n "$ROTATE_PHASE" && "$ROTATE_PHASE" != DONE && "$ROTATE_PHASE" != FAIL && "$ROTATE_PHASE" != ABORT ]]; then
     if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi

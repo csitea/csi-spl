@@ -15,6 +15,11 @@
 #           reaper that saw it dead ($SPOOL_ROOT/.reap/dead-since.tsv).
 #   reaped  dead for SPOOL_ID_REAP_H hours or more: agent-id-retire.sh <ID>
 #           (with --apply only under --apply / DRY_RUN=0).
+#   skipped an id the watchdog holds out (<spool root>/dispatch/wd/<ID>.heldout:
+#           its restarts wait for the admin, spec 102 6.1), or whose id lock
+#           (spec 102 4.2) another actor holds. The reaper holds each id lock
+#           it retires under until it exits; a retire is one rotate.log line
+#           (run id <ts>-reap-<ID>).
 #
 # Never on a blind view: when tmux cannot be asked, nothing is decided. When
 # the previous tick is older than SPOOL_ID_REAP_GAP_MIN (default 60) minutes -
@@ -40,6 +45,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 spool_env_resolve
 # shellcheck source=../lib/agent-identity.inc.sh
 . "$_here/../lib/agent-identity.inc.sh"
+# shellcheck source=../../../run/spl-rotate-lib.func.sh
+declare -F spl_agent_id_lock >/dev/null || . "$_here/../../../run/spl-rotate-lib.func.sh"
 
 APPLY=0
 [ "${DRY_RUN:-1}" = 0 ] && APPLY=1
@@ -105,6 +112,7 @@ done
 
 declare -A keep=()
 nreap=0
+HELD="${WD_STATE_DIR:-$R/dispatch/wd}"
 say "START reap (${mode}): ${#cand[@]} id(s), reaped after ${REAP_H} h dead"
 for id in $(printf '%s\n' "${!cand[@]}" | sort); do
   case "${id#*-}" in 1|01|001|2|02|002|3|03|003) continue ;; esac
@@ -128,12 +136,24 @@ for id in $(printf '%s\n' "${!cand[@]}" | sort); do
     say "KEEP ${id}: dead $((age / 60)) min (< ${REAP_H} h; ${src})"
     continue
   fi
+  if [ -e "$HELD/$id.heldout" ]; then
+    say "SKIP ${id}: dead $((age / 3600)) h, but the watchdog holds it out ($HELD/$id.heldout)"
+    continue
+  fi
+  # the id lock: a dry run takes it only where a lifetime dir exists (any
+  # holder made one), so it creates no spool dir for an id that has none
+  rid="$(date -u -d "$NOW" +%Y%m%dT%H%M%SZ)-reap-$id"
+  if { [ "$APPLY" = 1 ] || [ -d "$R/$id/lifetime" ]; } && ! spl_agent_id_lock "$id" do_spl_agent_id_reap "$rid"; then
+    say "SKIP ${id}: dead $((age / 3600)) h, but ${SPL_ID_LOCK_WHY}"
+    continue
+  fi
   args=(); [ "$APPLY" = 1 ] && args=(--apply)
   out="$(bash "$_here/agent-id-retire.sh" "${args[@]}" "$id" 2>&1)"; rc=$?
   if [ "$rc" = 0 ]; then
     say "${VERB} ${id}: dead $((age / 3600)) h (>= ${REAP_H} h; ${src})"
     printf '%s\n' "$out" | sed "s/^/${NOW}   /"
     nreap=$((nreap + 1))
+    [ "$APPLY" = 1 ] && echo "$(date -u +%FT%TZ) $rid DONE OK retired by the reaper: dead $((age / 3600)) h (${src})" 2>/dev/null >>"$R/dispatch/rotate.log"
     [ "$APPLY" = 1 ] && unset "keep[$id]"
   else
     say "SKIP ${id}: dead $((age / 3600)) h, but agent-id-retire refused (rc ${rc}): $(printf '%s' "$out" | tail -1)"

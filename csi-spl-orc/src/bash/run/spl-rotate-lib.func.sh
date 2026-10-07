@@ -7,6 +7,7 @@
 #
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
 #   spl_rotate_log RID PHASE RESULT DETAIL  one rotate.log line + the .state file (FR-002)
+#   spl_agent_id_lock ID [ACTOR] [RID] [WAIT] the id lock of every start/stop actor (spec 102 4.2), 4 when held
 #   spl_rotate_quiesce PANE                 grace, Escape, re-wait; prints idle|interrupted|busy-rotated (FR-011)
 #   spl_rotate_handoff ROLE ID RID OUT      the handoff file, spec section 6 (FR-012, FR-025)
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
@@ -108,6 +109,68 @@ spl_rotate_log() {
   printf '%s %s %s\n' "$rid" "$phase" "$(date +%s)" > "$LEASE_DIR/rotate.$(spl_rotate_family "${rid##*-}").state.tmp.$$" &&
     mv -f "$LEASE_DIR/rotate.$(spl_rotate_family "${rid##*-}").state.tmp.$$" "$LEASE_DIR/rotate.$(spl_rotate_family "${rid##*-}").state"
   return 0
+}
+
+# ---- the id lock (spec 102 section 4.2) ----------------------------------------
+
+# spl_agent_id_lock ID [ACTOR] [RID] [WAIT]: the one lock every actor that
+# starts or stops a session of ID takes for its whole run (the takeover, the
+# lane restart, both rotations, the peer restart, the identity restore, the
+# reaper): flock on <spool root>/<id>/lifetime/restart.lock, held by a holder
+# process (flock -o ... tail --pid) that ends within 0.2 s of the calling
+# shell. Not an fd of the caller: a tmux server or any other child the actor
+# starts would inherit that and hold the id for ever. 0 = held, also when
+# this shell already holds it; 4 = another actor holds it (WAIT seconds,
+# default 0 = flock -n): SPL_ID_LOCK_WHY names the holder
+# (lifetime/restart.holder) and one IDLOCK REFUSED line goes to rotate.log
+# under a run id of its own (<ts>-idlock), so it never reads as the end of
+# the holder's run in spl_wd_rotating; 1 = the lock cannot be taken. Needs
+# nothing but SPOOL_ROOT, so a script outside ./run sources it too. Never
+# call it in $( ): the lock would end with the subshell.
+spl_agent_id_lock() {
+  local id="$1" actor="${2:-${FUNCNAME[1]:-?}}" rid="${3:--}" wait="${4:-0}" dir lock tok hp t0 rc held mode=-n me="$BASHPID"
+  SPL_ID_LOCK_WHY=""
+  [[ "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { SPL_ID_LOCK_WHY="not an agent id: '$id'"; return 1; }
+  [[ "$wait" =~ ^[0-9]+$ ]] || { SPL_ID_LOCK_WHY="WAIT must be whole seconds, got '$wait'"; return 1; }
+  dir="${SPOOL_ROOT:-/var/spool-hub}/$id/lifetime"
+  lock="$dir/restart.lock"
+  hp="$(sed -n "s/.* $id:\([0-9][0-9]*\) .*/\1/p" <<<" ${SPL_ID_LOCKS:-} ")"
+  if [[ -n "$hp" ]] && kill -0 "$hp" 2>/dev/null; then return 0; fi
+  if ! { [[ -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null; } ||
+     ! { [[ -e "$lock" ]] || ( umask 0002; : >> "$lock" ) 2>/dev/null; } || [[ ! -w "$lock" ]]; then
+    SPL_ID_LOCK_WHY="cannot open $lock"; return 1
+  fi
+  tok="$me.$RANDOM.$SECONDS"
+  [[ "$wait" == 0 ]] || mode="-w$wait"
+  # the holder: closes every inherited fd it may keep (stdout of a $( ), the
+  # callers' 6..9 locks), writes restart.holder once it has the lock
+  flock "$mode" -o -E 4 "$lock" bash -c 'printf "%s\n" "$2" > "$3"; exec tail --pid="$1" -s 0.2 -f /dev/null' \
+    _ "$me" "$actor $rid pid $me since $(date -u +%FT%TZ) [$tok]" "$dir/restart.holder" \
+    </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
+  hp=$!
+  t0=$SECONDS
+  while (( SECONDS - t0 < wait + 5 )); do
+    if grep -qF "[$tok]" "$dir/restart.holder" 2>/dev/null; then SPL_ID_LOCKS="${SPL_ID_LOCKS:-} $id:$hp "; return 0; fi
+    if ! kill -0 "$hp" 2>/dev/null; then
+      rc=0; wait "$hp" 2>/dev/null || rc=$?
+      if (( rc != 4 )); then SPL_ID_LOCK_WHY="flock on $lock exited $rc"; return 1; fi
+      held="$(head -c 300 "$dir/restart.holder" 2>/dev/null | sed 's/ \[[^]]*\]$//' || true)"
+      # the actor that holds it has ended and its holder follows within
+      # 0.2 s: one more try, waiting a second
+      if [[ "$mode" == -n && "$held" =~ \ pid\ ([0-9]+)\  ]] && ! kill -0 "${BASH_REMATCH[1]}" 2>/dev/null; then
+        spl_agent_id_lock "$id" "$actor" "$rid" 1; return
+      fi
+      SPL_ID_LOCK_WHY="the id lock of $id is held by ${held:-another actor}"
+      printf '%s %s IDLOCK REFUSED %s: %s (%s) refused, held by %s\n' "$(date -u +%FT%TZ)" "$(date -u +%Y%m%dT%H%M%SZ)-idlock" \
+        "$id" "$actor" "$rid" "${held:-another actor}" >> "${ROTATE_LOG:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/rotate.log}" 2>/dev/null || true
+      return 4
+    fi
+    sleep 0.05
+  done
+  kill "$hp" 2>/dev/null || true
+  # shellcheck disable=SC2034 # read by the callers
+  SPL_ID_LOCK_WHY="the holder of $lock did not report within $((wait + 5))s"
+  return 1
 }
 
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.

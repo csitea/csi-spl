@@ -6,7 +6,9 @@
 # @description functions) with another trigger and shorter waits:
 # @description   GATE    - the 6.2 guards (human hold or activity, rotation,
 # @description             grace, held out), one takeover per box at a time
-# @description             (peer/restart.lock), no duplicate sessions, the
+# @description             (peer/restart.lock), the id lock of spec 102 4.2
+# @description             (<spool root>/<id>/lifetime/restart.lock, held by
+# @description             another actor = exit 4), no duplicate sessions, the
 # @description             6.3 limit (WD_TAKEOVER_MAX per id per hour: past
 # @description             it the id is held out and the owner gets ONE DM),
 # @description             and the situations RE-RUN: no S1/S3/S4/S5 hit =
@@ -77,6 +79,9 @@ do_spl_wd_takeover() {
   mkdir -p "$PEER_DIR" || { do_log "FATAL cannot create $PEER_DIR"; return 1; }
   exec 6>> "$PEER_DIR/restart.lock"
   flock -n 6 || { spl_wdt_refuse "$id" 4 "another restart or takeover runs on this box (peer/restart.lock)"; return; }
+  local idl=0
+  spl_agent_id_lock "$id" do_spl_wd_takeover "$ts-wd-$id" || idl=$?
+  (( idl == 0 )) || { spl_wdt_refuse "$id" "$idl" "id lock (spec 102 4.2): $SPL_ID_LOCK_WHY"; return; }
   spl_wdt_gate "$id" "$reason" "$now" || return
   spl_wdt_run "$id" "$ts-wd-$id" "$ts" "$now"
 }

@@ -9,8 +9,9 @@
 # @description per step in <spool root>/dispatch/rotate.log, the phase in
 # @description rotate.dispatch.state / .ctx (resumable, FR-003). The shared
 # @description pieces are spl-rotate-lib.func.sh (CLE-77939).
-# @description   GATE     switch, lease.conf, this machine holds the dispatch
-# @description            lease (FR-044), boot grace, the last rotation and
+# @description   GATE     the id locks of both ids (spec 102 4.2; held =
+# @description            exit 4, also for heal), switch, lease.conf, this
+# @description            machine holds the dispatch lease (FR-044), boot grace, the last rotation and
 # @description            the master at least ROTATE_MIN_AGE old, no orch
 # @description            rotation in flight (FR-051), not stalled (FR-022)
 # @description   HEAL     a dispatcher with no live process is spawned by
@@ -88,6 +89,7 @@ spl_disp_rotate_auto() {
   rid="$(spl_rotate_new_rid master)"
   exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
+  spl_disp_id_locks "$rid" || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
   if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
     if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
     spl_disp_rotate_resume || return 1
@@ -200,6 +202,7 @@ spl_disp_heal_only() {
     { do_log "FATAL ROTATE_HEAL must be 0 or 1 and ROTATE_HEAL_CONFIRM whole seconds"; return 1; }
   exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_disp_heal_say "$rid" "locked: a rotation or a heal is running"; return 0; }
+  spl_disp_id_locks "$rid" || { spl_disp_heal_say "$rid" "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
   [[ "$ROTATE_HEAL" == 1 ]] || { spl_disp_heal_say "$rid" "disabled (ROTATE_HEAL=0)"; return 0; }
   if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
     spl_disp_heal_say "$rid" "rotation $ROTATE_RID in flight at $ROTATE_PHASE"; return 0
@@ -222,6 +225,21 @@ spl_disp_heal_only() {
 spl_disp_heal_count() {
   nm="$(spl_rotate_pids "$LEASE_MASTER" | grep -c . || true)"
   nf="$(spl_rotate_pids "$LEASE_FAILOVER" | grep -c . || true)"
+}
+
+# spl_disp_id_locks RID: the id locks of spec 102 4.2 on BOTH dispatchers (a
+# rotation restarts the master and refreshes the failover; a heal starts
+# either), so no takeover, lane restart or restore acts on one meanwhile. The
+# ack and abort take none: they run inside a rotation. Non-zero: DISP_IDL is
+# the exit code (4 held, 1 broken), SPL_ID_LOCK_WHY the reason.
+spl_disp_id_locks() {
+  local id
+  DISP_IDL=0
+  for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
+    spl_agent_id_lock "$id" do_spl_dispatch_rotate "$1" || DISP_IDL=$?
+    (( DISP_IDL == 0 )) || return 1
+  done
+  return 0
 }
 
 # A heal run with nothing to do: stdout (the cron's log), not rotate.log.

@@ -8,7 +8,8 @@
 # @description i.e. seat 001 at M, 002 at M+15, 003 at M+30, 004 at M+45.
 # @description Mechanical, no model call. On this box, one seat at a time:
 # @description   GATE    - the seat is in <spool root>/peer/seats, one live
-# @description             session at most (none: a fresh one is started)
+# @description             session at most (none: a fresh one is started),
+# @description             the seat's id lock (spec 102 4.2; held = exit 4)
 # @description   LOOP    - stop its poll loop (its locks stay: the hub names
 # @description             the SEAT as responsible, not the session)
 # @description   HANDOFF - the 060 handoff file minus its lease lines, in
@@ -162,6 +163,11 @@ spl_peer_restart_seat() {
   mkdir -p "$PEER_DIR" || { do_log "FATAL cannot create $PEER_DIR"; return 1; }
   exec 6>> "$PEER_DIR/restart.lock"
   flock -n 6 || { spl_peer_rlog "$rid" GATE SKIP "another seat restart runs on this box"; return 0; }
+  # spec 102 4.2: the id lock. Refused: stdout only, not rotate.log, where a
+  # line under this run id would read as the end of the holder's run
+  local idl=0
+  spl_agent_id_lock "$id" do_spl_peer_restart "$rid" || idl=$?
+  (( idl == 0 )) || { echo "$(date -u +%FT%TZ) $rid GATE REFUSED id lock: $SPL_ID_LOCK_WHY"; return "$idl"; }
   mapfile -t pids < <(spl_peer_pids "$id")
   if (( ${#pids[@]} > 1 )); then
     spl_peer_rlog "$rid" GATE SKIP "duplicate: ${#pids[@]} live processes carry $id (pids ${pids[*]})"; return 0

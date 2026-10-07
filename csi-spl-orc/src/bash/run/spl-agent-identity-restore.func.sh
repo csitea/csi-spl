@@ -26,6 +26,10 @@
 # @description then the windows are named from the map (reconcile) and the
 # @description map is checked. Each window and claude --name is "<ID>@<tag>"
 # @description (specs/058): the tag from SPOOL_BOX_TAG, BOX_TAG, else box.env.
+# @description Each start holds the agent's id lock (spec 102 4.2,
+# @description <spool root>/<id>/lifetime/restart.lock) until the run ends:
+# @description an id another actor holds is REFUSED; a start and its outcome
+# @description are logged to rotate.log (run id <ts>-restore-<id>).
 # @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP).
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied
@@ -43,6 +47,9 @@
 # @example DRY_RUN=0 ./run -a do_spl_agent_identity_restore
 # @example IDENTITY_RESTORE_IDS="CLE-07" DRY_RUN=0 ./run -a do_spl_agent_identity_restore
 #------------------------------------------------------------------------------
+declare -F spl_agent_id_lock >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
+
 do_spl_agent_identity_restore() {
   local dry="${DRY_RUN:-1}" since="${IDENTITY_RESTORE_SINCE:-}" pause="${IDENTITY_RESTORE_PAUSE:-5}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
@@ -62,7 +69,7 @@ do_spl_agent_identity_restore() {
     since="$(date -u -d "@$(awk '/^btime/{print $2}' /proc/stat)" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   fi
   until="$(date -u -d "$since + $win minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
-  local plan line kind id user sid wt sess title from adapter brief pane reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+  local plan line kind id user sid wt sess title from adapter brief pane rid reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
   local n=0 refused=0 failed=0 now started=() tag
   # The box tag, resolved ONCE before any window exists: each agent comes back
   # as "<ID>@<tag>" (specs/058), its window and its CLI --name alike. An
@@ -81,7 +88,11 @@ do_spl_agent_identity_restore() {
         sess="${sess:-${IDENTITY_RESTORE_SESSION:-main}}"
         adapter="${IDENTITY_RESTORE_ADAPTER_DIR:-$feat/scripts}/restore-$kind.sh"
         brief="${SPOOL_ROOT:-/var/spool-hub}/$id/brief.md"; [[ -f "$brief" ]] || brief=""
+        rid="$(date -u +%Y%m%dT%H%M%SZ)-restore-$id"
         if [[ "$dry" == 1 ]]; then
+          if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
+            echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
+          fi
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
           echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, new window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}' in '$sess'"
           continue
@@ -91,13 +102,21 @@ do_spl_agent_identity_restore() {
         fi
         [[ -x "$adapter" || -r "$adapter" ]] || { echo "FAILED  $id: no adapter $adapter"; failed=$((failed + 1)); continue; }
         ai_tmux has-session -t "=$sess" 2>/dev/null || ai_tmux new-session -d -s "$sess" 2>/dev/null
+        if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
+          echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
+        fi
+        _ai_rlog "$rid" RESTORE START "$kind session $sid in $wt"
         pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
           "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"
-        if [[ -z "$pane" ]]; then echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1)); continue; fi
+        if [[ -z "$pane" ]]; then
+          echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1))
+          _ai_rlog "$rid" FAIL FAIL "tmux new-window printed no pane"; continue
+        fi
         now="$(date -u +%Y%m%dT%H%M%SZ)"
         printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$reg" 2>/dev/null
         [[ -n "${IDENTITY_LEGACY_REGISTRY:-}" ]] && printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$IDENTITY_LEGACY_REGISTRY" 2>/dev/null
         echo "STARTED $id: $kind session $sid in $wt [$pane]"; started+=("$id")
+        _ai_rlog "$rid" DONE OK "$kind session $sid in $wt [$pane]"
         n=$((n + 1))
         (( pause > 0 )) && sleep "$pause"
         ;;
@@ -113,6 +132,12 @@ do_spl_agent_identity_restore() {
     failed=$((failed + 1))
   fi
   (( failed == 0 ))
+}
+
+# One rotate.log line under the restore's run id (<ts>-restore-<id>), so
+# spl_wd_rotating sees the start in flight until its DONE / FAIL line.
+_ai_rlog() {  # RID PHASE RESULT DETAIL
+  echo "$(date -u +%FT%TZ) $1 $2 $3 ${4:-}" >> "${ROTATE_LOG:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/rotate.log}" 2>/dev/null || true
 }
 
 _ai_home() {  # USER

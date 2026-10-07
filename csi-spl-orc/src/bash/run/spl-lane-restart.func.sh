@@ -24,7 +24,11 @@
 # @description   process and respawns once more from the distil; either way a
 # @description   note to the orchestrator. A lane running this on itself is detached
 # @description   first (setsid), since respawn-pane -k ends its own process.
-# @description One line per step to stdout and <spool root>/dispatch/lane-restart.log;
+# @description The whole run holds the id lock of spec 102 4.2
+# @description (<spool root>/<id>/lifetime/restart.lock): held by another
+# @description actor = refused, exit 4.
+# @description One line per step to stdout, <spool root>/dispatch/lane-restart.log
+# @description and rotate.log (a dry run: one final DONE PLAN line there);
 # @description one do_spl_lifecycle_event per step when that action exists
 # @description (LIFECYCLE_EVENTS=0 turns it off). Dry run unless DRY_RUN=0.
 # @param ID (required) - the lane id, e.g. c-050
@@ -51,10 +55,15 @@ do_spl_lane_restart() {
   LANE_RESTART_LOG="$LEASE_DIR/lane-restart.log"
   [[ -z "${SEAT_FAIL_ACTION:-}" || "$SEAT_FAIL_ACTION" =~ ^(compact|respawn)$ ]] ||
     { do_log "FATAL SEAT_FAIL_ACTION must be compact or respawn"; return 1; }
-  # the detached second half of a lane restarting itself
-  if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then spl_lane_restart_spawn; return; fi
+  # the detached second half of a lane restarting itself: it takes the id
+  # lock over from the first half, which ends right after starting it
+  if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then
+    spl_lane_restart_id_lock "$ID" "$LANE_RESTART_RID" 15 || return
+    spl_lane_restart_spawn; return
+  fi
   local rid id="$ID" wt pid pane task brief split n tr ctx
   rid="$(date -u +%Y%m%dT%H%M%SZ)-$id"
+  spl_lane_restart_id_lock "$id" "$rid" || return
   pid="$(spl_rotate_pids "$id" | sed -n 1p)"
   [[ -n "$pid" ]] || { spl_lane_restart_log "$rid" GATE FAIL "no live claude carries $id"; return 1; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
@@ -91,6 +100,9 @@ do_spl_lane_restart() {
     spl_lane_restart_log "$rid" SPAWN PLAN "respawn-pane -k -t $pane as ${SPOOL_AGENT_USER:-?}, never --resume: $(spl_lane_restart_seed)"
     spl_lane_restart_log "$rid" HUMAN PLAN "no claude of ${SPOOL_BOX_USER:-?}"
     ROTATE_OLD_PANE="$pane" spl_lane_restart_distil "$id" "$rid" "$task" "$brief" "$wt" "$tr" "$ctx" -
+    # the one line a dry run leaves in rotate.log: final, so spl_wd_rotating
+    # reads no restart in flight
+    echo "$(date -u +%FT%TZ) $rid DONE PLAN dry run of do_spl_lane_restart: the id lock was free, nothing touched" >> "$ROTATE_LOG" 2>/dev/null || true
     return 0
   fi
   if ! { [[ -d "$ROTATE_HOLD_DIR/$task" ]] || mkdir -p "$ROTATE_HOLD_DIR/$task"; }; then
@@ -282,14 +294,32 @@ spl_lane_restart_split_at() {
   echo "$v"
 }
 
-# ---- the log and the events --------------------------------------------------------
+# ---- the id lock, the log and the events ---------------------------------------------
 
+# spl_lane_restart_id_lock ID RID [WAIT]: the id lock of spec 102 4.2, held
+# for the whole run (and by the detached second half). Refused: the reason on stdout
+# and in lane-restart.log, NOT in rotate.log under RID: a FAIL line there
+# would read as the end of the holder's run (spl_wd_rotating); the lock wrote
+# its own IDLOCK line. Non-zero is the exit code: 4 held, 1 broken.
+spl_lane_restart_id_lock() {
+  local rc=0 line
+  spl_agent_id_lock "$1" do_spl_lane_restart "$2" "${3:-0}" || rc=$?
+  (( rc == 0 )) && return 0
+  line="$(date -u +%FT%TZ) $2 GATE REFUSED id lock (spec 102 4.2): $SPL_ID_LOCK_WHY"
+  printf '%s\n' "$line"
+  [[ "${DRY_RUN:-1}" == 1 ]] || echo "$line" >> "$LANE_RESTART_LOG" 2>/dev/null || true
+  return "$rc"
+}
+
+# One line to stdout and, in a run, to lane-restart.log and rotate.log: the
+# run id ends in -<id>, so spl_wd_rotating sees a lane restart in flight.
 spl_lane_restart_log() {
   local line
   line="$(date -u +%FT%TZ) $1 $2 $3 ${4:-}"
   printf '%s\n' "$line"
   [[ "$3" == PLAN || "${DRY_RUN:-1}" == 1 ]] && return 0
   echo "$line" >> "$LANE_RESTART_LOG" 2>/dev/null || true
+  echo "$line" >> "$ROTATE_LOG" 2>/dev/null || true
 }
 
 # spl_lane_restart_event RID EVENT OUTCOME DETAIL [CTX_K]: one row for the

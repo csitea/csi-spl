@@ -18,6 +18,7 @@ declare module '~/utils/repo-edit.mjs' {
   export function headerEdit(rows: RepoEditView[] | undefined, path: string, me: string, last?: { edit_id: string, path: string, status: string } | null): RepoEditView | null
   export function conflictOf(body: unknown): RepoEditConflict | null
   export function editActionErrorOf(status: number, body: unknown): { key: string, params: Record<string, string | number> }
+  export function editBase(read: () => Promise<string>): { loaded(base: string): void, saved(): void, open(): Promise<string> }
 }
 
 declare module '~/utils/docs-mock.mjs' {

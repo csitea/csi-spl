@@ -92,7 +92,7 @@
             <span class="docs-content__tools">
               <RepoDocStatus v-if="showChip" :path="docPath" :me="access.me?.humanId || ''" @resolve="openConflict" />
               <NuxtLink v-if="editOn && !editing" :to="{ path: route(docPath), query: { edits: 'mine' } }" class="btn ghost" data-test="repo-edits-open">{{ t('docs.repoEdit.mine.title') }}</NuxtLink>
-              <button v-if="canEdit && !editing && !conflictId" type="button" class="btn ghost docs-content__edit" data-test="repo-edit-open" @click="editing = true">
+              <button v-if="canEdit && !editing && !conflictId" type="button" class="btn ghost docs-content__edit" data-test="repo-edit-open" @click="openEditor">
                 <UiIcon name="pencil" :size="16" />
                 <span>{{ t('docs.ws.edit') }}</span>
               </button>
@@ -134,7 +134,7 @@ import { DOCS_HOME, buildDocsTree, docsAncestors, docsRepoUrl, rewriteDocsLinks,
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
-import { repoEditFiles, type RepoEditFile } from '~/utils/repo-edit.mjs'
+import { editBase, repoEditFiles, type RepoEditFile } from '~/utils/repo-edit.mjs'
 import { canWriteDocs } from '~/utils/ws-docs.mjs'
 import { useAccessStore } from '~/stores/access'
 
@@ -231,6 +231,7 @@ async function load() {
     if (md === null) { state.value = 'missing'; return }
     raw.value = md
     base.value = meta.base
+    docBase.loaded(meta.base)
     text.value = rewriteDocsLinks(md, p, route)
     state.value = 'ready'
   } catch {
@@ -251,8 +252,20 @@ async function loadTree() {
   }
 }
 
+/* the editor's base: re-read from the hub once a save moved it (editBase) */
+const docBase = editBase(async () => {
+  const meta = { base: '' }
+  if (typeof await hubDoc(docPath.value, meta) !== 'string') throw new Error('docs base')
+  return meta.base
+})
+async function openEditor() {
+  base.value = await docBase.open()
+  editing.value = true
+}
+
 /* saved: the page shows the new text (the hub serves the overlay from now) */
 function onSaved(md: string) {
+  docBase.saved()
   raw.value = md
   text.value = rewriteDocsLinks(md, docPath.value, route)
   editing.value = false

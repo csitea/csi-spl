@@ -180,3 +180,25 @@ export function editActionErrorOf(status, body) {
   if (status === 404) return { key: 'docs.repoEdit.err.no_edit', params: {} }
   return { key: 'docs.repoEdit.err.failed', params: {} }
 }
+
+/**
+ * The base an editor opens with: the one load() read, re-read once (`read`,
+ * one GET of the doc's X-Spool-Doc-Base) after a save. The PUT answers the
+ * base it was given, and the served one moves when the worker pushes the
+ * edit, so a second edit without a reload must not send the first one's.
+ * A failed re-read keeps the base it had; the hub answers 409 if it moved.
+ */
+export function editBase(read) {
+  let base = ''
+  let stale = false
+  return {
+    loaded(b) { base = b; stale = false },
+    saved() { stale = true },
+    async open() {
+      if (stale) {
+        try { base = await read(); stale = false } catch { /* keep the base it had */ }
+      }
+      return base
+    },
+  }
+}

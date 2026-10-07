@@ -437,6 +437,15 @@ The owner decided **1A, 2A, 3A** (HUM-10, t1 `197cf92c`, msg `fc7ecb8d`, relayed
 2. **S2-2 Gesture locking and tap slop:** 10 px directional lock prevents diagonal scrolling in the 24h Day grid from accidentally triggering period turns, and 8 px tap slop prevents accidental event creation while scrolling.
 3. **S2-5 3D transition ergonomics:** Keep interactive swiping 1:1 and flat along X (zero rotation under finger), engaging the 3D `rotateY(8deg)` tilt only during the 220 ms release snap transition, restoring `transform: none` at rest for crisp subpixel text rendering.
 
+#### 9.5.2 Seat 2 on Seat 3 and Seat 4 (consensus)
+
+Seat 2 has reviewed Seat 4's review (9.3, S4-1..S4-9) and Seat 3's review (9.4, 12 changes), as well as Seat 4's concurrence on Seat 3. Seat 2 **agrees in full**:
+- **Day view week strip**: Seat 2 endorses Seat 3's recommendation (#11, accepted by Seat 4) to drop the week strip from Day view. This directly eliminates the swipe-boundary conflict between the week strip and the 24-hour time grid, while recovering crucial vertical screen budget (>= 520 px grid height for H8) and keeping Day view uncluttered. Day navigation remains 1 swipe away (day sliding) or 1 tap via the bottom bar `< >` or Week tab.
+- **Gesture precedence & implementation**: Seat 2 endorses Seat 3's #1 and #3 (using existing `stack.swipe.claim()` and explicit precedence: held event > week strip > view > 24 px edge).
+- **Control vs content sizing (H7)**: Seat 2 agrees with Seat 3's #10 split and Seat 4's S4-1/S4-4 (controls 44..48 px at level 3; content >= 44 px; short blocks exempt).
+- **Reduced motion & 3D ergonomics**: Seat 2 agrees with S4-7 and Seat 3's #2/#7: under reduced motion, finger-following 1:1 translation remains available as direct manipulation input while 3D rotation, scaling, and transitions are completely omitted.
+- **Unanimous consensus**: With these agreements, all 4 seats are in full alignment for Seat 1 to fold the changes into v1.0.
+
 ---
 
 ## 10. Questions for the owner

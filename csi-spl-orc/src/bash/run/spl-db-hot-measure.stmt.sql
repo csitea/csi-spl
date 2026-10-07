@@ -157,7 +157,7 @@ WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $
 		AND (z.msg_id = m.msg_id OR z.msg_id = m.task_id
 			OR (z.task_id = m.task_id AND m.task_id::text <> $7)
 			OR (z.task_id = m.parent_task_id AND m.parent_task_id::text <> $7)))) c
--- @@stmt ch_hidden sha256=a7daac8cd3e24c40f79d5b4ade7bc0d09c49e8f49c833918ec37b1ca48ae55e7 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby'
+-- @@stmt ch_hidden sha256=f846d6cc5ad29d81927d149211163654cd568355de12137e15eda391360f403d scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby','{issues,tasks}'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
 		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
@@ -165,7 +165,8 @@ WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timest
 		mk AS (SELECT DISTINCT ON (ch) ch, at, id FROM (SELECT ch, at, id FROM pm UNION ALL SELECT ch, at, id FROM sm) x ORDER BY ch, at DESC, id DESC),
 		cl AS (SELECT (SELECT min(channel) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL) AS ch
 			UNION ALL SELECT (SELECT min(x.channel) FROM messages x WHERE x.tenant_id = $1 AND x.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL),
-		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch) LIMIT 1),
+		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch)
+			AND cl.ch <> ALL($8::text[]) AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = cl.ch AND dc.archived_at IS NOT NULL) LIMIT 1),
 		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL AND EXISTS (SELECT 1 FROM um)),
 		h AS (
 			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)

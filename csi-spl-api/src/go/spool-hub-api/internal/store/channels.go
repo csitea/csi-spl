@@ -43,6 +43,9 @@ var DefaultChannels = []string{ChannelLobby, ChannelAlerts, ChannelFeedback}
 // hand this list to SQL; the channel list and the seeding use DefaultChannels.
 var PublicChannels = append(append([]string{}, DefaultChannels...), ChannelIssues, ChannelTasks)
 
+// hiddenChannels is every id ChannelHidden reports, for SQL.
+var hiddenChannels = []string{ChannelIssues, ChannelTasks}
+
 // ChannelHidden reports whether id is stored on messages but is not a
 // channel anyone lists: the issue discussions and the retired #tasks.
 func ChannelHidden(id string) bool { return id == ChannelIssues || id == ChannelTasks }

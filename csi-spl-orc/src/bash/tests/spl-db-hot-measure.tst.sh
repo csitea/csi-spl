@@ -93,7 +93,7 @@ grep -q '^\\echo @@ flow_counts.bitmap_on.sort_on.pc_custom_plan$' <<<"$pc" && g
   [[ "$(settings "$pc" flow_counts .bitmap_off.sort_on.pc_custom_plan)" == $'SET jit = DEFAULT;\nSET enable_bitmapscan = off;\nSET enable_sort = on;\nSET plan_cache_mode = force_custom_plan;' ]] &&
   pass "MEASURE_PLAN_CACHE / MEASURE_BITMAPSCAN=both / MEASURE_SORT override and tag" || fail "overrides: $pc"
 lob=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub ch_hidden 0 00000000-0000-4000-8000-000000000001' in_orc 2>&1)
-grep -q "^\\\\set lobby '00000000-0000-4000-8000-000000000001'$" <<<"$lob" && grep -q "EXECUTE ch_hidden(.*:'lobby')" <<<"$lob" &&
+grep -q "^\\\\set lobby '00000000-0000-4000-8000-000000000001'$" <<<"$lob" && grep -q "EXECUTE ch_hidden(.*:'lobby'[,)]" <<<"$lob" &&
   pass "the lobby task is bound where the builder binds it" || fail "lobby: $lob"
 
 # --- 4. the drift gate: the builders' printed copy -------------------------------------

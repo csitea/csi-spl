@@ -125,6 +125,8 @@ func hotArg(v any) (string, error) {
 			return ":'pub'", nil
 		case reflect.DeepEqual(x, []string{hotMine}):
 			return ":'mine'", nil
+		case reflect.DeepEqual(x, hiddenChannels):
+			return "'{" + strings.Join(x, ",") + "}'", nil
 		case len(x) == 0:
 			return "'{}'", nil
 		}

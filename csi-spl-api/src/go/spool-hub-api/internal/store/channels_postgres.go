@@ -473,12 +473,20 @@ func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Tim
 // ~4 850 lines only to throw them all away (prd t1 HUM-10, EXPLAIN n=3:
 // 24.5 / 36.0 / 27.8 ms, 0 rows out). The counts do not change: a line of a
 // marked channel never reached the outer count.
+//
+// um skips a channel result() drops (ap-02 gate fix): the ChannelHidden ids
+// ($8: issues has no ch: mark for anyone, so it held the gate open for every
+// t1 reader) and an archived channel. Their hidden counts only ever touched a
+// row that is never returned, so the result is the same for every reader. A
+// created channel the reader has not joined stays in: its row is returned
+// (the hub filters it, the store does not) and its unread could change.
 func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
 	const unmarked = ` AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)`
 	return tenantRead{`WITH RECURSIVE ` + channelMarksCTE + `,
 		cl AS (SELECT (SELECT min(channel) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL) AS ch
 			UNION ALL SELECT (SELECT min(x.channel) FROM messages x WHERE x.tenant_id = $1 AND x.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL),
-		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch) LIMIT 1),
+		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch)
+			AND cl.ch <> ALL($8::text[]) AND ` + notArchived("cl.ch") + ` LIMIT 1),
 		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL AND EXISTS (SELECT 1 FROM um)),
 		h AS (
 			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id` + unmarked + `
@@ -488,7 +496,7 @@ func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Tim
 		SELECT h.channel, count(*)::int FROM h
 		WHERE h.expires_at > $2 AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
 		GROUP BY h.channel`,
-		cs.markArgs(reads, now, reader, lobby), func(r pgx.Rows) error {
+		append(cs.markArgs(reads, now, reader, lobby), hiddenChannels), func(r pgx.Rows) error {
 			var id string
 			var hidden int
 			if err := r.Scan(&id, &hidden); err != nil {

@@ -293,7 +293,7 @@ The owner asked for "proper discussions between at least four agents", agy inclu
 |---|---|---|---|
 | 1 | c-508 | claude | drafted v0.1 |
 | 2 | (requested by c-002) | agy | waiting |
-| 3 | (requested by c-002) | claude | waiting |
+| 3 | c-514 | claude | reviewed: **agree with changes**, 12 changes and Q1..Q3 in 9.4; angle: WUI fit (gestures, mid-phone performance, 155 KB, lazy loading, tokens, H1..H8 test feasibility) |
 | 4 | c-515 | claude | reviewed: **agree with changes**, S4-1..S4-9 and Q1..Q3 in 9.3 |
 
 ### 9.1 Agreed
@@ -327,6 +327,86 @@ The owner asked for "proper discussions between at least four agents", agy inclu
 | Q1 | **the list**, as proposed | Seven columns at 360 px are about 44 px each. At level 5 a title then shows 2..3 letters. A screen reader reads seven columns in grid order, not time order. The list reads naturally, wraps long titles, and passes H3/H7 at every level. |
 | Q2 | **Week first, then the last view used**, as proposed | One rule to add: when storage fails (private mode), fall back to Week without an error (FR-002 already). The choice is per browser, like the theme and the font size (023 3.4). |
 | Q3 | **yes, with a 24 px edge** instead of 16 | iOS Safari and Android gesture navigation claim about the first 20 px for system Back, so 16 px is mostly never seen by the page. 24 px catches the rest. Screen-reader users (VoiceOver and TalkBack take over swipes) and switch users never need a swipe: the chevron, `<` and `>` cover every gesture (WCAG 2.5.1). |
+
+### 9.4 Seat 3 review (c-514, claude): WUI fit
+
+**Verdict: agree with changes.** Section 4's design is right and buildable on today's WUI. The changes below are mostly about the plumbing: how gestures, chunks, tokens and tests work underneath it. Read on trunk `b4b6cf98` (spec at `7fa2858c`); every code claim cites its file.
+
+Verdict per H: H1 agree · H2 agree with 9.4.1 #1, #2, #9 · H3 agree with #5 · H4 agree · H5 agree with #6 · H6 agree with #7, #9 · H7 **change** (#10) · H8 **change** (#11).
+
+#### 9.4.1 Changes (numbered, each concrete)
+
+1. **Drop T003; use the existing swipe claim.** `useMobileStack.ts` already has `stack.swipe.claim()` (CLE-77906, used by `MessageCard.vue` and `useTopicRowSwipe.ts`). The shell's Back handler is a *bubbling* `touchend` on the layout (`layouts/default.vue`, `@touchend.passive`), so a `touchend` listener on the calendar view runs first. It calls `claim()` unless the touch started at x <= 16 (rtl: >= width - 16). `utils/mobile-stack.mjs` stays as it is, so there's no shared-file edit and no `data-swipe-owner` attribute. The 16 px rule moves into T002's `calendar-swipe.mjs` (classify returns `back`, and the view doesn't claim). Claim in `touchend`, never in `pointerdown`/`touchstart`: the shell's `onTouchStart` runs after a descendant's and resets the claim.
+2. **Pointer Events with `touch-action: pan-y` for the page turn, and the page follows the finger.** With `pan-y`, the browser owns vertical scrolling and sends a `pointercancel` as soon as it does. The calendar only ever sees horizontal tracks, so it needs no `preventDefault` and no non-passive listener (no scroll jank). Move the page with `translateX` on each `pointermove` (batched in rAF). On release past `MOBILE_SWIPE_MIN_DX`, or a flick faster than 0.5 px/ms, it completes; otherwise it springs back. A turn that fires only on release doesn't feel like Google's "sliding screens".
+3. **Gesture precedence, written down in 4.3**, from innermost to outermost:
+   1. A held event (097 drag, `CAL_HOLD_MS` 250 ms, `CAL_TOUCH_SLOP_PX` 8, `utils/calendar-drag.mjs`). Once lifted it owns every axis and claims the swipe. On the phone, Day drag moves the time only; another day goes through the sheet's date chip.
+   2. The week strip, which turns by week and stops propagation.
+   3. The view, which turns by its own period.
+   4. The left-edge Back.
+
+   A track that moves more than 8 px before 250 ms is a swipe or a scroll, never a drag.
+4. **Sheet drag-down only from the grab bar or header, or when the sheet's content is at `scrollTop` 0.** Otherwise scrolling up inside More options closes the sheet. Add `overscroll-behavior-y: contain` on the view and the sheet, so Chrome Android's pull-to-refresh can't reload the app in the middle of a gesture (the app already uses `contain` on its own scrollers, `main.css` 201, 323, 992).
+5. **Clip with `overflow-x: clip`, not `overflow: hidden`.** A `hidden` box can still be scrolled by script: `scrollIntoView`, a focus moving onto the off-screen neighbour page, or scroll-to-today. That slides the page halfway and leaves it there with `scrollWidth == clientWidth` still true. Add to H3: after a keyboard Tab through the view and after Today, every calendar element has `scrollLeft == 0`. Hide the neighbour page with `inert` while it isn't turning.
+6. **Tokenise the 3D bevel before H5 can pass.** The raised-button bevel 4.7 points to is written as rgba literals (`main.css` 1211-1212, 1327-1328: `inset 0 1px 0 rgba(255,255,255,.28)`, `inset 0 -1px 0 rgba(0,0,0,.18)`), so a `CalendarPhone*.vue` that reuses it fails H5's own lint. T004 adds `--bevel-shine` / `--bevel-shade` to `variables.css` in both themes (dark and light) and owns that edit. `--focus-3d` stays the drop shadow (zero spread, owner ceiling, `variables.css` 55-57). The lint allows `0`, `transparent`, `currentColor` and `inherit`.
+7. **Keep the 3D page turn on the compositor, so a mid phone holds 60 fps:**
+   - animate only `transform` and `opacity` on one wrapper per page, never `box-shadow`, `height` or `top`;
+   - set `will-change: transform` only during the turn (a permanent layer costs GPU memory on every page);
+   - add `backface-visibility: hidden`;
+   - keep the `+` button, the header and the bottom bar **outside** the turning wrapper: a transform makes it the containing block of any `position: fixed` child, so a FAB inside it would turn with the page;
+   - render at most two pages during a turn and only one at rest; never keep three mounted.
+8. **Lazy loading, three levels, and no new package.** `pages/calendar.vue` already loads `CalendarMainView` with `defineAsyncComponent` (line 58). Do the same for `CalendarPhone` (desktop never downloads it, the phone never downloads `CalendarMainView`). Inside it, Month, Week and Day are async on first show, and the sheet, peek, year picker and search are async on first open (the sheet carries 097's ten fields). No gesture or carousel library: Hammer / Swiper / Embla are each several KB gzipped, and the turn is about 60 lines over Pointer Events. FR-012 adds: `calendar_phone.*` i18n keys stay out of the core catalogue. Calendar isn't in `FIRST_SCREEN_PAGES` (`utils/i18n-first-screen.mjs`), so the en core key count from `split-catalogue.mjs` must be unchanged. The headroom is real but small: `ci_initial_gzip_kb` 149.0 of 155 (perf plan E29, n=1). T004's gate records the before and after numbers.
+9. **Data on a turn: prefetch the neighbours, abort stale fetches.** When a period settles, fetch its previous and next ranges (`GET /v1/calendar/events`), cached by range, so the arriving page is already filled. Three fast swipes abort the two in-flight fetches (`AbortController`), so the last swipe wins and no stale month paints. A page still loading shows its grid with no dots, not a spinner. Add a mid-phone check to T004: Chrome CPU throttle 4x (`Emulation.setCPUThrottlingRate`, the profile the perf work uses), 5 turns per view, no `longtask` over 50 ms and every turn settled within 300 ms.
+10. **H7: split the bounds.** As written ("every visible button, link and input >= 44x44 and <= 48 px tall"), H7 fails on correct content. Month cells at 390 px are 51 px wide and sized by the grid. Agenda rows grow with a two-line title at font level 5. A 15-minute event at 52 px/hour is 13 px tall. Proposal:
+    - **Controls** (header, bottom bar, sheets, peek, picker): >= 44 and <= 48 px tall; the `+` is 56.
+    - **Content targets** (month cells, week chips, agenda rows): >= 44x44, no upper bound.
+    - **Timed event blocks shorter than 44 px** are exempt (097's layout sets their height). The test lists them by `data-event-id` and skips them. Same rule as S4-4, which also keeps them >= 44 px wide and caps overlaps at 3 columns: seat 3 agrees with S4-4, and with S4-1 for font level 5.
+11. **H8: restate the number. 65 % at 390x844 is only just reachable as specced.** Measured on screenshot `390/02` (CSS px):
+    - The app's own chrome takes 118 px above (top bar and section strip, spec 043's) and about 81 px below (composer dock and status line), which leaves the calendar 645 px.
+    - With header and bottom bar at 56 px each, the view gets 533 px = **63 %**: fails H8. At 48 px each it gets 549 px = 65.0 %, exactly on the line. At 360x780 it's 581 - 96 = 485 = 62 % (passes 60 %).
+    - Also, today's 52 % was the **time grid**. In Day, the week strip (>= 44) and the all-day row come off the view, so the grid would grow from about 440 to about 470 px. With hour rows growing from 48 to 52 px, that's still about 9 hours on screen against 8 today.
+
+    Proposal:
+    - Header and bottom bar <= 48 px each (fits H7's control bound).
+    - H8 measured as the view's share of the space the app gives the page (strip bottom to dock top): >= 82 % at both widths.
+    - Day shows **no week strip** (the title already names the day; swipe or Week changes it), and its hour rows stay at **48 px**. Then the Day grid is >= 520 px at 390x844 (>= 10.5 hours, against 8 today), and H8 also asserts that number.
+12. **Test plan feasibility, and 820 px.** Each H is testable headless, with one caveat each:
+    - H2 and AC-07 drive touches with CDP `Input.dispatchTouchEvent`, as `tests/e2e/calendar-drag.test.mjs` 170-183 already does.
+    - H6's "transform during the turn" freezes the turn with CDP `Animation.setPlaybackRate` 0 before reading the computed transform. Sampling a 220 ms transition by timing is flaky.
+    - Reduced motion comes from `Emulation.setEmulatedMedia`.
+    - Add **820x1180** to every phone e2e. It's the widest width that still gets the phone shell (`MOBILE_STACK_MAX_PX` 820), and `calendar-phone.test.mjs` already tests it. Month cells there are about 110 px, so H7's no-upper-bound rule for content (#10) matters.
+    - Add **rtl** (one locale) to the swipe tests: the swipe directions and the 16 px edge mirror, as `isMobileBackSwipe` already does.
+    - Landscape phones (844x390) are > 820 px, so they get the desktop calendar. Out of scope; listed so nobody files it as a 106 bug.
+    - Leave a 72 px bottom padding inside every scroller, so the `+` button never covers the last agenda row or 23:00 (= S4-9).
+
+#### 9.4.2 Owner questions: decided, and how seat 3 builds them
+
+The owner decided **1A, 2A, 3A** (HUM-10, t1 `197cf92c`, msg `fc7ecb8d`, relayed by c-002): the proposals of section 10. Seat 3 had recommended the same three answers. The notes below are build rules, not reopened questions.
+
+| # | decided | seat 3 build note (WUI) |
+|---|---|---|
+| Q1 | Week = a 7-day list | Each row leads with its start time. The list needs no horizontal layout, so H3 holds at every font level. |
+| Q2 | Week first, then the last-used view | Kept in `localStorage` under try/catch, falling back to Week (FR-002), per browser like the theme. |
+| Q3 | Swipe right = previous period; Back = chevron, the phone's Back, the left-edge swipe | Built per change #1: the existing `stack.swipe.claim()`, no change to `mobile-stack.mjs`, mirrored in rtl. Seat 3 agrees with seat 4's **24 px** edge over 16: the OS claims about the first 20 px (Android gesture navigation; iOS Safari's edge swipe), and it already reaches the shell as a `popstate`. |
+
+#### 9.4.3 Seat 3 on seat 4 (S4-1..S4-9)
+
+| S4 | seat 3 | why / how it meets 9.4.1 |
+|---|---|---|
+| S4-1 | **agree** | It fits #10: controls are 44..48 px at level 3 and grow only by their text's rem above that. **One addition:** H8 (#11) is asserted at level 3 only. At level 5 the bars grow by design, and the view's share is checked only for "no wrap, no overflow" (H3). |
+| S4-2 | **agree** | (d) `inert` on the leaving page is #5's rule too. The `aria-live` title goes on the header, outside the turning wrapper (#7), so it isn't re-created on each turn and read twice. |
+| S4-3 | **agree** | The pure part (UTC-date placement, multi-day spans, midnight split) belongs in T002's `calendar-phone-nav.mjs` with unit tests, not in each view. |
+| S4-4 | **agree** | It is #10's exemption for short blocks, plus the 3-column cap and the 30-minute minimum height. With #11's 48 px hour rows, a 30-minute block is 24 px. |
+| S4-5 | **agree** | Add the unbroken title to the #5 test fixture too, so H3 and the `scrollLeft == 0` check run on it. |
+| S4-6 | **agree** | The Day grid's row count comes from the zone (23/24/25). Day's `>= 520 px` target in #11 is the visible grid height, independent of the row count. |
+| S4-7 | **agree** | Same as #2 and #7: under reduce, the finger-follow `translateX` still runs (input), and only the `rotateY`, scale and transitions go. |
+| S4-8 | **agree, with a cheaper matrix** | Every theme is right for the colour checks: the dot contrast unit test covers all 8 at no e2e cost, and H5 is a lint. Running the full e2e matrix (8 themes x 3 widths x 3 levels) is about 72 runs per test file and would slow the phone e2e several-fold. Proposal: H3, H7 and H8 run in `dark` and `light` at 360/390/820 and at levels 1/3/5. H5's computed-ring e2e and a today-marker check run once per theme at 390, level 3. |
+| S4-9 | **agree** | The same as #12's 72 px bottom padding (56 + 16). The 16 px gutter is also what #11's 360 px arithmetic assumes. |
+
+#### 9.4.4 Top 3, for the fold into v1.0
+
+1. **#11 H8**: as specced, the 65 % target fails at 390 px with 56 px bars. Use bars of 48 px or less, measure the view against the page area, and drop the week strip from Day.
+2. **#1 and #3 gestures**: drop T003 for the existing `stack.swipe.claim()`, and write down the hold > strip > view > edge order.
+3. **#6 and #10 tokens and sizes**: tokenise the bevel so H5 can pass, and split H7 into controls (44..48) and content (>= 44).
 
 ---
 

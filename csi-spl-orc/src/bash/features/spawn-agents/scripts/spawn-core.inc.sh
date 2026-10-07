@@ -280,7 +280,10 @@ spawn_main() {
 
   PROMPT=""
   if [ -n "$BRIEF" ]; then
-    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. When your task is verified done: report and /exit-clean. ${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
+    # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
+    STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: every action name is on every agent's argv."
+    PROMPT="As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. When your task is verified done: report and /exit-clean. ${SCOPE:+${SCOPE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 

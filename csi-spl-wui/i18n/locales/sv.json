@@ -2133,6 +2133,27 @@
     "duplicate": "Duplicera",
     "edit": "Redigera"
   },
+  "calendar_phone": {
+    "pick_month": "Välj månad",
+    "search": "Sök händelser",
+    "menu": "Mer",
+    "add": "Ny händelse",
+    "today": "Idag",
+    "views": "Vy",
+    "view_month": "Månad",
+    "view_week": "Vecka",
+    "view_day": "Dag",
+    "view_short_month": "M",
+    "view_short_week": "V",
+    "view_short_day": "D",
+    "prev_month": "Föregående månad",
+    "next_month": "Nästa månad",
+    "prev_week": "Föregående vecka",
+    "next_week": "Nästa vecka",
+    "prev_day": "Föregående dag",
+    "next_day": "Nästa dag",
+    "placeholder": "Den här vyn kommer snart."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

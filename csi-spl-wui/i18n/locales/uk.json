@@ -2133,6 +2133,27 @@
     "duplicate": "Дублювати",
     "edit": "Редагувати"
   },
+  "calendar_phone": {
+    "pick_month": "Вибрати місяць",
+    "search": "Пошук подій",
+    "menu": "Ще",
+    "add": "Нова подія",
+    "today": "Сьогодні",
+    "views": "Вигляд",
+    "view_month": "Місяць",
+    "view_week": "Тиждень",
+    "view_day": "День",
+    "view_short_month": "М",
+    "view_short_week": "Т",
+    "view_short_day": "Д",
+    "prev_month": "Попередній місяць",
+    "next_month": "Наступний місяць",
+    "prev_week": "Попередній тиждень",
+    "next_week": "Наступний тиждень",
+    "prev_day": "Попередній день",
+    "next_day": "Наступний день",
+    "placeholder": "Цей вигляд скоро з’явиться."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

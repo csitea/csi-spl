@@ -2133,6 +2133,27 @@
     "duplicate": "Duplicar",
     "edit": "Editar"
   },
+  "calendar_phone": {
+    "pick_month": "Elegir mes",
+    "search": "Buscar eventos",
+    "menu": "Más",
+    "add": "Nuevo evento",
+    "today": "Hoy",
+    "views": "Vista",
+    "view_month": "Mes",
+    "view_week": "Semana",
+    "view_day": "Día",
+    "view_short_month": "M",
+    "view_short_week": "S",
+    "view_short_day": "D",
+    "prev_month": "Mes anterior",
+    "next_month": "Mes siguiente",
+    "prev_week": "Semana anterior",
+    "next_week": "Semana siguiente",
+    "prev_day": "Día anterior",
+    "next_day": "Día siguiente",
+    "placeholder": "Esta vista llega pronto."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

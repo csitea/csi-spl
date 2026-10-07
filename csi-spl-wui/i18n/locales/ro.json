@@ -2133,6 +2133,27 @@
     "duplicate": "Duplică",
     "edit": "Editează"
   },
+  "calendar_phone": {
+    "pick_month": "Alege luna",
+    "search": "Caută evenimente",
+    "menu": "Mai mult",
+    "add": "Eveniment nou",
+    "today": "Azi",
+    "views": "Vizualizare",
+    "view_month": "Lună",
+    "view_week": "Săptămână",
+    "view_day": "Zi",
+    "view_short_month": "L",
+    "view_short_week": "S",
+    "view_short_day": "Z",
+    "prev_month": "Luna anterioară",
+    "next_month": "Luna următoare",
+    "prev_week": "Săptămâna anterioară",
+    "next_week": "Săptămâna următoare",
+    "prev_day": "Ziua anterioară",
+    "next_day": "Ziua următoare",
+    "placeholder": "Această vizualizare vine în curând."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

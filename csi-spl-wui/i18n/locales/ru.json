@@ -2133,6 +2133,27 @@
     "duplicate": "Дублировать",
     "edit": "Изменить"
   },
+  "calendar_phone": {
+    "pick_month": "Выбрать месяц",
+    "search": "Поиск событий",
+    "menu": "Ещё",
+    "add": "Новое событие",
+    "today": "Сегодня",
+    "views": "Вид",
+    "view_month": "Месяц",
+    "view_week": "Неделя",
+    "view_day": "День",
+    "view_short_month": "М",
+    "view_short_week": "Н",
+    "view_short_day": "Д",
+    "prev_month": "Предыдущий месяц",
+    "next_month": "Следующий месяц",
+    "prev_week": "Предыдущая неделя",
+    "next_week": "Следующая неделя",
+    "prev_day": "Предыдущий день",
+    "next_day": "Следующий день",
+    "placeholder": "Этот вид скоро появится."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

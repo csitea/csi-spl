@@ -2133,6 +2133,27 @@
     "duplicate": "Dupliceren",
     "edit": "Bewerken"
   },
+  "calendar_phone": {
+    "pick_month": "Kies een maand",
+    "search": "Afspraken zoeken",
+    "menu": "Meer",
+    "add": "Nieuwe afspraak",
+    "today": "Vandaag",
+    "views": "Weergave",
+    "view_month": "Maand",
+    "view_week": "Week",
+    "view_day": "Dag",
+    "view_short_month": "M",
+    "view_short_week": "W",
+    "view_short_day": "D",
+    "prev_month": "Vorige maand",
+    "next_month": "Volgende maand",
+    "prev_week": "Vorige week",
+    "next_week": "Volgende week",
+    "prev_day": "Vorige dag",
+    "next_day": "Volgende dag",
+    "placeholder": "Deze weergave komt binnenkort."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

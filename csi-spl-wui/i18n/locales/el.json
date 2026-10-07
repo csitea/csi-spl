@@ -2133,6 +2133,27 @@
     "duplicate": "Αντίγραφο",
     "edit": "Επεξεργασία"
   },
+  "calendar_phone": {
+    "pick_month": "Επιλογή μήνα",
+    "search": "Αναζήτηση συμβάντων",
+    "menu": "Περισσότερα",
+    "add": "Νέο συμβάν",
+    "today": "Σήμερα",
+    "views": "Προβολή",
+    "view_month": "Μήνας",
+    "view_week": "Εβδομάδα",
+    "view_day": "Ημέρα",
+    "view_short_month": "Μ",
+    "view_short_week": "Ε",
+    "view_short_day": "Η",
+    "prev_month": "Προηγούμενος μήνας",
+    "next_month": "Επόμενος μήνας",
+    "prev_week": "Προηγούμενη εβδομάδα",
+    "next_week": "Επόμενη εβδομάδα",
+    "prev_day": "Προηγούμενη ημέρα",
+    "next_day": "Επόμενη ημέρα",
+    "placeholder": "Αυτή η προβολή έρχεται σύντομα."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

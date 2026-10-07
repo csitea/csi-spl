@@ -424,3 +424,24 @@
   --cal-color-grape: #8e24aa;
   --cal-color-graphite: #616161;
 }
+
+/* spec 106 T004 (4.7, 9.4 #6): the phone calendar's bevel - a top-light and
+   a bottom-dark inset that a raised control (the + button, the selected
+   segment, Today, an event card) adds to its --focus-3d drop shadow:
+   `box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade)`.
+   Insets only, so no ring and no second colour (the owner's focus rule).
+   --cal-dot-ring is an event dot's edge (S4-8, WCAG 1.4.11): the dark
+   family's event colours clear 3:1 on every surface by themselves; several
+   of Google's light ones do not (banana is 1.5:1 on white), so on a light
+   theme every dot carries a 1 px ring that does. Both are asserted by
+   tests/unit/calendar-phone-tokens.test.mjs. */
+:root {
+  --bevel-shine: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --bevel-shade: inset 0 -2px 0 rgba(0, 0, 0, 0.38);
+  --cal-dot-ring: 0 0 0 0 transparent;
+}
+:root[data-theme^="light"] {
+  --bevel-shine: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --bevel-shade: inset 0 -2px 0 rgba(12, 40, 80, 0.16);
+  --cal-dot-ring: 0 0 0 1px var(--color-muted);
+}

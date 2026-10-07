@@ -2133,6 +2133,27 @@
     "duplicate": "Dublēt",
     "edit": "Rediģēt"
   },
+  "calendar_phone": {
+    "pick_month": "Izvēlēties mēnesi",
+    "search": "Meklēt notikumus",
+    "menu": "Vairāk",
+    "add": "Jauns notikums",
+    "today": "Šodien",
+    "views": "Skats",
+    "view_month": "Mēnesis",
+    "view_week": "Nedēļa",
+    "view_day": "Diena",
+    "view_short_month": "M",
+    "view_short_week": "N",
+    "view_short_day": "D",
+    "prev_month": "Iepriekšējais mēnesis",
+    "next_month": "Nākamais mēnesis",
+    "prev_week": "Iepriekšējā nedēļa",
+    "next_week": "Nākamā nedēļa",
+    "prev_day": "Iepriekšējā diena",
+    "next_day": "Nākamā diena",
+    "placeholder": "Šis skats drīz būs pieejams."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

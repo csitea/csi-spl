@@ -2133,6 +2133,27 @@
     "duplicate": "Duplikovať",
     "edit": "Upraviť"
   },
+  "calendar_phone": {
+    "pick_month": "Vybrať mesiac",
+    "search": "Hľadať udalosti",
+    "menu": "Viac",
+    "add": "Nová udalosť",
+    "today": "Dnes",
+    "views": "Zobrazenie",
+    "view_month": "Mesiac",
+    "view_week": "Týždeň",
+    "view_day": "Deň",
+    "view_short_month": "M",
+    "view_short_week": "T",
+    "view_short_day": "D",
+    "prev_month": "Predchádzajúci mesiac",
+    "next_month": "Nasledujúci mesiac",
+    "prev_week": "Predchádzajúci týždeň",
+    "next_week": "Nasledujúci týždeň",
+    "prev_day": "Predchádzajúci deň",
+    "next_day": "Nasledujúci deň",
+    "placeholder": "Toto zobrazenie príde čoskoro."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

@@ -2133,6 +2133,27 @@
     "duplicate": "Удвостручи",
     "edit": "Измени"
   },
+  "calendar_phone": {
+    "pick_month": "Изабери месец",
+    "search": "Претражи догађаје",
+    "menu": "Још",
+    "add": "Нови догађај",
+    "today": "Данас",
+    "views": "Приказ",
+    "view_month": "Месец",
+    "view_week": "Недеља",
+    "view_day": "Дан",
+    "view_short_month": "М",
+    "view_short_week": "Н",
+    "view_short_day": "Д",
+    "prev_month": "Претходни месец",
+    "next_month": "Следећи месец",
+    "prev_week": "Претходна недеља",
+    "next_week": "Следећа недеља",
+    "prev_day": "Претходни дан",
+    "next_day": "Следећи дан",
+    "placeholder": "Овај приказ стиже ускоро."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

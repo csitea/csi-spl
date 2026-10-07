@@ -2133,6 +2133,27 @@
     "duplicate": "Dubliuoti",
     "edit": "Redaguoti"
   },
+  "calendar_phone": {
+    "pick_month": "Pasirinkti mėnesį",
+    "search": "Ieškoti įvykių",
+    "menu": "Daugiau",
+    "add": "Naujas įvykis",
+    "today": "Šiandien",
+    "views": "Rodinys",
+    "view_month": "Mėnuo",
+    "view_week": "Savaitė",
+    "view_day": "Diena",
+    "view_short_month": "M",
+    "view_short_week": "S",
+    "view_short_day": "D",
+    "prev_month": "Ankstesnis mėnuo",
+    "next_month": "Kitas mėnuo",
+    "prev_week": "Ankstesnė savaitė",
+    "next_week": "Kita savaitė",
+    "prev_day": "Ankstesnė diena",
+    "next_day": "Kita diena",
+    "placeholder": "Šis rodinys pasirodys netrukus."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

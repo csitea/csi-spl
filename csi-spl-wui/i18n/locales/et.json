@@ -2133,6 +2133,27 @@
     "duplicate": "Paljunda",
     "edit": "Muuda"
   },
+  "calendar_phone": {
+    "pick_month": "Vali kuu",
+    "search": "Otsi sündmusi",
+    "menu": "Veel",
+    "add": "Uus sündmus",
+    "today": "Täna",
+    "views": "Vaade",
+    "view_month": "Kuu",
+    "view_week": "Nädal",
+    "view_day": "Päev",
+    "view_short_month": "K",
+    "view_short_week": "N",
+    "view_short_day": "P",
+    "prev_month": "Eelmine kuu",
+    "next_month": "Järgmine kuu",
+    "prev_week": "Eelmine nädal",
+    "next_week": "Järgmine nädal",
+    "prev_day": "Eelmine päev",
+    "next_day": "Järgmine päev",
+    "placeholder": "See vaade tuleb peagi."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

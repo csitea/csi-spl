@@ -2133,6 +2133,27 @@
     "duplicate": "Monista",
     "edit": "Muokkaa"
   },
+  "calendar_phone": {
+    "pick_month": "Valitse kuukausi",
+    "search": "Hae tapahtumia",
+    "menu": "Lisää",
+    "add": "Uusi tapahtuma",
+    "today": "Tänään",
+    "views": "Näkymä",
+    "view_month": "Kuukausi",
+    "view_week": "Viikko",
+    "view_day": "Päivä",
+    "view_short_month": "K",
+    "view_short_week": "V",
+    "view_short_day": "P",
+    "prev_month": "Edellinen kuukausi",
+    "next_month": "Seuraava kuukausi",
+    "prev_week": "Edellinen viikko",
+    "next_week": "Seuraava viikko",
+    "prev_day": "Edellinen päivä",
+    "next_day": "Seuraava päivä",
+    "placeholder": "Tämä näkymä tulee pian."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

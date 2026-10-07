@@ -2133,6 +2133,27 @@
     "duplicate": "Удвои",
     "edit": "Уреди"
   },
+  "calendar_phone": {
+    "pick_month": "Избери месец",
+    "search": "Пребарај настани",
+    "menu": "Повеќе",
+    "add": "Нов настан",
+    "today": "Денес",
+    "views": "Приказ",
+    "view_month": "Месец",
+    "view_week": "Седмица",
+    "view_day": "Ден",
+    "view_short_month": "М",
+    "view_short_week": "С",
+    "view_short_day": "Д",
+    "prev_month": "Претходен месец",
+    "next_month": "Следен месец",
+    "prev_week": "Претходна седмица",
+    "next_week": "Следна седмица",
+    "prev_day": "Претходен ден",
+    "next_day": "Следен ден",
+    "placeholder": "Овој приказ доаѓа наскоро."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

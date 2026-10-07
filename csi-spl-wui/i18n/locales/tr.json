@@ -2133,6 +2133,27 @@
     "duplicate": "Çoğalt",
     "edit": "Düzenle"
   },
+  "calendar_phone": {
+    "pick_month": "Ay seç",
+    "search": "Etkinlik ara",
+    "menu": "Daha fazla",
+    "add": "Yeni etkinlik",
+    "today": "Bugün",
+    "views": "Görünüm",
+    "view_month": "Ay",
+    "view_week": "Hafta",
+    "view_day": "Gün",
+    "view_short_month": "A",
+    "view_short_week": "H",
+    "view_short_day": "G",
+    "prev_month": "Önceki ay",
+    "next_month": "Sonraki ay",
+    "prev_week": "Önceki hafta",
+    "next_week": "Sonraki hafta",
+    "prev_day": "Önceki gün",
+    "next_day": "Sonraki gün",
+    "placeholder": "Bu görünüm yakında geliyor."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

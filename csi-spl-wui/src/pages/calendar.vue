@@ -9,9 +9,14 @@
      T009, phone (<= 820 px, spec 2.2): one column. The year strip is a sheet
      over the main view behind the header's calendar button - a picked day
      closes it, Back closes it (useMobileStack overlay) - and the main view
-     opens on the Day view. -->
+     opens on the Day view.
+     spec 106 T004: at <= 820 px with the phone shell on, CalendarPhone (its
+     own lazy chunk) is the whole page instead; above 820 px nothing changes.
+     It stays opt-in per browser until T011 retires the T009 branch above. -->
 <template>
   <div class="feed-col calendar-page" data-test="calendar-page">
+    <CalendarPhone v-if="phoneShell" :focus="focus" :today="today" @move="show" />
+    <template v-else>
     <header class="feed-header">
       <MobileBack />
       <SectionClose side="start" />
@@ -44,6 +49,7 @@
         <CalendarMainView :focus="focus" :today="today" :phone="phone" @move="show" />
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -56,6 +62,8 @@ import { mobileOverlayOf } from '~/utils/mobile-stack.mjs'
 
 /* the main view is its own chunk, fetched on route entry (spec 3, AC-02) */
 const CalendarMainView = defineAsyncComponent(() => import('~/components/CalendarMainView.vue'))
+/* spec 106 T004 (FR-001, FR-012): the phone calendar, a chunk of its own */
+const CalendarPhone = defineAsyncComponent(() => import('~/components/CalendarPhone.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -74,6 +82,16 @@ const phone = computed(() => stack.isMobile.value)
 const stripOpen = ref(false)
 stack.overlay(() => phone.value && stripOpen.value, () => { stripOpen.value = false })
 watch(phone, (v) => { if (!v) stripOpen.value = false })
+/* spec 106 T004: the phone shell is on in a browser whose localStorage
+   'spool-calendar-phone' is '1' (the e2e and the T005..T010 lanes), off
+   otherwise, so the phone keeps the T009 calendar while the views are
+   placeholders; T011 turns it on for everyone and drops this switch */
+const PHONE_SHELL_KEY = 'spool-calendar-phone'
+const phoneShellOn = ref(false)
+onMounted(() => {
+  try { phoneShellOn.value = window.localStorage.getItem(PHONE_SHELL_KEY) === '1' } catch { /* storage off: T009's calendar */ }
+})
+const phoneShell = computed(() => phone.value && phoneShellOn.value)
 /* closing the sheet steps back over its history entry; the day is written
    once that entry is gone, or the router follows the step back onto the
    entry under it and drops the day again */

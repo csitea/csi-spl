@@ -2133,6 +2133,27 @@
     "duplicate": "שכפול",
     "edit": "עריכה"
   },
+  "calendar_phone": {
+    "pick_month": "בחירת חודש",
+    "search": "חיפוש אירועים",
+    "menu": "עוד",
+    "add": "אירוע חדש",
+    "today": "היום",
+    "views": "תצוגה",
+    "view_month": "חודש",
+    "view_week": "שבוע",
+    "view_day": "יום",
+    "view_short_month": "ח",
+    "view_short_week": "ש",
+    "view_short_day": "י",
+    "prev_month": "החודש הקודם",
+    "next_month": "החודש הבא",
+    "prev_week": "השבוע הקודם",
+    "next_week": "השבוע הבא",
+    "prev_day": "היום הקודם",
+    "next_day": "היום הבא",
+    "placeholder": "התצוגה הזו תגיע בקרוב."
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

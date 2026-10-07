@@ -74,12 +74,14 @@ const LONG_ID = '00000000-0000-4000-8000-000000000901'
 const REPEAT_ID = '00000000-0000-4000-8000-000000000902'
 const ZONE_ID = '00000000-0000-4000-8000-000000000903'
 const PLAIN_ID = '00000000-0000-4000-8000-000000000904'
+const SAME_ID = '00000000-0000-4000-8000-000000000905'
 /* events the mock workspace keeps in this browser (calendar-mock ADDED_KEY) */
 const SEEDED = [
   { id: LONG_ID, title: 'x'.repeat(200), location: 'L'.repeat(120), starts_at: at('11:00'), ends_at: at('12:00'), color: 'banana', audience: 'private', guests: [{ type: 'human', id: 'HUM-2', response: '' }] },
   { id: REPEAT_ID, title: 'Weekly sync', starts_at: at('12:00'), ends_at: at('12:30'), rrule: 'FREQ=WEEKLY' },
   { id: ZONE_ID, title: 'Tokyo call', starts_at: at('09:00'), ends_at: at('09:30'), time_zone: 'Asia/Tokyo' },
   { id: PLAIN_ID, title: 'Lunch', starts_at: at('13:00'), ends_at: at('14:00'), color: 'sage' },
+  { id: SAME_ID, title: 'Same clock', starts_at: at('15:00'), ends_at: at('15:30'), time_zone: 'Etc/GMT' },
 ]
 
 /** a fresh page: the opt-in, the theme, level 3, Week, the seeded events */
@@ -251,6 +253,12 @@ try {
     await peekShown(p, PLAIN_ID)
     const plain = await p.$eval(`${PEEK} [data-test=calpeek-when]`, (el) => el.textContent.trim()).catch(() => '')
     ok('S4-6: a UTC event shows no second zone', !plain.includes('('), plain)
+    await tap(p, `${PEEK} [data-test=calpeek-close]`)
+    await peekGone(p)
+    await tap(p, row(SAME_ID))
+    await peekShown(p, SAME_ID)
+    const same = await p.$eval(`${PEEK} [data-test=calpeek-when]`, (el) => el.textContent.trim()).catch(() => '')
+    ok('S4-6: a zone with the viewer\'s own clock (Etc/GMT in a UTC browser) shows no second zone', same.includes('15:00') && !same.includes('('), same)
     const pb = await peekBox(p)
     ok('a short event: the peek is as tall as its content (< 45 % of the screen)', Boolean(pb && pb.h > 100 && pb.h < pb.vh * 0.45), pb && { h: pb.h, vh: pb.vh })
     await shot(p, '390-dark-short')

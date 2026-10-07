@@ -152,7 +152,8 @@ const ownZone = computed(() => {
   const zone = ev?.time_zone || ''
   if (!ev || ev.all_day || !zone || zone === 'UTC' || zone === viewerTimeZone()) return ''
   const there = isoDateTimeIn(ev.starts_at, zone)
-  if (!there) return ''
+  /* the same wall clock (an alias of the viewer's zone): nothing to add */
+  if (!there || there === isoDateTime(ev.starts_at)) return ''
   return `${zone} ${there.slice(0, 10) === isoDate(ev.starts_at) ? there.slice(11) : there}`
 })
 

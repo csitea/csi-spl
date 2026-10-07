@@ -1813,7 +1813,13 @@
     "now_load_val": "{cpus} CPU üzerinde {load}",
     "now_mem": "Bellek",
     "now_mem_val": "{used} kullanılıyor, {avail} boş",
-    "now_agents": "Etkin ajanlar"
+    "now_agents": "Etkin ajanlar",
+    "band_title": "Yük bandı",
+    "band_fleet": "Filo bandını kullanır (çekirdeklerin yüzde {low}..{high} kadarı).",
+    "band_own": "Bu makinenin kendi bandı filo bandının ({low}..{high}) yerine geçer.",
+    "band_now": "Şu anki yük: çekirdeklerin yüzde {pct} kadarı (load5).",
+    "band_reset": "Filo bandına dön",
+    "band_who": "Yalnızca operatör çalışma alanının yöneticisi değiştirebilir."
   },
   "act_as": {
     "acting_as": "{name} olarak hareket ediyorsunuz",

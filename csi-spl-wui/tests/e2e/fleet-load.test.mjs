@@ -1,5 +1,6 @@
 // Fleet load (rdb 0118, per-box bands rdb 0134) in a real browser, against
-// the mock bundle.
+// the mock bundle. Also the same per-box band set from the Boxes view
+// (/boxes/<id>, t1 05e0fa03).
 //
 // An admin of the operator workspace sees the card, edits the low and high
 // marks, reorders boxes, saves, reloads and sees the values. A workspace
@@ -190,6 +191,66 @@ try {
   await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=tenant-fleet-bands-empty]', { timeout: NAV_TIMEOUT })
   ok('16 reset clears every per-box band', (await bands(p)).length === 0)
+
+  // t1 05e0fa03: the same per-box band, set from the Boxes view (/boxes/<id>).
+  // One hub row: box-desk 40..70 set there is listed on the Fleet load page, and
+  // its reset removes it there. Only the operator admin sees and saves it.
+  const openBox = async () => {
+    await p.goto(server.base + '/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=box-band]', { visible: true, timeout: NAV_TIMEOUT })
+  }
+  await openBox()
+  const fleetLine = await text(p, '[data-test=box-band-fleet]')
+  ok('17 /boxes/box-desk shows the band block on the fleet band (50..80)',
+    (await p.$eval('[data-test=box-band]', (e) => e.getAttribute('data-own'))) === '0' && /50\.\.80/.test(fleetLine) &&
+    (await value(p, '[data-test=box-band-low]')) === '50' && (await value(p, '[data-test=box-band-high]')) === '80', fleetLine)
+  ok('17b the block says who may edit it', /admin/i.test(await text(p, '[data-test=box-band-who]')))
+  await setField(p, '[data-test=box-band-low]', '70')
+  await setField(p, '[data-test=box-band-high]', '40')
+  await p.click('[data-test=box-band-save]')
+  await p.waitForSelector('[data-test=box-band-error]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('18 CONTROL: low >= high on the box is refused, nothing stored',
+    (await p.$eval('[data-test=box-band]', (e) => e.getAttribute('data-own'))) === '0' &&
+    !(await p.evaluate((k) => localStorage.getItem(k) || '', FLEET_STORE_KEY)).includes('box-desk'))
+  await setField(p, '[data-test=box-band-low]', '40')
+  await setField(p, '[data-test=box-band-high]', '70')
+  await p.click('[data-test=box-band-save]')
+  await p.waitForSelector('[data-test=box-band][data-own="1"]', { timeout: NAV_TIMEOUT })
+  const ownLine = await text(p, '[data-test=box-band-own]')
+  ok('19 saving box-desk 40..70 says it overrides the fleet band 50..80', /50\.\.80/.test(ownLine), ownLine)
+  if (process.env.SHOT_DIR) {
+    await p.setViewport({ width: 1440, height: 900 })
+    await p.evaluate(() => localStorage.setItem('spool-theme', 'light'))
+    await openBox()
+    await p.screenshot({ path: `${process.env.SHOT_DIR}/box-band-1440-light.png` })
+    await p.setViewport({ width: 1400, height: 900 })
+  }
+
+  await p.goto(server.base + '/tenant-settings/fleet-load', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-desk]', { timeout: NAV_TIMEOUT })
+  const listed = { bands: await bands(p), high: await value(p, '[data-test=tenant-fleet-high]'), order: await order(p) }
+  ok('20 the Fleet load page lists box-desk 40..70; the fleet band and the order are untouched',
+    JSON.stringify(listed.bands) === '[{"box":"box-desk","low":"40","high":"70"}]' && listed.high === '80' && listed.order.join() === 'box-a,box-b', listed)
+
+  await openBox()
+  await p.click('[data-test=box-band-reset]')
+  await p.waitForSelector('[data-test=box-band][data-own="0"]', { timeout: NAV_TIMEOUT })
+  await p.goto(server.base + '/tenant-settings/fleet-load', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-bands-empty]', { timeout: NAV_TIMEOUT })
+  ok('21 reset on the box removes it from the Fleet load page', (await bands(p)).length === 0)
+
+  await openBox()
+  await p.evaluate((op) => localStorage.removeItem(op), FLEET_OPERATOR_KEY)
+  await setField(p, '[data-test=box-band-low]', '40')
+  await setField(p, '[data-test=box-band-high]', '70')
+  await p.click('[data-test=box-band-save]')
+  await p.waitForSelector('[data-test=box-band-error]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('22 CONTROL: a non-admin cannot save (the hub refuses, nothing stored)',
+    (await p.$eval('[data-test=box-band]', (e) => e.getAttribute('data-own'))) === '0' &&
+    !(await p.evaluate((k) => localStorage.getItem(k) || '', FLEET_STORE_KEY)).includes('box-desk'))
+  await p.goto(server.base + '/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=box-band-hidden]', { timeout: NAV_TIMEOUT })
+  ok('23 a non-admin does not see the band block', !(await p.$('[data-test=box-band]')))
 
   ok('no page error', errors.length === 0, errors)
 } finally {

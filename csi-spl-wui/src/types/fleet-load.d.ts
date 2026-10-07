@@ -47,6 +47,9 @@ declare module '~/utils/fleet-load.mjs' {
   export function normalizeFleetLoad(body: unknown): FleetLoadView
   export function fleetLoadPatchBody(saved: FleetLoadView, draft: FleetLoadDraft): Record<string, unknown>
   export function suggestFleetBoxes(stats: unknown): string[]
+  export function fleetBoxBandOf(view: FleetLoadView | null | undefined, box: string): { low: number, high: number } | null
+  export function fleetBoxBandPatch(view: FleetLoadView | null | undefined, box: string, band: { low: number, high: number } | null): Record<string, unknown>
+  export function boxLoadPct(row: unknown): number | null
   export function fleetStoredOk(stored: FleetLoadStored | null | undefined): boolean
   export function applyFleetPatch(stored: FleetLoadStored | null | undefined, patch: Record<string, unknown>): FleetLoadStored | null
   export function mockFleetRead(store?: { getItem(key: string): string | null }): unknown

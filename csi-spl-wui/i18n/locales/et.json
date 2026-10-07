@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} {cpus} CPU peal",
     "now_mem": "Mälu",
     "now_mem_val": "{used} kasutusel, {avail} vaba",
-    "now_agents": "Aktiivsed agendid"
+    "now_agents": "Aktiivsed agendid",
+    "band_title": "Koormusvahemik",
+    "band_fleet": "Kasutab laevastiku vahemikku ({low}..{high} % tuumadest).",
+    "band_own": "Selle masina oma vahemik asendab laevastiku vahemiku {low}..{high}.",
+    "band_now": "Koormus praegu: {pct} % tuumadest (load5).",
+    "band_reset": "Laevastiku vahemikule tagasi",
+    "band_who": "Seda saab muuta ainult operaatori tööruumi administraator."
   },
   "act_as": {
     "acting_as": "Tegutsete kasutajana {name}",

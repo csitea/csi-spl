@@ -33,6 +33,22 @@ On a wide screen the Boxes page has three panes:
    and how many agents are live, with the sample's age. A box that has sent no
    sample yet says so. Reading samples needs the audit permission.
 
+   **Load band** (admins of the operator workspace only) is the band this
+   box's load should stay in, as a percent of its cores: **Low %** and
+   **High %**. New agents go first to a box under its low mark, then to one
+   under its high mark. A box with no band of its own says **Uses the fleet
+   band (50..75 % of cores)**, the band set for the whole fleet under
+   Workspace settings -> **Fleet load**. Set Low and High and **Save** to give
+   this box its own band: it then says **This box's own band overrides the
+   fleet band 50..75**, and the fleet band no longer applies to it. **Reset to
+   the fleet band** removes this box's band; other boxes' bands, the fleet
+   band and the box order are left as they are. **Load now** shows the box's
+   current load (load5) as a percent of its cores, the same number the box
+   pick compares with the band. It is the same setting as the **Per-box
+   bands** list on the Fleet load page: a change in one shows in the other.
+   Everyone else does not see the block. Low must be below High (Low 1..99,
+   High 2..100).
+
    Below that is the **Resources** list, the box's daily facts:
    - **Agents**: how many agents sit on the box and how many are online,
    - **Hardware**: the CPU count and the memory size,

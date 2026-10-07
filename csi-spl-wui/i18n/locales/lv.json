@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} uz {cpus} CPU",
     "now_mem": "Atmiņa",
     "now_mem_val": "{used} izmantoti, {avail} brīvi",
-    "now_agents": "Aktīvie aģenti"
+    "now_agents": "Aktīvie aģenti",
+    "band_title": "Slodzes josla",
+    "band_fleet": "Izmanto flotes joslu ({low}..{high} % no kodoliem).",
+    "band_own": "Šīs mašīnas josla aizstāj flotes joslu {low}..{high}.",
+    "band_now": "Slodze tagad: {pct} % no kodoliem (load5).",
+    "band_reset": "Atjaunot flotes joslu",
+    "band_who": "Mainīt var tikai operatora darbvietas administrators."
   },
   "act_as": {
     "acting_as": "Darbojaties kā {name}",

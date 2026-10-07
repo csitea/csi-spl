@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} על {cpus} מעבדים",
     "now_mem": "זיכרון",
     "now_mem_val": "{used} בשימוש, {avail} פנוי",
-    "now_agents": "סוכנים פעילים"
+    "now_agents": "סוכנים פעילים",
+    "band_title": "טווח עומס",
+    "band_fleet": "משתמש בטווח של הצי ({low}..{high} % מהליבות).",
+    "band_own": "הטווח של מכונה זו גובר על טווח הצי {low}..{high}.",
+    "band_now": "עומס כעת: {pct} % מהליבות (load5).",
+    "band_reset": "חזרה לטווח הצי",
+    "band_who": "רק מנהל של סביבת העבודה של המפעיל יכול לשנות זאת."
   },
   "act_as": {
     "acting_as": "פועל בתור {name}",

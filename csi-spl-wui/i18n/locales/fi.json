@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} / {cpus} CPU:ta",
     "now_mem": "Muisti",
     "now_mem_val": "{used} käytössä, {avail} vapaana",
-    "now_agents": "Aktiiviset agentit"
+    "now_agents": "Aktiiviset agentit",
+    "band_title": "Kuormitusalue",
+    "band_fleet": "Käyttää laivueen aluetta ({low}..{high} % ytimistä).",
+    "band_own": "Tämän koneen oma alue korvaa laivueen alueen {low}..{high}.",
+    "band_now": "Kuorma nyt: {pct} % ytimistä (load5).",
+    "band_reset": "Palauta laivueen alueeseen",
+    "band_who": "Vain operaattorityötilan ylläpitäjä voi muuttaa sitä."
   },
   "act_as": {
     "acting_as": "Toimit käyttäjänä {name}",

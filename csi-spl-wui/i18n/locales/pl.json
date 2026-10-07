@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} na {cpus} CPU",
     "now_mem": "Pamięć",
     "now_mem_val": "{used} użyte, {avail} wolne",
-    "now_agents": "Aktywni agenci"
+    "now_agents": "Aktywni agenci",
+    "band_title": "Pasmo obciążenia",
+    "band_fleet": "Używa pasma floty ({low}..{high} % rdzeni).",
+    "band_own": "Własne pasmo tej maszyny zastępuje pasmo floty {low}..{high}.",
+    "band_now": "Obciążenie teraz: {pct} % rdzeni (load5).",
+    "band_reset": "Przywróć pasmo floty",
+    "band_who": "Zmienić je może tylko administrator przestrzeni roboczej operatora."
   },
   "act_as": {
     "acting_as": "Działasz jako {name}",

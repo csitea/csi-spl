@@ -69,6 +69,10 @@
           <p v-else class="muted" data-test="box-now-none">{{ t('boxes.now_none') }}</p>
         </section>
 
+        <!-- HUM-10 (t1 05e0fa03): this box's own load band, admins of the
+             operator workspace only (lazy; hidden for everyone else) -->
+        <BoxLoadBand v-if="!box.browser" :box="boxId" :sample="latest" />
+
         <!-- the box's resources: each row opens its statistics on the right -->
         <nav class="box-res__list" :aria-label="t('boxes.resources')" data-test="box-resources">
           <h3>{{ t('boxes.resources') }}</h3>
@@ -159,6 +163,8 @@ import type { UiIconName } from '~/utils/uiIcons'
 
 /* the right pane is its own chunk: fetched on the first resource opened */
 const BoxStatsPane = defineAsyncComponent(() => import('@/components/BoxStatsPane.vue'))
+/* the load band (t1 05e0fa03) is its own chunk too: most viewers never see it */
+const BoxLoadBand = defineAsyncComponent(() => import('@/components/BoxLoadBand.vue'))
 
 const route = useRoute()
 const router = useRouter()

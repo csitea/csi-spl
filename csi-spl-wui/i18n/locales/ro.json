@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} pe {cpus} CPU",
     "now_mem": "Memorie",
     "now_mem_val": "{used} folosită, {avail} liberă",
-    "now_agents": "Agenți activi"
+    "now_agents": "Agenți activi",
+    "band_title": "Bandă de încărcare",
+    "band_fleet": "Folosește banda flotei ({low}..{high} % din nuclee).",
+    "band_own": "Banda proprie a acestei mașini înlocuiește banda flotei {low}..{high}.",
+    "band_now": "Încărcare acum: {pct} % din nuclee (load5).",
+    "band_reset": "Înapoi la banda flotei",
+    "band_who": "Doar un administrator al spațiului de lucru al operatorului o poate schimba."
   },
   "act_as": {
     "acting_as": "Acționezi ca {name}",

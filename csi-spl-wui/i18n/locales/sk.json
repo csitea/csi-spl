@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} na {cpus} CPU",
     "now_mem": "Pamäť",
     "now_mem_val": "{used} použité, {avail} voľné",
-    "now_agents": "Aktívni agenti"
+    "now_agents": "Aktívni agenti",
+    "band_title": "Pásmo záťaže",
+    "band_fleet": "Používa pásmo flotily ({low}..{high} % jadier).",
+    "band_own": "Vlastné pásmo tohto stroja nahrádza pásmo flotily {low}..{high}.",
+    "band_now": "Záťaž teraz: {pct} % jadier (load5).",
+    "band_reset": "Späť na pásmo flotily",
+    "band_who": "Zmeniť ho môže iba správca pracovného priestoru operátora."
   },
   "act_as": {
     "acting_as": "Konáte ako {name}",

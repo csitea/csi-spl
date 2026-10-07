@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} på {cpus} CPU:er",
     "now_mem": "Minne",
     "now_mem_val": "{used} använt, {avail} ledigt",
-    "now_agents": "Aktiva agenter"
+    "now_agents": "Aktiva agenter",
+    "band_title": "Lastband",
+    "band_fleet": "Använder flottans band ({low}..{high} % av kärnorna).",
+    "band_own": "Maskinens eget band ersätter flottans band {low}..{high}.",
+    "band_now": "Last nu: {pct} % av kärnorna (load5).",
+    "band_reset": "Tillbaka till flottans band",
+    "band_who": "Bara en administratör för operatörens arbetsyta kan ändra det."
   },
   "act_as": {
     "acting_as": "Agerar som {name}",

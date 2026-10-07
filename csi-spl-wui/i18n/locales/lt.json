@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} iš {cpus} CPU",
     "now_mem": "Atmintis",
     "now_mem_val": "{used} naudojama, {avail} laisva",
-    "now_agents": "Aktyvūs agentai"
+    "now_agents": "Aktyvūs agentai",
+    "band_title": "Apkrovos juosta",
+    "band_fleet": "Naudoja parko juostą ({low}..{high} % branduolių).",
+    "band_own": "Šios mašinos juosta pakeičia parko juostą {low}..{high}.",
+    "band_now": "Apkrova dabar: {pct} % branduolių (load5).",
+    "band_reset": "Grąžinti parko juostą",
+    "band_who": "Pakeisti gali tik operatoriaus darbo srities administratorius."
   },
   "act_as": {
     "acting_as": "Veikiate kaip {name}",

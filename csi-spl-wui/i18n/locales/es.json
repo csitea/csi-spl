@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} en {cpus} CPU",
     "now_mem": "Memoria",
     "now_mem_val": "{used} usada, {avail} libre",
-    "now_agents": "Agentes activos"
+    "now_agents": "Agentes activos",
+    "band_title": "Banda de carga",
+    "band_fleet": "Usa la banda de la flota ({low}..{high} % de los núcleos).",
+    "band_own": "La banda propia de esta máquina sustituye a la banda de la flota {low}..{high}.",
+    "band_now": "Carga ahora: {pct} % de los núcleos (load5).",
+    "band_reset": "Volver a la banda de la flota",
+    "band_who": "Solo un administrador del espacio de trabajo del operador puede cambiarla."
   },
   "act_as": {
     "acting_as": "Actuando como {name}",

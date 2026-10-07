@@ -128,6 +128,42 @@ export function fleetLoadPatchBody(saved, draft) {
   return body
 }
 
+/** One box's own band from a normalizeFleetLoad() view; null = it uses the fleet band. */
+export function fleetBoxBandOf(view, box) {
+  const list = view && Array.isArray(view.boxes) ? view.boxes : []
+  const b = list.find((x) => x.box === box)
+  return b ? { low: b.low, high: b.high } : null
+}
+
+/**
+ * The Boxes view's PATCH body: set (band) or remove (null) ONE box's entry.
+ * The other boxes' bands, the fleet band and the box order stay as `view` has
+ * them (the hub replaces the whole map, so the rest is sent back unchanged).
+ */
+export function fleetBoxBandPatch(view, box, band) {
+  if (!view || !validFleetBox(box)) return {}
+  const others = (Array.isArray(view.boxes) ? view.boxes : []).filter((b) => b.box !== box)
+  const boxes = band ? others.concat({ box, low: Number(band.low), high: Number(band.high) }) : others
+  return fleetLoadPatchBody(view, {
+    low: view.low,
+    high: view.high,
+    boxOrder: (view.boxOrder || []).slice(),
+    resetLow: false,
+    resetHigh: false,
+    resetOrder: false,
+    boxes,
+    resetBoxes: false,
+  })
+}
+
+/** A box's load as a whole % of its cores (load5 / cpus * 100, as box-pick reads it); null = no sample. */
+export function boxLoadPct(row) {
+  const load5 = Number(row && row.load5)
+  const cpus = Number(row && row.cpus)
+  if (!row || !Number.isFinite(load5) || !(cpus > 0)) return null
+  return Math.floor((load5 / cpus) * 100)
+}
+
 /** Box ids to offer, from GET /v1/tenant/box-stats rows (then hours). */
 export function suggestFleetBoxes(stats) {
   const rows = stats && Array.isArray(stats.rows) ? stats.rows : []

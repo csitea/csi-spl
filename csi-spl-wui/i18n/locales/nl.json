@@ -1813,7 +1813,13 @@
     "now_load_val": "{load} op {cpus} CPU's",
     "now_mem": "Geheugen",
     "now_mem_val": "{used} gebruikt, {avail} vrij",
-    "now_agents": "Actieve agents"
+    "now_agents": "Actieve agents",
+    "band_title": "Belastingsband",
+    "band_fleet": "Gebruikt de vlootband ({low}..{high} % van de cores).",
+    "band_own": "De eigen band van deze machine vervangt de vlootband {low}..{high}.",
+    "band_now": "Belasting nu: {pct} % van de cores (load5).",
+    "band_reset": "Terug naar de vlootband",
+    "band_who": "Alleen een beheerder van de operatorwerkruimte kan dit wijzigen."
   },
   "act_as": {
     "acting_as": "Handelen als {name}",

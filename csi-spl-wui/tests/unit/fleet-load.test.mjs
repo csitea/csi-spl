@@ -7,9 +7,12 @@ import {
   FLEET_BAD_SETTING,
   FLEET_OPERATOR_KEY,
   applyFleetPatch,
+  boxLoadPct,
   fleetBandList,
   fleetBandMap,
   fleetBandOk,
+  fleetBoxBandOf,
+  fleetBoxBandPatch,
   fleetLoadForbidden,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
@@ -150,6 +153,45 @@ ok('the live client keeps a 403 permission field', client.includes('err.permissi
 const lazy = readFileSync(new URL('../../src/utils/spool-client-lazy.mjs', import.meta.url), 'utf8')
 ok('the client calls GET and PATCH /v1/operator/fleet-load',
   lazy.includes("live('/v1/operator/fleet-load')") && lazy.includes("live('/v1/operator/fleet-load',"))
+
+// t1 05e0fa03: the Boxes view sets ONE box's band. Only that entry changes;
+// the other bands, the fleet band and the box order are untouched.
+const many = normalizeFleetLoad({
+  low: 40, high: 80, box_order: ['box-c', 'box-s'], boxes: { 'box-s': { low: 30, high: 60 }, 'box-z': { low: 10, high: 20 } }, source: 'hub',
+  stored: { low: 40, high: 80, box_order: ['box-c', 'box-s'], boxes: { 'box-s': { low: 30, high: 60 }, 'box-z': { low: 10, high: 20 } } },
+  defaults: { low: 50, high: 75, box_order: [] },
+})
+ok('box band: a box without one uses the fleet band (null)', fleetBoxBandOf(many, 'box-c') === null)
+ok('box band: a box with one reads it', JSON.stringify(fleetBoxBandOf(many, 'box-s')) === '{"low":30,"high":60}')
+const setC = fleetBoxBandPatch(many, 'box-c', { low: 40, high: 70 })
+ok('box band: set sends only boxes, with this box added and the others as they were',
+  JSON.stringify(Object.keys(setC)) === '["boxes"]' &&
+  JSON.stringify(fleetBandList(setC.boxes)) === '[{"box":"box-c","low":40,"high":70},{"box":"box-s","low":30,"high":60},{"box":"box-z","low":10,"high":20}]', JSON.stringify(setC))
+const editS = fleetBoxBandPatch(many, 'box-s', { low: 35, high: 65 })
+ok('box band: editing one box keeps every other band',
+  editS.boxes['box-s'].low === 35 && editS.boxes['box-s'].high === 65 && editS.boxes['box-z'].low === 10 && !('low' in editS) && !('box_order' in editS), JSON.stringify(editS))
+const resetS = fleetBoxBandPatch(many, 'box-s', null)
+ok('box band: reset removes only this box',
+  JSON.stringify(resetS) === JSON.stringify({ boxes: { 'box-z': { low: 10, high: 20 } } }), JSON.stringify(resetS))
+ok('box band: an unchanged band sends nothing', Object.keys(fleetBoxBandPatch(many, 'box-s', { low: 30, high: 60 })).length === 0)
+ok('CONTROL: resetting a box with no band sends nothing', Object.keys(fleetBoxBandPatch(many, 'box-c', null)).length === 0)
+ok('CONTROL: a bad box id sends nothing', Object.keys(fleetBoxBandPatch(many, 'Bad Box', { low: 1, high: 2 })).length === 0)
+const onlyOne = normalizeFleetLoad({ low: 50, high: 75, box_order: [], boxes: { 'box-c': { low: 40, high: 70 } }, stored: { boxes: { 'box-c': { low: 40, high: 70 } } } })
+ok('box band: resetting the last band sends an empty map (the hub stores unset)', JSON.stringify(fleetBoxBandPatch(onlyOne, 'box-c', null)) === '{"boxes":{}}')
+// the mock hub plays it end to end: set box-c, the other band stays; reset box-c, gone
+const boxStore = mem({ [FLEET_OPERATOR_KEY]: '1' })
+mockFleetWrite({ boxes: { 'box-s': { low: 30, high: 60 } }, low: 45 }, boxStore)
+const afterSet = normalizeFleetLoad(mockFleetWrite(fleetBoxBandPatch(normalizeFleetLoad(mockFleetRead(boxStore)), 'box-c', { low: 40, high: 70 }), boxStore))
+ok('mock: setting box-c keeps box-s and the fleet low', JSON.stringify(afterSet.boxes) === '[{"box":"box-c","low":40,"high":70},{"box":"box-s","low":30,"high":60}]' && afterSet.low === 45, JSON.stringify(afterSet))
+const afterReset = normalizeFleetLoad(mockFleetWrite(fleetBoxBandPatch(afterSet, 'box-c', null), boxStore))
+ok('mock: resetting box-c leaves box-s only', JSON.stringify(afterReset.boxes) === '[{"box":"box-s","low":30,"high":60}]', JSON.stringify(afterReset))
+let refused = ''
+try { mockFleetWrite(fleetBoxBandPatch(afterReset, 'box-c', { low: 70, high: 40 }), boxStore) } catch (e) { refused = e.token }
+ok('CONTROL: low >= high on one box is refused (bad_setting)', refused === 'bad_setting', refused)
+ok('box load %: load5 / cpus as box-pick reads it', boxLoadPct({ load5: 0.9, cpus: 8 }) === 11 && boxLoadPct({ load5: 4, cpus: 4 }) === 100)
+ok('CONTROL: box load % without a sample or cpus is null', boxLoadPct(null) === null && boxLoadPct({ load5: 1, cpus: 0 }) === null)
+const page = readFileSync(new URL('../../src/pages/boxes/[id].vue', import.meta.url), 'utf8')
+ok('the Boxes page loads the band block lazily', /defineAsyncComponent\(\(\) => import\('@\/components\/BoxLoadBand\.vue'\)\)/.test(page) && !/^import .*BoxLoadBand/m.test(page))
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)

@@ -63,6 +63,17 @@ handed out again after a 24 h quarantine. A role id (001-003) is never retired.
 bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --defer --retire
 ```
 
+It writes `lifetime/done` in your spool dir first, while you still run, so
+the watchdog reads your exit as finished, never as a crash to restart.
+
+With `--rebirth` (the 1 h rebirth, specs/102): land what is green, write your
+notes, then mark the rebirth instead of closing. The window stays open, the id
+is not retired, and the watchdog restarts you with your handoff.
+
+```bash
+bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --rebirth
+```
+
 Then end your turn: your last message is the one-line report, nothing after it.
 
 `/exit` is a built-in CLI command, not a tool: you cannot run it, and asking
@@ -82,3 +93,4 @@ command does not stop it.
 | (none) | sections 1-3, then `/exit` |
 | `report-only` | sections 1-2; do not exit, do not close |
 | `no-close` | `/exit` without scheduling the window close |
+| `--rebirth` | sections 1-2, then the `--rebirth` marker (section 3), then `/exit`; no close, no retire |

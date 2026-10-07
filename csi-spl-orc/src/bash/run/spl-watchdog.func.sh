@@ -290,6 +290,7 @@ spl_wd_gather() {
   spl_wd_inbox "$SPOOL_ROOT/$id/inbox" > "$ctx/inbox"
   rundir="$(awk -F'\t' -v i="$id" '$1 == i {d = $4} END {print d}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
   if [[ "$rundir" == /* && ! -d "$rundir" ]]; then echo "$rundir" > "$ctx/rundir_gone"; fi
+  spl_wd_lifetime "$id" "$ctx"
   if [[ -n "$pid" ]]; then
     awk -v p="$pid" '$1 == p {print $3}' "$tick/ps" > "$ctx/proc_age"
     spl_wd_transcript "$pid" > "$ctx/transcript"
@@ -310,6 +311,24 @@ spl_wd_gather() {
   # shellcheck disable=SC2317 # called by spl_rotate_input
   ( spl_rotate_tmux() { spl_wd_tmux "$@"; }; spl_rotate_input "$pane" ) > "$ctx/input" 2>/dev/null || : > "$ctx/input"
   spl_wd_since "$id" input "$(cat "$ctx/input")" "$now" "$ctx/input_age"
+  return 0
+}
+
+# S3's done or died (spec 102 4.3): the mtime of lifetime/done and
+# lifetime/rebirth, the session start (session.json's `started`, else its
+# mtime) and the pane of an open registry row ("-" when it names none).
+spl_wd_lifetime() {
+  local id="$1" ctx="$2" lt="$SPOOL_ROOT/$1/lifetime" f s
+  for f in "done" rebirth; do
+    [[ -f "$lt/$f" ]] && { stat -c %Y "$lt/$f" > "$ctx/$f" 2>/dev/null || true; }
+  done
+  if [[ -f "$lt/session.json" ]]; then
+    s="$(jq -r '.started // empty' "$lt/session.json" 2>/dev/null || true)"
+    s="$(date -u -d "${s:-x}" +%s 2>/dev/null || stat -c %Y "$lt/session.json" 2>/dev/null || true)"
+    [[ -n "$s" ]] && echo "$s" > "$ctx/session_start"
+  fi
+  awk -F'\t' -v i="$id" '$1 == i {p = ($3 == "" ? "-" : $3); f = 1} END {if (f) print p}' \
+    "$SPOOL_ROOT/registry.tsv" > "$ctx/registry_open" 2>/dev/null || true
   return 0
 }
 

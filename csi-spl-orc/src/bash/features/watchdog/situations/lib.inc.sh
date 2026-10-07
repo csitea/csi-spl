@@ -20,6 +20,9 @@
 #   inbox        "<mtime epoch> <file> <kind> <from>" per <spool root>/<id>/inbox/*.json
 #                (kind, from "-" when unreadable; old two-field lines still read)
 #   rundir_gone  the registry workdir of a lane that no longer exists
+#   done, rebirth  mtime epoch of <spool root>/<id>/lifetime/done, .../rebirth
+#   session_start  epoch of lifetime/session.json's `started` (else its mtime)
+#   registry_open  the pane of its open registry.tsv row ("-": none named)
 #   proc_age     s since the harness process started; user: its OS user
 # It prints one line `HIT <code> <evidence>` or nothing, and exits 0.
 #------------------------------------------------------------------------------

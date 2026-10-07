@@ -10,6 +10,8 @@
 #          ./run's `set -E` + an ERR trap that ends the run.
 #   1. S1..S8: one fixture that hits and one control that does not, per
 #      situation of 6.1 (the scripts read only their context dir)
+#      S3 of spec 102 4.3 (T005): a done marker, a stale one, a rebirth
+#      marker, a gone pane with an open registry row, each with its control
 #   2. the false positives of 6.2, each with its control: a 14 min Bash call,
 #      a 50 min Monitor, an idle agent with an empty inbox, a stale stub on a
 #      seat, a long turn with a moving spinner, a stale login banner after
@@ -144,6 +146,28 @@ nohit "S3 control: a claude runs under the pane (its environ unreadable)" s3 c-9
 nohit "S3 control: a live pid carries the id" s3 c-900 4242
 ctx s3f; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; echo /opt/x/c-900 > "$C/rundir_gone"
 nohit "S3 control: a lane that tore down its workdir and exited (finished)" s3 c-900 -
+# S3 (spec 102 4.3, T005): done and rebirth markers, a gone pane
+s3ctx() { ctx "$1"; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"; echo "%9" > "$C/registry_open"; }
+s3ctx s3d; echo $((T0 - 60)) > "$C/done"; echo $((T0 - 600)) > "$C/session_start"
+nohit "S3 a done marker newer than the session, bare bash, window open: finished" s3 c-900 -
+s3ctx s3d0; echo $((T0 - 60)) > "$C/done"
+nohit "S3 a done marker and no session.json yet: finished" s3 c-900 -
+s3ctx s3dc
+hit "S3 control: the same pane with no done marker hits" s3 c-900 -
+s3ctx s3ds; echo $((T0 - 900)) > "$C/done"; echo $((T0 - 600)) > "$C/session_start"
+hit "S3 a stale done older than the session (a reused id) is ignored" s3 c-900 -
+s3ctx s3r; echo $((T0 - 30)) > "$C/rebirth"
+grep -q '^HIT S3 rebirth: lifetime/rebirth ' <<<"$(run_s s3 c-900 -)" && pass "S3 a rebirth marker: verdict rebirth" || fail "S3 rebirth: $(run_s s3 c-900 -)"
+s3ctx s3rc
+grep -q 'rebirth' <<<"$(run_s s3 c-900 -)" && fail "S3 control: no rebirth marker read as a rebirth" || pass "S3 control: no rebirth marker, a plain S3 (a crash)"
+ctx s3g; echo "%9" > "$C/registry_open"
+hit "S3 the pane is gone, the registry row open, no process (widened)" s3 c-900 - -
+ctx s3gc
+nohit "S3 control: the pane is gone and no registry row is open" s3 c-900 - -
+ctx s3gd; echo "%9" > "$C/registry_open"; echo $((T0 - 60)) > "$C/done"
+nohit "S3 control: the pane is gone after a done marker (finished)" s3 c-900 - -
+ctx s3gr; echo "%9" > "$C/registry_open"; echo /opt/x/c-900 > "$C/rundir_gone"
+nohit "S3 control: the pane is gone and the rundir too (finished)" s3 c-900 - -
 
 # S4: one tool call over its cap; 6.2 the 14 min Bash call and the 50 min Monitor
 ctx s4; hb in-tool 0 "| .tool = \"Bash\" | .tool_since = \"$(iso $((T0 - 960)))\""
@@ -326,6 +350,17 @@ NOW=$((T0 + 60)) out3="$(wd)"; settle
 grep -q 'c-911 HIT S3 .*-> takeover$' <<<"$out3" && grep -qx 'takeover c-911 S3' "$T/takeovers" && pass "4 DRY_RUN=0: S3 takes over (ID + REASON)" || fail "4 takeover: $out3 / $(cat "$T/takeovers" 2>/dev/null)"
 NOW=$((T0 + 90)) wd >/dev/null
 [[ "$(grep -c . "$T/takeovers")" == 1 ]] && pass "4 one takeover per episode" || fail "4 twice: $(cat "$T/takeovers")"
+
+# 4. S3 (spec 102 4.3, T005): an agent that ran /exit-clean (lifetime/done)
+# and left a bare shell is never taken over (a-479, a-480); control: the
+# same window without the marker is
+reset_box; agent c-912 %1 -; agent c-913 %2 -
+printf 'c-912\tclaude\t%%1\t/tmp\t20270115T070000Z\nc-913\tclaude\t%%2\t/tmp\t20270115T070000Z\n' > "$S/registry.tsv"
+mkdir -p "$S/c-912/lifetime"; touch -d "@$((T0 - 60))" "$S/c-912/lifetime/done"
+NOW=$T0 wd >/dev/null; NOW=$((T0 + 30)) out="$(wd)"; settle
+grep -q '^c-912 OK' <<<"$out" && ! grep -q 'takeover c-912' "$T/takeovers" 2>/dev/null && pass "4 a done marker: 2 ticks of a bare shell, no takeover" || fail "4 done: $out"
+grep -q 'c-913 HIT S3 .*-> takeover$' <<<"$out" && grep -qx 'takeover c-913 S3' "$T/takeovers" && pass "4 control: no done marker -> HIT S3, takeover" || fail "4 done control: $out"
+rm -f "$S/registry.tsv"
 
 # S2 never takes over; ONE blocker to the orchestrator
 reset_box; agent c-912 %1 4012 claude 3600 "$FL/login-expired-2026-10-05.pane"; cp "$FL/login-expired.jsonl" "$T/tr.4012"

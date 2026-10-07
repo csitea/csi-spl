@@ -28,6 +28,11 @@
 #      closed; a busy agy (screen still changing) never gets /exit; nor does
 #      one paused mid-turn on a STATIC screen (footer `esc to cancel`) - the
 #      live a-479 got three /exit tries in that state on screen stability alone
+#  11. specs/102 4.3 (T005): --defer writes lifetime/done BEFORE it returns, while
+#      the claude / grok / agy process still runs (a-479, a-480: S3 took over an
+#      agent that had exited on purpose); --rebirth writes lifetime/rebirth,
+#      drops a stale done, closes and retires nothing. Control: a role id
+#      (c-001) writes no done
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -184,4 +189,25 @@ in_agy_session bash "$SUT" --agent a-304 --defer --timeout 6
 check "10. an agy paused mid-turn is closed only by the timeout" wait_gone "$P10C" 30
 eq "10. control: ... and never got /exit on a static mid-turn screen" "" "$(cat "$T_TMP/got-304" 2>/dev/null)"
 check "10. the idle agy without a closer is still there" alive "$P10"
+
+# --- 11. the lifetime markers (specs/102 4.3) --------------------------------------------------
+for h in claude grok agy; do ln -sf "$(command -v sleep)" "$T_TMP/bin/$h"; done
+for hid in claude:c-411 grok:g-412 agy:a-413; do
+  h="${hid%%:*}" id="${hid#*:}"
+  P="$(t_window "$id@tbox" "$T_TMP/bin/$h 600")"
+  sleep 0.5
+  bash "$SUT" --agent "$id" --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. $h: --defer returns 0" 0 "$?"
+  check "11. $h: lifetime/done is written before the $h process ends (it still runs)" bash -c "test -s '$SPOOL_ROOT/$id/lifetime/done' && tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id} #{pane_current_command}' | grep -qx '$P $h'"
+done
+P11="$(t_window 'c-414@tbox' 'sleep 600')"
+mkdir -p "$SPOOL_ROOT/c-414/lifetime"; echo old > "$SPOOL_ROOT/c-414/lifetime/done"
+bash "$SUT" --agent c-414 --rebirth >"$T_TMP/o" 2>&1; eq "11. --rebirth returns 0" 0 "$?"
+check "11. --rebirth writes lifetime/rebirth" test -s "$SPOOL_ROOT/c-414/lifetime/rebirth"
+check "11. --rebirth drops a stale done" test ! -e "$SPOOL_ROOT/c-414/lifetime/done"
+sleep 2
+check "11. --rebirth closes nothing: the window stays" alive "$P11"
+hasnt "11. --rebirth schedules no close" "scheduled defer-close" "$(cat "$T_TMP/o")"
+t_window 'c-001@tbox' 'sleep 600' >/dev/null
+bash "$SUT" --agent c-001 --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. control: a role id's --defer returns 0" 0 "$?"
+check "11. control: a role id writes no done (its successor keeps the id)" test ! -e "$SPOOL_ROOT/c-001/lifetime/done"
 t_done

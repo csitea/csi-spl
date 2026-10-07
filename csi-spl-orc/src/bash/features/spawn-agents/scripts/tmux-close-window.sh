@@ -59,6 +59,7 @@
 # Usage:
 #   tmux-close-window.sh --agent CLE-07 --defer     # the teardown path
 #   tmux-close-window.sh --agent c-007 --defer --retire  # /exit-clean: then retire the id
+#   tmux-close-window.sh --agent c-007 --rebirth  # /exit-clean --rebirth: marker only
 #   tmux-close-window.sh --agent CLE-07             # close it now
 #   tmux-close-window.sh --pane %123 --defer
 #   tmux-close-window.sh main:5                     # explicit target, now
@@ -86,6 +87,7 @@ SPOOL_ENV_NO_BINS=1 spool_env_resolve
 BOX_USER="$SPOOL_BOX_USER" BOX_TMUX_SOCKET="$SPOOL_TMUX_SOCKET" BOX_TAG="${SPOOL_BOX_TAG:-}"
 DEFER=0
 RETIRE=0
+REBIRTH=0
 DRY_RUN=0
 TIMEOUT=180
 TARGET_ARG=""
@@ -116,6 +118,11 @@ Options:
                      (scripts/agent-id-retire.sh, specs/061 3.6): its spool dir,
                      registry rows and identity record move aside, so the
                      allocator may reuse the number after the quarantine.
+  --rebirth          /exit-clean --rebirth (specs/102 4.3): write
+                     <spool root>/<id>/lifetime/rebirth and exit 0; nothing is
+                     closed or retired, the watchdog restarts the id. A plain
+                     --defer with --agent writes lifetime/done instead (not for
+                     a role id), before the agent exits.
   --timeout SECONDS  Max wait in --defer mode (default: 180)
   --dry-run          Print the resolution and exit; never kills anything.
   --help             Show this help
@@ -137,6 +144,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --defer) DEFER=1; shift ;;
     --retire) RETIRE=1; shift ;;
+    --rebirth) REBIRTH=1; shift ;;
     --dry-run|--dry) DRY_RUN=1; shift ;;
     --agent)
       AGENT_ARG="${2:?tmux-close-window: --agent requires an agent id}"
@@ -463,6 +471,32 @@ fi
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "tmux-close-window: [dry-run] would close window ${WINDOW_TARGET} ('${WINDOW_NAME}') pane=${PANE:-none} via ${SOURCE}"
   exit 0
+fi
+
+# --- the lifetime marker (specs/102 4.3) -----------------------------------
+# Written here, while the agent (claude, grok, agy, qwen alike) still runs
+# this command, so the watchdog never reads its exit as a crash: a-479 and
+# a-480 exited after /exit-clean and S3 took them over in the 2 min the
+# closer still waited. done: finished, never restarted. rebirth: the
+# watchdog restarts the id; a stale done of the same id goes. A role id
+# writes no done: its successor keeps the id.
+mark_lifetime() {
+  local d="${SPOOL_ROOT}/${AGENT_ID}/lifetime"
+  if mkdir -p "$d" 2>/dev/null && date -u +%FT%TZ > "$d/$1.tmp.$$" 2>/dev/null && mv -f "$d/$1.tmp.$$" "$d/$1"; then
+    echo "tmux-close-window: wrote $d/$1"
+  else
+    rm -f "$d/$1.tmp.$$" 2>/dev/null
+    echo "tmux-close-window: could not write $d/$1" >&2
+  fi
+}
+if [[ "$REBIRTH" -eq 1 ]]; then
+  [[ -n "$AGENT_ID" ]] || { echo "tmux-close-window: --rebirth needs --agent; wrote nothing" >&2; exit 2; }
+  mark_lifetime rebirth
+  rm -f "${SPOOL_ROOT}/${AGENT_ID}/lifetime/done"
+  exit 0
+fi
+if [[ "$DEFER" -eq 1 && -n "$AGENT_ID" && -z "${TCW_DETACHED:-}" ]]; then
+  case "${AGENT_ID#*-}" in 1|01|001|2|02|002|3|03|003) ;; *) mark_lifetime "done" ;; esac
 fi
 
 # --- agent PID discovery (claude|grok|agy|qwen under pane tree) -----------------

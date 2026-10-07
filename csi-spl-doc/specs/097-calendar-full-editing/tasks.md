@@ -144,7 +144,7 @@ and responsive pickers are handled entirely within the WUI surface (T013..T019).
     target node); the non-passive touchmove guard lives on the scroller for good.
     The hub's event has no `updated_by`, so the notice says "someone else", not
     who. e2e `tests/e2e/calendar-drag.test.mjs` 54/54 (wf 10 green for it on `3370905e`).
-- [ ] T014 **dialog fields** in `CalendarEventDialog.vue`: reminders list (up
+- [x] T014 **dialog fields** (c-427, `00135d19`; WUI v2.5.4 on dev and prd) in `CalendarEventDialog.vue`: reminders list (up
   to 5, each a whole-number field and a minutes / hours / days choice; a
   fraction or 0 cannot be typed), location, colour swatches (theme variables,
   light and dark), time zone picker (default the member's `time_zone`
@@ -156,6 +156,14 @@ and responsive pickers are handled entirely within the WUI surface (T013..T019).
   and Delete are anchored in a sticky bottom bar reachable by thumb.
   Depends: T013. (G6..G9, G11, spec 5.1.2, 5.1.6, 5.1.9)
   - The dialog exists (089 T008 v1, c-378): `wui/src/components/CalendarEventDialog.vue`, its rules in `wui/src/utils/calendar-event-form.mjs` (add a field: one key in `calFormFromEvent`, one entry in `calFormBody`), its slot for these fields marked `097 T014..T016` between all day and the Private switch.
+  - **Built** (c-427): time zone (default the member's `time_zone`; the form's
+    clock is wall time in the event's zone; an 089 `UTC` event opens in the
+    viewer's zone and keeps `UTC` until the picker moves), location, reminder
+    rows (`calReminderAmount` keeps digits only), 11 swatches on
+    `--cal-color-*` (`variables.css`, dark + light); actions in UiDialog's
+    footer. A click shows `CalendarEventPopover.vue` (Edit, Duplicate); the
+    dialog's `copy` prop is Duplicate. e2e `calendar-event-fields` 40/40
+    (1440 / 360 / 390). First screen +57 B (`isoDateTime(value, zone)`).
 - [ ] T015 **repeat + scope**: the repeat menu and Custom editor, the
   "This / This and following / All" prompt on save and delete. Phone acceptance
   (360 and 390 px): repeat dropdown and Custom cadence editor fit small screen

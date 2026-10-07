@@ -100,7 +100,8 @@ export async function resolveMessage(msgId, api, { limit = 200 } = {}) {
   try {
     info = await withSessionRetry(api, () => api.moveInfo(id))
   } catch (e) {
-    return { reason: failureReason(e) }
+    const reason = failureReason(e)
+    return reason === 'not_found' ? resolveTopic(id, api) : { reason }
   }
   const taskId = String((info && info.task_id) || '')
   if (!taskId) return { reason: 'not_found' }
@@ -143,6 +144,30 @@ export async function resolveMessage(msgId, api, { limit = 200 } = {}) {
     } catch { /* not a card (a lobby message), or no answer: open it */ }
   }
   return { row }
+}
+
+/**
+ * HUM-10 (t1 36ea84a6): /m/<task_id>, a link to a topic (link-target.mjs
+ * turns /t/<task> and ?topic=<task> into it). Its opening card is the row, so
+ * the topic opens in its channel or DM with that card marked. An id that is
+ * neither a message nor a topic stays `not_found`.
+ */
+export async function resolveTopic(taskId, api) {
+  let root
+  try {
+    root = ((await withSessionRetry(api, () => api.getTopic(taskId, { limit: 1 }))).messages || [])[0]
+  } catch (e) {
+    return { reason: failureReason(e) }
+  }
+  if (!root || !root.msg_id) return { reason: 'not_found' }
+  if (rowReason(root)) return { reason: rowReason(root) }
+  if (typeof api.topicSize === 'function') {
+    try {
+      const size = await withSessionRetry(api, () => api.topicSize(String(root.msg_id)))
+      if (size && size.archived === true) return { reason: 'archived' }
+    } catch { /* no answer: open it */ }
+  }
+  return { row: root }
 }
 
 /** Which place a row opens: channel, DM, the Issues tab, or its topic page. */
@@ -233,9 +258,11 @@ export async function openMessage(ref, deps) {
     await router.push({ path: deps.localePath('/t/' + encodeURIComponent(task)), hash: '#' + msgId })
     kind = 'topic'
   }
-  ;(deps.mark || markOpened)(msgId)
+  /* a topic id (resolveTopic) marks its opening card */
+  const markId = String(row.msg_id || msgId).toLowerCase()
+  ;(deps.mark || markOpened)(markId)
   /* the place may be the address already shown: the thread feed scrolls to it itself (msg-jump.mjs) */
-  requestMessageJump(msgId)
+  requestMessageJump(markId)
   return { ok: true, kind, msgId }
 
 }

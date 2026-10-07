@@ -4,6 +4,8 @@
 // panel on screen. A tap on the link must open the linked topic there, and
 // Back must return to the post the reader tapped it in. Also: the same link
 // on desktop, and the /t/<id> URL typed into a phone's address bar.
+// HUM-10 (t1 36ea84a6): a link opens the topic in its channel view, not the
+// Topics view; a URL typed into the address bar is no link and keeps /t/.
 //
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/phone-topic-link.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -92,7 +94,7 @@ try {
   await phone.tap('.spool-shell > .topic a.msg-link')
   await sleep(1500)
   s = await state(phone)
-  ok(`${at} a tap on the topic link opens that topic on screen`, s.path.startsWith(`/t/${TO}`) && s.page && !s.pane, s)
+  ok(`${at} a tap on the topic link opens that topic on screen, in its channel`, s.path.startsWith(`/channel/lobby?topic=${TO}`) && s.level === '3' && s.pane && !s.main, s)
 
   await phone.goBack()
   await sleep(1500)
@@ -112,7 +114,7 @@ try {
   await desk.click('.spool-shell > .topic a.msg-link')
   await sleep(1500)
   s = await state(desk)
-  ok('1440px desktop: a click on the topic link opens that topic', s.path.startsWith(`/t/${TO}`) && s.page, s)
+  ok('1440px desktop: a click on the topic link opens that topic in its channel', s.path.startsWith(`/channel/lobby?topic=${TO}`) && s.pane && s.main, s)
   await desk.close()
 } finally {
   await browser.close()

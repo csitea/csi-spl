@@ -7,8 +7,9 @@
  * A channel topic opens that channel with the card selected and the thread
  * in the right pane. A reply keeps that address and adds the message id, so
  * the reply stays in the right pane. A direct message opens its own list.
- * An archived row, or a direct message with no other end, opens the topic
- * page. A caller that passes labels gets the kind word in front of the link.
+ * An archived row, or a direct message with no other end, opens /m/<id>,
+ * which finds its place (HUM-10 t1 36ea84a6: no link opens the Topics view;
+ * an archived one says where it went). A caller that passes labels gets the kind word in front of the link.
  *
  * A full uuid is a topic when that task is known, otherwise a message when
  * that msg_id is known. An 8-hex token is a topic when exactly one known
@@ -102,31 +103,28 @@ function peerOf(row, self) {
 }
 
 function topicHref(info, pathFor) {
-  /* An archived topic has left the channel list. The topic page still shows it. */
-  if (info.archived) return pathOf(pathFor, '/t/' + encodeURIComponent(info.taskId))
+  /* An archived topic has left the channel list: /m/<task> says so. */
+  if (info.archived) return pathOf(pathFor, '/m/' + encodeURIComponent(info.taskId))
   if (!info.channel && info.peer) {
     return pathOf(pathFor, '/dm/' + encodeURIComponent(info.peer)) + '?topic=' + encodeURIComponent(info.taskId)
   }
   if (info.channel) {
     return pathOf(pathFor, '/channel/' + encodeURIComponent(info.channel)) + '?topic=' + encodeURIComponent(info.taskId)
   }
-  return pathOf(pathFor, '/t/' + encodeURIComponent(info.taskId))
+  return pathOf(pathFor, '/m/' + encodeURIComponent(info.taskId))
 }
 
-function topicPageMessage(row, pathFor) {
-  const task = norm(row.parent_task_id || row.task_id)
+function placeLess(row, pathFor) {
   const id = norm(row.msg_id)
-  if (UUID_TEST.test(task)) return pathOf(pathFor, '/t/' + encodeURIComponent(task)) + (id ? '#' + id : '')
-  if (UUID_TEST.test(id)) return pathOf(pathFor, '/m/' + encodeURIComponent(id))
-  return ''
+  return UUID_TEST.test(id) ? pathOf(pathFor, '/m/' + encodeURIComponent(id)) : ''
 }
 
 function messageHref(row, self, pathFor) {
-  /* An archived reply is not in the channel list. The topic page keeps the hash. */
-  if (row.archived) return topicPageMessage(row, pathFor)
+  /* An archived reply is not in the channel list: /m/<id> says so. */
+  if (row.archived) return placeLess(row, pathFor)
   const section = parentSection(row, { self })
   if (section && section.path && section.kind !== 'issue') return parentSectionHref(section, pathFor)
-  return topicPageMessage(row, pathFor)
+  return placeLess(row, pathFor)
 }
 
 function pushPrefix(map, prefix, rec) {

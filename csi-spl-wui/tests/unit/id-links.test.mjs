@@ -177,7 +177,7 @@ describe('id links', () => {
     assert.equal(linkifyBlocks(blocks, none), blocks)
   })
 
-  it('a link carries its kind, and an archived id opens the topic page', () => {
+  it('a link carries its kind, and an archived id opens /m/<id> (never the Topics view)', () => {
     const labels = {
       topic: 'Topic',
       'channel-message': 'Channel message',
@@ -204,7 +204,7 @@ describe('id links', () => {
     ])
     assert.deepEqual(linkifyText(OTHER, named), [
       txt('Topic (Archived): '),
-      link(OTHER, `/t/${OTHER}`),
+      link(OTHER, `/m/${OTHER}`),
     ])
     const archivedMsg = indexCatalog({
       self: 'HUM-1',
@@ -213,7 +213,7 @@ describe('id links', () => {
     })
     assert.deepEqual(linkifyText(MSG, archivedMsg), [
       txt('Channel message (Archived): '),
-      link(MSG, `/t/${TOPIC}#${MSG}`),
+      link(MSG, `/m/${MSG}`),
     ])
     assert.deepEqual(linkifyText(`missing ${UNKNOWN}`, named), [txt(`missing ${UNKNOWN}`)])
     const fence = linkifyBlocks(parseBody('```\n' + TOPIC + '\n```'), named)

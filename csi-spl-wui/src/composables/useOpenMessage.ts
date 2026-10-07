@@ -42,17 +42,20 @@ export function useOpenMessage() {
    * Open `ref` (a msg_id, or the row the caller holds) where it was posted.
    * keepList (default true): the left panel keeps the list it shows - the
    * route change does not switch the sidebar tab. notify (default true): a
-   * failure raises the shell notice.
+   * failure raises the shell notice. showPlace: the left panel switches to the
+   * place's own list (Channels or Direct messages), as a followed link does.
+   * inPlace: the open lands on the current history entry (phone), so one Back
+   * returns to where the link was; implied by keepList.
    */
-  async function openMessage(ref: MessageRef, opts: { keepList?: boolean, notify?: boolean, replace?: boolean } = {}): Promise<OpenMessageResult> {
+  async function openMessage(ref: MessageRef, opts: { keepList?: boolean, notify?: boolean, replace?: boolean, showPlace?: boolean, inPlace?: boolean } = {}): Promise<OpenMessageResult> {
     const m = await import('~/utils/open-message.mjs')
     const self = String(access.me?.humanId || live.identity.value || roster.me?.id || '')
     const release = opts.keepList === false ? () => {} : sidePane.holdList()
     /* phone: the opened message is ONE history entry over the list, so one Back returns to it */
-    if (opts.keepList !== false) stack.landInPlace()
+    if (opts.keepList !== false || opts.inPlace) stack.landInPlace()
     let out: OpenMessageResult
     try {
-      out = await m.openMessage(ref, { self, api, router, localePath, replace: opts.replace })
+      out = await m.openMessage(ref, { self, api, router, localePath, replace: opts.replace, showPlace: opts.showPlace })
     } finally {
       await nextTick()
       release()

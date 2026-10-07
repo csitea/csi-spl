@@ -5,7 +5,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  OPEN_FOCUS_CLASSES, failureReason, isMessageId, markOpened, messageHref, openMessage, placeKind, placeOf, resolveMessage, rowReason,
+  OPEN_FOCUS_CLASSES, failureReason, isMessageId, markOpened, messageHref, openMessage, placeKind, placeOf, resolveMessage, resolveTopic, rowReason,
 } from '../../src/utils/open-message.mjs'
 
 const MSG = '33333333-3333-4333-8333-333333333333'
@@ -316,4 +316,30 @@ test('TopicPane: a #<msg_id> older than the first page is paged to (at most HASH
   assert.ok(src.indexOf('async function reachHash') < src.indexOf('watch(() => [topic.open, topic.parentTaskId]'))
   const first = src.slice(src.indexOf('watch(() => [topic.open, topic.parentTaskId]'), src.indexOf('async function loadOlder'))
   assert.match(first, /loading\.value = false\n  \}\n  void reachHash\(\)\n\}, \{ immediate: true \}\)/)
+})
+
+/* HUM-10 (t1 36ea84a6): /m/<task_id> is a topic link; it opens at the topic's card */
+test('resolveMessage: an id that is no message but a topic resolves to its opening card', async () => {
+  const card = { msg_id: ROOT, task_id: TASK, channel: 'lobby' }
+  const api = fakeApi({ infoErr: http(404), rows: [card] })
+  assert.deepEqual(await resolveMessage(TASK, api), { row: card })
+  assert.deepEqual(api.calls.map((c) => c[0]), ['moveInfo', 'getTopic', 'topicSize'])
+  assert.deepEqual(await resolveTopic(TASK, fakeApi({ rows: [card], size: { archived: true } })), { reason: 'archived' })
+  assert.deepEqual(await resolveTopic(TASK, fakeApi({ rows: [] })), { reason: 'not_found' })
+  assert.deepEqual(await resolveTopic(TASK, fakeApi({ topicErr: http(403) })), { reason: 'no_access' })
+  /* a 403 on the message read is not retried as a topic */
+  assert.deepEqual(await resolveMessage(MSG, fakeApi({ infoErr: http(403), rows: [card] })), { reason: 'no_access' })
+})
+
+test('openMessage: a topic id opens its place and marks the opening card', async () => {
+  const card = { msg_id: ROOT, task_id: TASK, channel: 'lobby' }
+  const marked = []
+  const sections = []
+  const out = await openMessage(TASK, {
+    self: 'HUM-1', api: fakeApi({ infoErr: http(404), rows: [card] }), router: fakeRouter(), localePath: (p) => p,
+    mark: (id) => marked.push(id), openSection: async (row) => { sections.push(row); return true },
+  })
+  assert.deepEqual(out, { ok: true, kind: 'channel', msgId: TASK })
+  assert.deepEqual(sections, [card])
+  assert.deepEqual(marked, [ROOT])
 })

@@ -1,4 +1,5 @@
-<!-- CLE-77882: /m/<msg_id>, the deep link of one message. It resolves the id
+<!-- CLE-77882: /m/<msg_id>, the deep link of one message (HUM-10 t1 36ea84a6:
+     also /m/<task_id>, a topic link, which opens at the topic's card). It resolves the id
      and replaces itself with the message's original place (channel or DM,
      topic open, the message marked; a reply in its thread). A message that
      cannot be shown leaves this page saying why. -->
@@ -39,7 +40,10 @@ watch([msgId, () => session.state], async ([id, st]) => {
   if (!id || started === id) return
   started = id
   reason.value = ''
-  const out = await openMessage(id, { keepList: false, notify: false, replace: true })
+  /* HUM-10 (t1 36ea84a6): a link or an alert tap lands in the channel or DM view, never a held Flow;
+     reached from inside the app, one Back returns to where the link was (a cold load has nothing below) */
+  const inPlace = import.meta.client && Boolean(window.history.state && window.history.state.back)
+  const out = await openMessage(id, { keepList: false, notify: false, replace: true, showPlace: true, inPlace })
   if (!out.ok && msgId.value === id) reason.value = out.reason
 }, { immediate: true })
 

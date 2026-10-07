@@ -102,8 +102,8 @@ describe('hub answers link like loaded rows', () => {
     assert.equal(link(DM_TOPIC).href, `/dm/${encodeURIComponent('c-001@box-a')}?topic=${DM_TOPIC}`)
     assert.equal(prefix(DM_TOPIC), 'x Direct message: ')
   })
-  it('an archived topic: the topic page, marked archived', () => {
-    assert.equal(link(GONE).href, `/t/${GONE}`)
+  it('an archived topic: /m/<task> (never the Topics view), marked archived', () => {
+    assert.equal(link(GONE).href, `/m/${GONE}`)
     assert.equal(prefix(GONE), 'x Topic (archived): ')
   })
   it('CONTROL: an id the hub did not answer stays text', () => {

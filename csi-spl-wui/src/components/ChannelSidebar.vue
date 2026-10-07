@@ -798,6 +798,7 @@ import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
 import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
 import { AGENTS_TAB, ARCHIVE_TAB, BOXES_TAB, CALENDAR_TAB, EVENTS_TAB, ISSUES_TAB, PEOPLE_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { agentKindLabelKey, isAgentId, isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order.mjs'
@@ -921,6 +922,18 @@ watch(() => route.path, (path) => {
   const next = tabForPath(path)
   if (next) tab.value = next
 }, { immediate: true })
+/* HUM-10 (t1 36ea84a6): a followed link to a message or a topic shows its
+   place's own list (Channels or Direct messages), not the Flow or the search
+   list it was read from. The Flow's and Search's own opens keep their list. */
+setLinkOpenHook((path: string) => {
+  if (!/^(?:\/[^/]+)?\/(?:channel|dm|m)\//.test(path)) return
+  holdFlow.value = false
+  holdSearch.value = false
+  /* the same address again changes no route: the tab follows the link here */
+  const next = tabForPath(path.split(/[?#]/)[0])
+  if (next) tab.value = next
+})
+onBeforeUnmount(() => setLinkOpenHook(null))
 function onTabKey(e: KeyboardEvent) {
   const order = rail.value.map((item) => item.id)
   const i = order.indexOf(tab.value)

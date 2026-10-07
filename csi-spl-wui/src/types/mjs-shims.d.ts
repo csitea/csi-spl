@@ -1431,6 +1431,8 @@ declare module '~/utils/msg-jump.mjs' {
   export function onMessageJump(fn: (msgId: string) => void): () => void
   export function requestMessageJump(msgId: string): boolean
   export function navigateAndJump(path: string, navigate: (path: string) => void): void
+  export function linkPath(path: string): string
+  export function setLinkOpenHook(fn: ((path: string) => void) | null): void
 }
 
 declare module '~/utils/open-message.mjs' {
@@ -1447,7 +1449,8 @@ declare module '~/utils/open-message.mjs' {
   export function placeKind(row: unknown, self?: string): string
   export function placeOf(topicRow: unknown, info: unknown): Record<string, any>
   export function markOpened(msgId: string, opts?: { tries?: number, every?: number, hold?: number, doc?: Document }): void
-  export function openMessage(ref: string | Record<string, any>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean }): Promise<OpenMessageResult>
+  export function resolveTopic(taskId: string, api: unknown): Promise<{ row: Record<string, any> } | { reason: OpenMessageReason }>
+  export function openMessage(ref: string | Record<string, any>, deps: { self: string, api: unknown, router: unknown, localePath: (p: string) => string, replace?: boolean, showPlace?: boolean }): Promise<OpenMessageResult>
 }
 
 declare module '~/utils/slash-focus.mjs' {

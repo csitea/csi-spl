@@ -45,8 +45,30 @@ export function requestMessageJump(msgId) {
   return true
 }
 
+/* HUM-10 (t1 36ea84a6): a link opens the channel view, or private messages
+   for a DM - never the Topics view. A topic page link, and a place link that
+   names a topic but no message, go through /m/<id> (open-message.mjs), which
+   finds the place and marks the message or the topic's card. */
+const TOPIC_LINK_RE = new RegExp(`^(.*?)/(?:t/(${UUID})(?:\\?[^#]*)?(?:#(${UUID}))?|(?:channel|dm)/[^/?#]+\\?topic=(${UUID}))$`, 'i')
+
+/** Where a followed in-app link goes: a topic link becomes /m/<msg or task>. */
+export function linkPath(path) {
+  const s = String(path || '')
+  const t = TOPIC_LINK_RE.exec(s)
+  return t ? `${t[1]}/m/${(t[3] || t[2] || t[4]).toLowerCase()}` : s
+}
+
+let linkHook = null
+
+/** The sidebar's: a followed link shows its place's list, not a held Flow. */
+export function setLinkOpenHook(fn) {
+  linkHook = fn || null
+}
+
 /** The navigate wrapper: route to `path`, then ask for the jump it names. */
 export function navigateAndJump(path, navigate) {
+  path = linkPath(path)
+  if (linkHook) linkHook(path)
   navigate(path)
   const id = messageIdOfPath(path)
   /* after the router has started: a same-address push is a no-op for it */

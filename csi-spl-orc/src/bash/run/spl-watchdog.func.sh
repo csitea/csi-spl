@@ -28,6 +28,7 @@
 # @param WD_SCRIPT_TIMEOUT (optional) - seconds per situation script, default 5
 # @param WD_START_GRACE (optional) - seconds after a session start or a box resume with no situation, default 180
 # @param WD_TAKEOVER_MAX (optional) - takeovers per id per rolling hour, default 2
+# @param WD_TAKEOVER_RETRY (optional) - seconds after an S3 takeover whose session is dead again before it is retried, default WD_START_WAIT + WD_START_GRACE (300)
 # @param WD_JOBS (optional) - agents checked at once, default 8
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
 # @param WD_ONLY (optional) - space-separated ids: check only these (a drill on scratch ids next to the live loop)
@@ -75,6 +76,9 @@ spl_wd_init() {
   for k in WD_TICKS WD_TICK WD_SCRIPT_TIMEOUT WD_START_GRACE WD_TAKEOVER_MAX WD_JOBS WD_JOB_WAIT WD_LOOP_N; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
+  k="${WD_START_WAIT:-120}"; [[ "$k" =~ ^[0-9]+$ ]] || k=120
+  : "${WD_TAKEOVER_RETRY:=$(( k + WD_START_GRACE ))}"
+  [[ "$WD_TAKEOVER_RETRY" =~ ^[0-9]+$ ]] || { do_log "FATAL WD_TAKEOVER_RETRY must be a whole number, got: '$WD_TAKEOVER_RETRY'"; return 1; }
   (( WD_TICK > 0 && WD_JOBS > 0 && WD_SCRIPT_TIMEOUT > 0 )) ||
     { do_log "FATAL WD_TICK, WD_JOBS and WD_SCRIPT_TIMEOUT must be at least 1"; return 1; }
   [[ -d "$WD_SITUATIONS" ]] || { do_log "FATAL no situation scripts in $WD_SITUATIONS"; return 1; }
@@ -167,7 +171,8 @@ spl_wd_ps() {
 # "<id>\t<pid>\t<pane>" for every local agent: a window named <id> or
 # <id>@<this box> (a "<tag>: " prefix allowed), and every process that carries
 # SPOOL_AGENT_ID. pid is the harness process (a claude/grok/agy/qwen comm
-# first, else the lowest node/bun), "-" when none; pane "-" when none.
+# first, else the lowest node/bun), "-" when none; pane "-" when none. The
+# expected seats of spl_wd_expected are listed too, with neither.
 spl_wd_agents() {
   local tick="$1" re='^([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)$'
   local pane name id box
@@ -182,15 +187,36 @@ spl_wd_agents() {
     printf '%s\t%s\n' "$id" "$pane" >> "$tick/win"
   done < "$tick/panes"
   spl_wd_proc_ids "$tick" > "$tick/procs"
-  awk -F'\t' -v w="$tick/win" '
+  spl_wd_expected > "$tick/expected"
+  awk -F'\t' -v w="$tick/win" -v x="$tick/expected" '
     FILENAME == w { if (!($1 in wp)) { wp[$1] = $2; ids[$1] = 1 } ; next }
+    FILENAME == x { ids[$1] = 1; next }
     { if (!($2 in pid)) { pid[$2] = $1; ids[$2] = 1 } }
     END { for (i in ids) {
             p = (i in pid) ? pid[i] : "-"; w = (i in wp) ? wp[i] : "-"
             # an id names files: a SPOOL_AGENT_ID of any other shape is not checked
-            if (i ~ /^[A-Za-z][A-Za-z0-9-]*$/) print i "\t" p "\t" w } }' "$tick/win" "$tick/procs" |
+            if (i ~ /^[A-Za-z][A-Za-z0-9-]*$/) print i "\t" p "\t" w } }' "$tick/win" "$tick/expected" "$tick/procs" |
     sort | spl_wd_only > "$tick/agents.raw"
   spl_wd_pane_of_pids "$tick"
+}
+
+# The seats this box expects to run, one id per line (spec 102 4.3): the
+# role ids of lease.conf (orch, master, failover), the ids of peer/seats and
+# the seat records <spool root>/agents/<role id>.json of this box. A seat
+# whose sessions died and whose window closed has neither a window nor a
+# process: without this list it is never checked again (sat, 2026-10-06,
+# 13 h). Lane ids are never listed: a lane that finished is not resurrected.
+spl_wd_expected() {
+  local f sn
+  {
+    printf '%s\n' "${LEASE_ORCH:-}" "${LEASE_MASTER:-}" "${LEASE_FAILOVER:-}"
+    awk '$1 !~ /^#/ && NF {print $1}' "$SPOOL_ROOT/peer/seats" 2>/dev/null || true
+    for f in "$SPOOL_ROOT"/agents/[acgq]-00[1-3].json; do
+      [[ -f "$f" ]] || continue
+      sn="$(jq -r '.session_name // empty' "$f" 2>/dev/null || true)"
+      [[ "$sn" != *@* || "${sn#*@}" == "$ROTATE_BOX" || "${sn#*@}" == "${SPOOL_BOX_TAG:-}" ]] && basename "$f" .json
+    done
+  } | grep -xE '[acgq]-[0-9]{3}' | sort -u || true
 }
 
 # The agent lines whose id is in WD_ONLY; all of them when it is empty.
@@ -263,12 +289,16 @@ spl_wd_one() {
 }
 
 # Every situation script at once, each under `timeout`: the agent costs at
-# most WD_SCRIPT_TIMEOUT s whatever hangs (FR-014).
+# most WD_SCRIPT_TIMEOUT s whatever hangs (FR-014). An id with neither a
+# pane nor a process (an expected seat, spl_wd_expected) runs S3 alone: a
+# dead seat is S3's gone pane, and a waiting inbox (S1) or a stale login
+# (S2) of a seat that is not running on this box is no reason to start one.
 spl_wd_run_scripts() {
   local id="$1" pid="$2" pane="$3" ctx="$4" s
   local -a sp=()
   for s in "$WD_SITUATIONS"/s[0-9]*.sh; do
     [[ -f "$s" ]] || continue
+    [[ -z "$pid$pane" && "${s##*/}" != s3.sh ]] && continue
     ( WD_CTX="$ctx" timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$s" "$id" "${pid:--}" "${pane:--}" \
         > "$ctx/out.$(basename "$s" .sh)" 2>/dev/null 7>&- || true ) &
     sp+=("$!")
@@ -537,12 +567,21 @@ spl_wd_act() {
 
 # spl_wd_once ID CODE TAG NOW CTX CMD...: run CMD once per episode of CODE,
 # unless the gate says no ("would TAG (why)"). The flag
-# <WD_DIR>/<id>.ep.<code>.<tag> holds the epoch it ran at.
+# <WD_DIR>/<id>.ep.<code>.<tag> holds the epoch it ran at. One exception: an
+# S3 takeover WD_TAKEOVER_RETRY s ago whose fresh session is dead again
+# (S3 still confirmed past the start wait and the grace) failed, and is
+# retried in the same episode; spl_wd_takeover's hourly cap bounds it and
+# sends the orchestrator the blocker (sat 2026-10-06: 13 h of "done ago").
 spl_wd_once() {
-  local id="$1" code="$2" tag="$3" now="$4" ctx="$5" f why
+  local id="$1" code="$2" tag="$3" now="$4" ctx="$5" f why t
   shift 5
   f="$WD_DIR/$id.ep.$code.$tag"
-  if [[ -e "$f" ]]; then echo "$tag done $(( now - $(cat "$f" 2>/dev/null || echo "$now") ))s ago"; return 0; fi
+  if [[ -e "$f" ]]; then
+    t="$(cat "$f" 2>/dev/null || true)"; [[ "$t" =~ ^[0-9]+$ ]] || t="$now"
+    if [[ "$code.$tag" != S3.takeover ]] || (( now - t < WD_TAKEOVER_RETRY )); then echo "$tag done $(( now - t ))s ago"; return 0; fi
+    rm -f "$f"
+    spl_wd_log "TAKEOVER-FAILED $id S3: still no live session $(( now - t ))s after the takeover; retry"
+  fi
   why="$(spl_wd_gate "$id" "$now" "$ctx")"
   if [[ -n "$why" ]]; then echo "would $tag ($why)"; return 0; fi
   local out

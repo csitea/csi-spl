@@ -24,6 +24,11 @@
 #      ask + owner DM, DONE FAIL
 #   8. a dry run touches nothing; an id on another box is relayed as a task
 #      to that box's role id
+#   9. a windowless seat (spec 102 4.3, sat 2026-10-06): an expected seat with
+#      no window and no process is started FRESH on this box (SPAWN_BOX=local,
+#      a seed, no resume) as the agent user of the box config, not the
+#      caller's; controls: a lane with no window -> exit 3; a box config that
+#      names no agent user -> refused; a dry run plans it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -65,7 +70,7 @@ EOF
 cat > "$T/bin/spawn" <<'EOF'
 #!/usr/bin/env bash
 id="$2"; n="${id##*-}"; pid=$(( 3000 + 10#$n )); pane="%3$n"
-echo "spawn $1 $2 $5 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} seed=$4" >> "$T/spawn.log"
+echo "spawn $1 $2 $5 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} seed=$4 argc=$# SPAWN_BOX=${SPAWN_BOX:-} AGENT=${SPOOL_AGENT_USER:-} RUNAS=${SPOOL_RUN_AS_AGENT:-} SOCK=${SPOOL_TMUX_SOCKET:-}" >> "$T/spawn.log"
 cat "$S/dispatch/rotate.hold" > "$T/hold.at-spawn" 2>/dev/null || echo none > "$T/hold.at-spawn"
 mode="$(cat "$T/spawn.mode.$id" 2>/dev/null || echo ok)"
 printf '%s\t%s\t$1\t%s@box1\tclaude\n' "$pane" "$pid" "$id" >> "$T/tmux/panes"
@@ -292,6 +297,37 @@ rc="$(take ID=c-917@box2 REASON=S3 DRY_RUN=0 REQ_FROM=c-002)"
   pass "8. an id on another box: relayed as one task to that box's c-001" || fail "8. relay rc=$rc: $(cat "$T/sent" 2>/dev/null) $(cat "$T/o")"
 rm -f "$T/sent"; rc="$(take ID=c-917@box1 REASON=S3 DRY_RUN=0)"
 [[ "$rc" == 3 && ! -s "$T/sent" ]] && pass "8. control: @<this box> is local, not relayed" || fail "8. local box rc=$rc"
+
+# --- 9. a windowless seat ----------------------------------------------------------------------
+# seat <id>: the orchestrator of lease.conf, its registry row open, its window and process gone
+seat() {
+  echo "LEASE_ORCH=$1" >> "$D/lease.conf"
+  mkdir -p "$S/$1/inbox" "$S/$1/outbox"
+  printf '%s\tclaude\t%%71\t%s\t20270115T0600Z\n' "$1" "$T/wt" >> "$S/registry.tsv"
+}
+world; seat c-001
+rc="$(take ID=c-001 REASON=S3 DRY_RUN=0 SPOOL_AGENT_USER=not-the-agent-user SPOOL_TMUX_SOCKET=/nowhere/sock)"
+sl="$(cat "$T/spawn.log" 2>/dev/null)"; seed9="$S/c-001/handoff/$TS-wd-c-001.seed.md"
+[[ "$rc" == 0 ]] && alive 3001 && [[ "$(win %3001)" == c-001@box1 ]] && [[ "$(tail -1 "$D/rotate.log" | cut -d' ' -f3,4)" == "DONE OK" ]] &&
+  pass "9. a windowless seat (c-001: no window, no process): a fresh session started" || fail "9. windowless rc=$rc: $(tail -5 "$T/o")"
+[[ "$sl" == *" c-001 peer-restart SPAWN_REUSE_ID=1 seed=$seed9 argc=5 SPAWN_BOX=local AGENT=$(id -un) RUNAS=su-dash SOCK=/"* && "$sl" != *"SOCK=/nowhere/sock"* ]] &&
+  pass "9. on this box (SPAWN_BOX=local), as the box config's agent user and socket, not the caller's" || fail "9. spawn env: $sl"
+grep -q '^## A. Your seat: c-001@box1, the orchestrator' "$seed9" && grep -q 'FRESH start of the seat, not a resume' "$seed9" &&
+  ! grep -q 'brief at /briefs/T999.md' <<<"$(sed '/^## B. The mechanical handoff/q' "$seed9")" && grep -q '^## B. The mechanical handoff' "$seed9" &&
+  pass "9. the seed is a fresh seat seed + the handoff, not the stale session's brief" || fail "9. seed: $(head -20 "$seed9" 2>/dev/null)"
+world; seat c-001; printf '%s\tclaude\t%%72\t%s\t20270115T0600Z\n' c-920 "$T/wt" >> "$S/registry.tsv"
+rc="$(take ID=c-920 REASON=S3 DRY_RUN=0)"
+[[ "$rc" == 3 && ! -e "$T/spawn.log" ]] && grep -q 'not an agent of this box' "$T/o" &&
+  pass "9. control: a lane with an open row and no window is no expected seat (exit 3)" || fail "9. lane rc=$rc: $(cat "$T/o")"
+cp "$S/box.env" "$T/box.env.keep"; grep -v '^SPOOL_AGENT_USER=' "$T/box.env.keep" > "$S/box.env"
+rc="$(take ID=c-001 REASON=S3 DRY_RUN=0 SPOOL_AGENT_USER="$(id -un)")"
+cp "$T/box.env.keep" "$S/box.env"
+[[ "$rc" == 4 && ! -e "$T/spawn.log" ]] && grep -q 'a windowless seat starts only as the agent user its box config names' "$T/o" &&
+  pass "9. control: a box config naming no agent user -> refused, even with one in the caller's env" || fail "9. no agent user rc=$rc: $(cat "$T/o")"
+rc="$(take ID=c-001 REASON=S3)"
+[[ "$rc" == 0 && ! -e "$T/spawn.log" ]] && grep -q 'WD-SPAWN PLAN windowless seat: a fresh session, no --resume; SPAWN_BOX=local' "$T/o" &&
+  pass "9. a dry run plans the windowless seat's start" || fail "9. dry rc=$rc: $(cat "$T/o")"
+[[ -e "$D/wd/c-001.takeovers" && -s "$D/wd/c-001.takeovers" ]] && fail "9. the refused and dry runs counted a takeover" || pass "9. the refusal and the dry run count no takeover"
 
 echo "wd-takeover: $fails failure(s)"
 exit $(( fails > 0 ))

@@ -27,6 +27,9 @@
 # @description   BLOCKER - one blocker on task wd-<id>-<ts> to the peers (the
 # @description             orchestrator while no seat exists): the
 # @description             investigation is an agent's (8.2, 8.3)
+# @description A windowless seat (an expected seat of spl_wd_expected: no
+# @description pane, no process) is started FRESH on this box (SPAWN_BOX=local,
+# @description a seed, never --resume) as the agent user the box config names.
 # @description A failed start restores the old window, holds the id out and
 # @description alerts (ask + one owner DM). rotate.log phases are WD-*, the
 # @description last line DONE. An id on another box (ID=<id>@<box>) is relayed
@@ -149,8 +152,43 @@ spl_wdt_gate() {
     PEER_HARNESS="$(spl_wd_harness "$id")"
     [[ "$PEER_HARNESS" =~ ^(claude|grok|agy|qwen)$ ]] || PEER_HARNESS=claude
   fi
+  WDT_BOXENV=""
+  if [[ -z "$WDT_PID$WDT_PANE" ]]; then
+    WDT_BOXENV="$(spl_wdt_box_env)" ||
+      { spl_wdt_refuse "$id" 4 "a windowless seat starts only as the agent user its box config names (SPOOL_AGENT_USER in ${SPOOL_BOX_ENV:-$SPOOL_ROOT/box.env}): none"; return; }
+  fi
   spl_wdt_limit "$id" "$now" || return
   return 0
+}
+
+# spl_wdt_box_env: the box config's spawn identity for a windowless seat, as
+# KEY=value lines (box user, agent user, run-as mode, tmux socket), resolved
+# from <spool root>/box.env and the spool root's owner with the caller's own
+# values dropped: c-001@sat's manual restart of 2026-10-07 ran, from a shell
+# with no box env, as the box user and with no window. Non-zero when the box
+# config names no agent user: a seat never falls back to the box user.
+spl_wdt_box_env() {
+  (
+    unset SPOOL_BOX_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET
+    _spool_box_env_load
+    [[ -n "${SPOOL_AGENT_USER:-}" ]] || exit 1
+    SPOOL_ENV_NO_BINS=1 spool_env_resolve
+    printf '%s\n' "SPOOL_BOX_USER=$SPOOL_BOX_USER" "SPOOL_AGENT_USER=$SPOOL_AGENT_USER" \
+      "SPOOL_RUN_AS_AGENT=$SPOOL_RUN_AS_AGENT" "SPOOL_TMUX_SOCKET=$SPOOL_TMUX_SOCKET"
+  )
+}
+
+# spl_wdt_spawn ID SEED: spl_peer_restart_spawn. A windowless seat
+# (WDT_BOXENV set) starts on THIS box (SPAWN_BOX=local: a remote spawn
+# forwards no SPAWN_REUSE_ID) under the box config's identity.
+spl_wdt_spawn() {
+  if [[ -z "${WDT_BOXENV:-}" ]]; then spl_peer_restart_spawn "$@"; return; fi
+  local -x SPAWN_BOX=local SPOOL_BOX_USER="" SPOOL_AGENT_USER="" SPOOL_RUN_AS_AGENT="" SPOOL_TMUX_SOCKET=""
+  local k v
+  while IFS='=' read -r k v; do
+    case "$k" in SPOOL_BOX_USER|SPOOL_AGENT_USER|SPOOL_RUN_AS_AGENT|SPOOL_TMUX_SOCKET) printf -v "$k" '%s' "$v" ;; esac
+  done <<<"$WDT_BOXENV"
+  spl_peer_restart_spawn "$@"
 }
 
 # spl_wdt_limit ID NOW: WD_TAKEOVER_MAX per id per rolling hour (6.3). The
@@ -195,8 +233,10 @@ spl_wdt_run() {
     [[ -n "$role" ]] && spl_peer_rlog "$rid" WD-HOLD PLAN "$LEASE_DIR/rotate.hold = $id while the takeover runs"
     [[ -n "$WDT_SEAT" ]] && spl_peer_rlog "$rid" WD-LOOP PLAN "stop the $id poll loop (its locks stay on the hub)"
     spl_peer_rlog "$rid" WD-HANDOFF PLAN "$hand (the 060 handoff + ## watchdog)"
-    spl_peer_rlog "$rid" WD-SEED PLAN "$seed: the old first prompt + the handoff"
+    local a="the old first prompt"; [[ -n "$WDT_BOXENV" ]] && a="the fresh seat section"
+    spl_peer_rlog "$rid" WD-SEED PLAN "$seed: $a + the handoff"
     spl_peer_rlog "$rid" WD-SPAWN PLAN "$ROTATE_SPAWN $PEER_HARNESS $id $(spl_rotate_workdir "$id") <seed> (SPAWN_REUSE_ID=1); wait ${WD_START_WAIT}s"
+    [[ -n "$WDT_BOXENV" ]] && spl_peer_rlog "$rid" WD-SPAWN PLAN "windowless seat: a fresh session, no --resume; SPAWN_BOX=local $(tr '\n' ' ' <<<"$WDT_BOXENV")"
     [[ -n "$WDT_PID" ]] && spl_peer_rlog "$rid" WD-RETIRE PLAN "TERM pid $WDT_PID, KILL after ${ROTATE_TERM_WAIT}s"
     spl_peer_rlog "$rid" WD-BLOCKER PLAN "one blocker to the peers on task wd-$id-$ts"
     echo "---- DRY_RUN: nothing was touched. Re-run with DRY_RUN=0."
@@ -239,7 +279,7 @@ spl_wdt_steps() {
   spl_wdt_seed "$id" "$rid" "$ts" "$hand" > "$seed"
   chmod 0640 "$seed" 2>/dev/null || true
   spl_peer_rlog "$rid" WD-SEED OK "$seed"
-  if ! PEER_START_WAIT="$WD_START_WAIT" spl_peer_restart_spawn "$id" "$seed"; then
+  if ! PEER_START_WAIT="$WD_START_WAIT" spl_wdt_spawn "$id" "$seed"; then
     spl_peer_with_lib spl_rotate_restore "$id" "$WDT_PANE" "$ROTATE_NEW_PANE"
     spl_peer_rlog "$rid" WD-SPAWN FAIL "$ROTATE_ERR; ${WDT_PID:+the old session (pid $WDT_PID) is kept}${WDT_PID:-no session carries $id}"
     spl_lease_now > "$WD_DIR/$id.heldout"
@@ -316,6 +356,9 @@ spl_wdt_section() {
 spl_wdt_seed() {
   local id="$1" rid="$2" ts="$3" hand="$4" tr first=""
   tr="$(spl_rotate_transcript "$id")"
+  # a windowless seat: its last session's first prompt may be a rotation
+  # seed with an ack long expired; the seat section replaces it
+  [[ -n "${WDT_BOXENV:-}" ]] && tr=""
   if [[ -n "$tr" ]]; then
     first="$(spl_rotate_as_agent head -n 200 "$tr" 2>/dev/null | jq -Rr 'fromjson? // empty
       | select(.type == "user" and (.message.content | type) == "string") | .message.content' 2>/dev/null | head -c 6000 || true)"
@@ -327,11 +370,14 @@ spl_wdt_seed() {
   echo "Same id, same inbox, same workdir and branch. Do not greet; post nothing about"
   echo "the takeover: a peer investigates it on task wd-$id-$ts, not you."
   echo
-  echo "1. Section A is the brief your previous session ran under: continue it."
+  if [[ -n "${WDT_BOXENV:-}" ]]; then echo "1. Section A is your seat: take it back."
+  else echo "1. Section A is the brief your previous session ran under: continue it."; fi
   echo "2. Section B is the mechanical handoff: what was in flight, and why it stopped."
   echo "3. Then drain your inbox: SPOOL_ROOT=$SPOOL_ROOT spool recv --as $id"
   echo
-  if [[ -n "$first" ]]; then
+  if [[ -n "${WDT_BOXENV:-}" ]]; then
+    spl_wdt_seat_section "$id"
+  elif [[ -n "$first" ]]; then
     echo "## A. Your brief (the previous session's first prompt, verbatim)"
     echo
     printf '%s\n' "$first"
@@ -342,6 +388,23 @@ spl_wdt_seed() {
   echo "## B. The mechanical handoff"
   echo
   cat "$hand"
+}
+
+# Section A of a windowless seat's seed: no session carried the seat any
+# more, so this is a fresh start of the seat, not a resume.
+spl_wdt_seat_section() {
+  local id="$1" role="seat (peer/seats)"
+  case "$id" in
+    "${LEASE_ORCH:-}") role="orchestrator (lease.conf LEASE_ORCH)" ;;
+    "${LEASE_MASTER:-}") role="dispatcher (lease.conf LEASE_MASTER)" ;;
+    "${LEASE_FAILOVER:-}") role="failover dispatcher (lease.conf LEASE_FAILOVER)" ;;
+  esac
+  echo "## A. Your seat: $id@$ROTATE_BOX, the $role"
+  echo
+  echo "No session carried $id on this box any more (no window, no process): you are a"
+  echo "FRESH start of the seat, not a resume. Your role: $ROTATE_SPEC. Take the role"
+  echo "back from the lease and the asks; the previous session's own brief is not"
+  echo "repeated here (it may carry a rotation ack long expired)."
 }
 
 # ---- BLOCKER + RELAY ---------------------------------------------------------------

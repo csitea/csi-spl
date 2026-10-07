@@ -40,6 +40,12 @@
 #      UserPromptSubmit after the poke, a pane that changed, an idle agent, an
 #      unpoked inbox file (poked once), a ticking status row + a second poke
 #      echo (still a hit); grok's 2 x stuck_min; spool-send.sh's input.log
+#   9. a dead seat is restored (sat 2026-10-06, 13 h): the expected seats
+#      (lease.conf, peer/seats, this box's seat records) are checked with no
+#      window and no process, S3 alone; a lane with an open row is not, nor
+#      another box's seat record; an S3 takeover whose session is dead again
+#      is retried in the episode after WD_TAKEOVER_RETRY, the hourly cap
+#      holds it out with ONE blocker to the orchestrator
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -656,6 +662,45 @@ if command -v tmux >/dev/null; then
 else
   echo "SKIP 8 spool-send.sh input.log: no tmux on this box"
 fi
+
+# 9. a dead seat: expected seats are checked with no window and no process
+reset_box; rm -rf "$S/agents" "$S/peer/seats"; mkdir -p "$S/agents"
+printf 'LEASE_ORCH=c-001\nLEASE_MASTER=c-002\n' > "$D/lease.conf"
+echo '{"id":"c-003","session_name":"c-003@box1"}' > "$S/agents/c-003.json"
+echo '{"id":"c-002","session_name":"c-002@box2"}' > "$S/agents/c-002.json"
+echo '{"id":"c-005","session_name":"c-005@box1"}' > "$S/agents/c-005.json"
+echo '{"id":"c-004","session_name":"c-004@box2"}' > "$S/agents/c-004.json"
+echo "c-004 claude" > "$S/peer/seats"
+printf 'c-001\tclaude\t%%71\t/tmp\t20270115T070000Z\nc-950\tclaude\t%%72\t/tmp\t20270115T070000Z\nc-951\tclaude\t%%73\t/tmp\t20270115T070000Z\n' > "$S/registry.tsv"
+mkdir -p "$S/c-951/lifetime"; touch -d "@$((T0 - 60))" "$S/c-951/lifetime/done"
+mkdir -p "$S/c-003/inbox"; touch -d "@$((T0 - 900))" "$S/c-003/inbox/m1.json"
+NOW=$T0 out1="$(wd)"; NOW=$((T0 + 30)) out2="$(wd)"; settle
+[[ "$(cut -f1 "$D/wd/tick/agents" | tr '\n' ' ')" == "c-001 c-002 c-003 c-004 " ]] && grep -qx "c-001	-	-" "$D/wd/tick/agents" &&
+  pass "9 the expected seats are listed with no window and no process (lease.conf, peer/seats, this box's seat record)" ||
+  fail "9 expected: $(tr '\n' ';' < "$D/wd/tick/agents")"
+grep -q 'c-001 OK (pending S3 1/2: pane %71 is gone, registry row open' <<<"$out1" && grep -q 'c-001 HIT S3 .*-> takeover$' <<<"$out2" &&
+  grep -qx 'takeover c-001 S3' "$T/takeovers" && pass "9 a dead seat (row open, window and process gone): S3, then a takeover" || fail "9 dead seat: $out1 / $out2"
+grep -qE 'c-95[01]' <<<"$out2$(cat "$T/takeovers")" && fail "9 a lane was checked: $out2" ||
+  pass "9 control: a lane with an open row (c-950) and a finished one (c-951) are not checked: nothing resurrected"
+grep -q 'c-005' "$D/wd/tick/agents" && fail "9 a lane's record c-005 was listed" || pass "9 control: a lane id's record is no seat record"
+grep -q '^c-003 OK$' <<<"$out2" && ! grep -q 'takeover c-003' "$T/takeovers" &&
+  pass "9 control: an expected seat with no open row and a waiting inbox: OK (S3 alone, no S1)" || fail "9 S1 on a windowless seat: $out2"
+# the retry: the stub takeover never starts a session, so S3 hits on
+reset_box; rm -rf "$S/agents" "$S/peer/seats" "$S/registry.tsv"; agent c-960 %1 -
+TICK=2000 NOW=$T0 wd >/dev/null; TICK=2000 NOW=$((T0 + 30)) wd >/dev/null; settle
+out="$(TICK=2000 NOW=$((T0 + 90)) wd)"
+grep -q 'c-960 HIT S3 .*-> takeover done 60s ago' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 1 ]] &&
+  pass "9 control: within WD_TAKEOVER_RETRY of a takeover nothing is retried" || fail "9 no early retry: $out / $(cat "$T/takeovers")"
+out="$(TICK=2000 NOW=$((T0 + 330)) wd)"; for _ in $(seq 1 20); do [[ "$(grep -c . "$T/takeovers")" == 2 ]] && break; sleep 0.1; done
+grep -q 'c-960 HIT S3 .*-> takeover$' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] && grep -q 'TAKEOVER-FAILED c-960 S3: still no live session 300s' "$D/wd.log" &&
+  pass "9 a takeover whose session is dead again 300 s later: failed, retried in the same episode" || fail "9 retry: $out / $(cat "$T/takeovers")"
+out="$(TICK=2000 NOW=$((T0 + 630)) wd)"; sleep 0.3
+grep -q 'c-960 HIT S3 .*takeover not done: held out: 2 takeovers' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] &&
+  [[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-960' "$T/sent")" == 1 ]] && [[ -s "$D/wd/c-960.heldout" ]] &&
+  pass "9 the third in an hour: held out, ONE blocker to the orchestrator" || fail "9 cap: $out / $(cat "$T/sent" 2>/dev/null)"
+out="$(TICK=2000 NOW=$((T0 + 960)) wd)"
+grep -q 'c-960 HIT S3 .*would takeover (held out' <<<"$out" && [[ "$(grep -c -- '--kind blocker --task wd-c-960' "$T/sent")" == 1 ]] &&
+  pass "9 held out: no loop, no second blocker" || fail "9 after cap: $out"
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
 

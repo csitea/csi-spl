@@ -178,15 +178,15 @@ and responsive pickers are handled entirely within the WUI surface (T013..T019).
   >= 44 px. Depends: T015, T007, T008. (spec 5.1.5)
 - [x] T017 **Undo + trash** (c-428, `fd504c40`; WUI v2.5.8 on dev and prd): the 10-second Undo toast after a delete, the
   trash list in the calendar menu. Phone acceptance (360 and 390 px): Undo
-  toast floats above bottom navigation bar and composer dock (`--composer-dock-h`),
+  toast sits at the top like the app's other undo bars (msg b6f816c2),
   never obscuring bottom controls or system gestures; Undo button is >= 44 px;
   trash list renders as full-width mobile view. Depends: 089 T008, T004. Parallel with
   T013..T016. (spec 5.1.4)
   - **Built** (c-428): `CalendarMainView.vue` shows the shared UndoSnackbar
     ("Event deleted · Undo", 10 s, `data-testid=calendar-undo`) on the
     dialog's `deleted`; Undo is `calendarRestore` (POST .../restore, same id).
-    On a phone its bottom is the measured bar height + `--composer-dock-h` +
-    8 px, 8 px side margins. The bar's ... button (`calendar-menu`, a
+    On a phone it sits at the top, the shared snackbar's own phone place
+    (c-464, msg b6f816c2; was 8 px above the bottom bar). The bar's ... button (`calendar-menu`, a
     UiPointMenu; T018 adds Export .ics as a second item in `MENU_ITEMS`)
     opens `CalendarTrash.vue` (lazy; GET /v1/calendar/trash, Restore per
     row). `calendar-events-api.mjs` gains `calendarRestore` / `calendarTrash`,

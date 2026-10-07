@@ -494,23 +494,24 @@ Every v1 editing feature (section 6) adapts to a small touchscreen:
 
 #### 4. Undo delete (G13)
 - **What the phone does:** When an event is deleted, the Undo bar ("Event deleted · Undo")
-  floats for 10 seconds. On a phone, it is anchored **directly above the calendar's
-  bottom navigation bar and composer dock**:
-  `bottom: calc(var(--cal-bottom-bar-h, 48px) + var(--composer-dock-h, 0px) + 8px)`,
-  spanning the width with 8 px side margins. It leaves the Today/prev/next controls
-  and the iOS home indicator fully visible and accessible. The "Undo" action button
-  has a >= 44 px touch target.
+  floats for 10 seconds. On a phone it sits **at the top**, at the same place and
+  with the same look as the app's other phone undo bars (Archived · Undo,
+  Deleted · Undo: the shared UndoSnackbar, `top: calc(0.5rem +
+  env(safe-area-inset-top))`, centred). Owner, msg b6f816c2: the earlier place,
+  8 px above the calendar's bottom bar, is replaced. It leaves the Today/prev/next
+  controls and the iOS home indicator fully visible and accessible. The "Undo"
+  action button has a >= 44 px touch target.
 - **How it differs from desktop:** Desktop toast floats at the bottom-left or
   center of the screen. On a phone, a bottom toast would collide with the sticky
-  bottom toolbar or iOS home gesture zone; phone positions it safely above the
-  bottom bar without obstructing date navigation.
+  bottom toolbar or iOS home gesture zone; the phone puts it at the top, where
+  every other undo bar of the app sits, clear of date navigation.
 - **Acceptance check (360 px and 390 px widths):**
-  - **360 px:** Undo bar sits above bottom bar with >= 8 px separation; Today,
+  - **360 px:** Undo bar sits at the top, at the archive toast's top; Today,
     prev, next buttons remain 100% visible and clickable while Undo bar is shown;
     Undo button has >= 44 px touch target; tapping Undo restores event within 10 s;
     bar auto-dismisses after 10 s; `xScroll <= 1 px`.
-  - **390 px:** Tested at 390x844; toast width is 374 px (390 px minus margins);
-    zero overlap with bottom navigation or system gesture areas.
+  - **390 px:** Tested at 390x844; the toast is centred like the archive toast,
+    at its top; zero overlap with bottom navigation or system gesture areas.
 
 #### 5. Guests who answer (G4, G5)
 - **What the phone does:**
@@ -638,7 +639,7 @@ Every v1 editing feature (section 6) adapts to a small touchscreen:
 | M1 | On touch screens, should moving an event require a 250 ms long-press anywhere on the event card, or an explicit touch drag handle icon on the card? | 250 ms long-press anywhere on the card to lift and drag, with subtle haptic/visual elevation feedback. This avoids cluttering small event cards with extra icons while preventing scroll conflicts. |
 | M2 | The event dialog is full-screen on phones (<= 600 px). On larger mobile screens (601–820 px, e.g. tablets or unfolded phones in landscape), should it remain full-screen or use the desktop centered modal (`size="md"`)? | Use full-screen for <= 600 px (phones); switch to centered modal for 601–820 px (tablets/landscape), keeping form fields from becoming excessively wide while maintaining touch-sized targets. |
 | M3 | When Quick add is opened on mobile, should it dock directly above the software keyboard as a bottom bar, or open as a full-screen input view? | Dock directly above the software keyboard with the live dry-run preview card attached, keeping the calendar view visible behind it so the user can see their existing schedule while typing. |
-| M4 | When an event is deleted, should the 10-second Undo toast float immediately above the Calendar bottom toolbar (Today/prev/next), or should it temporarily replace the bottom toolbar? | Float immediately above the bottom toolbar (`bottom: calc(var(--cal-bottom-bar-h) + var(--composer-dock-h) + 8px)`), so date navigation remains available while the Undo option is visible. |
+| M4 | When an event is deleted, should the 10-second Undo toast float immediately above the Calendar bottom toolbar (Today/prev/next), or should it temporarily replace the bottom toolbar? | Float immediately above the bottom toolbar (`bottom: calc(var(--cal-bottom-bar-h) + var(--composer-dock-h) + 8px)`), so date navigation remains available while the Undo option is visible. **Superseded** (owner, msg b6f816c2): the phone Undo bar sits at the top, like the app's other undo bars. |
 | M5 | In the mobile Day view, should tapping an empty time slot directly create/open the event dialog pre-filled with that hour, or should event creation only be triggered by the bottom "+ New event" button? | Both: tapping an empty time slot opens the dialog pre-filled with that specific hour; tapping the bottom "+ New event" button defaults to the next full hour. |
 
 ## 6. Ranked value to the owner, and v1

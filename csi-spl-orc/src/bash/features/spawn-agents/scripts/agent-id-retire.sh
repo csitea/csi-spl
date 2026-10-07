@@ -22,6 +22,13 @@
 #   desk seats  -> each hub desk of this box that seats <ID> moves the seat
 #                  aside (desk-seat-drop.sh): its sidecar stops announcing it
 #                  as a member / tag target (owner 2026-10-05, t1 dc6d5e3f)
+#   worktree    -> the lane's linked worktree (record's "worktree", else the
+#                  registry rundir) and its branch: `worktree remove` +
+#                  `branch -d`, ONLY when the tree is clean AND HEAD is an
+#                  ancestor of origin/<trunk>; else both stay and one line
+#                  says why. Never --force, never -D. The seed prompt's TEAR
+#                  DOWN step is the model's to remember, and agy lanes skipped
+#                  it (a-526, a-528, a-530 left clean, landed worktrees)
 #
 # Refused: a role id (001-003, CLE-001..003), and an id a tmux window still
 # carries (the agent may still be running: closing the window comes first).
@@ -36,7 +43,8 @@
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET (the box's), SPOOL_NOW (the clock),
 # SPOOL_DESK_BOX, RETIRE_LANE=0|1 (default 1; 0 under SPOOL_TEST=1),
 # RETIRE_DESKS=0|1 (default 1; 0 under SPOOL_TEST=1 unless DESK_STATE_ROOT is
-# set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's).
+# set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's),
+# RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id,
 # 3 a window still carries the id, 4 nothing on this machine holds the id
 # (no spool dir, registry row, record or desk seat).
@@ -138,6 +146,11 @@ if [ -e "$R/agents/${ID}.json" ]; then
   step identity "$R/agents/${ID}.json -> $R/agents/retired/${ID}.${SPAWNED}.json, index.json re-hashed"
 fi
 
+# The lane's worktree, read now: --apply moves the record aside below.
+WT=""
+[ -r "$R/agents/${ID}.json" ] && WT="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("worktree") or "")' "$R/agents/${ID}.json" 2>/dev/null || true)"
+[ -n "$WT" ] || WT="$(printf '%s\n' "$rows" | awk -F'\t' '$4 != "" { w = $4 } END { print w }')"
+
 # ---- 4. the desk seats (counted here: a seat alone is a hold) ---------------
 desks="${RETIRE_DESKS:-}"
 [ -n "$desks" ] || { desks=1; [ "${SPOOL_TEST:-}" = 1 ] && [ -z "${DESK_STATE_ROOT:-}" ] && desks=0; }
@@ -208,4 +221,39 @@ if [ "$lane" = 1 ]; then
   [ "$APPLY" = 1 ] && { timeout 60 bash "$_here/lane-map.sh" "done" --agent "$ID" >/dev/null 2>&1 \
     || echo "agent-id-retire: WARN the hub lane row of ${ID} was not closed (lane-map.sh done)" >&2; }
 fi
+# ---- 7. the lane's worktree + branch ----------------------------------------
+# Git runs as the tree's owner (the box user), as every lane's git does.
+wt_git() {
+  local d="$1" o; shift
+  o="$(stat -c %U "$d" 2>/dev/null)" || return 1
+  if [ "$o" = "$(id -un)" ]; then GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$d" "$@"
+  else timeout 60 sudo -n -u "$o" env GIT_TERMINAL_PROMPT=0 git -C "$d" "$@"; fi
+}
+wt_keep() { echo "agent-id-retire: worktree ${WT} kept: $*" >&2; }
+wt_reap() {
+  local top gd cdir repo br up
+  [ -n "$WT" ] && [ -d "$WT" ] || return 0
+  top="$(wt_git "$WT" rev-parse --show-toplevel 2>/dev/null)" || { wt_keep "not a git worktree"; return 0; }
+  gd="$(wt_git "$WT" rev-parse --absolute-git-dir 2>/dev/null)"
+  cdir="$(wt_git "$WT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  [ -n "$gd" ] && [ -n "$cdir" ] && [ "$gd" != "$cdir" ] || { wt_keep "not a linked worktree (a main checkout is never removed)"; return 0; }
+  [ "${top##*/}" = "$ID" ] || { wt_keep "its dir ${top##*/} is not named ${ID}"; return 0; }
+  WT="$top"; repo="${cdir%/.git}"
+  [ -z "$(wt_git "$WT" status --porcelain --untracked-files=all 2>/dev/null)" ] || { wt_keep "dirty (git status not empty)"; return 0; }
+  br="$(wt_git "$WT" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+  up="$(wt_git "$WT" rev-parse -q --abbrev-ref '@{u}' 2>/dev/null || true)"
+  case "$up" in origin/?*) ;; *) up="$(wt_git "$WT" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/master)" ;; esac
+  [ "$APPLY" = 1 ] && { wt_git "$WT" fetch -q origin "${up#origin/}" >/dev/null 2>&1 \
+    || echo "agent-id-retire: WARN fetch origin ${up#origin/} failed; checking against the local ${up}" >&2; }
+  wt_git "$WT" merge-base --is-ancestor HEAD "$up" 2>/dev/null || { wt_keep "HEAD is not on ${up} (unlanded commits)"; return 0; }
+  step worktree "git -C ${repo} worktree remove ${WT}${br:+; branch -d ${br}} (clean, HEAD on ${up})"
+  [ "$APPLY" = 1 ] || return 0
+  wt_git "$repo" worktree remove "$WT" >/dev/null 2>&1 || { wt_keep "git worktree remove refused"; return 0; }
+  [ -z "$br" ] || wt_git "$repo" branch -d "$br" >/dev/null 2>&1 \
+    || echo "agent-id-retire: branch ${br} kept: git branch -d refused (not merged into its upstream)" >&2
+}
+wtr="${RETIRE_WORKTREE:-}"
+[ -n "$wtr" ] || { wtr=1; [ "${SPOOL_TEST:-}" = 1 ] && wtr=0; }
+[ "$wtr" = 1 ] && wt_reap
+
 echo "agent-id-retire: ${ID} $([ "$APPLY" = 1 ] && echo retired || echo 'would be retired') at ${RETIRED_UTC} (generation ${SPAWNED}; reusable after ${SPOOL_ID_QUARANTINE_H:-24} h)"

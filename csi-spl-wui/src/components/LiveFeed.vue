@@ -493,6 +493,29 @@ watch(() => route.hash, (hash) => {
   const id = String(hash || '').replace(/^#/, '')
   if (id && id !== want.value) { wantPages = 0; want.value = id }
 }, { immediate: true })
+/* HUM-10 (t1 36ea84a6): a link from one thread to another, on a phone, can
+   land while the pane still holds the old topic's rows; when they go, the
+   pane shrinks and the browser clamps the scroll, and the row ends above the
+   pane. Keep the row at the top for the frames that layout takes to settle,
+   until the reader moves the pane themselves. */
+const SETTLE_FRAMES = 30
+function settleRowTop(scroller: HTMLElement, el: HTMLElement) {
+  let left = SETTLE_FRAMES
+  const stop = () => { left = 0 }
+  const opts = { once: true, passive: true }
+  scroller.addEventListener('touchstart', stop, opts)
+  scroller.addEventListener('wheel', stop, opts)
+  const tick = () => {
+    if (left-- <= 0 || !el.isConnected) {
+      scroller.removeEventListener('touchstart', stop)
+      scroller.removeEventListener('wheel', stop)
+      return
+    }
+    if (Math.abs(el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) > 2) scrollRowToTop(scroller, el)
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
 function highlight(el: HTMLElement) {
   el.classList.add('open-focus')
   setTimeout(() => el.classList.remove('open-focus'), JUMP_FOCUS_MS)
@@ -525,7 +548,7 @@ watch(() => [want.value, wantSeq.value, props.rows.length, props.loadingOlder] a
     scrollRowToTop(scroller, el)
     hashDone = id
     highlight(el)
-    requestAnimationFrame(() => { scrollRowToTop(scroller, el) })
+    settleRowTop(scroller, el)
     return
 
   }

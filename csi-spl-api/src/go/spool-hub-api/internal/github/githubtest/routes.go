@@ -115,7 +115,7 @@ func (s *Server) getRef(w http.ResponseWriter, r *http.Request) {
 		ghError(w, http.StatusNotFound, "Not Found")
 		return
 	}
-	wire.WriteJSON(w, http.StatusOK, map[string]any{"ref": "refs/heads/" + Branch, "object": map[string]string{"sha": s.Head(), "type": "commit"}})
+	wire.WriteJSON(w, http.StatusOK, s.refJSON(s.Head()))
 }
 
 // patchRef moves the branch only when the new commit descends from the tip
@@ -140,7 +140,7 @@ func (s *Server) patchRef(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.ref = in.SHA
-	wire.WriteJSON(w, http.StatusOK, map[string]any{"ref": "refs/heads/" + Branch, "object": map[string]string{"sha": in.SHA}})
+	wire.WriteJSON(w, http.StatusOK, s.refJSON(in.SHA))
 }
 
 // descends reports whether ancestor is sha or one of its ancestors; caller holds mu.

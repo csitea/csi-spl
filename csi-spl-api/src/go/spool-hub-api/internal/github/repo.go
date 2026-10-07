@@ -1,8 +1,10 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -55,18 +57,27 @@ func (c *Client) HeadBlob(ctx context.Context, path string) (Head, error) {
 	if err != nil {
 		return Head{}, err
 	}
-	var file struct {
-		SHA  string `json:"sha"`
-		Type string `json:"type"`
-	}
+	// A directory answers an ARRAY of entries, a file an object: read raw
+	// first so a directory is reported as one, not as an undecodable answer.
+	var raw json.RawMessage
 	p := c.repoPath("/contents/" + escapePath(path) + "?ref=" + url.QueryEscape(tip))
-	err = c.call(ctx, "contents", http.MethodGet, p, nil, &file)
+	err = c.call(ctx, "contents", http.MethodGet, p, nil, &raw)
 	var ae *APIError
 	if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
 		return Head{Commit: tip}, nil
 	}
 	if err != nil {
 		return Head{}, err
+	}
+	if t := bytes.TrimSpace(raw); len(t) > 0 && t[0] == '[' {
+		return Head{}, &APIError{Op: "contents", Status: http.StatusUnprocessableEntity, Message: path + " is a dir"}
+	}
+	var file struct {
+		SHA  string `json:"sha"`
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(raw, &file) != nil {
+		return Head{}, &APIError{Op: "contents", Status: http.StatusOK, Message: "undecodable answer"}
 	}
 	if file.Type != "" && file.Type != "file" {
 		return Head{}, &APIError{Op: "contents", Status: http.StatusUnprocessableEntity, Message: path + " is a " + file.Type}
@@ -104,13 +115,13 @@ func (c *Client) Blob(ctx context.Context, sha string) ([]byte, error) {
 // force:false. The committer is the App (GitHub sets it for an installation
 // token); author is the editor. A branch that moved past parent answers 422,
 // returned as ErrRefMoved and leaving the branch untouched.
+//
+// Each call decodes into its own answer type: a commit's "tree" is an
+// object, the POST /git/trees answer's "tree" is an array of entries, so
+// one shared type fails every real push at the tree step (spec 075).
 func (c *Client) Commit(ctx context.Context, path string, content []byte, author Identity, message, parent string) (string, error) {
-	var blob, tree, parentCommit, commit struct {
-		SHA  string `json:"sha"`
-		Tree struct {
-			SHA string `json:"sha"`
-		} `json:"tree"`
-	}
+	var blob, tree, commit shaAnswer
+	var parentCommit commitAnswer
 	in := map[string]string{"content": base64.StdEncoding.EncodeToString(content), "encoding": "base64"}
 	if err := c.call(ctx, "blob", http.MethodPost, c.repoPath("/git/blobs"), in, &blob); err != nil {
 		return "", err
@@ -134,6 +145,18 @@ func (c *Client) Commit(ctx context.Context, path string, content []byte, author
 		return "", err
 	}
 	return commit.SHA, nil
+}
+
+// shaAnswer is the part of the blob, tree and commit create answers the
+// client reads.
+type shaAnswer struct {
+	SHA string `json:"sha"`
+}
+
+// commitAnswer is the part of GET /git/commits/{sha} the client reads.
+type commitAnswer struct {
+	SHA  string    `json:"sha"`
+	Tree shaAnswer `json:"tree"`
 }
 
 func (c *Client) moveRef(ctx context.Context, sha string) error {

@@ -92,6 +92,17 @@ func TestHeadBlobOfMissingPath(t *testing.T) {
 	}
 }
 
+// GitHub answers a directory's contents as an ARRAY: HeadBlob reports it
+// as a permanent "is a dir", never as an undecodable answer.
+func TestHeadBlobOfDirectoryIsPermanent(t *testing.T) {
+	gh := githubtest.New(t, map[string]string{doc: "x\n"})
+	_, err := newClient(t, gh, nil, nil).HeadBlob(context.Background(), "csi-spl-doc/doc")
+	var ae *github.APIError
+	if !errors.As(err, &ae) || ae.Status != 422 || !strings.Contains(ae.Message, "is a dir") || !errors.Is(err, github.ErrPermanent) {
+		t.Fatalf("HeadBlob(dir) err = %v, want a permanent 422 \"is a dir\"", err)
+	}
+}
+
 func TestStaleParentIsRefMoved(t *testing.T) {
 	gh := githubtest.New(t, map[string]string{doc: "a\n"})
 	c := newClient(t, gh, nil, nil)

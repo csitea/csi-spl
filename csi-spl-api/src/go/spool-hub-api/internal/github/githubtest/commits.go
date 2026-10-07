@@ -38,7 +38,11 @@ func (s *Server) listCommits(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for i := (page - 1) * per; i < len(chain) && i < page*per; i++ {
 		c := chain[i]
-		out = append(out, map[string]any{"sha": c.SHA, "commit": map[string]any{"message": c.Message, "author": c.Author}})
+		full := s.commitJSON(c)
+		commit := map[string]any{"message": c.Message, "author": full["author"], "committer": full["committer"],
+			"tree": full["tree"], "url": full["url"], "comment_count": 0, "verification": full["verification"]}
+		out = append(out, map[string]any{"sha": c.SHA, "node_id": full["node_id"], "commit": commit,
+			"url": s.apiURL("/commits/" + c.SHA), "html_url": full["html_url"], "author": nil, "committer": nil, "parents": full["parents"]})
 	}
 	wire.WriteJSON(w, http.StatusOK, out)
 }

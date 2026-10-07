@@ -23,16 +23,22 @@ func (s *Server) getContents(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	s.mu.Lock()
 	sha, ok := s.resolve(r.URL.Query().Get("ref"))
-	blob, found := s.trees[s.commits[sha].Tree][path]
+	tree := s.trees[s.commits[sha].Tree]
+	blob, found := tree[path]
 	body := s.blobs[blob]
+	dir, isDir := s.dirJSON(tree, path)
 	s.mu.Unlock()
+	if ok && !found && isDir {
+		wire.WriteJSON(w, http.StatusOK, dir)
+		return
+	}
 	if !ok || !found {
 		ghError(w, http.StatusNotFound, "Not Found")
 		return
 	}
 	wire.WriteJSON(w, http.StatusOK, map[string]any{
-		"type": "file", "path": path, "sha": blob, "encoding": "base64",
-		"content": base64.StdEncoding.EncodeToString(body),
+		"type": "file", "name": path[strings.LastIndex(path, "/")+1:], "path": path, "sha": blob, "size": len(body),
+		"encoding": "base64", "content": base64.StdEncoding.EncodeToString(body), "url": s.apiURL("/contents/" + path),
 	})
 }
 
@@ -45,7 +51,8 @@ func (s *Server) getBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wire.WriteJSON(w, http.StatusOK, map[string]any{
-		"sha": r.PathValue("sha"), "encoding": "base64", "content": base64.StdEncoding.EncodeToString(body),
+		"sha": r.PathValue("sha"), "node_id": "B_" + r.PathValue("sha"), "size": len(body), "url": s.apiURL("/git/blobs/" + r.PathValue("sha")),
+		"encoding": "base64", "content": base64.StdEncoding.EncodeToString(body),
 	})
 }
 
@@ -70,7 +77,7 @@ func (s *Server) postBlob(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	sha := s.putBlob(body)
 	s.mu.Unlock()
-	wire.WriteJSON(w, http.StatusCreated, map[string]string{"sha": sha})
+	wire.WriteJSON(w, http.StatusCreated, map[string]string{"sha": sha, "url": s.apiURL("/git/blobs/" + sha)})
 }
 
 func (s *Server) getCommit(w http.ResponseWriter, r *http.Request) {
@@ -79,14 +86,7 @@ func (s *Server) getCommit(w http.ResponseWriter, r *http.Request) {
 		ghError(w, http.StatusNotFound, "Not Found")
 		return
 	}
-	parents := make([]map[string]string, 0, len(c.Parents))
-	for _, p := range c.Parents {
-		parents = append(parents, map[string]string{"sha": p})
-	}
-	wire.WriteJSON(w, http.StatusOK, map[string]any{
-		"sha": c.SHA, "tree": map[string]string{"sha": c.Tree}, "parents": parents,
-		"author": c.Author, "committer": c.Committer, "message": c.Message,
-	})
+	wire.WriteJSON(w, http.StatusOK, s.commitJSON(c))
 }
 
 type treeEntry struct {
@@ -117,7 +117,7 @@ func (s *Server) postTree(w http.ResponseWriter, r *http.Request) {
 		ghError(w, http.StatusUnprocessableEntity, msg)
 		return
 	}
-	wire.WriteJSON(w, http.StatusCreated, map[string]string{"sha": s.putTree(tree)})
+	wire.WriteJSON(w, http.StatusCreated, s.treeJSON(s.putTree(tree)))
 }
 
 // applyEntries writes blob entries into tree (a nil sha deletes the path);
@@ -163,7 +163,7 @@ func (s *Server) postCommit(w http.ResponseWriter, r *http.Request) {
 		author = *in.Author
 	}
 	sha := s.putCommit(CommitObj{Tree: in.Tree, Parents: in.Parents, Author: author, Committer: botID(), Message: in.Message})
-	wire.WriteJSON(w, http.StatusCreated, map[string]any{"sha": sha, "tree": map[string]string{"sha": in.Tree}})
+	wire.WriteJSON(w, http.StatusCreated, s.commitJSON(s.commits[sha]))
 }
 
 func (s *Server) checkCommit(tree string, parents []string) string {
@@ -189,7 +189,8 @@ func (s *Server) compare(w http.ResponseWriter, r *http.Request) {
 		ghError(w, http.StatusNotFound, "Not Found")
 		return
 	}
-	out := map[string]any{"status": "diverged", "ahead_by": 0, "behind_by": 0}
+	out := map[string]any{"status": "diverged", "ahead_by": 0, "behind_by": 0, "total_commits": 0,
+		"commits": []any{}, "files": []any{}, "url": s.apiURL("/compare/" + r.PathValue("spec"))}
 	if ahead, behind := s.distance(h, b), s.distance(b, h); ahead == 0 {
 		out["status"] = "identical"
 	} else if ahead > 0 {

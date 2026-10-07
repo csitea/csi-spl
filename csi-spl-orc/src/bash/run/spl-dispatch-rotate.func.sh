@@ -26,7 +26,9 @@
 # @description            FR-041), RETIRE (/exit-clean, TERM, KILL), CLOSE
 # @description   RELEASE  the hold goes, M takes the lease back (FR-028)
 # @description   REFRESH  the same for F, without a hold (FR-029)
-# @description   DONE     rotate.dispatch.last, a result note to the orchestrator
+# @description   DONE     rotate.dispatch.last, a result note to the orchestrator;
+# @description            the fresh master re-read first: gone or off the lease =
+# @description            DONE FAIL / WAIT and a NOT-healthy note, never OK
 # @description A new session that does not start or ack is closed, the OLD one
 # @description keeps the role (the hold is removed), and an ask + an owner DM
 # @description raise it (owner D2, FR-027, FR-075). Dry run unless DRY_RUN=0.
@@ -516,7 +518,7 @@ spl_disp_refresh() {
 }
 
 spl_disp_run_all() {
-  local master_rid="$ROTATE_RID" rc=0
+  local master_rid="$ROTATE_RID" master_pid="$ROTATE_NEW_PID" rc=0 lost
   date +%s > "$LEASE_DIR/rotate.dispatch.last"
   if [[ -n "${ROTATE_STANDBY:-}" ]]; then
     # standby: the lease is on another machine, so no refresh and no
@@ -526,12 +528,32 @@ spl_disp_run_all() {
   fi
   spl_disp_refresh || rc=1
   ROTATE_RID="$master_rid"
+  # DONE reads the fresh master again, never assumes it: 20261007T0915Z-master
+  # logged "DONE OK fresh c-002" and told the orchestrator it held the lease,
+  # while that pid had died during the refresh and the lease was c-003's
+  lost="$(spl_disp_master_lost "$master_pid")"
+  if [[ -n "$lost" ]]; then
+    spl_disp_step DONE "$([[ "$lost" == gone* ]] && echo FAIL || echo WAIT)" \
+      "fresh $LEASE_MASTER pid ${master_pid:-?} $lost$( ((rc)) && echo "; the $LEASE_FAILOVER refresh failed (alerted)")"
+    spl_rotate_note "$LEASE_ORCH" "$(spl_rotate_ack_task "$ROTATE_RID")" \
+      "ROTATION DONE $ROTATE_RID on $ROTATE_BOX, NOT healthy: the fresh $LEASE_MASTER pid ${master_pid:-?} $lost. A dead dispatcher is respawned by ROTATE_CMD=heal (cron). Log: $LEASE_DIR/rotate.log" result
+    return 1
+  fi
   # through the ctx too: a phase left at the failover's CLOSE reads as in
   # flight, and every later run only resumed it (2026-10-02 11:09Z..)
   spl_disp_step DONE "$( ((rc)) && echo WAIT || echo OK)" "fresh $LEASE_MASTER$( ((rc)) && echo "; the $LEASE_FAILOVER refresh failed (alerted)")"
   spl_rotate_note "$LEASE_ORCH" "$(spl_rotate_ack_task "$ROTATE_RID")" \
     "ROTATION DONE $ROTATE_RID on $ROTATE_BOX: a fresh $LEASE_MASTER holds the dispatch lease$( ((rc)) && echo "; the $LEASE_FAILOVER refresh FAILED, the old one kept"). Log: $LEASE_DIR/rotate.log" result
   return $rc
+}
+
+# spl_disp_master_lost PID: why the fresh master is not what DONE reports
+# ("gone ...", or the lease elsewhere); empty when PID is a live claude and
+# the dispatch lease names the master.
+spl_disp_master_lost() {
+  spl_lease_read
+  spl_rotate_alive "$1" || { echo "gone before DONE (the lease is ${LH:-none})"; return 0; }
+  [[ "$LH" == "$LEASE_MASTER" || "$LH" == "$LEASE_MASTER@$ROTATE_BOX" ]] || echo "alive, but the lease is ${LH:-none}"
 }
 
 # ---- resume (FR-003) and abort (FR-091) ------------------------------------------

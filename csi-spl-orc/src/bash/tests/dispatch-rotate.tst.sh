@@ -32,6 +32,8 @@
 #  12. RELEASE with the fleet lease on another machine -> SKIP standby, DONE,
 #      no alert, no resume; on this machine a wrong holder still FAILs and
 #      the alert names the new pid (20261006T1315Z-master on sat)
+#  13. the fresh M dies during the F refresh -> DONE FAIL, the orchestrator
+#      told NOT healthy, never "holds the dispatch lease" (20261007T0915Z)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -99,6 +101,9 @@ mode="$(cat "$T/spawn.mode.$id" 2>/dev/null || echo ok)"
 [ "$mode" = nopane ] && { echo "spawn-window: no pane"; exit 4; }
 printf '%s\t%s\t$0\t%s@box\n' "$pane" "$pid" "$id" >>"$T/tmux/panes"
 [ "$mode" = nostart ] || "$T/bin/proc" "$pid" "$id" 0
+# spawn.kills.<id> "<pid> <lease>": that pid dies and the lease moves as this
+# spawn runs (20261007T0915Z: the fresh master's window closed mid-refresh)
+if [ -f "$T/spawn.kills.$id" ]; then read -r kp kl <"$T/spawn.kills.$id"; rm -rf "$T/proc/$kp"; echo "$kl $(date +%s)" >"$SPOOL_ROOT/dispatch/lease"; fi
 echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T05:16:00Z","from":"HUM-10","to":"c-902","kind":"msg","task_id":"y","body":"mid-rotation"}' >"$SPOOL_ROOT/c-902/inbox/m9.json"
 if [ "$(cat "$T/ack.mode.$id" 2>/dev/null || echo yes)" = yes ]; then
   rid="$(grep '^ACK-COMMAND:' "$4" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
@@ -171,7 +176,7 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env
 
 # the world: c-902 (pid 102, pane %2) holds the lease, c-903 (pid 103, pane %3) stands by, both 2 h old
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/ack.mode."* "$T/ai."* \
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode."* "$T/spawn.kills."* "$T/ack.mode."* "$T/ai."* \
     "$D"/rotate.* "$D/handoff" "$D/lease"* "$S"/c-90*
   echo "$CONF" >"$D/lease.conf"
   mkdir -p "$S/c-902/inbox" "$S/c-902/outbox" "$S/c-903/inbox" "$S/c-903/outbox"
@@ -472,6 +477,28 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   ! grep -q 'old session kept' "$T/run.log" &&
   pass "12. control: the lease here on the wrong holder FAILs, the alert names the new pid" || fail "12. control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
 ! grep -q ERRTRAP "$T/o" && pass "12. no stray failing command under the ERR trap" || fail "12. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 13. the fresh M dies during the F refresh (20261007T0915Z-master) ---------------------
+# live: the old c-002's /exit-clean deferred close resolved --agent c-002 to
+# the NEW window and killed it at 09:22:21Z, mid-refresh; DONE still logged
+# "DONE OK fresh c-002" and told the orchestrator it held the lease
+world; echo "2902 c-903" >"$T/spawn.kills.c-903"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
+[[ $rc -ne 0 && ! -d "$T/proc/2902" && "$(ctx ROTATE_PHASE)" == DONE ]] &&
+  grep -q " $rid DONE FAIL fresh c-902 pid 2902 gone before DONE (the lease is c-903)" "$T/o" && ! grep -q " $rid DONE OK" "$T/o" &&
+  pass "13. the fresh M gone at DONE: DONE FAIL names the pid and the lease, the ctx ends DONE" || fail "13. rc=$rc phase=$(ctx ROTATE_PHASE) $(cat "$T/o")"
+grep -q "send c-900 -> c-900 result dispatch-rotate-$rid .*ROTATION DONE $rid on box-desk, NOT healthy: the fresh c-902 pid 2902 gone" "$T/send.log" &&
+  ! grep -q 'holds the dispatch lease' "$T/send.log" &&
+  pass "13. ... the orchestrator is told NOT healthy, never 'holds the dispatch lease'" || fail "13. note: $(grep ROTATION "$T/send.log")"
+act DRY_RUN=0 >"$T/o" 2>&1
+! grep -q RESUME "$T/o" && pass "13. ... and the next run does not RESUME" || fail "13. resumed: $(cat "$T/o")"
+# alive, but the lease left it during the refresh: DONE WAIT, not OK
+world; echo "0 c-903" >"$T/spawn.kills.c-903"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && -d "$T/proc/2902" ]] && grep -q ' DONE WAIT fresh c-902 pid 2902 alive, but the lease is c-903' "$T/o" &&
+  pass "13. the fresh M alive but off the lease: DONE WAIT, not OK" || fail "13. lease: rc=$rc $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

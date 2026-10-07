@@ -292,12 +292,14 @@ try {
   await p.keyboard.press('l')
   ok('7 l comes into the list again, on the open channel', await until(p, (want) => document.activeElement?.closest?.('#sidebar-panel-channels a.nav-item')?.getAttribute('data-key') === want, ids[1], 3000),
     [await path(), await focusKey()])
-  const other = ids[ids.length - 1]
+  const other = ids[0]
   await p.evaluate((id) => document.querySelector(`#sidebar-panel-channels a.nav-item[data-key="${id}"]`)?.focus(), other)
   await p.keyboard.press('Enter')
-  ok('7 Enter on another channel\'s row opens it and goes into its messages', await until(p, (want) =>
-    location.pathname.endsWith('/channel/' + want) && Boolean(document.activeElement?.closest?.('.spool-main')), other, 6000),
-  [await path(), await p.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className)])
+  const onCard = (want) => location.pathname.endsWith('/channel/' + want) && Boolean(document.activeElement?.closest?.('.spool-main article.msg'))
+  const landed = await until(p, onCard, other, 6000)
+  await sleep(800)
+  ok('7 Enter on another channel\'s row opens it and lands on one of its cards (and stays)', landed && await p.evaluate(onCard, other),
+    [await path(), await p.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className)])
 
   ok('no page errors', errors.length === 0, errors)
   await p.close()

@@ -1452,10 +1452,27 @@ function keepRowFocus(e: MouseEvent) {
   /* Safari leaves the focus on <body> after a click on a link */
   if (!phone.value) (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true })
 }
+/* the feed reads its cards after the route: the old channel's cards are
+   drawn again at first (new elements, old messages) and one of them taking
+   the focus loses it when they go. So wait a moment for a message the old
+   channel did not show and focus it, else the pane (its heading); not when
+   the reader moved on. */
+const CARDS_WAIT_MS = 3000
+const cardsNow = () => [...document.querySelectorAll<HTMLElement>('.spool-main article.msg[data-msg-id]')]
+  .filter((el) => el.getClientRects().length > 0 && !el.closest('[class*="-leave-active"]'))
 async function openIntoMessages(path: string) {
+  const from = document.activeElement
+  const old = new Set(cardsNow().map((el) => el.dataset.msgId))
   await navigateTo(localePath(path))
-  await nextTick()
-  focusPane(MIDDLE)
+  const t0 = Date.now()
+  let card: HTMLElement | undefined
+  while (!(card = cardsNow().find((el) => !old.has(el.dataset.msgId))) && Date.now() - t0 < CARDS_WAIT_MS) {
+    await new Promise((r) => setTimeout(r, 50))
+    if (document.activeElement !== from) return
+  }
+  if (document.activeElement !== from) return
+  if (card) card.focus({ preventScroll: true })
+  else focusPane(MIDDLE)
 }
 function onChannelRowKey(e: KeyboardEvent) {
   if (phone.value) return

@@ -33,6 +33,17 @@
     >
       <UiIcon :name="open ? 'x' : 'menu'" :size="16" />
     </button>
+    <!-- t1 b6c742f0 (HUM-10 643c30a8): a topic row's menu ends with the AI
+         actions group, mounted (lazily) only while it is open -->
+    <LazySidebarRowAi
+      v-if="open && aiTask"
+      ref="aiRow"
+      :task-id="aiTask"
+      :title="name"
+      :base="baseItems"
+      :fail="(key: string) => emit('aiFail', key)"
+      @items="aiItems = $event"
+    />
     <Teleport to="body" :disabled="!sheet">
       <SheetBackdrop v-if="open && sheet" @close="emit('close')" />
       <div
@@ -46,7 +57,8 @@
         @keydown="onMenuKey"
       >
         <ul role="menu" class="sidebar-row-menu__items" :aria-label="buttonLabel">
-          <li v-for="item in items" :key="item.id" role="none">
+          <li v-for="item in items" :key="item.id" role="none" :class="{ 'sidebar-row-menu__grouped': item.groupKey }">
+            <span v-if="item.groupKey" class="sidebar-row-menu__group" :data-testid="'sidebar-row-menu-group-' + item.id">{{ t(item.groupKey) }}</span>
             <button
               type="button"
               role="menuitem"
@@ -71,6 +83,7 @@ import { rowMenuItems } from '~/utils/sidebar-row-menu.mjs'
 import { nextMenuIndex } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 import { usePhone } from '~/composables/useTouchUi'
+import type { UiIconName } from '~/utils/uiIcons'
 
 const props = defineProps<{
   menuId: string
@@ -118,6 +131,8 @@ const emit = defineEmits<{
   moveUp: []
   moveDown: []
   kind: []
+  /** t1 b6c742f0: an AI action on the topic failed (the i18n key to show) */
+  aiFail: [key: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -131,7 +146,7 @@ useMobileStack().overlay(() => props.open, () => emit('close'))
 
 const panelId = computed(() => 'sidebar-row-menu-' + props.menuId.replace(/[^A-Za-z0-9_-]/g, '-'))
 const buttonLabel = computed(() => (props.open ? t('common.close') : t('sidebar.row_menu.label', { name: props.name })))
-const items = computed(() => rowMenuItems(!!props.unread, {
+const baseItems = computed(() => rowMenuItems(!!props.unread, {
   person: props.person,
   admin: props.admin,
   blocked: props.blocked,
@@ -147,6 +162,15 @@ const items = computed(() => rowMenuItems(!!props.unread, {
   topicDelete: props.topicDelete,
   topicKind: props.topicKind,
 }))
+/* t1 b6c742f0 (HUM-10 643c30a8): a topic row - the sidebar Topics tab
+   (th:<task>) and the home topic list (home:<task>) - gets the AI actions
+   group from SidebarRowAi (lazy, while open); every other row keeps its own */
+const aiTask = computed(() => /^(?:th|home):(.+)$/.exec(props.menuId)?.[1] || '')
+type RowItem = { id: string, icon: UiIconName, labelKey: string, groupKey?: string }
+const aiItems = ref<RowItem[] | null>(null)
+const aiRow = ref<{ pick: (id: string) => { mine: boolean, stay: boolean } } | null>(null)
+watch(() => props.open, (v) => { if (!v) aiItems.value = null })
+const items = computed<RowItem[]>(() => (props.open && aiItems.value) || baseItems.value)
 
 function itemEls(): HTMLElement[] {
   const host = panel.value || root.value
@@ -239,7 +263,14 @@ async function copyLink() {
 }
 
 function choose(id: string) {
-  if (id === 'copy') {
+  const ai = aiRow.value?.pick(id)
+  if (ai?.stay) {
+    void focusItem(0)
+    return
+  }
+  if (ai?.mine) {
+    /* the run goes on: SidebarRowAi hands it to useAiListRun */
+  } else if (id === 'copy') {
     void copyLink()
   } else if (id === 'read') {
     emit('markRead')
@@ -328,6 +359,13 @@ function choose(id: string) {
   min-height: 36px;
 }
 .sidebar-row-menu__item .ui-icon { flex: 0 0 auto; }
+.sidebar-row-menu__grouped { border-top: 1px solid var(--color-border); margin-top: 4px; padding-top: 4px; }
+.sidebar-row-menu__group {
+  display: block;
+  padding: 2px 12px;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
 @media (max-width: 820px) {
   .sidebar-row-menu__btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); }
 }

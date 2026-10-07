@@ -931,6 +931,8 @@ import { COLW_MAX, colMin, colWidthClasses, colWidthVars } from '~/utils/issues-
 import { ISSUE_STATUSES, PRIO_DEFAULT, createMockIssues, isTopKind, normalizeIssue, normalizeLabel } from '~/utils/issues.mjs'
 import { createLongPress } from '~/utils/touch-ui.mjs'
 import { useIssueMenu, type IssueMenuTarget } from '~/composables/useIssueMenu'
+import { useAiMenuGroup } from '~/composables/useAiMenuGroup'
+import { aiSubject } from '~/utils/msg-ai-actions.mjs'
 import { onDeleteRestore } from '~/composables/useDeleteUndo'
 import type { IssueMenuItem } from '~/components/IssueRowMenu.vue'
 import {
@@ -1873,8 +1875,35 @@ const ctxItems = computed<IssueMenuItem[]>(() => {
   }
   items.push({ id: 'archive', icon: 'archive', labelKey: 'issues_menu.archive' })
   items.push({ id: 'delete', icon: 'delete', labelKey: 'issues_menu.delete', danger: true })
-  return items
+  return aiGroup.items(items) as IssueMenuItem[]
 })
+/* t1 b6c742f0 (HUM-10 643c30a8: "add them to every card which has right click
+   menu"): the issue / epic menu - rows and the epics sidebar - ends with the
+   AI actions group, the card's title and description as the subject
+   (utils/msg-ai-actions.mjs aiSubject 'issue'; no "Turn into an issue"). A
+   post lands in the issue's discussion. */
+function heldIssue(key: string): Issue | null {
+  return issues.value.find((i) => i.key === key) || subtasks.value.find((i) => i.key === key) || (detail.value?.key === key ? detail.value : null)
+}
+const aiGroup = useAiMenuGroup(() => {
+  const tg = ctxTarget.value
+  return tg ? aiSubject('issue', heldIssue(tg.key) || { key: tg.key, kind: tg.kind, title: tg.title }) : null
+})
+const aiLocalePath = useLocalePath()
+async function runIssueAi(id: string, tg: IssueMenuTarget) {
+  saveError.value = ''
+  try {
+    const issue = heldIssue(tg.key) || normalizeIssue((await withSessionRetry(api, () => api.getIssue(tg.key))).issue)
+    if (!issue.task_id) throw new Error('no discussion topic')
+    const { runAiAction } = await import('~/utils/msg-ai-run')
+    const send = (text: string) => sendToDiscussion(issue, text)
+    const key = await runAiAction(id, aiSubject('issue', issue), { api, router, localePath: aiLocalePath, send })
+    if (key) saveError.value = key
+    else if (detail.value?.key === issue.key) await loadComments(issue)
+  } catch {
+    saveError.value = 'feed.msg_menu.ai.failed'
+  }
+}
 /* owner b82f3853: the title-row actions button opens the same menu, targeting
    the epic/feature the view is filtered to, right-aligned under the button. */
 function openEpicMenu(ev: MouseEvent) {
@@ -1897,7 +1926,12 @@ function detailArchive() {
 function detailDelete() {
   if (detail.value) askDelete(detail.value)
 }
-function onCtxClose() { closeCtxMenu(); ctxFromButton.value = false }
+function onCtxClose() {
+  /* the phone's "AI actions" entry keeps the sheet open, showing the actions */
+  if (aiGroup.keep()) return
+  closeCtxMenu()
+  ctxFromButton.value = false
+}
 /* CLE-77816 (owner, topic 4365c545): Edit opens the same issue dialog for the
    target - an epic / feature edits like an issue. A held row opens straight
    away; an epic (often not in the kind=issue list) is fetched first, the same
@@ -1925,6 +1959,8 @@ function onCtxChoose(id: string) {
   const tg = ctxTarget.value
   if (!tg) return
   const pt = { ...ctxPoint.value }
+  if (aiGroup.more(id)) return
+  if (id.startsWith('ai-')) { void runIssueAi(id, tg); return }
   if (id === 'edit') { void editTarget(tg); return }
   if (id === 'copy') { void copyText(issueLinkFor(tg), tg.key); return }
   if (id === 'open') {
@@ -2070,6 +2106,11 @@ async function loadComments(issue: Issue | null) {
 /* one comment into the issue's discussion (is_parent 0 on its task) - the
    discussion box and, on a phone, the bottom dock's GO */
 async function postComment(issue: Issue, text: string) {
+  await sendToDiscussion(issue, text)
+  await loadComments(issue)
+}
+/* the post itself - a comment, or an AI action picked on the issue's menu */
+async function sendToDiscussion(issue: Issue, text: string) {
   const sock = live.ensure()
   if (sock) {
     await sock.send({ task_id: issue.task_id, kind: 'note', body: text, files: [], channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
@@ -2077,7 +2118,6 @@ async function postComment(issue: Issue, text: string) {
     await api.sendMessage({ text, task_id: issue.task_id, channel: issue.channel || ISSUE_CHANNEL, is_parent: 0 })
   }
   void poke({ text, where: { issue: true, issueKey: issue.key } })
-  await loadComments(issue)
 }
 
 async function sendComment() {

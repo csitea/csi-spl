@@ -1,8 +1,9 @@
 /*
  * t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card in
  * every view"): run an AI action picked on a message ENTRY of a list - a Flow
- * entry or a search hit. Such an entry is a short copy: no full body (a
- * search hit has a snippet, a Flow entry a cut text) and not the page the
+ * entry, a search hit, or (643c30a8) a topic row. Such an entry is a short
+ * copy: no full body (a search hit has a snippet, a Flow entry a cut text, a
+ * topic row its title) and not the page the
  * post belongs to (a reply to a direct message goes to the page's peer). So
  * the pick first opens the message in its original place, as a click does,
  * then runs the action on the full message there - the post lands in that
@@ -11,6 +12,7 @@
 import { useOpenMessage } from '~/composables/useOpenMessage'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { withSessionRetry } from '~/utils/live-follow.mjs'
 
 /** How long the opened place may take to hold the message. */
 const FIND_MS = 5000
@@ -47,5 +49,21 @@ export function useAiListRun() {
     return runAiAction(id, msg || row, deps)
   }
 
-  return { run }
+  /**
+   * HUM-10 643c30a8: a topic row's pick (the sidebar Topics tab, the home
+   * topic list). The row holds the topic's id and title, not its text: read
+   * the topic's opening message, then open it and run on it as above.
+   */
+  async function runTopic(id: string, taskId: string): Promise<string> {
+    let root: object | undefined
+    try {
+      root = ((await withSessionRetry(deps.api, () => deps.api.getTopic(taskId, { limit: 1 }))).messages || [])[0]
+    } catch {
+      root = undefined
+    }
+    if (!root) return 'feed.msg_menu.ai.failed'
+    return run(id, root)
+  }
+
+  return { run, runTopic }
 }

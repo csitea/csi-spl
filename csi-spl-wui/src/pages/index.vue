@@ -103,8 +103,10 @@
         @kind="openTopicKind(t.task_id)"
         @archive="archiveTopicRow(t.task_id)"
         @delete-topic="askDeleteTopic(t.task_id)"
+        @ai-fail="topicAiError = $event"
       />
       </div>
+      <p v-if="topicAiError" class="msg-edit-error" role="alert" data-testid="msg-ai-error">{{ tr(topicAiError) }}</p>
       <LazyTopicDeleteDialog
         v-if="topicDeleteOpen && topicDeleteMsgId"
         v-model:open="topicDeleteOpen"
@@ -287,6 +289,8 @@ onUnmounted(() => viewer.unfollow())
 const people = useHumanNames()
 /* SPL-986: Archive / Delete on a topic row (composables/useTopicRowActions.ts) */
 const rowMenu = ref('')
+/* t1 b6c742f0: an AI action picked on a topic row's menu failed */
+const topicAiError = ref('')
 const {
   stateOf: topicRowState,
   resolve: resolveTopicRow,

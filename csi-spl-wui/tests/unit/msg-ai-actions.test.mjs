@@ -1,5 +1,7 @@
-// t1 b6c742f0 (HUM-10): the AI actions group in the menu of a message a
-// PERSON wrote - never on an agent's - and what each action sends: the
+// t1 b6c742f0 (HUM-10): the AI actions group in the menu of a message - a
+// person's or (HUM-10 643c30a8) an agent's, never a pending row - and of every
+// card kind with a right-click menu (topic row, issue / epic, through
+// aiSubject), and what each action sends: the
 // instruction post (same topic, quoting the source), the issue body, and the
 // calendar event body (POST /v1/calendar/events, spec 089 6.1.2).
 // Run: node tests/unit/msg-ai-actions.test.mjs
@@ -9,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  AI_ACTIONS, aiActionPost, aiCalendarRoute, aiEventBody, aiIssueBody, aiIssueRoute, aiMenuItems, aiPostTarget, createCalendarEvent, offersAiActions, withAiItems,
+  AI_ACTIONS, AI_SUBJECT_KINDS, aiActionPost, aiCalendarRoute, aiEventBody, aiIssueBody, aiIssueRoute, aiMenuItems, aiPostTarget, aiSubject, createCalendarEvent, offersAiActions, withAiItems,
 } from '../../src/utils/msg-ai-actions.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -19,16 +21,24 @@ const person = { msg_id: 'm-1', task_id: TASK, from: 'HUM-24', from_box: 'box-wu
 const agent = { ...person, msg_id: 'm-2', from: 'c-002', from_box: 'box-a' }
 const where = { workspace: 'acme', link: 'https://example.com/t/' + TASK + '#m-1' }
 
-describe('people only, never agents', () => {
+describe('a person\'s message and an agent\'s (HUM-10 643c30a8)', () => {
   it('offers the group on a person\'s message, a guest\'s, and a line a person typed at an agent', () => {
     assert.equal(offersAiActions(person), true)
     assert.equal(offersAiActions({ ...person, from: 'GST-3' }), true)
     assert.equal(offersAiActions({ ...agent, typed_by: 'HUM-10' }), true)
   })
-  it('never on an agent\'s message, legacy id or new', () => {
-    assert.equal(offersAiActions(agent), false)
-    assert.equal(offersAiActions({ ...person, from: 'CLE-77' }), false)
-    assert.deepEqual(aiMenuItems(agent), [])
+  it('an agent\'s message gets the same seven, legacy id or new', () => {
+    assert.equal(offersAiActions(agent), true)
+    assert.equal(offersAiActions({ ...person, from: 'CLE-77' }), true)
+    assert.deepEqual(aiMenuItems(agent).map((i) => i.id), aiMenuItems(person).map((i) => i.id))
+  })
+  it('an agent\'s message, turned into an issue, credits the agent', () => {
+    assert.match(aiIssueBody(agent, where).description, /msg `m-2`, by c-002@box-a/)
+    assert.match(aiActionPost(agent, 'ai-analyse', where), /by c-002@box-a/)
+  })
+  it('a pending agent row has none either', () => {
+    assert.equal(offersAiActions({ ...agent, pending: true }), false)
+    assert.deepEqual(aiMenuItems({ ...agent, pending: true, waiting: true }), [])
   })
   it('never on an unknown sender, a pending row or a row with no topic', () => {
     assert.equal(offersAiActions({ ...person, from: '' }), false)
@@ -51,8 +61,8 @@ describe('people only, never agents', () => {
     }
     assert.equal(JSON.parse(src('i18n/locales/en.json')).feed.msg_menu.ai.issue, 'Turn into an issue')
   })
-  it('MessageCard passes the message only when it is not an agent\'s', () => {
-    assert.match(src('src/components/MessageCard.vue'), /:ai-msg="ai \? undefined : msg"/)
+  it('MessageCard passes every message, an agent\'s too', () => {
+    assert.match(src('src/components/MessageCard.vue'), /:ai-msg="msg"/)
   })
 })
 
@@ -158,14 +168,18 @@ describe('every message menu, one rule (t1 b6c742f0, HUM-10 14dc0232)', () => {
     assert.deepEqual(ids(only), SEVEN)
     assert.ok(only.every((i) => !i.groupKey))
   })
-  it('an agent\'s message keeps the menu as it is', () => {
-    assert.equal(withAiItems(base, agent), base)
-    assert.equal(withAiItems(base, agent, { sheet: true }), base)
+  it('an agent\'s message ends with the seven too (643c30a8)', () => {
+    assert.deepEqual(ids(withAiItems(base, agent)), ['open', 'copy', 'delete', ...SEVEN])
+    assert.deepEqual(ids(withAiItems(base, agent, { sheet: true })), ['open', 'copy', 'ai-more', 'delete'])
+  })
+  it('a pending row keeps the menu as it is', () => {
+    assert.equal(withAiItems(base, { ...person, pending: true }), base)
+    assert.equal(withAiItems(base, { ...agent, pending: true }, { sheet: true }), base)
   })
   it('a search hit and a Flow entry carry what the rule reads', () => {
     const hit = { type: 'messages', key: 'k', msg_id: 'm-9', task_id: TASK, from: 'HUM-2', from_box: 'box-wui', snippet: { text: 'x' } }
     assert.equal(offersAiActions(hit), true)
-    assert.equal(offersAiActions({ ...hit, from: 'c-007' }), false)
+    assert.equal(offersAiActions({ ...hit, from: 'c-007' }), true)
   })
   it('the card menu, the search row menu and the Flow menu all use it', () => {
     assert.match(src('src/composables/useAiMenuGroup.ts'), /withAiItems\(/)
@@ -173,6 +187,72 @@ describe('every message menu, one rule (t1 b6c742f0, HUM-10 14dc0232)', () => {
     assert.match(src('src/components/SearchRowMenu.vue'), /useAiMenuGroup\(/)
     assert.match(src('src/components/FlowList.vue'), /:ai-msg="menu\.row"/)
     assert.match(src('src/components/SearchSidePanel.vue'), /:ai-msg=/)
-    assert.match(src('src/components/MessageCard.vue'), /:ai-msg="ai \? undefined : msg"/)
+    assert.match(src('src/components/MessageCard.vue'), /:ai-msg="msg"/)
+  })
+})
+
+describe('every card with a right-click menu, one adapter per kind (HUM-10 643c30a8)', () => {
+  const SEVEN = ['ai-debate', 'ai-spec', 'ai-implement', 'ai-analyse', 'ai-issue', 'ai-risks', 'ai-calendar']
+  const ids = (list) => list.map((i) => i.id)
+  const issue = {
+    kind: 'issue', key: 'SPL-12', title: 'Export as PDF', description: 'Weekly, from the reports page.',
+    task_id: TASK, channel: 'issues', created_by: 'c-007',
+  }
+  it('names the kinds', () => {
+    assert.deepEqual(AI_SUBJECT_KINDS, ['msg', 'topic', 'issue'])
+  })
+  it('msg: the message row as it is; an unknown kind or card is null', () => {
+    assert.equal(aiSubject('msg', person), person)
+    assert.equal(aiSubject('channel', { channel_id: 'ops' }), null)
+    assert.equal(aiSubject('issue', null), null)
+    assert.equal(aiSubject('issue', { title: 'no key' }), null)
+    assert.equal(aiSubject('topic', { title: 'no id' }), null)
+  })
+  it('topic: a topic row gets the seven, its opener is read on the pick', () => {
+    const t = aiSubject('topic', { task_id: TASK, title: 'Release plan' })
+    assert.deepEqual(t, { ai_kind: 'topic', task_id: TASK, title: 'Release plan' })
+    assert.equal(offersAiActions(t), true)
+    assert.deepEqual(ids(aiMenuItems(t)), SEVEN)
+    assert.equal(aiMenuItems(t)[0].groupKey, 'feed.msg_menu.ai.group')
+  })
+  it('issue: six actions - an issue is not turned into an issue', () => {
+    const s = aiSubject('issue', issue)
+    assert.equal(offersAiActions(s), true)
+    assert.deepEqual(ids(aiMenuItems(s)), SEVEN.filter((id) => id !== 'ai-issue'))
+    assert.equal(aiMenuItems(s)[0].groupKey, 'feed.msg_menu.ai.group')
+  })
+  it('issue: title and description are the subject, its author and discussion topic carry over', () => {
+    const s = aiSubject('issue', issue)
+    assert.equal(s.body, 'Export as PDF\n\nWeekly, from the reports page.')
+    assert.deepEqual(aiPostTarget(s), { taskId: TASK, channel: 'issues' })
+    const text = aiActionPost(s, 'ai-risks', { workspace: 'acme', link: 'https://example.com/issues?issue=SPL-12' })
+    assert.match(text, /^\*\*AI action: Find risks\*\*/)
+    assert.match(text, new RegExp(`Source: workspace \\*\\*acme\\*\\*, issue \`SPL-12\`, topic \`${TASK}\`, by c-007 - https://example\\.com/issues\\?issue=SPL-12`))
+    assert.doesNotMatch(text, /msg `/)
+    assert.match(text, /\n\n> Export as PDF\n>\n> Weekly, from the reports page\.$/)
+    const ev = aiEventBody(s, {}, Date.parse('2026-10-06T14:35:12Z'))
+    assert.equal(ev.title, 'Export as PDF')
+    assert.equal(ev.topic_id, TASK)
+  })
+  it('issue: its own link - an epic opens its list', () => {
+    assert.deepEqual(aiSubject('issue', issue).ai_link, { path: '/issues', search: '?issue=SPL-12' })
+    assert.deepEqual(aiSubject('issue', { key: 'SPL-3', kind: 'epic', title: 'Reports' }).ai_link, { path: '/issues', search: '?epic=SPL-3' })
+  })
+  it('an epic summary (no discussion topic yet) still offers the group: the pick reads the issue', () => {
+    assert.equal(offersAiActions(aiSubject('issue', { key: 'SPL-3', kind: 'epic', title: 'Reports' })), true)
+  })
+  it('wired: the topic row menu (lazily) and the issue / epic menu use the one group', () => {
+    const row = src('src/components/SidebarRowMenu.vue')
+    assert.match(row, /<LazySidebarRowAi/)
+    assert.doesNotMatch(row, /msg-ai-actions|useAiMenuGroup/, 'the row menu is in the initial JS: the group stays lazy')
+    assert.match(row, /\^\(\?:th\|home\):/)
+    const ai = src('src/components/SidebarRowAi.vue')
+    assert.match(ai, /useAiMenuGroup\(/)
+    assert.match(ai, /aiSubject\('topic'/)
+    assert.match(ai, /runTopic\(/)
+    const issues = src('src/pages/issues.vue')
+    assert.match(issues, /useAiMenuGroup\(/)
+    assert.match(issues, /aiSubject\('issue'/)
+    assert.match(src('src/composables/useAiListRun.ts'), /async function runTopic\(/)
   })
 })

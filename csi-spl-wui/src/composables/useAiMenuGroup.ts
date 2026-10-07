@@ -1,10 +1,12 @@
 /*
  * t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card in
- * every view"): the AI actions group of one open message menu - the card's
- * MessageMenu and the search / Flow row menu (SearchRowMenu) alike. The
- * entries follow utils/msg-ai-actions.mjs withAiItems; on a phone the one
- * "AI actions" entry turns the same sheet into the seven actions.
- * Only those lazy menus import this, so it rides in their chunks.
+ * every view"; 643c30a8: "every card which has right click menu"): the AI
+ * actions group of one open card menu - the card's MessageMenu, the search /
+ * Flow row menu (SearchRowMenu), a topic row's menu (SidebarRowAi) and the
+ * issue / epic menu (pages/issues.vue) alike. `aiMsg` is the card's subject
+ * (utils/msg-ai-actions.mjs aiSubject). The entries follow withAiItems; on a
+ * phone the one "AI actions" entry turns the same sheet into the actions.
+ * Only lazy menus and pages import this, so it rides in their chunks.
  */
 import { withAiItems } from '~/utils/msg-ai-actions.mjs'
 import { usePhone } from '~/composables/useTouchUi'
@@ -25,9 +27,13 @@ export function useAiMenuGroup(aiMsg: () => unknown) {
     keepOpen = true
     return true
   }
-  /** true when the close that follows a pick must be skipped */
+  /** true when the close that follows a pick must be skipped; a real close
+      starts the next open on the whole menu again (a menu that stays mounted) */
   function keep() {
-    if (!keepOpen) return false
+    if (!keepOpen) {
+      only.value = false
+      return false
+    }
     keepOpen = false
     return true
   }

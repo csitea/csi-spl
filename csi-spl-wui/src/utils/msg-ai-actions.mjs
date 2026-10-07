@@ -1,12 +1,14 @@
-import { isParticipantId } from './agent-id.mjs'
 import { isoSeconds } from './iso-seconds.mjs'
-import { isAiMessage, typedByAuthor } from './typed-by.mjs'
+import { typedByAuthor } from './typed-by.mjs'
 
 /**
  * t1 b6c742f0 (HUM-10; csitea 41261a3f HUM-24): an "AI actions" group in the
- * menu of a message a PERSON wrote - never on an agent's. Loaded lazily, with
- * the menu (MessageMenu.vue) and on a pick (MessageCard.vue), never in the
- * initial JS.
+ * menu of a message. HUM-10 643c30a8: "add them to agents' messages as well
+ * and actually add them to every card which has right click menu" - any
+ * stored message (a person's or an agent's), and every card kind that has a
+ * right-click menu through its subject adapter (aiSubject: a topic row, an
+ * issue / epic). Loaded lazily, with the menu (MessageMenu.vue) and on a pick
+ * (MessageCard.vue), never in the initial JS.
  *
  * `post` actions write a reply in the SAME topic, by the clicking member, that
  * names the source message and carries the instruction: the dispatcher desk
@@ -47,25 +49,80 @@ function sourceTopic(m) {
 }
 
 /**
- * Does `msg` get the AI actions? Only a stored message whose SHOWN author is
- * a person (HUM-n / GST-n, or a line a person typed at an agent's terminal);
- * an agent's row, an unknown sender and a still-pending row do not.
- * @param {unknown} msg
+ * HUM-10 643c30a8: the card kinds whose right-click menu ends with the group,
+ * each through its adapter (aiSubject). `msg` is a message row as it is.
  */
-export function offersAiActions(msg) {
-  const m = msg && typeof msg === 'object' ? msg : null
-  if (!m || m.pending || !String(m.msg_id || '') || !sourceTopic(m)) return false
-  return isParticipantId(typedByAuthor(m).id) && !isAiMessage(m)
+export const AI_SUBJECT_KINDS = ['msg', 'topic', 'issue']
+
+/**
+ * The subject of a card's AI actions: one shape every action reads (the
+ * message fields: msg_id, task_id, channel, from, body), plus `ai_kind`.
+ * - `msg`: the message row itself.
+ * - `topic` ({ task_id, title }): a topic row (the sidebar Topics tab, the
+ *   home topic list); a pick opens the topic and runs on its opening message
+ *   (composables/useAiListRun.ts runTopic), so it carries no body here.
+ * - `issue` (an Issue of utils/issues.mjs, epic / feature too): title and
+ *   description as the body, its author, its discussion topic (task_id) and
+ *   channel - a post lands in the issue's discussion; `ai_ref` / `ai_link`
+ *   name it in the source line.
+ * @param {string} kind
+ * @param {unknown} card
+ * @returns {Record<string, any> | null} null for an unknown kind or card
+ */
+export function aiSubject(kind, card) {
+  const c = card && typeof card === 'object' ? /** @type {Record<string, any>} */ (card) : null
+  if (!c) return null
+  if (kind === 'msg') return c
+  if (kind === 'topic') {
+    const taskId = String(c.task_id || '')
+    return taskId ? { ai_kind: 'topic', task_id: taskId, title: String(c.title || '') } : null
+  }
+  if (kind === 'issue') {
+    const key = String(c.key || '')
+    if (!key) return null
+    const top = c.kind === 'epic' || c.kind === 'feature'
+    const title = String(c.title || '').trim()
+    const description = String(c.description || '').trim()
+    return {
+      ai_kind: 'issue',
+      ai_ref: key,
+      ai_link: { path: '/issues', search: `?${top ? 'epic' : 'issue'}=${encodeURIComponent(key)}` },
+      msg_id: '',
+      task_id: String(c.task_id || ''),
+      channel: String(c.channel || ''),
+      from: String(c.created_by || ''),
+      body: [title, description].filter(Boolean).join('\n\n'),
+    }
+  }
+  return null
 }
 
 /**
- * The menu entries, the group heading on the first one; [] for an agent's row.
- * @param {unknown} msg
+ * Does `subject` get the AI actions? A stored message with a known author -
+ * a person's or an agent's (HUM-10 643c30a8) - a topic row, or an issue /
+ * epic. A still-pending (unsent) row never does.
+ * @param {unknown} subject
+ */
+export function offersAiActions(subject) {
+  const m = subject && typeof subject === 'object' ? /** @type {Record<string, any>} */ (subject) : null
+  if (!m || m.pending) return false
+  /* an epic in the sidebar is a summary: its discussion topic is read on the pick */
+  if (m.ai_kind === 'issue') return Boolean(String(m.ai_ref || ''))
+  if (!sourceTopic(m)) return false
+  if (m.ai_kind === 'topic') return true
+  return Boolean(String(m.msg_id || '')) && Boolean(typedByAuthor(m).id)
+}
+
+/**
+ * The menu entries, the group heading on the first one; [] when the subject
+ * gets none. An issue does not offer "Turn into an issue".
+ * @param {unknown} subject
  * @returns {{ id: string, icon: string, labelKey: string, groupKey?: string }[]}
  */
-export function aiMenuItems(msg) {
-  if (!offersAiActions(msg)) return []
-  return AI_ACTIONS.map((a, i) => ({
+export function aiMenuItems(subject) {
+  if (!offersAiActions(subject)) return []
+  const own = /** @type {Record<string, any>} */ (subject).ai_kind === 'issue'
+  return AI_ACTIONS.filter((a) => !(own && a.mode === 'issue')).map((a, i) => ({
     id: a.id,
     icon: a.icon,
     labelKey: `feed.msg_menu.ai.${a.key}`,
@@ -78,9 +135,10 @@ export const AI_MORE = { id: 'ai-more', icon: 'bot', labelKey: 'feed.msg_menu.ai
 
 /**
  * t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card in
- * every view"): a menu's own entries plus the AI actions group - the one rule
- * every message menu uses (MessageMenu, the search row and the Flow entry
- * menus). Desktop: the group closes the list. The phone sheet opens WHOLE,
+ * every view"; 643c30a8: "every card which has right click menu"): a menu's
+ * own entries plus the AI actions group - the one rule every card menu uses
+ * (MessageMenu, the search row and Flow entry menus, the sidebar / home topic
+ * row menu, the issue / epic menu); `msg` is the card's subject (aiSubject). Desktop: the group closes the list. The phone sheet opens WHOLE,
  * Delete last (t1 7a6be5a3): one "AI actions" entry before Delete; `only`
  * (that entry picked) is the seven actions alone.
  * @template {{ id: string }} T
@@ -108,7 +166,10 @@ function sourceLine(m, where) {
   const w = where && typeof where === 'object' ? where : {}
   const parts = []
   if (w.workspace) parts.push(`workspace **${String(w.workspace)}**`)
-  parts.push(`topic \`${sourceTopic(m)}\``, `msg \`${String(m.msg_id || '')}\``, `by ${authorOf(m)}`)
+  if (m.ai_ref) parts.push(`issue \`${String(m.ai_ref)}\``)
+  parts.push(`topic \`${sourceTopic(m)}\``)
+  if (!m.ai_ref) parts.push(`msg \`${String(m.msg_id || '')}\``)
+  parts.push(`by ${authorOf(m)}`)
   const link = String(w.link || '')
   return `Source: ${parts.join(', ')}${link ? ` - ${link}` : ''}`
 }

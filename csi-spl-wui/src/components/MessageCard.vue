@@ -389,7 +389,7 @@
       :promote-topic="canPromoteMsg"
       :hide="menuHide"
       :locks="menuLocks"
-      :ai-msg="ai ? undefined : msg"
+      :ai-msg="msg"
       :ai-fail="onAiFail"
       @close="closeMenu()"
       @escape="rowEl?.focus({ preventScroll: true })"

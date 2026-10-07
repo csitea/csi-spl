@@ -1,33 +1,45 @@
-// t1 b6c742f0 (HUM-10; csitea 41261a3f HUM-24): a person's message has an
-// "AI actions" group in its right-click menu - Debate, Spec, Implement,
-// Analyse, Turn into an issue, Find risks, Add to calendar. An agent's
-// message has none. Analyse posts the instruction, quoting the message, as
-// the member's reply in the same topic; Add to calendar creates a calendar
-// event from it and opens its week on /calendar.
+// t1 b6c742f0 (HUM-10; csitea 41261a3f HUM-24): a message has an "AI
+// actions" group in its right-click menu - Debate, Spec, Implement, Analyse,
+// Turn into an issue, Find risks, Add to calendar. HUM-10 643c30a8: an
+// agent's message too, and every card with a right-click menu. Analyse posts
+// the instruction, quoting the message, as the member's reply in the same
+// topic; Add to calendar creates a calendar event from it and opens its week
+// on /calendar.
 //
 // Against the lde mock (no hub), a 1280x800 desktop:
 //   - a right-click on a person's reply lists the group and its 7 items
-//   - a right-click on an agent's reply lists none of them
+//   - a right-click on an agent's reply lists them too (643c30a8)
+//   - control: a still-pending (unsent) row lists none of them
 //   - Analyse adds a post "AI action: Analyse" quoting the reply
 //   - Add to calendar lands on /calendar with an item titled from the reply
 //   - a 390 px phone sheet has one AI actions entry (Delete stays last);
 //     picking it turns the sheet into the seven actions
 //
 // HUM-10 14dc0232 ("good add those same actions to every msg card in every
-// view"), the same group in every other view, never on an agent's message:
+// view"), the same group in every other view, an agent's message too:
 //   - views/dm: the DM card (HUM-1's) has it; views/thread: its thread reply
-//     in the right pane (GRK-03's) has none
+//     in the right pane (GRK-03's) has it
 //   - views/issue: an issue discussion comment has it
-//   - views/flow: a Flow entry's menu (new) has it on a person's message,
-//     none on an agent's; Analyse opens the DM and posts there
-//   - views/search: a person's hit has it, an agent's has none
+//   - views/flow: a Flow entry's menu has it, a person's and an agent's;
+//     Analyse opens the DM and posts there
+//   - views/search: a person's hit has it, an agent's too
+//
+// HUM-10 643c30a8 ("actually add them to every card which has right click
+// menu"), one check per newly covered card kind:
+//   - cards/home-topic: a topic row of the home list (/) ends with the group;
+//     Analyse opens the topic and posts on its opening message
+//   - cards/sidebar-topic: a row of the sidebar Topics tab ends with it
+//   - cards/issue: an issue row's menu ends with six (no "Turn into an
+//     issue"); Analyse posts in the issue's discussion
+//   - cards/epic: an epic in the sidebar ends with the six
 //   - views/phone: the Flow sheet has one AI actions entry that turns into
 //     the seven
 //
 // Control: before this change there is no msg-menu-ai-analyse, so every
 // check after the first menu FAILS; before 14dc0232 the Flow entry had no
 // menu and the search row menu no AI entries, so every views/flow and
-// views/search check FAILS.
+// views/search check FAILS; before 643c30a8 every agent check and every
+// cards/* check FAILS.
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/msg-ai-actions.test.mjs
@@ -40,6 +52,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const TASK = 'b6c742f0-e1cc-4080-89ed-8eb30d76a300'
 const HUMAN = 'b6c742f0-e1cc-4080-89ed-8eb30d76a301'
 const AGENT = 'b6c742f0-e1cc-4080-89ed-8eb30d76a302'
+const PENDING = 'b6c742f0-e1cc-4080-89ed-8eb30d76a303'
 const row = (msg_id, min, body, is_parent, from, from_box) => ({
   v: 1, msg_id, task_id: TASK, ts: `2026-10-06T10:0${min}:00Z`, from, from_box,
   to: '@channel', to_box: 'box-wui', kind: 'note', body, channel: 'alerts', parent_task_id: null, is_parent, files: [],
@@ -48,8 +61,11 @@ const EXTRA = [
   row(TASK, 0, 'ai-actions topic starter', 1, 'HUM-1', 'box-wui'),
   row(HUMAN, 1, 'Export the weekly report as PDF', 0, 'HUM-2', 'box-wui'),
   row(AGENT, 2, 'ai-actions agent reply', 0, 'c-007', 'box-a'),
+  { ...row(PENDING, 3, 'ai-actions still sending', 0, 'HUM-1', 'box-wui'), pending: true, waiting: true },
 ]
 const AI_IDS = ['ai-debate', 'ai-spec', 'ai-implement', 'ai-analyse', 'ai-issue', 'ai-risks', 'ai-calendar']
+/* an issue / epic is not turned into an issue (643c30a8) */
+const AI_ISSUE_IDS = AI_IDS.filter((id) => id !== 'ai-issue')
 /* the mock tenant (src/utils/mock-data.mjs) */
 const DM_TOPIC = '99999999-9999-4999-8999-999999999999'
 const DM_CARD = '77777777-7777-4777-8777-777777777777'
@@ -149,6 +165,18 @@ async function closeMenuOf(p, testid) {
   await p.waitForSelector(`[data-testid=${testid}]`, { hidden: true, timeout: 5000 }).catch(() => {})
 }
 
+/** right-click `sel`; the ids of the left-pane row menu it opened, once its
+    lazy AI entries had time to arrive; null when none opened */
+async function rowMenuOf(p, sel) {
+  if (!(await rightClick(p, sel))) return null
+  const panel = '[data-testid=sidebar-row-menu-panel]'
+  if (!(await p.waitForSelector(panel, { visible: true, timeout: 5000 }).then(() => true, () => false))) return null
+  await p.waitForSelector(`${panel} [data-testid=sidebar-row-menu-ai-debate]`, { timeout: 4000 }).catch(() => {})
+  await sleep(200)
+  return p.$$eval(`${panel} [role=menuitem]`, (els) => els.map((e) => String(e.getAttribute('data-testid') || '').replace(/^sidebar-row-menu-/, '')))
+}
+
+const hasIssueGroup = (ids) => Array.isArray(ids) && JSON.stringify(ids.slice(-6)) === JSON.stringify(AI_ISSUE_IDS)
 const hasGroup = (ids) => Array.isArray(ids) && JSON.stringify(ids.slice(-7)) === JSON.stringify(AI_IDS)
 const noAi = (ids) => Array.isArray(ids) && ids.length > 0 && !ids.some((id) => id.startsWith('ai-'))
 
@@ -202,9 +230,16 @@ try {
   await closeMenu(p)
 
   const agent = await menuItems(p, `${card(AGENT)} .msg-body`)
-  ok('an agent\'s message has no AI action', Array.isArray(agent) && agent.length > 0 && !agent.some((id) => id.startsWith('ai-')), agent)
-  ok('and no AI actions heading', !(await p.$('[data-testid^=msg-menu-group-]')))
+  ok('an agent\'s message lists the 7 AI actions too, last in the menu', Array.isArray(agent) && JSON.stringify(agent.slice(-7)) === JSON.stringify(AI_IDS), agent)
+  const agentGroup = await p.$eval('[data-testid=msg-menu-group-ai-debate]', (el) => el.textContent.trim()).catch(() => '')
+  ok('and the AI actions heading', agentGroup === 'AI actions', agentGroup)
   await closeMenu(p)
+
+  /* control: a still-pending (unsent) row - the card shows it is sending - has none */
+  const pendingShown = await until(p, (s) => Boolean(document.querySelector(s)), `${card(PENDING)} [data-test=msg-sending]`, 6000)
+  const pending = pendingShown ? await menuItems(p, `${card(PENDING)} .msg-body`) : null
+  ok('control: a pending row (shown as sending) has no AI action', pendingShown && (pending === null || noAi(pending) || pending.length === 0), { pendingShown, pending })
+  if (pending) await closeMenu(p)
 
   await menuItems(p, `${card(HUMAN)} .msg-body`)
   await p.click('[data-testid=msg-menu-ai-analyse]')
@@ -224,6 +259,29 @@ try {
   ok('Add to calendar opens /calendar', onCal)
   const item = await p.waitForFunction(() => [...document.querySelectorAll('[data-test=calendar-item]')].find((e) => /Export the weekly report as PDF/.test(e.textContent)), { timeout: 10000 }).then(() => true, () => false)
   ok('the calendar shows the new event, titled from the message', item)
+
+  /* HUM-10 643c30a8: a topic row of the home list (/) - the row menu ends with the group */
+  const homeRow = `.topic-row-wrap:has(a.topic-row[data-key="${TASK}"])`
+  ok('cards/home-topic: the home list shows the topic', await go(p, '/', homeRow))
+  const home = await rowMenuOf(p, homeRow)
+  ok('cards/home-topic: the topic row menu ends with the 7 AI actions', hasGroup(home), home)
+  const homeHead = await p.$eval('[data-testid=sidebar-row-menu-group-ai-debate]', (el) => el.textContent.trim()).catch(() => '')
+  ok('cards/home-topic: the group is headed AI actions', homeHead === 'AI actions', homeHead)
+  await p.click('[data-testid=sidebar-row-menu-ai-analyse]').catch(() => {})
+  const topicPosted = await until(p, () => [...document.querySelectorAll('article.msg')].some((e) => e.getClientRects().length
+    && /AI action: Analyse/.test(e.textContent) && /ai-actions topic starter/.test(e.textContent)), null, 10000)
+  ok('cards/home-topic: Analyse opens the topic and posts on its opening message', topicPosted)
+  ok('cards/home-topic: no AI action error shows', !(await p.$('[data-testid=msg-ai-error]')))
+
+  /* the sidebar Topics tab: its rows share the menu */
+  await go(p, '/')
+  const topicsTab = await p.waitForSelector('[data-testid=sidebar-tab-topics]', { visible: true, timeout: 15000 }).then(() => true, () => false)
+  if (topicsTab) await p.click('[data-testid=sidebar-tab-topics]')
+  const sideRow = `#sidebar-panel-topics .nav-row:has(a.nav-item[data-key="${TASK}"])`
+  ok('cards/sidebar-topic: the Topics tab lists the topic', topicsTab && await p.waitForSelector(sideRow, { visible: true, timeout: 10000 }).then(() => true, () => false))
+  const side = await rowMenuOf(p, sideRow)
+  ok('cards/sidebar-topic: the row menu ends with the 7 AI actions', hasGroup(side), side)
+  await p.keyboard.press('Escape')
 
   /* the phone sheet opens WHOLE, Delete last (t1 7a6be5a3): one "AI actions"
      entry before Delete turns the same sheet into the seven actions */
@@ -260,7 +318,7 @@ try {
   ok('views/dm: a person\'s DM card lists the 7 AI actions, last in the menu', hasGroup(dm), dm)
   await closeMenuOf(v, 'msg-menu')
   const thread = await menuOf(v, `aside.live-pane article.msg[data-msg-id="${DM_REPLY}"] .msg-body`, 'msg-menu')
-  ok('views/thread: an agent\'s reply in the thread pane has no AI action', noAi(thread), thread)
+  ok('views/thread: an agent\'s reply in the thread pane lists the 7 AI actions', hasGroup(thread), thread)
   await closeMenuOf(v, 'msg-menu')
 
   /* 2. an issue's discussion: a comment is a message card */
@@ -286,6 +344,26 @@ try {
   ok('views/issue: a person\'s comment lists the 7 AI actions', hasGroup(issue), issue)
   await closeMenuOf(v, 'msg-menu')
 
+  /* HUM-10 643c30a8: the issue row menu and the epic menu end with six (no "Turn into an issue") */
+  /* the mock keeps a created issue in this page only: close its dialog, stay on the list */
+  for (let i = 0; i < 3 && await v.$('[data-test=issues-comment-input]'); i++) {
+    await v.keyboard.press('Escape')
+    await sleep(300)
+  }
+  const issueRow = await menuOf(v, `[data-test=issues-row][data-key="${key}"]`, 'issue-menu')
+  ok('cards/issue: an issue row menu keeps Edit first, then the 6 AI actions', Array.isArray(issueRow) && issueRow[0] === 'edit' && hasIssueGroup(issueRow) && !issueRow.includes('ai-issue'), issueRow)
+  await v.click('[data-testid=issue-menu-ai-analyse]').catch(() => {})
+  await sleep(600)
+  await v.click(`[data-test=issues-row][data-key="${key}"] .issues-c-key`).catch(() => {})
+  const issuePosted = await until(v, () => [...document.querySelectorAll('[data-test=issues-comment]')].some((c) => /AI action: Analyse/.test(c.textContent) && /AI actions on a comment/.test(c.textContent)), null, 10000)
+  ok('cards/issue: Analyse posts in the issue\'s discussion, quoting it', issuePosted)
+  ok('cards/issue: no AI action error shows', !(await v.$('[data-test=issues-list-error]')))
+  await v.keyboard.press('Escape')
+  await go(v, '/issues', '[data-testid=sidebar-epic][data-key="SPL-1"]')
+  const epic = await menuOf(v, '[data-testid=sidebar-epic][data-key="SPL-1"]', 'issue-menu')
+  ok('cards/epic: an epic\'s menu ends with the 6 AI actions', hasIssueGroup(epic), epic)
+  await closeMenuOf(v, 'issue-menu')
+
   /* 3. Flow, the left panel: an entry's own menu */
   ok('views/flow: the Flow list holds a person\'s and an agent\'s entry', (await openFlow(v)) && Boolean(await v.$(flowEntry(ALERT))))
   const flowP = await menuOf(v, flowEntry(DM_CARD), 'flow-menu')
@@ -294,7 +372,7 @@ try {
   ok('views/flow: the group is headed AI actions', head === 'AI actions', head)
   await closeMenuOf(v, 'flow-menu')
   const flowA = await menuOf(v, flowEntry(ALERT), 'flow-menu')
-  ok('views/flow: an agent\'s entry has no AI action', noAi(flowA), flowA)
+  ok('views/flow: an agent\'s entry lists the 7 AI actions', Array.isArray(flowA) && flowA[0] === 'original' && hasGroup(flowA), flowA)
   await closeMenuOf(v, 'flow-menu')
   await menuOf(v, flowEntry(DM_CARD), 'flow-menu')
   await v.click('[data-testid=flow-menu-ai-analyse]')
@@ -311,7 +389,7 @@ try {
   await closeMenuOf(v, 'search-row-menu')
   await go(v, '/search?q=' + encodeURIComponent('is online'), HIT)
   const hitA = await menuOf(v, HIT, 'search-row-menu')
-  ok('views/search: an agent\'s hit has no AI action', noAi(hitA), hitA)
+  ok('views/search: an agent\'s hit lists the 7 AI actions', Array.isArray(hitA) && hitA[0] === 'original' && hasGroup(hitA), hitA)
   await closeMenuOf(v, 'search-row-menu')
 
   /* 5. phone: the Flow sheet has one AI actions entry that turns into the seven */

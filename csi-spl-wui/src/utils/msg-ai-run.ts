@@ -1,5 +1,6 @@
 /*
- * t1 b6c742f0 (HUM-10): run one AI action picked in a person's message menu.
+ * t1 b6c742f0 (HUM-10): run one AI action picked in a card's menu - a
+ * message's (a person's or an agent's), or a card's subject (aiSubject).
  * Only MessageMenu.vue imports this (and utils/msg-ai-actions.mjs), so both
  * ride in the menu's own lazy chunk: no extra request when the menu opens,
  * nothing in the initial JS. tenant-switcher and live-follow are imported
@@ -35,7 +36,9 @@ export async function runAiAction(id: string, msg: unknown, deps: AiRunDeps): Pr
   const action = aiAction(id)
   if (!action || !offersAiActions(msg)) return ''
   try {
-    const path = messageLink(msg, deps.localePath)
+    /* HUM-10 643c30a8: a card's own link (an issue / epic, utils/msg-ai-actions.mjs aiSubject), else the message's */
+    const own = (msg as { ai_link?: { path: string, search: string } } | null)?.ai_link
+    const path = own ? deps.localePath(own.path) + own.search : messageLink(msg, deps.localePath)
     const where = {
       workspace: fixedTenantOption(useSessionStore().claims).label,
       link: path && typeof window !== 'undefined' ? new URL(path, window.location.origin).href : '',

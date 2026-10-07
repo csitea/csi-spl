@@ -709,6 +709,9 @@ declare module '~/utils/msg-ai-actions.mjs' {
   export interface AiActionDef { id: string, icon: import('~/utils/uiIcons').UiIconName, key: string, mode: AiActionMode, name: string, instruction: string }
   export const AI_ACTIONS: AiActionDef[]
   export function aiAction(id: string): AiActionDef | null
+  export type AiSubjectKind = 'msg' | 'topic' | 'issue'
+  export const AI_SUBJECT_KINDS: AiSubjectKind[]
+  export function aiSubject(kind: AiSubjectKind, card: unknown): Record<string, any> | null
   export function offersAiActions(msg: unknown): boolean
   export function aiMenuItems(msg: unknown): { id: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string, groupKey?: string }[]
   export const AI_MORE: { id: 'ai-more', icon: 'bot', labelKey: string }

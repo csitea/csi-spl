@@ -20,13 +20,16 @@
 # @description dev/prd: boxes use the API host with SPOOL_TENANT=<id> (specs/026).
 # @description SPL-959: where cnf steps.019 wui_tenant_hosts is on, "url" is the
 # @description tenant's WUI host https://<id>.<fqdn>, and a DRY_RUN=0 create
-# @description CHAINS it: env.dns.mapped_tenants += id, then (CNF_PUSH=1) that
-# @description cnf lands on trunk, then do_spl_tenant_host_provision (019 + 025,
-# @description cert, WUI probe, tenant_hosts ready). Its log goes to stderr, so
-# @description stdout stays the one JSON line. Exit 3 = created, host not ready.
+# @description CHAINS do_spl_tenant_host_provision: env.dns.mapped_tenants += id,
+# @description render 019 + 025, that cnf PUSHED to the trunk by the action
+# @description (throwaway worktree; a push that does not land fails it), apply,
+# @description cert, WUI probe, tenant_hosts ready + the ready notice. Its log
+# @description goes to stderr, so stdout stays the one JSON line. Exit 3 =
+# @description created, host not ready (a failed push included).
 # @param TENANT_HOST (optional) - 1 (default): chain the host; 0: skip it
-# @param CNF_PUSH (optional) - 1: push the cnf change before the apply (run from
-# @param   the main checkout, the tree the tf-runner mounts)
+# @param CNF_PUSH (optional) - 1 (default): push the cnf change before the apply
+# @param   (run from the main checkout, the tree the tf-runner mounts); 0: leave
+# @param   it uncommitted (warned loudly)
 # @description SPL-1290: a dev/prd DRY_RUN=0 create also PINS the hub's box-wui
 # @description key under the new tenant (do_spl_cloud_pin_box_wui, signed with
 # @description the root key while it is still in hand). Without that pin every
@@ -191,17 +194,13 @@ _spl_tenant_create_cloud_dsn() {
 
 # spl_tenant_create_host <tenant> (SPL-959): the new tenant's WUI host, when
 # this env's cnf serves tenant hosts; a no-op otherwise, or with TENANT_HOST=0.
+# The cnf edit, its push and the apply are all do_spl_tenant_host_provision's.
 spl_tenant_create_host() {
   local t="$1" cnf on
   [[ "${TENANT_HOST:-1}" == 1 ]] || { do_log "INFO TENANT_HOST=0: no tenant host for $t"; return 0; }
   cnf="$(spl_th_cnf_file)" || return 1
   on="$(yq -r '.env.steps."019-firebase-static-site".wui_tenant_hosts // false' "$cnf")"
   [[ "$on" == true ]] || { do_log "INFO wui_tenant_hosts is off in $ENV: $t gets no host (the apex serves it)"; return 0; }
-  spl_th_cnf_set "$cnf" add "$t" || return 1
-  if [[ "${CNF_PUSH:-0}" == 1 ]]; then
-    spl_th_render || return 1
-    spl_th_cnf_push "cnf(orc, SPL-959): $ENV tenant host +$t" || return 1
-  fi
   TENANT_ID="$t" DRY_RUN=0 do_spl_tenant_host_provision
 }
 

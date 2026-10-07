@@ -17,11 +17,15 @@
 # standing go for those applies ("GitHub Actions schedule", 2026-09-19):
 #   dev, then prd: csi-spl-orc do_spl_tenant_host_reconcile
 #     1. read the open tenant_hosts rows as the env SA (DRY_RUN=1); none ->
-#        the job ends there, nothing is built and nothing is applied
-#     2. otherwise: tpl-gen at the pin, the tf infra stack (make
+#        the job ends there, nothing is built and nothing is applied. It also
+#        fails when a WUI entry point in cnf is not in env.dns.mapped_tenants
+#     2. open rows whose host is already mapped are only CHECKED (custom
+#        domain + WUI probe -> ready / failed, no terraform): apply=0 skips
+#        the stack. Otherwise: tpl-gen at the pin, the tf infra stack (make
 #        do-setup-app-inf: tf-runner, tpl-gen, conf-validator), then
-#        DRY_RUN=0 CNF_PUSH=1: cnf env.dns.mapped_tenants + the rendered 032 /
-#        025 tfvars are committed and pushed to master FIRST, then make
+#        DRY_RUN=0 CNF_PUSH=1: cnf env.dns.mapped_tenants + the rendered 019 /
+#        025 tfvars are pushed to master FIRST (from a throwaway worktree; a
+#        push that does not land fails the job), then make
 #        do-tf-plan (gate: no replace, no destroy but a removed tenant's) +
 #        make do-provision, the cert wait, the probe, tenant_hosts -> ready
 #     3. a pushed cnf change re-deploys the WUI of that env (its CSP lists the
@@ -126,30 +130,26 @@ jobs:
         run: ./run -a do_spl_tenant_host_reconcile
 
       - name: tpl-gen at the pin (do_setup_tpl_gen)
-        if: steps.open.outputs.open != '' && steps.open.outputs.open != '0' && github.event.inputs.dry_run != 'true'
+        if: steps.open.outputs.apply != '' && steps.open.outputs.apply != '0' && github.event.inputs.dry_run != 'true'
         working-directory: csi/csi-spl/csi-spl-iac
         env:
           TPL_GEN_REPO_URL: https://github.com/csitea/tpl-gen.git
         run: ./run -a do_setup_tpl_gen
 
       - name: tf infra stack (make do-setup-app-inf)
-        if: steps.open.outputs.open != '' && steps.open.outputs.open != '0' && github.event.inputs.dry_run != 'true'
+        if: steps.open.outputs.apply != '' && steps.open.outputs.apply != '0' && github.event.inputs.dry_run != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: make do-setup-app-inf
 
+      # the action writes pushed=1 to GITHUB_OUTPUT once its cnf commit landed
       - name: Reconcile (DRY_RUN=0, cnf pushed before the apply)
         id: apply
         if: steps.open.outputs.open != '' && steps.open.outputs.open != '0' && github.event.inputs.dry_run != 'true'
         env:
           DRY_RUN: "0"
           CNF_PUSH: "1"
-        run: |
-          set -uo pipefail
-          before=$(git rev-parse HEAD)
-          rc=0; ./run -a do_spl_tenant_host_reconcile || rc=$?
-          [[ "$(git rev-parse HEAD)" != "$before" ]] && echo "pushed=1" >>"$GITHUB_OUTPUT"
-          exit $rc
+        run: ./run -a do_spl_tenant_host_reconcile
 
       - name: Re-deploy the ${{ matrix.environment }} WUI (CSP lists the tenant hosts)
         if: always() && steps.apply.outputs.pushed == '1'

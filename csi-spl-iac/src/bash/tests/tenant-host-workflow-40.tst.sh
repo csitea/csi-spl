@@ -8,6 +8,8 @@
 #          secrets GCP_KEY_CSI_SPL_<ENV> are read; terraform only through the
 #          orc make targets (no terraform binary / setup-terraform / host
 #          tf run); the apply is gated on open rows and runs the named action;
+#          the tf stack (tpl-gen, make do-setup-app-inf) is built only when a
+#          row needs terraform (apply != 0: a mapped row is only checked);
 #          the action it names exists in csi-spl-orc.
 #          CONTROL: a copy with the schedule removed, a planted extra secret
 #          and a host terraform step is reported by the same checks.
@@ -47,6 +49,9 @@ for step in j["steps"]:
 applies = [s for s in j["steps"] if "DRY_RUN" in str(s.get("env", {}))]
 if not applies or any("do_spl_tenant_host_reconcile" not in s.get("run", "") for s in applies): bad.append("the apply is not the named action")
 if any("steps.open.outputs.open" not in str(s.get("if", "")) for s in applies): bad.append("the apply is not gated on open rows")
+for s in j["steps"]:
+    if ("do_setup_tpl_gen" in str(s.get("run", "")) or "do-setup-app-inf" in str(s.get("run", ""))) and "steps.open.outputs.apply" not in str(s.get("if", "")):
+        bad.append("the tf stack is not gated on apply: " + s.get("name", ""))
 print("\n".join(bad))
 PY
 }
@@ -62,12 +67,14 @@ python3 - "$WF" "$T/bad.yml" <<'PY'
 import sys
 s = open(sys.argv[1]).read()
 s = s.replace("  schedule:\n    - cron: \"7,22,37,52 * * * *\"\n", "", 1)
+s = s.replace("if: steps.open.outputs.apply != '' && steps.open.outputs.apply != '0'", "if: steps.open.outputs.open != ''")
 s = s.replace("      - name: Drop the keys", "      - name: planted\n        env:\n          X: ${{ secrets.OTHER_TOKEN }}\n        run: terraform apply -auto-approve\n\n      - name: Drop the keys", 1)
 open(sys.argv[2], "w").write(s)
 PY
 out=$(check "$T/bad.yml")
 grep -q 'another secret' <<<"$out" && grep -q 'host terraform' <<<"$out" && grep -q 'no schedule' <<<"$out" &&
-  pass "CONTROL: a removed schedule, a planted secret and a host terraform step are all reported" || fail "CONTROL missed: $out"
+  grep -q 'tf stack is not gated on apply' <<<"$out" &&
+  pass "CONTROL: a removed schedule, a planted secret, a host terraform step and an ungated tf stack are all reported" || fail "CONTROL missed: $out"
 
 [[ $fails == 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

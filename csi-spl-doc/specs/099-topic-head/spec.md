@@ -1,12 +1,29 @@
 # 099 Topic head: one stored row per topic, so a topic list stops walking messages
 
-Version v0.1 (2026-10-06). Draft, doc only. Owner order: t1 ea9dc09a, msg
-436e8f6e ("yes" to "do you want a written spec and a test set first?").
-Source row: ap-07 of
-`csi-spl-doc/doc/md/refactor-round-api-perf-plan-2026-10-06.md` (section 4,
-section 0.3). ap-09 (the subject through the covering index) folds into this
-spec (section 3.4). Build tasks: `tasks.md`. Nothing here is built before the
-owner answers section 10 ("as proposed" is enough).
+Version v1.0 (2026-10-07), the panel consensus. v0.1 (2026-10-06,
+`71a2a4a9`) was the draft. Owner rule for a big change (HUM-10, t1 5901e226
+msg 86dd343f): "1. The written spec and the run tests. 2. The proper spec
+with the panel discussion. 3. The actual implementation." Steps 1 and 2 are
+done:
+
+- **Step 1:** the case table runs today, `test-results.md` (`a44a267b4`).
+- **Step 2:** six seats, each an opinion file in this directory:
+
+| seat | agent | opinion file | sha | verdict |
+|---|---|---|---|---|
+| agy-1 | a-459 | `agy-1-opinion.md` | `d363cac6c` | accept with changes |
+| agy-2 | a-460 | `agy-2-opinion.md` | `a96d0aab2` | accept with changes |
+| claude-1 | c-453 | `claude-1-opinion.md` | `72bb38a73` | accept with changes |
+| claude-2 | c-454 | `claude-2-opinion.md` | `7fab60c10` | accept with changes |
+| claude-3 | c-455 | `claude-3-opinion.md` | `9b8cb3a95` | accept with changes |
+| claude-4 | c-456 | `claude-4-opinion.md` | `16504b6d3` | accept with changes |
+
+Source row: ap-07 of `csi-spl-doc/doc/md/refactor-round-api-perf-plan-2026-10-06.md`.
+Build tasks: `tasks.md`. Section 11 says what changed from v0.1 and who asked
+for each change. Owner rule 2026-10-05 (consensus starts the build; the owner
+reviews after): the build starts on this version. Every **prd** step still
+needs the owner's go (repo CLAUDE.md: nothing mutates GCP without the owner;
+Q4).
 
 Paths: `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`,
 `api/` = `csi-spl-api/src/go/spool-hub-api/`, `store/` =
@@ -15,60 +32,84 @@ Paths: `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`,
 ## 1. Answer
 
 1. **Today every topic list walks messages.** `viewTopicsSQL`
-   (`store/view_postgres.go:193`) walks the tenant's messages newest first, one
-   recursive step per listed topic, and per step runs four or more probes
-   (latest line, parties, read door, roots, archived). Then `summary()`
-   (`:354`) aggregates every line of each listed topic for its count, kinds,
-   parties and subject. prd: 2 301 messages visited for 51 DM topics (n=1
-   plan); topic lists p50 150..350 ms, up to 1.5 s (n=446 in 8.4 h); walks
-   239.9 s/day of DB time (10.5 %).
-2. **The head keeps that summary stored, per topic and per part** (a part is
-   one channel of the topic, or one DM pair of it). A list then reads about
-   one head row per listed topic plus its parts, and never the messages.
-3. **One writer: triggers on `messages`** (section 4.1), the same choice and
-   reasoning as rdb 0103's change stamps: every Go writer, a later writer, a
-   cascade and a hand-run psql are covered without anyone remembering it.
-4. **Expiry needs no write.** A line stops being listed when `expires_at`
-   passes, but the sweep deletes it only every 10 min (`cmd/spool/hub.go:54`).
-   So each head carries `valid_until` (its earliest line expiry), and a list
-   reads a head whose `valid_until <= now` the old exact way, per topic
-   (section 5.3). The answer stays equal to today's to the second.
-5. **The proof is the test set** (section 7): an oracle that compares the head
-   read with today's walk for every case of section 6, on Postgres; a random
-   sequence test; a concurrency test; the RLS test; and the perf proof with
-   ap-00's `do_spl_db_hot_measure` n=20 and 24 h route p50/p95.
-6. **The rollout is reversible at every step** (section 8): DDL first, then
-   backfill and verify, then the hub in shadow (it serves today's walk and
-   compares), then the read switch. A flag turns the read off again in one
-   revision.
+   (`store/view_postgres.go`) walks the tenant's messages newest first, one
+   recursive step per listed topic, with an "is this the topic's latest line"
+   probe per step. The numbers:
+   - prd: 2 301 messages visited for 51 DM topics.
+   - Topic lists: p50 150..350 ms, up to 1.5 s (n=446 in 8.4 h).
+   - The walks cost 239.9 s/day of DB time (10.5 %).
+   - Worst case today: a reader with no match walks the whole tenant. That is
+     3.06 s at 200k messages (claude-2, local, n=20).
+2. **Phase 1 (this build) stores the walk key, not the summary.** There is
+   one head row per topic and one part row per channel or DM pair of it. A row
+   holds the latest line, the archived flags, and an expiry bound.
+   - A list walks the heads in key order and stops at `LIMIT`.
+   - It then runs today's `summary()` for the listed topics only.
+   - Measured (claude-4, 22k messages, n=20): p50 4.3..6.3x lower on the list
+     shapes, rows equal to the walk.
+3. **Phase 2 (the stored summary: count, kinds, parties, subject) is built
+   only if phase 1's prd numbers leave a list shape above 100 ms p50**
+   (section 10, Q9). The stored summary is where most of v0.1's correctness
+   risk sat; the lab puts its extra gain at about 15 ms a list. Its design
+   notes are kept in section 9 so nothing the panel found is lost.
+4. **One writer, applied at COMMIT.**
+   - Row triggers on `messages` only *mark* the topics a transaction touched.
+   - One deferred constraint trigger applies the marks at COMMIT, in
+     `(tenant_id, task_id)` order, as the last locks the transaction takes.
+     This is rdb 0103's own pattern.
+   - Immediate triggers, as in v0.1, lose an update (claude-1: 5 of 5) and
+     deadlock the send path `InsertMirrored` (3 of 3).
+5. **Expiry needs no write.** Each head carries `valid_until`: the earliest
+   expiry among its KEY lines (the topic's latest, the DM latest, each part's
+   latest). A head with `valid_until <= now` is "due" and is read the old
+   exact way (section 5.3), so the answer equals today's to the second.
+6. **The proof is the test set** (section 7): the case table against a
+   reference oracle (it runs today), the diff and trigger controls, random
+   sequences, concurrency, RLS, and the write cost. On prd: hot-measure n=20
+   and 24 h route p50/p95.
+7. **The rollout is reversible at every step** (section 8):
+   1. DDL first.
+   2. Backfill and verify (a per-tenant mark gates the read).
+   3. Shadow on every request, comparing the hub's JSON in one snapshot.
+   4. Switch on.
 
-## 2. What the list answers today (the contract the head must keep)
+   A flag turns the read off again in one revision.
 
-`TopicRow` (`store/view.go:65`) per listed topic, from `viewTopicsSQL`. The
-rules below are read from the code, and each one is a case in the oracle.
+## 2. The list contract the head must keep
 
-| field / filter | today's rule | what the head needs |
+`TopicRow` (`store/view.go`) per listed topic, from `viewTopicsSQL`. Read rule
+by rule from the code; `refTopicsSQL` (`store/topic_head_harness_test.go`)
+states each one in plain SQL, and the walk equals it on every case (step 1).
+
+| field / filter | today's rule | phase 1 source |
 |---|---|---|
-| order, cursor | the topic's latest **unexpired line under the message filters** (channel, DM), **not** under the read door; `(received_at DESC, task_id::text DESC)`; `before=` compares the same pair | `last_at`, `last_msg_id` per part and per topic; a DM-only latest per topic |
-| `LastAt` | that same latest line | as above |
-| `Count`, `Kinds` | every unexpired line passing the message filters **and the door per line** (`aggDoor`); the hub only counts kinds into a map (`hub/view.go:856`), so order does not matter | `n` and `kinds {kind: n}` per part |
-| `Parties` | distinct `from_id@from_box` and `to_id@to_box` of the same lines | `parties {party: n}` per part (a count, so a removal knows when a party leaves) |
-| `Channel`, `Parent`, `FirstAt`, `FirstMsg` | the first such line by `(received_at, msg_id::text)`; `FirstMsg` = `subjectSQL` of it | `first_at`, `first_msg_id`, `first_parent`, `first_subject` per part |
-| read door (`Reader`) | listed if any line of the topic (message filters, no door) is in a public channel, a channel the reader is in, or a DM the reader is an end of | per part: its channel, or its DM pair |
-| `Agent` (+`AgentBox`), `Viewer` | some line under the message filters (**no door**) is from or to that id (on that box) | parties per part |
-| `Roots`, `Parent` | the first line under the message filters (**no door**) has no parent / has that parent | first per part |
-| `NoIssues` | no `issues` row for the topic | unchanged: the cheap probe stays |
-| archived (`archivedTopicHideSQL`) | hidden if the card `msg_id = task_id` is archived, or any row of the topic is archived and the topic is not the lobby; **no expiry check** on the archived row | `card_archived`, `archived_rows` per topic |
-| `TaskIDs` (since= delta) | each listed topic read on its own index range | unchanged in phase 1 (Q5) |
+| order, cursor | the topic's latest **unexpired** line under the message filters (channel, DM), **not** under the door; `(received_at DESC, task_id::text DESC)`; `before=` the same pair | head `last_at` (all), head `dm_last_at` (DM), part `last_at` (channel) |
+| read door (`Reader`) | listed if some line under the message filters is in a public channel, a channel the reader is in, or a DM the reader is an end of | `EXISTS` over parts: channel in public / mine, or a DM part with the reader as `dm_a` or `dm_b` |
+| `Count`, `Kinds`, `Parties`, `FirstAt`, `FirstMsg`, `Channel`, `Parent` | every unexpired line under the message filters AND the door per line | today's `summary()`, unchanged, for the listed topics |
+| `Agent` (+box), `Viewer` | some line under the message filters (**no door**) is from or to that id (on that box) | today's probes on `messages`, per walked head; `dm=true` + `Viewer` is answered from DM part ends (exact: below) |
+| `Roots`, `Parent` filter | the first line under the message filters (**no door**) has no parent / that parent | today's probes, per walked head; `parent=` keeps its `messages_parent` restriction |
+| `NoIssues` | no `issues` row for the topic | unchanged probe |
+| archived | hidden if the card (`msg_id = task_id`, in any topic) is archived, or any row of the topic is archived and the topic is not the lobby; **no expiry check** | head `card_archived`, `archived_rows` |
+| `TaskIDs` (since=) | each listed topic on its own index range | unchanged in phase 1 (Q5) |
 
-Three of these rules differ in a way a careless head would get wrong, and
-each has its own oracle case: the order key ignores the door, `Count` applies
-the door per line, and an archived row hides its topic even after it expired.
+**A part is all visible or all hidden** to a reader (agy-1 F6). Every line
+of a part has the same channel, or the same two DM ends. The door depends only
+on those, so the door per part equals the door per line. For the same reason,
+`dm=true` + `Viewer=v` holds exactly when some DM part has `v` as an end.
 
-## 3. The head
+Three rules a careless head gets wrong, each with an oracle case and a
+control (section 7.1):
 
-Migration `rdb/0138_topic_heads.sql` (number provisional: ap-01a takes 0136
-and ap-04 0137; the next free number at rebase). Forward-only.
+- the order key ignores the door;
+- `Count` applies the door per line;
+- an archived row hides its topic even after it expired, and the card rule
+  holds after the card has left its topic (E31).
+
+## 3. The head (phase 1)
+
+Migration `rdb/<next>_topic_heads.sql`. The number is the next free one at
+rebase: **0144** on 2026-10-07 (0143 is the last; v0.1's 0138 is taken).
+Forward-only.
 
 ### 3.1 `topic_heads`: one row per topic
 
@@ -76,364 +117,559 @@ and ap-04 0137; the next free number at rebase). Forward-only.
 |---|---|---|
 | `tenant_id` | text NOT NULL, FK `tenants` ON DELETE CASCADE | |
 | `task_id` | uuid NOT NULL | the topic |
-| `last_at`, `last_msg_id` | timestamptz, uuid NOT NULL | the latest line of the topic (any part) |
+| `last_at`, `last_msg_id` | timestamptz, uuid NOT NULL | the topic's latest line (any part) |
 | `dm_last_at`, `dm_last_msg_id` | timestamptz, uuid NULL | the latest DM line; NULL when the topic has no DM part |
-| `valid_until` | timestamptz NOT NULL | the earliest `expires_at` of any line of the topic |
-| `card_archived` | boolean NOT NULL | the message `msg_id = task_id` is archived |
-| `archived_rows` | integer NOT NULL | rows of the topic with `archived_at` set (expired or not) |
-| `rev` | bigint NOT NULL | the change stamp: +1 on every write of this head or its parts |
+| `valid_until` | timestamptz NOT NULL | min of `expires_at` over the KEY lines: the topic's latest, the DM latest, every part's latest |
+| `card_archived` | boolean NOT NULL | the row `msg_id = task_id` (in any topic) is archived |
+| `archived_rows` | integer NOT NULL | rows of the topic with `archived_at` set, expired or not |
+| `rev` | bigint NOT NULL | +1 on every write of the head or its parts |
 | `changed_at` | timestamptz NOT NULL | DB clock at the last write |
 
-PK `(tenant_id, task_id)`. Indexes:
-`(tenant_id, last_at DESC, task_id DESC)` (the all-topics list),
-`(tenant_id, dm_last_at DESC, task_id DESC) WHERE dm_last_at IS NOT NULL`
-(the DM list), `(tenant_id, valid_until)` (the due set, section 5.3).
+PK `(tenant_id, task_id)`. Indexes, all on the **uuid** `task_id` (section
+5.2 orders by it):
+
+- `(tenant_id, last_at DESC, task_id DESC)` (all topics);
+- `(tenant_id, dm_last_at DESC, task_id DESC) WHERE dm_last_at IS NOT NULL`
+  (DM);
+- `(tenant_id, valid_until)` (the due set).
 
 ### 3.2 `topic_head_parts`: one row per channel or DM pair of a topic
 
 | column | type | meaning |
 |---|---|---|
-| `tenant_id`, `task_id` | as above, FK `(tenant_id, task_id)` to `topic_heads` ON DELETE CASCADE | |
-| `part` | text NOT NULL | `c:<channel>` or `d:<lesser id> <greater id>` (the DM's two ends, ids only, as the door compares them) |
+| `tenant_id`, `task_id` | FK `(tenant_id, task_id)` -> `topic_heads` ON DELETE CASCADE | |
+| `part` | text NOT NULL | `c:<channel>` or `d:<lesser id> <greater id>` |
 | `channel` | text NULL | NULL = DM part |
-| `n` | integer NOT NULL | lines |
-| `kinds` | jsonb NOT NULL | `{kind: n}` |
-| `parties` | jsonb NOT NULL | `{"id@box": n}` |
-| `first_at`, `first_msg_id`, `first_parent`, `first_subject` | timestamptz, uuid, uuid NULL, jsonb | the first line: time, id, `parent_task_id`, `topic_head_subject(msg)` |
-| `last_at`, `last_msg_id` | timestamptz, uuid | the latest line of the part |
-| `valid_until` | timestamptz | the earliest expiry of the part |
-| `rev` | bigint | as above |
+| `dm_a`, `dm_b` | text NULL | the DM's ends, lesser and greater id; CHECK `(channel IS NULL) = (dm_a IS NOT NULL)` (claude-2 F7) |
+| `last_at`, `last_msg_id` | timestamptz, uuid NOT NULL | the part's latest line |
+| `valid_until` | timestamptz NOT NULL | `expires_at` of that latest line |
+| `rev` | bigint NOT NULL | |
 
 PK `(tenant_id, task_id, part)`. Index
 `(tenant_id, channel, last_at DESC, task_id DESC) WHERE channel IS NOT NULL`
 (the channel list).
 
-A head counts the rows that **exist**, expired or not. It is exact while
-`valid_until > now`; after that the read does not trust it (section 5.3) until
-the sweep's delete rebuilds it.
+**Why the key line's expiry is enough.** The order key is the latest
+unexpired line. While the latest line is unexpired, it IS the key, whatever
+older lines do. The summary reads `messages` live, with the expiry filter. So
+a head is wrong only when a key line has expired, and that makes it due. Mixed
+retention (`alerts` 168 h against 720 h) or a moved line that keeps its old
+`expires_at` can expire a key line before an older one; the due path is exact
+there too.
 
-### 3.3 RLS and roles
+### 3.3 `topic_head_tenants`: the backfill mark
 
-- RLS in the 0021 fail-closed NULLIF shape on both tables, exactly as
-  `rdb/0127_quota_counts.sql`: `ENABLE` + `FORCE ROW LEVEL SECURITY`, policy
-  `tenant_scope` `USING / WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), ''))`,
-  policy `operator_scope` on `app.rls_scope = 'operator'` (the sweep and the
-  backfill write as operator).
-- `store/rls_failclosed_test.go` finds both tables by their `tenant_id`
-  column, so the catalogue gate covers them with no edit; T002 adds the
-  isolation cases of section 7.4.
-- Owner / runtime split: the migration runs as the owner role (`spool_hub`).
-  The runtime role (`spool_hub_rt`) gets DML on the tables and EXECUTE on the
-  functions from the default privileges of
-  `spool-hub-roles/runtime-grants.sql`; no grant line is added. The trigger
-  functions are `SECURITY INVOKER`: they write under the writer's own tenant
-  scope, so WITH CHECK still holds a writer to its own tenant.
+`(tenant_id PK, backfilled_at timestamptz NULL)`. The backfill sets it after
+its last empty chunk for that tenant. The head read serves a tenant only when
+the mark is set, so a topic with no head row can never vanish from a list
+(claude-3 F10).
+
+### 3.4 RLS and roles
+
+- All three tables get RLS in the 0021 fail-closed NULLIF shape, exactly as
+  `rdb/0127_quota_counts.sql`:
+  - `ENABLE` + `FORCE ROW LEVEL SECURITY`;
+  - policy `tenant_scope`;
+  - policy `operator_scope` (the sweep, the backfill and a tenant cascade
+    write as operator).
+- `store/rls_failclosed_test.go` finds the tables by their `tenant_id`
+  column.
+- The owner / runtime split:
+  - The migration runs as `spool_hub`.
+  - `spool_hub_rt` gets DML and EXECUTE through the default privileges of
+    `spool-hub-roles/runtime-grants.sql`.
+  - The trigger functions are `SECURITY INVOKER` and never switch scope
+    (unlike 0103, which switches for its stamp rows). So WITH CHECK holds a
+    writer to its own tenant (claude-1 F7, shown on postgres:16).
+- The drain skips topics whose tenant row is gone (as 0023's
+  `message_period_counts_sub` does). A tenant delete then does not rebuild
+  every topic just before the cascade drops its heads.
 - No `tenant_change_stamps` trigger on the head tables: every head write is
   caused by a `messages` write in the same transaction, which 0103 already
   bumps.
 
-### 3.4 The subject (ap-09 folded in)
-
-`topic_head_subject(msg jsonb) RETURNS jsonb IMMUTABLE` is today's
-`subjectSQL` (`store/view_postgres.go:375`) as a SQL function, so the subject
-is cut once at write time and read as one column. ap-09 (pick the subject
-row through the covering index) then has nothing left to win and is dropped
-(Q7). The Go constant and the function must stay equal: T002's test runs both
-on the `view_topics_subject_test.go` bodies plus random unicode bodies
-(n >= 2 000).
-
 ## 4. How it stays correct
 
-### 4.1 One writer: triggers, not the store path
+### 4.1 One writer: triggers (Q1)
 
-| | triggers on `messages` (proposed) | a call in each Go writer |
-|---|---|---|
-| coverage | every writer: insert, edit, kind, move x2, merge, unmerge, promote, demote, archive, delete message, delete topic, merge messages, channel delete (`channels_postgres.go:114`), the sweep purge (`postgres.go:622`), a tenant cascade, psql | 14 call sites today; the 15th is forgotten |
-| testability | tested on Postgres only (the memory store keeps its own live summary) | testable per writer |
-| insert cost | one upsert of a head row and a part row in the insert transaction | the same |
-| precedent | rdb 0103 change stamps ("a writer added later is covered") | none |
-| risk | a slow trigger slows every write; a bug breaks writes, not only reads | a missed writer silently corrupts the head |
+Every writer of `messages` is covered without anyone remembering it:
 
-Proposed (Q1): **triggers**. The insert cost is gated (section 7.5).
+- the 33 store statements (claude-3 F4 maps each one to a case);
+- the 6 orc psql actions (`spl-msg-dedup`, `spl-topic-delete`,
+  `spl-demo-wipe`, `spl-msg-wipe`, `spl-public-dataset-load`,
+  `spl-search-seed`);
+- the tenant cascade;
+- every later migration that updates `messages`;
+- a hand-run psql.
 
-### 4.2 The functions
+The alternative, a call in each Go writer, misses all of the non-Go writers
+above. All six seats agree.
 
-- `topic_head_add(row)`: the insert path, incremental. Upsert the topic row
-  (`last_*`, `dm_last_*` by `GREATEST` on `(received_at, msg_id)`,
-  `valid_until` by `LEAST`, `rev + 1`) and the part row (`n + 1`,
-  `kinds[kind] + 1`, `parties[from] + 1`, `parties[to] + 1`, `first_*` /
-  `last_*` by tuple compare). On the topic's first insert it also probes the
-  card (`EXISTS` an archived row with `msg_id = task_id`), so a topic created
-  after its card was archived starts hidden.
-- `topic_head_rebuild(tenant, task)`: lock the topic (4.4), then in a NEW
-  statement recompute the topic row and all its parts from `messages` on
-  `messages_task_received`; delete parts that no longer have a row, and the
-  head when the topic has none.
-- Triggers (immediate, AFTER):
-  - `topic_head_ins` AFTER INSERT FOR EACH ROW -> `topic_head_add`.
-  - `topic_head_upd` AFTER UPDATE FOR EACH STATEMENT, REFERENCING OLD TABLE
-    and NEW TABLE: join old to new on `msg_id`, keep only rows where a head
-    column changed (`task_id`, `channel`, `kind`, `from_*`, `to_*`,
-    `received_at`, `expires_at`, `archived_at`, `parent_task_id`, `msg`),
-    collect the affected topics, rebuild each once, in `(tenant_id, task_id)`
-    order. An update that touches no head column (the search_sig backfill,
-    a claim) rebuilds nothing.
-  - `topic_head_del` AFTER DELETE FOR EACH STATEMENT, REFERENCING OLD TABLE:
-    the same, for the old rows.
-  - Three triggers, not one: Postgres refuses transition tables on a trigger
-    with more than one event (postgres:16-alpine, 2026-10-06: `ERROR:
-    transition tables cannot be specified for triggers with more than one
-    event`, n=1).
-- Affected topics of a changed row: its old and new `task_id`; plus, when
-  `archived_at` changed or the row is deleted, the topic whose `task_id` is
-  its `msg_id` (the card rule).
+### 4.2 Mark now, apply at COMMIT (claude-1 F1, F2, F4)
+
+1. **Mark (immediate, FOR EACH ROW).** These triggers mark the rows:
+   - `topic_head_mark_ins`: AFTER INSERT;
+   - `topic_head_mark_del`: AFTER DELETE;
+   - `topic_head_mark_upd`: AFTER UPDATE OF `task_id, channel, from_id,
+     to_id, received_at, expires_at, archived_at`, with `WHEN (old.* IS
+     DISTINCT FROM new.*` on those columns`)`.
+
+   Each one appends to a transaction-local set held in a `set_config(..,
+   true)` string, as 0103 holds `app.change_stamped`. It appends `(tenant,
+   task)` for the old and the new `task_id`, plus the topic whose `task_id` is
+   the row's `msg_id` when `archived_at` changed or the row is deleted (the
+   card rule). An insert also records its `msg_id`.
+   - An edit, a kind change, a claim, the search_sig backfill and a replay
+     never fire a mark: they change no head column.
+   - A statement trigger with transition tables cannot take a column list
+     (`ERROR: transition tables cannot be specified for triggers with column
+     lists`, n=1). v0.1's statement triggers therefore taxed every
+     `UPDATE messages` (27 sites).
+2. **Apply (deferred).** `topic_head_apply` is a `CONSTRAINT TRIGGER ..
+   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW`.
+   - Its first firing at COMMIT drains the set; later firings find it empty
+     and return.
+   - It takes the topics in `(tenant_id, task_id::text)` order.
+   - A topic touched only by inserts gets the incremental add of its marked
+     lines (`GREATEST` on the keys, `LEAST` on `valid_until`, `rev + 1`).
+   - Any other topic gets one rebuild.
+3. **The head row is the lock (claude-1 F1, agy-2 F1).** There is no
+   advisory lock.
+   1. Every apply first runs `INSERT .. ON CONFLICT DO NOTHING` of a
+      placeholder head, which waits for an in-flight insert of the same key.
+   2. It then runs `SELECT .. FOR UPDATE` on the head.
+   3. Only then, in a NEW statement, does it read `messages`. A VOLATILE
+      plpgsql function under READ COMMITTED gets a fresh snapshot per
+      statement (claude-1 F6: 5 of 5).
+
+   The function raises unless `transaction_isolation = 'read committed'`.
+4. **A head miss rebuilds (claude-1 F3, claude-3 F1).** An add whose
+   placeholder insert created the head runs the rebuild instead, when the
+   topic has other rows. Without this, the first write into an old topic
+   after the DDL makes a head with `n = 1` that a "no head yet" backfill
+   never revisits.
+5. **The rebuild is set-based (claude-1 F5).**
+   1. Lock the heads of the whole set in order.
+   2. One `INSERT .. SELECT .. GROUP BY task_id, part .. ON CONFLICT DO
+      UPDATE` over `messages_task_received`.
+   3. One `DELETE` of the emptied heads and parts.
+
+   The narrow head needs only max-per-key and the archived counts, never a
+   topic aggregate.
 
 ### 4.3 Every event
 
-| event | writer today | head effect | oracle case |
+Each event's head effect, and the case that proves it. E-ids are those of
+`topic_head_harness_test.go`; E31+ are added by T001b (claude-3 F3, F4).
+
+| event | writer | head effect | case |
 |---|---|---|---|
-| insert, channel line | `insertMessageSQL` (`postgres.go:375`) | add: topic + `c:<ch>` part | E01 |
-| insert, DM line | same | add: topic + `d:<a> <b>` part, `dm_last_*` | E02 |
-| insert into a topic whose card is archived | same | add, `card_archived` from the probe | E03 |
-| edit (body) | `applyEditTx` (`message_edit_postgres.go:129`) | rebuild (the subject changes only when the line is its part's first) | E04 first line, E05 other line |
-| kind change | `SetKind` (`message_kind_postgres.go:39`) | rebuild | E06 |
-| move one line to another channel / topic | `MoveMessage` (`message_move_postgres.go:154`) | rebuild old and new topic | E07, E08 |
-| move a whole topic | `MoveTopic` (`:71`) | rebuild | E09 |
-| merge topic A into B, unmerge | `MergeTopic`, `UnmergeTopic` (`topic_merge_postgres.go`) | rebuild A and B (A's head is deleted when empty) | E10, E11 |
-| promote a line to a topic, demote | `PromoteMessage`, `DemoteTopic` | rebuild both | E12 |
-| archive / unarchive the card | `SetArchived` (`topic_archive_postgres.go:75`) | rebuild the card's own topic and the topic `task_id = msg_id` | E13 |
-| archive a reply in the topic; the lobby | same | `archived_rows`; the lobby exception is applied at read | E14, E15 |
+| insert, channel / DM line | `InsertMessage` | add | E01, E02 |
+| insert, duplicate resend (`ON CONFLICT DO NOTHING`) | same | none | E34 |
+| insert into a topic whose card is archived | same | add; `card_archived` from the probe | E03 |
+| insert into an old topic with no head (after the DDL, before the backfill) | same | head miss -> rebuild | E41, C8 |
+| edit, kind change | `ApplyEdit`, `SetKind` | none (no head column); `rev` unchanged | E04..E06 |
+| move a line / a topic | `MoveMessage`, `MoveTopic` | rebuild old and new | E07..E09 |
+| merge / unmerge a topic (with a child) | `MergeTopic`, `UnmergeTopic` | rebuild both (A's head deleted when empty) | E10, E11, E38 |
+| promote / demote | `PromoteMessage`, `DemoteTopic` | rebuild both | E12, E12b |
+| archive / unarchive a card, a reply, the lobby | `SetArchived` (+ `archiveMirrorsTx`) | rebuild the row's topic and the topic `task_id = msg_id` | E13..E15, E35, E35b |
+| archive a card that has left its topic | same | the card rule alone hides | E31 |
+| move an archived reply | `MoveMessage` | rebuild both | E39 |
+| edit a mirrored line | `applyEditTx` per copy | none | E36 |
 | delete a line, merge two lines | `DeleteMessage`, `MergeMessages` | rebuild | E16, E17 |
-| delete a topic | `DeleteTopic` (`:161`) | head deleted | E18 |
-| delete a channel | `channels_postgres.go:114` | rebuild every topic with a row there | E19 |
-| a line expires (no write) | none | none: the read treats the head as due (5.3) | E20 latest line, E21 first line (subject moves), E22 the only line, E23 an archived row expires |
-| sweep purge | `Sweep` (`postgres.go:622`, 500 rows a chunk, operator) | rebuild, head valid again | E24 |
-| tenant deleted | cascade | heads cascade | E25 |
-| a topic with a channel part and a DM part (the door case of `mixed_topic_door_test.go`) | any | two parts | E26 |
-| one topic, two DM pairs | any | two `d:` parts | E27 |
-| equal `received_at` ties across topics | any | tie-break `task_id::text` | E28 |
+| delete a topic, a channel | `DeleteTopic`, `DeleteChannel` | rebuild / delete | E18, E19 |
+| archive / unarchive a channel | `ArchiveChannel`, `UnarchiveChannel` | rebuild the stamped cards' topics | E29, E37 |
+| a key line expires (no write) | none | the read treats the head as due | E20..E23, E20p |
+| sweep purge (5 000-row chunks) | `Sweep` | rebuild, valid again | E24 |
+| tenant deleted | cascade | heads cascade; the drain skips gone tenants | E25 |
+| mixed channel + DM part; two DM pairs; one agent on two boxes | any | parts | E26, E27, E32 |
+| child topic whose first line is in a created channel | any | roots ignore the door | E30, E33 |
+| equal `received_at` across topics, inside a page | any | tie-break on the uuid | E28 (5 tied topics) |
+| equal `received_at` inside one topic | any | first-line tie-break `msg_id::text` | E40 |
+| a later migration updating `messages` | migration | marks; one apply at its COMMIT | T002 note |
+| orc psql writers | operator / tenant scope | marks | their pg tests assert the diff (T006) |
 
 ### 4.4 Concurrency
 
-- **Two inserts in one topic.** Each upserts the same head and part rows;
-  `INSERT .. ON CONFLICT DO UPDATE` takes the row lock, so the second waits for
-  the first to commit and then increments the committed value. Both lines are
-  counted once (test C1).
-- **An insert against a rebuild.** The rebuild must not compute from a
-  snapshot that misses an insert that commits before the rebuild writes. So
-  `topic_head_rebuild` first locks the head row (`SELECT .. FOR UPDATE`, or
-  `pg_advisory_xact_lock` on the topic when no head row exists yet), and only
-  then, in a new statement of the VOLATILE plpgsql function and so a new
-  READ COMMITTED snapshot, reads `messages`. An insert that already holds the
-  lock is waited for and then seen; an insert that comes later waits for the
-  rebuild and increments its result (tests C2, C3).
-- **Two topics in one transaction** (merge, move, promote): one statement locks
-  its topics in `(tenant_id, task_id)` order. A MULTI-statement transaction
-  that touches A then B, against another that touches B then A, can still
-  deadlock on the `messages` row locks it holds between statements; Postgres
-  detects it (`deadlock_timeout`) and aborts one with `40P01`. Those writers
-  are human-initiated and rare; T004 makes the move/merge store calls retry
-  once on `40P01` (test C4).
-- Lock time: the head lock lives until the writer commits. An insert
-  transaction is short; a 500-row sweep chunk holds up to 500 head locks
-  for one chunk.
+- **Two inserts in one topic.** They serialise on the head row at COMMIT
+  only, for the drain's duration (sub-ms), not for the insert statement.
+  C1 checks the count; C1b times 2 x 200 inserts into one topic with and
+  without the trigger (claude-4 F6).
+- **Insert against a rebuild, or a first insert against a move into a new
+  task.** Both take the same row lock (4.2 point 3). C2, C6.
+- **Lock order.** The drain locks every head of the transaction last, in
+  sorted order, so no head-lock cycle exists, including against
+  `InsertMirrored` (C7: 50 rounds, 0 `40P01`). A cycle on `messages` rows
+  between two multi-statement writers is still possible in principle. T004
+  adds the one retry on `40P01` only if C4 shows one under this design.
+- **The sweep.** One 5 000-row chunk applies its topics in one sorted,
+  set-based rebuild at COMMIT. 7.5 gates its head-lock time.
 
 ## 5. The read
 
 ### 5.1 Switch
 
-`SPOOL_HUB_TOPIC_HEADS = off | shadow | on` (default `off`), and the store
-reads heads only when it also finds the table (a probe, like `hasSearchSig`).
+`SPOOL_HUB_TOPIC_HEADS = off | shadow | on` (default `off`). The store reads
+heads only when the table exists and the tenant's backfill mark is set.
+`GET /version` reports the mode, as `topic_heads` (agy-2 F2).
 
 - `off`: today's walk.
-- `shadow`: serve today's walk; for 1 request in `SPOOL_HUB_TOPIC_HEADS_SAMPLE`
-  (default 10) also run the head read and compare the rows' md5; log
-  `topic_head_mismatch` with the tenant, the query shape and the task ids,
-  never a body.
+- `shadow`: serve today's walk. For 1 request in
+  `SPOOL_HUB_TOPIC_HEADS_SAMPLE` (default **1**, every request: claude-2,
+  claude-3, claude-4, agy-2), also run the head read.
+  - Both reads run in ONE `REPEATABLE READ READ ONLY` transaction, one
+    snapshot, so a send committed between them is not a mismatch (claude-1
+    F8).
+  - The two **hub JSON bodies** of the topics response are compared byte for
+    byte, never a `TopicRow` md5 (claude-2 F1, agy-2 F7).
+  - The hub logs `topic_head_mismatch` with the tenant, the query shape and
+    the task ids, never a body.
+  - Every 10 min it logs `topic_head_shadow` with the count of compared and
+    mismatched requests per shape.
 - `on`: serve the head read.
 
-### 5.2 The statement, per shape
+### 5.2 The statement
 
-`viewTopicsHeadSQL(tenant, q)` beside `viewTopicsSQL`, same `TopicRow` columns,
-same args order rule, same `pgScopeTenantNoJIT` batch.
+`viewTopicsHeadSQL(tenant, q)` sits beside `viewTopicsSQL` and returns the
+same `TopicRow` columns.
 
-- **Walk key.** Channel list: `topic_head_parts` on its channel index. DM
-  list: `topic_heads` on `dm_last_at`. All topics: `topic_heads` on
-  `last_at`. Each is ONE row per topic, so the walk is an ordered index scan
-  with filters and `LIMIT`, no recursive "is this its latest line" step.
-- **Filters on the walked head:** `valid_until > now`; not archived
-  (`NOT card_archived AND (archived_rows = 0 OR task_id::text = lobby)`);
-  read door = an `EXISTS` over its parts (channel in public or reader's
-  channels, or a `d:` part with the reader as an end); `Agent`/`Viewer` = an
-  `EXISTS` over parts in the message filters whose `parties` has the key
-  (`id@box`, or any `id@` key); `Roots`/`Parent` on the first part by
-  `(first_at, first_msg_id::text)` in the message filters; `NoIssues` as
-  today; the `before=` cursor on the walk key.
-- **Summary:** over the parts in the message filters AND the door: `n` summed,
-  `kinds` summed per key, `parties` the keys with `n > 0`, sorted,
-  `first_*` of the first such part. No `messages` row is read.
+- **Walk.** Each shape walks one index:
+  - channel: `topic_head_parts` on its channel index;
+  - DM: `topic_heads` on `dm_last_at`;
+  - all: `topic_heads` on `last_at`.
 
-### 5.3 Due heads (a line expired, not yet swept)
+  Each is one row per topic: an ordered index scan with filters and `LIMIT`,
+  no recursive step.
+- **Order and cursor on the uuid** (claude-2 F5, claude-4 F7, agy-1 F5):
+  - `ORDER BY k DESC, task_id DESC`;
+  - the cursor is `k <= $at` as the index condition, plus
+    `(k, task_id::text) < ($at, $task)` as a filter, so a non-canonical
+    `before` id never reaches a `::uuid` cast.
 
-A head with `valid_until <= now` is "due". The statement takes the due heads
-of the tenant from `(tenant_id, valid_until)` and reads each the exact way
-today's `listed()` already does for `TaskIDs` (each topic on its own
-`messages_task_received` range, every filter, the full `summary()`), then
-merges them with the head rows by the walk key and applies the `LIMIT`. The
-due set is the topics with a line that expired since the last sweep, so it is
-small (T009 counts it on prd before the switch). The answer is equal to
-today's at every second (oracle cases E20..E23); a due head costs today's read
-for that one topic.
+  uuid order equals `task_id::text` order:
+  - prd: en_US.UTF8, 1 871 ids, 0 differences (claude-2);
+  - local: 200 000 random ids, 0 differences (claude-3).
+
+  E28 pins it.
+- **Filters on the walked head:**
+  - `valid_until > now` (a due head goes to 5.3);
+  - not archived: `NOT card_archived AND (archived_rows = 0 OR task_id::text
+    = lobby)`. The channel walk probes the topic row by PK for this
+    (claude-2 F10);
+  - the door as an `EXISTS` over parts (section 2);
+  - `Agent`, `Viewer`, `Roots`, `Parent`, `NoIssues` as today's per-topic
+    probes;
+  - the cursor.
+- **Summary:** today's `summary(aggDoor)` over the walked topics, unchanged.
+  So `Kinds` keeps its line order and `sameRows` compares the head read
+  as it is.
+- **Batch header:** its own. Tenant, `jit off` and
+  `plan_cache_mode = force_custom_plan` as `pgScopeTenantNoJIT`;
+  `enable_sort` and bitmap scans are decided by T005's A/B per shape (n=20,
+  20k and 200k). The head read is not recursive, so a misestimate costs at
+  most one pass over the heads (claude-2 F4).
+- **Bound, stated:** the worst page is one pass over the tenant's heads.
+  Locally that is 41.6 ms at 16 666 topics for a reader with no match,
+  against 3.06 s for today's walk (claude-2 F3). On prd, 485 of 489 DM ends
+  are in fewer than 50 DM topics, so their DM page walks every DM head (994).
+  - A per-end DM key, one row per (end, topic), is the later option if the
+    T009 numbers ask for it (heads visited per listed row > 3 on the DM
+    shapes; claude-4 F4).
+  - The same goes for a `first_parent` index (agy-1 F2, claude-2 F4).
+
+### 5.3 Due heads: a second statement, merged in Go (claude-2 F2, agy-1 F3)
+
+The same batch (one round trip) carries two statements:
+
+1. the head walk above, with `valid_until > now` and `LIMIT n`;
+2. today's `listed()` + `summary()` (the `TaskIDs` path, which already
+   applies every filter and the cursor), with its id source
+   `SELECT task_id FROM topic_heads WHERE tenant_id = $1 AND valid_until <=
+   $now`.
+   - For `channel=`, the source is the parts of that channel with
+     `valid_until <= now`.
+   - For `dm=`, it is the heads with a DM part that is due.
+
+Go merges the two by `(k DESC, task_id DESC)` and cuts at `n`. No Sort node
+is added under `enable_sort = off`, and the exact path is tested code.
+
+- The due set on prd is about 0 today: the TTL is a flat ~30 d, and 0 lines
+  expire within a day (claude-2, prd read-only, 2026-10-07). E20..E23 and
+  E20p (a due topic exactly at a page boundary) are its only proof until the
+  data ages.
+- T009 counts the due set hourly over a full day.
 
 ### 5.4 What is not switched
 
-`ViewTopic` (one topic's lines), `ViewTopicsMessages` (`per_topic=`, the
-Flow list's lines), the memory store, and `TaskIDs` deltas in phase 1 (Q5).
-The Flow list's walk is `viewTopicsSQL` (also through
-`ViewTopicsUnlessClone`, `store/clones.go:207`), so it gains; its per-topic
-lines do not change.
+`ViewTopic`, `ViewTopicsMessages` (`per_topic=`), the memory store
+(`Memory.ViewTopics` builds rows live, so no memory head is needed: claude-4
+F9), and `TaskIDs` (Q5). The Flow list's walk is `viewTopicsSQL`, including
+through `ViewTopicsUnlessClone` (`store/clones.go`), so the Flow list gains
+too.
 
 ## 6. Cases
 
-Section 4.3's E01..E28, each run over the query shapes of `topicQueries()`
-(`store/view_topics_test.go:152`): all, `channel=`, `dm=true`, `peer=` with
-and without a box, `roots`, `parent=`, `NoIssues`, a reader in no channel, a
-reader in a created channel, a NULL reader (door off), and every `before=`
-page.
+The E-cases of section 4.3, each run over every shape of `topicHeadShapes`
+(`topic_head_harness_test.go`):
 
-## 7. The test set (the core deliverable)
+- 3 readers: none (door off), a member of a created channel, a member of
+  none;
+- all, a default channel, a created channel, DM;
+- roots, agent= with and without a box, viewer=, parent=, NoIssues;
+- `TaskIDs`;
+- every `before=` page at limit 3.
 
-All on Postgres (`SPOOL_TEST_PG_DSN`; skipped without it, as
-`view_topics_test.go` is), under `PRE_PUSH_TIER=full`.
+The default grid is 288 shapes; `SPOOL_TEST_LONG=1` runs 576.
 
-### 7.1 The oracle: head read == today's walk
+## 7. The test set
 
-`store/topic_head_oracle_test.go`, `TestTopicHeadMatchesWalk`.
+All on Postgres (`SPOOL_TEST_PG_DSN`, skipped without it), under
+`PRE_PUSH_TIER=full`. The budget for the whole 099 set in the pre-push tier
+is **3 min** (claude-3); the long variants run nightly (T007).
 
-- Per case E01..E28: seed a tenant (`seedTopics` plus the case's own rows),
-  apply the case's writes through the store's own methods (never raw SQL, so
-  the triggers see what prd sees), then for every shape of section 6 and
-  every page compare three answers with `sameRows`: today's `viewTopicsSQL`,
-  the head read, and the pre-027 `oracleTopicsSQL`.
-- Expiry cases set `Now` past the line's `expires_at` without a sweep, then
-  run the sweep and compare again (E24).
-- `topic_head_diff(tenant)` (a SQL function, T002) returns every topic whose
-  stored head differs from a rebuild; each case also asserts it returns 0 rows.
-- CONTROLS (the test must be able to fail): corrupt one head row by hand
-  (`n + 1`, then a dropped party, then a wrong `valid_until`) and assert the
-  oracle reports the mismatch; disable `topic_head_upd` and assert E07 fails.
+### 7.1 The oracle
+
+`TestTopicHeadCases` (lands today, T001):
+
+- The walk equals `refTopicsSQL` on every case, shape and page.
+- Each case asserts on the plain list that it did what it names.
+- `refTopicsSQL` replaces v0.1's pre-027 `oracleTopicsSQL`, which has no
+  door, no archived hide and no NoIssues (test-results 1.2).
+- T005 sets `topicHeadRead` and the same run then asserts
+  head read == walk.
+- From T002 on, `headDiffEmpty` asserts `topic_head_diff(tenant)` is empty
+  after every case.
+
+Controls (every test must be able to fail):
+
+- **Reference controls** (`TestTopicHeadReferenceControl`). Each breaks one
+  rule in a copy of the reference and pages the case that needs it, as a
+  hard assertion:
+  - door per line;
+  - archived hide;
+  - order key under the door;
+  - tie-break ASC (E28);
+  - cursor ignores the task id (E28);
+  - card rule dropped (E31);
+  - agent box ignored (E32);
+  - first parent under the door (E33).
+
+  Today the first three are caught. The other five are not, because their
+  fixtures cannot fail them (claude-3 F3, n=1 each), so T001b adds the
+  fixtures.
+- **Diff controls** (`TestTopicHeadDiffDetectsEveryColumn`):
+  - corrupt each column of 3.1 and 3.2 on one head, as operator; the diff
+    names that topic;
+  - plus a missing head, an orphan head, a missing part and an orphan part.
+- **Trigger controls** (`TestTopicHeadTriggerControls`): disable each
+  trigger in turn and one case fails:
+  - mark_ins -> E01;
+  - mark_upd -> E07;
+  - mark_del -> E16;
+  - apply -> every case.
+- `TestTopicHeadNonHeadUpdatesKeepRev`: each non-head statement (the claim
+  x4, replay env, search_sig) leaves `rev` unchanged.
 
 ### 7.2 Random sequences
 
-`TestTopicHeadRandomSequences`: 20 seeds x 500 operations drawn from {insert
-channel line, insert DM line, edit, kind, move line, move topic, merge,
-unmerge, promote, demote, archive, unarchive, delete line, delete topic,
-delete channel, advance the clock past one line's expiry, sweep}, over 6
-channels, 4 agents on 2 boxes, 2 humans, a lobby. After every operation
-`topic_head_diff` is empty; every 25 operations the oracle of 7.1 holds for
-every shape. The seed is printed on failure, and `TOPIC_HEAD_SEED` /
-`TOPIC_HEAD_OPS` replay one prefix. `SPOOL_TEST_LONG=1` runs 200 seeds.
+`TestTopicHeadRandomSequences`, default **4 seeds x 300 operations**:
+
+- `topic_head_diff` is empty after every operation;
+- 16 seeded shapes are checked every 25 operations, and the full grid at
+  the end.
+
+The operations:
+
+- every E-case writer, as one op each;
+- advance the clock past one key line;
+- a tenant-scoped purge: the sweep's chunk `DELETE` plus `tenant_id`. The
+  global `Sweep` would hit other tests' rows.
+
+Operations draw from sorted slices only, never a Go map, so a seed replays.
+`TOPIC_HEAD_SEED` / `TOPIC_HEAD_OPS` replay a prefix. `SPOOL_TEST_LONG=1`
+runs 200 seeds, nightly (T007).
 
 ### 7.3 Concurrency
 
 | id | test | passes when |
 |---|---|---|
-| C1 | 2 goroutines x 200 inserts into one topic | `n = 400`, diff empty |
-| C2 | inserts into A while A's lines are moved to another channel | diff empty, no lost line |
+| C1 | 2 goroutines x 200 inserts into one topic | head right, diff empty |
+| C1b | the same with and without the triggers, n=5 rounds | wall time printed; the 7.5 gate applies to the added p95 |
+| C2 | inserts into A while A's lines are moved | diff empty, no lost line |
 | C3 | inserts into A and B while A merges into B | diff empty |
-| C4 | merge A->B and B->A at once, 50 rounds | every call ends ok, or `40P01` and its retry ok; diff empty |
-| C5 | a sweep purge chunk against inserts into the swept topics | diff empty |
+| C4 | merge A->B and B->A at once, 50 rounds | every call ends ok; retries seen are counted and logged |
+| C4b | two transactions in lockstep (a barrier between statements) that would cycle on head locks under v0.1 | no `40P01` (the drain is sorted and last) |
+| C5 | a 5 000-row purge chunk over 1 000 topics against inserts into them | diff empty; longest head-lock hold printed |
+| C6 | a topic's first insert against a move into that new task | diff empty (claude-1 F1: lost 5 of 5 under v0.1) |
+| C7 | `InsertMirrored` against a merge of the same two topics, 50 rounds | 0 `40P01` (claude-1 F2: deadlocked 3 of 3 under v0.1) |
+| C8 | an insert into a pre-DDL topic, then the backfill | diff empty |
+| C9 | two tenants with the SAME task uuid written at once | each head right, other `rev` unchanged |
 
 ### 7.4 RLS and roles
 
-In `store/topic_head_rls_test.go` and the catalogue of
-`rls_failclosed_test.go`: tenant t2's scope reads 0 head and 0 part rows of
-t1; a write of a t1 row under t2's scope fails WITH CHECK; an empty
-`app.tenant_id` reads 0 rows (fail closed); the operator scope reads both;
-an insert through the runtime role (`spool_hub_rt`) writes its head (the
-default privileges reached the new tables and functions); a tenant delete
-leaves no head row.
+`store/topic_head_rls_test.go` plus the catalogue of `rls_failclosed_test.go`:
 
-### 7.5 Write cost
+- t2's scope reads 0 head, part and mark rows of t1;
+- a t1 write under t2's scope fails WITH CHECK;
+- an empty scope reads 0 rows;
+- the operator reads all.
 
-`TestTopicHeadInsertCost` (`SPOOL_TEST_PERF=1`): one message insert with and
-without the triggers, n=20 each, at 200k messages: the added p95 is under
-**5 ms** (the plan's gate), and a 500-row sweep chunk's added time is printed.
+`TestTopicHeadRuntimeRole` runs E01, E07, E13, E16, E18 as `spool_hub_rt`
+under tenant scope, and the diff is empty. `TestTopicHeadOperatorWrites` runs
+the sweep and an orc-style operator delete. E25 (the tenant delete) runs as
+the runtime role, because a superuser bypasses RLS and proves nothing.
+
+### 7.5 Write cost (Q6)
+
+`TestTopicHeadCost` (`SPOOL_TEST_PERF=1`). The method:
+
+- on a CPU-limited postgres:16-alpine;
+- n >= 200 per arm, interleaved with and without the triggers;
+- the seed loaded by `INSERT .. SELECT` with the triggers off, then the
+  backfill.
+
+The gates (claude-1 F4, F5; claude-3 F8; claude-4 F6):
+
+| number | gate |
+|---|---|
+| one insert, added p50 and p95 | p95 < **5 ms** |
+| a claim-shape `UPDATE` (no head column), added p95 | < 5 ms |
+| a 5 000-row purge chunk: added time and longest head-lock hold | hold <= 100 ms, else the purge gets its own smaller chunk |
+| C1b contention, added p95 | < 5 ms |
+| hot topic (5 000 lines, 200 parties) and bulk (1 000-row `INSERT .. SELECT`) | printed |
 
 ### 7.6 Perf proof on prd (before / after, through c-001)
 
 From `csi-spl-orc`, as the env SA:
 
-- Per call, the gating number, twice before and twice after, 10 min apart:
-  `ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_ONLY=walk_dm ./run -a do_spl_db_hot_measure`,
-  and the same with `MEASURE_ONLY=walk_all`, after ap-00 has made the action
-  run the builders' text. T008 adds `walk_dm_head` and `walk_all_head`
-  statements printed by the head builder.
-- Per route, reported (the 24 h before the switch, and the 24 h after it):
-  `ENV=prd ROUTE_HOURS=24 ROUTE_TOP=40 ROUTE_LIMIT=200000 ROUTE_QUERY=1 ./run -a do_spl_hub_route_latency`
-  for `GET /v1/view/topics` per shape (channel, dm, all, per_topic), p50 and
-  p95, with n and the `first..last` span stated (the ap-00 rule).
-- Insert side: `ENV=prd INSIGHTS_HOURS=24 INSIGHTS_TOP=25 ./run -a do_spl_db_insights`,
-  the `INSERT INTO messages` mean before and after.
-- Expected (estimate, not a gate): walk work -80..90 %; a topic list well under
-  100 ms p50.
+- **Per call:** `ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20
+  MEASURE_ONLY=walk_dm ./run -a do_spl_db_hot_measure`, the same with
+  `walk_all`, and T008's `walk_dm_head`, `walk_all_head`, the worst reader
+  (`walk_dm_head` for a reader in no DM) and `parent=`. Twice before and
+  twice after, 10 min apart.
+- **Per route:** `ENV=prd ROUTE_HOURS=24 ROUTE_TOP=40 ROUTE_LIMIT=200000
+  ROUTE_QUERY=1 ./run -a do_spl_hub_route_latency`, for
+  `GET /v1/view/topics` per shape, p50/p95 with n and the span.
+- **Insert side:** `ENV=prd INSIGHTS_HOURS=24 INSIGHTS_TOP=25 ./run -a
+  do_spl_db_insights`, the `INSERT INTO messages` mean, before and after.
+- **Deadlocks:** `pg_stat_database.deadlocks` before and after each 24 h
+  window (claude-1).
+- **Phase 2 inputs:** heads visited per listed row per shape, and
+  `summary()`'s share of each shape's time (claude-4 F1, F4).
 
 ## 8. Rollout, backfill, rollback
 
-Deploy order: **DDL before hub**. Every prd step needs the owner's go (Q4).
+DDL before hub. Every prd step needs the owner's go (Q4); c-001 runs them.
 
-1. **DDL on dev** (`do_spl_db_bootstrap` path, as the env SA): 0138 creates the
-   tables, functions and triggers. From that commit on, every write keeps the
-   heads of the topics it touches right; old topics have no head yet, and the
-   old hub ignores the tables.
-2. **Backfill** `ENV=dev ./run -a do_spl_topic_head_backfill` (new named action,
-   `orc/spl-topic-head-backfill.func.sh` + `.tst.sh`): operator scope, loops
-   `SELECT topic_head_backfill(500)`, which rebuilds the next 500 topics
-   with no head, one short transaction per chunk, each topic under its own
-   lock (4.4), so no long lock and no table lock; it prints the chunk count
-   and stops when a chunk is empty. A topic written during the backfill is
-   right either way. prd scale: ~22 400 messages (`n_tup_ins`, plan 0.2 row 4).
-3. **Verify** `ENV=dev ./run -a do_spl_topic_head_verify`: `topic_head_diff`
-   for every tenant; prints topics checked (n) and mismatches; exit 1 on any.
-4. **Hub with `SPOOL_HUB_TOPIC_HEADS=shadow`** on dev, then the same 1..4 on prd.
-   Shadow runs 24 h on prd: 0 `topic_head_mismatch` lines, with the number of
-   compared requests stated.
-5. **`on`** on dev, then prd (one revision, alone in its 24 h window, as ap-05).
-   The 7.6 after-numbers come from that window.
-6. **Daily check:** the verify action runs as a step of the daily
-   `.github/workflows/45_db-backup.yml`, so a drift is red within a day.
+1. **DDL on dev** (the `do_spl_db_bootstrap` path, as the env SA): the
+   tables, functions and triggers. From then on, every write keeps its
+   topics' heads right (head miss -> rebuild, 4.2 point 4). The old hub
+   ignores the tables.
+2. **Backfill.** `ENV=dev ./run -a do_spl_topic_head_backfill`
+   (`orc/spl-topic-head-backfill.func.sh` + `.tst.sh`).
+   - It runs in the operator scope.
+   - It loops `SELECT topic_head_backfill(chunk => 100, rebuild_all =>
+     $REBUILD_ALL, after => $cursor)`, a keyset walk over the distinct
+     `(tenant_id, task_id)` of `messages` that rebuilds every topic it
+     passes, head or not (claude-1 F3, agy-2 F6).
+   - `REBUILD=all` also deletes heads whose topic has no row left.
+   - Each chunk is one short transaction under `lock_timeout = 5s` (agy-2).
+   - It sets each tenant's mark when that tenant's last chunk is empty, and
+     prints chunks and topics.
+   - prd scale: 19 955 messages, 1 621 topics (claude-2, 2026-10-07).
+3. **Verify.** `ENV=dev ./run -a do_spl_topic_head_verify` runs
+   `topic_head_diff` for every tenant, prints the topics checked (n) and the
+   mismatches, and exits 1 on any. It runs after every dev DDL deploy, not
+   only daily.
+4. **Shadow on dev, then 1..4 on prd.** prd shadow runs until **n >= 500
+   compared requests** cover all six route shapes, with **0 mismatches**, and
+   for at least 24 h.
+   - Read it with `ENV=prd ./run -a do_spl_topic_head_shadow_report`, a named
+     action over the `topic_head_shadow` / `topic_head_mismatch` log lines
+     (agy-2 F3).
+   - At ~1 270 lists a day, 1-in-1 reaches n=500 within a day. A defect that
+     hits 2 % of lists escapes 1 270 compares with p < 1e-11; with v0.1's
+     1-in-10 (127 compares) it escapes with p = 7.7 % (claude-3).
+5. **`on`**: dev, then prd. One revision, alone in its 24 h window. The 7.6
+   after-numbers come from that window.
+6. **Daily check.** `do_spl_topic_head_verify` runs as a step of
+   `.github/workflows/45_db-backup.yml`, **against the restored throwaway
+   container** that the workflow already starts. That proves the backup and
+   the heads, with no load on the live Cloud SQL (agy-2 F5).
 
 Rollback, each level reversible:
 
 | level | action | effect |
 |---|---|---|
 | 1 | `SPOOL_HUB_TOPIC_HEADS=off` (one hub revision) | reads back on the walk; heads still kept |
-| 2 | `ENV=<env> OP=disable ./run -a do_spl_topic_head_triggers` (named action, owner go) | the insert cost is gone and heads go stale; the action refuses unless the hub's live revision has the flag at `off` |
+| 2 | `ENV=<env> OP=disable ./run -a do_spl_topic_head_triggers` (named action, owner go) | the trigger cost is gone and heads go stale; the action reads `topic_heads` from `GET /version` (host from cnf, never a literal) and refuses unless it is `off` |
 | 3 | a forward migration dropping the triggers, functions and tables | gone; the hub's probe finds no table and stays on the walk |
 
-Re-enabling after level 2: `OP=enable`, then the backfill with `REBUILD=all`,
-then verify, then shadow again.
+Re-enabling after level 2: `OP=enable`, which runs the backfill with
+`REBUILD=all` itself, then verify, then shadow again.
 
-## 9. Risks
+**Restore:** `do_spl_db_restore` runs `REBUILD=all` after a restore into an
+env (`TARGET=env` only).
 
-| risk | guard |
-|---|---|
-| a write the triggers do not see (triggers disabled during a restore) | the daily verify (8.6); `do_spl_db_restore` runs the backfill with `REBUILD=all` after a restore (T007) |
-| the trigger slows every insert | 7.5 gate; Insights mean before/after; rollback level 2 |
-| a deadlock between two multi-statement topic writers | 4.4: sorted locks per statement, one retry on `40P01`, test C4 |
-| the `task_id` tie-break: a `uuid` index orders as `task_id::text` only if both compare the same | E28 pins equal `last_at` ties; if it fails, the indexes take `(task_id::text)` instead |
-| the planner picks a bad plan for the new read | it runs under `pgScopeTenantNoJIT` as today; ap-00 n=20 on prd gates the switch |
-| the due set grows (a retention change expires many lines at once) | each due head costs today's per-topic read; T009 counts the due set on prd |
+## 9. Phase 2: the stored summary (built only if Q9's gate trips)
 
-## 10. Owner questions (each with a proposal)
+Kept so nothing the panel found is lost. Each item is required IF phase 2 is
+built:
 
-| # | question | proposal |
-|---|---|---|
-| Q1 | Who writes the head: triggers on `messages`, or a call in each Go writer? | **Triggers** (4.1), as rdb 0103 did. |
-| Q2 | When a line expires but is not yet swept (up to 10 min), must the list be exact at once, or may it lag until the sweep? | **Exact**: due heads are read the old way (5.3). |
-| Q3 | Shadow before the switch? | **Yes**: 24 h of shadow on prd with 0 mismatches, 1 in 10 requests compared, then `on`. |
-| Q4 | prd DDL go (0138: two tables, three triggers on `messages`) and the backfill + verify on prd? | **Go after dev**: dev DDL, backfill, verify and 24 h of shadow green first; c-001 runs the prd steps. |
-| Q5 | Switch every list shape at once, or leave `since=` deltas (`TaskIDs`) on today's per-topic read? | **Every walk shape at once; `TaskIDs` stays** (it is already one short probe per topic). |
-| Q6 | Insert cost budget? | **Under 5 ms added p95** (n=20, 7.5); over it, the build stops and reports. |
-| Q7 | ap-03 (archived OR split) and ap-09 (subject index)? | **Dropped** once the head is `on`: both tune the walk the head removes (plan 0.3 already gates ap-03 on "ap-07 deferred"). |
-| Q8 | Run the verify every day (a step of workflow 45)? | **Yes** (8.6). |
+1. **`Kinds` as counts first.** `TopicRow.Kinds` becomes `map[string]int`:
+   the walk emits `jsonb_object_agg`, and `sameRows` compares maps. The hub
+   JSON is unchanged, since `kinds` is already a map. Its own task lands
+   before any summary head. A head holds `{kind: n}` and cannot rebuild line
+   order: as v0.1 stood, 7 of 7 shapes differed raw and were equal as a
+   multiset (claude-2 F1, claude-3 F2, agy-1 F4).
+2. **Parties as `{id: {box: n}}`**, so viewer is `parties ? $id` and
+   agent+box is `parties -> $id ? $box`. A flat `"id@box"` needs a key-prefix
+   scan, and `LIKE` treats `_`/`%` in an id as wildcards (claude-2 F6, agy-1
+   F1).
+3. **The subject function** `topic_head_subject(msg)` equals Go's
+   `subjectSQL`, tested on n >= 2 000 bodies.
+4. **One LATERAL over the parts** for the whole summary (claude-2 F8); a
+   `first_parent` partial index; Roots/Parent on the first part under the
+   message filters, without the door, while the summary's `Parent` comes
+   from the first part under the door (agy-1 F7).
+5. **The purge decrements** `n`/`kinds`/`parties` without reading the topic
+   when the removed line is neither its part's first nor last (claude-1 F5).
+6. **`TaskIDs` as head PK lookups** (agy-1 F8).
+7. **ap-09** (the subject index) is re-measured after phase 1 and folds away
+   only if phase 2 is built.
+
+## 10. Owner questions (the panel's answers; the build starts on them, the owner may still change any)
+
+| # | question | v1.0 answer | seats |
+|---|---|---|---|
+| Q1 | Who writes the head? | **Triggers**: mark per row, apply at COMMIT in sorted order (4.2) | 6 of 6 agree on triggers; claude-1's mark-and-defer is adopted for its shown race and deadlock |
+| Q2 | Exact at once when a line expires, or lag until the sweep? | **Exact**: due heads are read the old way (5.3) | 6 of 6 |
+| Q3 | Shadow before the switch? | **Yes**: every request, one snapshot, hub JSON compared; n >= 500 over all shapes, 0 mismatches, >= 24 h | 6 of 6 yes; 4 seats asked for 1-in-1 |
+| Q4 | The prd DDL, backfill and verify? | **After dev**: dev DDL, backfill, verify, 24 h shadow and `deadlocks` delta 0 first; c-001 runs prd with the owner's go | 6 of 6 |
+| Q5 | Every shape at once; `TaskIDs` stays? | **Yes** | 6 of 6 |
+| Q6 | Write cost budget? | **< 5 ms added p95** on an insert AND on a claim-shape update, n >= 200, CPU-limited; sweep-chunk head-lock hold <= 100 ms (7.5) | 6 of 6 keep 5 ms; 3 widen what is measured |
+| Q7 | ap-03 and ap-09? | **ap-03 dropped** once `on` has held 24 h (claude-4 lab: -13..+2 %, p95 worse on `all`); **ap-09 parked** until the Q9 decision | 4 drop both; claude-4 and claude-2 park first |
+| Q8 | Daily verify? | **Yes**, in workflow 45 against the restored container, and after every dev DDL deploy | 6 of 6; agy-2's target |
+| Q9 (new) | When is phase 2 built? | Only if a list shape stays **above 100 ms p50** over 24 h on prd after `on` | claude-4; the other seats reviewed the full head and found it workable but fragile |
+
+## 11. What changed from v0.1, and who asked
+
+| change | v0.1 | v1.0 | from |
+|---|---|---|---|
+| scope | full stored summary | phase 1 = walk key + archived + parts with DM ends; summary = phase 2 behind Q9 | claude-4 (lab), lead decision |
+| write path | immediate row insert + statement update/delete triggers | mark per row, apply at COMMIT, sorted; row-level `UPDATE OF .. WHEN` | claude-1 F2, F4 |
+| lock | head row or advisory lock | head row always (placeholder + FOR UPDATE) | claude-1 F1, agy-2 F1 |
+| head miss | treated as an empty topic | rebuild | claude-1 F3, claude-3 F1 |
+| backfill | "topics with no head", 500 | keyset over every topic, 100 a chunk, lock_timeout, `REBUILD=all`, per-tenant mark | claude-1 F3, agy-2 F6, claude-3 F10 |
+| sweep chunk | "500" | 5 000 (`store/postgres.go`, `sweepChunk`); set-based rebuild; hold gated | claude-1 F5, claude-4 F3 |
+| `valid_until` | earliest line of the topic | earliest KEY line | claude-4 F5 |
+| order / indexes | `task_id::text` fallback | uuid order, text cursor filter | claude-2 F5, claude-4 F7, agy-1 F5 |
+| due heads | merged inside the SQL | second statement, merged in Go; per channel part | claude-2 F2, agy-1 F3 |
+| shadow | 1 in 10, `TopicRow` md5 | 1 in 1, hub JSON, one snapshot, counters, report action | claude-1 F8, claude-2 F1, claude-3, claude-4, agy-2 F3, F4, F7 |
+| switch guard | table probe | table probe + backfill mark | claude-3 F10 |
+| rollback 2 | refusal rule not checkable | `/version` reports the mode | agy-2 F2 |
+| daily verify | live DB | restored container in wf45 | agy-2 F5 |
+| oracle | pre-027 `oracleTopicsSQL` | `refTopicsSQL` | test-results 1.2 |
+| cases | E01..E28 | + E12b, E13b, E20p, E29..E41, E25 as runtime role | test-results, claude-3 F3, F4 |
+| cost gate | insert, n=20 | insert + claim update + sweep hold + contention, n >= 200 | claude-1 F4, claude-3 F8, claude-4 F6 |
+| migration | 0138 | next free (0144 today) | claude-4, claude-1, agy-2 |

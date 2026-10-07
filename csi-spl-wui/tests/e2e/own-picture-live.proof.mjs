@@ -61,9 +61,12 @@ const file = join(OUT, 'upload.png')
 writeFileSync(file, bytes)
 
 const pic = (p) => p.evaluate(() => document.querySelector('[data-test=user-menu-trigger] img[data-test=user-menu-picture]')?.getAttribute('src') || '')
+/* idempotent: an open menu (or a phone sheet still on screen) is reused,
+   never toggled shut by a second click on the trigger */
 const openMenu = async (p) => {
-  await p.click('[data-test=user-menu-trigger]')
-  await p.waitForSelector('[data-test=user-menu-change-picture]', { visible: true, timeout: 15000 })
+  const item = '[data-test=user-menu-change-picture]'
+  if (!(await p.$(item).then((e) => e && e.isVisible()).catch(() => false))) await p.click('[data-test=user-menu-trigger]')
+  await p.waitForSelector(item, { visible: true, timeout: 15000 })
   await sleep(400)
 }
 const ready = async (p) => {
@@ -73,7 +76,7 @@ const ready = async (p) => {
 async function remove(p) {
   await openMenu(p)
   await p.click('[data-test=user-menu-remove-picture]')
-  await p.waitForFunction(() => !document.querySelector('[data-test=user-menu-trigger] img[data-test=user-menu-picture]'), { timeout: 15000 }).catch(() => null)
+  return p.waitForFunction(() => !document.querySelector('[data-test=user-menu-trigger] img[data-test=user-menu-picture]'), { timeout: 15000 }).then(() => true, () => false)
 }
 
 const puppeteer = await loadPuppeteer()
@@ -120,10 +123,7 @@ try {
   await p.screenshot({ path: `${OUT}/changed-390.png` })
   step('390 px: Change and Remove picture are in the sheet',
     await p.$eval('[data-test=user-menu-remove-picture]', (e) => e.getBoundingClientRect().height >= 44).catch(() => false))
-  await p.click('[data-test=user-menu-scrim]').catch(() => null)
-  await sleep(300)
-
-  await remove(p)
+  step('Remove picture: the avatar falls back at once', await remove(p))
   await p.reload({ waitUntil: 'networkidle2' })
   await ready(p)
   const end = await pic(p)

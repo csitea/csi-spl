@@ -15,29 +15,41 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TestLifecycleKeysPinRdbChecks pins rdb 0105's CHECK on every config column
-// to LifecycleKeys (spec 063 section 11, the way ArchivePolicy* pins 0093): a
+// TestLifecycleKeysPinRdbChecks pins the CHECK on every config column, rdb
+// 0105's and (the Lifetime keys) rdb 0145's, to LifecycleKeys (spec 063
+// section 11, spec 102 section 11.1, the way ArchivePolicy* pins 0093): a
 // range changed on one side only turns this red.
 func TestLifecycleKeysPinRdbChecks(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(sqlDir(t), "0105_agent_lifecycle.sql"))
-	if err != nil {
-		t.Fatal(err)
+	read := func(name string) string {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(sqlDir(t), name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(raw)
 	}
-	body := string(raw)
+	body := read("0105_agent_lifecycle.sql")
 	start := strings.Index(body, "CREATE TABLE agent_lifecycle_config")
 	end := strings.Index(body, "CREATE TABLE agent_lifecycle_events")
 	if start < 0 || end < start {
 		t.Fatal("0105 lost its two CREATE TABLEs")
 	}
 	col := regexp.MustCompile(`(?m)^\s+([a-z_]+)\s+(?:integer|text)\s+NULL CHECK \((.*)\),$`)
-	got := map[string]string{}
+	got, lifetime := map[string]string{}, map[string]bool{}
 	for _, m := range col.FindAllStringSubmatch(body[start:end], -1) {
 		got[m[1]] = m[2]
 	}
-	if len(got) != len(LifecycleKeys) {
-		t.Fatalf("0105 has %d config columns, LifecycleKeys %d: %v", len(got), len(LifecycleKeys), got)
+	add := regexp.MustCompile(`(?m)^\s+ADD COLUMN IF NOT EXISTS ([a-z_]+)\s+integer NULL CHECK \((.*)\)[,;]$`)
+	for _, m := range add.FindAllStringSubmatch(read("0145_agent_lifetime_settings.sql"), -1) {
+		got[m[1]], lifetime[m[1]] = m[2], true
+	}
+	if len(got) != len(LifecycleKeys) || len(lifetime) != 5 {
+		t.Fatalf("0105+0145 have %d config columns (%d lifetime), LifecycleKeys %d: %v", len(got), len(lifetime), len(LifecycleKeys), got)
 	}
 	for _, k := range LifecycleKeys {
+		if k.Lifetime != lifetime[k.Key] {
+			t.Errorf("%s: Lifetime %v, but its column is in 0145: %v", k.Key, k.Lifetime, lifetime[k.Key])
+		}
 		want := fmt.Sprintf("%s BETWEEN %d AND %d", k.Key, k.Min, k.Max)
 		if k.Enum != nil {
 			want = fmt.Sprintf("%s IN ('%s')", k.Key, strings.Join(k.Enum, "', '"))
@@ -87,7 +99,7 @@ func TestAgentLifecycleConfig(t *testing.T) {
 			if err != nil || len(c.Stored) != 0 || !c.UpdatedAt.IsZero() {
 				t.Fatalf("fresh config %+v: %v", c, err)
 			}
-			if e := c.Effective(); e["lane_restart_ctx_k"] != 400 || e["lane_checkpoint_min"] != 0 || e["seat_fail_action"] != "compact" || len(e) != 11 {
+			if e := c.Effective(); e["lane_restart_ctx_k"] != 400 || e["lane_checkpoint_min"] != 0 || e["seat_fail_action"] != "compact" || e["stuck_min"] != 10 || len(e) != 16 {
 				t.Fatalf("fresh effective %v", e)
 			}
 
@@ -291,5 +303,123 @@ func TestCheckLifecyclePatchReportsFirstKeyByName(t *testing.T) {
 				t.Fatalf("%s: got %q (%s), want %q", tc.name, key, why, tc.key)
 			}
 		}
+	}
+}
+
+// operatorFor flags op as the operator workspace for one test (clearing any
+// flag before and after, so the shared database is left as found).
+func operatorFor(t *testing.T, st Store, op string) {
+	t.Helper()
+	clearOperatorFlag(t, st)
+	t.Cleanup(func() { clearOperatorFlag(t, st) })
+	if id, err := st.(OperatorFlag).ClaimOperatorTenant(context.Background(), op); err != nil || id != op {
+		t.Fatalf("claim %s: %q %v", op, id, err)
+	}
+}
+
+// TestAgentLifetimeSettings (spec 102 section 11.1, T011): the five Lifetime
+// keys are NULL = default, bounded as rdb 0145, and read from the OPERATOR
+// workspace's row only. CONTROL: the same value on the operator row is read,
+// so "another row ignored" is not a read that ignores every row.
+func TestAgentLifetimeSettings(t *testing.T) {
+	ctx := context.Background()
+	want := map[string]any{"restart_max_per_hour": 3, "rebirth_max": 7, "task_restart_max": 12, "stuck_min": 10, "box_down_min": 2}
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			al := st.(AgentLifecycle)
+			op, other := newTenant(t, st), newTenant(t, st)
+			now := time.Now().UTC().Truncate(time.Second)
+
+			// No operator workspace at all: defaults, from nobody.
+			clearOperatorFlag(t, st)
+			if v, from, err := ReadLifetimeSettings(ctx, st, ""); err != nil || from != "" || fmt.Sprint(v) != fmt.Sprint(want) {
+				t.Fatalf("no operator: %v from %q: %v", v, from, err)
+			}
+			operatorFor(t, st, op)
+
+			// Defaults while NULL, with a row present (another key set).
+			if _, _, err := al.PatchAgentLifecycleConfig(ctx, op, LifecyclePatch{"notes_tail_lines": 10}, "HUM-1", now); err != nil {
+				t.Fatal(err)
+			}
+			if v, from, err := ReadLifetimeSettings(ctx, st, ""); err != nil || from != op || fmt.Sprint(v) != fmt.Sprint(want) {
+				t.Fatalf("NULL row: %v from %q: %v", v, from, err)
+			}
+
+			// Bounds: each end is taken, one past each end is refused, nothing written.
+			for _, k := range LifecycleKeys {
+				if !k.Lifetime {
+					continue
+				}
+				for _, v := range []int{k.Min - 1, k.Max + 1, 0} {
+					if _, _, err := al.PatchAgentLifecycleConfig(ctx, op, LifecyclePatch{k.Key: v}, "HUM-1", now); !errors.Is(err, ErrBadLifecycleKey) {
+						t.Errorf("%s=%d: %v", k.Key, v, err)
+					}
+				}
+				for _, v := range []int{k.Min, k.Max} {
+					if _, cur, err := al.PatchAgentLifecycleConfig(ctx, op, LifecyclePatch{k.Key: v}, "HUM-1", now); err != nil || cur.Stored[k.Key] != v {
+						t.Errorf("%s=%d: %v %v", k.Key, v, cur.Stored, err)
+					}
+				}
+				if _, _, err := al.PatchAgentLifecycleConfig(ctx, op, LifecyclePatch{k.Key: nil}, "HUM-1", now); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// A non-operator workspace's row is ignored, whatever it holds.
+			if _, _, err := al.PatchAgentLifecycleConfig(ctx, other, LifecyclePatch{"stuck_min": 60, "box_down_min": 30}, "HUM-9", now); err != nil {
+				t.Fatal(err)
+			}
+			if v, from, err := ReadLifetimeSettings(ctx, st, other); err != nil || from != op || v["stuck_min"] != 10 || v["box_down_min"] != 2 {
+				t.Fatalf("other row read: %v from %q: %v", v, from, err)
+			}
+			// CONTROL: the same values on the operator row ARE read.
+			if _, _, err := al.PatchAgentLifecycleConfig(ctx, op, LifecyclePatch{"stuck_min": 60, "box_down_min": 30}, "HUM-1", now); err != nil {
+				t.Fatal(err)
+			}
+			v, from, err := ReadLifetimeSettings(ctx, st, other)
+			if err != nil || from != op || v["stuck_min"] != 60 || v["box_down_min"] != 30 || v["rebirth_max"] != 7 || len(v) != 5 {
+				t.Fatalf("operator row: %v from %q: %v", v, from, err)
+			}
+			// No flag: the cnf fallback names the operator workspace.
+			clearOperatorFlag(t, st)
+			if v, from, err := ReadLifetimeSettings(ctx, st, op); err != nil || from != op || v["stuck_min"] != 60 {
+				t.Fatalf("cnf fallback: %v from %q: %v", v, from, err)
+			}
+		})
+	}
+}
+
+// TestAgentLifetimeBeforeRdb0145: a hub rolled before rdb 0145 reaches its
+// database serves every lifecycle read (the Lifetime keys at their default)
+// and refuses a patch naming one. CONTROL: with the columns there, the same
+// patch is taken.
+func TestAgentLifetimeBeforeRdb0145(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("needs $SPOOL_TEST_PG_DSN")
+	}
+	ctx := context.Background()
+	tid := newTenant(t, pg)
+	now := time.Now().UTC().Truncate(time.Second)
+	lifetimeProbeMu.Lock()
+	lifetimeProbes[pg] = &seatsProbe{check: func(context.Context) (bool, error) { return false, nil }}
+	lifetimeProbeMu.Unlock()
+	t.Cleanup(func() {
+		lifetimeProbeMu.Lock()
+		delete(lifetimeProbes, pg)
+		lifetimeProbeMu.Unlock()
+	})
+	if _, _, err := pg.PatchAgentLifecycleConfig(ctx, tid, LifecyclePatch{"stuck_min": 20}, "HUM-1", now); !errors.Is(err, ErrBadLifecycleKey) {
+		t.Fatalf("patch before 0145: %v", err)
+	}
+	_, cur, err := pg.PatchAgentLifecycleConfig(ctx, tid, LifecyclePatch{"notes_tail_lines": 10}, "HUM-1", now)
+	if err != nil || cur.Stored["notes_tail_lines"] != 10 || cur.Effective()["stuck_min"] != 10 {
+		t.Fatalf("read before 0145: %+v %v", cur, err)
+	}
+	lifetimeProbeMu.Lock()
+	delete(lifetimeProbes, pg)
+	lifetimeProbeMu.Unlock()
+	if _, cur, err := pg.PatchAgentLifecycleConfig(ctx, tid, LifecyclePatch{"stuck_min": 20}, "HUM-1", now); err != nil || cur.Stored["stuck_min"] != 20 {
+		t.Fatalf("CONTROL patch with 0145: %+v %v", cur, err)
 	}
 }

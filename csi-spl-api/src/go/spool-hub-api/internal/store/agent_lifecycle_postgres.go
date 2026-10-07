@@ -6,29 +6,72 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
-// Postgres side of rdb 0105. Every statement runs in the tenant scope except
-// the retention prune, which is the operator's (every tenant at once). The
-// column names come from LifecycleKeys, constants, never from a request.
+// Postgres side of rdb 0105 and 0145. Every statement runs in the tenant
+// scope except the retention prune, which is the operator's (every tenant at
+// once). The column names come from LifecycleKeys, constants, never from a
+// request.
 
-func lifecycleCols() string {
-	cols := make([]string, len(LifecycleKeys))
-	for i, k := range LifecycleKeys {
+// The hub may roll before rdb 0145 reaches its database: until its columns
+// are there, the Lifetime keys are not read (their defaults hold) and a patch
+// naming one is refused, never a 500 on every read. The probe lives beside
+// the store (postgres.go is shared by every lane), one per *Postgres.
+var (
+	lifetimeProbeMu sync.Mutex
+	lifetimeProbes  = map[*Postgres]*seatsProbe{}
+)
+
+// hasLifetimeCols reports whether rdb 0145 is applied (one ALTER, so its
+// last column stands for all five).
+func (s *Postgres) hasLifetimeCols(ctx context.Context) bool {
+	lifetimeProbeMu.Lock()
+	p := lifetimeProbes[s]
+	if p == nil {
+		p = &seatsProbe{}
+		lifetimeProbes[s] = p
+	}
+	lifetimeProbeMu.Unlock()
+	return p.present(ctx, func(ctx context.Context) (ok bool, err error) {
+		err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_attribute
+			WHERE attrelid = to_regclass('agent_lifecycle_config') AND attname = 'box_down_min' AND NOT attisdropped)`).Scan(&ok)
+		return ok, err
+	}, s.now())
+}
+
+// lifecycleKeysIn is the keys this database has a column for.
+func (s *Postgres) lifecycleKeysIn(ctx context.Context) []LifecycleKey {
+	if s.hasLifetimeCols(ctx) {
+		return LifecycleKeys
+	}
+	keys := make([]LifecycleKey, 0, len(LifecycleKeys))
+	for _, k := range LifecycleKeys {
+		if !k.Lifetime {
+			keys = append(keys, k)
+		}
+	}
+	return keys
+}
+
+func lifecycleCols(keys []LifecycleKey) string {
+	cols := make([]string, len(keys))
+	for i, k := range keys {
 		cols[i] = k.Key
 	}
 	return strings.Join(cols, ", ")
 }
 
-// readLifecycleConfig reads the row (optionally FOR UPDATE); no row = defaults.
-func readLifecycleConfig(ctx context.Context, tx pgx.Tx, tenant, suffix string) (LifecycleConfig, error) {
-	nums := make([]*int32, len(LifecycleKeys))
-	enums := make([]*string, len(LifecycleKeys))
-	dst := make([]any, 0, len(LifecycleKeys)+2)
-	for i, k := range LifecycleKeys {
+// readLifecycleConfig reads the row's keys (optionally FOR UPDATE); no row =
+// defaults.
+func readLifecycleConfig(ctx context.Context, tx pgx.Tx, keys []LifecycleKey, tenant, suffix string) (LifecycleConfig, error) {
+	nums := make([]*int32, len(keys))
+	enums := make([]*string, len(keys))
+	dst := make([]any, 0, len(keys)+2)
+	for i, k := range keys {
 		if k.Enum != nil {
 			dst = append(dst, &enums[i])
 		} else {
@@ -37,7 +80,7 @@ func readLifecycleConfig(ctx context.Context, tx pgx.Tx, tenant, suffix string) 
 	}
 	var c LifecycleConfig
 	dst = append(dst, &c.UpdatedBy, &c.UpdatedAt)
-	err := tx.QueryRow(ctx, `SELECT `+lifecycleCols()+`, updated_by, updated_at
+	err := tx.QueryRow(ctx, `SELECT `+lifecycleCols(keys)+`, updated_by, updated_at
 		FROM agent_lifecycle_config WHERE tenant_id = $1`+suffix, tenant).Scan(dst...)
 	c.Stored = map[string]any{}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -46,7 +89,7 @@ func readLifecycleConfig(ctx context.Context, tx pgx.Tx, tenant, suffix string) 
 	if err != nil {
 		return LifecycleConfig{}, err
 	}
-	for i, k := range LifecycleKeys {
+	for i, k := range keys {
 		switch {
 		case nums[i] != nil:
 			c.Stored[k.Key] = int(*nums[i])
@@ -60,9 +103,10 @@ func readLifecycleConfig(ctx context.Context, tx pgx.Tx, tenant, suffix string) 
 
 func (s *Postgres) AgentLifecycleConfig(ctx context.Context, tenant string) (LifecycleConfig, error) {
 	var c LifecycleConfig
+	keys := s.lifecycleKeysIn(ctx)
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
-		c, err = readLifecycleConfig(ctx, tx, tenant, "")
+		c, err = readLifecycleConfig(ctx, tx, keys, tenant, "")
 		return err
 	})
 	return c, err
@@ -72,6 +116,14 @@ func (s *Postgres) PatchAgentLifecycleConfig(ctx context.Context, tenant string,
 	if k, why := CheckLifecyclePatch(p); k != "" {
 		return LifecycleConfig{}, LifecycleConfig{}, fmt.Errorf("%w: %s %s", ErrBadLifecycleKey, k, why)
 	}
+	keys := s.lifecycleKeysIn(ctx)
+	if len(keys) < len(LifecycleKeys) {
+		for _, k := range LifecycleKeys {
+			if _, named := p[k.Key]; named && k.Lifetime {
+				return LifecycleConfig{}, LifecycleConfig{}, fmt.Errorf("%w: %s is not in this database yet (rdb 0145)", ErrBadLifecycleKey, k.Key)
+			}
+		}
+	}
 	now = now.UTC().Truncate(time.Microsecond)
 	var old, cur LifecycleConfig
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -80,12 +132,12 @@ func (s *Postgres) PatchAgentLifecycleConfig(ctx context.Context, tenant string,
 			return err
 		}
 		var err error
-		if old, err = readLifecycleConfig(ctx, tx, tenant, " FOR UPDATE"); err != nil {
+		if old, err = readLifecycleConfig(ctx, tx, keys, tenant, " FOR UPDATE"); err != nil {
 			return err
 		}
 		sets := []string{"updated_by = $2", "updated_at = $3"}
 		args := []any{tenant, by, now}
-		for _, k := range LifecycleKeys { // fixed order, so the statement is stable
+		for _, k := range keys { // fixed order, so the statement is stable
 			v, named := p[k.Key]
 			if !named {
 				continue
@@ -97,7 +149,7 @@ func (s *Postgres) PatchAgentLifecycleConfig(ctx context.Context, tenant string,
 			` WHERE tenant_id = $1`, args...); err != nil {
 			return err
 		}
-		if cur, err = readLifecycleConfig(ctx, tx, tenant, ""); err != nil {
+		if cur, err = readLifecycleConfig(ctx, tx, keys, tenant, ""); err != nil {
 			return err
 		}
 		return insertLifecycleEvent(ctx, tx, tenant, configChange(p, old, cur, by, now))

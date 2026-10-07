@@ -23,19 +23,23 @@ import (
 // LifecycleKey is one config key: its default and its allowed values. A
 // number key (Enum nil) holds an int in Min..Max, ZeroOff admitting 0 ("off")
 // below Min (lane_checkpoint_min: 0, 10..240); an enum key holds one of Enum
-// (seat_fail_action). Default is an int or a string to match.
+// (seat_fail_action). Default is an int or a string to match. A Lifetime key
+// (spec 102 section 11.1, rdb 0145) is fleet-wide: it is read from the
+// operator workspace's row only (ReadLifetimeSettings).
 type LifecycleKey struct {
-	Key     string   `json:"key"`
-	Default any      `json:"default"`
-	Min     int      `json:"min,omitempty"`
-	Max     int      `json:"max,omitempty"`
-	ZeroOff bool     `json:"zero_off,omitempty"`
-	Enum    []string `json:"enum,omitempty"`
+	Key      string   `json:"key"`
+	Default  any      `json:"default"`
+	Min      int      `json:"min,omitempty"`
+	Max      int      `json:"max,omitempty"`
+	ZeroOff  bool     `json:"zero_off,omitempty"`
+	Enum     []string `json:"enum,omitempty"`
+	Lifetime bool     `json:"lifetime,omitempty"`
 }
 
-// LifecycleKeys is the ONLY place the defaults live (spec 063 section 11); a
-// stored NULL means this default. Each range is rdb 0105's CHECK on the
-// column of the same name (TestLifecycleKeysPinRdbChecks).
+// LifecycleKeys is the ONLY place the defaults live (spec 063 section 11,
+// spec 102 section 11.1); a stored NULL means this default. Each range is the
+// CHECK on the column of the same name, rdb 0105 or (Lifetime) rdb 0145
+// (TestLifecycleKeysPinRdbChecks).
 var LifecycleKeys = []LifecycleKey{
 	{Key: "lane_restart_ctx_k", Default: 400, Min: 100, Max: 950},
 	{Key: "lane_restarts_before_split", Default: 2, Min: 1, Max: 5},
@@ -48,6 +52,50 @@ var LifecycleKeys = []LifecycleKey{
 	{Key: "seat_fail_action", Default: "compact", Enum: []string{"compact", "respawn"}},
 	{Key: "lane_restart_wall_min", Default: 0, Min: 10, Max: 240, ZeroOff: true},
 	{Key: "lane_checkpoint_min", Default: 0, Min: 10, Max: 240, ZeroOff: true},
+	{Key: "restart_max_per_hour", Default: 3, Min: 1, Max: 10, Lifetime: true},
+	{Key: "rebirth_max", Default: 7, Min: 1, Max: 50, Lifetime: true},
+	{Key: "task_restart_max", Default: 12, Min: 1, Max: 100, Lifetime: true},
+	{Key: "stuck_min", Default: 10, Min: 2, Max: 60, Lifetime: true},
+	{Key: "box_down_min", Default: 2, Min: 1, Max: 30, Lifetime: true},
+}
+
+// ReadLifetimeSettings is the value in force of every Lifetime key (spec 102
+// section 11.1): the operator workspace's stored value, else the default. The
+// operator workspace is the flagged one (OperatorFlag), else fallbackOp (the
+// hub's cnf); with neither, or a store that keeps no lifecycle config, every
+// key is its default. Another workspace's row is never read. op is the
+// workspace the values came from ("" = defaults only).
+func ReadLifetimeSettings(ctx context.Context, st any, fallbackOp string) (vals map[string]any, op string, err error) {
+	vals = map[string]any{}
+	for _, k := range LifecycleKeys {
+		if k.Lifetime {
+			vals[k.Key] = k.Default
+		}
+	}
+	op = fallbackOp
+	if f, ok := st.(OperatorFlag); ok {
+		id, err := f.OperatorTenant(ctx)
+		if err != nil {
+			return vals, "", err
+		}
+		if id != "" {
+			op = id
+		}
+	}
+	al, ok := st.(AgentLifecycle)
+	if op == "" || !ok {
+		return vals, "", nil
+	}
+	c, err := al.AgentLifecycleConfig(ctx, op)
+	if err != nil {
+		return vals, "", err
+	}
+	for k, v := range c.Effective() {
+		if _, lifetime := vals[k]; lifetime {
+			vals[k] = v
+		}
+	}
+	return vals, op, nil
 }
 
 // LifecycleKeyByName finds a key of LifecycleKeys.

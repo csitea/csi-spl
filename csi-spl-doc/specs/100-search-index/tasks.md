@@ -85,8 +85,10 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T002 P1: rdb S1r: role, policy, btree_gin, GIN, function
 
+- Status: **done** (2026-10-07): `rdb/0143_messages_search_index.sql`;
+  owner go on record (t1 0de14fdf msg 7ff43a97).
 - Lane: **rdb**. Phase P1. Q1 answered S1r (owner order, "as it is").
-- Files: `rdb/0140_messages_search_index.sql` (new; number at rebase),
+- Files: `rdb/0143_messages_search_index.sql` (new; numbered at rebase),
   `roles/runtime-grants.sql` (EXECUTE on `spool_search_candidates` to the
   runtime), `store/search_index_migrate_test.go` (new).
 - What: exactly spec section 9 P1 and 5.1: NOLOGIN NOBYPASSRLS

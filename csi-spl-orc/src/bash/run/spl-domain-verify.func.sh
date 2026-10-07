@@ -53,10 +53,11 @@ do_spl_domain_verify() {
     token="$(gcloud auth print-access-token --account="$account" \
       --scopes=https://www.googleapis.com/auth/siteverification 2>/dev/null)"
     [[ -n "$token" ]] || { do_log "FATAL no siteverification access token for $account"; exit 1; }
+    # The bearer rides on stdin (-K -), never on curl's argv where ps shows it.
     site="{\"site\":{\"type\":\"INET_DOMAIN\",\"identifier\":\"$domain\"}"
 
     if [[ "${LIST:-0}" == 1 ]]; then
-      out="$(curl -sS --connect-timeout 10 --max-time 30 -H "Authorization: Bearer $token" "$api/webResource")" || exit 1
+      out="$(curl -sS --connect-timeout 10 --max-time 30 -K - "$api/webResource" <<<"header = \"Authorization: Bearer $token\"")" || exit 1
       jq -r '.items[]?.site.identifier' <<<"$out"
       jq -e '.error' <<<"$out" >/dev/null 2>&1 && { do_log "FATAL $(jq -c '.error.message' <<<"$out")"; exit 1; }
       do_log "OK listed the web resources $account owns"
@@ -64,8 +65,8 @@ do_spl_domain_verify() {
     fi
 
     if [[ "${VERIFY:-0}" == 1 ]]; then
-      out="$(curl -sS --connect-timeout 10 --max-time 30 -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
-        "$api/webResource?verificationMethod=DNS_CNAME" -d "${site}}")" || exit 1
+      out="$(curl -sS --connect-timeout 10 --max-time 30 -X POST -K - -H "Content-Type: application/json" \
+        "$api/webResource?verificationMethod=DNS_CNAME" -d "${site}}" <<<"header = \"Authorization: Bearer $token\"")" || exit 1
       jq -e --arg a "$account" '.owners | index($a)' <<<"$out" >/dev/null 2>&1 || {
         do_log "FATAL $account is not an owner of $domain: $(jq -c '.error.message // .' <<<"$out")"
         exit 1
@@ -74,8 +75,8 @@ do_spl_domain_verify() {
       exit 0
     fi
 
-    out="$(curl -sS --connect-timeout 10 --max-time 30 -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
-      "$api/token" -d "${site},\"verificationMethod\":\"DNS_CNAME\"}")" || exit 1
+    out="$(curl -sS --connect-timeout 10 --max-time 30 -X POST -K - -H "Content-Type: application/json" \
+      "$api/token" -d "${site},\"verificationMethod\":\"DNS_CNAME\"}" <<<"header = \"Authorization: Bearer $token\"")" || exit 1
     local tok src tgt
     tok="$(jq -r '.token // ""' <<<"$out")"
     read -r src tgt <<<"$tok"

@@ -192,13 +192,14 @@ spl_claim_tag_api() {
   SPL_CLAIM_ERR=""
   do_require_bin curl || { SPL_CLAIM_ERR="curl not found"; return 1; }
   tmp="$(mktemp)"
+  # The bearer rides on stdin (-K -), never on curl's argv where ps shows it.
   code="$(curl -sS --connect-timeout 10 --max-time 30 -o "$tmp" -w '%{http_code}' \
     -X POST \
-    -H "Authorization: Bearer $token" \
+    -K - \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     "https://api.github.com/repos/$owner_repo/git/refs" \
-    -d "{\"ref\":\"refs/tags/$tag\",\"sha\":\"$sha\"}" 2>>"$tmp")"
+    -d "{\"ref\":\"refs/tags/$tag\",\"sha\":\"$sha\"}" 2>>"$tmp" <<<"header = \"Authorization: Bearer $token\"")"
   SPL_CLAIM_ERR="$(cat "$tmp")"; rm -f "$tmp"
   case "$code" in
     201) return 0 ;;

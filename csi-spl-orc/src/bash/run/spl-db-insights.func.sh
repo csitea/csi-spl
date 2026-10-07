@@ -35,8 +35,9 @@ do_spl_db_insights() {
 
   # One aligned point per series over the whole window: ALIGN_DELTA on a
   # cumulative distribution gives the calls and the latency sum inside it.
+  # The bearer rides on stdin (-K -), never on curl's argv where ps shows it.
   curl -s -G "https://monitoring.googleapis.com/v3/projects/$SPL_PROJECT/timeSeries" \
-    -H "Authorization: Bearer $tok" \
+    -K - <<<"header = \"Authorization: Bearer $tok\"" \
     --connect-timeout 10 --max-time 60 \
     --data-urlencode "filter=metric.type=\"cloudsql.googleapis.com/database/postgresql/insights/perquery/latencies\" AND resource.labels.resource_id=\"$SPL_PROJECT:$SPL_SQL_INSTANCE\"" \
     --data-urlencode "interval.startTime=$since" \

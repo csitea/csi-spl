@@ -20,8 +20,9 @@
 //     (62 px in a 44 px field, n = 2); reported to the orchestrator in topic
 //     c893c3a9 - the font is not to shrink. Remove the entry once fixed.
 //   desktop (1440x900): /channel/alerts keeps the key-hint placeholder.
-//   T005 (FR-001, FR-002), the target chip on the phone dock: see chipCase
-//     below (AC1, AC2 at 390 and 360; AC3's multi-line check at 360).
+//   T005 (FR-001, FR-002, AC3), NO target chip on the phone dock (owner msg
+//     b2e7c197) and the send target unchanged: see chipCase below (390, 360;
+//     the multi-line check at 360); the desktop chip stays (chipDesktop).
 //   T003 (FR-004, FR-005), the phone Search button: see searchCase below
 //     (AC5 at 390 and 360; the placeholder backstop at 360).
 //
@@ -169,21 +170,29 @@ async function desktopCase(browser) {
   await p.close()
 }
 
-/* ---- 085 T005 (FR-001, FR-002): the target chip on the phone dock ----
+/* ---- 085 T005 (FR-001, FR-002, AC3): NO target chip on the phone dock ----
+ * Owner (HUM-10, t1 842e581f, msg b2e7c197-ca37-489a-899d-20f4b946d120): "this
+ * small control, which says "Reply" (this bubble-like text), should be
+ * removed. It doesn't fit the mobile interface." It replaces "Chip 2" (msg
+ * 0b5cc9db) and the 9-character cut (msg 89704e48) on the phone only.
  *   phone (390x844 and 360x780, touch), /channel/alerts:
- *     AC1 tap the box (level 2): the chip reads "#alerts" before any typing;
- *         type "x": still "#alerts"; tap a card (level 3), tap the box: the
- *         chip starts "Reply", at most 9 characters + an ellipsis, its full
- *         words in title and aria-label
- *     AC2 in each of those states the chip's rect lies inside the field's,
- *         and no text in the composer sits above the field (owner dd98f8d7)
- *     AC3 (360 only) type 60 characters on #alerts: the field turns
- *         multi-line (t1 26282b6e, owner pick "Chip 2", msg 0b5cc9db) - the
- *         chip sits on a row above the text, every line starts at the
- *         field's inline start, and the text spans the field's full width
- *     CONTROL: before T005 the docked box drew no chip (AC1 fails), and the
- *     one-line layout's chip indent (text-indent = the chip's width) starts
- *     line 1 after the chip - the line-1 check bites. */
+ *     AC1 the box unfocused, tapped, with "x" typed (level 2), and tapped
+ *         with a topic open (level 3): no [data-test=composer-target-chip]
+ *         is drawn in the composer
+ *     AC2 in each of those states no text sits above the field (dd98f8d7),
+ *         and the text takes the freed width: the textarea's first line
+ *         starts at the field's inline start (no chip indent) and the
+ *         textarea spans the field's inner width less the Search slot
+ *     AC3 (360 only) type 60 characters: no chip, every line of the
+ *         multi-line text starts at the field's inline start
+ *     send target, unchanged without the chip: level 2 -> a new topic
+ *         (is_parent 1, a list card); level 3 -> a reply into the open
+ *         thread (is_parent 0 on its task, drawn in the thread only)
+ *     CONTROL: before this change the focused phone box drew the chip
+ *     ("#alerts", "Reply · …") and indented line 1 by its width - AC1 and
+ *     the line-1 check fail there (the 53/53 run on master 20f1b2c9 asserted
+ *     that chip).
+ *   desktop (1440x900): the chip stays - type on #alerts -> "#alerts". */
 function dockChip(p) {
   return p.evaluate((sel) => {
     const vis = (el) => Boolean(el) && el.getClientRects().length > 0
@@ -191,26 +200,29 @@ function dockChip(p) {
     const form = ta && ta.closest('form')
     const field = form && form.querySelector('.omnibox-field')
     if (!field) return null
-    const c = [...field.querySelectorAll('[data-test=composer-target-chip]')].find(vis)
+    const c = [...form.querySelectorAll('[data-test=composer-target-chip]')].find(vis)
     const fr = field.getBoundingClientRect()
+    const fs = getComputedStyle(field)
+    const cs = getComputedStyle(ta)
+    const r = ta.getBoundingClientRect()
     /* any visible text of the composer drawn above the field (AC2) */
     const above = []
     const walk = document.createTreeWalker(form, NodeFilter.SHOW_TEXT)
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       if (!n.textContent.trim() || !vis(n.parentElement)) continue
-      const r = n.parentElement.getBoundingClientRect()
-      if (r.width > 0 && r.height > 0 && r.bottom <= fr.top + 1 && getComputedStyle(n.parentElement).visibility !== 'hidden') above.push(n.textContent.trim().slice(0, 30))
+      const b = n.parentElement.getBoundingClientRect()
+      if (b.width > 0 && b.height > 0 && b.bottom <= fr.top + 1 && getComputedStyle(n.parentElement).visibility !== 'hidden') above.push(n.textContent.trim().slice(0, 30))
     }
-    if (!c) return { chip: null, above, docked: form.classList.contains('composer--dock') }
-    const a = c.getBoundingClientRect()
     return {
       docked: form.classList.contains('composer--dock'),
-      chip: c.textContent.trim(),
-      title: c.getAttribute('title'),
-      aria: c.getAttribute('aria-label'),
-      /* 0.875rem: 14 px at a 16 px root, scaled by the reader's font level */
-      font: parseFloat(getComputedStyle(c).fontSize) / parseFloat(getComputedStyle(document.documentElement).fontSize),
-      inField: a.left >= fr.left - 0.5 && a.right <= fr.right + 0.5 && a.top >= fr.top - 0.5 && a.bottom <= fr.bottom + 0.5,
+      chip: c ? c.textContent.trim() : null,
+      hasChipClass: field.classList.contains('has-target-chip'),
+      indent: parseFloat(cs.textIndent) || 0,
+      fieldStart: Math.round(fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft)),
+      textStart: Math.round(r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft) + (parseFloat(cs.textIndent) || 0)),
+      glyph: vis(form.querySelector('[data-test=composer-mode-glyph]')),
+      taW: Math.round(r.width),
+      fieldInner: Math.round(fr.width - parseFloat(fs.borderLeftWidth) - parseFloat(fs.borderRightWidth) - parseFloat(fs.paddingLeft) - parseFloat(fs.paddingRight)),
       above,
       level: document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || '',
     }
@@ -219,19 +231,15 @@ function dockChip(p) {
 
 /** AC3: where the textarea's lines start, from a mirror div in the field's
  *  own font, width, padding and text-indent (a textarea's lines cannot be
- *  measured directly), plus the field, chip and textarea rects. `indent`
- *  gives the mirror the one-line layout's chip indent (the CONTROL). */
-function lineStarts(p, mode = '') {
-  return p.evaluate((sel, how) => {
+ *  measured directly). */
+function lineStarts(p) {
+  return p.evaluate((sel) => {
     const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
-    const chip = ta && ta.closest('.omnibox-field')?.querySelector('[data-test=composer-target-chip]')
-    if (!ta || !chip) return null
+    if (!ta) return null
     const cs = getComputedStyle(ta)
     const r = ta.getBoundingClientRect()
     const m = document.createElement('div')
     for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'paddingLeft', 'paddingRight', 'paddingTop', 'textIndent', 'boxSizing', 'borderLeftWidth', 'borderRightWidth', 'wordSpacing', 'direction']) m.style[k] = cs[k]
-    const c = chip.getBoundingClientRect()
-    if (how === 'indent') m.style.textIndent = `${c.right - (r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft))}px`
     Object.assign(m.style, { position: 'fixed', left: `${r.left}px`, top: '0px', width: `${r.width}px`, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', borderStyle: 'solid', borderColor: 'transparent', visibility: 'hidden' })
     m.textContent = ta.value
     document.body.appendChild(m)
@@ -243,27 +251,39 @@ function lineStarts(p, mode = '') {
       if (!tops.has(k) || rect.left < tops.get(k)) tops.set(k, rect.left)
     }
     m.remove()
-    const lines = [...tops.entries()].sort((x, y) => x[0] - y[0]).map(([, left]) => Math.round(left))
     const f = ta.closest('.omnibox-field')
     const fs = getComputedStyle(f)
     const fr = f.getBoundingClientRect()
     return {
-      lines,
+      lines: [...tops.entries()].sort((x, y) => x[0] - y[0]).map(([, left]) => Math.round(left)),
       multiline: f.getAttribute('data-multiline') === 'true',
-      padStart: Math.round(r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft)),
       fieldStart: Math.round(fr.left + parseFloat(fs.borderLeftWidth) + parseFloat(fs.paddingLeft)),
-      fieldInner: Math.round(fr.width - parseFloat(fs.borderLeftWidth) - parseFloat(fs.borderRightWidth) - parseFloat(fs.paddingLeft) - parseFloat(fs.paddingRight)),
-      taWidth: Math.round(r.width),
-      chipRight: Math.round(c.right),
-      chipBottom: Math.round(c.bottom),
-      textTop: Math.round(r.top + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop)),
-      indent: cs.textIndent,
+      chip: Boolean(f.querySelector('[data-test=composer-target-chip]')),
     }
-  }, TA, mode)
+  }, TA)
+}
+
+/** The row this page sent, found by its text, and where it is drawn. */
+function sentRow(p, body) {
+  return p.evaluate((needle) => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia.state.value
+    const pools = [s.channel && s.channel.messages, s['live-pane'] && s['live-pane'].messages].filter(Array.isArray)
+    const m = pools.flat().find((x) => String(x.body || '').includes(needle))
+    if (!m) return null
+    const q = `article.msg[data-msg-id="${CSS.escape(String(m.msg_id))}"]`
+    return {
+      task_id: m.task_id,
+      parent_task_id: m.parent_task_id || '',
+      is_parent: m.is_parent,
+      list: document.querySelectorAll(`.spool-main ${q}`).length,
+      thread: [...document.querySelectorAll(`aside.live-pane ${q}`)].filter((el) => el.getClientRects().length > 0).length,
+      openThread: (s.topic && s.topic.open && s.topic.parentTaskId) || (s['live-pane'] && s['live-pane'].taskId) || '',
+    }
+  }, body)
 }
 
 async function chipCase(browser, width, height) {
-  const tag = `${width}px chip`
+  const tag = `${width}px no-chip`
   const vp = { width, height, isMobile: true, hasTouch: true }
   const { p, errors } = await open(browser, vp, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
   const tapBox = async () => {
@@ -275,39 +295,52 @@ async function chipCase(browser, width, height) {
     await p.touchscreen.tap(r.x, r.y)
     await sleep(400)
   }
-  const ac2 = (s) => Boolean(s && s.inField && s.above.length === 0)
+  const tapSend = async () => {
+    const r = await p.evaluate((sel) => {
+      const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+      const b = [...ta.closest('form').querySelectorAll('[data-testid=send]')].find((el) => el.getClientRects().length > 0)
+      const q = b.getBoundingClientRect()
+      return { x: Math.round(q.left + q.width / 2), y: Math.round(q.top + q.height / 2) }
+    }, TA)
+    await p.touchscreen.tap(r.x, r.y)
+    await sleep(900)
+  }
+  /* no chip, nothing above the field, line 1 at the field's start (a mode
+     glyph keeps its own 24 px), the textarea the field's width less the
+     44 px Search slot it pads at its end */
+  const free = (s) => Boolean(s && s.docked && s.chip === null && !s.hasChipClass && s.indent === 0 && s.above.length === 0
+    && s.textStart - s.fieldStart <= (s.glyph ? 25 : 1) && s.taW >= s.fieldInner - 1)
 
   const s0 = await dockChip(p)
-  ok(`${tag} unfocused empty box: no chip`, Boolean(s0 && s0.docked && s0.chip === null), s0)
+  ok(`${tag} unfocused empty box: no chip, the text field full width`, free(s0), s0)
   await tapBox()
   const s1 = await dockChip(p)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-focus.png`) })
-  ok(`${tag} AC1 tap the box (level 2): the chip reads "#alerts" before typing, 0.875rem`, Boolean(s1 && s1.level === '2' && s1.chip === '#alerts' && s1.title === '#alerts' && s1.aria === '#alerts' && s1.font === 0.875), s1)
-  ok(`${tag} AC2 focused: the chip is inside the field, no text above it`, ac2(s1), s1)
+  ok(`${tag} AC1/AC2 tap the box (level 2): no chip, no text above, the text field full width`, Boolean(free(s1) && s1.level === '2'), s1)
   await p.keyboard.type('x')
   await sleep(200)
   const s2 = await dockChip(p)
-  ok(`${tag} AC1 type "x": still "#alerts"`, Boolean(s2 && s2.chip === '#alerts'), s2)
-  ok(`${tag} AC2 with text: inside the field, no text above it`, ac2(s2), s2)
+  ok(`${tag} AC1/AC2 type "x": still no chip, the text from the field's start`, free(s2), s2)
 
   if (width === 360) {
     await p.keyboard.type(' ' + 'abcd efgh '.repeat(6).slice(0, 58))
     await sleep(300)
     const l = await lineStarts(p)
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-wrap.png`) })
-    const ac3 = (x) => Boolean(x && x.multiline && x.lines.length >= 2 && x.chipBottom <= x.textTop + 1
-      && x.lines.every((left) => Math.abs(left - x.fieldStart) <= 1) && x.taWidth >= x.fieldInner - 1)
-    ok(`${tag} AC3 60 characters: multi-line, the chip on a row above the text, every line from the field's start, full width`, ac3(l), l)
-    const ctl = await lineStarts(p, 'indent')
-    ok(`${tag} CONTROL the one-line chip indent (text-indent = chip width) starts line 1 after the chip - AC3 fails`, Boolean(ctl && ctl.lines.length >= 2 && ctl.lines[0] >= ctl.chipRight - 1 && !ac3(ctl)), ctl)
+    ok(`${tag} AC3 60 characters: no chip, every line from the field's start`,
+      Boolean(l && !l.chip && l.lines.length >= 2 && l.lines.every((left) => Math.abs(left - l.fieldStart) <= 1)), l)
   }
   await p.evaluate((sel) => {
     const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
     ta.value = ''
     ta.dispatchEvent(new Event('input', { bubbles: true }))
-    ta.blur()
   }, TA)
-  await sleep(300)
+  await sleep(200)
+  const fresh = `c434 new topic ${width} ${Date.now()}`
+  await p.keyboard.type(fresh)
+  await tapSend()
+  const r1 = await sentRow(p, fresh)
+  ok(`${tag} send at level 2 is a new topic in #alerts (is_parent 1, a list card)`, Boolean(r1 && r1.is_parent === 1 && r1.list === 1), r1)
 
   const card = await firstCard(p)
   await p.touchscreen.tap(card.x, card.y)
@@ -315,10 +348,29 @@ async function chipCase(browser, width, height) {
   await tapBox()
   const s3 = await dockChip(p)
   if (SHOTS) await p.screenshot({ path: join(SHOTS, `phone-composer-target-${width}-chip-reply.png`) })
-  const capped = (s) => Array.from(s.replace(/…$/, '')).length <= 9
-  ok(`${tag} AC1 a topic open (level 3), tap the box: the chip reads "Reply", cut to 9, full words in title/aria-label`, Boolean(s3 && s3.level === '3' && s3.chip.startsWith('Reply') && capped(s3.chip) && s3.title.startsWith('Reply · ') && s3.aria === s3.title && s3.title.startsWith(s3.chip.replace(/…$/, ''))), s3)
-  ok(`${tag} AC2 level 3: inside the field, no text above it`, ac2(s3), s3)
+  ok(`${tag} AC1/AC2 a topic open (level 3), tap the box: no "Reply" chip, the text field full width`, Boolean(free(s3) && s3.level === '3'), s3)
+  const reply = `c434 reply ${width} ${Date.now()}`
+  await p.keyboard.type(reply)
+  await tapSend()
+  const r2 = await sentRow(p, reply)
+  ok(`${tag} send at level 3 replies into the open thread (is_parent 0 on its task, drawn there only)`,
+    Boolean(r2 && r2.openThread && r2.is_parent === 0 && (r2.task_id === r2.openThread || r2.parent_task_id === r2.openThread) && r2.thread === 1 && r2.list === 0), r2)
   ok(`${tag} no page error`, errors.length === 0, errors)
+  await p.close()
+}
+
+async function chipDesktop(browser) {
+  const { p, errors } = await open(browser, { width: 1440, height: 900 }, '/channel/alerts', '.spool-main article.msg[data-msg-id]')
+  await p.focus(TA)
+  await p.keyboard.type('x')
+  await sleep(300)
+  const c = await p.evaluate((sel) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    const el = ta && [...ta.closest('form').querySelectorAll('[data-test=composer-target-chip]')].find((e) => e.getClientRects().length > 0)
+    return el ? { chip: el.textContent.trim(), title: el.getAttribute('title') } : null
+  }, TA)
+  ok('1440px the desktop chip stays: type on #alerts -> "#alerts" (080 FR-006, 085 FR-008)', Boolean(c && c.chip === '#alerts' && c.title === '#alerts'), c)
+  ok('1440px chip: no page error', errors.length === 0, errors)
   await p.close()
 }
 /* ---- end 085 T005 ---- */
@@ -487,6 +539,7 @@ try {
   await searchCase(browser, 390, 844)
   await searchCase(browser, 360, 780)
   await searchDesktop(browser)
+  await chipDesktop(browser)
   await desktopCase(browser)
 } finally {
   await browser.close()

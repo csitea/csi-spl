@@ -13,9 +13,12 @@
 //     2 level 1: Back is shown but disabled (nothing below to go back to)
 //     3 level 3: the dock's Back lands where the top bar's "<" lands
 //     4 level 2: the same, 2 -> 1
+//     5b a topic open with a draft: no target chip in the dock (085 AC3,
+//       owner msg b2e7c197), so the row keeps Back | Attach | Send only
 //     5 the omnibox focused on a short (keyboard-up) viewport: Back is on
 //       screen, the topmost element at its centre, and a tap steps back
-//   desktop (1440x900): 6 no Back in the row, Attach + Send as before
+//   desktop (1440x900): 6 no Back in the row, Attach + Send as before;
+//     6b a draft on /lobby still draws the target chip ("#lobby")
 //
 // Run:
 //   pnpm run test:e2e dock-buttons
@@ -175,6 +178,7 @@ async function phone(browser) {
       onTop: Boolean(hit && b.contains(hit)),
       focused: document.activeElement?.tagName === 'TEXTAREA',
       disabled: b.disabled,
+      chip: [...document.querySelectorAll('form.composer [data-test=composer-target-chip]')].some((e) => e.getClientRects().length > 0),
     }
   })
   if (SHOTS) await p.screenshot({ path: join(SHOTS, 'dock-buttons-390-omnibox-focused.png') })
@@ -182,6 +186,7 @@ async function phone(browser) {
   ok('390px 5 omnibox focused, short viewport: Back on screen, on top, and a tap steps 3 -> 2',
     Boolean(kb && kb.focused && kb.onTop && !kb.disabled && kb.top >= 0 && kb.bottom <= kb.vh && kb.bottom > kb.vh - 120 && kbBack.level === '2'),
     { kb, kbBack })
+  ok('390px 5b a topic open with a draft: no target chip in the dock (085 AC3)', Boolean(kb && kb.focused && kb.chip === false), kb)
   ok('390px no page error', errors.length === 0, errors)
   await p.close()
 }
@@ -195,6 +200,14 @@ async function desktop(browser) {
   const r = await rowFacts(p)
   ok('1440px 6 CONTROL: the desktop row is unchanged - Attach + Send, no Back, no camera',
     Boolean(r && !r.docked && !r.camera && r.buttons.map((b) => b.id).join(',') === 'attach,send'), r)
+  await p.focus('form.composer.omnibox--global textarea')
+  await p.keyboard.type('x')
+  await sleep(300)
+  const chip = await p.evaluate(() => {
+    const el = [...document.querySelectorAll('form.composer.omnibox--global [data-test=composer-target-chip]')].find((e) => e.getClientRects().length > 0)
+    return el ? el.textContent.trim() : null
+  })
+  ok('1440px 6b a draft on /lobby still draws the target chip "#lobby"', chip === '#lobby', { chip })
   await p.close()
 }
 

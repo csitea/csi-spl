@@ -9,11 +9,11 @@
 //       textarea's inline-start padding equals the no-glyph padding, the
 //       caret stays in the box at the end of the text
 //     3 back to one short line: the indent returns, the text starts after
-//       the chip, and the layout holds. "Short" is measured: on the phone
-//       dock the cut chip leaves ~7 px beside it under DejaVu Sans (the sat
-//       runners), so "hi" (16.4 px) really is a wrap there; the check then
-//       takes "i" for the one-line case and asserts "hi" settles multi-line
-//       (3b) instead of flipping (wf10 37489221858, 2026-10-06)
+//       the chip, and the layout holds. "Short" is measured: a narrow room
+//       beside a chip can make "hi" a real wrap (wf10 37489221858,
+//       2026-10-06, the phone chip since removed by owner msg b2e7c197); the
+//       check then takes "i" for the one-line case and asserts "hi" settles
+//       multi-line (3b) instead of flipping
 //     4 a long line with no newline wraps into the same layout
 //   desktop 1440, composer_position bottom: the same two-line layout
 //   phone 390, the dock: the same two-line layout

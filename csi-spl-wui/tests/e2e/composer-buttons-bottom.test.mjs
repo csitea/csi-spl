@@ -14,10 +14,13 @@
 //       from the bar's right edge (8 px padding + the 8 px move), every
 //       button the topmost element at its centre
 //     3 Attach still opens the picker; Send still sends (the box clears)
+//     3b a topic open, a draft typed: no target chip in the bar (085 AC3,
+//       owner msg b2e7c197: the "Reply" chip is removed on the phone)
 //   desktop (1440x900), Settings -> "at the bottom" (composer_position):
 //     4 Attach then GO right of the field, GO's right edge 20 px (19..21)
 //       from the bar's right edge (12 px padding + the 8 px move)
 //     5 Enter still sends from there, and Attach still opens the picker
+//     5b a draft there still draws the target chip ("#alerts")
 //   desktop, default (the omnibox in the TOP bar): 6 CONTROL - not a bottom
 //     bar, so Attach + Send stay right of the field with no extra move
 //
@@ -120,6 +123,20 @@ async function sends(p, how) {
   return false
 }
 
+/** 085 AC3 (owner msg b2e7c197): with a draft in the box, is a target chip drawn? */
+async function draftChip(p, sel) {
+  await p.focus(`${sel} textarea`)
+  await p.keyboard.type('x')
+  await sleep(300)
+  const chip = await p.evaluate((sel) => {
+    const el = [...document.querySelectorAll(`${sel} [data-test=composer-target-chip]`)].find((e) => e.getClientRects().length > 0)
+    return el ? el.textContent.trim() : null
+  }, sel)
+  await p.keyboard.press('Backspace')
+  await sleep(200)
+  return chip
+}
+
 /** Adopt a member session with the composer position picked (omnibox-bottom.test.mjs's way). */
 const setPosition = (p, pos) => p.evaluate((pos) => {
   const session = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia?._s.get('session')
@@ -185,6 +202,8 @@ async function phone(browser) {
   await sleep(1200)
   where.topic = await layout(p)
   await shot(p, '390-topic')
+  const topicChip = await draftChip(p, FORM)
+  ok('390px 3b a topic open, a draft typed: no target chip in the bar (085 AC3)', topicChip === null, { chip: topicChip })
   await p.goto(`${server.base}/`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await sleep(1000)
   const dm = await p.evaluate(() => [...document.querySelectorAll('a[href^="/dm/"]')].map((a) => a.getAttribute('href'))[0] || null)
@@ -227,6 +246,8 @@ async function desktop(browser) {
   await shot(p, '1440-bottom')
   ok(`1440px 4 bottom dock: Attach then GO at the bar's right end, GO ${DESKTOP_END} px in`, trails(g, DESKTOP_END) && g.bar.b >= g.vh - 4, g)
 
+  const deskChip = await draftChip(p, '#spl-omnibox-dock form.composer')
+  ok('1440px 5b bottom dock: a draft still draws the target chip "#alerts"', deskChip === '#alerts', { chip: deskChip })
   const picker = await opensPicker(p, false)
   const sent = await sends(p, 'enter')
   const clicked = await sends(p, 'click')

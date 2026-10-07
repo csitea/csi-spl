@@ -12,6 +12,9 @@
 //     each 44 px, and Attach is the element on top at its own centre and at
 //     its left edge (Back reaches 2 px under it)
 //   4 the field's left edge stays 8 px from the viewport's left edge
+//   6 a channel open, the box focused with a draft: no target chip (085
+//     AC3, owner msg b2e7c197) and the field, Back, Attach and Send keep
+//     every edge measured empty (the text takes the field, nothing moves)
 // CONTROL: the old CSS fails 1 and 2 (50 and 24).
 //
 // Run:
@@ -85,6 +88,7 @@ const geometry = (p) => p.evaluate(() => {
     glyph: box('.dock-back__glyph'),
     attach: box('[data-testid=attach]'),
     send: box('.composer-go'),
+    chip: [...f.querySelectorAll('[data-test=composer-target-chip]')].some((e) => e.getClientRects().length > 0),
   }
 })
 
@@ -119,6 +123,20 @@ async function place(browser, width, height, pos) {
       { backL: g.back.left, fieldR: g.field.right, w: g.back.w, hit: g.backHit })
   }
   if (SHOTS && width === 390) await p.screenshot({ path: join(SHOTS, `phone-dock-geometry-${width}-${pos}.png`) })
+  /* 6: level 2 (a channel), empty then focused with a draft */
+  await p.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-testid=dock-back]', { timeout: NAV_TIMEOUT }).catch(() => {})
+  await sleep(600)
+  const e = await geometry(p)
+  await p.focus('form.composer.composer--dock textarea')
+  await p.keyboard.type('x')
+  await sleep(400)
+  const d = await geometry(p)
+  const same = (k) => Boolean(e && d && e[k] && d[k] && near(e[k].left, d[k].left) && near(e[k].right, d[k].right) && near(e[k].w, d[k].w))
+  ok(`${tag} 6 a channel, a draft typed: no target chip, field/Back/Attach/Send unmoved, each 44 px`,
+    Boolean(d && d.chip === false && ['field', 'back', 'attach', 'send'].every(same) && d.back.h >= TAP && d.attach.w >= TAP && d.send.w >= TAP),
+    d && { chip: d.chip, field: [e && e.field, d.field], attach: d.attach && d.attach.left, send: d.send && d.send.right })
+  if (SHOTS && width === 390) await p.screenshot({ path: join(SHOTS, `phone-dock-geometry-${width}-${pos}-draft.png`) })
   ok(`${tag} no page error`, errors.length === 0, errors)
   await p.close()
 }

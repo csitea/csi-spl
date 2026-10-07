@@ -323,9 +323,16 @@ async function newTopicOnce(browser, width, height, mobile) {
   const typed = await cue(p)
   await shot(p, `hash-once-${width}`)
   const chipShown = (typed && typed.glyph && typed.glyph.kind === 'hash' ? '# ' : '') + (typed && typed.targetChip ? typed.targetChip : '')
-  ok(`${tag} HUM-10 typed: the target is exactly "#alerts", no hash glyph and no space before it`,
-    Boolean(typed && typed.mode === 'new' && typed.glyph === null && typed.targetChip === '#alerts' && chipShown === '#alerts' && !/^#\s+#/.test(chipShown)),
-    { chip: typed && typed.targetChip, glyph: typed && typed.glyph, shown: chipShown })
+  /* 085 AC3 (owner msg b2e7c197): the phone dock draws no target chip at all */
+  if (mobile) {
+    ok(`${tag} HUM-10 typed: no hash glyph and no target chip on the phone (085 AC3)`,
+      Boolean(typed && typed.mode === 'new' && typed.glyph === null && typed.targetChip === null),
+      { chip: typed && typed.targetChip, glyph: typed && typed.glyph })
+  } else {
+    ok(`${tag} HUM-10 typed: the target is exactly "#alerts", no hash glyph and no space before it`,
+      Boolean(typed && typed.mode === 'new' && typed.glyph === null && typed.targetChip === '#alerts' && chipShown === '#alerts' && !/^#\s+#/.test(chipShown)),
+      { chip: typed && typed.targetChip, glyph: typed && typed.glyph, shown: chipShown })
+  }
   ok(`${tag} HUM-10 no page error`, errors.length === 0, errors)
   await p.close()
 }

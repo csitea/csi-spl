@@ -7,7 +7,7 @@
 Builds on, and does not repeat:
 [043 the WUI on phones](../043-spool-wui-mobile/spec.md) (the docked composer, D4),
 [022 top-bar search](../022-spool-wui-top-bar-search/spec.md) (`/search` mode, the operator list),
-[080 drafts and the target chip](../080-drafts-and-target-chip/spec.md) (**the chip model**: this spec adds only where it shows on a phone).
+[080 drafts and the target chip](../080-drafts-and-target-chip/spec.md) (**the chip model**: on a phone this spec turns it off, §3.1).
 
 Evidence base: `../../doc/md/mobile-usability-consensus-20261005.md` A2 and build item 2 (agreed by c-246 and g-249),
 `../../doc/md/mobile-usability-ideas-20261004.md` §1.1 task 3, §1.2, §3.5, §3.7, `../../doc/md/mobile-usability-grok-view-20261005.md` A2.
@@ -45,15 +45,14 @@ Mock bundle, tree `7289ef28`, 390x844 and 360x780 with touch, n = 1 per row unle
 
 ## 3. The design
 
-### 3.1 The destination, inside the box (080's chip, on a phone)
+### 3.1 No target chip on a phone
 
-080 FR-006 renders a target chip at the start of the field while the box holds text, "in both omnibox positions" (top and bottom on a desktop). On a phone the box is docked (`composer--dock`), a third case 080 does not name. Here:
+**No chip on the phone** (owner, HUM-10, t1 `842e581f-664e-47c3-8f20-4f8a9e3f4e8c`, msg `b2e7c197-ca37-489a-899d-20f4b946d120`, 2026-10-07): "The whole small control should be removed. I can paste, and the paste works, but this small control, which says "Reply" (this bubble-like text), should be removed. It doesn't fit the mobile interface."
 
-- At <= 820 px the chip shows **inside** the field, right after the mode glyph, never on a line above it (owner `dd98f8d7`).
-- It shows whenever the box has focus or text, not only with text, so the reader sees where Enter goes before typing.
-- It is short: `#alerts`, `@GRK-03`, `Reply`, `New topic`. A 14 px pill of at most 9 characters, then an ellipsis (was 12; owner msg `89704e48-a924-4fe6-b4f0-a8b3b3d7f879`, 2026-10-06: at least 3 characters shorter, so a tap in the middle of the box lands in the text and pasting works). The full target is in its `title` and its accessible name.
-- While the draft fits one line, the chip takes the start of that line (the textarea's `text-indent` is the chip's width). Once the draft is more than one line, the multi-line omnibox (v1.9.2, t1 26282b6e) lifts the mode glyph and the chip onto a row on top of the text, still inside the field; the text then starts at the field's inline start on every line and uses the full field width. Owner pick "Chip 2" (HUM-10, t1 a477c187, msg `0b5cc9db-0fd7-402a-a8af-19cc5e478988`): keep that layout, so the earlier "line 1 indented, line 2 under the chip" rule (Q4) is replaced.
-- It is 080's `chipLabel(target)`, read from the same target `send` uses (080 FR-007). No second label function.
+- At <= 820 px (the docked box, `composer--dock`) the omnibox renders **no** target chip: no `Reply · …`, no `#channel`, no `New topic`, focused or not, one line or many. The text field takes the freed width: line 1 starts at the field's inline start (after the mode glyph, when a thread shows one), with no chip indent.
+- The target stays clear without it: the open thread or channel on screen names it, the placeholder says it (§3.2: `#alerts`, `Reply`), and the mode glyph and the dock's accent edge show a reply. The send target does not change: a reply goes into the open thread, a line on a channel (level 2) starts a new topic there.
+- This replaces, on the phone only, the earlier picks: the chip inside the field on focus or text, the 9-character cut (`PHONE_CHIP_MAX`, owner msg `89704e48`, was 12) and "Chip 2" (msg `0b5cc9db`, the chip on a row on top of a multi-line draft). `phoneChipLabel` is removed.
+- Above 820 px nothing changes: 080's chip (`chipLabel(target)`, 080 FR-006 / FR-007) stays in both desktop positions.
 
 ### 3.2 A short phone placeholder
 
@@ -65,13 +64,13 @@ At <= 820 px the `?` button in the field shows a magnifier icon, keeps its 44 px
 
 1. puts the box in search mode (the same state as typing `/search `: `omnibox--search`, the GO searches),
 2. focuses the field (the keyboard opens) and opens the operator list that `?` opens today,
-3. in search mode the mode glyph shows the magnifier and the chip is hidden (080 §3.3: no chip in search mode).
+3. in search mode the mode glyph shows the magnifier (there is no chip on a phone, §3.1).
 
 A second tap, or clearing the box, leaves search mode. Typing `/search ` still works. No new button: the dock row stays Back, Attach, Send.
 
 ### 3.4 Level 1 searches; it does not post
 
-On level 1 (the section chooser and its list) the box is a search box: placeholder `Search`, mode glyph a magnifier, Enter opens `/search?q=`. It does not post a new topic from a list. To post, the reader opens a channel (level 2), where the chip names it. See Q2.
+On level 1 (the section chooser and its list) the box is a search box: placeholder `Search`, mode glyph a magnifier, Enter opens `/search?q=`. It does not post a new topic from a list. To post, the reader opens a channel (level 2), whose name is on screen and in the placeholder. See Q2.
 
 ## 4. User stories
 
@@ -86,15 +85,15 @@ On level 1 (the section chooser and its list) the box is a search box: placehold
 
 | ID | Description | Status |
 |---|---|---|
-| **FR-001** | At <= 820 px, while the docked box has focus or text and is not in search mode, 080's target chip shows inside the field after the mode glyph; never on a line above the box | Planned |
-| **FR-002** | The phone chip is a 14 px pill of at most 9 characters (12 until owner msg `89704e48`) (`#alerts`, `@GRK-03`, `Reply`, `New topic`), ellipsis after; the full target is its `title` and accessible name; it comes from 080's `chipLabel(target)`. It indents a one-line draft (`text-indent`); a multi-line draft puts the chip on a row on top and the text uses the full field width from its inline start (owner pick msg `0b5cc9db`) | Planned |
+| **FR-001** | At <= 820 px the docked box renders **no** target chip (owner msg `b2e7c197-ca37-489a-899d-20f4b946d120`, §3.1): not on focus, not with text, not on a multi-line draft; never a line above the box either (owner `dd98f8d7`). The send target is unchanged (a reply into the open thread, a new topic on a channel) | Planned |
+| **FR-002** | No chip on the phone (owner msg `b2e7c197-ca37-489a-899d-20f4b946d120`): the text field takes the freed width, line 1 starts at the field's inline start (after the mode glyph, if any) with no chip indent. Replaces the 9-character cut (`PHONE_CHIP_MAX`, msg `89704e48`) and "Chip 2" (msg `0b5cc9db`) on the phone; `phoneChipLabel` is removed. The desktop chip (080 FR-006) stays | Planned |
 | **FR-003** | At <= 820 px the placeholder is the destination only (`#<channel>`, `@<peer>`, `Reply`, `Search` on level 1); no key hints. New i18n keys `composer.phone_placeholder_*` in all 19 locales | Planned |
 | **FR-004** | At <= 820 px the `?` button shows a magnifier, is named "Search", keeps a >= 44 px target, and a tap enters search mode, focuses the field and opens the operator list; a second tap or an empty box leaves search mode | Planned |
 | **FR-005** | The operator list opened from the phone Search button starts with the key hints that left the placeholder | Planned |
 | **FR-006** | On level 1 the docked box is search-only: placeholder `Search`, magnifier glyph, Enter opens `/search?q=<text>`; it never sends a message | Planned |
 | **FR-007** | The dock row stays Back, Attach, Send; no control is added to it, to the top bar, or above the box | Planned |
 | **FR-008** | Above 820 px nothing changes: placeholders, `?`, the chip of 080 and the top bar are as before | Planned |
-| **FR-009** | Help `omnibox-and-navigation.md` §9 drops "The search icon in the top bar opens search as a full-screen sheet" (stale since SPL-1005) and describes the Search button and the chip on a phone | Planned |
+| **FR-009** | Help `omnibox-and-navigation.md` §9 drops "The search icon in the top bar opens search as a full-screen sheet" (stale since SPL-1005) and describes the Search button on a phone (no chip there, §3.1) | Planned |
 
 ## 6. Acceptance scenarios
 
@@ -102,9 +101,9 @@ All e2e run against a generated mock bundle (`BASE_URL=<bundle> pnpm run test:e2
 
 | # | Check / test | Proves |
 |---|---|---|
-| **AC1** | open `#alerts` (level 2), tap the box: the chip reads `#alerts` before any typing; type `x`: still `#alerts`; open a topic (level 3), tap the box: `Reply` | FR-001, FR-002 |
-| **AC2** | in every state of AC1, `getBoundingClientRect()` of the chip lies inside the field's rect, and no element with text sits between the box's top edge and the feed | FR-001, FR-007 |
-| **AC3** | unit (`omnibox-topic`): the phone chip label is `chipLabel(target)` truncated to 9 characters for every row of 080 AC6's target table; e2e at 360: type 60 characters on `#alerts` -> the field is multi-line (`data-multiline="true"`): the marker and the chip are a row on top (chip bottom <= the text's top), every line of text starts at the field's inline start (left edge, no indent), and the textarea spans the field's full inner width. Owner pick "Chip 2", msg `0b5cc9db-0fd7-402a-a8af-19cc5e478988` | FR-002 |
+| **AC1** | at 390 and 360: open `#alerts` (level 2), the box unfocused, tapped, and with `x` typed; open a topic (level 3), tap the box: no `[data-test=composer-target-chip]` in any state; at 1440 a typed line on `#alerts` still shows the chip `#alerts` | FR-001, FR-002 |
+| **AC2** | in every state of AC1 no element with text sits between the box's top edge and the feed, line 1 of the text starts at the field's inline start (no `text-indent`), and the textarea spans the field's inner width; sending at level 2 stores a new topic (`is_parent` 1, a list card) and at level 3 a reply into the open thread (`is_parent` 0 on its task, drawn in the thread only) | FR-001, FR-002, FR-007 |
+| **AC3** | unit (`omnibox-topic`): `chipInfo` returns null while docked, and no `phoneChipLabel`, `PHONE_CHIP_MAX` or phone chip CSS is left; e2e at 360: type 60 characters on `#alerts` -> no chip, every line of text starts at the field's inline start. The dock tests (`phone-composer-target`, `composer-buttons-bottom`, `dock-buttons`, `phone-dock-geometry`, `composer-mode-cue`) assert the chip is absent on the phone with a draft, the dock geometry unmoved (field edges, Back, Attach, Send, each 44 px), and the desktop chip present. Owner msg `b2e7c197-ca37-489a-899d-20f4b946d120`, replacing "Chip 2" (`0b5cc9db`) | FR-002 |
 | **AC4** | the placeholder's `scrollWidth <= clientWidth` on `#alerts`, a DM and a topic, at 360 (it fits) | FR-003 |
 | **AC5** | level 2: tap Search (the magnifier, >= 44x44) -> the form has `omnibox--search`, the field is focused, `search-syntax-panel` is open; type `scaffold`, tap Send -> `/search?q=scaffold`; total taps from level 2: 2 + typing (today: 2 + `/search ` syntax) | FR-004, FR-005 |
 | **AC6** | level 1 (Messages, then Channels, then Flow): the placeholder reads `Search` on each; type `abc`, Enter -> `/search?q=abc`, and the mock feed has no new message | FR-006 |
@@ -116,7 +115,7 @@ All e2e run against a generated mock bundle (`BASE_URL=<bundle> pnpm run test:e2
 
 | with | how |
 |---|---|
-| 080 (c-245, drafts and the chip) | **one chip model**: 080 T005 writes `chipLabel` and the chip block of `MessageComposer.vue`; this spec's T002 only adds the phone placement and length. 085 T002 depends on 080 T005 |
+| 080 (c-245, drafts and the chip) | **one chip model**: 080 T005 writes `chipLabel` and the chip block of `MessageComposer.vue`; on a phone this spec now turns the chip off (§3.1, owner msg `b2e7c197`) |
 | 080 drafts (and 088, the phone drafts) | none in code: the chip names the place whose draft is in the box |
 | consensus Q1 (the section bar) | independent: the box and its Search stay in the dock wherever the bar goes |
 | 022 search mode | reused, not changed: same `omnibox--search` state, same operator list |
@@ -132,8 +131,8 @@ A search tab or a search screen of its own (consensus Q1 may add one). Changing 
 |---|---|---|
 | **Q1** | Where does the phone Search button live: the `?` slot inside the field, the top bar, or the dock row? | **The `?` slot.** The owner fixed the dock row (`d4bc9db4`) and removed a floating GO (`9b58a27b`); the top bar was emptied for the workspace (SPL-995 E). The `?` is already a 44 px target inside the field, and the operator list it opens is the right help for search |
 | **Q2** | Should level 1 stop posting new topics (FR-006)? | **Yes.** On level 1 the reader sees a list, the label says "Topics" whatever the list is (§2 row 4), and a send there starts a topic in a channel the screen does not show. Posting from a channel (level 2) is one tap away. If the owner wants posting from level 1, the fallback is a chip naming the real target channel |
-| **Q3** | Should the chip show before typing (on focus), or only with text as on desktop (080)? | **On focus, on a phone.** With the placeholder shortened, the chip is the only place that names a DM peer or a topic once the keyboard covers the feed |
-| **Q4** | How wide may the chip be, given the narrow field? | **9 characters at 14 px (~64 px), on line 1, and the text starts under it.** (12 / ~85 px until the owner asked for at least 3 fewer, msg `89704e48-a924-4fe6-b4f0-a8b3b3d7f879`, 2026-10-06, so pasting into the box is easy on a phone.) At 360 px the field's text area is ~108 px (178 minus the 26 px glyph and the 44 px `?`), so line 1 keeps ~23 px and the first typed word usually wraps to line 2 at the full width; the box already grows a line as text is typed. That is the price of naming the target without a line above the box (owner `dd98f8d7`). The alternative, a chip only while the box is empty, names nothing once typing starts, which is the failure 080 §2 row 6 measured. The real-phone pass may tune the cap |
+| **Q3** | Should the chip show before typing (on focus), or only with text as on desktop (080)? | **Superseded: no chip on a phone** (owner msg `b2e7c197-ca37-489a-899d-20f4b946d120`). It was "on focus"; the placeholder and the open thread or channel now name the target |
+| **Q4** | How wide may the chip be, given the narrow field? | **Superseded: no chip on a phone** (owner msg `b2e7c197-ca37-489a-899d-20f4b946d120`), so the field keeps its full width. History: 12 characters, then 9 (msg `89704e48`, 2026-10-06, to make pasting easy), then "Chip 2" on a row on top of a multi-line draft (msg `0b5cc9db`) |
 
 ## 10. Version log
 

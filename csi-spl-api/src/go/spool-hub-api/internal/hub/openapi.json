@@ -2508,6 +2508,39 @@
         ]
       }
     },
+    "/v1/openapi.json": {
+      "get": {
+        "description": "This OpenAPI 3.0.3 document, embedded in the hub, with info.version set to the running hub version (/version). A signed-in member session (spec 104 §4.2).",
+        "operationId": "getOpenapiJson",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: this document (Cache-Control: private, no-cache)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read this API reference",
+        "tags": [
+          "docs"
+        ]
+      }
+    },
     "/v1/operator/fleet-load": {
       "get": {
         "operationId": "getOperatorFleetLoad",

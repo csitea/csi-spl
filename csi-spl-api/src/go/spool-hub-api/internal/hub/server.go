@@ -361,6 +361,7 @@ func (s *Server) Handler() http.Handler {
 	s.routePerfSummary(mux)    // spec 066 L3: GET /v1/admin/perf/summary
 	s.routeReleaseNotes(mux)   // spec 065 L4: /v1/release-notes + the operator ingest
 	s.routeDocs(mux)           // the Docs section: GET /v1/docs/{path...}
+	s.routeOpenAPI(mux)        // spec 104 §4.2: GET /v1/openapi.json
 	s.routeWorkspaceDocs(mux)  // specs/075 Phase 2: /v1/workspace/docs/{path...}
 	s.routeBoxStats(mux)       // rdb 0117: GET /v1/tenant/box-stats
 	mux.HandleFunc("OPTIONS /v1/files", s.filesPreflight)

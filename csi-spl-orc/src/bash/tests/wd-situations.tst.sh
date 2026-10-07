@@ -12,6 +12,8 @@
 #      situation of 6.1 (the scripts read only their context dir)
 #      S3 of spec 102 4.3 (T005): a done marker, a stale one, a rebirth
 #      marker, a gone pane with an open registry row, each with its control
+#      S1 holds while a tool call runs (heartbeat tool + tool_since) under
+#      WD_S1_TOOL_CAP; controls: past the cap, a stale heartbeat, idle, none
 #   2. the false positives of 6.2, each with its control: a 14 min Bash call,
 #      a 50 min Monitor, an in-tool heartbeat with no open tool_use in the
 #      transcript (c-486, idle after a Stop) and an interrupted call, an idle agent with an empty inbox, a stale stub on a
@@ -131,6 +133,22 @@ grep -q '^HIT S1 age=300 prog=unknown ' <<<"$(run_s s1)" && pass "S1 with no pro
 hb idle 600
 grep -q 'prog=unknown' <<<"$(run_s s1)" && fail "S1 control: a known progress still says prog=unknown" || pass "S1 control: a known progress is not prog=unknown"
 
+# S1 tool hold (c-001 2026-10-07 18:35): a Bash call since 330 s, prompts
+# queued behind it (state working, ts fresh), an inbox file unread 265 s: held
+ctx s1h; hb working 330 '| .tool = "Bash" | .tool_since = .progress_ts' 5
+echo "$((T0 - 265)) r.json result c-507@box2" > "$C/inbox"
+[[ "$(run_s s1)" != HIT* ]] && pass "S1 held: Bash running 330 s, a message unread 265 s, no HIT" || fail "S1 held: $(run_s s1)"
+[[ "$(run_s s1)" == "S1 HELD tool=Bash since=330" ]] && pass "S1 held prints 'S1 HELD tool=Bash since=330'" || fail "S1 held line: $(run_s s1)"
+hb working 1000 '| .tool = "Bash" | .tool_since = .progress_ts' 5
+hit "S1 hold control: the same call since 1000 s is past WD_S1_TOOL_CAP" s1
+out="$(WD_S1_TOOL_CAP=1200 run_s s1)"
+[[ "$out" == "S1 HELD "* ]] && pass "S1 WD_S1_TOOL_CAP=1200 holds the 1000 s call" || fail "S1 cap knob: $out"
+hb working 330 '| .tool = "Bash" | .tool_since = .progress_ts' 200
+hit "S1 hold control: the heartbeat itself is 200 s old (past WD_HUNG)" s1
+hb idle 330 '' 5
+hit "S1 hold control: heartbeat idle, the message unread 265 s" s1
+rm -f "$C/heartbeat"
+hit "S1 hold control: no heartbeat, the message unread 265 s" s1
 # S2: the login screen of 2026-10-05 (T001's fixture)
 ctx s2; cp "$FL/login-expired-2026-10-05.pane" "$C/pane"; cp "$FL/login-expired.jsonl" "$C/transcript"
 hit "S2 the 2026-10-05 login screen (transcript's last entry an API error)" s2

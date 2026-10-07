@@ -50,6 +50,7 @@
 # @param WD_TAKEOVER_MAX (optional) - do_spl_wd_takeover's own limit (a seat's request), default 2
 # @param WD_TAKEOVER_RETRY (optional) - seconds after an S3 takeover whose session is dead again before it is retried, default WD_START_WAIT + WD_START_GRACE (300)
 # @param WD_JOBS (optional) - agents checked at once, default 8
+# @param WD_S1_TOOL_CAP (optional) - seconds a running tool call (heartbeat tool + tool_since) holds S1, default 900
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
 # @param WD_ONLY (optional) - space-separated ids: check only these (a drill on scratch ids next to the live loop)
 # @param WD_STATE_DIR (optional) - the state dir (lock, debounces, ctx), default <spool root>/dispatch/wd; another one runs beside the live loop
@@ -124,9 +125,9 @@ spl_wd_init() {
   WD_SHA="$(git -C "$SPL_WD_RUN_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   WD_TICK_SEQ=0 WD_PROGRESS_SEQ=0
   : "${WD_TICKS:=0}" "${WD_TICK:=30}" "${WD_SCRIPT_TIMEOUT:=5}" "${WD_START_GRACE:=180}"
-  : "${WD_TAKEOVER_MAX:=2}" "${WD_JOBS:=8}" "${WD_JOB_WAIT:=120}" "${WD_LOOP_N:=5}" "${RESTART_MAX_PER_HOUR:=3}"
+  : "${WD_TAKEOVER_MAX:=2}" "${WD_JOBS:=8}" "${WD_JOB_WAIT:=120}" "${WD_LOOP_N:=5}" "${RESTART_MAX_PER_HOUR:=3}" "${WD_S1_TOOL_CAP:=900}"
   local k
-  for k in WD_TICKS WD_TICK WD_SCRIPT_TIMEOUT WD_START_GRACE WD_TAKEOVER_MAX WD_JOBS WD_JOB_WAIT WD_LOOP_N RESTART_MAX_PER_HOUR; do
+  for k in WD_TICKS WD_TICK WD_SCRIPT_TIMEOUT WD_START_GRACE WD_TAKEOVER_MAX WD_JOBS WD_JOB_WAIT WD_LOOP_N RESTART_MAX_PER_HOUR WD_S1_TOOL_CAP; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   k="${WD_START_WAIT:-120}"; [[ "$k" =~ ^[0-9]+$ ]] || k=120
@@ -138,7 +139,7 @@ spl_wd_init() {
   WD_FROM="${WD_FROM:-${LEASE_ORCH:-c-001}}"
   WD_SEND="${WD_SEND:-$ROTATE_SEND}"
   WD_BOX="${ROTATE_BOX:-}"
-  export WD_JOB_WAIT WD_LOOP_N WD_BOX
+  export WD_JOB_WAIT WD_LOOP_N WD_BOX WD_S1_TOOL_CAP
   mkdir -p "$WD_DIR/ctx$WD_SFX" || { do_log "FATAL cannot create $WD_DIR"; return 1; }
   spl_wd_peers_conf || return 1
   return 0

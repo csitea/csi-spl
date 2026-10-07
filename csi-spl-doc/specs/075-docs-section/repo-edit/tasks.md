@@ -117,7 +117,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
 
 ### Phase 4: WUI
 
-- [ ] T11 **WUI: Edit, editor, save, author notice** (M).
+- [x] T11 **WUI: Edit, editor, save, author notice** (M). Done `c4a0371b` (c-422, v2.5.2 on dev and prd): `RepoDocEditor` + `RepoDocAuthorNotice` (lazy), store `useRepoEditStore` (last edit per path, for T12's chip), `docs.repoEdit.*` x19; unit `tests/unit/repo-edit.test.mjs`, e2e `tests/e2e/repo-edit.test.mjs` (mock bundle: edit -> notice -> consent -> saved; denied doc and no `docs.write` -> no Edit). AC-02 node gzip n=3: 158391 -> 158406 B. With `enabled` off, tree.json has no `editable` flag, so no Edit shows.
   - **Build**: Edit button on `/docs/repo/<path>` for an editable doc (the hub's `tree.json` says which), the editor (lazy chunk), save with `If-Match`, the 428 notice dialog with the exact text of spec §4.2 (i18n key `docs.repoEdit.authorNotice`, 19 locales), the 409/413/422/429 messages.
   - **Owns**: the new editor component(s), its store slice, i18n keys, unit + e2e tests.
   - **Done-proof**: unit tests; e2e on a mock bundle: edit -> notice -> consent -> saved; a denied doc shows no Edit button; typecheck; the initial-chunk budget holds.

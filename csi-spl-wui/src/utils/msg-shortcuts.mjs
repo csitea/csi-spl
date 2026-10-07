@@ -16,8 +16,10 @@
 // selected row instead of running an item. Reply stays on the phone sheet.
 //
 // Shift + U and Shift + B are not menu items either (HUM-10 t1 29c3b055):
-// they move the selection inside the SAME feed, from a reply up to its
-// topic's first message and back down (parentJump / backJump below).
+// they move the selection from a reply in the topic pane (3rd panel) to its
+// topic's row in the centre list (2nd panel) and back (listRowFor /
+// replyBack); outside the pane, or with no such row, inside the same feed
+// (parentJump / backJump).
 //
 // ArrowUp / ArrowDown and j / k move the selection; Shift + ? lists the keys.
 // The key map and the matching rules live here so node can test them; the
@@ -210,6 +212,55 @@ export function backJump(rows, fromId, memo = null) {
   let latest = null
   for (const r of list) {
     if (!r || r.task !== from.task || r.id === from.id) continue
+    if (!latest || String(r.ts || '') >= String(latest.ts || '')) latest = r
+  }
+  return latest ? latest.id : ''
+}
+
+/**
+ * @typedef {{ key: string, task: string }} ListRow
+ * One row of the centre list (the 2nd panel): a message card (key = its
+ * msg_id) or, in the topic view, a topic row (key = its task id).
+ */
+
+/**
+ * Shift + U, corrected (HUM-10 t1 29c3b055): "it should select the topics
+ * first msg, but in the 2nd panel". From a reply in the topic pane (the 3rd
+ * panel) the target is the topic's own row in the centre list: the row whose
+ * key is the topic (a #lobby message is the root of its own topic), else one
+ * whose task is. '' = the list does not hold it.
+ *
+ * @param {ListRow[]} rows
+ * @param {string} topic the reply's task id
+ * @returns {string}
+ */
+export function listRowFor(rows, topic) {
+  const list = Array.isArray(rows) ? rows : []
+  const id = String(topic || '')
+  if (!id) return ''
+  const hit = list.find((r) => r && r.key === id) || list.find((r) => r && r.task === id)
+  return hit ? hit.key : ''
+}
+
+/**
+ * Shift + B from that centre row: back to the reply in the topic pane that
+ * Shift + U left (`memo`, while it names this topic and the pane still holds
+ * it), else the topic's latest reply there. '' = nothing to do.
+ *
+ * @param {FeedRow[]} paneRows
+ * @param {string} topic
+ * @param {{ topic: string, reply: string } | null} [memo]
+ * @returns {string}
+ */
+export function replyBack(paneRows, topic, memo = null) {
+  const list = Array.isArray(paneRows) ? paneRows : []
+  const id = String(topic || '')
+  if (!id) return ''
+  if (memo && memo.topic === id && list.some((r) => r && r.id === memo.reply)) return String(memo.reply)
+  const opener = openerIn(list, id)
+  let latest = null
+  for (const r of list) {
+    if (!r || r.task !== id || r.id === opener || r.id === id) continue
     if (!latest || String(r.ts || '') >= String(latest.ts || '')) latest = r
   }
   return latest ? latest.id : ''

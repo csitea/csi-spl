@@ -10,10 +10,12 @@
 //   - Shift + H on the selected reply hides it (the hidden-cards line stands in)
 //   - Shift + A on a selected middle card archives it (it leaves, Archived · Undo)
 //   - Shift + E in the composer types a capital E and edits nothing
-//   - Shift + U on a reply selects its topic's first message, in view;
-//     Shift + B goes back to that same reply - in the channel view, the topic
-//     view (/t) and a direct message (t1 29c3b055). Shift + U on the first
-//     message or on a middle card (no topic of its own) does nothing
+//   - Shift + U on a reply in the topic pane (3rd panel) selects its topic's
+//     first message in the centre list (2nd panel), in view; Shift + B goes
+//     back to that same reply - in the channel view, the topic view (/t, the
+//     topic row) and a direct message (t1 29c3b055, owner "yes , do it that
+//     way"). Shift + U on the first message or on a middle card (no topic of
+//     its own) does nothing. SHOT_DIR set: 1440 light screenshots of each step
 //   - the setting (settings-keyboard-shortcuts) off: Shift + H, Shift + ?
 //     and the menu hints do nothing / are gone, Shift + U moves nothing
 //
@@ -149,19 +151,33 @@ const selectedInView = (p, sel) => p.evaluate((sel) => {
   return a.height > 0 && a.bottom > pane.top + 1 && a.top < pane.bottom - 1
 }, sel)
 
-/** Shift + U from the older reply, Shift + B back, and the no-op controls, in one view. */
-async function jumpRoundTrip(p, view, opener, reply) {
+const focusedSel = (p) => p.evaluate(() => {
+  const a = document.activeElement
+  return a?.getAttribute?.('data-msg-id') || a?.getAttribute?.('data-key') || a?.className || ''
+})
+
+async function shot(p, name) {
+  if (!process.env.SHOT_DIR) return
+  await p.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png` })
+}
+
+/** Shift + U from the older reply in the topic pane to the topic's row in the centre list, Shift + B back, and the no-op control, in one view. */
+async function jumpRoundTrip(p, view, opener, reply, listRow) {
+  const tag = view.replace(/\W+/g, '-')
   ok(`${view}: the reply is selected`, await select(p, card(reply)))
+  await shot(p, `${tag}-1-reply-selected`)
   await shiftKey(p, 'U')
-  ok(`${view}: Shift + U selects the topic's first message, in view`, await until(p, (s) => {
+  ok(`${view}: Shift + U selects the topic's first message in the 2nd panel (centre list), in view`, await until(p, (s) => {
     const el = document.querySelector(s)
     return Boolean(el && document.activeElement === el)
-  }, card(opener), 4000) && await selectedInView(p, card(opener)), await activeId(p))
+  }, listRow, 4000) && await selectedInView(p, listRow), await focusedSel(p))
+  await shot(p, `${tag}-2-after-shift-u`)
   await shiftKey(p, 'B')
   ok(`${view}: Shift + B goes back to the same reply`, await until(p, (s) => {
     const el = document.querySelector(s)
     return Boolean(el && document.activeElement === el)
   }, card(reply), 4000) && await selectedInView(p, card(reply)), await activeId(p))
+  await shot(p, `${tag}-3-after-shift-b`)
   await select(p, card(opener))
   await shiftKey(p, 'U')
   await sleep(300)
@@ -192,13 +208,15 @@ try {
     }
     return r.continue()
   })
-  await p.evaluateOnNewDocument((extra) => {
+  await p.evaluateOnNewDocument((extra, light) => {
     try {
       localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'owner@example.com', name: 'FirstName LastName', t: 't1' }))
       localStorage.setItem('spool.mock.extra-messages', JSON.stringify(extra))
+      if (light) localStorage.setItem('spool-theme', 'light')
     } catch { /* private mode */ }
-  }, EXTRA)
-  await p.setViewport({ width: 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
+  }, EXTRA, Boolean(process.env.SHOT_DIR))
+  /* the proof screenshots (SHOT_DIR) are 1440 wide, light */
+  await p.setViewport({ width: process.env.SHOT_DIR ? 1440 : 1280, height: 800, isMobile: false, hasTouch: false, deviceScaleFactor: 1 })
   await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
   await sleep(600)
@@ -231,7 +249,7 @@ try {
   ok('j selects the next message, k the previous', order.length >= 2 && afterJ === second && afterK === first, { order, afterJ, afterK })
 
   /* ---- Shift + U / Shift + B: reply -> first message -> back (t1 29c3b055) ---- */
-  await jumpRoundTrip(p, 'channel', TASK, R1)
+  await jumpRoundTrip(p, 'channel', TASK, R1, midCard(TASK))
   ok('channel: a middle card is there', await until(p, visible, midCard(T2), 6000))
   await select(p, midCard(T2))
   await shiftKey(p, 'U')
@@ -240,11 +258,11 @@ try {
   await p.goto(`${srv.base}/t/${TASK}`, { waitUntil: 'networkidle2' })
   ok('topic view: the reply is there', await p.waitForSelector(card(R1), { visible: true, timeout: 15000 }).then(() => true, () => false))
   await sleep(400)
-  await jumpRoundTrip(p, 'topic view', TASK, R1)
+  await jumpRoundTrip(p, 'topic view', TASK, R1, `.topic-browse__list a.topic-row[data-key="${TASK}"]`)
   await p.goto(`${srv.base}/dm/${DM_PEER}?topic=${DMT}`, { waitUntil: 'networkidle2' })
   ok('direct message: the reply is there', await p.waitForSelector(card(DR1), { visible: true, timeout: 15000 }).then(() => true, () => false))
   await sleep(400)
-  await jumpRoundTrip(p, 'direct message', DMT, DR1)
+  await jumpRoundTrip(p, 'direct message', DMT, DR1, midCard(DMT))
   ok('the topic view opens again', await openTopic(p))
   await sleep(400)
 

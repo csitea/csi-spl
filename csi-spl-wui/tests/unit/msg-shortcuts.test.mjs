@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MSG_SHORTCUTS, NAV_SHORTCUTS, TOPIC_LIST_SHORTCUTS, backJump, inTypingOrOverlay, messageShortcutsSection, offeredItems, parentJump, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  MSG_SHORTCUTS, NAV_SHORTCUTS, TOPIC_LIST_SHORTCUTS, backJump, inTypingOrOverlay, listRowFor, messageShortcutsSection, offeredItems, parentJump, replyBack, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -256,5 +256,49 @@ describe('Shift + U / Shift + B: reply to its topic\'s first message and back (t
     assert.equal(backJump(pane, 'r1', { parent: 'p', reply: 'r1' }), '')
     assert.equal(backJump([P], 'p'), '')
     assert.equal(backJump(pane, 'nope'), '')
+  })
+})
+
+describe('Shift + U / Shift + B: the 2nd panel, the centre list (t1 29c3b055, owner "yes , do it that way")', () => {
+  const P = { id: 't', task: 't', opener: true, ts: '2026-10-07T10:00:00Z' }
+  const R1 = { id: 'r1', task: 't', opener: false, ts: '2026-10-07T10:01:00Z' }
+  const R2 = { id: 'r2', task: 't', opener: false, ts: '2026-10-07T10:02:00Z' }
+  const pane = [P, R1, R2]
+
+  it('U from a reply names the topic\'s card in the channel / DM list', () => {
+    const list = [{ key: 'other', task: 'other' }, { key: 't', task: 't' }]
+    assert.equal(listRowFor(list, 't'), 't')
+  })
+
+  it('a card whose own id is the topic wins over one of the same task (a #lobby message topic)', () => {
+    const lobby = [{ key: 'm1', task: 'lobby' }, { key: 'm2', task: 'lobby' }]
+    assert.equal(listRowFor(lobby, 'm2'), 'm2')
+    assert.equal(listRowFor(lobby, 'lobby'), 'm1')
+  })
+
+  it('the topic view\'s topic rows (key = task id) are matched too', () => {
+    assert.equal(listRowFor([{ key: 'a', task: 'a' }, { key: 't', task: 't' }], 't'), 't')
+  })
+
+  it('no row in the list, or no topic: nothing (the caller stays in the same feed)', () => {
+    assert.equal(listRowFor([{ key: 'a', task: 'a' }], 't'), '')
+    assert.equal(listRowFor([{ key: 'a', task: 'a' }], ''), '')
+    assert.equal(listRowFor(null, 't'), '')
+  })
+
+  it('B from the list row goes back to the reply U left, while the pane holds it', () => {
+    assert.equal(replyBack(pane, 't', { topic: 't', reply: 'r1' }), 'r1')
+    assert.equal(replyBack([P, R2], 't', { topic: 't', reply: 'r1' }), 'r2')
+  })
+
+  it('B with no memo, or a memo of another topic: the topic\'s latest reply', () => {
+    assert.equal(replyBack(pane, 't', null), 'r2')
+    assert.equal(replyBack(pane, 't', { topic: 'x', reply: 'r1' }), 'r2')
+  })
+
+  it('B: never the opener, nothing for a topic with no reply or not in the pane', () => {
+    assert.equal(replyBack([P], 't'), '')
+    assert.equal(replyBack(pane, 'x'), '')
+    assert.equal(replyBack(pane, ''), '')
   })
 })

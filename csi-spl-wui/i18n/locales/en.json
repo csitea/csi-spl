@@ -845,7 +845,7 @@
       "archive_topic_row": "Archive the focused topic (Topics view)",
       "move": "Move or merge…",
       "open_menu": "Open menu",
-      "to_parent": "Go to the topic's first message",
+      "to_parent": "Go to the topic's first message in the list",
       "back_to_reply": "Back to the reply",
       "step": "Select the previous / next message",
       "help": "Show this list",

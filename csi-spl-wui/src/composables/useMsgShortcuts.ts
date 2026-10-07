@@ -16,7 +16,7 @@ import { useSessionStore } from '~/stores/session'
 import { useTopicStore } from '~/stores/topic'
 import { usePhone } from '~/composables/useTouchUi'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
-import { backJump, offeredItems, parentJump, shortcutFor, shortcutItem, shortcutsOn } from '~/utils/msg-shortcuts.mjs'
+import { backJump, listRowFor, offeredItems, parentJump, replyBack, shortcutFor, shortcutItem, shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { requestMessageJump } from '~/utils/msg-jump.mjs'
 import { stepRow } from '~/utils/row-keys.mjs'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
@@ -107,12 +107,65 @@ export function stepSelection(row: HTMLElement | null, step: number): boolean {
 }
 
 /* HUM-10 (t1 29c3b055), owner: "a shortcut and it's respective shortcut to
-   jump directly from the selected reply msg and the parent topic msg".
-   Shift + U selects the topic's first message in the same feed, Shift + B
-   goes back to the reply it came from (else the latest reply). A first
-   message the feed does not hold (an old topic, paged out) is read in the
-   way a message link does (requestMessageJump): never a reload. */
+   jump directly from the selected reply msg and the parent topic msg", then
+   "it should select the topics first msg, but in the 2nd panel" and, on the
+   panels read as rail = 1, centre list = 2, topic pane = 3, "yes , do it that
+   way". Shift + U on a reply in the topic pane selects that topic's row in the
+   centre list (the channel or DM card, the topic view's topic row); Shift + B
+   there goes back to the reply (else the topic's latest reply in the pane).
+   With no such row, or outside the pane, both keys stay in the same feed. A
+   first message the feed does not hold (an old topic, paged out) is read in
+   the way a message link does (requestMessageJump): never a reload. */
 let jumpMemo: { parent: string, reply: string } | null = null
+let listMemo: { topic: string, reply: string } | null = null
+
+/** The topic pane (the 3rd panel). */
+const TOPIC_PANE = 'aside.topic'
+const listKey = (el: HTMLElement) => el.getAttribute('data-msg-id') || el.getAttribute('data-key') || ''
+const listTask = (el: HTMLElement) => el.getAttribute('data-task-id') || el.getAttribute('data-key') || ''
+
+/** The rows of the centre list (the 2nd panel): its cards, and the topic view's topic rows. */
+function listRows(): HTMLElement[] {
+  const main = document.querySelector('.spool-main')
+  if (!main) return []
+  return [...main.querySelectorAll<HTMLElement>('article.msg, a.topic-row')]
+    .filter((el) => !el.closest(TOPIC_PANE) && el.getClientRects().length > 0)
+}
+
+const feedRow = (el: HTMLElement) => ({
+  id: el.getAttribute('data-msg-id') || '',
+  task: el.getAttribute('data-task-id') || '',
+  opener: el.getAttribute('data-opener') === 'true',
+  ts: el.getAttribute('data-sent') || '',
+})
+
+/** Shift + U on a reply in the topic pane: select its topic's row in the centre list. */
+function upToList(card: HTMLElement): boolean {
+  const topic = card.getAttribute('data-task-id') || ''
+  if (!card.closest(TOPIC_PANE) || !topic) return false
+  const rows = listRows()
+  const key = listRowFor(rows.map((el) => ({ key: listKey(el), task: listTask(el) })), topic)
+  const el = key ? rows.find((e) => listKey(e) === key) : undefined
+  if (!el) return false
+  listMemo = { topic, reply: card.getAttribute('data-msg-id') || '' }
+  selectRow(el)
+  return true
+}
+
+/** Shift + B on a centre-list row whose topic the pane shows: back to the reply. */
+function backToPane(row: HTMLElement): boolean {
+  if (row.closest(TOPIC_PANE)) return false
+  const pane = document.querySelector<HTMLElement>(TOPIC_PANE)
+  if (!pane) return false
+  const cards = [...pane.querySelectorAll<HTMLElement>('article.msg')].filter((el) => el.getClientRects().length > 0)
+  const rows = cards.map(feedRow)
+  const topic = [listKey(row), listTask(row)].find((id) => id && rows.some((r) => r.task === id)) || ''
+  const to = replyBack(rows, topic, listMemo)
+  const el = to ? cards.find((e) => e.getAttribute('data-msg-id') === to) : undefined
+  if (!el) return false
+  selectRow(el)
+  return true
+}
 
 /** The topic's first message when the feed does not hold it: the open topic's root, else the task id. */
 function openerFallback(task: string): string {
@@ -135,9 +188,12 @@ function jumpInTopic(card: HTMLElement, key: string): boolean {
   let to = ''
   if (key === 'U') {
     const hit = parentJump(rows, id, openerFallback(card.getAttribute('data-task-id') || ''))
+    /* a reply (hit): its topic's row in the 2nd panel first */
+    if (hit && upToList(card)) return true
     if (hit) jumpMemo = { parent: hit.parent, reply: id }
     to = hit?.parent || ''
   } else {
+    if (backToPane(card)) return true
     to = backJump(rows, id, jumpMemo)
   }
   if (!to) return false
@@ -289,6 +345,12 @@ function install() {
           button: 2, buttons: 2,
         }))
       }
+      return
+    }
+    /* the topic view's focused topic row (no card): Shift + B back to the reply */
+    if (!entry && hit.key === 'B') {
+      const topicRow = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('a.topic-row')
+      if (topicRow && backToPane(topicRow)) ev.preventDefault()
       return
     }
     if (!entry || entry.busy()) return

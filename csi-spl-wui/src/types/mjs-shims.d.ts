@@ -2334,6 +2334,8 @@ declare module '~/utils/msg-shortcuts.mjs' {
   export type FeedRow = { id: string, task: string, opener: boolean, ts?: string }
   export function parentJump(rows: readonly FeedRow[], fromId: string, fallbackId?: string): { parent: string, held: boolean } | null
   export function backJump(rows: readonly FeedRow[], fromId: string, memo?: { parent: string, reply: string } | null): string
+  export function listRowFor(rows: readonly { key: string, task: string }[], topic: string): string
+  export function replyBack(paneRows: readonly FeedRow[], topic: string, memo?: { topic: string, reply: string } | null): string
 }
 
 declare module '~/utils/unread-model.mjs' {

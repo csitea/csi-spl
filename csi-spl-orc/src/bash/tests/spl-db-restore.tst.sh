@@ -160,12 +160,13 @@ o=$(SNIPPET="$PIN do_spl_db_restore" in_orc TOPIC_HEAD_VERIFY=1 2>&1) &&
   pass "CONTROL: TOPIC_HEAD_VERIFY=1 with TARGET=local plans" || fail "CONTROL local verify plan: $o"
 # the wiring: spl_db_restore_local hands the check to the restore container
 : >"$T/calls.log"
-WIRE='gunzip(){ :; }; spl_db_backup_restore_counts(){ echo "counts check=${SPL_RESTORE_CHECK:-}" >>"$STUB_LOG"; return 9; };'
+WIRE='gunzip(){ :; }; spl_db_backup_restore_counts(){ echo "counts check=${SPL_RESTORE_CHECK:-} image=${SPL_RESTORE_IMAGE:-}" >>"$STUB_LOG"; return 9; };'
 for v in 1 0; do
   SNIPPET="$PIN $WIRE do_spl_db_restore" in_orc DRY_RUN=0 TOPIC_HEAD_VERIFY=$v >/dev/null 2>&1
 done
-[[ "$(grep '^counts' "$T/calls.log" | paste -sd,)" == "counts check=spl_db_restore_topic_head_verify,counts check=" ]] &&
-  pass "TOPIC_HEAD_VERIFY=1 sets SPL_RESTORE_CHECK for the restore container, 0 leaves it unset" ||
+SNIPPET="$PIN $WIRE do_spl_db_restore" in_orc DRY_RUN=0 TOPIC_HEAD_VERIFY=1 SPL_RESTORE_IMAGE=my:img >/dev/null 2>&1
+[[ "$(grep '^counts' "$T/calls.log" | paste -sd,)" == "counts check=spl_db_restore_topic_head_verify image=postgres:16,counts check= image=,counts check=spl_db_restore_topic_head_verify image=my:img" ]] &&
+  pass "TOPIC_HEAD_VERIFY=1 sets SPL_RESTORE_CHECK and the glibc image (an explicit image wins); 0 leaves both unset" ||
   fail "wiring: $(cat "$T/calls.log")"
 # the hook in spl_db_backup_restore_counts: called with the live container, its
 # output kept off the count list, its failure failing the check

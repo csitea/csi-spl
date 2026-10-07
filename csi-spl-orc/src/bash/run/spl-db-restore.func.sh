@@ -47,7 +47,7 @@
 # @param KEEP (optional) - 1 keeps a database:<name> target after the count
 # @param TOPIC_HEAD_VERIFY (optional) - 1 verifies the topic heads of the local restore; default 0
 # @param DRY_RUN (optional) - 1 (default) plan only; 0 restore
-# @param SPL_RESTORE_IMAGE (optional) - the local target image, default postgres:16-alpine
+# @param SPL_RESTORE_IMAGE (optional) - the local target image, default postgres:16-alpine (postgres:16 with TOPIC_HEAD_VERIFY=1)
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_db_restore
 # @example ENV=dev TARGET=database:spool_restore_drill DRY_RUN=0 ./run -a do_spl_db_restore
 # @example ENV=dev BACKUP_SOURCE=env TOPIC_HEAD_VERIFY=1 DRY_RUN=0 ./run -a do_spl_db_restore
@@ -158,11 +158,16 @@ _spl_db_restore_local_in() {
   gunzip -f "$work/dump.sql.gz" || { do_log "FATAL $ENV: $1 is not gzip"; return 4; }
   do_require_bin docker psql || return 1
   # dynamic scope: spl_db_backup_restore_counts calls it on the live container
+  # The head verify needs the live collation: a part key orders party names,
+  # and musl (the alpine image) sorts like C where Cloud SQL's en_US.UTF8
+  # does not - measured 2026-10-07 on dev: 51 false mismatches on alpine,
+  # 0 on the glibc image, 0 live.
   # shellcheck disable=SC2034 # read by spl_db_backup_restore_counts
-  local SPL_RESTORE_CHECK=""
+  local SPL_RESTORE_CHECK="" SPL_RESTORE_IMAGE="${SPL_RESTORE_IMAGE:-}"
   if [[ "${TOPIC_HEAD_VERIFY:-0}" == 1 ]]; then
     # shellcheck disable=SC2034 # read by spl_db_backup_restore_counts
     SPL_RESTORE_CHECK=spl_db_restore_topic_head_verify
+    SPL_RESTORE_IMAGE="${SPL_RESTORE_IMAGE:-$SPL_TOPIC_HEAD_RESTORE_IMAGE}"
   fi
   spl_db_backup_restore_counts "$work/dump.sql" >"$work/restored.txt" || return $?
   spl_via_proxy _spl_db_backup_live_counts >"$work/live.txt" ||
@@ -241,6 +246,8 @@ spl_db_restore_cloud() {
 # SPL_TOPIC_HEAD_MIGRATION: the rdb migration that creates the topic heads
 # (topic_heads, topic_head_diff, topic_head_backfill).
 SPL_TOPIC_HEAD_MIGRATION=0144_topic_heads.sql
+# the image TOPIC_HEAD_VERIFY=1 restores into: glibc, en_US.utf8, like Cloud SQL
+SPL_TOPIC_HEAD_RESTORE_IMAGE=postgres:16
 
 # spl_db_restore_topic_heads <dump_max> -> after a restore into the env's own
 # database (spec 099 T007): rebuild every topic head from the restored rows,
@@ -273,7 +280,8 @@ spl_db_restore_topic_head_verify() {
   [[ "$has" =~ ^[0-9]+$ ]] || { do_log "FATAL $ENV: cannot read the restored copy's catalog"; return 1; }
   ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$con" 2>/dev/null)"
   [[ "$ip" =~ ^[0-9.]+$ ]] || { do_log "FATAL $ENV: no bridge address for $con: '$ip'"; return 1; }
-  do_log "INFO $ENV: topic-head verify on the restored copy ($con)"
+  do_log "INFO $ENV: topic-head verify on the restored copy ($con, collation $(docker exec "$con" psql -U postgres \
+    -h 127.0.0.1 -d restorecheck -XAtc "SELECT datcollate FROM pg_database WHERE datname = current_database()" 2>/dev/null))"
   SPL_PROXY_DSN="postgres://postgres:restorecheck@$ip:5432/restorecheck" \
     SPL_TH_SHOW="${TOPIC_HEAD_SHOW:-20}" _spl_topic_head_verify_run
 }

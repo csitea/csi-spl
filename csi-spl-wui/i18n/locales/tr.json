@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Sürüm",
     "col_commit": "Commit",
+    "col_time": "İşlendi",
     "col_title": "Değişiklik",
     "latest": "En son {n} değişiklik, en yenisi önce"
   },

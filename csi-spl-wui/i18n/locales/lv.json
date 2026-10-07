@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Versija",
     "col_commit": "Commit",
+    "col_time": "Iesūtīts",
     "col_title": "Izmaiņa",
     "latest": "{n} jaunākās izmaiņas, jaunākās vispirms"
   },

@@ -4,7 +4,7 @@
      stable link /releases/<ref> (pages/releases/[ref].vue).
 
      One table, already expanded (owner, t1 55b6de46): the 30 latest changes,
-     newest first, columns # / version / short sha / title. # is the hub's
+     newest first, columns # / version / short sha / committed / title. # is the hub's
      rolling `seq`, 1 = the oldest change of all, so the newest row shows n
      and a row keeps its number across loads. A version is a level-2 row
      inside the table carrying only the version ("you are here" on the
@@ -19,6 +19,14 @@
      lines up under it, the version band spanning the row; on a phone the
      version column folds into its band. The X is UiDialog's. Back to the
      list returns to the row that was clicked.
+
+     The time (owner, t1 3385cecb: "add also the push time"): the row's
+     committed_at, YYYY-MM-DD HH:MM in the viewer's zone (date-iso.mjs), to
+     the second with the zone on hover. The hub keeps no push time; the
+     committer time is the push's within minutes, because every lane
+     rebases onto trunk right before it pushes (n=60 pushes, 2026-10-07:
+     median 20 s, max 237 s before the push's CI run), so the column says
+     "Committed", not "Pushed". On a phone it is a line under the title.
 
      Reads (spec 065 L4, every signed-in member, Q11):
        GET /v1/release-notes?limit=30
@@ -40,10 +48,11 @@
         <article class="rn-note rn-card" data-test="release-note" :data-state="note.state" :data-sha="note.sha">
           <header class="rn-note__head">
             <h3 class="rn-note__subject">{{ note.subject || shortSha(note.sha) }}</h3>
-            <p v-if="note.version || note.kind || note.area" class="rn-note__meta">
+            <p v-if="note.version || note.kind || note.area || note.committed_at" class="rn-note__meta">
               <span v-if="note.version" class="rn-chip rn-chip--ver" data-test="release-note-version">{{ displayVersion(plainVersion(note.version)) }}</span>
               <span v-if="note.kind" class="rn-chip">{{ note.kind }}</span>
               <span v-if="note.area" class="rn-chip">{{ note.area }}</span>
+              <time v-if="note.committed_at" class="rn-note__time" :datetime="note.committed_at" :title="fullTime(note.committed_at)" data-test="release-note-time">{{ t('release_notes.col_time') }} {{ isoDateTime(note.committed_at) }}</time>
             </p>
             <p v-if="stateText(note.state)" class="rn-note__state" :class="'is-' + note.state" data-test="release-note-state">{{ stateText(note.state) }}</p>
           </header>
@@ -98,6 +107,7 @@
                 <th scope="col" class="rn-table__seq">{{ t('release_notes.col_seq') }}</th>
                 <th v-if="!narrow" scope="col" class="rn-table__ver">{{ t('release_notes.col_version') }}</th>
                 <th scope="col" class="rn-table__sha">{{ t('release_notes.col_commit') }}</th>
+                <th v-if="!narrow" scope="col" class="rn-table__time">{{ t('release_notes.col_time') }}</th>
                 <th scope="col">{{ t('release_notes.col_title') }}</th>
               </tr>
             </thead>
@@ -109,7 +119,7 @@
               :data-current="v.version === currentKey ? 'true' : undefined"
             >
               <tr class="rn-ver" data-test="release-version-head">
-                <th :colspan="narrow ? 3 : 4" scope="rowgroup" class="rn-ver__head">
+                <th :colspan="narrow ? 3 : 5" scope="rowgroup" class="rn-ver__head">
                   <span class="rn-ver__name" role="heading" aria-level="2">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
                   <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
                   <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
@@ -119,6 +129,9 @@
                 <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
                 <td v-if="!narrow" class="rn-table__ver">{{ shownVersion(v) }}</td>
                 <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
+                <td v-if="!narrow" class="rn-table__time">
+                  <time v-if="n.committed_at" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
+                </td>
                 <td class="rn-row__title">
                   <a
                     :href="localePath('/releases/' + n.sha)"
@@ -127,6 +140,7 @@
                     @click="onTitle($event, n)"
                   >{{ n.subject || shortSha(n.sha) }}</a>
                   <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
+                  <time v-if="narrow && n.committed_at" class="rn-row__time" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
                 </td>
               </tr>
             </tbody>
@@ -142,6 +156,7 @@ import { useCopyText } from '~/composables/useCopyText'
 import { useBuildWatch } from '~/composables/useBuildWatch'
 import { isNewer } from '~/utils/build-watch.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
+import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
 import { releaseNotesGet } from '~/utils/release-notes-api.mjs'
 
 interface ReleaseNote {
@@ -204,6 +219,8 @@ const note = ref<ReleaseNote | null>(null)
 
 function onOpen(v: boolean) { emit('update:open', v) }
 const shortSha = (s: string) => String(s || '').slice(0, 7)
+/* the hover: to the second, with the zone it is printed in */
+const fullTime = (at: string) => [isoDateTimeSec(at), viewerTimeZone() || browserTimeZone()].filter(Boolean).join(' ')
 const hasAny = (n: ReleaseNote, side: 'lay' | 'tech') => PARTS.some((k) => n[`${side}_${k}`])
 const sidesOf = (n: ReleaseNote) => SIDES.filter((side) => hasAny(n, side))
 function stateText(state: string) {
@@ -342,6 +359,7 @@ watch(() => props.initialRef, (r, old) => {
 .rn-table thead .rn-table__seq { width: 4.5rem; }
 .rn-table thead .rn-table__ver { width: 7rem; }
 .rn-table thead .rn-table__sha { width: 6.5rem; }
+.rn-table thead .rn-table__time { width: 10rem; }
 .rn-table th, .rn-table td { padding: 0.5rem 0.75rem; text-align: start; vertical-align: top; }
 .rn-table thead th {
   position: sticky; top: 0; z-index: 1;
@@ -349,10 +367,13 @@ watch(() => props.initialRef, (r, old) => {
   text-transform: uppercase; letter-spacing: 0.04em;
   background: var(--color-bg-2); border-bottom: 1px solid var(--color-border-strong);
 }
-.rn-table__seq, .rn-table__ver, .rn-table__sha { white-space: nowrap; }
+.rn-table__seq, .rn-table__ver, .rn-table__sha, .rn-table__time { white-space: nowrap; }
 .rn-table .rn-table__seq { text-align: end; font-variant-numeric: tabular-nums; }
 .rn-table td.rn-table__seq, .rn-table td.rn-table__ver { color: var(--color-muted); }
-.rn-table td.rn-table__ver { font-variant-numeric: tabular-nums; }
+.rn-table td.rn-table__ver, .rn-table td.rn-table__time { font-variant-numeric: tabular-nums; }
+.rn-table td.rn-table__time { color: var(--color-muted); font-size: 0.875rem; }
+.rn-row__time { display: block; margin-top: 0.125rem; font-size: 0.8125rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.rn-note__time { font-size: 0.8125rem; color: var(--color-muted); font-variant-numeric: tabular-nums; align-self: center; }
 .rn-table__sha code { font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.0625rem 0.375rem; border-radius: var(--radius-sm); background: var(--color-bg-2); border: 1px solid var(--color-border); color: var(--color-fg); }
 .rn-table .rn-ver__head { padding-block: 0.625rem 0.5rem; background: var(--color-bg-2); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .rn-table tbody:first-of-type .rn-ver__head { border-top: 0; }

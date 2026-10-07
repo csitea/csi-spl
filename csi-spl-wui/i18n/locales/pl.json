@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Wersja",
     "col_commit": "Commit",
+    "col_time": "Zatwierdzono",
     "col_title": "Zmiana",
     "latest": "{n} najnowszych zmian, najnowsze na górze"
   },

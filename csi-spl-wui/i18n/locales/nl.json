@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Versie",
     "col_commit": "Commit",
+    "col_time": "Gecommit",
     "col_title": "Wijziging",
     "latest": "De {n} nieuwste wijzigingen, nieuwste eerst"
   },

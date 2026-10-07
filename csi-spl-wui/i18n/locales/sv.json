@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Version",
     "col_commit": "Commit",
+    "col_time": "Committad",
     "col_title": "Ändring",
     "latest": "De {n} senaste ändringarna, nyaste först"
   },

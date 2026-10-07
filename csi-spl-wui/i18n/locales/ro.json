@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Versiune",
     "col_commit": "Commit",
+    "col_time": "Comis",
     "col_title": "Modificare",
     "latest": "Ultimele {n} modificări, cele mai noi primele"
   },

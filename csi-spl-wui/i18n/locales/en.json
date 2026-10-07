@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Version",
     "col_commit": "Commit",
+    "col_time": "Committed",
     "col_title": "Change",
     "latest": "The {n} latest changes, newest first"
   },

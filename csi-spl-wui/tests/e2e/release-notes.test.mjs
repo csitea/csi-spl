@@ -36,6 +36,11 @@
 //      focus on that title
 //   9  a /releases/<sha> link followed inside the app opens the same modal,
 //      and closing it returns to the page it was clicked on
+//
+// Owner, t1 3385cecb ("add also the push time to the table"):
+//   2e every row shows its time, YYYY-MM-DD HH:MM in the viewer's zone, to
+//      the second on hover: its own "Committed" column on desktop, a line
+//      under the title on a phone; the note shows it too
 // and no horizontal overflow in the modal, no page error.
 //
 // Run:
@@ -139,6 +144,19 @@ const listFacts = (p) => p.evaluate(() => {
       sha: row.querySelector('[data-test=release-row-sha]')?.textContent.trim() || '',
       href: row.querySelector('[data-test=release-row-title]')?.getAttribute('href') || '',
       title: row.querySelector('[data-test=release-row-title]')?.textContent.trim() || '',
+      time: (() => {
+        const tm = row.querySelector('[data-test=release-row-time]')
+        if (!tm) return null
+        const d = new Date(tm.getAttribute('datetime') || '')
+        const pad = (n) => String(n).padStart(2, '0')
+        return {
+          text: tm.textContent.trim(),
+          at: tm.getAttribute('datetime') || '',
+          hover: tm.getAttribute('title') || '',
+          local: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+          cell: [...row.children].indexOf(tm.closest('td')),
+        }
+      })(),
     })),
     expanders: document.querySelectorAll('[data-test=release-notes] [aria-expanded]').length,
     more: Boolean(document.querySelector('[data-test=release-notes-more]')),
@@ -155,6 +173,7 @@ const noteFacts = (p) => p.evaluate(() => {
     sha: n.dataset.sha || '',
     state: n.dataset.state || '',
     fullSha: n.querySelector('[data-test=release-note-full-sha]')?.textContent.trim() || '',
+    time: n.querySelector('[data-test=release-note-time]')?.textContent.replace(/\s+/g, ' ').trim() || '',
     stateText: n.querySelector('[data-test=release-note-state]')?.textContent.trim() || '',
     lay: lay?.textContent.replace(/\s+/g, ' ').trim() || '',
     tech: tech?.textContent.replace(/\s+/g, ' ').trim() || '',
@@ -208,14 +227,20 @@ try {
 
     /* 2 one expanded table of the 30 latest, the running version first */
     /* a phone folds the version column into the band above its rows */
-    const wantHeads = vp.mobile ? '#|Commit|Change' : '#|Version|Commit|Change'
+    const wantHeads = vp.mobile ? '#|Commit|Change' : '#|Version|Commit|Committed|Change'
     ok(`${vp.name} 2a one table: ${wantHeads.replaceAll('|', ', ')}`, f.table && f.heads.join('|') === wantHeads, f.heads)
     ok(`${vp.name} 2b 30 rows under 15 version rows, nothing to expand, filter or load`,
       f.rows.length === 30 && f.versions === 15 && f.expanders === 0 && !f.more && !f.filter, { rows: f.rows.length, versions: f.versions, expanders: f.expanders, more: f.more, filter: f.filter })
     ok(`${vp.name} 2c the running version is first and marked "you are here"`, f.firstCurrent && f.firstHere === 'you are here', { here: f.firstHere })
     const r0 = f.rows[0] || {}
     ok(`${vp.name} 2d a row shows #, ${vp.mobile ? '' : 'version, '}7-char sha and title`,
-      r0.cells?.length === (vp.mobile ? 3 : 4) && r0.cells[0] === '140' && (vp.mobile || /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1])) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
+      r0.cells?.length === (vp.mobile ? 3 : 5) && r0.cells[0] === '140' && (vp.mobile || /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1])) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
+
+    /* 2e the time: its own column on desktop, under the title on a phone */
+    const times = f.rows.map((x) => x.time)
+    ok(`${vp.name} 2e every row shows its time (YYYY-MM-DD HH:MM, viewer's zone, seconds on hover) ${vp.mobile ? 'under the title' : 'in the Committed column'}`,
+      times.every((x) => x && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(x.text) && x.text === x.local && x.hover.startsWith(x.text + ':') && x.cell === (vp.mobile ? 2 : 3)) &&
+      times[0].at === '2026-10-03T10:14:00Z' && times[1].at === '2026-10-03T09:27:00Z', times.slice(0, 2))
 
     /* 3 # counts from the oldest change: newest first, 140 down to 111 */
     const seqs = f.rows.map((x) => Number(x.seq))
@@ -272,6 +297,7 @@ try {
     ok(`${vp.name} 4c plain words first (What / How / Why), technical below`,
       n0?.layFirst && /What/.test(n0.lay) && /How/.test(n0.lay) && /Why/.test(n0.lay) && /Mock module 1/.test(n0.tech), n0 && { lay: n0.lay, tech: n0.tech })
     ok(`${vp.name} 4d the full 40-char sha`, n0?.fullSha === mockSha(0), n0?.fullSha)
+    ok(`${vp.name} 4e the note shows its time`, n0?.time === `Committed ${r0.time?.text}`, { note: n0?.time, row: r0.time?.text })
     const halves = await p.evaluate(() => {
       const a = document.querySelector('[data-test=release-note-lay]')?.getBoundingClientRect()
       const b = document.querySelector('[data-test=release-note-tech]')?.getBoundingClientRect()

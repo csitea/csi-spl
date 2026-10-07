@@ -12,6 +12,8 @@
  * Loaded lazily with either component, never on the first paint.
  */
 
+import { isoSeconds } from './iso-seconds.mjs'
+
 export const RELEASE_NOTES_LATEST = 30
 const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$/
 
@@ -66,6 +68,7 @@ const MOCK_VERSIONS = 70
 const MOCK_STATES = ['ok', 'backfill', 'missing', 'ok', 'skip', 'revert']
 const MOCK_KINDS = ['feat', 'fix', 'perf', 'docs']
 const MOCK_AREAS = ['wui', 'hub', 'orc', 'iac']
+const MOCK_NEWEST_AT = Date.UTC(2026, 9, 3, 10, 14)
 
 function mockNote(j, version) {
   const state = MOCK_STATES[j % MOCK_STATES.length]
@@ -85,6 +88,8 @@ function mockNote(j, version) {
     tech_why: full ? 'The old path skipped the check.' : '',
     state,
     link: '',
+    /* newest first, 47 min apart: a time to show in the list */
+    committed_at: isoSeconds(new Date(MOCK_NEWEST_AT - j * 47 * 60000)),
     seq: MOCK_VERSIONS * 2 - j,
   }
 }

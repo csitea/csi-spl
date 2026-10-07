@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Versioon",
     "col_commit": "Commit",
+    "col_time": "Kinnitatud",
     "col_title": "Muudatus",
     "latest": "{n} viimast muudatust, uusimad eespool"
   },

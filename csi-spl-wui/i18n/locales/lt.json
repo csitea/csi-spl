@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Versija",
     "col_commit": "Commit",
+    "col_time": "Įkelta",
     "col_title": "Pakeitimas",
     "latest": "{n} naujausių pakeitimų, naujausi pirmi"
   },

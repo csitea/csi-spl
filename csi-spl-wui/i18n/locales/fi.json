@@ -1882,6 +1882,7 @@
     "col_seq": "#",
     "col_version": "Versio",
     "col_commit": "Commit",
+    "col_time": "Commitoitu",
     "col_title": "Muutos",
     "latest": "{n} viimeisintä muutosta, uusin ensin"
   },

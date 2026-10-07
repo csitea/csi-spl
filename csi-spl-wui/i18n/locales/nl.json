@@ -1590,6 +1590,30 @@
       "forbidden": "Je kunt geen documenten bewerken in deze werkruimte.",
       "delete_title": "Dit document verwijderen?",
       "delete_body": "{path} wordt uit de werkruimtedocumenten verwijderd. Eerdere versies blijven in de geschiedenis."
+    },
+    "repoEdit": {
+      "saved": "Opgeslagen. De wijziging wordt binnen een paar minuten naar de repository gepusht.",
+      "authorNotice": {
+        "title": "Je wijziging wordt openbaar, met je naam en e-mailadres",
+        "lead": "Opgeslagen wijzigingen worden naar de openbare GitHub-repository van dit product gepusht. Git legt jou vast als auteur:",
+        "public": "Iedereen kan deze naam en dit e-mailadres in de geschiedenis van de repository lezen, en ze kunnen later niet worden verwijderd.",
+        "other": "Wil je onder een ander geverifieerd adres publiceren, vraag dan een beheerder van de werkruimte om je auteursidentiteit in te stellen voordat je opslaat.",
+        "confirm": "Ik begrijp het, opslaan"
+      },
+      "err": {
+        "conflict": "Dit document is gewijzigd sinds je het opende. Kopieer je tekst, laad het document opnieuw en bewerk het opnieuw.",
+        "too_large": "Het document is te groot om op te slaan (maximaal 1 MB).",
+        "rejected": "De tekst is geweigerd: het lijkt op een geheim of overtreedt een regel van de repository. Verwijder het en sla opnieuw op.",
+        "rejected_line": "Regel {line} is geweigerd ({rule}). Verwijder hem en sla opnieuw op.",
+        "rate_limited": "Te veel keer opgeslagen. Wacht even en sla opnieuw op.",
+        "path_denied": "Dit document kan hier niet worden bewerkt.",
+        "email_unverified": "Verifieer je e-mailadres voordat je documenten van de repository bewerkt.",
+        "member_too_new": "Nieuwe leden kunnen documenten van de repository bewerken na hun eerste dag in de werkruimte.",
+        "workspace_blocked": "Het opslaan van documenten van de repository is gepauzeerd voor deze werkruimte.",
+        "forbidden": "Je kunt geen documenten van de repository bewerken in deze werkruimte.",
+        "off": "Het bewerken van documenten van de repository is nog niet ingeschakeld.",
+        "failed": "Het document is niet opgeslagen. Probeer het opnieuw."
+      }
     }
   },
   "connect_agent": {

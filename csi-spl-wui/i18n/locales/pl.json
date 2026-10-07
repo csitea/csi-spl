@@ -1590,6 +1590,30 @@
       "forbidden": "Nie możesz edytować dokumentów w tej przestrzeni roboczej.",
       "delete_title": "Usunąć ten dokument?",
       "delete_body": "{path} zostanie usunięty z dokumentów przestrzeni roboczej. Jego wcześniejsze wersje pozostaną w historii."
+    },
+    "repoEdit": {
+      "saved": "Zapisano. Zmiana zostanie wysłana do repozytorium w ciągu kilku minut.",
+      "authorNotice": {
+        "title": "Twoja zmiana będzie publiczna, z Twoim imieniem i adresem e-mail",
+        "lead": "Zapisane zmiany są wysyłane do publicznego repozytorium GitHub tego produktu. Git zapisuje Cię jako autora:",
+        "public": "Każdy może odczytać to imię i adres e-mail w historii repozytorium i nie można ich później usunąć.",
+        "other": "Aby publikować pod innym zweryfikowanym adresem, przed zapisaniem poproś administratora przestrzeni roboczej o ustawienie Twojej tożsamości autora.",
+        "confirm": "Rozumiem, zapisz"
+      },
+      "err": {
+        "conflict": "Ten dokument zmienił się od czasu jego otwarcia. Skopiuj swój tekst, wczytaj dokument ponownie i edytuj jeszcze raz.",
+        "too_large": "Dokument jest za duży, aby go zapisać (najwyżej 1 MB).",
+        "rejected": "Tekst został odrzucony: wygląda jak sekret lub narusza regułę repozytorium. Usuń go i zapisz ponownie.",
+        "rejected_line": "Wiersz {line} został odrzucony ({rule}). Usuń go i zapisz ponownie.",
+        "rate_limited": "Na razie zbyt wiele zapisów. Odczekaj chwilę i zapisz ponownie.",
+        "path_denied": "Tego dokumentu nie można tutaj edytować.",
+        "email_unverified": "Zweryfikuj swój adres e-mail przed edycją dokumentów repozytorium.",
+        "member_too_new": "Nowi członkowie mogą edytować dokumenty repozytorium po swoim pierwszym dniu w przestrzeni roboczej.",
+        "workspace_blocked": "Zapisywanie dokumentów repozytorium jest wstrzymane dla tej przestrzeni roboczej.",
+        "forbidden": "Nie możesz edytować dokumentów repozytorium w tej przestrzeni roboczej.",
+        "off": "Edycja dokumentów repozytorium nie jest jeszcze włączona.",
+        "failed": "Dokument nie został zapisany. Spróbuj ponownie."
+      }
     }
   },
   "connect_agent": {

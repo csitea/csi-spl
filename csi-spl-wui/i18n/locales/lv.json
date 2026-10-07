@@ -1590,6 +1590,30 @@
       "forbidden": "Jūs nevarat rediģēt šīs darbvietas dokumentus.",
       "delete_title": "Dzēst šo dokumentu?",
       "delete_body": "{path} tiek noņemts no darbvietas dokumentiem. Tā iepriekšējās versijas paliek vēsturē."
+    },
+    "repoEdit": {
+      "saved": "Saglabāts. Labojums tiks nosūtīts uz repozitoriju dažu minūšu laikā.",
+      "authorNotice": {
+        "title": "Jūsu labojums būs publisks, ar jūsu vārdu un e-pastu",
+        "lead": "Saglabātie labojumi tiek nosūtīti uz šī produkta publisko GitHub repozitoriju. Git jūs reģistrē kā autoru:",
+        "public": "Ikviens var izlasīt šo vārdu un e-pasta adresi repozitorija vēsturē, un tos vēlāk nevar noņemt.",
+        "other": "Lai publicētu ar citu verificētu adresi, pirms saglabāšanas palūdziet darbvietas administratoram iestatīt jūsu autora identitāti.",
+        "confirm": "Saprotu, saglabāt"
+      },
+      "err": {
+        "conflict": "Šis dokuments ir mainījies kopš tā atvēršanas. Nokopējiet savu tekstu, pārlādējiet dokumentu un rediģējiet vēlreiz.",
+        "too_large": "Dokuments ir pārāk liels, lai to saglabātu (ne vairāk kā 1 MB).",
+        "rejected": "Teksts tika noraidīts: tas izskatās pēc noslēpuma vai pārkāpj repozitorija noteikumu. Noņemiet to un saglabājiet vēlreiz.",
+        "rejected_line": "Rinda {line} tika noraidīta ({rule}). Noņemiet to un saglabājiet vēlreiz.",
+        "rate_limited": "Pašlaik pārāk daudz saglabāšanu. Uzgaidiet un saglabājiet vēlreiz.",
+        "path_denied": "Šo dokumentu šeit nevar rediģēt.",
+        "email_unverified": "Pirms repozitorija dokumentu rediģēšanas verificējiet savu e-pasta adresi.",
+        "member_too_new": "Jaunie dalībnieki var rediģēt repozitorija dokumentus pēc savas pirmās dienas darbvietā.",
+        "workspace_blocked": "Repozitorija dokumentu saglabāšana šajā darbvietā ir apturēta.",
+        "forbidden": "Jūs nevarat rediģēt repozitorija dokumentus šajā darbvietā.",
+        "off": "Repozitorija dokumentu rediģēšana vēl nav ieslēgta.",
+        "failed": "Dokuments netika saglabāts. Mēģiniet vēlreiz."
+      }
     }
   },
   "connect_agent": {

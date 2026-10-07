@@ -1590,6 +1590,30 @@
       "forbidden": "Bu çalışma alanında belge düzenleyemezsiniz.",
       "delete_title": "Bu belge silinsin mi?",
       "delete_body": "{path} çalışma alanı belgelerinden kaldırılır. Önceki sürümleri geçmişte kalır."
+    },
+    "repoEdit": {
+      "saved": "Kaydedildi. Düzenleme birkaç dakika içinde depoya gönderilir.",
+      "authorNotice": {
+        "title": "Düzenlemeniz adınız ve e-postanızla birlikte herkese açık olacak",
+        "lead": "Kaydedilen düzenlemeler bu ürünün herkese açık GitHub deposuna gönderilir. Git sizi yazar olarak kaydeder:",
+        "public": "Bu adı ve e-posta adresini depo geçmişinde herkes okuyabilir ve daha sonra kaldırılamaz.",
+        "other": "Başka bir doğrulanmış adresle yayımlamak için kaydetmeden önce bir çalışma alanı yöneticisinden yazar kimliğinizi ayarlamasını isteyin.",
+        "confirm": "Anladım, kaydet"
+      },
+      "err": {
+        "conflict": "Bu belge siz açtıktan sonra değişti. Metninizi kopyalayın, belgeyi yeniden yükleyin ve tekrar düzenleyin.",
+        "too_large": "Belge kaydedilemeyecek kadar büyük (en fazla 1 MB).",
+        "rejected": "Metin reddedildi: bir sır gibi görünüyor veya bir depo kuralını ihlal ediyor. Kaldırın ve yeniden kaydedin.",
+        "rejected_line": "{line}. satır reddedildi ({rule}). Kaldırın ve yeniden kaydedin.",
+        "rate_limited": "Şu an için çok fazla kayıt. Biraz bekleyin ve yeniden kaydedin.",
+        "path_denied": "Bu belge burada düzenlenemez.",
+        "email_unverified": "Depo belgelerini düzenlemeden önce e-posta adresinizi doğrulayın.",
+        "member_too_new": "Yeni üyeler depo belgelerini çalışma alanındaki ilk günlerinden sonra düzenleyebilir.",
+        "workspace_blocked": "Bu çalışma alanı için depo belgelerini kaydetme duraklatıldı.",
+        "forbidden": "Bu çalışma alanında depo belgelerini düzenleyemezsiniz.",
+        "off": "Depo belgelerini düzenleme henüz açılmadı.",
+        "failed": "Belge kaydedilmedi. Yeniden deneyin."
+      }
     }
   },
   "connect_agent": {

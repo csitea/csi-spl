@@ -1590,6 +1590,30 @@
       "forbidden": "Negalite redaguoti šios darbo srities dokumentų.",
       "delete_title": "Ištrinti šį dokumentą?",
       "delete_body": "{path} pašalinamas iš darbo srities dokumentų. Ankstesnės jo versijos lieka istorijoje."
+    },
+    "repoEdit": {
+      "saved": "Išsaugota. Pakeitimas bus išsiųstas į saugyklą per kelias minutes.",
+      "authorNotice": {
+        "title": "Jūsų pakeitimas bus viešas, su jūsų vardu ir el. paštu",
+        "lead": "Išsaugoti pakeitimai siunčiami į viešą šio produkto GitHub saugyklą. Git jus įrašo kaip autorių:",
+        "public": "Bet kas gali perskaityti šį vardą ir el. pašto adresą saugyklos istorijoje, ir jų vėliau pašalinti negalima.",
+        "other": "Norėdami skelbti kitu patvirtintu adresu, prieš išsaugodami paprašykite darbo srities administratoriaus nustatyti jūsų autoriaus tapatybę.",
+        "confirm": "Suprantu, išsaugoti"
+      },
+      "err": {
+        "conflict": "Šis dokumentas pasikeitė nuo tada, kai jį atidarėte. Nukopijuokite tekstą, iš naujo įkelkite dokumentą ir redaguokite dar kartą.",
+        "too_large": "Dokumentas per didelis, kad būtų išsaugotas (daugiausia 1 MB).",
+        "rejected": "Tekstas atmestas: jis panašus į paslaptį arba pažeidžia saugyklos taisyklę. Pašalinkite jį ir išsaugokite dar kartą.",
+        "rejected_line": "Eilutė {line} atmesta ({rule}). Pašalinkite ją ir išsaugokite dar kartą.",
+        "rate_limited": "Šiuo metu per daug išsaugojimų. Šiek tiek palaukite ir išsaugokite dar kartą.",
+        "path_denied": "Šio dokumento čia redaguoti negalima.",
+        "email_unverified": "Prieš redaguodami saugyklos dokumentus patvirtinkite savo el. pašto adresą.",
+        "member_too_new": "Nauji nariai gali redaguoti saugyklos dokumentus po pirmosios dienos darbo srityje.",
+        "workspace_blocked": "Saugyklos dokumentų išsaugojimas šioje darbo srityje sustabdytas.",
+        "forbidden": "Negalite redaguoti saugyklos dokumentų šioje darbo srityje.",
+        "off": "Saugyklos dokumentų redagavimas dar neįjungtas.",
+        "failed": "Dokumentas neišsaugotas. Bandykite dar kartą."
+      }
     }
   },
   "connect_agent": {

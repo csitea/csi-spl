@@ -1590,6 +1590,30 @@
       "forbidden": "Du kan inte redigera dokument i den här arbetsytan.",
       "delete_title": "Ta bort det här dokumentet?",
       "delete_body": "{path} tas bort från arbetsytans dokument. Dess tidigare versioner finns kvar i historiken."
+    },
+    "repoEdit": {
+      "saved": "Sparat. Ändringen skickas till repositoryt inom några minuter.",
+      "authorNotice": {
+        "title": "Din ändring blir offentlig, med ditt namn och din e-post",
+        "lead": "Sparade ändringar skickas till produktens offentliga GitHub-repository. Git registrerar dig som författare:",
+        "public": "Vem som helst kan läsa detta namn och denna e-postadress i repositoryts historik, och de kan inte tas bort senare.",
+        "other": "För att publicera under en annan verifierad adress, be en administratör för arbetsytan att ställa in din författaridentitet innan du sparar.",
+        "confirm": "Jag förstår, spara"
+      },
+      "err": {
+        "conflict": "Dokumentet har ändrats sedan du öppnade det. Kopiera din text, ladda om dokumentet och redigera igen.",
+        "too_large": "Dokumentet är för stort för att sparas (högst 1 MB).",
+        "rejected": "Texten avvisades: den ser ut som en hemlighet eller bryter mot en regel för repositoryt. Ta bort den och spara igen.",
+        "rejected_line": "Rad {line} avvisades ({rule}). Ta bort den och spara igen.",
+        "rate_limited": "För många sparningar just nu. Vänta en stund och spara igen.",
+        "path_denied": "Det här dokumentet kan inte redigeras här.",
+        "email_unverified": "Verifiera din e-postadress innan du redigerar dokument i repositoryt.",
+        "member_too_new": "Nya medlemmar kan redigera dokument i repositoryt efter sin första dag i arbetsytan.",
+        "workspace_blocked": "Att spara dokument i repositoryt är pausat för den här arbetsytan.",
+        "forbidden": "Du kan inte redigera dokument i repositoryt i den här arbetsytan.",
+        "off": "Redigering av dokument i repositoryt är inte påslagen än.",
+        "failed": "Dokumentet sparades inte. Försök igen."
+      }
     }
   },
   "connect_agent": {

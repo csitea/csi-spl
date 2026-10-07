@@ -1590,6 +1590,30 @@
       "forbidden": "You cannot edit docs in this workspace.",
       "delete_title": "Delete this doc?",
       "delete_body": "{path} is removed from the workspace docs. Its earlier versions stay in the history."
+    },
+    "repoEdit": {
+      "saved": "Saved. The edit is pushed to the repository within a few minutes.",
+      "authorNotice": {
+        "title": "Your edit will be public, with your name and email",
+        "lead": "Saved edits are pushed to this product's public GitHub repository. Git records you as the author:",
+        "public": "Anyone can read this name and email address in the repository history, and it cannot be removed later.",
+        "other": "To publish under a different verified address, ask a workspace admin to set your author identity before you save.",
+        "confirm": "I understand, save"
+      },
+      "err": {
+        "conflict": "This doc changed since you opened it. Copy your text, reload the doc and edit again.",
+        "too_large": "The doc is too large to save (at most 1 MB).",
+        "rejected": "The text was refused: it looks like a secret or breaks a repository rule. Remove it and save again.",
+        "rejected_line": "Line {line} was refused ({rule}). Remove it and save again.",
+        "rate_limited": "Too many saves for now. Wait a while and save again.",
+        "path_denied": "This doc cannot be edited here.",
+        "email_unverified": "Verify your email address before you edit repository docs.",
+        "member_too_new": "New members can edit repository docs after their first day in the workspace.",
+        "workspace_blocked": "Saving repository docs is paused for this workspace.",
+        "forbidden": "You cannot edit repository docs in this workspace.",
+        "off": "Editing repository docs is not switched on yet.",
+        "failed": "The doc was not saved. Try again."
+      }
     }
   },
   "connect_agent": {

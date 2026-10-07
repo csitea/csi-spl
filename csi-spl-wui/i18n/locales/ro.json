@@ -1590,6 +1590,30 @@
       "forbidden": "Nu puteți edita documente în acest spațiu de lucru.",
       "delete_title": "Ștergeți acest document?",
       "delete_body": "{path} este eliminat din documentele spațiului de lucru. Versiunile sale anterioare rămân în istoric."
+    },
+    "repoEdit": {
+      "saved": "Salvat. Modificarea este trimisă în depozit în câteva minute.",
+      "authorNotice": {
+        "title": "Modificarea dvs. va fi publică, cu numele și e-mailul dvs.",
+        "lead": "Modificările salvate sunt trimise în depozitul GitHub public al acestui produs. Git vă înregistrează ca autor:",
+        "public": "Oricine poate citi acest nume și această adresă de e-mail în istoricul depozitului și nu pot fi eliminate ulterior.",
+        "other": "Pentru a publica sub o altă adresă verificată, cereți unui administrator al spațiului de lucru să vă seteze identitatea de autor înainte de a salva.",
+        "confirm": "Am înțeles, salvează"
+      },
+      "err": {
+        "conflict": "Acest document s-a schimbat de când l-ați deschis. Copiați textul, reîncărcați documentul și editați din nou.",
+        "too_large": "Documentul este prea mare pentru a fi salvat (cel mult 1 MB).",
+        "rejected": "Textul a fost refuzat: pare un secret sau încalcă o regulă a depozitului. Eliminați-l și salvați din nou.",
+        "rejected_line": "Linia {line} a fost refuzată ({rule}). Eliminați-o și salvați din nou.",
+        "rate_limited": "Prea multe salvări deocamdată. Așteptați puțin și salvați din nou.",
+        "path_denied": "Acest document nu poate fi editat aici.",
+        "email_unverified": "Verificați-vă adresa de e-mail înainte de a edita documente din depozit.",
+        "member_too_new": "Membrii noi pot edita documente din depozit după prima lor zi în spațiul de lucru.",
+        "workspace_blocked": "Salvarea documentelor din depozit este întreruptă pentru acest spațiu de lucru.",
+        "forbidden": "Nu puteți edita documente din depozit în acest spațiu de lucru.",
+        "off": "Editarea documentelor din depozit nu este încă activată.",
+        "failed": "Documentul nu a fost salvat. Încercați din nou."
+      }
     }
   },
   "connect_agent": {

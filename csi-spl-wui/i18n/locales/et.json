@@ -1590,6 +1590,30 @@
       "forbidden": "Sa ei saa selle tööruumi dokumente muuta.",
       "delete_title": "Kas kustutada see dokument?",
       "delete_body": "{path} eemaldatakse tööruumi dokumentidest. Selle varasemad versioonid jäävad ajalukku."
+    },
+    "repoEdit": {
+      "saved": "Salvestatud. Muudatus lükatakse hoidlasse mõne minuti jooksul.",
+      "authorNotice": {
+        "title": "Sinu muudatus on avalik, koos sinu nime ja e-postiga",
+        "lead": "Salvestatud muudatused lükatakse selle toote avalikku GitHubi hoidlasse. Git märgib sind autoriks:",
+        "public": "Igaüks saab seda nime ja e-posti aadressi hoidla ajaloost lugeda ning neid ei saa hiljem eemaldada.",
+        "other": "Teise kinnitatud aadressi all avaldamiseks palu tööruumi administraatoril enne salvestamist sinu autoriidentiteet määrata.",
+        "confirm": "Saan aru, salvesta"
+      },
+      "err": {
+        "conflict": "See dokument on pärast avamist muutunud. Kopeeri oma tekst, laadi dokument uuesti ja muuda uuesti.",
+        "too_large": "Dokument on salvestamiseks liiga suur (kuni 1 MB).",
+        "rejected": "Tekst lükati tagasi: see näeb välja nagu saladus või rikub hoidla reeglit. Eemalda see ja salvesta uuesti.",
+        "rejected_line": "Rida {line} lükati tagasi ({rule}). Eemalda see ja salvesta uuesti.",
+        "rate_limited": "Praegu on liiga palju salvestusi. Oota veidi ja salvesta uuesti.",
+        "path_denied": "Seda dokumenti ei saa siin muuta.",
+        "email_unverified": "Kinnita oma e-posti aadress enne hoidla dokumentide muutmist.",
+        "member_too_new": "Uued liikmed saavad hoidla dokumente muuta pärast oma esimest päeva tööruumis.",
+        "workspace_blocked": "Hoidla dokumentide salvestamine on selles tööruumis peatatud.",
+        "forbidden": "Sa ei saa selles tööruumis hoidla dokumente muuta.",
+        "off": "Hoidla dokumentide muutmine pole veel sisse lülitatud.",
+        "failed": "Dokumenti ei salvestatud. Proovi uuesti."
+      }
     }
   },
   "connect_agent": {

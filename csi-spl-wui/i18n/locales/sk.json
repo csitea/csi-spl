@@ -1590,6 +1590,30 @@
       "forbidden": "V tomto pracovnom priestore nemôžete upravovať dokumenty.",
       "delete_title": "Odstrániť tento dokument?",
       "delete_body": "{path} sa odstráni z dokumentov pracovného priestoru. Jeho predchádzajúce verzie zostanú v histórii."
+    },
+    "repoEdit": {
+      "saved": "Uložené. Úprava sa do repozitára odošle o niekoľko minút.",
+      "authorNotice": {
+        "title": "Vaša úprava bude verejná, s vaším menom a e-mailom",
+        "lead": "Uložené úpravy sa odosielajú do verejného GitHub repozitára tohto produktu. Git vás zaznamená ako autora:",
+        "public": "Ktokoľvek si môže toto meno a e-mailovú adresu prečítať v histórii repozitára a neskôr ich nemožno odstrániť.",
+        "other": "Ak chcete publikovať pod inou overenou adresou, pred uložením požiadajte správcu pracovného priestoru, aby nastavil vašu identitu autora.",
+        "confirm": "Rozumiem, uložiť"
+      },
+      "err": {
+        "conflict": "Tento dokument sa od otvorenia zmenil. Skopírujte si text, znova načítajte dokument a upravte ho znova.",
+        "too_large": "Dokument je príliš veľký na uloženie (najviac 1 MB).",
+        "rejected": "Text bol odmietnutý: vyzerá ako tajomstvo alebo porušuje pravidlo repozitára. Odstráňte ho a uložte znova.",
+        "rejected_line": "Riadok {line} bol odmietnutý ({rule}). Odstráňte ho a uložte znova.",
+        "rate_limited": "Momentálne príliš veľa uložení. Chvíľu počkajte a uložte znova.",
+        "path_denied": "Tento dokument tu nemožno upravovať.",
+        "email_unverified": "Pred úpravou dokumentov repozitára overte svoju e-mailovú adresu.",
+        "member_too_new": "Noví členovia môžu upravovať dokumenty repozitára po svojom prvom dni v pracovnom priestore.",
+        "workspace_blocked": "Ukladanie dokumentov repozitára je pre tento pracovný priestor pozastavené.",
+        "forbidden": "V tomto pracovnom priestore nemôžete upravovať dokumenty repozitára.",
+        "off": "Úprava dokumentov repozitára ešte nie je zapnutá.",
+        "failed": "Dokument sa neuložil. Skúste to znova."
+      }
     }
   },
   "connect_agent": {

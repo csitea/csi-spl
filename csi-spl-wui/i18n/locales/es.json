@@ -1590,6 +1590,30 @@
       "forbidden": "No puedes editar documentos en este espacio de trabajo.",
       "delete_title": "¿Eliminar este documento?",
       "delete_body": "{path} se quita de los documentos del espacio de trabajo. Sus versiones anteriores quedan en el historial."
+    },
+    "repoEdit": {
+      "saved": "Guardado. La edición se envía al repositorio en unos minutos.",
+      "authorNotice": {
+        "title": "Tu edición será pública, con tu nombre y tu correo",
+        "lead": "Las ediciones guardadas se envían al repositorio público de GitHub de este producto. Git te registra como autor:",
+        "public": "Cualquiera puede leer este nombre y esta dirección de correo en el historial del repositorio, y no se pueden eliminar más tarde.",
+        "other": "Para publicar con otra dirección verificada, pide a un administrador del espacio de trabajo que configure tu identidad de autor antes de guardar.",
+        "confirm": "Entiendo, guardar"
+      },
+      "err": {
+        "conflict": "Este documento cambió desde que lo abriste. Copia tu texto, recarga el documento y edítalo de nuevo.",
+        "too_large": "El documento es demasiado grande para guardarlo (1 MB como máximo).",
+        "rejected": "El texto fue rechazado: parece un secreto o incumple una regla del repositorio. Quítalo y guarda de nuevo.",
+        "rejected_line": "La línea {line} fue rechazada ({rule}). Quítala y guarda de nuevo.",
+        "rate_limited": "Demasiados guardados por ahora. Espera un rato y guarda de nuevo.",
+        "path_denied": "Este documento no se puede editar aquí.",
+        "email_unverified": "Verifica tu dirección de correo antes de editar documentos del repositorio.",
+        "member_too_new": "Los miembros nuevos pueden editar documentos del repositorio después de su primer día en el espacio de trabajo.",
+        "workspace_blocked": "El guardado de documentos del repositorio está en pausa para este espacio de trabajo.",
+        "forbidden": "No puedes editar documentos del repositorio en este espacio de trabajo.",
+        "off": "La edición de documentos del repositorio aún no está activada.",
+        "failed": "El documento no se guardó. Inténtalo de nuevo."
+      }
     }
   },
   "connect_agent": {

@@ -1590,6 +1590,30 @@
       "forbidden": "Et voi muokata tämän työtilan dokumentteja.",
       "delete_title": "Poistetaanko tämä dokumentti?",
       "delete_body": "{path} poistetaan työtilan dokumenteista. Sen aiemmat versiot jäävät historiaan."
+    },
+    "repoEdit": {
+      "saved": "Tallennettu. Muokkaus viedään repositorioon muutaman minuutin kuluessa.",
+      "authorNotice": {
+        "title": "Muokkauksesi on julkinen, nimelläsi ja sähköpostillasi",
+        "lead": "Tallennetut muokkaukset viedään tämän tuotteen julkiseen GitHub-repositorioon. Git merkitsee sinut tekijäksi:",
+        "public": "Kuka tahansa voi lukea tämän nimen ja sähköpostiosoitteen repositorion historiasta, eikä niitä voi poistaa myöhemmin.",
+        "other": "Jos haluat julkaista toisella vahvistetulla osoitteella, pyydä työtilan ylläpitäjää asettamaan tekijätietosi ennen tallennusta.",
+        "confirm": "Ymmärrän, tallenna"
+      },
+      "err": {
+        "conflict": "Dokumentti on muuttunut avaamisesi jälkeen. Kopioi tekstisi, lataa dokumentti uudelleen ja muokkaa uudelleen.",
+        "too_large": "Dokumentti on liian suuri tallennettavaksi (enintään 1 Mt).",
+        "rejected": "Teksti hylättiin: se näyttää salaisuudelta tai rikkoo repositorion sääntöä. Poista se ja tallenna uudelleen.",
+        "rejected_line": "Rivi {line} hylättiin ({rule}). Poista se ja tallenna uudelleen.",
+        "rate_limited": "Liian monta tallennusta juuri nyt. Odota hetki ja tallenna uudelleen.",
+        "path_denied": "Tätä dokumenttia ei voi muokata täällä.",
+        "email_unverified": "Vahvista sähköpostiosoitteesi ennen repositorion dokumenttien muokkaamista.",
+        "member_too_new": "Uudet jäsenet voivat muokata repositorion dokumentteja ensimmäisen työtilassa vietetyn päivänsä jälkeen.",
+        "workspace_blocked": "Repositorion dokumenttien tallennus on keskeytetty tässä työtilassa.",
+        "forbidden": "Et voi muokata repositorion dokumentteja tässä työtilassa.",
+        "off": "Repositorion dokumenttien muokkausta ei ole vielä otettu käyttöön.",
+        "failed": "Dokumenttia ei tallennettu. Yritä uudelleen."
+      }
     }
   },
   "connect_agent": {

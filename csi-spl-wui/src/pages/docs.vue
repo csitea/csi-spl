@@ -10,7 +10,9 @@
      t1 c13e8023 (owner): on a desktop the explorer is the left pane and
      the document is the second, each scrolling on its own. The sidebar
      keeps its icon rail (ChannelSidebar docsRailOnly) and a topic panel
-     open beside the channel the reader came from closes. -->
+     open beside the channel the reader came from closes.
+     spec 075 repo-edit T11: a doc tree.json flags editable shows Edit to a
+     member with docs.write; the editor (RepoDocEditor) is a lazy chunk. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -81,7 +83,14 @@
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
           <DocsWorkspaceDoc v-if="wsPath" :path="wsPath" />
           <template v-else>
-          <p class="docs-content__path muted" data-test="docs-path">{{ docPath }}</p>
+          <div class="docs-content__bar">
+            <p class="docs-content__path muted" data-test="docs-path">{{ docPath }}</p>
+            <button v-if="canEdit && !editing" type="button" class="btn ghost docs-content__edit" data-test="repo-edit-open" @click="editing = true">
+              <UiIcon name="pencil" :size="16" />
+              <span>{{ t('docs.ws.edit') }}</span>
+            </button>
+          </div>
+          <p v-if="savedNote && !editing" class="muted" role="status" data-test="repo-edit-saved">{{ t('docs.repoEdit.saved') }}</p>
           <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
           <p v-else-if="state === 'off'" class="muted" role="status">{{ t('docs.off') }}</p>
           <p v-else-if="state === 'missing'" class="muted" role="alert" data-test="docs-missing">{{ t('docs.not_found') }}</p>
@@ -92,6 +101,7 @@
             <a :href="repoUrl" target="_blank" rel="noopener noreferrer nofollow" data-test="docs-repo-link">{{ t('docs.open_in_repo') }}</a>
           </p>
           <p v-else-if="state === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
+          <RepoDocEditor v-else-if="editing" :path="docPath" :text="raw" :base="base || editFiles.get(docPath)?.blob || ''" @saved="onSaved" @cancel="editing = false" />
           <MarkdownBlock v-else :text="text" bare />
           </template>
         </article>
@@ -115,6 +125,12 @@ import { DOCS_HOME, buildDocsTree, docsAncestors, docsRepoUrl, rewriteDocsLinks,
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { repoEditFiles, type RepoEditFile } from '~/utils/repo-edit.mjs'
+import { canWriteDocs } from '~/utils/ws-docs.mjs'
+import { useAccessStore } from '~/stores/access'
+
+/* spec 075 repo-edit T11: the editor and its store load on Edit only */
+const RepoDocEditor = defineAsyncComponent(() => import('~/components/RepoDocEditor.vue'))
 
 type TreeFile = { path: string, title: string }
 
@@ -138,6 +154,14 @@ const open = ref<Set<string>>(new Set(['csi-spl-doc']))
 const rows = computed(() => visibleDocsRows(tree.value, open.value))
 const treeState = ref<'loading' | 'ready' | 'off' | 'failed'>('loading')
 const text = ref('')
+/* the doc as the hub served it, and the blob it is based on (If-Match) */
+const raw = ref('')
+const base = ref('')
+const editFiles = ref<Map<string, RepoEditFile>>(new Map())
+const editing = ref(false)
+const savedNote = ref(false)
+const access = useAccessStore()
+const canEdit = computed(() => state.value === 'ready' && editFiles.value.get(docPath.value)?.editable === true && canWriteDocs(access.me))
 const state = ref<'loading' | 'ready' | 'missing' | 'off' | 'failed'>('loading')
 /* the phone folds the tree; /docs with no doc opens it */
 const treeOpen = ref(!(Array.isArray(current.params.path) ? current.params.path.length : current.params.path))
@@ -152,9 +176,10 @@ function toggle(path: string) {
 /* GET /v1/docs/<path> through the hub: the body, null for a 404, 'off'
    when the hub has no docs bucket. The mock tenant answers from docs-mock.
    Throws for any other non-2xx, a network failure or a timeout ('failed'). */
-async function hubDoc(path: string): Promise<string | null | 'off'> {
+async function hubDoc(path: string, meta?: { base: string }): Promise<string | null | 'off'> {
   if (api.mock) {
-    const { mockDocs } = await import('~/utils/docs-mock.mjs')
+    const { mockDocs, mockDocBase } = await import('~/utils/docs-mock.mjs')
+    if (meta) meta.base = mockDocBase(path)
     return mockDocs(path)
   }
   const headers: Record<string, string> = {}
@@ -165,6 +190,7 @@ async function hubDoc(path: string): Promise<string | null | 'off'> {
     return body?.error === 'docs_off' ? 'off' : null
   }
   if (!r.ok) throw new Error('docs ' + r.status)
+  if (meta) meta.base = r.headers.get('X-Spool-Doc-Base') ?? ''
   return r.text()
 }
 
@@ -174,13 +200,18 @@ async function load() {
   const p = docPath.value
   if (wsPath.value) return
   state.value = 'loading'
+  editing.value = false
+  savedNote.value = false
   if (!validDocsPath(p)) { state.value = 'missing'; return }
   for (const a of docsAncestors(p)) if (!open.value.has(a)) toggle(a)
   try {
-    const md = await hubDoc(p)
+    const meta = { base: '' }
+    const md = await hubDoc(p, meta)
     if (mine !== seq) return
     if (md === 'off') { state.value = 'off'; return }
     if (md === null) { state.value = 'missing'; return }
+    raw.value = md
+    base.value = meta.base
     text.value = rewriteDocsLinks(md, p, route)
     state.value = 'ready'
   } catch {
@@ -194,10 +225,19 @@ async function loadTree() {
     if (raw === 'off') { treeState.value = 'off'; return }
     const body = raw ? JSON.parse(raw) as { files?: TreeFile[] } : null
     tree.value = buildDocsTree(body?.files)
+    editFiles.value = repoEditFiles(body?.files)
     treeState.value = 'ready'
   } catch {
     treeState.value = 'failed'
   }
+}
+
+/* saved: the page shows the new text (the hub serves the overlay from now) */
+function onSaved(md: string) {
+  raw.value = md
+  text.value = rewriteDocsLinks(md, docPath.value, route)
+  editing.value = false
+  savedNote.value = true
 }
 
 watch(docPath, () => { if (import.meta.client) void load() })
@@ -260,6 +300,8 @@ useHead(() => ({ title: t('docs.title') }))
 .docs-tree__chev { flex: none; }
 :global([dir="rtl"]) .docs-tree__chev[data-icon="chevron-right"] { transform: scaleX(-1); }
 .docs-content { min-width: 0; max-width: 900px; display: flex; flex-direction: column; gap: 8px; }
+.docs-content__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.docs-content__edit { display: inline-flex; align-items: center; gap: 6px; }
 .docs-content__path { margin: 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
 .docs-content__repo { margin: 0; overflow-wrap: anywhere; }
 .docs-content__repo a { color: var(--color-accent); text-decoration: underline; }

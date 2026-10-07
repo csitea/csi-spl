@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Wybierz poprawną datę.",
-      "not_migrated": "Ta przestrzeń robocza nie może jeszcze zapisać daty zakończenia; poproś operatora o aktualizację bazy danych."
+      "not_migrated": "Ta przestrzeń robocza nie może jeszcze zapisać daty zakończenia; poproś operatora o aktualizację bazy danych.",
+      "no_password": "Ten członek loguje się przez dostawcę tożsamości; nie ma hasła do zresetowania.",
+      "rate_limited": "Link resetujący został niedawno wysłany. Spróbuj ponownie za kilka minut.",
+      "email_delivery_unavailable": "Nie można teraz dostarczyć e-maila resetującego. Nic nie zmieniono."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Resetuj hasło",
+    "reset_password_hint": "Wysyła temu członkowi jednorazowy link do ustawienia nowego hasła. Nigdy nie widzisz jego hasła.",
+    "reset_password_federated": "Loguje się przez {providers}, więc nie ma hasła do zresetowania.",
+    "reset_confirm_title": "Zresetować hasło?",
+    "reset_confirm": "Wysłać do {name} jednorazowy link na {email} do ustawienia nowego hasła?",
+    "reset_sign_out": "Wyloguj też wszędzie (stare hasło natychmiast przestaje działać)",
+    "reset_send": "Wyślij link resetujący",
+    "reset_sent": "Link resetujący wysłano na {email}"
   },
   "events": {
     "title": "Dziennik zdarzeń",
@@ -1723,7 +1734,8 @@
       "removed": "Usunięty",
       "sign_in": "Zalogowano",
       "sign_out": "Wylogowano",
-      "session_expiry": "Sesja wygasła"
+      "session_expiry": "Sesja wygasła",
+      "password_reset": "Reset hasła"
     }
   },
   "agents": {

@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Välj ett giltigt datum.",
-      "not_migrated": "Denna arbetsyta kan inte spara ett slutdatum än; be operatören uppdatera databasen."
+      "not_migrated": "Denna arbetsyta kan inte spara ett slutdatum än; be operatören uppdatera databasen.",
+      "no_password": "Den här medlemmen loggar in via en identitetsleverantör; det finns inget lösenord att återställa.",
+      "rate_limited": "En återställningslänk skickades nyligen. Försök igen om några minuter.",
+      "email_delivery_unavailable": "Återställningsmejlet kan inte levereras just nu. Inget ändrades."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Återställ lösenord",
+    "reset_password_hint": "Skickar en engångslänk till medlemmen för att välja ett nytt lösenord. Du ser aldrig lösenordet.",
+    "reset_password_federated": "Loggar in med {providers}, så det finns inget lösenord att återställa.",
+    "reset_confirm_title": "Återställa lösenordet?",
+    "reset_confirm": "Skicka {name} en engångslänk till {email} för att välja ett nytt lösenord?",
+    "reset_sign_out": "Logga också ut överallt (det gamla lösenordet slutar fungera direkt)",
+    "reset_send": "Skicka återställningslänk",
+    "reset_sent": "Återställningslänken skickades till {email}"
   },
   "events": {
     "title": "Händelselogg",
@@ -1723,7 +1734,8 @@
       "removed": "Borttagen",
       "sign_in": "Inloggad",
       "sign_out": "Utloggad",
-      "session_expiry": "Sessionen upphörde"
+      "session_expiry": "Sessionen upphörde",
+      "password_reset": "Lösenord återställt"
     }
   },
   "agents": {

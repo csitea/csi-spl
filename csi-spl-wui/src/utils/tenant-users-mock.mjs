@@ -30,7 +30,41 @@ function mockMailStep(prev, at, noMail) {
   return { mail: 'sent', mailCount: 1, mailedAt: at.toISOString() }
 }
 
+/** The hub's SPOOL_HUB_AUTH_NATIVE_MAIL_MIN_INTERVAL default: least time between two reset links. */
+export const MOCK_RESET_GAP_MS = 60 * 1000
+
 const MOCK_ROLES = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester', 'pure_agent', 'biz_customer', 'regular_user']
+
+/** The mock directory's seed members (a fresh copy per directory: remove() splices it). */
+function mockMembers() {
+  const t0 = '2026-09-20T09:00:00Z'
+  return [
+    { human_id: 'HUM-1', display_name: 'Admin (you)', email: 'admin@example.com', role: 'admin', since: t0, sign_in: ['password'] },
+    { human_id: 'HUM-2', display_name: 'Owner', email: 'owner@example.com', role: 'biz_owner', since: t0, sign_in: ['google'] },
+    { human_id: 'HUM-3', display_name: 'Dev One', email: 'dev1@example.com', role: 'developer', since: '2026-09-21T10:00:00Z', sign_in: ['password'] },
+    { human_id: 'HUM-12', display_name: 'Tess Tester', email: 'tester@example.com', role: 'tester', since: '2026-09-22T11:00:00Z', sign_in: ['google'] },
+  ]
+}
+
+/**
+ * t1 ea0af569: the hub's POST /v1/members/{id}/password-reset rules over the
+ * mock members; resetAt holds when each member's last link went out (the
+ * hub's mail floor).
+ */
+function mockPasswordReset(find, you, now) {
+  const resetAt = {}
+  return (id, signOut) => {
+    const m = find(id)
+    if (!m) throw mockErr(404, 'not_found')
+    if (m.role === 'biz_owner') throw mockErr(403, 'forbidden')
+    if (id === you) throw mockErr(409, 'self')
+    if (!(m.sign_in || []).includes('password')) throw mockErr(409, 'no_password')
+    const at = now().getTime()
+    if (resetAt[id] && at - resetAt[id] < MOCK_RESET_GAP_MS) throw mockErr(429, 'rate_limited')
+    resetAt[id] = at
+    return { human_id: id, email: m.email, signed_out: Boolean(signOut) }
+  }
+}
 
 /**
  * The hub's rules in memory: the viewer (HUM-1) is an admin; a biz_owner is
@@ -39,13 +73,7 @@ const MOCK_ROLES = ['biz_owner', 'product_owner', 'admin', 'developer', 'tester'
  * mail rate limit (MOCK_MAIL_GAP_MS) and a member's `access_ended`.
  */
 export function createMockDirectory(now = () => new Date()) {
-  const t0 = '2026-09-20T09:00:00Z'
-  const members = [
-    { human_id: 'HUM-1', display_name: 'Admin (you)', email: 'admin@example.com', role: 'admin', since: t0 },
-    { human_id: 'HUM-2', display_name: 'Owner', email: 'owner@example.com', role: 'biz_owner', since: t0 },
-    { human_id: 'HUM-3', display_name: 'Dev One', email: 'dev1@example.com', role: 'developer', since: '2026-09-21T10:00:00Z' },
-    { human_id: 'HUM-12', display_name: 'Tess Tester', email: 'tester@example.com', role: 'tester', since: '2026-09-22T11:00:00Z' },
-  ]
+  const members = mockMembers()
   let invites = [{ email: 'pending@example.com', role: 'developer', invited_by: 'HUM-1', created_at: '2026-09-24T08:00:00Z', expires_at: '2026-10-01T08:00:00Z' }]
   const you = 'HUM-1'
   const admins = (except) => members.filter((m) => m.human_id !== except && m.role === 'admin').length
@@ -110,6 +138,7 @@ export function createMockDirectory(now = () => new Date()) {
       members.splice(members.indexOf(m), 1)
       return null
     },
+    resetPassword: mockPasswordReset(find, you, now),
     revoke(email) {
       const e = String(email || '').trim().toLowerCase()
       if (!invites.some((i) => i.email === e)) throw mockErr(404, 'not_found')

@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Geçerli bir tarih seçin.",
-      "not_migrated": "Bu çalışma alanı henüz bitiş tarihi saklayamıyor; operatörden veritabanını güncellemesini isteyin."
+      "not_migrated": "Bu çalışma alanı henüz bitiş tarihi saklayamıyor; operatörden veritabanını güncellemesini isteyin.",
+      "no_password": "Bu üye bir kimlik sağlayıcıyla giriş yapıyor; sıfırlanacak parola yok.",
+      "rate_limited": "Kısa süre önce bir sıfırlama bağlantısı gönderildi. Birkaç dakika sonra tekrar deneyin.",
+      "email_delivery_unavailable": "Sıfırlama e-postası şu anda teslim edilemiyor. Hiçbir şey değişmedi."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Parolayı sıfırla",
+    "reset_password_hint": "Bu üyeye yeni parola belirlemesi için tek kullanımlık bir bağlantı gönderir. Parolasını hiçbir zaman görmezsiniz.",
+    "reset_password_federated": "{providers} ile giriş yapıyor; sıfırlanacak parola yok.",
+    "reset_confirm_title": "Parola sıfırlansın mı?",
+    "reset_confirm": "{name} kişisine {email} adresine yeni parola belirlemesi için tek kullanımlık bağlantı gönderilsin mi?",
+    "reset_sign_out": "Her yerden oturumunu da kapat (eski parola hemen çalışmaz)",
+    "reset_send": "Sıfırlama bağlantısı gönder",
+    "reset_sent": "Sıfırlama bağlantısı {email} adresine gönderildi"
   },
   "events": {
     "title": "Olay günlüğü",
@@ -1723,7 +1734,8 @@
       "removed": "Kaldırıldı",
       "sign_in": "Giriş yaptı",
       "sign_out": "Çıkış yaptı",
-      "session_expiry": "Oturum sona erdi"
+      "session_expiry": "Oturum sona erdi",
+      "password_reset": "Parola sıfırlama"
     }
   },
   "agents": {

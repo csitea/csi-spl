@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Pick a valid date.",
-      "not_migrated": "This workspace cannot store an end date yet; ask the operator to update the database."
+      "not_migrated": "This workspace cannot store an end date yet; ask the operator to update the database.",
+      "no_password": "This member signs in with an identity provider; there is no password to reset.",
+      "rate_limited": "A reset link was sent recently. Try again in a few minutes.",
+      "email_delivery_unavailable": "The reset email cannot be delivered right now. Nothing was changed."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Reset password",
+    "reset_password_hint": "Email this member a one-time link to set a new password. You never see their password.",
+    "reset_password_federated": "Signs in with {providers}, so there is no password to reset.",
+    "reset_confirm_title": "Reset password?",
+    "reset_confirm": "Send {name} a one-time link at {email} to set a new password?",
+    "reset_sign_out": "Also sign them out everywhere (the old password stops working at once)",
+    "reset_send": "Send reset link",
+    "reset_sent": "Reset link sent to {email}"
   },
   "events": {
     "title": "Event log",
@@ -1723,7 +1734,8 @@
       "removed": "Removed",
       "sign_in": "Signed in",
       "sign_out": "Signed out",
-      "session_expiry": "Session expired"
+      "session_expiry": "Session expired",
+      "password_reset": "Password reset"
     }
   },
   "agents": {

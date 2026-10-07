@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Изаберите исправан датум.",
-      "not_migrated": "Овај радни простор још не може да чува крајњи датум; замолите оператора да ажурира базу података."
+      "not_migrated": "Овај радни простор још не може да чува крајњи датум; замолите оператора да ажурира базу података.",
+      "no_password": "Овај члан се пријављује преко добављача идентитета; нема лозинке за ресетовање.",
+      "rate_limited": "Веза за ресетовање је недавно послата. Покушајте поново за неколико минута.",
+      "email_delivery_unavailable": "Е-порука за ресетовање тренутно не може да се испоручи. Ништа није промењено."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Ресетуј лозинку",
+    "reset_password_hint": "Шаље овом члану једнократну везу за нову лозинку. Ви никада не видите његову лозинку.",
+    "reset_password_federated": "Пријављује се преко {providers}, па нема лозинке за ресетовање.",
+    "reset_confirm_title": "Ресетовати лозинку?",
+    "reset_confirm": "Послати кориснику {name} једнократну везу на {email} за нову лозинку?",
+    "reset_sign_out": "Одјави га и свуда (стара лозинка одмах престаје да ради)",
+    "reset_send": "Пошаљи везу за ресетовање",
+    "reset_sent": "Веза за ресетовање је послата на {email}"
   },
   "events": {
     "title": "Дневник догађаја",
@@ -1723,7 +1734,8 @@
       "removed": "Уклоњен",
       "sign_in": "Пријављен",
       "sign_out": "Одјављен",
-      "session_expiry": "Сесија истекла"
+      "session_expiry": "Сесија истекла",
+      "password_reset": "Ресетовање лозинке"
     }
   },
   "agents": {

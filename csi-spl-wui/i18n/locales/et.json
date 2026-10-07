@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Vali kehtiv kuupäev.",
-      "not_migrated": "See tööruum ei saa veel lõppkuupäeva salvestada; palu operaatoril andmebaasi uuendada."
+      "not_migrated": "See tööruum ei saa veel lõppkuupäeva salvestada; palu operaatoril andmebaasi uuendada.",
+      "no_password": "See liige logib sisse identiteedipakkujaga; parooli pole, mida lähtestada.",
+      "rate_limited": "Lähtestuslink saadeti hiljuti. Proovi mõne minuti pärast uuesti.",
+      "email_delivery_unavailable": "Lähtestuskirja ei saa praegu kohale toimetada. Midagi ei muudetud."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Lähtesta parool",
+    "reset_password_hint": "Saadab liikmele ühekordse lingi uue parooli määramiseks. Sina tema parooli kunagi ei näe.",
+    "reset_password_federated": "Logib sisse teenusega {providers}, seega pole parooli, mida lähtestada.",
+    "reset_confirm_title": "Kas lähtestada parool?",
+    "reset_confirm": "Kas saata kasutajale {name} aadressile {email} ühekordne link uue parooli määramiseks?",
+    "reset_sign_out": "Logi ta ka kõikjal välja (vana parool lakkab kohe töötamast)",
+    "reset_send": "Saada lähtestuslink",
+    "reset_sent": "Lähtestuslink saadeti aadressile {email}"
   },
   "events": {
     "title": "Sündmuste logi",
@@ -1723,7 +1734,8 @@
       "removed": "Eemaldatud",
       "sign_in": "Sisse logitud",
       "sign_out": "Välja logitud",
-      "session_expiry": "Seanss aegus"
+      "session_expiry": "Seanss aegus",
+      "password_reset": "Parool lähtestatud"
     }
   },
   "agents": {

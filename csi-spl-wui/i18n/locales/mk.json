@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Изберете валиден датум.",
-      "not_migrated": "Овој работен простор сè уште не може да чува краен датум; побарајте од операторот да ја ажурира базата на податоци."
+      "not_migrated": "Овој работен простор сè уште не може да чува краен датум; побарајте од операторот да ја ажурира базата на податоци.",
+      "no_password": "Овој член се најавува преку давател на идентитет; нема лозинка за ресетирање.",
+      "rate_limited": "Неодамна беше испратена врска за ресетирање. Обидете се повторно за неколку минути.",
+      "email_delivery_unavailable": "Е-поштата за ресетирање не може да се достави во моментов. Ништо не е променето."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Ресетирај лозинка",
+    "reset_password_hint": "Испраќа на овој член еднократна врска за нова лозинка. Вие никогаш не ја гледате неговата лозинка.",
+    "reset_password_federated": "Се најавува со {providers}, па нема лозинка за ресетирање.",
+    "reset_confirm_title": "Да се ресетира лозинката?",
+    "reset_confirm": "Да се испрати на {name} еднократна врска на {email} за нова лозинка?",
+    "reset_sign_out": "Одјави го и насекаде (старата лозинка веднаш престанува да работи)",
+    "reset_send": "Испрати врска за ресетирање",
+    "reset_sent": "Врската за ресетирање е испратена на {email}"
   },
   "events": {
     "title": "Дневник на настани",
@@ -1723,7 +1734,8 @@
       "removed": "Отстранет",
       "sign_in": "Најавен",
       "sign_out": "Одјавен",
-      "session_expiry": "Сесијата истече"
+      "session_expiry": "Сесијата истече",
+      "password_reset": "Ресетирана лозинка"
     }
   },
   "agents": {

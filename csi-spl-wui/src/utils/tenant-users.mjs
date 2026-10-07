@@ -55,6 +55,8 @@ export function normalizeDirectory(body) {
     orderedByName: str(m.ordered_by_name),
     orderedVia: str(m.ordered_via),
     invitedOn: str(m.invited_on),
+    /* t1 ea0af569: how the member signs in (provider slugs); null = unknown */
+    signIn: Array.isArray(m.sign_in) ? m.sign_in.filter((x) => typeof x === 'string') : null,
   }))
   const invites = (Array.isArray(b.invites) ? b.invites : []).filter((i) => i && str(i.email)).map((i) => ({
     kind: 'invite',
@@ -113,7 +115,8 @@ export function accessDateOf(iso) {
 /** The i18n key for a failed call's hub token ('' → the generic one). */
 export function userErrorKey(err) {
   const token = err && typeof err.token === 'string' ? err.token : ''
-  const known = ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'shared_account', 'bad_name', 'bad_locale', 'bad_access_until', 'not_migrated']
+  const known = ['forbidden', 'last_admin', 'last_owner', 'self', 'bad_email', 'bad_role', 'role_changed', 'not_found', 'shared_account', 'bad_name', 'bad_locale', 'bad_access_until', 'not_migrated',
+    'no_password', 'rate_limited', 'email_delivery_unavailable']
   return 'users.error.' + (known.includes(token) ? token : 'generic')
 }
 
@@ -164,4 +167,28 @@ export function mailOutcomeKey(outcome) {
   if (outcome === 'sent') return 'users.invited'
   if (outcome === 'rate_limited') return 'users.mail_rate_limited'
   return 'users.mail_not_sent'
+}
+
+const PROVIDER_NAMES = { google: 'Google', github: 'GitHub', microsoft: 'Microsoft', facebook: 'Facebook', linkedin: 'LinkedIn', xai: 'X' }
+
+/** A sign-in provider slug as people know it ('google' -> 'Google'). */
+export function signInProviderName(slug) {
+  const s = String(slug || '')
+  return PROVIDER_NAMES[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : '')
+}
+
+/**
+ * t1 ea0af569: the "Reset password" action of one member row. `offered` = the
+ * button shows (the reader may manage this member and it is not the reader;
+ * the pane itself is admin-only, members.invite). `enabled` = the member has a
+ * password; an identity-provider-only member gets the button disabled, with
+ * `providers` naming how they sign in. An unknown sign-in (null, an old hub)
+ * stays enabled: the hub has the last word (409 no_password).
+ */
+export function passwordResetState(member) {
+  const offered = Boolean(member && member.kind === 'member' && member.manageable && !member.you)
+  const signIn = member && Array.isArray(member.signIn) ? member.signIn : null
+  const enabled = offered && (signIn === null || signIn.includes('password'))
+  const providers = signIn ? signIn.filter((p) => p !== 'password').map(signInProviderName) : []
+  return { offered, enabled, providers }
 }

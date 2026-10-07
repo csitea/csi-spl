@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Επιλέξτε έγκυρη ημερομηνία.",
-      "not_migrated": "Αυτός ο χώρος εργασίας δεν μπορεί ακόμη να αποθηκεύσει ημερομηνία λήξης· ζητήστε από τον διαχειριστή να ενημερώσει τη βάση δεδομένων."
+      "not_migrated": "Αυτός ο χώρος εργασίας δεν μπορεί ακόμη να αποθηκεύσει ημερομηνία λήξης· ζητήστε από τον διαχειριστή να ενημερώσει τη βάση δεδομένων.",
+      "no_password": "Αυτό το μέλος συνδέεται μέσω παρόχου ταυτότητας· δεν υπάρχει κωδικός για επαναφορά.",
+      "rate_limited": "Στάλθηκε πρόσφατα σύνδεσμος επαναφοράς. Δοκιμάστε ξανά σε λίγα λεπτά.",
+      "email_delivery_unavailable": "Το email επαναφοράς δεν μπορεί να παραδοθεί αυτή τη στιγμή. Τίποτα δεν άλλαξε."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Επαναφορά κωδικού",
+    "reset_password_hint": "Στέλνει σε αυτό το μέλος έναν σύνδεσμο μίας χρήσης για νέο κωδικό. Δεν βλέπετε ποτέ τον κωδικό του.",
+    "reset_password_federated": "Συνδέεται με {providers}, οπότε δεν υπάρχει κωδικός για επαναφορά.",
+    "reset_confirm_title": "Επαναφορά κωδικού;",
+    "reset_confirm": "Να σταλεί στον/στην {name} σύνδεσμος μίας χρήσης στο {email} για νέο κωδικό;",
+    "reset_sign_out": "Αποσύνδεση και από όλες τις συσκευές (ο παλιός κωδικός σταματά αμέσως να ισχύει)",
+    "reset_send": "Αποστολή συνδέσμου",
+    "reset_sent": "Ο σύνδεσμος επαναφοράς στάλθηκε στο {email}"
   },
   "events": {
     "title": "Αρχείο συμβάντων",
@@ -1723,7 +1734,8 @@
       "removed": "Αφαιρέθηκε",
       "sign_in": "Σύνδεση",
       "sign_out": "Αποσύνδεση",
-      "session_expiry": "Λήξη συνεδρίας"
+      "session_expiry": "Λήξη συνεδρίας",
+      "password_reset": "Επαναφορά κωδικού"
     }
   },
   "agents": {

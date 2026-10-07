@@ -4,8 +4,8 @@
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { accessDateOf, accessUntilOfDate, inviteMailed, looksLikeEmail, mailOutcomeKey, memberLabel, normalizeDirectory, openInviteFor, USER_PANE_SIDE, userErrorKey, usersEntryVisible } from '../../src/utils/tenant-users.mjs'
-import { createMockDirectory, MOCK_MAIL_GAP_MS } from '../../src/utils/tenant-users-mock.mjs'
+import { accessDateOf, accessUntilOfDate, inviteMailed, looksLikeEmail, mailOutcomeKey, memberLabel, normalizeDirectory, openInviteFor, passwordResetState, signInProviderName, USER_PANE_SIDE, userErrorKey, usersEntryVisible } from '../../src/utils/tenant-users.mjs'
+import { createMockDirectory, MOCK_MAIL_GAP_MS, MOCK_RESET_GAP_MS } from '../../src/utils/tenant-users-mock.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
 import { tabForPath, USERS_TAB } from '../../src/utils/sidebar-tabs.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
@@ -105,6 +105,42 @@ ok('a day ends at the next local midnight', until !== '' && new Date(until).getT
 ok('the day round-trips', accessDateOf(until) === '2026-11-01', accessDateOf(until))
 ok('CONTROL: a bad day is no end', accessUntilOfDate('') === '' && accessUntilOfDate('11/01/2026') === '' && accessDateOf('') === '')
 ok('error key bad_access_until', userErrorKey({ token: 'bad_access_until' }) === 'users.error.bad_access_until')
+// t1 ea0af569: the admin's Reset password. Offered on a member the reader
+// manages (never the reader); disabled, naming the provider, for an IdP-only
+// member; an unknown sign-in (an older hub) stays enabled - the hub decides.
+const rd = normalizeDirectory({ members: [
+  { human_id: 'HUM-3', manageable: true, sign_in: ['password'] },
+  { human_id: 'HUM-4', manageable: true, sign_in: ['google'] },
+  { human_id: 'HUM-5', manageable: true },
+  { human_id: 'HUM-1', manageable: false, you: true, sign_in: ['password'] },
+  { human_id: 'HUM-2', manageable: false, sign_in: ['password'] },
+] })
+const rs = (id) => passwordResetState(rd.members.find((m) => m.humanId === id))
+ok('reset: a password member is offered and enabled', rs('HUM-3').offered && rs('HUM-3').enabled)
+ok('reset: an IdP-only member is offered DISABLED, naming the provider', rs('HUM-4').offered && !rs('HUM-4').enabled && rs('HUM-4').providers.join() === 'Google', JSON.stringify(rs('HUM-4')))
+ok('reset: an unknown sign-in stays enabled (the hub decides)', rs('HUM-5').enabled && rd.members.find((m) => m.humanId === 'HUM-5').signIn === null)
+ok('CONTROL reset: never on the reader itself', !rs('HUM-1').offered && !rs('HUM-1').enabled)
+ok('CONTROL reset: never on a member the reader cannot manage (a non-admin manages nobody)', !rs('HUM-2').offered)
+ok('CONTROL reset: nothing for no row / an invite', !passwordResetState(null).offered && !passwordResetState({ kind: 'invite' }).offered)
+ok('signInProviderName', signInProviderName('github') === 'GitHub' && signInProviderName('microsoft') === 'Microsoft' && signInProviderName('acme') === 'Acme' && signInProviderName('') === '')
+for (const tok of ['no_password', 'rate_limited', 'email_delivery_unavailable']) {
+  ok('reset error word ' + tok, userErrorKey({ token: tok }) === 'users.error.' + tok && typeof get('users.error.' + tok) === 'string')
+}
+for (const k of ['reset_password', 'reset_password_hint', 'reset_password_federated', 'reset_confirm_title', 'reset_confirm', 'reset_sign_out', 'reset_send', 'reset_sent']) {
+  ok('reset string users.' + k, typeof get('users.' + k) === 'string')
+}
+let resetClock = new Date('2026-10-07T12:00:00Z')
+const rm = createMockDirectory(() => resetClock)
+const r1 = rm.resetPassword('HUM-3', true)
+ok('mock reset: the member\'s address and the sign-out come back', r1.email === 'dev1@example.com' && r1.signed_out === true)
+ok('mock reset: a second inside the gap is 429', throws(() => rm.resetPassword('HUM-3', true), 'rate_limited'))
+resetClock = new Date(resetClock.getTime() + MOCK_RESET_GAP_MS)
+ok('CONTROL mock reset: past the gap it goes again', rm.resetPassword('HUM-3', false).signed_out === false)
+ok('mock reset: IdP-only 409, self 409, owner 403, unknown 404',
+  throws(() => rm.resetPassword('HUM-12'), 'no_password') && throws(() => rm.resetPassword('HUM-1'), 'self') &&
+  throws(() => rm.resetPassword('HUM-2'), 'forbidden') && throws(() => rm.resetPassword('HUM-99'), 'not_found'))
+ok('mock list carries sign_in', JSON.stringify(rm.list().members.find((m) => m.human_id === 'HUM-12').sign_in) === '["google"]')
+
 const s = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', s.ok, s.why)
 

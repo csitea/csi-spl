@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Alege o dată validă.",
-      "not_migrated": "Acest spațiu de lucru nu poate încă păstra o dată de sfârșit; cere operatorului să actualizeze baza de date."
+      "not_migrated": "Acest spațiu de lucru nu poate încă păstra o dată de sfârșit; cere operatorului să actualizeze baza de date.",
+      "no_password": "Acest membru se conectează printr-un furnizor de identitate; nu există parolă de resetat.",
+      "rate_limited": "Un link de resetare a fost trimis recent. Încearcă din nou peste câteva minute.",
+      "email_delivery_unavailable": "E-mailul de resetare nu poate fi livrat acum. Nu s-a schimbat nimic."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Resetează parola",
+    "reset_password_hint": "Trimite acestui membru un link de unică folosință pentru a seta o parolă nouă. Nu vezi niciodată parola lui.",
+    "reset_password_federated": "Se conectează cu {providers}, deci nu există parolă de resetat.",
+    "reset_confirm_title": "Resetezi parola?",
+    "reset_confirm": "Trimiți lui {name} un link de unică folosință la {email} pentru a seta o parolă nouă?",
+    "reset_sign_out": "Deconectează-l și de peste tot (parola veche nu mai funcționează imediat)",
+    "reset_send": "Trimite linkul de resetare",
+    "reset_sent": "Linkul de resetare a fost trimis la {email}"
   },
   "events": {
     "title": "Jurnal de evenimente",
@@ -1723,7 +1734,8 @@
       "removed": "Eliminat",
       "sign_in": "Autentificat",
       "sign_out": "Deconectat",
-      "session_expiry": "Sesiune expirată"
+      "session_expiry": "Sesiune expirată",
+      "password_reset": "Parolă resetată"
     }
   },
   "agents": {

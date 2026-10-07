@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Изберете валидна дата.",
-      "not_migrated": "Това работно пространство още не може да пази крайна дата; помолете оператора да обнови базата данни."
+      "not_migrated": "Това работно пространство още не може да пази крайна дата; помолете оператора да обнови базата данни.",
+      "no_password": "Този член влиза чрез доставчик на самоличност; няма парола за нулиране.",
+      "rate_limited": "Наскоро беше изпратена връзка за нулиране. Опитайте отново след няколко минути.",
+      "email_delivery_unavailable": "Имейлът за нулиране не може да бъде доставен в момента. Нищо не е променено."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Нулиране на паролата",
+    "reset_password_hint": "Изпраща на този член еднократна връзка за нова парола. Вие никога не виждате паролата му.",
+    "reset_password_federated": "Влиза с {providers}, затова няма парола за нулиране.",
+    "reset_confirm_title": "Нулиране на паролата?",
+    "reset_confirm": "Да изпратим ли на {name} еднократна връзка на {email} за нова парола?",
+    "reset_sign_out": "Излез от всички сесии (старата парола спира да работи веднага)",
+    "reset_send": "Изпрати връзка за нулиране",
+    "reset_sent": "Връзката за нулиране е изпратена до {email}"
   },
   "events": {
     "title": "Дневник на събитията",
@@ -1723,7 +1734,8 @@
       "removed": "Премахнат",
       "sign_in": "Влизане",
       "sign_out": "Излизане",
-      "session_expiry": "Сесията изтече"
+      "session_expiry": "Сесията изтече",
+      "password_reset": "Нулиране на паролата"
     }
   },
   "agents": {

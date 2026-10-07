@@ -1,8 +1,11 @@
 <!-- /reset-password?token=<hex64> — the link in the password_reset mail
      (spec 015 contracts/native-auth-v1.md §3). The token is held in memory,
      POSTed with the new password, and dropped from the URL once posted
-     (router.replace → history.replaceState). A 204 sets the password and
-     marks the email verified but opens no session: the person signs in. -->
+     (router.replace → history.replaceState). A 200 (t1 ea0af569, owner HUM-10
+     msg 2a57fe20: "open link, set new password, land in the app") sets the
+     password AND signs the person in: the page adopts the session and goes
+     into the app. A 204 (an older hub, or a sign-in the hub could not open)
+     sets the password only: the person signs in. -->
 <template>
   <div class="login-card" data-test="reset-password" :data-reset-state="state">
     <h1>{{ t('auth.reset.title') }}</h1>
@@ -26,7 +29,8 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { NativeResult } from '~/utils/auth-client.mjs'
+import { safeRedirect, type NativeResult } from '~/utils/auth-client.mjs'
+import { useSessionStore, type SessionClaims } from '~/stores/session'
 import { useSettledQuery } from '~/composables/useSettledQuery'
 import { useAuthClient } from '~/composables/useAuthClient'
 import { useAuthCopy } from '~/composables/useAuthCopy'
@@ -37,6 +41,7 @@ const auth = useAuthClient()
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const copy = useAuthCopy()
+const session = useSessionStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -68,6 +73,15 @@ async function submit() {
     if (route.query.token !== undefined) {
       const { token: _drop, ...rest } = route.query
       void router.replace({ query: rest })
+    }
+    if (out.ok && out.status === 200 && out.data && (out.data as SessionClaims).p) {
+      const { redirect: to, ...claims } = out.data as SessionClaims & { redirect?: string }
+      session.adopt(claims)
+      held.value = ''
+      password.value = ''
+      repeat.value = ''
+      await navigateTo(localePath(safeRedirect(to || '/')))
+      return
     }
     if (out.ok) {
       state.value = 'ok'

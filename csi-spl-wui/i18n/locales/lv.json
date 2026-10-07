@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Izvēlieties derīgu datumu.",
-      "not_migrated": "Šī darbvieta vēl nevar saglabāt beigu datumu; lūdziet operatoram atjaunināt datubāzi."
+      "not_migrated": "Šī darbvieta vēl nevar saglabāt beigu datumu; lūdziet operatoram atjaunināt datubāzi.",
+      "no_password": "Šis dalībnieks piesakās ar identitātes nodrošinātāju; nav paroles, ko atiestatīt.",
+      "rate_limited": "Atiestatīšanas saite tika nosūtīta nesen. Mēģiniet pēc dažām minūtēm.",
+      "email_delivery_unavailable": "Atiestatīšanas e-pastu pašlaik nevar piegādāt. Nekas netika mainīts."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Atiestatīt paroli",
+    "reset_password_hint": "Nosūta šim dalībniekam vienreizēju saiti jaunas paroles iestatīšanai. Jūs nekad neredzat viņa paroli.",
+    "reset_password_federated": "Piesakās ar {providers}, tāpēc nav paroles, ko atiestatīt.",
+    "reset_confirm_title": "Atiestatīt paroli?",
+    "reset_confirm": "Vai nosūtīt {name} vienreizēju saiti uz {email} jaunas paroles iestatīšanai?",
+    "reset_sign_out": "Arī izrakstīt viņu visur (vecā parole uzreiz pārstāj darboties)",
+    "reset_send": "Sūtīt atiestatīšanas saiti",
+    "reset_sent": "Atiestatīšanas saite nosūtīta uz {email}"
   },
   "events": {
     "title": "Notikumu žurnāls",
@@ -1723,7 +1734,8 @@
       "removed": "Noņemts",
       "sign_in": "Pieteicās",
       "sign_out": "Atteicās",
-      "session_expiry": "Sesija beidzās"
+      "session_expiry": "Sesija beidzās",
+      "password_reset": "Parole atiestatīta"
     }
   },
   "agents": {

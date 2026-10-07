@@ -30,6 +30,7 @@ const LAZY_METHODS = [
   'inviteTenantUser',
   'setTenantUserRole',
   'removeTenantUser',
+  'resetTenantUserPassword',
   'auditClones',
   'memberActivity',
   'revokeTenantInvite',

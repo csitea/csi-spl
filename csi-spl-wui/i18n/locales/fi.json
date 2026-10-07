@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Valitse kelvollinen päivä.",
-      "not_migrated": "Tämä työtila ei vielä voi tallentaa päättymispäivää; pyydä ylläpitäjää päivittämään tietokanta."
+      "not_migrated": "Tämä työtila ei vielä voi tallentaa päättymispäivää; pyydä ylläpitäjää päivittämään tietokanta.",
+      "no_password": "Tämä jäsen kirjautuu tunnistuspalvelulla; nollattavaa salasanaa ei ole.",
+      "rate_limited": "Nollauslinkki lähetettiin äskettäin. Yritä uudelleen muutaman minuutin päästä.",
+      "email_delivery_unavailable": "Nollausviestiä ei voi toimittaa juuri nyt. Mitään ei muutettu."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Nollaa salasana",
+    "reset_password_hint": "Lähettää jäsenelle kertakäyttöisen linkin uuden salasanan asettamiseen. Et koskaan näe hänen salasanaansa.",
+    "reset_password_federated": "Kirjautuu palvelulla {providers}, joten nollattavaa salasanaa ei ole.",
+    "reset_confirm_title": "Nollataanko salasana?",
+    "reset_confirm": "Lähetetäänkö käyttäjälle {name} osoitteeseen {email} kertakäyttöinen linkki uuden salasanan asettamiseen?",
+    "reset_sign_out": "Kirjaa hänet myös ulos kaikkialta (vanha salasana lakkaa toimimasta heti)",
+    "reset_send": "Lähetä nollauslinkki",
+    "reset_sent": "Nollauslinkki lähetetty osoitteeseen {email}"
   },
   "events": {
     "title": "Tapahtumaloki",
@@ -1723,7 +1734,8 @@
       "removed": "Poistettu",
       "sign_in": "Kirjautui sisään",
       "sign_out": "Kirjautui ulos",
-      "session_expiry": "Istunto vanheni"
+      "session_expiry": "Istunto vanheni",
+      "password_reset": "Salasana nollattu"
     }
   },
   "agents": {

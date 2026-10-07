@@ -23,7 +23,10 @@ open: nothing to expand. Its columns:
 | Commit | the short commit hash |
 | Change | the title of the change; click it for the note: what, how and why, in plain words and then technically |
 
-A version's own row sits above its changes and carries only the version.
+A version's own row sits above its changes and carries only the version;
+on a phone the Version column folds into that row. Closing the dialog (the
+X, Escape, or Back on a phone) returns to where you opened it, and **All
+versions** in a note returns to the row you clicked.
 **you are here** marks the version this tab is running. A change with no
 note says **no note**.
 

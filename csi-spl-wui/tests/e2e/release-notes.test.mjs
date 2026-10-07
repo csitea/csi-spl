@@ -24,6 +24,18 @@
 //   7 Escape closes it
 //   8 /releases/<sha prefix> opens that note, /releases/v<X.Y.Z> that version,
 //     a ref that is neither says so
+//
+// Owner, t1 3385cecb ("proper table, proper aligning, proper x, proper flow
+// from click"):
+//   6a every column's cells line up under its header (both edges), the
+//      last column reaches the table's end (no empty column), # aligned to
+//      the end; on a phone the version column folds into its band
+//   6b the X (desktop) / the Back chevron (phone) is shown in the dialog head
+//   6c the note's two halves sit side by side on desktop, stacked on a phone
+//   6d Back to the list returns to the row that was clicked: same scroll,
+//      focus on that title
+//   9  a /releases/<sha> link followed inside the app opens the same modal,
+//      and closing it returns to the page it was clicked on
 // and no horizontal overflow in the modal, no page error.
 //
 // Run:
@@ -195,13 +207,15 @@ try {
     else ok(`${vp.name} 1c the xl size on desktop`, f.xl && f.rect && f.rect.w >= f.vw * 0.8, f.rect)
 
     /* 2 one expanded table of the 30 latest, the running version first */
-    ok(`${vp.name} 2a one table: #, version, commit, change`, f.table && f.heads.join('|') === '#|Version|Commit|Change', f.heads)
+    /* a phone folds the version column into the band above its rows */
+    const wantHeads = vp.mobile ? '#|Commit|Change' : '#|Version|Commit|Change'
+    ok(`${vp.name} 2a one table: ${wantHeads.replaceAll('|', ', ')}`, f.table && f.heads.join('|') === wantHeads, f.heads)
     ok(`${vp.name} 2b 30 rows under 15 version rows, nothing to expand, filter or load`,
       f.rows.length === 30 && f.versions === 15 && f.expanders === 0 && !f.more && !f.filter, { rows: f.rows.length, versions: f.versions, expanders: f.expanders, more: f.more, filter: f.filter })
     ok(`${vp.name} 2c the running version is first and marked "you are here"`, f.firstCurrent && f.firstHere === 'you are here', { here: f.firstHere })
     const r0 = f.rows[0] || {}
-    ok(`${vp.name} 2d a row shows #, version, 7-char sha and title`,
-      r0.cells?.length === 4 && r0.cells[0] === '140' && /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1]) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
+    ok(`${vp.name} 2d a row shows #, ${vp.mobile ? '' : 'version, '}7-char sha and title`,
+      r0.cells?.length === (vp.mobile ? 3 : 4) && r0.cells[0] === '140' && (vp.mobile || /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1])) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
 
     /* 3 # counts from the oldest change: newest first, 140 down to 111 */
     const seqs = f.rows.map((x) => Number(x.seq))
@@ -210,6 +224,34 @@ try {
     ok(`${vp.name} 3c a version row is a level-2 heading carrying only the version`,
       f.versionLevel === '2' && f.versionHeads.slice(1).every((h) => /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(h)) && f.versionHeads[1] === 'v0.1.69', f.versionHeads.slice(0, 3))
     ok(`${vp.name} 3d no horizontal overflow in the modal`, f.xOverflow <= 0, f.xOverflow)
+
+    /* 6a proper table: each column's cells start where its header starts */
+    const align = await p.evaluate(() => {
+      const heads = [...document.querySelectorAll('[data-test=release-table] thead th')]
+      const shown = (e) => e.getClientRects().length > 0
+      const rows = [...document.querySelectorAll('[data-test=release-row]')]
+      const table = document.querySelector('[data-test=release-table]').getBoundingClientRect()
+      const cols = heads.map((h) => h.getBoundingClientRect())
+      let worst = rows.some((row) => row.children.length !== heads.length) ? 999 : 0
+      for (const row of rows) {
+        cols.forEach((c, i) => {
+          const td = row.children[i]?.getBoundingClientRect()
+          if (td) worst = Math.max(worst, Math.abs(td.left - c.left), Math.abs(td.right - c.right))
+        })
+      }
+      /* the band row spans the whole table: no column left over beside it */
+      const band = document.querySelector('[data-test=release-version-head] th')?.getBoundingClientRect()
+      const bandGap = band ? Math.abs(band.right - (cols[cols.length - 1]?.right ?? 0)) : 999
+      const seq = rows[0]?.querySelector('[data-test=release-row-seq]')
+      return { worst: Math.round(worst * 10) / 10, bandGap: Math.round(bandGap), fill: Math.round(table.right - (cols[cols.length - 1]?.right ?? 0)), seqAlign: seq ? getComputedStyle(seq).textAlign : '' }
+    })
+    ok(`${vp.name} 6a every column's cells line up under its header, # aligned to the end`,
+      align.worst <= 1 && align.bandGap <= 1 && align.fill <= 1 && align.seqAlign === 'end', align)
+
+    /* 6b proper X: the dialog head shows its close control */
+    const closeShown = await p.evaluate((sel) => [...document.querySelectorAll(sel)].some((e) => e.getClientRects().length && getComputedStyle(e).visibility === 'visible'),
+      vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
+    ok(`${vp.name} 6b the dialog shows its ${vp.mobile ? 'Back chevron' : 'X'}`, closeShown)
 
     /* 5a the backfill row says so in the list; 5c the missing one says no note */
     const rowBadge = (sha) => p.evaluate((sha) => {
@@ -230,6 +272,32 @@ try {
     ok(`${vp.name} 4c plain words first (What / How / Why), technical below`,
       n0?.layFirst && /What/.test(n0.lay) && /How/.test(n0.lay) && /Why/.test(n0.lay) && /Mock module 1/.test(n0.tech), n0 && { lay: n0.lay, tech: n0.tech })
     ok(`${vp.name} 4d the full 40-char sha`, n0?.fullSha === mockSha(0), n0?.fullSha)
+    const halves = await p.evaluate(() => {
+      const a = document.querySelector('[data-test=release-note-lay]')?.getBoundingClientRect()
+      const b = document.querySelector('[data-test=release-note-tech]')?.getBoundingClientRect()
+      return a && b ? { sameTop: Math.abs(a.top - b.top) < 1, below: b.top >= a.bottom - 1 } : null
+    })
+    ok(`${vp.name} 6c the note's halves sit ${vp.mobile ? 'stacked' : 'side by side'}`, halves && (vp.mobile ? halves.below : halves.sameTop), halves)
+
+    /* 6d Back to the list comes back to the row that was clicked */
+    await press(p, vp, '[data-test=release-note-back]')
+    await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 30, null, 3000)
+    const deep = mockSha(24)
+    const before = await p.evaluate((sha) => {
+      document.querySelector(`[data-test=release-row-title][data-sha="${sha}"]`)?.scrollIntoView({ block: 'center' })
+      return document.querySelector('[data-testid=ui-dialog-body]')?.scrollTop || 0
+    }, deep)
+    await press(p, vp, `[data-test=release-row-title][data-sha="${deep}"]`)
+    await until(p, (sha) => document.querySelector('[data-test=release-note]')?.dataset.sha === sha, deep, 3000)
+    await press(p, vp, '[data-test=release-note-back]')
+    await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 30, null, 3000)
+    await sleep(100)
+    const back = await p.evaluate(() => ({
+      top: document.querySelector('[data-testid=ui-dialog-body]')?.scrollTop || 0,
+      focus: document.activeElement?.dataset?.sha || '',
+    }))
+    ok(`${vp.name} 6d Back to the list returns to the clicked row (scroll + focus)`,
+      before > 0 && Math.abs(back.top - before) <= 2 && back.focus === deep, { before, ...back })
 
     /* 5b the backfill note itself */
     await press(p, vp, '[data-test=release-note-back]')
@@ -260,6 +328,19 @@ try {
     await press(p, vp, vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
     const left = await until(p, () => !document.querySelector('[data-test=release-notes]') && !location.pathname.includes('/releases/'), null, 8000)
     ok(`${vp.name} 8d closing the linked modal leaves /releases/`, left, await p.evaluate(() => location.pathname))
+
+    /* 9 a link followed inside the app: the same modal, closing returns there */
+    await p.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
+    await signIn(p)
+    await sleep(500)
+    await p.evaluate((sha) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/releases/' + sha), mockSha(3))
+    const inApp = await until(p, (sha) => document.querySelector('[data-test=release-note]')?.dataset.sha === sha, mockSha(3), 15000)
+    ok(`${vp.name} 9a an in-app /releases/<sha> link opens that note in the modal`, inApp)
+    await sleep(300)
+    await press(p, vp, vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
+    const home = await until(p, () => !document.querySelector('[data-test=release-notes]') && location.pathname.endsWith('/lobby'), null, 8000)
+    ok(`${vp.name} 9b closing it returns to the page it was clicked on`, home, await p.evaluate(() => location.pathname))
 
     ok(`${vp.name} no page error`, errors.length === 0, errors)
     await p.close()

@@ -13,6 +13,13 @@
      What / How / Why first, the technical three below, the full sha with a
      copy button and the link.
 
+     The look (owner, t1 3385cecb: "proper table, proper aligning, proper x,
+     proper flow from click"): the table and the note are bordered cards in
+     the theme tokens, the columns sized from the header row so every cell
+     lines up under it, the version band spanning the row; on a phone the
+     version column folds into its band. The X is UiDialog's. Back to the
+     list returns to the row that was clicked.
+
      Reads (spec 065 L4, every signed-in member, Q11):
        GET /v1/release-notes?limit=30
            -> { off?, versions: [{ version, display, notes: [note + seq] }], next_before }
@@ -25,106 +32,106 @@
      The mock tenant answers from a generated list (release-notes-api.mjs). -->
 <template>
   <UiDialog :open="open" :title="t('release_notes.title')" size="xl" @update:open="onOpen">
-    <div class="rn" data-test="release-notes">
+    <div ref="rootEl" class="rn" data-test="release-notes">
       <template v-if="note">
         <button type="button" class="rn__back" data-test="release-note-back" @click="showList">
           <UiIcon name="chevron-left" :size="16" /> {{ t('release_notes.back') }}
         </button>
-        <article class="rn-note" data-test="release-note" :data-state="note.state" :data-sha="note.sha">
-          <h3 class="rn-note__subject">{{ note.subject || shortSha(note.sha) }}</h3>
-          <p class="rn-note__meta muted">
-            <span v-if="note.version" data-test="release-note-version">{{ displayVersion(plainVersion(note.version)) }}</span>
-            <span v-if="note.kind">{{ note.kind }}</span>
-            <span v-if="note.area">{{ note.area }}</span>
-          </p>
-          <p v-if="stateText(note.state)" class="rn-note__state" :class="'is-' + note.state" data-test="release-note-state">{{ stateText(note.state) }}</p>
-          <section v-if="hasAny(note, 'lay')" class="rn-note__part" data-test="release-note-lay">
-            <h4>{{ t('release_notes.lay') }}</h4>
-            <dl>
-              <template v-for="k in PARTS" :key="'lay' + k">
-                <template v-if="note['lay_' + k]">
-                  <dt>{{ t('release_notes.' + k) }}</dt>
-                  <dd>{{ note['lay_' + k] }}</dd>
+        <article class="rn-note rn-card" data-test="release-note" :data-state="note.state" :data-sha="note.sha">
+          <header class="rn-note__head">
+            <h3 class="rn-note__subject">{{ note.subject || shortSha(note.sha) }}</h3>
+            <p v-if="note.version || note.kind || note.area" class="rn-note__meta">
+              <span v-if="note.version" class="rn-chip rn-chip--ver" data-test="release-note-version">{{ displayVersion(plainVersion(note.version)) }}</span>
+              <span v-if="note.kind" class="rn-chip">{{ note.kind }}</span>
+              <span v-if="note.area" class="rn-chip">{{ note.area }}</span>
+            </p>
+            <p v-if="stateText(note.state)" class="rn-note__state" :class="'is-' + note.state" data-test="release-note-state">{{ stateText(note.state) }}</p>
+          </header>
+          <!-- plain words first, technical beside it (below it on a narrow screen) -->
+          <div v-if="sidesOf(note).length" class="rn-note__parts">
+            <section v-for="side in sidesOf(note)" :key="side" class="rn-note__part" :data-test="'release-note-' + side">
+              <h4>{{ t('release_notes.' + side) }}</h4>
+              <dl>
+                <template v-for="k in PARTS" :key="side + k">
+                  <template v-if="note[side + '_' + k]">
+                    <dt>{{ t('release_notes.' + k) }}</dt>
+                    <dd>{{ note[side + '_' + k] }}</dd>
+                  </template>
                 </template>
-              </template>
-            </dl>
-          </section>
-          <section v-if="hasAny(note, 'tech')" class="rn-note__part" data-test="release-note-tech">
-            <h4>{{ t('release_notes.tech') }}</h4>
-            <dl>
-              <template v-for="k in PARTS" :key="'tech' + k">
-                <template v-if="note['tech_' + k]">
-                  <dt>{{ t('release_notes.' + k) }}</dt>
-                  <dd>{{ note['tech_' + k] }}</dd>
-                </template>
-              </template>
-            </dl>
-          </section>
-          <p class="rn-note__sha">
-            <code dir="ltr" data-test="release-note-full-sha">{{ note.sha }}</code>
-            <button
-              type="button"
-              class="rn__icon"
-              data-test="release-note-copy"
-              :title="copied === 'sha' ? t('code.copied') : t('code.copy')"
-              :aria-label="copied === 'sha' ? t('code.copied') : t('code.copy')"
-              @click="copy(note.sha, 'sha')"
-            >
-              <UiIcon :name="copied === 'sha' ? 'check' : 'copy'" :size="15" />
-            </button>
-          </p>
-          <p class="rn-note__links">
-            <a v-if="note.link" :href="note.link" target="_blank" rel="noopener" data-test="release-note-link">{{ t('release_notes.open_commit') }}</a>
-            <button type="button" class="rn__linkbtn" data-test="release-note-copy-link" @click="copy(noteUrl(note.sha), 'link')">
-              {{ copied === 'link' ? t('code.copied') : t('release_notes.copy_link') }}
-            </button>
-          </p>
+              </dl>
+            </section>
+          </div>
+          <footer class="rn-note__foot">
+            <div class="rn-note__sha">
+              <span class="rn-note__label">{{ t('release_notes.col_commit') }}</span>
+              <code dir="ltr" data-test="release-note-full-sha">{{ note.sha }}</code>
+              <button
+                type="button"
+                class="rn__icon"
+                data-test="release-note-copy"
+                :title="copied === 'sha' ? t('code.copied') : t('code.copy')"
+                :aria-label="copied === 'sha' ? t('code.copied') : t('code.copy')"
+                @click="copy(note.sha, 'sha')"
+              >
+                <UiIcon :name="copied === 'sha' ? 'check' : 'copy'" :size="16" />
+              </button>
+            </div>
+            <div class="rn-note__links">
+              <a v-if="note.link" :href="note.link" class="btn ghost rn__action" target="_blank" rel="noopener" data-test="release-note-link"><UiIcon name="open" :size="16" /> {{ t('release_notes.open_commit') }}</a>
+              <button type="button" class="btn ghost rn__action" data-test="release-note-copy-link" @click="copy(noteUrl(note.sha), 'link')">
+                <UiIcon :name="copied === 'link' ? 'check' : 'copy'" :size="16" />
+                {{ copied === 'link' ? t('code.copied') : t('release_notes.copy_link') }}
+              </button>
+            </div>
+          </footer>
         </article>
       </template>
       <template v-else>
         <p class="rn__lead muted" data-test="release-notes-lead">{{ t('release_notes.latest', { n: LATEST }) }}</p>
-        <p v-if="message" class="muted" role="status" data-test="release-notes-message">{{ message }}</p>
-        <p v-else-if="loading && !versions.length" class="muted">{{ t('common.loading') }}</p>
-        <p v-else-if="!versions.length" class="muted" data-test="release-notes-empty">{{ t('release_notes.empty') }}</p>
-        <table v-else class="rn-table" data-test="release-table">
-          <thead>
-            <tr>
-              <th scope="col" class="rn-table__seq">{{ t('release_notes.col_seq') }}</th>
-              <th scope="col" class="rn-table__ver">{{ t('release_notes.col_version') }}</th>
-              <th scope="col" class="rn-table__sha">{{ t('release_notes.col_commit') }}</th>
-              <th scope="col">{{ t('release_notes.col_title') }}</th>
-            </tr>
-          </thead>
-          <tbody
-            v-for="v in latest"
-            :key="v.version || '-'"
-            data-test="release-version"
-            :data-version="v.version"
-            :data-current="v.version === currentKey ? 'true' : undefined"
-          >
-            <tr class="rn-ver" data-test="release-version-head">
-              <th colspan="4" scope="rowgroup" class="rn-ver__head">
-                <span class="rn-ver__name" role="heading" aria-level="2">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
-                <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
-                <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
-              </th>
-            </tr>
-            <tr v-for="n in v.notes" :key="n.sha" class="rn-row" data-test="release-row" :data-state="n.state" :data-seq="n.seq || undefined">
-              <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
-              <td class="rn-table__ver">{{ shownVersion(v) }}</td>
-              <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
-              <td class="rn-row__title">
-                <a
-                  :href="localePath('/releases/' + n.sha)"
-                  data-test="release-row-title"
-                  :data-sha="n.sha"
-                  @click="onTitle($event, n)"
-                >{{ n.subject || shortSha(n.sha) }}</a>
-                <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <p v-if="message" class="rn__msg muted" role="status" data-test="release-notes-message">{{ message }}</p>
+        <p v-else-if="loading && !versions.length" class="rn__msg muted">{{ t('common.loading') }}</p>
+        <p v-else-if="!versions.length" class="rn__msg muted" data-test="release-notes-empty">{{ t('release_notes.empty') }}</p>
+        <div v-else class="rn-card rn-table-wrap">
+          <table class="rn-table" data-test="release-table">
+            <thead>
+              <tr>
+                <th scope="col" class="rn-table__seq">{{ t('release_notes.col_seq') }}</th>
+                <th v-if="!narrow" scope="col" class="rn-table__ver">{{ t('release_notes.col_version') }}</th>
+                <th scope="col" class="rn-table__sha">{{ t('release_notes.col_commit') }}</th>
+                <th scope="col">{{ t('release_notes.col_title') }}</th>
+              </tr>
+            </thead>
+            <tbody
+              v-for="v in latest"
+              :key="v.version || '-'"
+              data-test="release-version"
+              :data-version="v.version"
+              :data-current="v.version === currentKey ? 'true' : undefined"
+            >
+              <tr class="rn-ver" data-test="release-version-head">
+                <th :colspan="narrow ? 3 : 4" scope="rowgroup" class="rn-ver__head">
+                  <span class="rn-ver__name" role="heading" aria-level="2">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
+                  <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
+                  <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
+                </th>
+              </tr>
+              <tr v-for="n in v.notes" :key="n.sha" class="rn-row" data-test="release-row" :data-state="n.state" :data-seq="n.seq || undefined">
+                <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
+                <td v-if="!narrow" class="rn-table__ver">{{ shownVersion(v) }}</td>
+                <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
+                <td class="rn-row__title">
+                  <a
+                    :href="localePath('/releases/' + n.sha)"
+                    data-test="release-row-title"
+                    :data-sha="n.sha"
+                    @click="onTitle($event, n)"
+                  >{{ n.subject || shortSha(n.sha) }}</a>
+                  <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </template>
     </div>
   </UiDialog>
@@ -172,10 +179,14 @@ const config = useRuntimeConfig()
 const localePath = useLocalePath()
 const buildWatch = useBuildWatch()
 const { copied, copy } = useCopyText()
+/* the one-panel shell (<= 820 px): the version is the band above its rows,
+   so the column goes - in the DOM, a hidden cell would still span a column */
+const narrow = useMobileStack().isMobile
 
 /* the changes shown; one page of this many versions carries at least as many */
 const LATEST = 30
 const PARTS = ['what', 'how', 'why'] as const
+const SIDES = ['lay', 'tech'] as const
 const SHA_RE = /^[0-9a-f]{7,40}$/
 const VERSION_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c([2-9]|[1-9][0-9]{1,3}))?$/
 
@@ -194,6 +205,7 @@ const note = ref<ReleaseNote | null>(null)
 function onOpen(v: boolean) { emit('update:open', v) }
 const shortSha = (s: string) => String(s || '').slice(0, 7)
 const hasAny = (n: ReleaseNote, side: 'lay' | 'tech') => PARTS.some((k) => n[`${side}_${k}`])
+const sidesOf = (n: ReleaseNote) => SIDES.filter((side) => hasAny(n, side))
 function stateText(state: string) {
   return ['missing', 'backfill', 'skip', 'revert'].includes(state) ? t('release_notes.state_' + state) : ''
 }
@@ -243,8 +255,25 @@ async function loadLatest() {
   }
 }
 
-function openNote(n: ReleaseNote) { note.value = n }
-function showList() { note.value = null }
+/* "proper flow from click": the list comes back where it was left - the
+   dialog body's scroll and the focus on the title that was clicked */
+const rootEl = ref<HTMLElement | null>(null)
+const scrollBody = () => rootEl.value?.closest<HTMLElement>('[data-testid=ui-dialog-body]') || null
+let listAt: { top: number, sha: string } | null = null
+function openNote(n: ReleaseNote) {
+  listAt = { top: scrollBody()?.scrollTop || 0, sha: n.sha }
+  note.value = n
+  void nextTick(() => { const b = scrollBody(); if (b) b.scrollTop = 0 })
+}
+async function showList() {
+  note.value = null
+  const at = listAt
+  listAt = null
+  await nextTick()
+  const b = scrollBody()
+  if (b) b.scrollTop = at?.top || 0
+  if (at) rootEl.value?.querySelector<HTMLElement>(`[data-test=release-row-title][data-sha="${at.sha}"]`)?.focus({ preventScroll: true })
+}
 /* a plain click shows the note in place; a modified one opens /releases/<sha> */
 function onTitle(e: MouseEvent, n: ReleaseNote) {
   if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
@@ -293,39 +322,88 @@ watch(() => props.initialRef, (r, old) => {
 </script>
 
 <style scoped>
-.rn { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
-.rn__lead { margin: 0; }
-.rn__back, .rn__linkbtn { font: inherit; color: var(--color-accent); background: none; border: 0; padding: 0.25rem 0; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem; align-self: flex-start; }
-.rn__linkbtn { text-decoration: underline; }
-.rn__icon { font: inherit; color: var(--color-muted); background: none; border: 0; padding: 0.25rem; cursor: pointer; display: inline-flex; }
-.rn-table { width: 100%; border-collapse: collapse; }
-.rn-table th, .rn-table td { padding: 0.25rem 0.4rem; text-align: start; vertical-align: baseline; }
-.rn-table thead th { font-size: 0.8125rem; color: var(--color-muted); font-weight: 600; border-bottom: 1px solid var(--color-border); }
+/* The look of the app's other panels (owner, t1 3385cecb: "proper table,
+   proper aligning"): theme tokens only, rem font sizes, the body inset like
+   a feed, the table and the note each one bordered card. */
+.rn { display: flex; flex-direction: column; gap: var(--spacing-sm); min-width: 0; padding: 0.75rem 1.5rem 1.5rem; }
+.rn__lead, .rn__msg { margin: 0; }
+.rn-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); min-width: 0; }
+.rn__back { font: inherit; font-weight: 600; color: var(--color-accent); background: none; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 0.25rem 0.5rem 0.25rem 0.25rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem; align-self: flex-start; }
+.rn__back:hover { border-color: var(--color-border); }
+.rn__back:dir(rtl) .ui-icon { transform: scaleX(-1); }
+.rn__icon { font: inherit; color: var(--color-muted); background: none; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 0.25rem; cursor: pointer; display: inline-flex; flex: none; }
+.rn__icon:hover { color: var(--color-fg); border-color: var(--color-border); }
+.rn__action { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; text-decoration: none; }
+
+/* the table: a header band, fixed narrow columns, the change takes the rest */
+.rn-table-wrap { overflow: clip; }
+.rn-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 0.9375rem; }
+/* fixed layout sizes the columns from the header row */
+.rn-table thead .rn-table__seq { width: 4.5rem; }
+.rn-table thead .rn-table__ver { width: 7rem; }
+.rn-table thead .rn-table__sha { width: 6.5rem; }
+.rn-table th, .rn-table td { padding: 0.5rem 0.75rem; text-align: start; vertical-align: top; }
+.rn-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  font-size: 0.8125rem; font-weight: 600; color: var(--color-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--color-bg-2); border-bottom: 1px solid var(--color-border-strong);
+}
 .rn-table__seq, .rn-table__ver, .rn-table__sha { white-space: nowrap; }
-.rn-table td.rn-table__seq { color: var(--color-muted); font-variant-numeric: tabular-nums; text-align: end; }
-.rn-table .rn-ver__head { padding-top: 0.75rem; border-bottom: 1px solid var(--color-border); }
-.rn-ver__name { font-weight: 600; margin-inline-end: 0.5rem; }
-.rn-ver__here, .rn-ver__newer { font-size: 0.8125rem; font-weight: 400; padding: 0 0.4rem; border-radius: var(--radius-pill); border: 1px solid currentColor; }
+.rn-table .rn-table__seq { text-align: end; font-variant-numeric: tabular-nums; }
+.rn-table td.rn-table__seq, .rn-table td.rn-table__ver { color: var(--color-muted); }
+.rn-table td.rn-table__ver { font-variant-numeric: tabular-nums; }
+.rn-table__sha code { font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.0625rem 0.375rem; border-radius: var(--radius-sm); background: var(--color-bg-2); border: 1px solid var(--color-border); color: var(--color-fg); }
+.rn-table .rn-ver__head { padding-block: 0.625rem 0.5rem; background: var(--color-bg-2); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.rn-table tbody:first-of-type .rn-ver__head { border-top: 0; }
+.rn-ver__name { font-weight: 600; color: var(--color-heading); margin-inline-end: 0.5rem; font-variant-numeric: tabular-nums; }
+.rn-ver__here, .rn-ver__newer { font-size: 0.75rem; font-weight: 600; padding: 0.0625rem 0.5rem; border-radius: var(--radius-pill); border: 1px solid currentColor; vertical-align: 0.0625rem; }
 .rn-ver__here { color: var(--color-ok); }
 .rn-ver__newer { color: var(--color-warn); }
+.rn-row td { border-bottom: 1px solid var(--color-border); }
+.rn-row:last-child td { border-bottom: 0; }
+.rn-row:hover td { background: var(--color-surface-hover); }
 .rn-row__title { overflow-wrap: anywhere; min-width: 0; }
-.rn-row__title a { color: var(--color-accent); }
-.rn-row__badge { margin-inline-start: 0.4rem; }
+.rn-row__title a { color: var(--color-accent); text-decoration: none; }
+.rn-row__title a:hover { text-decoration: underline; }
+.rn-row__badge { margin-inline-start: 0.5rem; white-space: nowrap; }
 .rn-row__badge, .rn-note__state { font-size: 0.8125rem; color: var(--color-muted); font-style: italic; }
 .rn-row__badge.is-missing, .rn-note__state.is-missing { color: var(--color-warn); font-style: normal; }
-.rn-note { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
-.rn-note__subject { margin: 0; font-size: 1.0625rem; overflow-wrap: anywhere; }
-.rn-note__meta { margin: 0; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+/* the note: a card with a head, the two halves, a foot */
+.rn-note { display: flex; flex-direction: column; overflow: clip; }
+.rn-note__head { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border); }
+.rn-note__subject { margin: 0; font-size: 1.125rem; line-height: 1.35; color: var(--color-heading); overflow-wrap: anywhere; }
+.rn-note__meta { margin: 0; display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.rn-chip { font-size: 0.75rem; font-weight: 600; padding: 0.0625rem 0.5rem; border-radius: var(--radius-pill); border: 1px solid var(--color-border-strong); color: var(--color-muted); }
+.rn-chip--ver { color: var(--color-accent); border-color: currentColor; font-variant-numeric: tabular-nums; }
 .rn-note__state { margin: 0; }
-.rn-note__part h4 { margin: 0.5rem 0 0.25rem; font-size: 0.9375rem; }
-.rn-note__part dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.75rem; }
-.rn-note__part dt { font-weight: 600; }
+.rn-note__parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); }
+.rn-note__part { padding: 1rem 1.25rem; min-width: 0; }
+.rn-note__part + .rn-note__part { border-inline-start: 1px solid var(--color-border); }
+.rn-note__part h4 { margin: 0 0 0.5rem; font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.rn-note__part dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1rem; }
+.rn-note__part dt { font-weight: 600; color: var(--color-heading); }
 .rn-note__part dd { margin: 0; overflow-wrap: anywhere; }
-.rn-note__sha { margin: 0; display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
-.rn-note__sha code { overflow-wrap: anywhere; }
-.rn-note__links { margin: 0; display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.rn-note__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1rem; padding: 0.75rem 1.25rem; border-top: 1px solid var(--color-border); background: var(--color-bg-2); }
+.rn-note__sha { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.rn-note__label { font-size: 0.8125rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; flex: none; }
+.rn-note__sha code { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; min-width: 0; }
+.rn-note__links { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+
+/* a phone: the rows keep #, commit and change in line, the note's halves stack */
+@media (max-width: 600px) {
+  .rn { padding: 0.5rem 0.75rem 1rem; }
+  .rn-table thead .rn-table__seq { width: 3rem; }
+  .rn-table thead .rn-table__sha { width: 5.75rem; }
+  .rn-table th, .rn-table td { padding: 0.5rem; }
+  .rn-note__head, .rn-note__part, .rn-note__foot { padding-inline: 1rem; }
+  .rn-note__part + .rn-note__part { border-inline-start: 0; border-top: 1px solid var(--color-border); }
+  .rn-note__part dl { grid-template-columns: 1fr; gap: 0.125rem; }
+  .rn-note__part dd + dt { margin-top: 0.5rem; }
+}
 @media (pointer: coarse) {
-  .rn__linkbtn, .rn__back, .rn__icon { min-height: 44px; }
-  .rn-row td { padding-block: 0.6rem; }
+  .rn__back, .rn__icon, .rn__action { min-height: var(--tap, 44px); }
+  .rn__icon { min-width: var(--tap, 44px); justify-content: center; }
 }
 </style>

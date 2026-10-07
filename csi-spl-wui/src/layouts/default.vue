@@ -203,6 +203,7 @@ import { MIDDLE, routeTakesFocus } from '~/utils/pane-focus.mjs'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
 import { useOpenMessageNotice } from '~/composables/useOpenMessage'
+import { perfWhenIdle } from '~/utils/perf-idle.mjs'
 
 const topic = useTopicStore()
 /* SPL-1201: gate the (async) debug pane on the same claim it checks internally,
@@ -356,6 +357,18 @@ const offNav = router.afterEach((to, from, failure) => {
   if (routeTakesFocus({ ...nav, initial, typing: typingNow(), channelList: inChannelList() })) routeFocusDue = Date.now()
 })
 onUnmounted(() => { offPop(); offNav() })
+/* spec 103 T005: the vim keys (h j k l, g g, G, Esc) - ONE global listener,
+   imported on window idle so it, its store and its ring css stay out of the
+   initial chunk (composables/useVimNavigation.ts) */
+let offVim = () => {}
+let vimGone = false
+onMounted(() => perfWhenIdle(() => {
+  import('~/composables/useVimNavigation').then((m) => {
+    if (vimGone) return
+    offVim = m.installVimNavigation({ claim: () => session.claims?.keyboard_shortcuts, phone: () => stack.isMobile.value, router })
+  }).catch(() => { /* a chunk gone after a deploy: no vim keys on this tab */ })
+}))
+onUnmounted(() => { vimGone = true; offVim() })
 /* 081 T006: the skip link and the focus after a route change */
 const routeAnnounce = ref('')
 let routeFocusDue = 0

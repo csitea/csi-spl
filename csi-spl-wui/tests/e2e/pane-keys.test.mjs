@@ -7,6 +7,9 @@
 //   AC6  with a topic open, F6 x3 from the left pane -> middle, right,
 //        Omnibox in turn; Shift + F6 walks back; F6 is the page's key
 //   -    with no topic open, F6 from the middle skips to the Omnibox
+//   103  T005: the vim listener mounts after idle; h / l / Esc walk the
+//        panels; keys type into the Omnibox; a dialog and the setting off
+//        suspend it (a control proves the same key moves without them)
 //   AC8  click People in the rail -> document.activeElement is inside
 //        .spool-main, and the live region says the page title
 //
@@ -139,6 +142,80 @@ try {
     back.push((await until(p, inPane, want, 2000)) ? want : `!${await p.evaluate(paneNow)}`)
   }
   ok('Shift + F6 walks back: right, middle, left', back.join(',') === 'right,middle,left', back)
+
+  /* ---- spec 103 T005: the lazy vim listener (topic still open) ---- */
+  ok('vim: the listener mounts after idle', await until(p, () => document.documentElement.getAttribute('data-vim-nav') === 'on', null, 8000))
+  const vimPanel = () => {
+    const a = document.activeElement
+    if (!a || a === document.body) return -1
+    if (a.closest('aside.live-pane')) return 3
+    if (a.closest('.spool-main')) return 2
+    if (a.closest('.sidebar-body')) return 1
+    if (a.closest('.sidebar-rail')) return 0
+    return -1
+  }
+  const vimAt = (want) => {
+    const a = document.activeElement
+    const at = !a || a === document.body ? -1 : a.closest('aside.live-pane') ? 3 : a.closest('.spool-main') ? 2 : a.closest('.sidebar-body') ? 1 : a.closest('.sidebar-rail') ? 0 : -1
+    return at === want
+  }
+  const focusCard = () => p.evaluate(() => document.querySelector('.spool-main article.msg')?.focus())
+  await focusCard()
+  ok('vim: start on a middle card (panel 2)', await until(p, vimAt, 2, 2000), await p.evaluate(vimPanel))
+  const vimWalk = []
+  for (const [key, want] of [['h', 1], ['h', 0], ['h', 0], ['l', 1], ['l', 2], ['l', 3], ['Escape', 2]]) {
+    await p.keyboard.press(key)
+    vimWalk.push((await until(p, vimAt, want, 2000)) ? `${key}:${want}` : `${key}:!${await p.evaluate(vimPanel)}`)
+  }
+  ok('vim: h h h l l l Esc walks panels 1,0,0,1,2,3,2', vimWalk.join(',') === 'h:1,h:0,h:0,l:1,l:2,l:3,Escape:2', vimWalk)
+  ok('vim: the row it landed on carries the one ring (data-vim-selected)', await p.evaluate(() =>
+    document.querySelectorAll('[data-vim-selected="true"]').length === 1 && document.activeElement?.getAttribute('data-vim-selected') === 'true'))
+
+  /* a text field gets the letter: the Omnibox keeps the focus and types h */
+  await p.focus('.top-bar__omnibox textarea')
+  await p.keyboard.type('hjkl')
+  ok('vim: h j k l type into the Omnibox, the focus stays', await p.evaluate(() =>
+    Boolean(document.activeElement?.closest('.top-bar__omnibox')) && /hjkl/.test(document.querySelector('.top-bar__omnibox textarea')?.value || '')),
+  await p.evaluate(() => [document.activeElement?.tagName, document.querySelector('.top-bar__omnibox textarea')?.value]))
+  await p.evaluate(() => {
+    const ta = document.querySelector('.top-bar__omnibox textarea')
+    if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input', { bubbles: true })) }
+  })
+
+  /* an open dialog suspends the layer, even for a key on a card under it */
+  await p.evaluate(() => {
+    const d = document.createElement('div')
+    d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.id = 'vim-probe-dialog'
+    document.body.appendChild(d)
+  })
+  await focusCard()
+  await p.keyboard.press('h')
+  await sleep(300)
+  ok('vim: with a dialog open, h on a card does nothing', await p.evaluate(vimAt, 2), await p.evaluate(vimPanel))
+  /* control (must fail if the layer were dead): the same h with the dialog gone moves */
+  await p.evaluate(() => document.getElementById('vim-probe-dialog')?.remove())
+  await focusCard()
+  await p.keyboard.press('h')
+  ok('vim control: the same h with no dialog moves to panel 1', await until(p, vimAt, 1, 2000), await p.evaluate(vimPanel))
+
+  /* Keyboard shortcuts off (Settings -> Behaviour): nothing */
+  const claimWas = await p.evaluate(() => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+    const was = s.claims ? s.claims.keyboard_shortcuts : undefined
+    s.claims = { ...(s.claims || {}), keyboard_shortcuts: false }
+    return was === undefined ? null : was
+  })
+  await focusCard()
+  await p.keyboard.press('h')
+  await sleep(300)
+  ok('vim: with Keyboard shortcuts off, h does nothing', await p.evaluate(vimAt, 2), await p.evaluate(vimPanel))
+  await p.evaluate((was) => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+    const c = { ...(s.claims || {}) }
+    if (was === null) delete c.keyboard_shortcuts
+    else c.keyboard_shortcuts = was
+    s.claims = c
+  }, claimWas)
 
   /* ---- AC8: a click on People moves the focus to the page, and says it ---- */
   await load(p, '/lobby')

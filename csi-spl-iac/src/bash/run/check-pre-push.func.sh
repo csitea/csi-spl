@@ -321,11 +321,22 @@ _pp_api_timeout() {
   elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_API_FULL_TIMEOUT:-900}"
   else echo "$_pp_timeout"; fi
 }
+# The budget a part runs under: the ONE source both the part's `timeout` and
+# the TIMED OUT note read. The note used to print the shared 300 s for every
+# part, so lanes whose api (900 s) or wui (420 s) budget ran out raised the
+# wrong number (c-448, c-464, c-465, 2026-10-07).
+_pp_budget() {  # <part-fn>
+  case "$1" in
+    _pp_part_api) _pp_api_timeout ;;
+    _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
+    *) echo "$_pp_timeout" ;;
+  esac
+}
 _pp_part_api() {
-  SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_api_timeout)" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
+  SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_api)" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
 }
 _pp_part_iac() {
-  IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$_pp_timeout" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"
+  IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_iac)" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"
 }
 # The payment-vendor gate READS csi-spl-wui (it greps it) but LIVES in the api
 # suite, so a WUI-only change used to skip it and a vendor word ("stripe") in a
@@ -339,7 +350,7 @@ _pp_part_wui() {
   pn="$(_pp_pnpm)" || { do_log "FATAL pre-push: pnpm not found (checked PATH, ~/.local/bin, /usr/local/bin)"; return 1; }
   # unit (57 s) + typecheck (77..134 s) + a re-install (52 s) measured past the
   # 300 s default on a loaded box (CLE-77831): the wui part gets its own.
-  timeout -k 10 "${PRE_PUSH_WUI_TIMEOUT:-420}" bash -c '
+  timeout -k 10 "$(_pp_budget _pp_part_wui)" bash -c '
     cd "$1/csi-spl-wui" || exit 1
     export PATH="$HOME/.local/bin:$PATH"
     # A node_modules SYMLINK into another checkout (the stale shared one) made
@@ -465,7 +476,7 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
     do_log "INFO pre-push: PASS $label (${el}s)"
     return 0
   fi
-  local note="rc=$rc"; [[ "$rc" -eq 124 || "$rc" -eq 137 ]] && note="TIMED OUT after ${_pp_timeout}s"
+  local note="rc=$rc"; [[ "$rc" -eq 124 || "$rc" -eq 137 ]] && note="TIMED OUT after $(_pp_budget "$fn")s"
   if [[ "$rc" -eq 127 ]]; then
     # command not found: an environment gap, never "pre-existing on trunk"
     _pp_record "$label (rc=127: a command was not found)" "FAIL" "$el"; _PP_FAILED=$((_PP_FAILED + 1))

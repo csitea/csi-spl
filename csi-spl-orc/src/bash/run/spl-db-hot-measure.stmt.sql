@@ -157,7 +157,7 @@ WITH pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $
 		AND (z.msg_id = m.msg_id OR z.msg_id = m.task_id
 			OR (z.task_id = m.task_id AND m.task_id::text <> $7)
 			OR (z.task_id = m.parent_task_id AND m.parent_task_id::text <> $7)))) c
--- @@stmt ch_hidden sha256=f846d6cc5ad29d81927d149211163654cd568355de12137e15eda391360f403d scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby','{issues,tasks}'
+-- @@stmt ch_hidden sha256=789f59de2630a1737ed1cae7f90086b4b47d1670bc15196224bc9e235c914180 scope=tenant exec=:'t',now(),'{}','{}','{}',:'r',:'lobby','{issues,tasks}'
 -- @@scope SELECT set_config('app.tenant_id', $1, true)
 WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timestamptz[], $5::text[]) AS u(ch, at, id)),
 		sm AS (SELECT substr(mark_key, 4) AS ch, at, msg_id AS id FROM read_marks
@@ -166,7 +166,12 @@ WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timest
 		cl AS (SELECT (SELECT min(channel) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL) AS ch
 			UNION ALL SELECT (SELECT min(x.channel) FROM messages x WHERE x.tenant_id = $1 AND x.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL),
 		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch)
-			AND cl.ch <> ALL($8::text[]) AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = cl.ch AND dc.archived_at IS NOT NULL) LIMIT 1),
+			AND cl.ch <> ALL($8::text[]) AND NOT EXISTS (SELECT 1 FROM channels dc WHERE dc.tenant_id = $1 AND dc.channel_id = cl.ch AND dc.archived_at IS NOT NULL)
+			AND (SELECT true FROM messages a WHERE a.tenant_id = $1 AND a.archived_at IS NOT NULL LIMIT 1)
+			AND (SELECT true FROM messages u WHERE u.tenant_id = $1 AND u.channel = cl.ch AND u.expires_at > $2
+				AND ($6::text IS NULL OR u.from_id IS DISTINCT FROM $6) AND (u.archived_at IS NOT NULL OR EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+					AND (z.msg_id = u.task_id OR (z.task_id = u.task_id AND u.task_id::text <> $7)
+						OR (z.task_id = u.parent_task_id AND u.parent_task_id::text <> $7)))) LIMIT 1) LIMIT 1),
 		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL AND EXISTS (SELECT 1 FROM um)),
 		h AS (
 			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)

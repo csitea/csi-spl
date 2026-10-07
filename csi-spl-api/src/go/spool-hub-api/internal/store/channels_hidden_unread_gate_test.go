@@ -15,6 +15,12 @@ import (
 // gate as ap-02 shipped it (0576d2cd).
 var gateSkip = "\n\t\t\tAND cl.ch <> ALL($8::text[]) AND " + notArchived("cl.ch")
 
+// narrowSkip is what ap-02 explore added to um after gateSkip; cutting it out
+// is the gate as f2e86af25ab6 shipped it.
+var narrowSkip = "\n\t\t\tAND (SELECT true FROM messages a WHERE a.tenant_id = $1 AND a.archived_at IS NOT NULL LIMIT 1)" +
+	"\n\t\t\tAND (SELECT true FROM messages u WHERE u.tenant_id = $1 AND u.channel = cl.ch AND u.expires_at > $2" +
+	"\n\t\t\t\tAND ($6::text IS NULL OR u.from_id IS DISTINCT FROM $6) AND " + hiddenLineSQL + " LIMIT 1)"
+
 // TestHiddenUnreadGateSkipsUnlistedChannels (Postgres): a reader whose only
 // unmarked channels are issues and an archived channel gets the ap-02 gate
 // closed, and the same channel list as the ap-02 gate. An unmarked live
@@ -64,28 +70,96 @@ func TestHiddenUnreadGateSkipsUnlistedChannels(t *testing.T) {
 	early := now.Add(-time.Hour)
 	reads := map[string]ReadMark{"devel": {At: early}, ChannelLobby: {At: early}}
 
-	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-1", lobby); open || !same {
+	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-1", lobby, gateSkip, narrowSkip); open || !same {
 		t.Fatalf("only issues + an archived channel unmarked: gate open=%v (want false), same list=%v", open, same)
 	}
 	archivedTopic("ops", 16*time.Minute) // HUM-1 is no member of ops
-	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-1", lobby); !open || !same {
+	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-1", lobby, gateSkip, narrowSkip); !open || !same {
 		t.Fatalf("unjoined ops unmarked: gate open=%v (want true), same list=%v", open, same)
 	}
 	for _, reader := range []string{"", "HUM-2"} {
-		if _, same := hiddenGateCompare(t, pg, tid, now, nil, reader, lobby); !same {
+		if _, same := hiddenGateCompare(t, pg, tid, now, nil, reader, lobby, gateSkip, narrowSkip); !same {
 			t.Fatalf("reader %q, no marks: list differs from the ap-02 gate", reader)
 		}
 	}
 }
 
-// hiddenGateCompare reports whether the fixed gate is open, and whether the
-// channel list is the same under the ap-02 gate and the fixed one.
-func hiddenGateCompare(t *testing.T, pg *Postgres, tid string, now time.Time, reads map[string]ReadMark, reader, lobby string) (bool, bool) {
+// TestHiddenUnreadGateSkipsChannelsWithNoHiddenLine (Postgres, ap-02
+// explore): an unmarked channel whose lines are none hidden, or hidden but
+// only the reader's own or expired, keeps the gate closed, with the same list
+// as the f2e86af25ab6 gate. A hidden live line of another opens it - also a
+// reply moved into the unmarked channel from a marked one's archived card.
+func TestHiddenUnreadGateSkipsChannelsWithNoHiddenLine(t *testing.T) {
+	ds := drivers(t)
+	s, ok := ds["postgres"]
+	if !ok {
+		t.Skip("SPOOL_TEST_PG_DSN unset (run hub-pg.tst.sh)")
+	}
+	pg := s.(*Postgres)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	tid := newTenant(t, pg)
+	lobby := "00000000-0000-4000-8000-0000000000aa"
+	insert := func(m Message) {
+		t.Helper()
+		if _, err := pg.InsertMessage(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	line := func(ago time.Duration, task, ch, from string) Message {
+		m := msgFor(tid, task, "box-wui", now, now.Add(-ago), "e")
+		m.Channel, m.FromID, m.ReceivedAt = ch, from, now.Add(-ago)
+		return m
+	}
+	// archivedTopic posts a card in ch and a reply in replyCh, both by from
+	// (expired when gone), and archives the card.
+	archivedTopic := func(ch, replyCh, from string, ago time.Duration, gone bool) {
+		t.Helper()
+		task := uuid4()
+		card, reply := line(ago, task, ch, from), line(ago-time.Minute, task, replyCh, from)
+		if gone {
+			card.ExpiresAt, reply.ExpiresAt = now.Add(-time.Second), now.Add(-time.Second)
+		}
+		insert(card)
+		insert(reply)
+		if _, err := pg.SetArchived(ctx, tid, card.MsgID, "HUM-1", now.Add(-time.Minute), true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert(line(30*time.Minute, uuid4(), "fina", "CLE-07")) // live, not hidden
+	archivedTopic("devel", "devel", "CLE-07", 20*time.Minute, false)
+	archivedTopic("own", "own", "HUM-1", 19*time.Minute, false)
+	archivedTopic("gone", "gone", "CLE-07", 18*time.Minute, true)
+	early := now.Add(-time.Hour)
+	reads := map[string]ReadMark{"devel": {At: early}}
+
+	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-1", lobby, narrowSkip); open || !same {
+		t.Fatalf("no hidden live line of another unmarked: gate open=%v (want false), same list=%v", open, same)
+	}
+	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-2", lobby, narrowSkip); !open || !same {
+		t.Fatalf("HUM-2 reads HUM-1's hidden lines in own: gate open=%v (want true), same list=%v", open, same)
+	}
+	archivedTopic("devel", "fina", "CLE-07", 10*time.Minute, false) // a reply moved into fina
+	if open, same := hiddenGateCompare(t, pg, tid, now, reads, "HUM-1", lobby, narrowSkip); !open || !same {
+		t.Fatalf("hidden moved reply in fina: gate open=%v (want true), same list=%v", open, same)
+	}
+	for _, reader := range []string{"", "HUM-2"} {
+		if _, same := hiddenGateCompare(t, pg, tid, now, nil, reader, lobby, narrowSkip); !same {
+			t.Fatalf("reader %q, no marks: list differs from the f2e86af25ab6 gate", reader)
+		}
+	}
+}
+
+// hiddenGateCompare reports whether the gate is open, and whether the
+// channel list is the same under the gate and the gate with cuts cut out.
+func hiddenGateCompare(t *testing.T, pg *Postgres, tid string, now time.Time, reads map[string]ReadMark, reader, lobby string, cuts ...string) (bool, bool) {
 	t.Helper()
 	ctx := context.Background()
 	fixed := newChannelStats(tid).hiddenUnreadRead(reads, now, reader, lobby)
-	if !strings.Contains(fixed.sql, gateSkip) {
-		t.Fatal("the gate no longer carries the skip this test cuts out")
+	for _, c := range cuts {
+		if !strings.Contains(fixed.sql, c) {
+			t.Fatalf("the gate no longer carries the skip this test cuts out: %q", c)
+		}
 	}
 	var open int
 	cut := strings.Index(fixed.sql, ",\n\t\tz AS (")
@@ -97,7 +171,12 @@ func hiddenGateCompare(t *testing.T, pg *Postgres, tid string, now time.Time, re
 		cs := newChannelStats(tid)
 		h := cs.hiddenUnreadRead(reads, now, reader, lobby)
 		if old {
-			h.sql, h.args = strings.Replace(h.sql, gateSkip, "", 1), h.args[:7]
+			for _, c := range cuts {
+				h.sql = strings.Replace(h.sql, c, "", 1)
+			}
+			if !strings.Contains(h.sql, "$8") {
+				h.args = h.args[:7]
+			}
 		}
 		if err := pg.queryTenantBatch(ctx, tid, cs.channelsRead(), cs.countsRead(now, reader),
 			cs.markedUnreadRead(reads, now, reader, lobby), h, cs.membersRead()); err != nil {

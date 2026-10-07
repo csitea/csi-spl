@@ -453,6 +453,13 @@ func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Tim
 		}}
 }
 
+// hiddenLineSQL is archivedHideSQL("u", "$1", "$7") without its NOT, but
+// its own-card arm (z.msg_id = u.msg_id) reads u's own archived_at: the same
+// row, with no second primary-key probe per line.
+const hiddenLineSQL = `(u.archived_at IS NOT NULL OR EXISTS (SELECT 1 FROM messages z WHERE z.tenant_id = $1 AND z.archived_at IS NOT NULL
+					AND (z.msg_id = u.task_id OR (z.task_id = u.task_id AND u.task_id::text <> $7)
+						OR (z.task_id = u.parent_task_id AND u.parent_task_id::text <> $7))))`
+
 // hiddenUnreadRead takes the lines the feed hides as archived out of the
 // unread of a channel the reader has NO mark for (countsRead counted every
 // other line there; markedUnreadRead filters a marked one itself). Driven
@@ -480,13 +487,28 @@ func (cs *channelStats) markedUnreadRead(reads map[string]ReadMark, now time.Tim
 // row that is never returned, so the result is the same for every reader. A
 // created channel the reader has not joined stays in: its row is returned
 // (the hub filters it, the store does not) and its unread could change.
+//
+// um also skips an unmarked channel with no line the outer count would keep
+// (ap-02 explore, t1 ea9dc09a): live, not the reader's own, and hidden
+// (hiddenLineSQL, the same test as h's four branches). Such a channel adds
+// nothing to h, so the result is the same. On prd t1 every human had an
+// unmarked ordinary channel (HUM-10: test-fina, 2 lines, none hidden), so the
+// gate never closed. prd t1, operator EXPLAIN n=3 interleaved, results equal
+// for 18 reader cases (15 non-empty): HUM-10 22.7..24.8 -> 2.4..3.0 ms, 5 328
+// -> 164 buffers; a reader with no marks 26.3..27.5 -> 27.2..27.6 ms, +23
+// buffers (the gate opens at its first channel). The probe reads lines one by one, so it runs only
+// once the tenant has an archived line at all (a one-time check): with none,
+// z is empty anyway (dev t1: 25 buffers, not 1 298).
 func (cs *channelStats) hiddenUnreadRead(reads map[string]ReadMark, now time.Time, reader, lobby string) tenantRead {
 	const unmarked = ` AND m.channel IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = m.channel)`
 	return tenantRead{`WITH RECURSIVE ` + channelMarksCTE + `,
 		cl AS (SELECT (SELECT min(channel) FROM messages WHERE tenant_id = $1 AND channel IS NOT NULL) AS ch
 			UNION ALL SELECT (SELECT min(x.channel) FROM messages x WHERE x.tenant_id = $1 AND x.channel > cl.ch) FROM cl WHERE cl.ch IS NOT NULL),
 		um AS (SELECT 1 FROM cl WHERE cl.ch IS NOT NULL AND NOT EXISTS (SELECT 1 FROM mk WHERE mk.ch = cl.ch)
-			AND cl.ch <> ALL($8::text[]) AND ` + notArchived("cl.ch") + ` LIMIT 1),
+			AND cl.ch <> ALL($8::text[]) AND ` + notArchived("cl.ch") + `
+			AND (SELECT true FROM messages a WHERE a.tenant_id = $1 AND a.archived_at IS NOT NULL LIMIT 1)
+			AND (SELECT true FROM messages u WHERE u.tenant_id = $1 AND u.channel = cl.ch AND u.expires_at > $2
+				AND ($6::text IS NULL OR u.from_id IS DISTINCT FROM $6) AND ` + hiddenLineSQL + ` LIMIT 1) LIMIT 1),
 		z AS (SELECT msg_id, task_id FROM messages WHERE tenant_id = $1 AND archived_at IS NOT NULL AND EXISTS (SELECT 1 FROM um)),
 		h AS (
 			SELECT m.msg_id, m.channel, m.from_id, m.expires_at FROM z JOIN messages m ON m.tenant_id = $1 AND m.msg_id = z.msg_id` + unmarked + `

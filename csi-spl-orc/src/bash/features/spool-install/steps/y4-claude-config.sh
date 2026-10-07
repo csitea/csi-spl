@@ -25,6 +25,13 @@
 #     https://code.claude.com/docs/en/auto-mode-config). That page documents
 #     no environment variable for the offer. disableBundledSkills does not
 #     turn the command off.
+#     00-fleet.json also sets permissions.disableAutoMode to "disable": a
+#     seat whose user defaultMode is bypassPermissions is otherwise offered
+#     "Make auto mode your default permission mode?" at start-up and waits
+#     on it (Claude Code 2.1.290 changelog; settings schema "Disable auto
+#     mode"). Reproduced 2026-10-07 on 2.1.292: 4/4 fresh seats stopped on
+#     it without the key, 0/3 with it, bypass still on. It turns auto mode
+#     off, never bypass (that is disableBypassPermissionsMode).
 #
 # Placeholders ({{KEY}}) and where their values come from - never a literal:
 #   AGENT_USER    SPOOL_AGENT_USER, else the user running install.sh

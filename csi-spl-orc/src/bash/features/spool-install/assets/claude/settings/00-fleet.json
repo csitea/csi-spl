@@ -5,6 +5,7 @@
     "auto-mode-setup": "off"
   },
   "permissions": {
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "bypassPermissions",
+    "disableAutoMode": "disable"
   }
 }

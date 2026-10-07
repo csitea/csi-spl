@@ -11,6 +11,10 @@ This never changes.
   carry `permissions.defaultMode = bypassPermissions` and
   `skipDangerousModePermissionPrompt = true`; spool-install's
   `settings/00-fleet.json` re-asserts both on every install run.
+- The same file sets `permissions.disableAutoMode = "disable"`: without it
+  Claude Code (2.1.290+) offers every fresh seat "Make auto mode your default
+  permission mode?" and the seat waits on it. It turns auto mode off, never
+  bypass. Never answer Yes: that writes `defaultMode = "auto"`.
 - A command-line `--permission-mode <x>` BEATS `defaultMode`, so every
   launcher passes `--dangerously-skip-permissions` itself; the setting only
   covers a bare `claude`.

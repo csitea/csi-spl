@@ -31,6 +31,12 @@
 # @param   stay where they are. Default: none, new dirs go in GH_RUNNER_ROOT
 # @param GH_RUNNER_HOME (optional) - the user's home, default /var/lib/<user>
 # @param GH_RUNNER_MIN_FREE_GB (optional) - prune below this, default 8
+# @param GH_RUNNER_CPU_WEIGHT (optional) - 1..10000: the systemd CPUWeight of
+# @param   every runner unit and of the runner user's slice (its rootless
+# @param   docker), set live and kept (systemctl set-property). Below the
+# @param   default 100, a box that also hosts agent lanes gives them the CPU
+# @param   first when it is saturated; an idle CPU is still all the runners'.
+# @param   Default: none, the weights are left as they are
 # @param GH_RUNNER_TARBALL (optional) - a local actions-runner-linux-x64 tarball
 # @param GH_RUNNER_WORKFLOW (optional) - the workflow whose img= pins are warmed
 # @param APPLY (optional) - 1 to do it; anything else prints the plan only
@@ -253,6 +259,21 @@ ghr_services() {
   done
 }
 
+# ghr_cpu_weight - GHR_CPU_WEIGHT on every runner unit and the runner user's
+# slice; nothing when it is unset
+ghr_cpu_weight() {
+  [[ -n "$GHR_CPU_WEIGHT" ]] || return 0
+  local i unit
+  sudo systemctl set-property "user-$GHR_UID.slice" CPUWeight="$GHR_CPU_WEIGHT" \
+    || { do_log "FATAL cannot set CPUWeight on user-$GHR_UID.slice"; return 1; }
+  for ((i = 1; i <= GHR_N; i++)); do
+    unit="$(sudo cat "$GHR_ROOT/$(ghr_name "$i")/.service")"
+    [[ "$unit" == actions.runner.*.service ]] && sudo systemctl set-property "$unit" CPUWeight="$GHR_CPU_WEIGHT" \
+      || { do_log "FATAL cannot set CPUWeight on the unit of $(ghr_name "$i") (${unit:-no .service})"; return 1; }
+  done
+  do_log "OK CPUWeight $GHR_CPU_WEIGHT on user-$GHR_UID.slice and $GHR_N runner unit(s)"
+}
+
 # ghr_verify - every runner of this box is online in the group
 ghr_verify() {
   local online up i t=0
@@ -271,7 +292,7 @@ do_gh_runner_add() {
   do_require_bin gh systemctl sudo curl tar sha256sum || return 1
   GHR_REPO="${GH_RUNNER_REPO:-}" GHR_GROUP="${GH_RUNNER_GROUP:-}" GHR_N="${RUNNER_COUNT:-2}"
   GHR_USER="${GH_RUNNER_USER:-ghrunner}" GHR_ROOT="${GH_RUNNER_ROOT:-/srv/gh-runner}"
-  GHR_DATA_ROOT="${GH_RUNNER_DATA_ROOT:-}"
+  GHR_DATA_ROOT="${GH_RUNNER_DATA_ROOT:-}" GHR_CPU_WEIGHT="${GH_RUNNER_CPU_WEIGHT:-}"
   GHR_MIN_FREE="${GH_RUNNER_MIN_FREE_GB:-8}" GH_RUNNER_HOME="${GH_RUNNER_HOME:-/var/lib/$GHR_USER}"
   [[ "$GHR_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
     || { do_log "FATAL GH_RUNNER_REPO must be <owner>/<repo> (no default)"; return 1; }
@@ -281,16 +302,18 @@ do_gh_runner_add() {
   [[ "$GHR_MIN_FREE" =~ ^[0-9]+$ ]] || { do_log "FATAL GH_RUNNER_MIN_FREE_GB must be a number"; return 1; }
   [[ -z "$GHR_DATA_ROOT" || ( "$GHR_DATA_ROOT" == /* && "$GHR_DATA_ROOT" != "$GHR_ROOT" ) ]] \
     || { do_log "FATAL GH_RUNNER_DATA_ROOT must be an absolute path other than GH_RUNNER_ROOT"; return 1; }
+  [[ -z "$GHR_CPU_WEIGHT" || ( "$GHR_CPU_WEIGHT" =~ ^[1-9][0-9]{0,4}$ && "$GHR_CPU_WEIGHT" -le 10000 ) ]] \
+    || { do_log "FATAL GH_RUNNER_CPU_WEIGHT must be 1..10000, got: $GHR_CPU_WEIGHT"; return 1; }
   GHR_ORG="${GHR_REPO%%/*}"
   ghr_check_group || return 1
   ghr_plan
   if [[ "${APPLY:-0}" != 1 ]]; then
-    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
+    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
     do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
     return 0
   fi
   ghr_setup_user && ghr_warm_images || return 1
   sudo install -d -m 0755 -o root -g root "$GHR_ROOT" || return 1
   ghr_job_done_hook | sudo tee "$GHR_ROOT/job-done.sh" >/dev/null && sudo chmod 0755 "$GHR_ROOT/job-done.sh" || return 1
-  ghr_register && ghr_services && ghr_verify
+  ghr_register && ghr_services && ghr_cpu_weight && ghr_verify
 }

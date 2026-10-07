@@ -16,6 +16,8 @@
 #          - GH_RUNNER_DATA_ROOT: a NEW runner's dir lives there, linked from
 #            GH_RUNNER_ROOT; an existing runner is never moved; the cleanup
 #            hook prunes a linked runner's work dir too
+#          - GH_RUNNER_CPU_WEIGHT: set live on the user slice and every runner
+#            unit; unset = no set-property at all; out of range is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -78,6 +80,7 @@ cat >"$T/bin/dpkg" <<'EOF'
 EOF
 cat >"$T/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
+[[ "$1" == set-property ]] && { echo "systemctl $*" >>"$MUT_LOG"; exit 0; }
 [[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
 exit 0
 EOF
@@ -106,7 +109,7 @@ EOF
 cat >"$T/pkg/svc.sh" <<'EOF'
 #!/usr/bin/env bash
 echo "$(basename "$PWD") svc.sh $*" >>"$RUN_LOG"
-[[ "$1" == install ]] && echo unit >.service
+[[ "$1" == install ]] && echo "actions.runner.o.$(basename "$PWD").service" >.service
 exit 0
 EOF
 chmod +x "$T/bin/"* "$T/pkg/"*
@@ -185,6 +188,16 @@ GH_RUNNER_MIN_FREE_GB=999999999 RUNNER_WORKSPACE="$T/data/box-spl-01/_work/app" 
 GH_RUNNER_MIN_FREE_GB=999999999 RUNNER_WORKSPACE="$T/other/x/_work/app" bash "$T/srv2/job-done.sh" >/dev/null 2>&1
 [[ ! -e "$T/data/box-spl-01/_work/app" && -d "$T/data/box-spl-01/_work/_tool/go" && -d "$T/other/x/_work/app" ]] \
   && ok "cleanup prunes a linked runner's work dir, never a dir outside the runner root" || no "linked cleanup: $(find "$T/data" "$T/other" -path '*_work*' -maxdepth 5)"
+
+# CPUWeight: unset = untouched; set = the user slice + every runner unit
+grep -q set-property "$MUT_LOG" && no "set-property ran with no GH_RUNNER_CPU_WEIGHT" || ok "no GH_RUNNER_CPU_WEIGHT = weights untouched"
+GH_RUNNER_CPU_WEIGHT=0 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "weight 0 must fail" || ok "GH_RUNNER_CPU_WEIGHT out of 1..10000 is refused"
+: >"$T/log"; : >"$MUT_LOG"
+GH_RUNNER_CPU_WEIGHT=25 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "apply with a CPU weight exits 0" || no "apply weight failed: $(tail -3 "$T/log")"
+want="systemctl set-property user-1500.slice CPUWeight=25
+systemctl set-property actions.runner.o.box-spl-01.service CPUWeight=25
+systemctl set-property actions.runner.o.box-spl-02.service CPUWeight=25"
+[[ "$(grep set-property "$MUT_LOG")" == "$want" ]] && ok "CPUWeight set on the runner user's slice and every runner unit" || no "weight: $(grep set-property "$MUT_LOG")"
 
 echo "=== gh-runner-add: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

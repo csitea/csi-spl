@@ -23,7 +23,9 @@
 //      ArrowDown still walks the tabs
 //   7  spec 103 T006: Enter on the Channels rail tab shows the list and lands
 //      on the open channel's row (panel 1, the vim ring); j there opens the
-//      next channel; h goes back to the rail (panel 0), l into the list again
+//      next channel; h goes back to the rail (panel 0), l into the list again;
+//      Enter on a row that is not the open channel opens it and goes into
+//      its messages (panel 2)
 //
 // Run:
 //   node tests/e2e/channel-order.test.mjs
@@ -290,6 +292,12 @@ try {
   await p.keyboard.press('l')
   ok('7 l comes into the list again, on the open channel', await until(p, (want) => document.activeElement?.closest?.('#sidebar-panel-channels a.nav-item')?.getAttribute('data-key') === want, ids[1], 3000),
     [await path(), await focusKey()])
+  const other = ids[ids.length - 1]
+  await p.evaluate((id) => document.querySelector(`#sidebar-panel-channels a.nav-item[data-key="${id}"]`)?.focus(), other)
+  await p.keyboard.press('Enter')
+  ok('7 Enter on another channel\'s row opens it and goes into its messages', await until(p, (want) =>
+    location.pathname.endsWith('/channel/' + want) && Boolean(document.activeElement?.closest?.('.spool-main')), other, 6000),
+  [await path(), await p.evaluate(() => document.activeElement?.tagName + '.' + document.activeElement?.className)])
 
   ok('no page errors', errors.length === 0, errors)
   await p.close()

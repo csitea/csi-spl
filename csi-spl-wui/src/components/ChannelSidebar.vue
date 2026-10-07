@@ -1445,12 +1445,17 @@ function stepChannel(id: string, step: -1 | 1) {
    ArrowDown / ArrowUp (j / k with the keyboard shortcuts switch on) open the
    next / previous channel at once - the focus follows, like a list box -,
    Home / End the first / last. The ends do not wrap (the feed's rows do not).
-   Enter on the open channel goes into its messages. Desktop only. j / k
+   Enter on a channel goes into its messages. Desktop only. j / k
    read the switch the way utils/msg-shortcuts.mjs shortcutsOn does (never
    picked = on), without pulling the lazy message-shortcut code in here. */
 function keepRowFocus(e: MouseEvent) {
   /* Safari leaves the focus on <body> after a click on a link */
   if (!phone.value) (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true })
+}
+async function openIntoMessages(path: string) {
+  await navigateTo(localePath(path))
+  await nextTick()
+  focusPane(MIDDLE)
 }
 function onChannelRowKey(e: KeyboardEvent) {
   if (phone.value) return
@@ -1458,7 +1463,15 @@ function onChannelRowKey(e: KeyboardEvent) {
   if (!what) return
   const row = e.currentTarget as HTMLElement
   if (what === 'enter') {
-    if (!row.classList.contains('active')) return
+    /* spec 103 T006: Enter on another channel's row (the lobby row on /lobby)
+       opens it and goes into its messages too; with the keyboard shortcuts
+       off it is the link's own Enter */
+    if (!row.classList.contains('active')) {
+      if (session.claims?.keyboard_shortcuts === false) return
+      e.preventDefault()
+      void openIntoMessages('/channel/' + row.dataset.key)
+      return
+    }
     e.preventDefault()
     focusPane(MIDDLE)
     return

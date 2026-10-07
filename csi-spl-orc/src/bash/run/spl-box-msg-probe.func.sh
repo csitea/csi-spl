@@ -76,27 +76,9 @@ do_spl_box_msg_probe() {
   mkdir -p "$d/spool/$agent" "$d/keys" && chmod -R go-rwx "$d" || return 1
   _probe() { SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_MIRROR_LOCAL=1 "$SPL_SPOOL" "$@"; }
 
-  local out rc=0 pub="" kf="$d/keys/box-$box.key"
-  if [[ -s "$kf" ]]; then
-    # the ed25519 private key is seed||public, base64: the public half is its last 32 bytes
-    pub="$(python3 -c 'import base64,sys; k=base64.b64decode(open(sys.argv[1]).read().strip()); assert len(k)==64; print(base64.b64encode(k[32:]).decode())' "$kf" 2>/dev/null)" ||
-      { do_log "FATAL $kf is not a box key; not overwriting it"; return 1; }
-  fi
-  if [[ -z "$pub" || "$(cat "$d/pinned" 2>/dev/null)" != "$pub" ]]; then
-    local key
-    if [[ -z "$pub" ]]; then
-      pub="$(_probe keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
-    fi
-    key="$(umask 077 && mktemp)" || return 1
-    python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["root_private_key"].strip()+"\n")' \
-      "$rkj" "$key" 2>/dev/null || { rm -f "$key"; do_log "FATAL no root_private_key in $rkj"; return 1; }
-    out="$(_probe hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
-    rm -f "$key"
-    (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant (its key on disk $kf is kept; a 409 means the hub pins $box to another key): $out"; return 1; }
-    printf '%s\n' "$pub" >"$d/pinned"
-    do_log "INFO pinned $box ($pub) under $tenant at $hub"
-  fi
+  spl_box_msg_probe_pin "$d" "$box" "$tenant" "$hub" "$rkj" || return 1
 
+  local rc=0
   local sync1 sent sync2 tail stamp body
   sync1="$(_probe hub-sync 2>&1)" || { do_log "FATAL first hub-sync of $box: $sync1"; return 1; }
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -130,4 +112,31 @@ EOF_PY
   (( rc == 0 )) || { do_log "FAIL hub-tail of task $task: $tail"; return 1; }
   grep -q "\"msg_id\": *\"$msg\"" <<<"$tail" || { do_log "FAIL the hub does not hold $msg (task $task): hub-tail returned no such message"; return 1; }
   do_log "OK probe note sent by $agent@$box into $tenant ($ENV). Remove the box: spool hub-pin --box $box --revoke --root-key <root key> (SPOOL_HUB_URL=$hub SPOOL_TENANT=$tenant)"
+}
+
+# Step 1 of do_spl_box_msg_probe: make sure the probe box's key on disk is the
+# one the hub pins. A key on disk is never re-minted: with no matching local
+# record its public key is pinned again WITHOUT --force, a no-op at the hub for
+# the same key and a 409 pin_conflict for another one. Needs _probe defined.
+spl_box_msg_probe_pin() {  # STATE_DIR BOX TENANT HUB ROOT_KEY_JSON
+  local d="$1" box="$2" tenant="$3" hub="$4" rkj="$5" out rc=0 pub="" kf="$1/keys/box-$2.key"
+  if [[ -s "$kf" ]]; then
+    # the ed25519 private key is seed||public, base64: the public half is its last 32 bytes
+    pub="$(python3 -c 'import base64,sys; k=base64.b64decode(open(sys.argv[1]).read().strip()); assert len(k)==64; print(base64.b64encode(k[32:]).decode())' "$kf" 2>/dev/null)" ||
+      { do_log "FATAL $kf is not a box key; not overwriting it"; return 1; }
+  fi
+  if [[ -z "$pub" || "$(cat "$d/pinned" 2>/dev/null)" != "$pub" ]]; then
+    local key
+    if [[ -z "$pub" ]]; then
+      pub="$(_probe keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
+    fi
+    key="$(umask 077 && mktemp)" || return 1
+    python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["root_private_key"].strip()+"\n")' \
+      "$rkj" "$key" 2>/dev/null || { rm -f "$key"; do_log "FATAL no root_private_key in $rkj"; return 1; }
+    out="$(_probe hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
+    rm -f "$key"
+    (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant (its key on disk $kf is kept; a 409 means the hub pins $box to another key): $out"; return 1; }
+    printf '%s\n' "$pub" >"$d/pinned"
+    do_log "INFO pinned $box ($pub) under $tenant at $hub"
+  fi
 }

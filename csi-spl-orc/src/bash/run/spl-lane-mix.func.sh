@@ -1,6 +1,6 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
-# @description READ-ONLY: the agent vendor split of THIS box, target vs actual,
+# @description The agent vendor split of THIS box, target vs actual,
 # @description and the vendor the next lane spawn should go to. The target is
 # @description cnf env.box.agent_split (all.env.yaml); the actual is the last
 # @description `window` spawns in $SPOOL_ROOT/registry.tsv (role seats
@@ -19,7 +19,18 @@
 # @description to claude. So is one out of quota: the watchdog saw one of its
 # @description lanes on this box on an S2 kind=limit screen within
 # @description LANE_MIX_LIMIT_FRESH s (spec 102 T029; grok's weekly limit).
-# @description Prints a table, then `pick=<vendor> launcher=...`.
+# @description The instance setting (rdb 0149, owner HUM-10 t1 41fa1f2d) beats
+# @description all of it, on every box: a kind the operator admin switched off
+# @description on the Fleet load page, or one paused there, is never picked,
+# @description and its share goes to claude (to the other kinds when claude is
+# @description the one off). It is read from the hub like do_spl_box_pick's
+# @description target (`spool fleet-load get`); a hub that does not answer, or
+# @description no fleet, -> the local checks only, said in every reason. The one
+# @description write: a fresh local limit verdict is reported to the hub as a
+# @description pause of that kind until the verdict runs out
+# @description (`spool fleet-load pause`), so every box skips it.
+# @description Prints a table, then `pick=<vendor> launcher=...`, or `pick=hold`
+# @description when no kind may take the work (secrets with claude off).
 # @param LANE_MIX_KIND (optional) - spec, secret, hard or default; unset is
 # @param   default (grok, unless a harder signal below says otherwise)
 # @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own
@@ -35,6 +46,10 @@
 # @param LANE_MIX_WD_DIR (optional) - default $SPOOL_ROOT/dispatch/wd, the
 # @param   watchdog state whose ctx*/<id>/out.s2 carries the limit verdicts
 # @param LANE_MIX_LIMIT_FRESH (optional) - s a limit verdict holds, default 21600
+# @param LANE_MIX_INSTANCE (optional) - 0: do not read the instance setting
+# @param LANE_MIX_REPORT (optional) - 0: do not report a limit verdict to the hub
+# @param ENV (optional) - dev or prd: the hub to read, default LANE_ENV / lease.conf LEASE_ENV
+# @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get|pause ...`
 # @example ./run -a do_spl_lane_mix
 # @example LANE_MIX_KIND=spec ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 ./run -a do_spl_lane_mix
@@ -65,33 +80,43 @@ do_spl_lane_mix() {
 
   declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=()
   _spl_lane_mix_target "$cnf" || return 1
+  _spl_lane_mix_instance
   _spl_lane_mix_avail "$root" "$cnf" "$reg"
   _spl_lane_mix_actual "$reg"
   _spl_lane_mix_table "$cnf" "$reg"
   _spl_lane_mix_easy
 
   if [[ "$sens" == 1 || "$kind" == secret ]]; then
-    _spl_lane_mix_pick claude "data rule: secrets or personal data always go to claude"
+    if [[ "${_LM_AVAIL[claude]}" == yes ]]; then
+      _spl_lane_mix_pick claude "data rule: secrets or personal data always go to claude"
+    else
+      _spl_lane_mix_pick hold "data rule: secrets or personal data go to claude only, and claude is skipped (${_LM_AVAIL[claude]}): queue the work"
+    fi
   elif [[ "$kind" == spec ]]; then
     if [[ "${_LM_AVAIL[agy]}" == yes ]]; then
       _spl_lane_mix_pick agy "kind spec: specifications go to agy"
     else
-      _spl_lane_mix_pick claude "kind spec but agy is skipped (${_LM_AVAIL[agy]}); share to claude"
+      _spl_lane_mix_want claude "kind spec but agy is skipped (${_LM_AVAIL[agy]}); share to claude"
     fi
   elif [[ "$kind" == hard ]]; then
-    _spl_lane_mix_pick claude "kind hard: the most complex coding goes to claude"
+    _spl_lane_mix_want claude "kind hard: the most complex coding goes to claude"
   elif [[ -z "$diff" ]]; then
-    printf 'next easy=%s (%s) default=grok\n' "$_LM_EASY" "$_LM_EASY_WHY"
-    if [[ "${_LM_AVAIL[grok]}" == yes ]]; then
-      _spl_lane_mix_pick grok "difficulty unset: default is grok"
-    else
-      _spl_lane_mix_pick "$_LM_EASY" "difficulty unset: default grok is skipped (${_LM_AVAIL[grok]}); $_LM_EASY_WHY"
-    fi
+    printf 'next easy=%s (%s) default=grok\n' "${_LM_EASY:-hold}" "$_LM_EASY_WHY"
+    _spl_lane_mix_want grok "difficulty unset: default is grok" "difficulty unset: default grok is skipped (${_LM_AVAIL[grok]})"
   elif (( diff >= 60 )); then
-    _spl_lane_mix_pick claude "difficulty $diff >= 60: hard work goes to claude"
+    _spl_lane_mix_want claude "difficulty $diff >= 60: hard work goes to claude"
   else
-    _spl_lane_mix_pick "$_LM_EASY" "difficulty $diff < 60: $_LM_EASY_WHY"
+    _spl_lane_mix_pick "${_LM_EASY:-hold}" "difficulty $diff < 60: $_LM_EASY_WHY"
   fi
+}
+
+# _spl_lane_mix_want <vendor> <reason> [<reason when skipped>] -> the pick
+# line: that vendor when it is there, else the easy pick, else hold
+_spl_lane_mix_want() {
+  local why="${3:-$2, but $1 is skipped (${_LM_AVAIL[$1]})}"
+  if [[ "${_LM_AVAIL[$1]}" == yes ]]; then _spl_lane_mix_pick "$1" "$2"
+  elif [[ -n "$_LM_EASY" ]]; then _spl_lane_mix_pick "$_LM_EASY" "$why; $_LM_EASY_WHY"
+  else _spl_lane_mix_pick hold "$why; no other kind is there: queue the work"; fi
 }
 
 # _spl_lane_mix_target <cnf> -> _LM_TGT, _LM_TOL, _LM_WIN from cnf, or from
@@ -116,22 +141,98 @@ _spl_lane_mix_target() {
     do_log "FATAL agent_split tolerance/window must be whole numbers, got '$_LM_TOL'/'$_LM_WIN'"; return 1; }
 }
 
-# _spl_lane_mix_avail <spool-root> <cnf> <registry> -> _LM_AVAIL, _LM_EFF:
-# claude is the floor and always there; a skipped vendor's share moves to claude
+# _spl_lane_mix_avail <spool-root> <cnf> <registry> -> _LM_AVAIL, _LM_EFF.
+# The instance setting first (off or paused), then the local checks: claude
+# is always there locally; the others need their CLI, a sign-in and no fresh
+# limit verdict (which is reported to the hub as a pause).
 _spl_lane_mix_avail() {
-  local user home v lim
+  local user home v lim off
   user="$(_spl_lane_mix_user "$1")"
   home="$(_spl_lane_mix_home "$user")"
-  _LM_EFF[claude]="${_LM_TGT[claude]}" _LM_AVAIL[claude]=yes
-  for v in grok agy qwen; do
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    off="$(_spl_lane_mix_inst_off "$v")"
+    if [[ -n "$off" ]]; then _LM_AVAIL[$v]="$off"; continue; fi
+    [[ "$v" == claude ]] && { _LM_AVAIL[$v]=yes; continue; }
     _LM_AVAIL[$v]="$(_spl_lane_mix_cli "$v" "$user" "$home" "$2")"
-    if [[ "${_LM_AVAIL[$v]}" == yes ]]; then
-      lim="$(_spl_lane_mix_limit "$v" "$1" "$3")"
-      [[ -z "$lim" ]] || _LM_AVAIL[$v]="$v limit ($lim)"
-    fi
-    if [[ "${_LM_AVAIL[$v]}" == yes ]]; then _LM_EFF[$v]="${_LM_TGT[$v]}"
-    else _LM_EFF[$v]=0; _LM_EFF[claude]=$(( _LM_EFF[claude] + _LM_TGT[$v] )); fi
+    [[ "${_LM_AVAIL[$v]}" == yes ]] || continue
+    lim="$(_spl_lane_mix_limit "$v" "$1" "$3")"
+    [[ -z "$lim" ]] && continue
+    _LM_AVAIL[$v]="$v limit (${lim#*$'\t'})"
+    _spl_lane_mix_report "$v" "${lim%%$'\t'*}" "${lim#*$'\t'}"
   done
+  _spl_lane_mix_share
+}
+
+# _spl_lane_mix_share -> _LM_EFF, _LM_SHARE_TO: a skipped vendor's share goes
+# to claude; with claude skipped too, to the vendors that are there, in
+# proportion to their own shares (the rounding to the largest)
+_spl_lane_mix_share() {
+  local v skipped=0 on=0 given=0 top=""
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    if [[ "${_LM_AVAIL[$v]}" == yes ]]; then
+      _LM_EFF[$v]="${_LM_TGT[$v]}"; on=$(( on + _LM_TGT[$v] ))
+      [[ -z "$top" ]] || (( _LM_TGT[$v] > _LM_TGT[$top] )) && top="$v"
+    else _LM_EFF[$v]=0; skipped=$(( skipped + _LM_TGT[$v] )); fi
+  done
+  _LM_SHARE_TO=claude
+  if [[ "${_LM_AVAIL[claude]}" == yes ]]; then _LM_EFF[claude]=$(( _LM_EFF[claude] + skipped )); return 0; fi
+  _LM_SHARE_TO="the others"
+  [[ -n "$top" ]] || return 0
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    [[ "${_LM_AVAIL[$v]}" == yes && "$on" -gt 0 ]] || continue
+    _LM_EFF[$v]=$(( _LM_EFF[$v] + skipped * _LM_TGT[$v] / on )); given=$(( given + skipped * _LM_TGT[$v] / on ))
+  done
+  _LM_EFF[$top]=$(( _LM_EFF[$top] + skipped - given ))
+}
+
+# _spl_lane_mix_instance -> _LM_INST (the hub's `fleet-load get` JSON) or
+# _LM_INST_WHY (why it was not read), and the `instance:` line
+_spl_lane_mix_instance() {
+  local out log last
+  _LM_INST="" _LM_INST_WHY=""
+  if [[ "${LANE_MIX_INSTANCE:-1}" == 0 ]]; then _LM_INST_WHY="LANE_MIX_INSTANCE=0"
+  else
+    [[ -n "${ENV:-}" ]] && export LANE_ENV="$ENV"  # spl_lane_init reads it
+    log="$(mktemp)"
+    if ! spl_lane_init >"$log" 2>&1; then last="$(tail -n 1 "$log")"; _LM_INST_WHY="no hub client: ${last:0:160}"
+    elif [[ "$LANE_MODE" != hub ]]; then _LM_INST_WHY="no fleet: LANE_FLEET / lease.conf LEASE_FLEET unset"
+    else
+      out="$(LANE_TIMEOUT="${LANE_MIX_HUB_TIMEOUT:-15}" spl_lane_spool fleet-load get 2>&1)"
+      if jq -e '.agent_kinds_off | type == "array"' >/dev/null 2>&1 <<<"$out"; then _LM_INST="$out"
+      else last="$(tail -n 1 <<<"$out")"; _LM_INST_WHY="the hub did not answer it: ${last:0:160}"; fi
+    fi
+    rm -f "$log"
+  fi
+  if [[ -n "$_LM_INST" ]]; then
+    jq -r '"instance: kinds off \(.agent_kinds_off | if length > 0 then join(",") else "none" end), paused \((.agent_kinds_paused // {}) | to_entries | if length > 0 then map("\(.key) until \(.value.until)") | join(", ") else "none" end) (hub)"' <<<"$_LM_INST"
+  else
+    printf 'instance: setting not read (%s): local checks only\n' "$_LM_INST_WHY"
+  fi
+}
+
+# _spl_lane_mix_inst_off <vendor> -> why the instance setting keeps it off
+# (switched off, or paused), else nothing
+_spl_lane_mix_inst_off() {
+  [[ -n "$_LM_INST" ]] || return 0
+  jq -r --arg k "$1" '((.agent_kinds_paused // {})[$k]) as $p
+    | if (.agent_kinds_off | index($k)) != null then "\($k) off in instance settings"
+      elif $p != null then "\($k) paused in instance settings until \($p.until): \($p.reason) (box \($p.box))"
+      else empty end' <<<"$_LM_INST"
+}
+
+# _spl_lane_mix_report <vendor> <verdict-epoch> <verdict> -> a fresh local
+# limit verdict reported to the hub as a pause of that vendor for every box,
+# until the verdict runs out here (LANE_MIX_LIMIT_FRESH)
+_spl_lane_mix_report() {
+  [[ -n "$_LM_INST" && "${LANE_MIX_REPORT:-1}" != 0 ]] || return 0
+  local until out last
+  until="$(date -u -d "@$(( $2 + ${LANE_MIX_LIMIT_FRESH:-21600} ))" +%Y-%m-%dT%H:%M:%SZ)"
+  if out="$(LANE_TIMEOUT="${LANE_MIX_HUB_TIMEOUT:-15}" spl_lane_spool fleet-load pause "$1" "$until" "usage limit: $3" 2>&1)"; then
+    printf 'instance: %s paused for every box until %s (reported: usage limit: %s)\n' "$1" "$until" "$3"
+  else
+    last="$(tail -n 1 <<<"$out")"
+    printf 'WARN instance: the %s pause did not reach the hub: %s\n' "$1" "${last:0:160}"
+  fi
 }
 
 # _spl_lane_mix_actual <registry> -> _LM_CNT, _LM_PCT, _LM_N: the last window
@@ -158,7 +259,7 @@ _spl_lane_mix_table() {
   printf 'window=%s n=%s tolerance=%s cnf=%s registry=%s\n' "$_LM_WIN" "$_LM_N" "$_LM_TOL" "${1#"$APP_PATH"/}" "$2"
   printf '%-7s %6s %9s %6s %5s %-4s %s\n' vendor target effective actual count cli status
   for v in "${LANE_MIX_VENDORS[@]}"; do
-    if [[ "${_LM_AVAIL[$v]}" != yes ]]; then st="skip (${_LM_AVAIL[$v]}; share to claude)"
+    if [[ "${_LM_AVAIL[$v]}" != yes ]]; then st="skip (${_LM_AVAIL[$v]}); share to $_LM_SHARE_TO"
     elif (( _LM_PCT[$v] < _LM_EFF[$v] - _LM_TOL )); then st=under
     elif (( _LM_PCT[$v] > _LM_EFF[$v] + _LM_TOL )); then st=over
     else st=ok; fi
@@ -183,12 +284,22 @@ _spl_lane_mix_easy() {
   fi
   best=0
   for v in grok agy qwen; do (( _LM_EFF[$v] > best )) && { _LM_EASY="$v"; best="${_LM_EFF[$v]}"; }; done
-  _LM_EASY="${_LM_EASY:-claude}" _LM_EASY_WHY="mix inside the band; easy work goes to the largest non-claude share"
-  [[ "$_LM_EASY" == claude ]] && _LM_EASY_WHY="no other vendor is there on this box"
+  _LM_EASY_WHY="mix inside the band; easy work goes to the largest non-claude share"
+  if [[ -z "$_LM_EASY" ]]; then
+    _LM_EASY_WHY="no other vendor is there on this box"
+    [[ "${_LM_AVAIL[claude]}" == yes ]] && _LM_EASY=claude
+  fi
   return 0
 }
 
-_spl_lane_mix_pick() { printf 'pick=%s launcher=/%s-spawn reason=%s\n' "$1" "$1" "$2"; }
+# _spl_lane_mix_pick <vendor|hold> <reason> -> the pick line; a reason says
+# when the instance setting was not read
+_spl_lane_mix_pick() {
+  local l="/$1-spawn" why="$2"
+  [[ "$1" == hold ]] && l=-
+  [[ -z "$_LM_INST_WHY" ]] || why="$why; instance setting not read ($_LM_INST_WHY), local checks only"
+  printf 'pick=%s launcher=%s reason=%s\n' "$1" "$l" "$why"
+}
 
 # _spl_lane_mix_user <spool-root> -> the agent user (SPOOL_AGENT_USER, else
 # box.env), empty when LANE_MIX_AGENT_HOME names the home directly
@@ -227,8 +338,8 @@ _spl_lane_mix_cli() {
   echo yes
 }
 
-# _spl_lane_mix_limit <vendor> <spool-root> <registry> -> "<id> S2 kind=limit
-# <age> ago" for the newest watchdog verdict (ctx*/<id>/out.s2) within
+# _spl_lane_mix_limit <vendor> <spool-root> <registry> -> "<epoch>\t<id> S2
+# kind=limit <age> ago" for the newest watchdog verdict (ctx*/<id>/out.s2) within
 # LANE_MIX_LIMIT_FRESH s on one of that vendor's lanes, else nothing. The
 # vendor is the id's registry kind, else its prefix (spec 061: c g a q).
 _spl_lane_mix_limit() {
@@ -245,5 +356,5 @@ _spl_lane_mix_limit() {
     [[ "$k" == "$v" ]] || continue
     best="$t" hit="$id S2 kind=limit $(( (now - t) / 60 ))m ago"
   done
-  echo "$hit"
+  [[ -z "$hit" ]] || printf '%s\t%s\n' "$best" "$hit"
 }

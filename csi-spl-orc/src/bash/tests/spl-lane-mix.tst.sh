@@ -7,8 +7,11 @@
 #          to grok. Easy work (difficulty under 60) goes to the vendor
 #          furthest below target beyond the tolerance, else to the largest
 #          non-claude share. A vendor with no CLI or no sign-in is skipped
-#          and its share goes to claude. A fake agent home and registry; the
-#          cnf is the real all.env.yaml.
+#          and its share goes to claude. The instance setting (rdb 0149, read
+#          from a stubbed hub) beats it all: a kind off or paused there is
+#          never picked; a hub that does not answer -> the local checks,
+#          said in the reason; a local limit verdict is reported as a pause.
+#          A fake agent home and registry; the cnf is the real all.env.yaml.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -48,6 +51,8 @@ mix() {
   env -u LANE_MIX_DIFFICULTY -u LANE_MIX_SENSITIVE -u LANE_MIX_SPLIT -u LANE_MIX_KIND \
     -u SPOOL_AGENT_USER -u LANE_MIX_WD_DIR -u LANE_MIX_LIMIT_FRESH \
     -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN \
+    -u LANE_FLEET -u LANE_HUB_CMD -u LANE_ENV -u ENV -u LANE_TENANT -u LANE_BOX -u LANE_DESK_BOX \
+    -u LANE_MIX_INSTANCE -u LANE_MIX_REPORT \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T" \
     LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" "$@" bash -c '
     set -uo pipefail
@@ -108,13 +113,13 @@ mix LANE_MIX_DIFFICULTY=10 LANE_MIX_SENSITIVE=1
 rm "$H/.local/bin/agy"
 registry 4 16 0
 mix LANE_MIX_DIFFICULTY=30
-[[ "$(pick)" != agy ]] && grep -qE '^agy +25% +0% .* no +skip \(no agy cli; share to claude\)$' "$T/out" \
+[[ "$(pick)" != agy ]] && grep -qE '^agy +25% +0% .* no +skip \(no agy cli\); share to claude$' "$T/out" \
   && grep -qE '^claude +20% +45% ' "$T/out" \
   && pass "5. no agy cli: skipped, claude's share 20 -> 45" || fail "5. no agy: $(cat "$T/out")"
 rm "$H/.grok/auth.json"
 registry 4 16 0
 mix LANE_MIX_DIFFICULTY=30
-[[ "$(pick)" == claude ]] && grep -q 'skip (grok not signed in; share to claude)' "$T/out" \
+[[ "$(pick)" == claude ]] && grep -q 'skip (grok not signed in); share to claude' "$T/out" \
   && grep -qE '^claude +20% +100% ' "$T/out" \
   && pass "5. grok not signed in and no agy: every share to claude, easy -> claude" || fail "5. signed out: $(cat "$T/out")"
 : >"$H/.grok/auth.json"; printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
@@ -187,7 +192,7 @@ mix
 [[ "$(pick)" == grok ]] && pass "8. control: no limit verdict, unset difficulty -> grok" || fail "8. control: $(cat "$T/out")"
 limit g-950 600
 mix
-[[ "$(pick)" == claude ]] && grep -q 'skip (grok limit (g-950 S2 kind=limit 10m ago); share to claude)' "$T/out" \
+[[ "$(pick)" == claude ]] && grep -q 'skip (grok limit (g-950 S2 kind=limit 10m ago)); share to claude' "$T/out" \
   && grep -q 'difficulty unset: default grok is skipped (grok limit' "$T/out" \
   && grep -qE '^claude +20% +75% ' "$T/out" \
   && pass "8. a fresh grok limit verdict: grok skipped, its share to claude, the default falls to claude" || fail "8. limit: $(cat "$T/out")"
@@ -211,6 +216,87 @@ mix
 limit c-950 60
 mix
 [[ "$(pick)" == grok ]] && pass "8. control: a claude lane's limit does not skip grok" || fail "8. other vendor: $(cat "$T/out")"
+rm -rf "$T/dispatch"
+
+# --- 9. the instance setting (rdb 0149): off on the hub = off on every box ---
+# a stub hub: `fleet-load get` prints $T/hub.json (fails when $T/hub.down
+# exists), `fleet-load pause ...` is logged to $T/hub.log
+cat >"$T/hub" <<'EOF'
+#!/bin/bash
+[[ -e "$(dirname "$0")/hub.down" ]] && { echo "dial: connection refused" >&2; exit 1; }
+[[ "$1 $2" == "fleet-load get" ]] && { cat "$(dirname "$0")/hub.json"; exit 0; }
+[[ "$1 $2" == "fleet-load pause" ]] && { shift 2; echo "pause $*" >>"$(dirname "$0")/hub.log"; echo '{}'; exit 0; }
+echo "stub: unexpected $*" >&2; exit 2
+EOF
+chmod +x "$T/hub"
+hub() { printf '{"low":50,"high":75,"box_order":[],"boxes":{},"agent_kinds_off":%s,"agent_kinds_paused":%s,"source":"hub"}\n' "$1" "${2:-{\}}" >"$T/hub.json"; }
+hmix() { mix LANE_FLEET=f1 LANE_HUB_CMD="$T/hub" "$@"; }
+registry 4 11 5
+hub '[]'
+hmix
+[[ "$(pick)" == grok ]] && grep -q '^instance: kinds off none, paused none (hub)$' "$T/out" && ! grep -q 'not read' "$T/out" \
+  && pass "9. control: the hub has every kind on: unset difficulty -> grok" || fail "9. control on: $(cat "$T/out")"
+hub '["grok"]'
+hmix
+[[ "$(pick)" != grok ]] && grep -qE '^grok +55% +0% .* skip \(grok off in instance settings\); share to claude$' "$T/out" \
+  && grep -qE '^claude +20% +75% ' "$T/out" && grep -q 'default grok is skipped (grok off in instance settings)' "$T/out" \
+  && pass "9. grok off in instance settings: never picked, its share to claude" || fail "9. grok off: $(cat "$T/out")"
+for d in 0 30 60 90; do
+  hmix LANE_MIX_DIFFICULTY=$d
+  [[ "$(pick)" != grok && -n "$(pick)" ]] || fail "9. grok off, difficulty $d picked $(pick): $(cat "$T/out")"
+done
+registry 0 20 0
+hmix LANE_MIX_DIFFICULTY=30
+[[ "$(pick)" != grok ]] && pass "9. grok off but 55 points under target: still not picked" || fail "9. grok under: $(cat "$T/out")"
+registry 4 11 5
+hub '["claude"]'
+hmix LANE_MIX_KIND=hard
+[[ "$(pick)" == grok ]] && grep -qE '^claude +20% +0% .*skip \(claude off in instance settings\); share to the others$' "$T/out" \
+  && grep -qE '^grok +55% +69% ' "$T/out" && grep -qE '^agy +25% +31% ' "$T/out" \
+  && grep -q 'but claude is skipped (claude off in instance settings)' "$T/out" \
+  && pass "9. claude off: hard work goes to the largest other share, claude's 20 split 14/6" || fail "9. claude off: $(cat "$T/out")"
+hmix LANE_MIX_SENSITIVE=1
+[[ "$(pick)" == hold ]] && grep -q 'launcher=- reason=data rule: secrets or personal data go to claude only' "$T/out" \
+  && pass "9. claude off + secrets: hold, never another kind" || fail "9. data rule hold: $(cat "$T/out")"
+hub '["grok","agy","qwen"]'
+hmix LANE_MIX_DIFFICULTY=30
+[[ "$(pick)" == claude ]] && grep -qE '^claude +20% +100% ' "$T/out" \
+  && pass "9. every kind but claude off: claude" || fail "9. only claude: $(cat "$T/out")"
+hub '[]' '{"grok":{"until":"2099-01-01T00:00:00Z","reason":"S2 kind=limit on g-1","box":"box-t"}}'
+hmix
+[[ "$(pick)" != grok ]] && grep -q 'skip (grok paused in instance settings until 2099-01-01T00:00:00Z: S2 kind=limit on g-1 (box box-t))' "$T/out" \
+  && grep -q '^instance: kinds off none, paused grok until 2099-01-01T00:00:00Z (hub)$' "$T/out" \
+  && pass "9. grok paused by another box: skipped here too" || fail "9. paused: $(cat "$T/out")"
+hub '["grok"]'
+touch "$T/hub.down"
+hmix
+[[ "$(pick)" == grok ]] && grep -q '^instance: setting not read (the hub did not answer it: dial: connection refused): local checks only$' "$T/out" \
+  && grep -q 'reason=difficulty unset: default is grok; instance setting not read (the hub did not answer it' "$T/out" \
+  && pass "9. hub down: today's behaviour, and the reason says so" || fail "9. hub down: $(cat "$T/out")"
+rm -f "$T/hub.down"
+mix
+grep -q 'instance setting not read (no fleet' "$T/out" && [[ "$(pick)" == grok ]] \
+  && pass "9. no fleet: local checks, said in the reason" || fail "9. no fleet: $(cat "$T/out")"
+hmix LANE_MIX_INSTANCE=0
+[[ "$(pick)" == grok ]] && grep -q 'not read (LANE_MIX_INSTANCE=0)' "$T/out" \
+  && pass "9. LANE_MIX_INSTANCE=0 skips the read" || fail "9. instance=0: $(cat "$T/out")"
+# a local limit verdict is reported as a pause until it runs out here
+hub '[]'
+rm -f "$T/hub.log"
+limit g-951 600
+hmix
+want="$(date -u -d "@$(( $(stat -c %Y "$T/dispatch/wd/ctx/g-951/out.s2") + 21600 ))" +%Y-%m-%dT%H:%M:%SZ)"
+[[ "$(pick)" != grok ]] && grep -qx "pause grok $want usage limit: g-951 S2 kind=limit 10m ago" "$T/hub.log" \
+  && grep -q "^instance: grok paused for every box until $want" "$T/out" \
+  && pass "9. a local grok limit verdict is reported to the hub as a pause until it runs out" || fail "9. report: $(cat "$T/hub.log" 2>&1) $(cat "$T/out")"
+rm -f "$T/hub.log"
+hmix LANE_MIX_REPORT=0
+[[ ! -e "$T/hub.log" && "$(pick)" != grok ]] && pass "9. LANE_MIX_REPORT=0: skipped, not reported" || fail "9. report=0: $(cat "$T/out")"
+mix
+[[ ! -e "$T/hub.log" ]] && pass "9. control: no fleet, nothing reported" || fail "9. no fleet reported"
+hub '[]' '{"grok":{"until":"2099-01-01T00:00:00Z","reason":"x","box":"b"}}'
+hmix
+[[ ! -e "$T/hub.log" ]] && pass "9. already paused on the hub: not reported again" || fail "9. re-report: $(cat "$T/hub.log")"
 rm -rf "$T/dispatch"
 
 mix LANE_MIX_KIND=nope; rc=$?

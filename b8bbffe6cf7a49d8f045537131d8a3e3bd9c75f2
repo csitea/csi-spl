@@ -1,0 +1,6 @@
+Lay-What: The automatic quit is never typed into a window a person is looking at right now.
+Lay-How: Before typing, the helper checks whether someone used that window in the last two minutes, and waits if so.
+Lay-Why: Typing into a window someone is reading or writing in would disturb them and could mix with their own typing.
+Tech-What: The --rebirth closer skips send-keys while a tmux client on that window was active within WD_HUMAN_IDLE (120 s).
+Tech-How: list-clients #{window_id} #{client_activity} against the pane window_id, checked on every idle poll.
+Tech-Why: Owner request relayed via the orchestrator: the closer must not type into a window a human is watching.

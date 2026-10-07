@@ -1,0 +1,6 @@
+Lay-What: An assistant asked to restart itself fresh now actually stops, so it can come back clean.
+Lay-How: A small helper waits until the assistant has finished talking and then types the quit command for it.
+Lay-Why: Before, nobody typed that command, so the assistant kept running for up to two hours before the restart.
+Tech-What: tmux-close-window.sh --rebirth forks a detached closer that types /exit once the harness is idle, for every harness.
+Tech-How: setsid copy polls capture-pane; idle = classify_screen idle, empty prompt line, 3 stable polls; no kill-window, no retire.
+Tech-Why: --rebirth only wrote lifetime/rebirth; /exit was typed only by the 060 rotation RETIRE, so the session ran to its hard end.

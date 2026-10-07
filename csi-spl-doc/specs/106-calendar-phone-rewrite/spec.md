@@ -1,7 +1,7 @@
 # 106 Calendar on the phone: a phone-first rewrite
 
-**Feature ID**: `106-calendar-phone-rewrite` · **Milestone**: M3 · **Status**: Draft v0.1 (seat 1 of 4, waiting for review seats 2..4)
-**Created**: 2026-10-07 · **Drafter**: c-508 (seat 1) · **Topic**: t1 `197cf92c-785a-4b5a-9ed8-a654a60bbbd6` · lane dispatch `dispatch-197cf92c`
+**Feature ID**: `106-calendar-phone-rewrite` · **Milestone**: M3 · **Status**: v1.0 (consensus: seats 1..4 agree with changes; owner answered 1A, 2A, 3A)
+**Created**: 2026-10-07 · **Drafter**: c-508 (seat 1 draft), folded by a-528 (seat 1 fold) · **Topic**: t1 `197cf92c-785a-4b5a-9ed8-a654a60bbbd6` · lane dispatch `dispatch-197cf92c`
 **Authority**: this file for how the calendar behaves at <= 820 px; `tasks.md` for what is built. Docs only: this spec builds nothing (`../README.md` §2.4).
 
 Builds on, and does not repeat:
@@ -114,11 +114,11 @@ Patterns only; no layout, icon or asset is copied.
 | views | Schedule, Day, 3 days, Week, Month, from a side menu | Year -> Month -> Day, a zoom: tap a month, tap a day; a list toggle | Agenda, Day, 3 days, Month | **Month / Week / Day, one tap apart**, on a segmented control that is always on screen (owner H1). No side menu: one tap, not two. |
 | changing the period | swipe the view sideways, it slides | swipe the week strip or the day | swipe; drag the month strip down to open it | **swipe the view sideways = next / previous period, a sliding page** (H2), plus `<` / `>` for those who cannot swipe |
 | jumping far | tap the month name: a month grid drops down | pinch out to Year, tap a month | drag down the month strip | **tap the title (`October 2026`): a month-and-year picker** replaces the 36-month strip |
-| the day | time grid, the now line, all-day row on top | a week strip of seven day chips over the day | same | **Day = a week strip of seven chips over a time grid** |
-| create | a round `+` button, bottom corner; a quick sheet with title and time, "More options" for the rest | `+` in a corner, a full form | round `+` button, a quick form | **a round `+` button in the thumb corner opens a half-height bottom sheet**; "More options" grows it to full height with the 097 fields |
+| the day | time grid, the now line, all-day row on top | a week strip of seven day chips over the day | same | **Day = time grid, now line, all-day row on top** (drops week strip to maximize grid height and eliminate gesture conflict) |
+| create | a round `+` button, bottom corner; a quick sheet with title and time, "More options" for the rest | `+` in a corner, a full form | round `+` button, a quick form | **a round `+` button in the thumb corner opens a half-height bottom sheet** with sticky header Cancel/Save; "More options" grows it to full height with the 097 fields |
 | create at a time | tap empty time in Day / Week, the sheet opens with that time | press and hold empty time | tap empty time | **tap empty time in Day: the sheet opens on that hour** |
 | open an event | a card with the details and the actions (edit, delete, more) | a full page | a card | **a peek sheet as tall as its content**, Edit / Duplicate / Delete on it; delete is immediate with Undo |
-| month cells | events as small coloured bars in the cell | dots | dots | **dots in colour (max 3, then `+n`)**; tapping a day shows its agenda under the grid |
+| month cells | events as small coloured bars in the cell | dots | dots | **dots in colour (max 3, then `+n`)**; tapping a day shows its agenda under the grid with 1-tap event peek |
 
 ---
 
@@ -142,44 +142,54 @@ Patterns only; no layout, icon or asset is copied.
 | composer dock (the app's, unchanged) |
 ```
 
-- **Header (one row)**: Back (the stack's chevron), the **title** (`October 2026` in Month, `5-11 Oct 2026` in Week, `Wed 2026-10-07` in Day; dates keep the app's ISO style, month names come from `calendar.months`), a search button, the menu (trash, export). The `2026-10` year-strip row goes.
+- **Header (one row)**: Back (the stack's chevron), the **title** (`October 2026` in Month, `5-11 Oct 2026` in Week, `Wed 2026-10-07` in Day; dates keep the app's ISO style, month names come from `calendar.months`), a search button, the menu (trash, export). An `aria-live="polite"` region on the header outside the turning wrapper announces period changes once (S4-2). Header height <= 48 px. The `2026-10` year-strip row goes.
 - **The view** fills everything between the header and the bottom bar.
-- **Bottom bar (one row)**: Today, the segmented **Month | Week | Day**, `<` and `>`. The separate range-label row and the `...` row go.
-- **Add button**: a round raised `+`, bottom right, above the bottom bar.
+- **Bottom bar (one row)**: Today (at font level >= 4 or viewport < 400 px, collapses to an icon button showing day number in a frame, `aria-label` "Today", per S4-1), the segmented **Month | Week | Day** (shows short `M` / `W` / `D` from keys `calendar.view_short_{month,week,day}` at font level >= 4 or viewport < 400 px), `<` and `>`. Bottom bar height <= 48 px at level 3. The separate range-label row and the `...` row go.
+- **Add button**: a round raised `+` (56x56 px, S2-6), bottom right, positioned `env(safe-area-inset-bottom)` + 16 px above the bottom bar, 16 px from the right edge. All view scrollers leave 72 px bottom padding so the button never occludes the last agenda row or 23:00 (S4-9, 9.4 #12).
 
-Target: at 390x844 the view gets **>= 65 %** of the viewport height (today ~52 %), at 360x780 >= 60 % (today ~48 %). The composer dock and the status line stay as the app has them.
+Target: at 360x780 and 390x844 the view gets **>= 82 %** of the space the app gives the page (section strip bottom to composer dock top) at font level 3 (restated per seat 3 #11). Header and bottom bar are <= 48 px each (fits H7 control bound). At font level 5, the bars grow only by their text's rem and H8 verifies no wrap and no overflow. The composer dock and the status line stay as the app has them.
 
 ### 4.2 The three views
 
 | view | what it shows | a tap on ... |
 |---|---|---|
-| **Month** | a 6x7 grid of days (Monday first, as the year strip), every cell >= 44x44 at 360 px (328 / 7 = 46 px); up to 3 coloured dots per day, then `+n`; today raised; under the grid, the **agenda of the selected day** (today by default), which scrolls vertically | a day: selects it, its agenda shows under the grid; a second tap on the same day opens it in Day |
-| **Week** | a week strip of seven day chips on top, then the seven days as an agenda list; **empty days fold** into one thin row ("Thu-Sat: nothing planned"); the list opens scrolled to today | a chip: scrolls the list to that day; an event: its peek |
-| **Day** | the week strip on top, then the all-day row, then the time grid (hour rows >= 52 px), the now line, opened scrolled to the now line or the first event | empty time: the add sheet on that hour; an event: its peek; hold: 097's drag to move / resize |
+| **Month** | a 6x7 grid of days (Monday first, as the year strip, 16 px side gutters, no cell gap, day number at 0.875 rem); every cell >= 44x44 at 360 px (328 / 7 = 46 px), no upper bound on cell size; up to 3 coloured dots per day, then `+n` (contrast >= 3:1 in all 8 themes); today raised, outlined in `var(--color-accent)` and bold number (WCAG 1.4.1); all-day events placed by UTC date, never viewer zone (S4-3); multi-day events have a dot on each day covered; under the grid, the **agenda of the selected day** (today by default), which scrolls vertically | a day: selects it, its agenda shows under the grid; a second tap on the same day opens it in Day; tapping any event card in the agenda opens its Peek sheet directly (1 tap, S2-3); empty day shows `No events planned · [ + Add event ]` which opens Add sheet preset to that date (2 taps, S2-3) |
+| **Week** | a week strip of seven day chips on top, then the seven days as an agenda list; **empty days fold** into one thin row ("Thu-Sat: nothing planned"); multi-day events list under each day as "Day X of Y" (S4-3); the list opens scrolled to today | a chip: scrolls the list to that day; a folded range row: unfolds in place into individual empty day rows with a `+` affordance, or tapping a day chip scrolls and unfolds that day (S2-7); an event: its peek |
+| **Day** | **no week strip** (title names the day; swipe, `< >`, or Week tab switches days; dropped per seat 3 #11 and consensus to eliminate gesture conflicts and provide >= 520 px grid height for H8); the all-day row (at most 2 lines, then `+n more`, UTC date); the time grid (hour rows at **48 px**, visible grid >= 520 px, >= 10.5 hours on screen); now line; local hours for date (23 on spring-forward, 25 on fall-back DST, repeated hour labelled twice, S4-6); overlaps cap at 3 columns (>= 44 px wide each), 4th+ becomes `+n` chip opening hour list (S4-4); short events (< 30 min) draw at 24 px minimum height; opened scrolled to now line or first event | empty time: the add sheet on that hour (directional lock & tap slop: < 8 px displacement, < 300 ms dwell; dwell > 400 ms triggers 097 hold-drag, S2-2); an event: its peek; hold: 097's drag to move time only on phone |
 
-Default on open: **Week**, then whatever view the person last used (remembered in this browser). Week answers "what is coming" at a glance; Day is one tap away. (Owner question Q2.)
+Default on open: **Week**, then whatever view the person last used (remembered in `localStorage`, falling back to Week if storage fails, per owner decision Q2).
 
 ### 4.3 Sliding between periods
 
 - A sideways swipe on the view turns the period: left = next month / week / day, right = previous. The new page slides in; the old one slides out.
-- It is a **page turn, not a scroll**: the view holds the current page and, during a swipe, its neighbour; the container clips them (`overflow: hidden`), so nothing can be scrolled sideways and `scrollWidth == clientWidth` always.
-- The swipe uses the app's thresholds (`MOBILE_SWIPE_MIN_DX` 64, `MOBILE_SWIPE_MAX_DY` 48, `dx > 1.5 dy`, `utils/mobile-stack.mjs`); vertical movement scrolls as today (`touch-action: pan-y` on the view).
-- In Day and Week the **week strip** swipes by week; the view below swipes by its own period.
-- **Back stays reachable.** Today a swipe right starting in the left half of the screen is Back (`MOBILE_SWIPE_EDGE_RATIO` 0.5). On the calendar's view a swipe right turns to the previous period instead; Back is the header chevron, the browser / system Back, and a swipe that starts within 16 px of the left edge. (Owner question Q3.)
+- It is a **page turn, not a scroll**: the view holds the current page and, during a swipe, its neighbour; the container clips them with `overflow-x: clip` (not `overflow: hidden`, 9.4 #5), so nothing can be scrolled sideways and `scrollWidth == clientWidth` always. The leaving page is marked `inert` during the turn. Tab through the view and Today leave `scrollLeft == 0`.
+- **Pointer Events with `touch-action: pan-y`** on the view: the browser owns vertical scrolling and sends `pointercancel` on vertical drift.
+- **Directional lock & tap slop** (S2-2): if initial touch displacement reaches `dy >= 10 px` before `dx >= 16 px`, lock exclusively to vertical scrolling until touch end. If `dx >= 16 px` and `dx > 1.5 dy`, lock to horizontal page turn. Tap-to-add on empty time triggers on `pointerup` only if total displacement is `< 8 px` and dwell `< 300 ms`; dwell `> 400 ms` without movement triggers 097 hold-to-drag.
+- **Interactive 1:1 flat tracking vs 3D release snap** (S2-5, 9.4 #2, #7): during touch tracking (finger down), the view follows the touch 1:1 strictly along the X-axis (`translateX` batched in rAF) with 0 deg rotation for crisp subpixel text rendering. The 3D rotation (`rotateY <= 8deg`) and scale (0.98) engage **only** during the release momentum/snap animation (220 ms ease-out). On animation end (`transitionend`), `transform: none` is restored.
+- **Compositor performance** (9.4 #7): animate only `transform` and `opacity` on one wrapper per page; set `will-change: transform` only during the turn; add `backface-visibility: hidden`; keep header, bottom bar and `+` FAB **outside** the turning wrapper; render at most two pages during a turn and only one at rest.
+- **Data prefetch** (9.4 #9): when a period settles, prefetch previous and next ranges (`GET /v1/calendar/events`); rapid swipes abort in-flight fetches via `AbortController`.
+- **Gesture precedence** (innermost to outermost, 9.4 #3):
+  1. A held event (097 drag, `CAL_HOLD_MS` 250 ms, `CAL_TOUCH_SLOP_PX` 8, moves time only on phone).
+  2. The week strip (in Week view), which turns by week and stops propagation.
+  3. The view, which turns by its own period.
+  4. The left-edge Back.
+  (A track moving > 8 px before 250 ms is a swipe or scroll, never a drag.)
+- **Back stays reachable** (S4 Q3, 9.4.2 Q3, agreed by all): Back is the header chevron, the browser / system Back (`popstate`), and a swipe starting within **24 px** of the left edge (rtl: >= width - 24 px). The view claims swipes via existing `stack.swipe.claim()` at `touchend` unless the touch started in that 24 px edge zone. `utils/mobile-stack.mjs` is not modified (T003 dropped per 9.4 #1).
 - `<` / `>` do exactly what a swipe does, so the feature never depends on a gesture.
 
 ### 4.4 Add and edit: one bottom sheet, one thumb
 
-- `+` (or a tap on empty time) opens a **half-height bottom sheet**: Title (focused, keyboard up), a date chip, start and end chips (preset to the tapped hour, or the next full hour on the shown day, for one hour), the All-day switch, **Save** at the bottom right of the sheet.
-- **More options** grows the same sheet to full height with 097's fields in 097's order (time zone, location, reminders, colour, repeat, guests, private, description). Nothing new is invented; only the shell changes.
-- The sheet is themed: the date and time chips are WUI controls showing ISO dates and the 24-hour clock, which open the platform's own picker (no grey browser box); switches replace bare checkboxes; every field is >= 44 px tall.
-- Edit opens the same sheet, full height, on the event. Save stays bottom right; Delete is bottom left; the confirm question does not move Save.
-- The sheet is a mobile-stack overlay (Back closes it), keeps clear of the composer dock and the safe-area inset, and drags down to close.
+- `+` (or a tap on empty time) opens a **half-height bottom sheet** with a **sticky top header containing Cancel (left) and Save (right)** (S2-1). Because Cancel and Save sit in the sticky header, a 300-350 px mobile virtual keyboard never occludes Save, enabling event creation in exactly 2 taps after typing a title with zero scrolling or keyboard dismissal.
+- The quick part of the sheet holds: Title (focused, keyboard up), date chip, start and end chips (preset to tapped hour or next full hour), All-day switch.
+- **More options** grows the same sheet to full height with 097's fields in 097's order (time zone, location, reminders, colour, repeat, guests, private, description).
+- The sheet is themed: date and time chips are WUI controls showing ISO dates and the 24-hour clock; switches replace bare checkboxes; every field is >= 44 px tall.
+- Edit opens the same sheet, full height, on the event. Cancel and Save stay in the sticky top header; Delete is bottom left; the confirm question does not move Save.
+- The sheet is a mobile-stack overlay (Back closes it), keeps clear of the composer dock and safe-area insets. Dismissal drag-down engages only from the grab bar or header, or when sheet content is at `scrollTop == 0` (9.4 #4). `overscroll-behavior-y: contain` on view and sheet prevents browser reload collisions.
 
 ### 4.5 Open, delete
 
-- A tap on an event opens a **peek sheet as tall as its content**: colour, title, time, location, private badge, guests if any, and Edit / Duplicate / Delete in its bottom row.
-- **Delete is one tap from the peek**, no question: the event goes and 097 T017's "Event deleted · Undo" bar shows for 10 s. A repeating event asks 097's This / Following / All first.
+- A tap on an event opens a **peek sheet as tall as its content**: colour, title, time (with source time zone if different, e.g. `15:00 (Europe/Helsinki 16:00)`, S4-6), location, private badge, guests if any, and Edit / Duplicate / Delete in its bottom row. Long titles, locations, and guests wrap cleanly with `overflow-wrap: anywhere` (S4-5).
+- **Delete is one tap from the peek**, no question: the event goes and 097 T017's "Event deleted · Undo" bar shows for 10 s. The Undo bar is `role="status"`, and its 10 s timer pauses while focused or hovered (WCAG 2.2.1, S4-2). A repeating event asks 097's This / Following / All first.
 
 ### 4.6 Jump and search
 
@@ -192,15 +202,27 @@ Only the WUI's own tokens (`src/assets/css/variables.css`), so all palettes and 
 
 | element | treatment |
 |---|---|
-| raised controls (add button, the selected segment, Today, event cards in Month agenda and Week) | `box-shadow: var(--focus-3d)` plus the top-light / bottom-dark inset bevel the app already uses for raised buttons (`main.css`, SPL-1186); pressed = 1 px down, `var(--color-selected)`, inset shadow |
-| sheets | top corners `var(--radius-lg)`, `var(--focus-3d)` above the page, a grab bar |
-| today | its cell / chip raised and outlined in `var(--color-accent)`; the now line `var(--color-accent)` with `var(--color-glow)` |
-| focus | the one ring: `var(--focus-ring-w) solid var(--focus-ring)`, offset `var(--focus-offset)`, never wider than 3 px |
+| raised controls (add button, the selected segment, Today, event cards in Month agenda and Week) | `box-shadow: var(--focus-3d)` plus top-light / bottom-dark inset bevel tokenised as `var(--bevel-shine)` / `var(--bevel-shade)` in `variables.css` in dark and light themes (9.4 #6); pressed = 1 px down, `var(--color-selected)`, inset shadow |
+| sheets | top corners `var(--radius-lg)`, `var(--focus-3d)` above the page, grab bar, `overscroll-behavior-y: contain` |
+| today | its cell / chip raised and outlined in `var(--color-accent)` and a bold number (never colour alone, WCAG 1.4.1); the now line `var(--color-accent)` with `var(--color-glow)` |
+| focus | the one ring: `var(--focus-ring-w) solid var(--focus-ring)`, offset `var(--focus-offset)`, never wider than 3 px; visible outside `--focus-3d` drop shadow |
 | radius | `var(--radius)`, `--radius-md`, `--radius-lg`, `--radius-pill` only |
-| page turn | a short 3D slide: the pages sit in `perspective: 1200px`; the leaving page moves out with `rotateY` up to 8 degrees and `scale(0.98)`, the arriving one in, 220 ms, ease-out |
-| reduced motion | under `prefers-reduced-motion: reduce` there is no transform and no transition: the page swaps at once, the sheet appears without sliding |
+| page turn | 1:1 flat interactive translation (`translateX`) during finger drag; 3D slide on release snap (`perspective: 1200px`, `rotateY <= 8deg`, `scale(0.98)`, 220 ms, ease-out); restored to `transform: none` at rest (S2-5, 9.4 #7) |
+| reduced motion | under `prefers-reduced-motion: reduce`: no `rotateY` or scale, no sheet slide, no smooth scroll to now line (`scroll-behavior: auto`), no glow pulse; 1:1 translation swipe still works as direct manipulation input (S4-7, 9.4 #2/#7) |
 | type | `rem` only, from the sizes the calendar already uses (0.75 .. 1 rem); everything follows the five font-size levels |
-| sizes | every control >= `var(--tap)` (44 px) and <= 48 px tall; the add button 56 px; no text button wider than half the screen |
+| sizes (H7 split, 9.4 #10, S4-1, S4-4) | **Controls** (header, bottom bar, sheets, peek, picker): >= `var(--tap)` (44 px) and <= 48 px tall at font level 3; the add button 56x56 px; no text button wider than half screen. At font level >= 4, controls grow only by the rem of their text. **Content targets** (month cells, week chips, agenda rows): >= 44x44, no upper bound. **Timed event blocks < 44 px**: exempt from 44 px height bound (minimum 26 px height for <30m at 48 px/hr), stay >= 44 px wide, capped at 3 overlap columns. Scrollers have 72 px bottom padding so the `+` FAB never covers content. |
+| contrast (S4-8) | event dots and colours maintain >= 3:1 contrast against surface background across all 8 themes (WCAG 1.4.11) |
+
+### 4.8 Accessibility and semantics (S4-2)
+
+The phone rewrite implements full accessible semantics:
+- **Segmented control**: `role="radiogroup"`; each button has `role="radio"` with `aria-checked` and accessible name.
+- **Month grid**: `role="grid"`; each cell's accessible name is "Day YYYY-MM-DD, N events" (dots `aria-hidden`, event count spoken). Arrow keys navigate between days.
+- **Period change**: announces the new period title once via a single persistent `aria-live="polite"` region located in the header outside turning wrappers.
+- **Page transitions**: during a page turn, the leaving page is marked `inert` so screen readers never encounter two simultaneous pages.
+- **Bottom sheets**: every sheet is `role="dialog" aria-modal="true"`. Focus moves to Title input (Add) or heading (Peek), and returns to the opening trigger on close.
+- **Undo snackbar**: `role="status"`. The 10 s countdown pauses while the bar has focus or hover (WCAG 2.2.1).
+- **Non-drag event modification**: in addition to 097 hold-to-drag, full time adjustment is available via Edit sheet time chips (WCAG 2.5.7).
 
 ---
 
@@ -223,42 +245,43 @@ Only the WUI's own tokens (`src/assets/css/variables.css`), so all palettes and 
 
 ### 6.1 Owner hard requirements (H)
 
-| id | requirement | test (at 360x780 and 390x844, dark and light theme) |
+| id | requirement | test (at 360x780, 390x844 and 820x1180, dark and light theme) |
 |---|---|---|
 | **H1** | Month, Week and Day views exist, and each is **one tap** from the other two | e2e: from each view, one tap on the segmented control reaches each other view (`data-view`), 6 pairs |
-| **H2** | **Sliding screens**: a sideways swipe turns to the next / previous period, with a slide | e2e: a synthetic touch swipe left / right in each view changes the period by one (`data-period`); a transform is applied during the turn |
-| **H3** | **No horizontal scrolling, only vertical** | e2e: `documentElement.scrollWidth - clientWidth <= 1`, and no element under the calendar has `scrollWidth > clientWidth + 1` with `overflow-x` auto / scroll, in every view, with a sheet open, at font-size level 1 and level 5 |
-| **H4** | Reminds of Google Calendar's usage, not a copy | review: section 3's patterns are present (segmented views, swipe, title picker, `+` button, quick sheet, peek); no asset, icon set or wording copied |
-| **H5** | Lives up to the current UI: its tokens | lint test: the new phone files hold no colour literal (`#hex`, `rgb(`, `hsl(`) and no `px` radius / shadow other than through the tokens of 4.7; e2e reads the computed focus outline = `--focus-ring` / `--focus-ring-w` |
-| **H6** | **Some 3D**, with a reduced-motion fallback | e2e: the add button and the selected segment have a non-`none` `box-shadow`; during a page turn the page has a `rotateY` transform; with `prefers-reduced-motion: reduce` emulated, no transform and a 0 s transition |
-| **H7** | **Not too big or too small buttons** | e2e: every visible button, link and input in the calendar is >= 44x44 and <= 48 px tall (the add button 56); month cells >= 44x44 at 360 px |
-| **H8** | **Harmonic**: one header row, one bottom bar, the view gets the room | e2e: the view's height >= 65 % of the viewport at 390x844 and >= 60 % at 360x780; header and bottom bar are one row each (height <= 56 px) |
+| **H2** | **Sliding screens**: a sideways swipe turns to the next / previous period, with a slide | e2e: a synthetic touch swipe left / right in each view changes the period by one (`data-period`); 1:1 flat interactive translation during finger drag, 3D transform applied during release snap (220 ms) |
+| **H3** | **No horizontal scrolling, only vertical** | e2e: `documentElement.scrollWidth - clientWidth <= 1`, and no element under the calendar has `scrollWidth > clientWidth + 1` with `overflow-x` auto / scroll, in every view, with a sheet open, at font-size levels 1, 3 and 5. `scrollLeft == 0` after Tab through the view and after Today. Tested with 200-character unbroken title and 120-character location (S4-5, 9.4 #5). |
+| **H4** | Reminds of Google Calendar's usage, not a copy | review: section 3's patterns are present (segmented views, swipe, title picker, `+` button, quick sheet with sticky header Save, peek); no asset, icon set or wording copied |
+| **H5** | Lives up to the current UI: its tokens | lint test: the new phone files hold no colour literal (`#hex`, `rgb(`, `hsl(`) and no `px` radius / shadow other than through the tokens of 4.7; `--bevel-shine` and `--bevel-shade` tokenised in `variables.css` (9.4 #6); e2e reads computed focus outline = `--focus-ring` / `--focus-ring-w`; event dot contrast >= 3:1 against surface tokens verified across all 8 themes (S4-8) |
+| **H6** | **Some 3D**, with a reduced-motion fallback | e2e: the add button and the selected segment have a non-`none` `box-shadow`; during a page turn release snap the page has a `rotateY <= 8deg` transform; with `prefers-reduced-motion: reduce` emulated, no 3D transform, no sheet slide, no smooth scroll to now line, but 1:1 translation swipe remains enabled as touch input (S4-7, 9.4 #2/#7) |
+| **H7** | **Not too big or too small buttons (split bounds, 9.4 #10, S4-1, S4-4)** | e2e: **Controls** (header, bottom bar, sheets, peek, picker) >= 44x44 always and <= 48 px tall at font level 3 (growing only by text rem above that); add button 56x56 px. **Content targets** (month cells, week chips, agenda rows) >= 44x44 with no upper bound. **Timed event blocks < 44 px** exempt from 44 px height bound (min 26 px height for <30m at 48 px/hr), stay >= 44 px wide, capped at 3 overlap columns. At level >= 4 or viewport < 400 px, Today is icon button and segments show short `M`/`W`/`D`. |
+| **H8** | **Harmonic (restated per seat 3 #11)**: one header row, one bottom bar, the view gets the room | e2e: the view's height gets **>= 82 %** of the space the app gives the page (section strip bottom to composer dock top) at 360x780 and 390x844 (measured at font level 3); header and bottom bar are <= 48 px each; Day view shows **no week strip** and has 48 px hour rows, providing visible Day grid >= 520 px (>= 10.5 visible hours at 390x844). At level 5, checked for no wrap and no overflow. |
 
 ### 6.2 Functional requirements (FR)
 
 - **FR-001** At <= 820 px `/calendar` renders the phone calendar (`CalendarPhone.vue`, its own lazy chunk); above 820 px it renders today's desktop components, unchanged.
-- **FR-002** Default view: Week on first open, then the last view used, stored in this browser (a failure to store falls back to Week).
-- **FR-003** Month: 6x7 grid, dots per day (colour from the event's colour, max 3 + `+n`), selected-day agenda under it; a second tap on a day opens Day.
-- **FR-004** Week: week strip + agenda, empty days folded, opened at today when today is in the week.
-- **FR-005** Day: week strip, all-day row, time grid >= 52 px per hour, now line, opened at the now line or the first event; tap on empty time opens the add sheet at that hour; 097's hold-to-drag and resize keep working.
-- **FR-006** Swipe turns the period (4.3) with the app's thresholds; a swipe starting within 16 px of the left edge is Back; `<` / `>` do the same as a swipe.
-- **FR-007** Add / edit is one bottom sheet (4.4), a mobile-stack overlay; the quick part holds title, date, start, end, all day; More options holds 097's fields; it calls the existing `calendar-events-api.mjs` and `calendar-event-form.mjs` (no new API).
-- **FR-008** Peek sheet (4.5); delete from it with Undo (097 T017); repeating events ask the scope first (097).
+- **FR-002** Default view: Week on first open, then the last view used, stored in `localStorage` in this browser (falling back to Week if storage fails, per Q2).
+- **FR-003** Month: 6x7 grid (cells >= 44x44, 16 px gutters, no cell gap), dots per day (colour from event colour, max 3 + `+n`, contrast >= 3:1 in all 8 themes), UTC date for all-day events (S4-3), selected-day agenda with 1-tap peek (S2-3), clear empty state `No events planned · [ + Add event ]` (2 taps to add, S2-3); a second tap on selected day opens Day.
+- **FR-004** Week: week strip + agenda, empty days folded into one row, tap on folded range unfolds into individual empty day rows in place with `+` affordance or tapping day chip in strip scrolls and unfolds (S2-7), multi-day events as "Day X of Y" (S4-3), opened at today.
+- **FR-005** Day: **no week strip**, all-day row (UTC date, max 2 lines + `+n more`), time grid with hour rows at 48 px (visible grid >= 520 px, >= 10.5 hours), now line, local hours for date (23 on spring-forward, 25 on fall-back DST, S4-6), max 3 overlap columns (>= 44 px wide), short events min 26 px height, directional lock (`dy >= 10 px` before `dx >= 16 px`) and tap slop (< 8 px / < 300 ms; > 400 ms triggers 097 hold-drag, S2-2).
+- **FR-006** Swipe turns the period with 1:1 finger follow and 3D release snap; Back is chevron, system Back, and left **24 px** edge swipe (rtl: >= width - 24 px); claims swipe via existing `stack.swipe.claim()` at `touchend` (9.4 #1, S4 Q3); `<` / `>` do the same as a swipe.
+- **FR-007** Add / edit is one bottom sheet with Cancel (left) and **Save** (right) in a **sticky top header** (S2-1, keyboard safe); quick part holds title, date, start, end, all-day; More options grows to full height with 097 fields in 097 order; sheet drag-down engages only from header/grab bar or when `scrollTop == 0` (9.4 #4); `overscroll-behavior-y: contain`.
+- **FR-008** Peek sheet (4.5); long titles wrap with `overflow-wrap: anywhere` (S4-5); delete from it with 10 s Undo bar (timer pauses on focus/hover, WCAG 2.2.1); repeating events ask the scope first (097).
 - **FR-009** Month picker from the title (4.6), 3-year range of 089.
 - **FR-010** Search from the header (4.6) over `GET /v1/calendar/search`.
 - **FR-011** Desktop unchanged: the desktop e2e (`calendar`, `calendar-events`, 097's `calendar-drag`, `calendar-undo`, `calendar-event-fields` at 1440 px) pass with no edit to their assertions.
-- **FR-012** No calendar code in the initial chunk; `ci_initial_gzip_kb` <= 155.
-- **FR-013** Every text in `calendar.*` / `calendar_event.*` i18n keys, in every locale file; dates ISO (`date-iso.test.mjs` rules).
+- **FR-012** Lazy loading (3 levels: `CalendarPhone` in `pages/calendar.vue`, views async on first show, dialogs async on first open, 9.4 #8); no new packages; initial chunk <= 155 KB; core i18n catalogue untouched.
+- **FR-013** Every text in `calendar.*` / `calendar_event.*` / `calendar_phone.*` i18n keys, in every locale file; dates ISO (`date-iso.test.mjs` rules).
+- **FR-014** Accessible semantics (S4-2): segmented control `role="radiogroup"` + `aria-checked`, Month `role="grid"`, period change announced via `aria-live="polite"` region on header, leaving page `inert`, sheets `role="dialog" aria-modal="true"`, Undo bar `role="status"`, non-drag editing path.
 
 ### 6.3 Acceptance
 
-- **AC-01** H1..H8 green at 360x780 and 390x844, dark and light.
+- **AC-01** H1..H8 green at 360x780, 390x844 and 820x1180, dark and light, font levels 1, 3 and 5.
 - **AC-02** Each tap-count target of section 5 met, counted by an e2e that taps through each task.
-- **AC-03** A day 3 months ahead is reached in 3 taps (title, month, day).
-- **AC-04** An event added from a tapped 14:00 slot in Day is stored at 14:00-15:00 on that day.
+- **AC-03** A day 3 months ahead is reached in <= 3 taps (title, month, day).
+- **AC-04** An event added from a tapped 14:00 slot in Day is stored at 14:00-15:00 on that day; Save button clickable without scrolling when virtual keyboard is active (S2-1).
 - **AC-05** Delete from the peek, then Undo: the event is back with the same id.
 - **AC-06** At 1440x900 the calendar's screenshots and e2e are as before.
-- **AC-07** A swipe from the left 16 px edge goes Back to level 1; a swipe right from mid-screen turns to the previous period and stays on `/calendar`.
+- **AC-07** A swipe from the left 24 px edge goes Back to level 1; a swipe right from mid-screen turns to the previous period and stays on `/calendar`.
 
 ---
 
@@ -291,18 +314,33 @@ The owner asked for "proper discussions between at least four agents", agy inclu
 
 | seat | agent | vendor | status |
 |---|---|---|---|
-| 1 | c-508 | claude | drafted v0.1 |
-| 2 | a-526 | agy | reviewed: **agree with changes**, S2-1..S2-7 and Q1..Q3 in 9.5 |
+| 1 | c-508 / a-528 | claude / agy | drafted v0.1 (c-508); folded into v1.0 consensus (a-528) |
+| 2 | a-526 | agy | reviewed: **agree with changes**, S2-1..S2-7 and Q1..Q3 in 9.5; consensus update in 9.5.2 |
 | 3 | c-514 | claude | reviewed: **agree with changes**, 12 changes and Q1..Q3 in 9.4; angle: WUI fit (gestures, mid-phone performance, 155 KB, lazy loading, tokens, H1..H8 test feasibility) |
 | 4 | c-515 | claude | reviewed: **agree with changes**, S4-1..S4-9 and Q1..Q3 in 9.3 |
 
 ### 9.1 Agreed
 
-(filled after review)
+All four seats reached unanimous consensus to adopt the rewrite design and H1..H8 with the following agreed refinements:
+- **Gestures & swipe**: Drop T003; use existing `stack.swipe.claim()` from `useMobileStack.ts` called at `touchend` with a 24 px left-edge zone for Back (mirrored in RTL). `mobile-stack.mjs` is untouched. 1:1 flat interactive translation during finger touch tracking; 3D `rotateY <= 8deg` tilt and `scale(0.98)` engage only during the 220 ms release snap transition; container clips with `overflow-x: clip`; leaving page is `inert`. Explicit gesture precedence: held event (097) > week strip (Week view) > view period swipe > 24 px left-edge Back. Directional lock: `dy >= 10 px` before `dx >= 16 px` locks vertical scroll; tap slop < 8 px and dwell < 300 ms. Prefetch neighbour periods with `AbortController` cancellation on rapid swipes.
+- **Sizing bounds (H7)**: Split bounds into controls and content targets: controls (header, bottom bar, sheets, peek, picker) >= 44x44 always and <= 48 px tall at font level 3 (growing only by text rem above that; FAB `+` is 56x56 px); content targets (month cells, week chips, agenda rows) >= 44x44 with no upper bound; timed event blocks shorter than 44 px exempt from 44 px height bound (min 26 px height for < 30 min at 48 px/hr), stay >= 44 px wide, capped at 3 overlap columns. At font level >= 4 or viewport < 400 px, Today becomes an icon button and segments show short `M`/`W`/`D` (keys `calendar.view_short_{month,week,day}`).
+- **Harmonic layout & H8**: Restated to view gets >= 82 % of the page area (section strip bottom to composer dock top) at 360x780 and 390x844 (measured at font level 3). Header and bottom bar are <= 48 px each. Day view drops the week strip to eliminate gesture conflict and recover vertical space (providing >= 520 px visible Day grid, >= 10.5 visible hours at 48 px/hr).
+- **Add / edit bottom sheet**: Cancel (left) and Save (right) placed in sticky top header (S2-1) so virtual keyboard (300-350 px) never occludes Save; More options expands to full height with 097 fields; sheet drag-down engages only from header/grab bar or when at `scrollTop == 0`; `overscroll-behavior-y: contain`.
+- **Peek & direct interactions**: 1-tap direct Peek from Month view agenda cards (S2-3); clear empty state `No events planned · [ + Add event ]` (2 taps to add); folded empty days in Week view unfold in place on tap with `+` affordance (S2-7).
+- **Accessibility & semantics (S4-2)**: Segmented control `role="radiogroup"` + `aria-checked`; Month grid `role="grid"` with spoken event counts and keyboard arrow navigation; period change announced once via `aria-live="polite"` region on header; leaving page `inert`; sheets `role="dialog" aria-modal="true"`; Undo bar `role="status"` (timer pauses on focus/hover); non-drag editing path via time chips. Under reduced motion, 3D transforms, scale, sheet slide, smooth scroll, and glow pulse are removed while 1:1 translation swipe remains enabled as touch input.
+- **Tokens & themes (H5)**: Inset bevel tokenised as `--bevel-shine` / `--bevel-shade` in `variables.css` (both light and dark). Today marked by raise, outline, and bold number (never colour alone). Event colours maintain >= 3:1 contrast against surface background across all 8 themes.
+- **Data & edge cases**: All-day events placed by UTC date, never viewer zone (S4-3); all-day row capped at 2 lines + `+n more`; local hours for date (23/24/25 on DST transitions, S4-6); multi-day events get a dot on every day covered and list as "Day X of Y"; long titles wrap or clamp with full accessible name preserved (S4-5).
+- **Lazy loading (FR-012)**: 3 levels (`CalendarPhone` in `pages/calendar.vue`, views async on first show, dialogs async on first open); no new npm packages; core i18n catalogue untouched; initial chunk <= 155 KB.
+- **Owner questions Q1..Q3**: Decided 1A, 2A, 3A by owner HUM-10 (msg fc7ecb8d).
 
 ### 9.2 Disputed
 
-(filled after review)
+None. All four seats reached unanimous consensus. Where initial reviews differed, the version accepted by the other seats was adopted in full:
+- **Week strip in Day view**: Seat 2 initially proposed day chips (S2-4), but agreed with Seat 3 (#11) and Seat 4 to drop the week strip in Day view to eliminate swipe boundary conflicts and recover vertical budget (>= 82 % page area, >= 520 px grid height for H8).
+- **Left-edge swipe zone**: 24 px adopted over draft's 16 px (proposed by Seat 4 Q3, accepted by Seat 3 9.4.2 Q3 and Seat 2 9.5.2) to clear mobile OS back gestures.
+- **3D transition during touch tracking**: 1:1 flat translation during interactive finger tracking adopted over continuous 3D rotation (proposed by Seat 2 S2-5, accepted by Seat 3 #2/#7 and Seat 4) to prevent motion sickness and text distortion, engaging 3D `rotateY <= 8deg` only on release snap.
+- **Gesture implementation**: Dropped T003 modifying `mobile-stack.mjs` in favor of existing `stack.swipe.claim()` at touchend (proposed by Seat 3 #1, accepted by Seat 2 and Seat 4).
+- **Sizing bounds (H7)**: Split bounds into controls (44..48 px at level 3) and content targets (>= 44x44, no upper bound), exempting short events (proposed by Seat 3 #10 and Seat 4 S4-1/S4-4, accepted by Seat 2).
 
 ### 9.3 Seat 4 review: c-515 (claude), accessibility and edge cases
 
@@ -328,7 +366,6 @@ The owner asked for "proper discussions between at least four agents", agy inclu
 | Q2 | **Week first, then the last view used**, as proposed | One rule to add: when storage fails (private mode), fall back to Week without an error (FR-002 already). The choice is per browser, like the theme and the font size (023 3.4). |
 | Q3 | **yes, with a 24 px edge** instead of 16 | iOS Safari and Android gesture navigation claim about the first 20 px for system Back, so 16 px is mostly never seen by the page. 24 px catches the rest. Screen-reader users (VoiceOver and TalkBack take over swipes) and switch users never need a swipe: the chevron, `<` and `>` cover every gesture (WCAG 2.5.1). |
 
-<<<<<<< HEAD
 ### 9.4 Seat 3 review (c-514, claude): WUI fit
 
 **Verdict: agree with changes.** Section 4's design is right and buildable on today's WUI. The changes below are mostly about the plumbing: how gestures, chunks, tokens and tests work underneath it. Read on trunk `b4b6cf98` (spec at `7fa2858c`); every code claim cites its file.
@@ -450,11 +487,13 @@ Seat 2 has reviewed Seat 4's review (9.3, S4-1..S4-9) and Seat 3's review (9.4, 
 
 ## 10. Questions for the owner
 
-| # | question | proposal |
-|---|---|---|
-| Q1 | Week on the phone: a list of the seven days (what Week is today, with empty days folded) or Google's seven narrow columns on a time grid (about 44 px per day at 360 px, titles cut to a few letters)? | the list |
-| Q2 | Which view opens first: Week, Day, or Month? | Week the first time, then whatever was last used |
-| Q3 | On the calendar a swipe right turns to the previous period. Back stays on the chevron, the phone's Back, and a swipe from the very left edge. Acceptable? | yes |
+The owner answered **1A, 2A, 3A** (HUM-10, t1 `197cf92c-785a-4b5a-9ed8-a654a60bbbd6`, msg `fc7ecb8d`, 2026-10-07 19:14:23Z, relayed by c-002). All questions are decided and unanimous across all four seats.
+
+| # | question | proposal | decision (HUM-10) |
+|---|---|---|---|
+| Q1 | Week on the phone: a list of the seven days (what Week is today, with empty days folded) or Google's seven narrow columns on a time grid (about 44 px per day at 360 px, titles cut to a few letters)? | the list | **1A: The list**, with folded empty days (tap-to-unfold in place). |
+| Q2 | Which view opens first: Week, Day, or Month? | Week the first time, then whatever was last used | **2A: Week first, then last-used view** (stored in `localStorage`, falling back to Week if storage fails). |
+| Q3 | On the calendar a swipe right turns to the previous period. Back stays on the chevron, the phone's Back, and a swipe from the very left edge. Acceptable? | yes | **3A: Yes, with a 24 px left-edge zone** for Back (system Back, chevron, and 24 px left-edge swipe). |
 
 ---
 
@@ -463,5 +502,6 @@ Seat 2 has reviewed Seat 4's review (9.3, S4-1..S4-9) and Seat 3's review (9.4, 
 | version | date | author | change |
 |---|---|---|---|
 | v0.1 | 2026-10-07 | c-508 | Draft: walkthrough at 390 and 360 px (tree `0bb82f55`, mock build, n=1 per width), clunky list C1..C7, three-app comparison, phone design, H1..H8, tap targets, tasks. |
+| v1.0 | 2026-10-07 | a-528 | Consensus v1.0: fold of unanimous reviews from seats 2, 3, 4 and owner decisions (1A, 2A, 3A). Restated H7 (controls 44..48 px at level 3, content >= 44x44, short events exempt) and H8 (view >= 82% of page area, Day drops week strip, bars <= 48 px); dropped T003 in favor of existing `stack.swipe.claim()` with 24 px edge; added sticky header Cancel/Save (S2-1), gesture precedence, directional locking, 1:1 flat tracking with 3D release snap, accessibility semantics (S4-2), tokens `--bevel-shine`/`--bevel-shade`, UTC all-day handling, DST hours. |
 
-<!-- version: 0.1 · updated: 2026-10-07 -->
+<!-- version: 1.0 · updated: 2026-10-07 -->

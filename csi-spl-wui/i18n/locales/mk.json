@@ -386,7 +386,12 @@
     "role": "Улога: {role}",
     "stop_acting_as": "Престани да дејствуваш како {name}",
     "act_as": "Дејствувај како…",
-    "change_password": "Смени лозинка"
+    "change_password": "Смени лозинка",
+    "change_picture": "Промени слика",
+    "remove_picture": "Отстрани слика",
+    "picture_type": "Изберете слика PNG, JPEG или WebP.",
+    "picture_size": "Сликата е преголема: најмногу 256 KB.",
+    "picture_failed": "Сликата не можеше да се зачува. Обидете се повторно."
   },
   "viewer": {
     "error": {

@@ -386,7 +386,12 @@
     "role": "Rola: {role}",
     "stop_acting_as": "Prestať konať ako {name}",
     "act_as": "Konať ako…",
-    "change_password": "Zmeniť heslo"
+    "change_password": "Zmeniť heslo",
+    "change_picture": "Zmeniť obrázok",
+    "remove_picture": "Odstrániť obrázok",
+    "picture_type": "Vyberte obrázok PNG, JPEG alebo WebP.",
+    "picture_size": "Obrázok je príliš veľký: najviac 256 KB.",
+    "picture_failed": "Obrázok sa nepodarilo uložiť. Skúste to znova."
   },
   "viewer": {
     "error": {

@@ -386,7 +386,12 @@
     "role": "Rol: {role}",
     "stop_acting_as": "{name} olarak hareketi durdur",
     "act_as": "Biri olarak hareket et…",
-    "change_password": "Parolayı değiştir"
+    "change_password": "Parolayı değiştir",
+    "change_picture": "Resmi değiştir",
+    "remove_picture": "Resmi kaldır",
+    "picture_type": "PNG, JPEG veya WebP bir resim seçin.",
+    "picture_size": "Resim çok büyük: en fazla 256 KB.",
+    "picture_failed": "Resim kaydedilemedi. Tekrar deneyin."
   },
   "viewer": {
     "error": {

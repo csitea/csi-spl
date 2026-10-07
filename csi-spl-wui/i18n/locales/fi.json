@@ -386,7 +386,12 @@
     "role": "Rooli: {role}",
     "stop_acting_as": "Lopeta toimiminen käyttäjänä {name}",
     "act_as": "Toimi käyttäjänä…",
-    "change_password": "Vaihda salasana"
+    "change_password": "Vaihda salasana",
+    "change_picture": "Vaihda kuva",
+    "remove_picture": "Poista kuva",
+    "picture_type": "Valitse PNG-, JPEG- tai WebP-kuva.",
+    "picture_size": "Kuva on liian suuri: enintään 256 kt.",
+    "picture_failed": "Kuvaa ei voitu tallentaa. Yritä uudelleen."
   },
   "viewer": {
     "error": {

@@ -120,7 +120,15 @@ describe('CLE-3406: the corner shows the person\'s own IdP picture', () => {
     assert.notEqual(a, b)
   })
 
+  it('t1 ccaee528: each own picture change is a new URL; rev 0 is the old one', () => {
+    assert.equal(ownAvatarUrl('https://h', { iat: 1 }, 0), 'https://h/api/v1/auth/avatar?at=1')
+    assert.equal(ownAvatarUrl('https://h', { iat: 1 }, 2), 'https://h/api/v1/auth/avatar?at=1&v=2')
+    assert.equal(ownAvatarUrl('https://h', {}, 3), 'https://h/api/v1/auth/avatar?v=3')
+    assert.notEqual(ownAvatarUrl('https://h', { iat: 1 }, 1), ownAvatarUrl('https://h', { iat: 1 }, 2))
+  })
+
   it('CONTROL: signed out -> no request (the sign-in entry shows)', () => {
+    assert.equal(ownAvatarUrl('https://h', null, 4), '')
     assert.equal(ownAvatarUrl('https://h', null), '')
     assert.equal(ownAvatarUrl('https://h', undefined), '')
   })

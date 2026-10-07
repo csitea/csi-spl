@@ -386,7 +386,12 @@
     "role": "תפקיד: {role}",
     "stop_acting_as": "הפסק לפעול בתור {name}",
     "act_as": "פעל בתור…",
-    "change_password": "שינוי סיסמה"
+    "change_password": "שינוי סיסמה",
+    "change_picture": "החלפת תמונה",
+    "remove_picture": "הסרת תמונה",
+    "picture_type": "יש לבחור תמונת PNG, JPEG או WebP.",
+    "picture_size": "התמונה גדולה מדי: עד 256 KB.",
+    "picture_failed": "לא ניתן היה לשמור את התמונה. נסו שוב."
   },
   "viewer": {
     "error": {

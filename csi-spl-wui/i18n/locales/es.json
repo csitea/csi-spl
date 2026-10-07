@@ -386,7 +386,12 @@
     "role": "Rol: {role}",
     "stop_acting_as": "Dejar de actuar como {name}",
     "act_as": "Actuar como…",
-    "change_password": "Cambiar contraseña"
+    "change_password": "Cambiar contraseña",
+    "change_picture": "Cambiar foto",
+    "remove_picture": "Quitar foto",
+    "picture_type": "Elige una imagen PNG, JPEG o WebP.",
+    "picture_size": "La foto es demasiado grande: 256 KB como máximo.",
+    "picture_failed": "No se pudo guardar la foto. Inténtalo de nuevo."
   },
   "viewer": {
     "error": {

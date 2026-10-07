@@ -386,7 +386,12 @@
     "role": "Vaidmuo: {role}",
     "stop_acting_as": "Nustoti veikti kaip {name}",
     "act_as": "Veikti kaip…",
-    "change_password": "Keisti slaptažodį"
+    "change_password": "Keisti slaptažodį",
+    "change_picture": "Keisti nuotrauką",
+    "remove_picture": "Pašalinti nuotrauką",
+    "picture_type": "Pasirinkite PNG, JPEG arba WebP vaizdą.",
+    "picture_size": "Nuotrauka per didelė: ne daugiau kaip 256 KB.",
+    "picture_failed": "Nuotraukos išsaugoti nepavyko. Bandykite dar kartą."
   },
   "viewer": {
     "error": {

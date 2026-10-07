@@ -4,7 +4,8 @@
      initials, else a silhouette). CLE-3406: first the person's OWN IdP picture
      (auth-v1 GET /api/v1/auth/avatar, session only, no membership needed, as
      a data: URL); a 404 or any failure falls back to the above. Clicking it
-     opens a dropdown: who they are, Settings, Sign out. Signed out → the sign-in entry.
+     opens a dropdown: who they are, Settings, Change / Remove picture
+     (t1 ccaee528: PUT / DELETE /api/v1/auth/avatar), Sign out. Signed out → the sign-in entry.
      WAI-ARIA menu button: Enter/Space (click) and ArrowDown open on the first item,
      ArrowUp on the last; arrows wrap, Home/End jump, Escape closes and returns
      focus to the button, Tab or a click outside closes.
@@ -92,6 +93,20 @@
             <span class="user-menu__pref-label"><ConnectionStatus /></span>
           </div>
         </div>
+        <p v-if="pictureError" class="user-menu__picture-error" data-test="user-menu-picture-error" role="alert">
+          {{ t('user_menu.picture_' + pictureError) }}
+        </p>
+        <!-- t1 ccaee528: the "Change picture" item opens this picker -->
+        <input
+          ref="pictureInput"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          class="user-menu__picture-input"
+          data-test="user-menu-picture-input"
+          tabindex="-1"
+          aria-hidden="true"
+          @change="onPicturePicked"
+        >
         <ul role="menu" class="user-menu__items" :aria-label="buttonLabel" @keydown="onMenuKey">
           <li role="none">
             <NuxtLink
@@ -106,6 +121,37 @@
               <UiIcon name="settings" :size="18" />
               <span>{{ t('user_menu.settings') }}</span>
             </NuxtLink>
+          </li>
+          <!-- t1 ccaee528: the person's own picture; never while acting as a member -->
+          <li v-if="!actingAs" role="none">
+            <button
+              ref="itemPicture"
+              role="menuitem"
+              tabindex="-1"
+              type="button"
+              class="user-menu__item"
+              data-test="user-menu-change-picture"
+              :disabled="pictureBusy"
+              @click="pickPicture"
+            >
+              <UiIcon name="camera" :size="18" />
+              <span>{{ t('user_menu.change_picture') }}</span>
+            </button>
+          </li>
+          <li v-if="!actingAs && ownPic" role="none">
+            <button
+              ref="itemPictureRemove"
+              role="menuitem"
+              tabindex="-1"
+              type="button"
+              class="user-menu__item"
+              data-test="user-menu-remove-picture"
+              :disabled="pictureBusy"
+              @click="removePicture"
+            >
+              <UiIcon name="trash" :size="18" />
+              <span>{{ t('user_menu.remove_picture') }}</span>
+            </button>
           </li>
           <!-- t1 ea0af569 (B): straight to Settings -> Sign-in and security's
                change-password form; password sign-ins only, never while acting -->
@@ -235,7 +281,7 @@ import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
 import { avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
-import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
+import { forgetRosterRead, loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
 import { useMobileStack } from '~/composables/useMobileStack'
 
@@ -265,7 +311,9 @@ const initials = computed(() => userInitials(session.claims))
 // the signed-in person's own IdP picture, '' until loaded / none.
 const authBase = useAuthBase()
 const ownPic = ref('')
-const ownPicUrl = computed(() => (signedIn.value ? ownAvatarUrl(authBase, session.claims) : ''))
+/* t1 ccaee528: bumped by each own picture change, so the new one is fetched */
+const picRev = ref(0)
+const ownPicUrl = computed(() => (signedIn.value ? ownAvatarUrl(authBase, session.claims, picRev.value) : ''))
 watch(ownPicUrl, async (url) => {
   ownPic.value = ''
   /* a member with no stored picture got a 404 on every load */
@@ -290,9 +338,11 @@ const itemActAs = ref<HTMLButtonElement | null>(null)
 const itemStatus = ref<HTMLButtonElement | null>(null)
 const itemPassword = ref<{ $el: HTMLElement } | null>(null)
 const itemActAsStop = ref<HTMLButtonElement | null>(null)
+const itemPicture = ref<HTMLButtonElement | null>(null)
+const itemPictureRemove = ref<HTMLButtonElement | null>(null)
 
 function items(): HTMLElement[] {
-  return [item0.value?.$el, itemPassword.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
+  return [item0.value?.$el, itemPicture.value, itemPictureRemove.value, itemPassword.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
@@ -388,6 +438,43 @@ async function stopActing() {
   close(false)
   await session.stopActingAs()
 }
+
+/* t1 ccaee528: change / remove the person's own picture. The request code
+   loads on the first use only (initial chunk budget). A refusal is shown in
+   the open panel; a change closes it and shows the new picture. */
+const pictureInput = ref<HTMLInputElement | null>(null)
+const pictureBusy = ref(false)
+const pictureError = ref<'' | 'type' | 'size' | 'failed'>('')
+function pickPicture() {
+  pictureError.value = ''
+  pictureInput.value?.click()
+}
+async function pictureChanged(run: (m: typeof import('~/utils/own-picture.mjs')) => Promise<'' | 'type' | 'size' | 'failed'>) {
+  pictureBusy.value = true
+  try {
+    const got = await run(await import('~/utils/own-picture.mjs'))
+    pictureError.value = got
+    if (got) return
+    forgetRosterRead()
+    picRev.value++
+    close(false)
+  } catch {
+    pictureError.value = 'failed'
+  } finally {
+    pictureBusy.value = false
+  }
+}
+async function onPicturePicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (file) await pictureChanged((m) => m.putOwnPicture(authBase, file))
+}
+async function removePicture() {
+  pictureError.value = ''
+  await pictureChanged((m) => m.deleteOwnPicture(authBase))
+}
+watch(open, (v) => { if (!v) pictureError.value = '' })
 
 const statusPicker = useStatusPicker()
 function openStatus() {
@@ -564,6 +651,14 @@ watch(signedIn, (v) => { if (!v) close(false) })
 .user-menu__primary { font-size: 0.875rem; }
 .user-menu__secondary { font-size: 0.75rem; color: var(--color-muted); }
 .user-menu__items { list-style: none; margin: 6px 0 0; padding: 0; }
+.user-menu__picture-input { display: none; }
+.user-menu__picture-error {
+  margin: 8px 14px 0;
+  font-size: 0.8125rem;
+  color: var(--color-danger);
+  overflow-wrap: anywhere;
+}
+.user-menu__item:disabled { opacity: .6; cursor: progress; }
 .user-menu__item {
   border-radius: var(--radius-sm);
   display: flex;

@@ -386,7 +386,12 @@
     "role": "Role: {role}",
     "stop_acting_as": "Stop acting as {name}",
     "act_as": "Act as…",
-    "change_password": "Change password"
+    "change_password": "Change password",
+    "change_picture": "Change picture",
+    "remove_picture": "Remove picture",
+    "picture_type": "Pick a PNG, JPEG or WebP image.",
+    "picture_size": "That picture is too big: at most 256 KB.",
+    "picture_failed": "The picture could not be saved. Try again."
   },
   "viewer": {
     "error": {

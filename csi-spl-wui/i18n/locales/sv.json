@@ -386,7 +386,12 @@
     "role": "Roll: {role}",
     "stop_acting_as": "Sluta agera som {name}",
     "act_as": "Agera som…",
-    "change_password": "Byt lösenord"
+    "change_password": "Byt lösenord",
+    "change_picture": "Byt bild",
+    "remove_picture": "Ta bort bild",
+    "picture_type": "Välj en PNG-, JPEG- eller WebP-bild.",
+    "picture_size": "Bilden är för stor: högst 256 kB.",
+    "picture_failed": "Bilden kunde inte sparas. Försök igen."
   },
   "viewer": {
     "error": {

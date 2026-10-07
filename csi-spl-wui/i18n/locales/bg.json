@@ -386,7 +386,12 @@
     "role": "Роля: {role}",
     "stop_acting_as": "Спри да действаш като {name}",
     "act_as": "Действай като…",
-    "change_password": "Смяна на паролата"
+    "change_password": "Смяна на паролата",
+    "change_picture": "Смяна на снимката",
+    "remove_picture": "Премахване на снимката",
+    "picture_type": "Изберете изображение PNG, JPEG или WebP.",
+    "picture_size": "Снимката е твърде голяма: най-много 256 KB.",
+    "picture_failed": "Снимката не можа да бъде запазена. Опитайте отново."
   },
   "viewer": {
     "error": {

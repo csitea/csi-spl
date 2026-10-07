@@ -386,7 +386,12 @@
     "role": "Rol: {role}",
     "stop_acting_as": "Stoppen met handelen als {name}",
     "act_as": "Handelen als…",
-    "change_password": "Wachtwoord wijzigen"
+    "change_password": "Wachtwoord wijzigen",
+    "change_picture": "Foto wijzigen",
+    "remove_picture": "Foto verwijderen",
+    "picture_type": "Kies een PNG-, JPEG- of WebP-afbeelding.",
+    "picture_size": "Die foto is te groot: maximaal 256 KB.",
+    "picture_failed": "De foto kon niet worden opgeslagen. Probeer het opnieuw."
   },
   "viewer": {
     "error": {

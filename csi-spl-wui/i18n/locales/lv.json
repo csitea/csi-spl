@@ -386,7 +386,12 @@
     "role": "Loma: {role}",
     "stop_acting_as": "Pārtraukt darboties kā {name}",
     "act_as": "Darboties kā…",
-    "change_password": "Mainīt paroli"
+    "change_password": "Mainīt paroli",
+    "change_picture": "Mainīt attēlu",
+    "remove_picture": "Noņemt attēlu",
+    "picture_type": "Izvēlieties PNG, JPEG vai WebP attēlu.",
+    "picture_size": "Attēls ir pārāk liels: ne vairāk kā 256 KB.",
+    "picture_failed": "Attēlu neizdevās saglabāt. Mēģiniet vēlreiz."
   },
   "viewer": {
     "error": {

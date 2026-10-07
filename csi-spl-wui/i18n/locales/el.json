@@ -386,7 +386,12 @@
     "role": "Ρόλος: {role}",
     "stop_acting_as": "Διακοπή ενέργειας ως {name}",
     "act_as": "Ενέργεια ως…",
-    "change_password": "Αλλαγή κωδικού"
+    "change_password": "Αλλαγή κωδικού",
+    "change_picture": "Αλλαγή εικόνας",
+    "remove_picture": "Αφαίρεση εικόνας",
+    "picture_type": "Επιλέξτε εικόνα PNG, JPEG ή WebP.",
+    "picture_size": "Η εικόνα είναι πολύ μεγάλη: έως 256 KB.",
+    "picture_failed": "Η εικόνα δεν αποθηκεύτηκε. Δοκιμάστε ξανά."
   },
   "viewer": {
     "error": {

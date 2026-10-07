@@ -386,7 +386,12 @@
     "role": "Улога: {role}",
     "stop_acting_as": "Престани да делујеш као {name}",
     "act_as": "Делуј као…",
-    "change_password": "Promena lozinke"
+    "change_password": "Promena lozinke",
+    "change_picture": "Промени слику",
+    "remove_picture": "Уклони слику",
+    "picture_type": "Изаберите слику PNG, JPEG или WebP.",
+    "picture_size": "Слика је превелика: највише 256 KB.",
+    "picture_failed": "Слика није сачувана. Покушајте поново."
   },
   "viewer": {
     "error": {

@@ -386,7 +386,12 @@
     "role": "Roll: {role}",
     "stop_acting_as": "Lõpeta tegutsemine kasutajana {name}",
     "act_as": "Tegutse kasutajana…",
-    "change_password": "Muuda parooli"
+    "change_password": "Muuda parooli",
+    "change_picture": "Muuda pilti",
+    "remove_picture": "Eemalda pilt",
+    "picture_type": "Vali PNG-, JPEG- või WebP-pilt.",
+    "picture_size": "Pilt on liiga suur: kuni 256 KB.",
+    "picture_failed": "Pilti ei õnnestunud salvestada. Proovi uuesti."
   },
   "viewer": {
     "error": {

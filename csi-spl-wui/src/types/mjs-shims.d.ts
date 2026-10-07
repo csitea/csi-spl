@@ -1036,6 +1036,16 @@ declare module '~/utils/topic-kind.mjs' {
   export function topicsWithKind<R extends { task_id: string, kinds: Record<string, number> }>(topics: R[], taskId: string, from: string, to: string): R[]
 }
 
+declare module '~/utils/own-picture.mjs' {
+  export type OwnPictureProblem = '' | 'type' | 'size' | 'failed'
+  export const OWN_PICTURE_TYPES: string[]
+  export const OWN_PICTURE_MAX_BYTES: number
+  export function ownPictureProblem(file: { type: string, size: number } | null | undefined): '' | 'type' | 'size'
+  export function ownPictureAnswer(status: number): OwnPictureProblem
+  export function putOwnPicture(authBase: string, file: File, fetchFn?: typeof fetch): Promise<OwnPictureProblem>
+  export function deleteOwnPicture(authBase: string, fetchFn?: typeof fetch): Promise<'' | 'failed'>
+}
+
 declare module '~/utils/avatar.mjs' {
   export function hashSeed(s: string): number
   export function isHuman(id: string): boolean
@@ -1138,7 +1148,7 @@ declare module '~/utils/user-menu.mjs' {
   export function userIdentity(claims: unknown): UserIdentity
   export function userInitials(claims: unknown): string
   export function avatarMode(claims: unknown): 'member' | 'initials' | 'silhouette'
-  export function ownAvatarUrl(authBase: string, claims: unknown): string
+  export function ownAvatarUrl(authBase: string, claims: unknown, rev?: number): string
   export function methodLabel(p: unknown): string
   export function menuButtonLabel(claims: unknown): string
   export function methodLabelKey(p: unknown): { key: string, params: Record<string, unknown> }

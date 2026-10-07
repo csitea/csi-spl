@@ -386,7 +386,12 @@
     "role": "Rol: {role}",
     "stop_acting_as": "Oprește acțiunea ca {name}",
     "act_as": "Acționează ca…",
-    "change_password": "Schimbă parola"
+    "change_password": "Schimbă parola",
+    "change_picture": "Schimbă poza",
+    "remove_picture": "Elimină poza",
+    "picture_type": "Alege o imagine PNG, JPEG sau WebP.",
+    "picture_size": "Poza este prea mare: cel mult 256 KB.",
+    "picture_failed": "Poza nu a putut fi salvată. Încearcă din nou."
   },
   "viewer": {
     "error": {

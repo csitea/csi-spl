@@ -386,7 +386,12 @@
     "role": "Роль: {role}",
     "stop_acting_as": "Припинити діяти як {name}",
     "act_as": "Діяти як…",
-    "change_password": "Змінити пароль"
+    "change_password": "Змінити пароль",
+    "change_picture": "Змінити фото",
+    "remove_picture": "Видалити фото",
+    "picture_type": "Виберіть зображення PNG, JPEG або WebP.",
+    "picture_size": "Фото завелике: не більше 256 КБ.",
+    "picture_failed": "Не вдалося зберегти фото. Спробуйте ще раз."
   },
   "viewer": {
     "error": {

@@ -53,14 +53,16 @@ export function avatarMode(claims) {
  * session only, never a membership, so a Google user whose invite is not yet
  * accepted sees their picture too. `at` (the session's iat) makes each
  * sign-in a new URL, so a picture changed at Google shows after the next
- * sign-in instead of the one cached for the page; the hub ignores it.
+ * sign-in instead of the one cached for the page; the hub ignores it. `rev`
+ * (t1 ccaee528) counts this page's own picture changes the same way: each
+ * upload or removal is a new URL, so the new picture shows at once.
  */
-export function ownAvatarUrl(authBase, claims) {
+export function ownAvatarUrl(authBase, claims, rev = 0) {
   const c = claims && typeof claims === 'object' ? claims : null
   if (!c) return ''
   const root = String(authBase || '').replace(/\/+$/, '')
-  const iat = Number.isFinite(c.iat) ? `?at=${c.iat}` : ''
-  return `${root}/api/v1/auth/avatar${iat}`
+  const q = [Number.isFinite(c.iat) ? `at=${c.iat}` : '', rev > 0 ? `v=${rev}` : ''].filter(Boolean).join('&')
+  return `${root}/api/v1/auth/avatar${q ? '?' + q : ''}`
 }
 
 /**

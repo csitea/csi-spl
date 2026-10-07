@@ -14,8 +14,9 @@
 # @description restarts (a login: ONE blocker to the orchestrator), S3 takes
 # @description over, S4 Escape then takeover, S5 Escape + note then takeover,
 # @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
-# @description default-mode offer: "No, keep bypass permissions"), S8
-# @description reports the hook GAP once. A takeover is do_spl_wd_takeover
+# @description default-mode offer: bypass settings re-asserted + takeover,
+# @description "No, keep bypass permissions" as the fallback), S8 reports the
+# @description hook GAP once. A takeover is do_spl_wd_takeover
 # @description (T005); until it exists the wish is logged. DRY_RUN=1 (the
 # @description default) writes the verdicts and only prints the actions.
 # @param WD_TICKS (optional) - ticks to run, default 0 = forever (the loop); 1 = one proof tick
@@ -470,7 +471,7 @@ spl_wd_gate() {
   c="$(cat "$ctx/client_age" 2>/dev/null || true)"
   if [[ "$c" =~ ^[0-9]+$ ]] && (( c <= ${WD_HUMAN_IDLE:-120} )); then echo "a human client was active ${c}s ago"; return 0; fi
   h="$(cat "$WD_DIR/$id.heldout" 2>/dev/null || true)"
-  if [[ "$h" =~ ^[0-9]+$ ]] && (( now - h < 3600 )); then echo "held out after $WD_TAKEOVER_MAX takeovers in an hour"; return 0; fi
+  if [[ -z "${WD_GATE_NO_HELDOUT:-}" && "$h" =~ ^[0-9]+$ ]] && (( now - h < 3600 )); then echo "held out after $WD_TAKEOVER_MAX takeovers in an hour"; return 0; fi
   if [[ -n "${WD_BOX_BUSY:-}" ]]; then echo "$WD_BOX_BUSY"; return 0; fi
   if [[ "${DRY_RUN:-1}" == 1 ]]; then echo "dry run"; return 0; fi
   return 0
@@ -494,7 +495,7 @@ spl_wd_act() {
     S5) spl_wd_s5 "$id" "$ev" "$pane" "$now" "$ctx" ;;
     S6) if [[ "$ev" == poke=1* ]]; then spl_wd_once "$id" S6 repoke "$now" "$ctx" spl_wd_repoke "$id" "$pane"
         else echo "not poke-shaped: left alone"; fi ;;
-    S7) if [[ "$ev" == modal=2* && ! -e "$WD_DIR/$id.ep.S7.no" ]]; then spl_wd_once "$id" S7 no "$now" "$ctx" spl_wd_s7_no "$id" "$pane"
+    S7) if [[ "$ev" == modal=2* ]]; then spl_wd_s7_offer "$id" "$ev" "$pane" "$now" "$ctx" | paste -sd ';' -
         elif [[ "$ev" == modal=1* && ! -e "$WD_DIR/$id.ep.S7.esc" ]]; then spl_wd_once "$id" S7 esc "$now" "$ctx" spl_wd_key "$pane" Escape
         else spl_wd_once "$id" S7 note "$now" "$ctx" spl_wd_send peers note "$id" "WATCHDOG (093 S7): $id is blocked by a dialog (${ev#modal=? }) and is not able."; fi ;;
     S8) spl_wd_once "$id" S8 gap "$now" "$ctx" spl_wd_send peers note "$id" \
@@ -561,10 +562,56 @@ spl_wd_s5_esc() {
     spl_wd_send peers note "$1" "WATCHDOG (093 S5): $1 repeated the same call with the same result $3 times; Escape was sent once."
 }
 
-# S7 modal=2, "Make auto mode your default permission mode?": the owner allows
-# bypassPermissions only, so the one answer is "No, keep bypass permissions".
-# Never Escape, never Yes: Down while s7.sh reads the cursor on Yes, then Enter
-# only once it reads the cursor on No, from a fresh capture each time.
+# S7 modal=2, "Make auto mode your default permission mode?". The owner allows
+# bypassPermissions only (t1 4a1966d8): "The watchdog should change all of the
+# settings to this most permissive mode, kill that non-starting orchestrator,
+# and start a new one with the most permissive mode and dangerous skip
+# permissions on." So: (1) the agent user's settings.json gets bypass back,
+# (2) a takeover (spawn-claude.sh: --dangerously-skip-permissions), and only
+# when the takeover is refused, or the dialog outlives it by WD_S7_FALLBACK s
+# (300), (3) the answer "No, keep bypass permissions".
+spl_wd_s7_offer() {
+  local id="$1" ev="$2" pane="$3" now="$4" ctx="$5" f out t
+  spl_wd_once "$id" S7 settings "$now" "$ctx" spl_wd_s7_settings "$(spl_wd_user "$ctx")" "$now"
+  f="$WD_DIR/$id.ep.S7.takeover"
+  if [[ ! -e "$f" ]]; then
+    out="$(spl_wd_once "$id" S7 takeover "$now" "$ctx" spl_wd_takeover "$id" S7 "$ev")"
+    echo "$out"
+    [[ "$out" == takeover || "$out" == would* ]] && return 0
+  else
+    t="$(cat "$f" 2>/dev/null || echo "$now")"
+    if (( now - t < ${WD_S7_FALLBACK:-300} )); then echo "takeover started $(( now - t ))s ago"; return 0; fi
+  fi
+  # held out bars takeovers, not the answer that keeps bypass
+  WD_GATE_NO_HELDOUT=1 spl_wd_once "$id" S7 no "$now" "$ctx" spl_wd_s7_no "$id" "$pane"
+}
+
+# permissions.defaultMode = bypassPermissions and skipDangerousModePermission-
+# Prompt = true in <user>'s ~/.claude/settings.json (other keys kept), written
+# as that user, the old file kept as settings.json.bak-wd-<epoch>.
+# WD_SETTINGS_HOME replaces the home (tests: no sudo).
+spl_wd_s7_settings() {
+  local user="$1" now="$2" home f
+  local -a as=()
+  [[ "$user" == unknown || -z "$user" ]] && user="${SPOOL_AGENT_USER:-$(id -un)}"
+  home="${WD_SETTINGS_HOME:-$(getent passwd "$user" | cut -d: -f6)}"
+  [[ -n "$home" && -d "$home" ]] || { echo "no home for $user"; return 1; }
+  f="$home/.claude/settings.json"
+  if jq -e '.permissions.defaultMode == "bypassPermissions" and .skipDangerousModePermissionPrompt == true' "$f" >/dev/null 2>&1; then return 0; fi
+  [[ -z "${WD_SETTINGS_HOME:-}" && "$user" != "$(id -un)" ]] && as=(sudo -n -u "$user")
+  # shellcheck disable=SC2016 # expanded by the inner bash
+  "${as[@]}" bash -c 'f="$1"; mkdir -p "${f%/*}" || exit 1
+    if [ -f "$f" ]; then cp -p "$f" "$f.bak-wd-$2" || exit 1; fi
+    { if [ -s "$f" ]; then cat "$f"; else echo "{}"; fi; } |
+      jq ".permissions.defaultMode = \"bypassPermissions\" | .skipDangerousModePermissionPrompt = true" > "$f.tmp.$$" &&
+      mv -f "$f.tmp.$$" "$f"' _ "$f" "$now" || { echo "settings not written: $f"; return 1; }
+  spl_wd_log "S7 SETTINGS $user $f: defaultMode=bypassPermissions skipDangerousModePermissionPrompt=true"
+  return 0
+}
+
+# The fallback: "No, keep bypass permissions". Never Escape, never Yes: Down
+# while s7.sh reads the cursor on Yes, then Enter only once it reads the
+# cursor on No, from a fresh capture each time.
 spl_wd_s7_no() {
   local id="$1" pane="$2" cur _
   for _ in 1 2 3; do

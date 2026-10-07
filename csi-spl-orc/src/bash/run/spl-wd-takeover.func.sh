@@ -31,7 +31,7 @@
 # @description as a spool task to that box (section 10). Dry run unless DRY_RUN=0.
 # @description Exit: 0 done (or planned), 1 failed, 3 no situation hits, 4 refused by a guard or a limit.
 # @param ID - required: the agent id; <id>@<box> for an agent on another box
-# @param REASON - required: a situation code (S1, S3, S4, S5) or a short text
+# @param REASON - required: a situation code (S1, S3, S4, S5, S7 modal=2) or a short text
 # @param DRY_RUN (optional) - 1 (default): PLAN lines, nothing touched; 0: act
 # @param WD_EVIDENCE (optional) - the watchdog's evidence line (set by do_spl_watchdog)
 # @param WD_START_WAIT (optional) - seconds for the fresh session to start, default 120
@@ -47,8 +47,9 @@ declare -F spl_peer_restart_spawn >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-peer-restart.func.sh"
 
 # The codes a takeover repairs, in pick order (8.1: S2 never reaches it, no
-# restart fixes a login).
-WDT_CODES="S3 S4 S5 S1"
+# restart fixes a login). S7 only as the default-mode offer (modal=2, owner
+# t1 4a1966d8): a fresh session with --dangerously-skip-permissions.
+WDT_CODES="S3 S4 S5 S1 S7"
 
 do_spl_wd_takeover() {
   local id="${ID:-}" reason="${REASON:-}" box="" req="${REQ_FROM:-${SPOOL_AGENT_ID:-}}"
@@ -125,7 +126,9 @@ spl_wdt_gate() {
   WDT_CODE=""
   for code in $WDT_CODES; do
     [[ "$reason" =~ ^S[0-9]+$ && "$reason" != "$code" ]] && continue
-    if grep -qE "^HIT $code( |$)" <<<"$hits"; then WDT_CODE="$code"; break; fi
+    if [[ "$code" == S7 ]]; then
+      if grep -qE "^HIT S7 modal=2 " <<<"$hits"; then WDT_CODE=S7; break; fi
+    elif grep -qE "^HIT $code( |$)" <<<"$hits"; then WDT_CODE="$code"; break; fi
   done
   if [[ -z "$WDT_CODE" ]]; then
     hb="$(jq -c '{ts, event, state, progress_ts, tool, api_error}' "$ctx/heartbeat" 2>/dev/null || echo 'none')"

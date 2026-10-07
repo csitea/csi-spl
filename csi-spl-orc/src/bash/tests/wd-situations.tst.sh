@@ -22,8 +22,10 @@
 #      at 120 s and takes over at 240 s; S4 Escape, then takeover 60 s later;
 #      the dry-run false positives of 2026-10-06: a note, an id's own
 #      re-raise, and a wait with no progress signal (ring only); S7 on the
-#      default-mode offer: Down to "No, keep bypass permissions", then Enter,
-#      never Escape or Yes; no Enter while the cursor is not on No
+#      default-mode offer: the agent user's settings back to bypass, then a
+#      takeover; "No, keep bypass permissions" (Down, the cursor read on No,
+#      Enter) only when the takeover is refused or the dialog outlives it by
+#      300 s; never Escape or Yes; no Enter while the cursor is not on No
 #   5. the guards of 6.2 at tick level, each with its control: a human client
 #      active, do_spl_wd_hold (and MIN=0 lifting it), an id under rotation,
 #      a fresh session in its grace, a box back from a 2 h gap
@@ -380,19 +382,38 @@ NOW=$((T0 + 30)) out="$(wd)"
 NOW=$((T0 + 60)) out="$(wd)"; settle
 grep -qx 'takeover c-914 S4' "$T/takeovers" && pass "4 S4 still in the call 60 s later: takeover" || fail "4 S4 takeover: $out"
 
-# S7 the default-mode offer: Down to No, re-read, Enter; never Escape or Yes
-reset_box; agent c-915 %1 4015 claude 3600 "$FX/modal-default-mode.pane"
+# S7 the default-mode offer: settings back to bypass + takeover; No as the fallback
+s7home() { rm -rf "${T:?}/home"; mkdir -p "$T/home/.claude"; echo '{"permissions":{"defaultMode":"auto","allow":["Bash"]},"model":"x"}' > "$T/home/.claude/settings.json"; }
+export WD_SETTINGS_HOME="$T/home"
+reset_box; s7home; agent c-915 %1 4015 claude 3600 "$FX/modal-default-mode.pane"
 cp "$FX/modal-default-mode-no.pane" "$T/tmux/screen.%1.Down"
+out="$(WD_KEY_WAIT=0 wd)"; settle
+grep -q 'c-915 HIT S7 modal=2 cursor=yes .*-> settings;takeover$' <<<"$out" && grep -qx 'takeover c-915 S7' "$T/takeovers" && [[ ! -s "$T/tmux/log" ]] &&
+  pass "4 S7 offer: a takeover, no key pressed" || fail "4 S7 takeover: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+jq -e '.permissions.defaultMode == "bypassPermissions" and .skipDangerousModePermissionPrompt == true and .model == "x" and .permissions.allow == ["Bash"]' "$T/home/.claude/settings.json" >/dev/null &&
+  ls "$T/home/.claude/settings.json.bak-wd-"* >/dev/null 2>&1 && pass "4 S7 offer: settings.json back to bypass, other keys kept, a backup" || fail "4 S7 settings: $(cat "$T/home/.claude/settings.json")"
+out="$(NOW=$((T0 + 60)) WD_KEY_WAIT=0 wd)"
+[[ ! -s "$T/tmux/log" ]] && grep -q 'takeover started 60s ago' <<<"$out" && pass "4 S7 60 s into the takeover: no key" || fail "4 S7 60: $out"
+out="$(NOW=$((T0 + 310)) WD_KEY_WAIT=0 wd)"
+[[ "$(cat "$T/tmux/log")" == $'keys %1 Down\nkeys %1 Enter' ]] && pass "4 S7 the dialog outlives the takeover by 300 s: Down, the cursor on No, Enter" || fail "4 S7 310: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+# the takeover refused (held out: 2 takeovers this hour): No at once, never Escape
+reset_box; s7home; agent c-916 %1 4016 claude 3600 "$FX/modal-default-mode.pane"
+cp "$FX/modal-default-mode-no.pane" "$T/tmux/screen.%1.Down"
+mkdir -p "$D/wd"; printf '%s\n%s\n' $((T0 - 20)) $((T0 - 10)) > "$D/wd/c-916.takeovers"
 out="$(WD_KEY_WAIT=0 wd)"
-grep -q 'c-915 HIT S7 modal=2 cursor=yes .*-> no$' <<<"$out" && [[ "$(cat "$T/tmux/log")" == $'keys %1 Down\nkeys %1 Enter' ]] &&
-  pass "4 S7 offer: Down, the cursor read on No, then Enter (no Escape)" || fail "4 S7 no: $out / $(cat "$T/tmux/log" 2>/dev/null)"
-reset_box; agent c-916 %1 4016 claude 3600 "$FX/modal-default-mode.pane"
+grep -q 'c-916 HIT S7 .*takeover not done: held out.*;no$' <<<"$out" && [[ "$(cat "$T/tmux/log")" == $'keys %1 Down\nkeys %1 Enter' ]] &&
+  pass "4 S7 takeover refused: Down, the cursor read on No, then Enter (no Escape)" || fail "4 S7 no: $out / $(cat "$T/tmux/log" 2>/dev/null)"
+reset_box; s7home; agent c-920 %1 4020 claude 3600 "$FX/modal-default-mode.pane"
+mkdir -p "$D/wd"; printf '%s\n%s\n' $((T0 - 20)) $((T0 - 10)) > "$D/wd/c-920.takeovers"
 out="$(WD_KEY_WAIT=0 wd)"
-! grep -qE 'Enter|Escape' "$T/tmux/log" && grep -q 'c-916 HIT S7 .*no not done: cursor never reached No' <<<"$out" &&
+! grep -qE 'Enter|Escape' "$T/tmux/log" && grep -q 'c-920 HIT S7 .*no not done: cursor never reached No' <<<"$out" &&
   pass "4 S7 control: the cursor stays on Yes, no Enter is pressed" || fail "4 S7 stuck: $out / $(cat "$T/tmux/log" 2>/dev/null)"
-reset_box; agent c-919 %1 4019 claude 3600 "$FX/modal-default-quote.pane"
-out="$(WD_KEY_WAIT=0 wd)"
-[[ ! -s "$T/tmux/log" ]] && ! grep -q 'c-919 HIT S7' <<<"$out" && pass "4 S7 control: a quoted offer gets no key" || fail "4 S7 quote: $out"
+reset_box; s7home; agent c-919 %1 4019 claude 3600 "$FX/modal-default-quote.pane"
+out="$(WD_KEY_WAIT=0 wd)"; settle
+[[ ! -s "$T/tmux/log" && ! -s "$T/takeovers" ]] && ! grep -q 'c-919 HIT S7' <<<"$out" &&
+  jq -e '.permissions.defaultMode == "auto"' "$T/home/.claude/settings.json" >/dev/null &&
+  pass "4 S7 control: a quoted offer gets no key, no takeover, no settings write" || fail "4 S7 quote: $out"
+unset WD_SETTINGS_HOME
 
 # 5. guards, each with its control
 reset_box; agent c-921 %1 -

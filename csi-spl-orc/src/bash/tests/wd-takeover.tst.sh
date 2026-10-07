@@ -13,8 +13,9 @@
 #      rotate.log WD- phases ending DONE, ONE blocker on task wd-<id>-<ts>
 #   2. a seat: its poll loop stopped, then started again
 #   3. a role id writes rotate.hold while it runs, and removes it after
+#   1b. S7 on the default-mode offer (modal=2) ends in a fresh session too
 #   4. a request with no hit -> exit 3, quoting the heartbeat; an S2 login
-#      screen is no takeover either (exit 3)
+#      screen is no takeover either (exit 3), nor an S7 trust screen (modal=0)
 #   5. guards: a human hold -> refused (exit 4), control: lifted -> runs; a
 #      takeover of itself and a lane's request are refused
 #   6. limits: a third in an hour -> held out + ONE owner DM (ask + DM),
@@ -52,7 +53,7 @@ case "$cmd" in
   display-message) grep -q "^$tgt	" "$P" || exit 1
     case "$a" in *window_name*) field 4 ;; *session_id*) field 3 ;; esac ;;
   capture-pane) grep -q "^$tgt	" "$P" || exit 1
-    printf 'working on the brief\n'
+    if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'working on the brief\n'; fi
     if [ "$esc" = 1 ]; then printf '────────\n❯ \n────────\n'; fi ;;
   rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="$a" '$1 == p {$4 = n} {print}' "$P" > "$P.new" && mv "$P.new" "$P"
     echo "rename $tgt $a" >> "$L" ;;
@@ -193,6 +194,11 @@ rc="$(take ID=c-908 REASON=S1 DRY_RUN=0 WD_EVIDENCE="age=300")"
 proof "1. S1 (a message waits 300 s): a fresh session" c-908 4008 %8 S1
 grep -q -- '"state": "idle"' "$S/c-908/handoff/$TS-wd-c-908.md" && pass "1. the ## watchdog section holds heartbeat.json" || fail "1. heartbeat in the handoff"
 
+FX="$TEST_DIR/fixtures/wd-situations"
+world; agent c-912 %12 4012; hb c-912 idle 60; cp "$FX/modal-default-mode.pane" "$T/tmux/screen.%12"
+rc="$(take ID=c-912 REASON=S7 DRY_RUN=0 WD_EVIDENCE="modal=2 cursor=yes")"
+proof "1b. S7 (the default-mode offer, modal=2): a fresh session" c-912 4012 %12 S7
+
 # --- 2. a seat: the loop stopped and started again ------------------------------------
 world; echo "c-004 claude" > "$S/peer/seats"; agent c-004 %4 4004; hb c-004 in-tool 1000 '| .tool = "Bash" | .tool_since = .progress_ts'
 loop c-004; lpid="$(cat "$S/peer/c-004/poll.pid")"
@@ -222,6 +228,9 @@ rc="$(take ID=c-909 REASON=S3 DRY_RUN=0 REQ_FROM=c-002)"
 world; agent c-910 %10 4010; hb c-910 idle 60 '| .api_error = "Login expired · Please run /login"'
 rc="$(take ID=c-910 REASON=S2 DRY_RUN=0)"
 [[ "$rc" == 3 && ! -e "$T/spawn.log" ]] && pass "4. S2 (login screen): no takeover, exit 3" || fail "4. S2 rc=$rc: $(cat "$T/o")"
+world; agent c-913 %13 4013; hb c-913 idle 60; cp "$FX/trust.pane" "$T/tmux/screen.%13"
+rc="$(take ID=c-913 REASON=S7 DRY_RUN=0)"
+[[ "$rc" == 3 && ! -e "$T/spawn.log" ]] && alive 4013 && pass "4. S7 trust screen (modal=0): no takeover, exit 3" || fail "4. S7 modal=0 rc=$rc: $(cat "$T/o")"
 rc="$(take ID=c-999 REASON=S3 DRY_RUN=0)"
 [[ "$rc" == 3 ]] && grep -q 'not an agent of this box' "$T/o" && pass "4. an id with no window and no process: exit 3" || fail "4. unknown rc=$rc"
 

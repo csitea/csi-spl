@@ -72,7 +72,9 @@ spl_cmd_time_rolemap() {
     [[ -n "$id" ]] || continue
     [[ "$k" == LEASE_ORCH ]] && r=orch || r=dispatcher
     out+="$id=$r,"
-    while read -r d; do out+="$d=$r,"; done < <(awk -F'\t' -v id="$id" '$1 == id && $4 != "" { n = split($4, p, "/"); print p[n] }' "$root/registry.tsv" 2>/dev/null | sort -u)
+    # C collation: a runner or a box in another locale orders CLE-001 / c-001
+    # the other way round
+    while read -r d; do out+="$d=$r,"; done < <(awk -F'\t' -v id="$id" '$1 == id && $4 != "" { n = split($4, p, "/"); print p[n] }' "$root/registry.tsv" 2>/dev/null | LC_ALL=C sort -u)
   done
   echo "${out%,}"
 }

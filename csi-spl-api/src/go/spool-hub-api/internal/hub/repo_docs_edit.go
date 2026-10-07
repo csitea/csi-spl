@@ -305,21 +305,20 @@ func treePaths(tree map[string]string) map[string]bool {
 	return out
 }
 
-// liveOverlay is the edit whose overlay GET /v1/docs/{path} serves to hum of
-// tenant: the newest of the path while queued, pushing or pushed; a conflict
-// only to its own editor (or requester), whose text it is. nil: the main key.
-func liveOverlay(rows []store.RepoDocEdit, tenant, hum string) *store.RepoDocEdit {
+// liveOverlay is the edit whose overlay GET /v1/docs/{path} serves: the
+// newest of the path while queued, pushing or pushed. nil: the main key.
+// A conflict is never served, not even to its editor: its base is a blob
+// master moved past, so a save of the served text conflicts again, for good
+// (075 repo-edit, dev 2026-10-07: a conflict born racing the other env's
+// save pinned its editor's X-Spool-Doc-Base). The editor reads master's
+// text and blob; their text stays in the conflict view (.../conflict).
+func liveOverlay(rows []store.RepoDocEdit) *store.RepoDocEdit {
 	if len(rows) == 0 {
 		return nil
 	}
-	e := rows[0]
-	switch e.Status {
+	switch e := rows[0]; e.Status {
 	case store.RepoDocQueued, store.RepoDocPushing, store.RepoDocPushed:
 		return &e
-	case store.RepoDocConflict:
-		if e.TenantID == tenant && e.HumanID == hum {
-			return &e
-		}
 	}
 	return nil
 }
@@ -341,14 +340,14 @@ func pushedBase(e store.RepoDocEdit, r io.Reader) (string, bool) {
 
 // serveRepoDoc serves p with the edit headers: its live overlay, else the
 // published key. ok false: neither exists (the caller answers 404).
-func (s *Server) serveRepoDoc(w http.ResponseWriter, r *http.Request, st repoDocStore, tenant, hum, p string) (bool, error) {
+func (s *Server) serveRepoDoc(w http.ResponseWriter, r *http.Request, st repoDocStore, p string) (bool, error) {
 	ctx := r.Context()
 	rows, err := st.RepoDocOverlays(ctx, p)
 	if err != nil {
 		return false, err
 	}
 	key, base, edit := p, "", ""
-	if e := liveOverlay(rows, tenant, hum); e != nil {
+	if e := liveOverlay(rows); e != nil {
 		if rc, err := s.o.Docs.Get(ctx, e.OverlayKey); err == nil {
 			key, base, edit = e.OverlayKey, e.BaseBlob, e.EditID
 			if pb, ok := pushedBase(*e, rc); ok {
@@ -387,7 +386,7 @@ func (s *Server) serveRepoDoc(w http.ResponseWriter, r *http.Request, st repoDoc
 // serveRepoDocsTree is tree.json with an "editable" flag on every file,
 // "overlay" on the files a live edit serves, and the overlay-only (new)
 // paths appended (spec §7 step 2). Every other field passes through.
-func (s *Server) serveRepoDocsTree(w http.ResponseWriter, r *http.Request, st repoDocStore, tenant, hum string) error {
+func (s *Server) serveRepoDocsTree(w http.ResponseWriter, r *http.Request, st repoDocStore) error {
 	ctx := r.Context()
 	var idx map[string]any
 	rc, err := s.o.Docs.Get(ctx, DocsIndex)
@@ -418,7 +417,7 @@ func (s *Server) serveRepoDocsTree(w http.ResponseWriter, r *http.Request, st re
 	}
 	live := map[string]bool{}
 	for _, e := range rows {
-		if liveOverlay([]store.RepoDocEdit{e}, tenant, hum) != nil {
+		if liveOverlay([]store.RepoDocEdit{e}) != nil {
 			live[e.Path] = true
 		}
 	}

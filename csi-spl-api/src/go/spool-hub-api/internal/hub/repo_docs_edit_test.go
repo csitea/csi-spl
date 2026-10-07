@@ -505,7 +505,7 @@ func TestRepoDocsRetryAndConflict(t *testing.T) {
 		t.Fatalf("bad id: %d", code)
 	}
 
-	// conflict: the three texts, to the editor only; the overlay serves only them
+	// conflict: the three texts, to the editor only; the doc GET serves no one the overlay
 	r.claim(id)
 	if _, err := r.pg.ConflictRepoDocEdit(ctx, id, "master changed the same lines at 1234567", time.Now()); err != nil {
 		t.Fatal(err)
@@ -522,8 +522,8 @@ func TestRepoDocsRetryAndConflict(t *testing.T) {
 	if code, _, _ := r.do(http.MethodGet, "edits/"+id+"/conflict", bob, "", ""); code != http.StatusForbidden {
 		t.Fatalf("another member reads the conflict: %d", code)
 	}
-	if _, text, _ := r.getDoc(r.doc, alice); text != "# Guide\n\nline one\nmine\n" {
-		t.Fatalf("the editor reads their conflict text: %q", text)
+	if _, text, _ := r.getDoc(r.doc, alice); text != "# Guide\n\nline one\n" {
+		t.Fatalf("the editor reads the published text past their conflict: %q", text)
 	}
 	if _, text, _ := r.getDoc(r.doc, bob); text != "# Guide\n\nline one\n" {
 		t.Fatalf("others read the published text past a conflict: %q", text)
@@ -583,5 +583,50 @@ func TestRepoDocsResaveAfterPushBasesOnThePushedText(t *testing.T) {
 	r.repo.head = github.Head{Commit: strings.Repeat("9", 40), Blob: strings.Repeat("8", 40)}
 	if code, body := r.save(r.doc, alice, head, mine+"again\n"); code != http.StatusOK {
 		t.Fatalf("re-save on the pushed blob after master moved: %d %v", code, body)
+	}
+}
+
+// A conflict does not pin its editor's base (075 repo-edit, dev 2026-10-07):
+// alice saves while the other env's save lands on master, the worker
+// conflicts, the publish moves tree.json. Her next GET must carry master's
+// blob, so a re-save merges cleanly; the conflict's own (stale) base still
+// conflicts in the worker, never a silent overwrite.
+func TestRepoDocsConflictDoesNotPinTheEditorsBase(t *testing.T) {
+	r := newRepoRig(t)
+	alice := seat(t, r.e, r.tid, rbac.Developer)
+	r.consent(alice)
+	ctx := context.Background()
+
+	orig, mine := "# Guide\n\nline one\n", "# Guide\n\nline one\nmine\n"
+	_, body := r.save(r.doc, alice, r.blob, mine)
+	id := body["edit_id"].(string)
+	r.claim(id)
+	if _, err := r.pg.ConflictRepoDocEdit(ctx, id, "master changed the same lines at 1234567", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	// the other env's commit, published to this env's bucket (workflow 32)
+	theirs := "# Guide\n\nline one\ntheirs\n"
+	head := repodocs.GitBlobSHA([]byte(theirs))
+	r.repo.head = github.Head{Commit: strings.Repeat("e", 40), Blob: head}
+	r.repo.blobs[r.blob], r.repo.blobs[head] = []byte(orig), []byte(theirs)
+	r.put(r.doc, theirs)
+	r.put("tree.json", fmt.Sprintf(`{"v":1,"sha":"%s","files":[{"path":%q,"title":"Guide","blob":%q}]}`, strings.Repeat("e", 40), r.doc, head))
+
+	_, text, h := r.getDoc(r.doc, alice)
+	base := h.Get(hub.DocBaseHeader)
+	if text != theirs || base != head || h.Get(hub.DocEditHeader) != "" {
+		t.Fatalf("editor of a conflict served %q base %s edit %q, want master's text on its blob %s", text, base, h.Get(hub.DocEditHeader), head)
+	}
+	resave := theirs + "again\n"
+	if out, ok := repodocs.Merge3(r.repo.blobs[base], r.repo.blobs[head], []byte(resave)); !ok || string(out) != resave {
+		t.Fatalf("worker merge of a re-save on the served base: ok=%v %q", ok, out)
+	}
+	code, body := r.save(r.doc, alice, base, resave)
+	if code != http.StatusOK || body["base"] != head || fmt.Sprint(body["superseded"]) != "["+id+"]" {
+		t.Fatalf("re-save on the served base: %d %v", code, body)
+	}
+	// control: the conflict's stale base still conflicts with master's lines
+	if _, ok := repodocs.Merge3(r.repo.blobs[r.blob], r.repo.blobs[head], []byte(mine+"again\n")); ok {
+		t.Fatal("a save on the stale base merged cleanly over master's lines")
 	}
 }

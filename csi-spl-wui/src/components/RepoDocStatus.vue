@@ -22,8 +22,9 @@ const props = withDefaults(defineProps<{ path: string, me?: string }>(), { me: '
 const emit = defineEmits<{ resolve: [id: string] }>()
 const { t } = useI18n({ useScope: 'global' })
 const store = useRepoEditStore()
-/* the hub's worker takes 2 min to push (coalescing); the mock steps at once */
-const POLL_MS = useSpoolApi().mock ? 700 : 15000
+/* the hub's worker pushes ~15 s after the last save (coalescing) and sees
+   the publish within 5 s of it (spec 075 repo-edit §3); the mock steps at once */
+const POLL_MS = useSpoolApi().mock ? 700 : 5000
 
 const edit = computed(() => headerEdit(store.byPath[props.path], props.path, props.me, store.edits[props.path]))
 const message = computed(() => (store.error && !store.notice ? t(store.error.key, store.error.params) : ''))

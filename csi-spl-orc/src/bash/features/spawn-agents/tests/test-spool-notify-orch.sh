@@ -36,6 +36,14 @@ echo 'c-001@sat 1791399734' >"$D/lease"
 spool_notify_is_orch_seat c-001 && nok "an orch seat holding the dispatch lease is a dispatcher" \
   || ok "an orch seat holding the dispatch lease is a dispatcher"
 echo 'c-002@sat 1791399734' >"$D/lease"; echo 'c-001@sat 1791399727' >"$D/lease.orch"
+# The desk sidecar: SPOOL_ROOT is the desk spool, dispatch/ is the box's.
+FR="$T_TMP/fleet"; mkdir -p "$FR/dispatch"; cp "$D/lease.conf" "$FR/dispatch/"
+mv "$D" "$T_TMP/dispatch.off"
+SPOOL_FLEET_ROOT="$FR" spool_notify_is_orch_seat c-001 && ok "the desk sidecar reads lease.conf under SPOOL_FLEET_ROOT" \
+  || nok "the desk sidecar reads lease.conf under SPOOL_FLEET_ROOT"
+SPOOL_FLEET_ROOT="$T_TMP/none" spool_notify_is_orch_seat c-001 && nok "CONTROL: a fleet root with no dispatch/ and none here: no seat" \
+  || ok "CONTROL: a fleet root with no dispatch/ and none here: no seat"
+mv "$T_TMP/dispatch.off" "$D"
 
 # ---- live, against a private tmux server -----------------------------------
 t_tmux

@@ -188,10 +188,13 @@ spool_notify_lease_id_var() {  # VAR FILE
 # lease.conf LEASE_ORCH or the orch lease holder (dispatch/lease.orch), never
 # the holder of the dispatch lease (dispatch/lease), which takes new posts
 # (spec 3). No lease.conf (a bare box, a sandbox): no seat, nothing filtered.
+# The desk sidecar's SPOOL_ROOT is the desk spool; the box's dispatch/ lives
+# under SPOOL_FLEET_ROOT (/var/spool-hub), which the sidecar is given.
 spool_notify_is_orch_seat() {  # TO
   local to="${1:-}" d orch held disp
   [ -n "$to" ] && [ -n "${SPOOL_ROOT:-}" ] || return 1
-  d="${SPOOL_ROOT%/}/dispatch"
+  d="${SPOOL_FLEET_ROOT:-}"; d="${d%/}/dispatch"
+  [ -n "${SPOOL_FLEET_ROOT:-}" ] && [ -d "$d" ] || d="${SPOOL_ROOT%/}/dispatch"
   spool_notify_conf_var orch "$d/lease.conf" LEASE_ORCH
   spool_notify_lease_id_var held "$d/lease.orch"
   [ -n "$orch" ] || [ -n "$held" ] || return 1

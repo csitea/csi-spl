@@ -1,0 +1,35 @@
+# 103 vim-style navigation across the whole UI: tasks
+
+Authority for what is built (`spec.md` holds the behaviour). Each task names the files it owns, its dependencies and its done check. Status vocabulary: `../README.md` §2.3. Paths are under `csi-spl-wui/` unless they start with `csi-spl-doc/`.
+
+Every WUI build task is done only when, from `csi-spl-wui/`: `pnpm run test:unit`, `pnpm run typecheck`, its named e2e green against a generated bundle (`BASE_URL=<bundle> pnpm run test:e2e <names>`), and `cd ../csi-spl-iac && ./run -a do_check_pre_push` passes.
+
+---
+
+### Phase 0: Specification
+- [x] T001 **spec** (a-501): `spec.md` and this file. Authority: t1 `7d9e1681-66c8-4c0d-89c6-f946a1ae7e18`. Owns: `csi-spl-doc/specs/103-vim-navigation/spec.md`, `csi-spl-doc/specs/103-vim-navigation/tasks.md`. Done: dist hygiene clean, pre-push lint clean.
+
+### Phase 1: Core Navigation Model & Key Engine (FR-001..FR-005)
+- [ ] T002 **pure key matcher & sequence tracker** : new pure `src/utils/vim-nav.mjs`: `vimNavMatch(ev, seqState)` recognizing `h`, `j`, `k`, `l`, `g g` (two `g` presses within 500 ms buffer), `G`, `Enter`, `Esc`, and arrow key mirrors. Gated on non-typing contexts (`inTypingOrOverlay`), ignoring modifier chords (`ctrl/meta/alt`), off on phone width (`usePhone`) and disabled setting (`shortcutsOn`). Owns: `src/utils/vim-nav.mjs`, `tests/unit/vim-nav.test.mjs`, shims in `src/types/mjs-shims.d.ts`. Done: `pnpm run test:unit tests/unit/vim-nav.test.mjs`.
+- [ ] T003 **panel selectors & resolver** : new pure `src/utils/vim-panels.mjs`: defines `PANE_SELECTORS` for Panels 0, 1, 2, 3 across all views; `activePanelOf(element)`; `resolveNextPanel(fromPanel, dir, visiblePanels)` with skip logic for collapsed/hidden panels; `panelItems(panelRoot, panelId)` with `tabindex` management. Owns: `src/utils/vim-panels.mjs`, `tests/unit/vim-panels.test.mjs`, shims in `src/types/mjs-shims.d.ts`. Done: `pnpm run test:unit tests/unit/vim-panels.test.mjs`.
+
+### Phase 2: State Store & Lazy Global Listener (FR-008..FR-012)
+- [ ] T004 **selection store & focus ring styling** : new Pinia store `src/stores/vim-nav.ts` tracking `activePanel: 0|1|2|3`, `selectedKeyPerPanel`, and history; CSS focus ring `--vim-focus-ring` (2px solid theme accent, `<= 3px` width per owner focus rule) applied to vim-focused elements. Owns: `src/stores/vim-nav.ts`, `src/assets/css/vim-nav.css` (or `main.css`), `tests/unit/vim-store.test.mjs`. Done: unit test pass, CSS inspection.
+- [ ] T005 **lazy global listener & overlay suspension** : new composable `src/composables/useVimNavigation.ts` loaded lazily via dynamic import on window idle to protect the 155 KB initial chunk budget; mounted once in `src/layouts/default.vue`; handles overlay suspension (`OVERLAY_OPEN`, `UiDialog`, `CommandPalette`); integrates with `useSessionStore` (`keyboard_shortcuts` claim). Owns: `src/composables/useVimNavigation.ts`, mount lines in `src/layouts/default.vue`. E2E check in `tests/e2e/pane-keys.test.mjs`. Depends on T002, T003, T004. Done: the checks above.
+
+### Phase 3: Primary View Integrations (FR-001, FR-003, FR-004)
+- [ ] T006 **channels & direct messages** : connect Panel 0 (`.sidebar-rail`), Panel 1 (`#sidebar-panel-channels` and `#sidebar-panel-dm`), Panel 2 (channel & DM message feed cards), Panel 3 (`LiveTopicPane` reply cards); support `h/l` panel switching, `j/k` card walking, `Enter` to open/select, `Esc` back one panel. Owns: panel adapters in `ChannelSidebar.vue`, `LiveFeed.vue`, `useMsgShortcuts.ts`. E2E: extend `tests/e2e/pane-keys.test.mjs` and `tests/e2e/channel-order.test.mjs`. Depends on T005. Done: the checks above.
+- [ ] T007 **topics view** : connect Panel 1 (Topics list), Panel 2 (`.topic-browse__list` `a.topic-row`), Panel 3 (discussion thread cards); support `j/k` stepping across topic browse rows and `h/l` between list and thread. Owns: `src/pages/t/[task_id].vue`. E2E: extend `tests/e2e/msg-shortcuts.test.mjs`. Depends on T005. Done: the checks above.
+- [ ] T008 **flow & search** : connect Flow stream filters and feed cards (Panels 1 & 2); connect Search grouped hit list (`SideHitList`, Panel 1) to middle results and thread pane. Owns: `SideHitList.vue`, `src/pages/search.vue`. E2E: extend `tests/e2e/search-left.test.mjs` and `tests/e2e/pane-keys.test.mjs`. Depends on T005. Done: the checks above.
+
+### Phase 4: Structured Data Views & Standalone Pages (FR-001, FR-008)
+- [ ] T009 **issues & calendar** : connect Issues epics (Panel 1), issue rows table (Panel 2), and issue detail modal/pane (Panel 3); resolve `l` collision so `l` enters detail pane and `h` returns; connect Calendar year strip (Panel 1) and main day/week grid (Panel 2). Owns: `src/pages/issues.vue`, `src/pages/calendar.vue`. E2E: extend `tests/e2e/issues-views.test.mjs`. Depends on T005. Done: the checks above.
+- [ ] T010 **people, agents, boxes & events** : connect People, Agents, and Boxes roster lists (Panel 1), status/profile cards (Panel 2), and operator console panes (Panel 3); connect Events log table (Panel 2). Owns: `src/pages/people/[id].vue`, `src/pages/agents/[id].vue`, `src/pages/boxes/[id].vue`, `src/pages/events.vue`. E2E: extend `tests/e2e/pane-keys.test.mjs`. Depends on T005. Done: the checks above.
+- [ ] T011 **docs & help** : handle `docsRailOnly` and `helpRailOnly` (skipping Panel 1 directly from Panel 0 to Panel 2); connect folder tree / help nav and markdown reader content. Owns: `src/pages/docs.vue`, `src/pages/help/[[page]].vue`. E2E: extend `tests/e2e/docs.test.mjs` and `tests/e2e/help-two-panes.test.mjs`. Depends on T005. Done: the checks above.
+- [ ] T012 **settings & tenant settings** : connect settings sections nav (Panel 1) and settings content panels (Panel 2) in personal settings modal (`SettingsDialog.vue`) and tenant settings page (`tenant-settings.vue`). Owns: `src/components/SettingsDialog.vue`, `src/pages/tenant-settings.vue`. E2E: extend `tests/e2e/settings-modal.test.mjs`. Depends on T005. Done: the checks above.
+
+### Phase 5: Gating, Controls, Help & Documentation (FR-005..FR-007, FR-013)
+- [ ] T013 **behavior settings toggle & text field controls** : verify `Settings -> Behaviour -> Keyboard shortcuts` toggle completely disables single-letter vim keys; verify Omnibox, search input, and composer text areas ignore vim keys and receive literal characters. E2E: extend `tests/e2e/command-palette.test.mjs` and `tests/e2e/slash-focus.proof.mjs`. Depends on T005. Done: the checks above.
+- [ ] T014 **overlay help & documentation sync** : add Vim Navigation group to `SHORTCUT_GROUPS` in `src/utils/msg-shortcuts.mjs`; update `MsgShortcutsHelp.vue`; document vim navigation in `csi-spl-doc/doc/help/keyboard-shortcuts.md` (§1); run `node src/node/help/sync-help.mjs`. Owns: `src/utils/msg-shortcuts.mjs`, `src/components/MsgShortcutsHelp.vue`, `csi-spl-doc/doc/help/keyboard-shortcuts.md`, `csi-spl-wui/src/public/help-md/keyboard-shortcuts.md`. Done: `./run -a do_check_dist_hygiene` and help sync unit tests pass.
+
+<!-- version: 1.0.0 · updated: 2026-10-07 · last-edit: 2026-10-07T12:15:00Z -->

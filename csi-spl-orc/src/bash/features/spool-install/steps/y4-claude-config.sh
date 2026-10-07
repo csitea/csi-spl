@@ -52,8 +52,10 @@
 #   AGENT_CEILING SPOOL_AGENT_CEILING, else 40
 #
 # Env: SPOOL_INSTALL_CLAUDE_CONFIG=0 skips the step;
-#      SPOOL_INSTALL_BOX_SETTINGS overrides the BOX_USER's settings.json path
-#      (tests; default BOX_HOME/.claude/settings.json);
+#      SPOOL_INSTALL_BOX_SETTINGS_FILE overrides the BOX_USER's settings.json path
+#      (tests; default BOX_HOME/.claude/settings.json). Not the marker's
+#      name: Claude Code exports a settings.json env key into every process
+#      it starts, so a seat carries SPOOL_INSTALL_BOX_SETTINGS=sha256=...;
 #      SPOOL_INSTALL_CLAUDE_ASSETS overrides the assets dir (tests).
 # Reads install.sh's DRY, FORCE_SKILLS and ROOT when set.
 
@@ -73,7 +75,7 @@ spool_install_claude_config() {
     "AGENT_HOME=$(getent passwd "$agent_user" | cut -d: -f6)" \
     "BOX_USER=$box_user" \
     "BOX_HOME=$box_home" \
-    "BOX_SETTINGS=${SPOOL_INSTALL_BOX_SETTINGS:-${box_home:+$box_home/.claude/settings.json}}" \
+    "BOX_SETTINGS=${SPOOL_INSTALL_BOX_SETTINGS_FILE:-${box_home:+$box_home/.claude/settings.json}}" \
     "TMUX_SOCKET=${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$box_user" 2>/dev/null)/default}" \
     "BOX_TAG=${box_tag:-<tag>}" \
     "AGENT_CEILING=${SPOOL_AGENT_CEILING:-40}"

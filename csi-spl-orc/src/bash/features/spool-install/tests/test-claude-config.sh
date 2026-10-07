@@ -18,7 +18,8 @@
 #      a backup of the old file, valid JSON, owner kept (in place); a re-run
 #      rewrites nothing; DRY=1, a missing, an unwritable and a non-JSON file
 #      are left alone and the step still exits 0; the box path equal to the
-#      agent's is the agent merge only
+#      agent's is the agent merge only; the marker exported in the
+#      environment (a seat does that) does not move the path
 #   7. the diff against a CLAUDE.md of today = only the personal fragments:
 #      the control (an asset changed by one word) FAILS it; with
 #      SPOOL_CLAUDE_MD_LIVE=<an agent's live CLAUDE.md> it runs against that
@@ -50,7 +51,7 @@ fi
 unset DRY FORCE_SKILLS SPOOL_INSTALL_CLAUDE_CONFIG SPOOL_INSTALL_CLAUDE_ASSETS
 # Never the real box user's file: sections 1-7 point it at a path that is not
 # there; section 8 passes its own.
-export SPOOL_INSTALL_BOX_SETTINGS="$T/no-box/settings.json"
+export SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/no-box/settings.json"
 step() {  # HOME [VAR=value ...]
   local h="$1"; shift
   env HOME="$h" "$@" bash -c 'source "$0" && spool_install_claude_config' "$STEP"
@@ -198,7 +199,8 @@ fi
 # ── 8. the BOX_USER's settings.json: the 5 fleet keys only ──────────────────
 H=$(fresh h8); B="$T/box8/.claude"; mkdir -p "$B"; BS="$B/settings.json"
 cp "$TEST_DIR/box-settings.fixture.json" "$BS"; chmod 640 "$BS"
-step "$H" SPOOL_INSTALL_BOX_SETTINGS="$BS" 2>"$T/err8"; rc=$?
+# the marker in the environment, as a seat whose settings carry it exports it
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" SPOOL_INSTALL_BOX_SETTINGS=sha256=0 2>"$T/err8"; rc=$?
 [ "$rc" = 0 ] && grep -q "box user's fleet keys set, other keys kept" "$T/err8" &&
   pass "8: the step sets the box user's fleet keys" || { fail "8: rc $rc"; cat "$T/err8"; }
 python3 - "$TEST_DIR/box-settings.fixture.json" "$BS" <<'EOF' && pass "8: only the 5 keys + the marker changed, every other key byte-identical in value" || fail "8: box merge"
@@ -220,24 +222,24 @@ EOF
 cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS.bak-spool-install-box" &&
   pass "8: the old file is kept as .bak-spool-install-box" || fail "8: no backup"
 [ "$(stat -c %a "$BS")" = 640 ] && pass "8: written in place (mode kept)" || fail "8: mode $(stat -c %a "$BS")"
-cp "$BS" "$T/bs8"; step "$H" SPOOL_INSTALL_BOX_SETTINGS="$BS" 2>"$T/err8b"
+cp "$BS" "$T/bs8"; step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/err8b"
 cmp -s "$T/bs8" "$BS" && grep -q "box user's fleet keys already current" "$T/err8b" &&
   pass "8: a re-run rewrites nothing" || fail "8: a re-run changed the box file"
 cp "$TEST_DIR/box-settings.fixture.json" "$BS"; rm -f "$BS.bak-spool-install-box"
-step "$H" SPOOL_INSTALL_BOX_SETTINGS="$BS" DRY=1 >"$T/out8" 2>/dev/null
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" DRY=1 >"$T/out8" 2>/dev/null
 cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS" && [ ! -e "$BS.bak-spool-install-box" ] && grep -q "^would: write $BS$" "$T/out8" &&
   pass "8: DRY=1 names the box file and writes nothing" || fail "8: DRY=1 wrote the box file"
-chmod 440 "$BS"; step "$H" SPOOL_INSTALL_BOX_SETTINGS="$BS" 2>"$T/err8c"; rc=$?; chmod 640 "$BS"
+chmod 440 "$BS"; step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/err8c"; rc=$?; chmod 640 "$BS"
 if [ "$(id -u)" = 0 ]; then pass "8: unwritable: skipped (root writes anything)"
 else [ "$rc" = 0 ] && cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS" && grep -q 'not writable by this user: left alone' "$T/err8c" &&
   pass "8: an unwritable box file is named and left alone, rc 0" || fail "8: unwritable rc=$rc"; fi
-echo '{not json' >"$BS"; step "$H" SPOOL_INSTALL_BOX_SETTINGS="$BS" 2>"$T/err8d"; rc=$?
+echo '{not json' >"$BS"; step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/err8d"; rc=$?
 [ "$rc" = 0 ] && [ "$(cat "$BS")" = '{not json' ] && grep -q 'not valid settings JSON' "$T/err8d" &&
   pass "8: a non-JSON box file is named and left alone, rc 0" || fail "8: bad JSON rc=$rc"
-step "$H" SPOOL_INSTALL_BOX_SETTINGS="$T/box8/none.json" 2>"$T/err8e"; rc=$?
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/box8/none.json" 2>"$T/err8e"; rc=$?
 [ "$rc" = 0 ] && [ ! -e "$T/box8/none.json" ] && grep -q 'has no settings.json: left alone' "$T/err8e" &&
   pass "8: a missing box file is named, not created" || fail "8: missing rc=$rc"
-H=$(fresh h8s); step "$H" SPOOL_INSTALL_BOX_SETTINGS="$H/.claude/settings.json" 2>"$T/err8f"
+H=$(fresh h8s); step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$H/.claude/settings.json" 2>"$T/err8f"
 grep -q "the box user's file is the agent's" "$T/err8f" && ! grep -q SPOOL_INSTALL_BOX_SETTINGS "$H/.claude/settings.json" &&
   pass "8: box file = agent file: the agent merge only" || fail "8: same file"
 

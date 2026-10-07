@@ -135,7 +135,7 @@ mkdir -p "$T/sys"
 for d in /usr/bin /bin; do ln -s "$d"/* "$T/sys/" 2>/dev/null; done
 rm -f "$T/sys/go" "$T/sys/gofmt" "$T/sys/yq"
 inst() {  # run install.sh in the throwaway HOME; output in $T/o
-  env -i HOME="$H" USER="$(id -un)" PATH="$T/stub:$T/sys" TERM=dumb SPOOL_INSTALL_BOX_SETTINGS="$T/box-settings.json" \
+  env -i HOME="$H" USER="$(id -un)" PATH="$T/stub:$T/sys" TERM=dumb SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/box-settings.json" \
     SPOOL_INSTALL_URL_CLAUDE=https://vendor.test/claude SPOOL_INSTALL_URL_GROK=https://vendor.test/grok \
     SPOOL_INSTALL_URL_AGY=https://vendor.test/agy SPOOL_INSTALL_URL_GO=https://go.test \
     SPOOL_INSTALL_URL_YQ=https://yq.test SPOOL_INSTALL_GO_ROOTS="" \

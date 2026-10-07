@@ -186,7 +186,10 @@ jobs:
     needs: classify
     if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    # Above hub-pg.tst.sh's go test -timeout 20m plus the ~7 min of steps and
+    # suites before it, so a hung Postgres test fails with its dump, not a kill
+    # (runs 37623893526, 37635707328: 19 min with go's default 10m).
+    timeout-minutes: 35
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
     # in the run ends this one, so a red gate frees its slot.
     permissions:

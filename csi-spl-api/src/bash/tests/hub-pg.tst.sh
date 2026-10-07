@@ -136,6 +136,13 @@ public_logins() { # <db>: a migrated db
   own_sql "$1" "$ROLES_SQL/public-export-grants.sql" >/dev/null
   own_sql "$1" "$ROLES_SQL/public-names-role.sql" -v names_verifier=spool_public_names >/dev/null
 }
+# An explicit -timeout, not go test's default 10m: under -race on the shared
+# CI runner store took 106..503 s green and hit 600 s twice (runs 37623893526,
+# 37635707328; hub 568 s in the first), no single test over 26 s (353 tests,
+# the slowest TestSearchTopicsIndexPathEqualsScan) - breadth, not a hang.
+# 20m is ~2x the worst green (503 s) and still ends a hung test with its
+# goroutine dump before the job's timeout-minutes (10_ci-quality.yml) does.
+GO_TEST_TIMEOUT="${SPOOL_TEST_GO_TIMEOUT:-20m}"
 pids=()
 for pkg in store hub auth repodocs; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
   db="spool_hub_$pkg"
@@ -147,7 +154,7 @@ for pkg in store hub auth repodocs; do # repodocs: the repo-edit worker (spec 07
   ( cd "$MOD" && SPOOL_TEST_PG_DSN="$pdsn" SPOOL_TEST_SQL_DIR="$SQL_DIR" SPOOL_TEST_PG_RUNTIME_DSN="$(rt_dsn "$db")" \
       SPOOL_TEST_PG_PUBLIC_EXPORT_DSN="$(login_dsn spool_public_export "$db")" \
       SPOOL_TEST_PG_PUBLIC_NAMES_DSN="$(login_dsn spool_public_names "$db")" \
-      CGO_ENABLED=1 go test -race -count=1 "./internal/$pkg/" ) &
+      CGO_ENABLED=1 go test -race -count=1 -timeout "$GO_TEST_TIMEOUT" "./internal/$pkg/" ) &
   pids+=("$!")
 done
 rc=0

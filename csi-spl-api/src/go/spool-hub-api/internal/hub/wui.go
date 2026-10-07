@@ -566,7 +566,7 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 		return
 	}
 	f.MsgID = id
-	to, agent, rf := s.wuiRecipient(ctx, c.tenant, f)
+	to, agent, fb, rf := s.wuiRecipient(ctx, c.tenant, task, f)
 	if rf != nil {
 		fail(rf)
 		return
@@ -578,6 +578,9 @@ func (s *Server) wuiSend(ctx context.Context, c *wuiConn, f wuiIn) {
 	}
 	f.ParentTaskID = strings.ToLower(f.ParentTaskID)
 	rt, rf := s.wuiRoute(ctx, c, f, m, isParent, agent)
+	if fb != nil { // retired_reply.go: a legacy id with no successor
+		rt.fallback = fb
+	}
 	if rf == nil { // specs/077 T014, demo_dm.go
 		rf = frameRefusalOf(s.demoDM(ctx, c, rt.channel, m))
 	}
@@ -670,6 +673,8 @@ func (s *Server) wuiMessage(ctx context.Context, c *wuiConn, f wuiIn, task, to s
 type wuiRouted struct {
 	channel string
 	signing wuiSigning
+	// fallback: a reply to a retired agent seat went elsewhere (retired_reply.go)
+	fallback *replyFallback
 }
 
 // wuiRoute checks the channel / parent tags and the poster's rights and
@@ -693,21 +698,30 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	if rf := frameRefusalOf(s.wuiMayPost(ctx, c, rt.channel, f.Channel, agent)); rf != nil {
 		return rt, rf
 	}
-	if agent == "" { // a channel-less ALL-0 reply goes to the topic's agent (topic_reply.go)
-		if rt.signing = s.topicReplyAgent(ctx, c, m, rt.channel, isParent); rt.signing.agent != "" {
-			m.To = rt.signing.agent
-			return rt, nil
-		}
-	}
-	rt.signing = wuiSigning{agent: agent, fanOut: agent == "" && rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
-		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
 	if agent != "" {
-		box, pin, tok, status, detail := s.dispatchCheck(ctx, c, m, dispatchBox(f))
+		want := dispatchBox(f)
+		box, pin, tok, status, detail := s.dispatchCheck(ctx, c, m, want)
+		if tok == "unknown_agent" { // a reply to a retired seat (retired_reply.go)
+			if box, pin, rt.fallback = s.rerouteReply(ctx, c, m, want); rt.fallback != nil {
+				tok = ""
+			}
+		}
 		if tok != "" {
 			return rt, &frameRefusal{tok, status, detail}
 		}
-		rt.signing.box, rt.signing.pin = box, pin
+		if rt.fallback == nil || rt.fallback.kind == FallbackBox {
+			rt.signing = wuiSigning{agent: agent, box: box, pin: pin}
+			return rt, nil
+		}
+		m.To = BroadcastID // FallbackTopic: a reply to the whole topic
 	}
+	// a channel-less ALL-0 reply goes to the topic's agent (topic_reply.go)
+	if rt.signing = s.topicReplyAgent(ctx, c, m, rt.channel, isParent); rt.signing.agent != "" {
+		m.To = rt.signing.agent
+		return rt, nil
+	}
+	rt.signing = wuiSigning{fanOut: rt.channel != "" && s.o.WUIDispatch && c.member != "" &&
+		s.allowed(ctx, c.member, c.tenant, rbac.AgentsCommand)}
 	return rt, nil
 }
 
@@ -728,6 +742,11 @@ func (s *Server) wuiAck(ctx context.Context, c *wuiConn, m *msg.Message, rt wuiR
 		ack["to_box"], ack["delivery"] = rt.signing.box, r.delivery
 		s.o.Log.Info().Str("tenant", c.tenant).Str("msg_id", m.MsgID).Str("from", m.From).
 			Str("to", m.To).Str("to_box", rt.signing.box).Str("delivery", r.delivery).Msg("wui dispatch")
+	}
+	if fb := rt.fallback; fb != nil {
+		ack["fallback"], ack["retired"] = fb.kind, fb.retired
+		s.o.Log.Info().Str("tenant", c.tenant).Str("msg_id", m.MsgID).Str("fallback", fb.kind).
+			Str("retired", fb.retired).Str("to", m.To).Msg("wui reply to a retired seat")
 	}
 	return ack, nil
 }
@@ -788,7 +807,10 @@ func (s *Server) wuiMayPost(ctx context.Context, c *wuiConn, channel, asked, age
 // topic; one without is refused after agentid.LegacyUntil, so the sender
 // sees "not sent" instead of a delivery a box drops ("AGY-3499 is retired as
 // an id", csi-rel prd 5f0d5200).
-func (s *Server) wuiRecipient(ctx context.Context, tenant string, f wuiIn) (to, agent string, rf *frameRefusal) {
+//
+// A REPLY to a legacy id with no successor, by an agent that took part in
+// the topic, is not refused: it posts to the topic (retired_reply.go, fb).
+func (s *Server) wuiRecipient(ctx context.Context, tenant, task string, f wuiIn) (to, agent string, fb *replyFallback, rf *frameRefusal) {
 	to = f.To
 	if s.o.WUIDispatch {
 		if agent = dispatchAgent(to, f.Body); agent != "" {
@@ -796,7 +818,7 @@ func (s *Server) wuiRecipient(ctx context.Context, tenant string, f wuiIn) (to, 
 		}
 	}
 	if to == "" {
-		return BroadcastID, agent, nil
+		return BroadcastID, agent, nil, nil
 	}
 	got, err := agentid.ResolveOn(to, dispatchBox(f), s.aliasLookup(ctx, tenant))
 	var re *agentid.RetiredError
@@ -804,12 +826,21 @@ func (s *Server) wuiRecipient(ctx context.Context, tenant string, f wuiIn) (to, 
 	case errors.As(err, &re) && agentid.IsNew(re.New):
 		got = re.New
 	case err != nil:
-		return "", "", &frameRefusal{TokenRetiredID, http.StatusGone, err.Error() + "; that agent is no longer active"}
+		box := dispatchBox(f)
+		if _, b := agentid.SplitAtBox(to); b != "" {
+			box = b
+		}
+		if re != nil {
+			if fb = s.retiredIDReply(ctx, tenant, task, re.ID, box); fb != nil {
+				return BroadcastID, "", fb, nil
+			}
+		}
+		return "", "", nil, &frameRefusal{TokenRetiredID, http.StatusGone, err.Error() + "; that agent is no longer active"}
 	}
 	if agent != "" {
 		agent = got
 	}
-	return got, agent, nil
+	return got, agent, nil, nil
 }
 
 // wuiKind maps the browser's kind onto v:1: it has no chat kind (NFR-003),

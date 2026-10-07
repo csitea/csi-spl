@@ -7743,6 +7743,7 @@
     },
     "/v1/wui/ws": {
       "get": {
+        "description": "The browser socket (wui-live-ws). A send frame is answered by an ack frame: type, msg_id, task_id, cursor, received_at; an agent dispatch adds to_box and delivery (sent | queued). A reply to a retired agent seat (014 wui-dispatch section 3.2) is not refused: its ack adds fallback (box: delivered to the id's live box; topic: posted to the topic as ALL-0) and retired (the <id>@<box> the reply named).",
         "operationId": "getWuiWs",
         "parameters": [
           {

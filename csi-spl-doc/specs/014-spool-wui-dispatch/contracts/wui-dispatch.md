@@ -117,13 +117,40 @@ single target box and its pin) do not, because there is no single target.
 Tests: `TestWUIChannelPostReachesEveryMemberBox`,
 `TestWUIChannelPostWithoutAgentsCommandStaysBrowserOnly`.
 
+### 3.2 A reply to a retired agent seat (owner, t1 894678f1, 2026-10-07)
+
+A reply's `to` is the author of the post it answers, as that author was
+addressed then (`<id>@<box>`). Seats are not forever: the box is retired, the
+id now sits on another box, or a legacy id was renamed (spec 061). When step 3
+finds no box announcing the agent (`unknown_agent`) - or a legacy id has no
+successor (`retired_id`) - **and the agent wrote in or was addressed in the
+send's task** (a legacy participant counts as its alias), the send is not
+refused:
+
+1. the same id announced by one other box of the tenant: dispatched there
+   (steps 4-8 unchanged), ack `"fallback":"box"`;
+2. else: posted to the topic as `ALL-0` - a channel topic fans out (§3.1), a
+   channel-less one goes to the topic's newest announced agent
+   (`topic_reply.go`), else it stays browser-only - ack `"fallback":"topic"`.
+
+Either ack carries `"retired":"<id>@<box>"` (the address the reply named):
+`{"type":"ack",...,"fallback":"topic","retired":"c-002@box-old"}`. The WUI
+shows "sent to the topic: <retired> is retired" for `topic`. A tag of an agent
+that never took part in the task (a new topic, a stranger in a thread) keeps
+the §4 refusal.
+
+Tests: `TestWUIReplyToRetiredSeatGoesToLiveSeat`,
+`TestWUIReplyToFullyRetiredSeatPostsToTopic`,
+`TestWUIReplyToRetiredSeatReachesTopicAgent`, `TestWUIReplyToLegacyAuthor`,
+`TestWUITagOfDeadAgentStillRefused`.
+
 ## 4. Error frames (new tokens)
 
 | token | status | when |
 |---|---|---|
 | `dispatch_unauthenticated` | 401 | agent recipient but no member session on the socket |
 | `dispatch_kind` | 400 | kind is not `task` / `note` |
-| `unknown_agent` | 404 | no box announces the agent |
+| `unknown_agent` | 404 | no box announces the agent (a reply to a topic participant falls back instead, §3.2) |
 | `ambiguous_to_box` | 409 | more than one box announces it |
 | `unpinned_box` | 404 | the target box has no active pin |
 | `wui_unpinned` | 409 | the tenant has no active `box-wui` pin, or it is not the hub's key |

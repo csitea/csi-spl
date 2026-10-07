@@ -54,6 +54,14 @@
 #   ENV=<env>            ./csi-spl-orc/run -a do_spl_db_backup_verify
 #   ENV=<env> DRY_RUN=0 ./csi-spl-orc/run -a do_spl_backup_offsite
 # Restore: do_spl_db_restore / do_spl_files_restore (spec 029 §7).
+#
+# TOPIC HEADS (spec 099 T007). Each env's run also restores the dump it just
+# wrote into a throwaway container and runs do_spl_topic_head_verify's read
+# on it: one stored head or part that differs from a rebuild is red
+# (mismatches=<k> in the log). And once a night the job topic-head-long runs
+# the head suite's long grid, SPOOL_TEST_LONG=1 go test -run TestTopicHead
+# (200 random seeds, every case), against a throwaway Postgres on the runner.
+#   ENV=<env> BACKUP_SOURCE=env TOPIC_HEAD_VERIFY=1 DRY_RUN=0 ./csi-spl-orc/run -a do_spl_db_restore
 
 name: "45 ops: hub db backup"
 
@@ -80,6 +88,10 @@ on:
         description: "Restore the dump into a throwaway container and compare"
         type: boolean
         default: true
+      long_test:
+        description: "Also run the nightly topic-head long run (SPOOL_TEST_LONG=1)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -166,6 +178,20 @@ jobs:
         if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true' && github.event.inputs.verify != 'false'
         run: ./run -a do_spl_db_backup_verify
 
+      # spec 099 T007: the same dump restored again, this time with the
+      # do_spl_topic_head_verify read on the throwaway copy; one mismatch is
+      # red. BACKUP_SOURCE=env: the off-project copy is the next step, so the
+      # newest dump there is still yesterday's. A dump older than rdb 0144 has
+      # no head table and says so.
+      - name: Topic heads on the restored copy (mismatches=0)
+        if: steps.sel.outputs.go == '1' && github.event.inputs.dry_run != 'true' && github.event.inputs.verify != 'false'
+        env:
+          BACKUP_SOURCE: env
+          TARGET: local
+          TOPIC_HEAD_VERIFY: '1'
+          DRY_RUN: '0'
+        run: ./run -a do_spl_db_restore
+
       # OFF the project (spec 044 T077, iac 046): the dump and the files
       # bucket both live in csi-spl-<env>, which "destroy and re-create"
       # destroys. The env SA may only ADD to gs://csi-spl-bkp-<env>; a
@@ -181,3 +207,70 @@ jobs:
         if: always()
         working-directory: .
         run: rm -rf "$HOME/.gcp"
+
+  # spec 099 T007: the topic-head suite's long grid, nightly. No secret and no
+  # estate: a throwaway Postgres on the runner, the schema owner a plain
+  # (non-superuser) role so row-level security binds, and the hub runtime role
+  # from the same roles SQL the cloud runs (hub-pg.tst.sh's shape).
+  topic-head-long:
+    name: "topic heads: long run (SPOOL_TEST_LONG=1)"
+    if: (vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl') && (github.event_name == 'schedule' || github.event.inputs.long_test == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: spool
+          POSTGRES_PASSWORD: spool
+          POSTGRES_DB: spool_hub
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U spool -d spool_hub -h 127.0.0.1"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      - name: psql for the role setup
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: Migrate as the schema owner, then the runtime role
+        env:
+          PGHOST: 127.0.0.1
+          PGUSER: spool
+          PGPASSWORD: spool
+        run: |
+          set -euo pipefail
+          sql="$PWD/csi-spl-rdb/src/sql/postgres/spool-hub"
+          roles="$PWD/csi-spl-rdb/src/sql/postgres/spool-hub-roles"
+          psql -X -q -v ON_ERROR_STOP=1 -d spool_hub \
+            -c "CREATE ROLE spool_app LOGIN PASSWORD 'spool_app' NOSUPERUSER NOBYPASSRLS CREATEROLE" \
+            -c "CREATE DATABASE spool_hub_store OWNER spool_app"
+          (cd csi-spl-api/src/go/spool-hub-api && go run ./cmd/spool migrate \
+            --db "postgres://spool_app:spool_app@127.0.0.1:5432/spool_hub_store?sslmode=disable" --sql-dir "$sql")
+          for f in runtime-role.sql runtime-grants.sql; do
+            { echo "SET ROLE spool_app;"; cat "$roles/$f"; } |
+              PGOPTIONS="-c client_min_messages=error" psql -X -q -v ON_ERROR_STOP=1 -d spool_hub_store -v runtime_role=spool_rt -v runtime_verifier=spool_rt -f -
+          done
+
+      # A skip is a failure: the two long tests must RUN and PASS.
+      - name: SPOOL_TEST_LONG=1 go test -run TestTopicHead
+        working-directory: csi-spl-api/src/go/spool-hub-api
+        env:
+          SPOOL_TEST_LONG: '1'
+          SPOOL_TEST_PG_DSN: postgres://spool_app:spool_app@127.0.0.1:5432/spool_hub_store?sslmode=disable
+          SPOOL_TEST_PG_RUNTIME_DSN: postgres://spool_rt:spool_rt@127.0.0.1:5432/spool_hub_store?sslmode=disable
+        run: |
+          set -euo pipefail
+          SPOOL_TEST_SQL_DIR="$(cd ../../../../csi-spl-rdb/src/sql/postgres/spool-hub && pwd)" \
+            go test -count=1 -timeout 80m -run TestTopicHead -v ./internal/store/ 2>&1 | tee "$RUNNER_TEMP/long.log"
+          for t in TestTopicHeadRandomSequences TestTopicHeadCases; do
+            grep -q -- "^--- PASS: $t " "$RUNNER_TEMP/long.log" || { echo "::error::$t did not run and pass"; exit 1; }
+          done
+          echo "passed: $(grep -c -- '^--- PASS: TestTopicHead' "$RUNNER_TEMP/long.log") top-level TestTopicHead*"

@@ -243,6 +243,20 @@ if [ "${DESK_LEASE:-1}" != 0 ] && [ "$peer_cut" = 0 ] && [ "$lease_paused" = 0 ]
   say "INFO do_spl_dispatch_lease ensure exit $?"
 fi
 
+# The Claude settings every start on this box reads (the agent user's and the
+# box user's ~/.claude/settings.json): valid JSON, defaultMode
+# bypassPermissions, no allow rule Claude rejects. A bad one parks every new
+# session on a "Settings Warning" dialog (2026-10-07 17:29Z: a rotation
+# waited 600 s on it). do_spl_agent_settings_check tells the orchestrator once
+# per change and never writes either file. Its result does not change the
+# reconcile's exit code. DESK_SETTINGS_CHECK=0 turns it off.
+if [ "${DESK_SETTINGS_CHECK:-1}" != 0 ]; then
+  sout="$(cd "$ORC" && ./run -a do_spl_agent_settings_check 2>&1)"
+  src=$?
+  printf '%s\n' "$sout" | grep -E ' (SETTINGS BAD|INFO told|WARN could not tell) ' | while IFS= read -r l; do say "${l#* }"; done
+  say "INFO do_spl_agent_settings_check exit $src"
+fi
+
 # THE REBOX PAUSE (specs/058 6.5): while do_spl_desk_rebox moves this machine's
 # desks to a new box id, a tick would re-seat the old box and undo the drain.
 # The action writes <spool root>/.desk-reconcile.<env>.pause; while it exists

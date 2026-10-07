@@ -68,7 +68,12 @@ do_spl_tenant_host_provision() {
     else
       do_log "INFO DRY_RUN would add $tenant to env.dns.mapped_tenants in $cnf"
     fi
-    do_log "INFO DRY_RUN would render + plan + provision $SPL_TH_STEPS for $ENV (no destroy allowed), wait for the $host cert, probe it, mark it ready"
+    if [[ "${CNF_PUSH:-1}" == 1 ]]; then
+      do_log "INFO DRY_RUN would render $SPL_TH_STEPS, then PUSH that cnf to origin/${CNF_GIT_BRANCH:-master} from a throwaway worktree before any apply (a push that does not land fails the run)"
+    else
+      do_log "INFO DRY_RUN CNF_PUSH=0: the cnf edit would stay UNCOMMITTED in $APP_PATH"
+    fi
+    do_log "INFO DRY_RUN would plan + provision $SPL_TH_STEPS for $ENV (no destroy allowed), wait for the $host cert, probe it, mark tenant_hosts ready (pending -> ready) and announce it"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to apply."
     return 0
   fi
@@ -285,8 +290,9 @@ spl_th_merged_get() {
   yq eval-all ". as \$i ireduce ({}; . * \$i) | ($2 // \"\")" "$(dirname "$1")/all.env.yaml" "$1"
 }
 
-# spl_th_owners <tenant> -> the tenant's owner HUM ids (space separated), read
-# as the env SA; empty with MARK_DB=0 or when the read fails
+# spl_th_owners <tenant> -> the tenant's owner HUM ids (space separated): its
+# biz_owner members (047 W1: the buyer), else its admins; read as the env SA;
+# empty with MARK_DB=0 or when the read fails
 spl_th_owners() {
   [[ "${MARK_DB:-1}" == 1 ]] || return 0
   spl_via_proxy _spl_th_owners_sql "$1" 2>/dev/null | sed -n 's/^owner //p' | tr '\n' ' ' | sed 's/ $//'
@@ -297,7 +303,11 @@ _spl_th_owners_sql() {
     psql -X -q -At -F ' ' -v ON_ERROR_STOP=1 -v t="$1" <<'SQL'
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL app.rls_scope = 'operator';
-SELECT 'owner', human_id FROM tenant_memberships WHERE tenant_id = :'t' AND role = 'owner' ORDER BY human_id;
+SELECT 'owner', human_id FROM tenant_memberships
+ WHERE tenant_id = :'t'
+   AND role = CASE WHEN EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = :'t' AND role = 'biz_owner')
+                   THEN 'biz_owner' ELSE 'admin' END
+ ORDER BY human_id;
 ROLLBACK;
 SQL
 }

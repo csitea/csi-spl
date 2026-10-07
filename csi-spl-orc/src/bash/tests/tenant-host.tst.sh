@@ -89,7 +89,8 @@ in_orc() {
     do_gcp_pin_account() { GCP_ACCOUNT=sa@example.test; }
     do_gcp_require_live_account() { :; }
     do_require_bin() { :; }
-    spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) echo "${STUB_EXISTS:-0}" ;; _spl_th_owners_sql) printf "INFO proxy up\nowner HUM-3\n" ;; esac; }
+    spl_via_proxy() { case "$1" in _spl_th_open_rows) printf "%s" "${STUB_ROWS:-}" ;; _spl_th_tenant_exists) echo "${STUB_EXISTS:-0}" ;; _spl_th_owners_sql) printf "INFO proxy up\n%s" "${STUB_OWNERS-owner HUM-3
+}" ;; esac; }
     spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; SPL_TH_PREV="${STUB_PREV:-pending}"; }
     [[ "${REAL_PUSH:-0}" == 1 ]] || spl_th_cnf_push() { echo "PUSH $1" >>'"$T"'/mark.log; [[ "${STUB_PUSH_RC:-0}" == 0 ]]; }
     stub_notify() { echo "NOTIFY $ENV $TENANT_ID $DESK_AGENT #$DESK_CHANNEL $DESK_BODY" >>'"$T"'/mark.log; }
@@ -143,7 +144,8 @@ ALLOW_T1=$'google_firebase_hosting_custom_domain.additional["t1.dev.example.test
 # --- 4. provision -------------------------------------------------------------
 reset
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt 2>&1); rc=$?
-[[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && pass "provision DRY_RUN: no make call, cnf untouched" ||
+[[ $rc == 0 && ! -s "$STUB_LOG" ]] && cmp -s "$ORIG" "$CNF" && ! grep -q PUSH "$T/mark.log" && grep -q 'then PUSH that cnf to origin/master' <<<"$out" &&
+  pass "provision DRY_RUN: no make call, no push, cnf untouched; it names the push it would make" ||
   fail "provision DRY_RUN rc=$rc make=[$(cat "$STUB_LOG")] $out"
 reset
 out=$(SNIPPET='do_spl_tenant_host_provision' in_orc TENANT_ID=newt DRY_RUN=0 STUB_PLAN_019="$P_ADD" STUB_PLAN_025="$P_ADD" 2>&1); rc=$?
@@ -226,6 +228,17 @@ reset
 out=$(SNIPPET='do_spl_cloud_cnf; spl_th_finish t1' in_orc STUB_PREV=pending SPL_TH_NOTIFY_FN=false 2>&1); rc=$?
 [[ $rc == 0 ]] && grep -q 'WARN t1.dev.example.test ready, the notice was NOT posted' <<<"$out" &&
   pass "notice: a refused post is a WARN with the command, the host stays ready (rc 0)" || fail "refused notice rc=$rc: $out"
+
+reset
+SNIPPET='do_spl_cloud_cnf; spl_th_finish t1' in_orc STUB_PREV=pending STUB_OWNERS=$'owner HUM-36\nowner HUM-5\n' >/dev/null 2>&1
+grep -q 'NOTIFY .* Owner: HUM-36 HUM-5, cc HUM-10$' "$T/mark.log" && pass "notice: every owner the lookup returns is named" || fail "owners: $(cat "$T/mark.log")"
+reset
+SNIPPET='do_spl_cloud_cnf; spl_th_finish t1' in_orc STUB_PREV=pending STUB_OWNERS="" >/dev/null 2>&1
+grep -q 'NOTIFY .* Owner: unknown, cc HUM-10$' "$T/mark.log" && pass "notice: a workspace with neither biz_owner nor admin reads Owner: unknown" || fail "no owner: $(cat "$T/mark.log")"
+# the lookup: the biz_owner members (047 W1, the buyer), else the admins - never a role name that does not exist
+sql=$(sed -n '/^_spl_th_owners_sql()/,/^}/p' "$PROJ_ROOT/src/bash/run/spl-tenant-host-provision.func.sh")
+grep -q "THEN 'biz_owner' ELSE 'admin' END" <<<"$sql" && ! grep -q "role = 'owner'" <<<"$sql" &&
+  pass "owner lookup: biz_owner, else admin (live prd n=2: niba-consult -> HUM-36, aleko-gik -> its 3 admins)" || fail "owner lookup SQL: $sql"
 
 # --- 6. cnf push from a throwaway worktree onto a local bare trunk --------------------
 G="$T/git"; mkdir -p "$G"

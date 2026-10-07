@@ -1659,6 +1659,22 @@
         "mine": "Moje: vaša úprava",
         "save": "Uložiť znova"
       }
+    },
+    "api": {
+      "title": "Referencia API",
+      "loading": "Načítava sa referencia API…",
+      "load_failed": "Referenciu API sa nepodarilo načítať.",
+      "search": "Hľadať trasy",
+      "search_label": "Hľadať v trasách API",
+      "operator_toggle": "Zobraziť trasy operátora",
+      "count": "Trasy: {n}",
+      "empty": "Žiadna trasa nezodpovedá.",
+      "operator": "operátor",
+      "deprecated": "zastarané",
+      "params": "Parametre",
+      "body": "Telo požiadavky",
+      "responses": "Odpovede",
+      "required": "povinné"
     }
   },
   "connect_agent": {

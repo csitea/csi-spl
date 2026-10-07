@@ -297,20 +297,38 @@ describe('api doc viewer: CSP, theme, budget, hygiene', () => {
     }
   })
 
-  it('nothing imports the viewer yet (T006 mounts it lazily): 0 KB initial-chunk delta', () => {
+  /* T006: docs.vue mounts it, through a dynamic import only (0 KB initial-chunk delta) */
+  const LAZY = /defineAsyncComponent\(\s*\(\)\s*=>\s*import\(\s*['"]~\/components\/ApiDocViewer\.vue['"]\s*\)\s*\)/
+  const importProblem = (s) => {
+    if (/import\s+[\w{][^'"]*from\s+['"][^'"]*(ApiDocViewer|ApiRouteCard)/.test(s)) return 'static import'
+    if (/<ApiRouteCard/.test(s)) return 'card outside the viewer'
+    if (/<ApiDocViewer|<api-doc-viewer/.test(s) && !LAZY.test(s)) return 'viewer without defineAsyncComponent'
+    return ''
+  }
+  it('the viewer is only ever loaded lazily (T006: defineAsyncComponent in docs.vue): 0 KB initial-chunk delta', () => {
     const hits = []
+    const users = []
     const walk = (d) => {
       for (const n of readdirSync(d)) {
         const p = join(d, n)
         if (statSync(p).isDirectory()) { if (n !== 'node_modules' && !n.startsWith('.')) walk(p); continue }
         if (!/\.(vue|ts|mjs|js)$/.test(n) || p.endsWith('ApiDocViewer.vue') || p.endsWith('ApiRouteCard.vue')) continue
         const s = readFileSync(p, 'utf8')
-        /* the one allowed form is a dynamic import (T006: defineAsyncComponent) */
-        if (/<ApiDocViewer|<api-doc-viewer|<ApiRouteCard/.test(s) || /import\s+[\w{][^'"]*from\s+['"][^'"]*ApiDocViewer/.test(s)) hits.push(p)
+        const why = importProblem(s)
+        if (why) hits.push(`${p}: ${why}`)
+        if (LAZY.test(s)) users.push(p.slice(WUI.length + 1))
       }
     }
     walk(join(WUI, 'src'))
     assert.deepEqual(hits, [])
+    assert.deepEqual(users, ['src/pages/docs.vue'])
+  })
+
+  it('CONTROL: a planted static import of the viewer is flagged', () => {
+    const docs = read('src/pages/docs.vue')
+    assert.equal(importProblem(docs), '')
+    assert.equal(importProblem("import ApiDocViewer from '~/components/ApiDocViewer.vue'\n" + docs), 'static import')
+    assert.equal(importProblem(docs.replace(LAZY, "resolveComponent('ApiDocViewer')")), 'viewer without defineAsyncComponent')
   })
 
   it('no literal host or domain in the viewer', () => {

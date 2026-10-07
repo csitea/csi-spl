@@ -1659,6 +1659,22 @@
         "mine": "Van mij: je bewerking",
         "save": "Opnieuw opslaan"
       }
+    },
+    "api": {
+      "title": "API-naslag",
+      "loading": "API-naslag wordt geladen…",
+      "load_failed": "De API-naslag kon niet worden geladen.",
+      "search": "Routes zoeken",
+      "search_label": "Zoeken in de API-routes",
+      "operator_toggle": "Operatorroutes tonen",
+      "count": "{n} routes",
+      "empty": "Geen route komt overeen.",
+      "operator": "operator",
+      "deprecated": "verouderd",
+      "params": "Parameters",
+      "body": "Aanvraagbody",
+      "responses": "Antwoorden",
+      "required": "verplicht"
     }
   },
   "connect_agent": {

@@ -15,7 +15,10 @@
      member with docs.write; the editor (RepoDocEditor) is a lazy chunk.
      T12: its status chip (RepoDocStatus) on the doc header, "My edits"
      (?edits=mine, RepoDocMyEdits) and the conflict view (?conflict=<edit>,
-     RepoDocConflict), each a lazy chunk too. -->
+     RepoDocConflict), each a lazy chunk too.
+     spec 104 T006: /docs/api is the API reference (ApiDocViewer, a lazy
+     chunk fetching the hub's GET /v1/openapi.json), reserved here and
+     pinned as the first row of the tree; repo doc paths all end in .md. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -38,6 +41,17 @@
           <span>{{ t('docs.folders') }}</span>
         </button>
         <nav id="docs-tree" class="docs-tree" :aria-label="t('docs.tree_label')" data-test="docs-tree">
+          <!-- spec 104 T006: the API reference, pinned above every other row -->
+          <NuxtLink
+            :to="route(DOCS_API)"
+            class="docs-tree__item docs-tree__file docs-tree__api"
+            :class="{ 'docs-tree__file--active': apiPage }"
+            :aria-current="apiPage ? 'page' : undefined"
+            data-test="docs-api-row"
+          >
+            <UiIcon name="file-code" :size="16" />
+            <span class="docs-tree__name">{{ t('docs.api.title') }}</span>
+          </NuxtLink>
           <!-- t1 199cafc7 (owner could not find Edit / New doc): the workspace
                docs, the editable ones, come first; the repo tree is long -->
           <DocsWorkspaceTree :active="wsPath" />
@@ -84,7 +98,8 @@
           </ul>
         </nav>
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
-          <DocsWorkspaceDoc v-if="wsPath" :path="wsPath" />
+          <ApiDocViewer v-if="apiPage" />
+          <DocsWorkspaceDoc v-else-if="wsPath" :path="wsPath" />
           <RepoDocMyEdits v-else-if="showMine" :path="docPath" />
           <template v-else>
           <div class="docs-content__bar">
@@ -144,6 +159,9 @@ const RepoDocEditor = defineAsyncComponent(() => import('~/components/RepoDocEdi
 const RepoDocStatus = defineAsyncComponent(() => import('~/components/RepoDocStatus.vue'))
 const RepoDocMyEdits = defineAsyncComponent(() => import('~/components/RepoDocMyEdits.vue'))
 const RepoDocConflict = defineAsyncComponent(() => import('~/components/RepoDocConflict.vue'))
+/* spec 104 T006: the API reference, never in the initial chunk */
+const ApiDocViewer = defineAsyncComponent(() => import('~/components/ApiDocViewer.vue'))
+const DOCS_API = 'api'
 
 type TreeFile = { path: string, title: string }
 
@@ -163,6 +181,7 @@ const pub = useRuntimeConfig().public
 const repoUrl = computed(() => docsRepoUrl(docPath.value, pub.repoWebUrl, pub.repoHelpPath))
 /* spec 075 T010: /docs/ws/<path> is a workspace doc (DocsWorkspaceDoc) */
 const wsPath = computed(() => wsPathOf(docPath.value))
+const apiPage = computed(() => docPath.value === DOCS_API)
 const tree = ref<DocsDir>(buildDocsTree([]))
 const open = ref<Set<string>>(new Set(['csi-spl-doc']))
 const rows = computed(() => visibleDocsRows(tree.value, open.value))
@@ -217,7 +236,7 @@ let seq = 0
 async function load() {
   const mine = ++seq
   const p = docPath.value
-  if (wsPath.value) return
+  if (wsPath.value || apiPage.value) return
   state.value = 'loading'
   editing.value = false
   savedNote.value = false
@@ -298,7 +317,7 @@ function closeTopicPanel() {
 }
 watch(() => [livePane.taskId, topic.open], closeTopicPanel)
 onMounted(closeTopicPanel)
-useHead(() => ({ title: t('docs.title') }))
+useHead(() => ({ title: apiPage.value ? t('docs.api.title') : t('docs.title') }))
 </script>
 
 <style scoped>
@@ -344,6 +363,7 @@ useHead(() => ({ title: t('docs.title') }))
 .docs-tree__file--active { background: var(--color-selected); font-weight: 600; }
 .docs-tree__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docs-tree__chev { flex: none; }
+.docs-tree__api { padding-inline-start: 8px; margin-block-end: 8px; }
 :global([dir="rtl"]) .docs-tree__chev[data-icon="chevron-right"] { transform: scaleX(-1); }
 .docs-content { min-width: 0; max-width: 900px; display: flex; flex-direction: column; gap: 8px; }
 .docs-content__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

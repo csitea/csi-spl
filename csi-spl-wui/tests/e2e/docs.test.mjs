@@ -14,13 +14,27 @@
 // Before the two-pane change the channel list and the topic panel both
 // stay beside Docs, so the 1440 px pane checks FAIL.
 //
+// spec 104 T006: /docs/api is the API reference, the first row of the tree.
+// The spec fetch (GET /v1/openapi.json) is answered from the hub's embedded
+// document by request interception, and the pages are served with the WUI
+// CSP rendered for this bundle (render-wui-firebase-json.sh, as the csp
+// gate does). Controls: the row and the reference are absent before T006;
+// the CSP is shown to be live (an injected inline script is blocked); the
+// same page with the fetch failing shows the error state, not the
+// reference; the signed-out door names /docs/api only with the hint set.
+//
 // Run:
 //   pnpm run test:e2e docs
 //   BASE_URL=<generated bundle> SHOT_DIR=/tmp/shots pnpm run test:e2e docs
-import { mkdirSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { earlyLoginHref } from '../../src/utils/signed-out-redirect-script.mjs'
+import { SIGNED_OUT_HINT_COOKIE } from '../../src/utils/signed-out-hint.mjs'
+import { SIGNED_OUT_LOCALE_CODES, signedOutLoginTarget } from '../../src/utils/signed-out-redirect.mjs'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
@@ -114,6 +128,62 @@ const scrollBox = (pg) => pg.evaluate(() => {
     page: Math.round(document.scrollingElement ? document.scrollingElement.scrollTop : 0),
   }
 })
+
+const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const REPO = join(WUI, '..')
+const PUBLIC_DIR = process.env.PUBLIC_DIR ?? join(WUI, '.output/public')
+const OPENAPI = join(REPO, 'csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json')
+
+/* the WUI CSP rendered for this bundle (dev cnf), or '' without a bundle */
+function renderedCsp() {
+  if (!existsSync(join(PUBLIC_DIR, '200.html'))) return ''
+  const out = join(mkdtempSync(join(tmpdir(), 'docs-csp-')), 'firebase.json')
+  const r = spawnSync('bash', [join(REPO, 'csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh')], {
+    env: { ...process.env, ENV: process.env.CSP_ENV ?? 'dev', OUT: out, PUBLIC_DIR },
+    encoding: 'utf8',
+  })
+  if (r.status !== 0) throw new Error(`render failed: ${r.stderr}`)
+  const all = JSON.parse(readFileSync(out, 'utf8')).hosting.headers.find((h) => h.source === '**')
+  return all.headers.find((h) => h.key === 'Content-Security-Policy')?.value ?? ''
+}
+
+/* a page whose documents carry `csp` and whose spec fetch answers per `api.mode` */
+async function apiPage(br, csp, api) {
+  const pg = await br.newPage()
+  await pg.setViewport({ width: 1440, height: 900 })
+  await pg.evaluateOnNewDocument(() => {
+    window.__cspViolations = []
+    document.addEventListener('securitypolicyviolation', (e) => {
+      window.__cspViolations.push(`${e.violatedDirective} blocked ${e.blockedURI || 'inline'}`)
+    })
+  })
+  /* the PWA service worker the sections above registered would answer the
+     navigations itself, out of reach of the interception */
+  await pg.setBypassServiceWorker(true)
+  await pg.setRequestInterception(true)
+  pg.on('request', async (req) => {
+    try {
+      const url = new URL(req.url())
+      if (url.pathname.endsWith('/v1/openapi.json')) {
+        api.hits++
+        if (api.mode === 'fail') return await req.respond({ status: 503, contentType: 'application/json', body: '{"error":"unavailable","detail":"e2e"}' })
+        return await req.respond({ status: 200, contentType: 'application/json', body: api.spec })
+      }
+      if (csp && req.isNavigationRequest() && req.resourceType() === 'document') {
+        /* only the type and the policy: hop-by-hop headers make CDP refuse it */
+        const r = await fetch(req.url(), { redirect: 'manual' })
+        const headers = { 'content-type': r.headers.get('content-type') || 'text/html; charset=utf-8', 'content-security-policy': csp }
+        if (r.headers.get('location')) headers.location = r.headers.get('location')
+        return await req.respond({ status: r.status, headers, body: Buffer.from(await r.arrayBuffer()) })
+      }
+      await req.continue()
+    } catch (e) {
+      if (!/closed|handled/i.test(String(e))) console.log('  interception:', String(e).slice(0, 200))
+    }
+  })
+  return pg
+}
+const apiState = (pg, want) => pg.waitForSelector(`[data-test=api-doc][data-state=${want}]`, { timeout: 15000 }).then(Boolean, () => false)
 
 const server = await startServer()
 const browser = await launch()
@@ -287,6 +357,61 @@ try {
   ok('no sideways scroll on a phone', await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   await shot(m, 'phone')
   await m.close()
+
+  console.log('-- /docs/api (spec 104 T006)')
+  const csp = renderedCsp()
+  const api = { mode: 'ok', hits: 0, spec: existsSync(OPENAPI) ? readFileSync(OPENAPI, 'utf8') : '' }
+  ok('the hub\'s embedded OpenAPI document is the fixture', api.spec.includes('"openapi"'), OPENAPI)
+  const a = await apiPage(browser, csp, api)
+  const resp = await a.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await a.waitForSelector('[data-test=docs-tree] [data-test=docs-api-row]', { timeout: 15000 }).catch(() => null)
+  const first = await a.evaluate(() => document.querySelector('[data-test=docs-tree] a, [data-test=docs-tree] button')?.getAttribute('data-test') || '')
+  ok('the API Reference row is the first row of the Docs tree', first === 'docs-api-row', first)
+  ok('it is named API Reference', (await a.$eval('[data-test=docs-api-row]', (e) => e.textContent.trim()).catch(() => '')) === 'API Reference')
+  ok('CONTROL /docs makes no spec fetch (the viewer is lazy)', api.hits === 0, api.hits)
+  const row = await a.$('[data-test=docs-api-row]')
+  if (row) await row.click()
+  await a.waitForFunction(() => location.pathname === '/docs/api', { timeout: 10000 }).catch(() => {})
+  ok('the row navigates to /docs/api', new URL(a.url()).pathname === '/docs/api', a.url())
+  ok('/docs/api renders the reference', await apiState(a, 'ready'))
+  const tags = await a.$$eval('[data-test=api-doc-tag]', (els) => els.length)
+  const routes = await a.$$eval('[data-test=api-doc] .api-route', (els) => els.length).catch(() => 0)
+  ok('it lists tags and routes from the spec', tags > 0 && routes > 0, { tags, routes })
+  ok('the row is marked current on /docs/api', await a.$eval('[data-test=docs-api-row]', (e) => e.getAttribute('aria-current')).catch(() => null) === 'page')
+  ok('CONTROL the repo doc bar is not shown for /docs/api', !(await a.$('[data-test=docs-path]')))
+  await shot(a, 'api-1440')
+  ok('the pages were served under the rendered WUI CSP', Boolean(csp) && (resp?.headers()['content-security-policy'] ?? '') === csp, csp.slice(0, 80))
+  const deep = await a.goto(server.base + '/docs/api', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('a deep link to /docs/api renders the reference', await apiState(a, 'ready') && Boolean(deep))
+  await a.click('[data-test=api-doc-operator]').catch(() => {})
+  await sleep(300)
+  const seen = await a.evaluate(() => window.__cspViolations.slice())
+  ok('ZERO securitypolicyviolation events on /docs/api', seen.length === 0, seen.slice(0, 5))
+  const control = await a.evaluate(async () => {
+    const s = document.createElement('script')
+    s.textContent = 'window.__docsApiInlineRan = 1'
+    document.head.appendChild(s)
+    await new Promise((r) => setTimeout(r, 300))
+    return { ran: window.__docsApiInlineRan === 1, violations: window.__cspViolations.length }
+  })
+  ok('CONTROL the CSP is live: an injected inline script is blocked and reported', !control.ran && control.violations > 0, control)
+  await a.close()
+
+  api.mode = 'fail'
+  const f = await apiPage(browser, csp, api)
+  await f.goto(server.base + '/docs/api', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('a failed spec fetch shows the error state', await apiState(f, 'failed') && Boolean(await f.$('[data-test=api-doc-error]')))
+  ok('CONTROL with the fetch failing no route is listed', (await f.$$('[data-test=api-doc-tag]')).length === 0)
+  await f.close()
+
+  /* the mock tenant has no sign-in (no early script, the middleware skips
+     it), so the signed-out door is proven on the code both use */
+  const early = (cookie) => earlyLoginHref({ path: '/docs/api', search: '', hash: '', cookie, cookieKey: SIGNED_OUT_HINT_COOKIE, locales: [...SIGNED_OUT_LOCALE_CODES], defaultLocale: 'en' })
+  ok('signed-out: the early script sends /docs/api to /login', early(`${SIGNED_OUT_HINT_COOKIE}=1`) === '/login?redirect=%2Fdocs%2Fapi', early(`${SIGNED_OUT_HINT_COOKIE}=1`))
+  ok('CONTROL with no signed-out hint it stays on /docs/api', early('') === '')
+  const target = signedOutLoginTarget('/docs/api', 'out', false)
+  ok('signed-out: the middleware sends /docs/api to /login', target?.path === '/login' && target.query.redirect === '/docs/api', target)
+  ok('CONTROL a signed-in session stays on /docs/api', signedOutLoginTarget('/docs/api', 'in', false) === null)
 } finally {
   await browser.close()
   await server.stop()

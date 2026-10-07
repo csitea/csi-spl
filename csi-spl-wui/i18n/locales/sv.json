@@ -1659,6 +1659,22 @@
         "mine": "Min: din ändring",
         "save": "Spara igen"
       }
+    },
+    "api": {
+      "title": "API-referens",
+      "loading": "Läser in API-referensen…",
+      "load_failed": "API-referensen kunde inte läsas in.",
+      "search": "Sök vägar",
+      "search_label": "Sök bland API-vägarna",
+      "operator_toggle": "Visa operatörsvägar",
+      "count": "{n} vägar",
+      "empty": "Ingen väg matchar.",
+      "operator": "operatör",
+      "deprecated": "föråldrad",
+      "params": "Parametrar",
+      "body": "Begärans innehåll",
+      "responses": "Svar",
+      "required": "obligatorisk"
     }
   },
   "connect_agent": {

@@ -1659,6 +1659,22 @@
         "mine": "Al meu: editarea ta",
         "save": "Salvează din nou"
       }
+    },
+    "api": {
+      "title": "Referință API",
+      "loading": "Se încarcă referința API…",
+      "load_failed": "Referința API nu a putut fi încărcată.",
+      "search": "Caută rute",
+      "search_label": "Caută în rutele API",
+      "operator_toggle": "Arată rutele de operator",
+      "count": "Rute: {n}",
+      "empty": "Nicio rută nu se potrivește.",
+      "operator": "operator",
+      "deprecated": "depreciat",
+      "params": "Parametri",
+      "body": "Corpul cererii",
+      "responses": "Răspunsuri",
+      "required": "obligatoriu"
     }
   },
   "connect_agent": {

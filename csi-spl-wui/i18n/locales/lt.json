@@ -1659,6 +1659,22 @@
         "mine": "Mano: jūsų pakeitimas",
         "save": "Išsaugoti dar kartą"
       }
+    },
+    "api": {
+      "title": "API žinynas",
+      "loading": "Įkeliamas API žinynas…",
+      "load_failed": "Nepavyko įkelti API žinyno.",
+      "search": "Ieškoti maršrutų",
+      "search_label": "Ieškoti API maršrutuose",
+      "operator_toggle": "Rodyti operatoriaus maršrutus",
+      "count": "Maršrutų: {n}",
+      "empty": "Nėra atitinkančių maršrutų.",
+      "operator": "operatorius",
+      "deprecated": "pasenęs",
+      "params": "Parametrai",
+      "body": "Užklausos turinys",
+      "responses": "Atsakymai",
+      "required": "privalomas"
     }
   },
   "connect_agent": {

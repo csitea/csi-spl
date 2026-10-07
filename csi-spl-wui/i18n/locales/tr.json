@@ -1659,6 +1659,22 @@
         "mine": "Benim: düzenlemeniz",
         "save": "Yeniden kaydet"
       }
+    },
+    "api": {
+      "title": "API Başvurusu",
+      "loading": "API başvurusu yükleniyor…",
+      "load_failed": "API başvurusu yüklenemedi.",
+      "search": "Rota ara",
+      "search_label": "API rotalarında ara",
+      "operator_toggle": "Operatör rotalarını göster",
+      "count": "{n} rota",
+      "empty": "Eşleşen rota yok.",
+      "operator": "operatör",
+      "deprecated": "kullanımdan kalktı",
+      "params": "Parametreler",
+      "body": "İstek gövdesi",
+      "responses": "Yanıtlar",
+      "required": "zorunlu"
     }
   },
   "connect_agent": {

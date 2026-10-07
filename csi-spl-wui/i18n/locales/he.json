@@ -1659,6 +1659,22 @@
         "mine": "שלי: העריכה שלך",
         "save": "שמור שוב"
       }
+    },
+    "api": {
+      "title": "מדריך API",
+      "loading": "טוען את מדריך ה-API…",
+      "load_failed": "לא ניתן לטעון את מדריך ה-API.",
+      "search": "חיפוש נתיבים",
+      "search_label": "חיפוש בנתיבי ה-API",
+      "operator_toggle": "הצג נתיבי מפעיל",
+      "count": "נתיבים: {n}",
+      "empty": "אין נתיב תואם.",
+      "operator": "מפעיל",
+      "deprecated": "מיושן",
+      "params": "פרמטרים",
+      "body": "גוף הבקשה",
+      "responses": "תגובות",
+      "required": "חובה"
     }
   },
   "connect_agent": {

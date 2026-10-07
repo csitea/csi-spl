@@ -1659,6 +1659,22 @@
         "mine": "Minun: muokkauksesi",
         "save": "Tallenna uudelleen"
       }
+    },
+    "api": {
+      "title": "API-viite",
+      "loading": "Ladataan API-viitettä…",
+      "load_failed": "API-viitettä ei voitu ladata.",
+      "search": "Hae reittejä",
+      "search_label": "Hae API-reiteistä",
+      "operator_toggle": "Näytä operaattorin reitit",
+      "count": "Reittejä: {n}",
+      "empty": "Mikään reitti ei vastaa hakua.",
+      "operator": "operaattori",
+      "deprecated": "vanhentunut",
+      "params": "Parametrit",
+      "body": "Pyynnön runko",
+      "responses": "Vastaukset",
+      "required": "pakollinen"
     }
   },
   "connect_agent": {

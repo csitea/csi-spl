@@ -1659,6 +1659,22 @@
         "mine": "Mans: jūsu labojums",
         "save": "Saglabāt vēlreiz"
       }
+    },
+    "api": {
+      "title": "API uzziņa",
+      "loading": "Ielādē API uzziņu…",
+      "load_failed": "Neizdevās ielādēt API uzziņu.",
+      "search": "Meklēt maršrutus",
+      "search_label": "Meklēt API maršrutos",
+      "operator_toggle": "Rādīt operatora maršrutus",
+      "count": "Maršruti: {n}",
+      "empty": "Neviens maršruts neatbilst.",
+      "operator": "operators",
+      "deprecated": "novecojis",
+      "params": "Parametri",
+      "body": "Pieprasījuma pamatteksts",
+      "responses": "Atbildes",
+      "required": "obligāts"
     }
   },
   "connect_agent": {

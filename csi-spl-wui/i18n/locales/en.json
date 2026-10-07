@@ -1659,6 +1659,22 @@
         "mine": "Mine: your edit",
         "save": "Save again"
       }
+    },
+    "api": {
+      "title": "API Reference",
+      "loading": "Loading the API reference…",
+      "load_failed": "The API reference could not be loaded.",
+      "search": "Search routes",
+      "search_label": "Search the API routes",
+      "operator_toggle": "Show operator routes",
+      "count": "{n} routes",
+      "empty": "No route matches.",
+      "operator": "operator",
+      "deprecated": "deprecated",
+      "params": "Parameters",
+      "body": "Request body",
+      "responses": "Responses",
+      "required": "required"
     }
   },
   "connect_agent": {

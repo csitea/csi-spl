@@ -1659,6 +1659,22 @@
         "mine": "Mío: tu edición",
         "save": "Guardar de nuevo"
       }
+    },
+    "api": {
+      "title": "Referencia de la API",
+      "loading": "Cargando la referencia de la API…",
+      "load_failed": "No se pudo cargar la referencia de la API.",
+      "search": "Buscar rutas",
+      "search_label": "Buscar en las rutas de la API",
+      "operator_toggle": "Mostrar rutas de operador",
+      "count": "{n} rutas",
+      "empty": "Ninguna ruta coincide.",
+      "operator": "operador",
+      "deprecated": "obsoleta",
+      "params": "Parámetros",
+      "body": "Cuerpo de la solicitud",
+      "responses": "Respuestas",
+      "required": "obligatorio"
     }
   },
   "connect_agent": {

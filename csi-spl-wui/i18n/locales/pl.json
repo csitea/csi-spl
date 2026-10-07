@@ -1659,6 +1659,22 @@
         "mine": "Moje: twoja edycja",
         "save": "Zapisz ponownie"
       }
+    },
+    "api": {
+      "title": "Dokumentacja API",
+      "loading": "Wczytywanie dokumentacji API…",
+      "load_failed": "Nie udało się wczytać dokumentacji API.",
+      "search": "Szukaj tras",
+      "search_label": "Szukaj w trasach API",
+      "operator_toggle": "Pokaż trasy operatora",
+      "count": "Trasy: {n}",
+      "empty": "Żadna trasa nie pasuje.",
+      "operator": "operator",
+      "deprecated": "przestarzałe",
+      "params": "Parametry",
+      "body": "Treść żądania",
+      "responses": "Odpowiedzi",
+      "required": "wymagane"
     }
   },
   "connect_agent": {

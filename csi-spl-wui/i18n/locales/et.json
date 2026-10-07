@@ -1659,6 +1659,22 @@
         "mine": "Minu: sinu muudatus",
         "save": "Salvesta uuesti"
       }
+    },
+    "api": {
+      "title": "API viide",
+      "loading": "API viidet laaditakse…",
+      "load_failed": "API viidet ei õnnestunud laadida.",
+      "search": "Otsi marsruute",
+      "search_label": "Otsi API marsruutidest",
+      "operator_toggle": "Näita operaatori marsruute",
+      "count": "Marsruute: {n}",
+      "empty": "Ükski marsruut ei sobi.",
+      "operator": "operaator",
+      "deprecated": "aegunud",
+      "params": "Parameetrid",
+      "body": "Päringu sisu",
+      "responses": "Vastused",
+      "required": "kohustuslik"
     }
   },
   "connect_agent": {

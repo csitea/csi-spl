@@ -15,3 +15,4 @@ screen and its transcripts are T001's, read from `../fleet-lease/`.
 | `working.pane` | a turn in progress: the spinner `(12s · ...)` | S2 / S1 spinner rows |
 | `limit-reset.pane` | a usage-limit banner with a reset time, idle | S2 kind=limit |
 | `idle.pane` | an idle pane with an empty input box | S3, S1 controls |
+| `s9-unknown-dialog.pane` | `modal-default-mode.pane` (the 2026-10-06 frozen pane) with its dialog words replaced by words no list contains | S9 hit (spec 102 8.3); S7 control 1: no hit |

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: the box watchdog of spec 093 section 6 (T004): the situation
-#          scripts s1..s8, do_spl_watchdog and do_spl_wd_hold, in a sandbox.
+#          scripts s1..s9 (S9: spec 102 8), do_spl_watchdog and do_spl_wd_hold, in a sandbox.
 #          Every fixture has a control that flips one input and DOES fire
 #          (FR-011), so no case passes vacuously. Nothing real is touched:
 #          processes are a ps stub + a fake /proc (LEASE_PROC_ROOT), tmux is a
@@ -33,6 +33,11 @@
 #      the id is held out and ONE blocker goes to the orchestrator
 #   7. FR-014: a situation script that sleeps 60 s costs the tick at most its
 #      timeout; the other scripts' verdicts are written
+#   8. S9 stuck (spec 102 8.3): the hit fixture (an unknown dialog that
+#      swallowed a poke) and controls 1-6 - today's S7 misses it, a
+#      UserPromptSubmit after the poke, a pane that changed, an idle agent, an
+#      unpoked inbox file (poked once), a ticking status row + a second poke
+#      echo (still a hit); grok's 2 x stuck_min; spool-send.sh's input.log
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -482,6 +487,133 @@ s0=$SECONDS; out="$(export WD_SITUATIONS="$T/sit" WD_SCRIPT_TIMEOUT=2; wd)"; el=
 (( el < 30 )) && pass "7 FR-014: the tick ends in ${el}s with a 60 s script (< 30 s)" || fail "7 tick took ${el}s"
 grep -q 'c-941 OK (pending S3' <<<"$out" && grep -q 'c-942 OK (pending S3' <<<"$out" && [[ -s "$D/wd.c-941" && -s "$D/wd.c-942" ]] &&
   pass "7 the other scripts' verdicts are written" || fail "7 verdicts: $out"
+
+# 8. S9 stuck (spec 102 8.3): the 2026-10-06 frozen pane with words no list
+# knows. Every case below is a control of the hit: one input flipped.
+s9ctx() {  # s9ctx <name> [poke age] [progress age] [pane age]: the hit, flipped by its args
+  ctx "$1"; cp "$FX/s9-unknown-dialog.pane" "$C/pane"
+  hb idle "${3:-660}" "| .harness = \"claude\" | .turn_since = \"$(iso $((T0 - 3600)))\""
+  echo "$(iso $((T0 - ${2:-600}))) note" > "$C/input_log"
+  echo "${4:-600}" > "$C/pane_age"
+}
+s9ctx s9
+hit "8 S9 hit: unknown dialog, progress 11 min old, a poke 10 min ago, no UserPromptSubmit after it" s9
+grep -q '^HIT S9 input=600s prog=660s pane=600s rule=ups$' <<<"$(run_s s9)" && pass "8 S9 names its evidence" || fail "8 S9 evidence: $(run_s s9)"
+nohit "8 control 1: today's S7 misses the same pane (the list-based guard)" s7
+echo "$(iso $((T0 - 3600))) SessionStart starting" > "$C/hblog"
+hit "8 S9 an old UserPromptSubmit before the poke does not answer it" s9
+s9ctx s9c2; hb idle 660 "| .harness = \"claude\" | .turn_since = \"$(iso $((T0 - 500)))\""
+nohit "8 control 2: a UserPromptSubmit after the poke (heartbeat turn_since)" s9
+s9ctx s9c2l; echo "$(iso $((T0 - 590))) UserPromptSubmit working" > "$C/hblog"
+nohit "8 control 2: a UserPromptSubmit after the poke (heartbeat.log)" s9
+s9ctx s9c3 600 660 300
+nohit "8 control 3: the pane body changed after the poke (pane_age 300 s)" s9
+ctx s9c4; cp "$FX/idle.pane" "$C/pane"; hb idle 10800 '| .harness = "claude"'; echo 10800 > "$C/pane_age"
+out="$(run_s s9)"
+[[ -z "$out" ]] && pass "8 control 4: idle pane, empty inbox, nothing typed, progress 3 h old: nothing" || fail "8 control 4: '$out'"
+echo "$((T0 - 300)) m5.json note c-002" > "$C/inbox"
+out="$(run_s s9)"
+[[ -z "$out" ]] && pass "8 control 5 rollout guard: no input.log yet (no sender of this tree poked it): no POKE" || fail "8 rollout guard: '$out'"
+echo "$(iso $((T0 - 7200))) note" > "$C/input_log"; hb idle 10800 "| .harness = \"claude\" | .turn_since = \"$(iso $((T0 - 7190)))\""
+out="$(run_s s9)"
+[[ "$out" == "POKE m5.json" ]] && pass "8 control 5: an unread file nobody poked: no hit, one POKE line" || fail "8 control 5: '$out'"
+echo "$(iso $((T0 - 200))) note" > "$C/input_log"
+out="$(run_s s9)"
+[[ "$out" != *POKE* && "$out" != HIT* ]] && pass "8 control 5: the same file poked after it arrived: no POKE" || fail "8 control 5 poked: '$out'"
+s9ctx s9w 500 660 500
+nohit "8 S9 control: the poke is 500 s old, inside stuck_min" s9
+s9ctx s9p 600 300 600
+nohit "8 S9 control: progress 300 s ago" s9
+s9ctx s9t; hb in-tool 660 "| .harness = \"claude\" | .tool = \"Bash\" | .tool_since = \"$(iso $((T0 - 700)))\""
+nohit "8 S9 control: in a Bash call within its cap" s9
+hb in-tool 960 "| .harness = \"claude\" | .tool = \"Bash\" | .tool_since = \"$(iso $((T0 - 960)))\""
+hit "8 S9 past the tool cap counts as not in a tool" s9
+s9ctx s9n
+nohit "8 S9 control: no harness process (S3's case)" s9 c-900 -
+# a harness with no UserPromptSubmit (grok): conditions 1-4 at 2 x stuck_min
+s9ctx s9g; hb idle 660 '| .harness = "grok"'
+nohit "8 S9 grok: 10 min is not enough (2 x stuck_min)" s9
+s9ctx s9g2 1260 1300 1260; hb idle 1300 '| .harness = "grok"'
+grep -q '^HIT S9 .*rule=2x$' <<<"$(run_s s9)" && pass "8 S9 grok: a poke 21 min ago, progress 21 min old, pane frozen: hit (rule=2x)" || fail "8 S9 grok: $(run_s s9)"
+hb idle 1000 '| .harness = "grok"'
+nohit "8 S9 grok control: progress after the poke" s9
+# --norm drops poke lines and the bottom status row; --scrub hides secrets
+a="$(printf 'body\n\nstatus 08:00:01\n\n' | bash "$SIT/s9.sh" --norm)"
+b="$(printf 'body\n%s\n\nstatus 08:00:31\n' ": 'SPOOL c-900: note from c-002'" | bash "$SIT/s9.sh" --norm)"
+[[ "$a" == "$b" && "$a" == body* ]] && pass "8 --norm: a ticking status row and a poke echo hash the same" || fail "8 --norm: '$a' / '$b'"
+b="$(printf 'body changed\n\nstatus 08:00:01\n' | bash "$SIT/s9.sh" --norm)"
+[[ "$a" != "$b" ]] && pass "8 --norm control: a changed body hashes differently" || fail "8 --norm control"
+# the planted values are built here, so no secret-shaped literal is in the tree
+s9tok="$(printf '%s=%s' tok"en" "PLANTED$((40 + 2))x")"; s9gh="$(printf 'gh%s_%s' p PLANTEDabcdefgh12)"
+out="$(printf '%s\n%s\nplain words\n' "$s9tok" "$s9gh" | bash "$SIT/s9.sh" --scrub)"
+! grep -q PLANTED <<<"$out" && grep -q 'plain words' <<<"$out" && pass "8 --scrub hides a token and a key, keeps the rest" || fail "8 --scrub: $out"
+
+# 8. S9 at tick level: hit + controls 3, 5 and 6
+s9screen() {  # s9screen <pane> <clock> [extra line]
+  { cat "$FX/s9-unknown-dialog.pane"; echo " log: $s9tok"; [[ -n "${3:-}" ]] && echo "$3"; echo "  ⏵⏵ bypass permissions on · $2"; } > "$T/tmux/screen.$1"
+}
+s9agent() {  # s9agent <id> <pid> <poke epoch>
+  agent "$1" %1 "$2"
+  jq -n --arg p "$(iso $(($3 - 60)))" --arg u "$(iso $(($3 - 3600)))" \
+    '{v: 1, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/$1/heartbeat.json"
+  mkdir -p "$S/$1/lifetime"; echo "$(iso "$3") note" > "$S/$1/lifetime/input.log"
+}
+P=$((T0 - 630))
+reset_box; s9agent c-951 4051 "$P"
+s9screen %1 08:00:00
+NOW=$((P + 30)) TICK=400 wd >/dev/null
+s9screen %1 08:05:00 ": 'SPOOL c-951: note from c-002 (task 9b3e7d10)'"
+NOW=$((P + 300)) TICK=400 wd >/dev/null
+s9screen %1 08:10:30
+echo "$(iso $((P + 300))) note" >> "$S/c-951/lifetime/input.log"
+out="$(NOW=$((P + 630)) TICK=400 wd)"; settle
+grep -q 'c-951 HIT S9 input=630s .*-> snapshot;takeover$' <<<"$out" && grep -qx 'takeover c-951 S9' "$T/takeovers" &&
+  pass "8 control 6: a ticking status row and a second poke echo: still S9, snapshot + takeover" || fail "8 tick S9: $out / $(cat "$T/takeovers" 2>/dev/null)"
+grep -q -- "--to orchestrator --kind note --task wd-c-951 .*$D/wd/c-951.s9.pane" "$T/sent" && grep -q wibbler "$D/wd/c-951.s9.pane" &&
+  ! grep -q PLANTED "$D/wd/c-951.s9.pane" &&
+  pass "8 S9 sends the orchestrator the path of a scrubbed snapshot" || fail "8 S9 note: $(cat "$T/sent" 2>/dev/null)"
+[[ ! -s "$T/tmux/log" ]] && pass "8 S9 types nothing into the unknown dialog" || fail "8 S9 keys: $(cat "$T/tmux/log")"
+NOW=$((P + 660)) TICK=400 wd >/dev/null; settle
+[[ "$(grep -c . "$T/takeovers")" == 1 && "$(grep -c 'wd-c-951' "$T/sent")" == 1 ]] && pass "8 S9 one snapshot and one takeover per episode" || fail "8 S9 twice: $(cat "$T/takeovers") / $(cat "$T/sent")"
+reset_box; s9agent c-953 4053 "$P"
+s9screen %1 08:00:00
+NOW=$((P + 30)) TICK=400 wd >/dev/null
+sed 's/Recalibrate the flux wibbler/Recalibrating the flux wibbler/' "$FX/s9-unknown-dialog.pane" > "$T/tmux/screen.%1"
+NOW=$((P + 300)) TICK=400 wd >/dev/null
+out="$(NOW=$((P + 630)) TICK=400 wd)"
+grep -q 'c-953 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "8 control 3 (tick): the pane body changed once after the poke: no S9" || fail "8 tick control 3: $out"
+# control 5: an unread file nobody poked is poked ONCE, then the window runs
+reset_box; agent c-952 %1 4052
+jq -n --arg p "$(iso $((T0 - 3600)))" --arg u "$(iso $((T0 - 7190)))" '{v: 1, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/c-952/heartbeat.json"
+mkdir -p "$S/c-952/lifetime"; echo "$(iso $((T0 - 7200))) note" > "$S/c-952/lifetime/input.log"
+echo '{"v":1,"kind":"note","from":"c-002","to":"c-952","body":"fyi"}' > "$S/c-952/inbox/h.json"
+touch -d "@$((T0 - 300))" "$S/c-952/inbox/h.json"
+out1="$(wd)"; out2="$(NOW=$((T0 + 30)) wd)"
+grep -q 'c-952 OK (S9 poked once' <<<"$out1" && [[ "$(grep -c -- '--poke-only --from .* --to c-952' "$T/sent")" == 1 ]] && ! grep -q 'S9 poked' <<<"$out2" &&
+  pass "8 control 5 (tick): no S9, the unread file poked once over two ticks" || fail "8 tick control 5: $out1 / $out2 / $(cat "$T/sent" 2>/dev/null)"
+out="$(DRY=1 NOW=$((T0 + 60)) wd)"
+rm -f "$D/wd/c-952.s9.poked"; out="$(DRY=1 NOW=$((T0 + 90)) wd)"
+grep -q 'would poke an unpoked inbox file (dry run)' <<<"$out" && [[ "$(grep -c -- '--to c-952' "$T/sent")" == 1 ]] && pass "8 control 5: a dry run only says it would poke" || fail "8 dry poke: $out"
+
+# 8. spool-send.sh logs a poke that reached the pane in <id>/lifetime/input.log
+if command -v tmux >/dev/null; then
+  SR="$T/ss"; SOCK="$T/ss.sock"; mkdir -p "$SR/c-961/inbox" "$SR/c-962/inbox"
+  tmux -S "$SOCK" -f /dev/null new-session -d -s t -n home -x 200 -y 50 'sleep 600'
+  p1="$(tmux -S "$SOCK" new-window -d -t t: -n c-961 -P -F '#{pane_id}' 'sleep 600')"
+  p2="$(tmux -S "$SOCK" new-window -d -t t: -n c-962 -P -F '#{pane_id}' 'bash --norc')"
+  printf 'c-961\tclaude\t%s\t/x\t20260101T000000Z\nc-962\tclaude\t%s\t/x\t20260101T000000Z\n' "$p1" "$p2" > "$SR/registry.tsv"
+  sleep 0.3
+  ssend() { env -u TMUX -u TMUX_PANE -u SPOOL_AGENT_ID -u SPOOL_BOX_ENV SPOOL_TEST=1 SPOOL_ROOT="$SR" SPOOL_TMUX_SOCKET="$SOCK" \
+    SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)" SPOOL_BOX_TAG="" \
+    bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-send.sh" --poke-only --from c-900 --to "$1" >/dev/null 2>&1; }
+  ssend c-961; r1=$?; ssend c-962; r2=$?
+  [[ "$r1" == 0 ]] && grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z poke$' "$SR/c-961/lifetime/input.log" &&
+    pass "8 spool-send.sh: a poke shown in the pane appends '<ts> poke' to input.log" || fail "8 input.log: rc=$r1 $(cat "$SR/c-961/lifetime/input.log" 2>&1)"
+  [[ "$r2" != 0 && ! -e "$SR/c-962/lifetime/input.log" ]] && pass "8 spool-send.sh control: a poke refused (bare shell, rc=$r2) logs nothing" || fail "8 input.log control: rc=$r2"
+  tmux -S "$SOCK" kill-server 2>/dev/null || true
+else
+  echo "SKIP 8 spool-send.sh input.log: no tmux on this box"
+fi
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
 

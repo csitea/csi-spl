@@ -4,7 +4,7 @@
 # @description model call. Every WD_TICK s it walks every local agent (a tmux
 # @description window named <id>[@<this box>], or a process carrying
 # @description SPOOL_AGENT_ID), fills its context dir once, runs each
-# @description situation script features/watchdog/situations/s[1-8].sh under
+# @description situation script features/watchdog/situations/s[1-9].sh under
 # @description `timeout WD_SCRIPT_TIMEOUT` (a hung script costs one script one
 # @description tick, never the tick: FR-014), debounces the hits (6.1), applies
 # @description the guards of 6.2 and the limits of 6.3, writes the verdict
@@ -16,7 +16,10 @@
 # @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
 # @description default-mode offer: bypass settings re-asserted + takeover,
 # @description "No, keep bypass permissions" as the fallback), S8 reports the
-# @description hook GAP once. A takeover is do_spl_wd_takeover
+# @description hook GAP once, S9 (spec 102 8, stuck: a keystroke that never
+# @description reached the model) sends the orchestrator the scrubbed pane
+# @description once, then takes over; an unpoked unread inbox file is poked
+# @description once (S9's POKE line). A takeover is do_spl_wd_takeover
 # @description (T005); until it exists the wish is logged. DRY_RUN=1 (the
 # @description default) writes the verdicts and only prints the actions.
 # @param WD_TICKS (optional) - ticks to run, default 0 = forever (the loop); 1 = one proof tick
@@ -279,6 +282,9 @@ spl_wd_gather() {
   local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx="$6" ppid sess act rundir
   echo "$now" > "$ctx/now"
   cp "$SPOOL_ROOT/$id/heartbeat.json" "$ctx/heartbeat" 2>/dev/null || true
+  # S9 (spec 102 8.1): what was typed into the pane, and when the model got a prompt
+  tail -n 50 "$SPOOL_ROOT/$id/lifetime/input.log" > "$ctx/input_log" 2>/dev/null || true
+  tail -n 200 "$SPOOL_ROOT/$id/heartbeat.log" > "$ctx/hblog" 2>/dev/null || true
   cp "$SPOOL_ROOT/peer/$id/held" "$ctx/held" 2>/dev/null || true
   if awk -v i="$id" '$1 == i {f = 1} END {exit !f}' "$SPOOL_ROOT/peer/seats" 2>/dev/null; then echo "$id" > "$ctx/seat"; fi
   spl_wd_inbox "$SPOOL_ROOT/$id/inbox" > "$ctx/inbox"
@@ -291,6 +297,9 @@ spl_wd_gather() {
   fi
   [[ -n "$pane" ]] || return 0
   spl_wd_tmux capture-pane -p -t "$pane" > "$ctx/pane" 2>/dev/null || rm -f "$ctx/pane"
+  if [[ -s "$ctx/pane" ]]; then
+    spl_wd_since "$id" s9pane "$(timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --norm < "$ctx/pane" 2>/dev/null 7>&- || true)" "$now" "$ctx/pane_age"
+  fi
   IFS=$'\t' read -r ppid sess < <(awk -F'\t' -v p="$pane" '$1 == p {print $2 "\t" $3}' "$tick/panes") || true
   awk -F'\t' -v p="$pane" '$1 == p {print $5}' "$tick/panes" > "$ctx/fg"
   [[ -n "${ppid:-}" ]] && spl_wd_tree "$ppid" "$tick/ps" > "$ctx/tree"
@@ -398,8 +407,9 @@ spl_wd_rotating() {
 # ---- verdicts ----------------------------------------------------------------------
 
 # The order a verdict is picked in when several situations hit. S8 is never
-# the verdict: a silent hook is not a stuck agent (6.1).
-WD_ORDER="S3 S2 S7 S4 S5 S1 S6"
+# the verdict: a silent hook is not a stuck agent (6.1). S7 before S9: a known
+# dialog gets its answer in one tick, S9 is the net for the rest (102 8.2).
+WD_ORDER="S3 S2 S7 S4 S5 S9 S1 S6"
 
 # The debounce of a code in ticks (6.1): S2, S3 and S8 2, the rest 1 (S1 and
 # S6 carry their own age).
@@ -439,7 +449,8 @@ spl_wd_judge() {
     act="$(spl_wd_act "$id" S8 "$ev" "$pane" "$now" "$ctx")"
     extra=" (S8 $ev${act:+ -> $act})"
   fi
-  printf '%s%s\n' "$extra" "$pend"
+  act="$(spl_wd_s9_pokes "$id" "$now" "$ctx")"
+  printf '%s%s%s\n' "$extra" "$pend" "${act:+ (S9 $act)}"
   return 0
 }
 
@@ -498,6 +509,7 @@ spl_wd_act() {
     S7) if [[ "$ev" == modal=2* ]]; then spl_wd_s7_offer "$id" "$ev" "$pane" "$now" "$ctx" | paste -sd ';' -
         elif [[ "$ev" == modal=1* && ! -e "$WD_DIR/$id.ep.S7.esc" ]]; then spl_wd_once "$id" S7 esc "$now" "$ctx" spl_wd_key "$pane" Escape
         else spl_wd_once "$id" S7 note "$now" "$ctx" spl_wd_send peers note "$id" "WATCHDOG (093 S7): $id is blocked by a dialog (${ev#modal=? }) and is not able."; fi ;;
+    S9) spl_wd_s9 "$id" "$ev" "$pane" "$now" "$ctx" | paste -sd ';' - ;;
     S8) spl_wd_once "$id" S8 gap "$now" "$ctx" spl_wd_send peers note "$id" \
           "WATCHDOG (093 S8): GAP $id - its hook is silent ($ev). Progress is read from its transcript until spool-agent-hook.sh runs for it." ;;
   esac
@@ -517,6 +529,46 @@ spl_wd_once() {
   local out
   if out="$("$@")"; then echo "$now" > "$f"; echo "$tag"; else echo "$tag not done${out:+: $out}"; fi
   return 0
+}
+
+# S9 (spec 102 8.2), an unknown screen that swallowed what was typed: nothing
+# is typed into it. The pane, scrubbed, goes to <WD_DIR>/<id>.s9.pane and its
+# path to the orchestrator ONCE, then a takeover (do_spl_agent_restart
+# CAUSE=S9 once T008 lands; the takeover until then).
+spl_wd_s9() {
+  local id="$1" ev="$2" pane="$3" now="$4" ctx="$5"
+  spl_wd_once "$id" S9 snapshot "$now" "$ctx" spl_wd_s9_snapshot "$id" "$ev" "$pane" "$ctx"
+  spl_wd_once "$id" S9 takeover "$now" "$ctx" spl_wd_takeover "$id" S9 "$ev"
+}
+
+spl_wd_s9_snapshot() {
+  local id="$1" ev="$2" pane="$3" ctx="$4" f="$WD_DIR/$1.s9.pane"
+  if ! timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --scrub < "$ctx/pane" > "$f.tmp.$$" 2>/dev/null 7>&-; then
+    rm -f "$f.tmp.$$"; echo "no snapshot"; return 1
+  fi
+  mv -f "$f.tmp.$$" "$f"
+  spl_wd_send orchestrator note "$id" \
+    "WATCHDOG (102 S9): $id is stuck: what was typed into its pane never reached the model ($ev). The screen is not a known dialog; nothing was typed into it. Pane snapshot (scrubbed): $f. Box $ROTATE_BOX, pane ${pane:-none}. A takeover follows."
+}
+
+# S9's POKE lines: an unread inbox file nobody poked is poked ONCE (102 8.1;
+# the poke is what starts S9's window). <WD_DIR>/<id>.s9.poked keeps the
+# files poked, pruned to those still in the inbox. Prints what was done.
+spl_wd_s9_pokes() {
+  local id="$1" now="$2" ctx="$3" f="$WD_DIR/$1.s9.poked" new why x
+  grep -q '^POKE ' "$ctx/out.s9" 2>/dev/null || return 0
+  touch "$f"
+  while read -r x; do
+    if [[ -e "$SPOOL_ROOT/$id/inbox/$x" ]]; then echo "$x"; fi
+  done < "$f" > "$f.tmp.$$"
+  mv -f "$f.tmp.$$" "$f"
+  new="$(awk '$1 == "POKE" && $2 != "" { print $2 }' "$ctx/out.s9" | grep -vxF -f "$f" || true)"
+  [[ -n "$new" ]] || return 0
+  why="$(spl_wd_gate "$id" "$now" "$ctx")"
+  if [[ -n "$why" ]]; then echo "would poke an unpoked inbox file ($why)"; return 0; fi
+  spl_wd_ring "$id"
+  echo "$new" >> "$f"
+  echo "poked once: an unread inbox file nobody poked"
 }
 
 # S4: Escape once; still in the call 60 s later: takeover.

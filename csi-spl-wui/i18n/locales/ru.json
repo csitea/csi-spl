@@ -2167,6 +2167,14 @@
     "next_day": "Следующий день",
     "placeholder": "Этот вид скоро появится."
   },
+  "calendar_phone_peek": {
+    "guests": "Гости",
+    "delete_failed": "Не удалось удалить событие. Попробуйте ещё раз.",
+    "scope_title": "Удаление повторяющегося события",
+    "scope_this": "Это событие",
+    "scope_following": "Это и следующие события",
+    "scope_all": "Все события"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

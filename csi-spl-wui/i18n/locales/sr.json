@@ -2167,6 +2167,14 @@
     "next_day": "Следећи дан",
     "placeholder": "Овај приказ стиже ускоро."
   },
+  "calendar_phone_peek": {
+    "guests": "Гости",
+    "delete_failed": "Догађај није могао да се избрише. Покушајте поново.",
+    "scope_title": "Брисање догађаја који се понавља",
+    "scope_this": "Овај догађај",
+    "scope_following": "Овај и следећи догађаји",
+    "scope_all": "Сви догађаји"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

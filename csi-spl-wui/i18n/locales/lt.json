@@ -2167,6 +2167,14 @@
     "next_day": "Kita diena",
     "placeholder": "Šis rodinys pasirodys netrukus."
   },
+  "calendar_phone_peek": {
+    "guests": "Svečiai",
+    "delete_failed": "Įvykio ištrinti nepavyko. Bandykite dar kartą.",
+    "scope_title": "Pasikartojančio įvykio trynimas",
+    "scope_this": "Šis įvykis",
+    "scope_following": "Šis ir tolesni įvykiai",
+    "scope_all": "Visi įvykiai"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

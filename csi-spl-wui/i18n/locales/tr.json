@@ -2167,6 +2167,14 @@
     "next_day": "Sonraki gün",
     "placeholder": "Bu görünüm yakında geliyor."
   },
+  "calendar_phone_peek": {
+    "guests": "Konuklar",
+    "delete_failed": "Etkinlik silinemedi. Yeniden deneyin.",
+    "scope_title": "Yinelenen etkinliği silme",
+    "scope_this": "Bu etkinlik",
+    "scope_following": "Bu ve sonraki etkinlikler",
+    "scope_all": "Tüm etkinlikler"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

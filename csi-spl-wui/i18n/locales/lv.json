@@ -2167,6 +2167,14 @@
     "next_day": "Nākamā diena",
     "placeholder": "Šis skats drīz būs pieejams."
   },
+  "calendar_phone_peek": {
+    "guests": "Viesi",
+    "delete_failed": "Notikumu neizdevās izdzēst. Mēģiniet vēlreiz.",
+    "scope_title": "Atkārtota notikuma dzēšana",
+    "scope_this": "Šis notikums",
+    "scope_following": "Šis un nākamie notikumi",
+    "scope_all": "Visi notikumi"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

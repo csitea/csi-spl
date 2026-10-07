@@ -2167,6 +2167,14 @@
     "next_day": "Następny dzień",
     "placeholder": "Ten widok pojawi się wkrótce."
   },
+  "calendar_phone_peek": {
+    "guests": "Goście",
+    "delete_failed": "Nie udało się usunąć wydarzenia. Spróbuj ponownie.",
+    "scope_title": "Usuwanie wydarzenia cyklicznego",
+    "scope_this": "To wydarzenie",
+    "scope_following": "To i następne wydarzenia",
+    "scope_all": "Wszystkie wydarzenia"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

@@ -2167,6 +2167,14 @@
     "next_day": "Järgmine päev",
     "placeholder": "See vaade tuleb peagi."
   },
+  "calendar_phone_peek": {
+    "guests": "Külalised",
+    "delete_failed": "Sündmust ei saanud kustutada. Proovi uuesti.",
+    "scope_title": "Korduva sündmuse kustutamine",
+    "scope_this": "See sündmus",
+    "scope_following": "See ja järgmised sündmused",
+    "scope_all": "Kõik sündmused"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

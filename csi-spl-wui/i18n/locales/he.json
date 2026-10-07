@@ -2167,6 +2167,14 @@
     "next_day": "היום הבא",
     "placeholder": "התצוגה הזו תגיע בקרוב."
   },
+  "calendar_phone_peek": {
+    "guests": "אורחים",
+    "delete_failed": "לא ניתן היה למחוק את האירוע. נסו שוב.",
+    "scope_title": "מחיקת אירוע חוזר",
+    "scope_this": "האירוע הזה",
+    "scope_following": "האירוע הזה והבאים",
+    "scope_all": "כל האירועים"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

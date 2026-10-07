@@ -90,12 +90,13 @@
               :items="pg.dir === 0 ? items : []"
               :state="pg.dir === 0 ? state : 'loading'"
               @add="openSheet({ day: $event })"
+              @open="openPeek"
             />
             <div v-else class="calphone__slot" :data-test="`calphone-slot-${view}`" :data-period="pg.period">
               <p class="calphone__slot-title">{{ pg.title }}</p>
               <p class="calphone__slot-note">{{ t('calendar_phone.placeholder') }}</p>
               <ul v-if="pg.dir === 0 && state === 'ready'" class="calphone__slot-list">
-                <li v-for="ev in items" :key="ev.id" class="calphone__slot-row" data-test="calphone-slot-row">
+                <li v-for="ev in items" :key="ev.id" class="calphone__slot-row" data-test="calphone-slot-row" :data-id="ev.id" @click="openPeek(ev)">
                   {{ ev.title }}
                 </li>
               </ul>
@@ -184,6 +185,8 @@
       :hour="sheetFor.hour"
       @update:open="(v: boolean) => { if (!v && panel === 'add') panel = '' }"
     />
+    <!-- T009: an event's peek, its own chunk on the first tap (openPeek is provided to the views) -->
+    <LazyCalendarPhonePeek v-if="peekOn" :event="peekEv" :today="today" @close="peekEv = null" @edit="fromPeek($event, false)" @duplicate="fromPeek($event, true)" />
   </section>
 </template>
 
@@ -193,6 +196,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
+import { isoClock, isoDate } from '~/utils/date-iso.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
@@ -269,6 +273,21 @@ function openSheet(o: Partial<SheetFor> = {}) {
   panel.value = 'add'
 }
 provide('calphone-sheet', openSheet)
+
+/* T009: a tap on an event opens its peek; the views reach it by inject('calphone-peek').
+   Edit hands the event to T008's sheet; Duplicate opens a new event on its day and hour */
+const peekEv = shallowRef<CalendarItem | null>(null)
+const peekOn = ref(false)
+function openPeek(ev: CalendarItem) {
+  peekOn.value = true
+  peekEv.value = ev
+}
+provide('calphone-peek', openPeek)
+function fromPeek(ev: CalendarItem, copy: boolean) {
+  peekEv.value = null
+  if (!copy) return openSheet({ event: ev })
+  openSheet({ day: ev.all_day ? ev.starts_at.slice(0, 10) : isoDate(ev.starts_at), hour: ev.all_day ? -1 : Number(isoClock(ev.starts_at).slice(0, 2)) })
+}
 
 function goToday() {
   if (shownDay.value === props.today) return

@@ -2167,6 +2167,14 @@
     "next_day": "Nästa dag",
     "placeholder": "Den här vyn kommer snart."
   },
+  "calendar_phone_peek": {
+    "guests": "Gäster",
+    "delete_failed": "Händelsen kunde inte tas bort. Försök igen.",
+    "scope_title": "Ta bort en återkommande händelse",
+    "scope_this": "Den här händelsen",
+    "scope_following": "Den här och följande händelser",
+    "scope_all": "Alla händelser"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

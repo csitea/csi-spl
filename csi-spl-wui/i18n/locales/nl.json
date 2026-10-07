@@ -2167,6 +2167,14 @@
     "next_day": "Volgende dag",
     "placeholder": "Deze weergave komt binnenkort."
   },
+  "calendar_phone_peek": {
+    "guests": "Gasten",
+    "delete_failed": "Het evenement kon niet worden verwijderd. Probeer het opnieuw.",
+    "scope_title": "Een terugkerend evenement verwijderen",
+    "scope_this": "Dit evenement",
+    "scope_following": "Dit en volgende evenementen",
+    "scope_all": "Alle evenementen"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

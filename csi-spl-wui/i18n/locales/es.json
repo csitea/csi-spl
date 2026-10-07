@@ -2167,6 +2167,14 @@
     "next_day": "Día siguiente",
     "placeholder": "Esta vista llega pronto."
   },
+  "calendar_phone_peek": {
+    "guests": "Invitados",
+    "delete_failed": "No se pudo eliminar el evento. Inténtalo de nuevo.",
+    "scope_title": "Eliminar un evento periódico",
+    "scope_this": "Este evento",
+    "scope_following": "Este y los siguientes",
+    "scope_all": "Todos los eventos"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

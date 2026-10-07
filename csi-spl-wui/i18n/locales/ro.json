@@ -2167,6 +2167,14 @@
     "next_day": "Ziua următoare",
     "placeholder": "Această vizualizare vine în curând."
   },
+  "calendar_phone_peek": {
+    "guests": "Invitați",
+    "delete_failed": "Evenimentul nu a putut fi șters. Încercați din nou.",
+    "scope_title": "Ștergerea unui eveniment recurent",
+    "scope_this": "Acest eveniment",
+    "scope_following": "Acesta și următoarele",
+    "scope_all": "Toate evenimentele"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

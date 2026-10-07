@@ -2167,6 +2167,14 @@
     "next_day": "Наступний день",
     "placeholder": "Цей вигляд скоро з’явиться."
   },
+  "calendar_phone_peek": {
+    "guests": "Гості",
+    "delete_failed": "Не вдалося видалити подію. Спробуйте ще раз.",
+    "scope_title": "Видалення повторюваної події",
+    "scope_this": "Ця подія",
+    "scope_following": "Ця та наступні події",
+    "scope_all": "Усі події"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

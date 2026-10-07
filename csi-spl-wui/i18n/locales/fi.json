@@ -2167,6 +2167,14 @@
     "next_day": "Seuraava päivä",
     "placeholder": "Tämä näkymä tulee pian."
   },
+  "calendar_phone_peek": {
+    "guests": "Vieraat",
+    "delete_failed": "Tapahtumaa ei voitu poistaa. Yritä uudelleen.",
+    "scope_title": "Toistuvan tapahtuman poisto",
+    "scope_this": "Tämä tapahtuma",
+    "scope_following": "Tämä ja seuraavat tapahtumat",
+    "scope_all": "Kaikki tapahtumat"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

@@ -2167,6 +2167,14 @@
     "next_day": "Επόμενη ημέρα",
     "placeholder": "Αυτή η προβολή έρχεται σύντομα."
   },
+  "calendar_phone_peek": {
+    "guests": "Προσκεκλημένοι",
+    "delete_failed": "Η εκδήλωση δεν διαγράφηκε. Δοκιμάστε ξανά.",
+    "scope_title": "Διαγραφή επαναλαμβανόμενης εκδήλωσης",
+    "scope_this": "Αυτή η εκδήλωση",
+    "scope_following": "Αυτή και οι επόμενες",
+    "scope_all": "Όλες οι εκδηλώσεις"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

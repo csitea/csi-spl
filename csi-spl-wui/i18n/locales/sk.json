@@ -2167,6 +2167,14 @@
     "next_day": "Nasledujúci deň",
     "placeholder": "Toto zobrazenie príde čoskoro."
   },
+  "calendar_phone_peek": {
+    "guests": "Hostia",
+    "delete_failed": "Udalosť sa nepodarilo odstrániť. Skúste to znova.",
+    "scope_title": "Odstránenie opakujúcej sa udalosti",
+    "scope_this": "Táto udalosť",
+    "scope_following": "Táto a nasledujúce udalosti",
+    "scope_all": "Všetky udalosti"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

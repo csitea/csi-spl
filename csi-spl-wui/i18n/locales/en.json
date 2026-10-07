@@ -2167,6 +2167,14 @@
     "next_day": "Next day",
     "placeholder": "This view is on its way."
   },
+  "calendar_phone_peek": {
+    "guests": "Guests",
+    "delete_failed": "The event could not be deleted. Try again.",
+    "scope_title": "Delete a repeating event",
+    "scope_this": "This event",
+    "scope_following": "This and following events",
+    "scope_all": "All events"
+  },
   "status": {
     "set": "Set a status",
     "change": "Your status: {status}. Change it",

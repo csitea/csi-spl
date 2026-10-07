@@ -131,12 +131,12 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
 
 ### Phase 5: proof
 
-- [ ] T13 **dev proof** (S).
+- [x] T13 **dev proof** (S). Done (c-448, 2026-10-07): the owner's switch-on scope (HUM-10: "Switch it on both mobile and desktop."), proven in the WUI as the dev t1 test member at 1280x800 and 390x844 (Edit in the viewport, author notice, save, chip Saved · pushing -> Pushed): desktop `a83e0fa`, phone `cc3f6e7` (through the conflict view, see below); author = member, subject `docs(dev): edit <path>`, no AI trailer; CI on each: 15, 32, 64 (+ 10), no hub/WUI deploy. cnf `d2c23801` (030 also ignores the service-level `scaling`), 030 applied on dev (1 import, 1 add, 1 change). Found on the way: 051 gave the hub no write on `.edits/` (fixed `82b1fed5`: conditional objectUser, applied dev+prd); the GitHub client could not decode the create-tree answer (fixed `5d1c1d8b`, c-448@sat). Not run here: §12 dev proof 2-6 (two browsers, deny, agent, key disable). Open, own lanes: a re-save keeps a stale base while an own overlay is served (c-455); committer is the member, not the App (c-456).
   - **Do**: check T03 is live on dev and prd (`tree.json` has `blob`); key on dev and prd via T04 (the orchestrator runs it); cnf `docs.repo_edit.inject: "true"`, apply 030 (owner's go), then `enabled: true` on dev only; run spec §12 dev proof 1-6.
   - **Done-proof**: the six results with commit shas; `git log -1 --format='%an <%ae> | %cn | %s'` for the proof commit; `gh run list --commit <sha>` shows 10, 15, 32, 64 and no hub/WUI deploy.
   - **Depends**: T00, T03, T04, T08, T10, T12.
 
-- [ ] T14 **prd proof** (S).
+- [x] T14 **prd proof** (S). Done (c-448, 2026-10-07): cnf `1f3a1e32` (pins the live `SPOOL_HUB_RESTART_AT`), 030 applied on prd (1 import, 1 add, 1 change, nothing removed; image and scaling as live). Proven on the prd e2e workspace (claim and host `e2e`, never t1): desktop `54de6e7`, phone `f0366da`, both `docs: edit <path>`, author = the member; wf 32 green, no hub/WUI deploy for either sha.
   - **Do**: `enabled: true` on prd; one real edit under `csi-spl-doc/`; spec §12 prd proof.
   - **Done-proof**: the commit sha, its author line, workflow 32 green, both overlays `published`, no hub/WUI deploy for that sha.
   - **Depends**: T13.

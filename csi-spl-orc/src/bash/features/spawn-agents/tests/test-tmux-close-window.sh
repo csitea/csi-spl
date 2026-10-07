@@ -296,8 +296,8 @@ in_agy_session env CLE_TMUX_PANE="$P13C" bash "$T_TMP/pre13/scripts/tmux-close-w
 sleep 8
 eq "13. control: without the fork the idle session is never ended" "" "$(cat "$T_TMP/got-417" 2>/dev/null)"
 # A human looking at the window: an attached client whose current window it is.
-attach_human() {  # WINDOW-TARGET -> a client on it (script gives tmux a tty)
-  setsid -f script -qfc "tmux -S '$SPOOL_TMUX_SOCKET' attach -t '$1'" /dev/null </dev/null >/dev/null 2>&1
+attach_human() {  # WINDOW-TARGET -> a client on it (script gives tmux a tty; CI has no TERM, and tmux refuses to attach without one)
+  setsid -f script -qfc "TERM=xterm tmux -S '$SPOOL_TMUX_SOCKET' attach -t '$1'" /dev/null </dev/null >/dev/null 2>&1
   for _ in $(seq 1 20); do [ -n "$(tmux -S "$SPOOL_TMUX_SOCKET" list-clients -F x 2>/dev/null)" ] && return 0; sleep 0.25; done
   return 1
 }

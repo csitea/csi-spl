@@ -11,6 +11,10 @@
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
 # @description               repo files the unit tests read (unit tests + typecheck)
 # @description   api         csi-spl-api/ csi-spl-rdb/ .version
+# @description   cnf         INSTEAD of iac when every changed path is under
+# @description               csi-spl-cnf/csi-spl/ (the env yaml + its rendered
+# @description               tfvars/json): ENV=dev|prd do_tpl_gen must leave the
+# @description               render unchanged. Any other path = the iac suite.
 # @description   lint-*      the scanner workflows (61..67, 85) + syntax, on the
 # @description               TOUCHED files only -- check-pre-push-lint.func.sh
 # @description   A push that touches none of a part's paths never runs it (it is
@@ -152,6 +156,7 @@ _pp_paths() {  # <part>
     wui)        echo "csi-spl-wui${_PP_TOP:+ $(_pp_wui_external "$_PP_TOP")}" ;;
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
+    cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ;;
     lint-*)     _ppl_paths "$1" ;;
     *)          echo "" ;;
   esac
@@ -163,6 +168,7 @@ _pp_label() {  # <part>
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
     wui)        echo "csi-spl-wui unit + typecheck" ;;
     api)        echo "csi-spl-api suite" ;;
+    cnf)        echo "csi-spl-cnf tpl-gen render check (dev, prd)" ;;
     lint-*)     echo "$1 (touched files, CI's version + baseline)" ;;
   esac
 }
@@ -289,6 +295,9 @@ _pp_missing_tools() {  # <part> <tree>
       _pp_need jq "apt-get install jq"
       _pp_need python3 "apt-get install python3" ;;
     wui-vendor) _pp_need grep "install grep" ;;
+    cnf)
+      _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
+      _pp_tpl_gen_dir "$tree" >/dev/null || echo "tpl-gen -- cd csi-spl-iac && ./run -a do_setup_tpl_gen (in the main checkout)" ;;
     wui)
       _pp_pnpm >/dev/null || echo "pnpm -- corepack enable pnpm, or install it into ~/.local/bin"
       _pp_need node "install Node (the version in csi-spl-wui/package.json engines)" ;;
@@ -369,9 +378,55 @@ _pp_part_wui() {
     "$2" run typecheck  || exit 1
   ' _ "$1" "$pn"
 }
+# A cnf-only push (the env yaml and its render, nothing else) cannot break what
+# the iac suite tests beyond the render itself, yet ran it for 6+ min (a 4-file
+# workspace mapping, 2026-10-07). Code under csi-spl-cnf/src (conf-validator)
+# is not "cnf-only": it still runs the suite. CI workflow 10 runs it anyway.
+_pp_cnf_only() {  # <changed-list>
+  local f n=0
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    [[ "$f" == csi-spl-cnf/csi-spl/* ]] || return 1
+    n=$((n + 1))
+  done <<< "$1"
+  [[ "$n" -gt 0 ]]
+}
+# The tpl-gen clone with a venv: TPL_GEN_PATH, the tree's own, else the main
+# checkout's (a lane worktree carries none; it is git-ignored).
+_pp_tpl_gen_dir() {  # <tree>
+  local c main
+  main="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | xargs -r dirname)"
+  for c in "${TPL_GEN_PATH:-}" "$1/tpl-gen" "${main:+$main/tpl-gen}"; do
+    [[ -n "$c" && -x "$c/src/python/tpl-gen/.venv/bin/python" ]] && { printf '%s' "$c"; return 0; }
+  done
+  return 1
+}
+# The content id of an env's rendered files in the working tree.
+_pp_cnf_render_id() {  # <tree> <env>
+  ( cd "$1/csi-spl-cnf/csi-spl" 2>/dev/null && find "$2/tf" "$2.env.json" -type f 2>/dev/null | sort | xargs -r sha1sum | sha1sum | cut -c1-40 )
+}
+# Re-render both envs in place (ENV=<env> do_tpl_gen): the render must not
+# change, i.e. the committed tfvars/json are what the yaml renders to. A stale
+# render is left re-rendered in the tree, ready to commit.
+_pp_part_cnf() {  # <tree>
+  local tree="$1" tg env before rc=0
+  tg="$(_pp_tpl_gen_dir "$tree")" || { echo "FAIL: tpl-gen render -- no tpl-gen venv"; return 1; }
+  for env in dev prd; do
+    before="$(_pp_cnf_render_id "$tree" "$env")"
+    if ! ( APP_PATH="$tree" PROJ_PATH="$tree/csi-spl-iac" ENV="$env" TPL_GEN_PATH="$tg" do_tpl_gen ); then
+      echo "FAIL: tpl-gen render $env -- do_tpl_gen failed"; rc=1; continue
+    fi
+    if [[ "$(_pp_cnf_render_id "$tree" "$env")" != "$before" ]]; then
+      echo "FAIL: tpl-gen render $env -- csi-spl-cnf/csi-spl/$env is stale: commit what ENV=$env ./run -a do_tpl_gen just wrote"
+      git -C "$tree" status --short -- "csi-spl-cnf/csi-spl/$env" "csi-spl-cnf/csi-spl/$env.env.json"
+      rc=1
+    fi
+  done
+  return "$rc"
+}
 _pp_fn() {  # <part>
   case "$1" in
-    hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;;
+    hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;;
     lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
@@ -645,6 +700,7 @@ do_check_pre_push() {
       # shellcheck disable=SC2046
       _pp_touches "$sel" $(_pp_paths "$p") && parts+=" $p"
     done
+    _pp_cnf_only "$changed" && parts="${parts/ iac/ cnf}"
   fi
   # The lint parts run right after hygiene: seconds, and the likeliest red.
   if [[ "$only" == override ]]; then
@@ -656,7 +712,7 @@ do_check_pre_push() {
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene $lint_all iac wui-vendor wui api"
+    all="hygiene $lint_all cnf iac wui-vendor wui api"
     parts="${parts/hygiene/hygiene${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi

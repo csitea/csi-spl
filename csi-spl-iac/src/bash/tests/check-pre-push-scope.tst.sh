@@ -26,6 +26,11 @@
 #    13. (c-226) a green wui verdict survives a rebase over a spec tasks.md and a
 #        cnf tfvars; a templated read (csi-spl-cnf/csi-spl/${env}.env.json) is a
 #        glob: its files select and key the part, the rest of that dir does not
+#    14. (c-502) a push touching ONLY csi-spl-cnf/csi-spl/** runs the cnf render
+#        part, not the iac suite; CONTROL: cnf + a .sh, and cnf + conf-validator
+#        code (csi-spl-cnf/src), still run the iac suite and not the cnf part
+#    15. the real cnf part (do_tpl_gen stubbed): an unchanged render PASSES, a
+#        stale one FAILS naming the env; CONTROL: no tpl-gen venv is a FAIL
 #------------------------------------------------------------------------------
 set -uo pipefail
 # Defensive git-env scrub: this test creates commits in throwaway repos; a leaked
@@ -56,6 +61,7 @@ _pp_part_api() { _stub csi-spl-api "$1"; }
 _pp_part_iac() { _stub csi-spl-iac "$1"; }
 _pp_part_wui() { echo csi-spl-wui-unit >>"$COUNT"; grep -q good "$1/csi-spl-wui/flag" 2>/dev/null; }
 _pp_part_wui_vendor() { _stub csi-spl-wui "$1"; }
+_pp_part_cnf() { echo cnf-render >>"$COUNT"; }
 runs() { grep -cx "$1" "$COUNT" 2>/dev/null || true; }
 
 # A repo whose 'trunk' branch plays origin/master; HEAD is a lane branch.
@@ -75,7 +81,7 @@ gate() {  # <repo> [env...] -> rc; per-part log in $R.log
   local R="$1" pre='_pp_missing_tools() { :; }; _ppl_plan() { _PPL_SELECTED=""; }'; shift
   [ "${TOOLS:-stub}" = real ] && pre='_ppl_plan() { _PPL_SELECTED=""; }'
   ( env "$@" PRE_PUSH_TREE="$R" PRE_PUSH_BASE=trunk PRE_PUSH_LOG="$R.log" PRE_PUSH_CACHE="$R.cache" \
-      bash -c '. "$0"; '"$pre"'; '"$(declare -f do_log do_check_dist_hygiene _stub _pp_part_api _pp_part_iac _pp_part_wui _pp_part_wui_vendor)"'; COUNT="'"$COUNT"'"; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
+      bash -c '. "$0"; '"$pre"'; '"$(declare -f do_log do_check_dist_hygiene _stub _pp_part_api _pp_part_iac _pp_part_wui _pp_part_wui_vendor _pp_part_cnf)"'; COUNT="'"$COUNT"'"; do_check_pre_push' "$FUNC" ) >/dev/null 2>&1
 }
 verdict() { awk -v p="$2" '$3=="PART" && $4==p {v=$5} END{print v}' "$1.log"; }
 
@@ -274,6 +280,60 @@ gate "$R"; eq "13. rebase over the templated read (dev.env.json) -> re-runs" 2 "
 R="$ROOT/r13b"; mkwui "$R" >/dev/null 2>&1; : >"$COUNT"
 echo '{"a":1}' >"$R/csi-spl-cnf/csi-spl/prd.env.json"; git -C "$R" add -A; git -C "$R" commit -qm "a NEW env json"
 gate "$R"; eq "13. a push adding a file the templated read matches selects the wui part" 1 "$(runs csi-spl-wui-unit)"
+
+# 14. cnf-only -> the render part, never the iac suite; anything else -> iac
+mkcnf() {  # <dir>
+  mkrepo "$1"; mkdir -p "$1/csi-spl-cnf/csi-spl/dev/tf" "$1/csi-spl-cnf/src/python"
+  echo 'a: 1' >"$1/csi-spl-cnf/csi-spl/dev.env.yaml"; echo 'a = 1' >"$1/csi-spl-cnf/csi-spl/dev/tf/s.vars.tfvars"
+  echo 'x = 1' >"$1/csi-spl-cnf/src/python/v.py"
+  git -C "$1" add -A; git -C "$1" commit -qm cnf-seed; git -C "$1" branch -f trunk HEAD
+}
+R="$ROOT/r14"; mkcnf "$R" >/dev/null 2>&1; : >"$COUNT"
+echo 'a: 2' >"$R/csi-spl-cnf/csi-spl/dev.env.yaml"; echo 'a = 2' >"$R/csi-spl-cnf/csi-spl/dev/tf/s.vars.tfvars"
+git -C "$R" commit -qam "cnf value + its render"
+gate "$R"; eq "14. cnf-only push -> passes" 0 "$?"
+eq "14. ... the cnf render part ran" 1 "$(runs cnf-render)"
+eq "14. ... the iac suite never ran" 0 "$(runs csi-spl-iac)"
+eq "14. ... iac logged SKIP-untouched" SKIP-untouched "$(verdict "$R" iac)"
+eq "14. ... cnf logged PASS" PASS "$(verdict "$R" cnf)"
+R="$ROOT/r14b"; mkcnf "$R" >/dev/null 2>&1; : >"$COUNT"
+echo 'a: 2' >"$R/csi-spl-cnf/csi-spl/dev.env.yaml"; echo y >"$R/csi-spl-iac/a.sh"
+git -C "$R" add -A; git -C "$R" commit -qm "cnf + a .sh"
+gate "$R"; eq "14. CONTROL: cnf + .sh push -> the iac suite ran" 1 "$(runs csi-spl-iac)"
+eq "14. ... and the cnf part did not" 0 "$(runs cnf-render)"
+R="$ROOT/r14c"; mkcnf "$R" >/dev/null 2>&1; : >"$COUNT"
+echo 'x = 2' >"$R/csi-spl-cnf/src/python/v.py"; git -C "$R" commit -qam "conf-validator code"
+gate "$R"; eq "14. CONTROL: csi-spl-cnf/src code -> the iac suite ran" 1 "$(runs csi-spl-iac)"
+eq "14. ... and the cnf part did not" 0 "$(runs cnf-render)"
+
+# 15. the real cnf part: a fake do_tpl_gen renders tf/s.vars.tfvars and
+#     <env>.env.json from <env>.env.yaml
+R="$ROOT/r15"; mkcnf "$R" >/dev/null 2>&1
+TG="$ROOT/tpl-gen"; mkdir -p "$TG/src/python/tpl-gen/.venv/bin"
+printf '#!/bin/sh\n' >"$TG/src/python/tpl-gen/.venv/bin/python"; chmod +x "$TG/src/python/tpl-gen/.venv/bin/python"
+for e in dev prd; do
+  mkdir -p "$R/csi-spl-cnf/csi-spl/$e/tf"; echo 'a: 1' >"$R/csi-spl-cnf/csi-spl/$e.env.yaml"
+  echo 'a = 1' >"$R/csi-spl-cnf/csi-spl/$e/tf/s.vars.tfvars"; echo '{"a": 1}' >"$R/csi-spl-cnf/csi-spl/$e.env.json"
+done
+git -C "$R" add -A; git -C "$R" commit -qm envs
+real_cnf() {  # -> rc of the real _pp_part_cnf on $R (not the stub above); output in $R.out
+  # shellcheck source=../run/check-pre-push.func.sh
+  ( . "$FUNC"
+    do_tpl_gen() {
+      local d="$APP_PATH/csi-spl-cnf/csi-spl" v; v="$(sed -n 's/^a: //p' "$d/$ENV.env.yaml")"
+      echo "a = $v" >"$d/$ENV/tf/s.vars.tfvars"; echo "{\"a\": $v}" >"$d/$ENV.env.json"; }
+    _pp_part_cnf "$R" ) >"$R.out" 2>&1
+}
+TPL_GEN_PATH="$TG" real_cnf; eq "15. an up-to-date render -> PASS" 0 "$?"
+eq "15. ... and leaves the tree clean" "" "$(git -C "$R" status --porcelain)"
+echo 'a: 7' >"$R/csi-spl-cnf/csi-spl/prd.env.yaml"; git -C "$R" commit -qam "prd value, render forgotten"
+TPL_GEN_PATH="$TG" real_cnf; eq "15. CONTROL: a stale prd render -> FAIL" 1 "$?"
+grep -q '^FAIL: tpl-gen render prd -- ' "$R.out" && pass "15. ... naming prd" || fail "15. ... naming prd" "$(cat "$R.out")"
+grep -q 'render dev' "$R.out" && fail "15. ... and not dev" "$(cat "$R.out")" || pass "15. ... and not dev"
+grep -qx 'a = 7' "$R/csi-spl-cnf/csi-spl/prd/tf/s.vars.tfvars" && pass "15. ... the fresh render is left to commit" || fail "15. ... the fresh render is left to commit"
+git -C "$R" commit -qam "prd render"
+TPL_GEN_PATH="$ROOT/none" real_cnf; eq "15. CONTROL: no tpl-gen venv -> FAIL" 1 "$?"
+eq "15. ... and the preflight names it" tpl-gen "$(_pp_missing_tools cnf "$R" | grep -o '^tpl-gen')"
 
 echo "-- check-pre-push-scope.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

@@ -1,0 +1,6 @@
+Lay-What: Restoring a backup now rebuilds the topic summaries, and a test restore can check that they are correct.
+Lay-How: After putting the data back, the tool rebuilds every summary from the messages; a test restore compares them instead.
+Lay-Why: The summaries are derived from messages, so after a restore they must be rebuilt, and a backup should prove they match.
+Tech-What: do_spl_db_restore runs REBUILD=all DRY_RUN=0 do_spl_topic_head_backfill after TARGET=env; TOPIC_HEAD_VERIFY=1 verifies TARGET=local.
+Tech-How: Backfill after a green compare (rc 7 on failure, skipped before rdb 0144); verify runs _spl_topic_head_verify_run over the container IP.
+Tech-Why: Spec 099 T007: topic_heads is derived state; a restore must rebuild it and the daily backup must prove a restored copy matches.

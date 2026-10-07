@@ -50,6 +50,8 @@ type Postgres struct {
 	humStatus seatsProbe
 	// kv: is rdb 0136 tenants.settings there yet (tenant_kv.go)
 	kv seatsProbe
+	// heads: the head read switch and the rdb 0144 probe (view_topics_head.go)
+	heads topicHeads
 }
 
 // PoolLimits sizes the connection pool (specs/027 T010). A zero field keeps

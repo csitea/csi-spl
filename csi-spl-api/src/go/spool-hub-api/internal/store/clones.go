@@ -204,6 +204,9 @@ func (s *Postgres) ViewTopicsUnlessClone(ctx context.Context, tenant, reader str
 	if q.Parent != "" && !canonUUIDRe.MatchString(q.Parent) {
 		return nil, false, nil
 	}
+	if s.headsServe(ctx, q) { // spec 099 T005: SPOOL_HUB_TOPIC_HEADS=on
+		return s.viewTopicsHeadsUnlessClone(ctx, tenant, reader, q)
+	}
 	sql, args := viewTopicsSQL(tenant, q)
 	b := &pgx.Batch{}
 	b.Queue(pgScopeTenantNoJIT, tenant)

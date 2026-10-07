@@ -106,6 +106,9 @@ func (s *Postgres) ViewTopics(ctx context.Context, tenant string, q TopicQuery) 
 	if q.Parent != "" && !canonUUIDRe.MatchString(q.Parent) {
 		return nil, nil
 	}
+	if s.headsServe(ctx, q) { // spec 099 T005: SPOOL_HUB_TOPIC_HEADS=on
+		return s.viewTopicsHeads(ctx, tenant, q)
+	}
 	sql, args := viewTopicsSQL(tenant, q)
 	var out []TopicRow
 	err := s.queryTenantNoJIT(ctx, tenant, sql, args, scanTopicRows(&out))

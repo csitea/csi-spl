@@ -119,6 +119,10 @@ type Options struct {
 	OriginTenant *OriginTenant
 	// LobbyTaskID is cnf SPOOL_HUB_LOBBY_TASK_ID (wui-live-ws.md §1); "" = lobby off.
 	LobbyTaskID string
+	// TopicHeads is SPOOL_HUB_TOPIC_HEADS (spec 099 5.1): off (""), shadow or
+	// on; TopicHeadsSample shadows 1 topic list in that many (<1 = 1).
+	TopicHeads       string
+	TopicHeadsSample int
 	// Auth is the social sign-in surface (spec 010, /api/v1/auth/*); nil = not
 	// mounted. It is not tenant-scoped: the routes answer on any Host.
 	Auth *auth.Handler
@@ -238,6 +242,8 @@ type Server struct {
 	backfilling sync.Map // backfill.go: [4]string seat -> in flight
 
 	statusSwept statusSweeps // human_status.go: last expiry sweep per tenant, its own lock
+
+	heads *headShadow // view.go: the topic-head shadow's sampler and counters (spec 099)
 }
 
 type uploadToken struct {
@@ -287,18 +293,40 @@ func New(o Options) (*Server, error) {
 		o.PingTimeout = writeTimeout
 	}
 	o.Revision = revisionOr(o.Revision)
+	if err := topicHeadsOption(&o); err != nil {
+		return nil, err
+	}
 	s := &Server{
 		o: o, suffix: strings.ToLower(strings.TrimPrefix(o.TenantHostPattern, "{tenant}")),
 		boxes: map[[2]string]*session{}, left: map[[2]string]time.Time{}, sessions: map[*session]struct{}{},
 		tokens: map[string]uploadToken{}, wui: map[*wuiConn]struct{}{}, online: map[[2]string]int{},
 		edge: edge.NewGuard(o.Edge, o.Log, o.Now), searchRate: edge.NewWindow(time.Minute, o.Now),
-		fileUsage: newFileUsage(o.FileUsageTTL),
+		fileUsage: newFileUsage(o.FileUsageTTL), heads: newHeadShadow(o.TopicHeads, o.TopicHeadsSample),
 	}
 	if o.CICD != nil {
 		o.CICD.Bus = s
 		s.cicd = o.CICD
 	}
 	return s, nil
+}
+
+// topicHeadsOption checks o.TopicHeads ("" = off) and switches a store that
+// can read topic heads (rdb 0144, store.Postgres) to them only for on.
+func topicHeadsOption(o *Options) error {
+	switch o.TopicHeads {
+	case "":
+		o.TopicHeads = TopicHeadsOff
+	case TopicHeadsOff, TopicHeadsShadow, TopicHeadsOn:
+	default:
+		return fmt.Errorf("hub: topic heads %q must be off, shadow or on", o.TopicHeads)
+	}
+	if o.TopicHeadsSample < 1 {
+		o.TopicHeadsSample = 1
+	}
+	if hs, ok := o.Store.(interface{ SetTopicHeads(on bool) }); ok {
+		hs.SetTopicHeads(o.TopicHeads == TopicHeadsOn)
+	}
+	return nil
 }
 
 // Handler returns the HTTP surface (http-v1.md §1) behind the shared middleware.
@@ -384,12 +412,14 @@ func (s *Server) Handler() http.Handler {
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),
-// plus the schema head serve checked at start (spec 072 A45).
+// plus the schema head serve checked at start (spec 072 A45) and the topic
+// list read (topic_heads, spec 099: the triggers action refuses unless off).
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	v := map[string]string{"version": s.o.Version, "commit": s.o.Commit, "built_at": s.o.BuiltAt}
 	if s.o.SchemaHead != "" {
 		v["schema_head"] = s.o.SchemaHead
 	}
+	v["topic_heads"] = s.o.TopicHeads // spec 099 5.1: off | shadow | on
 	writeJSON(w, http.StatusOK, v)
 }
 

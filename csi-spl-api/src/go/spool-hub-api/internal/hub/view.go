@@ -13,8 +13,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
+
+	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -728,37 +732,21 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 	if !ok {
 		return
 	}
-	var rows []store.TopicRow
-	var err error
-	switch {
-	case cloneGate != "":
-		var clone bool
-		rows, clone, err = s.o.Store.(topicsCloneGate).ViewTopicsUnlessClone(r.Context(), t.ID, cloneGate, sq)
-		if err == nil && clone {
-			writeActAsNoDM(w)
-			return
-		}
-	case body.Delta == nil || !*body.Delta || len(sq.TaskIDs) > 0: // a delta with no change reads nothing
-		rows, err = s.o.Store.ViewTopics(r.Context(), t.ID, sq)
+	// read false: a delta with no change reads nothing
+	rows, clone, err := s.readTopics(r.Context(), t.ID, sq, cloneGate, body.Delta == nil || !*body.Delta || len(sq.TaskIDs) > 0)
+	if err == nil && clone {
+		writeActAsNoDM(w)
+		return
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
 	}
-	var next *string
-	if len(rows) == sq.Limit {
-		rows = rows[:sq.Limit-1]
-		c := encCursor(rows[len(rows)-1].LastAt, rows[len(rows)-1].TaskID)
-		next = &c
-	}
+	out, next := topicsPage(rows, sq.Limit)
 	mod, err := s.moderation(r.Context(), t.ID, sq.Reader)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topics unavailable")
 		return
-	}
-	out := make([]viewTopic, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, topicView(row))
 	}
 	out = mod.keepTopics(out) // specs/077 T016: a hidden opening message takes its topic row
 	if per > 0 && !s.inlineMessages(w, r, t, sq, per, out, mod) {
@@ -772,6 +760,167 @@ func (s *Server) listTopics(w http.ResponseWriter, r *http.Request, t store.Tena
 	}
 	body.Topics, body.Next = out, next
 	writeJSON(w, http.StatusOK, body)
+}
+
+// readTopics reads the page's rows: through the clone gate's batch when
+// cloneGate is set, else ViewTopics; read false = a delta with no change,
+// nothing is read. In shadow mode a sampled list reads the walk and the head
+// read in one snapshot and serves the walk (shadowTopics).
+func (s *Server) readTopics(ctx context.Context, tenant string, sq store.TopicQuery, cloneGate string, read bool) ([]store.TopicRow, bool, error) {
+	if read && len(sq.TaskIDs) == 0 && s.heads.sampled() {
+		if p, ok := s.o.Store.(topicsShadow); ok {
+			if rows, clone, ok := s.shadowTopics(ctx, p, tenant, sq, cloneGate); ok {
+				return rows, clone, nil
+			}
+		}
+	}
+	switch {
+	case cloneGate != "":
+		return s.o.Store.(topicsCloneGate).ViewTopicsUnlessClone(ctx, tenant, cloneGate, sq)
+	case read:
+		rows, err := s.o.Store.ViewTopics(ctx, tenant, sq)
+		return rows, false, err
+	}
+	return nil, false, nil
+}
+
+// topicsPage is a page of rows as the topics body carries it: the limit is
+// one past the page, so a full read cuts the extra row and names the next
+// page's cursor.
+func topicsPage(rows []store.TopicRow, limit int) ([]viewTopic, *string) {
+	var next *string
+	if len(rows) == limit {
+		rows = rows[:limit-1]
+		c := encCursor(rows[len(rows)-1].LastAt, rows[len(rows)-1].TaskID)
+		next = &c
+	}
+	out := make([]viewTopic, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, topicView(row))
+	}
+	return out, next
+}
+
+// Topic-head modes (SPOOL_HUB_TOPIC_HEADS, spec 099 5.1).
+const (
+	TopicHeadsOff    = "off"
+	TopicHeadsShadow = "shadow"
+	TopicHeadsOn     = "on"
+)
+
+// topicHeadShadowEvery is the topic_head_shadow counter's period.
+const topicHeadShadowEvery = 10 * time.Minute
+
+// topicsShadow is a store that reads the walk and the head read of one list
+// in ONE snapshot (store.Postgres.ViewTopicsShadow); ok false = the head
+// read does not apply there yet (no tables, tenant not backfilled).
+type topicsShadow interface {
+	ViewTopicsShadow(ctx context.Context, tenant string, q store.TopicQuery) (walk, head []store.TopicRow, ok bool, err error)
+}
+
+// shadowTopics is one shadowed list: the walk is served, the head read's
+// page is compared with it as the hub's JSON bytes (topicsPage, encoded as
+// writeJSON encodes it), and the result counted per shape. A live act-as
+// clone is refused first (clone true), as the fused gate would. done false =
+// the shadow read failed: it is logged and the caller reads the usual way.
+func (s *Server) shadowTopics(ctx context.Context, p topicsShadow, tenant string, sq store.TopicQuery, cloneGate string) (rows []store.TopicRow, clone, done bool) {
+	if cloneGate != "" && s.readerIsActAsClone(ctx, tenant, cloneGate) {
+		return nil, true, true
+	}
+	walk, head, ok, err := p.ViewTopicsShadow(ctx, tenant, sq)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", tenant).Str("shape", topicShape(sq)).Msg("topic_head_shadow_error")
+		return nil, false, false
+	}
+	if ok {
+		s.heads.compare(s.o.Log, s.o.Now(), tenant, topicShape(sq), sq.Limit, walk, head)
+	}
+	return walk, false, true
+}
+
+// topicShape names a list's route shape for the shadow's counters: the six
+// lists the WUI sends (children, DMs, a channel, an agent's, all roots, all).
+func topicShape(sq store.TopicQuery) string {
+	switch {
+	case sq.Parent != "":
+		return "children"
+	case sq.DM:
+		return "dm"
+	case sq.Channel != "":
+		return "channel"
+	case sq.Agent != "":
+		return "agent"
+	case !sq.Roots:
+		return "all_flat"
+	}
+	return "all"
+}
+
+// headShadow samples the shadowed lists and counts them per shape.
+type headShadow struct {
+	on     bool
+	sample int64
+	n      atomic.Int64
+	mu     sync.Mutex
+	since  time.Time
+	cells  map[string]*[2]int // shape -> compared, mismatched
+}
+
+func newHeadShadow(mode string, sample int) *headShadow {
+	return &headShadow{on: mode == TopicHeadsShadow, sample: int64(max(sample, 1)), cells: map[string]*[2]int{}}
+}
+
+// sampled: this list is shadowed (1 in sample, shadow mode only).
+func (h *headShadow) sampled() bool {
+	return h != nil && h.on && (h.n.Add(1)-1)%h.sample == 0
+}
+
+// compare checks the two pages' bytes, logs topic_head_mismatch (the tenant,
+// the shape and the page's task ids, never a body) for a difference, and
+// counts it; every topicHeadShadowEvery it logs topic_head_shadow per shape.
+func (h *headShadow) compare(log zerolog.Logger, now time.Time, tenant, shape string, limit int, walk, head []store.TopicRow) {
+	mismatch := !bytes.Equal(topicsPageJSON(walk, limit), topicsPageJSON(head, limit))
+	if mismatch {
+		log.Warn().Str("tenant", tenant).Str("shape", shape).Strs("walk_tasks", taskIDs(walk)).
+			Strs("head_tasks", taskIDs(head)).Msg("topic_head_mismatch")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.since.IsZero() {
+		h.since = now
+	}
+	c := h.cells[shape]
+	if c == nil {
+		c = &[2]int{}
+		h.cells[shape] = c
+	}
+	c[0]++
+	if mismatch {
+		c[1]++
+	}
+	if now.Sub(h.since) < topicHeadShadowEvery {
+		return
+	}
+	for sh, c := range h.cells {
+		log.Info().Str("shape", sh).Int("compared", c[0]).Int("mismatched", c[1]).Msg("topic_head_shadow")
+	}
+	h.cells, h.since = map[string]*[2]int{}, now
+}
+
+// topicsPageJSON is the page of rows as the topics body's bytes.
+func topicsPageJSON(rows []store.TopicRow, limit int) []byte {
+	out, next := topicsPage(rows, limit)
+	var buf bytes.Buffer
+	json.NewEncoder(&buf).Encode(topicsBody{Topics: out, Next: next}) //nolint:errcheck // a bytes.Buffer
+	return buf.Bytes()
+}
+
+func taskIDs(rows []store.TopicRow) []string {
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.TaskID)
+	}
+	return ids
 }
 
 // deltaScope applies since= (view_delta.go) to sq: a delta lists only the

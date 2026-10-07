@@ -364,6 +364,13 @@ type Hub struct {
 	// only; "session" = member sessions only + credentialed CORS (010 FR-009).
 	ViewDoor        string   `env:"SPOOL_HUB_VIEW_DOOR" envDefault:"token"`
 	ViewCORSOrigins []string `env:"SPOOL_HUB_VIEW_CORS_ORIGINS" envSeparator:","`
+	// TopicHeads is the topic-list read (spec 099 5.1): off = the walk over
+	// messages; shadow = serve the walk and, for 1 request in
+	// TopicHeadsSample, also run the head read in the same snapshot and log
+	// a mismatch; on = serve the head read (rdb 0144, once the tenant is
+	// backfilled). GET /version reports it as topic_heads.
+	TopicHeads       string `env:"SPOOL_HUB_TOPIC_HEADS" envDefault:"off"`
+	TopicHeadsSample int    `env:"SPOOL_HUB_TOPIC_HEADS_SAMPLE" envDefault:"1"`
 	// SPL-959 tenant hosts: the WUI of tenant <t> is https://<t>.<fqdn>
 	// (TenantHostPattern), and the hub serves a browser request as the tenant
 	// its Origin names (member-only), with credentialed CORS for those hosts.
@@ -616,6 +623,14 @@ func (h *Hub) checkViews() error {
 		}
 	default:
 		return fmt.Errorf("SPOOL_HUB_VIEW_DOOR %q must be token, session or off", h.ViewDoor)
+	}
+	switch h.TopicHeads {
+	case "off", "shadow", "on":
+	default:
+		return fmt.Errorf("SPOOL_HUB_TOPIC_HEADS %q must be off, shadow or on", h.TopicHeads)
+	}
+	if h.TopicHeadsSample < 1 {
+		return fmt.Errorf("SPOOL_HUB_TOPIC_HEADS_SAMPLE must be 1 or more (1 = every request), got %d", h.TopicHeadsSample)
 	}
 	if h.LobbyTaskID != "" && !uuidRe.MatchString(h.LobbyTaskID) {
 		return fmt.Errorf("SPOOL_HUB_LOBBY_TASK_ID %q must be a lowercase UUID", h.LobbyTaskID)

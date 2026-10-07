@@ -1,6 +1,7 @@
 # 102 Agent lifetime: tasks
 
-What gets built. [spec.md](spec.md) v1.0 holds the behaviour; its section 15
+What gets built. [spec.md](spec.md) v1.1-draft holds the behaviour, amended
+for 3 watchdogs per box and watchdog self-update (WD1..WD5); its section 15
 records the panel consensus. Each task is one lane: one agent, one small
 task, the files it owns, the test that proves it, its control, and how it is
 proven live. Topic: t1 `637269bb-d97b-4861-b45e-87200652b169`. Owner rule
@@ -48,16 +49,18 @@ P0  T001 flags + autoupdater env ─► T002 mode check
 P1  T006 handoff files ────────────────────┘      │
     T007 wip job + pre-push exemption ────────────┘
 P2  T011 settings (rdb+store) ─► T012 admin messages (hub+wui) ─► T016 S2 buttons (box side)
-    T013 hub handoff copy (after T006, T011)
+    T013 hub handoff copy (after T006, T011)                     └─► T026 wd admin alert (after T023)
     T015 seats onto the path (after T003, T009)
-P3  T017 box beat + fence ─► T018 guests + lane CAS (after T007, T013)
+    T023 3 wd daemons (after T003) ─┬─► T025 wd self-update
+P3  T017 box beat + fence ─────────┼─► T024 cross-box wd liveness
+    T018 guests + lane CAS (after T007, T013, T017)
     T014 reboot path + drill (after T008, T017)
     T019 controlled CLI update (after T002, T004)
     T020 shared memory
-    T021 doc (fleet-roles, 060/093 status) after T015; T022 live drill after T018
+    T021 doc (fleet-roles, 060/093 status) after T015; T022 live drill after T018; T027 wd drill after T023..T026
 ```
 
-T001, T003, T004, T005, T006, T011 and T020 start in parallel; they own
+T001, T003, T004, T005, T006, T011, T020 and T023 start in parallel; they own
 disjoint files.
 
 ## Tasks
@@ -86,6 +89,11 @@ disjoint files.
 | **T020** ✓ `51835a5f` | P3 | **Shared memory.** Hub table + `spool memory add/show/index`; merge by normalised title; seeds get the index | `rdb/<next>_shared_memory.sql`, `api/internal/store/shared_memory*.go`, `api/cmd/spool/memory.go`, their tests | add twice with the same title -> one lesson, merged text; index lists titles only | a different title -> two lessons | hub dev then prd; CLI via the box update; prove: one lesson added on dev and read back from another box |
 | **T021** | doc | **Fleet-roles and status.** SPEC-spool-fleet-roles.md: the lifetime rule, the restart path, the seat trigger; 060 and 093 status lines pointing to 102 | `doc/doc/md/SPEC-spool-fleet-roles.md`, `doc/specs/060-role-rotation/spec.md` and `doc/specs/093-agent-watchdog/spec.md` (status lines only) | `do_check_dist_hygiene`, `lint-mdlinks` | - | lands on master |
 | **T022** | drill | **Live drill.** On both boxes: rebirth at 1 h (n >= 3), hard end at 2 h (n >= 3), S9 on an unknown dialog (n >= 3), a box down 3 min with lanes moving and coming home (n >= 1); delays recorded against the spec | `doc/specs/102-agent-lifetime/drill-<date>.md` | the drill log vs spec 3, 8, 10 | each case's control run beside it (a healthy idle lane untouched) | the orchestrator on each box runs the destructive steps; the lane writes the log |
+| **T023** | P2 | **3 watchdog daemons + peer heartbeat & restart (WD1, WD2, WD4).** Multi-instance watchdog (`INSTANCE=1..3`, locks `run.<inst>.lock`, pids `run.<inst>.pid`); per-instance heartbeat (`heartbeat.<inst>.json`); on each tick, peers inspect other instances: dead peer restarted at once (guarded by `run.<inst>.start.lock`), hung peer (no heartbeat advance for 3 checks / 180 s) terminated (`SIGTERM`, `ROTATE_TERM_WAIT`, `SIGKILL`) and restarted; T003 id lock taken before acting on any agent; finding deduplication (`s9.reported`, `input.log`, `rotate.log`) prevents duplicate snapshots and notes; systemd system template `spl-watchdog@.service` and cron keeper `do_spl_wd_ensure` adapted for 3 instances (spec 10.4) | `orc/run/spl-watchdog.func.sh`, `orc/run/spl-wd-ensure.func.sh`, `orc/run/spl-wd-install-service.func.sh`, `orc/tests/wd-multi-daemon.tst.sh` | 3 instances run simultaneously; kill instance 2 -> peer restarts it within 1 tick; freeze instance 2 heartbeat for 3 ticks -> peer terminates and restarts it; 2 instances detect same stuck agent -> exactly 1 takes id lock and acts, 0 duplicate snapshots | healthy instance -> no restart; id lock held -> second instance skips without error | lands; systemd template installed / crontab updated; `ps aux \| grep do_spl_watchdog` shows 3 running instances; `cat dispatch/wd/heartbeat.*.json` shows fresh timestamps |
+| **T024** | P3 | **Cross-box watchdog liveness (WD1).** Hub `box_beats` frame carries watchdog active count and instance health; hub returns fleet watchdog matrix in beat ack; each box monitors other boxes' watchdog liveness; alert emitted if a remote box has 0 active watchdogs; observer only: strictly NO action taken on remote agents (failover remains governed by 10.2) (spec 10.4, 10.2) | `orc/run/spl-watchdog.func.sh` (cross-box check), `api/internal/hub/box_beat.go`, `orc/tests/wd-cross-box.tst.sh` | box beat includes watchdog count/status; remote box with 0 watchdogs produces orchestrator warning note; local watchdog does not touch remote agents | remote box healthy (3 watchdogs) -> no warning; remote box fenced (> 2 min absent) -> 10.2 guest CAS activates | migration + hub dev then prd; dev/prd `box_beats` inspection shows `wd_count` reported; test simulated drop of remote watchdogs on dev |
+| **T025** | P3 | **Watchdog self-update on desk-cron changes (WD3).** Each watchdog compares running `git_sha` against `git -C /opt/csi/csi-spl-desk-cron rev-parse HEAD`; rolling restart within 2 min: instance 1 restarts first, must pass 1 check tick before instance 2 restarts, then instance 3; stop/rollback rule: if instance 1 crashes or fails check 1, rollout halts immediately, instances 2 and 3 stay running on old code, admin alerted (spec 10.4) | `orc/run/spl-watchdog.func.sh` (self-update logic), `orc/run/spl-wd-self-update.func.sh`, `orc/tests/wd-self-update.tst.sh` | desk-cron HEAD advances -> instance 1 restarts, ticks green; instance 2 restarts, ticks green; instance 3 restarts; all on new sha in < 120 s; fleet continuously monitored | bad commit that exits non-zero -> instance 1 fails, rollout halts, instances 2 and 3 remain alive on old sha, admin alert sent; unchanged HEAD -> 0 restarts | lands; deploy on dev; touch dummy commit in desk-cron checkout -> watch rolling restart sequence in `wd.log` |
+| **T026** | P2 | **Admin alert for watchdog failures (WD5).** Hub admin message (DM + email, spec 11.2) when a watchdog cannot be restarted within 5 min (300 s) or when 2 of 3 watchdogs on a box are down simultaneously (Q12 safe default); debounced so only one alert is sent per failure episode (spec 10.4, 11.2) | `orc/run/spl-watchdog.func.sh`, `orc/run/spl-wd-ensure.func.sh`, `api/internal/hub/agent_admin.go`, `orc/tests/wd-admin-alert.tst.sh` | kill 2 watchdogs simultaneously -> admin alert sent immediately; kill 1 watchdog and hold its restart lock for 301 s -> admin alert sent; restart recovered in 60 s -> no admin alert | single watchdog dies and restarts in < 60 s -> no admin alert; duplicate alert suppressed within debounce window | hub dev then prd; simulate double watchdog kill on dev -> admin DM and email verified |
+| **T027** | drill | **Watchdog redundancy & self-update drill.** Live drill on both boxes: kill instance 1 -> peer restart verified; hang instance 2 -> peer hung detection and kill/restart verified; desk-cron update -> rolling restart verified; simulated faulty update -> rollout halt and peer survivability verified (spec 10.4) | `doc/specs/102-agent-lifetime/drill-wd-redundancy-<date>.md` | all 4 drill scenarios execute with zero interruption to active agent monitoring | active lane remains monitored throughout all watchdog kills and updates | orchestrator runs drill on both boxes; results documented in drill log |
 
 ## What blocks what
 
@@ -107,10 +115,15 @@ disjoint files.
 | T019 | T002, T004 |
 | T021 | T015 |
 | T022 | T010, T014, T018 |
+| T023 | T003 |
+| T024 | T017, T023 |
+| T025 | T023 |
+| T026 | T012, T023 |
+| T027 | T023, T024, T025, T026 |
 
 ## Not built here
 
 The 068 claim cut-over (093 P2); moving the per-user memory files into the
 hub (spec 16 Q7); any harness switch on a quota stop (W6 forbids it).
 
-<!-- version: 1.0.1 · updated: 2026-10-07 · last-edit: 2026-10-07T09:10:00Z -->
+<!-- version: 1.1.0-draft · updated: 2026-10-07 · last-edit: 2026-10-07T10:45:00Z -->

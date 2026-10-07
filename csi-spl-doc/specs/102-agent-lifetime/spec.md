@@ -1,12 +1,11 @@
 # 102 Agent lifetime: 1 h rebirth, 2 h hard end, one restart path, generic stuck detection
 
-Status: **v1.0, panel consensus, 2026-10-07.** v0.1 (`8f32ffd8`) was read by
-three reviewers (agy-1, agy-2, claude-2); section 15 records each verdict,
-the scores and the agreement. Spec only: no code, cron, table, setting or
-seat was touched by this lane. Build: [tasks.md](tasks.md). Owner rule
-(consensus, then build, no go): the build starts now.
+Status: **v1.1-draft, 2026-10-07.** Amendment for 3 watchdogs per box +
+watchdog self-update (WD1..WD5, HUM-10 msgs `c38146c2`, `5684a64c`, `be5fcf4b`).
+v1.0 consensus in section 15; panel to be seated by c-002. Spec only: no
+code, cron, table, setting or seat was touched by this lane. Build: [tasks.md](tasks.md).
 Topic: t1 `637269bb-d97b-4861-b45e-87200652b169` (HUM-10). Dispatcher and
-topic owner: c-002. Author: c-471 (claude panelist 1).
+topic owner: c-002. Author: a-487 (v1.1 amendment; v1.0 author c-471).
 Extends: [060 role rotation](../060-role-rotation/spec.md) (handoff, fresh
 session under the same id, ack), [093 agent watchdog](../093-agent-watchdog/spec.md)
 (heartbeat, situations S1..S8, takeover 8, keeper 6.4),
@@ -105,6 +104,24 @@ traces each id to the section that implements it.
 
 R1..R14 were posted by mistake in t1 `0de14fdf` and recorded in 637269bb as
 msg `ad749994`. Where round R differs from round W, **R wins** (the brief).
+
+### 0.3 Watchdog redundancy and self-update (round WD, HUM-10 msgs c38146c2, 5684a64c, be5fcf4b)
+
+Following the implementation of T004 and T005, the owner identified that the watchdog itself was a single point of failure and did not track code updates:
+
+> c38146c2: "mm we must take also the update of the watchdog into consideration and the fact that it cannot be a single point of failure neither - aka they have to be 2 or more watchdogs running at the same itme"
+>
+> 5684a64c: "this might be too much for a change of th requirements , so ask me some more questions if needed"
+
+Dispatcher c-002 proposed options in blocker msg `fac7bf7d-af3e-4316-8769-fa7510564d73` (`/var/spool-hub/dispatch/c002-637269bb-wd-spof.md`), answered by the owner in msg `be5fcf4b-f162-4c36-8af1-e635eb037a7f`:
+
+| id | msg | question | proposal | owner answer, verbatim | decision |
+|---|---|---|---|---|---|
+| WD1 | be5fcf4b | where the 2+ watchdogs run | 2 on every box; each box checks the other boxes' watchdogs are alive (does not act on their agents) | "Actually let's make them 3 per box - so 3 on <pc box> and 3 on <box B> - running as daemon" | **3 per box, as daemons**; cross-box liveness check stays |
+| WD2 | be5fcf4b | all active or active/standby | both active; T003 per-agent id lock makes only one act | "All 3 active" | **all 3 active**, T003 id lock arbitrates |
+| WD3 | be5fcf4b | updates | restart automatically one at a time, next only after the previous is back and checked once; within 2 min of code arriving | "Yes restart them." | **rolling restart within 2 min**, sequential verification |
+| WD4 | be5fcf4b | hung watchdog | another restarts it after 3 missed checks | "yes" | **peer restarts hung after 3 missed checks**, dead at once |
+| WD5 | be5fcf4b | admin alert | only when a watchdog cannot be brought back within 5 min, or both on one box are down at once | "YES" | **admin alert** if not back within 5 min, or simultaneous failure (safe default: 2 of 3 down, Q12) |
 
 ## 1. Why: what the fleet looked like, and why the guards missed it
 
@@ -458,7 +475,7 @@ come from ONE helper again (060 FR-061's `spool_claude_perm_flags`,
 restored in `orc/features/spawn-agents/lib/spool-env.inc.sh`), used by
 spawn, restore, rotation, lane restart and the restart path.
 
-## 10. Boxes: reboot, down, back (W7, R5, R6)
+## 10. Boxes: reboot, down, back, watchdog redundancy (W7, R5, R6, WD1..WD5)
 
 ### 10.1 Reboot
 
@@ -514,6 +531,156 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   kills that copy at once, pushes its tree to
   `wip/<lane branch>-fenced-<ts>`, and sends the orchestrator one line
   (claude-2). The guest stays until its next rebirth.
+
+### 10.4 Watchdogs: 3 per box, self-update (WD1, WD2, WD3, WD4, WD5)
+
+#### 10.4.1 Three active daemons, supervision, and lock arbitration (WD1, WD2)
+
+- **Three daemons**: Every box runs 3 watchdog daemon processes
+  simultaneously (`INSTANCE` 1, 2, 3), running as the box user (`<box user>`).
+- **What "daemon" means here**:
+  - *Systemd user unit*: Rejected for unattended background fleet processes.
+    A user unit requires `loginctl enable-linger <box user>` (a box-wide
+    privileged command) and fails across headless sudo hops or cron jobs
+    without `$DBUS_SESSION_BUS_ADDRESS` and `$XDG_RUNTIME_DIR`.
+  - *Systemd system unit*: The primary supervisor. A system unit template
+    `/etc/systemd/system/spl-watchdog@.service` (installed once by `./run -a
+    do_spl_wd_install_service` with root) runs as `User=<box user>`,
+    `Restart=always`, `RestartSec=5s`, `WantedBy=multi-user.target`. It
+    provides OS-level supervision, automatic recovery, and boot autostart.
+  - *The cron keeper* (`do_spl_wd_ensure`): The fallback supervisor in the
+    box user's crontab (`* * * * *`). It requires zero root permissions.
+    It is expanded from supervising a single process to verifying that all
+    3 instances (`run.1.lock`, `run.2.lock`, `run.3.lock`) are alive,
+    starting any missing instance if systemd units are not active.
+- **Reboot start**: Enabled system units start automatically at boot; the
+  cron keeper (@reboot and minute ticks) provides defense-in-depth to
+  guarantee all 3 instances start after reboot.
+- **All 3 active**: All 3 watchdogs tick continuously and independently (60 s
+  tick interval). Each instance holds an exclusive instance lock
+  `<spool root>/dispatch/wd/run.<inst>.lock` (`flock -n`) and writes its pid
+  to `<spool root>/dispatch/wd/run.<inst>.pid`.
+- **Arbitration via T003 per-agent id lock**:
+  - All 3 instances inspect agents concurrently.
+  - Before taking any action on an agent (restart, poke, kill, takeover, or
+    pane snapshot), the watchdog **must** acquire the T003 per-agent id
+    lock (`spl_agent_id_lock <id>`, `<spool root>/<id>/lifetime/restart.lock`,
+    `flock -n`).
+  - If another watchdog (or any other actor) holds the id lock, `flock -n`
+    fails (exit 4), and the watchdog immediately skips acting on that agent
+    for that tick. Two watchdogs never act on the same agent at the same time.
+- **Finding deduplication (snapshots, pokes, notes)**:
+  - Without deduplication, all 3 watchdogs observing an anomaly simultaneously
+    could create triple pane snapshots and emit triple notes to the
+    orchestrator before any restart takes effect.
+  - *Deduplication mechanism*:
+    1. For S9 stuck panes: when watchdog A acquires the agent id lock, captures
+       `<spool root>/dispatch/wd/<id>.s9.pane`, and notifies the orchestrator,
+       it writes the pane hash and timestamp to
+       `<spool root>/<id>/lifetime/s9.reported`. Watchdogs B and C inspect
+       `s9.reported`; if the pane hash is identical and the report timestamp
+       is within `WD_NOTE_DEBOUNCE` (300 s), they suppress duplicate
+       snapshots and notifications.
+    2. For pokes: `<id>/lifetime/input.log` records the timestamp of every
+       delivered poke. A watchdog pokes an unread inbox file only if no poke
+       has been logged in `input.log` within 60 s.
+    3. For restarts: in-flight restarts are logged in `rotate.log` (`RS-*`
+       phases). `spl_wd_rotating` inspects `rotate.log` and suppresses
+       redundant restart attempts across all instances.
+
+#### 10.4.2 Heartbeat and peer monitoring (WD4)
+
+- **Watchdog heartbeats**: On every tick, each watchdog instance writes
+  `<spool root>/dispatch/wd/heartbeat.<inst>.json` containing `{"instance":
+  <inst>, "pid": <pid>, "ts": <epoch>, "tick_seq": <seq>, "status": "ok",
+  "git_sha": "<sha>"}`.
+- **Peer dead check**: At the start of its tick, each watchdog checks the OS
+  process status (`kill -0 <peer_pid>`) of the other two instances. If a
+  peer process is dead or its pid file is missing, the surviving peer restarts
+  the dead watchdog **at once**. A per-instance startup lock
+  `dispatch/wd/run.<inst>.start.lock` (`flock -n`) prevents the two surviving
+  peers from racing to spawn the missing instance.
+- **Peer hung check**: If `kill -0 <peer_pid>` succeeds but the peer's
+  `heartbeat.<peer_inst>.json` timestamp has not advanced for 3 consecutive
+  checks (`3 * WD_TICK_INTERVAL` = 180 s), the peer is judged **hung**. The
+  surviving peer terminates the hung process (`kill -TERM <peer_pid>`, waits
+  `ROTATE_TERM_WAIT` 30 s, then `kill -KILL`), removes stale instance locks,
+  and restarts the instance at once under `run.<inst>.start.lock`.
+
+#### 10.4.3 Cross-box watchdog liveness and relation to box_beats (WD1, 10.2)
+
+- **Liveness reported in `box_beats`**: In the Section 10.2 beat frame, each
+  box reports its local watchdog status: `wd_count` (0..3) and `wd_status`
+  array (`[{"inst": 1, "status": "ok"}, ...]`). The hub's ack payload returns
+  the fleet-wide watchdog health matrix.
+- **Cross-box observation**: Every box inspects the hub's beat ack to verify
+  that other boxes' watchdogs are alive (`wd_count >= 1`). If a remote box has
+  0 active watchdogs, the observing box emits a warning note to the
+  orchestrator.
+- **Strict separation from agent actions**: Local watchdogs take **no action
+  on the agents of other boxes** when remote watchdogs fail. Failover of
+  agents across boxes is strictly governed by Section 10.2 (`box_down_min`, hub
+  fencing, CAS on `running_box` with origin branch witness). A failure of
+  watchdogs alone without a box partition or down event does not trigger agent
+  migration.
+
+#### 10.4.4 Watchdog self-update on desk-cron changes (WD3)
+
+- **Code update trigger**: Periodic crons pull origin master into the checkout
+  at `/opt/csi/csi-spl-desk-cron` (`git fetch -q origin master && git checkout
+  -q --detach origin/master`). The checkout HEAD commit changes.
+- **Rolling restart within 2 minutes**: Each watchdog compares
+  `/opt/csi/csi-spl-desk-cron`'s HEAD commit against the `git_sha` in its
+  heartbeat. When a new commit is detected, a coordinated rolling restart
+  begins under `dispatch/wd/update.lock`:
+  1. Instance 1 restarts with the new code first. Instances 2 and 3 remain
+     running on the old code, maintaining continuous surveillance over the
+     fleet.
+  2. Instance 1 initializes and executes at least **one full check tick** on
+     the new code (incrementing `tick_seq` with `status: ok`).
+  3. Only after Instance 1 is verified healthy on the new code, Instance 2 is
+     restarted.
+  4. Only after Instance 2 completes one healthy check tick, Instance 3 is
+     restarted.
+  5. The entire rolling restart across all 3 instances completes within 2
+     minutes of code arrival (`WD_UPDATE_MAX_WAIT` = 120 s).
+- **Rollback and stop rule (bad new version containment)**:
+  - If Instance 1 fails to start, crashes, or fails its initial check tick on
+    the new code:
+    - The rolling update is **immediately halted**. Instances 2 and 3 are NOT
+      restarted and remain fully operational on the previous known-good code.
+    - Instance 1 is rolled back: restarted on the prior working revision /
+      backup binary, or held stopped in quarantine while Instances 2 and 3
+      protect the fleet.
+    - An admin alert is dispatched naming the faulty commit and error trace.
+    - A bad commit pushed to master can never take down all 3 watchdogs. At
+      least 2 watchdogs remain functional on the old code.
+
+#### 10.4.5 Admin alerts (WD5)
+
+- **Alert conditions**:
+  1. Any watchdog instance is down (dead or hung) and cannot be restored
+     within 5 minutes (`WD_ALERT_DOWN_WAIT` = 300 s).
+  2. Simultaneous watchdog failures: **2 of 3 watchdogs on a box are down at
+     once** (safe default, open question 16 Q12). When 2 are down, redundancy
+     is lost and the box is at a single point of failure; the admin is
+     alerted immediately before the last instance can fail.
+- **Delivery**: Sent via Section 11.2 (web app message in the operator
+  workspace + email via `internal/mail`), reporting the box, failed instance
+  numbers, downtime duration, and last log output.
+
+#### 10.4.6 Tests and controls
+
+| case | fixture / condition | expected | control |
+|---|---|---|---|
+| multi-daemon arbitration | 2 watchdogs detect the same stuck agent simultaneously | exactly one acquires the T003 id lock; exactly one snapshot and restart executed | id lock free -> single actor succeeds |
+| snapshot deduplication | watchdog 1 snapshots unknown pane and records hash in `s9.reported`; watchdog 2 ticks on same pane | watchdog 2 skips snapshot and note (hash matches within 300 s) | new/different pane hash -> new snapshot taken |
+| dead peer restart | kill instance 2 (`kill -9`) | peer 1 or 3 detects dead pid on next tick and restarts instance 2 at once under `run.2.start.lock` | peer 2 alive -> no restart action taken |
+| hung peer restart | instance 2 heartbeat timestamp unchanged for 3 tick periods (180 s) | peer 1 or 3 terminates instance 2 (`TERM`, `ROTATE_TERM_WAIT`, `KILL`) and restarts it at once | heartbeat timestamp advances normally -> no action taken |
+| rolling self-update | desk-cron HEAD advances to new sha | instance 1 restarts, ticks green; instance 2 restarts, ticks green; instance 3 restarts; all 3 on new sha within 2 min | desk-cron HEAD unchanged -> 0 restarts |
+| self-update stop rule | new commit crashes on startup / fails check 1 | instance 1 fails check 1; rollout immediately halts; instances 2 and 3 stay running on old sha; admin alerted | clean commit -> rollout proceeds sequentially across all 3 |
+| cross-box observation | remote box reports `wd_count: 0` in hub `box_beats` | observing box emits orchestrator warning note; takes NO action on remote agents | remote box healthy -> no warning; remote box fenced (> 2 min absent) -> 10.2 guest CAS activates |
+| admin alert threshold | 2 watchdogs killed simultaneously | admin alert triggered immediately (2 of 3 down) | single watchdog killed and restored in < 5 min -> no admin alert (logged only) |
 
 ## 11. The admin (R8, R10)
 
@@ -596,6 +763,10 @@ do and its context come from the web app (topics, briefs).
 | settings | `00-fleet.json`: `defaultMode=bypassPermissions`, `disableAutoMode=disable`, no `env` block | + `DISABLE_AUTOUPDATER` in the env and the launch path; re-checked before every start (9.2) | `cat orc/features/spool-install/assets/claude/settings/00-fleet.json` |
 | per-workspace numbers | `agent_lifecycle_config` (063, rdb 0105), 11 keys | + 5 keys, read from the operator workspace only (11.1) | `grep -c 'Key: "' csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go` -> 11 |
 | fleet lane row | PK `(tenant_id, fleet, agent_id, agent_box)` | + `running_box`, keyed by the home box (10.2) | `grep -n 'PRIMARY KEY' csi-spl-rdb/src/sql/postgres/spool-hub/0102_agent_at_box_key.sql` |
+| 093 6.4 watchdog loops per box | ONE loop per box, pid in `dispatch/wd/run.pid`; minute cron keeper restarts dead loop in ~60 s; hung loop not caught | 3 active daemons per box; per-instance locks; peer restarts dead at once and hung after 3 missed checks (10.4) | `grep -n 'run\.pid' orc/run/spl-watchdog.func.sh orc/run/spl-wd-ensure.func.sh` |
+| watchdog code update on git move | none: desk-cron checkout moves on master, but loop runs old code until killed by hand (measured gap n=2 boxes) | rolling self-update of the 3 daemons within 2 min, sequential verification of 1 check, stop/rollback on failure (10.4) | `git -C /opt/csi/csi-spl-desk-cron rev-parse HEAD; ps -o pid,lstart,cmd -C bash` |
+| 093 6.4 watchdog keeper alert | keeper sends owner DM on crashloop / hung; no admin message | admin message (11.2) when a watchdog cannot be restored in 5 min, or 2 of 3 down on a box (10.4, 16 Q12) | `grep -c ASKS_OWNER orc/run/spl-wd-ensure.func.sh` |
+| cross-box watchdog monitoring | none: no box checks another box's watchdog or agents | each box checks other boxes' watchdogs are alive via `box_beats`; observer only, no action on remote agents (10.4) | `ls csi-spl-rdb/src/sql/postgres/spool-hub \| grep -c box_beats` |
 
 ## 14. Trace: every owner answer to its section
 
@@ -630,6 +801,11 @@ do and its context come from the web app (topics, briefs).
 | R13 | 8.1, 11.1 |
 | R14 | 9 |
 | G1 | 8, 9 |
+| WD1 | 10.4 |
+| WD2 | 10.4 |
+| WD3 | 10.4 |
+| WD4 | 10.4 |
+| WD5 | 10.4, 11.2, 16 Q12 |
 
 ## 15. Opinion panel and consensus
 
@@ -728,6 +904,9 @@ No reviewer disagreed with sections 0, 1, 3 (beyond C7), 7 (beyond C13),
 | Q9 | the agents over 2 h when the rule goes live (A4) | see 15.4 | **`RESTART_SLOTS` at a time, oldest first, 60 s apart** |
 | Q10 | the wip ref | see 15.4 | **`wip/<lane branch>`** |
 | Q11 | a 2 min hub blip fences every box and stops every lane | (a) accept, 2 min is the owner's default (R5) and an admin can raise it; (b) fence only after 2 x `box_down_min` | **(a)**: the owner chose 2 min; a fenced box's lanes restart within a tick of the hub's return, from their wip ref |
+| Q12 | admin alert threshold for simultaneous watchdog failures on a box | (a) 2 of 3 down; (b) all 3 down | **(a)**: safe default; redundancy is lost when 2 are down, alerting early prevents complete loss of fleet coverage |
+| Q13 | watchdog daemon supervisor mechanism | (a) systemd system service template (`spl-watchdog@.service`) as primary supervisor, cron keeper `do_spl_wd_ensure` as outer fallback; (b) cron keeper `do_spl_wd_ensure` alone supervises all 3 detached loops directly | **(a)**: WD1 explicitly asked for daemons; systemd provides native lifecycle, boot autostart and crash restart; cron keeper remains secondary check |
+| Q14 | cross-box watchdog liveness alert threshold | (a) alert admin when another box has 0 active watchdogs, with zero action on its agents; (b) alert when any single remote watchdog instance is down | **(a)**: avoids noise during rolling updates while alerting when remote redundancy is completely lost |
 
 ## 17. Rollout (A4)
 
@@ -740,11 +919,29 @@ No reviewer disagreed with sections 0, 1, 3 (beyond C7), 7 (beyond C13),
    the session-age rule (3) for lanes, one restart counter and the caps (6);
    the over-2 h agents are reborn only now (A4, Q9).
 3. **P2**: the admin settings and messages (11), the hub handoff copy (5.3),
-   S2's buttons (7), the seats onto the path (4.4).
+   S2's buttons (7), the seats onto the path (4.4), multi-daemon watchdog
+   redundancy (10.4, T023), and watchdog failure alerts (10.4, T026).
 4. **P3**: the box beat, the fence and guests (10), controlled CLI updates
-   (9.1), the shared memory (12), the reboot path replacing the boot
-   restore (10.1).
+   (9.1), cross-box watchdog liveness (10.4, T024), watchdog self-update on
+   desk-cron changes (10.4, T025), the shared memory (12), the reboot path
+   replacing the boot restore (10.1).
+5. **Watchdog redundancy rollout (how 1 loop becomes 3 without a gap)**:
+   - Multi-instance support added to watchdog code (instances 1, 2, 3 with
+     instance IDs and instance locks `run.<inst>.lock`).
+   - Zero-gap transition sequence:
+     1. Instance 1 starts with the new multi-instance code while legacy single
+        loop (`run.lock`) is still ticking. Instance 1 and legacy loop both
+        take T003 per-agent id locks before acting, preventing conflicting actions.
+     2. Legacy single loop is cleanly stopped (`kill $(cat <spool root>/dispatch/wd/run.pid)`).
+        Instance 1 continues uninterrupted coverage.
+     3. Instance 2 is started, completes self-check, and verifies peer heartbeat
+        with instance 1.
+     4. Instance 3 is started, completes self-check, and verifies peer heartbeat
+        with instances 1 and 2.
+     5. Systemd system units `spl-watchdog@{1,2,3}.service` are enabled, and the
+        cron keeper `do_spl_wd_ensure` is updated to monitor all 3 instances.
+   At no point during the transition is the box left with zero active watchdogs.
 
 Tasks: [tasks.md](tasks.md).
 
-<!-- version: 1.0.0 · updated: 2026-10-07 · last-edit: 2026-10-07T08:20:00Z -->
+<!-- version: 1.1.0-draft · updated: 2026-10-07 · last-edit: 2026-10-07T10:45:00Z -->

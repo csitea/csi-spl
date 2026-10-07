@@ -113,6 +113,55 @@ try {
   check('a filter that matches nothing fails', r.status === 1 && /matched none/.test(r.stderr), r.stderr)
 } finally {
   rmSync(tmp, { recursive: true, force: true })
+}
+
+// --- one retry per red file (task 7ec0c6a0): FLAKY stays green, red twice fails
+// Trunk wf 10 went red on ~1 file a run, a different one each time, each green
+// locally. A file that fails then passes is reported, never hidden; a file
+// that fails twice still fails the job; the suite itself is never re-run.
+const tmpR = mkdtempSync(join(tmpdir(), 'e2e-retry-'))
+try {
+  mkdirSync(join(tmpR, 'src/node/test'), { recursive: true })
+  mkdirSync(join(tmpR, 'tests/e2e'), { recursive: true })
+  cpSync(join(WUI, RUNNER_REL), join(tmpR, RUNNER_REL))
+  cpSync(join(WUI, SLOTS_REL), join(tmpR, SLOTS_REL))
+  const summary = join(tmpR, 'step-summary.md')
+  const runR = (env = {}) => spawnSync(process.execPath, [join(tmpR, RUNNER_REL)], {
+    cwd: tmpR, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: summary, ...env },
+  })
+  // Fails on its first run only: a marker beside it records that it ran.
+  const once = [
+    "import { existsSync, writeFileSync } from 'node:fs'",
+    "const m = new URL('./flaky.ran', import.meta.url)",
+    "if (!existsSync(m)) { writeFileSync(m, ''); console.log('first-try-only boom'); process.exit(4) }",
+    '',
+  ].join('\n')
+  const always = "console.log('always-red attempt'); process.exit(5)\n"
+
+  writeFileSync(join(tmpR, 'tests/e2e/a.test.mjs'), 'process.exit(0)\n')
+  writeFileSync(join(tmpR, 'tests/e2e/flaky.test.mjs'), once)
+  writeFileSync(summary, '')
+  let r = runR()
+  const sum1 = readFileSync(summary, 'utf8')
+  check('a file that fails once then passes is green, reported FLAKY',
+    r.status === 0 && /FLAKY tests\/e2e\/flaky\.test\.mjs/.test(r.stdout), `status ${r.status}\n${r.stdout}`)
+  check('the FLAKY report carries the first failure\'s tail',
+    /first-try-only boom/.test(r.stdout.slice(r.stdout.lastIndexOf('FLAKY tests/e2e/flaky'))), r.stdout)
+  check('the FLAKY file and its tail reach $GITHUB_STEP_SUMMARY',
+    /flaky\.test\.mjs/.test(sum1) && /first-try-only boom/.test(sum1), JSON.stringify(sum1))
+
+  writeFileSync(join(tmpR, 'tests/e2e/red.test.mjs'), always)
+  rmSync(join(tmpR, 'tests/e2e/flaky.ran'), { force: true })
+  writeFileSync(summary, '')
+  r = runR()
+  const attempts = (r.stdout.match(/always-red attempt/g) || []).length
+  check('a file that fails twice stays red and fails the run',
+    r.status === 1 && /FAIL tests\/e2e\/red\.test\.mjs/.test(r.stdout) && /1 of 3 file\(s\) FAILED/.test(r.stdout), `status ${r.status}\n${r.stdout}`)
+  check('a red file runs exactly twice (one retry, no more)', attempts === 2, `ran ${attempts} times`)
+  check('a green file is not re-run', (r.stdout.match(/\] tests\/e2e\/a\.test\.mjs/g) || []).length === 1, r.stdout)
+  check('the red file reaches $GITHUB_STEP_SUMMARY', /red\.test\.mjs/.test(readFileSync(summary, 'utf8')), readFileSync(summary, 'utf8'))
+} finally {
+  rmSync(tmpR, { recursive: true, force: true })
   rmSync(process.env.E2E_LOCAL_SLOTS_DIR, { recursive: true, force: true })
 }
 

@@ -18,8 +18,15 @@
 //
 // Contract (`10_ci-quality.yml` / `11_ci-public.yml` run `pnpm run test:e2e`):
 //   • every selected file runs, in sorted order, whatever the ones before did
-//   • exit 0 only when every file exits 0
-//   • exit 1 when any file fails, when nothing is selected, when a path given
+//   • a file that fails runs ONCE more, alone, straight after; never the
+//     suite, and never with a longer timeout. Fails then passes: FLAKY —
+//     its name and the tail of the first failure go to the log and to
+//     $GITHUB_STEP_SUMMARY, and it counts as a pass. Fails twice: red.
+//     (Trunk wf 10 was red on ~1 file a run, a different file each time,
+//     each green locally and in other runs: chime-mute, phone-message-link-
+//     tap, topic-send-target; task 7ec0c6a0, 2026-10-07.)
+//   • exit 0 only when every file exits 0 on its first run or its retry
+//   • exit 1 when any file fails twice, when nothing is selected, when a path given
 //     is missing, or when a ci-skip.txt line names no file on disk or gives
 //     no reason — an empty run must never read as a pass
 //   • the last lines name every failed file, so the job log says it once
@@ -34,10 +41,10 @@
 //   FAIL_FAST=1 node src/node/test/run-e2e-tests.mjs         # stop at first failure
 //   E2E_SHARD=2/3 node src/node/test/run-e2e-tests.mjs       # shard 2 of a longest-first pack of 3
 //   E2E_LOCAL_SLOTS=1 node src/node/test/run-e2e-tests.mjs   # box-wide cap on local runs (default 2, e2e-slots.mjs)
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { acquireSlot } from './e2e-slots.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -45,6 +52,8 @@ const WUI = join(__dirname, '../../..')
 const E2E_REL = 'tests/e2e'
 const SKIP_REL = `${E2E_REL}/ci-skip.txt`
 const WEIGHTS_REL = 'e2e-shard-weights.txt'
+// Lines of a failed first run kept for the FLAKY report and step summary.
+const TAIL_LINES = 30
 
 // True when node was started on this file. An import (the pack test) must
 // not discover files, take a slot, or exit.
@@ -192,6 +201,41 @@ function sharded(files, shard) {
   return packed
 }
 
+// Runs one file with its output streamed through as it comes, keeping the
+// last TAIL_LINES lines for the report. Resolves { status, signal, tail }.
+function runFile(file) {
+  return new Promise((done) => {
+    const child = spawn(process.execPath, [join(WUI, file)], { cwd: WUI, stdio: ['inherit', 'pipe', 'pipe'] })
+    let tail = []
+    let partial = ''
+    const keep = (chunk) => {
+      const lines = (partial + chunk).split('\n')
+      partial = lines.pop()
+      tail = tail.concat(lines).slice(-TAIL_LINES)
+    }
+    child.stdout.on('data', (b) => { process.stdout.write(b); keep(b.toString('utf8')) })
+    child.stderr.on('data', (b) => { process.stderr.write(b); keep(b.toString('utf8')) })
+    const finish = (status, signal) => {
+      if (partial) tail = tail.concat(partial).slice(-TAIL_LINES)
+      done({ status, signal, tail })
+    }
+    child.on('error', (e) => { keep(`spawn error: ${e.message}\n`); finish(null, null) })
+    child.on('close', finish)
+  })
+}
+
+const why = (r) => (r.signal ? `signal ${r.signal}` : `exit ${r.status}`)
+
+function stepSummary(lines) {
+  const path = process.env.GITHUB_STEP_SUMMARY
+  if (!path) return
+  try {
+    appendFileSync(path, lines.join('\n') + '\n')
+  } catch (e) {
+    console.error(`e2e runner: cannot write GITHUB_STEP_SUMMARY: ${e.message}`)
+  }
+}
+
 async function runSelected(files, { skipped, narrowed, shard, failFast }) {
   // One of E2E_LOCAL_SLOTS box-wide slots before any browser starts: lanes'
   // parallel local runs drove a 16-cpu box to load 50. GitHub Actions is not
@@ -204,30 +248,62 @@ async function runSelected(files, { skipped, narrowed, shard, failFast }) {
   const scope = narrowed ? '' : ` (${skipped.size} skipped by ${SKIP_REL}${process.env.E2E_SKIP ? ' + E2E_SKIP' : ''})`
   console.log(`e2e runner: ${files.length} file(s)${scope}${shard ? `, shard ${shard}` : ''}\n`)
   const failures = []
+  const flaky = []
   for (const [i, file] of files.entries()) {
-    console.log(`──[${i + 1}/${files.length}] ${file}`)
+    const tag = `${i + 1}/${files.length}`
+    console.log(`──[${tag}] ${file}`)
     const started = Date.now()
-    const res = spawnSync(process.execPath, [join(WUI, file)], { cwd: WUI, stdio: 'inherit' })
+    const first = await runFile(file)
     const secs = Math.round((Date.now() - started) / 1000)
-    // `<file> <secs>` on every file, pass or fail, for the next weights refresh.
+    // `<file> <secs>` once per file, first run, pass or fail, for the next
+    // weights refresh (a retry's time would be a duplicate line).
     console.log(`${file} ${secs}`)
     // A killing signal (OOM, timeout) leaves status null — that is a failure too.
-    if (res.status !== 0) {
-      failures.push({ file, status: res.status, signal: res.signal })
-      console.log(`──[${i + 1}/${files.length}] FAIL ${file} (${secs}s)`)
-      if (failFast) break
+    if (first.status !== 0) {
+      console.log(`──[${tag}] RETRY ${file} (first run ${why(first)}, ${secs}s) — one retry, alone`)
+      const t0 = Date.now()
+      const second = await runFile(file)
+      const secs2 = Math.round((Date.now() - t0) / 1000)
+      if (second.status === 0) {
+        flaky.push({ file, first })
+        console.log(`──[${tag}] FLAKY ${file} (first run ${why(first)}, retry passed in ${secs2}s)`)
+      } else {
+        failures.push({ file, first, second })
+        console.log(`──[${tag}] FAIL ${file} (${why(first)}, then ${why(second)} on retry)`)
+        if (failFast) break
+      }
     }
     console.log('')
   }
+  report(files.length, flaky, failures)
+  if (failures.length) process.exit(1)
+}
+
+// The last lines of the job log and the step summary: every FLAKY file with
+// the tail of its first failure (green, but visible), then every red one.
+function report(total, flaky, failures) {
+  const md = []
+  if (flaky.length) {
+    console.log(`\ne2e runner: ${flaky.length} file(s) FLAKY — failed, then passed on the one retry:`)
+    md.push(`### e2e: ${flaky.length} FLAKY file(s) — failed, then passed on retry${process.env.E2E_SHARD ? ` (shard ${process.env.E2E_SHARD})` : ''}`, '')
+    for (const f of flaky) {
+      console.log(`  FLAKY ${f.file} (first run ${why(f.first)}); tail of the first failure:`)
+      for (const line of f.first.tail) console.log(`    | ${line}`)
+      md.push(`**FLAKY \`${f.file}\`** (first run ${why(f.first)}), tail of the first failure:`, '', '```text', ...f.first.tail, '```', '')
+    }
+  }
   if (!failures.length) {
-    console.log(`\ne2e runner: all ${files.length} file(s) passed`)
-    return
+    console.log(`\ne2e runner: all ${total} file(s) passed${flaky.length ? ` (${flaky.length} on retry, FLAKY above)` : ''}`)
+  } else {
+    console.log(`\ne2e runner: ${failures.length} of ${total} file(s) FAILED (twice: first run and retry)`)
+    md.push(`### e2e: ${failures.length} of ${total} file(s) FAILED twice${process.env.E2E_SHARD ? ` (shard ${process.env.E2E_SHARD})` : ''}`, '')
+    for (const f of failures) {
+      console.log(`  FAIL ${f.file} (${why(f.first)}, then ${why(f.second)})`)
+      md.push(`- \`${f.file}\` (${why(f.first)}, then ${why(f.second)})`)
+    }
+    md.push('')
   }
-  console.log(`\ne2e runner: ${failures.length} of ${files.length} file(s) FAILED`)
-  for (const f of failures) {
-    console.log(`  FAIL ${f.file}${f.signal ? ` (signal ${f.signal})` : ` (exit ${f.status})`}`)
-  }
-  process.exit(1)
+  if (md.length) stepSummary(md)
 }
 
 async function main() {

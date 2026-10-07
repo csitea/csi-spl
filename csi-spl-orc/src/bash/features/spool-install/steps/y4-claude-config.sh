@@ -32,6 +32,15 @@
 #     mode"). Reproduced 2026-10-07 on 2.1.292: 4/4 fresh seats stopped on
 #     it without the key, 0/3 with it, bypass still on. It turns auto mode
 #     off, never bypass (that is disableBypassPermissionsMode).
+#   the BOX_USER's settings.json (the human's, when it is another file):
+#     ONLY permissions.defaultMode, permissions.disableAutoMode,
+#     skipDangerousModePermissionPrompt, skillOverrides.auto-mode-setup and
+#     env.DISABLE_AUTOUPDATER, valued from the merged fragments, plus the
+#     marker env.SPOOL_INSTALL_BOX_SETTINGS=sha256=<hex of those 5>. Every
+#     other key of the human's (allow lists, statusLine, theme, hooks) is
+#     kept as it is. Written in place (owner and mode kept), the previous
+#     file first copied to settings.json.bak-spool-install-box. A missing,
+#     unwritable or non-JSON file is named and left alone, never fatal.
 #
 # Placeholders ({{KEY}}) and where their values come from - never a literal:
 #   AGENT_USER    SPOOL_AGENT_USER, else the user running install.sh
@@ -43,12 +52,14 @@
 #   AGENT_CEILING SPOOL_AGENT_CEILING, else 40
 #
 # Env: SPOOL_INSTALL_CLAUDE_CONFIG=0 skips the step;
+#      SPOOL_INSTALL_BOX_SETTINGS overrides the BOX_USER's settings.json path
+#      (tests; default BOX_HOME/.claude/settings.json);
 #      SPOOL_INSTALL_CLAUDE_ASSETS overrides the assets dir (tests).
 # Reads install.sh's DRY, FORCE_SKILLS and ROOT when set.
 
 spool_install_claude_config() {
   [ "${SPOOL_INSTALL_CLAUDE_CONFIG:-1}" = 0 ] && return 0
-  local here assets root agent_user box_user box_tag
+  local here assets root agent_user box_user box_tag box_home
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   assets="${SPOOL_INSTALL_CLAUDE_ASSETS:-$here/../assets/claude}"
   root="${ROOT:-$(cd "$here/../../../../.." && pwd)}"
@@ -56,11 +67,13 @@ spool_install_claude_config() {
   box_user="${SPOOL_BOX_USER:-$(stat -c %U "$root" 2>/dev/null || id -un)}"
   box_tag="${SPOOL_BOX_TAG:-}"
   if [ -z "$box_tag" ] && declare -F cfg_get >/dev/null; then box_tag="$(cfg_get SPOOL_BOX_TAG)"; fi
+  box_home="$(getent passwd "$box_user" | cut -d: -f6)"
   python3 "$here/y4-claude-config.py" "$assets" "$HOME" "${DRY:-0}" "${FORCE_SKILLS:-0}" \
     "AGENT_USER=$agent_user" \
     "AGENT_HOME=$(getent passwd "$agent_user" | cut -d: -f6)" \
     "BOX_USER=$box_user" \
-    "BOX_HOME=$(getent passwd "$box_user" | cut -d: -f6)" \
+    "BOX_HOME=$box_home" \
+    "BOX_SETTINGS=${SPOOL_INSTALL_BOX_SETTINGS:-${box_home:+$box_home/.claude/settings.json}}" \
     "TMUX_SOCKET=${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$box_user" 2>/dev/null)/default}" \
     "BOX_TAG=${box_tag:-<tag>}" \
     "AGENT_CEILING=${SPOOL_AGENT_CEILING:-40}"

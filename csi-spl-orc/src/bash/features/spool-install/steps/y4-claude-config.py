@@ -106,3 +106,44 @@ else:
     if raw: backup(st, raw)
     write(st, json.dumps(new_s, indent=2, ensure_ascii=False) + "\n")
     say(did("%s: fleet settings merged", "%s: would merge the fleet settings") % st)
+
+# ── the BOX_USER's settings.json: the 5 fleet keys only ──────────────────────
+# The human's file keeps every other key (allow lists, statusLine, theme,
+# hooks); a missing, unwritable or non-JSON file is named and left alone.
+BOX_KEYS = (("permissions", "defaultMode"), ("permissions", "disableAutoMode"),
+            ("skipDangerousModePermissionPrompt",), ("skillOverrides", "auto-mode-setup"),
+            ("env", "DISABLE_AUTOUPDATER"))
+def box_settings(bs):
+    if os.path.realpath(bs) == os.path.realpath(st):
+        say("%s: the box user's file is the agent's: done above" % bs); return
+    if not os.path.isfile(bs):
+        say("%s: the box user has no settings.json: left alone" % bs); return
+    pick = {}
+    for path in BOX_KEYS:
+        src, dst = ours, pick
+        for k in path[:-1]:
+            src, dst = src.get(k, {}), dst.setdefault(k, {})
+        if path[-1] not in src:
+            sys.exit("spool-install: claude-config: the fleet settings lack %s" % ".".join(path))
+        dst[path[-1]] = src[path[-1]]
+    merge(pick, {"env": {"SPOOL_INSTALL_BOX_SETTINGS": "sha256=" + sha(json.dumps(pick, sort_keys=True))}})
+    raw = open(bs).read()
+    try:
+        cur_b = json.loads(raw) if raw.strip() else {}
+        if not isinstance(cur_b, dict) or any(not isinstance(cur_b.get(k, {}), dict) for k in pick if isinstance(pick[k], dict)):
+            raise ValueError("not an object where a fleet key goes")
+    except ValueError as x:
+        say("%s is not valid settings JSON (%s): left alone" % (bs, x)); return
+    new_b = merge(json.loads(json.dumps(cur_b)), pick)
+    if new_b == cur_b:
+        say("%s: box user's fleet keys already current" % bs); return
+    if dry == "1":
+        print("would: write %s" % bs); say("%s: would set the box user's fleet keys" % bs); return
+    if not os.access(bs, os.W_OK) or not os.access(os.path.dirname(bs), os.W_OK):
+        say("%s: not writable by this user: left alone (run the install as its owner)" % bs); return
+    text = json.dumps(new_b, indent=2, ensure_ascii=False) + "\n"
+    json.loads(text)
+    open(bs + ".bak-spool-install-box", "w").write(raw)
+    with open(bs, "w") as f: f.write(text)  # in place: owner and mode kept
+    say("%s: box user's fleet keys set, other keys kept" % bs)
+if vals.get("BOX_SETTINGS"): box_settings(vals["BOX_SETTINGS"])

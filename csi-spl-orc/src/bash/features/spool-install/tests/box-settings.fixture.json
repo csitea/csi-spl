@@ -1,0 +1,15 @@
+{
+  "theme": "dark",
+  "statusLine": {"type": "command", "command": "bash ~/.claude/statusline.sh", "padding": 0},
+  "skipDangerousModePermissionPrompt": false,
+  "permissions": {
+    "allow": ["Bash", "Read", "mcp__*"],
+    "deny": [],
+    "defaultMode": "default",
+    "additionalDirectories": ["/"]
+  },
+  "env": {"KEEP": "1", "DISABLE_AUTOUPDATER": "0"},
+  "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "echo human-hook"}]}]},
+  "model": "opus",
+  "nested": {"a": {"b": [1, 2, {"c": null}]}, "empty": {}}
+}

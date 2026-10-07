@@ -123,7 +123,7 @@ T09 GitHub client + fake ───────┴─► T10 worker ────�
   - **Done-proof**: unit tests; e2e on a mock bundle: edit -> notice -> consent -> saved; a denied doc shows no Edit button; typecheck; the initial-chunk budget holds.
   - **Depends**: T08 (contract; may start on a mock once the route table is on master).
 
-- [ ] T12 **WUI: status chip, My edits, conflict view** (M).
+- [x] T12 **WUI: status chip, My edits, conflict view** (M). Done `949cc4a0` (c-424, v2.5.3 on dev and prd): `RepoDocStatus` + `RepoDocStatusChip` (spec §3 chip, polls `?path=`), `RepoDocMyEdits` (`?edits=mine`: own + agents' edits, retry, identity review for agent 428s), `RepoDocConflict` (`?conflict=<id>`: theirs / mine, saves with If-Match = `head_blob`), store slice `editLists`; unit `tests/unit/repo-edit-status.test.mjs`, e2e `tests/e2e/repo-edit-status.test.mjs` 67/67. AC-02 node gzip n=3: 158426 -> 158430 B.
   - **Build**: the chip of spec §3 on the doc header, "My edits" (own + own agents' edits, retry), the side-by-side conflict view that re-saves with `base = head`.
   - **Owns**: those components, i18n keys, tests.
   - **Done-proof**: unit tests per status; e2e on a mock bundle for chip transitions, retry and conflict resolve.

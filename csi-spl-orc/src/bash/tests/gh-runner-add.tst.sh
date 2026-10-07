@@ -199,5 +199,15 @@ systemctl set-property actions.runner.o.box-spl-01.service CPUWeight=25
 systemctl set-property actions.runner.o.box-spl-02.service CPUWeight=25"
 [[ "$(grep set-property "$MUT_LOG")" == "$want" ]] && ok "CPUWeight set on the runner user's slice and every runner unit" || no "weight: $(grep set-property "$MUT_LOG")"
 
+# the downloaded tarball's path is the only thing on stdout, even when do_log
+# writes to stdout (the real one does: the path once carried the OK line)
+mkdir -p "$T/tb"; echo fake >"$T/tb/actions-runner-linux-x64-9.9.9.tar.gz"
+tb_sha="$(sha256sum "$T/tb/actions-runner-linux-x64-9.9.9.tar.gz" | cut -d' ' -f1)"
+got="$( gh() { echo "v9.9.9 $tb_sha"; }
+        do_log() { echo "$*"; }
+        # shellcheck source=/dev/null
+        source "$FUNC"; unset GH_RUNNER_TARBALL; GHR_ROOT="$T/tb" ghr_tarball 2>/dev/null )"
+[[ "$got" == "$T/tb/actions-runner-linux-x64-9.9.9.tar.gz" ]] && ok "ghr_tarball prints only the tarball path on stdout" || no "ghr_tarball stdout: $got"
+
 echo "=== gh-runner-add: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

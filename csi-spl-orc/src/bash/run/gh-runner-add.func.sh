@@ -199,20 +199,21 @@ ghr_warm_images() {
   done
 }
 
-# ghr_tarball - echo a sha256-verified runner tarball (downloaded once)
+# ghr_tarball - echo a sha256-verified runner tarball (downloaded once); its
+# log lines go to stderr: the caller captures stdout as the path
 ghr_tarball() {
   [[ -n "${GH_RUNNER_TARBALL:-}" ]] && { echo "$GH_RUNNER_TARBALL"; return 0; }
   local rel ver sha url tarball
   rel="$(gh api repos/actions/runner/releases/latest --jq '"\(.tag_name) \(.body|capture("BEGIN SHA linux-x64 -->(?<s>[0-9a-f]{64})<").s)"')" \
-    || { do_log "FATAL cannot read the actions/runner release"; return 1; }
+    || { do_log "FATAL cannot read the actions/runner release" >&2; return 1; }
   ver="${rel%% *}"; ver="${ver#v}"; sha="${rel#* }"
   tarball="$GHR_ROOT/actions-runner-linux-x64-$ver.tar.gz"
   url="https://github.com/actions/runner/releases/download/v$ver/actions-runner-linux-x64-$ver.tar.gz"
   sudo test -s "$tarball" || sudo curl -fsSL --connect-timeout 30 --max-time 1800 --speed-limit 1024 --speed-time 60 -o "$tarball" "$url" \
-    || { do_log "FATAL download $url failed"; return 1; }
+    || { do_log "FATAL download $url failed" >&2; return 1; }
   echo "$sha  $tarball" | sudo sha256sum -c --quiet - \
-    || { sudo rm -f "$tarball"; do_log "FATAL sha256 mismatch for $tarball"; return 1; }
-  do_log "OK runner v$ver tarball verified (sha256 $sha)"
+    || { sudo rm -f "$tarball"; do_log "FATAL sha256 mismatch for $tarball" >&2; return 1; }
+  do_log "OK runner v$ver tarball verified (sha256 $sha)" >&2
   echo "$tarball"
 }
 

@@ -69,7 +69,10 @@ try {
   await p.waitForSelector('[data-testid=search-row-menu]', { visible: true, timeout: 5000 })
   const ids = await p.$$eval('[data-testid=search-row-menu] [role=menuitem]', (els) => els.map((e) => e.getAttribute('data-testid')))
   const first = await p.$eval('[data-testid=search-row-menu-original]', (el) => el.textContent.trim()).catch(() => '')
-  ok('1 right-click: Open original, Show here, Copy link', JSON.stringify(ids) === JSON.stringify(['search-row-menu-original', 'search-row-menu-here', 'search-row-menu-copy']) && first === 'Open original', { ids, first })
+  /* t1 b6c742f0: the AI actions group follows the three row items */
+  const head = JSON.stringify(ids.slice(0, 3)) === JSON.stringify(['search-row-menu-original', 'search-row-menu-here', 'search-row-menu-copy'])
+  const aiAfter = ids.slice(3).some((id) => /^search-row-menu-ai-/.test(id))
+  ok('1 right-click: Open original, Show here, Copy link, then the AI actions', head && aiAfter && first === 'Open original', { ids, first })
   await p.screenshot({ path: `${SHOTS}/1-menu-desktop.png` })
   await p.keyboard.press('Escape')
   await p.waitForSelector('[data-testid=search-row-menu]', { hidden: true, timeout: 5000 })

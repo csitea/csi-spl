@@ -305,24 +305,32 @@ func TestViewTopicsViewerAndTenant(t *testing.T) {
 	}
 }
 
-// TestViewTopicsPerf is the FR-001 harness (SPOOL_TEST_PERF=1): 2 tenants x
-// {5k, 50k, 200k} messages over 2k topics, ViewTopics limit 50 (the hub
-// asks for limit+1), first page and a deep cursor page (after topic 1000),
-// p50/p95 over n runs, for the oracle (BEFORE) and the live query (AFTER).
+// TestViewTopicsPerf (SPOOL_TEST_PERF=1, n = SPOOL_TEST_PERF_N, default 30)
+// has two cells, each runnable alone with -run 'TestViewTopicsPerf/<cell>':
+// grid (perfGrid, FR-001) and head099 (perfHeadLab, spec 099 T001c).
 func TestViewTopicsPerf(t *testing.T) {
 	if os.Getenv("SPOOL_TEST_PERF") != "1" {
 		t.Skip("SPOOL_TEST_PERF unset")
 	}
 	pg := pgOnly(t)
-	ctx := context.Background()
 	runs := 30
 	if v, _ := strconv.Atoi(os.Getenv("SPOOL_TEST_PERF_N")); v > 0 {
 		runs = v
 	}
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	var ver string
-	_ = pg.pool.QueryRow(ctx, `SHOW server_version`).Scan(&ver)
-	t.Logf("pg %s, n=%d per cell, limit 51", ver, runs)
+	_ = pg.pool.QueryRow(context.Background(), `SHOW server_version`).Scan(&ver)
+	t.Logf("pg %s, n=%d per cell", ver, runs)
+	t.Run("grid", func(t *testing.T) { perfGrid(t, pg, runs, now) })
+	t.Run("head099", func(t *testing.T) { perfHeadLab(t, pg, runs, now) })
+}
+
+// perfGrid is the FR-001 harness: 2 tenants x {5k, 50k, 200k} messages over
+// 2k topics, ViewTopics limit 50 (the hub asks for limit+1), first page and a
+// deep cursor page (after topic 1000), p50/p95 over n runs, for the oracle
+// (BEFORE) and the live query (AFTER).
+func perfGrid(t *testing.T, pg *Postgres, runs int, now time.Time) {
+	ctx := context.Background()
 	type impl struct {
 		name string
 		fn   func(context.Context, *Postgres, string, TopicQuery) ([]TopicRow, error)
@@ -384,6 +392,230 @@ func TestViewTopicsPerf(t *testing.T) {
 }
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+
+// perfHeadLab is spec 099 T001c: claude-4's lab (099 claude-4-opinion.md
+// section 2) as a committed cell, so the phase 1 / phase 2 numbers can be
+// re-run. One tenant, seedTopics(22 000 messages, 1 500 topics), then one
+// archived line in each of 380 topics (prd had 388 archived cards). Per list
+// shape, three reads of the same page:
+//   - walk: today's ViewTopics;
+//   - head: the narrow head (phase 1: the walk key per topic and per channel
+//     part, headLab) walked in key order, plus today's summary();
+//   - key: the same head walk with no summary at all, the floor that a stored
+//     summary (phase 2) could reach.
+//
+// The head reads reuse the builder's own probes (walkParties, readerDoor,
+// walkTree, archivedTopicHideSQL), so they differ from today's only in the
+// walk, and their rows must equal the walk's before anything is timed.
+// Every read runs under pgScopeTenantNoJIT, n runs after 3 warm-ups.
+func perfHeadLab(t *testing.T, pg *Postgres, runs int, now time.Time) {
+	ctx := context.Background()
+	tn := newTenant(t, pg)
+	seedTopics(t, pg, tn, 22000, 1500, now, 0.5)
+	archiveLabTopics(t, pg, tn, now, 380)
+	lab := newHeadLab(t, pg, tn, now)
+	for _, sh := range headLabShapes(now) {
+		walk, err := pg.ViewTopics(ctx, tn, sh.q)
+		if err != nil || len(walk) == 0 {
+			t.Fatalf("%s: walk %v, %d rows", sh.name, err, len(walk))
+		}
+		head, err := lab.read(ctx, pg, tn, sh.q, true)
+		if err != nil {
+			t.Fatalf("%s: head: %v", sh.name, err)
+		}
+		if d := sameRows(head, walk); d != "" {
+			t.Fatalf("%s: head != walk: %s", sh.name, d)
+		}
+		key, err := lab.read(ctx, pg, tn, sh.q, false)
+		if err != nil {
+			t.Fatalf("%s: key: %v", sh.name, err)
+		}
+		if d := sameKeys(key, walk); d != "" {
+			t.Fatalf("%s: key != walk: %s", sh.name, d)
+		}
+		for _, v := range []struct {
+			name string
+			fn   func() error
+		}{
+			{"walk", func() error { _, err := pg.ViewTopics(ctx, tn, sh.q); return err }},
+			{"head", func() error { _, err := lab.read(ctx, pg, tn, sh.q, true); return err }},
+			{"key", func() error { _, err := lab.read(ctx, pg, tn, sh.q, false); return err }},
+		} {
+			p50, p95, err := timeCell(runs, v.fn)
+			if err != nil {
+				t.Fatalf("%s %s: %v", sh.name, v.name, err)
+			}
+			t.Logf("PERF099 shape=%s limit=%d variant=%s rows=%d n=%d p50=%.2fms p95=%.2fms", sh.name, sh.q.Limit,
+				v.name, len(walk), runs, ms(p50), ms(p95))
+		}
+	}
+}
+
+// headLabShapes are the lab's four list shapes, as the hub sends them (roots
+// only, no issue talk); the reader reads its DMs and channel c1.
+func headLabShapes(now time.Time) []struct {
+	name string
+	q    TopicQuery
+} {
+	rd, mine := "HUM-1", []string{"c1"}
+	shapes := []struct {
+		name string
+		q    TopicQuery
+	}{
+		{"dm-reader", TopicQuery{DM: true, Reader: rd, ReaderChannels: mine, Limit: 51}},
+		{"all-reader", TopicQuery{Reader: rd, ReaderChannels: mine, Limit: 51}},
+		{"channel-c1", TopicQuery{Channel: "c1", Limit: 21}},
+		{"dm-peer-AGT-1", TopicQuery{DM: true, Agent: "AGT-1", Reader: rd, ReaderChannels: mine, Limit: 21}},
+	}
+	for i := range shapes {
+		shapes[i].q.Roots, shapes[i].q.NoIssues, shapes[i].q.Now = true, true, now
+	}
+	return shapes
+}
+
+// archiveLabTopics archives the first line of n topics of tenant.
+func archiveLabTopics(t *testing.T, pg *Postgres, tenant string, now time.Time, n int) {
+	t.Helper()
+	ctx := context.Background()
+	err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE messages SET archived_at = $2, archived_by = 'HUM-1'
+			WHERE tenant_id = $1 AND msg_id IN (SELECT DISTINCT ON (task_id) msg_id FROM messages
+				WHERE tenant_id = $1 AND expires_at > $2 ORDER BY task_id, received_at LIMIT $3)`, tenant, now, n)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+}
+
+// headLab is the narrow head of spec 099 section 3 as two lab tables, built
+// once by GROUP BY over the tenant's unexpired lines: nh holds one row per
+// topic (its latest line, and its latest DM line), nhp one row per channel
+// part (the latest line in that channel). They are lab tables, dropped after
+// the cell: no RLS, and the column is "tenant", not tenant_id, so a crashed
+// run never leaves a table the tenant_id RLS catalogue gate would read.
+type headLab struct{ nh, nhp string }
+
+func newHeadLab(t *testing.T, pg *Postgres, tenant string, now time.Time) headLab {
+	t.Helper()
+	ctx := context.Background()
+	sfx := strconv.FormatInt(time.Now().UnixNano(), 36)
+	lab := headLab{nh: "lab099_nh_" + sfx, nhp: "lab099_nhp_" + sfx}
+	t.Cleanup(func() {
+		_, _ = pg.pool.Exec(context.Background(), `DROP TABLE IF EXISTS `+lab.nh+`, `+lab.nhp)
+	})
+	ddl := `CREATE UNLOGGED TABLE ` + lab.nh + ` (tenant text NOT NULL, task_id uuid NOT NULL,
+			last_at timestamptz NOT NULL, dm_last_at timestamptz, PRIMARY KEY (tenant, task_id));
+		CREATE INDEX ON ` + lab.nh + ` (tenant, last_at DESC, task_id DESC);
+		CREATE INDEX ON ` + lab.nh + ` (tenant, dm_last_at DESC, task_id DESC) WHERE dm_last_at IS NOT NULL;
+		CREATE UNLOGGED TABLE ` + lab.nhp + ` (tenant text NOT NULL, task_id uuid NOT NULL, channel text NOT NULL,
+			last_at timestamptz NOT NULL, PRIMARY KEY (tenant, task_id, channel));
+		CREATE INDEX ON ` + lab.nhp + ` (tenant, channel, last_at DESC, task_id DESC)`
+	if _, err := pg.pool.Exec(ctx, ddl); err != nil {
+		t.Fatalf("head lab ddl: %v", err)
+	}
+	err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO `+lab.nh+` SELECT tenant_id, task_id, max(received_at),
+				max(received_at) FILTER (WHERE channel IS NULL)
+			FROM messages WHERE tenant_id = $1 AND expires_at > $2 GROUP BY tenant_id, task_id`, tenant, now); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO `+lab.nhp+` SELECT tenant_id, task_id, channel, max(received_at)
+			FROM messages WHERE tenant_id = $1 AND expires_at > $2 AND channel IS NOT NULL
+			GROUP BY tenant_id, task_id, channel`, tenant, now)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("head lab fill: %v", err)
+	}
+	if _, err := pg.pool.Exec(ctx, `ANALYZE `+lab.nh+`; ANALYZE `+lab.nhp); err != nil {
+		t.Fatalf("head lab analyze: %v", err)
+	}
+	return lab
+}
+
+// read is one page of q through the head: with summary, the rows of
+// ViewTopics; without it, only each listed topic's id and walk key (LastAt).
+func (lab headLab) read(ctx context.Context, pg *Postgres, tenant string, q TopicQuery, summary bool) ([]TopicRow, error) {
+	sql, args := lab.sql(tenant, q, summary)
+	var out []TopicRow
+	each := scanTopicRows(&out)
+	if !summary {
+		each = func(rows pgx.Rows) error {
+			var r TopicRow
+			if err := rows.Scan(&r.TaskID, &r.LastAt); err != nil {
+				return err
+			}
+			out = append(out, r)
+			return nil
+		}
+	}
+	err := pg.queryTenantNoJIT(ctx, tenant, sql, args, each)
+	return out, err
+}
+
+// sql is statement() with the walk over the head instead of messages: the
+// key is the topic's latest line in the shape's lane (all, DM, or the
+// channel's part), so the "is this the topic's latest line" probe is gone,
+// and the cursor is on the uuid (spec 099: same order as task_id::text).
+// No page cursor: the lab times first pages.
+func (lab headLab) sql(tenant string, q TopicQuery, summary bool) (string, []any) {
+	b := &topicsSQL{c: &sqlc{}, q: q}
+	b.tn, b.now = b.c.arg(tenant), b.c.arg(q.Now)
+	from, key, walk := lab.nh, "l.last_at", "l.tenant = "+b.tn
+	switch {
+	case q.Channel != "":
+		from, walk = lab.nhp, walk+" AND l.channel = "+b.c.arg(q.Channel)
+	case q.DM:
+		key, walk = "l.dm_last_at", walk+" AND l.dm_last_at IS NOT NULL"
+	}
+	door, aggDoor := b.readerDoor()
+	walk += b.walkParties() + door + b.walkTree() + archivedTopicHideSQL("l", b.tn, b.c.arg(q.Lobby))
+	lim := b.c.arg(pgLimit(q.Limit))
+	order := " ORDER BY " + key + " DESC, l.task_id DESC LIMIT 1"
+	w := `WITH RECURSIVE w (task_id, received_at, n) AS (
+			(SELECT l.task_id, ` + key + `, 1 FROM ` + from + ` l WHERE ` + walk + order + `)
+			UNION ALL
+			SELECT s.task_id, s.received_at, w.n + 1 FROM w CROSS JOIN LATERAL (
+				SELECT l.task_id, ` + key + ` AS received_at FROM ` + from + ` l
+				WHERE ` + walk + ` AND (` + key + `, l.task_id) < (w.received_at, w.task_id)` + order + `
+			) s
+			WHERE w.n < ` + lim + `
+		)`
+	if !summary {
+		return w + ` SELECT w.task_id::text, w.received_at FROM w ORDER BY w.received_at DESC, w.task_id DESC`, b.c.args
+	}
+	return w + b.summary(aggDoor), b.c.args
+}
+
+// sameKeys: the same topics in the same order, with the same walk key.
+func sameKeys(a, b []TopicRow) string {
+	if len(a) != len(b) {
+		return fmt.Sprintf("len %d != %d", len(a), len(b))
+	}
+	for i := range a {
+		if a[i].TaskID != b[i].TaskID || !a[i].LastAt.Equal(b[i].LastAt) {
+			return fmt.Sprintf("row %d: %s@%s != %s@%s", i, a[i].TaskID, a[i].LastAt, b[i].TaskID, b[i].LastAt)
+		}
+	}
+	return ""
+}
+
+// timeCell is fn's p50 and p95 over runs timed runs, after 3 warm-ups.
+func timeCell(runs int, fn func() error) (p50, p95 time.Duration, err error) {
+	var ds []time.Duration
+	for i := 0; i < runs+3; i++ {
+		t0 := time.Now()
+		if err := fn(); err != nil {
+			return 0, 0, err
+		}
+		if i >= 3 {
+			ds = append(ds, time.Since(t0))
+		}
+	}
+	sort.Slice(ds, func(i, j int) bool { return ds[i] < ds[j] })
+	return ds[len(ds)/2], ds[(len(ds)*95+99)/100-1], nil
+}
 
 // TestViewTopicsExplain prints EXPLAIN (ANALYZE, BUFFERS) of the oracle and
 // the live query for SPOOL_TEST_EXPLAIN_TENANT (a tenant the perf harness

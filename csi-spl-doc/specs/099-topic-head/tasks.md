@@ -86,12 +86,33 @@ parallel with T002.
 - Test: green against today's walk, and each control is caught.
 - Depends on: nothing.
 
-### T001c The lab as a committed perf cell
+### T001c The lab as a committed perf cell (DONE)
 
 - Files: `store/view_topics_test.go` (`TestViewTopicsPerf`, which runs only
   under `SPOOL_TEST_PERF=1`).
 - What it adds: the "narrow head" and the "walk key only" variants of
   claude-4's lab, so the phase 1 / phase 2 numbers can be re-run.
+- What landed: the cell `TestViewTopicsPerf/head099` (`perfHeadLab`). It
+  times today's walk (`walk`), the narrow head plus today's `summary()`
+  (`head`), and the head walk alone (`key`). Before timing, it checks that
+  the head rows equal the walk's.
+  Run it alone with `-run 'TestViewTopicsPerf/head099'`.
+- First run: tree `6cc79253` plus this cell, pg 16.15 (docker, non-superuser
+  app role), 22k messages over 1 500 topics, 380 archived, n=20 after 3
+  warm-ups, one seed. p50 / p95 in ms:
+
+  | shape | walk | head | key |
+  |---|---|---|---|
+  | `dm=true`, reader HUM-1, limit 51 | 145.0 / 203.4 | 52.1 / 60.1 | 42.8 / 58.0 |
+  | all, reader HUM-1, limit 51 | 173.1 / 240.5 | 54.0 / 62.9 | 51.0 / 59.5 |
+  | `channel=c1`, limit 21 | 56.7 / 69.8 | 27.1 / 37.2 | 26.1 / 34.7 |
+  | `dm=true&peer=AGT-1`, reader HUM-1, limit 21 | 286.1 / 379.4 | 52.7 / 64.6 | 49.9 / 70.1 |
+
+  The rows were equal on all 4 shapes. The absolute numbers are higher than
+  in claude-4's lab. This run's box was loaded (`uptime`: load 129 on 16
+  cores), and it used another seed and another reader channel set.
+  Compare the ratios, not the times: `head` cuts p50 2.1..5.4x, and `key`
+  is only 1..10 ms below `head`.
 - Depends on: nothing.
 
 ### T002 rdb 0144: phase 1 tables, functions, triggers

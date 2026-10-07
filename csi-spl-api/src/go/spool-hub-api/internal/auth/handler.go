@@ -212,6 +212,7 @@ type Handler struct {
 	demoWS     string                     // specs/077 open demo workspace; "" = the demo is off
 	audit      ActivityRecorder           // CLE-77799 auth events; nil = off
 	hops       int                        // trusted proxy hops, for the audit's client IP
+	revoked    *revocations               // per-human session cut-offs (revoke.go)
 }
 
 // Options are the optional collaborators.
@@ -252,6 +253,9 @@ type Options struct {
 	// TrustedProxyHops is how many proxies the hub trusts, so the audit reads
 	// the real client IP (edge.ClientIP); mirrors the native config's value.
 	TrustedProxyHops int
+	// Revocations persists "sign them out everywhere" (the admin password
+	// reset) across hub instances; nil = this instance's memory only.
+	Revocations SessionRevoker
 }
 
 // New builds the handler from a validated Config.
@@ -261,7 +265,7 @@ func New(cfg *Config, log zerolog.Logger, o Options) *Handler {
 		reg: o.Registrar, members: o.Membership, unlink: o.Unlinker, avatars: o.Avatars, prefs: o.Preferences,
 		federated: o.Federated, now: o.Now, imp: o.Impersonation,
 		defLocale: o.DefaultLocale, pageTenant: o.PageTenant, demoWS: o.DemoWorkspace,
-		audit: o.Audit, hops: o.TrustedProxyHops,
+		audit: o.Audit, hops: o.TrustedProxyHops, revoked: newRevocations(o.Revocations, cfg.SessionTTL),
 	}
 	if h.now == nil {
 		h.now = time.Now
@@ -1452,6 +1456,9 @@ func (h *Handler) SessionFromRequest(r *http.Request) (Session, bool) {
 	}
 	var s Session
 	if openToken(h.sessionKey, c.Value, &s, h.now()) != nil || s.V != 1 {
+		return Session{}, false
+	}
+	if h.revoked.dead(r.Context(), s, h.now()) {
 		return Session{}, false
 	}
 	return s, true

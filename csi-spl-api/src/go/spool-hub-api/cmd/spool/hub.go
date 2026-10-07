@@ -227,7 +227,9 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		Impersonation: hub.NewActAs(st, 0, nil), // specs/054 act-as; nil under the memory store
 		// CLE-77799: record sign-in / sign-out to member_activity for the
 		// per-person Activity log; the same trusted-proxy hops as the edge.
-		Audit: hub.AuthActivityRecorder(st), TrustedProxyHops: hc.TrustedProxyHops})
+		Audit: hub.AuthActivityRecorder(st), TrustedProxyHops: hc.TrustedProxyHops,
+		// the admin password reset's "sign out everywhere" (rdb 0148)
+		Revocations: sessionRevoker(st)})
 	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
 	if err := enableNativeSignIn(opts.Auth, nc, st, log); err != nil {
 		return opts, err
@@ -401,6 +403,15 @@ func logRLSPosture(ctx context.Context, log zerolog.Logger, st store.Store) {
 	} else {
 		log.Info().Msg("db.rls_not_liftable: the hub role cannot switch row level security off")
 	}
+}
+
+// sessionRevoker is the store's per-human session cut-offs; nil when it
+// keeps none (then a revoke binds this instance only).
+func sessionRevoker(st store.Store) auth.SessionRevoker {
+	if r, ok := st.(auth.SessionRevoker); ok {
+		return r
+	}
+	return nil
 }
 
 // enableNativeSignIn turns on e-mail + password sign-in (spec 015) when its

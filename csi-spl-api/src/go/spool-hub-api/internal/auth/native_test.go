@@ -463,7 +463,7 @@ func TestNativeResetTokenSingleUse(t *testing.T) {
 	if g := r.post(t, nil, "password/reset", map[string]string{"token": tok, "password": "short"}); g.code != http.StatusBadRequest {
 		t.Fatalf("short: %d", g.code)
 	}
-	if g := r.post(t, nil, "password/reset", map[string]string{"token": tok, "password": pwB}); g.code != http.StatusNoContent || g.hdr.Get("Set-Cookie") != "" {
+	if g := r.post(t, nil, "password/reset", map[string]string{"token": tok, "password": pwB}); g.code != http.StatusOK || g.hdr.Get("Set-Cookie") == "" { // t1 ea0af569: the link signs in
 		t.Fatalf("reset: %d %s", g.code, g.raw)
 	}
 	if g := r.post(t, nil, "password/reset", map[string]string{"token": tok, "password": "third-password-789"}); g.code != http.StatusUnauthorized || g.body["error"] != "reset_token_invalid" {

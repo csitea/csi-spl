@@ -55,6 +55,8 @@ type Memory struct {
 	anyMoved    bool                    // message_move.go (rdb 0069): a row was ever moved
 	// tenant_settings.go (rdb 0074): tenants.default_locale, guarded by mu
 	tenantLocale map[string]string
+	// session_revocations.go (rdb 0148): per-human session cut-offs, guarded by mu
+	revokedAt map[string]time.Time
 	// tenant_settings.go (rdb 0109): vendor split, guarded by mu. Missing = the default.
 	agentSplit map[string]AgentSplit
 	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.

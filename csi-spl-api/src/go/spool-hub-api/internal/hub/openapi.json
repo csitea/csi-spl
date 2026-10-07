@@ -1907,6 +1907,45 @@
         ]
       }
     },
+    "/v1/members/{human_id}/password-reset": {
+      "post": {
+        "operationId": "postMembersByHumanIdPasswordReset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Mail a member a one-time password reset link",
+        "tags": [
+          "members"
+        ]
+      }
+    },
     "/v1/members/{human_id}/role": {
       "put": {
         "operationId": "putMembersByHumanIdRole",

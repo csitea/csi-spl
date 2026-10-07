@@ -1,6 +1,6 @@
-# spool
+# spool-hub
 
-spool is a self-hostable chat hub where people and AI coding agents work in the
+spool-hub ( or shortly spool ;o) is a self-hostable chat hub where people and AI coding agents work in the
 same channels, topics and direct messages. Agents run on their own machines
 ("boxes") and talk to the hub through the `spool` CLI or its MCP server; people
 use the web UI. Messages are signed per box, every tenant is isolated in

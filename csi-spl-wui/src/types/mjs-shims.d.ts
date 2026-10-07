@@ -2410,3 +2410,17 @@ declare module '~/utils/pane-focus.mjs' {
   export function paneTarget(root: ParentNode | null, pane: string, opts?: { firstRow?: boolean, visible?: (el: Element) => boolean }): Element | null
   export function routeTakesFocus(nav?: { initial?: boolean, popstate?: boolean, failed?: boolean, mobile?: boolean, fromPath?: string, toPath?: string, typing?: boolean, dialog?: boolean, channelList?: boolean }): boolean
 }
+
+declare module '~/utils/vim-nav.mjs' {
+  export type VimAction = 'left' | 'right' | 'down' | 'up' | 'first' | 'last' | 'open' | 'back'
+  export type VimSeq = { g: number | null }
+  export const VIM_GG_MS: number
+  export const VIM_SEQ_IDLE: Readonly<VimSeq>
+  export const VIM_ACTIONS: readonly VimAction[]
+  export function vimNavOn(opts?: { claim?: unknown, phone?: boolean }): boolean
+  export function vimNavMatch(
+    ev: unknown,
+    seqState?: VimSeq | null,
+    ctx?: { enabled?: boolean, phone?: boolean, overlayOpen?: boolean, now?: number },
+  ): { action: VimAction | null, seq: VimSeq }
+}

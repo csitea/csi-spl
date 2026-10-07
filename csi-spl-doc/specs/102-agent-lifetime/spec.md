@@ -770,6 +770,64 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
 | cross-box observation | remote box reports `wd_count: 0` (no heartbeat at all) | hub derives `wd_count: 0`, sends one admin alert; box stays UP, zero agent CAS/migration | remote box healthy (3 watchdogs) -> zero alert; remote box partitioned (> 2 min absent) -> 10.2 fence activates |
 | admin alert threshold | 2 watchdogs killed simultaneously | admin alert triggered immediately (2 of 3 down) | single watchdog killed and restored in $< 5\text{ min}$ -> logged only, zero admin alert |
 
+### 10.5 Live watchdog gaps from c-101 watch run (T028..T032)
+
+During the live fleet watch run on local panes (c-101, 192 rounds,
+2026-10-06 07:05Z to 2026-10-07 12:04Z, final result `e8207389`), five live
+watchdog gaps were observed that were not covered by previous tasks:
+
+1. **S6 plus a note-only inbox never resolves (T028, gap 1)**:
+   - *Problem*: When an agent holds non-poke text in the input box (`poke=0`,
+     not starting with `: 'SPOOL `) and only `kind=note` messages exist in its
+     inbox, S6 leaves the input box alone (`not poke-shaped: left alone`) and S1
+     filters out notes as non-jobs. The agent remains stuck idle indefinitely
+     (observed in `c-003`, held stuck for 40 min on 2026-10-06 until manual
+     intervention).
+   - *Fix*: S6 detects unhandled input held past `WD_INPUT_MAX` when idle with
+     no active client (`client_age > 120`), and triggers recovery action
+     (admin alert, clear, or re-poke) rather than leaving the seat or lane
+     abandoned.
+2. **S2 misses grok's 'weekly limit' panel (T029, gap 2)**:
+   - *Problem*: Grok's account weekly usage limit displays a distinct
+     full-screen or modal 'weekly limit' panel that does not match `WD_STALL_RE`
+     (`usage limit reached`, `limit reached ·`, `limit resets`, `/login`, etc.).
+     Grok agents start dead on arrival (DOA) or stall without S2 detecting the
+     condition (observed 5 times: `g-432..g-434`, `g-481` DOA at 08:39Z, plus 1
+     on 2026-10-06).
+   - *Fix*: Expand `WD_STALL_RE` and `s2.sh` pane/footer matching to detect
+     grok's weekly limit screen and classify it as S2 `kind=limit`.
+3. **Lease liveness counts a modal-stuck seat as able (T030, gap 4)**:
+   - *Problem*: `spl_lease_agent_able` in `spl-dispatch-lease.func.sh` treats
+     a seat process as able if its PID is alive, not in rotate hold, and no fresh
+     watchdog HIT is in `wd.$id`. When a seat is frozen on an unhandled modal
+     dialog (e.g. auto-mode offer), `spl_lease_dismiss_modal` fails and
+     `spl_lease_stall` misses it; once any prior `wd.$id` HIT expires past
+     `WD_FRESH` (90 s), `spl_lease_agent_able` treats the modal-stuck seat as
+     able, causing the dispatch lease to flap back onto the stuck seat
+     (observed 4 times overnight with `c-002@<box>`).
+   - *Fix*: Detect unhandled modal state in `spl_lease_agent_able` and declare
+     the seat unable (`why="modal: <details>"`), preventing lease flapping and
+     enabling clean failover.
+4. **S1 cannot tell an idle standby holding a STALE unread file from a stuck one (T031, gap 5)**:
+   - *Problem*: S1 checks whether unread inbox messages older than `WD_JOB_WAIT`
+     (120 s) arrived after `wd_progress`. An idle standby seat (e.g. standby
+     dispatcher `c-003`) holding an old unreconciled message delivered hours
+     before standby transition is misdiagnosed as stuck, triggering a
+     false-positive takeover (observed 2026-10-07 04:44:58Z on `c-003`, where a
+     7.5 h old unread file from `c-430` caused a false takeover).
+   - *Fix*: S1 detects standby seats and ignores historical unread files arriving
+     prior to standby entry or belonging to previous shifts.
+5. **Mid-turn delivery gap (T032, gap 8)**:
+   - *Problem*: S1 never fires while a turn is active (`wd_fresh` or heartbeat
+     busy/in-tool) to avoid interrupting normal computation. However, turns
+     frequently run for 20 to 60 minutes. When high-priority tasks, corrections,
+     or blockers arrive mid-turn, they sit unread in the inbox for tens of
+     minutes (observed 6 times: `c-389`, `c-394`, `g-396`, `c-448`, `c-478`,
+     `c-496`, with `c-478` working 21 min unaware of a brief correction).
+   - *Fix*: Watchdog and hook integration (`spool-agent-hook.sh`) detect
+     high-priority unread tasks/blockers during long turns and surface mid-turn
+     notifications at tool boundaries or prompt interrupts.
+
 ## 11. The admin (R8, R10)
 
 ### 11.1 One fleet-wide setting
@@ -895,6 +953,7 @@ do and its context come from the web app (topics, briefs).
 | WD3 | 10.4 |
 | WD4 | 10.4 |
 | WD5 | 10.4, 11.2, 16 Q12 |
+| c-101 watch gaps (1, 2, 4, 5, 8) | 10.5, tasks T028..T032 |
 
 ## 15. Opinion panel and consensus
 
@@ -1072,7 +1131,8 @@ On 2026-10-07, following discussion of the v1.1 watchdog keeper architecture in 
    the over-2 h agents are reborn only now (A4, Q9).
 3. **P2**: the admin settings and messages (11), the hub handoff copy (5.3),
    S2's buttons (7), the seats onto the path (4.4), multi-daemon watchdog
-   redundancy (10.4, T023a, T023b), and watchdog failure alerts (10.4, T026).
+   redundancy (10.4, T023a, T023b), watchdog failure alerts (10.4, T026),
+   and live watchdog gap resolutions (10.5, T028..T032).
 4. **P3**: the box beat, the fence and guests (10), controlled CLI updates
    (9.1), cross-box watchdog liveness (10.4, T024), watchdog self-update on
    desk-cron changes (10.4, T025), the shared memory (12), the reboot path

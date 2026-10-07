@@ -4,8 +4,13 @@
 #          - fail fast: no GH_RUNNER_ORG, a GH_RUNNER_NAMES name with no unit
 #          - only the org's units are picked (never actions.runner.o-x.*)
 #          - DRY_RUN=1 stops nothing and runs nothing in a runner dir
-#          - DRY_RUN=0 per runner: waits while busy, then stop, disable,
-#            `config.sh remove` (org remove-token) as the unit's user
+#          - a stopped + disabled unit (only in list-unit-files) is picked
+#          - DRY_RUN=0 per runner: waits while busy, then stop, svc.sh
+#            uninstall, `config.sh remove` (org remove-token) as the unit's
+#            user; the fake config.sh refuses remove while the service is
+#            installed, as the real one does ("Uninstall service first")
+#          - a service already uninstalled by an earlier run: no uninstall,
+#            still deregistered
 #          - the runner dir is never removed; a token never reaches the log
 #          - a runner still listed in the org afterwards fails the action
 #------------------------------------------------------------------------------
@@ -25,16 +30,28 @@ case "$1" in
   list-units) printf '%s\n' "actions.runner.o.r-01.service loaded active running X" \
                             "actions.runner.o.r-02.service loaded active running X" \
                             "actions.runner.o-x.r-09.service loaded active running X" ;;
+  list-unit-files) printf '%s\n' "actions.runner.o.r-01.service enabled enabled" \
+                                 "actions.runner.o.r-03.service disabled enabled" ;;
   show) n="${5#actions.runner.o.}"; case "$3" in WorkingDirectory) echo "/srv/runners/${n%.service}" ;; User) echo runuser ;; esac ;;
 esac
 EOF
 cat >"$T/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
-if [[ "$1" == test ]]; then exit 0; fi
+# the service is installed unless $GH_STATE/uninstalled-<runner> exists
+if [[ "$1" == test ]]; then
+  [[ "$2" == -s && "$3" == */.service ]] && { r="${3%/.service}"; [[ ! -e "$GH_STATE/uninstalled-${r##*/}" ]]; exit; }
+  exit 0
+fi
 if [[ "$1" == systemctl ]]; then echo "root systemctl $2 $3" >>"$RUN_LOG"; exit 0; fi
 if [[ "$1" == -u ]]; then u="$2"; shift 2; fi
 # bash -c 'cd "$1" && shift && exec "$@"' _ <dir> <cmd...>
-[[ "$1" == bash ]] && { shift 4; d="$1"; shift; echo "${u:-root}@$(basename "$d") $*" >>"$RUN_LOG"; exit 0; }
+if [[ "$1" == bash ]]; then
+  shift 4; d="$1"; shift; r="$(basename "$d")"
+  echo "${u:-root}@$r $*" >>"$RUN_LOG"
+  [[ "$*" == "./svc.sh uninstall" ]] && touch "$GH_STATE/uninstalled-$r"
+  [[ "$1 $2" == "./config.sh remove" && ! -e "$GH_STATE/uninstalled-$r" ]] && { echo "Uninstall service first" >&2; exit 1; }
+  exit 0
+fi
 echo "other: $*" >>"$RUN_LOG"
 exit 0
 EOF
@@ -68,16 +85,29 @@ GH_RUNNER_ORG=o GH_RUNNER_NAMES=r-07 act && no "an unknown name must fail" || ok
 GH_RUNNER_ORG=o act && ok "dry run exits 0" || no "dry run failed: $(tail -2 "$T/log")"
 [[ ! -s "$RUN_LOG" ]] && ok "dry run stops nothing, runs nothing in a runner dir" || no "dry run ran: $(cat "$RUN_LOG")"
 grep -q 'would drain.*r-01' "$T/log" && grep -q 'would drain.*r-02' "$T/log" && ok "every unit of the org is picked" || no "picked: $(grep would "$T/log")"
+grep -q 'would drain.*r-03' "$T/log" && ok "a stopped + disabled unit (list-unit-files only) is picked" || no "r-03 not picked: $(grep would "$T/log")"
+[[ "$(grep -c 'would drain.*r-01' "$T/log")" == 1 ]] && ok "a unit in both listings is picked once" || no "r-01 twice"
 grep -q 'r-09' "$T/log" && no "a unit of another org (o-x) was picked" || ok "only GH_RUNNER_ORG's units are picked"
 
 : >"$RUN_LOG"; : >"$T/log"; echo 2 >"$T/state/busy"
 GH_RUNNER_ORG=o GH_RUNNER_NAMES=r-01 DRY_RUN=0 act && ok "apply exits 0" || no "apply failed: $(tail -2 "$T/log")"
 want="root systemctl stop actions.runner.o.r-01.service
-root systemctl disable actions.runner.o.r-01.service
+root@r-01 ./svc.sh uninstall
 runuser@r-01 ./config.sh remove --token TOKEN-REMOVE-SENTINEL"
-[[ "$(cat "$RUN_LOG")" == "$want" ]] && ok "stop, disable, deregister as the unit's user - in order, r-01 only" || no "sequence: $(cat "$RUN_LOG")"
+[[ "$(cat "$RUN_LOG")" == "$want" ]] && ok "stop, svc.sh uninstall, deregister as the unit's user - in order, r-01 only" || no "sequence: $(cat "$RUN_LOG")"
+
+# idempotent: r-02's service already uninstalled by an earlier run
+: >"$RUN_LOG"; : >"$T/log"; touch "$T/state/uninstalled-r-02"
+GH_RUNNER_ORG=o GH_RUNNER_NAMES=r-02 DRY_RUN=0 act && ok "a rerun over an uninstalled service exits 0" || no "rerun failed: $(tail -2 "$T/log")"
+want="root systemctl stop actions.runner.o.r-02.service
+runuser@r-02 ./config.sh remove --token TOKEN-REMOVE-SENTINEL"
+[[ "$(cat "$RUN_LOG")" == "$want" ]] && ok "an uninstalled service is not uninstalled again, still deregistered" || no "rerun sequence: $(cat "$RUN_LOG")"
+
+# control: the old order (remove with the service installed) is refused by the fake
+r="$( cd "$T" && GH_STATE="$T/state" RUN_LOG=/dev/null sudo -u runuser bash -c 'cd "$1" && shift && exec "$@"' _ /srv/runners/r-03 ./config.sh remove --token x 2>&1 )"
+[[ "$r" == *"Uninstall service first"* ]] && ok "control: config.sh remove with the service installed fails" || no "control: the fake accepted remove: $r"
 [[ "$(cat "$T/state/busy")" == 0 ]] && ok "it waited while the runner was busy" || no "did not wait for busy"
-grep -qE 'rm |uninstall' "$RUN_LOG" && no "the runner dir or unit was removed" || ok "the dir and unit file are kept (rollback)"
+grep -qE 'rm ' "$RUN_LOG" && no "the runner dir was removed" || ok "the runner dir is kept (rollback)"
 grep -q SENTINEL "$T/log" && no "a token reached the log" || ok "no token in the log"
 
 echo r-02 >"$T/state/stale"; : >"$T/log"

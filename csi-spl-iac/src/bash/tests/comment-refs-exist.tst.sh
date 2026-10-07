@@ -38,8 +38,8 @@ PATTERN=(
 )
 
 # "basename path" for a citation this row must not rewrite.
-# config.sh is the GitHub runner program, named only from oss-runners-move
-# and gh-runner-remove.
+# config.sh and svc.sh are the GitHub runner programs, named only from
+# oss-runners-move and gh-runner-remove.
 # zip-jira-ticket.func.sh remains in the row-28 validate-params copies.
 # The harvest notes (destroy.sh, sweep.sh, d-tenants.sh, t1-owner.sh,
 # inbox-send.sh, agent-id-restart.sh) and the pas-psf log.func.sh history
@@ -56,6 +56,7 @@ KNOWN=(
   "project.conf.sh csi-spl-iac/lib/bash/funcs/verify-symlinks.func.sh"
   "project.conf.sh csi-spl-orc/lib/bash/funcs/verify-symlinks.func.sh"
   "stub.sh csi-spl-orc/src/bash/run/spl-hook-ping.func.sh"
+  "svc.sh csi-spl-orc/src/bash/run/gh-runner-remove.func.sh"
   "sweep.sh csi-spl-orc/src/bash/run/tf-sweep-steps.func.sh"
   "t1-owner.sh csi-spl-orc/src/bash/run/spl-db-query.func.sh"
   "t1-owner.sh csi-spl-orc/src/bash/run/spl-tenant-member-role.func.sh"

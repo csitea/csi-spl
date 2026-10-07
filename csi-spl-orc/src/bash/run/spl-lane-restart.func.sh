@@ -96,14 +96,7 @@ do_spl_lane_restart() {
   ctx="$(spl_lane_restart_ctx_k "$tr")"
   spl_lane_restart_log "$rid" GATE OK "$id pid $pid, pane $pane, $wt clean, task $task restart $((n + 1)) of $split, ctx ${ctx:-?}k"
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_lane_restart_log "$rid" DISTIL PLAN "-> $LANE_DISTIL (0640)"
-    spl_lane_restart_log "$rid" SPAWN PLAN "respawn-pane -k -t $pane as ${SPOOL_AGENT_USER:-?}, never --resume: $(spl_lane_restart_seed)"
-    spl_lane_restart_log "$rid" HUMAN PLAN "no claude of ${SPOOL_BOX_USER:-?}"
-    ROTATE_OLD_PANE="$pane" spl_lane_restart_distil "$id" "$rid" "$task" "$brief" "$wt" "$tr" "$ctx" -
-    # the one line a dry run leaves in rotate.log: final, so spl_wd_rotating
-    # reads no restart in flight
-    echo "$(date -u +%FT%TZ) $rid DONE PLAN dry run of do_spl_lane_restart: the id lock was free, nothing touched" >> "$ROTATE_LOG" 2>/dev/null || true
-    return 0
+    spl_lane_restart_plan "$id" "$rid" "$task" "$brief" "$wt" "$tr" "$ctx" "$pane"; return 0
   fi
   if ! { [[ -d "$ROTATE_HOLD_DIR/$task" ]] || mkdir -p "$ROTATE_HOLD_DIR/$task"; }; then
     spl_lane_restart_log "$rid" DISTIL FAIL "cannot create $ROTATE_HOLD_DIR/$task"; return 1
@@ -128,6 +121,18 @@ do_spl_lane_restart() {
     return 0
   fi
   spl_lane_restart_spawn
+}
+
+# spl_lane_restart_plan ID RID TASK BRIEF WT TRANSCRIPT CTX PANE: the dry
+# run: one PLAN line per step, the distil on stdout, and the one line a dry
+# run leaves in rotate.log - final, so spl_wd_rotating reads no restart in
+# flight.
+spl_lane_restart_plan() {
+  spl_lane_restart_log "$2" DISTIL PLAN "-> $LANE_DISTIL (0640)"
+  spl_lane_restart_log "$2" SPAWN PLAN "respawn-pane -k -t $8 as ${SPOOL_AGENT_USER:-?}, never --resume: $(spl_lane_restart_seed)"
+  spl_lane_restart_log "$2" HUMAN PLAN "no claude of ${SPOOL_BOX_USER:-?}"
+  ROTATE_OLD_PANE="$8" spl_lane_restart_distil "$1" "$2" "$3" "$4" "$5" "$6" "$7" -
+  echo "$(date -u +%FT%TZ) $2 DONE PLAN dry run of do_spl_lane_restart: the id lock was free, nothing touched" >> "$ROTATE_LOG" 2>/dev/null || true
 }
 
 # ---- SPAWN, HUMAN, the 7.3 fallback ---------------------------------------------

@@ -89,10 +89,10 @@ do_spl_agent_identity_restore() {
         adapter="${IDENTITY_RESTORE_ADAPTER_DIR:-$feat/scripts}/restore-$kind.sh"
         brief="${SPOOL_ROOT:-/var/spool-hub}/$id/brief.md"; [[ -f "$brief" ]] || brief=""
         rid="$(date -u +%Y%m%dT%H%M%SZ)-restore-$id"
+        if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
+          echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
+        fi
         if [[ "$dry" == 1 ]]; then
-          if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
-            echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
-          fi
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
           echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, new window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}' in '$sess'"
           continue
@@ -102,9 +102,6 @@ do_spl_agent_identity_restore() {
         fi
         [[ -x "$adapter" || -r "$adapter" ]] || { echo "FAILED  $id: no adapter $adapter"; failed=$((failed + 1)); continue; }
         ai_tmux has-session -t "=$sess" 2>/dev/null || ai_tmux new-session -d -s "$sess" 2>/dev/null
-        if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
-          echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
-        fi
         _ai_rlog "$rid" RESTORE START "$kind session $sid in $wt"
         pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
           "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"

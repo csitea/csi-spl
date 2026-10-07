@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Repositorion dokumenttien tallennus on keskeytetty tässä työtilassa.",
         "forbidden": "Et voi muokata repositorion dokumentteja tässä työtilassa.",
         "off": "Repositorion dokumenttien muokkausta ei ole vielä otettu käyttöön.",
-        "failed": "Dokumenttia ei tallennettu. Yritä uudelleen."
+        "failed": "Dokumenttia ei tallennettu. Yritä uudelleen.",
+        "not_failed": "Vain lähettämätöntä muokkausta voi yrittää uudelleen.",
+        "not_conflict": "Tässä muokkauksessa ei ole enää ristiriitaa.",
+        "not_yours": "Vain muokkaaja, hänen pyytäjänsä tai ylläpitäjä voi tehdä tämän.",
+        "no_edit": "Tätä muokkausta ei enää ole."
+      },
+      "chip": {
+        "pushing": "Tallennettu · lähetetään",
+        "pushed": "Lähetetty",
+        "conflict": "Ristiriita",
+        "failed": "Ei lähetetty",
+        "retry": "yritä uudelleen",
+        "resolve": "ratkaise",
+        "merged": "yhdistetty {sha}:n kanssa"
+      },
+      "mine": {
+        "title": "Omat muokkaukset",
+        "back": "Takaisin dokumenttiin",
+        "lead": "Repositorion dokumenttien muokkauksesi ja agenttiesi puolestasi tekemät, uusimmat ensin.",
+        "empty": "Ei vielä muokkauksia.",
+        "by_you": "Sinulta",
+        "by_agent": "Agentilta {agent}",
+        "superseded": "Yhdistetty myöhempään muokkaukseen",
+        "published": "Julkaistu",
+        "identity_lead": "Agentin puolestasi tekemä muokkaus julkaistaan nimelläsi. Vahvista tämä identiteetti kerran, jotta agenttiesi tallennukset menevät läpi.",
+        "identity": "Tarkista tekijäidentiteettini",
+        "identity_ok": "Tekijäidentiteettisi on vahvistettu."
+      },
+      "conflict": {
+        "lead": "Repositoriossa muuttuivat samat rivit muokkauksesi odottaessa, joten sitä ei lähetetty. Tekstisi on tallessa: yhdistä se heidän tekstiinsä ja tallenna uudelleen.",
+        "theirs": "Heidän: repositorio nyt",
+        "mine": "Minun: muokkauksesi",
+        "save": "Tallenna uudelleen"
       }
     }
   },

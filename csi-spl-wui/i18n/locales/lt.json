@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Saugyklos dokumentų išsaugojimas šioje darbo srityje sustabdytas.",
         "forbidden": "Negalite redaguoti saugyklos dokumentų šioje darbo srityje.",
         "off": "Saugyklos dokumentų redagavimas dar neįjungtas.",
-        "failed": "Dokumentas neišsaugotas. Bandykite dar kartą."
+        "failed": "Dokumentas neišsaugotas. Bandykite dar kartą.",
+        "not_failed": "Pakartoti galima tik neišsiųstą pakeitimą.",
+        "not_conflict": "Šis pakeitimas nebeturi konflikto.",
+        "not_yours": "Tai gali padaryti tik autorius, jo prašytojas arba administratorius.",
+        "no_edit": "Šio pakeitimo nebėra."
+      },
+      "chip": {
+        "pushing": "Išsaugota · siunčiama",
+        "pushed": "Išsiųsta",
+        "conflict": "Konfliktas",
+        "failed": "Neišsiųsta",
+        "retry": "bandyti dar kartą",
+        "resolve": "išspręsti",
+        "merged": "sulieta su {sha}"
+      },
+      "mine": {
+        "title": "Mano pakeitimai",
+        "back": "Atgal į dokumentą",
+        "lead": "Jūsų saugyklos dokumentų pakeitimai ir tie, kuriuos jūsų agentai padarė už jus, naujausi pirmiau.",
+        "empty": "Pakeitimų dar nėra.",
+        "by_you": "Jūsų",
+        "by_agent": "Agento {agent}",
+        "superseded": "Įtrauktas į vėlesnį pakeitimą",
+        "published": "Paskelbta",
+        "identity_lead": "Agento pakeitimas už jus skelbiamas jūsų vardu. Vieną kartą patvirtinkite šią tapatybę, kad jūsų agentų išsaugojimai praeitų.",
+        "identity": "Peržiūrėti mano autoriaus tapatybę",
+        "identity_ok": "Jūsų autoriaus tapatybė patvirtinta."
+      },
+      "conflict": {
+        "lead": "Saugykloje pasikeitė tos pačios eilutės, kol jūsų pakeitimas laukė, todėl jis nebuvo išsiųstas. Jūsų tekstas išlieka: sujunkite jį su jų tekstu ir išsaugokite dar kartą.",
+        "theirs": "Jų: saugykla dabar",
+        "mine": "Mano: jūsų pakeitimas",
+        "save": "Išsaugoti dar kartą"
       }
     }
   },

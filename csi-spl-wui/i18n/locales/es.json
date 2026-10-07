@@ -1612,7 +1612,39 @@
         "workspace_blocked": "El guardado de documentos del repositorio está en pausa para este espacio de trabajo.",
         "forbidden": "No puedes editar documentos del repositorio en este espacio de trabajo.",
         "off": "La edición de documentos del repositorio aún no está activada.",
-        "failed": "El documento no se guardó. Inténtalo de nuevo."
+        "failed": "El documento no se guardó. Inténtalo de nuevo.",
+        "not_failed": "Solo se puede reintentar una edición que no se envió.",
+        "not_conflict": "Esta edición ya no tiene conflicto.",
+        "not_yours": "Solo el autor, quien lo solicitó o un administrador puede hacerlo.",
+        "no_edit": "Esa edición ya no existe."
+      },
+      "chip": {
+        "pushing": "Guardado · enviando",
+        "pushed": "Enviado",
+        "conflict": "Conflicto",
+        "failed": "No enviado",
+        "retry": "reintentar",
+        "resolve": "resolver",
+        "merged": "fusionado con {sha}"
+      },
+      "mine": {
+        "title": "Mis ediciones",
+        "back": "Volver al documento",
+        "lead": "Tus ediciones de documentos del repositorio y las que tus agentes hicieron por ti, las más recientes primero.",
+        "empty": "Aún no hay ediciones.",
+        "by_you": "Por ti",
+        "by_agent": "Por el agente {agent}",
+        "superseded": "Incluida en una edición posterior",
+        "published": "Publicado",
+        "identity_lead": "La edición de un agente para ti se publica con tu nombre. Confirma esa identidad una vez para que los guardados de tus agentes pasen.",
+        "identity": "Revisar mi identidad de autor",
+        "identity_ok": "Tu identidad de autor está confirmada."
+      },
+      "conflict": {
+        "lead": "El repositorio cambió las mismas líneas mientras tu edición esperaba, así que no se envió. Tu texto se conserva: combínalo con el suyo y guarda de nuevo.",
+        "theirs": "Suyo: el repositorio ahora",
+        "mine": "Mío: tu edición",
+        "save": "Guardar de nuevo"
       }
     }
   },

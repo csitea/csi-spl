@@ -12,7 +12,10 @@
      keeps its icon rail (ChannelSidebar docsRailOnly) and a topic panel
      open beside the channel the reader came from closes.
      spec 075 repo-edit T11: a doc tree.json flags editable shows Edit to a
-     member with docs.write; the editor (RepoDocEditor) is a lazy chunk. -->
+     member with docs.write; the editor (RepoDocEditor) is a lazy chunk.
+     T12: its status chip (RepoDocStatus) on the doc header, "My edits"
+     (?edits=mine, RepoDocMyEdits) and the conflict view (?conflict=<edit>,
+     RepoDocConflict), each a lazy chunk too. -->
 <template>
   <div class="feed-col">
     <header class="feed-header">
@@ -82,13 +85,18 @@
         </nav>
         <article class="docs-content" aria-labelledby="docs-h" data-test="docs-content" :data-page="docPath">
           <DocsWorkspaceDoc v-if="wsPath" :path="wsPath" />
+          <RepoDocMyEdits v-else-if="showMine" :path="docPath" />
           <template v-else>
           <div class="docs-content__bar">
             <p class="docs-content__path muted" data-test="docs-path">{{ docPath }}</p>
-            <button v-if="canEdit && !editing" type="button" class="btn ghost docs-content__edit" data-test="repo-edit-open" @click="editing = true">
-              <UiIcon name="pencil" :size="16" />
-              <span>{{ t('docs.ws.edit') }}</span>
-            </button>
+            <span class="docs-content__tools">
+              <RepoDocStatus v-if="showChip" :path="docPath" :me="access.me?.humanId || ''" @resolve="openConflict" />
+              <NuxtLink v-if="editOn && !editing" :to="{ path: route(docPath), query: { edits: 'mine' } }" class="btn ghost" data-test="repo-edits-open">{{ t('docs.repoEdit.mine.title') }}</NuxtLink>
+              <button v-if="canEdit && !editing && !conflictId" type="button" class="btn ghost docs-content__edit" data-test="repo-edit-open" @click="editing = true">
+                <UiIcon name="pencil" :size="16" />
+                <span>{{ t('docs.ws.edit') }}</span>
+              </button>
+            </span>
           </div>
           <p v-if="savedNote && !editing" class="muted" role="status" data-test="repo-edit-saved">{{ t('docs.repoEdit.saved') }}</p>
           <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -101,6 +109,7 @@
             <a :href="repoUrl" target="_blank" rel="noopener noreferrer nofollow" data-test="docs-repo-link">{{ t('docs.open_in_repo') }}</a>
           </p>
           <p v-else-if="state === 'failed'" class="muted" role="alert">{{ t('docs.load_failed') }}</p>
+          <RepoDocConflict v-else-if="conflictId" :id="conflictId" @saved="onResolved" @cancel="closeConflict" />
           <RepoDocEditor v-else-if="editing" :path="docPath" :text="raw" :base="base || editFiles.get(docPath)?.blob || ''" @saved="onSaved" @cancel="editing = false" />
           <MarkdownBlock v-else :text="text" bare />
           </template>
@@ -131,12 +140,17 @@ import { useAccessStore } from '~/stores/access'
 
 /* spec 075 repo-edit T11: the editor and its store load on Edit only */
 const RepoDocEditor = defineAsyncComponent(() => import('~/components/RepoDocEditor.vue'))
+/* T12: the status chip, My edits and the conflict view, lazy as well */
+const RepoDocStatus = defineAsyncComponent(() => import('~/components/RepoDocStatus.vue'))
+const RepoDocMyEdits = defineAsyncComponent(() => import('~/components/RepoDocMyEdits.vue'))
+const RepoDocConflict = defineAsyncComponent(() => import('~/components/RepoDocConflict.vue'))
 
 type TreeFile = { path: string, title: string }
 
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const current = useRoute()
+const router = useRouter()
 const api = useSpoolApi()
 const docPath = computed(() => {
   const p = current.params.path
@@ -162,6 +176,11 @@ const editing = ref(false)
 const savedNote = ref(false)
 const access = useAccessStore()
 const canEdit = computed(() => state.value === 'ready' && editFiles.value.get(docPath.value)?.editable === true && canWriteDocs(access.me))
+/* T12: editing is on (some doc is editable) and the member may save */
+const editOn = computed(() => canWriteDocs(access.me) && [...editFiles.value.values()].some((f) => f.editable))
+const showChip = computed(() => state.value === 'ready' && editFiles.value.get(docPath.value)?.editable === true && !editing.value && !conflictId.value)
+const showMine = computed(() => current.query.edits === 'mine')
+const conflictId = computed(() => (typeof current.query.conflict === 'string' ? current.query.conflict : ''))
 const state = ref<'loading' | 'ready' | 'missing' | 'off' | 'failed'>('loading')
 /* the phone folds the tree; /docs with no doc opens it */
 const treeOpen = ref(!(Array.isArray(current.params.path) ? current.params.path.length : current.params.path))
@@ -240,6 +259,20 @@ function onSaved(md: string) {
   savedNote.value = true
 }
 
+/* T12: the conflict view of an edit of this doc, and back */
+function openConflict(id: string) {
+  editing.value = false
+  void router.push({ path: route(docPath.value), query: { conflict: id } })
+}
+function closeConflict() {
+  void router.replace({ path: route(docPath.value) })
+}
+/* resolved: the page shows the saved text, and the chip the new edit */
+function onResolved(md: string) {
+  closeConflict()
+  onSaved(md)
+}
+
 watch(docPath, () => { if (import.meta.client) void load() })
 onMounted(() => { void loadTree(); void load() })
 /* t1 c13e8023 (owner): a topic panel open beside the channel the reader
@@ -301,6 +334,7 @@ useHead(() => ({ title: t('docs.title') }))
 :global([dir="rtl"]) .docs-tree__chev[data-icon="chevron-right"] { transform: scaleX(-1); }
 .docs-content { min-width: 0; max-width: 900px; display: flex; flex-direction: column; gap: 8px; }
 .docs-content__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.docs-content__tools { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .docs-content__edit { display: inline-flex; align-items: center; gap: 6px; }
 .docs-content__path { margin: 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
 .docs-content__repo { margin: 0; overflow-wrap: anywhere; }

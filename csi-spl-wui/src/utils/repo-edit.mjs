@@ -78,3 +78,105 @@ export function saveErrorOf(status, body) {
     default: return { key: 'docs.repoEdit.err.failed', params: {} }
   }
 }
+
+/* ---- T12: the status chip, "My edits", the conflict view (spec §3, §8) ---- */
+
+/** The statuses of a queued edit (spec §10 repo_doc_edits.status). */
+export const EDIT_STATUSES = ['queued', 'pushing', 'pushed', 'published', 'conflict', 'failed', 'superseded']
+
+/** A commit sha as the hub reports it. */
+const SHA_RE = /^[0-9a-f]{7,40}$/
+
+/** An edit as GET /v1/docs/edits answers it, read leniently; null when it is not one. */
+export function editOf(v) {
+  if (!v || typeof v !== 'object') return null
+  const s = (k) => (typeof v[k] === 'string' ? v[k] : '')
+  if (!s('edit_id') || !validDocsPath(s('path')) || !EDIT_STATUSES.includes(s('status'))) return null
+  const sha = s('commit_sha').toLowerCase()
+  const merged = s('merged_with').toLowerCase()
+  return {
+    edit_id: s('edit_id'),
+    path: s('path'),
+    status: s('status'),
+    human_id: s('human_id'),
+    actor_kind: s('actor_kind') === 'agent' ? 'agent' : 'member',
+    agent_id: s('agent_id'),
+    commit_sha: SHA_RE.test(sha) ? sha : '',
+    merged_with: SHA_RE.test(merged) ? merged : '',
+    last_error: s('last_error'),
+    created_at: s('created_at'),
+  }
+}
+
+/** The edits of a GET /v1/docs/edits body, newest first as the hub sends them. */
+export function editsOf(body) {
+  const rows = body && Array.isArray(body.edits) ? body.edits : []
+  return rows.map(editOf).filter(Boolean)
+}
+
+/**
+ * The chip of spec §3 for one edit: { status, key, sha7, merged7, action },
+ * or null for none (published, superseded, no edit). queued and pushing
+ * read the same ("Saved · pushing"); action is what the chip offers.
+ */
+export function chipOf(edit) {
+  if (!edit || typeof edit !== 'object') return null
+  const sha7 = typeof edit.commit_sha === 'string' ? edit.commit_sha.slice(0, 7) : ''
+  const merged7 = typeof edit.merged_with === 'string' ? edit.merged_with.slice(0, 7) : ''
+  switch (edit.status) {
+    case 'queued':
+    case 'pushing': return { status: edit.status, key: 'docs.repoEdit.chip.pushing', sha7: '', merged7: '', action: '' }
+    case 'pushed': return { status: 'pushed', key: 'docs.repoEdit.chip.pushed', sha7, merged7, action: '' }
+    case 'conflict': return { status: 'conflict', key: 'docs.repoEdit.chip.conflict', sha7: '', merged7: '', action: 'resolve' }
+    case 'failed': return { status: 'failed', key: 'docs.repoEdit.chip.failed', sha7: '', merged7: '', action: 'retry' }
+    default: return null
+  }
+}
+
+/** The worker still owes this edit a push: the chip keeps polling. */
+export const isPending = (edit) => Boolean(edit) && (edit.status === 'queued' || edit.status === 'pushing')
+
+/**
+ * The edit the doc header shows for `path`: the newest of the path's rows
+ * (and `last`, the save this page just made, when the rows do not have it
+ * yet), skipping superseded rows and another member's conflict (the hub
+ * serves a conflict's text only to its editor). me '' = the viewer is
+ * unknown: every row counts as theirs.
+ */
+export function headerEdit(rows, path, me, last) {
+  const list = (Array.isArray(rows) ? rows : []).filter((e) => e && e.path === path)
+  if (last && last.path === path && last.edit_id && !list.some((e) => e.edit_id === last.edit_id)) list.unshift(last)
+  return list.find((e) => e.status !== 'superseded' && !(e.status === 'conflict' && me && e.human_id && e.human_id !== me)) ?? null
+}
+
+/**
+ * GET /v1/docs/edits/{id}/conflict: { edit_id, path, base, theirs, mine,
+ * head_blob, head_commit, reason }, or null. The resolution saves again
+ * with If-Match = head_blob ('' when master no longer has the file).
+ */
+export function conflictOf(body) {
+  if (!body || typeof body !== 'object') return null
+  const s = (k) => (typeof body[k] === 'string' ? body[k] : '')
+  if (!s('edit_id') || !validDocsPath(s('path'))) return null
+  const head = s('head_blob').toLowerCase()
+  return {
+    edit_id: s('edit_id'),
+    path: s('path'),
+    base: s('base'),
+    theirs: s('theirs'),
+    mine: s('mine'),
+    head_blob: BLOB_RE.test(head) ? head : '',
+    head_commit: s('head_commit').toLowerCase(),
+    reason: s('reason'),
+  }
+}
+
+/** The message a refused retry or conflict read shows (docs.repoEdit.err.*). */
+export function editActionErrorOf(status, body) {
+  const reason = body && typeof body.error === 'string' ? body.error : ''
+  if (status === 409 && reason === 'not_failed') return { key: 'docs.repoEdit.err.not_failed', params: {} }
+  if (status === 409 && reason === 'not_conflict') return { key: 'docs.repoEdit.err.not_conflict', params: {} }
+  if (status === 403) return { key: 'docs.repoEdit.err.not_yours', params: {} }
+  if (status === 404) return { key: 'docs.repoEdit.err.no_edit', params: {} }
+  return { key: 'docs.repoEdit.err.failed', params: {} }
+}

@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Salvarea documentelor din depozit este întreruptă pentru acest spațiu de lucru.",
         "forbidden": "Nu puteți edita documente din depozit în acest spațiu de lucru.",
         "off": "Editarea documentelor din depozit nu este încă activată.",
-        "failed": "Documentul nu a fost salvat. Încercați din nou."
+        "failed": "Documentul nu a fost salvat. Încercați din nou.",
+        "not_failed": "Doar o editare netrimisă poate fi reîncercată.",
+        "not_conflict": "Această editare nu mai are conflict.",
+        "not_yours": "Doar autorul, solicitantul său sau un administrator poate face asta.",
+        "no_edit": "Acea editare nu mai există."
+      },
+      "chip": {
+        "pushing": "Salvat · se trimite",
+        "pushed": "Trimis",
+        "conflict": "Conflict",
+        "failed": "Netrimis",
+        "retry": "reîncearcă",
+        "resolve": "rezolvă",
+        "merged": "îmbinat cu {sha}"
+      },
+      "mine": {
+        "title": "Editările mele",
+        "back": "Înapoi la document",
+        "lead": "Editările tale ale documentelor din depozit și cele făcute de agenții tăi pentru tine, cele mai noi primele.",
+        "empty": "Încă nicio editare.",
+        "by_you": "De tine",
+        "by_agent": "De agentul {agent}",
+        "superseded": "Inclusă într-o editare ulterioară",
+        "published": "Publicat",
+        "identity_lead": "Editarea unui agent pentru tine este publicată sub numele tău. Confirmă această identitate o dată ca salvările agenților tăi să treacă.",
+        "identity": "Verifică identitatea mea de autor",
+        "identity_ok": "Identitatea ta de autor este confirmată."
+      },
+      "conflict": {
+        "lead": "Depozitul a schimbat aceleași linii cât timp editarea ta aștepta, așa că nu a fost trimisă. Textul tău este păstrat: îmbină-l cu al lor și salvează din nou.",
+        "theirs": "Al lor: depozitul acum",
+        "mine": "Al meu: editarea ta",
+        "save": "Salvează din nou"
       }
     }
   },

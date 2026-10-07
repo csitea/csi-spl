@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Bu çalışma alanı için depo belgelerini kaydetme duraklatıldı.",
         "forbidden": "Bu çalışma alanında depo belgelerini düzenleyemezsiniz.",
         "off": "Depo belgelerini düzenleme henüz açılmadı.",
-        "failed": "Belge kaydedilmedi. Yeniden deneyin."
+        "failed": "Belge kaydedilmedi. Yeniden deneyin.",
+        "not_failed": "Yalnızca gönderilmemiş bir düzenleme yeniden denenebilir.",
+        "not_conflict": "Bu düzenlemenin artık çakışması yok.",
+        "not_yours": "Bunu yalnızca düzenleyen, talep eden kişi veya bir yönetici yapabilir.",
+        "no_edit": "Bu düzenleme artık yok."
+      },
+      "chip": {
+        "pushing": "Kaydedildi · gönderiliyor",
+        "pushed": "Gönderildi",
+        "conflict": "Çakışma",
+        "failed": "Gönderilmedi",
+        "retry": "yeniden dene",
+        "resolve": "çöz",
+        "merged": "{sha} ile birleştirildi"
+      },
+      "mine": {
+        "title": "Düzenlemelerim",
+        "back": "Belgeye dön",
+        "lead": "Depo belgelerindeki düzenlemeleriniz ve ajanlarınızın sizin için yaptıkları, en yenisi önce.",
+        "empty": "Henüz düzenleme yok.",
+        "by_you": "Sizin tarafınızdan",
+        "by_agent": "{agent} ajanı tarafından",
+        "superseded": "Sonraki bir düzenlemeye katıldı",
+        "published": "Yayımlandı",
+        "identity_lead": "Bir ajanın sizin için yaptığı düzenleme sizin adınızla yayımlanır. Ajanlarınızın kayıtlarının geçmesi için bu kimliği bir kez onaylayın.",
+        "identity": "Yazar kimliğimi gözden geçir",
+        "identity_ok": "Yazar kimliğiniz onaylandı."
+      },
+      "conflict": {
+        "lead": "Düzenlemeniz beklerken depo aynı satırları değiştirdi, bu yüzden gönderilmedi. Metniniz korunuyor: onu onlarınkiyle birleştirip yeniden kaydedin.",
+        "theirs": "Onların: deponun şimdiki hâli",
+        "mine": "Benim: düzenlemeniz",
+        "save": "Yeniden kaydet"
       }
     }
   },

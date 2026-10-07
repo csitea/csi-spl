@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Het opslaan van documenten van de repository is gepauzeerd voor deze werkruimte.",
         "forbidden": "Je kunt geen documenten van de repository bewerken in deze werkruimte.",
         "off": "Het bewerken van documenten van de repository is nog niet ingeschakeld.",
-        "failed": "Het document is niet opgeslagen. Probeer het opnieuw."
+        "failed": "Het document is niet opgeslagen. Probeer het opnieuw.",
+        "not_failed": "Alleen een bewerking die niet gepusht is kan opnieuw worden geprobeerd.",
+        "not_conflict": "Deze bewerking heeft geen conflict meer.",
+        "not_yours": "Alleen de bewerker, diens aanvrager of een beheerder kan dat doen.",
+        "no_edit": "Die bewerking bestaat niet meer."
+      },
+      "chip": {
+        "pushing": "Opgeslagen · wordt gepusht",
+        "pushed": "Gepusht",
+        "conflict": "Conflict",
+        "failed": "Niet gepusht",
+        "retry": "opnieuw",
+        "resolve": "oplossen",
+        "merged": "samengevoegd met {sha}"
+      },
+      "mine": {
+        "title": "Mijn bewerkingen",
+        "back": "Terug naar het document",
+        "lead": "Je bewerkingen van repositorydocumenten en die je agents voor je maakten, nieuwste eerst.",
+        "empty": "Nog geen bewerkingen.",
+        "by_you": "Door jou",
+        "by_agent": "Door agent {agent}",
+        "superseded": "Opgenomen in een latere bewerking",
+        "published": "Gepubliceerd",
+        "identity_lead": "Een bewerking van een agent voor jou wordt onder jouw naam gepubliceerd. Bevestig die identiteit één keer zodat de opslagacties van je agents doorgaan.",
+        "identity": "Mijn auteursidentiteit bekijken",
+        "identity_ok": "Je auteursidentiteit is bevestigd."
+      },
+      "conflict": {
+        "lead": "De repository wijzigde dezelfde regels terwijl je bewerking wachtte, dus die is niet gepusht. Je tekst blijft bewaard: voeg hem samen met die van hen en sla opnieuw op.",
+        "theirs": "Van hen: de repository nu",
+        "mine": "Van mij: je bewerking",
+        "save": "Opnieuw opslaan"
       }
     }
   },

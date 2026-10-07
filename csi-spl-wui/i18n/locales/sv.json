@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Att spara dokument i repositoryt är pausat för den här arbetsytan.",
         "forbidden": "Du kan inte redigera dokument i repositoryt i den här arbetsytan.",
         "off": "Redigering av dokument i repositoryt är inte påslagen än.",
-        "failed": "Dokumentet sparades inte. Försök igen."
+        "failed": "Dokumentet sparades inte. Försök igen.",
+        "not_failed": "Bara en ändring som inte skickades kan försökas igen.",
+        "not_conflict": "Den här ändringen har ingen konflikt längre.",
+        "not_yours": "Bara redigeraren, dess beställare eller en administratör kan göra det.",
+        "no_edit": "Den ändringen finns inte längre."
+      },
+      "chip": {
+        "pushing": "Sparad · skickas",
+        "pushed": "Skickad",
+        "conflict": "Konflikt",
+        "failed": "Inte skickad",
+        "retry": "försök igen",
+        "resolve": "lös",
+        "merged": "sammanslagen med {sha}"
+      },
+      "mine": {
+        "title": "Mina ändringar",
+        "back": "Tillbaka till dokumentet",
+        "lead": "Dina ändringar av repositoriets dokument och de som dina agenter gjorde åt dig, nyaste först.",
+        "empty": "Inga ändringar än.",
+        "by_you": "Av dig",
+        "by_agent": "Av agenten {agent}",
+        "superseded": "Ingår i en senare ändring",
+        "published": "Publicerad",
+        "identity_lead": "En agents ändring åt dig publiceras under ditt namn. Bekräfta den identiteten en gång så att dina agenters sparningar går igenom.",
+        "identity": "Granska min författaridentitet",
+        "identity_ok": "Din författaridentitet är bekräftad."
+      },
+      "conflict": {
+        "lead": "Repositoriet ändrade samma rader medan din ändring väntade, så den skickades inte. Din text finns kvar: slå ihop den med deras och spara igen.",
+        "theirs": "Deras: repositoriet nu",
+        "mine": "Min: din ändring",
+        "save": "Spara igen"
       }
     }
   },

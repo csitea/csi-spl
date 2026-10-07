@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Zapisywanie dokumentów repozytorium jest wstrzymane dla tej przestrzeni roboczej.",
         "forbidden": "Nie możesz edytować dokumentów repozytorium w tej przestrzeni roboczej.",
         "off": "Edycja dokumentów repozytorium nie jest jeszcze włączona.",
-        "failed": "Dokument nie został zapisany. Spróbuj ponownie."
+        "failed": "Dokument nie został zapisany. Spróbuj ponownie.",
+        "not_failed": "Ponowić można tylko edycję, która nie została wysłana.",
+        "not_conflict": "Ta edycja nie ma już konfliktu.",
+        "not_yours": "Może to zrobić tylko autor, jego zleceniodawca lub administrator.",
+        "no_edit": "Ta edycja już nie istnieje."
+      },
+      "chip": {
+        "pushing": "Zapisano · wysyłanie",
+        "pushed": "Wysłano",
+        "conflict": "Konflikt",
+        "failed": "Nie wysłano",
+        "retry": "ponów",
+        "resolve": "rozwiąż",
+        "merged": "scalono z {sha}"
+      },
+      "mine": {
+        "title": "Moje edycje",
+        "back": "Wróć do dokumentu",
+        "lead": "Twoje edycje dokumentów repozytorium i te, które agenci zrobili za ciebie, najnowsze najpierw.",
+        "empty": "Brak edycji.",
+        "by_you": "Przez ciebie",
+        "by_agent": "Przez agenta {agent}",
+        "superseded": "Włączona do późniejszej edycji",
+        "published": "Opublikowano",
+        "identity_lead": "Edycja agenta w twoim imieniu jest publikowana pod twoim nazwiskiem. Potwierdź tę tożsamość raz, aby zapisy twoich agentów przechodziły.",
+        "identity": "Sprawdź moją tożsamość autora",
+        "identity_ok": "Twoja tożsamość autora jest potwierdzona."
+      },
+      "conflict": {
+        "lead": "Repozytorium zmieniło te same wiersze, gdy twoja edycja czekała, więc nie została wysłana. Twój tekst jest zachowany: scal go z ich tekstem i zapisz ponownie.",
+        "theirs": "Ich: repozytorium teraz",
+        "mine": "Moje: twoja edycja",
+        "save": "Zapisz ponownie"
       }
     }
   },

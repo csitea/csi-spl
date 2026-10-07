@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Saving repository docs is paused for this workspace.",
         "forbidden": "You cannot edit repository docs in this workspace.",
         "off": "Editing repository docs is not switched on yet.",
-        "failed": "The doc was not saved. Try again."
+        "failed": "The doc was not saved. Try again.",
+        "not_failed": "Only an edit that was not pushed can be retried.",
+        "not_conflict": "This edit has no conflict any more.",
+        "not_yours": "Only the editor, their requester or an admin can do that.",
+        "no_edit": "That edit no longer exists."
+      },
+      "chip": {
+        "pushing": "Saved · pushing",
+        "pushed": "Pushed",
+        "conflict": "Conflict",
+        "failed": "Not pushed",
+        "retry": "retry",
+        "resolve": "resolve",
+        "merged": "merged with {sha}"
+      },
+      "mine": {
+        "title": "My edits",
+        "back": "Back to the doc",
+        "lead": "Your edits of repository docs, and the ones your agents made for you, newest first.",
+        "empty": "No edits yet.",
+        "by_you": "By you",
+        "by_agent": "By agent {agent}",
+        "superseded": "Folded into a later edit",
+        "published": "Published",
+        "identity_lead": "An agent's edit for you is published under your name. Confirm that identity once so your agents' saves go through.",
+        "identity": "Review my author identity",
+        "identity_ok": "Your author identity is confirmed."
+      },
+      "conflict": {
+        "lead": "The repository changed the same lines while your edit waited, so it was not pushed. Your text is kept: merge it with theirs and save again.",
+        "theirs": "Theirs: the repository now",
+        "mine": "Mine: your edit",
+        "save": "Save again"
       }
     }
   },

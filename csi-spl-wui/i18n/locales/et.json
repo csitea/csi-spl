@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Hoidla dokumentide salvestamine on selles tööruumis peatatud.",
         "forbidden": "Sa ei saa selles tööruumis hoidla dokumente muuta.",
         "off": "Hoidla dokumentide muutmine pole veel sisse lülitatud.",
-        "failed": "Dokumenti ei salvestatud. Proovi uuesti."
+        "failed": "Dokumenti ei salvestatud. Proovi uuesti.",
+        "not_failed": "Uuesti saab proovida ainult saatmata muudatust.",
+        "not_conflict": "Sellel muudatusel pole enam konflikti.",
+        "not_yours": "Seda saab teha ainult autor, tema tellija või administraator.",
+        "no_edit": "Seda muudatust enam pole."
+      },
+      "chip": {
+        "pushing": "Salvestatud · saadetakse",
+        "pushed": "Saadetud",
+        "conflict": "Konflikt",
+        "failed": "Saatmata",
+        "retry": "proovi uuesti",
+        "resolve": "lahenda",
+        "merged": "ühendatud {sha}-ga"
+      },
+      "mine": {
+        "title": "Minu muudatused",
+        "back": "Tagasi dokumendi juurde",
+        "lead": "Sinu repositooriumi dokumentide muudatused ja need, mis sinu agendid sinu eest tegid, uuemad eespool.",
+        "empty": "Muudatusi veel pole.",
+        "by_you": "Sinult",
+        "by_agent": "Agendilt {agent}",
+        "superseded": "Liidetud hilisema muudatusega",
+        "published": "Avaldatud",
+        "identity_lead": "Agendi muudatus sinu eest avaldatakse sinu nimega. Kinnita see identiteet üks kord, et sinu agentide salvestused läbi läheksid.",
+        "identity": "Vaata üle minu autori identiteet",
+        "identity_ok": "Sinu autori identiteet on kinnitatud."
+      },
+      "conflict": {
+        "lead": "Repositooriumis muutusid samad read, kui sinu muudatus ootas, seega seda ei saadetud. Sinu tekst on alles: ühenda see nende omaga ja salvesta uuesti.",
+        "theirs": "Nende: repositoorium praegu",
+        "mine": "Minu: sinu muudatus",
+        "save": "Salvesta uuesti"
       }
     }
   },

@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Ukladanie dokumentov repozitára je pre tento pracovný priestor pozastavené.",
         "forbidden": "V tomto pracovnom priestore nemôžete upravovať dokumenty repozitára.",
         "off": "Úprava dokumentov repozitára ešte nie je zapnutá.",
-        "failed": "Dokument sa neuložil. Skúste to znova."
+        "failed": "Dokument sa neuložil. Skúste to znova.",
+        "not_failed": "Znova sa dá skúsiť len neodoslaná úprava.",
+        "not_conflict": "Táto úprava už nemá konflikt.",
+        "not_yours": "Môže to urobiť len autor, jeho žiadateľ alebo správca.",
+        "no_edit": "Táto úprava už neexistuje."
+      },
+      "chip": {
+        "pushing": "Uložené · odosiela sa",
+        "pushed": "Odoslané",
+        "conflict": "Konflikt",
+        "failed": "Neodoslané",
+        "retry": "skúsiť znova",
+        "resolve": "vyriešiť",
+        "merged": "zlúčené s {sha}"
+      },
+      "mine": {
+        "title": "Moje úpravy",
+        "back": "Späť na dokument",
+        "lead": "Vaše úpravy dokumentov repozitára a tie, ktoré za vás urobili vaši agenti, najnovšie prvé.",
+        "empty": "Zatiaľ žiadne úpravy.",
+        "by_you": "Vami",
+        "by_agent": "Agentom {agent}",
+        "superseded": "Zahrnuté do neskoršej úpravy",
+        "published": "Zverejnené",
+        "identity_lead": "Úprava agenta za vás sa zverejní pod vaším menom. Potvrďte túto identitu raz, aby ukladania vašich agentov prešli.",
+        "identity": "Skontrolovať moju autorskú identitu",
+        "identity_ok": "Vaša autorská identita je potvrdená."
+      },
+      "conflict": {
+        "lead": "Repozitár zmenil tie isté riadky, kým vaša úprava čakala, preto nebola odoslaná. Váš text zostáva: zlúčte ho s ich textom a uložte znova.",
+        "theirs": "Ich: repozitár teraz",
+        "mine": "Moje: vaša úprava",
+        "save": "Uložiť znova"
       }
     }
   },

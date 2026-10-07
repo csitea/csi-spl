@@ -1612,7 +1612,39 @@
         "workspace_blocked": "Repozitorija dokumentu saglabāšana šajā darbvietā ir apturēta.",
         "forbidden": "Jūs nevarat rediģēt repozitorija dokumentus šajā darbvietā.",
         "off": "Repozitorija dokumentu rediģēšana vēl nav ieslēgta.",
-        "failed": "Dokuments netika saglabāts. Mēģiniet vēlreiz."
+        "failed": "Dokuments netika saglabāts. Mēģiniet vēlreiz.",
+        "not_failed": "Atkārtot var tikai nenosūtītu labojumu.",
+        "not_conflict": "Šim labojumam vairs nav konflikta.",
+        "not_yours": "To var izdarīt tikai autors, viņa pieprasītājs vai administrators.",
+        "no_edit": "Šis labojums vairs nepastāv."
+      },
+      "chip": {
+        "pushing": "Saglabāts · tiek sūtīts",
+        "pushed": "Nosūtīts",
+        "conflict": "Konflikts",
+        "failed": "Nav nosūtīts",
+        "retry": "mēģināt vēlreiz",
+        "resolve": "atrisināt",
+        "merged": "apvienots ar {sha}"
+      },
+      "mine": {
+        "title": "Mani labojumi",
+        "back": "Atpakaļ uz dokumentu",
+        "lead": "Jūsu repozitorija dokumentu labojumi un tie, ko jūsu aģenti veica jūsu vietā, jaunākie vispirms.",
+        "empty": "Labojumu vēl nav.",
+        "by_you": "Jūs",
+        "by_agent": "Aģents {agent}",
+        "superseded": "Iekļauts vēlākā labojumā",
+        "published": "Publicēts",
+        "identity_lead": "Aģenta labojums jūsu vietā tiek publicēts ar jūsu vārdu. Apstipriniet šo identitāti vienreiz, lai jūsu aģentu saglabājumi tiktu pieņemti.",
+        "identity": "Pārskatīt manu autora identitāti",
+        "identity_ok": "Jūsu autora identitāte ir apstiprināta."
+      },
+      "conflict": {
+        "lead": "Repozitorijā mainījās tās pašas rindas, kamēr jūsu labojums gaidīja, tāpēc tas netika nosūtīts. Jūsu teksts ir saglabāts: apvienojiet to ar viņu tekstu un saglabājiet vēlreiz.",
+        "theirs": "Viņu: repozitorijs tagad",
+        "mine": "Mans: jūsu labojums",
+        "save": "Saglabāt vēlreiz"
       }
     }
   },

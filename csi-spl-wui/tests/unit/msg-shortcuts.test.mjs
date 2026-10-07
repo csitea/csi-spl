@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  MSG_SHORTCUTS, NAV_SHORTCUTS, TOPIC_LIST_SHORTCUTS, inTypingOrOverlay, messageShortcutsSection, offeredItems, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
+  MSG_SHORTCUTS, NAV_SHORTCUTS, TOPIC_LIST_SHORTCUTS, backJump, inTypingOrOverlay, messageShortcutsSection, offeredItems, parentJump, shortcutFor, shortcutHint, shortcutItem, shortcutsOn,
 } from '../../src/utils/msg-shortcuts.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -201,5 +201,60 @@ describe('Topics view: Shift + A on a focused topic row (t1 topic 2627084c)', ()
   it('the help section names the Topics view row', () => {
     const md = messageShortcutsSection(() => 'Archive the focused topic (Topics view)')
     assert.match(md, /\| \*\*`Shift \+ A`\*\* \| Focused topic, Topics view, desktop \| Archive the focused topic \(Topics view\) \|/)
+  })
+})
+
+describe('Shift + U / Shift + B: reply to its topic\'s first message and back (t1 29c3b055)', () => {
+  /* a topic pane: the opener, two replies, newest first as the pane draws them */
+  const P = { id: 'p', task: 't', opener: true, ts: '2026-10-07T10:00:00Z' }
+  const R1 = { id: 'r1', task: 't', opener: false, ts: '2026-10-07T10:01:00Z' }
+  const R2 = { id: 'r2', task: 't', opener: false, ts: '2026-10-07T10:02:00Z' }
+  const pane = [R2, R1, P]
+
+  it('both keys resolve, name no menu item, and are labelled', () => {
+    assert.deepEqual(shortcutFor(shift('U')), { type: 'action', key: 'U' })
+    assert.deepEqual(shortcutFor(shift('B')), { type: 'action', key: 'B' })
+    assert.equal(MSG_SHORTCUTS.find((s) => s.key === 'U').labelKey, 'feed.shortcuts.to_parent')
+    assert.equal(MSG_SHORTCUTS.find((s) => s.key === 'B').labelKey, 'feed.shortcuts.back_to_reply')
+    assert.equal(shortcutItem('U', offeredItems({ editable: true })), '')
+    assert.equal(shortcutItem('B', offeredItems({ editable: true })), '')
+    assert.equal(shortcutFor(shift('U'), { enabled: false }), null)
+    assert.equal(shortcutFor(shift('B'), { phone: true }), null)
+  })
+
+  it('U from a reply selects the opener held in the same feed', () => {
+    assert.deepEqual(parentJump(pane, 'r1'), { parent: 'p', held: true })
+    assert.deepEqual(parentJump(pane, 'r2', 'zzz'), { parent: 'p', held: true })
+  })
+
+  it('U on the opener, on a message with no topic, or an unknown row: nothing', () => {
+    assert.equal(parentJump(pane, 'p'), null)
+    assert.equal(parentJump([{ id: 'x', task: '', opener: true }], 'x', 'y'), null)
+    assert.equal(parentJump(pane, 'nope'), null)
+    /* a channel feed holds topic roots only: each is its own opener */
+    assert.equal(parentJump([P, { id: 'q', task: 'u', opener: true }], 'q'), null)
+  })
+
+  it('U with the opener paged out names the fallback, read in like a link', () => {
+    assert.deepEqual(parentJump([R2, R1], 'r1', 'p'), { parent: 'p', held: false })
+    assert.equal(parentJump([R2, R1], 'r1', ''), null)
+    assert.equal(parentJump([R2, R1], 'r1', 'r1'), null)
+  })
+
+  it('the earliest level-1 row is the opener, not a later is_parent 1 line', () => {
+    const late = { id: 'l', task: 't', opener: true, ts: '2026-10-07T10:03:00Z' }
+    assert.deepEqual(parentJump([late, R1, P], 'l'), { parent: 'p', held: true })
+  })
+
+  it('B from the opener returns to the reply U left, else the latest reply', () => {
+    assert.equal(backJump(pane, 'p', { parent: 'p', reply: 'r1' }), 'r1')
+    assert.equal(backJump(pane, 'p', null), 'r2')
+    assert.equal(backJump(pane, 'p', { parent: 'other', reply: 'r1' }), 'r2')
+  })
+
+  it('B on a reply, or an opener with no reply: nothing', () => {
+    assert.equal(backJump(pane, 'r1', { parent: 'p', reply: 'r1' }), '')
+    assert.equal(backJump([P], 'p'), '')
+    assert.equal(backJump(pane, 'nope'), '')
   })
 })

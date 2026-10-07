@@ -845,6 +845,8 @@
       "archive_topic_row": "Archiwizuj zaznaczony temat (widok Tematy)",
       "move": "Przenieś lub scal…",
       "open_menu": "Otwórz menu",
+      "to_parent": "Przejdź do pierwszej wiadomości wątku",
+      "back_to_reply": "Wróć do odpowiedzi",
       "step": "Zaznacz poprzednią / następną wiadomość",
       "help": "Pokaż tę listę",
       "search": "Szukaj",

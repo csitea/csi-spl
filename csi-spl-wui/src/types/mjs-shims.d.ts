@@ -2330,6 +2330,9 @@ declare module '~/utils/msg-shortcuts.mjs' {
   ): { type: 'action', key: string } | { type: 'step', step: 1 | -1 } | { type: 'help' } | null
   export function offeredItems(flags?: Parameters<typeof import('~/utils/msg-menu.mjs').msgMenuItems>[0]): Set<string>
   export function shortcutItem(key: string, offered: Set<string> | string[]): string
+  export type FeedRow = { id: string, task: string, opener: boolean, ts?: string }
+  export function parentJump(rows: readonly FeedRow[], fromId: string, fallbackId?: string): { parent: string, held: boolean } | null
+  export function backJump(rows: readonly FeedRow[], fromId: string, memo?: { parent: string, reply: string } | null): string
 }
 
 declare module '~/utils/unread-model.mjs' {

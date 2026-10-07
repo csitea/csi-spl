@@ -845,6 +845,8 @@
       "archive_topic_row": "Arkistoi valittu aihe (Aiheet-näkymä)",
       "move": "Siirrä tai yhdistä…",
       "open_menu": "Avaa valikko",
+      "to_parent": "Siirry ketjun ensimmäiseen viestiin",
+      "back_to_reply": "Takaisin vastaukseen",
       "step": "Valitse edellinen / seuraava viesti",
       "help": "Näytä tämä luettelo",
       "search": "Haku",

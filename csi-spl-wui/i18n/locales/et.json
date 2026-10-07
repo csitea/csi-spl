@@ -845,6 +845,8 @@
       "archive_topic_row": "Arhiveeri valitud teema (Teemade vaade)",
       "move": "Teisalda või ühenda…",
       "open_menu": "Ava menüü",
+      "to_parent": "Mine teema esimese sõnumi juurde",
+      "back_to_reply": "Tagasi vastuse juurde",
       "step": "Vali eelmine / järgmine sõnum",
       "help": "Näita seda loendit",
       "search": "Otsi",

@@ -13,9 +13,11 @@
 //
 // After a shortcut the focus stays in the panel it was pressed in (holdPanel).
 import { useSessionStore } from '~/stores/session'
+import { useTopicStore } from '~/stores/topic'
 import { usePhone } from '~/composables/useTouchUi'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
-import { offeredItems, shortcutFor, shortcutItem, shortcutsOn } from '~/utils/msg-shortcuts.mjs'
+import { backJump, offeredItems, parentJump, shortcutFor, shortcutItem, shortcutsOn } from '~/utils/msg-shortcuts.mjs'
+import { requestMessageJump } from '~/utils/msg-jump.mjs'
 import { stepRow } from '~/utils/row-keys.mjs'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
@@ -82,16 +84,66 @@ function kindCardInPanel(): HTMLElement | null {
   return [...panel.querySelectorAll<HTMLElement>('article.msg')].find(visible) || null
 }
 
+/** The cards of `row`'s own feed, in feed order (a nested feed's cards are not its). */
+function feedCards(row: HTMLElement | null): HTMLElement[] {
+  const feed = row?.closest('[role="feed"]')
+  return feed ? [...feed.querySelectorAll<HTMLElement>('article.msg')].filter((r) => r.closest('[role="feed"]') === feed) : []
+}
+
+/** Select `row`: it takes the focus and its pane scrolls it into view. */
+function selectRow(row: HTMLElement) {
+  row.focus({ preventScroll: true })
+  /* the feed's own scroller, never the document (pane-scroll.mjs) */
+  const scroller = scrollerOf(row)
+  if (scroller !== document.scrollingElement && scroller !== document.documentElement) scrollRowIntoPane(scroller as HTMLElement, row)
+}
+
 /** Move the selection (the focus) `step` messages along `row`'s feed. True when it moved. */
 export function stepSelection(row: HTMLElement | null, step: number): boolean {
-  const feed = row?.closest('[role="feed"]')
-  const rows = feed ? [...feed.querySelectorAll<HTMLElement>('article.msg')].filter((r) => r.closest('[role="feed"]') === feed) : []
-  const next = row ? stepRow(rows, row, step) : null
+  const next = row ? stepRow(feedCards(row), row, step) : null
   if (!next) return false
-  next.focus({ preventScroll: true })
-  /* the feed's own scroller, never the document (pane-scroll.mjs) */
-  const scroller = scrollerOf(next)
-  if (scroller !== document.scrollingElement && scroller !== document.documentElement) scrollRowIntoPane(scroller as HTMLElement, next)
+  selectRow(next)
+  return true
+}
+
+/* HUM-10 (t1 29c3b055), owner: "a shortcut and it's respective shortcut to
+   jump directly from the selected reply msg and the parent topic msg".
+   Shift + U selects the topic's first message in the same feed, Shift + B
+   goes back to the reply it came from (else the latest reply). A first
+   message the feed does not hold (an old topic, paged out) is read in the
+   way a message link does (requestMessageJump): never a reload. */
+let jumpMemo: { parent: string, reply: string } | null = null
+
+/** The topic's first message when the feed does not hold it: the open topic's root, else the task id. */
+function openerFallback(task: string): string {
+  const topic = useTopicStore()
+  if (task && String(topic.parentTaskId || '') === task) {
+    return String(topic.rootMsg?.msg_id || topic.target?.rootMsgId || task)
+  }
+  return task
+}
+
+function jumpInTopic(card: HTMLElement, key: string): boolean {
+  const els = feedCards(card)
+  const rows = els.map((el) => ({
+    id: el.getAttribute('data-msg-id') || '',
+    task: el.getAttribute('data-task-id') || '',
+    opener: el.getAttribute('data-opener') === 'true',
+    ts: el.getAttribute('data-sent') || '',
+  }))
+  const id = card.getAttribute('data-msg-id') || ''
+  let to = ''
+  if (key === 'U') {
+    const hit = parentJump(rows, id, openerFallback(card.getAttribute('data-task-id') || ''))
+    if (hit) jumpMemo = { parent: hit.parent, reply: id }
+    to = hit?.parent || ''
+  } else {
+    to = backJump(rows, id, jumpMemo)
+  }
+  if (!to) return false
+  const el = els.find((e) => e.getAttribute('data-msg-id') === to)
+  if (!el) return requestMessageJump(to)
+  selectRow(el)
   return true
 }
 
@@ -240,6 +292,10 @@ function install() {
       return
     }
     if (!entry || entry.busy()) return
+    if (hit.key === 'U' || hit.key === 'B') {
+      if (card && jumpInTopic(card, hit.key)) ev.preventDefault()
+      return
+    }
     const id = shortcutItem(hit.key, offeredItems(entry.flags()))
     if (!id) return
     ev.preventDefault()

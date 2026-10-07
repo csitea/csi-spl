@@ -845,6 +845,8 @@
       "archive_topic_row": "Seçili konuyu arşivle (Konular görünümü)",
       "move": "Taşı veya birleştir…",
       "open_menu": "Menüyü aç",
+      "to_parent": "Konunun ilk mesajına git",
+      "back_to_reply": "Yanıta geri dön",
       "step": "Önceki / sonraki mesajı seç",
       "help": "Bu listeyi göster",
       "search": "Ara",

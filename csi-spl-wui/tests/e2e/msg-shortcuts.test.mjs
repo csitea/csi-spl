@@ -10,8 +10,12 @@
 //   - Shift + H on the selected reply hides it (the hidden-cards line stands in)
 //   - Shift + A on a selected middle card archives it (it leaves, Archived · Undo)
 //   - Shift + E in the composer types a capital E and edits nothing
+//   - Shift + U on a reply selects its topic's first message, in view;
+//     Shift + B goes back to that same reply - in the channel view, the topic
+//     view (/t) and a direct message (t1 29c3b055). Shift + U on the first
+//     message or on a middle card (no topic of its own) does nothing
 //   - the setting (settings-keyboard-shortcuts) off: Shift + H, Shift + ?
-//     and the menu hints do nothing / are gone
+//     and the menu hints do nothing / are gone, Shift + U moves nothing
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/msg-shortcuts.test.mjs
@@ -24,6 +28,16 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const TASK = 'ae2e5093-e878-4b8f-bfba-52e153b30a01'
 const R1 = 'ae2e5093-e878-4b8f-bfba-52e153b30a02'
 const T2 = 'ae2e5093-e878-4b8f-bfba-52e153b30a03'
+const R2 = 'ae2e5093-e878-4b8f-bfba-52e153b30a04'
+/* a direct-message topic with two replies (t1 29c3b055) */
+const DM_PEER = 'CLE-11@box-desk'
+const DMT = 'ae2e5093-e878-4b8f-bfba-52e153b30a05'
+const DR1 = 'ae2e5093-e878-4b8f-bfba-52e153b30a06'
+const DR2 = 'ae2e5093-e878-4b8f-bfba-52e153b30a07'
+const dm = (msg_id, min, body, is_parent) => ({
+  v: 1, msg_id, task_id: DMT, ts: `2026-10-04T11:0${min}:00Z`, from: 'CLE-11', from_box: 'box-desk',
+  to: 'HUM-1', to_box: 'box-wui', kind: 'note', body, channel: null, parent_task_id: null, is_parent, files: [],
+})
 const row = (msg_id, task_id, min, body, is_parent) => ({
   v: 1, msg_id, task_id, ts: `2026-10-04T10:0${min}:00Z`, from: 'HUM-1', from_box: 'box-wui',
   to: '@channel', to_box: 'box-wui', kind: 'note', body, channel: 'alerts', parent_task_id: null, is_parent, files: [],
@@ -32,6 +46,10 @@ const EXTRA = [
   row(TASK, TASK, 0, 'shortcuts topic starter', 1),
   row(R1, TASK, 1, 'shortcuts reply one', 0),
   row(T2, T2, 2, 'shortcuts archive me', 1),
+  row(R2, TASK, 3, 'shortcuts reply two', 0),
+  dm(DMT, 0, 'dm jump topic starter', 1),
+  dm(DR1, 1, 'dm jump reply one', 0),
+  dm(DR2, 2, 'dm jump reply two', 0),
 ]
 
 const results = []
@@ -122,6 +140,34 @@ async function menuKeys(p, sel) {
   return keys
 }
 
+/** The row is selected (holds the focus) and its pane shows it. */
+const selectedInView = (p, sel) => p.evaluate((sel) => {
+  const el = document.querySelector(sel)
+  if (!el || document.activeElement !== el) return false
+  const a = el.getBoundingClientRect()
+  const pane = (el.closest('.feed-body') || document.documentElement).getBoundingClientRect()
+  return a.height > 0 && a.bottom > pane.top + 1 && a.top < pane.bottom - 1
+}, sel)
+
+/** Shift + U from the older reply, Shift + B back, and the no-op controls, in one view. */
+async function jumpRoundTrip(p, view, opener, reply) {
+  ok(`${view}: the reply is selected`, await select(p, card(reply)))
+  await shiftKey(p, 'U')
+  ok(`${view}: Shift + U selects the topic's first message, in view`, await until(p, (s) => {
+    const el = document.querySelector(s)
+    return Boolean(el && document.activeElement === el)
+  }, card(opener), 4000) && await selectedInView(p, card(opener)), await activeId(p))
+  await shiftKey(p, 'B')
+  ok(`${view}: Shift + B goes back to the same reply`, await until(p, (s) => {
+    const el = document.querySelector(s)
+    return Boolean(el && document.activeElement === el)
+  }, card(reply), 4000) && await selectedInView(p, card(reply)), await activeId(p))
+  await select(p, card(opener))
+  await shiftKey(p, 'U')
+  await sleep(300)
+  ok(`${view}: Shift + U on the first message does nothing`, (await activeId(p)) === opener, await activeId(p))
+}
+
 async function openTopic(p) {
   await p.goto(`${srv.base}/channel/alerts?topic=${TASK}`, { waitUntil: 'networkidle2' })
   await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
@@ -184,6 +230,24 @@ try {
   const afterK = await activeId(p)
   ok('j selects the next message, k the previous', order.length >= 2 && afterJ === second && afterK === first, { order, afterJ, afterK })
 
+  /* ---- Shift + U / Shift + B: reply -> first message -> back (t1 29c3b055) ---- */
+  await jumpRoundTrip(p, 'channel', TASK, R1)
+  ok('channel: a middle card is there', await until(p, visible, midCard(T2), 6000))
+  await select(p, midCard(T2))
+  await shiftKey(p, 'U')
+  await sleep(300)
+  ok('channel: Shift + U on a middle card (no reply of a topic) does nothing', (await activeId(p)) === T2, await activeId(p))
+  await p.goto(`${srv.base}/t/${TASK}`, { waitUntil: 'networkidle2' })
+  ok('topic view: the reply is there', await p.waitForSelector(card(R1), { visible: true, timeout: 15000 }).then(() => true, () => false))
+  await sleep(400)
+  await jumpRoundTrip(p, 'topic view', TASK, R1)
+  await p.goto(`${srv.base}/dm/${DM_PEER}?topic=${DMT}`, { waitUntil: 'networkidle2' })
+  ok('direct message: the reply is there', await p.waitForSelector(card(DR1), { visible: true, timeout: 15000 }).then(() => true, () => false))
+  await sleep(400)
+  await jumpRoundTrip(p, 'direct message', DMT, DR1)
+  ok('the topic view opens again', await openTopic(p))
+  await sleep(400)
+
   /* ---- Shift + H hides the selected reply ---- */
   await select(p, card(R1))
   await shiftKey(p, 'H')
@@ -227,6 +291,10 @@ try {
   await shiftKey(p, 'H')
   await sleep(500)
   ok('off: Shift + H hides nothing', (await has(p, card(R1))) && !(await has(p, `.topic ${line}`)))
+  await select(p, card(R1))
+  await shiftKey(p, 'U')
+  await sleep(400)
+  ok('off: Shift + U moves nothing', (await activeId(p)) === R1, await activeId(p))
   await shiftKey(p, '?')
   await sleep(400)
   ok('off: Shift + ? opens no list', !(await has(p, help)))

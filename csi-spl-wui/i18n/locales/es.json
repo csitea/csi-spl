@@ -845,6 +845,8 @@
       "archive_topic_row": "Archivar el tema enfocado (vista Temas)",
       "move": "Mover o fusionar…",
       "open_menu": "Abrir el menú",
+      "to_parent": "Ir al primer mensaje del tema",
+      "back_to_reply": "Volver a la respuesta",
       "step": "Seleccionar el mensaje anterior / siguiente",
       "help": "Mostrar esta lista",
       "search": "Buscar",

@@ -11,6 +11,8 @@
     :data-msg-id="msg.msg_id || undefined"
     :data-ts="at || undefined"
     :data-task-id="msg.task_id || undefined"
+    :data-opener="msg.is_parent !== 0 ? 'true' : undefined"
+    :data-sent="msg.ts || undefined"
     :data-selected="selected ? 'true' : undefined"
     :data-ai="ai ? 'true' : undefined"
     :aria-current="selected ? 'true' : undefined"

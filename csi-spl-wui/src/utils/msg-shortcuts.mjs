@@ -15,6 +15,10 @@
 // Shift + R is the exception (HUM-10 t1 4c5161e3): it opens that menu on the
 // selected row instead of running an item. Reply stays on the phone sheet.
 //
+// Shift + U and Shift + B are not menu items either (HUM-10 t1 29c3b055):
+// they move the selection inside the SAME feed, from a reply up to its
+// topic's first message and back down (parentJump / backJump below).
+//
 // ArrowUp / ArrowDown and j / k move the selection; Shift + ? lists the keys.
 // The key map and the matching rules live here so node can test them; the
 // listener is composables/useMsgShortcuts.ts.
@@ -33,6 +37,8 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'A', items: ['archive'], labelKey: 'feed.shortcuts.archive' },
   { key: 'O', items: ['open'], labelKey: 'feed.msg_menu.open' },
   { key: 'P', items: ['parent'], labelKey: 'feed.msg_menu.open_parent' },
+  { key: 'U', items: [], labelKey: 'feed.shortcuts.to_parent' },
+  { key: 'B', items: [], labelKey: 'feed.shortcuts.back_to_reply' },
   { key: 'L', items: ['copy'], labelKey: 'feed.msg_menu.copy_link' },
   { key: 'C', items: ['copy-text'], labelKey: 'feed.msg_menu.copy_text' },
   { key: 'K', items: ['kind'], labelKey: 'feed.msg_menu.kind' },
@@ -144,6 +150,69 @@ export function shortcutItem(key, offered) {
   if (!s) return ''
   const has = offered instanceof Set ? (id) => offered.has(id) : (id) => Array.from(offered || []).includes(id)
   return s.items.find(has) || ''
+}
+
+/**
+ * @typedef {{ id: string, task: string, opener: boolean, ts?: string }} FeedRow
+ * One card of a feed, in feed order: its msg_id, its task_id, whether it is
+ * a level-1 line (is_parent not 0) and its timestamp.
+ */
+
+/** The topic's first message among `rows`: the earliest level-1 row of `task` ('' when none is held). */
+function openerIn(rows, task) {
+  let best = null
+  for (const r of rows) {
+    if (!r || !r.opener || r.task !== task) continue
+    if (!best || String(r.ts || '') < String(best.ts || '')) best = r
+  }
+  return best ? best.id : ''
+}
+
+/**
+ * Shift + U (HUM-10 t1 29c3b055): from a reply, the id of its topic's first
+ * message. `fallbackId` is that opener's id when the feed does not hold it
+ * (an old topic, paged out): the caller then reads it in the way a message
+ * link does. null = nothing to do (the selected row is the opener, or has no
+ * topic).
+ *
+ * @param {FeedRow[]} rows
+ * @param {string} fromId
+ * @param {string} [fallbackId]
+ * @returns {{ parent: string, held: boolean } | null}
+ */
+export function parentJump(rows, fromId, fallbackId = '') {
+  const list = Array.isArray(rows) ? rows : []
+  const from = list.find((r) => r && r.id === fromId)
+  if (!from || !from.task) return null
+  const held = openerIn(list, from.task)
+  if (held) return held === from.id ? null : { parent: held, held: true }
+  /* no level-1 row held: a row that is one itself is taken as the opener */
+  if (from.opener) return null
+  const want = String(fallbackId || '')
+  return want && want !== from.id ? { parent: want, held: false } : null
+}
+
+/**
+ * Shift + B, the way back: from a topic's first message, the reply Shift + U
+ * left (`memo`, while it names this opener), else the topic's latest reply
+ * in the feed. '' = nothing to do (not an opener, or no reply).
+ *
+ * @param {FeedRow[]} rows
+ * @param {string} fromId
+ * @param {{ parent: string, reply: string } | null} [memo]
+ * @returns {string}
+ */
+export function backJump(rows, fromId, memo = null) {
+  const list = Array.isArray(rows) ? rows : []
+  const from = list.find((r) => r && r.id === fromId)
+  if (!from || !from.task || openerIn(list, from.task) !== from.id) return ''
+  if (memo && memo.parent === from.id && memo.reply && memo.reply !== from.id) return String(memo.reply)
+  let latest = null
+  for (const r of list) {
+    if (!r || r.task !== from.task || r.id === from.id) continue
+    if (!latest || String(r.ts || '') >= String(latest.ts || '')) latest = r
+  }
+  return latest ? latest.id : ''
 }
 
 /**

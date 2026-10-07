@@ -192,6 +192,8 @@ CREATE TABLE messages (tenant_id text NOT NULL REFERENCES tenants, body text);
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY; ALTER TABLE messages FORCE ROW LEVEL SECURITY;
 CREATE TABLE spool_schema_migrations (filename text PRIMARY KEY);
 INSERT INTO tenants VALUES ('t1'), ('t2');
+-- rdb 0143's search door: runtime-grants.sql names it, so a migrated schema has it
+CREATE FUNCTION spool_search_candidates(q tsquery, cap int) RETURNS SETOF text LANGUAGE sql STABLE AS 'SELECT NULL::text LIMIT 0';
 EOF
   RPW="rt$RANDOM$RANDOM"
   real() { env PATH="$PATH" SPL_DB_USER=rt SPL_DB_OWNER_USER=own SPL_DB_ROLES_SQL="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles" \

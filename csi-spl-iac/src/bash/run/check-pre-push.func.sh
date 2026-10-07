@@ -46,10 +46,14 @@
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
 # @param        (what the hook still runs under SPL_PREPUSH_OVERRIDE=1; PRE_PUSH_LINT=0 cannot drop them)
+# @param PRE_PUSH_PIDFILE (optional) - where the run records its pid for do_stop_pre_push, default ~/.cache/csi-spl/pre-push.<tree-hash>.pid
 # @param PRE_PUSH_EXTRA_PATH (optional) - dirs appended to PATH before the tool check, default /usr/local/bin:/usr/bin:/bin:~/.local/bin
 # @example ./run -a do_check_pre_push
 # @example PRE_PUSH_MODE=full PRE_PUSH_TIER=full ./run -a do_check_pre_push
 # @example PRE_PUSH_PLAN=1 ./run -a do_check_pre_push
+# @description STOPPING A RUN: ./run -a do_stop_pre_push (by the pidfile above),
+# @description never `pkill -f do_check_pre_push` -- the action name is on every
+# @description agent's argv (2026-10-06: 15 claude sessions killed in 0.7 s).
 #------------------------------------------------------------------------------
 
 # The lint parts live beside this file; the run loader sources both, a test
@@ -401,6 +405,27 @@ _pp_baseline_cleanup() {  # <tree>
   _PP_BASE_WT=""
 }
 
+# The pidfile of the run gating <tree>: one per checkout, so a stop in one lane
+# never reaches another lane's run on the same box and user.
+_pp_pidfile() {  # <tree>
+  local h; h="$(printf '%s' "$1" | sha1sum | cut -c1-12)"
+  echo "${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/pre-push.$h.pid"
+}
+# Start time of <pid> in clock ticks (/proc stat field 22): a pid plus its start
+# time names one process even after the pid is re-used.
+_pp_starttime() {  # <pid>
+  local s; s="$(cat "/proc/$1/stat" 2>/dev/null)" || return 1
+  s="${s##*) }"; awk '{ print $20 }' <<<"$s"
+}
+# Remove the pidfile only while it still names this run (a newer run on the same
+# tree may have replaced it).
+_pp_pidfile_drop() {
+  [[ -n "${_PP_PIDFILE:-}" ]] || return 0
+  local pid; read -r pid _ <"$_PP_PIDFILE" 2>/dev/null || return 0
+  [[ "$pid" == "$_PP_PID" ]] && rm -f "$_PP_PIDFILE"
+  return 0
+}
+
 _pp_record() {  # <label> <STAT> <secs>
   _PP_NAMES+=("$1"); _PP_STAT+=("$2"); _PP_SECS+=("$3")
 }
@@ -638,14 +663,21 @@ do_check_pre_push() {
   local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
   local _PP_FAILED=0
   _pp_baseline_reap "$tree"
-  # a kill mid-run must not leave the baseline worktree behind
+  # Record this run so do_stop_pre_push can stop it by pid -- never by a
+  # pattern (`pkill -f do_check_pre_push` also matches every agent's argv).
+  local _PP_PID="$BASHPID" _PP_PIDFILE="${PRE_PUSH_PIDFILE:-$(_pp_pidfile "$tree")}"
+  mkdir -p "$(dirname "$_PP_PIDFILE")" 2>/dev/null || true
+  printf '%s %s %s %s\n' "$_PP_PID" "$(ps -o pgid= -p "$_PP_PID" 2>/dev/null | tr -d ' ')" \
+    "$(_pp_starttime "$_PP_PID")" "$tree" >"$_PP_PIDFILE" 2>/dev/null \
+    || do_log "WARN pre-push: cannot write $_PP_PIDFILE -- do_stop_pre_push will not find this run"
+  # a kill mid-run must not leave the baseline worktree (or the pidfile) behind
   local _pp_old_traps; _pp_old_traps="$(trap -p INT TERM HUP)"
   # shellcheck disable=SC2064
-  trap "_pp_baseline_cleanup '$tree'; exit 130" INT
+  trap "_pp_baseline_cleanup '$tree'; _pp_pidfile_drop; exit 130" INT
   # shellcheck disable=SC2064
-  trap "_pp_baseline_cleanup '$tree'; exit 143" TERM
+  trap "_pp_baseline_cleanup '$tree'; _pp_pidfile_drop; exit 143" TERM
   # shellcheck disable=SC2064
-  trap "_pp_baseline_cleanup '$tree'; exit 129" HUP
+  trap "_pp_baseline_cleanup '$tree'; _pp_pidfile_drop; exit 129" HUP
   for p in $all; do
     if [[ " $parts " == *" $p "* ]]; then
       _pp_run "$(_pp_label "$p")" "$(_pp_fn "$p")" "$tree" "$base" "$p"
@@ -659,6 +691,7 @@ do_check_pre_push() {
   [[ "${PRE_PUSH_LINT:-1}" != 0 && "$only" != override ]] && { declare -F _pp_release_note >/dev/null || . "$(dirname "${BASH_SOURCE[0]}")/check-release-note.func.sh"; } && _pp_release_note "$tree" "$base"
 
   _pp_baseline_cleanup "$tree"
+  _pp_pidfile_drop
   trap - INT TERM HUP
   [[ -n "$_pp_old_traps" ]] && eval "$_pp_old_traps"
 

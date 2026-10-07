@@ -20,10 +20,22 @@ import (
 // process while a socket already upgraded on the first stays there and keeps
 // ponging - which is exactly what a redeploy does to a box's WS, because a WS
 // is an in-flight request and the old revision lives until the request timeout.
+// nextClient reaches the second process directly, whatever flip() says: a
+// sender that already lands there while the box is still held by the first.
 type redeploy struct {
-	cur    atomic.Pointer[http.Handler]
-	next   http.Handler
-	client *http.Client
+	cur        atomic.Pointer[http.Handler]
+	next       http.Handler
+	client     *http.Client
+	nextClient *http.Client
+}
+
+// dialOnly is a client whose every Host resolves to addr.
+func dialOnly(addr string) *http.Client {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	}
+	return &http.Client{Transport: tr}
 }
 
 func newRedeploy(t *testing.T, e *env) *redeploy {
@@ -44,13 +56,10 @@ func newRedeploy(t *testing.T, e *env) *redeploy {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
 		(*r.cur.Load()).ServeHTTP(w, q)
 	}))
-	t.Cleanup(func() { next.Shutdown(); ts.Close() })
-	addr := ts.Listener.Addr().String()
-	tr := http.DefaultTransport.(*http.Transport).Clone()
-	tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, addr)
-	}
-	r.client = &http.Client{Transport: tr}
+	nts := httptest.NewServer(r.next)
+	t.Cleanup(func() { next.Shutdown(); ts.Close(); nts.Close() })
+	r.client = dialOnly(ts.Listener.Addr().String())
+	r.nextClient = dialOnly(nts.Listener.Addr().String())
 	return r
 }
 
@@ -97,12 +106,19 @@ func TestBoxRedialsAfterHubRedeploy(t *testing.T) {
 			send(t, a, "GRK-03", "CLE-07", "task", "before the redeploy", "box-b")
 			eventually(t, "the pre-redeploy message", func() bool { return len(inbox(t, b, "CLE-07")) == 1 })
 
-			rd.flip()
-			start := time.Now()
+			// The strand message goes to the new process BEFORE the flip.
+			// Sent after it, a probe tick (every 200 ms) could already have
+			// redialled box-b onto the new process, and the send then came
+			// back "sent" instead of "queued" (wf10 run 37578242459, -race on
+			// Postgres). Before the flip box-b's probes still reach the old
+			// process, which knows its token, so it cannot have moved yet.
+			a.c.HTTP = rd.nextClient
 			out := send(t, a, "GRK-03", "CLE-07", "task", "during the strand", "box-b")
 			if out.Delivery != "queued" {
 				t.Fatalf("the new hub process should not know box-b yet: delivery %q, want queued", out.Delivery)
 			}
+			rd.flip()
+			start := time.Now()
 			// The redial drains in ~1 s (max 1.04 s over 360 runs at up to
 			// 48-way parallel load), yet a lane saw it trip a flat 3 s inside
 			// the full -race suite under fleet load (CLE-77797). The

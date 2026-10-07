@@ -140,7 +140,7 @@ There is no `s.route()`. The mux is built in `Server.Handler()` (`internal/hub/s
 
 ### 4.2 Serving
 - The file is embedded with `go:embed` and served by the hub at **`GET /v1/openapi.json`**: `Content-Type: application/json; charset=utf-8`, `Cache-Control: private, no-cache`, `info.version` set to the running hub version (`/version`).
-- Access: the same door as Docs, a signed-in member session. No member session -> **403** `forbidden` (FR-004).
+- Access: the same door as Docs, a signed-in member session. No member session -> **401** `view_door` (the Docs door, as `GET /v1/docs/tree.json`); 403 is not used for a missing session (FR-004). The door's own 403s (`tenant_mismatch`, `not_member`) still apply.
 - It ships **in the same image as the routes**, so file, gate and served spec are always one commit. Therefore:
   - no docs-bucket publish, no `publish-docs.func.sh` change;
   - no `ValidDocsPath` change, no `repo_docs_edit.go` change;
@@ -182,7 +182,7 @@ There is no `swagger.html` in v1.1, in the hub, the docs bucket or WUI `public/`
 - **FR-001 (File)**: One hand-written OpenAPI 3.0.3 JSON file at `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` documents every non-`OPTIONS` `/v1` operation the hub registers (~124 at `6e4fb6ed`), with `{path...}` written `{path}`.
 - **FR-002 (Gate)**: A Go test using `go/parser` over the `.Handle` / `.HandleFunc` (and `marketingRoute`) literals fails when a route has no spec operation, when a spec operation has no route, on a duplicate `operationId`, and on an unrecognised non-literal pattern. Exclusions (`OPTIONS`, `/v1/view/` catch-all, non-`/v1`) are listed in the test.
 - **FR-003 (Serving)**: The hub embeds the file with `go:embed` and serves it at `GET /v1/openapi.json`, in the same image as the routes. No docs-bucket publish, no `ValidDocsPath`, no `tree.json`, no workflow 32 change.
-- **FR-004 (Access)**: `GET /v1/openapi.json` requires a signed-in member session; without one it answers **403** `forbidden` with `{error, detail}`.
+- **FR-004 (Access)**: `GET /v1/openapi.json` requires a signed-in member session; without one it answers **401** `view_door` (the Docs door) with `{error, detail}`; 403 is not used for a missing session.
 - **FR-005 (Budget)**: The viewer is a lazy chunk; `ci_initial_gzip_kb` delta is 0 KB and stays below 155.0.
 - **FR-006 (Roles)**: Operator routes are tagged `x-role: operator` and hidden behind a viewer toggle. The toggle is UX only; the hub's role checks are the access control.
 - **FR-007 (CSP)**: An e2e proves `/docs/api` renders under the deployed WUI CSP with zero CSP violations (no eval, no unsafe-inline).

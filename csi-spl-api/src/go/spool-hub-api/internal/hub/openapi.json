@@ -2529,7 +2529,14 @@
             "description": "OK: this document (Cache-Control: private, no-cache)"
           },
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unauthorized: no member session -> view_door, the Docs door (spec 104 §4.2, FR-004); 403 is not used for a missing session"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"

@@ -145,6 +145,42 @@ func TestCoversNoEscalation(t *testing.T) {
 	}
 }
 
+// specs/107 §6.1 (owner Q5 = A): hours.read and hours.approve are biz_owner's
+// alone; every other role, demo_user included, holds neither. CONTROL: the
+// Fixed seam answers the same, so a route asking for them denies an admin.
+func TestHoursPermissionsBizOwnerOnly(t *testing.T) {
+	roles := DefaultRoles()
+	for _, r := range roles {
+		for _, p := range []string{HoursRead, HoursApprove} {
+			held := false
+			for _, q := range r.Perms {
+				held = held || q == p
+			}
+			if held != (r.ID == BizOwner) {
+				t.Errorf("%s %s = %v, want %v (biz_owner only)", r.ID, p, held, r.ID == BizOwner)
+			}
+		}
+	}
+	ctx := context.Background()
+	for _, c := range []struct {
+		role string
+		want bool
+	}{{BizOwner, true}, {Admin, false}, {ProductOwner, false}, {Developer, false}, {DemoUser, false}} {
+		a, err := Fixed(c.role).Access(ctx, "HUM-1", "t1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Can(HoursRead) != c.want || a.Can(HoursApprove) != c.want {
+			t.Errorf("%s via Fixed: hours.read=%v hours.approve=%v, want %v", c.role, a.Can(HoursRead), a.Can(HoursApprove), c.want)
+		}
+	}
+	// The biz owner still covers the admin it manages, and the admin still
+	// does not cover the biz owner (now two more permissions apart).
+	if a, _ := Fixed(Admin).Access(ctx, "HUM-2", "t1"); a.Covers(roles[BizOwner]) {
+		t.Error("admin covers biz_owner")
+	}
+}
+
 // FR-004: role table cached for TTL, membership never; errors deny.
 func TestAuthorizerCacheAndFailClosed(t *testing.T) {
 	now := time.Unix(1000, 0)

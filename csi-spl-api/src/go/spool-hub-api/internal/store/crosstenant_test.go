@@ -314,6 +314,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		s.tenant, now); err != nil {
 		t.Fatal(err)
 	}
+	// hours_minutes, hours_entries, hours_periods (rdb 0151, spec 107): one
+	// row of each for the seeded member (hours_rls_test.go).
+	if err := seedHours(ctx, pg, s.tenant, hum, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

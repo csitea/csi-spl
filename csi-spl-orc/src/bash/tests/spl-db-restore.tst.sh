@@ -13,6 +13,13 @@
 #   5. TARGET=env refuses a database that already holds tables, before any
 #      import: a restore never merges into live data
 #   6. every gcloud call is pinned with --account
+#   7. topic heads (spec 099 T007): TARGET=env, once the compare is green,
+#      runs REBUILD=all DRY_RUN=0 do_spl_topic_head_backfill; a dump older than
+#      rdb 0144 skips it and names the command; a failed backfill fails the
+#      restore. CONTROL: a database:<x> target never backfills
+#   8. TOPIC_HEAD_VERIFY=1 (TARGET=local only) runs the topic-head verify on
+#      the restored throwaway container through the SPL_RESTORE_CHECK hook,
+#      over its bridge address; one mismatch fails it (CONTROL: 0 passes)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -50,7 +57,7 @@ chmod +x "$T/stub/gcloud"
 PIN='do_gcp_pin_account(){ export GCP_ACCOUNT=tester@example.com; };
 eval "$(declare -f do_spl_cloud_cnf | sed 1s/do_spl_cloud_cnf/_orig_cnf/)"; do_spl_cloud_cnf(){ _orig_cnf || return 1; yq -i ".env.steps.\"046-gcs-offsite-backups\".copy_enabled = false" "$SPL_CNF"; };'
 # the proxy is the cloud; here it answers the two reads the action makes
-PROXY='spl_via_proxy(){ echo "proxy $1" >>"$STUB_LOG"; case "$1" in _spl_db_restore_table_count) echo "${STUB_TABLES:-0}" ;; _spl_db_restore_schema_max) printf "%s\n" "0114_release_note_cycle.sql" ;; *) printf "messages 5\ntenants 2\n" ;; esac; };'
+PROXY='spl_via_proxy(){ echo "proxy $1" >>"$STUB_LOG"; case "$1" in _spl_db_restore_table_count) echo "${STUB_TABLES:-0}" ;; _spl_db_restore_schema_max) printf "%s\n" "${STUB_SCHEMA_MAX:-0114_release_note_cycle.sql}" ;; *) printf "messages 5\ntenants 2\n" ;; esac; };'
 
 in_orc() {
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" STUB_LOG="$T/calls.log" \
@@ -120,5 +127,74 @@ bad=$(sed -e ':a' -e '/\\$/{N;s/\\\n//;ba' -e '}' "$ACTION" |
       grep -E '(^|[^_[:alnum:]])gcloud[[:space:]]' |
       grep -vE '^[[:space:]]*#' | grep -v 'do_require_bin' | grep -v -- '--account')
 [[ -z "$bad" ]] && pass "every gcloud invocation in the action carries --account" || fail "unpinned gcloud: $bad"
+
+# --- 7. topic heads after a restore into the env -----------------------------------
+BACKFILL='do_spl_topic_head_backfill(){ echo "backfill ENV=$ENV REBUILD=${REBUILD:-} DRY_RUN=${DRY_RUN:-}" >>"$STUB_LOG"; return "${STUB_BACKFILL_RC:-0}"; };'
+: >"$T/calls.log"
+o=$(SNIPPET="$PIN $PROXY $BACKFILL do_spl_db_restore" in_orc DRY_RUN=0 TARGET=env STUB_SCHEMA_MAX=0144_topic_heads.sql 2>&1); rc=$?
+(( rc == 0 )) && grep -qx 'backfill ENV=dev REBUILD=all DRY_RUN=0' "$T/calls.log" &&
+  pass "TARGET=env rebuilds the topic heads: REBUILD=all DRY_RUN=0 do_spl_topic_head_backfill" ||
+  fail "env backfill rc=$rc: $o $(cat "$T/calls.log")"
+awk '/sql import sql/{i=NR} /^backfill /{b=NR} END{exit !(i && b > i)}' "$T/calls.log" &&
+  pass "the backfill runs after the import" || fail "order: $(cat "$T/calls.log")"
+: >"$T/calls.log"
+o=$(SNIPPET="$PIN $PROXY $BACKFILL do_spl_db_restore" in_orc DRY_RUN=0 TARGET=env STUB_SCHEMA_MAX=0149_fleet_agent_kinds_off.sql STUB_BACKFILL_RC=1 2>&1); rc=$?
+(( rc == 7 )) && grep -q 'topic-head backfill failed' <<<"$o" && pass "a failed backfill fails the restore (rc 7) and names the re-run" ||
+  fail "backfill failure rc=$rc: $o"
+: >"$T/calls.log"
+o=$(SNIPPET="$PIN $PROXY $BACKFILL do_spl_db_restore" in_orc DRY_RUN=0 TARGET=env 2>&1); rc=$?
+(( rc == 0 )) && ! grep -q '^backfill' "$T/calls.log" && grep -q 'predates 0144_topic_heads.sql.*REBUILD=all DRY_RUN=0 ./run -a do_spl_topic_head_backfill' <<<"$o" &&
+  pass "a dump older than rdb 0144 skips the backfill and names the command" || fail "pre-0144 dump rc=$rc: $o $(cat "$T/calls.log")"
+: >"$T/calls.log"
+SNIPPET="$PIN $PROXY $BACKFILL do_spl_db_restore" in_orc DRY_RUN=0 TARGET=database:spool_restore_t STUB_SCHEMA_MAX=0144_topic_heads.sql >/dev/null 2>&1
+grep -q '^backfill' "$T/calls.log" && fail "CONTROL: a throwaway database target backfilled" ||
+  pass "CONTROL: a database:<x> target never backfills"
+
+# --- 8. TOPIC_HEAD_VERIFY on the local throwaway ------------------------------------
+for g in "TARGET=database:spool_restore_t|needs TARGET=local" "TOPIC_HEAD_VERIFY=yes|must be 0 or 1"; do
+  o=$(SNIPPET="$PIN do_spl_db_restore" in_orc TOPIC_HEAD_VERIFY="${g%%=yes*}" "${g%%|*}" 2>&1) &&
+    fail "${g%%|*} with TOPIC_HEAD_VERIFY accepted: $o" ||
+    { grep -q "${g#*|}" <<<"$o" && pass "TOPIC_HEAD_VERIFY: ${g%%|*} is refused" || fail "refusal text: $o"; }
+done
+o=$(SNIPPET="$PIN do_spl_db_restore" in_orc TOPIC_HEAD_VERIFY=1 2>&1) &&
+  pass "CONTROL: TOPIC_HEAD_VERIFY=1 with TARGET=local plans" || fail "CONTROL local verify plan: $o"
+# the wiring: spl_db_restore_local hands the check to the restore container
+: >"$T/calls.log"
+WIRE='gunzip(){ :; }; spl_db_backup_restore_counts(){ echo "counts check=${SPL_RESTORE_CHECK:-}" >>"$STUB_LOG"; return 9; };'
+for v in 1 0; do
+  SNIPPET="$PIN $WIRE do_spl_db_restore" in_orc DRY_RUN=0 TOPIC_HEAD_VERIFY=$v >/dev/null 2>&1
+done
+[[ "$(grep '^counts' "$T/calls.log" | paste -sd,)" == "counts check=spl_db_restore_topic_head_verify,counts check=" ]] &&
+  pass "TOPIC_HEAD_VERIFY=1 sets SPL_RESTORE_CHECK for the restore container, 0 leaves it unset" ||
+  fail "wiring: $(cat "$T/calls.log")"
+# the hook in spl_db_backup_restore_counts: called with the live container, its
+# output kept off the count list, its failure failing the check
+DOCKER='docker(){ echo "docker $*" >>"$STUB_LOG"; case "$1" in run|rm) return 0 ;; esac
+  case "$*" in *"SELECT 1"*) return 0 ;; *information_schema*) echo messages ;; *"count(*) FROM"*) echo 3 ;; esac; };'
+CHK='mycheck(){ echo "CHECKED $1"; echo "check $1" >>"$STUB_LOG"; return "${STUB_CHECK_RC:-0}"; };'
+printf 'SELECT 1;\n' >"$T/dump.sql"
+: >"$T/calls.log"
+o=$(SNIPPET="$DOCKER $CHK spl_db_backup_restore_counts $T/dump.sql 2>/dev/null" in_orc SPL_RESTORE_CHECK=mycheck); rc=$?
+(( rc == 0 )) && grep -qx 'messages 3' <<<"$o" && ! grep -q CHECKED <<<"$o" && grep -q '^check spl-restorecheck-dev-' "$T/calls.log" &&
+  pass "the restore-check hook runs on the live container; stdout stays the count list" || fail "hook rc=$rc out=[$o] $(cat "$T/calls.log")"
+awk '/^check /{c=NR} /^docker rm /{r=NR} END{exit !(c && r > c)}' "$T/calls.log" &&
+  pass "the hook runs before the container is removed" || fail "hook order: $(cat "$T/calls.log")"
+SNIPPET="$DOCKER $CHK spl_db_backup_restore_counts $T/dump.sql" in_orc SPL_RESTORE_CHECK=mycheck STUB_CHECK_RC=1 >/dev/null 2>&1 &&
+  fail "a failing restore check passed" || pass "a failing restore check fails the restore"
+# the verify itself: the do_spl_topic_head_verify read over the bridge address
+VDOCK='docker(){ case "$1" in exec) echo "${STUB_HAS:-1}" ;; inspect) echo 172.17.0.9 ;; esac; };
+spl_pg_env(){ echo "pg $1" >>"$STUB_LOG"; cat >/dev/null; printf "%b" "$STUB_PG"; };'
+: >"$T/calls.log"
+o=$(SNIPPET="$VDOCK spl_db_restore_topic_head_verify con1" in_orc STUB_PG='topics=12 tenants=2 marked=2 mismatches=0\n' 2>&1); rc=$?
+(( rc == 0 )) && grep -q 'OK dev topic heads: topics=12 tenants=2 marked=2 mismatches=0' <<<"$o" &&
+  grep -qx 'pg postgres://postgres:restorecheck@172.17.0.9:5432/restorecheck' "$T/calls.log" &&
+  pass "CONTROL: 0 mismatches on the restored copy passes, read over the bridge address" || fail "verify 0: rc=$rc $o $(cat "$T/calls.log")"
+o=$(SNIPPET="$VDOCK spl_db_restore_topic_head_verify con1" in_orc STUB_PG='topics=12 tenants=2 marked=2 mismatches=1\nt1 aaaaaaaa-0000-4000-8000-000000000001 head\n' 2>&1); rc=$?
+(( rc == 1 )) && grep -q 'FAIL dev topic heads: .*mismatches=1' <<<"$o" &&
+  pass "one mismatch on the restored copy fails the verify" || fail "verify 1: rc=$rc $o"
+: >"$T/calls.log"
+o=$(SNIPPET="$VDOCK spl_db_restore_topic_head_verify con1" in_orc STUB_HAS=0 2>&1); rc=$?
+(( rc == 0 )) && grep -q 'no topic_head_diff' <<<"$o" && [[ ! -s "$T/calls.log" ]] &&
+  pass "a dump older than rdb 0144 says so and reads nothing" || fail "pre-0144 verify: rc=$rc $o"
 
 (( fails == 0 )) && echo "OK spl-db-restore: all checks passed" || { echo "FAIL spl-db-restore: $fails check(s)"; exit 1; }

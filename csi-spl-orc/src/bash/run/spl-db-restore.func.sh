@@ -28,6 +28,13 @@
 # @description dump bound for Cloud SQL is staged into 045 under restore/ first
 # @description (through this box: the two identities never share a grant) and
 # @description removed after the import.
+# @description Topic heads (spec 099 T007): TARGET=env, once the restore
+# @description compares green, rebuilds every head with
+# @description REBUILD=all DRY_RUN=0 do_spl_topic_head_backfill (a dump older
+# @description than rdb 0144 has no head table: then it says so and skips).
+# @description TOPIC_HEAD_VERIFY=1 (TARGET=local only) also runs the
+# @description do_spl_topic_head_verify read on the restored throwaway copy
+# @description and fails the restore on one mismatch or more.
 # @description Prints the per-table comparison and one timing line: RPO (age
 # @description of the dump) and RTO (download/import -> counted).
 # @description DRY_RUN=1 (the default) resolves the dump and the target and
@@ -38,10 +45,12 @@
 # @param TARGET (optional) - local (default) | database:spool_restore_<x> | env
 # @param ALLOW_PRD_RESTORE (optional) - 1 lets TARGET=env write into prd
 # @param KEEP (optional) - 1 keeps a database:<name> target after the count
+# @param TOPIC_HEAD_VERIFY (optional) - 1 verifies the topic heads of the local restore; default 0
 # @param DRY_RUN (optional) - 1 (default) plan only; 0 restore
 # @param SPL_RESTORE_IMAGE (optional) - the local target image, default postgres:16-alpine
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_db_restore
 # @example ENV=dev TARGET=database:spool_restore_drill DRY_RUN=0 ./run -a do_spl_db_restore
+# @example ENV=dev BACKUP_SOURCE=env TOPIC_HEAD_VERIFY=1 DRY_RUN=0 ./run -a do_spl_db_restore
 #------------------------------------------------------------------------------
 do_spl_db_restore() {
   do_require_bin gcloud python3 yq || return 1
@@ -49,6 +58,12 @@ do_spl_db_restore() {
   local target="${TARGET:-local}" uri="${BACKUP_URI:-latest}" bucket dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_db_restore_target_ok "$target" || return 1
+  case "${TOPIC_HEAD_VERIFY:-0}" in
+    0) ;;
+    1) [[ "$target" == local ]] ||
+         { do_log "FATAL TOPIC_HEAD_VERIFY=1 reads the local throwaway copy: it needs TARGET=local, got: $target"; return 1; } ;;
+    *) do_log "FATAL TOPIC_HEAD_VERIFY must be 0 or 1, got: ${TOPIC_HEAD_VERIFY}"; return 1 ;;
+  esac
   bucket="$(spl_db_backup_bucket)" || return 1
   spl_offsite_cnf || return 1
   local src="${BACKUP_SOURCE:-}"
@@ -142,6 +157,13 @@ _spl_db_restore_local_in() {
     { do_log "FATAL $ENV: cannot download $1"; return 1; }
   gunzip -f "$work/dump.sql.gz" || { do_log "FATAL $ENV: $1 is not gzip"; return 4; }
   do_require_bin docker psql || return 1
+  # dynamic scope: spl_db_backup_restore_counts calls it on the live container
+  # shellcheck disable=SC2034 # read by spl_db_backup_restore_counts
+  local SPL_RESTORE_CHECK=""
+  if [[ "${TOPIC_HEAD_VERIFY:-0}" == 1 ]]; then
+    # shellcheck disable=SC2034 # read by spl_db_backup_restore_counts
+    SPL_RESTORE_CHECK=spl_db_restore_topic_head_verify
+  fi
   spl_db_backup_restore_counts "$work/dump.sql" >"$work/restored.txt" || return $?
   spl_via_proxy _spl_db_backup_live_counts >"$work/live.txt" ||
     { do_log "FATAL $ENV: cannot read the live counts"; return 1; }
@@ -190,6 +212,9 @@ spl_db_restore_cloud() {
       # the max empty, and the compare then fails closed on every missing table.
       dump_max="$(spl_via_proxy _spl_db_restore_schema_max "$db")" || dump_max=""
       spl_db_backup_compare <(printf '%s\n' "$restored") <(printf '%s\n' "$live") "$dump_max" || rc=$?
+      if (( rc == 0 )) && [[ "$target" == env ]]; then
+        spl_db_restore_topic_heads "$dump_max" || rc=7
+      fi
     else
       do_log "FATAL $ENV: cannot read the counts"
     fi
@@ -211,6 +236,46 @@ spl_db_restore_cloud() {
     fi
   fi
   return $rc
+}
+
+# SPL_TOPIC_HEAD_MIGRATION: the rdb migration that creates the topic heads
+# (topic_heads, topic_head_diff, topic_head_backfill).
+SPL_TOPIC_HEAD_MIGRATION=0144_topic_heads.sql
+
+# spl_db_restore_topic_heads <dump_max> -> after a restore into the env's own
+# database (spec 099 T007): rebuild every topic head from the restored rows,
+# REBUILD=all so a head whose topic is gone is deleted too. A dump older than
+# rdb 0144 has no head table; the hub's migrate creates it empty, and the
+# backfill must then run after that migrate - said, not run.
+spl_db_restore_topic_heads() {
+  if [[ -z "$1" || "$1" < "$SPL_TOPIC_HEAD_MIGRATION" ]]; then
+    do_log "WARN $ENV: the dump's schema [${1:-}] predates $SPL_TOPIC_HEAD_MIGRATION; once the hub has migrated, run: ENV=$ENV REBUILD=all DRY_RUN=0 ./run -a do_spl_topic_head_backfill"
+    return 0
+  fi
+  do_log "INFO $ENV: rebuilding the topic heads of the restored database"
+  REBUILD=all DRY_RUN=0 do_spl_topic_head_backfill ||
+    { do_log "FATAL $ENV: restored, but the topic-head backfill failed; re-run: ENV=$ENV REBUILD=all DRY_RUN=0 ./run -a do_spl_topic_head_backfill"; return 1; }
+}
+
+# spl_db_restore_topic_head_verify <container> -> the do_spl_topic_head_verify
+# read (_spl_topic_head_verify_run) against the restored throwaway copy, over
+# the container's bridge address as its superuser. Prints the summary line
+# "topics=<n> ... mismatches=<k>"; exit 1 on one mismatch or more. A dump with
+# no topic_head_diff (older than rdb 0144) is said and passes.
+spl_db_restore_topic_head_verify() {
+  local con="$1" has ip
+  has="$(docker exec "$con" psql -U postgres -h 127.0.0.1 -d restorecheck -XAtc \
+    "SELECT count(*) FROM pg_proc WHERE proname = 'topic_head_diff'" 2>/dev/null | tr -d '[:space:]')"
+  if [[ "$has" == 0 ]]; then
+    do_log "WARN $ENV: the dump has no topic_head_diff (older than $SPL_TOPIC_HEAD_MIGRATION): no topic head to verify"
+    return 0
+  fi
+  [[ "$has" =~ ^[0-9]+$ ]] || { do_log "FATAL $ENV: cannot read the restored copy's catalog"; return 1; }
+  ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$con" 2>/dev/null)"
+  [[ "$ip" =~ ^[0-9.]+$ ]] || { do_log "FATAL $ENV: no bridge address for $con: '$ip'"; return 1; }
+  do_log "INFO $ENV: topic-head verify on the restored copy ($con)"
+  SPL_PROXY_DSN="postgres://postgres:restorecheck@$ip:5432/restorecheck" \
+    SPL_TH_SHOW="${TOPIC_HEAD_SHOW:-20}" _spl_topic_head_verify_run
 }
 
 # _spl_db_restore_gcloud <args> -> gcloud as the identity that reads the

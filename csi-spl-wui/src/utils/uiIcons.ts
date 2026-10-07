@@ -37,6 +37,8 @@ export const UI_ICON_PATHS = {
   ],
   "log-in": ["M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4", "m10 17 5-5-5-5", "M15 12H3"],
   "log-out": ["M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", "m16 17 5-5-5-5", "M21 12H9"],
+  // t1 ea0af569: "Change password" (lucide lock), account menu + own profile.
+  lock: ["M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z", "M7 11V7a5 5 0 0 1 10 0v4"],
   // "Open" affordance (lucide square-arrow-out-up-right): box + arrow out.
   // One glyph for every Open control — pane or dedicated page.
   open: [

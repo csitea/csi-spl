@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Ρόλος: {role}",
     "stop_acting_as": "Διακοπή ενέργειας ως {name}",
-    "act_as": "Ενέργεια ως…"
+    "act_as": "Ενέργεια ως…",
+    "change_password": "Αλλαγή κωδικού"
   },
   "viewer": {
     "error": {

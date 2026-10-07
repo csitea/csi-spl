@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "תפקיד: {role}",
     "stop_acting_as": "הפסק לפעול בתור {name}",
-    "act_as": "פעל בתור…"
+    "act_as": "פעל בתור…",
+    "change_password": "שינוי סיסמה"
   },
   "viewer": {
     "error": {

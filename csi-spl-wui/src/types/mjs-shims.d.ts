@@ -1143,6 +1143,8 @@ declare module '~/utils/user-menu.mjs' {
   export function menuButtonLabelKey(claims: unknown): { key: string, params: Record<string, unknown> }
   export function nextMenuIndex(current: number, key: string, count: number): number
   export function signInRedirect(fullPath: string): string
+  export function changePasswordOffered(claims: unknown, actingAs?: unknown): boolean
+  export const CHANGE_PASSWORD_PATH: string
 }
 
 declare module '~/utils/pane-widths.mjs' {

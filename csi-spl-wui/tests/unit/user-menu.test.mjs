@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import {
-  avatarMode, menuButtonLabel, ownAvatarUrl, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
+  avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabel, ownAvatarUrl, menuButtonLabelKey, methodLabel, methodLabelKey, nextMenuIndex, signInRedirect, userIdentity, userInitials,
 } from '../../src/utils/user-menu.mjs'
 
 describe('user menu identity (CLE-3402: top-right avatar from auth-v1 §4 session claims)', () => {
@@ -149,5 +149,30 @@ describe('a rotation never shows the CLOSED menu (v-show owns display)', () => {
   it('the narrow watch and the phone path both go through it', () => {
     assert.match(src, /watch\(narrow, \(\) => \{\s*clearPopover\(/)
     assert.match(src, /if \(phone\(\)\) \{ clearPopover\(panel\); return \}/)
+  })
+})
+
+describe('t1 ea0af569 (B): Change password in the account menu and on the own profile', () => {
+  it('is offered to a password session only', () => {
+    assert.equal(changePasswordOffered({ p: 'password', hum: 'HUM-1' }), true)
+    assert.equal(changePasswordOffered({ p: 'google', hum: 'HUM-1' }), false)
+    assert.equal(changePasswordOffered({ p: 'github', hum: 'HUM-1' }), false)
+    assert.equal(changePasswordOffered({ hum: 'HUM-1' }), false)
+    assert.equal(changePasswordOffered(null), false)
+  })
+  it('is never offered while acting as someone else', () => {
+    assert.equal(changePasswordOffered({ p: 'password' }, { targetName: 'Dev One' }), false)
+  })
+  it('opens the existing Settings section, no new form', () => {
+    assert.equal(CHANGE_PASSWORD_PATH, '/settings/security')
+    const nav = readFileSync(new URL('../../src/utils/settings-nav.mjs', import.meta.url), 'utf8')
+    assert.match(nav, /id: 'security'/)
+  })
+  it('the label is in every locale', () => {
+    const dir = new URL('../../i18n/locales/', import.meta.url)
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+      const v = JSON.parse(readFileSync(new URL(f, dir), 'utf8')).user_menu?.change_password
+      assert.ok(typeof v === 'string' && v.trim(), f)
+    }
   })
 })

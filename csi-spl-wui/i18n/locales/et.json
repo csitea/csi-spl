@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Roll: {role}",
     "stop_acting_as": "Lõpeta tegutsemine kasutajana {name}",
-    "act_as": "Tegutse kasutajana…"
+    "act_as": "Tegutse kasutajana…",
+    "change_password": "Muuda parooli"
   },
   "viewer": {
     "error": {

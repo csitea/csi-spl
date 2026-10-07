@@ -198,6 +198,9 @@ iPhone, add Spool to the Home Screen first, as Safari tabs get no alerts.
 - **Change password**: for accounts that sign in with email and password, enter
   your current password and a new one (stored hashed with argon2id). Accounts
   that sign in through an identity provider manage their password there.
+  The account menu (your avatar) and your own profile card also carry a
+  **Change password** link straight to this form; it is hidden for accounts
+  without a password.
 - **Sign out** of this browser.
 
 ---

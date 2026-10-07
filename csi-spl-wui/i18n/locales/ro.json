@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Rol: {role}",
     "stop_acting_as": "Oprește acțiunea ca {name}",
-    "act_as": "Acționează ca…"
+    "act_as": "Acționează ca…",
+    "change_password": "Schimbă parola"
   },
   "viewer": {
     "error": {

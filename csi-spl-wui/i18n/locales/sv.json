@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Roll: {role}",
     "stop_acting_as": "Sluta agera som {name}",
-    "act_as": "Agera som…"
+    "act_as": "Agera som…",
+    "change_password": "Byt lösenord"
   },
   "viewer": {
     "error": {

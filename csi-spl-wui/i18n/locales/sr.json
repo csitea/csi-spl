@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Улога: {role}",
     "stop_acting_as": "Престани да делујеш као {name}",
-    "act_as": "Делуј као…"
+    "act_as": "Делуј као…",
+    "change_password": "Promena lozinke"
   },
   "viewer": {
     "error": {

@@ -48,6 +48,11 @@
           <button v-if="!isSelf" type="button" class="btn person-card__act" data-test="person-message" :title="t('people.message')" @click="message">
             <UiIcon name="messages" :size="16" /><span>{{ t('people.message') }}</span>
           </button>
+          <!-- t1 ea0af569 (B): on the reader's OWN card only, password sign-ins
+               only; opens Settings -> Sign-in and security -->
+          <NuxtLink v-if="canChangePassword" :to="localePath(CHANGE_PASSWORD_PATH)" class="btn ghost person-card__act" data-test="person-change-password" :title="t('user_menu.change_password')">
+            <UiIcon name="lock" :size="16" /><span>{{ t('user_menu.change_password') }}</span>
+          </NuxtLink>
           <button v-if="canSeeActivity" type="button" class="btn ghost person-card__act" data-test="person-activity-open" :title="t('activity.open_hint')" @click="activityOpen = true">
             <UiIcon name="history" :size="16" /><span>{{ t('activity.open') }}</span>
           </button>
@@ -82,6 +87,8 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { canRemoveMember } from '~/utils/access.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu.mjs'
+import { useSessionStore } from '~/stores/session'
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -117,7 +124,10 @@ const removeError = ref('')
 const canSeeActivity = computed(() => access.can('audit.read'))
 const activityOpen = ref(false)
 /* the action row shows only when there is at least one action for this reader. */
-const hasActions = computed(() => !isSelf.value || canSeeActivity.value || canRemove.value)
+/* t1 ea0af569 (B): "Change password" on the reader's own card, same rule as the account menu. */
+const session = useSessionStore()
+const canChangePassword = computed(() => isSelf.value && changePasswordOffered(session.claims, access.me?.actAs))
+const hasActions = computed(() => !isSelf.value || canSeeActivity.value || canRemove.value || canChangePassword.value)
 
 /* the roster is already loaded for the DM list; refresh once so a deep link
    straight to this card (no sidebar visited yet) still has the detail. The
@@ -171,6 +181,8 @@ async function removeMember() {
    are secondary (ghost); Remove is the shared readable danger style. */
 .person-card__actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .person-card__act { display: inline-flex; align-items: center; gap: 6px; }
+/* the Change password link is an <a>: same size as the buttons, no underline */
+a.person-card__act { min-height: var(--tap, 44px); text-decoration: none; }
 .person-card__error { margin: 8px 0 0; color: var(--color-danger); overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .person-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }

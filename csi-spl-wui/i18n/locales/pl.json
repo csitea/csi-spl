@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Rola: {role}",
     "stop_acting_as": "Przestań działać jako {name}",
-    "act_as": "Działaj jako…"
+    "act_as": "Działaj jako…",
+    "change_password": "Zmień hasło"
   },
   "viewer": {
     "error": {

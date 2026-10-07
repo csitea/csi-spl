@@ -107,6 +107,22 @@
               <span>{{ t('user_menu.settings') }}</span>
             </NuxtLink>
           </li>
+          <!-- t1 ea0af569 (B): straight to Settings -> Sign-in and security's
+               change-password form; password sign-ins only, never while acting -->
+          <li v-if="changePasswordShown" role="none">
+            <NuxtLink
+              ref="itemPassword"
+              role="menuitem"
+              tabindex="-1"
+              class="user-menu__item"
+              data-test="user-menu-change-password"
+              :to="localePath(CHANGE_PASSWORD_PATH)"
+              @click="close(false)"
+            >
+              <UiIcon name="lock" :size="18" />
+              <span>{{ t('user_menu.change_password') }}</span>
+            </NuxtLink>
+          </li>
           <!-- spec 096 §7.5: Set a status (Busy / Unavailable) -->
           <li role="none">
             <button
@@ -217,7 +233,7 @@ import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav.mjs'
 import { MOBILE_STACK_QUERY } from '~/utils/mobile-stack.mjs'
-import { avatarMode, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
+import { avatarMode, CHANGE_PASSWORD_PATH, changePasswordOffered, menuButtonLabelKey, nextMenuIndex, ownAvatarUrl, signInRedirect, userIdentity, userInitials } from '~/utils/user-menu.mjs'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover.mjs'
 import { loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
@@ -239,6 +255,7 @@ const actingAs = computed(() => access.me?.actAs ?? null)
 // already acting; it opens the picker dialog.
 const canActAs = computed(() => signedIn.value && !actingAs.value && access.can(MEMBERS_IMPERSONATE))
 const actAsOpen = ref(false)
+const changePasswordShown = computed(() => signedIn.value && changePasswordOffered(session.claims, actingAs.value))
 // specs/025 FR-008: the member's role in the active tenant, under the name.
 watch(signedIn, (v) => { if (v) access.load() }, { immediate: true })
 const me = computed(() => userIdentity(session.claims))
@@ -271,10 +288,11 @@ const item1 = ref<HTMLButtonElement | null>(null)
 const itemTenant = ref<{ $el: HTMLElement } | null>(null)
 const itemActAs = ref<HTMLButtonElement | null>(null)
 const itemStatus = ref<HTMLButtonElement | null>(null)
+const itemPassword = ref<{ $el: HTMLElement } | null>(null)
 const itemActAsStop = ref<HTMLButtonElement | null>(null)
 
 function items(): HTMLElement[] {
-  return [item0.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
+  return [item0.value?.$el, itemPassword.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
 
 /* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The

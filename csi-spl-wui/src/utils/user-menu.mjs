@@ -63,6 +63,20 @@ export function ownAvatarUrl(authBase, claims) {
   return `${root}/api/v1/auth/avatar${iat}`
 }
 
+/**
+ * t1 ea0af569 (B): the account menu's and the own profile's "Change password"
+ * entry. Shown only to a session that signed in with a password (claim `p`,
+ * the rule Settings -> Sign-in and security uses for its form): a Google /
+ * GitHub-only member has no password to change, and an act-as clone
+ * (`actingAs`) never changes the target's password.
+ */
+export function changePasswordOffered(claims, actingAs = false) {
+  return !actingAs && userIdentity(claims).method === 'password'
+}
+
+/** Where "Change password" goes: the Settings modal's Sign-in and security section. */
+export const CHANGE_PASSWORD_PATH = '/settings/security'
+
 const METHOD_LABEL = { password: 'Email and password', google: 'Google', microsoft: 'Microsoft', facebook: 'Facebook' }
 
 /** Session claim `p` (the sign-in provider) in words. */

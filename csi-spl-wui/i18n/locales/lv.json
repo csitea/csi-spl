@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Loma: {role}",
     "stop_acting_as": "Pārtraukt darboties kā {name}",
-    "act_as": "Darboties kā…"
+    "act_as": "Darboties kā…",
+    "change_password": "Mainīt paroli"
   },
   "viewer": {
     "error": {

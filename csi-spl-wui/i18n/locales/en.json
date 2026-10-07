@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Role: {role}",
     "stop_acting_as": "Stop acting as {name}",
-    "act_as": "Act as…"
+    "act_as": "Act as…",
+    "change_password": "Change password"
   },
   "viewer": {
     "error": {

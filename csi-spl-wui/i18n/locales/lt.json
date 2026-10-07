@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Vaidmuo: {role}",
     "stop_acting_as": "Nustoti veikti kaip {name}",
-    "act_as": "Veikti kaip…"
+    "act_as": "Veikti kaip…",
+    "change_password": "Keisti slaptažodį"
   },
   "viewer": {
     "error": {

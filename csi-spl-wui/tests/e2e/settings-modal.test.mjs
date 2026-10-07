@@ -15,6 +15,12 @@
 //   P   phone 390: /settings/notifications is a full-screen sheet with its X
 //       shown (no Back chevron), no sideways scroll; the X closes it
 //   N   the page never scrolls behind it (scrollX/scrollY 0, no x overflow)
+//   C   t1 ea0af569 (B): a password session gets "Change password" in the
+//       account menu and on its OWN profile card; each opens this modal on
+//       Sign-in and security with the change-password form. Not on another
+//       member's card.
+//       CONTROL: the same reader signed in WITHOUT a password (the default
+//       mock session, no claim p) sees neither link.
 // CONTROL: the dialog is asserted present before every close path, so a close
 // that "works" because nothing opened cannot read green.
 //
@@ -64,7 +70,9 @@ try {
   p.on('pageerror', (e) => errors.push(String(e && e.message)))
   await p.evaluateOnNewDocument(() => {
     try {
-      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1' }))
+      /* C: spool.test.signin = the session's sign-in method (claim p), none by default */
+      const signIn = localStorage.getItem('spool.test.signin')
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', ...(signIn ? { p: signIn } : {}) }))
       const theme = localStorage.getItem('spool.test.theme')
       if (theme) localStorage.setItem('spool-theme', theme)
     } catch { /* opaque origin on the very first document */ }
@@ -102,6 +110,17 @@ try {
   }))
   const shot = async (name) => { if (OUT) await p.screenshot({ path: `${OUT}/settings-modal-${name}.png` }) }
   const setTheme = (theme) => p.evaluate((t) => localStorage.setItem('spool.test.theme', t), theme)
+  const setSignIn = (method) => p.evaluate((m) => {
+    if (m) localStorage.setItem('spool.test.signin', m); else localStorage.removeItem('spool.test.signin')
+  }, method)
+  const menuHas = async (sel) => {
+    await p.click('[data-test=user-menu-trigger]')
+    await p.waitForSelector('[data-test=user-menu-settings]', { visible: true, timeout: 5000 })
+    const has = await p.$(sel) !== null
+    return has
+  }
+  const onSecurityForm = async () => await waitOpen() && q() === 'security'
+    && await p.waitForSelector('[data-testid=ui-dialog] [data-test=change-password]', { visible: true, timeout: 5000 }).then(() => true).catch(() => false)
 
   /* G: the gear opens it over the channel */
   await load(DESKTOP, '/channel/general')
@@ -173,6 +192,32 @@ try {
   await shot('390-open')
   await p.click('[data-testid=ui-dialog-close]')
   ok('P4 390: the X closes it', await waitClosed() && q() === null, { url: p.url() })
+
+  /* C: "Change password" in the account menu and on the own profile (t1 ea0af569 B) */
+  await load(DESKTOP, '/channel/general')
+  ok('C0 CONTROL: no password sign-in -> no Change password in the account menu', await menuHas('[data-test=user-menu-settings]') && await p.$('[data-test=user-menu-change-password]') === null)
+  await p.keyboard.press('Escape')
+  await load(DESKTOP, '/people/HUM-1')
+  await p.waitForSelector('[data-test=person-card]', { timeout: 10000 }).catch(() => null)
+  ok('C0b CONTROL: no password sign-in -> no Change password on the own card', await p.$('[data-test=person-card]') !== null && await p.$('[data-test=person-change-password]') === null)
+  await setSignIn('password')
+  await load(DESKTOP, '/channel/general')
+  ok('C1 a password session: Change password is in the account menu', await menuHas('[data-test=user-menu-change-password]'))
+  await shot('1440-menu-change-password')
+  await p.click('[data-test=user-menu-change-password]')
+  ok('C2 it opens Settings on Sign-in and security with the change-password form, over the view', await onSecurityForm() && url().pathname.endsWith('/channel/general'), { url: p.url() })
+  await p.keyboard.press('Escape')
+  await waitClosed()
+  await load(DESKTOP, '/people/HUM-1')
+  const own = await p.waitForSelector('[data-test=person-change-password]', { visible: true, timeout: 10000 }).then(() => true).catch(() => false)
+  ok('C3 the own profile card carries Change password', own)
+  await shot('1440-profile-change-password')
+  if (own) await p.click('[data-test=person-change-password]')
+  ok('C4 it opens the same form', own && await onSecurityForm(), { url: p.url() })
+  await load(DESKTOP, '/people/HUM-3')
+  await p.waitForSelector('[data-test=person-card]', { timeout: 10000 }).catch(() => null)
+  ok('C5 another member\'s card has no Change password', await p.$('[data-test=person-message]') !== null && await p.$('[data-test=person-change-password]') === null)
+  await setSignIn('')
 
   /* screenshots in the light theme too */
   if (OUT) {

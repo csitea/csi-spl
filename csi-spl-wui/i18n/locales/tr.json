@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Rol: {role}",
     "stop_acting_as": "{name} olarak hareketi durdur",
-    "act_as": "Biri olarak hareket et…"
+    "act_as": "Biri olarak hareket et…",
+    "change_password": "Parolayı değiştir"
   },
   "viewer": {
     "error": {

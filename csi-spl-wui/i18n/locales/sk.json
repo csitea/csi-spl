@@ -385,7 +385,8 @@
     "method_named": "{name}",
     "role": "Rola: {role}",
     "stop_acting_as": "Prestať konať ako {name}",
-    "act_as": "Konať ako…"
+    "act_as": "Konať ako…",
+    "change_password": "Zmeniť heslo"
   },
   "viewer": {
     "error": {

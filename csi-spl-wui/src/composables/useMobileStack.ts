@@ -471,10 +471,12 @@ function install(opts: { topicOpen: Ref<boolean>, closeTopic: () => void }) {
       else if (step === 'push') pushLevel(next, tagged)
     }
     /* SPL-994: a level pushed from inside an overlay (a menu opening a
-       thread) lands after the overlay's entry is gone, not on top of it */
+       thread) lands after the overlay's entry is gone, not on top of it;
+       one queued to open after the move (/releases/<ref>'s dialog) stays */
     if (!overlays.length && !queued) return record()
+    const above = overlays.length
     void enqueue(async () => {
-      if (overlays.length) await stepBack(overlays.length)
+      if (above && overlays.length) await stepBack(overlays.length)
       if (level.value === next) record()
     })
   }, { flush: 'post' })

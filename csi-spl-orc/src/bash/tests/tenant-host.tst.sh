@@ -93,7 +93,7 @@ in_orc() {
 }" ;; esac; }
     spl_th_mark_one() { echo "MARK $1 $2" >>'"$T"'/mark.log; SPL_TH_PREV="${STUB_PREV:-pending}"; }
     [[ "${REAL_PUSH:-0}" == 1 ]] || spl_th_cnf_push() { echo "PUSH $1" >>'"$T"'/mark.log; [[ "${STUB_PUSH_RC:-0}" == 0 ]]; }
-    stub_notify() { echo "NOTIFY $ENV $TENANT_ID $DESK_AGENT #$DESK_CHANNEL $DESK_BODY" >>'"$T"'/mark.log; }
+    stub_notify() { echo "NOTIFY $ENV $TENANT_ID $DESK_AGENT #$DESK_CHANNEL $DESK_BODY" >>'"$T"'/mark.log; echo "NOTIFY-ENV state=${SPL_STATE_DIR:-} cnf=${SPL_CNF:-} acct=${GCP_ACCOUNT:-}" >>'"$T"'/notify-env.log; }
     do_spl_wait_for_firebase_domain() { echo "CERT $DOMAIN" >>'"$T"'/mark.log; }
     do_spl_probe_wui_host() { echo "PROBE $HOST" >>'"$T"'/mark.log; }
     eval "$SNIPPET"'
@@ -234,7 +234,11 @@ SNIPPET='do_spl_cloud_cnf; spl_th_finish t1' in_orc STUB_PREV=pending STUB_OWNER
 grep -q 'NOTIFY .* Owner: HUM-36 HUM-5, cc HUM-10$' "$T/mark.log" && pass "notice: every owner the lookup returns is named" || fail "owners: $(cat "$T/mark.log")"
 reset
 SNIPPET='do_spl_cloud_cnf; spl_th_finish t1' in_orc STUB_PREV=pending STUB_OWNERS="" >/dev/null 2>&1
-grep -q 'NOTIFY .* Owner: unknown, cc HUM-10$' "$T/mark.log" && pass "notice: a workspace with neither biz_owner nor admin reads Owner: unknown" || fail "no owner: $(cat "$T/mark.log")"
+grep -q 'NOTIFY .* Owner: none (no biz_owner or admin member), cc HUM-10$' "$T/mark.log" && pass "notice: a workspace with neither biz_owner nor admin says so (not a bare unknown)" || fail "no owner: $(cat "$T/mark.log")"
+: >"$T/notify-env.log"
+SNIPPET='do_spl_cloud_cnf; export SPL_STATE_DIR SPL_CNF; GCP_ACCOUNT=dev-sa@example.test; export GCP_ACCOUNT; spl_th_finish t1' in_orc STUB_PREV=pending >/dev/null 2>&1
+[[ "$(cat "$T/notify-env.log")" == "NOTIFY-ENV state= cnf= acct=" ]] &&
+  pass "notice: the lease-env post gets no SPL_* / account of the host env (a dev run posts into prd t1)" || fail "notify env leaked: $(cat "$T/notify-env.log")"
 # the lookup: the biz_owner members (047 W1, the buyer), else the admins - never a role name that does not exist
 sql=$(sed -n '/^_spl_th_owners_sql()/,/^}/p' "$PROJ_ROOT/src/bash/run/spl-tenant-host-provision.func.sh")
 grep -q "THEN 'biz_owner' ELSE 'admin' END" <<<"$sql" && ! grep -q "role = 'owner'" <<<"$sql" &&

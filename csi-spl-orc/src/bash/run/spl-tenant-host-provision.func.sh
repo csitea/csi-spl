@@ -270,9 +270,13 @@ spl_th_notify_ready() {
   cc="$(_spl_th_lease ASKS_OWNER "$lc")"
   [[ -n "$lenv" && -n "$ltenant" && -n "$master" ]] || { do_log "WARN $host ready, not announced: $lc lacks LEASE_ENV / LEASE_TENANT / LEASE_MASTER"; return 0; }
   owners="$(spl_th_owners "$t")"
-  local body="$ENV: workspace **$t** is live at https://$host (certificate + WUI probe ok). Owner: ${owners:-unknown}${cc:+, cc $cc}"
-  if ( ENV="$lenv" TENANT_ID="$ltenant" DESK_AGENT="$master" DESK_BOX="$box" DESK_CHANNEL="$ch" DESK_BODY="$body" DRY_RUN=0 \
-      "${SPL_TH_NOTIFY_FN:-do_spl_desk_post}" ) >/dev/null; then
+  local body="$ENV: workspace **$t** is live at https://$host (certificate + WUI probe ok). Owner: ${owners:-none (no biz_owner or admin member)}${cc:+, cc $cc}"
+  # a clean cnf for the lease env: this run's exported SPL_* (state dir, cnf,
+  # hub) and its pinned account are the HOST's env, and made a dev run's post
+  # look for the prd desk under the dev state dir (dev demo 2026-10-07)
+  local post="${SPL_TH_NOTIFY_FN:-do_spl_desk_post}"
+  if ( unset "${!SPL_@}" GCP_ACCOUNT CLOUDSDK_CONFIG; ENV="$lenv" TENANT_ID="$ltenant" DESK_AGENT="$master" DESK_BOX="$box" DESK_CHANNEL="$ch" DESK_BODY="$body" DRY_RUN=0 \
+      "$post" ) >/dev/null; then
     do_log "OK announced in $ltenant #$ch as $master: $body"
   else
     do_log "WARN $host ready, the notice was NOT posted; post it with: ENV=$lenv TENANT_ID=$ltenant DESK_AGENT=$master DESK_CHANNEL=$ch DESK_BODY='$body' DRY_RUN=0 ./run -a do_spl_desk_post"

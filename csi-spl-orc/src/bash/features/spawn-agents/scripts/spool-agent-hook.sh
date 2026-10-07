@@ -35,6 +35,19 @@
 #   bash spool-agent-hook.sh PostToolUse < payload.json
 [ -n "${SPOOL_AGENT_ID:-}" ] || exit 0
 [ "$#" -ge 1 ] || exit 0
+# spec 102 5.2: a PostToolUse starts ONE detached handoff compose per
+# HANDOFF_EVERY (60) s, never waited for; its errors go to lifetime/handoff.err
+# (HANDOFF_COMPOSE_CMD: the test seam).
+if [ "$1" = PostToolUse ]; then
+  _hd="${SPOOL_ROOT:-/var/spool-hub}/$SPOOL_AGENT_ID" _hn="${HOOK_NOW%.*}"
+  [ -n "$_hn" ] || printf -v _hn '%(%s)T' -1
+  if [ -d "$_hd" ] && { [ -d "$_hd/lifetime" ] || mkdir "$_hd/lifetime" 2>/dev/null; } &&
+    [ $((_hn - $(stat -c %Y "$_hd/lifetime/handoff.kick" 2>/dev/null || echo 0))) -ge "${HANDOFF_EVERY:-60}" ] &&
+    touch -d "@$_hn" "$_hd/lifetime/handoff.kick" 2>/dev/null; then
+    setsid bash -c "${HANDOFF_COMPOSE_CMD:-. \"\$0\" && do_spl_agent_handoff}" "$(dirname "$0")/../../../run/spl-agent-handoff.func.sh" \
+      </dev/null >/dev/null 2>>"$_hd/lifetime/handoff.err" &
+  fi
+fi
 
 read -r -d '' HOOK_PY <<'EOF_PY'
 import _json, os, sys, time, zlib

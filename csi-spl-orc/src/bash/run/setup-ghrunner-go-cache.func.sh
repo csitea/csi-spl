@@ -140,7 +140,7 @@ ghgc_check_inputs() {
 }
 
 do_setup_ghrunner_go_cache() {
-  do_require_bin sudo systemctl find ps du df || return 1
+  do_require_bin sudo systemctl find du df || return 1
   GHGC_ROOT="${GH_RUNNER_GO_CACHE_ROOT:-/mnt/data/gh-runner-go}" GHGC_DRY="${DRY_RUN:-1}"
   GHGC_USER="${GH_RUNNER_USER:-ghrunner}" GHGC_RUNNER_ROOT="${GH_RUNNER_ROOT:-/srv/gh-runner}"
   GHGC_HOME="${GH_RUNNER_HOME:-/var/lib/$GHGC_USER}" GHGC_GO="${GH_RUNNER_GO_BIN:-/usr/local/go/bin/go}"

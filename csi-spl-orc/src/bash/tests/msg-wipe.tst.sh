@@ -131,5 +131,9 @@ wipe "" 0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "deleted=2 committed=t" "$T/out" && [[ "$(counts t2)" == "0 0 0 0 0" ]] \
   && pass "an all-tenant wipe takes the rest: t2 0/0/0/0 meter 0" || fail "all: rc=$rc $(cat "$T/out") t2=$(counts t2)"
 
+# spec 099 T006: the triggers kept every topic head right through this run
+hd="$(psql_owner -c "SELECT (SELECT count(*) FROM tenants t, LATERAL topic_head_diff(t.tenant_id)) + (SELECT count(*) FROM topic_heads h WHERE NOT EXISTS (SELECT 1 FROM tenants t WHERE t.tenant_id = h.tenant_id))" 2>&1)"
+[[ "$hd" == 0 ]] && pass "topic_head_diff is empty after the run (rdb 0144)" || fail "topic_head_diff after the run: $hd"
+
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

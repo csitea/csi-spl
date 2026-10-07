@@ -180,4 +180,8 @@ runb demo 0; rc=$?
   pass "B5. a second wipe is a no-op" || fail "B5. rerun rc=$rc $(cat "$T/o")"
 [[ "$(bans)" == "2" ]] && pass "B6. the ban list survives two wipes (2 rows)" || fail "B6. demo_bans rows after the wipes: $(bans)"
 
+# spec 099 T006: the triggers kept every topic head right through this run
+hd="$(q "SELECT (SELECT count(*) FROM tenants t, LATERAL topic_head_diff(t.tenant_id)) + (SELECT count(*) FROM topic_heads h WHERE NOT EXISTS (SELECT 1 FROM tenants t WHERE t.tenant_id = h.tenant_id))" 2>&1)"
+[[ "$hd" == 0 ]] && pass "B7. topic_head_diff is empty after the run (rdb 0144)" || fail "B7. topic_head_diff after the run: $hd"
+
 (( fails == 0 )) && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

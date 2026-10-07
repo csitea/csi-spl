@@ -34,6 +34,9 @@ printf '{"type":"service_account","client_email":"%s"}\n' "$PRD_SA" >"$T/home/.g
 # an app tree whose cnf has inject "true" (case 7)
 mkdir -p "$T/app"; cp -r "$APP_ROOT/csi-spl-cnf" "$T/app/"
 yq -i '.env.docs.repo_edit.inject = "true"' "$T/app/csi-spl-cnf/csi-spl/all.env.yaml"
+# and one whose dev cnf has inject "false" (case 6; the live dev cnf injects since T13)
+mkdir -p "$T/app-off"; cp -r "$APP_ROOT/csi-spl-cnf" "$T/app-off/"
+yq -i '.env.docs.repo_edit.inject = "false"' "$T/app-off/csi-spl-cnf/csi-spl/dev.env.yaml"
 
 # gcloud: secrets live as files $SM/<project>/<id>/latest; the hub revision in $REV
 cat >"$T/bin/gcloud" <<'EOF2'
@@ -116,7 +119,7 @@ act do_put_github_app_key ENV=prd KEY_FILE="$T/key1.pem" SHRED=1 DRY_RUN=0; rc=$
   && pass "5. SHRED=1 DRY_RUN=0: put on prd as the prd SA, then the file is gone" || fail "5. rc=$rc $(cat "$T/out")"
 
 # --- 6. rotate, inject false ----------------------------------------------------------
-act do_rotate_github_app_key KEY_FILE="$T/key2.pem" DRY_RUN=0; rc=$?
+act do_rotate_github_app_key APP_PATH="$T/app-off" KEY_FILE="$T/key2.pem" DRY_RUN=0; rc=$?
 [[ $rc == 0 && "$(adds)" == 1 ]] && cmp -s "$T/key2.pem" "$T/sm/csi-spl-dev/spool-hub-github-app-key/latest" && ! grep -q 'gcloud|run ' "$T/calls.log" \
   && grep -q 'no hub roll' "$T/out" && pass "6. rotate, inject false: new version, no hub roll" || fail "6. rc=$rc $(cat "$T/out")"
 grep -q "delete the OLD private key of GitHub App $APP_ID" "$T/out" && pass "6. the reminder names App $APP_ID" || fail "6. reminder: $(cat "$T/out")"

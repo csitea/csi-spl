@@ -11,7 +11,8 @@
 #            the generic binding of 03 skips it (one member, managed once);
 #          - SPOOL_GITHUB_APP_KEY is injected exactly while inject is "true";
 #            it is never a plain env var nor an auth_secret_ids slot;
-#          - the feature is OFF on dev and prd; the hub env carries every
+#          - the feature is ON only where the key is injected (T13 dev, T14
+#            prd: enabled true needs inject "true"); the hub env carries every
 #            SPOOL_HUB_DOCS_EDIT_* derived from the cnf (dev env cap 50);
 #            SPOOL_HUB_DOCS_EDIT_GITHUB_REPO is step 017's github_repository.
 #          CONTROL: a scratch render flips inject both ways; a missing tpl-gen
@@ -37,8 +38,11 @@ want="ENABLED GITHUB_APP_ID INSTALLATION_ID GITHUB_API DENY COALESCE_AFTER COALE
 for env in dev prd; do
   v="$CNF/$env/tf/030-cloud-run-hub.vars.tfvars"
   j="$CNF/$env.env.json"
-  [[ "$(yq -r '.env.docs.repo_edit.enabled' "$j")" == false ]] && pass "$env repo_edit is OFF" || fail "$env repo_edit.enabled is not false"
+  enabled=$(yq -r '.env.docs.repo_edit.enabled' "$j")
   inject=$(yq -r '.env.docs.repo_edit.inject // "false"' "$j")
+  [[ "$enabled" == false || ( "$enabled" == true && "$inject" == true ) ]] \
+    && pass "$env repo_edit enabled=$enabled, inject=$inject" || fail "$env repo_edit.enabled=$enabled without the key injected (inject=$inject)"
+  grep -qF "\"SPOOL_HUB_DOCS_EDIT_ENABLED\": \"$enabled\"" "$v" && pass "$env hub env SPOOL_HUB_DOCS_EDIT_ENABLED=$enabled" || fail "$env hub env DOCS_EDIT_ENABLED is not $enabled"
   grep -qx "github_app_key_secret_id *= \"$slot\"" "$v" && pass "$env 030 imports $slot" || fail "$env github_app_key_secret_id is not $slot"
   grep -E '^auth_secret_ids ' "$v" | grep -F "\"$slot\"" >/dev/null && fail "$env $slot is also an auth slot (06 would create it)" || pass "$env $slot is not an auth_secret_ids slot"
   envline=$(grep -E '^environment_variables ' "$v")

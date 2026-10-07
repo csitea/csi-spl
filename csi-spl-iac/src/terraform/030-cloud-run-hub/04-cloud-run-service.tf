@@ -147,10 +147,14 @@ resource "google_cloud_run_v2_service" "hub" {
     # service to the release version CI mints for its commit
     # (do_release_version), which is ahead of cnf by design. Terraform must
     # therefore never roll it back to the floor. Also ignored: the client
-    # stamps gcloud/console leave behind.
+    # stamps gcloud/console leave behind. And the service-level scaling block
+    # (not template.scaling, which cnf sets): the API's own default {min 0,
+    # manual 0}, declared nowhere here, so every plan would null it (spec 075
+    # T13 plan, 2026-10-07).
     ignore_changes = [
       client,
       client_version,
+      scaling,
       template[0].containers[0].image,
     ]
   }

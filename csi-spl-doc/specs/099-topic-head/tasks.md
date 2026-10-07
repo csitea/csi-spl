@@ -264,7 +264,7 @@ parallel with T002.
   `topic_promote_test.go` stay green.
 - Depends on: T002 and T003.
 
-### T005 The head read, its flag and the shadow
+### T005 The head read, its flag and the shadow (DONE, `f495e7cc`; default off on dev and prd)
 
 - Files:
   - `store/view_topics_head.go` (new): `viewTopicsHeadSQL` (the head walk

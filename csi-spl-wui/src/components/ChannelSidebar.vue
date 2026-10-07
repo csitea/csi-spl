@@ -1453,25 +1453,33 @@ function keepRowFocus(e: MouseEvent) {
   if (!phone.value) (e.currentTarget as HTMLElement | null)?.focus({ preventScroll: true })
 }
 /* the feed reads its cards after the route: the old channel's cards are
-   drawn again at first (new elements, old messages) and one of them taking
-   the focus loses it when they go. So wait a moment for a message the old
-   channel did not show and focus it, else the pane (its heading); not when
-   the reader moved on. */
+   drawn again for a moment (new elements, old messages) and one of them
+   taking the focus loses it when they go. So wait until the cards on screen
+   have stayed the same for a little while, then focus the first; with none
+   by then, the pane (its heading). Not when the reader moved on. */
 const CARDS_WAIT_MS = 3000
-const cardsNow = () => [...document.querySelectorAll<HTMLElement>('.spool-main article.msg[data-msg-id]')]
+const CARDS_SETTLED_MS = 300
+const cardsNow = () => [...document.querySelectorAll<HTMLElement>('.spool-main article.msg')]
   .filter((el) => el.getClientRects().length > 0 && !el.closest('[class*="-leave-active"]'))
 async function openIntoMessages(path: string) {
   const from = document.activeElement
-  const old = new Set(cardsNow().map((el) => el.dataset.msgId))
   await navigateTo(localePath(path))
   const t0 = Date.now()
-  let card: HTMLElement | undefined
-  while (!(card = cardsNow().find((el) => !old.has(el.dataset.msgId))) && Date.now() - t0 < CARDS_WAIT_MS) {
+  let seen: HTMLElement[] = []
+  let since = Date.now()
+  while (Date.now() - t0 < CARDS_WAIT_MS) {
     await new Promise((r) => setTimeout(r, 50))
     if (document.activeElement !== from) return
+    const now = cardsNow()
+    if (now.length !== seen.length || now.some((el, k) => el !== seen[k])) {
+      seen = now
+      since = Date.now()
+    } else if (now.length && Date.now() - since >= CARDS_SETTLED_MS) {
+      break
+    }
   }
   if (document.activeElement !== from) return
-  if (card) card.focus({ preventScroll: true })
+  if (seen[0]?.isConnected) seen[0].focus({ preventScroll: true })
   else focusPane(MIDDLE)
 }
 function onChannelRowKey(e: KeyboardEvent) {

@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Elige una fecha válida.",
-      "not_migrated": "Este espacio de trabajo aún no puede guardar una fecha de fin; pide al operador que actualice la base de datos."
+      "not_migrated": "Este espacio de trabajo aún no puede guardar una fecha de fin; pide al operador que actualice la base de datos.",
+      "no_password": "Este miembro inicia sesión con un proveedor de identidad; no hay contraseña que restablecer.",
+      "rate_limited": "Se envió un enlace hace poco. Inténtalo de nuevo en unos minutos.",
+      "email_delivery_unavailable": "Ahora no se puede entregar el correo de restablecimiento. No se ha cambiado nada."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Restablecer contraseña",
+    "reset_password_hint": "Envía a este miembro un enlace de un solo uso para crear una contraseña nueva. Nunca ves su contraseña.",
+    "reset_password_federated": "Inicia sesión con {providers}, así que no hay contraseña que restablecer.",
+    "reset_confirm_title": "¿Restablecer la contraseña?",
+    "reset_confirm": "¿Enviar a {name} un enlace de un solo uso a {email} para crear una contraseña nueva?",
+    "reset_sign_out": "Cerrar también todas sus sesiones (la contraseña antigua deja de funcionar al instante)",
+    "reset_send": "Enviar enlace",
+    "reset_sent": "Enlace de restablecimiento enviado a {email}"
   },
   "events": {
     "title": "Registro de eventos",
@@ -1723,7 +1734,8 @@
       "removed": "Eliminado",
       "sign_in": "Inició sesión",
       "sign_out": "Cerró sesión",
-      "session_expiry": "Sesión expirada"
+      "session_expiry": "Sesión expirada",
+      "password_reset": "Contraseña restablecida"
     }
   },
   "agents": {

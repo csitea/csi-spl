@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Выберите корректную дату.",
-      "not_migrated": "Это рабочее пространство пока не может хранить дату окончания; попросите оператора обновить базу данных."
+      "not_migrated": "Это рабочее пространство пока не может хранить дату окончания; попросите оператора обновить базу данных.",
+      "no_password": "Этот участник входит через поставщика удостоверений; пароля для сброса нет.",
+      "rate_limited": "Ссылка для сброса недавно отправлялась. Повторите через несколько минут.",
+      "email_delivery_unavailable": "Письмо для сброса сейчас не может быть доставлено. Ничего не изменено."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Сбросить пароль",
+    "reset_password_hint": "Отправляет участнику одноразовую ссылку для установки нового пароля. Вы никогда не видите его пароль.",
+    "reset_password_federated": "Входит через {providers}, поэтому сбрасывать нечего.",
+    "reset_confirm_title": "Сбросить пароль?",
+    "reset_confirm": "Отправить {name} одноразовую ссылку на {email} для установки нового пароля?",
+    "reset_sign_out": "Также завершить все его сеансы (старый пароль сразу перестаёт работать)",
+    "reset_send": "Отправить ссылку для сброса",
+    "reset_sent": "Ссылка для сброса отправлена на {email}"
   },
   "events": {
     "title": "Журнал событий",
@@ -1723,7 +1734,8 @@
       "removed": "Удалён",
       "sign_in": "Вход",
       "sign_out": "Выход",
-      "session_expiry": "Сессия истекла"
+      "session_expiry": "Сессия истекла",
+      "password_reset": "Сброс пароля"
     }
   },
   "agents": {

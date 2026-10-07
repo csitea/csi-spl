@@ -342,6 +342,23 @@ async function removeTenantUser(ctx, humanId) {
 }
 
 /**
+ * POST /v1/members/{id}/password-reset (t1 ea0af569): mail the member the
+ * one-time reset link; signOut (default on) also kills the old password and
+ * every session. The admin never sees the password. `locale` rides as
+ * X-Locale, the mail's last fallback language.
+ */
+async function resetTenantUserPassword(ctx, humanId, { signOut = true, locale } = {}) {
+  const { live, mock, dir } = ctx
+  const id = String(humanId || '')
+  if (mock) return (await dir()).resetPassword(id, Boolean(signOut))
+  return live(`/v1/members/${encodeURIComponent(id)}/password-reset`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(locale ? { 'x-locale': String(locale) } : {}) },
+    body: JSON.stringify({ sign_out: Boolean(signOut) }),
+  })
+}
+
+/**
  * GET /v1/audit/clones (specs/054 §7, CLE-77797): the tenant's act-as
  * trail, newest first. CLE-77799 reads it for the People-card Activity log
  * and filters it to one person (target_hum) client-side. audit.read only;
@@ -1315,6 +1332,7 @@ export const lazySpoolMethods = {
   inviteTenantUser,
   setTenantUserRole,
   removeTenantUser,
+  resetTenantUserPassword,
   auditClones,
   memberActivity,
   revokeTenantInvite,

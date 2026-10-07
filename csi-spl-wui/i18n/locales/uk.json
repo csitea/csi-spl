@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Виберіть коректну дату.",
-      "not_migrated": "Цей робочий простір поки не може зберігати дату завершення; попросіть оператора оновити базу даних."
+      "not_migrated": "Цей робочий простір поки не може зберігати дату завершення; попросіть оператора оновити базу даних.",
+      "no_password": "Цей учасник входить через постачальника ідентичності; пароля для скидання немає.",
+      "rate_limited": "Посилання для скидання надсилалося нещодавно. Спробуйте за кілька хвилин.",
+      "email_delivery_unavailable": "Лист для скидання зараз не може бути доставлений. Нічого не змінено."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Скинути пароль",
+    "reset_password_hint": "Надсилає учаснику одноразове посилання для встановлення нового пароля. Ви ніколи не бачите його пароль.",
+    "reset_password_federated": "Входить через {providers}, тому пароля для скидання немає.",
+    "reset_confirm_title": "Скинути пароль?",
+    "reset_confirm": "Надіслати {name} одноразове посилання на {email} для встановлення нового пароля?",
+    "reset_sign_out": "Також завершити всі його сеанси (старий пароль одразу перестає працювати)",
+    "reset_send": "Надіслати посилання для скидання",
+    "reset_sent": "Посилання для скидання надіслано на {email}"
   },
   "events": {
     "title": "Журнал подій",
@@ -1723,7 +1734,8 @@
       "removed": "Вилучено",
       "sign_in": "Вхід",
       "sign_out": "Вихід",
-      "session_expiry": "Сесія завершилася"
+      "session_expiry": "Сесія завершилася",
+      "password_reset": "Скидання пароля"
     }
   },
   "agents": {

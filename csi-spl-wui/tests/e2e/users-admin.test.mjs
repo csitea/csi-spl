@@ -16,6 +16,7 @@
 // Plant the defect and watch it go red (the proof cancels the remove
 // confirmation, so the row stays):
 //   PROVE_RED=no-remove pnpm run test:e2e users
+//   PROVE_RED=no-reset pnpm run test:e2e users    (cancels the password reset)
 //
 // Run:
 //   pnpm run test:e2e users
@@ -120,6 +121,42 @@ try {
   await sleep(500)
   ok('7 change role lands in the list', /tester/i.test(await rowRole(p, 'm:HUM-3')), await rowRole(p, 'm:HUM-3'))
 
+  // 3b. t1 ea0af569: Reset password. A password member: the confirmation
+  // names the member and the address, "sign them out everywhere" is on by
+  // default, and the send ends in "Reset link sent to <email>".
+  await p.waitForSelector('[data-test=users-pane-reset-password]', { visible: true, timeout: 5000 })
+  await p.click('[data-test=users-pane-reset-password]')
+  await p.waitForSelector('[data-test=users-reset-ok]', { visible: true, timeout: 5000 })
+  const resetText = await text(p, '[data-test=users-reset-text]')
+  const signOutOn = await p.$eval('[data-test=users-reset-sign-out]', (e) => e.checked).catch(() => null)
+  ok('7b reset password: the confirmation names the member and the address, sign-out on by default',
+    resetText.includes('Dev One') && resetText.includes('dev1@example.com') && signOutOn === true, { resetText, signOutOn })
+  if (process.env.SHOT_DIR) {
+    await p.setViewport({ width: 1440, height: 900 })
+    await sleep(300)
+    await p.screenshot({ path: `${process.env.SHOT_DIR}/users-reset-password-dialog.png` })
+  }
+  await p.click(RED === 'no-reset' ? '[data-test=users-reset-cancel]' : '[data-test=users-reset-ok]')
+  await sleep(500)
+  const resetNotice = await text(p, '[data-test=users-pane-notice]')
+  ok('7c reset password: the pane says the link went to the member', resetNotice === 'Reset link sent to dev1@example.com', { resetNotice })
+  if (process.env.SHOT_DIR) {
+    await p.screenshot({ path: `${process.env.SHOT_DIR}/users-reset-password-sent.png` })
+    await p.setViewport({ width: 1400, height: 900 })
+  }
+  // an identity-provider-only member: the action is there, greyed out, with the reason
+  await p.click(row('m:HUM-12'))
+  await sleep(300)
+  const fedReset = await p.$eval('[data-test=users-pane-reset-password]', (b) => b.disabled).catch(() => null)
+  const fedWhy = await text(p, '[data-test=users-pane-reset-password-reason]')
+  ok('7d reset password: a Google-only member shows it disabled, saying why', fedReset === true && /Google/.test(fedWhy), { fedReset, fedWhy })
+  // CONTROL: a member beyond the reader's role (the owner) gets no reset at all
+  await p.click(row('m:HUM-2'))
+  await sleep(300)
+  ok('7e CONTROL reset password: not offered on a member the reader cannot manage', !(await p.$('[data-test=users-pane-reset-password]')))
+  await p.click(row('m:HUM-3'))
+  await p.waitForSelector('[data-test=users-pane-remove]', { visible: true, timeout: 5000 })
+
   // 4. remove, confirmed
   await p.click('[data-test=users-pane-remove]')
   await confirm(p, RED !== 'no-remove')
@@ -130,6 +167,7 @@ try {
   await sleep(300)
   const selfRemove = await p.$eval('[data-test=users-pane-remove]', (b) => b.disabled).catch(() => null)
   ok('9 your own row: remove is disabled', selfRemove === true && Boolean(await p.$('[data-test=users-pane-locked]')))
+  ok('9b CONTROL your own row: no reset password', !(await p.$('[data-test=users-pane-reset-password]')))
 
   // 6. invite
   await p.click('[data-test=users-invite-open]')

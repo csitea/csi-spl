@@ -144,6 +144,21 @@
         >
           {{ t('act_as.start', { name: member.displayName || member.humanId }) }}
         </button>
+        <!-- t1 ea0af569: mail the member a one-time reset link (the admin never
+             sees the password); greyed out, with the reason, for a member who
+             signs in with an identity provider only -->
+        <button
+          v-if="reset.offered"
+          type="button"
+          class="btn ghost"
+          :disabled="busy || !reset.enabled"
+          :title="reset.enabled ? t('users.reset_password_hint') : resetReason"
+          data-test="users-pane-reset-password"
+          @click="openReset"
+        >
+          {{ t('users.reset_password') }}
+        </button>
+        <small v-if="reset.offered && !reset.enabled" class="muted users-note" data-test="users-pane-reset-password-reason">{{ resetReason }}</small>
         <button
           v-if="member.manageable"
           type="button"
@@ -242,6 +257,27 @@
         </button>
       </template>
     </UiDialog>
+
+    <UiDialog
+      :open="resetOpen"
+      size="md"
+      :title="t('users.reset_confirm_title')"
+      @update:open="resetOpen = $event"
+    >
+      <p data-test="users-reset-text">{{ t('users.reset_confirm', { name: member ? memberLabel(member) : '', email: member?.email || '' }) }}</p>
+      <label class="users-check">
+        <input v-model="resetSignOut" type="checkbox" data-test="users-reset-sign-out">
+        <span>{{ t('users.reset_sign_out') }}</span>
+      </label>
+      <template #footer>
+        <button type="button" class="btn ghost" data-test="users-reset-cancel" @click="resetOpen = false">
+          {{ t('common.cancel') }}
+        </button>
+        <button type="button" class="btn" :disabled="busy" data-test="users-reset-ok" @click="resetPassword">
+          {{ t('users.reset_send') }}
+        </button>
+      </template>
+    </UiDialog>
   </aside>
 </template>
 
@@ -255,7 +291,7 @@ import { useAccessStore } from '~/stores/access'
 import { MEMBERS_IMPERSONATE } from '~/utils/access.mjs'
 import { useRoleName } from '~/composables/useRoleName'
 import { isoDateTime } from '~/utils/date-iso.mjs'
-import { accessDateOf, accessUntilOfDate, inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
+import { accessDateOf, accessUntilOfDate, inviteLink, inviteMailed, mailOutcomeKey, memberLabel, openInviteFor, passwordResetState, userErrorKey, looksLikeEmail } from '~/utils/tenant-users.mjs'
 import type { UserInvite, UserMember, UserRow } from '~/utils/tenant-users.mjs'
 
 const props = defineProps<{
@@ -305,6 +341,11 @@ const busy = ref(false)
 const error = ref('')
 const notice = ref('')
 const confirmOpen = ref(false)
+/* t1 ea0af569: the Reset password confirmation; "sign them out everywhere" defaults ON */
+const resetOpen = ref(false)
+const resetSignOut = ref(true)
+const reset = computed(() => passwordResetState(member.value))
+const resetReason = computed(() => t('users.reset_password_federated', { providers: reset.value.providers.join(', ') || '—' }))
 const emailEl = ref<HTMLInputElement | null>(null)
 const copied = ref(false)
 /* A sent invite reopens the pane on its new row; the notice survives that switch. */
@@ -320,6 +361,7 @@ watch(() => [props.row?.key, props.creating], () => {
   notice.value = carry
   carry = ''
   confirmOpen.value = false
+  resetOpen.value = false
   copied.value = false
   memberRole.value = member.value?.role || ''
   profileName.value = member.value?.displayName || ''
@@ -486,6 +528,25 @@ function sendMail() {
   })
 }
 
+function openReset() {
+  resetSignOut.value = true
+  resetOpen.value = true
+}
+
+// t1 ea0af569: the hub mails the member the reset link and, with sign-out,
+// ends the old password and every session. The admin sees only the outcome.
+function resetPassword() {
+  const m = member.value
+  if (!m) return
+  const signOut = resetSignOut.value
+  void run(async () => {
+    const res = await api.resetTenantUserPassword(m.humanId, { signOut, locale: String(locale.value) })
+    resetOpen.value = false
+    notice.value = t('users.reset_sent', { email: res?.email || m.email })
+  })
+  resetOpen.value = false
+}
+
 function destroy() {
   const m = member.value
   const i = invite.value
@@ -570,6 +631,8 @@ function destroy() {
   border-color: var(--color-danger);
 }
 .users-note { margin: 0; }
+.users-check { display: flex; align-items: flex-start; gap: 8px; margin-top: var(--spacing-sm); }
+.users-check input { margin-top: 3px; }
 .users-notice { margin: 0; color: var(--color-ok); overflow-wrap: anywhere; }
 .users-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
 /* SPL-993: on a phone the pane is level 3 and MobileBack closes it, so the

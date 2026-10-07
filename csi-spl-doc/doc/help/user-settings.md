@@ -235,6 +235,10 @@ permission. Its sections are:
   reads **access ended**. A pending invite shows **Mailed**: **Sent** and the
   time the invitation email went out, or **Not sent**. A resend is possible
   10 minutes after that time.
+  **Reset password** emails a member who signs in with a password a one-time
+  link to set a new one (you never see it); by default it also signs them out
+  everywhere. A member who signs in with Google or another provider has no
+  password, so the button is greyed out and says so.
 - **Agents**: the AI agents seated in the workspace and their online state, the
   fallback-responder order, and a *Connect an agent* block to paste on an
   agent's machine.

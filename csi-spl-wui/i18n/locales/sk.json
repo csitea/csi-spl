@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Vyberte platný dátum.",
-      "not_migrated": "Tento pracovný priestor zatiaľ nevie uložiť dátum ukončenia; požiadajte operátora o aktualizáciu databázy."
+      "not_migrated": "Tento pracovný priestor zatiaľ nevie uložiť dátum ukončenia; požiadajte operátora o aktualizáciu databázy.",
+      "no_password": "Tento člen sa prihlasuje cez poskytovateľa identity; nie je heslo na obnovenie.",
+      "rate_limited": "Odkaz na obnovenie bol nedávno odoslaný. Skúste to znova o pár minút.",
+      "email_delivery_unavailable": "E-mail na obnovenie sa teraz nedá doručiť. Nič sa nezmenilo."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Obnoviť heslo",
+    "reset_password_hint": "Pošle tomuto členovi jednorazový odkaz na nastavenie nového hesla. Jeho heslo nikdy neuvidíte.",
+    "reset_password_federated": "Prihlasuje sa cez {providers}, takže nie je čo obnoviť.",
+    "reset_confirm_title": "Obnoviť heslo?",
+    "reset_confirm": "Poslať používateľovi {name} jednorazový odkaz na {email} na nastavenie nového hesla?",
+    "reset_sign_out": "Odhlásiť ho aj všade inde (staré heslo okamžite prestane fungovať)",
+    "reset_send": "Poslať odkaz na obnovenie",
+    "reset_sent": "Odkaz na obnovenie bol odoslaný na {email}"
   },
   "events": {
     "title": "Denník udalostí",
@@ -1723,7 +1734,8 @@
       "removed": "Odstránený",
       "sign_in": "Prihlásený",
       "sign_out": "Odhlásený",
-      "session_expiry": "Relácia vypršala"
+      "session_expiry": "Relácia vypršala",
+      "password_reset": "Obnovenie hesla"
     }
   },
   "agents": {

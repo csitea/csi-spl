@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "Kies een geldige datum.",
-      "not_migrated": "Deze werkruimte kan nog geen einddatum opslaan; vraag de beheerder de database bij te werken."
+      "not_migrated": "Deze werkruimte kan nog geen einddatum opslaan; vraag de beheerder de database bij te werken.",
+      "no_password": "Dit lid meldt zich aan via een identiteitsprovider; er is geen wachtwoord om te resetten.",
+      "rate_limited": "Er is onlangs een resetlink verstuurd. Probeer het over een paar minuten opnieuw.",
+      "email_delivery_unavailable": "De reset-e-mail kan nu niet worden bezorgd. Er is niets gewijzigd."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "Wachtwoord resetten",
+    "reset_password_hint": "Stuurt dit lid een eenmalige link om een nieuw wachtwoord in te stellen. Je ziet het wachtwoord nooit.",
+    "reset_password_federated": "Meldt zich aan met {providers}, dus er is geen wachtwoord om te resetten.",
+    "reset_confirm_title": "Wachtwoord resetten?",
+    "reset_confirm": "{name} een eenmalige link sturen naar {email} om een nieuw wachtwoord in te stellen?",
+    "reset_sign_out": "Ook overal afmelden (het oude wachtwoord werkt meteen niet meer)",
+    "reset_send": "Resetlink versturen",
+    "reset_sent": "Resetlink verstuurd naar {email}"
   },
   "events": {
     "title": "Gebeurtenissenlogboek",
@@ -1723,7 +1734,8 @@
       "removed": "Verwijderd",
       "sign_in": "Aangemeld",
       "sign_out": "Afgemeld",
-      "session_expiry": "Sessie verlopen"
+      "session_expiry": "Sessie verlopen",
+      "password_reset": "Wachtwoord gereset"
     }
   },
   "agents": {

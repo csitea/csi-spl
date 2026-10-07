@@ -1153,7 +1153,10 @@
       "bad_name": "Enter a name of at most 200 characters.",
       "bad_locale": "Pick a language from the list.",
       "bad_access_until": "בחר תאריך תקין.",
-      "not_migrated": "סביבת עבודה זו עדיין לא יכולה לשמור תאריך סיום; בקש מהמפעיל לעדכן את מסד הנתונים."
+      "not_migrated": "סביבת עבודה זו עדיין לא יכולה לשמור תאריך סיום; בקש מהמפעיל לעדכן את מסד הנתונים.",
+      "no_password": "חבר זה מתחבר דרך ספק זהות; אין סיסמה לאפס.",
+      "rate_limited": "קישור איפוס נשלח לאחרונה. נסו שוב בעוד כמה דקות.",
+      "email_delivery_unavailable": "לא ניתן לשלוח כעת את הודעת האיפוס. דבר לא שונה."
     },
     "suspended": "disabled here",
     "status": "Status",
@@ -1191,7 +1194,15 @@
     "already_invited": "{email} already has a pending invite. No new invite was made; send its email below.",
     "already_invited_mailed": "{email} already has a pending invite, mailed {at}. No new invite was made.",
     "mail_rate_limited": "Not sent again: the invitation email already went to {email} at {at}. A resend is possible 10 minutes after that.",
-    "mail_not_sent": "Invite saved for {email}. No invitation email was sent."
+    "mail_not_sent": "Invite saved for {email}. No invitation email was sent.",
+    "reset_password": "איפוס סיסמה",
+    "reset_password_hint": "שולח לחבר זה קישור חד-פעמי להגדרת סיסמה חדשה. אינך רואה את הסיסמה שלו לעולם.",
+    "reset_password_federated": "מתחבר באמצעות {providers}, ולכן אין סיסמה לאפס.",
+    "reset_confirm_title": "לאפס את הסיסמה?",
+    "reset_confirm": "לשלוח ל-{name} קישור חד-פעמי לכתובת {email} להגדרת סיסמה חדשה?",
+    "reset_sign_out": "גם לנתק אותו מכל המכשירים (הסיסמה הישנה מפסיקה לעבוד מיד)",
+    "reset_send": "שליחת קישור איפוס",
+    "reset_sent": "קישור האיפוס נשלח אל {email}"
   },
   "events": {
     "title": "יומן אירועים",
@@ -1723,7 +1734,8 @@
       "removed": "הוסר",
       "sign_in": "התחבר",
       "sign_out": "התנתק",
-      "session_expiry": "ההפעלה פגה"
+      "session_expiry": "ההפעלה פגה",
+      "password_reset": "איפוס סיסמה"
     }
   },
   "agents": {

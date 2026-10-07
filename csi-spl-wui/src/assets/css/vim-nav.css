@@ -1,0 +1,18 @@
+/* Spec 103 T004 (t1 7d9e1681): the ring on the row vim navigation selected
+   (data-vim-selected="true", set by the lazy listener, T005). Imported only by
+   that listener, so it ships in its lazy chunk, not the initial one.
+
+   Owner, 2026-09-20: "any selected item should have no more than 1 color in
+   the selected border which cannot be wider than 3 px". So the vim ring IS the
+   focus ring - the --focus-ring colour (the theme's one ring colour) at
+   --focus-ring-w (2px) - and a vim row that also holds :focus-visible
+   (main.css) still shows that one colour, never two rings. No radius of its
+   own: the outline follows the row's (rounded-corners.test.mjs). */
+:root {
+  --vim-focus-ring: var(--focus-ring-w) solid var(--focus-ring);
+}
+
+[data-vim-selected="true"] {
+  outline: var(--vim-focus-ring) !important;
+  outline-offset: -1px !important;
+}

@@ -115,9 +115,17 @@ spool_ask_journal_set() {  # ID FIELDS-JSON OP BY
   _spool_ask_log "$3" "$id" "$4" "$(jq -r '.state' "$(_spool_ask_file "$id")")"
 }
 
+# One jq over every file (a jq per file was ~840 forks, seconds of sys time on
+# a busy box, c-509); a file jq cannot parse sends the whole read to the
+# per-file loop, which skips just that file.
 spool_ask_journal_list() {
-  local d f
+  local d f out
   d="$(spool_asks_dir)" || return 0
+  compgen -G "$d/*.json" >/dev/null || return 0
+  if out="$(printf '%s\0' "$d"/*.json | xargs -0 jq -c . 2>/dev/null)"; then
+    [ -n "$out" ] && printf '%s\n' "$out"
+    return 0
+  fi
   for f in "$d"/*.json; do
     [ -s "$f" ] && jq -c . "$f" 2>/dev/null
   done

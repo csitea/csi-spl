@@ -175,21 +175,24 @@ spl_asks_load() {
 
 # Write the hub's rows into this machine's journal, so the file system holds
 # the state too; a local change the hub has not got yet (synced false) wins.
+# One jq picks the rows to write against the whole journal (a jq per row was
+# ~5 forks x every hub row, ~40 s on sat, c-509); only a changed row forks.
 spl_asks_mirror() {
-  local row id cur
-  while IFS= read -r row; do
-    id="$(jq -r '.ask_id' <<<"$row")"
-    cur="$(spool_ask_journal_get "$id" 2>/dev/null)" || cur=""
-    if [[ -n "$cur" ]] && [[ "$(jq -r '.synced' <<<"$cur")" == false ]]; then continue; fi
+  local id rec
+  while read -r id rec; do
+    [[ -n "$id" ]] || continue
+    printf '%s\n' "$rec" | _spool_ask_write "$id" &&
+      _spool_ask_log mirror "$id" hub "$(jq -r '.state' <<<"$rec")"
+  done < <(jq -r --slurpfile loc <(spool_ask_journal_list) '
     # the hub omits empty fields: compare them as "" so an unchanged row is not rewritten
-    local key='[.state, (.raised_n // 0), (.acked_by // ""), (.closed_by // ""), (.escalated_at // "")]'
-    if [[ -n "$cur" ]] && [[ "$(jq -c "$key" <<<"$cur")" == "$(jq -c "$key" <<<"$row")" ]]; then continue; fi
-    jq -c '{ask_id, role: (.role // "orch"), kind, from, to: "", topic, summary, deadline_at: (.deadline_at // ""), state,
+    def key: [.state, (.raised_n // 0), (.acked_by // ""), (.closed_by // ""), (.escalated_at // "")];
+    ($loc | map(select(type == "object" and (.ask_id | type) == "string") | {key: .ask_id, value: .}) | from_entries) as $j
+    | .[] | select((.ask_id | type) == "string") | . as $row | $j[$row.ask_id] as $cur
+    | select($cur == null or ($cur.synced != false and ($cur | key) != ($row | key)))
+    | "\($row.ask_id) \($row | {ask_id, role: (.role // "orch"), kind, from, to: "", topic, summary, deadline_at: (.deadline_at // ""), state,
             acked_by: (.acked_by // ""), closed_by: (.closed_by // ""), reason: (.reason // ""),
             raised_n, raised_at: (.raised_at // ""), escalated_at: (.escalated_at // ""),
-            created_at, updated_at, synced: true}' <<<"$row" | _spool_ask_write "$id" &&
-      _spool_ask_log mirror "$id" hub "$(jq -r '.state' <<<"$row")"
-  done < <(jq -c '.[]' <<<"$1")
+            created_at, updated_at, synced: true} | tojson)"' <<<"$1")
 }
 
 # One ask by its id or a unique prefix of it (8 hex digits is the usual

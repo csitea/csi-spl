@@ -48,6 +48,9 @@
 #      next tick after an ack posts one resolved line there. A title with no
 #      readable topic is a new topic that still names the title and the uuid.
 #      A lookup that fails keeps the old id line and a new topic
+#  15. the book's cost: on 300 asks open / ack / close / orch_inbox each run
+#      at most 40 jq (CONTROL: the per-file fallback runs > 300); one changed
+#      hub row mirrors exactly that row
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -623,6 +626,49 @@ res="$(jq -c --arg id "$C_READ" 'select(.ask_id == $id and (.owner_text | starts
 out="$(ctx_tick)"
 [[ "$(jq -c --arg id "$C_READ" 'select(.ask_id == $id and (.owner_text | startswith("resolved:")))' "$T/ctx.log" | wc -l)" -eq 1 && "$out" != *"reminder resolved"* ]] &&
   pass "the resolved reply is posted once" || fail "resolved twice: $(cat "$T/ctx.log") / $out"
+
+# 15. the ask book's cost does not grow with the book (c-509, sat 2026-10-07:
+# 841 hub rows x ~5 jq forks in the mirror + a jq per journal file made every
+# ack / close / open ~60 s, 2/3 of it sys time). A counting jq on PATH: with
+# 300 asks every call stays under a fixed number of jq processes.
+mkdir -p "$T/jqc" "$T/perf/spool/c-001/inbox" "$T/perf/spool/dispatch"
+printf 'LEASE_ORCH=c-001\nLEASE_FLEET=main\n' >"$T/perf/spool/dispatch/lease.conf"
+printf '#!/usr/bin/env bash\necho >>"$JQ_COUNT"\nexec %q "$@"\n' "$(command -v jq)" >"$T/jqc/jq"
+chmod +x "$T/jqc/jq"
+python3 - "$T/hub/perf.json" <<'PY'
+import json, sys, time
+t = time.time() - 3600
+rows = [{"ask_id": "abcdef00-%04d-4aaa-8aaa-aaaaaaaaaaaa" % i, "role": "orch", "kind": "blocker", "from": "c-002@sat", "topic": "",
+         "summary": "perf %04d" % i, "deadline_at": "", "state": "open" if i < 3 else "done", "acked_by": "",
+         "closed_by": "" if i < 3 else "c-001@sat", "reason": "", "raised_n": 0, "writer_box": "sat", "c": t + i, "u": t + i} for i in range(300)]
+json.dump(rows, open(sys.argv[1], "w"))
+PY
+on perf do_spl_asks_open ASKS_FLEET=perf >/dev/null 2>&1
+n="$(find "$T/perf/spool/asks" -name '*.json' | wc -l)"
+[[ "$n" == 300 ]] && pass "the 300-row hub book is mirrored into the journal" || fail "perf mirror: $n files"
+jqn() {  # <action> [env...]: how many jq processes the action ran
+  : >"$T/jq.count"
+  on perf "$@" ASKS_FLEET=perf PATH="$T/jqc:$PATH" JQ_COUNT="$T/jq.count" >/dev/null 2>&1
+  wc -l <"$T/jq.count"
+}
+max=40
+for a in do_spl_asks_open "ASK_ID=abcdef00-0000 do_spl_ask_ack" "ASK_ID=abcdef00-0001 do_spl_ask_close" "do_spl_orch_inbox ORCH_ID=c-001"; do
+  c="$(jqn "$a")"
+  (( c > 0 && c <= max )) && pass "$a on a 300-ask book runs $c jq (<= $max)" || fail "$a on a 300-ask book runs $c jq (> $max, or none counted)"
+done
+m1="$(grep -c ' mirror ' "$T/perf/spool/asks/journal.log")"
+python3 -c 'import json,sys; p=sys.argv[1]; r=json.load(open(p)); r[200]["raised_n"]=1; json.dump(r, open(p,"w"))' "$T/hub/perf.json"
+on perf do_spl_asks_open ASKS_FLEET=perf >/dev/null 2>&1
+[[ "$(( $(grep -c ' mirror ' "$T/perf/spool/asks/journal.log") - m1 ))" == 1 && "$(jq -r .raised_n "$T/perf/spool/asks/abcdef00-0200-4aaa-8aaa-aaaaaaaaaaaa.json")" == 1 ]] &&
+  pass "one changed hub row: exactly that row is mirrored" || fail "perf one-row mirror: $(tail -3 "$T/perf/spool/asks/journal.log")"
+echo '{"ask_id": broken' >"$T/perf/spool/asks/00000000-0000-4000-8000-000000000000.json"
+: >"$T/jq.count"
+n="$(on perf 'spool_asks_dir >/dev/null; source "'"$PROJ_ROOT"'/src/bash/features/spawn-agents/lib/spool-asks.inc.sh"; spool_ask_journal_list | wc -l' PATH="$T/jqc:$PATH" JQ_COUNT="$T/jq.count" 2>/dev/null)"
+c="$(wc -l <"$T/jq.count")"
+[[ "$n" == 300 ]] && (( c > 300 )) &&
+  pass "CONTROL: a broken journal file falls back to a jq per file ($c jq, the counter sees per-row forks) and is skipped (300 listed)" ||
+  fail "perf control: n=$n jq=$c"
+rm -f "$T/perf/spool/asks/00000000-0000-4000-8000-000000000000.json"
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

@@ -139,5 +139,25 @@ out=$(act ENV=dev); rc=$?
   || fail "C6/C7 versions $(v "$C6") $(v "$C7")"
 [[ "$(v "$C4")" == v9.9.9 ]] && pass "C4, first shipped in v9.9.9 -> v9.9.9" || fail "C4 after the wrap $(v "$C4")"
 
+# --- 9. do_release_note_backfill: the same ingest, back to the first commit ----
+act_backfill() {
+  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$REPO" SPL_STATE_DIR="$T/state" RELEASE_REMOTE=no-such-remote "$@" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*" >&2; }
+    do_require_bin() { local b; for b in "$@"; do command -v "$b" >/dev/null || return 1; done; }
+    for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+    do_release_note_backfill' 2>"$T/err"
+}
+all=$(git -C "$REPO" rev-list --first-parent HEAD | paste -sd' ')
+out=$(act_backfill ENV=dev RELEASE_NOTE_DEPTH=2); rc=$?
+[[ $rc == 0 && "$(jq -r '.notes[].sha' <<<"$out" | paste -sd' ')" == "$all" ]] && grep -q "back to ${C1:0:8}" "$T/err" &&
+  pass "backfill sends every first-parent commit back to the first one (a set RELEASE_NOTE_DEPTH does not cut it)" \
+  || fail "backfill: rc $rc shas '$(jq -r '.notes[].sha' <<<"$out" | paste -sd' ')' err '$(cat "$T/err")'"
+out=$(act_backfill ENV=dev RELEASE_SHA="${C2:0:10}"); rc=$?
+[[ $rc == 0 && "$(jq -r '.notes[].sha' <<<"$out" | paste -sd' ')" == "$C2 $C1" ]] && pass "backfill from RELEASE_SHA=C2 -> C2, C1" \
+  || fail "backfill sha: rc $rc out '$out'"
+out=$(act_backfill ENV=dev RELEASE_SHA=0123456789abcdef0123456789abcdef01234567); rc=$?
+[[ $rc == 1 && -z "$out" ]] && pass "backfill of an unknown RELEASE_SHA -> rc 1" || fail "backfill bad sha: rc $rc out '$out'"
+
 echo "release-note-ingest: $fails failure(s)"
 ((fails == 0))

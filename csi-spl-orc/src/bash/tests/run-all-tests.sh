@@ -7,8 +7,40 @@
 # reads like a serial run and the per-file verdicts are the same. A test whose
 # first 40 lines carry the line '# serial' (it shares a fixed /tmp path, $HOME
 # or tmux state with another test) runs alone, after the pool.
+#
+# Default: every file, as CI runs it. Lane mode (doc
+# fleet-hot-commands-2026-10-07.md 3.9, the full suite is ~11 min):
+#   run-all-tests.sh --changed          only the files changed-tests.sh maps
+#                                       this tree's changes to (vs
+#                                       ORC_TEST_BASE, default origin/master),
+#                                       plus ORC_TEST_ALWAYS; prints what it
+#                                       skipped and why; falls back to every
+#                                       file when a change maps to no test
+#   run-all-tests.sh --background <f> [--changed]
+#                                       detach; the log goes to <f>.log, and
+#                                       <f> appears only when the run is done:
+#                                       "rc=<n> <k>/<m> test files passed"
+#                                       (poll: until [ -f <f> ]; do sleep 10; done)
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
+changed=0 bg=""
+while (( $# )); do
+  case "$1" in
+    --changed) changed=1 ;;
+    --background) bg="${2:-}"; [[ -n "$bg" ]] || { echo "--background needs a result file" >&2; exit 2; }; shift ;;
+    *) echo "usage: run-all-tests.sh [--changed] [--background <result-file>]" >&2; exit 2 ;;
+  esac
+  shift
+done
+if [[ -n "$bg" ]]; then
+  rm -f "$bg" "$bg.tmp"
+  args=(); (( changed )) && args+=(--changed)
+  ( bash "$dir/run-all-tests.sh" "${args[@]}" </dev/null >"$bg.log" 2>&1; rc=$?
+    echo "rc=$rc $(grep -E '^=== [0-9]+/[0-9]+ test files passed' "$bg.log" | tail -1 | sed 's/^=== //')" >"$bg.tmp"
+    mv "$bg.tmp" "$bg" ) >/dev/null 2>&1 &
+  echo "started pid $! log $bg.log result $bg (appears when done)"
+  exit 0
+fi
 # CLE-77923: no test may write the live spool root or ring a live pane. Under
 # SPOOL_TEST=1 spool-send.sh / agent-send.sh / spool-notify.sh refuse the live
 # root, poke no box tmux and relay nothing to the hub. A refusal is logged to
@@ -31,10 +63,31 @@ if [[ -z "$njobs" ]]; then
   if [[ "${GITHUB_ACTIONS:-}" == true ]]; then njobs=6; else njobs=4; fi
 fi
 [[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
+all=()
+for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
+list=("${all[@]}")
+if (( changed )); then
+  plan=$(bash "$dir/changed-tests.sh")
+  if grep -q '^full' <<<"$plan"; then
+    echo "=== changed-only: running every file ($(grep '^full' <<<"$plan" | cut -f2))"
+  else
+    declare -A pick=()
+    while IFS=$'\t' read -r kind a b; do
+      case "$kind" in
+        run) pick[$a]=1; echo "=== changed-only: run $a ($b)" ;;
+        ignore) echo "=== changed-only: ignored $a ($b)" ;;
+      esac
+    done <<<"$plan"
+    list=() skipped=()
+    for t in "${all[@]}"; do
+      if [[ -n "${pick[$(basename "$t")]:-}" ]]; then list+=("$t"); else skipped+=("$(basename "$t")"); fi
+    done
+    echo "=== changed-only: skipped ${#skipped[@]} of ${#all[@]} files, no changed file or function is named in them: ${skipped[*]}"
+  fi
+fi
 fails=0 n=0
 if (( njobs == 1 )); then
-  for t in "$dir"/*.tst.sh; do
-    [[ -f "$t" ]] || continue
+  for t in "${list[@]}"; do
     n=$((n + 1))
     echo "=== $(basename "$t")"
     bash "$t" || { echo "FAILED: $(basename "$t")"; fails=$((fails + 1)); }
@@ -44,8 +97,7 @@ else
   trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$work"' EXIT
   trap 'exit 130' INT TERM
   pool=() serial=()
-  for t in "$dir"/*.tst.sh; do
-    [[ -f "$t" ]] || continue
+  for t in "${list[@]}"; do
     if head -40 "$t" | grep -E '^# serial( |$)' >/dev/null; then serial+=("$t"); else pool+=("$t"); fi
   done
   files=("${pool[@]}" "${serial[@]}")

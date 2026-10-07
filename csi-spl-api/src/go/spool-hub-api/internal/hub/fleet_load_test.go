@@ -2,11 +2,16 @@ package hub_test
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 const fleetLoadPath = "/v1/operator/fleet-load"
@@ -136,5 +141,142 @@ func TestFleetLoadBoxBands(t *testing.T) {
 	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"boxes": nil})
 	if code != http.StatusOK || len(body["boxes"].(map[string]any)) != 0 {
 		t.Fatalf("reset = %d %v", code, body)
+	}
+}
+
+// rdb 0149 (owner HUM-10 t1 41fa1f2d: "a setting to disable certain type of
+// ai agents"): the operator admin switches agent kinds off; another
+// workspace's admin cannot; every kind off, an unknown kind or a duplicate is
+// a 400 that leaves the row. A box reads the kinds off, and reports a timed
+// pause (fleet_load_pause) that every box then reads; a pause in the past or
+// past 8 days, or of an unknown kind, is refused. The admin lifts it with
+// null. CONTROL: a kind left on is not in either list.
+func TestFleetLoadAgentKinds(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	off := map[string]any{"agent_kinds_off": []string{"grok"}}
+	if code, _ := call(t, e, other, http.MethodPatch, fleetLoadPath, whoOther[rbac.Admin], off); code != http.StatusForbidden {
+		t.Fatalf("another workspace's admin switched a kind off: %d", code)
+	}
+	admin := who[rbac.Admin]
+	code, body := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, off)
+	if ko, _ := body["agent_kinds_off"].([]any); code != http.StatusOK || len(ko) != 1 || ko[0] != "grok" || body["low"] != 50.0 {
+		t.Fatalf("admin PATCH agent_kinds_off = %d %v", code, body)
+	}
+	for _, bad := range []map[string]any{
+		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen"}},
+		{"agent_kinds_off": []string{"gpt"}},
+		{"agent_kinds_off": []string{"agy", "agy"}},
+		{"agent_kinds_off": "grok"},
+		{"agent_kinds_paused": map[string]any{"grok": map[string]any{"until": "2099-01-01T00:00:00Z"}}},
+		{"agent_kinds_paused": map[string]any{"gpt": nil}},
+	} {
+		if code, _ := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, bad); code != http.StatusBadRequest {
+			t.Errorf("PATCH %v = %d, want 400", bad, code)
+		}
+	}
+	b := e.box(other, "box-b", "CLE-08")
+	e.pin(other, b)
+	ctx := context.Background()
+	type inForce struct {
+		KindsOff []string                  `json:"agent_kinds_off"`
+		Paused   map[string]map[string]any `json:"agent_kinds_paused"`
+	}
+	var got inForce
+	raw, err := b.c.Lane(ctx, "fleet_load_get", "", nil)
+	if err != nil || json.Unmarshal(raw, &got) != nil || len(got.KindsOff) != 1 || got.KindsOff[0] != "grok" || len(got.Paused) != 0 {
+		t.Fatalf("box read %s %v", raw, err)
+	}
+	until := time.Now().Add(6 * time.Hour).UTC().Truncate(time.Second)
+	for _, bad := range []map[string]any{
+		{"kind": "agy", "until": time.Now().Add(-time.Minute).Format(time.RFC3339)},
+		{"kind": "agy", "until": time.Now().Add(9 * 24 * time.Hour).Format(time.RFC3339)},
+		{"kind": "gpt", "until": until.Format(time.RFC3339)},
+		{"kind": "agy", "until": until.Format(time.RFC3339), "extra": 1},
+	} {
+		row, _ := json.Marshal(bad)
+		if _, err := b.c.Lane(ctx, "fleet_load_pause", "", row); err == nil {
+			t.Errorf("pause %v was taken", bad)
+		}
+	}
+	row, _ := json.Marshal(map[string]any{"kind": "agy", "until": until.Format(time.RFC3339), "reason": "weekly limit"})
+	if raw, err = b.c.Lane(ctx, "fleet_load_pause", "", row); err != nil || json.Unmarshal(raw, &got) != nil {
+		t.Fatalf("pause: %s %v", raw, err)
+	}
+	if p := got.Paused["agy"]; p == nil || p["box"] != "box-b" || p["reason"] != "weekly limit" || p["until"] != until.Format(time.RFC3339) {
+		t.Fatalf("pause answer %s", raw)
+	}
+	if _, ok := got.Paused["claude"]; ok {
+		t.Fatalf("CONTROL: claude paused too: %s", raw)
+	}
+	b2 := e.box(op, "box-c", "CLE-09")
+	e.pin(op, b2)
+	got = inForce{}
+	if raw, err = b2.c.Lane(ctx, "fleet_load_get", "", nil); err != nil || json.Unmarshal(raw, &got) != nil || got.Paused["agy"] == nil {
+		t.Fatalf("another box does not see the pause: %s %v", raw, err)
+	}
+	code, body = call(t, e, op, http.MethodGet, fleetLoadPath, admin, nil)
+	if pz, _ := body["agent_kinds_paused"].(map[string]any); code != http.StatusOK || pz["agy"] == nil {
+		t.Fatalf("admin read of the pause = %d %v", code, body)
+	}
+	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin,
+		map[string]any{"agent_kinds_paused": map[string]any{"agy": nil}, "agent_kinds_off": nil})
+	if pz, _ := body["agent_kinds_paused"].(map[string]any); code != http.StatusOK || len(pz) != 0 || len(body["agent_kinds_off"].([]any)) != 0 {
+		t.Fatalf("lift + reset = %d %v", code, body)
+	}
+}
+
+// The operator service account (a Bearer id token, operatorAuth) reads and
+// sets the instance's kinds off on the operator workspace's row with no
+// member session: the path of csi-spl-orc do_spl_hub_agent_kinds. A token
+// that is not the operator's, or a bad ordered_by, is refused and leaves the
+// row; every kind off is still a 400. CONTROL: the operator admin's own GET
+// sees what the service account set.
+func TestFleetLoadOperatorSA(t *testing.T) {
+	op := newTenantID("op")
+	e := rbacEnv(t, func(o *hub.Options) {
+		o.OperatorTenant = op
+		o.OperatorEmails = []string{operatorSA}
+		o.OperatorAudience = "https://api.dev.example"
+		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
+			switch token {
+			case "good":
+				return operatorSA, nil
+			case "other-sa":
+				return "intruder@example-dev.iam.gserviceaccount.com", nil
+			}
+			return "", errors.New("token rejected")
+		}
+	})
+	pub, _, _ := ed25519.GenerateKey(nil)
+	if err := e.st.CreateTenant(context.Background(), store.Tenant{ID: op, RootPubKey: pub}); err != nil {
+		t.Fatal(err)
+	}
+	admin := seat(t, e, op, rbac.Admin)
+	off := map[string]any{"agent_kinds_off": []string{"grok"}, "ordered_by": "HUM-10", "ordered_via": "c-496"}
+	for _, tok := range []string{"other-sa", "junk"} {
+		if code, _ := opCall(t, e, op, http.MethodPatch, fleetLoadPath, tok, off); code != http.StatusForbidden && code != http.StatusUnauthorized {
+			t.Errorf("token %s: %d, want 401/403", tok, code)
+		}
+	}
+	for _, bad := range []map[string]any{
+		{"agent_kinds_off": []string{"grok"}, "ordered_by": "bob"},
+		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen"}},
+	} {
+		if code, _ := opCall(t, e, op, http.MethodPatch, fleetLoadPath, "good", bad); code != http.StatusBadRequest {
+			t.Errorf("PATCH %v = %d, want 400", bad, code)
+		}
+	}
+	if _, body := call(t, e, op, http.MethodGet, fleetLoadPath, admin, nil); len(body["agent_kinds_off"].([]any)) != 0 {
+		t.Fatalf("a refused call changed the row: %v", body)
+	}
+	code, body := opCall(t, e, op, http.MethodPatch, fleetLoadPath, "good", off)
+	if ko, _ := body["agent_kinds_off"].([]any); code != http.StatusOK || len(ko) != 1 || ko[0] != "grok" {
+		t.Fatalf("SA PATCH = %d %v", code, body)
+	}
+	if code, body = opCall(t, e, op, http.MethodGet, fleetLoadPath, "good", nil); code != http.StatusOK || body["source"] != "hub" {
+		t.Fatalf("SA GET = %d %v", code, body)
+	}
+	if _, body = call(t, e, op, http.MethodGet, fleetLoadPath, admin, nil); body["agent_kinds_off"].([]any)[0] != "grok" {
+		t.Fatalf("CONTROL: the admin does not see the SA's change: %v", body)
 	}
 }

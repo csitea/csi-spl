@@ -38,8 +38,10 @@
 //	box-stats put --json <file|-> | box-stats list [--box <b>] [--since 20h]
 //	box-beat put --pid <n> | box-beat list [--box <b>] [--since 10m]
 //	          hub mode: append one box load + memory sample, or read the history (rdb 0117)
-//	fleet-load get
-//	          hub mode: the instance's fleet load target, {low, high, box_order, source} (rdb 0118)
+//	fleet-load get | fleet-load pause <kind> <until> [reason]
+//	          hub mode: the instance's fleet load target, {low, high, box_order, boxes,
+//	          agent_kinds_off, agent_kinds_paused, source} (rdb 0118, 0134, 0149), or
+//	          pause an agent kind for every box until <until> (RFC 3339)
 //	ask     [list|put|ack|done|decline|raise|escalate] --fleet <f> [--id <msg id> ...]
 //	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
 //	claim   (--poll [--max n] | --renew | --release <msg> --reason <r> | --done <msg> [--how h]) --as <seat> [--ttl s] [--gen g]

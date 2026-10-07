@@ -102,7 +102,7 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 - **Queue**: one row per save (data model §10). Written in the same request as the bucket write, so a 200 means both the text is in the bucket and the push is owed.
 - **Who pushes**: the hub, in a worker goroutine started with the server. Only one worker per env runs at a time: it takes `pg_try_advisory_lock(<repo_edit lock id>)`; a second hub instance of the same env idles. Cloud Run keeps CPU between requests (`cpu_idle = false`), so the goroutine runs. Wake-up: a `NOTIFY repo_doc_edits` on insert plus a 30 s poll. Dev and prd have separate databases, so the two envs' workers never share this lock; master itself serialises them (§6.2).
 - **Ordering**: FIFO by `created_at` per path; paths in parallel are not needed (volume is tiny). A `pushing` row is frozen: a save during it is a new `queued` row (a-382). Different authors are never coalesced: each gets its own commit and its own authorship.
-- **Coalescing is the ONLY cost control** (owner O6: no `.md` fast path in workflow 10). Every pushed commit costs one full run of workflow 10 plus 15, 64 and 32 (§6), so the number of commits is what matters:
+- **Coalescing is one cost control; the express docs lane of workflow 10 is the other.** O6 ("no `.md` fast path, coalescing is enough") is REVERSED by the newer owner order (owner, t1 `a477c187`, msgs `50a349f4` "could we have a bypass lane for those purely doc changes as they should not brake anything in the code" and `31e00aee` "some kind of express docs edit lane for them , also integrated in the CICD"): a push whose every changed path is a `.md` outside `csi-spl-wui/**` and `.github/**` skips workflow 10's code jobs (classifier `csi-spl-orc/src/bash/scripts/ci-doc-only.sh`, by files, never by author; it fails safe to the full gate). Every pushed commit still costs a run of workflow 10's classify + hygiene jobs plus 15, 64 and 32 (§6), so the number of commits still matters:
   - A row becomes due `coalesce_after` (cnf, default **120 s**) after it was saved: `next_try_at = created_at + coalesce_after`. A further save of the SAME path by the SAME author (and, for an agent, the same agent and requester) before that moment folds into it: the newest text wins, the earlier rows go `superseded`, and the window restarts from the newest save, capped at `coalesce_max` (cnf, default **10 min**) after the first save of the run, so a member typing for an hour still lands.
   - So a member who saves ten times while editing costs one commit and one CI run.
   - The daily caps of §5.1 bound the worst case: at most 300 commits a day on prd, 50 on dev.
@@ -125,7 +125,7 @@ Readers always see the newest saved text: `GET /v1/docs/<path>` serves the newes
 - *A GitHub Actions workflow per save* (`repository_dispatch` carrying the text): moves user text through workflow logs and inputs, and the Actions token cannot set the per-user author cleanly.
 - *Synchronous push in the save request*: violates D4 ("asynchronos"), and a GitHub outage would fail saves.
 - *A journal file in the bucket*: no atomic claim; two instances would double-push.
-- *A `.md`-only fast path in workflow 10*: rejected by the owner (O6, "coalescing is enough").
+- *A `.md`-only fast path in workflow 10*: first rejected by the owner (O6, "coalescing is enough"), then ORDERED by the owner (owner, t1 `a477c187`, msgs `50a349f4` "could we have a bypass lane for those purely doc changes as they should not brake anything in the code" and `31e00aee` "some kind of express docs edit lane for them , also integrated in the CICD"); built as the express docs lane of workflow 10 (§3).
 
 ---
 
@@ -259,7 +259,7 @@ Rows overlap (a `csi-spl-wui/**/tests/**` file counts in rows 3 and 12); the uni
 
 - **Pre-push hook**: client-side, so it never runs for an API push. Its cheap part that matters for a `.md` (dist hygiene) and a secret scan run in the hub (§5.1). CI (workflows 10, 15, 64) still runs on master for every pushed commit. The chip turns red only when the docs-publish workflow fails, or a job fails that ran because of this push; a red inherited from another push is an ops note, not the editor's failure (g-381). Never auto-reverted.
 - **Deploy triggers**: with rows 2-7 of the deny list (§5.2), a doc commit fires workflows 10, 15, 64 and the new 32 only: no hub or WUI deploy, no version tag minted.
-- **CI load**: workflow 10 per doc commit is the cost; coalescing (§3) is the only control (owner O6).
+- **CI load**: workflow 10 per doc commit is the cost; coalescing (§3) and the express docs lane of workflow 10 (code jobs skipped for a doc-only push, newer owner order reversing O6, §3) are the controls.
 - **Branch protection**: if master later requires PRs or status checks, the App is added as a bypass actor; if the owner prefers PRs, §6.1 is the switch.
 
 ### 6.1 Rejected alternatives
@@ -485,7 +485,7 @@ The build is [`tasks.md`](tasks.md): small tasks, one agent each. The lanes, for
 | L6 | iac: secret container + accessor in 030, cnf keys, `do_put_github_app_key`, `do_rotate_github_app_key`; GitHub App creation is the owner's step (§9.1) | S | T01, T04 |
 | L8 | dev proof, then prd proof (§12) | S | T13, T14 |
 
-L7 (a `.md` fast path in workflow 10) is removed: the owner answered O6 "no, coalescing is enough". The lane ids are kept stable so the panel files still read.
+L7 (a `.md` fast path in workflow 10) was removed when the owner answered O6 "no, coalescing is enough", then built outside this plan as the express docs lane once the owner reversed O6 (msgs `50a349f4`, `31e00aee`, §3). The lane ids are kept stable so the panel files still read.
 
 ---
 
@@ -500,7 +500,7 @@ Owner HUM-10 answered all nine questions of v0.2 in prd t1 topic `2e20d6d4`, msg
 | O3 | author for a member with no history in the repo | **b) the member's own sign-in email** | a) display name + noreply | §4.1, §4.2 |
 | O4 | may agents edit | **b) yes, authored as the agent's requester** | a) no, members only | §4.3, §5.1, §10 |
 | O5 | delete and rename from the app | a) not in v0.1 | same | §5.2 |
-| O6 | `.md`-only fast path in workflow 10 before prd | **b) no, coalescing is enough** | a) yes, lane L7 | §3, §6, §13 |
+| O6 | `.md`-only fast path in workflow 10 before prd | **b) no, coalescing is enough** - REVERSED 2026-10-07 by msgs `50a349f4` + `31e00aee`: an express docs lane in workflow 10 | a) yes, lane L7 | §3, §6, §13 |
 | O7 | dev target | **b) master from dev as well** | a) a `docs-edit-dev` branch | §6, §6.2, §7 |
 | O8 | create the GitHub App | **go - yes** (owner step on GitHub) | - | §9.1, `tasks.md` T00 |
 | O9 | how wide is the editable set | **b) any published .md minus the deny list of §5** | a) `csi-spl-doc/**` + root docs | §5.2 |
@@ -522,5 +522,6 @@ Owner HUM-10 answered all nine questions of v0.2 in prd t1 topic `2e20d6d4`, msg
 | v0.1 | 2026-10-06 | c-380 | First draft for the panel (g-381, a-382): Q1-Q7 each with one recommendation and rejected alternatives, data model, sequence, failure modes, test plan, lanes, owner questions O1-O8. |
 | v0.2 | 2026-10-06 | c-380 | Panel consensus (`consensus.md`): queued-only coalescing; FIFO chaining; text gates re-run on merged bytes; member session only, agent token 403; corrected `docs.write` role fact and workflow 20 globs (deny-listed); v1 allow-list `csi-spl-doc/**` + root docs (O9 widening); workflow 32 on editable prefixes; one compare per new tree sha; rsync exclude of `.edits/` (found in consolidation: today's publish deletes it); `.md` fast path in workflow 10 before prd, no `[skip ci]`; inherited CI red is not the editor's failure; token cached in memory. |
 | v0.3 | 2026-10-06 | c-388 | The owner's answers O1-O9 (msgs `e7efcb67`, `f4142409`) recorded in §14 and folded in as one design: every workspace edits, the per-workspace switch replaced by abuse limits and an operator brake (O1); author fallback = the sign-in email, with a one-time public-email notice and its text (O3); agents edit as their requester (O4); no workflow 10 fast path, a coalescing window is the only cost control, lane L7 removed (O6); dev writes master too, its risks and mitigations in §6.2 (O7); the GitHub App owner steps (O8, §9.1); editable set = published `.md` minus a measured 14-row deny list, 407 editable at `7f67bb604` (O9). Build plan: `tasks.md`. |
+| v0.4 | 2026-10-07 | c-469 | O6 reversed by the newer owner order (t1 `a477c187`, msgs `50a349f4`, `31e00aee`): workflow 10 gets an express docs lane, code jobs skipped for a push whose every path is a `.md` outside `csi-spl-wui/**` and `.github/**` (§3, §6, §13, §14). |
 
-<!-- version: 0.3 · updated: 2026-10-06 -->
+<!-- version: 0.4 · updated: 2026-10-07 -->

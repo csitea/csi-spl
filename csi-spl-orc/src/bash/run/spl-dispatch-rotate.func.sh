@@ -9,11 +9,14 @@
 # @description per step in <spool root>/dispatch/rotate.log, the phase in
 # @description rotate.dispatch.state / .ctx (resumable, FR-003). The shared
 # @description pieces are spl-rotate-lib.func.sh (CLE-77939).
-# @description   GATE     the id locks of both ids (spec 102 4.2; held =
-# @description            exit 4, also for heal), switch, lease.conf, this
+# @description   GATE     switch, lease.conf, this
 # @description            machine holds the dispatch lease (FR-044), boot grace, the last rotation and
 # @description            the master at least ROTATE_MIN_AGE old, no orch
-# @description            rotation in flight (FR-051), not stalled (FR-022)
+# @description            rotation in flight (FR-051), not stalled (FR-022),
+# @description            then the master's id lock (spec 102 4.2; held =
+# @description            exit 4), held from HOLD to its CLOSE only; the
+# @description            failover's is taken for its REFRESH .. CLOSE (held
+# @description            = REFRESH SKIP), a heal's for the ids it starts
 # @description   HEAL     a dispatcher with no live process is spawned by
 # @description            do_spl_dispatch_setup, nothing else this run (FR-021)
 # @description   HOLD     <dir>/rotate.hold names M: the lease loops skip M,
@@ -91,8 +94,9 @@ spl_disp_rotate_auto() {
   rid="$(spl_rotate_new_rid master)"
   exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
-  spl_disp_id_locks "$rid" || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
   if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
+    spl_disp_id_lock "$(spl_rotate_role_id "$(spl_disp_role)")" "$ROTATE_RID" ||
+      { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
     if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$ROTATE_RID" RESUME PLAN "from $ROTATE_PHASE"; return 0; fi
     spl_disp_rotate_resume || return 1
     return 0
@@ -134,6 +138,9 @@ spl_disp_rotate_auto() {
     spl_disp_once "stall.$(tr -c 'a-z0-9' '_' <<<"${why,,}")" "ROTATION SKIP stalled: $m@$ROTATE_BOX pane shows '$why'; the lease has moved to $f and a new session would stall too"
     return 0
   fi
+  # the master's id lock, for its swap only: the failover's stays free, so a
+  # restart of it is never refused while the master phase runs
+  spl_disp_id_lock "$m" "$rid" || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
 
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_disp_plan "$rid" "$m" "$mpid" "$pane" "$age" "$f" "$fpid"; return 0
@@ -161,12 +168,16 @@ spl_disp_wait_orch() {
   done
 }
 
-# FR-021: do_spl_dispatch_setup spawns whichever dispatcher has no process.
+# FR-021: do_spl_dispatch_setup spawns whichever dispatcher has no process,
+# under the id locks of the ids it starts (held = HEAL SKIP, DISP_IDL).
 spl_disp_heal() {
   local rid="$1" nm="$2" nf="$3" what="" id t0
   (( nm )) || what+="$LEASE_MASTER "
   (( nf )) || what+="$LEASE_FAILOVER "
   what="${what% }"
+  for id in $what; do
+    spl_disp_id_lock "$id" "$rid" || { spl_disp_heal_say "$rid" "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
+  done
   if [[ "${DRY_RUN:-1}" == 1 ]]; then spl_rotate_log "$rid" HEAL PLAN "do_spl_dispatch_setup spawns: $what"; return 0; fi
   spl_rotate_log "$rid" HEAL WAIT "no live process: $what - do_spl_dispatch_setup, no rotation this run"
   if ! env ENV="${ENV:-${LEASE_ENV:-prd}}" DISPATCH_MASTER="$LEASE_MASTER" DISPATCH_FAILOVER="$LEASE_FAILOVER" DISPATCH_ORCH="$LEASE_ORCH" \
@@ -204,7 +215,6 @@ spl_disp_heal_only() {
     { do_log "FATAL ROTATE_HEAL must be 0 or 1 and ROTATE_HEAL_CONFIRM whole seconds"; return 1; }
   exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_disp_heal_say "$rid" "locked: a rotation or a heal is running"; return 0; }
-  spl_disp_id_locks "$rid" || { spl_disp_heal_say "$rid" "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
   [[ "$ROTATE_HEAL" == 1 ]] || { spl_disp_heal_say "$rid" "disabled (ROTATE_HEAL=0)"; return 0; }
   if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
     spl_disp_heal_say "$rid" "rotation $ROTATE_RID in flight at $ROTATE_PHASE"; return 0
@@ -229,19 +239,18 @@ spl_disp_heal_count() {
   nf="$(spl_rotate_pids "$LEASE_FAILOVER" | grep -c . || true)"
 }
 
-# spl_disp_id_locks RID: the id locks of spec 102 4.2 on BOTH dispatchers (a
-# rotation restarts the master and refreshes the failover; a heal starts
-# either), so no takeover, lane restart or restore acts on one meanwhile. The
-# ack and abort take none: they run inside a rotation. Non-zero: DISP_IDL is
-# the exit code (4 held, 1 broken), SPL_ID_LOCK_WHY the reason.
-spl_disp_id_locks() {
-  local id
+# spl_disp_id_lock ID RID: the id lock of spec 102 4.2 on the ONE dispatcher
+# this step starts or stops, so no takeover, lane restart or restore acts on
+# it meanwhile; spl_agent_id_unlock lets it go at that id's CLOSE. Both ids
+# for the whole run refused the watchdog's restart of the failover 12 times
+# while the master phase swapped the master (2026-10-07 17:33..17:39Z,
+# held by 20261007T1715Z-master). The ack and abort take none: they run
+# inside a rotation. Non-zero: DISP_IDL is the exit code (4 held, 1 broken),
+# SPL_ID_LOCK_WHY the reason.
+spl_disp_id_lock() {
   DISP_IDL=0
-  for id in "$LEASE_MASTER" "$LEASE_FAILOVER"; do
-    spl_agent_id_lock "$id" do_spl_dispatch_rotate "$1" || DISP_IDL=$?
-    (( DISP_IDL == 0 )) || return 1
-  done
-  return 0
+  spl_agent_id_lock "$1" do_spl_dispatch_rotate "$2" || DISP_IDL=$?
+  (( DISP_IDL == 0 ))
 }
 
 # A heal run with nothing to do: stdout (the cron's log), not rotate.log.
@@ -406,6 +415,8 @@ spl_disp_close() {
   mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
   [[ "$mp" == "$ROTATE_NEW_PANE" ]] || warn+=" map=${mp:-none}"
   spl_disp_step CLOSE "$([[ -z "$warn" ]] && echo OK || echo WAIT)" "old window closed; checks:${warn:- one process, map -> $ROTATE_NEW_PANE}"
+  # this id's swap is over: a restart of it may run from here on
+  spl_agent_id_unlock "$id"
   spl_lease_log "ROTATE $role $id $ROTATE_RID: pid $ROTATE_OLD_PID -> $ROTATE_NEW_PID"
   [[ "$role" == master ]] || return 0
   spl_disp_release
@@ -512,9 +523,13 @@ spl_disp_refresh() {
   fi
   pane="$(spl_rotate_pane_of_pid "$fpid")"
   [[ -n "$pane" ]] || { spl_rotate_log "$rid" REFRESH SKIP "absent: $f pid $fpid is in no tmux pane"; return 0; }
+  spl_disp_id_lock "$f" "$rid" || { spl_rotate_log "$rid" REFRESH SKIP "id lock: $SPL_ID_LOCK_WHY"; return 0; }
   spl_disp_begin failover "$rid" "$fpid" "$pane"
   spl_disp_step REFRESH OK "$f pid $fpid, ${age}s old, pane $pane"
-  spl_disp_run
+  local rc=0
+  spl_disp_run || rc=1
+  spl_agent_id_unlock "$f"
+  return "$rc"
 }
 
 spl_disp_run_all() {

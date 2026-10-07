@@ -8,6 +8,7 @@
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
 #   spl_rotate_log RID PHASE RESULT DETAIL  one rotate.log line + the .state file (FR-002)
 #   spl_agent_id_lock ID [ACTOR] [RID] [WAIT] the id lock of every start/stop actor (spec 102 4.2), 4 when held
+#   spl_agent_id_unlock ID                  lets an id lock this shell holds go before the shell ends
 #   spl_rotate_quiesce PANE                 grace, Escape, re-wait; prints idle|interrupted|busy-rotated (FR-011)
 #   spl_rotate_handoff ROLE ID RID OUT      the handoff file, spec section 6 (FR-012, FR-025)
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
@@ -175,6 +176,22 @@ spl_agent_id_lock() {
   # shellcheck disable=SC2034 # read by the callers
   SPL_ID_LOCK_WHY="the holder of $lock did not report within $((wait + 5))s"
   return 1
+}
+
+# spl_agent_id_unlock ID: the id lock this shell took on ID goes now, not when
+# the shell ends: its holder is stopped and waited for. A rotation holds an
+# id only around that id's own swap (spawn .. retire): holding the master's and
+# the failover's for the whole run refused the watchdog's restart of c-003 12
+# times while the master phase swapped c-002 (2026-10-07 17:33..17:39Z).
+# Nothing held: 0.
+spl_agent_id_unlock() {
+  local id="$1" hp
+  hp="$(sed -n "s/.* $id:\([0-9][0-9]*\) .*/\1/p" <<<" ${SPL_ID_LOCKS:-} ")"
+  [[ -n "$hp" ]] || return 0
+  kill "$hp" 2>/dev/null || true
+  wait "$hp" 2>/dev/null || true
+  SPL_ID_LOCKS="$(sed "s/ $id:$hp / /g" <<<" ${SPL_ID_LOCKS:-} ")"
+  return 0
 }
 
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.

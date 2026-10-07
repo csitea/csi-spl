@@ -20,6 +20,11 @@
 #      Control: a lane restart of another id is not seen for this one.
 #   5. the reaper skips a held-out id and an id whose lock is held.
 #      Control: a third id, equally dead, is planned / retired.
+#   6. the dispatch rotation holds an id lock only around that id's own swap:
+#      while the master phase swaps c-002 (its spawn in flight), the restart's
+#      lock call on c-003 is NOT refused (2026-10-07: 12 IDLOCK REFUSED
+#      of rs-c-003 during 20261007T1715Z-master), and is again once the run
+#      ends. Control: the same call on c-002 is refused meanwhile.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -150,7 +155,7 @@ act do_spl_orch_rotate DRY_RUN=1 >"$T/o" 2>&1; rc=$?
   pass "3. control: the orch rotation with its id free gets past the lock" || fail "3. orch control rc=$rc $(cat "$T/o")"
 
 held c-003
-act do_spl_dispatch_rotate ROTATE_CMD=heal DRY_RUN=1 >"$T/o" 2>&1; rc=$?
+act do_spl_dispatch_rotate ROTATE_CMD=heal DRY_RUN=1 ROTATE_HEAL_CONFIRM=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 4 ]] && grep -q 'HEAL SKIP id lock: the id lock of c-003 is held by X ' "$T/o" &&
   pass "3. dispatch heal with the failover held: exit 4" || fail "3. heal rc=$rc $(cat "$T/o")"
 free
@@ -207,6 +212,50 @@ out="$(reap --apply)"
   grep -qE '[0-9]{8}T[0-9]{6}Z-reap-c-904 DONE OK retired by the reaper' "$R/dispatch/rotate.log" &&
   pass "5. apply: c-908 and c-909 kept; control c-904 retired and logged to rotate.log" || fail "5. apply: $out $(cat "$R/dispatch/rotate.log" 2>/dev/null)"
 kill "$hp" 2>/dev/null; wait "$hp" 2>/dev/null
+
+# --- 6. the dispatch rotation locks one id at a time --------------------------------
+reset
+mkproc() {  # PID ID
+  local d="$T/proc/$1"; mkdir -p "$d"; echo claude >"$d/comm"
+  printf 'SPOOL_AGENT_ID=%s\0' "$2" >"$d/environ"
+  echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 100" >"$d/stat"
+  printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
+}
+mkproc 3002 c-002; mkproc 3003 c-003
+mkdir -p "$D/briefs"; echo "brief of c-002" >"$D/briefs/brief-dispatcher-c-002.md"
+echo "c-002 $(date +%s)" >"$D/lease"
+# tmux: c-002 in %72, c-003 in %73, both idle at an empty input box
+cat >"$T/bin/tmux6" <<'EOF'
+#!/usr/bin/env bash
+cmd="$1"; shift; tgt=""
+while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; *) shift ;; esac; done
+case "$cmd" in
+  list-panes) printf '3002 %%72\n3003 %%73\n' ;;
+  display-message) echo "${tgt}" ;;
+  capture-pane) printf 'done\n────────\n❯ \n────────\n' ;;
+  *) exit 0 ;;
+esac
+EOF
+# the spawn of the new c-002 hangs until $T/go, then prints no pane (FAIL SPAWN)
+cat >"$T/bin/spawn6" <<'EOF'
+#!/usr/bin/env bash
+touch "$T/spawning"
+for _ in $(seq 200); do [ -e "$T/go" ] && break; sleep 0.1; done
+echo "spawn-window: no pane"; exit 4
+EOF
+chmod +x "$T/bin/tmux6" "$T/bin/spawn6"
+act do_spl_dispatch_rotate DRY_RUN=0 ROTATE_FORCE=1 ROTATE_TMUX="$T/bin/tmux6" ROTATE_SPAWN="$T/bin/spawn6" ROTATE_POLL=1 ROTATE_IDLE_SEC=0 \
+  ROTATE_PROMOTE_WAIT=5 ROTATE_HANDOFF_DIR="$T/handoff" ROTATE_HOLD_DIR="$T/hold" ROTATE_SRC_TIMEOUT=5 >"$T/o6" 2>&1 & rp=$!
+for _ in $(seq 200); do [ -e "$T/spawning" ] && break; sleep 0.1; done
+"$T/bin/actor" c-003 do_spl_agent_restart 0 >"$T/oF" 2>&1; rf=$?
+"$T/bin/actor" c-002 do_spl_agent_restart 0 >"$T/oM" 2>&1; rm_=$?
+touch "$T/go"; wait "$rp"
+[[ -e "$T/spawning" && "$rf" == 0 ]] && grep -q ' SPAWN FAIL \| FAIL FAIL SPAWN' "$T/o6" &&
+  pass "6. during the master's swap a restart's lock call on c-003 runs" || fail "6. rf=$rf $(cat "$T/oF") $(tail -5 "$T/o6")"
+[[ "$rm_" == 4 ]] && grep -q 'held by do_spl_dispatch_rotate [0-9TZ]*-master' "$T/oM" &&
+  pass "6. control: the same call on c-002, mid-swap, is refused (exit 4)" || fail "6. control rm=$rm_ $(cat "$T/oM")"
+"$T/bin/actor" c-002 do_spl_agent_restart 0 >"$T/oM" 2>&1; rm_=$?
+[[ "$rm_" == 0 ]] && pass "6. the run over, c-002 is free again" || fail "6. after: rm=$rm_ $(cat "$T/oM")"
 
 echo "agent-id-lock: $( ((fails)) && echo "$fails failure(s)" || echo "all passed")"
 exit $(( fails > 0 ))

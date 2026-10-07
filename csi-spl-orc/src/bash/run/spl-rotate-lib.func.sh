@@ -691,8 +691,10 @@ spl_rotate_screen_tail() {
 # last step never ends the session: 0805Z and 0905Z on 2026-10-02 were
 # SIGTERMed 300 s later, 0605Z and 0705Z were closed by the skill's deferred
 # window-close timeout); ROTATE_EXIT_WAIT (300 s), TERM, ROTATE_TERM_WAIT
-# (30 s), KILL. Non-zero = it survived SIGKILL.
-spl_rotate_retire() { spl_rotate_end "$1" "$2" /exit-clean "$ROTATE_EXIT_WAIT" "$ROTATE_TERM_WAIT" /exit; }
+# (30 s), KILL. Non-zero = it survived SIGKILL. `no-close`: the CLOSE step
+# closes the old window by pane id; the skill's own deferred close of the
+# same id killed the fresh seat (c-002 %589, 2026-10-07 09:22:21Z).
+spl_rotate_retire() { spl_rotate_end "$1" "$2" "/exit-clean no-close" "$ROTATE_EXIT_WAIT" "$ROTATE_TERM_WAIT" /exit; }
 
 # ---- ACK (FR-041) ----------------------------------------------------------------
 

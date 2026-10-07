@@ -244,9 +244,9 @@ grep -q "send c-900 -> c-902 task dispatch-rotate-$rid .*ROTATION $rid: you are 
 grep -q "send c-902 -> c-902 result dispatch-rotate-$rid .*ACK rotation $rid: c-902 pid 2902" "$T/send.log" &&
   grep -q "send c-903 -> c-903 result dispatch-rotate-$frid .*ACK rotation $frid: c-903 pid 2903" "$T/send.log" &&
   pass "3. each ack = a result in its own outbox on dispatch-rotate-<rid> (FR-041)" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"
-grep -qx "rename %2 c-902-${rid:9:4}Z-retiring" "$T/tmux/log" && grep -q '^keys %2 /exit-clean$' "$T/tmux/log" && grep -qx 'kill %2' "$T/tmux/log" &&
-  grep -q '^keys %3 /exit-clean$' "$T/tmux/log" && grep -qx 'kill %3' "$T/tmux/log" &&
-  pass "3. old windows renamed retiring, /exit-clean, closed by pane id" || fail "3. tmux: $(cat "$T/tmux/log")"
+grep -qx "rename %2 c-902-${rid:9:4}Z-retiring" "$T/tmux/log" && grep -q '^keys %2 /exit-clean no-close$' "$T/tmux/log" && grep -qx 'kill %2' "$T/tmux/log" &&
+  grep -q '^keys %3 /exit-clean no-close$' "$T/tmux/log" && grep -qx 'kill %3' "$T/tmux/log" &&
+  pass "3. old windows renamed retiring, /exit-clean no-close, closed by pane id" || fail "3. tmux: $(cat "$T/tmux/log")"
 grep -qx 'adopt c-902 2902' "$T/ai.log" && grep -qx 'adopt c-903 2903' "$T/ai.log" && pass "3. the map adopts each new pid (pokes reach the new pane)" || fail "3. adopt: $(cat "$T/ai.log")"
 grep -q "brief of c-903" "$D/handoff/$frid-c-903.seed.md" && grep -q " $frid REFRESH OK c-903 pid 103" "$T/o" &&
   pass "3. REFRESH F after M holds the lease (FR-029)" || fail "3. refresh: $(grep REFRESH "$T/o")"

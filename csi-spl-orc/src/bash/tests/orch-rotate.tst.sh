@@ -114,9 +114,9 @@ case "$cmd" in
       elif [ "$b" = /exit ] && [ -f "$T/tmux/bgtasks.$tgt" ]; then
         printf 'Background work is running\n   The following will stop when you exit:\n   shell · sleep 600\n   ❯ 1. Exit and stop tasks\n     2. Move to background and exit\n     3. Stay\n   Enter to confirm · Esc to cancel\n' >"$T/tmux/screen.$tgt"
         touch "$T/tmux/bgdialog.$tgt" "$T/tmux/nobox.$tgt"
-      elif [ "$b" = /exit-clean ] && [ -f "$T/tmux/skillonly.$tgt" ]; then
+      elif [ "$b" = '/exit-clean no-close' ] && [ -f "$T/tmux/skillonly.$tgt" ]; then
         [ -f "$T/tmux/skillbusy.$tgt" ] || printf 'Handoff sent. I cannot run /exit myself.\n✻ Crunched for 4s · done 12.34 · 1 shell still running\n❯ \n' >"$T/tmux/screen.$tgt"
-      else case "$b" in /exit|/exit-clean) [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac; fi
+      else case "$b" in /exit|'/exit-clean no-close') [ -f "$T/tmux/stubborn.$tgt" ] || rm -rf "$T/proc/$(field 2)" ;; esac; fi
       : >"$T/tmux/typed.$tgt"
     fi ;;
   kill-window) awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new" && mv "$P.new" "$P"; echo "kill $tgt" >>"$L" ;;
@@ -271,8 +271,8 @@ grep -q "^spawn claude CLE-900 .* $D/handoff/$rid-CLE-900.seed.md rotate SPAWN_R
   pass "3. same id (SPAWN_REUSE_ID=1), same tmux session and box tag, the FR-040 rotation line" || fail "3. spawn: $(cat "$T/spawn.log")"
 grep -q "send CLE-900 -> CLE-900 result orch-rotate-$rid: ACK" "$T/send.log" && grep -q " ACK OK acked by pid 2001" "$T/o" &&
   pass "3. ack = a result in CLE-900/outbox on orch-rotate-<rid>" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"
-grep -q '^keys %2 /exit-clean$' "$T/tmux/log" && [[ ! -d "$T/proc/1001" ]] && grep -qx 'kill %2' "$T/tmux/log" &&
-  pass "3. old session ended with /exit-clean, its window closed by pane id" || fail "3. retire: $(cat "$T/tmux/log")"
+grep -q '^keys %2 /exit-clean no-close$' "$T/tmux/log" && [[ ! -d "$T/proc/1001" ]] && grep -qx 'kill %2' "$T/tmux/log" &&
+  pass "3. old session ended with /exit-clean no-close (RETIRE never lets the skill close a window), its window closed by pane id" || fail "3. retire: $(cat "$T/tmux/log")"
 grep -q " CLOSE OK old window closed; checks: one process, lease follows pid 2001, map -> %20" "$T/o" &&
   grep -q "send CLE-900 -> CLE-900 result orch-rotate-$rid: ROTATION DONE" "$T/send.log" &&
   pass "3. CLOSE checks pass; DONE result to the new session" || fail "3. close: $(grep CLOSE "$T/o")"
@@ -367,21 +367,21 @@ world; touch "$T/tmux/escape-stops.%2"
 printf 'SPOOL CLE-002: poke line one\npoke line two\npoke line three' >"$T/tmux/queued.%2"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -qx 'keys %2 C-c' "$T/tmux/log" &&
-  [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] && ! grep -qE 'RETIRE WAIT (try|pid)' "$T/o" && ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null &&
-  pass "11. a 3-row pending input: C-c empties it, Enter submits exactly /exit-clean, no SIGTERM" ||
+  [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean no-close' ]] && ! grep -qE 'RETIRE WAIT (try|pid)' "$T/o" && ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null &&
+  pass "11. a 3-row pending input: C-c empties it, Enter submits exactly /exit-clean no-close, no SIGTERM" ||
   fail "11. pending rc=$rc $(grep -E '^(submit|keys %2 C-)' "$T/tmux/log") $(grep RETIRE "$T/o")"
 world
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && ! -d "$T/proc/1001" ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] &&
+[[ $rc -eq 0 && ! -d "$T/proc/1001" ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean no-close' ]] &&
   ! grep -qE '^(keys %2 C-c|armed %2)$' "$T/tmux/log" && ! grep -qE 'RETIRE WAIT (try|pid)' "$T/o" &&
-  pass "11. control: an empty box (ghost text only) gets no C-c, submits exactly /exit-clean" ||
+  pass "11. control: an empty box (ghost text only) gets no C-c, submits exactly /exit-clean no-close" ||
   fail "11. control rc=$rc $(grep -E '^(submit|keys %2 C-|armed)' "$T/tmux/log") $(grep RETIRE "$T/o")"
 world; touch "$T/tmux/nobox.%2"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && ! grep -q '^submit %2' "$T/tmux/log" &&
-  grep -q "RETIRE WAIT try 1: input box of %2 reads '(no input box)', not '/exit-clean'" "$T/o" &&
+  grep -q "RETIRE WAIT try 1: input box of %2 reads '(no input box)', not '/exit-clean no-close'" "$T/o" &&
   grep -q "RETIRE WAIT try 2: input box of %2 reads" "$T/o" &&
-  grep -q "RETIRE WAIT pid 1001: '/exit-clean' never read back, no Enter: SIGTERM" "$T/o" && grep -q '^kill -TERM 1001$' "$T/kill.log" &&
+  grep -q "RETIRE WAIT pid 1001: '/exit-clean no-close' never read back, no Enter: SIGTERM" "$T/o" && grep -q '^kill -TERM 1001$' "$T/kill.log" &&
   pass "11. a box that never reads the command: one retry, no Enter, logged, SIGTERM" ||
   fail "11. nobox rc=$rc $(grep RETIRE "$T/o") $(grep submit "$T/tmux/log")"
 
@@ -389,8 +389,8 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 world; touch "$T/tmux/skillonly.%2"
 act DRY_RUN=0 ROTATE_EXIT_WAIT=6 ROTATE_EXIT_SETTLE=1 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] &&
-  [[ "$(grep '^submit %2 ' "$T/tmux/log" | tr '\n' ',')" == 'submit %2 /exit-clean,submit %2 /exit,' ]] &&
-  grep -qE "RETIRE WAIT pid 1001 idle and alive [0-9]+s after '/exit-clean': '/exit' typed" "$T/o" &&
+  [[ "$(grep '^submit %2 ' "$T/tmux/log" | tr '\n' ',')" == 'submit %2 /exit-clean no-close,submit %2 /exit,' ]] &&
+  grep -qE "RETIRE WAIT pid 1001 idle and alive [0-9]+s after '/exit-clean no-close': '/exit' typed" "$T/o" &&
   ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null && grep -q ' RETIRE OK pid 1001 gone' "$T/o" &&
   pass "12. /exit-clean ends its turn alive: RETIRE types /exit, no SIGTERM" ||
   fail "12. skill-only rc=$rc $(grep -E '^submit' "$T/tmux/log") $(grep RETIRE "$T/o")"
@@ -403,8 +403,8 @@ act DRY_RUN=0 ROTATE_EXIT_WAIT=8 ROTATE_EXIT_SETTLE=1 >"$T/o" 2>&1; rc=$?
   fail "12. bgtasks rc=$rc $(grep -E '^(submit|confirm)' "$T/tmux/log") $(grep RETIRE "$T/o")"
 world; touch "$T/tmux/skillonly.%2" "$T/tmux/skillbusy.%2"
 act DRY_RUN=0 ROTATE_EXIT_WAIT=3 ROTATE_EXIT_SETTLE=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean' ]] &&
-  grep -q "RETIRE WAIT pid 1001 alive 3s after '/exit-clean': SIGTERM; screen: working on the satellite drill|✻ Cogitating (12s · esc to interrupt)" "$T/o" &&
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean no-close' ]] &&
+  grep -q "RETIRE WAIT pid 1001 alive 3s after '/exit-clean no-close': SIGTERM; screen: working on the satellite drill|✻ Cogitating (12s · esc to interrupt)" "$T/o" &&
   grep -q '^kill -TERM 1001$' "$T/kill.log" &&
   pass "12. control: a pane still busy gets no /exit; SIGTERM logs the screen" ||
   fail "12. busy rc=$rc $(grep -E '^submit' "$T/tmux/log") $(grep RETIRE "$T/o")"

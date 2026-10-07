@@ -46,6 +46,15 @@
 # Never SIGKILL agent binaries; --defer waits for claude|grok|agy|qwen to leave the
 # pane, then kill-window.
 #
+# The --defer closer runs in its OWN session (setsid). agy runs every shell
+# command in a fresh pty session and kills that session when the command
+# returns, so a plain `( ... ) & disown` closer died with it: a finished agy
+# agent's window then stayed open for good (a-420, a-424, a-474: empty or
+# missing close logs). agy has a /exit command but its model cannot type it,
+# so for an agy pane the closer types `/exit` itself once agy sits idle at an
+# empty `>` prompt. The scheduled closer is the done marker: only /exit-clean
+# schedules one, and an idle agy with no closer is never touched.
+#
 # Usage:
 #   tmux-close-window.sh --agent CLE-07 --defer     # the teardown path
 #   tmux-close-window.sh --agent c-007 --defer --retire  # /exit-clean: then retire the id
@@ -62,6 +71,8 @@
 #   3  REFUSED: ownership could not be established — nothing was closed
 #   4  REFUSED: resolved window does not belong to the named agent
 set -uo pipefail
+TCW_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+TCW_ARGS=("$@")
 
 # The tmux server owner, its socket, the box tag and the spool root (which
 # holds the spawn registry) come from the one resolver; explicit env vars win.
@@ -536,7 +547,7 @@ fi
 # is what made it possible to audit the mis-targeting bug after the fact. Keep
 # the production set clean: the test suites point CLOSE_LOG_DIR at a scratch
 # dir so their runs do not inflate the count or dilute the real entries.
-LOG="${CLOSE_LOG_DIR:-/tmp}/kill-your-self-close-$$.log"
+LOG="${TCW_LOG:-${CLOSE_LOG_DIR:-/tmp}/kill-your-self-close-$$.log}"
 AGENT_PIDS=()
 if [[ -n "$PANE" ]]; then
   while read -r _pid; do
@@ -548,6 +559,40 @@ fi
 # that the target still holds the pane we were given, so a deferred close can
 # never land on a window that took over the index in the meantime.
 GUARD_PANE="$PANE"
+
+# Re-run this script in a new session (see the header): the copy resolves the
+# same target from the same args and env, and writes to this LOG.
+# TCW_NO_SETSID=1 keeps the old in-session closer (the tests' control).
+if [[ -z "${TCW_DETACHED:-}" && -z "${TCW_NO_SETSID:-}" ]] && command -v setsid >/dev/null 2>&1; then
+  if TCW_DETACHED=1 TCW_LOG="$LOG" setsid -f bash "$TCW_SELF" "${TCW_ARGS[@]}" </dev/null >>"$LOG" 2>&1; then
+    echo "tmux-close-window: scheduled defer-close of $WINDOW_TARGET ('${WINDOW_NAME}') via ${SOURCE} (log=$LOG timeout=${TIMEOUT}s agent_pids=${AGENT_PIDS[*]:-none} session=detached)"
+    exit 0
+  fi
+  echo "tmux-close-window: setsid failed; closing from this session" >&2
+fi
+
+# agy cannot run its own /exit: type it into the pane once agy is idle.
+AGY_PIDS=()
+for _pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
+  ps -p "$_pid" -o args= 2>/dev/null | grep -E '(^|[[:space:]/])agy([[:space:]]|$)' >/dev/null && AGY_PIDS+=("$_pid")
+done
+
+# Idle = the input line is an empty `>` and the screen did not change for 3
+# polls in a row (a turn still streaming its last message changes it).
+AGY_LAST="" AGY_SAME=0 AGY_TRIES=0
+agy_type_exit_when_idle() {
+  (( ${#AGY_PIDS[@]} > 0 && AGY_TRIES < 3 )) || return 0
+  local screen
+  screen="$("${TM[@]}" capture-pane -p -t "$GUARD_PANE" 2>/dev/null)" || return 0
+  if [[ "$screen" == "$AGY_LAST" ]]; then AGY_SAME=$((AGY_SAME + 1)); else AGY_SAME=0; AGY_LAST="$screen"; fi
+  (( AGY_SAME >= 3 )) || return 0
+  printf '%s\n' "$screen" | grep -E '^>[[:space:]]*$' >/dev/null || return 0
+  AGY_TRIES=$((AGY_TRIES + 1)) AGY_SAME=0
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agy idle at an empty prompt: typing /exit (try $AGY_TRIES)"
+  "${TM[@]}" send-keys -t "$GUARD_PANE" -l '/exit' 2>/dev/null
+  sleep 1
+  "${TM[@]}" send-keys -t "$GUARD_PANE" Enter 2>/dev/null
+}
 
 # Subshell inherits functions/vars; re-inlines wait then kill-window.
 (
@@ -566,6 +611,7 @@ GUARD_PANE="$PANE"
         fi
       done
       (( alive == 0 )) && break
+      agy_type_exit_when_idle
       sleep 0.5
     done
     if (( SECONDS >= deadline )); then

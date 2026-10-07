@@ -70,7 +70,10 @@ the human to type it is wrong. Whoever invoked `/exit-clean` ends the session
 once your turn is over: the hourly rotation's RETIRE step types `/exit` into
 this pane when it reads idle (and closes the window itself, so a retiring
 session whose successor carries the same id skips the close above), and the
-deferred close kills the window after its timeout.
+deferred close kills the window after its timeout. On agy the closer types
+`/exit` itself once agy sits idle at an empty `>` prompt, so agy leaves with
+status 0 and the window closes then; it runs detached, so agy ending your
+command does not stop it.
 
 ## 4. Arguments
 

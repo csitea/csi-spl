@@ -17,6 +17,13 @@
 #      kind, 3 digits, never re-padded, in both the <ID>@<box> and the tagged
 #      "<tag>: <ID>" window shape, never a look-alike ("C-97"). Control: the
 #      pre-c0ec0735 norm_id (10#n, %02d) turns c-097 into C-97 and misses it
+#   8. the --defer closer outlives the caller's session: agy runs each command
+#      in its own session and kills it on return (a-420/a-424/a-474 kept their
+#      windows). Control: the old in-session closer (TCW_NO_SETSID=1) dies
+#   9. an agy pane: the closer types /exit once agy is idle at an empty `>`,
+#      agy exits by itself, then the window closes - long before the timeout
+#  10. controls: an idle agy with NO closer scheduled is never typed into nor
+#      closed; a busy agy (screen still changing) never gets /exit
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -111,4 +118,52 @@ hasnt "7. control: ... and misses c-097's window" "pane=$NC " "$out"
 bash "$SUT" --agent c-097 >"$T_TMP/o" 2>&1; eq "7. --agent c-097 closes its window (exit 0)" 0 "$?"
 check "7. c-097's window is gone" bash -c "! tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id}' | grep -qx '$NC'"
 check "7. the look-alike C-97 window survives" alive "$DECOY"
+
+# --- 8. the closer survives agy killing the command's session ----------------------------
+wait_gone() { for _ in $(seq 1 "$2"); do alive "$1" || return 0; sleep 0.5; done; return 1; }
+in_agy_session() {  # run CMD... the way agy runs a command: own session, killed on return
+  setsid -f -w bash -c '"$@"; kill -KILL -- -$$' _ "$@" >/dev/null 2>&1; return 0
+}
+P8B="$(t_window 'q-201@tbox' 'sleep 600')"
+in_agy_session env TCW_NO_SETSID=1 bash "$SUT" --agent q-201 --defer --timeout 4
+sleep 5
+check "8. control: the in-session closer dies with agy's session (window stays)" alive "$P8B"
+P8C="$(t_window 'q-202@tbox' 'sleep 600')"
+in_agy_session bash "$SUT" --agent q-202 --defer --timeout 4
+check "8. the detached closer survives the session kill and closes the window" wait_gone "$P8C" 20
+check "8. ... the victim survives" alive "$VICTIM"
+tmux -S "$SPOOL_TMUX_SOCKET" kill-pane -t "$P8B" 2>/dev/null
+
+# --- 9. agy: the closer types /exit once agy is idle ---------------------------------------
+mkdir -p "$T_TMP/bin"
+cat >"$T_TMP/bin/agy" <<'FAKEAGY'
+#!/usr/bin/env bash
+# fake agy: an input box, reads lines into $1, leaves on /exit; $2=busy keeps the screen moving
+if [ "${2:-}" = busy ]; then n=0; while :; do n=$((n + 1)); printf 'working %s\n>\n' "$n"; sleep 0.2; done; fi
+printf '%s\n' '-----' '>' '-----'
+while IFS= read -r line; do
+  printf '%s\n' "$line" >>"$1"
+  [ "$line" = /exit ] && { echo AGY-EXITED >>"$1"; exit 0; }
+done
+sleep 600
+FAKEAGY
+chmod +x "$T_TMP/bin/agy"
+P9="$(t_window 'a-301@tbox' "bash $T_TMP/bin/agy $T_TMP/got-301")"
+sleep 1
+in_agy_session bash "$SUT" --agent a-301 --defer --timeout 60
+check "9. the agy window closes well before the 60 s timeout" wait_gone "$P9" 30
+has "9. agy got /exit typed and left by itself" "AGY-EXITED" "$(cat "$T_TMP/got-301" 2>/dev/null)"
+has "9. the log names the /exit it typed" "typing /exit" "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null)"
+
+# --- 10. controls: no closer = no close; busy = no /exit ------------------------------------
+P10="$(t_window 'a-302@tbox' "bash $T_TMP/bin/agy $T_TMP/got-302")"
+sleep 6
+check "10. control: an idle agy with no closer scheduled stays" alive "$P10"
+eq "10. control: ... and nothing was typed into it" "" "$(cat "$T_TMP/got-302" 2>/dev/null)"
+P10B="$(t_window 'a-303@tbox' "bash $T_TMP/bin/agy $T_TMP/got-303 busy")"
+sleep 1
+in_agy_session bash "$SUT" --agent a-303 --defer --timeout 5
+check "10. a busy agy is closed only by the timeout" wait_gone "$P10B" 30
+eq "10. control: ... and never got /exit while busy" "" "$(cat "$T_TMP/got-303" 2>/dev/null)"
+check "10. the idle agy without a closer is still there" alive "$P10"
 t_done

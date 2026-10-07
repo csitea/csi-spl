@@ -139,14 +139,17 @@ func (s *Server) applyEntries(tree map[string]string, entries []treeEntry) (map[
 	return tree, ""
 }
 
-// postCommit stores a commit. The committer is always the App's bot, as on
-// GitHub for an installation token without an explicit committer.
+// postCommit stores a commit with GitHub's defaults: a missing committer is
+// the author, a missing author the token's identity (the App's bot). A
+// client that sends only the author gets the author as committer too, as on
+// the real GitHub (dev commits a83e0fa, cc3f6e7).
 func (s *Server) postCommit(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Message string           `json:"message"`
-		Tree    string           `json:"tree"`
-		Parents []string         `json:"parents"`
-		Author  *github.Identity `json:"author"`
+		Message   string           `json:"message"`
+		Tree      string           `json:"tree"`
+		Parents   []string         `json:"parents"`
+		Author    *github.Identity `json:"author"`
+		Committer *github.Identity `json:"committer"`
 	}
 	if json.NewDecoder(r.Body).Decode(&in) != nil {
 		ghError(w, http.StatusUnprocessableEntity, "Invalid request")
@@ -162,7 +165,11 @@ func (s *Server) postCommit(w http.ResponseWriter, r *http.Request) {
 	if in.Author != nil {
 		author = *in.Author
 	}
-	sha := s.putCommit(CommitObj{Tree: in.Tree, Parents: in.Parents, Author: author, Committer: botID(), Message: in.Message})
+	committer := author
+	if in.Committer != nil {
+		committer = *in.Committer
+	}
+	sha := s.putCommit(CommitObj{Tree: in.Tree, Parents: in.Parents, Author: author, Committer: committer, Message: in.Message})
 	wire.WriteJSON(w, http.StatusCreated, s.commitJSON(s.commits[sha]))
 }
 

@@ -70,8 +70,9 @@ func TestCommitLandsWithAuthorNotCommitter(t *testing.T) {
 		t.Fatalf("branch at %s, want the new commit %s", gh.Head(), sha)
 	}
 	got, _ := gh.Commit(sha)
-	if got.Author != editor || got.Committer.Name != githubtest.BotName || got.Author == got.Committer {
-		t.Fatalf("author %+v committer %+v: want the editor as author and the App bot as committer", got.Author, got.Committer)
+	bot := github.Identity{Name: githubtest.BotName, Email: githubtest.BotEmail}
+	if got.Author != editor || got.Committer != bot {
+		t.Fatalf("author %+v committer %+v: want the editor as author and the App bot %+v as committer", got.Author, got.Committer, bot)
 	}
 	if len(got.Parents) != 1 || got.Parents[0] != head.Commit {
 		t.Fatalf("parents %v, want [%s]", got.Parents, head.Commit)
@@ -278,5 +279,54 @@ func TestNewRefusesABadKeyWithoutQuotingIt(t *testing.T) {
 	_, err := github.New(cfg)
 	if err == nil || strings.Contains(err.Error(), "c2VjcmV0") {
 		t.Fatalf("New(bad key) = %v: want an error that does not quote the key", err)
+	}
+}
+
+// TestCommitterIsReadOnce: the bot identity costs one GET /app and one GET
+// /users per client, however many commits follow.
+func TestCommitterIsReadOnce(t *testing.T) {
+	gh := githubtest.New(t, map[string]string{doc: "# one\n"})
+	c := newClient(t, gh, nil, nil)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		head, err := c.HeadBlob(ctx, doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.Commit(ctx, doc, []byte(strings.Repeat("x", i+1)), editor, "docs: edit "+doc, head.Commit); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apps, users := 0, 0
+	for _, call := range gh.Calls() {
+		switch {
+		case call == "GET /app":
+			apps++
+		case strings.HasPrefix(call, "GET /users/"):
+			users++
+		}
+	}
+	if apps != 1 || users != 1 {
+		t.Fatalf("GET /app %d, GET /users %d: want 1 each", apps, users)
+	}
+}
+
+// TestCommitterNoreplyFromAPI: with no Noreply set, the domain comes from the
+// API base, never a literal host.
+func TestCommitterNoreplyFromAPI(t *testing.T) {
+	gh := githubtest.New(t, map[string]string{doc: "x\n"})
+	cfg := gh.Config()
+	cfg.Noreply = ""
+	c, err := github.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bot, err := c.Committer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "4242+" + githubtest.BotName + "@users.noreply.127.0.0.1"
+	if bot.Name != githubtest.BotName || bot.Email != want {
+		t.Fatalf("committer %+v, want %s <%s>", bot, githubtest.BotName, want)
 	}
 }

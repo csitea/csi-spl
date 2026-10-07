@@ -30,8 +30,11 @@ const (
 	Owner          = "example-org"
 	Repo           = "example-repo"
 	Branch         = "master"
-	BotName        = "example-docs[bot]"
-	BotEmail       = "4242+example-docs[bot]@users.noreply.example.com"
+	BotSlug        = "example-docs"
+	BotName        = BotSlug + "[bot]"
+	BotUserID      = 4242
+	Noreply        = "users.noreply.example.com"
+	BotEmail       = "4242+" + BotName + "@" + Noreply
 )
 
 // CommitObj is one commit in the fake repo.
@@ -98,7 +101,7 @@ func botID() github.Identity { return github.Identity{Name: BotName, Email: BotE
 func (s *Server) Config() github.Config {
 	return github.Config{
 		API: s.URL, AppID: AppID, InstallationID: InstallationID,
-		Owner: Owner, Repo: Repo, Branch: Branch, Key: s.KeyPEM, HTTP: s.Client(),
+		Owner: Owner, Repo: Repo, Branch: Branch, Key: s.KeyPEM, Noreply: Noreply, HTTP: s.Client(),
 	}
 }
 

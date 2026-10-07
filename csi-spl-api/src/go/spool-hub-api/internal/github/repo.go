@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -112,14 +113,19 @@ func (c *Client) Blob(ctx context.Context, sha string) ([]byte, error) {
 
 // Commit writes content to path on top of parent and moves the branch to
 // the new commit, fast-forward only: blob -> tree -> commit -> PATCH ref
-// force:false. The committer is the App (GitHub sets it for an installation
-// token); author is the editor. A branch that moved past parent answers 422,
+// force:false. The author is the editor, the committer the App's bot
+// (Committer), sent explicitly: GitHub copies a lone author into the
+// committer even under an installation token. A branch that moved past parent answers 422,
 // returned as ErrRefMoved and leaving the branch untouched.
 //
 // Each call decodes into its own answer type: a commit's "tree" is an
 // object, the POST /git/trees answer's "tree" is an array of entries, so
 // one shared type fails every real push at the tree step (spec 075).
 func (c *Client) Commit(ctx context.Context, path string, content []byte, author Identity, message, parent string) (string, error) {
+	bot, err := c.Committer(ctx)
+	if err != nil {
+		return "", err
+	}
 	var blob, tree, commit shaAnswer
 	var parentCommit commitAnswer
 	in := map[string]string{"content": base64.StdEncoding.EncodeToString(content), "encoding": "base64"}
@@ -135,9 +141,11 @@ func (c *Client) Commit(ctx context.Context, path string, content []byte, author
 	if err := c.call(ctx, "tree", http.MethodPost, c.repoPath("/git/trees"), treeIn, &tree); err != nil {
 		return "", err
 	}
-	commitIn := map[string]any{"message": message, "tree": tree.SHA, "parents": []string{parent}, "author": map[string]string{
-		"name": author.Name, "email": author.Email, "date": c.now().UTC().Format(time.RFC3339),
-	}}
+	date := c.now().UTC().Format(time.RFC3339)
+	commitIn := map[string]any{"message": message, "tree": tree.SHA, "parents": []string{parent},
+		"author":    map[string]string{"name": author.Name, "email": author.Email, "date": date},
+		"committer": map[string]string{"name": bot.Name, "email": bot.Email, "date": date},
+	}
 	if err := c.call(ctx, "commit", http.MethodPost, c.repoPath("/git/commits"), commitIn, &commit); err != nil {
 		return "", err
 	}
@@ -145,6 +153,53 @@ func (c *Client) Commit(ctx context.Context, path string, content []byte, author
 		return "", err
 	}
 	return commit.SHA, nil
+}
+
+// Committer is the App's bot identity, read once from GitHub and cached:
+// `<app-slug>[bot]` and `<bot-user-id>+<app-slug>[bot]@<noreply>`, the
+// address GitHub links to the bot (spec 075 repo-edit §4.4). The slug comes
+// from GET /app (App JWT), the user id from GET /users/<slug>[bot].
+func (c *Client) Committer(ctx context.Context) (Identity, error) {
+	c.botMu.Lock()
+	defer c.botMu.Unlock()
+	if c.bot.Name != "" {
+		return c.bot, nil
+	}
+	jwt, err := c.appJWT()
+	if err != nil {
+		return Identity{}, err
+	}
+	var app struct {
+		Slug string `json:"slug"`
+	}
+	if err := c.do(ctx, "app", http.MethodGet, "/app", "Bearer "+jwt, nil, &app); err != nil {
+		return Identity{}, err
+	}
+	if app.Slug == "" {
+		return Identity{}, &APIError{Op: "app", Status: http.StatusBadGateway, Message: "empty app slug"}
+	}
+	login := app.Slug + "[bot]"
+	var user struct {
+		ID int64 `json:"id"`
+	}
+	if err := c.call(ctx, "user", http.MethodGet, "/users/"+url.PathEscape(login), nil, &user); err != nil {
+		return Identity{}, err
+	}
+	if user.ID == 0 {
+		return Identity{}, &APIError{Op: "user", Status: http.StatusBadGateway, Message: "no user id for " + login}
+	}
+	c.bot = Identity{Name: login, Email: fmt.Sprintf("%d+%s@%s", user.ID, login, c.noreply)}
+	return c.bot, nil
+}
+
+// noreplyDomain is GitHub's users.noreply domain for an API base: the
+// api.<host> of GitHub.com, or the host of an Enterprise /api/v3 base.
+func noreplyDomain(api string) string {
+	host := api
+	if u, err := url.Parse(api); err == nil && u.Hostname() != "" {
+		host = u.Hostname()
+	}
+	return "users.noreply." + strings.TrimPrefix(host, "api.")
 }
 
 // shaAnswer is the part of the blob, tree and commit create answers the

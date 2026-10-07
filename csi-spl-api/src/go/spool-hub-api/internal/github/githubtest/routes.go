@@ -18,6 +18,8 @@ const repoPrefix = "/repos/" + Owner + "/" + Repo
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /app/installations/{id}/access_tokens", s.accessToken)
+	mux.HandleFunc("GET /app", s.getApp)
+	mux.HandleFunc("GET /users/{login}", s.authed(s.getUser))
 	mux.HandleFunc("GET "+repoPrefix+"/git/ref/heads/{branch}", s.authed(s.getRef))
 	mux.HandleFunc("PATCH "+repoPrefix+"/git/refs/heads/{branch}", s.authed(s.patchRef))
 	mux.HandleFunc("GET "+repoPrefix+"/contents/{path...}", s.authed(s.getContents))
@@ -83,6 +85,25 @@ func (s *Server) accessToken(w http.ResponseWriter, r *http.Request) {
 	wire.WriteJSON(w, http.StatusCreated, map[string]any{
 		"token": s.newToken(), "expires_at": s.now().Add(time.Hour).UTC().Format(time.RFC3339),
 	})
+}
+
+// getApp answers the App itself (App JWT): its id and slug.
+func (s *Server) getApp(w http.ResponseWriter, r *http.Request) {
+	jwt, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok || !s.validJWT(jwt) {
+		ghError(w, http.StatusUnauthorized, "A JSON web token could not be decoded")
+		return
+	}
+	wire.WriteJSON(w, http.StatusOK, map[string]any{"id": 4242, "slug": BotSlug})
+}
+
+// getUser answers the App's bot account; any other login is 404.
+func (s *Server) getUser(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("login") != BotName {
+		ghError(w, http.StatusNotFound, "Not Found")
+		return
+	}
+	wire.WriteJSON(w, http.StatusOK, map[string]any{"login": BotName, "id": BotUserID, "type": "Bot"})
 }
 
 // validJWT checks the RS256 signature against the App key, iss and exp.

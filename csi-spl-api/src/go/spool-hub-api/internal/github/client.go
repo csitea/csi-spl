@@ -28,7 +28,8 @@ const TokenTTL = 50 * time.Minute
 
 // Config names the App, the repo and the branch. API is cnf
 // env.docs.repo_edit.github_api (a fake in every test); Key is the PEM the
-// hub reads from SPOOL_GITHUB_APP_KEY.
+// hub reads from SPOOL_GITHUB_APP_KEY. Noreply is the domain of the bot's
+// committer address; "" derives it from API (users.noreply.<host>).
 type Config struct {
 	API            string
 	AppID          string
@@ -36,6 +37,7 @@ type Config struct {
 	Owner, Repo    string
 	Branch         string
 	Key            []byte
+	Noreply        string
 	HTTP           *http.Client
 	Log            zerolog.Logger
 	Now            func() time.Time
@@ -43,7 +45,7 @@ type Config struct {
 
 // Client is safe for concurrent use.
 type Client struct {
-	api, appID, inst, owner, repo, branch string
+	api, appID, inst, owner, repo, branch, noreply string
 
 	key  *rsa.PrivateKey
 	http *http.Client
@@ -53,6 +55,9 @@ type Client struct {
 	mu       sync.Mutex
 	token    string
 	tokenExp time.Time
+
+	botMu sync.Mutex
+	bot   Identity
 }
 
 // New parses the key once; the error never quotes it.
@@ -66,8 +71,11 @@ func New(cfg Config) (*Client, error) {
 	}
 	c := &Client{
 		api: strings.TrimRight(cfg.API, "/"), appID: cfg.AppID, inst: cfg.InstallationID,
-		owner: cfg.Owner, repo: cfg.Repo, branch: cfg.Branch,
+		owner: cfg.Owner, repo: cfg.Repo, branch: cfg.Branch, noreply: cfg.Noreply,
 		key: key, http: cfg.HTTP, log: cfg.Log, now: cfg.Now,
+	}
+	if c.noreply == "" {
+		c.noreply = noreplyDomain(c.api)
 	}
 	if c.branch == "" {
 		c.branch = "master"

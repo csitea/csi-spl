@@ -85,6 +85,7 @@ Inventory of every view in the application, mapping what Panels 0..3 hold and wh
 | **Tenant Settings**<br>`/tenant-settings/:id` | Icon rail | Tenant sections nav (`.settings-nav`: General, Members, etc.) | Tenant management view (`.settings-content`: tables, inputs) | Empty / Detail pane | **Today**: F6 stops; Tab. **Gap**: No `j/k` in tenant section nav; no `h/l` between sections and main content. |
 | **Docs**<br>`/docs`, `/docs/:path*` | Icon rail (`docsRailOnly`) | Repo folder tree (`.docs-tree`: `DocsWorkspaceTree`) | Markdown reader (`.feed-body`: `MarkdownBlock`) | Editor drawer / Conflict view (when active) | **Today**: Click / Enter expands folders; tree scrolling. **Gap**: No `j/k` walking tree nodes; no `h/l` stepping from tree to document body. |
 | **Help**<br>`/help`, `/help/:page` | Icon rail (`helpRailOnly`) | Help topics nav (`.help-nav`: links list) | Help document body (`.help-content`: `MarkdownBlock`) | Empty / None | **Today**: Click navigation. **Gap**: No `j/k` walking help pages; no `h/l` moving between navigation and document text. |
+| **Release Notes**<br>(Dialog: `/releases/:ref`, footer button) | Icon rail (behind dialog) | Version table (`ReleaseNotesDialog`: 30 latest changes) | Selected change note card (`rn-note`: plain & tech details) | Empty / None | **Existing dialog vim layer** (t1 `ee8cd6f2`, msg `b239b03d`, lane c-502): `j`/`k` walks version rows, `Enter` opens note card, `h`/`l` walks older/newer versions inside note card, `Esc` returns to table, 2nd `Esc` closes dialog. Spec 103 stays consistent with this dialog-level model. |
 
 ---
 
@@ -202,9 +203,10 @@ No per-view or per-component duplicate listeners.
 
 ### 6.4 Overlay & Dialog Suspension
 - When an overlay matching `[role="dialog"][aria-modal="true"], dialog[open], .point-menu, .kind-picker, .command-palette` is open:
-  - Vim navigation single-key listeners are completely suspended.
+  - Global vim navigation single-key listeners are suspended.
   - Key events bubble normally to the dialog or menu.
   - When the dialog closes, focus returns to the saved panel element without state loss.
+  - **Dialog-level Vim Consistency**: For dialogs with internal list/card navigation (such as `ReleaseNotesDialog.vue`, t1 `ee8cd6f2`, msg `b239b03d`, lane c-502), the dialog defines its own scoped vim handler (`j`/`k` walks version rows, `Enter` opens note, `h`/`l` walks older/newer versions, `Esc` returns). The global layer cleanly yields to the dialog layer, ensuring consistent muscle memory inside and outside overlays.
 
 ### 6.5 Lazy Loading Budget (155 KB Initial Chunk Constraint)
 - The global layout (`default.vue`) contains only a lightweight lazy trigger hook.

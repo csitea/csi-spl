@@ -28,8 +28,15 @@
  *
  * The hub answers only what the reader may read (POST /v1/view/previews);
  * anything else stays a plain link.
+ *
+ * A release note (/releases/<sha or vX.Y.Z>, of any env of this spool:
+ * release-link.mjs) is an object too (owner, t1 a1bce52e: "it should have a
+ * small preview if the data is fetched internally"). Its id is
+ * `release:<ref>` (RELEASE_ID_PREFIX); the card comes from the release
+ * notes API, not the previews batch (LinkPreviews.vue).
  */
 import { classifyHref } from './link-target.mjs'
+import { releaseRefOfPath } from './release-link.mjs'
 
 /** The most cards one message shows. */
 export const PREVIEWS_PER_BODY = 3
@@ -54,11 +61,15 @@ const PATH_RE = new RegExp(`^(?:/[a-z]{2}(?:-[a-z]{2})?)?/(t|m)/(${UUID})/?$`, '
 const SCAN_RE = /```[\s\S]*?(?:```|$)|`[^`\n]+`|\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)|(https?:\/\/[^\s<>()[\]]+)/gi
 const TRAIL_RE = /[.,;:!?'"*_]+$/
 
+/** The id prefix of a release-note ref: `release:<sha or vX.Y.Z>`. */
+export const RELEASE_ID_PREFIX = 'release:'
+
 /**
  * The object one href names, or null.
  * @param {string} href
  * @param {string} pageOrigin window.location.origin
- * @returns {string | null} the topic or message uuid, lower case
+ * @returns {string | null} the topic or message uuid, lower case, or
+ *   `release:<ref>` for a release note
  */
 export function previewTarget(href, pageOrigin) {
   const origin = String(pageOrigin || '')
@@ -74,6 +85,8 @@ export function previewTarget(href, pageOrigin) {
   if (u.origin !== origin) return null
   const hash = decodeURIComponent(u.hash.slice(1))
   const msg = UUID_RE.test(hash) ? hash : ''
+  const release = releaseRefOfPath(u.pathname)
+  if (release) return RELEASE_ID_PREFIX + release
   const m = PATH_RE.exec(u.pathname)
   if (m) return (m[1].toLowerCase() === 't' && msg ? msg : m[2]).toLowerCase()
   const topic = u.searchParams.get('topic') || ''

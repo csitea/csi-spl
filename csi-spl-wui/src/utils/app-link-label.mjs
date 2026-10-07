@@ -138,7 +138,9 @@ function objectOf(u) {
   if (one) {
     const id = cleanId(one[2], false)
     const type = ONE[one[1].toLowerCase()]
-    return id && type ? { type, id } : null
+    /* a release sha reads as 8 hex, like a topic; v<X.Y.Z> stays whole */
+    const shown = type === 'release' && /^[0-9a-f]{9,40}$/i.test(id) ? id.slice(0, 8).toLowerCase() : id
+    return id && type ? { type, id: shown } : null
   }
   const docs = /^\/docs\/(.+)$/i.exec(rest)
   if (docs) {

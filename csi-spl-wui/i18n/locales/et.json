@@ -1887,7 +1887,8 @@
   },
   "link_preview": {
     "topic": "Teema",
-    "message": "Sõnum"
+    "message": "Sõnum",
+    "release": "Väljalase"
   },
   "operator": {
     "title": "Tööruumid",

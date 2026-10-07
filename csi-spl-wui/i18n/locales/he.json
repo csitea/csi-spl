@@ -1887,7 +1887,8 @@
   },
   "link_preview": {
     "topic": "נושא",
-    "message": "הודעה"
+    "message": "הודעה",
+    "release": "גרסה"
   },
   "operator": {
     "title": "סביבות עבודה",

@@ -1887,7 +1887,8 @@
   },
   "link_preview": {
     "topic": "Subiect",
-    "message": "Mesaj"
+    "message": "Mesaj",
+    "release": "Versiune"
   },
   "operator": {
     "title": "Spații de lucru",

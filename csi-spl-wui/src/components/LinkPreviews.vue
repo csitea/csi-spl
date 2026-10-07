@@ -7,7 +7,8 @@
      "Link previews" setting is on and the body holds such a link. The cards
      come from the hub as the reader (POST /v1/view/previews, one batch for
      every body on screen); an object the reader may not read has no card,
-     so its link stays a plain link. -->
+     so its link stays a plain link. A release-note link (`release:<ref>`,
+     owner t1 a1bce52e) gets its card from the release notes API instead. -->
 <template>
   <div v-if="cards.length" class="link-previews" data-test="link-previews">
     <a
@@ -26,10 +27,11 @@
       @dblclick.stop
       @keydown.enter.stop
     >
-      <span class="link-preview__kind">{{ t(c.kind === 'topic' ? 'link_preview.topic' : 'link_preview.message') }}<template v-if="c.archived"> · {{ t('archive.badge') }}</template></span>
+      <span class="link-preview__kind">{{ t(kindKey(c.kind)) }}<template v-if="c.archived"> · {{ t('archive.badge') }}</template></span>
       <span class="link-preview__title" data-test="link-preview-title">{{ c.title || '…' }}</span>
       <span v-if="c.excerpt" class="link-preview__excerpt" data-test="link-preview-excerpt">{{ c.excerpt }}</span>
       <span class="link-preview__meta">
+        <span v-if="c.meta" class="link-preview__from" data-test="link-preview-meta">{{ c.meta }}</span>
         <span v-if="c.from" class="link-preview__from">{{ shownPerson(c.from, '', people.names.value) }}</span>
         <time v-if="c.ts" class="link-preview__ts" :datetime="c.ts" :title="formatIsoTs(c.ts)">{{ formatMsgListTs(c.ts) }}</time>
       </span>
@@ -40,6 +42,8 @@
 <script lang="ts">
 import { ref } from 'vue'
 import { createPreviewLookup } from '~/utils/link-preview-lookup.mjs'
+import { RELEASE_ID_PREFIX } from '~/utils/link-preview.mjs'
+import { releaseNotesGet, releasePreviews } from '~/utils/release-notes-api.mjs'
 
 /* one lookup per tab: every body on screen shares its batches and its cache */
 const version = ref(0)
@@ -52,7 +56,7 @@ import { linkOpen, messageLinkClick, messageLinkPointerCancel, messageLinkPointe
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
-type Card = { id: string, href: string, kind: string, title: string, excerpt: string, from: string, ts: string, archived: boolean }
+type Card = { id: string, href: string, kind: string, title: string, excerpt: string, from: string, ts: string, meta: string, archived: boolean }
 /* previewLinks is a lazy client method (spool-client-lazy.mjs, view-v1 section 4.7) */
 type PreviewApi = { previewLinks(ids: string[]): Promise<unknown> }
 
@@ -61,10 +65,29 @@ const { t } = useI18n({ useScope: 'global' })
 const people = useHumanNames()
 const router = useRouter()
 const api = useSpoolApi() as unknown as PreviewApi
+const running = String(useRuntimeConfig().public.appVersion || '').trim()
+
+/* topics and messages: one hub batch; release notes: the release notes API */
+async function fetchPreviews(ids: string[]) {
+  const releases = ids.filter((id) => id.startsWith(RELEASE_ID_PREFIX))
+  const objects = ids.filter((id) => !id.startsWith(RELEASE_ID_PREFIX))
+  const [a, b] = await Promise.all([
+    objects.length ? api.previewLinks(objects).catch(() => null) : null,
+    releases.length ? releasePreviews(releases, (path) => releaseNotesGet(api, path, running)) : null,
+  ])
+  const rows = (x: unknown) => (x && Array.isArray((x as { previews?: unknown }).previews) ? (x as { previews: unknown[] }).previews : [])
+  return { previews: [...rows(a), ...rows(b)] }
+}
+
+function kindKey(kind: string) {
+  if (kind === 'topic') return 'link_preview.topic'
+  if (kind === 'release') return 'link_preview.release'
+  return 'link_preview.message'
+}
 
 if (!lookup) {
   lookup = createPreviewLookup({
-    fetchPreviews: (ids) => api.previewLinks(ids),
+    fetchPreviews,
     onChange: () => { version.value += 1 },
   })
 }
@@ -88,6 +111,7 @@ const cards = computed<Card[]>(() => {
       excerpt: String(h.excerpt || ''),
       from: String(h.from || ''),
       ts: String(h.ts || ''),
+      meta: String(h.meta || ''),
       archived: h.archived === true,
     })
   }

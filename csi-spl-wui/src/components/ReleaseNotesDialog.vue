@@ -22,7 +22,7 @@
      A version is keyed by its release key, the full tag (after 9.9.9 the
      mint starts over at 1.0.1 as v1.0.1-c2, owner t1 1c5b6d53), and shown
      plain (`display`, v1.0.1: "version is just a number", t1 e82eea7c).
-     The mock tenant answers from a generated list (mockReleaseNotes). -->
+     The mock tenant answers from a generated list (release-notes-api.mjs). -->
 <template>
   <UiDialog :open="open" :title="t('release_notes.title')" size="xl" @update:open="onOpen">
     <div class="rn" data-test="release-notes">
@@ -135,6 +135,7 @@ import { useCopyText } from '~/composables/useCopyText'
 import { useBuildWatch } from '~/composables/useBuildWatch'
 import { isNewer } from '~/utils/build-watch.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
+import { releaseNotesGet } from '~/utils/release-notes-api.mjs'
 
 interface ReleaseNote {
   sha: string
@@ -224,13 +225,8 @@ const latest = computed(() => {
   return out
 })
 
-async function hubGet(path: string): Promise<unknown> {
-  if (api.mock) return mockReleaseNotes(path, running.value)
-  const headers: Record<string, string> = { accept: 'application/json' }
-  if (api.token) headers.authorization = `Bearer ${api.token}`
-  const r = await fetch(`${api.base}${path}`, { credentials: api.credentials, headers })
-  if (!r.ok) throw Object.assign(new Error(`release notes ${r.status}`), { status: r.status })
-  return r.json()
+function hubGet(path: string): Promise<unknown> {
+  return releaseNotesGet(api, path, running.value)
 }
 
 async function loadLatest() {
@@ -278,65 +274,8 @@ async function openRef(raw: string) {
   }
 }
 
-/* The mock tenant's release notes: 70 versions, two commits each, every
-   state; the running version is the newest. Kept here so the dialog stays
-   one file; it only runs on a mock build. */
-const MOCK_VERSIONS = 70
-const MOCK_STATES = ['ok', 'backfill', 'missing', 'ok', 'skip', 'revert']
-const MOCK_KINDS = ['feat', 'fix', 'perf', 'docs']
-const MOCK_AREAS = ['wui', 'hub', 'orc', 'iac']
-function mockNote(j: number, version: string): ReleaseNote {
-  const state = MOCK_STATES[j % MOCK_STATES.length] as string
-  const area = MOCK_AREAS[j % MOCK_AREAS.length] as string
-  const full = state === 'ok' || state === 'backfill'
-  return {
-    sha: (j + 1).toString(16).padStart(8, '0').repeat(5),
-    version,
-    kind: MOCK_KINDS[j % MOCK_KINDS.length],
-    area,
-    subject: `mock change ${j + 1}: the ${area} does a thing better`,
-    lay_what: state === 'missing' ? '' : `Change number ${j + 1} makes something easier to use.`,
-    lay_how: full ? 'The app now does the step for you.' : '',
-    lay_why: state === 'missing' ? '' : 'You had to do it by hand before.',
-    tech_what: full ? `Mock module ${j + 1} handles the case.` : '',
-    tech_how: full ? 'One function call replaces three.' : '',
-    tech_why: full ? 'The old path skipped the check.' : '',
-    state,
-    link: '',
-    seq: MOCK_VERSIONS * 2 - j,
-  }
-}
-function mockVersions(top: string): ReleaseVersion[] {
-  const out: ReleaseVersion[] = []
-  for (let i = 0; i < MOCK_VERSIONS; i++) {
-    const version = i === 0 && VERSION_RE.test(top) ? top : `v0.1.${MOCK_VERSIONS - i}`
-    out.push({ version, notes: [mockNote(i * 2, version), mockNote(i * 2 + 1, version)] })
-  }
-  return out
-}
-function mockReleaseNotes(path: string, top: string): unknown {
-  const rows = mockVersions(top)
-  const u = new URL(path, 'http://mock.invalid')
-  const want = decodeURIComponent(u.pathname.replace(/^\/v1\/release-notes\/?/, ''))
-  if (!want) {
-    const before = u.searchParams.get('before') || ''
-    const limit = Number(u.searchParams.get('limit')) || LATEST
-    const from = before ? rows.findIndex((v) => v.version === before) + 1 : 0
-    const page = rows.slice(from, from + limit)
-    return { versions: page, next_before: from + limit < rows.length ? page[page.length - 1]?.version || '' : '' }
-  }
-  if (VERSION_RE.test(want)) {
-    const v = rows.find((x) => x.version === want)
-    if (v) return v
-  } else {
-    const hits = rows.flatMap((v) => v.notes).filter((n) => n.sha.startsWith(want))
-    if (hits.length === 1) return { note: hits[0] }
-  }
-  throw Object.assign(new Error('not found'), { status: 404 })
-}
-
 /* last: the immediate watch runs start() during setup, so everything it
-   reaches (the mock's constants too) must be initialised above it */
+   reaches must be initialised above it */
 let started = false
 async function start() {
   if (started) return

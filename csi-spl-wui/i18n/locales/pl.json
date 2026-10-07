@@ -1887,7 +1887,8 @@
   },
   "link_preview": {
     "topic": "Temat",
-    "message": "Wiadomość"
+    "message": "Wiadomość",
+    "release": "Wydanie"
   },
   "operator": {
     "title": "Obszary robocze",

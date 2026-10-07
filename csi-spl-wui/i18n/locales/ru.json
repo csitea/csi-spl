@@ -1887,7 +1887,8 @@
   },
   "link_preview": {
     "topic": "Тема",
-    "message": "Сообщение"
+    "message": "Сообщение",
+    "release": "Релиз"
   },
   "operator": {
     "title": "Рабочие пространства",

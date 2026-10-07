@@ -14,6 +14,9 @@
  * http link is forced to https, so www.<fqdn>, www.<tenant>.<fqdn> and an
  * http link to a product host are internal AND their href is REWRITTEN to the
  * canonical https apex/tenant origin, so they load even before any www record.
+ * A release note of any env of this spool (release-link.mjs) is internal
+ * too, and its href is REWRITTEN to this page's own /releases/<ref>: dev,
+ * prd and every tenant host show the same note, so it opens in this tab.
  * External: every other http(s) URL, and mailto. A new tab, with
  * rel="noopener noreferrer nofollow". The other env is external: the dev
  * origin viewed from production differs, and the reverse, and "dev" is no
@@ -40,6 +43,7 @@
  */
 
 import { isTenantHostOf } from './tenant-host-core.mjs'
+import { localReleasePath } from './release-link.mjs'
 import { navigateAndJump } from './msg-jump.mjs'
 
 export const NEW_TAB_REL = 'noopener noreferrer nofollow'
@@ -135,6 +139,9 @@ export function classifyHref(raw, pageOrigin, site = linkSite) {
     if (u.protocol === 'mailto:') return { href: u.href, internal: false }
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null
     const origin = originOf(pageOrigin)
+    /* a release note of any env of this spool is this page's /releases/<ref> */
+    const release = origin !== '' ? localReleasePath(u, origin, site) : null
+    if (release) return { href: release, internal: true }
     if (origin !== '' && u.origin === origin) return { href: u.href, internal: true }
     if (origin !== '' && isTenantHostOf(origin, site)) {
       const canon = productHttpsUrl(u, site)

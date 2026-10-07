@@ -71,7 +71,9 @@ the watchdog reads your exit as finished, never as a crash to restart.
 
 With `--rebirth` (the 1 h rebirth, specs/102): land what is green, write your
 notes, then mark the rebirth instead of closing. The window stays open, the id
-is not retired, and the watchdog restarts you with your handoff.
+is not retired, and the watchdog restarts you with your handoff. Run it from
+your own pane, never under an outer `sudo`: a detached closer then types
+`/exit` into that pane once you sit idle at an empty prompt (any harness).
 
 ```bash
 bash {{HARNESS_DIR}}/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --rebirth

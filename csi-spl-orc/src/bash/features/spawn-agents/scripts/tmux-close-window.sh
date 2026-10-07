@@ -61,7 +61,7 @@
 # Usage:
 #   tmux-close-window.sh --agent CLE-07 --defer     # the teardown path
 #   tmux-close-window.sh --agent c-007 --defer --retire  # /exit-clean: then retire the id
-#   tmux-close-window.sh --agent c-007 --rebirth  # /exit-clean --rebirth: marker only
+#   tmux-close-window.sh --agent c-007 --rebirth  # /exit-clean --rebirth: marker + /exit when idle
 #   tmux-close-window.sh --agent CLE-07             # close it now
 #   tmux-close-window.sh --pane %123 --defer
 #   tmux-close-window.sh main:5                     # explicit target, now
@@ -86,12 +86,15 @@ _sp_lib="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib" && pwd)/s
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_sp_lib" || { echo "tmux-close-window: cannot load $_sp_lib" >&2; exit 2; }
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
+# classify_screen (the idle test of the --rebirth closer).
+# shellcheck source=../lib/agent-state.inc.sh
+. "$(dirname "$_sp_lib")/agent-state.inc.sh" || { echo "tmux-close-window: cannot load agent-state.inc.sh" >&2; exit 2; }
 BOX_USER="$SPOOL_BOX_USER" BOX_TMUX_SOCKET="$SPOOL_TMUX_SOCKET" BOX_TAG="${SPOOL_BOX_TAG:-}"
 DEFER=0
 RETIRE=0
 REBIRTH=0
 DRY_RUN=0
-TIMEOUT=180
+TIMEOUT=""
 TARGET_ARG=""
 PANE_ARG=""
 AGENT_ARG=""
@@ -123,11 +126,14 @@ Options:
                      registry rows and identity record move aside, so the
                      allocator may reuse the number after the quarantine.
   --rebirth          /exit-clean --rebirth (specs/102 4.3): write
-                     <spool root>/<id>/lifetime/rebirth and exit 0; nothing is
-                     closed or retired, the watchdog restarts the id. A plain
+                     <spool root>/<id>/lifetime/rebirth, then a detached closer
+                     types /exit into the caller's own pane once the harness is
+                     idle at an empty prompt (any harness; default timeout
+                     900 s); nothing is closed or retired, the watchdog
+                     restarts the id. A plain
                      --defer with --agent writes lifetime/done instead (not for
                      a role id), before the agent exits.
-  --timeout SECONDS  Max wait in --defer mode (default: 180)
+  --timeout SECONDS  Max wait in --defer mode (default: 180; --rebirth: 900)
   --dry-run          Print the resolution and exit; never kills anything.
   --help             Show this help
 
@@ -183,6 +189,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$TIMEOUT" && "$REBIRTH" -eq 1 ]]; then TIMEOUT=900; elif [[ -z "$TIMEOUT" ]]; then TIMEOUT=180; fi
 if [[ "$HELP" -eq 1 ]]; then
   usage
   exit 0
@@ -512,9 +519,10 @@ mark_lifetime() {
 }
 if [[ "$REBIRTH" -eq 1 ]]; then
   [[ -n "$AGENT_ID" ]] || { echo "tmux-close-window: --rebirth needs --agent; wrote nothing" >&2; exit 2; }
-  mark_lifetime rebirth
-  rm -f "${SPOOL_ROOT}/${AGENT_ID}/lifetime/done"
-  exit 0
+  if [[ -z "${TCW_DETACHED:-}" ]]; then
+    mark_lifetime rebirth
+    rm -f "${SPOOL_ROOT}/${AGENT_ID}/lifetime/done"
+  fi
 fi
 if [[ "$DEFER" -eq 1 && -n "$AGENT_ID" && -z "${TCW_DETACHED:-}" ]]; then
   case "${AGENT_ID#*-}" in 1|01|001|2|02|002|3|03|003) ;; *) mark_lifetime "done" ;; esac
@@ -608,6 +616,72 @@ retire_agent() {
   bash "$(dirname "$_sp_lib")/../scripts/agent-id-retire.sh" --apply "$AGENT_ID" \
     || echo "tmux-close-window: retire of ${AGENT_ID} failed (rc $?); its number stays held" >&2
 }
+
+# --- --rebirth: end the session, keep the window (specs/102 4.3) ----------
+# Nobody else types /exit after /exit-clean --rebirth (the rotation's RETIRE
+# does only for a 060 rotation), so a reborn-marked session ran on to its 2 h
+# hard end. A detached closer (as for --defer) waits until the harness sits
+# idle at an empty prompt and types /exit, for every harness; then the
+# watchdog's S3 reads the rebirth marker and restarts the id. It never closes
+# the window and never retires. It types only into a pane proven to be the
+# caller's own (--pane, or the caller's live pane): an id alone may name a
+# newer seat (see the --defer guard above).
+# Idle: no turn running (classify_screen: no `esc to interrupt` / `Esc:cancel`
+# / live spinner, no dialog; agy: no `esc to cancel`), an EMPTY prompt line
+# (`>` / `❯` / `›`, nothing typed after it), the screen unchanged for 3 polls.
+rebirth_idle_screen() {
+  # The finished-turn line ("✻ Crunched for 4s · done 12.34") dropped, NBSP read as space.
+  "${TM[@]}" capture-pane -p -t "$1" 2>/dev/null | sed 's/\xc2\xa0/ /g' |
+    grep -vE '^[^[:alnum:][:space:]]+ [[:upper:]][^ ]* for [0-9]+(m|s)' || true
+}
+rebirth_screen_idle() {
+  local scr="$1"
+  [[ -n "$scr" ]] || return 1
+  [[ "$(classify_screen "$scr")" == idle ]] || return 1
+  printf '%s\n' "$scr" | grep -F 'esc to cancel' >/dev/null && return 1
+  printf '%s\n' "$scr" | grep -E '^[[:space:]│|]*(>|❯|›)[[:space:]]*[│|]?[[:space:]]*$' >/dev/null
+}
+rebirth_closer() {
+  local log="${TCW_LOG:-${CLOSE_LOG_DIR:-/tmp}/rebirth-exit-$$.log}" pids=() p last="" same=0 tries=0 next=0 deadline scr alive
+  if [[ -z "$PANE_ARG" ]] && ! [[ -n "$_caller" && "$_caller" == "$PANE" ]]; then
+    echo "tmux-close-window: --rebirth: no proven own pane (\$TMUX_PANE / \$CLE_TMUX_PANE ... or --pane); marker only, nothing typed"
+    return 0
+  fi
+  if [[ -z "${TCW_DETACHED:-}" ]]; then
+    if TCW_DETACHED=1 TCW_LOG="$log" TCW_READY="$log.ready" setsid -f bash "$TCW_SELF" "${TCW_ARGS[@]}" </dev/null >>"$log" 2>&1; then
+      for _ in $(seq 1 50); do [[ -e "$log.ready" ]] && break; sleep 0.1; done
+      rm -f "$log.ready"
+      echo "tmux-close-window: scheduled rebirth /exit into $PANE ('${WINDOW_NAME}') once idle (log=$log timeout=${TIMEOUT}s); the window stays"
+    else
+      echo "tmux-close-window: --rebirth: setsid failed; nothing typed" >&2
+    fi
+    return 0
+  fi
+  while read -r p; do [[ -n "$p" ]] && pids+=("$p"); done < <(collect_agent_pids_for_pane "$PANE")
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) rebirth closer start pane=$PANE name='${WINDOW_NAME}' timeout=${TIMEOUT}s pids=${pids[*]:-none}"
+  (( ${#pids[@]} > 0 )) || { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) no agent in the pane; nothing to end"; return 0; }
+  deadline=$((SECONDS + TIMEOUT))
+  while (( SECONDS < deadline )); do
+    alive=0
+    for p in "${pids[@]}"; do pid_alive "$p" && { alive=1; break; }; done
+    (( alive )) || { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) agent gone; the window stays for the watchdog's restart"; return 0; }
+    pane_exists "$PANE" || { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) pane $PANE gone"; return 0; }
+    if (( tries < 3 && SECONDS >= next )); then
+      scr="$(rebirth_idle_screen "$PANE")"
+      if [[ "$scr" == "$last" ]]; then same=$((same + 1)); else same=0; last="$scr"; fi
+      if (( same >= 3 )) && rebirth_screen_idle "$scr"; then
+        tries=$((tries + 1)) same=0 next=$((SECONDS + 10))
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) idle at an empty prompt: typing /exit (try $tries)"
+        "${TM[@]}" send-keys -t "$PANE" -l '/exit' 2>/dev/null
+        sleep 1
+        "${TM[@]}" send-keys -t "$PANE" Enter 2>/dev/null
+      fi
+    fi
+    sleep 0.5
+  done
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) timeout: the agent never read idle; left to the hard end"
+}
+if [[ "$REBIRTH" -eq 1 ]]; then rebirth_closer; exit 0; fi
 
 # --- immediate mode --------------------------------------------------------
 if [[ "$DEFER" -eq 0 ]]; then

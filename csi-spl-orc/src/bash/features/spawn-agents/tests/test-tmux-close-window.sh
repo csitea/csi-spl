@@ -37,6 +37,11 @@
 #      (an outer sudo) while a NEWER c-002 window exists is refused and closes
 #      nothing, nor does a stale caller pane; --pane still works. Control: the
 #      script with that guard spliced out kills the fresh c-002
+#  13. specs/102 4.3 (T008 gap): --rebirth from the caller's own pane forks a
+#      detached closer that types /exit ONCE into a harness idle at an empty
+#      prompt (a claude-like `❯` screen here), then leaves: the window and the
+#      registry row stay. Controls: a busy pane gets nothing; the script with
+#      the fork spliced out (the old marker-only --rebirth) types nothing
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -241,4 +246,51 @@ has "12. control: the old code resolves --agent c-002 to the fresh seat" "pane=$
 bash "$T_TMP/pre/scripts/tmux-close-window.sh" --agent c-002 --defer --timeout 2 >"$T_TMP/o" 2>&1; eq "12. control: the old code schedules the close (0)" 0 "$?"
 check "12. control: the old code kills the FRESH c-002" wait_gone "$NEW12" 20
 check "12. control: ... and leaves the retiring window open" alive "$OLD12B"
+
+# --- 13. --rebirth ends the session: /exit typed once when idle, window kept --------------
+cat >"$T_TMP/bin/claude-fake" <<'FAKECLAUDE'
+#!/usr/bin/env bash
+# fake claude: an idle screen with an empty `❯` prompt (NBSP after it, as the
+# real one), reads lines into $1, leaves on /exit; $2=busy keeps a running turn
+if [ "${2:-}" = busy ]; then n=0; while :; do n=$((n + 1)); printf '✶ Working… (%ss · ↓ 9 tokens)\n────\n❯ \n────\n  esc to interrupt\n' "$n"; sleep 0.2; done; fi
+printf '%s\n' '✻ Cogitated for 3s · done 1.00' '────' $'❯ ' '────' '  ⏵⏵ bypass permissions on (shift+tab to cycle)'
+while IFS= read -r line; do
+  printf '%s\n' "$line" >>"$1"
+  [ "$line" = /exit ] && { echo CLAUDE-EXITED >>"$1"; exit 0; }
+done
+sleep 600
+FAKECLAUDE
+chmod +x "$T_TMP/bin/claude-fake"
+cat >"$T_TMP/bin/claude-pane" <<'FAKEPANE'
+#!/bin/sh
+bash -c 'exec -a claude bash "$0" "$1" "$2"' "$1" "$2" "${3:-}"
+sleep 600
+FAKEPANE
+P13="$(t_window 'c-415@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-415")"
+printf 'c-415\tclaude\t%s\t/x\t20261007T130000Z\n' "$P13" >>"$SPOOL_ROOT/registry.tsv"
+sleep 1
+in_agy_session env CLE_TMUX_PANE="$P13" bash "$SUT" --agent c-415 --rebirth --timeout 60
+check "13. --rebirth writes lifetime/rebirth" test -s "$SPOOL_ROOT/c-415/lifetime/rebirth"
+got_exit() { for _ in $(seq 1 "$2"); do grep -q CLAUDE-EXITED "$1" 2>/dev/null && return 0; sleep 0.5; done; return 1; }
+check "13. the idle harness gets /exit typed and leaves" got_exit "$T_TMP/got-415" 40
+sleep 3
+eq "13. ... /exit was typed exactly once" 1 "$(grep -cx /exit "$T_TMP/got-415" 2>/dev/null)"
+check "13. the window stays (the watchdog restarts the id in it)" alive "$P13"
+check "13. the registry row stays (nothing retired)" grep -q "^c-415	claude	$P13	" "$SPOOL_ROOT/registry.tsv"
+has "13. the log names the /exit it typed" "typing /exit (try 1)" "$(cat "$CLOSE_LOG_DIR"/rebirth-exit-*.log 2>/dev/null)"
+P13B="$(t_window 'c-416@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-416 busy")"
+sleep 1
+in_agy_session env CLE_TMUX_PANE="$P13B" bash "$SUT" --agent c-416 --rebirth --timeout 6
+sleep 8
+eq "13. control: a busy pane never gets /exit" "" "$(cat "$T_TMP/got-416" 2>/dev/null)"
+check "13. control: ... and its window stays" alive "$P13B"
+# Control: the old marker-only --rebirth (the fork spliced out) types nothing.
+mkdir -p "$T_TMP/pre13/scripts"; ln -s "$(cd "$(dirname "$SUT")/../lib" && pwd)" "$T_TMP/pre13/lib"
+sed 's/^if \[\[ "\$REBIRTH" -eq 1 \]\]; then rebirth_closer; exit 0; fi$/if [[ "$REBIRTH" -eq 1 ]]; then exit 0; fi/' "$SUT" >"$T_TMP/pre13/scripts/tmux-close-window.sh"
+hasnt "13. control: the fork is spliced out" "then rebirth_closer;" "$(cat "$T_TMP/pre13/scripts/tmux-close-window.sh")"
+P13C="$(t_window 'c-417@tbox' "sh $T_TMP/bin/claude-pane $T_TMP/bin/claude-fake $T_TMP/got-417")"
+sleep 1
+in_agy_session env CLE_TMUX_PANE="$P13C" bash "$T_TMP/pre13/scripts/tmux-close-window.sh" --agent c-417 --rebirth --timeout 20
+sleep 8
+eq "13. control: without the fork the idle session is never ended" "" "$(cat "$T_TMP/got-417" 2>/dev/null)"
 t_done

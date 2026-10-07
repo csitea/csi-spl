@@ -75,6 +75,37 @@ describe('CLE-77930: hub read marks follow the member across devices', () => {
     }
   })
 
+  it('ap-05: the echo of its own channel read (same time, id filled in) moves nothing and is not pushed again; a later mark still moves', async () => {
+    const store = memoryStore()
+    saveCursors({ 'ch:lobby': { ts: T0, id: '', hub: 'H0' } }, store)
+    const hub = {}
+    const puts = []
+    const fetchFn = async (_url, opts) => {
+      if (opts.method === 'PUT') {
+        const { marks } = JSON.parse(opts.body)
+        puts.push(marks)
+        for (const [k, m] of Object.entries(marks)) hub[k] = { ts: m.ts, id: 'm-at-t0', cursor: m.cursor }
+      }
+      return { ok: true, json: async () => ({ marks: hub }) }
+    }
+    const moves = []
+    const sync = createReadSync({ base: '', token: '', credentials: 'include' }, { fetchFn, store, onMoved: (m) => moves.push(...m) })
+    try {
+      await sync.ready
+      await sync.push()
+      await sync.push()
+      assert.equal(puts.length, 1, 'one PUT, then nothing pending')
+      assert.deepEqual(moves, [], 'the echo is not a new mark: no channel reload')
+      assert.deepEqual(loadCursors(store)['ch:lobby'], { ts: T0, id: '', hub: 'H0' })
+      hub['ch:lobby'] = { ts: T1, id: 'm-other-device', cursor: 'H1' }
+      await sync.pull()
+      assert.deepEqual(moves, ['ch:lobby'], 'a read on another device still merges and reloads')
+      assert.deepEqual(loadCursors(store)['ch:lobby'], { ts: T1, id: 'm-other-device', hub: 'H1' })
+    } finally {
+      sync.stop()
+    }
+  })
+
   it('a failing hub leaves the local cursors alone and retries later', async () => {
     const store = memoryStore()
     saveCursors({ 'ch:devel': { ts: T0, id: 'a' } }, store)

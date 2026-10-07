@@ -34,6 +34,16 @@ export function laterThan(a, b) {
 }
 
 /**
+ * ap-05: the hub's answer to this tab's own PUT of a channel read (cursorFromChannel
+ * keeps no msg id) comes back at the same time with the id filled in. That is
+ * not a new mark: taking it moved the key, reloaded the channel list, and the
+ * reload reset the id to '' for the next PUT - one GET per PUT, every 5 s.
+ */
+function idEcho(m, c) {
+  return Boolean(c && c.ts && !c.id && at(m.ts) === at(c.ts))
+}
+
+/**
  * Local cursors moved forward to the hub's marks. Returns the same object
  * and an empty list when nothing moved.
  *
@@ -49,7 +59,7 @@ export function mergeMarks(cursors, marks) {
     const c = out[k]
     let next = c ? { ...c } : { ts: '', id: '' }
     let changed = false
-    if (laterThan(m, c)) {
+    if (laterThan(m, c) && !idEcho(m, c)) {
       next.ts = String(m.ts)
       next.id = String(m.id || '')
       if (m.cursor) next.hub = String(m.cursor)

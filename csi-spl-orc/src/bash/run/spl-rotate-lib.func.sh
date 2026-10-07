@@ -11,6 +11,7 @@
 #   spl_rotate_quiesce PANE                 grace, Escape, re-wait; prints idle|interrupted|busy-rotated (FR-011)
 #   spl_rotate_handoff ROLE ID RID OUT      the handoff file, spec section 6 (FR-012, FR-025)
 #   spl_rotate_spawn ID SEED                rename the old window, spawn under the same id, adopt it in the map (FR-006, FR-007, FR-013)
+#   spl_rotate_start_check PANE             a known dialog on the new pane fails the start at once (ROTATE_ERR names it)
 #   spl_rotate_restore ID OLD_PANE NEW_PANE the failure path: new closed, old name and map entry back (FR-013, FR-014, FR-027)
 #   spl_rotate_retire PANE PID              /exit-clean, /exit once its turn ends, wait, TERM, wait, KILL (FR-015)
 #   spl_rotate_ack_wait ID RID TIMEOUT      the new session's result on task <role>-rotate-<rid> in <ID>/outbox (FR-041)
@@ -33,6 +34,8 @@ declare -F spl_lease_init >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-dispatch-lease.func.sh"
 
 SPL_ROTATE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+declare -F spool_start_check >/dev/null ||
+  source "$SPL_ROTATE_LIB_DIR/../features/spawn-agents/lib/start-check.inc.sh"
 
 # ---- settings ----------------------------------------------------------------
 
@@ -58,9 +61,10 @@ spl_rotate_conf() {
   : "${ROTATE_MIN_AGE:=3300}" "${ROTATE_IDLE_SEC:=10}" "${ROTATE_IDLE_GRACE:=60}" "${ROTATE_ESC_WAIT:=30}"
   : "${ROTATE_START_WAIT:=120}" "${ROTATE_ACK_TIMEOUT:=900}" "${ROTATE_EXIT_WAIT:=300}" "${ROTATE_TERM_WAIT:=30}"
   : "${ROTATE_NEW_EXIT_WAIT:=30}" "${ROTATE_EXIT_SETTLE:=10}" "${ROTATE_POLL:=5}" "${ROTATE_BOOT_GRACE:=900}" "${ROTATE_HANDOFF_KEEP_DAYS:=7}"
+  : "${ROTATE_START_CHECK_WAIT:=45}"
   for k in ROTATE ROTATE_ORCH ROTATE_DISPATCH ROTATE_MIN_AGE ROTATE_IDLE_SEC ROTATE_IDLE_GRACE ROTATE_ESC_WAIT \
            ROTATE_START_WAIT ROTATE_ACK_TIMEOUT ROTATE_EXIT_WAIT ROTATE_TERM_WAIT ROTATE_NEW_EXIT_WAIT ROTATE_EXIT_SETTLE ROTATE_POLL \
-           ROTATE_BOOT_GRACE ROTATE_HANDOFF_KEEP_DAYS; do
+           ROTATE_BOOT_GRACE ROTATE_HANDOFF_KEEP_DAYS ROTATE_START_CHECK_WAIT; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( ROTATE_POLL > 0 )) || { do_log "FATAL ROTATE_POLL must be at least 1"; return 1; }
@@ -512,13 +516,14 @@ spl_rotate_retiring_name() { echo "$1-${ROTATE_RID:9:4}Z-retiring"; }
 # retiring name, start a new session under the same id with SEED (a brief
 # file) through spawn-window.sh (SPAWN_REUSE_ID=1: same spool dir, same
 # inbox) in the old window's tmux session, wait ROTATE_START_WAIT for its
-# pid, check it runs as the agent user, adopt it in the identity map, and
-# check ai_pane_of <ID> is the new pane. Sets ROTATE_NEW_PANE / ROTATE_NEW_PID.
+# pid, check it runs as the agent user and is not parked on a dialog
+# (spl_rotate_start_check), adopt it in the identity map, and check
+# ai_pane_of <ID> is the new pane. Sets ROTATE_NEW_PANE / ROTATE_NEW_PID.
 # Non-zero = failed, the reason in ROTATE_ERR; the caller runs spl_rotate_restore.
 # shellcheck disable=SC2034 # ROTATE_ERR is read by the caller
 spl_rotate_spawn() {
   local id="$1" seed="$2" sess out pid user t0 got tag bin
-  ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID=""
+  ROTATE_ERR="" ROTATE_NEW_PANE="" ROTATE_NEW_PID="" ROTATE_NEW_DIALOG=""
   spl_rotate_tmux rename-window -t "$ROTATE_OLD_PANE" "$(spl_rotate_retiring_name "$id")" 2>/dev/null ||
     { ROTATE_ERR="tmux refused to rename $ROTATE_OLD_PANE"; return 1; }
   sess="$(spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{session_id}' 2>/dev/null || true)"
@@ -528,7 +533,8 @@ spl_rotate_spawn() {
   # the agent user's own claude, not whatever `claude` a login PATH finds
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-}}"
   [[ -z "$bin" && -x "$ROTATE_AGENT_HOME/.local/bin/claude" ]] && bin="$ROTATE_AGENT_HOME/.local/bin/claude"
-  out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
+  # SPAWN_START_CHECK=0: the dialog check runs here, once the pid is known
+  out="$(env SPOOL_SESSION="$sess" SPAWN_REUSE_ID=1 SPAWN_START_CHECK=0 SPOOL_ORCHESTRATOR_ID="${LEASE_ORCH:-}" SPOOL_BOX_TAG="$tag" ${bin:+"CLAUDE_BIN=$bin"} \
     SPAWN_LANE_SCOPE="role $id (rotation $ROTATE_RID)" \
     bash "$ROTATE_SPAWN" claude "$id" "$(spl_rotate_workdir "$id")" "$seed" rotate 2>&1 7>&- 8>&- 9>&-)" || true
   ROTATE_NEW_PANE="$(grep -m1 -oE "^$id %[0-9]+" <<<"$out" | cut -d' ' -f2)"
@@ -548,6 +554,7 @@ spl_rotate_spawn() {
   if [[ -n "${SPOOL_AGENT_USER:-}" && "$user" != "$SPOOL_AGENT_USER" ]]; then
     ROTATE_ERR="the new session runs as '$user', not the agent user $SPOOL_AGENT_USER"; return 1
   fi
+  spl_rotate_start_check "$ROTATE_NEW_PANE" || return 1
   # pokes must reach the NEW pane from here on (FR-006, FR-018): the map
   # beats window names in spool_pane_of, and with two live processes on one
   # id the plain record keeps the old one, so the new pid is adopted
@@ -555,6 +562,29 @@ spl_rotate_spawn() {
   got="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"
   [[ "$got" == "$ROTATE_NEW_PANE" ]] ||
     { ROTATE_ERR="the identity map routes $id to '${got:-nothing}', not the new pane $ROTATE_NEW_PANE"; return 1; }
+  return 0
+}
+
+# spl_rotate_start_check PANE: up to ROTATE_START_CHECK_WAIT (45 s) for the
+# new session's input box (spool_start_check). A known dialog (Settings
+# Warning, trust prompt, auth/login, usage limit, auto-mode offer) = 1 at
+# once, ROTATE_ERR naming it; the dialog is never answered, so a human fixes
+# its cause. Neither within the wait = one WAIT line, 0: a slow start still
+# gets its ack window. 2026-10-07: the failover's new session sat on a
+# Settings Warning for the whole 600 s ack wait.
+# ROTATE_NEW_DIALOG keeps the name: spl_rotate_restore then signals the new
+# session and types nothing (an Enter there picks "1. Continue").
+# shellcheck disable=SC2034 # ROTATE_ERR / ROTATE_NEW_DIALOG are read by the caller
+spl_rotate_start_check() {
+  local pane="$1" out rc=0
+  out="$(spool_start_check "$pane" "${ROTATE_START_CHECK_WAIT:-45}" spl_rotate_capture_e)" || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    3) ROTATE_NEW_DIALOG="$out"
+       ROTATE_ERR="the new session in $pane is stopped on a '$out' dialog (not answered: fix its cause$(spool_start_hint "$out"))"
+       return 1 ;;
+  esac
+  spl_rotate_log "${ROTATE_RID:--}" SPAWN WAIT "$pane: $out and no known dialog; screen: $(spl_rotate_screen_tail "$pane")"
   return 0
 }
 
@@ -569,12 +599,17 @@ spl_rotate_workdir() {
 
 # spl_rotate_restore ID OLD_PANE NEW_PANE: the failure path. The new session
 # (ROTATE_NEW_PID, if any) gets /exit and is killed after
-# ROTATE_NEW_EXIT_WAIT, its window is closed by pane id, the old window gets
+# ROTATE_NEW_EXIT_WAIT (a session parked on a dialog, ROTATE_NEW_DIALOG: TERM,
+# KILL, nothing typed), its window is closed by pane id, the old window gets
 # its name back (ROTATE_OLD_NAME), and the identity map points at the old pid
 # again, so pokes reach the session that keeps the role.
 spl_rotate_restore() {
-  local id="$1" old="$2" new="$3"
-  if [[ -n "${ROTATE_NEW_PID:-}" && -n "$new" ]]; then
+  local id="$1" old="$2" new="$3" t0
+  if [[ -n "${ROTATE_NEW_PID:-}" && -n "${ROTATE_NEW_DIALOG:-}" ]]; then
+    ${ROTATE_KILL:-sudo -n kill} -TERM "$ROTATE_NEW_PID" 2>/dev/null || true
+    t0=$SECONDS; while (( SECONDS - t0 < 5 )) && spl_rotate_alive "$ROTATE_NEW_PID"; do sleep 1; done
+    if spl_rotate_alive "$ROTATE_NEW_PID"; then ${ROTATE_KILL:-sudo -n kill} -KILL "$ROTATE_NEW_PID" 2>/dev/null || true; fi
+  elif [[ -n "${ROTATE_NEW_PID:-}" && -n "$new" ]]; then
     spl_rotate_end "$new" "$ROTATE_NEW_PID" /exit "$ROTATE_NEW_EXIT_WAIT" 5 || true
   fi
   [[ -n "$new" ]] && { spl_rotate_tmux kill-window -t "$new" 2>/dev/null || true; }
@@ -595,16 +630,8 @@ spl_rotate_restore() {
 # spool_notify_strip_ghost's). Exit 1 when no box is on screen. Measured on a
 # throwaway claude 2026-10-02: an empty box is "❯<NBSP>ESC[2mTry ...", three
 # typed rows are "❯ a" / "  b" / "  c", and the slash menu draws ABOVE it.
-spl_rotate_input() {
-  local esc=$'\033' nbsp=$' '
-  spl_rotate_tmux capture-pane -p -e -t "$1" 2>/dev/null |
-    sed -E "s/${esc}\[7m.*//; s/${esc}\[([0-9;]*;)?2m.*//; s/${esc}\[[0-9;]*[A-Za-z]//g; s/${nbsp}/ /g" |
-    awk '{ l[NR] = $0 } /^─/ { r[++n] = NR }
-      END { if (n < 2) exit 1
-        for (i = r[n - 1] + 1; i < r[n]; i++) {
-          s = l[i]; sub(/^ */, "", s); sub(/^❯/, "", s); sub(/^ +/, "", s); sub(/ +$/, "", s)
-          if (s != "") print s } }'
-}
+spl_rotate_input() { spl_rotate_capture_e "$1" | spool_screen_input_box; }
+spl_rotate_capture_e() { spl_rotate_tmux capture-pane -p -e -t "$1" 2>/dev/null; }
 
 # spl_rotate_type PANE CMD: the WHOLE input box emptied, CMD typed, 0 only
 # when the box then reads exactly CMD; what it read is left in

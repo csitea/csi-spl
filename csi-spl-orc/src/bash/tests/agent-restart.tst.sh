@@ -35,6 +35,10 @@
 #      owner active in another window of the same session runs; control: in
 #      THAT window it is refused, nothing spawned, the marker kept; the hard
 #      end with the owner in that window still runs (R3)
+#  13. the new session parked on a "Settings Warning" dialog: RS-SPAWN FAIL
+#      at once naming it, the new process signalled (nothing typed into the
+#      dialog), ALERT = ask + owner DM.
+#      Control: case 1, the same rebirth on a plain screen, runs to DONE OK
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -56,14 +60,17 @@ cat > "$T/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 exec 9>>"$T/tmux/lock"; flock 9
 P="$T/tmux/panes"; L="$T/tmux/log"; cmd="$1"; shift; tgt="" fmt="" a=""
-while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -F) fmt="$2"; shift 2 ;; -a|-p|-J|-l|-e) shift ;; -S) shift 2 ;; *) a="$1"; shift ;; esac; done
+esc=0
+while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -F) fmt="$2"; shift 2 ;; -e) esc=1; shift ;; -a|-p|-J|-l) shift ;; -S) shift 2 ;; *) a="$1"; shift ;; esac; done
 field() { awk -F'\t' -v p="$tgt" -v f="$1" '$1 == p {print $f}' "$P"; }
 case "$cmd" in
   list-panes) if [ "$fmt" = '#{pane_pid} #{pane_id}' ]; then awk -F'\t' '{print $2" "$1}' "$P"; else cat "$P"; fi ;;
   list-clients) cat "$T/tmux/clients" 2>/dev/null ;;
   display-message) grep -q "^$tgt	" "$P" || exit 1
     case "$a" in *window_name*) field 4 ;; *session_id*) field 3 ;; *) echo "$tgt" ;; esac ;;
-  capture-pane) grep -q "^$tgt	" "$P" || exit 1; printf 'working on the brief\n' ;;
+  capture-pane) grep -q "^$tgt	" "$P" || exit 1
+    if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'working on the brief\n'; fi
+    if [ "$esc" = 1 ] && [ ! -f "$T/tmux/screen.$tgt" ]; then printf '────────\n❯ \n────────\n'; fi ;;
   rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="$a" '$1 == p {$4 = n} {print}' "$P" > "$P.new.$$" && mv "$P.new.$$" "$P"
     echo "rename $tgt $a" >> "$L" ;;
   send-keys) echo "keys $tgt $a" >> "$L" ;;
@@ -315,6 +322,19 @@ rc="$(go ID=c-941 CAUSE=rebirth DRY_RUN=0)"
 world; AGE=7300 lane c-942 %42 4942; wid %42 @42; hb c-942 working 10; echo "\$1 $((T0 - 20)) @42" > "$T/tmux/clients"
 rc="$(go ID=c-942 CAUSE=hard-end DRY_RUN=0)"
 [[ "$rc" == 0 ]] && ! alive 4942 && pass "12. control: the hard end with the owner in THAT window still restarts (R3)" || fail "12. hard end rc=$rc: $(tail -4 "$T/o")"
+
+# --- 13. a dialog on the new session fails the start at once ------------------------------------
+world; lane c-943 %43 -; reborn c-943
+printf '  Settings Warning\n  ❯ 1. Continue\n    2. Fix with Claude\n    3. Exit and fix manually\n' > "$T/tmux/screen.%3943"
+t0=$SECONDS; rc="$(go ID=c-943 CAUSE=rebirth DRY_RUN=0 ROTATE_START_CHECK_WAIT=20)"; took=$((SECONDS - t0))
+[[ "$rc" == 1 && "$took" -lt 15 && "$(nproc c-943)" == 0 ]] &&
+  grep -q "RS-SPAWN FAIL the new session in %3943 is stopped on a 'Settings Warning' dialog" "$D/rotate.log" &&
+  grep -q '^kill -TERM 3943$' "$T/kill.log" && ! grep -q '^keys %3943 ' "$T/tmux/log" 2>/dev/null &&
+  pass "13. Settings Warning on the new session: RS-SPAWN FAIL at once (${took}s), named, signalled, nothing typed" ||
+  fail "13. rc=$rc took=${took}s $(tail -5 "$T/o") keys: $(grep %3943 "$T/tmux/log" 2>/dev/null)"
+grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
+  pass "13. ... ALERT = ask + owner DM" || fail "13. alert: $(cat "$T/run.log")"
+! grep -q ERRTRAP "$T/o" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

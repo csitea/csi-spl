@@ -34,6 +34,10 @@
 #      the alert names the new pid (20261006T1315Z-master on sat)
 #  13. the fresh M dies during the F refresh -> DONE FAIL, the orchestrator
 #      told NOT healthy, never "holds the dispatch lease" (20261007T0915Z)
+#  14. the fresh M parked on a "Settings Warning" dialog -> FAIL SPAWN at
+#      once naming it (not after the ack wait), the old M keeps the role,
+#      ALERT; nothing typed into the dialog (20261007T1715Z-failover).
+#      Control: the same rotation on a plain screen is not failed at SPAWN
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -499,6 +503,21 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 && -d "$T/proc/2902" ]] && grep -q ' DONE WAIT fresh c-902 pid 2902 alive, but the lease is c-903' "$T/o" &&
   pass "13. the fresh M alive but off the lease: DONE WAIT, not OK" || fail "13. lease: rc=$rc $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 14. a dialog on the fresh M fails the start at once -------------------------------------
+world; printf '  Settings Warning\n  ❯ 1. Continue\n    2. Fix with Claude\n' >"$T/tmux/screen.%2902"
+t0=$SECONDS; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=30 >"$T/o" 2>&1; rc=$?; took=$((SECONDS - t0))
+[[ $rc -ne 0 && $took -lt 25 ]] && grep -q " FAIL FAIL SPAWN: the new session in %2902 is stopped on a 'Settings Warning' dialog" "$T/o" &&
+  ! grep -q ' ACK WAIT ' "$T/o" && pass "14. Settings Warning on the fresh M: FAIL SPAWN at once (${took}s, ack window 30s), named" ||
+  fail "14. rc=$rc took=${took}s $(cat "$T/o")"
+[[ -d "$T/proc/102" && "$(holder)" == c-902 && ! -e "$D/rotate.hold" ]] && grep -qx 'kill %2902' "$T/tmux/log" &&
+  grep -q "^do_spl_ask_put .*ASK_FROM=c-902 .*ASK_SUMMARY=ROTATION FAILED master SPAWN the new session in %2902 is stopped on a 'Settings Warning'" "$T/run.log" &&
+  grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
+  pass "14. ... the old M keeps the role and the lease, the new window closed, ALERT = ask + owner DM" || fail "14. after: $(cat "$T/run.log") $(cat "$T/tmux/log")"
+! grep -qE '^keys %2902 (Enter|1)$' "$T/tmux/log" && pass "14. ... nothing answered the dialog (no Enter, no 1)" || fail "14. keys: $(grep '%2902' "$T/tmux/log")"
+world; act DRY_RUN=0 >"$T/o" 2>&1
+! grep -q 'FAIL SPAWN' "$T/o" && grep -q ' ACK OK acked by pid 2902' "$T/o" &&
+  pass "14. control: a plain screen on the fresh M is not failed at SPAWN" || fail "14. control: $(cat "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

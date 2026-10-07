@@ -27,7 +27,11 @@
 # @description              a new lifetime/session.json
 # @description   SPAWN    - SPAWN_REUSE_ID=1; not started in WD_START_WAIT:
 # @description              nothing runs, the watchdog's episode flag is
-# @description              cleared so the next tick retries
+# @description              cleared so the next tick retries; a claude
+# @description              parked on a known dialog (Settings Warning,
+# @description              trust, login, usage limit, auto-mode offer;
+# @description              ROTATE_START_CHECK_WAIT, 45 s) fails at once,
+# @description              named, and is alerted (ask + owner DM)
 # @description   REPORT   - crash: one blocker wd-<id>-<ts> to the peers;
 # @description              planned: ONE line to the orchestrator,
 # @description              `REBORN <id>@<box> #<n> cause=<c> handoff=<path>`
@@ -369,12 +373,13 @@ spl_ars_lane() {
   spl_ars_wip "$id" "$rid"
   spl_ars_handoff "$id" "$rid" "$hand" || return 1
   spl_ars_seed "$id" "$rid" "$ts" "$hand" "$seed" || return 1
-  if ! PEER_START_WAIT="$WD_START_WAIT" spl_peer_restart_spawn "$id" "$seed"; then
+  if ! spl_ars_spawn lane "$id" "$seed"; then
     spl_peer_with_lib spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
     if [[ -n "$ROTATE_NEW_PID" ]] && spl_peer_alive "$ROTATE_NEW_PID"; then spl_wdt_kill "$ROTATE_NEW_PID" || true; fi
     spl_ars_unconsume "$id"
     rm -f "${WD_DIR:?}/${id:?}".ep.S*.takeover
     spl_peer_rlog "$rid" RS-SPAWN FAIL "$ROTATE_ERR; nothing runs, the next tick retries (counted)"
+    if [[ -n "$ROTATE_NEW_DIALOG" ]]; then spl_wdt_alert "$id" "$rid" RS-SPAWN "$ROTATE_ERR"; fi
     return 1
   fi
   spl_peer_rlog "$rid" RS-SPAWN OK "new pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE"
@@ -393,8 +398,9 @@ spl_ars_seat() {
     if [[ -n "$WDT_SEAT" ]]; then spl_peer_loop_start "$id" "$rid"; fi
     return 1
   fi
-  if ! PEER_START_WAIT="$WD_START_WAIT" spl_wdt_spawn "$id" "$seed"; then
+  if ! spl_ars_spawn seat "$id" "$seed"; then
     spl_peer_rlog "$rid" RS-SPAWN FAIL "$ROTATE_ERR"
+    if [[ -n "$ROTATE_NEW_DIALOG" ]]; then spl_wdt_alert "$id" "$rid" RS-SPAWN "$ROTATE_ERR"; fi
   else
     spl_peer_rlog "$rid" RS-SPAWN OK "new pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE"
     ack=0; spl_ars_ack_wait "$id" "restart-$rid" || ack=$?
@@ -423,6 +429,32 @@ spl_ars_seat() {
   if [[ -n "$ARS_PANE" ]]; then spl_rotate_tmux kill-window -t "$ARS_PANE" 2>/dev/null || true; fi
   if [[ -n "$WDT_SEAT" ]]; then spl_peer_loop_start "$id" "$rid"; fi
   spl_ars_report "$id" "$rid" "$ts" "$hand"
+}
+
+# spl_ars_spawn lane|seat ID SEED: the start (spl_peer_restart_spawn, a seat
+# through spl_wdt_spawn), then for claude the dialog check of
+# start-check.inc.sh on the new pane, up to ROTATE_START_CHECK_WAIT (45 s): a
+# known dialog = 1 at once, ROTATE_ERR and ROTATE_NEW_DIALOG naming it (the
+# restore then signals the session and types nothing into the dialog); no
+# input box and no known dialog = one WAIT line, the start stands.
+# spawn-window's own check is off (SPAWN_START_CHECK=0): it runs here.
+spl_ars_spawn() {
+  local how="$1" out rc=0
+  local -x SPAWN_START_CHECK=0
+  shift
+  ROTATE_NEW_DIALOG=""
+  if [[ "$how" == seat ]]; then PEER_START_WAIT="$WD_START_WAIT" spl_wdt_spawn "$@" || return 1
+  else PEER_START_WAIT="$WD_START_WAIT" spl_peer_restart_spawn "$@" || return 1; fi
+  [[ "$PEER_HARNESS" == claude ]] || return 0
+  out="$(spool_start_check "$ROTATE_NEW_PANE" "${ROTATE_START_CHECK_WAIT:-45}" spl_rotate_capture_e)" || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    3) ROTATE_NEW_DIALOG="$out"
+       ROTATE_ERR="the new session in $ROTATE_NEW_PANE is stopped on a '$out' dialog (not answered: fix its cause$(spool_start_hint "$out"))"
+       return 1 ;;
+  esac
+  spl_peer_rlog "$ROTATE_RID" RS-SPAWN WAIT "$ROTATE_NEW_PANE: $out and no known dialog"
+  return 0
 }
 
 # spl_ars_ack_wait ID TASK: 0 once <ID>/outbox holds its result on TASK; 2

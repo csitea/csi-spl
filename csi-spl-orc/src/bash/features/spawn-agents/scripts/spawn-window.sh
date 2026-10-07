@@ -24,13 +24,22 @@
 # with `tmux -S $SPOOL_TMUX_SOCKET list-windows -a`. Run it as anyone: tmux calls
 # hop to $SPOOL_BOX_USER when needed.
 #
+# START CHECK: a claude window is watched up to SPAWN_START_CHECK_WAIT (45 s)
+# for its input box (lib/start-check.inc.sh). A known dialog on it (Settings
+# Warning, trust prompt, auth/login, usage limit, auto-mode offer) = exit 11
+# at once, "<ID> <PANE>" still printed and the dialog named on stderr; the
+# window stays for a human and nothing is typed into it. No box in time, or
+# the pane ended: one WARN, exit 0. SPAWN_START_CHECK=0 skips it (the
+# rotation and the agent restart run their own after the pid is known).
+#
 # Exit: 0 ok, 2 usage, 3 id taken, 4 tmux printed no pane id, 5 no session,
 # 6 this machine is draining (do_spl_box_leave; do_spl_box_join ends it),
 # 7 refused by the peer gate (spec 068 L5: a seat spawns only under the
 # `spawn` mutex with its fence held; do_spl_peer_gate says why), 8 the
 # remote spawn on an explicit SPAWN_BOX did not start (PLACEMENT below),
 # 9 the requester is a lane, 10 HOLD: every fleet box is at or above the
-# load target's high mark (LOAD TARGET below), so queue the lane. Only c-001, c-002 and c-003 (any box), or a
+# load target's high mark (LOAD TARGET below), so queue the lane, 11 the
+# new session is stopped on a dialog (START CHECK above). Only c-001, c-002 and c-003 (any box), or a
 # shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
 # or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
 # the closest ancestor that still carries the id (`sudo -u` strips it from
@@ -265,3 +274,17 @@ if [ "${SPOOL_SHOW_PANE:-auto}" != 0 ]; then
 fi
 
 printf '%s %s\n' "$TITLE" "$pane"
+
+if [ "$KIND" = claude ] && [ "${SPAWN_START_CHECK:-1}" != 0 ]; then
+  # shellcheck source=../lib/start-check.inc.sh
+  . "$HERE/../lib/start-check.inc.sh"
+  sw_capture() { "${SPOOL_TM[@]}" capture-pane -p -e -t "$1" 2>/dev/null; }
+  sw_gone() { [ "$("${SPOOL_TM[@]}" display-message -p -t "$1" '#{pane_dead}' 2>/dev/null || echo 1)" = 1 ]; }
+  why="$(spool_start_check "$pane" "${SPAWN_START_CHECK_WAIT:-45}" sw_capture sw_gone)"; rc=$?
+  case "$rc" in
+    0) ;;
+    3) echo "spawn-window: START FAIL ${TITLE} ${pane}: the session is stopped on a '${why}' dialog; nothing was answered: fix its cause$(spool_start_hint "$why"), then the window" >&2
+       exit 11 ;;
+    *) echo "spawn-window: WARN ${TITLE} ${pane}: ${why} (start check)" >&2 ;;
+  esac
+fi

@@ -51,6 +51,8 @@ type Ctx = {
   feed?: Msg[]
   /** task ids whose thread is on screen (the right pane, a /t/ page, the lobby room) */
   openTopics?: string[]
+  /** spec 096 T005: the reader's own status (shouldPing) */
+  status?: { state?: string, pauseNotify?: boolean, until?: string }
 }
 
 type Msg = {

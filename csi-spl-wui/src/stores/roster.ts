@@ -112,6 +112,8 @@ export interface HumanStatus {
   /** up to 80 characters, '' when none */
   note: string
   until: string
+  /** T005 (Q1): the reader's own Unavailable with the pause box ticked */
+  pauseNotify?: true
 }
 
 /** Spec 096: a status in words, for a dot's label and the text beside a name. */

@@ -48,6 +48,17 @@ export const useHumanStatusStore = defineStore('human-status', () => {
   } else if (import.meta.client) {
     void api.rosterView().then((body) => fill(((body as { humans?: [] } | null)?.humans) || []), () => {})
     live.onReconnected(() => { statusByPeer.value = {} })
+    /* T005 (Q1): the reader's own pause box (notify.mjs shouldPing) is only
+       in GET /v1/me/status, never the roster or a frame: read it whenever
+       their own status turns Unavailable without a known pause (a load, a
+       reconnect, the hub's frame after the picker's write) */
+    watch(() => {
+      const me = roster.self?.id || ''
+      const s = statusByPeer.value[me]
+      return s && s.state === 'unavailable' && !s.pauseNotify ? `${me}|${s.until}|${s.note}` : ''
+    }, (k) => {
+      if (k) void import('~/utils/human-status.mjs').then((m) => m.getMyStatus(api, k.split('|')[0]!)).then((f) => { if (f) void applyStatus(f) })
+    })
   }
 
   /** a member's status in words, for a dot's label and the text beside a name */

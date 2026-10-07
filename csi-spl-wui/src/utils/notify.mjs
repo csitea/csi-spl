@@ -103,10 +103,15 @@ export function toggleMutedChannel(ids, channel) {
  * mention, a DM, #alerts), so an ordinary reply from a member or an agent
  * raised a rail badge and nothing else. Escalation now only picks the alert's
  * title and the mention badge; muting a channel is the noise control.
+ *
+ * Spec 096 T005 (Q1): `ctx.status` is the reader's own status. Unavailable
+ * with the pause box ticked (and not yet expired) silences; Busy never does.
  */
 export function shouldPing(msg, ctx = {}, muted = []) {
   if (!msg) return false
   if (isViewersOwn(msg, ctx && ctx.selfId)) return false
+  const st = ctx && ctx.status
+  if (st && st.state === 'unavailable' && st.pauseNotify && !(Date.parse(st.until) <= Date.now())) return false
   const ch = normalizeChannel(msg && msg.channel) || normalizeChannel(ctx && ctx.channel)
   if (!ch) return true
   const set = new Set((muted || []).map((id) => normalizeChannel(id)))

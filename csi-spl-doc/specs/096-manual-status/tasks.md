@@ -80,11 +80,19 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 
 ## T005 - L5: pause notifications (spec 6, Q1)
 
-- [ ] `csi-spl-wui/src/utils/notify.mjs` `shouldPing`: after the c-376
+- [x] `csi-spl-wui/src/utils/notify.mjs` `shouldPing`: after the c-376
       due-check, skip when the member is `unavailable` with `pause_notify`
-      (the pause box) ticked; `busy` never silences.
+      (the pause box) ticked; `busy` never silences. The reader's own status
+      comes from the status store's state (`plugins/notify.client.ts`, no
+      new import in the entry chunk: initial gzip 158409 -> 158488 B, n=1);
+      the store reads `pause_notify` from GET /v1/me/status whenever the
+      reader's own status turns Unavailable without a known pause.
+      e2e: `tests/e2e/notify-pause-status.test.mjs`.
 - [ ] Once spec 095 is built: one recipient filter in 095 section 6.2
-      (only the levels below High, 095 section 13).
-- [ ] Unit tests for both halves.
+      (only the levels below High, 095 section 13). NOT done: spec 095 is
+      not built yet (c-431, 2026-10-07), so this half waits for it.
+- [ ] Unit tests for both halves. The WUI half's are in
+      `tests/unit/notify.test.mjs` and `tests/unit/human-status.test.mjs`;
+      the 095 half's come with it.
 
 <!-- version: 0.2.0 · updated: 2026-10-06 -->

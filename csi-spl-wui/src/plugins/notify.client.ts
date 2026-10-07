@@ -38,11 +38,14 @@ function openTopics(path: string) {
 }
 
 /** What the notification store needs to know about the page the reader is on. */
-function pageCtx(channel: ReturnType<typeof useChannelStore>, selfId: string, path: string) {
+function pageCtx(channel: ReturnType<typeof useChannelStore>, selfId: string, path: string, stores: Record<string, { statusByPeer?: Record<string, never> }>) {
   const peer = channel.peer
   const name = channel.active
   return {
     selfId,
+    /* spec 096 T005: the reader's own status, read from the lazy status
+       store's state by id, so the entry chunk imports none of it (027) */
+    status: stores['human-status']?.statusByPeer?.[selfId.split('@')[0]!],
     activeKey: activeKey(path, peer, name),
     channel: name || (path === '/lobby' ? 'lobby' : ''),
     peer,
@@ -79,11 +82,12 @@ export default defineNuxtPlugin(() => {
   const session = useSessionStore()
   const live = useLive()
   const route = useRoute()
+  const pinia = usePinia()
   notes.hydrate()
   void import('~/stores/live').then((m) => (lazy.useLiveFeed = m.useLiveFeed))
   void import('~/stores/topic').then((m) => (lazy.useTopicStore = m.useTopicStore))
 
-  const ctx = () => pageCtx(channel, String((session.claims && session.claims.hum) || live.identity.value || ''), String(route.path || ''))
+  const ctx = () => pageCtx(channel, String((session.claims && session.claims.hum) || live.identity.value || ''), String(route.path || ''), pinia.state.value)
 
   watch(
     () => channel.messages.map((m) => m.msg_id).join('\n'),
@@ -138,6 +142,6 @@ export default defineNuxtPlugin(() => {
   live.onMessage((m) => {
     const page = ctx()
     notes.countDmLive(m, page.selfId)
-    notes.ingest([m], { selfId: page.selfId, activeKey: page.activeKey, feed: page.feed, openTopics: page.openTopics }, { hydrate: false })
+    notes.ingest([m], { selfId: page.selfId, activeKey: page.activeKey, feed: page.feed, openTopics: page.openTopics, status: page.status }, { hydrate: false })
   })
 })

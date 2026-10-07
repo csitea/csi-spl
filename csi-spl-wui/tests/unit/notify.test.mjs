@@ -308,7 +308,7 @@ describe('live #alerts / DM escalation wiring (gap A2)', () => {
 
   it('the plugin ingests live frames with the page identity only, not its peer', () => {
     const plugin = src('src/plugins/notify.client.ts')
-    assert.match(plugin, /notes\.ingest\(\[m\], \{ selfId: page\.selfId, activeKey: page\.activeKey, feed: page\.feed, openTopics: page\.openTopics \}/)
+    assert.match(plugin, /notes\.ingest\(\[m\], \{ selfId: page\.selfId, activeKey: page\.activeKey, feed: page\.feed, openTopics: page\.openTopics, status: page\.status \}/)
     assert.equal(plugin.includes('applyChannels'), true)
   })
 
@@ -392,6 +392,44 @@ describe('muted channels do not ping', () => {
     const note = readFileSync(join(WUI, 'src/stores/notification.ts'), 'utf8')
     assert.match(note, /shouldPing\(m, ctx, loadMutedChannels\(\)\)/)
     assert.match(note, /bump\(key, reason\)/)
+  })
+})
+
+// Spec 096 T005 (Q1): "Unavailable" with the pause box ticked silences the
+// reader's chime and alert; "Busy" never does.
+describe('a paused Unavailable status does not ping (096 T005)', () => {
+  const later = new Date(Date.now() + 3600e3).toISOString()
+  const earlier = new Date(Date.now() - 60e3).toISOString()
+  const ctxWith = (status) => ({ selfId: 'HUM-1', status })
+  const dm = msg({ channel: null, from: 'CLE-07', to: 'HUM-1', body: 'hi' })
+  const alerts = msg({ channel: 'alerts', body: 'wake' })
+  const plain = msg({ channel: 'tasks', body: 'Applying patch' })
+  it('Unavailable with the pause ticked silences everything, a DM and #alerts too', () => {
+    for (const m of [dm, alerts, plain]) {
+      assert.equal(shouldPing(m, ctxWith({ state: 'unavailable', note: '', until: '', pauseNotify: true }), []), false)
+      assert.equal(shouldPing(m, ctxWith({ state: 'unavailable', note: '', until: later, pauseNotify: true }), []), false)
+    }
+  })
+  it('Busy never silences, even with a stray pause; Unavailable without the pause pings', () => {
+    for (const m of [dm, alerts, plain]) {
+      assert.equal(shouldPing(m, ctxWith({ state: 'busy', note: '', until: '', pauseNotify: true }), []), true)
+      assert.equal(shouldPing(m, ctxWith({ state: 'unavailable', note: '', until: '' }), []), true)
+      assert.equal(shouldPing(m, ctxWith(undefined), []), true)
+    }
+  })
+  it('a pause whose Unavailable has expired no longer silences', () => {
+    assert.equal(shouldPing(dm, ctxWith({ state: 'unavailable', note: '', until: earlier, pauseNotify: true }), []), true)
+  })
+  it('the own-message and muted-channel rules still apply', () => {
+    const paused = ctxWith({ state: 'unavailable', note: '', until: '', pauseNotify: false })
+    assert.equal(shouldPing(msg({ channel: 'tasks', from: 'HUM-1' }), paused, []), false)
+    assert.equal(shouldPing(plain, paused, ['tasks']), false)
+  })
+  it('the plugin hands the reader\'s own status from the lazy store\'s state, no import', () => {
+    const plugin = readFileSync(join(WUI, 'src/plugins/notify.client.ts'), 'utf8')
+    assert.match(plugin, /status: stores\['human-status'\]\?\.statusByPeer\?\.\[selfId\.split\('@'\)\[0\]!\]/)
+    assert.match(plugin, /openTopics: page\.openTopics, status: page\.status \}/)
+    assert.doesNotMatch(plugin, /import[^\n]*human-status/)
   })
 })
 

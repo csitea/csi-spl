@@ -14,7 +14,7 @@ import {
 } from '../../src/utils/human-status.mjs'
 import {
   STATUS_UNTIL_CHOICES, composerStatusTargets, defaultUntilChoice, draftMentionIds, parseWallDateTime,
-  statusBody, untilFromChoice, untilProblem,
+  getMyStatus, statusBody, untilFromChoice, untilProblem,
 } from '../../src/utils/human-status.mjs'
 import { isoDateTime, setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 
@@ -263,5 +263,49 @@ describe('where it shows (spec 5)', () => {
   })
   it('the picker is lazy: the layout mounts it only while open', () => {
     assert.match(read('src/layouts/default.vue'), /<LazyStatusPicker v-if="statusPicker\.open\.value"/)
+  })
+})
+
+// T005 (Q1): the reader's own pause box rides the status the store holds.
+describe('the pause box (096 T005)', () => {
+  it('normalize keeps pause_notify only on Unavailable', () => {
+    assert.deepEqual(normalizeHumanStatus({ state: 'unavailable', pause_notify: true }), { state: 'unavailable', note: '', until: '', pauseNotify: true })
+    assert.deepEqual(normalizeHumanStatus({ state: 'busy', pause_notify: true }), { state: 'busy', note: '', until: '' })
+    assert.deepEqual(normalizeHumanStatus({ state: 'unavailable', pause_notify: false }), { state: 'unavailable', note: '', until: '' })
+  })
+  it('a frame sets the pause as it carries it: one without pause_notify (the hub\'s, an unticked picker) drops it', () => {
+    const map = { 'HUM-1': { state: 'unavailable', note: '', until: '', pauseNotify: true } }
+    assert.equal(applyStatusFrame(map, { type: 'status', peer: 'HUM-1@wui', state: 'unavailable', pause_notify: true }), map)
+    assert.deepEqual(applyStatusFrame(map, { type: 'status', peer: 'HUM-1@wui', state: 'unavailable' }),
+      { 'HUM-1': { state: 'unavailable', note: '', until: '' } })
+    assert.deepEqual(applyStatusFrame(map, { type: 'status', peer: 'HUM-1@wui', state: 'unavailable', pause_notify: false }),
+      { 'HUM-1': { state: 'unavailable', note: '', until: '' } })
+    assert.deepEqual(applyStatusFrame(map, { type: 'status', peer: 'HUM-1@wui', state: 'busy' }),
+      { 'HUM-1': { state: 'busy', note: '', until: '' } })
+    assert.deepEqual(applyStatusFrame({ 'HUM-1': { state: 'unavailable', note: '', until: '' } },
+      { type: 'status', peer: 'HUM-1', state: 'unavailable', pause_notify: true }),
+    { 'HUM-1': { state: 'unavailable', note: '', until: '', pauseNotify: true } })
+  })
+  it('getMyStatus reads GET /v1/me/status as a frame for the reader; the mock and a failure give null', async () => {
+    assert.equal(await getMyStatus({ mock: true }, 'HUM-1'), null)
+    const saved = globalThis.fetch
+    try {
+      let url = ''
+      globalThis.fetch = async (u) => { url = u; return { ok: true, json: async () => ({ state: 'unavailable', pause_notify: true }) } }
+      assert.deepEqual(await getMyStatus({ base: 'https://hub.example.com/', token: 't' }, 'HUM-1'),
+        { state: 'unavailable', pause_notify: true, type: 'status', peer: 'HUM-1' })
+      assert.equal(url, 'https://hub.example.com/v1/me/status')
+      globalThis.fetch = async () => ({ ok: false, json: async () => ({}) })
+      assert.equal(await getMyStatus({ base: 'https://hub.example.com' }, 'HUM-1'), null)
+      globalThis.fetch = async () => { throw new Error('offline') }
+      assert.equal(await getMyStatus({ base: 'https://hub.example.com' }, 'HUM-1'), null)
+    } finally {
+      globalThis.fetch = saved
+    }
+  })
+  it('the store reads it whenever the reader turns Unavailable without a known pause', () => {
+    const store = read('src/stores/human-status.ts')
+    assert.match(store, /s\.state === 'unavailable' && !s\.pauseNotify/)
+    assert.match(store, /m\.getMyStatus\(api, /)
   })
 })

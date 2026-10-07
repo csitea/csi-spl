@@ -44,8 +44,11 @@ export function cleanStatusNote(note) {
 
 /**
  * One status as the WUI keeps it, or null for available / not a status.
- * @param {unknown} raw { state, note?, until? }
- * @returns {{ state: 'busy' | 'unavailable', note: string, until: string } | null}
+ * Spec 096 T005 (Q1): `pauseNotify: true` only on an Unavailable status whose
+ * pause box is ticked (`pause_notify`, which only GET/PUT /v1/me/status and
+ * the reader's own picker carry); absent otherwise.
+ * @param {unknown} raw { state, note?, until?, pause_notify? }
+ * @returns {{ state: 'busy' | 'unavailable', note: string, until: string, pauseNotify?: true } | null}
  */
 export function normalizeHumanStatus(raw) {
   if (!raw || typeof raw !== 'object') return null
@@ -53,7 +56,9 @@ export function normalizeHumanStatus(raw) {
   const state = String(r.state || r.status || '')
   if (state !== 'busy' && state !== 'unavailable') return null
   const until = Number.isNaN(timeOf(r.until)) ? '' : new Date(timeOf(r.until)).toISOString()
-  return { state, note: cleanStatusNote(r.note), until }
+  const out = { state, note: cleanStatusNote(r.note), until }
+  if (state === 'unavailable' && (r.pause_notify === true || r.pauseNotify === true)) out.pauseNotify = true
+  return out
 }
 
 /** The status, or null once its `until` is at or before `now` (expiry on read). */
@@ -79,6 +84,8 @@ export function statusMapFromHumans(humans, now = Date.now()) {
 /**
  * Apply one `status` frame. Returns the same map when nothing changed, so a
  * caller can skip the write; anything that is not a status frame is ignored.
+ * The hub's frame never carries `pause_notify` (it is the member's own), so
+ * it drops a held pause; the store then reads it back (getMyStatus).
  */
 export function applyStatusFrame(map, frame) {
   const f = frame && typeof frame === 'object' ? frame : null
@@ -93,7 +100,7 @@ export function applyStatusFrame(map, frame) {
     delete next[id]
     return next
   }
-  if (had && had.state === st.state && had.note === st.note && had.until === st.until) return map
+  if (had && had.state === st.state && had.note === st.note && had.until === st.until && had.pauseNotify === st.pauseNotify) return map
   return { ...map, [id]: st }
 }
 
@@ -393,7 +400,7 @@ export async function putMyStatus(api, selfId, body, { allWorkspaces = false } =
   if (api.mock) {
     let map = {}
     try { map = JSON.parse(localStorage.getItem(MOCK_STATUS_KEY) || '{}') || {} } catch { /* none */ }
-    if (body) map[selfId] = { state: body.state, note: body.note || '', until: body.until || '' }
+    if (body) map[selfId] = { state: body.state, note: body.note || '', until: body.until || '', pause_notify: body.pause_notify === true }
     else delete map[selfId]
     localStorage.setItem(MOCK_STATUS_KEY, JSON.stringify(map))
     return null
@@ -411,3 +418,21 @@ export async function putMyStatus(api, selfId, body, { allWorkspaces = false } =
   return res.status === 204 ? null : res.json().catch(() => null)
 }
 
+/**
+ * Spec 096 T005: GET /v1/me/status, the reader's own status with its
+ * `pause_notify` (the roster never shows it), as a `status` frame for
+ * `selfId` that the controller applies. The lde mock has no hub: null (its
+ * fill already reads `pause_notify` from localStorage). Null on any failure.
+ */
+export async function getMyStatus(api, selfId) {
+  if (api.mock || !selfId) return null
+  try {
+    const headers = { accept: 'application/json' }
+    if (api.token) headers.authorization = `Bearer ${api.token}`
+    const res = await fetch(`${String(api.base).replace(/\/+$/, '')}/v1/me/status`, { credentials: api.credentials, headers })
+    const body = res.ok ? await res.json() : null
+    return body && typeof body === 'object' ? { ...body, type: 'status', peer: selfId, pause_notify: body.pause_notify === true } : null
+  } catch {
+    return null
+  }
+}

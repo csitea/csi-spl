@@ -2176,7 +2176,7 @@ declare module '~/utils/row-keys.mjs' {
 }
 
 declare module '~/utils/human-status.mjs' {
-  export interface HumanStatusValue { state: 'busy' | 'unavailable', note: string, until: string }
+  export interface HumanStatusValue { state: 'busy' | 'unavailable', note: string, until: string, pauseNotify?: true }
   export const STATUS_NOTE_MAX: number
   export function cleanStatusNote(note: unknown): string
   export function normalizeHumanStatus(raw: unknown): HumanStatusValue | null
@@ -2208,6 +2208,7 @@ declare module '~/utils/human-status.mjs' {
   export function composerStatusTargets(p: { dmPeer?: string, mentionIds?: string[], selfId?: string, statusOf: (id: string) => HumanStatusValue | null }): Array<{ id: string, status: HumanStatusValue }>
   export function draftMentionIds(text: string, people: Array<{ id: string, name?: string }>): string[]
   export function putMyStatus(api: { mock?: boolean, base?: string, token?: string, credentials?: RequestCredentials }, selfId: string, body: Record<string, unknown> | null, opts?: { allWorkspaces?: boolean }): Promise<unknown>
+  export function getMyStatus(api: { mock?: boolean, base?: string, token?: string, credentials?: RequestCredentials }, selfId: string): Promise<Record<string, unknown> | null>
 }
 
 declare module '~/utils/dm-presence.mjs' {

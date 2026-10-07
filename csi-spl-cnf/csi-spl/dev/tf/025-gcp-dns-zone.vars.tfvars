@@ -9,5 +9,5 @@ zone_name = "spool-hub-dev"
 zone_description = "spool hub dev subzone: created by 025-gcp-dns-zone, delegated from the prd apex zone"
 parent_zone_name = "spool-hub"
 parent_zone_project = "csi-spl-prd"
-cloud_run_mapping_records = [{"name": "csitea", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "csitea", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}, {"name": "e2e", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "e2e", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}, {"name": "www", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "www", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}]
+cloud_run_mapping_records = [{"name": "csitea", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "csitea", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}, {"name": "e2e", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "e2e", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}, {"name": "demo", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "demo", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}, {"name": "www", "rrdatas": ["199.36.158.100"], "type": "A"}, {"name": "www", "rrdatas": ["\"hosting-site=csi-spl-dev-site\""], "type": "TXT"}]
 fqdn = "dev.spool-hub.ai"

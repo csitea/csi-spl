@@ -22,7 +22,9 @@
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant slug
 # @param PROBE_BOX (optional) - default box-orc-probe
-# @param PROBE_AGENT (optional) - default ORC-1
+# @param PROBE_AGENT (optional) - default c-902: legacy test ids such as ORC-1
+#   ended with specs/061 section 0 and move to c-9NN (061 section 2); c-902 is
+#   this probe's own id (do_spl_box_msg_probe c-901, do_spl_file_door_probe c-903)
 # @param PROBE_FILE_MIB (optional) - 1..32, default 8
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 PROBE_FILE_MIB=8 DRY_RUN=0 ./run -a do_spl_box_file_probe
@@ -32,12 +34,12 @@ do_spl_box_file_probe() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-orc-probe}" agent="${PROBE_AGENT:-ORC-1}"
+  local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-orc-probe}" agent="${PROBE_AGENT:-c-902}"
   local mib="${PROBE_FILE_MIB:-8}"
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL PROBE_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
+  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. c-902)"; return 1; }
   [[ "$mib" =~ ^[0-9]+$ ]] && (( mib >= 1 && mib <= 32 )) || { do_log "FATAL PROBE_FILE_MIB must be 1..32 (the hub's per-file limit), got: '$mib'"; return 1; }
 
   local hub d="$SPL_STATE_DIR/probe/$tenant/$box"

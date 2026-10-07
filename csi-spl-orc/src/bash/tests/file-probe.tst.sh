@@ -8,6 +8,9 @@
 #   3. DRY_RUN=0 without a pinned probe box stops before any spool call and
 #      names do_spl_box_msg_probe
 #   4. CONTROL: the stub log records a call when one is made
+#   5. past the specs/061 legacy cutoff (SPOOL_NOW) the default PROBE_AGENT
+#      passes the id check and is c-902, not the retired ORC-1. CONTROL: an
+#      explicit PROBE_AGENT=ORC-1 is refused then
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,5 +45,14 @@ out=$(SNIPPET=do_spl_box_file_probe in_orc TENANT_ID=t1 DRY_RUN=0 2>&1); rc=$?
 # --- 4. CONTROL --------------------------------------------------------------------------
 SNIPPET='spool version' in_orc >/dev/null 2>&1
 grep -q '^spool version' "$T/calls.log" && pass "CONTROL: stub records calls" || fail "CONTROL: stub recorded nothing"
+
+# --- 5. default agent past the legacy cutoff ---------------------------------------------
+LATE=2026-10-07T07:45:00Z
+out=$(SNIPPET=do_spl_box_file_probe in_orc SPOOL_NOW=$LATE TENANT_ID=t1 2>&1); rc=$?
+[[ $rc -eq 0 ]] && grep -q "DRY_RUN nothing was touched" <<<"$out" && pass "late: the default PROBE_AGENT passes the 061 id check" \
+  || fail "late: default PROBE_AGENT refused: rc=$rc $out"
+grep -q "from c-902@box-orc-probe " <<<"$out" && pass "late: the default PROBE_AGENT is c-902" || fail "late: default agent not c-902: $out"
+SNIPPET=do_spl_box_file_probe in_orc SPOOL_NOW=$LATE TENANT_ID=t1 PROBE_AGENT=ORC-1 >"$T/o" 2>&1 \
+  && fail "late: accepts the retired ORC-1" || pass "late: CONTROL refuses the retired ORC-1"
 
 (( fails == 0 )) && echo "OK file-probe: all checks passed" || { echo "file-probe: $fails failure(s)"; exit 1; }

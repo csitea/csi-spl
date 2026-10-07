@@ -283,7 +283,7 @@ type Hub struct {
 	DocsEditEnabled          bool          `env:"SPOOL_HUB_DOCS_EDIT_ENABLED" envDefault:"false"`
 	DocsEditDeny             []string      `env:"SPOOL_HUB_DOCS_EDIT_DENY" envSeparator:","`
 	DocsEditBlocked          []string      `env:"SPOOL_HUB_DOCS_EDIT_BLOCKED_WORKSPACES" envSeparator:","`
-	DocsEditCoalesceAfter    time.Duration `env:"SPOOL_HUB_DOCS_EDIT_COALESCE_AFTER" envDefault:"120s"`
+	DocsEditCoalesceAfter    time.Duration `env:"SPOOL_HUB_DOCS_EDIT_COALESCE_AFTER" envDefault:"15s"`
 	DocsEditCoalesceMax      time.Duration `env:"SPOOL_HUB_DOCS_EDIT_COALESCE_MAX" envDefault:"10m"`
 	DocsEditMinMemberAge     time.Duration `env:"SPOOL_HUB_DOCS_EDIT_MIN_MEMBER_AGE" envDefault:"24h"`
 	DocsEditRateMemberHour   int           `env:"SPOOL_HUB_DOCS_EDIT_RATE_MEMBER_PER_HOUR" envDefault:"30"`

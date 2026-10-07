@@ -502,3 +502,42 @@ func TestWorkerSweepsOldOverlays(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkerNextWait: the worker sleeps until the earliest queued row falls
+// due (never under a second), polls tree.json every FastPoll while a pushed
+// edit is not published yet, and is back on Poll once it is.
+func TestWorkerNextWait(t *testing.T) {
+	e := newEnv(t, map[string]string{doc: base6})
+	ctx := context.Background()
+	tree := func(sha string) {
+		if err := e.bucket.Put(ctx, "tree.json", []byte(`{"v":1,"sha":"`+sha+`","files":[]}`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := func(step string, d time.Duration) {
+		t.Helper()
+		if got := e.w.NextWait(ctx); got != d {
+			t.Fatalf("%s: NextWait = %s, want %s", step, got, d)
+		}
+	}
+	tree(e.gh.Head())
+	e.tick()
+	want("idle", repodocs.DefaultPoll)
+	r := e.save("hum-a", doc, "a\nB\nc\nd\ne\nf\n", e.baseOf(doc), alice)
+	want("queued, due in 2 min", repodocs.DefaultPoll)
+	e.clk.add(110 * time.Second)
+	want("queued, due in 10 s", 10*time.Second)
+	e.clk.add(time.Minute)
+	want("due, not claimed yet", time.Second)
+	e.tick()
+	if st := e.row(r.EditID).Status; st != store.RepoDocPushed {
+		t.Fatalf("setup: row %s, want pushed", st)
+	}
+	want("pushed, not published", repodocs.DefaultFastPoll)
+	tree(e.gh.Head())
+	e.tick()
+	if st := e.row(r.EditID).Status; st != store.RepoDocPublished {
+		t.Fatalf("setup: row %s, want published", st)
+	}
+	want("published", repodocs.DefaultPoll)
+}

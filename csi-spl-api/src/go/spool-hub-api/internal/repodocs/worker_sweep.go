@@ -41,6 +41,7 @@ func (w *Worker) sweepPublished(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	w.unpublished = len(rows) > 0
 	var done []string
 	for _, e := range rows {
 		if e.CommitSHA == "" || w.checked[e.CommitSHA] {
@@ -61,6 +62,7 @@ func (w *Worker) sweepPublished(ctx context.Context) error {
 	}
 	n, err := w.c.Queue.PublishRepoDocEdits(ctx, done, w.c.Now())
 	if err == nil {
+		w.unpublished = len(rows) > len(done)
 		w.c.Log.Info().Int64("n", n).Str("tree_sha", tree).Msg("repo-edit worker: edits published")
 	}
 	return err

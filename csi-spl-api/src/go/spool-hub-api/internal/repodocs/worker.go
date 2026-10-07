@@ -19,9 +19,11 @@ import (
 )
 
 // The repo-edit worker (spec 075 repo-edit §3, §6-§8, §11; task T10): the
-// env's one pusher. It holds the env's advisory lock, wakes on NOTIFY or a
-// 30 s poll, and per tick: returns stuck pushing rows to the queue, claims
-// due rows (the coalescing window is their next_try_at), pushes each one to
+// env's one pusher. It holds the env's advisory lock, wakes on NOTIFY, when
+// the earliest queued row falls due, or after a 30 s poll (5 s while a
+// pushed edit waits for the publish), and per tick: returns stuck pushing
+// rows to the queue, claims due rows (the coalescing window is their
+// next_try_at), pushes each one to
 // master fast-forward only (3-way merging onto a moved head, gating the
 // merged bytes again), marks pushed rows published once the env's
 // tree.json holds them, refreshes the history's authors daily and sweeps
@@ -37,6 +39,7 @@ type Queue interface {
 	ReclaimRepoDocEdits(ctx context.Context, staleBefore, now time.Time) ([]store.RepoDocEdit, error)
 	PushedRepoDocEdits(ctx context.Context) ([]store.RepoDocEdit, error)
 	PublishRepoDocEdits(ctx context.Context, commitSHAs []string, now time.Time) (int64, error)
+	NextRepoDocEditDue(ctx context.Context) (time.Time, bool, error)
 	ReplaceRepoDocKnownAuthors(ctx context.Context, authors []store.RepoDocKnownAuthor, now time.Time) error
 	RepoDocEditStatuses(ctx context.Context, ids []string) (map[string]string, error)
 }
@@ -66,6 +69,7 @@ type Session interface {
 // Defaults of WorkerConfig (spec §3, §5.1, §11).
 const (
 	DefaultPoll         = 30 * time.Second
+	DefaultFastPoll     = 5 * time.Second
 	DefaultStale        = 10 * time.Minute
 	DefaultOverlayKeep  = 30 * 24 * time.Hour
 	DefaultRefreshEvery = 24 * time.Hour
@@ -77,6 +81,9 @@ const (
 	// refMoveTries is how often one claim re-reads head after losing the
 	// ref race (the other env's worker, a lane) before backing off.
 	refMoveTries = 3
+	// minWait floors a wait: a row due now that the tick could not claim
+	// (FIFO per path, the Claim limit) is retried a second later, not spun.
+	minWait = time.Second
 )
 
 // WorkerConfig wires the worker. Env is dev or prd (the commit subject).
@@ -93,8 +100,10 @@ type WorkerConfig struct {
 	Log     zerolog.Logger
 	Now     func() time.Time
 
-	Poll, Stale, OverlayKeep, RefreshEvery time.Duration
-	Claim                                  int
+	// Poll is the idle wake-up; FastPoll the tree.json check while a pushed
+	// edit is not published yet (wf 32 publishes ~80 s after the push).
+	Poll, FastPoll, Stale, OverlayKeep, RefreshEvery time.Duration
+	Claim                                            int
 }
 
 // Worker is one env's pusher. Tick is not safe for concurrent use; Run
@@ -104,6 +113,7 @@ type Worker struct {
 
 	treeSHA     string          // the tree.json sha last swept
 	checked     map[string]bool // pushed commits compared against treeSHA, not contained
+	unpublished bool            // the last sweep left pushed rows not published
 	lastRefresh time.Time
 	lastSweep   time.Time
 }
@@ -128,6 +138,7 @@ func NewWorker(c WorkerConfig) (*Worker, error) {
 		}
 	}
 	def(&c.Poll, DefaultPoll)
+	def(&c.FastPoll, DefaultFastPoll)
 	def(&c.Stale, DefaultStale)
 	def(&c.OverlayKeep, DefaultOverlayKeep)
 	def(&c.RefreshEvery, DefaultRefreshEvery)
@@ -165,7 +176,7 @@ func (w *Worker) lead(ctx context.Context, sess Session) {
 	w.c.Log.Info().Msg("repo-edit worker: holds the env lock")
 	for {
 		w.Tick(ctx)
-		if err := sess.Wait(ctx, w.c.Poll); err != nil {
+		if err := sess.Wait(ctx, w.NextWait(ctx)); err != nil {
 			if ctx.Err() == nil {
 				w.c.Log.Warn().Err(err).Msg("repo-edit worker: lock lost")
 			}
@@ -208,6 +219,29 @@ func (w *Worker) Tick(ctx context.Context) {
 			w.lastSweep = now
 		}
 	}
+}
+
+// NextWait is how long the worker sleeps after a tick (a NOTIFY still wakes
+// it sooner): until the earliest queued row falls due, FastPoll while a
+// pushed edit waits for the publish, else Poll; never under minWait.
+func (w *Worker) NextWait(ctx context.Context) time.Duration {
+	d := w.c.Poll
+	if w.unpublished && w.c.FastPoll < d {
+		d = w.c.FastPoll
+	}
+	due, ok, err := w.c.Queue.NextRepoDocEditDue(ctx)
+	if err != nil {
+		w.c.Log.Warn().Err(err).Msg("repo-edit worker: next due")
+	}
+	if ok {
+		if until := due.Sub(w.c.Now()); until < d {
+			d = until
+		}
+	}
+	if d < minWait {
+		d = minWait
+	}
+	return d
 }
 
 // verdict is what one push attempt decided for its row.

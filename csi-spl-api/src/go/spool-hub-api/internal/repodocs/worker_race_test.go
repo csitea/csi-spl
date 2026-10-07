@@ -66,6 +66,9 @@ func (q *memQueue) PushedRepoDocEdits(context.Context) ([]store.RepoDocEdit, err
 func (q *memQueue) PublishRepoDocEdits(context.Context, []string, time.Time) (int64, error) {
 	return 0, nil
 }
+func (q *memQueue) NextRepoDocEditDue(context.Context) (time.Time, bool, error) {
+	return time.Time{}, false, nil
+}
 func (q *memQueue) ReplaceRepoDocKnownAuthors(context.Context, []store.RepoDocKnownAuthor, time.Time) error {
 	return nil
 }

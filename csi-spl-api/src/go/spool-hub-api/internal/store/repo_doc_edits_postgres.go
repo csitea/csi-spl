@@ -389,6 +389,19 @@ func (s *Postgres) PushedRepoDocEdits(ctx context.Context) ([]RepoDocEdit, error
 	return out, err
 }
 
+// NextRepoDocEditDue is when the earliest queued row of any workspace falls
+// due (its next_try_at); ok false when nothing is queued. The worker sleeps
+// until then instead of a full poll (spec 075 repo-edit §3).
+func (s *Postgres) NextRepoDocEditDue(ctx context.Context) (time.Time, bool, error) {
+	var due *time.Time
+	err := s.asOperatorQuery(ctx, `SELECT min(next_try_at) FROM repo_doc_edits WHERE status = 'queued'`, nil,
+		func(r pgx.Rows) error { return r.Scan(&due) })
+	if err != nil || due == nil {
+		return time.Time{}, false, err
+	}
+	return *due, true, nil
+}
+
 // PublishRepoDocEdits marks the pushed rows of these commits published (the
 // published tree contains them); it returns how many moved.
 func (s *Postgres) PublishRepoDocEdits(ctx context.Context, commitSHAs []string, now time.Time) (int64, error) {

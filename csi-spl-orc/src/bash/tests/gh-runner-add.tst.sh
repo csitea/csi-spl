@@ -18,6 +18,8 @@
 #            hook prunes a linked runner's work dir too
 #          - GH_RUNNER_CPU_WEIGHT: set live on the user slice and every runner
 #            unit; unset = no set-property at all; out of range is refused
+#          - GH_RUNNER_GO_CACHE_ROOT: the Go cache lines in every .env; a
+#            reinstall without it keeps the lines already there
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -198,6 +200,18 @@ want="systemctl set-property user-1500.slice CPUWeight=25
 systemctl set-property actions.runner.o.box-spl-01.service CPUWeight=25
 systemctl set-property actions.runner.o.box-spl-02.service CPUWeight=25"
 [[ "$(grep set-property "$MUT_LOG")" == "$want" ]] && ok "CPUWeight set on the runner user's slice and every runner unit" || no "weight: $(grep set-property "$MUT_LOG")"
+
+# GH_RUNNER_GO_CACHE_ROOT: the Go cache lines in every .env; a reinstall
+# without it keeps them (do_setup_ghrunner_go_cache wrote them)
+GH_RUNNER_GO_CACHE_ROOT=rel GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "relative go cache root must fail" || ok "a relative GH_RUNNER_GO_CACHE_ROOT is refused"
+: >"$T/log"; : >"$RUN_LOG"
+GH_RUNNER_GO_CACHE_ROOT="$T/gocache" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "apply with a Go cache root exits 0" || no "apply go cache failed: $(tail -3 "$T/log")"
+grep -qx "GOCACHE=$T/gocache/go-build" "$T/srv/box-spl-02/.env" && grep -qx "GOMODCACHE=$T/gocache/go/pkg/mod" "$T/srv/box-spl-02/.env" \
+  && grep -q "install $T/gocache/go$" "$MUT_LOG" && grep -q 'box-spl-02 svc.sh stop' "$RUN_LOG" && ok "the Go cache lines reach every .env, the dirs are made, the runner restarted" || no "go .env: $(cat "$T/srv/box-spl-02/.env")"
+: >"$T/log"; : >"$RUN_LOG"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "reinstall without a Go cache root exits 0" || no "reinstall failed: $(tail -3 "$T/log")"
+grep -qx "GOPATH=$T/gocache/go" "$T/srv/box-spl-01/.env" && ! grep -q 'svc.sh stop' "$RUN_LOG" \
+  && ok "a reinstall keeps the Go cache lines and restarts nothing" || no "kept go: $(cat "$T/srv/box-spl-01/.env" "$RUN_LOG")"
 
 # the downloaded tarball's path is the only thing on stdout, even when do_log
 # writes to stdout (the real one does: the path once carried the OK line)

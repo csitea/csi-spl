@@ -30,6 +30,10 @@
 # @param   bigger disk) and linked from GH_RUNNER_ROOT/<name>; existing runners
 # @param   stay where they are. Default: none, new dirs go in GH_RUNNER_ROOT
 # @param GH_RUNNER_HOME (optional) - the user's home, default /var/lib/<user>
+# @param GH_RUNNER_GO_CACHE_ROOT (optional) - the runners' Go caches live here
+# @param   (GOCACHE <root>/go-build, GOPATH <root>/go), set in every runner's
+# @param   .env and made as the runner user. Default: none, a runner keeps the
+# @param   GO* lines its .env already has (do_setup_ghrunner_go_cache's)
 # @param GH_RUNNER_MIN_FREE_GB (optional) - prune below this, default 8
 # @param GH_RUNNER_CPU_WEIGHT (optional) - 1..10000: the systemd CPUWeight of
 # @param   every runner unit and of the runner user's slice (its rootless
@@ -240,15 +244,40 @@ ghr_register() {
   done
 }
 
+# ghr_go_env_lines <root> - the .env lines that put the Go caches in <root>
+ghr_go_env_lines() {
+  printf '%s\n' "GOCACHE=$1/go-build" "GOPATH=$1/go" "GOMODCACHE=$1/go/pkg/mod"
+}
+
+# ghr_go_dirs <user> <root> - make the Go cache dirs, owned by the runner user
+ghr_go_dirs() {
+  sudo install -d -m 0755 -o "$1" -g "$1" "$2" "$2/go-build" "$2/go" \
+    || { do_log "FATAL cannot make the Go cache dirs in $2 for $1"; return 1; }
+}
+
+# ghr_go_env_of <dir> - the Go cache lines a runner's .env should carry:
+# GH_RUNNER_GO_CACHE_ROOT's when set, else the ones it already has (a
+# reinstall keeps what do_setup_ghrunner_go_cache wrote)
+ghr_go_env_of() {
+  if [[ -n "${GH_RUNNER_GO_CACHE_ROOT:-}" ]]; then
+    ghr_go_env_lines "$GH_RUNNER_GO_CACHE_ROOT"
+  else
+    sudo cat "$1/.env" 2>/dev/null | grep -E '^(GOCACHE|GOPATH|GOMODCACHE)=' || true
+  fi
+}
+
 # ghr_services - every runner: .env (restart when it changed), service
 # installed + started
 ghr_services() {
-  local i name dir envf
-  envf="$(printf '%s\n' "DOCKER_HOST=unix:///run/user/$GHR_UID/docker.sock" "XDG_RUNTIME_DIR=/run/user/$GHR_UID" \
+  local i name dir envf base go
+  base="$(printf '%s\n' "DOCKER_HOST=unix:///run/user/$GHR_UID/docker.sock" "XDG_RUNTIME_DIR=/run/user/$GHR_UID" \
     "ACTIONS_RUNNER_HOOK_JOB_COMPLETED=$GHR_ROOT/job-done.sh" "GH_RUNNER_MIN_FREE_GB=$GHR_MIN_FREE" \
     "LANG=C.UTF-8" "PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin")"
+  if [[ -n "${GH_RUNNER_GO_CACHE_ROOT:-}" ]]; then ghr_go_dirs "$GHR_USER" "$GH_RUNNER_GO_CACHE_ROOT" || return 1; fi
   for ((i = 1; i <= GHR_N; i++)); do
     name="$(ghr_name "$i")"; dir="$GHR_ROOT/$name"
+    go="$(ghr_go_env_of "$dir")"
+    envf="$base${go:+$'\n'$go}"
     if [[ "$(sudo cat "$dir/.env" 2>/dev/null)" != "$envf" ]]; then
       sudo -u "$GHR_USER" tee "$dir/.env" >/dev/null <<<"$envf" || return 1
       sudo test -s "$dir/.service" && ghr_in "$dir" root ./svc.sh stop >/dev/null
@@ -305,11 +334,13 @@ do_gh_runner_add() {
     || { do_log "FATAL GH_RUNNER_DATA_ROOT must be an absolute path other than GH_RUNNER_ROOT"; return 1; }
   [[ -z "$GHR_CPU_WEIGHT" || ( "$GHR_CPU_WEIGHT" =~ ^[1-9][0-9]{0,4}$ && "$GHR_CPU_WEIGHT" -le 10000 ) ]] \
     || { do_log "FATAL GH_RUNNER_CPU_WEIGHT must be 1..10000, got: $GHR_CPU_WEIGHT"; return 1; }
+  [[ -z "${GH_RUNNER_GO_CACHE_ROOT:-}" || ( "$GH_RUNNER_GO_CACHE_ROOT" =~ ^/[A-Za-z0-9._/-]+$ && "$GH_RUNNER_GO_CACHE_ROOT" != *..* ) ]] \
+    || { do_log "FATAL GH_RUNNER_GO_CACHE_ROOT must be an absolute path, got: $GH_RUNNER_GO_CACHE_ROOT"; return 1; }
   GHR_ORG="${GHR_REPO%%/*}"
   ghr_check_group || return 1
   ghr_plan
   if [[ "${APPLY:-0}" != 1 ]]; then
-    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
+    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
     do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
     return 0
   fi

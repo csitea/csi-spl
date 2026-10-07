@@ -96,7 +96,7 @@ T005 and T010 are pure packages with no dependency and may start at once.
   (FR-004)
 
 ### Phase 4: Guests (serial)
-- [ ] T007 **guests + rsvp**: `calendar_guests` in the store; `guests` on
+- [x] T007 **guests + rsvp** (c-425, `7d75c7ae`; hub v2.5.6-c2 on dev and prd; `store/calendar_guests.go`; an answer keeps `updated_at`; the route is the session caller's, agents answer once T012 wraps it): `calendar_guests` in the store; `guests` on
   create and PATCH (kept in `mentions`); `POST .../rsvp` with `this|all`;
   `guests` and `my_response` on the event object. Tests: AC-05, AC-08 for
   guests. Depends: T006 (an answer on an occurrence). (FR-005)

@@ -73,6 +73,31 @@ export function aiMenuItems(msg) {
   }))
 }
 
+/** the phone sheet's one entry that turns the sheet into the seven actions */
+export const AI_MORE = { id: 'ai-more', icon: 'bot', labelKey: 'feed.msg_menu.ai.group' }
+
+/**
+ * t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card in
+ * every view"): a menu's own entries plus the AI actions group - the one rule
+ * every message menu uses (MessageMenu, the search row and the Flow entry
+ * menus). Desktop: the group closes the list. The phone sheet opens WHOLE,
+ * Delete last (t1 7a6be5a3): one "AI actions" entry before Delete; `only`
+ * (that entry picked) is the seven actions alone.
+ * @template {{ id: string }} T
+ * @param {T[]} base
+ * @param {unknown} msg
+ * @param {{ sheet?: boolean, only?: boolean }} [opts]
+ */
+export function withAiItems(base, msg, opts = {}) {
+  const o = opts && typeof opts === 'object' ? opts : {}
+  const ai = aiMenuItems(msg)
+  if (o.only) return ai.map(({ groupKey: _g, ...it }) => it)
+  if (!ai.length) return base
+  if (!o.sheet) return [...base, ...ai]
+  const del = base.findIndex((it) => it.id === 'delete' || it.id === 'delete-topic')
+  return del < 0 ? [...base, AI_MORE] : [...base.slice(0, del), AI_MORE, ...base.slice(del)]
+}
+
 function authorOf(m) {
   const a = typedByAuthor(m)
   return a.box ? `${a.id}@${a.box}` : a.id

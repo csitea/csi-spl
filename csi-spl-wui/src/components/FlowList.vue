@@ -46,6 +46,9 @@
       :label="t('flow.list')"
       @active="flow.select"
       @open="openKey"
+      @menu="onMenu"
+      @press="onPress"
+      @keydown="onKey"
     />
     <!-- owner 73c9704c: a page of 30 entries first, older ones on request -->
     <button
@@ -57,6 +60,23 @@
       @click="flow.loadMore()"
     >{{ flow.loadingMore ? t('feed.loading_older') : t('feed.load_more') }}</button>
   </div>
+  <p v-if="aiError" class="msg-edit-error flow-ai-error" role="alert" data-testid="msg-ai-error">{{ t(aiError) }}</p>
+  <!-- t1 b6c742f0: an entry's menu (right-click, a long press, the menu key):
+       Open original, and on a person's message the AI actions group.
+       Mounted on open only: not in the initial JS (027). -->
+  <LazySearchRowMenu
+    v-if="menu.row"
+    :open="!!menu.row"
+    :x="menu.x"
+    :y="menu.y"
+    :items="MENU_ITEMS"
+    :ai-msg="menu.row"
+    :label="t('feed.msg_menu.label')"
+    testid="flow-menu"
+    @close="menu.row = null"
+    @escape="listEl?.focus()"
+    @choose="onMenuChoose"
+  />
 </template>
 
 <script setup lang="ts">
@@ -74,6 +94,9 @@ import type { FlowEntry } from '~/utils/flow-entries.mjs'
 import type { SideHitItem } from '~/utils/side-hit-list.mjs'
 import { loadCursors } from '~/utils/read-cursor.mjs'
 import { formatMsgListTs, phoneCardTime, shownPerson } from '~/utils/channel-feed.mjs'
+import { createLongPress } from '~/utils/touch-ui.mjs'
+import { useAiListRun } from '~/composables/useAiListRun'
+import type { PointMenuItem } from '~/components/UiPointMenu.vue'
 
 const props = withDefaults(defineProps<{ active?: boolean }>(), { active: true })
 
@@ -86,7 +109,7 @@ const people = useHumanNames()
 const stack = useMobileStack()
 const now = useNowTick(() => props.active)
 const scrollEl = ref<HTMLElement | null>(null)
-const listEl = ref<{ focus: () => void } | null>(null)
+const listEl = ref<{ focus: () => void, rowEl: (key: string) => HTMLElement | null | undefined } | null>(null)
 
 /* the unread dot reads the same local cursors the badges do; a badge cleared
    elsewhere (notes.unread changes) re-reads them */
@@ -155,6 +178,8 @@ const items = computed<SideHitItem[]>(() => flow.visible.map((e: FlowEntry) => {
  * whole, so no lookup; the Flow list stays while it navigates.
  */
 async function openKey(key: string) {
+  /* the long press that opened the menu lifts with a click: that click is the menu's */
+  if (longPress.takeClick()) return
   const row = flow.visible.find((r: FlowEntry) => r.key === key)
   if (!row) return
   flow.select(key)
@@ -163,6 +188,71 @@ async function openKey(key: string) {
   const keyboard = Boolean(scrollEl.value && scrollEl.value.contains(document.activeElement))
   await openMessage(row)
   if (keyboard && !stack.isMobile.value) listEl.value?.focus()
+}
+
+/* t1 b6c742f0 (HUM-10 14dc0232: "add those same actions to every msg card
+   in every view"): an entry's menu - right-click, a long press on a phone
+   (the bottom sheet), or the menu key. An AI pick opens the message where it
+   lives, then runs there (composables/useAiListRun.ts). */
+const MENU_ITEMS: PointMenuItem[] = [{ id: 'original', icon: 'open', labelKey: 'search.menu.original' }]
+const menu = reactive<{ row: FlowEntry | null, x: number, y: number }>({ row: null, x: 0, y: 0 })
+const aiList = useAiListRun()
+const aiError = ref('')
+function entryOf(key: string) {
+  return flow.visible.find((r: FlowEntry) => r.key === key) || null
+}
+function openMenuAt(row: FlowEntry, x: number, y: number) {
+  flow.select(row.key)
+  aiError.value = ''
+  menu.row = row
+  menu.x = x
+  menu.y = y
+}
+function onMenu(key: string, ev: MouseEvent) {
+  const row = entryOf(key)
+  if (!row) return
+  ev.preventDefault()
+  openMenuAt(row, ev.clientX, ev.clientY)
+}
+let pressRow: FlowEntry | null = null
+const longPress = createLongPress({
+  onPress: (x, y) => {
+    if (!pressRow) return
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(10)
+    openMenuAt(pressRow, x, y)
+  },
+})
+onBeforeUnmount(() => longPress.cancel())
+function onPress(key: string, ev: PointerEvent) {
+  pressRow = entryOf(key)
+  longPress.down(ev)
+  const el = ev.currentTarget as HTMLElement | null
+  if (!el) return
+  const off = () => { el.removeEventListener('pointermove', longPress.move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', cancel) }
+  const up = () => { longPress.up(); off() }
+  const cancel = () => { longPress.cancel(); off() }
+  el.addEventListener('pointermove', longPress.move)
+  el.addEventListener('pointerup', up)
+  el.addEventListener('pointercancel', cancel)
+}
+function onKey(ev: KeyboardEvent, key: string) {
+  if (!(ev.key === 'ContextMenu' || (ev.key === 'F10' && ev.shiftKey))) return
+  const row = entryOf(key)
+  const el = listEl.value?.rowEl(key)
+  if (!row) return
+  ev.preventDefault()
+  const r = el?.getBoundingClientRect()
+  openMenuAt(row, r ? r.left + 16 : 16, r ? r.top + 24 : 16)
+}
+async function onMenuChoose(id: string) {
+  const row = menu.row
+  menu.row = null
+  if (!row) return
+  if (id === 'original') return void openKey(row.key)
+  if (id.startsWith('ai-')) {
+    flow.markOpened(row.key)
+    aiError.value = await aiList.run(id, row)
+  }
 }
 
 /* the scroll survives the panel being hidden (another tab, a phone at level
@@ -206,6 +296,7 @@ onMounted(() => {
 
 <style scoped>
 .flow-more { margin: 4px 8px 8px; }
+.flow-ai-error { margin: 4px 8px; }
 .flow-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px 6px; }
 .flow-scope { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-pill); overflow: hidden; }
 .flow-scope__btn { padding: 2px 10px; font-size: 0.8125rem; color: var(--color-muted); background: transparent; border: 0; cursor: pointer; }

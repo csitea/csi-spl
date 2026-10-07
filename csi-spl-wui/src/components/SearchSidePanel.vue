@@ -27,6 +27,7 @@
       </button>
     </div>
     <p v-if="!inPage && search.q" class="side-search__q"><code dir="ltr">{{ search.q }}</code></p>
+    <p v-if="aiError" class="msg-edit-error side-search__note" role="alert" data-testid="msg-ai-error">{{ t(aiError) }}</p>
     <div ref="scrollEl" class="sidebar-scroll side-search__scroll" @scroll.passive="noteScroll">
       <p v-if="search.loading" class="muted side-search__note" data-test="side-search-loading" aria-live="polite">{{ t('search.loading') }}</p>
       <p v-else-if="search.error" class="muted side-search__note" data-test="side-search-error">{{ search.error.status === 503 ? t('search.budget', { s: SEARCH_BUDGET_S }) : t('search.failed', { detail: search.error.detail || search.error.token || String(search.error.status || '') }) }}</p>
@@ -67,6 +68,7 @@
       :x="menu.x"
       :y="menu.y"
       :items="menuItems(menu.row)"
+      :ai-msg="menu.row.type === 'messages' ? menu.row : undefined"
       @close="closeMenu"
       @escape="listRef?.focus()"
       @choose="onMenuChoose"
@@ -76,6 +78,7 @@
 
 <script setup lang="ts">
 import SideHitList from '~/components/SideHitList.vue'
+import { useAiListRun } from '~/composables/useAiListRun'
 import { ISSUE_CHANNEL } from '~/utils/parent-section.mjs'
 import { useLiveFeed } from '~/stores/live'
 import { useLive } from '~/composables/useLive'
@@ -231,10 +234,13 @@ function onOpen(key: string) {
 /* 022 §10 FR-050: the row's right menu - right-click, a long press on a
    phone (the bottom sheet), or the menu key */
 const menu = reactive<{ row: SearchRow | null, x: number, y: number }>({ row: null, x: 0, y: 0 })
+const aiList = useAiListRun()
+const aiError = ref('')
 function menuItems(row: SearchRow | null) { return row ? searchRowMenuItems(row) : [] }
 function openMenuAt(row: SearchRow, x: number, y: number) {
   if (!menuItems(row).length) return
   search.activeKey = row.key
+  aiError.value = ''
   menu.row = row
   menu.x = x
   menu.y = y
@@ -283,6 +289,11 @@ async function onMenuChoose(id: string) {
   if (!row) return
   if (id === 'original') return void open(row)
   if (id === 'here') return void showHere(row)
+  /* t1 b6c742f0: an AI action opens the hit where it lives, then runs there */
+  if (id.startsWith('ai-')) {
+    aiError.value = await aiList.run(id, row)
+    return
+  }
   if (id === 'copy') {
     const href = originalHref(row, { self: viewerId.value, pathFor: localePath })
     if (href) await copyText(new URL(href, window.location.origin).href)

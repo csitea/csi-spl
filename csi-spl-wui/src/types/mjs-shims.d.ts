@@ -711,6 +711,8 @@ declare module '~/utils/msg-ai-actions.mjs' {
   export function aiAction(id: string): AiActionDef | null
   export function offersAiActions(msg: unknown): boolean
   export function aiMenuItems(msg: unknown): { id: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string, groupKey?: string }[]
+  export const AI_MORE: { id: 'ai-more', icon: 'bot', labelKey: string }
+  export function withAiItems<T extends { id: string }>(base: T[], msg: unknown, opts?: { sheet?: boolean, only?: boolean }): (T | { id: string, icon: import('~/utils/uiIcons').UiIconName, labelKey: string, groupKey?: string })[]
   export function aiPostTarget(msg: unknown): { taskId: string, channel: string }
   export function aiActionPost(msg: unknown, actionId: string, where?: { workspace?: string, link?: string }): string
   export function aiIssueBody(msg: unknown, where?: { workspace?: string, link?: string }): { title: string, description: string }

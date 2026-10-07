@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  AI_ACTIONS, aiActionPost, aiCalendarRoute, aiEventBody, aiIssueBody, aiIssueRoute, aiMenuItems, aiPostTarget, createCalendarEvent, offersAiActions,
+  AI_ACTIONS, aiActionPost, aiCalendarRoute, aiEventBody, aiIssueBody, aiIssueRoute, aiMenuItems, aiPostTarget, createCalendarEvent, offersAiActions, withAiItems,
 } from '../../src/utils/msg-ai-actions.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -139,5 +139,40 @@ describe('Add to calendar', () => {
     } finally {
       globalThis.fetch = prev
     }
+  })
+})
+
+describe('every message menu, one rule (t1 b6c742f0, HUM-10 14dc0232)', () => {
+  const base = [{ id: 'open' }, { id: 'copy' }, { id: 'delete' }]
+  const ids = (list) => list.map((i) => i.id)
+  const SEVEN = ['ai-debate', 'ai-spec', 'ai-implement', 'ai-analyse', 'ai-issue', 'ai-risks', 'ai-calendar']
+  it('desktop: the menu\'s own entries, then the seven', () => {
+    assert.deepEqual(ids(withAiItems(base, person)), ['open', 'copy', 'delete', ...SEVEN])
+  })
+  it('phone: one AI actions entry before Delete, Delete stays last', () => {
+    assert.deepEqual(ids(withAiItems(base, person, { sheet: true })), ['open', 'copy', 'ai-more', 'delete'])
+    assert.deepEqual(ids(withAiItems([{ id: 'original' }], person, { sheet: true })), ['original', 'ai-more'])
+  })
+  it('that entry picked: the seven alone, no heading', () => {
+    const only = withAiItems(base, person, { sheet: true, only: true })
+    assert.deepEqual(ids(only), SEVEN)
+    assert.ok(only.every((i) => !i.groupKey))
+  })
+  it('an agent\'s message keeps the menu as it is', () => {
+    assert.equal(withAiItems(base, agent), base)
+    assert.equal(withAiItems(base, agent, { sheet: true }), base)
+  })
+  it('a search hit and a Flow entry carry what the rule reads', () => {
+    const hit = { type: 'messages', key: 'k', msg_id: 'm-9', task_id: TASK, from: 'HUM-2', from_box: 'box-wui', snippet: { text: 'x' } }
+    assert.equal(offersAiActions(hit), true)
+    assert.equal(offersAiActions({ ...hit, from: 'c-007' }), false)
+  })
+  it('the card menu, the search row menu and the Flow menu all use it', () => {
+    assert.match(src('src/composables/useAiMenuGroup.ts'), /withAiItems\(/)
+    assert.match(src('src/components/MessageMenu.vue'), /useAiMenuGroup\(/)
+    assert.match(src('src/components/SearchRowMenu.vue'), /useAiMenuGroup\(/)
+    assert.match(src('src/components/FlowList.vue'), /:ai-msg="menu\.row"/)
+    assert.match(src('src/components/SearchSidePanel.vue'), /:ai-msg=/)
+    assert.match(src('src/components/MessageCard.vue'), /:ai-msg="ai \? undefined : msg"/)
   })
 })

@@ -20,12 +20,11 @@
 
 <script setup lang="ts">
 import { msgMenuItems } from '~/utils/msg-menu.mjs'
-import { aiMenuItems } from '~/utils/msg-ai-actions.mjs'
 import { runAiAction } from '~/utils/msg-ai-run'
+import { useAiMenuGroup } from '~/composables/useAiMenuGroup'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
-import { usePhone } from '~/composables/useTouchUi'
 import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
 import { shortcutHint } from '~/utils/msg-shortcuts.mjs'
 
@@ -90,19 +89,17 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-/* the item list differs on a phone (msgMenuItems `touch`) */
-const sheet = usePhone()
 /* HUM-10 ae2e5093: each entry's Shift + letter on its right, while the setting is on */
 const keysOn = useMsgShortcutsOn()
 /* t1 b6c742f0: the AI actions group closes the list, on a person's message
-   only. The phone sheet opens WHOLE (t1 7a6be5a3), Delete last: there the
-   group is one "AI actions" entry before Delete that turns the same sheet
-   into the seven actions. */
-const aiOnly = ref(false)
-/* the pick of "AI actions" is not a close: UiPointMenu emits close after every pick */
-let keepOpen = false
+   only (composables/useAiMenuGroup.ts). The phone sheet opens WHOLE
+   (t1 7a6be5a3), Delete last: there the group is one "AI actions" entry
+   before Delete that turns the same sheet into the seven actions.
+   The item list differs on a phone (msgMenuItems `touch`). */
+const ai = useAiMenuGroup(() => props.aiMsg)
+const sheet = ai.sheet
 function onClose() {
-  if (keepOpen) { keepOpen = false; return }
+  if (ai.keep()) return
   emit('close')
 }
 /* the menu runs the pick itself: it outlives the close (the promise keeps it) */
@@ -111,16 +108,7 @@ async function runAi(id: string) {
   const key = await runAiAction(id, props.aiMsg, aiDeps)
   if (key) props.aiFail?.(key)
 }
-const AI_MORE = { id: 'ai-more', icon: 'bot' as const, labelKey: 'feed.msg_menu.ai.group' }
-const items = computed(() => {
-  const ai = aiMenuItems(props.aiMsg)
-  if (aiOnly.value) return withKeys(ai.map(({ groupKey: _g, ...it }) => it))
-  const base = topicItems.value
-  if (!ai.length) return withKeys(base)
-  if (!sheet.value) return withKeys([...base, ...ai])
-  const del = base.findIndex((it) => it.id === 'delete' || it.id === 'delete-topic')
-  return withKeys(del < 0 ? [...base, AI_MORE] : [...base.slice(0, del), AI_MORE, ...base.slice(del)])
-})
+const items = computed(() => withKeys(ai.items(topicItems.value)))
 const topicItems = computed(() => msgMenuItems({
   touch: sheet.value,
   kind: props.kind,
@@ -162,7 +150,7 @@ function choose(id: string) {
   else if (id === 'merge-topic') emit('merge-topic')
   else if (id === 'promote-topic') emit('promote-topic')
   else if (id === 'hide-flow') emit('hide-flow')
-  else if (id === 'ai-more') { aiOnly.value = true; keepOpen = true }
+  else if (ai.more(id)) { /* the sheet now shows the seven actions */ }
   else if (id.startsWith('ai-')) void runAi(id)
 }
 </script>

@@ -68,12 +68,18 @@ chmod +x "$T/bin/"* "$T/cbin/"* "$T/sit/"*
 SH="$T/shared"; mkdir -p "$SH/csi-spl-orc"; git init -q "$SH"
 printf '#!/bin/sh\n' > "$SH/csi-spl-orc/run"; chmod +x "$SH/csi-spl-orc/run"
 export T FAKE_CRONTAB="$T/crontab"
+# Every wait below ends on what it waits for (a lock held, a pid alive), so a
+# loaded runner only makes it slower: WAIT_S caps each one. The starter (and a
+# peer restarting one) waits as long for its new loop to hold its lock, so a
+# second judge after it sees the new loop and starts nothing (CI, 2026-10-07:
+# a loop that took > 5 s to start was started twice).
+WAIT_S=60 WAIT_N=600
 : > "$T/crontab"
 
 wd_env=(PROJ_PATH="$PROJ_ROOT" APP_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc"
   PATH="$T/cbin:$PATH" WD_PS_CMD="$T/bin/ps" ROTATE_TMUX="$T/bin/tmux" WD_SEND="$T/bin/send" WD_TAKEOVER_CMD=true
   WD_SITUATIONS="$T/sit" LEASE_TRANSCRIPT_CMD=true WD_RUN="$T/bin/run" ROTATE_TERM_WAIT=1 ROTATE_BOX=box1
-  DESK_CRON_SRC="$SH" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl)
+  DESK_CRON_SRC="$SH" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl WD_INST_START_WAIT="$WAIT_S")
 # judge <inst> [VAR=v...]: one tick of instance <inst> that checks its peers, under ./run's set -E + ERR trap
 judge() {
   local i="$1"; shift
@@ -101,32 +107,51 @@ fake_peer() {
   [[ "${4:-}" == term ]] && ign='trap "" TERM;'
   setsid bash -c "$ign exec flock '$W/run.$i.lock' sleep 600" </dev/null >/dev/null 2>&1 &
   pid=$!
-  for _ in $(seq 1 50); do held "$W/run.$i.lock" && break; sleep 0.1; done
+  for _ in $(seq 1 "$WAIT_N"); do held "$W/run.$i.lock" && break; sleep 0.1; done
   echo "$pid" > "$W/run.$i.pid"; touch -d "@$((now - age - 10))" "$W/run.$i.pid"
   printf '{"instance": %s, "pid": %s, "ts": %s, "tick_seq": 9, "tick_phase": "agents", "last_progress_ts": %s, "progress_seq": 40, "status": "ok", "git_sha": "x"}\n' \
     "$i" "$pid" "$((now - tick_age))" "$((now - age))" > "$W/heartbeat.$i.json"
   echo "$pid" >> "$T/fakes"
 }
-stop_all() {  # loops that check their peers start each other again: kill until all 3 locks are free
-  local i p n
-  for n in $(seq 1 20); do
-    for i in 1 2 3; do
-      p="$(pidof_inst "$i")"
-      [[ "$p" =~ ^[0-9]+$ ]] && { kill -KILL -- "-$p" 2>/dev/null || kill -KILL "$p" 2>/dev/null; }
-    done
+# sandbox_pids: every process of this sandbox's watchdogs: the loops, their
+# ticks and a start in flight (a setsid'd loop that holds no lock yet and has
+# written no pid file) all carry SPOOL_ROOT=$S in their environment
+sandbox_pids() { grep -lzxF -- "SPOOL_ROOT=$S" /proc/[0-9]*/environ 2>/dev/null | cut -d/ -f3; }
+stop_all() {  # loops that check their peers start each other again: kill until none is left
+  local p
+  for _ in $(seq 1 "$WAIT_N"); do
     while read -r p; do kill -KILL -- "-$p" 2>/dev/null; done < <(cat "$T/fakes" 2>/dev/null)
-    sleep 0.2
-    held "$W/run.1.lock" || held "$W/run.2.lock" || held "$W/run.3.lock" || break
+    p="$(sandbox_pids)"
+    # shellcheck disable=SC2086 # one pid per word
+    [[ -n "$p" ]] && kill -KILL $p 2>/dev/null
+    [[ -z "$p" ]] && ! held "$W/run.1.lock" && ! held "$W/run.2.lock" && ! held "$W/run.3.lock" && break
+    sleep 0.1
   done
   : > "$T/fakes"
 }
 reset_box() { stop_all; rm -rf "$D" "$T/sent"; mkdir -p "$D"; : > "$T/crontab"; }
 trap 'stop_all; rm -rf "$T"' EXIT
-wait_new() {  # wait_new <inst> <tries of 0.1 s> <old pid>: a live new pid holding the lock
+# wait_new <inst> <tries of 0.1 s> <old pid>: a live new pid holding the lock.
+# The lock is probed only once the new pid is live (the loop writes it after
+# it took the lock): a probe of a FREE lock holds it for an instant, and a
+# loop starting in that instant exits "already runs".
+wait_new() {
   local p
-  for _ in $(seq 1 "${2:-100}"); do
+  for _ in $(seq 1 "${2:-$WAIT_N}"); do
     p="$(pidof_inst "$1")"
     [[ -n "$p" && "$p" != "$3" ]] && kill -0 "$p" 2>/dev/null && held "$W/run.$1.lock" && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+# settled: all 3 loops live and holding their locks at once
+settled() {
+  local i ok
+  for _ in $(seq 1 "$WAIT_N"); do
+    ok=1
+    for i in 1 2 3; do wait_new "$i" 1 none || ok=0; done
+    (( ok )) && return 0
     sleep 0.1
   done
   return 1
@@ -153,12 +178,12 @@ out="$(judge 1)"
 reset_box; fake_peer 2 200 200 term; fake_peer 3 10
 f2="$(pidof_inst 2)"; ino="$(stat -c %i "$W/run.2.lock")"
 out="$(judge 1)"
-wait_new 2 50 "$f2" && n2="$(pidof_inst 2)" || n2=""
+wait_new 2 "$WAIT_N" "$f2" && n2="$(pidof_inst 2)" || n2=""
 ! kill -0 "$f2" 2>/dev/null && [[ -n "$n2" ]] &&
   [[ "$(cnt 'TERM instance 2' "$W/peers.log") $(cnt 'KILL instance 2' "$W/peers.log") $(cnt 'RESTART instance 2 (hung)' "$W/peers.log")" == "1 1 1" ]] &&
   pass "3 heartbeat frozen 200 s: TERM, ROTATE_TERM_WAIT, KILL (it ignored TERM), restarted (new pid $n2)" ||
   fail "3 hung: old alive=$(kill -0 "$f2" 2>/dev/null && echo yes || echo no) new='$n2' out=$out log=$(cat "$W/peers.log" 2>/dev/null)"
-for _ in $(seq 1 50); do jq -e --argjson p "${n2:-0}" '.pid == $p' "$W/heartbeat.2.json" >/dev/null 2>&1 && break; sleep 0.1; done
+for _ in $(seq 1 "$WAIT_N"); do jq -e --argjson p "${n2:-0}" '.pid == $p' "$W/heartbeat.2.json" >/dev/null 2>&1 && break; sleep 0.1; done
 jq -e --argjson p "${n2:-0}" --argjson t "$(( $(date +%s) - 30 ))" '.pid == $p and .last_progress_ts >= $t and .instance == 2' "$W/heartbeat.2.json" >/dev/null 2>&1 &&
   pass "3 the restarted instance 2 writes a fresh heartbeat" || fail "3 heartbeat: $(cat "$W/heartbeat.2.json" 2>/dev/null)"
 [[ "$(stat -c %i "$W/run.2.lock")" == "$ino" ]] && ! held "$W/run.2.start.lock" &&
@@ -170,15 +195,16 @@ out="$(judge 1)"
 # ---- 4. three real loops: kill -9 instance 2 -------------------------------------
 reset_box
 starter CHILD_PEERS=1 >/dev/null
-ok=1; for i in 1 2 3; do wait_new "$i" 50 none || ok=0; done
+ok=1; for i in 1 2 3; do wait_new "$i" "$WAIT_N" none || ok=0; done
 (( ok )) && pass "4 the starter starts 3 loops that check their peers" || fail "4 start: $(ls "$W")"
 # the first loop may start a peer the starter has not reached yet (one start lock): settle first
-sleep 3; : > "$W/peers.log"
+settled || fail "4 settle: $(ls "$W")"
+: > "$W/peers.log"
 sleep 6
 [[ "$(cnt RESTART "$W/peers.log")" == 0 ]] && pass "4 control: 3 healthy loops for 3 ticks -> 0 restarts" || fail "4 healthy loops: $(cat "$W/peers.log")"
 p2="$(pidof_inst 2)"; t0=$(date +%s)
 kill -9 "$p2"
-if wait_new 2 150 "$p2"; then
+if wait_new 2 "$WAIT_N" "$p2"; then
   n2="$(pidof_inst 2)"; dt=$(( $(date +%s) - t0 ))
   pass "4 kill -9 instance 2: a peer restarted it in ${dt}s (tick 2 s; its sleep child held the lock until TERMed)"
 else fail "4 kill -9: not restarted: $(cat "$W/peers.log" 2>/dev/null)"; n2=""
@@ -190,7 +216,7 @@ sleep 3
 # ---- 5. the crontab starter ---------------------------------------------------------
 stop_all; rm -f "$W/starter.last"
 out="$(starter)"
-ok=1; for i in 1 2 3; do wait_new "$i" 50 none || ok=0; done
+ok=1; for i in 1 2 3; do wait_new "$i" "$WAIT_N" none || ok=0; done
 (( ok )) && [[ "$(grep -c 'started from' <<<"$out")" == 3 && "$(cat "$W/starter.last" 2>/dev/null)" =~ ^[0-9]+$ ]] &&
   pass "5 all 3 dead: the starter starts 3 and writes starter.last" || fail "5 starter: $out"
 pids="$(pidof_inst 1) $(pidof_inst 2) $(pidof_inst 3)"
@@ -203,11 +229,11 @@ mkdir -p "$W/code/good/csi-spl-orc"
 printf '#!/usr/bin/env bash\necho good >> "%s/good.log"\nexec "%s/bin/run" "$@"\n' "$T" "$T" > "$W/code/good/csi-spl-orc/run"
 chmod +x "$W/code/good/csi-spl-orc/run"
 out="$(starter WD_INSTANCES=2)"
-wait_new 2 50 none && [[ "$(cnt good "$T/good.log")" == 1 && "$out" == *"started from $W/code/good/csi-spl-orc/run"* ]] &&
+wait_new 2 "$WAIT_N" none && [[ "$(cnt good "$T/good.log")" == 1 && "$out" == *"started from $W/code/good/csi-spl-orc/run"* ]] &&
   pass "5 code/good is there: the instance starts from the snapshot" || fail "5 good: $out"
 stop_all; rm -rf "$W/code"
 out="$(starter WD_INSTANCES=2)"
-wait_new 2 50 none && [[ "$(cnt good "$T/good.log")" == 1 && "$out" == *"started from $T/bin/run"* ]] &&
+wait_new 2 "$WAIT_N" none && [[ "$(cnt good "$T/good.log")" == 1 && "$out" == *"started from $T/bin/run"* ]] &&
   pass "5 control: no code/good -> ./run" || fail "5 no good: $out"
 
 # ---- 6. disk full -----------------------------------------------------------------
@@ -222,14 +248,14 @@ grep -q 'HEARTBEAT instance 1 cannot write' "$D/wd.log" 2>/dev/null && pass "6 t
 out="$(judge 1 WD_HB_SINK=/dev/full)"
 [[ "$(cnt '--kind blocker' "$T/sent")" == 1 ]] && kill -0 "$f2" 2>/dev/null && pass "6 the next tick: no second alert (debounced), still 0 kills" || fail "6 debounce: $(cat "$T/sent")"
 out="$(judge 1)"
-wait_new 2 50 "$f2" && [[ "$(cnt 'RESTART instance 2 (hung)' "$W/peers.log")" == 1 ]] &&
+wait_new 2 "$WAIT_N" "$f2" && [[ "$(cnt 'RESTART instance 2 (hung)' "$W/peers.log")" == 1 ]] &&
   pass "6 control: the same peers on a normal disk -> the hung peer is restarted" || fail "6 control: $out / $(cat "$W/peers.log") / $(tail -5 "$W/run.2.out" 2>/dev/null)"
 
 # ---- 7. suspend ---------------------------------------------------------------------
 reset_box; fake_peer 2 200; mkdir -p "$W"; echo $(( $(date +%s) - 200 )) > "$W/last.tick.1"
 f2="$(pidof_inst 2)"
 out="$(judge 1)"
-kill -0 "$f2" 2>/dev/null && [[ "$(cnt RESTART "$W/peers.log")" == 0 ]] && grep -q 'ticked 200s ago' "$W/peers.log" &&
+kill -0 "$f2" 2>/dev/null && [[ "$(cnt RESTART "$W/peers.log")" == 0 ]] && grep -qE 'ticked 20[0-9]s ago' "$W/peers.log" &&
   pass "7 own previous tick 200 s ago (suspend): no peer verdict, 0 kills" || fail "7 suspend: $out / $(cat "$W/peers.log" 2>/dev/null)"
 echo $(( $(date +%s) - 30 )) > "$W/last.tick.1"
 out="$(judge 1)"

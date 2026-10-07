@@ -77,22 +77,29 @@ spl_wd_inst_start() {
 # already holds DIR/run.<inst>.start.lock (spl_wd_inst_start, or a peer that
 # has just stopped a hung INST under that lock). Waits up to
 # WD_INST_START_WAIT s (5) for the new loop to hold its lock, so a second
-# starter right after it starts nothing. spl_lease_detach closes every fd
-# above 2, so the loop does not inherit the start lock. 1 = no runner.
+# starter right after it starts nothing: it waits for a new live pid in
+# run.<inst>.pid, which the loop writes only once it holds the lock. It
+# never probes the lock meanwhile: a probe (flock -n) holds a free lock for
+# an instant, and a loop whose flock -w 0 lands in it exits "already runs"
+# (CI 2026-10-07: a loaded box lost the restarted loop that way).
+# spl_lease_detach closes every fd above 2, so the loop does not inherit the
+# start lock. 1 = no runner.
 spl_wd_inst_start_locked() {
-  local inst="$1" dir="$2" run i
+  local inst="$1" dir="$2" run i old p
   if [[ -f "$dir/run.$inst.lock" ]] && ! flock -n "$dir/run.$inst.lock" true; then
     do_log "INFO watchdog instance $inst runs (pid $(cat "$dir/run.$inst.pid" 2>/dev/null || echo unknown))"
     return 0
   fi
   run="$(spl_wd_inst_runner "$dir")"
+  old="$(cat "$dir/run.$inst.pid" 2>/dev/null || true)"
   [[ -n "$run" ]] || { do_log "FATAL watchdog runner is missing or not executable: ${WD_RUN:-${PROJ_PATH:-<none>}/run}"; return 1; }
   (
     export WD_INST="$inst" INSTANCE="$inst" DRY_RUN="${WD_INST_DRY:-0}" WD_TICKS="" WD_INST_START=""
     spl_lease_detach "$dir/run.$inst.out" "$run" -a do_spl_watchdog
   )
   for (( i = 0; i < ${WD_INST_START_WAIT:-5} * 10; i++ )); do
-    [[ -f "$dir/run.$inst.lock" ]] && ! flock -n "$dir/run.$inst.lock" true && break
+    p="$(cat "$dir/run.$inst.pid" 2>/dev/null || true)"
+    [[ "$p" =~ ^[0-9]+$ && "$p" != "$old" ]] && kill -0 "$p" 2>/dev/null && break
     sleep 0.1
   done
   do_log "INFO watchdog instance $inst started from $run (log $dir/run.$inst.out)"

@@ -117,22 +117,25 @@ spl_wd_peer_state() {
 }
 
 # spl_wd_peer_check P NOW: dead -> start; hung or dead-held -> stop, start.
-# The verdict is taken again under run.<p>.start.lock: a second judge that
+# The verdict is taken under run.<p>.start.lock only: a second judge that
 # comes after the first one's restart sees the new pid, and does nothing.
+# Never before it: the state probes run.<p>.lock (flock -n), which holds a
+# free lock for an instant, and a loop starting in that instant exits
+# "already runs" (CI 2026-10-07). A starter holds the start lock until its
+# new loop holds run.<p>.lock, so no judge probes it while a loop starts.
 spl_wd_peer_check() {
-  local p="$1" now="$2" st
-  st="$(spl_wd_peer_state "$p" "$now")"
-  [[ "$st" == ok* ]] && return 0
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_wd_peer_log "DRY_RUN would restart instance $p: $st"
-    return 0
-  fi
+  local p="$1" now="$2"
   (
     exec 8>>"$WD_DIR/run.$p.start.lock"
     flock -n 8 || { spl_wd_peer_log "instance $p: another starter holds run.$p.start.lock"; exit 0; }
+    local st verdict pid
     st="$(spl_wd_peer_state "$p" "$now")"
     [[ "$st" == ok* ]] && exit 0
-    local verdict="${st%% *}" pid
+    if [[ "${DRY_RUN:-1}" == 1 ]]; then
+      spl_wd_peer_log "DRY_RUN would restart instance $p: $st"
+      exit 0
+    fi
+    verdict="${st%% *}"
     if [[ "$verdict" == hung || "$verdict" == dead-held ]]; then
       pid="$(cut -d' ' -f2 <<<"$st")"
       spl_wd_peer_stop "$p" "$pid"

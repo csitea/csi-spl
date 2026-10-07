@@ -1,56 +1,51 @@
-# 104 API docs (OpenAPI 3.0 + Swagger page) published in Docs
+# 104 API docs (OpenAPI 3.0.3 reference, served by the hub, viewed in Docs)
 
-**Feature ID**: `104-api-docs-openapi` · **Milestone**: M3 · **Status**: Draft (Panel Review)  
-**Created**: 2026-10-07 · **Lane**: a-518 (spec only) · **Topic**: `7dfe8a9d-8606-4993-8df5-63a44fb46c77`  
-**Authority**: this file for normative behaviour and schema policy; `plan.md` for architecture and phasing; `tasks.md` for build order, ownership and done checks. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing.
+**Feature ID**: `104-api-docs-openapi` · **Milestone**: M3 · **Status**: **v1.1, panel consensus, 2026-10-07**  
+**Created**: 2026-10-07 · **Lane**: a-518 (draft v1.0), c-485 (v1.1 fold) · **Topic**: `7dfe8a9d-8606-4993-8df5-63a44fb46c77`  
+**Authority**: this file for normative behaviour and schema policy; `plan.md` for architecture; `tasks.md` for build order, ownership and done checks. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing.
+
+**v1.1 folds the two panel reviews**, which stay unchanged beside this file:
+- [review-s104-rev-1.md](review-s104-rev-1.md) (`79cc9e4d`)
+- [review-s104-rev-2.md](review-s104-rev-2.md) (`0c2812da`)
+
+Both agreed with the v1.0 shape (hand-written file + Go gate, one file for every role, lazy viewer, "Try it out" off) and both corrected the same facts. The one point they differed on, where the file is served from, settled on **the hub** (rev-2 conceded, 14:4xZ). What v1.0 said and v1.1 changed is listed in §7.
 
 Builds on, and does not repeat:
-- [003 spool message bus](../003-spool-message-bus/contracts/http-v1.md) (Hub HTTP transport v1, error envelope, routing conventions)
-- [003 error envelope](../003-spool-message-bus/contracts/error-envelope.md) (standard error schema `{ error, reason }`)
-- [026 tenant from identity](../026-spool-tenant-from-identity/spec.md) (header `X-Spool-Tenant` and session tenant resolution)
-- [027 spool performance](../027-spool-performance/contracts/perf-budgets.md) (initial chunk budget: 155 KB CI gzip ceiling, new features load lazily)
-- [044 spool open source](../044-spool-open-source/spec.md) (repo is public, open development principles)
-- [075 docs section](../075-docs-section/spec.md) (Docs workspace in web app, `GET /v1/docs/...`, `tree.json`, explorer tree)
-- [076 cloud layer](../076-cloud-layer/spec.md) (cloud provider dispatch: `publish-docs.func.sh`, GCS docs bucket)
+- [003 spool message bus](../003-spool-message-bus/contracts/http-v1.md) (hub HTTP transport v1, routing conventions)
+- [003 error envelope](../003-spool-message-bus/contracts/error-envelope.md) (`{ error, detail }`)
+- [026 tenant from identity](../026-spool-tenant-from-identity/spec.md) (`X-Spool-Tenant`, session tenant resolution)
+- [027 spool performance](../027-spool-performance/contracts/perf-budgets.md) (initial chunk ceiling 155 KB gzip; new features load lazily)
+- [044 spool open source](../044-spool-open-source/spec.md) (the repo is public)
+- [075 docs section](../075-docs-section/spec.md) (Docs workspace, `/docs/ws/<path>` precedent for a WUI-owned row)
 - The 49 contract documents under `csi-spl-doc/specs/*/contracts/*.md`
-- `csi-spl-wui/src/pages/docs.vue` and `csi-spl-wui/src/utils/docs.mjs`
 
 ---
 
-## 1. The ask, context & owner instructions
+## 1. The ask
 
 ### 1.1 Verbatim owner instructions
-From owner HUM-10 in topic `303b6389` and topic `7dfe8a9d-8606-4993-8df5-63a44fb46c77` (#spool-hub-bugs):
+From owner HUM-10 in topics `303b6389` and `7dfe8a9d-8606-4993-8df5-63a44fb46c77` (#spool-hub-bugs):
 - *"create the discussion for the creation of the swagger doc and their publishing to the existing open published docs"*
 - *"Swagger page"*
 - *"create it under bugs .. channel"*
 
-Discussion topic: **t1 #spool-hub-bugs `7dfe8a9d-8606-4993-8df5-63a44fb46c77`**.  
-Opening post by dispatcher `c-002`: `/var/spool-hub/dispatch/c002-bugs-swagger-discussion.md`.
+Discussion topic: **t1 #spool-hub-bugs `7dfe8a9d-8606-4993-8df5-63a44fb46c77`** (opening post by dispatcher `c-002`).
 
-### 1.2 Problem statement
-Today, the Spool Hub API exposes **183 endpoints** under `/v1/...`. These routes are registered directly via `net/http`'s `http.ServeMux` across 28 Go source files. Their request and response payloads, status codes, query parameters, and authentication requirements are partially documented across 49 distinct Markdown contracts (`csi-spl-doc/specs/*/contracts/*.md`), but:
-1. There is no machine-readable OpenAPI specification (OpenAPI 3.0 or 3.1).
-2. Several routes have no formal contract at all.
-3. There is no interactive documentation (Swagger UI or interactive reference) hosted in the web application.
-4. Clients, developers, and agent harnesses must manually inspect Go handler code to determine payload schemas and validation rules.
+### 1.2 Problem
+The hub registers its `/v1` routes directly on a `net/http` `ServeMux` across 28 Go files. Their payloads, status codes and auth are partly described in 49 Markdown contracts, but there is no machine-readable OpenAPI file, several routes have no contract at all, and there is no API reference page in the web app. Clients and agents read Go handlers to learn a payload.
 
-The owner requires the creation of a complete OpenAPI specification and an interactive API documentation page published in the existing in-app **Docs** section (`/docs`), integrated with the automated deployment pipeline (`do_publish_docs`), while adhering strictly to performance, security, and distribution hygiene constraints.
+"Swagger page", in this spec, means the in-app API reference at `/docs/api` (§4.4). A classic Swagger UI page is not part of v1.1 (§4.6).
 
 ---
 
-## 2. Codebase inspection & baseline facts
+## 2. Baseline facts (measured on trunk `6e4fb6ed`, 2026-10-07)
 
-Every metric and inventory item in this section is measured directly against the live repository tree as of 2026-10-07.
-
-### 2.1 Hub route inventory
-Route count command:
+### 2.1 Route inventory
 ```bash
 git grep -n 'HandleFunc("' csi-spl-api/src/go/spool-hub-api | grep -v '_test.go' | grep -v 'testkit/' | grep -v 'fakeidp/' | grep -v 'githubtest/' | grep '/v1' | wc -l
 ```
-**Measured count**: exactly **183 `/v1` routes**.
+-> **183 lines**, all in `internal/hub`, 28 files:
 
-Distribution across the 28 Go source files in `csi-spl-api/src/go/spool-hub-api/internal/hub/`:
 | File | `/v1` Routes | Functional Domain |
 |---|---|---|
 | `server.go` | 30 | Core messaging, delivery, websocket `/v1/ws`, files, pins, health |
@@ -83,220 +78,137 @@ Distribution across the 28 Go source files in `csi-spl-api/src/go/spool-hub-api/
 | `topic_promote.go` | 2 | Topic promotion and channel linking |
 | **Total** | **183** | **183 `/v1` routes** |
 
-*Note on non-`/v1` routes*: The hub additionally registers 40 routes outside the `/v1` prefix: `/auth/...` session and social OAuth routes (13 in `auth/handler.go`, 6 in `auth/native.go`, 3 in `auth/facebook_callbacks.go`, 4 in `hub/keys.go`, 2 in `hub/events.go`), payment checkout routes (7 in `payments/handler.go`), and top-level root/health probes (`GET /`, `GET /healthz`, `GET /version`, `GET /probe` in `hub/server.go`), bringing total registered handlers to 223.
+Those 183 lines are not 183 operations:
 
-### 2.2 Existing contract inventory
-Contract files query:
-```bash
-ls csi-spl-doc/specs/*/contracts/*.md | wc -l
-```
-**Measured count**: **49 files**.
-These documents define message structures (`canonical-json.md`, `message-schema-v2.md`), HTTP routes (`http-v1.md`, `http-rental.md`, `checkout-v1.md`), view formats (`view-v1.md`), search queries (`search-v1.md`), and issue schemas (`issues-v1.md`). They serve as the normative baseline for populating parameter schemas, request bodies, and response models.
+| kind | n | source |
+|---|---|---|
+| `OPTIONS` CORS preflights | 59 | `git grep -ho 'HandleFunc("OPTIONS [^"]*"' -- csi-spl-api/src/go/spool-hub-api/internal/hub ':!*_test.go' \| wc -l` |
+| methodless catch-all `"/v1/view/"` (answers only 404 / 405) | 1 | `internal/hub/view.go:67` |
+| `GET` 52, `POST` 28, `PUT` 11, `PATCH` 13, `DELETE` 19 | 123 | same grep with `'HandleFunc("[A-Z]* /v1'` |
+| `GET /v1/marketing`, registered through `s.marketingRoute(mux, …)` with a variable pattern, so the grep misses it | +1 | `internal/hub/marketing_switch.go:65`, `:187` |
 
-### 2.3 Docs publishing infrastructure
-Docs deployment is driven by `csi-spl-orc/src/bash/run/publish-docs.func.sh` (`do_publish_docs`), invoked during WUI deploy (workflow 30):
-1. **Staging (`spl_docs_stage`)**: Scans tracked repository Markdown files (`git ls-files -s -z -- '*.md'`), extracts top-level H1 titles, and generates `tree.json`:
-   ```json
-   {
-     "v": 1,
-     "sha": "<commit-sha>",
-     "files": [
-       { "path": "README.md", "blob": "<sha>", "title": "Spool" },
-       { "path": "csi-spl-doc/specs/075-docs-section/spec.md", "blob": "<sha>", "title": "075 Docs Section" }
-     ]
-   }
-   ```
-2. **Path validation (`internal/hub/docs.go`)**:
-   `ValidDocsPath(p)` checks that incoming doc requests match `tree.json` or:
-   ```go
-   var docsPathRe = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.md$`)
-   ```
-   *Crucial finding*: Currently, `ValidDocsPath` rejects any non-`.md` file other than `tree.json`. Serving `openapi.json` via `/v1/docs/openapi.json` requires explicitly updating `ValidDocsPath` or adding a dedicated handler `GET /v1/docs/openapi.json`.
-3. **Serving & Security**: Served via `GET /v1/docs/{path...}` requiring a signed-in member session (`hum != ""`). Content Security Policy is locked down: `Content-Security-Policy: sandbox; default-src 'none'`.
+**The reference documents ~124 operations**: 183 − 59 `OPTIONS` − 1 catch-all + 1 `marketingRoute`. The count is measured, not pinned: the gate (§4.3) derives it by rule.
 
-### 2.4 WUI performance budget & bundle constraints
-According to `csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json`:
-- **Ceiling**: `ci_initial_gzip_kb: 155.0 KB` (lowered from 160.0 KB by owner directive in topic `87eaa57b`).
-- **Baseline**: Live mock `nuxt generate` on trunk is ~146.9 KB gzip across 3 chunks (`ci_bundle_size_mjs_gzip_kb: 150.2 KB`).
-- **Headroom**: Only **~8.1 KB gzip** remains before failing CI.
-- **Impact on Swagger UI**: Standard Swagger UI (`swagger-ui-dist`) weighs ~1.2 MB uncompressed (~280 KB gzip). If included statically in the WUI shell, it would breach the budget by over 170% and immediately trip CI quality gates. Any viewer component MUST be strictly lazy-loaded on demand (`defineAsyncComponent`) on route access.
+Seven patterns end in Go's multi-segment wildcard (`/v1/docs/{path...}`, `/v1/workspace/docs/{path...}`). OpenAPI path parameters match one segment only, so the file writes them `{path}` (parameter described as "repo path, may contain `/`") and the gate normalises `{x...}` to `{x}` before comparing.
+
+Outside `/v1` the module registers ~39 more routes (`/auth/...`, `payments/handler.go` checkout, `GET /`, `/healthz`, `/version`, `/probe`). They are **out of scope for v1.1**; the gate lists that exclusion explicitly (§4.3), so adding them later is a deliberate edit.
+
+### 2.2 Router shape
+There is no `s.route()`. The mux is built in `Server.Handler()` (`internal/hub/server.go:305`), which passes a `*http.ServeMux` to ~30 `routeX(mux)` helpers. The standard library `ServeMux` (module is `go 1.25.14`) has **no API that lists its patterns**; probing with `mux.Handler(req)` only finds routes already known. The gate therefore reads the source, not the mux (§4.3).
+
+### 2.3 Error envelope
+`internal/wire/wire.go:936-937`: `Error string json:"error"`, `Detail string json:"detail,omitempty"`. The envelope is **`{error, detail}`**; there is no `reason` field.
+
+### 2.4 CSP
+- Hub docs responses carry `Content-Security-Policy: sandbox; default-src 'none'` (`internal/hub/docs.go`). A sandbox without `allow-scripts` runs no JavaScript: a hub-served Swagger HTML page renders nothing, and loosening the header would put script-running HTML on the hub origin under a member session.
+- The deployed WUI CSP is rendered by `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`: `script-src 'self'` + sha256 hashes, no `'unsafe-eval'`, no `'unsafe-inline'`; `connect-src` already includes the hub hosts.
+
+### 2.5 WUI initial chunk budget
+`perf-budgets.json`: `ci_initial_gzip_kb` ceiling **155.0** (owner, topic `87eaa57b`), baseline 146.9 KB; real headroom is 5..8 KB depending on the figure read. Any viewer must sit in a lazy chunk, and nothing it needs may be imported from a client plugin, a layout or statically from `docs.vue`.
 
 ---
 
-## 3. The 3 open questions: analysis, recommendations & trade-offs
+## 3. Decisions (the open questions, settled)
 
-Dispatcher `c-002` presented three foundational open questions in `/var/spool-hub/dispatch/c002-bugs-swagger-discussion.md`. Below are the comprehensive recommendations and architectural trade-offs:
-
-### 3.1 Question 1: Code generation vs Hand-written with CI verification
-> *"Generate the file from the Go code (route table + struct tags), or keep a hand-written file that a test checks against the routes?"*
-
-#### Options analyzed
-- **Option A (Full code generation from Go annotations)**: Tools like `swaggo/swag` scan Go handler comments (`// @Summary ... // @Param ...`).
-  - *Drawbacks*: Clutters 183 Go handlers across 28 files with hundreds of lines of fragile comment annotations. Many Spool handlers read request bodies into dynamic JSON maps or helper structs that lack formal Go struct tags. Keeping annotations synced with code edits creates maintenance drag and requires non-standard build toolchains.
-- **Option B (Pure hand-written specification)**: Maintain an OpenAPI 3.0 JSON/YAML document manually.
-  - *Drawbacks*: Risks documentation rot. As new `/v1` endpoints are added during rapid feature development, developers may omit updating the specification.
-- **Option C (Hand-written specification enforced by Go route coverage test)**: Maintain a canonical OpenAPI 3.0 specification file (`openapi.json`) in `csi-spl-doc/specs/104-api-docs-openapi/contracts/openapi.json` (or published via docs bucket), enforced by a strict Go unit test in `internal/hub/openapi_test.go` (`TestOpenAPIRoutesCoverage`).
-
-#### Recommendation: Option C (Authoritative OpenAPI file + Automated Go CI Route Coverage Test)
-1. **The file**: Maintain a canonical OpenAPI 3.0 JSON file (`openapi.json`). Request and response models are seeded directly from the 49 existing contract files (`csi-spl-doc/specs/*/contracts/*.md`).
-2. **The gate**: Implement `TestOpenAPIRoutesCoverage` in `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_test.go`. The test initializes the Hub server router (`s.route()`), collects every registered HTTP method and path pattern under `/v1/...`, parses `openapi.json`, and asserts that:
-   - Every registered `/v1/...` route has an exact path match in `openapi.json`.
-   - The registered HTTP method (`GET`, `POST`, `PUT`, `DELETE`, etc.) is declared on that path.
-   - Any `/v1` route present in Go code but missing in `openapi.json` causes test failure, printing the exact missing endpoints.
-3. **Incremental refinement**: Routes with existing contracts provide complete request/response schemas; routes lacking formal contracts receive baseline schemas (summary, description, path parameters, standard `003` error envelope), to be expanded over time.
-
-#### Trade-offs
-- *Advantage*: Guarantees **100% route coverage** with zero risk of silent endpoint omissions. Zero annotation clutter in Go handlers. Allows clean, human-reviewed Markdown descriptions and rich examples directly from specs.
-- *Downside*: Developers introducing a new `/v1` route must manually add an entry to `openapi.json` to make `go test ./internal/hub` pass. (This is a desired forcing function).
+| question | decision | why |
+|---|---|---|
+| Generate from Go, or hand-write + gate? | **Hand-written file, gated by a Go test** | No annotation churn across 28 files; many handlers decode into helpers without struct tags. The gate is the forcing function. |
+| Swagger UI or lighter viewer? | **Bespoke lazy WUI viewer at `/docs/api`; no Swagger UI in v1.1** | Budget (§2.5) and CSP (§2.4). |
+| Operator routes in the same reference? | **One file, operator routes tagged, UI toggle** | Repo is public (044); one file, one gate, no schema duplication. The toggle is UX only. |
+| OpenAPI 3.0.3 or 3.1.0? | **3.0.3** | Widest viewer/linter support; nothing here needs 3.1. Use `nullable: true`, not `type: [x, "null"]`. |
+| JSON or YAML? | **JSON** | `go:embed` + `encoding/json`, no YAML dependency in the module (`grep -c yaml go.mod` -> 0); the browser parses it natively. |
+| Docs tree position? | **Pinned at the top, as a WUI row** | Like `/docs/ws` (`docs.vue:164`); not a `tree.json` entry (the WUI drops non-`.md` tree entries, `docs.mjs:133`). |
 
 ---
 
-### 3.2 Question 2: Swagger UI vs Lighter Viewer
-> *"Swagger UI (heavy) or a lighter viewer, given the web app's startup size limit?"*
+## 4. Design
 
-#### Options analyzed
-- **Option A (Standard Swagger UI bundled in WUI)**: Bundle `swagger-ui-dist` or Vue wrapper.
-  - *Drawbacks*: Weighs ~280 KB gzip (~1.2 MB uncompressed). If bundled into the app shell, instantly breaks the 155 KB initial chunk ceiling (`ci_initial_gzip_kb`). Furthermore, Swagger UI injects aggressive global CSS that interferes with Spool's theme variables and font system.
-- **Option B (Lightweight theme-aware API viewer)**: A custom Vue component or lightweight viewer (such as `@scalar/api-reference` or a bespoke renderer `ApiDocsView.vue` utilizing existing `MarkdownBlock.vue` and `UiIcon.vue`).
-  - *Drawbacks*: Lacks the exact traditional three-column layout familiar to long-time Swagger UI users, though modern alternatives like Scalar are widely praised.
-- **Option C (Lazy-loaded isolated viewer with two-tier delivery)**:
-  - In WUI (`/docs`): Implement a lightweight, theme-integrated viewer `ApiDocViewer.vue` loaded strictly on demand via `defineAsyncComponent(() => import('~/components/ApiDocViewer.vue'))`. It adds **0.0 KB** to the initial chunk.
-  - Standalone Swagger page: Deploy a standalone, static HTML wrapper (`swagger.html`) into the docs bucket during `do_publish_docs` containing pre-bundled Swagger UI assets. When a user clicks "Open classic Swagger UI", it opens the standalone viewer in a dedicated tab or sandboxed iframe.
-
-#### Recommendation: Option C (Lazy-loaded WUI Viewer + Standalone Docs Swagger Page)
-1. In `csi-spl-wui/src/pages/docs.vue`, add a dedicated navigation link in the Docs tree: **API Reference**.
-2. When selected, the page asynchronously loads `ApiDocViewer.vue` (under 25 KB gzipped), rendering categorized endpoints, method badges, path parameters, request bodies, and response codes matching Spool dark/light themes.
-3. For users desiring standard Swagger UI, provide a top-right action button: *"Classic Swagger UI"*, which links to `/docs/swagger.html` (served with sandboxed CSP).
-4. **Performance verification**: `ci_initial_gzip_kb` remains at 146.9 KB (< 155 KB ceiling).
-
-#### Trade-offs
-- *Advantage*: Absolute protection of WUI bundle budget; perfect theme integration for 99% of in-app browsing; zero CSS pollution; preserves full Swagger UI capability for users requiring the classic interface.
-- *Downside*: Requires maintaining the WUI viewer component alongside the static Swagger bundle generation.
-
----
-
-### 3.3 Question 3: Operator-only routes inclusion
-> *"Should operator-only routes (`/v1/operator/...`) appear in the same reference, or in a separate admin one?"*
-
-#### Options analyzed
-- **Option A (Separate OpenAPI documents)**: Maintain `openapi-member.json` and `openapi-operator.json`.
-  - *Drawbacks*: Duplicates schema definitions, requires two distinct publishing artifacts, two CI coverage tests, and confusing documentation branching.
-- **Option B (Omit operator routes entirely)**: Only document member routes.
-  - *Drawbacks*: Violates the requirement that all 183 `/v1` routes have documentation. Leaves operator tools and CLI harnesses undocumented.
-- **Option C (Unified specification with OpenAPI tag taxonomy and viewer filtering)**: Maintain a single canonical `openapi.json` documenting all 183 routes. Group operator routes under dedicated tags (`tag: Operator Fleet`, `tag: Operator Workspaces`) with clear `x-role: operator` and `security: [{ OperatorAuth: [] }]` annotations.
-
-#### Recommendation: Option C (Single Canonical Specification with Role Tagging & Viewer Filtering)
-1. **Single Source of Truth**: `openapi.json` documents all 183 routes. The CI route coverage test verifies all 183 routes against this single file.
-2. **Security & Open Source alignment**: The Spool codebase is fully open source (spec 044). Operator handler code is public in Git. Documenting operator endpoints poses no security risk because the endpoints themselves enforce strict session checks (`requireOperator` returning 403).
-3. **Viewer UX**: In the WUI API viewer, provide a scope selector:
-   - `Scope: Member API (Default)`: Displays user/member endpoints (messaging, topics, channels, issues, calendar, settings).
-   - `Scope: Operator API`: Displays fleet diagnostics, agent lifecycle, workspace provisioning, and node controls.
-   - For users without operator permissions (`accessStore.me?.role !== 'operator'`), the Operator section is badged with an *"Operator Role Required"* notice.
-
-#### Trade-offs
-- *Advantage*: Single canonical file, single CI test, complete transparency, zero schema duplication.
-- *Downside*: Standard users browsing the API reference can view operator endpoint schemas (though they cannot invoke them). This is consistent with Spool's open architecture.
-
----
-
-## 4. The 6 proposal elements: detailed design
-
-Mapping the 6 items from dispatcher `c-002`'s opening post:
-
-### 4.1 Piece 1: The OpenAPI 3.0 specification file
-- **Location**: `csi-spl-doc/specs/104-api-docs-openapi/contracts/openapi.json`.
-- **Format**: Valid OpenAPI 3.0.3 JSON schema.
-- **Server URL**: Dynamically configured without hardcoded domains:
+### 4.1 The file
+- **One hand-written OpenAPI 3.0.3 JSON file inside the hub Go module**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json`. It must be under the module: `go:embed` cannot reach `../`, so it cannot live in `csi-spl-doc/`.
+- **Formatting**: `jq -S .` canonical form (sorted keys, 2-space indent), enforced by the gate, so diffs stay line-local.
+- **`openapi`**: exactly `"3.0.3"`, pinned by the gate.
+- **Server**: `https://{tenant}.{baseDomain}` with variables `tenant` (default `t1`) and `baseDomain` (default `<BASE_DOMAIN>`). The server carries **no `/v1`**: `paths` keep the full `/v1/...` patterns, byte-for-byte equal to the Go patterns after `{x...}` -> `{x}`. No literal domain or host anywhere.
+- **Paths**: the ~124 operations of §2.1. Every operation has a unique `operationId`, a tag, a summary, its path parameters and its responses.
+- **Schemas**: request and response bodies seeded from the 49 contracts; a route without a contract gets summary, parameters and the standard responses, to be filled in over time.
+- **Error envelope** (`components.schemas.ErrorEnvelope`), referenced by every error response:
   ```json
-  "servers": [
-    {
-      "url": "https://{tenant}.{baseDomain}/v1",
-      "description": "Tenant API endpoint",
-      "variables": {
-        "tenant": { "default": "t1", "description": "Tenant workspace slug" },
-        "baseDomain": { "default": "<BASE_DOMAIN>", "description": "Spool product domain" }
-      }
-    }
-  ]
+  { "type": "object", "required": ["error"],
+    "properties": { "error": { "type": "string", "example": "not_found" },
+                    "detail": { "type": "string", "example": "no such message" } } }
   ```
-- **Coverage**: All 183 `/v1` routes registered in `csi-spl-api/src/go/spool-hub-api/internal/hub/`.
+- **Security**: declare only what the hub accepts. Read `humanTenant` (`internal/hub/resolve.go:60`) before writing `securitySchemes`: a member session, and a view token where that door accepts one. Operator routes carry `x-role: operator` on the same scheme; there is no separate `OperatorAuth` credential. `X-Spool-Tenant` (026) is one reusable parameter.
 
-### 4.2 Piece 2: Request and response shapes
-- **Normative source**: Seeded from the 49 contract files in `csi-spl-doc/specs/*/contracts/*.md`.
-- **Standard error envelope**: All error responses reference the common schema from `003-spool-message-bus/contracts/error-envelope.md`:
-  ```json
-  "ErrorEnvelope": {
-    "type": "object",
-    "required": ["error"],
-    "properties": {
-      "error": { "type": "string", "example": "not_found" },
-      "reason": { "type": "string", "example": "no such message" }
-    }
-  }
-  ```
-- **Fallback for uncontracted routes**: Endpoints without dedicated markdown contracts are populated with query/path parameter types, operation summary, and 200/400/401/403/500 responses.
+### 4.2 Serving
+- The file is embedded with `go:embed` and served by the hub at **`GET /v1/openapi.json`**: `Content-Type: application/json; charset=utf-8`, `Cache-Control: private, no-cache`, `info.version` set to the running hub version (`/version`).
+- Access: the same door as Docs, a signed-in member session. No member session -> **403** `forbidden` (FR-004).
+- It ships **in the same image as the routes**, so file, gate and served spec are always one commit. Therefore:
+  - no docs-bucket publish, no `publish-docs.func.sh` change;
+  - no `ValidDocsPath` change, no `repo_docs_edit.go` change;
+  - no `tree.json` entry;
+  - no workflow 32 (`32_docs-publish.yml`) path-filter change.
+- `GET /v1/openapi.json` is itself one of the documented operations, and the gate sees its `.HandleFunc` like any other.
 
-### 4.3 Piece 3: Publishing pipeline & storage
-- **Artifact**: Staged by `spl_docs_stage` in `csi-spl-orc/src/bash/run/publish-docs.func.sh`.
-- **Bucket key**: Uploaded to `gs://${SPL_ORG_APP}-${ENV}-docs/openapi.json` and `swagger.html`.
-- **Index integration**: Included in `tree.json` as:
-  ```json
-  { "path": "openapi.json", "blob": "<git-sha>", "title": "API Reference (OpenAPI)" }
-  ```
-- **Hub serving**:
-  - Update `internal/hub/docs.go`:
-    ```go
-    // ValidDocsPath allows tree.json, openapi.json, swagger.html, and *.md paths <= 512 bytes
-    func ValidDocsPath(p string) bool {
-        return p == DocsIndex || p == "openapi.json" || p == "swagger.html" || 
-               (len(p) <= 512 && docsPathRe.MatchString(p))
-    }
-    ```
-  - Content-Type: `application/json; charset=utf-8` for `.json`, `text/html; charset=utf-8` for `.html`.
-  - Cache-Control: `private, no-cache`.
+### 4.3 The route gate
+A Go test in `internal/hub` (no production change):
+1. Parses every non-test `.go` file of `internal/hub` with `go/parser` and collects the string-literal pattern of every `.Handle` / `.HandleFunc` call, plus the literal passed to `s.marketingRoute`.
+2. **Fails on any non-literal pattern it does not recognise**, so a new helper like `marketingRoute` cannot hide a route.
+3. Normalises `{x...}` to `{x}`.
+4. Applies the **exclusions, listed explicitly in the test**: every `OPTIONS` pattern; the methodless `/v1/view/` catch-all; every pattern not under `/v1` (§2.1).
+5. Compares **both directions** against the embedded `openapi.json`:
+   - a route without a spec operation fails, naming it;
+   - a spec operation without a route fails, naming it;
+   - a duplicate `operationId` fails.
+6. Checks `openapi == "3.0.3"` and that the embedded bytes equal their `jq -S .` form.
 
-### 4.4 Piece 4: The Swagger / API documentation page
-- **Primary route**: In WUI at `/docs/api` (and accessible via `/docs` sidebar tree as "API Reference").
-- **Component structure**:
-  - Lazy component `csi-spl-wui/src/components/ApiDocViewer.vue` loaded via `defineAsyncComponent`.
-  - Reuses Spool design tokens: `--bg-primary`, `--text-primary`, `--accent-teal`, `--border-color`.
-  - Method badges: `GET` (teal), `POST` (green), `PUT` (yellow), `DELETE` (crimson).
-  - Collapsible route cards with search filter by path, tag, and HTTP method.
-- **Secondary route**: Standalone Swagger UI at `/docs/swagger.html` for complete interactive specification exploration.
+### 4.4 The viewer (`/docs/api`)
+- **One file for every role**; operator routes tagged; the viewer offers a scope toggle (member by default, operator on demand). The toggle is **UX only**: the hub's role checks are the only access control (044: the repo is public).
+- A **lazy, theme-integrated WUI page at `/docs/api`**, rendered by a bespoke component loaded with `defineAsyncComponent`, fetching `GET /v1/openapi.json` from the hub (already in `connect-src`).
+- **Pinned at the top of the Docs tree as a WUI row**, like `/docs/ws`. `docs.vue` is one catch-all page (`/docs/:path(.*)*`), so the reservation of `api` is code there; `/docs/api` cannot collide with a repo doc, whose paths all end in `.md`.
+- **"Try it out" off**: the viewer issues no request other than fetching the spec.
+- **0 KB initial-chunk delta**, proven by `perf-budget.py bundle` on a mock `nuxt generate`, not by asserting the import is dynamic.
+- **An e2e proves it renders under the real WUI CSP**: no `eval` / `new Function`, no `unsafe-inline` (no runtime `<style>` injection, no inline `style=` / `on*=`), zero `securitypolicyviolation` events on `/docs/api`.
 
-### 4.5 Piece 5: Access control & authorization
-- Aligns with existing Docs access model:
-  - Requires signed-in member session (`hum != ""`, verified via `s.humanTenant(w, r)`).
-  - Unauthenticated requests receive `403` with `error: forbidden, reason: docs need a signed-in member session`.
-  - Protected behind `signed-out-redirect` in WUI.
+### 4.5 Not-allowed and error states
+- No member session: hub answers 403 `forbidden` with the `{error, detail}` envelope; the WUI's signed-out redirect applies to `/docs/api`.
+- Spec fetch fails: the viewer shows an error state, never a blank page.
 
-### 4.6 Piece 6: "Try it out" execution gating
-- **Policy**: In Phase 1 and initial release, interactive "Try it out" request firing is **strictly disabled** by default.
-  - The documentation serves as a reference and schema contract.
-  - Reason: Preventing accidental mutations against production databases (e.g. `POST /v1/messages`, `DELETE /v1/channels/...`) while browsing documentation.
-- **Future phase enablement**: If enabled in subsequent milestones, "Try it out" must:
-  - Be restricted to safe idempotent methods (`GET`).
-  - Require explicit tenant slug and API key / Bearer token entry in an interactive credentials drawer.
-  - Block mutating methods (`POST`, `PUT`, `DELETE`) on production environments unless an explicit `ALLOW_LIVE_API_MUTATIONS` toggle is enabled in tenant settings.
+### 4.6 No `swagger.html`
+There is no `swagger.html` in v1.1, in the hub, the docs bucket or WUI `public/`. The hub docs CSP (`sandbox; default-src 'none'`) runs no JS, and loosening it is a stored-XSS surface. A classic Swagger UI page, if ever wanted, is a **later, separate task**: a lazy WUI route or static page with `swagger-ui-dist` vendored (no CDN), an external init script, and its own size and CSP e2e proof.
 
 ---
 
 ## 5. Functional requirements (normative)
 
-- **FR-001 (Specification Format)**: The system shall provide an authoritative OpenAPI 3.0 specification file (`openapi.json`) defining all 183 `/v1/...` routes.
-- **FR-002 (CI Route Gate)**: A Go test (`TestOpenAPIRoutesCoverage`) shall introspect the hub router and fail CI if any mounted `/v1` route lacks an entry in `openapi.json`.
-- **FR-003 (Publish Pipeline)**: The deploy action `do_publish_docs` shall stage and upload `openapi.json` and `swagger.html` to the environment's docs storage bucket at each WUI deploy.
-- **FR-004 (Hub Serving)**: The Hub API route `GET /v1/docs/{path...}` shall serve `openapi.json` and `swagger.html` to signed-in members, returning 404 for unauthenticated callers or when docs are disabled.
-- **FR-005 (WUI Zero-Budget Footprint)**: The WUI API reference viewer shall be loaded asynchronously via dynamic import; `ci_initial_gzip_kb` shall not increase by more than 0.1 KB and must stay strictly below 155.0 KB.
-- **FR-006 (Role Separation)**: Operator-only endpoints (`/v1/operator/...`) shall be distinctly tagged and filtered in the UI, requiring explicit toggle to view.
-- **FR-007 (Distribution Hygiene)**: No literal domains, hostnames, IP addresses, or personal names shall appear in the OpenAPI document or viewer templates. Dynamic placeholders `<BASE_DOMAIN>` and `{tenant}` shall be utilized.
-- **FR-008 (Mutation Protection)**: "Try it out" live execution shall be disabled by default.
+- **FR-001 (File)**: One hand-written OpenAPI 3.0.3 JSON file at `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` documents every non-`OPTIONS` `/v1` operation the hub registers (~124 at `6e4fb6ed`), with `{path...}` written `{path}`.
+- **FR-002 (Gate)**: A Go test using `go/parser` over the `.Handle` / `.HandleFunc` (and `marketingRoute`) literals fails when a route has no spec operation, when a spec operation has no route, on a duplicate `operationId`, and on an unrecognised non-literal pattern. Exclusions (`OPTIONS`, `/v1/view/` catch-all, non-`/v1`) are listed in the test.
+- **FR-003 (Serving)**: The hub embeds the file with `go:embed` and serves it at `GET /v1/openapi.json`, in the same image as the routes. No docs-bucket publish, no `ValidDocsPath`, no `tree.json`, no workflow 32 change.
+- **FR-004 (Access)**: `GET /v1/openapi.json` requires a signed-in member session; without one it answers **403** `forbidden` with `{error, detail}`.
+- **FR-005 (Budget)**: The viewer is a lazy chunk; `ci_initial_gzip_kb` delta is 0 KB and stays below 155.0.
+- **FR-006 (Roles)**: Operator routes are tagged `x-role: operator` and hidden behind a viewer toggle. The toggle is UX only; the hub's role checks are the access control.
+- **FR-007 (CSP)**: An e2e proves `/docs/api` renders under the deployed WUI CSP with zero CSP violations (no eval, no unsafe-inline).
+- **FR-008 (Hygiene)**: No literal domain, host, IP or personal name in the file or the viewer; `{tenant}` / `<BASE_DOMAIN>` placeholders only.
+- **FR-009 (No mutation)**: "Try it out" is off; the viewer sends no request but the spec fetch.
 
 ---
 
-## 6. Open points for panel review
+## 6. Out of scope
+- Non-`/v1` routes (`/auth`, checkout, `/version`, probes): excluded explicitly by the gate; a later spec may add them.
+- A classic Swagger UI page (§4.6).
+- Any "Try it out" design (no future-phase rules are specified).
 
-The following architectural points are submitted to the spec review panel for final determination:
-1. **OpenAPI Version**: OpenAPI 3.0.3 vs OpenAPI 3.1.0. Recommendation: OpenAPI 3.0.3 has superior tooling and viewer compatibility across all lightweight Vue and standalone Swagger renderers.
-2. **File Format**: JSON (`openapi.json`) vs YAML (`openapi.yaml`). Recommendation: JSON for zero-dependency native parsing in Go (`encoding/json`) and instant browser consumption without heavy client-side YAML parsers.
-3. **Docs Tree Placement**: Should "API Reference" be pinned at the very top of the Docs tree (above repo folders) or alphabetized under `csi-spl-doc/`? Recommendation: Pinned at top alongside workspace docs for high visibility.
+---
+
+## 7. Changes from v1.0 (panel)
+
+| # | v1.0 said | v1.1 says | review |
+|---|---|---|---|
+| 1 | 183 routes to document | ~124 operations: −59 `OPTIONS`, −1 `/v1/view/` catch-all, +`GET /v1/marketing`; `{path...}` -> `{path}` | rev-1 §1.1/1.3, rev-2 §1.1 |
+| 2 | gate introspects `s.route()`, one direction | `go/parser` over the literals, both directions, exclusions listed; no `s.route()`, `ServeMux` cannot list patterns | rev-1 §1.2/3.3, rev-2 §3.1 |
+| 3 | `ErrorEnvelope {error, reason}` | `{error, detail}` (`wire.go:936-937`) | rev-1 §1.4 |
+| 4 | file in `csi-spl-doc/.../contracts/`, published to the docs bucket, `ValidDocsPath` + `tree.json` change | file in the hub module, `go:embed`, `GET /v1/openapi.json`; no bucket, `ValidDocsPath`, `tree.json` or wf 32 change | rev-1 §3.1 (rev-2 §1.2 conceded) |
+| 5 | standalone `swagger.html` in bucket, hub and WUI `public/` | dropped; later separate task | rev-1 §1.7/3.2, rev-2 §1.4 |
+| 6 | FR-004: 404 when unauthenticated | 403 `forbidden` | rev-1 §1.8, rev-2 §1.2.5 |
+| 7 | `OperatorAuth` scheme; future "Try it out" rules with `ALLOW_LIVE_API_MUTATIONS` | one session scheme + `x-role`; future rules struck | rev-1 §3.5, rev-2 §3.3/3.4 |
+| 8 | server `https://{tenant}.{baseDomain}/v1` | server without `/v1`; paths equal Go patterns | rev-2 §3.2 |
+| 9 | "API Reference" as a `tree.json` entry | pinned WUI row like `/docs/ws` | rev-1 §2.3, rev-2 §2 |
+| 10 | Go 1.22+; box-local dispatch path cited | `go 1.25.14`; topic id only | rev-1 §1.8/3.6, rev-2 §3.6 |

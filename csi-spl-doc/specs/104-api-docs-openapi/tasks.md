@@ -1,130 +1,83 @@
-# 104 API docs (OpenAPI 3.0 + Swagger page) published in Docs: tasks
+# 104 API docs (OpenAPI 3.0.3, served by the hub, viewed in Docs): tasks
 
-Authority for what is built (`spec.md` holds the behaviour; `plan.md` holds the architecture). Each task names the files it owns, its dependencies, positive and negative tests, and how "live" is proven in dev and prd. Status vocabulary: `../README.md` §2.3. Paths are under repository root unless specified.
+**Version**: v1.1, panel consensus · **Spec**: [spec.md](spec.md) (behaviour) · **Plan**: [plan.md](plan.md) (architecture)  
+Status vocabulary: `../README.md` §2.3. Paths are repo-relative.
+
+**One lane per task.** Each task names the files it owns; a file has one owner at a time, and a task that edits a file another task created starts only after that task has landed on master. Dependencies are stated per task.
 
 Every build task is done only when:
-- Backend: `go test -v ./...` in `csi-spl-api/src/go/spool-hub-api` passes cleanly.
-- Frontend: `pnpm run test:unit`, `pnpm run typecheck`, and bundle size check in `csi-spl-wui` pass cleanly.
-- Gate: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` and `./run -a do_check_pre_push` pass cleanly.
+- hub tasks: `bash csi-spl-api/src/bash/tests/run-all-tests.sh` green (it runs the gate);
+- WUI tasks: `pnpm run typecheck`, `pnpm run test:unit`, and `BASE_URL=<generated bundle> pnpm run test:e2e` green in `csi-spl-wui`;
+- all: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` and `./run -a do_check_pre_push` green; landed on master; deployed dev and prd (`./run -a do_check_deploy_lag`).
+
+**Never touched by any task below** (spec §4.2, §4.6): `csi-spl-orc/src/bash/run/publish-docs.func.sh`, `csi-spl-api/src/go/spool-hub-api/internal/hub/docs.go`, `.../internal/hub/repo_docs_edit.go`, `csi-spl-wui/src/utils/docs.mjs`, `.github/workflows/32_docs-publish.yml`, any `swagger.html`.
 
 ---
 
-### Phase 0: Specification
-- [x] T001 **specification & planning** (lane a-518):
-  - **Owns**: `csi-spl-doc/specs/104-api-docs-openapi/spec.md`, `csi-spl-doc/specs/104-api-docs-openapi/plan.md`, `csi-spl-doc/specs/104-api-docs-openapi/tasks.md`.
-  - **Dependencies**: None.
-  - **Positive test**: File syntax and structure validate against repo guidelines; all 183 `/v1` routes and 49 contracts accurately enumerated; 3 open questions answered with concrete recommendations.
-  - **Negative test**: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` fails if literal hosts, IP addresses, personal names, or non-org references are introduced.
-  - **How live is proven**:
-    - Dev & Prd: Committed to git master branch; review panel convened in discussion topic `7dfe8a9d-8606-4993-8df5-63a44fb46c77`.
-  - **Done**: `do_check_dist_hygiene` clean, `do_check_pre_push_lint` clean, pushed to master.
+### Phase 0: specification
+
+- [x] T001 **v1.0 draft** (lane a-518): `spec.md`, `plan.md`, `tasks.md`.
+- [x] T001b **v1.1 panel-consensus fold** (lane c-485): `spec.md`, `plan.md`, `tasks.md`; reviews `review-s104-rev-1.md`, `review-s104-rev-2.md` unchanged.
 
 ---
 
-### Phase 1: Canonical OpenAPI Specification & Go Route Introspection CI Gate
-- [ ] T002 **authoritative OpenAPI 3.0 specification**:
-  - **Owns**: `csi-spl-doc/specs/104-api-docs-openapi/contracts/openapi.json`.
-  - **Dependencies**: T001.
-  - **Positive test**: `jq empty csi-spl-doc/specs/104-api-docs-openapi/contracts/openapi.json` succeeds; JSON schema validator passes against OpenAPI 3.0.3 schema specification; all 183 `/v1` routes present in `paths`.
-  - **Negative test**: Intentionally introducing a malformed method or invalid JSON structure causes schema validation to exit non-zero.
-  - **How live is proven**:
-    - Dev & Prd: `npx @stoplight/spectral-cli lint csi-spl-doc/specs/104-api-docs-openapi/contracts/openapi.json` returns zero errors.
-  - **Done**: Complete OpenAPI 3.0.3 file committed covering all 183 routes.
+### Phase 1: file + gate
 
-- [ ] T003 **hub Go route coverage test gate**:
-  - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_test.go`, `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_routes.go`.
-  - **Dependencies**: T002.
-  - **Positive test**: `go test -v -run TestOpenAPIRoutesCoverage ./internal/hub` passes, asserting that every route registered in `Server.route()` matching `/v1/...` exists in `openapi.json` with matching HTTP method.
-  - **Negative test**: Registering a dummy test route `mux.HandleFunc("GET /v1/test-untracked-route", ...)` without adding it to `openapi.json` causes `TestOpenAPIRoutesCoverage` to fail and print the exact missing endpoint.
-  - **How live is proven**:
-    - Dev: CI workflow runs `go test ./internal/hub` and passes.
-    - Prd: Deploy gate verifies test passes before image compilation.
-  - **Done**: Test committed and passing in Go test suite.
+- [ ] T002 **openapi.json with every operation stubbed, plus the route gate**
+  - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` (creates), `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_routes_test.go`.
+  - **Depends on**: T001b.
+  - **Builds**: the gate of spec §4.3 (embeds the file from the test with `go:embed`); the file of spec §4.1 with `info`, `servers` (`https://{tenant}.{baseDomain}`, no `/v1`), `components.schemas.ErrorEnvelope` `{error, detail}`, `securitySchemes` as read from `humanTenant`, the `X-Spool-Tenant` parameter, and one stub operation (operationId, tag, summary, path params, error responses) per route the gate finds (~124). Operator routes tagged `x-role: operator`.
+  - **Positive test**: `go test -run TestOpenAPIRoutes ./internal/hub` passes; `jq -r .openapi internal/hub/openapi.json` -> `3.0.3`; `jq -S . openapi.json | diff - openapi.json` empty.
+  - **Negative tests** (in the test file, on synthetic input): a route with no operation fails naming it; an operation with no route fails naming it; a duplicate `operationId` fails; a non-literal pattern outside the known helper fails; an `OPTIONS` pattern and `/v1/view/` are ignored.
+  - **Live**: the hub image built from the landed sha passes CI (workflow 20); nothing served yet.
 
----
+### Phase 2: serving
 
-### Phase 2: Hub Serving & Publish Pipeline Integration
-- [ ] T004 **publish pipeline docs staging for openapi.json & swagger.html**:
-  - **Owns**: `csi-spl-orc/src/bash/run/publish-docs.func.sh`, `csi-spl-orc/src/bash/tests/publish-docs-openapi.tst.sh`.
-  - **Dependencies**: T002.
-  - **Positive test**: `ENV=dev DRY_RUN=1 ./run -a do_publish_docs` outputs staged `tree.json` containing an entry for `openapi.json` with title `"API Reference (OpenAPI)"` and stages `openapi.json` and `swagger.html` in staging directory.
-  - **Negative test**: If `openapi.json` is missing from the repository, `do_publish_docs` logs a warning or fails staging without creating invalid `tree.json`.
-  - **How live is proven**:
-    - Dev: `gsutil ls gs://${SPL_ORG_APP}-dev-docs/openapi.json` confirms object presence in dev docs bucket.
-    - Prd: `gsutil ls gs://${SPL_ORG_APP}-prd-docs/openapi.json` confirms object presence in production docs bucket.
-  - **Done**: `publish-docs-openapi.tst.sh` passes; deploy script stages assets.
+- [ ] T003 **serve the embedded file at `GET /v1/openapi.json`**
+  - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.go` (creates), `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_serve_test.go` (creates); edits `openapi.json` only to add the `GET /v1/openapi.json` operation; one registration line in the hub's route setup (`server.go` `Handler()`).
+  - **Depends on**: T002 landed.
+  - **Builds**: spec §4.2: `go:embed`, member-session door, `Content-Type: application/json; charset=utf-8`, `Cache-Control: private, no-cache`, `info.version` = running version.
+  - **Positive test**: with a member session, 200, the content type above, body parses, `.openapi == "3.0.3"`, `.info.version` equals `/version`.
+  - **Negative test**: no session -> 403 `forbidden` with `{error, detail}`; the gate fails if the route is registered without its operation.
+  - **Live**: dev and prd, against the hub host (cnf `env.dns.api_fqdn`, never a literal), with a member session: `jq -r .openapi` -> `3.0.3`; without one -> 403.
 
-- [ ] T005 **hub HTTP route extension for openapi and swagger assets**:
-  - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/docs.go`, `csi-spl-api/src/go/spool-hub-api/internal/hub/docs_test.go`.
-  - **Dependencies**: T004.
-  - **Positive test**: Authenticated member request `GET /v1/docs/openapi.json` returns HTTP 200 with `Content-Type: application/json; charset=utf-8` and body matching the staged specification. `GET /v1/docs/swagger.html` returns HTTP 200 with `Content-Type: text/html; charset=utf-8`.
-  - **Negative test**: Unauthenticated request (no session cookie/token) returns HTTP 403 `forbidden`. Request for invalid path `GET /v1/docs/openapi.json.bak` returns HTTP 404 `not_found`.
-  - **How live is proven**:
-    - Dev: `curl -s -H "Authorization: Bearer <member-token>" https://t1.<BASE_DOMAIN>/v1/docs/openapi.json | jq .openapi` returns `"3.0.3"`.
-    - Prd: `curl -s -H "Authorization: Bearer <member-token>" https://t1.<BASE_DOMAIN>/v1/docs/openapi.json | jq .openapi` returns `"3.0.3"`.
-  - **Done**: Hub unit tests pass and endpoint responds as specified.
+### Phase 3: schemas
 
----
+- [ ] T004 **request and response bodies from the 49 contracts**
+  - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` (edits only).
+  - **Depends on**: T003 landed. One lane at a time on the file; if split, split by tag and run the lanes in sequence, never in parallel.
+  - **Builds**: `requestBody` and 2xx schemas for every operation that has a contract under `csi-spl-doc/specs/*/contracts/*.md`; `nullable: true` (3.0), not `type: [x, "null"]`; each schema cites its contract in `description`.
+  - **Positive test**: gate green; `jq -S` form holds; every operation with a contract has a non-empty 2xx schema, counted with `jq` in the lane's report.
+  - **Negative test**: hub suite green; no literal host or name (`do_check_dist_hygiene`).
+  - **Live**: dev and prd `GET /v1/openapi.json` shows the filled schemas after the hub deploy.
 
-### Phase 3: WUI Lazy API Reference Viewer & Docs Integration
-- [ ] T006 **lightweight theme-aware API viewer component**:
-  - **Owns**: `csi-spl-wui/src/components/ApiDocViewer.vue`, `csi-spl-wui/src/components/ApiRouteCard.vue`, `csi-spl-wui/tests/unit/api-doc-viewer.test.mjs`.
-  - **Dependencies**: T005.
-  - **Positive test**: Unit test mounts `ApiDocViewer.vue` with mock OpenAPI schema; asserts routes render grouped by tags, method pills display correct colors, and searching filter input narrows displayed route list.
-  - **Negative test**: Malformed OpenAPI JSON payload displays fallback error state `alert: Failed to load API schema` without throwing unhandled exceptions.
-  - **How live is proven**:
-    - Dev: `pnpm run test:unit tests/unit/api-doc-viewer.test.mjs` exits 0.
-  - **Done**: Viewer component implemented and covered by unit tests.
+### Phase 4: viewer
 
-- [ ] T007 **WUI docs route navigation & bundle budget verification**:
-  - **Owns**: `csi-spl-wui/src/pages/docs.vue`, `csi-spl-wui/src/utils/docs.mjs`, `csi-spl-wui/tests/e2e/docs-api.test.mjs`.
-  - **Dependencies**: T006.
-  - **Positive test**: Navigating to `/docs/api` renders `ApiDocViewer`; selecting "API Reference" in Docs sidebar navigates to `/docs/api`; `perf-budget.py bundle` passes with `ci_initial_gzip_kb <= 155.0 KB` (initial bundle delta is 0.0 KB).
-  - **Negative test**: When Docs section is disabled on hub (`docs_off`), navigating to `/docs/api` displays graceful disabled state (`t('docs.off')`).
-  - **How live is proven**:
-    - Dev: Playwright e2e test `BASE_URL=https://t1.<BASE_DOMAIN> pnpm run test:e2e tests/e2e/docs-api.test.mjs` passes.
-    - Prd: Browser navigation to `https://t1.<BASE_DOMAIN>/docs/api` renders interactive reference in < 2 seconds.
-  - **Done**: E2E test passes; bundle ceiling verified.
+- [ ] T005 **lazy viewer component**
+  - **Owns**: `csi-spl-wui/src/components/ApiDocViewer.vue`, `csi-spl-wui/src/components/ApiRouteCard.vue`, `csi-spl-wui/tests/unit/api-doc-viewer.test.mjs` (all created).
+  - **Depends on**: T002 landed (file shape; the unit test uses a small fixture, not the hub).
+  - **Builds**: spec §4.4: operations grouped by tag, method badges, search by path / tag / method, params, body and responses; scope toggle (member default, operator on demand, UX only); no "Try it out"; theme tokens only, no inline `style=`, no runtime `<style>`, no `eval`.
+  - **Positive test**: fixture renders grouped by tag; search narrows; the toggle hides and shows `x-role: operator` operations.
+  - **Negative tests**: malformed JSON shows the error state without throwing; the component issues no request other than the spec fetch.
+  - **Live**: covered by T006.
+
+- [ ] T006 **`/docs/api` route, pinned row, CSP e2e, budget**
+  - **Owns**: `csi-spl-wui/src/pages/docs.vue` (edits), the new strings in `csi-spl-wui/i18n/`, `csi-spl-wui/tests/e2e/docs-api.test.mjs` (creates).
+  - **Depends on**: T005 landed; T003 deployed (the page fetches `GET /v1/openapi.json`).
+  - **Builds**: `api` reserved in the `docs.vue` catch-all, rendered with `defineAsyncComponent(() => import('~/components/ApiDocViewer.vue'))`; an "API Reference" row pinned at the top of the Docs tree, like `/docs/ws`. No import of the viewer or its helpers from a plugin, a layout or statically from `docs.vue`.
+  - **Positive test**: e2e loads `/docs/api`, the reference renders, the row is first in the tree and navigates to `/docs/api`; `perf-budget.py bundle` on a mock `nuxt generate` shows 0 KB `ci_initial_gzip_kb` delta, below 155.0.
+  - **Negative tests**: e2e records zero `securitypolicyviolation` events on `/docs/api` under the rendered WUI CSP; a failed spec fetch shows the error state; signed-out lands on the signed-out redirect.
+  - **Live**: dev and prd, `/docs/api` renders on the tenant WUI after the WUI deploy.
+
+### Phase 5: close-out
+
+- [ ] T007 **status to Done**
+  - **Owns**: `csi-spl-doc/specs/104-api-docs-openapi/spec.md` (status line), `tasks.md` (checkboxes).
+  - **Depends on**: T002..T006 live in dev and prd.
+  - **Done**: release note links for the T003 and T006 shas (`SHA=<sha> ENV=<env> ./run -a do_release_note_link`, dev and prd) in the lane report.
 
 ---
 
-### Phase 4: Role-Gating & "Try It Out" Safe Execution Controls
-- [ ] T008 **operator route scope filtering and UI badging**:
-  - **Owns**: `csi-spl-wui/src/components/ApiDocViewer.vue`, `csi-spl-wui/tests/unit/api-doc-operator-filter.test.mjs`.
-  - **Dependencies**: T006.
-  - **Positive test**: By default, scope filter is set to "Member API" and hides all `/v1/operator/...` endpoints; toggling scope filter to "Operator API" reveals operator routes; non-operator users see *"Requires Operator Role"* chip on operator cards.
-  - **Negative test**: Standard member with role `member` cannot execute or view unauthenticated operator actions.
-  - **How live is proven**:
-    - Dev: Log in as standard member, verify operator endpoints are filtered by default.
-    - Prd: Verify scope selector in production workspace.
-  - **Done**: Scope filtering and role chips implemented and verified.
+### Later, not v1.1
 
-- [ ] T009 **safe execution controls ("Try it out" gating)**:
-  - **Owns**: `csi-spl-wui/src/components/ApiDocViewer.vue`.
-  - **Dependencies**: T008.
-  - **Positive test**: Endpoint cards render request parameters, headers (`X-Spool-Tenant`), and payload schemas; no live "Execute" / "Send Request" button is rendered; documentation is purely descriptive.
-  - **Negative test**: Inspection of component DOM confirms absence of live HTTP `fetch` triggers against mutating endpoints (`POST`, `PUT`, `DELETE`).
-  - **How live is proven**:
-    - Dev & Prd: Code review and DOM assertion in e2e test confirming zero outgoing API calls from viewer.
-  - **Done**: Mutation prevention verified.
-
----
-
-### Phase 5: Verification, Standalone Swagger UI & Production Sign-off
-- [ ] T010 **standalone swagger.html bundle deployment**:
-  - **Owns**: `csi-spl-wui/src/public/swagger/swagger.html`, `csi-spl-orc/src/bash/run/publish-docs.func.sh`.
-  - **Dependencies**: T004.
-  - **Positive test**: Clicking "Classic Swagger UI" in `/docs/api` opens `/docs/swagger.html`; Swagger UI renders using `/v1/docs/openapi.json` as spec source under sandboxed CSP.
-  - **Negative test**: Directly invoking non-allowed scripts or external CDN origins fails under CSP policy (`sandbox; default-src 'none'`).
-  - **How live is proven**:
-    - Dev & Prd: `curl -I https://t1.<BASE_DOMAIN>/v1/docs/swagger.html` returns `HTTP 200` with proper security headers.
-  - **Done**: Standalone Swagger asset tested and deployed.
-
-- [ ] T011 **end-to-end verification, distribution hygiene & release note**:
-  - **Owns**: `csi-spl-doc/specs/104-api-docs-openapi/spec.md`, release notes documentation.
-  - **Dependencies**: T001..T010.
-  - **Positive test**: Full suite execution: `do_check_dist_hygiene` exits 0; `do_check_pre_push` exits 0; dev and prd deployment pipelines complete without lag.
-  - **Negative test**: Running hygiene check with intentional leak exits non-zero.
-  - **How live is proven**:
-    - Dev & Prd: Production release link verified via `SHA=<sha> ENV=prd ./run -a do_release_note_link`.
-  - **Done**: All gates green, release note generated, feature ready for panel sign-off.
+- L001 **classic Swagger UI page** (spec §4.6): a separate spec or task, with `swagger-ui-dist` vendored, an external init script, a size proof and a CSP e2e. Not started by this spec.

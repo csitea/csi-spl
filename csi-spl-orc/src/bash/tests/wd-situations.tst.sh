@@ -147,6 +147,13 @@ ctx s2w; cp "$FX/limit-reset.pane" "$C/pane"; echo 2 > "$C/spin_age"
 nohit "S2 control: the same banner under a moving spinner (working)" s2
 ctx s2o; echo '{"type":"assistant","timestamp":"2027-01-15T07:59:00Z","isApiErrorMessage":true,"message":{"content":[{"type":"text","text":"API Error: 529 overloaded"}]}}' > "$C/transcript"
 nohit "S2 control: an API error that is not a login or a limit" s2
+# T029: grok's full-screen weekly-limit panel (g-460 2026-10-07; n=9 grok DOA)
+ctx s2g; cp "$FX/s2-grok-weekly-limit.pane" "$C/pane"
+hit "S2 grok's weekly-limit panel, no transcript (T029)" s2
+grep -q '^HIT S2 kind=limit pane: You hit your weekly limit' <<<"$(run_s s2)" && pass "S2 names grok's weekly limit kind=limit (no DM)" || fail "S2 grok kind: $(run_s s2)"
+# control: a normal grok prompt whose footer reads "Weekly limit left: 1%"
+ctx s2n; cp "$FX/s2-grok-normal.pane" "$C/pane"
+nohit "S2 control: a normal grok prompt showing its weekly limit left" s2
 
 # S3: a bare shell in the agent's window
 ctx s3; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"

@@ -46,7 +46,7 @@ registry() {
 
 mix() {
   env -u LANE_MIX_DIFFICULTY -u LANE_MIX_SENSITIVE -u LANE_MIX_SPLIT -u LANE_MIX_KIND \
-    -u SPOOL_AGENT_USER \
+    -u SPOOL_AGENT_USER -u LANE_MIX_WD_DIR -u LANE_MIX_LIMIT_FRESH \
     -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T" \
     LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" "$@" bash -c '
@@ -173,6 +173,45 @@ mix LANE_MIX_KIND=spec
 [[ "$(pick)" == claude ]] && grep -q 'kind spec but agy is skipped (no agy cli); share to claude' "$T/out" \
   && pass "7. spec with no agy cli -> claude" || fail "7. spec skipped: $(cat "$T/out")"
 printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
+
+# --- 8. a harness out of quota (spec 102 T029) is skipped -------------------
+# the watchdog's ctx/<id>/out.s2 says "HIT S2 kind=limit" for a grok lane on
+# this box: within LANE_MIX_LIMIT_FRESH s grok is skipped like a missing cli
+limit() {  # limit <id> <age-s>: a watchdog verdict that old
+  mkdir -p "$T/dispatch/wd/ctx/$1"
+  echo "HIT S2 kind=limit pane: You hit your weekly limit" >"$T/dispatch/wd/ctx/$1/out.s2"
+  touch -d "@$(( $(date +%s) - $2 ))" "$T/dispatch/wd/ctx/$1/out.s2"
+}
+registry 4 11 5
+mix
+[[ "$(pick)" == grok ]] && pass "8. control: no limit verdict, unset difficulty -> grok" || fail "8. control: $(cat "$T/out")"
+limit g-950 600
+mix
+[[ "$(pick)" == claude ]] && grep -q 'skip (grok limit (g-950 S2 kind=limit 10m ago); share to claude)' "$T/out" \
+  && grep -q 'difficulty unset: default grok is skipped (grok limit' "$T/out" \
+  && grep -qE '^claude +20% +75% ' "$T/out" \
+  && pass "8. a fresh grok limit verdict: grok skipped, its share to claude, the default falls to claude" || fail "8. limit: $(cat "$T/out")"
+registry 15 0 5
+mix
+[[ "$(pick)" == agy ]] && grep -q 'difficulty unset: default grok is skipped' "$T/out" \
+  && pass "8. the same with claude at its 75%: the default falls to agy" || fail "8. limit agy: $(cat "$T/out")"
+mix LANE_MIX_DIFFICULTY=30
+[[ "$(pick)" == agy ]] && pass "8. easy work skips the limited grok too" || fail "8. easy limit: $(cat "$T/out")"
+registry 4 11 5
+rm "$H/.local/bin/agy"
+mix
+[[ "$(pick)" == claude ]] && grep -qE '^claude +20% +100% ' "$T/out" \
+  && pass "8. grok limited and no agy: claude" || fail "8. claude floor: $(cat "$T/out")"
+printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
+mix LANE_MIX_LIMIT_FRESH=300
+[[ "$(pick)" == grok ]] && pass "8. a verdict older than LANE_MIX_LIMIT_FRESH is stale: grok again" || fail "8. stale: $(cat "$T/out")"
+echo "HIT S2 kind=login pane: please run /login" >"$T/dispatch/wd/ctx/g-950/out.s2"
+mix
+[[ "$(pick)" == grok ]] && pass "8. control: an S2 kind=login is not a quota verdict" || fail "8. login: $(cat "$T/out")"
+limit c-950 60
+mix
+[[ "$(pick)" == grok ]] && pass "8. control: a claude lane's limit does not skip grok" || fail "8. other vendor: $(cat "$T/out")"
+rm -rf "$T/dispatch"
 
 mix LANE_MIX_KIND=nope; rc=$?
 [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" \

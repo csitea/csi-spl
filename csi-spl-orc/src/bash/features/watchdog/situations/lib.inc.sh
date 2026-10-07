@@ -32,8 +32,10 @@ WD_ID="${1:-}" WD_PID="${2:-}" WD_PANE="${3:-}"
 [[ "$WD_PANE" == - ]] && WD_PANE=""
 WD_HB_FRESH="${WD_HB_FRESH:-120}"
 # The banners of a seat that cannot act (the lease's LEASE_STALL_RE, plus the
-# org lock-out of spec 6.1 S2).
-WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
+# org lock-out of spec 6.1 S2, plus grok's weekly-limit panel of spec 102
+# T029: "You hit your weekly limit." Not a bare "weekly limit": grok's normal
+# footer reads "Weekly limit left: 1%").
+WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|you hit your weekly limit|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
 
 wd_f() { cat "$WD_CTX/$1" 2>/dev/null; }
 wd_has() { [[ -s "$WD_CTX/$1" ]]; }

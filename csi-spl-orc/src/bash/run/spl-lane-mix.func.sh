@@ -16,7 +16,10 @@
 # @description   non-claude share
 # @description A vendor whose CLI is not installed, or whose cnf auth_marker is
 # @description absent from the agent user's home, is skipped and its share goes
-# @description to claude. Prints a table, then `pick=<vendor> launcher=...`.
+# @description to claude. So is one out of quota: the watchdog saw one of its
+# @description lanes on this box on an S2 kind=limit screen within
+# @description LANE_MIX_LIMIT_FRESH s (spec 102 T029; grok's weekly limit).
+# @description Prints a table, then `pick=<vendor> launcher=...`.
 # @param LANE_MIX_KIND (optional) - spec, secret, hard or default; unset is
 # @param   default (grok, unless a harder signal below says otherwise)
 # @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own
@@ -29,6 +32,9 @@
 # @param LANE_MIX_REGISTRY (optional) - default $SPOOL_ROOT/registry.tsv
 # @param LANE_MIX_AGENT_HOME (optional) - default the home of SPOOL_AGENT_USER
 # @param   (environment, else $SPOOL_ROOT/box.env), else $HOME
+# @param LANE_MIX_WD_DIR (optional) - default $SPOOL_ROOT/dispatch/wd, the
+# @param   watchdog state whose ctx*/<id>/out.s2 carries the limit verdicts
+# @param LANE_MIX_LIMIT_FRESH (optional) - s a limit verdict holds, default 21600
 # @example ./run -a do_spl_lane_mix
 # @example LANE_MIX_KIND=spec ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 ./run -a do_spl_lane_mix
@@ -50,6 +56,8 @@ do_spl_lane_mix() {
   [[ -z "$diff" || ( "$diff" =~ ^[0-9]{1,3}$ && "$diff" -le 100 ) ]] || {
     do_log "FATAL LANE_MIX_DIFFICULTY must be 0..100, got '$diff'"; return 1; }
   [[ "$sens" =~ ^[01]$ ]] || { do_log "FATAL LANE_MIX_SENSITIVE must be 0 or 1, got '$sens'"; return 1; }
+  [[ "${LANE_MIX_LIMIT_FRESH:-0}" =~ ^[0-9]+$ ]] || {
+    do_log "FATAL LANE_MIX_LIMIT_FRESH must be whole seconds, got '$LANE_MIX_LIMIT_FRESH'"; return 1; }
   case "$kind" in
     ""|default|spec|secret|hard) ;;
     *) do_log "FATAL LANE_MIX_KIND must be spec, secret, hard or default, got '$kind'"; return 1 ;;
@@ -57,7 +65,7 @@ do_spl_lane_mix() {
 
   declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=()
   _spl_lane_mix_target "$cnf" || return 1
-  _spl_lane_mix_avail "$root" "$cnf"
+  _spl_lane_mix_avail "$root" "$cnf" "$reg"
   _spl_lane_mix_actual "$reg"
   _spl_lane_mix_table "$cnf" "$reg"
   _spl_lane_mix_easy
@@ -74,7 +82,11 @@ do_spl_lane_mix() {
     _spl_lane_mix_pick claude "kind hard: the most complex coding goes to claude"
   elif [[ -z "$diff" ]]; then
     printf 'next easy=%s (%s) default=grok\n' "$_LM_EASY" "$_LM_EASY_WHY"
-    _spl_lane_mix_pick grok "difficulty unset: default is grok"
+    if [[ "${_LM_AVAIL[grok]}" == yes ]]; then
+      _spl_lane_mix_pick grok "difficulty unset: default is grok"
+    else
+      _spl_lane_mix_pick "$_LM_EASY" "difficulty unset: default grok is skipped (${_LM_AVAIL[grok]}); $_LM_EASY_WHY"
+    fi
   elif (( diff >= 60 )); then
     _spl_lane_mix_pick claude "difficulty $diff >= 60: hard work goes to claude"
   else
@@ -104,15 +116,19 @@ _spl_lane_mix_target() {
     do_log "FATAL agent_split tolerance/window must be whole numbers, got '$_LM_TOL'/'$_LM_WIN'"; return 1; }
 }
 
-# _spl_lane_mix_avail <spool-root> <cnf> -> _LM_AVAIL, _LM_EFF: claude is the
-# floor and always there; a skipped vendor's share moves to claude
+# _spl_lane_mix_avail <spool-root> <cnf> <registry> -> _LM_AVAIL, _LM_EFF:
+# claude is the floor and always there; a skipped vendor's share moves to claude
 _spl_lane_mix_avail() {
-  local user home v
+  local user home v lim
   user="$(_spl_lane_mix_user "$1")"
   home="$(_spl_lane_mix_home "$user")"
   _LM_EFF[claude]="${_LM_TGT[claude]}" _LM_AVAIL[claude]=yes
   for v in grok agy qwen; do
     _LM_AVAIL[$v]="$(_spl_lane_mix_cli "$v" "$user" "$home" "$2")"
+    if [[ "${_LM_AVAIL[$v]}" == yes ]]; then
+      lim="$(_spl_lane_mix_limit "$v" "$1" "$3")"
+      [[ -z "$lim" ]] || _LM_AVAIL[$v]="$v limit ($lim)"
+    fi
     if [[ "${_LM_AVAIL[$v]}" == yes ]]; then _LM_EFF[$v]="${_LM_TGT[$v]}"
     else _LM_EFF[$v]=0; _LM_EFF[claude]=$(( _LM_EFF[claude] + _LM_TGT[$v] )); fi
   done
@@ -209,4 +225,25 @@ _spl_lane_mix_cli() {
   marker="$(yq -r ".env.box.agent_split.auth_marker.$v // \"\"" "$4")"
   [[ -z "$marker" ]] || _spl_lane_mix_test "$user" -e "$home/$marker" || { echo "$v not signed in"; return; }
   echo yes
+}
+
+# _spl_lane_mix_limit <vendor> <spool-root> <registry> -> "<id> S2 kind=limit
+# <age> ago" for the newest watchdog verdict (ctx*/<id>/out.s2) within
+# LANE_MIX_LIMIT_FRESH s on one of that vendor's lanes, else nothing. The
+# vendor is the id's registry kind, else its prefix (spec 061: c g a q).
+_spl_lane_mix_limit() {
+  local v="$1" wd="${LANE_MIX_WD_DIR:-$2/dispatch/wd}" fresh="${LANE_MIX_LIMIT_FRESH:-21600}"
+  local now f t id k best=-1 hit=""
+  now="$(date +%s)"
+  for f in "$wd"/ctx*/*/out.s2; do
+    grep -q '^HIT S2 kind=limit' "$f" 2>/dev/null || continue
+    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    (( now - t <= fresh && t > best )) || continue
+    id="$(basename "$(dirname "$f")")"
+    k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "$3" 2>/dev/null)"
+    [[ -n "$k" ]] || case "${id:0:2}" in c-) k=claude ;; g-) k=grok ;; a-) k=agy ;; q-) k=qwen ;; esac
+    [[ "$k" == "$v" ]] || continue
+    best="$t" hit="$id S2 kind=limit $(( (now - t) / 60 ))m ago"
+  done
+  echo "$hit"
 }

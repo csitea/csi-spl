@@ -1,14 +1,15 @@
 # 102 Agent lifetime: 1 h rebirth, 2 h hard end, one restart path, generic stuck detection
 
-Status: **v1.1, panel consensus, 2026-10-07.** Amendment for 3 watchdogs per box +
-watchdog self-update (WD1..WD5, HUM-10 msgs `c38146c2`, `5684a64c`, `be5fcf4b`).
-v1.0 consensus in 15.1..15.4; v1.1 consensus in 15.5. Spec only: no
-code, cron, table, setting or seat was touched by this lane. Build: [tasks.md](tasks.md).
-Topic: t1 `637269bb-d97b-4861-b45e-87200652b169` (HUM-10). Dispatcher and
-topic owner: c-002. Author: a-487 (v1.1 amendment; v1.0 author c-471).
+Status: **v1.2, owner decision, 2026-10-07.** Amendment for no separate keeper;
+cron starter in source; watchdog setup doc (HUM-10 msgs `a606118a`, `25731cc9`,
+`575c9d19`). v1.0 consensus in 15.1..15.4; v1.1 consensus in 15.5; v1.2 owner
+decision in 15.6. Spec only: no code, cron, table, setting or seat was touched
+by this lane. Build: [tasks.md](tasks.md). Topic: t1 `637269bb-d97b-4861-b45e-87200652b169`
+(HUM-10). Dispatcher and topic owner: c-002. Author: a-497 (v1.2 amendment; v1.1 author
+a-487; v1.0 author c-471).
 Extends: [060 role rotation](../060-role-rotation/spec.md) (handoff, fresh
 session under the same id, ack), [093 agent watchdog](../093-agent-watchdog/spec.md)
-(heartbeat, situations S1..S8, takeover 8, keeper 6.4),
+(heartbeat, situations S1..S8, takeover 8; replaced in 102 v1.2 by crontab starter + watchdog self-supervision),
 [063 agent context lifecycle](../063-agent-context-lifecycle/spec.md) (lane
 restart, the per-workspace numbers table), [101 four orchestrator-dispatchers](../101-four-orchestrator-dispatchers/spec.md),
 [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md).
@@ -479,11 +480,11 @@ spawn, restore, rotation, lane restart and the restart path.
 
 ### 10.1 Reboot
 
-After a reboot, the box's own watchdog keeper (`do_spl_wd_ensure`, every
-minute) starts the watchdog, and the watchdog restarts every agent whose
-registry row is open, that is not done (4.3) and whose `running_box` is this
-box (10.2), cause `reboot`, through section 4: a new session from the
-handoff, not a `--resume`. The `@reboot` `do_spl_agent_boot_restore` and
+After a reboot, the box user's crontab starter (`@reboot`, invoking
+`spl_wd_inst_start`) starts the 3 watchdog instances, and the watchdog restarts
+every agent whose registry row is open, that is not done (4.3) and whose
+`running_box` is this box (10.2), cause `reboot`, through section 4: a new session
+from the handoff, not a `--resume`. The `@reboot` `do_spl_agent_boot_restore` and
 the `--resume` restore scripts stop being a path: once the reboot path has
 passed its drill (tasks T014) their cron line is removed, and the scripts
 stay only as a manual tool that also takes the id lock (claude-2: two
@@ -544,24 +545,33 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   and writes its pid to `<spool root>/dispatch/wd/run.<inst>.pid`.
   Instance lock files are **never unlinked or removed** (`rm -f` is forbidden);
   an instance process exiting automatically releases the OS kernel flock.
-- **User-space supervision model (Q13 consensus: option b)**:
+- **User-space supervision model (v1.2: no separate keeper, owner decision 15.6)**:
   - *Systemd units rejected*: Systemd system service units require privileged
     root installation in `/etc/systemd/system/` (breaking unprivileged box
     deployment and "consensus, then build, no go"), while systemd user units
     require lingering sessions and fail across headless cron/sudo hops.
     Furthermore, `Restart=always` creates supervisor warfare against peer
-    restart and keeper loops, resulting in service flapping and cgroup thrashing.
+    restart and starter loops, resulting in service flapping and cgroup thrashing.
   - *Mutual peer monitoring (WD4, 10.4.2)*: Primary supervision is performed
     directly in user space by surviving peers detecting dead (< 30 s) or hung
     daemons and restarting them.
-  - *The cron keeper* (`do_spl_wd_ensure`): Secondary outer supervisor in the
-    box user's crontab (`* * * * *` and `@reboot`). Requires zero root
-    permissions. The keeper checks that all 3 instance locks (`run.1.lock`,
-    `run.2.lock`, `run.3.lock`) are held. If any instance is missing, the
-    keeper spawns it under `run.<inst>.start.lock` via `spl_wd_inst_start <inst>`.
-- **Reboot start**: Crontab `@reboot` invokes `do_spl_wd_ensure`, launching
-  instances 1, 2, 3 from the verified `good` snapshot (10.4.4) under their
-  respective start locks.
+  - *The crontab starter* (`spl_wd_inst_start`): The crontab line (`* * * * *`
+    and `@reboot`, box user) only runs the watchdogs' OWN start command: "if
+    fewer than 3 instances run, start the missing ones" (`spl_wd_inst_start`),
+    nothing else. Requires zero root permissions. No separate keeper logic,
+    daemon, heartbeat (`inst = 0`) or alerts.
+  - *Watchdog crontab self-healing*: The watchdogs carry crontab line checking.
+    On each tick, an instance checks that the crontab starter line exists in the
+    box user's crontab and restores it via `do_spl_wd_ensure_install_cron`
+    (the named idempotent action in source) if it is missing.
+  - *Watchdog cron daemon failure monitoring*: The watchdogs detect when the
+    crontab starter has not run (starter timestamp file not touched, cron daemon
+    dead) while the watchdogs still run. Because restarting cron itself needs
+    root, the watchdogs raise an admin alert (Section 11.2, WD5), not an
+    automatic fix.
+- **Reboot start**: Crontab `@reboot` invokes the watchdog start command
+  (`spl_wd_inst_start`), launching instances 1, 2, 3 from the verified `good`
+  snapshot (10.4.4) under their respective start locks.
 - **One judge per agent per tick (judge lock)**:
   - All 3 instances run active, independent inspection loops (`WD_TICK` = 30 s).
   - Before evaluating any agent, an instance attempts to acquire a non-blocking
@@ -620,7 +630,7 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   (`flock -n`) via `spl_wd_inst_start <peer_inst>`.
 - **Peer hung check**:
   - Hung timeout floor: `WD_HUNG = max(3 * WD_TICK, 180 s)` (180 s at the
-    default 30 s tick, matching keeper `WD_ENSURE_HUNG`).
+    default 30 s tick).
   - A peer is judged hung only if `kill -0 <peer_pid>` succeeds but
     `last_progress_ts` has not advanced for $\ge \text{WD\_HUNG}$.
   - The detecting peer acquires `run.<peer_inst>.start.lock`, issues `kill -TERM
@@ -635,7 +645,7 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
     2. The elapsed time since its own previous tick is $< 3 \times \text{WD\_TICK}$
        (guards against spurious kills following host sleep, suspend, or CPU freeze).
 - **Single restart authority**:
-  - All instance starts (by peers or the cron keeper) call a single function:
+  - All instance starts (by peers or the crontab starter) call a single function:
     `spl_wd_inst_start <inst>`. It acquires `run.<inst>.start.lock`, verifies
     `run.<inst>.lock` is free, launches the instance detached from the `good`
     code snapshot (10.4.4), and releases the start lock.
@@ -645,22 +655,24 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
 - **Beat reporting in `box_beats`**:
   - Each watchdog instance reports its local beat to the hub `box_beats` table
     with row `(box, inst, beat_at, pid, code_sha)` for `inst` = 1, 2, 3.
-  - The cron keeper `do_spl_wd_ensure` also beats to `box_beats` as `inst = 0`
-    every minute.
+  - **No keeper beat (`inst = 0`)**: The separate keeper is eliminated; only
+    active watchdog instances (1..3) beat to `box_beats`.
 - **Hub-derived `wd_count`**:
   - The hub computes `wd_count` as the number of active instance rows (1..3)
     updated within `box_down_min`.
-  - If keeper row `inst = 0` is fresh but instances 1..3 are absent (`wd_count = 0`),
-    the hub classifies the box as **UP with watchdogs down**.
-  - In this state, the hub sends **one** debounced admin message (Section 11.2).
-    **Zero agent migration occurs**: lanes remain running on the home box and
-    remote boxes are forbidden from CAS-ing lanes away.
+  - If `wd_count = 0` (no watchdog instance beating from that box):
+    - The hub classifies the box as **UP with watchdogs down** (or all 3 dead +
+      cron dead).
+    - In this state, the hub sends **one** debounced admin message (Section 11.2).
+    - **Zero agent migration occurs**: lanes remain running on the home box and
+      remote boxes are forbidden from CAS-ing lanes away based on `wd_count = 0`.
+      Failover remains exclusively gated by Section 10.2 box-down detection.
 - **Box down vs Watchdog down**:
-  - A box is declared **DOWN** (Section 10.2) only when **no row of any instance,
-    keeper (`inst = 0`) included**, has arrived for `box_down_min`.
-  - When a box is partitioned and cannot reach the hub, the keeper (beating
-    every minute) detects the unacknowledged beat and applies the local fence
-    (TERMs lanes after wip push, Section 10.2).
+  - A box is declared **DOWN** (Section 10.2) only when **no row of any instance**
+    has arrived for `box_down_min`.
+  - When a box is partitioned and cannot reach the hub, the local watchdogs
+    detect the unacknowledged beat and apply the local fence (TERMs lanes after
+    wip push, Section 10.2).
 - **Cross-box observation (Q14 consensus: option a)**:
   - Each box reads the fleet watchdog matrix returned in the hub's beat ack.
   - If a remote box shows `wd_count: 0`, the observing box logs a warning note.
@@ -714,8 +726,8 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
     - An admin alert is dispatched naming the failed commit and error output.
     - Instances 2 and 3 remain alive on `good`. Bad code never runs on more than
       1 instance; active watchdog monitoring never drops below 2.
-- **Keeper interaction**: Cron keeper executes from checkout but only calls
-  `spl_wd_inst_start`, which launches `code/good`.
+- **Crontab starter interaction**: Crontab starter executes from checkout but
+  only calls `spl_wd_inst_start`, which launches `code/good`.
 
 #### 10.4.5 Admin alerts (WD5)
 
@@ -726,12 +738,15 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
      (Q12 consensus: option a). When 2 are down, redundancy is lost; the admin
      is alerted immediately before total fleet coverage is lost.
   3. Complete watchdog outage (`wd_count: 0`) detected via hub `box_beats` (10.4.3).
-  4. Rolling self-update failure / stop rule triggered (10.4.4).
+  4. Crontab starter failure / cron daemon dead: watchdogs detect that the
+     crontab starter has not run (timestamp file not updated) while watchdogs
+     continue running. Restarting cron requires root, so this is an alert, not a fix.
+  5. Rolling self-update failure / stop rule triggered (10.4.4).
 - **Sender & Delivery**:
-  - The cron keeper `do_spl_wd_ensure` (which survives instance failures) tracks
-    `wd/inst.<n>.down_since` and dispatches Section 11.2 admin messages (web app
-    DM + email), replacing the legacy `ASKS_OWNER` DM path.
-  - The hub dispatches the fleet-wide `wd_count: 0` alert.
+  - Alerts are dispatched **directly by the surviving watchdogs** (replacing the
+    legacy keeper): watchdogs track `wd/inst.<n>.down_since` and starter status,
+    and dispatch Section 11.2 admin messages (web app DM + email).
+  - The hub dispatches the fleet-wide `wd_count: 0` / box-down alert.
   - All alerts are debounced by 300 s (`WD_ENSURE_DEBOUNCE`). If the hub API is
     temporarily unreachable, a local spool blocker is sent to the orchestrator.
 
@@ -745,11 +760,14 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
 | dead peer restart | kill instance 2 (`kill -9`) | surviving peer acquires `run.2.start.lock` and restarts instance 2 at once from `code/good` | instance 2 alive -> zero restart action taken |
 | hung peer restart | freeze instance 2 heartbeat for $\ge 180\text{ s}$ | surviving peer acquires start lock, terminates instance 2 (`TERM`/`KILL`), and restarts it | heartbeat advancing normally (`last_progress_ts` fresh) -> zero action taken |
 | heavy load slow tick | tick iterates 30 agents over 120 s updating `last_progress_ts` per agent | zero hung verdict; peers see advancing `last_progress_ts` and do not kill instance | progress frozen for 180 s -> hung verdict triggers |
-| disk full guard | filesystem full (ENOSPC on heartbeat write) | heartbeat write failure logged; instances do NOT mutually terminate peers; keeper alerts | normal disk write -> heartbeats advance cleanly |
+| disk full guard | filesystem full (ENOSPC on heartbeat write) | heartbeat write failure logged; instances do NOT mutually terminate peers; watchdogs alert admin | normal disk write -> heartbeats advance cleanly |
+| crontab starter recovery | all 3 watchdogs killed simultaneously | crontab starter (`spl_wd_inst_start`) restores missing instances within ~60 s | instances alive -> starter starts 0 |
+| crontab line self-healing | crontab starter line deleted from crontab | watchdog detects missing line and restores it via `do_spl_wd_ensure_install_cron` | crontab line intact -> zero modification |
+| cron daemon failure | cron stopped / crontab starter timestamp stale | surviving watchdogs detect stale starter timestamp and dispatch Section 11.2 admin alert | starter running normally -> zero alert |
 | rolling self-update timing | desk-cron HEAD advances to new sha | rolling restart of instances 1, 2, 3 completes in $< 120\text{ s}$ ($< 70\text{ s}$); active coverage never drops below 2 live instances | desk-cron HEAD unchanged -> 0 restarts |
 | self-update stop rule | new commit fails pre-flight or check 1 | instance 1 rolls back to `good`; rollout halts; instances 2 and 3 remain alive on `good`; admin alerted | clean commit -> rollout proceeds sequentially across all 3 |
 | killed instance restarts on good | bad candidate halted; kill instance 2 (`kill -9`) | instance 2 restarts from `code/good` snapshot, never candidate | valid update -> restarts on candidate sha |
-| cross-box observation | remote box reports `wd_count: 0` with keeper alive | hub derives `wd_count: 0`, sends one admin alert; box stays UP, zero agent CAS/migration | remote box healthy (3 watchdogs) -> zero alert; remote box partitioned (> 2 min absent) -> 10.2 fence activates |
+| cross-box observation | remote box reports `wd_count: 0` (no heartbeat at all) | hub derives `wd_count: 0`, sends one admin alert; box stays UP, zero agent CAS/migration | remote box healthy (3 watchdogs) -> zero alert; remote box partitioned (> 2 min absent) -> 10.2 fence activates |
 | admin alert threshold | 2 watchdogs killed simultaneously | admin alert triggered immediately (2 of 3 down) | single watchdog killed and restored in $< 5\text{ min}$ -> logged only, zero admin alert |
 
 ## 11. The admin (R8, R10)
@@ -790,8 +808,9 @@ in the operator workspace (a DM to each admin) plus an email through
 | CLI test agent failed (9.1) | none (information) |
 
 Each button writes one hub event; the box's watchdog reads its events at
-every tick. One message per (id, cause) until it is answered. The keeper's
-owner DMs of 093 6.4 move to this type.
+every tick. One message per (id, cause) until it is answered. Watchdog failure
+alerts of 093 6.4 move to this type (sent directly by the watchdogs, replacing
+the legacy keeper owner DMs).
 
 ## 12. Shared memory (H6, R9)
 
@@ -833,10 +852,10 @@ do and its context come from the web app (topics, briefs).
 | settings | `00-fleet.json`: `defaultMode=bypassPermissions`, `disableAutoMode=disable`, no `env` block | + `DISABLE_AUTOUPDATER` in the env and the launch path; re-checked before every start (9.2) | `cat orc/features/spool-install/assets/claude/settings/00-fleet.json` |
 | per-workspace numbers | `agent_lifecycle_config` (063, rdb 0105), 11 keys | + 5 keys, read from the operator workspace only (11.1) | `grep -c 'Key: "' csi-spl-api/src/go/spool-hub-api/internal/store/agent_lifecycle.go` -> 11 |
 | fleet lane row | PK `(tenant_id, fleet, agent_id, agent_box)` | + `running_box`, keyed by the home box (10.2) | `grep -n 'PRIMARY KEY' csi-spl-rdb/src/sql/postgres/spool-hub/0102_agent_at_box_key.sql` |
-| 093 6.4 watchdog loops per box | ONE loop per box, pid in `dispatch/wd/run.pid`; minute cron keeper restarts dead loop in ~60 s; hung loop detected (>180 s) and alerted via owner DM but unrecovered | 3 active daemons per box; per-instance locks; peer restarts dead at once and hung after 3 missed checks / 180 s floor; cron keeper user-space supervisor fallback (10.4) | `grep -n 'run\.pid' csi-spl-orc/src/bash/run/spl-watchdog.func.sh csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh` |
+| 093 6.4 watchdog loops per box | ONE loop per box, pid in `dispatch/wd/run.pid`; minute cron keeper restarts dead loop in ~60 s; hung loop detected (>180 s) and alerted via owner DM but unrecovered | 3 active daemons per box; per-instance locks; peer restarts dead at once and hung after 3 missed checks / 180 s floor; crontab starter (`spl_wd_inst_start`) restores missing instances; no separate keeper daemon (10.4) | `grep -n 'run\.pid' csi-spl-orc/src/bash/run/spl-watchdog.func.sh` |
 | watchdog code update on git move | none: desk-cron checkout moves on master, but loop runs old code while sourced scripts run mixed versions | rolling self-update of 3 daemons from `code/<sha>` snapshots within 2 min (<70 s), accelerated self-check tick, stop/rollback to `good` on failure (10.4) | `git -C /opt/csi/csi-spl-desk-cron rev-parse HEAD; ps -o pid,lstart,cmd -C bash` |
-| 093 6.4 watchdog keeper alert | keeper sends owner DM on crashloop / hung; no admin message | admin message (11.2) sent by keeper when a watchdog cannot be restored in 5 min, or 2 of 3 down on a box (debounced 300 s, replaces `ASKS_OWNER` DM) (10.4, 16 Q12) | `grep -c ASKS_OWNER csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh` -> 4 |
-| cross-box watchdog monitoring | none: no box checks another box's watchdog or agents | each instance beats `box_beats` (inst 1..3), keeper beats as inst 0; hub derives `wd_count`; remote box with 0 watchdogs produces one hub admin alert; observer only, zero action on remote agents (10.4, 16 Q14) | `ls csi-spl-rdb/src/sql/postgres/spool-hub \| grep -c box_beats` |
+| 093 6.4 watchdog keeper alert | keeper sends owner DM on crashloop / hung; no admin message | admin message (11.2) sent by watchdogs when an instance cannot be restored in 5 min, or 2 of 3 down on a box (debounced 300 s, replaces legacy keeper `ASKS_OWNER` DM) (10.4, 16 Q12); alert when cron starter has not run | `grep -c ASKS_OWNER csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh` -> 4 |
+| cross-box watchdog monitoring | none: no box checks another box's watchdog or agents | each instance beats `box_beats` (inst 1..3); hub derives `wd_count`; remote box with 0 active watchdogs produces one hub admin alert; observer only, zero action on remote agents (10.4, 16 Q14) | `ls csi-spl-rdb/src/sql/postgres/spool-hub \| grep -c box_beats` |
 
 ## 14. Trace: every owner answer to its section
 
@@ -993,20 +1012,34 @@ tasks T023..T027:
 | # | agreed change | proposed by | section |
 |---|---|---|---|
 | C21 | **Per-agent judge lock & scratch isolation**: `<spool root>/dispatch/wd/<id>.judge.lock` (`flock -n`) taken during evaluation; per-instance scratch dirs (`tick.<n>/`, `ctx.<n>/`, `heartbeat.<n>.json`); episode/state files written only under judge lock. T003 agent ID lock remains in takeover/restart actions (detached takeover takes T003, avoiding self-deadlock) | claude 2, agy 1, agy 2 | 10.4.1 |
-| C22 | **User-space supervision alone**: cron keeper `do_spl_wd_ensure` (`* * * * *` and `@reboot`) + WD4 peer monitoring. Reject systemd system units (no root required, avoids supervisor warfare with `Restart=always`, fully portable) | claude 2, agy 1, agy 2 | 10.4.1, 16 Q13 |
+| C22 | **User-space supervision alone (v1.2: no separate keeper)**: crontab starter (`* * * * *` and `@reboot` running `spl_wd_inst_start`) + WD4 peer monitoring. Reject systemd system units (no root required, avoids supervisor warfare with `Restart=always`, fully portable). Watchdogs self-heal crontab line and alert if cron stops; no separate keeper daemon | claude 2, agy 1, agy 2, owner | 10.4.1, 15.6, 16 Q13 |
 | C23 | **Watchdog heartbeats & hung floor**: heartbeats include `last_progress_ts` and `progress_seq`; hung threshold `WD_HUNG = max(3 * WD_TICK, 180 s)` (180 s floor at 30 s tick). Single start function `spl_wd_inst_start <n>`. Never delete flock files (`run.<n>.lock`). Disk full / suspend guards | claude 2, agy 1, agy 2 | 10.4.2 |
-| C24 | **Keeper box beat & hub-derived `wd_count`**: keeper beats `box_beats` too as `inst = 0` every minute; instances beat as `inst = 1..3`. Hub derives `wd_count`. Keeper fresh with 0 instance beats -> hub admin alert, box stays UP, zero agent CAS/migration. Box down requires absence of ANY row for `box_down_min` | claude 2, agy 1, agy 2 | 10.4.3, 16 Q14 |
-| C25 | **Code snapshots & good symlink**: version-pinned snapshots (`dispatch/wd/code/<sha>/` via `git archive`) and `good` symlink. Surviving peers, keeper, and reboot always start from `good` | claude 2, agy 1, agy 2 | 10.4.4 |
+| C24 | **Hub-derived `wd_count` (v1.2: no inst=0)**: instances beat `box_beats` as `inst = 1..3` (no separate keeper beat). Hub derives `wd_count`. If `wd_count = 0` (all 3 watchdogs dead), hub sends admin alert; box stays UP, zero agent CAS/migration. Box down requires absence of ANY row for `box_down_min` | claude 2, agy 1, agy 2, owner | 10.4.3, 15.6, 16 Q14 |
+| C25 | **Code snapshots & good symlink**: version-pinned snapshots (`dispatch/wd/code/<sha>/` via `git archive`) and `good` symlink. Surviving peers, crontab starter, and reboot always start from `good` | claude 2, agy 1, agy 2 | 10.4.4 |
 | C26 | **Rolling self-update (< 120 s) & rollback**: pre-flight health quorum; instance 1 self-execs (`exec`) into candidate at tick boundary, runs accelerated self-check tick ($\le 20\text{ s}$), hands baton to 2, then 3; total rollout $< 70\text{ s}$. Stop rule: failure halts rollout, instance 1 re-execs into `good`, candidate marked `bad`, admin alerted | claude 2, agy 1, agy 2 | 10.4.4 |
-| C27 | **Admin alert routing & debouncing**: keeper tracks `wd/inst.<n>.down_since` and dispatches Section 11.2 admin alerts (replacing legacy `ASKS_OWNER` DM) on single instance down > 5 min or 2 of 3 down simultaneously. Hub dispatches cross-box / 0-watchdog alert. Both debounced by 300 s (`WD_ENSURE_DEBOUNCE`) | claude 2, agy 1, agy 2 | 10.4.5, 16 Q12 |
-| C28 | **Zero-gap rollout**: managed by user-space cron keeper (no systemd); multi-instance code started from `good` snapshot, legacy loop cleanly TERMed once all 3 instances tick, keeper monitoring updated | claude 2, agy 1, agy 2 | 17.5 |
+| C27 | **Admin alert routing & debouncing (v1.2: watchdogs alert)**: surviving watchdogs track peer down time and dispatch Section 11.2 admin alerts (replacing legacy `ASKS_OWNER` DM) on single instance down > 5 min or 2 of 3 down simultaneously, and when cron starter has not run. Hub dispatches cross-box / 0-watchdog alert. Both debounced by 300 s (`WD_ENSURE_DEBOUNCE`) | claude 2, agy 1, agy 2, owner | 10.4.5, 15.6, 16 Q12 |
+| C28 | **Zero-gap rollout**: managed in user space without systemd; multi-instance code started from `good` snapshot, legacy loop cleanly TERMed once all 3 instances tick, crontab starter updated to `spl_wd_inst_start` | claude 2, agy 1, agy 2, owner | 17.5 |
 
 #### 15.5.3 Resolution of Open Questions Q12, Q13, Q14
 
 All three panelists reached identical conclusions:
 - **Q12**: Unanimously **Keep (a)** (2 of 3 down on a box triggers admin alert, debounced 300 s).
-- **Q13**: Unanimously **Flip to (b)** (Cron keeper `do_spl_wd_ensure` + WD4 peer restarts alone in user space as `<box user>`, reject systemd).
-- **Q14**: Unanimously **Keep (a)** (Alert admin when remote box has 0 active watchdogs via hub `box_beats`, keeper inst 0, observer only, zero action on remote agents).
+- **Q13**: Unanimously **Flip to (b)** (User space alone without systemd; v1.2 owner decision 15.6 refines this to crontab starter `spl_wd_inst_start` + WD4 peer restarts directly in user space as `<box user>`, eliminating the separate keeper daemon).
+- **Q14**: Unanimously **Keep (a)** (Alert admin when remote box has 0 active watchdogs via hub `box_beats` with instances 1..3, no keeper inst 0 in v1.2; observer only, zero action on remote agents).
+
+### 15.6 v1.2 owner decision: no separate keeper
+
+On 2026-10-07, following discussion of the v1.1 watchdog keeper architecture in topic `637269bb-d97b-4861-b45e-87200652b169`, the owner decided (HUM-10):
+- msg `a606118a`: *"what is the keeper - there should not be any single point of failure ?!"*
+- msg `25731cc9`: *"... why we need a separate keeper .. why not move this responsibility to the wather services"*
+- msg `575c9d19`: *"yes , go for it , of course add all of the cron things to the source code and document the setup properly ... otherwise , next time we are in trouble , we would not know how it is supposed to be working"*
+
+"yes, go for it" approved the dispatcher's proposal (c-002), establishing the v1.2 model:
+1. **Drop the keeper as a separate piece**: The crontab line (`@reboot` and `* * * * *`, box user) only runs the watchdogs' OWN start command: "if fewer than 3 instances run, start the missing ones" (`spl_wd_inst_start`), nothing else. No separate keeper logic, heartbeat (`inst = 0`) or alerts.
+2. **Watchdogs carry everything else**: Restart each other (WD4); check that the crontab line exists and put it back via `do_spl_wd_ensure_install_cron` if missing; alert admins (Section 11.2) on instance down > 5 min or 2 of 3 down (debounced 300 s); and alert when the cron starter has not run (cron daemon dead) while watchdogs still run - restarting cron itself needs root, so that is an alert, not a fix.
+3. **Hub observer alert**: The hub alerts when a box sends no watchdog heartbeat at all (covers all 3 dead + cron dead, and box down); observer only, zero action on remote agents.
+4. **Cron in source**: Every cron line lives in source, installed by one named action (`do_spl_wd_ensure_install_cron`), re-runnable, idempotent.
+5. **Setup documentation**: Documented in `csi-spl-doc/doc/md/watchdog-setup.md`.
 
 ## 16. Open questions (a safe default is chosen and marked; nothing waits)
 
@@ -1024,8 +1057,8 @@ All three panelists reached identical conclusions:
 | Q10 | the wip ref | see 15.4 | **`wip/<lane branch>`** |
 | Q11 | a 2 min hub blip fences every box and stops every lane | (a) accept, 2 min is the owner's default (R5) and an admin can raise it; (b) fence only after 2 x `box_down_min` | **(a)**: the owner chose 2 min; a fenced box's lanes restart within a tick of the hub's return, from their wip ref |
 | Q12 | admin alert threshold for simultaneous watchdog failures on a box | (a) 2 of 3 down; (b) all 3 down | **(a)**, all panelists (claude-2, agy-1, agy-2): 2 of 3 down indicates loss of redundancy and active risk (OOM, disk full); debounced by 300 s (`WD_ENSURE_DEBOUNCE`) |
-| Q13 | watchdog daemon supervisor mechanism | (a) systemd system service template (`spl-watchdog@.service`) as primary supervisor, cron keeper `do_spl_wd_ensure` as outer fallback; (b) cron keeper `do_spl_wd_ensure` alone supervises all 3 detached loops directly | **(b)**, all panelists (claude-2, agy-1, agy-2): reject systemd primary; cron keeper `do_spl_wd_ensure` + WD4 peer restarts alone directly in user space as `<box user>`. Root-free, zero supervisor warfare with `Restart=always`, container/dev portable |
-| Q14 | cross-box watchdog liveness alert threshold | (a) alert admin when another box has 0 active watchdogs, with zero action on its agents; (b) alert when any single remote watchdog instance is down | **(a)**, all panelists (claude-2, agy-1, agy-2): alert admin via hub `box_beats` when another box has 0 active watchdogs with keeper fresh (inst = 0); observer only, strictly zero action on remote agents; avoids alert storms during routine rolling updates |
+| Q13 | watchdog daemon supervisor mechanism | (a) systemd system service template (`spl-watchdog@.service`) as primary supervisor, crontab starter as outer fallback; (b) crontab starter (`spl_wd_inst_start` at `* * * * *` and `@reboot`) + WD4 peer restarts directly in user space as `<box user>` | **(b)**, all panelists (claude-2, agy-1, agy-2) and owner (15.6): reject systemd primary; crontab starter (`spl_wd_inst_start`) + WD4 peer restarts alone directly in user space as `<box user>`; no separate keeper daemon. Root-free, zero supervisor warfare with `Restart=always`, container/dev portable |
+| Q14 | cross-box watchdog liveness alert threshold | (a) alert admin when another box has 0 active watchdogs, with zero action on its agents; (b) alert when any single remote watchdog instance is down | **(a)**, all panelists (claude-2, agy-1, agy-2) and owner (15.6): alert admin via hub `box_beats` when another box has 0 active watchdogs (`wd_count: 0`); observer only, strictly zero action on remote agents; avoids alert storms during routine rolling updates |
 
 ## 17. Rollout (A4)
 
@@ -1059,11 +1092,11 @@ All three panelists reached identical conclusions:
         and verifies peer heartbeat with instance 1.
      4. Instance 3 is started from `good`, completes accelerated self-check tick,
         and verifies peer heartbeat with instances 1 and 2.
-     5. Cron keeper `do_spl_wd_ensure` is updated to monitor all 3 instances
-        (`run.1.lock`, `run.2.lock`, `run.3.lock`) and beat to `box_beats` as
-        `inst = 0`. Zero systemd units required (Q13 consensus b).
+     5. Crontab starter is updated to ensure all 3 instances run (calling
+        `spl_wd_inst_start` at `* * * * *` and `@reboot`). No separate keeper
+        daemon or `inst = 0` beat (15.6). Zero systemd units required (Q13 consensus b).
    At no point during the transition is the box left with zero active watchdogs.
 
 Tasks: [tasks.md](tasks.md).
 
-<!-- version: 1.1.0 · updated: 2026-10-07 · last-edit: 2026-10-07T11:15:00Z -->
+<!-- version: 1.2.0 · updated: 2026-10-07 · last-edit: 2026-10-07T14:45:00Z -->

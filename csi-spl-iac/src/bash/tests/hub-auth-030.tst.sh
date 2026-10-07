@@ -34,11 +34,13 @@ for env in dev prd; do
   # the injected set follows from the rendered env itself, whatever the cnf
   # state: DSN + session key (a listed provider OR native on) + each listed
   # provider's client secret + the SMTP password (transport smtp) + the LinkedIn
-  # app pair (marketing.linkedin.inject) -- no more
+  # app pair (marketing.linkedin.inject) + the GitHub App key
+  # (docs.repo_edit.inject) -- no more
   wui_inject=$(yq -r '.env.hub.wui_key.inject // "false"' "$CNF/$env.env.json")
   rnb_inject=$(yq -r '.env.hub.release_note_bans.inject // "false"' "$CNF/$env.env.json")
   mkt_inject=$(yq -r '.env.marketing.linkedin.inject // "false"' "$CNF/$env.env.json")
-  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" <<'PY'
+  gh_inject=$(yq -r '.env.docs.repo_edit.inject // "false"' "$CNF/$env.env.json")
+  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" <<'PY'
 import json, sys
 env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
 listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
@@ -52,6 +54,8 @@ if sys.argv[5] == "true": want |= {"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_ID", "SP
 # 006 T022 (payment.secret_env): the stripe pair only while PROVIDER is stripe, PayPal only while enabled
 if env.get("SPOOL_HUB_PAYMENT_PROVIDER") == "stripe": want |= {"SPOOL_HUB_STRIPE_SECRET_KEY", "SPOOL_HUB_STRIPE_WEBHOOK_SECRET"}
 if env.get("SPOOL_HUB_ENABLE_PAYPAL") == "true": want.add("SPOOL_HUB_PAYPAL_CLIENT_SECRET")
+# spec 075 repo-edit: the GitHub App key only while docs.repo_edit.inject is "true"
+if sys.argv[6] == "true": want.add("SPOOL_GITHUB_APP_KEY")
 print("ok" if sec == want else f"injected {sorted(sec)} != expected {sorted(want)}")
 PY
 )

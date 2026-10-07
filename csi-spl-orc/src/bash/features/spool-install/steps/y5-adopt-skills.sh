@@ -35,3 +35,29 @@ y5_adopt_skills() {
   done
   return 0
 }
+
+# The same hand-over for agy (~/.gemini/config/skills): the frozen engine
+# copied every skill there unmarked, so its /exit-clean stayed the engine's
+# (no --retire, a script path that no longer exists) and agy ids never retired.
+# Exactly the skill names spawn-agents/assets ships; any other name (graft,
+# the user's own) is never touched.
+y5_adopt_agy_skills() {
+  local home="${1:-$HOME}" assets="$2" n dst dir
+  local mark='<!-- spool-install: sha256='
+  for dir in "$assets"/skills/*/; do
+    n="$(basename "$dir")"
+    dst="$home/.gemini/config/skills/$n/SKILL.md"
+    if [ -L "${dst%/SKILL.md}" ]; then
+      if [ "$DRY" = 1 ]; then plan "unlink ${dst%/SKILL.md} so step 5b renders the csi-spl copy"; continue; fi
+      rm -f "${dst%/SKILL.md}" || return 7
+      say "skills: unlinked ${dst%/SKILL.md} (the engine's copy); step 5b renders ours"
+      continue
+    fi
+    [ -f "$dst" ] || continue
+    grep -qF "$mark" "$dst" && continue
+    if [ "$DRY" = 1 ]; then plan "move the engine's $dst aside to $dst.bak-spool-install so step 5b renders the csi-spl copy"; continue; fi
+    mv -f "$dst" "$dst.bak-spool-install" || return 7
+    say "skills: adopted $dst (the engine's copy kept as $dst.bak-spool-install)"
+  done
+  return 0
+}

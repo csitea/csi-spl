@@ -14,6 +14,10 @@
 #   4. a re-run moves nothing and rewrites nothing
 #   5. the rendered /tmux-color and /signed-prompt run scripts that exist in
 #      this checkout, and name no path outside it
+#   6. agy (~/.gemini/config/skills): CONTROL 5b without agy never writes
+#      there, and with agy but no hand-over leaves the engine's /exit-clean;
+#      y5_adopt_agy_skills + 5b render ours (--retire, this checkout's
+#      tmux-close-window.sh), keep the engine copy as .bak, never touch graft
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -89,6 +93,28 @@ for s in $(grep -oE "bash [^ ]+/directive-[a-z]+\.sh" "$H/.claude/commands/signe
 done
 [ "$(grep -cE 'bash [^ ]+/directive-(session|sign)\.sh' "$H/.claude/commands/signed-prompt.md")" -ge 3 ] && [ -z "$miss" ] &&
   pass "5. /signed-prompt runs this checkout's directive scripts" || fail "5. signed-prompt:$miss"
+
+# --- 6. agy skills ------------------------------------------------------------------------
+G="$H/.gemini/config/skills"; mkdir -p "$G/exit-clean" "$G/graft"
+echo "ENGINE COPY: tmux-close-window.sh --defer --agent <ID>" >"$G/exit-clean/SKILL.md"
+echo "graft" >"$G/graft/SKILL.md"
+render
+grep -q 'ENGINE COPY' "$G/exit-clean/SKILL.md" && [ ! -e "$G/kill-your-self" ] &&
+  pass "6. control: 5b without agy never writes ~/.gemini" || fail "6. control: $(ls "$G")"
+python3 "$T/render.py" "$HARNESS/assets" "$H" 0 0 "$HARNESS" "$T/spool" 40 c-001 1 2>>"$T/o"
+grep -q 'ENGINE COPY' "$G/exit-clean/SKILL.md" && grep -q 'exit-clean/SKILL.md is not ours' "$T/o" &&
+  pass "6. control: with agy but no hand-over the engine's /exit-clean stays" || fail "6. control 2: $(head -3 "$G/exit-clean/SKILL.md")"
+: >"$T/o"
+( DRY=0; say() { echo "spool-install: $*" >>"$T/o"; }; plan() { :; }
+  # shellcheck source=../steps/y5-adopt-skills.sh
+  . "$STEP" && y5_adopt_agy_skills "$H" "$HARNESS/assets" ); rc=$?
+python3 "$T/render.py" "$HARNESS/assets" "$H" 0 0 "$HARNESS" "$T/spool" 40 c-001 1 2>>"$T/o"
+[ "$rc" = 0 ] && grep -qF "$MARK" "$G/exit-clean/SKILL.md" &&
+  grep -qF "bash $HARNESS/scripts/tmux-close-window.sh --agent <YOUR-AGENT-ID> --defer --retire" "$G/exit-clean/SKILL.md" &&
+  pass "6. agy's /exit-clean is ours: --retire, this checkout's tmux-close-window.sh" || fail "6. rc $rc $(cat "$T/o")"
+grep -q 'ENGINE COPY' "$G/exit-clean/SKILL.md.bak-spool-install" && [ "$(cat "$G/graft/SKILL.md")" = graft ] &&
+  [ "$(ls "$G"/*/SKILL.md | wc -l)" = "$(( $(ls "$HARNESS/assets/skills" | wc -l) + 1 ))" ] &&
+  pass "6. the engine copy is kept as .bak, graft untouched, every shipped skill rendered" || fail "6. $(ls -R "$G")"
 
 echo "-- y5-adopt: $((n - fails))/$n passed"
 [ "$fails" -eq 0 ]

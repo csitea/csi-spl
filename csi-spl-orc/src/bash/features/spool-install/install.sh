@@ -28,7 +28,8 @@
 #      both read it; the hook does nothing in a session that has no agent id)
 #   4b. the agent harness (specs/048): the slash commands and skills of
 #      spawn-agents/assets rendered into ~/.claude/commands, ~/.claude/skills
-#      and (with qwen) ~/.qwen/skills; the tmux window-access snippet copied
+#      and (with qwen) ~/.qwen/skills, (with agy) ~/.gemini/config/skills;
+#      the tmux window-access snippet copied
 #      to <data>. A rendered file carries a sha256 marker: a re-run rewrites
 #      it only while it is untouched; a hand-edited one is left alone and
 #      named, a same-named file we did not write is never touched
@@ -639,14 +640,21 @@ if [ "$SKILLS" = 1 ]; then
   QWEN_SKILLS=0
   for c in "${CLI_LIST[@]}"; do [ "$c" = qwen ] && QWEN_SKILLS=1; done
   [ -d "$HOME/.qwen" ] && QWEN_SKILLS=1
+  # agy reads ~/.gemini/config/skills: without them it kept the frozen
+  # engine's /exit-clean (no --retire, a path that no longer exists).
+  AGY_SKILLS=0
+  for c in "${CLI_LIST[@]}"; do [ "$c" = agy ] && AGY_SKILLS=1; done
+  [ -d "$HOME/.gemini" ] && AGY_SKILLS=1
+  [ "$AGY_SKILLS" = 1 ] && { y5_adopt_agy_skills "$HOME" "$HARNESS_DIR/assets" || die 7 "cannot hand the engine's agy skills over"; }
   if [ "$DRY" = 1 ]; then
-    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills") (hand-edited files kept)"
+    plan "render $HARNESS_DIR/assets commands + skills into $HOME/.claude$([ "$QWEN_SKILLS" = 1 ] && echo " and $HOME/.qwen/skills")$([ "$AGY_SKILLS" = 1 ] && echo " and $HOME/.gemini/config/skills") (hand-edited files kept)"
     plan "copy the tmux snippet to $DATA/tmux-agent-status.conf"
   else
     python3 - "$HARNESS_DIR/assets" "$HOME" "$QWEN_SKILLS" "$FORCE_SKILLS" \
-      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" <<'EOF_PY' || die 6 "cannot render the harness skills"
+      "$HARNESS_DIR" "${SPOOL_ROOT:-$ROOT_DEFAULT}" "${SPOOL_AGENT_CEILING:-40}" "${SPOOL_ORCHESTRATOR_ID:-orchestrator}" "$AGY_SKILLS" <<'EOF_PY' || die 6 "cannot render the harness skills"
 import hashlib, os, re, sys
-assets, home, qwen, force, harness, root, ceiling, orc = sys.argv[1:]
+assets, home, qwen, force, harness, root, ceiling, orc = sys.argv[1:9]
+agy = sys.argv[9] if len(sys.argv) > 9 else "0"
 MARK = re.compile(r"\n<!-- spool-install: sha256=([0-9a-f]{64}) -->\n?")
 subst = {"HARNESS_DIR": harness, "SPOOL_ROOT": root, "AGENT_CEILING": ceiling, "ORCHESTRATOR_ID": orc}
 def render(src):
@@ -665,6 +673,8 @@ for n in sorted(os.listdir(os.path.join(assets, "skills"))):
     jobs.append((src, os.path.join(home, ".claude", "skills", n, "SKILL.md")))
     if qwen == "1":
         jobs.append((src, os.path.join(home, ".qwen", "skills", n, "SKILL.md")))
+    if agy == "1":
+        jobs.append((src, os.path.join(home, ".gemini", "config", "skills", n, "SKILL.md")))
 wrote = same = 0
 for src, dst in jobs:
     new = render(src)

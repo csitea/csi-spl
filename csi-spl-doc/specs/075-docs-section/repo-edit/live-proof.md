@@ -18,3 +18,4 @@ Nothing here is normative: the spec is [`spec.md`](spec.md).
 - 2026-10-07T06:50:38Z dev phone 390x844: saved from the WUI Docs view
 - 2026-10-07T07:16:16Z prd api: express-push timing save 1/2 (c-470)
 - 2026-10-07T07:19:22Z prd api: express-push timing save 2/2 (c-470)
+- 2026-10-07T08:07:43Z dev desktop 1280x800: re-save 1/2 without a reload (c-457)

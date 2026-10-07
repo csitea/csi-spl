@@ -43,11 +43,12 @@ _pp_override="${SPL_PREPUSH_OVERRIDE:-0}"
 # the gate runs: its tests create commits and set config in THROWAWAY repos,
 # and an inherited GIT_DIR made those land on the pushing branch and the shared
 # config (junk "head/pinned/tip" commits, core.bare=true), 2026-09-30.
-_pp_gate() {  # <PRE_PUSH_ONLY>
+_pp_gate() {  # <PRE_PUSH_ONLY> <PRE_PUSH_SKIP_PASSED>
   ( cd "$top/csi-spl-iac" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
       -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_QUARANTINE_PATH -u GIT_COMMON_DIR -u GIT_PREFIX \
       PRE_PUSH_ONLY="$1" PRE_PUSH_MODE="${SPL_PREPUSH_MODE:-fast}" PRE_PUSH_TIER="${SPL_PREPUSH_TIER:-fast}" \
-      PRE_PUSH_LOG="$_pp_log" PRE_PUSH_CACHE="$_pp_log_dir/pre-push.parts.green" ./run -a do_check_pre_push )
+      PRE_PUSH_LOG="$_pp_log" PRE_PUSH_CACHE="$_pp_log_dir/pre-push.parts.green" \
+      PRE_PUSH_PASS="$_pp_log_dir/pre-push.tree.pass" PRE_PUSH_SKIP_PASSED="$2" ./run -a do_check_pre_push )
 }
 
 # Poisoned shared git config guard -- BEFORE trusting show-toplevel, because a
@@ -102,7 +103,7 @@ fi
 # Emergency override: the slow parts are skipped, the cheap correctness parts
 # are not (seconds; their verdicts are cached like the full gate's).
 if [ "$_pp_override" = 1 ]; then
-  if _pp_gate override; then
+  if _pp_gate override 0; then
     _pp_logline "OVERRIDE $top HEAD=$head remote=${1:-?} secs=$(_pp_secs) -- SPL_PREPUSH_OVERRIDE=1, slow parts SKIPPED, hygiene + lint-migration PASSED"
     echo "pre-push: SPL_PREPUSH_OVERRIDE=1 -- slow parts SKIPPED, hygiene + lint-migration passed (audited in $_pp_log)" >&2
     exit 0
@@ -112,23 +113,16 @@ if [ "$_pp_override" = 1 ]; then
   exit 1
 fi
 
-# Skip when this exact working tree was already verified green. `git write-tree`
-# is stable across a rebase that only re-parents commits, so the race-retry loop
-# (rebase -> push -> rejected -> rebase -> push) does not re-run the whole gate.
-tree="$(git write-tree 2>/dev/null || true)"
-stamp="$_pp_log_dir/pre-push.green"
-if [ -n "$tree" ] && [ -f "$stamp" ] && grep -qxF "$tree" "$stamp" 2>/dev/null; then
-  echo "pre-push: tree $tree already verified green -- skipping the deploy-gate" >&2
-  _pp_logline "SKIP-GREEN $top HEAD=$head tree=$tree"
-  exit 0
-fi
-
+# A tree the gate already passed WHOLE (the lane's own `./run -a
+# do_check_pre_push` on this clean tree, same parts, tier, merge-base and gate
+# code) is not re-run: the gate checks its tree-pass record first
+# (PRE_PUSH_SKIP_PASSED=1, fleet-hot-commands 3.2) and logs PART tree
+# PASS-tree. This replaced the hook's own pre-push.green stamp, which was keyed
+# on the INDEX tree alone and also written by a pass that only WARNed a
+# pre-existing red.
 echo "pre-push: running the deploy-gate (do_check_pre_push, mode ${SPL_PREPUSH_MODE:-fast}, tier ${SPL_PREPUSH_TIER:-fast}). Override once with 'SPL_PREPUSH_OVERRIDE=1 git push …'." >&2
-if _pp_gate ""; then
-  if [ -n "$tree" ]; then
-    mkdir -p "$_pp_log_dir" 2>/dev/null || true
-    printf '%s\n' "$tree" >>"$stamp" 2>/dev/null || true
-  fi
+tree="$(git rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null || echo '?')"
+if _pp_gate "" 1; then
   _pp_logline "PASS $top HEAD=$head tree=$tree secs=$(_pp_secs)"
   exit 0
 fi

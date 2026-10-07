@@ -2,11 +2,14 @@
 # test-pre-push-hook.sh (SPL-1252) — the deploy-gate pre-push hook and its
 # per-worktree installer, with a STUBBED gate so nothing heavy runs.
 #   HOOK
-#     1. gate passes            -> exit 0, tree stamped green
+#     1. gate passes            -> exit 0, PASS logged
 #     2. gate fails             -> exit 1 (REFUSE)
 #     3. SPL_PREPUSH_OVERRIDE=1  -> exit 0 even when the full gate would fail, audited;
 #        it still runs the cheap parts (PRE_PUSH_ONLY=override) and exit 1 when THEY fail
-#     4. an already-green tree   -> exit 0 WITHOUT running the gate (rebase-retry)
+#     4. the hook asks the gate to skip a tree it already passed whole
+#        (PRE_PUSH_SKIP_PASSED=1 + the tree-pass record; the gate's test is
+#        check-pre-push-tree-pass.tst.sh); the override never does (=0), and
+#        the old index-keyed pre-push.green stamp is neither read nor written
 #     5. not the spool tree      -> exit 0 (fail-open), never blocks a foreign repo
 #    13. the gate gets the per-part log, the verdict cache and tier=fast
 #    14. a STALE shared checkout: the lane's own hook runs (trampoline)
@@ -41,6 +44,7 @@ cat >"$REPO/csi-spl-iac/run" <<'EOF'
 # stub ./run: the full gate fails iff STUB_FAIL=1, the override's cheap parts
 # (PRE_PUSH_ONLY=override) iff STUB_CHEAP_FAIL=1; args (-a do_check_pre_push) ignored
 [ -n "${STUB_ONLY_LOG:-}" ] && echo "only=${PRE_PUSH_ONLY:-}" >>"$STUB_ONLY_LOG"
+[ -n "${STUB_SKIP_LOG:-}" ] && echo "only=${PRE_PUSH_ONLY:-} skip=${PRE_PUSH_SKIP_PASSED:-} pass=${PRE_PUSH_PASS:-}" >>"$STUB_SKIP_LOG"
 if [ "${PRE_PUSH_ONLY:-}" = override ]; then [ "${STUB_CHEAP_FAIL:-0}" = 1 ] && exit 7; exit 0; fi
 [ "${STUB_FAIL:-0}" = 1 ] && exit 7
 exit 0
@@ -59,7 +63,6 @@ run_hook() {  # <logdir> [env assignments...]
 L="$ROOT/l1"; run_hook "$L"; eq "1. gate passes -> exit 0" 0 "$?"
 grep -q '^PASS ' <(sed 's/^[^ ]* [^ ]* //' "$L/pre-push.log") 2>/dev/null \
   && pass "1. logged PASS" || fail "1. logged PASS"
-[ -s "$L/pre-push.green" ] && pass "1. tree stamped green" || fail "1. tree stamped green"
 
 # 2. gate fails
 L="$ROOT/l2"; run_hook "$L" STUB_FAIL=1; eq "2. gate fails -> exit 1 (REFUSE)" 1 "$?"
@@ -73,10 +76,16 @@ eq "3. ... the override still ran the cheap parts, and only those" "only=overrid
 L="$ROOT/l3c"; run_hook "$L" STUB_CHEAP_FAIL=1 SPL_PREPUSH_OVERRIDE=1; eq "3. override + a failing cheap part (duplicate migration) -> exit 1" 1 "$?"
 grep -q 'REFUSE .*SPL_PREPUSH_OVERRIDE=1' "$L/pre-push.log" && pass "3. ... logged REFUSE under the override" || fail "3. ... logged REFUSE under the override" "$(cat "$L/pre-push.log" 2>/dev/null)"
 
-# 4. an already-green tree skips the gate (so a failing stub still passes)
-L="$ROOT/l4"; run_hook "$L"; eq "4. first run greens the tree (exit 0)" 0 "$?"
-run_hook "$L" STUB_FAIL=1; eq "4. same tree skips the gate despite STUB_FAIL" 0 "$?"
-grep -q 'SKIP-GREEN' "$L/pre-push.log" && pass "4. logged SKIP-GREEN" || fail "4. logged SKIP-GREEN"
+# 4. the skip of an already-passed tree is the gate's (tree-pass record): the
+#    hook asks for it, the override does not, and a failing gate is never
+#    skipped by a stamp the hook wrote itself
+L="$ROOT/l4"; run_hook "$L" STUB_SKIP_LOG="$ROOT/l4.skip"
+eq "4. the hook asks the gate to skip a passed tree, with the record path" \
+  "only= skip=1 pass=$L/pre-push.tree.pass" "$(cat "$ROOT/l4.skip" 2>/dev/null)"
+run_hook "$L" SPL_PREPUSH_OVERRIDE=1 STUB_SKIP_LOG="$ROOT/l4.skipo"
+eq "4. ... the override run never skips" "only=override skip=0 pass=$L/pre-push.tree.pass" "$(cat "$ROOT/l4.skipo" 2>/dev/null)"
+run_hook "$L" STUB_FAIL=1; eq "4. CONTROL: same tree after a pass, gate now fails -> exit 1 (no hook-side stamp)" 1 "$?"
+[ ! -e "$L/pre-push.green" ] && pass "4. ... and the hook wrote no pre-push.green stamp" || fail "4. ... and the hook wrote no pre-push.green stamp"
 
 # 5. a non-spool repo (no csi-spl-iac/run) -> fail-open
 NS="$ROOT/nonspool"; git -C . init -q "$NS" >/dev/null 2>&1 || git init -q "$NS"

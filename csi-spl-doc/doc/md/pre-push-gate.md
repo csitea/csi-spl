@@ -14,7 +14,11 @@ pushes race-lost trunk for hours). It runs only the parts the push touches
 part reads are unchanged (a rebase over other lanes' commits re-runs
 nothing), FAILS on a missing tool instead of WARNing, and writes one
 `PART <part> PASS|PASS-cached|WARN-pre-existing trunk=<sha>|FAIL|SKIP-untouched <secs>`
-line per part to `~/.cache/csi-spl/pre-push.log`. Moved to CI only, because
+line per part to `~/.cache/csi-spl/pre-push.log`. A run that passed every
+part on a clean tree records it in `pre-push.tree.pass` (key: `HEAD^{tree}`,
+parts, tier, merge-base, the gate's own code); the hook then logs
+`PART tree PASS-tree` and re-runs nothing on that tree. An override, a
+lint-only run or a WARN-pre-existing pass never records one. Moved to CI only, because
 each costs minutes and workflow 10 (and the 20 deploy gate) already runs it
 on every push and fails on a skip: api `go test -race` (plain `go test`
 stays), `build-stripped`, `hub-pg` (~384 s), `hub-gcs`; iac tests whose

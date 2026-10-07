@@ -43,7 +43,10 @@
 # @param PRE_PUSH_TREE (optional) - checkout root, default $APP_PATH
 # @param PRE_PUSH_LOG (optional) - per-part verdict log, default ~/.cache/csi-spl/pre-push.log
 # @param PRE_PUSH_CACHE (optional) - per-part green cache, default ~/.cache/csi-spl/pre-push.parts.green
-# @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache (always run)
+# @param PRE_PUSH_PASS (optional) - whole-tree pass record, default pre-push.tree.pass beside PRE_PUSH_CACHE
+# @param PRE_PUSH_SKIP_PASSED (optional) - 1 = return PASS at once when this exact clean tree, parts set,
+# @param        tier, merge-base and gate code already passed whole (the pre-push hook sets it)
+# @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache and the tree-pass record (always run)
 # @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the api full-tier default too)
 # @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier, default 900
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
@@ -68,6 +71,8 @@ declare -F _ppl_plan >/dev/null 2>&1 \
 # Bumped whenever what a part RUNS changes, so an old green cannot vouch for a
 # new gate.
 _PP_CACHE_V=6
+# Where this gate's own code lives: its content is part of the tree-pass key.
+_PP_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The repo files OUTSIDE csi-spl-wui that the wui unit tests read (hub Go
 # sources, migrations, the firebase render script, cnf env JSON, workflows,
@@ -257,6 +262,49 @@ _pp_cache_add() {  # <key>
   if [[ "$(wc -l <"$_PP_CACHE" 2>/dev/null || echo 0)" -gt 4000 ]]; then
     tail -n 2000 "$_PP_CACHE" >"$_PP_CACHE.tmp.$$" 2>/dev/null && mv -f "$_PP_CACHE.tmp.$$" "$_PP_CACHE"
   fi
+}
+
+# The TREE-PASS record (fleet-hot-commands 3.2): the hook re-ran the whole
+# gate inside `git push` right after the lane ran it by hand on the same tree.
+# One line per WHOLE run that passed every part it selected, so the hook
+# (PRE_PUSH_SKIP_PASSED=1) can skip a run that would only repeat it. The key:
+#   the commit tree (HEAD^{tree}); empty = never recorded nor matched unless the
+#     working tree is clean, so the tree tested IS the tree pushed
+#   the parts this run selected, the tier, and the merge-base with the base
+#     (the parts set and lint-migration read it)
+#   the gate's own code (_PP_SELF_DIR) and _PP_CACHE_V
+#   node + pnpm when the wui part is selected (as _pp_key)
+# Written only by a run with no FAIL and no WARN-pre-existing, never by an
+# override, a lint-only run, PRE_PUSH_LINT=0 / PRE_PUSH_LINT_ONLY (fewer parts
+# than the hook would run), and only when the key still holds at the end.
+_pp_gate_id() {
+  cat "$_PP_SELF_DIR/check-pre-push.func.sh" "$_PP_SELF_DIR/check-pre-push-lint.func.sh" \
+    "$_PP_SELF_DIR/check-release-note.func.sh" 2>/dev/null | sha1sum | cut -c1-40
+}
+_pp_tree_key() {  # <tree> <tier> <parts> <base>
+  local tree="$1" tier="$2" parts="$3" base="$4" st t mb ids=""
+  st="$(git -C "$tree" status --porcelain 2>/dev/null)" || return 0
+  [[ -z "$st" ]] || return 0
+  t="$(git -C "$tree" rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null)" || return 0
+  mb="$(git -C "$tree" merge-base "$base" HEAD 2>/dev/null)" || mb=-
+  if [[ " $parts " == *" wui "* ]]; then
+    local pn; pn="$(_pp_pnpm 2>/dev/null)" || pn=""
+    ids="node=$(node -v 2>/dev/null || echo -) pnpm=$([[ -n "$pn" ]] && "$pn" -v 2>/dev/null || echo -)"
+  fi
+  printf '%s' "tree-pass v$_PP_CACHE_V gate=$(_pp_gate_id) tree=$t tier=$tier base=$mb parts=$parts $ids" \
+    | sha1sum | cut -c1-40
+}
+_pp_tree_pass_has() {  # <key>
+  [[ -n "$1" && "${PRE_PUSH_NO_CACHE:-0}" != 1 && -f "$_PP_PASS" ]] && grep -qxF "$1" "$_PP_PASS" 2>/dev/null
+}
+# Would this run, if green, vouch for the whole tree? (see the record above)
+_pp_tree_pass_eligible() {  # <only>
+  [[ -z "$1" && "${PRE_PUSH_LINT:-1}" != 0 && -z "${PRE_PUSH_LINT_ONLY:-}" ]]
+}
+_pp_tree_pass_add() {  # <key>
+  [[ -n "$1" ]] || return 0
+  local _PP_CACHE="$_PP_PASS"
+  _pp_cache_add "$1"
 }
 
 # One verdict line per part, so an audit of a push answers itself.
@@ -654,7 +702,7 @@ _pp_compare() {  # <label> <part> <secs> <note> <base> <bsha> <tree-sig> <base-s
     [[ -n "$old" ]] && do_log "INFO pre-push: $label pre-existing: $old"
     return 0
   fi
-  _pp_record "$label (PRE-EXISTING on $base $bsha)" "WARN" "$el"
+  _pp_record "$label (PRE-EXISTING on $base $bsha)" "WARN" "$el"; _PP_PREEXIST=$((${_PP_PREEXIST:-0} + 1))
   [[ -n "$part" ]] && _pp_verdict "$part" WARN-pre-existing "$el" "trunk=$bsha $note"
   do_log "WARN pre-push: $label fails on your tree AND on $base $bsha ($note) with the same failures -- pre-existing: $old -- NOT blocking your push"
   return 0
@@ -677,6 +725,10 @@ do_check_pre_push() {
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl"
   local _PP_LOG="${PRE_PUSH_LOG:-$cache_dir/pre-push.log}"
   local _PP_CACHE="${PRE_PUSH_CACHE:-$cache_dir/pre-push.parts.green}"
+  local _PP_PASS="${PRE_PUSH_PASS:-$(dirname "$_PP_CACHE")/pre-push.tree.pass}" _PP_SKIP="${PRE_PUSH_SKIP_PASSED:-0}"
+  # Not inherited by the parts: the iac suite's own tests run this gate on
+  # throwaway trees, and must neither skip on nor write to the caller's record.
+  export -n PRE_PUSH_SKIP_PASSED PRE_PUSH_PASS 2>/dev/null || true
   local _PP_TOP="$tree" _PP_HEAD
   _PP_HEAD="$(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo '?')"
 
@@ -724,11 +776,20 @@ do_check_pre_push() {
     return 0
   fi
 
+  # The hook's second run on a tree this gate already passed whole: skip it.
+  local tkey=""
+  _pp_tree_pass_eligible "$only" && tkey="$(_pp_tree_key "$tree" "$_PP_TIER" "$parts" "$base")"
+  if [[ "$_PP_SKIP" == 1 ]] && _pp_tree_pass_has "$tkey"; then
+    _pp_verdict tree PASS-tree 0 "key=${tkey:0:12} parts=${parts// /,}"
+    do_log "INFO pre-push: PASS -- this exact tree ($(git -C "$tree" rev-parse --short 'HEAD^{tree}' 2>/dev/null)) already passed every part above (key ${tkey:0:12}); nothing re-run"
+    return 0
+  fi
+
   do_log "INFO pre-push: mode=$mode tier=$_PP_TIER base=$base parts: $parts"
   [[ "$_PP_TIER" == fast ]] && do_log "INFO pre-push: fast tier -- go test -race, hub-pg, hub-gcs, build-stripped and the slow iac tests (terraform validate, tpl-gen renders) run in CI workflow 10/20, not here"
 
   local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=()
-  local _PP_FAILED=0
+  local _PP_FAILED=0 _PP_PREEXIST=0
   _pp_baseline_reap "$tree"
   # Record this run so do_stop_pre_push can stop it by pid -- never by a
   # pattern (`pkill -f do_check_pre_push` also matches every agent's argv).
@@ -773,6 +834,13 @@ do_check_pre_push() {
   if [[ "$_PP_FAILED" -gt 0 ]]; then
     do_log "FATAL pre-push: $_PP_FAILED part(s) FAILED -- do not push until green"
     return 1
+  fi
+  # Record the whole-tree pass: every part PASS (a pre-existing red is not;
+  # the advisory typos / release-note WARNs are), and the tree unchanged since
+  # the plan (a part such as cnf can rewrite it).
+  if [[ -n "$tkey" && "$_PP_PREEXIST" -eq 0 ]] \
+     && [[ "$(_pp_tree_key "$tree" "$_PP_TIER" "$parts" "$base")" == "$tkey" ]]; then
+    _pp_tree_pass_add "$tkey"
   fi
   do_log "INFO pre-push: all parts PASSED -- safe to push"
   return 0

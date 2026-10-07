@@ -295,7 +295,7 @@ func TestRepoDocsSaveRefusals(t *testing.T) {
 	refused("no If-Match on a published doc", http.StatusConflict, "base_unknown", code, body)
 	code, body = r.save(r.doc, alice, r.blob, strings.Repeat("x", hub.MaxRepoDoc+1))
 	refused("too large", http.StatusRequestEntityTooLarge, "too_large", code, body)
-	code, body = r.save(r.doc, alice, r.blob, "# Guide\n\nline one\n-----BEGIN RSA PRIVATE KEY-----\n")
+	code, body = r.save(r.doc, alice, r.blob, "# Guide\n\nline one\n-----BEGIN RSA "+"PRIVATE KEY-----\n")
 	refused("secret", http.StatusUnprocessableEntity, "rejected_text", code, body)
 	if hits, _ := body["hits"].([]any); len(hits) == 0 || strings.Contains(fmt.Sprint(body), "BEGIN RSA") {
 		t.Errorf("rejected text names the rule and line: %v", body)

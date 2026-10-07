@@ -2424,3 +2424,25 @@ declare module '~/utils/vim-nav.mjs' {
     ctx?: { enabled?: boolean, phone?: boolean, overlayOpen?: boolean, now?: number },
   ): { action: VimAction | null, seq: VimSeq }
 }
+
+/* 103 T003: vim panels 0..3, the h / l resolver and the rows j / k walk */
+declare module '~/utils/vim-panels.mjs' {
+  export type VimPanel = 0 | 1 | 2 | 3
+  export type PanelQuery = { querySelectorAll?: (s: string) => ArrayLike<unknown> } | null
+  export const VIM_PANELS: readonly VimPanel[]
+  export const VIM_NOT_A_PANEL: string
+  export const VIM_COLLAPSED: string
+  export const VIM_ACTIVE_ITEM: string
+  export const PANE_SELECTORS: Readonly<Record<VimPanel, { readonly roots: readonly string[], items: string }>>
+  export function vimShown(el: unknown): boolean
+  export function activePanelOf(el: unknown): -1 | VimPanel
+  export function panelUsable(root: unknown, opts?: { visible?: (el: unknown) => boolean }): boolean
+  export function panelRoot(doc: PanelQuery, panel: number, opts?: { visible?: (el: unknown) => boolean }): Element | null
+  export function visiblePanels(doc: PanelQuery, opts?: { visible?: (el: unknown) => boolean }): VimPanel[]
+  export function resolveNextPanel(fromPanel: number, dir: 'left' | 'right' | 'back', visiblePanelsNow: readonly number[]): number
+  export function vimItemKey(el: unknown): string
+  export function vimRoveTabindex(items: readonly unknown[], current: unknown): void
+  export function panelItems(panelRootEl: PanelQuery | Element, panelId: number, opts?: { visible?: (el: unknown) => boolean, current?: unknown }): HTMLElement[]
+  export function panelEntry(items: readonly unknown[], opts?: { remembered?: string }): HTMLElement | null
+  export function vimStepItem(items: readonly unknown[], current: unknown, action: 'down' | 'up' | 'first' | 'last'): HTMLElement | null
+}

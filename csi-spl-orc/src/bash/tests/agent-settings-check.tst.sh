@@ -118,7 +118,7 @@ go SETTINGS_CHECK_FILES="ai=$A box=$B" SETTINGS_CHECK_STATE_DIR="$T/st7" >/dev/n
 # --- 8. the default users ------------------------------------------------------------------
 me="$(id -un)"; home="$(getent passwd "$me" | cut -d: -f6)"
 go SETTINGS_CHECK_STATE_DIR="$T/st8" SETTINGS_CHECK_TO=c-9 >/dev/null
-[[ "$(grep -c ' SETTINGS ' "$T/o")" == 1 ]] && grep -qE " SETTINGS (OK|BAD) $me $home/.claude/settings.json " "$T/o" &&
+[[ "$(grep -cE '^[^ ]+ SETTINGS (OK|BAD) ' "$T/o")" == 1 ]] && grep -qE " SETTINGS (OK|BAD) $me $home/.claude/settings.json " "$T/o" &&
   pass "8. default: the agent user and the box user (the same here), checked once" || fail "8. $(cat "$T/o")"
 go SETTINGS_CHECK_USERS="$me nosuchuser-$$" SETTINGS_CHECK_STATE_DIR="$T/st8" >/dev/null; rc=$?
 grep -q "FATAL no passwd entry for 'nosuchuser-$$'" "$T/o" && pass "8. control: an unknown user is a usage error" || fail "8. control: $(cat "$T/o")"

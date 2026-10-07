@@ -14,7 +14,9 @@ Click the version at the bottom of the left pane. On a phone it is on the
 status strip. Choose **Release notes**.
 
 The dialog is one table of the 30 latest changes, newest first, already
-open: nothing to expand. Its columns:
+open: nothing to expand. **Load older versions** at the end of the table
+reads the next older versions; keep going until the table ends with
+**This is the first entry**, the oldest change kept. Its columns:
 
 | column | shows |
 |---|---|
@@ -29,6 +31,13 @@ X, Escape, or Back on a phone) returns to where you opened it, and **All
 versions** in a note returns to the row you clicked.
 **you are here** marks the version this tab is running. A change with no
 note says **no note**.
+
+On a desktop the keys `j` and `k` move between the version rows (past the
+last one they load older versions), `Enter` opens that version alone, `h`
+and `l` there show the older and the newer version, and `Escape` goes back
+to the list; `Escape` in the list closes the dialog. **Settings →
+Behaviour → Keyboard shortcuts** turns the letter keys off. All keys:
+[keyboard-shortcuts.md](keyboard-shortcuts.md), section 9.
 
 The address `/releases/<ref>` opens the same dialog on one change (seven or
 more hex characters) or one version (`v` and three numbers); the title of

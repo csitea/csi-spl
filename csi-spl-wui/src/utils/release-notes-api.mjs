@@ -3,7 +3,7 @@
  * card's dialog (ReleaseNotesDialog.vue) and the small card under a message
  * that links a release note (LinkPreviews.vue, owner t1 a1bce52e).
  *
- * GET /v1/release-notes?limit=N        -> { versions, next_before }
+ * GET /v1/release-notes?limit=N[&before=<version>] -> { versions, next_before }
  * GET /v1/release-notes/<sha|vX.Y.Z>   -> { note } or one version
  *
  * The mock tenant answers from a generated list: 70 versions, two commits
@@ -62,6 +62,71 @@ export async function releasePreviews(ids, get) {
     }
   }))
   return { previews: out.filter(Boolean) }
+}
+
+/**
+ * One more page appended to the versions already loaded (owner, t1 ee8cd6f2:
+ * "loading of older version up till the first entry"). A note seen before
+ * is never shown twice; a version split across two pages is one group.
+ * @param {{ version: string, notes?: { sha: string }[] }[]} have newest first
+ * @param {{ version: string, notes?: { sha: string }[] }[]} page the next, older page
+ */
+export function mergeReleasePages(have, page) {
+  const out = (have || []).map((v) => ({ ...v, notes: [...(v.notes || [])] }))
+  const seen = new Set(out.flatMap((v) => v.notes.map((n) => n.sha)))
+  for (const v of page || []) {
+    const notes = (v.notes || []).filter((n) => n && n.sha && !seen.has(n.sha))
+    notes.forEach((n) => seen.add(n.sha))
+    const last = out[out.length - 1]
+    if (last && last.version === v.version) last.notes.push(...notes)
+    else if (notes.length) out.push({ ...v, notes })
+  }
+  return out
+}
+
+/**
+ * The cursor after a page: the hub's next_before, '' at the end - an empty
+ * page, no cursor, or the same cursor again (never ask for one page twice).
+ * @param {{ versions?: unknown[], next_before?: string } | null | undefined} body
+ * @param {string} prev the cursor this page was asked with
+ */
+export function nextReleaseCursor(body, prev) {
+  const next = String(body?.next_before || '')
+  if (!body?.versions?.length || !next || next === prev) return ''
+  return next
+}
+
+/** How many changes the versions carry. */
+export function releaseNoteCount(versions) {
+  return (versions || []).reduce((n, v) => n + (v.notes?.length || 0), 0)
+}
+
+const KEY_TYPING = 'input, textarea, select, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], [role="textbox"], [role="combobox"]'
+
+/**
+ * What one keydown means in the open release notes dialog (owner, t1
+ * ee8cd6f2: "vim like hjkl ... between each of the version .. on the
+ * Desktop"; "double esc is better"). j / k: next / previous version in the
+ * list; Enter on a version: open it; h / l in an opened version: the older /
+ * newer one; Escape in an opened version: back to the list (in the list it
+ * stays the dialog's own: close). Desktop, the switch on, never while typing
+ * or with a modifier.
+ * @param {{ key?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, shiftKey?: boolean,
+ *           isComposing?: boolean, defaultPrevented?: boolean, target?: unknown } | null | undefined} ev
+ * @param {{ enabled?: boolean, view?: 'list' | 'version' | 'note', onVersion?: boolean }} [ctx]
+ * @returns {{ type: 'step', step: 1 | -1 } | { type: 'open' } | { type: 'turn', step: 1 | -1 } | { type: 'back' } | null}
+ */
+export function releaseKeyFor(ev, { enabled = true, view = 'list', onVersion = false } = {}) {
+  if (!ev || ev.isComposing || ev.defaultPrevented || !enabled) return null
+  if (ev.key === 'Escape') return view === 'version' ? { type: 'back' } : null
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey || view === 'note') return null
+  const t = /** @type {{ closest?: (s: string) => unknown, isContentEditable?: boolean } | null} */ (ev.target || null)
+  if (t && (t.isContentEditable || (typeof t.closest === 'function' && t.closest(KEY_TYPING)))) return null
+  const k = String(ev.key || '')
+  if (k === 'j' || k === 'k') return { type: 'step', step: k === 'j' ? 1 : -1 }
+  if (view === 'list' && k === 'Enter' && onVersion) return { type: 'open' }
+  if (view === 'version' && (k === 'h' || k === 'l')) return { type: 'turn', step: k === 'h' ? 1 : -1 }
+  return null
 }
 
 const MOCK_VERSIONS = 70

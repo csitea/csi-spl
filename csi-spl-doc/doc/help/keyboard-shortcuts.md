@@ -109,4 +109,18 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 
 A message shortcut runs only when that menu item would be offered for the selected message. **`Shift + R`** opens the selected message's menu. **`Shift + B`** works on a reply in the topic pane on the right: it selects that topic's first message in the list in the middle (the channel's or the direct messages' card, or the topic's row in the topic view) and scrolls it into view. When the list does not show that topic, it selects the topic's first message in the topic pane instead, reading older replies in when that message is not loaded. **`Shift + U`** on that first message selects the reply you came from again, in the panel it was in, or the topic's latest reply when you did not come from one. On a topic's first message, or a message with no topic, **`Shift + B`** does nothing. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
 
+## 9. Release notes
+
+In the **Release notes** dialog (the version at the bottom of the left pane, then **Release notes**). The letter keys work on a desktop, never while you type, and turn off with **Settings → Behaviour → Keyboard shortcuts**.
+
+| Shortcut | Context | Action |
+|---|---|---|
+| **`j` / `k`** | Release notes list, desktop | Move to the next or previous version row; past the last one it loads older versions |
+| **`Enter`** | A version row, desktop | Open that version alone |
+| **`h` / `l`** | An opened version, desktop | Show the older or the newer version |
+| **`Escape`** | An opened version | Back to the list, on the version you opened (**All versions** does the same) |
+| **`Escape`** | Release notes list | Close the dialog |
+
+**Load older versions** at the end of the list reads the next older versions, until the list ends with **This is the first entry**.
+
 <!-- version: 1.2.4 · updated: 2026-10-07 -->

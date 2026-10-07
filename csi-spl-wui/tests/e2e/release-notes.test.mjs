@@ -41,17 +41,33 @@
 //   2e every row shows its time, YYYY-MM-DD HH:MM in the viewer's zone, to
 //      the second on hover: its own "Committed" column on desktop, a line
 //      under the title on a phone; the note shows it too
+// Owner, t1 ee8cd6f2 ("loading of older version up till the first entry"):
+//   10a the list ends in "Load older versions", no "first entry" line yet
+//   10b a click reads the next page: 120 rows, still no end line (control)
+//   10c a second click reaches the end: 140 rows down to # 1, no change
+//       twice, "This is the first entry" and no button; no x-overflow
+//   8e control: one version (/releases/v<X.Y.Z>, not paged) never shows
+//      the end line or the button
+// Owner, t1 ee8cd6f2 ("vim like hjkl ... between each of the version .. on
+// the Desktop", "double esc is better"), desktop only:
+//   11a j / k move the focus between the version rows
+//   11b Enter opens that version alone; h / l the older / newer one
+//   11c Escape goes back to the list (open, focus on that version row),
+//       Escape again closes it
+//   11d on a phone j does nothing
 // and no horizontal overflow in the modal, no page error.
 //
 // Run:
 //   pnpm run test:e2e release-notes
 //   BASE_URL=<generated bundle> pnpm run test:e2e release-notes   # what CI does
+import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
+const SHOT_DIR = process.env.SHOT_DIR || ''
 const SHA = '0123456789abcdef0123456789abcdef01234567'
 /* the mock's commit j has sha (j + 1) as 8 hex digits, five times */
 const mockSha = (j) => (j + 1).toString(16).padStart(8, '0').repeat(5)
@@ -229,7 +245,7 @@ try {
     /* a phone folds the version column into the band above its rows */
     const wantHeads = vp.mobile ? '#|Commit|Change' : '#|Version|Commit|Committed|Change'
     ok(`${vp.name} 2a one table: ${wantHeads.replaceAll('|', ', ')}`, f.table && f.heads.join('|') === wantHeads, f.heads)
-    ok(`${vp.name} 2b 30 rows under 15 version rows, nothing to expand, filter or load`,
+    ok(`${vp.name} 2b 30 rows under 15 version rows, nothing to expand or filter`,
       f.rows.length === 30 && f.versions === 15 && f.expanders === 0 && !f.more && !f.filter, { rows: f.rows.length, versions: f.versions, expanders: f.expanders, more: f.more, filter: f.filter })
     ok(`${vp.name} 2c the running version is first and marked "you are here"`, f.firstCurrent && f.firstHere === 'you are here', { here: f.firstHere })
     const r0 = f.rows[0] || {}
@@ -348,6 +364,8 @@ try {
       return vers.length === 1 && vers[0].dataset.version === 'v0.1.60' && vers[0].querySelectorAll('[data-test=release-row]').length === 2
     }, null, 15000)
     ok(`${vp.name} 8b /releases/v<X.Y.Z> opens that version with its changes`, viaVer)
+    ok(`${vp.name} 8e control: one version (not paged) shows no "first entry" line and no "Load older"`,
+      await p.evaluate(() => !document.querySelector('[data-test=release-notes-first]') && !document.querySelector('[data-test=release-notes-older]')))
     await p.goto(server.base + '/releases/not-a-ref', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     const bad = await until(p, () => /Not a commit or a version/.test(document.querySelector('[data-test=release-notes-message]')?.textContent || ''), null, 15000)
     ok(`${vp.name} 8c a ref that is neither says so`, bad)
@@ -367,6 +385,90 @@ try {
     await press(p, vp, vp.mobile ? '[data-testid=ui-dialog-back]' : '[data-testid=ui-dialog-close]')
     const home = await until(p, () => !document.querySelector('[data-test=release-notes]') && location.pathname.endsWith('/lobby'), null, 8000)
     ok(`${vp.name} 9b closing it returns to the page it was clicked on`, home, await p.evaluate(() => location.pathname))
+
+    /* 10 older versions, back to the first entry */
+    await openFromCard(p, vp)
+    await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 30, null, 10000)
+    const endFacts = () => p.evaluate(() => {
+      const body = document.querySelector('[data-testid=ui-dialog-body]')
+      const rows = [...document.querySelectorAll('[data-test=release-row]')]
+      return {
+        rows: rows.length,
+        shas: new Set(rows.map((r) => r.querySelector('[data-test=release-row-title]')?.dataset.sha)).size,
+        lastSeq: rows[rows.length - 1]?.dataset.seq || '',
+        older: Boolean(document.querySelector('[data-test=release-notes-older]')),
+        first: document.querySelector('[data-test=release-notes-first]')?.textContent.trim() || '',
+        xOverflow: body ? body.scrollWidth - body.clientWidth : -1,
+      }
+    })
+    const shot = async (name) => {
+      if (!SHOT_DIR) return
+      mkdirSync(SHOT_DIR, { recursive: true })
+      await p.evaluate(() => document.querySelector('[data-test=release-notes-end]')?.scrollIntoView({ block: 'end' }))
+      await sleep(200)
+      await p.screenshot({ path: `${SHOT_DIR}/release-notes-${name}-${vp.width}.png` })
+    }
+    const e0 = await endFacts()
+    ok(`${vp.name} 10a the list ends in "Load older versions", no "first entry" line yet`, e0.rows === 30 && e0.older && !e0.first, e0)
+    await shot('load-older')
+    await press(p, vp, '[data-test=release-notes-older]')
+    await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 120, null, 5000)
+    const e1 = await endFacts()
+    ok(`${vp.name} 10b one click reads the next page: 120 rows, still no end line`, e1.rows === 120 && e1.shas === 120 && e1.older && !e1.first, e1)
+    await press(p, vp, '[data-test=release-notes-older]')
+    await until(p, () => Boolean(document.querySelector('[data-test=release-notes-first]')), null, 5000)
+    const e2 = await endFacts()
+    ok(`${vp.name} 10c the second click reaches the end: 140 rows down to # 1, "This is the first entry", no button`,
+      e2.rows === 140 && e2.shas === 140 && e2.lastSeq === '1' && !e2.older && e2.first === 'This is the first entry', e2)
+    ok(`${vp.name} 10d no horizontal overflow at the end`, e2.xOverflow <= 0, e2.xOverflow)
+    await shot('first-entry')
+
+    /* 11 the version keys, desktop only */
+    const keyFacts = () => p.evaluate(() => {
+      const shown = [...document.querySelectorAll('[data-test=release-version]')]
+      const a = document.activeElement
+      return {
+        open: Boolean(document.querySelector('[data-test=release-notes]')),
+        versions: shown.map((v) => v.dataset.version),
+        focus: a?.closest('[data-test=release-version]')?.dataset.version || '',
+        onHead: Boolean(a?.closest('[data-test=release-version-head]')),
+        cursor: document.querySelector('[data-test=release-version][data-cursor=true]')?.dataset.version || '',
+        back: Boolean(document.querySelector('[data-test=release-version-back]')),
+      }
+    })
+    await p.evaluate(() => { document.activeElement?.blur?.(); const b = document.querySelector('[data-testid=ui-dialog-body]'); if (b) b.scrollTop = 0 })
+    const list0 = (await keyFacts()).versions
+    await p.keyboard.press('j')
+    await sleep(150)
+    if (vp.mobile) {
+      const k0 = await keyFacts()
+      ok(`${vp.name} 11d on a phone j does nothing`, !k0.cursor && !k0.onHead && k0.open, { cursor: k0.cursor, focus: k0.focus })
+    } else {
+      await p.keyboard.press('j')
+      await p.keyboard.press('j')
+      await p.keyboard.press('k')
+      await sleep(150)
+      const k1 = await keyFacts()
+      ok(`${vp.name} 11a j / k move the focus between the version rows`, k1.onHead && k1.focus === list0[1] && k1.cursor === list0[1], { focus: k1.focus, cursor: k1.cursor })
+      await p.keyboard.press('Enter')
+      await until(p, () => document.querySelectorAll('[data-test=release-version]').length === 1, null, 3000)
+      const k2 = await keyFacts()
+      await p.keyboard.press('h')
+      await sleep(150)
+      const k3 = await keyFacts()
+      await p.keyboard.press('l')
+      await sleep(150)
+      const k4 = await keyFacts()
+      ok(`${vp.name} 11b Enter opens that version alone, h the older one, l back to the newer`,
+        k2.versions.join() === list0[1] && k2.back && k3.versions.join() === list0[2] && k4.versions.join() === list0[1], { k2: k2.versions, k3: k3.versions, k4: k4.versions })
+      await p.keyboard.press('Escape')
+      await sleep(200)
+      const k5 = await keyFacts()
+      ok(`${vp.name} 11c Escape in a version goes back to the list, on that version`,
+        k5.open && !k5.back && k5.versions.length === list0.length && k5.focus === list0[1], { open: k5.open, versions: k5.versions.length, focus: k5.focus })
+      await p.keyboard.press('Escape')
+      ok(`${vp.name} 11c Escape again closes the dialog`, await until(p, () => !document.querySelector('[data-test=release-notes]'), null, 3000))
+    }
 
     ok(`${vp.name} no page error`, errors.length === 0, errors)
     await p.close()

@@ -1868,6 +1868,8 @@
     "newer_live": "newer, not loaded yet",
     "unversioned": "Not in a version yet",
     "load_older": "Load older versions",
+    "first_entry": "This is the first entry",
+    "keys_hint": "Keys: j / k move between versions, Enter opens one, h / l the older / newer one, Esc goes back",
     "back": "All versions",
     "lay": "In plain words",
     "tech": "Technical",

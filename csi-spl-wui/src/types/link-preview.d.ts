@@ -30,4 +30,9 @@ declare module '~/utils/release-notes-api.mjs' {
   export function releaseNotesGet(api: unknown, path: string, running: string): Promise<unknown>
   export function releasePreviews(ids: string[], get: (path: string) => Promise<unknown>): Promise<{ previews: unknown[] }>
   export function mockReleaseNotes(path: string, top: string): unknown
+  export function mergeReleasePages<V extends { version: string, notes?: { sha: string }[] }>(have: V[], page: V[]): V[]
+  export function nextReleaseCursor(body: { versions?: unknown[], next_before?: string } | null | undefined, prev: string): string
+  export function releaseNoteCount(versions: { notes?: unknown[] }[] | null | undefined): number
+  export type ReleaseKey = { type: 'step', step: 1 | -1 } | { type: 'open' } | { type: 'turn', step: 1 | -1 } | { type: 'back' }
+  export function releaseKeyFor(ev: KeyboardEvent | null | undefined, ctx?: { enabled?: boolean, view?: 'list' | 'version' | 'note', onVersion?: boolean }): ReleaseKey | null
 }

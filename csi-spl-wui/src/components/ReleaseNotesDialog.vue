@@ -37,7 +37,20 @@
      A version is keyed by its release key, the full tag (after 9.9.9 the
      mint starts over at 1.0.1 as v1.0.1-c2, owner t1 1c5b6d53), and shown
      plain (`display`, v1.0.1: "version is just a number", t1 e82eea7c).
-     The mock tenant answers from a generated list (release-notes-api.mjs). -->
+     The mock tenant answers from a generated list (release-notes-api.mjs).
+
+     Older versions (owner, t1 ee8cd6f2: "loading of older version up till
+     the first entry"): "Load older versions" at the end of the list reads
+     the next page (`before=<next_before>`) and shows all of it, until the
+     hub returns no cursor; then the end reads "This is the first entry".
+
+     The version keys (owner, t1 ee8cd6f2: "vim like hjkl ... between each
+     of the version .. on the Desktop", "double esc is better"), desktop,
+     off with Settings -> Behaviour -> Keyboard shortcuts: j / k the next /
+     previous version row (loading older past the last), Enter opens that
+     version alone, h / l there the older / newer one, Escape back to the
+     list, Escape in the list closes the dialog as before. Kept in this
+     dialog's own handler (spec 103 may fold it into the app-wide keys). -->
 <template>
   <UiDialog :open="open" :title="t('release_notes.title')" size="xl" @update:open="onOpen">
     <div ref="rootEl" class="rn" data-test="release-notes">
@@ -96,7 +109,13 @@
         </article>
       </template>
       <template v-else>
-        <p class="rn__lead muted" data-test="release-notes-lead">{{ t('release_notes.latest', { n: LATEST }) }}</p>
+        <button v-if="openedVersion" type="button" class="rn__back" data-test="release-version-back" @click="closeVersion">
+          <UiIcon name="chevron-left" :size="16" /> {{ t('release_notes.back') }}
+        </button>
+        <template v-else>
+          <p class="rn__lead muted" data-test="release-notes-lead">{{ t('release_notes.latest', { n: shownCount || LATEST }) }}</p>
+          <p v-if="keysOn && versions.length" class="rn__keys muted" data-test="release-notes-keys">{{ t('release_notes.keys_hint') }}</p>
+        </template>
         <p v-if="message" class="rn__msg muted" role="status" data-test="release-notes-message">{{ message }}</p>
         <p v-else-if="loading && !versions.length" class="rn__msg muted">{{ t('common.loading') }}</p>
         <p v-else-if="!versions.length" class="rn__msg muted" data-test="release-notes-empty">{{ t('release_notes.empty') }}</p>
@@ -112,14 +131,15 @@
               </tr>
             </thead>
             <tbody
-              v-for="v in latest"
+              v-for="(v, i) in tableVersions"
               :key="v.version || '-'"
               data-test="release-version"
               :data-version="v.version"
               :data-current="v.version === currentKey ? 'true' : undefined"
+              :data-cursor="!openedVersion && i === cursor ? 'true' : undefined"
             >
               <tr class="rn-ver" data-test="release-version-head">
-                <th :colspan="narrow ? 3 : 5" scope="rowgroup" class="rn-ver__head">
+                <th :colspan="narrow ? 3 : 5" scope="rowgroup" class="rn-ver__head" tabindex="-1">
                   <span class="rn-ver__name" role="heading" aria-level="2">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
                   <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
                   <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
@@ -146,6 +166,21 @@
             </tbody>
           </table>
         </div>
+        <!-- the end of the list (owner, t1 ee8cd6f2): older pages until the first entry -->
+        <div v-if="paged && versions.length && !openedVersion" class="rn-end" data-test="release-notes-end">
+          <button
+            v-if="hasOlder"
+            type="button"
+            class="btn ghost rn__action"
+            data-test="release-notes-older"
+            :disabled="loadingOlder"
+            @click="onOlder"
+          >
+            <UiIcon name="chevron-down" :size="16" /> {{ loadingOlder ? t('common.loading') : t('release_notes.load_older') }}
+          </button>
+          <p v-else class="rn-end__first muted" data-test="release-notes-first">{{ t('release_notes.first_entry') }}</p>
+          <p v-if="olderFailed" class="rn__msg muted" role="status" data-test="release-notes-older-error">{{ t('release_notes.error') }}</p>
+        </div>
       </template>
     </div>
   </UiDialog>
@@ -157,7 +192,9 @@ import { useBuildWatch } from '~/composables/useBuildWatch'
 import { isNewer } from '~/utils/build-watch.mjs'
 import { displayVersion } from '~/utils/display-version.mjs'
 import { browserTimeZone, isoDateTime, isoDateTimeSec, viewerTimeZone } from '~/utils/date-iso.mjs'
-import { releaseNotesGet } from '~/utils/release-notes-api.mjs'
+import { mergeReleasePages, nextReleaseCursor, releaseKeyFor, releaseNoteCount, releaseNotesGet } from '~/utils/release-notes-api.mjs'
+import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
+import { useSessionStore } from '~/stores/session'
 
 interface ReleaseNote {
   sha: string
@@ -197,6 +234,10 @@ const { copied, copy } = useCopyText()
 /* the one-panel shell (<= 820 px): the version is the band above its rows,
    so the column goes - in the DOM, a hidden cell would still span a column */
 const narrow = useMobileStack().isMobile
+/* the version keys (j / k, Enter, h / l): desktop, Settings -> Behaviour ->
+   Keyboard shortcuts on (never picked = on) */
+const session = useSessionStore()
+const keysOn = computed(() => !narrow.value && shortcutsOn(session.claims?.keyboard_shortcuts))
 
 /* the changes shown; one page of this many versions carries at least as many */
 const LATEST = 30
@@ -216,6 +257,17 @@ const currentKey = computed(() => versions.value.find((v) => plainVersion(v.vers
 const loading = ref(false)
 const message = ref('')
 const note = ref<ReleaseNote | null>(null)
+/* paging back to the first entry (owner, t1 ee8cd6f2): the hub's cursor,
+   '' at the end; paged = the list came from the paged read (not one version) */
+const shown = ref(LATEST)
+const nextBefore = ref('')
+const paged = ref(false)
+const loadingOlder = ref(false)
+const olderFailed = ref(false)
+/* the opened version (Enter on a version row), '' = the list; the version
+   row the keys are on, -1 = none yet */
+const opened = ref('')
+const cursor = ref(-1)
 
 function onOpen(v: boolean) { emit('update:open', v) }
 const shortSha = (s: string) => String(s || '').slice(0, 7)
@@ -241,10 +293,10 @@ function liveIn(v: ReleaseVersion) {
   return v.notes.some((n) => n.sha.startsWith(live) || live.startsWith(n.sha))
 }
 
-/* the newest LATEST changes, still grouped under their versions */
+/* the newest `shown` changes, still grouped under their versions */
 const latest = computed(() => {
   const out: ReleaseVersion[] = []
-  let left = LATEST
+  let left = shown.value
   for (const v of versions.value) {
     if (left <= 0) break
     const notes = v.notes.slice(0, left)
@@ -253,6 +305,12 @@ const latest = computed(() => {
   }
   return out
 })
+
+const shownCount = computed(() => releaseNoteCount(latest.value))
+const loadedCount = computed(() => releaseNoteCount(versions.value))
+const hasOlder = computed(() => paged.value && (loadedCount.value > shown.value || nextBefore.value !== ''))
+const openedVersion = computed(() => (opened.value && versions.value.find((v) => v.version === opened.value)) || null)
+const tableVersions = computed(() => (openedVersion.value ? [openedVersion.value] : latest.value))
 
 function hubGet(path: string): Promise<unknown> {
   return releaseNotesGet(api, path, running.value)
@@ -265,11 +323,42 @@ async function loadLatest() {
     const body = await hubGet(`/v1/release-notes?limit=${LATEST}`) as { off?: boolean, versions?: ReleaseVersion[] }
     if (body?.off) message.value = t('release_notes.off')
     versions.value = body?.versions || []
+    nextBefore.value = nextReleaseCursor(body, '')
+    paged.value = !body?.off
   } catch {
     message.value = t('release_notes.error')
   } finally {
     loading.value = false
   }
+}
+
+/* the next older page, all of it shown; true when the list grew */
+async function loadOlder(): Promise<boolean> {
+  if (loadingOlder.value || !hasOlder.value) return false
+  loadingOlder.value = true
+  olderFailed.value = false
+  const had = shownCount.value
+  try {
+    const at = nextBefore.value
+    if (at) {
+      const body = await hubGet(`/v1/release-notes?limit=${LATEST}&before=${encodeURIComponent(at)}`) as { versions?: ReleaseVersion[], next_before?: string }
+      versions.value = mergeReleasePages(versions.value, body?.versions || [])
+      nextBefore.value = nextReleaseCursor(body, at)
+    }
+    shown.value = Math.max(shown.value, loadedCount.value)
+  } catch {
+    olderFailed.value = true
+  } finally {
+    loadingOlder.value = false
+  }
+  return shownCount.value > had
+}
+/* the button: the focus goes to the first change it brought in */
+async function onOlder() {
+  const had = shownCount.value
+  if (!(await loadOlder())) return
+  await nextTick()
+  rootEl.value?.querySelectorAll<HTMLElement>('[data-test=release-row-title]')[had]?.focus()
 }
 
 /* "proper flow from click": the list comes back where it was left - the
@@ -298,6 +387,73 @@ function onTitle(e: MouseEvent, n: ReleaseNote) {
   openNote(n)
 }
 
+/* the version keys */
+function focusVersion(i: number) {
+  const th = rootEl.value?.querySelectorAll<HTMLElement>('[data-test=release-version-head] th')[i]
+  if (!th) return
+  th.focus({ preventScroll: true })
+  th.scrollIntoView({ block: 'nearest' })
+}
+async function stepCursor(step: number) {
+  let i = cursor.value < 0 ? 0 : cursor.value + step
+  if (i >= latest.value.length && !(await loadOlder())) return
+  i = Math.max(0, Math.min(i, latest.value.length - 1))
+  cursor.value = i
+  await nextTick()
+  focusVersion(i)
+}
+let versionTop = 0
+async function openVersion(key: string) {
+  versionTop = scrollBody()?.scrollTop || 0
+  opened.value = key
+  await nextTick()
+  const b = scrollBody()
+  if (b) b.scrollTop = 0
+  focusVersion(0)
+}
+/* h / l: the older / newer version, loading older past the last */
+async function turnVersion(step: number) {
+  let i = latest.value.findIndex((v) => v.version === opened.value) + step
+  if (i >= latest.value.length && !(await loadOlder())) return
+  if (i < 0 || i >= latest.value.length) return
+  opened.value = latest.value[i]!.version
+  cursor.value = i
+  await nextTick()
+  const b = scrollBody()
+  if (b) b.scrollTop = 0
+  focusVersion(0)
+}
+async function closeVersion() {
+  const key = opened.value
+  opened.value = ''
+  await nextTick()
+  const b = scrollBody()
+  if (b) b.scrollTop = versionTop
+  cursor.value = latest.value.findIndex((v) => v.version === key)
+  if (cursor.value >= 0) focusVersion(cursor.value)
+}
+/* the dialog's own: only while it is the top one; ahead of UiDialog's Escape
+   (window, capture) so Escape in an opened version goes back to the list */
+function onKeys(ev: KeyboardEvent) {
+  const root = rootEl.value
+  if (!props.open || !root) return
+  const backdrops = document.querySelectorAll('.ui-dialog-backdrop')
+  if (!backdrops[backdrops.length - 1]?.contains(root)) return
+  const active = document.activeElement as HTMLElement | null
+  const onVersion = Boolean(active && root.contains(active) && active.closest('[data-test=release-version-head]'))
+  const view = note.value ? 'note' : opened.value ? 'version' : 'list'
+  const hit = releaseKeyFor(ev, { enabled: keysOn.value, view, onVersion })
+  if (!hit) return
+  ev.preventDefault()
+  ev.stopPropagation()
+  if (hit.type === 'back') void closeVersion()
+  else if (hit.type === 'open') { const v = latest.value[cursor.value]; if (v) void openVersion(v.version) }
+  else if (hit.type === 'turn' || opened.value) void turnVersion(hit.step)
+  else void stepCursor(hit.step)
+}
+onMounted(() => window.addEventListener('keydown', onKeys, true))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeys, true))
+
 /* the /releases/<ref> link: a sha (or 7+ prefix) opens its note, v<X.Y.Z> its version */
 async function openRef(raw: string) {
   const want = raw.trim().toLowerCase()
@@ -313,6 +469,7 @@ async function openRef(raw: string) {
     } else if (body?.version) {
       const v = { version: body.version, display: body.display, notes: body.notes || [] }
       versions.value = [v]
+      paged.value = false
     }
   } catch (e) {
     const status = (e as { status?: number }).status
@@ -329,10 +486,14 @@ async function start() {
   await loadLatest()
   if (props.initialRef) await openRef(props.initialRef)
 }
-watch(() => props.open, (o) => { if (o) void start() }, { immediate: true })
+watch(() => props.open, (o) => {
+  if (o) void start()
+  else { opened.value = ''; cursor.value = -1 }
+}, { immediate: true })
 watch(() => props.initialRef, (r, old) => {
   if (!r || r === old || !started) return
   note.value = null
+  opened.value = ''
   message.value = ''
   void openRef(r)
 })
@@ -343,7 +504,10 @@ watch(() => props.initialRef, (r, old) => {
    proper aligning"): theme tokens only, rem font sizes, the body inset like
    a feed, the table and the note each one bordered card. */
 .rn { display: flex; flex-direction: column; gap: var(--spacing-sm); min-width: 0; padding: 0.75rem 1.5rem 1.5rem; }
-.rn__lead, .rn__msg { margin: 0; }
+.rn__lead, .rn__msg, .rn__keys { margin: 0; }
+.rn__keys { font-size: 0.8125rem; }
+.rn-end { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-sm); padding-block: 0.25rem; }
+.rn-end__first { margin: 0; font-size: 0.875rem; }
 .rn-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); min-width: 0; }
 .rn__back { font: inherit; font-weight: 600; color: var(--color-accent); background: none; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 0.25rem 0.5rem 0.25rem 0.25rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem; align-self: flex-start; }
 .rn__back:hover { border-color: var(--color-border); }
@@ -377,6 +541,10 @@ watch(() => props.initialRef, (r, old) => {
 .rn-table__sha code { font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.0625rem 0.375rem; border-radius: var(--radius-sm); background: var(--color-bg-2); border: 1px solid var(--color-border); color: var(--color-fg); }
 .rn-table .rn-ver__head { padding-block: 0.625rem 0.5rem; background: var(--color-bg-2); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .rn-table tbody:first-of-type .rn-ver__head { border-top: 0; }
+/* the row the version keys are on; clear of the sticky header */
+.rn-table .rn-ver__head { scroll-margin-top: 2.75rem; }
+.rn-table .rn-ver__head:focus { outline: none; }
+.rn-table .rn-ver__head:focus-visible { outline: var(--focus-ring-w) solid var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .rn-ver__name { font-weight: 600; color: var(--color-heading); margin-inline-end: 0.5rem; font-variant-numeric: tabular-nums; }
 .rn-ver__here, .rn-ver__newer { font-size: 0.75rem; font-weight: 600; padding: 0.0625rem 0.5rem; border-radius: var(--radius-pill); border: 1px solid currentColor; vertical-align: 0.0625rem; }
 .rn-ver__here { color: var(--color-ok); }

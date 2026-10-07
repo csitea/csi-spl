@@ -141,6 +141,13 @@ spl_db_backup_restore_counts() {
     [[ -n "$t" ]] || continue
     printf '%s %s\n' "$t" "$(docker exec "$con" psql -U postgres -h 127.0.0.1 -d restorecheck -XAtc "SELECT count(*) FROM \"$t\"" 2>/dev/null)"
   done <<<"$tables"
+  # A caller's own check of the restored copy while the container still exists
+  # (spec 099 T007: the topic-head verify). SPL_RESTORE_CHECK names a function,
+  # called with the container; its output goes to stderr, since stdout is the
+  # count list, and a failure fails the restore check.
+  if [[ -n "${SPL_RESTORE_CHECK:-}" ]]; then
+    "$SPL_RESTORE_CHECK" "$con" >&2 || return $?
+  fi
 }
 
 # _spl_db_backup_live_counts -> "<table> <count>" per line from the LIVE DB,

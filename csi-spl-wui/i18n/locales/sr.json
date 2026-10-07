@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Одговори",
     "phone_placeholder_search": "Претражи",
     "send_failed_agent_inactive": "Nije poslato — taj agent više nije aktivan. Označite aktivnog agenta; vaš tekst je i dalje tu.",
+    "sent_to_topic_retired": "Poslato u temu: {retired} više nije aktivan.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

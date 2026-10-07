@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "תגובה",
     "phone_placeholder_search": "חיפוש",
     "send_failed_agent_inactive": "לא נשלח — הסוכן הזה כבר אינו פעיל. תייגו סוכן פעיל; הטקסט שלכם נשמר.",
+    "sent_to_topic_retired": "נשלח לנושא: {retired} כבר אינו פעיל.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

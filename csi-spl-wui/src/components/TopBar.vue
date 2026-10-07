@@ -80,6 +80,11 @@
           </button>
         </template>
       </ErrorNotice>
+      <!-- 014 §3.2 (t1 894678f1): the reply landed, in the topic, because the
+           agent seat it answered is retired - a note, not an error -->
+      <p v-else-if="channelStore.sendNote" class="top-bar__send-note" role="status" data-test="omnibox-send-note">
+        {{ t(channelStore.sendNote.key, channelStore.sendNote.params) }}
+      </p>
     </div>
     </Teleport>
     <div class="top-bar__end app-corner" data-test="app-corner">
@@ -195,6 +200,7 @@ async function onSend(text: string, parent?: string, files?: File[], channelId?:
   if (!target) return
   const sent = files || []
   sendError.value = null
+  channelStore.sendNote = null
   try {
     await target.send(text, sent, parent, channelId)
   } catch (err) {
@@ -228,7 +234,7 @@ watch(() => channelStore.queueFailure, (f) => {
 
 /* the reader edited the text, or moved on: the old failure is not about what
    is in the box any more */
-watch(() => route.fullPath, () => { sendError.value = null })
+watch(() => route.fullPath, () => { sendError.value = null; channelStore.sendNote = null })
 
 function onSearch(q: string) {
   void router.push(localePath(searchPath(q)))
@@ -354,6 +360,12 @@ onUnmounted(() => {
   z-index: 60;
   flex: 0 0 auto;
 }
+.top-bar__send-note {
+  margin: 4px 0 0;
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  color: var(--color-muted);
+}
 .top-bar__end {
   display: flex;
   align-items: center;
@@ -375,6 +387,7 @@ onUnmounted(() => {
   align-self: stretch;
 }
 .top-bar__omnibox--bottom .top-bar__send-error { order: -1; margin: 0 0 4px; }
+.top-bar__omnibox--bottom .top-bar__send-note { order: -1; margin: 0 0 4px; }
 /* SPL-990: phone-only parts; above 820 px they take no space at all */
 .top-bar__tenant { display: none; }
 .top-bar__lang { display: contents; }

@@ -8,7 +8,7 @@ import { useChannelStore } from '~/stores/channel'
 import { matchesSearch, mergeById, newestFirst, pendingRow, rootAndReplies, windowed, withoutMsg } from '~/utils/feed.mjs'
 import { catchUp, isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { channelView, parseMention } from '~/utils/channel-feed.mjs'
-import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
+import { emptySendError, isEmptySend, sendFallbackNote, sendWithResend } from '~/utils/send-failure.mjs'
 import { takeMsgId } from '~/utils/offline-queue.mjs'
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
@@ -299,6 +299,7 @@ function setup(key: 'main' | 'pane') {
         /* specs/058: `@CLE-001@sat …` keeps its box (ambiguous_to_box otherwise) */
         const frame = { task_id: task, kind, body: text, files: refs, to, to_box: to ? parsed.toBox : undefined, msg_id: msgId, parent_task_id: parent, channel, is_parent: parentBit }
         const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
+        useChannelStore().sendNote = sendFallbackNote(ack)
         /* SPL-985 (spec 042 §3): the mention poke. This send names only a
            task, so where it lives (K4) is read from the topic's other rows. */
         const named = channel !== undefined ? { channel } : opts.pokeChannel !== undefined ? { channel: opts.pokeChannel } : null

@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Răspunde",
     "phone_placeholder_search": "Caută",
     "send_failed_agent_inactive": "Netrimis — acel agent nu mai este activ. Etichetează un agent activ; textul tău este încă aici.",
+    "sent_to_topic_retired": "Trimis în subiect: {retired} nu mai este activ.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

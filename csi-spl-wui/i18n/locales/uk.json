@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Відповісти",
     "phone_placeholder_search": "Пошук",
     "send_failed_agent_inactive": "Не надіслано — цей агент більше не активний. Позначте активного агента; ваш текст збережено.",
+    "sent_to_topic_retired": "Надіслано в тему: {retired} більше не активний.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

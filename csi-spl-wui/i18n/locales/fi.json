@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Vastaa",
     "phone_placeholder_search": "Hae",
     "send_failed_agent_inactive": "Ei lähetetty — agentti ei ole enää aktiivinen. Merkitse aktiivinen agentti; tekstisi on yhä tallessa.",
+    "sent_to_topic_retired": "Lähetetty aiheeseen: {retired} ei ole enää aktiivinen.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

@@ -10,6 +10,9 @@
 //   3 unknown `@nobody <t>`               -> SENDS as plain text (note)
 //   4 `@ <t>` (space after @)             -> SENDS as plain text (note)
 //   5 `@` alone                           -> SENDS as plain text (note)
+//   6 a reply the hub posted to the topic -> a NOTE under the box, no error
+//     because its agent seat is retired      (t1 894678f1, 014 §3.2), and the
+//                                            next send clears it
 //
 // Before the fix case 1 left no row (the guard threw); the others were never
 // refused but are pinned here so "starts with @ always sends" stays true.
@@ -129,6 +132,31 @@ try {
 
   const after = (await rows(p)).length
   ok('every case added a row (five sends, five new rows)', after - before === 5, { before, after })
+
+  /* 6 (owner HUM-10, t1 894678f1): a reply to a retired agent seat lands in
+     the topic and the ack says so (fallback topic, retired <id>@<box>). The
+     mock bundle has no socket and so no ack: this hands the store the note
+     sendFallbackNote() makes of such an ack (unit: send-fallback-note.test)
+     and checks what the reader sees - a status line, not the red error. */
+  await p.evaluate(() => {
+    const pinia = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia
+    pinia.state.value.channel.sendNote = { key: 'composer.sent_to_topic_retired', params: { retired: 'c-002@box-old' } }
+  })
+  await sleep(200)
+  const note = await p.evaluate(() => {
+    const el = document.querySelector('[data-test=omnibox-send-note]')
+    return {
+      text: el ? el.textContent.trim() : '',
+      role: el ? el.getAttribute('role') : '',
+      shown: Boolean(el && el.getClientRects().length > 0),
+      error: Boolean(document.querySelector('[data-testid=omnibox-send-error], [data-test=omnibox-send-error]')),
+    }
+  })
+  ok('a topic fallback shows "Sent to the topic: c-002@box-old is retired." as a status, no error', note.shown && note.role === 'status' &&
+    note.text === 'Sent to the topic: c-002@box-old is retired.' && !note.error, note)
+  await send(p, 'next-line-clears-note-10')
+  const cleared = await p.evaluate(() => !document.querySelector('[data-test=omnibox-send-note]'))
+  ok('the next send clears the note', cleared)
   /* `nuxi dev` occasionally fails a lazy chunk fetch ("Failed to fetch
      dynamically imported module"); that is the dev server, not the send path,
      and never happens on the generated bundle CI drives. Only a real send

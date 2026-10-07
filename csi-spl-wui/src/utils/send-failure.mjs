@@ -85,6 +85,23 @@ export function sendFailureKey(err) {
 }
 
 /**
+ * Owner HUM-10 (t1 894678f1, 2026-10-07): a reply to a post by an agent seat
+ * that is gone (c-002@<retired box>) is no longer refused. The hub delivers it
+ * to the id's live box, or posts it to the topic, and says which in the ack
+ * (014 wui-dispatch §3.2: `fallback` box | topic, `retired` <id>@<box>). A
+ * topic post is the one the reader should hear about, as a small note under
+ * the box, not a red error: the line landed, just not where it was aimed.
+ * @param {unknown} ack
+ * @returns {{ key: string, params: { retired: string } } | null}
+ */
+export function sendFallbackNote(ack) {
+  if (!ack || typeof ack !== 'object') return null
+  const a = /** @type {{ fallback?: unknown, retired?: unknown }} */ (ack)
+  if (a.fallback !== 'topic' || typeof a.retired !== 'string' || !a.retired) return null
+  return { key: 'composer.sent_to_topic_retired', params: { retired: a.retired } }
+}
+
+/**
  * CLE-3433, found by CLE-3434 in the dev hub's own store: a row written at
  * 12:45:42Z with `body = ""`. The composer refuses an empty box, but it
  * measures the text the human typed - and the live send path then runs

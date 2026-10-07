@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Odpowiedz",
     "phone_placeholder_search": "Szukaj",
     "send_failed_agent_inactive": "Nie wysłano — ten agent nie jest już aktywny. Oznacz aktywnego agenta; Twój tekst jest nadal tutaj.",
+    "sent_to_topic_retired": "Wysłano do wątku: {retired} nie jest już aktywny.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

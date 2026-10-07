@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Vasta",
     "phone_placeholder_search": "Otsi",
     "send_failed_agent_inactive": "Ei saadetud — see agent pole enam aktiivne. Märgi aktiivne agent; sinu tekst on alles.",
+    "sent_to_topic_retired": "Saadetud teemasse: {retired} pole enam aktiivne.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

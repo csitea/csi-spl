@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Yanıtla",
     "phone_placeholder_search": "Ara",
     "send_failed_agent_inactive": "Gönderilmedi — bu ajan artık etkin değil. Etkin bir ajanı etiketleyin; metniniz hâlâ burada.",
+    "sent_to_topic_retired": "Konuya gönderildi: {retired} artık etkin değil.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

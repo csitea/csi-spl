@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Απάντηση",
     "phone_placeholder_search": "Αναζήτηση",
     "send_failed_agent_inactive": "Δεν στάλθηκε — αυτός ο πράκτορας δεν είναι πλέον ενεργός. Επισημάνετε έναν ενεργό πράκτορα· το κείμενό σας είναι ακόμα εδώ.",
+    "sent_to_topic_retired": "Στάλθηκε στο θέμα: ο {retired} δεν είναι πλέον ενεργός.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

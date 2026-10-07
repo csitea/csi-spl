@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useMentionPoke } from '~/composables/useMentionPoke'
-import { emptySendError, isEmptySend, sendWithResend } from '~/utils/send-failure.mjs'
+import { emptySendError, isEmptySend, sendFallbackNote, sendWithResend } from '~/utils/send-failure.mjs'
 import { createSendQueue, isNetworkFailure, isOffline, offlineError, takeMsgId } from '~/utils/offline-queue.mjs'
 import { uploadWithFreshToken } from '~/utils/upload-retry.mjs'
 import {
@@ -360,6 +360,10 @@ export const useChannelStore = defineStore('channel', () => {
    * refuses for good is handed to TopBar (`queueFailure`) with its text.
    */
   const queueFailure = ref<{ err: unknown, text: string, msgId: string, topicId?: string, channelId?: string } | null>(null)
+  /* 014 §3.2 (t1 894678f1): a send the hub posted to the topic instead of a
+     retired agent seat; TopBar shows it as a note under the box. Set by every
+     store that sends a frame (this one and stores/live.ts). */
+  const sendNote = ref<{ key: string, params: { retired: string } } | null>(null)
   const heldText = new Map<string, { text: string, topicId?: string, channelId?: string }>()
   const queue = createSendQueue({
     stillOffline: (err) => isNetworkFailure(err, { offline: isOffline(), socket: api.mock ? 'open' : String(useLive().state.value) }),
@@ -552,6 +556,7 @@ export const useChannelStore = defineStore('channel', () => {
       addressee: asDm ? peerId : (frame.to || ''),
       where: asDm ? { peer: String(peer.value || ''), taskId: frame.task_id } : { channel: channelNow || '', taskId: frame.task_id },
     })
+    sendNote.value = sendFallbackNote(ack)
     const row = rowFromAck(ack as Parameters<typeof rowFromAck>[0], frame, { from: sent.from, channel: channelNow })
     if (!row.msg_id) row.msg_id = String(frame.msg_id || '')
     /* a held send lands later: its row is replaced only where it still shows */
@@ -591,6 +596,7 @@ export const useChannelStore = defineStore('channel', () => {
   return {
     channels,
     queueFailure,
+    sendNote,
     ordered,
     liveAt,
     dmAt,

@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Antwoorden",
     "phone_placeholder_search": "Zoeken",
     "send_failed_agent_inactive": "Niet verzonden — die agent is niet meer actief. Tag een actieve agent; je tekst staat er nog.",
+    "sent_to_topic_retired": "Naar het onderwerp verzonden: {retired} is niet meer actief.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

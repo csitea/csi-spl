@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Svara",
     "phone_placeholder_search": "Sök",
     "send_failed_agent_inactive": "Inte skickat — den agenten är inte längre aktiv. Tagga en aktiv agent; din text finns kvar.",
+    "sent_to_topic_retired": "Skickat till ämnet: {retired} är inte längre aktiv.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

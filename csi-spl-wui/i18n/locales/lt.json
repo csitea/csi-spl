@@ -552,6 +552,7 @@
     "phone_placeholder_reply": "Atsakyti",
     "phone_placeholder_search": "Ieškoti",
     "send_failed_agent_inactive": "Neišsiųsta — šis agentas nebeaktyvus. Pažymėkite aktyvų agentą; jūsų tekstas vis dar čia.",
+    "sent_to_topic_retired": "Išsiųsta į temą: {retired} nebeaktyvus.",
     "open_channel": "Open #{name}?",
     "post_anyway": "Post anyway"
   },

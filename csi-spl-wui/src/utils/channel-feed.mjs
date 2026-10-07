@@ -627,7 +627,8 @@ export function rowFromAck(ack, frame, { from = '', channel = null } = {}) {
     received_at: a.received_at,
     cursor: a.cursor,
     from,
-    to: f.to || '@channel',
+    /* 014 §3.2: a reply to a retired seat went to the whole topic */
+    to: a.fallback === 'topic' ? '@channel' : (f.to || '@channel'),
     kind: f.kind || 'note',
     body: String(f.body || ''),
     files: f.files || [],

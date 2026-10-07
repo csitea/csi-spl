@@ -116,6 +116,19 @@ async function staleTab(p) {
   }
 }
 
+/* The page's idle warm-ups (useChannelOrder loads its edit chunk 3 s after
+   mount) are not the Delete path: let them land before staleTab, or one that
+   fires inside its window 404s and chunk-reload reloads the tab (wf10 run
+   37579375848). Quiet = no /_nuxt/ request for `ms`. */
+async function chunksQuiet(p, ms = 3500, max = 20000) {
+  let last = Date.now()
+  const on = (r) => { if (new URL(r.url()).pathname.startsWith('/_nuxt/')) last = Date.now() }
+  p.on('request', on)
+  const end = Date.now() + max
+  while (Date.now() - last < ms && Date.now() < end) await sleep(200)
+  p.off('request', on)
+}
+
 const srv = await startServer()
 const browser = await launch()
 try {
@@ -150,6 +163,7 @@ try {
 
   /* ---- 2. Delete on a reply: no dialog, gone at once, snackbar ---------- */
   await focusRow(p, paneRow(s.r2))
+  await chunksQuiet(p)
   const stale = await staleTab(p)
   await p.keyboard.press('Delete')
   await p.waitForSelector('[data-testid=delete-toast]', { timeout: 5000 }).catch(() => {})

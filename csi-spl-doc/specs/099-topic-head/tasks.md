@@ -120,7 +120,7 @@ parallel with T002.
   is only 1..10 ms below `head`.
 - Depends on: nothing.
 
-### T002 rdb 0144: phase 1 tables, functions, triggers
+### T002 rdb 0144: phase 1 tables, functions, triggers (DONE)
 
 - Files: `rdb/<next>_topic_heads.sql` (0144 on 2026-10-07; take the next
   free number at rebase) and `store/topic_head_sql_test.go`.
@@ -155,6 +155,36 @@ parallel with T002.
 - Note for later migrations: a migration that updates `messages` marks its
   topics, and the apply runs once at its COMMIT.
 - Depends on: T001b. The owner's go is needed for prd (Q4).
+- Result (pg 16, the owner role FORCE RLS binds, as `hub-pg.tst.sh`):
+  - `TestTopicHeadCases` 44 cases green, `topic_head_diff` empty after
+    every case; the test now fails if the function is missing.
+  - `topic_head_sql_test.go`: migrate twice; one insert = one head + one
+    part; 8 non-head statements leave every `rev` (control: an `expires_at`
+    update moves it); 19 corruptions, each named by the diff; 4 trigger
+    controls caught, 3 baselines clean; REPEATABLE READ refused at COMMIT;
+    C6 10 rounds, C7 50 rounds with 0 `40P01`, C8 with the backfill and
+    `rebuild_all`.
+  - `crosstenant_test.go` seeds `topic_head_tenants`. Heads and parts are
+    seeded by the triggers.
+- Design changes found by the whole store package. A first cut timed it out
+  at 10 min, against 304 s on trunk:
+  - **INSERT and DELETE mark per statement** (transition tables), not per
+    row: one append per bulk statement or sweep chunk. UPDATE stays per row
+    with `UPDATE OF .. WHEN`.
+  - **Marks in 8 KB chunks** (`app.topic_head_marks_<i>`). A 9 000-row,
+    9 000-topic UPDATE took 11.7 s with one string, and 1.9 s with chunks.
+  - **Every table read is driven from the topic set by LATERAL index
+    probes, and heads are written by upserts.** Under RLS and fresh
+    placeholders the planner read `topic_heads` as 1 row. A nested loop
+    then took 40.5 M probes, and one 9 000-row INSERT's COMMIT took 22.1 s.
+    It now takes 1.7 s, and `TestFlowMarkSweepPostgres` takes 4.29 s
+    (trunk 4.96 s).
+- Rollout: wf 20 runs `do_spl_db_bootstrap` on dev AND prd for any push
+  touching `spool-hub/**`, so landing 0144 is its prd DDL. The owner gave
+  that go on 2026-10-07, with no 24 h soak (t1 5901e226, msg 43ab3e20).
+- Open for T005/T006: a tenant created after the backfill has no
+  `topic_head_tenants` mark, so the head read never serves it until the
+  backfill runs again.
 
 ### T003 The rest of the test set (spec 7.2 .. 7.5)
 

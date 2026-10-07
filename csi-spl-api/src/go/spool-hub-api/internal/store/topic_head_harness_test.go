@@ -692,8 +692,8 @@ func compareAll(t *testing.T, f *headFix) (pages, nonEmpty int) {
 	return pages, nonEmpty
 }
 
-// headDiffEmpty asserts topic_head_diff(tenant) returns no row, once rdb
-// 0138 (T002) has made it; before that it returns false and checks nothing.
+// headDiffEmpty asserts topic_head_diff(tenant) returns no row; it returns
+// false (checks nothing) only where rdb 0144 (T002) is not applied.
 func headDiffEmpty(t *testing.T, f *headFix) bool {
 	t.Helper()
 	ctx := context.Background()
@@ -742,6 +742,9 @@ func TestTopicHeadCases(t *testing.T) {
 				t.Fatalf("%s: only %d shapes listed a topic: the fixture does not exercise the filters", c.id, nonEmpty)
 			}
 			diff := headDiffEmpty(t, f)
+			if !diff { // T002: rdb 0144 is in the migrations, so every case checks its heads
+				t.Fatalf("%s: topic_head_diff is missing: rdb 0144 not applied", c.id)
+			}
 			t.Logf("%s %s: %d pages equal, %d non-empty shapes, head diff checked=%v", c.id, c.what, pages, nonEmpty, diff)
 		})
 	}

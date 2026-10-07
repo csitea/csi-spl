@@ -299,6 +299,13 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// topic_heads, topic_head_parts (rdb 0144, spec 099): the triggers write
+	// them from the messages above. topic_head_tenants is the backfill mark,
+	// which only topic_head_backfill sets: one row under inTenant.
+	if _, err := pg.execTenant(ctx, s.tenant, `INSERT INTO topic_head_tenants (tenant_id, backfilled_at) VALUES ($1, $2)`,
+		s.tenant, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

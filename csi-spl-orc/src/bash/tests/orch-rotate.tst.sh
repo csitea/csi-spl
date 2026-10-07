@@ -46,23 +46,23 @@ command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 S="$T/spool"; D="$S/dispatch"
-mkdir -p "$T/bin" "$T/proc" "$T/tmux" "$D" "$S/CLE-900/inbox" "$S/CLE-900/outbox" "$S/CLE-900/archive" "$T/hold/sat-drill" "$T/mem"
+mkdir -p "$T/bin" "$T/proc" "$T/tmux" "$D" "$S/c-900/inbox" "$S/c-900/outbox" "$S/c-900/archive" "$T/hold/sat-drill" "$T/mem"
 TCK="$(getconf CLK_TCK)"; UP=100000
 echo "$UP.00 0.00" >"$T/proc/uptime"
 printf 'SPOOL_AGENT_USER=%s\nSPOOL_BOX_USER=%s\n' "$(id -un)" "$(id -un)" >"$S/box.env"
-printf 'LEASE_ORCH=CLE-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 printf '# Satellite drill\nwaits on the owner\nNEXT: start the drill when the owner says go\n' >"$T/hold/sat-drill/notes.md"
 echo x >"$T/mem/orchestrator-never-codes.md"
 { echo '{"type":"user","message":{"content":"owner: lower the budget"}}'
   echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}'
-  echo '{"type":"assistant","message":{"content":[{"type":"text","text":"Routed the budget ask to CLE-77925."}]}}'; } >"$T/transcript.jsonl"
+  echo '{"type":"assistant","message":{"content":[{"type":"text","text":"Routed the budget ask to c-925."}]}}'; } >"$T/transcript.jsonl"
 
 # --- stubs --------------------------------------------------------------------
-# proc <pid> <age-s>: a fake claude carrying SPOOL_AGENT_ID=CLE-900
+# proc <pid> <age-s>: a fake claude carrying SPOOL_AGENT_ID=c-900
 cat >"$T/bin/proc" <<'EOF'
 #!/usr/bin/env bash
 d="$T/proc/$1"; mkdir -p "$d"; echo claude >"$d/comm"
-printf 'SPOOL_AGENT_ID=%s\0' "${3:-CLE-900}" >"$d/environ"
+printf 'SPOOL_AGENT_ID=%s\0' "${3:-$OLD_ID}" >"$d/environ"
 echo "$1 (claude) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 $(( (UP - $2) * TCK ))" >"$d/stat"
 printf 'Uid:\t%s\t%s\n' "$(id -u)" "$(id -u)" >"$d/status"
 EOF
@@ -133,7 +133,7 @@ mode="$(cat "$T/spawn.mode" 2>/dev/null || echo ok)"
 printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
 [ "$mode" = nostart ] || "$T/bin/proc" 2001 0 "$2"
 # a message lands mid-rotation (T-MSG-IN-FLIGHT)
-echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"CLE-002","to":"CLE-900","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/CLE-900/inbox/m9.json"
+echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/$OLD_ID/inbox/m9.json"
 if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
   rid="$(grep '^ACK-COMMAND:' "$4" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
   ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ROTATE_CALLER_PID=2001 "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
@@ -147,8 +147,8 @@ a="$2"
 echo "$a ASK_KIND=${ASK_KIND:-} ASK_FROM=${ASK_FROM:-} ASK_TOPIC=${ASK_TOPIC:-} DESK_TO=${DESK_TO:-} DESK_KIND=${DESK_KIND:-}" >>"$T/run.log"
 case "$a" in
   do_spl_asks_open) echo "[INFO] a log line"
-    echo '{"fleet":"main","hub":"ok","asks":[{"ask_id":"aaaaaaaa-0000-4000-8000-000000000001","kind":"task","state":"open","from":"CLE-002@box-desk","topic":"87eaa57b","summary":"lower the budget","age_s":600},{"ask_id":"bbbbbbbb-0000-4000-8000-000000000002","kind":"blocker","state":"acked","acked_by":"CLE-900@box-desk","from":"CLE-77911@box-desk","topic":"sat","summary":"drill go?","age_s":7200}]}' ;;
-  do_spl_lane_map) echo '{"fleet":"main","hub":"ok","lanes":[{"agent_id":"CLE-77","agent_box":"box-desk","branch":"CLE-77-x","scope":"the x lane","state":"live","age_s":300},{"agent_id":"CLE-78","agent_box":"sat","branch":"CLE-78-y","scope":"done one","state":"done"}]}' ;;
+    echo '{"fleet":"main","hub":"ok","asks":[{"ask_id":"aaaaaaaa-0000-4000-8000-000000000001","kind":"task","state":"open","from":"c-002@box-desk","topic":"87eaa57b","summary":"lower the budget","age_s":600},{"ask_id":"bbbbbbbb-0000-4000-8000-000000000002","kind":"blocker","state":"acked","acked_by":"c-900@box-desk","from":"c-911@box-desk","topic":"sat","summary":"drill go?","age_s":7200}]}' ;;
+  do_spl_lane_map) echo '{"fleet":"main","hub":"ok","lanes":[{"agent_id":"c-077","agent_box":"box-desk","branch":"c-077-x","scope":"the x lane","state":"live","age_s":300},{"agent_id":"c-078","agent_box":"sat","branch":"c-078-y","scope":"done one","state":"done"}]}' ;;
   do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
   *) exit 1 ;;
 esac
@@ -197,17 +197,17 @@ export T UP TCK PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env
   LEASE_PROC_ROOT="$T/proc" ROTATE_TMUX="$T/bin/tmux" ROTATE_SPAWN="$T/bin/spawn" ROTATE_RUN="$T/bin/run" ROTATE_KILL="$T/bin/kill" \
   ROTATE_SEND="$T/bin/send" ROTATE_AI="$T/bin/ai" ROTATE_HOLD_DIR="$T/hold" ROTATE_MEMORY_DIR="$T/mem" ROTATE_TRANSCRIPT="$T/transcript.jsonl" \
   ROTATE_AS_AGENT_DIRECT=1 ROTATE_POLL=1 ROTATE_IDLE_SEC=0 ROTATE_IDLE_GRACE=2 ROTATE_ESC_WAIT=2 ROTATE_START_WAIT=4 \
-  ROTATE_ACK_TIMEOUT=6 ROTATE_EXIT_WAIT=2 ROTATE_TERM_WAIT=2 ROTATE_NEW_EXIT_WAIT=2
+  ROTATE_ACK_TIMEOUT=6 ROTATE_EXIT_WAIT=2 ROTATE_TERM_WAIT=2 ROTATE_NEW_EXIT_WAIT=2 OLD_ID=c-900
 
-# the world: one old CLE-900 (pid 1001, 2 h old, busy) in pane %2
+# the world: one old c-900 (pid 1001, 2 h old, busy) in pane %2
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode" "$T/ack.mode" "$T/ai.CLE-900" \
-    "$D"/rotate.* "$D/handoff" "$S/CLE-900/inbox/"* "$S/CLE-900/outbox/"*
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/ack.out" "$T/spawn.mode" "$T/ack.mode" "$T/ai.$OLD_ID" \
+    "$D"/rotate.* "$D/handoff" "$S/$OLD_ID/inbox/"* "$S/$OLD_ID/outbox/"*
   "$T/bin/proc" 1001 7200
-  printf '%%2\t1001\t$0\tCLE-900@box sometitle\n' >"$T/tmux/panes"
+  printf '%%2\t1001\t$0\t%s@box sometitle\n' "$OLD_ID" >"$T/tmux/panes"
   printf 'working on the satellite drill\n✻ Cogitating (12s · esc to interrupt)\n' >"$T/tmux/screen.%2"
-  echo '{"v":1,"msg_id":"m1","ts":"2026-10-02T04:00:00Z","from":"CLE-002","to":"CLE-900","kind":"task","task_id":"87eaa57b","body":"route the budget ask"}' >"$S/CLE-900/inbox/m1.json"
-  echo '{"v":1,"msg_id":"m2","ts":"2026-10-02T04:01:00Z","from":"CLE-900","to":"CLE-77925","kind":"task","task_id":"87eaa57b","body":"lower the budget to 155"}' >"$S/CLE-900/outbox/m2.json"
+  echo '{"v":1,"msg_id":"m1","ts":"2026-10-02T04:00:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"task","task_id":"87eaa57b","body":"route the budget ask"}' >"$S/$OLD_ID/inbox/m1.json"
+  echo '{"v":1,"msg_id":"m2","ts":"2026-10-02T04:01:00Z","from":"'"$OLD_ID"'","to":"c-925","kind":"task","task_id":"87eaa57b","body":"lower the budget to 155"}' >"$S/$OLD_ID/outbox/m2.json"
 }
 act() { env "$@" "$T/bin/act"; }
 ctx() { sed -n "s/^$1=//p" "$D/rotate.orch.ctx" 2>/dev/null; }
@@ -216,13 +216,13 @@ ctx() { sed -n "s/^$1=//p" "$D/rotate.orch.ctx" 2>/dev/null; }
 world
 act >"$T/o" 2>&1; rc=$?
 n=0; for p in GATE QUIESCE HANDOFF SPAWN ACK RETIRE CLOSE; do grep -q " $p PLAN " "$T/o" && n=$((n + 1)); done
-[[ $rc -eq 0 && $n == 7 ]] && grep -q ' GATE PLAN pass: CLE-900 pid 1001, 7200s old, pane %2' "$T/o" &&
+[[ $rc -eq 0 && $n == 7 ]] && grep -q ' GATE PLAN pass: c-900 pid 1001, 7200s old, pane %2' "$T/o" &&
   pass "1. dry run: one PLAN line per step" || fail "1. dry: rc=$rc n=$n $(grep PLAN "$T/o")"
-for want in '# CLE-900@box-desk handoff, rotation [0-9T]*Z-orch' '## 2. In flight' 'working on the satellite drill' \
-  'bbbbbbbb blocker from CLE-77911@box-desk, 2h, acked by CLE-900@box-desk' 'aaaaaaaa task from CLE-002@box-desk, 10m, open' \
-  '-> CLE-77925 task \[87eaa57b\] lower the budget to 155' '## 5. Unread inbox: 1 message' '<- CLE-002 task \[87eaa57b\] route the budget ask' \
-  'CLE-77@box-desk CLE-77-x (5m): the x lane' 'sat-drill (0h ago): Satellite drill' 'NEXT: start the drill' \
-  '- user: owner: lower the budget' '- assistant: Routed the budget ask to CLE-77925.' 'orchestrator-never-codes'; do
+for want in '# c-900@box-desk handoff, rotation [0-9T]*Z-orch' '## 2. In flight' 'working on the satellite drill' \
+  'bbbbbbbb blocker from c-911@box-desk, 2h, acked by c-900@box-desk' 'aaaaaaaa task from c-002@box-desk, 10m, open' \
+  '-> c-925 task \[87eaa57b\] lower the budget to 155' '## 5. Unread inbox: 1 message' '<- c-002 task \[87eaa57b\] route the budget ask' \
+  'c-077@box-desk c-077-x (5m): the x lane' 'sat-drill (0h ago): Satellite drill' 'NEXT: start the drill' \
+  '- user: owner: lower the budget' '- assistant: Routed the budget ask to c-925.' 'orchestrator-never-codes'; do
   grep -q -- "$want" "$T/o" || fail "1. the handoff preview lacks: $want"
 done
 grep -q 'done one' "$T/o" && fail "1. a done lane is listed" || pass "1. the handoff carries all 9 sections (a done lane left out)"
@@ -237,12 +237,12 @@ gate() {  # <want> <label> [env...]
 }
 world; gate "disabled" "ROTATE=0: SKIP disabled" ROTATE=0
 echo 'ROTATE_ORCH=0' >"$D/rotate.conf"; gate "disabled" "rotate.conf ROTATE_ORCH=0: SKIP disabled"; rm -f "$D/rotate.conf"
-echo "CLE-900@sat $(date +%s)" >"$D/lease.orch"; gate "standby (orch lease: CLE-900@sat)" "another machine holds the orch lease: SKIP standby" LEASE_FLEET=main
-echo "CLE-900@box-desk $(date +%s)" >"$D/lease.orch"; act LEASE_FLEET=main >"$T/o" 2>&1
+echo "c-900@sat $(date +%s)" >"$D/lease.orch"; gate "standby (orch lease: c-900@sat)" "another machine holds the orch lease: SKIP standby" LEASE_FLEET=main
+echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"; act LEASE_FLEET=main >"$T/o" 2>&1
 grep -q ' GATE PLAN pass' "$T/o" && pass "2. this machine holds the orch lease: passes" || fail "2. holder: $(cat "$T/o")"; rm -f "$D/lease.orch"
 world; rm -rf "$T/proc/1001"; gate "absent" "no process: SKIP absent"
-world; "$T/bin/proc" 1002 7200; gate "duplicate: 2 live processes carry CLE-900 (pids 1001 1002)" "two processes: SKIP duplicate"
-grep -q 'send CLE-900 -> CLE-900 note orch-rotate: ROTATION SKIP duplicate' "$T/send.log" && pass "2. ... and the orchestrator gets one note" || fail "2. dup note"
+world; "$T/bin/proc" 1002 7200; gate "duplicate: 2 live processes carry c-900 (pids 1001 1002)" "two processes: SKIP duplicate"
+grep -q 'send c-900 -> c-900 note orch-rotate: ROTATION SKIP duplicate' "$T/send.log" && pass "2. ... and the orchestrator gets one note" || fail "2. dup note"
 act DRY_RUN=0 >/dev/null 2>&1; [[ "$(grep -c 'SKIP duplicate' "$T/send.log")" == 1 ]] && pass "2. ... once, not every hour" || fail "2. dup note repeated"
 world; rm -rf "$T/proc/1001"; "$T/bin/proc" 1001 600; gate "young: pid 1001 is 600s old" "a young session: SKIP young"
 world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"; gate "stalled Usage limit reached" "a usage-limit footer: SKIP stalled"
@@ -258,26 +258,26 @@ rid="$(ctx ROTATE_RID)"
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && [[ "$rid" =~ ^[0-9]{8}T[0-9]{4}Z-orch$ ]] &&
   pass "3. rotated to DONE ($rid)" || fail "3. rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
 grep -q "keys %2 Escape" "$T/tmux/log" && grep -q " QUIESCE OK interrupted" "$T/o" &&
-  grep -q 'Interrupted · What should Claude do instead' "$D/handoff/$rid-CLE-900.md" &&
+  grep -q 'Interrupted · What should Claude do instead' "$D/handoff/$rid-c-900.md" &&
   pass "3. T-ORCH-BUSY: Escape sent, the handoff holds the stopped screen" || fail "3. busy: $(grep QUIESCE "$T/o")"
-[[ "$(stat -c %a "$D/handoff/$rid-CLE-900.md")" == 640 ]] && pass "3. handoff mode 0640" || fail "3. mode"
-grep -qx "rename %2 CLE-900-${rid:9:4}Z-retiring" "$T/tmux/log" && pass "3. old window renamed CLE-900-<hhmm>Z-retiring" || fail "3. rename: $(cat "$T/tmux/log")"
-( source "$PROJ_ROOT/src/bash/features/spawn-agents/lib/spool-env.inc.sh"; [[ -z "$(spool_id_of_window "CLE-900-${rid:9:4}Z-retiring")" && "$(spool_id_of_window "CLE-900@box")" == CLE-900 ]] ) &&
+[[ "$(stat -c %a "$D/handoff/$rid-c-900.md")" == 640 ]] && pass "3. handoff mode 0640" || fail "3. mode"
+grep -qx "rename %2 c-900-${rid:9:4}Z-retiring" "$T/tmux/log" && pass "3. old window renamed c-900-<hhmm>Z-retiring" || fail "3. rename: $(cat "$T/tmux/log")"
+( source "$PROJ_ROOT/src/bash/features/spawn-agents/lib/spool-env.inc.sh"; [[ -z "$(spool_id_of_window "c-900-${rid:9:4}Z-retiring")" && "$(spool_id_of_window "c-900@box")" == c-900 ]] ) &&
   pass "3. T-ORCH-POKE-ROUTE: the retiring name parses as no id" || fail "3. the retiring name parses as an id"
-grep -qx 'adopt CLE-900 2001' "$T/ai.log" && grep -q " SPAWN OK new pid 2001 pane %20" "$T/o" &&
+grep -qx 'adopt c-900 2001' "$T/ai.log" && grep -q " SPAWN OK new pid 2001 pane %20" "$T/o" &&
   pass "3. T-ORCH-POKE-ROUTE: the map adopts the new pid before ACK" || fail "3. adopt: $(cat "$T/ai.log" 2>/dev/null)"
-grep -q "^spawn claude CLE-900 .* $D/handoff/$rid-CLE-900.seed.md rotate SPAWN_REUSE_ID=1 SPOOL_SESSION=\$0 SPOOL_BOX_TAG=box\$" "$T/spawn.log" &&
-  grep -q "^You are the new CLE-900@box-desk, rotated at $rid. Read $D/handoff/$rid-CLE-900.md, then run" "$D/handoff/$rid-CLE-900.seed.md" &&
+grep -q "^spawn claude c-900 .* $D/handoff/$rid-c-900.seed.md rotate SPAWN_REUSE_ID=1 SPOOL_SESSION=\$0 SPOOL_BOX_TAG=box\$" "$T/spawn.log" &&
+  grep -q "^You are the new c-900@box-desk, rotated at $rid. Read $D/handoff/$rid-c-900.md, then run" "$D/handoff/$rid-c-900.seed.md" &&
   pass "3. same id (SPAWN_REUSE_ID=1), same tmux session and box tag, the FR-040 rotation line" || fail "3. spawn: $(cat "$T/spawn.log")"
-grep -q "send CLE-900 -> CLE-900 result orch-rotate-$rid: ACK" "$T/send.log" && grep -q " ACK OK acked by pid 2001" "$T/o" &&
-  pass "3. ack = a result in CLE-900/outbox on orch-rotate-<rid>" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"
+grep -q "send c-900 -> c-900 result orch-rotate-$rid: ACK" "$T/send.log" && grep -q " ACK OK acked by pid 2001" "$T/o" &&
+  pass "3. ack = a result in c-900/outbox on orch-rotate-<rid>" || fail "3. ack: $(cat "$T/send.log") $(cat "$T/ack.out")"
 grep -q '^keys %2 /exit-clean no-close$' "$T/tmux/log" && [[ ! -d "$T/proc/1001" ]] && grep -qx 'kill %2' "$T/tmux/log" &&
   pass "3. old session ended with /exit-clean no-close (RETIRE never lets the skill close a window), its window closed by pane id" || fail "3. retire: $(cat "$T/tmux/log")"
 grep -q " CLOSE OK old window closed; checks: one process, lease follows pid 2001, map -> %20" "$T/o" &&
-  grep -q "send CLE-900 -> CLE-900 result orch-rotate-$rid: ROTATION DONE" "$T/send.log" &&
+  grep -q "send c-900 -> c-900 result orch-rotate-$rid: ROTATION DONE" "$T/send.log" &&
   pass "3. CLOSE checks pass; DONE result to the new session" || fail "3. close: $(grep CLOSE "$T/o")"
-[[ -f "$S/CLE-900/inbox/m1.json" && -f "$S/CLE-900/inbox/m9.json" ]] &&
-  pass "3. T-MSG-IN-FLIGHT: the message before and the one during the rotation are in the inbox" || fail "3. inbox: $(ls "$S/CLE-900/inbox")"
+[[ -f "$S/c-900/inbox/m1.json" && -f "$S/c-900/inbox/m9.json" ]] &&
+  pass "3. T-MSG-IN-FLIGHT: the message before and the one during the rotation are in the inbox" || fail "3. inbox: $(ls "$S/c-900/inbox")"
 phases="$(awk -v r="$rid" '$2 == r && !seen[$3]++ {printf "%s ", $3}' "$D/rotate.log")"
 [[ "$phases" == "GATE QUIESCE HANDOFF SPAWN ACK RETIRE CLOSE DONE " ]] && read -r _ ph _ <"$D/rotate.orch.state" && [[ "$ph" == DONE ]] &&
   pass "3. one log line per phase; .state = DONE" || fail "3. phases: $phases"
@@ -294,21 +294,21 @@ rid="$(ctx ROTATE_RID)"
 [[ $rc -ne 0 && "$(ctx ROTATE_PHASE)" == FAIL ]] && grep -q ' FAIL FAIL ACK: no ack within 3s' "$T/o" && pass "5. no ack: FAIL ack" || fail "5. rc=$rc $(cat "$T/o")"
 grep -q '^keys %20 /exit$' "$T/tmux/log" && grep -qx 'kill %20' "$T/tmux/log" && [[ ! -d "$T/proc/2001" ]] &&
   pass "5. the new session got /exit and its window closed" || fail "5. new: $(cat "$T/tmux/log")"
-[[ -d "$T/proc/1001" ]] && grep -q $'^%2\t1001\t$0\tCLE-900@box sometitle$' "$T/tmux/panes" && ! grep -q 'keys %2 /exit' "$T/tmux/log" &&
-  [[ "$(tail -1 "$T/ai.log")" == "adopt CLE-900 1001" ]] && pass "5. old pid untouched, its name and map entry back" || fail "5. old: $(cat "$T/tmux/panes") $(cat "$T/ai.log")"
-grep -q "keys %2 Rotation $rid failed; you keep the role. Read $D/handoff/$rid-CLE-900.md" "$T/tmux/log" &&
+[[ -d "$T/proc/1001" ]] && grep -q $'^%2\t1001\t$0\tc-900@box sometitle$' "$T/tmux/panes" && ! grep -q 'keys %2 /exit' "$T/tmux/log" &&
+  [[ "$(tail -1 "$T/ai.log")" == "adopt c-900 1001" ]] && pass "5. old pid untouched, its name and map entry back" || fail "5. old: $(cat "$T/tmux/panes") $(cat "$T/ai.log")"
+grep -q "keys %2 Rotation $rid failed; you keep the role. Read $D/handoff/$rid-c-900.md" "$T/tmux/log" &&
   pass "5. the old pane is told where its handoff is" || fail "5. no line to the old pane"
-grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=CLE-900 ASK_TOPIC=orch-rotate-$rid" "$T/run.log" &&
+grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-900 ASK_TOPIC=orch-rotate-$rid" "$T/run.log" &&
   grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10 DESK_KIND=blocker' "$T/run.log" && pass "5. ALERT: one ask + one owner DM" || fail "5. alert: $(cat "$T/run.log")"
 
 # --- 6. T-ORCH-SPAWN-FAIL --------------------------------------------------------------------
 world; echo nopane >"$T/spawn.mode"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && grep -q ' FAIL FAIL SPAWN: spawn printed no pane' "$T/o" && grep -q $'\tCLE-900@box sometitle$' "$T/tmux/panes" &&
+[[ $rc -ne 0 ]] && grep -q ' FAIL FAIL SPAWN: spawn printed no pane' "$T/o" && grep -q $'\tc-900@box sometitle$' "$T/tmux/panes" &&
   grep -q '^do_spl_ask_put' "$T/run.log" && pass "6. no pane: restored, FAIL spawn, ALERT" || fail "6. rc=$rc $(cat "$T/o")"
 world; echo nostart >"$T/spawn.mode"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc -ne 0 ]] && grep -q 'FAIL SPAWN: no claude carrying CLE-900 started in %20' "$T/o" && grep -qx 'kill %20' "$T/tmux/log" &&
+[[ $rc -ne 0 ]] && grep -q 'FAIL SPAWN: no claude carrying c-900 started in %20' "$T/o" && grep -qx 'kill %20' "$T/tmux/log" &&
   pass "6. no pid: the new window closed, restored" || fail "6. nostart rc=$rc $(cat "$T/o")"
 
 # --- 7. T-ORCH-EXIT-HANG -----------------------------------------------------------------------
@@ -323,18 +323,18 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   pass "7. KILL ignored: FAIL exit + ALERT" || fail "7. hang rc=$rc $(cat "$T/o")"
 sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=FAIL/' "$D/rotate.orch.ctx"
 act DRY_RUN=0 >"$T/o" 2>&1
-grep -q ' GATE SKIP duplicate: 2 live processes carry CLE-900 (pids 1001 2001)' "$T/o" && pass "7. ... the next run: SKIP duplicate" || fail "7. next: $(cat "$T/o")"
+grep -q ' GATE SKIP duplicate: 2 live processes carry c-900 (pids 1001 2001)' "$T/o" && pass "7. ... the next run: SKIP duplicate" || fail "7. next: $(cat "$T/o")"
 
 # --- 8. T-ORCH-RESUME + abort ------------------------------------------------------------------
 world; echo no >"$T/ack.mode"
 act DRY_RUN=0 ROTATE_ACK_TIMEOUT=1 >/dev/null 2>&1          # leaves a FAIL; rebuild an ACK-phase rotation by hand
-"$T/bin/proc" 2001 0; printf '%%20\t2001\t$0\tCLE-900@box\n' >>"$T/tmux/panes"
-awk -F'\t' -v OFS='\t' '$1 == "%2" {$4 = "CLE-900-0405Z-retiring"} {print}' "$T/tmux/panes" >"$T/p" && mv "$T/p" "$T/tmux/panes"
+"$T/bin/proc" 2001 0; printf '%%20\t2001\t$0\tc-900@box\n' >>"$T/tmux/panes"
+awk -F'\t' -v OFS='\t' '$1 == "%2" {$4 = "c-900-0405Z-retiring"} {print}' "$T/tmux/panes" >"$T/p" && mv "$T/p" "$T/tmux/panes"
 rid="$(ctx ROTATE_RID)"
 sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=ACK/; s/^ROTATE_NEW_PID=.*/ROTATE_NEW_PID=2001/; s/^ROTATE_NEW_PANE=.*/ROTATE_NEW_PANE=%20/' "$D/rotate.orch.ctx"
 act >"$T/o" 2>&1
 grep -q " RESUME PLAN from ACK" "$T/o" && pass "8. dry run names the resume" || fail "8. dry: $(cat "$T/o")"
-"$T/bin/send" --from CLE-900 --to CLE-900 --kind result --task "orch-rotate-$rid" --body ack
+"$T/bin/send" --from c-900 --to c-900 --kind result --task "orch-rotate-$rid" --body ack
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q " RESUME OK from ACK (old alive=1, new alive=1)" "$T/o" && [[ ! -d "$T/proc/1001" && "$(ctx ROTATE_PHASE)" == DONE ]] &&
   pass "8. resumed at ACK with its ack on disk: retired, DONE" || fail "8. rc=$rc $(cat "$T/o")"
@@ -343,7 +343,7 @@ sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=SPAWN/; s/^ROTATE_NEW_PID=.*/ROTATE_NEW_
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 && -d "$T/proc/1001" ]] && grep -q 'FAIL FAIL SPAWN: resumed with no live new session' "$T/o" &&
   pass "8. resumed at SPAWN with the new pid dead: fails cleanly, old kept" || fail "8. dead rc=$rc $(cat "$T/o")"
-"$T/bin/proc" 2001 0; printf '%%20\t2001\t$0\tCLE-900@box\n' >>"$T/tmux/panes"
+"$T/bin/proc" 2001 0; printf '%%20\t2001\t$0\tc-900@box\n' >>"$T/tmux/panes"
 sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=ACK/' "$D/rotate.orch.ctx"
 act ROTATE_CMD=abort DRY_RUN=0 >"$T/o" 2>&1
 grep -q ' ABORT ABORT at ACK by hand' "$T/o" && [[ ! -d "$T/proc/2001" && -d "$T/proc/1001" && "$(ctx ROTATE_PHASE)" == ABORT ]] &&
@@ -364,7 +364,7 @@ act ROTATE_CMD=ack ROTATE_ID=20000101T0000Z-orch ROTATE_CALLER_PID=2001 >"$T/o" 
 # multi-row poke back into the box, C-u emptied only its last row, and
 # /exit-clean went out appended to the poke; SIGTERM 300 s later.
 world; touch "$T/tmux/escape-stops.%2"
-printf 'SPOOL CLE-002: poke line one\npoke line two\npoke line three' >"$T/tmux/queued.%2"
+printf 'SPOOL c-002: poke line one\npoke line two\npoke line three' >"$T/tmux/queued.%2"
 act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -qx 'keys %2 C-c' "$T/tmux/log" &&
   [[ "$(grep '^submit %2 ' "$T/tmux/log")" == 'submit %2 /exit-clean no-close' ]] && ! grep -qE 'RETIRE WAIT (try|pid)' "$T/o" && ! grep -q '^kill -TERM' "$T/kill.log" 2>/dev/null &&
@@ -456,6 +456,10 @@ awk -F'\t' -v OFS='\t' '{ sub(/^CLE-900@/, "c-900@", $4) } {print}' "$T/tmux/pan
 echo "DO spool CLE-900"; echo "DO window CLE-900"
 EOF2
 chmod +x "$T/bin/rename"
+# a legacy id is refused after the cutoff (specs/061 section 0), so this section pins the clock before it
+export OLD_ID=CLE-900 SPOOL_NOW=2026-10-02T12:00:00Z
+rm -rf "$S/c-900" "$T/ai.c-900"; mkdir -p "$S/CLE-900/inbox" "$S/CLE-900/outbox" "$S/CLE-900/archive"
+printf 'LEASE_ORCH=CLE-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
 printf 'CLE-900\tc-900\tclaude\tbox-desk\t2026-10-02T16:35:05Z\n' >"$S/agent-id-aliases.tsv"
 world
 act >"$T/o" 2>&1

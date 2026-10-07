@@ -14,18 +14,15 @@ import { useLive } from '~/composables/useLive'
 import { useRosterStore } from '~/stores/roster'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { sendWithResend } from '~/utils/send-failure.mjs'
-import {
-  agentTargets,
-  cardLink,
-  channelAccess,
-  issueLink,
-  mentionBoxes,
-  pokeBody,
-  pokeFrame,
-  pokeTargets,
-  splitPokes,
-  type MentionAccess,
-} from '~/utils/mention-poke.mjs'
+import type { MentionAccess } from '~/utils/mention-poke.mjs'
+
+/* 089 AC-02 (155 KB gzip): the poke rules load with the first poke, never
+   with the entry: a poke only follows a stored text, after first paint. */
+let pokeRules: Promise<typeof import('~/utils/mention-poke.mjs')> | null = null
+export function loadMentionPoke() {
+  /* a failed chunk load (a deploy in between) is asked again next time */
+  return (pokeRules ||= import('~/utils/mention-poke.mjs').catch((e) => { pokeRules = null; throw e }))
+}
 
 function newId() {
   return globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : ''
@@ -64,6 +61,21 @@ function refOf(where: PokeWhere) {
   return where.issue || where.ends || where.peer ? '' : String(where.taskId || '')
 }
 
+/** K4: who may be told about a text at `where` (null: unknown, tell nobody). */
+async function accessOf(api: ReturnType<typeof useSpoolApi>, where: PokeWhere, selfId: string): Promise<MentionAccess> {
+  if (where.unknown) return null
+  if (where.issue) return { kind: 'open' }
+  if (where.ends) return { kind: 'dm', ends: where.ends }
+  if (where.peer) return { kind: 'dm', ends: [selfId, where.peer] }
+  if (!where.channel) return { kind: 'open' } /* the lobby */
+  try {
+    const { channelAccess } = await loadMentionPoke()
+    return channelAccess(await withSessionRetry(api, () => api.listChannelMembers(String(where.channel))))
+  } catch {
+    return null /* unknown: tell nobody rather than leak */
+  }
+}
+
 export function useMentionPoke() {
   const api = useSpoolApi()
   const roster = useRosterStore()
@@ -71,22 +83,10 @@ export function useMentionPoke() {
   /* the global instance: this runs from stores too, outside any setup() */
   const i18n = useNuxtApp().$i18n
 
-  async function accessOf(where: PokeWhere, selfId: string): Promise<MentionAccess> {
-    if (where.unknown) return null
-    if (where.issue) return { kind: 'open' }
-    if (where.ends) return { kind: 'dm', ends: where.ends }
-    if (where.peer) return { kind: 'dm', ends: [selfId, where.peer] }
-    if (!where.channel) return { kind: 'open' } /* the lobby */
-    try {
-      return channelAccess(await withSessionRetry(api, () => api.listChannelMembers(String(where.channel))))
-    } catch {
-      return null /* unknown: tell nobody rather than leak */
-    }
-  }
-
   async function sendDm(id: string, body: string, toBox?: string, refTaskId?: string) {
     const client = live.ensure()
     if (!client) throw new Error('live socket unavailable')
+    const { pokeFrame } = await loadMentionPoke()
     const frame = pokeFrame({ to: id, body, toBox, taskId: newId(), msgId: newId(), refTaskId })
     await sendWithResend(() => client.send(frame))
   }
@@ -107,6 +107,9 @@ export function useMentionPoke() {
   async function poke(opts: { text: string, before?: string, addressee?: string, where: PokeWhere }) {
     const none = { told: [] as string[], refused: [] as string[], failed: [] as string[] }
     const self = roster.self ? roster.self.id : ''
+    const rules = await loadMentionPoke().catch(() => null)
+    if (!rules) return none
+    const { agentTargets, cardLink, issueLink, mentionBoxes, pokeBody, pokeTargets, splitPokes } = rules
     const ids = agentTargets(pokeTargets({ text: opts.text, before: opts.before || '', selfId: self, addressee: opts.addressee || '' }))
     if (!ids.length) return none
     const seated = roster.people.map((p) => p.id)
@@ -114,12 +117,12 @@ export function useMentionPoke() {
        it sends nothing and warns nothing, but shows the direct notice (e2e) */
     if (api.mock) {
       if (opts.where.channel) {
-        const { direct } = splitPokes(ids, await accessOf(opts.where, self), seated)
+        const { direct } = splitPokes(ids, await accessOf(api, opts.where, self), seated)
         if (direct.length) noteDirect(direct)
       }
       return none
     }
-    const { ok, direct, refused } = splitPokes(ids, await accessOf(opts.where, self), seated)
+    const { ok, direct, refused } = splitPokes(ids, await accessOf(api, opts.where, self), seated)
     if (refused.length) warn('mention.not_told', refused)
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const link = opts.where.issueKey ? issueLink(origin, opts.where.issueKey) : cardLink(origin, opts.where.taskId || '')

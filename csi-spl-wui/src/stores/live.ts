@@ -1,8 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { useMentionPoke } from '~/composables/useMentionPoke'
-import { topicWhere } from '~/utils/mention-poke.mjs'
+import { loadMentionPoke, useMentionPoke } from '~/composables/useMentionPoke'
 import { usePaneFocus } from '~/stores/pane-focus'
 import { useNotificationStore } from '~/stores/notification'
 import { useChannelStore } from '~/stores/channel'
@@ -302,8 +301,12 @@ function setup(key: 'main' | 'pane') {
         const ack = await sendWithResend(() => client.send(frame)) as { cursor?: string, received_at?: string }
         /* SPL-985 (spec 042 §3): the mention poke. This send names only a
            task, so where it lives (K4) is read from the topic's other rows. */
-        const at = channel !== undefined ? { channel } : opts.pokeChannel !== undefined ? { channel: opts.pokeChannel } : topicWhere(messages.value.filter((m) => m.msg_id !== msgId), task)
-        void poke({ text: body, addressee: to || '', where: at ? { ...at, taskId: task } : { unknown: true, taskId: task } })
+        const named = channel !== undefined ? { channel } : opts.pokeChannel !== undefined ? { channel: opts.pokeChannel } : null
+        const rows = named ? [] : messages.value.filter((m) => m.msg_id !== msgId)
+        void loadMentionPoke().then(({ topicWhere }) => {
+          const at = named || topicWhere(rows, task)
+          void poke({ text: body, addressee: to || '', where: at ? { ...at, taskId: task } : { unknown: true, taskId: task } })
+        }, () => {})
         const own = messages.value.find((m) => m.msg_id === msgId)
         if (own && own.pending && taskId.value === task) {
           merge([{ ...own, pending: false, cursor: ack.cursor, received_at: ack.received_at || own.received_at }])

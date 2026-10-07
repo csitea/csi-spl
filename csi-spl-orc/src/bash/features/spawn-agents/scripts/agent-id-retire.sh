@@ -82,7 +82,9 @@ BOX="$(spl_desk_box_default)"
 
 R="$SPOOL_ROOT"
 VERB=PLAN; [ "$APPLY" = 1 ] && VERB=DO
-step() { printf '%s %-9s %s\n' "$VERB" "$1" "$2"; }
+step() {
+  printf '%s %-9s %s\n' "$VERB" "$1" "$2"
+}
 
 # A window that still carries the id: the agent may be alive. Loose token scan,
 # as the allocator's rule 4 (a tag before, a badge or title after).
@@ -229,7 +231,9 @@ wt_git() {
   if [ "$o" = "$(id -un)" ]; then GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$d" "$@"
   else timeout 60 sudo -n -u "$o" env GIT_TERMINAL_PROMPT=0 git -C "$d" "$@"; fi
 }
-wt_keep() { echo "agent-id-retire: worktree ${WT} kept: $*" >&2; }
+wt_keep() {
+  echo "agent-id-retire: worktree ${WT} kept: $*" >&2
+}
 wt_reap() {
   local top gd cdir repo br up
   [ -n "$WT" ] && [ -d "$WT" ] || return 0

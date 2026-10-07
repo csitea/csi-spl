@@ -14,3 +14,4 @@ Nothing here is normative: the spec is [`spec.md`](spec.md).
 - 2026-10-07T06:00:31Z dev phone 390x844: saved from the WUI Docs view
 - 2026-10-07T06:24:07Z prd desktop 1280x800: saved from the WUI Docs view
 - 2026-10-07T06:28:27Z prd phone 390x844: saved from the WUI Docs view
+- 2026-10-07T06:48:19Z dev desktop 1280x800: saved from the WUI Docs view

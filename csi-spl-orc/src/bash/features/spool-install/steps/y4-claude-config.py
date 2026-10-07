@@ -116,7 +116,11 @@ BOX_KEYS = (("permissions", "defaultMode"), ("permissions", "disableAutoMode"),
 def box_settings(bs):
     if os.path.realpath(bs) == os.path.realpath(st):
         say("%s: the box user's file is the agent's: done above" % bs); return
-    if not os.path.isfile(bs):
+    try:
+        os.stat(bs)
+    except PermissionError:
+        say("%s: not reachable by this user (a home closed to it): left alone" % bs); return
+    except FileNotFoundError:
         say("%s: the box user has no settings.json: left alone" % bs); return
     pick = {}
     for path in BOX_KEYS:

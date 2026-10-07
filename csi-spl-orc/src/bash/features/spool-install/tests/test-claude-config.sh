@@ -16,7 +16,8 @@
 #      the box marker are set; every other key keeps its value (allow list,
 #      statusLine, theme, hooks, a stale fleet value under another key);
 #      a backup of the old file, valid JSON, owner kept (in place); a re-run
-#      rewrites nothing; DRY=1, a missing, an unwritable and a non-JSON file
+#      rewrites nothing; DRY=1, a missing, an unreachable, an unwritable and
+#      a non-JSON file
 #      are left alone and the step still exits 0; the box path equal to the
 #      agent's is the agent merge only; the marker exported in the
 #      environment (a seat does that) does not move the path
@@ -239,6 +240,11 @@ echo '{not json' >"$BS"; step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/e
 step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/box8/none.json" 2>"$T/err8e"; rc=$?
 [ "$rc" = 0 ] && [ ! -e "$T/box8/none.json" ] && grep -q 'has no settings.json: left alone' "$T/err8e" &&
   pass "8: a missing box file is named, not created" || fail "8: missing rc=$rc"
+cp "$TEST_DIR/box-settings.fixture.json" "$BS"; chmod 000 "$T/box8"
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/err8g"; rc=$?; chmod 755 "$T/box8"
+if [ "$(id -u)" = 0 ]; then pass "8: unreachable: skipped (root reaches anything)"
+else [ "$rc" = 0 ] && cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS" && grep -q 'not reachable by this user' "$T/err8g" &&
+  pass "8: a box file in a home closed to this user is named as unreachable, rc 0" || fail "8: unreachable rc=$rc $(cat "$T/err8g")"; fi
 H=$(fresh h8s); step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$H/.claude/settings.json" 2>"$T/err8f"
 grep -q "the box user's file is the agent's" "$T/err8f" && ! grep -q SPOOL_INSTALL_BOX_SETTINGS "$H/.claude/settings.json" &&
   pass "8: box file = agent file: the agent merge only" || fail "8: same file"

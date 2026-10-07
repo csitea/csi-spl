@@ -40,7 +40,8 @@
 #     other key of the human's (allow lists, statusLine, theme, hooks) is
 #     kept as it is. Written in place (owner and mode kept), the previous
 #     file first copied to settings.json.bak-spool-install-box. A missing,
-#     unwritable or non-JSON file is named and left alone, never fatal.
+#     unreachable, unwritable or non-JSON file is named and left alone,
+#     never fatal.
 #
 # Placeholders ({{KEY}}) and where their values come from - never a literal:
 #   AGENT_USER    SPOOL_AGENT_USER, else the user running install.sh

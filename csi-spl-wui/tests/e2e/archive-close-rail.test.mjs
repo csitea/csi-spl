@@ -142,6 +142,10 @@ try {
       await p.goto(`${srv.base}/channel/alerts`, { waitUntil: 'networkidle2' })
       await p.waitForSelector('.spool-shell', { timeout: NAV_TIMEOUT })
       await applyViewport(p, vp)
+      /* 200.html carries .spool-shell before Vue mounts, and isMobile reloads
+         the page: wait for the app, or seedArchived reads an undefined
+         __vue_app__ (run 37574226779, 390 px). */
+      await p.waitForFunction(() => document.querySelector('#__nuxt')?.__vue_app__, { timeout: NAV_TIMEOUT })
     } catch (e) {
       ok(`${vp.name} the shell is up`, false, String(e).slice(0, 240))
       await p.close()

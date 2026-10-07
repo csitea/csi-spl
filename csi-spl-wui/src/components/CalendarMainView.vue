@@ -17,8 +17,8 @@
      PATCH with If-Match; edit_conflict takes the other change and says so.
      097 T017 (G13, spec 4.8 / 5.1.4): a delete shows "Event deleted · Undo"
      for 10 s (the shared UndoSnackbar); Undo restores it with the same id. On
-     a phone it floats 8 px above the bottom bar, full width less 8 px margins,
-     so Today / previous / next stay usable. The calendar menu (the ... button)
+     a phone it sits at the TOP, where the app's other undo bars sit (owner,
+     msg b6f816c2), so Today / previous / next stay usable. The calendar menu (the ... button)
      opens the trash: CalendarTrash, its own lazy chunk. -->
 <template>
   <section
@@ -30,7 +30,7 @@
     :data-view="view"
     :data-state="state"
   >
-    <div ref="barEl" class="cal-main__bar">
+    <div class="cal-main__bar">
       <button type="button" class="btn cal-main__new" data-test="calendar-new" @click="openCreate(focus)"><UiIcon name="plus" :size="16" />{{ t('calendar_event.new') }}</button>
       <button type="button" class="btn ghost" data-test="calendar-today" @click="emit('move', today)">{{ t('calendar.today') }}</button>
       <button type="button" class="icon-btn" data-test="calendar-prev" :aria-label="prevLabel" :title="prevLabel" @click="step(-1)">
@@ -175,8 +175,6 @@
     <UndoSnackbar
       v-if="undoEv"
       :key="undoEv.id"
-      class="cal-undo"
-      :style="{ '--cal-bottom-bar-h': undoLift }"
       testid="calendar-undo"
       :data-id="undoEv.id"
       icon="trash"
@@ -391,18 +389,8 @@ function reload() {
 const CAL_UNDO_MS = 10000
 const undoEv = shallowRef<CalendarItem | null>(null)
 const undoBusy = ref(false)
-/* a phone: the bottom bar's height over the composer dock, so the toast
-   floats 8 px above it (spec M4: bar + dock + 8 px) */
-const undoLift = ref('48px')
-const barEl = ref<HTMLElement | null>(null)
-function measureBar() {
-  const bar = barEl.value
-  if (!props.phone || !bar) return
-  undoLift.value = `calc(${Math.max(0, Math.round(window.innerHeight - bar.getBoundingClientRect().top))}px - var(--composer-dock-h, 0px))`
-}
 function onDeleted(ev: CalendarItem) {
   reload()
-  measureBar()
   undoEv.value = ev
 }
 async function undoDelete() {
@@ -420,8 +408,6 @@ async function undoDelete() {
     undoEv.value = null
   }
 }
-onMounted(() => window.addEventListener('resize', measureBar))
-onBeforeUnmount(() => window.removeEventListener('resize', measureBar))
 
 const MENU_ITEMS: PointMenuItem[] = [{ id: 'trash', icon: 'trash', labelKey: 'calendar_trash.title' }]
 const menu = ref<{ x: number, y: number } | null>(null)
@@ -902,17 +888,5 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 }
 .cal-main--phone .cal-main__views { display: flex; gap: 2px; margin-inline-start: auto; }
 .cal-main__view[aria-pressed='true'] { font-weight: 700; background: var(--color-surface); }
-/* 097 T017 (spec 5.1.4, M4): on a phone the Undo toast floats 8 px above the
-   bottom bar and the composer dock, full width less 8 px margins (the shared
-   snackbar's own phone place is the top) */
-.cal-main--phone .cal-undo {
-  top: auto;
-  bottom: calc(var(--cal-bottom-bar-h, 48px) + var(--composer-dock-h, 0px) + 8px);
-  left: 8px;
-  right: 8px;
-  width: auto;
-  max-width: none;
-  transform: none;
-}
 .cal-main--phone .cal-main__menu { min-height: var(--tap); min-width: var(--tap); }
 </style>

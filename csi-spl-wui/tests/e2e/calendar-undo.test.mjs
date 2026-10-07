@@ -3,10 +3,14 @@
 // AC-07 (UI): delete an event, then Undo: it is back with the same id. The
 //        toast reads "Event deleted · Undo" and goes away by itself after 10 s.
 //        The calendar menu opens the trash; Restore brings the event back.
-// Phone (360x780 and 390x844, spec 5.1.4): the toast floats >= 8 px above the
-//        bottom bar, full width less 8 px margins (374 px at 390); Today,
-//        previous and next stay uncovered; Undo is >= 44 px; the trash is a
-//        full-width view; no sideways scroll.
+// Phone (360x780 and 390x844, spec 5.1.4): the toast sits at the TOP, the
+//        place and look of the app's other phone undo bars (owner, msg
+//        b6f816c2): the archive toast's top (UndoSnackbar: 0.5rem under the
+//        safe-area inset, centred, never wider than the screen less 2rem), far
+//        from the bottom bar; Today, previous and next stay uncovered; Undo is
+//        >= 44 px; the trash is a full-width view; no sideways scroll.
+//        Control: before b6f816c2 the phone toast sat 8 px above the bottom
+//        bar (top ~700 at 390x844), so the top checks FAIL.
 // The mock workspace keeps its writes in localStorage (src/utils/calendar-mock.mjs);
 // the seeded Release (today 09:00, made by the viewer HUM-1) is the event.
 //
@@ -150,18 +154,25 @@ try {
         const b = r(el)
         return Boolean(b && el.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)))
       })
+      /* the archive toast's phone top: UndoSnackbar's 0.5rem (+ a 0 safe-area inset here) */
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
       return {
-        gap: toast && bar ? Math.round(bar.top - toast.bottom) : null,
-        left: toast ? Math.round(toast.left) : null,
+        top: toast ? Math.round(toast.top) : null,
+        archiveTop: Math.round(rem * 0.5),
+        clearOfBar: toast && bar ? Math.round(bar.top - toast.bottom) : null,
+        centre: toast ? Math.round(toast.left + toast.width / 2) : null,
         width: toast ? Math.round(toast.width) : null,
+        maxW: Math.round(window.innerWidth - 2 * rem),
         iw: window.innerWidth,
+        vh: window.innerHeight,
         undoH: undo ? Math.round(undo.height) : 0,
         undoW: undo ? Math.round(undo.width) : 0,
         free,
       }
     }, TOAST, part('undo'))
-    ok(`${name}: the toast sits >= 8 px above the bottom bar`, g.gap !== null && g.gap >= 8, g)
-    ok(`${name}: it spans the width less 8 px margins`, g.left === 8 && g.width === g.iw - 16, g)
+    ok(`${name}: the toast sits at the TOP, at the archive toast's top`, g.top !== null && Math.abs(g.top - g.archiveTop) <= 1, g)
+    ok(`${name}: it is over half a screen clear of the bottom bar`, g.clearOfBar !== null && g.clearOfBar > g.vh / 2, g)
+    ok(`${name}: it is centred like the archive toast, never wider than the screen less 2rem`, Math.abs(g.centre - g.iw / 2) <= 1 && g.width <= g.maxW + 1, g)
     ok(`${name}: Today, previous and next stay uncovered`, g.free.every(Boolean), g.free)
     ok(`${name}: Undo is a 44 px target`, g.undoH >= 44 && g.undoW >= 44, g)
     ok(`${name}: no sideways scroll with the toast`, await noSideways(p))

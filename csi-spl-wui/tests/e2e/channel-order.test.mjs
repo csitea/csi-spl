@@ -21,6 +21,9 @@
 //      open one goes into its messages. Controls: ArrowDown on the last row
 //      stays, a key typed in the composer moves nothing, the rail tabs' own
 //      ArrowDown still walks the tabs
+//   7  spec 103 T006: Enter on the Channels rail tab shows the list and lands
+//      on the open channel's row (panel 1, the vim ring); j there opens the
+//      next channel; h goes back to the rail (panel 0), l into the list again
 //
 // Run:
 //   node tests/e2e/channel-order.test.mjs
@@ -270,6 +273,23 @@ try {
   const tabNow = await p.evaluate(() => document.activeElement?.getAttribute('data-testid') || '')
   ok('6 control: the rail tabs\' own ArrowDown still walks the tabs', /^sidebar-tab-/.test(tabNow) && tabNow !== 'sidebar-tab-channels'
     && (await p.$eval(`[data-testid=${tabNow}]`, (e) => e.getAttribute('aria-selected'))) === 'true', tabNow)
+
+  /* ---- 7. spec 103 T006: Enter on the rail tab, then j / h / l ----------------- */
+  await p.focus('[data-testid=sidebar-tab-channels]')
+  await p.keyboard.press('Enter')
+  ok('7 Enter on the Channels tab lands on the open channel\'s row', await until(p, (want) => {
+    const a = document.activeElement
+    return Boolean(a?.closest('#sidebar-panel-channels')) && a.getAttribute('data-key') === want && a.getAttribute('data-vim-selected') === 'true'
+  }, ids[0], 4000), [await path(), await focusKey()])
+  ok('7 ... and the Channels tab is the selected one', (await p.$eval('[data-testid=sidebar-tab-channels]', (e) => e.getAttribute('aria-selected'))) === 'true')
+  await p.keyboard.press('j')
+  ok('7 j there opens the next channel', await at(ids[1]), [await path(), await focusKey()])
+  await p.keyboard.press('h')
+  ok('7 h goes back to the rail (panel 0)', await until(p, () => Boolean(document.activeElement?.closest('.sidebar-rail')), null, 3000),
+    await p.evaluate(() => document.activeElement?.getAttribute('data-testid') || document.activeElement?.tagName))
+  await p.keyboard.press('l')
+  ok('7 l comes into the list again, on the open channel', await until(p, (want) => document.activeElement?.closest?.('#sidebar-panel-channels a.nav-item')?.getAttribute('data-key') === want, ids[1], 3000),
+    [await path(), await focusKey()])
 
   ok('no page errors', errors.length === 0, errors)
   await p.close()

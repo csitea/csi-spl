@@ -10,6 +10,11 @@
 //   103  T005: the vim listener mounts after idle; h / l / Esc walk the
 //        panels; keys type into the Omnibox; a dialog and the setting off
 //        suspend it (a control proves the same key moves without them)
+//   103  T006: in a DM, Enter walks in: rail tab -> the open DM (panel 1)
+//        -> its messages (2) -> the topic pane on that topic's card (3) ->
+//        the reply composer; j / k walk the rail tabs and the cards. Control:
+//        with Keyboard shortcuts off, Enter on a card opens the topic and the
+//        focus stays on the card
 //   AC8  click People in the rail -> document.activeElement is inside
 //        .spool-main, and the live region says the page title
 //
@@ -216,6 +221,79 @@ try {
     else c.keyboard_shortcuts = was
     s.claims = c
   }, claimWas)
+
+  /* ---- spec 103 T006: Enter walks a DM's panels, 0 -> 1 -> 2 -> 3 -> composer ---- */
+  const DM = 'CLE-07@box-a'
+  await load(p, '/dm/' + encodeURIComponent(DM))
+  await p.waitForSelector('.spool-main article.msg', { visible: true, timeout: 15000 })
+  await until(p, () => document.documentElement.getAttribute('data-vim-nav') === 'on', null, 8000)
+  const focusKey = () => p.evaluate(() => {
+    const a = document.activeElement
+    return a?.getAttribute('data-key') || a?.getAttribute('data-msg-id') || a?.id || a?.tagName || ''
+  })
+  await p.evaluate(() => document.querySelector('.sidebar-rail .sidebar-tab[aria-selected="true"]')?.focus())
+  ok('vim T006: start on the DM rail tab (panel 0)', await until(p, () => document.activeElement?.id === 'sidebar-tab-dm', null, 2000), await focusKey())
+  await p.keyboard.press('j')
+  const railNext = await p.evaluate(() => document.activeElement?.id || '')
+  ok('vim T006: j walks the rail tabs (the next tab, still panel 0)', /^sidebar-tab-/.test(railNext) && railNext !== 'sidebar-tab-dm' && await p.evaluate(vimAt, 0), railNext)
+  await p.keyboard.press('k')
+  ok('vim T006: k comes back to the DM tab', await until(p, () => document.activeElement?.id === 'sidebar-tab-dm', null, 2000), await focusKey())
+  await p.keyboard.press('Enter')
+  ok('vim T006: Enter on the tab lands on the open DM in its list (panel 1)', await until(p, (peer) => {
+    const a = document.activeElement
+    return Boolean(a?.closest('#sidebar-panel-dm')) && a.getAttribute('data-key') === peer
+  }, DM, 3000), await focusKey())
+  ok('... with the one vim ring on it', await p.evaluate(() =>
+    document.querySelectorAll('[data-vim-selected="true"]').length === 1 && document.activeElement?.getAttribute('data-vim-selected') === 'true'))
+  await p.keyboard.press('Enter')
+  ok('vim T006: Enter on the open DM goes into its messages (panel 2, a card)', await until(p, () => Boolean(document.activeElement?.closest('.spool-main article.msg')), null, 3000), await focusKey())
+  const firstCard = await focusKey()
+  await p.keyboard.press('j')
+  ok('vim T006: j walks to the next card', await until(p, (was) => {
+    const a = document.activeElement
+    return Boolean(a?.closest('.spool-main article.msg')) && a.getAttribute('data-msg-id') !== was
+  }, firstCard, 2000), [firstCard, await focusKey()])
+  await p.keyboard.press('k')
+  ok('vim T006: k walks back', await until(p, (was) => document.activeElement?.getAttribute('data-msg-id') === was, firstCard, 2000), await focusKey())
+  const cardTask = await p.evaluate(() => document.activeElement?.getAttribute('data-task-id') || '')
+  await p.keyboard.press('Enter')
+  ok('vim T006: Enter on a card opens its topic and the focus follows into the pane (panel 3)', await until(p, (task) => {
+    const a = document.activeElement
+    return Boolean(a?.closest('aside.live-pane article.msg')) && a.getAttribute('data-task-id') === task
+  }, cardTask, 5000), [cardTask, await focusKey()])
+  ok('... on the vim ring', await p.evaluate(() => document.activeElement?.getAttribute('data-vim-selected') === 'true'))
+  await p.keyboard.press('Enter')
+  ok('vim T006: Enter on a pane card puts the caret in the reply composer', await until(p, () => document.activeElement?.tagName === 'TEXTAREA', null, 2000), await focusKey())
+  /* back into the pane, then Esc walks out: 3 -> 2 -> 1 */
+  await p.evaluate(() => document.querySelector('aside.live-pane article.msg')?.focus())
+  const escWalk = []
+  for (const want of [2, 1, 0]) {
+    await p.keyboard.press('Escape')
+    escWalk.push((await until(p, vimAt, want, 2000)) ? want : `!${await p.evaluate(vimPanel)}`)
+  }
+  ok('vim T006: Esc from the pane walks panels 2, 1, 0', escWalk.join(',') === '2,1,0', escWalk)
+
+  /* control: Keyboard shortcuts off - the card still opens its topic (its own
+     Enter), the focus does not follow into the pane */
+  await p.evaluate(() => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+    s.claims = { ...(s.claims || {}), keyboard_shortcuts: false }
+  })
+  await p.evaluate(() => [...document.querySelectorAll('.spool-main article.msg')].pop()?.focus())
+  const offTask = await p.evaluate(() => document.activeElement?.getAttribute('data-task-id') || '')
+  await p.keyboard.press('Enter')
+  await sleep(1200)
+  ok('vim T006 control: with Keyboard shortcuts off, Enter opens the topic and the focus stays on the card', await p.evaluate((task) => {
+    const a = document.activeElement
+    const paneTask = document.querySelector('aside.live-pane article.msg')?.getAttribute('data-task-id')
+    return Boolean(a?.closest('.spool-main article.msg')) && a.getAttribute('data-task-id') === task && paneTask === task
+  }, offTask), [offTask, await focusKey()])
+  await p.evaluate(() => {
+    const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
+    const c = { ...(s.claims || {}) }
+    delete c.keyboard_shortcuts
+    s.claims = c
+  })
 
   /* ---- AC8: a click on People moves the focus to the page, and says it ---- */
   await load(p, '/lobby')

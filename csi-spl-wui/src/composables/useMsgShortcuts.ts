@@ -21,6 +21,7 @@ import { requestMessageJump } from '~/utils/msg-jump.mjs'
 import { stepRow } from '~/utils/row-keys.mjs'
 import { scrollRowIntoPane } from '~/utils/pane-scroll.mjs'
 import { scrollerOf } from '~/utils/scroll-anchor.mjs'
+import { COMPOSER_FOCUS_EVENT } from '~/utils/touch-ui.mjs'
 import type { Ref } from 'vue'
 
 type CardEntry = {
@@ -293,10 +294,65 @@ export function holdPanel(origin: HTMLElement | null) {
   }, 0)
 }
 
+/* Spec 103 T006 (t1 7d9e1681, owner: "jumping between the panels doesn't
+   work"): Enter in the channel and DM panels. The global vim layer
+   (useVimNavigation) leaves Enter to the row; on a card it means:
+     Panel 2  the card opens its topic (MessageCard's own Enter) and the
+              focus follows it into the topic pane, Panel 3, on its first card
+     Panel 3  the caret goes to the reply composer (as the menu's Reply)
+   Behind the same Keyboard shortcuts switch as every key here. */
+const PANE_WAIT_MS = 3000
+
+/** The vim ring (vim-nav.css) on `el`, the one ring on screen, and the focus. */
+function vimRing(el: HTMLElement) {
+  for (const old of document.querySelectorAll<HTMLElement>('[data-vim-selected]')) if (old !== el) old.removeAttribute('data-vim-selected')
+  el.setAttribute('data-vim-selected', 'true')
+  selectRow(el)
+}
+
+/** After Enter opened `from`'s topic: its first card in the pane takes the focus once drawn. */
+function intoPane(from: HTMLElement) {
+  const want = from.getAttribute('data-task-id') || ''
+  const t0 = Date.now()
+  const tick = () => {
+    /* the reader moved on (a click, another key): not ours any more */
+    const a = document.activeElement
+    if (a && a !== from && a !== document.body) return
+    const pane = document.querySelector<HTMLElement>(TOPIC_PANE)
+    const rows = pane ? [...pane.querySelectorAll<HTMLElement>('article.msg')].filter(shown) : []
+    const late = Date.now() - t0 >= PANE_WAIT_MS
+    /* a pane still on the topic it showed before is not this one's yet */
+    const to = rows.find((el) => !want || el.getAttribute('data-task-id') === want) || (late ? rows[0] : undefined)
+    if (to) return vimRing(to)
+    if (!late) setTimeout(tick, HOLD_EVERY_MS)
+  }
+  setTimeout(tick, 0)
+}
+
+/** Enter on a card, Panel 2 or 3. True when the key was this. */
+function vimEnter(ev: KeyboardEvent, on: boolean): boolean {
+  if (ev.key !== 'Enter' || !on || ev.shiftKey || ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing || ev.repeat) return false
+  if (document.querySelector(OVERLAY_OPEN)) return false
+  const card = ev.target as HTMLElement | null
+  /* only the row itself: Enter on a button or link inside it is that control's */
+  if (!card || !cards.has(card)) return false
+  if (card.closest(TOPIC_PANE)) {
+    if (ev.defaultPrevented || cards.get(card)?.busy()) return false
+    ev.preventDefault()
+    window.dispatchEvent(new CustomEvent(COMPOSER_FOCUS_EVENT))
+    return true
+  }
+  /* defaultPrevented: the card took its Enter and opened its topic */
+  if (!ev.defaultPrevented || !card.closest('.spool-main')) return false
+  intoPane(card)
+  return true
+}
+
 function install() {
   listening = (ev: KeyboardEvent) => {
     const live = cards.values().next().value
     if (!live) return
+    if (vimEnter(ev, live.on.value)) return
     const hit = shortcutFor(ev, { enabled: live.on.value, overlayOpen: Boolean(document.querySelector(OVERLAY_OPEN)) })
     if (!hit) return
     if (hit.type === 'help') {

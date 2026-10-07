@@ -157,7 +157,7 @@
       class="nav-item self-row"
       data-testid="people-self"
       :data-key="roster.self.label"
-      aria-current="true"
+      :aria-current="channel.peer ? undefined : 'true'"
       :title="t('auth.login.signed_in_as', { who: peerName(roster.self.id, roster.self.box) })"
     >
       <SpoolAvatar :id="roster.self.id" :box="roster.self.box" :size="22" />
@@ -203,6 +203,7 @@
       :data-ts="channel.dmAt[p.label] || undefined"
       :data-online="p.online ? '1' : '0'"
       :to="localePath('/dm/' + encodeURIComponent(p.label))"
+      @keydown="onDmRowKey"
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
       <StatusDot :id="p.id" :online="p.online" />
@@ -947,7 +948,34 @@ setLinkOpenHook((path: string) => {
   if (next) tab.value = next
 })
 onBeforeUnmount(() => setLinkOpenHook(null))
+/* spec 103 T006 (t1 7d9e1681): the vim ring (vim-nav.css) on the row the
+   keys moved to, the one ring on screen (useVimNavigation marks it alike) */
+function vimRing(el: HTMLElement) {
+  for (const old of document.querySelectorAll<HTMLElement>('[data-vim-selected]')) if (old !== el) old.removeAttribute('data-vim-selected')
+  el.setAttribute('data-vim-selected', 'true')
+  el.focus({ preventScroll: true })
+}
+/* spec 103 T006: Enter on a rail tab (j / k walk the tabs without opening
+   them) opens that section and puts the focus in its list, Panel 1: the open
+   channel or DM, else the first row. A section with no list here (Issues,
+   Calendar, ...) keeps what its page does with the focus. */
+async function enterRailTab(id: SideTab) {
+  await selectTab(id)
+  await nextTick()
+  const panel = document.getElementById('sidebar-panel-' + id)
+  if (!panel || panel.getClientRects().length === 0) return
+  const rows = [...panel.querySelectorAll<HTMLElement>('.nav-item')].filter((el) => el.getClientRects().length > 0)
+  const to = rows.find((el) => el.matches('.active, [aria-current="page"]')) || rows.find((el) => el.matches('a[href]')) || rows[0]
+  if (to) vimRing(to)
+}
 function onTabKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !phone.value && session.claims?.keyboard_shortcuts !== false) {
+    const id = (e.currentTarget as HTMLElement | null)?.dataset.reorderId as SideTab | undefined
+    if (!id) return
+    e.preventDefault()
+    void enterRailTab(id)
+    return
+  }
   const order = rail.value.map((item) => item.id)
   const i = order.indexOf(tab.value)
   let n = -1
@@ -1444,6 +1472,16 @@ function onChannelRowKey(e: KeyboardEvent) {
   const scroller = to.closest<HTMLElement>('.sidebar-scroll')
   if (scroller) scrollRowIntoPane(scroller, to)
   void navigateTo(localePath('/channel/' + to.dataset.key))
+}
+/* spec 103 T006: Enter on the open DM goes into its messages, Panel 2, as
+   on the open channel (another DM's row opens it: the route then moves the
+   focus to its messages, layouts/default.vue) */
+function onDmRowKey(e: KeyboardEvent) {
+  if (phone.value || e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+  if (session.claims?.keyboard_shortcuts === false) return
+  if (!(e.currentTarget as HTMLElement).classList.contains('active')) return
+  e.preventDefault()
+  focusPane(MIDDLE)
 }
 function swallowDragClick(e: MouseEvent) {
   if (!suppressDragClick) return

@@ -54,6 +54,111 @@
       }
     },
     "schemas": {
+      "Delivery": {
+        "description": "One hub-side delivery row. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.4.",
+        "properties": {
+          "state": {
+            "enum": [
+              "queued",
+              "sent",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "to_box": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "to_box"
+        ],
+        "type": "object"
+      },
+      "EditedMessage": {
+        "description": "The edited row: the view element shape plus the edit marker; edited_* only once edited, kind_* only once the kind was set. Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §2.",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/Delivery"
+            },
+            "type": "array"
+          },
+          "edited_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "edited_by": {
+            "type": "string"
+          },
+          "env": {
+            "$ref": "#/components/schemas/Envelope"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "kind_set_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind_set_by": {
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 2,
+            "type": "integer"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cursor",
+          "deliveries",
+          "env",
+          "received_at",
+          "task_id"
+        ],
+        "type": "object"
+      },
+      "Envelope": {
+        "description": "The hub envelope around the inner message. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §2.4. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.4.",
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "from_box": {
+            "type": "string"
+          },
+          "msg": {
+            "$ref": "#/components/schemas/Message"
+          },
+          "parent_task_id": {
+            "type": "string"
+          },
+          "sig": {
+            "description": "base64 Ed25519 of the box; omitted in a view element (DB payload cut 4), \"\" for a browser post",
+            "type": "string"
+          },
+          "to_box": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_box",
+          "msg",
+          "to_box"
+        ],
+        "type": "object"
+      },
       "ErrorEnvelope": {
         "properties": {
           "detail": {
@@ -67,6 +172,822 @@
         },
         "required": [
           "error"
+        ],
+        "type": "object"
+      },
+      "FileRef": {
+        "description": "A file ref of the inner message. Contract: csi-spl-doc/specs/020-spool-message-v2/contracts/message-schema-v2.md §2.",
+        "properties": {
+          "bytes": {
+            "type": "integer"
+          },
+          "file_id": {
+            "description": "sha256 hex of the stored bytes (blob only)",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "dir"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "blob",
+              "path"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "description": "absolute path on the sending box (path only)",
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "mode",
+          "name"
+        ],
+        "type": "object"
+      },
+      "FlowCounts": {
+        "description": "Flow counters. Contract: csi-spl-doc/specs/062-flow-per-user-counts/contracts/flow-v1.md §2.",
+        "properties": {
+          "channels": {
+            "type": "integer"
+          },
+          "dm": {
+            "type": "integer"
+          },
+          "dms": {
+            "type": "integer"
+          },
+          "mention": {
+            "type": "integer"
+          },
+          "reply": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channels",
+          "dm",
+          "dms",
+          "mention",
+          "reply",
+          "total"
+        ],
+        "type": "object"
+      },
+      "FlowEvent": {
+        "description": "One Flow event (no env). Contract: csi-spl-doc/specs/062-flow-per-user-counts/contracts/flow-v1.md §2.1.",
+        "properties": {
+          "channel": {
+            "description": "null = a DM",
+            "nullable": true,
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "from": {
+            "type": "string"
+          },
+          "from_box": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "mention",
+              "poke",
+              "dm",
+              "reply"
+            ],
+            "type": "string"
+          },
+          "msg_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "parent_task_id": {
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 90,
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "to_box": {
+            "type": "string"
+          },
+          "typed_by": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channel",
+          "cursor",
+          "files",
+          "from",
+          "from_box",
+          "kind",
+          "msg_id",
+          "received_at",
+          "task_id",
+          "text",
+          "to",
+          "to_box",
+          "unread"
+        ],
+        "type": "object"
+      },
+      "Highlighted": {
+        "description": "Plain text with highlight ranges. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md §4.",
+        "properties": {
+          "highlights": {
+            "description": "[start, end) pairs in UTF-16 code units, sorted",
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "highlights",
+          "text"
+        ],
+        "type": "object"
+      },
+      "Issue": {
+        "description": "An issue; an unset deadline, parent, epic, completed_at or canceled_at reads \"\". Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §2, §8.",
+        "properties": {
+          "assignee": {
+            "type": "string"
+          },
+          "canceled_at": {
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "issues"
+            ],
+            "type": "string"
+          },
+          "completed_at": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "epic": {
+            "type": "string"
+          },
+          "key": {
+            "example": "SPL-12",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "epic",
+              "feature",
+              "issue",
+              "subtask"
+            ],
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "level": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "parent": {
+            "type": "string"
+          },
+          "priority": {
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "eval",
+              "todo",
+              "wip",
+              "diss",
+              "blocked",
+              "onhold",
+              "qas",
+              "done"
+            ],
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updated_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignee",
+          "canceled_at",
+          "channel",
+          "completed_at",
+          "created_at",
+          "created_by",
+          "deadline",
+          "description",
+          "epic",
+          "key",
+          "kind",
+          "labels",
+          "level",
+          "number",
+          "parent",
+          "priority",
+          "status",
+          "task_id",
+          "title",
+          "updated_at",
+          "updated_by"
+        ],
+        "type": "object"
+      },
+      "IssueBody": {
+        "description": "One issue. Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1.",
+        "properties": {
+          "issue": {
+            "$ref": "#/components/schemas/Issue"
+          }
+        },
+        "required": [
+          "issue"
+        ],
+        "type": "object"
+      },
+      "IssueLabel": {
+        "description": "An issue label. Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §2.",
+        "properties": {
+          "color": {
+            "pattern": "^#[0-9a-f]{6}$",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "color",
+          "created_at",
+          "created_by",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "IssueWrite": {
+        "additionalProperties": false,
+        "description": "Create (title required) or patch (absent or null = unchanged; \"\" / [] clear) body; unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §3.",
+        "properties": {
+          "assignee": {
+            "type": "string"
+          },
+          "deadline": {
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "epic": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "epic",
+              "feature",
+              "issue"
+            ],
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "level": {
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "parent": {
+            "type": "string"
+          },
+          "priority": {
+            "maximum": 5,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MemberStatus": {
+        "description": "A member's manual status; omitted when available or expired. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.",
+        "properties": {
+          "note": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "busy",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
+      "Message": {
+        "description": "The inner signed message object (v:1 / v:2). In a view element `task_id` is omitted when it equals the topic's and `files` when empty. Contract: csi-spl-doc/specs/002-box-agent-messaging/contracts/message-schema.md. Contract: csi-spl-doc/specs/020-spool-message-v2/contracts/message-schema-v2.md §1.",
+        "properties": {
+          "body": {
+            "maxLength": 65536,
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileRef"
+            },
+            "type": "array"
+          },
+          "from": {
+            "pattern": "^[A-Z]{2,4}-[0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "description": "the kind it was sent with; a later set is hub metadata beside the envelope",
+            "enum": [
+              "task",
+              "result",
+              "note",
+              "reject",
+              "blocker",
+              "msg"
+            ],
+            "type": "string"
+          },
+          "msg_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ref_task_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "to": {
+            "pattern": "^[A-Z]{2,4}-[0-9]+$",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "v": {
+            "enum": [
+              1,
+              2
+            ],
+            "type": "integer"
+          }
+        },
+        "required": [
+          "body",
+          "from",
+          "kind",
+          "msg_id",
+          "to",
+          "ts",
+          "v"
+        ],
+        "type": "object"
+      },
+      "OwnStatus": {
+        "description": "The caller's own status. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.1.",
+        "properties": {
+          "note": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "pause_notify": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "busy",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workspaces": {
+            "description": "all_workspaces only: the tenant ids written",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "pause_notify",
+          "state"
+        ],
+        "type": "object"
+      },
+      "Reaction": {
+        "description": "One emoji and who added it. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1a.",
+        "properties": {
+          "actors": {
+            "description": "member ids, sorted",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "emoji": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "actors",
+          "emoji"
+        ],
+        "type": "object"
+      },
+      "ReadMark": {
+        "description": "One read mark; a write needs cursor or ts. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.2.1.",
+        "properties": {
+          "count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReadMarks": {
+        "description": "A member's read marks. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.2.1. Contract: csi-spl-doc/specs/062-flow-per-user-counts/contracts/flow-v1.md §3.",
+        "properties": {
+          "marks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadMark"
+            },
+            "description": "keys ch:<channel>, t:<task_id>, dm:<peer>, f:seen, f:<msg_id>",
+            "type": "object"
+          }
+        },
+        "required": [
+          "marks"
+        ],
+        "type": "object"
+      },
+      "TopicSummary": {
+        "description": "One topic (thread) of a list. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.3.",
+        "properties": {
+          "channel": {
+            "nullable": true,
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "dm": {
+            "description": "dm_counts=true only",
+            "properties": {
+              "total": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              "unread": {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "first_ts": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "kinds": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "last_ts": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messages": {
+            "description": "per_topic=N only: the topic's newest N messages, newest first",
+            "items": {
+              "$ref": "#/components/schemas/ViewMessage"
+            },
+            "type": "array"
+          },
+          "messages_next": {
+            "type": "string"
+          },
+          "parent_task_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "maxLength": 140,
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "count",
+          "first_ts",
+          "kinds",
+          "last_ts",
+          "parent_task_id",
+          "participants",
+          "subject",
+          "task_id"
+        ],
+        "type": "object"
+      },
+      "TopicsPage": {
+        "description": "A page of topics. The contract's example names the list `threads`; the hub serves it as `topics` (internal/hub/view.go topicsBody). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.3, §4.5.",
+        "properties": {
+          "delta": {
+            "description": "since= only",
+            "type": "boolean"
+          },
+          "gone_msgs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "gone_tasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "next": {
+            "description": "cursor for before=; null on the last page",
+            "nullable": true,
+            "type": "string"
+          },
+          "pointers": {
+            "description": "dm=true&peer= only",
+            "items": {
+              "$ref": "#/components/schemas/ViewMessage"
+            },
+            "type": "array"
+          },
+          "sync": {
+            "type": "string"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "next",
+          "topics"
+        ],
+        "type": "object"
+      },
+      "ViewMessage": {
+        "description": "One stored message as the view serves it; every optional key is omitted while it holds its default. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.4. Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §2.1. Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §5.",
+        "properties": {
+          "channel": {
+            "description": "present on a moved row (\"\" = a DM) or when the row's channel is not in env",
+            "type": "string"
+          },
+          "cursor": {
+            "description": "opaque; pass as after= / before=",
+            "type": "string"
+          },
+          "deliveries": {
+            "description": "omitted when exactly [{to_box: box-wui, state: sent}]; [] = no delivery",
+            "items": {
+              "$ref": "#/components/schemas/Delivery"
+            },
+            "type": "array"
+          },
+          "edited_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "edited_by": {
+            "type": "string"
+          },
+          "env": {
+            "$ref": "#/components/schemas/Envelope"
+          },
+          "hidden": {
+            "description": "true only on a moderator's read",
+            "type": "boolean"
+          },
+          "is_parent": {
+            "enum": [
+              0,
+              1
+            ],
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "kind_set_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind_set_by": {
+            "type": "string"
+          },
+          "mirror_of": {
+            "type": "string"
+          },
+          "moved_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "moved_by": {
+            "type": "string"
+          },
+          "moved_from_channel": {
+            "type": "string"
+          },
+          "moved_from_task": {
+            "type": "string"
+          },
+          "parent_task_id": {
+            "type": "string"
+          },
+          "reactions": {
+            "description": "omitted when nobody reacted",
+            "items": {
+              "$ref": "#/components/schemas/Reaction"
+            },
+            "type": "array"
+          },
+          "received_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ref_task_id": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 2,
+            "type": "integer"
+          },
+          "task_id": {
+            "description": "a moved row's current task",
+            "type": "string"
+          },
+          "typed_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cursor",
+          "env",
+          "is_parent",
+          "received_at"
         ],
         "type": "object"
       }
@@ -477,9 +1398,78 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "A new channel; unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.1.",
+                "properties": {
+                  "channel": {
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+                    "type": "string"
+                  },
+                  "description": {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 80,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "channel"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The created channel. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.1.",
+                  "properties": {
+                    "channel": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "enum": [
+                        false
+                      ],
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "created_at",
+                    "created_by",
+                    "default",
+                    "description",
+                    "name"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -514,8 +1504,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: soft-deleted by its creator. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.4."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -547,9 +1537,49 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Owner only. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                "properties": {
+                  "members_open_invite": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "members_open_invite"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The saved invite setting. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                  "properties": {
+                    "channel": {
+                      "type": "string"
+                    },
+                    "members_open_invite": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "members_open_invite"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: saved"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -586,9 +1616,59 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                "properties": {
+                  "box": {
+                    "description": "the box that announced it, not box-wui",
+                    "type": "string"
+                  },
+                  "id": {
+                    "pattern": "^[A-Z]{2,4}-[0-9]+$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "box",
+                  "id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The seated agent. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                  "properties": {
+                    "box": {
+                      "type": "string"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "box",
+                    "channel",
+                    "id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -642,8 +1722,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: the agent is out of the channel. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -718,7 +1798,112 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The channel's people and agents. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                  "properties": {
+                    "agents": {
+                      "items": {
+                        "properties": {
+                          "box": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "online": {
+                            "type": "boolean"
+                          },
+                          "seated": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "box",
+                          "id",
+                          "online",
+                          "seated"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "type": "boolean"
+                    },
+                    "fallback": {
+                      "description": "present when the fallback responder is configured",
+                      "properties": {
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "box": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "off": {
+                          "type": "boolean"
+                        },
+                        "recent": {
+                          "properties": {
+                            "at": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "count": {
+                              "type": "integer"
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "count"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "members": {
+                      "description": "member HUM ids",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "members_open_invite": {
+                      "type": "boolean"
+                    },
+                    "responders": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "agents",
+                    "channel",
+                    "created_by",
+                    "default",
+                    "members",
+                    "members_open_invite"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the members"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -750,9 +1935,54 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                "properties": {
+                  "human_id": {
+                    "description": "a member of the tenant",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "human_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The added member. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4.",
+                  "properties": {
+                    "added_by": {
+                      "type": "string"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "human_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "added_by",
+                    "channel",
+                    "human_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -798,8 +2028,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: removed (or left). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §7.4."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -864,9 +2094,89 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Which CI log to fetch and to whom. Bearer upload token. Contract: csi-spl-doc/specs/008-spool-cicd-logs/contracts/fetch-deliver.md §2.",
+                "properties": {
+                  "job": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  },
+                  "run_id": {
+                    "type": "string"
+                  },
+                  "task_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "to": {
+                    "pattern": "^[A-Z]{2,4}-[0-9]+$",
+                    "type": "string"
+                  },
+                  "to_box": {
+                    "description": "the token's box (defaulted when empty)",
+                    "type": "string"
+                  },
+                  "url": {
+                    "description": "a run URL (or owner + repo + run_id)",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "task_id",
+                  "to"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The log message as delivered. Contract: csi-spl-doc/specs/008-spool-cicd-logs/contracts/fetch-deliver.md §2.",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "delivery": {
+                      "enum": [
+                        "sent",
+                        "queued"
+                      ],
+                      "type": "string"
+                    },
+                    "msg_id": {
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "delivery",
+                    "msg_id",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the log was fetched and delivered"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -895,7 +2205,38 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The client-ip probe (only mounted with the probe flag). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.2.",
+                  "properties": {
+                    "client_ip": {
+                      "type": "string"
+                    },
+                    "peer": {
+                      "type": "string"
+                    },
+                    "trusted_proxy_hops": {
+                      "type": "integer"
+                    },
+                    "x_forwarded_for": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "client_ip",
+                    "peer",
+                    "trusted_proxy_hops",
+                    "x_forwarded_for"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: what the edge saw"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1171,9 +2512,46 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "description": "Raw bytes, at most the per-file limit (413 limit_file). Bearer upload token. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §3.",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The stored file, content-addressed. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §3.",
+                  "properties": {
+                    "bytes": {
+                      "type": "integer"
+                    },
+                    "file_id": {
+                      "description": "sha256 hex",
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "bytes",
+                    "file_id",
+                    "sha256"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created: the bytes are stored (also for bytes already held)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1208,8 +2586,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: deleted. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md §5."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1243,7 +2621,16 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "description": "The stored bytes, streamed (Content-Disposition: attachment). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §3.",
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK: the bytes"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1271,7 +2658,26 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.2.",
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "ok"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: alive"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1294,9 +2700,51 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §2.",
+                "properties": {
+                  "color": {
+                    "description": "#rrggbb, default #6b7280",
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 40,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1.",
+                  "properties": {
+                    "label": {
+                      "$ref": "#/components/schemas/IssueLabel"
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1322,9 +2770,31 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueWrite"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/IssueBody"
+                    }
+                  ],
+                  "description": "Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1."
+                }
+              }
+            },
+            "description": "Created"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1360,7 +2830,31 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The row as deleted. Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1.",
+                  "properties": {
+                    "descendants": {
+                      "description": "keys soft-deleted with it (?cascade=1)",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "issue": {
+                      "$ref": "#/components/schemas/Issue"
+                    }
+                  },
+                  "required": [
+                    "descendants",
+                    "issue"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: soft-deleted"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1392,9 +2886,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueWrite"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/IssueBody"
+                    }
+                  ],
+                  "description": "Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1."
+                }
+              }
+            },
+            "description": "OK: the patched issue"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1577,9 +3093,54 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §7.",
+                "properties": {
+                  "channel_order": {
+                    "description": "at most 200 channel ids; [] clears",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "channel_order"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §7.",
+                  "properties": {
+                    "channel_order": {
+                      "description": "normalized ids; null = cleared",
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "channel_order"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the saved order"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1607,7 +3168,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadMarks"
+                }
+              }
+            },
+            "description": "OK: every mark of the member. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.2.1."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1628,9 +3196,31 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ReadMarks"
+                  }
+                ],
+                "description": "At most 200 marks, forward-only; unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.2.1."
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadMarks"
+                }
+              }
+            },
+            "description": "OK: the marks just written (?full=1: every mark). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.2.1."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1658,7 +3248,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnStatus"
+                }
+              }
+            },
+            "description": "OK: the caller's own status. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.1."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1681,7 +3278,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnStatus"
+                }
+              }
+            },
+            "description": "OK: the caller's own status. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.1."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1702,9 +3306,59 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.1.",
+                "properties": {
+                  "all_workspaces": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "maxLength": 80,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "pause_notify": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "state": {
+                    "enum": [
+                      "available",
+                      "busy",
+                      "unavailable"
+                    ],
+                    "type": "string"
+                  },
+                  "until": {
+                    "description": "RFC 3339, after now, at most 90 days out; \"\" = no end",
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnStatus"
+                }
+              }
+            },
+            "description": "OK: the caller's own status. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.1."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1732,7 +3386,164 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The tenant's members, pending invites and roles. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                  "properties": {
+                    "invites": {
+                      "items": {
+                        "properties": {
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "expired": {
+                            "type": "boolean"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "invited_by": {
+                            "type": "string"
+                          },
+                          "mail_count": {
+                            "type": "integer"
+                          },
+                          "mailed_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "ordered_by": {
+                            "type": "string"
+                          },
+                          "ordered_by_name": {
+                            "type": "string"
+                          },
+                          "ordered_via": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "members": {
+                      "items": {
+                        "properties": {
+                          "access_ended": {
+                            "type": "boolean"
+                          },
+                          "access_until": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "disabled": {
+                            "type": "boolean"
+                          },
+                          "display_name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "human_id": {
+                            "type": "string"
+                          },
+                          "invited_on": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "manageable": {
+                            "type": "boolean"
+                          },
+                          "ordered_by": {
+                            "type": "string"
+                          },
+                          "ordered_by_name": {
+                            "type": "string"
+                          },
+                          "ordered_via": {
+                            "type": "string"
+                          },
+                          "role": {
+                            "type": "string"
+                          },
+                          "sign_in": {
+                            "description": "sign-in methods, sorted",
+                            "items": {
+                              "type": "string"
+                            },
+                            "nullable": true,
+                            "type": "array"
+                          },
+                          "since": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "suspended": {
+                            "type": "boolean"
+                          },
+                          "you": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "roles": {
+                      "items": {
+                        "properties": {
+                          "grantable": {
+                            "type": "boolean"
+                          },
+                          "id": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "grantable",
+                          "id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "you": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "invites",
+                    "members",
+                    "roles",
+                    "tenant_id",
+                    "you"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the members"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1756,8 +3567,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: the invite (query email=) is revoked. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025)."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1778,9 +3589,81 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Content-Type application/json; unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "no_mail": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "role": {
+                    "description": "default developer",
+                    "type": "string"
+                  },
+                  "ttl_hours": {
+                    "description": "0 = 168",
+                    "maximum": 720,
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "email"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The invite. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "invited_by": {
+                      "type": "string"
+                    },
+                    "mail": {
+                      "description": "not_sent, not_configured, send_failed or the mailer's result (sent, logged, rate_limited)",
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "expires_at",
+                    "invited_by",
+                    "mail",
+                    "role",
+                    "tenant_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1815,8 +3698,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: the member is removed. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025)."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1923,9 +3806,52 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Content-Type application/json ({} for the defaults). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                "properties": {
+                  "sign_out": {
+                    "description": "absent or null = true",
+                    "nullable": true,
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The reset link was mailed. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "human_id": {
+                      "type": "string"
+                    },
+                    "signed_out": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "human_id",
+                    "signed_out"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: mailed"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -1962,9 +3888,57 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                "properties": {
+                  "from_role": {
+                    "description": "optimistic check: 409 role_changed on mismatch",
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.4 (inventory; owning spec 025).",
+                  "properties": {
+                    "human_id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "human_id",
+                    "role",
+                    "tenant_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the role is set"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2002,8 +3976,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          "204": {
+            "description": "No Content: deleted with its reactions. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/wui-live-ws.md §3.2 message_deleted. Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §7."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2035,9 +4009,43 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §1.",
+                "properties": {
+                  "body": {
+                    "description": "the complete new body, not blank",
+                    "maxLength": 65536,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/EditedMessage"
+                    }
+                  ],
+                  "description": "Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §2."
+                }
+              }
+            },
+            "description": "OK: the edited row"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2076,7 +4084,40 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "archived_at / archived_by only while archived. Contract: csi-spl-doc/specs/041-spool-topic-archive-delete/contracts/topic-archive-v1.md §2.",
+                  "properties": {
+                    "archived": {
+                      "type": "boolean"
+                    },
+                    "archived_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "archived_by": {
+                      "type": "string"
+                    },
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "archived",
+                    "msg_id",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: unarchived (idempotent)"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2110,7 +4151,40 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "archived_at / archived_by only while archived. Contract: csi-spl-doc/specs/041-spool-topic-archive-delete/contracts/topic-archive-v1.md §2.",
+                  "properties": {
+                    "archived": {
+                      "type": "boolean"
+                    },
+                    "archived_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "archived_by": {
+                      "type": "string"
+                    },
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "archived",
+                    "msg_id",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: archived (idempotent)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2220,9 +4294,49 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/020-spool-message-v2/contracts/message-schema-v2.md §1 (kind).",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "task",
+                      "result",
+                      "note",
+                      "reject",
+                      "blocker",
+                      "msg"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/EditedMessage"
+                    }
+                  ],
+                  "description": "Contract: csi-spl-doc/specs/020-spool-message-v2/contracts/message-schema-v2.md §1 (kind)."
+                }
+              }
+            },
+            "description": "OK: the row with kind, kind_set_at, kind_set_by"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2259,9 +4373,55 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §11.",
+                "properties": {
+                  "into": {
+                    "description": "the msg_id that keeps the text; not the path msg_id",
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "into"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/EditedMessage"
+                    },
+                    {
+                      "properties": {
+                        "merged_from": {
+                          "format": "uuid",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "merged_from"
+                      ],
+                      "type": "object"
+                    }
+                  ],
+                  "description": "The kept row plus the deleted source's id. Contract: csi-spl-doc/specs/032-spool-message-edit/contracts/message-edit-v1.md §11."
+                }
+              }
+            },
+            "description": "OK: merged"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2337,9 +4497,113 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Exactly one of to_channel (a topic card) or to_task (a reply). Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §2, §3.",
+                "properties": {
+                  "to_channel": {
+                    "type": "string"
+                  },
+                  "to_task": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "kind topic (to_channel) or message (to_task; adds from_task, received_at). Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §2, §3.",
+                  "properties": {
+                    "channel": {
+                      "description": "\"\" = a DM",
+                      "type": "string"
+                    },
+                    "from_channel": {
+                      "type": "string"
+                    },
+                    "from_task": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "topic",
+                        "message"
+                      ],
+                      "type": "string"
+                    },
+                    "moved": {
+                      "description": "false = moved back home",
+                      "type": "boolean"
+                    },
+                    "moved_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "moved_by": {
+                      "type": "string"
+                    },
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "msg_ids": {
+                      "items": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "received_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "undo": {
+                      "description": "the body that undoes this move",
+                      "properties": {
+                        "to_channel": {
+                          "type": "string"
+                        },
+                        "to_task": {
+                          "format": "uuid",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "from_channel",
+                    "kind",
+                    "moved",
+                    "moved_at",
+                    "moved_by",
+                    "msg_id",
+                    "msg_ids",
+                    "task_id",
+                    "undo"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: moved"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2415,9 +4679,60 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1a.",
+                "properties": {
+                  "emoji": {
+                    "description": "a glyph the WUI offers",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "emoji"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1a.",
+                  "properties": {
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "reactions": {
+                      "description": "first-added order; [] when none remain",
+                      "items": {
+                        "$ref": "#/components/schemas/Reaction"
+                      },
+                      "type": "array"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "msg_id",
+                    "reactions",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the message's reactions"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2449,9 +4764,60 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1a.",
+                "properties": {
+                  "emoji": {
+                    "description": "a glyph the WUI offers",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "emoji"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1a.",
+                  "properties": {
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "reactions": {
+                      "description": "first-added order; [] when none remain",
+                      "items": {
+                        "$ref": "#/components/schemas/Reaction"
+                      },
+                      "type": "array"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "msg_id",
+                    "reactions",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the message's reactions (idempotent)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -2490,7 +4856,50 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/041-spool-topic-archive-delete/contracts/topic-archive-v1.md §4.",
+                  "properties": {
+                    "deleted": {
+                      "type": "integer"
+                    },
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "msg_ids": {
+                      "description": "card first",
+                      "items": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "task_ids": {
+                      "items": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "deleted",
+                    "msg_id",
+                    "msg_ids",
+                    "task_id",
+                    "task_ids"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the topic is deleted"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -2982,7 +5391,39 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The tenant's active box pins (revoked omitted). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §4.",
+                  "properties": {
+                    "pins": {
+                      "items": {
+                        "properties": {
+                          "box_id": {
+                            "type": "string"
+                          },
+                          "pubkey": {
+                            "description": "base64 raw 32-byte Ed25519 key",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "box_id",
+                          "pubkey"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "pins"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the pins"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3003,9 +5444,68 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "A tenant-root-signed pin. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §4. Contract: csi-spl-doc/specs/014-spool-wui-dispatch/contracts/wui-dispatch.md §2.2.",
+                "properties": {
+                  "box_id": {
+                    "type": "string"
+                  },
+                  "force": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "pubkey": {
+                    "description": "base64 raw 32-byte key; for box-wui the hub's own key",
+                    "type": "string"
+                  },
+                  "sig": {
+                    "description": "tenant root key over jq -cS '{box_id,force,pubkey,ts}'",
+                    "type": "string"
+                  },
+                  "ts": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "box_id",
+                  "pubkey",
+                  "sig",
+                  "ts"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The pin as stored. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §4. Contract: csi-spl-doc/specs/004-spool-identity-routing/contracts/pin-semantics.md §2.",
+                  "properties": {
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "pubkey": {
+                      "description": "base64 raw 32-byte Ed25519 key",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "box_id",
+                    "pubkey"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: pinned (same key = no-op)"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3039,9 +5539,63 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "A tenant-root-signed revoke. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §4.",
+                "properties": {
+                  "box_id": {
+                    "description": "equals the path box_id",
+                    "type": "string"
+                  },
+                  "sig": {
+                    "description": "tenant root key over jq -cS '{box_id,op:\"revoke\",ts}'",
+                    "type": "string"
+                  },
+                  "ts": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "box_id",
+                  "sig",
+                  "ts"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Revoked (an already revoked pin is a no-op). Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §4.",
+                  "properties": {
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "revoked": {
+                      "description": "the string \"true\"",
+                      "enum": [
+                        "true"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "box_id",
+                    "revoked"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: revoked"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3380,7 +5934,69 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Archived cards, newest archived_at first. Contract: csi-spl-doc/specs/041-spool-topic-archive-delete/contracts/topic-archive-v1.md §5.",
+                  "properties": {
+                    "cards": {
+                      "items": {
+                        "properties": {
+                          "archived_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "archived_by": {
+                            "type": "string"
+                          },
+                          "can_delete": {
+                            "type": "boolean"
+                          },
+                          "channel": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "$ref": "#/components/schemas/ViewMessage"
+                          },
+                          "msg_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "replies": {
+                            "type": "integer"
+                          },
+                          "task_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "archived_at",
+                          "archived_by",
+                          "can_delete",
+                          "message",
+                          "msg_id",
+                          "replies",
+                          "task_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "next": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "cards",
+                    "next"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the archived cards"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3405,7 +6021,104 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.2. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/channels-v1.md §5.2.",
+                  "properties": {
+                    "channels": {
+                      "description": "newest activity first",
+                      "items": {
+                        "properties": {
+                          "channel": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": "string"
+                          },
+                          "default": {
+                            "type": "boolean"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "last_cursor": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "last_ts": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "members": {
+                            "properties": {
+                              "agents": {
+                                "type": "integer"
+                              },
+                              "boxes": {
+                                "type": "integer"
+                              },
+                              "posters": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "agents",
+                              "boxes",
+                              "posters"
+                            ],
+                            "type": "object"
+                          },
+                          "members_open_invite": {
+                            "type": "boolean"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "retention_days": {
+                            "type": "integer"
+                          },
+                          "unread": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "channel",
+                          "count",
+                          "created_at",
+                          "created_by",
+                          "default",
+                          "description",
+                          "last_cursor",
+                          "last_ts",
+                          "members",
+                          "members_open_invite",
+                          "name",
+                          "retention_days",
+                          "unread"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "channels"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the channels"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3430,7 +6143,46 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/062-flow-per-user-counts/contracts/flow-v1.md §2.",
+                  "properties": {
+                    "counts": {
+                      "$ref": "#/components/schemas/FlowCounts"
+                    },
+                    "events": {
+                      "description": "newest first; absent with counts_only=true",
+                      "items": {
+                        "$ref": "#/components/schemas/FlowEvent"
+                      },
+                      "type": "array"
+                    },
+                    "keys": {
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "description": "unread per sidebar row",
+                      "type": "object"
+                    },
+                    "next": {
+                      "description": "\"\" on the last page; absent with counts_only=true",
+                      "type": "string"
+                    },
+                    "unread": {
+                      "$ref": "#/components/schemas/FlowCounts"
+                    }
+                  },
+                  "required": [
+                    "counts",
+                    "keys",
+                    "unread"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the member's Flow"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3453,9 +6205,85 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "At most 50 distinct ids; Content-Type application/json. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.6.",
+                "properties": {
+                  "ids": {
+                    "description": "a uuid or its first 8 hex digits",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Readable ids only; others are left out. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.6.",
+                  "properties": {
+                    "ids": {
+                      "items": {
+                        "properties": {
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "channel": {
+                            "description": "omitted for a DM",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "topic",
+                              "message"
+                            ],
+                            "type": "string"
+                          },
+                          "msg_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "peer": {
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "archived",
+                          "id",
+                          "kind",
+                          "task_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "ids"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the resolved ids"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3483,7 +6311,113 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1, §4, §8.",
+                  "properties": {
+                    "channel": {
+                      "enum": [
+                        "issues"
+                      ],
+                      "type": "string"
+                    },
+                    "counts": {
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "description": "per status over the filtered set",
+                      "type": "object"
+                    },
+                    "epics": {
+                      "items": {
+                        "properties": {
+                          "canceled": {
+                            "type": "integer"
+                          },
+                          "counts": {
+                            "additionalProperties": {
+                              "type": "integer"
+                            },
+                            "type": "object"
+                          },
+                          "done": {
+                            "type": "integer"
+                          },
+                          "key": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "epic",
+                              "feature"
+                            ],
+                            "type": "string"
+                          },
+                          "number": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "total": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "canceled",
+                          "counts",
+                          "done",
+                          "key",
+                          "kind",
+                          "number",
+                          "status",
+                          "title",
+                          "total"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "issues": {
+                      "items": {
+                        "$ref": "#/components/schemas/Issue"
+                      },
+                      "type": "array"
+                    },
+                    "labels": {
+                      "items": {
+                        "$ref": "#/components/schemas/IssueLabel"
+                      },
+                      "type": "array"
+                    },
+                    "prefix": {
+                      "type": "string"
+                    },
+                    "statuses": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "channel",
+                    "counts",
+                    "epics",
+                    "issues",
+                    "labels",
+                    "prefix",
+                    "statuses"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the issues"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3516,7 +6450,19 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/IssueBody"
+                    }
+                  ],
+                  "description": "Contract: csi-spl-doc/specs/039-spool-issues/contracts/issues-v1.md §1."
+                }
+              }
+            },
+            "description": "OK: the issue"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3580,7 +6526,79 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The reader's roles and permissions. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/http-v1.md §1.3. Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §7.",
+                  "properties": {
+                    "act_as": {
+                      "nullable": true,
+                      "properties": {
+                        "expires_at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "target_hum": {
+                          "type": "string"
+                        },
+                        "target_name": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "channel_order": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true,
+                      "type": "array"
+                    },
+                    "human_id": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "permissions": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "nullable": true,
+                      "type": "array"
+                    },
+                    "role": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "tenant_id": {
+                      "type": "string"
+                    },
+                    "tenant_owner": {
+                      "nullable": true,
+                      "type": "boolean"
+                    },
+                    "topic_archive_policy": {
+                      "enum": [
+                        "everyone",
+                        "admins",
+                        "starter"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "act_as",
+                    "channel_order",
+                    "human_id",
+                    "permissions",
+                    "role",
+                    "tenant_id",
+                    "tenant_owner"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the reader"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3613,7 +6631,56 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/045-spool-move-by-drag/contracts/move-v1.md §4.",
+                  "properties": {
+                    "can_move": {
+                      "type": "boolean"
+                    },
+                    "channel": {
+                      "type": "string"
+                    },
+                    "is_card": {
+                      "type": "boolean"
+                    },
+                    "moved_from_channel": {
+                      "type": "string"
+                    },
+                    "moved_from_task": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "refusal": {
+                      "enum": [
+                        "lobby",
+                        "not_in_channel",
+                        "issue_topic"
+                      ],
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "can_move",
+                    "channel",
+                    "is_card",
+                    "msg_id",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: whether it can move"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3649,7 +6716,60 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/041-spool-topic-archive-delete/contracts/topic-archive-v1.md §3.",
+                  "properties": {
+                    "archived": {
+                      "type": "boolean"
+                    },
+                    "archived_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "archived_by": {
+                      "type": "string"
+                    },
+                    "can_archive": {
+                      "type": "boolean"
+                    },
+                    "can_delete": {
+                      "type": "boolean"
+                    },
+                    "msg_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "replies": {
+                      "type": "integer"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "task_ids": {
+                      "items": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "archived",
+                    "can_archive",
+                    "can_delete",
+                    "msg_id",
+                    "replies",
+                    "task_id",
+                    "task_ids"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: what a delete would remove"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3675,9 +6795,103 @@
             "$ref": "#/components/parameters/TenantHeader"
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "At most 20 distinct ids; Content-Type application/json. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.7.",
+                "properties": {
+                  "ids": {
+                    "description": "full uuids",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Readable ids only. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.7.",
+                  "properties": {
+                    "previews": {
+                      "items": {
+                        "properties": {
+                          "archived": {
+                            "type": "boolean"
+                          },
+                          "channel": {
+                            "description": "omitted for a DM",
+                            "type": "string"
+                          },
+                          "excerpt": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "topic",
+                              "message"
+                            ],
+                            "type": "string"
+                          },
+                          "msg_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "peer": {
+                            "type": "string"
+                          },
+                          "task_id": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "title": {
+                            "maxLength": 100,
+                            "type": "string"
+                          },
+                          "ts": {
+                            "format": "date-time",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "archived",
+                          "excerpt",
+                          "from",
+                          "id",
+                          "kind",
+                          "task_id",
+                          "title",
+                          "ts"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "previews"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the preview cards"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -3705,7 +6919,221 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.",
+                  "properties": {
+                    "boxes": {
+                      "items": {
+                        "description": "The fact-sheet keys are omitted until the box reported one.",
+                        "properties": {
+                          "agent_presence": {
+                            "additionalProperties": {
+                              "properties": {
+                                "last_seen": {
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "state": {
+                                  "enum": [
+                                    "online",
+                                    "offline"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "last_seen",
+                                "state"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "object"
+                          },
+                          "agents": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "box_id": {
+                            "type": "string"
+                          },
+                          "facts_reported_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "last_hello_at": {
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "network": {
+                            "properties": {
+                              "dns": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "gateway": {
+                                "type": "string"
+                              },
+                              "ips": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "online": {
+                            "type": "boolean"
+                          },
+                          "os": {
+                            "properties": {
+                              "arch": {
+                                "type": "string"
+                              },
+                              "kernel": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "pretty": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "pubkey": {
+                            "description": "base64",
+                            "type": "string"
+                          },
+                          "revoked": {
+                            "type": "boolean"
+                          },
+                          "runtimes": {
+                            "additionalProperties": {
+                              "type": "string"
+                            },
+                            "description": "run-time or CLI name to version",
+                            "type": "object"
+                          },
+                          "seated_at": {
+                            "additionalProperties": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "system": {
+                            "properties": {
+                              "boot_at": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "cpu_model": {
+                                "type": "string"
+                              },
+                              "cpus": {
+                                "type": "integer"
+                              },
+                              "hostname": {
+                                "type": "string"
+                              },
+                              "load": {
+                                "type": "string"
+                              },
+                              "mem_avail_mb": {
+                                "type": "integer"
+                              },
+                              "mem_total_mb": {
+                                "type": "integer"
+                              },
+                              "state": {
+                                "type": "string"
+                              },
+                              "swap_free_mb": {
+                                "type": "integer"
+                              },
+                              "swap_total_mb": {
+                                "type": "integer"
+                              },
+                              "timezone": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "agents",
+                          "box_id",
+                          "last_hello_at",
+                          "online",
+                          "pubkey",
+                          "revoked"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "humans": {
+                      "items": {
+                        "properties": {
+                          "avatar_file_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "display_name": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "human_id": {
+                            "type": "string"
+                          },
+                          "interests": {
+                            "type": "string"
+                          },
+                          "last_seen": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "owner": {
+                            "description": "only ever true",
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "$ref": "#/components/schemas/MemberStatus"
+                          }
+                        },
+                        "required": [
+                          "avatar_file_id",
+                          "display_name",
+                          "human_id"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "boxes",
+                    "humans"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the roster"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3730,7 +7158,86 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Grouped results. The contract calls the topic group `threads`; the hub serves `topics`. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md §4.",
+                  "properties": {
+                    "groups": {
+                      "additionalProperties": {
+                        "properties": {
+                          "next": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "results": {
+                            "items": {
+                              "description": "one row of the group's type: search-v1 §4.1 .. §4.9",
+                              "type": "object"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "next",
+                          "results"
+                        ],
+                        "type": "object"
+                      },
+                      "description": "one key per searched type, plural: messages, topics, files, robots, users, channels, boxes, tenants, events, issues",
+                      "type": "object"
+                    },
+                    "query": {
+                      "type": "string"
+                    },
+                    "sort": {
+                      "enum": [
+                        "newest",
+                        "relevance"
+                      ],
+                      "type": "string"
+                    },
+                    "types": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "warnings": {
+                      "items": {
+                        "properties": {
+                          "detail": {
+                            "type": "string"
+                          },
+                          "pos": {
+                            "type": "integer"
+                          },
+                          "token": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "detail",
+                          "pos",
+                          "token"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "groups",
+                    "query",
+                    "sort",
+                    "types",
+                    "warnings"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the results"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3755,7 +7262,111 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The search grammar as data. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/search-v1.md §6.",
+                  "properties": {
+                    "operators": {
+                      "items": {
+                        "properties": {
+                          "aliases": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "applies_to": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "doc": {
+                            "type": "string"
+                          },
+                          "enum": {
+                            "additionalProperties": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "type": "object"
+                          },
+                          "example": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "values": {
+                            "enum": [
+                              "text",
+                              "id",
+                              "box",
+                              "enum",
+                              "date",
+                              "size",
+                              "uuid",
+                              "channel",
+                              "ext",
+                              "type"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "aliases",
+                          "applies_to",
+                          "doc",
+                          "example",
+                          "name",
+                          "values"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "types": {
+                      "items": {
+                        "properties": {
+                          "aliases": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "group": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "aliases",
+                          "group",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "operators",
+                    "types",
+                    "version"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the grammar"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3780,7 +7391,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicsPage"
+                }
+              }
+            },
+            "description": "OK: a page of topics. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.3."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3813,7 +7431,43 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "One topic's messages; archived_* only on an archived topic read without after=. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.4. Contract: csi-spl-doc/specs/041-spool-topic-archive-delete/contracts/topic-archive-v1.md §5.1.",
+                  "properties": {
+                    "archived_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "archived_by": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "items": {
+                        "$ref": "#/components/schemas/ViewMessage"
+                      },
+                      "type": "array"
+                    },
+                    "next": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "messages",
+                    "next",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the messages"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3849,7 +7503,14 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicsPage"
+                }
+              }
+            },
+            "description": "OK: the child topics. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.5."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -4012,7 +7673,35 @@
         ],
         "responses": {
           "200": {
-            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The hub-held box-wui public key. Contract: csi-spl-doc/specs/014-spool-wui-dispatch/contracts/wui-dispatch.md §2.2.",
+                  "properties": {
+                    "box_id": {
+                      "enum": [
+                        "box-wui"
+                      ],
+                      "type": "string"
+                    },
+                    "dispatch": {
+                      "type": "boolean"
+                    },
+                    "pubkey": {
+                      "description": "base64",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "box_id",
+                    "dispatch",
+                    "pubkey"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the key"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

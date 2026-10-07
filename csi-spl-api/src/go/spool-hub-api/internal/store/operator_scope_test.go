@@ -27,6 +27,7 @@ var operatorCallers = map[string]string{
 	"PruneLifecycleEvents": "agent_lifecycle_events 90-day retention (hub sweeper goroutine, spec 063 12), global by design; no route",
 	"PrunePerfSamples":     "wui_perf_samples 30-day retention (hub sweeper goroutine, spec 066 4), global by design; no route",
 	"PruneBoxStats":        "box_stats 30-day retention (hub sweeper goroutine, rdb 0117), global by design; no route",
+	"PruneBoxBeats":        "box_beats 2-day retention (hub sweeper goroutine, rdb 0147), global by design; no route",
 	"SetTenantHost":        "tenant host reconciler (operator action / hub-tenant); no route",
 	"Memberships":          "auth session (026 tenant from identity): the SESSION's own human_id, across that human's tenants",
 	"LiveInviteTenants":    "sign-in that named no tenant (SPL-1230): the SESSION's own provider-verified address, its live invites across tenants",

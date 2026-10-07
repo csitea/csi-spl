@@ -36,6 +36,7 @@
 //	memory  add --title <t> --text <t|-> | memory show <title> | memory index
 //	          hub mode: the shared memory of the agents: add or merge a lesson, read one, the index (spec 102 12)
 //	box-stats put --json <file|-> | box-stats list [--box <b>] [--since 20h]
+//	box-beat put --pid <n> | box-beat list [--box <b>] [--since 10m]
 //	          hub mode: append one box load + memory sample, or read the history (rdb 0117)
 //	fleet-load get
 //	          hub mode: the instance's fleet load target, {low, high, box_order, source} (rdb 0118)
@@ -132,6 +133,7 @@ on a box (an agent's machine):
   lifecycle           print the agent lifecycle config (config), or append one event (event --json)
   memory              add or merge a lesson in the shared memory (add), read one (show), the titles (index)
   box-stats           append one box load + memory sample (put --json), or read the history (list)
+  box-beat            beat this box once and print the hub's ack (put --pid), or read the beats (list)
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
@@ -266,6 +268,8 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLane(cfg, rest)
 	case "box-stats": // rdb 0117
 		return cmdBoxStats(cfg, rest)
+	case "box-beat": // spec 102 10.2, rdb 0147
+		return cmdBoxBeat(cfg, rest)
 	case "fleet-load": // rdb 0118
 		return cmdFleetLoad(cfg, rest)
 	case "lifecycle": // spec 063 sections 11 + 12

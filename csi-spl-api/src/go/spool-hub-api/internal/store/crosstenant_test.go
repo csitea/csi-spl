@@ -248,6 +248,10 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.AppendBoxStat(ctx, s.tenant, BoxStat{Box: "sat", WriterBox: "box-seed", At: now, CPUs: 1}); err != nil {
 		t.Fatal(err)
 	}
+	// box_beats (rdb 0147, spec 102 10.2): one beat.
+	if err := pg.AppendBoxBeat(ctx, s.tenant, BoxBeat{Box: "sat", BeatAt: now, PID: 1}); err != nil {
+		t.Fatal(err)
+	}
 	// box_facts (rdb 0140): one box's fact sheet.
 	if err := pg.PutBoxFacts(ctx, s.tenant, BoxFactSheet{Box: "sat", ReportedAt: now, Sheet: []byte(`{"os":{"name":"Debian GNU/Linux"}}`)}); err != nil {
 		t.Fatal(err)

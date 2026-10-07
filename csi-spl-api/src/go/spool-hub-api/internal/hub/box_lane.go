@@ -56,6 +56,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onBoxStatsLane(ctx, x, f)
 		return
 	}
+	if isBoxBeatLaneOp(f.LaneOp) { // spec 102 10.2, rdb 0147: the box beat and its ack
+		s.onBoxBeatLane(ctx, x, f)
+		return
+	}
 	if isFleetLoadLaneOp(f.LaneOp) { // rdb 0118: the instance's fleet load target
 		s.onFleetLoadLane(ctx, x, f)
 		return

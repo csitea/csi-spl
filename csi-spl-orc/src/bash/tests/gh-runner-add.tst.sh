@@ -13,6 +13,9 @@
 #          - a registration token never reaches the log
 #          - the workflow's img= pins are pulled once into the runner's docker
 #          - the cleanup hook prunes only its OWN runner's work dir
+#          - GH_RUNNER_DATA_ROOT: a NEW runner's dir lives there, linked from
+#            GH_RUNNER_ROOT; an existing runner is never moved; the cleanup
+#            hook prunes a linked runner's work dir too
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -118,7 +121,7 @@ act() {
     export GH_RUNNER_SETUPTOOL="$T/bin/setuptool"
     # shellcheck source=/dev/null
     source "$FUNC"
-    GH_RUNNER_ROOT="$T/srv" GH_RUNNER_HOME="$T/home" GH_RUNNER_TARBALL="$T/runner.tgz" do_gh_runner_add ) >/dev/null 2>&1
+    GH_RUNNER_ROOT="${TEST_ROOT:-$T/srv}" GH_RUNNER_HOME="$T/home" GH_RUNNER_TARBALL="$T/runner.tgz" do_gh_runner_add ) >/dev/null 2>&1
 }
 
 GH_RUNNER_GROUP=g act && no "missing repo must fail" || ok "missing GH_RUNNER_REPO fails fast"
@@ -165,6 +168,23 @@ GH_RUNNER_MIN_FREE_GB=999999999 RUNNER_WORKSPACE="$T/srv/box-spl-01/_work/app" b
 mkdir -p "$T/srv/box-spl-01/_work/app"
 GH_RUNNER_MIN_FREE_GB=0 RUNNER_WORKSPACE="$T/srv/box-spl-01/_work/app" bash "$T/srv/job-done.sh" >/dev/null 2>&1
 [[ -d "$T/srv/box-spl-01/_work/app" ]] && ok "cleanup keeps the work dir while there is room" || no "pruned with room to spare"
+
+# a data root: new runner dirs live there, linked; existing ones stay put
+GH_RUNNER_DATA_ROOT=data GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "relative data root must fail" || ok "a relative GH_RUNNER_DATA_ROOT is refused"
+GH_RUNNER_DATA_ROOT="$T/srv" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g act && no "data root = root must fail" || ok "GH_RUNNER_DATA_ROOT equal to GH_RUNNER_ROOT is refused"
+: >"$T/log"; : >"$RUN_LOG"
+GH_RUNNER_DATA_ROOT="$T/data" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "apply with a data root over existing runners exits 0" || no "apply data root (kept) failed: $(tail -3 "$T/log")"
+[[ ! -L "$T/srv/box-spl-01" && ! -L "$T/srv/box-spl-02" && ! -e "$T/data/box-spl-01" ]] && ! grep -q config.sh "$RUN_LOG" \
+  && ok "an existing runner is never moved to the data root" || no "moved: $(ls -l "$T/srv" "$T/data" 2>&1)"
+: >"$T/log"; : >"$RUN_LOG"
+TEST_ROOT="$T/srv2" GH_RUNNER_DATA_ROOT="$T/data" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=1 act && ok "apply with a data root exits 0" || no "apply data root failed: $(tail -3 "$T/log")"
+[[ -L "$T/srv2/box-spl-01" && "$(readlink "$T/srv2/box-spl-01")" == "$T/data/box-spl-01" && -s "$T/data/box-spl-01/.runner" && -s "$T/data/box-spl-01/.env" ]] \
+  && grep -q '^box-spl-01 config.sh .*--name box-spl-01' "$RUN_LOG" && ok "a new runner's dir is in the data root, linked from the runner root" || no "linked: $(ls -l "$T/srv2" 2>&1)"
+mkdir -p "$T/data/box-spl-01/_work/app/app" "$T/data/box-spl-01/_work/_tool/go" "$T/other/x/_work/app"
+GH_RUNNER_MIN_FREE_GB=999999999 RUNNER_WORKSPACE="$T/data/box-spl-01/_work/app" bash "$T/srv2/job-done.sh" >/dev/null 2>&1
+GH_RUNNER_MIN_FREE_GB=999999999 RUNNER_WORKSPACE="$T/other/x/_work/app" bash "$T/srv2/job-done.sh" >/dev/null 2>&1
+[[ ! -e "$T/data/box-spl-01/_work/app" && -d "$T/data/box-spl-01/_work/_tool/go" && -d "$T/other/x/_work/app" ]] \
+  && ok "cleanup prunes a linked runner's work dir, never a dir outside the runner root" || no "linked cleanup: $(find "$T/data" "$T/other" -path '*_work*' -maxdepth 5)"
 
 echo "=== gh-runner-add: $fails failure(s)"
 [[ "$fails" -eq 0 ]]

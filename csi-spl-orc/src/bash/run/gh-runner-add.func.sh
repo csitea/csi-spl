@@ -26,6 +26,9 @@
 # @param RUNNER_COUNT (optional) - how many runners this box carries, default 2
 # @param GH_RUNNER_USER (optional) - the dedicated OS user, default ghrunner
 # @param GH_RUNNER_ROOT (optional) - runner dirs, default /srv/gh-runner
+# @param GH_RUNNER_DATA_ROOT (optional) - a NEW runner's dir is made here (a
+# @param   bigger disk) and linked from GH_RUNNER_ROOT/<name>; existing runners
+# @param   stay where they are. Default: none, new dirs go in GH_RUNNER_ROOT
 # @param GH_RUNNER_HOME (optional) - the user's home, default /var/lib/<user>
 # @param GH_RUNNER_MIN_FREE_GB (optional) - prune below this, default 8
 # @param GH_RUNNER_TARBALL (optional) - a local actions-runner-linux-x64 tarball
@@ -33,6 +36,7 @@
 # @param APPLY (optional) - 1 to do it; anything else prints the plan only
 # @example GH_RUNNER_REPO=<owner>/<repo> GH_RUNNER_GROUP=<group> ./run -a do_gh_runner_add
 # @example GH_RUNNER_REPO=<owner>/<repo> GH_RUNNER_GROUP=<group> APPLY=1 RUNNER_COUNT=2 ./run -a do_gh_runner_add
+# @example GH_RUNNER_REPO=<owner>/<repo> GH_RUNNER_GROUP=<group> GH_RUNNER_DATA_ROOT=<data-disk>/gh-runner APPLY=1 RUNNER_COUNT=6 ./run -a do_gh_runner_add
 #------------------------------------------------------------------------------
 
 # the debian packages rootless docker needs (dockerd-rootless-setuptool.sh
@@ -65,22 +69,29 @@ ghr_job_done_hook() {
   cat <<'HOOK'
 #!/bin/bash
 # job-completed hook of the self-hosted runners (do_gh_runner_add). Always:
-# drop stopped containers. Under MIN_FREE_GB free: this runner's OWN work dir
-# (never the other runner's - it may be mid-job) and dangling docker objects.
-# The persistent HOME caches (go, pnpm) stay - the workflows count on them.
+# drop stopped containers. Under MIN_FREE_GB free (on the root's disk or on
+# the work dir's, which differ for a runner linked into a data disk): this
+# runner's OWN work dir (never the other runner's - it may be mid-job) and
+# dangling docker objects. The persistent HOME caches (go, pnpm) stay - the
+# workflows count on them.
 MIN_FREE_GB="${GH_RUNNER_MIN_FREE_GB:-8}"
 root="$(cd "$(dirname "$0")" && pwd)"
-free_gb() { df -P --block-size=1G "$root" | awk 'NR==2{print $4}'; }
+free_gb() { df -P --block-size=1G "$1" | awk 'NR==2{print $4}'; }
 docker container prune -f --filter until=1h >/dev/null 2>&1
-(( $(free_gb) < MIN_FREE_GB )) || exit 0
-echo "gh-runner-cleanup: under ${MIN_FREE_GB}G free on $root, pruning"
 ws="${RUNNER_WORKSPACE:-${GITHUB_WORKSPACE%/*}}"
 w="${ws%/*}"
-[[ "$w" == "$root"/*/_work ]] \
+low=0
+(( $(free_gb "$root") < MIN_FREE_GB )) && low=1
+[[ -d "$w" ]] && (( $(free_gb "$w") < MIN_FREE_GB )) && low=1
+((low)) || exit 0
+echo "gh-runner-cleanup: under ${MIN_FREE_GB}G free, pruning"
+# only a work dir of a runner of this root, also when that runner is a link
+n="${w%/_work}"; n="${n##*/}"
+[[ "$w" == */_work && -n "$n" && -d "$w" && "$(readlink -f "$root/$n/_work")" == "$(readlink -f "$w")" ]] \
   && find "$w" -mindepth 1 -maxdepth 1 ! -name _tool ! -name _actions -exec rm -rf {} + 2>/dev/null
 docker image prune -f >/dev/null 2>&1
 docker builder prune -f >/dev/null 2>&1
-echo "gh-runner-cleanup: $(free_gb)G free after"
+echo "gh-runner-cleanup: $(free_gb "$root")G free on $root after"
 exit 0
 HOOK
 }
@@ -119,7 +130,7 @@ ghr_plan() {
       do_log "INFO $name: configured in $dir - kept"
     else
       grep -qx "$name" <<<"$GHR_NAMES" && do_log "WARN $name is registered on GitHub but not configured here - it will be replaced"
-      do_log "INFO $name: new, in $dir, user $GHR_USER, labels $GHR_LABELS, group $GHR_GROUP"
+      do_log "INFO $name: new, in $dir${GHR_DATA_ROOT:+ -> $GHR_DATA_ROOT/$name}, user $GHR_USER, labels $GHR_LABELS, group $GHR_GROUP"
       GHR_TODO+=("$name")
     fi
   done
@@ -206,6 +217,11 @@ ghr_register() {
   tarball="$(ghr_tarball)" || return 1
   for name in "${GHR_TODO[@]}"; do
     dir="$GHR_ROOT/$name"
+    if [[ -n "$GHR_DATA_ROOT" ]] && ! sudo test -e "$dir"; then
+      sudo install -d -m 0755 -o root -g root "$GHR_DATA_ROOT" \
+        && sudo install -d -m 0700 -o "$GHR_USER" -g "$GHR_USER" "$GHR_DATA_ROOT/$name" \
+        && sudo ln -s "$GHR_DATA_ROOT/$name" "$dir" || { do_log "FATAL cannot link $dir to $GHR_DATA_ROOT/$name"; return 1; }
+    fi
     sudo install -d -m 0700 -o "$GHR_USER" -g "$GHR_USER" "$dir" \
       && sudo -u "$GHR_USER" tar -xzf "$tarball" -C "$dir" || { do_log "FATAL cannot unpack into $dir"; return 1; }
     tok="$(gh api -X POST "orgs/$GHR_ORG/actions/runners/registration-token" --jq .token)" \
@@ -255,6 +271,7 @@ do_gh_runner_add() {
   do_require_bin gh systemctl sudo curl tar sha256sum || return 1
   GHR_REPO="${GH_RUNNER_REPO:-}" GHR_GROUP="${GH_RUNNER_GROUP:-}" GHR_N="${RUNNER_COUNT:-2}"
   GHR_USER="${GH_RUNNER_USER:-ghrunner}" GHR_ROOT="${GH_RUNNER_ROOT:-/srv/gh-runner}"
+  GHR_DATA_ROOT="${GH_RUNNER_DATA_ROOT:-}"
   GHR_MIN_FREE="${GH_RUNNER_MIN_FREE_GB:-8}" GH_RUNNER_HOME="${GH_RUNNER_HOME:-/var/lib/$GHR_USER}"
   [[ "$GHR_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] \
     || { do_log "FATAL GH_RUNNER_REPO must be <owner>/<repo> (no default)"; return 1; }
@@ -262,6 +279,8 @@ do_gh_runner_add() {
   [[ "$GHR_N" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL RUNNER_COUNT must be 1..99, got: $GHR_N"; return 1; }
   [[ "$GHR_USER" =~ ^[a-z_][a-z0-9_-]*$ && "$GHR_USER" != root ]] || { do_log "FATAL bad GH_RUNNER_USER: $GHR_USER"; return 1; }
   [[ "$GHR_MIN_FREE" =~ ^[0-9]+$ ]] || { do_log "FATAL GH_RUNNER_MIN_FREE_GB must be a number"; return 1; }
+  [[ -z "$GHR_DATA_ROOT" || ( "$GHR_DATA_ROOT" == /* && "$GHR_DATA_ROOT" != "$GHR_ROOT" ) ]] \
+    || { do_log "FATAL GH_RUNNER_DATA_ROOT must be an absolute path other than GH_RUNNER_ROOT"; return 1; }
   GHR_ORG="${GHR_REPO%%/*}"
   ghr_check_group || return 1
   ghr_plan

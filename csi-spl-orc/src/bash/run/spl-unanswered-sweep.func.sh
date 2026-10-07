@@ -247,6 +247,13 @@ SQL
 # full width (bodies, envelopes) and spilled 8 MB to disk each run; prd
 # EXPLAIN ANALYZE 110..448 ms -> 71..78 ms, dev 55..59 -> 11..13 ms (n=3 each,
 # interleaved), identical rows. Pinned by unanswered-sweep-narrow-pg.tst.sh.
+# API perf round d-02 (2026-10-07): the per-row probes were most of what was
+# left (prd EXPLAIN, 1 166 rows: 11 476 buffers, of them 2 358 in one archived
+# probe per row and 3 368 in 795 agent-post probes). The archived topics are
+# now read once (an uncorrelated IN: one hashed SubPlan over the small partial
+# index messages_archived, never a per-row loop), and a last
+# message that is itself an agent post answers the agent-post question for
+# its topic without a probe. Same rows (narrow-pg check 1 compares them).
 _spl_sweep_rows_sql() {
   cat <<'SQL'
 WITH k AS MATERIALIZED (
@@ -258,12 +265,13 @@ SELECT l.tenant_id, coalesce(t.display_name, ''), coalesce(l.channel, ''), l.tas
        extract(epoch FROM l.received_at)::bigint, coalesce(l.typed_by, l.from_id), l.to_id,
        CASE WHEN l.typed_by IS NOT NULL THEN 'terminal'
             WHEN l.from_id LIKE 'HUM-%' OR l.from_id LIKE 'GST-%' THEN 'human' ELSE 'agent' END,
-       CASE WHEN EXISTS (SELECT 1 FROM messages a WHERE a.tenant_id = l.tenant_id
-                          AND a.task_id = l.task_id AND a.archived_at IS NOT NULL)
+       CASE WHEN (l.tenant_id, l.task_id) IN (SELECT a.tenant_id, a.task_id FROM messages a
+                                               WHERE a.archived_at IS NOT NULL)
             THEN 'archived' ELSE 'open' END,
        CASE WHEN l.channel IS NOT NULL AND c.deleted_at IS NOT NULL THEN 'deleted'
             WHEN l.channel IS NOT NULL AND c.archived_at IS NOT NULL THEN 'archived'
             WHEN l.channel IS NOT NULL THEN 'live'
+            WHEN l.typed_by IS NULL AND l.from_id NOT LIKE 'HUM-%' AND l.from_id NOT LIKE 'GST-%' THEN 'thread'
             WHEN EXISTS (SELECT 1 FROM messages g
                           WHERE g.tenant_id = l.tenant_id AND g.task_id = l.task_id
                             AND g.typed_by IS NULL

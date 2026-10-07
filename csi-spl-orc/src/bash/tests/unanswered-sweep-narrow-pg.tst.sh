@@ -11,6 +11,11 @@
 #      last message, a message older than the window, DMs, archived cards
 #   2. narrow: the scan of messages m outputs <= 4 columns and runs once
 #   3. CONTROL: the old statement fails check 2 (it reads m.* at full width)
+# API perf round d-02 (2026-10-07) cut the per-row probes:
+#   4. the archived-card probe (messages a) runs ONCE (a hashed SubPlan), and
+#      the agent-post probe (messages g) runs only for the null-channel rows
+#      whose last message is not itself an agent post
+#   5. CONTROL: the old statement fails check 4 (one archived probe per row)
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJ_ROOT="$(cd "$HERE/../../.." && pwd)"; APP_ROOT="$(cd "$PROJ_ROOT/.." && pwd)"
@@ -175,6 +180,31 @@ read -r nc nl <<<"$(narrow_scan "$T/new.sql")"
 read -r oc ol <<<"$(narrow_scan "$T/old.sql")"
 [[ "$oc" =~ ^[0-9]+$ ]] && (( oc > 4 )) &&
   pass "3. CONTROL: the old statement reads $oc columns per row and fails check 2" || fail "3. CONTROL: old scan columns=$oc loops=$ol - check 2 cannot tell old from new"
+
+# probe_loops <sql file> -> "<loops of messages a> <loops of messages g>",
+# summed over the plan (0 when the alias is not scanned)
+probe_loops() {
+  rt_run "$(cat "$1")" "EXPLAIN (ANALYZE, VERBOSE, FORMAT JSON) " | python3 -c '
+import json, sys
+txt = sys.stdin.read(); plan = json.loads(txt[txt.index("["):])
+loops = {"a": 0, "g": 0}
+def walk(n):
+    if n.get("Relation Name") == "messages" and n.get("Alias") in loops:
+        loops[n["Alias"]] += n.get("Actual Loops", 0)
+    for c in n.get("Plans", []): walk(c)
+walk(plan[0]["Plan"]); print(loops["a"], loops["g"])'
+}
+# the rows the agent-post probe still has to answer: a null channel whose
+# last message is a human post or a terminal mirror
+want_g="$(awk -F'\t' '$3 == "" && $9 != "agent"' "$T/new.rows" | wc -l)"
+read -r na ng <<<"$(probe_loops "$T/new.sql")"
+[[ "$na" == 1 && "$ng" =~ ^[0-9]+$ ]] && (( ng <= want_g && want_g < n )) &&
+  pass "4. the archived probe runs once and the agent-post probe $ng time(s) (<= $want_g of $n rows)" ||
+  fail "4. probes: archived loops=$na (want 1), agent-post loops=$ng (want <= $want_g of $n rows)"
+read -r oa og <<<"$(probe_loops "$T/old.sql")"
+[[ "$oa" =~ ^[0-9]+$ ]] && (( oa > 1 )) &&
+  pass "5. CONTROL: the old statement probes archived $oa times and fails check 4" ||
+  fail "5. CONTROL: old archived loops=$oa agent-post loops=$og - check 4 cannot tell old from new"
 
 echo "---"; (( fails == 0 )) && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

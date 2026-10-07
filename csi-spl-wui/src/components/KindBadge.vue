@@ -126,8 +126,10 @@ async function setKind(kind: string) {
   emit('pending', { from, to: kind })
   try {
     const row = await useSpoolApi().setMessageKind(String(m.msg_id), kind)
-    edit?.applyEverywhere(row)
+    /* applied first: on a topic row, moving the counts can unmount this
+       very badge (its key leaves the row), and the row must still hear it */
     emit('applied', { from, to: kind })
+    edit.applyKind(from, row, m)
   } catch (err) {
     pending.value = ''
     emit('revert')

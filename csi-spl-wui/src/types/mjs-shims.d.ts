@@ -1032,6 +1032,8 @@ declare module '~/utils/topic-kind.mjs' {
   export function openerKindKey(kinds: Record<string, number> | null | undefined, msg: { msg_id?: string, kind?: string, pending?: boolean } | null | undefined): string
   export function topicRowKind(msg: unknown, viewerId: string, role: string | null | undefined, kinds: Record<string, number> | null | undefined): string
   export function retargetKinds(kinds: Record<string, number> | null | undefined, from: string, to: string): Record<string, number>
+  export function withSetKind<T>(msg: T, kindSet: Record<string, string> | null | undefined): T
+  export function topicsWithKind<R extends { task_id: string, kinds: Record<string, number> }>(topics: R[], taskId: string, from: string, to: string): R[]
 }
 
 declare module '~/utils/avatar.mjs' {

@@ -1,6 +1,8 @@
 // Topics view: a click on the opener's kind badge sets that message's kind.
 // The row and the opened topic both show it. The row menu's Kind item opens
-// the same picker, including the phone sheet.
+// the same picker, including the phone sheet. HUM-10 (t1 9e969f63): the
+// opener's kind set from its card in the open topic reaches the row too, so
+// clearing the last blocker drops the row's blocker badge (desktop + 390 px).
 //
 //   node tests/e2e/topics-view-kind.test.mjs
 import { createRequire } from 'node:module'
@@ -34,10 +36,10 @@ async function launch() {
   })
 }
 
-async function until(p, fn, ms = 8000) {
+async function until(p, fn, ms = 8000, ...args) {
   const t0 = Date.now()
   while (Date.now() - t0 < ms) {
-    const ok = await p.evaluate(fn).catch(() => false)
+    const ok = await p.evaluate(fn, ...args).catch(() => false)
     if (ok) return true
     await sleep(150)
   }
@@ -93,6 +95,21 @@ async function openMenu(p, taskId) {
     if (opened) return true
   }
   return false
+}
+
+/* The opening card of the open topic: its badge -> the picker -> note. The
+   row behind it must drop blocker with no reload. */
+const cardBadge = `[data-test=topic-section] article.msg[data-msg-id="${CARD}"] [data-testid=kind-badge-btn]`
+async function openerToNote(p) {
+  if (!await until(p, (s) => Boolean(document.querySelector(s)), 8000, cardBadge)) return false
+  await clickInPage(p, cardBadge)
+  if (!await until(p, () => Boolean(document.querySelector('[data-testid=kind-picker]')?.getClientRects().length), 5000)) return false
+  await clickInPage(p, '[data-testid=kind-picker] [data-kind=note]')
+  return until(p, (sel) => {
+    const row = document.querySelector(sel)
+    const kinds = row ? [...row.querySelectorAll('[data-kind]')].map((el) => el.getAttribute('data-kind')) : ['?']
+    return !kinds.includes('blocker') && kinds.includes('note')
+  }, 8000, rowSel)
 }
 
 const srv = await startServer()
@@ -151,6 +168,8 @@ try {
   const card = await until(p, () => Boolean(document.querySelector('[data-test=topic-section] article.msg[data-msg-id="22222222-2222-4222-8222-222222222222"] [data-kind=blocker]')), 8000)
   check('the opened topic card shows blocker', card)
 
+  check('the opening card clears the row blocker', await openerToNote(p), await p.evaluate(kindsOf, rowSel))
+
   await p.keyboard.press('Escape')
   await sleep(200)
   const menu = await openMenu(p, TOPIC)
@@ -202,6 +221,21 @@ try {
         return Boolean(el && el.classList.contains('touch-sheet') && el.getClientRects().length)
       }, 5000)
       check('phone Kind opens the picker sheet', sheet)
+      await clickInPage(phone, '[data-testid=kind-picker] [data-kind=blocker]')
+      check('phone row shows blocker', await until(phone, (sel) => {
+        const row = document.querySelector(sel)
+        return Boolean(row && row.querySelector('[data-kind=blocker]'))
+      }, 8000, rowSel))
+      await clickInPage(phone, `${rowSel} .topic-subject`)
+      const level3 = await until(phone, () => document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === '3', 10000)
+      check('phone opening card clears the row blocker', level3 && await openerToNote(phone), await phone.evaluate(kindsOf, rowSel))
+      await clickInPage(phone, '[data-testid=mobile-back]')
+      const back = await until(phone, (sel) => {
+        const row = document.querySelector(sel)
+        return document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') === '2'
+          && Boolean(row && row.getClientRects().length && !row.querySelector('[data-kind=blocker]'))
+      }, 8000, rowSel)
+      check('phone list row shows no blocker after Back', back, await phone.evaluate(kindsOf, rowSel))
     }
   }
   check('phone page has no error', phoneErr.length === 0, phoneErr)

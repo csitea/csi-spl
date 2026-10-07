@@ -71,3 +71,39 @@ export function retargetKinds(kinds, from, to) {
   next[t] = (Number(next[t]) || 0) + 1
   return next
 }
+
+/**
+ * The topics view's copy of a message with the kind last set on it from
+ * anywhere (a row badge, a card in the pane, the keyboard). `kindSet` maps
+ * msg_id to that kind. Without it a row holding its opener from before the
+ * change reads the old kind, and the badge the row now shows is not the
+ * opener's, so it stops being a button.
+ * @template T
+ * @param {T} msg
+ * @param {Record<string, string> | null | undefined} kindSet
+ * @returns {T}
+ */
+export function withSetKind(msg, kindSet) {
+  const m = /** @type {{ msg_id?: string, kind?: string } | null | undefined} */ (msg)
+  const k = m && m.msg_id && kindSet ? kindSet[String(m.msg_id)] : ''
+  return m && k && k !== m.kind ? /** @type {T} */ ({ ...m, kind: k }) : msg
+}
+
+/**
+ * The topics list after one message of `taskId` changed kind: that row's
+ * counts move one from `from` to `to` (retargetKinds). Every other row, and
+ * a list without that topic, comes back as it was (the same array).
+ * @template {{ task_id: string, kinds: Record<string, number> }} R
+ * @param {R[]} topics
+ * @param {string} taskId
+ * @param {string} from
+ * @param {string} to
+ * @returns {R[]}
+ */
+export function topicsWithKind(topics, taskId, from, to) {
+  const task = String(taskId || '')
+  const f = messageKind({ kind: from })
+  const t = messageKind({ kind: to })
+  if (!task || f === t || !topics.some((r) => r.task_id === task)) return topics
+  return topics.map((r) => (r.task_id !== task ? r : { ...r, kinds: retargetKinds(r.kinds, f, t) }))
+}

@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
 import { bumpTopic, mergeTopicPage } from '~/utils/topic-list.mjs'
 import { archiveStamp, withoutTopics } from '~/utils/topic-archive.mjs'
+import { topicsWithKind } from '~/utils/topic-kind.mjs'
 import { useLive } from '~/composables/useLive'
 import type { SpoolMessage, TopicRow } from '~/types/spool'
 
@@ -136,6 +137,19 @@ export const useViewerStore = defineStore('viewer', () => {
     topics.value = withoutTopics(topics.value, taskIds)
   }
 
+  /*
+   * HUM-10 (t1 9e969f63): a kind set on ANY card - the row badge, a card in
+   * the open topic (the opener included), the keyboard - moves the row's
+   * kind counts at once, so clearing the last blocker drops the row's
+   * blocker badge with no reload. kindSet remembers the new kind by msg_id
+   * for the opener the topics view already holds (topic-kind withSetKind).
+   */
+  const kindSet = shallowRef<Record<string, string>>({})
+  function setKind(taskId: string, msgId: string, from: string, to: string) {
+    topics.value = topicsWithKind(topics.value, taskId, from, to)
+    if (msgId && to) kindSet.value = { ...kindSet.value, [msgId]: to }
+  }
+
   async function openTopic(id: string) {
     if (taskId.value !== id) messages.value = []
     taskId.value = id
@@ -165,5 +179,5 @@ export const useViewerStore = defineStore('viewer', () => {
     }
   }
 
-  return { topics, next, taskId, messages, loading, error, needsToken, doorDetail, loadTopics, loadMore, dropTopics, openTopic, refreshTopic, follow, unfollow, catchUp }
+  return { topics, next, taskId, messages, loading, error, needsToken, doorDetail, loadTopics, loadMore, dropTopics, kindSet, setKind, openTopic, refreshTopic, follow, unfollow, catchUp }
 })

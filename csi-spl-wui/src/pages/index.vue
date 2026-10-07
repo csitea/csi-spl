@@ -77,7 +77,7 @@
             <KindBadge :kind="shownKind(t, k)" :msg="badgeMsg(t, k)"
               @pending="onKindPending(t.task_id, $event)"
               @revert="onKindRevert(t.task_id)"
-              @applied="onKindApplied(t.task_id, $event)" />
+              @applied="onKindApplied(t.task_id)" />
           </span>
           <ArchivedBadge v-if="t.archived_at" :at="t.archived_at" />
           <span class="msg-time">{{ rowTime(t.last_ts) }}</span>
@@ -139,7 +139,7 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { openerMessage, retargetKinds, topicRowKind } from '~/utils/topic-kind.mjs'
+import { openerMessage, topicRowKind, withSetKind } from '~/utils/topic-kind.mjs'
 import type { SpoolMessage } from '~/types/spool'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useSidePane } from '~/composables/useSidePane'
@@ -314,7 +314,8 @@ const openerInflight = new Map<string, Promise<SpoolMessage | null>>()
 
 function heldOpener(taskId: string): SpoolMessage | null {
   const held = openers.value[String(taskId || '')]
-  return held && held !== 'none' ? held : null
+  /* a kind set since it was read (here, in the open topic, by key) wins */
+  return held && held !== 'none' ? withSetKind(held, viewer.kindSet) : null
 }
 function viewerRole(): string | null {
   return access.me?.role ?? null
@@ -361,12 +362,10 @@ function onKindRevert(taskId: string) {
   delete next[taskId]
   pendingKind.value = next
 }
-function onKindApplied(taskId: string, payload: { from: string, to: string }) {
+/* The badge's applyKind already moved the row's counts (viewer.setKind),
+   as it does for a kind set on any card; only the pending glyph goes. */
+function onKindApplied(taskId: string) {
   onKindRevert(taskId)
-  const msg = heldOpener(taskId)
-  if (msg) openers.value = { ...openers.value, [taskId]: { ...msg, kind: payload.to } }
-  viewer.topics = viewer.topics.map((row) => row.task_id !== taskId ? row
-    : { ...row, kinds: retargetKinds(row.kinds, payload.from, payload.to) })
 }
 async function onKindClick(t: { task_id: string, kinds: Record<string, number> }, k: string) {
   await ensureOpener(t.task_id)

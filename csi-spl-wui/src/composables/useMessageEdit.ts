@@ -5,6 +5,8 @@ import { useRosterStore } from '~/stores/roster'
 import { useChannelStore } from '~/stores/channel'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
+import { useViewerStore } from '~/stores/viewer'
+import { messageKind } from '~/utils/topic-kind.mjs'
 import { canEditMessage } from '~/utils/msg-edit.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -94,6 +96,18 @@ export function useMessageEdit() {
   }
 
   /**
+   * A kind the hub accepted (PATCH /v1/messages/{id}/kind): the row goes to
+   * every store as an edit does, and the topics list moves that topic's kind
+   * counts from `from` (the kind before the call) to the new one. `msg` is
+   * the row as the caller held it, for a hub answer that omits the task.
+   */
+  function applyKind(from: string, row: SpoolMessage, msg?: Partial<SpoolMessage> | null) {
+    applyEverywhere(row)
+    const task = String(row.task_id || msg?.task_id || '')
+    useViewerStore().setKind(task, String(row.msg_id || msg?.msg_id || ''), messageKind({ kind: from }), messageKind(row))
+  }
+
+  /**
    * Drop one message from every store that can be showing it. A delete in the
    * thread pane is also the middle-list card when that row is the opening
    * message, and the pinned root when the topic is message-rooted.
@@ -127,5 +141,5 @@ export function useMessageEdit() {
     return row
   }
 
-  return { viewer, viewerId, canEdit, commit, applyEverywhere, dropEverywhere, removeMessage, mergeInto }
+  return { viewer, viewerId, canEdit, commit, applyEverywhere, applyKind, dropEverywhere, removeMessage, mergeInto }
 }

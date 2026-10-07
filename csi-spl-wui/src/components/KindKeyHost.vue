@@ -214,8 +214,9 @@ async function setKind(kind: string) {
   const next = String(kind || '')
   if (!id || !next || next === current.value) return
   try {
+    const from = current.value
     const row = await api.setMessageKind(id, next)
-    edit.applyEverywhere(row)
+    edit.applyKind(from, row)
     current.value = next
   } catch (err) {
     noteError({ source: 'kind-set', message: t('feed.kind_set.failed'), code: (err as { token?: string })?.token, error: err })

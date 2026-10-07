@@ -324,6 +324,21 @@ func liveOverlay(rows []store.RepoDocEdit, tenant, hum string) *store.RepoDocEdi
 	return nil
 }
 
+// pushedBase is the blob master holds for a pushed edit that was not merged:
+// its own text. A re-save of that text bases on it, not on the blob from
+// before the push, whose merge would add the pushed lines a second time and
+// conflict with master (075 repo-edit, the T13 proof on dev).
+func pushedBase(e store.RepoDocEdit, r io.Reader) (string, bool) {
+	if e.Status != store.RepoDocPushed || e.MergedWith != "" {
+		return "", false
+	}
+	b, err := io.ReadAll(io.LimitReader(r, MaxRepoDoc+1))
+	if err != nil || len(b) > MaxRepoDoc {
+		return "", false
+	}
+	return repodocs.GitBlobSHA(b), true
+}
+
 // serveRepoDoc serves p with the edit headers: its live overlay, else the
 // published key. ok false: neither exists (the caller answers 404).
 func (s *Server) serveRepoDoc(w http.ResponseWriter, r *http.Request, st repoDocStore, tenant, hum, p string) (bool, error) {
@@ -335,8 +350,11 @@ func (s *Server) serveRepoDoc(w http.ResponseWriter, r *http.Request, st repoDoc
 	key, base, edit := p, "", ""
 	if e := liveOverlay(rows, tenant, hum); e != nil {
 		if rc, err := s.o.Docs.Get(ctx, e.OverlayKey); err == nil {
-			rc.Close()
 			key, base, edit = e.OverlayKey, e.BaseBlob, e.EditID
+			if pb, ok := pushedBase(*e, rc); ok {
+				base = pb
+			}
+			rc.Close()
 		}
 	}
 	if edit == "" {
@@ -439,7 +457,8 @@ func docBaseOf(r *http.Request) string {
 
 // knownBase reports whether base is a text p may be saved against: the
 // published blob, "" for a path not published yet, the base of the path's
-// live overlay, or master's head blob (a conflict resolved against head).
+// live overlay, the blob of a pushed overlay's text (pushedBase), or master's
+// head blob (a conflict resolved against head).
 func (s *Server) knownBase(ctx context.Context, st repoDocStore, p, base string, tree map[string]string) (bool, error) {
 	pub, published := tree[p]
 	switch {
@@ -457,6 +476,16 @@ func (s *Server) knownBase(ctx context.Context, st repoDocStore, p, base string,
 	for _, e := range rows {
 		if e.BaseBlob == base {
 			return true, nil
+		}
+		if e.Status != store.RepoDocPushed || e.MergedWith != "" {
+			continue
+		}
+		if rc, err := s.o.Docs.Get(ctx, e.OverlayKey); err == nil {
+			pb, ok := pushedBase(e, rc)
+			rc.Close()
+			if ok && pb == base {
+				return true, nil
+			}
 		}
 	}
 	if s.o.RepoEdit.Repo == nil {

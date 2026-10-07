@@ -308,7 +308,7 @@ func (w *Worker) overlay(ctx context.Context, e store.RepoDocEdit) ([]byte, verd
 // head already holds the result. merged is head's commit when a merge ran.
 func (w *Worker) mergeOnto(ctx context.Context, e store.RepoDocEdit, head github.Head, mine []byte) ([]byte, string, verdict, bool) {
 	if head.Blob == e.BaseBlob {
-		if head.Blob != "" && head.Blob == gitBlobSHA(mine) {
+		if head.Blob != "" && head.Blob == GitBlobSHA(mine) {
 			return nil, "", verdict{}, true
 		}
 		return mine, "", verdict{}, true
@@ -384,8 +384,8 @@ func short(sha string) string {
 	return sha
 }
 
-// gitBlobSHA is git's blob id of b (`git hash-object`).
-func gitBlobSHA(b []byte) string {
+// GitBlobSHA is git's blob id of b (`git hash-object`).
+func GitBlobSHA(b []byte) string {
 	// nosemgrep: go.lang.security.audit.crypto.use_of_weak_crypto.use-of-sha1 -- a git object id is sha1 by definition; it compares texts, it protects nothing.
 	h := sha1.New() //nolint:gosec // git object id
 	_, _ = fmt.Fprintf(h, "blob %d\x00", len(b))

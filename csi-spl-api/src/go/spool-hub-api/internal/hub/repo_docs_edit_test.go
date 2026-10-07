@@ -18,6 +18,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/github"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/repodocs"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -537,5 +538,50 @@ func TestRepoDocsRetryAndConflict(t *testing.T) {
 	}
 	if code, b, _ := r.do(http.MethodGet, "edits/"+body["edit_id"].(string)+"/conflict", alice, "", ""); code != http.StatusConflict || errOf(b) != "not_conflict" {
 		t.Fatalf("conflict view of a queued edit: %d %v", code, b)
+	}
+}
+
+// A re-save after a push (075 repo-edit, live T13 on dev): the pushed
+// overlay is served until the publish catches up, and its base must be the
+// blob master now holds (the pushed text), not the blob from before the
+// push, or the re-save merges against the old base and conflicts with its
+// own pushed lines.
+func TestRepoDocsResaveAfterPushBasesOnThePushedText(t *testing.T) {
+	r := newRepoRig(t)
+	alice := seat(t, r.e, r.tid, rbac.Developer)
+	r.consent(alice)
+	ctx := context.Background()
+
+	orig, pushed := "# Guide\n\nline one\n", "# Guide\n\nline one\nmine\n"
+	_, body := r.save(r.doc, alice, r.blob, pushed)
+	id := body["edit_id"].(string)
+	r.claim(id)
+	commit := strings.Repeat("f", 40)
+	if _, err := r.pg.PushedRepoDocEdit(ctx, id, commit, "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	head := repodocs.GitBlobSHA([]byte(pushed))
+	r.repo.head = github.Head{Commit: commit, Blob: head}
+	r.repo.blobs[r.blob], r.repo.blobs[head] = []byte(orig), []byte(pushed)
+
+	_, text, h := r.getDoc(r.doc, alice)
+	base := h.Get(hub.DocBaseHeader)
+	if text != pushed || base != head {
+		t.Fatalf("pushed overlay served as %q base %s, want the pushed text on its blob %s", text, base, head)
+	}
+	mine := pushed + "more\n"
+	code, body := r.save(r.doc, alice, base, mine)
+	if code != http.StatusOK || body["base"] != head {
+		t.Fatalf("re-save on the pushed text: %d %v", code, body)
+	}
+	// the worker's merge of that row onto master: clean, master plus the new line
+	if out, ok := repodocs.Merge3(r.repo.blobs[body["base"].(string)], r.repo.blobs[head], []byte(mine)); !ok || string(out) != mine {
+		t.Fatalf("worker merge of the re-save: ok=%v %q", ok, out)
+	}
+
+	// master moved on past the push (not yet published): the pushed blob is still a known base
+	r.repo.head = github.Head{Commit: strings.Repeat("9", 40), Blob: strings.Repeat("8", 40)}
+	if code, body := r.save(r.doc, alice, head, mine+"again\n"); code != http.StatusOK {
+		t.Fatalf("re-save on the pushed blob after master moved: %d %v", code, body)
 	}
 }

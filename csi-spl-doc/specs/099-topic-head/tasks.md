@@ -186,7 +186,7 @@ parallel with T002.
   `topic_head_tenants` mark, so the head read never serves it until the
   backfill runs again.
 
-### T003 The rest of the test set (spec 7.2 .. 7.5)
+### T003 The rest of the test set (spec 7.2 .. 7.5) (DONE)
 
 - Files (all new):
   - `store/topic_head_random_test.go`;
@@ -203,6 +203,55 @@ parallel with T002.
     chunk's head-lock hold, contention, a hot topic and a bulk insert. The
     gates are in spec 7.5.
 - Depends on: T002.
+- Result (pg 16 in docker, the owner role FORCE RLS binds, runtime role
+  `spool_rt`; the host was loaded: load average 15..48 on 16 cores):
+  - `TestTopicHeadRandomSequences`: 4 seeds x 300 ops, 16 writers (E01..E36,
+    the clock, a tenant-scoped purge chunk). Per seed 189..207 ops applied
+    (the rest refused by the store: a line already gone, a merge cycle);
+    the diff is empty after every op, 16 shapes every 25 ops, the full grid
+    at the end. A seed replays (`TOPIC_HEAD_SEED=3 TOPIC_HEAD_OPS=120`
+    twice: the same tally). About 40 s.
+  - Concurrency: C1 (2 x 200 inserts), C2 and C3 (5 rounds each), C4
+    (50 rounds, 100 merge calls: 99..100 ok, 0..1 store refusal, **0
+    `40P01`**), C4b (20 lockstep rounds, 0 `40P01`; its control, the drain
+    made IMMEDIATE per statement as v0.1, deadlocks), C5 (a 5 000-row purge
+    chunk over 1 000 topics against 100 inserts) and C9. C1b runs in the
+    cost test only, because it toggles the triggers for the whole database.
+  - `TestRLSTopicHeadScopes` (in the hub-pg `^TestRLS` gate),
+    `TestTopicHeadRuntimeRole` (E01, E07, E13, E16, E18 and E25 as
+    `spool_rt`), `TestTopicHeadOperatorWrites` (the Sweep, the orc topic
+    delete, the orc wipe) and `TestCrossTenantTopicHeads`. Each has a
+    control: FORCE RLS lifted, INSERT on the parts revoked, t1's own move.
+  - Guard-removal controls, run on scratch migrations (n = 1 run each):
+    - no `FOR UPDATE` in `topic_head_lock`: C4 and C4b fail. C1, C2, C3, C5,
+      C6 and C9 stay green, because the upserts' ON CONFLICT row locks
+      still serialize those writers;
+    - no `topic_head_mark_del`: the random test (all 4 seeds), C5, the
+      operator test and the runtime-role test fail;
+    - no archived mark in `topic_head_mark_upd`: all 4 random seeds fail;
+    - head locks in random order: C4b and C7 fail, and C4 does not.
+  - **C4 verdict: T004 is not needed.** There were 0 `40P01` in 100 cross
+    merges and in 20 lockstep rounds, while the controls show that both
+    tests can see a cycle.
+  - `TestTopicHeadCost` (`SPOOL_TEST_PERF=1`, run alone): **3 of the 4
+    gates fail.** The table is the 1-CPU run (`--cpus=1`, load 18..38).
+    Times are ms, as on / off / added:
+
+    | cell | n | p50 | p95 | gate |
+    |---|---|---|---|---|
+    | one insert | 200 / 200 | 18.9 / 10.5 / +8.3 | 36.2 / 20.3 / +15.9 | FAIL (< 5) |
+    | claim-shape UPDATE | 200 / 200 | 5.2 / 5.3 / -0.1 | 9.5 / 10.6 / -1.1 | PASS |
+    | 5 000-row purge chunk, whole | 5 / 5 | 12 664 / 13 172 | 15 855 / 16 337 | printed |
+    | its head-lock hold (COMMIT) | 5 | 308 | max 532 | FAIL (<= 100) |
+    | C1b, per insert | 2 000 / 2 000 | 38.8 / 12.4 / +26.5 | 68.6 / 29.0 / +39.7 | FAIL (< 5) |
+    | hot topic, one insert | 20 / 20 | 20.4 / 10.0 / +10.5 | 32.9 / 23.2 / +9.7 | printed |
+    | bulk 1 000 rows, 100 topics | 5 / 5 | 498 / 217 / +281 | 591 / 276 / +316 | printed |
+
+    The 2-CPU rerun (load 38..48) gives the same verdicts: insert +18.8,
+    hold max 470 and C1b +44.0 at p95. Without the triggers, the purge
+    chunk alone takes 13 s. That time is the DELETE, not the heads.
+    Per spec 7.5, the purge gets its own smaller chunk. Rerun the insert and
+    C1b gates on an idle host before T005 is decided.
 
 ### T004 One retry on 40P01 (conditional)
 

@@ -195,6 +195,7 @@ spl_wd_tick() {
   fi
   spl_wd_agents "$tick" > "$tick/agents"
   spl_wd_fence "$now" "$tick"
+  spl_wd_boot "$now" "$tick"
   spl_wd_heartbeat agents
   # named pids only: a bare `wait` also waits for ./run's tee process substitutions
   local -a jp=()
@@ -263,6 +264,167 @@ spl_wd_ps() {
   "${cmd[@]}" 2>/dev/null | awk '{print $1, $2, $3, $4}' || true
 }
 
+# ---- the reboot path (spec 102 10.1, T014) -------------------------------------
+
+# spl_wd_boot NOW TICK: once per boot of this box, restart every agent that
+# ran here when the box went down, cause `reboot`, through spl_wd_takeover
+# (do_spl_agent_restart: a new session from the handoff, never a --resume).
+# Restarted: an open registry row, not done (4.3), running_box this box
+# (10.2), and seen running: its verdict dispatch/wd.<id> written at most
+# WD_BOOT_SEEN s (900) before the last verdict of the previous boot. An open
+# row alone is no proof (sat 2026-10-07: 110 open rows with a worktree and
+# no done marker, 9 of them running). A boot is /proc/stat's btime (60 s
+# either way) against <WD_DIR>/boot.seen, the last boot handled; no
+# boot.seen (this code's first run) acts only on a boot younger than
+# WD_BOOT_RECENT s (1800), else records the baseline. It waits out
+# WD_START_GRACE after the boot and the resume (the restart's own resume
+# grace refuses earlier). Left alone: an id with a window or a process (the
+# old boot restore or a peer brought it back). A fenced box (10.2: T017's
+# spl_wd_box_fenced, when it exists) starts nothing and retries. One instance at
+# a time (boot.lock); each id once per boot (boot.d/<id> = the btime), under
+# its judge lock (held: the next tick); boot.seen once none waits.
+# WD_BOOT=0 turns it off.
+spl_wd_boot() {
+  [[ "${WD_BOOT:-1}" != 0 ]] || return 0
+  local bt seen
+  bt="$(spl_wd_boot_time)"
+  [[ "$bt" =~ ^[0-9]+$ ]] || return 0
+  seen="$(cat "$WD_DIR/boot.seen" 2>/dev/null || true)"
+  if [[ "$seen" =~ ^[0-9]+$ ]] && (( bt - seen <= 60 && seen - bt <= 60 )); then return 0; fi
+  (
+    flock -w 5 5 || exit 0
+    spl_wd_boot_pass "$1" "$2" "$bt" "$seen"
+  ) 5>>"$WD_DIR/boot.lock"
+  return 0
+}
+
+# The box's boot time in epoch s: btime of <proc root>/stat; WD_BOOT_TIME (tests).
+spl_wd_boot_time() {
+  if [[ -n "${WD_BOOT_TIME:-}" ]]; then echo "$WD_BOOT_TIME"; return 0; fi
+  awk '$1 == "btime" {print $2; exit}' "${LEASE_PROC_ROOT:-/proc}/stat" 2>/dev/null || true
+}
+
+spl_wd_boot_pass() {
+  local now="$1" tick="$2" bt="$3" seen="$4" snap last r id why out n=0 wait=0 at
+  at="$(date -u -d "@$bt" +%FT%TZ)"
+  snap="$WD_DIR/boot.$bt.seen"
+  # who ran here before the boot: taken before any verdict of this boot is written
+  [[ -f "$snap" ]] || spl_wd_boot_snap "$bt" > "$snap"
+  last="$(awk '$1 > m {m = $1} END {if (m) print m}' "$snap")"
+  if [[ -z "$seen" ]] && { [[ -z "$last" ]] || (( now - bt > ${WD_BOOT_RECENT:-1800} )); }; then
+    spl_wd_boot_seen "$bt" "BOOT $at baseline: recorded, nothing started (no boot.seen; boot $((now - bt))s ago, ${last:+a }${last:-no} verdict before it)"
+    return 0
+  fi
+  if [[ -z "$last" ]]; then spl_wd_boot_seen "$bt" "BOOT $at: no verdict before the boot, nothing ran here"; return 0; fi
+  r="$(cat "$WD_DIR/resume$WD_SFX" 2>/dev/null || true)"
+  [[ "$r" =~ ^[0-9]+$ ]] && (( r > bt )) || r="$bt"
+  if (( now - r < WD_START_GRACE )); then echo "BOOT $at: waits $(( WD_START_GRACE - now + r ))s (start and resume grace)"; return 0; fi
+  if declare -F spl_wd_box_fenced >/dev/null && spl_wd_box_fenced; then
+    spl_wd_log "BOOT $at fenced (102 10.2): nothing started; retried next tick"; return 0
+  fi
+  [[ "${DRY_RUN:-1}" == 1 ]] || mkdir -p "$WD_DIR/boot.d" || return 0
+  while read -r id; do
+    [[ "$(cat "$WD_DIR/boot.d/$id" 2>/dev/null || true)" == "$bt" ]] && continue
+    why="$(spl_wd_boot_why "$id" "$tick" "$snap" "$last")"
+    if [[ -n "$why" ]]; then
+      spl_wd_log "BOOT $at $id left alone: $why"
+      [[ "${DRY_RUN:-1}" == 1 ]] || echo "$bt" > "$WD_DIR/boot.d/$id"
+      continue
+    fi
+    if out="$(spl_wd_boot_start "$id" "$bt" "$now" "$at")"; then n=$((n + 1)); else wait=$((wait + 1)); fi
+    spl_wd_log "BOOT $at $id: $out"
+  done < <(spl_wd_boot_ids)
+  if (( wait == 0 )); then spl_wd_boot_seen "$bt" "BOOT $at done: $n restart(s) started (cause reboot)"
+  else echo "BOOT $at: $n started, $wait wait for their judge lock"; fi
+  return 0
+}
+
+# "<verdict mtime> <id>" per dispatch/wd.<id> written before the boot BT.
+spl_wd_boot_snap() {
+  local f m
+  for f in "$LEASE_DIR"/wd.[acgq]-[0-9][0-9][0-9]; do
+    [[ -f "$f" ]] || continue
+    m="$(stat -c %Y "$f" 2>/dev/null || true)"
+    [[ "$m" =~ ^[0-9]+$ ]] && (( m < $1 )) && echo "$m ${f##*/wd.}"
+  done
+  return 0
+}
+
+# spl_wd_boot_seen BT LINE: the boot is handled; older snapshots go.
+spl_wd_boot_seen() {
+  spl_wd_log "$2"
+  [[ "${DRY_RUN:-1}" == 1 ]] && return 0
+  echo "$1" > "$WD_DIR/boot.seen"
+  find "$WD_DIR" -maxdepth 1 -name 'boot.*.seen' ! -name "boot.$1.seen" -delete 2>/dev/null || true
+  return 0
+}
+
+# The ids of the open registry rows of this box (<id> or <id>@<this box>).
+spl_wd_boot_ids() {
+  awk -F'\t' -v b="$ROTATE_BOX" -v t="${SPOOL_BOX_TAG:-}" '{i = $1; h = ""; if (i ~ /@/) {h = i; sub(/^[^@]*@/, "", h); sub(/@.*/, "", i)}
+    if (h == "" || h == b || h == t) print i}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null | grep -xE '[acgq]-[0-9]{3}' | sort -u || true
+}
+
+# Why <id> is not restarted by this boot; nothing when it is.
+spl_wd_boot_why() {
+  local id="$1" tick="$2" snap="$3" last="$4" rd rb ctx m start
+  if awk -F'\t' -v i="$id" '$1 == i && ($2 != "-" || $3 != "-") {f = 1} END {exit !f}' "$tick/agents"; then
+    echo "it runs (a window or a process carries it)"; return 0
+  fi
+  rd="$(awk -F'\t' -v i="$id" '$1 == i {d = $4} END {print d}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
+  if [[ "$rd" == /* && ! -d "$rd" ]]; then echo "done: its workdir $rd is gone"; return 0; fi
+  ctx="$WD_DIR/ctx$WD_SFX/boot.$id"
+  rm -rf "$ctx" && mkdir -p "$ctx"
+  spl_wd_lifetime "$id" "$ctx"
+  start="$(cat "$ctx/session_start" 2>/dev/null || true)"; [[ "$start" =~ ^[0-9]+$ ]] || start=0
+  if [[ -s "$ctx/done" ]] && (( $(cat "$ctx/done") >= start )); then echo "done: lifetime/done is newer than the session start"; return 0; fi
+  if [[ -e "$SPOOL_ROOT/$id/lifetime/heldout" ]]; then echo "held out until the admin clears it"; return 0; fi
+  rb="$(spl_wd_boot_running_box "$id")"
+  if [[ -n "$rb" && "$rb" != "$ROTATE_BOX" && "$rb" != "${SPOOL_BOX_TAG:-}" ]]; then echo "running_box is $rb, not this box"; return 0; fi
+  m="$(awk -v i="$id" '$2 == i {print $1; exit}' "$snap")"
+  if [[ ! "$m" =~ ^[0-9]+$ ]]; then echo "not running here at the boot (no verdict before it)"; return 0; fi
+  if (( last - m > ${WD_BOOT_SEEN:-900} )); then
+    echo "not running here at the boot (its last verdict $(( last - m ))s before the box's last one)"; return 0
+  fi
+  return 0
+}
+
+# The box a lane runs on (10.2): T018's spl_lane_running_box when it exists,
+# else <id>/lifetime/running_box, else the box of its session.json; empty =
+# this box.
+spl_wd_boot_running_box() {
+  local lt="$SPOOL_ROOT/$1/lifetime" b=""
+  if declare -F spl_lane_running_box >/dev/null; then spl_lane_running_box "$1"; return 0; fi
+  read -r b < "$lt/running_box" 2>/dev/null || true
+  [[ -n "$b" ]] || b="$(jq -r '.box // empty' "$lt/session.json" 2>/dev/null || true)"
+  echo "$b"
+}
+
+# spl_wd_boot_start ID BT NOW AT: the restart under the id's judge lock
+# (exit 1: held, the next tick). WD_BOOT_ID lists the windowless id for the
+# restart's gate (spl_wd_agents); the S3 takeover flag keeps a dead seat's
+# S3 from a second restart of the same boot.
+spl_wd_boot_start() {
+  local id="$1" bt="$2" now="$3" at="$4" out rc=0
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then echo "would restart (cause reboot)"; return 0; fi
+  (
+    exec 6>>"$WD_DIR/$id.judge.lock"
+    flock -n 6 || { echo "its judge lock is held: next tick"; exit 1; }
+    out="$(WD_BOOT_ID="$id" spl_wd_takeover "$id" reboot "boot $at" 5>&-)" || rc=$?
+    echo "$bt" > "$WD_DIR/boot.d/$id"
+    if (( rc == 0 )); then echo "$now" > "$WD_DIR/$id.ep.S3.takeover"; echo "restart started (cause reboot)"
+    else echo "not started: ${out:-takeover exit $rc}"; fi
+    exit 0
+  )
+}
+
+# The id spl_wd_boot_start is restarting (WD_BOOT_ID), for the restart's
+# gate: a lane after a boot has no window and no process.
+spl_wd_boot_listed() {
+  [[ "${WD_BOOT_ID:-}" =~ ^[acgq]-[0-9]{3}$ ]] && echo "$WD_BOOT_ID"
+  return 0
+}
+
 # ---- who is checked -------------------------------------------------------------
 
 # "<id>\t<pid>\t<pane>" for every local agent: a window named <id> or
@@ -284,7 +446,7 @@ spl_wd_agents() {
     printf '%s\t%s\n' "$id" "$pane" >> "$tick/win"
   done < "$tick/panes"
   spl_wd_proc_ids "$tick" > "$tick/procs"
-  spl_wd_expected > "$tick/expected"
+  { spl_wd_expected; spl_wd_boot_listed; } > "$tick/expected"
   awk -F'\t' -v w="$tick/win" -v x="$tick/expected" '
     FILENAME == w { if (!($1 in wp)) { wp[$1] = $2; ids[$1] = 1 } ; next }
     FILENAME == x { ids[$1] = 1; next }

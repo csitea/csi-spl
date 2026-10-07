@@ -11,19 +11,27 @@
 # @description overrides; an agent worktree is refused). For a box with no other
 # @description boot restore (the satellite); a box engine whose boot job already
 # @description runs do_spl_agent_identity_restore does not install it.
+# @description Spec 102 10.1 (T014): once the reboot drill passed, `retire`
+# @description removes the line for good: the watchdog's reboot path brings
+# @description the agents back (a new session, never a --resume), and two
+# @description automatic boot paths race. It leaves <log dir>/retired; from
+# @description then on `install` (a re-provision) skips (BOOT_CRON_FORCE=1
+# @description installs anyway) and `check` passes while the line is absent.
 # @description Dry run unless DRY_RUN=0.
-# @param BOOT_CRON_ACTION (optional) - install (default) | remove | check
+# @param BOOT_CRON_ACTION (optional) - install (default) | remove | check | retire
+# @param BOOT_CRON_FORCE (optional) - 1: install even after a retire
 # @param BOOT_CRON_LOG_DIR (optional) - default /var/<org>/<org>-<app>/agent-boot-restore
 # @param DESK_CRON_SRC / DESK_CRON_SELF_UPDATE / DESK_CRON_TRUNK (optional) - as do_spl_desk_install_service
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_agent_boot_restore_install_cron
 # @example DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron
 # @example BOOT_CRON_ACTION=check ./run -a do_spl_agent_boot_restore_install_cron
+# @example BOOT_CRON_ACTION=retire DRY_RUN=0 ./run -a do_spl_agent_boot_restore_install_cron
 #------------------------------------------------------------------------------
 do_spl_agent_boot_restore_install_cron() {
   do_require_bin crontab || return 1
   local act="${BOOT_CRON_ACTION:-install}"
-  case "$act" in install|remove|check) ;; *) do_log "FATAL BOOT_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
+  case "$act" in install|remove|check|retire) ;; *) do_log "FATAL BOOT_CRON_ACTION must be install, remove, check or retire, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
@@ -38,6 +46,11 @@ do_spl_agent_boot_restore_install_cron() {
     pre="cd $src && git fetch -q origin $trunk && git checkout -q --detach origin/$trunk; "
   line="$(printf '@reboot %s%s >> %s/cron.out 2>&1 # %s' "$pre" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
+  local retired="$logdir/retired"
+  if [[ -f "$retired" && "$act" != retire && "$act" != remove ]]; then
+    spl_agent_boot_restore_retired "$act" "$retired" "$current"; return
+  fi
+  if [[ "$act" == retire ]]; then spl_agent_boot_restore_retire "$tag" "$retired" "$current"; return; fi
 
   if [[ "$act" == check ]]; then
     [[ -n "$current" ]] || { do_log "FAIL the agent boot restore is NOT installed (no line tagged $tag)"; return 1; }
@@ -72,4 +85,42 @@ do_spl_agent_boot_restore_install_cron() {
   [[ "$current" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written. Got: ${current:-<nothing>}"; return 1; }
   do_log "OK the agents come back as the agent user after a reboot:"
   spl_desk_cron_say "$line"
+}
+
+# spl_agent_boot_restore_retired ACT FILE CURRENT: install or check after a
+# retire (spec 102 T014): install skips unless BOOT_CRON_FORCE=1; check passes
+# while the line stays out.
+spl_agent_boot_restore_retired() {
+  local act="$1" retired="$2" current="$3" since
+  since="$(head -c 200 "$retired" 2>/dev/null || true)"
+  if [[ "$act" == check ]]; then
+    [[ -z "$current" ]] || { do_log "FAIL the boot restore was retired ($since) but its line is back: $current"; return 1; }
+    do_log "OK the boot restore is retired ($since): the watchdog's reboot path brings the agents back (spec 102 10.1)"
+    return 0
+  fi
+  if [[ "${BOOT_CRON_FORCE:-0}" != 1 ]]; then
+    do_log "SKIP the boot restore was retired ($since, $retired): not installed (BOOT_CRON_FORCE=1 installs it anyway)"
+    return 0
+  fi
+  do_log "WARN BOOT_CRON_FORCE=1: installing the retired boot restore; $retired removed"
+  [[ "${DRY_RUN:-1}" == 1 ]] || rm -f "$retired"
+  BOOT_CRON_FORCE=0 do_spl_agent_boot_restore_install_cron
+}
+
+# spl_agent_boot_restore_retire TAG FILE CURRENT: the line out of the crontab
+# and the marker <log dir>/retired written (spec 102 T014, after the drill).
+spl_agent_boot_restore_retire() {
+  local tag="$1" retired="$2" current="$3"
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then
+    spl_desk_cron_diff "$tag" ""
+    do_log "INFO DRY_RUN would write $retired (install then skips)"
+    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."
+    return 0
+  fi
+  if [[ -n "$current" ]]; then spl_desk_cron_write "$tag" "" || return 1; fi
+  [[ -z "$(spl_desk_cron_line "$tag")" ]] || { do_log "FATAL the line tagged $tag is still in the crontab"; return 1; }
+  mkdir -p "${retired%/*}" 2>/dev/null &&
+    printf '%s retired by spec 102 T014 (the reboot drill passed)\n' "$(date -u +%FT%TZ)" > "$retired" ||
+    { do_log "FATAL cannot write $retired"; return 1; }
+  do_log "OK the boot restore is retired: no @reboot line ($tag), marker $retired; the watchdog's reboot path brings the agents back"
 }

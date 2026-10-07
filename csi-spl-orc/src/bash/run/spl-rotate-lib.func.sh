@@ -17,7 +17,8 @@
 #   spl_rotate_retire PANE PID              /exit-clean, /exit once its turn ends, wait, TERM, wait, KILL (FR-015)
 #   spl_rotate_ack_wait ID RID TIMEOUT      the new session's result on task <role>-rotate-<rid> in <ID>/outbox (FR-041)
 #   spl_rotate_ack_send ROLE ID             the ROTATE_CMD=ack sender, run by the new session (FR-041)
-#   spl_rotate_alert ROLE RID PHASE REASON  an ask (blocker) + an immediate owner DM (FR-075)
+#   spl_rotate_alert ROLE RID PHASE REASON  an ask (blocker) + an immediate owner DM (FR-075); <id>/lifetime/alerts.open
+#   spl_rotate_recovered ID RID ACTION PID  that seat healthy again: its open alert asks closed, one line to the owner
 #
 # The globals a rotation sets and these read: ROTATE_RID, ROTATE_OLD_PID,
 # ROTATE_OLD_PANE, ROTATE_OLD_NAME, ROTATE_NEW_PID, ROTATE_NEW_PANE,
@@ -800,9 +801,12 @@ spl_rotate_ack_send() {
 # spl_rotate_alert ROLE RID PHASE REASON [STATE]: an ask in the ask book (kind
 # blocker, topic <family>-rotate-<rid>) and, at once, a DM to the owner
 # (ASKS_OWNER_CMD, else ASKS_OWNER from lease.conf through do_spl_desk_reply).
-# No owner setting: one WARN, the ask alone. Best effort, logged.
+# No owner setting: one WARN, the ask alone. Best effort, logged. The ask is
+# also recorded in <spool root>/<id>/lifetime/alerts.open ("<ask> <rid>
+# <phase>"), so the seat's next healthy start can say it recovered
+# (spl_rotate_recovered).
 spl_rotate_alert() {
-  local role="$1" rid="$2" phase="$3" reason="$4" id body ask owner
+  local role="$1" rid="$2" phase="$3" reason="$4" id body ask
   id="$(spl_rotate_role_id "$role")"
   # a 5th argument replaces "old session kept" once RETIRE OK has run
   body="ROTATION FAILED $role $phase $reason; ${5:-old session kept: $id@$ROTATE_BOX pid ${ROTATE_OLD_PID:-?}}"
@@ -810,21 +814,62 @@ spl_rotate_alert() {
   if env ASK_ID="$ask" ASK_KIND=blocker ASK_FROM="$id" ASK_TO="${LEASE_ORCH:-}" ASK_TOPIC="$(spl_rotate_ack_task "$rid")" \
       ASK_SUMMARY="$body" timeout 120 "$ROTATE_RUN" -a do_spl_ask_put >/dev/null 2>&1 7>&- 8>&- 9>&-; then
     spl_rotate_log "$rid" ALERT OK "ask ${ask:0:8} in the ask book"
+    if spl_is_agent_id "$id" && mkdir -p "$SPOOL_ROOT/$id/lifetime" 2>/dev/null; then
+      echo "$ask $rid $phase" >> "$SPOOL_ROOT/$id/lifetime/alerts.open" 2>/dev/null || true
+    fi
   else spl_rotate_log "$rid" ALERT FAIL "do_spl_ask_put failed"; fi
+  spl_rotate_owner_say "$rid" "$id" "$ask" "**$body**" blocker
+  return 0
+}
+
+# spl_rotate_owner_say RID ID ASK BODY KIND [PHASE]: the owner leg of an
+# alert, the DM threaded on ASK. Logged under PHASE (ALERT); no owner
+# setting: one WARN.
+spl_rotate_owner_say() {
+  local rid="$1" id="$2" ask="$3" body="$4" kind="$5" ph="${6:-ALERT}" owner
   owner="${ASKS_OWNER:-$(sed -n 's/^ASKS_OWNER=\(HUM-[0-9]*\)$/\1/p' "$LEASE_CONF" 2>/dev/null | tail -1)}"
   if [[ -n "${ASKS_OWNER_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    if ASK_JSON="{\"ask_id\":\"$ask\"}" $ASKS_OWNER_CMD <<<"**$body**" >/dev/null 2>&1 7>&- 8>&- 9>&-; then
-      spl_rotate_log "$rid" ALERT OK "owner told (ASKS_OWNER_CMD)"
-    else spl_rotate_log "$rid" ALERT FAIL "ASKS_OWNER_CMD failed"; fi
+    if ASK_JSON="{\"ask_id\":\"$ask\"}" $ASKS_OWNER_CMD <<<"$body" >/dev/null 2>&1 7>&- 8>&- 9>&-; then
+      spl_rotate_log "$rid" "$ph" OK "owner told (ASKS_OWNER_CMD)"
+    else spl_rotate_log "$rid" "$ph" FAIL "ASKS_OWNER_CMD failed"; fi
   elif [[ "$owner" =~ ^HUM-[0-9]+$ && -n "${LEASE_ENV:-}" && -n "${LEASE_TENANT:-}" ]]; then
-    if env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_AGENT="$id" DESK_TO="$owner" DESK_TASK="$ask" DESK_KIND=blocker \
-        DESK_BODY="**$body**" DRY_RUN=0 timeout 120 "$ROTATE_RUN" -a do_spl_desk_reply >/dev/null 2>&1 7>&- 8>&- 9>&-; then
-      spl_rotate_log "$rid" ALERT OK "DM to $owner"
-    else spl_rotate_log "$rid" ALERT FAIL "the DM to $owner failed"; fi
+    if env ENV="$LEASE_ENV" TENANT_ID="$LEASE_TENANT" DESK_AGENT="$id" DESK_TO="$owner" DESK_TASK="$ask" DESK_KIND="$kind" \
+        DESK_BODY="$body" DRY_RUN=0 timeout 120 "$ROTATE_RUN" -a do_spl_desk_reply >/dev/null 2>&1 7>&- 8>&- 9>&-; then
+      spl_rotate_log "$rid" "$ph" OK "DM to $owner"
+    else spl_rotate_log "$rid" "$ph" FAIL "the DM to $owner failed"; fi
   else
-    spl_rotate_log "$rid" ALERT WARN "no owner leg (ASKS_OWNER_CMD, or ASKS_OWNER + LEASE_ENV + LEASE_TENANT in $LEASE_CONF): the ask alone"
+    spl_rotate_log "$rid" "$ph" WARN "no owner leg (ASKS_OWNER_CMD, or ASKS_OWNER + LEASE_ENV + LEASE_TENANT in $LEASE_CONF): the ask alone"
   fi
+  return 0
+}
+
+# spl_rotate_recovered ID RID ACTION PID: ID had a FAIL alert (lifetime/alerts.open)
+# and is healthy again (a rotation's ACK OK, a restart's DONE OK): every ask
+# in it is closed in the ask book, and ONE line goes to the owner on the
+# newest ask's thread: "<ID>@<box> recovered at <ts> by <ACTION>, now pid
+# <PID>". Then the file goes. No alert open: nothing. 2026-10-07: c-003's
+# failed rotation was alerted at 17:39Z, rs-c-003 restarted it at 17:40Z, and
+# no post ever said so. Best effort, logged as RECOVERED under RID, the run
+# that found it healthy (never the failed run's id: its .state would read the
+# failed rotation as in flight again).
+spl_rotate_recovered() {
+  local id="$1" rid="$2" action="$3" pid="$4" f ask arid last="" line ts n=0
+  f="$SPOOL_ROOT/$id/lifetime/alerts.open"
+  [[ -s "$f" ]] || return 0
+  ts="$(date -u +%FT%TZ)"
+  line="$id@$ROTATE_BOX recovered at $ts by $action, now pid ${pid:-?}"
+  while read -r ask arid _; do
+    [[ "$ask" =~ ^[0-9a-f-]{36}$ ]] || continue
+    n=$((n + 1)); last="$ask"
+    if env ASK_ID="$ask" ASK_STATE=done ASK_REASON="$line" ASK_BY="$id@$ROTATE_BOX" \
+        timeout 120 "$ROTATE_RUN" -a do_spl_ask_close >/dev/null 2>&1 7>&- 8>&- 9>&-; then
+      spl_rotate_log "$rid" RECOVERED OK "ask ${ask:0:8} of $arid closed: $line"
+    else spl_rotate_log "$rid" RECOVERED FAIL "ask ${ask:0:8} of $arid: do_spl_ask_close failed ($line)"; fi
+  done < "$f"
+  rm -f "$f"
+  (( n )) || return 0
+  spl_rotate_owner_say "$rid" "$id" "$last" "$line" note RECOVERED
   return 0
 }
 

@@ -198,6 +198,8 @@ spl_disp_heal() {
     done
   done
   spl_rotate_log "$rid" HEAL OK "running again: $what"
+  for id in $what; do spl_rotate_recovered "$id" "$rid" "the dispatch heal $rid" "$(spl_rotate_pids "$id" | sed -n 1p)"; done
+  return 0
 }
 
 # ROTATE_CMD=heal: the HEAL step alone, from cron every few minutes
@@ -386,6 +388,7 @@ spl_disp_from_spawn() {
     *) spl_disp_fail ACK "no ack within ${ROTATE_ACK_TIMEOUT}s"; return 1 ;;
   esac
   spl_disp_step ACK OK "acked by pid $ROTATE_NEW_PID"
+  spl_rotate_recovered "$id" "$ROTATE_RID" "rotation $ROTATE_RID" "$ROTATE_NEW_PID"
   spl_disp_from_ack
 }
 

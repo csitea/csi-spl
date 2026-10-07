@@ -38,6 +38,10 @@
 #      once naming it (not after the ack wait), the old M keeps the role,
 #      ALERT; nothing typed into the dialog (20261007T1715Z-failover).
 #      Control: the same rotation on a plain screen is not failed at SPAWN
+#  15. a seat with an open FAIL alert (lifetime/alerts.open) whose rotation
+#      acks: the ask closed + one "recovered at <ts> by rotation <rid>, now
+#      pid <pid>" line on the ask's thread, the file gone. Control: no open
+#      alert -> no ask close, no line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -120,11 +124,12 @@ cat >"$T/bin/run" <<'EOF'
 #!/usr/bin/env bash
 a="$2"
 echo "$a ASK_KIND=${ASK_KIND:-} ASK_FROM=${ASK_FROM:-} ASK_TOPIC=${ASK_TOPIC:-} DESK_TO=${DESK_TO:-} DISPATCH_MASTER=${DISPATCH_MASTER:-} ASK_SUMMARY=${ASK_SUMMARY:-}" >>"$T/run.log"
+echo "$a ASK_ID=${ASK_ID:-} ASK_STATE=${ASK_STATE:-} DESK_TASK=${DESK_TASK:-} DESK_KIND=${DESK_KIND:-} BODY=${ASK_REASON:-}${DESK_BODY:-}" >>"$T/run2.log"
 case "$a" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
   do_spl_lane_map) echo '{"lanes":[]}' ;;
   do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
-  do_spl_ask_put|do_spl_desk_reply) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_ask_close) exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -518,6 +523,25 @@ t0=$SECONDS; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=30 >"$T/o" 2>&1; rc=$?; took=$((SE
 world; act DRY_RUN=0 >"$T/o" 2>&1
 ! grep -q 'FAIL SPAWN' "$T/o" && grep -q ' ACK OK acked by pid 2902' "$T/o" &&
   pass "14. control: a plain screen on the fresh M is not failed at SPAWN" || fail "14. control: $(cat "$T/o")"
+
+# --- 15. recovered -------------------------------------------------------------------------
+world; rm -f "$T/run2.log"; mkdir -p "$S/c-902/lifetime"
+echo "0e5a2c1b-1111-4222-8333-944455556666 20261007T1715Z-master ACK" >"$S/c-902/lifetime/alerts.open"
+act DRY_RUN=0 >"$T/o" 2>&1
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
+grep -q "^do_spl_ask_close ASK_ID=0e5a2c1b-1111-4222-8333-944455556666 ASK_STATE=done .*BODY=c-902@box-desk recovered at [0-9T:-]*Z by rotation $rid, now pid 2902\$" "$T/run2.log" &&
+  grep -q "^do_spl_desk_reply ASK_ID= ASK_STATE= DESK_TASK=0e5a2c1b-1111-4222-8333-944455556666 DESK_KIND=note BODY=c-902@box-desk recovered at [0-9T:-]*Z by rotation $rid, now pid 2902\$" "$T/run2.log" &&
+  [[ "$(grep -c 'recovered at' "$T/run2.log")" == 2 && ! -e "$S/c-902/lifetime/alerts.open" ]] &&
+  grep -q " $rid RECOVERED OK ask 0e5a2c1b of 20261007T1715Z-master closed" "$D/rotate.log" &&
+  pass "15. an open alert + an ACK OK: the ask closed, one recovered line to the owner on its thread, the file gone" || fail "15. $(cat "$T/run2.log") $(grep RECOVERED "$D/rotate.log")"
+world; rm -f "$T/run2.log"; act DRY_RUN=0 >"$T/o" 2>&1
+! grep -q 'do_spl_ask_close\|recovered at' "$T/run2.log" && ! grep -q RECOVERED "$D/rotate.log" &&
+  pass "15. control: no open alert, no ask close and no line" || fail "15. control: $(cat "$T/run2.log")"
+# a failed rotation's alert is recorded for the next healthy start
+world; echo no >"$T/ack.mode.c-902"; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=2 >"$T/o" 2>&1
+grep -qE '^[0-9a-f-]{36} [0-9]{8}T[0-9]{4}Z-master ACK$' "$S/c-902/lifetime/alerts.open" &&
+  pass "15. a FAIL alert is recorded in <id>/lifetime/alerts.open" || fail "15. alerts.open: $(cat "$S/c-902/lifetime/alerts.open" 2>&1)"
+! grep -q ERRTRAP "$T/o" && pass "15. no stray failing command under the ERR trap" || fail "15. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

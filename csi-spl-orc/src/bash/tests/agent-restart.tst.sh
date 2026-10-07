@@ -37,8 +37,12 @@
 #      end with the owner in that window still runs (R3)
 #  13. the new session parked on a "Settings Warning" dialog: RS-SPAWN FAIL
 #      at once naming it, the new process signalled (nothing typed into the
-#      dialog), ALERT = ask + owner DM.
+#      dialog), ALERT = ask + owner DM, the alert recorded for recovery.
 #      Control: case 1, the same rebirth on a plain screen, runs to DONE OK
+#  14. an id with an open FAIL alert restarted to DONE OK: its ask closed and
+#      ONE "recovered at <ts> by do_spl_agent_restart <rid> (<cause>), now pid
+#      <pid>" line to the owner on that ask's thread. Control: no open alert,
+#      no ask close and no line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -101,9 +105,10 @@ EOF
 cat > "$T/bin/run" <<'EOF'
 #!/usr/bin/env bash
 echo "$2 PEER_SEAT=${PEER_SEAT:-} ASK_KIND=${ASK_KIND:-} DESK_TO=${DESK_TO:-}" >> "$T/run.log"
+echo "$2 ASK_ID=${ASK_ID:-} DESK_TASK=${DESK_TASK:-} DESK_KIND=${DESK_KIND:-} BODY=${ASK_REASON:-}${DESK_BODY:-}" >> "$T/run2.log"
 case "$2" in
   do_spl_asks_open) echo '{"asks":[]}' ;;
-  do_spl_ask_put|do_spl_desk_reply|do_spl_peer_poll) exit 0 ;;
+  do_spl_ask_put|do_spl_desk_reply|do_spl_peer_poll|do_spl_ask_close) exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -333,8 +338,24 @@ t0=$SECONDS; rc="$(go ID=c-943 CAUSE=rebirth DRY_RUN=0 ROTATE_START_CHECK_WAIT=2
   pass "13. Settings Warning on the new session: RS-SPAWN FAIL at once (${took}s), named, signalled, nothing typed" ||
   fail "13. rc=$rc took=${took}s $(tail -5 "$T/o") keys: $(grep %3943 "$T/tmux/log" 2>/dev/null)"
 grep -q '^do_spl_ask_put .*ASK_KIND=blocker' "$T/run.log" && grep -q '^do_spl_desk_reply .*DESK_TO=HUM-10' "$T/run.log" &&
-  pass "13. ... ALERT = ask + owner DM" || fail "13. alert: $(cat "$T/run.log")"
+  grep -qE '^[0-9a-f-]{36} [0-9]{8}T[0-9]{4}Z-rs-c-943 RS-SPAWN$' "$S/c-943/lifetime/alerts.open" &&
+  pass "13. ... ALERT = ask + owner DM, recorded in lifetime/alerts.open" || fail "13. alert: $(cat "$T/run.log") $(cat "$S/c-943/lifetime/alerts.open" 2>&1)"
 ! grep -q ERRTRAP "$T/o" && pass "13. no stray failing command under the ERR trap" || fail "13. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 14. recovered ------------------------------------------------------------------------------
+world; lane c-944 %44 -; reborn c-944
+echo "1a2b3c4d-1111-4222-8333-944455556666 20270115T0700Z-rs-c-944 RS-SPAWN" > "$S/c-944/lifetime/alerts.open"
+rc="$(go ID=c-944 CAUSE=rebirth DRY_RUN=0)"
+line="c-944@box1 recovered at [0-9T:-]*Z by do_spl_agent_restart [0-9]*T[0-9]*Z-rs-c-944 (rebirth), now pid 3944"
+[[ "$rc" == 0 && ! -e "$S/c-944/lifetime/alerts.open" ]] &&
+  grep -q "^do_spl_ask_close ASK_ID=1a2b3c4d-1111-4222-8333-944455556666 .*BODY=$line\$" "$T/run2.log" &&
+  grep -q "^do_spl_desk_reply ASK_ID= DESK_TASK=1a2b3c4d-1111-4222-8333-944455556666 DESK_KIND=note BODY=$line\$" "$T/run2.log" &&
+  [[ "$(grep -c 'recovered at' "$T/run2.log")" == 2 ]] &&
+  pass "14. an open alert + DONE OK: the ask closed, one recovered line on its thread, the file gone" || fail "14. rc=$rc $(cat "$T/run2.log" 2>&1) $(tail -3 "$T/o")"
+world; rm -f "$T/run2.log"; lane c-945 %45 -; reborn c-945
+rc="$(go ID=c-945 CAUSE=rebirth DRY_RUN=0)"
+[[ "$rc" == 0 ]] && ! grep -q 'do_spl_ask_close\|recovered at' "$T/run2.log" 2>/dev/null &&
+  pass "14. control: no open alert, no ask close and no line" || fail "14. control rc=$rc $(cat "$T/run2.log" 2>&1)"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

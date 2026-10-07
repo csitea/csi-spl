@@ -34,7 +34,10 @@
 # @description              named, and is alerted (ask + owner DM)
 # @description   REPORT   - crash: one blocker wd-<id>-<ts> to the peers;
 # @description              planned: ONE line to the orchestrator,
-# @description              `REBORN <id>@<box> #<n> cause=<c> handoff=<path>`
+# @description              `REBORN <id>@<box> #<n> cause=<c> handoff=<path>`;
+# @description              an id with an open FAIL alert also gets its asks
+# @description              closed and ONE "recovered at <ts> by <action>, now
+# @description              pid <pid>" line to the owner (spl_rotate_recovered)
 # @description   LOG      - rotate.log phases RS-*, the last DONE; one
 # @description              agent_lifecycle_events row when that action exists
 # @description SEAT (start first, slot 0): GATE, rotate.hold (role ids), the
@@ -326,6 +329,7 @@ spl_ars_run() {
   fi
   if (( rc == 0 )); then
     spl_peer_rlog "$rid" DONE OK "$id@$ROTATE_BOX restarted ($ARS_CAUSE): session #$ARS_N pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE"
+    spl_peer_with_lib spl_rotate_recovered "$id" "$rid" "do_spl_agent_restart $rid ($ARS_CAUSE)" "$ROTATE_NEW_PID"
     spl_ars_event "$id" "$rid" ok
   else
     spl_peer_rlog "$rid" DONE FAIL "$id@$ROTATE_BOX not restarted ($ARS_CAUSE): ${ROTATE_ERR:-see above}"

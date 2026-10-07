@@ -176,12 +176,23 @@ and responsive pickers are handled entirely within the WUI surface (T013..T019).
   thumb-reach zone (>= 44 px height); guest picker input and suggestions dropdown
   scroll smoothly on touch with >= 44 px tap targets; "Notify guests" switch is
   >= 44 px. Depends: T015, T007, T008. (spec 5.1.5)
-- [ ] T017 **Undo + trash**: the 10-second Undo toast after a delete, the
+- [x] T017 **Undo + trash** (c-428, `fd504c40`; WUI v2.5.8 on dev and prd): the 10-second Undo toast after a delete, the
   trash list in the calendar menu. Phone acceptance (360 and 390 px): Undo
   toast floats above bottom navigation bar and composer dock (`--composer-dock-h`),
   never obscuring bottom controls or system gestures; Undo button is >= 44 px;
   trash list renders as full-width mobile view. Depends: 089 T008, T004. Parallel with
   T013..T016. (spec 5.1.4)
+  - **Built** (c-428): `CalendarMainView.vue` shows the shared UndoSnackbar
+    ("Event deleted · Undo", 10 s, `data-testid=calendar-undo`) on the
+    dialog's `deleted`; Undo is `calendarRestore` (POST .../restore, same id).
+    On a phone its bottom is the measured bar height + `--composer-dock-h` +
+    8 px, 8 px side margins. The bar's ... button (`calendar-menu`, a
+    UiPointMenu; T018 adds Export .ics as a second item in `MENU_ITEMS`)
+    opens `CalendarTrash.vue` (lazy; GET /v1/calendar/trash, Restore per
+    row). `calendar-events-api.mjs` gains `calendarRestore` / `calendarTrash`,
+    the mock a soft delete with a 30-day trash; i18n `calendar_trash.*`.
+    Tests: `tests/unit/calendar-trash.test.mjs`, `tests/e2e/calendar-undo.test.mjs`
+    (AC-07 in the UI at 1440, 360 and 390 px). AC-02: 158532 of 158771 B.
 - [ ] T018 **quick add, search, export** in the header: the `+` sentence box
   with live `dry_run` preview, the search field and result list, "Export
   .ics". Phone acceptance (360 and 390 px): Quick add docks above software

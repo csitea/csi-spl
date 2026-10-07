@@ -4,6 +4,10 @@
  * operator.workspaces for everyone else. NULL on a field is the default.
  * rdb 0134: `boxes` is a per-box band {box: {low, high}} that overrides the
  * fleet band for the boxes it names; a PATCH replaces the whole map.
+ * rdb 0149: `agent_kinds_off` is the agent kinds no box starts a new lane of
+ * (never all four); `agent_kinds_paused` is {kind: {until, reason, box}}, a
+ * timed pause a box reported when that kind hit its usage limit. A PATCH
+ * replaces the kinds off; {agent_kinds_paused: {kind: null}} lifts a pause.
  * Node tests import this file; the settings card does too.
  */
 
@@ -15,8 +19,10 @@ export const FLEET_BOX_MAX = 32
 export const FLEET_BOX_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const FLEET_DEFAULT_LOW = 50
 export const FLEET_DEFAULT_HIGH = 75
+/** The agent kinds a box can start (store.AgentKinds), in the hub's order. */
+export const FLEET_AGENT_KINDS = ['claude', 'grok', 'agy', 'qwen']
 /** The hub's 400 bad_setting detail (internal/hub/fleet_load.go). */
-export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges'
+export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, never all four; agent_kinds_paused maps a kind to null (lift its pause)'
 
 export function validFleetBox(id) {
   return FLEET_BOX_RE.test(String(id || ''))
@@ -72,6 +78,24 @@ export function fleetBandOk(b) {
   return Number.isInteger(low) && Number.isInteger(high) && low >= 1 && low <= 99 && high >= 2 && high <= 100 && low < high
 }
 
+/** A kinds list → the known kinds it names, distinct, in FLEET_AGENT_KINDS order. */
+export function fleetKindList(v) {
+  const names = Array.isArray(v) ? v.map((x) => String(x)) : []
+  return FLEET_AGENT_KINDS.filter((k) => names.includes(k))
+}
+
+/** {kind: {until, reason, box}} → [{kind, until, reason, box}] in FLEET_AGENT_KINDS order; junk dropped. */
+export function fleetPauseList(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return []
+  const out = []
+  for (const kind of FLEET_AGENT_KINDS) {
+    const p = v[kind]
+    if (!p || typeof p !== 'object' || typeof p.until !== 'string' || !p.until) continue
+    out.push({ kind, until: p.until, reason: typeof p.reason === 'string' ? p.reason : '', box: typeof p.box === 'string' ? p.box : '' })
+  }
+  return out
+}
+
 function sameBands(a, b) {
   const x = fleetBandList(fleetBandMap(a))
   const y = fleetBandList(fleetBandMap(b))
@@ -93,6 +117,7 @@ export function normalizeFleetLoad(body) {
     high: s.high == null ? null : intOrNull(s.high),
     boxOrder: s.box_order == null ? null : boxList(s.box_order),
     boxes: s.boxes == null ? null : fleetBandList(s.boxes),
+    kindsOff: s.agent_kinds_off == null ? null : fleetKindList(s.agent_kinds_off),
   }
   const boxOrder = Array.isArray(b.box_order)
     ? boxList(b.box_order)
@@ -102,6 +127,8 @@ export function normalizeFleetLoad(body) {
     high: intOrNull(b.high) ?? (stored.high ?? defaults.high),
     boxOrder,
     boxes: b.boxes != null ? fleetBandList(b.boxes) : (stored.boxes ? stored.boxes.slice() : []),
+    kindsOff: b.agent_kinds_off != null ? fleetKindList(b.agent_kinds_off) : (stored.kindsOff ? stored.kindsOff.slice() : []),
+    paused: fleetPauseList(b.agent_kinds_paused),
     source: typeof b.source === 'string' ? b.source : '',
     stored,
     defaults,
@@ -125,7 +152,18 @@ export function fleetLoadPatchBody(saved, draft) {
   const bands = Array.isArray(draft.boxes) ? draft.boxes : []
   if (draft.resetBoxes) body.boxes = null
   else if (!sameBands(bands, saved.boxes || [])) body.boxes = fleetBandMap(bands)
+  if (Array.isArray(draft.kindsOff)) {
+    const off = fleetKindList(draft.kindsOff)
+    if (off.join() !== fleetKindList(saved.kindsOff).join()) body.agent_kinds_off = off
+  }
+  const lift = fleetKindList(draft.lift).filter((k) => (saved.paused || []).some((p) => p.kind === k))
+  if (lift.length) body.agent_kinds_paused = Object.fromEntries(lift.map((k) => [k, null]))
   return body
+}
+
+/** True when the kinds off leave at least one kind on (the hub refuses all four). */
+export function fleetKindsOk(kindsOff) {
+  return fleetKindList(kindsOff).length < FLEET_AGENT_KINDS.length
 }
 
 /** One box's own band from a normalizeFleetLoad() view; null = it uses the fleet band. */
@@ -210,6 +248,10 @@ export function fleetStoredOk(stored) {
       seen.add(b)
     }
   }
+  const off = stored.kindsOff
+  if (off != null) {
+    if (!Array.isArray(off) || fleetKindList(off).length !== off.length || !fleetKindsOk(off)) return false
+  }
   const bands = stored.boxes
   if (bands == null) return true
   if (!Array.isArray(bands) || bands.length > FLEET_BOX_MAX) return false
@@ -226,6 +268,8 @@ export function applyFleetPatch(stored, patch) {
     high: stored && stored.high != null ? stored.high : null,
     boxOrder: stored && Array.isArray(stored.boxOrder) ? stored.boxOrder.slice() : null,
     boxes: stored && Array.isArray(stored.boxes) ? stored.boxes.slice() : null,
+    kindsOff: stored && Array.isArray(stored.kindsOff) ? stored.kindsOff.slice() : null,
+    paused: stored && stored.paused && typeof stored.paused === 'object' ? { ...stored.paused } : null,
   }
   const p = patch && typeof patch === 'object' ? patch : {}
   if (Object.prototype.hasOwnProperty.call(p, 'low')) {
@@ -257,6 +301,24 @@ export function applyFleetPatch(stored, patch) {
       next.boxes = list.length === 0 ? null : fleetBandList(fleetBandMap(list))
     } else return null
   }
+  if (Object.prototype.hasOwnProperty.call(p, 'agent_kinds_off')) {
+    if (p.agent_kinds_off === null) next.kindsOff = null
+    else if (Array.isArray(p.agent_kinds_off)) {
+      const ks = p.agent_kinds_off.map((x) => String(x))
+      if (new Set(ks).size !== ks.length) return null
+      next.kindsOff = ks.length === 0 ? null : ks
+    } else return null
+  }
+  if (Object.prototype.hasOwnProperty.call(p, 'agent_kinds_paused') && p.agent_kinds_paused !== null) {
+    const m = p.agent_kinds_paused
+    if (!m || typeof m !== 'object' || Array.isArray(m)) return null
+    const left = { ...(next.paused || {}) }
+    for (const [k, v] of Object.entries(m)) {
+      if (v !== null || !FLEET_AGENT_KINDS.includes(k)) return null
+      delete left[k]
+    }
+    next.paused = Object.keys(left).length ? left : null
+  }
   return fleetStoredOk(next) ? next : null
 }
 
@@ -269,14 +331,18 @@ function fleetBody(stored) {
     high,
     box_order: boxOrder,
     boxes: stored.boxes == null ? {} : fleetBandMap(stored.boxes),
+    agent_kinds_off: stored.kindsOff == null ? [] : stored.kindsOff.slice(),
+    agent_kinds_paused: stored.paused == null ? {} : { ...stored.paused },
     source: 'hub',
     stored: {
       low: stored.low,
       high: stored.high,
       box_order: stored.boxOrder == null ? null : stored.boxOrder.slice(),
       boxes: stored.boxes == null ? null : fleetBandMap(stored.boxes),
+      agent_kinds_off: stored.kindsOff == null ? null : stored.kindsOff.slice(),
+      agent_kinds_paused: stored.paused == null ? null : { ...stored.paused },
     },
-    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [], boxes: {} },
+    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [], boxes: {}, agent_kinds_off: [], agent_kinds_paused: {} },
   }
 }
 
@@ -292,12 +358,15 @@ function browserStore() {
 function readStored(store) {
   /* keep the "no store" guard: storageGetJson would fall back to localStorage */
   const p = store && typeof store.getItem === 'function' ? storageGetJson(FLEET_STORE_KEY, null, store) : null
-  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null }
+  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null, kindsOff: null, paused: null }
   return {
     low: p.low == null ? null : Number(p.low),
     high: p.high == null ? null : Number(p.high),
     boxOrder: p.box_order == null ? null : boxList(p.box_order),
     boxes: p.boxes == null ? null : fleetBandList(p.boxes),
+    kindsOff: p.agent_kinds_off == null ? null : fleetKindList(p.agent_kinds_off),
+    /* the e2e plants a pause here, as a box's fleet_load_pause would */
+    paused: p.agent_kinds_paused && typeof p.agent_kinds_paused === 'object' ? { ...p.agent_kinds_paused } : null,
   }
 }
 
@@ -323,6 +392,8 @@ export function mockFleetWrite(patch, store) {
     high: next.high,
     box_order: next.boxOrder,
     boxes: next.boxes == null ? null : fleetBandMap(next.boxes),
+    agent_kinds_off: next.kindsOff,
+    agent_kinds_paused: next.paused,
   }))
   return fleetBody(next)
 }

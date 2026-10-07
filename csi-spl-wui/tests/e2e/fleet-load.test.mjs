@@ -1,4 +1,4 @@
-// Fleet load (rdb 0118, per-box bands rdb 0134) in a real browser, against
+// Fleet load (rdb 0118, per-box bands rdb 0134, agent types rdb 0149) in a real browser, against
 // the mock bundle. Also the same per-box band set from the Boxes view
 // (/boxes/<id>, t1 05e0fa03).
 //
@@ -251,6 +251,50 @@ try {
   await p.goto(server.base + '/boxes/box-desk', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=box-band-hidden]', { timeout: NAV_TIMEOUT })
   ok('23 a non-admin does not see the band block', !(await p.$('[data-test=box-band]')))
+
+  // rdb 0149 (t1 41fa1f2d): one on/off per agent type, and a box's pause.
+  const kindsOn = (q) => q.$$eval('[data-test=tenant-fleet-kind]', (els) => els.map((e) => `${e.getAttribute('data-kind')}=${e.getAttribute('data-on')}`).join(' '))
+  const toggle = (q, k) => q.click(`[data-test=tenant-fleet-kind][data-kind=${k}] [data-test=tenant-fleet-kind-toggle]`)
+  await p.evaluate((op, key) => {
+    localStorage.setItem(op, '1')
+    const row = JSON.parse(localStorage.getItem(key) || '{}')
+    row.agent_kinds_paused = { agy: { until: '2099-01-01T00:00:00Z', reason: 'usage limit', box: 'box-t' } }
+    localStorage.setItem(key, JSON.stringify(row))
+  }, FLEET_OPERATOR_KEY, FLEET_STORE_KEY)
+  await p.goto(server.base + '/tenant-settings/fleet-load', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-kinds]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('24 every agent type is on at first', (await kindsOn(p)) === 'claude=1 grok=1 agy=1 qwen=1', await kindsOn(p))
+  const pausedLine = await text(p, '[data-test=tenant-fleet-kind][data-kind=agy] [data-test=tenant-fleet-kind-paused]')
+  ok('25 a box\'s pause shows "paused: usage limit until <time>" on agy only',
+    /^Paused: usage limit until 209[89]-\d\d-\d\d \d\d:\d\d$/.test(pausedLine) && (await p.$$('[data-test=tenant-fleet-kind-paused]')).length === 1, pausedLine)
+  await toggle(p, 'grok')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-kind][data-kind=grok][data-on="0"]', { timeout: NAV_TIMEOUT })
+  ok('26 grok switched off survives a reload; the others stay on and the band is untouched',
+    (await kindsOn(p)) === 'claude=1 grok=0 agy=1 qwen=1' && (await value(p, '[data-test=tenant-fleet-high]')) === '80', await kindsOn(p))
+  await toggle(p, 'claude')
+  await toggle(p, 'agy')
+  const lastOn = await p.$eval('[data-test=tenant-fleet-kind][data-kind=qwen] [data-test=tenant-fleet-kind-toggle]', (e) => e.disabled)
+  ok('27 CONTROL: the last type on cannot be switched off', lastOn && (await kindsOn(p)) === 'claude=0 grok=0 agy=0 qwen=1', await kindsOn(p))
+  await toggle(p, 'claude')
+  await toggle(p, 'agy')
+  await p.click('[data-test=tenant-fleet-kind][data-kind=agy] [data-test=tenant-fleet-kind-resume]')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-kinds]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('28 resume lifts the agy pause; grok stays off',
+    !(await p.$('[data-test=tenant-fleet-kind-paused]')) && (await kindsOn(p)) === 'claude=1 grok=0 agy=1 qwen=1', await kindsOn(p))
+  await p.focus('[data-test=tenant-fleet-kind][data-kind=grok] [data-test=tenant-fleet-kind-toggle]')
+  await p.keyboard.press('Space')
+  await p.waitForSelector('[data-test=tenant-fleet-kind][data-kind=grok][data-on="1"]', { timeout: NAV_TIMEOUT })
+  ok('29 the switch works from the keyboard', true)
+  await p.setViewport({ width: 390, height: 800 })
+  const kindsPhone = await p.$eval('[data-test=tenant-fleet-kinds]', (e) => e.scrollWidth - e.clientWidth)
+  ok('30 phone: the agent types fit the width', kindsPhone <= 1, kindsPhone)
+  await p.setViewport({ width: 1400, height: 900 })
 
   ok('no page error', errors.length === 0, errors)
 } finally {

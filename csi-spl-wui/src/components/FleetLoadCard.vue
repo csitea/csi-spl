@@ -4,7 +4,10 @@
      card (the nav entry is hidden by the same probe in tenant-settings.vue).
      A reset sends JSON null, which is the hub's "back to the default".
      Per-box bands (rdb 0134): a box listed there uses its own low / high
-     instead of the fleet band; the PATCH sends the whole map. -->
+     instead of the fleet band; the PATCH sends the whole map.
+     Agent types (rdb 0149): one on/off per kind; no box starts a new agent
+     of a kind that is off. A kind a box paused (its usage limit) shows
+     "paused ... until"; Resume lifts it. -->
 <template>
   <div data-test="tenant-fleet-root" :data-state="state">
     <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -196,6 +199,48 @@
         </div>
       </div>
 
+      <fieldset class="fl-field fl-kinds" data-test="tenant-fleet-kinds">
+        <legend>{{ t('tenant_settings.fleet_load_kinds') }}</legend>
+        <small class="muted">{{ t('tenant_settings.fleet_load_kinds_hint') }}</small>
+        <div
+          v-for="k in FLEET_AGENT_KINDS"
+          :key="k"
+          class="fl-kind"
+          data-test="tenant-fleet-kind"
+          :data-kind="k"
+          :data-on="kindOn(k) ? '1' : '0'"
+        >
+          <label class="fl-kind__switch">
+            <input
+              type="checkbox"
+              role="switch"
+              :checked="kindOn(k)"
+              :disabled="saving || (kindOn(k) && kindsOn === 1)"
+              :aria-describedby="pausedOf(k) ? 'tenant-fleet-paused-' + k : undefined"
+              data-test="tenant-fleet-kind-toggle"
+              @change="toggleKind(k, ($event.target as HTMLInputElement).checked)"
+            >
+            <code>{{ k }}</code>
+            <span class="muted">{{ kindOn(k) ? t('tenant_settings.fleet_load_kind_on') : t('tenant_settings.fleet_load_kind_off') }}</span>
+          </label>
+          <template v-if="pausedOf(k)">
+            <small :id="'tenant-fleet-paused-' + k" class="fl-paused" data-test="tenant-fleet-kind-paused">
+              {{ t('tenant_settings.fleet_load_kind_paused', { reason: pausedOf(k)?.reason || '-', until: when(pausedOf(k)?.until || '') }) }}
+            </small>
+            <button
+              type="button"
+              class="btn ghost"
+              :disabled="saving || lift.includes(k)"
+              :aria-label="t('tenant_settings.fleet_load_kind_resume') + ' ' + k"
+              data-test="tenant-fleet-kind-resume"
+              @click="liftPause(k)"
+            >
+              {{ t('tenant_settings.fleet_load_kind_resume') }}
+            </button>
+          </template>
+        </div>
+      </fieldset>
+
       <div class="fl-actions">
         <button type="button" class="btn" :disabled="saving || !dirty" data-test="tenant-fleet-save" @click="save">
           {{ t('tenant_settings.save') }}
@@ -214,9 +259,12 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useSettingSave } from '~/composables/useSettingSave'
 import { moveItem } from '~/utils/tenant-settings.mjs'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
+  FLEET_AGENT_KINDS,
   FLEET_BOX_MAX,
   fleetBandOk,
+  fleetKindsOk,
   fleetLoadForbidden,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
@@ -224,7 +272,7 @@ import {
   suggestFleetBoxes,
   validFleetBox,
 } from '~/utils/fleet-load.mjs'
-import type { FleetBoxBand, FleetLoadView } from '~/utils/fleet-load.mjs'
+import type { FleetBoxBand, FleetKindPause, FleetLoadView } from '~/utils/fleet-load.mjs'
 
 type FleetApi = {
   mock: boolean
@@ -250,10 +298,20 @@ const resetOrder = ref(false)
 const bands = ref<FleetBoxBand[]>([])
 const resetBoxes = ref(false)
 const bandBox = ref('')
+const kindsOff = ref<string[]>([])
+const lift = ref<string[]>([])
 const candidate = ref('')
 const suggestions = ref<string[]>([])
 const notice = ref('')
 const formError = ref('')
+
+const kindsOn = computed(() => FLEET_AGENT_KINDS.length - kindsOff.value.length)
+const kindOn = (k: string) => !kindsOff.value.includes(k)
+const pausedOf = (k: string): FleetKindPause | undefined =>
+  lift.value.includes(k) ? undefined : (view.value?.paused || []).find((p) => p.kind === k)
+function when(iso: string) {
+  return isoDateTime(iso) || iso
+}
 
 const offer = computed(() => suggestions.value.filter((id) => !boxes.value.includes(id)))
 
@@ -297,6 +355,8 @@ function draft() {
     resetOrder: resetOrder.value,
     boxes: bands.value.map((b) => ({ ...b })),
     resetBoxes: resetBoxes.value,
+    kindsOff: kindsOff.value.slice(),
+    lift: lift.value.slice(),
   }
 }
 
@@ -310,6 +370,17 @@ function take(next: FleetLoadView) {
   resetOrder.value = false
   bands.value = next.boxes.map((b) => ({ ...b }))
   resetBoxes.value = false
+  kindsOff.value = next.kindsOff.slice()
+  lift.value = []
+}
+
+function toggleKind(k: string, on: boolean) {
+  formError.value = ''
+  const next = on ? kindsOff.value.filter((x) => x !== k) : kindsOff.value.concat(k)
+  kindsOff.value = FLEET_AGENT_KINDS.filter((x) => next.includes(x))
+}
+function liftPause(k: string) {
+  if (!lift.value.includes(k)) lift.value = lift.value.concat(k)
 }
 
 function editLow(raw: string) {
@@ -417,6 +488,10 @@ async function persist(): Promise<{ ok: boolean, out?: { error: string, detail: 
 }
 
 async function save() {
+  if (!fleetKindsOk(kindsOff.value)) {
+    formError.value = t('tenant_settings.fleet_load_kinds_all_off')
+    return
+  }
   if (!resetBoxes.value && !bands.value.every(fleetBandOk)) {
     formError.value = t('tenant_settings.fleet_load_band_bad')
     return
@@ -495,12 +570,19 @@ watch(() => session.state, (st) => {
 .fl-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .fl-notice { margin: 0; color: var(--color-ok); }
 .fl-error { margin: 0; color: var(--color-danger); overflow-wrap: anywhere; }
+.fl-kinds { border: 0; padding: 0; margin: 0 0 14px; }
+.fl-kinds legend { padding: 0; }
+.fl-kind { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 36px; min-width: 0; max-width: 100%; }
+.fl-kind__switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.fl-kind__switch input { width: 1.125rem; height: 1.125rem; margin: 0; accent-color: var(--color-accent); }
+.fl-paused { color: var(--color-warn); overflow-wrap: anywhere; min-width: 0; }
 @media (max-width: 820px) {
   .fl-field input[type="number"],
   .fl-add input { width: 100%; min-height: var(--tap, 44px); }
   .fl-row { min-height: var(--tap, 44px); }
   .fl-row .icon-btn { width: var(--tap, 44px); height: var(--tap, 44px); }
   .fl-band input { width: 4.5em; min-height: var(--tap, 44px); }
+  .fl-kind { min-height: var(--tap, 44px); }
   .fl-actions .btn, .fl-add .btn, .fl-field .btn { min-height: var(--tap, 44px); }
 }
 </style>

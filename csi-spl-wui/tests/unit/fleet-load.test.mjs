@@ -4,6 +4,7 @@
 // Run: node tests/unit/fleet-load.test.mjs
 import { readFileSync } from 'node:fs'
 import {
+  FLEET_AGENT_KINDS,
   FLEET_BAD_SETTING,
   FLEET_OPERATOR_KEY,
   applyFleetPatch,
@@ -13,6 +14,9 @@ import {
   fleetBandOk,
   fleetBoxBandOf,
   fleetBoxBandPatch,
+  fleetKindList,
+  fleetKindsOk,
+  fleetPauseList,
   fleetLoadForbidden,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
@@ -192,6 +196,38 @@ ok('box load %: load5 / cpus as box-pick reads it', boxLoadPct({ load5: 0.9, cpu
 ok('CONTROL: box load % without a sample or cpus is null', boxLoadPct(null) === null && boxLoadPct({ load5: 1, cpus: 0 }) === null)
 const page = readFileSync(new URL('../../src/pages/boxes/[id].vue', import.meta.url), 'utf8')
 ok('the Boxes page loads the band block lazily', /defineAsyncComponent\(\(\) => import\('@\/components\/BoxLoadBand\.vue'\)\)/.test(page) && !/^import .*BoxLoadBand/m.test(page))
+
+// rdb 0149: agent kinds off, and the timed pauses a box reports.
+ok('kinds: the four kinds, in the hub order', FLEET_AGENT_KINDS.join() === 'claude,grok,agy,qwen')
+ok('kinds: a list keeps known kinds, distinct, in order', fleetKindList(['qwen', 'gpt', 'grok', 'grok']).join() === 'grok,qwen')
+ok('kinds: every kind off is refused, three off is fine', !fleetKindsOk(FLEET_AGENT_KINDS) && fleetKindsOk(['claude', 'grok', 'agy']))
+const kinds = normalizeFleetLoad({
+  low: 50, high: 75, box_order: [], agent_kinds_off: ['grok'],
+  agent_kinds_paused: { agy: { until: '2026-10-08T01:00:00Z', reason: 'usage limit', box: 'box-t' }, gpt: { until: 'x' } },
+  stored: { agent_kinds_off: ['grok'] },
+})
+ok('reader: kinds off and the paused kinds (junk dropped)',
+  kinds.kindsOff.join() === 'grok' && kinds.paused.length === 1 && kinds.paused[0].kind === 'agy' && kinds.paused[0].box === 'box-t', JSON.stringify(kinds))
+ok('reader: nothing off and nothing paused by default', fresh.kindsOff.length === 0 && fresh.paused.length === 0)
+ok('pause list: {kind: {until}} only', fleetPauseList({ grok: { until: '' }, qwen: { until: 't' } }).map((p) => p.kind).join() === 'qwen')
+const kindDraft = { low: 50, high: 75, boxOrder: [], resetLow: false, resetHigh: false, resetOrder: false }
+ok('patch: switching grok off sends the whole set', JSON.stringify(fleetLoadPatchBody(fresh, { ...kindDraft, kindsOff: ['grok'] })) === '{"agent_kinds_off":["grok"]}')
+ok('patch: switching it back on sends an empty set', JSON.stringify(fleetLoadPatchBody(kinds, { ...kindDraft, kindsOff: [] })) === '{"agent_kinds_off":[]}')
+ok('CONTROL: an unchanged set, or a draft with no kinds, sends nothing',
+  Object.keys(fleetLoadPatchBody(kinds, { ...kindDraft, kindsOff: ['grok'] })).length === 0 && Object.keys(fleetLoadPatchBody(kinds, kindDraft)).length === 0)
+ok('patch: resume sends null for that kind only', JSON.stringify(fleetLoadPatchBody(kinds, { ...kindDraft, kindsOff: ['grok'], lift: ['agy', 'qwen'] })) === '{"agent_kinds_paused":{"agy":null}}')
+const kindStore = mem({ [FLEET_OPERATOR_KEY]: '1' })
+const kOff = normalizeFleetLoad(mockFleetWrite({ agent_kinds_off: ['grok', 'qwen'] }, kindStore))
+ok('mock: kinds off are stored and read back', kOff.kindsOff.join() === 'grok,qwen' && normalizeFleetLoad(mockFleetRead(kindStore)).kindsOff.join() === 'grok,qwen')
+let allOff = ''
+try { mockFleetWrite({ agent_kinds_off: FLEET_AGENT_KINDS }, kindStore) } catch (e) { allOff = e.token }
+ok('CONTROL: every kind off is refused (bad_setting), the row stays', allOff === 'bad_setting' && normalizeFleetLoad(mockFleetRead(kindStore)).kindsOff.join() === 'grok,qwen', allOff)
+let bogus = ''
+try { mockFleetWrite({ agent_kinds_off: ['gpt'] }, kindStore) } catch (e) { bogus = e.token }
+ok('CONTROL: an unknown kind is refused', bogus === 'bad_setting', bogus)
+kindStore.setItem('spool.mock.fleet_load', JSON.stringify({ agent_kinds_off: ['grok'], agent_kinds_paused: { agy: { until: '2099-01-01T00:00:00Z', reason: 'usage limit', box: 'b' } } }))
+const lifted = normalizeFleetLoad(mockFleetWrite({ agent_kinds_paused: { agy: null } }, kindStore))
+ok('mock: resume lifts the pause and keeps the kinds off', lifted.paused.length === 0 && lifted.kindsOff.join() === 'grok', JSON.stringify(lifted))
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)

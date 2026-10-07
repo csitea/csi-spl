@@ -2161,6 +2161,8 @@
     "view_short_day": "P",
     "prev_month": "Eelmine kuu",
     "next_month": "Järgmine kuu",
+    "month_empty": "Sündmusi pole plaanitud",
+    "month_add": "Lisa sündmus",
     "prev_week": "Eelmine nädal",
     "next_week": "Järgmine nädal",
     "prev_day": "Eelmine päev",

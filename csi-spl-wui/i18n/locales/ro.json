@@ -2161,6 +2161,8 @@
     "view_short_day": "Z",
     "prev_month": "Luna anterioară",
     "next_month": "Luna următoare",
+    "month_empty": "Niciun eveniment planificat",
+    "month_add": "Adaugă eveniment",
     "prev_week": "Săptămâna anterioară",
     "next_week": "Săptămâna următoare",
     "prev_day": "Ziua anterioară",

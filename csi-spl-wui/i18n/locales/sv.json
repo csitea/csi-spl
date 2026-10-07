@@ -2161,6 +2161,8 @@
     "view_short_day": "D",
     "prev_month": "Föregående månad",
     "next_month": "Nästa månad",
+    "month_empty": "Inga planerade händelser",
+    "month_add": "Lägg till händelse",
     "prev_week": "Föregående vecka",
     "next_week": "Nästa vecka",
     "prev_day": "Föregående dag",

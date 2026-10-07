@@ -2161,6 +2161,8 @@
     "view_short_day": "D",
     "prev_month": "Mes anterior",
     "next_month": "Mes siguiente",
+    "month_empty": "No hay eventos previstos",
+    "month_add": "Añadir evento",
     "prev_week": "Semana anterior",
     "next_week": "Semana siguiente",
     "prev_day": "Día anterior",

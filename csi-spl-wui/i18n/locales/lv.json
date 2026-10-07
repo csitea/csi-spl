@@ -2161,6 +2161,8 @@
     "view_short_day": "D",
     "prev_month": "Iepriekšējais mēnesis",
     "next_month": "Nākamais mēnesis",
+    "month_empty": "Nav plānotu notikumu",
+    "month_add": "Pievienot notikumu",
     "prev_week": "Iepriekšējā nedēļa",
     "next_week": "Nākamā nedēļa",
     "prev_day": "Iepriekšējā diena",

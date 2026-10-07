@@ -2161,6 +2161,8 @@
     "view_short_day": "י",
     "prev_month": "החודש הקודם",
     "next_month": "החודש הבא",
+    "month_empty": "אין אירועים מתוכננים",
+    "month_add": "הוספת אירוע",
     "prev_week": "השבוע הקודם",
     "next_week": "השבוע הבא",
     "prev_day": "היום הקודם",

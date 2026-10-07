@@ -2161,6 +2161,8 @@
     "view_short_day": "G",
     "prev_month": "Önceki ay",
     "next_month": "Sonraki ay",
+    "month_empty": "Planlanmış etkinlik yok",
+    "month_add": "Etkinlik ekle",
     "prev_week": "Önceki hafta",
     "next_week": "Sonraki hafta",
     "prev_day": "Önceki gün",

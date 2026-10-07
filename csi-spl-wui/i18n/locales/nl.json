@@ -2161,6 +2161,8 @@
     "view_short_day": "D",
     "prev_month": "Vorige maand",
     "next_month": "Volgende maand",
+    "month_empty": "Geen afspraken gepland",
+    "month_add": "Afspraak toevoegen",
     "prev_week": "Vorige week",
     "next_week": "Volgende week",
     "prev_day": "Vorige dag",

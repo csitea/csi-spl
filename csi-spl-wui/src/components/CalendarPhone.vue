@@ -92,6 +92,18 @@
               @add="openSheet({ day: $event })"
               @open="openPeek"
             />
+            <LazyCalendarPhoneMonth
+              v-else-if="view === 'month'"
+              :day="pg.day"
+              :today="today"
+              :items="pg.dir === 0 ? items : []"
+              :state="pg.dir === 0 ? state : 'loading'"
+              :interactive="pg.dir === 0 && !turning"
+              @select="pick"
+              @open-day="openDay"
+              @open="openPeek"
+              @add="addOn"
+            />
             <div v-else class="calphone__slot" :data-test="`calphone-slot-${view}`" :data-period="pg.period">
               <p class="calphone__slot-title">{{ pg.title }}</p>
               <p class="calphone__slot-note">{{ t('calendar_phone.placeholder') }}</p>
@@ -175,7 +187,7 @@
       </button>
     </nav>
     <!-- T008 (add sheet), T009 (peek), T010 (picker, search) open here -->
-    <div v-if="panel" hidden data-test="calphone-panel" :data-panel="panel" />
+    <div v-if="panel" hidden data-test="calphone-panel" :data-panel="panel" :data-at-day="panelAt.day" />
     <CalendarPhoneSheet
       v-if="sheetUsed || panel === 'add'"
       :open="panel === 'add'"
@@ -258,7 +270,23 @@ const announced = ref('')
 watch(title, (v) => { announced.value = v })
 
 const panel = ref<'' | 'picker' | 'search' | 'menu' | 'add'>('')
-function openPanel(kind: 'picker' | 'search' | 'menu' | 'add') { panel.value = kind }
+/* the day a panel opens on (T005: Month's empty state adds on its day) */
+const panelAt = ref<{ day?: string }>({})
+function openPanel(kind: 'picker' | 'search' | 'menu' | 'add', at: { day?: string } = {}) {
+  panel.value = kind
+  panelAt.value = at
+}
+
+/* T005: Month selects a day in place; a second tap opens it in Day */
+function pick(day: string) {
+  if (day === shownDay.value) return
+  shownDay.value = day
+  emit('move', day)
+}
+function openDay(day: string) {
+  pick(day)
+  setView('day')
+}
 
 /* T008: the add / edit sheet, its own chunk on first open. The views and
    the peek open it with inject('calphone-sheet'): a new event on a day (at a
@@ -273,6 +301,11 @@ function openSheet(o: Partial<SheetFor> = {}) {
   panel.value = 'add'
 }
 provide('calphone-sheet', openSheet)
+/* T005: Month's empty state adds on its day */
+function addOn(day: string) {
+  openSheet({ day })
+  panelAt.value = { day }
+}
 
 /* T009: a tap on an event opens its peek; the views reach it by inject('calphone-peek').
    Edit hands the event to T008's sheet; Duplicate opens a new event on its day and hour */
@@ -374,11 +407,11 @@ const turning = ref(false)
 const moving = ref(false)
 
 const pages = computed(() => {
-  const cur = { key: `p:${shownDay.value}`, dir: 0, period: period.value, title: title.value, inert: turning.value }
+  const cur = { key: `p:${period.value}`, day: shownDay.value, dir: 0, period: period.value, title: title.value, inert: turning.value }
   if (side.value === 0) return [cur]
   const day = calPhoneStep(view.value, shownDay.value, side.value)
   const r = calPhoneRange(view.value, day)
-  return [cur, { key: `n:${day}`, dir: side.value, period: r?.from || '', title: titleOf(day), inert: !turning.value }]
+  return [cur, { key: `n:${day}`, day, dir: side.value, period: r?.from || '', title: titleOf(day), inert: !turning.value }]
 })
 
 const isRtl = () => document.documentElement.dir === 'rtl'

@@ -2161,6 +2161,8 @@
     "view_short_day": "D",
     "prev_month": "Ankstesnis mėnuo",
     "next_month": "Kitas mėnuo",
+    "month_empty": "Suplanuotų įvykių nėra",
+    "month_add": "Pridėti įvykį",
     "prev_week": "Ankstesnė savaitė",
     "next_week": "Kita savaitė",
     "prev_day": "Ankstesnė diena",

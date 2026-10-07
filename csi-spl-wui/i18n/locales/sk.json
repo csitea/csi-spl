@@ -2161,6 +2161,8 @@
     "view_short_day": "D",
     "prev_month": "Predchádzajúci mesiac",
     "next_month": "Nasledujúci mesiac",
+    "month_empty": "Žiadne naplánované udalosti",
+    "month_add": "Pridať udalosť",
     "prev_week": "Predchádzajúci týždeň",
     "next_week": "Nasledujúci týždeň",
     "prev_day": "Predchádzajúci deň",

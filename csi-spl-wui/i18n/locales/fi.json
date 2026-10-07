@@ -2161,6 +2161,8 @@
     "view_short_day": "P",
     "prev_month": "Edellinen kuukausi",
     "next_month": "Seuraava kuukausi",
+    "month_empty": "Ei suunniteltuja tapahtumia",
+    "month_add": "Lisää tapahtuma",
     "prev_week": "Edellinen viikko",
     "next_week": "Seuraava viikko",
     "prev_day": "Edellinen päivä",

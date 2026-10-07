@@ -5,11 +5,15 @@
 # @description smallest box-path proof that a message reaches the hub (and so
 # @description its Postgres, shown by do_spl_db_message_show). Works on prd:
 # @description no debug token, no human, no invite.
-# @description   1. the probe box (default box-orc-probe, agent ORC-1) gets its
+# @description   1. the probe box (default box-orc-probe, agent c-901) gets its
 # @description      own SPOOL_ROOT + key under the state dir; the FIRST run
 # @description      mints the key and pins it with the tenant root key
 # @description      (`spool hub-pin`, POST /v1/pins: the documented pin path);
-# @description      later runs reuse key and pin
+# @description      later runs reuse key and pin. A key already on disk with no
+# @description      local pin record is never re-minted: its public key is
+# @description      pinned again WITHOUT --force, which the hub takes as a
+# @description      no-op when that key is the pinned one and refuses (409)
+# @description      when the box is pinned to another key: the run stops then
 # @description   2. `spool hub-sync` (hello)
 # @description   3. `spool send --kind note` from the probe agent to ITSELF on
 # @description      the probe box, body "[orc-probe] <label> <utc>", so no other
@@ -33,7 +37,9 @@
 # @param TENANT_ID - required: the tenant slug
 # @param ROOT_KEY_JSON - required: the 0600 JSON do_spl_tenant_create wrote (root_private_key)
 # @param PROBE_BOX (optional) - default box-orc-probe
-# @param PROBE_AGENT (optional) - default ORC-1
+# @param PROBE_AGENT (optional) - default c-901: legacy test ids such as ORC-1
+#   ended with specs/061 section 0 and move to c-9NN (061 section 2); an agent
+#   is unique as <id>@<box> (061 section 3.3) and the probe box is its own box
 # @param PROBE_LABEL (optional) - free text in the body, default "message-to-db"
 # @param PROBE_TASK (optional) - post into this existing topic (a task UUID, e.g.
 #   the tenant lobby) instead of a fresh one, so a browser following that
@@ -46,12 +52,12 @@ do_spl_box_msg_probe() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-orc-probe}" agent="${PROBE_AGENT:-ORC-1}"
+  local tenant="${TENANT_ID:-}" box="${PROBE_BOX:-box-orc-probe}" agent="${PROBE_AGENT:-c-901}"
   local label="${PROBE_LABEL:-message-to-db}" rkj="${ROOT_KEY_JSON:-}" ptask="${PROBE_TASK:-}"
   spl_require_tenant_slug "$tenant" || return 1
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL PROBE_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. ORC-1)"; return 1; }
+  spl_is_participant_id "$agent" || { do_log "FATAL PROBE_AGENT '$agent' is not an agent id (e.g. c-901)"; return 1; }
   [[ "$label" =~ ^[A-Za-z0-9._\ -]{1,64}$ ]] || { do_log "FATAL PROBE_LABEL must be 1..64 of [A-Za-z0-9._ -]"; return 1; }
   [[ -z "$ptask" || "$ptask" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { do_log "FATAL PROBE_TASK must be a lowercase task UUID, got: '$ptask'"; return 1; }
   [[ -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON must name the tenant's saved create JSON (got '$rkj')"; return 1; }
@@ -70,16 +76,23 @@ do_spl_box_msg_probe() {
   mkdir -p "$d/spool/$agent" "$d/keys" && chmod -R go-rwx "$d" || return 1
   _probe() { SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_MIRROR_LOCAL=1 "$SPL_SPOOL" "$@"; }
 
-  local out rc=0
-  if [[ ! -f "$d/pinned" ]]; then
-    local pub key
-    pub="$(_probe keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
+  local out rc=0 pub="" kf="$d/keys/box-$box.key"
+  if [[ -s "$kf" ]]; then
+    # the ed25519 private key is seed||public, base64: the public half is its last 32 bytes
+    pub="$(python3 -c 'import base64,sys; k=base64.b64decode(open(sys.argv[1]).read().strip()); assert len(k)==64; print(base64.b64encode(k[32:]).decode())' "$kf" 2>/dev/null)" ||
+      { do_log "FATAL $kf is not a box key; not overwriting it"; return 1; }
+  fi
+  if [[ -z "$pub" || "$(cat "$d/pinned" 2>/dev/null)" != "$pub" ]]; then
+    local key
+    if [[ -z "$pub" ]]; then
+      pub="$(_probe keygen 2>&1)" || { do_log "FATAL keygen for $box: $pub"; return 1; }
+    fi
     key="$(umask 077 && mktemp)" || return 1
     python3 -c 'import json,sys; open(sys.argv[2],"w").write(json.load(open(sys.argv[1]))["root_private_key"].strip()+"\n")' \
       "$rkj" "$key" 2>/dev/null || { rm -f "$key"; do_log "FATAL no root_private_key in $rkj"; return 1; }
     out="$(_probe hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
     rm -f "$key"
-    (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }
+    (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant (its key on disk $kf is kept; a 409 means the hub pins $box to another key): $out"; return 1; }
     printf '%s\n' "$pub" >"$d/pinned"
     do_log "INFO pinned $box ($pub) under $tenant at $hub"
   fi

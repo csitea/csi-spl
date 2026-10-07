@@ -25,6 +25,17 @@
 # @description <id>/lifetime/restarts) the id is held out until the admin
 # @description clears <id>/lifetime/heldout. DRY_RUN=1 (the default) writes
 # @description the verdicts and only prints the actions.
+# @description Spec 102 10.4.1 (T023a): up to 3 instances run at once
+# @description (WD_INST 1..3), each under its own run.<inst>.lock with its own
+# @description scratch (tick.<inst>/, ctx.<inst>/, last.tick.<inst>,
+# @description resume.<inst>, heartbeat.<inst>.json); every agent is judged
+# @description under <id>.judge.lock (flock -n), once per tick period by the
+# @description pool, so the per-agent state (<id>.hits, .ep.*, the since
+# @description files, s9.poked) is written by one instance at a time. The
+# @description watchdog never takes the T003 id lock: the detached restart does.
+# @param WD_INST / INSTANCE (optional) - this loop's instance 1..3; empty = the one 093 loop (run.lock, tick/, ctx/)
+# @param WD_INST_START (optional) - instances to start detached when missing ("1 2 3"), then return: the cron entry (spl_wd_inst_start)
+# @param WD_JUDGE_LOCK (optional) - 1 (default); 0 drops the judge lock (the tests' control only)
 # @param WD_TICKS (optional) - ticks to run, default 0 = forever (the loop); 1 = one proof tick
 # @param WD_TICK (optional) - seconds per tick, default 30
 # @param DRY_RUN (optional) - 1 (default): no key, ring, note or takeover; 0: act
@@ -41,6 +52,7 @@
 # @example WD_TICKS=1 ./run -a do_spl_watchdog
 # @example DRY_RUN=0 ./run -a do_spl_watchdog
 # @example WD_ONLY="c-981 c-982" WD_STATE_DIR=/var/tmp/wd-drill DRY_RUN=0 WD_TICKS=20 ./run -a do_spl_watchdog
+# @example WD_INST_START="1 2 3" ./run -a do_spl_watchdog
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
@@ -50,16 +62,26 @@ declare -F spl_wd_log_rotate >/dev/null ||
 SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 do_spl_watchdog() {
+  if [[ -n "${WD_INST_START:-}" ]]; then
+    local i rc=0
+    for i in $WD_INST_START; do spl_wd_inst_start "$i" || rc=1; done
+    return "$rc"
+  fi
   spl_wd_init || return 1
   local n=0 t0 left
-  exec 7>>"$WD_DIR/run.lock"
-  if ! flock -w "$(( WD_TICKS > 0 ? WD_TICK : 0 ))" 7; then
-    do_log "INFO a watchdog already runs on this box ($WD_DIR/run.lock)"
+  if [[ -z "$WD_INST" && -f "$WD_DIR/run.1.lock" ]] && ! flock -n "$WD_DIR/run.1.lock" true; then
+    do_log "INFO watchdog instance 1 runs on this box: no 093 loop beside it ($WD_DIR/run.1.lock)"
     return 0
   fi
-  echo "$$" > "$WD_DIR/run.pid"
+  exec 7>>"$WD_DIR/run$WD_SFX.lock"
+  if ! flock -w "$(( WD_TICKS > 0 ? WD_TICK : 0 ))" 7; then
+    do_log "INFO watchdog${WD_INST:+ instance $WD_INST} already runs on this box ($WD_DIR/run$WD_SFX.lock)"
+    return 0
+  fi
+  echo "$$" > "$WD_DIR/run$WD_SFX.pid"
   while :; do
     t0="$(date +%s)"
+    spl_wd_keeper_lock
     spl_wd_tick
     n=$((n + 1))
     if (( WD_TICKS > 0 && n >= WD_TICKS )); then break; fi
@@ -69,11 +91,63 @@ do_spl_watchdog() {
   return 0
 }
 
+# Instance 1 also holds the 093 keeper's run.lock (fd 9) and writes its
+# run.pid and last.tick, so do_spl_wd_ensure reads it as the box's loop and
+# starts no second one; retried every tick while a 093 loop still holds it.
+spl_wd_keeper_lock() {
+  [[ "$WD_INST" == 1 && -z "${WD_KEEPER_HELD:-}" ]] || return 0
+  exec 9>>"$WD_DIR/run.lock"
+  if flock -n 9; then
+    WD_KEEPER_HELD=1
+    echo "$$" > "$WD_DIR/run.pid"
+  else
+    exec 9>&-
+  fi
+  return 0
+}
+
+# spl_wd_inst_start INST: start watchdog instance INST (1..3) detached
+# (setsid, as the caller: the box user) when its run.<inst>.lock is free.
+# One starter at a time per instance (run.<inst>.start.lock, flock -n); it
+# waits up to WD_INST_START_WAIT s (5) for the new loop to hold its lock, so a
+# second starter right after it starts nothing. The loop acts (DRY_RUN =
+# WD_INST_DRY, default 0) and runs forever. Lock files are never removed.
+spl_wd_inst_start() {
+  local inst="$1" dir run
+  [[ "$inst" =~ ^[1-3]$ ]] || { do_log "FATAL watchdog instance must be 1, 2 or 3, got: '$inst'"; return 1; }
+  spl_rotate_conf || return 1
+  dir="${WD_STATE_DIR:-$LEASE_DIR/wd}"
+  mkdir -p "$dir" || { do_log "FATAL cannot create $dir"; return 1; }
+  run="${WD_RUN:-${PROJ_PATH:-}/run}"
+  [[ -x "$run" ]] || { do_log "FATAL watchdog runner is missing or not executable: ${run:-<none>}"; return 1; }
+  (
+    exec 8>>"$dir/run.$inst.start.lock"
+    flock -n 8 || { do_log "INFO watchdog instance $inst: another starter holds run.$inst.start.lock"; exit 0; }
+    if [[ -f "$dir/run.$inst.lock" ]] && ! flock -n "$dir/run.$inst.lock" true; then
+      do_log "INFO watchdog instance $inst runs (pid $(cat "$dir/run.$inst.pid" 2>/dev/null || echo unknown))"
+      exit 0
+    fi
+    export WD_INST="$inst" INSTANCE="$inst" DRY_RUN="${WD_INST_DRY:-0}" WD_TICKS="" WD_INST_START=""
+    spl_lease_detach "$dir/run.$inst.out" "$run" -a do_spl_watchdog
+    local i
+    for (( i = 0; i < ${WD_INST_START_WAIT:-5} * 10; i++ )); do
+      [[ -f "$dir/run.$inst.lock" ]] && ! flock -n "$dir/run.$inst.lock" true && break
+      sleep 0.1
+    done
+    do_log "INFO watchdog instance $inst started (log $dir/run.$inst.out)"
+  )
+}
+
 spl_wd_init() {
   spl_rotate_conf || return 1
   WD_DIR="${WD_STATE_DIR:-$LEASE_DIR/wd}"
   WD_LOG="$LEASE_DIR/wd.log"
   WD_SITUATIONS="${WD_SITUATIONS:-$SPL_WD_RUN_DIR/../features/watchdog/situations}"
+  WD_INST="${WD_INST:-${INSTANCE:-}}"
+  [[ -z "$WD_INST" || "$WD_INST" =~ ^[1-3]$ ]] || { do_log "FATAL WD_INST (INSTANCE) must be 1, 2 or 3, got: '$WD_INST'"; return 1; }
+  WD_SFX="${WD_INST:+.$WD_INST}"
+  WD_SHA="$(git -C "$SPL_WD_RUN_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  WD_TICK_SEQ=0 WD_PROGRESS_SEQ=0
   : "${WD_TICKS:=0}" "${WD_TICK:=30}" "${WD_SCRIPT_TIMEOUT:=5}" "${WD_START_GRACE:=180}"
   : "${WD_TAKEOVER_MAX:=2}" "${WD_JOBS:=8}" "${WD_JOB_WAIT:=120}" "${WD_LOOP_N:=5}" "${RESTART_MAX_PER_HOUR:=3}"
   local k
@@ -90,23 +164,26 @@ spl_wd_init() {
   WD_SEND="${WD_SEND:-$ROTATE_SEND}"
   WD_BOX="${ROTATE_BOX:-}"
   export WD_JOB_WAIT WD_LOOP_N WD_BOX
-  mkdir -p "$WD_DIR/ctx" || { do_log "FATAL cannot create $WD_DIR"; return 1; }
+  mkdir -p "$WD_DIR/ctx$WD_SFX" || { do_log "FATAL cannot create $WD_DIR"; return 1; }
   return 0
 }
 
 # ---- one tick ------------------------------------------------------------------
 
 spl_wd_tick() {
-  local now last tick="$WD_DIR/tick" id pid pane
+  local now last tick="$WD_DIR/tick$WD_SFX" id pid pane
   now="$(spl_lease_now)"
-  last="$(cat "$WD_DIR/last.tick" 2>/dev/null || true)"
-  # a box back from suspend or power loss: every age looks huge (6.2)
+  last="$(cat "$WD_DIR/last.tick$WD_SFX" 2>/dev/null || true)"
+  # a box back from suspend or power loss: every age looks huge (6.2). The
+  # debounces reset per agent, in its skip, under its judge lock (10.4.1).
   if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last > 3 * WD_TICK )); then
-    rm -f "$WD_DIR"/*.hits
-    echo "$now" > "$WD_DIR/resume"
-    spl_wd_log "RESUME tick gap $((now - last))s: debounces and graces reset"
+    echo "$now" > "$WD_DIR/resume$WD_SFX"
+    spl_wd_log "RESUME${WD_INST:+ instance $WD_INST} tick gap $((now - last))s: debounces and graces reset"
   fi
-  echo "$now" > "$WD_DIR/last.tick"
+  echo "$now" > "$WD_DIR/last.tick$WD_SFX"
+  if [[ -n "${WD_KEEPER_HELD:-}" ]]; then echo "$now" > "$WD_DIR/last.tick"; fi
+  WD_TICK_SEQ=$((WD_TICK_SEQ + 1))
+  spl_wd_heartbeat start
   rm -rf "$tick" && mkdir -p "$tick"
   spl_wd_ps > "$tick/ps"
   spl_wd_tmux list-panes -a -F '#{pane_id}	#{pane_pid}	#{session_id}	#{window_name}	#{pane_current_command}' \
@@ -117,14 +194,17 @@ spl_wd_tick() {
     WD_BOX_BUSY="a restart holds peer/restart.lock"
   fi
   spl_wd_agents "$tick" > "$tick/agents"
+  spl_wd_heartbeat agents
   # named pids only: a bare `wait` also waits for ./run's tee process substitutions
   local -a jp=()
   while IFS=$'\t' read -r id pid pane; do
     while (( $(spl_wd_running "${jp[@]}") >= WD_JOBS )); do sleep 0.2; done
     spl_wd_one "$id" "$pid" "$pane" "$now" "$tick" > "$tick/out.$id" 2>>"$tick/err" &
     jp+=("$!")
+    spl_wd_heartbeat agents
   done < "$tick/agents"
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
+  spl_wd_heartbeat "done"
   while IFS=$'\t' read -r id _; do
     cat "$tick/out.$id" 2>/dev/null || true
   done < "$tick/agents" | tee -a "$WD_LOG.tmp.$$" || true
@@ -145,6 +225,18 @@ spl_wd_running() {
 
 spl_wd_log() { echo "$(date -u +%FT%TZ) $*" >> "$WD_LOG"; }
 
+# spl_wd_heartbeat PHASE: <WD_DIR>/heartbeat<.inst>.json (spec 102 10.4.2),
+# written at the tick start and as each agent is started, so a long tick
+# under load still shows progress; atomically.
+spl_wd_heartbeat() {
+  local f="$WD_DIR/heartbeat$WD_SFX.json" now
+  now="$(spl_lease_now)"
+  WD_PROGRESS_SEQ=$((WD_PROGRESS_SEQ + 1))
+  printf '{"instance": %s, "pid": %s, "ts": %s, "tick_seq": %s, "tick_phase": "%s", "last_progress_ts": %s, "progress_seq": %s, "status": "ok", "git_sha": "%s"}\n' \
+    "${WD_INST:-0}" "$$" "$now" "$WD_TICK_SEQ" "$1" "$now" "$WD_PROGRESS_SEQ" "$WD_SHA" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  return 0
+}
+
 # wd.log keeps a day or two: spl_wd_log_rotate copies it to wd.log.1 once a
 # day (WD_LOG_KEEP) or past WD_LOG_MAX_BYTES. A line cap held about an hour on
 # a busy box (5000 lines; 2026-10-06: ~5000/h on one box, ~600/h on another).
@@ -155,11 +247,11 @@ spl_wd_log_trim() {
 # tmux, bounded: a hung server costs one call 5 s. ROTATE_TMUX replaces it in tests.
 spl_wd_tmux() {
   if [[ -n "${ROTATE_TMUX:-}" ]]; then
-    timeout -k 1 5 "$ROTATE_TMUX" "$@"
+    timeout -k 1 5 "$ROTATE_TMUX" "$@" 6>&- 9>&-
     return
   fi
   spool_tmux_argv
-  timeout -k 1 5 "${SPOOL_TM[@]}" "$@"
+  timeout -k 1 5 "${SPOOL_TM[@]}" "$@" 6>&- 9>&-
 }
 
 # "pid ppid etimes comm" for every process. WD_PS_CMD replaces ps in tests.
@@ -271,10 +363,22 @@ spl_wd_proc_ids() {
 
 # ---- one agent -------------------------------------------------------------------
 
-# Check one agent and print its verdict line.
+# Check one agent and print its verdict line, under its judge lock (spec 102
+# 10.4.1): <WD_DIR>/<id>.judge.lock, flock -n on fd 6 for the whole check, so
+# its state files (.hits, .ep.*, the since files, s9.poked, s9.reported) and
+# its actions have one writer. Held by a peer instance, or judged by another
+# instance less than WD_TICK - 5 s ago (<id>.judged "<epoch> <inst>"): no
+# line, the peer's verdict stands. Children that may outlive the check close
+# fd 6. The T003 id lock is not taken here: the detached restart takes it.
 spl_wd_one() {
-  local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx skip line
-  ctx="$WD_DIR/ctx/$id"
+  local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx skip line jt="" ji=""
+  if [[ "${WD_JUDGE_LOCK:-1}" != 0 ]]; then
+    exec 6>>"$WD_DIR/$id.judge.lock"
+    flock -n 6 || return 0
+    read -r jt ji < "$WD_DIR/$id.judged" 2>/dev/null || true
+    if [[ "$jt" =~ ^[0-9]+$ && "$ji" != "${WD_INST:-0}" ]] && (( now - jt < WD_TICK - 5 )); then return 0; fi
+  fi
+  ctx="$WD_DIR/ctx$WD_SFX/$id"
   rm -rf "$ctx" && mkdir -p "$ctx"
   [[ "$pid" == - ]] && pid=""
   [[ "$pane" == - ]] && pane=""
@@ -283,14 +387,18 @@ spl_wd_one() {
   if [[ -n "$skip" ]]; then
     rm -f "$WD_DIR/$id.hits"
     spl_wd_verdict "$id" OK "$now"
+    spl_wd_judged "$id" "$now"
     echo "$id SKIP $skip"
     return 0
   fi
   spl_wd_run_scripts "$id" "$pid" "$pane" "$ctx"
   line="$(spl_wd_judge "$id" "$pid" "$pane" "$now" "$ctx")"
+  spl_wd_judged "$id" "$now"
   echo "$id $line"
   return 0
 }
+
+spl_wd_judged() { printf '%s %s\n' "$2" "${WD_INST:-0}" > "$WD_DIR/$1.judged"; }
 
 # Every situation script at once, each under `timeout`: the agent costs at
 # most WD_SCRIPT_TIMEOUT s whatever hangs (FR-014). An id with neither a
@@ -304,7 +412,7 @@ spl_wd_run_scripts() {
     [[ -f "$s" ]] || continue
     [[ -z "$pid$pane" && "${s##*/}" != s3.sh ]] && continue
     ( WD_CTX="$ctx" timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$s" "$id" "${pid:--}" "${pane:--}" \
-        > "$ctx/out.$(basename "$s" .sh)" 2>/dev/null 7>&- || true ) &
+        > "$ctx/out.$(basename "$s" .sh)" 2>/dev/null 6>&- 7>&- 9>&- || true ) &
     sp+=("$!")
   done
   if (( ${#sp[@]} )); then wait "${sp[@]}" 2>/dev/null || true; fi
@@ -333,7 +441,7 @@ spl_wd_gather() {
   [[ -n "$pane" ]] || return 0
   spl_wd_tmux capture-pane -p -t "$pane" > "$ctx/pane" 2>/dev/null || rm -f "$ctx/pane"
   if [[ -s "$ctx/pane" ]]; then
-    spl_wd_since "$id" s9pane "$(timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --norm < "$ctx/pane" 2>/dev/null 7>&- || true)" "$now" "$ctx/pane_age"
+    spl_wd_since "$id" s9pane "$(timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --norm < "$ctx/pane" 2>/dev/null 6>&- 7>&- 9>&- || true)" "$now" "$ctx/pane_age"
   fi
   IFS=$'\t' read -r ppid sess < <(awk -F'\t' -v p="$pane" '$1 == p {print $2 "\t" $3}' "$tick/panes") || true
   awk -F'\t' -v p="$pane" '$1 == p {print $5}' "$tick/panes" > "$ctx/fg"
@@ -435,7 +543,7 @@ spl_wd_skip() {
   if [[ "$st" == starting && "$hbt" =~ ^[0-9]+$ ]] && (( now - hbt < WD_START_GRACE )); then
     echo "start grace: SessionStart $((now - hbt))s ago"; return 0
   fi
-  r="$(cat "$WD_DIR/resume" 2>/dev/null || true)"
+  r="$(cat "$WD_DIR/resume$WD_SFX" 2>/dev/null || true)"
   if [[ "$r" =~ ^[0-9]+$ ]] && (( now - r < WD_START_GRACE )); then
     echo "resume grace: box back $((now - r))s ago"; return 0
   fi
@@ -444,7 +552,8 @@ spl_wd_skip() {
 
 # The phase of a rotation or takeover of <id> still in flight: the last
 # rotate.log line whose run id ends in -<id>, when it is not final and is
-# younger than 15 min.
+# younger than 15 min. Read under the judge lock: a restart one instance
+# started is seen by the next judge, which does not start another.
 spl_wd_rotating() {
   local id="$1" now="$2" ts rid phase res t
   [[ -f "$ROTATE_LOG" ]] || return 0
@@ -472,16 +581,16 @@ spl_wd_need() { case "$1" in S2|S3|S8) echo 2 ;; *) echo 1 ;; esac; }
 spl_wd_judge() {
   local id="$1" pid="$2" pane="$3" now="$4" ctx="$5" code ev cnt need main="" mainev="" pend="" extra="" act
   cat "$ctx"/out.s* 2>/dev/null | grep -E '^HIT S[0-9]+( |$)' | sort -u > "$ctx/hits" || true
-  : > "$WD_DIR/$id.hits.new"
+  : > "$WD_DIR/$id.hits.new.$BASHPID"
   while read -r _ code ev; do
     cnt="$(awk -v c="$code" '$1 == c {print $2}' "$WD_DIR/$id.hits" 2>/dev/null || true)"
     cnt=$(( ${cnt:-0} + 1 ))
-    echo "$code $cnt" >> "$WD_DIR/$id.hits.new"
+    echo "$code $cnt" >> "$WD_DIR/$id.hits.new.$BASHPID"
     need="$(spl_wd_need "$code")"
     if (( cnt < need )); then pend+=" (pending $code $cnt/$need: $ev)"; continue; fi
     printf '%s\t%s\n' "$code" "$ev" >> "$ctx/confirmed"
   done < "$ctx/hits"
-  mv -f "$WD_DIR/$id.hits.new" "$WD_DIR/$id.hits"
+  mv -f "$WD_DIR/$id.hits.new.$BASHPID" "$WD_DIR/$id.hits"
   spl_wd_episodes_end "$id" "$ctx/hits"
   for code in $WD_ORDER; do
     ev="$(awk -F'\t' -v c="$code" '$1 == c {print $2; exit}' "$ctx/confirmed" 2>/dev/null || true)"
@@ -606,7 +715,8 @@ spl_wd_once() {
 # S9 (spec 102 8.2), an unknown screen that swallowed what was typed: nothing
 # is typed into it. The pane, scrubbed, goes to <WD_DIR>/<id>.s9.pane and its
 # path to the orchestrator ONCE, then a takeover (do_spl_agent_restart
-# CAUSE=S9).
+# CAUSE=S9). The same pane reported less than WD_NOTE_DEBOUNCE s (300) ago
+# (<id>/lifetime/s9.reported "<epoch> <pane cksum>") is not reported again.
 spl_wd_s9() {
   local id="$1" ev="$2" pane="$3" now="$4" ctx="$5"
   spl_wd_once "$id" S9 snapshot "$now" "$ctx" spl_wd_s9_snapshot "$id" "$ev" "$pane" "$ctx"
@@ -614,20 +724,30 @@ spl_wd_s9() {
 }
 
 spl_wd_s9_snapshot() {
-  local id="$1" ev="$2" pane="$3" ctx="$4" f="$WD_DIR/$1.s9.pane"
-  if ! timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --scrub < "$ctx/pane" > "$f.tmp.$$" 2>/dev/null 7>&-; then
+  local id="$1" ev="$2" pane="$3" ctx="$4" f="$WD_DIR/$1.s9.pane" r="$SPOOL_ROOT/$1/lifetime/s9.reported" h now rt="" rh=""
+  now="$(cat "$ctx/now")"
+  h="$(cksum < "$ctx/pane" | cut -d' ' -f1)"
+  read -r rt rh < "$r" 2>/dev/null || true
+  if [[ "$rh" == "$h" && "$rt" =~ ^[0-9]+$ ]] && (( now - rt < ${WD_NOTE_DEBOUNCE:-300} )); then
+    echo "this pane was reported $(( now - rt ))s ago"; return 1
+  fi
+  if ! timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --scrub < "$ctx/pane" > "$f.tmp.$$" 2>/dev/null 6>&- 7>&- 9>&-; then
     rm -f "$f.tmp.$$"; echo "no snapshot"; return 1
   fi
   mv -f "$f.tmp.$$" "$f"
   spl_wd_send orchestrator note "$id" \
-    "WATCHDOG (102 S9): $id is stuck: what was typed into its pane never reached the model ($ev). The screen is not a known dialog; nothing was typed into it. Pane snapshot (scrubbed): $f. Box $ROTATE_BOX, pane ${pane:-none}. A takeover follows."
+    "WATCHDOG (102 S9): $id is stuck: what was typed into its pane never reached the model ($ev). The screen is not a known dialog; nothing was typed into it. Pane snapshot (scrubbed): $f. Box $ROTATE_BOX, pane ${pane:-none}. A takeover follows." || return 1
+  mkdir -p "${r%/*}" 2>/dev/null && printf '%s %s\n' "$now" "$h" > "$r" 2>/dev/null
+  return 0
 }
 
 # S9's POKE lines: an unread inbox file nobody poked is poked ONCE (102 8.1;
 # the poke is what starts S9's window). <WD_DIR>/<id>.s9.poked keeps the
-# files poked, pruned to those still in the inbox. Prints what was done.
+# files poked, pruned to those still in the inbox. A poke recorded in
+# <id>/lifetime/input.log less than 60 s ago (by any sender) means no poke
+# now. Prints what was done.
 spl_wd_s9_pokes() {
-  local id="$1" now="$2" ctx="$3" f="$WD_DIR/$1.s9.poked" new why x
+  local id="$1" now="$2" ctx="$3" f="$WD_DIR/$1.s9.poked" new why x t
   grep -q '^POKE ' "$ctx/out.s9" 2>/dev/null || return 0
   touch "$f"
   while read -r x; do
@@ -636,6 +756,9 @@ spl_wd_s9_pokes() {
   mv -f "$f.tmp.$$" "$f"
   new="$(awk '$1 == "POKE" && $2 != "" { print $2 }' "$ctx/out.s9" | grep -vxF -f "$f" || true)"
   [[ -n "$new" ]] || return 0
+  t="$(tail -n 1 "$SPOOL_ROOT/$id/lifetime/input.log" 2>/dev/null | cut -d' ' -f1)"
+  t="$(date -u -d "${t:-x}" +%s 2>/dev/null || true)"
+  if [[ "$t" =~ ^[0-9]+$ ]] && (( now - t < 60 )); then echo "a poke was recorded $(( now - t ))s ago: none now"; return 0; fi
   why="$(spl_wd_gate "$id" "$now" "$ctx")"
   if [[ -n "$why" ]]; then echo "would poke an unpoked inbox file ($why)"; return 0; fi
   spl_wd_ring "$id"
@@ -755,7 +878,7 @@ spl_wd_s7_cursor() {
   local d out
   d="$(mktemp -d)"
   spl_wd_tmux capture-pane -p -t "$2" > "$d/pane" 2>/dev/null || true
-  out="$(WD_CTX="$d" timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s7.sh" "$1" act "$2" 2>/dev/null 7>&- || true)"
+  out="$(WD_CTX="$d" timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s7.sh" "$1" act "$2" 2>/dev/null 6>&- 7>&- 9>&- || true)"
   rm -rf "$d"
   [[ "$out" =~ ^HIT\ S7\ modal=2\ cursor=([a-z?]+) ]] && echo "${BASH_REMATCH[1]}"
   return 0
@@ -769,7 +892,7 @@ spl_wd_key() {
 }
 
 spl_wd_ring() {
-  bash "$WD_SEND" --poke-only --from "$WD_FROM" --to "$1" >/dev/null 2>&1 8>&- 7>&-
+  bash "$WD_SEND" --poke-only --from "$WD_FROM" --to "$1" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&-
   return 0
 }
 
@@ -780,7 +903,7 @@ spl_wd_repoke() { spl_wd_key "$2" C-c && spl_wd_ring "$1"; }
 # 1-9 = delivered (only the poke did not ring); 10+ or 2 = not delivered.
 spl_wd_send() {
   local rc=0
-  bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "wd-$3" --body "$4" >/dev/null 2>&1 8>&- 7>&- || rc=$?
+  bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "wd-$3" --body "$4" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
   (( rc < 10 && rc != 2 ))
 }
 

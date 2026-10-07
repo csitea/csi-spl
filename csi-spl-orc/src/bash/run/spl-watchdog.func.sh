@@ -33,8 +33,13 @@
 # @description pool, so the per-agent state (<id>.hits, .ep.*, the since
 # @description files, s9.poked) is written by one instance at a time. The
 # @description watchdog never takes the T003 id lock: the detached restart does.
+# @description Spec 102 10.4.2 (T023b): at its tick start an instance checks
+# @description its two peers and the crontab starter (spl-wd-peers.func.sh);
+# @description every start goes through spl_wd_inst_start
+# @description (spl-wd-inst-start.func.sh).
 # @param WD_INST / INSTANCE (optional) - this loop's instance 1..3; empty = the one 093 loop (run.lock, tick/, ctx/)
 # @param WD_INST_START (optional) - instances to start detached when missing ("1 2 3"), then return: the cron entry (spl_wd_inst_start)
+# @param WD_PEERS (optional) - 1 (default; 0 under SPOOL_TEST=1): an instance checks its peers and the crontab starter
 # @param WD_JUDGE_LOCK (optional) - 1 (default); 0 drops the judge lock (the tests' control only)
 # @param WD_TICKS (optional) - ticks to run, default 0 = forever (the loop); 1 = one proof tick
 # @param WD_TICK (optional) - seconds per tick, default 30
@@ -58,6 +63,8 @@ declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 declare -F spl_wd_log_rotate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-ensure.func.sh"
+declare -F spl_wd_peers >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-wd-peers.func.sh"
 
 SPL_WD_RUN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -106,38 +113,6 @@ spl_wd_keeper_lock() {
   return 0
 }
 
-# spl_wd_inst_start INST: start watchdog instance INST (1..3) detached
-# (setsid, as the caller: the box user) when its run.<inst>.lock is free.
-# One starter at a time per instance (run.<inst>.start.lock, flock -n); it
-# waits up to WD_INST_START_WAIT s (5) for the new loop to hold its lock, so a
-# second starter right after it starts nothing. The loop acts (DRY_RUN =
-# WD_INST_DRY, default 0) and runs forever. Lock files are never removed.
-spl_wd_inst_start() {
-  local inst="$1" dir run
-  [[ "$inst" =~ ^[1-3]$ ]] || { do_log "FATAL watchdog instance must be 1, 2 or 3, got: '$inst'"; return 1; }
-  spl_rotate_conf || return 1
-  dir="${WD_STATE_DIR:-$LEASE_DIR/wd}"
-  mkdir -p "$dir" || { do_log "FATAL cannot create $dir"; return 1; }
-  run="${WD_RUN:-${PROJ_PATH:-}/run}"
-  [[ -x "$run" ]] || { do_log "FATAL watchdog runner is missing or not executable: ${run:-<none>}"; return 1; }
-  (
-    exec 8>>"$dir/run.$inst.start.lock"
-    flock -n 8 || { do_log "INFO watchdog instance $inst: another starter holds run.$inst.start.lock"; exit 0; }
-    if [[ -f "$dir/run.$inst.lock" ]] && ! flock -n "$dir/run.$inst.lock" true; then
-      do_log "INFO watchdog instance $inst runs (pid $(cat "$dir/run.$inst.pid" 2>/dev/null || echo unknown))"
-      exit 0
-    fi
-    export WD_INST="$inst" INSTANCE="$inst" DRY_RUN="${WD_INST_DRY:-0}" WD_TICKS="" WD_INST_START=""
-    spl_lease_detach "$dir/run.$inst.out" "$run" -a do_spl_watchdog
-    local i
-    for (( i = 0; i < ${WD_INST_START_WAIT:-5} * 10; i++ )); do
-      [[ -f "$dir/run.$inst.lock" ]] && ! flock -n "$dir/run.$inst.lock" true && break
-      sleep 0.1
-    done
-    do_log "INFO watchdog instance $inst started (log $dir/run.$inst.out)"
-  )
-}
-
 spl_wd_init() {
   spl_rotate_conf || return 1
   WD_DIR="${WD_STATE_DIR:-$LEASE_DIR/wd}"
@@ -165,6 +140,7 @@ spl_wd_init() {
   WD_BOX="${ROTATE_BOX:-}"
   export WD_JOB_WAIT WD_LOOP_N WD_BOX
   mkdir -p "$WD_DIR/ctx$WD_SFX" || { do_log "FATAL cannot create $WD_DIR"; return 1; }
+  spl_wd_peers_conf || return 1
   return 0
 }
 
@@ -183,7 +159,12 @@ spl_wd_tick() {
   echo "$now" > "$WD_DIR/last.tick$WD_SFX"
   if [[ -n "${WD_KEEPER_HELD:-}" ]]; then echo "$now" > "$WD_DIR/last.tick"; fi
   WD_TICK_SEQ=$((WD_TICK_SEQ + 1))
+  # shellcheck disable=SC2034 # read by spl_wd_peers (spl-wd-peers.func.sh)
+  WD_HB_OK=1
   spl_wd_heartbeat start
+  # peers only from a judge that wrote its heartbeat and did not just resume (10.4.2)
+  [[ "$last" =~ ^[0-9]+$ ]] || last="$now"
+  spl_wd_peers "$now" "$(( now - last ))"
   rm -rf "$tick" && mkdir -p "$tick"
   spl_wd_ps > "$tick/ps"
   spl_wd_tmux list-panes -a -F '#{pane_id}	#{pane_pid}	#{session_id}	#{window_name}	#{pane_current_command}' \
@@ -229,13 +210,22 @@ spl_wd_log() { echo "$(date -u +%FT%TZ) $*" >> "$WD_LOG"; }
 
 # spl_wd_heartbeat PHASE: <WD_DIR>/heartbeat<.inst>.json (spec 102 10.4.2),
 # written at the tick start and as each agent is started, so a long tick
-# under load still shows progress; atomically.
+# under load still shows progress; atomically. A failed write (ENOSPC)
+# clears WD_HB_OK: this instance then judges no peer this tick.
+# WD_HB_SINK replaces the file (tests: /dev/full).
 spl_wd_heartbeat() {
   local f="$WD_DIR/heartbeat$WD_SFX.json" now
   now="$(spl_lease_now)"
   WD_PROGRESS_SEQ=$((WD_PROGRESS_SEQ + 1))
-  printf '{"instance": %s, "pid": %s, "ts": %s, "tick_seq": %s, "tick_phase": "%s", "last_progress_ts": %s, "progress_seq": %s, "status": "ok", "git_sha": "%s"}\n' \
-    "${WD_INST:-0}" "$$" "$now" "$WD_TICK_SEQ" "$1" "$now" "$WD_PROGRESS_SEQ" "$WD_SHA" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  if printf '{"instance": %s, "pid": %s, "ts": %s, "tick_seq": %s, "tick_phase": "%s", "last_progress_ts": %s, "progress_seq": %s, "status": "ok", "git_sha": "%s"}\n' \
+    "${WD_INST:-0}" "$$" "$now" "$WD_TICK_SEQ" "$1" "$now" "$WD_PROGRESS_SEQ" "$WD_SHA" > "${WD_HB_SINK:-$f.tmp.$$}" 2>/dev/null &&
+    { [[ -n "${WD_HB_SINK:-}" ]] || mv -f "$f.tmp.$$" "$f" 2>/dev/null; }; then
+    return 0
+  fi
+  rm -f "$f.tmp.$$" 2>/dev/null || true
+  # shellcheck disable=SC2034 # read by spl_wd_peers (spl-wd-peers.func.sh)
+  WD_HB_OK=0
+  spl_wd_log "HEARTBEAT${WD_INST:+ instance $WD_INST} cannot write $f (disk full?)" 2>/dev/null || true
   return 0
 }
 

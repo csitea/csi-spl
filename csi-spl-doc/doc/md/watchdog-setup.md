@@ -90,9 +90,9 @@ This eliminated the separate keeper daemon (`do_spl_wd_ensure`), keeper heartbea
 |---|---|---|---|
 | **Daemon Execution** | Single daemon loop (`do_spl_watchdog`), single lock `run.lock`, single pid `run.pid` | 3 concurrent daemons (`INSTANCE=1..3`), locks `run.1.lock`..`run.3.lock`, pids `run.1.pid`..`run.3.pid` | T023a |
 | **Agent Arbitration** | Single process evaluates all agents sequentially | Non-blocking per-agent judge lock `<id>.judge.lock`, isolated scratch dirs `tick.<inst>/`, `ctx.<inst>/` | T023a |
-| **Peer Monitoring** | None (single process per box) | Mutual peer inspection (`kill -0`), `heartbeat.<inst>.json`, hung floor $\ge 180\text{ s}$, restart via `spl_wd_inst_start` | T023b |
-| **Outer Supervisor** | Legacy `do_spl_wd_ensure` script in crontab acting as separate supervisor | Crontab starter running `spl_wd_inst_start` only (starts missing instances up to 3); no separate keeper | T023b |
-| **Crontab Installation** | `do_spl_wd_ensure_install_cron` installs `* * * * *` line tagged `# <app>:wd-ensure` | Idempotent installer action maintained in source; updated to render `spl_wd_inst_start` command line | T023b |
+| **Peer Monitoring** | Live (T023b): `spl-wd-peers.func.sh`, `./run -a do_spl_wd_peers` prints each instance's state | Mutual peer inspection (`kill -0`), `heartbeat.<inst>.json`, hung floor $\ge 180\text{ s}$, restart via `spl_wd_inst_start` | T023b |
+| **Outer Supervisor** | Live (T023b): `./run -a do_spl_wd_inst_start` (`spl-wd-inst-start.func.sh`); the legacy keeper line is dropped on install | Crontab starter running `spl_wd_inst_start` only (starts missing instances up to 3); no separate keeper | T023b |
+| **Crontab Installation** | Live (T023b): `do_spl_wd_ensure_install_cron` installs `* * * * *` (`# <app>:wd-start`) and `@reboot` (`# <app>:wd-start-boot`); `WD_CRON_KIND=ensure` = the legacy `# <app>:wd-ensure` line | Idempotent installer action maintained in source; updated to render `spl_wd_inst_start` command line | T023b |
 | **Liveness Reporting** | Local log only (`wd.log`, `last.tick`) | `box_beats` reporting by instances 1..3; hub computes `wd_count`; 0-watchdog alert emitted by hub | T024 |
 | **Code Updates** | Executing directly from moving checkout; risk of mixed sourced scripts | Version-pinned snapshots `code/<sha>/`, `good` symlink, baton handoff rolling restart (< 70 s), rollback to `good` | T025 |
 | **Admin Alerts** | Legacy `ASKS_OWNER` DM via `do_spl_desk_reply` on crash loop or hung loop | Section 11.2 hub admin messages (DM + email) sent directly by watchdogs on 2 of 3 down, down > 5 min, or cron stopped | T026 |
@@ -212,61 +212,72 @@ Every watchdog installation step is a named action in source code, fully reprodu
 - Box user account (`<box user>`) with access to `<spool root>` (`/var/spool-hub`) and `<desk cron checkout>` (`/opt/csi/csi-spl-desk-cron`).
 - Standard system utilities: `flock`, `crontab`, `setsid`, `pkill`/`kill`.
 
-### 4.2 Installing the Crontab Starter Line
-The crontab starter line is managed entirely by `do_spl_wd_ensure_install_cron`.
+### 4.2 Installing the Crontab Starter Lines
+The crontab starter is managed entirely by `do_spl_wd_ensure_install_cron`
+(default `WD_CRON_KIND=start`). It writes TWO tagged lines and takes the
+legacy 093 keeper line (`# <app>:wd-ensure`) out. A running watchdog puts
+missing starter lines back by itself on its next tick (`peers.log`: `CRON restored`).
 
 1. **Inspect current crontab and preview diff (Dry Run)**:
    ```bash
-   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc
-   ./run -a do_spl_wd_ensure_install_cron
+   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && ./run -a do_spl_wd_ensure_install_cron
    ```
    *Output shows the proposed before -> after diff and validates spec 068 8.1 compliance.*
 
 2. **Apply the crontab installation (`DRY_RUN=0`)**:
    ```bash
-   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc
-   DRY_RUN=0 ./run -a do_spl_wd_ensure_install_cron
+   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && DRY_RUN=0 ./run -a do_spl_wd_ensure_install_cron
    ```
-   *Writes the tagged `# <app>:wd-ensure` line to the box user's crontab.*
 
 3. **Verify the installation**:
    ```bash
-   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc
-   WD_CRON_ACTION=check ./run -a do_spl_wd_ensure_install_cron
+   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && WD_CRON_ACTION=check ./run -a do_spl_wd_ensure_install_cron
    ```
-   *Expected output*: `OK wd-ensure is installed and its script is executable`.
+   *Expected output*: `OK wd-start is installed and its script is executable`.
 
 4. **Verify crontab contents**:
    ```bash
-   crontab -l | grep ':wd-ensure'
+   crontab -l | grep -E ':wd-(start|start-boot|ensure)$'
    ```
-   *Expected line format*:
+   *Expected lines* (no `wd-ensure` line):
    ```text
-   * * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /opt/csi/csi-spl-desk-cron/csi-spl-orc/run -a do_spl_wd_ensure >> /var/csi/csi-spl/wd/ensure.out 2>&1 # csi-spl:wd-ensure
+   * * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /opt/csi/csi-spl-desk-cron/csi-spl-orc/run -a do_spl_wd_inst_start >> /var/csi/csi-spl/wd/starter.out 2>&1 # csi-spl:wd-start
+   @reboot PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /opt/csi/csi-spl-desk-cron/csi-spl-orc/run -a do_spl_wd_inst_start >> /var/csi/csi-spl/wd/starter.out 2>&1 # csi-spl:wd-start-boot
    ```
 
 ### 4.3 Launching the Watchdog Instances
-Once the code snapshots and `code/good` symlink are established:
+The starter line launches the missing instances within a minute. To start them now
+(from `code/good/csi-spl-orc/run` when that snapshot exists, else the checkout's `./run`):
 ```bash
-# Start instance 1, 2, and 3
-spl_wd_inst_start 1
-spl_wd_inst_start 2
-spl_wd_inst_start 3
+cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && ./run -a do_spl_wd_inst_start
 ```
 
-Check process health:
+One instance only:
 ```bash
-ps aux | grep do_spl_watchdog | grep -v grep
+cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && WD_INSTANCES=2 ./run -a do_spl_wd_inst_start
 ```
-*Expected: 3 detached processes running as the box user, one per instance.*
 
-Verify instance locks and pids:
+Each instance's state as its peers judge it (`ok`, `dead`, `dead-held`, `hung`) and the starter's age:
 ```bash
-ls -l /var/spool-hub/dispatch/wd/run.*.pid
-for f in /var/spool-hub/dispatch/wd/run.*.pid; do
-  echo "$f: pid $(cat "$f") (alive: $(kill -0 $(cat "$f") 2>/dev/null && echo yes || echo no))"
-done
+cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && ./run -a do_spl_wd_peers
 ```
+
+Every peer action (restart, TERM, KILL, crontab restore, alert) is one line in:
+```bash
+tail -n 20 /var/spool-hub/dispatch/wd/peers.log
+```
+
+### 4.4 Peer Rules (T023b)
+- `WD_HUNG = max(3 * WD_TICK, 180)` s; the floor is not configurable.
+- A judge checks its peers only when it wrote its own heartbeat this tick
+  (disk full: an alert, never a kill) and its own previous tick is less than
+  `3 * WD_TICK` ago (suspend: no verdict that tick).
+- Dead (`run.<n>.lock` free, or its pid gone): started at once under
+  `run.<n>.start.lock`. Hung: process group TERM, `ROTATE_TERM_WAIT` (30 s),
+  KILL, then started under the same lock.
+- Cron dead: `starter.last` older than `WD_STARTER_STALE` (300 s): one blocker
+  to the orchestrator per `WD_ALERT_DEBOUNCE` (300 s). The hub admin message
+  (11.2) is T026.
 
 ---
 
@@ -278,9 +289,9 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
 
 | Issue / Symptom | Primary Diagnostic Command | Resolution Action |
 |---|---|---|
-| **One watchdog dead** | `ps aux \| grep do_spl_watchdog` | Surviving peers auto-restart within 30 s; manual: `spl_wd_inst_start <n>` |
-| **Watchdog hung (> 180 s)** | Compare `last_progress_ts` in `heartbeat.<n>.json` with `date +%s` | Surviving peers auto-kill and restart; manual: `kill -TERM <pid>`, then `spl_wd_inst_start <n>` |
-| **All 3 watchdogs dead** | `ls /var/spool-hub/dispatch/wd/run.*.pid` | Crontab starter restarts all 3 within 60 s; manual: `spl_wd_inst_start` |
+| **One watchdog dead** | `ps aux \| grep do_spl_watchdog` | Surviving peers auto-restart within 30 s; manual: `WD_INSTANCES=<n> ./run -a do_spl_wd_inst_start` |
+| **Watchdog hung (> 180 s)** | Compare `last_progress_ts` in `heartbeat.<n>.json` with `date +%s` | Surviving peers auto-kill and restart; manual: `kill -TERM <pid>`, then `WD_INSTANCES=<n> ./run -a do_spl_wd_inst_start` |
+| **All 3 watchdogs dead** | `ls /var/spool-hub/dispatch/wd/run.*.pid` | Crontab starter restarts all 3 within 60 s; manual: `./run -a do_spl_wd_inst_start` |
 | **Crontab line missing** | `WD_CRON_ACTION=check ./run -a do_spl_wd_ensure_install_cron` | Watchdogs self-heal on next tick; manual: `DRY_RUN=0 ./run -a do_spl_wd_ensure_install_cron` |
 | **Cron daemon dead** | Check age of `/var/spool-hub/dispatch/wd/starter.last` | Watchdogs send Section 11.2 alert; admin restarts cron: `sudo systemctl restart cron` |
 | **Hub reports wd_count: 0** | Hub admin alert or `box_beats` query | Check if box is reachable, check local watchdog PIDs and network connectivity |
@@ -308,7 +319,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    ```
 3. *Recovery*: Surviving peers detect the missing process at tick start and restart it automatically under `run.<inst>.start.lock` from `code/good`. To manually trigger restart:
    ```bash
-   spl_wd_inst_start <missing_instance_number>
+   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && WD_INSTANCES=<missing_instance_number> ./run -a do_spl_wd_inst_start
    ```
 
 #### Scenario 2: Watchdog Instance is Hung
@@ -331,7 +342,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    kill -TERM "$pid"
    sleep 5
    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid"
-   spl_wd_inst_start <inst>
+   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && WD_INSTANCES=<inst> ./run -a do_spl_wd_inst_start
    ```
 
 #### Scenario 3: All Three Watchdogs Are Dead
@@ -343,7 +354,7 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
    ```
 2. *Recovery*: The crontab starter (`* * * * *`, box user) executes `spl_wd_inst_start` every minute and launches all 3 missing instances within 60 seconds. To restart immediately without waiting for cron:
    ```bash
-   for i in 1 2 3; do spl_wd_inst_start "$i"; done
+   cd /opt/csi/csi-spl-desk-cron/csi-spl-orc && ./run -a do_spl_wd_inst_start
    ```
 
 #### Scenario 4: Crontab Starter Line Was Deleted or Corrupted
@@ -396,4 +407,4 @@ When troubleshooting watchdog anomalies, follow this step-by-step diagnostic che
 
 ---
 
-<!-- version: 1.2.0 · updated: 2026-10-07 -->
+<!-- version: 1.2.1 · updated: 2026-10-07 (T023b: starter lines, peer rules, do_spl_wd_peers) -->

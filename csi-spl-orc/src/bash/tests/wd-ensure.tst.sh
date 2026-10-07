@@ -260,7 +260,8 @@ cat > "$T/crontab.before" << EOF
 * * * * * $SH/csi-spl-orc/src/bash/scripts/keep.sh >> $T/log/keep.out 2>&1 # csi-spl:keep
 EOF
 cp "$T/crontab.before" "$T/crontab"
-export FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SH" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl
+# the 093 keeper line (WD_CRON_KIND=ensure); the 102 starter lines: wd-peer-restart.tst.sh
+export FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SH" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl WD_CRON_KIND=ensure
 unset DRY_RUN WD_CRON_ACTION CRON_REMOVE
 want="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SH/csi-spl-orc/run -a do_spl_wd_ensure >> $T/log/wd/ensure.out 2>&1 # csi-spl:wd-ensure"
 

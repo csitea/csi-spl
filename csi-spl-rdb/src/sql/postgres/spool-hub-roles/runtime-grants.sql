@@ -19,6 +19,11 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"runtime_role";
 -- the trigger functions and message_period() (PUBLIC has EXECUTE by default;
 -- explicit, so a later REVOKE FROM PUBLIC cannot break the hub)
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO :"runtime_role";
+-- spec 100 S1r (rdb 0143): the one door to the search index. Its owner is
+-- spool_search_reader and PUBLIC has no EXECUTE, so it is named here; the
+-- schema owner holds EXECUTE on it WITH GRANT OPTION (rdb 0143). The runtime
+-- login is never a member of spool_search_reader.
+GRANT EXECUTE ON FUNCTION public.spool_search_candidates(tsquery, int) TO :"runtime_role";
 
 -- The migrator's ledger is read (do_spl_db_rls_check), never written, by the hub.
 REVOKE INSERT, UPDATE, DELETE ON spool_schema_migrations FROM :"runtime_role";

@@ -38,6 +38,11 @@ declare module '~/utils/calendar-mock.mjs' {
   }
 }
 
+/* spec 097 T014: an instant's wall time in a given zone (calendar chunk only) */
+declare module '~/utils/date-iso-zone.mjs' {
+  export function isoDateTimeIn(value: unknown, zone: string): string
+}
+
 /* spec 089 T008 v1: the event dialog's form and its three writes */
 declare module '~/utils/calendar-event-form.mjs' {
   /** 097 T014: a reminder row as typed (the amount stays a string of digits) */

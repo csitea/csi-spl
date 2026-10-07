@@ -123,7 +123,17 @@
             data-test="calendar-event-color"
             :data-color="c"
           >
-            <input v-model="form.color" type="radio" name="cal-color" :value="c" :aria-label="t('calendar_event.color_' + (c || 'default'))" :disabled="busy">
+            <!-- :checked + @change, not v-model: a radio v-model pulls Vue's
+                 vModelRadio into the first-screen runtime chunk (~50 B) -->
+            <input
+              type="radio"
+              name="cal-color"
+              :value="c"
+              :checked="form.color === c"
+              :aria-label="t('calendar_event.color_' + (c || 'default'))"
+              :disabled="busy"
+              @change="form.color = c"
+            >
           </label>
         </div>
       </fieldset>

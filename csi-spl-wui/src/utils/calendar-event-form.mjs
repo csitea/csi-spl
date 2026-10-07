@@ -23,7 +23,8 @@
 // (owner E2). Duplicate (G11) is calFormFromEvent of the source event, saved
 // as a new one.
 
-import { browserTimeZone, isoDateTime, viewerTimeZone } from './date-iso.mjs'
+import { browserTimeZone, viewerTimeZone } from './date-iso.mjs'
+import { isoDateTimeIn } from './date-iso-zone.mjs'
 import { calAddDays, calDayMs } from './calendar-year.mjs'
 import { isoSeconds } from './iso-seconds.mjs'
 
@@ -71,7 +72,7 @@ export function calWallToUtc(date, hhmm, zone = '') {
   if (Number.isNaN(want)) return ''
   let t = want
   for (let i = 0; i < 2; i++) {
-    const w = isoDateTime(t, zone)
+    const w = isoDateTimeIn(t, zone)
     const seen = wallMs(w.slice(0, 10), w.slice(11))
     if (Number.isNaN(seen)) return ''
     t += want - seen
@@ -95,8 +96,8 @@ export function calFormFromEvent(ev, day) {
   const allDay = Boolean(ev.all_day)
   const stored = String(ev.time_zone || '')
   const timeZone = stored && stored !== 'UTC' ? stored : calDefaultZone()
-  const from = isoDateTime(ev.starts_at, timeZone)
-  const to = isoDateTime(ev.ends_at, timeZone)
+  const from = isoDateTimeIn(ev.starts_at, timeZone)
+  const to = isoDateTimeIn(ev.ends_at, timeZone)
   const date = allDay ? String(ev.starts_at || '').slice(0, 10) : from.slice(0, 10)
   const endDate = allDay ? calAddDays(String(ev.ends_at || '').slice(0, 10), -1) : to.slice(0, 10)
   const endDays = Math.max(0, Math.round((calDayMs(endDate) - calDayMs(date)) / 86400000) || 0)

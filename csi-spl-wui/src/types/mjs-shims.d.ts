@@ -2063,7 +2063,7 @@ declare module '~/utils/date-iso.mjs' {
   export function viewerTimeZone(): string
   export function isoDate(value: unknown): string
   export function isoClock(value: unknown): string
-  export function isoDateTime(value: unknown, zone?: string): string
+  export function isoDateTime(value: unknown): string
   export function isoDateTimeSec(value: unknown): string
   export function parseIsoDate(value: unknown): string
 }

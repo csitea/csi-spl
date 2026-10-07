@@ -268,6 +268,8 @@ body=$(git -C "$G/origin.git" log -1 --format=%B master)
 [[ "$files" == "csi-spl-cnf/csi-spl/dev.env.yaml" ]] && pass "cnf push commits only the env's cnf paths (the dirty other.txt is not in it)" || fail "pushed files: $files"
 grep -qiE '^(Co-Authored-By|Claude-Session|Generated with)' <<<"$body" && fail "AI trailer in the cnf commit" || pass "no AI trailer in the cnf commit"
 [[ $(git -C "$G/wc" worktree list | wc -l) == 1 ]] && pass "the throwaway worktree is gone" || fail "worktree left: $(git -C "$G/wc" worktree list)"
+grep -q "throwaway worktree $G/\.wc-cnf-push\.[A-Za-z0-9]*/wt" <<<"$out" && ! compgen -G "$G/.wc-cnf-push.*" >/dev/null &&
+  pass "the throwaway worktree sat beside the checkout (its filesystem, not /tmp: pnpm store EACCES) and is removed" || fail "throwaway dir: $(ls -a "$G") :: $out"
 [[ "$(git -C "$G/wc" rev-parse HEAD)" == "$wc_head" ]] && cmp -s "$T/edited.yaml" "$G/wc/csi-spl-cnf/csi-spl/dev.env.yaml" &&
   pass "the tree that kept the edit: never committed in (HEAD unchanged), same content (other.txt dirty: no fast-forward)" || fail "tree after push: $(git -C "$G/wc" log -1 --oneline) $(git -C "$G/wc" status --short)"
 # with no other change the tree is brought onto the trunk: clean, HEAD = trunk

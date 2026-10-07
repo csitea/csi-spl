@@ -184,10 +184,14 @@ spl_th_cnf_push() {
   if git -C "$root" diff --quiet "origin/$br" -- "${paths[@]}"; then
     do_log "INFO cnf already equals origin/$br: nothing to push"; return 0
   fi
-  tmp="$(mktemp -d)" || return 1
+  # next to the checkout, on its filesystem: under /tmp the pre-push gate's
+  # pnpm install picks /tmp/.pnpm-store, owned by another user (EACCES, the
+  # wui part red on all 5 tries, dev demo 2026-10-07)
+  tmp="$(mktemp -d -p "${SPL_TH_WT_DIR:-$(dirname "$root")}" ".${root##*/}-cnf-push.XXXXXX")" || return 1
   git -C "$root" diff --binary HEAD -- "${paths[@]:1}" >"$tmp/render.patch" || { rm -rf "$tmp"; return 1; }
   git -C "$root" worktree add -q --detach "$tmp/wt" "origin/$br" 2>"$tmp/err" ||
     { do_log "FATAL CNF push: cannot add a throwaway worktree: $(cat "$tmp/err")"; rm -rf "$tmp"; return 1; }
+  do_log "INFO cnf push from the throwaway worktree $tmp/wt (origin/$br)"
   _spl_th_push_in "$tmp" "$br" "$msg" "$root"; rc=$?
   git -C "$root" worktree remove --force "$tmp/wt" 2>/dev/null; git -C "$root" worktree prune 2>/dev/null
   rm -rf "$tmp"
@@ -219,7 +223,7 @@ _spl_th_push_in() {
       spl_th_output pushed 1 >/dev/null
       return 0
     fi
-    do_log "INFO push $i did not land on $br; retrying"
+    do_log "INFO push $i did not land on $br ($(grep -E 'rejected|error|FATAL' "$tmp/push.out" | tail -2 | tr '\n' ' ')); retrying"
     sleep $((i * ${SPL_TH_PUSH_BACKOFF:-3}))
   done
   do_log "FATAL CNF push: the $ENV cnf commit did not land on $br after 5 tries (the edit is still uncommitted in $root): $(tail -5 "$tmp/push.out" | tr '\n' ' ')"

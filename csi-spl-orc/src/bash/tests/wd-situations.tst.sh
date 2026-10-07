@@ -13,7 +13,8 @@
 #      S3 of spec 102 4.3 (T005): a done marker, a stale one, a rebirth
 #      marker, a gone pane with an open registry row, each with its control
 #   2. the false positives of 6.2, each with its control: a 14 min Bash call,
-#      a 50 min Monitor, an idle agent with an empty inbox, a stale stub on a
+#      a 50 min Monitor, an in-tool heartbeat with no open tool_use in the
+#      transcript (c-486, idle after a Stop) and an interrupted call, an idle agent with an empty inbox, a stale stub on a
 #      seat, a long turn with a moving spinner, a stale login banner after
 #      /login, a lane that finished (its workdir gone)
 #   3. a tick: one verdict line per agent, wd.<id> written, windows of
@@ -187,6 +188,30 @@ ctx s4n; hb in-tool 0 "| .tool = \"Monitor\" | .tool_since = \"$(iso $((T0 - 370
 hit "6.2 control: a Monitor past its 60 min cap" s4
 ctx s4w; hb in-tool 0 "| .tool = \"WebFetch\" | .tool_since = \"$(iso $((T0 - 400)))\""
 hit "S4 a WebFetch over its 5 min cap" s4
+# 6.2 c-486 2026-10-07: Stop at 11:00:11, then a PreToolUse at 11:00:14
+# with no PostToolUse and NO tool_use in the transcript; the session idle at
+# its prompt (2 background shells) was Escaped 15 min later. The transcript
+# structure is c-486's (types, order, offsets), the call at T0 - 960.
+s4tu() { printf '{"type":"assistant","timestamp":"%s.352Z","message":{"content":[{"type":"tool_use","id":"%s","name":"Bash"}]}}\n' "$(iso "$1" | tr -d Z)" "$2"; }
+s4tr() { printf '{"type":"user","timestamp":"%s.730Z","message":{"content":[{"type":"tool_result","tool_use_id":"%s","content":"%s"}]}}\n' "$(iso "$1" | tr -d Z)" "$2" "${3:-ok}"; }
+s4txt() { printf '{"type":"assistant","timestamp":"%s.063Z","message":{"content":[{"type":"text","text":"done 14.00"}]}}\n' "$(iso "$1" | tr -d Z)"; }
+s4c486() {
+  s4tu $((T0 - 965)) toolu_a; s4tr $((T0 - 965)) toolu_a
+  printf '{"type":"attachment","timestamp":"%s.807Z"}\n' "$(iso $((T0 - 965)) | tr -d Z)"
+  s4txt $((T0 - 963))
+  printf '{"type":"system","subtype":"stop_hook_summary","timestamp":"%s.445Z"}\n' "$(iso $((T0 - 963)) | tr -d Z)"
+}
+s4hb() { hb in-tool "$1" "| .tool = \"Bash\" | .tool_since = \"$(iso $((T0 - $1)))\"" "$1"; }
+ctx s4i; s4hb 960; s4c486 > "$C/transcript"
+nohit "6.2 c-486: an in-tool heartbeat with no open tool_use (idle after a Stop) is not S4" s4
+ctx s4j; s4hb 960; { s4tu $((T0 - 960)) toolu_b; s4tr $((T0 - 955)) toolu_b "[Request interrupted by user for tool use]"; } > "$C/transcript"
+nohit "6.2 an interrupted call (its tool_result written, no PostToolUse) is not S4" s4
+ctx s4k; s4hb 960; { s4c486; s4tu $((T0 - 960)) toolu_c; } > "$C/transcript"
+hit "6.2 control: the same transcript plus the call's open tool_use (a stuck foreground Bash)" s4
+ctx s4l; s4hb 960; { s4tu $((T0 - 990)) toolu_d; s4tu $((T0 - 960)) toolu_e; s4tr $((T0 - 980)) toolu_d; } > "$C/transcript"
+hit "6.2 control: two parallel calls, one answered and one still open" s4
+ctx s4u; s4hb 960; echo '{"type":"message","role":"assistant","ts":"2027-01-15T07:44:00Z"}' > "$C/transcript"
+hit "6.2 control: a transcript with no claude entries (another harness) falls back to the heartbeat" s4
 
 # S5: the same call with the same result 5 times in the last 8
 calls() { jq -nc --argjson n "$1" --argjson m "$2" '[range(0; $m) | {sig: "aa11", res: "x1", ts: "2027-01-15T07:5\(.)"}] + [range(0; $n) | {sig: "bb22", res: "y2", ts: "2027-01-15T07:59:0\(.)"}]'; }

@@ -75,6 +75,21 @@ wd_transcript_progress() {
   return 0
 }
 
+# 1 when a claude transcript shows NO open call: every tool_use in its tail
+# has its tool_result. 0 when one is open, or when that is unknown (no
+# transcript, none of its entries a claude assistant one). A PreToolUse with
+# no PostToolUse and no tool_use behind it leaves an idle session in-tool
+# (spec 6.2 S4, c-486 2026-10-07: one 3 s after a Stop, at the prompt).
+wd_open_tool() {
+  wd_has transcript || return 0
+  [[ "$(jq -Rrn '
+    [inputs | fromjson? // empty | select(type == "object" and (.message.content | type) == "array")] as $e
+    | if any($e[]; .type == "assistant") | not then "unknown"
+      else ([$e[] | select(.type == "assistant") | .message.content[] | select(type == "object" and .type == "tool_use") | .id]
+            - [$e[] | select(.type == "user") | .message.content[] | select(type == "object" and .type == "tool_result") | .tool_use_id])
+           | if length > 0 then "open" else "none" end end' "$WD_CTX/transcript" 2>/dev/null)" != none ]]
+}
+
 # The last progress epoch: the heartbeat's progress_ts or the transcript's,
 # whichever is newer (spec 6.1 S8: a silent hook is backed by the transcript).
 # Nothing when neither is known.

@@ -466,6 +466,21 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # --- agent PID discovery (claude|grok|agy|qwen under pane tree) -----------------
+# An agent is a process whose argv[0] IS the binary (or argv[1], under
+# node/bun), as the fleet's `$1 ~ /(^|\/)claude$/` check reads it. Matching
+# the name anywhere in the args also counted the pane's own launcher shell
+# (`sh -c "env ... AGY_BIN=.../agy ... spawn-agy.sh"`), which outlives the
+# agent: a-480's closer waited on it for 2 min after agy had left.
+is_agent_args() {
+  local a0 a1
+  read -r a0 a1 _ <<<"${1:-}"
+  case "${a0##*/}" in
+    claude|grok|agy|qwen) return 0 ;;
+    node|nodejs|bun) case "${a1##*/}" in claude|grok|agy|qwen) return 0 ;; esac ;;
+  esac
+  return 1
+}
+
 # Never kill -9 these; only wait for them to leave, then kill-window.
 collect_agent_pids_for_pane() {
   local pane="$1"
@@ -489,7 +504,7 @@ collect_agent_pids_for_pane() {
 
     cmd="$(ps -p "$p" -o args= 2>/dev/null || true)"
     # Match agent binaries only (not this script / wrappers with the words in path)
-    if printf '%s' "$cmd" | grep -E '(^|[[:space:]/])(claude|grok|agy|qwen)([[:space:]]|$)' >/dev/null; then
+    if is_agent_args "$cmd"; then
       printf '%s\n' "$p"
     fi
 
@@ -500,11 +515,9 @@ collect_agent_pids_for_pane() {
 }
 
 pid_alive() {
-  # Cross-user safe (kill -0 EPERM on other uids). Still the AGENT: a pane's
-  # own pid that exec'd a shell once agy/claude left keeps its /proc entry,
-  # and waiting on it ran every close into the timeout (a-479, c-463, c-475).
-  [[ -n "${1:-}" && -d "/proc/$1" ]] &&
-    ps -p "$1" -o args= 2>/dev/null | grep -E '(^|[[:space:]/])(claude|grok|agy|qwen)([[:space:]]|$)' >/dev/null
+  # Cross-user safe (kill -0 EPERM on other uids). Still the AGENT: a pid
+  # that exec'd a shell once agy/claude left keeps its /proc entry.
+  [[ -n "${1:-}" && -d "/proc/$1" ]] && is_agent_args "$(ps -p "$1" -o args= 2>/dev/null)"
 }
 
 do_kill_window() {
@@ -584,7 +597,8 @@ fi
 # agy cannot run its own /exit: type it into the pane once agy is idle.
 AGY_PIDS=()
 for _pid in "${AGENT_PIDS[@]+"${AGENT_PIDS[@]}"}"; do
-  ps -p "$_pid" -o args= 2>/dev/null | grep -E '(^|[[:space:]/])agy([[:space:]]|$)' >/dev/null && AGY_PIDS+=("$_pid")
+  _a0="$(ps -p "$_pid" -o args= 2>/dev/null)"; _a0="${_a0%% *}"
+  [[ "${_a0##*/}" == agy ]] && AGY_PIDS+=("$_pid")
 done
 
 # Idle = the footer reads `? for shortcuts`, never `esc to cancel` (a turn in

@@ -22,7 +22,8 @@
 #      windows). Control: the old in-session closer (TCW_NO_SETSID=1) dies
 #   9. an agy pane: the closer types /exit once agy is idle at an empty `>`,
 #      agy exits by itself, then the window closes - long before the timeout,
-#      though the pane's pid lives on as a shell (a-479 waited the full 180 s)
+#      though the pane's launcher shell, whose args name the agy path, lives on
+#      (a-479 waited the full 180 s, a-480 2 min after agy had left)
 #  10. controls: an idle agy with NO closer scheduled is never typed into nor
 #      closed; a busy agy (screen still changing) never gets /exit; nor does
 #      one paused mid-turn on a STATIC screen (footer `esc to cancel`) - the
@@ -148,13 +149,19 @@ if [ "${2:-}" = paused ]; then printf '%s\n' 'Generating...' '-----' '>' '-----'
 else printf '%s\n' '-----' '>' '-----' '? for shortcuts'; fi
 while IFS= read -r line; do
   printf '%s\n' "$line" >>"$1"
-  # the pane's pid lives on as a shell, as spawn-core's `exec bash` does
-  [ "$line" = /exit ] && { echo AGY-EXITED >>"$1"; exec sleep 600; }
+  [ "$line" = /exit ] && { echo AGY-EXITED >>"$1"; exit 0; }
 done
 sleep 600
 FAKEAGY
 chmod +x "$T_TMP/bin/agy"
-P9="$(t_window 'a-301@tbox' "bash $T_TMP/bin/agy $T_TMP/got-301")"
+# The pane as spawn-agy.sh leaves it: a launcher shell whose command line names
+# the agy path outlives agy (argv[0] of agy itself is `agy`).
+cat >"$T_TMP/bin/agy-pane" <<'FAKEPANE'
+#!/bin/sh
+bash -c 'exec -a agy bash "$0" "$1" "$2"' "$1" "$2" "${3:-}"
+sleep 600
+FAKEPANE
+P9="$(t_window 'a-301@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-301")"
 sleep 1
 in_agy_session bash "$SUT" --agent a-301 --defer --timeout 60
 check "9. the agy window closes well before the 60 s timeout" wait_gone "$P9" 30
@@ -162,16 +169,16 @@ has "9. agy got /exit typed and left by itself" "AGY-EXITED" "$(cat "$T_TMP/got-
 has "9. the log names the /exit it typed" "typing /exit" "$(cat "$CLOSE_LOG_DIR"/kill-your-self-close-*.log 2>/dev/null)"
 
 # --- 10. controls: no closer = no close; busy = no /exit ------------------------------------
-P10="$(t_window 'a-302@tbox' "bash $T_TMP/bin/agy $T_TMP/got-302")"
+P10="$(t_window 'a-302@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-302")"
 sleep 6
 check "10. control: an idle agy with no closer scheduled stays" alive "$P10"
 eq "10. control: ... and nothing was typed into it" "" "$(cat "$T_TMP/got-302" 2>/dev/null)"
-P10B="$(t_window 'a-303@tbox' "bash $T_TMP/bin/agy $T_TMP/got-303 busy")"
+P10B="$(t_window 'a-303@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-303 busy")"
 sleep 1
 in_agy_session bash "$SUT" --agent a-303 --defer --timeout 5
 check "10. a busy agy is closed only by the timeout" wait_gone "$P10B" 30
 eq "10. control: ... and never got /exit while busy" "" "$(cat "$T_TMP/got-303" 2>/dev/null)"
-P10C="$(t_window 'a-304@tbox' "bash $T_TMP/bin/agy $T_TMP/got-304 paused")"
+P10C="$(t_window 'a-304@tbox' "sh $T_TMP/bin/agy-pane $T_TMP/bin/agy $T_TMP/got-304 paused")"
 sleep 1
 in_agy_session bash "$SUT" --agent a-304 --defer --timeout 6
 check "10. an agy paused mid-turn is closed only by the timeout" wait_gone "$P10C" 30

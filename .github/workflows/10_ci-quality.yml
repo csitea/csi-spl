@@ -36,6 +36,17 @@ name: "10 ci: quality gate"
 # regression nobody is told about. These suites are cheap, so they run on
 # every master push.
 #
+# EXPRESS DOCS LANE (owner, t1 a477c187, msgs 50a349f4 "a bypass lane for
+# those purely doc changes" + 31e00aee "integrated in the CICD"; reverses spec
+# 075 O6). Still no `paths:` filter: every push starts this gate, and the
+# first job (classify) decides by FILES, never by author. A push whose every
+# changed path is a *.md outside csi-spl-wui/** and .github/** (the set wf 32
+# publishes) skips the code jobs (hub, wui, wui-generate, wui-e2e, iac, orc,
+# cnf); distribution-hygiene and no-ysg-box-ref still run (a doc can carry a
+# banned name), and a skipped job is not a failure, so the gate is green.
+# It FAILS SAFE: an error, an empty diff, a merge, a force-push or new-branch
+# base, a pull request, a dispatch without express_base -> the full gate.
+#
 # ONE GATE FOR PUSH AND PULL REQUEST (spec 072 A35): this file is also the
 # reusable gate. 11_ci-public.yml calls it on `pull_request` (fork branches
 # included) with `runner: '"ubuntu-latest"'`, so a contributor's pull request
@@ -52,7 +63,22 @@ name: "10 ci: quality gate"
 # csi-spl-iac, csi-spl-orc and csi-spl-cnf; none of them holds a GCP identity.
 
 on:
-  workflow_dispatch: {}
+  # Both inputs are for a CONTROL on a throwaway branch (the self-hosted group
+  # takes this file at master only, so a branch run needs a hosted runner).
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: >-
+          runs-on for every job, JSON (e.g. '"ubuntu-latest"'). Empty: the
+          RUNNER rule at the top of this file.
+        type: string
+        default: ""
+      express_base:
+        description: >-
+          classify <this sha>..the dispatched sha for the express docs lane,
+          as a push would. Empty: full gate.
+        type: string
+        default: ""
   push:
     branches: [master]
   # The pull-request entry (11_ci-public.yml). Empty inputs = a push here.
@@ -92,12 +118,55 @@ concurrency:
 
 jobs:
   # ===========================================================================
+  # Express docs lane classifier (see EXPRESS DOCS LANE at the top):
+  # csi-spl-orc/src/bash/scripts/ci-doc-only.sh on github.event.before..sha.
+  # Its output doc_only is 'true' ONLY when the script proved it; the code
+  # jobs below skip only on == 'true' and carry !cancelled(), so a failed or
+  # skipped classify runs them. Gate: ci-doc-only.tst.sh.
+  # ===========================================================================
+  classify:
+    name: "classify: doc-only push (express docs lane)?"
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      doc_only: ${{ steps.cls.outputs.doc_only }}
+    steps:
+      # the commit graph and trees, no blobs: enough for rev-list and a
+      # name-only diff between before and sha
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Classify the push (anything unproven = code, full gate)
+        id: cls
+        continue-on-error: true
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event_name == 'workflow_dispatch' && inputs.express_base || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          v=doc_only=false
+          if [[ "$EVENT" == push || ( "$EVENT" == workflow_dispatch && -n "$BASE" ) ]]; then
+            v=$(bash csi-spl-orc/src/bash/scripts/ci-doc-only.sh "$BASE" "$HEAD_SHA") || v=doc_only=false
+          else
+            echo "ci-doc-only: $EVENT without a base: full gate"
+          fi
+          [[ "$v" == doc_only=true ]] || v=doc_only=false
+          echo "$v" >>"$GITHUB_OUTPUT"
+          echo "**$v** (${BASE:0:12}..${HEAD_SHA:0:12}, $EVENT)" >>"$GITHUB_STEP_SUMMARY"
+
+  # ===========================================================================
   # The hub suite: csi-spl-api/src/bash/tests/run-all-tests.sh -- gofmt,
   # go vet, go test, the no-ysg-box-ref gate, the spool smoke, the hub
   # Postgres gate and the hub GCS (fake-gcs) gate.
   # ===========================================================================
   hub-suite:
     name: "hub: gofmt, go vet, go test, smoke, Postgres + GCS gates"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
@@ -182,6 +251,8 @@ jobs:
   # ===========================================================================
   wui-suite:
     name: "wui: unit tests + typecheck"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     defaults:
@@ -234,6 +305,8 @@ jobs:
   # ===========================================================================
   wui-generate:
     name: "wui: nuxt generate (mock tenant) once for the e2e shards"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
@@ -319,8 +392,8 @@ jobs:
     name: "wui: browser e2e (mock, generated) ${{ matrix.shard }}/3"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     # the bundle exists even when its budget step failed (see wui-generate)
-    needs: wui-generate
-    if: ${{ !cancelled() && needs.wui-generate.outputs.bundle == 'success' }}
+    needs: [classify, wui-generate]
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' && needs.wui-generate.outputs.bundle == 'success' }}
     # 3 round-robin shards (E2E_SHARD, run-e2e-tests.mjs), CLE-77945
     # 2026-10-02: one serial job ran 104 files in 35 min green and hit the
     # 45 min timeout under load (run 36962189149), so this gate finished once
@@ -436,6 +509,8 @@ jobs:
   # ===========================================================================
   iac-suite:
     name: "iac: tfvars parity, step contracts, terraform validate"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
@@ -577,6 +652,8 @@ jobs:
   # ===========================================================================
   orc-suite:
     name: "orc: hermetic action tests (stubbed gcloud/curl/docker)"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     # actions: read for gate-fail-fast.sh (see wui-e2e): a red job elsewhere
@@ -719,6 +796,8 @@ jobs:
   # ===========================================================================
   cnf-suite:
     name: "cnf: conf-validator exit codes"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
@@ -852,6 +931,8 @@ jobs:
   # correspondingly it proves nothing -- read it, do not trust it as a control.
   # It runs the same named action an operator runs (do_report_ci_gate), and
   # `actions: read` is the only permission it adds, for this job alone.
+  # A code job the express docs lane skipped is `skipped`, not a failure, so
+  # a doc-only push never starts this job.
   # ===========================================================================
   gate-health:
     name: "gate health: what else has been failing"

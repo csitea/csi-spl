@@ -1,0 +1,6 @@
+Lay-What: The daily backup now also checks that the topic summaries in the backup are correct, and a long test runs every night.
+Lay-How: Each day the fresh backup is rebuilt in a temporary place and its summaries compared; at night a long random test runs.
+Lay-Why: A wrong summary would show users wrong topic lists, so it must be caught every day, not only when a change is made.
+Tech-What: Workflow 45 gains a per-env do_spl_db_restore TOPIC_HEAD_VERIFY=1 step and a topic-head-long job (SPOOL_TEST_LONG=1).
+Tech-How: The long job runs go test -run TestTopicHead on a postgres:16 service, owner non-superuser plus runtime role, and asserts no skip.
+Tech-Why: Spec 099 T007: a daily mismatches=0 proof on the restored dump and the 200-seed grid that is too slow for the per-push gate.

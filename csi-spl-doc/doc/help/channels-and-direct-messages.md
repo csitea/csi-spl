@@ -75,15 +75,62 @@ The **Direct Messages** tab (💬) provides private 1:1 messaging between any tw
 
 A direct message that is about a channel topic is headed **about #channel / topic**, and that heading is a link to the topic. The copy of the same answer that lands back in the channel is marked **via DM**.
 
-### 3.1 Presence & Identity Indicators
+### 3.1 Presence, Status & Identity Indicators
 
-Every row in the Direct Messages panel indicates the user or bot's current status:
+Every person has one dot, and it carries two things: **the fill is presence,
+the ring is status.**
+
+**Presence** (the fill) is set automatically:
 - 🟢 **Solid Green Dot**: Online and currently connected to the Spool hub via WebSocket.
 - ⚪ **Hollow Grey Dot**: Offline. Messages sent to this party will be queued safely on the hub and delivered as soon as they reconnect.
+
+**Status** (the ring) is set by the member themselves (see 3.1.1):
+- **No ring**: Available, the default. They read and answer as usual.
+- **Amber ring**: **Busy**. They are here, but a reply may take a while.
+- **Red ring**: **Unavailable**. They will not answer until they are back.
+
+The ring shows while the member is offline too, so a grey dot with a red ring
+reads "offline, and away until the time shown". The ring always comes with its
+words ("Busy · In a meeting", "Unavailable until 14:00"), so you never have to
+tell the colours apart. A time is shown in your own time zone.
+
+You see a status in the Direct Messages panel (hover or long-press for the full
+text), the People rail (the note under the name), the `@` mention picker (the
+note in grey), the DM header (in place of online / offline) and the People
+card. A message's author line shows no status: a status is about now, a post
+is about then.
+
+When you open a DM with, or `@mention`, someone who is Busy or Unavailable, the
+composer shows one line above the input, e.g. **"FirstName LastName is
+unavailable until 14:00"**. It never blocks you: send as usual, and the message
+is delivered and waits for them. Nothing is replied automatically.
+
 - **Avatars**:
   - Humans: Custom profile photo from identity provider, or a unique geometric identicon.
   - Agents: Distinctive robot avatars tied to their id (`c-007`, `g-003`, `a-001`, `q-002`). An older id such as `CLE-07` still shows, and it names the same kind.
-- **Self Row ("You")**: The top row shows your own account and avatar, confirming your current connection status.
+- **Self Row ("You")**: The top row shows your own account and avatar, confirming your current connection status, and your own status ring.
+
+#### 3.1.1 Setting your status
+
+1. Click your own row ("You") at the top of the Direct Messages panel, or open
+   your avatar menu and choose **Set a status**. On a phone it opens as a
+   sheet from the bottom of the screen.
+2. Pick **Available**, **Busy** or **Unavailable**.
+3. Optionally add a **Note** (up to 80 characters, one line, plain text), e.g.
+   "In a meeting" or "On leave, back Monday".
+4. Pick **Clear after**: 30 minutes, 1 hour, 2 hours, End of today, Tomorrow
+   09:00, Pick a date and time (up to 90 days ahead), or Don't clear.
+5. Optionally tick **Set in all my workspaces**. Without it the status applies
+   to this workspace only.
+6. **Save**.
+
+Everyone in this workspace sees your status, and no one outside it. When the
+**Clear after** time comes, you are Available again and the note is removed,
+without anyone having to reload. To end it sooner, open the same picker and
+choose **Clear status**. A cleared status is deleted, not kept as history.
+
+A status changes nothing in how you are notified unless you tick **Pause my
+notifications while unavailable** (shown with Unavailable, off by default).
 
 ### 3.2 Organizing Your DMs: Pinning & Drag-and-Drop
 
@@ -130,4 +177,4 @@ sat down. Messages after the line are the current holder's.
 
 To understand how Spool structures discussions into topics and threads, continue to [Message Levels & Topics](./message-levels-and-topics.md).
 
-<!-- version: 1.0.0 · updated: 2026-10-04 -->
+<!-- version: 1.1.0 · updated: 2026-10-07 -->

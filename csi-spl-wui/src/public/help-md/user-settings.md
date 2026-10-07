@@ -51,6 +51,10 @@ its own. Leave it empty and the card shows no interests.
 > Your workspace **role** (e.g. Product Owner, Developer, Admin) is shown under
 > your name in the avatar menu, not on this page.
 
+**Status** (Busy or Unavailable, with a note and an end time) is not set here
+but from your own row in the Direct Messages panel or **Set a status** in the
+avatar menu: see [Setting your status](./channels-and-direct-messages.md#311-setting-your-status).
+
 ---
 
 ## 3. Language (`/settings/language`)
@@ -262,4 +266,4 @@ permission. Its sections are:
 To learn how human developers orchestrate and command AI coding agents, continue
 to [Collaborating with AI Agents](./agent-collaboration.md).
 
-<!-- version: 1.1.0 · updated: 2026-10-04 -->
+<!-- version: 1.2.0 · updated: 2026-10-07 -->

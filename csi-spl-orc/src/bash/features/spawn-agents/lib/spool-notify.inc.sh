@@ -156,6 +156,70 @@ spool_notify_direct_state() {  # TO MSGID
   return 2
 }
 
+# ── the orchestrator's quiet pane (SPEC-spool-fleet-roles 2.1) ─────────────
+# Every OD seat stays subscribed to every channel, so every human channel post
+# reached the orchestrator's prompt too. Measured on sat 2026-10-07: c-001 sat
+# in one long tool call with ~a dozen of them queued behind it. The orch seat
+# is now typed only the posts that are its to take: one that names it. Every
+# other one still lands in its inbox (`spool recv` shows it) and the notice
+# strip; the 2-minute backstop and the unanswered sweep reach it as messages
+# addressed to it, which this never touches.
+
+# Value of KEY in FILE (KEY=VALUE lines, read, never sourced). Pure bash: this
+# runs on every delivery (CLE-3435 budget).
+spool_notify_conf_var() {  # VAR FILE KEY
+  local __v="$1" f="$2" key="$3" k v got=""
+  if [ -r "$f" ]; then
+    while IFS='=' read -r k v; do [ "$k" = "$key" ] && got="$v"; done <"$f"
+  fi
+  printf -v "$__v" '%s' "$got"
+}
+
+# The bare id of the first field of a lease file ("<ID>@<box> <epoch>").
+spool_notify_lease_id_var() {  # VAR FILE
+  local __v="$1" h=""
+  [ -r "$2" ] && read -r h _ <"$2"
+  h="${h%%@*}"
+  case "$h" in none|unknown:*) h="" ;; esac
+  printf -v "$__v" '%s' "$h"
+}
+
+# 0 when TO is this machine's orchestrator seat AND not the acting dispatcher:
+# lease.conf LEASE_ORCH or the orch lease holder (dispatch/lease.orch), never
+# the holder of the dispatch lease (dispatch/lease), which takes new posts
+# (spec 3). No lease.conf (a bare box, a sandbox): no seat, nothing filtered.
+spool_notify_is_orch_seat() {  # TO
+  local to="${1:-}" d orch held disp
+  [ -n "$to" ] && [ -n "${SPOOL_ROOT:-}" ] || return 1
+  d="${SPOOL_ROOT%/}/dispatch"
+  spool_notify_conf_var orch "$d/lease.conf" LEASE_ORCH
+  spool_notify_lease_id_var held "$d/lease.orch"
+  [ -n "$orch" ] || [ -n "$held" ] || return 1
+  [ "$to" = "$orch" ] || [ "$to" = "$held" ] || return 1
+  spool_notify_lease_id_var disp "$d/lease"
+  [ "$to" != "$disp" ]
+}
+
+# 0 when BODY names TO: TO as a word (`@c-001`, `c-001`, `c-001@sat`), or the
+# role word `orchestrator`, either case.
+spool_notify_names_seat() {  # TO BODY
+  local to="${1:-}" b="${2:-}" w='[^A-Za-z0-9_-]'
+  [ -n "$to" ] || return 1
+  b="${b,,}"; to="${to,,}"
+  [[ " $b " =~ ${w}@?${to}${w} ]] && return 0
+  [[ " $b " =~ [^a-z]orchestrator[^a-z] ]]
+}
+
+# 0 when the post must NOT be typed into TO's prompt: a human's channel post
+# (not addressed to TO) to the orchestrator seat, that does not name it.
+spool_notify_orch_quiet() {  # TO FROM MSGID BODY
+  spool_notify_is_human "${2:-}" || return 1
+  spool_notify_is_orch_seat "${1:-}" || return 1
+  spool_notify_direct_state "${1:-}" "${3:-}"
+  [ "$?" = 1 ] || return 1
+  ! spool_notify_names_seat "${1:-}" "${4:-}"
+}
+
 # Put into VAR the id as typed into a prompt: only [A-Za-z0-9._:-], at most
 # 64 characters. A topic or msg id is a uuid; anything else in one is dropped,
 # so the frame can never carry a quote, a space or a control byte. printf -v,

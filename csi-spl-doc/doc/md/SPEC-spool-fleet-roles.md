@@ -101,6 +101,12 @@ sweep (3.2) and by the 3-minute rule (3).
 
 Membership decides who RECEIVES a post, not who answers it: section 3.
 
+Receiving is not typing: the orchestrator seat (`LEASE_ORCH` / the orch lease,
+unless it holds the dispatch lease) is typed a human's channel post only when
+the post names it (`@c-001`, `c-001`, `orchestrator`); every other one waits
+in its inbox, and the 2-minute backstop and the unanswered sweep reach it as
+messages addressed to it (`spool_notify_orch_quiet`, owner HUM-10 2026-10-07).
+
 ## 3. The routing rule: the OD that takes a post owns it
 
 Owner (HUM-10, t1 `d40c3e2f`, 2026-10-03 ~18:26Z), verbatim: *"The

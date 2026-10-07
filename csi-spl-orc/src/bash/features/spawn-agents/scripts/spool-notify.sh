@@ -81,10 +81,15 @@ spool_valid_id "$TO" || exit 2
 #    A PROBE line (body starts with [spool-probe], specs/017 FR-SEC-030) is
 #    never offered: automated test traffic is shown, and no agent acts on it.
 #    Anything else is offered with its provenance in front (FR-SEC-031).
+#
+#    The orchestrator seat is offered a human's channel post only when the
+#    post names it (SPEC-spool-fleet-roles 2.1): the rest stay in its inbox.
 rc=0
 probe=0
+quiet=0
 spool_notify_is_probe "$BODY" && probe=1
-if [ "$probe" = 0 ] && [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
+spool_notify_orch_quiet "$TO" "$FROM" "$MSGID" "$BODY" && quiet=1
+if [ "$probe" = 0 ] && [ "$quiet" = 0 ] && [ "${SPOOL_POKE:-1}" != 0 ] && ! spool_poke_muted "$TO"; then
   spool_notify_frame _frame "$TO" "$FROM" "$TASK" "$MSGID"
   spool_notify_render _line "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "${_frame}${BODY}"
   spool_notify_poke "$TO" "$_line" "${_frame}${BODY}" "$FROM"
@@ -99,6 +104,10 @@ spool_notify_mark_peer "$TO" "$FROM" "$TASK" "$MSGID"
 
 if [ "$probe" = 1 ]; then
   echo "poke: probe line (${SPOOL_PROBE_MARK}) - ${TO} was SHOWN it; its prompt was not touched"
+  exit 0
+fi
+if [ "$quiet" = 1 ]; then
+  echo "poke: orch filter - ${TO} is the orchestrator seat and the channel post does not name it; it waits in ${SPOOL_ROOT}/${TO}/inbox/"
   exit 0
 fi
 if [ "${SPOOL_POKE:-1}" = 0 ]; then

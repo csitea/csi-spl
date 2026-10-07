@@ -133,6 +133,9 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T004 P3: isolation tests T1..T4
 
+- Status: **done** (2026-10-07): `store/search_index_rls_test.go`, four
+  `TestRLSSearchIndex*` (T1..T4), counted by hub-pg.tst.sh's RLS control. T2
+  checks door 2 at the store level (the API-level T6 belongs to T006/T008).
 - Lane: **test**. Phase P3. Spec 6: T1, T2, T3, T4.
 - Files: `store/search_index_rls_test.go` (new), run by
   `csi-spl-api/src/bash/tests/hub-pg.tst.sh` as the runtime login.

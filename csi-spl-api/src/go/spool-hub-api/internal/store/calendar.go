@@ -36,6 +36,10 @@ import (
 // The range and marks reads expand series in Go; an id is a row's uuid or an
 // occurrence id <event_id>_<YYYYMMDDTHHMMSSZ>, and a write to a series has a
 // scope (this, following, all; spec 4.4).
+//
+// specs/097 T007: guests (calendar_guests.go). Guests rides on every event
+// row and each write keeps its guest rows in step; every guest id is in
+// mentions too, so the private filter above serves guests unchanged.
 
 // Calendar audiences (rdb 0125 check). An empty audience on create is public
 // (owner decision D2).
@@ -122,11 +126,15 @@ type CalendarEvent struct {
 	RecurringEventID string
 	OriginalStart    time.Time
 	Status           string // confirmed | cancelled; "" on create is confirmed
+	// Guests (specs/097 T007) by type then id, never nil once stored; the
+	// creator is never one of them by the hub's rule, not the store's.
+	Guests []CalendarGuest
 }
 
 // CalendarPatch is an update: a nil field is left as it is. A zero *RemindAt
 // clears the reminder; an empty *TopicID / *ReleaseVersion clears that column.
-// *Props replaces the whole object; an empty *RRule ends the repeat. A non-zero
+// *Props replaces the whole object; an empty *RRule ends the repeat. *Guests is
+// the full new list (a guest kept keeps their answer). A non-zero
 // IfUpdatedAt is the precondition: the event's updated_at must equal it, else
 // ErrEditConflict. Scope applies to a series (CalendarScope*).
 type CalendarPatch struct {
@@ -144,6 +152,7 @@ type CalendarPatch struct {
 	Props          *map[string]any
 	TimeZone       *string
 	RRule          *string
+	Guests         *[]CalendarGuest
 	IfUpdatedAt    time.Time
 	Scope          string
 }
@@ -246,6 +255,9 @@ func normalizeCalendarEvent(e *CalendarEvent) error {
 	}
 	e.Props = props
 	if err := validateCalendarEvent(e); err != nil {
+		return err
+	}
+	if err := normalizeCalendarGuests(e); err != nil {
 		return err
 	}
 	return normalizeCalendarRecurrence(e)
@@ -360,6 +372,9 @@ func applyCalendarPatch(e *CalendarEvent, p CalendarPatch) {
 	}
 	set(&e.TimeZone, p.TimeZone)
 	set(&e.RRule, p.RRule)
+	if p.Guests != nil {
+		e.Guests = mergeCalendarGuests(e.Guests, *p.Guests)
+	}
 }
 
 // calendarOwnsOrNamed: the viewer created the event or is mentioned on it.

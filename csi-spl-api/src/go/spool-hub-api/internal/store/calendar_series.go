@@ -476,6 +476,7 @@ func calendarFollow(ex *CalendarEvent, old, nu *CalendarEvent, delta time.Durati
 		}
 	}
 	calendarFollowProps(ex, old, nu)
+	calendarFollowGuests(ex, old, nu)
 }
 
 // calendarLead is how long before its start an event's remind_at is, -1

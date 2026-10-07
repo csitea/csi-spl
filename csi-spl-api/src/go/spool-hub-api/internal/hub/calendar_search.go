@@ -189,7 +189,7 @@ func (s *Server) handleCalendarSearch(w http.ResponseWriter, r *http.Request, t 
 			return
 		}
 		for _, e := range evs {
-			out = append(out, toCalendarJSON(e, now))
+			out = append(out, toCalendarJSON(e, now, viewer))
 		}
 		next = cur
 	}

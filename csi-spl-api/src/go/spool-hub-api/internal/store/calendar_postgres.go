@@ -17,9 +17,9 @@ const calendarCols89 = `event_id::text, title, description, kind, starts_at, end
 
 const (
 	calendarCols0139 = `, props, time_zone, deleted_at, COALESCE(deleted_by, ''),
-	COALESCE(rrule, ''), recur_until, COALESCE(recurring_event_id::text, ''), original_start, status`
+	COALESCE(rrule, ''), recur_until, COALESCE(recurring_event_id::text, ''), original_start, status` + calendarGuestsSQL
 	calendarColsAs89 = `, '{}'::jsonb, 'UTC'::text, NULL::timestamptz, ''::text,
-	''::text, NULL::timestamptz, ''::text, NULL::timestamptz, 'confirmed'::text`
+	''::text, NULL::timestamptz, ''::text, NULL::timestamptz, 'confirmed'::text, '[]'::jsonb`
 )
 
 // calendarPrivateSQL is the private filter with the viewer at $2 (spec 089
@@ -69,7 +69,7 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 	var remind, deleted, until, orig *time.Time
 	err := row.Scan(&e.ID, &e.Title, &e.Description, &e.Kind, &e.StartsAt, &e.EndsAt, &e.AllDay, &e.Audience,
 		&e.Mentions, &e.CreatorType, &e.CreatorID, &remind, &e.TopicID, &e.ReleaseVersion, &e.CreatedAt, &e.UpdatedAt,
-		&e.Props, &e.TimeZone, &deleted, &e.DeletedBy, &e.RRule, &until, &e.RecurringEventID, &orig, &e.Status)
+		&e.Props, &e.TimeZone, &deleted, &e.DeletedBy, &e.RRule, &until, &e.RecurringEventID, &orig, &e.Status, &e.Guests)
 	for _, t := range []struct {
 		dst *time.Time
 		src *time.Time
@@ -85,6 +85,9 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 	}
 	if e.Props == nil {
 		e.Props = map[string]any{}
+	}
+	if e.Guests == nil {
+		e.Guests = []CalendarGuest{}
 	}
 	return e, err
 }
@@ -103,6 +106,9 @@ func (s *Postgres) CreateCalendarEvent(ctx context.Context, tenant string, e Cal
 	if !q.full && e.RRule != "" {
 		return CalendarEvent{}, errCalendarScope("a repeating event needs rdb 0139")
 	}
+	if !q.full && len(e.Guests) > 0 {
+		return CalendarEvent{}, errCalendarScope("guests need rdb 0139")
+	}
 	cols, vals := ``, ``
 	args := []any{tenant, e.Title, e.Description, e.Kind, e.StartsAt, e.EndsAt, e.AllDay, e.Audience, e.Mentions,
 		e.CreatorType, e.CreatorID, nullTime(e.RemindAt), nullIfEmpty(e.TopicID), nullIfEmpty(e.ReleaseVersion), calendarNow(now)}
@@ -110,15 +116,25 @@ func (s *Postgres) CreateCalendarEvent(ctx context.Context, tenant string, e Cal
 		cols, vals = `, props, time_zone, rrule, recur_until`, `, $16, $17, $18, $19`
 		args = append(args, e.Props, e.TimeZone, nullIfEmpty(e.RRule), nullTime(e.RecurUntil))
 	}
+	insert := `INSERT INTO calendar_events (tenant_id, title, description, kind, starts_at, ends_at,
+			all_day, audience, mentions, creator_type, creator_id, remind_at, topic_id, release_version, created_at, updated_at` + cols + `)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15` + vals + `)
+		RETURNING ` + q.cols
 	var out CalendarEvent
-	err := s.tenantBatch(ctx, tenant, `INSERT INTO calendar_events (tenant_id, title, description, kind, starts_at, ends_at,
-			all_day, audience, mentions, creator_type, creator_id, remind_at, topic_id, release_version, created_at, updated_at`+cols+`)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15`+vals+`)
-		RETURNING `+q.cols, args,
-		func(br pgx.BatchResults) (err error) {
-			out, err = scanCalendarEvent(br.QueryRow())
-			return err
+	if len(e.Guests) > 0 { // the guest rows in the same transaction (T007)
+		err := s.inTenant(ctx, tenant, func(tx pgx.Tx) (err error) {
+			if out, err = scanCalendarEvent(tx.QueryRow(ctx, insert, args...)); err != nil {
+				return err
+			}
+			out.Guests = e.Guests
+			return syncCalendarGuests(ctx, tx, tenant, out.ID, e.Guests)
 		})
+		return out, err
+	}
+	err := s.tenantBatch(ctx, tenant, insert, args, func(br pgx.BatchResults) (err error) {
+		out, err = scanCalendarEvent(br.QueryRow())
+		return err
+	})
 	return out, err
 }
 
@@ -215,15 +231,19 @@ func (s *Postgres) UpdateCalendarEvent(ctx context.Context, tenant, viewer, id s
 		if q.full {
 			set = `, props = $15, time_zone = $16, rrule = $17, recur_until = $18`
 			args = append(args, e.Props, e.TimeZone, nullIfEmpty(e.RRule), nullTime(e.RecurUntil))
-		} else if e.RRule != "" {
-			return errCalendarScope("a repeating event needs rdb 0139")
+		} else if e.RRule != "" || len(e.Guests) > 0 {
+			return errCalendarScope("a repeating event or a guest needs rdb 0139")
 		}
 		out, err = scanCalendarEvent(tx.QueryRow(ctx, `UPDATE calendar_events SET title = $3, description = $4, kind = $5,
 				starts_at = $6, ends_at = $7, all_day = $8, audience = $9, mentions = $10, remind_at = $11,
 				topic_id = $12, release_version = $13, updated_at = $14`+set+`
 			WHERE tenant_id = $1 AND event_id = $2::uuid
 			RETURNING `+q.cols, args...))
-		return err
+		if err != nil || p.Guests == nil {
+			return err
+		}
+		out.Guests = e.Guests
+		return syncCalendarGuests(ctx, tx, tenant, id, e.Guests)
 	})
 	return out, err
 }
@@ -501,7 +521,7 @@ const calendarUpsertSQL = `INSERT INTO calendar_events (event_id, tenant_id, tit
 		deleted_by = EXCLUDED.deleted_by
 	WHERE calendar_events.tenant_id = EXCLUDED.tenant_id`
 
-// upsertCalendarRows writes rows in order, each in tenant.
+// upsertCalendarRows writes rows in order, each in tenant, with its guest rows.
 func upsertCalendarRows(ctx context.Context, tx pgx.Tx, tenant string, rows []CalendarEvent) error {
 	for _, e := range rows {
 		tag, err := tx.Exec(ctx, calendarUpsertSQL, e.ID, tenant, e.Title, e.Description, e.Kind, e.StartsAt, e.EndsAt,
@@ -514,6 +534,9 @@ func upsertCalendarRows(ctx context.Context, tx pgx.Tx, tenant string, rows []Ca
 		}
 		if tag.RowsAffected() != 1 {
 			return ErrNotFound
+		}
+		if err := syncCalendarGuests(ctx, tx, tenant, e.ID, e.Guests); err != nil {
+			return err
 		}
 	}
 	return nil

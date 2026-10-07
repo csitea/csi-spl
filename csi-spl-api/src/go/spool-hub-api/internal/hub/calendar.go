@@ -44,6 +44,10 @@ import (
 // reads (the store expands them; past 2000 in one range it is 400 bad_range),
 // and ?scope=this|following|all on PATCH and DELETE of a series id or an
 // occurrence id <event_id>_<YYYYMMDDTHHMMSSZ>.
+//
+// specs/097 T007 adds guests (spec 4.5, calendar_guests.go): guests on
+// create and PATCH (members and agents of this workspace, kept in mentions),
+// guests and my_response on the event object, and POST .../rsvp.
 
 const (
 	calendarMaxBody         = 32 << 10
@@ -93,8 +97,7 @@ type calendarEventJSON struct {
 	DeletedAt        string              `json:"deleted_at"`
 }
 
-// calendarGuestJSON is one guest and their answer (spec 4.1); the list stays
-// empty until guests land (097 T007).
+// calendarGuestJSON is one guest and their answer (spec 4.1).
 type calendarGuestJSON struct {
 	Type     string `json:"type"`
 	ID       string `json:"id"`
@@ -120,9 +123,9 @@ func optCalTime(t time.Time) string {
 	return rfc(t)
 }
 
-// toCalendarJSON is a stored event on the wire; now picks remind_at's
-// earliest coming reminder.
-func toCalendarJSON(e store.CalendarEvent, now time.Time) calendarEventJSON {
+// toCalendarJSON is a stored event on the wire as viewer reads it (their own
+// answer in my_response); now picks remind_at's earliest coming reminder.
+func toCalendarJSON(e store.CalendarEvent, now time.Time, viewer string) calendarEventJSON {
 	mentions := e.Mentions
 	if mentions == nil {
 		mentions = []string{}
@@ -131,13 +134,30 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time) calendarEventJSON {
 	if tz == "" {
 		tz = store.CalendarUTC
 	}
+	guests, mine := calendarGuestsJSON(e, viewer)
 	return calendarEventJSON{ID: e.ID, Source: calendarSourceEvent, Title: e.Title, Description: e.Description,
 		Kind: e.Kind, StartsAt: rfc(e.StartsAt), EndsAt: rfc(e.EndsAt), AllDay: e.AllDay, Audience: e.Audience,
 		Mentions: mentions, CreatorType: e.CreatorType, CreatorID: e.CreatorID, RemindAt: optCalTime(wireRemindAt(e, now)),
 		TopicID: e.TopicID, ReleaseVersion: e.ReleaseVersion, CreatedAt: rfc(e.CreatedAt), UpdatedAt: rfc(e.UpdatedAt),
 		TimeZone: tz, RRule: e.RRule, RecurringEventID: e.RecurringEventID, OriginalStart: optCalTime(e.OriginalStart),
 		Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
-		Reminders: eventReminders(e), Guests: []calendarGuestJSON{}, DeletedAt: optCalTime(e.DeletedAt)}
+		Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt)}
+}
+
+// calendarGuestsJSON is e's guests on the wire, the owner never listed (spec
+// 4.1), and viewer's own answer ("" when they are not a guest).
+func calendarGuestsJSON(e store.CalendarEvent, viewer string) ([]calendarGuestJSON, string) {
+	out, mine := []calendarGuestJSON{}, ""
+	for _, g := range e.Guests {
+		if g.ID == e.CreatorID {
+			continue
+		}
+		out = append(out, calendarGuestJSON{Type: g.Type, ID: g.ID, Response: g.Response, Comment: g.Comment})
+		if viewer != "" && g.ID == viewer {
+			mine = g.Response
+		}
+	}
+	return out, mine
 }
 
 // deadlineJSON is an issue's deadline as a read-only grid item.
@@ -155,25 +175,34 @@ func deadlineJSON(i store.Issue) calendarEventJSON {
 // an absent field is left alone; remind_at, topic_id, release_version "" clear.
 // 097 4.2 adds time_zone, location, color and reminders ("" / [] reset them)
 // and props, the registry's keys as one object (a typed field wins over it);
-// T006 adds rrule ("" ends the repeat).
+// T006 adds rrule ("" ends the repeat); T007 guests (on PATCH the full new
+// list) and notify_guests (read by the notices, T008).
 type calendarRequest struct {
-	Title          *string        `json:"title"`
-	Description    *string        `json:"description"`
-	Kind           *string        `json:"kind"`
-	StartsAt       *string        `json:"starts_at"`
-	EndsAt         *string        `json:"ends_at"`
-	AllDay         *bool          `json:"all_day"`
-	Audience       *string        `json:"audience"`
-	Mentions       *[]string      `json:"mentions"`
-	RemindAt       *string        `json:"remind_at"`
-	TopicID        *string        `json:"topic_id"`
-	ReleaseVersion *string        `json:"release_version"`
-	TimeZone       *string        `json:"time_zone"`
-	Location       *string        `json:"location"`
-	Color          *string        `json:"color"`
-	Reminders      *[]any         `json:"reminders"`
-	Props          map[string]any `json:"props"`
-	RRule          *string        `json:"rrule"`
+	Title          *string            `json:"title"`
+	Description    *string            `json:"description"`
+	Kind           *string            `json:"kind"`
+	StartsAt       *string            `json:"starts_at"`
+	EndsAt         *string            `json:"ends_at"`
+	AllDay         *bool              `json:"all_day"`
+	Audience       *string            `json:"audience"`
+	Mentions       *[]string          `json:"mentions"`
+	RemindAt       *string            `json:"remind_at"`
+	TopicID        *string            `json:"topic_id"`
+	ReleaseVersion *string            `json:"release_version"`
+	TimeZone       *string            `json:"time_zone"`
+	Location       *string            `json:"location"`
+	Color          *string            `json:"color"`
+	Reminders      *[]any             `json:"reminders"`
+	Props          map[string]any     `json:"props"`
+	RRule          *string            `json:"rrule"`
+	Guests         *[]calendarGuestIn `json:"guests"`
+	NotifyGuests   *bool              `json:"notify_guests"`
+}
+
+// calendarGuestIn is one guest of a create or PATCH body (spec 4.2).
+type calendarGuestIn struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
 }
 
 func badCalendar(detail string) *issueErr {
@@ -326,7 +355,102 @@ func (q calendarRequest) patchProps(cur store.CalendarEvent, p *store.CalendarPa
 func calendarPatchEmpty(p store.CalendarPatch) bool {
 	return p.Title == nil && p.Description == nil && p.Kind == nil && p.StartsAt == nil && p.EndsAt == nil &&
 		p.AllDay == nil && p.Audience == nil && p.Mentions == nil && p.RemindAt == nil && p.TopicID == nil &&
-		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil && p.RRule == nil
+		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil && p.RRule == nil && p.Guests == nil
+}
+
+// calendarGuestList checks the body's guests (trimmed, no repeats, at most 50)
+// and drops the event's owner, who is never a guest of their own event.
+func calendarGuestList(in []calendarGuestIn, owner, actor string) ([]store.CalendarGuest, *issueErr) {
+	out := []store.CalendarGuest{}
+	for _, g := range in {
+		g.Type, g.ID = strings.TrimSpace(g.Type), strings.TrimSpace(g.ID)
+		switch {
+		case g.Type != "human" && g.Type != "agent":
+			return nil, badCalendar("a guest's type is human or agent")
+		case g.ID == "" || utf8.RuneCountInString(g.ID) > calendarMentionMax:
+			return nil, badCalendar("a guest's id is 1..64 characters")
+		case g.ID == owner || slices.ContainsFunc(out, func(x store.CalendarGuest) bool { return x.ID == g.ID }):
+			continue
+		}
+		out = append(out, store.CalendarGuest{Type: g.Type, ID: g.ID, InvitedBy: actor})
+	}
+	if len(out) > calendarMaxMentions {
+		return nil, badCalendar("an event has at most 50 guests")
+	}
+	return out, nil
+}
+
+// patchGuests sets p.Guests and keeps mentions in step (spec 3.2): a dropped
+// guest leaves mentions, a new one joins them. cur is the event as stored
+// (zero for a create, whose owner is actor).
+func (q calendarRequest) patchGuests(cur store.CalendarEvent, actor string, p *store.CalendarPatch) *issueErr {
+	if q.Guests == nil {
+		return nil
+	}
+	owner := cur.CreatorID
+	if owner == "" {
+		owner = actor
+	}
+	gs, ie := calendarGuestList(*q.Guests, owner, actor)
+	if ie != nil {
+		return ie
+	}
+	mentions := cur.Mentions
+	if p.Mentions != nil {
+		mentions = *p.Mentions
+	}
+	keep := func(id string) bool {
+		return slices.ContainsFunc(gs, func(g store.CalendarGuest) bool { return g.ID == id })
+	}
+	next := slices.DeleteFunc(slices.Clone(mentions), func(m string) bool {
+		return !keep(m) && slices.ContainsFunc(cur.Guests, func(g store.CalendarGuest) bool { return g.ID == m })
+	})
+	for _, g := range gs {
+		if !slices.Contains(next, g.ID) {
+			next = append(next, g.ID)
+		}
+	}
+	if len(next) > calendarMaxMentions {
+		return badCalendar("an event names at most 50 mentions, its guests included")
+	}
+	if next == nil {
+		next = []string{}
+	}
+	p.Guests, p.Mentions = &gs, &next
+	return nil
+}
+
+// checkGuestsInWorkspace: every guest of the body is a member (human) or an
+// agent of the roster (agent, as <agent_id> or <agent_id>@<box>) of tenant.
+func (s *Server) checkGuestsInWorkspace(ctx context.Context, tenant string, q calendarRequest) (*issueErr, error) {
+	if q.Guests == nil || len(*q.Guests) == 0 {
+		return nil, nil
+	}
+	known := map[string]bool{}
+	if md, ok := s.o.Store.(store.MemberDirectory); ok {
+		ms, err := md.ListMembers(ctx, tenant)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range ms {
+			known["human:"+m.HumanID] = true
+		}
+	}
+	roster, err := s.o.Store.Roster(ctx, tenant)
+	if err != nil {
+		return nil, err
+	}
+	for box, agents := range roster {
+		for _, a := range agents {
+			known["agent:"+a], known["agent:"+a+"@"+box] = true, true
+		}
+	}
+	for _, g := range *q.Guests {
+		if !known[strings.TrimSpace(g.Type)+":"+strings.TrimSpace(g.ID)] {
+			return badCalendar("guest " + strings.TrimSpace(g.ID) + " is not a member or an agent of this workspace"), nil
+		}
+	}
+	return nil, nil
 }
 
 // newEvent is a create: the defaults of spec 6.1.2 (kind other, audience
@@ -340,6 +464,9 @@ func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr)
 		return store.CalendarEvent{}, ie
 	}
 	p, ie := q.patch(store.CalendarEvent{StartsAt: *start})
+	if ie == nil {
+		ie = q.patchGuests(store.CalendarEvent{}, actor, &p)
+	}
 	if ie != nil {
 		return store.CalendarEvent{}, ie
 	}
@@ -368,6 +495,9 @@ func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr)
 	}
 	if p.RemindAt != nil {
 		e.RemindAt = *p.RemindAt
+	}
+	if p.Guests != nil {
+		e.Guests = *p.Guests
 	}
 	return e, nil
 }
@@ -399,6 +529,8 @@ func storeCalendarErr(err error) *issueErr {
 		return calendarUnavailable()
 	case errors.Is(err, store.ErrEditConflict):
 		return &issueErr{http.StatusConflict, "edit_conflict", calendarConflictDetail}
+	case errors.Is(err, store.ErrNotAGuest):
+		return &issueErr{http.StatusForbidden, "not_a_guest", "only a guest of the event answers it, for themselves"}
 	}
 	return &issueErr{http.StatusInternalServerError, "internal", "calendar not stored"}
 }
@@ -514,7 +646,7 @@ func (s *Server) handleCalendarEvents(w http.ResponseWriter, r *http.Request, t 
 	}
 	out, now := make([]calendarEventJSON, 0, len(evs)+len(dls)), s.o.Now()
 	for _, e := range evs {
-		out = append(out, toCalendarJSON(e, now))
+		out = append(out, toCalendarJSON(e, now, viewer))
 	}
 	for _, i := range dls {
 		out = append(out, deadlineJSON(i))
@@ -664,7 +796,7 @@ func (s *Server) handleCalendarReminders(w http.ResponseWriter, r *http.Request,
 		for _, e := range evs {
 			for _, f := range reminderFires(e) {
 				if !f.Before(rg.Start) && f.Before(rg.End) {
-					item := toCalendarJSON(e, now)
+					item := toCalendarJSON(e, now, viewer)
 					item.RemindAt = rfc(f)
 					out = append(out, item)
 				}
@@ -692,7 +824,7 @@ func (s *Server) handleCalendarTrash(w http.ResponseWriter, r *http.Request, t s
 			return
 		}
 		for _, e := range evs {
-			out = append(out, toCalendarJSON(e, now))
+			out = append(out, toCalendarJSON(e, now, viewer))
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": out})
@@ -746,6 +878,9 @@ func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !s.calendarGuestsOK(w, r, t.ID, q) {
+		return
+	}
 	e, ie := q.newEvent(actor)
 	if ie != nil {
 		writeIssueErr(w, ie)
@@ -756,7 +891,21 @@ func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Reques
 		s.writeCalendarErr(w, t.ID, "create", err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
+	writeJSON(w, http.StatusCreated, map[string]any{"event": toCalendarJSON(out, s.o.Now(), actor)})
+}
+
+// calendarGuestsOK answers 400 for a guest outside the workspace (spec 4.5).
+func (s *Server) calendarGuestsOK(w http.ResponseWriter, r *http.Request, tenant string, q calendarRequest) bool {
+	ie, err := s.checkGuestsInWorkspace(r.Context(), tenant, q)
+	if err != nil {
+		s.writeCalendarErr(w, tenant, "guests", err)
+		return false
+	}
+	if ie != nil {
+		writeIssueErr(w, ie)
+		return false
+	}
+	return true
 }
 
 // privateOwnerOnly (FR-010): moving audience to or from private is the event
@@ -797,9 +946,9 @@ func ifMatch(r *http.Request) (time.Time, *issueErr) {
 }
 
 // writeCalendarConflict is 409 edit_conflict with the current event.
-func (s *Server) writeCalendarConflict(w http.ResponseWriter, cur store.CalendarEvent) {
+func (s *Server) writeCalendarConflict(w http.ResponseWriter, cur store.CalendarEvent, viewer string) {
 	writeJSON(w, http.StatusConflict, map[string]any{"error": "edit_conflict", "detail": calendarConflictDetail,
-		"event": toCalendarJSON(cur, s.o.Now())})
+		"event": toCalendarJSON(cur, s.o.Now(), viewer)})
 }
 
 // patchCalendarOnce reads the event, builds the patch against it and writes
@@ -815,6 +964,9 @@ func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, ac
 		return cur, nil, store.ErrEditConflict
 	}
 	p, ie := q.patch(cur)
+	if ie == nil {
+		ie = q.patchGuests(cur, actor, &p)
+	}
 	if ie == nil && calendarPatchEmpty(p) {
 		ie = badCalendar("nothing to change")
 	}
@@ -853,7 +1005,7 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 		return
 	}
 	want, scope, ok := calendarWriteArgs(w, r)
-	if !ok {
+	if !ok || !s.calendarGuestsOK(w, r, t.ID, q) {
 		return
 	}
 	var out store.CalendarEvent
@@ -869,11 +1021,11 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 	case ie != nil:
 		writeIssueErr(w, ie)
 	case errors.Is(err, store.ErrEditConflict) && !want.IsZero():
-		s.writeCalendarConflict(w, out)
+		s.writeCalendarConflict(w, out, actor)
 	case err != nil:
 		s.writeCalendarErr(w, t.ID, "update", err)
 	default:
-		writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
+		writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now(), actor)})
 	}
 }
 
@@ -892,11 +1044,11 @@ func (s *Server) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Reques
 	out, err := c.TrashCalendarScope(r.Context(), t.ID, actor, r.PathValue("id"), scope, want, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrEditConflict):
-		s.writeCalendarConflict(w, out)
+		s.writeCalendarConflict(w, out, actor)
 	case err != nil:
 		s.writeCalendarErr(w, t.ID, "delete", err)
 	default:
-		writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
+		writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now(), actor)})
 	}
 }
 
@@ -912,7 +1064,43 @@ func (s *Server) handleRestoreCalendarEvent(w http.ResponseWriter, r *http.Reque
 		s.writeCalendarErr(w, t.ID, "restore", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now())})
+	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now(), actor)})
+}
+
+// calendarRSVPRequest is the body of POST .../rsvp (spec 4.5).
+type calendarRSVPRequest struct {
+	Response string `json:"response"`
+	Comment  string `json:"comment"`
+	Scope    string `json:"scope"`
+}
+
+// POST /v1/calendar/events/{id}/rsvp: the caller answers for themselves;
+// a caller who is not a guest is 403 not_a_guest. On an occurrence id,
+// scope this (the default) answers that occurrence, all the series.
+func (s *Server) handleRSVPCalendarEvent(w http.ResponseWriter, r *http.Request) {
+	t, actor, c, ok := s.calendarWriter(w, r)
+	if !ok {
+		return
+	}
+	g, ok := c.(store.CalendarGuests)
+	if !ok {
+		writeIssueErr(w, calendarUnavailable())
+		return
+	}
+	var q calendarRSVPRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, calendarMaxBody))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&q); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", `body must be {"response": "yes|no|maybe", "comment": "", "scope": "this|all"}`)
+		return
+	}
+	out, err := g.RespondCalendarEvent(r.Context(), t.ID, actor, r.PathValue("id"),
+		store.CalendarRSVP{Response: strings.TrimSpace(q.Response), Comment: q.Comment, Scope: strings.TrimSpace(q.Scope)}, s.o.Now())
+	if err != nil {
+		s.writeCalendarErr(w, t.ID, "rsvp", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"event": toCalendarJSON(out, s.o.Now(), actor)})
 }
 
 func (s *Server) calendarPreflight(w http.ResponseWriter, r *http.Request) {
@@ -933,12 +1121,14 @@ func (s *Server) routeCalendar(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /v1/calendar/events/{id}", s.handlePatchCalendarEvent)
 	mux.HandleFunc("DELETE /v1/calendar/events/{id}", s.handleDeleteCalendarEvent)
 	mux.HandleFunc("POST /v1/calendar/events/{id}/restore", s.handleRestoreCalendarEvent)
+	mux.HandleFunc("POST /v1/calendar/events/{id}/rsvp", s.handleRSVPCalendarEvent)
 	mux.HandleFunc("GET /v1/calendar/trash", s.viewHandler(s.handleCalendarTrash))
 	mux.HandleFunc("OPTIONS /v1/calendar/events", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/marks", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/reminders", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}/restore", s.calendarPreflight)
+	mux.HandleFunc("OPTIONS /v1/calendar/events/{id}/rsvp", s.calendarPreflight)
 	mux.HandleFunc("OPTIONS /v1/calendar/trash", s.calendarPreflight)
 	s.routeCalendarSearch(mux) // specs/097 T009
 }

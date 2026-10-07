@@ -22,6 +22,10 @@ func cloneCalendarEvent(e *CalendarEvent) CalendarEvent {
 	c := *e
 	c.Mentions = slices.Clone(e.Mentions)
 	c.Props, _ = normalizeCalendarProps(e.Props)
+	c.Guests = slices.Clone(e.Guests)
+	if c.Guests == nil {
+		c.Guests = []CalendarGuest{}
+	}
 	return c
 }
 

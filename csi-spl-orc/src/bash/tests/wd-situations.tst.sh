@@ -32,8 +32,11 @@
 #   5. the guards of 6.2 at tick level, each with its control: a human client
 #      active, do_spl_wd_hold (and MIN=0 lifting it), an id under rotation,
 #      a fresh session in its grace, a box back from a 2 h gap
-#   6. the limits of 6.3: two takeovers per id per hour; the third is not done,
-#      the id is held out and ONE blocker goes to the orchestrator
+#   6. the limits of 102 6.1: ONE counter <id>/lifetime/restarts (the restart
+#      writes it, the stub here too); three restarts per id per hour, the
+#      fourth is not done, the id is held out (no expiry: still held 2 h
+#      later) and ONE blocker goes to the orchestrator; control: the hour of
+#      a hold do_spl_wd_takeover wrote still expires
 #   7. FR-014: a situation script that sleeps 60 s costs the tick at most its
 #      timeout; the other scripts' verdicts are written
 #   8. S9 stuck (spec 102 8.3): the hit fixture (an unknown dialog that
@@ -295,6 +298,7 @@ EOF
 cat > "$T/bin/takeover" <<'EOF'
 #!/usr/bin/env bash
 echo "takeover $ID $REASON" >> "$T/takeovers"
+mkdir -p "$SPOOL_ROOT/$ID/lifetime"; echo "$LEASE_NOW $CAUSE" >> "$SPOOL_ROOT/$ID/lifetime/restarts"
 EOF
 chmod +x "$T/bin/"*
 export T
@@ -467,15 +471,15 @@ out="$(NOW=$((T0 + 60)) WD_KEY_WAIT=0 wd)"
 [[ ! -s "$T/tmux/log" ]] && grep -q 'takeover started 60s ago' <<<"$out" && pass "4 S7 60 s into the takeover: no key" || fail "4 S7 60: $out"
 out="$(NOW=$((T0 + 310)) WD_KEY_WAIT=0 wd)"
 [[ "$(cat "$T/tmux/log")" == $'keys %1 Down\nkeys %1 Enter' ]] && pass "4 S7 the dialog outlives the takeover by 300 s: Down, the cursor on No, Enter" || fail "4 S7 310: $out / $(cat "$T/tmux/log" 2>/dev/null)"
-# the takeover refused (held out: 2 takeovers this hour): No at once, never Escape
+# the takeover refused (held out: 3 restarts this hour): No at once, never Escape
 reset_box; s7home; agent c-916 %1 4016 claude 3600 "$FX/modal-default-mode.pane"
 cp "$FX/modal-default-mode-no.pane" "$T/tmux/screen.%1.Down"
-mkdir -p "$D/wd"; printf '%s\n%s\n' $((T0 - 20)) $((T0 - 10)) > "$D/wd/c-916.takeovers"
+mkdir -p "$S/c-916/lifetime"; printf '%s S3\n' $((T0 - 30)) $((T0 - 20)) $((T0 - 10)) > "$S/c-916/lifetime/restarts"
 out="$(WD_KEY_WAIT=0 wd)"
 grep -q 'c-916 HIT S7 .*takeover not done: held out.*;no$' <<<"$out" && [[ "$(cat "$T/tmux/log")" == $'keys %1 Down\nkeys %1 Enter' ]] &&
   pass "4 S7 takeover refused: Down, the cursor read on No, then Enter (no Escape)" || fail "4 S7 no: $out / $(cat "$T/tmux/log" 2>/dev/null)"
 reset_box; s7home; agent c-920 %1 4020 claude 3600 "$FX/modal-default-mode.pane"
-mkdir -p "$D/wd"; printf '%s\n%s\n' $((T0 - 20)) $((T0 - 10)) > "$D/wd/c-920.takeovers"
+mkdir -p "$S/c-920/lifetime"; printf '%s S3\n' $((T0 - 30)) $((T0 - 20)) $((T0 - 10)) > "$S/c-920/lifetime/restarts"
 out="$(WD_KEY_WAIT=0 wd)"
 ! grep -qE 'Enter|Escape' "$T/tmux/log" && grep -q 'c-920 HIT S7 .*no not done: cursor never reached No' <<<"$out" &&
   pass "4 S7 control: the cursor stays on Yes, no Enter is pressed" || fail "4 S7 stuck: $out / $(cat "$T/tmux/log" 2>/dev/null)"
@@ -528,7 +532,8 @@ grep -q 'c-924 SKIP resume grace' <<<"$out" && grep -q 'RESUME tick gap 7200s' "
 NOW=$((T0 + 7290)) wd >/dev/null; NOW=$((T0 + 7380)) wd >/dev/null; out="$(NOW=$((T0 + 7410)) wd)"
 grep -q 'c-924 HIT S3' <<<"$out" && pass "5 control: after the grace the debounce runs again (2 ticks)" || fail "5 gap control: $out"
 
-# 6. limits: 2 takeovers per id per hour; the third is held out + ONE blocker
+# 6. limits (102 6.1): 3 restarts per id per hour; the fourth is held out
+# (no expiry) + ONE blocker
 reset_box
 lim() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" WD_SEND="$T/bin/send" \
@@ -536,15 +541,20 @@ lim() {
     do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"; spl_wd_init >/dev/null
     spl_wd_takeover c-931 S3 "evidence"; echo "rc=$?"'
 }
-r1="$(lim "$T0")"; r2="$(lim $((T0 + 600)))"; r3="$(lim $((T0 + 1200)))"; settle; sleep 0.3
-[[ "$r1" == rc=0 && "$r2" == rc=0 ]] && pass "6 two takeovers in an hour run" || fail "6 first two: $r1 / $r2"
-[[ "$r3" == *"held out: 2 takeovers"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 2 ]] && pass "6 the third is not done: held out" || fail "6 third: $r3 / $(cat "$T/takeovers")"
-[[ "$(grep -c -- '--kind blocker --task wd-c-931' "$T/sent")" -ge 1 ]] && [[ -s "$D/wd/c-931.heldout" ]] && pass "6 held out + a blocker to the orchestrator" || fail "6 blocker: $(cat "$T/sent" 2>/dev/null)"
-reset_box; agent c-931 %1 -; mkdir -p "$D/wd"; echo "$T0" > "$D/wd/c-931.heldout"
+cnt() { for _ in $(seq 1 20); do [[ "$(grep -c . "$S/c-931/lifetime/restarts" 2>/dev/null)" == "$1" ]] && return; sleep 0.1; done; }
+r1="$(lim "$T0")"; cnt 1; r2="$(lim $((T0 + 600)))"; cnt 2; r3="$(lim $((T0 + 900)))"; cnt 3; r4="$(lim $((T0 + 1200)))"; sleep 0.3
+[[ "$r1" == rc=0 && "$r2" == rc=0 && "$r3" == rc=0 ]] && pass "6 control: three restarts in an hour run (the third is under the limit)" || fail "6 first three: $r1 / $r2 / $r3"
+[[ "$r4" == *"held out: 3 restarts"*"rc=1" ]] && [[ "$(grep -c . "$T/takeovers")" == 3 ]] && pass "6 the fourth is not done: held out" || fail "6 fourth: $r4 / $(cat "$T/takeovers")"
+[[ "$(grep -c -- '--kind blocker --task wd-c-931' "$T/sent")" == 1 ]] && [[ -s "$S/c-931/lifetime/heldout" && -s "$D/wd/c-931.heldout" ]] &&
+  pass "6 held out (lifetime/heldout) + ONE blocker to the orchestrator" || fail "6 blocker: $(cat "$T/sent" 2>/dev/null)"
+reset_box; agent c-931 %1 -; mkdir -p "$S/c-931/lifetime"; echo "x 3 restarts" > "$S/c-931/lifetime/heldout"
+TICK=9000 NOW=$T0 wd >/dev/null; out="$(TICK=9000 NOW=$((T0 + 7200)) wd)"
+grep -q 'would takeover (held out until the admin clears it' <<<"$out" && pass "6 the hold does not expire: still held 2 h later" || fail "6 heldout 2 h: $out"
+rm -f "$S/c-931/lifetime/heldout"; mkdir -p "$D/wd"; echo "$T0" > "$D/wd/c-931.heldout"
 TICK=2000 NOW=$T0 wd >/dev/null; out="$(TICK=2000 NOW=$((T0 + 30)) wd)"
-grep -q 'would takeover (held out after 2 takeovers' <<<"$out" && pass "6 a held-out id gets no action for an hour" || fail "6 heldout gate: $out"
+grep -q 'would takeover (held out after 2 takeovers' <<<"$out" && pass "6 a takeover's own hold (do_spl_wd_takeover) bars it for an hour" || fail "6 legacy gate: $out"
 out="$(TICK=2000 NOW=$((T0 + 3630)) wd)"
-grep -q 'c-931 HIT S3 .*-> takeover$' <<<"$out" && pass "6 control: an hour later it is acted on again" || fail "6 heldout control: $out"
+grep -q 'c-931 HIT S3 .*-> takeover$' <<<"$out" && pass "6 control: an hour later that hold has expired" || fail "6 legacy control: $out"
 
 # 7. FR-014: a script that sleeps 60 s costs the tick its timeout only
 reset_box; agent c-941 %1 -; agent c-942 %2 -
@@ -719,11 +729,11 @@ grep -q 'c-960 HIT S3 .*-> takeover done 60s ago' <<<"$out" && [[ "$(grep -c . "
 out="$(TICK=2000 NOW=$((T0 + 330)) wd)"; for _ in $(seq 1 20); do [[ "$(grep -c . "$T/takeovers")" == 2 ]] && break; sleep 0.1; done
 grep -q 'c-960 HIT S3 .*-> takeover$' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] && grep -q 'TAKEOVER-FAILED c-960 S3: still no live session 300s' "$D/wd.log" &&
   pass "9 a takeover whose session is dead again 300 s later: failed, retried in the same episode" || fail "9 retry: $out / $(cat "$T/takeovers")"
-out="$(TICK=2000 NOW=$((T0 + 630)) wd)"; sleep 0.3
-grep -q 'c-960 HIT S3 .*takeover not done: held out: 2 takeovers' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] &&
+out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 630)) wd)"; sleep 0.3
+grep -q 'c-960 HIT S3 .*takeover not done: held out: 2 restarts' <<<"$out" && [[ "$(grep -c . "$T/takeovers")" == 2 ]] &&
   [[ "$(grep -c -- '--to orchestrator --kind blocker --task wd-c-960' "$T/sent")" == 1 ]] && [[ -s "$D/wd/c-960.heldout" ]] &&
   pass "9 the third in an hour: held out, ONE blocker to the orchestrator" || fail "9 cap: $out / $(cat "$T/sent" 2>/dev/null)"
-out="$(TICK=2000 NOW=$((T0 + 960)) wd)"
+out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 960)) wd)"
 grep -q 'c-960 HIT S3 .*would takeover (held out' <<<"$out" && [[ "$(grep -c -- '--kind blocker --task wd-c-960' "$T/sent")" == 1 ]] &&
   pass "9 held out: no loop, no second blocker" || fail "9 after cap: $out"
 

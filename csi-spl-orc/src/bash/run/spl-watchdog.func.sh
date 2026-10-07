@@ -19,21 +19,25 @@
 # @description hook GAP once, S9 (spec 102 8, stuck: a keystroke that never
 # @description reached the model) sends the orchestrator the scrubbed pane
 # @description once, then takes over; an unpoked unread inbox file is poked
-# @description once (S9's POKE line). A takeover is do_spl_wd_takeover
-# @description (T005); until it exists the wish is logged. DRY_RUN=1 (the
-# @description default) writes the verdicts and only prints the actions.
+# @description once (S9's POKE line). A takeover is do_spl_agent_restart
+# @description (spec 102 4.1, T008), started detached; past
+# @description RESTART_MAX_PER_HOUR restarts of an id in an hour (ONE counter,
+# @description <id>/lifetime/restarts) the id is held out until the admin
+# @description clears <id>/lifetime/heldout. DRY_RUN=1 (the default) writes
+# @description the verdicts and only prints the actions.
 # @param WD_TICKS (optional) - ticks to run, default 0 = forever (the loop); 1 = one proof tick
 # @param WD_TICK (optional) - seconds per tick, default 30
 # @param DRY_RUN (optional) - 1 (default): no key, ring, note or takeover; 0: act
 # @param WD_SCRIPT_TIMEOUT (optional) - seconds per situation script, default 5
 # @param WD_START_GRACE (optional) - seconds after a session start or a box resume with no situation, default 180
-# @param WD_TAKEOVER_MAX (optional) - takeovers per id per rolling hour, default 2
+# @param RESTART_MAX_PER_HOUR (optional) - restarts per id per rolling hour, default 3 (spec 102 6.1)
+# @param WD_TAKEOVER_MAX (optional) - do_spl_wd_takeover's own limit (a seat's request), default 2
 # @param WD_TAKEOVER_RETRY (optional) - seconds after an S3 takeover whose session is dead again before it is retried, default WD_START_WAIT + WD_START_GRACE (300)
 # @param WD_JOBS (optional) - agents checked at once, default 8
 # @param WD_SITUATIONS (optional) - the situation scripts dir (tests)
 # @param WD_ONLY (optional) - space-separated ids: check only these (a drill on scratch ids next to the live loop)
 # @param WD_STATE_DIR (optional) - the state dir (lock, debounces, ctx), default <spool root>/dispatch/wd; another one runs beside the live loop
-# @param WD_PS_CMD / WD_SEND / WD_TAKEOVER_CMD / ROTATE_TMUX (optional) - seams for the tests: ps, spool-send.sh, the takeover, tmux
+# @param WD_PS_CMD / WD_SEND / WD_TAKEOVER_CMD / ROTATE_TMUX (optional) - seams for the tests: ps, spool-send.sh, the restart, tmux
 # @example WD_TICKS=1 ./run -a do_spl_watchdog
 # @example DRY_RUN=0 ./run -a do_spl_watchdog
 # @example WD_ONLY="c-981 c-982" WD_STATE_DIR=/var/tmp/wd-drill DRY_RUN=0 WD_TICKS=20 ./run -a do_spl_watchdog
@@ -71,9 +75,9 @@ spl_wd_init() {
   WD_LOG="$LEASE_DIR/wd.log"
   WD_SITUATIONS="${WD_SITUATIONS:-$SPL_WD_RUN_DIR/../features/watchdog/situations}"
   : "${WD_TICKS:=0}" "${WD_TICK:=30}" "${WD_SCRIPT_TIMEOUT:=5}" "${WD_START_GRACE:=180}"
-  : "${WD_TAKEOVER_MAX:=2}" "${WD_JOBS:=8}" "${WD_JOB_WAIT:=120}" "${WD_LOOP_N:=5}"
+  : "${WD_TAKEOVER_MAX:=2}" "${WD_JOBS:=8}" "${WD_JOB_WAIT:=120}" "${WD_LOOP_N:=5}" "${RESTART_MAX_PER_HOUR:=3}"
   local k
-  for k in WD_TICKS WD_TICK WD_SCRIPT_TIMEOUT WD_START_GRACE WD_TAKEOVER_MAX WD_JOBS WD_JOB_WAIT WD_LOOP_N; do
+  for k in WD_TICKS WD_TICK WD_SCRIPT_TIMEOUT WD_START_GRACE WD_TAKEOVER_MAX WD_JOBS WD_JOB_WAIT WD_LOOP_N RESTART_MAX_PER_HOUR; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   k="${WD_START_WAIT:-120}"; [[ "$k" =~ ^[0-9]+$ ]] || k=120
@@ -524,14 +528,24 @@ spl_wd_episodes_end() {
 # ---- actions ------------------------------------------------------------------------
 
 # Why the watchdog may not act on <id> now; nothing when it may (6.2, 6.3).
+# WD_GATE_NO_HUMAN=1 (the hard end, spec 102 R3) skips the human guards.
+# A hold of spec 102 6.1 (<id>/lifetime/heldout) never expires; the hour of
+# a hold do_spl_wd_takeover wrote (<WD_DIR>/<id>.heldout) still does.
 spl_wd_gate() {
   local id="$1" now="$2" ctx="$3" h c
-  h="$(cat "$SPOOL_ROOT/$id/.human-hold" 2>/dev/null || true)"
-  if [[ "$h" =~ ^[0-9]+$ ]] && (( h > now )); then echo "human hold for $(( (h - now + 59) / 60 )) min"; return 0; fi
-  c="$(cat "$ctx/client_age" 2>/dev/null || true)"
-  if [[ "$c" =~ ^[0-9]+$ ]] && (( c <= ${WD_HUMAN_IDLE:-120} )); then echo "a human client was active ${c}s ago"; return 0; fi
+  if [[ -z "${WD_GATE_NO_HUMAN:-}" ]]; then
+    h="$(cat "$SPOOL_ROOT/$id/.human-hold" 2>/dev/null || true)"
+    if [[ "$h" =~ ^[0-9]+$ ]] && (( h > now )); then echo "human hold for $(( (h - now + 59) / 60 )) min"; return 0; fi
+    c="$(cat "$ctx/client_age" 2>/dev/null || true)"
+    if [[ "$c" =~ ^[0-9]+$ ]] && (( c <= ${WD_HUMAN_IDLE:-120} )); then echo "a human client was active ${c}s ago"; return 0; fi
+  fi
+  if [[ -z "${WD_GATE_NO_HELDOUT:-}" && -e "$SPOOL_ROOT/$id/lifetime/heldout" ]]; then
+    echo "held out until the admin clears it ($(head -c 120 "$SPOOL_ROOT/$id/lifetime/heldout" 2>/dev/null || true))"; return 0
+  fi
   h="$(cat "$WD_DIR/$id.heldout" 2>/dev/null || true)"
-  if [[ -z "${WD_GATE_NO_HELDOUT:-}" && "$h" =~ ^[0-9]+$ ]] && (( now - h < 3600 )); then echo "held out after $WD_TAKEOVER_MAX takeovers in an hour"; return 0; fi
+  if [[ -z "${WD_GATE_NO_HELDOUT:-}" && "$h" =~ ^[0-9]+$ ]] && (( now - h < 3600 )); then
+    echo "held out after $WD_TAKEOVER_MAX takeovers in an hour"; return 0
+  fi
   if [[ -n "${WD_BOX_BUSY:-}" ]]; then echo "$WD_BOX_BUSY"; return 0; fi
   if [[ "${DRY_RUN:-1}" == 1 ]]; then echo "dry run"; return 0; fi
   return 0
@@ -592,7 +606,7 @@ spl_wd_once() {
 # S9 (spec 102 8.2), an unknown screen that swallowed what was typed: nothing
 # is typed into it. The pane, scrubbed, goes to <WD_DIR>/<id>.s9.pane and its
 # path to the orchestrator ONCE, then a takeover (do_spl_agent_restart
-# CAUSE=S9 once T008 lands; the takeover until then).
+# CAUSE=S9).
 spl_wd_s9() {
   local id="$1" ev="$2" pane="$3" now="$4" ctx="$5"
   spl_wd_once "$id" S9 snapshot "$now" "$ctx" spl_wd_s9_snapshot "$id" "$ev" "$pane" "$ctx"
@@ -773,35 +787,57 @@ spl_wd_send() {
 spl_wd_harness() { awk -F'\t' -v i="$1" '$1 == i {k = $2} END {print (k == "" ? "unknown" : k)}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || echo unknown; }
 spl_wd_user() { local u; u="$(cat "$1/user" 2>/dev/null || true)"; echo "${u:-unknown}"; }
 
-# A takeover (6.3): at most WD_TAKEOVER_MAX per id per rolling hour; the next
-# one is not done: the id is held out for an hour and the orchestrator gets
-# ONE blocker naming the verdicts. The takeover itself is do_spl_wd_takeover
-# (spec 8, T005), started detached; WD_TAKEOVER_CMD replaces it.
+# A takeover is the one restart path, do_spl_agent_restart (spec 102 4.1,
+# T008), started detached; WD_TAKEOVER_CMD replaces it. CAUSE is the code,
+# `rebirth` for an S3 hit that carries the rebirth marker. ONE counter (6.1):
+# the restarts of the last hour in <id>/lifetime/restarts, written by the
+# restart; at RESTART_MAX_PER_HOUR the id is held out (no expiry) and the
+# orchestrator gets ONE blocker naming the verdicts.
 spl_wd_takeover() {
-  local id="$1" code="$2" ev="$3" f now n
-  f="$WD_DIR/$id.takeovers"; now="$(spl_lease_now)"
-  touch "$f"
-  awk -v n="$now" '$1 + 3600 > n' "$f" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
-  n="$(grep -c . "$f" || true)"
-  if (( n >= WD_TAKEOVER_MAX )); then
-    echo "$now" > "$WD_DIR/$id.heldout"
-    spl_wd_log "HELDOUT $id after $n takeovers in an hour: $code $ev"
-    spl_wd_send orchestrator blocker "$id" "WATCHDOG (093 6.3): $id was taken over $n times in the last hour and hit $code again ($ev); it is held out of the watchdog for an hour. Recent verdicts: $(grep " $id HIT " "$WD_LOG" 2>/dev/null | tail -n 2 | cut -c1-200 | tr '\n' ';')" || true
-    echo "held out: $n takeovers in the last hour"
+  local id="$1" code="$2" ev="$3" now n cause
+  now="$(spl_lease_now)"
+  n="$(spl_wd_restarts_n "$id" "$now")"
+  if (( n >= RESTART_MAX_PER_HOUR )); then
+    spl_wd_hold_out "$id" "$now" "$n restarts in the last hour, then $code again ($ev)"
+    spl_wd_send orchestrator blocker "$id" "WATCHDOG (102 6.1): $id was restarted $n times in the last hour and hit $code again ($ev); it is held out of the watchdog until the admin clears $SPOOL_ROOT/$id/lifetime/heldout. Recent verdicts: $(grep " $id HIT " "$WD_LOG" 2>/dev/null | tail -n 2 | cut -c1-200 | tr '\n' ';')" || true
+    echo "held out: $n restarts in the last hour"
     return 1
   fi
-  if [[ -z "${WD_TAKEOVER_CMD:-}" ]] && ! declare -F do_spl_wd_takeover >/dev/null; then
+  if [[ -z "${WD_TAKEOVER_CMD:-}" ]] && ! declare -F do_spl_agent_restart >/dev/null; then
     if [[ ! -e "$WD_DIR/$id.ep.$code.want" ]]; then
       echo "$now" > "$WD_DIR/$id.ep.$code.want"
-      spl_wd_log "WANT-TAKEOVER $id $code $ev (do_spl_wd_takeover is not on this tree yet)"
+      spl_wd_log "WANT-RESTART $id $code $ev (do_spl_agent_restart is not on this tree yet)"
     fi
-    echo "do_spl_wd_takeover is not on this tree yet"
+    echo "do_spl_agent_restart is not on this tree yet"
     return 1
   fi
-  echo "$now" >> "$f"
-  spl_wd_log "TAKEOVER $id $code $ev"
+  cause="$code"
+  [[ "$code" == S3 && "$ev" == rebirth:* ]] && cause=rebirth
+  spl_wd_log "TAKEOVER $id $code $ev (do_spl_agent_restart CAUSE=$cause)"
   # shellcheck disable=SC2086 # a command line, split on purpose
-  ( ID="$id" REASON="$code" WD_EVIDENCE="$ev" setsid ${WD_TAKEOVER_CMD:-$ROTATE_RUN -a do_spl_wd_takeover} \
-      >> "$WD_DIR/takeover.$id.out" 2>&1 < /dev/null 7>&- 8>&- 9>&- & )
+  ( ID="$id" CAUSE="$cause" REASON="$code" WD_EVIDENCE="$ev" setsid ${WD_TAKEOVER_CMD:-$ROTATE_RUN -a do_spl_agent_restart} \
+      >> "$WD_DIR/restart.$id.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&- & )
+  return 0
+}
+
+# spl_wd_restarts_n ID NOW: the restarts of <id> in the rolling hour, from the
+# ONE counter <id>/lifetime/restarts ("<epoch> <cause>" per restart, written
+# by do_spl_agent_restart); older lines are pruned.
+spl_wd_restarts_n() {
+  local f="$SPOOL_ROOT/$1/lifetime/restarts"
+  [[ -f "$f" ]] || { echo 0; return 0; }
+  awk -v n="$2" '$1 + 3600 > n' "$f" > "$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null || true
+  awk -v n="$2" '$1 + 3600 > n' "$f" 2>/dev/null | grep -c . || true
+}
+
+# spl_wd_hold_out ID NOW WHY: the hold of 6.1, <id>/lifetime/heldout. It does
+# not expire (the admin clears it). <WD_DIR>/<id>.heldout too: the reaper
+# reads that one.
+spl_wd_hold_out() {
+  local d="$SPOOL_ROOT/$1/lifetime"
+  mkdir -p "$d" 2>/dev/null || true
+  printf '%s %s\n' "$(date -u -d "@$2" +%FT%TZ)" "$3" > "$d/heldout" 2>/dev/null || true
+  echo "$2" > "$WD_DIR/$1.heldout" 2>/dev/null || true
+  spl_wd_log "HELDOUT $1: $3"
   return 0
 }

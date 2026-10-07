@@ -101,15 +101,24 @@ func flowCoveredSQL(e, m, lobby string) string {
 // whose keys are not stored yet is always in the tail. The per-message rules
 // (the door, the archive, f: and t: marks and both DM marks) then run as
 // before, on that tail only.
+//
+// The shape is what makes those seeks happen (ap-01b follow-up, measured on
+// prd: 42 -> 4 ms p50). The tail is a LATERAL per place with OFFSET 0, so
+// the planner cannot flatten it into one hash join over all the member's
+// events; fb is never NULL (coalesce inside the mark), so cov_at >= fb.at is
+// an index condition on flow_events_place; and each tail event takes its
+// message by one primary-key probe (LATERAL ... LIMIT 1) instead of a hash of
+// every message in the tenant. Same rows, same counts.
 func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 	return `WITH RECURSIVE fp(k) AS (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + `
 			UNION ALL SELECT (SELECT min(x.place_key) FROM flow_events x WHERE x.tenant_id = ` + tenant + ` AND x.member_id = ` + member + ` AND x.place_key > fp.k)
 			FROM fp WHERE fp.k IS NOT NULL),
-		ft AS (SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM fp
-			CROSS JOIN LATERAL (SELECT max(r.at) AS at FROM read_marks r WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + `
+		ft AS (SELECT fe.* FROM fp
+			CROSS JOIN LATERAL (SELECT coalesce(max(r.at), '-infinity'::timestamptz) AS at FROM read_marks r WHERE r.tenant_id = ` + tenant + ` AND r.member_id = ` + member + `
 				AND r.mark_key IN (fp.k, CASE WHEN fp.k LIKE 'dm:%@%' THEN regexp_replace(fp.k, '@[^@]*$', '') END)) fb
-			JOIN flow_events fe ON fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.place_key = fp.k
-				AND fe.cov_at >= coalesce(fb.at, '-infinity'::timestamptz)
+			CROSS JOIN LATERAL (SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
+				WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND fe.place_key = fp.k
+				AND fe.cov_at >= fb.at OFFSET 0) fe
 			WHERE fp.k IS NOT NULL
 			UNION ALL SELECT fe.tenant_id, fe.member_id, fe.msg_id, fe.kind, fe.at, fe.expires_at FROM flow_events fe
 			WHERE fe.tenant_id = ` + tenant + ` AND fe.member_id = ` + member + ` AND (fe.place_key IS NULL OR fe.cov_at IS NULL)),
@@ -120,7 +129,7 @@ func flowCountsSQL(tenant, member, now, pub, lobby string) string {
 				't:' || fm.task_id::text AS topic_key,
 				fe.at > coalesce((SELECT s.at FROM read_marks s
 				WHERE s.tenant_id = ` + tenant + ` AND s.member_id = ` + member + ` AND s.mark_key = 'f:seen'), '-infinity'::timestamptz) AS unseen
-			FROM ft fe JOIN messages fm ON fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id
+			FROM ft fe CROSS JOIN LATERAL (SELECT fm.channel, fm.from_box, fm.from_id, fm.to_id, fm.task_id, fm.parent_task_id, fm.msg_id, fm.received_at, fm.expires_at FROM messages fm WHERE fm.tenant_id = fe.tenant_id AND fm.msg_id = fe.msg_id LIMIT 1) fm
 			WHERE fe.expires_at > ` + now + ` AND fm.expires_at > ` + now +
 		flowDoorSQL("fe", "fm", pub) + ` AND NOT ` + flowCoveredSQL("fe", "fm", lobby) + `)
 		SELECT count(*) FILTER (WHERE fc.unseen AND fc.kind IN ('mention', 'poke')),

@@ -272,7 +272,7 @@ every channel created before rdb 0027. `read` (repeatable), `unread` and
 ### 4.3 `GET /v1/view/topics?limit=&before=&channel=&agent=&roots=&dm=&peer=`
 
 ```json
-{ "threads": [
+{ "topics": [
   { "task_id": "…", "parent_task_id": null, "channel": null,
     "first_ts": "…", "last_ts": "…", "count": 4,
     "kinds": { "task": 1, "result": 1, "note": 2 },

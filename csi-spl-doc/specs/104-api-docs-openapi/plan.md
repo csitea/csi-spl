@@ -19,7 +19,7 @@ Two deploy paths are touched, and only two: the hub image (workflow 20) carries 
 |---|---|
 | hub | Go module `csi-spl-api/src/go/spool-hub-api`, `go 1.25.14`; routes on a stdlib `http.ServeMux` built in `Server.Handler()` (`internal/hub/server.go:305`) |
 | file | `internal/hub/openapi.json`, OpenAPI `3.0.3`, `jq -S .` form; `go:embed` cannot reach `../`, so not in `csi-spl-doc/` |
-| auth | member session via `humanTenant` (`internal/hub/resolve.go:60`); 403 `forbidden` without one |
+| auth | member session via `humanTenant` (`internal/hub/resolve.go:60`); 401 `view_door` without one (spec §4.2, FR-004) |
 | errors | `{error, detail}` (`internal/wire/wire.go:936-937`) |
 | WUI | Nuxt 3 / Vue 3 / TS; `docs.vue` is one catch-all page (`/docs/:path(.*)*`); `/docs/ws` is the precedent for a WUI-owned row |
 | budget | `ci_initial_gzip_kb` ceiling 155.0, baseline 146.9 (`perf-budgets.json`) |
@@ -44,7 +44,7 @@ Two deploy paths are touched, and only two: the hub image (workflow 20) carries 
 csi-spl-api/src/go/spool-hub-api/internal/hub/
 ├── openapi.json               # the spec, hand-written, jq -S form
 ├── openapi.go                 # go:embed + handleOpenAPI, route GET /v1/openapi.json
-├── openapi_serve_test.go      # 200 + content-type + version; 403 without a session
+├── openapi_serve_test.go      # 200 + content-type + version; 401 view_door without a session (403 on the view-door-off test hub)
 └── openapi_routes_test.go     # the gate: go/parser over .Handle/.HandleFunc/marketingRoute literals
 csi-spl-wui/
 ├── src/components/

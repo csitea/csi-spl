@@ -94,9 +94,13 @@ f="$TFD/051-gcs-docs/03-docs-bucket.tf"
 grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "docs bucket: uniform bucket-level access on" || fail "docs bucket: uniform access is not true"
 grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "docs bucket: public access prevention enforced" || fail "docs bucket: PAP is not enforced"
 grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers|cors' "$TFD/051-gcs-docs/"*.tf && fail "a public/ACL/CORS grant appears in 051" || pass "no ACL, allUsers or CORS in 051"
-[[ "$(cat "$TFD"/051-gcs-docs/*.tf | grep -cE '^resource "google_storage_bucket_iam_member"')" == 1 ]] \
+# spec 075 repo-edit: plus objectUser on the .edits/ overlays ONLY (an IAM
+# condition), so the hub can never write the published tree
+[[ "$(cat "$TFD"/051-gcs-docs/*.tf | grep -cE '^resource "google_storage_bucket_iam_member"')" == 2 ]] \
   && grep -qE '^\s*role\s*=\s*"roles/storage.objectViewer"' "$TFD/051-gcs-docs/04-hub-reader.tf" \
-  && pass "051: the hub SA reads (one objectViewer binding), nothing else" || fail "051 bindings are not exactly the hub's objectViewer"
+  && [[ "$(grep -cE '^\s*role\s*=\s*"roles/storage.objectUser"' "$TFD/051-gcs-docs/04-hub-reader.tf")" == 1 ]] \
+  && grep -qF 'expression  = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.docs.name}/objects/.edits/\")"' "$TFD/051-gcs-docs/04-hub-reader.tf" \
+  && pass "051: the hub SA reads (objectViewer) and writes only .edits/ (conditional objectUser)" || fail "051 bindings are not the hub's objectViewer + .edits/-only objectUser"
 # the workspace docs buckets (052, spec 075 T006): one per workspace, private
 # like 051, VERSIONED (no git behind them), the hub reads and writes
 f="$TFD/052-gcs-workspace-docs/03-workspace-docs-buckets.tf"

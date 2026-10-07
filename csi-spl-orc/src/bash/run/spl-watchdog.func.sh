@@ -194,6 +194,7 @@ spl_wd_tick() {
     WD_BOX_BUSY="a restart holds peer/restart.lock"
   fi
   spl_wd_agents "$tick" > "$tick/agents"
+  spl_wd_fence "$now" "$tick"
   spl_wd_heartbeat agents
   # named pids only: a bare `wait` also waits for ./run's tee process substitutions
   local -a jp=()
@@ -918,6 +919,7 @@ spl_wd_user() { local u; u="$(cat "$1/user" 2>/dev/null || true)"; echo "${u:-un
 # orchestrator gets ONE blocker naming the verdicts.
 spl_wd_takeover() {
   local id="$1" code="$2" ev="$3" now n cause
+  if spl_wd_box_fenced; then echo "fenced: this box starts nothing (spec 102 10.2)"; return 1; fi
   now="$(spl_lease_now)"
   n="$(spl_wd_restarts_n "$id" "$now")"
   if (( n >= RESTART_MAX_PER_HOUR )); then
@@ -963,4 +965,128 @@ spl_wd_hold_out() {
   echo "$2" > "$WD_DIR/$1.heldout" 2>/dev/null || true
   spl_wd_log "HELDOUT $1: $3"
   return 0
+}
+
+# ---- the box beat and the fence (spec 102 10.2, T017) ---------------------------
+# Every tick beats the hub (`spool box-beat put --pid <loop pid>`, rdb 0147);
+# its answer is the ack, kept in <WD_DIR>/beat.ack (epoch) and beat.down_min
+# (the hub's box_down_min). No ack for box_down_min -> FENCED: <WD_DIR>/fenced
+# exists, spl_wd_takeover starts nothing, every LANE of this box is TERMed
+# once after its wip push (the seats keep running) and the orchestrator gets
+# ONE note. The next ack lifts it. A box with no hub (no fleet in lease.conf)
+# or WD_BEAT=0 never beats and is never fenced. Seams: WD_BEAT_CMD (the hub
+# call: `<cmd> put --pid <pid>`), WD_WIP_CMD (the wip push), WD_KILL_CMD.
+
+# spl_wd_fence NOW TICK: the tick's one call (after its agents are listed).
+spl_wd_fence() {
+  local now="$1" tick="$2" id pid _pane
+  spl_wd_beat "$now"
+  if ! spl_wd_fence_due "$now"; then
+    if [[ -e "$WD_DIR/fenced" ]]; then
+      rm -f "$WD_DIR/fenced" "$WD_DIR"/fence.term.*
+      spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
+    fi
+    return 0
+  fi
+  if ( set -C; echo "$now" > "$WD_DIR/fenced" ) 2>/dev/null; then
+    spl_wd_log "FENCED${WD_INST:+ instance $WD_INST}: no beat ack for $(( now - $(spl_wd_beat_ack) ))s (box_down_min $(spl_wd_down_min)): this box starts nothing and stops its lanes"
+    if [[ "${DRY_RUN:-1}" == 0 ]]; then
+      spl_wd_send orchestrator note "fence-${WD_BOX:-box}" "FENCED (spec 102 10.2): box ${WD_BOX:-?} has had no beat ack from the hub for box_down_min ($(spl_wd_down_min) min). It starts nothing and TERMs its lanes after their wip push; seats keep running. It lifts at the next ack." || true
+    fi
+  fi
+  local -a jp=()
+  while IFS=$'\t' read -r id pid _pane; do
+    spl_wd_fence_is_seat "$id" && continue
+    ( set -C; echo "$now" > "$WD_DIR/fence.term.$id" ) 2>/dev/null || continue
+    spl_wd_fence_lane "$id" "$pid" &
+    jp+=("$!")
+  done < "$tick/agents"
+  if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
+  return 0
+}
+
+# spl_wd_box_fenced: 0 while this box is fenced (spl_wd_takeover's gate).
+spl_wd_box_fenced() { [[ -e "$WD_DIR/fenced" ]]; }
+
+# spl_wd_fence_lane ID PID: the wip push (bounded: origin may be as far away
+# as the hub), then TERM. DRY_RUN=1 only logs.
+spl_wd_fence_lane() {
+  local id="$1" pid="$2" rc=0
+  if [[ "${DRY_RUN:-1}" != 0 ]]; then
+    spl_wd_log "FENCE-DRY $id: would push its wip ref, then TERM pid $pid"; return 0
+  fi
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  ID="$id" DRY_RUN=0 timeout -k 5 "${WD_FENCE_WIP_TIMEOUT:-60}" ${WD_WIP_CMD:-$ROTATE_RUN -a do_spl_lane_wip_push} \
+    >> "$WD_DIR/fence.$id.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&- || rc=$?
+  if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+    spl_wd_log "FENCE $id: wip push rc=$rc; no process to TERM"; return 0
+  fi
+  ${WD_KILL_CMD:-kill} -TERM "$pid" 2>/dev/null || true
+  spl_wd_log "FENCE $id: wip push rc=$rc, TERM pid $pid"
+}
+
+# A seat never moves (10.2): ids 001..004, a peer seat, an expected seat.
+spl_wd_fence_is_seat() {
+  if declare -F spl_ars_is_seat >/dev/null; then spl_ars_is_seat "$1"; return; fi
+  [[ "$1" =~ -00[1-4]$ ]]
+}
+
+# spl_wd_beat NOW: one beat, bounded by WD_BEAT_TIMEOUT (10 s). An answer
+# with "ok": true is the ack. The first beat of a box with no ack yet starts
+# the clock (a box that never reached the hub is fenced box_down_min later).
+spl_wd_beat() {
+  local now="$1" out dm
+  spl_wd_beat_on || return 0
+  out="$(spl_wd_beat_call 2>/dev/null)" || out=""
+  if jq -e '.ok == true' >/dev/null 2>&1 <<<"$out"; then
+    echo "$now" > "$WD_DIR/beat.ack.$$" && mv -f "$WD_DIR/beat.ack.$$" "$WD_DIR/beat.ack"
+    dm="$(jq -r '.box_down_min // empty' 2>/dev/null <<<"$out")"
+    if [[ "$dm" =~ ^[0-9]+$ ]] && (( dm >= 1 )); then
+      echo "$dm" > "$WD_DIR/beat.down_min.$$" && mv -f "$WD_DIR/beat.down_min.$$" "$WD_DIR/beat.down_min"
+    fi
+  else
+    spl_wd_log "BEAT${WD_INST:+ instance $WD_INST}: no ack from the hub ($(head -c 160 <<<"${out:-no answer}" | tr '\n' ' '))"
+    [[ -s "$WD_DIR/beat.ack" ]] || echo "$now" > "$WD_DIR/beat.ack"
+  fi
+  return 0
+}
+
+# On when the beat has a hub: WD_BEAT_CMD, or the lane map's hub (lease.conf
+# fleet), read once per loop and retried every 20 ticks while missing.
+spl_wd_beat_on() {
+  [[ "${WD_BEAT:-1}" != 0 ]] || return 1
+  [[ -n "${WD_BEAT_CMD:-}" ]] && return 0
+  [[ "${WD_BEAT_MODE:-}" == hub ]] && return 0
+  if [[ -n "${WD_BEAT_MODE:-}" ]] && (( WD_TICK_SEQ % 20 != 1 )); then return 1; fi
+  WD_BEAT_MODE=off
+  declare -F spl_lane_init >/dev/null || return 1
+  if spl_lane_init >/dev/null 2>&1 6>&- && [[ "${LANE_MODE:-}" == hub ]]; then WD_BEAT_MODE=hub; return 0; fi
+  return 1
+}
+
+spl_wd_beat_call() {
+  if [[ -n "${WD_BEAT_CMD:-}" ]]; then
+    timeout -k 1 "${WD_BEAT_TIMEOUT:-10}" "$WD_BEAT_CMD" put --pid "$$" 6>&- 7>&- 8>&- 9>&-
+    return
+  fi
+  LANE_TIMEOUT="${WD_BEAT_TIMEOUT:-10}" spl_lane_spool box-beat put --pid "$$" 6>&- 7>&- 8>&- 9>&-
+}
+
+spl_wd_beat_ack() { local a; a="$(cat "$WD_DIR/beat.ack" 2>/dev/null)"; [[ "$a" =~ ^[0-9]+$ ]] && echo "$a" || echo ""; }
+
+# box_down_min: WD_BOX_DOWN_MIN, else the hub's (beat.down_min), else 2.
+spl_wd_down_min() {
+  local m="${WD_BOX_DOWN_MIN:-$(cat "$WD_DIR/beat.down_min" 2>/dev/null)}"
+  [[ "$m" =~ ^[0-9]+$ ]] && (( m >= 1 )) || m=2
+  echo "$m"
+}
+
+# spl_wd_fence_due NOW: 0 when the beat is on and its last ack is
+# box_down_min or more old.
+spl_wd_fence_due() {
+  local ack
+  spl_wd_beat_on || return 1
+  ack="$(spl_wd_beat_ack)"
+  [[ -n "$ack" ]] || return 1
+  (( $1 - ack >= $(spl_wd_down_min) * 60 ))
 }

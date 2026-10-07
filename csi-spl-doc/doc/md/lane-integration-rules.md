@@ -58,6 +58,19 @@ with NO content hunk in `git diff`. Set the worktree bit back to what
 `chmod -x`). Staging such a path lands a spurious `100644 => 100755` next to
 the change and nothing warns. Do not hunt the writer.
 
+### 2.2 FETCH: one fetch per clone per minute
+
+FETCH in the seed is `git-fetch-fresh.sh` (spawn-agents scripts): `git fetch
+origin master`, skipped when any worktree of the clone fetched it less than 60 s
+ago (`FETCH_FRESH_MAX_AGE`), with concurrent callers queued on one flock so they
+share one round trip. Measured 2026-10-07
+(`fleet-hot-commands-2026-10-07.md` section 3.6): 846 fetches, 14,987 s, p90
+21 s, the tail being contention of ~20 worktrees on one object store, 2 to 3
+fetches per push. A push rejected as stale uses `FETCH --force`.
+`FETCH --landed` never skips: the landed check (rule 4) must read the real
+remote. Rule (5) no longer fetches: the worktrees share `origin/master`, so the
+`--landed` fetch of rule (4) already refreshed it for the main checkout.
+
 ## 3. Push (rule 4)
 
 ### 3.1 Judge the landing by the repository, not the output

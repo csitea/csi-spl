@@ -40,7 +40,7 @@ name: "10 ci: quality gate"
 # those purely doc changes" + 31e00aee "integrated in the CICD"; reverses spec
 # 075 O6). Still no `paths:` filter: every push starts this gate, and the
 # first job (classify) decides by FILES, never by author. A push whose every
-# changed path is a *.md outside csi-spl-wui/** and .github/** (the set wf 32
+# path changed since the last GREEN gate on the ref is a *.md outside csi-spl-wui/** and .github/** (the set wf 32
 # publishes) skips the code jobs (hub, wui, wui-generate, wui-e2e, iac, orc,
 # cnf); distribution-hygiene and no-ysg-box-ref still run (a doc can carry a
 # banned name), and a skipped job is not a failure, so the gate is green.
@@ -119,7 +119,13 @@ concurrency:
 jobs:
   # ===========================================================================
   # Express docs lane classifier (see EXPRESS DOCS LANE at the top):
-  # csi-spl-orc/src/bash/scripts/ci-doc-only.sh on github.event.before..sha.
+  # csi-spl-orc/src/bash/scripts/ci-doc-only.sh on <last GREEN gate>..sha.
+  # NOT github.event.before: the concurrency group cancels pending runs as
+  # superseded, so `before` may be a code push whose gate never ran (2fb25f650
+  # then 875251619, 2026-10-07); diffing from it would wave that code through
+  # behind a doc push. The base is the head sha of the newest successful push
+  # run of this workflow on this ref, so everything since the last green
+  # verdict must be docs. No such run, or the API fails: full gate.
   # Its output doc_only is 'true' ONLY when the script proved it; the code
   # jobs below skip only on == 'true' and carry !cancelled(), so a failed or
   # skipped classify runs them. Gate: ci-doc-only.tst.sh.
@@ -128,11 +134,15 @@ jobs:
     name: "classify: doc-only push (express docs lane)?"
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5
+    # actions: read to find the last green run of this workflow
+    permissions:
+      contents: read
+      actions: read
     outputs:
       doc_only: ${{ steps.cls.outputs.doc_only }}
     steps:
       # the commit graph and trees, no blobs: enough for rev-list and a
-      # name-only diff between before and sha
+      # name-only diff between the base and sha
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
@@ -144,12 +154,20 @@ jobs:
         continue-on-error: true
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event_name == 'workflow_dispatch' && inputs.express_base || github.event.before }}
+          BASE: ${{ github.event_name == 'workflow_dispatch' && inputs.express_base || '' }}
           HEAD_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           v=doc_only=false
-          if [[ "$EVENT" == push || ( "$EVENT" == workflow_dispatch && -n "$BASE" ) ]]; then
+          if [[ "$EVENT" == push ]]; then
+            BASE=$(gh api "repos/$REPO/actions/workflows/10_ci-quality.yml/runs?branch=$REF_NAME&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // empty' 2>/dev/null) || BASE=""
+            [[ -n "$BASE" ]] || echo "ci-doc-only: no last green push run found"
+          fi
+          if [[ "$EVENT" == push || "$EVENT" == workflow_dispatch ]] && [[ -n "$BASE" ]]; then
             v=$(bash csi-spl-orc/src/bash/scripts/ci-doc-only.sh "$BASE" "$HEAD_SHA") || v=doc_only=false
           else
             echo "ci-doc-only: $EVENT without a base: full gate"

@@ -8,11 +8,14 @@
 #      diff, a merge, a force-push base, an all-zero base, an unreadable base
 #      -> each verdict asserted. Everything it cannot prove is false (code).
 #   2. the wiring in .github/workflows/10_ci-quality.yml: the classify job
-#      fails safe (a classifier error reads false), every code job skips ONLY
+#      fails safe (a classifier error reads false), diffs from the LAST GREEN
+#      run, never github.event.before (a superseded pending run's code push
+#      was never gated), every code job skips ONLY
 #      on doc_only == 'true', and the jobs that must keep running for a doc
 #      (distribution-hygiene, no-ysg-box-ref, pr-sec-scan) do not depend on it.
-# CONTROLS: a copy of wf 10 with hub-suite's condition removed, and one with
-# distribution-hygiene gated on doc_only, are both red.
+# CONTROLS: a copy of wf 10 with hub-suite's condition removed, one with
+# distribution-hygiene gated on doc_only, and one diffing from
+# github.event.before are all red.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -93,6 +96,8 @@ check10() {  # <wf 10 file> - prints the first violation, or nothing
   run=$(yq '.jobs.classify.steps[] | select(.id == "cls") | .run' "$f")
   [[ "$run" == *ci-doc-only.sh* && "$run" == *'doc_only=false'* ]] \
     || { echo "classify step does not run ci-doc-only.sh with a doc_only=false fallback"; return; }
+  [[ "$run" == *'status=success'* && "$(yq '.jobs.classify.steps[] | select(.id == "cls") | .env.BASE' "$f")" != *event.before* ]] \
+    || { echo "classify base is not the last GREEN run (github.event.before may be a superseded, never-gated code push)"; return; }
   [[ "$(yq '.jobs.classify.steps[] | select(.id == "cls") | .continue-on-error' "$f")" == true ]] \
     || { echo "classify step is not continue-on-error (a classifier crash must not red the gate)"; return; }
   for j in "${CODE_JOBS[@]}"; do
@@ -112,6 +117,9 @@ v=$(check10 "$W10"); [[ -z "$v" ]] && pass "wf 10: code jobs skip only on doc_on
 yq 'del(.jobs."hub-suite".if)' "$W10" >"$T/c1.yml"
 [[ -n "$(check10 "$T/c1.yml")" ]] && pass "CONTROL: hub-suite without the doc_only condition is caught" \
   || fail "CONTROL: hub-suite without the condition passed"
+yq '(.jobs.classify.steps[] | select(.id == "cls") | .env.BASE) = "${{ github.event.before }}"' "$W10" >"$T/c3.yml"
+[[ -n "$(check10 "$T/c3.yml")" ]] && pass "CONTROL: a base of github.event.before (a superseded push) is caught" \
+  || fail "CONTROL: a github.event.before base passed"
 yq '.jobs."distribution-hygiene".if = "needs.classify.outputs.doc_only != '"'true'"'"' "$W10" >"$T/c2.yml"
 [[ -n "$(check10 "$T/c2.yml")" ]] && pass "CONTROL: distribution-hygiene gated on doc_only is caught" \
   || fail "CONTROL: distribution-hygiene gated on doc_only passed"

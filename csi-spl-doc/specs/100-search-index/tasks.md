@@ -110,6 +110,12 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T003 Q7: CONCURRENTLY build path (conditional)
 
+- Status: **not needed** (2026-10-07). T001's dev run by c-001 (2026-10-06
+  18:0xZ, rolled back) built the GIN in 2732 ms (G2); x 19 244 / 13 026 that
+  is ~4.0 s on prd (c-001 rounded it to ~4.7 s), under the 5 s line. T002
+  shipped as a plain `CREATE INDEX`, and rdb 0143 is already applied on dev
+  and prd (schema_head 0143, `a94de03c`), so a CONCURRENTLY path has nothing
+  left to build.
 - Lane: **store** (or **ops-read**, see below). Phase P1, Q7.
 - Run ONLY IF T001's dev build time, scaled to prd rows (x 19 244 / 13 026),
   exceeds a few seconds (5 s unless the owner restates Q7). Otherwise mark
@@ -225,6 +231,12 @@ T015 Q3 cold n>=5 on a prd clone (c-001, owner go; optional)
 
 ### T011 P3: rls-check T5, one liftable definer only
 
+- Status: **done** (2026-10-07): every SECURITY DEFINER the login can
+  EXECUTE is a `liftable` path, except `<current_schema>.spool_search_candidates`.
+  The `.tst.sh` runs it on real pg16 (case 7). Dev, read-only, after 0143:
+  `liftable=0`, 54/54 tables forced; the one definer there is
+  `public.spool_search_candidates` (owner `spool_search_reader`, runtime
+  EXECUTE true), so the allow-list is what keeps it at 0.
 - Lane: **ops-read**. Spec 6: T5.
 - Files: `orc/spl-db-rls-check.func.sh` (allow-list `spool_search_candidates`
   as the one SECURITY DEFINER the runtime may EXECUTE),

@@ -12,6 +12,11 @@
 # @description "liftable" - every way the login could switch RLS off itself
 # @description (owns / can SET ROLE to the owner of a tenant_id table, or to
 # @description a superuser / BYPASSRLS role); store.HubRoleCanLiftRLS's query.
+# @description Plus (spec 100 T5): EXECUTE on a SECURITY DEFINER function runs
+# @description as its owner, so every definer the login can EXECUTE is a path,
+# @description except the one allow-listed: <current_schema>.spool_search_candidates
+# @description (rdb 0143, tenant-pinned, owned by NOLOGIN NOBYPASSRLS
+# @description spool_search_reader).
 # @description Exit 3: the login is superuser or BYPASSRLS (every policy
 # @description skipped). Exit 4: EXPECT_RLS=1 and a tenant_id table lacks
 # @description ENABLE + FORCE (0014 not applied, or a table added without it).
@@ -89,7 +94,13 @@ SELECT json_build_object(
       SELECT 'owns or can SET ROLE to the owner of ' || c.relname FROM pg_class c
         JOIN pg_namespace n ON n.oid = c.relnamespace
         JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped
-       WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND pg_has_role(current_user, c.relowner, 'MEMBER')) l),
+       WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND pg_has_role(current_user, c.relowner, 'MEMBER')
+      UNION ALL
+      SELECT 'can EXECUTE SECURITY DEFINER ' || n.nspname || '.' || p.proname || ' (runs as ' || pg_get_userbyid(p.proowner) || ')'
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE p.prosecdef AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+         AND NOT (n.nspname = current_schema() AND p.proname = 'spool_search_candidates')
+         AND has_function_privilege(current_user, p.oid, 'EXECUTE')) l),
   'tables', (SELECT json_object_agg(c.relname, json_build_array(c.relrowsecurity, c.relforcerowsecurity) ORDER BY c.relname)
                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped

@@ -23,7 +23,7 @@ Every build task is done only when:
 
 ### Phase 1: file + gate
 
-- [ ] T002 **openapi.json with every operation stubbed, plus the route gate**
+- [x] T002 **openapi.json with every operation stubbed, plus the route gate** (lane c-488: 125 operations; the 125th is `GET /v1/debug/client-ip`, registered through the constant `edge.PathProbe`, which the §2.1 grep cannot see and the gate reads)
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi.json` (creates), `csi-spl-api/src/go/spool-hub-api/internal/hub/openapi_routes_test.go`.
   - **Depends on**: T001b.
   - **Builds**: the gate of spec §4.3 (embeds the file from the test with `go:embed`); the file of spec §4.1 with `info`, `servers` (`https://{tenant}.{baseDomain}`, no `/v1`), `components.schemas.ErrorEnvelope` `{error, detail}`, `securitySchemes` as read from `humanTenant`, the `X-Spool-Tenant` parameter, and one stub operation (operationId, tag, summary, path params, error responses) per route the gate finds (~124). Operator routes tagged `x-role: operator`.

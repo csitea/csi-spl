@@ -12,7 +12,8 @@
 #          - SPOOL_GITHUB_APP_KEY is injected exactly while inject is "true";
 #            it is never a plain env var nor an auth_secret_ids slot;
 #          - the feature is OFF on dev and prd; the hub env carries every
-#            SPOOL_HUB_DOCS_EDIT_* derived from the cnf (dev env cap 50).
+#            SPOOL_HUB_DOCS_EDIT_* derived from the cnf (dev env cap 50);
+#            SPOOL_HUB_DOCS_EDIT_GITHUB_REPO is step 017's github_repository.
 #          CONTROL: a scratch render flips inject both ways; a missing tpl-gen
 #          venv is a SKIP.
 #------------------------------------------------------------------------------
@@ -32,7 +33,7 @@ grep -q "sec=\"\${GH_APP_SECRET:-$slot}\"" "$PROJ_ROOT/src/bash/run/spl-gh-app-k
 n=$(yq -r '.env.docs.repo_edit.deny | length' "$CNF/all.env.yaml")
 [[ "$n" == 23 ]] && pass "deny holds the 23 globs of spec 5.2 rows 1-13" || fail "deny has $n globs"
 
-want="ENABLED GITHUB_APP_ID INSTALLATION_ID GITHUB_API DENY COALESCE_AFTER COALESCE_MAX RATE_MEMBER_PER_HOUR RATE_AGENT_PER_HOUR RATE_WORKSPACE_PER_DAY RATE_ENV_PER_DAY MIN_MEMBER_AGE BLOCKED_WORKSPACES"
+want="ENABLED GITHUB_APP_ID INSTALLATION_ID GITHUB_API DENY COALESCE_AFTER COALESCE_MAX RATE_MEMBER_PER_HOUR RATE_AGENT_PER_HOUR RATE_WORKSPACE_PER_DAY RATE_ENV_PER_DAY MIN_MEMBER_AGE BLOCKED_WORKSPACES GITHUB_REPO"
 for env in dev prd; do
   v="$CNF/$env/tf/030-cloud-run-hub.vars.tfvars"
   j="$CNF/$env.env.json"
@@ -44,7 +45,10 @@ for env in dev prd; do
   grep -qF "\"$ENVVAR\"" <<<"$envline" && fail "$env $ENVVAR is a plain env var" || pass "$env $ENVVAR is never a plain env var"
   miss=""
   for k in $want; do grep -qF "\"SPOOL_HUB_DOCS_EDIT_$k\": " <<<"$envline" || miss+=" $k"; done
-  [[ -z "$miss" ]] && pass "$env hub env carries the 13 SPOOL_HUB_DOCS_EDIT_*" || fail "$env hub env lacks:$miss"
+  [[ -z "$miss" ]] && pass "$env hub env carries the 14 SPOOL_HUB_DOCS_EDIT_*" || fail "$env hub env lacks:$miss"
+  repo=$(grep -E '^github_repository ' "$CNF/$env/tf/017-github-wif-deploy.vars.tfvars" | grep -oE '"[^"]+"')
+  [[ "$repo" == *?/?* ]] && grep -qF "\"SPOOL_HUB_DOCS_EDIT_GITHUB_REPO\": $repo" <<<"$envline" \
+    && pass "$env SPOOL_HUB_DOCS_EDIT_GITHUB_REPO = 017 github_repository $repo" || fail "$env SPOOL_HUB_DOCS_EDIT_GITHUB_REPO is not 017's '$repo'"
   secline=$(grep -E '^secret_environment_variables ' "$v")
   if [[ "$inject" == true ]]; then
     grep -qF "\"$ENVVAR\": \"$slot\"" <<<"$secline" && pass "$env inject=true: the service names $ENVVAR from $slot" || fail "$env inject=true but $ENVVAR not injected"

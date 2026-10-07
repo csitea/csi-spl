@@ -38,6 +38,9 @@
 # @description deny and blocked_workspaces (joined with commas), coalesce_after,
 # @description coalesce_max, the four rate_* caps and min_member_age. The key itself
 # @description is a secret (docs.repo_edit.secret_env), never derived here.
+# @description env.hub.env.SPOOL_HUB_DOCS_EDIT_GITHUB_REPO (<owner>/<repo>, the
+# @description repo the hub's App pushes to) is steps.017-github-wif-deploy.
+# @description github_repository; no 017 step (lde) = no variable (editing off).
 # @description steps.120-github-general-secrets.gh_repo defaults to
 # @description steps.017-github-wif-deploy.github_repository: one key per fact.
 # @param $1 - the cnf dir holding all.env.yaml and <env>.env.yaml
@@ -90,6 +93,8 @@ do_spl_merged_cnf() {
       .hub.env.SPOOL_HUB_DOCS_EDIT_RATE_ENV_PER_DAY = ($r.rate_env_per_day | tostring) |
       .hub.env.SPOOL_HUB_DOCS_EDIT_MIN_MEMBER_AGE = ($r.min_member_age | tostring) |
       .hub.env.SPOOL_HUB_DOCS_EDIT_BLOCKED_WORKSPACES = ($r.blocked_workspaces | join(",")))' |
+    yq '(.env | select(.hub != null and .docs.repo_edit != null and .steps."017-github-wif-deploy".github_repository != null)) |= (
+      .hub.env.SPOOL_HUB_DOCS_EDIT_GITHUB_REPO = (.hub.env.SPOOL_HUB_DOCS_EDIT_GITHUB_REPO // .steps."017-github-wif-deploy".github_repository))' |
     yq '(.env | select(.demo != null and .steps."036-spl-demo-workspace" != null)) |= (
       .steps."036-spl-demo-workspace".demo_enabled = .demo.enabled |
       .steps."036-spl-demo-workspace".demo_workspace = (.demo.workspace | tostring))' |

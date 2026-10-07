@@ -38,10 +38,12 @@
 #     env.DISABLE_AUTOUPDATER, valued from the merged fragments, plus the
 #     marker env.SPOOL_INSTALL_BOX_SETTINGS=sha256=<hex of those 5>. Every
 #     other key of the human's (allow lists, statusLine, theme, hooks) is
-#     kept as it is. Written in place (owner and mode kept), the previous
-#     file first copied to settings.json.bak-spool-install-box. A missing,
-#     unreachable, unwritable or non-JSON file is named and left alone,
-#     never fatal.
+#     kept as it is; owner and mode kept, the previous file first copied to
+#     settings.json.bak-spool-install-box. A file in a home closed to this
+#     user (sat: 700) is retried once through `sudo -n -u BOX_USER`, every
+#     step as the box user, the backup too; no sudo -> named, left alone. A
+#     missing, unwritable or non-JSON file is named and left alone. Never
+#     fatal.
 #
 # Placeholders ({{KEY}}) and where their values come from - never a literal:
 #   AGENT_USER    SPOOL_AGENT_USER, else the user running install.sh
@@ -53,6 +55,7 @@
 #   AGENT_CEILING SPOOL_AGENT_CEILING, else 40
 #
 # Env: SPOOL_INSTALL_CLAUDE_CONFIG=0 skips the step;
+#      SPOOL_INSTALL_SUDO overrides the sudo of that retry (tests);
 #      SPOOL_INSTALL_BOX_SETTINGS_FILE overrides the BOX_USER's settings.json path
 #      (tests; default BOX_HOME/.claude/settings.json). Not the marker's
 #      name: Claude Code exports a settings.json env key into every process
@@ -77,6 +80,7 @@ spool_install_claude_config() {
     "BOX_USER=$box_user" \
     "BOX_HOME=$box_home" \
     "BOX_SETTINGS=${SPOOL_INSTALL_BOX_SETTINGS_FILE:-${box_home:+$box_home/.claude/settings.json}}" \
+    "SUDO=${SPOOL_INSTALL_SUDO:-sudo}" \
     "TMUX_SOCKET=${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$box_user" 2>/dev/null)/default}" \
     "BOX_TAG=${box_tag:-<tag>}" \
     "AGENT_CEILING=${SPOOL_AGENT_CEILING:-40}"

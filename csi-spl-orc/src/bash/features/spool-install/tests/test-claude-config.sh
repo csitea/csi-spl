@@ -16,8 +16,10 @@
 #      the box marker are set; every other key keeps its value (allow list,
 #      statusLine, theme, hooks, a stale fleet value under another key);
 #      a backup of the old file, valid JSON, owner kept (in place); a re-run
-#      rewrites nothing; DRY=1, a missing, an unreachable, an unwritable and
-#      a non-JSON file
+#      rewrites nothing; a reachable file uses no sudo; a file in a home
+#      closed to this user goes through sudo -n -u <box user> (stubbed), and
+#      without sudo is named and left alone; DRY=1, a missing, an
+#      unwritable and a non-JSON file
 #      are left alone and the step still exits 0; the box path equal to the
 #      agent's is the agent merge only; the marker exported in the
 #      environment (a seat does that) does not move the path
@@ -53,6 +55,19 @@ unset DRY FORCE_SKILLS SPOOL_INSTALL_CLAUDE_CONFIG SPOOL_INSTALL_CLAUDE_ASSETS
 # Never the real box user's file: sections 1-7 point it at a path that is not
 # there; section 8 passes its own.
 export SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/no-box/settings.json"
+# Never the real sudo: a stub that logs its argv and refuses (sudo -n with no
+# rule), one that logs and runs the command with the dir it needs opened.
+cat >"$T/sudo-no" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >>"${SUDO_LOG:-/dev/null}"; exit 1
+EOF
+cat >"$T/sudo-ok" <<'EOF'
+#!/usr/bin/env bash
+echo "$*" >>"$SUDO_LOG"; [ "$1 $2 $3" = "-n -u $SPOOL_BOX_USER" ] || exit 1; shift 3
+chmod 755 "$SUDO_DIR"; "$@"; rc=$?; chmod 000 "$SUDO_DIR"; exit $rc
+EOF
+chmod +x "$T/sudo-no" "$T/sudo-ok"
+export SPOOL_INSTALL_SUDO="$T/sudo-no"
 step() {  # HOME [VAR=value ...]
   local h="$1"; shift
   env HOME="$h" "$@" bash -c 'source "$0" && spool_install_claude_config' "$STEP"
@@ -201,9 +216,10 @@ fi
 H=$(fresh h8); B="$T/box8/.claude"; mkdir -p "$B"; BS="$B/settings.json"
 cp "$TEST_DIR/box-settings.fixture.json" "$BS"; chmod 640 "$BS"
 # the marker in the environment, as a seat whose settings carry it exports it
-step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" SPOOL_INSTALL_BOX_SETTINGS=sha256=0 2>"$T/err8"; rc=$?
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" SPOOL_INSTALL_BOX_SETTINGS=sha256=0 SUDO_LOG="$T/sudo8" 2>"$T/err8"; rc=$?
 [ "$rc" = 0 ] && grep -q "box user's fleet keys set, other keys kept" "$T/err8" &&
   pass "8: the step sets the box user's fleet keys" || { fail "8: rc $rc"; cat "$T/err8"; }
+[ ! -e "$T/sudo8" ] && pass "8: a reachable box file: no sudo used" || fail "8: sudo used on a reachable file: $(cat "$T/sudo8")"
 python3 - "$TEST_DIR/box-settings.fixture.json" "$BS" <<'EOF' && pass "8: only the 5 keys + the marker changed, every other key byte-identical in value" || fail "8: box merge"
 import json, sys
 old, new = (json.load(open(p)) for p in sys.argv[1:3])
@@ -240,11 +256,19 @@ echo '{not json' >"$BS"; step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/e
 step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$T/box8/none.json" 2>"$T/err8e"; rc=$?
 [ "$rc" = 0 ] && [ ! -e "$T/box8/none.json" ] && grep -q 'has no settings.json: left alone' "$T/err8e" &&
   pass "8: a missing box file is named, not created" || fail "8: missing rc=$rc"
-cp "$TEST_DIR/box-settings.fixture.json" "$BS"; chmod 000 "$T/box8"
-step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" 2>"$T/err8g"; rc=$?; chmod 755 "$T/box8"
+cp "$TEST_DIR/box-settings.fixture.json" "$BS"; rm -f "$BS.bak-spool-install-box" "$T/sudo8g"; chmod 000 "$T/box8"
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" SUDO_LOG="$T/sudo8g" 2>"$T/err8g"; rc=$?; chmod 755 "$T/box8"
 if [ "$(id -u)" = 0 ]; then pass "8: unreachable: skipped (root reaches anything)"
-else [ "$rc" = 0 ] && cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS" && grep -q 'not reachable by this user' "$T/err8g" &&
-  pass "8: a box file in a home closed to this user is named as unreachable, rc 0" || fail "8: unreachable rc=$rc $(cat "$T/err8g")"; fi
+else [ "$rc" = 0 ] && cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS" && grep -q "not reachable by this user .* and no sudo -n -u $SPOOL_BOX_USER: left alone" "$T/err8g" &&
+  grep -q "^-n -u $SPOOL_BOX_USER " "$T/sudo8g" &&
+  pass "8: unreachable + sudo refused: named, untouched, rc 0" || fail "8: unreachable, no sudo: rc=$rc $(cat "$T/err8g")"; fi
+rm -f "$T/sudo8h"; chmod 000 "$T/box8"
+step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$BS" SPOOL_INSTALL_SUDO="$T/sudo-ok" SUDO_LOG="$T/sudo8h" SUDO_DIR="$T/box8" 2>"$T/err8h"; rc=$?; chmod 755 "$T/box8"
+if [ "$(id -u)" = 0 ]; then pass "8: unreachable + sudo: skipped (root reaches anything)"
+else [ "$rc" = 0 ] && grep -q "(as $SPOOL_BOX_USER) .*box user's fleet keys set, other keys kept" "$T/err8h" &&
+  cmp -s "$T/bs8" "$BS" && cmp -s "$TEST_DIR/box-settings.fixture.json" "$BS.bak-spool-install-box" &&
+  grep -q -- "^-n -u $SPOOL_BOX_USER .*--box-file $BS 0 " "$T/sudo8h" &&
+  pass "8: unreachable + sudo ok: merged through sudo -n -u <box user>, same result, backup kept" || fail "8: unreachable + sudo: rc=$rc $(cat "$T/err8h")"; fi
 H=$(fresh h8s); step "$H" SPOOL_INSTALL_BOX_SETTINGS_FILE="$H/.claude/settings.json" 2>"$T/err8f"
 grep -q "the box user's file is the agent's" "$T/err8f" && ! grep -q SPOOL_INSTALL_BOX_SETTINGS "$H/.claude/settings.json" &&
   pass "8: box file = agent file: the agent merge only" || fail "8: same file"

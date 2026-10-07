@@ -2,7 +2,48 @@
 """y4-claude-config.py - the renderer behind y4-claude-config.sh (spec 069 Y4);
 run it through that wrapper: ASSETS HOME DRY FORCE KEY=value...
 """
-import hashlib, json, os, re, sys
+import hashlib, json, os, re, subprocess, sys
+
+def box_apply(bs, dry, pick):
+    """Set PICK (the 5 fleet keys + marker) in the box user's settings.json
+    BS; every other key kept. Returns the line to say. Also run on its own,
+    as the box user, through sudo: --box-file BS DRY PICK-JSON."""
+    try:
+        raw = open(bs).read()
+    except FileNotFoundError:
+        return "%s: the box user has no settings.json: left alone" % bs
+    try:
+        cur_b = json.loads(raw) if raw.strip() else {}
+        if not isinstance(cur_b, dict) or any(not isinstance(cur_b.get(k, {}), dict) for k in pick if isinstance(pick[k], dict)):
+            raise ValueError("not an object where a fleet key goes")
+    except ValueError as x:
+        return "%s is not valid settings JSON (%s): left alone" % (bs, x)
+    new_b = json.loads(raw) if raw.strip() else {}
+    for k, v in pick.items():
+        if isinstance(v, dict): new_b.setdefault(k, {}).update(v)
+        else: new_b[k] = v
+    if new_b == cur_b:
+        return "%s: box user's fleet keys already current" % bs
+    if dry == "1":
+        print("would: write %s" % bs); return "%s: would set the box user's fleet keys" % bs
+    if not os.access(bs, os.W_OK) or not os.access(os.path.dirname(bs), os.W_OK):
+        return "%s: not writable by this user: left alone (run the install as its owner)" % bs
+    text = json.dumps(new_b, indent=2, ensure_ascii=False) + "\n"
+    json.loads(text)
+    open(bs + ".bak-spool-install-box", "w").write(raw)
+    st_b = os.stat(bs)
+    if st_b.st_uid != os.getuid():
+        with open(bs, "w") as f: f.write(text)  # in place: the owner's file stays the owner's
+    else:
+        tmp = bs + ".tmp.%d" % os.getpid()
+        open(tmp, "w").write(text)
+        os.chmod(tmp, st_b.st_mode & 0o7777)
+        os.replace(tmp, bs)
+    return "%s: box user's fleet keys set, other keys kept" % bs
+
+if sys.argv[1:2] == ["--box-file"]:
+    print("spool-install: claude-config: " + box_apply(sys.argv[2], sys.argv[3], json.loads(sys.argv[4])), file=sys.stderr)
+    sys.exit(0)
 assets, home, dry, force = sys.argv[1:5]
 vals = dict(a.split("=", 1) for a in sys.argv[5:])
 FRAG = re.compile(r"^(\d{2})-[a-z0-9][a-z0-9-]*\.(md|json)$")
@@ -109,19 +150,16 @@ else:
 
 # ── the BOX_USER's settings.json: the 5 fleet keys only ──────────────────────
 # The human's file keeps every other key (allow lists, statusLine, theme,
-# hooks); a missing, unwritable or non-JSON file is named and left alone.
+# hooks). A file in a home closed to this user is retried once through
+# `sudo -n -u BOX_USER` (SPOOL_INSTALL_SUDO in tests), so every step of it,
+# the backup too, runs as its owner; no sudo -> named, left alone. A missing,
+# unwritable or non-JSON file is named and left alone. Never fatal.
 BOX_KEYS = (("permissions", "defaultMode"), ("permissions", "disableAutoMode"),
             ("skipDangerousModePermissionPrompt",), ("skillOverrides", "auto-mode-setup"),
             ("env", "DISABLE_AUTOUPDATER"))
 def box_settings(bs):
     if os.path.realpath(bs) == os.path.realpath(st):
         say("%s: the box user's file is the agent's: done above" % bs); return
-    try:
-        os.stat(bs)
-    except PermissionError:
-        say("%s: not reachable by this user (a home closed to it): left alone" % bs); return
-    except FileNotFoundError:
-        say("%s: the box user has no settings.json: left alone" % bs); return
     pick = {}
     for path in BOX_KEYS:
         src, dst = ours, pick
@@ -131,23 +169,23 @@ def box_settings(bs):
             sys.exit("spool-install: claude-config: the fleet settings lack %s" % ".".join(path))
         dst[path[-1]] = src[path[-1]]
     merge(pick, {"env": {"SPOOL_INSTALL_BOX_SETTINGS": "sha256=" + sha(json.dumps(pick, sort_keys=True))}})
-    raw = open(bs).read()
     try:
-        cur_b = json.loads(raw) if raw.strip() else {}
-        if not isinstance(cur_b, dict) or any(not isinstance(cur_b.get(k, {}), dict) for k in pick if isinstance(pick[k], dict)):
-            raise ValueError("not an object where a fleet key goes")
-    except ValueError as x:
-        say("%s is not valid settings JSON (%s): left alone" % (bs, x)); return
-    new_b = merge(json.loads(json.dumps(cur_b)), pick)
-    if new_b == cur_b:
-        say("%s: box user's fleet keys already current" % bs); return
-    if dry == "1":
-        print("would: write %s" % bs); say("%s: would set the box user's fleet keys" % bs); return
-    if not os.access(bs, os.W_OK) or not os.access(os.path.dirname(bs), os.W_OK):
-        say("%s: not writable by this user: left alone (run the install as its owner)" % bs); return
-    text = json.dumps(new_b, indent=2, ensure_ascii=False) + "\n"
-    json.loads(text)
-    open(bs + ".bak-spool-install-box", "w").write(raw)
-    with open(bs, "w") as f: f.write(text)  # in place: owner and mode kept
-    say("%s: box user's fleet keys set, other keys kept" % bs)
+        os.stat(bs)
+    except PermissionError:
+        sudo = vals.get("SUDO") or "sudo"
+        cmd = [sudo, "-n", "-u", vals.get("BOX_USER", ""), sys.executable, os.path.abspath(__file__),
+               "--box-file", bs, dry, json.dumps(pick)]
+        try:
+            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        except OSError:
+            r = None
+        if r is None or r.returncode != 0:
+            say("%s: not reachable by this user (a home closed to it) and no sudo -n -u %s: left alone"
+                % (bs, vals.get("BOX_USER", ""))); return
+        sys.stdout.write(r.stdout); sys.stderr.write(r.stderr.replace(
+            "spool-install: claude-config: ", "spool-install: claude-config: (as %s) " % vals.get("BOX_USER", "")))
+        return
+    except FileNotFoundError:
+        pass
+    say(box_apply(bs, dry, pick))
 if vals.get("BOX_SETTINGS"): box_settings(vals["BOX_SETTINGS"])

@@ -74,7 +74,7 @@
               v-bind="itemAttrs(ev)"
               @pointerdown="onItemDown($event, ev, day)"
               @click.stop="onItemClick($event, ev)"
-              @keydown.enter.prevent.stop="openEdit(ev)"
+              @keydown.enter.prevent.stop="openPeek(ev)"
               @contextmenu="onContextMenu"
             >
               <span v-if="!ev.all_day" class="cal-week__time" dir="ltr">{{ isoClock(ev.starts_at) }}</span>
@@ -103,7 +103,7 @@
             :style="boxStyle(b)"
             @pointerdown="onItemDown($event, b.ev, day)"
             @click.stop="onItemClick($event, b.ev)"
-            @keydown.enter.prevent.stop="openEdit(b.ev)"
+            @keydown.enter.prevent.stop="openPeek(b.ev)"
           >
             <span class="cal-ev__body">
               <span class="cal-week__time" dir="ltr">{{ isoClock(b.ev.starts_at) }}</span>
@@ -141,7 +141,8 @@
         </div>
       </div>
     </div>
-    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :day="dialogDay" :today="today" :span="dialogSpan" @saved="reload" @deleted="reload" />
+    <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" @saved="reload" @deleted="reload" />
+    <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" />
   </section>
 </template>
 
@@ -152,7 +153,7 @@ import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
-import { calEditable } from '~/utils/calendar-event-form.mjs'
+import { CAL_COLORS, calEditable } from '~/utils/calendar-event-form.mjs'
 import { calendarUpdate } from '~/utils/calendar-events-api.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
@@ -295,21 +296,42 @@ watch([state, grid, () => shown.value.join()], async () => {
    CalendarEventDialog for a new event on that day; a click on a stored
    event opens it to edit or delete. An issue deadline and an official day
    are not edited here. /calendar?event=<id> (a reminder's Open, T006) opens
-   that event once it is in the shown week. */
+   that event once it is in the shown week.
+   097 T014 (G11): a click shows the event's pop-over first; its Edit opens
+   the dialog, its Duplicate a new event filled from it. */
 const route = useRoute()
 const dialogOpen = ref(false)
 const dialogEvent = shallowRef<CalendarItem | null>(null)
 const dialogDay = ref(props.focus)
 const dialogSpan = ref<{ start: string, end: string } | null>(null)
+const dialogCopy = shallowRef<CalendarItem | null>(null)
+const peekOpen = ref(false)
+const peekEvent = shallowRef<CalendarItem | null>(null)
 function openCreate(day: string, span: { start: string, end: string } | null = null) {
   dialogEvent.value = null
+  dialogCopy.value = null
   dialogDay.value = day
   dialogSpan.value = span
   dialogOpen.value = true
 }
 function openEdit(ev: CalendarItem) {
   if (!calEditable(ev)) return
+  peekOpen.value = false
   dialogEvent.value = ev
+  dialogCopy.value = null
+  dialogDay.value = String(ev.starts_at || '').slice(0, 10)
+  dialogSpan.value = null
+  dialogOpen.value = true
+}
+function openPeek(ev: CalendarItem) {
+  if (!calEditable(ev)) return
+  peekEvent.value = ev
+  peekOpen.value = true
+}
+function openDuplicate(ev: CalendarItem) {
+  peekOpen.value = false
+  dialogEvent.value = null
+  dialogCopy.value = ev
   dialogDay.value = String(ev.starts_at || '').slice(0, 10)
   dialogSpan.value = null
   dialogOpen.value = true
@@ -374,8 +396,11 @@ function itemAttrs(ev: CalendarItem) {
     'data-audience': ev.audience,
     'data-starts': ev.starts_at,
     'data-ends': ev.ends_at,
+    'data-color': ev.color || undefined,
     role: edit ? 'button' : undefined,
     tabindex: edit ? 0 : undefined,
+    /* 097 T014 (G8): the event's colour, one of the palette's theme variables */
+    style: ev.color && CAL_COLORS.includes(ev.color) ? { '--cal-ev-color': `var(--cal-color-${ev.color})` } : undefined,
   }
 }
 /* the desktop always offers the bottom edge; a phone only on the held event */
@@ -540,7 +565,7 @@ onBeforeUnmount(() => {
 function onItemClick(e: Event, ev: CalendarItem) {
   if (dragClick(e)) return
   picked.value = ''
-  openEdit(ev)
+  openPeek(ev)
 }
 function onDayClick(e: Event, day: string) {
   if (dragClick(e)) return
@@ -611,6 +636,7 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   background: var(--color-surface); border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
 }
+.cal-week__item[data-color]:not(.cal-ev) { box-shadow: inset 3px 0 0 var(--cal-ev-color); }
 .cal-week__item--edit { cursor: pointer; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .cal-week__item--edit:hover { background: var(--color-bg-2); }
 .cal-week__item--edit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
@@ -665,7 +691,7 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   display: block;
   padding: 0;
   overflow: visible;
-  border-inline-start: 3px solid var(--color-accent);
+  border-inline-start: 3px solid var(--cal-ev-color, var(--color-accent));
   box-sizing: border-box;
 }
 .cal-ev__body {

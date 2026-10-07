@@ -96,10 +96,13 @@ const stored = (p, title) => p.evaluate((t) => {
     return (JSON.parse(localStorage.getItem('spool.mock.calendar-added') || '[]').find((e) => e.title === t) || {}).audience || ''
   } catch { return '' }
 }, title)
+/* 097 T014: a click shows the event's pop-over; its Edit opens the dialog */
 async function clickItem(p, title) {
   await p.evaluate((t) => {
     [...document.querySelectorAll('[data-test=calendar-item]')].find((e) => e.querySelector('.cal-week__title')?.textContent === t)?.click()
   }, title)
+  const edit = await p.waitForSelector('[data-test=calendar-popover-edit]', { visible: true, timeout: 4000 }).catch(() => null)
+  if (edit) await edit.click()
 }
 /* the mock's seeded events sit two days on: on a weekend that is next week */
 async function showing(p, title) {

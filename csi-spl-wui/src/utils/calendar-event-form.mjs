@@ -13,13 +13,28 @@
 // spec 097 T014..T016 add fields here (time zone, location, guests, reminders,
 // colour) in the order of 097 section 5: one key in calFormFromEvent, one
 // entry in calFormBody's `full`.
+//
+// 097 T014 (G6..G9, spec 4.1..4.3): the event's own time zone - the form's
+// date and clock are wall time in it; a new event takes the member's
+// `time_zone` preference (else the browser's), and an 089 event (stored
+// `UTC`) opens in the viewer's zone and keeps `UTC` until the picker moves -
+// a location, one of the hub's 11 colours, and up to 5 reminders, each a
+// whole number 1 or more of minutes / hours / days, at most 4 weeks before
+// (owner E2). Duplicate (G11) is calFormFromEvent of the source event, saved
+// as a new one.
 
-import { isoClock, isoDate } from './date-iso.mjs'
+import { browserTimeZone, isoDateTime, viewerTimeZone } from './date-iso.mjs'
 import { calAddDays, calDayMs } from './calendar-year.mjs'
 import { isoSeconds } from './iso-seconds.mjs'
 
 export const CAL_TITLE_MAX = 200
 export const CAL_DESCRIPTION_MAX = 4000
+export const CAL_LOCATION_MAX = 300
+export const CAL_REMINDERS_MAX = 5
+/** The hub's palette (spec 3.3); "" is the kind's own colour. */
+export const CAL_COLORS = ['tomato', 'flamingo', 'tangerine', 'banana', 'sage', 'basil', 'peacock', 'blueberry', 'lavender', 'grape', 'graphite']
+/** A reminder's unit and its largest amount: 4 weeks before (spec 4.3). */
+export const CAL_REMINDER_UNITS = { minutes: 40320, hours: 672, days: 28 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const pad = (n) => String(n).padStart(2, '0')
@@ -47,16 +62,17 @@ function wallMs(date, hhmm) {
 }
 
 /**
- * The instant whose wall clock in the viewer's zone is `date` `hhmm`, as
- * RFC 3339 UTC; "" when either is not one. Two corrections cover a zone's
- * offset and a DST step (a wall time a spring step skips lands after it).
+ * The instant whose wall clock in `zone` (the viewer's when "") is `date`
+ * `hhmm`, as RFC 3339 UTC; "" when either is not one. Two corrections cover
+ * a zone's offset and a DST step (a wall time a spring step skips lands after it).
  */
-export function calWallToUtc(date, hhmm) {
+export function calWallToUtc(date, hhmm, zone = '') {
   const want = wallMs(date, hhmm)
   if (Number.isNaN(want)) return ''
   let t = want
   for (let i = 0; i < 2; i++) {
-    const seen = wallMs(isoDate(t), isoClock(t))
+    const w = isoDateTime(t, zone)
+    const seen = wallMs(w.slice(0, 10), w.slice(11))
     if (Number.isNaN(seen)) return ''
     t += want - seen
   }
@@ -70,14 +86,22 @@ export function calWallToUtc(date, hhmm) {
  */
 export function calFormFromEvent(ev, day) {
   if (!ev) {
-    return { title: '', date: day, start: '09:00', end: '10:00', allDay: false, endDays: 0, private: false, description: '' }
+    const timeZone = calDefaultZone()
+    return {
+      title: '', date: day, start: '09:00', end: '10:00', allDay: false, endDays: 0,
+      timeZone, zoneWas: timeZone, location: '', reminders: [], color: '', private: false, description: '',
+    }
   }
   const allDay = Boolean(ev.all_day)
-  const date = allDay ? String(ev.starts_at || '').slice(0, 10) : isoDate(ev.starts_at)
-  const endDate = allDay ? calAddDays(String(ev.ends_at || '').slice(0, 10), -1) : isoDate(ev.ends_at)
+  const stored = String(ev.time_zone || '')
+  const timeZone = stored && stored !== 'UTC' ? stored : calDefaultZone()
+  const from = isoDateTime(ev.starts_at, timeZone)
+  const to = isoDateTime(ev.ends_at, timeZone)
+  const date = allDay ? String(ev.starts_at || '').slice(0, 10) : from.slice(0, 10)
+  const endDate = allDay ? calAddDays(String(ev.ends_at || '').slice(0, 10), -1) : to.slice(0, 10)
   const endDays = Math.max(0, Math.round((calDayMs(endDate) - calDayMs(date)) / 86400000) || 0)
-  const start = allDay ? '09:00' : isoClock(ev.starts_at) || '09:00'
-  const end = allDay ? '10:00' : isoClock(ev.ends_at) || start
+  const start = allDay ? '09:00' : from.slice(11) || '09:00'
+  const end = allDay ? '10:00' : to.slice(11) || start
   return {
     title: String(ev.title || ''),
     date,
@@ -85,10 +109,58 @@ export function calFormFromEvent(ev, day) {
     end,
     allDay,
     endDays,
+    timeZone,
+    zoneWas: timeZone,
+    location: String(ev.location || ''),
+    reminders: calRemindersOf(ev).map((r) => ({ amount: String(r.amount), unit: r.unit })),
+    color: CAL_COLORS.includes(ev.color) ? ev.color : '',
     private: ev.audience === 'private',
     description: String(ev.description || ''),
   }
 }
+
+/** A new event's zone: the member's `time_zone` preference, else the browser's, else UTC. */
+export function calDefaultZone() {
+  return viewerTimeZone() || browserTimeZone() || 'UTC'
+}
+
+/* an event's reminders as the hub sends them, each a known unit */
+function calRemindersOf(ev) {
+  const list = Array.isArray(ev && ev.reminders) ? ev.reminders : []
+  return list.filter((r) => r && Object.hasOwn(CAL_REMINDER_UNITS, r.unit)).map((r) => ({ amount: Number(r.amount), unit: r.unit }))
+}
+
+/**
+ * What a reminder's amount field keeps of a keystroke: digits only, no
+ * leading zero, so a fraction, a sign or 0 cannot be typed (owner E2).
+ */
+export function calReminderAmount(raw) {
+  return String(raw ?? '').replace(/\D+/g, '').replace(/^0+/, '').slice(0, 5)
+}
+
+/** "" for a good reminder row, else its i18n key: empty, or more than 4 weeks. */
+export function calReminderError(row) {
+  const n = Number(row && row.amount)
+  if (!/^[1-9]\d*$/.test(String(row && row.amount))) return 'calendar_event.error_reminder_amount'
+  if (!Object.hasOwn(CAL_REMINDER_UNITS, row.unit)) return 'calendar_event.error_reminder_amount'
+  return n > CAL_REMINDER_UNITS[row.unit] ? 'calendar_event.error_reminder_max' : ''
+}
+
+/** The form's next reminder row: 10 minutes, or null when it holds 5 already. */
+export function calNewReminder(rows) {
+  return (rows || []).length >= CAL_REMINDERS_MAX ? null : { amount: '10', unit: 'minutes' }
+}
+
+/* the rows as the hub's list, equal ones once (it stores them once too) */
+function remindersBody(rows) {
+  const out = []
+  for (const r of rows || []) {
+    const x = { amount: Number(r.amount), unit: r.unit, method: 'popup' }
+    if (!out.some((y) => y.amount === x.amount && y.unit === x.unit)) out.push(x)
+  }
+  return out
+}
+const remindersKey = (list) => list.map((r) => `${r.amount} ${r.unit}`).join(',')
 
 /** The audience the switch means for `ev` (null = a new event). */
 function audienceOf(form, ev) {
@@ -110,6 +182,15 @@ export function calFormBody(form, ev = null) {
   const description = String(form.description || '')
   if ([...description].length > CAL_DESCRIPTION_MAX) return { error: 'calendar_event.error_description_long' }
   if (Number.isNaN(calDayMs(form.date))) return { error: 'calendar_event.error_date' }
+  const location = String(form.location || '').trim()
+  if ([...location].length > CAL_LOCATION_MAX) return { error: 'calendar_event.error_location_long' }
+  const rows = form.reminders || []
+  if (rows.length > CAL_REMINDERS_MAX) return { error: 'calendar_event.error_reminders_many' }
+  const bad = rows.map(calReminderError).find(Boolean)
+  if (bad) return { error: bad }
+  const reminders = remindersBody(rows)
+  const color = CAL_COLORS.includes(form.color) ? form.color : ''
+  const zone = String(form.timeZone || '')
   const endDays = Math.max(0, Number(form.endDays) || 0)
   let startsAt
   let endsAt
@@ -117,19 +198,24 @@ export function calFormBody(form, ev = null) {
     startsAt = `${form.date}T00:00:00Z`
     endsAt = `${calAddDays(form.date, endDays + 1)}T00:00:00Z`
   } else {
-    startsAt = calWallToUtc(form.date, form.start)
-    endsAt = calWallToUtc(calAddDays(form.date, endDays), form.end)
+    startsAt = calWallToUtc(form.date, form.start, zone)
+    endsAt = calWallToUtc(calAddDays(form.date, endDays), form.end, zone)
     if (!startsAt || !endsAt) return { error: 'calendar_event.error_time' }
     if (Date.parse(endsAt) < Date.parse(startsAt)) return { error: 'calendar_event.error_end' }
   }
-  const full = { title, starts_at: startsAt, ends_at: endsAt, all_day: Boolean(form.allDay), audience: audienceOf(form, ev), description }
+  const full = {
+    title, starts_at: startsAt, ends_at: endsAt, all_day: Boolean(form.allDay), time_zone: zone || 'UTC',
+    location, reminders, color, audience: audienceOf(form, ev), description,
+  }
   if (!ev) return { body: full }
   const body = {}
   for (const [k, v] of Object.entries(full)) {
     const was = ev[k]
     const same = k === 'all_day' ? v === Boolean(was)
       : k === 'starts_at' || k === 'ends_at' ? Date.parse(v) === Date.parse(was)
-        : v === String(was ?? '')
+        : k === 'time_zone' ? zone === String(form.zoneWas || '')
+          : k === 'reminders' ? remindersKey(v) === remindersKey(calRemindersOf(ev))
+            : v === String(was ?? '')
     if (!same) body[k] = v
   }
   return { body: Object.keys(body).length ? body : null }

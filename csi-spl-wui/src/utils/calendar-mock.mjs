@@ -28,6 +28,10 @@ function item(fields) {
     issue_key: '',
     created_at: STAMP,
     updated_at: STAMP,
+    time_zone: 'UTC',
+    location: '',
+    color: '',
+    reminders: [],
     ...fields,
   }
 }
@@ -48,7 +52,8 @@ function mockAddedEvents() {
 /**
  * POST /v1/calendar/events (6.1.2) in the mock workspace: the created event,
  * kept so GET events / marks show it.
- * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string }} body
+ * 097 T014: and the event's time_zone, location, color and reminders (spec 4.2).
+ * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }} body
  */
 export function mockCalendarCreate(body = {}) {
   const now = new Date().toISOString()
@@ -61,6 +66,10 @@ export function mockCalendarCreate(body = {}) {
     all_day: Boolean(body.all_day),
     audience: ['public', 'internal', 'private'].includes(String(body.audience)) ? String(body.audience) : 'public',
     topic_id: String(body.topic_id || ''),
+    time_zone: String(body.time_zone || 'UTC'),
+    location: String(body.location || ''),
+    color: String(body.color || ''),
+    reminders: Array.isArray(body.reminders) ? body.reminders : [],
     created_at: now,
     updated_at: now,
   })

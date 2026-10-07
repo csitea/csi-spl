@@ -393,3 +393,34 @@
   --color-mode-reply: #0a7ea3;
   --color-mode-edit: #8a6100;
 }
+
+/* spec 097 T014 (G8, spec 3.3): an event's colour - the hub's 11 palette
+   names, one variable each. The dark family (the default) gets lighter
+   tones so a swatch and an event's edge read on the navy; every light-*
+   theme shares Google's own. */
+:root {
+  --cal-color-tomato: #ff6b6b;
+  --cal-color-flamingo: #f2a29c;
+  --cal-color-tangerine: #ff8a5c;
+  --cal-color-banana: #ffd54f;
+  --cal-color-sage: #5fd39b;
+  --cal-color-basil: #34a865;
+  --cal-color-peacock: #4fc3f7;
+  --cal-color-blueberry: #8c9eff;
+  --cal-color-lavender: #a5b1ec;
+  --cal-color-grape: #c770e0;
+  --cal-color-graphite: #a0a0a0;
+}
+:root[data-theme^="light"] {
+  --cal-color-tomato: #d50000;
+  --cal-color-flamingo: #e67c73;
+  --cal-color-tangerine: #f4511e;
+  --cal-color-banana: #f6bf26;
+  --cal-color-sage: #33b679;
+  --cal-color-basil: #0b8043;
+  --cal-color-peacock: #039be5;
+  --cal-color-blueberry: #3f51b5;
+  --cal-color-lavender: #7986cb;
+  --cal-color-grape: #8e24aa;
+  --cal-color-graphite: #616161;
+}

@@ -136,6 +136,13 @@ async function settled(p) {
   return last
 }
 const dialog = (p) => p.waitForSelector(DIALOG, { visible: true, timeout: 8000 }).then(() => true, () => false)
+/* 097 T014: a click shows the event's pop-over; its Edit opens the dialog */
+async function viaPopover(p) {
+  const edit = await p.waitForSelector('[data-test=calendar-popover-edit]', { visible: true, timeout: 8000 }).catch(() => null)
+  if (!edit) return false
+  await edit.click()
+  return dialog(p)
+}
 const form = (p) => p.evaluate(() => ({
   mode: document.querySelector('[data-test=calendar-event-form]')?.getAttribute('data-mode') || '',
   date: document.querySelector('[data-test=calendar-event-date]')?.value || '',
@@ -221,7 +228,7 @@ try {
   /* a click is still a click */
   it = await item(a, 'Drag me')
   if (it) await a.mouse.click(it.cx, it.y + 8)
-  ok('a click without a drag opens the event', await dialog(a) && (await form(a)).mode === 'edit')
+  ok('a click without a drag opens the event', await viaPopover(a) && (await form(a)).mode === 'edit')
   await closeDialog(a)
   await shot(a, '1440-week')
   ok('1440: no sideways scroll', (await xScroll(a)) <= 1, await xScroll(a))
@@ -262,7 +269,7 @@ try {
     /* a tap opens the event */
     it = await item(p, 'Hold me')
     if (it) await tap(cdp, { x: it.cx, y: it.y + 10 })
-    ok(`${w}: a tap opens the event`, await dialog(p) && (await form(p)).mode === 'edit')
+    ok(`${w}: a tap opens the event`, await viaPopover(p) && (await form(p)).mode === 'edit')
     await closeDialog(p)
 
     /* a swipe without a hold moves nothing */

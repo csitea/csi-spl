@@ -79,10 +79,10 @@ export function viewerTimeZone() {
   return z && isKnownTimeZone(z) ? z : ""
 }
 
-/** Wall-clock fields of `d` in the viewer's zone. */
-function fields(d) {
-  const zone = viewerTimeZone()
-  const f = zone ? formatterFor(zone) : null
+/** Wall-clock fields of `d` in `zone`, else the viewer's zone. */
+function fields(d, zone) {
+  const z = zone && isKnownTimeZone(zone) ? zone : viewerTimeZone()
+  const f = z ? formatterFor(z) : null
   if (!f) {
     return { y: d.getFullYear(), mo: d.getMonth() + 1, da: d.getDate(), h: d.getHours(), mi: d.getMinutes(), s: d.getSeconds() }
   }
@@ -107,11 +107,14 @@ export function isoClock(value) {
   return `${pad(f.h)}:${pad(f.mi)}`
 }
 
-/** YYYY-MM-DD HH:MM in the viewer's zone, or "" when value is not a time. */
-export function isoDateTime(value) {
+/**
+ * YYYY-MM-DD HH:MM in the viewer's zone, or "" when value is not a time.
+ * `zone` (097 T014, an event's own IANA zone) prints in that zone instead.
+ */
+export function isoDateTime(value, zone) {
   const d = asDate(value)
   if (!d) return ""
-  const f = fields(d)
+  const f = fields(d, zone)
   return `${f.y}-${pad(f.mo)}-${pad(f.da)} ${pad(f.h)}:${pad(f.mi)}`
 }
 

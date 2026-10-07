@@ -21,9 +21,11 @@ declare module '~/utils/calendar-mock.mjs' {
     starts_at: string, ends_at: string, all_day: boolean, audience: 'public' | 'internal' | 'private', mentions: string[],
     creator_type: 'human' | 'agent' | 'system', creator_id: string, remind_at: string, topic_id: string,
     release_version: string, issue_key: string, created_at: string, updated_at: string,
+    /** 097 4.1; absent on an 089 hub */
+    time_zone?: string, location?: string, color?: string, reminders?: { amount: number, unit: string, method?: string }[],
   }
   export function mockCalendarItems(todayIso: string): CalendarItem[]
-  export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string }): CalendarItem
+  export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem
   export function mockCalendarUpdate(id: string, patch: Record<string, unknown>, todayIso: string): CalendarItem
   export function mockCalendarDelete(id: string, todayIso: string): CalendarItem
   export function mockCalendarEvents(start: string, end: string, todayIso: string): { start: string, end: string, events: CalendarItem[] }
@@ -36,13 +38,27 @@ declare module '~/utils/calendar-mock.mjs' {
 
 /* spec 089 T008 v1: the event dialog's form and its three writes */
 declare module '~/utils/calendar-event-form.mjs' {
-  export type CalForm = { title: string, date: string, start: string, end: string, allDay: boolean, endDays: number, private: boolean, description: string }
+  /** 097 T014: a reminder row as typed (the amount stays a string of digits) */
+  export type CalReminderRow = { amount: string, unit: string }
+  export type CalForm = {
+    title: string, date: string, start: string, end: string, allDay: boolean, endDays: number,
+    timeZone: string, zoneWas: string, location: string, reminders: CalReminderRow[], color: string,
+    private: boolean, description: string,
+  }
   type Item = import('~/utils/calendar-mock.mjs').CalendarItem
   export const CAL_TITLE_MAX: number
   export const CAL_DESCRIPTION_MAX: number
+  export const CAL_LOCATION_MAX: number
+  export const CAL_REMINDERS_MAX: number
+  export const CAL_COLORS: string[]
+  export const CAL_REMINDER_UNITS: Record<string, number>
+  export function calDefaultZone(): string
+  export function calReminderAmount(raw: unknown): string
+  export function calReminderError(row: CalReminderRow): string
+  export function calNewReminder(rows: CalReminderRow[]): CalReminderRow | null
   export function calEditable(ev: Item | null | undefined): boolean
   export function calCanSetPrivate(ev: Item | null | undefined, viewerId: string): boolean
-  export function calWallToUtc(date: string, hhmm: string): string
+  export function calWallToUtc(date: string, hhmm: string, zone?: string): string
   export function calFormFromEvent(ev: Item | null, day: string): CalForm
   export function calFormBody(form: CalForm, ev?: Item | null): { body: Record<string, unknown> | null, error?: undefined } | { error: string, body?: undefined }
   export function calHourAfter(hhmm: string): string

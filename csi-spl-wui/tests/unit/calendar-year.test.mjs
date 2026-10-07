@@ -70,7 +70,9 @@ describe('the strip', () => {
 
 /* spec 6.1.1: one shape for every item, whatever its source */
 const FIELDS = ['id', 'source', 'title', 'description', 'kind', 'starts_at', 'ends_at', 'all_day', 'audience', 'mentions',
-  'creator_type', 'creator_id', 'remind_at', 'topic_id', 'release_version', 'issue_key', 'created_at', 'updated_at']
+  'creator_type', 'creator_id', 'remind_at', 'topic_id', 'release_version', 'issue_key', 'created_at', 'updated_at',
+  /* 097 4.1, the fields T014 edits */
+  'time_zone', 'location', 'color', 'reminders']
 
 describe('the mock answers 6.1', () => {
   const today = '2026-10-05'

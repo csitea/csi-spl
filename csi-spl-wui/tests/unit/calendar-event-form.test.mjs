@@ -6,11 +6,19 @@
 //   moved, so a non-creator's save cannot touch it
 // - a timed event's clock is the viewer's zone, all-day is whole UTC days
 // - the mock's PATCH refuses `private` from a non-creator like the hub (403)
+// 097 T014 (G6..G9, G11):
+// - a new event's zone is the member's preference; the clock is wall time in
+//   the event's own zone; an 089 event (`UTC`) opens in the viewer's and
+//   keeps `UTC` until the picker moves
+// - a reminder amount keeps digits only (1.5, 0, -1 cannot be typed); up to
+//   5 reminders, each at most 4 weeks; equal ones once
+// - location and one of the 11 colours; Duplicate keeps every field
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import {
-  calCanSetPrivate, calEditable, calFormBody, calFormFromEvent, calHourAfter, calWallToUtc,
+  CAL_COLORS, calCanSetPrivate, calEditable, calFormBody, calFormFromEvent, calHourAfter, calNewReminder,
+  calReminderAmount, calReminderError, calWallToUtc,
 } from '../../src/utils/calendar-event-form.mjs'
 import { mockCalendarCreate, mockCalendarDelete, mockCalendarEvents, mockCalendarUpdate } from '../../src/utils/calendar-mock.mjs'
 
@@ -27,10 +35,16 @@ afterEach(() => setTimeZoneSource(() => ''))
 describe('create', () => {
   it('a new event is 09:00-10:00 on the clicked day, public', () => {
     const form = calFormFromEvent(null, '2026-10-07')
-    assert.deepEqual(form, { title: '', date: '2026-10-07', start: '09:00', end: '10:00', allDay: false, endDays: 0, private: false, description: '' })
+    assert.deepEqual(form, {
+      title: '', date: '2026-10-07', start: '09:00', end: '10:00', allDay: false, endDays: 0,
+      timeZone: 'UTC', zoneWas: 'UTC', location: '', reminders: [], color: '', private: false, description: '',
+    })
     form.title = '  Planning  '
     assert.deepEqual(calFormBody(form), {
-      body: { title: 'Planning', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z', all_day: false, audience: 'public', description: '' },
+      body: {
+        title: 'Planning', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z', all_day: false, time_zone: 'UTC',
+        location: '', reminders: [], color: '', audience: 'public', description: '',
+      },
     })
   })
   it('the Private switch on stores private', () => {
@@ -95,6 +109,88 @@ describe('edit', () => {
   })
 })
 
+describe('097 T014: time zone', () => {
+  it('a new event takes the member\'s zone; its clock is wall time there', () => {
+    setTimeZoneSource(() => 'Europe/Helsinki')
+    const form = { ...calFormFromEvent(null, '2026-10-07'), title: 'x' }
+    assert.equal(form.timeZone, 'Europe/Helsinki')
+    const { body } = calFormBody({ ...form, timeZone: 'America/New_York' })
+    assert.equal(body.time_zone, 'America/New_York')
+    assert.equal(body.starts_at, '2026-10-07T13:00:00Z')
+    assert.equal(calWallToUtc('2026-10-07', '09:00', 'Asia/Tokyo'), '2026-10-07T00:00:00Z')
+  })
+  it('an event opens in its own zone; an 089 (UTC) one in the viewer\'s, unchanged', () => {
+    setTimeZoneSource(() => 'Europe/Helsinki')
+    const ny = ev({ time_zone: 'America/New_York', starts_at: '2026-10-07T13:00:00Z', ends_at: '2026-10-07T14:00:00Z' })
+    const f = calFormFromEvent(ny, '')
+    assert.deepEqual([f.timeZone, f.date, f.start, f.end], ['America/New_York', '2026-10-07', '09:00', '10:00'])
+    assert.equal(calFormBody(f, ny).body, null)
+    const old = ev({ time_zone: 'UTC' })
+    const g = calFormFromEvent(old, '')
+    assert.deepEqual([g.timeZone, g.start], ['Europe/Helsinki', '12:00'])
+    assert.equal(calFormBody(g, old).body, null)
+    /* the picker moved: the zone is sent, the wall clock stays, so the instant moves */
+    assert.deepEqual(calFormBody({ ...g, timeZone: 'UTC' }, old).body, {
+      starts_at: '2026-10-07T12:00:00Z', ends_at: '2026-10-07T12:30:00Z', time_zone: 'UTC',
+    })
+  })
+})
+
+describe('097 T014: reminders, location, colour', () => {
+  it('an amount keeps digits only: a fraction, a sign or 0 cannot be typed', () => {
+    assert.equal(calReminderAmount('1.5'), '15')
+    assert.equal(calReminderAmount('0'), '')
+    assert.equal(calReminderAmount('007'), '7')
+    assert.equal(calReminderAmount('-3'), '3')
+    assert.equal(calReminderAmount('1e3'), '13')
+    assert.equal(calReminderAmount('123456'), '12345')
+  })
+  it('a row is a whole number 1 or more, at most 4 weeks', () => {
+    assert.equal(calReminderError({ amount: '10', unit: 'minutes' }), '')
+    assert.equal(calReminderError({ amount: '', unit: 'minutes' }), 'calendar_event.error_reminder_amount')
+    assert.equal(calReminderError({ amount: '1.5', unit: 'hours' }), 'calendar_event.error_reminder_amount')
+    assert.equal(calReminderError({ amount: '0', unit: 'days' }), 'calendar_event.error_reminder_amount')
+    assert.equal(calReminderError({ amount: '28', unit: 'days' }), '')
+    assert.equal(calReminderError({ amount: '29', unit: 'days' }), 'calendar_event.error_reminder_max')
+    assert.equal(calReminderError({ amount: '673', unit: 'hours' }), 'calendar_event.error_reminder_max')
+    assert.equal(calReminderError({ amount: '40321', unit: 'minutes' }), 'calendar_event.error_reminder_max')
+    assert.equal(calReminderError({ amount: '1', unit: 'weeks' }), 'calendar_event.error_reminder_amount')
+  })
+  it('up to 5; sent as typed, equal ones once; a bad one refuses the save', () => {
+    const rows = []
+    for (let i = 0; i < 5; i++) rows.push(calNewReminder(rows))
+    assert.equal(calNewReminder(rows), null)
+    const base = { ...calFormFromEvent(null, '2026-10-07'), title: 'x' }
+    const out = calFormBody({ ...base, reminders: [{ amount: '1', unit: 'days' }, { amount: '10', unit: 'minutes' }, { amount: '1', unit: 'days' }] })
+    assert.deepEqual(out.body.reminders, [{ amount: 1, unit: 'days', method: 'popup' }, { amount: 10, unit: 'minutes', method: 'popup' }])
+    assert.equal(calFormBody({ ...base, reminders: [{ amount: '0', unit: 'days' }] }).error, 'calendar_event.error_reminder_amount')
+    assert.equal(calFormBody({ ...base, reminders: [...rows, { amount: '1', unit: 'days' }] }).error, 'calendar_event.error_reminders_many')
+  })
+  it('an edit sends reminders, location and colour only when they changed', () => {
+    const e = ev({ reminders: [{ amount: 1, unit: 'days', method: 'popup' }], location: 'Room 1', color: 'sage' })
+    const f = calFormFromEvent(e, '')
+    assert.deepEqual(f.reminders, [{ amount: '1', unit: 'days' }])
+    assert.deepEqual([f.location, f.color], ['Room 1', 'sage'])
+    assert.equal(calFormBody(f, e).body, null)
+    assert.deepEqual(calFormBody({ ...f, reminders: [] }, e).body, { reminders: [] })
+    assert.deepEqual(calFormBody({ ...f, location: ' Room 2 ', color: '' }, e).body, { location: 'Room 2', color: '' })
+    assert.equal(calFormBody({ ...f, location: 'x'.repeat(301) }, e).error, 'calendar_event.error_location_long')
+  })
+  it('a colour is one of the hub\'s 11 names, else the kind\'s own', () => {
+    assert.equal(CAL_COLORS.length, 11)
+    assert.equal(calFormFromEvent(ev({ color: 'red' }), '').color, '')
+    assert.equal(calFormBody({ ...calFormFromEvent(null, '2026-10-07'), title: 'x', color: 'url(x)' }).body.color, '')
+  })
+  it('Duplicate: a copy of an event saves as a new one with its fields', () => {
+    const e = ev({ title: 'Retro', location: 'Room 1', color: 'grape', reminders: [{ amount: 2, unit: 'hours', method: 'popup' }], description: 'notes' })
+    const { body } = calFormBody(calFormFromEvent(e, ''))
+    assert.deepEqual(body, {
+      title: 'Retro', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T09:30:00Z', all_day: false, time_zone: 'UTC',
+      location: 'Room 1', reminders: [{ amount: 2, unit: 'hours', method: 'popup' }], color: 'grape', audience: 'public', description: 'notes',
+    })
+  })
+})
+
 describe('who sees the switch, what opens', () => {
   it('the creator only, any viewer for a new event, nobody unknown', () => {
     assert.equal(calCanSetPrivate(null, ''), true)
@@ -132,6 +228,12 @@ describe('mock workspace writes', () => {
     assert.equal(b.audience, 'private')
     assert.equal(b.all_day, true)
     assert.deepEqual(week().filter((x) => x.title === 'A' || x.title === 'B').map((x) => x.audience), ['public', 'private'])
+  })
+  it('097 T014: create keeps time_zone, location, color and reminders', () => {
+    const a = mockCalendarCreate({ title: 'A', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z', time_zone: 'Europe/Helsinki', location: 'Room 1', color: 'sage', reminders: [{ amount: 10, unit: 'minutes', method: 'popup' }] })
+    assert.deepEqual([a.time_zone, a.location, a.color, a.reminders.length], ['Europe/Helsinki', 'Room 1', 'sage', 1])
+    const r = week().find((x) => x.kind === 'release')
+    assert.deepEqual([r.time_zone, r.location, r.color, r.reminders], ['UTC', '', '', []])
   })
   it('edit and delete a seeded event; private is the creator\'s only (403)', () => {
     const release = week().find((x) => x.kind === 'release')

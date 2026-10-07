@@ -186,6 +186,15 @@ restart path means one lock that every actor takes (4.2).
   still sends no keys and no other takeover to a pane with a human active in
   the last 120 s or with a `.human-hold`. At 2 h a human hold is not
   honoured (R3).
+- "A human active" means a tmux client whose **current window** is the
+  agent's window, active in the last 120 s (`WD_HUMAN_IDLE`), not any client
+  of its session: on a box where every fleet window shares the owner's
+  session, an owner typing in another window refused every guarded restart
+  (c-508, t1 `637269bb`, 2026-10-07). This holds for every cause. A rebirth
+  or a died session (S3) has no harness left to protect, but its restart
+  renames and closes that window and spawns the next session beside it, so
+  the same window check (and a `.human-hold`) still defers it; a client in
+  another window does not.
 
 ## 4. One restart path (H5, W1, W2, W4, W5, R11)
 
@@ -899,7 +908,7 @@ do and its context come from the web app (topics, briefs).
 | 093 S2 limit: back after reset, no DM | `situations/s2.sh` | the admin is told; buttons (7) | `sed -n 1,8p orc/features/watchdog/situations/s2.sh` |
 | 093 S3 bare shell; `rundir_gone` = finished | `situations/s3.sh:11` | + a gone pane with an open registry row (4.3); `rundir_gone` stays the done rule | `grep -n rundir_gone orc/features/watchdog/situations/s3.sh` |
 | 093 S7 list of dialogs | `situations/s7.sh`, `spl_lease_modal_hit` | kept as the fast path; S9 is the net (8) | `ls orc/features/watchdog/situations/` -> `lib.inc.sh`, s1..s9 |
-| 093 6.2 human guard | `spl_wd_gate` (`WD_HUMAN_IDLE` 120 s) | not for the 2 h end (R3) | `grep -n WD_HUMAN_IDLE orc/run/spl-watchdog.func.sh` |
+| 093 6.2 human guard | `spl_wd_gate` (`WD_HUMAN_IDLE` 120 s), any client of the agent's session | not for the 2 h end (R3); only a client showing the agent's window counts, for every cause (section 3) | `grep -n 'client_activity} #{window_id}' orc/run/spl-watchdog.func.sh` |
 | 093 8 takeover, start-first for every agent | `spl_wdt_steps` (spawn, then kill) | `do_spl_agent_restart`: lanes stop-first (new code, 4.1), seats start-first; slots instead of one box lock (4.2) | `sed -n 217,258p orc/run/spl-wd-takeover.func.sh` |
 | 093 10 "no watchdog needs to reach another box" | no box beat; `box_stats` every 5 min (rdb 0117) | `box_beats`, the fence, lane CAS on `running_box`, guests (10.2) | `ls csi-spl-rdb/src/sql/postgres/spool-hub \| grep -c box_beats` -> 0 |
 | 093 6.4 owner DM via `ASKS_OWNER` | `spl-wd-ensure.func.sh` | admin messages (11.2) | `grep -c ASKS_OWNER csi-spl-orc/src/bash/run/spl-wd-ensure.func.sh` -> 4 |

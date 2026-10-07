@@ -143,9 +143,7 @@ spl_ars_gate() {
   rm -rf "${tick:?}" "${ctx:?}" && mkdir -p "$tick" "$ctx"
   if spl_ars_retired "$id"; then spl_ars_refuse "$id" 3 "retired (registry.retired.tsv, no open registry row): never restarted"; return; fi
   spl_wd_ps > "$tick/ps"
-  spl_wd_tmux list-panes -a -F '#{pane_id}	#{pane_pid}	#{session_id}	#{window_name}	#{pane_current_command}' \
-    > "$tick/panes" 2>/dev/null || true
-  spl_wd_tmux list-clients -F '#{session_id} #{client_activity}' > "$tick/clients" 2>/dev/null || true
+  spl_wd_tmux_lists "$tick"
   spl_wd_agents "$tick" > "$tick/agents"
   row="$(awk -F'\t' -v i="$id" '$1 == i {print; exit}' "$tick/agents")"
   [[ -n "$row" ]] || { spl_ars_refuse "$id" 3 "not an agent of this box (no window, no process carries it)"; return; }

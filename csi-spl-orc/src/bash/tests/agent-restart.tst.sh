@@ -31,6 +31,10 @@
 #  10. a hard end: a live session past HARD_END is restarted even with a
 #      human client active (R3); control: a younger session -> exit 3
 #  11. a dry run touches nothing
+#  12. the human guard keys on the agent's window (c-491): a rebirth with the
+#      owner active in another window of the same session runs; control: in
+#      THAT window it is refused, nothing spawned, the marker kept; the hard
+#      end with the owner in that window still runs (R3)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -297,6 +301,20 @@ world; lane c-941 %41 -; reborn c-941
 rc="$(go ID=c-941 CAUSE=rebirth)"
 [[ "$rc" == 0 && ! -e "$T/spawn.log" && ! -e "$D/rotate.log" && ! -e "$T/sent" && -e "$S/c-941/lifetime/rebirth" && ! -e "$S/c-941/lifetime/restarts" ]] &&
   grep -q 'RS-SPAWN PLAN' "$T/o" && pass "11. a dry run: PLAN lines, nothing touched" || fail "11. dry rc=$rc: $(cat "$T/o")"
+
+# --- 12. the human guard keys on the agent's window ----------------------------------------------
+# wid <pane> <window id>: the window column tmux prints after the fg command
+wid() { awk -F'\t' -v OFS='\t' -v p="$1" -v w="$2" '$1 == p {$6 = w} {print}' "$T/tmux/panes" > "$T/tmux/p.new" && mv "$T/tmux/p.new" "$T/tmux/panes"; }
+world; lane c-941 %41 -; wid %41 @41; reborn c-941; echo "\$1 $((T0 - 20)) @7" > "$T/tmux/clients"
+rc="$(go ID=c-941 CAUSE=rebirth DRY_RUN=0)"
+[[ "$rc" == 0 ]] && alive 3941 && pass "12. a rebirth, the owner active in another window of its session: restarted" || fail "12. other window rc=$rc: $(tail -4 "$T/o")"
+world; lane c-941 %41 -; wid %41 @41; reborn c-941; echo "\$1 $((T0 - 20)) @41" > "$T/tmux/clients"
+rc="$(go ID=c-941 CAUSE=rebirth DRY_RUN=0)"
+[[ "$rc" == 4 && ! -e "$T/spawn.log" && -e "$S/c-941/lifetime/rebirth" ]] && grep -q 'REFUSED c-941: a human client was active 20s ago' "$T/o" &&
+  pass "12. control: the owner active in THAT window: refused (exit 4), nothing spawned, the marker kept" || fail "12. that window rc=$rc: $(tail -4 "$T/o")"
+world; AGE=7300 lane c-942 %42 4942; wid %42 @42; hb c-942 working 10; echo "\$1 $((T0 - 20)) @42" > "$T/tmux/clients"
+rc="$(go ID=c-942 CAUSE=hard-end DRY_RUN=0)"
+[[ "$rc" == 0 ]] && ! alive 4942 && pass "12. control: the hard end with the owner in THAT window still restarts (R3)" || fail "12. hard end rc=$rc: $(tail -4 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

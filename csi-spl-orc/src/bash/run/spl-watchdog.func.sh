@@ -167,9 +167,7 @@ spl_wd_tick() {
   spl_wd_peers "$now" "$(( now - last ))"
   rm -rf "$tick" && mkdir -p "$tick"
   spl_wd_ps > "$tick/ps"
-  spl_wd_tmux list-panes -a -F '#{pane_id}	#{pane_pid}	#{session_id}	#{window_name}	#{pane_current_command}' \
-    > "$tick/panes" 2>/dev/null || true
-  spl_wd_tmux list-clients -F '#{session_id} #{client_activity}' > "$tick/clients" 2>/dev/null || true
+  spl_wd_tmux_lists "$tick"
   WD_BOX_BUSY=""
   if [[ -e "$SPOOL_ROOT/peer/restart.lock" ]] && ! flock -n "$SPOOL_ROOT/peer/restart.lock" true; then
     WD_BOX_BUSY="a restart holds peer/restart.lock"
@@ -572,9 +570,19 @@ spl_wd_run_scripts() {
   return 0
 }
 
+# spl_wd_tmux_lists TICK: <tick>/panes, one line per pane "<pane>\t<pane pid>\t
+# <session>\t<window name>\t<fg command>\t<window id>", and <tick>/clients,
+# one line per client "<session> <activity epoch> <window id>": the window the
+# client shows NOW, which the human guard compares (spec 102 3, the R3 note).
+spl_wd_tmux_lists() {
+  spl_wd_tmux list-panes -a -F '#{pane_id}	#{pane_pid}	#{session_id}	#{window_name}	#{pane_current_command}	#{window_id}' \
+    > "$1/panes" 2>/dev/null || true
+  spl_wd_tmux list-clients -F '#{session_id} #{client_activity} #{window_id}' > "$1/clients" 2>/dev/null || true
+}
+
 # The context dir of one agent (situations/lib.inc.sh names the files).
 spl_wd_gather() {
-  local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx="$6" ppid sess act rundir
+  local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx="$6" ppid sess win act rundir
   echo "$now" > "$ctx/now"
   cp "$SPOOL_ROOT/$id/heartbeat.json" "$ctx/heartbeat" 2>/dev/null || true
   # S9 (spec 102 8.1): what was typed into the pane, and when the model got a prompt
@@ -596,10 +604,13 @@ spl_wd_gather() {
   if [[ -s "$ctx/pane" ]]; then
     spl_wd_since "$id" s9pane "$(timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --norm < "$ctx/pane" 2>/dev/null 6>&- 7>&- 9>&- || true)" "$now" "$ctx/pane_age"
   fi
-  IFS=$'\t' read -r ppid sess < <(awk -F'\t' -v p="$pane" '$1 == p {print $2 "\t" $3}' "$tick/panes") || true
+  IFS=$'\t' read -r ppid sess win < <(awk -F'\t' -v p="$pane" '$1 == p {print $2 "\t" $3 "\t" $6}' "$tick/panes") || true
   awk -F'\t' -v p="$pane" '$1 == p {print $5}' "$tick/panes" > "$ctx/fg"
   [[ -n "${ppid:-}" ]] && spl_wd_tree "$ppid" "$tick/ps" > "$ctx/tree"
-  act="$(awk -v s="${sess:-none}" '$1 == s && $2 > m {m = $2} END {print m + 0}' "$tick/clients")"
+  # the human guard: only a client showing THIS window counts, not one
+  # anywhere in its session (a box whose fleet windows share the owner's session).
+  # A line without a window id (an older capture) counts on its session.
+  act="$(awk -v s="${sess:-none}" -v w="${win:-}" '$1 == s && (w == "" || $3 == "" || $3 == w) && $2 > m {m = $2} END {print m + 0}' "$tick/clients")"
   if (( act > 0 )); then echo $(( now - act )) > "$ctx/client_age"; fi
   spl_wd_since "$id" spin "$(grep -v '^[[:space:]]*$' "$ctx/pane" 2>/dev/null | tail -n 12 |
     grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' | tail -1 | grep -oE '\(.*\)' || true)" "$now" "$ctx/spin_age"
@@ -791,6 +802,11 @@ spl_wd_episodes_end() {
 
 # Why the watchdog may not act on <id> now; nothing when it may (6.2, 6.3).
 # WD_GATE_NO_HUMAN=1 (the hard end, spec 102 R3) skips the human guards.
+# The client guard reads ctx/client_age: a client whose CURRENT window is the
+# agent's window (spl_wd_gather), so an owner typing in another window of the
+# same session blocks nothing. A rebirth or a died session (S3) has no harness
+# left to guard, but its restart still renames and closes that window and
+# spawns next to it: the same window check (and a .human-hold) holds it.
 # A hold of spec 102 6.1 (<id>/lifetime/heldout) never expires; the hour of
 # a hold do_spl_wd_takeover wrote (<WD_DIR>/<id>.heldout) still does.
 spl_wd_gate() {

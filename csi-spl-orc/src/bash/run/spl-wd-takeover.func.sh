@@ -108,9 +108,7 @@ spl_wdt_gate() {
   ctx="$WD_DIR/takeover.$id.ctx"
   rm -rf "$tick" "$ctx" && mkdir -p "$tick" "$ctx"
   spl_wd_ps > "$tick/ps"
-  spl_wd_tmux list-panes -a -F '#{pane_id}	#{pane_pid}	#{session_id}	#{window_name}	#{pane_current_command}' \
-    > "$tick/panes" 2>/dev/null || true
-  spl_wd_tmux list-clients -F '#{session_id} #{client_activity}' > "$tick/clients" 2>/dev/null || true
+  spl_wd_tmux_lists "$tick"
   spl_wd_agents "$tick" > "$tick/agents"
   row="$(awk -F'\t' -v i="$id" '$1 == i {print; exit}' "$tick/agents")"
   [[ -n "$row" ]] || { spl_wdt_refuse "$id" 3 "not an agent of this box (no window, no process carries it)"; return; }

@@ -105,14 +105,17 @@
               @add="addOn"
             />
             <div v-else class="calphone__slot" :data-test="`calphone-slot-${view}`" :data-period="pg.period">
-              <p class="calphone__slot-title">{{ pg.title }}</p>
-              <p class="calphone__slot-note">{{ t('calendar_phone.placeholder') }}</p>
-              <ul v-if="pg.dir === 0 && state === 'ready'" class="calphone__slot-list">
-                <li v-for="ev in items" :key="ev.id" class="calphone__slot-row" data-test="calphone-slot-row" :data-id="ev.id" @click="openPeek(ev)">
-                  {{ ev.title }}
-                </li>
-              </ul>
-              <p v-else-if="pg.dir === 0 && state === 'failed'" class="calphone__slot-note">{{ t('calendar.load_failed') }}</p>
+              <CalendarPhoneDay v-if="view === 'day'" :day="pg.period" :today="today" :items="pg.dir === 0 ? items : []" @create="onCreate" @peek="openPeek" />
+              <template v-else>
+                <p class="calphone__slot-title">{{ pg.title }}</p>
+                <p class="calphone__slot-note">{{ t('calendar_phone.placeholder') }}</p>
+                <ul v-if="pg.dir === 0 && state === 'ready'" class="calphone__slot-list">
+                  <li v-for="ev in items" :key="ev.id" class="calphone__slot-row" data-test="calphone-slot-row" :data-id="ev.id" @click="openPeek(ev)">
+                    {{ ev.title }}
+                  </li>
+                </ul>
+                <p v-else-if="pg.dir === 0 && state === 'failed'" class="calphone__slot-note">{{ t('calendar.load_failed') }}</p>
+              </template>
             </div>
           </div>
         </div>
@@ -187,7 +190,7 @@
       </button>
     </nav>
     <!-- T008 (add sheet), T009 (peek), T010 (picker, search) open here -->
-    <div v-if="panel" hidden data-test="calphone-panel" :data-panel="panel" :data-at-day="panelAt.day" />
+    <div v-if="panel" hidden data-test="calphone-panel" :data-panel="panel" :data-at-day="panelAt.day" :data-at="addAt?.at" />
     <CalendarPhoneSheet
       v-if="sheetUsed || panel === 'add'"
       :open="panel === 'add'"
@@ -214,6 +217,7 @@ import { isoClock, isoDate } from '~/utils/date-iso.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
+import type { CalPhoneCreate } from './CalendarPhoneDay.vue'
 
 const CalendarPhoneWeek = defineAsyncComponent(() => import('./CalendarPhoneWeek.vue'))
 
@@ -289,6 +293,14 @@ function openDay(day: string) {
   pick(day)
   setView('day')
 }
+/* T007: a tap on empty time in Day opens the add sheet on that hour (AC-04) */
+const CalendarPhoneDay = defineAsyncComponent(() => import('./CalendarPhoneDay.vue'))
+const addAt = shallowRef<CalPhoneCreate | null>(null)
+function onCreate(slot: CalPhoneCreate) {
+  openSheet({ day: slot.date, hour: Number(slot.start.slice(0, 2)) })
+  addAt.value = slot
+}
+watch(panel, (v) => { if (!v) addAt.value = null })
 
 /* T008: the add / edit sheet, its own chunk on first open. The views and
    the peek open it with inject('calphone-sheet'): a new event on a day (at a

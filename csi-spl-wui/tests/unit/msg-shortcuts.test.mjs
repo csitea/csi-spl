@@ -204,7 +204,7 @@ describe('Topics view: Shift + A on a focused topic row (t1 topic 2627084c)', ()
   })
 })
 
-describe('Shift + U / Shift + B: reply to its topic\'s first message and back (t1 29c3b055)', () => {
+describe('Shift + B / Shift + U: reply to its topic\'s first message and back (t1 29c3b055)', () => {
   /* a topic pane: the opener, two replies, newest first as the pane draws them */
   const P = { id: 'p', task: 't', opener: true, ts: '2026-10-07T10:00:00Z' }
   const R1 = { id: 'r1', task: 't', opener: false, ts: '2026-10-07T10:01:00Z' }
@@ -214,8 +214,8 @@ describe('Shift + U / Shift + B: reply to its topic\'s first message and back (t
   it('both keys resolve, name no menu item, and are labelled', () => {
     assert.deepEqual(shortcutFor(shift('U')), { type: 'action', key: 'U' })
     assert.deepEqual(shortcutFor(shift('B')), { type: 'action', key: 'B' })
-    assert.equal(MSG_SHORTCUTS.find((s) => s.key === 'U').labelKey, 'feed.shortcuts.to_parent')
-    assert.equal(MSG_SHORTCUTS.find((s) => s.key === 'B').labelKey, 'feed.shortcuts.back_to_reply')
+    assert.equal(MSG_SHORTCUTS.find((s) => s.key === 'B').labelKey, 'feed.shortcuts.to_parent')
+    assert.equal(MSG_SHORTCUTS.find((s) => s.key === 'U').labelKey, 'feed.shortcuts.back_to_reply')
     assert.equal(shortcutItem('U', offeredItems({ editable: true })), '')
     assert.equal(shortcutItem('B', offeredItems({ editable: true })), '')
     assert.equal(shortcutFor(shift('U'), { enabled: false }), null)
@@ -259,7 +259,7 @@ describe('Shift + U / Shift + B: reply to its topic\'s first message and back (t
   })
 })
 
-describe('Shift + U / Shift + B: the 2nd panel, the centre list (t1 29c3b055, owner "yes , do it that way")', () => {
+describe('Shift + B / Shift + U: the 2nd panel, the centre list (t1 29c3b055, owner "yes , do it that way")', () => {
   const P = { id: 't', task: 't', opener: true, ts: '2026-10-07T10:00:00Z' }
   const R1 = { id: 'r1', task: 't', opener: false, ts: '2026-10-07T10:01:00Z' }
   const R2 = { id: 'r2', task: 't', opener: false, ts: '2026-10-07T10:02:00Z' }

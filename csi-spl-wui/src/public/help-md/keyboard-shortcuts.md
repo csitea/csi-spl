@@ -95,8 +95,8 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 | **`Shift + A`** | Selected message, desktop | Archive / Unarchive |
 | **`Shift + O`** | Selected message, desktop | Open |
 | **`Shift + P`** | Selected message, desktop | Open parent section |
-| **`Shift + U`** | Selected message, desktop | Go to the topic's first message in the list |
-| **`Shift + B`** | Selected message, desktop | Back to the reply |
+| **`Shift + B`** | Selected message, desktop | Go to the topic's first message in the list |
+| **`Shift + U`** | Selected message, desktop | Back to the reply |
 | **`Shift + L`** | Selected message, desktop | Copy link |
 | **`Shift + C`** | Selected message, desktop | Copy text |
 | **`Shift + K`** | Selected message, desktop | Change kind |
@@ -107,6 +107,6 @@ These keys act on the **selected message**; in the **Topics** view, the Archive 
 
 ## 8. When these keys stay quiet
 
-A message shortcut runs only when that menu item would be offered for the selected message. **`Shift + R`** opens the selected message's menu. **`Shift + U`** works on a reply in the topic pane on the right: it selects that topic's first message in the list in the middle (the channel's or the direct messages' card, or the topic's row in the topic view) and scrolls it into view. When the list does not show that topic, it selects the topic's first message in the topic pane instead, reading older replies in when that message is not loaded. **`Shift + B`** on that first message selects the reply you came from again, in the panel it was in, or the topic's latest reply when you did not come from one. On a topic's first message, or a message with no topic, **`Shift + U`** does nothing. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
+A message shortcut runs only when that menu item would be offered for the selected message. **`Shift + R`** opens the selected message's menu. **`Shift + B`** works on a reply in the topic pane on the right: it selects that topic's first message in the list in the middle (the channel's or the direct messages' card, or the topic's row in the topic view) and scrolls it into view. When the list does not show that topic, it selects the topic's first message in the topic pane instead, reading older replies in when that message is not loaded. **`Shift + U`** on that first message selects the reply you came from again, in the panel it was in, or the topic's latest reply when you did not come from one. On a topic's first message, or a message with no topic, **`Shift + B`** does nothing. It does nothing while you are typing, while a menu or a dialog is open, or while Ctrl, Cmd or Alt is held, and it does nothing on a phone. **`Shift + ?`** opens this list.
 
-<!-- version: 1.2.3 · updated: 2026-10-07 -->
+<!-- version: 1.2.4 · updated: 2026-10-07 -->

@@ -110,9 +110,10 @@ export function stepSelection(row: HTMLElement | null, step: number): boolean {
    jump directly from the selected reply msg and the parent topic msg", then
    "it should select the topics first msg, but in the 2nd panel" and, on the
    panels read as rail = 1, centre list = 2, topic pane = 3, "yes , do it that
-   way". Shift + U on a reply in the topic pane selects that topic's row in the
-   centre list (the channel or DM card, the topic view's topic row); Shift + B
-   there goes back to the reply (else the topic's latest reply in the pane).
+   way", then "Shift + B , should have been the one to jump from the 3d panel
+   to the 2nd panel and not vice versa". Shift + B on a reply in the topic
+   pane selects that topic's row in the centre list (the channel or DM card,
+   the topic view's topic row); Shift + U there goes back to the reply (else the topic's latest reply in the pane).
    With no such row, or outside the pane, both keys stay in the same feed. A
    first message the feed does not hold (an old topic, paged out) is read in
    the way a message link does (requestMessageJump): never a reload. */
@@ -139,7 +140,7 @@ const feedRow = (el: HTMLElement) => ({
   ts: el.getAttribute('data-sent') || '',
 })
 
-/** Shift + U on a reply in the topic pane: select its topic's row in the centre list. */
+/** Shift + B on a reply in the topic pane: select its topic's row in the centre list. */
 function upToList(card: HTMLElement): boolean {
   const topic = card.getAttribute('data-task-id') || ''
   if (!card.closest(TOPIC_PANE) || !topic) return false
@@ -152,7 +153,7 @@ function upToList(card: HTMLElement): boolean {
   return true
 }
 
-/** Shift + B on a centre-list row whose topic the pane shows: back to the reply. */
+/** Shift + U on a centre-list row whose topic the pane shows: back to the reply. */
 function backToPane(row: HTMLElement): boolean {
   if (row.closest(TOPIC_PANE)) return false
   const pane = document.querySelector<HTMLElement>(TOPIC_PANE)
@@ -186,7 +187,7 @@ function jumpInTopic(card: HTMLElement, key: string): boolean {
   }))
   const id = card.getAttribute('data-msg-id') || ''
   let to = ''
-  if (key === 'U') {
+  if (key === 'B') {
     const hit = parentJump(rows, id, openerFallback(card.getAttribute('data-task-id') || ''))
     /* a reply (hit): its topic's row in the 2nd panel first */
     if (hit && upToList(card)) return true
@@ -347,8 +348,8 @@ function install() {
       }
       return
     }
-    /* the topic view's focused topic row (no card): Shift + B back to the reply */
-    if (!entry && hit.key === 'B') {
+    /* the topic view's focused topic row (no card): Shift + U back to the reply */
+    if (!entry && hit.key === 'U') {
       const topicRow = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('a.topic-row')
       if (topicRow && backToPane(topicRow)) ev.preventDefault()
       return

@@ -10,14 +10,14 @@
 //   - Shift + H on the selected reply hides it (the hidden-cards line stands in)
 //   - Shift + A on a selected middle card archives it (it leaves, Archived · Undo)
 //   - Shift + E in the composer types a capital E and edits nothing
-//   - Shift + U on a reply in the topic pane (3rd panel) selects its topic's
-//     first message in the centre list (2nd panel), in view; Shift + B goes
+//   - Shift + B on a reply in the topic pane (3rd panel) selects its topic's
+//     first message in the centre list (2nd panel), in view; Shift + U goes
 //     back to that same reply - in the channel view, the topic view (/t, the
 //     topic row) and a direct message (t1 29c3b055, owner "yes , do it that
-//     way"). Shift + U on the first message or on a middle card (no topic of
+//     way"). Shift + B on the first message or on a middle card (no topic of
 //     its own) does nothing. SHOT_DIR set: 1440 light screenshots of each step
 //   - the setting (settings-keyboard-shortcuts) off: Shift + H, Shift + ?
-//     and the menu hints do nothing / are gone, Shift + U moves nothing
+//     and the menu hints do nothing / are gone, Shift + B moves nothing
 //
 // Run:
 //   BASE_URL=<generated bundle> node tests/e2e/msg-shortcuts.test.mjs
@@ -161,27 +161,27 @@ async function shot(p, name) {
   await p.screenshot({ path: `${process.env.SHOT_DIR}/${name}.png` })
 }
 
-/** Shift + U from the older reply in the topic pane to the topic's row in the centre list, Shift + B back, and the no-op control, in one view. */
+/** Shift + B from the older reply in the topic pane to the topic's row in the centre list, Shift + U back, and the no-op control, in one view. */
 async function jumpRoundTrip(p, view, opener, reply, listRow) {
   const tag = view.replace(/\W+/g, '-')
   ok(`${view}: the reply is selected`, await select(p, card(reply)))
   await shot(p, `${tag}-1-reply-selected`)
-  await shiftKey(p, 'U')
-  ok(`${view}: Shift + U selects the topic's first message in the 2nd panel (centre list), in view`, await until(p, (s) => {
+  await shiftKey(p, 'B')
+  ok(`${view}: Shift + B selects the topic's first message in the 2nd panel (centre list), in view`, await until(p, (s) => {
     const el = document.querySelector(s)
     return Boolean(el && document.activeElement === el)
   }, listRow, 4000) && await selectedInView(p, listRow), await focusedSel(p))
-  await shot(p, `${tag}-2-after-shift-u`)
-  await shiftKey(p, 'B')
-  ok(`${view}: Shift + B goes back to the same reply`, await until(p, (s) => {
+  await shot(p, `${tag}-2-after-shift-b`)
+  await shiftKey(p, 'U')
+  ok(`${view}: Shift + U goes back to the same reply`, await until(p, (s) => {
     const el = document.querySelector(s)
     return Boolean(el && document.activeElement === el)
   }, card(reply), 4000) && await selectedInView(p, card(reply)), await activeId(p))
-  await shot(p, `${tag}-3-after-shift-b`)
+  await shot(p, `${tag}-3-after-shift-u`)
   await select(p, card(opener))
-  await shiftKey(p, 'U')
+  await shiftKey(p, 'B')
   await sleep(300)
-  ok(`${view}: Shift + U on the first message does nothing`, (await activeId(p)) === opener, await activeId(p))
+  ok(`${view}: Shift + B on the first message does nothing`, (await activeId(p)) === opener, await activeId(p))
 }
 
 async function openTopic(p) {
@@ -248,13 +248,13 @@ try {
   const afterK = await activeId(p)
   ok('j selects the next message, k the previous', order.length >= 2 && afterJ === second && afterK === first, { order, afterJ, afterK })
 
-  /* ---- Shift + U / Shift + B: reply -> first message -> back (t1 29c3b055) ---- */
+  /* ---- Shift + B / Shift + U: reply -> first message -> back (t1 29c3b055) ---- */
   await jumpRoundTrip(p, 'channel', TASK, R1, midCard(TASK))
   ok('channel: a middle card is there', await until(p, visible, midCard(T2), 6000))
   await select(p, midCard(T2))
-  await shiftKey(p, 'U')
+  await shiftKey(p, 'B')
   await sleep(300)
-  ok('channel: Shift + U on a middle card (no reply of a topic) does nothing', (await activeId(p)) === T2, await activeId(p))
+  ok('channel: Shift + B on a middle card (no reply of a topic) does nothing', (await activeId(p)) === T2, await activeId(p))
   await p.goto(`${srv.base}/t/${TASK}`, { waitUntil: 'networkidle2' })
   ok('topic view: the reply is there', await p.waitForSelector(card(R1), { visible: true, timeout: 15000 }).then(() => true, () => false))
   await sleep(400)
@@ -310,9 +310,9 @@ try {
   await sleep(500)
   ok('off: Shift + H hides nothing', (await has(p, card(R1))) && !(await has(p, `.topic ${line}`)))
   await select(p, card(R1))
-  await shiftKey(p, 'U')
+  await shiftKey(p, 'B')
   await sleep(400)
-  ok('off: Shift + U moves nothing', (await activeId(p)) === R1, await activeId(p))
+  ok('off: Shift + B moves nothing', (await activeId(p)) === R1, await activeId(p))
   await shiftKey(p, '?')
   await sleep(400)
   ok('off: Shift + ? opens no list', !(await has(p, help)))

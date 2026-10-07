@@ -15,7 +15,7 @@
 // Shift + R is the exception (HUM-10 t1 4c5161e3): it opens that menu on the
 // selected row instead of running an item. Reply stays on the phone sheet.
 //
-// Shift + U and Shift + B are not menu items either (HUM-10 t1 29c3b055):
+// Shift + B and Shift + U are not menu items either (HUM-10 t1 29c3b055):
 // they move the selection from a reply in the topic pane (3rd panel) to its
 // topic's row in the centre list (2nd panel) and back (listRowFor /
 // replyBack); outside the pane, or with no such row, inside the same feed
@@ -39,8 +39,8 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'A', items: ['archive'], labelKey: 'feed.shortcuts.archive' },
   { key: 'O', items: ['open'], labelKey: 'feed.msg_menu.open' },
   { key: 'P', items: ['parent'], labelKey: 'feed.msg_menu.open_parent' },
-  { key: 'U', items: [], labelKey: 'feed.shortcuts.to_parent' },
-  { key: 'B', items: [], labelKey: 'feed.shortcuts.back_to_reply' },
+  { key: 'B', items: [], labelKey: 'feed.shortcuts.to_parent' },
+  { key: 'U', items: [], labelKey: 'feed.shortcuts.back_to_reply' },
   { key: 'L', items: ['copy'], labelKey: 'feed.msg_menu.copy_link' },
   { key: 'C', items: ['copy-text'], labelKey: 'feed.msg_menu.copy_text' },
   { key: 'K', items: ['kind'], labelKey: 'feed.msg_menu.kind' },
@@ -171,7 +171,7 @@ function openerIn(rows, task) {
 }
 
 /**
- * Shift + U (HUM-10 t1 29c3b055): from a reply, the id of its topic's first
+ * Shift + B (HUM-10 t1 29c3b055): from a reply, the id of its topic's first
  * message. `fallbackId` is that opener's id when the feed does not hold it
  * (an old topic, paged out): the caller then reads it in the way a message
  * link does. null = nothing to do (the selected row is the opener, or has no
@@ -195,7 +195,7 @@ export function parentJump(rows, fromId, fallbackId = '') {
 }
 
 /**
- * Shift + B, the way back: from a topic's first message, the reply Shift + U
+ * Shift + U, the way back: from a topic's first message, the reply Shift + B
  * left (`memo`, while it names this opener), else the topic's latest reply
  * in the feed. '' = nothing to do (not an opener, or no reply).
  *
@@ -224,7 +224,7 @@ export function backJump(rows, fromId, memo = null) {
  */
 
 /**
- * Shift + U, corrected (HUM-10 t1 29c3b055): "it should select the topics
+ * Shift + B, corrected (HUM-10 t1 29c3b055): "it should select the topics
  * first msg, but in the 2nd panel". From a reply in the topic pane (the 3rd
  * panel) the target is the topic's own row in the centre list: the row whose
  * key is the topic (a #lobby message is the root of its own topic), else one
@@ -243,8 +243,8 @@ export function listRowFor(rows, topic) {
 }
 
 /**
- * Shift + B from that centre row: back to the reply in the topic pane that
- * Shift + U left (`memo`, while it names this topic and the pane still holds
+ * Shift + U from that centre row: back to the reply in the topic pane that
+ * Shift + B left (`memo`, while it names this topic and the pane still holds
  * it), else the topic's latest reply there. '' = nothing to do.
  *
  * @param {FeedRow[]} paneRows

@@ -16,9 +16,8 @@
      The look (owner, t1 3385cecb: "proper table, proper aligning, proper x,
      proper flow from click"): the table and the note are bordered cards in
      the theme tokens, the columns sized from the header row so every cell
-     lines up under it, the version band spanning the row; on a phone the
-     version column folds into its band. The X is UiDialog's. Back to the
-     list returns to the row that was clicked.
+     lines up under it, the version band spanning the row. The X is
+     UiDialog's. Back to the list returns to the row that was clicked.
 
      The time (owner, t1 3385cecb: "add also the push time"): the row's
      committed_at, YYYY-MM-DD HH:MM in the viewer's zone (date-iso.mjs), to
@@ -26,7 +25,14 @@
      committer time is the push's within minutes, because every lane
      rebases onto trunk right before it pushes (n=60 pushes, 2026-10-07:
      median 20 s, max 237 s before the push's CI run), so the column says
-     "Committed", not "Pushed". On a phone it is a line under the title.
+     "Committed", not "Pushed".
+
+     The phone (owner, t1 ee8cd6f2: "add also the times in the mobile
+     version", "more user friendly and tight"), the one-panel shell: no
+     header row; each version band sticks at the top and carries its newest
+     change's time; a change is one line, its title (cut with an ellipsis)
+     and its time, with # and the short sha muted below, and the whole row
+     opens the note. "Load older versions" spans the width at the end.
 
      Reads (spec 065 L4, every signed-in member, Q11):
        GET /v1/release-notes?limit=30
@@ -53,7 +59,7 @@
      dialog's own handler (spec 103 may fold it into the app-wide keys). -->
 <template>
   <UiDialog :open="open" :title="t('release_notes.title')" size="xl" @update:open="onOpen">
-    <div ref="rootEl" class="rn" data-test="release-notes">
+    <div ref="rootEl" class="rn" :class="{ 'rn--phone': narrow }" data-test="release-notes">
       <template v-if="note">
         <button type="button" class="rn__back" data-test="release-note-back" @click="showList">
           <UiIcon name="chevron-left" :size="16" /> {{ t('release_notes.back') }}
@@ -121,12 +127,12 @@
         <p v-else-if="!versions.length" class="rn__msg muted" data-test="release-notes-empty">{{ t('release_notes.empty') }}</p>
         <div v-else class="rn-card rn-table-wrap">
           <table class="rn-table" data-test="release-table">
-            <thead>
+            <thead v-if="!narrow">
               <tr>
                 <th scope="col" class="rn-table__seq">{{ t('release_notes.col_seq') }}</th>
-                <th v-if="!narrow" scope="col" class="rn-table__ver">{{ t('release_notes.col_version') }}</th>
+                <th scope="col" class="rn-table__ver">{{ t('release_notes.col_version') }}</th>
                 <th scope="col" class="rn-table__sha">{{ t('release_notes.col_commit') }}</th>
-                <th v-if="!narrow" scope="col" class="rn-table__time">{{ t('release_notes.col_time') }}</th>
+                <th scope="col" class="rn-table__time">{{ t('release_notes.col_time') }}</th>
                 <th scope="col">{{ t('release_notes.col_title') }}</th>
               </tr>
             </thead>
@@ -139,29 +145,49 @@
               :data-cursor="!openedVersion && i === cursor ? 'true' : undefined"
             >
               <tr class="rn-ver" data-test="release-version-head">
-                <th :colspan="narrow ? 3 : 5" scope="rowgroup" class="rn-ver__head" tabindex="-1">
+                <th :colspan="narrow ? 1 : 5" scope="rowgroup" class="rn-ver__head" tabindex="-1">
                   <span class="rn-ver__name" role="heading" aria-level="2">{{ shownVersion(v) || t('release_notes.unversioned') }}</span>
                   <span v-if="v.version === currentKey" class="rn-ver__here" data-test="release-version-here">{{ t('release_notes.you_are_here') }}</span>
                   <span v-else-if="liveIn(v)" class="rn-ver__newer" data-test="release-version-newer">{{ t('release_notes.newer_live') }}</span>
+                  <time v-if="narrow && versionAt(v)" class="rn-ver__time" :datetime="versionAt(v)" :title="fullTime(versionAt(v))" data-test="release-version-time">{{ isoDateTime(versionAt(v)) }}</time>
                 </th>
               </tr>
               <tr v-for="n in v.notes" :key="n.sha" class="rn-row" data-test="release-row" :data-state="n.state" :data-seq="n.seq || undefined">
-                <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
-                <td v-if="!narrow" class="rn-table__ver">{{ shownVersion(v) }}</td>
-                <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
-                <td v-if="!narrow" class="rn-table__time">
-                  <time v-if="n.committed_at" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
+                <!-- a phone: one cell, the change and its time on one line, # and sha muted below -->
+                <td v-if="narrow" class="rn-row__cell">
+                  <span class="rn-row__line">
+                    <a
+                      class="rn-row__link"
+                      :href="localePath('/releases/' + n.sha)"
+                      data-test="release-row-title"
+                      :data-sha="n.sha"
+                      @click="onTitle($event, n)"
+                    >{{ n.subject || shortSha(n.sha) }}</a>
+                    <time v-if="n.committed_at" class="rn-row__time" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
+                  </span>
+                  <span class="rn-row__sub">
+                    <span v-if="n.seq" class="rn-row__seq" data-test="release-row-seq">{{ n.seq }}</span>
+                    <code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code>
+                    <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
+                  </span>
                 </td>
-                <td class="rn-row__title">
-                  <a
-                    :href="localePath('/releases/' + n.sha)"
-                    data-test="release-row-title"
-                    :data-sha="n.sha"
-                    @click="onTitle($event, n)"
-                  >{{ n.subject || shortSha(n.sha) }}</a>
-                  <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
-                  <time v-if="narrow && n.committed_at" class="rn-row__time" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
-                </td>
+                <template v-else>
+                  <td class="rn-table__seq" data-test="release-row-seq">{{ n.seq || '' }}</td>
+                  <td class="rn-table__ver">{{ shownVersion(v) }}</td>
+                  <td class="rn-table__sha"><code dir="ltr" data-test="release-row-sha">{{ shortSha(n.sha) }}</code></td>
+                  <td class="rn-table__time">
+                    <time v-if="n.committed_at" :datetime="n.committed_at" :title="fullTime(n.committed_at)" data-test="release-row-time">{{ isoDateTime(n.committed_at) }}</time>
+                  </td>
+                  <td class="rn-row__title">
+                    <a
+                      :href="localePath('/releases/' + n.sha)"
+                      data-test="release-row-title"
+                      :data-sha="n.sha"
+                      @click="onTitle($event, n)"
+                    >{{ n.subject || shortSha(n.sha) }}</a>
+                    <span v-if="badge(n.state)" class="rn-row__badge" :class="'is-' + n.state" data-test="release-row-badge">{{ badge(n.state) }}</span>
+                  </td>
+                </template>
               </tr>
             </tbody>
           </table>
@@ -273,6 +299,12 @@ function onOpen(v: boolean) { emit('update:open', v) }
 const shortSha = (s: string) => String(s || '').slice(0, 7)
 /* the hover: to the second, with the zone it is printed in */
 const fullTime = (at: string) => [isoDateTimeSec(at), viewerTimeZone() || browserTimeZone()].filter(Boolean).join(' ')
+/* a version's time: its newest change's (the phone's band shows it) */
+function versionAt(v: ReleaseVersion) {
+  let at = ''
+  for (const n of v.notes) if (n.committed_at && (!at || Date.parse(n.committed_at) > Date.parse(at))) at = n.committed_at
+  return at
+}
 const hasAny = (n: ReleaseNote, side: 'lay' | 'tech') => PARTS.some((k) => n[`${side}_${k}`])
 const sidesOf = (n: ReleaseNote) => SIDES.filter((side) => hasAny(n, side))
 function stateText(state: string) {
@@ -536,7 +568,6 @@ watch(() => props.initialRef, (r, old) => {
 .rn-table td.rn-table__seq, .rn-table td.rn-table__ver { color: var(--color-muted); }
 .rn-table td.rn-table__ver, .rn-table td.rn-table__time { font-variant-numeric: tabular-nums; }
 .rn-table td.rn-table__time { color: var(--color-muted); font-size: 0.875rem; }
-.rn-row__time { display: block; margin-top: 0.125rem; font-size: 0.8125rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
 .rn-note__time { font-size: 0.8125rem; color: var(--color-muted); font-variant-numeric: tabular-nums; align-self: center; }
 .rn-table__sha code { font-family: var(--font-mono); font-size: 0.8125rem; padding: 0.0625rem 0.375rem; border-radius: var(--radius-sm); background: var(--color-bg-2); border: 1px solid var(--color-border); color: var(--color-fg); }
 .rn-table .rn-ver__head { padding-block: 0.625rem 0.5rem; background: var(--color-bg-2); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
@@ -580,13 +611,33 @@ watch(() => props.initialRef, (r, old) => {
 .rn-note__sha code { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; min-width: 0; }
 .rn-note__links { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
-/* a phone: the rows keep #, commit and change in line, the note's halves stack */
+/* a phone (the one-panel shell, owner t1 ee8cd6f2: "the times in the mobile
+   version ... more user friendly and tight"): no header row; the version
+   band sticks at the top with its time; a change is one line, its title and
+   its time, with # and the sha muted below; the whole row is the tap target */
+.rn--phone { padding: 0.375rem 0.5rem 0.75rem; gap: 0.375rem; }
+.rn--phone .rn__lead { font-size: 0.8125rem; }
+.rn--phone .rn-table .rn-ver__head { position: sticky; top: 0; z-index: 1; padding: 0.375rem 0.75rem; }
+.rn--phone .rn-table tbody:first-of-type .rn-ver__head { border-top: 0; }
+.rn--phone .rn-ver__here, .rn--phone .rn-ver__newer { font-size: 0.6875rem; }
+.rn-ver__time { float: inline-end; font-size: 0.8125rem; font-weight: 400; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.rn--phone .rn-table td.rn-row__cell { position: relative; padding: 0.4375rem 0.75rem; }
+.rn-row__line { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
+.rn-row__link { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-accent); text-decoration: none; }
+.rn-row__link::after { content: ''; position: absolute; inset: 0; }
+.rn-row__time { flex: none; font-size: 0.8125rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.rn-row__sub { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; margin-top: 0.0625rem; font-size: 0.75rem; color: var(--color-muted); }
+.rn-row__seq { font-variant-numeric: tabular-nums; }
+.rn-row__seq::before { content: '#'; }
+.rn-row__sub code { font-family: var(--font-mono); font-size: 0.75rem; }
+.rn-row__sub .rn-row__badge { margin-inline-start: 0; overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; }
+.rn--phone .rn-row:active td { background: var(--color-surface-hover); }
+.rn--phone .rn-end .rn__action { align-self: stretch; justify-content: center; }
+/* the note on a phone: tighter, its halves stack */
 @media (max-width: 600px) {
-  .rn { padding: 0.5rem 0.75rem 1rem; }
-  .rn-table thead .rn-table__seq { width: 3rem; }
-  .rn-table thead .rn-table__sha { width: 5.75rem; }
-  .rn-table th, .rn-table td { padding: 0.5rem; }
-  .rn-note__head, .rn-note__part, .rn-note__foot { padding-inline: 1rem; }
+  .rn-note__head { padding: 0.75rem 1rem; gap: 0.375rem; }
+  .rn-note__subject { font-size: 1.0625rem; }
+  .rn-note__part, .rn-note__foot { padding: 0.75rem 1rem; }
   .rn-note__part + .rn-note__part { border-inline-start: 0; border-top: 1px solid var(--color-border); }
   .rn-note__part dl { grid-template-columns: 1fr; gap: 0.125rem; }
   .rn-note__part dd + dt { margin-top: 0.5rem; }

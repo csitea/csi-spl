@@ -55,6 +55,15 @@
 //   11c Escape goes back to the list (open, focus on that version row),
 //       Escape again closes it
 //   11d on a phone j does nothing
+// Owner, t1 ee8cd6f2 ("add also the times in the mobile version .. more user
+// friendly and tight"), the phone at 390 and at 360 px:
+//   12a no header row; every version band and every change row shows its
+//       time (YYYY-MM-DD HH:MM, viewer's zone), visible without hover
+//   12b a change row is one line of title + time (the title cut, never
+//       wrapped) with # and the sha below: two lines, at least 44 px tall
+//   12c the version band sticks at the top of the scrolled list
+//   12d no horizontal overflow; a tap on the row (beside the title) opens it
+//   12e control: the time elements removed -> the 12a check fails
 // and no horizontal overflow in the modal, no page error.
 //
 // Run:
@@ -150,7 +159,12 @@ const listFacts = (p) => p.evaluate(() => {
     table: Boolean(document.querySelector('table[data-test=release-table]')),
     heads: [...document.querySelectorAll('[data-test=release-table] thead th')].map((th) => th.textContent.trim()),
     versions: vers.length,
-    versionHeads: vers.map((v) => v.querySelector('[data-test=release-version-head]')?.textContent.replace(/\s+/g, ' ').trim() || ''),
+    /* the band's text without its time (the phone shows one beside the version) */
+    versionHeads: vers.map((v) => {
+      const h = v.querySelector('[data-test=release-version-head]')?.cloneNode(true)
+      h?.querySelector('[data-test=release-version-time]')?.remove()
+      return h?.textContent.replace(/\s+/g, ' ').trim() || ''
+    }),
     versionLevel: first?.querySelector('[data-test=release-version-head] [role=heading]')?.getAttribute('aria-level') || '',
     firstCurrent: first?.dataset.current === 'true',
     firstHere: first?.querySelector('[data-test=release-version-here]')?.textContent.trim() || '',
@@ -197,6 +211,34 @@ const noteFacts = (p) => p.evaluate(() => {
   }
 })
 
+/* the phone list: header row, version bands and change rows, as laid out */
+const phoneFacts = (p) => p.evaluate(() => {
+  const body = document.querySelector('[data-testid=ui-dialog-body]')
+  const shown = (e) => Boolean(e && e.getClientRects().length && getComputedStyle(e).visibility === 'visible' && e.getBoundingClientRect().width > 0)
+  const timeOf = (e) => (shown(e) && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(e.textContent.trim()) ? e.textContent.trim() : '')
+  return {
+    heads: document.querySelectorAll('[data-test=release-table] thead th').length,
+    bands: [...document.querySelectorAll('[data-test=release-version-head]')].map((h) => timeOf(h.querySelector('[data-test=release-version-time]'))),
+    rows: [...document.querySelectorAll('[data-test=release-row]')].map((row) => {
+      const a = row.querySelector('[data-test=release-row-title]')
+      const tm = row.querySelector('[data-test=release-row-time]')
+      const ar = a?.getBoundingClientRect()
+      const tr = tm?.getBoundingClientRect()
+      const lh = a ? parseFloat(getComputedStyle(a).lineHeight) || ar.height : 0
+      return {
+        time: timeOf(tm),
+        titleLines: a ? Math.round(ar.height / lh) : 0,
+        timeBeside: Boolean(ar && tr && tr.left >= ar.right - 1 && Math.abs(tr.bottom - ar.bottom) < 4),
+        sub: Boolean(row.querySelector('[data-test=release-row-seq]')?.textContent.trim() && row.querySelector('[data-test=release-row-sha]')?.textContent.trim()),
+        h: Math.round(row.getBoundingClientRect().height),
+      }
+    }),
+    xOverflow: body ? body.scrollWidth - body.clientWidth : -1,
+    docX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }
+})
+const phoneTimesOk = (ph) => ph.heads === 0 && ph.bands.length > 0 && ph.bands.every(Boolean) && ph.rows.length === 30 && ph.rows.every((r) => r.time)
+
 async function openFromCard(p, vp) {
   if (vp.mobile) {
     await until(p, () => Boolean(document.querySelector('[data-test=status-strip-version]')), null, 15000)
@@ -242,20 +284,20 @@ try {
     else ok(`${vp.name} 1c the xl size on desktop`, f.xl && f.rect && f.rect.w >= f.vw * 0.8, f.rect)
 
     /* 2 one expanded table of the 30 latest, the running version first */
-    /* a phone folds the version column into the band above its rows */
-    const wantHeads = vp.mobile ? '#|Commit|Change' : '#|Version|Commit|Committed|Change'
-    ok(`${vp.name} 2a one table: ${wantHeads.replaceAll('|', ', ')}`, f.table && f.heads.join('|') === wantHeads, f.heads)
+    /* a phone has no header row: the version is the band above its rows */
+    const wantHeads = vp.mobile ? '' : '#|Version|Commit|Committed|Change'
+    ok(`${vp.name} 2a one table: ${vp.mobile ? 'no header row' : wantHeads.replaceAll('|', ', ')}`, f.table && f.heads.join('|') === wantHeads, f.heads)
     ok(`${vp.name} 2b 30 rows under 15 version rows, nothing to expand or filter`,
       f.rows.length === 30 && f.versions === 15 && f.expanders === 0 && !f.more && !f.filter, { rows: f.rows.length, versions: f.versions, expanders: f.expanders, more: f.more, filter: f.filter })
     ok(`${vp.name} 2c the running version is first and marked "you are here"`, f.firstCurrent && f.firstHere === 'you are here', { here: f.firstHere })
     const r0 = f.rows[0] || {}
-    ok(`${vp.name} 2d a row shows #, ${vp.mobile ? '' : 'version, '}7-char sha and title`,
-      r0.cells?.length === (vp.mobile ? 3 : 5) && r0.cells[0] === '140' && (vp.mobile || /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1])) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
+    ok(`${vp.name} 2d a row shows #, ${vp.mobile ? '' : 'version, '}7-char sha and title${vp.mobile ? ' in one cell' : ''}`,
+      r0.cells?.length === (vp.mobile ? 1 : 5) && r0.seq === '140' && (vp.mobile || r0.cells[0] === '140') && (vp.mobile || /^v[0-9]+\.[0-9]+\.[0-9]+$/.test(r0.cells[1])) && r0.sha === mockSha(0).slice(0, 7) && /^mock change 1:/.test(r0.title), r0)
 
-    /* 2e the time: its own column on desktop, under the title on a phone */
+    /* 2e the time: its own column on desktop, beside the title on a phone */
     const times = f.rows.map((x) => x.time)
-    ok(`${vp.name} 2e every row shows its time (YYYY-MM-DD HH:MM, viewer's zone, seconds on hover) ${vp.mobile ? 'under the title' : 'in the Committed column'}`,
-      times.every((x) => x && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(x.text) && x.text === x.local && x.hover.startsWith(x.text + ':') && x.cell === (vp.mobile ? 2 : 3)) &&
+    ok(`${vp.name} 2e every row shows its time (YYYY-MM-DD HH:MM, viewer's zone, seconds on hover) ${vp.mobile ? 'beside the title' : 'in the Committed column'}`,
+      times.every((x) => x && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(x.text) && x.text === x.local && x.hover.startsWith(x.text + ':') && x.cell === (vp.mobile ? 0 : 3)) &&
       times[0].at === '2026-10-03T10:14:00Z' && times[1].at === '2026-10-03T09:27:00Z', times.slice(0, 2))
 
     /* 3 # counts from the oldest change: newest first, 140 down to 111 */
@@ -286,8 +328,10 @@ try {
       const seq = rows[0]?.querySelector('[data-test=release-row-seq]')
       return { worst: Math.round(worst * 10) / 10, bandGap: Math.round(bandGap), fill: Math.round(table.right - (cols[cols.length - 1]?.right ?? 0)), seqAlign: seq ? getComputedStyle(seq).textAlign : '' }
     })
-    ok(`${vp.name} 6a every column's cells line up under its header, # aligned to the end`,
-      align.worst <= 1 && align.bandGap <= 1 && align.fill <= 1 && align.seqAlign === 'end', align)
+    if (!vp.mobile) {
+      ok(`${vp.name} 6a every column's cells line up under its header, # aligned to the end`,
+        align.worst <= 1 && align.bandGap <= 1 && align.fill <= 1 && align.seqAlign === 'end', align)
+    }
 
     /* 6b proper X: the dialog head shows its close control */
     const closeShown = await p.evaluate((sel) => [...document.querySelectorAll(sel)].some((e) => e.getClientRects().length && getComputedStyle(e).visibility === 'visible'),
@@ -468,6 +512,54 @@ try {
         k5.open && !k5.back && k5.versions.length === list0.length && k5.focus === list0[1], { open: k5.open, versions: k5.versions.length, focus: k5.focus })
       await p.keyboard.press('Escape')
       ok(`${vp.name} 11c Escape again closes the dialog`, await until(p, () => !document.querySelector('[data-test=release-notes]'), null, 3000))
+    }
+
+    /* 12 the phone: times everywhere, one line per change, tight, at 390 and 360 */
+    if (vp.mobile) {
+      await p.keyboard.press('Escape')
+      await until(p, () => !document.querySelector('[data-test=release-notes]'), null, 3000)
+      for (const w of [390, 360]) {
+        await p.setViewport({ width: w, height: vp.height, isMobile: true, hasTouch: true })
+        await sleep(300)
+        await openFromCard(p, vp)
+        await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 30, null, 10000)
+        await sleep(200)
+        const ph = await phoneFacts(p)
+        ok(`${w} 12a no header row; every version band and every row shows its time, without hover`, phoneTimesOk(ph), { heads: ph.heads, bands: ph.bands.length, rows: ph.rows.length, missing: ph.rows.filter((r) => !r.time).length, band0: ph.bands[0], row0: ph.rows[0] })
+        ok(`${w} 12b a row is one line of title + time, # and sha below, a 44 px tap target`,
+          ph.rows.every((r) => r.titleLines === 1 && r.timeBeside && r.sub && r.h >= 44 && r.h <= 64), ph.rows.slice(0, 2))
+        ok(`${w} 12d no horizontal overflow`, ph.xOverflow <= 0 && ph.docX <= 0, { body: ph.xOverflow, doc: ph.docX })
+        const stuck = await p.evaluate(() => {
+          const body = document.querySelector('[data-testid=ui-dialog-body]')
+          body.scrollTop = 600
+          const b = body.getBoundingClientRect()
+          const heads = [...document.querySelectorAll('[data-test=release-version-head] th')]
+          return heads.some((h) => Math.abs(h.getBoundingClientRect().top - b.top) <= 2) && body.scrollTop > 0
+        })
+        ok(`${w} 12c a version band sticks at the top of the scrolled list`, stuck)
+        if (SHOT_DIR) { mkdirSync(SHOT_DIR, { recursive: true }); await p.evaluate(() => { document.querySelector('[data-testid=ui-dialog-body]').scrollTop = 0 }); await p.screenshot({ path: `${SHOT_DIR}/release-notes-phone-${w}.png` }) }
+        /* a tap beside the title (the row's middle, left of the time) opens it */
+        const sha = mockSha(4)
+        const at = await p.evaluate((sha) => {
+          const row = document.querySelector(`[data-test=release-row-title][data-sha="${sha}"]`)?.closest('[data-test=release-row]')
+          row?.scrollIntoView({ block: 'center' })
+          const r = row?.querySelector('.rn-row__sub')?.getBoundingClientRect()
+          return r ? { x: Math.round(r.right - 10), y: Math.round(r.top + r.height / 2) } : null
+        }, sha)
+        if (at) await p.touchscreen.tap(at.x, at.y)
+        const tapped = await until(p, (sha) => document.querySelector('[data-test=release-note]')?.dataset.sha === sha, sha, 3000)
+        ok(`${w} 12d a tap on the row opens its note`, Boolean(at) && tapped, at)
+        if (tapped) await press(p, vp, '[data-test=release-note-back]')
+        if (w === 360) {
+          /* control: without the time elements the 12a check must fail */
+          await until(p, () => document.querySelectorAll('[data-test=release-row]').length === 30, null, 3000)
+          await p.evaluate(() => document.querySelectorAll('[data-test=release-row-time], [data-test=release-version-time]').forEach((e) => e.remove()))
+          const bare = await phoneFacts(p)
+          ok(`${w} 12e control: the times removed -> the 12a check fails`, !phoneTimesOk(bare), { missing: bare.rows.filter((r) => !r.time).length })
+        }
+        await p.keyboard.press('Escape')
+        await until(p, () => !document.querySelector('[data-test=release-notes]'), null, 3000)
+      }
     }
 
     ok(`${vp.name} no page error`, errors.length === 0, errors)

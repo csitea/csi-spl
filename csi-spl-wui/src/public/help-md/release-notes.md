@@ -23,14 +23,22 @@ reads the next older versions; keep going until the table ends with
 | `#` | the change's number, counted from the oldest change (1) up, so the newest row has the highest number and a change keeps its number |
 | Version | the version it shipped in, `v1.3.1` |
 | Commit | the short commit hash |
+| Committed | when the change was committed, `YYYY-MM-DD HH:MM` in your time zone; hover for the seconds |
 | Change | the title of the change; click it for the note: what, how and why, in plain words and then technically |
 
-A version's own row sits above its changes and carries only the version;
-on a phone the Version column folds into that row. Closing the dialog (the
-X, Escape, or Back on a phone) returns to where you opened it, and **All
-versions** in a note returns to the row you clicked.
+A version's own row sits above its changes and carries only the version.
+Closing the dialog (the X, Escape, or Back on a phone) returns to where you
+opened it, and **All versions** in a note returns to the row you clicked.
 **you are here** marks the version this tab is running. A change with no
 note says **no note**.
+
+On a phone the list is tighter and has no header row. Each version's row
+stays at the top while you scroll its changes, and shows the time of its
+newest change. A change is one line: its title (cut short when it is long)
+and its time, with its `#` and short commit hash in small print below. Tap
+anywhere on the row to read the note; the note shows the full title and
+**Committed** with its time. **Load older versions** is the wide button at
+the end of the list.
 
 On a desktop the keys `j` and `k` move between the version rows (past the
 last one they load older versions), `Enter` opens that version alone, `h`

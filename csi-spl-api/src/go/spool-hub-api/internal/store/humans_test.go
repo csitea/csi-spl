@@ -222,6 +222,85 @@ func TestHumansAvatar(t *testing.T) {
 	}
 }
 
+// t1 ccaee528, rdb 0150: an uploaded picture is shown and survives the IdP
+// picture of a later sign-in; clearing it goes back to the last IdP picture.
+// CONTROLS: a bad file_id is refused, an unknown human is ErrNotFound, a clear
+// with nothing uploaded changes nothing, another human is untouched.
+func TestHumansOwnAvatar(t *testing.T) {
+	ctx := context.Background()
+	idp, idp2, own := strings.Repeat("ab", 32), strings.Repeat("cd", 32), strings.Repeat("ef", 32)
+	for name, s := range drivers(t) {
+		h := s.(Humans)
+		t.Run(name, func(t *testing.T) {
+			hum, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("own-")}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("own-")}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			avatar := func(who, want, why string) {
+				t.Helper()
+				if got, err := h.Avatar(ctx, who); err != nil || got != want {
+					t.Fatalf("%s: avatar %q %v, want %q", why, got, err, want)
+				}
+			}
+			for _, bad := range []string{"https://idp.example.com/p.png", strings.Repeat("AB", 32)} {
+				if err := h.SetOwnAvatar(ctx, hum, bad); err == nil {
+					t.Fatalf("SetOwnAvatar accepted %q", bad)
+				}
+			}
+			if err := h.SetOwnAvatar(ctx, "HUM-999999999", own); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("unknown human: %v", err)
+			}
+			if err := h.SetAvatar(ctx, hum, idp); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.SetAvatar(ctx, other, idp); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.SetOwnAvatar(ctx, hum, ""); err != nil {
+				t.Fatal(err)
+			}
+			avatar(hum, idp, "clear with nothing uploaded")
+			if err := h.SetOwnAvatar(ctx, hum, own); err != nil {
+				t.Fatal(err)
+			}
+			avatar(hum, own, "upload")
+			avatar(other, idp, "the other human")
+			if err := h.SetAvatar(ctx, hum, idp2); err != nil {
+				t.Fatal(err)
+			}
+			avatar(hum, own, "sign-in after the upload")
+			if err := h.SetOwnAvatar(ctx, hum, ""); err != nil {
+				t.Fatal(err)
+			}
+			avatar(hum, idp2, "clear")
+			if err := h.SetAvatar(ctx, hum, idp); err != nil {
+				t.Fatal(err)
+			}
+			avatar(hum, idp, "sign-in after the clear")
+			// A human with no IdP picture: clearing an upload leaves none.
+			if err := h.SetOwnAvatar(ctx, other, own); err != nil {
+				t.Fatal(err)
+			}
+			nopic, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("own-")}, "", AdmitPolicy{}, time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.SetOwnAvatar(ctx, nopic, own); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.SetOwnAvatar(ctx, nopic, ""); err != nil {
+				t.Fatal(err)
+			}
+			avatar(nopic, "", "clear with no IdP picture")
+			avatar(other, own, "the other human's own upload")
+		})
+	}
+}
+
 // (rdb 0017): a human's picked locale, and the lookup the native
 // mails use to reach it from a (provider, subject) sign-in.
 func TestHumansPreferredLocale(t *testing.T) {

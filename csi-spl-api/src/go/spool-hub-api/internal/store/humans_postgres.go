@@ -544,7 +544,24 @@ func (s *Postgres) SetAvatar(ctx context.Context, humanID, fileID string) error 
 	if err := checkFileID(fileID); err != nil {
 		return err
 	}
-	return s.execHuman(ctx, `UPDATE humans SET avatar_file_id = $2 WHERE human_id = $1`, humanID, fileID)
+	return s.execHuman(ctx, `UPDATE humans SET idp_avatar_file_id = $2,
+		avatar_file_id = CASE WHEN avatar_own THEN avatar_file_id ELSE $2 END WHERE human_id = $1`, humanID, fileID)
+}
+
+// SetOwnAvatar: the first upload keeps the shown IdP picture as
+// idp_avatar_file_id (a row from before rdb 0150 has none recorded yet).
+func (s *Postgres) SetOwnAvatar(ctx context.Context, humanID, fileID string) error {
+	if fileID == "" {
+		return s.execHuman(ctx, `UPDATE humans SET avatar_own = false,
+			avatar_file_id = CASE WHEN avatar_own THEN idp_avatar_file_id ELSE avatar_file_id END
+			WHERE human_id = $1`, humanID)
+	}
+	if err := checkFileID(fileID); err != nil {
+		return err
+	}
+	return s.execHuman(ctx, `UPDATE humans SET avatar_own = true, avatar_file_id = $2,
+		idp_avatar_file_id = CASE WHEN avatar_own THEN idp_avatar_file_id ELSE avatar_file_id END
+		WHERE human_id = $1`, humanID, fileID)
 }
 
 func (s *Postgres) Avatar(ctx context.Context, humanID string) (string, error) {

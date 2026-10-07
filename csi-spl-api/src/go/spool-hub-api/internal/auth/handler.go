@@ -288,6 +288,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+RoutePrefix+"providers", h.providers)
 	mux.HandleFunc("GET "+RoutePrefix+"session", h.session)
 	mux.HandleFunc("GET "+RoutePrefix+"avatar", h.avatar)
+	mux.HandleFunc("PUT "+RoutePrefix+"avatar", h.putAvatar)       // t1 ccaee528, avatar_upload.go
+	mux.HandleFunc("DELETE "+RoutePrefix+"avatar", h.deleteAvatar) // t1 ccaee528
 	mux.HandleFunc("POST "+RoutePrefix+"logout", h.logout)
 	mux.HandleFunc("PUT "+RoutePrefix+"preferences", h.putPreferences)
 	mux.HandleFunc("POST "+RoutePrefix+"tenant", h.switchTenant) // specs/026 §6

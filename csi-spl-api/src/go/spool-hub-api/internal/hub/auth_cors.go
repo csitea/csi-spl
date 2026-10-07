@@ -29,7 +29,7 @@ func (s *Server) authCORS(next http.Handler) http.Handler {
 		}
 		if ok {
 			h := w.Header()
-			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT")
+			h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
 			// X-Locale: the WUI's active locale (i18n; a browser fetch may
 			// not set Accept-Language cross-origin).
 			h.Set("Access-Control-Allow-Headers", "Content-Type, X-Locale")

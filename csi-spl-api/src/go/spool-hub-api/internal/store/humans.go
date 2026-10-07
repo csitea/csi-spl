@@ -332,9 +332,15 @@ type Humans interface {
 	// UnlinkIdentity deletes one (provider, subject) identity (Meta
 	// deauthorize / data deletion). Unknown = nil.
 	UnlinkIdentity(ctx context.Context, provider, subject string) error
-	// SetAvatar records the human's picture as a blob file_id (a sha256 hex
-	// digest, rdb 0010; 010 T044). Unknown human = ErrNotFound.
+	// SetAvatar records the human's IdP picture as a blob file_id (a sha256
+	// hex digest, rdb 0010; 010 T044). While the person shows a picture they
+	// uploaded (SetOwnAvatar) it is only remembered, never shown (rdb 0150).
+	// Unknown human = ErrNotFound.
 	SetAvatar(ctx context.Context, humanID, fileID string) error
+	// SetOwnAvatar shows a picture the person uploaded (t1 ccaee528, rdb
+	// 0150): a later sign-in's SetAvatar keeps it. fileID "" goes back to the
+	// last IdP picture SetAvatar recorded. Unknown human = ErrNotFound.
+	SetOwnAvatar(ctx context.Context, humanID, fileID string) error
 	// Avatar returns the human's avatar file_id, "" when none, or ErrNotFound.
 	Avatar(ctx context.Context, humanID string) (string, error)
 	// TenantAvatars maps every member HUM-* of tenant (disabled humans

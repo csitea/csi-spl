@@ -33,6 +33,7 @@ var (
 	_ auth.Membership       = AuthHooks{}
 	_ auth.IdentityUnlinker = AuthHooks{}
 	_ auth.AvatarSource     = AuthHooks{}
+	_ auth.AvatarSetter     = AuthHooks{}
 	_ auth.Preferences      = AuthHooks{}
 	_ auth.TenantLister     = AuthHooks{}
 	_ auth.FederatedLookup  = AuthHooks{}
@@ -120,31 +121,93 @@ func (a AuthHooks) storeAvatar(ctx context.Context, hum, tenant string, pic []by
 	if a.Blob == nil || len(pic) == 0 {
 		return nil
 	}
+	var tenants []string
+	if tenant != "" {
+		tenants = []string{tenant}
+	}
+	fileID, err := a.putAvatar(ctx, pic, tenants)
+	if err != nil {
+		return err
+	}
+	return a.H.SetAvatar(ctx, hum, fileID)
+}
+
+// putAvatar puts pic at avatars/<sha256> and at t/<tenant>/files/<sha256> for
+// each tenant (content-addressed: a key already there is not written again)
+// and returns that file_id.
+func (a AuthHooks) putAvatar(ctx context.Context, pic []byte, tenants []string) (string, error) {
 	if len(pic) > auth.AvatarMaxBytes {
-		return errors.New("avatar over the size cap")
+		return "", errors.New("avatar over the size cap")
 	}
 	sum := sha256.Sum256(pic)
 	fileID := hex.EncodeToString(sum[:])
 	own, err := blob.AvatarKey(fileID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	keys := []string{own}
-	if tenant != "" {
+	for _, tenant := range tenants {
 		key, err := blob.Key(tenant, fileID)
 		if err != nil {
-			return err
+			return "", err
 		}
 		keys = append(keys, key)
 	}
 	for _, key := range keys {
 		if ok, err := a.Blob.Exists(ctx, key); err != nil || !ok {
 			if err := a.Blob.Put(ctx, key, pic); err != nil {
-				return err
+				return "", err
 			}
 		}
 	}
-	return a.H.SetAvatar(ctx, hum, fileID)
+	return fileID, nil
+}
+
+// SetOwnAvatar shows a picture the signed-in person uploaded (auth.AvatarSetter,
+// PUT /api/v1/auth/avatar, t1 ccaee528): the already-checked bytes go where the
+// IdP picture goes, avatars/<sha256> plus the tenant file of every workspace
+// they are a member of, so every place that shows the picture shows it. A later
+// sign-in keeps it (Humans.SetOwnAvatar). A demo visitor keeps the default
+// picture (auth.ErrAvatarFixed, as its pseudonym); an unknown human is
+// auth.ErrNoHuman.
+func (a AuthHooks) SetOwnAvatar(ctx context.Context, humanID string, pic []byte) error {
+	if a.Blob == nil {
+		return errors.New("store: no blob store for pictures")
+	}
+	if a.demoSeat(ctx, humanID, a.Policy.OpenWorkspace) {
+		return auth.ErrAvatarFixed
+	}
+	var tenants []string
+	if ml, ok := a.H.(MembershipLister); ok {
+		ms, err := ml.Memberships(ctx, humanID)
+		if err != nil {
+			return err
+		}
+		for _, m := range ms {
+			tenants = append(tenants, m.TenantID)
+		}
+	}
+	fileID, err := a.putAvatar(ctx, pic, tenants)
+	if err != nil {
+		return err
+	}
+	err = a.H.SetOwnAvatar(ctx, humanID, fileID)
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
+}
+
+// ClearOwnAvatar goes back to the last IdP picture (DELETE
+// /api/v1/auth/avatar); nothing uploaded is a no-op. Unknown human =
+// auth.ErrNoHuman. The uploaded bytes stay: content-addressed, another human
+// may carry the same file_id.
+func (a AuthHooks) ClearOwnAvatar(ctx context.Context, humanID string) error {
+	err := a.H.SetOwnAvatar(ctx, humanID, "")
+	if errors.Is(err, ErrNotFound) {
+		return auth.ErrNoHuman
+	}
+	return err
 }
 
 // OwnAvatar is the signed-in human's own stored picture (auth.AvatarSource):

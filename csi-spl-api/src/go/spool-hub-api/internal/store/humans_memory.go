@@ -17,6 +17,8 @@ type memHuman struct {
 	name, email string
 	interests   string            // interests (rdb 0086, CLE-77794); "" = none
 	avatar      string            // file_id
+	avatarOwn   bool              // avatar_own (rdb 0150): avatar is an upload
+	idpAvatar   string            // idp_avatar_file_id (rdb 0150)
 	locale      string            // preferred_locale (rdb 0017)
 	theme       string            // preferred_theme (rdb 0057); light is the light-blue palette
 	submitKey   string            // submit_key (rdb 0062, SPL-976); "" = never picked
@@ -400,7 +402,31 @@ func (s *Memory) SetAvatar(_ context.Context, humanID, fileID string) error {
 	if err := checkFileID(fileID); err != nil {
 		return err
 	}
-	return s.withHuman(humanID, func(hm *memHuman) { hm.avatar = fileID })
+	return s.withHuman(humanID, func(hm *memHuman) {
+		hm.idpAvatar = fileID
+		if !hm.avatarOwn {
+			hm.avatar = fileID
+		}
+	})
+}
+
+func (s *Memory) SetOwnAvatar(_ context.Context, humanID, fileID string) error {
+	if fileID != "" {
+		if err := checkFileID(fileID); err != nil {
+			return err
+		}
+	}
+	return s.withHuman(humanID, func(hm *memHuman) {
+		switch {
+		case fileID == "" && hm.avatarOwn:
+			hm.avatar, hm.avatarOwn = hm.idpAvatar, false
+		case fileID != "":
+			if !hm.avatarOwn {
+				hm.idpAvatar = hm.avatar
+			}
+			hm.avatar, hm.avatarOwn = fileID, true
+		}
+	})
 }
 
 func (s *Memory) Avatar(_ context.Context, humanID string) (string, error) {

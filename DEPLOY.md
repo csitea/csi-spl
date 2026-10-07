@@ -132,7 +132,7 @@ maintainer decides; there is no automatic access.
 | you get | you never get |
 |---|---|
 | a workspace role, `developer` or `tester`, through an invite that expires (`do_spl_hub_invite` with `INVITE_ROLE` and `TTL_HOURS`) | access to the project's cloud projects or billing |
-| removal at any time (`do_spl_hub_invite_revoke`, `do_spl_tenant_member_role`) | a cloud key, the tenant root key, or a CI secret |
+| removal at any time (`do_spl_hub_invite_revoke`, `do_spl_tenant_member_role`, `do_spl_tenant_member_remove`) | a cloud key, the tenant root key, or a CI secret |
 | your own laptop or VM, your own AI-vendor login and tokens: the project never pays for, stores or proxies them | the owner or admin roles |
 | review of your pull request, like any outside contribution | a merge without a maintainer |
 

@@ -3,7 +3,8 @@
 # Purpose: the box disk sweep's steps and its cron line, on fixtures in a
 # mktemp dir (the session step has its own test, spl-session-prune.tst.sh).
 #   1. do_tmp_stale_sweep: the dry run removes nothing; DRY_RUN=0 removes ONLY
-#      the idle go-build / tmp.X / Test* / *-gocache entries, never a recent
+#      the idle go-build / tmp.X (read-only Go module cache inside too) /
+#      Test* / *-gocache entries, never a recent
 #      one, one a process works in, a symlink (or its target) or a name of
 #      another shape
 #   2. do_wt_dead_sweep: DRY_RUN=0 removes ONLY the dead, clean, landed, idle
@@ -28,6 +29,7 @@ mkdir -p "$OUT/precious" "$M/go-build123/b001" "$M/tmp.AbCdEf1234" "$M/TestFoo12
   "$M/go-build456" "$M/go-build789" "$M/tmp.short" "$M/claude-1234/x" "$M/other"
 for d in go-build123/b001 tmp.AbCdEf1234 TestFoo123/001 c999-gocache/aa go-build456 go-build789 tmp.short claude-1234/x other; do echo x >"$M/$d/f"; done
 echo x >"$OUT/precious/f"; ln -s "$OUT/precious" "$M/go-build321"
+mkdir -p "$M/tmp.AbCdEf1234/go/pkg/mod/m@v1"; echo x >"$M/tmp.AbCdEf1234/go/pkg/mod/m@v1/f"; chmod -R a-w "$M/tmp.AbCdEf1234/go"
 old "$M" "$OUT"; touch "$M/go-build456/f"
 ( cd "$M/go-build789" && exec sleep 30 ) & busy_pid=$!
 sleep 0.3
@@ -38,7 +40,7 @@ out="$(tsw)"; rc=$?
   && pass "1. the dry run (default) plans the four idle leftovers and removes nothing" || fail "1. dry run (rc $rc: $out)"
 out="$(tsw DRY_RUN=0)"; rc=$?
 [ "$rc" = 0 ] && for d in go-build123 tmp.AbCdEf1234 TestFoo123 c999-gocache; do [ ! -e "$M/$d" ] || rc=9; done
-[ "$rc" = 0 ] && pass "1. DRY_RUN=0 removes go-build / tmp.X / Test* / *-gocache when idle" || fail "1. live run (rc $rc: $out)"
+[ "$rc" = 0 ] && pass "1. DRY_RUN=0 removes go-build / tmp.X (a read-only Go module cache too) / Test* / *-gocache when idle" || fail "1. live run (rc $rc: $out)"
 grep -q "KEEP recent $M/go-build456\$" <<<"$out" && pass "1. a recent leftover is kept" || fail "1. recent ($out)"
 grep -q "KEEP in-use $M/go-build789\$" <<<"$out" && [ -f "$M/go-build789/f" ] && pass "1. a dir a process works in is kept" || fail "1. in-use ($out)"
 grep -q "KEEP symlink $M/go-build321\$" <<<"$out" && [ -f "$OUT/precious/f" ] && pass "1. a symlink and its target are kept" || fail "1. symlink ($out)"

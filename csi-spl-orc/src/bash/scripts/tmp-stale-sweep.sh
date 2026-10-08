@@ -69,7 +69,9 @@ while IFS= read -r -d '' p; do
   if [[ "$dry" == 1 ]]; then
     say "PLAN remove ${kb}KB owner=$owner $p"
   else
-    if [[ "$owner" == "$(id -un)" ]]; then rm -rf -- "$p"; else sudo -n -u "$owner" rm -rf -- "$p"; fi
+    # A Go module cache (GOMODCACHE under a mktemp dir) is read-only: u+w first.
+    if [[ "$owner" == "$(id -un)" ]]; then chmod -R u+w -- "$p" 2>/dev/null; rm -rf -- "$p"
+    else sudo -n -u "$owner" chmod -R u+w -- "$p" 2>/dev/null; sudo -n -u "$owner" rm -rf -- "$p"; fi
     [[ -e "$p" ]] && { say "WARN could not remove $p (owner=$owner)"; continue; }
     say "REMOVE ${kb}KB owner=$owner $p"
   fi

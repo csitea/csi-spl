@@ -47,7 +47,7 @@ the owner's Team login on each box.
 
 - [x] T000 **doc** (c-569): `spec.md` + this file, v0.1 `568f0b835`, then
   v1.0.
-- [ ] T001 **rdb** (needs nothing). A new migration:
+- [x] T001 **rdb** (c-562, `0155_mistral_kind.sql`). A new migration:
   - re-make the `[acgq]` CHECKs with `[acgmq]`: `roster_agent_id_check`,
     `issues_assignee_check`, `fleet_lanes_agent_id_check`,
     `fleet_asks_{from_agent,acked_by,closed_by}_check`, and

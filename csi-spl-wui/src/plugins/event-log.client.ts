@@ -17,13 +17,14 @@ export default defineNuxtPlugin(() => {
   // 027 budget: the shipper (event-log.mjs) never renders and only observes,
   // so it rides a lazy chunk loaded after boot rather than the initial chunk.
   // The journal buffers every error until then, so bindShipperToJournal ships
-  // the backlog and none is lost.
-  void import('~/utils/event-log.mjs').then(({ bindShipperToJournal, createEventShipper, createEventsClient }) => {
+  // the backlog and none is lost. Spec 109 T006: asked once the app is ready,
+  // so its fetch and run stay out of the boot before mount.
+  onNuxtReady(() => void import('~/utils/event-log.mjs').then(({ bindShipperToJournal, createEventShipper, createEventsClient }) => {
     const shipper = createEventShipper({
       client: createEventsClient({ base: useAuthBase() }),
       session: () => session.state,
     })
     bindShipperToJournal(shipper, { getErrors, subscribeErrors })
     watch(() => session.state, () => shipper.sessionChanged())
-  })
+  }))
 })

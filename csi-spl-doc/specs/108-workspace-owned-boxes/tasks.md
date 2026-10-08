@@ -77,9 +77,12 @@ is the milestone that proves it.
 
 ## 2. After the first box
 
-- [ ] T010 **WUI**, = 073 T006 (after T002): New join token, optional
+- [~] T010 **WUI**, = 073 T006 (after T002): New join token, optional
       `for_human`, open tokens list, Revoke seat, shown only with
       `agents.join`. Files: as 073 T006. Done: as 073 T006.
+      **Built** db323e02b (c-563), WUI v3.6.6 on dev + prd; AC8 open
+      (needs T003 `spool join` and an admin test session). Detail: 073
+      tasks.md T006.
 - [ ] T011 **hub + iac** (after T002): relay signed URLs (spec 3.4). The
       hub mints per-object signed URLs under a hub-chosen `<tenant_id>/`
       prefix; the relay SA key never reaches a box. Read the git-rel sources

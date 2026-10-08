@@ -36,11 +36,19 @@ its lane, the files it owns and its done check. Status vocabulary:
 - [ ] T005 **orc** (after T004): `do_spl_desk_pin` join mode and its test in
       `desk-pin.tst.sh`; then `install.sh --join` with the lane that holds the
       installer. Done: hermetic suite seats via a stub `spool join`.
-- [ ] T006 **WUI** (after T003): New join token, optional `for_human`, open
+- [~] T006 **WUI** (after T003): New join token, optional `for_human`, open
       tokens list, Revoke seat. Shown only when the session holds
       `agents.join` (spec 4.6). The connect guide is T009, not this task.
       Done: typecheck + e2e for mint / copy / revoke, and a `biz_owner`
       session does not see the controls; then AC8 live on dev and prd.
+      **Built** db323e02b (c-563, spec 108 T010), WUI v3.6.6 on dev + prd:
+      `JoinTokensPanel.vue` (lazy), typecheck rc 0, e2e
+      `tenant-settings.test.mjs` 8g..8l + 17 35/35 on the mock bundle
+      (control `PROVE_RED=biz-sees-join` -> 17 FAIL). Live n=1 each: dev t1
+      `developer` and prd e2e `biz_owner` see the Agents list and no
+      join-token control. **AC8 open**: needs T004 `spool join` (108 T003)
+      and an admin test session on dev / prd e2e (both test members lack
+      `agents.join`).
 - [ ] T007 **close 037 T005** and 072 A5 once AC8 is green.
 - [ ] T008 **membership end** (after T003): spec 4.8. On `RemoveMember`, in
       that transaction, revoke open tokens and seated pins with this

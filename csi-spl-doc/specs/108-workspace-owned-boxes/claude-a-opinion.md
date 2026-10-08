@@ -261,7 +261,27 @@ It does not yet hold against the code that exists. Point by point:
 
 Owner questions I would add: section 5 items 1 to 4 of this file.
 
+### 6.2 Round 2, spec sha `bc550d488`
+
+Folded and agreed: D1 (existing `tenant_id` + `app.tenant_id` RLS, `roster`,
+one runtime role), D2, D3 (3.6 now states the operator GUC truthfully), D4
+(the box mints its key, 073 join token), D5 (no relay SA key on a box,
+hub-signed per-object URLs under `<tenant_id>/`), D8 (revoke list), D10, D11.
+
+Still open. **R1 to R4 block my agreement**; R5 to R7 I accept as one-line edits:
+
+| # | Spec text at `bc550d488` | Problem | Ask |
+|---|---|---|---|
+| R1 | 3.2 "the box identifier is scoped globally"; "the public key is globally unique" | The box id is unique per workspace (`PRIMARY KEY (tenant_id, box_id)`), so "globally" contradicts the schema. The key-uniqueness rule has no mechanism | "Box id unique within its workspace. A live box public key is pinned in at most one workspace: unique index on live `pins(pubkey)`; a conflict answers `pin_conflict` without naming the other workspace" |
+| R2 | 3.3 / 3.7 / phase 2 do not say where a box's workspace comes from | A hello whose `X-Spool-Tenant` names A, signed with a key pinned in B, must be refused. Today the header names and the pin proves (`internal/hub/resolve.go:15-20`); the spec must keep that as a rule. Phase 2 ("set `app.tenant_id`") is already built (`inTenant`) | One sentence in 3.3: "the workspace is the one the verified pin belongs to; the header only names it, and a mismatch is refused". Phase 2 becomes "no change; tests only" |
+| R3 | 4: three tests, EACCES with no control | A zero or refused result proves nothing without its control and its n | Each test is a pair with n: (a) B scope 0 of n / A scope n of n; (b) hello A-header + B-key refused / B-header + B-key accepted; (c) same key pinned into B `pin_conflict` / fresh key ok; (d) revoked box reconnect refused / sibling box still connected; (e) spool-send A agent -> B agent unknown / A -> A delivered; (f) URL signed for `<A>/...` used on `<B>/...` 403 / on its own object 200; (g) EACCES on B's spool root / A's own root readable |
+| R4 | 7: "None remaining" | Three choices are not made: 3.5 says "one box = one workspace (or per-workspace OS user)", which is two designs; the existing multi-workspace desk (`spl-desk-up-tenants.func.sh` runs desks of every workspace under one OS user) is not mentioned; queued deliveries at revoke are not decided | Either decide each in the spec or list them as owner questions: (1) a second workspace on one machine = a second OS user + spool root, yes or no; (2) the multi-workspace desk stays operator-only, and the workspaces it hosts are not isolated from the operator on that box; (3) at revoke, queued deliveries are held for the admin or purged |
+| R5 | 3.6 | The hub login must be neither superuser nor BYPASSRLS, and must own no tenant table | Cite `HubRoleCanLiftRLS` (`rls.go`) answering empty as the prd start gate |
+| R6 | (absent) | The anonymous view door (`resolve.go:62-74`) reads a workspace with no session | "View door off is refused outside lde" |
+| R7 | 3.1 | Spec 073 is Planned, not built | Name 073 as a prerequisite in section 5, phase 1 |
+
 ## 7. Status
 
-Round 1 of 3 sent to the author. **Points still open**: D1 to D11. No
-consensus yet at spec sha `88d4005ff`.
+Round 2 of 3 sent to the author. **Points still open at spec sha
+`bc550d488`**: R1 to R4 (blocking), R5 to R7 (one-line edits). Consensus
+follows when R1 to R4 are in the spec.

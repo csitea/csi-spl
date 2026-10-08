@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Kas tühistada {box} koht? Selle agendid lähevad võrguühenduseta.",
     "forbidden": "Teil puudub õigus agents.join.",
     "failed": "See ei õnnestunud. Proovige uuesti."
+  },
+  "hours_timer": {
+    "start": "Käivita taimer rakendusest väljaspool tehtud tööle",
+    "title": "Tunnitaimer",
+    "hint": "Rakendusest väljaspool tehtud töö, näiteks kõne või redaktor. Vali, mille kohta aeg käib: taimer käivitub kohe ja jätkab sellel seadmel ka pärast uuesti laadimist.",
+    "picker_filter": "Otsi teemasid, ülesandeid, kanaleid",
+    "picker_empty": "Vasteid pole.",
+    "picker_topics": "Viimased teemad",
+    "picker_issues": "Ülesanded",
+    "picker_channels": "Kanalid",
+    "running": "Taimer töötab: {target}, {time}",
+    "stop": "Peata ja kirjuta",
+    "retry": "Proovi uuesti",
+    "discard": "Loobu",
+    "done": "Kirjutatud {time}: {target}.",
+    "err_frozen": "Ei kirjutatud: selle päeva tunnid on külmutatud, midagi ei salvestatud. Loobu taimerist või palu omanikul periood tagasi saata.",
+    "err_day_cap": "Ei kirjutatud: päevas oleks üle 24 tunni (1440 minutit). Midagi ei salvestatud.",
+    "err_bad": "Ei kirjutatud: server lükkas vahemiku tagasi ({detail}). Midagi ei salvestatud.",
+    "err_session": "Ei kirjutatud: seanss lõppes. Logi uuesti sisse ja proovi siis uuesti.",
+    "err_network": "Ei kirjutatud: serveriga ei saadud ühendust. Aeg on alles; proovi uuesti."
   }
 }

@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Revocați locul lui {box}? Agenții ei trec offline.",
     "forbidden": "Nu aveți permisiunea agents.join.",
     "failed": "Nu a mers. Încercați din nou."
+  },
+  "hours_timer": {
+    "start": "Pornește un cronometru pentru munca din afara aplicației",
+    "title": "Cronometru de ore",
+    "hint": "Muncă în afara aplicației, de exemplu un apel sau un editor. Alege pentru ce este: cronometrul pornește imediat și continuă după reîncărcare pe acest dispozitiv.",
+    "picker_filter": "Caută subiecte, tichete, canale",
+    "picker_empty": "Niciun rezultat.",
+    "picker_topics": "Subiecte recente",
+    "picker_issues": "Tichete",
+    "picker_channels": "Canale",
+    "running": "Cronometru pornit: {target}, {time}",
+    "stop": "Oprește și înregistrează",
+    "retry": "Încearcă din nou",
+    "discard": "Renunță",
+    "done": "Înregistrat {time} pentru {target}.",
+    "err_frozen": "Neînregistrat: orele acelei zile sunt înghețate, nu s-a scris nimic. Renunță la cronometru sau cere unui proprietar să returneze perioada.",
+    "err_day_cap": "Neînregistrat: ziua ar avea peste 24 de ore (1440 de minute). Nu s-a scris nimic.",
+    "err_bad": "Neînregistrat: serverul a refuzat intervalul ({detail}). Nu s-a scris nimic.",
+    "err_session": "Neînregistrat: sesiunea a expirat. Autentifică-te din nou, apoi încearcă din nou.",
+    "err_network": "Neînregistrat: serverul nu poate fi contactat. Timpul este păstrat; încearcă din nou."
   }
 }

@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "{box} yerinin iptal edilsin mi? Ajanları çevrimdışı olur.",
     "forbidden": "agents.join izniniz yok.",
     "failed": "Olmadı. Tekrar deneyin."
+  },
+  "hours_timer": {
+    "start": "Uygulama dışındaki çalışma için zamanlayıcı başlat",
+    "title": "Saat zamanlayıcısı",
+    "hint": "Uygulama dışındaki çalışma, örneğin bir görüşme veya editör. Ne için olduğunu seç: zamanlayıcı hemen başlar ve bu cihazda yeniden yüklemede de çalışmaya devam eder.",
+    "picker_filter": "Konu, iş, kanal ara",
+    "picker_empty": "Eşleşme yok.",
+    "picker_topics": "Son konular",
+    "picker_issues": "İşler",
+    "picker_channels": "Kanallar",
+    "running": "Zamanlayıcı çalışıyor: {target}, {time}",
+    "stop": "Durdur ve kaydet",
+    "retry": "Tekrar dene",
+    "discard": "Vazgeç",
+    "done": "{time} süre {target} için kaydedildi.",
+    "err_frozen": "Kaydedilmedi: o günün saatleri donduruldu, hiçbir şey yazılmadı. Zamanlayıcıdan vazgeç veya bir sahibinden dönemi geri vermesini iste.",
+    "err_day_cap": "Kaydedilmedi: o gün 24 saati (1440 dakika) aşardı. Hiçbir şey yazılmadı.",
+    "err_bad": "Kaydedilmedi: sunucu bu aralığı reddetti ({detail}). Hiçbir şey yazılmadı.",
+    "err_session": "Kaydedilmedi: oturumun sona erdi. Yeniden giriş yap, sonra tekrar dene.",
+    "err_network": "Kaydedilmedi: sunucuya ulaşılamadı. Süre saklanıyor; tekrar dene."
   }
 }

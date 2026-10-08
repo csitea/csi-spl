@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Atsaukt {box} vietu? Tās aģenti atvienosies.",
     "forbidden": "Jums nav atļaujas agents.join.",
     "failed": "Neizdevās. Mēģiniet vēlreiz."
+  },
+  "hours_timer": {
+    "start": "Sākt taimeri darbam ārpus lietotnes",
+    "title": "Stundu taimeris",
+    "hint": "Darbs ārpus lietotnes, piemēram, zvans vai redaktors. Izvēlies, kam laiks pieder: taimeris sākas uzreiz un turpinās šajā ierīcē arī pēc pārlādes.",
+    "picker_filter": "Meklēt tēmas, uzdevumus, kanālus",
+    "picker_empty": "Nav atbilstību.",
+    "picker_topics": "Nesenās tēmas",
+    "picker_issues": "Uzdevumi",
+    "picker_channels": "Kanāli",
+    "running": "Taimeris darbojas: {target}, {time}",
+    "stop": "Apturēt un reģistrēt",
+    "retry": "Mēģināt vēlreiz",
+    "discard": "Atmest",
+    "done": "Reģistrēts {time}: {target}.",
+    "err_frozen": "Nav reģistrēts: šīs dienas stundas ir iesaldētas, nekas netika ierakstīts. Atmet taimeri vai lūdz īpašniekam atgriezt periodu.",
+    "err_day_cap": "Nav reģistrēts: dienā būtu vairāk nekā 24 stundas (1440 minūtes). Nekas netika ierakstīts.",
+    "err_bad": "Nav reģistrēts: serveris noraidīja intervālu ({detail}). Nekas netika ierakstīts.",
+    "err_session": "Nav reģistrēts: sesija beidzās. Pieraksties vēlreiz un mēģini vēlreiz.",
+    "err_network": "Nav reģistrēts: serveris nav sasniedzams. Laiks ir saglabāts; mēģini vēlreiz."
   }
 }

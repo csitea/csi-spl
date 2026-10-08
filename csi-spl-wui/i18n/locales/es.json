@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "¿Revocar la plaza de {box}? Sus agentes quedan desconectados.",
     "forbidden": "Le falta el permiso agents.join.",
     "failed": "No funcionó. Inténtelo de nuevo."
+  },
+  "hours_timer": {
+    "start": "Iniciar un temporizador para trabajo fuera de la app",
+    "title": "Temporizador de horas",
+    "hint": "Trabajo fuera de la app, como una llamada o un editor. Elige a qué corresponde: el temporizador empieza enseguida y sigue tras recargar en este dispositivo.",
+    "picker_filter": "Buscar temas, incidencias, canales",
+    "picker_empty": "Sin resultados.",
+    "picker_topics": "Temas recientes",
+    "picker_issues": "Incidencias",
+    "picker_channels": "Canales",
+    "running": "Temporizador en marcha: {target}, {time}",
+    "stop": "Detener y registrar",
+    "retry": "Reintentar",
+    "discard": "Descartar",
+    "done": "Registrado {time} en {target}.",
+    "err_frozen": "No registrado: las horas de ese día están congeladas, no se escribió nada. Descarta el temporizador o pide a un propietario que devuelva el periodo.",
+    "err_day_cap": "No registrado: ese día tendría más de 24 horas (1440 minutos). No se escribió nada.",
+    "err_bad": "No registrado: el servidor rechazó este intervalo ({detail}). No se escribió nada.",
+    "err_session": "No registrado: tu sesión terminó. Inicia sesión de nuevo y vuelve a intentarlo.",
+    "err_network": "No registrado: no se pudo contactar con el servidor. El tiempo se conserva; vuelve a intentarlo."
   }
 }

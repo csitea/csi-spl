@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Revoke the seat of {box}? Its agents go offline.",
     "forbidden": "You lack the agents.join permission.",
     "failed": "That did not work. Try again."
+  },
+  "hours_timer": {
+    "start": "Start a timer for time worked outside the app",
+    "title": "Hours timer",
+    "hint": "Time worked outside the app, such as a call or an editor. Pick what it is for: the timer starts at once and keeps running across reloads on this device.",
+    "picker_filter": "Search topics, issues, channels",
+    "picker_empty": "Nothing matches.",
+    "picker_topics": "Recent topics",
+    "picker_issues": "Issues",
+    "picker_channels": "Channels",
+    "running": "Timer running: {target}, {time}",
+    "stop": "Stop and log",
+    "retry": "Try again",
+    "discard": "Discard",
+    "done": "Logged {time} to {target}.",
+    "err_frozen": "Not logged: that day's hours are frozen, so nothing was written. Discard the timer, or ask a biz owner to return the period.",
+    "err_day_cap": "Not logged: that day would hold more than 24 hours (1440 minutes). Nothing was written.",
+    "err_bad": "Not logged: the hub refused this interval ({detail}). Nothing was written.",
+    "err_session": "Not logged: your session ended. Sign in again, then try again.",
+    "err_network": "Not logged: the hub could not be reached. The time is kept; try again."
   }
 }

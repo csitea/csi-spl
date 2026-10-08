@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Odvolať miesto stroja {box}? Jeho agenti sa odpoja.",
     "forbidden": "Nemáte oprávnenie agents.join.",
     "failed": "Nepodarilo sa. Skúste to znova."
+  },
+  "hours_timer": {
+    "start": "Spustiť časovač pre prácu mimo aplikácie",
+    "title": "Časovač hodín",
+    "hint": "Práca mimo aplikácie, napríklad hovor alebo editor. Vyberte, čoho sa týka: časovač sa spustí hneď a na tomto zariadení beží aj po obnovení stránky.",
+    "picker_filter": "Hľadať témy, úlohy, kanály",
+    "picker_empty": "Žiadne výsledky.",
+    "picker_topics": "Nedávne témy",
+    "picker_issues": "Úlohy",
+    "picker_channels": "Kanály",
+    "running": "Časovač beží: {target}, {time}",
+    "stop": "Zastaviť a zapísať",
+    "retry": "Skúsiť znova",
+    "discard": "Zahodiť",
+    "done": "Zapísané {time} k {target}.",
+    "err_frozen": "Nezapísané: hodiny toho dňa sú zmrazené, nič sa nezapísalo. Zahoďte časovač alebo požiadajte vlastníka o vrátenie obdobia.",
+    "err_day_cap": "Nezapísané: deň by mal viac ako 24 hodín (1440 minút). Nič sa nezapísalo.",
+    "err_bad": "Nezapísané: server odmietol interval ({detail}). Nič sa nezapísalo.",
+    "err_session": "Nezapísané: relácia skončila. Prihláste sa znova a skúste to znova.",
+    "err_network": "Nezapísané: server je nedostupný. Čas zostáva uložený; skúste to znova."
   }
 }

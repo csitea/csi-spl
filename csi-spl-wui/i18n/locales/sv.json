@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Återkalla platsen för {box}? Dess agenter går offline.",
     "forbidden": "Du saknar behörigheten agents.join.",
     "failed": "Det fungerade inte. Försök igen."
+  },
+  "hours_timer": {
+    "start": "Starta en timer för arbete utanför appen",
+    "title": "Timmar-timer",
+    "hint": "Arbete utanför appen, till exempel ett samtal eller en editor. Välj vad tiden gäller: timern startar direkt och fortsätter efter omladdning på den här enheten.",
+    "picker_filter": "Sök ämnen, ärenden, kanaler",
+    "picker_empty": "Inga träffar.",
+    "picker_topics": "Senaste ämnen",
+    "picker_issues": "Ärenden",
+    "picker_channels": "Kanaler",
+    "running": "Timer igång: {target}, {time}",
+    "stop": "Stoppa och logga",
+    "retry": "Försök igen",
+    "discard": "Släng",
+    "done": "Loggade {time} på {target}.",
+    "err_frozen": "Inte loggat: dagens timmar är frysta, så inget skrevs. Släng timern eller be en ägare att återlämna perioden.",
+    "err_day_cap": "Inte loggat: dagen skulle få mer än 24 timmar (1440 minuter). Inget skrevs.",
+    "err_bad": "Inte loggat: servern avvisade intervallet ({detail}). Inget skrevs.",
+    "err_session": "Inte loggat: din session tog slut. Logga in igen och försök sedan igen.",
+    "err_network": "Inte loggat: servern gick inte att nå. Tiden sparas; försök igen."
   }
 }

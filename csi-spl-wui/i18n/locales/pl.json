@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Unieważnić miejsce {box}? Jej agenci przejdą w tryb offline.",
     "forbidden": "Brak uprawnienia agents.join.",
     "failed": "Nie udało się. Spróbuj ponownie."
+  },
+  "hours_timer": {
+    "start": "Uruchom licznik czasu pracy poza aplikacją",
+    "title": "Licznik godzin",
+    "hint": "Praca poza aplikacją, np. rozmowa lub edytor. Wybierz, czego dotyczy: licznik startuje od razu i działa dalej po przeładowaniu na tym urządzeniu.",
+    "picker_filter": "Szukaj tematów, zadań, kanałów",
+    "picker_empty": "Brak wyników.",
+    "picker_topics": "Ostatnie tematy",
+    "picker_issues": "Zadania",
+    "picker_channels": "Kanały",
+    "running": "Licznik działa: {target}, {time}",
+    "stop": "Zatrzymaj i zapisz",
+    "retry": "Spróbuj ponownie",
+    "discard": "Odrzuć",
+    "done": "Zapisano {time} dla {target}.",
+    "err_frozen": "Nie zapisano: godziny tego dnia są zamrożone, nic nie zostało zapisane. Odrzuć licznik lub poproś właściciela o zwrot okresu.",
+    "err_day_cap": "Nie zapisano: dzień miałby ponad 24 godziny (1440 minut). Nic nie zostało zapisane.",
+    "err_bad": "Nie zapisano: serwer odrzucił ten przedział ({detail}). Nic nie zostało zapisane.",
+    "err_session": "Nie zapisano: sesja wygasła. Zaloguj się ponownie i spróbuj jeszcze raz.",
+    "err_network": "Nie zapisano: brak połączenia z serwerem. Czas jest zachowany; spróbuj ponownie."
   }
 }

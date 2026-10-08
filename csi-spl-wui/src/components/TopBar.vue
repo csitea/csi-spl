@@ -94,6 +94,13 @@
       <!-- perf r4 W6: not mounted on a phone (the avatar sheet has it), so
            its async chunk is not fetched there either -->
       <div v-if="!phone" class="top-bar__lang"><LanguageSwitcher /></div>
+      <!-- spec 107 Q7 = B: the hours timer. A plain button until it is
+           first used; the timer chunk loads on that click, or at once when
+           this device holds a running timer (027: none of it at first paint) -->
+      <template v-if="session.claims?.hum">
+        <LazyHoursTimer v-if="timerLoad" :ask="timerAsk" />
+        <button v-else type="button" class="icon-btn" data-test="hours-timer-open" :aria-label="t('hours_timer.start')" :title="t('hours_timer.start')" @click="timerAsk = timerLoad = true"><UiIcon name="history" :size="18" /></button>
+      </template>
       <UserMenu />
     </div>
   </header>
@@ -267,7 +274,12 @@ watch(() => session.state, (st) => {
   if (shouldLoadOperators({ mock: api.mock, sessionState: st })) void search.loadOperators()
 }, { immediate: true })
 
+/* spec 107 Q7 = B: load the timer chunk at once only when a timer runs here
+   (utils/hours-timer.mjs HOURS_TIMER_KEY, read inline to keep it lazy) */
+const timerLoad = ref(false)
+const timerAsk = ref(false)
 onMounted(() => {
+  try { timerLoad.value = !!localStorage.getItem('spool.hours-timer') } catch { /* no storage */ }
   showQuery()
   document.addEventListener('keydown', onDocKey, true)
 })

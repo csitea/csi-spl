@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "De plaats van {box} intrekken? De agents ervan gaan offline.",
     "forbidden": "U mist de machtiging agents.join.",
     "failed": "Dat lukte niet. Probeer het opnieuw."
+  },
+  "hours_timer": {
+    "start": "Start een timer voor werk buiten de app",
+    "title": "Urentimer",
+    "hint": "Werk buiten de app, zoals een gesprek of een editor. Kies waarvoor de tijd is: de timer start meteen en loopt op dit apparaat door na herladen.",
+    "picker_filter": "Zoek onderwerpen, issues, kanalen",
+    "picker_empty": "Geen resultaten.",
+    "picker_topics": "Recente onderwerpen",
+    "picker_issues": "Issues",
+    "picker_channels": "Kanalen",
+    "running": "Timer loopt: {target}, {time}",
+    "stop": "Stoppen en boeken",
+    "retry": "Opnieuw proberen",
+    "discard": "Weggooien",
+    "done": "{time} geboekt op {target}.",
+    "err_frozen": "Niet geboekt: de uren van die dag zijn bevroren, er is niets geschreven. Gooi de timer weg of vraag een eigenaar de periode terug te geven.",
+    "err_day_cap": "Niet geboekt: die dag zou meer dan 24 uur (1440 minuten) bevatten. Er is niets geschreven.",
+    "err_bad": "Niet geboekt: de server weigerde dit interval ({detail}). Er is niets geschreven.",
+    "err_session": "Niet geboekt: je sessie is verlopen. Meld je opnieuw aan en probeer het opnieuw.",
+    "err_network": "Niet geboekt: de server is niet bereikbaar. De tijd blijft bewaard; probeer het opnieuw."
   }
 }

@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Atšaukti {box} vietą? Jos agentai atsijungs.",
     "forbidden": "Neturite teisės agents.join.",
     "failed": "Nepavyko. Bandykite dar kartą."
+  },
+  "hours_timer": {
+    "start": "Paleisti laikmatį darbui už programos ribų",
+    "title": "Valandų laikmatis",
+    "hint": "Darbas už programos ribų, pavyzdžiui, skambutis ar redaktorius. Pasirinkite, kam skiriamas laikas: laikmatis pradeda iškart ir tęsiasi šiame įrenginyje net perkrovus.",
+    "picker_filter": "Ieškoti temų, užduočių, kanalų",
+    "picker_empty": "Nieko nerasta.",
+    "picker_topics": "Naujausios temos",
+    "picker_issues": "Užduotys",
+    "picker_channels": "Kanalai",
+    "running": "Laikmatis veikia: {target}, {time}",
+    "stop": "Sustabdyti ir įrašyti",
+    "retry": "Bandyti dar kartą",
+    "discard": "Atmesti",
+    "done": "Įrašyta {time}: {target}.",
+    "err_frozen": "Neįrašyta: tos dienos valandos užšaldytos, nieko neįrašyta. Atmeskite laikmatį arba paprašykite savininko grąžinti laikotarpį.",
+    "err_day_cap": "Neįrašyta: dienoje būtų daugiau nei 24 valandos (1440 minučių). Nieko neįrašyta.",
+    "err_bad": "Neįrašyta: serveris atmetė intervalą ({detail}). Nieko neįrašyta.",
+    "err_session": "Neįrašyta: sesija baigėsi. Prisijunkite iš naujo ir bandykite dar kartą.",
+    "err_network": "Neįrašyta: nepavyko pasiekti serverio. Laikas išsaugotas; bandykite dar kartą."
   }
 }

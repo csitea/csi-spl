@@ -107,6 +107,7 @@ A timed (not all-day), `confirmed` calendar event of **kind `other`** in this wo
 Calls, an editor, a whiteboard: the hub cannot see them and v1 **does not guess**. The member adds them, without a form:
 - **Extend** a suggested row by one tap: `+15`.
 - **Add** a row (5.3): pick a target, set minutes.
+- **Time it** (owner Q7 = B, section 13; T019): a start/stop timer in the app header. Start picks the target (the 5.3 picker); the running time shows in the header and survives a reload. Stop writes the interval once (`POST /v1/me/hours/timer`): the hub splits it at the member's local midnight (1.6) and adds each day's piece to that day's row for the target (an approved entry, else the open suggestion, else 0), approved, all days or none; a frozen day is 409 `period_frozen`, a day above 1440 minutes is refused, a run over 24 hours is refused. The running timer is kept on the device (localStorage, per workspace and member), never on the hub: nobody, the hub included, sees it until it is stopped (1.7).
 
 ### 1.6 Day, time zone, rounding
 
@@ -300,7 +301,7 @@ Set by a holder of `tenant.settings` (biz owner, admin) through the existing ten
 
 ### 5.3 Add a row
 
-`+ Add` under a day: a target picker (recent topics, issues, channels first; search) and a minutes stepper (default 0:30). Two taps plus the pick. This is also the answer to "timer": **no timer in v1**; in-app time is measured, off-app time is added or extended (1.5).
+`+ Add` under a day: a target picker (recent topics, issues, channels first; search) and a minutes stepper (default 0:30). Two taps plus the pick. In-app time is measured; off-app time is added, extended or timed with the header timer (1.5, owner Q7 = B). The picker is one component (`HoursTargetPicker.vue`), shared by `+ Add` and the timer.
 
 ### 5.4 Team (holders of `hours.read`)
 
@@ -339,11 +340,12 @@ Admins and product owners get neither new permission by default (owner Q5); a bi
 | `PUT /v1/me/hours/minutes` | member | the WUI's tab-minute batch (<= 60 rows, one `tz`) |
 | `GET /v1/me/hours?period=` | member | days with suggestions, entries, deltas, period state |
 | `PUT /v1/me/hours` | member | approve / edit / reject / add / resubmit, a batch; a frozen day is 409 `period_frozen` (4.2) |
+| `POST /v1/me/hours/timer` | member | a stopped header timer `{target, start, end}`: split at local midnight, added to each day's row (1.5, owner Q7 = B) |
 | `GET /v1/hours?period=&member=&target=` | `hours.read` | approved entries and period rows |
 | `GET /v1/hours/export?period=&format=csv\|xlsx&final=` | `hours.read` | the download |
 | `PUT /v1/hours/periods` | `hours.approve` | approve or return member periods, a batch (Approve all / Return all) |
 
-Six routes. Settings go through the existing tenant settings route (098); the badge count rides on the existing view (5.1).
+Seven routes. Settings go through the existing tenant settings route (098); the badge count rides on the existing view (5.1).
 
 ---
 
@@ -409,7 +411,6 @@ One page, two layouts at 820 px (043). Desktop: the period as day cards (Mine) a
 
 ## 11. Not in v1
 
-- A start/stop **timer**.
 - **Money**: rates, invoices, overtime, leave and holidays.
 - **Agents' hours** (roster ids), box or agent runtime as cost.
 - The biz owner editing a worker's minutes (approve or return only).
@@ -493,7 +494,13 @@ The build starts on the recommendations (owner rule 10-05); each answer changes 
 | Q4 | A workspace-wide unfreeze | yes, audited | **none in v1**; Return / Return all per member | **B** | none under B |
 | Q5 | Who sees and approves team hours by default | biz owner only, grantable to other roles | biz owner and admin | **A** | T002 |
 | Q6 | Which calendar events are suggested as meetings | kind `other` only (no deploy, maintenance, freeze, reminder, release, agent task) | every timed, accepted event of any kind | **A** | T006 |
-| Q7 | Time outside the app | `+15` on a row and `+ Add` (no timer) | a start/stop timer in the app header | **A** | new task under B |
+| Q7 | Time outside the app | `+15` on a row and `+ Add` (no timer) | a start/stop timer in the app header | **A** | T019 (owner: **B**) |
+
+### 13.1 The owner's answers
+
+HUM-10, msg `54eda621` (2026-10-08): "accept the suggestions from the panel , except - q2 b and q7 b".
+
+- **Q7 = B**: a start/stop timer in the app header, built as T019 (1.5, 5.3; `POST /v1/me/hours/timer`).
 
 ---
 
@@ -503,5 +510,6 @@ The build starts on the recommendations (owner rule 10-05); each answer changes 
 |---|---|---|---|
 | 0.1 | 2026-10-07 | c-522 (s107-1) | first draft: definition of time worked, signals measured on `aa7523ea`, worker approval, freeze, biz-owner approval, CSV/XLSX, calendar and issue v1/later, owner questions Q1..Q5 |
 | 1.0 | 2026-10-07 | c-522 (s107-1) | fold of reviews s107-2, s107-3, s107-4 (section 12.2); unanimous consensus recorded; owner Q1..Q7; `tasks.md` |
+| 1.1 | 2026-10-08 | c-566 | owner Q7 = B recorded (13.1): the header timer, 1.5, 5.3, 11; task T019 |
 
-<!-- version: 1.0.0 · updated: 2026-10-07 · last-edit: 2026-10-07T22:00:00Z -->
+<!-- version: 1.1.0 · updated: 2026-10-08 · last-edit: 2026-10-08T17:30:00Z -->

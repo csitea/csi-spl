@@ -2275,5 +2275,25 @@
     "revoke_seat_confirm": "Perutaanko koneen {box} paikka? Sen agentit menevät offline-tilaan.",
     "forbidden": "Sinulla ei ole oikeutta agents.join.",
     "failed": "Se ei onnistunut. Yritä uudelleen."
+  },
+  "hours_timer": {
+    "start": "Käynnistä ajastin sovelluksen ulkopuoliselle työlle",
+    "title": "Tuntiajastin",
+    "hint": "Sovelluksen ulkopuolella tehty työ, kuten puhelu tai editori. Valitse, mihin aika kohdistuu: ajastin käynnistyy heti ja jatkuu tällä laitteella myös uudelleenlatauksen jälkeen.",
+    "picker_filter": "Hae aiheita, tehtäviä, kanavia",
+    "picker_empty": "Ei osumia.",
+    "picker_topics": "Viimeisimmät aiheet",
+    "picker_issues": "Tehtävät",
+    "picker_channels": "Kanavat",
+    "running": "Ajastin käynnissä: {target}, {time}",
+    "stop": "Pysäytä ja kirjaa",
+    "retry": "Yritä uudelleen",
+    "discard": "Hylkää",
+    "done": "Kirjattu {time} kohteeseen {target}.",
+    "err_frozen": "Ei kirjattu: päivän tunnit on jäädytetty, joten mitään ei tallennettu. Hylkää ajastin tai pyydä omistajaa palauttamaan jakso.",
+    "err_day_cap": "Ei kirjattu: päivään tulisi yli 24 tuntia (1440 minuuttia). Mitään ei tallennettu.",
+    "err_bad": "Ei kirjattu: palvelin hylkäsi välin ({detail}). Mitään ei tallennettu.",
+    "err_session": "Ei kirjattu: istuntosi päättyi. Kirjaudu uudelleen ja yritä sitten uudelleen.",
+    "err_network": "Ei kirjattu: palvelimeen ei saatu yhteyttä. Aika on tallessa; yritä uudelleen."
   }
 }

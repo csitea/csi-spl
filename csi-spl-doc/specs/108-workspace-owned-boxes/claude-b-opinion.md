@@ -194,7 +194,19 @@ R2.3 and the operator promise (5.2) are owner questions if the author does
 not decide them; section 7 should not say "None remaining" while 3.5 has an
 "or".
 
-## 7. Status
+## 7. Round 3, on spec `4b64dd44`
 
-Round 2 sent to the author on task 5901e226. **Points still open**: R2.1 to
-R2.8. No consensus yet.
+R2.1 to R2.8 are all in the spec: `box-wui` exempt from the unique live-pin
+index, box id unique per workspace, one box one workspace enforced in
+`do_spl_desk_up` and at pin, root caveat, the named `asOperator` callers and
+`replay-unsigned`, upload tokens dropped at revoke plus the 5 s pin cache, 073
+as a dependency, and four test pairs each with its control. The three owner
+questions in spec section 7 (a second workspace per machine as its own OS
+user, the operator-only multi-workspace desk, queued deliveries at revoke) are
+the right ones; they do not block the design.
+
+Wording nit, not blocking: 3.6 "name `replay-unsigned`" reads as an
+instruction; "`replay-unsigned` is the one route that takes the workspace
+from the body (SA allow-list)" says it.
+
+Consensus reached at 4b64dd44

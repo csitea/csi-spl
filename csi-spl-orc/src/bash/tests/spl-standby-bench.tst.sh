@@ -13,6 +13,9 @@
 #   7. a hung agent: the turn times out, FAIL, the agent is stopped; a
 #      SIGTERM to the bench mid-turn stops its agent too
 #   8. CONTROL: a live stub IS seen by the liveness check
+#   9. mistral (spec 110 T013b): a vibe CLI on PATH is named as mistral and
+#      skipped (no headless adapter), never started; BENCH_MODELS=mistral:x
+#      is refused; control: no vibe, no such line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -102,7 +105,7 @@ out=$(bench); rc=$?
 grep -q "claude:haiku grok:grok-fast" <<<"$out" && pass "dry run names the plan" || fail "dry run plan: $out"
 
 # --- 2. refusals -------------------------------------------------------------------------
-for bad in "ENV=prd" "BENCH_THINKING=maybe" "BENCH_N=19" "BENCH_N=x" "BENCH_EFFORT=max" "BENCH_MODELS=qwen:x" "BENCH_MODELS=claude:" \
+for bad in "ENV=prd" "BENCH_THINKING=maybe" "BENCH_N=19" "BENCH_N=x" "BENCH_EFFORT=max" "BENCH_MODELS=qwen:x" "BENCH_MODELS=mistral:x" "BENCH_MODELS=claude:" \
   "DRY_RUN=2" "BENCH_BUDGET_S=fast" "BENCH_CALL_TIMEOUT=0" "SPOOL_AGENT_USER=someone-else"; do
   fresh
   if bench "$bad" >"$T/o"; then fail "accepts $bad"; else
@@ -175,6 +178,17 @@ ctl=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do [[ -s "$T/pids" ]] && break; sleep 0.2; done
 [[ -n "$(alive)" ]] && pass "CONTROL: a live stub is seen" || fail "CONTROL: liveness check blind"
 kill "$ctl" 2>/dev/null; wait "$ctl" 2>/dev/null
+
+# --- 9. mistral: vibe on PATH is skipped by its kind, never started -------------------
+fresh
+out=$(bench BENCH_MODELS="claude:haiku"); rc=$?
+grep -q "mistral" <<<"$out" && fail "CONTROL no vibe on PATH: mistral named: $out" || pass "CONTROL no vibe on PATH: no mistral line"
+printf '%s\n' '#!/bin/sh' 'echo "vibe $*" >>"$STUB_LOG"' >"$T/stub/vibe"; chmod +x "$T/stub/vibe"
+fresh
+out=$(bench BENCH_MODELS="claude:haiku" STUB_LOG="$T/calls.log"); rc=$?
+[[ $rc -eq 0 ]] && grep -q "skip mistral (vibe): CLI present, no headless adapter in L1" <<<"$out" && ! grep -q '^vibe' "$T/calls.log" \
+  && pass "mistral: vibe on PATH is skipped by its kind, never started" || fail "mistral skip: rc=$rc $out $(cat "$T/calls.log")"
+rm -f "$T/stub/vibe"
 
 echo "=== $([[ $fails -eq 0 ]] && echo 'all spl-standby-bench.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

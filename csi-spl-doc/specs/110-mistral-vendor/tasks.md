@@ -220,7 +220,7 @@ the owner's Team login on each box.
   spec goes to agy).
   - The `auth` state is read as the watchdog verdict `HIT S2 kind=auth`
     in `ctx*/<m-id>/out.s2` newer than `.vibe/.env`; T006/T013b emit it.
-- [ ] T013b **watchdog + hook-ping** (needs T006). Files:
+- [x] T013b **watchdog + hook-ping** (c-583; needs T006). Files:
   - `csi-spl-orc/src/bash/features/watchdog/situations/{lib.inc.sh,s3.sh}`;
   - `RUN/spl-{watchdog,wd-takeover,standby-bench,hook-ping}.func.sh`;
   - `SA/scripts/hook-ping/{mistral.sh (*new*),live-one.sh}`;
@@ -230,6 +230,23 @@ the owner's Team login on each box.
   a non-tool event prints `{}`). The watchdog leaves a lane in `auth`
   state alone (no respawn) and that lane sends a `blocker` to the
   dispatcher (`spec.md` 2.5).
+  - Built. `hook-ping/mistral.sh` speaks vibe's own protocol
+    (`post_tool` in, `hook_specific_output.additional_context` out); vibe
+    2.26.0's own response model and hooks.toml loader accept both (source,
+    n = 1). So a vibe hook CAN inject context (2.1's open question, from
+    the source; no live trial yet).
+  - The watchdog (also `situations/s2.sh` and `OT/wd-situations.tst.sh`
+    section 10, per the brief): `Vibe CLI` is a harness comm, `m-` ids are checked, s2
+    emits `kind=auth` from the real 401 pane, vibe's 429 text is
+    `kind=limit`. An auth lane gets ONE `blocker` sent by the watchdog on its
+    behalf (the lane cannot act) to the dispatch lease holder.
+  - Gap, not in this task: no heartbeat hook runs in a vibe lane yet
+    (`spool-agent-hook.sh` does not know vibe), so S1 on an m- lane is
+    `prog=unknown`, which means ring only and never a takeover.
+  - Gap, not in this task: `spl_peer_harness_comm` in
+    `RUN/spl-peer-restart.func.sh` compares `/proc/<pid>/comm` with
+    `PEER_HARNESS=mistral`, but vibe's comm is `Vibe CLI`. A restarted m- lane's
+    new session is therefore never seen as alive.
 - [ ] T014 **live** (needs T004..T012, T013a, T013b and the key-entry lane on trunk, and the owner's Team login, D3). The owner
   signs up, then:
   - runs `vibe --setup` as the agent user on the main box (and the satellite

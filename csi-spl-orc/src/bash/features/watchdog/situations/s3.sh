@@ -18,7 +18,7 @@ done_ts="$(wd_f "done")" start="$(wd_f session_start)"
 [[ "$done_ts" =~ ^[0-9]+$ ]] && (( done_ts >= start )) && exit 0
 if [[ -n "$WD_PANE" ]]; then
   wd_has pane || exit 0
-  grep -qxE 'claude|grok|agy|qwen|node|bun' <<<"$(wd_f tree)" && exit 0
+  grep -qxE -- "$WD_HARNESS_COMM_RE" <<<"$(wd_f tree)" && exit 0
   fg="$(wd_f fg)"
   grep -qxE 'sh|bash|zsh|dash|fish|sudo|su' <<<"$fg" || exit 0
   ev="pane $WD_PANE runs only '$fg', no harness process carries $WD_ID"

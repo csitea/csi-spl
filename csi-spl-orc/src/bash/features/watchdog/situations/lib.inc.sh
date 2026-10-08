@@ -24,6 +24,7 @@
 #   session_start  epoch of lifetime/session.json's `started` (else its mtime)
 #   registry_open  the pane of its open registry.tsv row ("-": none named)
 #   proc_age     s since the harness process started; user: its OS user
+#   (the ps dump names mistral's vibe `vibe`: it renames itself "Vibe CLI")
 # It prints one line `HIT <code> <evidence>` or nothing, and exits 0.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # WD_ID is read by the scripts
@@ -34,8 +35,16 @@ WD_HB_FRESH="${WD_HB_FRESH:-120}"
 # The banners of a seat that cannot act (the lease's LEASE_STALL_RE, plus the
 # org lock-out of spec 6.1 S2, plus grok's weekly-limit panel of spec 102
 # T029: "You hit your weekly limit." Not a bare "weekly limit": grok's normal
-# footer reads "Weekly limit left: 1%").
-WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|you hit your weekly limit|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
+# footer reads "Weekly limit left: 1%"), plus vibe's 429 "Rate limits
+# exceeded. Please wait a moment before trying again." (spec 110 T013b).
+WD_STALL_RE="${WD_STALL_RE:-usage limit reached|limit reached[[:space:]]*·|limit resets|you hit your weekly limit|rate limits exceeded|please run /login|login expired|invalid api key|oauth token (has )?expired|organization has disabled}"
+# A dead API key (spec 110 2.5, S2 kind=auth): vibe's 401 "Error: Invalid API
+# key (from env var MISTRAL_API_KEY). Please check your API key and try
+# again." No /login fixes it: the owner re-keys, so no restart either.
+WD_AUTH_RE="${WD_AUTH_RE:-invalid api key \(from env var|please check your api key}"
+# The comm of a harness process: mistral's vibe renames itself "Vibe CLI"
+# (spec 110 T013b, m-595 on the main box: `pgrep -x vibe` finds nothing on a live lane).
+WD_HARNESS_COMM_RE='claude|grok|agy|qwen|vibe|Vibe CLI|node|bun'
 
 wd_f() { cat "$WD_CTX/$1" 2>/dev/null; }
 wd_has() { [[ -s "$WD_CTX/$1" ]]; }
@@ -162,7 +171,7 @@ wd_fresh() {
 # prompts queued behind a long call flip state to working and leave the tool)
 # for less than WD_S1_TOOL_CAP s (900), and the session that wrote it still
 # lives: the heartbeat's pid is WD_PID, the harness process the watchdog
-# found carrying this id on this tick (a claude/grok/agy/qwen comm first).
+# found carrying this id on this tick (a claude/grok/agy/qwen/vibe comm first).
 # Not the heartbeat's ts: nothing writes it while a call runs, so a ts window
 # shorter than the cap dropped every call past it (c-545 2026-10-08: one
 # Bash 7 min in, ts 216 s old, restarted). 1 otherwise: no heartbeat, no

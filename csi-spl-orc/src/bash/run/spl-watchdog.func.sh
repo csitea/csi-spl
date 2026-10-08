@@ -11,7 +11,8 @@
 # @description <spool root>/dispatch/wd.<id> ("HIT <code> <epoch>" or "OK <epoch>")
 # @description for the able check, prints one verdict line per agent and
 # @description acts: S1 rings at 120 s and takes over at 240 s, S2 never
-# @description restarts (a login: ONE blocker to the orchestrator), S3 takes
+# @description restarts (a login: ONE blocker to the orchestrator; a dead
+# @description API key, kind=auth: ONE blocker to the dispatcher), S3 takes
 # @description over, S4 Escape then takeover, S5 Escape + note then takeover,
 # @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
 # @description default-mode offer: bypass settings re-asserted + takeover,
@@ -257,11 +258,13 @@ spl_wd_tmux() {
 }
 
 # "pid ppid etimes comm" for every process. WD_PS_CMD replaces ps in tests.
+# mistral's vibe renames itself "Vibe CLI" (two words): its comm reads vibe
+# here, so every reader of the dump keeps one word per field (spec 110 T013b).
 spl_wd_ps() {
   local -a cmd=(ps -e -o "pid=,ppid=,etimes=,comm=")
   # shellcheck disable=SC2206 # a command line, split on purpose
   [[ -n "${WD_PS_CMD:-}" ]] && cmd=($WD_PS_CMD)
-  "${cmd[@]}" 2>/dev/null | awk '{print $1, $2, $3, $4}' || true
+  "${cmd[@]}" 2>/dev/null | awk '{c = ($4 == "Vibe" && $5 == "CLI" && NF == 5) ? "vibe" : $4; print $1, $2, $3, c}' || true
 }
 
 # ---- the reboot path (spec 102 10.1, T014) -------------------------------------
@@ -447,7 +450,7 @@ spl_wd_boot_done() {
 # "<verdict mtime> <id>" per dispatch/wd.<id> written before the boot BT.
 spl_wd_boot_snap() {
   local f m
-  for f in "$LEASE_DIR"/wd.[acgq]-[0-9][0-9][0-9]; do
+  for f in "$LEASE_DIR"/wd.[acgqm]-[0-9][0-9][0-9]; do
     [[ -f "$f" ]] || continue
     m="$(stat -c %Y "$f" 2>/dev/null || true)"
     [[ "$m" =~ ^[0-9]+$ ]] && (( m < $1 )) && echo "$m ${f##*/wd.}"
@@ -467,7 +470,7 @@ spl_wd_boot_seen() {
 # The ids of the open registry rows of this box (<id> or <id>@<this box>).
 spl_wd_boot_ids() {
   awk -F'\t' -v b="$ROTATE_BOX" -v t="${SPOOL_BOX_TAG:-}" '{i = $1; h = ""; if (i ~ /@/) {h = i; sub(/^[^@]*@/, "", h); sub(/@.*/, "", i)}
-    if (h == "" || h == b || h == t) print i}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null | grep -xE '[acgq]-[0-9]{3}' | sort -u || true
+    if (h == "" || h == b || h == t) print i}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null | grep -xE '[acgqm]-[0-9]{3}' | sort -u || true
 }
 
 # Why <id> is not restarted by this boot; nothing when it is.
@@ -529,7 +532,7 @@ spl_wd_boot_start() {
 # The id spl_wd_boot_start is restarting (WD_BOOT_ID), for the restart's
 # gate: a lane after a boot has no window and no process.
 spl_wd_boot_listed() {
-  [[ "${WD_BOOT_ID:-}" =~ ^[acgq]-[0-9]{3}$ ]] && echo "$WD_BOOT_ID"
+  [[ "${WD_BOOT_ID:-}" =~ ^[acgqm]-[0-9]{3}$ ]] && echo "$WD_BOOT_ID"
   return 0
 }
 
@@ -537,11 +540,11 @@ spl_wd_boot_listed() {
 
 # "<id>\t<pid>\t<pane>" for every local agent: a window named <id> or
 # <id>@<this box> (a "<tag>: " prefix allowed), and every process that carries
-# SPOOL_AGENT_ID. pid is the harness process (a claude/grok/agy/qwen comm
+# SPOOL_AGENT_ID. pid is the harness process (a claude/grok/agy/qwen/vibe comm
 # first, else the lowest node/bun), "-" when none; pane "-" when none. The
 # expected seats of spl_wd_expected are listed too, with neither.
 spl_wd_agents() {
-  local tick="$1" re='^([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)$'
+  local tick="$1" re='^([acgqm]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)$'
   local pane name id box
   : > "$tick/win"
   while IFS=$'\t' read -r pane _ _ name _; do
@@ -578,12 +581,12 @@ spl_wd_expected() {
   {
     printf '%s\n' "${LEASE_ORCH:-}" "${LEASE_MASTER:-}" "${LEASE_FAILOVER:-}"
     awk '$1 !~ /^#/ && NF {print $1}' "$SPOOL_ROOT/peer/seats" 2>/dev/null || true
-    for f in "$SPOOL_ROOT"/agents/[acgq]-00[1-3].json; do
+    for f in "$SPOOL_ROOT"/agents/[acgqm]-00[1-3].json; do
       [[ -f "$f" ]] || continue
       sn="$(jq -r '.session_name // empty' "$f" 2>/dev/null || true)"
       [[ "$sn" != *@* || "${sn#*@}" == "$ROTATE_BOX" || "${sn#*@}" == "${SPOOL_BOX_TAG:-}" ]] && basename "$f" .json
     done
-  } | grep -xE '[acgq]-[0-9]{3}' | sort -u || true
+  } | grep -xE '[acgqm]-[0-9]{3}' | sort -u || true
 }
 
 # The agent lines whose id is in WD_ONLY; all of them when it is empty.
@@ -614,7 +617,7 @@ spl_wd_proc_ids() {
   local -a env other=()
   {
     while read -r pid _ _ comm; do
-      case "$comm" in claude|grok|agy|qwen|node|bun) ;; *) continue ;; esac
+      case "$comm" in claude|grok|agy|qwen|vibe|node|bun) ;; *) continue ;; esac
       if [[ -r "$root/$pid/environ" ]]; then
         env=(); { mapfile -d '' -t env < "$root/$pid/environ"; } 2>/dev/null || continue
         for e in "${env[@]}"; do
@@ -628,7 +631,7 @@ spl_wd_proc_ids() {
       spool_proc_env_get "$root" SPOOL_AGENT_ID "${other[@]}" 2>/dev/null || true
     fi
   } | awk -v ps="$tick/ps" 'FILENAME == ps { c[$1] = $4; next }
-      $2 != "" { r = (c[$1] ~ /^(claude|grok|agy|qwen)$/) ? 0 : 1; print r, $1, $2 }' "$tick/ps" - |
+      $2 != "" { r = (c[$1] ~ /^(claude|grok|agy|qwen|vibe)$/) ? 0 : 1; print r, $1, $2 }' "$tick/ps" - |
     sort -k1,1n -k2,2n | awk '!seen[$3]++ { print $2 "\t" $3 }'
 }
 
@@ -958,7 +961,10 @@ spl_wd_act() {
         # "no progress" is unproven, so a ring, never a takeover
         if (( age >= 2 * WD_JOB_WAIT )) && [[ " $ev " != *" prog=unknown "* ]]; then spl_wd_once "$id" S1 takeover "$now" "$ctx" spl_wd_takeover "$id" S1 "$ev"
         else spl_wd_once "$id" S1 ring "$now" "$ctx" spl_wd_ring "$id"; fi ;;
-    S2) if [[ "$ev" == kind=login* ]]; then
+    S2) if [[ "$ev" == kind=auth* ]]; then
+          spl_wd_once "$id" S2 auth "$now" "$ctx" spl_wd_send "$(spl_wd_dispatcher)" blocker "$id" \
+            "WATCHDOG (110 2.5, S2 kind=auth): $id cannot act, its API key is refused: ${ev#kind=auth }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. No restart: a restart does not fix a dead key. The owner re-keys; lane-mix skips this kind until then."
+        elif [[ "$ev" == kind=login* ]]; then
           spl_wd_once "$id" S2 dm "$now" "$ctx" spl_wd_send orchestrator blocker "$id" \
             "WATCHDOG (093 S2): $id cannot act, a login or access screen: ${ev#kind=login }. Harness $(spl_wd_harness "$id"), OS user $(spl_wd_user "$ctx"), box $ROTATE_BOX, pane ${pane:-none}. A restart does not fix a login: a human runs /login in that pane."
         else echo "not able until the reset; no restart"; fi ;;
@@ -1194,6 +1200,14 @@ spl_wd_send() {
   local rc=0
   bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "wd-$3" --body "$4" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
   (( rc < 10 && rc != 2 ))
+}
+
+# Who gets a dead-key blocker (spec 110 2.5): the dispatch lease holder
+# (<LEASE_DIR>/lease "<ID>[@<box>] <epoch>"), else the orchestrator.
+spl_wd_dispatcher() {
+  local h=""
+  read -r h _ < "$LEASE_DIR/lease" 2>/dev/null || true
+  if [[ "$h" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(@[a-z0-9][a-z0-9-]*)?$ && "${h%@*}" != none ]]; then echo "$h"; else echo orchestrator; fi
 }
 
 spl_wd_harness() { awk -F'\t' -v i="$1" '$1 == i {k = $2} END {print (k == "" ? "unknown" : k)}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || echo unknown; }

@@ -4,11 +4,17 @@
 # heartbeat carries api_error, or the pane footer shows a banner with no
 # moving spinner (with or without a reset time) and the transcript's last
 # turn is not a good one (a stale banner after /login, 6.2). kind=login|limit
-# tells the watchdog whether to DM the owner (login, access) or wait (limit).
+# tells the watchdog whether to DM the owner (login, access) or wait (limit);
+# kind=auth (spec 110 2.5) is a dead API key (WD_AUTH_RE): no restart, one
+# blocker to the dispatcher, and lane-mix skips the kind until a re-key.
 # Usage: s2.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"
-kind() { if grep -qiE 'limit' <<<"$1"; then echo limit; else echo login; fi; }
+kind() {
+  if grep -qiE -- "$WD_AUTH_RE" <<<"$1"; then echo auth
+  elif grep -qiE 'limit' <<<"$1"; then echo limit
+  else echo login; fi
+}
 last="$(wd_last_turn)"
 if [[ "$last" == error$'\t'* ]]; then
   txt="${last#error$'\t'}"
@@ -26,7 +32,11 @@ wd_has pane || exit 0
 foot="$(wd_foot)"
 hit="$(grep -oiE -m1 -- "$WD_STALL_RE" <<<"$foot" | sed -n 1p)"
 [[ -n "$hit" ]] || exit 0
+# the kind reads the whole banner line: "Invalid API key" alone is claude's login too
+line="$(grep -iE -m1 -- "$WD_STALL_RE" <<<"$foot")"
 wd_spin_moving && exit 0
 [[ "$last" == ok ]] && exit 0
 reset="$(grep -oiE -- '(resets|automatically)([[:space:]]+at)?[[:space:]]+[^·]+' <<<"$foot" | sed -n 1p | wd_short 40)"
-echo "HIT S2 kind=$(kind "$hit") pane: $hit${reset:+, $reset}"
+k="$(kind "$hit")"
+[[ "$(kind "$line")" == auth ]] && k=auth
+echo "HIT S2 kind=$k pane: $hit${reset:+, $reset}"

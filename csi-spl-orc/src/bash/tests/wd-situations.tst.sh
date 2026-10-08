@@ -54,6 +54,12 @@
 #      another box's seat record; an S3 takeover whose session is dead again
 #      is retried in the episode after WD_TAKEOVER_RETRY, the hourly cap
 #      holds it out with ONE blocker to the orchestrator
+#  10. mistral (spec 110 T013b, measured on m-595, the main box, vibe 2.26.0, n=1):
+#      vibe's process reads "Vibe CLI" (S3 and the pid lookup count it); a
+#      dead key (the real 401 pane) is S2 kind=auth: no restart, ONE blocker
+#      to the dispatch lease holder; vibe's 429 text is S2 kind=limit; an
+#      idle m- lane with an unread job rings, and is not taken over while a
+#      tool runs (its heartbeat's pid the Vibe CLI pid). Each with a control
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -182,6 +188,20 @@ grep -q '^HIT S2 kind=limit pane: You hit your weekly limit' <<<"$(run_s s2)" &&
 # control: a normal grok prompt whose footer reads "Weekly limit left: 1%"
 ctx s2n; cp "$FX/s2-grok-normal.pane" "$C/pane"
 nohit "S2 control: a normal grok prompt showing its weekly limit left" s2
+# spec 110 T013b: vibe's dead key, the real 401 pane (c-585): kind=auth
+MF="$PROJ_ROOT/src/bash/features/spawn-agents/tests/fixtures"
+ctx s2ma; cp "$MF/pane-mistral-auth.txt" "$C/pane"
+hit "S2 vibe's 401 pane (Invalid API key from env var MISTRAL_API_KEY)" s2 m-900
+grep -q '^HIT S2 kind=auth pane: Invalid API key' <<<"$(run_s s2 m-900)" && pass "S2 names vibe's dead key kind=auth" || fail "S2 auth kind: $(run_s s2 m-900)"
+ctx s2mh; hb idle 900 '| .api_error = "Error: Invalid API key (from env var MISTRAL_API_KEY). Please check your API key and try again."'
+grep -q '^HIT S2 kind=auth heartbeat: ' <<<"$(run_s s2 m-900)" && pass "S2 kind=auth from a heartbeat api_error too" || fail "S2 auth hb: $(run_s s2 m-900)"
+# control: claude's own "Invalid API key · Please run /login" stays a login
+ctx s2mc; printf '> hi\n  ⎿  Invalid API key · Please run /login\n' > "$C/pane"
+grep -q '^HIT S2 kind=login ' <<<"$(run_s s2)" && pass "S2 control: claude's Invalid API key + /login stays kind=login" || fail "S2 login control: $(run_s s2)"
+# vibe's 429 text. The fixture is vibe SOURCE text (2.26.0), NOT a recorded pane
+ctx s2ml; cp "$MF/pane-mistral-limit.txt" "$C/pane"
+grep -q '^HIT S2 kind=limit pane: Rate limits exceeded' <<<"$(run_s s2 m-900)" && pass "S2 vibe's 'Rate limits exceeded' (source text, not a real pane) is kind=limit" || fail "S2 vibe limit: $(run_s s2 m-900)"
+WD_STALL_RE='usage limit reached' nohit "S2 control: without the vibe pattern the same pane is no hit" s2 m-900
 
 # S3: a bare shell in the agent's window
 ctx s3; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"
@@ -189,6 +209,13 @@ hit "S3 the window runs only bash, no harness process" s3 c-900 -
 ctx s3c; cp "$FX/idle.pane" "$C/pane"; echo sh > "$C/fg"; printf 'sh\nsudo\nclaude\n' > "$C/tree"
 nohit "S3 control: a claude runs under the pane (its environ unreadable)" s3 c-900 -
 nohit "S3 control: a live pid carries the id" s3 c-900 4242
+# spec 110 T013b: vibe renames itself "Vibe CLI" (m-595 on the main box: pgrep -x vibe = 0)
+ctx s3v; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\nVibe CLI\n' > "$C/tree"
+nohit "S3 a 'Vibe CLI' under the pane is a harness" s3 m-900 -
+printf 'bash\nvibe\n' > "$C/tree"
+nohit "S3 the dump's normalized 'vibe' is a harness" s3 m-900 -
+printf 'bash\nVibe\n' > "$C/tree"
+hit "S3 control: a bare 'Vibe' (the old \$4 cut) is no harness" s3 m-900 -
 ctx s3f; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; echo /opt/x/c-900 > "$C/rundir_gone"
 nohit "S3 control: a lane that tore down its workdir and exited (finished)" s3 c-900 -
 # S3 (spec 102 4.3, T005): done and rebirth markers, a gone pane
@@ -771,6 +798,52 @@ grep -q 'c-960 HIT S3 .*takeover not done: held out: 2 restarts' <<<"$out" && [[
 out="$(RESTART_MAX_PER_HOUR=2 TICK=2000 NOW=$((T0 + 960)) wd)"
 grep -q 'c-960 HIT S3 .*would takeover (held out' <<<"$out" && [[ "$(grep -c -- '--kind blocker --task wd-c-960' "$T/sent")" == 1 ]] &&
   pass "9 held out: no loop, no second blocker" || fail "9 after cap: $out"
+
+# 10. mistral (spec 110 T013b) at tick level
+mreset() { reset_box; rm -rf "$S"/m-*; }
+# the pid lookup counts "Vibe CLI" (two words in ps); control: another comm
+mreset; agent m-970 %1 4070 "Vibe CLI"
+out="$(wd)"
+grep -qx "m-970	4070	%1" "$D/wd/tick/agents" && grep -q '^m-970 OK' <<<"$out" && grep -qx '4070 [0-9]* 3600 vibe' "$D/wd/tick/ps" &&
+  pass "10 an m- lane whose harness reads 'Vibe CLI' is checked with its pid (dump comm vibe)" || fail "10 vibe pid: $(cat "$D/wd/tick/agents") / $out"
+mreset; agent m-971 %1 4071 python3
+out="$(wd)"
+grep -qx "m-971	-	%1" "$D/wd/tick/agents" && grep -q 'm-971 OK (pending S3 1/2' <<<"$out" &&
+  pass "10 control: the same lane under another comm has no harness pid (S3 pending)" || fail "10 vibe control: $(cat "$D/wd/tick/agents") / $out"
+# a dead key: S2 kind=auth, no restart over 4 ticks (a job waits 300 s too),
+# ONE blocker to the dispatch lease holder
+mreset; agent m-972 %1 4072 "Vibe CLI" 3600 "$MF/pane-mistral-auth.txt"
+echo '{"v":1,"kind":"task","from":"c-002","to":"m-972","body":"do"}' > "$S/m-972/inbox/j.json"; touch -d "@$((T0 - 300))" "$S/m-972/inbox/j.json"
+echo "c-002@box1 $T0" > "$D/lease"
+for k in 0 1 2 3; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
+grep -q 'm-972 HIT S2 kind=auth pane: Invalid API key' <<<"$out" && pass "10 vibe's dead key: HIT S2 kind=auth" || fail "10 auth: $out"
+[[ ! -s "$T/takeovers" ]] && pass "10 an auth lane is left alone: no respawn in 4 ticks, a job waiting" || fail "10 auth took over: $(cat "$T/takeovers")"
+[[ "$(grep -c -- '--to c-002@box1 --kind blocker --task wd-m-972' "$T/sent")" == 1 ]] && grep -q 'API key is refused' "$T/sent" &&
+  pass "10 ONE blocker to the dispatcher (the lease holder)" || fail "10 auth blocker: $(cat "$T/sent" 2>/dev/null)"
+grep -q '^HIT S2 kind=auth ' "$D/wd/ctx/m-972/out.s2" && pass "10 ctx/m-972/out.s2 carries 'HIT S2 kind=auth' (lane-mix's read)" || fail "10 out.s2: $(cat "$D/wd/ctx/m-972/out.s2" 2>/dev/null)"
+mreset; agent m-973 %1 4073 "Vibe CLI" 3600 "$MF/pane-mistral-auth.txt"
+for k in 0 1; do NOW=$((T0 + 30 * k)) wd >/dev/null; done; sleep 0.3
+grep -q -- '--to orchestrator --kind blocker --task wd-m-973' "$T/sent" && pass "10 control: no dispatch lease: the blocker goes to the orchestrator" || fail "10 no lease: $(cat "$T/sent" 2>/dev/null)"
+# the idle mid-task lane of m-595: no file, empty prompt, a job unread; it rings
+mreset; agent m-974 %1 4074 "Vibe CLI"
+echo '{"v":1,"kind":"task","from":"c-002","to":"m-974","body":"do"}' > "$S/m-974/inbox/j.json"; touch -d "@$((T0 - 130))" "$S/m-974/inbox/j.json"
+out="$(wd)"
+grep -q 'm-974 HIT S1 age=130 .*-> ring' <<<"$out" && grep -q -- '--poke-only --from .* --to m-974' "$T/sent" &&
+  pass "10 an idle m- lane with an unread job rings" || fail "10 ring: $out"
+# a tool runs (heartbeat working + tool + tool_since: a prompt queued behind
+# the call; its pid the Vibe CLI pid): S1 HELD, never taken over
+mreset; agent m-975 %1 4075 "Vibe CLI"
+echo '{"v":1,"kind":"task","from":"c-002","to":"m-975","body":"do"}' > "$S/m-975/inbox/j.json"; touch -d "@$((T0 - 400))" "$S/m-975/inbox/j.json"
+jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
+  '{v: 1, harness: "mistral", pid: 4075, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-975/heartbeat.json"
+for k in 0 1; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
+grep -q '^m-975 OK' <<<"$out" && grep -q '^S1 HELD tool=bash' "$D/wd/ctx/m-975/out.s1" && [[ ! -s "$T/takeovers" ]] && pass "10 a vibe lane in a tool call (heartbeat pid = Vibe CLI pid) is not taken over" || fail "10 held: $out / $(cat "$T/takeovers" 2>/dev/null)"
+mreset; agent m-976 %1 4076 "Vibe CLI"
+echo '{"v":1,"kind":"task","from":"c-002","to":"m-976","body":"do"}' > "$S/m-976/inbox/j.json"; touch -d "@$((T0 - 400))" "$S/m-976/inbox/j.json"
+jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
+  '{v: 1, harness: "mistral", pid: 9999, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-976/heartbeat.json"
+out="$(wd)"; settle
+grep -qx 'takeover m-976 S1' "$T/takeovers" && pass "10 control: the heartbeat of another pid does not hold: taken over" || fail "10 hold control: $out"
 
 grep -q ERR-TRAP "$T/all.out" && fail "no tick may fire ./run's ERR trap: $(grep -m3 ERR-TRAP "$T/all.out")" || pass "no tick fired ./run's ERR trap"
 

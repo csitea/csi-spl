@@ -60,7 +60,7 @@ do_spl_wd_takeover() {
   local id="${ID:-}" reason="${REASON:-}" box="" req="${REQ_FROM:-${SPOOL_AGENT_ID:-}}"
   [[ -n "$reason" ]] || { do_log "FATAL REASON is required: a situation code (S1, S3, S4, S5) or a short text"; return 1; }
   if [[ "$id" == *@* ]]; then box="${id#*@}"; id="${id%@*}"; fi
-  [[ "$id" =~ ^[acgq]-[0-9]{3}$ ]] || { do_log "FATAL ID must be an agent id (c-NNN, optionally @<box>), got: '${ID:-}'"; return 1; }
+  [[ "$id" =~ ^[acgqm]-[0-9]{3}$ ]] || { do_log "FATAL ID must be an agent id (c-NNN, optionally @<box>), got: '${ID:-}'"; return 1; }
   spl_wd_init || return 1
   spl_peer_init ro || return 1
   : "${WD_START_WAIT:=120}" "${WD_RELAY_TO:=c-001}"
@@ -148,7 +148,7 @@ spl_wdt_gate() {
     WDT_SEAT=1
   else
     PEER_HARNESS="$(spl_wd_harness "$id")"
-    [[ "$PEER_HARNESS" =~ ^(claude|grok|agy|qwen)$ ]] || PEER_HARNESS=claude
+    [[ "$PEER_HARNESS" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || PEER_HARNESS=claude
   fi
   WDT_BOXENV=""
   if [[ -z "$WDT_PID$WDT_PANE" ]]; then

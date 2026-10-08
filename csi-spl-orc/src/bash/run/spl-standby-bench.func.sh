@@ -70,8 +70,9 @@ do_spl_standby_bench() {
     vendor="${m%%:*}"
     if [[ "$vendor" == claude && $have_claude -eq 1 ]] || [[ "$vendor" == grok && $have_grok -eq 1 ]]; then plan+=("$m"); else skipped+=("$m: vendor not available"); fi
   done
-  for vendor in qwen gemini agy codex; do
-    command -v "$vendor" >/dev/null 2>&1 && skipped+=("$vendor: CLI present, no headless adapter in L1")
+  # mistral's CLI is vibe (spec 110): named by its kind in the report
+  for vendor in qwen gemini agy codex vibe; do
+    command -v "$vendor" >/dev/null 2>&1 && skipped+=("${vendor/#vibe/mistral (vibe)}: CLI present, no headless adapter in L1")
   done
   local s
   for s in "${skipped[@]}"; do do_log "INFO skip $s"; done

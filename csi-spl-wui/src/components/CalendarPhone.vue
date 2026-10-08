@@ -409,6 +409,18 @@ async function settle() {
   }
 }
 watch([view, shownDay], () => { void settle() })
+/* 089 T006: /calendar?event=<id> (a reminder's Open) peeks that event once
+   the shown range holds it (spec 106 T011, as the desktop's main view) */
+const route = useRoute()
+let askedEvent = ''
+watch([items, () => route.query.event], () => {
+  const id = String(route.query.event || '')
+  if (!id || id === askedEvent) return
+  const ev = items.value.find((x) => x.id === id)
+  if (!ev) return
+  askedEvent = id
+  openPeek(ev)
+})
 function onChanged() {
   cache.clear()
   void settle()

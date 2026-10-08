@@ -7,13 +7,10 @@
 //   format); the event shows its colour; a click shows the pop-over with the
 //   location; Edit reloads the reminders as typed; Duplicate opens a NEW
 //   event filled from it, and Save makes a second event.
-// 360 and 390 px (phone acceptance): the dialog is the full screen, one
-//   column, no sideways scroll; a reminder row (amount, unit, remove) is one
-//   line inside the screen; the amount opens the numeric keypad
-//   (inputmode=numeric, pattern [0-9]*); swatches, the time zone select, the
-//   unit and remove are >= 44 px; Save / Cancel / Delete sit in a bottom bar
-//   in the thumb zone, >= 44 px tall; Duplicate (>= 44 px) opens the
-//   full-screen create form.
+// The phone part (097 5.1.6, the dialog full screen at 360 / 390) went with
+//   089 T009's phone calendar in spec 106 T011: a phone adds and edits in
+//   CalendarPhoneSheet (calendar-phone-sheet, every field >= 44 px) and
+//   duplicates from CalendarPhonePeek (calendar-phone-peek).
 //
 // Control: before T014 there is no [data-test=calendar-event-time-zone] and
 // a click on an event opens the dialog, not a pop-over, so these FAIL.
@@ -110,38 +107,6 @@ async function typeInto(p, sel, text) {
 }
 const nth = (i) => `[data-test=calendar-event-reminder]:nth-of-type(${i + 1}) [data-test=calendar-event-reminder-amount]`
 
-/* the phone acceptance numbers of the open dialog */
-const phoneFit = (p) => p.evaluate((s) => {
-  const box = (el) => {
-    if (!el) return null
-    const r = el.getBoundingClientRect()
-    return { l: Math.round(r.left), r: Math.round(r.right), t: Math.round(r.top), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) }
-  }
-  const panel = document.querySelector('[data-testid=ui-dialog]')
-  const body = document.querySelector('[data-testid=ui-dialog-body]')
-  const f = document.querySelector(s)
-  const row = document.querySelector('[data-test=calendar-event-reminder]')
-  const parts = row ? ['amount', 'unit', 'remove'].map((k) => box(row.querySelector(`[data-test=calendar-event-reminder-${k}]`))) : []
-  const amount = document.querySelector('[data-test=calendar-event-reminder-amount]')
-  const sw = [...document.querySelectorAll('[data-test=calendar-event-color]')].map(box)
-  return {
-    iw: window.innerWidth, ih: window.innerHeight,
-    panel: box(panel),
-    cols: f ? getComputedStyle(f).gridTemplateColumns.split(' ').length : 0,
-    xScroll: Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth, body ? body.scrollWidth - body.clientWidth : 0),
-    rowOneLine: parts.length === 3 && parts.every(Boolean) && Math.max(...parts.map((x) => x.t)) < Math.min(...parts.map((x) => x.b)),
-    rowInside: parts.length === 3 && parts.every((x) => x && x.l >= 0 && x.r <= window.innerWidth),
-    unitH: parts[1]?.h || 0, remove: parts[2],
-    inputmode: amount?.getAttribute('inputmode') || '', pattern: amount?.getAttribute('pattern') || '',
-    swMin: sw.length ? Math.min(...sw.map((x) => Math.min(x.w, x.h))) : 0, swatches: sw.length,
-    zoneH: box(document.querySelector('[data-test=calendar-event-time-zone]'))?.h || 0,
-    save: box(document.querySelector('[data-test=calendar-event-save]')),
-    cancel: box(document.querySelector('[data-test=calendar-event-cancel]')),
-    del: box(document.querySelector('[data-test=calendar-event-delete]')),
-    inFooter: Boolean(document.querySelector('[data-test=calendar-event-save]')?.closest('.ui-dialog__foot')),
-  }
-}, DIALOG)
-
 const server = await startServer()
 const browser = await launch()
 try {
@@ -206,52 +171,6 @@ try {
   const both = await stored(p, 'T014 fields')
   ok('two ids, the same fields', both.length === 2 && both[0].id !== both[1].id && both.every((e) => e.location === 'Room 4' && e.color === 'sage'), both.map((e) => e.id))
   await p.close()
-
-  for (const [w, h] of [[360, 780], [390, 844]]) {
-    console.log(`-- ${w}x${h}`)
-    const m = await browser.newPage()
-    await open(m, { width: w, height: h, isMobile: true, hasTouch: true }, [
-      event(`00000000-0000-4000-8000-0000000e0${w}`, 'Phone event', { reminders: [{ amount: 10, unit: 'minutes', method: 'popup' }], location: 'Hall', color: 'grape' }),
-    ])
-    await m.click('[data-test=calendar-new]')
-    await visible(m, DIALOG)
-    await m.click('[data-test=calendar-event-reminder-add]')
-    let fit = await phoneFit(m)
-    ok(`${w}: the dialog is the full screen`, fit.panel && fit.panel.w >= fit.iw - 1 && fit.panel.h >= fit.ih - 1, fit.panel)
-    ok(`${w}: one column, no sideways scroll`, fit.cols === 1 && fit.xScroll <= 1, { cols: fit.cols, x: fit.xScroll })
-    ok(`${w}: a reminder row is one line inside the screen`, fit.rowOneLine && fit.rowInside, fit)
-    ok(`${w}: the amount opens the numeric keypad`, fit.inputmode === 'numeric' && fit.pattern === '[0-9]*', fit)
-    ok(`${w}: unit, remove, time zone and swatches are >= 44 px`, fit.unitH >= 44 && fit.remove?.w >= 44 && fit.remove?.h >= 44 && fit.zoneH >= 44 && fit.swatches === 12 && fit.swMin >= 44, fit)
-    ok(`${w}: Save and Cancel sit in the bottom bar, >= 44 px`, fit.inFooter && fit.save?.h >= 44 && fit.cancel?.h >= 44 && fit.save.t >= fit.ih / 2 && fit.save.b <= fit.ih, { save: fit.save, ih: fit.ih })
-    await shot(m, `dialog-${w}`)
-    await m.click('[data-test=calendar-event-cancel]')
-    await gone(m, DIALOG)
-
-    await clickItem(m, 'Phone event')
-    ok(`${w}: a tap shows the pop-over`, await visible(m, POPOVER))
-    const dup = await m.evaluate(() => {
-      const r = document.querySelector('[data-test=calendar-popover-duplicate]')?.getBoundingClientRect()
-      return r ? { h: Math.round(r.height), t: Math.round(r.top), ih: window.innerHeight } : null
-    })
-    ok(`${w}: Duplicate is >= 44 px, in the thumb zone`, Boolean(dup && dup.h >= 44 && dup.t >= dup.ih / 2), dup)
-    await m.click('[data-test=calendar-popover-duplicate]')
-    await visible(m, DIALOG)
-    fit = await phoneFit(m)
-    const df = await form(m)
-    ok(`${w}: Duplicate opens the full-screen create form, filled`, df.mode === 'copy' && df.location === 'Hall' && df.color === 'grape'
-      && fit.panel && fit.panel.w >= fit.iw - 1 && fit.panel.h >= fit.ih - 1 && fit.xScroll <= 1, { df, panel: fit.panel })
-    await m.click('[data-test=calendar-event-cancel]')
-    await gone(m, DIALOG)
-
-    await clickItem(m, 'Phone event')
-    await visible(m, POPOVER)
-    await m.click('[data-test=calendar-popover-edit]')
-    await visible(m, DIALOG)
-    fit = await phoneFit(m)
-    ok(`${w}: Delete sits in the bottom bar too, >= 44 px`, Boolean(fit.del && fit.del.h >= 44 && fit.del.t >= fit.ih / 2), fit.del)
-    await shot(m, `edit-${w}`)
-    await m.close()
-  }
 } finally {
   await browser.close()
   await server.stop()

@@ -23,9 +23,8 @@
 //   FR-002 Week first, then the last view (localStorage)
 //   AC-07 a swipe right from the 24 px edge is Back (level 1); one from
 //       mid-screen turns back a period and stays on the calendar
-// Above 820 px (1440x900) nothing changes, and without the opt-in
-// (localStorage spool-calendar-phone = 1, until T011) the phone keeps the
-// T009 calendar.
+// Above 820 px (1440x900) nothing changes. T011: a fresh browser (no
+// localStorage key at all) gets this phone calendar at 390, not 089 T009's.
 //
 // Controls: before T004 there is no [data-test=calendar-phone], so every
 // check FAILs; in-run, a planted 2000 px scroller must trip the H3 detector,
@@ -79,25 +78,24 @@ const VIEWS = ['month', 'week', 'day']
 const ROOT = '[data-test=calendar-phone]'
 const periodOf = (view, day) => calPhoneRange(view, day)?.from || ''
 
-/** a fresh page: the opt-in, the theme and the font level in localStorage first */
-async function open(browser, vp, { theme = 'dark', level = 3, shell = true, view = '' } = {}) {
+/** a fresh page: the theme and the font level in localStorage first */
+async function open(browser, vp, { theme = 'dark', level = 3, view = '' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calphone-seeded')) return
       sessionStorage.setItem('calphone-seeded', '1')
-      if (s.shell) localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
       if (s.view) localStorage.setItem('spool-calendar-phone-view', s.view)
     } catch { /* about:blank */ }
-  }, { shell, theme, level, view })
+  }, { theme, level, view })
   const spec = { ...vp, hasTouch: true }
   await setPageViewport(p, spec)
   await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, spec)
-  if (shell && vp.width <= 820) {
+  if (vp.width <= 820) {
     await p.waitForSelector(ROOT, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
     await p.waitForFunction((r) => document.querySelector(r)?.getAttribute('data-state') === 'ready', { timeout: 10000 }, ROOT).catch(() => {})
   } else {
@@ -407,7 +405,7 @@ try {
     await ctx.close()
   }
 
-  /* ---- untouched: desktop, and a phone without the opt-in ---- */
+  /* ---- untouched: desktop; T011: a phone with no stored key ---- */
   {
     const { p, ctx } = await open(browser, { width: 1440, height: 900 })
     const d = await p.evaluate(() => ({ shell: Boolean(document.querySelector('[data-test=calendar-phone]')), main: Boolean(document.querySelector('[data-test=calendar-main]')), strip: Boolean(document.querySelector('[data-test=calendar-year-strip]')) }))
@@ -415,9 +413,9 @@ try {
     await ctx.close()
   }
   {
-    const { p, ctx } = await open(browser, { width: 390, height: 844 }, { shell: false })
-    const d = await p.evaluate(() => ({ shell: Boolean(document.querySelector('[data-test=calendar-phone]')), main: Boolean(document.querySelector('[data-test=calendar-main]')) }))
-    ok('390 without the opt-in: the T009 phone calendar (until T011)', !d.shell && d.main, d)
+    const { p, ctx } = await open(browser, { width: 390, height: 844 })
+    const d = await p.evaluate(() => ({ shell: Boolean(document.querySelector('[data-test=calendar-phone]')), main: Boolean(document.querySelector('[data-test=calendar-main]')), strip: Boolean(document.querySelector('[data-test=calendar-strip-open]')), key: localStorage.getItem('spool-calendar-phone') }))
+    ok('T011 390, no spool-calendar-phone key: the phone calendar, not the T009 one', d.shell && !d.main && !d.strip && d.key === null, d)
     await ctx.close()
   }
 } finally {

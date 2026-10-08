@@ -78,7 +78,7 @@ const SEED = [
   { id: '00000000-0000-4000-8000-000000000602', title: 'Review', starts_at: `${nd(4)}T10:00:00Z`, ends_at: `${nd(4)}T11:00:00Z`, all_day: false, color: 'peacock' },
 ]
 
-/** a fresh page: the opt-in, the theme, the font level and the fixture in localStorage first */
+/** a fresh page: the theme, the font level and the fixture in localStorage first */
 async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
@@ -87,7 +87,6 @@ async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) 
     try {
       if (sessionStorage.getItem('calweek-seeded')) return
       sessionStorage.setItem('calweek-seeded', '1')
-      localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
       localStorage.setItem('spool.mock.calendar-added', JSON.stringify(s.seed))

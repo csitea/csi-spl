@@ -2,9 +2,9 @@
      event shows what it is - title, time, location, description - with Edit
      and Duplicate. Edit opens CalendarEventDialog on the event; Duplicate
      opens it as a NEW event filled from this one (a copy saves with POST, the
-     source is untouched). A small UiDialog: on a phone it is the full screen
-     and its buttons sit in the footer, where a thumb reaches. 097 T016 adds
-     guests and Yes / Maybe / No here. -->
+     source is untouched). A small UiDialog, desktop only since spec 106
+     T011 (a phone has CalendarPhonePeek). 097 T016 adds guests and
+     Yes / Maybe / No here. -->
 <template>
   <UiDialog :open="open" :title="event?.title || ''" size="sm" @update:open="emit('update:open', $event)">
     <div v-if="event" class="cal-pop" data-test="calendar-event-popover" :data-id="event.id">
@@ -58,7 +58,4 @@ const when = computed(() => {
 .cal-pop__line { display: flex; align-items: center; gap: 8px; }
 .cal-pop__desc { white-space: pre-wrap; max-height: 12em; overflow: auto; }
 .cal-pop__actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; width: 100%; }
-@media (max-width: 820px) {
-  .cal-pop__actions .btn { min-height: var(--tap, 44px); flex: 1 1 0; }
-}
 </style>

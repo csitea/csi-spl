@@ -3,14 +3,8 @@
 // AC-07 (UI): delete an event, then Undo: it is back with the same id. The
 //        toast reads "Event deleted · Undo" and goes away by itself after 10 s.
 //        The calendar menu opens the trash; Restore brings the event back.
-// Phone (360x780 and 390x844, spec 5.1.4): the toast sits at the TOP, the
-//        place and look of the app's other phone undo bars (owner, msg
-//        b6f816c2): the archive toast's top (UndoSnackbar: 0.5rem under the
-//        safe-area inset, centred, never wider than the screen less 2rem), far
-//        from the bottom bar; Today, previous and next stay uncovered; Undo is
-//        >= 44 px; the trash is a full-width view; no sideways scroll.
-//        Control: before b6f816c2 the phone toast sat 8 px above the bottom
-//        bar (top ~700 at 390x844), so the top checks FAIL.
+// Phone: spec 106 T011 retired 089 T009's phone calendar this checked; the
+//        phone's delete + Undo is calendar-phone-peek.test.mjs (AC-05).
 // The mock workspace keeps its writes in localStorage (src/utils/calendar-mock.mjs);
 // the seeded Release (today 09:00, made by the viewer HUM-1) is the event.
 //
@@ -77,7 +71,6 @@ async function open(browser, vp) {
   return { ctx, p }
 }
 const seen = (p, sel, want = true) => p.waitForFunction((s, w) => Boolean(document.querySelector(s)) === w, { timeout: 12000 }, sel, want).then(() => true, () => false)
-const noSideways = (p) => p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
 async function deleteRelease(p) {
   await p.evaluate((s) => document.querySelector(s)?.click(), ITEM)
@@ -136,58 +129,6 @@ try {
     await ctx.close()
   }
 
-  for (const vp of [{ width: 360, height: 780 }, { width: 390, height: 844 }]) {
-    const name = String(vp.width)
-    console.log(`-- ${vp.width}x${vp.height}`)
-    const { ctx, p } = await open(browser, { ...vp, isMobile: true, hasTouch: true })
-    ok(`${name}: the seeded Release is on screen (Day view)`, await seen(p, ITEM))
-    ok(`${name}: delete removes it`, await deleteRelease(p))
-    ok(`${name}: the Undo toast shows`, await seen(p, TOAST))
-    await new Promise((r) => setTimeout(r, 300))
-    const g = await p.evaluate((s, u) => {
-      const r = (el) => el?.getBoundingClientRect()
-      const toast = r(document.querySelector(s))
-      const bar = r(document.querySelector('.cal-main__bar'))
-      const undo = r(document.querySelector(u))
-      const free = ['calendar-today', 'calendar-prev', 'calendar-next'].map((id) => {
-        const el = document.querySelector(`[data-test=${id}]`)
-        const b = r(el)
-        return Boolean(b && el.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)))
-      })
-      /* the archive toast's phone top: UndoSnackbar's 0.5rem (+ a 0 safe-area inset here) */
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-      return {
-        top: toast ? Math.round(toast.top) : null,
-        archiveTop: Math.round(rem * 0.5),
-        clearOfBar: toast && bar ? Math.round(bar.top - toast.bottom) : null,
-        centre: toast ? Math.round(toast.left + toast.width / 2) : null,
-        width: toast ? Math.round(toast.width) : null,
-        maxW: Math.round(window.innerWidth - 2 * rem),
-        iw: window.innerWidth,
-        vh: window.innerHeight,
-        undoH: undo ? Math.round(undo.height) : 0,
-        undoW: undo ? Math.round(undo.width) : 0,
-        free,
-      }
-    }, TOAST, part('undo'))
-    ok(`${name}: the toast sits at the TOP, at the archive toast's top`, g.top !== null && Math.abs(g.top - g.archiveTop) <= 1, g)
-    ok(`${name}: it is over half a screen clear of the bottom bar`, g.clearOfBar !== null && g.clearOfBar > g.vh / 2, g)
-    ok(`${name}: it is centred like the archive toast, never wider than the screen less 2rem`, Math.abs(g.centre - g.iw / 2) <= 1 && g.width <= g.maxW + 1, g)
-    ok(`${name}: Today, previous and next stay uncovered`, g.free.every(Boolean), g.free)
-    ok(`${name}: Undo is a 44 px target`, g.undoH >= 44 && g.undoW >= 44, g)
-    ok(`${name}: no sideways scroll with the toast`, await noSideways(p))
-    await shot(p, `toast-${name}`)
-    await p.tap(part('undo'))
-    ok(`${name}: tapping Undo restores it`, await seen(p, ITEM))
-    ok(`${name}: the toast closes`, await seen(p, TOAST, false))
-
-    ok(`${name}: delete again for the trash`, await deleteRelease(p))
-    await p.$eval(part('close'), (el) => el.click()).catch(() => {})
-    const fit = await trashRestore(p, name)
-    ok(`${name}: the trash is a full-width view, Restore 44 px`, fit.w >= fit.iw - 1 && fit.restoreH >= 44, fit)
-    ok(`${name}: no sideways scroll`, await noSideways(p))
-    await ctx.close()
-  }
 } finally {
   await browser.close()
   await server.stop()

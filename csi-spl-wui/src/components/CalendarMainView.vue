@@ -4,30 +4,25 @@
      with the items of GET /v1/calendar/events (spec 6.1.2) - and Today /
      previous / next, so the year strip has something to move (AC-04).
      Loaded as its own chunk by pages/calendar.vue (defineAsyncComponent).
-     T009, phone (`phone`, <= 820 px, spec 2.2): opens on the Day view - the
-     shown day only, previous / next step a day - and Week is the seven days
-     as a list, one under another. Today / previous / next and Day | Week sit
-     in a bar at the bottom, above the composer dock, where a thumb reaches.
-     097 T013 (G1, spec 5.1.1): the desktop week and the Day view are a time
+     A phone (<= 820 px) never mounts it: spec 106 T011 retired 089 T009's
+     phone Day / Week here, pages/calendar.vue shows CalendarPhone instead.
+     097 T013 (G1, spec 5.1.1): the desktop week is a time
      grid - all-day items on top, timed ones placed by their clock - where an
      event drags to another time or day, its bottom edge drags to resize, and
-     a drag on empty time opens a new event for that span. The phone Week list
-     moves an event between days. A finger holds 250 ms first (a swipe still
-     scrolls); a held event shows its 44 px resize handle. Every save is a
+     a drag on empty time opens a new event for that span. A finger (a tablet)
+     holds 250 ms first, so a swipe still scrolls. Every save is a
      PATCH with If-Match; edit_conflict takes the other change and says so.
      097 T017 (G13, spec 4.8 / 5.1.4): a delete shows "Event deleted · Undo"
-     for 10 s (the shared UndoSnackbar); Undo restores it with the same id. On
-     a phone it sits at the TOP, where the app's other undo bars sit (owner,
-     msg b6f816c2), so Today / previous / next stay usable. The calendar menu (the ... button)
+     for 10 s (the shared UndoSnackbar); Undo restores it with the same id. The calendar menu (the ... button)
      opens the trash: CalendarTrash, its own lazy chunk. -->
 <template>
   <section
     class="cal-main"
-    :class="{ 'cal-main--phone': phone, 'cal-main--dragging': dragging }"
+    :class="{ 'cal-main--dragging': dragging }"
     data-test="calendar-main"
     :data-week="weekStart"
     :data-day="focus"
-    :data-view="view"
+    data-view="week"
     :data-state="state"
   >
     <div class="cal-main__bar">
@@ -52,22 +47,11 @@
       >
         <UiIcon name="more" :size="18" />
       </button>
-      <div v-if="phone" class="cal-main__views" role="group" :aria-label="t('calendar.view')">
-        <button
-          v-for="v in PHONE_VIEWS"
-          :key="v"
-          type="button"
-          class="btn ghost cal-main__view"
-          :data-test="'calendar-view-' + v"
-          :aria-pressed="view === v ? 'true' : 'false'"
-          @click="phoneView = v"
-        >{{ t('calendar.view_' + v) }}</button>
-      </div>
     </div>
     <p v-if="state === 'failed'" class="muted" role="alert" data-test="calendar-failed">{{ t('calendar.load_failed') }}</p>
     <p v-if="notice" class="cal-main__notice" role="status" data-test="calendar-notice" :data-key="notice">{{ t(notice) }}</p>
-    <div ref="weekEl" class="cal-week" :class="{ 'cal-week--grid': grid }" :style="{ '--cal-days': shown.length }" data-test="calendar-week">
-      <div v-if="grid" class="cal-week__gutter" aria-hidden="true">
+    <div ref="weekEl" class="cal-week cal-week--grid" :style="{ '--cal-days': shown.length }" data-test="calendar-week">
+      <div class="cal-week__gutter" aria-hidden="true">
         <div class="cal-week__top" />
         <div class="cal-grid cal-grid--gutter">
           <span v-for="h in HOURS" :key="h" class="cal-grid__label" :style="{ top: pct(h * 60) }" dir="ltr">{{ calHhmm(h * 60) }}</span>
@@ -86,7 +70,7 @@
           <h4 class="cal-week__head">{{ dayHead(day) }}</h4>
           <ul class="cal-week__list">
             <li
-              v-for="ev in (grid ? allDayOf(day) : byDay.get(day) || [])"
+              v-for="ev in allDayOf(day)"
               :key="ev.id"
               v-bind="itemAttrs(ev)"
               @pointerdown="onItemDown($event, ev, day)"
@@ -99,14 +83,13 @@
               <span v-if="ev.release_version" class="cal-week__badge" dir="ltr">{{ ev.release_version }}</span>
               <span v-if="ev.audience === 'private'" class="cal-week__badge" data-test="calendar-item-private">{{ t('calendar_event.private_badge') }}</span>
             </li>
-            <li v-if="dropped && dropDay === day && dropDay !== calEventDay(liftedEv!) && (dropped.all_day || !grid)" class="cal-week__item cal-week__item--ghost" data-test="calendar-drag-ghost" aria-hidden="true">
+            <li v-if="dropped && dropDay === day && dropDay !== calEventDay(liftedEv!) && dropped.all_day" class="cal-week__item cal-week__item--ghost" data-test="calendar-drag-ghost" aria-hidden="true">
               <span v-if="!dropped.all_day" class="cal-week__time" dir="ltr">{{ isoClock(dropped.starts_at) }}</span>
               <span class="cal-week__title">{{ dropped.title }}</span>
             </li>
           </ul>
         </div>
         <div
-          v-if="grid"
           class="cal-grid"
           data-test="calendar-grid"
           :data-grid-day="day"
@@ -207,7 +190,7 @@ import {
 } from '~/utils/calendar-drag.mjs'
 import type { CalTimes } from '~/utils/calendar-drag.mjs'
 
-const props = defineProps<{ focus: string, today: string, phone?: boolean }>()
+const props = defineProps<{ focus: string, today: string }>()
 const emit = defineEmits<{ move: [iso: string] }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -220,22 +203,14 @@ const days = computed(() => calWeekDays(props.focus))
 function dayHead(iso: string) {
   return `${t('calendar.weekdays.d' + calWeekday(iso))} ${iso.slice(5)}`
 }
-/* T009: a phone opens on Day; the desktop stays on its week (T008 brings
-   its Day / Week / Month control) */
-const PHONE_VIEWS = ['day', 'week'] as const
-const phoneView = ref<'day' | 'week'>('day')
-const view = computed(() => (props.phone ? phoneView.value : 'week'))
-const shown = computed(() => (view.value === 'day' ? [props.focus] : days.value))
-/* 097 T013: a time grid everywhere but the phone's Week list */
-const grid = computed(() => !props.phone || view.value === 'day')
-const prevLabel = computed(() => t(view.value === 'day' ? 'calendar.prev_day' : 'calendar.prev_week'))
-const nextLabel = computed(() => t(view.value === 'day' ? 'calendar.next_day' : 'calendar.next_week'))
+const shown = days
+const prevLabel = computed(() => t('calendar.prev_week'))
+const nextLabel = computed(() => t('calendar.next_week'))
 function step(dir: 1 | -1) {
-  emit('move', view.value === 'day' ? calAddDays(props.focus, dir) : calAddDays(weekStart.value, dir * 7))
+  emit('move', calAddDays(weekStart.value, dir * 7))
 }
 
 const range = computed(() => {
-  if (view.value === 'day') return props.focus
   const d = days.value
   return d.length ? `${d[0]} – ${d[6]}` : ''
 })
@@ -250,11 +225,11 @@ const dropped = computed(() => {
   const ev = p && items.value.find((x) => x.id === p.id)
   return ev ? { ...ev, starts_at: p.starts_at, ends_at: p.ends_at } : null
 })
-/* in a list the ghost shows only on another day: on its own day it would
-   push the days below away from the finger */
+/* an all-day ghost shows only on another day: on its own day it would
+   push the row below away from the pointer */
 const liftedEv = computed(() => (preview.value ? items.value.find((x) => x.id === preview.value!.id) || null : null))
 const dropDay = computed(() => (dropped.value ? calEventDay(dropped.value) : ''))
-const dropBox = computed(() => (dropped.value && !dropped.value.all_day && grid.value ? calDayLayout([dropped.value])[0] || null : null))
+const dropBox = computed(() => (dropped.value && !dropped.value.all_day ? calDayLayout([dropped.value])[0] || null : null))
 /* each item on the day it starts: an all-day item (an official day) on its
    UTC day, a timed one on the viewer's day, the zone its clock prints in */
 const byDay = computed(() => {
@@ -320,9 +295,9 @@ onMounted(() => { void load() })
    shown when it starts earlier */
 const weekEl = ref<HTMLElement | null>(null)
 let scrolledFor = ''
-watch([state, grid, () => shown.value.join()], async () => {
-  const key = `${grid.value}:${shown.value.join()}`
-  if (state.value !== 'ready' || !grid.value || scrolledFor === key) return
+watch([state, () => shown.value.join()], async () => {
+  const key = shown.value.join()
+  if (state.value !== 'ready' || scrolledFor === key) return
   scrolledFor = key
   await nextTick()
   const box = weekEl.value
@@ -452,8 +427,6 @@ type Gesture = {
 let gesture: Gesture | null = null
 const dragging = ref(false)
 const lifted = ref('')
-/* a phone: the event a hold picked, the one showing its resize handle */
-const picked = ref('')
 const ghost = ref<{ day: string, a: number, b: number } | null>(null)
 const saving = ref('')
 const notice = ref('')
@@ -466,12 +439,11 @@ function itemAttrs(ev: CalendarItem) {
   const edit = calEditable(ev)
   return {
     class: ['cal-week__item', {
-      'cal-ev': !ev.all_day && grid.value,
+      'cal-ev': !ev.all_day,
       'cal-week__item--edit': edit,
       'cal-week__item--lifted': lifted.value === ev.id,
       'cal-week__item--left': preview.value?.id === ev.id,
-      'cal-week__item--picked': picked.value === ev.id,
-      'cal-week__item--saving': saving.value === ev.id,
+            'cal-week__item--saving': saving.value === ev.id,
     }],
     'data-test': 'calendar-item',
     'data-id': ev.id,
@@ -487,8 +459,7 @@ function itemAttrs(ev: CalendarItem) {
     style: ev.color && CAL_COLORS.includes(ev.color) ? { '--cal-ev-color': `var(--cal-color-${ev.color})` } : undefined,
   }
 }
-/* the desktop always offers the bottom edge; a phone only on the held event */
-const resizable = (ev: CalendarItem) => calEditable(ev) && !ev.all_day && (!props.phone || picked.value === ev.id)
+const resizable = (ev: CalendarItem) => calEditable(ev) && !ev.all_day
 
 /* under the pointer: a grid's day and minute, or a list day (minute null) */
 function hitAt(x: number, y: number): { day: string, min: number | null } | null {
@@ -532,7 +503,6 @@ function onResizeDown(e: PointerEvent, ev: CalendarItem, day: string) {
   begin(e, 'resize', ev, day)
 }
 function onGridDown(e: PointerEvent, day: string) {
-  picked.value = ''
   begin(e, 'create', null, day)
 }
 
@@ -542,10 +512,7 @@ function liftOff() {
   if (!g || g.live) return
   g.live = true
   dragging.value = true
-  if (g.ev) {
-    lifted.value = g.ev.id
-    if (g.touch) picked.value = g.ev.id
-  }
+  if (g.ev) lifted.value = g.ev.id
   if (g.kind === 'create') ghost.value = { day: g.day, a: g.from, b: g.from + 60 }
 }
 
@@ -648,7 +615,6 @@ onBeforeUnmount(() => {
 
 function onItemClick(e: Event, ev: CalendarItem) {
   if (dragClick(e)) return
-  picked.value = ''
   openPeek(ev)
 }
 function onDayClick(e: Event, day: string) {
@@ -817,76 +783,4 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   pointer-events: none;
 }
 .cal-main--dragging { cursor: grabbing; -webkit-user-select: none; user-select: none; }
-
-/* T009 (spec 2.2): a phone - the days one under another in their own
-   scroller, the bar at the bottom above the composer dock, 44 px targets */
-.cal-main--phone { flex: 1 1 auto; min-height: 0; padding: 0; gap: 0; }
-.cal-main--phone .cal-week {
-  order: 1;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  margin: 8px;
-}
-.cal-main--phone .cal-week--grid { grid-template-columns: 3rem minmax(0, 1fr); }
-.cal-main--phone .cal-main__notice { order: 0; margin: 8px 8px 0; }
-.cal-main--phone .cal-week__day {
-  padding: 8px 10px;
-  border-inline-start: 0;
-  border-top: 1px solid var(--color-border);
-}
-.cal-main--phone .cal-week__day:first-child { border-top: 0; }
-.cal-main--phone .cal-week--grid .cal-week__day { padding: 0; border-top: 0; border-inline-start: 1px solid var(--color-border); }
-.cal-main--phone .cal-week__head { font-size: 0.9375rem; }
-.cal-main--phone .cal-week__item { font-size: 0.9375rem; padding: 8px 10px; }
-.cal-main--phone .cal-ev { padding: 0; }
-.cal-main--phone .cal-week__badge { font-size: 0.8125rem; }
-/* 097 5.1.1: on a held event, a pill on its bottom edge in a 44 x 44 hit area */
-.cal-main--phone .cal-ev__resize {
-  inset-inline: auto;
-  left: 50%;
-  bottom: calc(var(--tap) / -2);
-  width: var(--tap);
-  height: var(--tap);
-  transform: translateX(-50%);
-  z-index: 5;
-}
-.cal-main--phone .cal-ev__resize::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 28px;
-  height: 6px;
-  transform: translate(-50%, -50%);
-  border-radius: var(--radius-pill);
-  background: var(--color-accent);
-}
-.cal-main--phone .cal-week__item--picked { z-index: 4; outline: 2px solid var(--color-accent); }
-.cal-main--phone .cal-main__bar {
-  order: 2;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 8px calc(6px + var(--composer-dock-h, 0px));
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg);
-}
-.cal-main--phone .cal-main__bar > .btn,
-.cal-main--phone .cal-main__bar > .icon-btn,
-.cal-main--phone .cal-main__view { min-height: var(--tap); min-width: var(--tap); }
-.cal-main--phone .cal-main__range {
-  order: -1;
-  flex: 1 0 100%;
-  margin: 0;
-  padding: 0 4px;
-  font-size: 0.875rem;
-  text-align: center;
-}
-.cal-main--phone .cal-main__views { display: flex; gap: 2px; margin-inline-start: auto; }
-.cal-main__view[aria-pressed='true'] { font-weight: 700; background: var(--color-surface); }
-.cal-main--phone .cal-main__menu { min-height: var(--tap); min-width: var(--tap); }
 </style>

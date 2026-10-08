@@ -20,8 +20,6 @@
 //          mock "Planning" under its day; a tap opens Day on that day
 //          with the event's peek (T009);
 //          nothing matching shows the empty note
-// Without the opt-in (localStorage spool-calendar-phone = 1, until T011)
-// there is no shell and so no picker.
 //
 // Controls: before T010 the title opens no [data-test=calphone-picker], so
 // every check FAILs; in-run, a planted 30 px button must trip the H7
@@ -75,31 +73,25 @@ const ROOT = '[data-test=calendar-phone]'
 const PICKER = '[data-test=calphone-picker]'
 const SEARCH = '[data-test=calphone-searchbox]'
 
-/** a fresh page: the opt-in, the theme and the font level in localStorage first */
-async function open(browser, vp, { theme = 'dark', level = 3, shell = true } = {}) {
+/** a fresh page: the theme and the font level in localStorage first */
+async function open(browser, vp, { theme = 'dark', level = 3 } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.evaluateOnNewDocument((s) => {
     try {
       if (sessionStorage.getItem('calphone-seeded')) return
       sessionStorage.setItem('calphone-seeded', '1')
-      if (s.shell) localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
       localStorage.setItem('spool-calendar-phone-view', 'week')
     } catch { /* about:blank */ }
-  }, { shell, theme, level })
+  }, { theme, level })
   const spec = { ...vp, hasTouch: true }
   await setPageViewport(p, spec)
   await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, spec)
-  if (shell) {
-    await p.waitForSelector(ROOT, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
-    await p.waitForFunction((r) => document.querySelector(r)?.getAttribute('data-state') === 'ready', { timeout: 10000 }, ROOT).catch(() => {})
-  } else {
-    await p.waitForSelector('[data-test=calendar-page]', { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
-    await sleep(500)
-  }
+  await p.waitForSelector(ROOT, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
+  await p.waitForFunction((r) => document.querySelector(r)?.getAttribute('data-state') === 'ready', { timeout: 10000 }, ROOT).catch(() => {})
   await p.evaluate(() => document.getElementById('nuxt-devtools-container')?.remove())
   return { p, ctx }
 }
@@ -341,14 +333,6 @@ try {
       const focus = await p.evaluate(() => document.activeElement?.getAttribute('data-test') || '')
       ok(`S4-2 ${w}: Escape closes the search, focus back on its button`, closed && focus === 'calphone-search', { closed, focus })
     }
-    await ctx.close()
-  }
-
-  /* ---- untouched: a phone without the opt-in has no shell, no picker ---- */
-  {
-    const { p, ctx } = await open(browser, PHONES[1], { shell: false })
-    const d = await p.evaluate(() => ({ shell: Boolean(document.querySelector('[data-test=calendar-phone]')), picker: Boolean(document.querySelector('[data-test=calphone-picker]')) }))
-    ok('390 without the opt-in: no shell, no picker (until T011)', !d.shell && !d.picker, d)
     await ctx.close()
   }
 } finally {

@@ -18,6 +18,10 @@
 //   097     a finger held on an event lifts it; dragged 2 hours down it is
 //           stored 2 hours later, same day, and the period stays; one
 //           tap on it opens T009's peek
+//   097     edit_conflict (moved here from calendar-drag's retired 089
+//           phone loop, spec 106 T011): another tab saves 13:00 behind the
+//           view's back; the next hold-drag is refused, the notice shows in
+//           view, not cut at the sides, and the other tab's 13:00 shows
 //   S4-4    a fixture day: 5 events overlap at 14:00 -> at most 3 columns,
 //           a +3 chip whose list holds the rest; every event reachable; a
 //           15-minute event is >= 26 px and < 44 px tall, >= 44 px wide
@@ -78,7 +82,7 @@ const DAY = `${ROOT} [data-test=calphone-page][data-dir="0"] [data-test=calphone
 const ADDED_KEY = 'spool.mock.calendar-added'
 const SHEET_TITLE = '[data-test=calphone-sheet] [data-test=calphone-sheet-title]'
 
-/** a fresh page on Day: the opt-in, theme, level, zone and fixture events first */
+/** a fresh page on Day: theme, level, zone and fixture events first */
 async function open(browser, vp, { theme = 'dark', level = 3, zone = 'UTC', day = '', added = [] } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
@@ -87,7 +91,6 @@ async function open(browser, vp, { theme = 'dark', level = 3, zone = 'UTC', day 
     try {
       if (sessionStorage.getItem('calday-seeded')) return
       sessionStorage.setItem('calday-seeded', '1')
-      localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-calendar-phone-view', 'day')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
@@ -315,6 +318,28 @@ try {
         ok(`097 ${w}: hold-drag moves the event two hours, same day`, moved && Date.parse(stored) === Date.parse(`${today}T11:00:00Z`), { stored, from: evBox.starts })
         ok(`097 ${w}: the drag turned no page`, (await rootAttr(p, 'data-period')) === period, await rootAttr(p, 'data-period'))
         ok(`097 ${w}: the drop opened no add sheet`, (await panelAt(p)).panel === '', await panelAt(p))
+        /* edit_conflict: another tab saves 13:00 behind the view's back */
+        await p.evaluate((k, i, d) => {
+          const list = JSON.parse(localStorage.getItem(k) || '[]')
+          Object.assign(list.find((e) => e.id === i) || {}, { starts_at: `${d}T13:00:00Z`, ends_at: `${d}T14:00:00Z`, updated_at: new Date(Date.now() + 1000).toISOString() })
+          localStorage.setItem(k, JSON.stringify(list))
+        }, ADDED_KEY, '00000000-0000-4000-8000-000000000101', today)
+        const evAgain = await p.evaluate((d) => {
+          const el = document.querySelector(`${d} [data-test=calday-event][data-id="00000000-0000-4000-8000-000000000101"]`)
+          if (!el) return null
+          el.scrollIntoView({ block: 'center' })
+          const b = el.getBoundingClientRect()
+          return { x: b.left + b.width / 2, y: b.top + Math.min(12, b.height / 2) }
+        }, DAY)
+        if (evAgain) await touch(p, evAgain, { x: evAgain.x, y: evAgain.y + 48 }, { wait: 550, steps: 12, gap: 20 })
+        const toast = await p.waitForSelector('[data-test=calday-notice]', { visible: true, timeout: 8000 }).then(() => p.$eval('[data-test=calday-notice]', (el) => {
+          const r = el.getBoundingClientRect()
+          return { key: el.getAttribute('data-key'), left: r.left, right: r.right, top: r.top, bottom: r.bottom, iw: window.innerWidth, ih: window.innerHeight, sw: el.scrollWidth, cw: el.clientWidth }
+        }), () => null)
+        ok(`097 ${w}: edit_conflict shows in view, not cut at the sides`, Boolean(toast && toast.key === 'calendar_event.drag_conflict' && toast.left >= 0 && toast.right <= toast.iw && toast.top >= 0 && toast.bottom <= toast.ih && toast.sw <= toast.cw + 1), toast)
+        const theirs = await p.waitForFunction((d) => document.querySelector(`${d} [data-test=calday-event][data-id="00000000-0000-4000-8000-000000000101"]`)?.getAttribute('data-starts')?.includes('T13:00'), { timeout: 5000 }, DAY).then(() => true, () => false)
+        ok(`097 ${w}: the other tab's change is shown (13:00)`, theirs)
+        ok(`H3 ${w}: no sideways scroll with the notice`, flatOk(await sideways(p)), await sideways(p))
         /* with T009's peek: one tap on an event opens it */
         const tapAt = await p.evaluate((d) => {
           const el = document.querySelector(`${d} [data-test=calday-event][data-id="00000000-0000-4000-8000-000000000101"]`)

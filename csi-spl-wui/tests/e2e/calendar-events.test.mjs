@@ -8,7 +8,8 @@
 //        agent's event (the mock's c-007 maintenance) opens with no switch.
 // AC-05: a click on an event opens the same dialog to edit or delete it; an
 //        issue deadline does not open it.
-// The dialog fits 1440 and 390 px with no sideways scroll; the calendar code
+// The dialog fits 1440 px with no sideways scroll (a phone adds in
+// CalendarPhoneSheet since spec 106 T011: calendar-phone-sheet); the calendar code
 // stays in its own chunk (calendar.test.mjs AC-02 holds the 155 KB check).
 // The mock workspace (viewer HUM-1) keeps its writes in localStorage
 // (src/utils/calendar-mock.mjs), in the wire format of spec 6.1.
@@ -200,22 +201,6 @@ try {
   ok('CONTROL a click on an issue deadline opens no dialog', !(await p.$(DIALOG)))
   await p.close()
 
-  console.log('-- 390x844')
-  const m = await browser.newPage()
-  await open(m, { width: 390, height: 844, isMobile: true, hasTouch: true })
-  const mbtn = await m.$('[data-test=calendar-new]')
-  ok('the phone bar carries New event too', Boolean(mbtn))
-  if (mbtn) await mbtn.click()
-  ok('it opens the dialog on a phone', await dialog(m))
-  const fit = await m.evaluate((sel) => {
-    const r = document.querySelector('[data-testid=ui-dialog]')?.getBoundingClientRect()
-    const save = document.querySelector('[data-test=calendar-event-save]')?.getBoundingClientRect()
-    return { w: r ? Math.round(r.width) : 0, iw: window.innerWidth, save: Boolean(save && save.bottom <= window.innerHeight + 1 && save.width > 0), form: Boolean(document.querySelector(sel)) }
-  }, DIALOG)
-  ok('on a phone the dialog is the full width and Save is on screen', fit.form && fit.w >= fit.iw - 1 && fit.save, fit)
-  ok('no sideways scroll at 390 px', await noSideways(m))
-  await shot(m, 'dialog-390')
-  await m.close()
 } finally {
   await browser.close()
   await server.stop()

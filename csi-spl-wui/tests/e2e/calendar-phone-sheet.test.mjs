@@ -79,7 +79,7 @@ const ADDED_KEY = 'spool.mock.calendar-added'
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 
-/** a fresh page: the opt-in, the theme and the font level in localStorage first */
+/** a fresh page: the theme and the font level in localStorage first */
 async function open(browser, vp, { theme = 'dark', level = 3 } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
@@ -88,7 +88,6 @@ async function open(browser, vp, { theme = 'dark', level = 3 } = {}) {
     try {
       if (sessionStorage.getItem('calphone-seeded')) return
       sessionStorage.setItem('calphone-seeded', '1')
-      localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
     } catch { /* about:blank */ }

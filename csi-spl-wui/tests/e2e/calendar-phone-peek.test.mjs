@@ -24,6 +24,8 @@
 //   height) filled from the source: title, date, start / end, all-day, time
 //   zone, location, reminders, colour, private, description; Save adds a
 //   second event with a new id and leaves the source as it was
+//   /calendar?event=<id> (a reminder's Open, 089 T006) opens that event's
+//   peek (spec 106 T011)
 //
 // Controls: before T009 there is no [data-test=calpeek], so every check
 // FAILs; in-run, a planted 2000 px scroller in the peek must trip H3, and
@@ -95,8 +97,8 @@ const SEEDED = [
 /* the source's fields as the sheet shows them (Tokyo wall time of 16:00Z..17:30Z) */
 const DUP_FORM = { mode: 'copy', full: 'true', title: 'Dup source', date: calIsoDay(Date.parse(at('16:00')) + 9 * 3600000), start: '01:00', end: '02:30', allDay: false, zone: 'Asia/Tokyo', location: 'Room 7', reminders: '2 hours', color: 'grape', private: true, description: 'Agenda: copy me' }
 
-/** a fresh page: the opt-in, the theme, level 3, Week, the seeded events */
-async function open(browser, vp, { theme = 'dark' } = {}) {
+/** a fresh page: the theme, level 3, Week, the seeded events */
+async function open(browser, vp, { theme = 'dark', path = '/calendar' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.emulateTimezone('UTC')
@@ -104,7 +106,6 @@ async function open(browser, vp, { theme = 'dark' } = {}) {
     try {
       if (sessionStorage.getItem('calpeek-seeded')) return
       sessionStorage.setItem('calpeek-seeded', '1')
-      localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', '3')
       localStorage.setItem('spool-calendar-phone-view', 'week')
@@ -113,7 +114,7 @@ async function open(browser, vp, { theme = 'dark' } = {}) {
   }, { theme, seeded: SEEDED })
   const spec = { ...vp, hasTouch: true }
   await setPageViewport(p, spec)
-  await p.goto(server.base + '/calendar', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await applyViewport(p, spec)
   await p.waitForSelector(ROOT, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
   await p.waitForFunction((r) => document.querySelector(r)?.getAttribute('data-state') === 'ready', { timeout: 10000 }, ROOT).catch(() => {})
@@ -353,6 +354,14 @@ try {
     await tap(p, issue)
     ok('an issue deadline peeks', await peekShown(p, 'SPL-12'))
     ok('an issue deadline has no Edit / Duplicate / Delete', !(await p.$(`${PEEK} [data-test=calpeek-actions]`)))
+    await ctx.close()
+  }
+
+  /* T011, moved from 089's phone main view: a reminder's Open lands on
+     /calendar?event=<id>, which opens that event's peek */
+  {
+    const { p, ctx } = await open(browser, PHONES[1], { path: `/calendar?event=${PLAIN_ID}` })
+    ok('?event=<id> (a reminder\'s Open) opens that event\'s peek', await peekShown(p, PLAIN_ID))
     await ctx.close()
   }
 } finally {

@@ -26,8 +26,6 @@
 // the dot-ring probe reads 'none' on a dot with box-shadow removed, and the
 // pre-fix look (opacity 1 on the other months' days) trips the dim check.
 //
-// The opt-in (localStorage spool-calendar-phone = 1) stays until T011.
-//
 // Run:
 //   BASE_URL=<generated mock bundle> SHOT_DIR=/var/tmp/shots pnpm run test:e2e calendar-phone-month
 import { mkdirSync } from 'node:fs'
@@ -117,7 +115,7 @@ const periodOf = (day) => calPhoneRange('month', day)?.from || ''
 const OUT_DAY = calPhoneMonthGrid(today).find((c) => !c.inMonth && c.iso !== today)?.iso
 const IN_DAY = calPhoneMonthGrid(today).find((c) => c.inMonth && c.iso !== today)?.iso
 
-/** a fresh page on Month: the opt-in, the fixture, theme and level first */
+/** a fresh page on Month: the fixture, theme and level first */
 async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
@@ -126,7 +124,6 @@ async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) 
     try {
       if (sessionStorage.getItem('calmonth-seeded')) return
       sessionStorage.setItem('calmonth-seeded', '1')
-      localStorage.setItem('spool-calendar-phone', '1')
       localStorage.setItem('spool-calendar-phone-view', 'month')
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))

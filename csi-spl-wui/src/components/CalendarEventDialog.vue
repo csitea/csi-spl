@@ -16,9 +16,8 @@
      097 T014 (G6..G9, G11; spec 5.1.2, 5.1.6, 5.1.9): time zone, location,
      reminders (up to 5, a whole number and minutes / hours / days) and the
      colour swatches; `copy` opens a new event filled from another
-     (Duplicate). On a phone the dialog is the full screen, one column, and
-     Save / Cancel / Delete sit in UiDialog's footer, the bottom bar a thumb
-     reaches. -->
+     (Duplicate). Desktop only since spec 106 T011: a phone adds and edits
+     in CalendarPhoneSheet. -->
 <template>
   <UiDialog :open="open" :title="event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="md" @update:open="emit('update:open', $event)">
     <form :id="formId" class="cal-dlg" data-test="calendar-event-form" :data-mode="event ? 'edit' : copy ? 'copy' : 'create'" @submit.prevent="save">
@@ -364,13 +363,4 @@ async function remove() {
 .cal-dlg__spacer { flex: 1 1 auto; }
 .cal-dlg__delete { color: var(--color-danger); }
 .cal-dlg__delete[data-confirm='true'] { border-color: var(--color-danger); }
-/* a phone (097 5.1.6): the full screen (UiDialog), one column, 44 px targets */
-@media (max-width: 600px) {
-  .cal-dlg { grid-template-columns: minmax(0, 1fr); }
-}
-@media (max-width: 820px) {
-  .cal-dlg__tap { min-height: var(--tap, 44px); min-width: var(--tap, 44px); }
-  .cal-dlg__swatch { width: var(--tap, 44px); height: var(--tap, 44px); }
-  .cal-dlg__check { min-height: var(--tap, 44px); }
-}
 </style>

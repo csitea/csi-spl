@@ -130,7 +130,7 @@
         </button>
       </div>
     </div>
-    <p v-if="notice" class="calday__notice" role="status" data-test="calday-notice">{{ t(notice) }}</p>
+    <p v-if="notice" class="calday__notice" role="status" data-test="calday-notice" :data-key="notice">{{ t(notice) }}</p>
   </div>
 </template>
 

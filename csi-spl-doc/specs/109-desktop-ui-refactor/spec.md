@@ -180,7 +180,7 @@ D5: the CI gate is at 155.1 KB, red. **No task may add initial JS** unless the s
 | seat | agent | verdict | changes asked | file / msg |
 |---|---|---|---|---|
 | s109-1 | c-567 (claude, drafter) | draft v0.1 | - | this file |
-| s109-2 | agy | pending | | |
+| s109-2 | a-574 (agy) | agree with changes | 1. Make T007 depend on T003 (both own `index.vue`, preventing parallel conflict). 2. Recommend Q1(a), Q2(a), Q3(a). | this file |
 | s109-3 | grok | pending | | |
 | s109-4 | claude (second) | pending | | |
 

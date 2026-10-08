@@ -99,6 +99,19 @@ export function cardScrollDelta(card, scroller, newestLast, padBottom = 0) {
 }
 
 /**
+ * The location that moves only the hash. A bare `{ hash }` is relative to the
+ * current path but drops its query, and with it the ?topic= of the thread
+ * just opened (open-in-place case 12: #alerts, then a #lobby reply from Flow).
+ *
+ * @param {{ query?: Record<string, unknown> } | null | undefined} current the current route
+ * @param {string} hash
+ * @returns {{ query: Record<string, unknown>, hash: string }}
+ */
+export function hashOnlyLocation(current, hash) {
+  return { query: { ...((current && current.query) || {}) }, hash: String(hash || '') }
+}
+
+/**
  * Where "Open parent section" goes, or null when the message names no
  * channel and no other DM end (a broadcast, a row with no ids).
  *

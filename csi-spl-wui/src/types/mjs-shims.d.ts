@@ -892,6 +892,7 @@ declare module '~/utils/parent-section.mjs' {
   export function isTopicStarter(msg: unknown): boolean
   export function parentKindOf(msg: unknown, self?: string): 'dm' | 'channel' | 'issue' | ''
   export function cardScrollDelta(card: { top: number, bottom: number }, scroller: { top: number, bottom: number }, newestLast: boolean, padBottom?: number): number
+  export function hashOnlyLocation(current: { query?: Record<string, unknown> } | null | undefined, hash: string): { query: Record<string, unknown>, hash: string }
   export function parentSection(msg: unknown, opts?: { self?: string, target?: { taskId?: string, mode?: string, parentTaskId?: string } | null, issueKey?: string, topicLevel?: boolean }): ParentSection | null
   export function parentSectionHref(section: { path: string, query?: Record<string, string>, hash?: string } | null, pathFor?: (path: string) => string): string
   export function issueKeyForTask(list: unknown, taskId: string): string

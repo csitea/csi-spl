@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   cardScrollDelta,
+  hashOnlyLocation,
   ISSUE_CHANNEL,
   isTopicStarter,
   issueKeyForTask,
@@ -292,5 +293,21 @@ describe('wiring', () => {
       const card = Boolean(String(m.channel || '').trim().replace(/^#/, '') || dmPeerOfShim(m, 'HUM-4'))
       assert.equal(card, Boolean(parentSection(m, { self: 'HUM-4' })), JSON.stringify(m))
     }
+  })
+})
+
+describe('hashOnlyLocation: a hash move keeps the query', () => {
+  it('keeps ?topic= (open-in-place case 12: a bare { hash } dropped it)', () => {
+    const cur = { path: '/channel/lobby', query: { topic: TOPIC } }
+    assert.deepEqual(hashOnlyLocation(cur, '#' + MSG), { query: { topic: TOPIC }, hash: '#' + MSG })
+    assert.notEqual(hashOnlyLocation(cur, '#x').query, cur.query)
+  })
+  it('no current route -> an empty query', () => {
+    assert.deepEqual(hashOnlyLocation(undefined, '#x'), { query: {}, hash: '#x' })
+  })
+  it('revealCard replaces through it, never a bare { hash }', () => {
+    const open = src('src/utils/parent-section-open.mjs')
+    assert.doesNotMatch(open, /router\.replace\(\{ hash \}\)/)
+    assert.match(open, /router\.replace\(hashOnlyLocation\(/)
   })
 })

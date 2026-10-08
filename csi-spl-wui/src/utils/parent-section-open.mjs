@@ -3,7 +3,7 @@ import { useTopicStore } from '~/stores/topic'
 import { useSidePane } from '~/composables/useSidePane'
 import { withSessionRetry } from './live-follow.mjs'
 import { scrollRowToTop } from './pane-scroll.mjs'
-import { cardScrollDelta, issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from './parent-section.mjs'
+import { cardScrollDelta, hashOnlyLocation, issueKeyForTask, mayBeIssueTopic, parentSection, parentTopicOf } from './parent-section.mjs'
 
 /**
  * (SPL-15): what "Open parent section" does, loaded only when the
@@ -120,7 +120,7 @@ async function revealCard(topic, target, { router, hash, newestLast, msgId = '' 
       if (target && (!topic.open || !topic.target || topic.target.taskId !== target.taskId)) {
         topic.openTarget(target, topic.rootMsg)
         await sleep(0)
-        if (hash) await router.replace({ hash })
+        if (hash) await router.replace(hashOnlyLocation(router.currentRoute && router.currentRoute.value, hash))
       }
       const scroller = card.closest('.feed-body')
       if (scroller) {

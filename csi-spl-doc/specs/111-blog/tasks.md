@@ -57,7 +57,7 @@ Multilingual text gets agy's review last (repo language rule).
 ## Tasks
 
 - [x] T000 **doc** (c-589 v0.1, c-584 v1.0): `spec.md` + this file.
-- [ ] T001 **cnf** (needs D-Q1, given). Adds `env.blog.{tz: Europe/Helsinki,
+- [x] T001 **cnf** (needs D-Q1, given). Adds `env.blog.{tz: Europe/Helsinki,
   cap_per_day: 7, digest_reserved: 1, max_words: 450, digest_at: "23:00",
   locales_from: i18n}`.
   - Vendor: mistral. Box: any.

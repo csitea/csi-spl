@@ -824,5 +824,27 @@ out=$(SNIPPET="spl_desk_purge_pokes '$T/purge' CLE-9 0" in_orc 2>&1)
 [[ "$out" != *dropped* ]] && pass "purge_pokes on an empty queue reports nothing" ||
   fail "purge_pokes on an empty queue: $out"
 
+# --- 15. the dead-agent drop threshold comes from cnf (t1 bc1a43e1 fix B) ----------
+# The sidecar gets env.box.agent_drop_after_minutes as SPOOL_AGENT_DROP_AFTER;
+# a cnf without the key (ENV=self) passes it empty = never drop; a non-number
+# is refused. CONTROL: the stubbed detach records the variable at all.
+drop_of() {
+  local cnf="$1" dd="$T/drop/$RANDOM"; mkdir -p "$dd/spool/.hub"
+  SNIPPET="spl_desk_detach() { printf '%s\n' \"\${SPOOL_AGENT_DROP_AFTER-unset}\" >'$T/drop.got'; sleep 0 & }
+    SPL_SPOOL=true SPL_CNF='$cnf' spl_desk_sidecar '$dd' box-desk t1 https://hub.invalid off 1" in_orc >"$T/o" 2>&1
+}
+printf 'env:\n  box:\n    agent_drop_after_minutes: 60\n' >"$T/drop-60.yaml"
+printf 'env:\n  name: self\n' >"$T/drop-none.yaml"
+printf 'env:\n  box:\n    agent_drop_after_minutes: soon\n' >"$T/drop-bad.yaml"
+rm -f "$T/drop.got"; drop_of "$T/drop-60.yaml"
+[[ "$(cat "$T/drop.got" 2>/dev/null)" == 60 ]] && pass "the sidecar gets SPOOL_AGENT_DROP_AFTER=60 from cnf" ||
+  fail "drop from cnf: got '$(cat "$T/drop.got" 2>/dev/null)': $(cat "$T/o")"
+rm -f "$T/drop.got"; drop_of "$T/drop-none.yaml"
+[[ -f "$T/drop.got" && -z "$(cat "$T/drop.got")" ]] && pass "CONTROL a cnf without the key passes it empty (never drop)" ||
+  fail "drop without the key: got '$(cat "$T/drop.got" 2>/dev/null)': $(cat "$T/o")"
+rm -f "$T/drop.got"; drop_of "$T/drop-bad.yaml"
+[[ ! -f "$T/drop.got" ]] && grep -q 'FATAL cnf env.box.agent_drop_after_minutes' "$T/o" &&
+  pass "a non-number threshold is refused before the sidecar starts" || fail "bad drop threshold: $(cat "$T/o")"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'all desk-actions.tst.sh assertions' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

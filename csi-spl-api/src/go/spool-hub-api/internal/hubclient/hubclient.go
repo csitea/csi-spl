@@ -134,6 +134,12 @@ type Client struct {
 	// AgentRun answers which of the box's agents really run, for a role=box
 	// hello and announce (agent_run.go). nil = the box reports none.
 	AgentRun func(agents []string) map[string]bool
+	// DropAfter leaves out of the hello and announce an agent the run report
+	// has said does not run for longer than this (agent_drop.go, t1
+	// bc1a43e1 fix B). 0 = never.
+	DropAfter time.Duration
+	dropMu    sync.Mutex
+	stopSince map[string]time.Time // agent -> first report that it does not run
 
 	keysDirWarned sync.Once
 
@@ -415,14 +421,14 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 	}
 	// SPL-987 backfill.go, SPL-997 fallback.go, spec 059 S2 commit (readLoop)
 	hello.Features = []string{wire.FeatureBackfill, wire.FeatureFallback, wire.FeatureCommit}
-	agents, err := c.scanAgents()
+	agents, run, err := c.rosterAgents() // t1 bc1a43e1 fix B: not a dead one
 	if err != nil {
 		return wire.Frame{}, err
 	}
 	hello.Agents = agents
 	hello.Channels = c.Cfg.ChannelList()
 	hello.Host = host
-	hello.AgentRun = c.agentRun(agents)
+	hello.AgentRun = run
 	return hello, nil
 }
 
@@ -691,7 +697,9 @@ func (s *Session) sendFrame(ctx context.Context, env *wire.Envelope, extra wire.
 	if s.fromNotYetAnnounced(err, m.From) {
 		// A new agent's first line beat the 10 s announce scan: announce
 		// the dir scan (it holds m.From: the outbox was written first) and
-		// resend once. The hub reads the two frames in order.
+		// resend once. The hub reads the two frames in order. A dead one
+		// that sends lives again (t1 bc1a43e1 fix B).
+		s.c.revive(m.From)
 		if aerr := s.Announce(ctx); aerr == nil {
 			f, err = send()
 		}
@@ -793,7 +801,7 @@ func (s *Session) Tail(ctx context.Context, taskID string, follow bool, fn func(
 
 // Announce re-sends this box's agent roster (role=box).
 func (s *Session) Announce(ctx context.Context) error {
-	agents, err := s.c.scanAgents()
+	agents, run, err := s.c.rosterAgents() // t1 bc1a43e1 fix B: not a dead one
 	if err != nil {
 		return err
 	}
@@ -802,7 +810,7 @@ func (s *Session) Announce(ctx context.Context) error {
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
 	defer cancel()
 	return wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TAnnounce, Agents: agents, Channels: s.c.Cfg.ChannelList(),
-		AgentRun: s.c.agentRun(agents)})
+		AgentRun: run})
 }
 
 // uploadToken returns a live upload token, asking the hub for a fresh one

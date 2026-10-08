@@ -58,6 +58,11 @@ type Config struct {
 	// exists, so a peer or a report from another machine reaches the inbox
 	// the agent reads with `spool recv`. Unset = no copy (hub, CI, tests).
 	FleetRoot string `env:"SPOOL_FLEET_ROOT"`
+	// AgentDropAfter (t1 bc1a43e1 fix B): a role=box hello and announce leave
+	// out an agent the fleet tick's run report has said does not run for
+	// longer than this - whole minutes, or a Go duration. do_spl_desk_up sets
+	// it from cnf env.box.agent_drop_after_minutes. Unset/0 = never.
+	AgentDropAfter string `env:"SPOOL_AGENT_DROP_AFTER"`
 	// DirLayout is the mailbox layout of SpoolRoot (specs/058 6): unset = bare
 	// "<ID>" dirs; "qualified" = a new mailbox is "<ID>@<DeskBox>" plus the
 	// compat symlink "<ID>". Both layouts are always READ.

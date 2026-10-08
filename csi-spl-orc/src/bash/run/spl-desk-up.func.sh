@@ -299,9 +299,15 @@ spl_desk_sidecar() {
     # one workspace (spec 108 3.5) the harness root is that workspace's own.
     local fleet="${SPOOL_FLEET_ROOT-${SPL_WS_SPOOL_ROOT:-/var/spool-hub}}"
     [[ -n "$fleet" && -d "$fleet" ]] || fleet=""
+    # t1 bc1a43e1 fix B: an agent the fleet's run report has said does not
+    # run for longer than cnf env.box.agent_drop_after_minutes leaves this
+    # box's roster (hubclient/agent_drop.go). Empty (ENV=self) or 0 = never.
+    local drop
+    drop="$(yq -r '.env.box.agent_drop_after_minutes // ""' "${SPL_CNF:-/dev/null}" 2>/dev/null)" || drop=""
+    [[ "$drop" =~ ^[0-9]*$ ]] || { do_log "FATAL cnf env.box.agent_drop_after_minutes must be whole minutes, got '$drop'"; flock -u 9; exec 9>&-; return 1; }
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \
-    SPOOL_TRACE="${SPOOL_TRACE:-}" SPOOL_FLEET_ROOT="$fleet" \
+    SPOOL_TRACE="${SPOOL_TRACE:-}" SPOOL_FLEET_ROOT="$fleet" SPOOL_AGENT_DROP_AFTER="$drop" \
       spl_desk_detach "$hubd/hub-run.log" "$SPL_SPOOL" hub-run
     SPL_DESK_PID=$!
     printf '%s\n' "$SPL_DESK_PID" >"$pidf"

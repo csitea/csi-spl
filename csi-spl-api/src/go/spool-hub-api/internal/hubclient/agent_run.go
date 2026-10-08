@@ -96,11 +96,11 @@ func (c *Client) agentRun(agents []string) map[string]bool {
 // rosterKey is what an announce would say - the scanned roster and its run
 // report - as one comparable string; false = the scan failed.
 func (c *Client) rosterKey() (string, bool) {
-	agents, err := c.scanAgents()
+	agents, run, err := c.rosterAgents() // fix B: a drop is a change too
 	if err != nil {
 		return "", false
 	}
-	return strings.Join(agents, ",") + runKey(c.agentRun(agents), agents), true
+	return strings.Join(agents, ",") + runKey(run, agents), true
 }
 
 // runKey is a report as one comparable string ("" = none), so the scan tick

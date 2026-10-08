@@ -917,6 +917,12 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 	c.Host = hubclient.HostFacts(filepath.Join(cfg.HubDir(), "host-facts-v2.json"), version, hubclient.AgentUser(cfg.FleetRoot))
 	// t1 bc1a43e1: which agents really run, from the fleet tick's report
 	c.AgentRun = hubclient.AgentRunReport(cfg.FleetRoot, time.Now)
+	// t1 bc1a43e1 fix B: an agent not running for this long leaves the roster
+	drop, err := hubclient.ParseDropAfter(cfg.AgentDropAfter)
+	if err != nil {
+		return nil, fmt.Errorf("$SPOOL_AGENT_DROP_AFTER: %w", err)
+	}
+	c.DropAfter = drop
 	return c, nil
 }
 

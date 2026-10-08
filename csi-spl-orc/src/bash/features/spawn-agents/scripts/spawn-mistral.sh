@@ -52,6 +52,13 @@ spawn_rename_how() {
   spool_dq_escape desc_esc "${SLUG:-}"
   printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (vibe cannot name its own session, so the window name is the one a human reads); then read the workdir's CLAUDE.md, if it has one, and csi-spl-doc/doc/help/how-to-post.md: vibe loads only AGENTS.md, so CLAUDE.md's rules (commit identity, explicit pathspecs, ./run actions, the pre-push gate, hygiene) reach you only this way"
 }
+# vibe runs every hook with its launch dir as cwd (vibe/core/hooks/executor.py,
+# 2.26.0), the post_agent DM mirror too: a lane that removed its worktree
+# answered the owner's DMs in its terminal only ("[spool-mirror] failed to
+# start: [Errno 2]", m-587 2026-10-08). The closer's --retire removes it.
+spawn_teardown_how() {
+  printf '%s' "TEAR DOWN after (7) is green: HEAD on origin/${DEFBRANCH}; KEEP ${WORKTREE_DIR} and its branch (vibe runs its hooks, the DM-reply mirror too, in it); the closer's --retire removes them."
+}
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh
 . "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec bash; }

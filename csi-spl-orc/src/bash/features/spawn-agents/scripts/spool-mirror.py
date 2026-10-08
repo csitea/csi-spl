@@ -43,6 +43,7 @@ Opt out per seat: touch <seat>/spool/<agent>/.no-mirror.
 Usage:
   spool-mirror.py hook                     < hook JSON (claude, grok)
   spool-mirror.py hook --agy pre|stop      < agy hook JSON (PreInvocation, Stop)
+  spool-mirror.py hook --vibe              < mistral vibe post_agent hook JSON
   spool-mirror.py post --agent ID --event prompt|answer [--session S] < text
   spool-mirror.py topic <seat>/spool/<agent>       -> "<human>\t<task>"
   spool-mirror.py remember <seat>/spool/<agent> <human> <task>
@@ -82,7 +83,7 @@ from spool_redact import redact  # noqa: E402
 
 # A participant id, as lib/spool-env.inc.sh SPOOL_ID_RE (specs/061): c-004, and
 # the legacy CLE-07 that readers keep accepting.
-PID = r"(?:[acgq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)"
+PID = r"(?:[acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)"
 ID_RE = re.compile(r"^" + PID + r"$")
 HUM_RE = re.compile(r"^HUM-[A-Za-z0-9_-]{1,64}$")
 UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
@@ -263,7 +264,125 @@ def agy_extract(ev, which):
     return ("answer", text, session) if text else None
 
 
-def hook_main(agy=""):
+def vibe_text(content):
+    """A Vibe message's content: a string, or a list of {type: text, text} parts."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(str(c.get("text") or "") for c in content
+                         if isinstance(c, dict) and c.get("type", "text") == "text").strip()
+    return ""
+
+
+def vibe_files(path, session):
+    """The session files to read: transcript_path when it is a file; else the
+    journal of the session dir it names, or of session_id under $VIBE_HOME."""
+    if path and os.path.isfile(path):
+        return [path]
+    d = path if path and os.path.isdir(path) else ""
+    if not d and re.match(r"^[0-9A-Za-z-]{8,64}$", session or ""):
+        home = os.environ.get("VIBE_HOME") or os.path.join(os.path.expanduser("~"), ".vibe")
+        d = os.path.join(home, "logs", "session", "unified", session)
+    if not d:
+        return []
+    legacy = os.path.join(d, "messages.jsonl")
+    return sorted(glob.glob(os.path.join(d, "journal", "*.jsonl"))) or ([legacy] if os.path.isfile(legacy) else [])
+
+
+def vibe_messages(path, session):
+    """The [role, text, injected] list of a Vibe session (specs/110 3.4), oldest
+    first. Two stores (mistral-vibe 2.26.0, read from its source):
+      legacy   <session dir>/messages.jsonl, one LLMMessage per line
+               ({role, content, injected}): the hook's transcript_path
+      unified  the default harness: <VIBE_HOME>/logs/session/unified/<id>/
+               journal/*.jsonl, whose projection_delta records carry
+               {op, entry: {id, role, content, type: message}}; the newest
+               entry per id wins
+    transcript_path may name either; an empty or missing one falls back to the
+    unified dir of session_id under $VIBE_HOME (default ~/.vibe)."""
+    order, by_id, n = [], {}, 0
+
+    def add(key, role, content, injected):
+        if role not in ("user", "assistant"):
+            return
+        if key not in by_id:
+            order.append(key)
+        by_id[key] = [role, vibe_text(content), bool(injected)]
+
+    for fp in vibe_files(path, session):
+        try:
+            with open(fp, errors="replace") as f:
+                lines = f.readlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(d, dict):
+                continue
+            n += 1
+            if "role" in d:                                  # legacy LLMMessage
+                add("legacy-%d" % n, d.get("role"), d.get("content"), d.get("injected"))
+            elif d.get("type") == "projection_delta":
+                for op in (d.get("payload") or {}).get("delta") or []:
+                    e = op.get("entry") if isinstance(op, dict) else None
+                    if isinstance(e, dict) and e.get("type") == "message":
+                        add(str(e.get("id") or "anon-%d" % n), e.get("role"), e.get("content"), e.get("injected"))
+    return [by_id[k] for k in order]
+
+
+def vibe_extract(ev):
+    """Mistral Vibe has no prompt hook: its one turn hook is post_agent (once
+    per turn, after the answer). Both halves of the turn come from the
+    session: the prompt is the newest user message that was not injected, the
+    answer the assistant text after it.
+    -> [(event, text, session), ...] in post order, or None."""
+    if not isinstance(ev, dict) or ev.get("parent_session_id"):
+        return None  # a subagent's turn is not the conversation
+    if (ev.get("hook_event_name") or "post_agent") != "post_agent":
+        return None
+    session = str(ev.get("session_id") or "")
+    msgs = vibe_messages(str(ev.get("transcript_path") or ""), session)
+    last_user = max((i for i, m in enumerate(msgs) if m[0] == "user" and not m[2] and m[1].strip()), default=-1)
+    if last_user < 0:
+        return None
+    out = [("prompt", human_text(msgs[last_user][1]), session)]
+    text = "\n\n".join(m[1].strip() for m in msgs[last_user + 1:] if m[0] == "assistant" and m[1].strip())
+    if text:
+        out.append(("answer", text, session))
+    return out
+
+
+def post_detached(posts):
+    """Run each (argv, text) post as the box user, in order, without the CLI's
+    turn waiting: one post is one detached process; a prompt + answer pair is
+    one detached child that runs them in sequence (the answer consumes the
+    trigger the prompt records)."""
+    if len(posts) == 1:
+        # nothing of ours holds the hook's pipes open
+        argv, text = posts[0]
+        p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
+        p.stdin.write(text.encode())
+        p.stdin.close()
+        return
+    if os.fork() != 0:
+        return
+    try:
+        os.setsid()
+        devnull = os.open(os.devnull, os.O_RDWR)
+        for fd in (0, 1, 2):
+            os.dup2(devnull, fd)
+        for argv, text in posts:
+            subprocess.run(argv, input=text.encode(), stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=60)
+    finally:
+        os._exit(0)
+
+
+def hook_main(agy="", vibe=False):
     try:
         raw = sys.stdin.read()
         if agy:
@@ -272,29 +391,29 @@ def hook_main(agy=""):
         if mirror_off():
             return 0
         ev = json.loads(raw) if raw.strip() else {}
-        got = agy_extract(ev, agy) if agy else hook_extract(ev)
+        if vibe:
+            got = vibe_extract(ev)
+        else:
+            one = agy_extract(ev, agy) if agy else hook_extract(ev)
+            got = [one] if one else None
         agent = resolve_agent()
         if not got or not ID_RE.match(agent):
             return 0
-        event, text, session = got
-        argv = os.environ.get("SPOOL_MIRROR_POST", "").split()
-        if not argv:
+        base = os.environ.get("SPOOL_MIRROR_POST", "").split()
+        if not base:
             owner = box_user(os.path.realpath(__file__))
             me = pwd.getpwuid(os.getuid()).pw_name
-            argv = [sys.executable, os.path.realpath(__file__)]
+            base = [sys.executable, os.path.realpath(__file__)]
             if owner != me:
-                argv = ["sudo", "-n", "-u", owner] + argv
-        argv += ["post", "--agent", agent, "--event", event, "--session", session]
+                base = ["sudo", "-n", "-u", owner] + base
+        posts = [(base + ["post", "--agent", agent, "--event", event, "--session", session], text)
+                 for event, text, session in got]
         if os.environ.get("SPOOL_MIRROR_SYNC") == "1":
-            subprocess.run(argv, input=text.encode(), stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=60)
+            for argv, text in posts:
+                subprocess.run(argv, input=text.encode(), stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=60)
             return 0
-        # Detached: the CLI's turn does not wait for the send, and nothing of
-        # ours holds the hook's pipes open.
-        p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
-        p.stdin.write(text.encode())
-        p.stdin.close()
+        post_detached(posts)
     except Exception:  # noqa: BLE001 - a mirror must never break the CLI
         pass
     return 0
@@ -616,6 +735,8 @@ def remember_topic(agent_dir, human, task):
 def main(argv):
     if len(argv) >= 2 and argv[1] == "hook":
         # `hook --agy pre|stop`: agy's payloads name no event, so the config does
+        if len(argv) >= 3 and argv[2] == "--vibe":
+            return hook_main(vibe=True)
         return hook_main(argv[3] if len(argv) >= 4 and argv[2] == "--agy" else "")
     if len(argv) == 3 and argv[1] == "topic":
         # The DM a post from this agent dir would land in: "<human>\t<task>".

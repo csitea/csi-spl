@@ -12,6 +12,7 @@ An agent is mirrored when ALL of these hold:
             grok    ~/.grok/hooks/spool-mirror.json, else ~/.claude/settings.json
             agy     ~/.gemini/config/hooks.json (the named hook spool-mirror)
             qwen    ~/.qwen/settings.json
+            mistral ~/.vibe/hooks.toml ($VIBE_HOME/hooks.toml when its env sets one)
   env     its process env names it: SPOOL_AGENT_ID, else MCP_BOT_AGENT_ID, = its id
           (the hook never reads a window name)
   seat    a desk seat <seat>/spool/<ID> without .no-mirror (else nothing posts)
@@ -84,7 +85,7 @@ def argv_settings(argv):
     return out
 
 
-def hooks_of(kind, argv, home):
+def hooks_of(kind, argv, home, env=None):
     """-> (where, script) of the first hook source this CLI reads, or ('', '')."""
     cands = []
     if kind == "claude":
@@ -95,6 +96,8 @@ def hooks_of(kind, argv, home):
         cands = [os.path.join(home, ".gemini", "config", "hooks.json")]
     elif kind == "qwen":
         cands = [os.path.join(home, ".qwen", "settings.json")]
+    elif kind == "mistral":
+        cands = [os.path.join((env or {}).get("VIBE_HOME") or os.path.join(home, ".vibe"), "hooks.toml")]
     for c in cands:
         s = hook_in(c)
         if s:
@@ -137,7 +140,7 @@ def check(fact, off):
     home = home_of(user)
     argv = argv_of(pid)
     env = env_of(pid)
-    where, script = hooks_of(kind, argv, home)
+    where, script = hooks_of(kind, argv, home, env)
     why = []
     if not where:
         why.append("no mirror hook loaded (relaunch through spawn/restore)")

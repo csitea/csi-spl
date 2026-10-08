@@ -59,11 +59,16 @@ import sys
 import tempfile
 import time
 
-KINDS = ("claude", "grok", "agy", "qwen")
+KINDS = ("claude", "grok", "agy", "qwen", "mistral")
+# A CLI whose binary is not named after its kind (specs/110: mistral runs vibe).
+BIN_KIND = {"vibe": "mistral"}
 LOADERS = ("node", "nodejs", "bun", "deno")
+# A python entry-point script (pipx / uv tool, as vibe is) runs as
+# `python3.13 <bin dir>/vibe ...`: its argv[1] names the CLI.
+PY_LOADER = re.compile(r"^python[0-9.]*$")
 # The agent id grammar of lib/spool-env.inc.sh (specs/061): c-004, and the
 # legacy CLE-07 that readers keep accepting (history keeps it).
-AGENT_ID = r"(?:[acgq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
+AGENT_ID = r"(?:[acgmq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
 ID_RE = re.compile(r"^" + AGENT_ID + r"$")
 NAME_ID_RE = re.compile(r"(?<![A-Za-z0-9])(" + AGENT_ID + r")(?![0-9])")
 BADGES = (">", "?", "!")
@@ -192,8 +197,9 @@ def kind_of(argv):
     if not argv:
         return ""
     base = os.path.basename(argv[0])
-    if base in LOADERS or base.startswith("ld-linux"):
+    if base in LOADERS or base.startswith("ld-linux") or PY_LOADER.match(base):
         base = os.path.basename(argv[1]) if len(argv) > 1 else ""
+    base = BIN_KIND.get(base, base)
     return base if base in KINDS else ""
 
 
@@ -250,7 +256,7 @@ def claude_session(proc, pid, env, start):
 
 
 # "<ID>@<box>" at the head of a name: the box is display (specs/058).
-AT_BOX = re.compile(r"^((?:[acgq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+))@[a-z0-9][a-z0-9-]{0,31}(?= |$)")
+AT_BOX = re.compile(r"^((?:[acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+))@[a-z0-9][a-z0-9-]{0,31}(?= |$)")
 
 
 def strip_name(name):

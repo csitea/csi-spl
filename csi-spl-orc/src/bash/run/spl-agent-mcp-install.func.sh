@@ -21,8 +21,9 @@
 # @description      <agent home>/.config/spool-mcp/env naming the box user
 # @description   3. the registration `spool-<env>` -> `spool-mcp <env>` in
 # @description      each agent CLI that is installed (claude at user scope,
-# @description      grok at user scope, agy, qwen at user scope and trusted),
-# @description      added only when missing
+# @description      grok at user scope, agy, qwen at user scope and trusted,
+# @description      mistral vibe as a [[mcp_servers]] stdio entry in
+# @description      <agent home>/.vibe/config.toml), added only when missing
 # @description What the agent user can reach afterwards: the five tools for
 # @description ITS OWN seat, over stdio. It cannot read the desk tree or the box
 # @description key (both stay 0700 box user); the one sudo hop happens at server
@@ -32,9 +33,9 @@
 # @description Dry run unless DRY_RUN=0.
 # @param AGENT_USER - required: the OS user the agent CLIs run as (no default)
 # @param MCP_ENVS (optional) - default "dev prd"
-# @param MCP_CLIS (optional) - default "claude grok agy qwen"; a CLI that is not at
-# @param   <agent home>/.local/bin/<cli> (where their installers put them) is
-# @param   skipped and named
+# @param MCP_CLIS (optional) - default "claude grok agy qwen mistral"; a CLI that is
+# @param   not at <agent home>/.local/bin/<cli> (where their installers put them;
+# @param   mistral's binary is vibe) is skipped and named
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example AGENT_USER=<agent user> DRY_RUN=0 ./run -a do_spl_agent_mcp_install
 #------------------------------------------------------------------------------
@@ -42,11 +43,11 @@ do_spl_agent_mcp_install() {
   do_require_bin python3 getent sudo install || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local agent="${AGENT_USER:-}" envs="${MCP_ENVS:-dev prd}" clis="${MCP_CLIS:-claude grok agy qwen}"
+  local agent="${AGENT_USER:-}" envs="${MCP_ENVS:-dev prd}" clis="${MCP_CLIS:-claude grok agy qwen mistral}"
   [[ "$agent" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { do_log "FATAL AGENT_USER must name the agent OS user (no default), got: '$agent'"; return 1; }
   local e c
   for e in $envs; do [[ "$e" =~ ^(dev|prd)$ ]] || { do_log "FATAL MCP_ENVS may hold dev and prd only, got: '$e'"; return 1; }; done
-  for c in $clis; do [[ "$c" =~ ^(claude|grok|agy|qwen)$ ]] || { do_log "FATAL MCP_CLIS may hold claude, grok, agy and qwen only, got: '$c'"; return 1; }; done
+  for c in $clis; do [[ "$c" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || { do_log "FATAL MCP_CLIS may hold claude, grok, agy, qwen and mistral only, got: '$c'"; return 1; }; done
 
   local proj_base org_app me ahome mcpdir src build
   proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
@@ -97,6 +98,7 @@ do_spl_agent_mcp_install() {
   local rc=0 have
   for c in $clis; do
     local cli="$ahome/.local/bin/$c"
+    [[ "$c" == mistral ]] && cli="$ahome/.local/bin/vibe"
     # asked AS the agent: its CLIs are often links into dirs the box user cannot read
     as_agent test -x "$cli" || { do_log "INFO $c is not installed for $agent ($cli): skipped"; continue; }
     for e in $envs; do
@@ -107,6 +109,7 @@ do_spl_agent_mcp_install() {
         grok)   as_agent "$cli" mcp add -s user "spool-$e" "$bin" -- "$e" >/dev/null 2>&1 ;;
         agy)    as_agent "$cli" mcp add "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
         qwen)   as_agent "$cli" mcp add -s user --trust --description "spool desk ($e)" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
+        mistral) spl_agent_mcp_vibe add "$ahome/.vibe/config.toml" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
       esac || { do_log "FAIL $c: could not register spool-$e"; rc=1; continue; }
       [[ "$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")" == yes ]] &&
         do_log "INFO $c: registered spool-$e -> $bin $e" || { do_log "FAIL $c: spool-$e is still not registered"; rc=1; }
@@ -119,13 +122,15 @@ do_spl_agent_mcp_install() {
 # spl_agent_mcp_registered <cli> <cli path> <agent home> <name> <bin> <env>:
 # prints yes when the CLI already runs <bin> <env> as <name>. claude is read
 # from ~/.claude.json and qwen from ~/.qwen/settings.json (their `mcp list`
-# starts every server to health-check it);
-# grok and agy print their config. as_agent is the caller's.
+# starts every server to health-check it), mistral from ~/.vibe/config.toml
+# (vibe has no `mcp add`); grok and agy print their config. as_agent is the
+# caller's.
 spl_agent_mcp_registered() {
   local c="$1" cli="$2" ahome="$3" name="$4" bin="$5" e="$6"
   local conf="$ahome/.claude.json"
   [[ "$c" == qwen ]] && conf="$ahome/.qwen/settings.json"
   case "$c" in
+    mistral) spl_agent_mcp_vibe check "$ahome/.vibe/config.toml" "$name" "$bin" "$e" ;;
     claude|qwen)
       as_agent python3 - "$conf" "$name" "$bin" "$e" 2>/dev/null <<'EOF_PY'
 import json, sys
@@ -142,4 +147,50 @@ EOF_PY
         grep -E "(^|[[:space:]])$name(:|[[:space:]]).*$bin $e([[:space:]]|$)" >/dev/null && echo yes || echo no
       ;;
   esac
+}
+
+# spl_agent_mcp_vibe check|add <config.toml> <name> <bin> <env>, as the agent
+# (as_agent is the caller's). mistral vibe 2.26.0 reads stdio MCP servers from
+# [[mcp_servers]] tables (name, transport, command, args) and starts each with
+# a SAFE env only (HOME, PATH, ... plus the entry's own literal env), so the
+# agent id a launcher exports never reaches spool-mcp. The entry therefore
+# runs /bin/sh, which reads SPOOL_AGENT_ID / MCP_BOT_AGENT_ID from its parent
+# (the vibe process, same user) and execs <bin> <env>; spool-mcp still refuses
+# an id that has no seat. check prints yes when exactly that entry is there;
+# add replaces any other [[mcp_servers]] table of that name, keeps the rest of
+# the file, and writes it 0600 (vibe's own mode).
+spl_agent_mcp_vibe() {
+  as_agent python3 - "$@" 2>/dev/null <<'EOF_PY'
+import json, os, re, sys
+mode, path, name, b, e = sys.argv[1:]
+shim = ("id=$(tr '\\0' '\\n' 2>/dev/null </proc/$PPID/environ"
+        " | sed -n 's/^SPOOL_AGENT_ID=//p;s/^MCP_BOT_AGENT_ID=//p' | head -n 1);"
+        ' [ -n "$id" ] && export MCP_BOT_AGENT_ID="$id"; exec "$1" "$2"')
+want = {"name": name, "transport": "stdio", "command": "/bin/sh", "args": ["-c", shim, "spool-mcp", b, e]}
+try:
+    text = open(path).read()
+except FileNotFoundError:
+    text = ""
+try:
+    import tomllib
+    have = [s for s in tomllib.loads(text).get("mcp_servers", []) if isinstance(s, dict) and s.get("name") == name]
+except ImportError:
+    have = None
+if mode == "check":
+    ok = have is not None and len(have) == 1 and all(have[0].get(k) == v for k, v in want.items())
+    print("yes" if ok else "no")
+    sys.exit(0)
+blocks = re.split(r"(?m)^(?=\[)", text)
+keep = [x for x in blocks if not (x.startswith("[[mcp_servers]]")
+                                  and re.search(r"(?m)^name\s*=\s*" + re.escape(json.dumps(name)) + r"\s*$", x))]
+text = "".join(keep).rstrip("\n")
+entry = "[[mcp_servers]]\n" + "".join("%s = %s\n" % (k, json.dumps(v)) for k, v in want.items())
+text = (text + "\n\n" if text else "") + entry
+os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+tmp = path + ".tmp.%d" % os.getpid()
+fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as f:
+    f.write(text)
+os.replace(tmp, path)
+EOF_PY
 }

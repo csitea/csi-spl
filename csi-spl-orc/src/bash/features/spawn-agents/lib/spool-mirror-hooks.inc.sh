@@ -11,6 +11,8 @@
 #                                ~/.gemini/config/hooks.json; others kept
 #   smh_qwen_merge FILE PY       merge the mirror entries into ~/.qwen/settings.json;
 #                                an older spool-mirror entry replaced, all else kept
+#   smh_vibe_merge FILE PY       merge the [[hooks]] entry "spool-mirror" (post_agent)
+#                                into mistral vibe's ~/.vibe/hooks.toml; others kept
 #   smh_user_hooked KIND         0 when the user's own settings already carry the
 #                                mirror (claude and grok read ~/.claude/settings.json,
 #                                qwen its own): a second copy would fire twice
@@ -20,7 +22,8 @@
 #                                Non-zero when nothing could be written.
 #
 # Env: SMH_STATE_DIR (default $XDG_STATE_HOME or ~/.local/state, /spool-agent),
-#      SPOOL_AGENT_USER_SETTINGS, SPOOL_AGENT_AGY_HOOKS, SPOOL_AGENT_QWEN_SETTINGS.
+#      SPOOL_AGENT_USER_SETTINGS, SPOOL_AGENT_AGY_HOOKS, SPOOL_AGENT_QWEN_SETTINGS,
+#      SPOOL_AGENT_VIBE_HOOKS (default $VIBE_HOME or ~/.vibe, /hooks.toml).
 
 smh_hooks_json() {  # PY
   python3 - "$1" <<'EOF_PY'
@@ -86,7 +89,46 @@ os.replace(tmp, path)
 ' "$1"
 }
 
+# mistral vibe (2.26.0) runs [[hooks]] from ~/.vibe/hooks.toml. It has no
+# prompt hook: post_agent fires once per turn, after the answer, with
+# session_id and transcript_path on stdin, and spool-mirror.py --vibe reads
+# both halves of the turn from the session (specs/110 3.4). A hook must print
+# nothing or a JSON object, so the no-op branch prints nothing.
+smh_vibe_merge() {  # FILE PY
+  mkdir -p "$(dirname "$1")" && python3 - "$1" "$2" <<'EOF_PY'
+import json, os, re, shlex, sys, time
+path, py = sys.argv[1], shlex.quote(sys.argv[2])
+try:
+    text = open(path).read()
+except FileNotFoundError:
+    text = ""
+try:
+    import tomllib
+    tomllib.loads(text)
+except ImportError:
+    pass
+except ValueError:
+    # Not a hooks file vibe can load, so it holds no hook to keep: moved
+    # aside (never deleted), and the file is written fresh.
+    os.replace(path, path + ".bad." + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
+    text = ""
+# Drop an older spool-mirror block: a [[hooks]] table up to the next header.
+blocks = re.split(r"(?m)^(?=\[)", text)
+keep = [b for b in blocks if not (b.startswith("[[hooks]]") and re.search(r'(?m)^name\s*=\s*"spool-mirror"\s*$', b))]
+text = "".join(keep).rstrip("\n")
+cmd = f"[ -r {py} ] && exec python3 {py} hook --vibe; exit 0"
+entry = '[[hooks]]\nname = "spool-mirror"\ntype = "post_agent"\ncommand = %s\ntimeout = 10.0\n' % json.dumps(cmd)
+text = (text + "\n\n" if text else "") + entry
+tmp = path + ".tmp.%d" % os.getpid()
+fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as f:
+    f.write(text)
+os.replace(tmp, path)
+EOF_PY
+}
+
 smh_qwen_settings() { printf '%s' "${SPOOL_AGENT_QWEN_SETTINGS:-$HOME/.qwen/settings.json}"; }
+smh_vibe_hooks()    { printf '%s' "${SPOOL_AGENT_VIBE_HOOKS:-${VIBE_HOME:-$HOME/.vibe}/hooks.toml}"; }
 smh_agy_hooks()     { printf '%s' "${SPOOL_AGENT_AGY_HOOKS:-$HOME/.gemini/config/hooks.json}"; }
 
 smh_user_hooked() {  # KIND
@@ -115,6 +157,7 @@ smh_install() {  # KIND ID PY
       SMH_WHERE="$f" ;;
     agy)  f="$(smh_agy_hooks)"; smh_agy_merge "$f" "$py" || return 1; SMH_WHERE="$f" ;;
     qwen) f="$(smh_qwen_settings)"; smh_qwen_merge "$f" "$py" || return 1; SMH_WHERE="$f" ;;
+    mistral) f="$(smh_vibe_hooks)"; smh_vibe_merge "$f" "$py" || return 1; SMH_WHERE="$f" ;;
     *) return 1 ;;
   esac
 }

@@ -34,7 +34,7 @@
 #                                   MCP entry must forward it through sudo:
 #                                   sudo -u <user> -H --preserve-env=MCP_BOT_AGENT_ID …)
 #   3. process ancestry           — an ancestor `claude --name <ID>` or
-#                                   `spawn-{claude,grok,agy,qwen}*.sh <ID>` (works
+#                                   `spawn-{claude,grok,agy,qwen,mistral}*.sh <ID>` (works
 #                                   even when sudo strips the env).
 #   4. fallback                   — ff-profile-pid<PID>, ephemeral: removed when
 #                                   this server exits.
@@ -71,6 +71,13 @@ _id_from_ancestry() {
     ppid=$(awk '{print $4}' "/proc/$pid/stat" 2>/dev/null) || return 1
     [ -n "$ppid" ] && [ "$ppid" != 0 ] && [ "$ppid" != 1 ] || return 1
     pid=$ppid
+    # mistral vibe starts a stdio MCP server with a safe env only (specs/110),
+    # so MCP_BOT_AGENT_ID never arrives: the agent id an ancestor of the same
+    # user carries (the vibe process: SPOOL_AGENT_ID) is the next best source.
+    tok=$(tr '\0' '\n' 2>/dev/null <"/proc/$pid/environ" | sed -n 's/^SPOOL_AGENT_ID=//p' | head -n 1 || true)
+    if printf '%s' "$tok" | grep -E '^[acgmq]-[0-9]{3}$' >/dev/null; then
+      printf '%s' "$tok"; return 0
+    fi
     [ -r "/proc/$pid/cmdline" ] || continue
     prev=""
     while IFS= read -r -d '' tok; do

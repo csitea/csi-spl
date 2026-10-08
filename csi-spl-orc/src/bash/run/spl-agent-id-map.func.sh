@@ -45,7 +45,9 @@ spl_agent_id_map_hub() {
   while IFS=$'\t' read -r old new kind b at; do
     # A retire's row (agent-id-retire.sh): no successor, or not a legacy id.
     if [[ "$new" == retired || ! "$old" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ ]]; then continue; fi
-    [[ "$old" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ && "$new" =~ ^[acgq]-[0-9]{3}$ && "$kind" =~ ^(agy|claude|grok|qwen)$ \
+    # new: rdb 0155's agent_id_aliases_new_id_check ([acgmq], specs/110); kind
+    # stays the four legacy kinds, as that table's kind CHECK does (no MST-).
+    [[ "$old" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ && "$new" =~ ^[acgmq]-[0-9]{3}$ && "$kind" =~ ^(agy|claude|grok|qwen)$ \
       && "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
       || { do_log "FATAL $table has a malformed row: $old $new $kind $b $at"; return 1; }
     [[ "$b" == "$box" ]] || continue

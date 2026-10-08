@@ -142,7 +142,7 @@ the owner's Team login on each box.
 
   Done: the restore dry run plans `vibe --auto-approve --resume <id>`; the
   control is an `m-` id with no session, which plans `--continue`.
-- [ ] T008 **MCP + mirror** (needs T002). Files:
+- [x] T008 **MCP + mirror** (c-586; needs T002). Files:
   - `RUN/spl-agent-mcp-install.func.sh`;
   - `csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start{,-chrome}.sh`;
   - `OT/agent-mcp.tst.sh`;

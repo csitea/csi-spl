@@ -28,17 +28,22 @@ func pgLimit(n int) int {
 
 func (s *Postgres) ViewBoxes(ctx context.Context, tenant string) ([]ViewBox, error) {
 	var out []ViewBox
-	r := viewBoxesRead(tenant, &out, s.hasAgentSeats(ctx))
+	r := viewBoxesRead(tenant, &out, s.hasAgentSeats(ctx), s.hasAgentRun(ctx))
 	err := s.queryTenant(ctx, tenant, r.sql, r.args, r.each)
 	return out, err
 }
 
 // viewBoxesSQL is the boxes read; with seats it also aggregates each roster
-// agent's agent_seats.seated_at (rdb 0107), without it never names that table.
-func viewBoxesSQL(seats bool) string {
+// agent's agent_seats.seated_at (rdb 0107), without it never names that table;
+// with run it also aggregates roster.running (rdb 0153) in the agents' order.
+func viewBoxesSQL(seats, run bool) string {
 	cols, join := "", ""
-	if seats {
+	if run {
 		cols = `,
+			COALESCE(array_agg(r.running ORDER BY r.agent_id) FILTER (WHERE r.agent_id IS NOT NULL), '{}')`
+	}
+	if seats {
+		cols += `,
 			COALESCE(array_agg(s.agent_id ORDER BY s.agent_id) FILTER (WHERE s.agent_id IS NOT NULL), '{}'),
 			COALESCE(array_agg(s.seated_at ORDER BY s.agent_id) FILTER (WHERE s.agent_id IS NOT NULL), '{}')`
 		join = `
@@ -55,14 +60,18 @@ func viewBoxesSQL(seats bool) string {
 }
 
 // viewBoxesRead is ViewBoxes' statement, shared with ViewRoster's batch.
-func viewBoxesRead(tenant string, out *[]ViewBox, seats bool) tenantRead {
-	return tenantRead{sql: viewBoxesSQL(seats), args: []any{tenant}, each: func(rows pgx.Rows) error {
+func viewBoxesRead(tenant string, out *[]ViewBox, seats, run bool) tenantRead {
+	return tenantRead{sql: viewBoxesSQL(seats, run), args: []any{tenant}, each: func(rows pgx.Rows) error {
 		var v ViewBox
 		var pub []byte
 		var hello *time.Time
 		var seatIDs []string
 		var seatAts []time.Time
+		var runs []*bool
 		dst := []any{&v.BoxID, &pub, &v.Revoked, &hello, &v.Agents}
+		if run {
+			dst = append(dst, &runs)
+		}
 		if seats {
 			dst = append(dst, &seatIDs, &seatAts)
 		}
@@ -75,6 +84,7 @@ func viewBoxesRead(tenant string, out *[]ViewBox, seats bool) tenantRead {
 			}
 			v.SeatedAt[id] = seatAts[i]
 		}
+		v.Running = agentRuns(v.Agents, runs)
 		v.PubKey = ed25519.PublicKey(pub)
 		if hello != nil {
 			v.LastHelloAt = *hello
@@ -82,6 +92,22 @@ func viewBoxesRead(tenant string, out *[]ViewBox, seats bool) tenantRead {
 		*out = append(*out, v)
 		return nil
 	}}
+}
+
+// agentRuns pairs roster.running (rdb 0153, aggregated in the agents' order)
+// with the agents; a NULL is "not reported" and gets no entry. nil = none.
+func agentRuns(agents []string, runs []*bool) map[string]bool {
+	var out map[string]bool
+	for i, r := range runs {
+		if r == nil || i >= len(agents) {
+			continue
+		}
+		if out == nil {
+			out = map[string]bool{}
+		}
+		out[agents[i]] = *r
+	}
+	return out
 }
 
 // canonUUIDRe is a uuid as Postgres prints it (uuid::text). A task or parent

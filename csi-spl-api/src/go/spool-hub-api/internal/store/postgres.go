@@ -50,6 +50,8 @@ type Postgres struct {
 	humStatus seatsProbe
 	// kv: is rdb 0136 tenants.settings there yet (tenant_kv.go)
 	kv seatsProbe
+	// run: is rdb 0153 roster.running there yet (agent_run.go)
+	run seatsProbe
 	// heads: the head read switch and the rdb 0144 probe (view_topics_head.go)
 	heads topicHeads
 }

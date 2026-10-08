@@ -23,6 +23,10 @@ type ViewBox struct {
 	// (rdb 0107, spec 061 3.6): the id entered this box's roster then. An
 	// agent with no entry was seated before the hub recorded seats.
 	SeatedAt map[string]time.Time
+	// Running is what the box last reported of each announced agent (rdb
+	// 0153, t1 bc1a43e1): true = it runs, false = it does not. An agent with
+	// no entry was not reported and reads its box's presence.
+	Running map[string]bool
 }
 
 // TopicQuery pages GET /v1/view/topics: newest activity first, strictly
@@ -169,7 +173,7 @@ func (s *Memory) ViewBoxes(_ context.Context, tenant string) ([]ViewBox, error) 
 		out = append(out, ViewBox{
 			BoxID: k[1], PubKey: p.pub, Revoked: p.revoked,
 			LastHelloAt: s.boxes[k], Agents: append([]string{}, s.roster[k]...),
-			SeatedAt: s.seatsLocked(k),
+			SeatedAt: s.seatsLocked(k), Running: s.agentRun(k[0], k[1]),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].BoxID < out[j].BoxID })

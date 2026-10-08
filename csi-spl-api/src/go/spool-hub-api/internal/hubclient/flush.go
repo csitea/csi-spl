@@ -521,8 +521,7 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 	if _, err := sess.Flush(ctx); err != nil {
 		c.Log.Warn().Err(err).Msg("flush")
 	}
-	agents, _ := c.scanAgents()
-	last := strings.Join(agents, ",")
+	last, _ := c.rosterKey()
 	pins := time.NewTicker(c.PinRefresh)
 	defer pins.Stop()
 	scan := time.NewTicker(10 * time.Second)
@@ -575,8 +574,9 @@ func (c *Client) hold(ctx context.Context, sess *Session) error {
 				c.Log.Debug().Err(err).Msg("session probe")
 			}
 		case <-scan.C:
-			if a, err := c.scanAgents(); err == nil && strings.Join(a, ",") != last {
-				last = strings.Join(a, ",")
+			// t1 bc1a43e1: a changed run report is re-announced too
+			if k, ok := c.rosterKey(); ok && k != last {
+				last = k
 				sess.Announce(ctx) //nolint:errcheck
 			}
 			if left, _ := c.Pending(); len(left) > 0 {

@@ -25,7 +25,7 @@ type RosterReader interface {
 
 func (s *Postgres) ViewRoster(ctx context.Context, tenant string) (Roster, error) {
 	rs := Roster{Avatars: map[string]string{}, Members: []Member{}, Statuses: map[string]HumanStatus{}}
-	reads := []tenantRead{viewBoxesRead(tenant, &rs.Boxes, s.hasAgentSeats(ctx)),
+	reads := []tenantRead{viewBoxesRead(tenant, &rs.Boxes, s.hasAgentSeats(ctx), s.hasAgentRun(ctx)),
 		tenantAvatarsRead(tenant, rs.Avatars), listMembersRead(tenant, &rs.Members, s.hasAccessUntil(ctx))}
 	if s.hasHumanStatus(ctx) { // spec 096: one more read in the same round trip
 		reads = append(reads, humanStatusRead(tenant, s.now(), rs.Statuses))

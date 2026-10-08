@@ -236,13 +236,14 @@ type viewBox struct {
 	System          *wire.HostSystem  `json:"system,omitempty"`
 	Network         *wire.HostNetwork `json:"network,omitempty"`
 	FactsReportedAt *string           `json:"facts_reported_at,omitempty"`
-	// AgentPresence is each roster agent's presence: its box's, since an
-	// agent is reachable exactly while its box's socket is (presence.go).
+	// AgentPresence is each roster agent's presence: its box's (presence.go),
+	// except "not_running" for one its online box says does not run
+	// (agent_run.go, t1 bc1a43e1).
 	AgentPresence map[string]agentPresence `json:"agent_presence,omitempty"`
 }
 
 // agentPresence is one agent's row of viewBox.AgentPresence. State is
-// "online" or "offline"; LastSeen is the box's last presence stamp, null =
+// "online", "not_running" (box online, agent not running) or "offline"; LastSeen is the box's last presence stamp, null =
 // its box never said hello.
 type agentPresence struct {
 	State    string  `json:"state"`
@@ -292,13 +293,9 @@ func (s *Server) handleViewRoster(w http.ResponseWriter, r *http.Request, t stor
 			v.FactsReportedAt = &at
 		}
 		if len(v.Agents) > 0 {
-			p := agentPresence{State: "offline", LastSeen: v.LastHelloAt}
-			if v.Online {
-				p.State = "online"
-			}
 			v.AgentPresence = make(map[string]agentPresence, len(v.Agents))
 			for _, id := range v.Agents {
-				v.AgentPresence[id] = p
+				v.AgentPresence[id] = agentPresence{State: agentState(v.Online, b.Running, id), LastSeen: v.LastHelloAt}
 			}
 		}
 		if len(b.SeatedAt) > 0 {

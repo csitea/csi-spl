@@ -915,6 +915,8 @@ func boxClient(cfg *config.Config) (*hubclient.Client, error) {
 	// Boxes page). The v2 file name: a v1 sheet lacks the agent user's CLIs
 	// and swap 0, and would hide them for up to a day after an upgrade.
 	c.Host = hubclient.HostFacts(filepath.Join(cfg.HubDir(), "host-facts-v2.json"), version, hubclient.AgentUser(cfg.FleetRoot))
+	// t1 bc1a43e1: which agents really run, from the fleet tick's report
+	c.AgentRun = hubclient.AgentRunReport(cfg.FleetRoot, time.Now)
 	return c, nil
 }
 

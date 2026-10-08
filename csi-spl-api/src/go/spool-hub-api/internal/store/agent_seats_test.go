@@ -47,10 +47,10 @@ func TestSeatsProbe(t *testing.T) {
 // Without the table the roster read never names it (a hub rolled before rdb
 // 0107 reached its database must not 500 on GET /v1/view/roster).
 func TestViewBoxesSQLWithoutSeats(t *testing.T) {
-	if strings.Contains(viewBoxesSQL(false), "agent_seats") {
+	if strings.Contains(viewBoxesSQL(false, false), "agent_seats") {
 		t.Fatal("the no-seats roster read names agent_seats")
 	}
-	if !strings.Contains(viewBoxesSQL(true), "agent_seats") {
+	if !strings.Contains(viewBoxesSQL(true, false), "agent_seats") {
 		t.Fatal("the seats roster read does not read agent_seats")
 	}
 }

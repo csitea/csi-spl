@@ -131,6 +131,9 @@ type Client struct {
 	// Host answers what this box runs on, for a role=box hello (host.go).
 	// nil = the hello carries none (tests, and every non-daemon caller).
 	Host func(context.Context) *wire.BoxHost
+	// AgentRun answers which of the box's agents really run, for a role=box
+	// hello and announce (agent_run.go). nil = the box reports none.
+	AgentRun func(agents []string) map[string]bool
 
 	keysDirWarned sync.Once
 
@@ -419,6 +422,7 @@ func (c *Client) hello(role, box string, priv ed25519.PrivateKey, nonce string, 
 	hello.Agents = agents
 	hello.Channels = c.Cfg.ChannelList()
 	hello.Host = host
+	hello.AgentRun = c.agentRun(agents)
 	return hello, nil
 }
 
@@ -797,7 +801,8 @@ func (s *Session) Announce(ctx context.Context) error {
 	defer s.smu.Unlock()
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
 	defer cancel()
-	return wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TAnnounce, Agents: agents, Channels: s.c.Cfg.ChannelList()})
+	return wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TAnnounce, Agents: agents, Channels: s.c.Cfg.ChannelList(),
+		AgentRun: s.c.agentRun(agents)})
 }
 
 // uploadToken returns a live upload token, asking the hub for a fresh one

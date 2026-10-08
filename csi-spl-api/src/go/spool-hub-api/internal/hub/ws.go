@@ -53,6 +53,9 @@ type session struct {
 	// replaced by a stored announce, both on this session's read goroutine,
 	// which is also the only one that reads it (onSend).
 	agents []string
+	// run is the box's last report of which roster agents run (agent_run.go,
+	// t1 bc1a43e1); nil = not reported. Guarded by srv.mu once registered.
+	run map[string]bool
 
 	wmu     sync.Mutex
 	follows map[string]bool // task ids tailed with follow=true; guarded by srv.mu
@@ -145,7 +148,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		case wire.TSend:
 			s.onSend(ctx, x, f)
 		case wire.TAnnounce:
-			s.onAnnounce(ctx, x, f.Agents, f.Channels)
+			s.onAnnounce(ctx, x, f.Agents, f.Channels, f.AgentRun)
 		case wire.TTail:
 			s.onTail(ctx, x, f)
 		case wire.TIssue: // specs/039 §6
@@ -210,7 +213,9 @@ func (s *Server) hello(ctx context.Context, conn *websocket.Conn, t store.Tenant
 	}
 	if f.Role == wire.RoleBox {
 		s.broadcastRoster(ctx, t.ID, x)
-		s.presence(ctx, t.ID, f.BoxID, f.Agents, "online")
+		on, idle := splitRun(f.Agents, x.run)
+		s.presence(ctx, t.ID, f.BoxID, on, "online")
+		s.presence(ctx, t.ID, f.BoxID, idle, presenceNotRunning)
 		s.drain(ctx, x)
 		s.backfillBox(ctx, t.ID, f.BoxID) // SPL-987: seats owed a back-fill
 	}
@@ -312,6 +317,8 @@ func (s *Server) seatSession(ctx context.Context, conn *websocket.Conn, tenant s
 		conn.CloseNow() //nolint:errcheck
 		return nil, false
 	}
+	x.run = cleanAgentRun(f.Agents, f.AgentRun) // not registered yet: no lock
+	s.keepAgentRun(ctx, tenant, f.BoxID, x.run)
 	return x, true
 }
 
@@ -426,7 +433,7 @@ func (s *Server) push(ctx context.Context, x *session, msgID string, env []byte)
 	return true
 }
 
-func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []string) {
+func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []string, run map[string]bool) {
 	if x.role != wire.RoleBox {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "announce needs role=box")
 		return
@@ -450,8 +457,17 @@ func (s *Server) onAnnounce(ctx context.Context, x *session, agents, channels []
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "subscriptions not stored")
 		return
 	}
+	run = cleanAgentRun(agents, run)
+	s.keepAgentRun(ctx, x.tenant, x.box, run)
+	s.mu.Lock()
+	wasRun := x.run
+	x.run = run
+	s.mu.Unlock()
 	s.broadcastRoster(ctx, x.tenant, nil)
-	s.presence(ctx, x.tenant, x.box, diffAgents(agents, before[x.box]), "online")
+	wasOn, wasIdle := splitRun(before[x.box], wasRun)
+	on, idle := splitRun(agents, run)
+	s.presence(ctx, x.tenant, x.box, diffAgents(on, wasOn), "online")
+	s.presence(ctx, x.tenant, x.box, diffAgents(idle, wasIdle), presenceNotRunning)
 	s.presence(ctx, x.tenant, x.box, diffAgents(before[x.box], agents), "offline")
 }
 

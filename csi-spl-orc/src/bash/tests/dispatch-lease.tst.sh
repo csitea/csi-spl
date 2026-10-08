@@ -80,7 +80,7 @@ agent() { mkdir -p "$P/$1"; echo "${3:-claude}" >"$P/$1/comm"; printf 'HOME=/x\0
 kill_agent() { rm -rf "${P:?}/$1"; }
 
 lease() {
-  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" LEASE_PROC_ROOT="$P" LEASE_SEND="$T/bin/send" SENT="$T/sent" LEASE_PANE_CMD="$T/bin/pane" \
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" LEASE_AGENT_RUN="${LEASE_AGENT_RUN:-0}" LEASE_PROC_ROOT="$P" LEASE_SEND="$T/bin/send" SENT="$T/sent" LEASE_PANE_CMD="$T/bin/pane" \
     LEASE_MASTER="${LM-M-1}" LEASE_FAILOVER="${LF-F-1}" LEASE_ORCH="${LO-O-1}" LEASE_LIMIT_TZ=Etc/GMT-3 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -507,6 +507,48 @@ printf 'LEASE_FLEET=main\nLEASE_PRIORITY=pc,sat\n' >"$T/r19/dispatch/lease.conf"
 [[ "$(rank19 LEASE_PRIORITY_ORCH=sat)" == *"FATAL this machine (pc) is not in LEASE_PRIORITY_ORCH"* &&
    "$(rank19 LEASE_PRIORITY_ORCH=Sat,pc)" == *"FATAL LEASE_PRIORITY_ORCH must list the machines"* ]] &&
   pass "19. a per-role ranking is validated like LEASE_PRIORITY" || fail "19. validate: $(rank19 LEASE_PRIORITY_ORCH=sat)"
+
+# --- 20. the agent run report (t1 bc1a43e1, fix A) --------------------------
+# c-001@<box> read green while no c-001 ran on it. The report lists every live
+# agent: run when the lease's own test says it can act, stop + why when its
+# pane is stuck; no line for an id with no process. It presses no key.
+report20() {
+  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/r20" LEASE_PROC_ROOT="$P" LEASE_PANE_CMD="$T/bin/pane" \
+    LEASE_LIMIT_TZ=Etc/GMT-3 LEASE_NOW=1791007260 LEASE_KEYS_CMD="$T/bin/keys" KEYS="$T/keys" LEASE_MODAL_WAIT=0 bash -c '
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+    spl_lease_init >/dev/null || exit 1
+    spl_lease_agent_run_report' 2>&1
+}
+rm -rf "${P:?}"/* "$T/pane"/* "$T/keys" "$T/r20"; mkdir -p "$T/r20/dispatch"
+agent 2000 c-001; idle 2000
+agent 2100 c-002; limited 2100
+agent 2200 g-003 grok
+cat >"$T/pane/2500" <<'EOF2'
+Teach auto mode about your environment?
+  1. Yes
+  2. Not now
+  3. Don't show again
+EOF2
+agent 2500 c-005
+report20 >/dev/null
+R20="$T/r20/dispatch/agent-run.tsv"
+[[ "$(grep -P '^c-001\trun$' -c "$R20")" == 1 && "$(grep -P '^g-003\trun$' -c "$R20")" == 1 ]] &&
+  pass "20. an able claude agent and a live grok agent report run" || fail "20. run: $(cat "$R20" 2>&1)"
+grep -qP '^c-002\tstop\tstalled pid=2100: Usage limit reached, resets in 109 min$' "$R20" &&
+  pass "20. an agent idle at its usage limit reports stop, with the lease's why" || fail "20. limit: $(cat "$R20" 2>&1)"
+grep -qP '^c-005\tstop\tstalled pid=2500: ' "$R20" && [[ ! -s "$T/keys" ]] &&
+  pass "20. a modal is stop and the report sends no Escape (the lease's able check would)" ||
+  fail "20. modal: $(cat "$R20" 2>&1) keys '$(cat "$T/keys" 2>/dev/null)'"
+! grep -q '^c-004' "$R20" && [[ "$(grep -vc '^#' "$R20")" == 4 ]] &&
+  pass "20. an id with no process has no line (control: exactly the 4 live ids)" || fail "20. lines: $(cat "$R20" 2>&1)"
+kill_agent 2100; report20 >/dev/null
+! grep -q '^c-002' "$R20" && [[ "$(grep -vc '^#' "$R20")" == 3 ]] &&
+  pass "20. a killed agent drops out of the next report" || fail "20. killed: $(cat "$R20" 2>&1)"
+[[ "$(env PROJ_PATH="$PROJ_ROOT" SPOOL_TEST=1 SPOOL_ROOT="$T/r20b" bash -c '
+    do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"; spl_lease_init >/dev/null
+    spl_lease_agent_run_tick; sleep 0.2; ls "$LEASE_DIR"/agent-run.tsv 2>/dev/null | wc -l')" == 0 ]] &&
+  pass "20. the tick writes nothing under SPOOL_TEST=1 unless LEASE_AGENT_RUN=1" || fail "20. tick ran under SPOOL_TEST"
 
 echo "dispatch-lease: $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -579,20 +579,65 @@ spl_lease_send_esc() {
 # WD_FRESH s (default 90) old is "wd <code>"; an older one, an OK or no file
 # changes nothing.
 spl_lease_agent_able() {
-  local id="$1" pid why wd=() wd_age=-1
+  local id="$1" pid why
   pid="$(spl_lease_agent_pid "$id")"
-  read -r -a wd 2>/dev/null < "$LEASE_DIR/wd.$id" || true
-  [[ "${wd[0]:-}" == HIT && "${wd[2]:-}" =~ ^[0-9]+$ ]] && wd_age=$(( $(spl_lease_now) - wd[2] ))
   if [[ -z "$pid" ]]; then why="no live process"
-  elif why="$(spl_lease_held "$id")" && [[ -n "$why" ]]; then :
-  elif (( wd_age >= 0 && wd_age <= ${WD_FRESH:-90} )); then why="wd ${wd[1]:-?}: HIT ${wd_age}s ago"
-  else
-    spl_lease_dismiss_modal "$id" "$pid"
-    why="$(spl_lease_stall "$pid")"
-    [[ -n "$why" ]] && why="stalled pid=$pid: $why"
+  else why="$(spl_lease_agent_why "$id" "$pid" dismiss)"
   fi
   printf '%s\n' "${why:-able}" > "$LEASE_DIR/able.$id" 2>/dev/null
   [[ -z "$why" ]] && echo "$pid"
+  return 0
+}
+
+# Why the live <pid> of <id> cannot act; nothing when it can: a rotation
+# hold, a fresh watchdog HIT, else its pane (spl_lease_stall). With "dismiss"
+# a dismissable modal is Escaped once first (the lease); without it no key is
+# ever pressed (the agent run report).
+spl_lease_agent_why() {
+  local id="$1" pid="$2" dismiss="${3:-}" why wd=() wd_age=-1
+  read -r -a wd 2>/dev/null < "$LEASE_DIR/wd.$id" || true
+  [[ "${wd[0]:-}" == HIT && "${wd[2]:-}" =~ ^[0-9]+$ ]] && wd_age=$(( $(spl_lease_now) - wd[2] ))
+  if why="$(spl_lease_held "$id")" && [[ -n "$why" ]]; then :
+  elif (( wd_age >= 0 && wd_age <= ${WD_FRESH:-90} )); then why="wd ${wd[1]:-?}: HIT ${wd_age}s ago"
+  else
+    [[ "$dismiss" == dismiss ]] && spl_lease_dismiss_modal "$id" "$pid"
+    why="$(spl_lease_stall "$pid")"
+    [[ -n "$why" ]] && why="stalled pid=$pid: $why"
+  fi
+  printf '%s' "$why"
+}
+
+# The agent run report (t1 bc1a43e1, fix A): which agents on this machine
+# really run, so the hub stops showing an agent green just because its box's
+# desk socket is up. One line per SPOOL_AGENT_ID that has a live process
+# (spl_lease_live_ids, any agent kind): "<id> TAB run", or "<id> TAB stop TAB
+# <why>" when its claude process cannot act (spl_lease_agent_why, the lease's
+# own test, never pressing a key). An id with no line has no process. Written
+# whole (tmp + mv) to $LEASE_DIR/agent-run.tsv; every desk sidecar reads it
+# through SPOOL_FLEET_ROOT (hubclient/agent_run.go) and sends it on its hello
+# and announce; a report older than 5 min is ignored there.
+spl_lease_agent_run_report() {
+  local out="$LEASE_DIR/agent-run.tsv" id pid why
+  {
+    echo "# agent-run v1 $(spl_lease_now)"
+    while IFS= read -r id; do
+      [[ "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || continue
+      pid="$(spl_lease_agent_pid "$id")"
+      why=""
+      [[ -n "$pid" ]] && why="$(spl_lease_agent_why "$id" "$pid")"
+      if [[ -z "$why" ]]; then printf '%s\trun\n' "$id"; else printf '%s\tstop\t%s\n' "$id" "${why//$'\t'/ }"; fi
+    done < <(spl_lease_live_ids)
+  } > "$out.$$" && mv -f "$out.$$" "$out"
+}
+
+# The report on every watch / fleet tick, in its own process (one at a time,
+# a slow pane read never delays the lease) with the loop's lock fds closed.
+# LEASE_AGENT_RUN=0 turns it off (the tests' default, under SPOOL_TEST=1).
+spl_lease_agent_run_tick() {
+  local on="${LEASE_AGENT_RUN:-1}"
+  [[ "${SPOOL_TEST:-0}" == 1 ]] && on="${LEASE_AGENT_RUN:-0}"
+  [[ "$on" == 1 ]] || return 0
+  ( ( flock -n 9 || exit 0; spl_lease_agent_run_report ) 9>"$LEASE_DIR/agent-run.lock" 7>&- 8>&- & ) 2>/dev/null
   return 0
 }
 
@@ -646,6 +691,7 @@ spl_lease_locked() {
 spl_lease_watch_tick() {
   local m="$LEASE_MASTER" f="$LEASE_FAILOVER" age fpid
   spl_lease_asks_tick
+  spl_lease_agent_run_tick
   spl_lease_read
   age=$(( $(spl_lease_now) - LT ))
   # a fresh lease ends a "nobody dispatches" episode, so the next one is logged
@@ -1248,6 +1294,7 @@ spl_lease_fleet_tick() {
   spl_fleet_role_tick orch
   spl_fleet_role_tick dispatch
   spl_lease_asks_tick
+  spl_lease_agent_run_tick
   return 0
 }
 

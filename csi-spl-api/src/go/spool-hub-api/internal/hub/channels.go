@@ -366,13 +366,15 @@ func (s *Server) presence(ctx context.Context, tenant, box string, agents []stri
 }
 
 // onlinePeers is the presence snapshot of tenant: the agents of every live
-// role=box session and every human with an open browser socket.
+// role=box session that its box does not report as not running, and every human with an open browser socket.
 func (s *Server) onlinePeers(ctx context.Context, tenant string) []string {
 	s.mu.Lock()
 	var boxes []string
-	for k := range s.boxes {
+	runs := map[string]map[string]bool{}
+	for k, x := range s.boxes {
 		if k[0] == tenant {
 			boxes = append(boxes, k[1])
+			runs[k[1]] = x.run
 		}
 	}
 	var peers []string
@@ -385,7 +387,8 @@ func (s *Server) onlinePeers(ctx context.Context, tenant string) []string {
 	if len(boxes) > 0 {
 		roster, _ := s.o.Store.Roster(ctx, tenant)
 		for _, b := range boxes {
-			for _, a := range roster[b] {
+			on, _ := splitRun(roster[b], runs[b]) // t1 bc1a43e1: not one that does not run
+			for _, a := range on {
 				peers = append(peers, a+"@"+b)
 			}
 		}

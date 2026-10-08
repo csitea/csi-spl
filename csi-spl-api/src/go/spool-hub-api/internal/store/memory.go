@@ -263,6 +263,7 @@ func (s *Memory) SetRoster(_ context.Context, tenant, box string, agents []strin
 		}
 	}
 	s.roster[[2]string{tenant, box}] = a
+	s.clearAgentRun(tenant, box) // rdb 0153: the new rows are unreported
 	return nil
 }
 

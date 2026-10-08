@@ -174,6 +174,13 @@ type Frame struct {
 	// size (hub/box_facts.go).
 	Host *BoxHost `json:"host,omitempty"`
 
+	// hello / announce (t1 bc1a43e1, fix A): which agents of Agents really
+	// run on the box - a live process not stuck on a usage-limit or login
+	// screen, the dispatch lease's own test - true = runs, false = does not.
+	// Not signed; an agent with no entry is not reported, and absent = an
+	// older box (or a stale report): its agents then read the box's presence.
+	AgentRun map[string]bool `json:"agent_run,omitempty"`
+
 	// welcome / roster / token
 	Roster               map[string][]string `json:"roster,omitempty"`
 	UploadToken          string              `json:"upload_token,omitempty"`

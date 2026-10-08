@@ -8,6 +8,7 @@
 #   4. RUNNER_CPU_PCT sets the box's cap inside its band; the other boxes go back as read
 #   5. BAND keeps the box's own cap (the WUI's band save); 'default' drops the cap
 #   6. a cap on a box with no band is refused; a 400 fails with the hub's detail
+#   7. BAND=default drops the box's entry, cap and all; with a cap it is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -81,6 +82,13 @@ run BOX=box-c BAND=30..60 RUNNER_CPU_PCT=60 ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
   && pass "6. BAND with the cap adds the box" || fail "6. add: rc=$rc $(cat "$T/calls" "$T/o")"
 run BOX=box-a RUNNER_CPU_PCT=60 ORDERED_BY=HUM-10 DRY_RUN=0 STUB_CODE=400 STUB_BODY='{"error":"bad_setting","detail":"runner_cpu_pct is 1..100"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'refused the setting (400): runner_cpu_pct is 1..100' "$T/o" && pass "6. 400 fails with the hub's detail" || fail "6. 400: rc=$rc $(cat "$T/o")"
+
+# --- 7. BAND=default ---------------------------------------------------------------
+run BOX=box-a BAND=default ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF 'hub PATCH /v1/operator/fleet-load {"boxes":{"box-b":{"low":10,"high":20}},"ordered_by":"HUM-10"}' "$T/calls" \
+  && pass "7. BAND=default drops box-a's entry, the rest goes back as read" || fail "7. drop: rc=$rc $(cat "$T/calls" "$T/o")"
+run BOX=box-a BAND=default RUNNER_CPU_PCT=60 ORDERED_BY=HUM-10 DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "7. BAND=default with a cap is refused before any call" || fail "7. drop+cap: rc=$rc $(cat "$T/calls" "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -13,7 +13,7 @@
 # @description the PATCH body, writes nothing.
 # @param ENV - required: dev or prd
 # @param BOX - required: the box id ([a-z0-9-], up to 32)
-# @param BAND (optional) - <low>..<high>, % of cores (low 1..99, high 2..100, low < high)
+# @param BAND (optional) - <low>..<high>, % of cores (low 1..99, high 2..100, low < high), or 'default' to drop the box's entry, cap and all (the fleet band and cap apply)
 # @param RUNNER_CPU_PCT (optional) - 1..100, or 'default' to drop the box's own cap (the fleet's applies)
 # @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
@@ -51,7 +51,9 @@ do_spl_hub_box_band() {
 # _spl_hub_box_band_check <box> <band> <cpu> <ordered_by> <ordered_via> -> 1 + FATAL on bad input
 _spl_hub_box_band_check() {
   [[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL BOX must be a box id ([a-z0-9-], up to 32), got: '$1'"; return 1; }
-  if [[ -n "$2" ]]; then
+  if [[ "$2" == default ]]; then
+    [[ -z "$3" ]] || { do_log "FATAL BAND=default drops the box's cap too: leave RUNNER_CPU_PCT unset"; return 1; }
+  elif [[ -n "$2" ]]; then
     [[ "$2" =~ ^([1-9][0-9]?)\.\.([1-9][0-9]?|100)$ ]] && (( BASH_REMATCH[1] < BASH_REMATCH[2] )) \
       || { do_log "FATAL BAND must be <low>..<high> (low 1..99, high 2..100, low < high), got: '$2'"; return 1; }
   fi
@@ -66,7 +68,9 @@ _spl_hub_box_band_check() {
 # 1 when the box has no band and BAND is not given
 _spl_hub_box_band_body() {
   jq -c --arg box "$1" --arg band "$2" --arg cpu "$3" --arg by "$4" --arg via "$5" '
+    def by_via: {ordered_by: $by} + (if $via != "" then {ordered_via: $via} else {} end);
     (.boxes // {}) as $m
+    | if $band == "default" then {boxes: ($m | del(.[$box]))} + by_via else .
     | ($m[$box] // null) as $old
     | (if $band != "" then ($band | split("..") | {low: (.[0] | tonumber), high: (.[1] | tonumber)})
        elif $old != null then {low: $old.low, high: $old.high} else null end) as $b
@@ -75,7 +79,7 @@ _spl_hub_box_band_body() {
              elif $cpu != "" then {runner_cpu_pct: ($cpu | tonumber)}
              elif ($old.runner_cpu_pct // null) != null then {runner_cpu_pct: $old.runner_cpu_pct}
              else {} end)) as $new
-    | {boxes: ($m + {($box): $new}), ordered_by: $by} + (if $via != "" then {ordered_via: $via} else {} end)' 2>/dev/null
+    | {boxes: ($m + {($box): $new})} + by_via end' 2>/dev/null
 }
 
 # _spl_hub_box_band_report <box> -> the box's band and cap as one OK line, or the refusal

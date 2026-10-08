@@ -1738,6 +1738,7 @@
     "no_interests": "Huve veel pole.",
     "online": "Võrgus",
     "offline": "Võrgust väljas",
+    "not_running": "Masin on võrgus, agent ei tööta",
     "message": "Sõnum",
     "remove": "Eemalda tööruumist",
     "remove_hint": "Eemaldab selle inimese sellest tööruumist. Tema konto ja sõnumid jäävad alles.",

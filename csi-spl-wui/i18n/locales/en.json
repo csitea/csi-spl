@@ -1738,6 +1738,7 @@
     "no_interests": "No interests yet.",
     "online": "Online",
     "offline": "Offline",
+    "not_running": "Machine online, agent not running",
     "message": "Message",
     "remove": "Remove from workspace",
     "remove_hint": "Remove this person from this workspace. Their account and messages stay.",

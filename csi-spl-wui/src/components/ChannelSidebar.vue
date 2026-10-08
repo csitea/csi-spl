@@ -206,7 +206,7 @@
       @keydown="onDmRowKey"
     >
       <SpoolAvatar :id="p.id" :box="p.box" :size="22" />
-      <StatusDot :id="p.id" :online="p.online" />
+      <StatusDot :id="p.id" :online="p.online" :idle="p.idle" />
       <HumanName class="label" :id="p.id" :box="p.box" stacked />
       <!-- 080 FR-005: a draft waits here; it shares the badge slot with the 079 unread -->
       <span v-if="hasDraft('dm:' + p.label)" class="draft-mark" data-testid="draft-mark" :title="t('composer.draft_mark')" :aria-label="t('composer.draft_mark')" role="img"><UiIcon name="pencil" :size="12" /></span>

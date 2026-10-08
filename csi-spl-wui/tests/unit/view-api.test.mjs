@@ -106,7 +106,7 @@ describe('view-api helpers', () => {
       { box_id: 'box-a', agents: ['CLE-07'], online: true },
       { box_id: 'box-z', agents: ['GRK-01'], online: false, revoked: true },
     ] })
-    assert.deepEqual(r, { roster: { 'box-a': ['CLE-07'] }, online: ['CLE-07@box-a'], owners: [] })
+    assert.deepEqual(r, { roster: { 'box-a': ['CLE-07'] }, online: ['CLE-07@box-a'], owners: [], idle: [] })
     assert.deepEqual(channelsFromView({ channels: [{ channel: 'alerts', count: 1 }] }), [{ channel_id: 'alerts', name: 'alerts', count: 1 }])
   })
 

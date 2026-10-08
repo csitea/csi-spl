@@ -1738,6 +1738,7 @@
     "no_interests": "Brak zainteresowań.",
     "online": "Online",
     "offline": "Offline",
+    "not_running": "Maszyna online, agent nie działa",
     "message": "Wiadomość",
     "remove": "Usuń z przestrzeni roboczej",
     "remove_hint": "Usuwa tę osobę z tej przestrzeni roboczej. Jej konto i wiadomości pozostają.",

@@ -606,7 +606,7 @@ declare module '~/utils/plain-text.mjs' {
 
 declare module '~/utils/view-api.mjs' {
   export const BROWSER_BOX: string
-  export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[], owners: string[] }
+  export function rosterFromView(data: unknown): { roster: Record<string, string[]>, online: string[], owners: string[], idle: string[] }
   export function subjectOf(body: string): string
   export function topicOpening(text: string): string
   export function rowTitle(subject: string, gist?: string | null): string

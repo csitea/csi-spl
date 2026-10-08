@@ -1738,6 +1738,7 @@
     "no_interests": "Aún no hay intereses.",
     "online": "En línea",
     "offline": "Desconectado",
+    "not_running": "Máquina en línea, el agente no se está ejecutando",
     "message": "Mensaje",
     "remove": "Quitar del espacio de trabajo",
     "remove_hint": "Quita a esta persona de este espacio de trabajo. Su cuenta y sus mensajes se conservan.",

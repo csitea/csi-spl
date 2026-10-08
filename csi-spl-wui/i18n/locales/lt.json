@@ -1738,6 +1738,7 @@
     "no_interests": "Pomėgių dar nėra.",
     "online": "Prisijungęs",
     "offline": "Atsijungęs",
+    "not_running": "Kompiuteris prisijungęs, agentas neveikia",
     "message": "Žinutė",
     "remove": "Pašalinti iš darbo srities",
     "remove_hint": "Pašalina šį asmenį iš šios darbo srities. Jo paskyra ir žinutės lieka.",

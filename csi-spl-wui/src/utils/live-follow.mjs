@@ -208,8 +208,28 @@ export function applyPresence(online, frame) {
   if (!peer) return list
   const has = list.includes(peer)
   if (f.status === 'online') return has ? list : [...list, peer]
-  if (f.status === 'offline') return has ? list.filter((p) => p !== peer) : list
+  // t1 bc1a43e1: not_running = its box is online, the agent is not (applyIdle)
+  if (f.status === 'offline' || f.status === 'not_running') return has ? list.filter((p) => p !== peer) : list
   return list
+}
+
+/**
+ * t1 bc1a43e1 (fix A): the `idle` labels - agents whose online box says they
+ * do not run - after one presence frame: `not_running` adds the peer, any
+ * other status drops it.
+ * @param {string[]} idle
+ * @param {{ type?: string, peer?: string, status?: string }} frame
+ * @returns {string[]}
+ */
+export function applyIdle(idle, frame) {
+  const list = Array.isArray(idle) ? idle : []
+  const f = frame || {}
+  if (f.type !== undefined && f.type !== 'presence') return list
+  const peer = String(f.peer || '')
+  if (!peer || !f.status) return list
+  const has = list.includes(peer)
+  if (f.status === 'not_running') return has ? list : [...list, peer]
+  return has ? list.filter((p) => p !== peer) : list
 }
 
 /**
@@ -244,10 +264,12 @@ export function splitPeer(label) {
  * @param {string[]} online peer labels the socket has called online
  * @param {string} selfId the reader's own agent id (`welcome.as`); '' = unknown
  * @param {string} [selfBox]
- * @returns {{ id: string, box: string, label: string, online: boolean, self: boolean }[]}
+ * @param {string[]} [idle] peer labels whose machine is online but which do not run (t1 bc1a43e1)
+ * @returns {{ id: string, box: string, label: string, online: boolean, idle: boolean, self: boolean }[]}
  */
-export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
+export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX, idle = []) {
   const lit = new Set(Array.isArray(online) ? online : [])
+  const grey = new Set(Array.isArray(idle) ? idle : [])
   const box0 = selfBox || BROWSER_BOX
   const mine = (id, box) => Boolean(selfId) && id === selfId && box === box0
   const rows = []
@@ -259,7 +281,9 @@ export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
       const label = displayName(id, box)
       if (listed.has(label)) continue
       listed.add(label)
-      rows.push({ id, box, label, online: lit.has(label), self: mine(id, box) })
+      const on = lit.has(label)
+      // t1 bc1a43e1: idle = its machine is online, the agent does not run
+      rows.push({ id, box, label, online: on, idle: !on && grey.has(label), self: mine(id, box) })
     }
   }
   for (const label of lit) {
@@ -267,7 +291,7 @@ export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
     const { id, box } = splitPeer(label)
     if (!id || !box) continue
     listed.add(label)
-    rows.push({ id, box, label, online: true, self: mine(id, box) })
+    rows.push({ id, box, label, online: true, idle: false, self: mine(id, box) })
   }
   return rows.sort((a, b) => a.label.localeCompare(b.label))
 }
@@ -280,7 +304,7 @@ export function peopleRows(roster, online, selfId, selfBox = BROWSER_BOX) {
  * CLE-001 was seated on another box. Each address is its own row with its
  * own history. A label without a box, a broadcast and the reader are skipped.
  *
- * @param {Array<{ id: string, box: string, label: string, online: boolean }>} rows roster peers
+ * @param {Array<{ id: string, box: string, label: string, online: boolean, idle?: boolean }>} rows roster peers
  * @param {Record<string, string>} dmAt last DM moment per peer label
  * @param {string} selfId the reader's id (bare, or id@box)
  */
@@ -293,7 +317,7 @@ export function withDmPeers(rows, dmAt, selfId = '') {
     const { id, box } = splitPeer(label)
     if (!id || !box || have.has(label) || id === me || /^ALL-0$/.test(id)) continue
     have.add(label)
-    extra.push({ id, box, label, online: false })
+    extra.push({ id, box, label, online: false, idle: false })
   }
   return extra.length ? [...list, ...extra] : list
 }

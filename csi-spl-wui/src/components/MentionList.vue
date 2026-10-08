@@ -32,7 +32,7 @@
         @mousedown.prevent="picker.pick(p)"
       >
         <SpoolAvatar :id="p.id" :box="p.box" :size="20" />
-        <StatusDot :id="p.id" :online="Boolean(p.online)" />
+        <StatusDot :id="p.id" :online="Boolean(p.online)" :idle="Boolean(p.idle)" />
         <HumanName class="mention-label" :id="p.id" :box="p.box" />
         <!-- SPL-1009: two members chose one name - the id tells them apart -->
         <span v-if="p.sameName" class="muted mention-id" data-id-suffix data-testid="mention-id-suffix">{{ p.id }}</span>

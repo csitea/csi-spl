@@ -1738,6 +1738,7 @@
     "no_interests": "Henüz ilgi alanı yok.",
     "online": "Çevrimiçi",
     "offline": "Çevrimdışı",
+    "not_running": "Makine çevrimiçi, ajan çalışmıyor",
     "message": "Mesaj",
     "remove": "Çalışma alanından kaldır",
     "remove_hint": "Bu kişiyi bu çalışma alanından kaldırır. Hesabı ve mesajları kalır.",

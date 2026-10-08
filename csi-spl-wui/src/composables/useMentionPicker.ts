@@ -21,7 +21,7 @@ import { useHumanNames } from '~/composables/useHumanNames'
 import { feedbackChannelFromPath, isFeedbackChannel } from '~/utils/feedback-channel.mjs'
 import { activeMentionQuery, decodeMentions, encodeMentions, insertMention, mentionCandidates, mentionFieldName } from '~/utils/mention-autocomplete.mjs'
 
-export interface MentionRow { id: string, box?: string, label?: string, online?: boolean, owner?: boolean, sameName?: boolean }
+export interface MentionRow { id: string, box?: string, label?: string, online?: boolean, idle?: boolean, owner?: boolean, sameName?: boolean }
 
 export function useMentionPicker(opts: {
   text: Ref<string>

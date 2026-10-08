@@ -20,8 +20,8 @@
             <p class="agent-card__name">{{ agentId }}</p>
             <p class="agent-card__kind" data-test="agent-kind">{{ t(kindKey) }}</p>
             <p class="agent-card__status" data-test="agent-status">
-              <span class="status-dot" :class="{ on: online }" aria-hidden="true" />
-              {{ online ? t('people.online') : t('people.offline') }}
+              <span class="status-dot" :class="{ on: online, 'dot--idle': idle }" aria-hidden="true" />
+              {{ online ? t('people.online') : idle ? t('people.not_running') : t('people.offline') }}
             </p>
           </div>
         </div>
@@ -58,6 +58,8 @@ const agentId = computed(() => label.value.split('@')[0] || label.value)
 const box = computed(() => label.value.split('@')[1] || '')
 const kindKey = computed(() => agentKindLabelKey(agentId.value))
 const online = computed(() => roster.isOnline(agentId.value, box.value))
+/* t1 bc1a43e1: its machine is online, the agent does not run */
+const idle = computed(() => roster.isIdle(agentId.value, box.value))
 const boxDetail = computed(() => roster.boxes[box.value] || { online: false, last_hello_at: '' })
 const lastHello = computed(() => (boxDetail.value.last_hello_at ? isoDateTime(boxDetail.value.last_hello_at) : t('people.never_seen')))
 
@@ -84,6 +86,7 @@ function message() {
 .agent-card__status { margin: 4px 0 0; display: flex; align-items: center; gap: 6px; color: var(--color-muted); font-size: 0.85rem; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-muted); flex-shrink: 0; }
 .status-dot.on { background: var(--color-ok); }
+.status-dot.dot--idle { background: transparent; box-shadow: inset 0 0 0 2px var(--color-muted); }
 .agent-card__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; }
 .agent-card__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .agent-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }

@@ -1738,6 +1738,7 @@
     "no_interests": "Vēl nav interešu.",
     "online": "Tiešsaistē",
     "offline": "Bezsaistē",
+    "not_running": "Dators tiešsaistē, aģents nedarbojas",
     "message": "Ziņa",
     "remove": "Noņemt no darbvietas",
     "remove_hint": "Noņem šo personu no šīs darbvietas. Viņa konts un ziņojumi paliek.",

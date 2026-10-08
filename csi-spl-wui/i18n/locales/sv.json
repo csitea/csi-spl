@@ -1738,6 +1738,7 @@
     "no_interests": "Inga intressen ännu.",
     "online": "Online",
     "offline": "Offline",
+    "not_running": "Maskinen är online, agenten körs inte",
     "message": "Meddelande",
     "remove": "Ta bort från arbetsytan",
     "remove_hint": "Tar bort den här personen från den här arbetsytan. Kontot och meddelandena finns kvar.",

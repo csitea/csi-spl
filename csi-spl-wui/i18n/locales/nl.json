@@ -1738,6 +1738,7 @@
     "no_interests": "Nog geen interesses.",
     "online": "Online",
     "offline": "Offline",
+    "not_running": "Machine online, agent draait niet",
     "message": "Bericht",
     "remove": "Uit werkruimte verwijderen",
     "remove_hint": "Verwijdert deze persoon uit deze werkruimte. Hun account en berichten blijven.",

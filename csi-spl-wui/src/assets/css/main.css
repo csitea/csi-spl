@@ -261,6 +261,9 @@ html.pane-dragging * {
   flex-shrink: 0;
 }
 .dot.on { background: var(--color-ok); }
+/* t1 bc1a43e1: machine online, agent not running - grey and hollow, so it
+   never reads as offline (filled grey) or online (green) */
+.dot.dot--idle { background: transparent; box-shadow: inset 0 0 0 2px var(--color-muted); }
 /* spec 096 §4: the manual status is a ring around the presence dot */
 .dot.dot--busy { box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 3px var(--color-warn); }
 .dot.dot--unavailable { box-shadow: 0 0 0 1px var(--color-surface), 0 0 0 3px var(--color-danger); }

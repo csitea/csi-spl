@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
-import { applyPresence, mergeSnapshotOnline, peopleRows, withSessionRetry } from '~/utils/live-follow.mjs'
+import { applyIdle, applyPresence, mergeSnapshotOnline, peopleRows, withSessionRetry } from '~/utils/live-follow.mjs'
 import { BROWSER_BOX } from '~/utils/view-api.mjs'
 
 
@@ -10,6 +10,8 @@ export const useRosterStore = defineStore('roster', () => {
   const live = useLive()
   const roster = ref<Record<string, string[]>>({})
   const online = ref<string[]>([])
+  /** t1 bc1a43e1: `<agent>@<box>` labels whose machine is online but which do not run (isIdle). */
+  const idle = ref<string[]>([])
   /** view-v1 §4.1 owner:true - the business owner(s) #feedback offers to @. */
   const owners = ref<string[]>([])
   /** CLE-77794: per-member detail for the People info card (view-v1 §4.1
@@ -33,7 +35,7 @@ export const useRosterStore = defineStore('roster', () => {
   const selfId = computed(() => live.identity.value || me.value.id)
 
   /** Every peer the reader can see, the reader's own row marked `self`. */
-  const people = computed(() => peopleRows(roster.value, online.value, selfId.value, me.value.box))
+  const people = computed(() => peopleRows(roster.value, online.value, selfId.value, me.value.box, idle.value))
   /** The reader's own row, or null before the socket has said who we are. */
   const self = computed(() => people.value.find((p) => p.self) || null)
   /** Everyone but the reader: what the DM list and the @mention picker want. */
@@ -42,6 +44,7 @@ export const useRosterStore = defineStore('roster', () => {
   /** wui-live-ws §3: one `presence` frame, last writer wins per peer. */
   function applyFrame(f: Record<string, unknown>) {
     online.value = applyPresence(online.value, f as { type?: string, peer?: string, status?: string })
+    idle.value = applyIdle(idle.value, f as { type?: string, peer?: string, status?: string })
   }
   live.onPresence(applyFrame)
 
@@ -49,6 +52,7 @@ export const useRosterStore = defineStore('roster', () => {
     const data = await withSessionRetry(api, () => api.listRoster()) as {
       roster?: Record<string, string[]>
       online?: string[]
+      idle?: string[]
       me?: { id: string, box: string }
       owners?: string[]
       humans?: Array<HumanDetail & { human_id?: string }>
@@ -56,6 +60,7 @@ export const useRosterStore = defineStore('roster', () => {
     }
     if (data.roster) roster.value = data.roster
     if (data.online) online.value = mergeSnapshotOnline(online.value, data.online, roster.value)
+    if (data.idle) idle.value = data.idle.slice()
     if (data.me) me.value = data.me
     if (Array.isArray(data.owners)) owners.value = data.owners
     if (Array.isArray(data.humans)) {
@@ -74,8 +79,16 @@ export const useRosterStore = defineStore('roster', () => {
     return online.value.includes(label) || online.value.includes(id)
   }
 
-  return { roster, online, owners, humansDetail, boxes, me, self, people, peers, refresh, isOnline, applyFrame }
+  const isIdle = (id: string, box?: string) => idleLabel(idle.value, online.value, id, box)
+  return { roster, online, idle, owners, humansDetail, boxes, me, self, people, peers, refresh, isOnline, isIdle, applyFrame }
 })
+
+/** t1 bc1a43e1 (fix A): `<id>@<box>` is not online and its machine is (a
+ *  hollow grey dot, "machine online, agent not running"). */
+function idleLabel(idle: string[], online: string[], id: string, box?: string) {
+  const label = `${id}@${box}`
+  return Boolean(box) && !online.includes(label) && idle.includes(label)
+}
 
 const BOX_FACT_KEYS = ['os', 'runtimes', 'system', 'network', 'agent_presence'] as const
 

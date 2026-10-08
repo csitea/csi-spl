@@ -260,7 +260,7 @@ export const BROWSER_BOX = 'box-wui'
 const MEMBER_ID_RE = /^HUM-[0-9]+$/
 
 /**
- * Map view-v1 §4.1 roster rows onto the roster store's { roster, online }.
+ * Map view-v1 §4.1 roster rows onto the roster store's { roster, online, idle }.
  *
  * `humans` (§4.1, the tenant's members) is folded into the browser box, so a
  * member is a peer whether or not they happen to hold a socket right now.
@@ -276,11 +276,21 @@ const MEMBER_ID_RE = /^HUM-[0-9]+$/
 export function rosterFromView(data) {
   const roster = {}
   const online = []
+  /* t1 bc1a43e1 (fix A): an agent whose online box says it does not run
+     (agent_presence state not_running) is not online but `idle`: grey dot,
+     "machine online, agent not running". */
+  const idle = []
   for (const b of (data && data.boxes) || []) {
     if (b.revoked) continue
     const agents = Array.isArray(b.agents) ? b.agents.slice() : []
     roster[b.box_id] = agents
-    if (b.online) for (const a of agents) online.push(`${a}@${b.box_id}`)
+    if (!b.online) continue
+    const presence = (b.agent_presence && typeof b.agent_presence === 'object') ? b.agent_presence : {}
+    for (const a of agents) {
+      const st = presence[a] && presence[a].state
+      if (st === 'not_running') idle.push(`${a}@${b.box_id}`)
+      else online.push(`${a}@${b.box_id}`)
+    }
   }
   const humans = ((data && data.humans) || [])
     .map((h) => String((h && h.human_id) || ''))
@@ -291,7 +301,7 @@ export function rosterFromView(data) {
     .filter((h) => h && h.owner === true)
     .map((h) => String(h.human_id || ''))
     .filter((id) => MEMBER_ID_RE.test(id))
-  return { roster, online, owners }
+  return { roster, online, owners, idle }
 }
 
 /**

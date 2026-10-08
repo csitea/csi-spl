@@ -1738,6 +1738,7 @@
     "no_interests": "Încă nu există interese.",
     "online": "Online",
     "offline": "Offline",
+    "not_running": "Mașina este online, agentul nu rulează",
     "message": "Mesaj",
     "remove": "Elimină din spațiul de lucru",
     "remove_hint": "Elimină această persoană din acest spațiu de lucru. Contul și mesajele rămân.",

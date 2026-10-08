@@ -1738,6 +1738,7 @@
     "no_interests": "Zatiaľ žiadne záujmy.",
     "online": "Online",
     "offline": "Offline",
+    "not_running": "Počítač je online, agent nebeží",
     "message": "Správa",
     "remove": "Odstrániť z pracovného priestoru",
     "remove_hint": "Odstráni túto osobu z tohto pracovného priestoru. Jej účet a správy zostávajú.",

@@ -1738,6 +1738,7 @@
     "no_interests": "Ei vielä kiinnostuksen kohteita.",
     "online": "Linjoilla",
     "offline": "Poissa",
+    "not_running": "Kone verkossa, agentti ei ole käynnissä",
     "message": "Viesti",
     "remove": "Poista työtilasta",
     "remove_hint": "Poistaa tämän henkilön tästä työtilasta. Tili ja viestit säilyvät.",

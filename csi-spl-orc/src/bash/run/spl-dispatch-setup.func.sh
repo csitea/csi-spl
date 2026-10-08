@@ -13,7 +13,7 @@
 # @description      (+ the path in git's info/exclude). A running session does
 # @description      not load a settings file created after it started: that
 # @description      is reported as RELAUNCH, never done here
-# @description   6. the spawn (fixed id, auto permission mode) when no live
+# @description   6. the spawn (fixed id, --dangerously-skip-permissions) when no live
 # @description      claude process carries that id
 # @description   7. a desk in every workspace (do_spl_desk_up) where unseated
 # @description   8. the legacy registry row, when DISPATCH_LEGACY_REGISTRY is set
@@ -47,6 +47,8 @@
 # @param   set; otherwise both follow box.env SPOOL_DESK_BOX (a box rename needs no edit here).
 # @param   Unset, the fleet lines already in lease.conf are KEPT: a re-run never silently leaves fleet mode
 # @param DISPATCH_SWEEP (optional) - 0 skips step 11 (the sweep cron)
+# @param DISPATCH_STEPS (optional) - only these step numbers (space or comma separated, e.g. "3 5":
+# @param   re-render the briefs and settings, no spawn, desk or lease); default every step
 # @param DISPATCH_ASKS_OWNER / DISPATCH_ASKS_RERAISE_MIN / DISPATCH_ASKS_OWNER_MIN (optional) - the asks
 # @param   timer's knobs (CLE-77929, do_spl_asks_tick): written to lease.conf as ASKS_OWNER (the owner's
 # @param   HUM-<n>: the DM leg for an ask unacked ASKS_OWNER_MIN), ASKS_RERAISE_MIN, ASKS_OWNER_MIN.
@@ -58,6 +60,7 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd ./run -a do_spl_dispatch_setup
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_dispatch_setup
+# @example ENV=prd DISPATCH_STEPS='3 5' DRY_RUN=0 ./run -a do_spl_dispatch_setup
 #------------------------------------------------------------------------------
 # this machine's desk box id (specs/058), also when sourced on its own
 declare -F spl_desk_box_default >/dev/null ||
@@ -76,9 +79,11 @@ spl_dispatch_setup_steps() {
   [[ "${DRY_RUN:-1}" == 0 ]] && dry=0
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_DISPATCH_DRY=$dry
+  [[ "${DISPATCH_STEPS:-}" =~ ^[0-9,\ ]*$ ]] || { do_log "FATAL DISPATCH_STEPS must be step numbers, got '$DISPATCH_STEPS'"; return 1; }
 
   # 1. post-drop dir
-  if [[ -d "$DISPATCH_POSTS_DIR" && "$(stat -c %a "$DISPATCH_POSTS_DIR")" == 2777 ]]; then
+  if ! spl_dispatch_step 1 posts-dir; then :
+  elif [[ -d "$DISPATCH_POSTS_DIR" && "$(stat -c %a "$DISPATCH_POSTS_DIR")" == 2777 ]]; then
     spl_dispatch_ok posts-dir "$DISPATCH_POSTS_DIR"
   else
     spl_dispatch_do posts-dir "mkdir -p + chmod 2777 $DISPATCH_POSTS_DIR" \
@@ -88,7 +93,8 @@ spl_dispatch_setup_steps() {
   # 2. lease.conf
   local conf
   spl_dispatch_lease_conf_text || return 1
-  if [[ "$(cat "$LEASE_CONF" 2>/dev/null)" == "$conf" ]]; then
+  if ! spl_dispatch_step 2 lease-conf; then :
+  elif [[ "$(cat "$LEASE_CONF" 2>/dev/null)" == "$conf" ]]; then
     spl_dispatch_ok lease-conf "$LEASE_CONF"
   else
     spl_dispatch_do lease-conf "write $LEASE_CONF ($DISPATCH_MASTER / $DISPATCH_FAILOVER / $DISPATCH_ORCH)" \
@@ -108,7 +114,8 @@ spl_dispatch_setup_steps() {
     # 3. brief
     brief="$DISPATCH_BRIEF_DIR/brief-dispatcher-$id.md"
     spl_dispatch_render "$id" "$role" "$peer" "$rule" "$first" > "$SPL_DISPATCH_TMP/brief" || return 1
-    if cmp -s "$SPL_DISPATCH_TMP/brief" "$brief"; then
+    if ! spl_dispatch_step 3 brief; then :
+    elif cmp -s "$SPL_DISPATCH_TMP/brief" "$brief"; then
       spl_dispatch_ok brief "$brief"
     else
       spl_dispatch_do brief "render $brief" bash -c 'mkdir -p "$(dirname "$2")" && cp "$1" "$2"' _ "$SPL_DISPATCH_TMP/brief" "$brief" || return 1
@@ -117,34 +124,37 @@ spl_dispatch_setup_steps() {
     # the one do_spl_dispatch_check reads (the identity map's, else
     # <main checkout>-wt/<id>), so setup and check never name two dirs
     wt="$(spl_dispatch_worktree "$id")"
-    if [[ -d "$wt" ]]; then
+    if ! spl_dispatch_step 4 worktree; then :
+    elif [[ -d "$wt" ]]; then
       spl_dispatch_ok worktree "$wt"
     else
       spl_dispatch_do worktree "git worktree add $wt -b $id-dispatcher-$role origin/master" \
         git -C "$DISPATCH_REPO" worktree add -b "$id-dispatcher-$role" "$wt" origin/master || return 1
     fi
     # 5. settings
-    spl_dispatch_settings "$id" "$wt" || return 1
+    if spl_dispatch_step 5 settings; then spl_dispatch_settings "$id" "$wt" || return 1; fi
     # 6. spawn
-    spl_dispatch_spawn "$id" "$role" "$brief" "$wt" || return 1
+    if spl_dispatch_step 6 spawn; then spl_dispatch_spawn "$id" "$role" "$brief" "$wt" || return 1; fi
     # 7. desks
-    spl_dispatch_desks "$id" || return 1
+    if spl_dispatch_step 7 desk; then spl_dispatch_desks "$id" || return 1; fi
     # 8. legacy registry
-    spl_dispatch_legacy_row "$id" || return 1
+    if spl_dispatch_step 8 legacy-registry; then spl_dispatch_legacy_row "$id" || return 1; fi
   done
 
   # 9. lease loops
-  spl_dispatch_do lease-loops "LEASE_CMD=ensure do_spl_dispatch_lease" \
-    spl_dispatch_lease_ensure || return 1
+  if spl_dispatch_step 9 lease-loops; then
+    spl_dispatch_do lease-loops "LEASE_CMD=ensure do_spl_dispatch_lease" \
+      spl_dispatch_lease_ensure || return 1
+  fi
 
   # 10. channel subscriptions (its own plan lines; a subshell, so its scratch
   # dir is not this one)
-  if [[ "${DISPATCH_SUBSCRIBE:-1}" != 0 ]]; then
+  if [[ "${DISPATCH_SUBSCRIBE:-1}" != 0 ]] && spl_dispatch_step 10 subscribe; then
     ( DRY_RUN=$dry do_spl_dispatch_subscribe ) || return 1
   fi
 
   # 11. the unanswered-post sweep cron (its own crontab diff in the dry run)
-  if [[ "${DISPATCH_SWEEP:-1}" != 0 ]]; then
+  if [[ "${DISPATCH_SWEEP:-1}" != 0 ]] && spl_dispatch_step 11 sweep; then
     ( DRY_RUN=$dry do_spl_unanswered_sweep_install_cron ) || return 1
   fi
   ((dry)) && do_log "OK DRY_RUN nothing was touched - re-run with DRY_RUN=0 to apply"
@@ -244,6 +254,14 @@ spl_dispatch_cnf() {
 spl_dispatch_lease_ensure() { LEASE_CMD=ensure do_spl_dispatch_lease; }
 
 spl_dispatch_ok() { echo "OK   $1 $2"; }
+
+# spl_dispatch_step <n> <name>: 0 when step <n> runs (DISPATCH_STEPS unset or
+# names it), else prints a SKIP line and returns 1.
+spl_dispatch_step() {
+  [[ -z "${DISPATCH_STEPS:-}" || " ${DISPATCH_STEPS//,/ } " == *" $1 "* ]] && return 0
+  echo "SKIP $2 (DISPATCH_STEPS=$DISPATCH_STEPS)"
+  return 1
+}
 
 # PLAN line in a dry run; the command itself otherwise.
 spl_dispatch_do() {

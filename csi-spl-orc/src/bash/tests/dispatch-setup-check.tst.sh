@@ -25,6 +25,8 @@
 #      user, env or a compound line does not. A rewrite for that rule keeps
 #      the file (desk rules still loaded, no false GAP); a desk-rule change
 #      makes a new one (relaunch GAP)
+#  11. DISPATCH_STEPS="3 5" re-renders only the briefs and settings: no
+#      posts dir, lease.conf, worktree, spawn, desk, lease loops or sweep
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -452,6 +454,19 @@ setup DRY_RUN=0 LEASE_RUN=/bin/true >"$T/o" 2>&1; setup DRY_RUN=0 LEASE_RUN=/bin
   pass "8. DRY_RUN=0 installs the sweep cron once (idempotent)" || fail "8. crontab: $(cat "$T/crontab" 2>/dev/null) $(tail -5 "$T/o")"
 setup DISPATCH_SWEEP=0 >"$T/o" 2>&1
 grep -q 'unanswered-sweep' "$T/o" && fail "8. DISPATCH_SWEEP=0 still ran step 11" || pass "8. DISPATCH_SWEEP=0 skips step 11"
+
+# --- 11. DISPATCH_STEPS: only the briefs and the settings --------------------------------------
+rm -rf "$S/dispatch" "$R-wt/c-002/.claude" "$R-wt/c-003/.claude" "$T/crontab"; rm -rf "${P:?}"/*
+setup DRY_RUN=0 LEASE_RUN=/bin/false DISPATCH_STEPS='3 5' >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && -f "$S/dispatch/briefs/brief-dispatcher-c-002.md" && -f "$S/dispatch/briefs/brief-dispatcher-c-003.md" &&
+   -f "$R-wt/c-002/.claude/settings.local.json" && -f "$R-wt/c-003/.claude/settings.local.json" &&
+   ! -e "$S/dispatch/lease.conf" && ! -e "$S/dispatch/posts" && ! -e "$T/crontab" ]] &&
+  pass "11. DISPATCH_STEPS='3 5' writes the briefs and settings only" || fail "11. rc=$rc $(cat "$T/o")"
+grep -E '^PLAN (posts-dir|lease-conf|worktree|spawn|desk|lease-loops)|spawn-window|do_spl_desk_up|unanswered-sweep' "$T/o" &&
+  fail "11. DISPATCH_STEPS='3 5' ran another step" || pass "11. no spawn, desk, lease or sweep step ran"
+grep -qF 'do_spl_take' "$R-wt/c-002/.claude/settings.local.json" && ! grep -q '{TAKE_CMD}' "$S/dispatch/briefs/brief-dispatcher-c-002.md" &&
+  pass "11. the settings allow do_spl_take, the brief renders {TAKE_CMD}" || fail "11. take: $(grep -c take "$S/dispatch/briefs/brief-dispatcher-c-002.md")"
+setup DISPATCH_STEPS='3;5' >"$T/o" 2>&1 && fail "11. accepted DISPATCH_STEPS='3;5'" || pass "11. a malformed DISPATCH_STEPS is refused"
 
 echo "dispatch-setup-check: $fails failure(s)"
 [[ $fails -eq 0 ]]

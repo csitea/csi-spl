@@ -342,6 +342,11 @@ type Hub struct {
 
 	HelloSkew      time.Duration `env:"SPOOL_HUB_HELLO_SKEW" envDefault:"300s"`
 	UploadTokenTTL time.Duration `env:"SPOOL_HUB_UPLOAD_TOKEN_TTL" envDefault:"5m"`
+	// JoinTokenTTL is how long an agent join token lives from minting (spec
+	// 073 4.1). Served environments take the cnf value; the default matches
+	// it so a test process with the variable unset agrees. Bounds in
+	// checkLimits: JoinTokenTTLMin..JoinTokenTTLMax inclusive.
+	JoinTokenTTL time.Duration `env:"SPOOL_HUB_JOIN_TOKEN_TTL" envDefault:"1h"`
 	// Quota fields: 0 = unlimited (tests / internal). Production values live in cnf.
 	QuotaMessagesPerMonth int           `env:"SPOOL_HUB_QUOTA_MESSAGES_PER_MONTH" envDefault:"0"`
 	QuotaPins             int           `env:"SPOOL_HUB_QUOTA_PINS" envDefault:"0"`
@@ -583,6 +588,14 @@ func (h *Hub) checkStorage() error {
 	return nil
 }
 
+// The bounds of SPOOL_HUB_JOIN_TOKEN_TTL (spec 073 4.1): no shorter than the
+// shortest capability the hub issues a person (the upload token), no longer
+// than a day so a leaked token is not valid for days.
+const (
+	JoinTokenTTLMin = 5 * time.Minute
+	JoinTokenTTLMax = 24 * time.Hour
+)
+
 // checkLimits validates durations, edge limits, quotas, the message version, the locale and the CI/CD logs settings.
 func (h *Hub) checkLimits() error {
 	if h.QueueTTL <= 0 || h.HelloSkew <= 0 || h.UploadTokenTTL <= 0 || h.QueueMaxPerBox <= 0 ||
@@ -595,6 +608,9 @@ func (h *Hub) checkLimits() error {
 	}
 	if h.EdgeWindow <= 0 || h.HelloTimeout <= 0 || h.WSPingTimeout <= 0 {
 		return errors.New("SPOOL_HUB_EDGE_WINDOW, SPOOL_HUB_HELLO_TIMEOUT and SPOOL_HUB_WS_PING_TIMEOUT must be positive")
+	}
+	if h.JoinTokenTTL < JoinTokenTTLMin || h.JoinTokenTTL > JoinTokenTTLMax {
+		return fmt.Errorf("SPOOL_HUB_JOIN_TOKEN_TTL %s must be %s..%s", h.JoinTokenTTL, JoinTokenTTLMin, JoinTokenTTLMax)
 	}
 	if !msg.IsSupported(h.MsgVersion) {
 		return fmt.Errorf("SPOOL_HUB_MSG_VERSION %d must be 1 or 2", h.MsgVersion)

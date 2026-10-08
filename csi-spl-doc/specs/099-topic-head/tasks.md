@@ -336,7 +336,7 @@ parallel with T002.
   lint passes.
 - Depends on: T006.
 
-### T008 Hot-measure: the head statements
+### T008 Hot-measure: the head statements (DONE, `36e748d5`)
 
 - Files: `orc/spl-db-hot-measure.func.sh` and its `.tst.sh`.
   - New statements: `walk_dm_head`, `walk_all_head`, a worst reader (a

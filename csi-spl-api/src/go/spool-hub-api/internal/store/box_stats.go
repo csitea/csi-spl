@@ -45,11 +45,15 @@ type BoxStat struct {
 	Disks      []BoxDisk `json:"disks"` // rdb 0121; [] before it
 }
 
-// BoxDisk is one mounted filesystem of a sample: its size and free space.
+// BoxDisk is one mounted filesystem of a sample: its size, free space and,
+// from the boxes that send it, df's used (c-542: total - avail also counts
+// the root-reserved blocks, so only used / (used + avail) is df's Use%).
+// 0 = not sent (older boxes); the readers then fall back to total - avail.
 type BoxDisk struct {
 	Mount   string `json:"mount"`
 	TotalKB int64  `json:"total_kb"`
 	AvailKB int64  `json:"avail_kb"`
+	UsedKB  int64  `json:"used_kb,omitempty"`
 }
 
 // boxMountRe is a mount point: an absolute path, printable, up to 256 bytes.
@@ -78,8 +82,8 @@ func CheckBoxStat(b BoxStat) string {
 		if !boxMountRe.MatchString(d.Mount) || seen[d.Mount] {
 			return "each disk needs a distinct mount, an absolute path of up to 256 bytes"
 		}
-		if d.TotalKB < 0 || d.AvailKB < 0 {
-			return "disk total_kb / avail_kb must be >= 0"
+		if d.TotalKB < 0 || d.AvailKB < 0 || d.UsedKB < 0 {
+			return "disk total_kb / avail_kb / used_kb must be >= 0"
 		}
 		seen[d.Mount] = true
 	}
@@ -104,11 +108,13 @@ type BoxStatHour struct {
 	Disks         []BoxDiskHour `json:"disks"`
 }
 
-// BoxDiskHour is one mount over an hour: its largest size and least free.
+// BoxDiskHour is one mount over an hour: its largest size, least free and
+// most used (0 = no sample of the hour sent used_kb).
 type BoxDiskHour struct {
 	Mount      string `json:"mount"`
 	TotalKB    int64  `json:"total_kb"`
 	AvailMinKB int64  `json:"avail_min_kb"`
+	UsedMaxKB  int64  `json:"used_max_kb,omitempty"`
 }
 
 // BoxStatHours folds samples into one row per (box, UTC hour), ordered by
@@ -147,10 +153,11 @@ func BoxStatHours(rows []BoxStat) []BoxStatHour {
 		a.h.AgentsPeak = max(a.h.AgentsPeak, r.AgentsLive)
 		for _, d := range r.Disks {
 			if dh := a.disks[d.Mount]; dh == nil {
-				a.disks[d.Mount] = &BoxDiskHour{Mount: d.Mount, TotalKB: d.TotalKB, AvailMinKB: d.AvailKB}
+				a.disks[d.Mount] = &BoxDiskHour{Mount: d.Mount, TotalKB: d.TotalKB, AvailMinKB: d.AvailKB, UsedMaxKB: d.UsedKB}
 			} else {
 				dh.TotalKB = max(dh.TotalKB, d.TotalKB)
 				dh.AvailMinKB = min(dh.AvailMinKB, d.AvailKB)
+				dh.UsedMaxKB = max(dh.UsedMaxKB, d.UsedKB)
 			}
 		}
 	}

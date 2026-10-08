@@ -50,7 +50,7 @@ const (
 var ErrNotPeerMessage = errors.New("the message is not a peer message")
 
 var (
-	odSeatRe     = regexp.MustCompile(`^[acgq]-00[1-4]$`)
+	odSeatRe     = regexp.MustCompile(`^[acgmq]-00[1-4]$`)
 	handledHowRe = regexp.MustCompile(`^(answered|handed:.+|no-reply:.+)$`)
 )
 

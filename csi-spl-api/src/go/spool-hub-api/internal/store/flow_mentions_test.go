@@ -52,6 +52,22 @@ func TestMentionedIDsFixture(t *testing.T) {
 	}
 }
 
+// TestMentionedIDsMistral: m- (spec 110) is an agent letter; an unknown
+// letter is not. Kept out of mentionFixture, which the node parity test also
+// runs through the WUI, until T010 moves the WUI grammar.
+func TestMentionedIDsMistral(t *testing.T) {
+	for body, want := range map[string][]string{
+		"@m-004 look":       {"m-004"},
+		"@m-004@box-a done": {"m-004"},
+		"@x-004 @m-0041":    nil,
+		"@m-000":            {"m-000"},
+	} {
+		if got := MentionedIDs(body); !reflect.DeepEqual(got, want) {
+			t.Errorf("MentionedIDs(%q) = %v, want %v", body, got, want)
+		}
+	}
+}
+
 // wuiUtils is csi-spl-wui/src/utils from this package.
 var wuiUtils = filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-wui", "src", "utils")
 
@@ -60,7 +76,6 @@ var wuiUtils = filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-wui", 
 func TestMentionGrammarPinnedToWUI(t *testing.T) {
 	pins := map[string][]string{
 		"agent-id.mjs": {
-			"export const AGENT_ID_SRC = '[acgq]-[0-9]{3}(?![0-9])'",
 			"export const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'",
 			"export const PARTICIPANT_ID_SRC = `(?:${AGENT_ID_SRC}|${LEGACY_ID_SRC})`",
 			"export const BOX_ID_SRC = '[a-z0-9][a-z0-9-]{0,31}'",
@@ -72,6 +87,17 @@ func TestMentionGrammarPinnedToWUI(t *testing.T) {
 			"return `${String(author || '').split('@')[0]} needs you in ${link}: \"${pokeExcerpt(text)}\"`",
 			"return `${String(origin || '').replace(/\\/+$/, '')}/t/${encodeURIComponent(String(taskId || ''))}`",
 		},
+	}
+	// AGENT_ID_SRC: [acgmq] (spec 110) is the target; [acgq] is accepted
+	// until T010 moves the WUI, so neither lane turns the other red. Go is
+	// then a superset: an @m-004 the WUI does not yet see.
+	b, err := os.ReadFile(filepath.Join(wuiUtils, "agent-id.mjs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "export const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'") &&
+		!strings.Contains(string(b), "export const AGENT_ID_SRC = '[acgq]-[0-9]{3}(?![0-9])'") {
+		t.Errorf("agent-id.mjs AGENT_ID_SRC is neither [acgmq] nor [acgq]: port the change to flow_mentions.go, then update this pin")
 	}
 	for file, lines := range pins {
 		b, err := os.ReadFile(filepath.Join(wuiUtils, file))

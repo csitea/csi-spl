@@ -37,6 +37,10 @@ func TestGrammar(t *testing.T) {
 		{"a-999", true, false, true, true, "agy"},
 		{"g-001", true, false, true, true, "grok"},
 		{"q-010", true, false, true, true, "qwen"},
+		{"m-004", true, false, true, true, "mistral"},
+		{"m-000", false, false, false, false, ""},
+		{"M-04", false, false, false, false, ""},
+		{"MST-1", false, false, false, true, ""},
 		{"c-000", false, false, false, false, ""},
 		{"c-4", false, false, false, false, ""},
 		{"c-0004", false, false, false, false, ""},
@@ -70,7 +74,7 @@ func TestAtBox(t *testing.T) {
 			t.Errorf("IsAtBox(%q) = %v, want %v", s, !want, want)
 		}
 	}
-	if Kind("a-004@box-desk") != "agy" {
+	if Kind("a-004@box-desk") != "agy" || Kind("m-004@box-desk") != "mistral" || !IsAtBox("m-004@box-desk") {
 		t.Errorf("Kind of an @box id")
 	}
 }

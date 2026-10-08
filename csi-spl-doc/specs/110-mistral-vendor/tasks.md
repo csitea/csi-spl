@@ -63,7 +63,7 @@ the owner's Team login on each box.
   (*new*); the old `0101`, `0102`, `0109`, `0110` and `0149` are read, never
   edited. Done: 7b on postgres (`PRE_PUSH_TIER=full`), applied on dev and
   prd (`do_spl_db_bootstrap`, the owner's go per CLAUDE.md).
-- [ ] T002 **hub Go id** (needs T001 applied).
+- [x] T002 **hub Go id** (c-577; needs T001 applied).
   Files:
   - `agentid/agentid.go` + `_test.go`;
   - `store/flow_mentions.go` + `_test.go`;

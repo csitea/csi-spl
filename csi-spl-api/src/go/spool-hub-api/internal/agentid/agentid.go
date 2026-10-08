@@ -4,7 +4,7 @@
 // a write path. Every validation site calls it; no other file carries an id
 // regex.
 //
-//	agent id          ^[acgq]-[0-9]{3}$        c-004 (000 is never an id)
+//	agent id          ^[acgmq]-[0-9]{3}$       c-004 (000 is never an id)
 //	legacy agent id   ^(CLE|AGY|GRK|QWN)-[0-9]+$ until LegacyUntil
 //	participant       an agent id, or ^[A-Z]{2,4}-[0-9]+$ (HUM-, GST-, BOX-,
 //	                  and every stored legacy id: history keeps them, FR-006)
@@ -40,16 +40,17 @@ func defaultNow() time.Time {
 }
 
 var (
-	newRe         = regexp.MustCompile(`^[acgq]-[0-9]{3}$`)
-	newAnyCaseRe  = regexp.MustCompile(`^[ACGQacgq]-[0-9]{3}$`)
+	newRe         = regexp.MustCompile(`^[acgmq]-[0-9]{3}$`)
+	newAnyCaseRe  = regexp.MustCompile(`^[ACGMQacgmq]-[0-9]{3}$`)
 	legacyRe      = regexp.MustCompile(`^(CLE|AGY|GRK|QWN)-[0-9]+$`)
 	participantRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+$`)
 	boxRe         = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 )
 
-// kinds is the one letter-to-kind map; legacyKinds is its legacy twin.
+// kinds is the one letter-to-kind map; legacyKinds is its legacy twin. 'm'
+// (spec 110) has no legacy twin: legacy ids ended before mistral joined.
 var (
-	kinds       = map[byte]string{'a': "agy", 'c': "claude", 'g': "grok", 'q': "qwen"}
+	kinds       = map[byte]string{'a': "agy", 'c': "claude", 'g': "grok", 'm': "mistral", 'q': "qwen"}
 	legacyKinds = map[string]string{"AGY": "agy", "CLE": "claude", "GRK": "grok", "QWN": "qwen"}
 )
 

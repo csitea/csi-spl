@@ -69,7 +69,7 @@ the owner's Team login on each box.
 
   Done: 7a; the FR-005 gate (Go = bash = WUI grammar) stays green with T006
   and T010.
-- [ ] T003 **cnf** (needs nothing). `agent_split.mistral: 0`,
+- [~] T003 **cnf** (needs nothing). `agent_split.mistral: 0`,
   `auth_marker.mistral: .vibe/.env`, and
   `env.box.mistral_vibe.{version: 2.26.0, model: mistral-vibe-cli-latest}`.
   Files:

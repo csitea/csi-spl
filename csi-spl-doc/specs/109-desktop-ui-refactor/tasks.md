@@ -64,6 +64,7 @@ T001 spec v1.0 ─┬─► T013 RUM on in prd (first: a real before-week)
 | T001 | Implemented: v1.0 (c-567) |
 | T009 | **Dropped**: owner Q3 = no (msg `272d5ffd`); the reply box stays in the top-bar omnibox |
 | T004 | Implemented (c-567): a settled roster / topic-list read is kept for the first screen (10 s), any write drops it; unit: mock first screen roster 1, topics 1 (CONTROL, old live: 2 and 2). Live signed-in before/after: pending the drafting box's probe |
-| T002, T003, T005..T008, T010..T015 | Planned |
+| T013 | Implemented: prd `perf.rum_enabled` true (c-580) |
+| T002, T003, T005..T008, T010..T012, T014, T015 | Planned |
 
 <!-- last-edit: 2026-10-08T18:25:00Z — v1.0 fold of seats s109-2..4, c-567 -->

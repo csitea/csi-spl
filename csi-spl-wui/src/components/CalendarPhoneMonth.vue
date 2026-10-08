@@ -236,6 +236,12 @@ function onKey(e: KeyboardEvent) {
   -webkit-tap-highlight-color: transparent;
 }
 .calmonth__cell--out { color: var(--color-muted); }
+/* the other months' days: --color-muted alone is an AA text colour, nearly
+   as dark as this month's on light; 0.7 on top keeps >= 3:1 on --color-bg
+   in every theme (light 3.2, dark 4.4) and dims the dots too. A selected
+   or today cell keeps its own look. */
+.calmonth__cell--out:not(.calmonth__cell--on):not(.calmonth__cell--today) .calmonth__num,
+.calmonth__cell--out:not(.calmonth__cell--on):not(.calmonth__cell--today) .calmonth__dots { opacity: 0.7; }
 .calmonth__cell--on { background: var(--color-selected); }
 /* today: raised, outlined in the accent, a bold number (1.4.1) */
 .calmonth__cell--today {

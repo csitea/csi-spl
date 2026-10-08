@@ -8,6 +8,9 @@
 //   H7  every cell, agenda card and the empty state's Add >= 44x44
 //   H8  the view >= 82 % of the page the app gives the calendar (level 3)
 //   S4-8 each dot draws var(--cal-dot-ring): an edge on light, none on dark
+//   dim (level 3) a day of the previous / next month reads >= 3.3x fainter
+//       (WCAG contrast on its background) than a day of this month, yet
+//       >= 3:1, its dots dimmed too
 // Once per width (level 3, dark):
 //   FR-003 up to 3 dots then +n; today raised, outlined in the accent, bold,
 //       aria-current=date; the selected day's agenda under the grid
@@ -20,7 +23,8 @@
 // S4-3, under America/New_York and Asia/Tokyo: an all-day event sits on its
 // UTC date, a 3-day all-day event has a dot on each of its 3 days.
 // Controls: a planted 2000 px scroller trips H3, a planted 30 px cell H7,
-// and the dot-ring probe reads 'none' on a dot with box-shadow removed.
+// the dot-ring probe reads 'none' on a dot with box-shadow removed, and the
+// pre-fix look (opacity 1 on the other months' days) trips the dim check.
 //
 // The opt-in (localStorage spool-calendar-phone = 1) stays until T011.
 //
@@ -108,6 +112,10 @@ const ROOT = '[data-test=calendar-phone]'
 const MONTH = `${ROOT} [data-test=calphone-page][data-dir="0"] [data-test=calphone-month]`
 const cell = (iso) => `${MONTH} [data-test=calphone-month-cell][data-iso="${iso}"]`
 const periodOf = (day) => calPhoneRange('month', day)?.from || ''
+/* the dim check's pair: a day of the next / previous month and one of this
+   month, neither today (the selected day on open) */
+const OUT_DAY = calPhoneMonthGrid(today).find((c) => !c.inMonth && c.iso !== today)?.iso
+const IN_DAY = calPhoneMonthGrid(today).find((c) => c.inMonth && c.iso !== today)?.iso
 
 /** a fresh page on Month: the opt-in, the fixture, theme and level first */
 async function open(browser, vp, { theme = 'dark', level = 3, zone = '' } = {}) {
@@ -226,6 +234,39 @@ async function layoutChecks(p, tag, lvl) {
 const dotRings = (p) => p.$$eval(`${MONTH} [data-test=calphone-month-dot]`, (els) => els.slice(0, 4).map((el) => getComputedStyle(el).boxShadow))
 const ringDraws = (s) => Boolean(s) && s !== 'none' && !/rgba\(0, 0, 0, 0\)|transparent/.test(s) && !/\b0px 0px 0px 0px\b/.test(s)
 
+/* dim: a day number's effective colour (its alpha times every opacity up to
+   the cell, over the first painted background above it) and its WCAG
+   contrast on that background; the dots' opacity */
+const lum = ([r, g, b]) => {
+  const ch = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+  return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+}
+const contrast = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+async function numLook(p, iso) {
+  const l = await p.$eval(cell(iso), (c) => {
+    const rgba = (s) => { const m = (s.match(/[\d.]+/g) || []).map(Number); return [m[0] || 0, m[1] || 0, m[2] || 0, m[3] ?? 1] }
+    const num = c.querySelector('.calmonth__num')
+    let a = rgba(getComputedStyle(num).color)[3]
+    for (let el = num; el; el = el === c ? null : el.parentElement) a *= Number(getComputedStyle(el).opacity)
+    let bg = [255, 255, 255, 1]
+    for (let el = c; el; el = el.parentElement) {
+      const b = rgba(getComputedStyle(el).backgroundColor)
+      if (b[3] > 0) { bg = b; break }
+    }
+    const fg = rgba(getComputedStyle(num).color)
+    return { fg: [0, 1, 2].map((i) => fg[i] * a + bg[i] * (1 - a)), bg: bg.slice(0, 3), dots: Number(getComputedStyle(c.querySelector('.calmonth__dots')).opacity) }
+  }).catch(() => null)
+  return l && { ...l, ratio: Math.round(contrast(l.fg, l.bg) * 100) / 100 }
+}
+/* in / out >= 3.3 (the pre-fix look measured 2.2 dark, 2.57 light) */
+const DIM_FACTOR = 3.3
+async function dimLook(p) {
+  const out = await numLook(p, OUT_DAY)
+  const inn = await numLook(p, IN_DAY)
+  const factor = out && inn ? Math.round((inn.ratio / out.ratio) * 100) / 100 : 0
+  return { in: inn?.ratio, out: out?.ratio, factor, dotsOut: out?.dots, dotsIn: inn?.dots, ok: factor >= DIM_FACTOR && out.ratio >= 3 }
+}
+
 /* a finger on the view: down at `from`, moves to `to`, then up */
 async function swipe(p, from, to, steps = 10) {
   const cdp = await p.createCDPSession()
@@ -269,6 +310,7 @@ const browser = await launch()
 const PHONES = [{ width: 360, height: 780 }, { width: 390, height: 844 }, { width: 820, height: 1180 }]
 try {
   ok('fixture: free days for the all-day, the 3-day and the empty day', Boolean(ALLDAY && SPAN.length === 3 && EMPTY), { today, ALLDAY, SPAN, EMPTY })
+  ok('fixture: a day of another month and one of this month for the dim check', Boolean(OUT_DAY && IN_DAY), { OUT_DAY, IN_DAY })
 
   /* ---- the matrix: FR-003 grid, H3 / H7 / H8, the dot ring ---- */
   for (const vp of PHONES) {
@@ -283,6 +325,21 @@ try {
           const rings = await dotRings(p)
           ok(`S4-8 ${tag}: dots ${theme === 'light' ? 'draw' : 'need no'} the --cal-dot-ring edge`, rings.length > 0 && rings.every((s) => ringDraws(s) === (theme === 'light')), rings)
           if (vp.width === 390) await shot(p, `${vp.width}-${theme}`)
+          const dim = await dimLook(p)
+          ok(`dim ${tag}: ${OUT_DAY} reads >= ${DIM_FACTOR}x fainter than ${IN_DAY}, >= 3:1`, dim.ok, dim)
+          ok(`dim ${tag}: the other months' dots dim too`, dim.dotsOut < 1 && dim.dotsIn === 1, dim)
+          if (vp.width === 390) {
+            /* control: the pre-fix look (no opacity) trips the check */
+            await p.evaluate(() => {
+              const st = document.createElement('style')
+              st.id = 'calmonth-dim-control'
+              st.textContent = '.calmonth__num, .calmonth__dots { opacity: 1 !important; }'
+              document.head.appendChild(st)
+            })
+            const pre = await dimLook(p)
+            ok(`control ${tag}: the pre-fix look fails the dim check`, !pre.ok, pre)
+            await p.evaluate(() => document.getElementById('calmonth-dim-control')?.remove())
+          }
         }
         /* the empty state and the 200-character title */
         await tapCell(p, EMPTY)
@@ -352,6 +409,21 @@ try {
     const span = []
     for (const d of SPAN) span.push({ d, ...(await cellInfo(p, d)) })
     ok(`S4-3 ${w}: the 3-day event has a dot on each of its days`, span.every((c) => c.count === 1 && c.dots === 1), span)
+
+    /* a selected / today day of another month keeps that look, not dimmed
+       (a tap turns the page to its month, so the class is set by hand) */
+    const keep = await p.$eval(cell(OUT_DAY), (el) => {
+      const op = () => [el.querySelector('.calmonth__num'), el.querySelector('.calmonth__dots')].map((x) => Number(getComputedStyle(x).opacity))
+      const got = {}
+      for (const k of ['calmonth__cell--on', 'calmonth__cell--today']) {
+        el.classList.add(k)
+        got[k] = op()
+        el.classList.remove(k)
+      }
+      got.plain = op()
+      return got
+    }).catch(() => null)
+    ok(`dim ${w}: a selected or today day of another month is not dimmed`, Boolean(keep) && [...keep['calmonth__cell--on'], ...keep['calmonth__cell--today']].every((o) => o === 1) && keep.plain.every((o) => o < 1), keep)
 
     /* a second tap on the selected day opens Day */
     ok(`${w}: a tap selects a day of the previous / next month`, await tapCell(p, ALLDAY), await rootAttr(p, 'data-day'))

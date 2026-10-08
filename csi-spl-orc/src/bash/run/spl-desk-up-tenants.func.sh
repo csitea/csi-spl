@@ -24,6 +24,9 @@
 # @example ENV=prd DESK_SKIP_TENANTS=t1 DRY_RUN=0 ./run -a do_spl_desk_up_tenants
 #------------------------------------------------------------------------------
 do_spl_desk_up_tenants() {
+  # spec 108 3.5 / owner Q2: the multi-workspace desk is operator-only
+  local claim; claim="$(spl_box_ws_claim)"
+  [[ -z "$claim" ]] || { do_log "FATAL this box belongs to workspace '$claim' alone: the multi-workspace desk runs on operator boxes only"; return 1; }
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

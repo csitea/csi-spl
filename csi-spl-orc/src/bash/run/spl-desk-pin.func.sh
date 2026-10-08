@@ -18,6 +18,8 @@
 # @description which do_spl_desk_up reads: its first run then needs no
 # @description ROOT_KEY_JSON. Prints one JSON line; nothing secret (the root
 # @description key goes through a 0600 scratch file, removed).
+# @description On a box enrolled into one workspace (spec 108 3.5) any other
+# @description TENANT_ID is refused, in every mode.
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd; or self - a self-hosted hub at
 # @param   SPOOL_HUB_URL, any host, no cnf (specs/047 W4, do_spl_desk_cnf)
@@ -39,6 +41,7 @@
 #------------------------------------------------------------------------------
 do_spl_desk_pin() {
   do_require_bin python3 yq || return 1
+  spl_box_ws_guard "${TENANT_ID:-}" || return 1
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi

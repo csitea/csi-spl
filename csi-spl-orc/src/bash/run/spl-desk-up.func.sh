@@ -23,6 +23,9 @@
 # @description into a 0600 scratch file and removed.
 # @description The sidecar is a plain background process: it dies with the box.
 # @description Stop it with do_spl_desk_down; re-run this action to restart it.
+# @description On a box enrolled into one workspace (do_spl_box_workspace_setup,
+# @description spec 108 3.5) any other TENANT_ID is refused, the action runs as
+# @description that workspace's OS user, and its state dir is the workspace's.
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd, or self for a self-hosted hub (SPOOL_HUB_URL,
 # @param   no cnf: do_spl_desk_cnf)
@@ -55,6 +58,7 @@
 #------------------------------------------------------------------------------
 do_spl_desk_up() {
   do_require_bin python3 yq flock || return 1
+  spl_box_ws_guard "${TENANT_ID:-}" || return 1
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
@@ -291,8 +295,9 @@ spl_desk_sidecar() {
     # machine is also written into <fleet root>/<agent>/inbox, the inbox a
     # harness agent reads with `spool recv` - the receiving half of
     # spool-send.sh's hub relay. Default the harness root when it exists;
-    # SPOOL_FLEET_ROOT= (empty) turns the copy off.
-    local fleet="${SPOOL_FLEET_ROOT-/var/spool-hub}"
+    # SPOOL_FLEET_ROOT= (empty) turns the copy off. On a box enrolled into
+    # one workspace (spec 108 3.5) the harness root is that workspace's own.
+    local fleet="${SPOOL_FLEET_ROOT-${SPL_WS_SPOOL_ROOT:-/var/spool-hub}}"
     [[ -n "$fleet" && -d "$fleet" ]] || fleet=""
     SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$box" \
     SPOOL_HUB_URL="$hub" SPOOL_TENANT="$tenant" SPOOL_NOTIFY_CMD="$notify" SPOOL_POKE="$poke" \

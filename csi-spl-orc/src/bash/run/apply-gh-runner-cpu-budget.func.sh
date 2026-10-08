@@ -20,7 +20,10 @@
 # @description A box with no runner unit: nothing to do, exit 0.
 # @description Dry run unless DRY_RUN=0 (prints the plan). Needs sudo.
 # @param GH_RUNNER_USER (optional) - the runners' OS user, default ghrunner
-# @param CPU_BUDGET_BOX_PCT (optional) - 1..100: the box ceiling, default 80
+# @param CPU_BUDGET_BOX_PCT (optional) - 1..100: the box ceiling. Unset: the
+# @param   hub's fleet-load setting runner_cpu_pct (owner HUM-10 t1 569c4846:
+# @param   "permanent in the db"), this box's boxes.<box>.runner_cpu_pct over
+# @param   the fleet's; no fleet, no answer or no value: 80
 # @param CPU_BUDGET_MIN_PCT (optional) - the floor in % of one core, default 100
 # @param CPU_BUDGET_SAMPLE_S (optional) - 1..120 seconds, default 20
 # @param CPU_BUDGET_CGROUP_ROOT (optional, tests) - default /sys/fs/cgroup
@@ -35,14 +38,36 @@
 
 # ghrb_init - the settings of one call, validated
 ghrb_init() {
-  GHRB_DRY="${DRY_RUN:-1}" GHRB_BOX="${CPU_BUDGET_BOX_PCT:-80}" GHRB_MIN="${CPU_BUDGET_MIN_PCT:-100}"
+  GHRB_DRY="${DRY_RUN:-1}" GHRB_MIN="${CPU_BUDGET_MIN_PCT:-100}"
   GHRB_WAIT="${CPU_BUDGET_SAMPLE_S:-20}" GHRB_CG="${CPU_BUDGET_CGROUP_ROOT:-/sys/fs/cgroup}"
   GHRB_UNIT_DIR="${CPU_BUDGET_UNIT_DIR:-/etc/systemd/system}"
   GHRB_SYSTEMCTL="${CPU_BUDGET_SYSTEMCTL:-sudo systemctl}" GHRB_SUDO="${CPU_BUDGET_SUDO:-sudo}"
   [[ "$GHRB_DRY" == 0 || "$GHRB_DRY" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
-  [[ "$GHRB_BOX" =~ ^([1-9][0-9]?|100)$ ]] || { do_log "FATAL CPU_BUDGET_BOX_PCT must be 1..100, got: '$GHRB_BOX'"; return 1; }
   [[ "$GHRB_MIN" =~ ^[1-9][0-9]{0,4}$ ]] || { do_log "FATAL CPU_BUDGET_MIN_PCT must be a positive number, got: '$GHRB_MIN'"; return 1; }
   [[ "$GHRB_WAIT" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL CPU_BUDGET_SAMPLE_S must be 1..99, got: '$GHRB_WAIT'"; return 1; }
+}
+
+# ghrb_box_pct - GHRB_BOX (the ceiling, % of cores) and GHRB_SRC (where it came
+# from): CPU_BUDGET_BOX_PCT, else the hub's runner_cpu_pct (per box over
+# fleet), else 80. A hub that does not answer is a WARN, never a stop: the
+# runners keep a budget either way
+ghrb_box_pct() {
+  local got v
+  if [[ -n "${CPU_BUDGET_BOX_PCT:-}" ]]; then
+    GHRB_BOX="$CPU_BUDGET_BOX_PCT" GHRB_SRC=env
+    [[ "$GHRB_BOX" =~ ^([1-9][0-9]?|100)$ ]] || { do_log "FATAL CPU_BUDGET_BOX_PCT must be 1..100, got: '$GHRB_BOX'"; return 1; }
+    return 0
+  fi
+  GHRB_BOX=80 GHRB_SRC=default
+  declare -F spl_lane_init >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-map.func.sh"
+  spl_lane_init >/dev/null 2>&1 && [[ "$LANE_MODE" == hub ]] || { echo "WARN no hub fleet here: the default ceiling 80%"; return 0; }
+  got="$(LANE_TIMEOUT="${LANE_TIMEOUT:-15}" spl_lane_spool fleet-load get 2>/dev/null)"
+  jq -e 'type == "object"' >/dev/null 2>&1 <<<"$got" ||
+    { echo "WARN the hub did not answer fleet-load get: the default ceiling 80%"; return 0; }
+  v="$(jq -r --arg b "$LANE_BOX" '(.boxes[$b].runner_cpu_pct // .runner_cpu_pct // "") | tostring' <<<"$got")"
+  [[ -z "$v" ]] && { GHRB_SRC="default, no runner_cpu_pct on the hub"; return 0; }
+  [[ "$v" =~ ^([1-9][0-9]?|100)$ ]] || { echo "WARN the hub's runner_cpu_pct is not 1..100 ('$v'): the default ceiling 80%"; return 0; }
+  GHRB_BOX="$v" GHRB_SRC="hub, box $LANE_BOX"
 }
 
 # ghrb_units - the runner units of this box, one per line
@@ -114,7 +139,7 @@ ghrb_size() {
 do_apply_gh_runner_cpu_budget() {
   local user="${GH_RUNNER_USER:-ghrunner}" uid slice cores r0 s0 r1 s1 other quota cur
   local -a units
-  ghrb_init || return 1
+  ghrb_init && ghrb_box_pct || return 1
   mapfile -t units < <(ghrb_units)
   ((${#units[@]})) || { do_log "OK no actions.runner.* unit on this box: nothing to budget"; return 0; }
   uid="$(id -u "$user" 2>/dev/null)" || { do_log "FATAL runner units exist but user $user does not"; return 1; }
@@ -130,7 +155,7 @@ do_apply_gh_runner_cpu_budget() {
   ((other < 0)) && other=0
   quota="$(ghrb_size "$cores" "$other" "$((GHRB_WAIT * 1000000))")"
   cur="$($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null)"
-  echo "BUDGET cores=$cores ceiling=${GHRB_BOX}% others=$(awk -v o="$other" -v w="$GHRB_WAIT" 'BEGIN {printf "%.2f", o / w / 1e6}') cores over ${GHRB_WAIT}s -> $slice CPUQuota=${quota}% (was ${cur:-unknown})"
+  echo "BUDGET cores=$cores ceiling=${GHRB_BOX}% ($GHRB_SRC) others=$(awk -v o="$other" -v w="$GHRB_WAIT" 'BEGIN {printf "%.2f", o / w / 1e6}') cores over ${GHRB_WAIT}s -> $slice CPUQuota=${quota}% (was ${cur:-unknown})"
   if [[ "$GHRB_DRY" == 1 ]]; then do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0; fi
   $GHRB_SYSTEMCTL set-property --runtime "$slice" CPUQuota="${quota}%" ||
     { do_log "FATAL cannot set CPUQuota on $slice"; return 1; }

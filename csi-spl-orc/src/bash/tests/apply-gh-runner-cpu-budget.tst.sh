@@ -6,6 +6,9 @@
 #   1. no runner unit: nothing to do, exit 0; bad settings are refused
 #   2. sizing on 16 cores: 4 other cores -> 880%, the ceiling 1280% when idle,
 #      the floor 100% when others take it all; DRY_RUN=1 sets nothing
+#   2b. the ceiling: CPU_BUDGET_BOX_PCT beats the hub's runner_cpu_pct, the
+#      box's value beats the fleet's; no fleet, a hub that fails or a bad
+#      value: 80 (a WARN, never a stop)
 #   3. placement: an idle runner gets the drop-in, a stop, its leftovers killed
 #      and a start; a busy one
 #      (a Runner.Worker in its cgroup) gets the drop-in and waits; a runner
@@ -44,15 +47,17 @@ exit 0
 EOF
 printf '#!/usr/bin/env bash\n[[ "$*" == "-u ghrunner" ]] && echo 1500 || exit 1\n' >"$T/bin/id"
 printf '#!/usr/bin/env bash\necho 16\n' >"$T/bin/nproc"
+printf '#!/usr/bin/env bash\n[[ "$*" == "fleet-load get" && "${HUB_FAIL:-0}" == 0 ]] || exit 1\ncat "$T/hub.json"\n' >"$T/bin/hubstub"
 chmod +x "$T/bin/"*
 
 # counters: the root and the slice; each "sleep" adds OTHER + CI cores of use
 set_usage() { printf 'usage_usec %s\n' "$1" >"$T/cg/cpu.stat"; printf 'usage_usec %s\n' "$2" >"$T/cg/user.slice/user-1500.slice/cpu.stat"; }
 run_budget() {
   env PATH="$T/bin:$PATH" CPU_BUDGET_CGROUP_ROOT="$T/cg" CPU_BUDGET_UNIT_DIR="$T/units" \
-    CPU_BUDGET_SYSTEMCTL=systemctl CPU_BUDGET_SUDO=env CPU_BUDGET_SAMPLE_S=10 "$@" bash -c '
+    CPU_BUDGET_SYSTEMCTL=systemctl CPU_BUDGET_SUDO=env CPU_BUDGET_SAMPLE_S=10 SPOOL_ROOT="$T/spool" "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
+    spl_desk_box_default() { echo sat; }
     sleep() {
       local r s
       r="$(awk "{print \$2}" "$T/cg/cpu.stat")" s="$(awk "{print \$2}" "$T/cg/user.slice/user-1500.slice/cpu.stat")"
@@ -95,6 +100,37 @@ out="$(run_budget DRY_RUN=0 OTHER=15 RUNNER_CORES=1)"; rc=$?
 out="$(run_budget DRY_RUN=0 OTHER=3 CPU_BUDGET_BOX_PCT=85)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=1060%' ]] &&
   pass "CPU_BUDGET_BOX_PCT=85: 1360 - 300 = 1060%" || fail "box pct (rc=$rc): $out"
+: >"$SYSD_LOG"
+
+# 2b. the ceiling from the hub --------------------------------------------------
+hub() { run_budget LANE_FLEET=csi LANE_HUB_CMD="$T/bin/hubstub" DRY_RUN=0 OTHER=4 RUNNER_CORES=6 "$@"; }
+echo '{"low":50,"high":75,"runner_cpu_pct":75,"boxes":{"sat":{"low":50,"high":70,"runner_cpu_pct":70},"other-box":{"low":50,"high":80,"runner_cpu_pct":60}}}' >"$T/hub.json"
+out="$(hub)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=720%' && "$out" == *'ceiling=70% (hub, box sat)'* ]] &&
+  pass "the hub's runner_cpu_pct for this box (70) wins over the fleet's (75): 1120 - 400 = 720%" || fail "hub box (rc=$rc): $out"
+: >"$SYSD_LOG"
+echo '{"low":50,"high":75,"runner_cpu_pct":75,"boxes":{"other-box":{"low":50,"high":80,"runner_cpu_pct":60}}}' >"$T/hub.json"
+out="$(hub)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=800%' ]] &&
+  pass "no value for this box: the fleet's 75 -> 800%" || fail "hub fleet (rc=$rc): $out"
+: >"$SYSD_LOG"
+out="$(hub CPU_BUDGET_BOX_PCT=85)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=960%' && "$out" == *'(env)'* ]] &&
+  pass "CPU_BUDGET_BOX_PCT=85 beats the hub: 1360 - 400 = 960%" || fail "env over hub (rc=$rc): $out"
+: >"$SYSD_LOG"
+echo '{"low":50,"high":75}' >"$T/hub.json"
+out="$(hub)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=880%' && "$out" == *'no runner_cpu_pct on the hub'* ]] &&
+  pass "a hub without runner_cpu_pct: the default 80 -> 880%" || fail "hub unset (rc=$rc): $out"
+: >"$SYSD_LOG"
+out="$(hub HUB_FAIL=1)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=880%' && "$out" == *'WARN the hub did not answer'* ]] &&
+  pass "a hub that fails: WARN, the default 80, the quota still set" || fail "hub fail (rc=$rc): $out"
+: >"$SYSD_LOG"
+echo '{"runner_cpu_pct":0}' >"$T/hub.json"
+out="$(hub)"; rc=$?
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=880%' && "$out" == *"runner_cpu_pct is not 1..100 ('0')"* ]] &&
+  pass "a hub value out of 1..100: WARN, the default 80" || fail "hub bad (rc=$rc): $out"
 : >"$SYSD_LOG"
 
 # 3. placement -------------------------------------------------------------------

@@ -8,6 +8,11 @@ Three measurements, nothing else:
                              summed. The same set as
                              csi-spl-wui/src/node/test/bundle-size.mjs. A JS
                              file that is only a dynamic import is not in it.
+                             `bundle` applies it to every prerendered
+                             document: 200.html (ci_initial_gzip_kb, the SPA
+                             fallback every deep link gets) and index.html
+                             (ci_home_gzip_kb, the prerendered `/`, spec 109
+                             D3). Any other *.html is reported, not gated.
   first-load transfer        wall time to GET the WUI document and then those
                              chunks in parallel, each on a new connection,
                              Accept-Encoding identity. Not a browser paint.
@@ -18,7 +23,8 @@ Three measurements, nothing else:
                              Each sample also records time_namelookup and
                              time_connect so a DNS stall is visible.
 
-`bundle` reads a nuxt generate directory and checks ci_initial_gzip_kb.
+`bundle` reads a nuxt generate directory and checks ci_initial_gzip_kb and
+ci_home_gzip_kb.
 `live` talks to the hosts it is given. `check` compares an already written
 report. A value greater than its ceiling, or a required value that was not
 measured, exits 1. The password, the session cookie and every response body
@@ -57,7 +63,14 @@ ENDPOINTS = (
     ("view_channels", "/v1/view/channels"),
     ("view_roster", "/v1/view/roster"),
 )
-CI_KEYS = ("ci_initial_gzip_kb",)
+# Each gated prerendered document and its ceiling. Until spec 109 T002 only
+# 200.html was read, so the prerendered `/` (85 chunks, 349.8 KB on prd) was
+# never gated.
+CI_DOCS = (
+    ("ci_initial_gzip_kb", "200.html"),
+    ("ci_home_gzip_kb", "index.html"),
+)
+CI_KEYS = tuple(key for key, _doc in CI_DOCS)
 # first_load_p95_ms is recorded and not gated: it is a new connection per
 # chunk on this box, and that tail is the resolver (T124), not the bundle.
 LIVE_KEYS = (
@@ -131,12 +144,12 @@ def initial_names(html):
     return seen
 
 
-def bundle_dir(pub):
-    """Return (gzip_kb, chunk_count). ValueError names what is missing."""
+def bundle_dir(pub, doc="200.html"):
+    """Return (gzip_kb, chunk_count) for one document. ValueError names what is missing."""
     nuxt = os.path.join(pub, "_nuxt")
-    html_path = os.path.join(pub, "200.html")
+    html_path = os.path.join(pub, doc)
     if not os.path.isfile(html_path):
-        raise ValueError(f"no 200.html in {pub}")
+        raise ValueError(f"no {doc} in {pub}")
     if not os.path.isdir(nuxt):
         raise ValueError(f"no _nuxt directory in {pub}")
     on_disk = {name for name in os.listdir(nuxt) if name.endswith(".js")}
@@ -144,7 +157,7 @@ def bundle_dir(pub):
         html = f.read()
     names = [name for name in initial_names(html) if name in on_disk]
     if not names:
-        raise ValueError("initial JS set is empty")
+        raise ValueError(f"initial JS set is empty ({doc})")
     total = 0
     for name in names:
         with open(os.path.join(nuxt, name), "rb") as f:
@@ -463,19 +476,40 @@ def finish(report, ceilings, require, out_path):
     return 0 if ok else 1
 
 
+def bundle_report(pub):
+    """Every prerendered document. A gated one that is missing stays out of
+    metrics, so the check reports it as not measured."""
+    metrics = {}
+    documents = {}
+    gated = {doc: key for key, doc in CI_DOCS}
+    if not os.path.isdir(os.path.join(pub, "_nuxt")):
+        raise ValueError(f"no _nuxt directory in {pub}")
+    for doc in sorted(name for name in os.listdir(pub) if name.endswith(".html")):
+        try:
+            gzip_kb, chunks = bundle_dir(pub, doc)
+        except ValueError as err:
+            if doc in gated:
+                raise
+            documents[doc] = {"chunks": 0, "gzip_kb": 0.0, "note": str(err)}
+            continue
+        documents[doc] = {"chunks": chunks, "gzip_kb": gzip_kb}
+        if doc in gated:
+            metrics[gated[doc]] = gzip_kb
+    report = {"kind": "bundle", "n": 1, "documents": documents, "metrics": metrics}
+    if "200.html" in documents:
+        report["chunks"] = documents["200.html"]["chunks"]
+    return report
+
+
 def cmd_bundle(args):
     try:
-        gzip_kb, chunks = bundle_dir(args.pub)
+        report = bundle_report(args.pub)
         ceilings = load_ceilings(args.budgets)
     except (OSError, ValueError, json.JSONDecodeError) as err:
         print(f"FAIL {err}")
         return 1
-    report = {
-        "kind": "bundle",
-        "n": 1,
-        "chunks": chunks,
-        "metrics": {"ci_initial_gzip_kb": gzip_kb},
-    }
+    for doc, row in sorted(report["documents"].items()):
+        print(f"DOC {doc} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB")
     return finish(report, ceilings, "ci", args.out)
 
 

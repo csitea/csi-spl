@@ -9,6 +9,9 @@
 //            tell `import "./x.js"` from `import("./x.js")`, and following
 //            the dynamic ones reports every lazy chunk as initial (measured
 //            2026-09-20: 179 KB gzip read as 526 KB that way).
+//   home     the same set for the prerendered `/` (index.html). It is a
+//            document of its own, not 200.html: spec 109 D3 found it naming
+//            85 chunks where 200.html names 3 (ci_home_gzip_kb).
 //   all js   every client chunk on disk — initial plus everything lazy.
 //
 // It also answers the question a lazy-loading claim has to answer: is the
@@ -34,17 +37,21 @@ const raw = (p) => statSync(p).size
 const sum = (list, f) => list.reduce((a, x) => a + f(join(NUXT, x)), 0)
 const kb = (n) => Number((n / 1024).toFixed(1))
 
-const html = readFileSync(join(PUB, '200.html'), 'utf8')
 // <script src=> and <link rel="modulepreload" href=> only - never a
 // <link rel="prefetch"> (a lazy chunk fetched at idle). Same set as
 // csi-spl-orc/src/bash/scripts/perf-budget.py.
-const scriptSrc = [...html.matchAll(/<script\b[^>]*\bsrc="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/g)].map((m) => m[1])
-const modulepreload = [...html.matchAll(/<link\b[^>]*>/g)]
-  .map((m) => m[0])
-  .filter((tag) => /\brel="modulepreload"/.test(tag))
-  .map((tag) => (tag.match(/\bhref="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/) || [])[1])
-  .filter(Boolean)
-const initial = [...new Set([...scriptSrc, ...modulepreload])].filter((f) => files.includes(f))
+function firstPaint(doc) {
+  const html = readFileSync(join(PUB, doc), 'utf8')
+  const scriptSrc = [...html.matchAll(/<script\b[^>]*\bsrc="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/g)].map((m) => m[1])
+  const modulepreload = [...html.matchAll(/<link\b[^>]*>/g)]
+    .map((m) => m[0])
+    .filter((tag) => /\brel="modulepreload"/.test(tag))
+    .map((tag) => (tag.match(/\bhref="\/_nuxt\/([A-Za-z0-9._-]+\.js)"/) || [])[1])
+    .filter(Boolean)
+  return [...new Set([...scriptSrc, ...modulepreload])].filter((f) => files.includes(f))
+}
+const initial = firstPaint('200.html')
+const home = firstPaint('index.html')
 
 /** chunks holding the highlight.js runtime itself (not just its class names) */
 const engine = files.filter((f) => {
@@ -54,6 +61,7 @@ const engine = files.filter((f) => {
 
 const report = {
   initial: { chunks: initial.length, rawKB: kb(sum(initial, raw)), gzipKB: kb(sum(initial, gz)) },
+  home: { chunks: home.length, rawKB: kb(sum(home, raw)), gzipKB: kb(sum(home, gz)) },
   all: { chunks: files.length, rawKB: kb(sum(files, raw)), gzipKB: kb(sum(files, gz)) },
   highlightEngine: {
     chunks: engine.length,
@@ -68,6 +76,7 @@ if (asJson) {
 } else {
   const line = (k, v) => `${k.padEnd(9)} ${String(v.chunks).padStart(3)} chunk(s)  raw ${String(v.rawKB).padStart(7)} KB  gzip ${String(v.gzipKB).padStart(6)} KB`
   console.log(line('initial', report.initial))
+  console.log(line('home', report.home))
   console.log(line('all js', report.all))
   const e = report.highlightEngine
   console.log(`highlight.js runtime: ${e.chunks} chunk(s)  raw ${e.rawKB} KB  gzip ${e.gzipKB} KB`)

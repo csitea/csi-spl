@@ -6,7 +6,9 @@
 // AC-04: a click on a day in the 36 mini-months moves the main view to that
 //        day's week (and the URL keeps it: ?d=YYYY-MM-DD).
 // AC-02: the calendar code is its own chunk: nothing of it is in the initial
-//        download of 200.html, which stays at or under 155 KB gzip.
+//        download of 200.html, which stays at or under 155 KB gzip, nor in
+//        that of the prerendered `/` (index.html, ci_home_gzip_kb, spec 109
+//        T002).
 // The mock workspace answers GET /v1/calendar/marks and /events in the wire
 // format of spec 6.1 (src/utils/calendar-mock.mjs): a release today, an
 // issue deadline and a maintenance window two days on, an event 30 days on,
@@ -30,6 +32,8 @@ import { calAddDays, calIsoDay, calWeekStart } from '../../src/utils/calendar-ye
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* ci_initial_gzip_kb (027 perf-budgets.json, owner 2026-10-02) */
 const INITIAL_KB = 155
+/* ci_home_gzip_kb (027 perf-budgets.json, spec 109 T002; T003 lowers it) */
+const HOME_KB = 351.2
 const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
@@ -65,10 +69,11 @@ const week = (p) => p.$eval('[data-test=calendar-main]', (el) => el.getAttribute
 const waitWeek = (p, want) => p.waitForFunction((w) => document.querySelector('[data-test=calendar-main]')?.getAttribute('data-week') === w, { timeout: 10000 }, want).then(() => true, () => false)
 const items = (p) => p.$$eval('[data-test=calendar-item]', (els) => els.map((e) => e.getAttribute('data-kind')))
 
-/* AC-02: the chunks 200.html asks for (script src + modulepreload), as
-   src/node/test/bundle-size.mjs counts them; none may carry calendar code */
-async function initialChunks(base) {
-  const html = await (await fetch(base + '/200.html')).text()
+/* AC-02: the chunks a prerendered document asks for (script src +
+   modulepreload), as src/node/test/bundle-size.mjs counts them; none may
+   carry calendar code */
+async function initialChunks(base, doc = '200.html') {
+  const html = await (await fetch(base + '/' + doc)).text()
   const scriptSrc = [...html.matchAll(/<script\b[^>]*\bsrc="(\/_nuxt\/[A-Za-z0-9._-]+\.js)"/g)].map((m) => m[1])
   const preload = [...html.matchAll(/<link\b[^>]*>/g)].map((m) => m[0])
     .filter((tag) => /\brel="modulepreload"/.test(tag))
@@ -92,6 +97,10 @@ try {
   ok('AC-02: 200.html names its initial chunks', init.count > 0, init)
   ok('AC-02: no calendar code in the initial download', Array.isArray(init.withCalendar) && init.withCalendar.length === 0, init.withCalendar)
   ok(`AC-02: the initial download is <= ${INITIAL_KB} KB gzip`, init.kb > 0 && init.kb <= INITIAL_KB, init.kb)
+  const home = await initialChunks(server.base, 'index.html').catch((e) => ({ error: String(e) }))
+  ok('AC-02: index.html names its initial chunks', home.count > 0, { count: home.count, kb: home.kb, error: home.error })
+  ok('AC-02: no calendar code in the home download', Array.isArray(home.withCalendar) && home.withCalendar.length === 0, home.withCalendar)
+  ok(`AC-02: the home download is <= ${HOME_KB} KB gzip`, home.kb > 0 && home.kb <= HOME_KB, home.kb)
 
   for (const theme of ['light', 'dark']) {
     console.log(`-- 1440x900 ${theme}`)

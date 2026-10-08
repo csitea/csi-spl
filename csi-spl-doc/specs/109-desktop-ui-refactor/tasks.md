@@ -66,6 +66,7 @@ T001 spec v1.0 ─┬─► T013 RUM on in prd (first: a real before-week)
 | T004 | Implemented (c-567): a settled roster / topic-list read is kept for the first screen (10 s), any write drops it; unit: mock first screen roster 1, topics 1 (CONTROL, old live: 2 and 2). Live signed-in before/after: pending the drafting box's probe |
 | T013 | Implemented: prd `perf.rum_enabled` true (c-580) |
 | T005 | Implemented: [w1-trace.md](w1-trace.md) (c-581): W1 waits on the app boot and first render (CPU), not the socket; warm W1 on WUI `ce1461b5` 2,445 ms (drafting box loaded) / 1,250 (second box) / 844 (drafting box idle), n=10 each; T006 re-shaped to CPU (w1-trace.md section 5) |
-| T002, T003, T006..T008, T010..T012, T014, T015 | Planned |
+| T002 | Implemented: `index.html` gated as `ci_home_gzip_kb` 351.2 KB (85 chunks, mock generate; all three counters agree), CONTROL: the old code read `200.html` only (c-566) |
+| T003, T006..T008, T010..T012, T014, T015 | Planned |
 
 <!-- last-edit: 2026-10-08T18:25:00Z — v1.0 fold of seats s109-2..4, c-567 -->

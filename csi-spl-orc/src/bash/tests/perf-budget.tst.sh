@@ -4,6 +4,10 @@
 #   1. pct interpolates, so a short run does not report its maximum as p95
 #   2. a JS file the document does not name is not in the initial gzip, and
 #      a repeated src= plus modulepreload counts once
+#   2b. every prerendered document is measured: index.html against
+#      ci_home_gzip_kb as well as 200.html against ci_initial_gzip_kb (spec
+#      109 T002). CONTROL: the 200.html figure (all the old code read) does
+#      not move when index.html grows, so only the new key can see it
 #   3. the ceiling check FAILS when a number is over, when a required number
 #      was not measured, and when the initial set is empty — and PASSES when
 #      the number is equal to the ceiling. The over case is the control that
@@ -63,6 +67,11 @@ cat >"$T/pub/200.html" <<'HTML'
 <script type="module" src="/_nuxt/lazy.js"></script>
 <link rel="prefetch" as="script" crossorigin href="/_nuxt/later.js">
 HTML
+cat >"$T/pub/index.html" <<'HTML'
+<!doctype html>
+<script type="module" src="/_nuxt/app.js"></script>
+<link rel="modulepreload" href="/_nuxt/later.js">
+HTML
 setline="$(python3 - "$PY" "$T/pub" <<'PY'
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("perf_budget", sys.argv[1])
@@ -80,8 +89,8 @@ PY
 )"
 [[ "$setline" == set ]] && pass "initial gzip is the first-paint chunks once, not every file on disk nor a prefetch" || fail "bundle set: $setline"
 
-printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":0}}' >"$T/over.json"
-printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999}}' >"$T/under.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":0,"ci_home_gzip_kb":99999}}' >"$T/over.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999}}' >"$T/under.json"
 python3 "$PY" bundle --pub "$T/pub" --budgets "$T/over.json" >"$T/bout" 2>&1
 rc=$?
 [[ $rc -eq 1 ]] && grep -q '^FAIL ci_initial_gzip_kb ' "$T/bout" \
@@ -91,6 +100,58 @@ rc=$?
 [[ $rc -eq 0 ]] && grep -q '^PASS ci_initial_gzip_kb ' "$T/bout" \
   && pass "initial gzip under the ceiling exits 0" || fail "under: rc=$rc $(cat "$T/bout")"
 
+# --- 2b. every prerendered document -------------------------------------------------
+docline="$(python3 - "$PY" "$T/pub" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("perf_budget", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+pub = sys.argv[2]
+rep = m.bundle_report(pub)
+app = m.gzip_len(open(pub + "/_nuxt/app.js", "rb").read())
+later = m.gzip_len(open(pub + "/_nuxt/later.js", "rb").read())
+docs = rep["documents"]
+ok = rep["metrics"].get("ci_home_gzip_kb") == m.kb_of(app + later) \
+    and docs["index.html"]["chunks"] == 2 and docs["200.html"]["chunks"] == 2
+print("docs" if ok else "bad %r" % rep)
+PY
+)"
+[[ "$docline" == docs ]] && pass "index.html is measured with the same set rule as 200.html" || fail "index.html set: $docline"
+
+mkdir -p "$T/home/_nuxt"
+cp "$T/pub/_nuxt/"*.js "$T/home/_nuxt/"
+cp "$T/pub/200.html" "$T/pub/index.html" "$T/home/"
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/big.js","wb").write(os.urandom(40000))' "$T/home"
+printf '<link rel="modulepreload" href="/_nuxt/big.js">\n' >>"$T/home/index.html"
+ctl="$(python3 - "$PY" "$T/pub" "$T/home" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("perf_budget", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+small, big = m.bundle_dir(sys.argv[2]), m.bundle_dir(sys.argv[3])
+hs, hb = (m.bundle_report(p)["metrics"]["ci_home_gzip_kb"] for p in sys.argv[2:4])
+print("blind-old seen-new" if small == big and hb > hs + 30 else "bad %r %r %r %r" % (small, big, hs, hb))
+PY
+)"
+[[ "$ctl" == "blind-old seen-new" ]] \
+  && pass "CONTROL: the 200.html figure (the old code's only read) ignores a 40 KB index.html chunk; ci_home_gzip_kb sees it" \
+  || fail "CONTROL home: $ctl"
+home_kb="$(python3 "$PY" bundle --pub "$T/pub" --budgets "$T/under.json" | sed -n 's/^PASS ci_home_gzip_kb \([0-9.]*\) .*/\1/p')"
+printf '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":%s}}\n' "${home_kb:-0}" >"$T/homecap.json"
+python3 "$PY" bundle --pub "$T/home" --budgets "$T/homecap.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q '^FAIL ci_home_gzip_kb ' "$T/bout" && grep -q '^PASS ci_initial_gzip_kb ' "$T/bout" \
+  && pass "CONTROL: index.html over ci_home_gzip_kb exits 1 while 200.html passes" || fail "CONTROL home cap: rc=$rc $(cat "$T/bout")"
+python3 "$PY" bundle --pub "$T/pub" --budgets "$T/homecap.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 0 ]] && grep -q '^PASS ci_home_gzip_kb ' "$T/bout" && grep -q '^DOC index.html 2 chunk' "$T/bout" \
+  && pass "index.html at its ceiling passes and is reported" || fail "home at cap: rc=$rc $(cat "$T/bout")"
+rm "$T/home/index.html"
+python3 "$PY" bundle --pub "$T/home" --budgets "$T/under.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q 'ci_home_gzip_kb was not measured' "$T/bout" \
+  && pass "CONTROL: a bundle without index.html fails, never passes unmeasured" || fail "CONTROL no index: rc=$rc $(cat "$T/bout")"
+
 mkdir -p "$T/empty/_nuxt"
 printf 'console.log("orphan")\n' >"$T/empty/_nuxt/orphan.js"
 printf '<!doctype html><p>no scripts</p>\n' >"$T/empty/200.html"
@@ -99,13 +160,13 @@ rc=$?
 [[ $rc -eq 1 ]] && grep -q 'initial JS set is empty' "$T/bout" \
   && pass "CONTROL: an empty initial set fails even under a huge ceiling" || fail "CONTROL empty: rc=$rc $(cat "$T/bout")"
 
-printf '%s\n' '{"metrics":{"ci_initial_gzip_kb":9}}' >"$T/eqrep.json"
-printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":9}}' >"$T/eqbud.json"
+printf '%s\n' '{"metrics":{"ci_initial_gzip_kb":9,"ci_home_gzip_kb":9}}' >"$T/eqrep.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":9,"ci_home_gzip_kb":9}}' >"$T/eqbud.json"
 python3 "$PY" check --report "$T/eqrep.json" --budgets "$T/eqbud.json" --require ci >"$T/bout" 2>&1
 rc=$?
 [[ $rc -eq 0 ]] && grep -q '^PASS ci_initial_gzip_kb 9 <= 9$' "$T/bout" \
   && pass "a value equal to its ceiling passes" || fail "equal: rc=$rc $(cat "$T/bout")"
-printf '%s\n' '{"metrics":{"ci_initial_gzip_kb":9.1}}' >"$T/eqrep.json"
+printf '%s\n' '{"metrics":{"ci_initial_gzip_kb":9.1,"ci_home_gzip_kb":9}}' >"$T/eqrep.json"
 python3 "$PY" check --report "$T/eqrep.json" --budgets "$T/eqbud.json" --require ci >"$T/bout" 2>&1
 rc=$?
 [[ $rc -eq 1 ]] && grep -q '^FAIL ci_initial_gzip_kb 9.1 > 9$' "$T/bout" \
@@ -273,7 +334,7 @@ import json, sys
 d = json.load(open(sys.argv[1]))
 c = d.get("ceilings") or {}
 b = (d.get("basis") or {}).get("metrics") or {}
-keys = ["ci_initial_gzip_kb", "dev_initial_gzip_kb",
+keys = ["ci_initial_gzip_kb", "ci_home_gzip_kb", "dev_initial_gzip_kb",
         "view_me_p95_ms", "view_channels_p95_ms", "view_roster_p95_ms"]
 for k in keys:
     if not isinstance(c.get(k), (int, float)) or float(c[k]) <= 0:

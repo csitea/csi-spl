@@ -5,7 +5,8 @@
     "dev_initial_gzip_kb": 241.5,
     "view_me_p95_ms": 2357,
     "view_channels_p95_ms": 2300,
-    "view_roster_p95_ms": 2633
+    "view_roster_p95_ms": 2633,
+    "ci_home_gzip_kb": 351.2
   },
   "basis": {
     "measured_utc": "2026-09-25T18:38:45Z",
@@ -28,10 +29,12 @@
       "view_channels_p50_ms": 759.6,
       "view_channels_p95_ms": 1149.7,
       "view_roster_p50_ms": 725.6,
-      "view_roster_p95_ms": 1316.5
+      "view_roster_p95_ms": 1316.5,
+      "ci_home_gzip_kb": 351.2
     },
     "ci_gzip_kb_before_rebase": 218.8,
     "view_ttfb_measured_utc": "2026-09-25T19:50:48Z",
-    "view_ttfb_hub_commit": "143229e55b28"
+    "view_ttfb_hub_commit": "143229e55b28",
+    "ci_home_gzip_kb_basis": "ci_home_gzip_kb is the same set rule applied to the prerendered index.html (spec 109 T002, FR-002, D3): 351.2 KB over 85 chunks on a mock nuxt generate at trunk f5a3745d8, 2026-10-08, n=1 (chunk names are content hashes, so a tree gives one value). The ceiling is that measured value with no headroom and is never ratcheted up; spec 109 T003 lowers it (target <= 175 KB)."
   }
 }

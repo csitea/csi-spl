@@ -24,7 +24,7 @@ and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
 
 ## 2. Roadmap counts (one rule)
 
-- [ ] **ORC-1**: `do_spl_spec_progress` (spec 5.1).
+- [x] **ORC-1**: `do_spl_spec_progress` (spec 5.1).
   - Depends: none.
   - Owns: `csi-spl-orc/src/bash/run/spl-spec-progress.func.sh`, `csi-spl-orc/src/bash/tests/spl-spec-progress.tst.sh`, its fixture tree under `csi-spl-orc/src/bash/tests/fixtures/spec-progress/`.
   - Done: `./run -a do_spl_spec_progress` prints TSV `spec state x p o pct`, one row per spec dir, and a total line naming the sha; on `fecc09693` with 112 left out it reads 16 done / 59 in-progress / 14 no-boxes / 0 planned / 22 no-tasks (5.2). `--sha <ref>` reads `git archive`; `--json` writes the `roadmap.json` shape. Test: a fixture with one spec per state plus a spec whose only open box is `[~]`, which must read `in-progress` with pct = floor(100 x / (x+p+o)). Control: counting `[~]` as done turns that case red.

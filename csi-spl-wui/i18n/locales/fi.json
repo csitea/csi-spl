@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Linkkien esikatselut",
       "hint": "Linkki tämän työtilan aiheeseen tai viestiin näyttää viestin alla lyhyen esikatselun: otsikon, muutaman rivin ja kirjoittajan. Vain sinulle."
+    },
+    "hours_reading": {
+      "label": "Laske lukuaikani",
+      "hint": "Kun tämä välilehti on auki ja olet aktiivinen siinä, nämä minuutit lasketaan ehdotettuihin tunteihisi. Pois: vain viestisi ja tapaamisesi lasketaan. Vain sinä näet nämä minuutit. Tallennetaan tähän työtilaan."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Kuka voi arkistoida aiheen ja palauttaa sen arkistosta tässä työtilassa. Arkistointi piilottaa aiheen kanavista, yksityisviesteistä ja hausta; se ei poista aihetta.",
     "archive_policy_everyone": "Kaikki",
     "archive_policy_admins": "Vain ylläpitäjät ja omistajat",
-    "archive_policy_starter": "Aiheen aloittaja (ja ylläpitäjät)"
+    "archive_policy_starter": "Aiheen aloittaja (ja ylläpitäjät)",
+    "hours_title": "Tunnit",
+    "hours_hint": "Miten tehty työaika lasketaan ja milloin jakso lukittuu, tämän työtilan jokaiselle jäsenelle.",
+    "hours_period": "Jakso",
+    "hours_period_week": "Viikko (maanantaista sunnuntaihin)",
+    "hours_period_two_weeks": "Kaksi viikkoa",
+    "hours_period_month": "Kuukausi",
+    "hours_grace": "Päiviä ennen jakson lukittumista",
+    "hours_grace_hint": "Jakson päätyttyä jäsenet voivat vielä muokata sitä näin monta päivää ({min}–{max}).",
+    "hours_idle": "Tauon raja (minuuttia)",
+    "hours_idle_hint": "Kahden toiminnon välinen tauko enintään tämän pituisena lasketaan työksi ({min}–{max}).",
+    "hours_tz": "Aikavyöhyke",
+    "hours_tz_hint": "Päivät ja lukitus seuraavat tätä vyöhykettä."
   },
   "help": {
     "title": "Ohje",

@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Náhľady odkazov",
       "hint": "Odkaz na tému alebo správu z tohto pracovného priestoru zobrazí pod správou krátky náhľad: názov, pár riadkov a autora. Len pre vás."
+    },
+    "hours_reading": {
+      "label": "Počítať môj čas čítania",
+      "hint": "Kým je táto karta otvorená a ste v nej aktívni, tieto minúty sa započítajú do navrhovaných hodín. Vypnuté: počítajú sa len vaše príspevky a stretnutia. Tieto minúty vidíte len vy. Uložené pre tento pracovný priestor."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Kto môže v tomto pracovnom priestore archivovať tému a obnoviť ju z archívu. Archivácia skryje tému v kanáloch, priamych správach a vo vyhľadávaní; neodstráni ju.",
     "archive_policy_everyone": "Všetci",
     "archive_policy_admins": "Iba správcovia a vlastníci",
-    "archive_policy_starter": "Autor témy (a správcovia)"
+    "archive_policy_starter": "Autor témy (a správcovia)",
+    "hours_title": "Hodiny",
+    "hours_hint": "Ako sa počíta odpracovaný čas a kedy sa obdobie zmrazí, pre každého člena tohto pracovného priestoru.",
+    "hours_period": "Obdobie",
+    "hours_period_week": "Týždeň (pondelok až nedeľa)",
+    "hours_period_two_weeks": "Dva týždne",
+    "hours_period_month": "Mesiac",
+    "hours_grace": "Dni do zmrazenia obdobia",
+    "hours_grace_hint": "Po skončení obdobia ho členovia môžu ešte toľko dní upravovať ({min} až {max}).",
+    "hours_idle": "Hranica nečinnosti (minúty)",
+    "hours_idle_hint": "Prestávka medzi dvoma akciami do tejto dĺžky sa počíta ako práca ({min} až {max}).",
+    "hours_tz": "Časové pásmo",
+    "hours_tz_hint": "Dni a zmrazenie sa riadia týmto pásmom."
   },
   "help": {
     "title": "Pomoc",

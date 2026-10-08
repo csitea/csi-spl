@@ -492,6 +492,11 @@ export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale
     saveKeyboardShortcuts(on) {
       return post('/preferences', { keyboard_shortcuts: typeof on === 'boolean' ? on : null }, 'PUT')
     },
+    // Spec 107 1.2: "Count my reading time", per tenant (rdb 0078); null
+    // clears it (back to the default, on).
+    saveHoursReading(on) {
+      return post('/preferences', { hours_reading: typeof on === 'boolean' ? on : null }, 'PUT')
+    },
     // SPL-1182: the two divider widths, per tenant (rdb 0078); null clears.
     savePaneSizes(sizes) {
       const obj = sizes && typeof sizes === 'object' && !Array.isArray(sizes) && Object.keys(sizes).length ? sizes : null

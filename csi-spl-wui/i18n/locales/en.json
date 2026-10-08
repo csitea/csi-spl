@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Link previews",
       "hint": "A link to a topic or a message of this workspace shows a short preview under the message: its title, a few lines and who wrote it. Only for you."
+    },
+    "hours_reading": {
+      "label": "Count my reading time",
+      "hint": "While this tab is open and you are active in it, those minutes count towards your suggested hours. Off: only your posts and meetings count. Only you see these minutes. Kept for this workspace."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Who may archive and unarchive a topic in this workspace. Archiving hides a topic from channels, direct messages and search; it does not delete it.",
     "archive_policy_everyone": "Everyone",
     "archive_policy_admins": "Admins and owners only",
-    "archive_policy_starter": "The topic's starter (and admins)"
+    "archive_policy_starter": "The topic's starter (and admins)",
+    "hours_title": "Hours",
+    "hours_hint": "How time worked is counted and when a period freezes, for every member of this workspace.",
+    "hours_period": "Period",
+    "hours_period_week": "Week (Monday to Sunday)",
+    "hours_period_two_weeks": "Two weeks",
+    "hours_period_month": "Month",
+    "hours_grace": "Days before a period freezes",
+    "hours_grace_hint": "After a period ends, members can still edit it for this many days ({min} to {max}).",
+    "hours_idle": "Idle cutoff (minutes)",
+    "hours_idle_hint": "A gap between two actions up to this long counts as worked ({min} to {max}).",
+    "hours_tz": "Time zone",
+    "hours_tz_hint": "Days and the freeze follow this zone."
   },
   "help": {
     "title": "Help",

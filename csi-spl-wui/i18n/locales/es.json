@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Vista previa de enlaces",
       "hint": "Un enlace a un tema o mensaje de este espacio de trabajo muestra una breve vista previa bajo el mensaje: título, unas líneas y quién lo escribió. Solo para ti."
+    },
+    "hours_reading": {
+      "label": "Contar mi tiempo de lectura",
+      "hint": "Mientras esta pestaña está abierta y estás activo en ella, esos minutos cuentan para tus horas sugeridas. Desactivado: solo cuentan tus publicaciones y reuniones. Solo tú ves estos minutos. Se guarda para este espacio de trabajo."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Quién puede archivar y desarchivar un tema en este espacio de trabajo. Archivar oculta un tema en canales, mensajes directos y búsqueda; no lo elimina.",
     "archive_policy_everyone": "Todos",
     "archive_policy_admins": "Solo administradores y propietarios",
-    "archive_policy_starter": "Quien inició el tema (y los administradores)"
+    "archive_policy_starter": "Quien inició el tema (y los administradores)",
+    "hours_title": "Horas",
+    "hours_hint": "Cómo se cuenta el tiempo trabajado y cuándo se congela un periodo, para cada miembro de este espacio de trabajo.",
+    "hours_period": "Periodo",
+    "hours_period_week": "Semana (de lunes a domingo)",
+    "hours_period_two_weeks": "Dos semanas",
+    "hours_period_month": "Mes",
+    "hours_grace": "Días antes de que un periodo se congele",
+    "hours_grace_hint": "Al terminar un periodo, los miembros aún pueden editarlo durante estos días ({min} a {max}).",
+    "hours_idle": "Corte por inactividad (minutos)",
+    "hours_idle_hint": "Una pausa entre dos acciones de hasta esta duración cuenta como trabajada ({min} a {max}).",
+    "hours_tz": "Zona horaria",
+    "hours_tz_hint": "Los días y la congelación siguen esta zona."
   },
   "help": {
     "title": "Ayuda",

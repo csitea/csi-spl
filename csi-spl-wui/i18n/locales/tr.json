@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Bağlantı önizlemeleri",
       "hint": "Bu çalışma alanındaki bir konuya veya mesaja verilen bağlantı, mesajın altında kısa bir önizleme gösterir: başlık, birkaç satır ve yazan kişi. Yalnızca sizin için."
+    },
+    "hours_reading": {
+      "label": "Okuma süremi say",
+      "hint": "Bu sekme açıkken ve içinde etkinken, o dakikalar önerilen saatlerinize sayılır. Kapalı: yalnızca gönderileriniz ve toplantılarınız sayılır. Bu dakikaları yalnızca siz görürsünüz. Bu çalışma alanı için saklanır."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Bu çalışma alanında bir konuyu kimlerin arşivleyebileceği ve arşivden çıkarabileceği. Arşivleme bir konuyu kanallarda, doğrudan mesajlarda ve aramada gizler; silmez.",
     "archive_policy_everyone": "Herkes",
     "archive_policy_admins": "Yalnızca yöneticiler ve sahipler",
-    "archive_policy_starter": "Konuyu başlatan kişi (ve yöneticiler)"
+    "archive_policy_starter": "Konuyu başlatan kişi (ve yöneticiler)",
+    "hours_title": "Saatler",
+    "hours_hint": "Çalışılan sürenin nasıl sayıldığı ve bir dönemin ne zaman dondurulduğu, bu çalışma alanının her üyesi için.",
+    "hours_period": "Dönem",
+    "hours_period_week": "Hafta (pazartesiden pazara)",
+    "hours_period_two_weeks": "İki hafta",
+    "hours_period_month": "Ay",
+    "hours_grace": "Dönem dondurulmadan önceki gün sayısı",
+    "hours_grace_hint": "Bir dönem bittikten sonra üyeler onu bu kadar gün daha düzenleyebilir ({min}–{max}).",
+    "hours_idle": "Boşta kalma sınırı (dakika)",
+    "hours_idle_hint": "İki işlem arasındaki bu uzunluğa kadar bir ara çalışılmış sayılır ({min}–{max}).",
+    "hours_tz": "Saat dilimi",
+    "hours_tz_hint": "Günler ve dondurma bu dilimi izler."
   },
   "help": {
     "title": "Yardım",

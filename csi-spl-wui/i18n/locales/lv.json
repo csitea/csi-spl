@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Saišu priekšskatījumi",
       "hint": "Saite uz šīs darbvietas tēmu vai ziņu zem ziņas parāda īsu priekšskatījumu: virsrakstu, dažas rindas un autoru. Tikai jums."
+    },
+    "hours_reading": {
+      "label": "Skaitīt manu lasīšanas laiku",
+      "hint": "Kamēr šī cilne ir atvērta un tajā esat aktīvs, šīs minūtes tiek ieskaitītas ieteiktajās stundās. Izslēgts: tiek skaitīti tikai jūsu ieraksti un sapulces. Šīs minūtes redzat tikai jūs. Saglabāts šai darbvietai."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Kas šajā darbvietā var arhivēt tēmu un atjaunot to no arhīva. Arhivēšana paslēpj tēmu kanālos, tiešajās ziņās un meklēšanā; tā tēmu neizdzēš.",
     "archive_policy_everyone": "Visi",
     "archive_policy_admins": "Tikai administratori un īpašnieki",
-    "archive_policy_starter": "Tēmas aizsācējs (un administratori)"
+    "archive_policy_starter": "Tēmas aizsācējs (un administratori)",
+    "hours_title": "Stundas",
+    "hours_hint": "Kā tiek uzskaitīts nostrādātais laiks un kad periods tiek iesaldēts, katram šīs darbvietas dalībniekam.",
+    "hours_period": "Periods",
+    "hours_period_week": "Nedēļa (no pirmdienas līdz svētdienai)",
+    "hours_period_two_weeks": "Divas nedēļas",
+    "hours_period_month": "Mēnesis",
+    "hours_grace": "Dienas līdz perioda iesaldēšanai",
+    "hours_grace_hint": "Pēc perioda beigām dalībnieki to vēl var labot tik dienas ({min}–{max}).",
+    "hours_idle": "Dīkstāves robeža (minūtes)",
+    "hours_idle_hint": "Pauze starp divām darbībām līdz šim garumam tiek skaitīta kā darbs ({min}–{max}).",
+    "hours_tz": "Laika josla",
+    "hours_tz_hint": "Dienas un iesaldēšana seko šai joslai."
   },
   "help": {
     "title": "Palīdzība",

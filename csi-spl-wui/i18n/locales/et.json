@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Linkide eelvaated",
       "hint": "Link selle tööruumi teemale või sõnumile näitab sõnumi all lühikest eelvaadet: pealkirja, paari rida ja autorit. Ainult sulle."
+    },
+    "hours_reading": {
+      "label": "Arvesta minu lugemisaega",
+      "hint": "Kui see vahekaart on avatud ja oled selles aktiivne, lähevad need minutid sinu soovitatud tundide hulka. Väljas: arvestatakse ainult sinu postitusi ja koosolekuid. Neid minuteid näed ainult sina. Kehtib selles tööruumis."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Kes saab selles tööruumis teemat arhiveerida ja arhiivist taastada. Arhiveerimine peidab teema kanalites, otsesõnumites ja otsingus; see ei kustuta teemat.",
     "archive_policy_everyone": "Kõik",
     "archive_policy_admins": "Ainult administraatorid ja omanikud",
-    "archive_policy_starter": "Teema alustaja (ja administraatorid)"
+    "archive_policy_starter": "Teema alustaja (ja administraatorid)",
+    "hours_title": "Tunnid",
+    "hours_hint": "Kuidas töötatud aega arvestatakse ja millal periood lukustub, selle tööruumi igale liikmele.",
+    "hours_period": "Periood",
+    "hours_period_week": "Nädal (esmaspäevast pühapäevani)",
+    "hours_period_two_weeks": "Kaks nädalat",
+    "hours_period_month": "Kuu",
+    "hours_grace": "Päevi enne perioodi lukustumist",
+    "hours_grace_hint": "Pärast perioodi lõppu saavad liikmed seda veel nii mitu päeva muuta ({min} kuni {max}).",
+    "hours_idle": "Jõudeoleku piir (minutit)",
+    "hours_idle_hint": "Kahe tegevuse vaheline paus kuni selle pikkuseni loetakse tööks ({min} kuni {max}).",
+    "hours_tz": "Ajavöönd",
+    "hours_tz_hint": "Päevad ja lukustumine järgivad seda vööndit."
   },
   "help": {
     "title": "Abi",

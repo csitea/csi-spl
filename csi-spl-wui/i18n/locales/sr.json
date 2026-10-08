@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Преглед веза",
       "hint": "Веза ка теми или поруци из овог радног простора приказује кратак преглед испод поруке: наслов, неколико редова и аутора. Само за вас."
+    },
+    "hours_reading": {
+      "label": "Рачунај моје време читања",
+      "hint": "Док је ова картица отворена и активни сте у њој, ти минути се рачунају у ваше предложене сате. Искључено: рачунају се само ваше објаве и састанци. Само ви видите ове минуте. Чува се за овај радни простор."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Ko može da arhivira temu i da je vrati iz arhive u ovom radnom prostoru. Arhiviranje skriva temu u kanalima, direktnim porukama i pretrazi; ne briše je.",
     "archive_policy_everyone": "Svi",
     "archive_policy_admins": "Samo administratori i vlasnici",
-    "archive_policy_starter": "Onaj ko je započeo temu (i administratori)"
+    "archive_policy_starter": "Onaj ko je započeo temu (i administratori)",
+    "hours_title": "Сати",
+    "hours_hint": "Како се рачуна радно време и када се период замрзава, за сваког члана овог радног простора.",
+    "hours_period": "Период",
+    "hours_period_week": "Недеља (од понедељка до недеље)",
+    "hours_period_two_weeks": "Две недеље",
+    "hours_period_month": "Месец",
+    "hours_grace": "Дана пре замрзавања периода",
+    "hours_grace_hint": "Након краја периода чланови га још могу мењати толико дана ({min} до {max}).",
+    "hours_idle": "Праг неактивности (минути)",
+    "hours_idle_hint": "Пауза између две радње до ове дужине рачуна се као рад ({min} до {max}).",
+    "hours_tz": "Временска зона",
+    "hours_tz_hint": "Дани и замрзавање прате ову зону."
   },
   "help": {
     "title": "Помоћ",

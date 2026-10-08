@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Linkvoorbeelden",
       "hint": "Een link naar een onderwerp of bericht in deze werkruimte toont een kort voorbeeld onder het bericht: titel, een paar regels en wie het schreef. Alleen voor jou."
+    },
+    "hours_reading": {
+      "label": "Mijn leestijd meetellen",
+      "hint": "Zolang dit tabblad open is en je er actief in bent, tellen die minuten mee voor je voorgestelde uren. Uit: alleen je berichten en vergaderingen tellen. Alleen jij ziet deze minuten. Bewaard voor deze werkruimte."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Wie in deze werkruimte een onderwerp mag archiveren en uit het archief halen. Archiveren verbergt een onderwerp in kanalen, directe berichten en zoeken; het verwijdert het niet.",
     "archive_policy_everyone": "Iedereen",
     "archive_policy_admins": "Alleen beheerders en eigenaren",
-    "archive_policy_starter": "Wie het onderwerp startte (en beheerders)"
+    "archive_policy_starter": "Wie het onderwerp startte (en beheerders)",
+    "hours_title": "Uren",
+    "hours_hint": "Hoe gewerkte tijd wordt geteld en wanneer een periode bevriest, voor elk lid van deze werkruimte.",
+    "hours_period": "Periode",
+    "hours_period_week": "Week (maandag tot zondag)",
+    "hours_period_two_weeks": "Twee weken",
+    "hours_period_month": "Maand",
+    "hours_grace": "Dagen voordat een periode bevriest",
+    "hours_grace_hint": "Na het einde van een periode kunnen leden die nog zoveel dagen bewerken ({min} tot {max}).",
+    "hours_idle": "Inactiviteitsgrens (minuten)",
+    "hours_idle_hint": "Een pauze tussen twee acties tot deze lengte telt als gewerkt ({min} tot {max}).",
+    "hours_tz": "Tijdzone",
+    "hours_tz_hint": "De dagen en het bevriezen volgen deze zone."
   },
   "help": {
     "title": "Help",

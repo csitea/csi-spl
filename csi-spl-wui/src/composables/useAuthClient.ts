@@ -22,6 +22,7 @@ type PerTenantPrefSaves = {
   savePaneSizes(sizes: Record<string, number | Record<string, number>> | null): ReturnType<AuthClient['saveIssueColumns']>
   saveTimeZone(zone: string | null): ReturnType<AuthClient['saveIssueColumns']>
   saveKeyboardShortcuts(on: boolean | null): ReturnType<AuthClient['saveIssueColumns']>
+  saveHoursReading(on: boolean | null): ReturnType<AuthClient['saveIssueColumns']>
   // specs/054: same reason — vue-tsc drops these from the big literal's inferred
   // type; declare them so the call sites type. Keep in sync with auth-client.mjs.
   actAsStart(humanId: string): ReturnType<AuthClient['login']>

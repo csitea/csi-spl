@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Podgląd linków",
       "hint": "Link do tematu lub wiadomości z tej przestrzeni roboczej pokazuje pod wiadomością krótki podgląd: tytuł, kilka wierszy i autora. Tylko dla Ciebie."
+    },
+    "hours_reading": {
+      "label": "Licz mój czas czytania",
+      "hint": "Gdy ta karta jest otwarta i jesteś w niej aktywny, te minuty wliczają się do proponowanych godzin. Wyłączone: liczą się tylko Twoje wpisy i spotkania. Tylko Ty widzisz te minuty. Zapisywane dla tej przestrzeni roboczej."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Kto może archiwizować temat i przywracać go z archiwum w tym obszarze roboczym. Archiwizacja ukrywa temat w kanałach, wiadomościach bezpośrednich i wyszukiwaniu; nie usuwa go.",
     "archive_policy_everyone": "Wszyscy",
     "archive_policy_admins": "Tylko administratorzy i właściciele",
-    "archive_policy_starter": "Autor tematu (i administratorzy)"
+    "archive_policy_starter": "Autor tematu (i administratorzy)",
+    "hours_title": "Godziny",
+    "hours_hint": "Jak liczony jest czas pracy i kiedy okres zostaje zamrożony, dla każdego członka tej przestrzeni roboczej.",
+    "hours_period": "Okres",
+    "hours_period_week": "Tydzień (od poniedziałku do niedzieli)",
+    "hours_period_two_weeks": "Dwa tygodnie",
+    "hours_period_month": "Miesiąc",
+    "hours_grace": "Dni do zamrożenia okresu",
+    "hours_grace_hint": "Po zakończeniu okresu członkowie mogą go jeszcze edytować przez tyle dni ({min}–{max}).",
+    "hours_idle": "Próg bezczynności (minuty)",
+    "hours_idle_hint": "Przerwa między dwiema czynnościami do tej długości liczy się jako praca ({min}–{max}).",
+    "hours_tz": "Strefa czasowa",
+    "hours_tz_hint": "Dni i zamrożenie są liczone w tej strefie."
   },
   "help": {
     "title": "Pomoc",

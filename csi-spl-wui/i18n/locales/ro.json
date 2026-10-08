@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Previzualizare linkuri",
       "hint": "Un link către un subiect sau un mesaj din acest spațiu de lucru afișează sub mesaj o scurtă previzualizare: titlul, câteva rânduri și autorul. Doar pentru tine."
+    },
+    "hours_reading": {
+      "label": "Numără timpul meu de citire",
+      "hint": "Cât timp această filă este deschisă și ești activ în ea, acele minute se adaugă la orele sugerate. Oprit: se numără doar postările și întâlnirile tale. Doar tu vezi aceste minute. Păstrat pentru acest spațiu de lucru."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Cine poate arhiva un subiect și îl poate scoate din arhivă în acest spațiu de lucru. Arhivarea ascunde un subiect în canale, mesaje directe și căutare; nu îl șterge.",
     "archive_policy_everyone": "Toată lumea",
     "archive_policy_admins": "Doar administratorii și proprietarii",
-    "archive_policy_starter": "Cel care a început subiectul (și administratorii)"
+    "archive_policy_starter": "Cel care a început subiectul (și administratorii)",
+    "hours_title": "Ore",
+    "hours_hint": "Cum se numără timpul lucrat și când se îngheață o perioadă, pentru fiecare membru al acestui spațiu de lucru.",
+    "hours_period": "Perioadă",
+    "hours_period_week": "Săptămână (luni până duminică)",
+    "hours_period_two_weeks": "Două săptămâni",
+    "hours_period_month": "Lună",
+    "hours_grace": "Zile până la înghețarea unei perioade",
+    "hours_grace_hint": "După încheierea unei perioade, membrii o mai pot edita atâtea zile ({min}–{max}).",
+    "hours_idle": "Prag de inactivitate (minute)",
+    "hours_idle_hint": "O pauză între două acțiuni de până la această durată se numără ca lucrată ({min}–{max}).",
+    "hours_tz": "Fus orar",
+    "hours_tz_hint": "Zilele și înghețarea urmează acest fus."
   },
   "help": {
     "title": "Ajutor",

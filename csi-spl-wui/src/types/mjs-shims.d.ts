@@ -103,7 +103,7 @@ declare module '~/utils/spool-client.mjs' {
     revokeSeat(boxId: string): Promise<unknown>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
-    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number } }): Promise<unknown>
+    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
     listTenantChannels(): Promise<unknown>

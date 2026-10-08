@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Nuorodų peržiūros",
       "hint": "Nuoroda į šios darbo erdvės temą ar žinutę po žinute rodo trumpą peržiūrą: pavadinimą, kelias eilutes ir autorių. Tik jums."
+    },
+    "hours_reading": {
+      "label": "Skaičiuoti mano skaitymo laiką",
+      "hint": "Kol šis skirtukas atidarytas ir jame esate aktyvūs, tos minutės įskaitomos į siūlomas valandas. Išjungta: skaičiuojami tik jūsų įrašai ir susitikimai. Šias minutes matote tik jūs. Saugoma šiai darbo erdvei."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Kas šioje darbo srityje gali archyvuoti temą ir grąžinti ją iš archyvo. Archyvavimas paslepia temą kanaluose, tiesioginėse žinutėse ir paieškoje; jos neištrina.",
     "archive_policy_everyone": "Visi",
     "archive_policy_admins": "Tik administratoriai ir savininkai",
-    "archive_policy_starter": "Temos pradėjėjas (ir administratoriai)"
+    "archive_policy_starter": "Temos pradėjėjas (ir administratoriai)",
+    "hours_title": "Valandos",
+    "hours_hint": "Kaip skaičiuojamas dirbtas laikas ir kada laikotarpis užšaldomas, kiekvienam šios darbo erdvės nariui.",
+    "hours_period": "Laikotarpis",
+    "hours_period_week": "Savaitė (nuo pirmadienio iki sekmadienio)",
+    "hours_period_two_weeks": "Dvi savaitės",
+    "hours_period_month": "Mėnuo",
+    "hours_grace": "Dienos iki laikotarpio užšaldymo",
+    "hours_grace_hint": "Pasibaigus laikotarpiui, nariai dar gali jį redaguoti tiek dienų ({min}–{max}).",
+    "hours_idle": "Neveiklumo riba (minutės)",
+    "hours_idle_hint": "Pertrauka tarp dviejų veiksmų iki šios trukmės laikoma darbu ({min}–{max}).",
+    "hours_tz": "Laiko juosta",
+    "hours_tz_hint": "Dienos ir užšaldymas vadovaujasi šia juosta."
   },
   "help": {
     "title": "Pagalba",

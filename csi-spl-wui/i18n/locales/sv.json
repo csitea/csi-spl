@@ -212,6 +212,10 @@
     "link_previews": {
       "label": "Förhandsvisning av länkar",
       "hint": "En länk till ett ämne eller ett meddelande i den här arbetsytan visar en kort förhandsvisning under meddelandet: rubrik, några rader och vem som skrev det. Bara för dig."
+    },
+    "hours_reading": {
+      "label": "Räkna min lästid",
+      "hint": "Medan den här fliken är öppen och du är aktiv i den räknas de minuterna till dina föreslagna timmar. Av: bara dina inlägg och möten räknas. Bara du ser de här minuterna. Sparas för den här arbetsytan."
     }
   },
   "auth": {
@@ -1582,7 +1586,19 @@
     "archive_policy_hint": "Vem som får arkivera ett ämne och återställa det från arkivet i den här arbetsytan. Arkivering döljer ett ämne i kanaler, direktmeddelanden och sökning; det raderar det inte.",
     "archive_policy_everyone": "Alla",
     "archive_policy_admins": "Endast administratörer och ägare",
-    "archive_policy_starter": "Den som startade ämnet (och administratörer)"
+    "archive_policy_starter": "Den som startade ämnet (och administratörer)",
+    "hours_title": "Timmar",
+    "hours_hint": "Hur arbetad tid räknas och när en period fryses, för varje medlem i den här arbetsytan.",
+    "hours_period": "Period",
+    "hours_period_week": "Vecka (måndag till söndag)",
+    "hours_period_two_weeks": "Två veckor",
+    "hours_period_month": "Månad",
+    "hours_grace": "Dagar innan en period fryses",
+    "hours_grace_hint": "När en period har slutat kan medlemmar fortfarande redigera den så här många dagar ({min} till {max}).",
+    "hours_idle": "Gräns för inaktivitet (minuter)",
+    "hours_idle_hint": "Ett uppehåll mellan två handlingar upp till den här längden räknas som arbetat ({min} till {max}).",
+    "hours_tz": "Tidszon",
+    "hours_tz_hint": "Dagarna och frysningen följer den här zonen."
   },
   "help": {
     "title": "Hjälp",

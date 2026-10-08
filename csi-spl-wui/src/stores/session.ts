@@ -53,6 +53,8 @@ export interface SessionClaims {
   time_zone?: string | null
   /** HUM-10 ae2e5093 The message Shift+letter shortcuts, per workspace; null = never picked = on. */
   keyboard_shortcuts?: boolean | null
+  /** Spec 107 1.2 "Count my reading time", per workspace; null = never picked = on. */
+  hours_reading?: boolean | null
 }
 
 /** Human sign-in state (spec 010 auth-v1 §3–§4, 015 native). The cookie is HttpOnly; we only probe. */
@@ -184,6 +186,11 @@ export const useSessionStore = defineStore('session', () => {
     if (claims.value) claims.value = { ...claims.value, keyboard_shortcuts: on }
   }
 
+  /** Spec 107 1.2: mirror "Count my reading time" (optimistic; reverted on a failed save). */
+  function setHoursReading(on: boolean | null) {
+    if (claims.value) claims.value = { ...claims.value, hours_reading: on }
+  }
+
   async function logout() {
     const hum = claims.value?.hum
     await auth.logout()
@@ -216,5 +223,5 @@ export const useSessionStore = defineStore('session', () => {
     await logout()
   }
 
-  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, logout, stopActingAs }
+  return { state, claims, label, probe, adopt, signedOut, setPreferredLocale, setDiagnosticsEnabled, setName, setPreferredTheme, setSubmitKey, setRailOrder, setViewPref, setIssuesColumns, setIssuesSort, setPaneSizes, setTimeZone, setKeyboardShortcuts, setHoursReading, logout, stopActingAs }
 })

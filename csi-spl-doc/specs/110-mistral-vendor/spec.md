@@ -124,7 +124,8 @@ the agent user, n = 1 each:
   model, as claude's `additionalContext` does.
 - **Automated use.** Whether the ToS limits automated or non-interactive
   agent use. Not read; the pricing page only says "Subject to fair usage
-  limits and Mistral's Terms of Service".
+  limits and Mistral's Terms of Service". Read 2026-10-08 (T014): no clause
+  bars it, quoted in 5.1.
 - **EU data residency.** Only third-party sources claim it.
 
 ### 2.2 The action
@@ -472,8 +473,8 @@ A new `isg/mistral-agent-setup.ISG.md` is added.
   default, Team admins can opt out the whole org, and Enterprise is opted out
   by default. **The Vibe and API toggles are separate.**
   - T014 includes turning both off, the owner's act in the account UI.
-- **Limits.** No published Vibe limits per plan, and the ToS was not read
-  (2.1). A lane at grok's 55 % share is a heavy user. The Pro "fair usage"
+- **Limits.** No published Vibe limits per plan; the ToS has no
+  automated-use clause (5.1). A lane at grok's 55 % share is a heavy user. The Pro "fair usage"
   ceiling is unknown until measured, so T014 records the first usage-limit
   hit with its time, and that sets the share.
 
@@ -490,6 +491,51 @@ is entered, and no lane runs, until all three hold:
 
 **DECIDED (D3): Team, yearly, one seat per box.** The Team admin turns
 training off for the whole org (precondition 1).
+
+### 5.1 T014 record (c-595, read 2026-10-08)
+
+| item | state | source |
+|---|---|---|
+| 1. training toggles (Vibe + API) off | **open**: asked of the dispatch lease holder (c-002@sat, msg 3a6c3d1f), who asked HUM-10 in t1 (post 817d1623, both switches OFF in each account); no confirmation yet. His msg id goes here | owner |
+| 2. ToS clause on automated use | **quoted below**: no clause bars automated or agent use | `legal.mistral.ai/terms/commercial-terms-of-service`, effective 2026-09-25, read 2026-10-08 |
+| 3. API retention | **30 rolling days** for abuse monitoring (quoted below) | `legal.mistral.ai/terms/privacy-policy`, effective 2026-09-03, read 2026-10-08 |
+| 4. plan the installed key bills to | **Team** (`plan_name: TEAM`, `plan_type: CHAT`, `organization_kind: S`, customer id prefix `06650ce8`) | live `GET console.mistral.ai/api/vibe/whoami` with the satellite key, as the agent user, 2026-10-08T21:01Z, HTTP 200 (n = 1) |
+| cost cap in force | the **console spend limit, 20 a month** | owner HUM-10, t1 5c3bb16a, msg e147e6f2 |
+
+- **ToS, automated use.** Team is a commercial plan, so the Commercial Terms
+  apply. Their Use Restrictions (2.2) do not mention automated, scripted or
+  agent use. They name agents only as input: Customer Data includes "coding
+  environment, fine-tuning data, or agent instructions" (3.1). The nearest
+  clauses: 2.2 (g) "use any method to extract any content from the Mistral AI
+  Products other than as permitted through the Mistral AI Products in
+  accordance with these Terms"; (h) "buy, sell, or transfer API keys or any
+  type of Mistral AI account from, to, or with a third party"; (i)
+  "integrate or combine Vibe with your own products you offer to
+  third-parties [...] nor grant any third party access to the Mistral AI
+  Products without our prior written authorization". The fleet uses Vibe
+  internally and gives no third party access, so none of them applies. The
+  Usage Policy (effective 2026-06-11) has no automated-use clause either.
+- **API retention** (Privacy Policy, section 5): "Except for specific APIs,
+  we keep your Input and Output for the period necessary to generate the
+  Output and then for thirty (30) rolling days to monitor abuse (unless zero
+  data retention is activated). If you use our Agents API, we keep your Input
+  and Output until you terminate your account." Seat 4's belief (30 days) is
+  now checked. Vibe sessions are not the Agents API.
+- **Key and plan.** The installed key file on both boxes has the same sha256
+  prefix `38bbe6fd0a60` (c-002, n = 1). That is the hash of the `.env` file.
+  vibe's own `whoami_cache.json` keys an entry by `sha256(key)[:32]`, which is
+  `a94344cfb43b...` for this key, and it caches the same TEAM payload. The
+  earlier "[Subscription] Pro" label is not what this key reports today.
+  vibe maps `CHAT`/`INDIVIDUAL` to "Pro" and `CHAT`/`TEAM` to "Team"
+  (`resolve_user_plan`). So no Team key needs to be minted. The main box was not
+  queried directly: the satellite cannot reach it by ssh. The file hash is the same,
+  so the key is the same.
+- **`--max-price`** caps only `-p` runs, not an interactive seat (c-584,
+  n = 1). So the console limit is the cap that holds.
+- **Keys** were installed by `do_set_mistral_key` (c-560, 64963b526), then
+  replaced by the owner. Both boxes run vibe 2.26.0, the pin, for the agent user.
+- **Pilot:** m-595 (main box) took a doc seat (spec 111 s111-5, 5bace0c59). It
+  took about 18 min, needed one nudge, and left 0 watchdog lines.
 
 ## 6. Data rule
 

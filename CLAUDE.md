@@ -147,3 +147,11 @@ How to apply:
   Chinese), grok or agy, and a brief for those lanes never names a credential
   path. `do_spl_lane_mix` still routes `LANE_MIX_KIND=secret` to claude; a
   mistral lane for such work is a `/mistral-spawn` picked by hand.
+- **Language rule: agy has the final word on multilingual text** (owner
+  HUM-10, 2026-10-08, t1 msg 296582df: "there the final word on the actual
+  content should have the agy - because he is BEST with languages"). Any
+  user-facing text in several languages (blog posts, WUI i18n locale files,
+  help pages) gets an agy review as the LAST step before it ships:
+  `LANE_MIX_KIND=i18n` -> agy. It complements spec 110 D5 (mistral writes docs
+  and low-level code; agy reviews the languages). No agy on the box: claude
+  drafts, and the text waits for an agy review; it never ships unreviewed.

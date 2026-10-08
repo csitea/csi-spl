@@ -3,7 +3,7 @@ name: spawn-an-agent
 description: >
   Route a piece of work to the right agent launcher and spawn it. Name the
   task kind, then let do_spl_lane_mix pick from the box's vendor split
-  (cnf env.box.agent_split): spec work to /agy-spawn, secrets and the most
+  (cnf env.box.agent_split): spec work and multilingual text to /agy-spawn, secrets and the most
   complex coding to /claude-spawn, everything else to the larger of the grok
   and mistral shares (/grok-spawn or /mistral-spawn). An omitted kind and an
   omitted difficulty are that default, not claude. Use when the user says
@@ -29,7 +29,7 @@ Name the task kind, estimate difficulty against your own maximum capacity
 launcher:
 
 ```bash
-cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<spec|secret|hard|> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> ./run -a do_spl_lane_mix
+cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<spec|i18n|secret|hard|> LANE_MIX_DIFFICULTY=<0..100> LANE_MIX_SENSITIVE=<0|1> ./run -a do_spl_lane_mix
 ```
 
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
@@ -41,6 +41,7 @@ approximate ratio, never a quota. Mistral takes grok's share (spec 110 D1):
 | the task | goes to |
 |---|---|
 | spec writing or spec review: `LANE_MIX_KIND=spec` | agy |
+| translation, or the language review of user-facing text in several languages (blog posts, WUI i18n locale files, help pages): `LANE_MIX_KIND=i18n` | agy, whatever the shares: agy has the final word on multilingual text (owner, 2026-10-08) |
 | personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude; mistral may take it too (spec 110 D2), but only when you pick `/mistral-spawn` by hand. Never qwen |
 | the most complex coding: `LANE_MIX_KIND=hard`, or difficulty 60 or more | claude |
 | everything else, tests included: kind unset or `default`, difficulty omitted | the larger share of grok and mistral (mistral once the share has moved) |
@@ -49,7 +50,11 @@ approximate ratio, never a quota. Mistral takes grok's share (spec 110 D1):
 A vendor whose CLI is not installed or not signed in on this box is skipped
 and its share goes to claude (a spec with no agy there goes to claude).
 mistral is the exception (spec 110 D4): a box without `~/.vibe/.env` passes
-its pick down the chain mistral -> agy -> claude. An estimate near the line
+its pick down the chain mistral -> agy -> claude. An `i18n` task with no agy
+there falls to claude (spec 110 D4: the next vendor in the chain): claude
+drafts, and the text WAITS for an agy review before it ships (ask the
+orchestrator for an agy lane on another box). It never ships flagged as
+unreviewed: the owner gave agy the final word. An estimate near the line
 counts as harder than it looks. Omitting the difficulty is the default, not
 a hard task. A user who names a launcher wins over the pick.
 

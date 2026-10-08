@@ -16,6 +16,9 @@
 #          low-level coding go to mistral first while it holds a share (owner
 #          D5), and a skipped mistral falls to agy, then claude (D4); a dead
 #          key (S2 kind=auth) skips it until the marker is re-keyed.
+#          Kind i18n (owner HUM-10 t1 296582df, 2026-10-08): agy has the final
+#          word on multilingual text, whatever the shares; no agy -> claude,
+#          and the text waits for an agy review before it ships.
 #          A fake agent home and registry; the cnf is a copy of the real
 #          all.env.yaml with sections 1..9's split pinned (20/55/25/0/0), so
 #          the T013 share switch in the real cnf does not move them.
@@ -398,6 +401,28 @@ mix LANE_MIX_SPLIT="$M55"
 [[ "$(pick)" == agy ]] && grep -q 'mistral limit (m-951 S2 kind=limit' "$T/out" \
   && pass "10. an m- lane's limit verdict skips mistral (id prefix m)" || fail "10. m limit: $(cat "$T/out")"
 rm -rf "$T/dispatch" "$H/.vibe" "$H/.local/bin/vibe"
+
+# --- 11. kind i18n: agy has the final word on multilingual text --------------
+# control: the code before this kind refused LANE_MIX_KIND=i18n (no pick line)
+registry 4 11 5
+mix LANE_MIX_KIND=i18n; rc=$?
+[[ $rc -eq 0 && "$(pick)" == agy ]] && grep -q 'kind i18n: agy has the final word on multilingual text' "$T/out" \
+  && pass "11. control: kind i18n -> agy (refused before the rule)" || fail "11. i18n: rc=$rc $(cat "$T/out")"
+mix LANE_MIX_KIND=i18n LANE_MIX_SPLIT='claude=20 grok=80 agy=0 qwen=0'
+[[ "$(pick)" == agy ]] && grep -qE '^agy +0% +0% ' "$T/out" \
+  && pass "11. kind i18n -> agy even with an agy share of 0" || fail "11. i18n share 0: $(cat "$T/out")"
+mix LANE_MIX_KIND=i18n LANE_MIX_DIFFICULTY=90
+[[ "$(pick)" == agy ]] && pass "11. kind i18n beats a high difficulty" || fail "11. i18n hard: $(cat "$T/out")"
+mix LANE_MIX_KIND=i18n LANE_MIX_SENSITIVE=1
+[[ "$(pick)" == claude ]] && grep -q 'data rule' "$T/out" \
+  && pass "11. multilingual text that carries secrets still goes to claude" || fail "11. i18n secret: $(cat "$T/out")"
+rm "$H/.local/bin/agy"
+mix LANE_MIX_KIND=i18n
+[[ "$(pick)" == claude ]] && grep -q 'kind i18n but agy is skipped (no agy cli): the text waits for an agy review before it ships; falls to claude' "$T/out" \
+  && pass "11. no agy cli: kind i18n -> claude, the text waits for an agy review" || fail "11. i18n no agy: $(cat "$T/out")"
+printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
+mix LANE_MIX_KIND=default
+[[ "$(pick)" == grok ]] && pass "11. control: kind default stays grok next to i18n" || fail "11. default: $(cat "$T/out")"
 
 mix LANE_MIX_KIND=nope; rc=$?
 [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" \

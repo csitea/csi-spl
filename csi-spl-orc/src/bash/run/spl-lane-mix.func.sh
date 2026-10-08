@@ -8,6 +8,11 @@
 # @description - spec writing, review or docs (LANE_MIX_KIND=spec) -> mistral,
 # @description   then agy, then claude (owner D5, spec 110); agy when mistral
 # @description   holds no share
+# @description - translations and the language review of user-facing text in
+# @description   several languages (LANE_MIX_KIND=i18n) -> agy, whatever the
+# @description   shares (owner HUM-10 t1 296582df, 2026-10-08: agy has the final
+# @description   word on multilingual text); no agy -> claude drafts, and the
+# @description   text waits for an agy review before it ships
 # @description - secrets or personal data (LANE_MIX_SENSITIVE=1, or
 # @description   LANE_MIX_KIND=secret) -> claude
 # @description - the most complex coding (LANE_MIX_KIND=hard, or
@@ -47,7 +52,7 @@
 # @description (`spool fleet-load pause`), so every box skips it.
 # @description Prints a table, then `pick=<vendor> launcher=...`, or `pick=hold`
 # @description when no kind may take the work (secrets with claude off).
-# @param LANE_MIX_KIND (optional) - spec, secret, hard or default; unset is
+# @param LANE_MIX_KIND (optional) - spec, i18n, secret, hard or default; unset is
 # @param   default (mistral or grok, unless a harder signal below says otherwise)
 # @param LANE_MIX_DIFFICULTY (optional) - 0..100, the task against your own
 # @param   capacity; unset is the default (mistral or grok) and prints the easy
@@ -71,6 +76,7 @@
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `fleet-load get|pause ...`
 # @example ./run -a do_spl_lane_mix
 # @example LANE_MIX_KIND=spec ./run -a do_spl_lane_mix
+# @example LANE_MIX_KIND=i18n ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 ./run -a do_spl_lane_mix
 # @example LANE_MIX_DIFFICULTY=30 LANE_MIX_SENSITIVE=1 ./run -a do_spl_lane_mix
 #------------------------------------------------------------------------------
@@ -95,8 +101,8 @@ do_spl_lane_mix() {
   [[ "${LANE_MIX_AUTH_FRESH:-0}" =~ ^[0-9]+$ ]] || {
     do_log "FATAL LANE_MIX_AUTH_FRESH must be whole seconds, got '$LANE_MIX_AUTH_FRESH'"; return 1; }
   case "$kind" in
-    ""|default|spec|secret|hard) ;;
-    *) do_log "FATAL LANE_MIX_KIND must be spec, secret, hard or default, got '$kind'"; return 1 ;;
+    ""|default|spec|i18n|secret|hard) ;;
+    *) do_log "FATAL LANE_MIX_KIND must be spec, i18n, secret, hard or default, got '$kind'"; return 1 ;;
   esac
 
   declare -gA _LM_TGT=() _LM_EFF=() _LM_CNT=() _LM_PCT=() _LM_AVAIL=()
@@ -119,6 +125,11 @@ do_spl_lane_mix() {
     fi
   elif [[ "$kind" == spec ]]; then
     _spl_lane_mix_want "${first[spec]}" "kind spec: specifications go to ${first[spec]}" "kind spec but ${first[spec]} is skipped (${_LM_AVAIL[${first[spec]}]})"
+  elif [[ "$kind" == i18n ]]; then
+    # owner HUM-10 t1 296582df (2026-10-08): agy has the final word on any
+    # user-facing text in several languages, whatever the shares
+    _spl_lane_mix_want agy "kind i18n: agy has the final word on multilingual text" \
+      "kind i18n but agy is skipped (${_LM_AVAIL[agy]}): the text waits for an agy review before it ships"
   elif [[ "$kind" == hard ]]; then
     _spl_lane_mix_want claude "kind hard: the most complex coding goes to claude"
   elif [[ -z "$diff" ]]; then

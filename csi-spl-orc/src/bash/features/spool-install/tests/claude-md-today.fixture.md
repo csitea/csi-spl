@@ -104,6 +104,12 @@ brief never names a credential path. When the estimate sits
 near the line, treat that uncertainty as evidence the task is harder than it
 looks and use `/claude-spawn`.
 
+**Language rule, owner 2026-10-08:** agy has the final word on multilingual
+text. Any user-facing text in several languages (blog posts, WUI i18n locale
+files, help pages) gets an agy review as the LAST step before it ships:
+`/agy-spawn` (`LANE_MIX_KIND=i18n`). With no agy on the box, claude drafts
+and the text waits for an agy review; it never ships unreviewed.
+
 The only limit is **40 concurrent agent windows**. This box is sized for that
 load. Count before spawning:
 

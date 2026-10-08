@@ -15,6 +15,11 @@
 # @description               csi-spl-cnf/csi-spl/ (the env yaml + its rendered
 # @description               tfvars/json): ENV=dev|prd do_tpl_gen must leave the
 # @description               render unchanged. Any other path = the iac suite.
+# @description   blog        csi-spl-doc/blog/ + the check itself: do_spl_blog_check
+# @description               (csi-spl-orc, spec 111 4.4) on the post files the
+# @description               push adds or changes, and the commit shape of
+# @description               PRE_PUSH_BASE..HEAD; reads the ban-list secret
+# @description               (fail closed) only when a post file changed
 # @description   lint-*      the scanner workflows (61..67, 85) + syntax, on the
 # @description               TOUCHED files only -- check-pre-push-lint.func.sh
 # @description   A push that touches none of a part's paths never runs it (it is
@@ -162,6 +167,7 @@ _pp_paths() {  # <part>
     wui-vendor) echo "csi-spl-wui csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" ;;
     api)        echo "csi-spl-api csi-spl-rdb .version" ;;
     cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ;;
+    blog)       echo "csi-spl-doc/blog csi-spl-orc/src/bash/run/spl-blog-check.func.sh" ;;
     lint-*)     _ppl_paths "$1" ;;
     *)          echo "" ;;
   esac
@@ -174,6 +180,7 @@ _pp_label() {  # <part>
     wui)        echo "csi-spl-wui unit + typecheck" ;;
     api)        echo "csi-spl-api suite" ;;
     cnf)        echo "csi-spl-cnf tpl-gen render check (dev, prd)" ;;
+    blog)       echo "blog post check (spec 111 4.4)" ;;
     lint-*)     echo "$1 (touched files, CI's version + baseline)" ;;
   esac
 }
@@ -343,6 +350,10 @@ _pp_missing_tools() {  # <part> <tree>
       _pp_need jq "apt-get install jq"
       _pp_need python3 "apt-get install python3" ;;
     wui-vendor) _pp_need grep "install grep" ;;
+    blog)
+      _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
+      _pp_need jq "apt-get install jq"
+      _pp_need perl "apt-get install perl" ;;
     cnf)
       _pp_need yq "install mikefarah yq v4 (https://github.com/mikefarah/yq) into /usr/local/bin"
       _pp_tpl_gen_dir "$tree" >/dev/null || echo "tpl-gen -- cd csi-spl-iac && ./run -a do_setup_tpl_gen (in the main checkout)" ;;
@@ -436,6 +447,19 @@ _pp_part_wui() {
     "$2" run typecheck  || exit 1
   ' _ "$1" "$pn"
 }
+# The blog post check (spec 111 4.4) on the post files THIS push adds or
+# changes, plus the commit shape of <base>..HEAD, through the orc action. On
+# the base-ref worktree nothing has changed, so it checks nothing and passes:
+# a refused post is always this push's, never waived as "pre-existing".
+# <base> is _pp_run's own (bash scoping).
+_pp_part_blog() {  # <tree>
+  local f files=""
+  while IFS= read -r f; do
+    [[ "$f" =~ ^csi-spl-doc/blog/posts/[^/]+/[^/]+\.md$ && -f "$1/$f" ]] && files+="$f "
+  done < <(_pp_changed "$1" "$base")
+  ( cd "$1/csi-spl-orc" && BLOG_TREE="$1" BLOG_FILES="${files:-none}" BLOG_CHECK_REF="$base" \
+      BLOG_CHECK_RANGE="$base..HEAD" timeout -k 10 "$(_pp_budget _pp_part_blog)" ./run -a do_spl_blog_check )
+}
 # A cnf-only push (the env yaml and its render, nothing else) cannot break what
 # the iac suite tests beyond the render itself, yet ran it for 6+ min (a 4-file
 # workspace mapping, 2026-10-07). Code under csi-spl-cnf/src (conf-validator)
@@ -485,7 +509,7 @@ _pp_part_cnf() {  # <tree>
 _pp_fn() {  # <part>
   case "$1" in
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
-    wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;;
+    wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
     lint-*) echo "_pp_part_${1//-/_}" ;;
   esac
 }
@@ -744,7 +768,7 @@ do_check_pre_push() {
 
   local only="${PRE_PUSH_ONLY:-}"
   case "$only" in ''|lint|override) ;; *) do_log "FATAL pre-push: PRE_PUSH_ONLY must be empty, lint or override (got '$only')"; return 2 ;; esac
-  local all="hygiene iac wui-vendor wui api" parts="hygiene" p changed="" lint
+  local all="hygiene blog iac wui-vendor wui api" parts="hygiene" p changed="" lint
   local -A _PPL_FILES=()
   local _PPL_SELECTED=""
   if [[ "$mode" == full ]]; then
@@ -753,7 +777,7 @@ do_check_pre_push() {
     do_log "WARN pre-push: cannot diff against '$base' (unknown ref?) -- widening to FULL so no gate is skipped silently"
     mode=full; parts="$all"
   else
-    for p in iac wui-vendor wui api; do
+    for p in blog iac wui-vendor wui api; do
       local sel="$changed"
       # wui: an edit to an existing e2e/bench file is not a wui input (CLE-77946:
       # an e2e-only lane re-ran the 150..260 s part after every rebase and lost
@@ -774,7 +798,7 @@ do_check_pre_push() {
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     local lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene $lint_all cnf iac wui-vendor wui api"
+    all="hygiene $lint_all blog cnf iac wui-vendor wui api"
     parts="${parts/hygiene/hygiene${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi

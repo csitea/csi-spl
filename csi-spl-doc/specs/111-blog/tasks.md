@@ -99,14 +99,21 @@ Multilingual text gets agy's review last (repo language rule).
     `WUI/i18n/locales/*.json`.
   - Done: 9-c, 9-d, 9-e (measured on a tree past the 155 KB fix; version,
     tree and n in the report) and 9-f.
-- [ ] T004 **orc check** (needs T001). Builds `do_spl_blog_check` (4.4):
+- [x] T004 **orc check** (needs T001; c-601). Builds `do_spl_blog_check` (4.4):
   every row, including the hex-token resolve on `origin/master`, the
   fail-closed secret ban list that never echoes a pattern, the
   `agy_review` stamp, and the CI commit-shape check. The pre-push gate runs
   it when `csi-spl-doc/blog/**` changes.
   - Vendor: claude (reads a secret). Box: any.
-  - Files: `RUN/blog-check.func.sh` (*new*), `OT/blog-check.tst.sh` (*new*),
-    the pre-push part table.
+  - Files: `RUN/spl-blog-check.func.sh` (*new*; the `./run` loader maps a
+    file to ONE action by its name, so `do_spl_blog_check` lives in
+    `spl-blog-check.func.sh`), `OT/blog-check.tst.sh` (*new*), the pre-push
+    part table (`check-pre-push.func.sh` part `blog`, its test,
+    `pre-push-gate.md` 1.1).
+  - Built: every 4.4 row; the commit shape runs in the pre-push part
+    (`origin/master..HEAD`) and as `BLOG_CHECK_RANGE=<range>` for CI. The
+    ban-list slot has 0 versions in dev and prd today, so a post fails
+    closed until `do_spl_release_note_bans_seed` runs (owner's go).
   - Done: 9-b, every control.
 - [ ] T005 **feed + sitemap** (needs T002). Ports the sibling project's
   feed (spec 047/049): `/blog/feed.xml` (Atom), `/sitemap.xml` with

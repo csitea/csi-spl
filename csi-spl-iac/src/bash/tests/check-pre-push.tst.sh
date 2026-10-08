@@ -106,6 +106,22 @@ p="$(plan)"
 has "$p" api && pass "8. an untracked api file selects api" || fail "8. an untracked api file selects api" "$p"
 rm -f "$T/csi-spl-api/new.go"
 
+# 8b. spec 111 T004: a blog post (or the check itself) selects the blog part;
+#     a doc outside csi-spl-doc/blog does not, and FULL carries it
+mkdir -p "$T/csi-spl-doc/blog/posts/en"; echo a >"$T/csi-spl-doc/blog/posts/en/2026-10-09-x.md"
+p="$(plan)"
+{ has "$p" blog && ! has "$p" iac && ! has "$p" api; } \
+  && pass "8b. a post under csi-spl-doc/blog selects the blog part" || fail "8b. a post selects blog" "$p"
+rm -rf "$T/csi-spl-doc"
+mkdir -p "$T/csi-spl-orc/src/bash/run"; echo a >"$T/csi-spl-orc/src/bash/run/spl-blog-check.func.sh"
+p="$(plan)"
+has "$p" blog && pass "8b. a change to spl-blog-check.func.sh selects the blog part" || fail "8b. the check selects blog" "$p"
+rm -f "$T/csi-spl-orc/src/bash/run/spl-blog-check.func.sh"
+p="$(plan)"
+! has "$p" blog && pass "8b. no blog path: no blog part" || fail "8b. no blog path" "$p"
+p="$(PP_MODE=full plan)"
+has "$p" blog && pass "8b. FULL carries the blog part" || fail "8b. FULL carries blog" "$p"
+
 # 9. functional control: the payment-vendor gate (run on a WUI change) REFUSES a
 #    planted vendor word in a WUI file -- the "stripe" that FAST used to miss.
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)

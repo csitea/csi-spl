@@ -29,6 +29,13 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
 - **Scope** is this push's own commits: `origin/master...HEAD` (from the
   merge-base), plus the working tree. Commits other lanes landed on trunk
   never select a part, before or after the rebase.
+- **The blog part** (spec 111 4.4) runs when the push touches
+  `csi-spl-doc/blog/` or the check itself: `do_spl_blog_check` (csi-spl-orc)
+  on the post files this push adds or changes, plus the commit shape of
+  `origin/master..HEAD`. With a post file it reads the release-note ban list
+  through the per-env SA and fails closed when that list is unreadable or
+  empty. On the trunk worktree nothing has changed, so a refused post is never
+  waived as WARN-pre-existing.
 - **What the wui part reads** outside `csi-spl-wui` is taken from
   `tests/unit/*.mjs` and `src/node/**/*.mjs`. A `<dir>/...` literal counts
   when it names a FILE in the tree, when it names a directory on a line

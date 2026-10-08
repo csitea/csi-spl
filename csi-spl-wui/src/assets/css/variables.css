@@ -1,2 +1,463 @@
-:root { --color-code-inline-fg: #c5d0e6; --color-code-inline-bg: rgba(255, 255, 255, 0.05); --color-code-inline-edge: rgba(255, 255, 255, 0.12); }
-:root[data-theme^="light"] { --color-code-inline-fg: #2a4a6b; --color-code-inline-bg: rgba(12, 22, 38, 0.04); --color-code-inline-edge: rgba(12, 22, 38, 0.1); }
+/*
+ * Token sheet — the donor WUI's `variables.css` STRUCTURE (spacing, radius,
+ * z-index scale, semantic success/danger pair, type tokens) carrying the
+ * spool's own palette: dark navy + cyan by default, a light `data-theme`
+ * override, never a brand palette from another app.
+ *
+ * Palette tokens are redefined per theme below; the scale tokens are theme-
+ * independent and live only in the first :root block.
+ */
+:root {
+  color-scheme: dark;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 4rem;
+  /* identity colours that do not follow the theme (CLE-77915): what kind of
+     file a card holds, what kind of issue an epic row is */
+  --color-file-pdf: #d93025;
+  --color-file-doc: #2b6cd4;
+  --color-file-sheet: #1e8e3e;
+  --color-file-slides: #e8710a;
+  --color-kind-epic: #8b5cf6;
+  --color-kind-feature: #14b8a6;
+
+  --color-bg: #060912;
+  --color-bg-2: #0a1424;
+  --color-bg-3: #0e1c33;
+  --color-sidebar: #070b14;
+  --color-surface: #0e1c33;
+  --color-surface-hover: #152544;
+  --color-fg: #eaf2ff;
+  --color-heading: #f4f8ff;
+  --color-muted: #93a6c4;
+  --color-border: rgba(130, 200, 255, 0.16);
+  --color-border-strong: rgba(130, 200, 255, 0.32);
+  --color-accent: #34d5f0;
+  --color-accent-2: #a06bff;
+  --color-ok: #3ecf8e;
+  --color-danger: #e85d5d;
+  --color-warn: #e3b341;
+  --color-on-accent: #060912;
+  --color-composer: #0a1424;
+  --color-glow: rgba(52, 213, 240, 0.35);
+
+  /* keyboard focus and selection, defined ONCE for every view.
+     Owner, 2026-09-20: "any selected item should have no more than 1 color in
+     the selected border which cannot be wider than 3 px". So there is exactly
+     ONE ring colour in the whole treatment — --focus-ring, used by the focus
+     outline AND by the bar that marks a selected row, so an element that is
+     both still shows one colour — and no ring is wider than 3px.
+     --focus-ring    the one colour of every ring
+     --focus-ring-w  its width (<= 3px, the owner's ceiling)
+     --select-bar-w  the selected row's marker bar (<= 3px, same ceiling)
+     --focus-3d      the raise: a BLURRED DROP SHADOW ONLY — zero spread, so
+                     it draws no second ring and adds no second colour. The
+                     lift comes from the shadow, not from a halo.
+     --color-selected  the current / pressed fill: a step DARKER than the
+                     element's normal background, in both themes. */
+  --focus-ring: #6ee4f7;
+  --focus-ring-w: 2px;
+  --focus-offset: 2px;
+  --select-bar-w: 3px;
+  --focus-3d: 0 4px 10px rgba(0, 0, 0, 0.5);
+  --color-selected: #02040a;
+  --color-accent-pressed: #1fb7d2;
+  /* Composer attach / Send. Hover is a raised grey button; keyboard focus
+     and a click are a darker blue. */
+  --color-btn-grey-top: #4b5362;
+  --color-btn-grey-bottom: #2a303a;
+  --color-btn-grey-shine: rgba(255, 255, 255, 0.38);
+  --color-btn-grey-edge: #12161c;
+  --color-btn-select: #0a3d78;
+  --color-btn-select-fg: #f4f8ff;
+
+  --radius: 8px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Semantic feedback pair — the ONE green/red any success/error surface
+     reaches for (ErrorNotice, notices), so a component never hardcodes a hex. */
+  --color-success: var(--color-ok);
+  --color-success-fg: var(--color-on-accent);
+  --color-danger-fg: #ffffff;
+  --color-error: var(--color-danger);
+
+  /* Named z-index scale — single source of truth for cross-component
+     layering; new overlays reference these instead of inventing a number. */
+  --z-sticky:   40;
+  --z-popover:  40;   /* a dropdown / picker / name card over its own page (CLE-77915) */
+  --z-banner:   50;
+  --z-snackbar: 60;
+  --z-overlay: 1000;
+  --z-drawer:  1001;
+  --z-modal:   1100;
+
+  --sidebar-w: 260px;
+  /* Pre-hydration paint only: usePaneWidths sets --topic-w on the shell from
+     topicDefaultFor (spec 078 FR-006), 40 % of the space right of the left pane. */
+  --topic-w: clamp(280px, calc((100vw - var(--sidebar-w) - 6px) * 0.4), 65vw);
+  --tap: 44px;
+  --font-stack: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* A tool, not a magazine: display and UI share the grotesque. */
+  --font-ui: var(--font-stack);
+  --font-display: var(--font-stack);
+  --letter-spacing-display: -0.005em;
+  --letter-spacing-ui: -0.01em;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #eaf1fb;
+  --color-bg-2: #dce7f6;
+  --color-bg-3: #cddcf1;
+  --color-sidebar: #dce7f6;
+  --color-surface: #f4f8ff;
+  --color-surface-hover: #d4e3f6;
+  --color-fg: #0c1626;
+  --color-heading: #0c1626;
+  --color-muted: #47597a;
+  --color-border: rgba(12, 60, 110, 0.16);
+  --color-border-strong: rgba(12, 60, 110, 0.32);
+  --color-accent: #0a97c4;
+  --color-accent-2: #7b3ff2;
+  --color-ok: #1a8f5c;
+  --color-danger: #c0392b;
+  --color-warn: #b8860b;
+  --color-on-accent: #f4f8ff;
+  --color-composer: #f4f8ff;
+  --color-glow: rgba(10, 151, 196, 0.28);
+
+  /* the light theme's focus line is LIGHTER than the old
+     --color-accent (#0a97c4, relative luminance 0.26) - #4bb8dc is 0.41 -
+     which is what the owner asked for. Measured cost, stated rather than
+     hidden: a SINGLE light line cannot also clear the 3:1 non-text-contrast
+     bar on a light surface (#4bb8dc reads 2.1:1 on --color-bg, 1.9:1 on
+     --color-surface-hover), and the two-tone ring that did clear it is
+     exactly what "no more than 1 color" forbids. What carries the state here
+     is the ring PLUS the darker --color-selected fill the focused row takes. */
+  --focus-ring: #4bb8dc;
+  --focus-3d: 0 4px 10px rgba(12, 60, 110, 0.28);
+  --color-selected: #c3d5ec;
+  --color-accent-pressed: #0a7ea3;
+  --color-btn-grey-top: #f5f7fa;
+  --color-btn-grey-bottom: #b4bec9;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #7c8794;
+  --color-btn-select: #08325f;
+  --color-btn-select-fg: #f4f8ff;
+}
+
+/* three tinted light themes between light and dark (owner,
+   2026-09-26: "light violette, and light green, and light yellow"). Each is a
+   FULL palette set, same token list as light, so nothing falls back to the
+   dark :root values. Unlike light, each focus ring clears the WCAG 1.4.11
+   3:1 bar on every surface it sits on (the lowest, on --color-surface-hover,
+   is 3.6:1) while staying one colour, <= 3px. Measured in
+   tests/unit/theme-contrast.test.mjs. */
+:root[data-theme="light-violet"] {
+  color-scheme: light;
+  --color-bg: #f1ecfb;
+  --color-bg-2: #e6ddf7;
+  --color-bg-3: #d9cdf2;
+  --color-sidebar: #e6ddf7;
+  --color-surface: #faf7ff;
+  --color-surface-hover: #ddd0f4;
+  --color-fg: #1b1030;
+  --color-heading: #1b1030;
+  --color-muted: #54467a;
+  --color-border: rgba(70, 30, 140, 0.16);
+  --color-border-strong: rgba(70, 30, 140, 0.32);
+  --color-accent: #6a3fd0;
+  --color-accent-2: #0a7ea3;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #faf7ff;
+  --color-composer: #faf7ff;
+  --color-glow: rgba(106, 63, 208, 0.28);
+  --focus-ring: #7446d8;
+  --focus-3d: 0 4px 10px rgba(70, 30, 140, 0.28);
+  --color-selected: #cfbfee;
+  --color-accent-pressed: #5429b8;
+  --color-btn-grey-top: #f7f5fa;
+  --color-btn-grey-bottom: #bdb4cc;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #857c96;
+  --color-btn-select: #3b1a7a;
+  --color-btn-select-fg: #faf7ff;
+}
+
+:root[data-theme="light-green"] {
+  color-scheme: light;
+  --color-bg: #eaf5ee;
+  --color-bg-2: #dbeee2;
+  --color-bg-3: #cbe5d4;
+  --color-sidebar: #dbeee2;
+  --color-surface: #f6fbf7;
+  --color-surface-hover: #cfe6d8;
+  --color-fg: #0d1f14;
+  --color-heading: #0d1f14;
+  --color-muted: #3d5a47;
+  --color-border: rgba(20, 90, 50, 0.16);
+  --color-border-strong: rgba(20, 90, 50, 0.32);
+  --color-accent: #16733f;
+  --color-accent-2: #0a7ea3;
+  --color-ok: #16733f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #f6fbf7;
+  --color-composer: #f6fbf7;
+  --color-glow: rgba(22, 115, 63, 0.28);
+  --focus-ring: #1f844a;
+  --focus-3d: 0 4px 10px rgba(20, 90, 50, 0.28);
+  --color-selected: #c0dccb;
+  --color-accent-pressed: #0f5c31;
+  --color-btn-grey-top: #f5f9f6;
+  --color-btn-grey-bottom: #b3c4b9;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #7a8f81;
+  --color-btn-select: #0d4a2a;
+  --color-btn-select-fg: #f6fbf7;
+}
+
+:root[data-theme="light-yellow"] {
+  color-scheme: light;
+  --color-bg: #fbf6e3;
+  --color-bg-2: #f4ecce;
+  --color-bg-3: #ece0b6;
+  --color-sidebar: #f4ecce;
+  --color-surface: #fffcf0;
+  --color-surface-hover: #efe3bd;
+  --color-fg: #231b05;
+  --color-heading: #231b05;
+  --color-muted: #5a4b1c;
+  --color-border: rgba(110, 80, 0, 0.18);
+  --color-border-strong: rgba(110, 80, 0, 0.34);
+  --color-accent: #855400;
+  --color-accent-2: #6a3fd0;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #fffcf0;
+  --color-composer: #fffcf0;
+  --color-glow: rgba(133, 84, 0, 0.28);
+  --focus-ring: #8f6600;
+  --focus-3d: 0 4px 10px rgba(110, 80, 0, 0.28);
+  --color-selected: #e5d6a3;
+  --color-accent-pressed: #6b4300;
+  --color-btn-grey-top: #faf8f0;
+  --color-btn-grey-bottom: #c7bfa6;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #8f876c;
+  --color-btn-select: #5a3d00;
+  --color-btn-select-fg: #fffcf0;
+}
+
+/* SPL-956: a light orange theme. The accent is burnt orange (#a34b00),
+   not the yellow theme's brown and not the shop orange the token test
+   forbids. Text clears WCAG AA; the focus ring clears 3:1. */
+:root[data-theme="light-orange"] {
+  color-scheme: light;
+  --color-bg: #fbf3ea;
+  --color-bg-2: #f6e6d4;
+  --color-bg-3: #f0d8bc;
+  --color-sidebar: #f6e6d4;
+  --color-surface: #fffaf4;
+  --color-surface-hover: #f0dcc4;
+  --color-fg: #2a1608;
+  --color-heading: #2a1608;
+  --color-muted: #6b4a28;
+  --color-border: rgba(140, 70, 0, 0.18);
+  --color-border-strong: rgba(140, 70, 0, 0.34);
+  --color-accent: #a34b00;
+  --color-accent-2: #6a3fd0;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #fffaf4;
+  --color-composer: #fffaf4;
+  --color-glow: rgba(163, 75, 0, 0.28);
+  --focus-ring: #b35a00;
+  --focus-3d: 0 4px 10px rgba(140, 70, 0, 0.28);
+  --color-selected: #e8cba8;
+  --color-accent-pressed: #7d3900;
+  --color-btn-grey-top: #faf7f3;
+  --color-btn-grey-bottom: #c9bbaa;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #918674;
+  --color-btn-select: #6a3200;
+  --color-btn-select-fg: #fffaf4;
+}
+
+/* SPL-956: a reddish light theme. The accent is rose (#9a3d58), not the
+   blocker red (--color-danger #b3261e, SPL-952), so a red badge stays
+   distinguishable. Every text pair clears WCAG AA; the focus ring clears
+   3:1 on every surface. Measured in tests/unit/theme-contrast.test.mjs. */
+:root[data-theme="light-red"] {
+  color-scheme: light;
+  --color-bg: #fbeeee;
+  --color-bg-2: #f6e0e0;
+  --color-bg-3: #f0d2d2;
+  --color-sidebar: #f6e0e0;
+  --color-surface: #fff8f8;
+  --color-surface-hover: #f3d4d4;
+  --color-fg: #2a1012;
+  --color-heading: #2a1012;
+  --color-muted: #6a3840;
+  --color-border: rgba(120, 30, 50, 0.16);
+  --color-border-strong: rgba(120, 30, 50, 0.32);
+  --color-accent: #9a3d58;
+  --color-accent-2: #0a7ea3;
+  --color-ok: #1a7a4f;
+  --color-danger: #b3261e;
+  --color-warn: #8a5a00;
+  --color-on-accent: #fff8f8;
+  --color-composer: #fff8f8;
+  --color-glow: rgba(154, 61, 88, 0.28);
+  --focus-ring: #a84b66;
+  --focus-3d: 0 4px 10px rgba(120, 30, 50, 0.28);
+  --color-selected: #e4b4b8;
+  --color-accent-pressed: #7c3048;
+  --color-btn-grey-top: #faf6f7;
+  --color-btn-grey-bottom: #cbb8bc;
+  --color-btn-grey-shine: #ffffff;
+  --color-btn-grey-edge: #948086;
+  --color-btn-select: #5c2434;
+  --color-btn-select-fg: #fff8f8;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #060912;
+  --color-bg-2: #0a1424;
+  --color-bg-3: #0e1c33;
+  --color-sidebar: #070b14;
+  --color-surface: #0e1c33;
+  --color-surface-hover: #152544;
+  --color-fg: #eaf2ff;
+  --color-heading: #f4f8ff;
+  --color-muted: #93a6c4;
+  --color-border: rgba(130, 200, 255, 0.16);
+  --color-border-strong: rgba(130, 200, 255, 0.32);
+  --color-accent: #34d5f0;
+  --color-accent-2: #a06bff;
+  --color-ok: #3ecf8e;
+  --color-danger: #e85d5d;
+  --color-warn: #e3b341;
+  --color-on-accent: #060912;
+  --color-composer: #0a1424;
+  --color-glow: rgba(52, 213, 240, 0.35);
+
+  /* keyboard focus and selection, defined ONCE for every view.
+     Owner, 2026-09-20: "any selected item should have no more than 1 color in
+     the selected border which cannot be wider than 3 px". So there is exactly
+     ONE ring colour in the whole treatment — --focus-ring, used by the focus
+     outline AND by the bar that marks a selected row, so an element that is
+     both still shows one colour — and no ring is wider than 3px.
+     --focus-ring    the one colour of every ring
+     --focus-ring-w  its width (<= 3px, the owner's ceiling)
+     --select-bar-w  the selected row's marker bar (<= 3px, same ceiling)
+     --focus-3d      the raise: a BLURRED DROP SHADOW ONLY — zero spread, so
+                     it draws no second ring and adds no second colour. The
+                     lift comes from the shadow, not from a halo.
+     --color-selected  the current / pressed fill: a step DARKER than the
+                     element's normal background, in both themes. */
+  --focus-ring: #6ee4f7;
+  --focus-ring-w: 2px;
+  --focus-offset: 2px;
+  --select-bar-w: 3px;
+  --focus-3d: 0 4px 10px rgba(0, 0, 0, 0.5);
+  --color-selected: #02040a;
+  --color-accent-pressed: #1fb7d2;
+  --color-btn-grey-top: #4b5362;
+  --color-btn-grey-bottom: #2a303a;
+  --color-btn-grey-shine: rgba(255, 255, 255, 0.38);
+  --color-btn-grey-edge: #12161c;
+  --color-btn-select: #0a3d78;
+  --color-btn-select-fg: #f4f8ff;
+}
+
+/* HUM-24 (CLE-77879): the composer's accents - the reply arrow in a thread
+   and an edit in place. Each clears 3:1 (non-text) on --color-composer
+   and --color-bg-2 in its theme family; every light-* theme shares one set. */
+:root {
+  --color-mode-reply: #34d5f0;
+  --color-mode-edit: #e3b341;
+}
+:root[data-theme^="light"] {
+  --color-mode-reply: #0a7ea3;
+  --color-mode-edit: #8a6100;
+}
+
+/* t1 3558e416 (owner, msg 841cf92c): `inline code` reads as code - Slack's
+   tinted text on a grey box with a thin edge. The old bg-2 fill sat at
+   ~1.1:1 against the page, so `foobar` looked like plain text. One set per
+   theme family, shared by posted bodies and the composer's marks.
+   Calmer on the owner's ask ("a bit less invasive"): muted text, a fainter box. */
+:root {
+  --color-code-inline-fg: #c5d0e6;
+  --color-code-inline-bg: rgba(255, 255, 255, 0.05);
+  --color-code-inline-edge: rgba(255, 255, 255, 0.12);
+}
+:root[data-theme^="light"] {
+  --color-code-inline-fg: #2a4a6b;
+  --color-code-inline-bg: rgba(12, 22, 38, 0.04);
+  --color-code-inline-edge: rgba(12, 22, 38, 0.1);
+}
+
+/* spec 097 T014 (G8, spec 3.3): an event's colour - the hub's 11 palette
+   names, one variable each. The dark family (the default) gets lighter
+   tones so a swatch and an event's edge read on the navy; every light-*
+   theme shares Google's own. */
+:root {
+  --cal-color-tomato: #ff6b6b;
+  --cal-color-flamingo: #f2a29c;
+  --cal-color-tangerine: #ff8a5c;
+  --cal-color-banana: #ffd54f;
+  --cal-color-sage: #5fd39b;
+  --cal-color-basil: #34a865;
+  --cal-color-peacock: #4fc3f7;
+  --cal-color-blueberry: #8c9eff;
+  --cal-color-lavender: #a5b1ec;
+  --cal-color-grape: #c770e0;
+  --cal-color-graphite: #a0a0a0;
+}
+:root[data-theme^="light"] {
+  --cal-color-tomato: #d50000;
+  --cal-color-flamingo: #e67c73;
+  --cal-color-tangerine: #f4511e;
+  --cal-color-banana: #f6bf26;
+  --cal-color-sage: #33b679;
+  --cal-color-basil: #0b8043;
+  --cal-color-peacock: #039be5;
+  --cal-color-blueberry: #3f51b5;
+  --cal-color-lavender: #7986cb;
+  --cal-color-grape: #8e24aa;
+  --cal-color-graphite: #616161;
+}
+
+/* spec 106 T004 (4.7, 9.4 #6): the phone calendar's bevel - a top-light and
+   a bottom-dark inset that a raised control (the + button, the selected
+   segment, Today, an event card) adds to its --focus-3d drop shadow:
+   `box-shadow: var(--focus-3d), var(--bevel-shine), var(--bevel-shade)`.
+   Insets only, so no ring and no second colour (the owner's focus rule).
+   --cal-dot-ring is an event dot's edge (S4-8, WCAG 1.4.11): the dark
+   family's event colours clear 3:1 on every surface by themselves; several
+   of Google's light ones do not (banana is 1.5:1 on white), so on a light
+   theme every dot carries a 1 px ring that does. Both are asserted by
+   tests/unit/calendar-phone-tokens.test.mjs. */
+:root {
+  --bevel-shine: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --bevel-shade: inset 0 -2px 0 rgba(0, 0, 0, 0.38);
+  --cal-dot-ring: 0 0 0 0 transparent;
+}
+:root[data-theme^="light"] {
+  --bevel-shine: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --bevel-shade: inset 0 -2px 0 rgba(12, 40, 80, 0.16);
+  --cal-dot-ring: 0 0 0 1px var(--color-muted);
+}

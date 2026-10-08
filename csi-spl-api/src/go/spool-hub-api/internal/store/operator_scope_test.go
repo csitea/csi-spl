@@ -39,6 +39,7 @@ var operatorCallers = map[string]string{
 	"ClaimCheckout":        "POST /v1/checkout/claim: checkout id + the claim secret's hash",
 	"ListWorkspaces":       "GET /v1/operator/workspaces (spec 074): every workspace by design; only an admin of the operator workspace reaches it",
 	"OperatorTenant":       "which workspace is the operator one (rdb 0116, spec 074): one flagged row of the instance, unknown until read; returns its id only",
+	"keyLiveElsewhere":     "POST /v1/pins/join (spec 073 T003, spec 108 3.1): whether a box key is live in any other workspace; a bool, never which workspace",
 	"ClaimOperatorTenant":  "hub start (spec 074): flags the cnf operator workspace while no row is flagged; no route",
 
 	// spec 075 repo-edit (T06): the repo-doc edit queue, rdb 0142.

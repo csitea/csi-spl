@@ -55,8 +55,12 @@ type Options struct {
 	HelloSkew         time.Duration
 	HelloTimeout      time.Duration
 	UploadTokenTTL    time.Duration
-	QueueTTL          time.Duration
-	QueueMaxPerBox    int
+	// JoinTokenTTL is an agent join token's lifetime (spec 073 4.1, cnf
+	// SPOOL_HUB_JOIN_TOKEN_TTL, bounds in config.checkLimits); 0 = the mint
+	// route answers 503 join_tokens_off.
+	JoinTokenTTL   time.Duration
+	QueueTTL       time.Duration
+	QueueMaxPerBox int
 	// SPL-987 back-fill of a newly seated channel agent (backfill.go):
 	// topics active within BackfillWindow, newest BackfillMax messages.
 	// 0 window = the 168h default; BackfillMax 0 = no back-fill.
@@ -235,6 +239,8 @@ type Server struct {
 	edge         *edge.Guard
 	keysLim      *edge.Window // keys.go, per-human writes
 	evLim        *edge.Window // events.go, per-human writes
+	joinLim      *edge.Window // join_tokens.go, per-human mint / revoke
+	redeemLim    *edge.Window // join_tokens.go, per-address redeems
 
 	searchRate *edge.Window // search.go, per (tenant, reader)
 	fileUsage  *fileUsage   // fileusage.go, per-tenant stored file bytes
@@ -349,9 +355,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/ws", s.handleWS)
 	mux.HandleFunc("POST /v1/files", s.handlePutFile)
 	mux.HandleFunc("GET /v1/files/{file_id}", s.handleGetFile)
-	mux.HandleFunc("GET /v1/pins", s.handleListPins)
-	mux.HandleFunc("POST /v1/pins", s.handlePin)
-	mux.HandleFunc("DELETE /v1/pins/{box_id}", s.handleRevoke)
+	s.routePins(mux) // + spec 073 join tokens
 	if s.cicd != nil {
 		mux.HandleFunc("POST /v1/cicd-logs", s.handleCICDLogs)
 	}

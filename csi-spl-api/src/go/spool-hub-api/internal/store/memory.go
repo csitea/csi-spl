@@ -69,6 +69,8 @@ type Memory struct {
 	opAudit []OperatorAudit
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu
 	operatorTenant string
+	// join_tokens.go (rdb 0119): agent join tokens by hash, guarded by mu
+	joins map[string]*JoinToken
 	// clock is the wall clock MemberRole checks access_until against; nil =
 	// time.Now. Tests set it to step across an instant without sleeping.
 	clock func() time.Time

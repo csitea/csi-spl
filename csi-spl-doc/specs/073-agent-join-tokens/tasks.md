@@ -13,7 +13,7 @@ its lane, the files it owns and its done check. Status vocabulary:
       to `admin` only (spec 4.7; `rbac.Permissions` and `rbac.Defaults` in the
       same commit). Done: the migration lint and the postgres store tests are
       green, including `TestRBACSeedMatchesDefaults`.
-- [ ] T003 **hub** (after T002): store methods, the five routes of spec 4.3
+- [x] T003 **hub** (c-547, after T002): store methods, the five routes of spec 4.3
       gated as that table (`agents.join` on the four session routes, not
       `keys.manage`), `wire.JoinPayload`, the refusal table, the redeem
       window, `config.Hub.JoinTokenTTL` (`SPOOL_HUB_JOIN_TOKEN_TTL`,
@@ -23,6 +23,14 @@ its lane, the files it owns and its done check. Status vocabulary:
       `./run -a do_tpl_gen` with `git diff --exit-code`). No duration literal
       in the mint handler. Done: AC1-AC7, AC10 and AC12 green on postgres
       (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`).
+      Built: `internal/hub/join_tokens.go`, `internal/store/join_tokens*.go`,
+      `wire.JoinPayload` (signs `{box_id,op:"join",pubkey,token_hash,ts}`).
+      Checks: `internal/hub/join_tokens_test.go` (AC1-AC7, AC10, the refusal
+      table, and spec 108 3.1 / 3.2 pairs (b) and (c): a key live in one
+      workspace is `pin_conflict` in another, enforced on the join path) and
+      `internal/config/join_token_ttl_test.go` (AC12), green on memory and
+      postgres. A revoked pin is re-seated by a new token; the root-key
+      `POST /v1/pins` is unchanged (FR-007) and does not check (c).
 - [ ] T004 **CLI** (after T003): `spool join`, token from env / stdin, usage
       line. Done: a CLI test against a test hub seats a box with no root key.
 - [ ] T005 **orc** (after T004): `do_spl_desk_pin` join mode and its test in
@@ -51,4 +59,4 @@ its lane, the files it owns and its done check. Status vocabulary:
       `README.md`. Done: AC13; `help-sync` and
       `csi-spl-iac/src/bash/tests/help-connect-agent.tst.sh` green.
 
-<!-- version: 0.2.0 · updated: 2026-10-04 · last-edit: 2026-10-04T18:16:38Z -->
+<!-- version: 0.2.1 · updated: 2026-10-08 · last-edit: 2026-10-08T16:30:00Z -->

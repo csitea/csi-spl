@@ -110,6 +110,22 @@ func TestPinPayloads(t *testing.T) {
 	}
 }
 
+// spec 073 4.3: the redeem signature covers the token hash, never the token.
+// CONTROL: the join payload differs from the pin payload of the same box and
+// key, so a root pin signature is never a join signature. n = 1.
+func TestJoinPayload(t *testing.T) {
+	j, err := JoinPayload("ab12", "box-a", "pubkey", "2026-10-08T12:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"box_id":"box-a","op":"join","pubkey":"pubkey","token_hash":"ab12","ts":"2026-10-08T12:00:00Z"}`; string(j) != want {
+		t.Fatalf("join payload\n got %s\nwant %s", j, want)
+	}
+	if p, _ := PinPayload("box-a", "pubkey", "2026-10-08T12:00:00Z", false); string(p) == string(j) {
+		t.Fatal("CONTROL: join payload equals the pin payload")
+	}
+}
+
 // legacyEnv is an envelope exactly as a pre-M3 box signs and sends it (no
 // channel, no parent_task_id). It must keep parsing, verifying and
 // re-marshalling to the same bytes (channels-v1 §2: v:1 boxes keep working).

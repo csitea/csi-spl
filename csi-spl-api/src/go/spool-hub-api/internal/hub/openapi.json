@@ -5523,6 +5523,196 @@
         ]
       }
     },
+    "/v1/pins/join": {
+      "post": {
+        "operationId": "postPinsJoin",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "The workspace is the token's; a Host or X-Spool-Tenant naming another is 403 tenant_mismatch. Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                "properties": {
+                  "box_id": {
+                    "type": "string"
+                  },
+                  "pubkey": {
+                    "description": "base64 raw 32-byte Ed25519 key",
+                    "type": "string"
+                  },
+                  "sig": {
+                    "description": "the box key over jq -cS '{box_id,op:\"join\",pubkey,token_hash,ts}', token_hash = sha256 hex of the secret",
+                    "type": "string"
+                  },
+                  "token": {
+                    "description": "spj1.<tenant>.<secret>",
+                    "type": "string"
+                  },
+                  "ts": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "token",
+                  "box_id",
+                  "pubkey",
+                  "ts",
+                  "sig"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                  "properties": {
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    },
+                    "tenant": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tenant",
+                    "box_id",
+                    "pubkey"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Seated (the same key on its own pin is idempotent)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "bad_json, bad_sig or reserved_box"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "join_token_invalid"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "tenant_mismatch"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "join_token_box_mismatch, or pin_conflict: the box id holds another key or this key is seated elsewhere (never which workspace)"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "join_token_used, join_token_expired or join_token_revoked"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "rate_limited: 20 redeems per source address per hour"
+          }
+        },
+        "summary": "Redeem an agent join token: pin the box key the request is signed with",
+        "tags": [
+          "pins"
+        ]
+      }
+    },
     "/v1/pins/{box_id}": {
       "delete": {
         "operationId": "deletePinsByBoxId",
@@ -5745,6 +5935,422 @@
           }
         },
         "summary": "Read tenant agent lifecycle events",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/tenant/agents/join-tokens": {
+      "get": {
+        "operationId": "getTenantAgentsJoinTokens",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Never a token. Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                  "properties": {
+                    "tokens": {
+                      "items": {
+                        "properties": {
+                          "box_id": {
+                            "description": "\"\" = unbound",
+                            "type": "string"
+                          },
+                          "consumed_box": {
+                            "description": "the box a used token seated",
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": "string"
+                          },
+                          "expires_at": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "for_human": {
+                            "description": "HUM-<n>, \"\" = none",
+                            "type": "string"
+                          },
+                          "id": {
+                            "description": "the first 8 hex of the token hash",
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "open",
+                              "used",
+                              "revoked"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "box_id",
+                          "for_human",
+                          "created_by",
+                          "created_at",
+                          "expires_at",
+                          "state"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "tokens"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the tokens, newest first"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "List the workspace's unexpired agent join tokens (agents.join)",
+        "tags": [
+          "tenant"
+        ]
+      },
+      "post": {
+        "operationId": "postTenantAgentsJoinTokens",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Every field optional. Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                "properties": {
+                  "box_id": {
+                    "description": "bind the token to one box id",
+                    "type": "string"
+                  },
+                  "for_human": {
+                    "description": "a current member (HUM-<n>); membership end revokes the token and its seat",
+                    "type": "string"
+                  },
+                  "label": {
+                    "maxLength": 80,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Shown once. The lifetime is cnf SPOOL_HUB_JOIN_TOKEN_TTL. Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                  "properties": {
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "for_human": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "join_line": {
+                      "description": "SPOOL_JOIN_TOKEN=<token> spool join <hub-url>",
+                      "type": "string"
+                    },
+                    "token": {
+                      "description": "spj1.<tenant>.<secret>",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "token",
+                    "expires_at",
+                    "box_id",
+                    "for_human",
+                    "join_line"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Minted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "bad body, reserved_box, or join_token_member (for_human is not a current member)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "rate_limited: the per-human mint / revoke window"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "join_tokens_off: no SPOOL_HUB_JOIN_TOKEN_TTL"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Mint an agent join token (agents.join); the token is in this answer only",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/tenant/agents/join-tokens/{id}": {
+      "delete": {
+        "operationId": "deleteTenantAgentsJoinTokensById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-f]{8}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "enum": [
+                        "revoked"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revoked (a revoked token is a no-op)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "join_token_used: the token already seated a box; revoke that seat"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "rate_limited"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Revoke an unused agent join token (agents.join)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/tenant/agents/pins/{box_id}": {
+      "delete": {
+        "operationId": "deleteTenantAgentsPinsByBoxId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "pins_history.reason wui-revoke; an already revoked pin is a no-op. Contract: csi-spl-doc/specs/073-agent-join-tokens/spec.md §4.3.",
+                  "properties": {
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "revoked": {
+                      "enum": [
+                        "true"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "box_id",
+                    "revoked"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Revoked"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Revoke one seat from a member session (agents.join); its live sessions close",
         "tags": [
           "tenant"
         ]

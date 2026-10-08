@@ -376,6 +376,15 @@ func (s *Server) isTenantAvatar(ctx context.Context, tenant, fileID string) (boo
 	return false, nil
 }
 
+// routePins mounts the box pin routes: the root-key pin and revoke, and the
+// agent join tokens (join_tokens.go, spec 073).
+func (s *Server) routePins(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/pins", s.handleListPins)
+	mux.HandleFunc("POST /v1/pins", s.handlePin)
+	mux.HandleFunc("DELETE /v1/pins/{box_id}", s.handleRevoke)
+	s.routeJoinTokens(mux)
+}
+
 // GET /v1/pins: the tenant's active box pubkeys (authorized_keys sync).
 func (s *Server) handleListPins(w http.ResponseWriter, r *http.Request) {
 	t, _, ok := s.tokenTenant(w, r) // specs/026: the token's tenant
@@ -518,10 +527,16 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "revoke not stored")
 		return
 	}
+	s.closeBoxSessions(t.ID, req.BoxID)
+	writeJSON(w, http.StatusOK, map[string]string{"box_id": req.BoxID, "revoked": "true"})
+}
+
+// closeBoxSessions closes every live session of a box whose pin is gone.
+func (s *Server) closeBoxSessions(tenant, box string) {
 	s.mu.Lock()
 	var victims []*session
 	for x := range s.sessions {
-		if x.tenant == t.ID && x.box == req.BoxID {
+		if x.tenant == tenant && x.box == box {
 			victims = append(victims, x)
 		}
 	}
@@ -529,7 +544,6 @@ func (s *Server) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	for _, x := range victims {
 		go x.close(websocket.StatusCode(wire.CloseUnauthorized), "unpinned_box")
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"box_id": req.BoxID, "revoked": "true"})
 }
 
 func verify(pub ed25519.PublicKey, payload []byte, sig string) error {

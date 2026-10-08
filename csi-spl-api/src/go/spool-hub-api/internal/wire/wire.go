@@ -897,6 +897,24 @@ func RevokePayload(boxID, ts string) ([]byte, error) {
 	return Canonical(map[string]string{"box_id": boxID, "op": "revoke", "ts": ts})
 }
 
+// JoinPayload is what the box key signs to redeem an agent join token (spec
+// 073 4.3): jq -cS '{box_id,op:"join",pubkey,token_hash,ts}'. token_hash is
+// the sha256 hex of the token's secret part, so the signed bytes never carry
+// the secret; the signature proves the box holds the key it asks to pin.
+func JoinPayload(tokenHash, boxID, pubkey, ts string) ([]byte, error) {
+	return Canonical(map[string]string{"box_id": boxID, "op": "join", "pubkey": pubkey, "token_hash": tokenHash, "ts": ts})
+}
+
+// JoinRequest is the body of POST /v1/pins/join: Token is the whole
+// spj1.<tenant>.<secret>, Sig the box key's signature over JoinPayload.
+type JoinRequest struct {
+	Token  string `json:"token"`
+	BoxID  string `json:"box_id"`
+	PubKey string `json:"pubkey"`
+	TS     string `json:"ts"`
+	Sig    string `json:"sig"`
+}
+
 // PinRequest is the body of POST /v1/pins.
 type PinRequest struct {
 	BoxID  string `json:"box_id"`

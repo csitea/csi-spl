@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # restore-core.inc.sh — the ONE resume launcher behind restore-claude.sh,
-# restore-claude-plain.sh, restore-grok.sh, restore-agy.sh and restore-qwen.sh
+# restore-claude-plain.sh, restore-grok.sh, restore-agy.sh, restore-qwen.sh
+# and restore-mistral.sh
 # (ported from the frozen box engine, specs/048 SPL-1160).
 #
 # It RESUMES an interrupted agent session in a tmux window, in the directory it
@@ -10,14 +11,23 @@
 # spool-harness.sh, so the restored agent has its spool id and env again.
 #
 # An adapter declares, then calls restore_main "$@":
-#   RESTORE_KIND        claude | grok | agy | qwen
-#   RESTORE_ID_PREFIX   CLE | GRK | AGY | QWN (the <PREFIX>_TMUX_PANE it exports)
-#   RESTORE_BIN_VAR     CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN
+#   RESTORE_KIND        claude | grok | agy | qwen | mistral
+#   RESTORE_ID_PREFIX   CLE | GRK | AGY | QWN (the <PREFIX>_TMUX_PANE it exports),
+#                       or "" for a kind with no legacy prefix: the pane env
+#                       name is then the kind's (MISTRAL_TMUX_PANE), as in spawn
+#   RESTORE_BIN_VAR     CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN | MISTRAL_BIN
 #   RESTORE_ARGS        a function: SESSION_ID -> the CLI args that resume it
 #                       (the permission flags come from spool_claude_perm_flags)
 #   RESTORE_KICK_FLAG   the flag before the kick prompt, or "" (positional)
 #   RESTORE_KICK_MODE   brief (arg 4 is a brief file; the kick is composed:
 #                       worker or neutral) | prompt (arg 4 is the kick itself)
+# and MAY set (unset = nothing added, so the other kinds' lines stay byte-identical):
+#   RESTORE_SID_OPTIONAL 1: an empty or '-' SESSION_ID is not refused;
+#                       RESTORE_ARGS gets "" and resumes the directory's last
+#                       session (mistral: --continue)
+#   RESTORE_EXEC_PREFIX words before spool-harness and the CLI, as spawn's
+#                       SPAWN_EXEC_PREFIX (mistral: env -u MISTRAL_API_KEY ...)
+#   RESTORE_EXTRA_FLAGS flags after the permission flags (mistral: --max-price N)
 #
 # Usage (every adapter): restore-<kind>.sh <TITLE> <RUNDIR> <SESSION_ID> [BRIEF_FILE|KICK]
 # RESTORE_PRINT=1 prints the command instead of running it.
@@ -54,11 +64,13 @@ _rs_kick() {  # TITLE RUNDIR BRANCH BRIEF
 }
 
 restore_main() {
-  local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc display cur args cmd stub pane sock
+  local title="${1:-}" rundir="${2:-}" sid="${3:-}" arg4="${4:-}" bin_var bin branch kick="" kick_esc display cur args cmd stub pane sock pane_env
   SPOOL_ENV_NO_BINS=0 spool_env_resolve
-  spool_valid_id "$title" 2>/dev/null || _rs_fail "TITLE '${title}' is not an agent id (e.g. ${RESTORE_ID_PREFIX}-07)"
+  spool_valid_id "$title" 2>/dev/null || _rs_fail "TITLE '${title}' is not an agent id (e.g. ${RESTORE_ID_PREFIX:-${RESTORE_KIND:0:1}}-07)"
   [ -n "$rundir" ] && [ -d "$rundir" ] || _rs_fail "RUNDIR '${rundir}' does not exist - the session cannot be restored in place; spawn it again"
-  [ -n "$sid" ] || _rs_fail "a session id is required"
+  [ "$sid" = - ] && [ "${RESTORE_SID_OPTIONAL:-0}" = 1 ] && sid=""
+  [ -n "$sid" ] || [ "${RESTORE_SID_OPTIONAL:-0}" = 1 ] || _rs_fail "a session id is required"
+  pane_env="${RESTORE_ID_PREFIX:-${RESTORE_KIND^^}}"
   bin_var="$RESTORE_BIN_VAR"; bin="${!bin_var:-$RESTORE_KIND}"
   branch="$(git -C "$rundir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   case "$RESTORE_KICK_MODE" in
@@ -75,10 +87,10 @@ restore_main() {
     [ -n "$cur" ] && [ "$(an_decorate "$cur")" != "$cur" ] && tmux -u rename-window -t "$pane" "$(an_decorate "$cur")" 2>/dev/null
   fi
 
-  args="$(spool_claude_perm_flags "$RESTORE_KIND") $("$RESTORE_ARGS" "$sid")" || _rs_fail "no permission flags for ${RESTORE_KIND}"
+  args="$(spool_claude_perm_flags "$RESTORE_KIND")${RESTORE_EXTRA_FLAGS:+ ${RESTORE_EXTRA_FLAGS}} $("$RESTORE_ARGS" "$sid")" || _rs_fail "no permission flags for ${RESTORE_KIND}"
   [ "$RESTORE_KIND" = claude ] && args="--name '${display}' ${args}"
-  cmd="export ${RESTORE_ID_PREFIX}_TMUX_PANE='${pane}' ${RESTORE_ID_PREFIX}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
-  stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${bin##*/} ${args}'"
+  cmd="export ${pane_env}_TMUX_PANE='${pane}' ${pane_env}_TMUX_SOCK='${sock}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${title}' MCP_BOT_AGENT_ID='${title}' ${SPOOL_CLI_ENV}; cd '${rundir}' && exec ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }bash '${_RS_DIR}/spool-harness.sh' --as '${title}' --mirror -- '${bin}' ${args}"
+  stub="$(spool_agent_cmd_text) -c 'cd \"${rundir}\" ; ${RESTORE_EXEC_PREFIX:+${RESTORE_EXEC_PREFIX} }${bin##*/} ${args}'"
   if [ -n "$kick" ]; then spool_dq_escape kick_esc "$kick"; fi
   if [ "${RESTORE_PRINT:-0}" = 1 ]; then
     printf '%s\n' "${cmd}${kick:+ ${RESTORE_KICK_FLAG:+${RESTORE_KICK_FLAG} }\"${kick_esc}\"}"
@@ -89,7 +101,7 @@ restore_main() {
   echo "════════════════════════════════════════════════════════════════════"
   echo " RESTORING ${title} (${RESTORE_KIND})"
   echo "   dir      : ${rundir}${branch:+ (branch ${branch})}"
-  echo "   session  : ${sid}"
+  echo "   session  : ${sid:-<the last one in this dir>}"
   echo "   re-resume: ${stub}"
   echo "════════════════════════════════════════════════════════════════════"
   # A kick re-orients the restored session and keeps the TUI up. If this CLI

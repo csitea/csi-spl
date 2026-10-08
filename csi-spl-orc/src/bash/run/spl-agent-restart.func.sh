@@ -202,7 +202,7 @@ spl_ars_gate() {
   # shellcheck disable=SC2034 # read by the takeover helpers (spl_wdt_section, spl_wdt_spawn)
   WDT_CODE="$ARS_CODE" WDT_EV="$ARS_EV" WDT_CTX="$ctx" WDT_PID="$ARS_PID" WDT_PANE="$ARS_PANE" WDT_SEAT=""
   if spl_peer_seated "$id"; then WDT_SEAT=1; else PEER_HARNESS="$(spl_wd_harness "$id")"; fi
-  [[ "$PEER_HARNESS" =~ ^(claude|grok|agy|qwen)$ ]] || PEER_HARNESS=claude
+  [[ "$PEER_HARNESS" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || PEER_HARNESS=claude
   WDT_BOXENV=""
   if [[ -n "$ARS_SEAT" && -z "$ARS_PID$ARS_PANE" ]]; then
     WDT_BOXENV="$(spl_wdt_box_env)" ||

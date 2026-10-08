@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-restore.sh — the five restore adapters (specs/048, SPL-1160), rendered
+# test-restore.sh — the six restore adapters (specs/048, SPL-1160), rendered
 # with RESTORE_PRINT=1 so nothing is launched.
 #
 #   1. each kind resumes with its own flags, through spool-harness --as <ID>,
@@ -11,11 +11,14 @@
 #   4. refusals: a non-id title, a missing dir, no session id
 #   5. agent-top counts a restored pane (restore-<kind>.sh <ID> in its argv) as
 #      a live agent of that kind, not as ended
+#   6. mistral (specs/110 T007): vibe --auto-approve --resume <id> under
+#      spawn-mistral.sh's own exec prefix and --max-price; the control, an m-
+#      id with no session, plans --continue; a non-dollar cap is refused
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 unset TMUX TMUX_PANE
-export RESTORE_PRINT=1 CLAUDE_BIN=claude GROK_BIN=grok AGY_BIN=agy QWEN_BIN=qwen
+export RESTORE_PRINT=1 CLAUDE_BIN=claude GROK_BIN=grok AGY_BIN=agy QWEN_BIN=qwen MISTRAL_BIN=vibe
 r() { bash "$T_SCRIPTS/restore-$1.sh" "${@:2}" 2>&1; }
 D="$T_TMP/plain"; mkdir -p "$D"
 
@@ -54,6 +57,23 @@ SPOOL_BOX_TAG=tbx has "2. the claude session name is <ID>@<box> (specs/058)" "--
 r grok "not an id" "$D" s >/dev/null; eq "4. a non-id title is refused" 1 "$?"
 r grok GRK-07 "$T_TMP/nope" s >/dev/null; eq "4. a missing dir is refused" 1 "$?"
 r grok GRK-07 "$D" >/dev/null; eq "4. no session id is refused" 1 "$?"
+
+# --- 6. mistral ---------------------------------------------------------------------------
+out="$(SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-007 "$D" s-7 'go on')"
+has "6. mistral resumes by session: vibe --auto-approve --resume <id>" "'vibe' --auto-approve --max-price 3.50 --resume s-7 \"go on\"" "$out"
+has "6. ... through spool-harness --as the id, with the mirror" "spool-harness.sh' --as 'm-007' --mirror -- 'vibe'" "$out"
+has "6. ... exporting MISTRAL_TMUX_PANE (no legacy prefix)" "export MISTRAL_TMUX_PANE='' MISTRAL_TMUX_SOCK='' SPOOL_ROOT='$SPOOL_ROOT' SPOOL_AGENT_ID='m-007'" "$out"
+has "6. ... under env -u MISTRAL_API_KEY, before the harness" "&& exec env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false" "$out"
+pfx="$(sed -n "s/^SPAWN_EXEC_PREFIX=\"\(.*\)\"\$/\1/p" "$T_SCRIPTS/spawn-mistral.sh")"
+has "6. ... the exec prefix is spawn-mistral.sh's, word for word" "exec ${pfx} bash '" "$out"
+hasnt "6. ... and with a session, no --continue" "--continue" "$out"
+out="$(SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-008 "$D")"
+has "6. control: an m- id with no session plans --continue" "'vibe' --auto-approve --max-price 3.50 --continue" "$out"
+hasnt "6. ... and no --resume" "--resume" "$out"
+has "6. ... so does a '-' session (the identity map's no-value)" "--max-price 3.50 --continue" "$(SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-008 "$D" -)"
+has "6. the cap defaults to cnf env.box.mistral_vibe.max_price" "--max-price " "$(r mistral m-007 "$D" s-7)"
+SPOOL_MISTRAL_MAX_PRICE=lots r mistral m-007 "$D" s-7 >/dev/null; eq "6. a cap that is not a dollar amount is refused" 1 "$?"
+r qwen q-009 "$D" >/dev/null; eq "6. qwen still refuses a missing session id" 1 "$?"
 
 # --- 5. agent-top sees a restored agent ---------------------------------------------------------
 t_tmux

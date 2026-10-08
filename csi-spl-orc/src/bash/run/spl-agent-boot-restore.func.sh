@@ -10,8 +10,9 @@
 # @description   2. do_spl_agent_identity_restore: each agent the reboot killed,
 # @description      its own session in its own worktree, as the agent user, a
 # @description      box-user-only transcript copied across first
-# @description   3. the owner's check: no agent CLI (claude, grok, agy, qwen)
-# @description      runs as the box user; each one that does is an ALERT
+# @description   3. the owner's check: no agent CLI (claude, grok, agy, qwen,
+# @description      mistral's vibe, which renames itself "Vibe CLI") runs as
+# @description      the box user; each one that does is an ALERT
 # @description A failure leaves <SPOOL_ROOT>/agents/boot-FAILED (an @reboot
 # @description exit code goes nowhere); a clean run removes it.
 # @description Dry run unless DRY_RUN=0: the identity restore's plan, nothing started.
@@ -69,7 +70,7 @@ do_spl_agent_boot_restore() {
     local line n=0
     while IFS= read -r line; do
       echo "ALERT   runs as $box_user, not $agent_user: $line"; n=$((n + 1))
-    done < <(${BOOT_RESTORE_PS:-ps} -u "$box_user" -o pid=,args= 2>/dev/null | awk '$2 ~ /(^|\/)(claude|grok|agy|qwen)$/')
+    done < <(${BOOT_RESTORE_PS:-ps} -u "$box_user" -o pid=,args= 2>/dev/null | awk '$2 ~ /(^|\/)(claude|grok|agy|qwen|vibe)$/ || ($2 == "Vibe" && $3 == "CLI")')
     (( n == 0 )) || why="${why:+$why; }$n agent CLI(s) run as the box user $box_user"
   fi
 

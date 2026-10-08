@@ -134,7 +134,7 @@ the owner's Team login on each box.
     n = 1); agent-state reports `auth` for it (`spec.md` 2.5).
   - The watchdog does not respawn an `auth` lane (T013b), and lane-mix
     skips mistral while one is in that state (T013a).
-- [ ] T007 **restore** (needs T005). Files:
+- [x] T007 **restore** (c-599; needs T005). Files:
   - `SA/scripts/restore-mistral.sh` (*new*);
   - `SA/scripts/restore-core.inc.sh`;
   - `RUN/spl-agent-{restart,boot-restore,identity-restore}.func.sh`;
@@ -142,6 +142,10 @@ the owner's Team login on each box.
 
   Done: the restore dry run plans `vibe --auto-approve --resume <id>`; the
   control is an `m-` id with no session, which plans `--continue`.
+  Open (outside T007's files): `agent-identity.py restore-plan` still
+  REFUSES an `m-` record with no session id ("its session is unknown"), and
+  a fresh `m-` lane has none (no `--resume` in its argv, no claude session
+  file), so the boot restore names it instead of handing the adapter `-`.
 - [x] T008 **MCP + mirror** (c-586; needs T002). Files:
   - `RUN/spl-agent-mcp-install.func.sh`;
   - `csi-spl-orc/src/bash/features/mcp-bot/scripts/mcp-start{,-chrome}.sh`;

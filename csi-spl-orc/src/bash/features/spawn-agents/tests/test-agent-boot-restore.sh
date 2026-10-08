@@ -95,6 +95,10 @@ out="$(act DRY_RUN=0)"; rc=$?
 eq "3. an agent CLI as the box user fails the boot" 1 "$rc"
 has "3. ... named as an ALERT" "ALERT   runs as $BX, not $AG: 4242 /opt/agent/bin/claude --resume s-99" "$out"
 hasnt "3. ... a plain shell is not" "4243" "$out"
+printf '4244 Vibe CLI\n4245 bash -c vibe-notes\n' > "$T_TMP/ps.out"
+out="$(act DRY_RUN=0)"
+has "3. mistral's vibe, renamed 'Vibe CLI' (specs/110 T007), is an ALERT too" "ALERT   runs as $BX, not $AG: 4244 Vibe CLI" "$out"
+hasnt "3. ... a shell that only mentions vibe is not" "4245" "$out"
 check "3. ... and leaves the marker" test -s "$marker"
 : > "$T_TMP/ps.out"
 act DRY_RUN=0 >/dev/null; rc=$?

@@ -168,14 +168,15 @@ _ai_copy_transcript() {  # FROM TO WT SID
 }
 
 # The owner rule's own check (2026-10-01), narrowed to what this run started:
-# an agent CLI (claude, grok, agy, qwen) that runs as the BOX user and carries
+# an agent CLI (claude, grok, agy, qwen, mistral's vibe - whose process reads
+# "Vibe CLI", specs/110 T007) that runs as the BOX user and carries
 # the id of an agent this run started. The box user's own interactive CLI has
 # no agent id and is not flagged; the whole-box check is the boot action's.
 _ai_runas_check() {  # BOX-USER ID...
   local pid args aid bad=0 box="$1"; shift
   local ids=" $* "
   while read -r pid args; do
-    [[ "${args%% *}" =~ (^|/)(claude|grok|agy|qwen)$ ]] || continue
+    [[ "${args%% *}" =~ (^|/)(claude|grok|agy|qwen|vibe)$ || "$args" == "Vibe CLI" || "$args" == "Vibe CLI "* ]] || continue
     aid="$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -nE 's/^(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=//p' | sed -n 1p)"
     [[ -n "$aid" && "$ids" == *" $aid "* ]] || continue
     echo "ALERT   pid $pid ($aid) runs as $box, not the agent user: $args"; bad=1

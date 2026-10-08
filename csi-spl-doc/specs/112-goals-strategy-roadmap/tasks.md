@@ -39,11 +39,12 @@ and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
   - Vendor: claude. Box: one with docker Postgres.
   - Landed: `0156_calendar_source_key.sql` in `961dbaaaf` (v4.0.1), test `TestCalendarSourceKey0156` (n=8 inserts; control: a non-unique index turns it red). `/version` schema_head `0156_calendar_source_key.sql` on dev and prd.
 
-- [ ] **STORE-1**: Store support for synced events (spec 4.2, 4.3).
+- [x] **STORE-1**: Store support for synced events (spec 4.2, 4.3).
   - Depends: RDB-1.
   - Owns: `csi-spl-api/src/go/spool-hub-api/internal/store/calendar_sync.go`, `calendar_sync_test.go` (memory + Postgres parity), the `calendarKinds` line in `internal/store/calendar.go`, and the allow-list assertion in `TestPublicExportGrantsEqualAllowList`.
   - Done: `UpsertCalendarBySourceKey` upserts by key and soft-deletes a `goal:`/`spec:` key missing from the batch; the same test runs green on memory and Postgres (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`). Controls: a `db:%` key with audience `public` is refused; `calendar_events` added to the 091 allow-list turns the allow-list test red; a re-run of the same batch leaves the row count unchanged.
   - Vendor: claude. Box: one with docker Postgres.
+  - Landed: `0198be10c` (v4.0.4), `internal/store/calendar_sync.go`; `TestCalendarSyncBySourceKey` green on memory and Postgres (n=2 drivers x 8 syncs). Controls, each red with its guard removed: db: key audience public refused; same batch re-run = 4 unchanged, row count kept; `calendar_events` on the allow-list fails `TestPublicExportGrantsEqualAllowList`. Hub on dev and prd serves `0198be10`.
 
 - [ ] **HUB-1**: Sync route, read-only synced events, approval check (spec 4.1, 4.2, D2).
   - Depends: STORE-1.

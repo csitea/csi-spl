@@ -109,15 +109,8 @@ func (s *Postgres) RedeemJoinToken(ctx context.Context, tenant, hash, box string
 		if err := tok.redeemable(box, now); err != nil {
 			return err
 		}
-		// Two redeems of the same key into two workspaces serialise here, so
-		// the read below sees the other's committed pin (spec 108 3.1).
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 73))`, hex.EncodeToString(pub)); err != nil {
+		if err := s.claimKey(ctx, tx, tenant, box, pub); err != nil {
 			return err
-		}
-		if taken, err := s.keyLiveElsewhere(ctx, tenant, box, pub); err != nil {
-			return err
-		} else if taken {
-			return ErrConflict
 		}
 		if err := joinPin(ctx, tx, tenant, box, pub, now); err != nil {
 			return err
@@ -152,11 +145,27 @@ func joinPin(ctx context.Context, tx pgx.Tx, tenant, box string, pub ed25519.Pub
 		ON CONFLICT (tenant_id, box_id) DO UPDATE SET pubkey = EXCLUDED.pubkey, updated_at = EXCLUDED.updated_at,
 			revoked_at = NULL, last_op_ts = GREATEST(pins.last_op_ts, EXCLUDED.last_op_ts)`,
 		tenant, box, []byte(pub), now); err != nil {
-		return mapFK(err)
+		return mapPinErr(err)
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO pins_history (tenant_id, box_id, pubkey, at, reason)
 		VALUES ($1, $2, $3, $4, 'join')`, tenant, box, []byte(pub), now)
 	return err
+}
+
+// claimKey refuses pub with ErrKeyLive when it is live on another box of any
+// workspace. Two seats of the same key, by join or by root-key pin, serialise
+// on the per-key advisory lock, so the read sees the other's committed pin
+// (spec 108 3.1, 3.5); the unique index of rdb 0154 is the backstop.
+func (s *Postgres) claimKey(ctx context.Context, tx pgx.Tx, tenant, box string, pub ed25519.PublicKey) error {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 73))`, hex.EncodeToString(pub)); err != nil {
+		return err
+	}
+	if taken, err := s.keyLiveElsewhere(ctx, tenant, box, pub); err != nil {
+		return err
+	} else if taken {
+		return ErrKeyLive
+	}
+	return nil
 }
 
 // keyLiveElsewhere reports whether pub is the live key of any other box of

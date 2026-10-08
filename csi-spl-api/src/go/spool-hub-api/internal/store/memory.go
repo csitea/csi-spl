@@ -183,10 +183,24 @@ func (s *Memory) PutPin(_ context.Context, tenant, box string, pub ed25519.Publi
 		}
 		reason = "force"
 	}
+	if s.keyLiveElsewhere(tenant, box, pub) {
+		return ErrKeyLive
+	}
 	cp := append(ed25519.PublicKey(nil), pub...)
 	s.pins[k] = &memPin{pub: cp, lastOp: opTS}
 	s.history = append(s.history, memHist{tenant: tenant, box: box, reason: reason, pub: cp, at: now})
 	return nil
+}
+
+// keyLiveElsewhere is Postgres.keyLiveElsewhere under s.mu: pub is the live
+// key of another box of any workspace, box-wui aside (spec 108 3.1, 3.2).
+func (s *Memory) keyLiveElsewhere(tenant, box string, pub ed25519.PublicKey) bool {
+	for k, p := range s.pins {
+		if !p.revoked && k[1] != wuiBox && k != [2]string{tenant, box} && bytes.Equal(p.pub, pub) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Memory) RevokePin(_ context.Context, tenant, box string, opTS, now time.Time) error {

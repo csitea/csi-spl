@@ -182,10 +182,8 @@ func (s *Memory) RedeemJoinToken(_ context.Context, tenant, hash, box string, pu
 	if err := t.redeemable(box, now); err != nil {
 		return *t, err
 	}
-	for k, p := range s.pins {
-		if !p.revoked && k[1] != wuiBox && k != [2]string{tenant, box} && bytes.Equal(p.pub, pub) {
-			return *t, ErrConflict
-		}
+	if s.keyLiveElsewhere(tenant, box, pub) {
+		return *t, ErrKeyLive
 	}
 	k := [2]string{tenant, box}
 	p, had := s.pins[k]

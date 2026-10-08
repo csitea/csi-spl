@@ -238,12 +238,16 @@ func (s *Postgres) PutPin(ctx context.Context, tenant, box string, pub ed25519.P
 		default:
 			reason = "force"
 		}
+		// force replaces this box's own key only, never a key live elsewhere.
+		if err := s.claimKey(ctx, tx, tenant, box, pub); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `INSERT INTO pins (tenant_id, box_id, pubkey, updated_at, revoked_at, last_op_ts)
 			VALUES ($1, $2, $3, $4, NULL, $5)
 			ON CONFLICT (tenant_id, box_id) DO UPDATE SET pubkey = EXCLUDED.pubkey,
 				updated_at = EXCLUDED.updated_at, revoked_at = NULL, last_op_ts = EXCLUDED.last_op_ts`,
 			tenant, box, []byte(pub), now, opTS); err != nil {
-			return mapFK(err)
+			return mapPinErr(err)
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO pins_history (tenant_id, box_id, pubkey, at, reason)
 			VALUES ($1, $2, $3, $4, $5)`, tenant, box, []byte(pub), now, reason)
@@ -747,6 +751,16 @@ func (s *Postgres) TaskFirstChannel(ctx context.Context, tenant, taskID string) 
 }
 
 // mapFK turns a foreign-key violation (unknown tenant) into ErrNotFound.
+// mapPinErr is mapFK for a pins write, plus the unique index on live
+// pins(pubkey) (rdb 0154) as ErrKeyLive: a race claimKey's lock did not
+// cover still answers pin_conflict, never a 500.
+func mapPinErr(err error) error {
+	if isUniqueViolation(err) {
+		return ErrKeyLive
+	}
+	return mapFK(err)
+}
+
 func mapFK(err error) error {
 	if err == nil {
 		return nil

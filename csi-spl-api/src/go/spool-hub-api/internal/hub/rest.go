@@ -480,6 +480,11 @@ func (s *Server) handlePin(w http.ResponseWriter, r *http.Request) {
 	}
 	opTS, _ := time.Parse(time.RFC3339, req.TS) // skewOK parsed it already
 	err = s.o.Store.PutPin(r.Context(), t.ID, req.BoxID, ed25519.PublicKey(pub), req.Force, opTS, s.o.Now())
+	if errors.Is(err, store.ErrKeyLive) {
+		// Never says whether, or where, the key is seated (spec 108 3.5).
+		writeErr(w, http.StatusConflict, "pin_conflict", "this key is live on another box; revoke it there first, or pin a new key")
+		return
+	}
 	if errors.Is(err, store.ErrConflict) {
 		writeErr(w, http.StatusConflict, "pin_conflict", "box_id is pinned to a different key or revoked (use force)")
 		return

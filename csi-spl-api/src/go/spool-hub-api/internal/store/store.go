@@ -23,6 +23,11 @@ var ErrNotFound = errors.New("not found")
 // different canonical envelope (FR-010).
 var ErrConflict = errors.New("conflict")
 
+// ErrKeyLive is the ErrConflict of a pin whose key is already live on another
+// box, in this workspace or another (spec 108 3.2, 3.5 "at pin"). It never
+// says which workspace holds the key.
+var ErrKeyLive = fmt.Errorf("%w: key live on another box", ErrConflict)
+
 // ErrStale is returned for a tenant-root-signed pin op whose ts is not later
 // than the last op that changed the pin: a replay (004 pin-semantics §5).
 var ErrStale = errors.New("stale pin op")

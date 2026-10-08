@@ -6,17 +6,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // rdb 0154 (specs/108 T006, spec section 3.2): one live pin per box key,
 // across every workspace, box-wui exempt. Postgres only: the memory store
-// does not carry the index, and the pin route's pin_conflict answer is T007.
+// does not carry the index.
 //
 // Pair, n=6 pin calls after the first on one fresh database:
 //   - refused (n=2): a key live in workspace A is pinned again, into
-//     workspace B and into a second box of A: unique violation 23505 on
-//     pins_pubkey_live_unique.
+//     workspace B and into a second box of A: PutPin answers ErrKeyLive
+//     (T007, claimKey), and the same row written past claimKey is the unique
+//     violation 23505 on pins_pubkey_live_unique, which mapPinErr maps to
+//     ErrKeyLive (the race backstop).
 //   - control (n=4): a unique key pins into B; after A's pin is revoked, its
 //     key pins into B; the box-wui key pins into both A and B.
 func TestPinsPubkeyUnique0154(t *testing.T) {
@@ -31,10 +34,20 @@ func TestPinsPubkeyUnique0154(t *testing.T) {
 
 	refused := func(what, tenant, box string) {
 		t.Helper()
-		err := pg.PutPin(ctx, tenant, box, key, false, now, now)
+		if err := pg.PutPin(ctx, tenant, box, key, false, now, now); !errors.Is(err, ErrKeyLive) {
+			t.Fatalf("%s: PutPin of a key live elsewhere: %v, want ErrKeyLive", what, err)
+		}
+		err := pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `INSERT INTO pins (tenant_id, box_id, pubkey, updated_at, last_op_ts)
+				VALUES ($1, $2, $3, $4, $4)`, tenant, box, []byte(key), now)
+			return err
+		})
 		var pe *pgconn.PgError
 		if !errors.As(err, &pe) || pe.Code != "23505" || pe.ConstraintName != "pins_pubkey_live_unique" {
 			t.Fatalf("%s: a second live pin of the same key was not refused by the index: %v", what, err)
+		}
+		if !errors.Is(mapPinErr(err), ErrKeyLive) {
+			t.Fatalf("%s: mapPinErr(%v) is not ErrKeyLive", what, err)
 		}
 	}
 	refused("other workspace", b, "box-b")

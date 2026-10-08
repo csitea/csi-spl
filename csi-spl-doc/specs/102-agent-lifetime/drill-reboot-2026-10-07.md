@@ -41,6 +41,8 @@ How it works (`csi-spl-orc/src/bash/run/spl-watchdog.func.sh`, `spl_wd_boot*`):
 
 ### 2.1 The desk-cron checkout is on the T014 sha
 
+One action does 2.1 and 2.3 and asks every live lane to push its WIP: `cd csi-spl-orc && DRY_RUN=0 BOX_RESTART_FROM=<your id> ./run -a do_spl_box_restart_prepare` (dry run without `DRY_RUN=0`).
+
 The watchdog instances run from `/opt/csi/csi-spl-desk-cron`. Its `@reboot`
 starter (`csi-spl:wd-inst-start-boot`) does not fetch, so pull it first.
 
@@ -68,6 +70,8 @@ then logs `left alone: it runs` for them. That is safe (the id lock and the
 Record: old line `kept` / `removed` `____`.
 
 ### 2.3 Snapshot the agents
+
+Done by `do_spl_box_restart_prepare` (2.1): its snapshot is `<spool root>/dispatch/box-restart/<utc>.before`.
 
 ```bash
 bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh 2>/dev/null | head -60; awk '/^btime/' /proc/stat
@@ -128,6 +132,8 @@ Expect per agent: `RS-GATE OK ... cause=reboot`, `RS-SPAWN OK`, `DONE OK`; and
 one `REBORN <id>@<box> #<n> cause=reboot` note to the orchestrator each.
 
 ### 4.4 No --resume, one session each
+
+After the boot, `cd csi-spl-orc && ./run -a do_spl_box_restart_check` compares 4.2 and 4.4 against that snapshot (exit 1: an id missing or doubled).
 
 ```bash
 ps -eo pid,etimes,args | awk '$3 ~ /(^|\/)claude$/' | grep -c -- '--resume'

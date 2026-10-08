@@ -156,7 +156,9 @@ if send_new or send_again:
     holder = "**Unanswered sweep** (%s, %s): %d new, %d still unanswered after %s.\n\n" % (
         envn, stamp, len(send_new), len(send_again), age(resend))
     holder += ("A human posted last in each topic below and no agent answered. Answer or route each one "
-               "(one discussion per lane). An item that needs no agent reply: "
+               "(one discussion per lane). Taking one posts its take line in the topic first: "
+               "`./run -a do_spl_take DESK_AGENT=<you> DESK_TO=<HUM-n> DESK_TASK=<uuid> TAKE_PLAN=<plan>`. "
+               "An item that needs no agent reply: "
                "`./run -a do_spl_unanswered_ack TOPIC=<uuid> REASON=<why>` and it is not sent again. "
                "An item still open %s after this note is sent once more, then escalated to %s.\n\n" % (age(resend), orch))
     holder += HDR + table([dict(r, tag="NEW") for r in send_new] +

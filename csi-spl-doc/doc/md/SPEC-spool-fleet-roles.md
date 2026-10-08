@@ -132,6 +132,14 @@ it, so a post never gets two answers:
 A seat on standby (the failover while the master holds the lease, the other
 machine's trio while this one holds it) reads and takes nothing.
 
+**Taking is a named action the human sees** (owner go, t1 `bc1a43e1`,
+2026-10-08): the taker runs `do_spl_take` (`DESK_AGENT`, `DESK_TO`,
+`DESK_TASK`, `TAKE_PLAN`) before any other work. It posts one line in that
+topic to that human through `do_spl_desk_reply` ("Taken by <id>@<box>:
+<plan>. I post the result here."), once per topic and taker (ledger
+`dispatch/take.log`), and with `TAKE_NOTIFY` tells the agents by spool note
+in the same call. A note to the agents alone is not a take.
+
 **The taker answers the post itself and owns that topic.** It keeps the
 topic's context and answers every follow-up there; it does not hand the
 conversation to another agent. Ownership ends when a human closes the

@@ -259,7 +259,7 @@ spl_dispatch_render() {
   ID="$1" ROLE="$2" PEER="$3" LEASE_RULE="$4" FIRST_STEP="$5" ORCH="$DISPATCH_ORCH" MASTER="$DISPATCH_MASTER" \
   FAILOVER="$DISPATCH_FAILOVER" SROOT="${SPOOL_ROOT:-/var/spool-hub}" POSTS="$DISPATCH_POSTS_DIR" ENVN="$ENV" \
   TENANTS="$(echo "$DISPATCH_TENANTS" | sed 's/ /, /g')" ORC="$PROJ_PATH" BOXU="$DISPATCH_BOX_USER" \
-  REPLY_CMD="$(spl_dispatch_reply_cmd "$1")" WT_ORC="$(spl_dispatch_worktree "$1")/csi-spl-orc" \
+  REPLY_CMD="$(spl_dispatch_reply_cmd "$1")" TAKE_CMD="$(spl_dispatch_take_cmd "$1")" WT_ORC="$(spl_dispatch_worktree "$1")/csi-spl-orc" \
   python3 - "$tpl" <<'PY'
 import os, sys
 s = open(sys.argv[1]).read()
@@ -268,7 +268,7 @@ for k, v in {"ID": e["ID"], "ROLE": e["ROLE"], "PEER": e["PEER"], "LEASE_RULE": 
              "FIRST_STEP": e["FIRST_STEP"], "ORCH": e["ORCH"], "MASTER": e["MASTER"],
              "FAILOVER": e["FAILOVER"], "SPOOL_ROOT": e["SROOT"], "POSTS_DIR": e["POSTS"],
              "ENV": e["ENVN"], "TENANTS": e["TENANTS"], "ORC": e["ORC"], "BOX_USER": e["BOXU"],
-             "REPLY_CMD": e["REPLY_CMD"], "WT_ORC": e["WT_ORC"]}.items():
+             "REPLY_CMD": e["REPLY_CMD"], "TAKE_CMD": e["TAKE_CMD"], "WT_ORC": e["WT_ORC"]}.items():
     s = s.replace("{" + k + "}", v)
 sys.stdout.write(s)
 PY
@@ -281,8 +281,16 @@ spl_dispatch_reply_cmd() {
   echo "sudo -u $DISPATCH_BOX_USER env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply"
 }
 
+# The take command the brief teaches <id> (t1 bc1a43e1 fix C): the same ONE
+# command shape as the reply; it posts "Taken by <id>@<box>: <plan>" in the
+# topic before any work, once per topic.
+spl_dispatch_take_cmd() {
+  echo "sudo -u $DISPATCH_BOX_USER env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one-line plan>' DRY_RUN=0 ./run -a do_spl_take"
+}
+
 # The permissions a dispatcher gets beyond auto mode: as itself
-# (DESK_AGENT=<id>) on this ENV it may reply in a topic, open a new channel
+# (DESK_AGENT=<id>) on this ENV it may reply in a topic, take a post
+# (do_spl_take), open a new channel
 # topic and archive a topic (owner, 2026-10-03 18:26Z, t1 d40c3e2f: "The
 # dispatchers must be able to post. The dispatcher should be doing everything
 # as well."). do_spl_dispatch_check proves the reply rule matches
@@ -290,7 +298,7 @@ spl_dispatch_reply_cmd() {
 spl_dispatch_settings_json() {
   local a
   {
-  for a in do_spl_desk_reply do_spl_desk_post do_spl_topic_archive; do
+  for a in do_spl_desk_reply do_spl_take do_spl_desk_post do_spl_topic_archive; do
     printf '      "Bash(sudo -u %s env ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a %s)"\n' "$DISPATCH_BOX_USER" "$ENV" "$1" "$a"
   done
   # The unanswered sweep reads every workspace (no DESK_AGENT); its cron runs

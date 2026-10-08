@@ -73,10 +73,20 @@ L6 (dispatcher text) is dropped: Q7 decided no change.
 
 ## T004 - L4: help and proof (spec 7.6, 10.3, 10.4)
 
-- [ ] `channels-and-direct-messages.md` 3.1: the ring rule and "Setting
-      your status"; `user-settings.md` links to it.
-- [ ] Dev proof 10.3 with screenshots, then prd proof 10.4 on the e2e
+- [x] `channels-and-direct-messages.md` 3.1: the ring rule and "Setting
+      your status"; `user-settings.md` links to it. Landed fd9862014; dev,
+      prd and e2e build.json serve it (v2.5.5).
+- [x] Dev proof 10.3 with screenshots, then prd proof 10.4 on the e2e
       workspace host with the footer version.
+      `tests/e2e/human-status-live.proof.mjs`, one test member, n=1 each:
+      dev t1 6/6 PASS (v2.5.3); prd e2e workspace host 6/6 PASS (footer
+      v3.8.3, hub 3.8.5): set Busy with a note and 30 min, amber ring with
+      its words, a fresh tab gets it from the hub, still Busy after a
+      reload, Clear status leaves no status.
+      **Not proven live:** the two-member half of 10.3 (B's DM list, mention
+      picker, DM header and composer line, expiry without a reload, grey dot
+      with an amber ring). Neither workspace has a second test login, so
+      these rest on the e2e 10.2 run against the mock hub.
 
 ## T005 - L5: pause notifications (spec 6, Q1)
 

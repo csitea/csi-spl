@@ -38,7 +38,7 @@ run KINDS_OFF=grok; rc=$?
   && pass "1. dry run prints and calls nothing" || fail "1. dry: rc=$rc $(cat "$T/calls" "$T/o")"
 
 # --- 2. refusals --------------------------------------------------------------
-for bad in "KINDS_OFF=gpt" "KINDS_OFF=claude,grok,agy,qwen" "KINDS_OFF=grok;rm" "ORDERED_BY=bob" "DRY_RUN=2"; do
+for bad in "KINDS_OFF=gpt" "KINDS_OFF=vibe" "KINDS_OFF=claude,grok,agy,qwen,mistral" "KINDS_OFF=grok;rm" "ORDERED_BY=bob" "DRY_RUN=2"; do
   run KINDS_OFF=grok ORDERED_BY=HUM-10 DRY_RUN=0 "$bad"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "2. $bad refused before any call" || fail "2. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
 done
@@ -57,6 +57,12 @@ grep -qF '{"agent_kinds_off":["grok","qwen"],"ordered_by":"HUM-10"}' "$T/calls" 
 run KINDS_OFF=none ORDERED_BY=HUM-10 DRY_RUN=0 STUB_BODY='{"agent_kinds_off":[],"agent_kinds_paused":{}}'; rc=$?
 [[ $rc -eq 0 ]] && grep -qF '{"agent_kinds_off":[],"ordered_by":"HUM-10"}' "$T/calls" && grep -q 'off \[\], paused \[\]' "$T/o" \
   && pass "3. 'none' switches every kind on" || fail "3. none: rc=$rc $(cat "$T/calls" "$T/o")"
+run KINDS_OFF="mistral,grok" ORDERED_BY=HUM-10 DRY_RUN=0 STUB_BODY="$OK_BODY"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '{"agent_kinds_off":["grok","mistral"],"ordered_by":"HUM-10"}' "$T/calls" \
+  && pass "3. mistral is a kind (spec 110), last in the hub's order" || fail "3. mistral: rc=$rc $(cat "$T/calls" "$T/o")"
+run KINDS_OFF=claude,grok,agy,qwen ORDERED_BY=HUM-10 DRY_RUN=0 STUB_BODY="$OK_BODY"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '{"agent_kinds_off":["claude","grok","agy","qwen"],"ordered_by":"HUM-10"}' "$T/calls" \
+  && pass "3. control: four kinds off is no longer every kind (mistral stays on)" || fail "3. four off: rc=$rc $(cat "$T/calls" "$T/o")"
 
 # --- 4. read --------------------------------------------------------------------
 run STUB_BODY="$OK_BODY"; rc=$?

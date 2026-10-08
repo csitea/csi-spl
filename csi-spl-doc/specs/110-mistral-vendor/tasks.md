@@ -34,6 +34,8 @@ listed line; it is not owned by any one task.
   records the rule.
 - **Q2 = Team (D3).** One seat per box. This shapes T014.
 - **Q3 = now (D4).** T013 follows T001 + T003 + T013a.
+- **D5** (msg c7970593): docs/spec and low-level coding go to mistral
+  first; one mistral seat on every consensus/debate panel. Built in T013a.
 
 ## Order
 
@@ -197,17 +199,23 @@ the owner's Team login on each box.
   `0700`) like the other kinds' logs (seat 2). Done: each test gains `m-004`
   (accepted) and `x-004` (refused), and a prune case with a stub Vibe
   session dir.
-- [ ] T013a **lane mix** (needs T003). Files:
+- [x] T013a **lane mix** (c-575; needs T003). Files:
   - `RUN/spl-{lane-mix,agent-split-show,hub-agent-kinds,dispatch-lease}.func.sh`;
-  - `OT/{spl-lane-mix,agent-split-show,hub-agent-kinds}.tst.sh`.
+  - `OT/{spl-lane-mix,agent-split-show,hub-agent-kinds}.tst.sh`;
+  - D5 in `spec.md` section 0 and this file.
 
   Under D4, a mistral skipped for a missing auth marker falls to agy, then
-  claude, instead of handing its share straight to claude.
+  claude, instead of handing its share straight to claude. Under D5, kind
+  `spec` (docs) and kind `default` (low-level coding) pick mistral first
+  while it holds a share; secret and hard stay claude.
 
   Done: 7d (the default pick follows the share; the chain is
   mistral -> agy -> claude, grok's chain unchanged; the 4-number
   `LANE_MIX_SPLIT` is still accepted; a mistral lane in `auth` state makes
-  the next pick skip mistral).
+  the next pick skip mistral); D5 (spec -> mistral; control: no marker ->
+  spec goes to agy).
+  - The `auth` state is read as the watchdog verdict `HIT S2 kind=auth`
+    in `ctx*/<m-id>/out.s2` newer than `.vibe/.env`; T006/T013b emit it.
 - [ ] T013b **watchdog + hook-ping** (needs T006). Files:
   - `csi-spl-orc/src/bash/features/watchdog/situations/{lib.inc.sh,s3.sh}`;
   - `RUN/spl-{watchdog,wd-takeover,standby-bench,hook-ping}.func.sh`;

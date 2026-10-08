@@ -12,7 +12,13 @@
 #          from a stubbed hub) beats it all: a kind off or paused there is
 #          never picked; a hub that does not answer -> the local checks,
 #          said in the reason; a local limit verdict is reported as a pause.
-#          A fake agent home and registry; the cnf is the real all.env.yaml.
+#          Spec 110 (section 10): mistral is the 5th kind. Docs/spec and
+#          low-level coding go to mistral first while it holds a share (owner
+#          D5), and a skipped mistral falls to agy, then claude (D4); a dead
+#          key (S2 kind=auth) skips it until the marker is re-keyed.
+#          A fake agent home and registry; the cnf is a copy of the real
+#          all.env.yaml with sections 1..9's split pinned (20/55/25/0/0), so
+#          the T013 share switch in the real cnf does not move them.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -24,7 +30,10 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 command -v yq >/dev/null || { echo "FAIL: no yq"; exit 1; }
 
-CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
+REAL_CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
+CNF="$T/all.env.yaml"
+yq '.env.box.agent_split.claude = 20 | .env.box.agent_split.grok = 55 | .env.box.agent_split.agy = 25
+    | .env.box.agent_split.qwen = 0 | .env.box.agent_split.mistral = 0' "$REAL_CNF" >"$CNF"
 H="$T/home"
 mkdir -p "$H/.local/bin" "$H/.grok" "$H/.gemini"
 for c in claude grok agy; do printf '#!/bin/sh\n' >"$H/.local/bin/$c"; chmod +x "$H/.local/bin/$c"; done
@@ -50,12 +59,12 @@ registry() {
 
 mix() {
   env -u LANE_MIX_DIFFICULTY -u LANE_MIX_SENSITIVE -u LANE_MIX_SPLIT -u LANE_MIX_KIND \
-    -u SPOOL_AGENT_USER -u LANE_MIX_WD_DIR -u LANE_MIX_LIMIT_FRESH \
-    -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN \
+    -u SPOOL_AGENT_USER -u LANE_MIX_WD_DIR -u LANE_MIX_LIMIT_FRESH -u LANE_MIX_AUTH_FRESH \
+    -u CLAUDE_BIN -u GROK_BIN -u AGY_BIN -u QWEN_BIN -u MISTRAL_BIN \
     -u LANE_FLEET -u LANE_HUB_CMD -u LANE_ENV -u ENV -u LANE_TENANT -u LANE_BOX -u LANE_DESK_BOX \
     -u LANE_MIX_INSTANCE -u LANE_MIX_REPORT \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPOOL_ROOT="$T" \
-    LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" "$@" bash -c '
+    LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" LANE_MIX_CNF="$CNF" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
@@ -65,8 +74,10 @@ pick() { sed -n 's/^pick=\([a-z]*\) .*/\1/p' "$T/out"; }
 
 FUNC="$PROJ_ROOT/src/bash/run/spl-lane-mix.func.sh"
 bash -n "$FUNC" && pass "0. action parses" || fail "0. action syntax"
-[[ "$(yq -r '.env.box.agent_split | [.claude, .grok, .agy, .qwen] | map(tostring) | join(" ")' "$CNF")" == "20 55 25 0" ]] \
-  && pass "0. cnf carries the owner's split 20/55/25/0" || fail "0. cnf split: $(yq -r '.env.box.agent_split' "$CNF")"
+[[ "$(yq -r '.env.box.agent_split | .claude + .grok + .agy + .qwen + .mistral' "$REAL_CNF")" == 100 ]] \
+  && [[ "$(yq -r '.env.box.agent_split.auth_marker.mistral' "$REAL_CNF")" == .vibe/.env ]] \
+  && pass "0. the real cnf carries five numbers summing to 100 and mistral's auth marker" \
+  || fail "0. real cnf split: $(yq -r '.env.box.agent_split' "$REAL_CNF")"
 
 # --- 1. the table -------------------------------------------------------------
 registry 4 11 5
@@ -313,6 +324,80 @@ hub '[]' '{"grok":{"until":"2099-01-01T00:00:00Z","reason":"x","box":"b"}}'
 hmix
 [[ ! -e "$T/hub.log" ]] && pass "9. already paused on the hub: not reported again" || fail "9. re-report: $(cat "$T/hub.log")"
 rm -rf "$T/dispatch"
+
+# --- 10. mistral, the 5th kind (spec 110 D1, D4, D5) --------------------------
+M55='claude=20 grok=0 agy=25 qwen=0 mistral=55'
+registry 4 11 5
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == agy ]] && grep -qE '^mistral +55% +0% .* no +skip \(no mistral cli\); share to agy$' "$T/out" \
+  && grep -q 'default mistral is skipped (no mistral cli); falls to agy (chain mistral -> agy -> claude)' "$T/out" \
+  && grep -qE '^agy +25% +80% ' "$T/out" \
+  && pass "10. D4: no vibe cli: mistral's default pick and its 55 fall to agy" || fail "10. no cli: $(cat "$T/out")"
+printf '#!/bin/sh\n' >"$H/.local/bin/vibe"; chmod +x "$H/.local/bin/vibe"
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == agy ]] && grep -q 'skip (mistral not signed in); share to agy$' "$T/out" \
+  && pass "10. D4: vibe but no .vibe/.env: skipped, falls to agy" || fail "10. no marker: $(cat "$T/out")"
+mix LANE_MIX_SPLIT="$M55" LANE_MIX_KIND=spec
+[[ "$(pick)" == agy ]] && grep -q 'kind spec but mistral is skipped (mistral not signed in); falls to agy (chain mistral -> agy -> claude)' "$T/out" \
+  && pass "10. D5 timing control: no marker, kind spec -> agy (nothing reaches mistral before its login)" || fail "10. spec no marker: $(cat "$T/out")"
+rm "$H/.local/bin/agy"
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == claude ]] && grep -q 'falls to claude (chain mistral -> agy -> claude)' "$T/out" \
+  && grep -qE '^claude +20% +100% ' "$T/out" \
+  && pass "10. D4: mistral and agy skipped -> claude" || fail "10. chain claude: $(cat "$T/out")"
+printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
+mkdir -p "$H/.vibe"; : >"$H/.vibe/.env"; touch -d '-1 day' "$H/.vibe/.env"
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == mistral ]] && grep -q 'difficulty unset: default is mistral' "$T/out" \
+  && grep -q 'default=mistral$' "$T/out" && grep -qE '^mistral +55% +55% +0% +0 yes +under$' "$T/out" \
+  && pass "10. D1: signed in, mistral=55 grok=0: the default pick is mistral" || fail "10. default: $(cat "$T/out")"
+mix LANE_MIX_SPLIT="$M55" LANE_MIX_KIND=spec
+[[ "$(pick)" == mistral ]] && grep -q 'kind spec: specifications go to mistral' "$T/out" \
+  && pass "10. D5: kind spec (docs) -> mistral first" || fail "10. spec: $(cat "$T/out")"
+mix LANE_MIX_SPLIT="$M55" LANE_MIX_DIFFICULTY=30
+[[ "$(pick)" == mistral ]] && grep -q 'mistral is 55 points under' "$T/out" \
+  && pass "10. easy work nudges mistral, 55 points under" || fail "10. easy: $(cat "$T/out")"
+for k in secret hard; do
+  mix LANE_MIX_SPLIT="$M55" LANE_MIX_KIND=$k
+  [[ "$(pick)" == claude ]] && pass "10. D5: kind $k stays claude" || fail "10. $k: $(cat "$T/out")"
+done
+# control: the same signed-in box with the share back on grok, in the old
+# 4-number form: grok and agy first again, with no code change
+mix LANE_MIX_SPLIT='claude=20 grok=55 agy=25 qwen=0'
+[[ "$(pick)" == grok ]] && grep -qE '^mistral +0% +0% ' "$T/out" \
+  && pass "10. control: the 4-number split is read as mistral=0, default grok" || fail "10. 4-number: $(cat "$T/out")"
+mix LANE_MIX_SPLIT='claude=20 grok=55 agy=25 qwen=0' LANE_MIX_KIND=spec
+[[ "$(pick)" == agy ]] && pass "10. control: mistral share 0, kind spec -> agy" || fail "10. spec share 0: $(cat "$T/out")"
+mix LANE_MIX_SPLIT='claude=20 grok=0 agy=25 qwen=0 mistral=50'; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'sums to 95, not 100' "$T/out" && pass "10. a five-number split off 100 is refused" || fail "10. sum: rc=$rc $(cat "$T/out")"
+mix LANE_MIX_SPLIT='claude=20 grok=0 agy=25 qwen=0 vibe=55'; rc=$?
+[[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && pass "10. an unknown fifth name is refused" || fail "10. name: rc=$rc $(cat "$T/out")"
+# a dead key: the watchdog's S2 kind=auth on an m- lane (spec 110 2.5)
+auth() {  # auth <id> <age-s>
+  mkdir -p "$T/dispatch/wd/ctx/$1"
+  echo "HIT S2 kind=auth pane: Invalid API key" >"$T/dispatch/wd/ctx/$1/out.s2"
+  touch -d "@$(( $(date +%s) - $2 ))" "$T/dispatch/wd/ctx/$1/out.s2"
+}
+auth m-950 600
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == agy ]] && grep -q 'skip (mistral auth (m-950 S2 kind=auth 10m ago)); share to agy$' "$T/out" \
+  && grep -q 'default mistral is skipped (mistral auth (m-950 .*); falls to agy' "$T/out" \
+  && pass "10. a mistral lane in auth state: the next pick skips mistral" || fail "10. auth: $(cat "$T/out")"
+mix LANE_MIX_SPLIT="$M55" LANE_MIX_KIND=spec
+[[ "$(pick)" == agy ]] && pass "10. auth: kind spec skips mistral too" || fail "10. auth spec: $(cat "$T/out")"
+mix LANE_MIX_SPLIT="$M55" LANE_MIX_AUTH_FRESH=300
+[[ "$(pick)" == mistral ]] && pass "10. control: an auth verdict older than LANE_MIX_AUTH_FRESH is stale" || fail "10. auth stale: $(cat "$T/out")"
+touch "$H/.vibe/.env"
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == mistral ]] && pass "10. control: a re-key (marker newer than the verdict) ends the skip" || fail "10. re-key: $(cat "$T/out")"
+rm -rf "$T/dispatch"; auth q-950 60
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == mistral ]] && pass "10. control: a qwen lane's auth verdict does not skip mistral" || fail "10. other kind auth: $(cat "$T/out")"
+rm -rf "$T/dispatch"; limit m-951 60
+mix LANE_MIX_SPLIT="$M55"
+[[ "$(pick)" == agy ]] && grep -q 'mistral limit (m-951 S2 kind=limit' "$T/out" \
+  && pass "10. an m- lane's limit verdict skips mistral (id prefix m)" || fail "10. m limit: $(cat "$T/out")"
+rm -rf "$T/dispatch" "$H/.vibe" "$H/.local/bin/vibe"
 
 mix LANE_MIX_KIND=nope; rc=$?
 [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" \

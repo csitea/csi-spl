@@ -3,7 +3,7 @@
 # Purpose: do_spl_agent_split_show is a read of one tenant's vendor split.
 #          Bad input never calls the cloud. A real run SELECTs through the
 #          proxy as the project SA, with the tenant id as a psql variable,
-#          and prints "claude=N grok=N agy=N qwen=N". A row that does not sum
+#          and prints "claude=N grok=N agy=N qwen=N mistral=N". A row that does not sum
 #          to 100 is refused. gcloud and psql are stubbed.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -40,7 +40,7 @@ printf ' [%s]' "$@" >>"$STUB_LOG"; echo >>"$STUB_LOG"
 if [[ -n "${STUB_PSQL_OUT+x}" ]]; then
   printf '%s\n' "$STUB_PSQL_OUT"
 else
-  printf '%s\n' '40|50|10|0'
+  printf '%s\n' '20|0|25|0|55'
 fi
 exit "${STUB_PSQL_RC:-0}"
 EOF
@@ -83,7 +83,8 @@ in_orc 'do_spl_agent_split_show' TENANT_ID=t1 GCP_SA_KEY_FILE="$T/nokey.json"; r
 # --- 2. the statement ---------------------------------------------------------
 in_orc 'do_spl_agent_split_show' TENANT_ID=t1; rc=$?
 [[ $rc -eq 0 ]] \
-  && grep -qx 'claude=40 grok=50 agy=10 qwen=0' "$T/out" \
+  && grep -qx 'claude=20 grok=0 agy=25 qwen=0 mistral=55' "$T/out" \
+  && grep -q 'agent_split_mistral' "$T/stdin" \
   && grep -q 'BEGIN TRANSACTION READ ONLY;' "$T/stdin" \
   && grep -q "SET LOCAL app.tenant_id = :'tenant'" "$T/stdin" \
   && grep -q 'agent_split_claude' "$T/stdin" \
@@ -103,10 +104,13 @@ in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'no agent split row for tenant t1' "$T/out" \
   && ! grep -q '^claude=' "$T/out" \
   && pass "3. zero rows is a refusal" || fail "3. zero: rc=$rc $(cat "$T/out")"
-in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|10'; rc=$?
+in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0|10'; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'sums to 110, not 100' "$T/out" \
   && ! grep -q '^claude=' "$T/out" \
   && pass "3. a row that does not sum to 100 is not printed" || fail "3. sum: rc=$rc $(cat "$T/out")"
+in_orc 'do_spl_agent_split_show' TENANT_ID=t1 STUB_PSQL_OUT='40|50|10|0'; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'no agent split row for tenant t1' "$T/out" && ! grep -q '^claude=' "$T/out" \
+  && pass "3. control: a four-column row (no mistral) is not read as a split" || fail "3. four: rc=$rc $(cat "$T/out")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

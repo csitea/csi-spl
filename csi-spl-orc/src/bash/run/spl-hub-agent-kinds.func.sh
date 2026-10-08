@@ -14,7 +14,7 @@
 # @description with KINDS_OFF: print the change, call no cloud.
 # @param ENV - required: dev or prd
 # @param KINDS_OFF (optional) - the WHOLE set to switch off, comma separated
-# @param   (claude,grok,agy,qwen), or 'none' to switch every kind on; unset = read
+# @param   (claude,grok,agy,qwen,mistral), or 'none' to switch every kind on; unset = read
 # @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -53,16 +53,16 @@ do_spl_hub_agent_kinds() {
 }
 
 # _spl_hub_agent_kinds_list <KINDS_OFF> -> the kinds, distinct, comma joined
-# in the hub's order ('' for none); refuses an unknown kind and all four
+# in the hub's order ('' for none); refuses an unknown kind and all five
 _spl_hub_agent_kinds_list() {
   local raw="${1// /}" k out=""
   [[ "$raw" == none ]] && { echo ""; return 0; }
   [[ "$raw" =~ ^[a-z]+(,[a-z]+)*$ ]] || { do_log "FATAL KINDS_OFF must be kinds like grok or grok,qwen, or 'none', got: '$1'"; return 1; }
   for k in ${raw//,/ }; do
-    [[ "$k" =~ ^(claude|grok|agy|qwen)$ ]] || { do_log "FATAL KINDS_OFF: '$k' is not an agent kind (claude, grok, agy, qwen)"; return 1; }
+    [[ "$k" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || { do_log "FATAL KINDS_OFF: '$k' is not an agent kind (claude, grok, agy, qwen, mistral)"; return 1; }
   done
-  for k in claude grok agy qwen; do [[ ",$raw," == *",$k,"* ]] && out="$out,$k"; done
-  [[ "$out" != ",claude,grok,agy,qwen" ]] || { do_log "FATAL KINDS_OFF names every kind: at least one stays on"; return 1; }
+  for k in claude grok agy qwen mistral; do [[ ",$raw," == *",$k,"* ]] && out="$out,$k"; done
+  [[ "$out" != ",claude,grok,agy,qwen,mistral" ]] || { do_log "FATAL KINDS_OFF names every kind: at least one stays on"; return 1; }
   echo "${out#,}"
 }
 

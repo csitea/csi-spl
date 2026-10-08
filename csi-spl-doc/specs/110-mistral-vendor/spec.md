@@ -17,6 +17,7 @@ All three review seats agreed, and every change they asked for is folded in
 | **3393f016** | **DECIDED**: "so add it and so that it takes the current allocations from grok" |
 | **803c3b38** | **DECIDED**: "q1 yes , q2 b , q3 b" (to the section 8 questions) |
 | 1b27e902 | the owner bought a yearly Team subscription |
+| **c7970593** | **DECIDED**: "good good so we start utilizing mistral more for documentation and lower level coding tasks in the beginning ... and also in every consensus and debate" |
 
 **Decision D1 (msg 3393f016): Mistral takes grok's place.**
 
@@ -44,6 +45,25 @@ the (a) that all three review seats had picked:
   not T014.
   - Until a box has the Mistral login, mistral is skipped there and its
     pick falls to agy, then claude (section 3.5).
+
+**Decision D5 (msg c7970593, folded into T013a by c-001, msg e221f7b3).**
+Mistral is routed by KIND as well as by share:
+
+- **Documentation and specs** (`do_spl_lane_mix` kind `spec`): mistral
+  first, then agy, then claude.
+- **Low-level / mechanical coding** (kind `default`, difficulty unset):
+  mistral first; a skipped mistral falls down its chain, agy then claude.
+- **secret** and **hard** are unchanged: claude.
+- **How share and kind combine.** The kind picks the FIRST vendor, and a
+  vendor whose share is 0 is never first (so a share of 0 takes mistral out
+  of every kind-first pick and restores agy for specs and grok for the
+  default). The share drives only the easy-work nudge (difficulty < 60) and
+  where a skipped vendor's points go.
+- **Panels.** Every consensus or debate panel gets **one mistral seat**, in
+  addition to the seats it has today. Seating panels is the orchestrator's
+  job; no lane-mix or skill change.
+- **Timing.** Nothing reaches mistral before T014: with no auth marker (or
+  a dead key, 2.5) mistral is skipped and its work falls to agy, then claude.
 
 ## 1. Goals
 

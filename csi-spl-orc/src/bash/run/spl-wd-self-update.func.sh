@@ -404,6 +404,17 @@ spl_wd_upd_force() {
   return 0
 }
 
+# spl_wd_upd_lock_wait FD: 0 once the self-check tick holds the judge lock
+# on FD that a peer held. The check must judge at least 1 agent (10.4.4 step
+# 3); with flock -n a peer mid-check of the only agent left it 0, and a tick
+# that judged nothing read green on a broken sha. Waits only while no agent
+# of this tick is forced yet, at most WD_SCRIPT_TIMEOUT + 5 s.
+spl_wd_upd_lock_wait() {
+  [[ -n "${WD_UPD_EXEC:-}" && "${WD_UPD_ROLE:-}" == forward ]] || return 1
+  [[ -d "$WD_DIR/tick$WD_SFX/upd.force" ]] && return 1
+  flock -w $(( WD_SCRIPT_TIMEOUT + 5 )) "$1"
+}
+
 # spl_wd_upd_sleep SECS: the loop's sleep, in WD_UPD_SLICE s slices, cut
 # short when the baton names this instance or its sha is quarantined
 spl_wd_upd_sleep() {

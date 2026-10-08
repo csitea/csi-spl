@@ -14,7 +14,8 @@
 #      (control: an old unused snapshot goes); WD_SELF_UPDATE=0 and the 093
 #      loop (no WD_INST) never touch code/; DRY_RUN=1 only says "would";
 #      quorum: a dead peer defers the rollout with ONE alert (control: all
-#      alive -> no defer); a dead instance restarts from code/good while a
+#      alive -> no defer); the self-check tick waits for a peer's judge lock
+#      (control: an ordinary tick skips); a dead instance restarts from code/good while a
 #      candidate is out (never the candidate)
 #   2. bootstrap: no code/good -> instance 1 snapshots the sha it runs, good
 #      := it, nothing restarts
@@ -232,6 +233,17 @@ out="$(lib "WD_CODE_SHA=$SHA_A; "'spl_wd_self_update "$(date +%s)"; spl_wd_self_
 mkdir -p "$W/code/$SHA_B/csi-spl-orc"; ln -sfn "$SHA_B" "$W/code/candidate"
 out="$(lib 'spl_wd_inst_runner "$WD_DIR"')"
 [[ "$out" == "$W/code/good/csi-spl-orc/run" ]] && pass "1 a (re)started instance runs code/good, never the candidate" || fail "1 runner: $out"
+# the self-check tick waits out a peer's judge lock (it must judge 1 agent);
+# control: an ordinary tick skips the held agent at once
+jl='if flock -n 6; then echo FREE; elif spl_wd_upd_lock_wait 6; then echo WAITED; else echo SKIPPED; fi'
+flock "$W/c-901.judge.lock" sleep 2 & JH=$!; sleep 0.3
+out="$(lib 'WD_UPD_EXEC=x WD_UPD_ROLE=forward; exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl")"
+wait "$JH"
+[[ "$out" == *WAITED* ]] && pass "1 the self-check tick waits for a peer's judge lock" || fail "1 lock wait: $out"
+flock "$W/c-901.judge.lock" sleep 2 & JH=$!; sleep 0.3
+out="$(lib 'exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl")"
+wait "$JH"
+[[ "$out" == *SKIPPED* ]] && pass "1 control: an ordinary tick skips an agent a peer judges" || fail "1 lock control: $out"
 rm -rf "$W" "$LOG" "$T/sent"; dc reset -q --hard "$SHA_A"
 
 # ---- 2. bootstrap ------------------------------------------------------------

@@ -537,7 +537,7 @@ spl_wd_one() {
   local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx skip line jt="" ji=""
   if [[ "${WD_JUDGE_LOCK:-1}" != 0 ]]; then
     exec 6>>"$WD_DIR/$id.judge.lock"
-    flock -n 6 || return 0
+    flock -n 6 || spl_wd_upd_lock_wait 6 || return 0
     read -r jt ji < "$WD_DIR/$id.judged" 2>/dev/null || true
     if [[ "$jt" =~ ^[0-9]+$ && "$ji" != "${WD_INST:-0}" ]] && (( now - jt < WD_TICK - 5 )) && ! spl_wd_upd_force "$id"; then return 0; fi
   fi

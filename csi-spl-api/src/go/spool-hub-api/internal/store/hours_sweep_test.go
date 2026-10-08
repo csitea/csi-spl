@@ -12,10 +12,12 @@ import (
 // removed member with minutes gets a row, a member with nothing a 0 row, an
 // agent none; the period's minutes are pruned, a minute of the next local day
 // is not; a re-run writes nothing; a week -> month switch never pulls passed
-// days in; minutes older than 45 days go. Unapproved suggestions count zero
-// (owner Q2, panel A): the row's total is the approved entries only.
+// days in; minutes older than 45 days go. With no HoursOpenSuggestions an
+// unapproved suggestion counts zero; with one (owner Q2 = B) the open
+// suggestions become approved entries before the prune, the worker's own
+// entries untouched.
 //
-// Postgres runs the sweep for the test's own workspace only (sweepHoursIn):
+// Postgres runs the sweep for the test's own workspace only (named tenants):
 // the database is shared with the other packages' tests.
 
 // The week before A (09-21..09-27) is due at sweepBeforeA: owner and empty
@@ -29,13 +31,16 @@ var (
 
 func sweepRun(t *testing.T, name string, st Store, tid string, now time.Time) HoursSweepResult {
 	t.Helper()
-	var r HoursSweepResult
-	var err error
-	if name == "memory" { // its own store: the public, every-workspace entry
-		r, err = st.(HoursSweeper).SweepHours(context.Background(), now)
-	} else {
-		r, err = sweepHoursIn(context.Background(), st.(hoursSweepSource), []string{tid}, now)
+	return sweepRunOpen(t, name, st, tid, now, nil)
+}
+
+func sweepRunOpen(t *testing.T, name string, st Store, tid string, now time.Time, open HoursOpenSuggestions) HoursSweepResult {
+	t.Helper()
+	var tenants []string
+	if name != "memory" { // memory is its own store: the every-workspace run
+		tenants = []string{tid}
 	}
+	r, err := st.(HoursSweeper).SweepHours(context.Background(), now, open, tenants...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,6 +210,71 @@ func TestHoursSweepAgedMinutes(t *testing.T) {
 			left, err := h.HoursMinutes(ctx, tid, hoursMember, old, kept.Add(time.Minute))
 			if err != nil || len(left) != 1 || !left[0].At.Equal(kept) {
 				t.Fatalf("left = %v %v, want only %v", left, err, kept)
+			}
+		})
+	}
+}
+
+func TestHoursSweepAutoApproves(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			h, tid := hoursStore(t, st), newTenant(t, st)
+			m := sweepMember(t, st, tid, "m-"+uid("")+"@example.com", RoleTenantOwner)
+			// The worker rejected t:a on Tuesday; t:b and Thursday are open.
+			if err := h.PutHoursEntries(ctx, tid, m, []HoursEntry{{Day: "2026-09-29", Target: "t:a", Minutes: 40,
+				SuggestedMinutes: 40, State: HoursRejected}}, m, sweepBeforeA); err != nil {
+				t.Fatal(err)
+			}
+			sweepMinute(t, h, tid, m, time.Date(2026, 9, 29, 10, 0, 0, 0, time.UTC), "UTC")
+			var asked [][2]string
+			open := func(_ context.Context, tenant, member, start, end string) ([]HoursEntry, error) {
+				if tenant != tid || member != m {
+					return nil, nil
+				}
+				asked = append(asked, [2]string{start, end})
+				// The minutes are still there when the suggestions are asked.
+				left, err := h.HoursMinutes(ctx, tid, m, time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC), sweepAfterA)
+				if err != nil || len(left) != 1 {
+					t.Errorf("minutes at the ask = %v %v, want the one minute", left, err)
+				}
+				return []HoursEntry{
+					{Day: "2026-09-29", Target: "t:a", Minutes: 40, SuggestedMinutes: 40, State: HoursApproved},
+					{Day: "2026-09-29", Target: "t:b", Minutes: 25, SuggestedMinutes: 25, State: HoursApproved},
+					{Day: "2026-10-01", Target: "ws", Minutes: 15, SuggestedMinutes: 15, State: HoursApproved},
+				}, nil
+			}
+			r := sweepRunOpen(t, name, st, tid, sweepAfterA, open)
+			if r.Pruned != 1 {
+				t.Fatalf("sweep = %+v, want the minute pruned", r)
+			}
+			if len(asked) != 1 || asked[0] != sweepWeekA {
+				t.Fatalf("asked %v, want week A once", asked)
+			}
+			es, err := h.HoursEntries(ctx, tid, m, sweepWeekA[0], sweepWeekA[1])
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]string{}
+			for _, e := range es {
+				got[e.Day+" "+e.Target] = e.State + " " + e.UpdatedBy
+			}
+			want := map[string]string{"2026-09-29 t:a": HoursRejected + " " + m,
+				"2026-09-29 t:b": HoursApproved + " " + HoursSweepBy, "2026-10-01 ws": HoursApproved + " " + HoursSweepBy}
+			if len(got) != len(want) {
+				t.Fatalf("entries = %v, want %v", got, want)
+			}
+			for k, v := range want {
+				if got[k] != v {
+					t.Fatalf("entries = %v, want %v", got, want)
+				}
+			}
+			if p := sweepRows(t, h, tid)[m+" "+sweepWeekA[0]]; p.Minutes != 40 || p.State != HoursFrozen {
+				t.Fatalf("row = %+v, want frozen with 40 (25 + 15; the rejected row counts 0)", p)
+			}
+			// A re-run asks nothing and writes nothing.
+			if r := sweepRunOpen(t, name, st, tid, sweepAfterA.Add(time.Hour), open); r.Frozen != 0 || len(asked) != 1 {
+				t.Fatalf("re-run = %+v, asked %v", r, asked)
 			}
 		})
 	}

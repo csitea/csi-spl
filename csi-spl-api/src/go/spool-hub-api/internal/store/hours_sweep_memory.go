@@ -8,8 +8,8 @@ import (
 
 // The Memory side of hours_sweep.go.
 
-func (s *Memory) SweepHours(ctx context.Context, now time.Time) (HoursSweepResult, error) {
-	return sweepHours(ctx, s, now)
+func (s *Memory) SweepHours(ctx context.Context, now time.Time, open HoursOpenSuggestions, tenants ...string) (HoursSweepResult, error) {
+	return sweepHours(ctx, s, now, open, tenants)
 }
 
 func (s *Memory) hoursSweepTenants(_ context.Context) ([]string, error) {
@@ -53,8 +53,11 @@ func (s *Memory) hoursActiveMembers(_ context.Context, tenant, from, to string) 
 	return out, nil
 }
 
-func (s *Memory) freezeHoursPeriod(_ context.Context, tenant string, p HoursPeriod) (created bool, pruned int, err error) {
+func (s *Memory) freezeHoursPeriod(_ context.Context, tenant string, p HoursPeriod, es []HoursEntry) (created bool, pruned int, err error) {
 	if err := checkHoursPeriod(&p); err != nil {
+		return false, 0, err
+	}
+	if err := checkSweepEntries(p, es); err != nil {
 		return false, 0, err
 	}
 	s.mu.Lock()
@@ -64,6 +67,9 @@ func (s *Memory) freezeHoursPeriod(_ context.Context, tenant string, p HoursPeri
 	}
 	k := [2]string{tenant, p.Member}
 	if _, dup := s.hrs.periods[k][p.Start]; !dup {
+		if err := s.memSweepEntriesLocked(k, p, es); err != nil {
+			return false, 0, err
+		}
 		p.Minutes = 0
 		for _, e := range s.hrs.entries[k] {
 			if p.Start <= e.Day && e.Day <= p.End {
@@ -99,4 +105,27 @@ func (s *Memory) pruneAgedHoursMinutes(_ context.Context, before time.Time) (int
 		}
 	}
 	return n, nil
+}
+
+// memSweepEntriesLocked adds es where no entry is, all or none (the cap).
+func (s *Memory) memSweepEntriesLocked(k [2]string, p HoursPeriod, es []HoursEntry) error {
+	next := map[[2]string]HoursEntry{}
+	for dk, e := range s.hrs.entries[k] {
+		next[dk] = e
+	}
+	var days []string
+	for _, e := range es {
+		dk := [2]string{e.Day, e.Target}
+		if _, ok := next[dk]; ok {
+			continue // the worker's own decision stays
+		}
+		e.UpdatedAt, e.UpdatedBy = p.DecidedAt.UTC(), HoursSweepBy
+		next[dk] = e
+		days = append(days, e.Day)
+	}
+	if err := memHoursCap(next, days); err != nil {
+		return err
+	}
+	s.hrs.entries[k] = next
+	return nil
 }

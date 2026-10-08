@@ -13,8 +13,10 @@ import (
 //     member with an entry or a minute in the period (a member removed
 //     mid-period who logged time). A member with nothing gets a 0 row: the biz
 //     owner signs off a zero, never a missing row. Agents never get a row;
-//   - the row's minutes are the member's approved entries. Suggestions nobody
-//     approved count zero (owner Q2, panel answer A): nothing is auto-approved;
+//   - open suggestions are auto-approved (owner Q2 = B, HUM-10 2026-10-08):
+//     the caller's HoursOpenSuggestions answers them, and they are written as
+//     approved entries of every (day, target) that has none, first;
+//   - the row's minutes are the member's approved entries, those included;
 //   - in the same transaction, the period's raw minutes are pruned.
 //
 // Then every minute older than HoursMinuteRetention is pruned, in any workspace.
@@ -47,9 +49,17 @@ type HoursSweepResult struct {
 	Aged   int // minutes older than HoursMinuteRetention deleted
 }
 
+// HoursOpenSuggestions answers a member's open suggestions of the days
+// start..end (YYYY-MM-DD) as approved entries, at the freeze (owner Q2 = B).
+// The suggestion engine needs the calendar and the member's zone, which the
+// hub holds; nil writes none (an unapproved suggestion counts zero, Q2 = A).
+type HoursOpenSuggestions func(ctx context.Context, tenant, member, start, end string) ([]HoursEntry, error)
+
 // HoursSweeper is implemented by Memory and Postgres.
 type HoursSweeper interface {
-	SweepHours(ctx context.Context, now time.Time) (HoursSweepResult, error)
+	// SweepHours runs the sweep for tenants, or for every workspace and then
+	// the 45-day retention when none is named.
+	SweepHours(ctx context.Context, now time.Time, open HoursOpenSuggestions, tenants ...string) (HoursSweepResult, error)
 }
 
 var (
@@ -67,10 +77,11 @@ type hoursSweepSource interface {
 	// hoursActiveMembers is the humans (never an agent) with an entry or a
 	// minute on a local day in from..to.
 	hoursActiveMembers(ctx context.Context, tenant, from, to string) (map[string]bool, error)
-	// freezeHoursPeriod writes p (state frozen, its minutes the member's
-	// approved entries of p's days) unless the member has a row from p.Start,
-	// and prunes the member's minutes of p's days; one transaction.
-	freezeHoursPeriod(ctx context.Context, tenant string, p HoursPeriod) (created bool, pruned int, err error)
+	// freezeHoursPeriod, unless the member has a row from p.Start, writes es
+	// (approved, by the sweep) where no entry is, then p (state frozen, its
+	// minutes the member's approved entries of p's days); it prunes the
+	// member's minutes of p's days either way; one transaction.
+	freezeHoursPeriod(ctx context.Context, tenant string, p HoursPeriod, es []HoursEntry) (created bool, pruned int, err error)
 	// pruneAgedHoursMinutes deletes every minute before before, any workspace.
 	pruneAgedHoursMinutes(ctx context.Context, before time.Time) (int, error)
 }
@@ -79,12 +90,15 @@ type hoursSweepSource interface {
 // a demo visitor (specs/077) is a stay, not a worker.
 var hoursNoRow = map[string]bool{rbac.PureAgent: true, rbac.DemoUser: true}
 
-func sweepHours(ctx context.Context, st hoursSweepSource, now time.Time) (HoursSweepResult, error) {
+func sweepHours(ctx context.Context, st hoursSweepSource, now time.Time, open HoursOpenSuggestions, tenants []string) (HoursSweepResult, error) {
+	if len(tenants) > 0 {
+		return sweepHoursIn(ctx, st, tenants, now, open)
+	}
 	tenants, err := st.hoursSweepTenants(ctx)
 	if err != nil {
 		return HoursSweepResult{}, err
 	}
-	r, firstErr := sweepHoursIn(ctx, st, tenants, now)
+	r, firstErr := sweepHoursIn(ctx, st, tenants, now, open)
 	n, err := st.pruneAgedHoursMinutes(ctx, now.Add(-HoursMinuteRetention))
 	r.Aged = n
 	if firstErr == nil {
@@ -95,18 +109,19 @@ func sweepHours(ctx context.Context, st hoursSweepSource, now time.Time) (HoursS
 
 // sweepHoursIn freezes the due periods of tenants; one workspace's failure
 // does not stop the others, the first is returned.
-func sweepHoursIn(ctx context.Context, st hoursSweepSource, tenants []string, now time.Time) (HoursSweepResult, error) {
+func sweepHoursIn(ctx context.Context, st hoursSweepSource, tenants []string, now time.Time, open HoursOpenSuggestions) (HoursSweepResult, error) {
 	var r HoursSweepResult
 	var firstErr error
 	for _, tenant := range tenants {
-		if err := sweepHoursTenant(ctx, st, tenant, now, &r); err != nil && firstErr == nil {
+		if err := sweepHoursTenant(ctx, hoursSweepRun{st: st, tenant: tenant, now: now, open: open, r: &r}); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
 	return r, firstErr
 }
 
-func sweepHoursTenant(ctx context.Context, st hoursSweepSource, tenant string, now time.Time, r *HoursSweepResult) error {
+func sweepHoursTenant(ctx context.Context, run hoursSweepRun) error {
+	st, tenant, now := run.st, run.tenant, run.now
 	t, err := st.GetTenant(ctx, tenant)
 	if err != nil {
 		return err
@@ -160,7 +175,7 @@ func sweepHoursTenant(ctx context.Context, st hoursSweepSource, tenant string, n
 		}
 	}
 	first := hoursFirstDue(hs, today, now)
-	run := hoursSweepRun{st: st, tenant: tenant, hs: hs, now: now, r: r}
+	run.hs = hs
 	for id := range candidates {
 		c := first
 		switch {
@@ -197,6 +212,7 @@ type hoursSweepRun struct {
 	tenant string
 	hs     HoursSettings
 	now    time.Time
+	open   HoursOpenSuggestions // nil: open suggestions count zero
 	r      *HoursSweepResult
 }
 
@@ -222,8 +238,15 @@ func (w hoursSweepRun) member(ctx context.Context, id string, current bool, c ti
 			write = act[id]
 		}
 		if write {
+			var es []HoursEntry
+			if w.open != nil {
+				var err error
+				if es, err = w.open(ctx, tenant, id, s, e); err != nil {
+					return err
+				}
+			}
 			created, pruned, err := st.freezeHoursPeriod(ctx, tenant, HoursPeriod{Member: id, Start: s, End: e,
-				State: HoursFrozen, DecidedBy: HoursSweepBy, DecidedAt: now})
+				State: HoursFrozen, DecidedBy: HoursSweepBy, DecidedAt: now}, es)
 			if err != nil {
 				return err
 			}
@@ -245,4 +268,26 @@ func hoursMinuteDay(m HoursMinute) string {
 		loc = time.UTC
 	}
 	return m.At.In(loc).Format(hoursDay)
+}
+
+// checkSweepEntries checks the auto-approved entries of p: approved, on p's
+// days, one per (day, target), each day within the cap.
+func checkSweepEntries(p HoursPeriod, es []HoursEntry) error {
+	seen := map[[2]string]bool{}
+	sum := map[string]int{}
+	for i := range es {
+		e := &es[i]
+		if err := checkHoursEntry(e); err != nil {
+			return err
+		}
+		k := [2]string{e.Day, e.Target}
+		if e.State != HoursApproved || e.Day < p.Start || e.Day > p.End || seen[k] {
+			return hoursBad("auto-approved entry %s %s", e.Day, e.Target)
+		}
+		seen[k] = true
+		if sum[e.Day] += e.Minutes; sum[e.Day] > HoursDayCap {
+			return ErrHoursDayCap
+		}
+	}
+	return nil
 }

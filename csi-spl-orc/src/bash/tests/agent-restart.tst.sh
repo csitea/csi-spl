@@ -43,6 +43,13 @@
 #      ONE "recovered at <ts> by do_spl_agent_restart <rid> (<cause>), now pid
 #      <pid>" line to the owner on that ask's thread. Control: no open alert,
 #      no ask close and no line
+#  15. RS-REPORT with the relay down (sat reboot drill 2026-10-08, n=3: the
+#      orch lease on another box, no desk sidecar yet, spool-send exit 13):
+#      the REBORN line is journaled (RS-REPORT QUEUED), the resend loop
+#      delivers it once the relay is back (RS-REPORT OK, queue empty); a
+#      crash blocker journaled with the loop off is sent, oldest first, by
+#      the next restart's report. Control: ARS_REPORT_QUEUE=0 (the old code)
+#      -> "RS-REPORT FAIL the REBORN line was not delivered", nothing kept
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -125,7 +132,8 @@ case "$1" in
     awk -F'\t' -v p="$p" '$2 == p {print $1; exit}' "$T/tmux/panes" ;;
 esac
 EOF
-printf '#!/usr/bin/env bash\necho "send $*" >> "%s/sent"\n' "$T" > "$T/bin/send"
+# send: the relay is down while $T/relay.down exists (spool-send exit 13, nothing sent)
+printf '#!/usr/bin/env bash\n[ -e "%s/relay.down" ] && exit 13\necho "send $*" >> "%s/sent"\n' "$T" "$T" > "$T/bin/send"
 printf '#!/usr/bin/env bash\ncat "%s/tr.$1" 2>/dev/null\n' "$T" > "$T/bin/tr"
 cat > "$T/bin/act" <<'EOF'
 #!/usr/bin/env bash
@@ -148,7 +156,7 @@ unset SPOOL_AGENT_ID REQ_FROM WD_EVIDENCE CLAUDE_BIN DRY_RUN
 
 git init -q --bare "$T/remote.git"
 world() {
-  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/sent" "$T/spawn.mode."* "$T/ai."* "$D" "$S/peer" "$S"/[cg]-[0-9]* "$S/registry"*
+  rm -rf "$T/proc/"[0-9]* "$T/tmux/"* "$T/"*.log "$T/sent" "$T/relay.down" "$T/spawn.mode."* "$T/ai."* "$D" "$S/peer" "$S"/[cg]-[0-9]* "$S/registry"*
   mkdir -p "$D" "$S/peer"
   printf 'LEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' > "$D/lease.conf"
   : > "$T/ps"; : > "$T/tmux/panes"; : > "$T/tmux/clients"
@@ -370,6 +378,33 @@ world; rm -f "$T/run2.log"; lane c-945 %45 -; reborn c-945
 rc="$(go ID=c-945 CAUSE=rebirth DRY_RUN=0)"
 [[ "$rc" == 0 ]] && ! grep -q 'do_spl_ask_close\|recovered at' "$T/run2.log" 2>/dev/null &&
   pass "14. control: no open alert, no ask close and no line" || fail "14. control rc=$rc $(cat "$T/run2.log" 2>&1)"
+
+# --- 15. RS-REPORT with the relay down ------------------------------------------------------
+Q="$D/wd/report.queue"
+world; lane c-946 %46 -; reborn c-946; touch "$T/relay.down"
+rc="$(go ID=c-946 CAUSE=rebirth DRY_RUN=0 ARS_REPORT_RETRY=1)"
+[[ "$rc" == 0 && ! -e "$T/sent" && -n "$(compgen -G "$Q/*-rs-c-946.json")" ]] &&
+  grep -q 'RS-REPORT QUEUED the REBORN line was not delivered (spool-send exit 13): journaled in ' "$D/rotate.log" &&
+  ! grep -q 'RS-REPORT FAIL' "$D/rotate.log" &&
+  pass "15. relay down: the REBORN line journaled (RS-REPORT QUEUED), not lost" || fail "15. queued rc=$rc: $(grep RS-REPORT "$D/rotate.log") $(ls "$Q" 2>&1)"
+rm -f "$T/relay.down"
+for _ in $(seq 100); do [[ -z "$(ls "$Q" 2>/dev/null)" ]] && grep -q REBORN "$T/sent" 2>/dev/null && break; sleep 0.1; done
+[[ -z "$(ls -A "$Q")" && "$(grep -c -- '--to orchestrator --kind note --task restart-c-946 --no-ask --body REBORN c-946@box1 #1 cause=rebirth' "$T/sent" 2>/dev/null)" == 1 ]] &&
+  grep -q 'rs-c-946 RS-REPORT OK REBORN c-946@box1 #1 cause=rebirth handoff=.* (journaled [0-9]*s)$' "$D/rotate.log" &&
+  pass "15. relay back: the resend loop delivers it once (RS-REPORT OK), the queue empty" || fail "15. resend: $(cat "$T/sent" 2>&1) $(grep RS-REPORT "$D/rotate.log") $(ls -A "$Q")"
+world; lane c-947 %47 -; lane c-948 %48 -; reborn c-948; touch "$T/relay.down"
+rc="$(go ID=c-947 CAUSE=S3 DRY_RUN=0 ARS_REPORT_RETRY=0)"
+[[ "$rc" == 0 ]] && grep -q 'rs-c-947 RS-REPORT QUEUED the blocker was not delivered' "$D/rotate.log" && [[ -n "$(ls "$Q")" ]] ||
+  fail "15. blocker queued rc=$rc: $(grep RS-REPORT "$D/rotate.log")"
+rm -f "$T/relay.down"
+rc="$(go ID=c-948 CAUSE=rebirth DRY_RUN=0 ARS_REPORT_RETRY=0 LEASE_NOW=$((T0 + 60)))"
+[[ "$rc" == 0 && -z "$(ls -A "$Q")" ]] && [[ "$(grep -o -- '--kind [a-z]* --task [a-z]*-c-94[78]' "$T/sent" | tr '\n' ' ')" == "--kind blocker --task wd-c-947 --kind note --task restart-c-948 " ]] &&
+  grep -q 'rs-c-947 RS-REPORT OK blocker on task wd-c-947-[0-9TZ]* to the peers (journaled 60s)$' "$D/rotate.log" &&
+  pass "15. a journaled crash blocker is sent by the next restart's report, oldest first" || fail "15. next report rc=$rc: $(cat "$T/sent" 2>&1) $(grep RS-REPORT "$D/rotate.log")"
+world; lane c-949 %49 -; reborn c-949; touch "$T/relay.down"
+rc="$(go ID=c-949 CAUSE=rebirth DRY_RUN=0 ARS_REPORT_QUEUE=0)"
+[[ "$rc" == 0 && ! -e "$Q" ]] && grep -q 'rs-c-949 RS-REPORT FAIL the REBORN line was not delivered' "$D/rotate.log" &&
+  pass "15. control: ARS_REPORT_QUEUE=0 (the old code) -> RS-REPORT FAIL as in the drill log, nothing kept" || fail "15. control rc=$rc: $(grep RS-REPORT "$D/rotate.log") $(ls -A "$Q" 2>&1)"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

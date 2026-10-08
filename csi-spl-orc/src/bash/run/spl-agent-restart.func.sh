@@ -35,6 +35,9 @@
 # @description   REPORT   - crash: one blocker wd-<id>-<ts> to the peers;
 # @description              planned: ONE line to the orchestrator,
 # @description              `REBORN <id>@<box> #<n> cause=<c> handoff=<path>`;
+# @description              one that does not leave (no relay yet) is
+# @description              journaled in <wd>/report.queue and resent until
+# @description              it does (RS-REPORT QUEUED, then OK);
 # @description              an id with an open FAIL alert also gets its asks
 # @description              closed and ONE "recovered at <ts> by <action>, now
 # @description              pid <pid>" line to the owner (spl_rotate_recovered)
@@ -58,6 +61,9 @@
 # @param REBIRTH_MAX / TASK_RESTART_MAX (optional) - per task, default 7 / 12 (env until T011)
 # @param HARD_END (optional) - seconds of session age for CAUSE=hard-end, default 7200
 # @param WD_START_WAIT (optional) - seconds for the new session to start, default 120
+# @param ARS_REPORT_RETRY (optional) - seconds between resends of a journaled report, default 30; 0: only the next report resends it
+# @param ARS_REPORT_TTL (optional) - seconds a journaled report is resent before it is dropped (RS-REPORT FAIL), default 21600
+# @param ARS_REPORT_QUEUE (optional) - 1 (default): journal a report that did not leave; 0: log RS-REPORT FAIL and lose it (the old way)
 # @param ROTATE_SPAWN / ROTATE_TMUX / ROTATE_KILL / WD_SEND / LEASE_PROC_ROOT (optional) - the seams (tests)
 # @example ID=c-007 CAUSE=rebirth ./run -a do_spl_agent_restart
 # @example ID=c-007 CAUSE=S3 DRY_RUN=0 ./run -a do_spl_agent_restart
@@ -611,25 +617,96 @@ spl_ars_seed_text() {
 
 # REPORT: a crash -> one blocker for the peers to investigate (093 8.2); a
 # planned end -> ONE line to the orchestrator, nothing in topics (W5).
+# A report that does not leave is journaled, never lost: the 2026-10-08
+# reboot drill (n=3 seat restarts, one boot) sent all three while the orch
+# lease named a seat on another box and this box's hub-run sidecar was not
+# up yet, so the relay refused them (spool-send exit 13): each logged FAIL.
+# A local recipient never reaches the relay (spool-send writes its inbox).
 spl_ars_report() {
   local id="$1" rid="$2" ts="$3" hand="$4" body
+  spl_ars_report_flush
   if spl_ars_planned; then
     body="REBORN $id@$ROTATE_BOX #$ARS_N cause=$ARS_CAUSE handoff=$hand"
-    if spl_ars_send orchestrator note "restart-$id" "$body" --no-ask; then spl_peer_rlog "$rid" RS-REPORT OK "$body"
-    else spl_peer_rlog "$rid" RS-REPORT FAIL "the REBORN line was not delivered"; fi
+    spl_ars_report_send "$rid" "the REBORN line" "$body" orchestrator note "restart-$id" "$body" --no-ask
     return 0
   fi
   body="WATCHDOG RESTART (102 4.1): $id@$ROTATE_BOX was restarted: $ARS_CODE $ARS_EV. The new session is pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE. Handoff: $hand. Investigate (093 8.3): read the handoff and the old transcript, post one paragraph here (what it was doing, why it stopped, whether its job was finished), then close this job; a new cause or a code defect opens a lane."
-  if spl_ars_send orchestrator blocker "wd-$id-$ts" "$body"; then spl_peer_rlog "$rid" RS-REPORT OK "blocker on task wd-$id-$ts to the peers"
-  else spl_peer_rlog "$rid" RS-REPORT FAIL "the blocker was not delivered"; fi
+  spl_ars_report_send "$rid" "the blocker" "blocker on task wd-$id-$ts to the peers" orchestrator blocker "wd-$id-$ts" "$body"
   return 0
 }
 
-# spl_ars_send TO KIND TASK BODY [FLAG]: spool-send.sh exit 1-9 = delivered.
+# spl_ars_report_send RID WHAT OKTEXT TO KIND TASK BODY [FLAG]: sent = OK;
+# not sent = journaled in <wd>/report.queue/<rid>.json (QUEUED) and a resend
+# loop started; a usage error (exit 2) or ARS_REPORT_QUEUE=0 = FAIL.
+spl_ars_report_send() {
+  local rid="$1" what="$2" ok="$3" q f
+  shift 3
+  if spl_ars_send "$@"; then spl_peer_rlog "$rid" RS-REPORT OK "$ok"; return 0; fi
+  q="${WD_DIR:?}/report.queue" f="${WD_DIR}/report.queue/$rid.json"
+  if [[ "${ARS_REPORT_QUEUE:-1}" == 0 || "$ARS_SEND_RC" == 2 ]] || ! mkdir -p "$q" ||
+     ! jq -n -c --arg rid "$rid" --arg what "$what" --arg ok "$ok" --arg to "$1" --arg k "$2" --arg t "$3" \
+         --arg b "$4" --arg fl "${5:-}" --argjson at "$(spl_lease_now)" \
+         '{v: 1, rid: $rid, what: $what, ok: $ok, to: $to, kind: $k, task: $t, body: $b, flag: $fl, queued: $at}' \
+         2>/dev/null > "$q/.$rid.tmp" || ! mv -f "$q/.$rid.tmp" "$f"; then
+    rm -f "$q/.$rid.tmp" 2>/dev/null
+    spl_peer_rlog "$rid" RS-REPORT FAIL "$what was not delivered (spool-send exit $ARS_SEND_RC)"
+    return 0
+  fi
+  spl_peer_rlog "$rid" RS-REPORT QUEUED "$what was not delivered (spool-send exit $ARS_SEND_RC): journaled in $f, resent until it leaves"
+  spl_ars_report_retry_bg
+}
+
+# The resend loop, detached: every ARS_REPORT_RETRY s a flush, until the queue
+# is empty. No lock fd of the run goes with it (the slot is fd 6).
+spl_ars_report_retry_bg() {
+  [[ "${ARS_REPORT_RETRY:-30}" =~ ^[1-9][0-9]*$ ]] || return 0
+  ( trap - ERR; set +e
+    while compgen -G "$WD_DIR/report.queue/*.json" >/dev/null; do
+      sleep "$ARS_REPORT_RETRY"; spl_ars_report_flush
+    done ) </dev/null >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- &
+  disown 2>/dev/null || true
+  return 0
+}
+
+# Resend every journaled report, oldest first (a rid starts with its time).
+# Each one is claimed by a rename, so two flushes never send it twice; a
+# claim whose flush died goes back. Past ARS_REPORT_TTL it is dropped (FAIL).
+spl_ars_report_flush() {
+  local q="${WD_DIR:-}/report.queue" f c pid now age
+  local -a a
+  [[ -n "${WD_DIR:-}" && -d "$q" && "${DRY_RUN:-1}" != 1 ]] || return 0
+  for c in "$q"/*.json.sending.*; do
+    [[ -e "$c" ]] || continue
+    pid="${c##*.}"
+    if [[ ! -d "/proc/$pid" ]]; then mv -f "$c" "${c%.sending.*}" 2>/dev/null || true; fi
+  done
+  now="$(spl_lease_now)"
+  for f in "$q"/*.json; do
+    [[ -e "$f" ]] || continue
+    c="$f.sending.$BASHPID"
+    mv "$f" "$c" 2>/dev/null || continue
+    a=()
+    mapfile -d '' -t a < <(jq -j '[.rid, .what, .ok, .to, .kind, .task, .body, .flag, .queued] | map(tostring + "\u0000") | add' "$c" 2>/dev/null)
+    if (( ${#a[@]} != 9 )) || [[ ! "${a[8]}" =~ ^[0-9]+$ ]]; then mv -f "$c" "$f.bad" 2>/dev/null || true; continue; fi
+    age=$(( now - a[8] ))
+    if spl_ars_send "${a[3]}" "${a[4]}" "${a[5]}" "${a[6]}" ${a[7]:+"${a[7]}"}; then
+      rm -f "$c"; spl_peer_rlog "${a[0]}" RS-REPORT OK "${a[2]} (journaled ${age}s)"
+    elif (( age > ${ARS_REPORT_TTL:-21600} )); then
+      rm -f "$c"; spl_peer_rlog "${a[0]}" RS-REPORT FAIL "${a[1]} was not delivered in ${age}s: dropped (spool-send exit $ARS_SEND_RC)"
+    else
+      mv -f "$c" "$f" 2>/dev/null || true
+    fi
+  done
+  return 0
+}
+
+# spl_ars_send TO KIND TASK BODY [FLAG]: spool-send.sh exit 1-9 = delivered
+# (exit 2 = usage: not sent); ARS_SEND_RC is its exit.
 spl_ars_send() {
   local rc=0
   SPOOL_ROOT="$SPOOL_ROOT" bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "$3" ${5:+"$5"} --body "$4" \
     >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
+  ARS_SEND_RC="$rc"
   (( rc < 10 && rc != 2 ))
 }
 

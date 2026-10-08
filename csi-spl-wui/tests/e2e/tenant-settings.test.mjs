@@ -98,7 +98,7 @@ try {
   await p.waitForFunction(() => location.pathname.endsWith('/tenant-settings/members'), { timeout: 10000 }).catch(() => null)
   ok('2 it opens the first section, Members', path(p).endsWith('/tenant-settings/members'), path(p))
   const nav = await attrs(p, '[data-test=tenant-settings-nav] a', 'data-test')
-  ok('3 the Settings layout lists Members, Agents, Vendor split, Channels, General, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-performance', nav)
+  ok('3 the Settings layout lists Members, Agents, Vendor split, Channels, General, Hours, Performance', nav.join() === 'tenant-settings-nav-members,tenant-settings-nav-agents,tenant-settings-nav-split,tenant-settings-nav-channels,tenant-settings-nav-general,tenant-settings-nav-hours,tenant-settings-nav-performance', nav)
 
   // 2. Members: the users list and edit pane, embedded
   await p.waitForSelector('[data-test=tenant-settings-members] [data-test=users-row]', { visible: true, timeout: 10000 })

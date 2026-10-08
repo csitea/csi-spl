@@ -11,6 +11,8 @@
 #   soft delete                  7 days    -> a bad delete is recoverable
 # No CORS and no public IAM: the browser never reads this bucket.
 resource "google_storage_bucket" "media" {
+  # checkov:skip=CKV_GCP_78: versioning off by design, as 051: a picture is regenerated, and the 7-day soft delete covers a bad delete
+  # checkov:skip=CKV_GCP_62: no access-log bucket in this estate (as 050/051); private, PAP enforced, one reader, admin activity is in Cloud Audit Logs
   name     = var.media_bucket_name
   project  = var.gcp_project
   location = upper(var.gcp_region)

@@ -191,7 +191,7 @@ func TestQueuedCopyOfAPromotedPostCarriesTheNewTopic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	eventually(t, "box-b drained both", func() bool { return len(inbox(t, b, "GRK-36")) == 2 })
 	for _, m := range inbox(t, b, "GRK-36") {
 		want := a // CONTROL: the unmoved card keeps its topic

@@ -87,9 +87,18 @@ func newFallbackRig(t *testing.T, on bool, channels ...string) *fallbackRig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(s.Close)
+	t.Cleanup(func() { closeWait(s) })
 	return &fallbackRig{e: e, tid: tid, human: human, desk: d, pokes: pokes, deskS: s,
 		ws: dialMember(t, e, tid, "Owner", human)}
+}
+
+// closeWait closes s and waits for its read loop to return. Close alone
+// only starts the closing handshake: a recv frame already read is still
+// being written into the box's spool root, and t.TempDir's cleanup then
+// fails "directory not empty" (gate 10 run 37809616007).
+func closeWait(s *hubclient.Session) {
+	s.Close()
+	<-s.Done()
 }
 
 // dmFrame sends one browser DM to an agent on a new task.

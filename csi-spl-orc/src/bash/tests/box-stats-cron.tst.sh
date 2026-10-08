@@ -30,13 +30,18 @@ cat >"$T/bin/hub" <<'STUB'
 echo "$*" >>"$HUB_DIR/calls"
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
 [ "$1 $2 $3 $4" = "box-stats put --json -" ] || { echo "unexpected: $*" >&2; exit 2; }
-jq -c . >>"$HUB_DIR/stats.jsonl" && echo '{"ok":true}'
+s="$(cat)"
+# OLD_BIN=1: a spool binary from before used_kb refuses the field
+[ "${OLD_BIN:-0}" = 1 ] && [[ "$s" == *'"used_kb"'* ]] && { echo 'box-stats put: not one sample object: json: unknown field "used_kb"' >&2; exit 1; }
+# OLD_HUB=1: a hub from before used_kb refuses the frame without naming it
+[ "${OLD_HUB:-0}" = 1 ] && [[ "$s" == *'"used_kb"'* ]] && { echo 'hub: 400 bad_frame: lane must be one box stat object' >&2; exit 1; }
+jq -c . <<<"$s" >>"$HUB_DIR/stats.jsonl" && echo '{"ok":true}'
 STUB
 chmod +x "$T/bin/hub"
 printf '2.50 1.75 0.47 3/900 12345\n' >"$T/loadavg"
 printf 'MemTotal: 16000000 kB\nMemAvailable: 6000000 kB\nSwapTotal: 1000 kB\nSwapFree: 400 kB\n' >"$T/meminfo"
 printf '0 c-001@sat\n0 c-150@sat wip\n1 c-151@sat\n0 shell\n' >"$T/panes"
-printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 100 60 40 60%% /\n/dev/sdb1 900 400 500 45%% /mnt/my data\n/dev/sda1 100 60 40 60%% /\nsrv:/x - - - - /net\n' >"$T/df"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 100 55 40 58%% /\n/dev/sdb1 900 400 500 45%% /mnt/my data\n/dev/sda1 100 55 40 58%% /\nsrv:/x - - - - /net\n' >"$T/df"
 
 post() {
   env SPOOL_ROOT="$T/spool" SPOOL_DESK_BOX=sat LANE_FLEET=main LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" \
@@ -48,9 +53,19 @@ post() {
 }
 out="$(post)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK box stats of sat recorded"* ]] &&
-  jq -s -e '. == [{"box":"sat","load1":2.5,"load5":1.75,"load15":0.47,"cpus":8,"mem_total_kb":16000000,"mem_avail_kb":6000000,"swap_used_kb":600,"agents_live":2,"disks":[{"mount":"/","total_kb":100,"avail_kb":40},{"mount":"/mnt/my data","total_kb":900,"avail_kb":500}]}]' "$T/hub/stats.jsonl" >/dev/null &&
-  pass "one sample: load, cpus, memory, swap used, 2 live agents (a dead pane, a shell: not), disks per mount (a space kept, a repeat and a dash row dropped)" || fail "post (rc=$rc): $out / $(cat "$T/hub/stats.jsonl" 2>&1)"
+  jq -s -e '. == [{"box":"sat","load1":2.5,"load5":1.75,"load15":0.47,"cpus":8,"mem_total_kb":16000000,"mem_avail_kb":6000000,"swap_used_kb":600,"agents_live":2,"disks":[{"mount":"/","total_kb":100,"avail_kb":40,"used_kb":55},{"mount":"/mnt/my data","total_kb":900,"avail_kb":500,"used_kb":400}]}]' "$T/hub/stats.jsonl" >/dev/null &&
+  pass "one sample: load, cpus, memory, swap used, 2 live agents (a dead pane, a shell: not), disks per mount with df's Used (a space kept, a repeat and a dash row dropped)" || fail "post (rc=$rc): $out / $(cat "$T/hub/stats.jsonl" 2>&1)"
 [[ "$(wc -l <"$T/hub/calls")" -eq 1 ]] && pass "...and ONE hub call: no lane read, no BOX-0 row" || fail "calls: $(cat "$T/hub/calls")"
+: >"$T/hub/calls"
+out="$(post OLD_BIN=1)"; rc=$?
+[[ $rc -eq 0 && "$(wc -l <"$T/hub/calls")" -eq 2 && "$(tail -1 "$T/hub/stats.jsonl" | jq -c .disks)" == '[{"mount":"/","total_kb":100,"avail_kb":40},{"mount":"/mnt/my data","total_kb":900,"avail_kb":500}]' ]] &&
+  pass "a binary or hub that refuses used_kb: the sample goes again without it (2 calls)" || fail "old bin (rc=$rc): $out / $(cat "$T/hub/calls")"
+: >"$T/hub/calls"
+out="$(post OLD_HUB=1)"; rc=$?
+[[ $rc -eq 0 && "$(wc -l <"$T/hub/calls")" -eq 2 && "$(tail -1 "$T/hub/stats.jsonl" | jq '[.disks[] | has("used_kb")] | any')" == false ]] &&
+  pass "a hub from before used_kb (one box stat object): the sample goes again without it" || fail "old hub (rc=$rc): $out"
+out="$(post OLD_BIN=1 HUB_DOWN=1)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"connection refused"* ]] && pass "control: a failure that is not about used_kb is not retried away" || fail "control (rc=$rc): $out"
 out="$(post HUB_DOWN=1)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"did not record the sample of sat"*"connection refused"* ]] && pass "hub down: exit 1 naming the error (the cron logs it)" || fail "hub down (rc=$rc): $out"
 : >"$T/hub/calls"

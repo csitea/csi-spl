@@ -325,20 +325,24 @@ spl_lane_box_sample() {  # LIVE_HERE (JSON array)
       swap_used_kb: $s, agents_live: ($ids | length), disks: $d}'
 }
 
-# The real filesystems as [{mount, total_kb, avail_kb}] (rdb 0121): POSIX df
-# in kB minus the memory, image and EFI-variable mounts, one row per mount, at
+# The real filesystems as [{mount, total_kb, avail_kb, used_kb}] (rdb 0121):
+# POSIX df in kB minus the memory, image and EFI-variable mounts, one row per mount, at
 # most 16 (the hub's cap), under a timeout (a hung network mount must not hold
-# the tick). LANE_DF_CMD replaces df in the tests. [] when df prints nothing
-# usable.
+# the tick). used_kb is df's Used: df's Use% is used / (used + avail), and
+# total - avail would also count the root-reserved blocks (c-542: sat / read
+# 47% for df's 45%); a row whose Used is not a number goes without it.
+# LANE_DF_CMD replaces df in the tests. [] when df prints nothing usable.
 spl_lane_box_disks() {
   local out
   if [[ -n "${LANE_DF_CMD:-}" ]]; then out="$($LANE_DF_CMD 2>/dev/null)"
   else out="$(timeout 10 df -kP -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>/dev/null)"; fi
   awk 'NR > 1 && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ {
          m = $6; for (i = 7; i <= NF; i++) m = m " " $i
-         if (m ~ /^\// && !(m in seen)) { seen[m] = 1; printf "%s\t%s\t%s\n", m, $2, $4 } }' <<<"$out" |
+         u = ($3 ~ /^[0-9]+$/) ? $3 : ""
+         if (m ~ /^\// && !(m in seen)) { seen[m] = 1; printf "%s\t%s\t%s\t%s\n", m, $2, $4, u } }' <<<"$out" |
     head -n 16 | jq -R -s -c 'split("\n") | map(select(length > 0) | split("\t")
-      | {mount: .[0], total_kb: (.[1] | tonumber), avail_kb: (.[2] | tonumber)})'
+      | {mount: .[0], total_kb: (.[1] | tonumber), avail_kb: (.[2] | tonumber)}
+        + (if (.[3] // "") == "" then {} else {used_kb: (.[3] | tonumber)} end))'
 }
 
 # One line per box above the table, e.g. `BOX box-a (here)  busy 8  seats 1  mem 12.3G`;

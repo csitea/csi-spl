@@ -143,7 +143,8 @@ const setControl = (p) => p.evaluate(() => {
 const shot = async (p, name) => {
   if (!SHOT_DIR) return
   const row = await p.$('.sidebar-foot')
-  if (row) await row.screenshot({ path: join(SHOT_DIR, `${name}.png`) })
+  /* a hidden footer (phone) has no box to shoot: the page shot still runs */
+  if (row) await row.screenshot({ path: join(SHOT_DIR, `${name}.png`) }).catch(() => null)
   await p.screenshot({ path: join(SHOT_DIR, `${name}-page.png`) })
 }
 

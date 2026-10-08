@@ -1,8 +1,8 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Size the CPU budget of THIS box's self-hosted GitHub runners to
-# @description the box load (owner HUM-10, t1 b7917da5: CI and agents together
-# @description leave at least 10% of the cores free). The budget is a systemd
+# @description the box load (owner HUM-10, t1 b7917da5 + b3573121: CI and agents
+# @description together leave 20% of the cores free). The budget is a systemd
 # @description CPUQuota on the runner user's slice (user-<uid>.slice), which
 # @description holds its rootless docker (the job containers) and, after this
 # @description action, every actions.runner.*.service too (a drop-in
@@ -20,7 +20,7 @@
 # @description A box with no runner unit: nothing to do, exit 0.
 # @description Dry run unless DRY_RUN=0 (prints the plan). Needs sudo.
 # @param GH_RUNNER_USER (optional) - the runners' OS user, default ghrunner
-# @param CPU_BUDGET_BOX_PCT (optional) - 1..100: the box ceiling, default 90
+# @param CPU_BUDGET_BOX_PCT (optional) - 1..100: the box ceiling, default 80
 # @param CPU_BUDGET_MIN_PCT (optional) - the floor in % of one core, default 100
 # @param CPU_BUDGET_SAMPLE_S (optional) - 1..120 seconds, default 20
 # @param CPU_BUDGET_CGROUP_ROOT (optional, tests) - default /sys/fs/cgroup
@@ -35,7 +35,7 @@
 
 # ghrb_init - the settings of one call, validated
 ghrb_init() {
-  GHRB_DRY="${DRY_RUN:-1}" GHRB_BOX="${CPU_BUDGET_BOX_PCT:-90}" GHRB_MIN="${CPU_BUDGET_MIN_PCT:-100}"
+  GHRB_DRY="${DRY_RUN:-1}" GHRB_BOX="${CPU_BUDGET_BOX_PCT:-80}" GHRB_MIN="${CPU_BUDGET_MIN_PCT:-100}"
   GHRB_WAIT="${CPU_BUDGET_SAMPLE_S:-20}" GHRB_CG="${CPU_BUDGET_CGROUP_ROOT:-/sys/fs/cgroup}"
   GHRB_UNIT_DIR="${CPU_BUDGET_UNIT_DIR:-/etc/systemd/system}"
   GHRB_SYSTEMCTL="${CPU_BUDGET_SYSTEMCTL:-sudo systemctl}" GHRB_SUDO="${CPU_BUDGET_SUDO:-sudo}"

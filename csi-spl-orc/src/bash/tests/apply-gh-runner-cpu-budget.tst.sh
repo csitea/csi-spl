@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: do_apply_gh_runner_cpu_budget sizes the runner slice's CPUQuota to
-#   cores * 90% minus what everything else used, and places the runner units in
+#   cores * 80% minus what everything else used, and places the runner units in
 #   that slice; do_setup_gh_runner_cpu_budget_cron installs its one cron line.
 #   1. no runner unit: nothing to do, exit 0; bad settings are refused
-#   2. sizing on 16 cores: 4 other cores -> 1040%, the ceiling 1440% when idle,
+#   2. sizing on 16 cores: 4 other cores -> 880%, the ceiling 1280% when idle,
 #      the floor 100% when others take it all; DRY_RUN=1 sets nothing
 #   3. placement: an idle runner gets the drop-in, a stop, its leftovers killed
 #      and a start; a busy one
@@ -78,15 +78,15 @@ U1=actions.runner.o.box-spl-01.service U2=actions.runner.o.box-spl-02.service
 printf '%s loaded active running GitHub Actions Runner\n' "$U1" "$U2" >"$T/units.list"
 for u in "$U1" "$U2"; do echo "/user.slice/user-1500.slice/$u" >"$T/cgof-$u"; done
 out="$(run_budget OTHER=4 RUNNER_CORES=6)"; rc=$?
-[[ $rc -eq 0 && "$out" == *'others=4.00 cores over 10s -> user-1500.slice CPUQuota=1040%'* && "$out" == *DRY_RUN* && ! -s "$SYSD_LOG" ]] &&
-  pass "dry run: 16 cores * 90% - 4 other cores = 1040%, nothing set" || fail "dry size (rc=$rc): $out / $(cat "$SYSD_LOG" 2>&1)"
+[[ $rc -eq 0 && "$out" == *'others=4.00 cores over 10s -> user-1500.slice CPUQuota=880%'* && "$out" == *DRY_RUN* && ! -s "$SYSD_LOG" ]] &&
+  pass "dry run: 16 cores * 80% - 4 other cores = 880%, nothing set" || fail "dry size (rc=$rc): $out / $(cat "$SYSD_LOG" 2>&1)"
 out="$(run_budget DRY_RUN=0 OTHER=4 RUNNER_CORES=6)"; rc=$?
-[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == "systemctl set-property --runtime user-1500.slice CPUQuota=1040%" ]] &&
-  pass "apply: CPUQuota=1040% set --runtime on the runner slice, units in it untouched" || fail "apply (rc=$rc): $out / $(cat "$SYSD_LOG" 2>&1)"
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == "systemctl set-property --runtime user-1500.slice CPUQuota=880%" ]] &&
+  pass "apply: CPUQuota=880% set --runtime on the runner slice, units in it untouched" || fail "apply (rc=$rc): $out / $(cat "$SYSD_LOG" 2>&1)"
 : >"$SYSD_LOG"
 out="$(run_budget DRY_RUN=0 OTHER=0 RUNNER_CORES=15)"; rc=$?
-[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=1440%' ]] &&
-  pass "only CI running: the ceiling 1440% (its own use never shrinks it)" || fail "ceiling (rc=$rc): $out"
+[[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=1280%' ]] &&
+  pass "only CI running: the ceiling 1280% (its own use never shrinks it)" || fail "ceiling (rc=$rc): $out"
 : >"$SYSD_LOG"
 out="$(run_budget DRY_RUN=0 OTHER=15 RUNNER_CORES=1)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' ]] &&
@@ -112,7 +112,7 @@ want="systemctl daemon-reload
 systemctl stop $U1
 systemctl kill --kill-whom=all --signal=SIGKILL $U1
 systemctl start $U1
-systemctl set-property --runtime user-1500.slice CPUQuota=1340%"
+systemctl set-property --runtime user-1500.slice CPUQuota=1180%"
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == "$want" && "$out" == *"MOVED $U1"* && "$out" == *"WAIT $U2 runs a job"* \
   && "$(cat "$T/units/$U1.d/50-slice.conf")" == $'[Service]\nSlice=user-1500.slice' && -s "$T/units/$U2.d/50-slice.conf" ]] &&
   pass "idle runner: drop-in, stop, leftovers killed, start; busy runner: drop-in, no restart" || fail "place (rc=$rc): $out / $(cat "$SYSD_LOG")"

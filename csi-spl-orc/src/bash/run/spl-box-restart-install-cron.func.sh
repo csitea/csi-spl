@@ -28,7 +28,7 @@
 declare -F spl_desk_cron_render >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
 declare -F spl_brx_slot_parse >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-schedule.func.sh"
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-run.func.sh"
 
 do_spl_box_restart_install_cron() {
   local act="${BOX_RESTART_CRON_ACTION:-install}" tag current ran

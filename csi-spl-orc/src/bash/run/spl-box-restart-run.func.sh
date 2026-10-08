@@ -3,7 +3,10 @@
 # @description The scheduled restart of THIS box (owner HUM-10, t1 1d936561:
 # @description weekly, each box at its own slot; drill 2 2026-10-08 on the
 # @description second box; "and we need to take into consideration of the
-# @description CICD runs etc."). Three actions:
+# @description CICD runs etc."). Three actions, one file each (the ./run
+# @description loader maps kebab-case.func.sh to ONE do_snake_case): this one,
+# @description spl-box-restart-tick.func.sh and spl-box-restart-after.func.sh.
+# @description This file also keeps the spl_brx_* helpers the other two share.
 # @description do_spl_box_restart_run - the restart: (1) wait until no wf 20/30
 # @description deploy is queued or running and no terraform process runs
 # @description (the tf-runner container's), (2) drain this box's GitHub runners:
@@ -15,45 +18,21 @@
 # @description are started again, nothing reboots, the next tick in the slot
 # @description window retries. Dry run unless DRY_RUN=0: the read-only checks
 # @description run and the plan is printed; nothing stops, writes or reboots.
-# @description do_spl_box_restart_after - after the boot, once per pending
-# @description restart: the units the drain stopped started (never one the CPU
-# @description budget parked), the active ones online, do_check_gh_runner;
-# @description every run of the restart window with
-# @description a failed or cancelled job on this box's runners re-run (gh run
-# @description rerun --failed), logged in <dir>/<utc>.rerun; once the first
-# @description agent window is up, ONE pass of every desk-reconcile line of
-# @description this crontab (drill 2: the hub-run sidecar has no boot hook;
-# @description its own safety refusal stays); then do_spl_box_restart_check.
-# @description do_spl_box_restart_tick - the cron entry (one line per box,
-# @description do_spl_box_restart_install_cron): the after-boot pass when a
-# @description pending restart has booted, else the restart when the slot is
-# @description due, else nothing (and prints nothing).
 # @param DRY_RUN (optional) - 1 (default) or 0; the tick always runs with 0
-# @param BOX_RESTART_AT (optional) - "<cron weekday> <HH:MM> <tz>": the slot (tick: required)
-# @param BOX_RESTART_WINDOW_MIN (optional) - minutes after the slot a deferred restart retries, default 180
 # @param BOX_RESTART_WAIT (optional) - seconds to wait for deploys / the drain, default 1800
 # @param BOX_RESTART_POLL (optional) - seconds between the waits' polls, default 30
 # @param BOX_RESTART_GRACE (optional) - seconds between the notes and the reboot, default 300
 # @param BOX_RESTART_REPO (optional) - <owner>/<repo>; default the checkout's (gh repo view)
 # @param BOX_RESTART_DEPLOY_WORKFLOWS (optional) - default the wf 20 and wf 30 files
 # @param BOX_RESTART_FROM (optional) - the notes' sender, default SPOOL_AGENT_ID, else c-001
-# @param BOX_RESTART_AGENT_WAIT (optional) - after-boot seconds to wait for an agent window, default 900
-# @param BOX_RESTART_RUNNER_WAIT (optional) - after-boot seconds to wait for the runners online, default 300
 # @example ./run -a do_spl_box_restart_run
 # @example DRY_RUN=0 ./run -a do_spl_box_restart_run
-# @example ./run -a do_spl_box_restart_after
 #------------------------------------------------------------------------------
 # Test seams: BOX_RESTART_EPOCH (now), BOX_RESTART_REBOOT_CMD (sudo -n
-# systemctl reboot), BOX_RESTART_TMUX_CMD (tmux list-windows -a ...), and
-# the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD / BOX_RESTART_SEND.
+# systemctl reboot), and the prepare's LEASE_PROC_ROOT / BOX_RESTART_PS_CMD /
+# BOX_RESTART_SEND.
 declare -F spl_brs_agents >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-prepare.func.sh"
-declare -F do_spl_box_restart_check >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/spl-box-restart-check.func.sh"
-declare -F do_check_gh_runner >/dev/null ||
-  source "$(dirname "${BASH_SOURCE[0]}")/check-gh-runner.func.sh"
-
-SPL_BRX_AGENT_WIN_RE='^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 
 do_spl_box_restart_run() {
   local dry="${DRY_RUN:-1}" root dir utc snap why="" t0 rb
@@ -229,127 +208,4 @@ spl_brx_slot_due() {
   now_min=$((10#${hm%:*} * 60 + 10#${hm#*:})); slot_min=$((10#${SPL_BRX_HM%:*} * 60 + 10#${SPL_BRX_HM#*:}))
   (( now_min >= slot_min && now_min < slot_min + win )) || return 1
   [[ "$(cat "$dir/last-week" 2>/dev/null)" != "$(spl_brx_slot_week)" ]]
-}
-
-# ---- the tick (cron) -------------------------------------------------------------
-
-do_spl_box_restart_tick() {
-  local root dir rc=0 bt0 since
-  root="${SPOOL_ROOT:-/var/spool-hub}"; dir="$root/dispatch/box-restart"
-  spl_brx_slot_parse || return 1
-  mkdir -p "$dir" || return 1
-  exec 8>"$dir/.lock"
-  flock -n 8 || { exec 8>&-; return 0; }
-  if [[ -f "$dir/pending" ]]; then
-    bt0="$(spl_brx_pending_get "$dir/pending" btime)"
-    if [[ "$(spl_brs_btime)" != "$bt0" ]]; then
-      do_spl_box_restart_after || rc=1
-    else
-      since="$(date -d "$(spl_brx_pending_get "$dir/pending" since)" +%s 2>/dev/null || echo 0)"
-      if (( $(spl_brx_now) - since > 900 )); then
-        do_log "ERROR $dir/pending is 15 min old and the box has not rebooted: dropped; start the runners by hand if the drain stopped them (systemctl start 'actions.runner.*')"
-        mv "$dir/pending" "$dir/$(spl_brx_pending_get "$dir/pending" utc).noboot"; rc=1
-      fi
-    fi
-  elif spl_brx_slot_due "$dir"; then
-    do_log "INFO the slot ${BOX_RESTART_AT} is due: the scheduled restart"
-    DRY_RUN=0 do_spl_box_restart_run || rc=1
-  fi
-  exec 8>&-
-  return "$rc"
-}
-
-# ---- after the boot --------------------------------------------------------------
-
-do_spl_box_restart_after() {
-  local root dir p utc rc=0
-  root="${SPOOL_ROOT:-/var/spool-hub}"; dir="$root/dispatch/box-restart"; p="$dir/pending"
-  [[ -f "$p" ]] || { do_log "INFO no pending restart in $dir: nothing to do"; return 0; }
-  spl_brx_conf || return 1
-  utc="$(spl_brx_pending_get "$p" utc)"
-  do_log "INFO after the restart $utc"
-  spl_brx_after_runners "$(spl_brx_pending_get "$p" drained)" || rc=1
-  spl_brx_after_rerun "$(spl_brx_pending_get "$p" since)" "$dir/$utc.rerun" || rc=1
-  spl_brx_after_desk || rc=1
-  BOX_RESTART_BEFORE="$(spl_brx_pending_get "$p" snapshot)" do_spl_box_restart_check || rc=1
-  printf 'after\t%s\trc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rc" >> "$p"
-  mv "$p" "$dir/$utc.after"
-  if (( rc == 0 )); then do_log "OK the restart $utc is done: runners, re-runs, desk and agents"
-  else do_log "ERROR the restart $utc: a step above failed ($dir/$utc.after)"; fi
-  return "$rc"
-}
-
-# The units the drain stopped started again unless the CPU budget parked
-# them meanwhile (CPU_BUDGET_STATE_DIR/parked: stopped on purpose, never
-# started here); every active runner online in the API; then
-# do_check_gh_runner (service active or PARKED, Restart=always, rootless
-# docker enabled and answering).
-spl_brx_after_runners() {
-  local drained="$1" units u org names="" end states off rc=0
-  local parked="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}/parked"
-  units="$(spl_brx_units)"
-  [[ -n "$units" ]] || { do_log "OK no runner unit on this box"; return 0; }
-  for u in $drained; do
-    systemctl is-active -q "$u" 2>/dev/null && continue
-    if grep -qxF "$u" "$parked" 2>/dev/null; then do_log "INFO $u is PARKED by the CPU budget: left stopped"; continue; fi
-    if sudo -n systemctl start "$u"; then do_log "OK started $u"; else do_log "ERROR could not start $u"; rc=1; fi
-  done
-  for u in $units; do systemctl is-active -q "$u" 2>/dev/null && names+="$(spl_brx_unit_name "$u")"$'\n'; done
-  org="$(spl_brx_unit_org "${units%%$'\n'*}")"
-  end=$(( $(spl_brx_clock) + ${BOX_RESTART_RUNNER_WAIT:-300} ))
-  while [[ -n "$names" ]]; do
-    states="$(spl_brx_runner_states "$org")"
-    off="$(awk -F'\t' 'NR == FNR {on[$1] = ($2 == "online"); next} $1 != "" && !on[$1] {printf "%s ", $1}' <(printf '%s\n' "$states") <(printf '%s' "$names"))"
-    [[ -z "$off" ]] && { do_log "OK every active runner of this box is online: $(tr '\n' ' ' <<<"$names")"; break; }
-    (( $(spl_brx_clock) >= end )) && { do_log "ERROR runner(s) not online: $off"; rc=1; break; }
-    sleep "$SPL_BRX_POLL"
-  done
-  do_check_gh_runner || rc=1
-  return "$rc"
-}
-
-# Re-run (--failed) every run updated since SINCE whose failed or cancelled
-# job ran on one of this box's runners: what the restart killed. One line per
-# run in LOG.
-spl_brx_after_rerun() {
-  local since="$1" log="$2" names id hit rc=0
-  names="$(for u in $(spl_brx_units); do spl_brx_unit_name "$u"; done)"
-  [[ -n "$names" && -n "$since" ]] || { do_log "OK no runner (or no start time): nothing to re-run"; return 0; }
-  for id in $(gh run list -R "$SPL_BRX_REPO" --limit 100 --json databaseId,status,conclusion,updatedAt \
-      --jq ".[] | select(.status == \"completed\" and (.conclusion == \"cancelled\" or .conclusion == \"failure\") and .updatedAt >= \"$since\") | .databaseId" 2>/dev/null); do
-    hit="$(gh api "repos/$SPL_BRX_REPO/actions/runs/$id/jobs" --paginate \
-      --jq '.jobs[] | select(.conclusion == "cancelled" or .conclusion == "failure") | .runner_name' 2>/dev/null | grep -Fxf <(printf '%s\n' "$names") | sed -n 1p)"
-    [[ -n "$hit" ]] || continue
-    if gh run rerun "$id" -R "$SPL_BRX_REPO" --failed >/dev/null 2>&1; then
-      printf '%s\trerun\t%s\t%s\tok\n' "$(date -u +%FT%TZ)" "$id" "$hit" >> "$log"; do_log "OK re-ran run $id (a job on $hit)"
-    else
-      printf '%s\trerun\t%s\t%s\tfailed\n' "$(date -u +%FT%TZ)" "$id" "$hit" >> "$log"; do_log "ERROR gh run rerun $id failed"; rc=1
-    fi
-  done
-  return "$rc"
-}
-
-# Once the first agent window is up: one pass of each desk-reconcile line of
-# this crontab (its own safety refusal stays). No window in time: the
-# 5-minute desk tick re-seats them, said so.
-spl_brx_after_desk() {
-  local end line cmd n=0 rc=0 app
-  end=$(( $(spl_brx_clock) + ${BOX_RESTART_AGENT_WAIT:-900} ))
-  until spl_brx_tmux_windows | grep -E "$SPL_BRX_AGENT_WIN_RE" >/dev/null; do
-    (( $(spl_brx_clock) >= end )) && { do_log "WARN no agent window after ${BOX_RESTART_AGENT_WAIT:-900}s: no desk pass now, the desk-reconcile tick re-seats them"; return 0; }
-    sleep "$SPL_BRX_POLL"
-  done
-  app="$(basename "${PROJ_PATH:-csi-spl-orc}")"; app="${app%-orc}"
-  while IFS= read -r line; do
-    cmd="$(awk '{$1 = $2 = $3 = $4 = $5 = ""; sub(/^ +/, ""); print}' <<<"$line")"
-    n=$((n + 1))
-    if bash -c "$cmd"; then do_log "OK desk-reconcile pass $n"; else do_log "ERROR desk-reconcile pass $n failed (its log has why)"; rc=1; fi
-  done < <(crontab -l 2>/dev/null | grep -E "# $app:desk-reconcile(-[a-z]+)?\$" | grep -v '^[[:space:]]*#')
-  (( n > 0 )) || do_log "WARN no desk-reconcile line in this crontab: no desk pass"
-  return "$rc"
-}
-
-spl_brx_tmux_windows() {
-  if [[ -n "${BOX_RESTART_TMUX_CMD:-}" ]]; then bash -c "$BOX_RESTART_TMUX_CMD"; return; fi
-  tmux ${SPOOL_TMUX_SOCKET:+-S "$SPOOL_TMUX_SOCKET"} list-windows -a -F '#{window_name}' 2>/dev/null || true
 }

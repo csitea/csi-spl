@@ -198,6 +198,7 @@
       :day="sheetFor.day || shownDay"
       :today="today"
       :hour="sheetFor.hour"
+      :copy="sheetFor.copy"
       @update:open="(v: boolean) => { if (!v && panel === 'add') panel = '' }"
     />
     <!-- T009: an event's peek, its own chunk on the first tap (openPeek is provided to the views) -->
@@ -213,7 +214,6 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { hubJsonHeaders } from '~/utils/hub-headers'
-import { isoClock, isoDate } from '~/utils/date-iso.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
 import { CAL_PHONE_VIEWS, calPhoneRange, calPhoneStep, calPhoneTitle } from '~/utils/calendar-phone-nav.mjs'
 import { calSwipeClaims, calSwipeClassify, calSwipeInEdge, calSwipeLock } from '~/utils/calendar-swipe.mjs'
@@ -306,11 +306,11 @@ watch(panel, (v) => { if (!v) addAt.value = null })
    the peek open it with inject('calphone-sheet'): a new event on a day (at a
    tapped hour), or an event to edit */
 const CalendarPhoneSheet = defineAsyncComponent(() => import('~/components/CalendarPhoneSheet.vue'))
-type SheetFor = { event: CalendarItem | null, day: string, hour: number }
-const sheetFor = shallowRef<SheetFor>({ event: null, day: '', hour: -1 })
+type SheetFor = { event: CalendarItem | null, day: string, hour: number, copy: CalendarItem | null }
+const sheetFor = shallowRef<SheetFor>({ event: null, day: '', hour: -1, copy: null })
 const sheetUsed = ref(false)
 function openSheet(o: Partial<SheetFor> = {}) {
-  sheetFor.value = { event: o.event ?? null, day: o.day ?? '', hour: o.hour ?? -1 }
+  sheetFor.value = { event: o.event ?? null, day: o.day ?? '', hour: o.hour ?? -1, copy: o.copy ?? null }
   sheetUsed.value = true
   panel.value = 'add'
 }
@@ -322,7 +322,7 @@ function addOn(day: string) {
 }
 
 /* T009: a tap on an event opens its peek; the views reach it by inject('calphone-peek').
-   Edit hands the event to T008's sheet; Duplicate opens a new event on its day and hour */
+   Edit hands the event to T008's sheet; Duplicate opens a new event filled from it */
 const peekEv = shallowRef<CalendarItem | null>(null)
 const peekOn = ref(false)
 function openPeek(ev: CalendarItem) {
@@ -332,8 +332,7 @@ function openPeek(ev: CalendarItem) {
 provide('calphone-peek', openPeek)
 function fromPeek(ev: CalendarItem, copy: boolean) {
   peekEv.value = null
-  if (!copy) return openSheet({ event: ev })
-  openSheet({ day: ev.all_day ? ev.starts_at.slice(0, 10) : isoDate(ev.starts_at), hour: ev.all_day ? -1 : Number(isoClock(ev.starts_at).slice(0, 2)) })
+  openSheet(copy ? { copy: ev } : { event: ev })
 }
 
 /* T010: the month picker and search are async on first open (spec 9.4 #8) */

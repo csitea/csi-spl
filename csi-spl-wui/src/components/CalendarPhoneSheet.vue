@@ -10,7 +10,8 @@
      reminders, colour, private, description; 097 T015 / T016 add repeat
      and guests where the event dialog has them). Edit opens full height on
      the event; Delete sits at the bottom start, and its confirm question
-     never moves Save.
+     never moves Save. Duplicate (`copy`, 097 G11) opens a new event full
+     height, filled from its source as the 089 dialog's: calFormFromEvent.
 
      The chips are WUI controls showing ISO dates and the 24-hour clock: the
      native date / time input lies transparent over the chip text (the
@@ -37,7 +38,7 @@
         aria-modal="true"
         :aria-labelledby="headId"
         data-test="calphone-sheet"
-        :data-mode="event ? 'edit' : 'create'"
+        :data-mode="event ? 'edit' : copy ? 'copy' : 'create'"
         :data-full="full ? 'true' : 'false'"
         :style="sheetStyle"
         @keydown="onKeydown"
@@ -298,6 +299,8 @@ const props = defineProps<{
   today: string
   /** a new event's tapped hour 0..23 (Day's empty time, AC-04); -1 / unset = the next full hour */
   hour?: number
+  /** Duplicate (097 G11): a new event (`event` null) filled from this one */
+  copy?: CalendarItem | null
 }>()
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -343,12 +346,13 @@ function preset(): { date: string, start: string, end: string, endDays: number }
 
 /* every opening starts clean from the event, or from a new one */
 function reset() {
-  form.value = calFormFromEvent(props.event, props.day || props.today)
-  if (!props.event) {
+  const from = props.event || props.copy || null
+  form.value = calFormFromEvent(from, props.day || props.today)
+  if (!from) {
     const p = preset()
     if (p) form.value = { ...form.value, ...p }
   }
-  full.value = Boolean(props.event)
+  full.value = Boolean(from)
   error.value = ''
   confirmDelete.value = false
   dy.value = 0
@@ -564,7 +568,7 @@ watch(() => props.open, (v) => {
   if (v) void opened()
   else closed()
 }, { immediate: true })
-watch(() => [props.event, props.day, props.hour], () => { if (props.open) reset() })
+watch(() => [props.event, props.copy, props.day, props.hour], () => { if (props.open) reset() })
 onBeforeUnmount(() => { if (props.open) closed() })
 onMounted(() => { void access.load() })
 

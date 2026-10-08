@@ -20,9 +20,15 @@
 //   private badge and guests; an issue deadline has no actions
 //   Escape and the close button close it; Edit opens T008's sheet on the
 //   event (data-mode=edit)
+//   Duplicate (097 G11) opens the sheet as a NEW event (data-mode=copy, full
+//   height) filled from the source: title, date, start / end, all-day, time
+//   zone, location, reminders, colour, private, description; Save adds a
+//   second event with a new id and leaves the source as it was
 //
 // Controls: before T009 there is no [data-test=calpeek], so every check
-// FAILs; in-run, a planted 2000 px scroller in the peek must trip H3.
+// FAILs; in-run, a planted 2000 px scroller in the peek must trip H3, and
+// the copy check must FAIL on a plain new event's sheet (the + button) -
+// what Duplicate opened before the sheet had a copy mode.
 //
 // Run:
 //   BASE_URL=<generated mock bundle> SHOT_DIR=/var/tmp/shots pnpm run test:e2e calendar-phone-peek
@@ -75,6 +81,7 @@ const REPEAT_ID = '00000000-0000-4000-8000-000000000902'
 const ZONE_ID = '00000000-0000-4000-8000-000000000903'
 const PLAIN_ID = '00000000-0000-4000-8000-000000000904'
 const SAME_ID = '00000000-0000-4000-8000-000000000905'
+const DUP_ID = '00000000-0000-4000-8000-000000000906'
 /* events the mock workspace keeps in this browser (calendar-mock ADDED_KEY) */
 const SEEDED = [
   { id: LONG_ID, title: 'x'.repeat(200), location: 'L'.repeat(120), starts_at: at('11:00'), ends_at: at('12:00'), color: 'banana', audience: 'private', guests: [{ type: 'human', id: 'HUM-2', response: '' }] },
@@ -82,7 +89,11 @@ const SEEDED = [
   { id: ZONE_ID, title: 'Tokyo call', starts_at: at('09:00'), ends_at: at('09:30'), time_zone: 'Asia/Tokyo' },
   { id: PLAIN_ID, title: 'Lunch', starts_at: at('13:00'), ends_at: at('14:00'), color: 'sage' },
   { id: SAME_ID, title: 'Same clock', starts_at: at('15:00'), ends_at: at('15:30'), time_zone: 'Etc/GMT' },
+  /* every field Duplicate copies, none of them a new event's default */
+  { id: DUP_ID, title: 'Dup source', starts_at: at('16:00'), ends_at: at('17:30'), time_zone: 'Asia/Tokyo', location: 'Room 7', color: 'grape', audience: 'private', description: 'Agenda: copy me', reminders: [{ amount: 2, unit: 'hours' }] },
 ]
+/* the source's fields as the sheet shows them (Tokyo wall time of 16:00Z..17:30Z) */
+const DUP_FORM = { mode: 'copy', full: 'true', title: 'Dup source', date: calIsoDay(Date.parse(at('16:00')) + 9 * 3600000), start: '01:00', end: '02:30', allDay: false, zone: 'Asia/Tokyo', location: 'Room 7', reminders: '2 hours', color: 'grape', private: true, description: 'Agenda: copy me' }
 
 /** a fresh page: the opt-in, the theme, level 3, Week, the seeded events */
 async function open(browser, vp, { theme = 'dark' } = {}) {
@@ -160,6 +171,32 @@ async function peekBox(p) {
   }, PEEK)
 }
 const flat = (b) => Boolean(b) && b.doc <= 1 && b.wide.length === 0
+
+/* the add / edit sheet's fields as the copy check reads them */
+const sheetForm = (p) => p.evaluate(() => {
+  const el = document.querySelector('[data-test=calphone-sheet]')
+  if (!el) return null
+  const q = (t) => el.querySelector(`[data-test=${t}]`)
+  return {
+    mode: el.getAttribute('data-mode'),
+    full: el.getAttribute('data-full'),
+    title: q('calphone-sheet-title')?.value ?? '',
+    date: q('calphone-sheet-date-input')?.value ?? '',
+    start: q('calphone-sheet-start-input')?.value ?? '',
+    end: q('calphone-sheet-end-input')?.value ?? '',
+    allDay: Boolean(q('calphone-sheet-all-day-input')?.checked),
+    zone: q('calphone-sheet-time-zone')?.value ?? '',
+    location: q('calphone-sheet-location')?.value ?? '',
+    reminders: [...el.querySelectorAll('[data-test=calphone-sheet-reminder]')].map((r) => `${r.querySelector('[data-test=calphone-sheet-reminder-amount]')?.value} ${r.querySelector('[data-test=calphone-sheet-reminder-unit]')?.value}`).join(),
+    color: el.querySelector('[data-test=calphone-sheet-color] input:checked')?.value ?? '',
+    private: Boolean(q('calphone-sheet-private')?.checked),
+    description: q('calphone-sheet-description')?.value ?? '',
+  }
+})
+const copied = (f) => Boolean(f) && Object.entries(DUP_FORM).every(([k, v]) => f[k] === v)
+const sheetGone = (p) => p.waitForFunction(() => !document.querySelector('[data-test=calphone-sheet]')?.checkVisibility?.(), { timeout: 5000 }).then(() => true, () => false)
+/* the mock workspace's kept events titled `title` */
+const kept = (p, title) => p.evaluate((t) => JSON.parse(localStorage.getItem('spool.mock.calendar-added') || '[]').filter((e) => e.title === t), title)
 
 const undoBar = (p) => p.evaluate(() => {
   const el = document.querySelector('[data-testid=calendar-undo]')
@@ -271,7 +308,40 @@ try {
     const mode = await p.waitForSelector('[data-test=calphone-sheet]', { visible: true, timeout: 8000 }).then((h) => h.evaluate((el) => el.getAttribute('data-mode')), () => '')
     ok('Edit closes the peek and opens T008\'s sheet on the event', (await peekGone(p)) && mode === 'edit', mode)
     await p.keyboard.press('Escape')
-    await p.waitForFunction(() => !document.querySelector('[data-test=calphone-sheet]')?.checkVisibility?.(), { timeout: 5000 }).catch(() => {})
+    await sheetGone(p)
+
+    /* Duplicate: a new event filled from the source; Save keeps both */
+    await tap(p, row(DUP_ID))
+    ok('duplicate: the peek opens', await peekShown(p, DUP_ID))
+    await tap(p, `${PEEK} [data-test=calpeek-duplicate]`)
+    await p.waitForSelector('[data-test=calphone-sheet]', { visible: true, timeout: 8000 }).catch(() => null)
+    await sleep(150)
+    const dup = await sheetForm(p)
+    ok('duplicate: the peek closes and the sheet opens a new event, full height', (await peekGone(p)) && dup?.mode === 'copy' && dup?.full === 'true', dup && { mode: dup.mode, full: dup.full })
+    ok('duplicate: the sheet shows the source\'s fields', copied(dup), dup)
+    await shot(p, '390-dark-duplicate')
+    const before = await kept(p, 'Dup source')
+    await tap(p, '[data-test=calphone-sheet-save]')
+    ok('duplicate: Save closes the sheet', await sheetGone(p))
+    await p.waitForFunction((t) => JSON.parse(localStorage.getItem('spool.mock.calendar-added') || '[]').filter((e) => e.title === t).length === 2, { timeout: 5000 }, 'Dup source').catch(() => {})
+    const after = await kept(p, 'Dup source')
+    const src = after.find((e) => e.id === DUP_ID)
+    const made = after.find((e) => e.id !== DUP_ID)
+    const rems = (e) => (e.reminders || []).map((x) => `${x.amount} ${x.unit}`).join()
+    const alike = (a, b) => Boolean(a && b) && ['title', 'starts_at', 'ends_at', 'all_day', 'time_zone', 'location', 'color', 'audience', 'description'].every((k) => Date.parse(a[k]) === Date.parse(b[k]) || a[k] === b[k]) && rems(a) === rems(b)
+    ok('duplicate: two events, the new one with its own id', before.length === 1 && after.length === 2 && Boolean(made?.id), after.map((e) => e.id))
+    ok('duplicate: the source is unchanged', JSON.stringify(src) === JSON.stringify(before[0]), src)
+    ok('duplicate: the new event carries the source\'s fields', alike(made, src), made)
+    ok('duplicate: both are listed', (await rowThere(p, DUP_ID, true)) && (await rowThere(p, made?.id || '-', true)))
+
+    /* control: a plain new event (the + button) is not a copy */
+    await tap(p, `${ROOT} [data-test=calphone-add]`)
+    await p.waitForSelector('[data-test=calphone-sheet]', { visible: true, timeout: 8000 }).catch(() => null)
+    await sleep(150)
+    const fresh = await sheetForm(p)
+    ok('control: the copy check FAILs on a plain new event\'s sheet', Boolean(fresh) && fresh.mode === 'create' && !copied(fresh), fresh && { mode: fresh.mode, title: fresh.title })
+    await tap(p, '[data-test=calphone-sheet-cancel]')
+    await sheetGone(p)
 
     /* an issue deadline (two days on) is read-only: the shell turns to its week first if needed */
     const issue = row('SPL-12')

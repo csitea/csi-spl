@@ -487,6 +487,7 @@ so the list is not empty on day one.
 | seat | agent | verdict | changes asked | folded in |
 |---|---|---|---|---|
 | 1 drafter | claude c-589 | v0.1 | — | — |
+| 2 | a-590 agy | agree with changes | 1. T007 calls `do_spl_blog_image` built in T006, so T007 must depend on T006. 2. If Q2(b) is chosen, T007 `do_spl_blog_post` must write `draft: true` for all posts, not just the digest in T008. Q1 -> (a) Aligns with the owner's working day. Q2 -> (a) Automated checks (4.4) prevent leaks; keeps publishing frictionless. Q3 -> (a) Vertex AI Imagen adds visual value at low cost. | |
 
 Links: [075](../075-docs-section/spec.md), [090](../090-marketing-automation/spec.md),
 [091](../091-public-dataset-export/spec.md), [065](../065-release-notes-table/spec.md),

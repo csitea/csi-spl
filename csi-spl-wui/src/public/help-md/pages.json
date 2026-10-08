@@ -83,6 +83,10 @@
     {
       "slug": "calendar",
       "title": "Calendar"
+    },
+    {
+      "slug": "set-mistral-key",
+      "title": "Set the Mistral key on a box"
     }
   ]
 }

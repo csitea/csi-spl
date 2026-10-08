@@ -6,7 +6,8 @@
 #   1. no runner unit: nothing to do, exit 0; bad settings are refused
 #   2. sizing on 16 cores: 4 other cores -> 1040%, the ceiling 1440% when idle,
 #      the floor 100% when others take it all; DRY_RUN=1 sets nothing
-#   3. placement: an idle runner gets the drop-in and one restart; a busy one
+#   3. placement: an idle runner gets the drop-in, a stop, its leftovers killed
+#      and a start; a busy one
 #      (a Runner.Worker in its cgroup) gets the drop-in and waits; a runner
 #      already in the slice is left alone
 #   4. the cron script runs the action with DRY_RUN=0 and refuses a worktree;
@@ -31,8 +32,8 @@ cat >"$T/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
   list-units) cat "$T/units.list" 2>/dev/null; exit 0 ;;
-  daemon-reload|restart|set-property) echo "systemctl $*" >>"$SYSD_LOG"
-    [[ "$1" == restart ]] && echo "/user.slice/user-1500.slice/$2" >"$T/cgof-$2"; exit 0 ;;
+  daemon-reload|stop|kill|start|set-property) echo "systemctl $*" >>"$SYSD_LOG"
+    [[ "$1" == start ]] && echo "/user.slice/user-1500.slice/$2" >"$T/cgof-$2"; exit 0 ;;
   show) case "$4" in
       ControlGroup) cat "$T/cgof-$2" 2>/dev/null ;;
       Slice) echo system.slice ;;
@@ -108,15 +109,17 @@ out="$(run_budget OTHER=1)"; rc=$?
   pass "dry run: names the move, writes no drop-in" || fail "dry place (rc=$rc): $out"
 out="$(run_budget DRY_RUN=0 OTHER=1)"; rc=$?
 want="systemctl daemon-reload
-systemctl restart $U1
+systemctl stop $U1
+systemctl kill --kill-whom=all --signal=SIGKILL $U1
+systemctl start $U1
 systemctl set-property --runtime user-1500.slice CPUQuota=1340%"
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == "$want" && "$out" == *"MOVED $U1"* && "$out" == *"WAIT $U2 runs a job"* \
   && "$(cat "$T/units/$U1.d/50-slice.conf")" == $'[Service]\nSlice=user-1500.slice' && -s "$T/units/$U2.d/50-slice.conf" ]] &&
-  pass "idle runner: drop-in + one restart; busy runner: drop-in, no restart" || fail "place (rc=$rc): $out / $(cat "$SYSD_LOG")"
+  pass "idle runner: drop-in, stop, leftovers killed, start; busy runner: drop-in, no restart" || fail "place (rc=$rc): $out / $(cat "$SYSD_LOG")"
 : >"$SYSD_LOG"
 kill "$WPID"; wait "$WPID" 2>/dev/null; WPID=""
 out="$(run_budget DRY_RUN=0 OTHER=1)"; rc=$?
-[[ $rc -eq 0 && "$(head -1 "$SYSD_LOG")" == "systemctl restart $U2" && "$(grep -c restart "$SYSD_LOG")" == 1 ]] &&
+[[ $rc -eq 0 && "$(head -1 "$SYSD_LOG")" == "systemctl stop $U2" && "$(grep -c start "$SYSD_LOG")" == 1 && "$(grep -c daemon-reload "$SYSD_LOG")" == 0 ]] &&
   pass "the busy runner moves on the next tick once idle, with no second reload" || fail "later move (rc=$rc): $out / $(cat "$SYSD_LOG")"
 
 # 4. cron script + installer -------------------------------------------------------

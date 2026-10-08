@@ -6,8 +6,10 @@
 # @description CPUQuota on the runner user's slice (user-<uid>.slice), which
 # @description holds its rootless docker (the job containers) and, after this
 # @description action, every actions.runner.*.service too (a drop-in
-# @description Slice=user-<uid>.slice; an idle runner is restarted into it, a
-# @description busy one moves on a later tick). Size:
+# @description Slice=user-<uid>.slice; an idle runner is stopped, the orphans a
+# @description job left in its cgroup (KillMode=process keeps them, and they
+# @description keep the old cgroup) are killed, and it is started in the slice;
+# @description a busy one moves on a later tick). Size:
 # @description   quota = cores * CPU_BUDGET_BOX_PCT - the CPU everything else
 # @description   used over the sample, clamped to MIN_PCT .. cores * BOX_PCT,
 # @description   rounded down to a multiple of 10 (% of one core, as CPUQuota).
@@ -74,7 +76,8 @@ ghrb_busy() {
 }
 
 # ghrb_place <slice> <unit...> - every unit in <slice>: its drop-in, then an
-# idle unit is restarted into it; a busy one is left for a later tick
+# idle unit is stopped, its leftover processes killed (they would hold the old
+# cgroup) and started in it; a busy one is left for a later tick
 ghrb_place() {
   local slice="$1" u want reload=0; shift
   want="$(printf '[Service]\nSlice=%s' "$slice")"
@@ -92,8 +95,10 @@ ghrb_place() {
   for u in "$@"; do
     ghrb_in "$u" "$slice" && continue
     if ghrb_busy "$u"; then echo "WAIT $u runs a job: it moves into $slice on a later tick"; continue; fi
-    $GHRB_SYSTEMCTL restart "$u" || { do_log "FATAL cannot restart $u into $slice"; return 1; }
-    echo "MOVED $u into $slice"
+    $GHRB_SYSTEMCTL stop "$u" || { do_log "FATAL cannot stop $u"; return 1; }
+    $GHRB_SYSTEMCTL kill --kill-whom=all --signal=SIGKILL "$u" 2>/dev/null
+    $GHRB_SYSTEMCTL start "$u" || { do_log "FATAL cannot start $u in $slice"; return 1; }
+    if ghrb_in "$u" "$slice"; then echo "MOVED $u into $slice"; else echo "WARN $u restarted but is not in $slice yet"; fi
   done
 }
 

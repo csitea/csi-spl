@@ -17,7 +17,7 @@
 #            GH_RUNNER_ROOT; an existing runner is never moved; the cleanup
 #            hook prunes a linked runner's work dir too
 #          - every runner unit gets the Slice=user-<uid>.slice drop-in (the
-#            CPU budget's cgroup) and is restarted into it once
+#            CPU budget's cgroup) and is stopped, swept and started in it once
 #          - GH_RUNNER_CPU_WEIGHT: set live on the user slice and every runner
 #            unit; unset = no set-property at all; out of range is refused
 #          - GH_RUNNER_GO_CACHE_ROOT: the Go cache lines in every .env; a
@@ -85,8 +85,8 @@ EOF
 cat >"$T/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 [[ "$1" == set-property ]] && { echo "systemctl $*" >>"$MUT_LOG"; exit 0; }
-[[ "$1" == restart ]] && touch "$STATE/moved-$2"
-[[ "$1" == restart || "$1" == daemon-reload ]] && { echo "systemctl $*" >>"$SYSD_LOG"; exit 0; }
+[[ "$1" == start ]] && touch "$STATE/moved-$2"
+[[ "$1" == stop || "$1" == kill || "$1" == start || "$1" == daemon-reload ]] && { echo "systemctl $*" >>"$SYSD_LOG"; exit 0; }
 [[ "$1 $3 $4" == "show -p ControlGroup" && -e "$STATE/moved-$2" ]] && { echo "/user.slice/user-1500.slice/$2"; exit 0; }
 [[ "$1 $3 $4" == "show -p ControlGroup" ]] && { echo "/system.slice/$2"; exit 0; }
 [[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
@@ -162,8 +162,8 @@ grep -q SENTINEL "$T/log" && no "a token reached the log" || ok "no token in the
 [[ "$(grep '^pull ' "$MUT_LOG" | sort | tr '\n' ' ')" == "pull fsouza/fake-gcs-server:1.52.2 pull postgres:16-alpine " ]] \
   && ok "the workflow's pinned images are warmed in the runner user's docker" || no "warm: $(grep pull "$MUT_LOG")"
 [[ "$(cat "$UNIT_DIR/actions.runner.o.box-spl-02.service.d/50-slice.conf" 2>/dev/null)" == $'[Service]\nSlice=user-1500.slice' ]] \
-  && [[ "$(cat "$SYSD_LOG")" == $'systemctl daemon-reload\nsystemctl restart actions.runner.o.box-spl-01.service\nsystemctl restart actions.runner.o.box-spl-02.service' ]] \
-  && ok "every runner unit is placed in user-1500.slice: drop-in, one reload, one restart each" || no "slice: $(cat "$SYSD_LOG"; ls -R "$UNIT_DIR" 2>&1)"
+  && [[ "$(cat "$SYSD_LOG")" == $'systemctl daemon-reload\nsystemctl stop actions.runner.o.box-spl-01.service\nsystemctl kill --kill-whom=all --signal=SIGKILL actions.runner.o.box-spl-01.service\nsystemctl start actions.runner.o.box-spl-01.service\nsystemctl stop actions.runner.o.box-spl-02.service\nsystemctl kill --kill-whom=all --signal=SIGKILL actions.runner.o.box-spl-02.service\nsystemctl start actions.runner.o.box-spl-02.service' ]] \
+  && ok "every runner unit is placed in user-1500.slice: drop-in, one reload, one stop/sweep/start each" || no "slice: $(cat "$SYSD_LOG"; ls -R "$UNIT_DIR" 2>&1)"
 : >"$SYSD_LOG"
 
 : >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"

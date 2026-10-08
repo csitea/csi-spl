@@ -31,7 +31,7 @@ check_tree() {
   local proj="$2"
   local lib="$proj/lib/bash/funcs"
   local ref="$T/ref-$which.sh"
-  local n=0 bad=0 f a b out rc
+  local n=0 bad=0 i key f a b out rc
 
   sed -e 's/^do_parse_metadata()/ref_parse_metadata()/' "$lib/parse-metadata.func.sh" >"$ref"
   python3 - "$ref" <<'PY'
@@ -47,12 +47,26 @@ PY
     fail "$which: CONTROL the reference was not rebuilt"
   fi
 
+  # One shell per parser, each file parsed in its own subshell. The forking
+  # reference is ~0.1 s a file, nearly all of this test's time (191 s of the
+  # orc suite, 2026-10-08), so its outputs are kept per reference FUNCTION
+  # text: the orc and iac copies differ in comments only, define the same
+  # function, and so the reference runs once, not once per tree. The parser
+  # under test still runs on every file for each tree.
+  key="$(bash -c 'source "$1"; declare -f ref_parse_metadata' _ "$ref" | md5sum | cut -c1-32)"
+  if [[ ! -d "$T/ref-out-$key" ]]; then
+    mkdir "$T/ref-out-$key"
+    bash -c 'source "$1"; i=0; while IFS= read -r f; do i=$((i + 1)); printf %s "$(ref_parse_metadata "$f")" >"$2/$i"; done' \
+      _ "$ref" "$T/ref-out-$key" <"$T/files"
+  fi
+  mkdir "$T/new-out-$which"
+  bash -c 'source "$1"; i=0; while IFS= read -r f; do i=$((i + 1)); printf %s "$(do_parse_metadata "$f")" >"$2/$i"; done' \
+    _ "$lib/parse-metadata.func.sh" "$T/new-out-$which" <"$T/files"
+  i=0
   while IFS= read -r f; do
-    n=$((n + 1))
-    a="$(bash -c 'source "$1"; ref_parse_metadata "$2"' _ "$ref" "$f")"
-    b="$(bash -c 'source "$1"; do_parse_metadata "$2"' _ "$lib/parse-metadata.func.sh" "$f")"
-    [[ "$a" == "$b" ]] || { bad=$((bad + 1)); echo "  differs: $f"; }
-  done < <(find "$APP_ROOT" -name '*.func.sh' -not -path '*/node_modules/*' -not -path '*/tpl-gen/*' | sort)
+    i=$((i + 1)); n=$((n + 1))
+    cmp -s "$T/ref-out-$key/$i" "$T/new-out-$which/$i" || { bad=$((bad + 1)); echo "  differs: $f"; }
+  done <"$T/files"
   [[ $n -gt 50 && $bad -eq 0 ]] && pass "$which: 1 all $n *.func.sh parse to the same bytes" || fail "$which: 1 $bad of $n differ"
 
   a="$(bash -c 'source "$1"; ref_parse_metadata "$2"' _ "$ref" "$T/edge.func.sh")"
@@ -70,6 +84,7 @@ PY
   [[ $rc -eq 0 ]] && pass "$which: 3 …and passes once it is set" || fail "$which: 3 set: rc=$rc out=$out"
 }
 
+find "$APP_ROOT" -name '*.func.sh' -not -path '*/node_modules/*' -not -path '*/tpl-gen/*' | sort >"$T/files"
 check_tree orc "$ORC_ROOT"
 check_tree iac "$APP_ROOT/csi-spl-iac"
 

@@ -21,6 +21,12 @@
 #                                       <f> appears only when the run is done:
 #                                       "rc=<n> <k>/<m> test files passed"
 #                                       (poll: until [ -f <f> ]; do sleep 10; done)
+#
+# Timing guard: every file's wall time is measured and the run ends with
+# "--- slowest 10 test files (wall s)" (ORC_TEST_SLOWEST=<n>, 0 = off), so a
+# creep toward CI's timeout-minutes shows in the log before the cap cancels
+# the job. ORC_TEST_SHARD=<k>/<m> runs only every m-th file starting at the
+# k-th, so CI can split the suite across m parallel jobs.
 set -uo pipefail
 dir=$(cd "$(dirname "$0")" && pwd)
 changed=0 bg=""
@@ -65,6 +71,15 @@ fi
 [[ "$njobs" =~ ^[1-9][0-9]*$ ]] || { echo "ORC_TEST_JOBS must be a positive integer (got '$njobs')" >&2; exit 2; }
 all=()
 for t in "$dir"/*.tst.sh; do [[ -f "$t" ]] && all+=("$t"); done
+shard="${ORC_TEST_SHARD:-}"
+if [[ -n "$shard" ]]; then
+  [[ "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] && (( BASH_REMATCH[1] <= BASH_REMATCH[2] )) \
+    || { echo "ORC_TEST_SHARD must be <k>/<m> with 1 <= k <= m (got '$shard')" >&2; exit 2; }
+  sk=${BASH_REMATCH[1]} sm=${BASH_REMATCH[2]} mine=()
+  for ((i = sk - 1; i < ${#all[@]}; i += sm)); do mine+=("${all[$i]}"); done
+  echo "--- shard $shard: ${#mine[@]} of ${#all[@]} files"
+  all=("${mine[@]}")
+fi
 list=("${all[@]}")
 if (( changed )); then
   plan=$(bash "$dir/changed-tests.sh")
@@ -86,11 +101,15 @@ if (( changed )); then
   fi
 fi
 fails=0 n=0
+# <start> <end> <file> per test file, for the slowest-N report below.
+times=$(mktemp)
 if (( njobs == 1 )); then
   for t in "${list[@]}"; do
     n=$((n + 1))
     echo "=== $(basename "$t")"
+    t0=$EPOCHREALTIME
     bash "$t" || { echo "FAILED: $(basename "$t")"; fails=$((fails + 1)); }
+    echo "$t0 $EPOCHREALTIME $(basename "$t")" >>"$times"
   done
 else
   work=$(mktemp -d)
@@ -104,13 +123,15 @@ else
   n=${#files[@]}
   # start <i>: run file i in the background; <i>.rc appears only once the
   # file is done, so an existing <i>.rc means <i>.out is complete.
-  start() { ( bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1; echo $? >"$work/$1.rc.tmp"; mv "$work/$1.rc.tmp" "$work/$1.rc" ) & }
+  start() { ( t0=$EPOCHREALTIME; bash "${files[$1]}" </dev/null >"$work/$1.out" 2>&1; echo $? >"$work/$1.rc.tmp"
+    echo "$t0 $EPOCHREALTIME $(basename "${files[$1]}")" >"$work/$1.sec"; mv "$work/$1.rc.tmp" "$work/$1.rc" ) & }
   next=0
   flush() {
     while (( next < n )) && [[ -f "$work/$next.rc" ]]; do
       echo "=== $(basename "${files[$next]}")"
       cat "$work/$next.out"
       [[ "$(cat "$work/$next.rc")" == 0 ]] || { echo "FAILED: $(basename "${files[$next]}")"; fails=$((fails + 1)); }
+      cat "$work/$next.sec" >>"$times"
       next=$((next + 1))
     done
   }
@@ -123,6 +144,13 @@ else
   for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; wait; flush; done
 fi
 echo "=== $((n - fails))/$n test files passed"
+slowest="${ORC_TEST_SLOWEST:-10}"
+if [[ -s "$times" && "$slowest" =~ ^[1-9][0-9]*$ ]]; then
+  echo "--- slowest $slowest test files (wall s)"
+  awk '{ printf "%8.1f  %s\n", $2 - $1, $3 }' "$times" | sort -rn | sed -n "1,${slowest}p"
+  awk '{ s += $2 - $1 } END { printf "--- sum of file wall times: %.0f s over %d files\n", s, NR }' "$times"
+fi
+rm -f "$times"
 if [[ -s "$SPOOL_TEST_GUARD_LOG" ]]; then
   echo "FAILED: a test reached for the live spool root (refused by the SPOOL_TEST guard):"
   sed 's/^/  /' "$SPOOL_TEST_GUARD_LOG"

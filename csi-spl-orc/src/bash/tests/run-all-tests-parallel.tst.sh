@@ -9,6 +9,8 @@
 #   c-551), still FAIL and name the failing test, print each file's
 #   output right under its own header in suite order with the '# serial' test
 #   last and alone, and refuse a JOBS value that is not a positive integer.
+#   Timing guard: the run ends with the slowest files and their wall time;
+#   ORC_TEST_SHARD=<k>/<m> splits the files with no file lost or run twice.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -54,6 +56,23 @@ env "$JOBS_VAR=1" BARRIER=0 bash "$T/run-all-tests.sh" >"$T/out1" 2>&1; rc1=$?
 env "$JOBS_VAR=x" bash "$T/run-all-tests.sh" >"$T/outx" 2>&1; rcx=$?
 [ "$rcx" -eq 2 ] && grep -q "$JOBS_VAR must be a positive integer" "$T/outx" \
   && pass "a bad $JOBS_VAR is refused (rc 2)" || fail "a bad $JOBS_VAR is refused" "rc=$rcx $(cat "$T/outx")"
+
+slow=$(sed -n '/^--- slowest 10 test files (wall s)$/,$p' "$T/out")
+[ "$(grep -cE '^ +[0-9]+\.[0-9]  [a-z]-[a-z]+\.tst\.sh$' <<<"$slow")" -eq 5 ] && grep -q '^--- sum of file wall times: [0-9]* s over 5 files$' <<<"$slow" \
+  && pass "the run ends with the slowest files and their wall time" || fail "the slowest-files report" "$(cat "$T/out")"
+ORC_TEST_SLOWEST=2 BARRIER=0 bash "$T/run-all-tests.sh" >"$T/out2" 2>&1
+[ "$(grep -cE '^ +[0-9]+\.[0-9]  ' "$T/out2")" -eq 2 ] && pass "ORC_TEST_SLOWEST=2 lists two files" || fail "ORC_TEST_SLOWEST=2" "$(cat "$T/out2")"
+
+: >"$T/shards"
+for k in 1 2; do
+  ORC_TEST_SHARD=$k/2 BARRIER=0 bash "$T/run-all-tests.sh" >"$T/outs$k" 2>&1
+  grep '^=== [a-z]' "$T/outs$k" >>"$T/shards"
+done
+[ "$(sort "$T/shards" | tr '\n' ' ')" = "=== a-sleep.tst.sh === b-sleep.tst.sh === c-sleep.tst.sh === d-fail.tst.sh === s-alone.tst.sh " ] \
+  && grep -q '^--- shard 1/2: 3 of 5 files$' "$T/outs1" && grep -q '^--- shard 2/2: 2 of 5 files$' "$T/outs2" \
+  && pass "ORC_TEST_SHARD 1/2 + 2/2 run every file exactly once" || fail "shards" "$(cat "$T/outs1" "$T/outs2")"
+ORC_TEST_SHARD=3/2 bash "$T/run-all-tests.sh" >"$T/outb" 2>&1; rcb=$?
+[ "$rcb" -eq 2 ] && pass "a bad ORC_TEST_SHARD is refused (rc 2)" || fail "a bad ORC_TEST_SHARD" "rc=$rcb $(cat "$T/outb")"
 
 echo "-- run-all-tests-parallel.tst.sh: $fails failed"
 [ "$fails" -eq 0 ]

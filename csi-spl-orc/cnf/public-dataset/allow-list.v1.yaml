@@ -38,6 +38,7 @@ tables:
       - agent_split_grok
       - agent_split_agy
       - agent_split_qwen
+      - agent_split_mistral
       - suspended_at
       - archived_at
       - is_operator

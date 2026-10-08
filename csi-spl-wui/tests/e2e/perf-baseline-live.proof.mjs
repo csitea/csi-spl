@@ -13,12 +13,21 @@
 //            is confirmed by the hub (no data-pending).
 //   search   client-side route to /search?q=<Q> until results or "no results".
 //
-// Profiles: d1440 = 1440x900 on the box link; d1440-4g = the same on slow 4G;
+// Profiles: d1440 = 1440x900 on the box link; d1440-cpu4 = the same with the
+// CPU 4x slower (a slow laptop, spec 109 T006); d1440-4g = the same on slow 4G;
 // m390-4g = 390x844 phone (touch) on slow 4G with the CPU 4x slower. Slow 4G is
 // Lighthouse's mobile profile: 150 ms RTT, 1.6 Mbps down, 750 kbps up.
 //
+// Each round records the box's 1-min load average and its longest connect
+// (CDP timing connectEnd - connectStart). A round with load / cores > 1 or a
+// connect over 1 s is a reading of the box, not of the page: the summary keeps
+// it out of the p50 / p95 and gives it its own column (spec 109 w1-trace 5).
+//
+// MOCK=1 measures a mock bundle (serve-generated.mjs): no sign-in, no SEND,
+// no EMAIL / PW_FILE. The W1 CPU work (boot + first render) is the same code.
+//
 //   BASE=https://e2e.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
-//     [TENANT=e2e] [N=5] [PROFILES=d1440,d1440-4g,m390-4g] [Q=perf] [SEND=1] [WATERFALL=0] \
+//     [MOCK=0] [TENANT=e2e] [N=5] [PROFILES=d1440,d1440-cpu4,d1440-4g,m390-4g] [Q=perf] [SEND=1] [WATERFALL=0] \
 //     [LOCAL_MAP=127.0.0.1:8443] [USER_DATA_DIR=<dir>] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] node tests/e2e/perf-baseline-live.proof.mjs
 //
 // LOCAL_MAP A/Bs an undeployed bundle: Chrome resolves the BASE host to that
@@ -31,23 +40,28 @@
 // printed. Output: OUT/baseline.json (every sample) and a p50/p95 table on
 // stdout. Exit 0 unless sign-in fails (a measurement, not a gate).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { cpus, loadavg } from 'node:os'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
-const email = need('EMAIL')
-const pw = readFileSync(need('PW_FILE'), 'utf8').trim()
+const MOCK = process.env.MOCK === '1'
+const email = MOCK ? '' : need('EMAIL')
+const pw = MOCK ? '' : readFileSync(need('PW_FILE'), 'utf8').trim()
 const TENANT = process.env.TENANT || 'e2e'
 const N = Number(process.env.N || 5)
 const Q = process.env.Q || 'perf'
-const SEND = process.env.SEND !== '0'
+const SEND = !MOCK && process.env.SEND !== '0'
 const WATERFALL = process.env.WATERFALL === '1'
-const PROFILES = (process.env.PROFILES || 'd1440,d1440-4g,m390-4g').split(',').map((s) => s.trim()).filter(Boolean)
+const CORES = cpus().length
+const STALL_MS = 1000
+const PROFILES = (process.env.PROFILES || 'd1440,d1440-cpu4,d1440-4g,m390-4g').split(',').map((s) => s.trim()).filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
 const SLOW_4G = { offline: false, latency: 150, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8 }
 const PROFILE = {
   d1440: { vp: { width: 1440, height: 900 }, net: null, cpu: 1 },
+  'd1440-cpu4': { vp: { width: 1440, height: 900 }, net: null, cpu: 4 },
   'd1440-4g': { vp: { width: 1440, height: 900 }, net: SLOW_4G, cpu: 1 },
   'm390-4g': { vp: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 3 }, net: SLOW_4G, cpu: 4 },
 }
@@ -70,6 +84,8 @@ function recorder(cdp) {
   cdp.on('Network.responseReceived', (e) => {
     const r = reqs.get(e.requestId); if (!r) return
     r.status = e.response.status
+    const t = e.response.timing
+    if (t && t.connectStart >= 0 && t.connectEnd >= 0) r.connectMs = t.connectEnd - t.connectStart
     r.cached = !!(e.response.fromDiskCache || e.response.fromMemoryCache || e.response.fromServiceWorker || e.response.fromPrefetchCache)
   })
   cdp.on('Network.requestServedFromCache', (e) => { const r = reqs.get(e.requestId); if (r) r.cached = true })
@@ -107,6 +123,7 @@ function netSummary({ list, navAt }) {
     preflights: list.filter((r) => r.method === 'OPTIONS').length,
     wsConnectMs: ws ? Math.round((ws.t1 - ws.t0) * 1000) : -1,
     wsOpenAtMs: ws && navAt ? Math.round((ws.t1 - navAt) * 1000) : -1,
+    maxConnectMs: Math.round(list.reduce((a, r) => Math.max(a, r.connectMs || 0), 0)),
     api,
     ...(WATERFALL ? { waterfall: list.map((r) => `${navAt || r.t0 ? Math.round((r.t0 - (navAt || list[0].t0)) * 1000) : '?'}..${r.t1 ? Math.round((r.t1 - (navAt || list[0].t0)) * 1000) : '?'}ms ${kindOf(r)}${r.cached ? '(cache)' : ''} ${r.status} ${Math.round(r.bytes / 102.4) / 10}KB ${r.method} ${r.url.replace(/^https?:\/\/[^/]+/, '')}`) } : {}),
   }
@@ -148,8 +165,16 @@ const pct = (xs, q) => {
   return v[Math.min(v.length - 1, Math.ceil(q * v.length) - 1)]
 }
 
+/** The box's share of the round: load per core at its start, the longest connect of any phase. */
+function boxOf(s, load1) {
+  const maxConnectMs = Math.max(0, ...['cold', 'warm', 'home', 'list', 'open', 'send', 'search'].map((ph) => s[ph]?.maxConnectMs || 0))
+  const loadPerCore = Math.round((load1 / CORES) * 100) / 100
+  return { load1: Math.round(load1 * 10) / 10, cores: CORES, loadPerCore, maxConnectMs, apart: loadPerCore > 1 ? 'loaded' : maxConnectMs > STALL_MS ? 'stalled' : '' }
+}
+
 async function round(p, cdp, rec, prof, i, out) {
   const s = {}
+  const load1 = loadavg()[0]
   // cold
   await cdp.send('Network.clearBrowserCache')
   rec.take()
@@ -213,6 +238,7 @@ async function round(p, cdp, rec, prof, i, out) {
   await sleep(prof.net ? 4000 : 2500)
   const hv = await vitals(p)
   s.home = { firstRow: Math.round(firstRow), ...hv, ...netSummary(rec.take()) }
+  s.box = boxOf(s, load1)
   return s
 }
 
@@ -239,8 +265,8 @@ try {
   await p.goto(BASE + '/lobby', { waitUntil: 'domcontentloaded', timeout: 60000 })
   const already = await p.waitForSelector('[data-test=user-menu-trigger], [data-test=native-auth-email]', { timeout: 45000 })
     .then((h) => h.evaluate((e) => e.matches('[data-test=user-menu-trigger]'))).catch(() => false)
-  res.signIn = already ? 'kept' : 'native'
-  if (!already) {
+  res.signIn = MOCK ? 'mock' : already ? 'kept' : 'native'
+  if (!already && !MOCK) {
     await p.goto(BASE + '/login?tenant=' + encodeURIComponent(TENANT) + '&redirect=%2Flobby', { waitUntil: 'domcontentloaded', timeout: 60000 })
     await p.waitForSelector('[data-test=native-auth-email]', { timeout: 45000 })
     await p.type('[data-test=native-auth-email]', email)
@@ -266,7 +292,8 @@ try {
     const samples = []
     for (let i = 0; i < N; i++) {
       try { samples.push(await round(p, cdp, rec, prof, i, name)) } catch (e) { samples.push({ error: String(e?.message || e) }); console.log('round error', name, i, e?.message) }
-      console.log(name, 'round', i, JSON.stringify({ fcp: samples.at(-1).cold?.fcp, msg: samples.at(-1).cold?.firstMsg, send: samples.at(-1).send?.confirmedMs }))
+      const last = samples.at(-1)
+      console.log(name, 'round', i, JSON.stringify({ fcp: last.cold?.fcp, msg: last.cold?.firstMsg, warmMsg: last.warm?.firstMsg, send: last.send?.confirmedMs, ...last.box }))
     }
     res.profiles[name] = samples
   }
@@ -293,11 +320,21 @@ const METRICS = [
   ['send shown', (s) => s.send?.shownMs], ['send confirmed', (s) => s.send?.confirmedMs], ['search', (s) => s.search?.ms],
 ]
 const summary = {}
-for (const [name, samples] of Object.entries(res.profiles)) {
+const stat = (xs) => ({ p50: pct(xs, 0.5), p95: pct(xs, 0.95), n: xs.filter((x) => typeof x === 'number' && x >= 0).length })
+for (const [name, all] of Object.entries(res.profiles)) {
   summary[name] = {}
+  // a loaded or stalled round reads the box: its own column, out of p50 / p95
+  const samples = all.filter((s) => !s.box?.apart)
+  const apart = all.filter((s) => s.box?.apart)
+  summary[name].box = {
+    kept: samples.length,
+    loaded: apart.filter((s) => s.box.apart === 'loaded').length,
+    stalled: apart.filter((s) => s.box.apart === 'stalled').length,
+    loadPerCore: stat(all.map((s) => s.box?.loadPerCore)),
+    maxConnectMs: stat(all.map((s) => s.box?.maxConnectMs)),
+  }
   for (const [label, f] of METRICS) {
-    const xs = samples.map(f)
-    summary[name][label] = { p50: pct(xs, 0.5), p95: pct(xs, 0.95), n: xs.filter((x) => typeof x === 'number' && x >= 0).length }
+    summary[name][label] = { ...stat(samples.map(f)), apart: stat(apart.map(f)) }
   }
   const routes = {}
   for (const s of samples) for (const ph of ['cold', 'warm', 'home', 'list', 'open', 'send', 'search']) for (const a of s[ph]?.api || []) (routes[a.route] ??= []).push(a.ms)
@@ -307,9 +344,14 @@ res.summary = summary
 writeFileSync(`${OUT}/baseline.json`, JSON.stringify(res, null, 1))
 console.log('build', JSON.stringify(res.build || {}))
 const names = Object.keys(summary)
-console.log(`| metric | ${names.map((n) => `${n} p50 / p95`).join(' | ')} |`)
-console.log(`|---|${names.map(() => '---|').join('')}`)
-for (const [label] of METRICS) console.log(`| ${label} | ${names.map((n) => { const m = summary[n][label]; return m.p50 === null ? '-' : `${m.p50} / ${m.p95} (n=${m.n})` }).join(' | ')} |`)
+const cell = (m) => (m.p50 === null ? '-' : `${m.p50} / ${m.p95} (n=${m.n})`)
+for (const n of names) {
+  const b = summary[n].box
+  console.log(`${n}: ${b.kept} rounds kept, ${b.loaded} loaded (load/cores > 1), ${b.stalled} stalled (connect > ${STALL_MS} ms); load/cores p50 ${b.loadPerCore.p50}, longest connect p50 ${b.maxConnectMs.p50} ms`)
+}
+console.log(`| metric | ${names.map((n) => `${n} p50 / p95 | ${n} loaded or stalled`).join(' | ')} |`)
+console.log(`|---|${names.map(() => '---|---|').join('')}`)
+for (const [label] of METRICS) console.log(`| ${label} | ${names.map((n) => `${cell(summary[n][label])} | ${cell(summary[n][label].apart)}`).join(' | ')} |`)
 for (const n of names) {
   console.log(`\n${n} API (client-observed ms, all phases)`)
   for (const [r, m] of Object.entries(summary[n].api)) console.log(`  ${r}  p50=${m.p50} p95=${m.p95} n=${m.n}`)

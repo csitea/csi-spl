@@ -13,38 +13,42 @@ A second workspace's admin, agent, or box could try to:
 ## 3. Design
 
 ### 3.1. Box Enrolment by Workspace Admin
-A workspace admin generates a "Box Join Token" from the WUI (Workspace Settings -> Fleet). This token embeds the workspace ID. The admin runs the box start script, passing this token. The hub validates the token, creates the box record in the DB pinned to that workspace, and issues a long-lived relay/sidecar keypair bound to that specific box and workspace. There is no operator intervention.
+A workspace admin generates a "Box Join Token" from the WUI (Workspace Settings -> Fleet). This token embeds the workspace ID (`tenant_id`). The admin runs the box start script, passing this token. The box generates its own private key and the hub pins the public half. The hub NEVER mints a box private key. Enrolment uses the spec 073 join token mechanism.
 
 ### 3.2. Box and Agent Identity
-Agents on a box follow the grammar `<ID>@<box>` (e.g., `c-004@box-alpha`, defined in Spec 061). The box identifier (`box-alpha`) is scoped globally but strictly tied to its workspace in the hub DB. All spool messages from/to `<ID>@<box>` carry the box's workspace ID.
+Agents on a box follow the grammar `<ID>@<box>` (e.g., `c-004@box-alpha`, defined in Spec 061). The box identifier (`box-alpha`) is scoped globally but strictly tied to its workspace in the hub DB. All spool messages from/to `<ID>@<box>` carry the box's workspace ID. The public key is globally unique across all workspaces.
 
 ### 3.3. Hub Enforcement on Read and Write
-The hub DB enforces isolation using Postgres Row-Level Security (RLS) with `FORCE`. Every authenticated hub session (via the WUI, relay, or sidecar) maps to exactly one pinned workspace ID. The RLS policies ensure that any `SELECT`, `INSERT`, `UPDATE`, or `DELETE` on the `messages`, `boxes`, and `agents` tables automatically append a `WHERE workspace_id = current_setting('spool.workspace_id')` condition, preventing any cross-workspace leakage.
+The hub DB enforces isolation using Postgres Row-Level Security (RLS) with `FORCE`, which is already built (Spec 017). The column used is `tenant_id` and the session setting is `app.tenant_id`. There is no `agents` table; agents are `roster` rows. There is ONE runtime DB role for all tenants.
 
-### 3.4. Keys per Workspace
-Each box receives a unique relay/sidecar key pair upon enrolment. These keys authenticate the box to the hub API. The hub looks up the key, identifies the box and its owning workspace, and sets the Postgres session variable (`spool.workspace_id`) before processing any query.
+### 3.4. Relay Access
+The relay uses one bucket per env with one Service Account (SA). The relay SA key NEVER reaches a workspace box. Instead, the hub mints per-object signed URLs under a hub-chosen `<tenant_id>/` prefix for the box to use.
 
-### 3.5. Operator Workspace Visibility
-The operator workspace (Spec 074) manages global infrastructure. It sees anonymized fleet health (e.g., box counts, connection status) but does NOT see message payloads, file names, or user data. RLS explicitly excludes operator DB roles from reading tenant message rows.
+### 3.5. Box-Side Isolation
+One box = one workspace (or per-workspace OS user and spool root). Each box runs its own OS user, spool root, and state dir to isolate spool directories, keys, and logs from other workspaces.
 
-### 3.6. Revoke / Remove Path
-A workspace admin can revoke a box from the WUI. The hub deletes the box's key pair, instantly severing its relay and API access. All pending inbox/outbox messages for that box in the hub DB remain in the workspace but are undeliverable. The box itself remains isolated; the admin must physically wipe it to clear local spool directories.
+### 3.6. Operator Workspace Visibility
+Operator scope grants every row when `app.rls_scope='operator'`, which the hub login sets. However, no route caller returns message rows to the operator instance. Isolation is between workspaces, not from the instance operator.
+
+### 3.7. Revoke / Remove Path
+A workspace admin can revoke a box from the WUI. This sets `pins.revoked_at`, closes session sockets, refuses reconnects, voids join tokens, and refuses URL minting. Already-minted URLs live up to their TTL (which is capped). The hub does not issue remote wipe commands; a local leave action must be performed to clean up the box.
 
 ## 4. Tests
-- **Isolation Test**: Create Workspace A and Workspace B. Send a message in A. Run a query as Workspace B's DB role; assert it returns 0 rows.
-- **Control Test**: Run the same query as Workspace A's DB role; assert it returns the message row.
-- **Enrolment Test**: Enrol a box with Workspace A's token. Assert the API sets `workspace_id = A`. Attempt to fetch messages using the token but overriding the workspace ID to B; assert failure.
+- **Isolation Test**: Create Workspace A and Workspace B. Send a message in A. Run a query under Workspace B's `tenant_id`; assert it returns 0 rows (using the existing `crosstenant_test.go` pattern).
+- **Control Test**: Run the same query under Workspace A's `tenant_id`; assert it returns the message row.
+- **EACCES Test**: Assert that the per-workspace OS user cannot read another workspace's spool root.
 
 ## 5. Phased Task List (Sketch)
-1. **Schema & RLS**: Add `workspace_id` to `boxes` and `agents` tables. Update RLS policies.
-2. **Tokens & Keys**: Implement "Box Join Token" generation in WUI/API. Update the relay/sidecar key issuing to bind keys to `workspace_id`.
-3. **Session Pinning**: Update hub API middlewares to set `current_setting('spool.workspace_id')` based on the authenticated box/user.
-4. **WUI Admin Views**: Add Fleet management to Workspace Settings (Enrol / Revoke box).
-5. **Tests**: Implement the Isolation, Control, and Enrolment tests.
+1. **Tokens & Keys**: Implement "Box Join Token" generation in WUI/API. Update hub pinning to tie the box's public key to the `tenant_id`.
+2. **Session Pinning**: Update hub API middlewares to set `current_setting('app.tenant_id')` based on the authenticated box/user.
+3. **Relay Signed URLs**: Implement hub-minted signed URLs for relay object access.
+4. **Box-Side Isolation**: Refactor box runtime to use per-workspace OS user and spool root.
+5. **Revoke Path**: Implement revocation logic (close sockets, void tokens).
+6. **WUI Admin Views**: Add Fleet management to Workspace Settings.
+7. **Tests**: Implement the Isolation, Control, and EACCES tests.
 
 ## 6. Consensus
 (Pending reviews from one grok, two claude)
 
 ## 7. Owner Questions
-1. When a box is revoked, should the hub automatically issue a remote-wipe command to the box before severing its connection, or is manual physical wipe expected?
-2. Are box names (e.g., `box-alpha`) required to be globally unique across all workspaces, or only unique within a single workspace?
+None remaining.

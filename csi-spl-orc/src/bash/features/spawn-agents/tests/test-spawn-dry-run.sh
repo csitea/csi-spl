@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
-# The four launchers, rendered with SPAWN_DRY_RUN=1: spool root, spool
-# protocol in the seed prompt, id guards, worktree plan, and parity (the four
+# The five launchers, rendered with SPAWN_DRY_RUN=1: spool root, spool
+# protocol in the seed prompt, id guards, worktree plan, and parity (the five
 # kinds say the same thing once their own declarations are normalised).
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
-export SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool
+export SPAWN_DRY_RUN=1 SPOOL_BIN=/opt/x/spool MISTRAL_BIN=/opt/x/vibe
 WD="$T_TMP/plain"; mkdir -p "$WD"
 echo brief > "$T_TMP/brief.md"
 
-for k in claude grok agy qwen; do
+# mistral has no legacy prefix (specs/110 3.1): its id is m-077.
+for k in claude grok agy qwen mistral; do
   p="$(printf '%s' "$k" | sed 's/claude/CLE/;s/grok/GRK/;s/agy/AGY/;s/qwen/QWN/')"
+  id="$p-77"; [ "$k" = mistral ] && id=m-077
   mkdir -p "$T_TMP/plan-$k"
-  out="$(SPAWN_PLAN_DIR="$T_TMP/plan-$k" bash "$T_SCRIPTS/spawn-$k.sh" "$p-77" "$WD" "$T_TMP/brief.md" "do the thing" 2>&1)"; rc=$?
+  out="$(SPAWN_PLAN_DIR="$T_TMP/plan-$k" bash "$T_SCRIPTS/spawn-$k.sh" "$id" "$WD" "$T_TMP/brief.md" "do the thing" 2>&1)"; rc=$?
   eq "$k: dry run exits 0" 0 "$rc"
-  has "$k: spool dir planned under SPOOL_ROOT" "PLAN spooldir   ${SPOOL_ROOT}/${p}-77/{inbox,outbox,archive}" "$out"
-  check "$k: dry run created nothing" test ! -e "$SPOOL_ROOT/$p-77"
+  has "$k: spool dir planned under SPOOL_ROOT" "PLAN spooldir   ${SPOOL_ROOT}/${id}/{inbox,outbox,archive}" "$out"
+  check "$k: dry run created nothing" test ! -e "$SPOOL_ROOT/$id"
   has "$k: non-git WORKDIR runs in place" "PLAN worktree   none: ${WD}" "$out"
   prompt="$(cat "$T_TMP/plan-$k/prompt.txt")"
-  has "$k: prompt names the spool id" "Your spool agent id is ${p}-77" "$prompt"
-  has "$k: prompt teaches spool recv" "SPOOL_ROOT=${SPOOL_ROOT} /opt/x/spool recv --as ${p}-77" "$prompt"
-  has "$k: prompt teaches spool-send.sh" "spool-send.sh --from ${p}-77 --to <PEER-ID>" "$prompt"
+  has "$k: prompt names the spool id" "Your spool agent id is ${id}" "$prompt"
+  has "$k: prompt teaches spool recv" "SPOOL_ROOT=${SPOOL_ROOT} /opt/x/spool recv --as ${id}" "$prompt"
+  has "$k: prompt teaches spool-send.sh" "spool-send.sh --from ${id} --to <PEER-ID>" "$prompt"
   has "$k: prompt says local mode is unsigned" "UNSIGNED" "$prompt"
   has "$k: prompt names the orchestrator" "today CLE-00 here" "$prompt"
   has "$k: reports go to the lease holder (specs/058 N1)" "--to orchestrator" "$prompt"
@@ -38,11 +40,11 @@ for k in claude grok agy qwen; do
   hasnt "$k: no git closing steps outside a repo" "INTEGRATION / CLOSING STEPS" "$prompt"
   launch="$(cat "$T_TMP/plan-$k/launch.cmd")"
   has "$k: launch exports SPOOL_ROOT" "SPOOL_ROOT='${SPOOL_ROOT}'" "$launch"
-  has "$k: launch exports SPOOL_AGENT_ID" "SPOOL_AGENT_ID='${p}-77'" "$launch"
-  has "$k: the CLI starts through spool-harness --as (spec 012 T013), mirrored (specs/036)" "spool-harness.sh' --as '${p}-77' --mirror -- '" "$launch"
+  has "$k: launch exports SPOOL_AGENT_ID" "SPOOL_AGENT_ID='${id}'" "$launch"
+  has "$k: the CLI starts through spool-harness --as (spec 012 T013), mirrored (specs/036)" "spool-harness.sh' --as '${id}' --mirror -- '" "$launch"
   [ "$k" = grok ] && printf '%s\n' "$out" > "$T_TMP/grok.out"
   # Normalise the kind-specific parts for the parity check below.
-  printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${p}-77([^0-9]|$)/ID\1/g" > "$T_TMP/norm-$k"
+  printf '%s' "$prompt" | sed -E "s/^As your VERY FIRST action, .*\. Then read your full task brief/Then read your full task brief/; s/${id}([^0-9]|$)/ID\1/g" > "$T_TMP/norm-$k"
 done
 # GUARD: inside the test sandbox a spawn WITHOUT SPAWN_DRY_RUN=1 is refused
 # before any side effect (no spool dir, no plan, no launch).
@@ -55,6 +57,7 @@ check "guard: ... and says why" grep -q 'SPAWN_TEST_SANDBOX=1 without SPAWN_DRY_
 check "parity: claude and grok prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-grok"
 check "parity: claude and agy prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-agy"
 check "parity: claude and qwen prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-qwen"
+check "parity: claude and mistral prompts match after normalisation" cmp -s "$T_TMP/norm-claude" "$T_TMP/norm-mistral"
 
 has "agy: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-agy/launch.cmd")"
 has "qwen: prompt goes after --prompt-interactive" '--prompt-interactive "' "$(cat "$T_TMP/plan-qwen/launch.cmd")"
@@ -65,6 +68,45 @@ has "grok: retitles through riname --agent" "riname.sh --agent GRK-77 \\\"do the
 has "grok: claude permission flag, which this grok build accepts" "--dangerously-skip-permissions" "$(cat "$T_TMP/plan-grok/launch.cmd")"
 has "grok: permission mode does not depend on config.toml" "--permission-mode bypassPermissions" "$(cat "$T_TMP/plan-grok/launch.cmd")"
 has "grok: resume stub repeats the permission flags" "--permission-mode bypassPermissions --resume" "$(cat "$T_TMP/grok.out")"
+
+# ---- specs/110 T005 (7e): the mistral adapter --------------------------------
+ml="$(cat "$T_TMP/plan-mistral/launch.cmd")"
+has "mistral: the launch line (spec 3.3)" "exec env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false bash '" "$ml"
+has "mistral: ... vibe --auto-approve --max-price <cnf>, the seed positional" "--mirror -- '/opt/x/vibe' --auto-approve --max-price ${CNF_MAX:=$(sed -n '/^ *mistral_vibe:/,/^ *max_price:/s/^ *max_price: *//p' "$T_FEAT/../../../../../csi-spl-cnf/csi-spl/all.env.yaml")} \"As your VERY FIRST" "$ml"
+check "mistral: the cnf holds a max_price" test -n "$CNF_MAX"
+has "mistral: the pane env is named after the kind (no legacy prefix)" "export MISTRAL_TMUX_PANE='' MISTRAL_TMUX_SOCK=''" "$ml"
+hasnt "mistral: ... never a '_TMUX_PANE' with an empty prefix" "export _TMUX_PANE" "$ml"
+has "mistral: retitles through riname --agent" "riname.sh --agent m-077" "$ml"
+# Measured (T005): vibe loads a trusted dir's AGENTS.md, never CLAUDE.md.
+has "mistral: the first action reads CLAUDE.md (vibe does not load it)" "then read the workdir's CLAUDE.md, if it has one, and csi-spl-doc/doc/help/how-to-post.md" "$(cat "$T_TMP/plan-mistral/prompt.txt")"
+hasnt "mistral control: the claude seed does not carry it" "vibe loads only AGENTS.md" "$(cat "$T_TMP/plan-claude/prompt.txt")"
+mo="$(env -u SPAWN_PLAN_DIR bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" "$T_TMP/brief.md" "do the thing" 2>&1)"
+has "mistral: the plan names no prefix" "kind=mistral prefix=<none> bin=" "$mo"
+has "mistral: the resume stub unsets the key and keeps the cap" "env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false vibe --auto-approve --max-price ${CNF_MAX} --resume <SESSION_ID>" "$mo"
+# Env override (spec 2.4): an exported key never reaches the plan, the line unsets it.
+mo="$(MISTRAL_API_KEY=planted-fake-key-77 SPAWN_PLAN_DIR="$T_TMP/plan-mistral" bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" "$T_TMP/brief.md" x 2>&1)"
+hasnt "mistral: an exported MISTRAL_API_KEY is in no plan output" "planted-fake-key-77" "$mo$(cat "$T_TMP/plan-mistral/launch.cmd")"
+has "mistral: ... and the launch still unsets it" "env -u MISTRAL_API_KEY " "$(cat "$T_TMP/plan-mistral/launch.cmd")"
+eq "mistral: SPOOL_MISTRAL_MAX_PRICE overrides the cnf" 1 "$(SPOOL_MISTRAL_MAX_PRICE=0.25 bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" 2>&1 | grep -c -- '--auto-approve --max-price 0.25 ')"
+# trust-workdir: the vibe store follows the agent user's HOME (sat's home is
+# /mnt/data/home/<user>, never a literal /home/<user>); vibe reads `trusted`.
+AH="$T_TMP/mnt/data/home/agent"; mkdir -p "$AH/.vibe" "$WD/.vibe-trust"
+printf 'trusted = []\nuntrusted = ["%s"]\n' "$WD/.vibe-trust" >"$AH/.vibe/trusted_folders.toml"
+HOME="$AH" bash "$T_SCRIPTS/trust-workdir.sh" "$WD/.vibe-trust" "$(id -un)" mistral >/dev/null 2>&1
+eq "mistral trust: the dir is trusted in <HOME>/.vibe, and leaves untrusted" "['$WD/.vibe-trust'] []" "$(python3 -c 'import sys,tomllib; d=tomllib.load(open(sys.argv[1],"rb")); print(d["trusted"], d["untrusted"])' "$AH/.vibe/trusted_folders.toml")"
+HOME="$AH" bash "$T_SCRIPTS/trust-workdir.sh" "$WD/.vibe-trust" "$(id -un)" mistral >/dev/null 2>&1
+eq "mistral trust: a second run adds nothing" 1 "$(grep -c vibe-trust "$AH/.vibe/trusted_folders.toml")"
+rm -rf "$AH/.vibe"; HOME="$AH" bash "$T_SCRIPTS/trust-workdir.sh" "$WD/.vibe-trust" "$(id -un)" mistral >/dev/null 2>&1
+check "mistral trust control: no ~/.vibe (vibe never ran) creates nothing" test ! -e "$AH/.vibe"
+# CONTROLS: a title of another kind, and a cap that is not a dollar amount.
+mo="$(bash "$T_SCRIPTS/spawn-mistral.sh" q-004 "$WD" 2>&1)"; rc=$?
+eq "mistral control: title q-004 refused by the mistral adapter" 1 "$rc"
+has "mistral control: ... by letter" "does not carry the mistral letter m-" "$mo"
+bash "$T_SCRIPTS/spawn-mistral.sh" MST-77 "$WD" >/dev/null 2>&1; eq "mistral control: no legacy MST- id" 1 "$?"
+bash "$T_SCRIPTS/spawn-qwen.sh" m-077 "$WD" >/dev/null 2>&1;  eq "mistral control: qwen refuses an m- id" 1 "$?"
+mo="$(SPOOL_MISTRAL_MAX_PRICE=lots bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" 2>&1)"; rc=$?
+eq "mistral control: a cap that is not a dollar amount refused" 1 "$rc"
+has "mistral control: ... and named" "no cost cap" "$mo"
 
 # ---- the prompt survives shell-live bytes -----------------------------------
 out="$(bash "$T_SCRIPTS/spawn-grok.sh" GRK-78 "$WD" "$T_TMP/brief.md" 'x $(touch '"$T_TMP"'/pwned) `id` "q"' 2>&1)"
@@ -125,7 +167,7 @@ hasnt "claude: no deploy-gate footer outside a repo" "DEPLOY-GATE (SPL-1250" "$(
 # spec 9.1, 9.2 (060 FR-061). Each harness's launch carries exactly the
 # helper's flags and DISABLE_AUTOUPDATER=1 in the env that crosses the user hop.
 . "$T_FEAT/lib/spool-env.inc.sh"
-for k in claude grok agy qwen; do
+for k in claude grok agy qwen mistral; do
   flags="$(spool_claude_perm_flags "$k")"
   check "T001 $k: the helper has flags for the harness" test -n "$flags"
   has "T001 $k: the launch carries the helper's flags" " ${flags}" "$(cat "$T_TMP/plan-$k/launch.cmd")"

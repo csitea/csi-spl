@@ -131,4 +131,14 @@ eq "6. a ~50 KB request from the holder: exit 0" 0 "$(cat "$T_TMP/r6.rc")"
 eq "6. ... spawned (not silently skipped)" 3 "$(calls)"
 has "6. ... with its slug" " big-slug" "$(tail -1 "$T_TMP/spawn.calls")"
 
+# ---- 7. mistral is a kind a request may carry (specs/110 T005) ---------------------------
+req_b "$T_TMP/r7" mistral auto "$WORK" "$T_TMP/brief.md" vibe-slug
+eq "7. a mistral request from the holder: exit 0" 0 "$(cat "$T_TMP/r7.rc")"
+eq "7. ... spawned" 4 "$(calls)"
+has "7. ... as kind mistral" "mistral auto $WORK $A/spawn-remote/briefs/" "$(tail -1 "$T_TMP/spawn.calls")"
+out="$(on "$B" sat bash "$SR" --box home vibe auto "$WORK" 2>&1)"; rc=$?
+eq "7. control: the binary name 'vibe' is not a kind: exit 2" 2 "$rc"
+has "7. ... named" "bad kind 'vibe'" "$out"
+eq "7. ... and never sent" 4 "$(calls)"
+
 t_done

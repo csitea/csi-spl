@@ -79,7 +79,7 @@ scripts/spawn-core.inc.sh	ported	scripts/spawn-core.inc.sh
 scripts/spawn-grok-chain.sh	ported	scripts/spawn-grok-chain.sh
 scripts/spawn-grok-task.sh	ported	scripts/spawn-grok-task.sh
 scripts/spawn-grok.sh	ported	scripts/spawn-grok.sh
-scripts/spawn-mistral.sh	planned	spec110:T005
+scripts/spawn-mistral.sh	added	scripts/spawn-mistral.sh
 scripts/spawn-qwen.sh	ported	scripts/spawn-qwen.sh
 scripts/spawn-window.sh	ported	scripts/spawn-window.sh
 scripts/tmux-close-window.sh	ported	scripts/tmux-close-window.sh

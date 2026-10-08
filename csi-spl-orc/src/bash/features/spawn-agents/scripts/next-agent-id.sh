@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # next-agent-id.sh — allocate the next free spool agent id (c-004 / g-004 /
-# a-004 / q-004, specs/061 §2) on THIS machine and CLAIM it, atomically, by
+# a-004 / q-004 / m-004, specs/061 §2, specs/110 3.1) on THIS machine and CLAIM it, atomically, by
 # creating its spool dir.
 #
 # Adapted to the spool specs:
@@ -28,8 +28,9 @@
 # number skipped) is exit 1; nothing is ever reused silently.
 #
 # Usage:
-#   next-agent-id.sh --kind claude|grok|agy|qwen # prints e.g. c-004
-#   next-agent-id.sh --prefix c|g|a|q            # same, by id letter (CLE|GRK|AGY|QWN too)
+#   next-agent-id.sh --kind claude|grok|agy|qwen|mistral # prints e.g. c-004
+#   next-agent-id.sh --prefix c|g|a|q|m          # same, by id letter (CLE|GRK|AGY|QWN too;
+#                                                # mistral has no legacy prefix)
 #   next-agent-id.sh --kind claude --no-reserve  # compute only; claim nothing
 #   next-agent-id.sh --kind claude --explain     # decision to stderr
 #   next-agent-id.sh --kind claude --also-registry DIR  # DIR's registry.tsv and
@@ -48,7 +49,7 @@ spool_env_resolve
 # ---- the two owner switches (specs/061 §7, decided 2026-10-02 ~10:00Z) ----
 # Q1: which kinds keep 001-003 as role numbers. Owner: every kind.
 # "Only c-" would flip this line to: ID_ROLE_LETTERS=c
-ID_ROLE_LETTERS="${SPOOL_ID_ROLE_LETTERS:-acgq}"
+ID_ROLE_LETTERS="${SPOOL_ID_ROLE_LETTERS:-acgmq}"
 # Q2: one counter per machine shared by all kinds (c-004 and a-004 never
 # coexist). Owner: machine. "One per kind" would flip this line to:
 # ID_COUNTER=kind
@@ -66,6 +67,7 @@ _letter_of() {  # KIND|PREFIX|LETTER
     grok|grk|g)   printf g ;;
     agy|a)        printf a ;;
     qwen|qwn|q)   printf q ;;
+    mistral|m)    printf m ;;
     *) return 1 ;;
   esac
 }
@@ -75,12 +77,12 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --kind)
       [ "$#" -ge 2 ] || usage
-      case "$2" in claude|grok|agy|qwen) LETTER="$(_letter_of "$2")" ;;
-        *) echo "ERROR: --kind must be claude|grok|agy|qwen, got: $2" >&2; exit 2 ;; esac
+      case "$2" in claude|grok|agy|qwen|mistral) LETTER="$(_letter_of "$2")" ;;
+        *) echo "ERROR: --kind must be claude|grok|agy|qwen|mistral, got: $2" >&2; exit 2 ;; esac
       shift 2 ;;
     --prefix)
       [ "$#" -ge 2 ] || usage
-      LETTER="$(_letter_of "$2")" || { echo "ERROR: --prefix must be c|g|a|q (or CLE|GRK|AGY|QWN), got: $2" >&2; exit 2; }
+      LETTER="$(_letter_of "$2")" || { echo "ERROR: --prefix must be c|g|a|q|m (or CLE|GRK|AGY|QWN), got: $2" >&2; exit 2; }
       shift 2 ;;
     --claim)         [ "$#" -ge 2 ] || usage; CLAIM="$2"; shift 2 ;;
     --also-registry) [ "$#" -ge 2 ] || usage; ALSO_REG="$2"; shift 2 ;;
@@ -95,8 +97,8 @@ say() { [ "$EXPLAIN" -eq 1 ] && printf 'next-agent-id: %s\n' "$*" >&2; return 0;
 
 case "$ID_COUNTER" in machine|kind) ;;
   *) echo "ERROR: SPOOL_ID_COUNTER must be machine|kind, got: ${ID_COUNTER}" >&2; exit 2 ;; esac
-[[ "$ID_ROLE_LETTERS" =~ ^[acgq]*$ ]] \
-  || { echo "ERROR: SPOOL_ID_ROLE_LETTERS must be letters of acgq, got: ${ID_ROLE_LETTERS}" >&2; exit 2; }
+[[ "$ID_ROLE_LETTERS" =~ ^[acgmq]*$ ]] \
+  || { echo "ERROR: SPOOL_ID_ROLE_LETTERS must be letters of acgmq, got: ${ID_ROLE_LETTERS}" >&2; exit 2; }
 QUAR_H="${SPOOL_ID_QUARANTINE_H:-24}"
 [[ "$QUAR_H" =~ ^[0-9]+$ ]] || { echo "ERROR: SPOOL_ID_QUARANTINE_H must be whole hours, got: ${QUAR_H}" >&2; exit 2; }
 [ -z "${SPOOL_AGENT_ID_RANGE:-}" ] \
@@ -157,7 +159,7 @@ fi
 LO=1; case "$ID_ROLE_LETTERS" in *"$LETTER"*) LO=4 ;; esac
 HI=999
 # The letters whose ids share one number (Q2): all of them, or this kind's.
-if [ "$ID_COUNTER" = machine ]; then SCOPE=acgq; CURSOR="${SPOOL_ROOT}/agent-id.cursor"
+if [ "$ID_COUNTER" = machine ]; then SCOPE=acgmq; CURSOR="${SPOOL_ROOT}/agent-id.cursor"
 else SCOPE="$LETTER"; CURSOR="${SPOOL_ROOT}/agent-id.${LETTER}.cursor"; fi
 ID_TOK="[${SCOPE}]-[0-9]{3}"
 

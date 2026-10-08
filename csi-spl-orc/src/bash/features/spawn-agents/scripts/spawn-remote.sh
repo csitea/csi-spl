@@ -12,7 +12,7 @@
 #
 # REQUEST (the orchestrator; same arguments as spawn-window.sh):
 #   spawn-remote.sh --box <box> [--from <ID>] [--to <ID>] [--wait <secs>]
-#                   <claude|grok|agy|qwen> <TITLE|auto> <WORKDIR> [BRIEF_FILE] [SLUG]
+#                   <claude|grok|agy|qwen|mistral> <TITLE|auto> <WORKDIR> [BRIEF_FILE] [SLUG]
 #   WORKDIR is a path ON THE TARGET machine. The brief is read HERE and travels
 #   as text. --from defaults to SPOOL_AGENT_ID, else this machine's LEASE_ORCH;
 #   --to (the target's mailbox) defaults to this machine's LEASE_ORCH, the role
@@ -76,7 +76,7 @@ strip_from_agent() { sed '1{/^from_agent: /d}'; }
 
 # The ONE validation, used by both sides: nothing unvalidated reaches spawn-window.
 valid_args() {  # KIND TITLE WORKDIR SLUG ; the reason on stderr
-  case "$1" in claude|grok|agy|qwen) ;; *) say "bad kind '$1'"; return 1 ;; esac
+  case "$1" in claude|grok|agy|qwen|mistral) ;; *) say "bad kind '$1'"; return 1 ;; esac
   [[ "$2" = auto || "$2" =~ ^[A-Za-z][A-Za-z0-9-]{0,31}$ ]] || { say "bad title '$2'"; return 1; }
   [[ "$3" =~ ^/[A-Za-z0-9._/-]*$ && "$3" != *..* ]] || { say "bad workdir '$3' (absolute, [A-Za-z0-9._/-], no ..)"; return 1; }
   [[ -z "$4" || "$4" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { say "bad slug '$4'"; return 1; }

@@ -104,16 +104,24 @@ python source at 2.26.0.
 | default model "Devstral" | **CONTRADICTED** | source default `mistral-vibe-cli-latest` = **Mistral Medium 3.5**; Devstral is only the local llama.cpp entry. The pricing page still says "powered by Devstral". A server-side experiment layer can route an unset `active_model` elsewhere, so 2.3 pins it |
 | install method | **CONFIRMED** | README recommends `curl … /vibe/install.sh \| bash`; `uv tool install mistral-vibe` and `pip install` are alternatives. pipx is not mentioned (it installs the same PyPI package) |
 
+**Measured by T005** on the main box, 2026-10-08, vibe 2.26.0 (pipx), as
+the agent user, n = 1 each:
+
+| question | answer | evidence |
+|---|---|---|
+| seed an interactive session | **YES, positional.** `vibe --auto-approve … '<prompt>'` starts the TUI with the prompt already sent, answers it and stays up at the `>` box. The adapter passes the seed positionally (no flag); no pane typing | `vibe --help`: "PROMPT  Initial prompt to start the interactive session with."; a scratch tmux pane answered `PONG` and kept the TUI up (`auto approve` mode shown) |
+| self-update | **an interactive start shows an update PROMPT** (a dialog that would block an unwatched pane) when a newer version is cached; the install itself runs only from that dialog (`uv tool upgrade` / `brew upgrade`). Off: `enable_update_checks = false` (no check, no prompt); `enable_auto_update = false` too | source `cli/cli.py` `_maybe_run_startup_update_prompt`, `setup/update_prompt/update_prompt_dialog.py` -> `do_update` |
+| telemetry | **ON by default** (`enable_telemetry = true`): events go to `api.mistral.ai/v1/datalake/events`; with telemetry on, crashes go to **Sentry `ingest.de.sentry.io` (not a Mistral host)**; the experiments client fetches from `experiments.mistral.services`. Off: `enable_telemetry = false` (also gates Sentry) and `[experiments] enable = false` | source `core/telemetry/send.py`, `observability/sentry.py`, `core/config/models.py`; egress in 2.5 |
+| switch without a file edit | **`VIBE_<FIELD>` env vars override any config field** (`__` nests: `VIBE_EXPERIMENTS__ENABLE`). The launch line carries the four switches, so the agent user's `config.toml` (hand-set on the main box) is never rewritten | source `core/config/layers/environment.py` (`env_prefix="VIBE_"`, `env_nested_delimiter="__"`); `vibe --help` epilog |
+| `--max-price` | **enforced in `-p` mode only.** The interactive TUI accepts the flag and ignores it, so in an m- seat the Mistral console spend limit is the cap that holds (2.5) | `vibe --help`: "Maximum cost in dollars (only applies in programmatic mode with -p)" |
+| trust store | `$VIBE_HOME/trusted_folders.toml` = `trusted = [...]`, `untrusted = [...]`; a trusted ancestor counts; a cwd with no trustable files never prompts | source `core/trusted_folders.py`; vibe's own `TrustedFoldersManager` reads a `trust-workdir.sh` entry as trusted |
+| project instructions | **vibe loads a trusted dir's `AGENTS.md`, never its `CLAUDE.md`.** This repo has no `AGENTS.md`, so the m- seed's first action reads the workdir's `CLAUDE.md` and `how-to-post.md` (`spawn-mistral.sh`). A fleet-wide `~/.vibe/AGENTS.md` (the twin of the global claude file) is not written by anyone yet | two `vibe -p` runs in a trusted git dir holding a codeword: `AGENTS.md` -> the codeword, `CLAUDE.md` -> `NONE` (n = 1 each) |
+| model | the seat banner reads `mistral-large[off]` (the hand-set `active_model`); a set `active_model` already turns off the server-side routing, so the launch does not force cnf `model` | `~/.vibe/config.toml`; the banner also read `[Subscription] Pro` for the key on this box |
+
 **NOT verified** (open for the review seats):
 
-- **Seeding an interactive session with a prompt.** It is unknown whether a
-  positional prompt starts the TUI with the brief already sent, the way
-  qwen's `--prompt-interactive` does. `-p` exits after one answer.
 - **Hook output.** Whether a `post_tool` hook can inject context into the
   model, as claude's `additionalContext` does.
-- **Telemetry.** Whether Vibe sends telemetry, and the switch that turns it
-  off. T005 measures the egress (2.5), and T004 writes the off switch into
-  `config.toml` or the launch env before T014 (the first real lane).
 - **Automated use.** Whether the ToS limits automated or non-interactive
   agent use. Not read; the pricing page only says "Subject to fair usage
   limits and Mistral's Terms of Service".
@@ -230,12 +238,34 @@ test.
   run contacts (`ss -tnp` or `strace -f -e trace=connect`, n = 1). If
   telemetry goes to a non-Mistral host, its off switch goes into
   `config.toml` before T014.
+  - **Measured (T005, 2026-10-08, vibe 2.26.0, n = 1 per row)** with
+    `strace -f -e trace=connect,sendto` on `vibe -p '<one word>'
+    --auto-approve --max-turns 1`, the DNS names read from the queries:
+
+    | run | DNS queries | TCP 443 connects |
+    |---|---|---|
+    | defaults | `api.mistral.ai` x10, `chat.mistral.ai` x2, `experiments.mistral.services` x2 | 39 |
+    | the four `VIBE_*` switches in the env (the launch line) | `api.mistral.ai` x2, `chat.mistral.ai` x2 | 14 |
+    | the same switches in a project `.vibe/config.toml` | `api.mistral.ai` x2, `chat.mistral.ai` x2 | 14 |
+
+  - Every host is Mistral's: `api.mistral.ai` is the model API (and the
+    telemetry endpoint), `chat.mistral.ai` the admin managed-config fetch
+    (Team org settings, kept). Sentry (`ingest.de.sentry.io`) is contacted
+    only on a crash and only while telemetry is on: the switch covers it.
+  - **The off switch is in the launch env, not `config.toml`:**
+    `VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false
+    VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false`
+    (`spawn-mistral.sh`; restore takes the same prefix in T007).
 - **Cost cap.**
   - Pro overage bills pay-as-you-go "at API rate" (section 5), so a
     runaway lane at a 55 % share bills without limit.
   - The adapter therefore passes `--max-price` from cnf
     `env.box.mistral_vibe.max_price`, or the owner sets a spend limit in
     the Mistral console.
+  - **Measured (T005): vibe enforces `--max-price` in `-p` mode only.** An
+    m- seat is interactive, so the flag there is a record of the cnf value
+    (`5.00`), not a cap. **The console spend limit is the cap that holds**;
+    T014 sets it before the first lane.
   - T014 records which of the two is in force.
 - **A dead key is its own state, not a retry loop.**
   - T006 records the 401 / invalid-key text from a real pane (revoke a
@@ -301,15 +331,25 @@ A new `isg/mistral-agent-setup.ISG.md` is added.
     terms. No other mode.
   - **Launch line:** `env -u MISTRAL_API_KEY vibe --auto-approve
     --max-price <cnf>`. Both are explained in 2.3 and 2.5.
-  - **The prompt flag is open (2.1).** If no seeded-interactive mode exists,
-    the adapter starts the TUI and the core types the seed through the
-    existing pane-injection path (`spool-notify.sh`), the way agy is seeded.
-    T005 measures this first and records the answer here.
+    - Built (T005) as `exec env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false
+      VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false
+      VIBE_EXPERIMENTS__ENABLE=false bash spool-harness.sh --as m-NNN
+      --mirror -- <vibe> --auto-approve --max-price <cnf> "<seed>"`.
+    - The `env` goes BEFORE the harness (core `SPAWN_EXEC_PREFIX`), so the
+      harness still sees `vibe` as its command (the mirror keys on its
+      basename); `--max-price` is core `SPAWN_EXTRA_FLAGS`. Both are empty for
+      the four other adapters, whose dry-run output is byte-identical.
+    - A missing or non-numeric cap refuses the spawn
+      (`SPOOL_MISTRAL_MAX_PRICE` overrides the cnf for one run).
+  - **The prompt flag: none (measured, 2.1).** A positional prompt seeds the
+    interactive TUI, so `SPAWN_PROMPT_FLAG=` and no pane typing.
   - **`SPAWN_ID_PREFIX`.** It is a legacy-prefix field, and core uses it for
     the `<P>_TMUX_PANE` env name and the title check. Mistral has no legacy
     prefix, so T005 makes the core take a kind-derived env name
     (`MISTRAL_TMUX_PANE`) and validates the title by letter `m`, without
     breaking the four existing adapters.
+    - Built: `SPAWN_ID_PREFIX=` + `SPAWN_ID_LETTER=m`; a `q-004` title is
+      refused with "does not carry the mistral letter m-".
 - **`restore-mistral.sh`** is the twin of `restore-qwen.sh`. `restore-core`,
   `spl-agent-restart`, `spl-agent-boot-restore` and
   `spl-agent-identity-restore` learn the kind.

@@ -11,6 +11,9 @@
 #   grok    <home>/.grok/trusted_folders.toml  [folders."<dir>"] trusted = true
 #   agy     <home>/.gemini/antigravity-cli/settings.json  trustedWorkspaces[]
 #   qwen    <home>/.qwen/trustedFolders.json   {"<dir>": "TRUST_FOLDER"}
+#   mistral $VIBE_HOME (<home>/.vibe)/trusted_folders.toml  trusted = ["<dir>", …]
+#           (specs/110 3.3; the dir also leaves `untrusted`, which vibe checks
+#           literally before it asks)
 #
 # A store that does not exist is skipped (the CLI's first run onboards itself).
 # Each edit is idempotent, under an flock, written via temp file + rename.
@@ -26,7 +29,7 @@
 # claude launched next reads it and the next spawn's edit waits for this
 # claude's startup write to be over.
 #
-# Usage: trust-workdir.sh [--settle] <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen)
+# Usage: trust-workdir.sh [--settle] <DIR> [AGENT_USER] [AGENT …]   (AGENT: claude grok agy qwen mistral)
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -43,7 +46,7 @@ shift
 AGENT_USER="${1:-$(id -un)}"
 [ $# -gt 0 ] && shift
 AGENTS=("$@")
-[ ${#AGENTS[@]} -eq 0 ] && AGENTS=(claude grok agy qwen)
+[ ${#AGENTS[@]} -eq 0 ] && AGENTS=(claude grok agy qwen mistral)
 
 if [ -d "$DIR" ]; then DIR_ABS="$(cd "$DIR" && pwd -P)"; else DIR_ABS="$(readlink -m -- "$DIR")"; fi
 
@@ -127,12 +130,35 @@ def grok(before):
         before, sep, header, stamp)
 
 
+def vibe_lists(text):
+    """(trusted, untrusted) of a vibe trusted_folders.toml (tomllib: 3.11+,
+    and vibe itself needs 3.12)."""
+    import tomllib
+    doc = tomllib.loads(text)
+    return list(doc.get("trusted", [])), list(doc.get("untrusted", []))
+
+
+def mistral(before):
+    # vibe writes the file with tomli_w as two string lists; there is no
+    # stdlib TOML writer, and a list of JSON strings is valid TOML.
+    trusted_l, untrusted_l = vibe_lists(before)
+    if target in trusted_l and target not in untrusted_l:
+        return before
+    if target not in trusted_l:
+        trusted_l.append(target)
+    untrusted_l = [d for d in untrusted_l if d != target]
+    fmt = lambda xs: "[%s%s]" % ("".join("\n    %s," % json.dumps(x) for x in xs), "\n" if xs else "")
+    return "trusted = %s\nuntrusted = %s\n" % (fmt(trusted_l), fmt(untrusted_l))
+
+
 STORES = {
     "claude": (os.path.join(home, ".claude.json"), claude, None),
     "agy": (os.path.join(home, ".gemini", "antigravity-cli", "settings.json"),
             agy, "{}\n"),
     "grok": (os.path.join(home, ".grok", "trusted_folders.toml"), grok, ""),
     "qwen": (os.path.join(home, ".qwen", "trustedFolders.json"), qwen, "{}\n"),
+    "mistral": (os.path.join(os.environ.get("VIBE_HOME") or os.path.join(home, ".vibe"),
+                             "trusted_folders.toml"), mistral, ""),
 }
 
 def trusted(name):
@@ -150,6 +176,9 @@ def trusted(name):
             return target in json.loads(text).get("trustedWorkspaces", [])
         if name == "qwen":
             return json.loads(text).get(target) == "TRUST_FOLDER"
+        if name == "mistral":
+            trusted_l, untrusted_l = vibe_lists(text)
+            return target in trusted_l and target not in untrusted_l
         return re.search(r"^%s\s*$" % re.escape('[folders."%s"]' % target), text, re.M) is not None
     except ValueError:
         return False   # a half-written file reads as not-yet-trusted

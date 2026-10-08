@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # spawn-core.inc.sh — the ONE agent launcher behind spawn-claude.sh,
-# spawn-grok.sh, spawn-agy.sh and spawn-qwen.sh.
+# spawn-grok.sh, spawn-agy.sh, spawn-qwen.sh and spawn-mistral.sh.
 #
 # Forked from the box engine's launcher core and adapted to the spool specs
 # (csi-spl-doc specs 002 / 004, contracts/trust-modes.md,
@@ -29,15 +29,24 @@
 #
 # AN ADAPTER SETS, then calls `spawn_main "$@"`:
 #   SPAWN_ADAPTER        "${BASH_SOURCE[0]}" of the adapter
-#   SPAWN_KIND           claude | grok | agy | qwen
-#   SPAWN_ID_PREFIX      CLE | GRK | AGY | QWN
-#   SPAWN_BIN_VAR        CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN (resolved by spool-env)
+#   SPAWN_KIND           claude | grok | agy | qwen | mistral
+#   SPAWN_ID_PREFIX      CLE | GRK | AGY | QWN, or "" for a kind with no legacy
+#                        prefix (mistral, specs/110 3.1): the pane env name is
+#                        then the kind's (MISTRAL_TMUX_PANE) and the title is
+#                        checked by SPAWN_ID_LETTER alone
+#   SPAWN_ID_LETTER      the id letter (m); read only when SPAWN_ID_PREFIX is ""
+#   SPAWN_BIN_VAR        CLAUDE_BIN | GROK_BIN | AGY_BIN | QWEN_BIN | MISTRAL_BIN (resolved by spool-env)
 #   SPAWN_NAME_FLAG      the flag that names the session, or ""
 #   SPAWN_PROMPT_FLAG    the flag before the seed prompt, or "" (positional)
 #   SPAWN_RESUME_FLAG    SPAWN_RESUME_ID   how the CLI resumes one session
 #   SPAWN_CONTINUE_FLAG  how it resumes the most recent one in a directory
 #   spawn_rename_how     function: the instruction that makes the agent
 #                        retitle itself (may use $TITLE and $_SP_DIR)
+# and MAY set (unset = nothing added, so the other launch lines stay byte-identical):
+#   SPAWN_EXEC_PREFIX    words before the CLI: in the launch, before spool-harness
+#                        (so the harness still sees the CLI as its command), and
+#                        in the resume stub (mistral: env -u MISTRAL_API_KEY ...)
+#   SPAWN_EXTRA_FLAGS    flags after the permission flags (mistral: --max-price N)
 #
 # DRY RUN: SPAWN_DRY_RUN=1 performs NO side effect and prints the plan: one
 # `PLAN <step> …` line per side effect, then the seed prompt between
@@ -232,13 +241,18 @@ spawn_main() {
   SPAWN_BIN="${!SPAWN_BIN_VAR}"
   # The permission flags come from the ONE helper (060 FR-061), never the adapter.
   SPAWN_PERM_FLAGS="$(spool_claude_perm_flags "$SPAWN_KIND")" || _sp_fail "no permission flags for ${SPAWN_KIND}"
+  # The <P>_TMUX_PANE / _SOCK env names, and how a title of this kind looks.
+  # A kind with no legacy prefix (specs/110 3.1) names them after itself.
+  _sp_pane_env="${SPAWN_ID_PREFIX:-$(printf '%s' "$SPAWN_KIND" | tr '[:lower:]' '[:upper:]')}"
+  _sp_id_eg="${SPAWN_ID_PREFIX}-07" _sp_id_mark="prefix ${SPAWN_ID_PREFIX}-"
+  [ -n "${SPAWN_ID_PREFIX:-}" ] || { _sp_id_eg="${SPAWN_ID_LETTER}-004"; _sp_id_mark="letter ${SPAWN_ID_LETTER}-"; }
 
   # Guard: TITLE is the agent's spool id. An empty or garbled one would
   # collapse WORKTREE_DIR to "<repo>-wt/" and MSGDIR to the spool root itself.
   spool_valid_id "$TITLE" 2>/dev/null \
-    || _sp_fail "invalid session TITLE '${TITLE}' — expected a spool agent id like ${SPAWN_ID_PREFIX}-07 (${SPOOL_ID_RE}, never BOX-)."
+    || _sp_fail "invalid session TITLE '${TITLE}' — expected a spool agent id like ${_sp_id_eg} (${SPOOL_ID_RE}, never BOX-)."
   [ "$(spl_kind_of_agent_id "$TITLE")" = "$SPAWN_KIND" ] \
-    || _sp_fail "TITLE '${TITLE}' does not carry the ${SPAWN_KIND} prefix ${SPAWN_ID_PREFIX}-"
+    || _sp_fail "TITLE '${TITLE}' does not carry the ${SPAWN_KIND} ${_sp_id_mark}"
   [ -n "$WORKDIR" ] || _sp_fail "usage: ${SPAWN_ADAPTER##*/} <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]"
 
   # spawn-window already resolved the caller and passed it in. A direct
@@ -248,7 +262,7 @@ spawn_main() {
     SPAWN_REQUESTER="$(spool_spawn_gate)" || exit $?
   fi
 
-  _sp_plan adapter "kind=${SPAWN_KIND} prefix=${SPAWN_ID_PREFIX} bin=${SPAWN_BIN} name-flag=${SPAWN_NAME_FLAG:-<none>} prompt-flag=${SPAWN_PROMPT_FLAG:-<positional>} resume=${SPAWN_RESUME_FLAG} <${SPAWN_RESUME_ID}> continue=${SPAWN_CONTINUE_FLAG} perm=${SPAWN_PERM_FLAGS}"
+  _sp_plan adapter "kind=${SPAWN_KIND} prefix=${SPAWN_ID_PREFIX:-<none>} bin=${SPAWN_BIN} name-flag=${SPAWN_NAME_FLAG:-<none>} prompt-flag=${SPAWN_PROMPT_FLAG:-<positional>} resume=${SPAWN_RESUME_FLAG} <${SPAWN_RESUME_ID}> continue=${SPAWN_CONTINUE_FLAG} perm=${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ extra=${SPAWN_EXTRA_FLAGS}}${SPAWN_EXEC_PREFIX:+ exec-prefix=${SPAWN_EXEC_PREFIX}}"
   _sp_plan run-as "$(spool_agent_cmd_text) (SPOOL_RUN_AS_AGENT=${SPOOL_RUN_AS_AGENT})"
   _sp_plan spool "SPOOL_ROOT=${SPOOL_ROOT} SPOOL_BIN=${SPOOL_BIN}"
 
@@ -334,7 +348,7 @@ spawn_main() {
   # The resume stub carries the same permission flags as the launch. A grok
   # resumed without them falls back to whatever config.toml says; claude's
   # own restore in the box engine repeats its own permission mode (auto for claude).
-  RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${_sp_cli} ${SPAWN_PERM_FLAGS} ${SPAWN_RESUME_FLAG} "
+  RESTORE="$(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}} ${SPAWN_RESUME_FLAG} "
   _sp_plan restore "${RESTORE}<${SPAWN_RESUME_ID}>'"
 
   # PROMPT travels inside a double-quoted argument of the agent's login shell,
@@ -348,7 +362,7 @@ spawn_main() {
   # specs/012 T013: the CLI starts THROUGH spool-harness (dirs, identity,
   # sidecar in hub mode, SPOOL_* env, and with --mirror the terminal mirror
   # hooks of specs/036), not with the env prepared inline here.
-  LAUNCH="export ${SPAWN_ID_PREFIX}_TMUX_PANE='${PANE}' ${SPAWN_ID_PREFIX}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${_sp_prompt_args}"
+  LAUNCH="export ${_sp_pane_env}_TMUX_PANE='${PANE}' ${_sp_pane_env}_TMUX_SOCK='${SOCK}' SPOOL_ROOT='${SPOOL_ROOT}' SPOOL_AGENT_ID='${TITLE}' ${SPOOL_CLI_ENV}; cd '${RUNDIR}' && exec ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }bash '${SPAWN_SCRIPTS_DIR}/spool-harness.sh' --as '${TITLE}' --mirror -- '${SPAWN_BIN}' ${_sp_name_args}${SPAWN_PERM_FLAGS}${SPAWN_EXTRA_FLAGS:+ ${SPAWN_EXTRA_FLAGS}}${_sp_prompt_args}"
 
   if ! _sp_live; then
     _sp_shown="$LAUNCH"
@@ -381,7 +395,7 @@ spawn_main() {
   echo " Spool dir: ${MSGDIR} (inbox/ outbox/ archive/)"
   echo " To RESUME: ${RESTORE}<${SPAWN_RESUME_ID}>'"
   echo " Or the most recent session in this dir:"
-  echo "   $(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${_sp_cli} ${SPAWN_CONTINUE_FLAG}'"
+  echo "   $(spool_agent_cmd_text) -c 'cd \"${RUNDIR}\" ; ${SPAWN_EXEC_PREFIX:+${SPAWN_EXEC_PREFIX} }${_sp_cli} ${SPAWN_CONTINUE_FLAG}'"
   if [ -n "$WORKTREE_DIR" ]; then
     echo " Worktree: ${WORKTREE_DIR}  Branch: ${BRANCH} (off origin/${DEFBRANCH})"
     echo " Tear down when merged: git -C '${REPO}' worktree remove '${WORKTREE_DIR}'"

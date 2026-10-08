@@ -102,7 +102,7 @@ the owner's Team login on each box.
 
   Done: 7f (the pair, the key-leak check and the env-override case). Hygiene control: a planted `.vibe/hooks.toml` turns the
   gate red.
-- [ ] T005 **spawn** (needs T002, T003). The adapter, id allocation and
+- [x] T005 **spawn** (c-584; needs T002, T003). The adapter, id allocation and
   trust. Files:
   - `SA/scripts/spawn-mistral.sh` (*new*);
   - `SA/scripts/spawn-core.inc.sh` (kind-derived pane env name, title by

@@ -94,6 +94,18 @@ bash "$NAI" --claim c-4 >/dev/null 2>&1;     eq "an unpadded id refused (exit 2)
 bash "$NAI" --claim x-004 >/dev/null 2>&1;   eq "an unknown letter refused (exit 2)" 2 "$?"
 bash "$NAI" --claim AGY-01.1 >/dev/null 2>&1; eq "dotted sub-id refused (exit 2)" 2 "$?"
 bash "$NAI" --kind hum >/dev/null 2>&1;      eq "unknown kind refused (exit 2)" 2 "$?"
+
+# ---- specs/110 T005: mistral is the fifth letter, m --------------------------------------
+r m1
+eq "mistral: --kind mistral -> m-004 (001-003 are role ids for m too)" m-004 "$(bash "$NAI" --kind mistral)"
+check "mistral: ... and claimed its spool dir" test -d "$SPOOL_ROOT/m-004/inbox"
+eq "mistral: Q2 one counter per machine: claude gets the next number" c-005 "$(bash "$NAI" --kind claude)"
+eq "mistral: --prefix m -> m-006" m-006 "$(bash "$NAI" --prefix m)"
+eq "mistral: an m- dir holds its number for every kind" g-008 "$(r m2; mkdir "$SPOOL_ROOT/m-004" "$SPOOL_ROOT/m-005" "$SPOOL_ROOT/c-006" "$SPOOL_ROOT/m-007"; echo 3 >"$SPOOL_ROOT/agent-id.cursor"; bash "$NAI" --kind grok)"
+eq "mistral: SPOOL_ID_ROLE_LETTERS may name m" m-004 "$(SPOOL_ROOT="$T_TMP/sw-m" SPOOL_ID_ROLE_LETTERS=acgmq bash "$NAI" --kind mistral)"
+bash "$NAI" --prefix MST >/dev/null 2>&1;    eq "mistral control: no legacy prefix MST (exit 2)" 2 "$?"
+bash "$NAI" --prefix x >/dev/null 2>&1;      eq "mistral control: letter x refused (exit 2)" 2 "$?"
+SPOOL_ID_ROLE_LETTERS=acgxq bash "$NAI" --kind mistral >/dev/null 2>&1; eq "mistral control: role letter x refused (exit 2)" 2 "$?"
 ( bash "$NAI" --claim g-500 >/dev/null 2>&1; echo $? > "$T_TMP/r1" ) &
 ( bash "$NAI" --claim g-500 >/dev/null 2>&1; echo $? > "$T_TMP/r2" ) &
 wait

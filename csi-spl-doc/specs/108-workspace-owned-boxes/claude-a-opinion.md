@@ -280,8 +280,32 @@ Still open. **R1 to R4 block my agreement**; R5 to R7 I accept as one-line edits
 | R6 | (absent) | The anonymous view door (`resolve.go:62-74`) reads a workspace with no session | "View door off is refused outside lde" |
 | R7 | 3.1 | Spec 073 is Planned, not built | Name 073 as a prerequisite in section 5, phase 1 |
 
+### 6.3 Round 3, spec sha `4b64dd44`
+
+| # | Round 3 text | Verdict |
+|---|---|---|
+| R1 | 3.2: box id unique per workspace; unique index on live `pins(pubkey)`, `pin_conflict` never names the other workspace; `box-wui` exempt (the hub pins its own key in every workspace) | folded; the `box-wui` exemption is right |
+| R2 | 3.3: workspace = the verified pin's; header only names it; mismatch refused | folded |
+| R3 | 4: four pairs, each with a control | **partly**: pairs (b) header/pin mismatch, (c) same key into a second workspace, (e) cross-workspace spool-send and the n per test are not in section 4. The design commits to all three mechanisms (3.2, 3.3), so I carry them as build items, not as a blocker |
+| R4 | 3.5 decides one box = one workspace; section 7 lists my three owner questions | folded. Note: 3.5 ("an operator-run box never hosts another workspace's agents") already answers owner question 2 one way; the owner's answer wins over 3.5 |
+| R5 | 3.6: `HubRoleCanLiftRLS` empty = prd start gate | folded |
+| R6 | 3.3: anonymous view door refused outside lde | folded |
+| R7 | 5.1: depends on 073 T003..T006 | folded |
+
+Also good in round 3, from the other reviewer: revoke drops upload tokens,
+the 5 s pin cache bound across instances, and `replay-unsigned` named as an
+operator-scope caller.
+
 ## 7. Status
 
-Round 2 of 3 sent to the author. **Points still open at spec sha
-`bc550d488`**: R1 to R4 (blocking), R5 to R7 (one-line edits). Consensus
-follows when R1 to R4 are in the spec.
+Round 3 of 3. **Consensus reached at `4b64dd449888dd9b65b7b653c1ca97f84b680558`**
+with two items carried to the build (tasks.md), not open design points:
+
+1. Section 4 gains test pairs (b), (c) and (e) from 6.2, and every test
+   states its n (rows or objects seeded).
+2. 3.5 and owner question 2 must agree once the owner answers; until then 3.5
+   is the default.
+
+Owner questions stay as the spec's section 7 (three items).
+
+Consensus reached at 4b64dd449888dd9b65b7b653c1ca97f84b680558

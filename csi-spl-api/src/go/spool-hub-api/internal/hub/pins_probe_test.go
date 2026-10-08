@@ -74,7 +74,7 @@ func TestPinsProbeIsTheDoorWithoutTheList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	cnt.lists.Store(0)
 	if err := sess.Probe(context.Background()); err != nil {
 		t.Fatal(err)

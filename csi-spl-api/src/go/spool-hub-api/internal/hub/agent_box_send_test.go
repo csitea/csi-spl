@@ -28,7 +28,7 @@ func TestSendToAgentAtBoxReachesOnlyThatAgent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		defer closeWait(s)
 	}
 	eventually(t, "home sees the satellite's c-004 on the hub roster", func() bool {
 		_, err := home.c.ResolveToBox("c-004", "")

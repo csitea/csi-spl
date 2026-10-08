@@ -36,7 +36,7 @@ func TestTypedByVerifiedStoredAndShownToBrowsersOnly(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		defer closeWait(s)
 	}
 	eventually(t, "CLE-07@box-b known on box-a", func() bool {
 		tb, err := a.c.ResolveToBox("CLE-07", "")

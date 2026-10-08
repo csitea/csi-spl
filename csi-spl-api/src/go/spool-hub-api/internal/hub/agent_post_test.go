@@ -37,12 +37,12 @@ func TestAgentChannelPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	sb, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 
 	// '#' and upper case are what an agent copies out of the WUI.
 	out, err := action.SendCtx(ctx, b.cfg, action.SendArgs{From: "CLE-07", Channel: "#Releases", Body: "v0.6 is cut", Hub: b.c})
@@ -140,7 +140,7 @@ func TestAgentLobbyPostNeedsNoSeat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 
 	for i, ch := range []string{"lobby", "#General"} {
 		out, err := action.SendCtx(ctx, b.cfg, action.SendArgs{From: "CLE-07", Channel: ch, Body: "Welcome aboard!", Hub: b.c})

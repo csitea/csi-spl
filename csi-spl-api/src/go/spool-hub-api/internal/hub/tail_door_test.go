@@ -35,7 +35,7 @@ func TestTailReadsOnlyWhatTheBoxHolds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer sess.Close()
+		defer closeWait(sess)
 		n, err := sess.Tail(ctx, first.TaskID, false, func(*wire.Envelope) {})
 		if err != nil {
 			t.Fatalf("%s tail: %v", bx.id, err)
@@ -58,7 +58,7 @@ func TestTailReadsOnlyWhatTheBoxHolds(t *testing.T) {
 		}
 		got := make(chan string, 8)
 		go func() {
-			defer sess.Close()
+			defer closeWait(sess)
 			sess.Tail(fctx, first.TaskID, true, func(e *wire.Envelope) { //nolint:errcheck
 				m, _ := e.Inner()
 				got <- m.Body

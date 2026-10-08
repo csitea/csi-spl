@@ -41,7 +41,7 @@ func TestTailRSPCountSeesAnotherBoxesResponder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer sess.Close()
+		defer closeWait(sess)
 		n, err := sess.RSPCount(ctx, task)
 		if err != nil {
 			t.Fatalf("%s rsp_count: %v", bx.id, err)

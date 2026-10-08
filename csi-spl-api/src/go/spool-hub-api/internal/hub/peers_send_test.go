@@ -82,7 +82,7 @@ func TestSendToPeers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer closeWait(s)
 	env := signedIn(t, sat, "box-c", "", "", &msg.Message{V: 1, MsgID: uuidV4(), TaskID: uuidV4(),
 		TS: time.Now().UTC().Format(time.RFC3339), From: "c-120", To: msg.PeersID, Kind: "note", Body: "x", Files: []msg.Attachment{}})
 	var he *hubclient.HubError

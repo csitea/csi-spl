@@ -101,7 +101,7 @@ func TestChannelInviteBackfillsEarlierPosts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer closeWait(s)
 
 	// Three posts before any agent is in #mobile: two topics, one reply
 	// (the WUI reply pane sends no tag; the hub signs the inherited one).
@@ -214,7 +214,7 @@ func TestChannelBackfillOnHelloAndOldClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer closeWait(s)
 	if got := agentState(t, e, tid, "mobile", human); got != "CLE-35@box-desk online seated" {
 		t.Fatalf("Properties agent state: %q", got)
 	}
@@ -254,7 +254,7 @@ func TestChannelBackfillEmptyChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer closeWait(s)
 	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/quiet/agents", human,
 		map[string]string{"id": "CLE-35", "box": "box-desk"}); code != http.StatusCreated {
 		t.Fatalf("invite: %d %v", code, out)

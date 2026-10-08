@@ -167,7 +167,7 @@ func TestHubclientAgentRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	waitStates(t, e, tid, "client hello", map[string]string{"c-001": "online", "c-002": "not_running"})
 
 	running = map[string]bool{"c-001": false, "c-002": true}

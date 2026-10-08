@@ -28,7 +28,7 @@ func TestAgentIssues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	watcher := dialMember(t, e, tid, "Tess", "HUM-1")
 
 	do := func(in action.IssueArgs) (map[string]any, error) {

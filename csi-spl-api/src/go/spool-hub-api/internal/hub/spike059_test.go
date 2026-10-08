@@ -208,12 +208,12 @@ func TestSpike059Delivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	sb, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	r := &spikeResult{Backend: "spool", Test: 1, Consumers: "2 boxes x 1 agent"}
 	snd := newSender(t, s, r)
 	sentA, sentB := map[string]time.Time{}, map[string]time.Time{}
@@ -269,7 +269,7 @@ func TestSpike059Failover(t *testing.T) {
 		sent[id] = at
 		pace(start, i+1, 200)
 	}
-	defer s2.Close()
+	defer closeWait(s2)
 	waitArrivals([]*box{m1, m2}, []string{"CLE-14", "CLE-14"}, 1000, 30*time.Second)
 	scoreSpike(r, sent, arrivals(m1, "CLE-14"), arrivals(m2, "CLE-14"))
 	r.Pass = r.Lost == 0 && r.Dup == 0

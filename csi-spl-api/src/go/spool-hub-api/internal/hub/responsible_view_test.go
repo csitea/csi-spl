@@ -27,7 +27,7 @@ func TestResponsibleOnTheFrameAndTheView(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		defer closeWait(s)
 	}
 	eventually(t, "c-007@box-b known on box-a", func() bool {
 		tb, err := a.c.ResolveToBox("c-007", "")

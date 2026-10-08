@@ -48,7 +48,7 @@ func TestChannelPostRoleGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	task := uuidV4()
 	post := func(body string) string {
 		t.Helper()
@@ -206,7 +206,7 @@ func TestChannelPostRoleGroupIgnoresMutex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	task := uuidV4()
 	post := func(body string) string {
 		t.Helper()

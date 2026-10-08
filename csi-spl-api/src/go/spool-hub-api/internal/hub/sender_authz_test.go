@@ -34,7 +34,7 @@ func TestSendFromMustBeAnnouncedBySendingBox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, "box-a")
 	sendAs := func(from string) (string, error) {
 		m, err := spool.New(a.cfg).Compose(from, "CLE-07", "", "task", "as "+from, nil)
@@ -67,7 +67,7 @@ func TestSendFromMustBeAnnouncedBySendingBox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli2.Close()
+	defer closeWait(cli2)
 	cli = cli2
 	refused("a human id", "HUM-1")
 	refused("a guest id", "GST-1")
@@ -97,12 +97,12 @@ func TestNewAgentFirstSendIsAnnouncedNotLost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	sb, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, "box-a")
 
 	// role=box: a dir made after the hello, then its first send.

@@ -68,7 +68,7 @@ func tailOf(t *testing.T, b *box, task string) []*msg.Message {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	var got []*msg.Message
 	if _, err := sess.Tail(ctx, task, false, func(e *wire.Envelope) {
 		if m, err := e.Inner(); err == nil {

@@ -35,7 +35,7 @@ func TestAnswerOnce(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { s.Close() })
+		t.Cleanup(func() { closeWait(s) })
 		return s
 	}
 	reply := func(from string) *wire.Envelope {

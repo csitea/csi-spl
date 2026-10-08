@@ -76,7 +76,7 @@ func TestFleetSendAcrossMachinesAndReportsFollowTheLease(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		defer closeWait(s)
 	}
 	eventually(t, "each machine sees the other's agents on the hub roster", func() bool {
 		a, errA := home.c.ResolveToBox("CLE-100004", "")

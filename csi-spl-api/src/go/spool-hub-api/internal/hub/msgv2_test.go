@@ -29,7 +29,7 @@ func TestMixedFleetV1V2(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		defer closeWait(s)
 	}
 
 	if out := send(t, a, "GRK-03", "CLE-07", "task", "from v1", "box-b"); out.Delivery != wire.DeliverySent {

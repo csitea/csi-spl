@@ -183,7 +183,7 @@ func TestWUIDispatchSignedDeliveryVerifiesAgainstPin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer closeWait(s)
 	eventually(t, "CLE-07 inbox on box-a", func() bool { return len(inbox(t, a, "CLE-07")) == 1 })
 	if got := inbox(t, a, "CLE-07")[0]; got.MsgID != id || got.Body != "@CLE-07 run tests" || got.From != m.From {
 		t.Fatalf("inbox %+v", got)
@@ -455,12 +455,12 @@ func TestWUIChannelPostReachesEveryMemberBox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	sb, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	for _, x := range []struct {
 		b  *box
 		as string
@@ -541,7 +541,7 @@ func TestBoxRefusesBoxWUIResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	defer closeWait(s)
 	for i, kind := range []string{"result", "note"} {
 		m := testMsg(t, "HUM-1", "CLE-07", kind, "k="+kind, "7c3e2f40-5b6d-4e7f-8a91-0b1c2d3e4f5"+string(rune('0'+i)))
 		envl, err := wire.NewEnvelope(key, hub.WUIBox, "box-a", m)

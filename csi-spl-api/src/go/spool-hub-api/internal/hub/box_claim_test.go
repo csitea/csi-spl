@@ -433,7 +433,7 @@ func claimRounds(t *testing.T, r roundEnv) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer s.Close()
+		defer closeWait(s)
 		env := signedIn(t, b, "box-b", "", "", &msg.Message{V: 1, MsgID: uuidV4(), TaskID: uuidV4(),
 			TS: time.Now().UTC().Format(time.RFC3339), From: from, To: "c-120", Kind: "result", Body: "the answer", Files: []msg.Attachment{}})
 		_, err = s.SendAnswer(ctx, env, job, gen)

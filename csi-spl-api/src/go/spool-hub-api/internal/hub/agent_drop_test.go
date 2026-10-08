@@ -45,7 +45,7 @@ func TestHubclientDropsDeadAgent(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer sess.Close()
+			defer closeWait(sess)
 			all := map[string]string{"c-044": "online", "c-045": "not_running", "c-046": "online"}
 			waitStates(t, e, tid, "hello", all)
 

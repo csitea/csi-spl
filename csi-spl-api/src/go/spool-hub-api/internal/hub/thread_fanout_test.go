@@ -91,7 +91,7 @@ func TestWUIChannelThreadReplyReachesInvitedAgents(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer s.Close()
+			defer closeWait(s)
 			for _, ag := range []string{"GRK-35", "AGY-34"} {
 				eventually(t, ag+" inbox", func() bool {
 					for _, x := range inbox(t, d, ag) {

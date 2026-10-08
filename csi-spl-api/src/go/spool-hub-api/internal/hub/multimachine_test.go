@@ -91,12 +91,12 @@ func TestTwoMachinesOneTenantOwnBoxIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
+	defer closeWait(st)
 	ss, err := sat.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ss.Close()
+	defer closeWait(ss)
 	select {
 	case <-st.Done():
 		t.Fatalf("the satellite's hello evicted the box machine (close %d)", st.CloseCode())
@@ -152,7 +152,7 @@ func TestBoxTakeoverMidMessageLosesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s1.Close()
+	defer closeWait(s1)
 	if out := send(t, peer, "GRK-03", "CLE-07", "task", "1 before", "box-desk"); out.Delivery != wire.DeliverySent {
 		t.Fatalf("msg 1: %q", out.Delivery)
 	}

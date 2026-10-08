@@ -26,7 +26,7 @@ func TestAgentIssueRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	token := func(in action.IssueArgs) string {
 		t.Helper()
 		in.As, in.Hub = "CLE-07", a.c

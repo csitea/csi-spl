@@ -65,7 +65,7 @@ func TestFileIDIsNotACapability(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer cli.Close()
+		defer closeWait(cli)
 		m, _ := spool.New(bx.cfg).Compose(from, to, "", "task", "have this",
 			[]msg.Attachment{{Mode: "blob", Kind: "file", FileID: att.FileID, Name: "hr.txt"}})
 		priv, _ := sign.LoadPrivate(bx.cfg.KeysDir, bx.id)

@@ -190,7 +190,7 @@ func TestFallbackNotSentWhenAMemberIsOnline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	if code, out := call(t, r.e, r.tid, http.MethodPost, "/v1/channels/staffed/agents", r.human,
 		map[string]string{"id": "GRK-36", "box": "box-b"}); code != http.StatusCreated {
 		t.Fatalf("invite: %d %v", code, out)
@@ -270,7 +270,7 @@ func TestEscalateUnansweredReachesResponderDespiteOnlineAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sd.Close()
+	defer closeWait(sd)
 	// a channel with a human member and an ONLINE agent member (box-b/GRK-36):
 	// its presence is what makes the immediate fallback stand down.
 	human := "HUM-google-sub-1@" + tid
@@ -288,7 +288,7 @@ func TestEscalateUnansweredReachesResponderDespiteOnlineAgent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/staffed/agents", human,
 		map[string]string{"id": "GRK-36", "box": "box-b"}); code != http.StatusCreated {
 		t.Fatalf("invite: %d %v", code, out)
@@ -341,7 +341,7 @@ func TestEscalateMovedPostDeliversTheTopicItLivesIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sd.Close()
+	defer closeWait(sd)
 	human := "HUM-google-sub-1@" + tid
 	now := time.Now()
 	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "staffed",
@@ -357,7 +357,7 @@ func TestEscalateMovedPostDeliversTheTopicItLivesIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/staffed/agents", human,
 		map[string]string{"id": "GRK-36", "box": "box-b"}); code != http.StatusCreated {
 		t.Fatalf("invite: %d %v", code, out)
@@ -429,7 +429,7 @@ func TestReescalateRotatesToTheWholeResponderList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	deskB := e.box(tid, "box-b", "CLE-002") // standing second responder, a free pane
 	pokesB := pokeLog(t, deskB)
 	e.pin(tid, deskB)
@@ -437,7 +437,7 @@ func TestReescalateRotatesToTheWholeResponderList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	human := "HUM-google-sub-1@" + tid
 	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "mobile",
 		Name: "mobile", CreatedBy: human, CreatedAt: time.Now()}); err != nil {
@@ -524,7 +524,7 @@ func TestFallbackLongestOnlineAndOldClientSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s1.Close()
+	defer closeWait(s1)
 	time.Sleep(20 * time.Millisecond)
 	second := e.box(tid, "box-a", "BBB-1")
 	e.pin(tid, second)
@@ -532,7 +532,7 @@ func TestFallbackLongestOnlineAndOldClientSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s2.Close()
+	defer closeWait(s2)
 
 	w := dialMember(t, e, tid, "Owner", human)
 	m1 := "5c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"

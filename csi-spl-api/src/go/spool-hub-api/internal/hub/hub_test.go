@@ -324,7 +324,7 @@ func TestLastHelloWinsOnlyForBoxRole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	select {
 	case <-s1.Done():
 		t.Fatal("a role=cli hello evicted the box session")
@@ -334,7 +334,7 @@ func TestLastHelloWinsOnlyForBoxRole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s2.Close()
+	defer closeWait(s2)
 	select {
 	case <-s1.Done():
 		if s1.CloseCode() != wire.CloseSuperseded {
@@ -361,12 +361,12 @@ func TestCrossBoxSendRecvAndResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	sb, err := b.c.Dial(ctx, wire.RoleBox)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	// box-a learns box-b's roster from the broadcast (to_box resolved locally).
 	eventually(t, "roster with CLE-07@box-b on box-a", func() bool {
 		tb, err := a.c.ResolveToBox("CLE-07", "")
@@ -420,14 +420,14 @@ func TestTamperedAndAmbiguousAndMissingPin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 
 	// Tampered envelope: signed, then the body is changed → bad_sig → exit 78.
 	cli, err := a.c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	m, _ := spool.New(a.cfg).Compose("GRK-03", "CLE-07", "", "task", "real", nil)
 	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, "box-a")
 	env, _ := wire.NewEnvelope(priv, "box-a", "box-b", m)
@@ -451,7 +451,7 @@ func TestTamperedAndAmbiguousAndMissingPin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sc.Close()
+	defer closeWait(sc)
 	a.c.Sync(ctx) //nolint:errcheck // refresh box-a's roster cache
 	if _, err := a.c.ResolveToBox("CLE-07", ""); err == nil || !strings.Contains(err.Error(), "ambiguous_to_box") {
 		t.Fatalf("CLI must refuse an ambiguous to before signing: %v", err)
@@ -617,7 +617,7 @@ func TestFilesRoundTripAndTenantIsolation(t *testing.T) {
 	}
 	// A file_id the hub does not hold → missing_file (OQ-11 default).
 	cli, _ := a.c.Dial(ctx, wire.RoleCLI)
-	defer cli.Close()
+	defer closeWait(cli)
 	m, _ := spool.New(a.cfg).Compose("GRK-03", "CLE-07", "", "task", "ghost",
 		[]msg.Attachment{{Mode: "blob", Kind: "file", FileID: strings.Repeat("ab", 32), Name: "ghost"}})
 	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, "box-a")
@@ -646,7 +646,7 @@ func TestTailStoredAndFollow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	var bodies []string
 	n, err := sess.Tail(ctx, first.TaskID, false, func(e *wire.Envelope) {
 		m, _ := e.Inner()
@@ -1015,7 +1015,7 @@ func TestUnpaidSendPin402RecvInGrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hello in grace: %v", err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	if err := sess.UploadFile(ctx, att.FileID); err == nil {
 		t.Fatal("PUT file in grace succeeded")
 	} else if !errors.As(err, &he) || he.Token != "unpaid" {
@@ -1078,7 +1078,7 @@ func TestQuotaExceeded429(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer sess.Close()
+		defer closeWait(sess)
 		big := filepath.Join(t.TempDir(), "big.txt")
 		os.WriteFile(big, []byte("hello"), 0o644) //nolint:errcheck
 		att, err := files.PutFile(a.cfg.FilesDir(), big)
@@ -1185,7 +1185,7 @@ func TestCICDLogsUnconfiguredNote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	tok := e.uploadToken(tid, a)
 	resp, body := postCICD(t, e, tid, tok, cicdlogs.Request{
 		Owner: "acme", Repo: "app", RunID: "1", TaskID: "11111111-1111-4111-8111-111111111111",
@@ -1220,7 +1220,7 @@ func TestCICDLogsAllowlistAndFetch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	tok := e.uploadToken(tid, a)
 
 	resp, body := postCICD(t, e, tid, tok, cicdlogs.Request{

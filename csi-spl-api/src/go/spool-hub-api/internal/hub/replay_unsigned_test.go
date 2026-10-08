@@ -126,7 +126,7 @@ func TestOperatorReplayUnsignedReachesMembersAfterPin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sa.Close()
+	defer closeWait(sa)
 	for _, as := range []string{"CLE-07", "CLE-08"} {
 		eventually(t, as+" inbox", func() bool { return len(inbox(t, a, as)) == 1 })
 		if got := inbox(t, a, as)[0]; got.MsgID != id || got.Body != "anyone there?" {

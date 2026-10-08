@@ -181,7 +181,7 @@ func TestChannelMembershipRouting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	task := uuidV4()
 	post := func(channel, to, body string) (*msg.Message, wire.Frame, error) {
 		m := chanMsg(task, to, "note", body)
@@ -323,7 +323,7 @@ func TestChannelEnvelopeStored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	root, child := uuidV4(), uuidV4()
 	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, a.id)
 	legacy, _ := wire.NewEnvelope(priv, "box-a", "box-b", chanMsg(root, "CLE-07", "task", "legacy dm"))
@@ -644,7 +644,7 @@ func TestHubclientChannelRecv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	if m, _ := e.st.ChannelMembers(ctx, tid, "releases"); len(m) != 0 {
 		t.Fatalf("SPOOL_CHANNELS seated agents in #releases: %+v", m)
 	}
@@ -665,7 +665,7 @@ func TestHubclientChannelRecv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cli.Close()
+	defer closeWait(cli)
 	plain := chanMsg(uuidV4(), "ALL-0", "note", "nothing for anyone in particular")
 	if _, err := cli.Send(ctx, signedIn(t, a, hub.WUIBox, "releases", "", plain)); err != nil {
 		t.Fatal(err)

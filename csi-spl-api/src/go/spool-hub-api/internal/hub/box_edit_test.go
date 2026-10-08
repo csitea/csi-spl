@@ -138,7 +138,7 @@ func TestBoxEditRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	old, err := sess.EditFetch(ctx, sent.MsgID)
 	if err != nil {
 		t.Fatal(err)

@@ -40,7 +40,7 @@ func TestQuotaPeriodBoundaryAndResend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sess.Close()
+	defer closeWait(sess)
 	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, "box-a")
 	envelope := func(body string) *wire.Envelope {
 		t.Helper()

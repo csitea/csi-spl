@@ -85,7 +85,7 @@ func TestRecvVerifiesAfterPinSync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sb.Close()
+	defer closeWait(sb)
 	if _, err := a.c.Sync(ctx); err != nil {
 		t.Fatal(err)
 	}

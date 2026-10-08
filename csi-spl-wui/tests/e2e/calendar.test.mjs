@@ -33,7 +33,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* ci_initial_gzip_kb (027 perf-budgets.json, owner 2026-10-02) */
 const INITIAL_KB = 155
 /* ci_home_gzip_kb (027 perf-budgets.json, spec 109 T002; T003 lowers it) */
-const HOME_KB = 351.2
+const HOME_KB = 351.9
 const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })

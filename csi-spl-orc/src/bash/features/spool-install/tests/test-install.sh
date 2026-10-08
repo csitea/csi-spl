@@ -32,8 +32,8 @@
 #      the tmux snippet lands in <data>; --no-skills renders nothing
 #  11. a vendor URL that returns no script: that CLI is named, never run, the
 #      other CLIs and the harness still install, and the run exits 4
-#  12. spec 072 A49: a default install writes no fleet CLAUDE.md, no
-#      skipDangerous setting, no browser MCP; --fleet writes them and is
+#  12. spec 072 A49: a default install writes no fleet CLAUDE.md, no ~/.vibe/AGENTS.md,
+#      no skipDangerous setting, no browser MCP; --fleet writes them and is
 #      remembered; a home with the fleet block is a fleet box; =0 opts out
 #  13. spec 072 A50: an unreachable hub is exit 5 naming the URL before
 #      anything installs; a hub URL alone means --env self; a dry run says
@@ -389,14 +389,15 @@ ARGS=(--cli none --no-seat); inst; rc=$?
 # --- 12. the fleet config is opt-in (spec 072 A49) ------------------------------------------------
 H="$T/home-a49"; mkdir -p "$H"; CFG="$H/.config/spool-agent/env"
 ARGS=(--cli none --no-seat); inst; rc=$?
-[[ $rc -eq 0 && ! -e "$H/.claude/CLAUDE.md" && ! -e "$H/.local/mcp-bot" && -r "$H/.claude/settings.json" ]] &&
+[[ $rc -eq 0 && ! -e "$H/.claude/CLAUDE.md" && ! -e "$H/.vibe/AGENTS.md" && ! -e "$H/.local/mcp-bot" && -r "$H/.claude/settings.json" ]] &&
   ! grep -q skipDangerous "$H/.claude/settings.json" && grep -q 'fleet config: not written' "$T/o" && grep -qx SPOOL_INSTALL_FLEET=0 "$CFG" &&
-  pass "12. a default install leaves CLAUDE.md, skipDangerous and the browser MCP alone" || fail "12. default: rc $rc $(cat "$T/o")"
+  pass "12. a default install leaves CLAUDE.md, ~/.vibe/AGENTS.md, skipDangerous and the browser MCP alone" || fail "12. default: rc $rc $(cat "$T/o")"
 ARGS=(--cli none --no-seat --fleet); inst; rc=$?
 [[ $rc -eq 0 && -L "$H/.local/mcp-bot/mcp-start.sh" ]] && grep -qF '<!-- spool-install: begin claude-md' "$H/.claude/CLAUDE.md" &&
+  grep -qF '<!-- spool-install: begin agents-md' "$H/.vibe/AGENTS.md" &&
   python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["skipDangerousModePermissionPrompt"] is True' "$H/.claude/settings.json" &&
   grep -qx SPOOL_INSTALL_FLEET=1 "$CFG" && grep -rqF 'SPOOL_ROOT=/var/spool-hub' "$H/.claude/skills" &&
-  pass "12. --fleet writes the fleet CLAUDE.md, settings and browser MCP (the fleet spool root)" || fail "12. --fleet: rc $rc $(cat "$T/o")"
+  pass "12. --fleet writes the fleet CLAUDE.md, ~/.vibe/AGENTS.md, settings and browser MCP (the fleet spool root)" || fail "12. --fleet: rc $rc $(cat "$T/o")"
 ARGS=(--cli none --no-seat); inst; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q 'fleet config: not written' "$T/o" && grep -qx SPOOL_INSTALL_FLEET=1 "$CFG" &&
   pass "12. a bare re-run keeps --fleet" || fail "12. sticky: rc $rc $(cat "$T/o")"

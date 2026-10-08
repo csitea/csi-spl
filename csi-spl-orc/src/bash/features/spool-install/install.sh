@@ -50,7 +50,9 @@
 #      is installed
 #   6. only with --fleet: the fleet's ~/.claude/CLAUDE.md block, its settings
 #      (skipDangerousModePermissionPrompt among them) and the browser MCP
-#      entrypoints. Without it your own Claude Code setup is left as it is
+#      entrypoints, and the same fleet rules into ~/.vibe/AGENTS.md (vibe
+#      loads AGENTS.md, never CLAUDE.md: spec 110). Without it your own
+#      Claude Code and vibe setup is left as it is
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
@@ -852,13 +854,14 @@ fi
 . "$_here/steps/y10-run-completion.sh" && spl_install_run_completion "$ORC" "$HOME/.bashrc" "$DRY" || die 7 "run completion: cannot update $HOME/.bashrc"
 # ── 5c. the fleet config, only with --fleet (spec 072 A49) ────────────────────
 if [ "$FLEET" != 1 ]; then
-  # shellcheck disable=SC2034  # read by the sourced y1 and y4 steps
-  SPOOL_INSTALL_MCP_BOT=0 SPOOL_INSTALL_CLAUDE_CONFIG=0
+  # shellcheck disable=SC2034  # read by the sourced y1, y4 and y8 steps
+  SPOOL_INSTALL_MCP_BOT=0 SPOOL_INSTALL_CLAUDE_CONFIG=0 SPOOL_INSTALL_VIBE_AGENTS=0
   say "fleet config: not written - your ~/.claude/CLAUDE.md, settings and browser MCP are yours (--fleet writes the fleet's)"
 fi
 . "$_here/steps/y1-mcp-bot.sh" && y1_mcp_bot "$ORC/src/bash/features/mcp-bot" || die $? "mcp-bot: cannot link the browser MCP entrypoints (spec 069 Y1)"
 
 source "$_here/steps/y4-claude-config.sh" && spool_install_claude_config || die 6 "cannot render the fleet CLAUDE.md / settings.json (spec 069 Y4)"
+source "$_here/steps/y8-vibe-agents.sh" && spool_install_vibe_agents || die 6 "cannot render the fleet ~/.vibe/AGENTS.md (spec 110)"
 [ "$SKILLS" = 1 ] && { . "$_here/steps/y6-graft.sh" && y6_graft_install "$ORC" "$BIN" "$DRY" || die 6 "the graft step (spec 069 Y6) failed"; }
 
 # ── 6. the seat ───────────────────────────────────────────────────────────────

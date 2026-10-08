@@ -182,3 +182,111 @@ WITH RECURSIVE pm AS (SELECT u.ch, u.at, u.id FROM unnest($3::text[], $4::timest
 		SELECT h.channel, count(*)::int FROM h
 		WHERE h.expires_at > $2 AND ($6::text IS NULL OR h.from_id IS DISTINCT FROM $6)
 		GROUP BY h.channel
+-- @@stmt walk_all_head sha256=fa0ce858ac08daf8ad1a5268a2dce1941774ac7bda5f6160a0dc350abd81f48b scope=head exec=:'t',now(),:'r',:'pub',:'mine',:'lobby',51
+-- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
+WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.last_at FROM topic_heads l
+			WHERE l.tenant_id = $1 AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
+			ORDER BY l.last_at DESC, l.task_id DESC LIMIT $7
+		)
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		FROM w CROSS JOIN LATERAL (
+			SELECT count(*)::int AS n,
+				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+		) a LEFT JOIN LATERAL (
+			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+			ORDER BY m.received_at, m.msg_id::text LIMIT 1
+		) f ON true
+		ORDER BY w.received_at DESC, w.task_id::text DESC
+-- @@stmt walk_dm_head sha256=a58f9b835a0e50787b95e5d745b082826cfdcb6a034194df1c2e4fbea9f0da3b scope=head exec=:'t',now(),:'r',:'pub',:'mine',:'lobby',51
+-- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
+WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.dm_last_at FROM topic_heads l
+			WHERE l.tenant_id = $1 AND l.dm_last_at IS NOT NULL AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND ((d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
+			ORDER BY l.dm_last_at DESC, l.task_id DESC LIMIT $7
+		)
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		FROM w CROSS JOIN LATERAL (
+			SELECT count(*)::int AS n,
+				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+		) a LEFT JOIN LATERAL (
+			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+			ORDER BY m.received_at, m.msg_id::text LIMIT 1
+		) f ON true
+		ORDER BY w.received_at DESC, w.task_id::text DESC
+-- @@stmt walk_dm_head_worst sha256=a58f9b835a0e50787b95e5d745b082826cfdcb6a034194df1c2e4fbea9f0da3b scope=head exec=:'t',now(),:'w',:'pub',:'wmine',:'lobby',51
+-- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
+WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.dm_last_at FROM topic_heads l
+			WHERE l.tenant_id = $1 AND l.dm_last_at IS NOT NULL AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND ((d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND (SELECT f.parent_task_id IS NULL FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.channel IS NULL AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1) AND (SELECT true FROM issues i WHERE i.tenant_id = $1 AND i.task_id = l.task_id LIMIT 1) IS NULL
+			ORDER BY l.dm_last_at DESC, l.task_id DESC LIMIT $7
+		)
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		FROM w CROSS JOIN LATERAL (
+			SELECT count(*)::int AS n,
+				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+		) a LEFT JOIN LATERAL (
+			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.channel IS NULL AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+			ORDER BY m.received_at, m.msg_id::text LIMIT 1
+		) f ON true
+		ORDER BY w.received_at DESC, w.task_id::text DESC
+-- @@stmt walk_parent_head sha256=a2e8ec33a6ad3dde5b82e4b6d2a281854859e59fb4779786d1f44d5164d3222a scope=head exec=:'t',now(),:'r',:'pub',:'mine','',:'parent',51
+-- @@scope SELECT set_config('app.tenant_id', $1, true), set_config('jit', 'off', true), set_config('plan_cache_mode', 'force_custom_plan', true), set_config('enable_bitmapscan', 'on', true), set_config('enable_sort', 'on', true)
+WITH w (task_id, received_at) AS (
+			SELECT l.task_id, l.last_at FROM topic_heads l
+			WHERE l.tenant_id = $1 AND l.valid_until > $2 AND EXISTS (SELECT 1 FROM topic_head_parts d WHERE d.tenant_id = $1 AND d.task_id = l.task_id AND (d.channel = ANY($4::text[]) OR d.channel = ANY($5::text[]) OR (d.channel IS NULL AND (d.dm_a = $3 OR d.dm_b = $3)))) AND NOT l.card_archived AND (l.archived_rows = 0 OR l.task_id::text = $6) AND l.task_id IN (SELECT p.task_id FROM messages p WHERE p.tenant_id = $1 AND p.parent_task_id = $7::uuid) AND (SELECT f.parent_task_id IS NOT DISTINCT FROM $7::uuid FROM messages f WHERE f.tenant_id = $1 AND f.expires_at > $2 AND f.task_id = l.task_id ORDER BY f.received_at, f.msg_id::text LIMIT 1)
+			ORDER BY l.last_at DESC, l.task_id DESC LIMIT $8
+		)
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		FROM w CROSS JOIN LATERAL (
+			SELECT count(*)::int AS n,
+				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
+				(SELECT array_agg(DISTINCT p ORDER BY p) FROM unnest(array_agg(m.from_id || '@' || m.from_box)
+					|| array_agg(m.to_id || '@' || m.to_box)) p) AS parties
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+		) a LEFT JOIN LATERAL (
+			SELECT COALESCE(m.channel, '') AS channel, COALESCE(m.parent_task_id::text, '') AS parent,
+				m.received_at AS first_at, (SELECT CASE WHEN jsonb_typeof(m.msg -> 'body') = 'string' THEN jsonb_build_object('body', left(s.a, 140) ||
+		CASE WHEN ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') = '' THEN ''
+			ELSE left(substr(s.a, 141), char_length(substr(s.a, 141)) - char_length(ltrim(substr(s.a, 141), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000')) + 1) END)
+		ELSE '{}'::jsonb END
+		FROM (SELECT ltrim(split_part(m.msg ->> 'body', E'\n', 1), E'\t\n\u000B\f\r \u0085\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000') AS a) s) AS first_msg
+			FROM messages m
+			WHERE m.tenant_id = $1 AND m.expires_at > $2 AND m.task_id = w.task_id AND (m.channel = ANY($4::text[]) OR m.channel = ANY($5::text[]) OR (m.channel IS NULL AND (m.from_id = $3 OR m.to_id = $3)))
+			ORDER BY m.received_at, m.msg_id::text LIMIT 1
+		) f ON true
+		ORDER BY w.received_at DESC, w.task_id::text DESC

@@ -14,6 +14,10 @@
 #      copy (spl-db-hot-measure.stmt.sql), every text has the sha256 its builder
 #      printed (CONTROL: a one-byte edit is refused), and, where Go is on the
 #      box, the builders print that copy byte for byte today
+#   5. spec 099 T008's head reads: walk_all_head, walk_dm_head, the worst reader
+#      (walk_dm_head_worst: walk_dm_head's own text for a reader in no DM) and
+#      walk_parent_head (parent=) run under the head scope, and their arguments
+#      are read only when they are measured
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -56,7 +60,7 @@ grep -q "default_transaction_read_only=on" "$PROJ_ROOT/src/bash/run/spl-db-hot-m
   pass "the session is default_transaction_read_only=on" || fail "no read-only session default"
 
 # --- 3. the hub's own settings per statement, and the overrides ------------------------
-stmts="walk_all walk_dm thread flow_counts ch_counts ch_marked ch_hidden"
+stmts="walk_all walk_dm thread flow_counts ch_counts ch_marked ch_hidden walk_all_head walk_dm_head walk_dm_head_worst walk_parent_head"
 # settings <script> <name> <tag> -> the four SETs just before name.tag's first sample
 settings() { awk -v at="\\echo @@ $2$3" '/^SET /{s[++k]=$0} $0 == at {for (i = k - 3; i <= k; i++) print s[i]; exit}' <<<"$1"; }
 def=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub "" 0' in_orc 2>&1)
@@ -72,6 +76,10 @@ for name in thread flow_counts ch_counts ch_marked ch_hidden; do
   [[ "$(settings "$def" $name .hub)" == $'SET jit = DEFAULT;\nSET enable_bitmapscan = DEFAULT;\nSET enable_sort = DEFAULT;\nSET plan_cache_mode = DEFAULT;' ]] &&
     pass "$name runs under the plain tenant scope (the server's defaults)" || fail "$name settings: $(settings "$def" $name .hub)"
 done
+for name in walk_all_head walk_dm_head walk_dm_head_worst walk_parent_head; do
+  [[ "$(settings "$def" $name .hub)" == $'SET jit = off;\nSET enable_bitmapscan = on;\nSET enable_sort = on;\nSET plan_cache_mode = force_custom_plan;' ]] &&
+    pass "$name runs under the head scope (pgScopeTenantHeads)" || fail "$name settings: $(settings "$def" $name .hub)"
+done
 grep -q "plan_cache_mode', " <<<"$def" && fail "the session pins a plan cache mode for every statement" || pass "no session-wide plan cache mode"
 
 sql=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 both "" 1' in_orc 2>&1)
@@ -83,7 +91,7 @@ pass "MEASURE_JIT=both measures every statement under jit on and off"
 [[ "$(settings "$sql" flow_counts .jit_on)" == $'SET jit = on;\nSET enable_bitmapscan = DEFAULT;\nSET enable_sort = DEFAULT;\nSET plan_cache_mode = DEFAULT;' ]] &&
   pass "an override changes only its own setting" || fail "override: $(settings "$sql" flow_counts .jit_on)"
 [[ $(grep -c '^\\echo @@ walk_all.jit_on$' <<<"$sql") == 3 ]] && pass "MEASURE_N=3 gives 3 samples" || fail "sample count"
-[[ $(grep -c '^EXPLAIN (ANALYZE, BUFFERS)' <<<"$sql") == 14 ]] && pass "MEASURE_PLANS=1: one plan per statement per jit" || fail "plan count"
+[[ $(grep -c '^EXPLAIN (ANALYZE, BUFFERS)' <<<"$sql") == 22 ]] && pass "MEASURE_PLANS=1: one plan per statement per jit" || fail "plan count"
 one=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 off walk_dm 0' in_orc 2>&1)
 grep -q '@@ walk_dm.jit_off$' <<<"$one" && ! grep -qE '@@ (walk_all|thread|flow_counts|ch_[a-z]+)\.' <<<"$one" &&
   ! grep -q 'jit_on' <<<"$one" && [[ $(grep -c '^PREPARE ' <<<"$one") == 1 ]] &&
@@ -98,7 +106,7 @@ grep -q "^\\\\set lobby '00000000-0000-4000-8000-000000000001'$" <<<"$lob" && gr
 
 # --- 4. the drift gate: the builders' printed copy -------------------------------------
 F="$PROJ_ROOT/src/bash/run/spl-db-hot-measure.stmt.sql"
-[[ "$(awk '/^-- @@stmt /{printf "%s ", $3}' "$F")" == "$stmts " ]] && pass "the copy holds the 7 hot statements" || fail "copy names: $(awk '/^-- @@stmt /{printf "%s ", $3}' "$F")"
+[[ "$(awk '/^-- @@stmt /{printf "%s ", $3}' "$F")" == "$stmts " ]] && pass "the copy holds the 11 hot statements" || fail "copy names: $(awk '/^-- @@stmt /{printf "%s ", $3}' "$F")"
 SNIPPET='spl_db_hot_measure_check' in_orc >"$T/o" 2>&1 && pass "every text has the sha256 its builder printed" || fail "sha256 check: $(cat "$T/o")"
 for name in $stmts; do
   first=$(SNIPPET="spl_db_hot_measure_body $name" in_orc 2>&1); first=${first%%$'\n'*}
@@ -131,5 +139,22 @@ if [[ -n "$GO_BIN" && -d "$API" ]]; then
 else
   echo "SKIP: no Go on this box; the api suite's TestHotStmtCopyCurrent gates the copy"
 fi
+
+# --- 5. spec 099 T008: the head reads' arguments ----------------------------------------
+field() { SNIPPET="spl_db_hot_measure_field $1 $2" in_orc 2>&1; }
+[[ "$(field walk_dm_head_worst sha256)" == "$(field walk_dm_head sha256)" ]] &&
+  pass "walk_dm_head_worst is walk_dm_head's own text" || fail "worst text differs from walk_dm_head"
+[[ "$(field walk_dm_head_worst exec)" == ":'t',now(),:'w',:'pub',:'wmine',:'lobby',51" ]] &&
+  pass "walk_dm_head_worst binds the worst reader and its channels" || fail "worst exec: $(field walk_dm_head_worst exec)"
+[[ "$(field walk_parent_head exec)" == *":'parent'"* ]] && pass "walk_parent_head binds the parent" || fail "parent exec: $(field walk_parent_head exec)"
+grep -q 'topic_head_parts' <<<"$(SNIPPET='spl_db_hot_measure_body walk_dm_head' in_orc 2>&1)" &&
+  pass "walk_dm_head reads the heads" || fail "walk_dm_head is not the head read"
+grep -q "AS w \\\\gset$" <<<"$def" && grep -q "AS parent \\\\gset$" <<<"$def" && grep -q '^\\echo @@args worst=:w' <<<"$def" &&
+  pass "the full run reads the worst reader and the parent" || fail "no worst/parent argument read"
+one=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub walk_dm,walk_all 0' in_orc 2>&1)
+grep -qE 'AS (w|wmine|parent) ' <<<"$one" && fail "the walk-only run reads the head arguments" || pass "a run without the head reads never reads their arguments"
+wo=$(SNIPPET='spl_db_hot_measure_sql t1 HUM-10 3 hub walk_dm_head_worst 0' in_orc 2>&1)
+grep -q "AS w \\\\gset$" <<<"$wo" && ! grep -q 'AS parent ' <<<"$wo" && grep -q "EXECUTE walk_dm_head_worst(.*:'w'," <<<"$wo" &&
+  pass "MEASURE_ONLY=walk_dm_head_worst reads the worst reader only" || fail "worst only: $wo"
 
 (( fails == 0 )) && echo "OK spl-db-hot-measure: all checks passed" || { echo "FAIL spl-db-hot-measure: $fails check(s)"; exit 1; }

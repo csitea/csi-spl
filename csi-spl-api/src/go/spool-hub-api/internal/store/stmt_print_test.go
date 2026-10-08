@@ -17,7 +17,11 @@ import (
 // ea9dc09a), printed by the store's OWN builders: the walks (viewTopicsSQL as
 // handleViewTopics calls it), the topic page (newTopicPage), the Flow counts
 // (flowCountsSQL as FlowRead calls it) and the three channel reads of
-// ViewChannelStats. The action used to keep a hand copy of the walk frozen at
+// ViewChannelStats; and spec 099 T008's head reads (viewTopicsHeadSQL under
+// its own header, headHeader): walk_all_head, walk_dm_head, the worst reader
+// walk_dm_head_worst (dm=true for a reader in no DM: the head walk reads every
+// DM head, claude-2 F3) and walk_parent_head (the children list, parent=,
+// claude-2 F4). The action used to keep a hand copy of the walk frozen at
 // SPL-984, and it measured 22 ms where the store's text took 114..286 ms.
 //
 // The printed copy is csi-spl-orc/src/bash/run/spl-db-hot-measure.stmt.sql.
@@ -35,7 +39,9 @@ import (
 //
 // The EXECUTE args are psql expressions: :'t' tenant, :'r' reader, :'pub' the
 // public channels (the copy's "-- @@pub" line), :'mine' the reader's channels, :'lobby' the lobby task,
-// :'task' the tenant's biggest topic, now() the clock.
+// :'task' the tenant's biggest topic, :'w' / :'wmine' the worst reader (a
+// reader in no DM) and its channels, :'parent' the topic with the most child
+// topics, now() the clock.
 
 // hotStmtCopy is the copy's path, from this package's directory.
 const hotStmtCopy = "../../../../../../csi-spl-orc/src/bash/run/spl-db-hot-measure.stmt.sql"
@@ -47,6 +53,9 @@ const (
 	hotLobby  = "@@lobby"
 	hotTask   = "@@task"
 	hotMine   = "@@mine"
+	hotWorst  = "@@w"
+	hotWMine  = "@@wmine"
+	hotParent = "@@parent"
 )
 
 var stmtNow = time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
@@ -88,6 +97,18 @@ func hotStmts() []hotStmt {
 	} {
 		out = append(out, hotStmt{r.name, pgScopeTenant, r.read.sql, r.read.args})
 	}
+	// Spec 099 T008: the head reads, each under its own header.
+	worst := dm
+	worst.Reader, worst.Viewer, worst.ReaderChannels = hotWorst, hotWorst, []string{hotWMine}
+	// handleViewChildren: parent=, the reader's door, no roots, issues or lobby.
+	parent := TopicQuery{Parent: hotParent, Reader: hotReader, ReaderChannels: mine, Limit: 51, Now: stmtNow}
+	for _, h := range []struct {
+		name string
+		q    TopicQuery
+	}{{"walk_all_head", walk}, {"walk_dm_head", dm}, {"walk_dm_head_worst", worst}, {"walk_parent_head", parent}} {
+		sql, args := viewTopicsHeadSQL(hotTenant, h.q)
+		out = append(out, hotStmt{h.name, headHeader(h.q), sql, args})
+	}
 	return out
 }
 
@@ -116,6 +137,10 @@ func hotArg(v any) (string, error) {
 			return ":'lobby'", nil
 		case hotTask:
 			return ":'task'", nil
+		case hotWorst:
+			return ":'w'", nil
+		case hotParent:
+			return ":'parent'", nil
 		case "":
 			return "''", nil
 		}
@@ -125,6 +150,8 @@ func hotArg(v any) (string, error) {
 			return ":'pub'", nil
 		case reflect.DeepEqual(x, []string{hotMine}):
 			return ":'mine'", nil
+		case reflect.DeepEqual(x, []string{hotWMine}):
+			return ":'wmine'", nil
 		case reflect.DeepEqual(x, hiddenChannels):
 			return "'{" + strings.Join(x, ",") + "}'", nil
 		case len(x) == 0:
@@ -153,8 +180,11 @@ func hotStmtText() (string, error) {
 			exec[i] = e
 		}
 		scope := "tenant"
-		if s.scope == pgScopeTenantNoJIT {
+		switch s.scope {
+		case pgScopeTenantNoJIT:
 			scope = "walk"
+		case pgScopeTenantHeads, pgScopeTenantHeadsNoSort:
+			scope = "head"
 		}
 		if strings.Contains(s.sql, "\n-- @@") || strings.HasPrefix(s.sql, "-- @@") {
 			return "", fmt.Errorf("%s: the body holds a header line", s.name)

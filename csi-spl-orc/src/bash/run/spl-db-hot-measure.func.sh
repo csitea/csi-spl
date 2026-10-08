@@ -22,7 +22,13 @@
 # @description custom plans); thread (the topic page, desc), flow_counts
 # @description (FlowRead's counts), ch_counts / ch_marked / ch_hidden
 # @description (ViewChannelStats' reads, no read= cursor) under the plain tenant
-# @description scope (the server's defaults).
+# @description scope (the server's defaults). Spec 099 T008: the head reads
+# @description (viewTopicsHeadSQL) under the head scope (jit off, sorts and
+# @description bitmap scans on, custom plans): walk_all_head, walk_dm_head,
+# @description walk_dm_head_worst (the same DM page for the worst reader, the
+# @description first channel member with no DM part, else a reader in none:
+# @description the walk reads every DM head) and walk_parent_head (parent=, the
+# @description children of the tenant's topic with the most child topics).
 # @param ENV - required: dev or prd
 # @param TENANT_ID - required: the tenant measured (e.g. t1)
 # @param READER - required: the human the read door is evaluated for (e.g. HUM-10)
@@ -42,6 +48,7 @@
 # @example ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_ONLY=walk_dm ./run -a do_spl_db_hot_measure
 # @example ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_JIT=both MEASURE_ONLY=flow_counts ./run -a do_spl_db_hot_measure
 # @example ENV=dev TENANT_ID=t1 READER=HUM-4 MEASURE_ONLY=ch_hidden MEASURE_PLANS=1 ./run -a do_spl_db_hot_measure
+# @example ENV=prd TENANT_ID=t1 READER=HUM-10 MEASURE_N=20 MEASURE_ONLY=walk_dm,walk_dm_head,walk_dm_head_worst,walk_parent_head ./run -a do_spl_db_hot_measure
 #------------------------------------------------------------------------------
 do_spl_db_hot_measure() {
   do_require_bin yq psql python3 sha256sum || return 1
@@ -131,6 +138,23 @@ spl_db_hot_measure_set() {
   echo "SET $2 = $v;"
 }
 
+# spl_db_hot_measure_head_args <tenant> <names...> -> spec 099 T008's psql
+# arguments (the worst reader, the parent), read only when their statement is
+# measured: they read topic_head_parts, which no older statement needs.
+spl_db_hot_measure_head_args() {
+  local tenant="$1"
+  shift
+  if [[ " $* " == *" walk_dm_head_worst "* ]]; then
+    echo "SELECT COALESCE((SELECT c.human_id FROM channel_humans c WHERE c.tenant_id = '$tenant' AND NOT EXISTS (SELECT 1 FROM topic_head_parts e WHERE e.tenant_id = '$tenant' AND e.channel IS NULL AND (e.dm_a = c.human_id OR e.dm_b = c.human_id)) ORDER BY c.human_id LIMIT 1), 'HUM-0') AS w \\gset"
+    echo "SELECT COALESCE(array_agg(channel_id ORDER BY channel_id), '{}')::text AS wmine FROM channel_humans WHERE tenant_id = '$tenant' AND human_id = :'w' \\gset"
+    echo "\\echo @@args worst=:w wmine=:wmine"
+  fi
+  if [[ " $* " == *" walk_parent_head "* ]]; then
+    echo "SELECT COALESCE((SELECT parent_task_id::text FROM messages WHERE tenant_id = '$tenant' AND parent_task_id IS NOT NULL GROUP BY parent_task_id ORDER BY count(DISTINCT task_id) DESC, parent_task_id::text LIMIT 1), '00000000-0000-0000-0000-000000000000') AS parent \\gset"
+    echo "\\echo @@args parent=:parent"
+  fi
+}
+
 # spl_db_hot_measure_sql <tenant> <reader> <n> <jit> <only> <plans> [lobby] -> the psql script.
 spl_db_hot_measure_sql() {
   local tenant="$1" reader="$2" n="$3" jit="$4" only="$5" plans="$6" lobby="${7:-}" to="${MEASURE_TIMEOUT_MS:-10000}"
@@ -168,6 +192,7 @@ spl_db_hot_measure_sql() {
   echo "SELECT COALESCE(array_agg(channel_id ORDER BY channel_id), '{}')::text AS mine FROM channel_humans WHERE tenant_id = '$tenant' AND human_id = '$reader' \\gset"
   echo "SELECT COALESCE((SELECT task_id::text FROM messages WHERE tenant_id = '$tenant' GROUP BY task_id ORDER BY count(*) DESC LIMIT 1), '00000000-0000-0000-0000-000000000000') AS task \\gset"
   echo "\\echo @@args tenant=:t reader=:r mine=:mine task=:task lobby=:lobby"
+  spl_db_hot_measure_head_args "$tenant" "${names[@]}"
   # Read each statement's header once: the script has n x settings lines per statement.
   local -A _hm_exec=() _hm_set=()
   local h_sum h_scope h_exec h_jit h_bm h_sort h_pc

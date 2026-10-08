@@ -12,7 +12,10 @@
 # @description passes a pre-flight (bash -n of every script + one dry proof
 # @description tick from the snapshot), then instance 1 execs into it
 # @description (same pid, same lock fds), its next tick is the self-check
-# @description (no script error, heartbeat written, <= WD_UPD_CHECK_MAX s),
+# @description (no script error, heartbeat written, on the new sha; judged by
+# @description its result, not its wall time: a tick ends past WD_UPD_STEP_MAX s
+# @description only when it hangs, which the peers fail anyway; load alone
+# @description never quarantines a sha),
 # @description and the baton (update.state) goes to 2, then 3, which wait in
 # @description WD_UPD_SLICE s sleep slices; after 3, candidate becomes good.
 # @description Stop rule: a failed pre-flight or self-check, an instance that
@@ -24,8 +27,8 @@
 # @param WD_SELF_UPDATE (optional) - 1 rolls out new desk-cron code; default 1, and 0 under SPOOL_TEST=1
 # @param WD_UPD_SRC (optional) - the desk-cron checkout; default DESK_CRON_SRC, then <wd dir>/starter.src
 # @param WD_UPD_SLICE (optional) - seconds per sleep slice of a waiting instance, default 5
-# @param WD_UPD_CHECK_MAX (optional) - seconds for a pre-flight or a self-check tick, default 20
-# @param WD_UPD_STEP_MAX (optional) - seconds one step (exec + check, or a baton wait) may take, default 45
+# @param WD_UPD_CHECK_MAX (optional) - seconds for the pre-flight proof tick, default 20
+# @param WD_UPD_STEP_MAX (optional) - seconds one step (exec + check, or a baton wait) may take, default 45; the self-check tick's hang bound
 # @param WD_UPD_KEEP (optional) - snapshots kept besides the ones in use, default 3
 # @param WD_UPD_PREFLIGHT (optional) - 1 (default): pre-flight the candidate; 0 skips it (tests only)
 # @example ./run -a do_spl_wd_self_update
@@ -230,6 +233,8 @@ spl_wd_upd_detect() {
   fi
   spl_wd_upd_quorum "$now" "$head" || return 0
   spl_wd_upd_preflight "$head" "$now" || return 0
+  # the step starts now: the pre-flight before it is not the self-check's time
+  now="$(spl_lease_now)"
   ln -sfn "$head" "$WD_DIR/code/candidate"
   spl_wd_upd_state_write "$head" 1 exec "$$" "$now" "$now"
   spl_wd_upd_log "START ${head:0:9} (good ${good:0:9}): instance 1 self-execs"
@@ -312,7 +317,9 @@ spl_wd_upd_exec() {
   fi
   spl_wd_upd_log "EXEC $role into ${sha:0:9} ($why; was ${WD_CODE_SHA:0:9})"
   if [[ "${DRY_RUN:-1}" == 1 ]]; then return 0; fi
-  export WD_UPD_EXEC="$sha" WD_UPD_ROLE="$role" WD_UPD_T0="$now" WD_INST INSTANCE="$WD_INST"
+  # T0 is the exec itself: the self-check times its own tick, not the work before
+  WD_UPD_T0="$(spl_lease_now)"
+  export WD_UPD_EXEC="$sha" WD_UPD_ROLE="$role" WD_UPD_T0 WD_INST INSTANCE="$WD_INST"
   # ./run's tee pipes end with this process: the new code writes the instance log itself
   exec >>"$WD_DIR/run.$WD_INST.out" 2>&1
   cd / || true
@@ -358,7 +365,11 @@ spl_wd_upd_checked() {
   return 0
 }
 
-# spl_wd_upd_verdict TICK SHA TOOK: why the self-check tick is red, or empty
+# spl_wd_upd_verdict TICK SHA TOOK: why the self-check tick is red, or empty.
+# By its result, not its wall time: on a loaded box a correct tick took 24
+# and 26 s (a desk box, 2026-10-08: two harmless commits quarantined at a 20 s
+# limit). The only time bound is the hang bound WD_UPD_STEP_MAX, the one the
+# peers already fail an unfinished check at (spl_wd_upd_baton).
 spl_wd_upd_verdict() {
   local tick="$1" sha="$2" took="$3"
   if grep -qE "$SPL_WD_UPD_ERR_RE" "$tick/err" 2>/dev/null; then
@@ -367,8 +378,8 @@ spl_wd_upd_verdict() {
     echo "runs ${WD_CODE_SHA:0:9}, not ${sha:0:9}"
   elif [[ "${WD_HB_OK:-1}" != 1 ]]; then
     echo "cannot write its heartbeat"
-  elif (( took > WD_UPD_CHECK_MAX )); then
-    echo "self-check tick took ${took}s (limit ${WD_UPD_CHECK_MAX}s)"
+  elif (( took > WD_UPD_STEP_MAX )); then
+    echo "self-check tick took ${took}s (hang bound ${WD_UPD_STEP_MAX}s)"
   fi
   return 0
 }

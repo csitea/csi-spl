@@ -16,12 +16,17 @@
 #      quorum: a dead peer defers the rollout with ONE alert (control: all
 #      alive -> no defer); the self-check tick waits for a peer's judge lock
 #      (control: an ordinary tick skips); a dead instance restarts from code/good while a
-#      candidate is out (never the candidate)
+#      candidate is out (never the candidate); the self-check verdict is the
+#      tick's result: a correct tick past WD_UPD_CHECK_MAX (a loaded box)
+#      passes, a tick with a script error fails (control), a tick past the
+#      hang bound WD_UPD_STEP_MAX fails, and a check that never ends is
+#      failed by a peer at WD_UPD_STEP_MAX
 #   2. bootstrap: no code/good -> instance 1 snapshots the sha it runs, good
 #      := it, nothing restarts
 #   3. a desk-cron commit that changes csi-spl-orc -> rolling restart
 #      1 -> 2 -> 3 (EXEC lines in that order, each self-check tick green),
-#      DONE in < 70 s, all 3 heartbeats on the new sha, the same 3 pids
+#      DONE in < 70 s, instance 1's check time is its own tick (not the
+#      pre-flight before its exec), all 3 heartbeats on the new sha, the same 3 pids
 #      (exec, not restart), never fewer than 2 live instances (sampled
 #      every 0.2 s), good := new sha, no candidate, no update.state
 #   4. control: a commit outside csi-spl-orc -> good moves, no EXEC
@@ -244,6 +249,29 @@ flock "$W/c-901.judge.lock" sleep 2 & JH=$!; sleep 0.3
 out="$(lib 'exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl")"
 wait "$JH"
 [[ "$out" == *SKIPPED* ]] && pass "1 control: an ordinary tick skips an agent a peer judges" || fail "1 lock control: $out"
+# the self-check verdict: by the tick's result, not its wall time (a loaded
+# box ran correct check ticks in 24..26 s against the old 20 s limit).
+# chk: instance 1's first tick on X ended AGO s after its exec; the state
+# afterwards and code/X.bad say the verdict. No sleeps: T0 is set back.
+X=9999999999999999999999999999999999999999
+chk='mkdir -p "$WD_DIR/tick.u"; echo "${ERRLINE:-}" > "$WD_DIR/tick.u/err"; echo "c-901 ok" > "$WD_DIR/tick.u/out.c-901"
+  WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$n start=$n" > "$WD_DIR/update.state"
+  WD_UPD_EXEC=$X WD_UPD_ROLE=forward WD_UPD_T0=$(( n - AGO )); spl_wd_upd_checked "$WD_DIR/tick.u"
+  echo "STATE $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"'
+out="$(lib "$chk" X=$X AGO=30 DRY_RUN=1 WD_UPD_CHECK_MAX=20 WD_UPD_STEP_MAX=45)"
+[[ "$out" == *"STATE sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD ' <<<"$out" && grep -q "on ${X:0:9}: self-check tick green in 30s" "$LOG" &&
+  pass "1 a correct self-check tick of 30 s (limit 20, a loaded box) is green: baton -> 2" || fail "1 slow green: $out"
+out="$(lib "$chk" X=$X AGO=1 ERRLINE="s1.sh: line 3: nosuchcmd: command not found" DRY_RUN=1)"
+[[ "$out" == *"BAD instance 1 failed its self-check tick: script errors"* ]] && grep -qx 'STATE ' <<<"$out" &&
+  pass "1 control: a fast tick with a script error is red, quarantined" || fail "1 broken: $out"
+out="$(lib "$chk" X=$X AGO=60 DRY_RUN=1 WD_UPD_STEP_MAX=45)"
+[[ "$out" == *"BAD instance 1 failed its self-check tick: self-check tick took 60s (hang bound 45s)"* ]] &&
+  pass "1 a correct tick that ends past the hang bound is red, quarantined" || fail "1 hang verdict: $out"
+# a check that never ends: a peer fails it at WD_UPD_STEP_MAX (spl_wd_upd_baton)
+out="$(lib 'n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=1 since=$(( n - 60 )) start=$(( n - 60 ))" > "$WD_DIR/update.state"
+  WD_INST=2; spl_wd_self_update "$n"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"' X=$X DRY_RUN=1 WD_UPD_STEP_MAX=45)"
+[[ "$out" == *"BAD instance 1 did not finish its self-check in 45s"* ]] &&
+  pass "1 a hung check tick: a peer quarantines the sha at the step bound" || fail "1 hang peer: $out"
 rm -rf "$W" "$LOG" "$T/sent"; dc reset -q --hard "$SHA_A"
 
 # ---- 2. bootstrap ------------------------------------------------------------
@@ -265,6 +293,12 @@ grep "UPDATE" "$LOG" | sed -n '/START '"${SHA_C:0:9}"'/,$p' > "$T/roll"
 cp "$T/roll" "${WD_UPD_TEST_KEEP:-/dev/null}" 2>/dev/null || true
 [[ "$(cnt "DONE instances 1 2 3 on ${SHA_C:0:9}" "$LOG")" == 1 ]] && (( t1 - t0 < 70 )) &&
   pass "3 rolling restart DONE in $(( t1 - t0 ))s after the commit (< 70 s, tick ${TICK}s)" || fail "3 done: $(( t1 - t0 ))s; $(tail -n 8 "$LOG")"
+# instance 1's check time runs from its exec, not from the tick start before the pre-flight
+e1="$(grep -m1 'instance 1: EXEC forward' "$T/roll" | cut -c1-20)"; g1="$(grep -m1 'instance 1: instance 1 on .*self-check tick green' "$T/roll")"
+took1="$(sed -n 's/.*green in \([0-9]*\)s.*/\1/p' <<<"$g1")"
+wall1=$(( $(date -u -d "${g1:0:20}" +%s 2>/dev/null || echo 0) - $(date -u -d "$e1" +%s 2>/dev/null || echo 0) ))
+[[ -n "$e1" && "$took1" =~ ^[0-9]+$ ]] && (( took1 <= wall1 + 1 )) &&
+  pass "3 instance 1's self-check time is its own tick (${took1}s; exec -> verdict ${wall1}s)" || fail "3 took1 '$took1' wall1 '$wall1': $g1"
 order="$(grep -oE 'instance [1-3]: EXEC forward' "$T/roll" | grep -oE '[1-3]' | tr -d '\n')"
 [[ "$order" == 123 ]] && pass "3 EXEC order 1 -> 2 -> 3" || fail "3 order: '$order'"
 [[ "$(cnt 'self-check tick green' "$T/roll")" == 3 ]] && pass "3 three green self-check ticks" || fail "3 checks: $(cat "$T/roll")"

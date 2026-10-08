@@ -550,5 +550,33 @@ kill_agent 2100; report20 >/dev/null
     spl_lease_agent_run_tick; sleep 0.2; ls "$LEASE_DIR"/agent-run.tsv 2>/dev/null | wc -l')" == 0 ]] &&
   pass "20. the tick writes nothing under SPOOL_TEST=1 unless LEASE_AGENT_RUN=1" || fail "20. tick ran under SPOOL_TEST"
 
+# --- 21. an m- lane (vibe) is reported run (t1 5c3bb16a) ---------------------
+# vibe renames itself "Vibe CLI" (setproctitle: comm AND cmdline), and runs as
+# the agent user, so its environ is read through the owner hop. Without
+# SPT_NOENV setproctitle zeroed that environ: no SPOOL_AGENT_ID, no line, roster
+# running = f. spawn-mistral.sh now launches it with SPT_NOENV=1.
+if [[ "$(id -u)" == 0 ]]; then echo "SKIP: 21. root reads every environ"; else
+rm -rf "${P:?}"/* "$T/pane"/* "$T/r20"; mkdir -p "$T/r20/dispatch"
+# vibe21 <pid> <id> [clobbered]: comm "Vibe CLI", environ only its owner reads
+vibe21() {
+  mkdir -p "$P/$1"; echo "Vibe CLI" >"$P/$1/comm"
+  if [[ -n "${3:-}" ]]; then head -c 64 /dev/zero >"$P/$1/environ.priv"
+  else printf 'HOME=/x\0SPOOL_AGENT_ID=%s\0SPT_NOENV=1\0' "$2" >"$P/$1/environ.priv"; fi
+  printf 'HOME=/x\0' >"$P/$1/environ"; chmod 000 "$P/$1/environ"
+}
+agent 2000 c-001; idle 2000
+vibe21 2700 m-587; vibe21 2800 m-588 clobbered
+SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$T/bin/hop" HOPLOG="$T/hops" report20 >/dev/null
+grep -qP '^m-587\trun$' "$R20" && grep -qP '^c-001\trun$' "$R20" &&
+  pass "21. a live m- lane (comm 'Vibe CLI', environ via its owner) reports run" || fail "21. m- run: $(cat "$R20" 2>&1)"
+! grep -q '^m-588' "$R20" &&
+  pass "21. control: a vibe whose environ setproctitle zeroed (no SPT_NOENV) has no line" || fail "21. clobbered: $(cat "$R20" 2>&1)"
+ids="$(env LEASE_PROC_ROOT="$P" SPOOL_OWNER_HOP=force SPOOL_OWNER_HOP_CMD="$T/bin/hop" HOPLOG="$T/hops" PROJ_PATH="$PROJ_ROOT" bash -c '
+  do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-dispatch-lease.func.sh"
+  eval "$(declare -f spl_lease_live_ids | sed "s/ | \"Vibe CLI\")/)/")"; spl_lease_live_ids' | tr '\n' ' ')"
+[[ "$ids" == "c-001 " ]] && pass "21. control: the old comm list never hops to 'Vibe CLI' (m-587 missing)" || fail "21. old: '$ids'"
+chmod -R u+rwX "$P"
+fi
+
 echo "dispatch-lease: $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -220,7 +220,8 @@ spl_lease_agent_pid() {
 # one per line - any agent kind (an agy or grok agent is not a claude process).
 # For the dead-subscription REPORT; the lease itself keeps the claude-only rule.
 # mapfile, not tr/grep: a builtin, so the walk does not fork per process.
-# Another user's process: only its agent CLIs (comm claude/grok/agy/qwen/vibe/node)
+# Another user's process: only its agent CLIs (comm claude/grok/agy/qwen/vibe/node,
+# and "Vibe CLI": vibe renames itself with setproctitle, spawn-mistral.sh)
 # go through the owner hop.
 spl_lease_live_ids() {
   local root="${LEASE_PROC_ROOT:-/proc}" d e comm
@@ -230,7 +231,7 @@ spl_lease_live_ids() {
       env=()
       if [[ ! -r "$d/environ" ]]; then
         comm=""; { read -r comm < "$d/comm"; } 2>/dev/null
-        case "$comm" in claude|grok|agy|qwen|vibe|node|bun) other+=("${d##*/}") ;; esac
+        case "$comm" in claude|grok|agy|qwen|vibe|node|bun|"Vibe CLI") other+=("${d##*/}") ;; esac
         continue
       fi
       { mapfile -d '' -t env < "$d/environ"; } 2>/dev/null || continue

@@ -71,7 +71,7 @@ has "grok: resume stub repeats the permission flags" "--permission-mode bypassPe
 
 # ---- specs/110 T005 (7e): the mistral adapter --------------------------------
 ml="$(cat "$T_TMP/plan-mistral/launch.cmd")"
-has "mistral: the launch line (spec 3.3)" "exec env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false bash '" "$ml"
+has "mistral: the launch line (spec 3.3)" "exec env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false SPT_NOENV=1 bash '" "$ml"
 has "mistral: ... vibe --auto-approve --max-price <cnf>, the seed positional" "--mirror -- '/opt/x/vibe' --auto-approve --max-price ${CNF_MAX:=$(sed -n '/^ *mistral_vibe:/,/^ *max_price:/s/^ *max_price: *//p' "$T_FEAT/../../../../../csi-spl-cnf/csi-spl/all.env.yaml")} \"As your VERY FIRST" "$ml"
 check "mistral: the cnf holds a max_price" test -n "$CNF_MAX"
 has "mistral: the pane env is named after the kind (no legacy prefix)" "export MISTRAL_TMUX_PANE='' MISTRAL_TMUX_SOCK=''" "$ml"
@@ -82,7 +82,7 @@ has "mistral: the first action reads CLAUDE.md (vibe does not load it)" "then re
 hasnt "mistral control: the claude seed does not carry it" "vibe loads only AGENTS.md" "$(cat "$T_TMP/plan-claude/prompt.txt")"
 mo="$(env -u SPAWN_PLAN_DIR bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" "$T_TMP/brief.md" "do the thing" 2>&1)"
 has "mistral: the plan names no prefix" "kind=mistral prefix=<none> bin=" "$mo"
-has "mistral: the resume stub unsets the key and keeps the cap" "env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false vibe --auto-approve --max-price ${CNF_MAX} --resume <SESSION_ID>" "$mo"
+has "mistral: the resume stub unsets the key and keeps the cap" "env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false SPT_NOENV=1 vibe --auto-approve --max-price ${CNF_MAX} --resume <SESSION_ID>" "$mo"
 # Env override (spec 2.4): an exported key never reaches the plan, the line unsets it.
 mo="$(MISTRAL_API_KEY=planted-fake-key-77 SPAWN_PLAN_DIR="$T_TMP/plan-mistral" bash "$T_SCRIPTS/spawn-mistral.sh" m-077 "$WD" "$T_TMP/brief.md" x 2>&1)"
 hasnt "mistral: an exported MISTRAL_API_KEY is in no plan output" "planted-fake-key-77" "$mo$(cat "$T_TMP/plan-mistral/launch.cmd")"

@@ -41,7 +41,10 @@ SPAWN_PROMPT_FLAG=
 SPAWN_RESUME_FLAG=--resume
 SPAWN_RESUME_ID=SESSION_ID
 SPAWN_CONTINUE_FLAG=--continue
-SPAWN_EXEC_PREFIX="env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false"
+# SPT_NOENV=1: vibe renames itself "Vibe CLI" with setproctitle, which by default
+# zeroes /proc/<pid>/environ, so SPOOL_AGENT_ID vanished and the agent run
+# report (spl_lease_live_ids) never listed an m- lane: roster running = f.
+SPAWN_EXEC_PREFIX="env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false SPT_NOENV=1"
 spawn_rename_how() {
   # $SLUG is embedded already escaped for a double-quoted argument, so the
   # agent copy-pastes a command that cannot run $(...) from the title.

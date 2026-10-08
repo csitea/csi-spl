@@ -96,6 +96,10 @@ type Client struct {
 	// lost; the box simply stopped listening and could not tell.
 	KeepAlive        time.Duration
 	KeepAliveTimeout time.Duration
+	// keepaliveLost, when set, runs the instant keepalive has ended a
+	// session, where the cancel wakes hold. A test seam: it lets a test run
+	// hold's Close at exactly that point.
+	keepaliveLost func(*Session)
 	// SessionProbe is how often `spool hub-run` asks the hub, over REST with
 	// the session's upload token, whether the process answering REST is still
 	// the one holding its socket. 0 = defaultSessionProbe; negative = off.
@@ -512,8 +516,15 @@ func (s *Session) keepalive() {
 					s.c.Log.Warn().Err(err).Dur("after", wait).
 						Msg("hub socket did not answer a ping; closing it so the session reconnects")
 				}
-				s.cancel()
+				// CloseNow BEFORE cancel: the cancel wakes hold, whose
+				// deferred Close would otherwise reach the conn first and
+				// park in the close handshake for up to 5 s waiting on the
+				// silent hub - CloseNow then only waits behind it.
 				s.conn.CloseNow() //nolint:errcheck
+				s.cancel()
+				if f := s.c.keepaliveLost; f != nil {
+					f(s)
+				}
 				return
 			}
 		}

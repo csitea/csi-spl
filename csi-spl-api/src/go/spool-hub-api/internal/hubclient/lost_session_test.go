@@ -143,3 +143,49 @@ func TestRunReconnectsWhenHubGoesSilent(t *testing.T) {
 		t.Errorf("want one lost-session line, got %d; log:\n%s", got, logs.String())
 	}
 }
+
+// TestKeepaliveClosesBeforeWakingHold forces the CI race of
+// TestRunReconnectsWhenHubGoesSilent (about 1 in 130 under -race and load)
+// every time: the seam runs hold's deferred Close at the very instant
+// keepalive's cancel wakes hold. The socket must already be closed there, so
+// Close returns at once instead of parking up to 5 s in a close handshake the
+// silent hub never answers - which is what kept Run from redialling.
+func TestKeepaliveClosesBeforeWakingHold(t *testing.T) {
+	h := &silentHub{}
+	c := testClient(t)
+	c.Cfg.HubURL = h.start(t)
+	c.Cfg.Tenant = "t1"
+	c.KeepAlive = 50 * time.Millisecond
+	c.KeepAliveTimeout = 100 * time.Millisecond
+
+	var lost, parked atomic.Int32
+	closed := make(chan time.Duration, 1)
+	c.keepaliveLost = func(s *Session) {
+		lost.Add(1)
+		start := time.Now()
+		s.Close() // hold's deferred sess.Close(), at the worst moment
+		d := time.Since(start)
+		if d > time.Second {
+			parked.Add(1)
+		}
+		closed <- d
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	sess, err := c.Dial(ctx, wire.RoleBox)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	var took time.Duration
+	select {
+	case took = <-closed:
+	case <-ctx.Done():
+		t.Fatal("keepalive never declared the silent socket dead")
+	}
+	<-sess.Done()
+	if lost.Load() != 1 || parked.Load() != 0 {
+		t.Fatalf("keepalive lost=%d, Close parked=%d (took %s): want 1 and 0 - "+
+			"the conn must be closed before the cancel wakes hold", lost.Load(), parked.Load(), took)
+	}
+}

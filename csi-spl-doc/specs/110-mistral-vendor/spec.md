@@ -389,7 +389,7 @@ not asked.
 | seat | agent | verdict | changes asked | folded in v1.0 |
 |---|---|---|---|---|
 | 1 drafter | claude c-569 | v0.1 | — | — |
-| 2 | agy (tbd by c-002) | | | |
+| 2 | a-572 agy | agree with changes | 1. T004: Verify Vibe CLI telemetry (unverified in 2.1) and disable it via `config.toml` or env to maintain privacy. 2. T012: Ensure `spl-session-prune.sh` explicitly prunes `$VIBE_HOME/logs/session`. 3. Owner Qs: Q1(a), Q2(a), Q3(a). | |
 | 3 | grok (tbd by c-002) | | | |
 | 4 | claude (tbd by c-002) | | | |
 

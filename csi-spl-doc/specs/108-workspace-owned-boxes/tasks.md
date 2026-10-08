@@ -48,7 +48,7 @@ is the milestone that proves it.
       `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_pins_pubkey_unique.sql`
       *new*. Done: migration lint and postgres store tests green; pair (c)
       is proven in T007.
-- [ ] T007 **hub** (after T006 and T002): pin and join seat answer
+- [x] T007 **hub** (c-562, 94bba9535, after T006 and T002): pin and join seat answer
       `pin_conflict` for a key already live in another workspace, never
       naming that workspace; a box pinned in one workspace is refused a pin
       in a second (spec 3.5 "at pin"). Files: `internal/store/postgres.go`,
@@ -57,6 +57,14 @@ is the milestone that proves it.
       pinned, n=3: the same key cannot be pinned into a second workspace;
       control: a unique key pins. Postgres
       (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`).
+      Built: `PutPin` (both stores) calls `claimKey` (per-key advisory lock
+      + T002's `keyLiveElsewhere`, now shared with the join redeem), force
+      included; 23505 on `pins_pubkey_live_unique` maps to `ErrKeyLive`
+      (race backstop). Checks: `internal/hub/pin_conflict_test.go` (pair (c)
+      n=3, revoke frees the key, 6-way race one winner) and the T006 index
+      test, memory and postgres. FR-007 (073) holds: the root-key wire
+      shape and every answer a pin could get before are unchanged; the one
+      new refusal is a pin rdb 0154 already refused as a 500.
 - [x] T008 (4a243524b) **hub**, tests only (no dependency; `inTenant` runs are built,
       spec 5 step 2): the session-pinning pairs. Files, all *new*, beside
       the existing `internal/hub/crosstenant_test.go` (not edited here):

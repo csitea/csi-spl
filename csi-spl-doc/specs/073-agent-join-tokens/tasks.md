@@ -29,8 +29,11 @@ its lane, the files it owns and its done check. Status vocabulary:
       table, and spec 108 3.1 / 3.2 pairs (b) and (c): a key live in one
       workspace is `pin_conflict` in another, enforced on the join path) and
       `internal/config/join_token_ttl_test.go` (AC12), green on memory and
-      postgres. A revoked pin is re-seated by a new token; the root-key
-      `POST /v1/pins` is unchanged (FR-007) and does not check (c).
+      postgres. A revoked pin is re-seated by a new token. The root-key
+      `POST /v1/pins` checks (c) too since spec 108 T007 (c-562,
+      94bba9535): same `pin_conflict`, never naming the workspace. FR-007
+      holds: its wire shape and every earlier answer are unchanged; the one
+      new refusal is a pin rdb 0154 already refused as a 500.
 - [x] T004 **CLI** (c-561, d72e0654e, after T003): `spool join`, token from env / stdin, usage
       line. Done: a CLI test against a test hub seats a box with no root key.
 - [ ] T005 **orc** (after T004): `do_spl_desk_pin` join mode and its test in

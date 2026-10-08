@@ -1,6 +1,6 @@
 // CLE-77799 (owner topic 1fc29f99: "the admin of a tenant should be able to
 // remove members from the people section"): the People card's "Remove from
-// workspace" action, proved in a real browser with the two controls the task
+// workspace" action (and, t1 06c39172, the Activity log dialog's look), proved in a real browser with the two controls the task
 // asks for:
 //   - as an admin (the mock plays one: /v1/view/me is null = unrestricted), the
 //     action shows, the confirm names the person, and OK removes + navigates.
@@ -66,6 +66,61 @@ const setMe = (p, me) => p.evaluate((me) => {
 
 const present = (p, sel) => p.$(sel).then((el) => Boolean(el))
 
+/** The Activity log dialog in the Release Log's look: a bordered card, an
+ *  uppercase header band, event chips, no "—" fillers, the filter kept; on a
+ *  phone no header row and one cell per event. SHOT_DIR saves screenshots. */
+async function activityLog(p) {
+  await go(p, '/people/HUM-2')
+  await p.waitForFunction(() => location.pathname.endsWith('/people/HUM-2'), { timeout: NAV })
+  await p.waitForSelector('[data-test=person-activity-open]', { timeout: NAV })
+  await p.click('[data-test=person-activity-open]')
+  await p.waitForSelector('[data-test=activity-row]', { visible: true, timeout: 10000 })
+  const look = await p.evaluate(() => {
+    const card = document.querySelector('[data-test=activity-card]')
+    const th = document.querySelector('[data-test=activity-table] thead th')
+    const rows = [...document.querySelectorAll('[data-test=activity-row]')]
+    const cs = (e) => (e ? getComputedStyle(e) : null)
+    return {
+      cardBorder: cs(card)?.borderTopStyle,
+      cardRadius: parseFloat(cs(card)?.borderTopLeftRadius || '0'),
+      headUpper: cs(th)?.textTransform,
+      rows: rows.length,
+      chips: document.querySelectorAll('[data-test=activity-row-event]').length,
+      dashes: rows.filter((r) => r.textContent.includes('—')).length,
+      times: document.querySelectorAll('[data-test=activity-row] time[datetime]').length,
+    }
+  })
+  check('activity: the table is a bordered card', look.cardBorder === 'solid' && look.cardRadius > 0, look)
+  check('activity: the header band is uppercase', look.headUpper === 'uppercase', look)
+  check('activity: three events, each an event chip and a time', look.rows === 3 && look.chips === 3 && look.times === 3, look)
+  check('activity: no "—" fillers', look.dashes === 0, look)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/activity-desktop.png` })
+
+  await p.select('[data-test=activity-filter-kind]', 'act_as_ended')
+  await sleep(200)
+  const ended = await p.$$eval('[data-test=activity-row]', (rs) => rs.map((r) => r.dataset.kind))
+  check('activity: the Event filter keeps one kind', ended.length === 1 && ended[0] === 'act_as_ended', { ended })
+  await p.click('[data-test=activity-filter-clear]')
+  await sleep(200)
+  check('activity: Clear filter shows every event', (await p.$$('[data-test=activity-row]')).length === 3)
+
+  await p.setViewport({ width: 390, height: 844 })
+  await sleep(400)
+  const phone = await p.evaluate(() => ({
+    head: Boolean(document.querySelector('[data-test=activity-table] thead')),
+    cells: document.querySelectorAll('[data-test=activity-row] td').length,
+    rows: document.querySelectorAll('[data-test=activity-row]').length,
+    overflow: document.documentElement.scrollWidth > window.innerWidth,
+  }))
+  check('activity phone: no header row, one cell per event, no side scroll', !phone.head && phone.rows === 3 && phone.cells === 3 && !phone.overflow, phone)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/activity-phone.png` })
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.keyboard.press('Escape')
+  await sleep(300)
+  await go(p, '/people/HUM-3')
+  await p.waitForSelector('[data-test=person-remove]', { timeout: NAV })
+}
+
 async function run(browser, base) {
   const p = await browser.newPage()
   await p.setViewport({ width: 1440, height: 900 })
@@ -88,6 +143,10 @@ async function run(browser, base) {
   check('the confirm names the person', text.includes('HUM-3'), { text })
   await p.click('[data-test=person-remove-cancel]')
   await sleep(300)
+
+  // 2b. the Activity log (t1 06c39172: "the same standards as the Release
+  //     Log"): HUM-2 carries the mock's act-as trail (two starts, one end).
+  await activityLog(p)
 
   // 3. CONTROL: a regular_user (no members.invite) is offered no action
   await setMe(p, { humanId: 'HUM-1', role: 'regular_user', tenantOwner: false, permissions: ['topics.read'], channelOrder: null })

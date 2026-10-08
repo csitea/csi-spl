@@ -91,6 +91,7 @@ wip="$( [ -n "$br" ] && git -C "$3" ls-remote origin "refs/heads/wip/$br" 2>/dev
 echo "spawn $1 $2 wd=$3 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-} seed=$4 wip=${wip:-none}" >> "$T/spawn.log"
 echo "spawn $2" >> "$T/order.log"
 sleep "${SPAWN_SLEEP:-0}"
+[ -n "${SPAWN_GATE:-}" ] && for _ in $(seq 1200); do [ -e "$SPAWN_GATE" ] && break; sleep 0.1; done
 mode="$(cat "$T/spawn.mode.$id" 2>/dev/null || echo ok)"
 ( exec 9>>"$T/tmux/lock"; flock 9; printf '%s\t%s\t$1\t%s@box1\tclaude\n' "$pane" "$pid" "$id" >> "$T/tmux/panes" )
 if [ "$mode" != nostart ]; then mkdir -p "$T/proc/$pid"; echo "$1" > "$T/proc/$pid/comm"
@@ -239,12 +240,23 @@ rc="$(go ID=c-004 CAUSE=S4 DRY_RUN=0 WD_EVIDENCE="tool=Bash")"
 
 # --- 5. 4 lanes at once on 4 slots ------------------------------------------------------------
 world; for n in 41 42 43 44 45; do lane "c-9$n" "%$n" -; reborn "c-9$n"; done
-for n in 41 42 43 44; do ( go ID="c-9$n" CAUSE=rebirth DRY_RUN=0 SPAWN_SLEEP=2 > "$T/rc.$n"; cp "$T/o" "$T/o.$n" ) & done; wait
+# spawning() <n>: wait (up to 60 s) until <n> of the four reached their spawn.
+# The spawns hold their slots on SPAWN_GATE, not for a fixed time: on a starved
+# runner (gate 10 run 37793965167, c-551) a 3 s spawn ended before the 5th
+# restart began. Each restart writes its own output file (a shared $T/o got
+# the 4th restart's lines in o.45)
+spawning() { local _; for _ in $(seq 600); do [ "$(grep -c '^spawn c-94[1-4]$' "$T/order.log" 2>/dev/null)" = "$1" ] && return 0; sleep 0.1; done; return 1; }
+go1() { local n="$1"; shift; env "$@" "$T/bin/act" > "$T/o.$n" 2>&1; echo $? > "$T/rc.$n"; }
+rm -f "$T/gate"
+for n in 41 42 43 44; do go1 "$n" ID="c-9$n" CAUSE=rebirth DRY_RUN=0 SPAWN_GATE="$T/gate" & done
+spawning 4; touch "$T/gate"; wait
 ok=0; for n in 41 42 43 44; do [[ "$(cat "$T/rc.$n")" == 0 ]] && ok=$((ok + 1)); done
 slots="$(grep -o 'RS-GATE OK .*; slot [0-9]' "$D/rotate.log" | grep -o 'slot [0-9]' | sort -u | tr '\n' ' ')"
 [[ "$ok" == 4 && "$slots" == "slot 1 slot 2 slot 3 slot 4 " ]] && pass "5. 4 lanes restart at once on 4 slots" || fail "5. ok=$ok slots='$slots' $(cat "$T/o.4"*)"
 world; for n in 41 42 43 44 45; do lane "c-9$n" "%$n" -; reborn "c-9$n"; done
-for n in 41 42 43 44 45; do ( go ID="c-9$n" CAUSE=rebirth DRY_RUN=0 RESTART_SLOTS=4 SPAWN_SLEEP=3 > "$T/rc.$n"; cp "$T/o" "$T/o.$n" ) & sleep 0.3; done; wait
+rm -f "$T/gate"
+for n in 41 42 43 44; do go1 "$n" ID="c-9$n" CAUSE=rebirth DRY_RUN=0 RESTART_SLOTS=4 SPAWN_GATE="$T/gate" & done
+spawning 4; go1 45 ID=c-945 CAUSE=rebirth DRY_RUN=0 RESTART_SLOTS=4; touch "$T/gate"; wait
 r="$(cat "$T"/rc.4[1-5] | sort | tr '\n' ' ')"
 [[ "$r" == "0 0 0 0 4 " ]] && grep -q 'no free restart slot' "$T/o.45" && pass "5. control: a 5th at the same time finds no free slot (exit 4)" || fail "5. 5th: $r $(cat "$T/o.45")"
 
@@ -276,9 +288,11 @@ world; lane c-936 %36 -; reborn c-936; echo "c-002 $T0 r1" > "$D/rotate.hold"; m
 rc="$(go ID=c-936 CAUSE=rebirth DRY_RUN=0 WD_EVIDENCE="rebirth: x")"
 [[ "$rc" == 4 && ! -e "$D/wd/c-936.ep.S3.takeover" && ! -e "$S/c-936/lifetime/restarts" && ! -e "$T/spawn.log" ]] && grep -q 'rotate.hold names c-002' "$T/o" &&
   pass "8. refused by rotate.hold: exit 4, the episode flag cleared (the next tick retries), nothing counted" || fail "8. hold rc=$rc: $(cat "$T/o")"
-( SPOOL_ROOT="$S" bash -c 'source "$PROJ_PATH/src/bash/run/spl-rotate-lib.func.sh"; spl_agent_id_lock c-936 X r 0 && sleep 4' ) & hp=$!; sleep 1
+# X holds c-936 until killed (the sleep keeps the pid its lock follows)
+SPOOL_ROOT="$S" bash -c 'source "$PROJ_PATH/src/bash/run/spl-rotate-lib.func.sh"; spl_agent_id_lock c-936 X r 0 && exec sleep 600' & hp=$!
+for _ in $(seq 300); do grep -q '^X ' "$S/c-936/lifetime/restart.holder" 2>/dev/null && break; sleep 0.1; done
 rm -f "$D/rotate.hold"; echo "$T0" > "$D/wd/c-936.ep.S3.takeover"
-rc="$(go ID=c-936 CAUSE=rebirth DRY_RUN=0 WD_EVIDENCE="rebirth: x")"; wait "$hp"
+rc="$(go ID=c-936 CAUSE=rebirth DRY_RUN=0 WD_EVIDENCE="rebirth: x")"; kill "$hp" 2>/dev/null; wait "$hp" 2>/dev/null
 [[ "$rc" == 4 && ! -e "$D/wd/c-936.ep.S3.takeover" && ! -e "$S/c-936/lifetime/restarts" ]] && grep -q 'id lock' "$T/o" &&
   pass "8. refused by the id lock: the same" || fail "8. idlock rc=$rc: $(cat "$T/o")"
 rc="$(go ID=c-936 CAUSE=rebirth DRY_RUN=0 WD_EVIDENCE="rebirth: x")"

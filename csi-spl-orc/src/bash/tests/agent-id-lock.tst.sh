@@ -71,7 +71,7 @@ if [[ -n "${REENTER:-}" ]]; then
   echo "REENTER ok"
 fi
 [[ -n "${ORPHAN:-}" ]] && { sleep 30 </dev/null >/dev/null 2>&1 & echo $! >"$T/orphan.pid"; }
-sleep "$hold"
+exec sleep "$hold"
 EOF
 # a real action, as ./run runs it
 cat >"$T/bin/act" <<'EOF'
@@ -84,15 +84,20 @@ for f in "$PROJ_PATH"/src/bash/run/spl-{rotate-lib,dispatch-lease,watchdog,peer-
 EOF
 chmod +x "$T/bin/"*
 reset() { rm -f "$T"/ran.* "$D/rotate.log"; }
+# holding <root> <id> <name>: wait (up to 30 s) until <name> holds the id. A
+# holder lives until it is killed, never for a fixed time: on a starved runner
+# (gate 10 run 37793965167, c-551) a 6 s or 8 s hold ran out mid-assertion
+holding() { local _; for _ in $(seq 300); do grep -q "^$3 " "$1/$2/lifetime/restart.holder" 2>/dev/null && return 0; sleep 0.1; done; return 1; }
 lines() { grep -c . "$1" 2>/dev/null || true; }
 
 # --- 1. two actors on one id ------------------------------------------------------
 reset
-"$T/bin/actor" c-901 A 2 >"$T/oA" 2>&1 & pa=$!
-"$T/bin/actor" c-901 B 2 >"$T/oB" 2>&1 & pb=$!
-wait "$pa"; ra=$?; wait "$pb"; rb=$?
-rcs="$(printf '%s\n' "$ra" "$rb" | sort | paste -sd' ')"
-[[ "$rcs" == "0 4" && "$(lines "$T/ran.c-901")" == 1 ]] && grep -q 'REFUSED [AB] rc=4: the id lock of c-901 is held by [AB] ' "$T/oA" "$T/oB" &&
+"$T/bin/actor" c-901 A 600 >"$T/oA" 2>&1 & pa=$!
+"$T/bin/actor" c-901 B 600 >"$T/oB" 2>&1 & pb=$!
+# the refused one exits; the one that runs holds until it is killed
+wait -n "$pa" "$pb"; rcs=$?
+kill "$pa" "$pb" 2>/dev/null; wait "$pa" 2>/dev/null; wait "$pb" 2>/dev/null
+[[ "$rcs" == 4 && "$(lines "$T/ran.c-901")" == 1 ]] && grep -q 'REFUSED [AB] rc=4: the id lock of c-901 is held by [AB] ' "$T/oA" "$T/oB" &&
   pass "1. two actors on c-901 at once: exactly one runs, the other exits 4" || fail "1. rcs=$rcs ran=$(cat "$T/ran.c-901" 2>/dev/null) $(cat "$T/oA" "$T/oB")"
 [[ "$(grep -c ' IDLOCK REFUSED c-901: ' "$D/rotate.log" 2>/dev/null)" == 1 ]] &&
   grep -qE '^[0-9TZ:-]+ [0-9]{8}T[0-9]{6}Z-idlock IDLOCK REFUSED c-901: [AB] ' "$D/rotate.log" &&
@@ -114,18 +119,17 @@ ORPHAN=1 REENTER=1 "$T/bin/actor" c-903 A 1 >"$T/oA" 2>&1; ra=$?
 kill -0 "$(cat "$T/orphan.pid")" 2>/dev/null && [[ "$rb" == 0 && "$(lines "$T/ran.c-903")" == 2 ]] &&
   pass "2. the actor ended: its id is free though a child it left behind still runs" || fail "2. orphan rb=$rb $(cat "$T/oB")"
 kill "$(cat "$T/orphan.pid")" 2>/dev/null; rm -f "$T/orphan.pid"
-"$T/bin/actor" c-903 A 3 >"$T/oA" 2>&1 & pa=$!
-sleep 1
+"$T/bin/actor" c-903 A 600 >"$T/oA" 2>&1 & pa=$!
+holding "$S" c-903 A
 "$T/bin/actor" c-903 B 0 >"$T/oB" 2>&1; rb=$?
-wait "$pa"
+kill "$pa" 2>/dev/null; wait "$pa" 2>/dev/null
 [[ "$rb" == 4 ]] && grep -q 'held by A ' "$T/oB" && pass "2. control: while the actor lives, a second one is refused" || fail "2. control rb=$rb $(cat "$T/oB")"
 
 # --- 3. the real actors refuse a held id ---------------------------------------------
-# hold ID for 6 s by a stand-in actor, run the action, check, let it go
+# hold ID by a stand-in actor until free() kills it, run the action, check
 held() {  # ID
-  "$T/bin/actor" "$1" X 6 >/dev/null 2>&1 & hp=$!
-  local _; for _ in $(seq 50); do grep -q '^X ' "$S/$1/lifetime/restart.holder" 2>/dev/null && return 0; sleep 0.1; done
-  return 1
+  "$T/bin/actor" "$1" X 600 >/dev/null 2>&1 & hp=$!
+  holding "$S" "$1" X
 }
 free() { kill "$hp" 2>/dev/null; wait "$hp" 2>/dev/null; sleep 0.5; }
 act() { env "${@:2}" "$T/bin/act" "$1"; }
@@ -201,8 +205,8 @@ rec() { python3 -c 'import json,sys; json.dump({"v":1,"id":sys.argv[1],"kind":"c
 for id in c-904 c-908 c-909; do mkdir -p "$R/$id/inbox"; printf '%s\tclaude\t%%9\t/x\t20261001T080000Z\n' "$id" >>"$R/registry.tsv"; rec "$id" 2026-10-02T04:00:00Z; done
 date +%s >"$R/dispatch/wd/c-908.heldout"
 reap() { env SPOOL_ROOT="$R" SPOOL_TMUX_SOCKET="$T/tmux.sock" SPOOL_NOW=2026-10-02T12:00:00Z RETIRE_LANE=0 SPOOL_ID_REAP_H=6 bash "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/agent-id-reap.sh" "$@" 2>&1; }
-SPOOL_ROOT="$R" "$T/bin/actor" c-909 X 8 >/dev/null 2>&1 & hp=$!
-for _ in $(seq 50); do grep -q '^X ' "$R/c-909/lifetime/restart.holder" 2>/dev/null && break; sleep 0.1; done
+SPOOL_ROOT="$R" "$T/bin/actor" c-909 X 600 >/dev/null 2>&1 & hp=$!
+holding "$R" c-909 X
 out="$(reap)"
 grep -q 'SKIP c-908: dead 8 h, but the watchdog holds it out' <<<"$out" && grep -q 'SKIP c-909: dead 8 h, but the id lock of c-909 is held by X ' <<<"$out" &&
   grep -q 'PLAN c-904: dead 8 h' <<<"$out" &&

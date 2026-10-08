@@ -77,9 +77,13 @@ row() { awk -F'\t' -v a="$1" -v c="$2" -v s="$3" '$2 == a && $4 == c && $3 == s'
   && pass "cold arm: the first reader MISSes (a fresh key per sample)" || fail "cold arm x-cache: $(row cold nuxt reader)"
 [[ $(row warm nuxt reader | awk -F'\t' '$9 == "MISS, HIT"' | wc -l) -eq 3 ]] \
   && pass "warm arm: the reader HITs what the warmer fetched" || fail "warm arm x-cache: $(row warm nuxt reader)"
-grep -qE '^\| cold \| nuxt \| 3 \| (1[5-9][0-9]|[2-9][0-9][0-9]) \|' <<<"$out" \
-  && grep -qE '^\| warm \| nuxt \| 3 \| [0-9]{1,2} \|' <<<"$out" \
-  && pass "summary: cold median pays the origin fetch, warm does not" || fail "summary: $out"
+# the MISS pays the mock's 150 ms origin sleep: read it as cold - warm, not as
+# absolute times, which a loaded runner inflates for both arms (gate 10 run
+# 37793965167: warm 183 ms, cold 295 ms; c-551)
+med() { awk -F' *\\| *' -v a="$1" '$2 == a && $3 == "nuxt" && $4 == 3 {print $5}' <<<"$out"; }
+cm=$(med cold) wm=$(med warm)
+[[ "$cm" =~ ^[0-9]+$ && "$wm" =~ ^[0-9]+$ ]] && (( cm - wm >= 75 )) \
+  && pass "summary: cold median pays the origin fetch, warm does not (${cm} vs ${wm} ms)" || fail "summary (cold '${cm}' warm '${wm}'): $out"
 # interleaved: per sample cold then warm, never all of one arm first
 seq_arms=$(awk -F'\t' 'NR > 1 && $3 == "reader" {print substr($2,1,1)}' "$T/both.tsv" | tr -d '\n')
 [[ "$seq_arms" == cwcwcwcwcw ]] && pass "arms are interleaved per path" || fail "arm order: $seq_arms"

@@ -31,8 +31,15 @@ for d in go-build123/b001 tmp.AbCdEf1234 TestFoo123/001 c999-gocache/aa go-build
 echo x >"$OUT/precious/f"; ln -s "$OUT/precious" "$M/go-build321"
 mkdir -p "$M/tmp.AbCdEf1234/go/pkg/mod/m@v1"; echo x >"$M/tmp.AbCdEf1234/go/pkg/mod/m@v1/f"; chmod -R a-w "$M/tmp.AbCdEf1234/go"
 old "$M" "$OUT"; touch "$M/go-build456/f"
-( cd "$M/go-build789" && exec sleep 30 ) & busy_pid=$!
-sleep 0.3
+# busy_in <dir>: a process works in <dir> until killed (busy_pid); waited for
+# by its cwd, not a fixed sleep: on a starved runner (gate 10 run 37793965167,
+# c-551) a 0.3 s wait and a 30 s holder both lost the race
+busy_in() {
+  local want; want="$(cd "$1" && pwd -P)"
+  ( cd "$1" && exec sleep 600 ) >/dev/null 2>&1 & busy_pid=$!
+  for _ in $(seq 300); do [ "$(readlink "/proc/$busy_pid/cwd")" = "$want" ] && return 0; sleep 0.1; done
+}
+busy_in "$M/go-build789"
 tsw() { SNIPPET='do_tmp_stale_sweep' in_orc TMP_STALE_ROOT="$M" TMP_STALE_SUDO=0 "$@" 2>&1; }
 n0="$(find "$M" "$OUT" | wc -l)"
 out="$(tsw)"; rc=$?
@@ -57,8 +64,7 @@ echo b >"$W/c-903/b"; gq -C "$W/c-903" add b; gq -C "$W/c-903" commit -m b
 printf '{"id":"c-904","alive":true}\n' >"$SP/agents/c-904.json"
 printf '{"id":"c-901","alive":false}\n' >"$SP/agents/c-901.json"
 old "$W"; touch "$W/c-905/a"
-( cd "$W/c-906" && exec sleep 30 ) & busy_pid=$!
-sleep 0.3
+busy_in "$W/c-906"
 wsw() { SNIPPET='do_wt_dead_sweep' in_orc WT_REPO="$G" WT_TRUNK=master SPOOL_ROOT="$SP" "$@" 2>&1; }
 out="$(wsw)"; rc=$?
 [ "$rc" = 0 ] && [ "$(grep -c 'PLAN remove' <<<"$out")" = 1 ] && [ -d "$W/c-901" ] && pass "2. the dry run plans one worktree and removes nothing" || fail "2. dry run (rc $rc: $out)"
@@ -89,8 +95,9 @@ prune-docker-images DRY_RUN=0 UNTIL=72h"
 out="$(bsw BOX_SWEEP_STEPS='tmp rm-rf')"; rc=$?
 [ "$rc" = 2 ] && grep -q "unknown step 'rm-rf'" <<<"$out" && pass "3. an unknown step is refused" || fail "3. unknown step (rc $rc: $out)"
 : >"$L"
-flock "$T/sweep.lock" sleep 30 & lock_pid=$!
-sleep 0.3
+# the holder IS the sleep (flock on its own fd 9), so the kill below frees it
+( exec 9>"$T/sweep.lock"; flock 9 && exec sleep 600 ) >/dev/null 2>&1 & lock_pid=$!
+for _ in $(seq 300); do flock -n "$T/sweep.lock" true || break; sleep 0.1; done
 out="$(bsw)"; rc=$?
 kill "$lock_pid" 2>/dev/null; wait "$lock_pid" 2>/dev/null
 [ "$rc" = 0 ] && grep -q 'SKIP another box disk sweep' <<<"$out" && [ ! -s "$L" ] && pass "3. a held lock skips the sweep" || fail "3. lock (rc $rc: $out)"

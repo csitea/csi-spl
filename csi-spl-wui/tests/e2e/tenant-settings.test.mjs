@@ -170,7 +170,7 @@ try {
   const seatsLeft = await attrs(p, '[data-test=join-seat-row]', 'data-box')
   ok('8l Revoke seat asks first, naming the box, then drops it', Boolean(seatBox) && confirmText.includes(seatBox) && !seatsLeft.includes(seatBox), { seatBox, confirmText, seatsLeft })
 
-  // 3b. Vendor split: four numbers, a live sum, the guideline note
+  // 3b. Vendor split: five numbers (spec 110), a live sum, the guideline note
   await p.click('[data-test=tenant-settings-nav-split]')
   await p.waitForSelector('[data-test=tenant-split-note]', { visible: true, timeout: 10000 })
   const note = await text(p, '[data-test=tenant-split-note]')
@@ -200,6 +200,27 @@ try {
     qwen: await p.$eval('[data-test=tenant-split-qwen]', (el) => el.value),
   }
   ok('8f Vendor split saves', savedSplit.notice !== '' && savedSplit.claude === '30' && savedSplit.qwen === '10', savedSplit)
+
+  // spec 110 7g (D1): grok's share moves to mistral; sum 99 is the control.
+  const splitOf = () => p.$$eval('[data-test^=tenant-split-]', (els) => els.filter((e) => e.tagName === 'INPUT')
+    .map((e) => `${e.getAttribute('data-test').slice(13)}=${e.value}`).join(' '))
+  await setNum('[data-test=tenant-split-claude]', '25')
+  await setNum('[data-test=tenant-split-grok]', '0')
+  await setNum('[data-test=tenant-split-mistral]', '54')
+  await sleep(100)
+  const s99 = { sum: await text(p, '[data-test=tenant-split-sum]'), disabled: await p.$eval('[data-test=tenant-split-save]', (el) => el.disabled) }
+  ok('8g CONTROL: mistral 54 sums to 99 and keeps Save off', s99.sum.includes('99') && s99.disabled === true, s99)
+  await setNum('[data-test=tenant-split-mistral]', '55')
+  await sleep(100)
+  await p.click('[data-test=tenant-split-save]')
+  await p.waitForFunction(() => document.querySelector('[data-test=tenant-split-save]')?.disabled === true, { timeout: 5000 }).catch(() => null)
+  await p.click('[data-test=tenant-settings-nav-channels]')
+  await p.waitForSelector('[data-test=tenant-channel-row]', { visible: true, timeout: 10000 })
+  await p.click('[data-test=tenant-settings-nav-split]')
+  await p.waitForSelector('[data-test=tenant-split-mistral]', { visible: true, timeout: 10000 })
+  await sleep(100)
+  const moved = await splitOf()
+  ok('8h mistral 55, grok 0 is saved and read back', moved === 'claude=25 grok=0 agy=10 qwen=10 mistral=55', moved)
 
   // 4. Channels: no-fallback + archive
   await p.click('[data-test=tenant-settings-nav-channels]')

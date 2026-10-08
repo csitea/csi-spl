@@ -51,7 +51,9 @@ describe('agent-id grammar (spec 061 section 2)', () => {
   })
 
   it('one letter-to-kind map for both forms', () => {
-    assert.deepEqual(['c-004', 'a-004', 'g-004', 'q-004'].map(agentKindOf), ['claude', 'antigravity', 'grok', 'qwen'])
+    assert.deepEqual(['c-004', 'a-004', 'g-004', 'm-004', 'q-004'].map(agentKindOf), ['claude', 'antigravity', 'grok', 'mistral', 'qwen'])
+    assert.equal(isNewAgentId('m-004'), true)
+    assert.deepEqual(['x-004', 'M-04', 'm-0040'].map(isNewAgentId), [false, false, false])
     assert.deepEqual(['CLE-1', 'AGY-1', 'GRK-1', 'QWN-1', 'ORC-1'].map(agentKindOf), ['claude', 'antigravity', 'grok', 'qwen', 'agent'])
     assert.deepEqual(['c-004', 'CLE-1', 'HUM-2', 'x'].map(idPrefix), ['c', 'CLE', 'HUM', ''])
     assert.equal(agentKind('g-010'), 'grok')

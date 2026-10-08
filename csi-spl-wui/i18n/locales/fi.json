@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Miten uusi agenttityö jaetaan. Noin viisi pistettä suuntaan tai toiseen on tavallista.",
     "performance": "Suorituskyky",
     "performance_title": "Suorituskyky käyttäjien silmin",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agentti"
     }
   },

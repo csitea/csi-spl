@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "How new agent work is shared. About five points either way is normal.",
     "performance": "Performance",
     "performance_title": "Performance as people see it",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agent"
     }
   },

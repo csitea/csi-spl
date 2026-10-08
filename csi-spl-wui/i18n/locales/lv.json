@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Kā tiek dalīts jauns aģentu darbs. Apmēram pieci punkti uz katru pusi ir parasti.",
     "performance": "Veiktspēja",
     "performance_title": "Veiktspēja lietotāju acīm",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Aģents"
     }
   },

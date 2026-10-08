@@ -588,7 +588,7 @@
         </div>
       </div>
       <!-- CLE-77794: Agents - the tenant's agents, their kind shown plainly
-           (Claude / Antigravity / Grok / Qwen, from the id prefix). The card at
+           (Claude / Antigravity / Grok / Mistral / Qwen, from the id prefix). The card at
            /agents/<id@box> shows the kind, box and liveness. -->
       <div
         v-if="tab === 'agents' || (tabsBuilt.agents && !phone)"

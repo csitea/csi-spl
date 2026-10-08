@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Kuidas uut agenditööd jagatakse. Umbes viis punkti kummaski suunas on tavaline.",
     "performance": "Jõudlus",
     "performance_title": "Jõudlus kasutaja pilgu läbi",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agent"
     }
   },

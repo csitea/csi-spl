@@ -39,7 +39,7 @@ const MOCK_CHANNELS = Object.freeze([
 ])
 
 export function createMockTenant() {
-  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0 } }
+  const cfg = { display_name: 'Mock tenant', default_locale: '', responders: ['CLE-01'], issue_prefix: 'SPL', topic_archive_policy: 'everyone', agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 } }
   const channels = MOCK_CHANNELS.map((c) => ({ ...c }))
   // spec 090 §15: the mock workspace is allow-listed and starts OFF, like a
   // real one; localStorage spool.mock.marketing=unlisted plays a workspace
@@ -70,7 +70,7 @@ export function createMockTenant() {
       }
       if (p.agent_split !== undefined) {
         const s = p.agent_split
-        const keys = ['claude', 'grok', 'agy', 'qwen']
+        const keys = ['claude', 'grok', 'agy', 'qwen', 'mistral']
         if (!s || typeof s !== 'object' || Object.keys(s).length !== keys.length || keys.some((k) => !Object.prototype.hasOwnProperty.call(s, k))) {
           throw mockErr(400, 'bad_split')
         }
@@ -81,7 +81,7 @@ export function createMockTenant() {
           sum += n
         }
         if (sum !== 100) throw mockErr(400, 'bad_split')
-        cfg.agent_split = { claude: s.claude, grok: s.grok, agy: s.agy, qwen: s.qwen }
+        cfg.agent_split = { claude: s.claude, grok: s.grok, agy: s.agy, qwen: s.qwen, mistral: s.mistral }
       }
       if (p.responders !== undefined) {
         if (!p.responders.every(validResponderId)) throw mockErr(400, 'bad_responder')

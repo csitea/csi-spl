@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Cum se împarte munca nouă a agenților. Aproximativ cinci puncte în oricare parte este normal.",
     "performance": "Performanță",
     "performance_title": "Performanța așa cum o percep oamenii",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agent"
     }
   },

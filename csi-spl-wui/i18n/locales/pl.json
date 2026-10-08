@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Jak dzielona jest nowa praca agentów. Około pięciu punktów w każdą stronę jest normalne.",
     "performance": "Wydajność",
     "performance_title": "Wydajność oczami użytkowników",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agent"
     }
   },

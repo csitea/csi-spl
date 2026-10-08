@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Ako sa delí nová práca agentov. Asi päť bodov na obe strany je bežné.",
     "performance": "Výkon",
     "performance_title": "Výkon tak, ako ho vidia ľudia",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agent"
     }
   },

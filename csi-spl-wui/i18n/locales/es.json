@@ -1458,6 +1458,7 @@
     "split_grok": "Grok",
     "split_agy": "Antigravity",
     "split_qwen": "Qwen",
+    "split_mistral": "Mistral",
     "split_hint": "Cómo se reparte el trabajo nuevo de los agentes. Unos cinco puntos a cada lado es normal.",
     "performance": "Rendimiento",
     "performance_title": "El rendimiento tal como lo perciben las personas",
@@ -1800,6 +1801,7 @@
       "antigravity": "Antigravity",
       "grok": "Grok",
       "qwen": "Qwen",
+      "mistral": "Mistral",
       "agent": "Agente"
     }
   },

@@ -32,13 +32,13 @@ export function normalizeTenantSettings(body) {
 export const TOPIC_ARCHIVE_POLICY_OPTIONS = Object.freeze(['everyone', 'admins', 'starter'])
 
 /** Vendor kinds, in the order the settings page lists them. */
-export const AGENT_SPLIT_KINDS = Object.freeze(['claude', 'grok', 'agy', 'qwen'])
+export const AGENT_SPLIT_KINDS = Object.freeze(['claude', 'grok', 'agy', 'qwen', 'mistral'])
 
-/** Owner's current split. qwen is 0 so the four sum to 100. */
-export const DEFAULT_AGENT_SPLIT = Object.freeze({ claude: 40, grok: 50, agy: 10, qwen: 0 })
+/** Owner's current split. qwen and mistral (spec 110) are 0 so the five sum to 100. */
+export const DEFAULT_AGENT_SPLIT = Object.freeze({ claude: 40, grok: 50, agy: 10, qwen: 0, mistral: 0 })
 
 /**
- * Four whole-number shares that sum to 100. Anything else (absent, a
+ * Five whole-number shares that sum to 100 (the hub refuses four, spec 110). Anything else (absent, a
  * fraction, a share outside 0..100, a sum other than 100) is the default.
  */
 export function agentSplitOf(raw) {

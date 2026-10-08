@@ -1,5 +1,6 @@
 <!-- Tenant settings -> Vendor split (owner t1 e837eeab): how new agent work
-     is shared across Claude, Grok, Antigravity and Qwen. The four whole
+     is shared across Claude, Grok, Antigravity, Qwen and Mistral (spec 110).
+     The five whole
      numbers sum to 100. They are a guideline, not a quota: nothing in the
      hub refuses a spawn that drifts. tenant.settings. -->
 <template>
@@ -25,6 +26,10 @@
         <label class="ts-field">
           <span>{{ t('tenant_settings.split_qwen') }}</span>
           <input v-model.number="qwen" type="number" min="0" max="100" step="1" inputmode="numeric" data-test="tenant-split-qwen">
+        </label>
+        <label class="ts-field">
+          <span>{{ t('tenant_settings.split_mistral') }}</span>
+          <input v-model.number="mistral" type="number" min="0" max="100" step="1" inputmode="numeric" data-test="tenant-split-mistral">
         </label>
       </div>
       <p :class="sumOk ? 'muted ts-hint' : 'ts-error'" data-test="tenant-split-sum">{{ t('tenant_settings.split_sum', { n: sumText }) }}</p>
@@ -53,6 +58,7 @@ const claude = ref<number | string>(40)
 const grok = ref<number | string>(50)
 const agy = ref<number | string>(10)
 const qwen = ref<number | string>(0)
+const mistral = ref<number | string>(0)
 const loading = ref(true)
 const loadError = ref('')
 const busy = ref(false)
@@ -71,12 +77,13 @@ const parsed = computed(() => ({
   grok: cell(grok.value),
   agy: cell(agy.value),
   qwen: cell(qwen.value),
+  mistral: cell(mistral.value),
 }))
 
 const sum = computed(() => {
   const p = parsed.value
-  if (p.claude === null || p.grok === null || p.agy === null || p.qwen === null) return null
-  return p.claude + p.grok + p.agy + p.qwen
+  if (p.claude === null || p.grok === null || p.agy === null || p.qwen === null || p.mistral === null) return null
+  return p.claude + p.grok + p.agy + p.qwen + p.mistral
 })
 
 const sumOk = computed(() => sum.value === 100)
@@ -85,9 +92,9 @@ const sumText = computed(() => (sum.value === null ? '—' : String(sum.value)))
 const dirty = computed(() => {
   const s = stored.value
   const p = parsed.value
-  if (!s || p.claude === null || p.grok === null || p.agy === null || p.qwen === null) return false
+  if (!s || p.claude === null || p.grok === null || p.agy === null || p.qwen === null || p.mistral === null) return false
   const a = s.agentSplit
-  return p.claude !== a.claude || p.grok !== a.grok || p.agy !== a.agy || p.qwen !== a.qwen
+  return p.claude !== a.claude || p.grok !== a.grok || p.agy !== a.agy || p.qwen !== a.qwen || p.mistral !== a.mistral
 })
 
 function take(s: TenantSettings) {
@@ -96,6 +103,7 @@ function take(s: TenantSettings) {
   grok.value = s.agentSplit.grok
   agy.value = s.agentSplit.agy
   qwen.value = s.agentSplit.qwen
+  mistral.value = s.agentSplit.mistral
 }
 
 async function load() {
@@ -112,13 +120,13 @@ async function load() {
 async function save() {
   const s = stored.value
   const p = parsed.value
-  if (!s || busy.value || !sumOk.value || p.claude === null || p.grok === null || p.agy === null || p.qwen === null) return
+  if (!s || busy.value || !sumOk.value || p.claude === null || p.grok === null || p.agy === null || p.qwen === null || p.mistral === null) return
   busy.value = true
   error.value = ''
   notice.value = ''
   try {
     take(normalizeTenantSettings(await api.patchTenantSettings({
-      agent_split: { claude: p.claude, grok: p.grok, agy: p.agy, qwen: p.qwen },
+      agent_split: { claude: p.claude, grok: p.grok, agy: p.agy, qwen: p.qwen, mistral: p.mistral },
     })))
     notice.value = t('tenant_settings.saved')
   } catch (e) {
@@ -136,7 +144,7 @@ watch(() => session.state, (st) => {
 <style scoped>
 .ts-form { display: flex; flex-direction: column; gap: 14px; }
 .ts-hint { margin: 0; }
-.ts-split { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 420px; }
+.ts-split { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; max-width: 525px; }
 .ts-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ts-field input {
   width: 100%;

@@ -103,7 +103,7 @@ declare module '~/utils/spool-client.mjs' {
     revokeSeat(boxId: string): Promise<unknown>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
-    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
+    patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number, mistral: number }, settings?: Record<string, string | number | null> }): Promise<unknown>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
     listTenantChannels(): Promise<unknown>
@@ -1564,7 +1564,7 @@ declare module '~/utils/tenant-settings-nav.mjs' {
 }
 
 declare module '~/utils/tenant-settings.mjs' {
-  export type AgentSplit = { claude: number, grok: number, agy: number, qwen: number }
+  export type AgentSplit = { claude: number, grok: number, agy: number, qwen: number, mistral: number }
   export type TenantSettings = { tenantId: string, displayName: string, defaultLocale: string, responders: string[], maxResponders: number, issuePrefix: string, topicArchivePolicy: string, agentSplit: AgentSplit }
   export const TOPIC_ARCHIVE_POLICY_OPTIONS: readonly string[]
   export const AGENT_SPLIT_KINDS: readonly string[]

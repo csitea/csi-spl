@@ -3,7 +3,8 @@
 // an id regex.
 //
 // Wave A = accept only: readers take BOTH forms.
-//   new      c-004, a-004, g-004, q-004   (^[acgq]-[0-9]{3}$, lower case)
+//   new      c-004, a-004, g-004, m-004, q-004   (^[acgmq]-[0-9]{3}$, lower case;
+//            m- Mistral, spec 110; FR-005 with the Go agentid grammar)
 //   legacy   CLE-77952, AGY-1, GRK-3, QWN-9, ORC-1 ([A-Z]{2,4}-[0-9]+)
 //   people   HUM-17, GST-3, and the browser box BOX-1, unchanged
 //
@@ -21,7 +22,7 @@ export const LEGACY_ID_UNTIL = '2026-10-03T20:59:59Z'
 const LEGACY_UNTIL_MS = Date.parse(LEGACY_ID_UNTIL)
 
 /** Regex sources, for the parsers that embed an id in a bigger pattern. */
-export const AGENT_ID_SRC = '[acgq]-[0-9]{3}(?![0-9])'
+export const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'
 export const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'
 /** Any participant id, new or legacy (an agent, a member, a guest, a box). */
 export const PARTICIPANT_ID_SRC = `(?:${AGENT_ID_SRC}|${LEGACY_ID_SRC})`
@@ -34,7 +35,7 @@ const NON_AGENT_RE = /^(HUM|GST|BOX)-[0-9]+$/
 
 /** letter (new) or prefix (legacy) -> kind key; its label is agents.kinds.<key>. */
 const KIND = Object.freeze({
-  a: 'antigravity', c: 'claude', g: 'grok', q: 'qwen',
+  a: 'antigravity', c: 'claude', g: 'grok', m: 'mistral', q: 'qwen',
   AGY: 'antigravity', CLE: 'claude', GRK: 'grok', QWN: 'qwen',
 })
 
@@ -109,7 +110,7 @@ export function idPrefix(id) {
   return m ? m[1] : ''
 }
 
-/** 'claude' | 'antigravity' | 'grok' | 'qwen', or 'agent' for an unknown CLI. */
+/** 'claude' | 'antigravity' | 'grok' | 'mistral' | 'qwen', or 'agent' for an unknown CLI. */
 export function agentKindOf(id) {
   return KIND[idPrefix(id)] || 'agent'
 }

@@ -26,9 +26,9 @@ export const FLEET_DEFAULT_HIGH = 75
 /** store.DefaultRunnerCPUPct: 20 % of every box kept free. */
 export const FLEET_DEFAULT_RUNNER_CPU = 80
 /** The agent kinds a box can start (store.AgentKinds), in the hub's order. */
-export const FLEET_AGENT_KINDS = ['claude', 'grok', 'agy', 'qwen']
+export const FLEET_AGENT_KINDS = ['claude', 'grok', 'agy', 'qwen', 'mistral']
 /** The hub's 400 bad_setting detail (internal/hub/fleet_load.go). */
-export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, never all four; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes'
+export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes'
 
 export function validFleetBox(id) {
   return FLEET_BOX_RE.test(String(id || ''))

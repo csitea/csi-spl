@@ -4,7 +4,7 @@
 //
 // The hub roster carries only the agent id, never a CLI/model field, so the
 // kind is derived from the id: its letter (spec 061: c- Claude, a-
-// Antigravity, g- Grok, q- Qwen) or its legacy prefix (CLE-, AGY-, GRK-,
+// Antigravity, g- Grok, m- Mistral (spec 110), q- Qwen) or its legacy prefix (CLE-, AGY-, GRK-,
 // QWN-). The one map lives in agent-id.mjs. If the hub ever exposes a real
 // kind field, prefer it and keep this as the fallback.
 
@@ -25,7 +25,7 @@ export function isAgentId(id) {
  * The kind key of an agent id from its prefix; 'agent' when the prefix is not
  * one we know (a new CLI), so the row still says "Agent" rather than nothing.
  * @param {string} id
- * @returns {'claude' | 'antigravity' | 'grok' | 'qwen' | 'agent'}
+ * @returns {'claude' | 'antigravity' | 'grok' | 'mistral' | 'qwen' | 'agent'}
  */
 export function agentKind(id) {
   return agentKindOf(id)

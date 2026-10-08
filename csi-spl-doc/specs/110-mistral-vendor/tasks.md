@@ -161,7 +161,7 @@ the owner's Team login on each box.
   - `hubclient/host.go` + `_test.go`.
 
   Done: 7c on postgres; kinds-off refuses all five.
-- [ ] T010 **WUI** (needs T009 in the same deploy window). Files:
+- [x] T010 **WUI** (c-578; needs T009 in the same deploy window). Files:
   - `src/pages/tenant-settings/split.vue`;
   - `src/utils/{agent-id,agent-kind,fleet-load,rail-order,tenant-settings,tenant-settings-mock}.mjs`;
   - `src/types/mjs-shims.d.ts`;

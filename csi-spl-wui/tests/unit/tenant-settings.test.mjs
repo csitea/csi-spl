@@ -51,20 +51,25 @@ ok('settings reader', s.tenantId === 't1' && s.displayName === 'Acme' && s.defau
 ok('archive policy reader: absent / unknown = everyone', s.topicArchivePolicy === 'everyone' && normalizeTenantSettings({ topic_archive_policy: 'bogus' }).topicArchivePolicy === 'everyone')
 ok('archive policy reader: admins / starter pass', normalizeTenantSettings({ topic_archive_policy: 'admins' }).topicArchivePolicy === 'admins' && normalizeTenantSettings({ topic_archive_policy: 'starter' }).topicArchivePolicy === 'starter')
 ok('archive policy options, in order', TOPIC_ARCHIVE_POLICY_OPTIONS.join() === 'everyone,admins,starter')
-ok('vendor split: absent = the default 40/50/10/0', s.agentSplit.claude === 40 && s.agentSplit.grok === 50 && s.agentSplit.agy === 10 && s.agentSplit.qwen === 0)
-ok('vendor split: a saved 100 is kept', normalizeTenantSettings({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10 } }).agentSplit.qwen === 10)
-ok('vendor split: a sum other than 100 falls back to the default', normalizeTenantSettings({ agent_split: { claude: 40, grok: 50, agy: 10, qwen: 10 } }).agentSplit.qwen === 0)
+ok('vendor split: absent = the default 40/50/10/0/0', s.agentSplit.claude === 40 && s.agentSplit.grok === 50 && s.agentSplit.agy === 10 && s.agentSplit.qwen === 0 && s.agentSplit.mistral === 0)
+ok('vendor split: a saved 100 is kept', normalizeTenantSettings({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10, mistral: 0 } }).agentSplit.qwen === 10)
+// spec 110 7g: grok's share moves to mistral, five numbers.
+ok('vendor split: mistral 55, grok 0 is kept', JSON.stringify(normalizeTenantSettings({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 10, mistral: 55 } }).agentSplit) === '{"claude":30,"grok":0,"agy":5,"qwen":10,"mistral":55}')
+ok('vendor split: a sum other than 100 falls back to the default', normalizeTenantSettings({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 9, mistral: 55 } }).agentSplit.mistral === 0)
+ok('CONTROL vendor split: a four-number body is the default', normalizeTenantSettings({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10 } }).agentSplit.claude === 40)
 {
   const mp = createMockTenant()
-  ok('mock: fresh split is 40/50/10/0', mp.settings().agent_split.claude === 40 && mp.settings().agent_split.qwen === 0)
-  const saved = mp.patch({ agent_split: { claude: 30, grok: 40, agy: 20, qwen: 10 } })
-  ok('mock: a split that sums to 100 is saved', saved.agent_split.claude === 30 && saved.agent_split.qwen === 10)
-  ok('CONTROL mock: a split off 100 is bad_split', throws(() => mp.patch({ agent_split: { claude: 40, grok: 50, agy: 10, qwen: 10 } }), 'bad_split') && mp.settings().agent_split.claude === 30)
+  ok('mock: fresh split is 40/50/10/0/0', mp.settings().agent_split.claude === 40 && mp.settings().agent_split.qwen === 0 && mp.settings().agent_split.mistral === 0)
+  const saved = mp.patch({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 10, mistral: 55 } })
+  ok('mock: a split that sums to 100 is saved', saved.agent_split.claude === 30 && saved.agent_split.mistral === 55 && saved.agent_split.grok === 0)
+  ok('CONTROL mock: a split off 100 is bad_split', throws(() => mp.patch({ agent_split: { claude: 30, grok: 0, agy: 5, qwen: 9, mistral: 55 } }), 'bad_split') && mp.settings().agent_split.mistral === 55)
+  ok('CONTROL mock: a four-number split is bad_split, as on the hub', throws(() => mp.patch({ agent_split: { claude: 40, grok: 50, agy: 10, qwen: 0 } }), 'bad_split') && mp.settings().agent_split.mistral === 55)
 }
 const splitPage = readFileSync(new URL('../../src/pages/tenant-settings/split.vue', import.meta.url), 'utf8')
 ok('Vendor split page has one input per kind, a live sum and the guideline note',
   splitPage.includes('data-test="tenant-split-claude"') && splitPage.includes('data-test="tenant-split-grok"') &&
   splitPage.includes('data-test="tenant-split-agy"') && splitPage.includes('data-test="tenant-split-qwen"') &&
+  splitPage.includes('data-test="tenant-split-mistral"') && splitPage.includes("t('tenant_settings.split_mistral')") &&
   splitPage.includes('data-test="tenant-split-sum"') && splitPage.includes("t('tenant_settings.split_note')") &&
   splitPage.includes('agent_split:'))
 {

@@ -37,7 +37,7 @@ func (s *Postgres) InsertMirrored(ctx context.Context, dm Message, dmSent time.T
 		var inserted bool
 		var old []byte
 		var notified int64
-		sql, args := insertMessageArgs(dm, dmSent)
+		sql, args := s.insertMessageStmt(ctx, dm, dmSent) // the DM is the post; its copy writes no minute
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&inserted, &old, &notified); err != nil {
 			return mapFK(err)
 		}

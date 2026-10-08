@@ -51,6 +51,9 @@ func (s *Memory) AddReaction(_ context.Context, tenant, msgID, actor, emoji stri
 		}
 	}
 	s.reactions[k] = append(s.reactions[k], memReaction{emoji: emoji, actor: actor, at: now})
+	if hoursPostMember(actor) { // spec 107 T005
+		s.hoursPostLocked(tenant, actor, m.TaskID, now)
+	}
 	return nil
 }
 

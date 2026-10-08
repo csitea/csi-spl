@@ -30,6 +30,8 @@ type Postgres struct {
 	hot   hotCache // pins and tenant rows of the send path (hotcache.go)
 	// seats: is rdb 0107 agent_seats there yet (agent_seats.go)
 	seats seatsProbe
+	// hoursTab: is rdb 0151 hours_minutes there yet (hours_post_postgres.go)
+	hoursTab seatsProbe
 	// access: is rdb 0113 tenant_memberships.access_until there yet (access_until.go)
 	access seatsProbe
 	// wsState: is rdb 0115 tenants.suspended_at there yet (operator_workspaces.go)
@@ -415,11 +417,14 @@ var (
 	// insertMessageSent adds the (msg_id, to_box) delivery row, sent and
 	// acked at received_at, $23 its expiry, for a new message or a resend of
 	// the identical envelope ($15) - never for a conflicting one.
-	insertMessageSent = fmt.Sprintf(insertMessageSQL, `,
+	insertMessageSent = fmt.Sprintf(insertMessageSQL, insertMessageSentDel+flowInsertCTE(24))
+)
+
+// insertMessageSentDel is insertMessageSent's delivery CTE.
+const insertMessageSentDel = `,
 	del AS (INSERT INTO deliveries (tenant_id, msg_id, to_box, state, received_at, expires_at, sent_at, acked_at)
 		SELECT $1, $2, $8, 'sent', $16, $23::timestamptz, $16, $16
-		WHERE EXISTS (SELECT 1 FROM ins) OR (SELECT env FROM old) = $15`+sentDeliveryClaim+`)`+flowInsertCTE(24))
-)
+		WHERE EXISTS (SELECT 1 FROM ins) OR (SELECT env FROM old) = $15` + sentDeliveryClaim + `)`
 
 // insertSentDelivery is that delivery leg alone, for the resend that raced
 // its original's commit.
@@ -438,7 +443,7 @@ func (s *Postgres) InsertMessageSent(ctx context.Context, m Message, deliveryExp
 // insertMessage is InsertMessage, plus the sent delivery row when
 // sentExpires is set; one round trip for a new message and for a resend.
 func (s *Postgres) insertMessage(ctx context.Context, m Message, sentExpires time.Time) (bool, error) {
-	sql, args := insertMessageArgs(m, sentExpires)
+	sql, args := s.insertMessageStmt(ctx, m, sentExpires) // spec 107 T005: a member's post writes its minute
 	sent := !sentExpires.IsZero()
 	var inserted bool
 	var old []byte

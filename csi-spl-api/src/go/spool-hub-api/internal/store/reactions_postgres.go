@@ -17,15 +17,21 @@ func (s *Postgres) AddReaction(ctx context.Context, tenant, msgID, actor, emoji 
 	// One statement, one round trip (perf round 4 G6): the insert and the
 	// "is the message there" answer a no-op insert needs ride the scope batch,
 	// where inTenant paid BEGIN, scope, INSERT, a follow-up SELECT, COMMIT.
+	// spec 107 T005: a member's reaction also writes its minute (hrs).
+	hrs := ""
+	if hoursPostMember(actor) && s.hasHoursMinutes(ctx) {
+		hrs = hoursReactionCTE
+	}
 	var live bool
 	err := s.queryRowTenant(ctx, tenant, `WITH m AS (
-			SELECT 1 FROM messages
+			SELECT task_id FROM messages
 			WHERE tenant_id = $1 AND msg_id = $2 AND expires_at > $5
 		), ins AS (
 			INSERT INTO message_reactions (tenant_id, msg_id, actor, emoji, created_at)
 			SELECT $1, $2, $3, $4, $5 FROM m
 			ON CONFLICT DO NOTHING
-		)
+			RETURNING 1
+		)`+hrs+`
 		SELECT EXISTS (SELECT 1 FROM m)`, []any{tenant, msgID, actor, emoji, now}, &live)
 	if err != nil {
 		return err

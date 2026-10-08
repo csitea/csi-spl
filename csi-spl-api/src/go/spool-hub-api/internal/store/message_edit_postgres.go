@@ -79,6 +79,10 @@ func (s *Postgres) ApplyEdit(ctx context.Context, tenant, msgID string, e Edit) 
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
 		rev, err = applyEditTx(ctx, tx, tenant, msgID, e)
+		if err != nil || !hoursPostMember(e.EditedBy) || !s.hasHoursMinutes(ctx) {
+			return err
+		}
+		_, err = tx.Exec(ctx, hoursEditUpsert, tenant, e.EditedBy, e.EditedAt, msgID) // spec 107 T005
 		return err
 	})
 	if err != nil {

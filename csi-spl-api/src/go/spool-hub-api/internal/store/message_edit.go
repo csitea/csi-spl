@@ -141,7 +141,11 @@ func (s *Memory) ApplyEdit(_ context.Context, tenant, msgID string, e Edit) (int
 	if _, ok := s.messages[[2]string{tenant, msgID}]; !ok {
 		return 0, ErrNotFound
 	}
-	return s.applyEditLocked(tenant, msgID, e), nil
+	rev := s.applyEditLocked(tenant, msgID, e)
+	if hoursPostMember(e.EditedBy) { // spec 107 T005
+		s.hoursPostLocked(tenant, e.EditedBy, s.messages[[2]string{tenant, msgID}].TaskID, e.EditedAt)
+	}
+	return rev, nil
 }
 
 // applyEditLocked is ApplyEdit on a row the caller holds s.mu for and has

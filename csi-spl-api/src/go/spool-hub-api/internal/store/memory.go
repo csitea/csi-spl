@@ -326,6 +326,9 @@ func (s *Memory) insertMessageLocked(m Message) (bool, error) {
 	claimDefaults(&c, s.seatedLocked(m.TenantID))
 	s.messages[k] = &c
 	s.flowWriteLocked(m)
+	if hoursPostOfMessage(m) && (m.MirrorOf == "" || m.MirrorOf == m.MsgID) { // spec 107 T005; a DM's channel copy writes none
+		s.hoursPostLocked(m.TenantID, m.FromID, m.TaskID, m.ReceivedAt)
+	}
 	s.wake.notifyWUI(m.TenantID, m.MsgID) // spec 059 S3; listeners run on their own goroutines
 	return true, nil
 }

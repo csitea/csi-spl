@@ -127,7 +127,7 @@ send_lane_topic() {  # ID
 send_to_peers_on() {
   case "${SPOOL_TO_PEERS:-}" in 1) return 0 ;; 0) return 1 ;; esac
   [ -r "$SPOOL_ROOT/peer/seats" ] &&
-    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
 }
 
 # The hub-down leg of a peers send: ONE v:1 object in <root>/peers/inbox (the

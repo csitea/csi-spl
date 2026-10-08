@@ -11,7 +11,9 @@ set -uo pipefail
 t_sandbox
 t_box_env "SPOOL_BOX_TAG=tg"
 export SPOOL_BOX_TAG="" SPOOL_DESK_BOX=box-t
-SHAPE='^[acgq]-[0-9]{3}@tg$'
+SHAPE='^[acgmq]-[0-9]{3}@tg$'
+check "0. the shape takes a mistral id (spec 110)" grep -qE "$SHAPE" <<<'m-004@tg'
+check "0. ... and refuses an unknown kind letter (control)" bash -c '! grep -qE "$1" <<<"x-004@tg"' _ "$SHAPE"
 
 # --- 1. the one helper -------------------------------------------------------------
 . "$T_FEAT/lib/spool-env.inc.sh"; spool_env_resolve
@@ -47,6 +49,8 @@ check "4. spawn-window names the window with spool_decorate" grep -q 'new-window
 bad="$(command grep -rnE -- "--name ['\"]?\\\$\\{?(tag|SPOOL_BOX_TAG)|'%s: %s'|\"%s: %s\"" "$T_SCRIPTS" "$T_FEAT/lib" "$R"/spl-*rotate*.sh "$R"/spl-agent-*.sh 2>/dev/null | grep -v 'an_decorate\|# ' || true)"
 # the two "<tag>: NAME" fallbacks below are for a window that carries NO id
 bad="$(grep -vE "agent-identity.py:[0-9]+: +return \"%s: %s\" % \(tag, out\) if tag else out|agent-state.inc.sh:[0-9]+: +printf '%s: %s' \"\\\$tag\" \"\\\$n\"" <<<"$bad" || true)"
+# spool-agent-hook.sh's JSON writer joins "key": value pairs, no window name
+bad="$(grep -vE 'spool-agent-hook.sh:[0-9]+: +return "\{" \+ ", "\.join\("%s: %s" % \(dumps' <<<"$bad" || true)"
 eq "4. no launcher builds a '<tag>: <id>' name" "" "$bad"
 
 # --- 5. agent-name-resume.sh: plan and resume through the restore path -------------
@@ -77,6 +81,13 @@ mk 900004 1 'CLE-077@tg' CLE-077
 out="$(RESUME_RENAMED="CLE-077=c-077" bash "$T_SCRIPTS/agent-name-resume.sh" --only c-077 2>&1)"
 has "5. RESUME_RENAMED: a dry run plans the rename to come" "PLAN 900004 c-077 pane=- sid=s-900004 name 'CLE-077@tg' -> 'c-077@tg' env CLE-077 -> c-077" "$out"
 rm -rf "$P/900004" "$S/900004.json"
+# spec 110: an m-NNN window is an agent id; an x-NNN one is not
+mk 900005 1 'tg: m-004' ''
+mk 900006 1 'tg: x-004' ''
+out="$(bash "$T_SCRIPTS/agent-name-resume.sh" 2>&1)"
+has "5. a mistral '<tag>: m-004' agent is planned" "PLAN 900005 m-004 pane=- sid=s-900005 name 'tg: m-004' -> 'm-004@tg' env - -> m-004" "$out"
+hasnt "5. ... an unknown kind letter x-004 is no agent id (control)" "900006" "$out"
+rm -rf "$P/900005" "$S/900005.json" "$P/900006" "$S/900006.json"
 out="$(bash "$T_SCRIPTS/agent-name-resume.sh" --only c-037 2>&1)"
 hasnt "5. --only limits it" "c-033" "$out"
 cat >"$T_TMP/fake-restore.sh" <<EOF

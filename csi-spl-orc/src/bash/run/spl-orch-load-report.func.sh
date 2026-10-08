@@ -12,7 +12,7 @@
 # @description        wait created_at..updated_at per raised_n (0, 1, 2, 3+)
 # @description Sender kind: orch = c-001 / CLE-001, dispatcher = c-002, c-003 /
 # @description CLE-002, CLE-003 (any @box), lane = any other agent id
-# @description ([acgq]-NNN, CLE-/GRK-/AGY-/QWN-N), other = the rest.
+# @description ([acgmq]-NNN, CLE-/GRK-/AGY-/QWN-N), other = the rest.
 # @param SINCE (optional) - window start, inclusive: YYYY-MM-DD or YYYY-MM-DDTHH:MM[:SS]Z; default UNTIL - 24 h
 # @param UNTIL (optional) - window end, exclusive, same forms; default now
 # @param ORCH_ID (optional) - the orch's spool dir, default c-001
@@ -56,7 +56,7 @@ spl_orch_load_msgs() {
     | xargs -0 -r cat | jq -n -r --arg s "$2" --arg u "$3" '
       def kind_of: if test("^(c|CLE)-001(@|$)") then "orch"
         elif test("^(c|CLE)-00[23](@|$)") then "dispatcher"
-        elif test("^([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)(@|$)") then "lane"
+        elif test("^([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)(@|$)") then "lane"
         else "other" end;
       [inputs | objects | select((.ts // "") >= $s and (.ts // "") < $u)]
       | unique_by(.msg_id // tostring) | .[]

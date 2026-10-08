@@ -141,7 +141,7 @@ spl_sweep_run() {
 # <spool root>/peer/seats, parsed as spool-send.sh's send_to_peers_on does.
 spl_sweep_seated() {
   local f="${SPOOL_ROOT:-/var/spool-hub}/peer/seats"
-  [[ -r "$f" ]] && sed 's/#.*//' "$f" | awk '$1 ~ /^[acgq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+  [[ -r "$f" ]] && sed 's/#.*//' "$f" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
 }
 
 # spl_sweep_items <note>: the item rows of a holder.md / orch.md table.

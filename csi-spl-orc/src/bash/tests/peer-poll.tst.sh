@@ -37,6 +37,8 @@
 #      "lost" (1) after, the new holder's says 0
 #   9. ensure starts one loop per seat, is idempotent, restarts a dead one
 #  10. a grok seat (no claude process) is found by its harness's process
+#  11. spec 110 grammar: an m-004 (mistral) seat line is read and its fence
+#      is asked; control: an x-004 line is skipped and its fence refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -276,7 +278,7 @@ field() { NOW=${NOW:-0} hubc dump | jq -r --arg m "$1" ".[] | select(.msg_id == 
 stubs_of() {
   local b
   for b in $BOXES; do
-    cat "$T/$b"/[acgq]-*/inbox/*-r[0-9]*.json "$T/$b"/[acgq]-*/archive/*-r[0-9]*.json 2>/dev/null |
+    cat "$T/$b"/[acgmq]-*/inbox/*-r[0-9]*.json "$T/$b"/[acgmq]-*/archive/*-r[0-9]*.json 2>/dev/null |
       jq -r --arg m "$1" --arg b "$b" 'select(.msg_id == $m) | "\(.to)@\($b) \(.round) \(.lost // (if .accepted then "accepted" else "open" end))"'
   done
 }
@@ -467,7 +469,7 @@ for i in 1 2 3; do
 done
 run 0 5 2>/dev/null
 ok=1
-inbox_count() { cat "$T"/sat/[acgq]-*/inbox/*.json "$T"/pc/[acgq]-*/inbox/*.json 2>/dev/null | jq -r 'select(.msg_id == "'"$1"'" and .round == null) | .to' | wc -l; }
+inbox_count() { cat "$T"/sat/[acgmq]-*/inbox/*.json "$T"/pc/[acgmq]-*/inbox/*.json 2>/dev/null | jq -r 'select(.msg_id == "'"$1"'" and .round == null) | .to' | wc -l; }
 for i in 1 2 3; do
   [[ -f "$T/sat/claims/loc$i" && "$(inbox_count "loc$i")" == 1 ]] || { ok=0; fail "7 hub down: loc$i lock '$(cat "$T/sat/claims/loc$i" 2>/dev/null)', delivered $(inbox_count "loc$i")"; }
 done
@@ -544,6 +546,15 @@ run 0 3 2>/dev/null
 kill_agent sat g-003; agent sat 999 g-003 claude-other
 ( export SPOOL_ROOT="$T/sat" PEER_BOX=sat LEASE_PROC_ROOT="$T/sat/proc" LEASE_PANE_CMD="$T/bin/pane"; spl_peer_init; export PEER_HARNESS=grok; [[ -z "$(spl_peer_able g-003)" ]] ) &&
   pass "10 grok seat: an unrelated process carrying the id does not count" || fail "10 grok seat: counted a foreign process"
+
+# ---- 11. spec 110: the mistral letter ----------------------------------------------
+mkdir -p "$T/m/peer"; printf 'm-004 vibe\nx-004 vibe\n' > "$T/m/peer/seats"
+got="$(SPOOL_ROOT="$T/m" PEER_BOX=sat; spl_peer_init ro; spl_peer_seats)"
+[[ "$got" == "m-004 vibe" ]] && pass "11 an m-004 seat line is read; control: x-004 is skipped" || fail "11 seats read: '$got'"
+mfence() { ( export SPOOL_ROOT="$T/m" PEER_BOX=sat PEER_HUB_CMD="$T/bin/hub" PEER_SEAT="$1" PEER_MSG=f1 PEER_GEN=1; do_log() { echo "$*"; }; do_spl_peer_fence ) 2>&1; }
+o4="$(mfence m-004)"; ox="$(mfence x-004)"; rx=$?
+[[ "$o4" != *"PEER_SEAT, PEER_MSG and PEER_GEN are required"* && $rx == 2 && "$ox" == *"PEER_SEAT, PEER_MSG and PEER_GEN are required"* ]] &&
+  pass "11 the fence takes PEER_SEAT=m-004; control: x-004 is refused (2)" || fail "11 fence: m='$o4' x(rc $rx)='$ox'"
 
 echo
 if (( fails )); then echo "peer-poll: $fails FAILED"; exit 1; fi

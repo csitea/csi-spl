@@ -26,7 +26,7 @@ do_spl_role_id_switch() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   feat="$PROJ_PATH/src/bash/features/spawn-agents"
   conf="${LEASE_CONF:-$root/dispatch/lease.conf}"
-  read -r old new < <(awk -F'\t' -v id="$id" '($1 == id || $2 == id) && $2 ~ /^[acgq]-00[123]$/ {print $1, $2; exit}' "$root/agent-id-aliases.tsv" 2>/dev/null)
+  read -r old new < <(awk -F'\t' -v id="$id" '($1 == id || $2 == id) && $2 ~ /^[acgmq]-00[123]$/ {print $1, $2; exit}' "$root/agent-id-aliases.tsv" 2>/dev/null)
   [[ -n "$old" && -n "$new" ]] || { do_log "FATAL ROLE_ID '$id' is no role row (new id 001-003) of $root/agent-id-aliases.tsv"; return 1; }
   key="$(grep -E "^LEASE_(ORCH|MASTER|FAILOVER)=($old|$new)$" "$conf" 2>/dev/null | cut -d= -f1 | sed -n 1p)"
   [[ -n "$key" ]] || { do_log "FATAL no LEASE_ORCH / LEASE_MASTER / LEASE_FAILOVER line names $old or $new in $conf"; return 1; }

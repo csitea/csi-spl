@@ -76,7 +76,7 @@ do_spl_peer_poll() {
 # say (split brain: the caller stops, it never acts on an unconfirmed lock).
 do_spl_peer_fence() {
   spl_peer_init ro || return 2
-  [[ "${PEER_SEAT:-}" =~ ^[acgq]-[0-9]{3}$ && "${PEER_MSG:-}" =~ ^[A-Za-z0-9-]+$ && "${PEER_GEN:-}" =~ ^[0-9]+$ ]] ||
+  [[ "${PEER_SEAT:-}" =~ ^[acgmq]-[0-9]{3}$ && "${PEER_MSG:-}" =~ ^[A-Za-z0-9-]+$ && "${PEER_GEN:-}" =~ ^[0-9]+$ ]] ||
     { do_log "FATAL PEER_SEAT, PEER_MSG and PEER_GEN are required"; return 2; }
   spl_peer_fence "$PEER_SEAT" "$PEER_MSG" "$PEER_GEN"
 }
@@ -114,7 +114,7 @@ spl_peer_init() {
 # (# comments), written by the seat setup (L7). Read, never sourced.
 spl_peer_seats() {
   [[ -f "$PEER_SEATS" ]] || return 0
-  sed 's/#.*//' "$PEER_SEATS" | awk '$1 ~ /^[acgq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ {print $1, $2}'
+  sed 's/#.*//' "$PEER_SEATS" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ {print $1, $2}'
 }
 
 # 0 when <id> has a seat here; sets PEER_HARNESS.

@@ -3,13 +3,15 @@
 # Purpose: one true set of agent-connect instructions (spec 072 A65, F38, F45).
 #          doc/help/connect-an-agent.md names no literal hosted domain (the
 #          WUI fills {{api}} / {{site}} from the site it runs on) and no
-#          legacy agent id (spec 061 section 0: ^[acgq]-[0-9]{3}$). The help
+#          legacy agent id, and every `--as <id>` it teaches is in the
+#          grammar (spec 061 section 0, spec 110: ^[acgmq]-[0-9]{3}$). The help
 #          page and the root README give the same two choices (the installer,
 #          or the spool CLI + MCP), and the README's "another machine"
 #          paragraph keeps the root key on the first machine. Getting
 #          started heads no sign-in method "(Recommended)": a self-hosted
 #          stack configures no social provider (review 17-18 N3).
 #          CONTROLS: a copy with a planted hosted URL, a planted legacy id,
+#          a planted unknown kind letter (--as x-004; --as m-004 passes),
 #          a README copy that teaches copying the key, and a getting-started
 #          copy that recommends social sign-in are each refused.
 #------------------------------------------------------------------------------
@@ -32,6 +34,8 @@ check_help() {
   local page="$1"
   command grep -qF "$domain" "$page" && echo "names the hosted domain (use {{api}} / {{site}})"
   command grep -qE '\b(CLE|GRK|AGY|QWN)-[0-9]+' "$page" && echo "names a legacy agent id"
+  command grep -oE -- '--as [^[:space:]"'"'"'`]+' "$page" | awk '$2 !~ /^[acgmq]-[0-9]{3}$/ { f = 1 } END { exit !f }' &&
+    echo "teaches an agent id outside the grammar"
   command grep -qF "'https://{{api}}'" "$page" || echo "SPOOL_HUB_URL is not the {{api}} token"
   command grep -qF 'spool-install/install.sh' "$page" || echo "does not offer the installer"
   command grep -qF 'spool mcp --as' "$page" || echo "does not offer the CLI + MCP path"
@@ -63,6 +67,10 @@ out=$(check_readme "$README")
 [[ "$(check_help "$T/url.md")" == *"hosted domain"* ]] && pass "control: a planted hosted URL is refused" || fail "control: a planted hosted URL passed"
 { cat "$HELP"; echo 'exec spool mcp --as CLE-02'; } >"$T/legacy.md"
 [[ "$(check_help "$T/legacy.md")" == *"legacy agent id"* ]] && pass "control: a planted legacy id is refused" || fail "control: a planted legacy id passed"
+{ cat "$HELP"; echo 'exec spool mcp --as m-004'; } >"$T/mistral.md"
+[[ -z "$(check_help "$T/mistral.md")" ]] && pass "a mistral id (--as m-004) is in the grammar" || fail "a mistral id was refused: $(check_help "$T/mistral.md" | tr '\n' ';')"
+{ cat "$HELP"; echo 'exec spool mcp --as x-004'; } >"$T/kind.md"
+[[ "$(check_help "$T/kind.md")" == *"outside the grammar"* ]] && pass "control: an unknown kind letter (--as x-004) is refused" || fail "control: --as x-004 passed"
 out=$(check_start "$START")
 [[ -z "$out" ]] && pass "getting-started.md: no sign-in method headed (Recommended)" || fail "getting-started.md: $(tr '\n' ';' <<<"$out")"
 

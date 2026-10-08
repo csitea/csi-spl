@@ -188,7 +188,7 @@ the owner's Team login on each box.
 
   Done: `do_check_harness_parity` green with the three new rows; lint-mdlinks
   green.
-- [ ] T012 **orc grammar readers** (needs T002). Files:
+- [x] T012 **orc grammar readers** (c-587) (needs T002). Files:
   - `SA/scripts/{spool-send,asks,spool-mcp,agent-name-resume}.sh`;
   - `csi-spl-orc/src/bash/scripts/spl-session-prune.sh`;
   - `RUN/spl-{dispatch-rotate,orch-rotate,orch-load-report,peer-poll,role-id-switch,unanswered-sweep}.func.sh`;

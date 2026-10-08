@@ -135,7 +135,7 @@ spl_orch_rotate_auto() {
 # table; nothing when it is already a new id or has no row.
 spl_orch_rotate_new_id() {
   [[ "$1" =~ ^(CLE|GRK|AGY|QWN)-[0-9]+$ ]] || return 0
-  awk -F'\t' -v id="$1" '$1 == id && $2 ~ /^[acgq]-[0-9]{3}$/ {print $2; exit}' "$SPOOL_ROOT/agent-id-aliases.tsv" 2>/dev/null
+  awk -F'\t' -v id="$1" '$1 == id && $2 ~ /^[acgmq]-[0-9]{3}$/ {print $2; exit}' "$SPOOL_ROOT/agent-id-aliases.tsv" 2>/dev/null
 }
 
 # spl_orch_rotate_switch OLD: the role switch of do_spl_role_id_switch, done

@@ -483,7 +483,7 @@ import re, sys
 m = {}
 for l in open(sys.argv[1]):
     f = l.rstrip("\n").split("\t")
-    if len(f) >= 2 and re.fullmatch(r"(CLE|GRK|AGY|QWN)-[0-9]+", f[0]) and re.fullmatch(r"[acgq]-[0-9]{3}", f[1]):
+    if len(f) >= 2 and re.fullmatch(r"(CLE|GRK|AGY|QWN)-[0-9]+", f[0]) and re.fullmatch(r"[acgmq]-[0-9]{3}", f[1]):
         m[f[0]] = f[1]
 rx = re.compile(r"(?<![A-Za-z0-9-])(" + "|".join(map(re.escape, m)) + r")(?![0-9])") if m else None
 s = open(sys.argv[2]).read()

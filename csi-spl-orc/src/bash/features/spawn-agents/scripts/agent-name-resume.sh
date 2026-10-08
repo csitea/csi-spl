@@ -57,7 +57,7 @@ E = os.environ
 apply, proc, root, tag = E["APPLY"] == "1", E["PROC"], E["ROOT"], E["TAG"]
 only = set(x for x in E["ONLY"].split(",") if x)
 tm = sys.argv[1:]
-ID = r"(?:[acgq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
+ID = r"(?:[acgmq]-[0-9]{3}|(?:CLE|GRK|AGY|QWN)-[0-9]+)"
 
 def name_of(d): return d + "@" + tag if tag else d
 def read(p, mode="r"):

@@ -45,7 +45,7 @@ usage() { sed -n '9,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 64
 asks_peers_on() {
   case "${SPOOL_TO_PEERS:-}" in 1) return 0 ;; 0) return 1 ;; esac
   [ -r "$SPOOL_ROOT/peer/seats" ] &&
-    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
+    sed 's/#.*//' "$SPOOL_ROOT/peer/seats" | awk '$1 ~ /^[acgmq]-[0-9][0-9][0-9]$/ && $2 ~ /^[a-z]+$/ { f = 1 } END { exit !f }'
 }
 
 # "<msg_id> <gen>" of the newest copy of <id> (full or 8-hex prefix) the
@@ -72,7 +72,7 @@ asks_peer_lock() {  # VERB ID BY GEN REASON
   [ -n "$by" ] || by="${SPOOL_AGENT_ID:-}"
   case "$by" in *@*) ;; '') ;; *) by="$by@$(spool_fleet_box)" ;; esac
   seat="${by%@*}"
-  [[ "$seat" =~ ^[acgq]-[0-9]{3}$ ]] || { echo "asks.sh: peers mode: $verb needs the seat (--by <ID>@<box> or SPOOL_AGENT_ID), got '${by}'" >&2; return 64; }
+  [[ "$seat" =~ ^[acgmq]-[0-9]{3}$ ]] || { echo "asks.sh: peers mode: $verb needs the seat (--by <ID>@<box> or SPOOL_AGENT_ID), got '${by}'" >&2; return 64; }
   hit="$(asks_peer_msg "$seat" "$id")"
   [ -n "$hit" ] && id="${hit% *}" && [ -z "$gen" ] && gen="${hit#* }"
   [[ "$id" =~ ^[A-Za-z0-9-]{9,}$ ]] || { echo "asks.sh: $id is in none of ${seat}'s messages; give the full msg id" >&2; return 1; }

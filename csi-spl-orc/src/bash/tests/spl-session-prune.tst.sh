@@ -16,6 +16,12 @@
 #      -wt4-CLE-31) go; the owner's own sessions (-opt, a project dir) are
 #      KEEP human however old; =2 is refused; a role seat's worktree
 #      (-wt-c-002) and an agent whose record says alive keep theirs
+#   5. Vibe (spec 110, SESSION_PRUNE_VIBE_DIR, no Claude tree): a stub
+#      $VIBE_HOME/logs/session at mode 0755; the dry run plans the chmod and
+#      exactly the old dead m-004 worktree session; DRY_RUN=0 makes the dir
+#      0700 and removes only that one; kept: an x-004 worktree's (control:
+#      no agent id = KEEP human), one an agent record names, one whose short
+#      id is on a running command line, a recent one, a non-session entry
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -96,6 +102,42 @@ grep -q "KEEP human $H/-opt/$u_h1\$" <<<"$out" && grep -q "KEEP human $H/-var-op
 grep -q "KEEP role-seat $H/-opt-x-x-spl-wt-c-002/$u_seat\$" <<<"$out" && grep -q "KEEP alive $H/-opt-x-x-spl-wt-c-777/$u_alive\$" <<<"$out" \
   && [ -f "$H/-opt-x-x-spl-wt-c-002/$u_seat.jsonl" ] && [ -f "$H/-opt-x-x-spl-wt-c-777/$u_alive.jsonl" ] \
   && pass "4. a role seat's and an alive agent's worktree sessions are kept" || fail "4. seat/alive ($out)"
+
+V="$T/vibe/logs/session"
+v_m=bbbbbbbb-1111-4111-8111-111111111111 v_x=bbbbbbbb-2222-4222-8222-222222222222
+v_rest=bbbbbbbb-3333-4333-8333-333333333333 v_live=ccccdddd-4444-4444-8444-444444444444
+v_new=bbbbbbbb-5555-4555-8555-555555555555
+vs() {  # <dir name> <session id> <working dir>
+  mkdir -p "$V/$1"; echo '{}' >"$V/$1/messages.jsonl"
+  printf '{"session_id":"%s","environment":{"working_directory":"%s"}}\n' "$2" "$3" >"$V/$1/meta.json"
+}
+vs session_20261001_101010_bbbbbbbb "$v_m" /opt/x/x-spl-wt/m-004
+vs session_20261001_111111_bbbbbbbb "$v_x" /opt/x/x-spl-wt/x-004
+vs session_20261001_121212_bbbbbbbb "$v_rest" /opt/x/x-spl-wt/m-005
+vs session_20261001_131313_ccccdddd "$v_live" /opt/x/x-spl-wt/m-006
+vs session_20261001_141414_bbbbbbbb "$v_new" /opt/x/x-spl-wt/m-007
+mkdir -p "$V/notes"; echo x >"$V/notes/n"
+find "$T/vibe" -exec touch -h -d '9 days ago' {} +
+touch "$V/session_20261001_141414_bbbbbbbb/messages.jsonl"; chmod 0755 "$V"
+printf '{"id":"m-005","alive":false,"session_id":"%s"}\n' "$v_rest" >"$A/m-005.json"
+bash -c 'sleep 30; :' vibe --resume ccccdddd & vibe_pid=$!
+vprune() { SNIPPET='do_spl_session_prune' in_orc SESSION_PRUNE_ROOT="$T/no-claude" SESSION_PRUNE_VIBE_DIR="$V" \
+  SESSION_PRUNE_SESSIONS="$T/nope" SESSION_PRUNE_AGENT_ONLY=1 SPOOL_ROOT="$T/spool" "$@" 2>&1; }
+out="$(vprune)"; rc=$?
+[ "$rc" = 0 ] && grep -q "PLAN chmod 0700 (was 755) $V\$" <<<"$out" && grep -q "PLAN remove [0-9]*KB $V/session_20261001_101010_bbbbbbbb\$" <<<"$out" \
+  && [ "$(grep -c 'PLAN remove' <<<"$out")" = 1 ] && [ "$(stat -c %a "$V")" = 755 ] && [ -d "$V/session_20261001_101010_bbbbbbbb" ] \
+  && pass "5. vibe dry run: plans the chmod and only the old dead m-004 session, changes nothing" || fail "5. vibe dry run (rc $rc: $out)"
+out="$(vprune DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && [ "$(stat -c %a "$V")" = 700 ] && grep -q "MODE 0700 (was 755) $V\$" <<<"$out" \
+  && pass "5. vibe: DRY_RUN=0 keeps the session dir at mode 0700" || fail "5. vibe mode (rc $rc: $(stat -c %a "$V") $out)"
+[ ! -e "$V/session_20261001_101010_bbbbbbbb" ] && [ "$(grep -c 'REMOVE' <<<"$out")" = 1 ] \
+  && pass "5. vibe: the old dead m-004 worktree session is removed, nothing else" || fail "5. vibe remove ($out)"
+grep -q "KEEP human $V/session_20261001_111111_bbbbbbbb\$" <<<"$out" && [ -d "$V/session_20261001_111111_bbbbbbbb" ] \
+  && pass "5. vibe control: an x-004 worktree is no agent id (KEEP human)" || fail "5. vibe x-004 ($out)"
+grep -q "KEEP restorable $V/session_20261001_121212_bbbbbbbb\$" <<<"$out" && grep -q "KEEP live $V/session_20261001_131313_ccccdddd\$" <<<"$out" \
+  && grep -q "KEEP recent $V/session_20261001_141414_bbbbbbbb\$" <<<"$out" && [ -f "$V/notes/n" ] \
+  && pass "5. vibe: restorable, live (short id resumed), recent and non-session entries are kept" || fail "5. vibe kept ($out)"
+kill "$vibe_pid" 2>/dev/null; wait "$vibe_pid" 2>/dev/null
 kill "$cmd_pid" 2>/dev/null; wait "$cmd_pid" 2>/dev/null
 
 echo "spl-session-prune: ${fails} failure(s)"

@@ -56,8 +56,10 @@ Every test is a pair with its control.
 - **claude-a**: YES (agreed at spec `4b64dd44`)
 - **claude-b**: YES (agreed at spec `4b64dd44`)
 - **agy-2** (stand-in for the grok seat, owner HUM-10 msg 04255b73): YES (agreed at spec `e83aa15b`)
+- **agy-3** (extra agy seat, owner HUM-10 msg 8a50e06e): YES (agreed at spec `e83aa15b`, opinion 3a13a50e)
+- **agy-4** (extra agy seat, owner HUM-10 msg 8a50e06e): YES (agreed at spec `e83aa15b`, opinion b10abdf8)
 
-Overall: YES at e83aa15b (agy author a-552, agy-2, claude-a, claude-b). Owner questions 1-3 (section 7) still open; build waits for their answers.
+Overall: YES at e83aa15b (agy author a-552, agy-2, agy-3, agy-4, claude-a, claude-b). Owner questions 1-3 (section 7) still open; build waits for their answers.
 
 ## 7. Owner Questions
 1. Is a second workspace on one machine allowed, as a second OS user + spool root?

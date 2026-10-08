@@ -55,6 +55,10 @@ var operatorCallers = map[string]string{
 	"NextRepoDocEditDue":    "repo-edit worker: when the earliest queued edit of any workspace falls due, its next wake-up; a timestamp only; no route",
 	"RepoDocEditStatuses":   "repo-edit worker (T10): the 30-day overlay sweep, keyed by the edit_ids of bucket objects; statuses only; no route",
 	"RepoDocOverlays":       "GET /v1/docs/{path} + tree.json (spec 075 T08): the newest live overlay of a repo doc path; the docs bucket is env-wide, every workspace reads the same doc",
+
+	// spec 107 T007: the hours freeze sweep.
+	"hoursSweepTenants":     "hours freeze sweep (hub sweeper goroutine): the workspace ids to sweep, each then swept in its own scope; no route",
+	"pruneAgedHoursMinutes": "hours_minutes 45-day retention (spec 107 1.7, hub sweeper goroutine), global by design; no route",
 }
 
 // operatorEntries are the only functions that set the operator scope:

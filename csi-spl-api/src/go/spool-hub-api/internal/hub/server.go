@@ -537,6 +537,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepPerfSamples(ctx)    // spec 066 section 4: 30-day WUI perf samples
 			s.sweepBoxStats(ctx)       // rdb 0117: 30-day box load + memory history
 			s.sweepBoxBeats(ctx)       // rdb 0147: 2-day box beats (spec 102 10.2)
+			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 		}
 	}
 }

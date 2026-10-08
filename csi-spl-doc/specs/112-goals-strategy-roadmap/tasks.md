@@ -78,11 +78,12 @@ and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
   - Done: both build a batch (goal deadlines and milestones; `x.y.0` tags, release notes, specs turned done, `milestones.yaml`, starting at 2026-09-17) and PUT it to the sync route with audience `public`; the first event is `2026-09-17 spool-hub started`; a second run adds 0 events. Test on a fixture repo: tags `v1.2.0`, `v1.2.1`, `v1.3.0` give exactly 2 release events. Control: a patch tag counted as major turns the test red.
   - Vendor: mistral. Box: any.
 
-- [ ] **ORC-3**: DB backfill candidates, tenant-scoped (spec 8.2).
+- [~] **ORC-3**: DB backfill candidates, tenant-scoped (spec 8.2).
   - Depends: none for the read; HUB-1 for writing the kept ones.
   - Owns: `csi-spl-orc/src/bash/run/spl-goals-backfill-db.func.sh` (`do_spl_goals_backfill_db`), `csi-spl-orc/src/bash/tests/goals-backfill-db.tst.sh`.
   - Done: fails fast without `WORKSPACE`; runs `BEGIN TRANSACTION READ ONLY` with `SET LOCAL app.tenant_id` and no rls_scope; writes candidates `topic_id, msg_id, ts, kind, quote` (quote <= 140 chars, owner messages only) to a 0600 file under `$HOME`; kept ones are sent as `db:<topic_id>`, audience `internal`. Test on Postgres: two workspaces seeded, run in A, the output holds none of B's topic ids. Control: B's rows exist, counted as the operator.
   - Vendor: claude (DB content and personal data). Box: one with docker Postgres.
+  - Status: the READ half is built (c-605): `do_spl_goals_backfill_db` writes the candidates; "owner" = a member holding `APPROVER_ROLE` / cnf `env.roadmap.approver_role` (D2); a login that bypasses RLS is refused. Test green on Postgres, with the operator-count control. **The write half (send the kept ones as `db:<topic_id>`, audience `internal`) waits for HUB-1.**
 
 ## 6. Retrospective
 

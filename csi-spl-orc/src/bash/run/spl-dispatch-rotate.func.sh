@@ -323,7 +323,8 @@ spl_disp_lease_to() {
 # fleet mode waits for the fleet loop's CAS, which tells them.
 spl_disp_hold() {
   local m="$LEASE_MASTER" f="$LEASE_FAILOVER"
-  printf '%s %s %s\n' "$m" "$(date +%s)" "$ROTATE_RID" > "$LEASE_DIR/rotate.hold.tmp.$$" &&
+  # the 4th field is this rotation's pid: spl_lease_held drops the hold once it is gone
+  printf '%s %s %s %s\n' "$m" "$(date +%s)" "$ROTATE_RID" "$$" > "$LEASE_DIR/rotate.hold.tmp.$$" &&
     mv -f "$LEASE_DIR/rotate.hold.tmp.$$" "$LEASE_DIR/rotate.hold"
   spl_lease_log "ROTATE $ROTATE_RID: hold $m"
   if [[ -z "${LEASE_FLEET:-}" ]]; then

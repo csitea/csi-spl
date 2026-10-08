@@ -641,16 +641,24 @@ spl_lease_agent_run_tick() {
   return 0
 }
 
-# "held: rotation ..." while <dir>/rotate.hold ("<id> <epoch> [rid]") names <id> and is younger than
+# "held: rotation ..." while <dir>/rotate.hold ("<id> <epoch> [rid] [pid]") names <id> and is younger than
 # ROTATE_HOLD_MAX s (default 1800): do_spl_dispatch_rotate is replacing that
 # session by a fresh one, so every process of the id is off the lease and the
 # failover acts (SPEC-spool-fleet-roles.md 4.4). An older hold is ignored,
-# logged once: a crashed rotation never keeps a master off for good.
+# logged once: a crashed rotation never keeps a master off for good. A hold
+# whose rotation is provably dead (spl_lease_hold_dead) is removed at once
+# (20261008T1815Z-master: a reboot mid-rotation held c-002 for 30 min).
 spl_lease_held() {
-  local f="$LEASE_DIR/rotate.hold" hid ht age
+  local f="$LEASE_DIR/rotate.hold" hid ht hpid age line="" dead
   [[ -s "$f" ]] || return 0
-  read -r hid ht _ < "$f" 2>/dev/null || true
+  read -r line < "$f" 2>/dev/null || true
+  read -r hid ht _ hpid _ <<< "$line"
   [[ "$hid" == "$1" && "$ht" =~ ^[0-9]+$ ]] || return 0
+  if dead="$(spl_lease_hold_dead "$ht" "${hpid:-}")"; then
+    [[ "$(cat "$f" 2>/dev/null)" == "$line" ]] && rm -f "$f" "$f.stale" &&
+      spl_lease_log "WARN rotate.hold on $1 removed: $dead"
+    return 0
+  fi
   age=$(( $(spl_lease_now) - ht ))
   if (( age > ${ROTATE_HOLD_MAX:-1800} )); then
     [[ -f "$f.stale" ]] || { touch "$f.stale"; spl_lease_log "WARN rotate.hold on $1 is ${age}s old - ignored"; }
@@ -658,6 +666,18 @@ spl_lease_held() {
   fi
   rm -f "$f.stale"
   echo "held: rotation since ${age}s"
+}
+
+# 0 + why when the rotation behind a hold written at <epoch> by <pid> cannot
+# still run: the box booted after it (<proc>/stat btime), or <pid> (a real
+# process: /proc, never the fake LEASE_PROC_ROOT) is gone. An old 3-field
+# hold has no pid, so only the boot test applies to it.
+spl_lease_hold_dead() {
+  local ht="$1" pid="$2" bt
+  bt="$(awk '$1 == "btime" {print $2}' "${LEASE_PROC_ROOT:-/proc}/stat" 2>/dev/null)"
+  [[ "$bt" =~ ^[0-9]+$ ]] && (( bt > ht )) && { echo "the box booted after it (btime $bt > $ht)"; return 0; }
+  [[ "$pid" =~ ^[0-9]+$ && ! -d "/proc/$pid" ]] && { echo "its rotation pid $pid is gone"; return 0; }
+  return 1
 }
 
 # One renew tick. The bound pid lives in renew.<id>.pid so a rebind, a loss or

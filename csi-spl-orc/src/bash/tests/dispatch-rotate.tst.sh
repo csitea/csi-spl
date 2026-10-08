@@ -22,7 +22,9 @@
 #   6. T-DISP-HEAL: a missing dispatcher -> do_spl_dispatch_setup, nothing else
 #   7. T-DISP-ACK-SOURCE: an ack from the old pid / a wrong rid -> exit 3
 #   8. T-DISP-HOLD-STALE: the hold gate, and a hold older than
-#      ROTATE_HOLD_MAX ignored with one WARN (FR-023, FR-024)
+#      ROTATE_HOLD_MAX ignored with one WARN (FR-023, FR-024); a hold whose
+#      rotation is dead (written before the boot, its pid gone) removed at
+#      once. Control: a live rotation's hold still holds
 #   9. resume (FR-003) and abort (FR-091)
 #  10. T-CRON: :15, idempotent, check, CRON_REMOVE=1; the heal line every 3 min
 #      off the rotation's minute, the cron script's --heal
@@ -325,6 +327,23 @@ echo "c-903 $(date +%s)" >"$D/rotate.hold"
 echo "c-902 $(( $(date +%s) - 4000 )) x" >"$D/rotate.hold"; able >/dev/null
 [[ "$(able)" == "able=[102] why=[able]" && "$(grep -c 'rotate.hold on c-902 is .* ignored' "$D/lease.log")" == 1 ]] &&
   pass "8. a hold older than ROTATE_HOLD_MAX is ignored, logged once (FR-024)" || fail "8. stale: $(able) $(cat "$D/lease.log" 2>&1)"
+# a hold whose rotation is provably dead goes at once (20261008T1815Z-master: reboot mid-rotation)
+now=$(date +%s); rm -f "$D/lease.log"
+echo "btime $(( now - 60 ))" >"$T/proc/stat"
+echo "c-902 $(( now - 120 )) 20261008T1815Z-master" >"$D/rotate.hold"
+[[ "$(able)" == "able=[102] why=[able]" && ! -e "$D/rotate.hold" ]] && grep -q 'rotate.hold on c-902 removed: the box booted after it' "$D/lease.log" &&
+  pass "8. a 3-field hold written before the last boot: able at once, the hold removed" || fail "8. boot: $(able) $(cat "$D/lease.log" 2>&1)"
+sleep 0 & gone=$!; wait "$gone"
+echo "c-902 $now 20261008T1815Z-master $gone" >"$D/rotate.hold"
+[[ "$(able)" == "able=[102] why=[able]" && ! -e "$D/rotate.hold" ]] && grep -q "rotate.hold on c-902 removed: its rotation pid $gone is gone" "$D/lease.log" &&
+  pass "8. a hold whose rotation pid is gone: able at once, the hold removed" || fail "8. pid: $(able) $(cat "$D/lease.log" 2>&1)"
+echo "c-902 $now 20261008T1815Z-master $$" >"$D/rotate.hold"
+[[ "$(able)" == "able=[] why=[held: rotation since "* && -e "$D/rotate.hold" ]] &&
+  pass "8. CONTROL: a live rotation's hold (pid alive, written after the boot) still holds" || fail "8. control: $(able)"
+rm -f "$T/proc/stat"
+echo "c-902 $now 20261008T1815Z-master" >"$D/rotate.hold"
+[[ "$(able)" == "able=[] why=[held: rotation since "* ]] &&
+  pass "8. CONTROL: a fresh 3-field hold, no btime readable: still held" || fail "8. control3: $(able)"
 
 # --- 9. resume + abort -----------------------------------------------------------------------------
 # a run killed at ACK: rebuild that state by hand (old 102 + new 2902, hold, ctx ACK)

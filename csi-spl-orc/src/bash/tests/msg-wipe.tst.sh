@@ -79,7 +79,7 @@ seed() { # <tenant> <n messages>: each with one delivery, one revision, one reac
   local t="$1" n="$2" i
   psql_owner <<PSQL >/dev/null
 INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('$t', decode(repeat('ab', 32), 'hex')) ON CONFLICT DO NOTHING;
-INSERT INTO pins (tenant_id, box_id, pubkey) VALUES ('$t', 'box-a', decode(repeat('cd', 32), 'hex'));
+INSERT INTO pins (tenant_id, box_id, pubkey) VALUES ('$t', 'box-a', decode(md5('$t/box-a') || md5('$t/box-a/2'), 'hex'));
 PSQL
   for i in $(seq 1 "$n"); do
     psql_owner <<PSQL >/dev/null

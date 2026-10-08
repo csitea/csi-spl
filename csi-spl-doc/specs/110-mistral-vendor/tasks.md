@@ -171,7 +171,7 @@ the owner's Team login on each box.
 
   All under `csi-spl-wui/`. Done: 7g + 7h (the initial JS delta, in the
   report).
-- [ ] T011 **doc** (needs nothing). Files:
+- [x] T011 **doc** (c-579; needs nothing). Files:
   - the 061 section 0 amendment (`specs/061-agent-id-rename/spec.md`, one
     dated line);
   - `doc/md/SPEC-spool-identity-routing.md`, `SPEC-spool-fleet-roles.md`,

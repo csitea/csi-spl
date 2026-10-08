@@ -138,6 +138,12 @@ How to apply:
   explicit pathspecs.
 - **Agent ceiling: 40 concurrent agent windows.** Count before spawning:
   ```bash
-  sudo -u ysg tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-1000/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
+  sudo -u ysg tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-1000/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
   ```
-  Agent ids follow the grammar in [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03) (`^[acgq]-[0-9]{3}$`, unique as `<ID>@<box>`; legacy ids end at `2026-10-03T20:59:59Z`).
+  Agent ids follow the grammar in [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03) (`^[acgmq]-[0-9]{3}$`, `m` = mistral since 2026-10-08, unique as `<ID>@<box>`; legacy ids end at `2026-10-03T20:59:59Z`).
+- **Data rule: personal data and secrets go to claude or mistral lanes only**
+  (owner, 2026-10-08, msg 803c3b38, [spec 110](csi-spl-doc/specs/110-mistral-vendor/spec.md)
+  D2). Credentials, keys and customer data never go to qwen (its provider is
+  Chinese), grok or agy, and a brief for those lanes never names a credential
+  path. `do_spl_lane_mix` still routes `LANE_MIX_KIND=secret` to claude; a
+  mistral lane for such work is a `/mistral-spawn` picked by hand.

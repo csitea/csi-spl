@@ -66,9 +66,9 @@ Nothing new. A seat is made of parts that already exist:
 ### 2.1 An agent id in the tmux window name
 
 Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
-`^[acgq]-[0-9]{3}$` (`c-001`..`c-003` role seats, `c-004`..`c-999` lane agents; legacy `CLE-` ids end at `2026-10-03T20:59:59Z`).
+`^[acgmq]-[0-9]{3}$` (`c-001`..`c-003` role seats, `c-004`..`c-999` lane agents; legacy `CLE-` ids end at `2026-10-03T20:59:59Z`).
 
-The seat is keyed by the id in the window name, `^[acgq]-[0-9]{3}$` (legacy `^[A-Z]{2,4}-[0-9]+$` until 2026-10-03T20:59:59Z)
+The seat is keyed by the id in the window name, `^[acgmq]-[0-9]{3}$` (legacy `^[A-Z]{2,4}-[0-9]+$` until 2026-10-03T20:59:59Z)
 (`c-004`, or `<ID>@<box-tag>`, older `<box-tag>: c-004`). A window named
 `sudo` or `bash` is not an agent and is never seated.
 

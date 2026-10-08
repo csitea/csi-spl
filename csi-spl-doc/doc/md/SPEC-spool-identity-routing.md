@@ -31,9 +31,9 @@ Display names, tmux titles, and OS users are **not** identities.
 ## 2. Agent ids
 
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
-`^[acgq]-[0-9]{3}$` (lower case letter followed by 3 digits `004`..`999`).
+`^[acgmq]-[0-9]{3}$` (lower case letter followed by 3 digits `004`..`999`; `m` added 2026-10-08 by [spec 110](../../specs/110-mistral-vendor/spec.md)).
 Legacy agent ids (`^(CLE|AGY|GRK|QWN)-[0-9]+$`) end at `2026-10-03T20:59:59Z`.
-Roles `001`..`003` are reserved seats (`c-001` orchestrator, `c-002` master dispatcher, `c-003` failover dispatcher; `a-001`, `g-001`, `q-001` never handed out).
+Roles `001`..`003` are reserved seats (`c-001` orchestrator, `c-002` master dispatcher, `c-003` failover dispatcher; `a-001`, `g-001`, `q-001`, `m-001` never handed out).
 
 Reserved prefixes / letters:
 
@@ -43,6 +43,7 @@ Reserved prefixes / letters:
 | `g-` (legacy `GRK-`) | Grok |
 | `a-` (legacy `AGY-`) | Antigravity |
 | `q-` (legacy `QWN-`) | Qwen Code |
+| `m-` (no legacy prefix) | Mistral Vibe |
 | `HUM-` | human operator (viewer / rare sender; not required in 002) |
 | `BOX-` | forbidden as an agent prefix (box id lives in env, not in `from`) |
 

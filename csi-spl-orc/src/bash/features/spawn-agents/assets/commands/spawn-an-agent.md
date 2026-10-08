@@ -4,11 +4,12 @@ description: >
   Route a piece of work to the right agent launcher and spawn it. Name the
   task kind, then let do_spl_lane_mix pick from the box's vendor split
   (cnf env.box.agent_split): spec work to /agy-spawn, secrets and the most
-  complex coding to /claude-spawn, everything else to /grok-spawn. An omitted
-  kind and an omitted difficulty are that default (grok), not claude. Use when
-  the user says "spawn an agent", "give this to an agent", or hands you work that
-  belongs in another lane. A leading c-NNN / g-NNN / a-NNN / q-NNN id (or a legacy CLE-nn) sends
-  the rest to that agent instead.
+  complex coding to /claude-spawn, everything else to the larger of the grok
+  and mistral shares (/grok-spawn or /mistral-spawn). An omitted kind and an
+  omitted difficulty are that default, not claude. Use when the user says
+  "spawn an agent", "give this to an agent", or hands you work that belongs in
+  another lane. A leading c-NNN / g-NNN / a-NNN / q-NNN / m-NNN id (or a legacy
+  CLE-nn) sends the rest to that agent instead.
 ---
 
 # /spawn-an-agent — pick the launcher, then spawn
@@ -18,7 +19,7 @@ spawn steps in this turn, and report which one you picked and why.
 
 ## 1. Message mode
 
-If the first word is an agent id (`c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, or a legacy `CLE-nn`), send
+If the first word is an agent id (`c-NNN`, `g-NNN`, `a-NNN`, `q-NNN`, `m-NNN`, or a legacy `CLE-nn`), send
 the rest to that agent (section 2 of its launcher command) and stop.
 
 ## 2. Pick the launcher
@@ -32,23 +33,25 @@ cd {{HARNESS_DIR}}/../../../.. && LANE_MIX_KIND=<spec|secret|hard|> LANE_MIX_DIF
 ```
 
 Its last line, `pick=<vendor> launcher=/<vendor>-spawn reason=...`, is the
-launcher. The split is cnf `env.box.agent_split` (all.env.yaml: claude 20,
-grok 55, agy 25, each +/- 5 over the box's last 20 spawns), an approximate
-ratio, never a quota:
+launcher. The split is cnf `env.box.agent_split` (all.env.yaml: claude,
+grok, agy, qwen and mistral, each +/- 5 over the box's last 20 spawns), an
+approximate ratio, never a quota. Mistral takes grok's share (spec 110 D1):
+`grok: 55` becomes `mistral: 55, grok: 0`.
 
 | the task | goes to |
 |---|---|
 | spec writing or spec review: `LANE_MIX_KIND=spec` | agy |
-| personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude, always |
+| personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude; mistral may take it too (spec 110 D2), but only when you pick `/mistral-spawn` by hand. Never qwen |
 | the most complex coding: `LANE_MIX_KIND=hard`, or difficulty 60 or more | claude |
-| everything else, tests included: kind unset or `default`, difficulty omitted | grok |
+| everything else, tests included: kind unset or `default`, difficulty omitted | the larger share of grok and mistral (mistral once the share has moved) |
 | under 60%, kind unset: easy, mechanical, well specified | the vendor furthest below its share by more than the tolerance; inside the band, the largest non-claude share |
 
 A vendor whose CLI is not installed or not signed in on this box is skipped
-and its share goes to claude (a spec with no agy there goes to claude). An
-estimate near the line counts as harder than it looks. Omitting the
-difficulty is the default, grok, not a hard task. A user who names a
-launcher wins over the pick.
+and its share goes to claude (a spec with no agy there goes to claude).
+mistral is the exception (spec 110 D4): a box without `~/.vibe/.env` passes
+its pick down the chain mistral -> agy -> claude. An estimate near the line
+counts as harder than it looks. Omitting the difficulty is the default, not
+a hard task. A user who names a launcher wins over the pick.
 
 ## 3. Before spawning
 

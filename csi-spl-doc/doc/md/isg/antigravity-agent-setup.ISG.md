@@ -79,7 +79,7 @@ strip, a prompt poke, and the `csi-spl-orc` desk actions. See
 ### 2.1 An id in the window name
 
 Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
-`^[acgq]-[0-9]{3}$` (`a-004`..`a-999`; legacy `AGY-` ids end at `2026-10-03T20:59:59Z`).
+`^[acgmq]-[0-9]{3}$` (`a-004`..`a-999`; legacy `AGY-` ids end at `2026-10-03T20:59:59Z`).
 
 `a-NNN` (legacy `AGY-<n>`). `/agy-spawn` names the window; a hand-started agy needs its window
 renamed to carry the id, or it is never seated.

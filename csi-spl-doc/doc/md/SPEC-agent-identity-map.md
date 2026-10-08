@@ -20,7 +20,7 @@ replaces them as the source of truth. Names become derived output.
 ## 2. The record
 
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
-`^[acgq]-[0-9]{3}$` (`c-`, `a-`, `g-`, `q-` with 3 digits `004`..`999`; role seats `001`..`003`). Legacy ids end at `2026-10-03T20:59:59Z`.
+`^[acgmq]-[0-9]{3}$` (`c-`, `a-`, `g-`, `q-`, `m-` with 3 digits `004`..`999`; role seats `001`..`003`). Legacy ids end at `2026-10-03T20:59:59Z`.
 
 2.1 There is one file per agent, `$SPOOL_ROOT/agents/<ID>.json`. Each is
 written atomically (temp file plus rename) by `do_spl_agent_identity_record`,
@@ -29,7 +29,7 @@ and by nothing else.
 | field | from |
 |---|---|
 | `id` | `SPOOL_AGENT_ID` (else `MCP_BOT_AGENT_ID`) in the process environment |
-| `kind` | the CLI's argv[0] (claude, grok, agy, qwen) |
+| `kind` | the CLI's argv[0] (claude, grok, agy, qwen, vibe = mistral) |
 | `session_id` | the process's own `~/.claude/sessions/<pid>.json` (its start time must match), else `--session-id` / `--resume` |
 | `worktree` | the session file's cwd, else `/proc/<pid>/cwd` |
 | `session_name` | the session file's `name` (`--name`, `/rename`) |

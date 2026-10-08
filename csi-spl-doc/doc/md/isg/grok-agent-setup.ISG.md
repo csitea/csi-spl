@@ -37,9 +37,9 @@ poke, and the `csi-spl-orc` desk actions. See `claude-agent-setup.ISG.md` §1.
 ### 2.1 An id in the window name
 
 Agent ids follow the grammar in [spec 061 section 0](../../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
-`^[acgq]-[0-9]{3}$` (`g-001`..`g-003` role seats, `g-004`..`g-999` lane agents; legacy `GRK-` ids end at `2026-10-03T20:59:59Z`).
+`^[acgmq]-[0-9]{3}$` (`g-001`..`g-003` role seats, `g-004`..`g-999` lane agents; legacy `GRK-` ids end at `2026-10-03T20:59:59Z`).
 
-The seat is keyed by the id in the window name, `^[acgq]-[0-9]{3}$` (legacy `^[A-Z]{2,4}-[0-9]+$` until 2026-10-03T20:59:59Z)
+The seat is keyed by the id in the window name, `^[acgmq]-[0-9]{3}$` (legacy `^[A-Z]{2,4}-[0-9]+$` until 2026-10-03T20:59:59Z)
 (`g-004`, or `<ID>@<box-tag>`, older `<box-tag>: g-004`). `/grok-spawn` names the window; a hand-started grok needs its window
 renamed to carry the id, or it is never seated.
 

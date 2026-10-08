@@ -3,10 +3,15 @@
 # (specs/048-agent-harness-parity §3.1). Columns: reference path, disposition,
 # target (a path relative to this feature dir, a spool issue key for
 # deferred, or the reason for excluded). tests/test-harness-parity.sh checks it.
+# Two dispositions name files the frozen reference never had (a kind added
+# after the freeze, e.g. mistral, specs/110-mistral-vendor): added (the target
+# exists here) and planned (target = the building task, spec<NNN>:T<NNN>; the
+# row flips to added when that task lands). The drift check skips both.
 FROZEN.md	excluded	the freeze notice itself: this feature is the canonical copy
 assets/commands/agy-spawn.md	ported	assets/commands/agy-spawn.md
 assets/commands/claude-spawn.md	ported	assets/commands/claude-spawn.md
 assets/commands/grok-spawn.md	ported	assets/commands/grok-spawn.md
+assets/commands/mistral-spawn.md	added	assets/commands/mistral-spawn.md
 assets/commands/qwen-spawn.md	ported	assets/commands/qwen-spawn.md
 assets/commands/riname.md	ported	assets/commands/riname.md
 assets/commands/spawn-an-agent.md	ported	assets/commands/spawn-an-agent.md
@@ -63,6 +68,7 @@ scripts/restore-agy.sh	ported	scripts/restore-agy.sh
 scripts/restore-claude-plain.sh	ported	scripts/restore-claude-plain.sh
 scripts/restore-claude.sh	ported	scripts/restore-claude.sh
 scripts/restore-grok.sh	ported	scripts/restore-grok.sh
+scripts/restore-mistral.sh	planned	spec110:T007
 scripts/restore-qwen.sh	ported	scripts/restore-qwen.sh
 scripts/riname.sh	ported	scripts/riname.sh
 scripts/spawn-agy.sh	ported	scripts/spawn-agy.sh
@@ -73,6 +79,7 @@ scripts/spawn-core.inc.sh	ported	scripts/spawn-core.inc.sh
 scripts/spawn-grok-chain.sh	ported	scripts/spawn-grok-chain.sh
 scripts/spawn-grok-task.sh	ported	scripts/spawn-grok-task.sh
 scripts/spawn-grok.sh	ported	scripts/spawn-grok.sh
+scripts/spawn-mistral.sh	planned	spec110:T005
 scripts/spawn-qwen.sh	ported	scripts/spawn-qwen.sh
 scripts/spawn-window.sh	ported	scripts/spawn-window.sh
 scripts/tmux-close-window.sh	ported	scripts/tmux-close-window.sh

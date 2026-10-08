@@ -27,6 +27,8 @@ disgarded at the end of today". Moved back one day by the owner, 2026-10-02
 `c-NNN@<box>` (section 3.3.1, lane L1b), and only then does per-box numbering
 start. The satellite keeps its current ids until the hub keys on `@box`.
 
+**Amended 2026-10-08 ([spec 110](../110-mistral-vendor/spec.md) section 3.1):** the letter set gains `m` (mistral), so the agent id grammar is `^[acgmq]-[0-9]{3}$` (`^[acgmq]-[0-9]{3}@<box>` at a box); no `MST-` legacy prefix exists.
+
 ## 1. Owner decisions (binding, 2026-10-02 ~05:55Z)
 
 | # | decision |

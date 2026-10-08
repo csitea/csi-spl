@@ -9,7 +9,7 @@ takes a post answers it and owns that topic.
 ## 1. Roles
 
 Agent ids follow the grammar in [spec 061 section 0](../../specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03):
-`^[acgq]-[0-9]{3}$`. Roles `001`..`003` are claimed (`--claim`), never allocated. Legacy `CLE-` ids end at `2026-10-03T20:59:59Z`.
+`^[acgmq]-[0-9]{3}$` (`m` = mistral since 2026-10-08, [spec 110](../../specs/110-mistral-vendor/spec.md)). Roles `001`..`003` are claimed (`--claim`), never allocated. Legacy `CLE-` ids end at `2026-10-03T20:59:59Z`.
 
 | id | role | does | never does |
 |---|---|---|---|

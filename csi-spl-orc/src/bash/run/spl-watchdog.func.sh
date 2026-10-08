@@ -205,7 +205,7 @@ spl_wd_tick() {
   fi
   spl_wd_log_trim
   # the first tick after a self-update exec is its self-check (10.4.4)
-  spl_wd_upd_checked "$tick"
+  spl_wd_upd_checked "$tick" "$now"
   return 0
 }
 

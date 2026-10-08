@@ -19,7 +19,8 @@
 #      candidate is out (never the candidate); the self-check verdict is the
 #      tick's result: a correct tick past WD_UPD_CHECK_MAX (a loaded box)
 #      passes, a tick with a script error fails (control), a tick past the
-#      hang bound WD_UPD_STEP_MAX fails, and a check that never ends is
+#      hang bound WD_UPD_STEP_MAX fails, a check is timed from its own tick
+#      start (an older exec's T0 before its pre-flight is ignored), and a check that never ends is
 #      failed by a peer at WD_UPD_STEP_MAX
 #   2. bootstrap: no code/good -> instance 1 snapshots the sha it runs, good
 #      := it, nothing restarts
@@ -256,7 +257,7 @@ wait "$JH"
 X=9999999999999999999999999999999999999999
 chk='mkdir -p "$WD_DIR/tick.u"; echo "${ERRLINE:-}" > "$WD_DIR/tick.u/err"; echo "c-901 ok" > "$WD_DIR/tick.u/out.c-901"
   WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$n start=$n" > "$WD_DIR/update.state"
-  WD_UPD_EXEC=$X WD_UPD_ROLE=forward WD_UPD_T0=$(( n - AGO )); spl_wd_upd_checked "$WD_DIR/tick.u"
+  WD_UPD_EXEC=$X WD_UPD_ROLE=forward WD_UPD_T0=$(( n - AGO )); spl_wd_upd_checked "$WD_DIR/tick.u" ${TSTART:+$(( n - TSTART ))}
   echo "STATE $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"'
 out="$(lib "$chk" X=$X AGO=30 DRY_RUN=1 WD_UPD_CHECK_MAX=20 WD_UPD_STEP_MAX=45)"
 [[ "$out" == *"STATE sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD ' <<<"$out" && grep -q "on ${X:0:9}: self-check tick green in 30s" "$LOG" &&
@@ -267,6 +268,11 @@ out="$(lib "$chk" X=$X AGO=1 ERRLINE="s1.sh: line 3: nosuchcmd: command not foun
 out="$(lib "$chk" X=$X AGO=60 DRY_RUN=1 WD_UPD_STEP_MAX=45)"
 [[ "$out" == *"BAD instance 1 failed its self-check tick: self-check tick took 60s (hang bound 45s)"* ]] &&
   pass "1 a correct tick that ends past the hang bound is red, quarantined" || fail "1 hang verdict: $out"
+# an older code's exec set T0 before its pre-flight (60 s back): the check
+# is timed from its own tick start (5 s), green
+out="$(lib "$chk" X=$X AGO=60 TSTART=5 DRY_RUN=1 WD_UPD_STEP_MAX=45)"
+[[ "$out" == *"STATE sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD ' <<<"$out" && grep -q "on ${X:0:9}: self-check tick green in 5s" "$LOG" &&
+  pass "1 timed from the check tick's start, not a stale exec T0 (60 s back -> green in 5 s)" || fail "1 tick start: $out"
 # a check that never ends: a peer fails it at WD_UPD_STEP_MAX (spl_wd_upd_baton)
 out="$(lib 'n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=1 since=$(( n - 60 )) start=$(( n - 60 ))" > "$WD_DIR/update.state"
   WD_INST=2; spl_wd_self_update "$n"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"' X=$X DRY_RUN=1 WD_UPD_STEP_MAX=45)"

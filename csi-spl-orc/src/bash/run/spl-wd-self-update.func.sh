@@ -331,11 +331,13 @@ spl_wd_upd_exec() {
   return 0
 }
 
-# spl_wd_upd_checked TICK: the end of the first tick after an exec: the
+# spl_wd_upd_checked TICK [START]: the end of the first tick after an exec
+# (START: that tick's own start, timed from there and not from the exec's
+# WD_UPD_T0, which a pre-flight in an older exec code can push back): the
 # self-check. Green -> baton to the next instance (or code/good after 3);
 # red -> quarantine and back to good.
 spl_wd_upd_checked() {
-  local tick="$1" now took sha="${WD_UPD_EXEC:-}" role="${WD_UPD_ROLE:-}" t0="${WD_UPD_T0:-0}" why n
+  local tick="$1" now took sha="${WD_UPD_EXEC:-}" role="${WD_UPD_ROLE:-}" t0="${2:-${WD_UPD_T0:-0}}" why n
   [[ -n "$sha" ]] || return 0
   unset WD_UPD_EXEC WD_UPD_ROLE WD_UPD_T0
   now="$(spl_lease_now)"

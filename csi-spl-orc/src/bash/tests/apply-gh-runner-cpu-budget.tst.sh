@@ -13,6 +13,9 @@
 #      and a start; a busy one
 #      (a Runner.Worker in its cgroup) gets the drop-in and waits; a runner
 #      already in the slice is left alone
+#   5. concurrency (c-551): one idle runner over quota / 150% is parked, a busy
+#      one never; a parked runner comes back once the quota feeds it + 50%,
+#      not inside that band; a runner a person stopped is never started
 #   4. the cron script runs the action with DRY_RUN=0 and refuses a worktree;
 #      the installer writes ONE tagged line, keeps the others, removes its own
 #   No real cgroup, systemd, crontab or sudo: a fixture cgroup tree and stubs.
@@ -36,11 +39,13 @@ cat >"$T/bin/systemctl" <<'EOF'
 case "$1" in
   list-units) cat "$T/units.list" 2>/dev/null; exit 0 ;;
   daemon-reload|stop|kill|start|set-property) echo "systemctl $*" >>"$SYSD_LOG"
-    [[ "$1" == start ]] && echo "/user.slice/user-1500.slice/$2" >"$T/cgof-$2"; exit 0 ;;
+    [[ "$1" == start ]] && echo "/user.slice/user-1500.slice/$2" >"$T/cgof-$2" && echo active >"$T/state-$2"
+    [[ "$1" == stop ]] && echo inactive >"$T/state-$2"; exit 0 ;;
   show) case "$4" in
       ControlGroup) cat "$T/cgof-$2" 2>/dev/null ;;
       Slice) echo system.slice ;;
       CPUQuotaPerSecUSec) echo infinity ;;
+      ActiveState) cat "$T/state-$2" 2>/dev/null || echo active ;;
     esac; exit 0 ;;
 esac
 exit 0
@@ -54,7 +59,8 @@ chmod +x "$T/bin/"*
 set_usage() { printf 'usage_usec %s\n' "$1" >"$T/cg/cpu.stat"; printf 'usage_usec %s\n' "$2" >"$T/cg/user.slice/user-1500.slice/cpu.stat"; }
 run_budget() {
   env PATH="$T/bin:$PATH" CPU_BUDGET_CGROUP_ROOT="$T/cg" CPU_BUDGET_UNIT_DIR="$T/units" \
-    CPU_BUDGET_SYSTEMCTL=systemctl CPU_BUDGET_SUDO=env CPU_BUDGET_SAMPLE_S=10 SPOOL_ROOT="$T/spool" "$@" bash -c '
+    CPU_BUDGET_SYSTEMCTL=systemctl CPU_BUDGET_SUDO=env CPU_BUDGET_SAMPLE_S=10 SPOOL_ROOT="$T/spool" \
+    CPU_BUDGET_PER_RUNNER_PCT=0 CPU_BUDGET_STATE_DIR="$T/state" "$@" bash -c '
     set -uo pipefail
     do_log() { printf "%s\n" "$*"; }
     spl_desk_box_default() { echo sat; }
@@ -73,7 +79,7 @@ set_usage 1000 500
 out="$(run_budget DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'nothing to budget'* && ! -s "$SYSD_LOG" ]] &&
   pass "no runner unit: exit 0, nothing touched" || fail "no runner (rc=$rc): $out"
-for bad in "CPU_BUDGET_BOX_PCT=101" "CPU_BUDGET_BOX_PCT=0" "CPU_BUDGET_MIN_PCT=x" "CPU_BUDGET_SAMPLE_S=0" "DRY_RUN=2"; do
+for bad in "CPU_BUDGET_PER_RUNNER_PCT=x" "CPU_BUDGET_HYST_PCT=-1" "CPU_BUDGET_BOX_PCT=101" "CPU_BUDGET_BOX_PCT=0" "CPU_BUDGET_MIN_PCT=x" "CPU_BUDGET_SAMPLE_S=0" "DRY_RUN=2"; do
   out="$(run_budget "$bad")"; rc=$?
   [[ $rc -ne 0 && "$out" == *FATAL* ]] && pass "$bad is refused" || fail "$bad (rc=$rc): $out"
 done
@@ -157,6 +163,40 @@ kill "$WPID"; wait "$WPID" 2>/dev/null; WPID=""
 out="$(run_budget DRY_RUN=0 OTHER=1)"; rc=$?
 [[ $rc -eq 0 && "$(head -1 "$SYSD_LOG")" == "systemctl stop $U2" && "$(grep -c start "$SYSD_LOG")" == 1 && "$(grep -c daemon-reload "$SYSD_LOG")" == 0 ]] &&
   pass "the busy runner moves on the next tick once idle, with no second reload" || fail "later move (rc=$rc): $out / $(cat "$SYSD_LOG")"
+
+# 5. concurrency ---------------------------------------------------------------------
+: >"$SYSD_LOG"; rm -f "$T/state-"*
+US=()
+for i in 1 2 3 4 5 6; do US+=("actions.runner.o.box-spl-0$i.service"); done
+printf '%s loaded active running GitHub Actions Runner\n' "${US[@]}" >"$T/units.list"
+for u in "${US[@]}"; do echo "/user.slice/user-1500.slice/$u" >"$T/cgof-$u"; mkdir -p "$T/cg/user.slice/user-1500.slice/$u"; done
+cap() { run_budget CPU_BUDGET_PER_RUNNER_PCT=150 "$@"; }
+out="$(cap OTHER=6)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'CAP online=6 of 6 runner(s), the quota feeds 4 at 150% each'* && "$out" == *"PLAN park ${US[5]}"* && ! -s "$SYSD_LOG" && ! -e "$T/state/parked" ]] &&
+  pass "dry run: 680% feeds 4 of 6 runners, names the park, touches nothing" || fail "cap dry (rc=$rc): $out"
+out="$(cap DRY_RUN=0 OTHER=6)"; rc=$?
+[[ $rc -eq 0 && "$(tail -1 "$SYSD_LOG")" == "systemctl stop ${US[5]}" && "$(grep -c stop "$SYSD_LOG")" == 1 && "$(cat "$T/state/parked")" == "${US[5]}" && "$out" == *"PARKED ${US[5]}"* ]] &&
+  pass "apply: ONE idle runner parked per tick (stopped, listed as ours)" || fail "cap park (rc=$rc): $out / $(cat "$SYSD_LOG")"
+: >"$SYSD_LOG"
+"$T/Runner.Worker" 60 & WPID=$!
+for u in "${US[@]:0:5}"; do echo "$WPID" >"$T/cg/user.slice/user-1500.slice/$u/cgroup.procs"; done
+out="$(cap DRY_RUN=0 OTHER=6)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c stop "$SYSD_LOG")" == 0 && "$out" == *'CAP online=5 of 6'* ]] &&
+  pass "every online runner busy: none is parked (a job is never stopped)" || fail "cap busy (rc=$rc): $out / $(cat "$SYSD_LOG")"
+kill "$WPID"; wait "$WPID" 2>/dev/null; WPID=""
+rm -f "$T/cg/user.slice/user-1500.slice/"*/cgroup.procs
+: >"$SYSD_LOG"
+out="$(cap DRY_RUN=0 OTHER=4)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c -e stop -e ' start' "$SYSD_LOG")" == 0 && "$(cat "$T/state/parked")" == "${US[5]}" ]] &&
+  pass "880% < 6 * 150 + 50: the parked runner stays parked (no flapping)" || fail "cap hyst (rc=$rc): $out / $(cat "$SYSD_LOG")"
+: >"$SYSD_LOG"
+out="$(cap DRY_RUN=0 OTHER=0)"; rc=$?
+[[ $rc -eq 0 && "$(tail -1 "$SYSD_LOG")" == "systemctl start ${US[5]}" && ! -s "$T/state/parked" && "$out" == *"UNPARKED ${US[5]}"* ]] &&
+  pass "1280% >= 950%: the parked runner is started and unlisted" || fail "cap unpark (rc=$rc): $out / $(cat "$SYSD_LOG")"
+: >"$SYSD_LOG"; echo inactive >"$T/state-${US[4]}"
+out="$(cap DRY_RUN=0 OTHER=0)"; rc=$?
+[[ $rc -eq 0 && "$(grep -c ' start' "$SYSD_LOG")" == 0 && "$out" == *'CAP online=5 of 6'* ]] &&
+  pass "a runner a person stopped (not parked by us) is never started" || fail "cap foreign (rc=$rc): $out / $(cat "$SYSD_LOG")"
 
 # 4. cron script + installer -------------------------------------------------------
 SH="$T/shared"

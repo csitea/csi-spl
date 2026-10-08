@@ -17,6 +17,16 @@
 # @description from cgroup v2 cpu.stat twice CPU_BUDGET_SAMPLE_S apart.
 # @description The quota is set --runtime (no /etc churn every minute): the
 # @description cron of do_setup_gh_runner_cpu_budget_cron re-applies it.
+# @description Concurrency (c-551): a quota split over more jobs than it can
+# @description feed starves every wall-clock bound in the suites (2026-10-08:
+# @description green runs had >= 1.6 cores per busy runner, the 5/5 red ones
+# @description 1.1..1.2). So at most quota / CPU_BUDGET_PER_RUNNER_PCT runners
+# @description stay online (at least 1): one idle runner over that is parked
+# @description (stopped, never deregistered: GitHub hands the job to the next
+# @description free runner), one parked runner is started again once the
+# @description quota feeds it plus CPU_BUDGET_HYST_PCT. One step per tick, a
+# @description busy runner is never touched, and only a runner this action
+# @description parked (CPU_BUDGET_STATE_DIR/parked) is ever started again.
 # @description A box with no runner unit: nothing to do, exit 0.
 # @description Dry run unless DRY_RUN=0 (prints the plan). Needs sudo.
 # @param GH_RUNNER_USER (optional) - the runners' OS user, default ghrunner
@@ -26,6 +36,11 @@
 # @param   the fleet's; no fleet, no answer or no value: 80
 # @param CPU_BUDGET_MIN_PCT (optional) - the floor in % of one core, default 100
 # @param CPU_BUDGET_SAMPLE_S (optional) - 1..120 seconds, default 20
+# @param CPU_BUDGET_PER_RUNNER_PCT (optional) - % of one core one online runner
+# @param   needs, default 150; 0 turns the concurrency cap off
+# @param CPU_BUDGET_HYST_PCT (optional) - headroom before a parked runner comes
+# @param   back, default 50 (no park/start flapping on a noisy minute)
+# @param CPU_BUDGET_STATE_DIR (optional) - default /var/tmp/gh-runner-cpu-budget
 # @param CPU_BUDGET_CGROUP_ROOT (optional, tests) - default /sys/fs/cgroup
 # @param CPU_BUDGET_UNIT_DIR (optional, tests) - drop-ins, default /etc/systemd/system
 # @param CPU_BUDGET_SYSTEMCTL (optional, tests) - default "sudo systemctl"
@@ -42,7 +57,11 @@ ghrb_init() {
   GHRB_WAIT="${CPU_BUDGET_SAMPLE_S:-20}" GHRB_CG="${CPU_BUDGET_CGROUP_ROOT:-/sys/fs/cgroup}"
   GHRB_UNIT_DIR="${CPU_BUDGET_UNIT_DIR:-/etc/systemd/system}"
   GHRB_SYSTEMCTL="${CPU_BUDGET_SYSTEMCTL:-sudo systemctl}" GHRB_SUDO="${CPU_BUDGET_SUDO:-sudo}"
+  GHRB_PER="${CPU_BUDGET_PER_RUNNER_PCT:-150}" GHRB_HYST="${CPU_BUDGET_HYST_PCT:-50}"
+  GHRB_STATE="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}"
   [[ "$GHRB_DRY" == 0 || "$GHRB_DRY" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
+  [[ "$GHRB_PER" =~ ^(0|[1-9][0-9]{0,3})$ ]] || { do_log "FATAL CPU_BUDGET_PER_RUNNER_PCT must be 0..9999, got: '$GHRB_PER'"; return 1; }
+  [[ "$GHRB_HYST" =~ ^(0|[1-9][0-9]{0,3})$ ]] || { do_log "FATAL CPU_BUDGET_HYST_PCT must be 0..9999, got: '$GHRB_HYST'"; return 1; }
   [[ "$GHRB_MIN" =~ ^[1-9][0-9]{0,4}$ ]] || { do_log "FATAL CPU_BUDGET_MIN_PCT must be a positive number, got: '$GHRB_MIN'"; return 1; }
   [[ "$GHRB_WAIT" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL CPU_BUDGET_SAMPLE_S must be 1..99, got: '$GHRB_WAIT'"; return 1; }
 }
@@ -136,6 +155,32 @@ ghrb_size() {
     printf "%d", int(q / 10) * 10 }'
 }
 
+# ghrb_cap <quota> <unit...> - the online runners fit the quota: park one idle
+# runner over quota / GHRB_PER, or start one parked runner once the quota feeds
+# it plus GHRB_HYST (see the header). A runner a person stopped is not ours
+ghrb_cap() {
+  local quota="$1" u on=0 cap last="" first="" parked="$GHRB_STATE/parked"; shift
+  [[ "$GHRB_PER" == 0 ]] && return 0
+  for u in "$@"; do
+    [[ "$($GHRB_SYSTEMCTL show "$u" -p ActiveState --value 2>/dev/null)" == active ]] || continue
+    on=$((on + 1)); ghrb_busy "$u" || last="$u"
+  done
+  cap=$((quota / GHRB_PER)); ((cap < 1)) && cap=1
+  [[ -r "$parked" ]] && first="$(head -1 "$parked")"
+  echo "CAP online=$on of $# runner(s), the quota feeds $cap at ${GHRB_PER}% each"
+  if ((on > cap)) && [[ -n "$last" ]]; then
+    [[ "$GHRB_DRY" == 1 ]] && { echo "PLAN park $last"; return 0; }
+    mkdir -p "$GHRB_STATE" && echo "$last" >>"$parked" || { do_log "FATAL cannot write $parked"; return 1; }
+    $GHRB_SYSTEMCTL stop "$last" || { do_log "FATAL cannot park $last"; return 1; }
+    echo "PARKED $last (idle; $on online > $cap)"
+  elif [[ -n "$first" ]] && ((quota >= (on + 1) * GHRB_PER + GHRB_HYST)); then
+    [[ "$GHRB_DRY" == 1 ]] && { echo "PLAN start parked $first"; return 0; }
+    $GHRB_SYSTEMCTL start "$first" || { do_log "FATAL cannot start parked $first"; return 1; }
+    grep -vxF "$first" "$parked" >"$parked.new"; mv "$parked.new" "$parked"
+    echo "UNPARKED $first (the quota feeds $((on + 1)))"
+  fi
+}
+
 do_apply_gh_runner_cpu_budget() {
   local user="${GH_RUNNER_USER:-ghrunner}" uid slice cores r0 s0 r1 s1 other quota cur
   local -a units
@@ -156,8 +201,9 @@ do_apply_gh_runner_cpu_budget() {
   quota="$(ghrb_size "$cores" "$other" "$((GHRB_WAIT * 1000000))")"
   cur="$($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null)"
   echo "BUDGET cores=$cores ceiling=${GHRB_BOX}% ($GHRB_SRC) others=$(awk -v o="$other" -v w="$GHRB_WAIT" 'BEGIN {printf "%.2f", o / w / 1e6}') cores over ${GHRB_WAIT}s -> $slice CPUQuota=${quota}% (was ${cur:-unknown})"
-  if [[ "$GHRB_DRY" == 1 ]]; then do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0; fi
+  if [[ "$GHRB_DRY" == 1 ]]; then ghrb_cap "$quota" "${units[@]}"; do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0; fi
   $GHRB_SYSTEMCTL set-property --runtime "$slice" CPUQuota="${quota}%" ||
     { do_log "FATAL cannot set CPUQuota on $slice"; return 1; }
   do_log "OK $slice CPUQuota=${quota}% ($($GHRB_SYSTEMCTL show "$slice" -p CPUQuotaPerSecUSec --value 2>/dev/null))"
+  ghrb_cap "$quota" "${units[@]}"
 }

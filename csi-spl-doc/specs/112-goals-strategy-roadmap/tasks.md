@@ -32,11 +32,12 @@ and prd BEFORE STORE-1/HUB-1 ship; WUI-1 after ORC-1; WUI-2 after HUB-1.
 
 ## 3. Data model and hub
 
-- [ ] **RDB-1**: Migration `<next>_calendar_source_key.sql` (spec 4.2).
+- [x] **RDB-1**: Migration `<next>_calendar_source_key.sql` (spec 4.2).
   - Depends: none. Apply to dev and prd before STORE-1/HUB-1 deploy.
   - Owns: `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_calendar_source_key.sql` (claim the number at build time; `ls … | tail -1` -> `0155_mistral_kind.sql` today).
   - Done: `calendar_events.source_key text NULL`, partial unique index `(tenant_id, source_key) WHERE source_key IS NOT NULL`, `kind` CHECK widened with `goal` and `milestone`; forward-only and additive; the migration catalogue gate is green. Control: inserting two rows with the same `(tenant_id, source_key)` fails; two NULL keys succeed.
   - Vendor: claude. Box: one with docker Postgres.
+  - Landed: `0156_calendar_source_key.sql` in `961dbaaaf` (v4.0.1), test `TestCalendarSourceKey0156` (n=8 inserts; control: a non-unique index turns it red). `/version` schema_head `0156_calendar_source_key.sql` on dev and prd.
 
 - [ ] **STORE-1**: Store support for synced events (spec 4.2, 4.3).
   - Depends: RDB-1.

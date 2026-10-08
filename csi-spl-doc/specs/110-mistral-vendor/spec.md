@@ -1,7 +1,9 @@
 # Spec 110: Mistral as the 5th agent vendor (Mistral Vibe CLI)
 
-Version **v0.1** (draft, seat 1 claude c-569, 2026-10-08). Review seats and
-the fold to v1.0: section 9. Build tasks: [tasks.md](tasks.md).
+Version **v1.0** (2026-10-08). Drafted by seat 1 (claude c-569) as v0.1.
+All three review seats agreed, and every change they asked for is folded in
+(section 9). The build lanes start on this consensus. Build tasks:
+[tasks.md](tasks.md).
 
 ## 0. Owner asks and decisions (verbatim, HUM-10, t1 topic 5c3bb16a)
 
@@ -13,6 +15,8 @@ the fold to v1.0: section 9. Build tasks: [tasks.md](tasks.md).
 | 99423692 | "so ideas how-to install it , how-to integrate it , implementations - needs to be added to the settings etc." |
 | f4fd88fc | "I am considering the Mistral to take the place of grok even for now , because there seems to be some kind of problem with the payment of the overlimit for grok , it should have taken minutes , but it took several hoours" |
 | **3393f016** | **DECIDED**: "so add it and so that it takes the current allocations from grok" |
+| **803c3b38** | **DECIDED**: "q1 yes , q2 b , q3 b" (to the section 8 questions) |
+| 1b27e902 | the owner bought a yearly Team subscription |
 
 **Decision D1 (msg 3393f016): Mistral takes grok's place.**
 
@@ -28,6 +32,18 @@ the fold to v1.0: section 9. Build tasks: [tasks.md](tasks.md).
 
 Grok is not removed: D1 is a share move, which is reversible from the
 settings screen.
+
+**Decisions D2-D4 (msg 803c3b38).** Owner order is final. Each overrides
+the (a) that all three review seats had picked:
+
+- **D2 (Q1 = b).** Mistral lanes may take personal-data and secret work
+  (section 6).
+- **D3 (Q2 = b).** Team plan, bought yearly (msg 1b27e902), with one seat
+  per box (sections 2.3 and 5).
+- **D4 (Q3 = b).** The share moves NOW. T013 follows T001 + T003 + T013a,
+  not T014.
+  - Until a box has the Mistral login, mistral is skipped there and its
+    pick falls to agy, then claude (section 3.5).
 
 ## 1. Goals
 
@@ -76,7 +92,8 @@ python source at 2.26.0.
 - **Hook output.** Whether a `post_tool` hook can inject context into the
   model, as claude's `additionalContext` does.
 - **Telemetry.** Whether Vibe sends telemetry, and the switch that turns it
-  off.
+  off. T005 measures the egress (2.5), and T004 writes the off switch into
+  `config.toml` or the launch env before T014 (the first real lane).
 - **Automated use.** Whether the ToS limits automated or non-interactive
   agent use. Not read; the pricing page only says "Subject to fair usage
   limits and Mistral's Terms of Service".
@@ -107,17 +124,49 @@ python source at 2.26.0.
   and the pin, and differing values are an error.
 - **`DRY_RUN=1` prints the plan.** The default is the real install: it only
   touches the agent user's home, no root, no GCP.
+- **The flag contract is checked after every install** (seat 4).
+  - The action greps `vibe --help` for `--auto-approve`, `--resume`,
+    `--continue` and `-p`. If one is missing, it refuses the pin.
+  - `do_spl_box_update` never moves past the cnf pin.
+  - T005 checks whether Vibe updates itself, and turns that off.
+  - Transitive dependencies float under `==2.26.0`, so the report prints
+    the `uv`/`pipx` dependency list.
+- **Telemetry off** (seat 2): the switch found by T005's egress measurement
+  (2.5) is written into `config.toml` or the launch env.
 
 ### 2.3 Where the login lives
 
 - **The key.** It lives in `<agent-home>/.vibe/.env`, as
   `MISTRAL_API_KEY=…`, mode `0600`, owned by the agent user.
-  - **The owner** writes it, by running `vibe --setup` once as the agent
-    user. The browser sign-in mints a key against the owner's Mistral
-    account. Section 5 covers which plan.
+  - **Key entry is a named action, never a pane paste** (seat 4).
+    `do_set_mistral_key` (new `set-mistral-key.func.sh`, built in its own
+    fast-tracked lane, not T004) reads the
+    key with `read -s`, then writes `.vibe/.env` as the agent user with
+    `install -m 0600`. Why not paste: a key pasted into `vibe --setup` inside
+    an agent tmux window lands in the scrollback, and 38 orc `.sh` files run
+    `capture-pane` (`grep -rl capture-pane csi-spl-orc/src/bash --include=*.sh | wc -l` -> 38).
+  - **If the owner uses the browser sign-in instead,** `vibe --setup` runs in
+    a plain ssh session as the agent user, never in a fleet window. The
+    browser flow mints a key against the owner's Mistral account. Section 5
+    covers which plan.
+  - **One key per box, named after the box** (e.g. `spool-<box>`), even on
+    one Pro account. One box can then be revoked without stopping the other.
+  - **The launcher unsets `MISTRAL_API_KEY`** (`env -u MISTRAL_API_KEY vibe …`).
+    An env var beats `.env` (2.1), so a stray export in the tmux global env
+    or a profile would silently swap the account.
   - The launcher never passes the key on a command line, where `ps` would
-    show it. No env export of it either. This is qwen's rule.
+    show it. This is qwen's rule.
   - The key is never copied into git, a brief, a spool message or a log.
+  - **Accepted risk, said aloud.** Every lane runs as the same agent user, so
+    any lane (qwen included) can read `.vibe/.env`. That is true of every
+    vendor login today, and this spec does not change it.
+- **A tracked `.vibe/` dir is refused** by `do_check_dist_hygiene` (seat 4,
+  T004).
+  - Why: `trust-workdir.sh` trusts every worktree (3.3), and a trusted
+    folder's `.vibe/{config.toml,hooks.toml,AGENTS.md}` is read first.
+  - So without the gate, one commit to trunk could change the model, add an
+    MCP server, or run a `pre_tool` hook on every m- seat.
+  - Control: a planted `.vibe/hooks.toml` turns the gate red.
 - **The auth marker.** cnf `env.box.agent_split.auth_marker.mistral:
   .vibe/.env`. A box without it skips mistral, the same as grok, agy and
   qwen today.
@@ -128,9 +177,9 @@ python source at 2.26.0.
     for an unset model.
   - The `[[mcp_servers]]` spool entry, written by T008.
   - Session logging stays on: the mirror reads the session files.
-- **The satellite.** It needs its own login, i.e. its own key minted by the
-  owner. One key per box means one can be revoked without stopping the
-  other. Q2 covers whether that needs one seat or two.
+- **The satellite.** It needs its own login: its own Team seat (D3) and its
+  own key. One key per box means one can be revoked without stopping the
+  other.
 
 ### 2.4 Install test
 
@@ -145,9 +194,36 @@ python source at 2.26.0.
 - **Key leak.** The plan text and the log never contain `MISTRAL_API_KEY=`
   followed by a value: a planted fake key in the stub home is grepped for in
   the output, n = 1.
+- **Env override** (seat 4). With `MISTRAL_API_KEY` exported in the test
+  env, the planned launch line carries `env -u MISTRAL_API_KEY`. The control
+  is a launch line without it, which the test fails.
+- **Key entry.** `do_set_mistral_key` fed a fake key on stdin writes a
+  `0600` file, and the fake key appears in no output. The control is a
+  `0644` result, which fails.
 
 The live proof (`vibe --version` on both boxes) is part of T014, not a CI
 test.
+
+### 2.5 Egress, cost cap, dead key (seats 2 and 4)
+
+- **Egress is measured before the switch.** T005 records the hosts one `-p`
+  run contacts (`ss -tnp` or `strace -f -e trace=connect`, n = 1). If
+  telemetry goes to a non-Mistral host, its off switch goes into
+  `config.toml` before T014.
+- **Cost cap.**
+  - Pro overage bills pay-as-you-go "at API rate" (section 5), so a
+    runaway lane at a 55 % share bills without limit.
+  - The adapter therefore passes `--max-price` from cnf
+    `env.box.mistral_vibe.max_price`, or the owner sets a spend limit in
+    the Mistral console.
+  - T014 records which of the two is in force.
+- **A dead key is its own state, not a retry loop.**
+  - T006 records the 401 / invalid-key text from a real pane (revoke a
+    test key, n = 1).
+  - agent-state then reports `auth`, and the watchdog does NOT respawn.
+    The lane sends a `blocker` to the dispatcher, and lane-mix skips
+    mistral until the owner re-keys.
+  - The auth marker (2.3) proves the file exists, not that the key is valid.
 
 ## 3. Integrate: the fifth agent kind
 
@@ -203,6 +279,8 @@ A new `isg/mistral-agent-setup.ISG.md` is added.
   - `SPAWN_RESUME_FLAG=--resume`, `SPAWN_CONTINUE_FLAG=--continue`.
   - **Permissions:** `--auto-approve`, the fleet's bypass rule in Vibe's
     terms. No other mode.
+  - **Launch line:** `env -u MISTRAL_API_KEY vibe --auto-approve
+    --max-price <cnf>`. Both are explained in 2.3 and 2.5.
   - **The prompt flag is open (2.1).** If no seeded-interactive mode exists,
     the adapter starts the TUI and the core types the seed through the
     existing pane-injection path (`spool-notify.sh`), the way agy is seeded.
@@ -249,10 +327,15 @@ A new `isg/mistral-agent-setup.ISG.md` is added.
 - **cnf.** `all.env.yaml` `env.box.agent_split` gains `mistral` and
   `auth_marker.mistral: .vibe/.env`, and the rendered `dev.env.json` /
   `prd.env.json` follow via tpl-gen.
-  - **Two steps.** T003 adds `mistral: 0`. **T013 (the switch)** moves
-    `grok: 55 -> 0` and `mistral: 0 -> 55`, and only after T014 shows
-    Mistral logged in on both boxes. Otherwise the existing rule (missing
-    marker -> share goes to claude) would quietly hand 55 points to claude.
+  - **Two steps.** T003 adds `mistral: 0`. **T013 (the switch, D4)** then
+    moves `grok: 55 -> 0` and `mistral: 0 -> 55`. That happens as soon as
+    T001 (DDL), T003 (cnf) and T013a (lane mix) are on trunk. It does not
+    wait for the login.
+  - **The missing-login rule changes for mistral** (T013a). Today a kind
+    whose auth marker is absent is skipped, and its share goes to claude
+    (the cnf comment). Under D4, a skipped mistral's pick falls down its
+    chain instead: agy, then claude. Until the Team login exists on a box,
+    that box's 55 points go to agy first.
 - **`spl-lane-mix.func.sh`.** `LANE_MIX_VENDORS` becomes 5 kinds and
   `LANE_MIX_SPLIT` reads `claude=N grok=N agy=N qwen=N mistral=N`.
   - The 4-number form stays accepted for one release, with mistral 0.
@@ -286,8 +369,8 @@ A new `isg/mistral-agent-setup.ISG.md` is added.
   - Existing rows keep their sum, since mistral is 0.
   - **No data UPDATE of any workspace's split.** D1 for a workspace is its
     admin's act on the settings screen. For the owner's workspace the owner
-    does it, or T013 does it through the PATCH route as admin, with the
-    owner's go named in the brief.
+    does it, or T013 does it through the PATCH route as admin. D4 is that
+    go.
 
 ## 4. Settings (the WUI)
 
@@ -334,18 +417,42 @@ A new `isg/mistral-agent-setup.ISG.md` is added.
   ceiling is unknown until measured, so T014 records the first usage-limit
   hit with its time, and that sets the share.
 
-Recommendation: **Pro on one account for the main box first.** That is the
-cheapest test of D1. Move to Team when the satellite needs its own seat, or
-when Pro's fair-use ceiling is hit.
+**T014 has three preconditions** (seat 4). Under D4 they no longer hold
+back the share move: a mistral lane only runs once a key exists. So no key
+is entered, and no lane runs, until all three hold:
+
+1. The owner confirms that BOTH training toggles (Vibe and API) are off.
+2. Someone reads the Mistral ToS clause on automated / agent use and quotes
+   it here, in section 5.
+3. The API data-retention period is read from docs.mistral.ai and quoted
+   here. Seat 4 believes, unchecked, that it is 30 days for abuse
+   monitoring.
+
+**DECIDED (D3): Team, yearly, one seat per box.** The Team admin turns
+training off for the whole org (precondition 1).
 
 ## 6. Data rule
 
-Today's global rule: personal data and secrets go only to claude. qwen is
-excluded too, because it is a Chinese provider. Mistral is an EU company, but
-its EU residency is not verified (2.1). **Until the owner answers Q1, mistral
-lanes are treated like grok lanes.** No personal data, no secrets, and no
-brief that names a credential path. `do_spl_lane_mix` already routes
-`kind=secrets` to claude, and that stays.
+**DECIDED (D2, msg 803c3b38): mistral lanes may take personal-data and
+secret work**, as claude lanes do.
+
+- This is an exception to the fleet's global data rule, which says such
+  work goes only to claude. qwen stays excluded: its provider is Chinese.
+- The rule text is changed in two places: the repo `CLAUDE.md`, by T011,
+  and the global agent `CLAUDE.md` outside the repo, which is the owner's
+  file and is reported to the orchestrator.
+- `do_spl_lane_mix` still routes `kind=secrets` to claude by default.
+  Picking mistral for secrets is a dispatcher's choice (`/mistral-spawn`),
+  not a lane-mix change in this spec.
+
+**What leaves the box** (seat 4) is every prompt plus every tool result:
+
+- the files the lane reads, git diffs, spool bodies and MCP replies;
+- `AGENTS.md` and the brief.
+
+The session logs (`$VIBE_HOME/logs/session`) keep all of it on disk. They
+are mode `0700`, and `spl-session-prune.sh` prunes them like the other
+kinds' logs (seat 2, T012).
 
 ## 7. Tests (each a pair with its control)
 
@@ -367,31 +474,36 @@ c-002 posted three open points (ba65a562): who signs up and logs in, the
 starting share, and personal data. The share is now decided by D1, so it is
 not asked.
 
+**ANSWERED by the owner, msg 803c3b38: "q1 yes , q2 b , q3 b"**, as
+recorded in D2-D4 (section 0). That overrides the (a) that all three review
+seats had picked. The table below is kept as asked (c-002 post a264eef5,
+with the key-entry correction in 0f0555bb).
+
 - **Q1. Data rule.** May mistral lanes take personal-data or secret work, as
   claude does?
   - (a) **No**: keep it like grok, as section 6 says *(recommended until the
     EU residency is verified)*.
-  - (b) Yes.
+  - **(b) Yes. <- DECIDED (D2)**
   - (c) Yes, after a Team plan with training turned off org-wide.
 - **Q2. Plan and login.** The owner signs up and runs `vibe --setup` as the
   agent user. Which plan?
   - (a) **Pro**, one account, main box first *(recommended)*.
-  - (b) Team, one seat per box.
+  - **(b) Team, one seat per box. <- DECIDED (D3), yearly**
   - (c) API pay-as-you-go key only.
 - **Q3. Timing of the switch (T013).**
   - (a) **The share moves only after the live proof (T014) on the main box**
     *(recommended; until then grok's 55 goes to claude because grok is off)*.
-  - (b) Move it now. Lane-mix skips mistral (no auth marker) and falls to
+  - **(b) Move it now. <- DECIDED (D4)** Lane-mix skips mistral (no auth marker) and falls to
     agy, then claude, until the login exists.
 
 ## 9. Review (one row per seat)
 
 | seat | agent | verdict | changes asked | folded in v1.0 |
 |---|---|---|---|---|
-| 1 drafter | claude c-569 | v0.1 | — | — |
-| 2 | a-572 agy | agree with changes | 1. T004: Verify Vibe CLI telemetry (unverified in 2.1) and disable it via `config.toml` or env to maintain privacy. 2. T012: Ensure `spl-session-prune.sh` explicitly prunes `$VIBE_HOME/logs/session`. 3. Owner Qs: Q1(a), Q2(a), Q3(a). | |
-| 3 | agy a-573 | agree | 1. None. Recommend Q1: (a), Q2: (a), Q3: (a). The hand-over is safe and gracefully handles quota limits. | |
-| 4 | claude c-558 (security + data) | **agree with changes** | **1. Key entry is a named action, never a pane paste.** `do_set_mistral_key` reads the key with `read -s` and writes `<agent-home>/.vibe/.env` with `install -m 0600`, as the agent user. `vibe --setup` with a pasted key inside an agent tmux window puts the key in the scrollback, and 38 orc `.sh` files run `capture-pane` (`grep -rl capture-pane csi-spl-orc/src/bash --include=*.sh \| wc -l` -> 38). If the owner uses the browser sign-in instead, run it in a plain ssh session, not a fleet window. **2. The launcher unsets `MISTRAL_API_KEY`** (`env -u`) before it starts `vibe`. 2.1 says an env var beats `.env`, so a stray export (tmux global env, a profile) would silently swap the account. The 2.4 test adds this case. **3. A tracked `.vibe/` dir is refused by `do_check_dist_hygiene`.** `trust-workdir.sh` (3.3) trusts every worktree, and a trusted folder's `.vibe/{config.toml,hooks.toml,AGENTS.md}` is read first. So one commit to trunk could change the model, add an MCP server, or run a `pre_tool` hook on every m- seat. Control: a planted `.vibe/hooks.toml` turns the gate red. **4. The flag contract is checked after every install.** `do_install_mistral_vibe` greps `vibe --help` for `--auto-approve`, `--resume`, `--continue` and `-p`. It refuses the pin if one is missing, and `do_spl_box_update` never moves past the cnf pin. T005 also checks for a Vibe self-update and turns it off. Transitive deps float under `==2.26.0`, so the report prints the `uv`/`pipx` dependency list. **5. A dead key is its own state, not a retry loop.** T006 records the 401 / invalid-key text from a real pane (revoke a test key, n = 1). agent-state reports `auth`, the watchdog does NOT respawn, the lane sends a `blocker` to the dispatcher, and lane-mix skips mistral until the owner re-keys. Per the fleet rule, a missing key is an owner blocker. The auth marker (2.3) proves the file exists, not that the key is valid. **6. Egress is measured before the switch.** T005 records the hosts one `-p` run contacts (`ss -tnp` or `strace -f -e trace=connect`, n = 1). If telemetry goes to a non-Mistral host, its off switch goes into `config.toml` before T013. 2.1 lists telemetry as unverified. **7. What leaves the box goes in 6.** It is every prompt plus every tool result: the files the lane reads, git diffs, spool bodies and MCP replies. It also includes `AGENTS.md` and the brief. Session logs (`$VIBE_HOME/logs/session`) keep all of it on disk: mode `0700`, pruned by `spl-session-prune.sh` like the other kinds. **8. T013 gets three preconditions.** The owner confirms BOTH training toggles are off. Someone reads the Mistral ToS clause on automated/agent use and quotes it in 5. The API retention period is read from docs.mistral.ai (I believe, unchecked, that it is 30 days for abuse monitoring). **9. Cost cap.** Pro overage bills PAYG "at API rate" (5), so a runaway lane at a 55 % share bills without limit. The adapter passes `--max-price` from cnf `env.box.mistral_vibe.max_price`, or the owner sets a spend limit in the console. T014 records which. **10. One key per box, named after the box** (e.g. `spool-<box>`), even on one Pro account, so one box can be revoked without stopping the other. Accepted risk, said aloud: every lane runs as the same agent user, so any lane (qwen included) can read `.vibe/.env`. That is true of every vendor login today, and this spec does not change it. **Q1 → (a) No.** Keep mistral like grok until EU residency, retention and the training opt-out are verified in writing. Then re-ask as (c). **Q2 → (a) Pro**, main box first, one key per box (change 10). Move to Team when the satellite joins, for the org-wide training opt-out. **Q3 → (a)** after T014, plus the change 8 preconditions. | |
+| 1 drafter | claude c-569 | v0.1 (`568f0b835`), folded to v1.0 | — | — |
+| 2 | a-572 agy | agree with changes | 1. T004: Verify Vibe CLI telemetry (unverified in 2.1) and disable it via `config.toml` or env to maintain privacy. 2. T012: Ensure `spl-session-prune.sh` explicitly prunes `$VIBE_HOME/logs/session`. 3. Owner Qs: Q1(a), Q2(a), Q3(a). | yes: telemetry 2.1/2.2/2.5 + T004/T005; session-log prune 6 + T012 |
+| 3 | agy a-573 | agree | 1. None. Recommend Q1: (a), Q2: (a), Q3: (a). The hand-over is safe and gracefully handles quota limits.  | — (no changes asked) |
+| 4 | claude c-558 (security + data) | **agree with changes** | **1. Key entry is a named action, never a pane paste.** `do_set_mistral_key` reads the key with `read -s` and writes `<agent-home>/.vibe/.env` with `install -m 0600`, as the agent user. `vibe --setup` with a pasted key inside an agent tmux window puts the key in the scrollback, and 38 orc `.sh` files run `capture-pane` (`grep -rl capture-pane csi-spl-orc/src/bash --include=*.sh \| wc -l` -> 38). If the owner uses the browser sign-in instead, run it in a plain ssh session, not a fleet window. **2. The launcher unsets `MISTRAL_API_KEY`** (`env -u`) before it starts `vibe`. 2.1 says an env var beats `.env`, so a stray export (tmux global env, a profile) would silently swap the account. The 2.4 test adds this case. **3. A tracked `.vibe/` dir is refused by `do_check_dist_hygiene`.** `trust-workdir.sh` (3.3) trusts every worktree, and a trusted folder's `.vibe/{config.toml,hooks.toml,AGENTS.md}` is read first. So one commit to trunk could change the model, add an MCP server, or run a `pre_tool` hook on every m- seat. Control: a planted `.vibe/hooks.toml` turns the gate red. **4. The flag contract is checked after every install.** `do_install_mistral_vibe` greps `vibe --help` for `--auto-approve`, `--resume`, `--continue` and `-p`. It refuses the pin if one is missing, and `do_spl_box_update` never moves past the cnf pin. T005 also checks for a Vibe self-update and turns it off. Transitive deps float under `==2.26.0`, so the report prints the `uv`/`pipx` dependency list. **5. A dead key is its own state, not a retry loop.** T006 records the 401 / invalid-key text from a real pane (revoke a test key, n = 1). agent-state reports `auth`, the watchdog does NOT respawn, the lane sends a `blocker` to the dispatcher, and lane-mix skips mistral until the owner re-keys. Per the fleet rule, a missing key is an owner blocker. The auth marker (2.3) proves the file exists, not that the key is valid. **6. Egress is measured before the switch.** T005 records the hosts one `-p` run contacts (`ss -tnp` or `strace -f -e trace=connect`, n = 1). If telemetry goes to a non-Mistral host, its off switch goes into `config.toml` before T013. 2.1 lists telemetry as unverified. **7. What leaves the box goes in 6.** It is every prompt plus every tool result: the files the lane reads, git diffs, spool bodies and MCP replies. It also includes `AGENTS.md` and the brief. Session logs (`$VIBE_HOME/logs/session`) keep all of it on disk: mode `0700`, pruned by `spl-session-prune.sh` like the other kinds. **8. T013 gets three preconditions.** The owner confirms BOTH training toggles are off. Someone reads the Mistral ToS clause on automated/agent use and quotes it in 5. The API retention period is read from docs.mistral.ai (I believe, unchecked, that it is 30 days for abuse monitoring). **9. Cost cap.** Pro overage bills PAYG "at API rate" (5), so a runaway lane at a 55 % share bills without limit. The adapter passes `--max-price` from cnf `env.box.mistral_vibe.max_price`, or the owner sets a spend limit in the console. T014 records which. **10. One key per box, named after the box** (e.g. `spool-<box>`), even on one Pro account, so one box can be revoked without stopping the other. Accepted risk, said aloud: every lane runs as the same agent user, so any lane (qwen included) can read `.vibe/.env`. That is true of every vendor login today, and this spec does not change it. **Q1 → (a) No.** Keep mistral like grok until EU residency, retention and the training opt-out are verified in writing. Then re-ask as (c). **Q2 → (a) Pro**, main box first, one key per box (change 10). Move to Team when the satellite joins, for the org-wide training opt-out. **Q3 → (a)** after T014, plus the change 8 preconditions. | yes, all 10: 1 key entry 2.3 + T004; 2 env -u 2.3/3.3 + T005; 3 hygiene gate 2.3 + T004; 4 flag contract 2.2 + T004/T005; 5 dead key 2.5 + T006; 6 egress 2.5 + T005; 7 what leaves 6; 8 T013 preconditions 5 + T013; 9 cost cap 2.5 + T005/T014; 10 key per box 2.3 + T014 |
 
 Links: [spec 048](../048-agent-harness-parity/spec.md) (harness parity, the
 qwen adapter), [spec 061](../061-agent-id-rename/spec.md) (id grammar),

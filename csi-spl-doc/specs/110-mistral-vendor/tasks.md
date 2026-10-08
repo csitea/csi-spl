@@ -251,10 +251,21 @@ the owner's Team login on each box.
   cost cap is in force: the cnf `max_price` or a console spend limit. Done: 7i (n = 1 per box), with
   `vibe --version` = the pin, and the first usage-limit hit time recorded in
   `spec.md` 5.
-- [ ] T013 **the switch, D1 + D4** (needs T001 applied, T003 and T013a on
+- [x] T013 **the switch, D1 + D4** (needs T001 applied, T003 and T013a on
   trunk; NOT T014). It is listed after T014 only for reading order. cnf
   `agent_split` `grok: 0, mistral: 55`, and the owner's workspace split moved
   the same way (the owner on the settings screen, or by PATCH with the
   owner's go). Files: `csi-spl-cnf/csi-spl/all.env.yaml` + the rendered
   json. Done: `do_spl_agent_split_show` prints `mistral=55 grok=0`;
   `do_spl_lane_mix` with no kind picks mistral.
+
+  Done (c-596, 2026-10-08): the owner's own workspace split (t1, set on the
+  settings screen, msg 0112c7f2) replaced the spec's 55. cnf now carries the
+  same five numbers: `claude: 60, grok: 0, agy: 20, qwen: 0, mistral: 20`
+  (was 20/55/25/0/0). `ENV=prd do_spl_agent_split_show` prints
+  `claude=60 grok=0 agy=20 qwen=0 mistral=20`; dev's workspace split was not
+  touched. `do_spl_lane_mix` with no kind prints `pick=mistral` on the main
+  box (live registry window n=20, mistral 1/20 actual, `easy=mistral`), and
+  20 of 20 repeated runs picked mistral: under D5 a no-kind pick is mistral
+  whenever it holds a share and is available, whatever the window. The hub
+  reads the split from rdb, not cnf, so no deploy follows. sha `cba53f33c`.

@@ -12,7 +12,9 @@
 #   smh_qwen_merge FILE PY       merge the mirror entries into ~/.qwen/settings.json;
 #                                an older spool-mirror entry replaced, all else kept
 #   smh_vibe_merge FILE PY       merge the [[hooks]] entry "spool-mirror" (post_agent)
-#                                into mistral vibe's ~/.vibe/hooks.toml; others kept
+#                                and the heartbeat entries "spool-heartbeat-*" (PY's
+#                                sibling spool-agent-hook.sh) into mistral vibe's
+#                                ~/.vibe/hooks.toml; others kept
 #   smh_user_hooked KIND         0 when the user's own settings already carry the
 #                                mirror (claude and grok read ~/.claude/settings.json,
 #                                qwen its own): a second copy would fire twice
@@ -94,10 +96,14 @@ os.replace(tmp, path)
 # session_id and transcript_path on stdin, and spool-mirror.py --vibe reads
 # both halves of the turn from the session (specs/110 3.4). A hook must print
 # nothing or a JSON object, so the no-op branch prints nothing.
+# The heartbeat (specs/093 5.2): the claude hook script, one entry per vibe
+# hook point (pre_tool, post_tool, post_agent as claude's PreToolUse,
+# PostToolUse, Stop), so the watchdog reads <id>/heartbeat.json for an m- lane
+# too. vibe passes its own env to a hook, SPOOL_AGENT_ID included.
 smh_vibe_merge() {  # FILE PY
-  mkdir -p "$(dirname "$1")" && python3 - "$1" "$2" <<'EOF_PY'
+  mkdir -p "$(dirname "$1")" && python3 - "$1" "$2" "$(dirname "$2")/spool-agent-hook.sh" <<'EOF_PY'
 import json, os, re, shlex, sys, time
-path, py = sys.argv[1], shlex.quote(sys.argv[2])
+path, py, hk = sys.argv[1], shlex.quote(sys.argv[2]), shlex.quote(sys.argv[3])
 try:
     text = open(path).read()
 except FileNotFoundError:
@@ -112,13 +118,17 @@ except ValueError:
     # aside (never deleted), and the file is written fresh.
     os.replace(path, path + ".bad." + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()))
     text = ""
-# Drop an older spool-mirror block: a [[hooks]] table up to the next header.
+# Drop our older blocks: a [[hooks]] table up to the next header.
 blocks = re.split(r"(?m)^(?=\[)", text)
-keep = [b for b in blocks if not (b.startswith("[[hooks]]") and re.search(r'(?m)^name\s*=\s*"spool-mirror"\s*$', b))]
+keep = [b for b in blocks if not (b.startswith("[[hooks]]") and re.search(r'(?m)^name\s*=\s*"spool-(mirror|heartbeat-[a-z-]+)"\s*$', b))]
 text = "".join(keep).rstrip("\n")
-cmd = f"[ -r {py} ] && exec python3 {py} hook --vibe; exit 0"
-entry = '[[hooks]]\nname = "spool-mirror"\ntype = "post_agent"\ncommand = %s\ntimeout = 10.0\n' % json.dumps(cmd)
-text = (text + "\n\n" if text else "") + entry
+def entry(name, typ, cmd, timeout):
+    return '[[hooks]]\nname = "%s"\ntype = "%s"\ncommand = %s\ntimeout = %s\n' % (name, typ, json.dumps(cmd), timeout)
+ents = [entry("spool-mirror", "post_agent", f"[ -r {py} ] && exec python3 {py} hook --vibe; exit 0", "10.0")]
+for typ, ev in (("pre_tool", "PreToolUse"), ("post_tool", "PostToolUse"), ("post_agent", "Stop")):
+    ents.append(entry("spool-heartbeat-" + typ.replace("_", "-"), typ,
+                      f"[ -r {hk} ] && SPOOL_HARNESS=vibe exec bash {hk} {ev}; exit 0", "5.0"))
+text = (text + "\n\n" if text else "") + "\n".join(ents)
 tmp = path + ".tmp.%d" % os.getpid()
 fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 with os.fdopen(fd, "w") as f:

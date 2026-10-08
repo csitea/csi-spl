@@ -26,7 +26,10 @@
 # $HOOK_ERR_FALLBACK) and the hook exits 0. No SPOOL_AGENT_ID = not a spool
 # agent: exit 0 at once. Neither file holds a tool's input or output, a body
 # or a secret: hashes and names only. Non-claude harnesses get the heartbeat
-# only (spec 7.3: injection waits for their ping test).
+# only (spec 7.3: injection waits for their ping test). mistral's vibe runs it
+# from ~/.vibe/hooks.toml (spool-mirror-hooks.inc.sh) with SPOOL_HARNESS=vibe:
+# pre_tool -> PreToolUse, post_tool -> PostToolUse (tool_output for
+# tool_response), post_agent -> Stop, which is progress.
 #
 # Env: SPOOL_AGENT_ID, SPOOL_ROOT (default /var/spool-hub), SPOOL_BOX_ID,
 #      SPOOL_HARNESS (default: the parent process name), WD_LOOP_N,
@@ -294,7 +297,7 @@ def main():
     elif event == "PostToolUse":
         tool = str(payload.get("tool_name") or "?")
         sig = h(tool, payload.get("tool_input"))[:6]
-        res = h(payload.get("tool_response"))[:4]
+        res = h(payload.get("tool_response", payload.get("tool_output")))[:4]
         calls = [c for c in hb.get("calls") or [] if isinstance(c, dict)]
         calls = (calls + [{"sig": sig, "res": res, "ts": iso(now)}])[-CALLS_KEEP:]
         hb.update(state="working", progress_ts=iso(now), api_error=None,
@@ -308,7 +311,9 @@ def main():
         e = last_assistant(payload.get("transcript_path")) if claude else None
         if e is not None and e.get("isApiErrorMessage"):
             hb["api_error"] = entry_text(e)[:120]
-        elif e is not None:
+        elif e is not None or kind == "vibe":
+            # vibe's post_agent fires only after a turn that completed (an
+            # LLM error raises before it: vibe/core/agent_loop/_loop.py)
             hb.update(progress_ts=iso(now), api_error=None)
         if claude and not payload.get("stop_hook_active"):
             stubs, stale = open_stubs(), untouched(held())

@@ -118,7 +118,12 @@ spl_peer_pids() {
     fi
   } | sort -n
 }
-spl_peer_harness_comm() { [[ "$1" == claude || "$1" == node || "$1" == bun || ( -n "${PEER_HARNESS:-}" && "$1" == "$PEER_HARNESS" ) ]]; }
+# A mistral seat's vibe renames itself "Vibe CLI" with setproctitle, so its
+# comm is never the harness name (`pgrep -x vibe` = 0 on a live lane).
+spl_peer_harness_comm() {
+  [[ "$1" == claude || "$1" == node || "$1" == bun || ( -n "${PEER_HARNESS:-}" && "$1" == "$PEER_HARNESS" ) ]] ||
+    [[ ( "${PEER_HARNESS:-}" == mistral || "${PEER_HARNESS:-}" == vibe ) && "$1" == "Vibe CLI" ]]
+}
 
 # 0 while PID is a live session process of any harness (spl_rotate_alive
 # knows claude only: a grok seat would read dead at once).

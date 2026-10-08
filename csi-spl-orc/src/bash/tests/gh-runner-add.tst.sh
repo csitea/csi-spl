@@ -22,6 +22,8 @@
 #            unit; unset = no set-property at all; out of range is refused
 #          - GH_RUNNER_GO_CACHE_ROOT: the Go cache lines in every .env; a
 #            reinstall without it keeps the lines already there
+#          - boot: a running but DISABLED rootless docker unit is enabled;
+#            every runner unit gets the Restart=always drop-in, written once
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -51,6 +53,7 @@ case "$1" in
   test) [[ "$2" == -S ]] && exit 0; exec "$@" ;;
   useradd) echo "$u $*" >>"$MUT_LOG"; touch "$STATE/user"; exit 0 ;;
   usermod|loginctl|chmod|curl|apt-get) echo "$u $*" >>"$MUT_LOG"; exit 0 ;;
+  tee) [[ "$2" == *60-restart.conf ]] && echo "$u tee $2" >>"$MUT_LOG"; exec "$@" ;;
   install) echo "$u install ${*: -1}" >>"$MUT_LOG"; mkdir -p "${@: -1}"; exit 0 ;;
   env) a=(); for x in "$@"; do [[ "$x" == PATH=* ]] || a+=("$x"); done
        [[ "${a[*]}" == *apt-get* ]] && { echo "$u apt-get" >>"$MUT_LOG"; touch "$STATE/pkgs"; exit 0; }
@@ -90,6 +93,8 @@ cat >"$T/bin/systemctl" <<'EOF'
 [[ "$1 $3 $4" == "show -p ControlGroup" && -e "$STATE/moved-$2" ]] && { echo "/user.slice/user-1500.slice/$2"; exit 0; }
 [[ "$1 $3 $4" == "show -p ControlGroup" ]] && { echo "/system.slice/$2"; exit 0; }
 [[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
+[[ "$*" == "--user is-enabled --quiet docker" ]] && { [[ -e "$STATE/enabled" ]]; exit; }
+[[ "$1 $2" == "--user enable" ]] && { echo "systemctl $*" >>"$MUT_LOG"; touch "$STATE/enabled"; exit 0; }
 exit 0
 EOF
 cat >"$T/bin/setuptool" <<'EOF'
@@ -162,8 +167,12 @@ grep -q SENTINEL "$T/log" && no "a token reached the log" || ok "no token in the
 [[ "$(grep '^pull ' "$MUT_LOG" | sort | tr '\n' ' ')" == "pull fsouza/fake-gcs-server:1.52.2 pull postgres:16-alpine " ]] \
   && ok "the workflow's pinned images are warmed in the runner user's docker" || no "warm: $(grep pull "$MUT_LOG")"
 [[ "$(cat "$UNIT_DIR/actions.runner.o.box-spl-02.service.d/50-slice.conf" 2>/dev/null)" == $'[Service]\nSlice=user-1500.slice' ]] \
-  && [[ "$(cat "$SYSD_LOG")" == $'systemctl daemon-reload\nsystemctl stop actions.runner.o.box-spl-01.service\nsystemctl kill --kill-whom=all --signal=SIGKILL actions.runner.o.box-spl-01.service\nsystemctl start actions.runner.o.box-spl-01.service\nsystemctl stop actions.runner.o.box-spl-02.service\nsystemctl kill --kill-whom=all --signal=SIGKILL actions.runner.o.box-spl-02.service\nsystemctl start actions.runner.o.box-spl-02.service' ]] \
+  && [[ "$(cat "$SYSD_LOG")" == $'systemctl daemon-reload\nsystemctl stop actions.runner.o.box-spl-01.service\nsystemctl kill --kill-whom=all --signal=SIGKILL actions.runner.o.box-spl-01.service\nsystemctl start actions.runner.o.box-spl-01.service\nsystemctl stop actions.runner.o.box-spl-02.service\nsystemctl kill --kill-whom=all --signal=SIGKILL actions.runner.o.box-spl-02.service\nsystemctl start actions.runner.o.box-spl-02.service\nsystemctl daemon-reload' ]] \
   && ok "every runner unit is placed in user-1500.slice: drop-in, one reload, one stop/sweep/start each" || no "slice: $(cat "$SYSD_LOG"; ls -R "$UNIT_DIR" 2>&1)"
+grep -q 'systemctl --user enable' "$MUT_LOG" && ok "the rootless docker unit is enabled (it comes back at boot)" || no "docker not enabled: $(cat "$MUT_LOG")"
+[[ "$(cat "$UNIT_DIR/actions.runner.o.box-spl-01.service.d/60-restart.conf" 2>/dev/null)" == $'[Service]\nRestart=always\nRestartSec=30' \
+   && "$(grep -c '60-restart.conf' "$MUT_LOG")" == 2 ]] \
+  && ok "every runner unit gets the Restart=always drop-in, then one daemon-reload" || no "restart drop-in: $(grep 60-restart "$MUT_LOG"; ls -R "$UNIT_DIR" 2>&1)"
 : >"$SYSD_LOG"
 
 : >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"
@@ -173,6 +182,13 @@ GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "second 
   && ! grep -q config.sh "$RUN_LOG" && ok "apply twice = one set of runners (nothing re-registered)" || no "re-registered: $(cat "$RUN_LOG")"
 [[ "$(grep -c -- '- kept' "$T/log")" == 2 ]] && ! grep -q 'useradd\|setuptool\|^pull ' "$MUT_LOG" && ok "existing runners, user and docker are kept" || no "kept: $(cat "$T/log" "$MUT_LOG")"
 [[ "$(grep -c 'svc.sh start' "$RUN_LOG")" == 2 && "$(grep -c 'svc.sh install' "$RUN_LOG")" == 0 ]] && ok "kept services are only started" || no "svc 2nd: $(cat "$RUN_LOG")"
+! grep -q '60-restart.conf\|--user enable' "$MUT_LOG" && ok "apply twice: the restart drop-in is written once, docker enabled once" || no "rewritten: $(cat "$MUT_LOG")"
+
+# the sat 2026-10-08 state: docker running (started by hand) but disabled
+rm -f "$STATE/enabled"; : >"$T/log"; : >"$MUT_LOG"; : >"$SYSD_LOG"
+GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "apply over a disabled docker exits 0" || no "apply disabled failed: $(tail -3 "$T/log")"
+grep -qx 'systemctl --user enable docker' "$MUT_LOG" && ! grep -q setuptool "$MUT_LOG" && [[ ! -s "$SYSD_LOG" ]] \
+  && ok "a running but disabled rootless docker is enabled, nothing reinstalled or restarted" || no "disabled docker: $(cat "$MUT_LOG" "$SYSD_LOG")"
 
 ID_GROUPS="ghrunner docker" GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 act && no "docker-group user must fail" || ok "a runner user in the docker group is refused"
 

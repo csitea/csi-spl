@@ -18,6 +18,9 @@
 # @description reaches a self-hosted runner) - otherwise it refuses.
 # @description Warm: the images 10_ci-quality.yml pins (its img= lines) are
 # @description pulled into the runner user's docker, so no gate SKIPs cold.
+# @description Boot: the rootless docker user unit is enabled (linger brings
+# @description up only enabled units) and every runner unit restarts after an
+# @description exit (drop-in Restart=always); do_check_gh_runner checks both.
 # @description Idempotent: a runner already configured here is kept (its env
 # @description refreshed, its service started); APPLY twice = one set.
 # @description Dry run unless APPLY=1. Needs sudo and gh with admin:org.
@@ -188,6 +191,16 @@ ghr_setup_user() {
       || { do_log "FATAL rootless docker setup failed for $u: sudo -u $u XDG_RUNTIME_DIR=/run/user/$GHR_UID $GH_RUNNER_SETUPTOOL install"; return 1; }
     do_log "OK rootless docker running for $u"
   fi
+  # ENABLED, not only running: linger starts the user manager at boot, but it
+  # brings up only enabled units (sat 2026-10-08: docker started by hand once,
+  # disabled, so after the reboot every job hit "Cannot connect")
+  if ! ghr_as "$u" systemctl --user is-enabled --quiet docker; then
+    ghr_as "$u" systemctl --user enable docker >/dev/null 2>&1
+    if ! ghr_as "$u" systemctl --user is-enabled --quiet docker; then
+      do_log "FATAL cannot enable $u's rootless docker unit: it would not come back after a boot"; return 1
+    fi
+    do_log "OK rootless docker of $u enabled: it starts at boot"
+  fi
   ghr_docker docker info >/dev/null 2>&1 || { do_log "FATAL $u's rootless docker does not answer"; return 1; }
 }
 
@@ -309,6 +322,29 @@ ghr_slice() {
     ghrb_place "user-$GHR_UID.slice" "${units[@]}"
 }
 
+# ghr_restart - every runner unit restarts after its service exits by itself
+# (runsvc.sh exits 0 when the listener does: "no retry needed"), a drop-in
+# written only when it differs, one daemon-reload, no restart (a reload is
+# enough for Restart=). A `systemctl stop` (the CPU budget parking a runner,
+# a person) is never undone by it: systemd restarts only an exit
+ghr_restart() {
+  local i unit d want reload=0
+  want="$(printf '[Service]\nRestart=always\nRestartSec=30')"
+  d="${GH_RUNNER_UNIT_DIR:-/etc/systemd/system}"
+  for ((i = 1; i <= GHR_N; i++)); do
+    unit="$(sudo cat "$GHR_ROOT/$(ghr_name "$i")/.service")"
+    [[ "$unit" == actions.runner.*.service ]] || { do_log "FATAL no unit for $(ghr_name "$i") (${unit:-no .service})"; return 1; }
+    [[ "$(sudo cat "$d/$unit.d/60-restart.conf" 2>/dev/null)" == "$want" ]] && continue
+    if ! { sudo mkdir -p "$d/$unit.d" && sudo tee "$d/$unit.d/60-restart.conf" >/dev/null <<<"$want"; }; then
+      do_log "FATAL cannot write the restart drop-in of $unit"; return 1
+    fi
+    reload=1
+  done
+  ((reload)) || return 0
+  sudo systemctl daemon-reload || { do_log "FATAL daemon-reload failed"; return 1; }
+  do_log "OK every runner unit restarts after an exit (Restart=always, RestartSec=30)"
+}
+
 # ghr_cpu_weight - GHR_CPU_WEIGHT on every runner unit and the runner user's
 # slice; nothing when it is unset
 ghr_cpu_weight() {
@@ -360,12 +396,12 @@ do_gh_runner_add() {
   ghr_check_group || return 1
   ghr_plan
   if [[ "${APPLY:-0}" != 1 ]]; then
-    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; units in user-<uid>.slice; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
+    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker enabled at boot, workflow images cached); runner units Restart=always; job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; units in user-<uid>.slice; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
     do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
     return 0
   fi
   ghr_setup_user && ghr_warm_images || return 1
   sudo install -d -m 0755 -o root -g root "$GHR_ROOT" || return 1
   ghr_job_done_hook | sudo tee "$GHR_ROOT/job-done.sh" >/dev/null && sudo chmod 0755 "$GHR_ROOT/job-done.sh" || return 1
-  ghr_register && ghr_services && ghr_slice && ghr_cpu_weight && ghr_verify
+  ghr_register && ghr_services && ghr_slice && ghr_restart && ghr_cpu_weight && ghr_verify
 }

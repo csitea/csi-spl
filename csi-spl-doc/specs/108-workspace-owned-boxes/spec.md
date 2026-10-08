@@ -25,20 +25,23 @@ The hub DB enforces isolation using Postgres Row-Level Security (RLS) with `FORC
 The relay uses one bucket per env with one Service Account (SA). The relay SA key NEVER reaches a workspace box. Instead, the hub mints per-object signed URLs under a hub-chosen `<tenant_id>/` prefix for the box to use.
 
 ### 3.5. Box-Side Isolation
-One box = one workspace. Enforced in `do_spl_desk_up` and at pin. Each box runs its own OS user, spool root, and state dir. Root on a box sees all: an operator-run box never hosts another workspace's agents.
+One box = one workspace. Enforced in `do_spl_desk_up` and at pin. Each box runs its own OS user, spool root, and state dir. Root on a box sees all: an operator-run box never hosts another workspace's agents. (Note: Owner answer to Question 2 will override this behavior if conflicting).
 
 ### 3.6. Operator Workspace Visibility
-Operator scope grants every row when `app.rls_scope='operator'`. Only named `asOperator` callers set the scope (`TestOperatorScopeCallers`); name `replay-unsigned` (workspace from the body, SA allow-list). Isolation is between workspaces, not from the instance operator. `HubRoleCanLiftRLS` answering empty is the prd start gate.
+Operator scope grants every row when `app.rls_scope='operator'`. Only named `asOperator` callers set the scope (`TestOperatorScopeCallers`); `replay-unsigned` is the one route that takes the workspace from the body (SA allow-list). Isolation is between workspaces, not from the instance operator. `HubRoleCanLiftRLS` answering empty is the prd start gate.
 
 ### 3.7. Revoke / Remove Path
 A workspace admin can revoke a box from the WUI. This sets `pins.revoked_at`, closes session sockets, refuses reconnects, voids join tokens, and refuses URL minting. Revoke must drop upload tokens. Other instances see revoke within the 5s pin cache. The hub does not issue remote wipe commands; a local leave action must be performed to clean up the box.
 
 ## 4. Tests
 Every test is a pair with its control.
-- **Isolation Test**: Create Workspace A and Workspace B. Send a message in A. Run a query under Workspace B's `tenant_id`; assert it returns 0 rows. Control: Run the same query under Workspace A's `tenant_id`; assert it returns the message row.
-- **EACCES Test**: Assert that the per-workspace OS user cannot read another workspace's spool root. Control: the box's own root stays readable.
-- **Relay Prefix Test**: Assert box cannot fetch signed URLs for another workspace's prefix. Control: Box can fetch its own prefix.
-- **Revoke Test**: Assert a revoked box cannot mint tokens or connect. Control: An active box can.
+- **(a) Isolation Test (n=1)**: Create Workspace A and Workspace B. Send a message in A. Run a query under Workspace B's `tenant_id`; assert it returns 0 rows. Control: Run the same query under Workspace A's `tenant_id`; assert it returns the message row.
+- **(b) Header/Pin Mismatch (n=2)**: Assert a request with a valid pin but a mismatched `X-Spool-Tenant` is refused. Control: Matching header/pin is accepted.
+- **(c) Same Key Pinned (n=3)**: Assert the same key cannot be pinned into a second workspace. Control: Unique keys can be pinned.
+- **(d) EACCES Test (n=4)**: Assert that the per-workspace OS user cannot read another workspace's spool root. Control: the box's own root stays readable.
+- **(e) Cross-Workspace Spool-Send (n=5)**: Assert a message sent to a recipient in another workspace is refused. Control: Message within the same workspace succeeds.
+- **(f) Relay Prefix Test (n=6)**: Assert box cannot fetch signed URLs for another workspace's prefix. Control: Box can fetch its own prefix.
+- **(g) Revoke Test (n=7)**: Assert a revoked box cannot mint tokens or connect. Control: An active box can.
 
 ## 5. Phased Task List (Sketch)
 1. **Tokens & Keys**: Depend on 073 T003..T006.
@@ -50,7 +53,11 @@ Every test is a pair with its control.
 7. **Tests**: Implement the test pairs.
 
 ## 6. Consensus
-(Pending reviews from one grok, two claude)
+- **claude-a**: YES (agreed at spec `4b64dd44`)
+- **claude-b**: YES (agreed at spec `4b64dd44`)
+- **grok**: NO RESPONSE
+
+Overall: NO (Missing grok agreement).
 
 ## 7. Owner Questions
 1. Is a second workspace on one machine allowed, as a second OS user + spool root?

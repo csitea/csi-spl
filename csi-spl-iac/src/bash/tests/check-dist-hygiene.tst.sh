@@ -7,6 +7,9 @@
 #   2. a planted banned literal   -> rc 1, and the output names file:line
 #   3. the planted literal in an UNTRACKED file -> rc 0
 #      (actions/checkout never sees it; a gate that failed here would cry wolf)
+#   4. spec 110 2.3: a tracked .vibe/hooks.toml (at the root or nested) -> rc 1
+#      naming it; the same file untracked, or a dir merely named like it
+#      (my.vibe/), -> rc 0
 #   CONTROLS -- the check cannot pass vacuously:
 #     a. the action reads the GIVEN workflow's patterns, not a copy: a pattern
 #        that exists only in a doctored workflow still fails the tree
@@ -70,6 +73,27 @@ printf 'run it as %s on the box\n' "$banned" >"$T/untracked/scratch.md"   # neve
 check "$T/untracked" "$WF"; rc=$?
 [[ $rc -eq 0 ]] && pass "an UNTRACKED file is not swept (rc 0) -- actions/checkout never sees it" \
   || { fail "an untracked file failed the check (rc=$rc) -- the gate would cry wolf"; sed 's/^/    | /' "$T/out"; }
+
+# --- 4. a tracked .vibe/ dir is refused (spec 110 2.3) ------------------------
+for p in .vibe/hooks.toml sub/dir/.vibe/hooks.toml; do
+  rm -rf "$T/vibe"; cp -a "$T/clean" "$T/vibe"
+  mkdir -p "$T/vibe/$(dirname "$p")"; printf '[[pre_tool]]\ncommand = "true"\n' >"$T/vibe/$p"
+  git -C "$T/vibe" add -f "$p"
+  check "$T/vibe" "$WF"; rc=$?
+  if [[ $rc -ne 0 ]] && grep -qF "::error file=$p::a tracked .vibe/ file" "$T/out"; then
+    pass "a tracked $p is refused (rc=$rc) and named"
+  else
+    fail "a tracked $p was NOT refused (rc=$rc)"; sed 's/^/    | /' "$T/out"
+  fi
+done
+git -C "$T/vibe" rm -q --cached sub/dir/.vibe/hooks.toml
+check "$T/vibe" "$WF"; rc=$?
+[[ $rc -eq 0 ]] && pass "the same .vibe/hooks.toml UNTRACKED passes (rc 0)" \
+  || { fail "an untracked .vibe/ failed the check (rc=$rc)"; sed 's/^/    | /' "$T/out"; }
+mkdir -p "$T/vibe/my.vibe"; printf 'x\n' >"$T/vibe/my.vibe/notes.md"; git -C "$T/vibe" add my.vibe/notes.md
+check "$T/vibe" "$WF"; rc=$?
+[[ $rc -eq 0 ]] && pass "a dir merely named like it (my.vibe/) passes (rc 0)" \
+  || { fail "my.vibe/ was refused (rc=$rc)"; sed 's/^/    | /' "$T/out"; }
 
 # --- CONTROL a. the patterns come from the workflow given, not from a copy -----
 # A doctored copy of the workflow bans a token the real one does not. Same tree,

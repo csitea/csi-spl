@@ -22,6 +22,9 @@
 #   8. a foreign ~/.local/bin/spool-agent is never overwritten (exit 7)
 #   9. qwen (specs/048): npm into <prefix>, the vendored rg made executable;
 #      no npm -> exit 3 before anything is fetched
+#   9b. mistral (spec 110 2.2): --cli mistral --cli-only installs the cnf pin
+#      through pipx and pins active_model, touches nothing else; a re-run at
+#      the pin installs nothing; pin latest -> 2; no uv/pipx -> 3
 #  10. the harness (specs/048): every command + skill rendered into ~/.claude
 #      (and ~/.qwen/skills with qwen) with no {{placeholder}} left; a re-run
 #      rewrites nothing; a hand edit is kept and named, --force-skills
@@ -284,6 +287,35 @@ QD="$H/.local/lib/node_modules/@qwen-code/qwen-code"
 ARGS=(--cli qwen --no-seat); inst SPOOL_INSTALL_NPM="$T/no-such-npm"; rc=$?
 [[ $rc -eq 3 ]] && grep -q 'needs npm' "$T/o" && [[ ! -s "$T/npm.log" ]] &&
   pass "9. no npm: exit 3, named, nothing run" || fail "9. no npm: rc $rc $(cat "$T/o")"
+
+# --- 9b. mistral (spec 110 2.2): the cnf pin through pipx, --cli-only ----------------------------
+H0="$H"; H="$T/home-mistral"; mkdir -p "$H" "$T/mbin"; : >"$T/net.log"
+cat >"$T/mbin/pipx" <<EOF
+#!/bin/bash
+echo "pipx \$*" >>"$T/pipx.log"
+case "\$1" in install) v="\${@: -1}"; v="\${v##*==}"; mkdir -p "\$HOME/.local/bin"
+  printf '#!/bin/sh\ncase "\$1" in --version) echo "vibe %s";; --help) echo "[-p] [--auto-approve] [-c | --continue] [--resume]";; esac\n' "\$v" >"\$HOME/.local/bin/vibe"
+  chmod +x "\$HOME/.local/bin/vibe" ;; runpip) echo "httpx==0.28.1" ;; esac
+EOF
+printf '#!/bin/sh\necho 3.13\n' >"$T/mbin/py"; chmod +x "$T/mbin/"*
+MPIN="$(sed -n '/^ *mistral_vibe:/,/^ *model:/s/^ *version: *//p' "$TEST_DIR/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml")"
+MI=(SPOOL_INSTALL_PIPX="$T/mbin/pipx" SPOOL_INSTALL_UV="$T/no-uv" SPOOL_INSTALL_PYTHON="$T/mbin/py")
+ARGS=(--cli mistral --cli-only); inst "${MI[@]}"; rc=$?
+[[ $rc -eq 0 && -n "$MPIN" ]] && grep -qx "pipx install --force mistral-vibe==$MPIN" "$T/pipx.log" &&
+  grep -q "mistral: $H/.local/bin/vibe (vibe $MPIN)" "$T/o" && grep -qx 'active_model = "mistral-vibe-cli-latest"' "$H/.vibe/config.toml" &&
+  pass "9b. --cli mistral installs the cnf pin ($MPIN) through pipx, pins active_model" || fail "9b. mistral: rc $rc $(cat "$T/o")"
+[[ ! -s "$T/net.log" && ! -e "$H/.claude" && ! -e "$H/.local/share/spool-agent" && ! -e "$H/.config/spool-agent" ]] &&
+  pass "9b. --cli-only: no hub, no download, no toolchain, config or harness" || fail "9b. --cli-only side effects: $(ls -A "$H") $(cat "$T/net.log")"
+: >"$T/pipx.log"
+ARGS=(--cli mistral --cli-only); inst "${MI[@]}"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q '^pipx install' "$T/pipx.log" && grep -q "is at the pin $MPIN: not reinstalled" "$T/o" &&
+  pass "9b. a re-run at the pin installs nothing" || fail "9b. re-run: rc $rc $(cat "$T/pipx.log")"
+: >"$T/pipx.log"
+ARGS=(--cli mistral --cli-only); inst "${MI[@]}" SPOOL_INSTALL_MISTRAL_VERSION=latest; rc=$?
+[[ $rc -eq 2 && ! -s "$T/pipx.log" ]] && grep -q 'never latest' "$T/o" && pass "9b. CONTROL: pin latest is refused (2)" || fail "9b. latest: rc $rc"
+ARGS=(--cli mistral --cli-only); inst "${MI[@]}" SPOOL_INSTALL_PIPX="$T/no-pipx"; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'needs uv or pipx' "$T/o" && pass "9b. no uv, no pipx: exit 3, named" || fail "9b. no pipx: rc $rc $(cat "$T/o")"
+H="$H0"
 
 # --- 10. the harness: skills + commands -----------------------------------------------------------
 ASSETS="$(cd "$TEST_DIR/../../spawn-agents/assets" && pwd)"

@@ -10,7 +10,15 @@
 # with sudo. Everything else goes under your home, no sudo anywhere:
 #   1. the agent CLIs you pick, each through its vendor's own documented
 #      installer, which installs or updates to the LATEST release (qwen:
-#      `npm install -g` into <prefix>, which needs Node 20+ and npm)
+#      `npm install -g` into <prefix>, which needs Node 20+ and npm).
+#      mistral is the exception (spec 110 2.2): EXACTLY the cnf pin
+#      env.box.mistral_vibe.version of the PyPI package mistral-vibe, through
+#      `uv tool install` (pipx when there is no uv), never `curl | bash`;
+#      a vibe already at the pin is not reinstalled. Then the flag contract
+#      (vibe --help names --auto-approve, --resume, --continue and -p, else
+#      the pin is refused), the dependency list, active_model in
+#      ~/.vibe/config.toml (written when absent; one set by hand is kept and
+#      named), and the login file's mode and owner (never its content)
 #   2. the toolchain the harness runs on: yq (v4) into <data>/tools, and the
 #      `spool` binary, linked as <prefix>/bin/spool (a real file there is left
 #      alone). spool is DOWNLOADED (spec 072 A4b): spool-<os>-<arch> of the
@@ -46,7 +54,9 @@
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
-#   --cli <list>      comma list of claude,grok,agy,qwen, or none (default claude)
+#   --cli <list>      comma list of claude,grok,agy,qwen,mistral, or none (default claude)
+#   --cli-only        ONLY step 2, the CLIs of --cli: no toolchain, config,
+#                     shim, hooks, skills or seat (do_install_mistral_vibe)
 #   --env dev|prd|self  the hub environment (default $SPOOL_ENV, else self when
 #                     SPOOL_HUB_URL is set, else dev);
 #                     self = your own hub at SPOOL_HUB_URL, any host - e.g. the
@@ -98,6 +108,12 @@
 #      SPOOL_INSTALL_URL_CLAUDE / _GROK / _AGY / _GO / _YQ - a download mirror
 #      SPOOL_INSTALL_NPM_QWEN - the qwen npm package (default @qwen-code/qwen-code@latest)
 #      SPOOL_INSTALL_NPM - the npm command (default npm)
+#      SPOOL_INSTALL_MISTRAL_VERSION - the mistral-vibe pin, X.Y.Z (default
+#      the cnf env.box.mistral_vibe.version of this checkout; latest or an
+#      empty pin is exit 2); SPOOL_INSTALL_MISTRAL_MODEL - active_model
+#      (default the cnf env.box.mistral_vibe.model, else mistral-vibe-cli-latest)
+#      SPOOL_INSTALL_UV / SPOOL_INSTALL_PIPX / SPOOL_INSTALL_PYTHON - the uv,
+#      pipx and python3 commands (mistral needs python 3.12+, else exit 2)
 #      SPOOL_ROOT / SPOOL_AGENT_CEILING / SPOOL_ORCHESTRATOR_ID - rendered into
 #      the skills (defaults $XDG_STATE_HOME/spool-hub - ~/.local/state/spool-hub
 #      without it, /var/spool-hub with --fleet -, 40 and the role orchestrator)
@@ -129,7 +145,7 @@ CLIS="claude" ENVN="${SPOOL_ENV:-$(cfg_get SPOOL_ENV)}" TENANT="${SPOOL_TENANT:-
 FLEET="${SPOOL_INSTALL_FLEET:-$(cfg_get SPOOL_INSTALL_FLEET)}"
 [ -n "${SPOOL_HUB_URL:-}" ] || SPOOL_HUB_URL="$(cfg_get SPOOL_HUB_URL)"
 [ -n "$SPOOL_HUB_URL" ] || unset SPOOL_HUB_URL
-SEAT=1 HOOKS=1 SKILLS=1 FORCE_SKILLS=0 UPDATE=0 DRY=0 BINONLY=0
+SEAT=1 HOOKS=1 SKILLS=1 FORCE_SKILLS=0 UPDATE=0 DRY=0 BINONLY=0 CLIONLY=0
 say()  { echo "spool-install: $*" >&2; }
 die()  { local rc="$1"; shift; say "FATAL $*"; exit "$rc"; }
 usage() { sed -n '/^#   install.sh/,/^# Exit codes/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
@@ -148,6 +164,7 @@ while [ "$#" -gt 0 ]; do
     --update)   UPDATE=1; shift ;;
     --dry-run)  DRY=1; shift ;;
     --binary-only) BINONLY=1; shift ;;
+    --cli-only) CLIONLY=1; shift ;;
     -h|--help)  usage ;;
     *) say "unknown option $1"; usage ;;
   esac
@@ -169,6 +186,8 @@ fi
 # --binary-only touches nothing but the binary: no CLI, no seat (step 6), and
 # it stops after the link, before the config, shim, hooks and harness steps.
 [ "$BINONLY" = 1 ] && { CLIS=none SEAT=0; }
+# --cli-only stops after step 2: no seat, so no hub is needed.
+[ "$CLIONLY" = 1 ] && SEAT=0
 # ── 0. arguments and base tools ──────────────────────────────────────────────
 # A hub URL and no env is someone's own hub (spec 072 A50), never our dev.
 [ -n "$ENVN" ] || { [ -n "${SPOOL_HUB_URL:-}" ] && ENVN=self || ENVN=dev; }
@@ -184,7 +203,7 @@ CLI_MODE="${SPOOL_INSTALL_CLI:-auto}"
 [ "$CLIS" = none ] && CLIS=""
 IFS=, read -r -a CLI_LIST <<<"$CLIS"
 for c in "${CLI_LIST[@]}"; do
-  case "$c" in claude|grok|agy|qwen) ;; *) die 2 "--cli takes claude,grok,agy,qwen or none, got '$c'" ;; esac
+  case "$c" in claude|grok|agy|qwen|mistral) ;; *) die 2 "--cli takes claude,grok,agy,qwen,mistral or none, got '$c'" ;; esac
 done
 if [ -z "$BOX" ]; then
   BOX="$(printf 'box-%s-%s' "$(id -un)" "$(hostname -s 2>/dev/null || echo host)" | tr '[:upper:]_.' '[:lower:]--' |
@@ -227,6 +246,32 @@ NPM="${SPOOL_INSTALL_NPM:-npm}"
 for c in "${CLI_LIST[@]}"; do
   [ "$c" = qwen ] || continue
   command -v "$NPM" >/dev/null 2>&1 || die 3 "--cli qwen needs npm (Node 20+) - install Node.js first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y nodejs npm"
+done
+# mistral (spec 110 2.2): the pin, a python 3.12+ and uv or pipx, up front.
+UV="${SPOOL_INSTALL_UV:-uv}" PIPX="${SPOOL_INSTALL_PIPX:-pipx}" PY="${SPOOL_INSTALL_PYTHON:-python3}"
+# cnf_mistral <key>: env.box.mistral_vibe.<key> of this checkout's cnf, read
+# without yq (step 3 installs yq; this runs before it).
+cnf_mistral() {
+  local app; app="$(basename "$ORC" | sed 's/-orc$//')"
+  awk -v k="$1" '
+    /^[[:space:]]*mistral_vibe:[[:space:]]*$/ { match($0, /^[[:space:]]*/); ind = RLENGTH; on = 1; next }
+    on { match($0, /^[[:space:]]*/); if ($0 !~ /^[[:space:]]*(#|$)/ && RLENGTH <= ind) on = 0 }
+    on && $1 == k ":" { v = $2; gsub(/["\047]/, "", v); print v; exit }
+  ' "$ROOT/$app-cnf/$app/all.env.yaml" 2>/dev/null
+}
+for c in "${CLI_LIST[@]}"; do
+  [ "$c" = mistral ] || continue
+  MISTRAL_PIN="${SPOOL_INSTALL_MISTRAL_VERSION-$(cnf_mistral version)}"
+  MISTRAL_MODEL="${SPOOL_INSTALL_MISTRAL_MODEL:-$(cnf_mistral model)}"
+  MISTRAL_MODEL="${MISTRAL_MODEL:-mistral-vibe-cli-latest}"
+  [[ "$MISTRAL_PIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    die 2 "--cli mistral installs one pinned version X.Y.Z (cnf env.box.mistral_vibe.version or SPOOL_INSTALL_MISTRAL_VERSION), got '${MISTRAL_PIN}': never latest"
+  [[ "$MISTRAL_MODEL" =~ ^[A-Za-z0-9._:-]+$ ]] || die 2 "bad mistral model '$MISTRAL_MODEL'"
+  pyv="$("$PY" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)"
+  [ -n "$pyv" ] && [ "${pyv%%.*}" -eq 3 ] && [ "${pyv#*.}" -ge 12 ] ||
+    die 2 "--cli mistral needs python 3.12 or newer (mistral-vibe requires_python >=3.12), $PY is ${pyv:-missing} - install python3.12+ (this needs root, so it is yours to run), or set SPOOL_INSTALL_PYTHON"
+  command -v "$UV" >/dev/null 2>&1 || command -v "$PIPX" >/dev/null 2>&1 ||
+    die 3 "--cli mistral needs uv or pipx - install one first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y pipx"
 done
 command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
 
@@ -282,7 +327,65 @@ qwen_install() {
   have="$(cli_path qwen)"; [ -n "$have" ] || { cli_fail qwen "npm installed $QWEN_PKG but no qwen binary is on PATH or in $BIN"; return 0; }
   say "qwen: $have ($("$have" --version 2>/dev/null | sed -n 1p))"
 }
+# mistral (spec 110 2.2): the cnf pin of mistral-vibe, through uv, else pipx.
+# Every vibe call runs with MISTRAL_API_KEY unset: an exported one beats
+# ~/.vibe/.env, and nothing here needs a key.
+vibe_version() { env -u MISTRAL_API_KEY "$1" --version 2>/dev/null | sed -n '1s/^vibe[[:space:]]*//p'; }
+mistral_install() {
+  local have="$1" cur="" cmd miss="" f help d cfg tmp m n
+  [ -n "$have" ] && cur="$(vibe_version "$have")"
+  if command -v "$UV" >/dev/null 2>&1; then cmd=("$UV" tool install --force "mistral-vibe==$MISTRAL_PIN")
+  else cmd=("$PIPX" install --force "mistral-vibe==$MISTRAL_PIN"); fi
+  if [ -n "$cur" ] && [ "$cur" = "$MISTRAL_PIN" ]; then say "mistral: $have is at the pin $MISTRAL_PIN: not reinstalled"
+  elif [ "$DRY" = 1 ]; then plan "${cmd[*]}${cur:+ (have $cur)}"
+  else
+    say "installing mistral-vibe $MISTRAL_PIN (${cmd[*]})${cur:+, replacing $cur}"
+    env -u MISTRAL_API_KEY "${cmd[@]}" >&2 || { cli_fail mistral "${cmd[*]} failed"; return 0; }
+  fi
+  say "mistral: launch line: env -u MISTRAL_API_KEY vibe --auto-approve (the launcher never inherits a key from the env)"
+  [ -n "${MISTRAL_API_KEY+x}" ] && say "WARN mistral: MISTRAL_API_KEY is set in this environment; it would beat ~/.vibe/.env, so every vibe call here runs without it"
+  if [ "$DRY" = 1 ]; then
+    plan "check vibe --version = $MISTRAL_PIN and the flag contract (--auto-approve --resume --continue -p), list the dependencies, set active_model = \"$MISTRAL_MODEL\" in $HOME/.vibe/config.toml when it has none"
+    return 0
+  fi
+  have="$(cli_path vibe)"; [ -n "$have" ] || { cli_fail mistral "no vibe binary on PATH or in $BIN after the install"; return 0; }
+  cur="$(vibe_version "$have")"
+  [ "$cur" = "$MISTRAL_PIN" ] || { cli_fail mistral "$have is ${cur:-unknown}, the pin is $MISTRAL_PIN"; return 0; }
+  help="$(env -u MISTRAL_API_KEY "$have" --help 2>&1)"
+  for f in --auto-approve --resume --continue -p; do
+    grep -qE -- "(^|[[:space:],[])$f([],[:space:]]|\$)" <<<"$help" || miss="$miss $f"
+  done
+  [ -z "$miss" ] || { cli_fail mistral "vibe $cur lacks the flag contract:$miss - the pin $MISTRAL_PIN is refused (spec 110 2.2)"; return 0; }
+  say "mistral: flag contract ok (--auto-approve --resume --continue -p)"
+  # the transitive dependencies float under ==<pin>: name what this box got
+  if [ "${cmd[0]}" = "$UV" ]; then d="$("$UV" pip freeze --python "$(dirname "$(readlink -f "$have")")/python" 2>/dev/null)"
+  else d="$("$PIPX" runpip mistral-vibe freeze 2>/dev/null)"; fi
+  n="$(grep -c . <<<"$d")"
+  say "mistral: $n dependencies of mistral-vibe $cur:"; [ -n "$d" ] && sed 's/^/spool-install:   dep /' <<<"$d" >&2
+  # active_model: an unset one lets the vendor route the session elsewhere.
+  d="$HOME/.vibe" cfg="$HOME/.vibe/config.toml"
+  mkdir -p "$d" && chmod 700 "$d" || { cli_fail mistral "cannot create $d"; return 0; }
+  m="$(sed -n 's/^[[:space:]]*active_model[[:space:]]*=[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' "$cfg" 2>/dev/null)"; m="${m%%$'\n'*}"
+  if [ -z "$m" ]; then
+    tmp="$(mktemp "$d/.config.toml.XXXXXX")" || { cli_fail mistral "no temp file in $d"; return 0; }
+    { printf 'active_model = "%s"\n' "$MISTRAL_MODEL"; if [ -f "$cfg" ]; then cat "$cfg"; fi; } >"$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$cfg" ||
+      { rm -f "$tmp"; cli_fail mistral "cannot write $cfg"; return 0; }
+    say "mistral: active_model = \"$MISTRAL_MODEL\" written to $cfg"
+  elif [ "$m" = "$MISTRAL_MODEL" ]; then say "mistral: active_model = \"$m\" in $cfg (the cnf model)"
+  else say "WARN mistral: $cfg keeps active_model = \"$m\", set by hand; the cnf model is $MISTRAL_MODEL"
+  fi
+  say "mistral: telemetry off switch: none written yet (spec 110 T005 measures the egress first)"
+  # the login: its mode and owner only, never its content
+  if [ -f "$d/.env" ]; then
+    m="$(stat -c '%a %U' "$d/.env" 2>/dev/null)"
+    [ "${m%% *}" = 600 ] && say "mistral: login $d/.env mode ${m% *} owner ${m#* }" ||
+      say "WARN mistral: login $d/.env is mode ${m% *} (owner ${m#* }), want 600: chmod 600 it"
+  else say "mistral: no login yet ($d/.env): run do_set_mistral_key; until then lane-mix skips mistral on this box"
+  fi
+  say "mistral: $have (vibe $cur)"
+}
 for c in "${CLI_LIST[@]}"; do
+  [ "$c" = mistral ] && { mistral_install "$(cli_path vibe)"; continue; }
   url="$(cli_url "$c")"; have="$(cli_path "$c")"
   [ "$c" = qwen ] && { qwen_install "$have"; continue; }
   # agy's installer stops at "already installed"; its own `update` is the
@@ -305,6 +408,12 @@ for c in "${CLI_LIST[@]}"; do
   have="$(cli_path "$c")"; [ -n "$have" ] || { cli_fail "$c" "the $c installer ran but no $c binary is on PATH or in $BIN"; continue; }
   say "$c: $have ($("$have" --version 2>/dev/null | sed -n 1p))"
 done
+
+if [ "$CLIONLY" = 1 ]; then
+  [ "$DRY" = 1 ] && say "DRY RUN - nothing changed"
+  [ "${#CLI_FAILED[@]}" -eq 0 ] || die 4 "not installed: ${CLI_FAILED[*]} (re-run install.sh --cli-only --cli ${CLI_FAILED[*]// /,} to retry)"
+  exit 0
+fi
 
 # ── 3. toolchain: yq, Go, spool ───────────────────────────────────────────────
 TPATH="$TOOLS/bin:$TOOLS/go/bin"

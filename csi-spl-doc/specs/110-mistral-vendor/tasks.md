@@ -80,7 +80,7 @@ the owner's Team login on each box.
 
   Done: `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code` on both
   envs.
-- [ ] T004 **install** (needs T003). `do_install_mistral_vibe` (`spec.md`
+- [x] T004 **install** (c-576, needs T003). `do_install_mistral_vibe` (`spec.md`
   2.2-2.4). Files:
   - `RUN/install-mistral-vibe.func.sh` (*new*);
   - `OT/install-mistral-vibe.tst.sh` (*new*);

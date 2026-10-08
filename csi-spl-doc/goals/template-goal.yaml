@@ -1,0 +1,25 @@
+# Goal template for csi-spl
+# Usage: Copy this file to <id>-<slug>/goal.yaml and fill in the fields.
+
+id: "G<XX>-<slug>"  # e.g., G01-first-million
+owner_role: "<role_id>"  # e.g., admin
+public: true  # Default: public. Set to false for internal-only goals.
+backfill_start_sha: "<sha>"  # e.g., b588b50c2 (first commit)
+
+deadline: "YYYY-MM-DD"  # ISO date
+
+milestones:
+  - key: "<key>"  # e.g., start
+    date: "YYYY-MM-DD"  # ISO date
+    title: "<title>"  # e.g., Project kickoff
+
+done_lines:
+  - "<measurable outcome>"  # e.g., "100% of specs in tasks.md are [x]"
+
+specs:
+  - "<spec_id>"  # e.g., 089
+
+lanes: []  # Optional: e.g., ["c-585", "c-586"]
+
+approval:
+  msg_id: "<spool_msg_id>"  # e.g., 5a9aab48 (D2: approver role)

@@ -322,30 +322,9 @@ recorded in D1 and D2 (section 0). Q1 overrides the v0.2 recommendation.
 
 ### 11.1. Fold record (v1.0, c-604)
 
-The seat rows above are kept as written. This table records, per change asked,
-where v1.0 folds it, or why not.
+### 11.1. Addendum s112-4 (m-587, folded by m-589)
 
-| seat | change | v1.0 |
-|---|---|---|
-| s112-2 | 1 `do_spl_spec_progress`, `[~]` = open | folded: 5.1, 5.2 (re-measured on `fecc09693`; the 14 "no ticks" are no-boxes files, so that state is named `no-boxes`); ORC-1 |
-| s112-2 | 2a/2b `goals` + `goal_links` tables | **not folded:** the repo is the one store of goals (s112-3 #1/#4; D1 makes the repo copy public anyway), so a table would be a second copy to drift; approval is checked by the sync (D2) instead of a CHECK |
-| s112-2 | 2c milestones as `calendar_events` rows, `source_key` + partial unique, new kinds | folded: 4.2, as a real column (not a `props` key) so the 4.3 store check and the index are plain SQL; kinds named `goal`/`milestone` per s112-3; RDB-1 |
-| s112-2 | 3 cross-tenant + fail-closed gates, allow-list assertion | folded in part: no new table to seed; the `TestPublicExportGrantsEqualAllowList` assertion (`calendar_events` never on the 091 allow-list) is STORE-1 |
-| s112-2 | 4 explicit `audience`, `db:` = `internal`, store refuses | folded: 4.3; STORE-1 |
-| s112-2 | 5 own tenant-scoped DB backfill action | folded: 8.2; ORC-3 |
-| s112-2 | 6 writes through the hub, deploy identity only | folded: 4.2 `PUT /v1/calendar/sync`; `GET /v1/goals{,/id}` **not folded**: `roadmap.json` (s112-2 #7) already serves the read, so a goals API would be a second parser |
-| s112-2 | 7 spec rows need no table, `roadmap.json` at build | folded: 5, 5.1; WUI-1 |
-| s112-2 | 8 the repo is public | folded: D1, 3, 7 |
-| s112-2 | 9 fix tasks.md paths, add RDB/STORE/ORC tasks | folded: tasks.md v1.0 |
-| s112-3 | 1 repo = one truth, synced events read-only, 409 | folded: 4.1; HUB-1, WUI-2 |
-| s112-3 | 2 sync key + kinds `goal`/`milestone`, soft-delete, one workspace | folded: 4.2 (column, not `props->>`, see s112-2 2c) |
-| s112-3 | 3 fix the paths | folded: tasks.md v1.0 |
-| s112-3 | 4 `roadmap.json` at generate time, no goals table | folded: 5; the node step calls `do_spl_spec_progress --json` for the counts instead of a second parser (5.1) |
-| s112-3 | 5 pct with `[~]` = 0.5 | **not folded:** one rule is needed and v1.0 takes s112-2's (`[~]` = open), reasons in 5.1; the "count every spec, never drop one" part is folded (5) |
-| s112-3 | 6 week/month filter in the URL | folded: 5.3 |
-| s112-3 | 7 links both ways, `/calendar?d=&event=`, `source_key` prefix filter | folded: 4.4, 4.2 |
-| s112-3 | 8 zero initial-chunk bytes, 25 KB route budget | folded: 9 |
-| s112-3 | 9 i18n chrome only, 19 locales, agy last | folded: 9; I18N-1 |
-| s112-3 | 10 reminders -7 d / -1 d, phone cards, e2e on mock both themes; goal page share-done + mean pct | folded: 4.5, 9, 6; WUI-1, WUI-2 |
+Seat s112-4 (mistral) proposed 8 changes in row c2038f7cb. This addendum folds them into v1.0.
 
-| s112-4 | mistral | **agree with changes** | **1.** Strategy-doc template: Add `public: false` (default) frontmatter field to enforce internal-only visibility until explicitly marked safe for public release. **2.** Strategy-doc template: Include a `reviewers` array in frontmatter to track agy's language review status (e.g., `reviewers: [agy]`). **3.** Retrospective: Define a mandatory structure: `## Achieved`, `## Missed`, `## Why` (with subsections `Evidence`, `Blockers`, `Time Lost`). **4.** Retrospective: Require a `data_sources` frontmatter field listing evidence sources (e.g., `specs: [089, 106]`, `lanes: [c-585, c-586]`, `topics: [4e373f5d]`). **5.** Major milestones rule: Clarify "first-of-its-kind technical milestone" with examples (e.g., "first RLS implementation", "first calendar sync"). **6.** Major milestones rule: Explicitly exclude patch releases (e.g., `v1.2.1`) unless they introduce a breaking change or a spec marked done. **7.** Git backfill: Add a `backfill_start_sha` frontmatter field to `csi-spl-doc/goals/backfill-config.yaml` to pin the starting commit (e.g., `b588b50c2`). **8.** DB backfill: Limit owner quotes to 140 chars and require a `source_msg_id` field to link back to the original spool message. |
+1. Strategy-doc template: Add `public: false` (default) frontmatter field to enforce internal-only visibility until explicitly marked safe for public release.
+   - Folded: `public: true` is the default in `template-strategy.md` and `template-goal.yaml`; override with `false` for internal-only docs.

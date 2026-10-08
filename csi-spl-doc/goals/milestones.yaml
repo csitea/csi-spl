@@ -1,0 +1,10 @@
+# Major milestones for backfill (spec 112, 8.1)
+# Format: YYYY-MM-DD <title> (<source>)
+# Sources: git tag, spec turned done, or manual.
+# Exclude patch releases unless breaking (s112-4 #6).
+
+2026-09-17 spool-hub started (git: b588b50c2)
+
+# Example entries (uncomment and fill in dates):
+# 2026-10-01 RLS implemented (git: v1.0.0)
+# 2026-10-15 Calendar sync (spec: 089)

@@ -3,7 +3,7 @@
 # @description Ping one harness hook (spec 093 7.3). A hook injects a random
 # @description token after one tool call; the harness must echo it. n trials,
 # @description default 3. Pass is the token in the harness reply.
-# @param HARNESS (optional) - grok, agy, qwen, or all (default all)
+# @param HARNESS (optional) - grok, agy, qwen, mistral, or all (default all)
 # @param N (optional) - trials per harness, default 3
 # @param HOOK_PING_HARNESS_CMD (optional) - stub: injection JSON on stdin,
 # @param   reply on stdout. Unset runs the installed binary (refused when
@@ -24,8 +24,8 @@ _spl_hp_root() {
 
 spl_hook_ping_harnesses() {
   case "${HARNESS:-all}" in
-    all) printf '%s\n' grok agy qwen ;;
-    grok|agy|qwen) printf '%s\n' "$HARNESS" ;;
+    all) printf '%s\n' grok agy qwen mistral ;;
+    grok|agy|qwen|mistral) printf '%s\n' "$HARNESS" ;;
     *) printf '%s\n' "hook-ping fail bad-harness ${HARNESS}" >&2; return 2 ;;
   esac
 }
@@ -52,10 +52,18 @@ spl_hook_ping_trial_dir() {
   printf '%s' "$dir"
 }
 
+# vibe (mistral) sends its own event names: post_tool after a tool call,
+# post_agent once per turn (the control).
 spl_hook_ping_inject_post() {
   local script ev
   script="$(_spl_hp_root)/$1.sh"
-  if [[ "${HOOK_PING_SKIP_TOOL:-}" == 1 ]]; then
+  if [[ "$1" == mistral ]]; then
+    if [[ "${HOOK_PING_SKIP_TOOL:-}" == 1 ]]; then
+      ev='{"hook_event_name":"post_agent","session_id":"s","transcript_path":"t","cwd":"/"}'
+    else
+      ev='{"hook_event_name":"post_tool","session_id":"s","transcript_path":"t","cwd":"/","tool_name":"bash","tool_call_id":"c1","tool_input":{},"tool_status":"success","tool_output":null,"tool_output_text":"hook-ping-tool","tool_error":null,"duration_ms":1.0}'
+    fi
+  elif [[ "${HOOK_PING_SKIP_TOOL:-}" == 1 ]]; then
     ev='{"hook_event_name":"UserPromptSubmit"}'
   else
     ev='{"hook_event_name":"PostToolUse","tool_name":"run_shell_command"}'
@@ -87,6 +95,8 @@ spl_hook_ping_shape() {
         >/dev/null ;;
     agy)
       jq -e --arg t "$tok" '.injectSteps[0].ephemeralMessage | contains($t)' >/dev/null ;;
+    mistral)
+      jq -e --arg t "$tok" '.decision == "allow" and (.hook_specific_output.additional_context | contains($t))' >/dev/null ;;
     *) return 2 ;;
   esac
 }
@@ -115,7 +125,8 @@ spl_hook_ping_bin() {
     printf '%s' "$HOOK_PING_BIN"
     return 0
   fi
-  command -v "$1"
+  # the mistral kind's binary is vibe (spec 110)
+  if [[ "$1" == mistral ]]; then command -v vibe; else command -v "$1"; fi
 }
 
 spl_hook_ping_echoed() {
@@ -123,6 +134,7 @@ spl_hook_ping_echoed() {
   case "$h" in
     grok) text="$(jq -r '.text // empty' "$raw" 2>/dev/null || true)" ;;
     qwen) text="$(jq -r '[.[]? | select(.type == "result") | .result // empty] | last // empty' "$raw" 2>/dev/null || true)" ;;
+    mistral) text="$(cat "$raw" 2>/dev/null || true)" ;;
     agy) text="$(jq -r 'if type == "object" then (.response // .text // .result // .message // empty) elif type == "array" then ([.[] | .response // .result // .text // empty] | map(select(length > 0)) | last // empty) else empty end' "$raw" 2>/dev/null || true)" ;;
     *) return 2 ;;
   esac

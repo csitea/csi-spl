@@ -7,6 +7,9 @@
 #     - the tool-call event is skipped -> fail no-injection
 #   A direct call also checks the hook JSON, a non-tool event, a broken
 #   payload (exit 0, {}), and the SPOOL_TEST refusal of the live spool root.
+#   mistral (vibe, spec 110 T013b): a stubbed `post_tool` call records a
+#   token and replies hook_specific_output.additional_context; the control,
+#   a non-tool event (`post_agent`, and claude's PostToolUse name), prints {}.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -74,6 +77,26 @@ rc="$(hook_out "$d" qwen.sh <<<"$(printf '%s' '{"hook_event_name":"PostToolUse"}
 tok="$(cat "$d/token")"
 [[ "$rc" == 0 ]] && jq -e --arg t "$tok" '.decision=="allow" and .hookSpecificOutput.hookEventName=="PostToolUse" and (.hookSpecificOutput.additionalContext|contains($t))' "$d/out" >/dev/null \
   && pass "qwen PostToolUse injects additionalContext" || fail "qwen PostToolUse injects additionalContext"
+
+# --- mistral (vibe): its own event names and a snake-case reply
+VIBE_POST='{"hook_event_name":"post_tool","session_id":"s1","transcript_path":"/t","cwd":"/","tool_name":"bash","tool_call_id":"c1","tool_input":{"command":"echo hook-ping-tool"},"tool_status":"success","tool_output":null,"tool_output_text":"hook-ping-tool","tool_error":null,"duration_ms":3.5}'
+d="$T/m-post"; mkdir -p "$d"
+rc="$(hook_out "$d" mistral.sh <<<"$VIBE_POST")"
+tok="$(cat "$d/token" 2>/dev/null)"
+[[ "$rc" == 0 && "$tok" =~ ^ping-[0-9a-f]{16}$ ]] && jq -e --arg t "$tok" '.decision=="allow" and (.hook_specific_output.additional_context|contains($t))' "$d/out" >/dev/null \
+  && pass "mistral post_tool records a token and injects additional_context" || fail "mistral post_tool records a token ($(cat "$d/out"))"
+d="$T/m-agent"; mkdir -p "$d"
+rc="$(hook_out "$d" mistral.sh <<<'{"hook_event_name":"post_agent","session_id":"s1","transcript_path":"/t","cwd":"/"}')"
+[[ "$rc" == 0 && ! -e "$d/token" ]] && jq -e '. == {}' "$d/out" >/dev/null \
+  && pass "CONTROL mistral post_agent (no tool) prints {}" || fail "CONTROL mistral post_agent prints {}"
+d="$T/m-claude"; mkdir -p "$d"
+rc="$(hook_out "$d" mistral.sh <<<'{"hook_event_name":"PostToolUse"}')"
+[[ "$rc" == 0 && ! -e "$d/token" ]] && jq -e '. == {}' "$d/out" >/dev/null \
+  && pass "CONTROL mistral ignores claude's PostToolUse name" || fail "CONTROL mistral ignores claude's PostToolUse name"
+d="$T/m-bad"; mkdir -p "$d"
+rc="$(hook_out "$d" mistral.sh <<<"not-json")"
+[[ "$rc" == 0 && ! -e "$d/token" ]] && jq -e '. == {}' "$d/out" >/dev/null \
+  && pass "mistral broken payload exits 0 and prints {}" || fail "mistral broken payload exits 0 and prints {}"
 
 # --- agy: marker on PostToolUse, token only on the following PreInvocation
 d="$T/a-seq"; mkdir -p "$d"
@@ -143,6 +166,31 @@ else
     && pass "CONTROL agy skip-tool fires no-injection" || fail "CONTROL agy skip-tool fires no-injection"
 fi
 
+if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HARNESS=mistral N=1; then
+  grep -q 'hook-ping mistral 1 pass' "$T/out" && pass "action mistral stub echoes -> pass" || fail "action mistral stub echoes -> pass"
+else
+  fail "action mistral stub echoes -> pass (rc $(cat "$T/out"))"
+fi
+
+if run_ping HOOK_PING_HARNESS_CMD="$T/mute.sh" HARNESS=mistral N=1; then
+  fail "CONTROL mistral mute stub should fail"
+else
+  grep -q 'hook-ping mistral 1 fail no-echo' "$T/out" && pass "CONTROL mistral mute stub fires no-echo" || fail "CONTROL mistral mute stub fires no-echo"
+fi
+
+if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HOOK_PING_SKIP_TOOL=1 HARNESS=mistral N=1; then
+  fail "CONTROL mistral skip-tool should fail"
+else
+  grep -q 'hook-ping mistral 1 fail no-injection' "$T/out" \
+    && pass "CONTROL mistral skip-tool (post_agent) fires no-injection" || fail "CONTROL mistral skip-tool fires no-injection"
+fi
+
+if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HARNESS=all N=1; then
+  grep -q 'hook-ping mistral n=1 pass=1 fail=0' "$T/out" && pass "HARNESS=all includes mistral" || fail "HARNESS=all includes mistral"
+else
+  fail "HARNESS=all (rc $(cat "$T/out"))"
+fi
+
 if run_ping HOOK_PING_HARNESS_CMD="$T/echo.sh" HARNESS=grok N=3; then
   [[ "$(grep -c 'hook-ping grok [123] pass' "$T/out")" == 3 ]] && grep -q 'n=3 pass=3 fail=0' "$T/out" \
     && pass "action grok n=3 all pass" || fail "action grok n=3 all pass"
@@ -167,6 +215,11 @@ out="$(PATH=/usr/bin:/bin HOOK_PING_STATE="$T/ni" bash -c 'source "$1"; spl_hook
 rm -rf "$T/ni"
 grep -q 'hook-ping grok 1 fail not-installed' <<<"$out" \
   && pass "missing binary is not-installed" || fail "missing binary is not-installed ($out)"
+# the mistral kind's binary is vibe: a PATH without vibe is not-installed
+out="$(PATH=/usr/bin:/bin HOOK_PING_STATE="$T/ni" bash -c 'source "$1"; spl_hook_ping_live_trial mistral 1' _ "$PROJ_ROOT/src/bash/run/spl-hook-ping.func.sh")"
+rm -rf "$T/ni"
+grep -q 'hook-ping mistral 1 fail not-installed' <<<"$out" \
+  && pass "mistral without vibe on PATH is not-installed" || fail "mistral not-installed ($out)"
 
 # agy PostToolUse is grouped. A flat handler is loaded and never called.
 d="$T/agy-doc"
@@ -175,6 +228,23 @@ source "$ROOT/live-one.sh"
 spl_hp_agy_hooks_file "POSTCMD" "PRECMD" "$d/hooks.json"
 jq -e '.ping.PostToolUse[0].matcher=="*" and .ping.PostToolUse[0].hooks[0].command=="POSTCMD" and .ping.PreInvocation[0].command=="PRECMD" and (.ping.PreInvocation[0]|has("matcher")|not)' "$d/hooks.json" >/dev/null \
   && pass "agy hooks.json groups PostToolUse" || fail "agy hooks.json groups PostToolUse"
+
+# vibe's hooks.toml: ONE post_tool entry; a quote or backslash in the command
+# stays a valid TOML basic string (read back with python's tomllib)
+spl_hp_mistral_hooks_file 'env HOOK_PING_DIR=/a\ b /x/mistral.sh "q"' "$d/hooks.toml"
+if python3 -c 'import tomllib' 2>/dev/null; then
+  got="$(python3 -c 'import sys,tomllib; h=tomllib.load(open(sys.argv[1],"rb"))["hooks"]; print(len(h), h[0]["type"], h[0]["command"])' "$d/hooks.toml" 2>&1)"
+  [[ "$got" == '1 post_tool env HOOK_PING_DIR=/a\ b /x/mistral.sh "q"' ]] \
+    && pass "mistral hooks.toml is one post_tool entry, command intact" || fail "mistral hooks.toml ($got)"
+else
+  grep -q '^type = "post_tool"$' "$d/hooks.toml" && pass "mistral hooks.toml has a post_tool entry (no tomllib)" || fail "mistral hooks.toml"
+fi
+printf '%s\n' 'ping-0123456789abcdef' >"$d/raw.out"
+spl_hook_ping_echoed mistral ping-0123456789abcdef "$d/raw.out" \
+  && pass "mistral reply is the -p text" || fail "mistral reply is the -p text"
+printf '%s\n' 'no token here' >"$d/raw.out"
+spl_hook_ping_echoed mistral ping-0123456789abcdef "$d/raw.out" \
+  && fail "CONTROL mistral reply without the token must not match" || pass "CONTROL mistral reply without the token does not match"
 
 printf '%s\n' '{"response":"ping-0123456789abcdef"}' >"$d/raw.out"
 spl_hook_ping_echoed agy ping-0123456789abcdef "$d/raw.out" \

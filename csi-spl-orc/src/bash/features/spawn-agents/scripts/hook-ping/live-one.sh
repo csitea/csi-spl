@@ -3,6 +3,8 @@
 # HOOK_PING_DIR, HOOK_PING_BIN and the harness name (argv 1) are required.
 # Grok runs under an isolated HOME so the user's hook files stay untouched.
 # Qwen and agy keep HOME and load a workspace hook file in the trial dir.
+# Mistral (vibe) runs under an isolated VIBE_HOME: its hooks.toml holds the
+# ping, its .env and config.toml are links to the real ones (spec 110 3.4).
 set -uo pipefail
 
 # Sourced by the module test for the agy hooks document. The trial runs only
@@ -14,6 +16,15 @@ spl_hp_agy_hooks_file() {
   jq -nc --arg post "$post" --arg pre "$pre" \
     '{ping:{PostToolUse:[{matcher:"*",hooks:[{type:"command",command:$post,timeout:10}]}],PreInvocation:[{type:"command",command:$pre,timeout:10}]}}' \
     >"$dest"
+}
+
+# Sourced by the module test too: vibe's hooks.toml with ONE post_tool entry.
+# The command is a TOML basic string (backslash and quote escaped).
+spl_hp_mistral_hooks_file() {
+  local cmd="$1" dest="$2"
+  mkdir -p "$(dirname "$dest")"
+  cmd="${cmd//\\/\\\\}"; cmd="${cmd//\"/\\\"}"
+  printf '[[hooks]]\nname = "spl-hook-ping"\ntype = "post_tool"\ncommand = "%s"\ntimeout = 10.0\n' "$cmd" >"$dest"
 }
 
 spl_hp_live_main() {
@@ -30,6 +41,7 @@ After the tool returns, a hook message names a ping token shaped ping- plus 16 h
     grok) spl_hp_live_grok ;;
     qwen) spl_hp_live_qwen ;;
     agy) spl_hp_live_agy ;;
+    mistral) spl_hp_live_mistral ;;
     *) echo "hook-ping live bad-harness $h" >&2; return 2 ;;
   esac
 }
@@ -75,6 +87,18 @@ spl_hp_live_agy() {
   (cd "$work" && "$bin" --disable-slash-commands --effort low \
     --dangerously-skip-permissions --output-format json \
     --add-dir "$work" --print="$prompt")
+}
+
+spl_hp_live_mistral() {
+  local vh="$dir/vibe-home" real_vh="${VIBE_HOME:-$real/.vibe}" f
+  mkdir -p "$vh"
+  for f in .env config.toml; do
+    [[ -f "$real_vh/$f" ]] && ln -sfn "$real_vh/$f" "$vh/$f"
+  done
+  spl_hp_mistral_hooks_file "$(spl_hp_live_cmd "$root/mistral.sh")" "$vh/hooks.toml"
+  VIBE_HOME="$vh" VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false \
+    VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false \
+    "$bin" --workdir "$work" --auto-approve --max-turns 8 --output text -p "$prompt"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

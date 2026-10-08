@@ -182,3 +182,47 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 		})
 	}
 }
+
+// rdb 0152: the runner CPU cap. Unset is the default 80; a set lands and
+// reads back, a value outside 1..100 (fleet-wide or a box's) is refused and
+// leaves the row, a box's own cap rides its band, and a nil resets it.
+// Control: the load band is untouched.
+func TestFleetLoadRunnerCPU(t *testing.T) {
+	ctx := context.Background()
+	n := func(v int) *int { return &v }
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			fl := st.(FleetLoadTarget)
+			tid := newTenant(t, st)
+			got, err := fl.FleetLoadOf(ctx, tid)
+			if err != nil || got.RunnerCPUPct != nil || got.Effective().RunnerCPUPct != DefaultRunnerCPUPct {
+				t.Fatalf("fresh row = %+v, %v; want unset, 80 in force", got, err)
+			}
+			got, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{RunnerCPUSet: true, RunnerCPUPct: n(70)})
+			if err != nil || *got.RunnerCPUPct != 70 || got.Low != nil {
+				t.Fatalf("set = %+v, %v", got, err)
+			}
+			for _, bad := range []FleetLoadPatch{
+				{RunnerCPUSet: true, RunnerCPUPct: n(0)},
+				{RunnerCPUSet: true, RunnerCPUPct: n(101)},
+				{BoxesSet: true, Boxes: map[string]BoxBand{"box-s": {Low: 50, High: 75, RunnerCPUPct: 101}}},
+				{BoxesSet: true, Boxes: map[string]BoxBand{"box-s": {Low: 50, High: 75, RunnerCPUPct: -1}}},
+			} {
+				if _, err := fl.SetFleetLoad(ctx, tid, bad); !errors.Is(err, ErrBadFleetLoad) {
+					t.Errorf("patch %+v: %v, want ErrBadFleetLoad", bad, err)
+				}
+			}
+			bands := map[string]BoxBand{"box-s": {Low: 50, High: 75, RunnerCPUPct: 60}, "box-t": {Low: 20, High: 40}}
+			if _, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{BoxesSet: true, Boxes: bands}); err != nil {
+				t.Fatalf("set a box's cap: %v", err)
+			}
+			if got, _ = fl.FleetLoadOf(ctx, tid); *got.RunnerCPUPct != 70 || !maps.Equal(got.Boxes, bands) {
+				t.Fatalf("read back = %+v", got)
+			}
+			got, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{RunnerCPUSet: true})
+			if err != nil || got.RunnerCPUPct != nil || got.Effective().RunnerCPUPct != 80 || got.Effective().Low != 50 {
+				t.Fatalf("reset = %+v, %v", got, err)
+			}
+		})
+	}
+}

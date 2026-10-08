@@ -280,3 +280,45 @@ func TestFleetLoadOperatorSA(t *testing.T) {
 		t.Fatalf("CONTROL: the admin does not see the SA's change: %v", body)
 	}
 }
+
+// rdb 0152 (owner HUM-10 t1 338e5258 b3573121: "always some 20% extra
+// capacity"): the runner CPU cap answers 80 by default, the operator admin
+// sets it fleet-wide and per box, a value outside 1..100 is a 400 that
+// leaves the row, a box reads both, and null resets it.
+func TestFleetLoadRunnerCPU(t *testing.T) {
+	e, op, other, who, _ := operatorEnv(t, func(op, _ string) string { return op })
+	admin := who[rbac.Admin]
+	code, body := call(t, e, op, http.MethodGet, fleetLoadPath, admin, nil)
+	if code != http.StatusOK || body["runner_cpu_pct"] != 80.0 {
+		t.Fatalf("default = %d %v, want runner_cpu_pct 80", code, body)
+	}
+	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"runner_cpu_pct": 70,
+		"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "runner_cpu_pct": 60}}})
+	if code != http.StatusOK || body["runner_cpu_pct"] != 70.0 || body["low"] != 50.0 {
+		t.Fatalf("admin PATCH = %d %v", code, body)
+	}
+	for _, bad := range []map[string]any{
+		{"runner_cpu_pct": 0}, {"runner_cpu_pct": 101}, {"runner_cpu_pct": "80"}, {"runner_cpu_pct": 80.5},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "runner_cpu_pct": 0}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 50, "high": 75, "runner_cpu_pct": 101}}},
+		{"boxes": map[string]any{"box-s": map[string]any{"low": 50, "runner_cpu_pct": 60}}},
+	} {
+		if code, _ := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, bad); code != http.StatusBadRequest {
+			t.Errorf("PATCH %v = %d, want 400", bad, code)
+		}
+	}
+	b := e.box(other, "box-b", "CLE-08")
+	e.pin(other, b)
+	raw, err := b.c.Lane(context.Background(), "fleet_load_get", "", nil)
+	var got struct {
+		RunnerCPUPct int                       `json:"runner_cpu_pct"`
+		Boxes        map[string]map[string]int `json:"boxes"`
+	}
+	if err != nil || json.Unmarshal(raw, &got) != nil || got.RunnerCPUPct != 70 || got.Boxes["box-s"]["runner_cpu_pct"] != 60 {
+		t.Fatalf("box read %s %v", raw, err)
+	}
+	code, body = call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{"runner_cpu_pct": nil})
+	if code != http.StatusOK || body["runner_cpu_pct"] != 80.0 {
+		t.Fatalf("reset = %d %v", code, body)
+	}
+}

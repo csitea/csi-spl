@@ -14,6 +14,7 @@ import (
 // tenant -> event id -> row. official_days has no rows in Memory.
 type memCalendar struct {
 	events map[string]map[string]*CalendarEvent
+	keys   map[string]map[string]string // tenant -> source_key -> event id (rdb 0156, calendar_sync.go)
 }
 
 // cloneCalendarEvent copies e; Props is copied deep (normalizeCalendarProps

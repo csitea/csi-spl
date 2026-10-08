@@ -167,6 +167,13 @@ var grantLine = regexp.MustCompile(`(?m)^GRANT SELECT \(([^)]*)\) ON ([a-z_][a-z
 // is one the generator writes.
 func TestPublicExportGrantsEqualAllowList(t *testing.T) {
 	al := parseAllowList(t, latestAllowList(t))
+	// specs/112 STORE-1: synced calendar events (db: ones internal) never
+	// reach the spec 091 public dataset (spec 8.2).
+	for _, tb := range al.tables {
+		if tb == "calendar_events" {
+			t.Errorf("calendar_events is on the public-dataset allow-list %s: specs/112 8.2 keeps it off", al.path)
+		}
+	}
 	raw, err := os.ReadFile(grantsFile(t))
 	if err != nil {
 		t.Fatal(err)

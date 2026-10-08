@@ -49,8 +49,8 @@ const (
 	CalendarPrivate  = "private"
 )
 
-// calendarKinds is rdb 0125's kind check.
-var calendarKinds = []string{"release", "deploy", "maintenance", "freeze", "agent_task", "reminder", "other"}
+// calendarKinds is rdb 0125's kind check, widened by 0156 (specs/112).
+var calendarKinds = []string{"release", "deploy", "maintenance", "freeze", "agent_task", "reminder", "other", "goal", "milestone"}
 
 // calendarRelease is rdb 0125's release_version check.
 var calendarRelease = regexp.MustCompile(`^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]+)?$`)

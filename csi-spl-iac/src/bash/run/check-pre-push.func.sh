@@ -367,7 +367,17 @@ _pp_missing_tools() {  # <part> <tree>
 # forever: `timeout` returns 124, reported as "TIMED OUT", never a hang.
 _pp_timeout="${PRE_PUSH_PART_TIMEOUT:-300}"
 # hygiene is ~1 s and cannot hang, so it runs directly (no timeout, no subshell).
-_pp_part_hygiene() { HYGIENE_TREE="$1" do_check_dist_hygiene; }
+# The fleet rules drift check (csi-spl-orc, csi-spl-doc/doc/md/fleet-rules-index.md)
+# rides along: under a second, read-only, red when two rule copies disagree.
+_pp_part_hygiene() {
+  local rc=0 drift="$1/csi-spl-orc/src/bash/run/check-fleet-rules-drift.func.sh"
+  HYGIENE_TREE="$1" do_check_dist_hygiene || rc=$?
+  if [[ -r "$drift" ]]; then
+    # shellcheck source=/dev/null
+    ( source "$drift" && FLEET_RULES_TREE="$1" do_check_fleet_rules_drift ) || rc=1
+  fi
+  return "$rc"
+}
 # The FULL-tier api suite cannot fit 300 s: the hub Postgres gate alone is
 # ~384 s. Measured uncapped on sat (n=3, GOFLAGS=-timeout=15m): 514 s at load
 # 1.85 (master 712ff98d), 319 s at load 13.08 (848e20c0), 318 s (d5611241).

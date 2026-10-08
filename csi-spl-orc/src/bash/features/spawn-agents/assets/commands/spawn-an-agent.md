@@ -38,11 +38,13 @@ grok, agy, qwen and mistral, each +/- 5 over the box's last 20 spawns), an
 approximate ratio, never a quota. Mistral takes grok's share (spec 110 D1):
 `grok: 55` becomes `mistral: 55, grok: 0`.
 
+<!-- fleet-pin data-rule-vendors: claude mistral -->
+<!-- fleet-pin language-rule-final: agy -->
 | the task | goes to |
 |---|---|
 | spec writing or spec review: `LANE_MIX_KIND=spec` | agy |
 | translation, or the language review of user-facing text in several languages (blog posts, WUI i18n locale files, help pages): `LANE_MIX_KIND=i18n` | agy, whatever the shares: agy has the final word on multilingual text (owner, 2026-10-08) |
-| personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude; mistral may take it too (spec 110 D2), but only when you pick `/mistral-spawn` by hand. Never qwen |
+| personal data or secrets (credentials, keys, customer data): `LANE_MIX_KIND=secret` or `LANE_MIX_SENSITIVE=1` | claude; mistral may take it too (spec 110 D2), but only when you pick `/mistral-spawn` by hand. Never qwen, grok or agy (the data rule: global CLAUDE.md, "Spawn an agent") |
 | the most complex coding: `LANE_MIX_KIND=hard`, or difficulty 60 or more | claude |
 | everything else, tests included: kind unset or `default`, difficulty omitted | the larger share of grok and mistral (mistral once the share has moved) |
 | under 60%, kind unset: easy, mechanical, well specified | the vendor furthest below its share by more than the tolerance; inside the band, the largest non-claude share |

@@ -14,19 +14,28 @@ difficulty against your own maximum capacity:
 | **>= 60%**, or you are unsure | `/claude-spawn` |
 
 Cheap, well-specified, mechanically-bounded work goes to qwen (the cheap lane);
-architectural, ambiguous, or correctness-critical work goes to claude. **Data rule, overrides difficulty:** qwen's endpoints are
-run by a Chinese provider — work that carries personal data or secrets
-(credentials, keys, customer data) always goes to `/claude-spawn` or
-`/mistral-spawn` (spec 110 D2), and a QWN
-brief never names a credential path. When the estimate sits
+architectural, ambiguous, or correctness-critical work goes to claude. When the estimate sits
 near the line, treat that uncertainty as evidence the task is harder than it
 looks and use `/claude-spawn`.
 
-**Language rule, owner 2026-10-08:** agy has the final word on multilingual
-text. Any user-facing text in several languages (blog posts, WUI i18n locale
-files, help pages) gets an agy review as the LAST step before it ships:
-`/agy-spawn` (`LANE_MIX_KIND=i18n`). With no agy on the box, claude drafts
-and the text waits for an agy review; it never ships unreviewed.
+<!-- fleet-pin data-rule-vendors: claude mistral -->
+**Data rule, overrides difficulty** (owner, 2026-10-08, msg 803c3b38, spec 110
+D2): work that carries personal data or secrets (credentials, keys, customer
+data) always goes to `/claude-spawn` or `/mistral-spawn`, never to qwen (its
+endpoints are run by a Chinese provider), grok or agy, and a brief for those
+lanes never names a credential path. `do_spl_lane_mix` routes
+`LANE_MIX_KIND=secret` to claude; a mistral lane for such work is a
+`/mistral-spawn` picked by hand.
+
+<!-- fleet-pin language-rule-final: agy -->
+**Language rule, owner 2026-10-08** (t1 msg 296582df: "there the final word
+on the actual content should have the agy - because he is BEST with
+languages"): agy has the final word on multilingual text. Any user-facing text
+in several languages (blog posts, WUI i18n locale files, help pages) gets an
+agy review as the LAST step before it ships: `/agy-spawn`
+(`LANE_MIX_KIND=i18n`). It complements spec 110 D5 (mistral writes docs and
+low-level code; agy reviews the languages). With no agy on the box, claude
+drafts and the text waits for an agy review; it never ships unreviewed.
 
 The only limit is **{{AGENT_CEILING}} concurrent agent windows**. This box is sized for that
 load. Count before spawning:

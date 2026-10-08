@@ -136,22 +136,15 @@ How to apply:
   `git ls-remote --tags origin 'v*'`.
 - Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, no AI trailers,
   explicit pathspecs.
-- **Agent ceiling: 40 concurrent agent windows.** Count before spawning:
-  ```bash
-  sudo -u ysg tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-1000/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
-  ```
-  Agent ids follow the grammar in [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03) (`^[acgmq]-[0-9]{3}$`, `m` = mistral since 2026-10-08, unique as `<ID>@<box>`; legacy ids end at `2026-10-03T20:59:59Z`).
-- **Data rule: personal data and secrets go to claude or mistral lanes only**
-  (owner, 2026-10-08, msg 803c3b38, [spec 110](csi-spl-doc/specs/110-mistral-vendor/spec.md)
-  D2). Credentials, keys and customer data never go to qwen (its provider is
-  Chinese), grok or agy, and a brief for those lanes never names a credential
-  path. `do_spl_lane_mix` still routes `LANE_MIX_KIND=secret` to claude; a
-  mistral lane for such work is a `/mistral-spawn` picked by hand.
-- **Language rule: agy has the final word on multilingual text** (owner
-  HUM-10, 2026-10-08, t1 msg 296582df: "there the final word on the actual
-  content should have the agy - because he is BEST with languages"). Any
-  user-facing text in several languages (blog posts, WUI i18n locale files,
-  help pages) gets an agy review as the LAST step before it ships:
-  `LANE_MIX_KIND=i18n` -> agy. It complements spec 110 D5 (mistral writes docs
-  and low-level code; agy reviews the languages). No agy on the box: claude
-  drafts, and the text waits for an agy review; it never ships unreviewed.
+- **Agent ceiling: 40 concurrent agent windows**, the **data rule** (who may
+  take secrets) and the **language rule** (agy has the final word on
+  multilingual text) are fleet-wide: their one home is the global CLAUDE.md
+  section "Spawn an agent", source
+  `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md`
+  (the count command is there and in each launcher's section 1.1). Agent ids:
+  [spec 061 section 0](csi-spl-doc/specs/061-agent-id-rename/spec.md#0-the-marker-the-old-form-ends-2026-10-03).
+- **Every fleet rule source and its one home:**
+  [fleet-rules-index.md](csi-spl-doc/doc/md/fleet-rules-index.md). A rule lives
+  in one place, the others point to it; `./run -a do_check_fleet_rules_drift`
+  (csi-spl-orc, also in the pre-push hygiene part) fails when two copies of a
+  pinned fact disagree.

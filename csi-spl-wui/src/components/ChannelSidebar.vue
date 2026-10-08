@@ -2120,7 +2120,9 @@ async function onCreate() {
    row has 212. With the clock the row's padding and gaps tighten, the
    version never shrinks under it, and on a mouse the bell and the note take
    the plain .icon-btn 32 px, not the 44 px tap target (touch keeps 44): 210 */
-.foot-row:has(> .foot-row__clock) { gap: 6px; padding-inline: 12px 0; }
+/* owner HUM-10, t1 57599bf2: the clock ~1 mm (4 px) off the drag bar, not
+   flush. Desktop only by construction: phones host the clock in the strip. */
+.foot-row:has(> .foot-row__clock) { gap: 6px; padding-inline: 12px 4px; }
 .foot-row:has(> .foot-row__clock) .vs-wrap { flex: none; }
 .foot-row:has(> .foot-row__clock) .version-stamp { padding-inline-start: 0; }
 .foot-row .foot-row__clock { margin-inline-start: auto; font-size: calc(0.6875rem * 0.9); text-align: end; }

@@ -11,6 +11,13 @@
 // Default size is the 260 px sidebar at 1280x800. The short pass is 480 px
 // tall, the shortest desktop height this suite already drives.
 //
+// Owner HUM-10, t1 57599bf2: "the clock on desktop could be 1 mm from the
+// vertical drag bar, not stuck to it". The clock's right edge sits >= 3 px
+// left of the sidebar drag bar (pane-divider-sidebar); the row does not
+// overflow. FVC_CONTROL=1 re-applies the old 0 end padding: that check reds.
+// Phone (390x844): the footer is not displayed and the clock lives in the
+// status strip, so the clock row's padding cannot reach a phone.
+//
 //   SHOT_DIR=/tmp/shots node tests/e2e/footer-version-clock.test.mjs
 //   BASE_URL=<generated bundle> node tests/e2e/footer-version-clock.test.mjs
 import { createRequire } from 'node:module'
@@ -90,7 +97,10 @@ const measure = (p) => p.evaluate(() => {
   }
   const font = (el) => { const c = getComputedStyle(el); return `${c.fontSize} ${c.fontFamily.split(',')[0]}` }
   const bot = (el) => el.getBoundingClientRect().bottom
+  const bar = document.querySelector('[data-testid=pane-divider-sidebar]')
   return {
+    barGap: bar ? r1(bar.getBoundingClientRect().left - clock.getBoundingClientRect().right) : null,
+    rowOverflow: row.scrollWidth - row.clientWidth,
     sideW: r1(sr.width),
     rowH: r1(rr.height),
     verFont: font(ver),
@@ -121,6 +131,14 @@ const setBefore = (p, on) => p.evaluate((on) => {
   document.head.appendChild(s)
   return true
 }, on)
+
+/* the control: the pre-fix 0 end padding, which left the clock flush */
+const setControl = (p) => p.evaluate(() => {
+  const s = document.createElement('style')
+  s.textContent = '.foot-row:has(> .foot-row__clock) { padding-inline-end: 0 !important; }'
+  document.head.appendChild(s)
+  return true
+})
 
 const shot = async (p, name) => {
   if (!SHOT_DIR) return
@@ -183,6 +201,7 @@ try {
     if (!clockReady) console.log('NO CLOCK ' + JSON.stringify(await diagnose(p)) + ' errors ' + JSON.stringify(errors))
     await p.waitForFunction(() => /^\d{2}:\d{2}:\d{2}$/.test((document.querySelector('.foot-row .foot-row__clock')?.textContent || '').trim()), { timeout: 20000 }).catch(() => null)
     await sleep(200)
+    if (process.env.FVC_CONTROL === '1') await setControl(p)
 
     await setBefore(p, true)
     await sleep(50)
@@ -203,6 +222,8 @@ try {
     ok(`${tag}: version and clock bottoms level (<= 1 px)`, !after.missing && near(after.verBot, after.clockBot, 1), { ver: after.verBot, clock: after.clockBot })
     ok(`${tag}: bell and note stay put`, !before.missing && near(after.bellTop, before.bellTop, 0.6) && near(after.noteTop, before.noteTop, 0.6), { bell: [before.bellTop, after.bellTop], note: [before.noteTop, after.noteTop] })
     ok(`${tag}: footer row height stays put`, near(after.rowH, before.rowH, 0.6), { before: before.rowH, after: after.rowH })
+    ok(`${tag}: clock sits >= 3 px left of the drag bar`, after.barGap !== null && after.barGap >= 3, { barGap: after.barGap })
+    ok(`${tag}: footer row does not overflow`, after.rowOverflow <= 0, { rowOverflow: after.rowOverflow })
     ok(`${tag}: version and clock stay inside the sidebar and the window`, after.verPast <= 0.5 && after.clockPast <= 0.5 && after.verWindow <= 0.5 && after.clockWindow <= 0.5, { verPast: after.verPast, clockPast: after.clockPast, verWindow: after.verWindow, clockWindow: after.clockWindow })
   }
 
@@ -228,6 +249,23 @@ try {
     }
   })
   ok('1280x800: the version card opens fully, above the version', !card.none && card.visible && card.painted && card.above && card.inside, card)
+
+  /* phone: no footer (main.css hides it) and no footer clock */
+  await applyViewport(p, { width: 390, height: 844 })
+  await p.goto(server.base + '/', { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=top-bar]', { timeout: NAV_TIMEOUT }).catch(() => null)
+  await applyViewport(p, { width: 390, height: 844 })
+  await signIn(p)
+  await p.waitForSelector('.sidebar-foot', { timeout: 20000 }).catch(() => null)
+  await sleep(300)
+  await shot(p, 'footer-390x844')
+  const phone = await p.evaluate(() => {
+    const foot = document.querySelector('.sidebar-foot')
+    if (!foot) return { none: true }
+    return { iw: window.innerWidth, display: getComputedStyle(foot).display, clock: Boolean(foot.querySelector('.foot-row__clock')) }
+  })
+  console.log(`MEASURE 390x844 ${JSON.stringify(phone)}`)
+  ok('390x844: phone shows no footer and no footer clock', !phone.none && phone.iw === 390 && phone.display === 'none' && !phone.clock, phone)
 } finally {
   await browser.close()
   await server.stop?.()

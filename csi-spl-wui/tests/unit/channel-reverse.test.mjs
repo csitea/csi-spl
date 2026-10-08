@@ -98,7 +98,7 @@ describe('X3 wiring: the lobby pattern on /channel, /dm and the channel TopicPan
     assert.ok(omni > 0)
     const tag = bar.slice(omni, bar.indexOf('/>', omni))
     for (const attr of ['omnibox', 'global', '@send="onSend"', '@search="onSearch"']) assert.ok(tag.includes(attr), attr)
-    assert.match(read('layouts/default.vue'), /<TopBar \/>/)
+    assert.match(read('layouts/default.vue'), /<TopBar (v-if="shellIn" )?\/>/) /* spec 109 T006: gated on the feed first */
   })
 
   it('MessageFeed renders LiveFeed (no second feed implementation)', () => {

@@ -18,7 +18,12 @@
     <div class="sr-only" role="status" aria-live="polite" data-testid="route-announce">{{ routeAnnounce }}</div>
     <ClientOnly>
       <div class="app-frame">
-      <TopBar />
+      <!-- spec 109 T006: on a desktop load of /lobby the feed's first rows
+           paint first; the top bar, the rail and panel 1 mount in a later
+           task (utils/feed-first.mjs). Until then a box of their size holds
+           their place, so nothing moves when they come. -->
+      <TopBar v-if="shellIn" />
+      <div v-else class="shell-late shell-late--bar" aria-hidden="true" />
       <div
         class="spool-shell"
         style="max-width:100%;min-width:0"
@@ -36,12 +41,13 @@
         @touchstart.passive="stack.swipe.onTouchStart"
         @touchend.passive="stack.swipe.onTouchEnd"
       >
-        <ChannelSidebar />
+        <ChannelSidebar v-if="shellIn" />
+        <div v-else class="shell-late" aria-hidden="true" :style="{ flex: `0 0 var(${collapse.collapsed.channels ? '--pane-strip-w' : '--sidebar-w'})` }" />
         <!-- 050: a collapsed panel is a strip, so resizing it makes no sense -
              hide the divider that would grow it (also while the middle is a
              strip, which overrides the widths). CLE-35099 owns show*Divider. -->
         <PaneDivider
-          v-if="showSidebarDivider && !collapse.collapsed.channels && !collapse.collapsed.topic"
+          v-if="shellIn && showSidebarDivider && !collapse.collapsed.channels && !collapse.collapsed.topic"
           pane="sidebar"
           :value="displayed.sidebar"
           :min="sidebarBounds.min"
@@ -190,7 +196,8 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
+import { MOBILE_STACK_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
+import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { useOmniboxDock } from '~/composables/useOmniboxDock'
@@ -214,6 +221,12 @@ const debugAllowed = computed(() => session.state === 'in' && debugPanelVisibleF
    read by each panel's PaneCollapseToggle). Hydrated from localStorage on mount
    below; the shell is ClientOnly so there is no SSR read. */
 const collapse = usePaneCollapse()
+/* spec 109 T006: on a desktop load of /lobby the top bar, the rail and panel 1
+   wait for the feed's first rows (pages/lobby.vue lets them in), SHELL_CAP_MS
+   at most. Decided once per document: a later mount finds the state true. */
+const SHELL_CAP_MS = 2500
+const shellIn = useState('shell-in', () => !(import.meta.client && isLobbyPath(window.location.pathname) && !window.matchMedia(MOBILE_STACK_QUERY).matches))
+if (!shellIn.value) setTimeout(() => { shellIn.value = true }, SHELL_CAP_MS)
 /* topic c6994436: the bottom dock under the middle pane is on */
 const dockOn = useOmniboxDock()
 /* its height, for the panes that overlay the middle one (main.css). A ref,
@@ -450,6 +463,14 @@ const {
 }
 .skip-link:focus {
   top: 0.5rem;
+}
+/* spec 109 T006: the place of the top bar / the rail until they mount */
+.shell-late {
+  align-self: stretch;
+  background: var(--color-sidebar);
+}
+.shell-late--bar {
+  flex: 0 0 var(--top-bar-h);
 }
 .layout {
   max-width: 100%;

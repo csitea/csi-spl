@@ -56,6 +56,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import type { SpoolMessage } from '~/types/spool'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { lobbyFrames, takeLobbyWarm } from '~/utils/lobby-warm.mjs'
+import { whenPainted } from '~/utils/feed-first.mjs'
 
 const store = useLiveFeed('main')
 const channel = useChannelStore()
@@ -142,6 +143,15 @@ useOmniboxTarget({
   send: (text: string, files: File[], topicId?: string, channelId?: string) => onSend(text, files, topicId, channelId),
   busy: () => store.sending,
 })
+
+/* spec 109 T006: the layout holds the top bar, the rail and panel 1 back on a
+   desktop load of /lobby; they come in after the frame that shows this feed's
+   first rows (or what stands in for them), and at once if the page is left */
+const shellIn = useState<boolean>('shell-in')
+watch(() => store.lobbyRows.length > 0 || Boolean(store.error || store.door), (shown) => {
+  if (shown && !shellIn.value) whenPainted(() => { shellIn.value = true })
+}, { immediate: true })
+onBeforeUnmount(() => { shellIn.value = true })
 
 onMounted(() => {
   void import('~/utils/read-sync-boot').then((m) => m.startReadSync(api)) /* CLE-77930: reads follow the member across devices */

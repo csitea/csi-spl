@@ -281,8 +281,9 @@ spl_wd_ps() {
 # grace refuses earlier). Left alone: an id with a window or a process (the
 # old boot restore or a peer brought it back). A fenced box (10.2: T017's
 # spl_wd_box_fenced, when it exists) starts nothing and retries. One instance at
-# a time (boot.lock); each id once per boot (boot.d/<id> = the btime), under
-# its judge lock (held: the next tick); boot.seen once none waits.
+# a time (boot.lock); the restarts queued (spl_wd_boot_queue), each under its
+# judge lock (held: the next tick); each id done once per boot (boot.d/<id> =
+# the btime) when it is back or judged; boot.seen once none waits.
 # WD_BOOT=0 turns it off.
 spl_wd_boot() {
   [[ "${WD_BOOT:-1}" != 0 ]] || return 0
@@ -305,7 +306,7 @@ spl_wd_boot_time() {
 }
 
 spl_wd_boot_pass() {
-  local now="$1" tick="$2" bt="$3" seen="$4" snap last r id why out n=0 wait=0 at
+  local now="$1" tick="$2" bt="$3" seen="$4" snap last r at
   at="$(date -u -d "@$bt" +%FT%TZ)"
   snap="$WD_DIR/boot.$bt.seen"
   # who ran here before the boot: taken before any verdict of this boot is written
@@ -322,21 +323,125 @@ spl_wd_boot_pass() {
   if declare -F spl_wd_box_fenced >/dev/null && spl_wd_box_fenced; then
     spl_wd_log "BOOT $at fenced (102 10.2): nothing started; retried next tick"; return 0
   fi
-  [[ "${DRY_RUN:-1}" == 1 ]] || mkdir -p "$WD_DIR/boot.d" || return 0
+  [[ "${DRY_RUN:-1}" == 1 ]] || mkdir -p "$WD_DIR/boot.d" "$WD_DIR/boot.q" || return 0
+  spl_wd_boot_queue "$now" "$tick" "$bt" "$at" "$snap" "$last"
+}
+
+# spl_wd_boot_queue NOW TICK BT AT SNAP LAST: the boot's restarts as a queue
+# (sat drill 2, 2026-10-08: 11 started at once, 8 refused by the pass's own
+# slots and its own rotate.hold, all logged "started"). Seats first, one at a
+# time; a role seat (001..003) holds rotate.hold, so nothing else starts in
+# its pass, and nothing starts while any rotate.hold stands; a lane only
+# into a free peer/restart.slot.1..RESTART_SLOTS. A started id waits in
+# boot.q/<id> until it runs (back) or its attempt ends: refused (its
+# restart.<id>.out) or not back in WD_BOOT_BACK_WAIT s (1200); then it is
+# started again, WD_BOOT_TRIES (3) times at most. boot.seen once none waits.
+spl_wd_boot_queue() {
+  local now="$1" tick="$2" bt="$3" at="$4" snap="$5" last="$6" id why st out rc
+  local n=0 ref=0 q=0 fly=0 back=0 lanes stop="" seat=1
+  lanes="$(spl_wd_boot_free_lanes)"
+  spl_wd_boot_slot_free 0 || seat=""
+  stop="$(spl_wd_boot_hold "$bt" "$at")"
   while read -r id; do
     [[ "$(cat "$WD_DIR/boot.d/$id" 2>/dev/null || true)" == "$bt" ]] && continue
     why="$(spl_wd_boot_why "$id" "$tick" "$snap" "$last")"
     if [[ -n "$why" ]]; then
-      spl_wd_log "BOOT $at $id left alone: $why"
-      [[ "${DRY_RUN:-1}" == 1 ]] || echo "$bt" > "$WD_DIR/boot.d/$id"
-      continue
+      if [[ -f "$WD_DIR/boot.q/$id" ]]; then spl_wd_log "BOOT $at $id back: $why"; back=$((back + 1))
+      else spl_wd_log "BOOT $at $id left alone: $why"; fi
+      spl_wd_boot_done "$id" "$bt"; continue
     fi
-    if out="$(spl_wd_boot_start "$id" "$bt" "$now" "$at")"; then n=$((n + 1)); else wait=$((wait + 1)); fi
+    st="$(spl_wd_boot_attempt "$id" "$bt" "$now" "$at")"
+    if [[ "$st" == fly ]]; then fly=$((fly + 1)); continue; fi
+    [[ "$st" != refused* ]] || ref=$((ref + 1))
+    if [[ "$st" == *spent ]]; then spl_wd_boot_done "$id" "$bt"; continue; fi
+    if [[ -n "$stop" ]]; then q=$((q + 1)); continue; fi
+    if spl_wd_boot_seat "$id"; then [[ -n "$seat" ]] || { q=$((q + 1)); continue; }
+    elif (( lanes < 1 )); then q=$((q + 1)); continue; fi
+    rc=0; out="$(spl_wd_boot_start "$id" "$bt" "$now" "$at")" || rc=$?
     spl_wd_log "BOOT $at $id: $out"
-  done < <(spl_wd_boot_ids)
-  if (( wait == 0 )); then spl_wd_boot_seen "$bt" "BOOT $at done: $n restart(s) started (cause reboot)"
-  else echo "BOOT $at: $n started, $wait wait for their judge lock"; fi
+    case "$rc" in
+      0) n=$((n + 1)) ;;
+      1) q=$((q + 1)); continue ;;
+      *) ref=$((ref + 1)); spl_wd_boot_done "$id" "$bt"; continue ;;
+    esac
+    if spl_wd_boot_seat "$id"; then seat=""; [[ "$id" =~ -00[1-3]$ ]] && stop="its restart of $id holds rotate.hold"
+    else lanes=$((lanes - 1)); fi
+  done < <(spl_wd_boot_ids | spl_wd_boot_order)
+  if (( n + q + fly == 0 )); then
+    spl_wd_boot_seen "$bt" "BOOT $at done: $n restart(s) started, $ref refused, $back back (cause reboot)"
+  else
+    spl_wd_log "BOOT $at: $n started, $ref refused, $q queued${stop:+ ($stop)}, $fly in flight, $back back (cause reboot); retried next tick"
+  fi
   return 0
+}
+
+# Seats first (their order), then the lanes.
+spl_wd_boot_order() {
+  local -a ids; local id
+  mapfile -t ids
+  for id in "${ids[@]}"; do spl_wd_boot_seat "$id" && echo "$id"; done
+  for id in "${ids[@]}"; do spl_wd_boot_seat "$id" || echo "$id"; done
+  return 0
+}
+
+# A seat restarts in slot 0 (do_spl_agent_restart's spl_ars_is_seat): 001..004, an expected seat.
+spl_wd_boot_seat() {
+  [[ "$1" =~ -00[1-4]$ ]] && return 0
+  grep -qx -- "$1" <<<"$(spl_wd_expected)"
+}
+
+# spl_wd_boot_slot_free N: peer/restart.slot.<N> is not held by a restart.
+spl_wd_boot_slot_free() {
+  local f="${PEER_DIR:-$SPOOL_ROOT/peer}/restart.slot.$1"
+  [[ ! -e "$f" ]] || flock -n "$f" true 2>/dev/null
+}
+
+# The free lane slots (1..RESTART_SLOTS, default 4) right now.
+spl_wd_boot_free_lanes() {
+  local n c=0
+  for (( n = 1; n <= ${RESTART_SLOTS:-4}; n++ )); do spl_wd_boot_slot_free "$n" && c=$((c + 1)); done
+  echo "$c"
+}
+
+# spl_wd_boot_hold BT AT: why nothing starts this pass (a rotate.hold), empty
+# when free. A hold written before the boot BT died with the box: removed.
+spl_wd_boot_hold() {
+  local h="$LEASE_DIR/rotate.hold" hid ht
+  [[ -s "$h" ]] || return 0
+  read -r hid ht _ < "$h" || true
+  if [[ "$ht" =~ ^[0-9]+$ ]] && (( ht < $1 )); then
+    spl_wd_log "BOOT $2: rotate.hold names ${hid:-?} from before the boot: its run died with the box"
+    if [[ "${DRY_RUN:-1}" != 1 ]]; then rm -f "$h"; return 0; fi
+  fi
+  echo "rotate.hold names ${hid:-?}"
+}
+
+# spl_wd_boot_attempt ID BT NOW AT: the state of <id>'s last start of this
+# boot (boot.q/<id> = "<bt> <started> <tries> <out offset>"): new (none),
+# fly (running), refused / late (ended, not back: start it again), with
+# " spent" when WD_BOOT_TRIES are used (given up).
+spl_wd_boot_attempt() {
+  local id="$1" bt="$2" now="$3" at="$4" f="$WD_DIR/boot.q/$1" b t k o out line sz st=late
+  read -r b t k o 2>/dev/null < "$f" || true
+  [[ "$b" == "$bt" && "$t" =~ ^[0-9]+$ && "$k" =~ ^[0-9]+$ && "$o" =~ ^[0-9]+$ ]] || { echo new; return 0; }
+  out="$WD_DIR/restart.$id.out"
+  sz="$(stat -c %s "$out" 2>/dev/null || echo 0)"
+  line="$(tail -c +$(( o + 1 )) "$out" 2>/dev/null | grep -m1 "^REFUSED $id:" || true)"
+  if [[ -n "$line" ]]; then
+    st=refused
+    echo "$bt $t $k $sz" > "$f"
+    spl_wd_log "BOOT $at $id refused (try $k): ${line#REFUSED "$id": }"
+  elif (( now - t < ${WD_BOOT_BACK_WAIT:-1200} )); then echo fly; return 0
+  else spl_wd_log "BOOT $at $id not back $(( now - t ))s after try $k"; fi
+  if (( k >= ${WD_BOOT_TRIES:-3} )); then spl_wd_log "BOOT $at $id given up: not back after $k tries"; st="$st spent"; fi
+  echo "$st"
+}
+
+# spl_wd_boot_done ID BT: <id> is handled for this boot.
+spl_wd_boot_done() {
+  [[ "${DRY_RUN:-1}" == 1 ]] && return 0
+  echo "$2" > "$WD_DIR/boot.d/$1"
+  rm -f "$WD_DIR/boot.q/$1"
 }
 
 # "<verdict mtime> <id>" per dispatch/wd.<id> written before the boot BT.
@@ -401,20 +506,23 @@ spl_wd_boot_running_box() {
 }
 
 # spl_wd_boot_start ID BT NOW AT: the restart under the id's judge lock
-# (exit 1: held, the next tick). WD_BOOT_ID lists the windowless id for the
+# (exit 1: held, the next tick; exit 2: not started). Started: boot.q/<id>
+# (spl_wd_boot_attempt). WD_BOOT_ID lists the windowless id for the
 # restart's gate (spl_wd_agents); the S3 takeover flag keeps a dead seat's
 # S3 from a second restart of the same boot.
 spl_wd_boot_start() {
-  local id="$1" bt="$2" now="$3" at="$4" out rc=0
+  local id="$1" bt="$2" now="$3" at="$4" out rc=0 k=0 o
   if [[ "${DRY_RUN:-1}" == 1 ]]; then echo "would restart (cause reboot)"; return 0; fi
+  read -r _ _ k _ 2>/dev/null < "$WD_DIR/boot.q/$id" || true
+  [[ "$k" =~ ^[0-9]+$ ]] || k=0
   (
     exec 6>>"$WD_DIR/$id.judge.lock"
     flock -n 6 || { echo "its judge lock is held: next tick"; exit 1; }
+    o="$(stat -c %s "$WD_DIR/restart.$id.out" 2>/dev/null || echo 0)"
     out="$(WD_BOOT_ID="$id" spl_wd_takeover "$id" reboot "boot $at" 5>&-)" || rc=$?
-    echo "$bt" > "$WD_DIR/boot.d/$id"
-    if (( rc == 0 )); then echo "$now" > "$WD_DIR/$id.ep.S3.takeover"; echo "restart started (cause reboot)"
-    else echo "not started: ${out:-takeover exit $rc}"; fi
-    exit 0
+    if (( rc != 0 )); then echo "not started: ${out:-takeover exit $rc}"; exit 2; fi
+    echo "$bt $now $(( k + 1 )) $o" > "$WD_DIR/boot.q/$id"
+    echo "$now" > "$WD_DIR/$id.ep.S3.takeover"; echo "restart started, try $(( k + 1 )) (cause reboot)"
   )
 }
 

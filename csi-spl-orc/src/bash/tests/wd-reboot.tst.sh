@@ -12,13 +12,14 @@
 #   1. inside the start and resume grace nothing starts; after it every
 #      open agent that ran here is restarted ONCE, cause reboot, with
 #      WD_BOOT_ID for the restart's gate; the done, the guest-elsewhere, the
-#      stale, the gone, the running and the never-seen ones are not; the
-#      next tick starts nothing (boot.seen, boot.d/<id>)
+#      stale, the gone, the running and the never-seen ones are not; while
+#      they are not back the boot is open (no boot.seen) and the next tick
+#      starts nothing (boot.q/<id>, in flight); back, boot.seen and boot.d/<id>
 #   2. control: the same boot with running_box = another box for every
 #      agent -> nothing started; shown red: the running_box check cut out
 #      of a copy of the watchdog starts them
-#   3. control of "once": the boot.d check cut out -> a second pass starts
-#      them again (red), so 1's "once" is the check's doing
+#   3. control of "once": the in-flight wait (boot.q) cut out -> a second
+#      pass starts them again (red), so 1's "once" is the check's doing
 #   4. the restart's gate sees a windowless id only with WD_BOOT_ID (control:
 #      without it, no row)
 #   5. first run of this code: a boot a day old is the baseline (nothing
@@ -104,6 +105,12 @@ wd() {
   if grep -q ERR-TRAP "$T/out"; then fail "the ERR trap fired: $(grep -m3 ERR-TRAP "$T/out")"; fi
 }
 started() { grep -c . "$T/takeovers" 2>/dev/null || echo 0; }
+# back <id> <pid>: <id> runs again (a window and a process carry it)
+back() {
+  printf '%%%s\t%s\t$1\t%s@box1\tclaude\n' "$2" "$2" "$1" >> "$T/tmux/panes"
+  printf '%s 1 60 sh\n%s %s 60 claude\n' "$2" "$(( $2 + 1 ))" "$2" >> "$T/ps"
+  mkdir -p "$T/proc/$(( $2 + 1 ))"; printf 'SPOOL_AGENT_ID=%s\0' "$1" > "$T/proc/$(( $2 + 1 ))/environ"
+}
 # settle <n>: the detached takeovers have landed (n lines), then a short wait for strays
 settle() { for _ in $(seq 1 40); do (( $(started) >= $1 )) && break; sleep 0.05; done; sleep 0.3; }
 ids() { awk '{print $2}' "$T/takeovers" 2>/dev/null | sort | paste -sd' ' -; }
@@ -126,12 +133,18 @@ for c in "c-103 left alone: done: lifetime/done" "c-104 left alone: running_box 
     "c-106 left alone: done: its workdir" "c-107 left alone: it runs" "c-108 left alone: not running here at the boot (no verdict"; do
   grep -qF "$c" "$L" && pass "wd.log: $c" || fail "wd.log lacks: $c"
 done
-[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" ]] && pass "boot.seen = the btime" || fail "boot.seen: $(cat "$W/boot.seen" 2>/dev/null)"
+[[ ! -f "$W/boot.seen" && -s "$W/boot.q/c-101" ]] && pass "not back yet: the boot stays open, c-101 queued in flight (boot.q)" || fail "boot.seen: $(cat "$W/boot.seen" 2>/dev/null); boot.q: $(ls "$W/boot.q" 2>/dev/null)"
 [[ -n "$(cat "$W/c-101.ep.S3.takeover" 2>/dev/null)" ]] && pass "the S3 takeover flag is set (no second restart by S3)" || fail "no c-101.ep.S3.takeover"
 wd $(( BT + 330 )); settle 3
-[[ "$(started)" == 2 ]] && pass "the next tick starts nothing more (once per boot)" || fail "after a second tick: $(ids)"
-rm -f "${W:?}/boot.seen"
+[[ "$(started)" == 2 ]] && pass "the next tick starts nothing more (in flight)" || fail "after a second tick: $(ids)"
+grep -q 'BOOT .*: 0 started, 0 refused, 0 queued, 2 in flight' "$L" && pass "the summary counts them in flight" || fail "summary: $(grep 'in flight' "$L" | tail -1)"
+back c-101 7101; back c-102 7102
 wd $(( BT + 360 )); settle 3
+[[ "$(started)" == 2 ]] && pass "back: nothing more started (once per boot)" || fail "after back: $(ids)"
+[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" ]] && pass "both back: boot.seen = the btime" || fail "boot.seen: $(cat "$W/boot.seen" 2>/dev/null)"
+[[ "$(grep -c 'c-10[12] back: it runs' "$L")" == 2 ]] && pass "wd.log: c-101 and c-102 back" || fail "no back lines: $(grep BOOT "$L" | tail -3)"
+rm -f "${W:?}/boot.seen"
+wd $(( BT + 390 )); settle 3
 [[ "$(started)" == 2 ]] && pass "boot.seen gone: boot.d/<id> still keeps each id to one restart" || fail "boot.seen gone -> $(ids)"
 
 # ---- 2. control: running_box another box ------------------------------------------
@@ -146,13 +159,12 @@ WD_EXTRA="$(mutant spl_wd_boot_why 's/rb="$(spl_wd_boot_running_box "$id")"/rb="
 [[ "$(ids)" == "c-101 c-102 c-104" ]] && pass "red: with the running_box check cut out, the control starts c-101, c-102 (and the guest c-104)" || fail "mutant running_box started: '$(ids)'"
 
 # ---- 3. control of once -----------------------------------------------------------
-echo "=== 3. control: the boot.d check cut out -> restarted again"
-M="$(mutant spl_wd_boot_pass 's/\&\& continue/\&\& :/')"
+echo "=== 3. control: the in-flight wait cut out -> restarted again"
+M="$(mutant spl_wd_boot_attempt 's/echo fly/echo late/')"
 box "$BT"; wd $(( BT + 60 ))
 WD_EXTRA="$M" wd $(( BT + 300 )); settle 2
-rm -f "${W:?}/boot.seen"
 WD_EXTRA="$M" wd $(( BT + 330 )); settle 4
-[[ "$(started)" == 4 ]] && pass "red: without boot.d a second pass restarts c-101 and c-102 again" || fail "mutant once: $(started) starts ($(ids))"
+[[ "$(started)" == 4 ]] && pass "red: without the in-flight wait a second pass restarts c-101 and c-102 again" || fail "mutant once: $(started) starts ($(ids))"
 
 # ---- 4. the restart's gate --------------------------------------------------------
 echo "=== 4. the restart's gate lists a windowless id only with WD_BOOT_ID"

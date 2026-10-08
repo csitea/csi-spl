@@ -79,8 +79,9 @@ seed() { # <tenant> <box> <hello sql> <agents...>
   local t="$1" b="$2" hello="$3"; shift 3
   psql_owner <<PSQL >/dev/null
 INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('$t', decode(repeat('ab', 32), 'hex')) ON CONFLICT DO NOTHING;
-INSERT INTO pins (tenant_id, box_id, pubkey) VALUES ('$t', '$b', decode(repeat('cd', 32), 'hex'));
-INSERT INTO pins_history (tenant_id, box_id, pubkey, reason) VALUES ('$t', '$b', decode(repeat('cd', 32), 'hex'), 'pin');
+-- one live pin per key (rdb 0154): each box its own 32-byte key
+INSERT INTO pins (tenant_id, box_id, pubkey) VALUES ('$t', '$b', decode(md5('$t/$b') || md5('$t/$b/2'), 'hex'));
+INSERT INTO pins_history (tenant_id, box_id, pubkey, reason) VALUES ('$t', '$b', decode(md5('$t/$b') || md5('$t/$b/2'), 'hex'), 'pin');
 INSERT INTO boxes (tenant_id, box_id, last_hello_at) VALUES ('$t', '$b', $hello);
 INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('$t', 'lobby', 'lobby', 'hub') ON CONFLICT DO NOTHING;
 INSERT INTO messages (tenant_id, msg_id, task_id, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, expires_at)

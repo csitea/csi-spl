@@ -45,7 +45,7 @@ psql_owner -v runtime_role=spool_rt -f "$APP_ROOT/csi-spl-rdb/src/sql/postgres/s
 for t in t1 t2; do
   psql_owner <<PSQL >/dev/null || fail "seed $t"
 INSERT INTO tenants (tenant_id, root_pubkey) VALUES ('$t', decode(repeat('ab', 32), 'hex'));
-INSERT INTO pins (tenant_id, box_id, pubkey) VALUES ('$t', 'box-desk', decode(repeat('cd', 32), 'hex'));
+INSERT INTO pins (tenant_id, box_id, pubkey) VALUES ('$t', 'box-desk', decode(md5('$t/box-desk') || md5('$t/box-desk/2'), 'hex'));
 INSERT INTO boxes (tenant_id, box_id) VALUES ('$t', 'box-desk');
 INSERT INTO roster (tenant_id, box_id, agent_id) VALUES ('$t', 'box-desk', 'c-002');
 INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('$t', 'lobby', 'lobby', 'hub'), ('$t', 'ops', 'ops', 'hub') ON CONFLICT DO NOTHING;

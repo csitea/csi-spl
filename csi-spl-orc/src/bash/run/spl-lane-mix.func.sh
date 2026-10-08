@@ -15,15 +15,19 @@
 # @description   MORE than the tolerance; inside the band, the largest
 # @description   non-claude share
 # @description A vendor whose CLI is not installed, or whose cnf auth_marker is
-# @description absent from the agent user's home, is skipped and its share goes
-# @description to claude. So is one out of quota: the watchdog saw one of its
-# @description lanes on this box on an S2 kind=limit screen within
-# @description LANE_MIX_LIMIT_FRESH s (spec 102 T029; grok's weekly limit).
+# @description absent from the agent user's home, is skipped. So is one out of
+# @description quota: the watchdog saw one of its lanes on this box on an S2
+# @description kind=limit screen within LANE_MIX_LIMIT_FRESH s (spec 102 T029;
+# @description grok's weekly limit). A skipped vendor falls down the fixed chain
+# @description grok -> agy -> claude (owner HUM-10 t1 65f75266: claude is the
+# @description default ai vendor, the last fallback): a skipped grok's pick and
+# @description share go to agy when agy is there, else to claude; a skipped
+# @description agy's (kind spec included) and qwen's go to claude.
 # @description The instance setting (rdb 0149, owner HUM-10 t1 41fa1f2d) beats
 # @description all of it, on every box: a kind the operator admin switched off
 # @description on the Fleet load page, or one paused there, is never picked,
-# @description and its share goes to claude (to the other kinds when claude is
-# @description the one off). It is read from the hub like do_spl_box_pick's
+# @description and its share goes down the chain (to the other kinds when
+# @description claude is the one off). It is read from the hub like do_spl_box_pick's
 # @description target (`spool fleet-load get`); a hub that does not answer, or
 # @description no fleet, -> the local checks only, said in every reason. The one
 # @description write: a fresh local limit verdict is reported to the hub as a
@@ -93,11 +97,7 @@ do_spl_lane_mix() {
       _spl_lane_mix_pick hold "data rule: secrets or personal data go to claude only, and claude is skipped (${_LM_AVAIL[claude]}): queue the work"
     fi
   elif [[ "$kind" == spec ]]; then
-    if [[ "${_LM_AVAIL[agy]}" == yes ]]; then
-      _spl_lane_mix_pick agy "kind spec: specifications go to agy"
-    else
-      _spl_lane_mix_want claude "kind spec but agy is skipped (${_LM_AVAIL[agy]}); share to claude"
-    fi
+    _spl_lane_mix_want agy "kind spec: specifications go to agy" "kind spec but agy is skipped (${_LM_AVAIL[agy]})"
   elif [[ "$kind" == hard ]]; then
     _spl_lane_mix_want claude "kind hard: the most complex coding goes to claude"
   elif [[ -z "$diff" ]]; then
@@ -111,10 +111,13 @@ do_spl_lane_mix() {
 }
 
 # _spl_lane_mix_want <vendor> <reason> [<reason when skipped>] -> the pick
-# line: that vendor when it is there, else the easy pick, else hold
+# line: that vendor when it is there, else the next one there down the chain
+# grok -> agy -> claude, else the easy pick, else hold
 _spl_lane_mix_want() {
-  local why="${3:-$2, but $1 is skipped (${_LM_AVAIL[$1]})}"
+  local why="${3:-$2, but $1 is skipped (${_LM_AVAIL[$1]})}" next
+  next="$(_spl_lane_mix_next "$1")"
   if [[ "${_LM_AVAIL[$1]}" == yes ]]; then _spl_lane_mix_pick "$1" "$2"
+  elif [[ -n "$next" ]]; then _spl_lane_mix_pick "$next" "$why; falls to $next (chain grok -> agy -> claude)"
   elif [[ -n "$_LM_EASY" ]]; then _spl_lane_mix_pick "$_LM_EASY" "$why; $_LM_EASY_WHY"
   else _spl_lane_mix_pick hold "$why; no other kind is there: queue the work"; fi
 }
@@ -163,21 +166,34 @@ _spl_lane_mix_avail() {
   _spl_lane_mix_share
 }
 
-# _spl_lane_mix_share -> _LM_EFF, _LM_SHARE_TO: a skipped vendor's share goes
-# to claude; with claude skipped too, to the vendors that are there, in
-# proportion to their own shares (the rounding to the largest)
+# _spl_lane_mix_next <vendor> -> the first vendor there after it down the
+# chain grok -> agy -> claude (qwen -> claude), else nothing
+_spl_lane_mix_next() {
+  local v
+  case "$1" in grok) set -- agy claude ;; agy|qwen) set -- claude ;; *) return 0 ;; esac
+  for v in "$@"; do [[ "${_LM_AVAIL[$v]}" == yes ]] && { echo "$v"; return 0; }; done
+  return 0
+}
+
+# _spl_lane_mix_share -> _LM_EFF, _LM_SHARE_TO[<vendor>]: a skipped vendor's
+# share goes down the chain (_spl_lane_mix_next); with nothing there down it,
+# to the vendors that are there, in proportion to their own shares (the
+# rounding to the largest)
 _spl_lane_mix_share() {
-  local v skipped=0 on=0 given=0 top=""
+  local v to skipped=0 on=0 given=0 top=""
+  declare -gA _LM_SHARE_TO=()
   for v in "${LANE_MIX_VENDORS[@]}"; do
-    if [[ "${_LM_AVAIL[$v]}" == yes ]]; then
-      _LM_EFF[$v]="${_LM_TGT[$v]}"; on=$(( on + _LM_TGT[$v] ))
-      [[ -z "$top" ]] || (( _LM_TGT[$v] > _LM_TGT[$top] )) && top="$v"
-    else _LM_EFF[$v]=0; skipped=$(( skipped + _LM_TGT[$v] )); fi
+    [[ "${_LM_AVAIL[$v]}" == yes ]] || { _LM_EFF[$v]=0; continue; }
+    _LM_EFF[$v]="${_LM_TGT[$v]}"; on=$(( on + _LM_TGT[$v] ))
+    [[ -z "$top" ]] || (( _LM_TGT[$v] > _LM_TGT[$top] )) && top="$v"
   done
-  _LM_SHARE_TO=claude
-  if [[ "${_LM_AVAIL[claude]}" == yes ]]; then _LM_EFF[claude]=$(( _LM_EFF[claude] + skipped )); return 0; fi
-  _LM_SHARE_TO="the others"
-  [[ -n "$top" ]] || return 0
+  for v in "${LANE_MIX_VENDORS[@]}"; do
+    [[ "${_LM_AVAIL[$v]}" == yes ]] && continue
+    to="$(_spl_lane_mix_next "$v")"
+    if [[ -n "$to" ]]; then _LM_SHARE_TO[$v]="$to"; _LM_EFF[$to]=$(( _LM_EFF[$to] + _LM_TGT[$v] ))
+    else _LM_SHARE_TO[$v]="the others"; skipped=$(( skipped + _LM_TGT[$v] )); fi
+  done
+  (( skipped > 0 )) && [[ -n "$top" ]] || return 0
   for v in "${LANE_MIX_VENDORS[@]}"; do
     [[ "${_LM_AVAIL[$v]}" == yes && "$on" -gt 0 ]] || continue
     _LM_EFF[$v]=$(( _LM_EFF[$v] + skipped * _LM_TGT[$v] / on )); given=$(( given + skipped * _LM_TGT[$v] / on ))
@@ -259,7 +275,7 @@ _spl_lane_mix_table() {
   printf 'window=%s n=%s tolerance=%s cnf=%s registry=%s\n' "$_LM_WIN" "$_LM_N" "$_LM_TOL" "${1#"$APP_PATH"/}" "$2"
   printf '%-7s %6s %9s %6s %5s %-4s %s\n' vendor target effective actual count cli status
   for v in "${LANE_MIX_VENDORS[@]}"; do
-    if [[ "${_LM_AVAIL[$v]}" != yes ]]; then st="skip (${_LM_AVAIL[$v]}); share to $_LM_SHARE_TO"
+    if [[ "${_LM_AVAIL[$v]}" != yes ]]; then st="skip (${_LM_AVAIL[$v]}); share to ${_LM_SHARE_TO[$v]}"
     elif (( _LM_PCT[$v] < _LM_EFF[$v] - _LM_TOL )); then st=under
     elif (( _LM_PCT[$v] > _LM_EFF[$v] + _LM_TOL )); then st=over
     else st=ok; fi

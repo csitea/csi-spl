@@ -7,7 +7,8 @@
 #          to grok. Easy work (difficulty under 60) goes to the vendor
 #          furthest below target beyond the tolerance, else to the largest
 #          non-claude share. A vendor with no CLI or no sign-in is skipped
-#          and its share goes to claude. The instance setting (rdb 0149, read
+#          and falls down the chain grok -> agy -> claude (its pick and its
+#          share). The instance setting (rdb 0149, read
 #          from a stubbed hub) beats it all: a kind off or paused there is
 #          never picked; a hub that does not answer -> the local checks,
 #          said in the reason; a local limit verdict is reported as a pause.
@@ -175,7 +176,8 @@ mix LANE_MIX_DIFFICULTY=30
 
 rm "$H/.local/bin/agy"
 mix LANE_MIX_KIND=spec
-[[ "$(pick)" == claude ]] && grep -q 'kind spec but agy is skipped (no agy cli); share to claude' "$T/out" \
+[[ "$(pick)" == claude ]] && grep -q 'kind spec but agy is skipped (no agy cli); falls to claude (chain grok -> agy -> claude)' "$T/out" \
+  && grep -q 'skip (no agy cli); share to claude$' "$T/out" \
   && pass "7. spec with no agy cli -> claude" || fail "7. spec skipped: $(cat "$T/out")"
 printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
 
@@ -192,21 +194,30 @@ mix
 [[ "$(pick)" == grok ]] && pass "8. control: no limit verdict, unset difficulty -> grok" || fail "8. control: $(cat "$T/out")"
 limit g-950 600
 mix
-[[ "$(pick)" == claude ]] && grep -q 'skip (grok limit (g-950 S2 kind=limit 10m ago)); share to claude' "$T/out" \
-  && grep -q 'difficulty unset: default grok is skipped (grok limit' "$T/out" \
-  && grep -qE '^claude +20% +75% ' "$T/out" \
-  && pass "8. a fresh grok limit verdict: grok skipped, its share to claude, the default falls to claude" || fail "8. limit: $(cat "$T/out")"
-registry 15 0 5
+[[ "$(pick)" == agy ]] && grep -q 'skip (grok limit (g-950 S2 kind=limit 10m ago)); share to agy$' "$T/out" \
+  && grep -q 'difficulty unset: default grok is skipped (grok limit (g-950 .*); falls to agy (chain grok -> agy -> claude)' "$T/out" \
+  && grep -qE '^agy +25% +80% ' "$T/out" && grep -qE '^claude +20% +20% ' "$T/out" \
+  && pass "8. a fresh grok limit verdict: grok skipped, its share and the default fall to agy" || fail "8. limit: $(cat "$T/out")"
+# chain, owner HUM-10 t1 65f75266 "if grok is not available we take agy":
+# claude is under target here, so the old fallback (the easy pick) gave
+# claude while agy was free. This fails if grok falls to the easy pick again.
+registry 0 12 8
 mix
-[[ "$(pick)" == agy ]] && grep -q 'difficulty unset: default grok is skipped' "$T/out" \
-  && pass "8. the same with claude at its 75%: the default falls to agy" || fail "8. limit agy: $(cat "$T/out")"
+[[ "$(pick)" == agy ]] && grep -qE '^claude +20% +20% +0% .* under$' "$T/out" \
+  && pass "8. chain: grok skipped + agy free -> agy, though claude is under target" || fail "8. chain agy: $(cat "$T/out")"
+registry 15 0 5
 mix LANE_MIX_DIFFICULTY=30
 [[ "$(pick)" == agy ]] && pass "8. easy work skips the limited grok too" || fail "8. easy limit: $(cat "$T/out")"
 registry 4 11 5
 rm "$H/.local/bin/agy"
 mix
 [[ "$(pick)" == claude ]] && grep -qE '^claude +20% +100% ' "$T/out" \
-  && pass "8. grok limited and no agy: claude" || fail "8. claude floor: $(cat "$T/out")"
+  && grep -q 'default grok is skipped (grok limit (g-950 .*); falls to claude (chain grok -> agy -> claude)' "$T/out" \
+  && grep -q 'skip (grok limit (g-950 .*)); share to claude$' "$T/out" \
+  && pass "8. chain: grok limited and agy skipped -> claude" || fail "8. claude floor: $(cat "$T/out")"
+mix LANE_MIX_KIND=spec
+[[ "$(pick)" == claude ]] && grep -q 'kind spec but agy is skipped (no agy cli); falls to claude' "$T/out" \
+  && pass "8. chain: kind spec + agy skipped -> claude, never the limited grok" || fail "8. spec chain: $(cat "$T/out")"
 printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
 mix LANE_MIX_LIMIT_FRESH=300
 [[ "$(pick)" == grok ]] && pass "8. a verdict older than LANE_MIX_LIMIT_FRESH is stale: grok again" || fail "8. stale: $(cat "$T/out")"
@@ -238,9 +249,9 @@ hmix
   && pass "9. control: the hub has every kind on: unset difficulty -> grok" || fail "9. control on: $(cat "$T/out")"
 hub '["grok"]'
 hmix
-[[ "$(pick)" != grok ]] && grep -qE '^grok +55% +0% .* skip \(grok off in instance settings\); share to claude$' "$T/out" \
-  && grep -qE '^claude +20% +75% ' "$T/out" && grep -q 'default grok is skipped (grok off in instance settings)' "$T/out" \
-  && pass "9. grok off in instance settings: never picked, its share to claude" || fail "9. grok off: $(cat "$T/out")"
+[[ "$(pick)" == agy ]] && grep -qE '^grok +55% +0% .* skip \(grok off in instance settings\); share to agy$' "$T/out" \
+  && grep -qE '^agy +25% +80% ' "$T/out" && grep -q 'default grok is skipped (grok off in instance settings); falls to agy' "$T/out" \
+  && pass "9. grok off in instance settings: never picked, its share and the default to agy" || fail "9. grok off: $(cat "$T/out")"
 for d in 0 30 60 90; do
   hmix LANE_MIX_DIFFICULTY=$d
   [[ "$(pick)" != grok && -n "$(pick)" ]] || fail "9. grok off, difficulty $d picked $(pick): $(cat "$T/out")"
@@ -258,6 +269,10 @@ hmix LANE_MIX_KIND=hard
 hmix LANE_MIX_SENSITIVE=1
 [[ "$(pick)" == hold ]] && grep -q 'launcher=- reason=data rule: secrets or personal data go to claude only' "$T/out" \
   && pass "9. claude off + secrets: hold, never another kind" || fail "9. data rule hold: $(cat "$T/out")"
+hub '["grok","agy"]'
+hmix
+[[ "$(pick)" == claude ]] && grep -q 'default grok is skipped (grok off in instance settings); falls to claude' "$T/out" \
+  && pass "9. chain: grok and agy off -> claude" || fail "9. chain claude: $(cat "$T/out")"
 hub '["grok","agy","qwen"]'
 hmix LANE_MIX_DIFFICULTY=30
 [[ "$(pick)" == claude ]] && grep -qE '^claude +20% +100% ' "$T/out" \

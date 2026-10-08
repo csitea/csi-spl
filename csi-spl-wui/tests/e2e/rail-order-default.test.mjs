@@ -135,11 +135,49 @@ async function run(browser, base, width, touch) {
   await p.close()
 }
 
+/* spec 109 T007 (FR-005): a rail tab that keeps the route keeps panel 2 (the
+   centre, .spool-main) as it is - no DOM mutation there in the 600 ms after the
+   click. On `/` (the topic index, Topics selected) Channels / Direct messages /
+   Flow only swap panel 1, and Topics again is the tab already open. `/` and not
+   a channel: the mock channel feed refreshes on its own timer. CONTROL: Topics
+   from #lobby changes the route, so the same observer must count mutations. */
+async function panel2Mutations(p, id) {
+  return p.evaluate(async (id) => {
+    const main = document.querySelector('.spool-main')
+    let n = 0
+    const o = new MutationObserver((list) => { n += list.length })
+    o.observe(main, { subtree: true, childList: true, attributes: true, characterData: true })
+    document.getElementById('sidebar-tab-' + id).click()
+    await new Promise((r) => setTimeout(r, 600))
+    o.disconnect()
+    return { n, path: location.pathname }
+  }, id)
+}
+
+async function sameRouteTabs(browser, base) {
+  const p = await browser.newPage()
+  await p.setViewport({ width: 1440, height: 900 })
+  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('.spool-main .topic-row', { timeout: NAV })
+  await sleep(800)
+  for (const id of ['channels', 'dm', 'flow', 'topics', 'channels', 'topics']) {
+    const r = await panel2Mutations(p, id)
+    check(`1440px T007: ${id} tab on / keeps the route and panel 2 (0 mutations)`, r.path === '/' && r.n === 0, r)
+  }
+  await go(p, '/channel/lobby')
+  await p.waitForSelector('.spool-main [data-pane=msgs]', { timeout: NAV })
+  await sleep(800)
+  const ctl = await panel2Mutations(p, 'topics')
+  check('1440px T007 CONTROL: Topics from #lobby changes the route and panel 2 mutates', ctl.path === '/' && ctl.n > 0, ctl)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
   for (const [w, touch] of [[1440, false], [820, true], [360, true]]) await run(browser, server.base, w, touch)
+  await sameRouteTabs(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

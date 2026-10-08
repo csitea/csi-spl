@@ -16,6 +16,8 @@
 #          - GH_RUNNER_DATA_ROOT: a NEW runner's dir lives there, linked from
 #            GH_RUNNER_ROOT; an existing runner is never moved; the cleanup
 #            hook prunes a linked runner's work dir too
+#          - every runner unit gets the Slice=user-<uid>.slice drop-in (the
+#            CPU budget's cgroup) and is restarted into it once
 #          - GH_RUNNER_CPU_WEIGHT: set live on the user slice and every runner
 #            unit; unset = no set-property at all; out of range is refused
 #          - GH_RUNNER_GO_CACHE_ROOT: the Go cache lines in every .env; a
@@ -32,7 +34,7 @@ bash -n "$FUNC" || { echo "FAIL: bash -n"; exit 1; }
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/state" "$T/pkg"
-export STATE="$T/state" RUN_LOG="$T/run.log" MUT_LOG="$T/mut.log"
+export STATE="$T/state" RUN_LOG="$T/run.log" MUT_LOG="$T/mut.log" SYSD_LOG="$T/sysd.log" UNIT_DIR="$T/units"
 
 # sudo: drop -u/-U, record root-side mutations, exec the rest as this user
 cat >"$T/bin/sudo" <<'EOF'
@@ -83,6 +85,10 @@ EOF
 cat >"$T/bin/systemctl" <<'EOF'
 #!/usr/bin/env bash
 [[ "$1" == set-property ]] && { echo "systemctl $*" >>"$MUT_LOG"; exit 0; }
+[[ "$1" == restart ]] && touch "$STATE/moved-$2"
+[[ "$1" == restart || "$1" == daemon-reload ]] && { echo "systemctl $*" >>"$SYSD_LOG"; exit 0; }
+[[ "$1 $3 $4" == "show -p ControlGroup" && -e "$STATE/moved-$2" ]] && { echo "/user.slice/user-1500.slice/$2"; exit 0; }
+[[ "$1 $3 $4" == "show -p ControlGroup" ]] && { echo "/system.slice/$2"; exit 0; }
 [[ "$*" == "--user is-active --quiet docker" ]] && { [[ -e "$STATE/rootless" ]]; exit; }
 exit 0
 EOF
@@ -126,7 +132,7 @@ act() {
     export GH_RUNNER_SETUPTOOL="$T/bin/setuptool"
     # shellcheck source=/dev/null
     source "$FUNC"
-    GH_RUNNER_ROOT="${TEST_ROOT:-$T/srv}" GH_RUNNER_HOME="$T/home" GH_RUNNER_TARBALL="$T/runner.tgz" do_gh_runner_add ) >/dev/null 2>&1
+    GH_RUNNER_ROOT="${TEST_ROOT:-$T/srv}" GH_RUNNER_HOME="$T/home" GH_RUNNER_TARBALL="$T/runner.tgz" GH_RUNNER_UNIT_DIR="$UNIT_DIR" do_gh_runner_add ) >/dev/null 2>&1
 }
 
 GH_RUNNER_GROUP=g act && no "missing repo must fail" || ok "missing GH_RUNNER_REPO fails fast"
@@ -155,9 +161,14 @@ grep -qx 'DOCKER_HOST=unix:///run/user/1500/docker.sock' "$T/srv/box-spl-02/.env
 grep -q SENTINEL "$T/log" && no "a token reached the log" || ok "no token in the log"
 [[ "$(grep '^pull ' "$MUT_LOG" | sort | tr '\n' ' ')" == "pull fsouza/fake-gcs-server:1.52.2 pull postgres:16-alpine " ]] \
   && ok "the workflow's pinned images are warmed in the runner user's docker" || no "warm: $(grep pull "$MUT_LOG")"
+[[ "$(cat "$UNIT_DIR/actions.runner.o.box-spl-02.service.d/50-slice.conf" 2>/dev/null)" == $'[Service]\nSlice=user-1500.slice' ]] \
+  && [[ "$(cat "$SYSD_LOG")" == $'systemctl daemon-reload\nsystemctl restart actions.runner.o.box-spl-01.service\nsystemctl restart actions.runner.o.box-spl-02.service' ]] \
+  && ok "every runner unit is placed in user-1500.slice: drop-in, one reload, one restart each" || no "slice: $(cat "$SYSD_LOG"; ls -R "$UNIT_DIR" 2>&1)"
+: >"$SYSD_LOG"
 
 : >"$T/log"; : >"$RUN_LOG"; : >"$MUT_LOG"
 GH_RUNNER_REPO=o/app GH_RUNNER_GROUP=g APPLY=1 RUNNER_COUNT=2 act && ok "second apply exits 0" || no "second apply failed: $(tail -3 "$T/log")"
+[[ ! -s "$SYSD_LOG" ]] && ok "a runner already in the slice is not reloaded or restarted" || no "second apply touched units: $(cat "$SYSD_LOG")"
 [[ "$(sort "$STATE/reg" | uniq -c | awk '{print $1}' | sort -u)" == 1 && "$(wc -l <"$STATE/reg")" == 2 ]] \
   && ! grep -q config.sh "$RUN_LOG" && ok "apply twice = one set of runners (nothing re-registered)" || no "re-registered: $(cat "$RUN_LOG")"
 [[ "$(grep -c -- '- kept' "$T/log")" == 2 ]] && ! grep -q 'useradd\|setuptool\|^pull ' "$MUT_LOG" && ok "existing runners, user and docker are kept" || no "kept: $(cat "$T/log" "$MUT_LOG")"

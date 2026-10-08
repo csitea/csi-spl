@@ -41,6 +41,10 @@
 # @param   default 100, a box that also hosts agent lanes gives them the CPU
 # @param   first when it is saturated; an idle CPU is still all the runners'.
 # @param   Default: none, the weights are left as they are
+# @param GH_RUNNER_UNIT_DIR (optional) - where the slice drop-ins go, default
+# @param   /etc/systemd/system. Every runner unit is placed in the runner
+# @param   user's slice (Slice=user-<uid>.slice), the one cgroup that
+# @param   do_apply_gh_runner_cpu_budget gives its CPUQuota
 # @param GH_RUNNER_TARBALL (optional) - a local actions-runner-linux-x64 tarball
 # @param GH_RUNNER_WORKFLOW (optional) - the workflow whose img= pins are warmed
 # @param APPLY (optional) - 1 to do it; anything else prints the plan only
@@ -54,6 +58,9 @@
 # no webfont, so a box with only DejaVu lays every card out wider than the
 # others (card-edge-inset red on sat-spl-* only, 2026-10-03); Liberation Sans
 # is that test's MEASURE_FONT
+declare -F ghrb_place >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/apply-gh-runner-cpu-budget.func.sh"
+
 GH_RUNNER_PKGS="rootlesskit uidmap slirp4netns fonts-noto-core fonts-liberation"
 GH_RUNNER_SETUPTOOL="${GH_RUNNER_SETUPTOOL:-/usr/share/docker.io/contrib/dockerd-rootless-setuptool.sh}"
 
@@ -289,6 +296,19 @@ ghr_services() {
   done
 }
 
+# ghr_slice - every runner unit in the runner user's slice, beside its rootless
+# docker, so one CPUQuota there (do_apply_gh_runner_cpu_budget) holds all CI
+ghr_slice() {
+  local i unit; local -a units=()
+  for ((i = 1; i <= GHR_N; i++)); do
+    unit="$(sudo cat "$GHR_ROOT/$(ghr_name "$i")/.service")"
+    [[ "$unit" == actions.runner.*.service ]] || { do_log "FATAL no unit for $(ghr_name "$i") (${unit:-no .service})"; return 1; }
+    units+=("$unit")
+  done
+  DRY_RUN=0 CPU_BUDGET_UNIT_DIR="${GH_RUNNER_UNIT_DIR:-/etc/systemd/system}" ghrb_init &&
+    ghrb_place "user-$GHR_UID.slice" "${units[@]}"
+}
+
 # ghr_cpu_weight - GHR_CPU_WEIGHT on every runner unit and the runner user's
 # slice; nothing when it is unset
 ghr_cpu_weight() {
@@ -340,12 +360,12 @@ do_gh_runner_add() {
   ghr_check_group || return 1
   ghr_plan
   if [[ "${APPLY:-0}" != 1 ]]; then
-    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
+    do_log "INFO DRY_RUN would ensure: packages $GH_RUNNER_PKGS; user $GHR_USER (home $GH_RUNNER_HOME 0700, no sudo, not in docker, linger, rootless docker, workflow images cached); job-completed cleanup under ${GHR_MIN_FREE}G free; Go caches in ${GH_RUNNER_GO_CACHE_ROOT:-the current .env of each runner}; CPUWeight ${GHR_CPU_WEIGHT:-unchanged}; units in user-<uid>.slice; ${#GHR_TODO[@]} new runner(s): ${GHR_TODO[*]:-none}"
     do_log "OK DRY_RUN nothing changed. Re-run with APPLY=1."
     return 0
   fi
   ghr_setup_user && ghr_warm_images || return 1
   sudo install -d -m 0755 -o root -g root "$GHR_ROOT" || return 1
   ghr_job_done_hook | sudo tee "$GHR_ROOT/job-done.sh" >/dev/null && sudo chmod 0755 "$GHR_ROOT/job-done.sh" || return 1
-  ghr_register && ghr_services && ghr_cpu_weight && ghr_verify
+  ghr_register && ghr_services && ghr_slice && ghr_cpu_weight && ghr_verify
 }

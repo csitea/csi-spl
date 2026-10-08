@@ -543,6 +543,9 @@ type sessionResp struct {
 	// KeyboardShortcuts is the message shortcuts switch (HUM-10 ae2e5093),
 	// per tenant, null when never picked (the WUI then treats it as on).
 	KeyboardShortcuts *bool `json:"keyboard_shortcuts"`
+	// HoursReading is "Count my reading time" (spec 107 section 1.2), per
+	// tenant, null when never picked (the WUI then treats it as on).
+	HoursReading *bool `json:"hours_reading"`
 	// DiagnosticsEnabled is the human's own "Debug pane" setting,
 	// which shows the WUI diagnostics panel (005 T035). It sits HERE and not
 	// in Session on purpose: Session is what gets signed into the cookie, and
@@ -600,6 +603,7 @@ func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 		out.PaneSizes = h.paneSizes(ctx, s)
 		out.TimeZone = h.timeZone(ctx, s)
 		out.KeyboardShortcuts = h.keyboardShortcuts(ctx, s)
+		out.HoursReading = h.hoursReading(ctx, s)
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, out)
@@ -1021,6 +1025,7 @@ type preferencesReq struct {
 	PaneSizes          json.RawMessage `json:"pane_sizes"`
 	TimeZone           json.RawMessage `json:"time_zone"`
 	KeyboardShortcuts  json.RawMessage `json:"keyboard_shortcuts"`
+	HoursReading       json.RawMessage `json:"hours_reading"`
 }
 
 // raw is the request's JSON for one ViewPrefs key.
@@ -1085,9 +1090,11 @@ type prefsIn struct {
 	panes                                               json.RawMessage   // pane_sizes, nil = null (CLE-35099, spec 078)
 	tz                                                  string            // time_zone, "" = null (CLE-77908)
 	kbd                                                 *bool             // keyboard_shortcuts, nil = null (HUM-10 ae2e5093)
+	reading                                             *bool             // hours_reading, nil = null (spec 107 section 1.2)
 	hasLoc, hasDiag, hasName, hasTheme, hasKey, hasRail bool
 	hasInterests                                        bool
 	hasCols, hasSort, hasPanes, hasTZ, hasKbd           bool
+	hasReading                                          bool
 }
 
 // parsePreferences validates the whole body before anything is written. A
@@ -1115,8 +1122,11 @@ func parsePreferences(req preferencesReq) (p prefsIn, code, detail string) {
 	if p.kbd, p.hasKbd, code, detail = parseKeyboardShortcuts(req.KeyboardShortcuts); code != "" {
 		return p, code, detail
 	}
-	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd {
-		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null) or keyboard_shortcuts (true, false or null) is required"
+	if p.reading, p.hasReading, code, detail = parseHoursReading(req.HoursReading); code != "" {
+		return p, code, detail
+	}
+	if !p.hasLoc && !p.hasDiag && !p.hasName && !p.hasInterests && !p.hasTheme && !p.hasKey && !p.hasRail && len(p.view) == 0 && !p.hasCols && !p.hasSort && !p.hasPanes && !p.hasTZ && !p.hasKbd && !p.hasReading {
+		return p, "bad_request", "preferred_locale (a locale code or null), diagnostics_enabled (true or false), display_name, interests (free text or null), preferred_theme (a theme id or null), submit_key (enter, ctrl-enter or null), rail_order (the rail ids or null), message_order (newest-first, newest-last or null), composer_position (top, bottom or null), issues_view (list, status or null), close_buttons (mac, windows or null), link_previews (on, off or null), issues_columns (column -> px or null), issues_sort ({col, dir} or null), pane_sizes (divider -> fraction or null), time_zone (an IANA zone or null), keyboard_shortcuts (true, false or null) or hours_reading (true, false or null) is required"
 	}
 	code, detail = p.parseScalars(req)
 	return p, code, detail
@@ -1283,7 +1293,7 @@ func (h *Handler) storePreferences(w http.ResponseWriter, r *http.Request, hum s
 	// tenant's membership override, so a change in one tenant never moves the
 	// others (spec 023 addendum). The humans-row writes above stay the global
 	// fallback for a tenant with no override yet and for the sign-in page.
-	// issues_sort, pane_sizes, time_zone and keyboard_shortcuts have no humans column: they live ONLY here.
+	// issues_sort, pane_sizes, time_zone, keyboard_shortcuts and hours_reading have no humans column: they live ONLY here.
 	if !h.storeMembershipPrefs(w, r, hum, p, out) {
 		return nil, false
 	}
@@ -1304,8 +1314,8 @@ func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, h
 	if err != nil || tenant == "" {
 		// No active tenant: the per-tenant-only settings cannot be kept. The WUI
 		// only sends them inside a tenant, so this is the sign-in edge.
-		if p.hasSort || p.hasPanes || p.hasTZ || p.hasKbd {
-			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes/time_zone/keyboard_shortcuts with no active tenant, not stored")
+		if p.hasSort || p.hasPanes || p.hasTZ || p.hasKbd || p.hasReading {
+			h.log.Warn().Str("human_id", hum).Msg("auth.preferences issues_sort/pane_sizes/time_zone/keyboard_shortcuts/hours_reading with no active tenant, not stored")
 		}
 		return true
 	}
@@ -1330,6 +1340,9 @@ func (h *Handler) storeMembershipPrefs(w http.ResponseWriter, r *http.Request, h
 	}
 	if p.hasKbd {
 		out["keyboard_shortcuts"] = nilBool(p.kbd)
+	}
+	if p.hasReading {
+		out["hours_reading"] = nilBool(p.reading)
 	}
 	return true
 }
@@ -1371,6 +1384,9 @@ func (p prefsIn) membershipPatch() map[string]any {
 	}
 	if p.hasKbd {
 		patch["keyboard_shortcuts"] = nilBool(p.kbd)
+	}
+	if p.hasReading {
+		patch["hours_reading"] = nilBool(p.reading)
 	}
 	return patch
 }

@@ -433,6 +433,8 @@ type loginResp struct {
 	TimeZone *string `json:"time_zone"`
 	// KeyboardShortcuts as GET /session answers it (HUM-10 ae2e5093), null when unset.
 	KeyboardShortcuts *bool `json:"keyboard_shortcuts"`
+	// HoursReading as GET /session answers it (spec 107 section 1.2), null when unset.
+	HoursReading *bool `json:"hours_reading"`
 }
 
 func (n *native) handleLogin(w http.ResponseWriter, r *http.Request) {
@@ -568,7 +570,8 @@ func (n *native) loginAnswer(ctx context.Context, sess Session, redirect string)
 		IssuesView: n.h.viewPref(ctx, sess, PrefIssuesView), CloseButtons: n.h.viewPref(ctx, sess, PrefCloseButtons),
 		LinkPreviews:  n.h.viewPref(ctx, sess, PrefLinkPreviews),
 		IssuesColumns: n.h.issueColumns(ctx, sess), IssuesSort: n.h.issuesSort(ctx, sess), PaneSizes: n.h.paneSizes(ctx, sess),
-		TimeZone: n.h.timeZone(ctx, sess), KeyboardShortcuts: n.h.keyboardShortcuts(ctx, sess)}
+		TimeZone: n.h.timeZone(ctx, sess), KeyboardShortcuts: n.h.keyboardShortcuts(ctx, sess),
+		HoursReading: n.h.hoursReading(ctx, sess)}
 }
 
 type emailReq struct {

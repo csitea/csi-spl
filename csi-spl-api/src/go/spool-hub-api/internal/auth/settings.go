@@ -37,6 +37,9 @@ type HumanSettings struct {
 	// KeyboardShortcuts is the message shortcuts switch (HUM-10 ae2e5093), nil
 	// when never picked (on). Per tenant only (rdb 0078).
 	KeyboardShortcuts *bool
+	// HoursReading is "Count my reading time" (spec 107 section 1.2), nil
+	// when never picked (on). Per tenant only (rdb 0078).
+	HoursReading *bool
 }
 
 // IssuesSort is a person's default sort of the Issues list (CLE-35099): the
@@ -72,6 +75,8 @@ type MembershipSettings struct {
 	TimeZone         *string         `json:"time_zone,omitempty"`
 	// KeyboardShortcuts: HUM-10 ae2e5093, nil = on.
 	KeyboardShortcuts *bool `json:"keyboard_shortcuts,omitempty"`
+	// HoursReading: "Count my reading time" (spec 107 section 1.2), nil = on.
+	HoursReading *bool `json:"hours_reading,omitempty"`
 	// HoursIdleMinutes: the member's own idle cutoff N (spec 107, owner Q3 =
 	// B), nil = the workspace's hours.idle_minutes. Read by the hours store.
 	HoursIdleMinutes *int `json:"hours_idle_minutes,omitempty"`
@@ -130,6 +135,9 @@ func (b HumanSettings) Overlay(o MembershipSettings) HumanSettings {
 	}
 	if o.KeyboardShortcuts != nil {
 		b.KeyboardShortcuts = o.KeyboardShortcuts
+	}
+	if o.HoursReading != nil {
+		b.HoursReading = o.HoursReading
 	}
 	return b
 }

@@ -34,6 +34,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -85,13 +86,29 @@ def r1(x):
     return float(f"{float(x):.1f}")
 
 
+# Node's own zlib.gzipSync, the bytes the e2e (calendar.test.mjs AC-02) and
+# bundle-size.mjs count. Two zlib builds do not emit identical bytes: on one
+# bundle Python read 154.7 KB where node read 155.1 (c-568, 2026-10-08), so the
+# budget step passed while the e2e failed. Python's zlib only without node.
+NODE_GZIP_JS = (
+    "const c=[];process.stdin.on('data',(d)=>c.push(d)).on('end',()=>"
+    "process.stdout.write(String(require('zlib').gzipSync(Buffer.concat(c)).length)))"
+)
+
+
 def gzip_len(data):
     if isinstance(data, str):
         data = data.encode()
+    node = shutil.which("node")
+    if node:
+        try:
+            out = subprocess.run([node, "-e", NODE_GZIP_JS], input=data, capture_output=True, timeout=60, check=True)
+            return int(out.stdout)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
     buf = io.BytesIO()
-    # Level 6 is node zlib.gzipSync's setting. Two zlib builds do not emit
-    # identical bytes (under 1 KB on a full initial set). The ceiling applies
-    # to this sum. The chunk set is the one bundle-size.mjs selects.
+    # Level 6 is node zlib.gzipSync's setting. The ceiling applies to this
+    # sum. The chunk set is the one bundle-size.mjs selects.
     with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=6, mtime=0) as z:
         z.write(data)
     return buf.tell()

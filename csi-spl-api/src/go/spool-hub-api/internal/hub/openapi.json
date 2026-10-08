@@ -3539,6 +3539,102 @@
         ]
       }
     },
+    "/v1/me/hours/timer": {
+      "post": {
+        "operationId": "postMeHoursTimer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "One stopped header-timer interval (at most 24 h, end not in the future). The hub splits it at the caller's local midnight and adds each day's piece to that day's row for target (an approved entry, else the open suggestion, else 0); all days or none. Unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §13 Q7, §6.3.",
+                "properties": {
+                  "end": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "start": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "target": {
+                    "description": "t:<task_id>, ch:<name>, dm:<peer> or ws",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target",
+                  "start",
+                  "end"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "hours": {
+                      "$ref": "#/components/schemas/MyHours"
+                    },
+                    "written": {
+                      "items": {
+                        "properties": {
+                          "day": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "minutes": {
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the minutes written per day, and the stop day's period as GET /v1/me/hours reads it. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §13 Q7, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "period_frozen: a day of the interval is frozen; nothing is written"
+          }
+        },
+        "summary": "Write a stopped header timer as hours",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/me/reads": {
       "get": {
         "operationId": "getMeReads",

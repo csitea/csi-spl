@@ -663,6 +663,128 @@
         ],
         "type": "object"
       },
+      "MyHours": {
+        "description": "The caller's own period: per day the open suggestions (state suggested), the entries (approved or rejected) with their delta, and the period state. Only the caller's rows, ever. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §2, §6.3.",
+        "properties": {
+          "days": {
+            "items": {
+              "properties": {
+                "approved_minutes": {
+                  "type": "integer"
+                },
+                "closed": {
+                  "type": "boolean"
+                },
+                "date": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "frozen": {
+                  "type": "boolean"
+                },
+                "open": {
+                  "type": "integer"
+                },
+                "rows": {
+                  "items": {
+                    "properties": {
+                      "blocks": {
+                        "items": {
+                          "properties": {
+                            "end": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "start": {
+                              "format": "date-time",
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
+                      "delta": {
+                        "type": "integer"
+                      },
+                      "minutes": {
+                        "type": "integer"
+                      },
+                      "note": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "enum": [
+                          "suggested",
+                          "approved",
+                          "rejected"
+                        ],
+                        "type": "string"
+                      },
+                      "suggested_minutes": {
+                        "type": "integer"
+                      },
+                      "target": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "suggested_minutes": {
+                  "type": "integer"
+                },
+                "today": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "period": {
+            "properties": {
+              "end": {
+                "format": "date",
+                "type": "string"
+              },
+              "freezes_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "minutes": {
+                "type": "integer"
+              },
+              "note": {
+                "type": "string"
+              },
+              "start": {
+                "format": "date",
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "open",
+                  "frozen",
+                  "returned",
+                  "approved"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "today": {
+            "format": "date",
+            "type": "string"
+          },
+          "tz": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "OwnStatus": {
         "description": "The caller's own status. Contract: csi-spl-doc/specs/003-spool-message-bus/contracts/view-v1.md §4.1.1.",
         "properties": {
@@ -3153,6 +3275,265 @@
           }
         },
         "summary": "Set me channel order",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/hours": {
+      "get": {
+        "operationId": "getMeHours",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "a day of the period; default the caller's today",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHours"
+                }
+              }
+            },
+            "description": "OK: the caller's own period. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §2, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read my hours",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "operationId": "putMeHours",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "A batch, all checked before any write; suggested_minutes is the hub's own number. Unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §2, §6.3.",
+                "properties": {
+                  "entries": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "day": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "minutes": {
+                          "maximum": 1440,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "note": {
+                          "maxLength": 500,
+                          "type": "string"
+                        },
+                        "state": {
+                          "enum": [
+                            "approved",
+                            "rejected"
+                          ],
+                          "type": "string"
+                        },
+                        "target": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "day",
+                        "target",
+                        "minutes",
+                        "state"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 400,
+                    "type": "array"
+                  },
+                  "remove": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "day": {
+                          "format": "date",
+                          "type": "string"
+                        },
+                        "target": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "resubmit": {
+                    "description": "a day of a returned period",
+                    "format": "date",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyHours"
+                }
+              }
+            },
+            "description": "OK: the caller's own period. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §2, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "period_frozen: a day of the batch is frozen; period_state: resubmit of a period that is not returned"
+          }
+        },
+        "summary": "Approve, edit, reject, add, remove my hours; resubmit a returned period",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/hours/minutes": {
+      "put": {
+        "operationId": "putMeHoursMinutes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "The WUI's tab-minute batch, one IANA zone, within the last 45 days. Unknown fields are 400 bad_json. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §2, §6.3.",
+                "properties": {
+                  "minutes": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "at": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "target": {
+                          "description": "t:<task_id>, ch:<name>, dm:<peer> or ws",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "at",
+                        "target"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 60,
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "tz": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tz",
+                  "minutes"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "stored": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the minutes stored. Contract: csi-spl-doc/specs/107-hours-tracking/spec.md §2, §6.3."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "period_frozen: a minute falls on a frozen day; nothing is stored"
+          }
+        },
+        "summary": "Record my active-tab minutes",
         "tags": [
           "me"
         ]

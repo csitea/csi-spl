@@ -131,6 +131,53 @@ for path in sorted(glob.glob(os.path.join(public_dir, "**", "*.html"), recursive
 if not pages:
     sys.exit("FATAL no html under " + public_dir)
 
+# ── /blog/** pages (spec 111 T002, 4.2) ─────────────────────────────────────
+# CSP is no backstop for the blog: the loop above hashes EVERY inline script
+# into script-src, so a <script> that reached a post page would be allowed and
+# run on the app origin. So a /blog/** page (and /<lang>/blog/**) may hold only
+# the executable inline scripts the app shell (200.html) holds and /_nuxt/
+# script files, and - script and style elements aside, entities decoded, as
+# sync-blog.mjs --check reads a fragment - no `<script`, `on*=`, or
+# javascript: / vbscript: / data: URL anywhere, even as text.
+import html as htmllib
+BLOG_RE = re.compile(r"(?:[a-z]{2,3}/)?blog(?:/|\.html$)")
+BLOG_BANS = [
+    (re.compile(r"<\s*script", re.I), "<script"),
+    (re.compile(r"\bon[a-z]+\s*=", re.I), "an on*= attribute"),
+    (re.compile(r"\b(?:javascript|vbscript)\s*:", re.I), "a javascript: URL"),
+    (re.compile(r"\bdata\s*:(?!\s)", re.I), "a data: URL"),
+]
+
+
+def inline_js(page):
+    out = []
+    for attrs, body in SCRIPT_RE.findall(page):
+        t = TYPE_RE.search(attrs)
+        if not SRC_RE.search(attrs) and (t.group(1).lower() if t else "") in JS_TYPES:
+            out.append(body)
+    return out
+
+
+shell_js = set(inline_js(open(os.path.join(public_dir, "200.html"), encoding="utf-8").read()))
+for path in sorted(glob.glob(os.path.join(public_dir, "**", "*.html"), recursive=True)):
+    rel = os.path.relpath(path, public_dir).replace(os.sep, "/")
+    if not BLOG_RE.match(rel):
+        continue
+    page = open(path, encoding="utf-8").read()
+    if any(body not in shell_js for body in inline_js(page)):
+        sys.exit("FATAL " + path + ": a /blog/** page holds an inline <script> the app shell (200.html) does not - refused, its hash would be allowed")
+    for attrs, _ in SCRIPT_RE.findall(page):
+        m = re.search(r"""\bsrc\s*=\s*["']?([^"'\s>]*)""", attrs, re.I)
+        if m and not m.group(1).startswith("/_nuxt/"):
+            sys.exit("FATAL " + path + ": a /blog/** page loads a script outside /_nuxt/ - refused")
+    text = STYLE_RE.sub("", SCRIPT_RE.sub("", page))
+    for _ in range(4):
+        text = htmllib.unescape(text)
+    text = re.sub(r"[\x00-\x08\x0b-\x1f]", "", text)
+    for rx, why in BLOG_BANS:
+        if rx.search(text):
+            sys.exit("FATAL " + path + ": a /blog/** page holds " + why + " - refused (spec 111 4.2)")
+
 # connect-src: 'self' plus the hub hosts from cnf, each over https and wss.
 #   * the api host: env.dns.api_fqdn (the 032 Cloud Run domain mapping, no
 #     LB), plus any 031 extra_host_labels as <label>.<BASE_DOMAIN>.

@@ -41,6 +41,7 @@ on:
       - 'csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh'
       - 'csi-spl-orc/src/bash/scripts/wui-deploy-newest.sh'
       - 'csi-spl-orc/src/bash/run/publish-docs.func.sh'
+      - 'csi-spl-doc/blog/posts/**'           # spec 111: a post commit deploys (sync-blog.mjs)
       - '.github/workflows/30_wui-build-deploy.yml'
   workflow_dispatch:
     inputs:

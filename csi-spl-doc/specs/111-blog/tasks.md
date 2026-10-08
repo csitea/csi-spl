@@ -64,7 +64,7 @@ Multilingual text gets agy's review last (repo language rule).
   - Files: `csi-spl-cnf/csi-spl/all.env.yaml`; the rendered `dev`/`prd`
     env json.
   - Done: `ENV=<env> ./run -a do_tpl_gen` + `git diff --exit-code`.
-- [ ] T002 **wui sync** (needs T001). Builds `sync-blog.mjs` (4.1, 4.2):
+- [x] T002 **wui sync** (needs T001). Builds `sync-blog.mjs` (4.1, 4.2):
   per-locale frontmatter validation; the cap of 7 per day with the day and
   order from git (6.2: back-dating, a fake digest, a late draft flip, an
   edit that changes `id`); fragments only through `markdownToHtml` /

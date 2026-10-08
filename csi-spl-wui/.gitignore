@@ -8,3 +8,5 @@ dist
 .pnpm-store
 # perf round 3, P3-06: build-time split catalogues (src/node/i18n/split-catalogue.mjs)
 i18n/.split/
+# spec 111 T002: the blog copy, made by pnpm run generate (src/node/blog/sync-blog.mjs)
+src/public/blog-md/

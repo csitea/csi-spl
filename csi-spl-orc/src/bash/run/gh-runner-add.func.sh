@@ -323,7 +323,7 @@ ghr_slice() {
 }
 
 # ghr_restart - every runner unit restarts after its service exits by itself
-# (runsvc.sh exits 0 when the listener does: "no retry needed"), a drop-in
+# (the runner's service script exits 0 when its listener does), a drop-in
 # written only when it differs, one daemon-reload, no restart (a reload is
 # enough for Restart=). A `systemctl stop` (the CPU budget parking a runner,
 # a person) is never undone by it: systemd restarts only an exit

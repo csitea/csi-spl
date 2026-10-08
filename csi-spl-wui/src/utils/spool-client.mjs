@@ -124,6 +124,15 @@ export const TOPIC_READS_IN_FLIGHT = 10
 /** view-v1 §4.3 v0.6.1: the largest `per_topic` the hub accepts (hub/view.go perTopicMax). */
 export const PER_TOPIC_MAX = 50
 
+/**
+ * spec 109 T004: how long after the client is made a settled roster or
+ * topic-list read is reused (live). The prd first screen (W1) is ~5 s.
+ */
+export const FIRST_SCREEN_MS = 10000
+
+/** The reads kept for the first screen: the roster and the topic list (not one topic). */
+const FIRST_SCREEN_READ = /^\/v1\/view\/(roster$|topics\?)/
+
 /** A joiner's copy of a shared read (live): JSON-shaped bodies are cloned, the rest passed as is. */
 function cloneBody(v) {
   if (v === null || typeof v !== 'object' || v instanceof ArrayBuffer) return v
@@ -188,6 +197,8 @@ export function createSpoolClient({
   configError = '',
   door = '',
   sender = null,
+  firstScreenMs = FIRST_SCREEN_MS,
+  now = Date.now,
 } = {}) {
   /* P3-15: the mock tenant's data loads with the first mock call, not in
      every live first load; each async method waits for it (gateMock).
@@ -238,6 +249,9 @@ export function createSpoolClient({
   }
   /** GET reads in flight, by what makes them identical (see live). */
   const inflight = new Map()
+  /** First-screen reads that have settled, by the same key (see live). */
+  const settled = new Map()
+  const bornAt = now()
 
   /* Owner, 2026-09-25, prd v0.5.5: four "Failed to fetch" in the diagnostics
      (routes /dm/CLE-001, /dm/CLE-100, /channel/spool-hub-devel) and not one
@@ -278,18 +292,42 @@ export function createSpoolClient({
    * out again. The first caller gets the parsed body; every joiner gets its
    * own structured clone, so no caller can mutate another one's rows. A read
    * with an AbortSignal, and every write, always goes out on its own.
+   *
+   * (spec 109 T004, D7/D8): prd still read the roster twice per load and the
+   * topic list twice per first screen, because the second caller started
+   * after the first read had settled, so it had nothing to join. During the
+   * first screen (firstScreenMs after the client is made) a settled roster or
+   * topic-list read is kept and handed out as a clone. Any write drops it,
+   * and after the first screen every read goes out as before.
    */
   function live(path, opts) {
     const method = String((opts && opts.method) || 'GET').toUpperCase()
-    if (method !== 'GET' || (opts && opts.signal)) return liveOnce(path, opts)
+    if (method !== 'GET' || (opts && opts.signal)) {
+      settled.clear()
+      return liveOnce(path, opts)
+    }
     const key = [viewDoor, viewToken, path, JSON.stringify((opts && opts.headers) || {})].join('\n')
-    const hit = inflight.get(key)
+    const hit = inflight.get(key) || keptRead(key)
     if (hit) return hit.then(cloneBody)
     const run = liveOnce(path, opts)
     inflight.set(key, run)
     const done = () => { if (inflight.get(key) === run) inflight.delete(key) }
     run.then(done, done)
+    if (FIRST_SCREEN_READ.test(path) && inFirstScreen()) {
+      run.then((body) => { if (inFirstScreen()) settled.set(key, cloneBody(body)) }, () => {})
+    }
     return run
+  }
+
+  function inFirstScreen() {
+    if (now() - bornAt < firstScreenMs) return true
+    settled.clear()
+    return false
+  }
+
+  /** A settled first-screen read as a promise, or null. */
+  function keptRead(key) {
+    return settled.has(key) && inFirstScreen() ? Promise.resolve(settled.get(key)) : null
   }
 
   async function liveOnce(path, opts) {

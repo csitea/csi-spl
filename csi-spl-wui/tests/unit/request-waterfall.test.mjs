@@ -8,7 +8,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createSpoolClient, TOPIC_READS_IN_FLIGHT } from '../../src/utils/spool-client.mjs'
+import { createSpoolClient, TOPIC_READS_IN_FLIGHT, FIRST_SCREEN_MS } from '../../src/utils/spool-client.mjs'
 import { withSessionRetry } from '../../src/utils/live-follow.mjs'
 import { sharedPreview, resetSharedPreviews, PREVIEW_CACHE_MAX } from '../../src/utils/file-preview.mjs'
 import { loadAvatarFiles, resetAvatarFiles } from '../../src/utils/avatar.mjs'
@@ -54,10 +54,10 @@ describe('identical GET reads in flight are one request (spool-client live)', ()
     assert.equal(f.calls.length, 1)
   })
 
-  it('control: reads that do not overlap each go out', async () => {
+  it('control: reads that do not overlap each go out (no first-screen window)', async () => {
     const f = heldFetch()
     f.release()
-    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn })
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn, firstScreenMs: 0 })
     await c.rosterView()
     await c.rosterView()
     assert.equal(f.calls.length, 2)
@@ -115,6 +115,93 @@ describe('identical GET reads in flight are one request (spool-client live)', ()
     const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: fn })
     await c.listMessages({ channel: 'lobby' })
     assert.equal(peak, TOPIC_READS_IN_FLIGHT)
+  })
+})
+
+// spec 109 T004 (D7, D8): prd read the roster twice per load and the topic
+// list twice per first screen. The second caller starts after the first read
+// has settled, so the in-flight join above never sees it.
+describe('a settled first-screen read is kept for the first screen (spec 109 T004)', () => {
+  /** Answers at once; counts roster and topic-list fetches. */
+  function countingFetch() {
+    const n = { roster: 0, topics: 0, other: 0 }
+    const fn = async (url) => {
+      if (url.endsWith('/v1/view/roster')) n.roster++
+      else if (url.includes('/v1/view/topics?')) n.topics++
+      else n.other++
+      const body = url.includes('/v1/view/topics') ? { topics: [{ task_id: 't1', count: 1 }], next: null } : { humans: [{ human_id: 'HUM-3' }], boxes: [] }
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => JSON.parse(JSON.stringify(body)) }
+    }
+    return { fn, n }
+  }
+  /** The mock first screen: the roster store, the avatars, the topic list, then a later reader of each. */
+  async function firstScreen(c) {
+    await c.listRoster()
+    await c.listTopics({ limit: 50 })
+    await tick()
+    await c.rosterView()
+    await c.listTopics({ limit: 50 })
+  }
+
+  it('a mock first screen reads the roster once and the topic list once', async () => {
+    const f = countingFetch()
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn })
+    await firstScreen(c)
+    assert.deepEqual(f.n, { roster: 1, topics: 1, other: 0 })
+  })
+
+  it('CONTROL: the same first screen with the reads apart and no window (the old live) reads each twice', async () => {
+    const f = countingFetch()
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn, firstScreenMs: 0 })
+    await firstScreen(c)
+    assert.deepEqual(f.n, { roster: 2, topics: 2, other: 0 })
+  })
+
+  it('each reuser gets its own copy', async () => {
+    const f = countingFetch()
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn })
+    const a = await c.rosterView()
+    a.humans.length = 0
+    const b = await c.rosterView()
+    const d = await c.rosterView()
+    assert.equal(b.humans.length, 1, 'the leader mutating its body must not reach a reuser')
+    assert.notEqual(b, d)
+    assert.equal(f.n.roster, 1)
+  })
+
+  it('after the first screen every read goes out again', async () => {
+    let t = 1000
+    const f = countingFetch()
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn, now: () => t })
+    await c.rosterView()
+    t += FIRST_SCREEN_MS
+    await c.rosterView()
+    await c.rosterView()
+    assert.equal(f.n.roster, 3)
+  })
+
+  it('a write drops the kept reads', async () => {
+    const f = countingFetch()
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: f.fn })
+    await c.rosterView()
+    await c.removeTenantUser('HUM-9')
+    await c.rosterView()
+    assert.equal(f.n.roster, 2)
+  })
+
+  it('a failed read is not kept, and one topic is never kept', async () => {
+    let fail = true
+    const calls = []
+    const fn = async (url) => {
+      calls.push(url)
+      if (fail) { fail = false; return { ok: false, status: 503, headers: { get: () => 'application/json' }, json: async () => ({ error: 'down' }) } }
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ humans: [], boxes: [], messages: [], next: null }) }
+    }
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: fn })
+    await assert.rejects(c.rosterView())
+    await c.rosterView()
+    await c.rosterView()
+    assert.equal(calls.filter((u) => u.endsWith('/roster')).length, 2)
   })
 })
 

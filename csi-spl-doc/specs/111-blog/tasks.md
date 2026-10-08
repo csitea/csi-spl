@@ -186,7 +186,7 @@ Multilingual text gets agy's review last (repo language rule).
   - Vendor: claude (watch and report). Box: the lease holder.
   - Done: 9-n. The post's sha and `do_release_note_link` are reported to the
     dispatcher.
-- [ ] T011 **Nano Banana key** (D-Q3). A named action
+- [x] T011 **Nano Banana key** (D-Q3). A named action
   `do_set_nano_banana_key`, modelled on `do_set_mistral_key` (spec 110):
   reads the key from a file input (on the drafting box: the box user's
   `~/.gemini/.csi/api_key`; never a pane paste); writes the agent user's

@@ -67,6 +67,7 @@ T001 spec v1.0 ─┬─► T013 RUM on in prd (first: a real before-week)
 | T013 | Implemented: prd `perf.rum_enabled` true (c-580) |
 | T005 | Implemented: [w1-trace.md](w1-trace.md) (c-581): W1 waits on the app boot and first render (CPU), not the socket; warm W1 on WUI `ce1461b5` 2,445 ms (drafting box loaded) / 1,250 (second box) / 844 (drafting box idle), n=10 each; T006 re-shaped to CPU (w1-trace.md section 5) |
 | T002 | Implemented: `index.html` gated as `ci_home_gzip_kb` 351.9 KB (85 chunks, mock generate on the CI runner's node; all three counters agree), CONTROL: the old code read `200.html` only (c-566) |
-| T003, T006..T008, T010..T012, T014, T015 | Planned |
+| T003 | **Not built, target missed by design** (c-596): the 85 links are not prerender extras. They are the P3-01 first-screen hints (`firstScreenHintsModule`, the static-import closure of page + layout + catalogue), which the app must load before `/` can paint: `index.vue` adds 5.0 KB of its own, `layouts/default.vue` 129.4 KB over 45 chunks, `en.json` 16.0 KB. Dropping them meets the bytes (`index.html` 85 chunks 350.7 KB -> 4 chunks 159.3 KB, `200.html` 154.4 unchanged) but makes the first topic row slower, because the same chunks then arrive as an import waterfall: mock `/`, cold, `d1440-4g`, tree `683bf86b0`, box node 20.19, local h2 server, median 3,961 / 3,802 ms before vs 6,304 (page chunk only) and 5,776 / 5,851 (page chunk + CSS preloads) after, n=10 per round, longest connect 12 ms. Nothing landed in the WUI. Fewer `/` bytes means a smaller default-layout closure (lazy sidebar / top-bar parts), which is outside T003's files |
+| T006..T008, T010..T012, T014, T015 | Planned |
 
 <!-- last-edit: 2026-10-08T18:25:00Z — v1.0 fold of seats s109-2..4, c-567 -->

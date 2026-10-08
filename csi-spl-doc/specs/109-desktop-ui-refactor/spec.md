@@ -1,8 +1,10 @@
 # 109 Desktop UI refactoring round: measured waits and friction, then small lanes
 
-**Feature ID**: `109-desktop-ui-refactor` · **Milestone**: M3 · **Status**: v0.1 draft (seat s109-1), waiting for review seats
+**Feature ID**: `109-desktop-ui-refactor` · **Milestone**: M3 · **Status**: v1.0 (consensus: seats s109-2..4 agree with changes, folded in section 5.1; owner questions decided: Q1 yes, Q2 yes, Q3 no, section 6)
 **Created**: 2026-10-08 · **Drafter / folder**: c-567 (seat s109-1) · **Topic**: t1 `2b61230c-0182-4b8e-baee-3476ae969a6d` · lane dispatch `dispatch-2b61230c`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). Every FR below is **Planned**.
+
+**Panel names** (the owner's numbering): the *icon column* is the 48 px strip of rail tabs; **panel 1** is the list next to it (the owner's "rail": channels, DMs, topics...); **panel 2** is the centre list; **panel 3** is the topic pane on the right. "Left panel" below means panel 1.
 
 **Scope: the desktop web app only** (viewport wider than `MOBILE_STACK_MAX_PX`). Phone layouts do not change. A task that edits a component the phone also renders must show the phone e2e unchanged (tasks.md rules).
 
@@ -38,7 +40,8 @@ Reading: three goals, each with a number. **Fast** = the waits in section 2 get 
 | WUI | `3.6.9`, `bd165b424448daa1703d5ae175ed75e02fb715ca` (`<host>/build.json`) for every run |
 | hub | `3.6.7` `eabfa288` for the runs before ~17:01Z (first load, Flow, baseline); `3.7.0` `6dddb0f44af5` for the perf-budget run at 17:23Z (`api.<domain>/version`). The panel-switch run at 17:12Z is on one of the two: the hub rolled in between |
 | tree | `0b38b6ff3` (origin/master at the start) |
-| member | the env's m3-e2e test member (a business owner in e2e) |
+| member | the env's m3-e2e test member (a business owner in e2e). Its login (`<state>/m3-e2e/e2e/pw-human`) exists **only on the drafting box**; another box gets one only through `do_spl_m3_e2e`, which writes to prd. A signed-in re-measure (T005, T014) runs on the drafting box or asks for a login first (s109-3) |
+| second look | seat s109-3 on box sat, 18:05..19:10Z, WUI `3.7.2` `64963b52`, hub `3.7.0` `6dddb0f4`, logged out only: D3 holds (349.9 KB / 154.5 KB, n=5); the logged-out static shell loads in 187..244 ms (n=21); 4 of 25 cold loads had one 3..20 s connect (the box link stalls in bursts). **W1..W4 and D7 were not re-measured** (they need the signed-in login above), so they rest on the drafter's n=10 alone until T005 re-measures them on two boxes |
 | raw evidence | `/var/tmp/spec109/` on the drafting box: `fl-warm/`, `fl-cold/`, `flow/`, `baseline/`, `live/`, `sw/`, `perf-budget.json`, `flows/`, `audit/`, and a `*.log` per run |
 
 Commands (all read-only, except `SEND=1`, which writes 10 messages into e2e `#lobby`):
@@ -100,13 +103,13 @@ Facts behind them (same runs):
 | # | fact | number |
 |---|---|---|
 | D1 | W1 is barely better warm than cold, so the wait is not the download | warm 5,004 vs cold 5,373 ms |
-| D2 | the hub socket opens late, and the first message comes after it | `ws open after nav` 4,007 ms median (p95 7,816), n=10 |
+| D2 | the hub socket opens late, and the first message comes after it | `ws open after nav` 4,007 ms median (p95 7,816), n=10. Not yet split into "the app asks for the socket" vs "the socket's connect and handshake"; the two point to opposite fixes, so T005 splits it (s109-3) |
 | D3 | the **prerendered `/` page preloads 85 JS chunks, 349.8 KB gzip**; `200.html` and `/lobby` preload 3 chunks, 154.5 KB | the `perf-budget.py` set rule (`<script src>` + `modulepreload`) applied to the live `/index.html` and `/200.html`, gzip level 6 |
-| D4 | the CI budget reads only `200.html`, so it **cannot see D3** (`perf-budget.py` line 120: `html_path = os.path.join(pub, "200.html")`); the live check fails on prd: `dev_initial_gzip_kb` 350.2 > 241.5 | `do_spl_perf_budget` prd, n=12 |
+| D4 | the CI budget reads only `200.html`, so it **cannot see D3** (`perf-budget.py` line 137 on `4b1ed47de`: `html_path = os.path.join(pub, "200.html")`; two more counters read the same file only: `bundle-size.mjs` line 37 and the AC-02 block of `tests/e2e/calendar.test.mjs`, `INITIAL_KB = 155` at line 32); the live check fails on prd: `dev_initial_gzip_kb` 350.2 > 241.5 | `do_spl_perf_budget` prd, n=12 |
 | D5 | the CI gate is red today at 155.1 KB > 155 (gate run `37804341298`, as the brief states it; not re-run here) | `perf-budgets.json` `ci_initial_gzip_kb` 155.0 |
 | D6 | a cold `/lobby` makes **322 requests**, 243 of them JS (857 KB on the wire), 15 API reads | baseline `cold requests`, `cold total KB` |
 | D7 | duplicate reads: `GET /v1/view/roster` twice per load, `GET /v1/view/topics` twice per first screen | perf-live `dupes` (roster n=2 per load); flow timing `first-screen`: roster n=19, topics n=20 for 10 rounds |
-| D8 | two callers read the roster: `utils/spool-client.mjs` (lines 670, 684) and `utils/avatar.mjs` (line 216) | `grep -rn view/roster csi-spl-wui/src` |
+| D8 | the two roster reads do **not** come from two callers racing: `SpoolAvatar.vue` line 65 reads through `api.rosterView()`, which shares the in-flight `live('/v1/view/roster')` (the `inflight` map, `spool-client.mjs` lines 240..290); `avatar.mjs` line 216 is only its fallback. The second read starts after the first has settled (s109-3; corrected from v0.1) | `git show origin/master:csi-spl-wui/src/components/SpoolAvatar.vue \| sed -n 65p` |
 | D9 | the hub is not the wait: view reads p50 34..55 ms, p95 52..193 ms | `do_spl_perf_budget` prd, n=12 |
 
 **Top 5 waits for the round**: W1/W2 (channel first message ~5 s), W3 (home first row ~4.9 s cold), D3 (home preloads 350 KB), W4 (Topics / Channels tab 1.0..1.2 s re-render), D7 (duplicate first-screen reads).
@@ -154,13 +157,13 @@ Checked and kept: Ctrl+K palette (1 key, 0.4 s), `/` to focus, DM in 2 clicks, t
 |---|---|---|---|
 | FR-001 | A channel shows its first message without waiting for the hub socket: the first page comes from the view read, the socket only adds live rows. The task first traces W1 and names the cause (lesson rule 2); if the trace points elsewhere, the trace wins | W1, W2, D1, D2 | warm 5,004 -> **<= 1,500 ms** median (n=10) |
 | FR-002 | The CI budget measures **every prerendered document** (`index.html` and `200.html`), each against its own ceiling | D3, D4 | home not gated -> gated |
-| FR-003 | The prerendered `/` preloads no more than `200.html` does plus the home page's own chunk | D3, W3 | 349.8 -> **<= 175 KB** gzip; W3 4,942 -> <= 2,500 ms |
+| FR-003 | The prerendered `/` preloads no more than `200.html` does plus the home page's own chunk | D3, W3 | 349.8 -> **<= 175 KB** gzip; the time it saves is proved on the `d1440-4g` profile (about 1 s at 1.6 Mbps). On a fast link the 85 chunks cost only ~70 ms (`/` 483 vs `/lobby` 412 ms load event, n=7, s109-3), so the rest of W3 belongs to T005 / T006 |
 | FR-004 | One read per resource per load: roster and topics are each fetched once on the first screen | D7, D8 | 2 -> **1** per load; perf-live `dupes = []` |
 | FR-005 | A rail tab that does not change the centre does not re-render it | W4 | Topics 1,152 / Channels 968 -> **<= 250 ms** settled |
 | FR-006 | Home shows the topic list once (Q2 decides which panel gives way) | F1 | 2 lists -> 1 |
-| FR-007 | A reply is typed in a box docked at the bottom of the thread pane (Q3); the top omnibox stays for new topics and search | F2 | ~900 px away -> in the pane |
+| FR-007 | **Dropped** (owner, Q3 = no): the reply box stays in the top-bar omnibox. F2 stays recorded as measured; no lane changes it | F2 | unchanged |
 | FR-008 | The top bar holds the workspace box, the omnibox, the notification controls and the avatar. The language picker moves into the avatar menu and Settings | F4 | 171 px freed |
-| FR-009 | Workspace settings has one entry on screen (the rail gear); the avatar menu keeps it only while the rail is collapsed | F5 | 3 -> 1 |
+| FR-009 | Workspace settings has one entry on screen (the rail gear); the avatar menu keeps it only while the rail is collapsed. The first-run card's link goes with that card (T012) | F5 | 3 -> 1 |
 | FR-010 | The first-run card shrinks to a one-line chip once any step is done, and goes away when all are done | F6 | 270 -> <= 48 px |
 | FR-011 | The thread pane header shows the topic title on one line (ellipsis) and labelled controls (tooltip and `aria-label`) | F7 | raw text box -> title line |
 | FR-012 | The rail gets a visible divider between talk (Channels, DMs, Topics, Flow, Issues, Calendar) and workspace (Event log, People, Agents, Boxes, Archive), and a "show labels" toggle, default off | F3 | 0 labels -> optional labels |
@@ -172,6 +175,9 @@ Non-goals: new features, new key bindings (081, 103), hub changes (099), phone l
 ### 4.1 Budget rule for this round
 
 D5: the CI gate is at 155.1 KB, red. **No task may add initial JS** unless the same commit removes at least as much (measured with `perf-budget.py bundle`). FR-003 and FR-004 are expected to free room; they land first.
+
+- `ci_initial_gzip_kb` (the `200.html` set) belongs to lane c-568, which is bringing it back under 155 KB. **No 109 task changes that key.** T003's 175 KB is the new `ci_home_gzip_kb` only. Because `nuxt.config.ts` shapes `200.html` too, T003's gate also shows `ci_initial_gzip_kb` unchanged (s109-4).
+- **No UI lane (T008..T012, T015) starts while workflow 10 is red on trunk** (s109-4).
 
 ---
 
@@ -186,16 +192,43 @@ D5: the CI gate is at 155.1 KB, red. **No task may add initial JS** unless the s
 
 The fold (v1.0) takes every change that two or more seats agree on; a single-seat change is listed with the reason it was kept or dropped.
 
+### 5.1 The fold (v1.0, c-567)
+
+All three seats agree with changes; none disagrees with another seat's change. **Every change is kept.** A single-seat change was kept because it corrects a fact checked on origin/master or tightens a gate, and no seat objects.
+
+| seat / change | what changed | where | kept because |
+|---|---|---|---|
+| s109-2.1, s109-4.9 | T007 waits for T003 (both edit `index.vue`) | tasks.md order | two seats |
+| s109-2.2, s109-3, s109-4 | Q1..Q3: all seats recommend (a) | section 6 | three seats; the owner then decided Q1 yes, Q2 yes and **Q3 no**, which overrides the seats on Q3: T009 and FR-007 are dropped, and T011 no longer waits for T009 |
+| s109-4.1 | every lane runs `lane-map.sh put --files` at spawn, then `--check`; an empty row reads `free` | tasks.md rules | live lanes have `files: []` |
+| s109-4.2, s109-3 | `perf-budget.py` reads `200.html` at line 137 (not 120); T002 starts after c-568 | D4; T002 | `grep -n` -> 137, checked |
+| s109-4.3 | a third byte counter: `tests/e2e/calendar.test.mjs` AC-02 (`INITIAL_KB = 155`, line 32) joins T002 | D4; T002 | checked on origin/master |
+| s109-4.4 | `ci_initial_gzip_kb` is c-568's; no 109 task changes it; no UI lane starts while workflow 10 is red | section 4.1; tasks.md rules | the gate is red today |
+| s109-4.5 | T010 after c-566's 107 timer; it must not move, restyle or rename the timer | T010 | `TopBar.vue` is c-566's file |
+| s109-4.6 | the language picker stays `defineAsyncComponent` inside `UserMenu.vue` | T010 gate | `UserMenu` is in the initial set (`TopBar.vue` line 97) |
+| s109-4.7 | the first-run card's settings link moves to T012 (it owns `FirstRunChecklist.vue`) | FR-009; T010, T012 | one file, one lane |
+| s109-4.8 | FR-012 (rail divider and labels) split into a new T015 that owns the rail markup and `RailOrderSetting.vue` | T012, T015 | T012 did not own the files FR-012 needs |
+| s109-4.9 | `ChannelSidebar.vue` one lane at a time: T007 -> T008 -> T015, after c-563@sat commits its edits | tasks.md order | c-563 holds uncommitted edits to it |
+| s109-4.10 | every task names the files it must not touch | tasks.md column | collision control |
+| s109-3.1 | each probe round records its longest connect; a round with a connect over 1 s goes to its own column, out of the median and p95 | tasks.md rules | the box link stalls in bursts (4 of 25 cold loads) |
+| s109-3.2 | T005 splits `ws open` into "asked" vs "connected" | D2; T005 | the two point to opposite fixes |
+| s109-3.3 | W1..W3 are re-measured from a second box before T005 closes | T005 | rules out a box-link artefact |
+| s109-3.4 | T003 is proved on bytes plus the `d1440-4g` profile, not on W3 at fast-link speed | FR-003; T003 | the 85 chunks cost ~70 ms on a fast link |
+| s109-3.5 | D8 corrected; T004 owns `spool-client.mjs` `live` / `inflight`, not `avatar.mjs` | D8; T004 | `SpoolAvatar.vue` line 65 checked |
+| s109-3.6 | every before-number is re-measured on the WUI sha the lane starts from; the commit names both shas | tasks.md rules | prd moved from `bd165b42` to `64963b52` during the review |
+| s109-3.7 | section 1 names the box that holds the prd e2e login | section 1 | the after-round must run there |
+| drafter | panel names follow the owner's numbering (panels 1, 2, 3) | header | the owner's numbering |
+
 ---
 
 ## 6. Owner questions
 
-Each carries the drafter's recommendation; the build follows it unless the owner answers otherwise.
+**Decided** by the owner (HUM-10, t1 `2b61230c`, msg `272d5ffd-634f-478b-b483-4d7f3a76b69f`, verbatim): "q1 yes, q2 yes, q3 no". All three seats had recommended (a) on each; on Q3 the owner overrides them.
 
-| # | question | options | recommendation | changes task |
-|---|---|---|---|---|
-| Q1 | Switch real-user timing (spec 066 RUM) **on in prd** now, so that this round is ranked and proved on real desktop users? prd has 0 samples; the 066 overhead A/B (L9) has not cleared it yet | (a) yes, prd on now; (b) wait for 066 L9 | **(a)**: the collector is fire-and-forget and lazy (066 section 4.0); without it every prd number stays a lab number | T013 |
-| Q2 | Home shows the topic list twice (F1). Which one goes? | (a) the left panel shows Channels while the centre shows Topics; (b) the centre shows the selected topic's messages and the left keeps the list; (c) keep both | **(a)**: the centre has the room (1,133 px) for title, people and count; the left at 212 px wraps titles to 5 lines | T008 |
-| Q3 | The reply box (F2): docked at the bottom of the thread pane, or keep the single top omnibox? | (a) docked in the pane; the omnibox keeps new topics and search; (b) keep the top omnibox only | **(a)**: the reply is typed where it is read | T009 |
+| # | question | options | recommendation | answer | effect |
+|---|---|---|---|---|---|
+| Q1 | Switch real-user timing (spec 066 RUM) **on in prd** now, so that this round is ranked and proved on real desktop users? prd has 0 samples; the 066 overhead A/B (L9) has not cleared it yet | (a) yes, prd on now; (b) wait for 066 L9 | **(a)**: the collector is fire-and-forget and lazy (066 section 4.0); without it every prd number stays a lab number | **yes** (a) | T013 stays and lands first, for a before-week |
+| Q2 | Home shows the topic list twice (F1). Which one goes? | (a) the left panel shows Channels while the centre shows Topics; (b) the centre shows the selected topic's messages and the left keeps the list; (c) keep both | **(a)**: the centre has the room (1,133 px) for title, people and count; the left at 212 px wraps titles to 5 lines | **yes** (a) | T008 as drafted: panel 1 shows Channels, panel 2 shows Topics |
+| Q3 | The reply box (F2): docked at the bottom of the thread pane, or keep the single top omnibox? | (a) docked in the pane; the omnibox keeps new topics and search; (b) keep the top omnibox only | **(a)**: the reply is typed where it is read | **no** (b) | T009 and FR-007 dropped; the reply box stays in the top-bar omnibox |
 
-<!-- last-edit: 2026-10-08T17:40:00Z — v0.1 draft, c-567 -->
+<!-- last-edit: 2026-10-08T18:25:00Z — v1.0 fold of seats s109-2..4, c-567 -->

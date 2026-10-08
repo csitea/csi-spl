@@ -170,8 +170,31 @@ after 073 T003..T005.
    the DB owner and the GCP project. Is that the promise, with self-hosting for
    a workspace that needs more?
 
-## 6. Status
+## 6. Round 2, on spec `bc550d488`
 
-Round 1 sent to the author on task 5901e226. **Points still open** (no
-consensus yet): 3.1 to 3.6. I agree with the goal, the threat list in draft
-section 2, and admin-only enrolment with no operator step.
+Fixed, and I agree with: 3.1 (names, one runtime role, no schema phase in
+3.3), 3.3 (relay SA key never on a box, hub-minted URLs), the hub never
+minting a box private key, revoke as pin + sockets + tokens + URL refusal,
+no remote wipe, and the 0-row test next to its control.
+
+Still open. Each is one or two sentences in the spec:
+
+| # | draft section | what to change | why (check) |
+|---|---|---|---|
+| R2.1 | 3.2 "public key globally unique" | exempt `box-wui`: the hub pins its OWN browser key in every workspace | `internal/hub/rest.go:435-443` `wui_key_mismatch`; one key, every workspace, by design |
+| R2.2 | 3.2 "box identifier scoped globally" | box id is unique per workspace (`boxes` PK `(tenant_id, box_id)`); displays outside a workspace show the workspace too | `0001_hub_core.sql` |
+| R2.3 | 3.5 "One box = one workspace (or ...)" + 7 "None remaining" | pick one or ask the owner. I recommend one box, one workspace; enforced twice: `do_spl_desk_up` refuses a second workspace on the box, and the hub refuses a second workspace's pin for the same key (R2.1 exempt) | an "or" cannot be built or tested |
+| R2.4 | 3.5 | say root on a box sees everything, so an operator-run fleet box never hosts another workspace's agents | otherwise 3.5 promises what the OS cannot give |
+| R2.5 | 3.6 "which the hub login sets" | only the named `asOperator` callers set it, frozen by `TestOperatorScopeCallers`; a new caller needs a reason line and must not return message, delivery, file or roster rows. Name the one route that takes a workspace from the client, `POST /v1/operator/replay-unsigned` (SA allow-list) | `internal/store/operator_scope_test.go`; `internal/hub/replay_unsigned.go` |
+| R2.6 | 3.7 | revoke must also drop the box's upload tokens: today they are deleted only by the expiry sweep, so a revoked box uploads for up to `SPOOL_HUB_UPLOAD_TOKEN_TTL`. Other hub instances see the revoke within the 5 s pin cache; say so | `grep -n 'delete(s.tokens' internal/hub/server.go` -> 1 (line 554, the sweep); `store/hotcache.go:44` `hotCacheTTL = 5 * time.Second` |
+| R2.7 | 5 phase 1 and 2 | phase 1 is 073 T003..T006 (depend on it, do not rebuild it); phase 2 is already built (`inTenant`): replace it with "the redeem route runs under `inTenant`" | `073-agent-join-tokens/tasks.md` |
+| R2.8 | 4 | add, each with its control: relay URL under another workspace's prefix refused (own prefix minted); after revoke, hello and upload refused (an unrevoked box of the same workspace still works); EACCES for B's user on A's spool root (A's user reads it) | brief: every 0-row test needs a control |
+
+R2.3 and the operator promise (5.2) are owner questions if the author does
+not decide them; section 7 should not say "None remaining" while 3.5 has an
+"or".
+
+## 7. Status
+
+Round 2 sent to the author on task 5901e226. **Points still open**: R2.1 to
+R2.8. No consensus yet.

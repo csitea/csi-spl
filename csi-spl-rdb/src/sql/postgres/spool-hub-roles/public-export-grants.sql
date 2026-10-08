@@ -1,5 +1,5 @@
 -- public-export-grants.sql - GENERATED, do not edit (spec 091 T004, fence 1).
--- Source: csi-spl-orc/cnf/public-dataset/allow-list.v1.yaml (sha256 86795fe534a97fed26f1db8c79c3ca65e16761ebf46478dfdefb4010b21434cb)
+-- Source: csi-spl-orc/cnf/public-dataset/allow-list.v1.yaml (sha256 da714e687bc2962a8fb445800c34ffbf1140821f59fe1421ad46713e1be7f020)
 -- by csi-spl-orc ./run -a do_spl_public_export_grants_gen. A change to the
 -- allow-list is a change to this file in the same commit (the store test
 -- TestPublicExportGrantsEqualAllowList and public-export-grants-gen.tst.sh).

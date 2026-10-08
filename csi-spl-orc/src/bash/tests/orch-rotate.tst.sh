@@ -349,6 +349,26 @@ act ROTATE_CMD=abort DRY_RUN=0 >"$T/o" 2>&1
 grep -q ' ABORT ABORT at ACK by hand' "$T/o" && [[ ! -d "$T/proc/2001" && -d "$T/proc/1001" && "$(ctx ROTATE_PHASE)" == ABORT ]] &&
   pass "8. abort (FR-091): the new one closed, the old one kept" || fail "8. abort: $(cat "$T/o")"
 
+# a reboot mid-rotation (20261008T1815Z: GATE, then the box rebooted): the
+# resume ends it as "interrupted by boot", ctx gone, NO FAIL blocker; the
+# CONTROL, GATE on this boot, still FAILs as before
+at_gate() {  # BTIME_AGO
+  world; now=$(date +%s); rid="$(date -u -d "@$(( now - 3600 ))" +%Y%m%dT%H%MZ)-orch"
+  echo "btime $(( now - $1 ))" >"$T/proc/stat"
+  printf 'ROTATE_RID=%s\nROTATE_PHASE=GATE\nROTATE_OLD_PID=1001\nROTATE_OLD_PANE=%%2\n' "$rid" >"$D/rotate.orch.ctx"
+}
+at_gate 60
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$D/rotate.orch.ctx" ]] && grep -q " $rid ABORT BOOT interrupted by boot at GATE: the box booted after its GATE" "$T/o" &&
+  grep -q " $rid ABORT BOOT interrupted by boot" "$D/rotate.log" && ! grep -q 'FAIL' "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "8. GATE before the last boot: 'interrupted by boot', ctx removed, no FAIL blocker" || fail "8. boot rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+at_gate 7200
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q " $rid FAIL FAIL GATE: resumed with no live new session" "$T/o" && ! grep -q 'interrupted by boot' "$T/o" &&
+  grep -q '^do_spl_ask_put' "$T/run.log" &&
+  pass "8. CONTROL: GATE on this boot, no new session: FAIL + blocker as before" || fail "8. control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+rm -f "$T/proc/stat"
+
 # --- 9. T-ACK-FORGED --------------------------------------------------------------------------
 world; echo no >"$T/ack.mode"; act DRY_RUN=0 ROTATE_ACK_TIMEOUT=1 >/dev/null 2>&1
 sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=ACK/; s/^ROTATE_NEW_PID=.*/ROTATE_NEW_PID=2001/' "$D/rotate.orch.ctx"

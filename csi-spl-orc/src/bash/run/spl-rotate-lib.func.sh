@@ -259,6 +259,20 @@ spl_rotate_age() {
   echo $(( now - start / $(getconf CLK_TCK) ))
 }
 
+# spl_rotate_booted_after RID: 0 + why when the box booted after rotation
+# RID's GATE (<proc>/stat btime > the RID's minute, which is when GATE minted
+# it): that rotation was cut off by the reboot, not failed. 20261008T1815Z-master
+# GATEd at 18:15:07Z, the box rebooted at 18:18:02Z, and its resume raised a false
+# "ROTATION FAILED ... no live new session" naming the pre-reboot pid.
+spl_rotate_booted_after() {
+  local r="${1%%-*}" gt bt
+  [[ "$r" =~ ^([0-9]{8})T([0-9]{2})([0-9]{2})Z$ ]] || return 1
+  gt="$(date -u -d "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]} UTC" +%s 2>/dev/null)" || return 1
+  bt="$(awk '$1 == "btime" {print $2}' "${LEASE_PROC_ROOT:-/proc}/stat" 2>/dev/null || true)"
+  [[ "$bt" =~ ^[0-9]+$ && "$gt" =~ ^[0-9]+$ ]] && (( bt > gt )) || return 1
+  echo "the box booted after its GATE (btime $bt > $gt)"
+}
+
 # spl_rotate_uptime: seconds since boot (FR-052).
 spl_rotate_uptime() { awk '{print int($1)}' "${LEASE_PROC_ROOT:-/proc}/uptime" 2>/dev/null || awk '{print int($1)}' /proc/uptime; }
 

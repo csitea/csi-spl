@@ -281,7 +281,18 @@ spl_orch_rotate_fail() {
 
 # A rotation left mid-way (FR-003): continue from what can be checked.
 spl_orch_rotate_resume() {
-  local old=0 new=0
+  local old=0 new=0 why
+  # a reboot cut it off: no FAIL blocker, a switched lease.conf goes back,
+  # the ctx goes, the next run gates afresh (as spl_disp_rotate_resume)
+  if why="$(spl_rotate_booted_after "$ROTATE_RID")"; then
+    if [[ -n "${ROTATE_SWITCH_FROM:-}" ]]; then
+      sed -i "s/^LEASE_ORCH=$LEASE_ORCH\$/LEASE_ORCH=$ROTATE_SWITCH_FROM/" "$LEASE_CONF" 2>/dev/null || true
+      why+="; lease.conf LEASE_ORCH back to $ROTATE_SWITCH_FROM"
+    fi
+    spl_rotate_log "$ROTATE_RID" ABORT BOOT "interrupted by boot at $ROTATE_PHASE: $why; ctx removed, no alert"
+    rm -f "$LEASE_DIR/rotate.orch.ctx"
+    return 0
+  fi
   spl_rotate_alive "$ROTATE_OLD_PID" && old=1
   [[ -n "$ROTATE_NEW_PID" ]] && spl_rotate_alive "$ROTATE_NEW_PID" && new=1
   spl_rotate_log "$ROTATE_RID" RESUME OK "from $ROTATE_PHASE (old alive=$old, new alive=$new)"

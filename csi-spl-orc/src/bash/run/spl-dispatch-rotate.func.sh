@@ -578,8 +578,17 @@ spl_disp_master_lost() {
 # ---- resume (FR-003) and abort (FR-091) ------------------------------------------
 
 spl_disp_rotate_resume() {
-  local old=0 new=0 role
+  local old=0 new=0 role why
   role="$(spl_disp_role)"
+  # a reboot cut it off: no session of it is left to keep or fail, so no FAIL
+  # blocker; the hold goes and the ctx with it (.state ends ABORT, a terminal
+  # phase every reader knows), the next run gates afresh
+  if why="$(spl_rotate_booted_after "$ROTATE_RID")"; then
+    [[ "$role" == master ]] && spl_disp_release
+    spl_rotate_log "$ROTATE_RID" ABORT BOOT "interrupted by boot at $ROTATE_PHASE: $why; ctx and hold removed, no alert"
+    rm -f "$LEASE_DIR/rotate.dispatch.ctx"
+    return 0
+  fi
   spl_rotate_alive "$ROTATE_OLD_PID" && old=1
   [[ -n "$ROTATE_NEW_PID" ]] && spl_rotate_alive "$ROTATE_NEW_PID" && new=1
   spl_rotate_log "$ROTATE_RID" RESUME OK "from $ROTATE_PHASE (old alive=$old, new alive=$new)"

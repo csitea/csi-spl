@@ -376,6 +376,30 @@ act DRY_RUN=0 >"$T/o" 2>&1
 ! grep -q RESUME "$T/o" && grep -q ' GATE ' "$T/o" &&
   pass "9. ... and the next run gates afresh" || fail "9. resumed again: $(cat "$T/o")"
 
+# a reboot mid-rotation (20261008T1815Z-master: GATE 18:15:07Z, the box rebooted
+# 18:18:02Z): the resume ends it as "interrupted by boot", hold and ctx gone,
+# NO FAIL blocker; the CONTROL, GATE on this boot, still FAILs as before
+at_gate() {  # BTIME_AGO
+  world; now=$(date +%s); rid="$(date -u -d "@$(( now - 3600 ))" +%Y%m%dT%H%MZ)-master"
+  echo "btime $(( now - $1 ))" >"$T/proc/stat"
+  echo "c-902 $(( now - 3600 )) $rid" >"$D/rotate.hold"
+  printf 'ROTATE_RID=%s\nROTATE_PHASE=GATE\nROTATE_OLD_PID=102\nROTATE_OLD_PANE=%%2\n' "$rid" >"$D/rotate.dispatch.ctx"
+}
+at_gate 60
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$D/rotate.dispatch.ctx" && ! -e "$D/rotate.hold" && "$(holder)" == c-902 ]] &&
+  grep -q " $rid ABORT BOOT interrupted by boot at GATE: the box booted after its GATE" "$T/o" && grep -q " $rid ABORT BOOT interrupted by boot" "$D/rotate.log" &&
+  ! grep -q 'FAIL' "$T/o" && ! grep -q '^do_spl_ask_put' "$T/run.log" 2>/dev/null &&
+  pass "9. GATE before the last boot: 'interrupted by boot', ctx + hold removed, no FAIL blocker" || fail "9. boot rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+act DRY_RUN=0 >"$T/o" 2>&1
+! grep -q RESUME "$T/o" && pass "9. ... and the next run does not RESUME" || fail "9. boot resumed again: $(cat "$T/o")"
+at_gate 7200
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q " $rid FAIL FAIL GATE: resumed with no live new session" "$T/o" && ! grep -q 'interrupted by boot' "$T/o" &&
+  grep -q "^do_spl_ask_put ASK_KIND=blocker ASK_FROM=c-902 ASK_TOPIC=dispatch-rotate-$rid" "$T/run.log" &&
+  pass "9. CONTROL: GATE on this boot, no new session: FAIL + blocker as before" || fail "9. control rc=$rc $(cat "$T/o") $(cat "$T/run.log" 2>&1)"
+rm -f "$T/proc/stat"
+
 # --- 10. T-CRON ---------------------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'
 #!/usr/bin/env bash

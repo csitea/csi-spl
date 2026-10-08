@@ -56,7 +56,7 @@ run_budget() {
     sleep() {
       local r s
       r="$(awk "{print \$2}" "$T/cg/cpu.stat")" s="$(awk "{print \$2}" "$T/cg/user.slice/user-1500.slice/cpu.stat")"
-      set_usage $((r + (${OTHER:-0} + ${CI:-0}) * $1 * 1000000)) $((s + ${CI:-0} * $1 * 1000000))
+      set_usage $((r + (${OTHER:-0} + ${RUNNER_CORES:-0}) * $1 * 1000000)) $((s + ${RUNNER_CORES:-0} * $1 * 1000000))
     }
     set_usage() { printf "usage_usec %s\n" "$1" >"$T/cg/cpu.stat"; printf "usage_usec %s\n" "$2" >"$T/cg/user.slice/user-1500.slice/cpu.stat"; }
     source "'"$FUNC"'"
@@ -77,18 +77,18 @@ done
 U1=actions.runner.o.box-spl-01.service U2=actions.runner.o.box-spl-02.service
 printf '%s loaded active running GitHub Actions Runner\n' "$U1" "$U2" >"$T/units.list"
 for u in "$U1" "$U2"; do echo "/user.slice/user-1500.slice/$u" >"$T/cgof-$u"; done
-out="$(run_budget OTHER=4 CI=6)"; rc=$?
+out="$(run_budget OTHER=4 RUNNER_CORES=6)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'others=4.00 cores over 10s -> user-1500.slice CPUQuota=1040%'* && "$out" == *DRY_RUN* && ! -s "$SYSD_LOG" ]] &&
   pass "dry run: 16 cores * 90% - 4 other cores = 1040%, nothing set" || fail "dry size (rc=$rc): $out / $(cat "$SYSD_LOG" 2>&1)"
-out="$(run_budget DRY_RUN=0 OTHER=4 CI=6)"; rc=$?
+out="$(run_budget DRY_RUN=0 OTHER=4 RUNNER_CORES=6)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == "systemctl set-property --runtime user-1500.slice CPUQuota=1040%" ]] &&
   pass "apply: CPUQuota=1040% set --runtime on the runner slice, units in it untouched" || fail "apply (rc=$rc): $out / $(cat "$SYSD_LOG" 2>&1)"
 : >"$SYSD_LOG"
-out="$(run_budget DRY_RUN=0 OTHER=0 CI=15)"; rc=$?
+out="$(run_budget DRY_RUN=0 OTHER=0 RUNNER_CORES=15)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=1440%' ]] &&
   pass "only CI running: the ceiling 1440% (its own use never shrinks it)" || fail "ceiling (rc=$rc): $out"
 : >"$SYSD_LOG"
-out="$(run_budget DRY_RUN=0 OTHER=15 CI=1)"; rc=$?
+out="$(run_budget DRY_RUN=0 OTHER=15 RUNNER_CORES=1)"; rc=$?
 [[ $rc -eq 0 && "$(cat "$SYSD_LOG")" == *'CPUQuota=100%' ]] &&
   pass "others take it all: the floor 100%" || fail "floor (rc=$rc): $out"
 : >"$SYSD_LOG"

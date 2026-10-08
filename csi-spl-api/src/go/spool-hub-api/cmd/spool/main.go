@@ -9,6 +9,8 @@
 //
 //	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID
 //	pin     --box <box_id> --pubkey <b64> [--force] [--revoke] [--root-key <path>]
+//	join    [--box <box_id>] [<hub-url>] [-]   seat this box with a join token from
+//	          $SPOOL_JOIN_TOKEN or stdin (-); the box makes its own key (spec 073 4.4)
 //	send    --from <id> --to <id> [--task <uuid>] --kind <k> --body <text>
 //	          [--file-id <id>]... [--file-ref <path>]... [--dir-blob <path>]... [--dir-ref <path>]...
 //	          [--to-box <box_id>]   (hub mode only, spec 003)
@@ -119,6 +121,7 @@ const usage = `usage: spool <verb> [flags]      (spool <verb> -h lists a verb's 
 on a box (an agent's machine):
   keygen              make this box's signing key (prints the PUBLIC key)
   pin                 pin a box key locally; with --root-key also at the hub
+  join                seat this box with a join token ($SPOOL_JOIN_TOKEN or - = stdin)
   send                send a message (hub mode: --channel posts a new topic)
   recv                read this box's inbox
   put-file, put-dir   store a file / a directory as a blob
@@ -220,10 +223,8 @@ func run(args []string) int {
 // runBoxCmd runs a command that needs the box's config.
 func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 	switch cmd {
-	case "keygen":
-		return cmdKeygen(cfg, rest)
-	case "pin":
-		return cmdPin(cfg, rest)
+	case "keygen", "pin", "join": // join: spec 073 4.4
+		return cmdBoxKey(cfg, cmd, rest)
 	case "send":
 		return cmdSend(cfg, rest)
 	case "recv":
@@ -296,6 +297,17 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		return 1
 	}
+}
+
+// cmdBoxKey runs the verbs that make, pin or seat the box key.
+func cmdBoxKey(cfg *config.Config, cmd string, rest []string) int {
+	switch cmd {
+	case "keygen":
+		return cmdKeygen(cfg, rest)
+	case "pin":
+		return cmdPin(cfg, rest)
+	}
+	return cmdJoin(cfg, rest)
 }
 
 func cmdKeygen(cfg *config.Config, args []string) int {

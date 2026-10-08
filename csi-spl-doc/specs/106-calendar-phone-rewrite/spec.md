@@ -277,7 +277,7 @@ The phone rewrite implements full accessible semantics:
 
 - **AC-01** H1..H8 green at 360x780, 390x844 and 820x1180, dark and light, font levels 1, 3 and 5.
 - **AC-02** Each tap-count target of section 5 met, counted by an e2e that taps through each task.
-- **AC-03** A day 3 months ahead is reached in <= 3 taps (title, month, day).
+- **AC-03** A day 3 months ahead is reached in <= 3 taps (title, month, day) when it lies in the shown year; when it lies in the next year (from October to December) it takes 4 taps (title, year, month, day), because the month picker opens on the shown year. Owner choice option A (leave it), 2026-10-08, t1 197cf92c.
 - **AC-04** An event added from a tapped 14:00 slot in Day is stored at 14:00-15:00 on that day; Save button clickable without scrolling when virtual keyboard is active (S2-1).
 - **AC-05** Delete from the peek, then Undo: the event is back with the same id.
 - **AC-06** At 1440x900 the calendar's screenshots and e2e are as before.

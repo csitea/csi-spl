@@ -25,5 +25,6 @@ has "an untracked spec dir counts as dirty" "dirty:    1 path(s)" "$out"
 has "the commit not on the trunk is counted" "not on origin/master: 1 commit(s)" "$out"
 has "the tasks.md candidate is listed" "slug=042-thing  open=2  done=1" "$out"
 has "the env id wins over the path" "agent id: CLE-09 (from env)   kind: claude" "$(SPOOL_AGENT_ID=CLE-09 bash "$R" "$W" 2>&1)"
+has "an m- id is a mistral agent (spec 110)" "agent id: m-009 (from env)   kind: mistral" "$(SPOOL_AGENT_ID=m-009 bash "$R" "$W" 2>&1)"
 eq "it changed nothing" "$before" "$(cd "$T_TMP" && find . -type f -newer "$R" | sort | md5sum)"
 t_done

@@ -27,6 +27,7 @@
 #                       Resolved here, EXPORTED by spool-harness.sh
 #   CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN   default <agent home>/.local/bin/<cli> when it
 #                       exists, else the bare name
+#   MISTRAL_BIN         the same, for the binary vibe (spec 110)
 #
 # The box config, $SPOOL_BOX_ENV (default $SPOOL_ROOT/box.env), is where a box
 # says once what every spawn on it should default to, so a bare
@@ -36,7 +37,8 @@
 # and the environment always wins over the file. Write it with
 # scripts/box-config.sh.
 #
-# Agent ids follow specs/061 §2: c-004 (^[acgq]-[0-9]{3}$), and until
+# Agent ids follow specs/061 §2: c-004 (^[acgmq]-[0-9]{3}$, m = mistral since
+# spec 110), and until
 # SPOOL_LEGACY_ID_UNTIL the legacy CLE-07 form too. Unique per box, and BOX is
 # never an agent prefix. The helpers below are the ONE place that grammar lives.
 
@@ -82,7 +84,7 @@ SPOOL_LEGACY_ID_UNTIL='2026-10-03T20:59:59Z'
 # take both forms whatever the clock: history keeps legacy ids for good
 # (FR-006). SPOOL_AGENT_ID_RX and SPOOL_PARTICIPANT_RX each open exactly ONE
 # capture group (the id), so BASH_REMATCH / sed \N indices stay countable.
-SPOOL_AGENT_ID_NEW_RX='[acgq]-[0-9]{3}'
+SPOOL_AGENT_ID_NEW_RX='[acgmq]-[0-9]{3}'
 # shellcheck disable=SC2034  # read by the scripts that source this file
 SPOOL_AGENT_ID_RX="(${SPOOL_AGENT_ID_NEW_RX}|CLE-[0-9]+|GRK-[0-9]+|AGY-[0-9]+|QWN-[0-9]+)"
 # The legacy half is the pre-061 participant grammar, so HUM-17 and test ids
@@ -171,11 +173,13 @@ spl_kind_of_agent_id() {  # ID -> KIND
     g-*|GRK-*) printf 'grok' ;;
     a-*|AGY-*) printf 'agy' ;;
     q-*|QWN-*) printf 'qwen' ;;
+    m-*)       printf 'mistral' ;;
     *) return 1 ;;
   esac
 }
 
-# The kinds this feature can launch, and the id prefix each one owns.
+# The kinds this feature can launch, and the legacy id prefix each one owns.
+# mistral has none (spec 110 3.1: no MST- is ever minted): nothing, rc 1.
 spool_prefix_of_kind() {  # KIND -> PREFIX
   case "${1:-}" in
     claude) printf 'CLE' ;;
@@ -206,7 +210,7 @@ spool_valid_id() {  # ID
 # SPOOL_DIR_LAYOUT=qualified (specs/058 6): new mailboxes are <ID>@<box>.
 # SPOOL_BOX_TAG: the <ID>@<tag> display tag. A cron job and an @reboot restore
 # read no profile, so the tag lives here too, or they name windows bare.
-SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG"
+SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG"
 
 # Fill each unset SPOOL_BOX_ENV_KEYS variable from the box config.
 _spool_box_env_load() {
@@ -302,8 +306,10 @@ spool_env_resolve() {
 
   SPOOL_AGENT_HOME="$(_spool_home_of "$SPOOL_AGENT_USER")"
   local cli var
-  for cli in claude grok agy qwen; do
+  # mistral's binary is vibe (spec 110 2.1); the variable keeps the kind's name.
+  for cli in claude grok agy qwen vibe; do
     var="$(printf '%s' "$cli" | tr '[:lower:]' '[:upper:]')_BIN"
+    [ "$cli" = vibe ] && var=MISTRAL_BIN
     if [ -z "${!var:-}" ]; then
       if [ -n "$SPOOL_AGENT_HOME" ] && [ -x "$SPOOL_AGENT_HOME/.local/bin/$cli" ]; then
         printf -v "$var" '%s' "$SPOOL_AGENT_HOME/.local/bin/$cli"
@@ -391,12 +397,14 @@ spool_agent_cmd_text() { spool_agent_argv --tty >/dev/null 2>&1 || return 0; pri
 # restart take them from here; no launcher writes its own. claude and agy:
 # --dangerously-skip-permissions (bypass, the fleet's only mode); grok: that
 # name plus the explicit mode, so a spawn does not depend on its config.toml
-# (measured grok 1.0.41: the pair parses); qwen: --yolo.
+# (measured grok 1.0.41: the pair parses); qwen: --yolo; mistral (vibe):
+# --auto-approve (spec 110 3.3).
 spool_claude_perm_flags() {  # [KIND]   default claude
   case "${1:-claude}" in
     claude|agy) printf '%s' '--dangerously-skip-permissions' ;;
     grok)       printf '%s' '--dangerously-skip-permissions --permission-mode bypassPermissions' ;;
     qwen)       printf '%s' '--yolo' ;;
+    mistral)    printf '%s' '--auto-approve' ;;
     *) echo "spool-env: no permission flags for harness '${1}'" >&2; return 2 ;;
   esac
 }

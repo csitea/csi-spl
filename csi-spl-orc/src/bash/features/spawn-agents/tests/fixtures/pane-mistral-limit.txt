@@ -1,0 +1,16 @@
+  ⡠⣒⠄  ⡔⢄⠔⡄
+ ⢸⠸⣀⡔⢉⠱⣃⡢⣂⡣
+  ⠉⠒⠣⠤⠵⠤⠬⠮⠆
+Mistral Vibe v2.26.0 · Mistral Medium 3.5[high] · unified harness
+2 models · 0 connectors · 0 MCP servers · 0 skills
+Type /help for more information
+You are using our new unified harness. If you encounter issues, restart with --legacy-harness.
+> say hi
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⎣ Error: Rate limits exceeded. Please wait a moment before trying again.
+
+  Run /retry [additional instructions] to continue the interrupted response.
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── auto approve ─
+>
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/wd [PID 2448356]                                                                                                                            0/200k tokens (0%)

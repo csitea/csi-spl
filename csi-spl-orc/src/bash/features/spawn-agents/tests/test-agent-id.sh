@@ -3,6 +3,7 @@
 # c-004 and the legacy CLE-07 both parse, the legacy form is refused on a
 # write path after SPOOL_LEGACY_ID_UNTIL (read through SPOOL_NOW, FR-004), and
 # that constant equals spec 061 section 0 and the Go agentid.LegacyUntil (FR-005).
+# Spec 110: m- (mistral) is the fifth letter; x-004 stays refused.
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 t_sandbox
@@ -13,10 +14,10 @@ before=2026-10-02T12:00:00Z after=2026-10-03T21:00:00Z
 nope() { ! "$@" 2>/dev/null; }
 
 # 1. the grammar
-for id in c-004 a-123 g-999 q-005 c-001; do
+for id in c-004 a-123 g-999 q-005 c-001 m-004; do
   check "1. agent id: $id" spl_is_agent_id "$id"
 done
-for id in c-000 C-004 c-4 c-0004 x-004 c004 HUM-17 GST-2 BOX-1 ''; do
+for id in c-000 m-000 C-004 M-004 c-4 m-04 c-0004 x-004 c004 HUM-17 GST-2 BOX-1 ''; do
   check "1. not an agent id: '$id'" nope spl_is_agent_id "$id"
 done
 for id in c-004 HUM-17 GST-2 BOX-1 CLE-77952; do
@@ -27,7 +28,15 @@ eq "1. kind of c-004" claude "$(spl_kind_of_agent_id c-004)"
 eq "1. kind of a-010" agy "$(spl_kind_of_agent_id a-010)"
 eq "1. kind of GRK-7" grok "$(spl_kind_of_agent_id GRK-7)"
 eq "1. kind of q-004" qwen "$(spl_kind_of_agent_id q-004)"
+eq "1. kind of m-004" mistral "$(spl_kind_of_agent_id m-004)"
+check "1. no kind for x-004" nope spl_kind_of_agent_id x-004
 check "1. spool_valid_id c-004" spool_valid_id c-004
+check "1. spool_valid_id m-004" spool_valid_id m-004
+check "1. SPOOL_ID_RE refuses x-004" nope spool_valid_id x-004
+check "1. mistral has no legacy id prefix (rc 1)" nope spool_prefix_of_kind mistral
+eq "1. ...and prints nothing" "" "$(spool_prefix_of_kind mistral 2>/dev/null)"
+eq "1. mistral's permission flag" "--auto-approve" "$(spool_claude_perm_flags mistral)"
+eq "1. MISTRAL_BIN is a box config key" 1 "$(printf '%s\n' $SPOOL_BOX_ENV_KEYS | grep -cx MISTRAL_BIN)"
 
 # 2. the cutoff, through the injectable clock
 SPOOL_NOW="$before"
@@ -59,6 +68,8 @@ for SPOOL_NOW in "$before" "$after"; do
   for w in "c-004 wip" "bx1: c-004 > wip" "c-004@box-desk ? wip" "c-004"; do
     eq "3. [$SPOOL_NOW] id of window '$w'" c-004 "$(spool_id_of_window "$w")"
   done
+  eq "3. [$SPOOL_NOW] id of window 'm-004@box-desk ? wip'" m-004 "$(spool_id_of_window "m-004@box-desk ? wip")"
+  eq "3. [$SPOOL_NOW] no id in window 'x-004 wip'" "" "$(spool_id_of_window "x-004 wip")"
   eq "3. [$SPOOL_NOW] id of window 'bx1: CLE-07 wip'" CLE-07 "$(spool_id_of_window "bx1: CLE-07 wip")"
 done
 SPOOL_NOW="$before"
@@ -69,6 +80,9 @@ eq "3. badge of c-004" ">" "$(name_badge "bx1: c-004 > wip")"
 eq "3. decorate c-004" "c-004@bx1 wip" "$(SPOOL_BOX_TAG=bx1 an_decorate "c-004 wip")"
 eq "3. launcher argv" "claude c-004" "$(printf 'bash /x/spawn-claude.sh c-004 /w\n' | agent_of_ps)"
 eq "3. hop env id" "claude c-004" "$(printf "sudo env SPOOL_AGENT_ID=c-004 /h/.local/bin/claude\n" | agent_of_ps)"
+eq "3. mistral launcher argv" "mistral m-004" "$(printf 'bash /x/spawn-mistral.sh m-004 /w\n' | agent_of_ps)"
+eq "3. mistral restore argv" "mistral m-004" "$(printf 'bash /x/restore-mistral.sh m-004\n' | agent_of_ps)"
+eq "3. hop env id, binary vibe -> mistral" "mistral m-004" "$(printf "sudo env SPOOL_AGENT_ID=m-004 /h/.local/bin/vibe --auto-approve\n" | agent_of_ps)"
 py="$(PYTHONDONTWRITEBYTECODE=1 python3 - "$T_SCRIPTS/agent-identity.py" <<'PY'
 import importlib.util, sys
 s = importlib.util.spec_from_file_location("ai", sys.argv[1]); m = importlib.util.module_from_spec(s); s.loader.exec_module(m)
@@ -116,13 +130,19 @@ if command -v tmux >/dev/null 2>&1; then
   t_tmux
   t_window "bx1: CLE-10 wip" 'sleep 600' >/dev/null
   p4="$(t_window "bx1: c-004 demo" 'sleep 600')"
-  eq "5. the window count regex counts c-004" 2 "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}' \
-    | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)')"
+  t_window "bx1: m-005 demo" 'sleep 600' >/dev/null
+  t_window "bx1: x-006 demo" 'sleep 600' >/dev/null
+  eq "5. the window count regex counts c-004 and m-005, not x-006" 3 "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}' \
+    | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)')"
   eq "5. pane-scan lists c-004 on its pane" 1 "$(bash "$T_SCRIPTS/pane-scan.sh" 2>&1 | grep -cE "c-004 +$p4\$")"
   has "5. agent-top lists c-004" "c-004 " "$(SPOOL_BOX_TAG=bx1 bash "$T_SCRIPTS/agent-top.sh" 2>&1)"
   out="$(bash "$T_SCRIPTS/tmux-close-window.sh" --agent C-004 2>&1)"
   has "5. tmux-close-window --agent C-004 normalises to c-004" "killed window" "$out"
   hasnt "5. ...and c-004's window is gone" "c-004" "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}')"
+  out="$(bash "$T_SCRIPTS/tmux-close-window.sh" --agent M-005 2>&1)"
+  has "5. tmux-close-window --agent M-005 normalises to m-005" "killed window" "$out"
+  out="$(bash "$T_SCRIPTS/tmux-close-window.sh" --agent x-006 --dry-run 2>&1)"
+  hasnt "5. CONTROL: x-006 is no agent id, nothing is closed" "would close" "$out"
 fi
 
 t_done

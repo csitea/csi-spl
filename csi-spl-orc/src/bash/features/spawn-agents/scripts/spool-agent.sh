@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# spool-agent.sh — start claude, grok, agy or qwen as a SEATED, MIRRORED spool agent
+# spool-agent.sh — start claude, grok, agy, qwen or mistral (vibe) as a SEATED, MIRRORED spool agent
 # (specs/036-spool-terminal-mirror, "the wrapper").
 #
-#   spool-agent.sh [options] [--] claude|grok|agy|qwen [cli args...]
+#   spool-agent.sh [options] [--] claude|grok|agy|qwen|mistral [cli args...]
+#   (mistral runs the binary vibe; `vibe` is taken as the same CLI, spec 110)
 #
 # What a session started through it gets, before the CLI starts:
 #   1. an agent id: --as, else $MCP_BOT_AGENT_ID (the box spawner sets it),
-#      else the next free CLE-n / GRK-n / AGY-n / QWN-n on the desk (next-agent-id.sh, a claim)
+#      else the next free c-/g-/a-/q-/m-NNN on the desk (next-agent-id.sh, a claim)
 #   2. this tmux window carries the id, so the desk can find the pane
 #   3. a desk seat (do_spl_desk_up): a human's web UI DM to the id is typed
 #      into this terminal, and its notice strip shows on the right
@@ -86,7 +87,9 @@ case "$CLI" in
   grok)   PREFIX=GRK; KIND=grok ;;
   agy)    PREFIX=AGY; KIND=agy ;;
   qwen)   PREFIX=QWN; KIND=qwen ;;
-  *) echo "spool-agent: the CLI must be claude, grok, agy or qwen, got '$CLI'" >&2; exit 2 ;;
+  # No legacy prefix (spec 110 3.1): the pane env name is the kind's, MISTRAL_TMUX_PANE.
+  mistral|vibe) PREFIX=MISTRAL; KIND=mistral; CLI=vibe ;;
+  *) echo "spool-agent: the CLI must be claude, grok, agy, qwen or mistral, got '$CLI'" >&2; exit 2 ;;
 esac
 [ -z "$OPERATOR" ] || [[ "$OPERATOR" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]] || { echo "spool-agent: --operator must be a HUM-n id" >&2; exit 2; }
 [ -z "$ENVN" ] || [[ "$ENVN" =~ ^(dev|prd|self|dev,prd|prd,dev)$ ]] || { echo "spool-agent: --env must be dev, prd, dev,prd or self (a self-hosted hub)" >&2; exit 2; }
@@ -167,7 +170,7 @@ fi
 # TMUX_PANE. This CLI's own prefix wins: a CLE_TMUX_PANE inherited from a
 # parent claude session names THAT session's pane, not this one.
 kind_pane_var="${PREFIX}_TMUX_PANE"
-PANE="${TMUX_PANE:-${!kind_pane_var:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-}}}}}}"
+PANE="${TMUX_PANE:-${!kind_pane_var:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-${MISTRAL_TMUX_PANE:-}}}}}}}"
 if [ "$SEAT" = 1 ] && [ -z "$PANE" ]; then
   say "not inside tmux: a desk seat needs a live window (run it in a tmux pane, or pass --no-seat)"; exit 3
 fi
@@ -244,6 +247,7 @@ if [ "$DRY" = 1 ]; then
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = claude ]; then echo "hooks: $HOOKS_JSON"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = grok ]; then echo "hooks: $GROK_HOOK"
   elif [ "$MIRROR" = 1 ] && [ "$KIND" = qwen ]; then echo "hooks: $QWEN_SETTINGS (merged spool-mirror entries)"
+  elif [ "$MIRROR" = 1 ] && [ "$KIND" = mistral ]; then echo "hooks: none yet (vibe hooks are spec 110 T008); not mirrored"
   elif [ "$MIRROR" = 1 ]; then echo "hooks: $AGY_HOOK (named hook spool-mirror)"; fi
   [ "$BACKFILL" = 1 ] && echo "backfill: session $SESSION_ID on exit"
   printf 'argv:'; printf ' %q' "${ARGV[@]}"; echo

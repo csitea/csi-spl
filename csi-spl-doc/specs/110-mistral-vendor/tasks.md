@@ -121,7 +121,7 @@ the owner's Team login on each box.
   --max-price <cnf env.box.mistral_vibe.max_price>`. Done:
   7e, and the four existing adapters' dry-run output is unchanged
   (byte-diff).
-- [ ] T006 **harness and state** (needs T002). Files:
+- [x] T006 **harness and state** (c-585; needs T002). Files:
   - `SA/lib/{agent-state,spool-env}.inc.sh`;
   - `SA/scripts/{spool-harness,spool-agent,tmux-close-window}.sh`;
   - `SA/tests/test-{spool-harness,spool-agent,agent-top,kill-your-self-report,agent-id}.sh`.

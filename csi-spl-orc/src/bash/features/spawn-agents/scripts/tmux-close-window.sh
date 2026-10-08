@@ -29,7 +29,8 @@
 #   3. <target> positional  explicit `session:index` / `%N` typed by a human
 #   4. $TMUX_PANE         real tmux var; only ever set when genuinely inside
 #                         that pane (never survives sudo, so never misleads)
-#   5. $CLE_TMUX_PANE / $GRK_TMUX_PANE / $AGY_TMUX_PANE / $QWN_TMUX_PANE
+#   5. $CLE_TMUX_PANE / $GRK_TMUX_PANE / $AGY_TMUX_PANE / $QWN_TMUX_PANE /
+#      $MISTRAL_TMUX_PANE (mistral has no legacy prefix: the kind's name, spec 110)
 #                         exported into the agent by its spawn launcher
 #   6. $MCP_BOT_AGENT_ID  agent id in the environment -> same check as (2)
 # ...and nothing else. No "active pane", no "current window".
@@ -45,7 +46,7 @@
 # A --defer (self-teardown) resolved by an agent id is REFUSED without the
 # caller's own live pane: after a role rotation the id names the NEW seat.
 #
-# Never SIGKILL agent binaries; --defer waits for claude|grok|agy|qwen to leave the
+# Never SIGKILL agent binaries; --defer waits for claude|grok|agy|qwen|vibe to leave the
 # pane, then kill-window.
 #
 # The --defer closer runs in its OWN session (setsid). agy runs every shell
@@ -111,14 +112,14 @@ Usage:
   tmux-close-window.sh --help
 
 Options:
-  --agent ID         Agent id (CLE-07 / GRK-2 / AGY-03 / QWN-01). Resolved via
+  --agent ID         Agent id (c-004 / m-004 / CLE-07 / GRK-2 / AGY-03 / QWN-01). Resolved via
                      $SPOOL_ROOT/registry.tsv and the tmux window names; the
                      resolved window MUST carry that id or the run is refused.
                      THIS IS THE ONLY FORM THAT SURVIVES A sudo HOP, for an
                      immediate close: with --defer it also needs the caller's
                      own live pane ($TMUX_PANE / $CLE_TMUX_PANE ...) or --pane.
   --pane %N          Explicit tmux pane id. Verified to exist.
-  --defer            Fork a background closer that waits for claude|grok|agy|qwen in
+  --defer            Fork a background closer that waits for claude|grok|agy|qwen|vibe in
                      the resolved pane to exit (or --timeout), then kill-window.
                      Parent exits 0 immediately so the agent can /exit.
   --retire           After the window is closed, retire the --agent id
@@ -139,7 +140,8 @@ Options:
 
 Ownership sources (in order; there is NO "active window" fallback):
   --pane, --agent, positional target, $TMUX_PANE,
-  $CLE_TMUX_PANE / $GRK_TMUX_PANE / $AGY_TMUX_PANE / $QWN_TMUX_PANE, $MCP_BOT_AGENT_ID
+  $CLE_TMUX_PANE / $GRK_TMUX_PANE / $AGY_TMUX_PANE / $QWN_TMUX_PANE / $MISTRAL_TMUX_PANE,
+  $MCP_BOT_AGENT_ID
 If none of them resolves, the script exits 3 and closes nothing.
 
 Env:
@@ -199,7 +201,7 @@ fi
 sock="${TMUX:-}"
 sock="${sock%%,*}"
 if [[ -z "$sock" ]]; then
-  sock="${CLE_TMUX_SOCK:-${GRK_TMUX_SOCK:-${AGY_TMUX_SOCK:-${QWN_TMUX_SOCK:-}}}}"
+  sock="${CLE_TMUX_SOCK:-${GRK_TMUX_SOCK:-${AGY_TMUX_SOCK:-${QWN_TMUX_SOCK:-${MISTRAL_TMUX_SOCK:-}}}}}"
   sock="${sock%%,*}"
 fi
 [[ -n "$sock" ]] || sock="$BOX_TMUX_SOCKET"
@@ -352,11 +354,11 @@ PANE=""
 SOURCE=""
 AGENT_ID=""
 # The caller's own pane: the env vars only, never a lookup (sudo strips them).
-_caller="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-}}}}}"
+_caller="${TMUX_PANE:-${CLE_TMUX_PANE:-${GRK_TMUX_PANE:-${AGY_TMUX_PANE:-${QWN_TMUX_PANE:-${MISTRAL_TMUX_PANE:-}}}}}}"
 
 if [[ -n "$AGENT_ARG" ]]; then
   if ! AGENT_ID="$(norm_id "$AGENT_ARG")"; then
-    echo "tmux-close-window: --agent must look like c-004 / CLE-07 / GRK-2 / AGY-03 / QWN-01, got: $AGENT_ARG" >&2
+    echo "tmux-close-window: --agent must look like c-004 / m-004 / CLE-07 / GRK-2 / AGY-03 / QWN-01, got: $AGENT_ARG" >&2
     exit 2
   fi
 elif [[ -n "${MCP_BOT_AGENT_ID:-}" ]]; then
@@ -404,6 +406,8 @@ elif [[ -n "${AGY_TMUX_PANE:-}" ]]; then
   PANE="$AGY_TMUX_PANE"; SOURCE="\$AGY_TMUX_PANE"
 elif [[ -n "${QWN_TMUX_PANE:-}" ]]; then
   PANE="$QWN_TMUX_PANE"; SOURCE="\$QWN_TMUX_PANE"
+elif [[ -n "${MISTRAL_TMUX_PANE:-}" ]]; then
+  PANE="$MISTRAL_TMUX_PANE"; SOURCE="\$MISTRAL_TMUX_PANE"
 elif [[ -n "$AGENT_ID" ]]; then
   if ! PANE="$(resolve_pane_for_agent "$AGENT_ID")"; then
     echo "tmux-close-window: REFUSED — no live window named '$AGENT_ID' on $sock" >&2
@@ -416,7 +420,8 @@ else
 tmux-close-window: REFUSED — cannot prove which window to close; closed nothing.
 
   No --pane, no --agent, no explicit target, and none of \$TMUX_PANE /
-  \$CLE_TMUX_PANE / \$GRK_TMUX_PANE / \$AGY_TMUX_PANE / \$QWN_TMUX_PANE / \$MCP_BOT_AGENT_ID is
+  \$CLE_TMUX_PANE / \$GRK_TMUX_PANE / \$AGY_TMUX_PANE / \$QWN_TMUX_PANE / \$MISTRAL_TMUX_PANE /
+  \$MCP_BOT_AGENT_ID is
   set. This helper deliberately has NO "close the active window" fallback:
   guessing here closes a bystander agent's window.
 
@@ -502,7 +507,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # --- the lifetime marker (specs/102 4.3) -----------------------------------
-# Written here, while the agent (claude, grok, agy, qwen alike) still runs
+# Written here, while the agent (claude, grok, agy, qwen, mistral alike) still runs
 # this command, so the watchdog never reads its exit as a crash: a-479 and
 # a-480 exited after /exit-clean and S3 took them over in the 2 min the
 # closer still waited. done: finished, never restarted. rebirth: the
@@ -528,18 +533,20 @@ if [[ "$DEFER" -eq 1 && -n "$AGENT_ID" && -z "${TCW_DETACHED:-}" ]]; then
   case "${AGENT_ID#*-}" in 1|01|001|2|02|002|3|03|003) ;; *) mark_lifetime "done" ;; esac
 fi
 
-# --- agent PID discovery (claude|grok|agy|qwen under pane tree) -----------------
+# --- agent PID discovery (claude|grok|agy|qwen|vibe under pane tree) ------------
 # An agent is a process whose argv[0] IS the binary (or argv[1], under
 # node/bun), as the fleet's `$1 ~ /(^|\/)claude$/` check reads it. Matching
 # the name anywhere in the args also counted the pane's own launcher shell
 # (`sh -c "env ... AGY_BIN=.../agy ... spawn-agy.sh"`), which outlives the
-# agent: a-480's closer waited on it for 2 min after agy had left.
+# agent: a-480's closer waited on it for 2 min after agy had left. mistral's
+# vibe is a python entry point (pipx venv shebang), so it is argv[1] there.
 is_agent_args() {
   local a0 a1
   read -r a0 a1 _ <<<"${1:-}"
   case "${a0##*/}" in
-    claude|grok|agy|qwen) return 0 ;;
+    claude|grok|agy|qwen|vibe) return 0 ;;
     node|nodejs|bun) case "${a1##*/}" in claude|grok|agy|qwen) return 0 ;; esac ;;
+    python|python3|python3.[0-9]*) [[ "${a1##*/}" == vibe ]] && return 0 ;;
   esac
   return 1
 }

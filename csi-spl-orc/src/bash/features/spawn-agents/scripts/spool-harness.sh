@@ -19,7 +19,8 @@
 #   5. mirror    --mirror only: the terminal mirror's hooks for THIS session
 #                (specs/036, lib/spool-mirror-hooks.inc.sh): claude gets
 #                `--settings <file>` inserted after the binary, grok / agy / qwen
-#                get their hook file written or merged. Skipped when the user's
+#                get their hook file written or merged; mistral (the binary
+#                vibe) once the shared lib knows its hooks (spec 110 T008). Skipped when the user's
 #                own settings already carry the hook, and for every launch while
 #                $SPOOL_ROOT/.mirror-off exists (the box-wide kill switch). The
 #                hook posts each typed prompt and each final answer into the
@@ -202,11 +203,12 @@ export SPOOL_ROOT SPOOL_AGENT_ID="$agent"
 command -v "$1" >/dev/null 2>&1 || die 127 "agent command '$1' not found"
 if [ "$mirror" = 1 ]; then
   kind="$(basename "$1")"
+  [ "$kind" = vibe ] && kind=mistral   # spec 110: the kind, not the binary
   if [ -e "$SPOOL_ROOT/.mirror-off" ]; then
     say "mirror: off for every launch ($SPOOL_ROOT/.mirror-off exists)"
   else
     case "$kind" in
-      claude|grok|agy|qwen)
+      claude|grok|agy|qwen|mistral)
         # shellcheck source=../lib/spool-mirror-hooks.inc.sh
         . "$HARNESS_DIR/../lib/spool-mirror-hooks.inc.sh"
         if smh_install "$kind" "$agent" "${SPOOL_MIRROR_PY:-$HARNESS_DIR/spool-mirror.py}"; then

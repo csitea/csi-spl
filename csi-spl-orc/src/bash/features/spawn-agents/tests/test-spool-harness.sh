@@ -60,7 +60,7 @@ bash "$H" --as CLE-1 -- no-such-cli-xyz >/dev/null 2>&1; eq "missing command -> 
 # Fake CLIs print their argv; HOME is the sandbox's, so every hook file the
 # harness writes is visible here and nowhere else.
 mkdir -p "$T_TMP/mbin"
-for c in claude grok agy qwen othercli; do
+for c in claude grok agy qwen vibe othercli; do
   printf '#!/usr/bin/env bash\nprintf "ARGV:%%s\\n" "$*"\n' >"$T_TMP/mbin/$c"; chmod +x "$T_TMP/mbin/$c"
 done
 MH="$HOME/.local/state/spool-agent/mirror-hooks-CLE-41.json"
@@ -85,6 +85,11 @@ has "mirror: agy gets the named hook merged" '"spool-mirror"' "$(cat "$HOME/.gem
 has "mirror: ...and keeps the user's own" '"mine"' "$(cat "$HOME/.gemini/config/hooks.json")"
 bash "$H" --as QWN-41 --mirror -- "$T_TMP/mbin/qwen" >/dev/null 2>&1
 has "mirror: qwen gets the entries merged into its settings" "spool-mirror.py hook" "$(cat "$HOME/.qwen/settings.json" 2>/dev/null)"
+# spec 110: vibe is the kind mistral; until the shared lib knows its hooks
+# (T008) the launch still starts and says so, the argv untouched.
+out="$(bash "$H" --as m-041 --mirror -- "$T_TMP/mbin/vibe" --auto-approve 2>"$T_TMP/err")"
+eq "mirror: vibe (mistral) starts, argv untouched" "ARGV:--auto-approve" "$out"
+check "mirror: ...the m- id got its spool dirs" test -d "$SPOOL_ROOT/m-041/inbox"
 out="$(bash "$H" --as CLE-43 --mirror -- "$T_TMP/mbin/othercli" a 2>"$T_TMP/err")"
 eq "mirror: an unknown CLI still starts, argv untouched" "ARGV:a" "$out"
 has "mirror: ...and says it is not mirrored" "no hook mechanism" "$(cat "$T_TMP/err")"

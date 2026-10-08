@@ -14,6 +14,11 @@
 #      right badge renames nothing, the orchestrator is never renamed; the
 #      tag is inferred from the windows when none is configured
 #   5. --ensure-badge-loop starts one loop, a second call starts none
+#   6. spec 110 T006: a mistral pane showing Vibe's 401 (fixture recorded from
+#      a real Vibe 2.26.0 pane, a deliberately invalid test key, n = 1) reads
+#      "auth", badge "?"; the kind comes from spawn-mistral.sh or the binary
+#      vibe. CONTROLS: the rate-limit fixture, the same 401 words scrolled up
+#      above the tail, and the words quoted mid-line are NOT auth
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -85,4 +90,21 @@ check "5. --ensure-badge-loop starts a loop" kill -0 "${p1:-0}"
 bash "$TOP" --ensure-badge-loop --interval 60
 eq "5. a second call starts none" "$p1" "$(cat "$AGENT_TOP_PIDFILE" 2>/dev/null)"
 sleep 0.5; kill "$p1" 2>/dev/null; sleep 0.2
+
+# --- 6 ------------------------------------------------------------------------------
+# The limit fixture is Vibe 2.26.0's rate-limit text (vibe/cli/textual_ui/app.py
+# _rate_limit_message + _retry_hint) in the frame of the real 401 pane: a real
+# usage-limit hit needs a live key, which T014 records on first sight.
+. "$T_FEAT/lib/agent-state.inc.sh"
+fx="$(dirname "${BASH_SOURCE[0]}")/fixtures"
+auth_scr="$(cat "$fx/pane-mistral-auth.txt")"
+eq "6. the recorded Vibe 401 pane -> auth" auth "$(classify_screen "$auth_scr")"
+eq "6. ...classify_agent reports auth for a live launcher" auth "$(classify_agent m-012 "$auth_scr" 1 0 0)"
+eq "6. ...badge '?'" '?' "$(badge_for_state auth)"
+eq "6. CONTROL: the rate-limit pane is not auth" idle "$(classify_screen "$(cat "$fx/pane-mistral-limit.txt")")"
+eq "6. CONTROL: the 401 scrolled above the tail is not auth" idle \
+  "$(classify_screen "$(printf '%s\n' "$auth_scr"; for i in 1 2 3 4 5 6 7 8; do echo "line $i"; done)")"
+eq "6. CONTROL: the words quoted mid-line are not auth" idle "$(classify_screen "  grep 'Error: Invalid API key' x.txt")"
+eq "6. kind from spawn-mistral.sh" mistral "$(kind_from_launch 'spawn-mistral.sh m-012')"
+eq "6. kind from the binary vibe" "mistral m-012" "$(printf 'env SPOOL_AGENT_ID=m-012 /h/.local/bin/vibe\n' | agent_of_ps)"
 t_done

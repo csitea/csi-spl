@@ -27,6 +27,10 @@
 #      claude-shaped mirror hooks merged into ~/.qwen/settings.json keeping
 #      mcpServers; a re-run keeps one entry per event. CONTROL: the hook is
 #      this checkout's spool-mirror.py
+#  12. mistral (spec 110 T006): `mistral` and `vibe` both start the binary vibe
+#      as an m- id, the pane from MISTRAL_TMUX_PANE (no legacy prefix), and
+#      say it is not mirrored yet. CONTROL: the env of another kind loses to
+#      the mistral pane var
 set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.inc.sh"
 t_sandbox
@@ -35,7 +39,7 @@ AGENT="$T_SCRIPTS/spool-agent.sh"
 export HOME="$T_TMP/home"; mkdir -p "$HOME"
 # Hermetic: an agent session running this suite carries its OWN pane ids,
 # agent id and CLI paths (measured: CLAUDE_BIN set in a claude session of the agent user).
-unset CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE QWN_TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN
+unset CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE QWN_TMUX_PANE MISTRAL_TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN
 export SPOOL_BOX_USER="$(id -un)"
 export SPOOL_AGENT_DESK_ROOT="$T_TMP/desk"
 export SPOOL_AGENT_REGISTRY_DIR="$T_TMP/reg"
@@ -211,5 +215,21 @@ env -u TMUX_PANE QWN_TMUX_PANE="$P4" bash "$AGENT" --as QWN-71 qwen >/dev/null 2
 eq "11. a re-run keeps one mirror hook per event" 2 "$(grep -o 'spool-mirror.py hook' "$HOME/.qwen/settings.json" | wc -l)"
 next="$(TMUX_PANE="$P1" bash "$AGENT" --dry-run qwen 2>&1)"
 has "11. a new qwen id is a q- id" "id: q-" "$next"
+
+# --- 12. mistral: the binary vibe, an m- id, the pane from MISTRAL_TMUX_PANE ----
+printf '#!/usr/bin/env bash\necho "vibe id=$MCP_BOT_AGENT_ID args=$*" >>"%s/cli.log"\n' "$T_TMP" >"$T_TMP/bin/vibe"
+chmod +x "$T_TMP/bin/vibe"
+out="$(TMUX_PANE="$P1" bash "$AGENT" --dry-run --as m-071 mistral --auto-approve 2>&1)"
+has "12. mistral dry-run: an m- id" "id: m-071" "$out"
+has "12. ...runs the binary vibe" "argv: $T_TMP/bin/vibe --auto-approve" "$out"
+has "12. ...and says it is not mirrored yet" "hooks: none yet" "$out"
+has "12. vibe is the same CLI" "id: m-071" "$(TMUX_PANE="$P1" bash "$AGENT" --dry-run --as m-071 vibe 2>&1)"
+P5="$(t_window 'tbox: scratch-m' 'sleep 600')"
+: >"$T_TMP/cli.log"; : >"$SPOOL_AGENT_DESK_ROOT/run.log"
+env -u TMUX_PANE QWN_TMUX_PANE="$P4" MISTRAL_TMUX_PANE="$P5" bash "$AGENT" --as m-071 mistral --auto-approve >/dev/null 2>&1
+eq "12. the mistral run (pane from MISTRAL_TMUX_PANE) exits 0" 0 "$?"
+has "12. seated as m-071" "DESK_AGENT=m-071" "$(cat "$SPOOL_AGENT_DESK_ROOT/run.log")"
+has "12. vibe runs with the id" "vibe id=m-071 args=--auto-approve" "$(cat "$T_TMP/cli.log")"
+eq "12. CONTROL: its own pane var wins over QWN_TMUX_PANE" "tbox: m-071" "$(tmux -S "$SPOOL_TMUX_SOCKET" display-message -p -t "$P5" '#{window_name}')"
 
 t_done

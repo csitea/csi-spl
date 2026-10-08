@@ -8,8 +8,9 @@
 # <ID>@<box> naming); the older "<tag>: <ID> [<badge>] [<title>]" still
 # parses, but nothing writes it (spec 061, one name everywhere). The tag is DISPLAY only
 # (the box tag, SPOOL_BOX_TAG); the badge is one token right after the id:
-#   >  busy       ?  a dialog, or reports the orchestrator has not seen
-#   !  ended      (none) idle
+#   >  busy       ?  a dialog, a dead key (auth), or reports the
+#   !  ended         orchestrator has not seen
+#   (none) idle
 #
 # The tag: SPOOL_BOX_TAG, else BOX_TAG, else the tag most agent windows on the
 # server already carry (agent_top_infer_tag, set by agent-top.sh), else none.
@@ -90,8 +91,21 @@ an_with_badge() {
   an_decorate "$out"
 }
 
+# A dead key (spec 110 2.5): the vendor answered 401 and the lane cannot work
+# until the owner re-keys, so it is its own state, never a retry. The text is
+# Vibe 2.26.0's, recorded from a real pane with a deliberately invalid test key
+# (tests/fixtures/pane-mistral-auth.txt, n = 1): "⎣ Error: Invalid API key
+# (from ...)". Only an error line in the bottom AN_AUTH_TAIL non-blank lines
+# counts, so a pane that merely prints the words (a diff, a grep) further up
+# is not read as dead.
+AN_AUTH_RE='^[[:space:]]*(⎣[[:space:]]+)?Error: Invalid API key'
+AN_AUTH_TAIL="${AN_AUTH_TAIL:-8}"
+
 classify_screen() {
   local scr="$1"
+  if printf '%s\n' "$scr" | grep -v '^[[:space:]]*$' | tail -n "$AN_AUTH_TAIL" | grep -qE "$AN_AUTH_RE"; then
+    printf '%s\n' auth; return
+  fi
   if printf '%s' "$scr" | grep -qE '❯ 1\.|Do you want to|\(y/n\)|Yes, and|No, and tell'; then
     printf '%s\n' dialog; return
   fi
@@ -131,7 +145,7 @@ agent_is_orc() {  # BARE-NAME [ROLE]
 
 badge_for_state() {
   case "$1" in
-    dialog|awaiting) printf '%s\n' '?' ;;
+    dialog|awaiting|auth) printf '%s\n' '?' ;;
     busy)            printf '%s\n' '>' ;;
     ended)           printf '%s\n' '!' ;;
     *)               printf '%s\n' none ;;
@@ -150,14 +164,15 @@ name_badge() {  # NAME -> its badge token, or none
 # First launcher argv - spawn-<kind>.sh <ID>, or restore-<kind>[-plain].sh <ID>
 # for a session resumed after a restart - in a `ps -o args=` dump on stdin.
 # Both this harness's launchers and the frozen engine's carry that argv.
-launcher_from_ps() { grep -oE "(spawn|restore)-(claude|grok|agy|qwen)(-plain)?\.sh ${SPOOL_PARTICIPANT_RX}" | head -1; }
+launcher_from_ps() { grep -oE "(spawn|restore)-(claude|grok|agy|qwen|mistral)(-plain)?\.sh ${SPOOL_PARTICIPANT_RX}" | head -1; }
 
 # "KIND ID" of the agent in a pane's session, from a `ps -o args=` dump on
 # stdin, or nothing when the pane holds no agent. The process tree, never the
 # window title: first a launcher argv (above); else the id the run-as hop
 # exports (SPOOL_AGENT_ID=... from this harness, MCP_BOT_AGENT_ID=... from a
 # restorer such as the frozen engine's session restore), with the kind from the
-# CLI binary in the same tree ("-" when none is recognisable).
+# CLI binary in the same tree ("-" when none is recognisable; mistral's binary
+# is vibe, spec 110).
 agent_of_ps() {
   local dump launch id kind
   dump="$(cat)"
@@ -165,7 +180,8 @@ agent_of_ps() {
   if [ -n "$launch" ]; then printf '%s %s\n' "$(kind_from_launch "$launch")" "${launch##* }"; return 0; fi
   id="$(printf '%s\n' "$dump" | grep -oE "(SPOOL_AGENT_ID|MCP_BOT_AGENT_ID)=[\"']?${SPOOL_PARTICIPANT_RX}" | head -1 | grep -oE "${SPOOL_PARTICIPANT_RX}\$" || true)"
   [ -n "$id" ] || return 0
-  kind="$(printf '%s\n' "$dump" | grep -oE "(^|[ /'\"])(claude|grok|agy|qwen)([ '\"]|$)" | head -1 | tr -d " /'\"" || true)"
+  kind="$(printf '%s\n' "$dump" | grep -oE "(^|[ /'\"])(claude|grok|agy|qwen|vibe)([ '\"]|$)" | head -1 | tr -d " /'\"" || true)"
+  [ "$kind" = vibe ] && kind=mistral
   printf '%s %s\n' "${kind:--}" "$id"
 }
 
@@ -176,6 +192,7 @@ kind_from_launch() {
     spawn-grok.sh*)   printf '%s\n' grok ;;
     spawn-agy.sh*)    printf '%s\n' agy ;;
     spawn-qwen.sh*)   printf '%s\n' qwen ;;
+    spawn-mistral.sh*) printf '%s\n' mistral ;;
     *)                printf '%s\n' '-' ;;
   esac
 }

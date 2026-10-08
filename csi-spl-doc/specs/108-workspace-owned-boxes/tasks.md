@@ -28,7 +28,7 @@ is the milestone that proves it.
       `internal/hub`, `internal/store`, `internal/wire`, `internal/config`,
       `csi-spl-cnf/csi-spl/all.env.yaml`. Done: as 073 T003 (073 AC1-AC7,
       AC10, AC12 on postgres).
-- [ ] T003 **CLI**, = 073 T004 (after T002): `spool join`; the box generates
+- [x] T003 **CLI**, = 073 T004 (c-561, d72e0654e, after T002): `spool join`; the box generates
       its own key and the hub pins the public half, never minting a private
       key (spec 3.1). Files: `cmd/spool`, `internal/action`. Done: as 073
       T004 (a CLI test against a test hub seats a box with no root key).

@@ -31,7 +31,7 @@ its lane, the files it owns and its done check. Status vocabulary:
       `internal/config/join_token_ttl_test.go` (AC12), green on memory and
       postgres. A revoked pin is re-seated by a new token; the root-key
       `POST /v1/pins` is unchanged (FR-007) and does not check (c).
-- [ ] T004 **CLI** (after T003): `spool join`, token from env / stdin, usage
+- [x] T004 **CLI** (c-561, d72e0654e, after T003): `spool join`, token from env / stdin, usage
       line. Done: a CLI test against a test hub seats a box with no root key.
 - [ ] T005 **orc** (after T004): `do_spl_desk_pin` join mode and its test in
       `desk-pin.tst.sh`; then `install.sh --join` with the lane that holds the

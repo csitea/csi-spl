@@ -6,10 +6,14 @@
 #   3. pick=hold -> exit 10, nothing spawned, no remote call, says queue it
 #   4. no pick line (the action failed) -> WARN, then the busy count decides
 #   5. SPAWN_BOX wins over a hold; CONTROL an explicit TITLE never asks
+#   6. the spawner is not SPOOL_BOX_USER (an agent user): the real action
+#      runs as SPOOL_BOX_USER with its HOME (the seated desk lives there), and
+#      its pick is used, no WARN; CONTROL the caller's own HOME (no hop, the
+#      code before the fix) is "not pinned" -> the WARN
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
-unset LEASE_MACHINE LANE_FLEET SPAWN_BOX SPAWN_REMOTE_CMD SPAWN_PLACE_MAP_CMD SPAWN_DRY_RUN SPAWN_BOX_PICK SPAWN_BOX_PICK_CMD
+unset LEASE_MACHINE LANE_FLEET SPAWN_BOX SPAWN_REMOTE_CMD SPAWN_PLACE_MAP_CMD SPAWN_DRY_RUN SPAWN_BOX_PICK SPAWN_BOX_PICK_CMD SPAWN_ORC_RUN SPAWN_PICK_HOP_CMD
 SW="$T_SCRIPTS/spawn-window.sh"
 HERE_BOX=box-a OTHER=box-b
 export SPOOL_DESK_BOX="$HERE_BOX"
@@ -74,5 +78,33 @@ check "5. SPAWN_BOX=$OTHER wins over a hold" went_there
 rm -f "$T_TMP/pick.called"
 spawn c-777
 check "5. CONTROL an explicit TITLE never asks the pick" test ! -e "$T_TMP/pick.called"
+
+# 6. A box user other than the caller: any account with a passwd HOME will do.
+DESK_USER=root DESK_HOME="$(getent passwd root | cut -d: -f6)"
+cat > "$T_TMP/bin/hop" <<STUB
+#!/usr/bin/env bash
+echo "\$*" >> "$T_TMP/hop.calls"
+shift; exec "\$@"
+STUB
+cat > "$T_TMP/bin/orc-run" <<STUB
+#!/usr/bin/env bash
+[ "\$1 \$2" = "-a do_spl_box_pick" ] || exit 0
+if [ "\$HOME" = "$DESK_HOME" ]; then echo "pick=$OTHER reason=$OTHER is below its low mark (10% < 50%)"
+else echo "FATAL $HERE_BOX is not pinned in t1 (\$HOME/.local/share/csi-spl/cloud/prd/desk/t1/$HERE_BOX): seat a desk there first"; fi
+STUB
+chmod +x "$T_TMP/bin/hop" "$T_TMP/bin/orc-run"
+agent_spawn() {  # BOX_USER -> OUT, RC (a dry run: the PLAN, no remote call)
+  rm -f "$T_TMP/hop.calls" "$T_TMP/map.called"
+  OUT="$(env -u SPAWN_BOX_PICK_CMD -u SPAWN_REMOTE_CMD SPOOL_BOX_USER="$1" SPAWN_ORC_RUN="$T_TMP/bin/orc-run" \
+    SPAWN_PICK_HOP_CMD="$T_TMP/bin/hop" SPAWN_DRY_RUN=1 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+}
+agent_spawn "$DESK_USER"
+has "6. agent-user spawner: the pick runs as the box user" "$DESK_USER env HOME=$DESK_HOME SPOOL_ROOT=$SPOOL_ROOT" "$(cat "$T_TMP/hop.calls" 2>/dev/null)"
+has "6. ... and is used" "placing auto on $OTHER" "$OUT"
+check "6. ... exit 0, no WARN" eval '[ "$RC" = 0 ] && [[ "$OUT" != *WARN* ]]'
+check "6. ... without reading the lane map" no_map
+agent_spawn "$(id -un)"
+has "6. CONTROL no hop (the caller's HOME): the old WARN" "WARN no load target pick (FATAL $HERE_BOX is not pinned in t1" "$OUT"
+check "6. CONTROL ... and no hop ran" test ! -e "$T_TMP/hop.calls"
 
 t_done

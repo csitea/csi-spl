@@ -84,7 +84,10 @@
 # 10 so the requester queues the lane; no pick line (the action failed) falls
 # back to the busy count above, with a WARN. SPAWN_BOX still wins, and the
 # 40-window ceiling is unchanged. Seams: SPAWN_BOX_PICK_CMD replaces the
-# action; SPAWN_BOX_PICK=0 skips it (the busy count alone).
+# action; SPAWN_BOX_PICK=0 skips it (the busy count alone). A spawner that is
+# not SPOOL_BOX_USER (the agent user) runs the action as SPOOL_BOX_USER, with
+# its HOME, whose state dir holds the seated desk (seam SPAWN_PICK_HOP_CMD,
+# default "sudo -n -u").
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -120,12 +123,21 @@ place_box() {
   [ -r "$SPOOL_ROOT/dispatch/lease.orch" ] && read -r holder _ <"$SPOOL_ROOT/dispatch/lease.orch"
   case "$holder" in ""|*@"$here") ;; *) return 0 ;; esac
   if [ "${SPAWN_BOX_PICK:-1}" != 0 ]; then
-    local out pick
+    local out pick k pick_hop=()
+    # The desk state (the seated desk, its hub key) lives under the BOX user's
+    # HOME: an agent-user spawner hops there, the way lane-map.sh does.
+    if [ "$(id -un)" != "$SPOOL_BOX_USER" ]; then
+      # shellcheck disable=SC2206 # a command prefix, split on purpose
+      pick_hop=(${SPAWN_PICK_HOP_CMD:-sudo -n -u} "$SPOOL_BOX_USER" env HOME="$(getent passwd "$SPOOL_BOX_USER" | cut -d: -f6)" "SPOOL_ROOT=$SPOOL_ROOT")
+      for k in ENV BOX_PICK_SINCE BOX_PICK_OVERFLOW BOX_PICK_CNF LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX SPOOL_DESK_BOX SPOOL_BOX_ENV; do
+        [ -n "${!k:-}" ] && pick_hop+=("$k=${!k}")
+      done
+    fi
     if [ -n "${SPAWN_BOX_PICK_CMD:-}" ]; then
       # shellcheck disable=SC2086 # a command line, split on purpose
       out="$($SPAWN_BOX_PICK_CMD 2>&1)"
     else
-      out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_box_pick 2>&1)"
+      out="$(timeout "${SPAWN_PLACE_TIMEOUT:-60}" "${pick_hop[@]}" bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_box_pick 2>&1)"
     fi
     pick="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\)\( .*\)\{0,1\}$/\1/p' <<<"$out" | tail -1)"
     case "$pick" in

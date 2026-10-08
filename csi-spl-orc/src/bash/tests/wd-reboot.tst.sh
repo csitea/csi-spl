@@ -29,6 +29,8 @@
 #      BOOT_CRON_ACTION=retire takes the @reboot line out (dry run: nothing)
 #      and leaves <log dir>/retired; a later install (a re-provision) skips,
 #      check passes; control: BOOT_CRON_FORCE=1 installs it again
+#   8. an open row with no lifetime dir: the boot pass writes nothing to
+#      stderr (control: the old read, 2>/dev/null after the <, leaks)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -222,6 +224,25 @@ out="$(cron DRY_RUN=0)"
 cron BOOT_CRON_ACTION=check >/dev/null && pass "check passes while retired and out" || fail "check after retire: $(cron BOOT_CRON_ACTION=check)"
 out="$(cron DRY_RUN=0 BOOT_CRON_FORCE=1)"
 grep -qF "$tag" "$T/crontab" && [[ ! -e "$T/log/retired" ]] && pass "control: BOOT_CRON_FORCE=1 installs it again, marker gone" || fail "force install: $out"
+
+# ---- 8. a row with no lifetime dir: a quiet boot pass ---------------------------
+echo "=== 8. an open row with no lifetime dir: the boot pass writes nothing to stderr"
+# wd_err <now>: one tick, stderr alone in $T/err (stdout dropped)
+wd_err() {
+  echo "$(( $1 - 30 ))" > "$W/last.tick"
+  env "${wd_env[@]}" LEASE_NOW="$1" WD_TICKS=1 WD_TICK=30 DRY_RUN=1 WD_EXTRA="${WD_EXTRA:-}" bash -c '
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/src/bash/run/spl-watchdog.func.sh"
+    eval "$WD_EXTRA"
+    do_spl_watchdog' > /dev/null 2> "$T/err"
+}
+box "$BT"; row c-109; rm -rf "${S:?}/c-109/lifetime"; verdict c-109 $(( BT - 30 ))
+wd_err $(( BT + 300 ))
+[[ ! -s "$T/err" ]] && pass "no lifetime dir for c-109: the boot pass is silent on stderr" || fail "stderr: $(head -3 "$T/err")"
+grep -q 'c-109' "$D/wd.log" && pass "c-109 still judged by the boot pass" || fail "c-109 not in wd.log: $(grep BOOT "$D/wd.log")"
+box "$BT"; row c-109; rm -rf "${S:?}/c-109/lifetime"; verdict c-109 $(( BT - 30 ))
+WD_EXTRA="$(mutant spl_wd_boot_running_box 's#read -r b 2> /dev/null < "$lt/running_box"#read -r b < "$lt/running_box" 2> /dev/null#')" wd_err $(( BT + 300 ))
+grep -q 'running_box: No such file' "$T/err" && pass "red: the old line (2>/dev/null after the <) leaks the error" || fail "control stderr: '$(head -3 "$T/err")'"
 
 echo
 if (( fails == 0 )); then echo "wd-reboot: all passed"; else echo "wd-reboot: $fails failed"; fi

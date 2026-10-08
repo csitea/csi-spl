@@ -395,7 +395,7 @@ spl_wd_boot_why() {
 spl_wd_boot_running_box() {
   local lt="$SPOOL_ROOT/$1/lifetime" b=""
   if declare -F spl_lane_running_box >/dev/null; then spl_lane_running_box "$1"; return 0; fi
-  read -r b < "$lt/running_box" 2>/dev/null || true
+  read -r b 2>/dev/null < "$lt/running_box" || true
   [[ -n "$b" ]] || b="$(jq -r '.box // empty' "$lt/session.json" 2>/dev/null || true)"
   echo "$b"
 }
@@ -538,7 +538,7 @@ spl_wd_one() {
   if [[ "${WD_JUDGE_LOCK:-1}" != 0 ]]; then
     exec 6>>"$WD_DIR/$id.judge.lock"
     flock -n 6 || spl_wd_upd_lock_wait 6 || return 0
-    read -r jt ji < "$WD_DIR/$id.judged" 2>/dev/null || true
+    read -r jt ji 2>/dev/null < "$WD_DIR/$id.judged" || true
     if [[ "$jt" =~ ^[0-9]+$ && "$ji" != "${WD_INST:-0}" ]] && (( now - jt < WD_TICK - 5 )) && ! spl_wd_upd_force "$id"; then return 0; fi
   fi
   ctx="$WD_DIR/ctx$WD_SFX/$id"
@@ -614,7 +614,7 @@ spl_wd_gather() {
   [[ -n "$pane" ]] || return 0
   spl_wd_tmux capture-pane -p -t "$pane" > "$ctx/pane" 2>/dev/null || rm -f "$ctx/pane"
   if [[ -s "$ctx/pane" ]]; then
-    spl_wd_since "$id" s9pane "$(timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --norm < "$ctx/pane" 2>/dev/null 6>&- 7>&- 9>&- || true)" "$now" "$ctx/pane_age"
+    spl_wd_since "$id" s9pane "$(timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --norm 2>/dev/null < "$ctx/pane" 6>&- 7>&- 9>&- || true)" "$now" "$ctx/pane_age"
   fi
   IFS=$'\t' read -r ppid sess win < <(awk -F'\t' -v p="$pane" '$1 == p {print $2 "\t" $3 "\t" $6}' "$tick/panes") || true
   awk -F'\t' -v p="$pane" '$1 == p {print $5}' "$tick/panes" > "$ctx/fg"
@@ -908,11 +908,11 @@ spl_wd_s9_snapshot() {
   local id="$1" ev="$2" pane="$3" ctx="$4" f="$WD_DIR/$1.s9.pane" r="$SPOOL_ROOT/$1/lifetime/s9.reported" h now rt="" rh=""
   now="$(cat "$ctx/now")"
   h="$(cksum < "$ctx/pane" | cut -d' ' -f1)"
-  read -r rt rh < "$r" 2>/dev/null || true
+  read -r rt rh 2>/dev/null < "$r" || true
   if [[ "$rh" == "$h" && "$rt" =~ ^[0-9]+$ ]] && (( now - rt < ${WD_NOTE_DEBOUNCE:-300} )); then
     echo "this pane was reported $(( now - rt ))s ago"; return 1
   fi
-  if ! timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --scrub < "$ctx/pane" > "$f.tmp.$$" 2>/dev/null 6>&- 7>&- 9>&-; then
+  if ! timeout -k 1 "$WD_SCRIPT_TIMEOUT" bash "$WD_SITUATIONS/s9.sh" --scrub 2>/dev/null < "$ctx/pane" > "$f.tmp.$$" 6>&- 7>&- 9>&-; then
     rm -f "$f.tmp.$$"; echo "no snapshot"; return 1
   fi
   mv -f "$f.tmp.$$" "$f"

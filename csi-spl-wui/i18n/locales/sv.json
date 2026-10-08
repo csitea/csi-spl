@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Timmar",
     "split": "Leverantörsfördelning",
     "split_title": "Fördelning per agentleverantör",
     "split_note": "riktlinje, inte en kvot",

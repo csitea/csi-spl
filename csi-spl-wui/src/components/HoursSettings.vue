@@ -1,12 +1,12 @@
-<!-- Tenant settings -> General -> Hours (spec 107 section 4.2, T016): the
+<!-- Tenant settings -> Hours (spec 107 section 4.2, T016): the
      workspace's four hours keys, registered tenants.settings keys (spec 098)
      saved through the same PATCH /v1/tenant/settings {settings: {...}}:
      the period, the days before a period freezes, the idle cutoff N and the
      zone the day and the freeze follow. tenant.settings, like the page. Its
-     own load and save, like MarketingSwitch, so General's form is unchanged. -->
+     own load and save, like MarketingSwitch. The card and its heading are
+     pages/tenant-settings/hours.vue's (owner: "General" is too general). -->
 <template>
-  <section class="hs" aria-labelledby="tenant-hours-h" data-test="tenant-hours">
-    <h3 id="tenant-hours-h" class="hs-title">{{ t('tenant_settings.hours_title') }}</h3>
+  <div class="hs" data-test="tenant-hours">
     <p class="muted hs-hint">{{ t('tenant_settings.hours_hint') }}</p>
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
     <p v-else-if="loadError" class="hs-error" role="alert">{{ loadError }}</p>
@@ -40,7 +40,7 @@
         <p v-if="error" class="hs-error" role="alert" data-test="tenant-hours-error">{{ error }}</p>
       </div>
     </form>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -109,8 +109,7 @@ watch(() => session.state, (st) => {
 </script>
 
 <style scoped>
-.hs { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); min-width: 0; }
-.hs-title { margin: 0 0 4px; font-size: 1rem; }
+.hs { min-width: 0; }
 .hs-hint { margin: 0 0 12px; overflow-wrap: anywhere; }
 .hs-form { display: flex; flex-direction: column; gap: 14px; }
 .hs-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

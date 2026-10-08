@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Години",
     "split": "Частка постачальника",
     "split_title": "Частка агентів за постачальником",
     "split_note": "орієнтир, не квота",

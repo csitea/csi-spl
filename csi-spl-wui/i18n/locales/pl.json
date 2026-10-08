@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Godziny",
     "split": "Udział dostawcy",
     "split_title": "Udział agentów według dostawcy",
     "split_note": "wytyczna, nie limit",

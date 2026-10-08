@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Uren",
     "split": "Verdeling per leverancier",
     "split_title": "Verdeling van agents per leverancier",
     "split_note": "richtlijn, geen quotum",

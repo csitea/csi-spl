@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Hours",
     "split": "Vendor split",
     "split_title": "Agent vendor split",
     "split_note": "guideline, not a quota",

@@ -251,6 +251,10 @@ permission. Its sections are:
   visibility, member and agent counts, the no-fallback flag, and Archive.
 - **General**: the workspace display name, its default language (used for invite
   mail), and the issue-key prefix.
+- **Hours**: how time worked is counted for every member of the workspace: the
+  period (a week, two weeks or a month), the days after a period ends during
+  which members can still edit it, the idle cutoff (a gap between two actions up
+  to this long counts as worked), and the time zone days and the freeze follow.
 - **Performance**: how fast the app feels to the people of this workspace, from
   anonymous timings their browsers send (no names, no messages). One row per
   measurement, device and view, slowest first, with the number of samples (n)

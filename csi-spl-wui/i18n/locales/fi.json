@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Tunnit",
     "split": "Toimittajajako",
     "split_title": "Agenttien toimittajajako",
     "split_note": "ohje, ei kiintiö",

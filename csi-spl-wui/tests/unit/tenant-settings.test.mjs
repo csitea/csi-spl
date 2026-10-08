@@ -25,8 +25,8 @@ const admin = normalizeMe({ human_id: 'HUM-1', role: 'admin', permissions: all }
 const owner = normalizeMe({ human_id: 'HUM-2', role: 'biz_owner', permissions: [...all, 'billing.manage'] })
 const dev = normalizeMe({ human_id: 'HUM-3', role: 'developer', permissions: ['topics.read', 'notes.send', 'channels.manage'] })
 const ids = (me, o) => tenantSettingsSections(me, o).map((s) => s.id).join(',')
-ok('admin sees every section', ids(admin) === 'members,agents,split,channels,general,performance', ids(admin))
-ok('biz_owner sees every section (046: admins AND biz_owners)', ids(owner) === 'members,agents,split,channels,general,performance')
+ok('admin sees every section', ids(admin) === 'members,agents,split,channels,general,hours,performance', ids(admin))
+ok('biz_owner sees every section (046: admins AND biz_owners)', ids(owner) === 'members,agents,split,channels,general,hours,performance')
 ok('CONTROL: a developer sees no entry', !tenantSettingsVisible(dev) && ids(dev) === '')
 ok('CONTROL: no answer does NOT fail open', !tenantSettingsVisible(null) && !tenantSettingsVisible(normalizeMe({})))
 ok('members.invite alone shows Members only', ids(normalizeMe({ permissions: ['members.invite'] })) === 'members')
@@ -75,6 +75,9 @@ ok('Vendor split page has one input per kind, a live sum and the guideline note'
 }
 const gen = readFileSync(new URL('../../src/pages/tenant-settings/general.vue', import.meta.url), 'utf8')
 ok('General page offers the archive policy select and saves it', gen.includes('data-test="tenant-general-archive-policy"') && gen.includes('patch.topic_archive_policy = policy.value'))
+const hoursPage = readFileSync(new URL('../../src/pages/tenant-settings/hours.vue', import.meta.url), 'utf8')
+ok('spec 107: the hours keys are their own section, Hours, not General', hoursPage.includes('<HoursSettings') && !gen.includes('HoursSettings') &&
+  tenantSettingsSectionOf('/tenant-settings/hours') === 'hours' && TENANT_SETTINGS_SECTIONS.find((s) => s.id === 'hours')?.perm === 'tenant.settings')
 ok('W16 settings reader: the issue prefix', s.issuePrefix === '' && normalizeTenantSettings({ issue_prefix: 'ACME' }).issuePrefix === 'ACME')
 ok('W16 prefix rule: upper-cased, 1..10 of A-Z0-9 from a letter', issuePrefixOf(' ops ') === 'OPS' && issuePrefixOf('A1') === 'A1' &&
   issuePrefixOf('1A') === '' && issuePrefixOf('A-B') === '' && issuePrefixOf('ABCDEFGHIJK') === '' && issuePrefixOf('') === '')

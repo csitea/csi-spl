@@ -1449,6 +1449,7 @@
     "agents": "Agents",
     "channels": "Channels",
     "general": "General",
+    "hours": "Часове",
     "split": "Дял по доставчик",
     "split_title": "Дял на агентите по доставчик",
     "split_note": "насока, не квота",

@@ -3,7 +3,10 @@
 // registered keys with the hub's ranges).
 //
 // Desktop:
-//   1  Tenant settings -> General shows the Hours block at the defaults
+//   0  Tenant settings -> General no longer shows the Hours block (owner:
+//      "General" is too general for it); the nav has an Hours entry
+//   1  the Hours entry opens /tenant-settings/hours with the four controls at
+//      the defaults
 //   2  set the period to month, save, leave the page and come back: month
 //   3  CONTROL: an idle cutoff of 99 is refused (out of range), nothing saved;
 //      the hub's 400 bad_setting rule is tests/unit/hours-settings.test.mjs
@@ -12,6 +15,7 @@
 // Phone, 360x780 and 390x844, dark and light, font levels 1, 3, 5, on the
 // Hours block and on the reading switch:
 //   5  no sideways scroll (document and every element: scrollLeft == 0)
+//      (on /tenant-settings/hours)
 //   6  every control 44..48 px tall
 //
 // The recorder half of T016 ("toggle off stops the recorder") waits for
@@ -113,16 +117,24 @@ try {
   const desk = { width: 1280, height: 800 }
   const d = await open(browser, desk, '/tenant-settings/general')
   const p = d.p
+  const general = await p.waitForSelector('[data-test=tenant-general-name]', { visible: true, timeout: NAV_TIMEOUT }).then(() => true, () => false)
+  await sleep(300)
+  const leftover = await p.$$eval(`${HOURS}, [data-test=tenant-hours-period]`, (els) => els.length)
+  const entry = await p.$eval('[data-test=tenant-settings-nav-hours]', (e) => e.textContent.trim()).catch(() => '')
+  ok('0a General no longer shows the Hours block', general && leftover === 0, { general, leftover })
+  ok('0b the nav has an Hours entry', entry === 'Hours', { entry })
+  await p.click('[data-test=tenant-settings-nav-hours]').catch(() => {})
+  const routed = await until(p, () => location.pathname.endsWith('/tenant-settings/hours'), null, 10000)
   await p.waitForSelector(`${HOURS} [data-test=tenant-hours-period]`, { visible: true, timeout: NAV_TIMEOUT }).catch(() => null)
   const defaults = { period: await value(p, '[data-test=tenant-hours-period]'), grace: await value(p, '[data-test=tenant-hours-grace]'), idle: await value(p, '[data-test=tenant-hours-idle]'), tz: await value(p, '[data-test=tenant-hours-tz]') }
-  ok('1 General shows the Hours block at the hub defaults', defaults.period === 'week' && defaults.grace === '2' && defaults.idle === '10' && defaults.tz === 'UTC', defaults)
+  ok('1 the Hours entry opens its page with the four controls at the hub defaults', routed && defaults.period === 'week' && defaults.grace === '2' && defaults.idle === '10' && defaults.tz === 'UTC', { routed, ...defaults })
 
   await p.select('[data-test=tenant-hours-period]', 'month')
   if (RED !== 'no-save') await p.click('[data-test=tenant-hours-save]')
   const notice = await until(p, (s) => Boolean(document.querySelector(s)), '[data-test=tenant-hours-notice]', 5000)
   await p.click('[data-test=tenant-settings-nav-performance]')
   await until(p, () => location.pathname.endsWith('/tenant-settings/performance'), null, 10000)
-  await p.click('[data-test=tenant-settings-nav-general]')
+  await p.click('[data-test=tenant-settings-nav-hours]')
   await p.waitForSelector('[data-test=tenant-hours-period]', { visible: true, timeout: 10000 }).catch(() => null)
   await until(p, (s) => document.querySelector(s)?.value === 'month', '[data-test=tenant-hours-period]', 5000)
   const back = await value(p, '[data-test=tenant-hours-period]')
@@ -135,7 +147,7 @@ try {
   await sleep(300)
   await p.click('[data-test=tenant-settings-nav-performance]')
   await until(p, () => location.pathname.endsWith('/tenant-settings/performance'), null, 10000)
-  await p.click('[data-test=tenant-settings-nav-general]')
+  await p.click('[data-test=tenant-settings-nav-hours]')
   await p.waitForSelector('[data-test=tenant-hours-idle]', { visible: true, timeout: 10000 }).catch(() => null)
   await sleep(300)
   const idle = await value(p, '[data-test=tenant-hours-idle]')
@@ -156,7 +168,7 @@ try {
     for (const theme of ['dark', 'light']) {
       for (const level of [1, 3, 5]) {
         const tag = `${vp.width}x${vp.height} ${theme} L${level}`
-        const g = await open(browser, spec, '/tenant-settings/general', { theme, level })
+        const g = await open(browser, spec, '/tenant-settings/hours', { theme, level })
         const shown = await g.p.waitForSelector(`${HOURS} [data-test=tenant-hours-save]`, { timeout: NAV_TIMEOUT }).then(() => true, () => false)
         await g.p.$eval(HOURS, (e) => e.scrollIntoView({ block: 'start' })).catch(() => {})
         await sleep(200)

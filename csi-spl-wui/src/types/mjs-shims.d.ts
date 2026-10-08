@@ -97,6 +97,10 @@ declare module '~/utils/spool-client.mjs' {
     auditClones(): Promise<Array<{ clone_hum?: string, target_hum?: string, created_by?: string, role?: string, created_at?: string, expires_at?: string, ended_at?: string | null, end_reason?: string }>>
     memberActivity(humanId: string): Promise<Array<{ at?: string, kind?: string, detail?: string, by?: string, ip?: string }>>
     revokeTenantInvite(email: string): Promise<null>
+    mintJoinToken(body: { label?: string, box_id?: string, for_human?: string }): Promise<{ id: string, token: string, expires_at: string, box_id: string, for_human: string, join_line: string }>
+    listJoinTokens(): Promise<unknown>
+    revokeJoinToken(id: string): Promise<unknown>
+    revokeSeat(boxId: string): Promise<unknown>
     patchTenantUser(humanId: string, patch: { display_name?: string, locale?: string, disabled?: boolean, access_until?: string | null }): Promise<null>
     getTenantSettings(): Promise<unknown>
     patchTenantSettings(patch: { display_name?: string, default_locale?: string, responders?: string[], issue_prefix?: string, topic_archive_policy?: string, agent_split?: { claude: number, grok: number, agy: number, qwen: number } }): Promise<unknown>

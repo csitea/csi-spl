@@ -22,6 +22,8 @@
 //   PROVE_RED=no-archive node tests/e2e/tenant-settings.test.mjs
 // (Performance: the compare is skipped, so step 16d goes red)
 //   PROVE_RED=no-compare node tests/e2e/tenant-settings.test.mjs
+// (Join tokens: the biz_owner mock is not set, so step 17 goes red)
+//   PROVE_RED=biz-sees-join node tests/e2e/tenant-settings.test.mjs
 //
 // Run:
 //   pnpm run test:e2e tenant-settings
@@ -134,6 +136,39 @@ try {
   await p.waitForSelector('[data-test=tenant-responders-notice]', { visible: true, timeout: 5000 }).catch(() => null)
   const order = await attrs(p, '[data-test=tenant-responder-row]', 'data-agent')
   ok('8 Agents adds a responder, moves it up and saves', order.join() === 'GRK-03,CLE-01', order)
+
+  // 3a. Join tokens (spec 073 4.6, 108 T010): the mock plays an admin (me()
+  // null = unrestricted), so the panel shows. Mint, copy, close (the token
+  // leaves the page), revoke the open token, revoke one seat after a confirm
+  // naming the box. The biz_owner half is step 17 below.
+  await p.waitForSelector('[data-test=join-tokens]', { visible: true, timeout: 10000 }).catch(() => null)
+  ok('8g Agents shows the join-token controls to an admin', Boolean(await p.$('[data-test=join-token-new]')))
+  await p.click('[data-test=join-token-new]')
+  await p.waitForSelector('[data-test=join-token-label]', { visible: true, timeout: 5000 })
+  await p.type('[data-test=join-token-label]', 'e2e laptop')
+  await p.click('[data-test=join-token-mint]')
+  await p.waitForSelector('[data-test=join-token-line]', { visible: true, timeout: 5000 }).catch(() => null)
+  const line = await text(p, '[data-test=join-token-line]')
+  const count = await text(p, '[data-test=join-token-countdown]')
+  ok('8h mint shows the join line once, with a countdown', /^SPOOL_JOIN_TOKEN=spj1\.\S+ spool join \S+$/.test(line) && /[0-9]:[0-9]{2}/.test(count), { line, count })
+  await p.click('[data-test=join-token-copy]')
+  await p.waitForSelector('[data-test=join-token-copied]', { visible: true, timeout: 5000 }).catch(() => null)
+  ok('8i copy confirms', Boolean(await p.$('[data-test=join-token-copied]')), await text(p, '[data-test=join-token-copied]'))
+  await p.click('[data-test=join-token-close]')
+  await sleep(200)
+  const leaked = await p.evaluate(() => document.body.innerText.includes('spj1.'))
+  const rowState = await attrs(p, '[data-test=join-token-row]', 'data-state')
+  ok('8j close drops the token; the open list shows it, never its value', !leaked && rowState.join() === 'open', { leaked, rowState })
+  await p.click('[data-test=join-token-row] [data-test=join-token-revoke]')
+  await p.waitForSelector('[data-test=join-token-row][data-state=revoked]', { timeout: 5000 }).catch(() => null)
+  ok('8k Revoke marks the token revoked', (await attrs(p, '[data-test=join-token-row]', 'data-state')).join() === 'revoked')
+  const seatBox = (await attrs(p, '[data-test=join-seat-row]', 'data-box'))[0] || ''
+  await p.click(`[data-test=join-seat-row][data-box="${seatBox}"] [data-test=join-seat-revoke]`)
+  const confirmText = await text(p, `[data-test=join-seat-row][data-box="${seatBox}"] [data-test=join-seat-confirm-text]`)
+  await p.click(`[data-test=join-seat-row][data-box="${seatBox}"] [data-test=join-seat-confirm]`)
+  await p.waitForFunction((b) => !document.querySelector(`[data-test=join-seat-row][data-box="${b}"]`), { timeout: 5000 }, seatBox).catch(() => null)
+  const seatsLeft = await attrs(p, '[data-test=join-seat-row]', 'data-box')
+  ok('8l Revoke seat asks first, naming the box, then drops it', Boolean(seatBox) && confirmText.includes(seatBox) && !seatsLeft.includes(seatBox), { seatBox, confirmText, seatsLeft })
 
   // 3b. Vendor split: four numbers, a live sum, the guideline note
   await p.click('[data-test=tenant-settings-nav-split]')
@@ -252,6 +287,26 @@ try {
   })
   ok('14b phone: Performance shows one card per group, no sideways scroll', phonePerf.rows === 6 && phonePerf.fits && !phonePerf.pageScrollX && phonePerf.headHidden, phonePerf)
   ok('15 no page errors', errors.length === 0, errors)
+
+  // 7. spec 073 4.7: a biz_owner (keys.manage, no agents.join) sees the
+  // Agents list but no join-token controls. The mock me() plays one when
+  // spool.mock.me is set (PROVE_RED=biz-sees-join leaves it unset: red).
+  const q = await browser.newPage()
+  await pinAgentIdClock(q)
+  await q.goto(server.base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await q.evaluate((red) => {
+    if (red !== 'biz-sees-join') {
+      localStorage.setItem('spool.mock.me', JSON.stringify({ role: 'biz_owner', permissions: ['members.invite', 'members.roles', 'tenant.settings', 'keys.manage', 'audit.read'] }))
+    }
+  }, RED)
+  await q.goto(server.base + '/tenant-settings/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await q.waitForSelector('[data-test=tenant-agent-row]', { visible: true, timeout: 10000 }).catch(() => null)
+  await sleep(500)
+  const bizRows = (await attrs(q, '[data-test=tenant-agent-row]', 'data-agent')).length
+  const bizJoin = Boolean(await q.$('[data-test=join-tokens], [data-test=join-token-new], [data-test=join-seat-revoke]'))
+  ok('17 a biz_owner sees the agents but no join-token or Revoke seat control', bizRows > 0 && !bizJoin, { bizRows, bizJoin })
+  await q.evaluate(() => localStorage.removeItem('spool.mock.me'))
+  await q.close()
 } finally {
   await browser.close()
   await server.stop()

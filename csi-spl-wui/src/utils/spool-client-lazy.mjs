@@ -429,6 +429,47 @@ async function patchTenantSettings(ctx, patch = {}) {
   })
 }
 
+let joinMock = null
+const joinTokensMock = async () => (joinMock ||= (await import('./join-tokens-mock.mjs')).createMockJoinTokens())
+
+/**
+ * POST /v1/tenant/agents/join-tokens (spec 073 4.3, agents.join): mint one
+ * join token; body { label?, box_id?, for_human? }. The answer carries the
+ * token once: { id, token, expires_at, box_id, for_human, join_line }.
+ */
+async function mintJoinToken(ctx, body = {}) {
+  const { live, mock } = ctx
+  if (mock) return (await joinTokensMock()).mint(body)
+  return live('/v1/tenant/agents/join-tokens', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** GET /v1/tenant/agents/join-tokens: the unexpired tokens, never a token value. */
+async function listJoinTokens(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await joinTokensMock()).list()
+  return live('/v1/tenant/agents/join-tokens')
+}
+
+/** DELETE /v1/tenant/agents/join-tokens/{id}: revoke an unused token (id = 8 hex). */
+async function revokeJoinToken(ctx, id) {
+  const { live, mock } = ctx
+  const t = String(id || '')
+  if (mock) return (await joinTokensMock()).revoke(t)
+  return live(`/v1/tenant/agents/join-tokens/${encodeURIComponent(t)}`, { method: 'DELETE' })
+}
+
+/** DELETE /v1/tenant/agents/pins/{box_id}: revoke one seated box (pins_history wui-revoke). */
+async function revokeSeat(ctx, boxId) {
+  const { live, mock } = ctx
+  const b = String(boxId || '')
+  if (mock) return (await joinTokensMock()).revokeSeat(b)
+  return live(`/v1/tenant/agents/pins/${encodeURIComponent(b)}`, { method: 'DELETE' })
+}
+
 /**
  * GET /v1/marketing/settings (spec 090 §15, tenant.settings): the workspace
  * admin's marketing switch, { tenant_id, enabled }. 404 outside the cnf
@@ -1341,6 +1382,10 @@ export const lazySpoolMethods = {
   patchTenantSettings,
   getMarketingSwitch,
   patchMarketingSwitch,
+  mintJoinToken,
+  listJoinTokens,
+  revokeJoinToken,
+  revokeSeat,
   listTenantChannels,
   setTenantChannelNoFallback,
   archiveTenantChannel,

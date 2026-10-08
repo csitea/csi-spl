@@ -5,7 +5,9 @@
      W12 (spec 047, SPL-1166): "Connect an agent" - the block to paste on the
      agent's machine (open while none is seated), and per seated agent an
      "Add to #lobby" (POST /v1/channels/lobby/agents), so the agent hears the
-     tenant's lobby without a detour through the channel's properties. -->
+     tenant's lobby without a detour through the channel's properties.
+     Spec 073 4.6 (108 T010): join tokens and Revoke seat, only with
+     agents.join, loaded on demand (JoinTokensPanel). -->
 <template>
   <SettingsSection id="tenant-agents" :title="t('tenant_settings.agents_title')" data-test="tenant-settings-agents">
     <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
@@ -31,6 +33,7 @@
       </ul>
       <p v-if="lobbyError" class="ts-error" role="alert" data-test="tenant-agent-lobby-error">{{ lobbyError }}</p>
       <ConnectAgentGuide class="ts-connect" :tenant="tenantId" :hub-url="hubUrl" :open="!seats.length" />
+      <JoinTokensPanel v-if="mayJoin" :seats="seats" @revoked="dropBox" />
     </template>
   </SettingsSection>
 
@@ -107,10 +110,18 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { moveItem, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '~/utils/tenant-settings.mjs'
 import { normalizeId } from '~/utils/agent-id.mjs'
+import { useAccessStore } from '~/stores/access'
+import { canJoinAgents } from '~/utils/join-tokens.mjs'
+
+const JoinTokensPanel = defineAsyncComponent(() => import('~/components/JoinTokensPanel.vue'))
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 const session = useSessionStore()
+const access = useAccessStore()
+/* hidden until /v1/view/me answered, so a biz_owner never sees it flash */
+const accessReady = ref(false)
+const mayJoin = computed(() => accessReady.value && canJoinAgents(access.me))
 
 type Seat = { id: string, box: string, online: boolean }
 const seats = ref<Seat[]>([])
@@ -133,6 +144,10 @@ async function addToLobby(s: Seat) {
     const token = (e as { token?: string })?.token || ''
     lobbyError.value = token === 'not_a_member' ? t('connect_agent.not_announced', { agent: s.id }) : t(tenantSettingsErrorKey(e))
   }
+}
+/* Revoke seat answered: the box's agents leave the list */
+function dropBox(box: string) {
+  seats.value = seats.value.filter((s) => s.box !== box)
 }
 const responders = ref<string[]>([])
 const saved = ref<string[]>([])
@@ -206,7 +221,10 @@ async function save() {
 }
 
 watch(() => session.state, (st) => {
-  if (st === 'in' || api.mock) void load()
+  if (st === 'in' || api.mock) {
+    void load()
+    void access.load().finally(() => { accessReady.value = true })
+  }
 }, { immediate: true })
 </script>
 

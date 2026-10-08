@@ -39,6 +39,10 @@ const LAZY_METHODS = [
   'patchTenantSettings',
   'getMarketingSwitch',
   'patchMarketingSwitch',
+  'mintJoinToken',
+  'listJoinTokens',
+  'revokeJoinToken',
+  'revokeSeat',
   'listTenantChannels',
   'setTenantChannelNoFallback',
   'archiveTenantChannel',
@@ -516,8 +520,11 @@ export function createSpoolClient({
         // specs/054: the OPT-IN act-as mock. Absent by default (the other e2e
         // specs see null = unrestricted admin, unchanged). When present, report
         // act_as as the hub would, with the target's name from the directory.
-        const { mockActAsGet } = await import('./act-as-mock.mjs')
+        const { mockActAsGet, mockMeGet } = await import('./act-as-mock.mjs')
         const a = mockActAsGet()
+        /* spec 073 4.7: the OPT-IN role + permissions (a biz_owner without agents.join) */
+        const meMock = mockMeGet()
+        if (meMock && (!a || !a.target_hum)) return meMock
         /* CLE-77819: the OPT-IN archive-policy mock. Absent by default (null =
            unrestricted, as before); when set, the mock member is a plain
            developer in a workspace with that "Who can archive topics". */

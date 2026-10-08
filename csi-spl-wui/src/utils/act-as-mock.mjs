@@ -31,6 +31,17 @@ export function mockSessionClear(store) {
   }
 }
 
+// Spec 073 4.7: the OPT-IN mock role + permission list ({ role, permissions })
+// that me() reports, so an e2e plays a biz_owner who lacks agents.join.
+// Absent by default: me() stays null = unrestricted. Never read live.
+export const MOCK_ME_KEY = 'spool.mock.me'
+
+/** The opt-in mock { role, permissions }, or null. */
+export function mockMeGet(store) {
+  const v = storageGetJson(MOCK_ME_KEY, null, store)
+  return v && Array.isArray(v.permissions) ? { role: String(v.role || ''), permissions: v.permissions.map(String) } : null
+}
+
 /** The stored mock act-as ({ target_hum, expires_at }), or null. */
 export function mockActAsGet(store) {
   return storageGetJson(MOCK_ACT_AS_KEY, null, store)

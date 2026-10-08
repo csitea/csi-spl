@@ -33,11 +33,14 @@ var errDMNotNew = errors.New("dm already stored")
 // InsertMirrored: see DMMirror. Both rows go through insertMessage's own
 // statement, so each writes its flow events and wakes the browsers on commit.
 func (s *Postgres) InsertMirrored(ctx context.Context, dm Message, dmSent time.Time, cp Message, cpSent time.Time) (bool, error) {
+	// The DM is the post; its copy writes no minute. Built before the
+	// transaction: the hours probe must not wait on the pool inside it.
+	dmSQL, dmArgs := s.insertMessageStmt(ctx, dm, dmSent)
 	err := s.inTenant(ctx, dm.TenantID, func(tx pgx.Tx) error {
 		var inserted bool
 		var old []byte
 		var notified int64
-		sql, args := s.insertMessageStmt(ctx, dm, dmSent) // the DM is the post; its copy writes no minute
+		sql, args := dmSQL, dmArgs
 		if err := tx.QueryRow(ctx, sql, args...).Scan(&inserted, &old, &notified); err != nil {
 			return mapFK(err)
 		}

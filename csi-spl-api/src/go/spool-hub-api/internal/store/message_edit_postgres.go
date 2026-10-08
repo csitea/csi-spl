@@ -76,10 +76,14 @@ func (s *Postgres) ApplyEdit(ctx context.Context, tenant, msgID string, e Edit) 
 		return 0, ErrNotFound
 	}
 	rev := 0
+	// spec 107 T005. The probe runs before the transaction: it may take a pool
+	// connection of its own, and taking one while this one is held hangs a
+	// small pool (pgx's default is max(4, NumCPU)).
+	hours := hoursPostMember(e.EditedBy) && s.hasHoursMinutes(ctx)
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		var err error
 		rev, err = applyEditTx(ctx, tx, tenant, msgID, e)
-		if err != nil || !hoursPostMember(e.EditedBy) || !s.hasHoursMinutes(ctx) {
+		if err != nil || !hours {
 			return err
 		}
 		_, err = tx.Exec(ctx, hoursEditUpsert, tenant, e.EditedBy, e.EditedAt, msgID) // spec 107 T005

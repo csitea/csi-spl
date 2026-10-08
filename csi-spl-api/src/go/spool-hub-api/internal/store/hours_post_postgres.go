@@ -14,6 +14,7 @@ import (
 // hasHoursMinutes says whether rdb 0151's hours_minutes is there. The hub may
 // roll before the migration reaches its database (a trunk push deploys dev
 // and prd together): until then a post writes no minute and never fails.
+// It may take a pool connection: never call it inside a transaction.
 func (s *Postgres) hasHoursMinutes(ctx context.Context) bool {
 	return s.hoursTab.present(ctx, func(ctx context.Context) (ok bool, err error) {
 		err = s.pool.QueryRow(ctx, `SELECT to_regclass('hours_minutes') IS NOT NULL`).Scan(&ok)

@@ -9,8 +9,8 @@
 # a message the agent's own id sent itself (the asks journal's re-raise: the
 # asks it names are their own inbox files). prog=unknown: no heartbeat and no
 # readable transcript progress, so "no progress" is unproven: ring only.
-# A tool call that still runs (wd_s1_tool_held: under WD_S1_TOOL_CAP, a
-# heartbeat newer than WD_HUNG) holds the hit: it prints "S1 HELD tool=<t>
+# A tool call that still runs (wd_s1_tool_held: under WD_S1_TOOL_CAP, the
+# heartbeat's pid the live harness PID) holds the hit: it prints "S1 HELD tool=<t>
 # since=<s>" instead, which is no HIT. Past the cap S1 hits as before.
 # Usage: s1.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh

@@ -13,7 +13,9 @@
 #      S3 of spec 102 4.3 (T005): a done marker, a stale one, a rebirth
 #      marker, a gone pane with an open registry row, each with its control
 #      S1 holds while a tool call runs (heartbeat tool + tool_since) under
-#      WD_S1_TOOL_CAP; controls: past the cap, a stale heartbeat, idle, none
+#      WD_S1_TOOL_CAP while its pid is the live harness (heartbeat ts 216 s
+#      old: c-545 2026-10-08); controls: past the cap, no live harness, the
+#      pid of another session, idle, none
 #   2. the false positives of 6.2, each with its control: a 14 min Bash call,
 #      a 50 min Monitor, an in-tool heartbeat with no open tool_use in the
 #      transcript (c-486, idle after a Stop) and an interrupted call, an idle agent with an empty inbox, a stale stub on a
@@ -68,9 +70,9 @@ iso() { date -u -d "@$1" +%FT%TZ; }
 # ---- 1 + 2: the scripts on context dirs ---------------------------------------
 # ctx <name>: a fresh context dir at T0; then write its files
 ctx() { C="$T/ctx/$1"; rm -rf "$C"; mkdir -p "$C"; echo "$T0" > "$C/now"; }
-hb() {  # hb <state> <progress age> [jq extra]: a heartbeat.json in $C
+hb() {  # hb <state> <progress age> [jq extra] [ts age]: a heartbeat.json in $C, pid = run_s's 4242
   jq -n --arg st "$1" --arg p "$(iso $((T0 - $2)))" --arg ts "$(iso $((T0 - ${4:-0})))" \
-    "{v: 1, id: \"c-900\", state: \$st, ts: \$ts, progress_ts: \$p, tool: null, tool_since: null, api_error: null, calls: []} ${3:-}" \
+    "{v: 1, id: \"c-900\", pid: 4242, state: \$st, ts: \$ts, progress_ts: \$p, tool: null, tool_since: null, api_error: null, calls: []} ${3:-}" \
     > "$C/heartbeat"
 }
 run_s() { WD_CTX="$C" bash "$SIT/$1.sh" "${2:-c-900}" "${3:-4242}" "${4:-%9}"; }
@@ -143,8 +145,16 @@ hb working 1000 '| .tool = "Bash" | .tool_since = .progress_ts' 5
 hit "S1 hold control: the same call since 1000 s is past WD_S1_TOOL_CAP" s1
 out="$(WD_S1_TOOL_CAP=1200 run_s s1)"
 [[ "$out" == "S1 HELD "* ]] && pass "S1 WD_S1_TOOL_CAP=1200 holds the 1000 s call" || fail "S1 cap knob: $out"
-hb working 330 '| .tool = "Bash" | .tool_since = .progress_ts' 200
-hit "S1 hold control: the heartbeat itself is 200 s old (past WD_HUNG)" s1
+# c-545@sat 2026-10-08 13:33Z: one Bash since 420 s, the heartbeat's ts 216 s
+# old (nothing writes it mid-call): the live harness holds it, ts does not
+hb working 420 '| .tool = "Bash" | .tool_since = .progress_ts' 216
+[[ "$(run_s s1)" == "S1 HELD tool=Bash since=420" ]] && pass "S1 held: Bash 420 s, heartbeat ts 216 s old, its pid the live harness" || fail "S1 c-545: $(run_s s1)"
+out="$(run_s s1 c-900 -)"
+[[ "$out" == "HIT S1 "* ]] && pass "S1 hold control: the same with no live harness (pid -) hits" || fail "S1 dead pid: $out"
+out="$(run_s s1 c-900 4243)"
+[[ "$out" == "HIT S1 "* ]] && pass "S1 hold control: the heartbeat's pid is another session's, hits" || fail "S1 other pid: $out"
+hb working 900 '| .tool = "Bash" | .tool_since = .progress_ts' 216
+hit "S1 hold control: the same at 900 s, the cap, hits" s1
 hb idle 330 '' 5
 hit "S1 hold control: heartbeat idle, the message unread 265 s" s1
 rm -f "$C/heartbeat"

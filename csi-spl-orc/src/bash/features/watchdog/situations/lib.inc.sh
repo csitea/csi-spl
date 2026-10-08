@@ -160,20 +160,24 @@ wd_fresh() {
 # S1's tool hold: "<tool> <s since tool_since>" and 0 while the heartbeat
 # says a tool call runs (state working or in-tool, tool and tool_since set:
 # prompts queued behind a long call flip state to working and leave the tool)
-# for less than WD_S1_TOOL_CAP s (900), and the heartbeat itself was written
-# within WD_HUNG s (180). 1 otherwise: no heartbeat, a stale one, no tool, or
-# a call past the cap (c-001 2026-10-07: S1 restarted it mid-Bash twice).
+# for less than WD_S1_TOOL_CAP s (900), and the session that wrote it still
+# lives: the heartbeat's pid is WD_PID, the harness process the watchdog
+# found carrying this id on this tick (a claude/grok/agy/qwen comm first).
+# Not the heartbeat's ts: nothing writes it while a call runs, so a ts window
+# shorter than the cap dropped every call past it (c-545 2026-10-08: one
+# Bash 7 min in, ts 216 s old, restarted). 1 otherwise: no heartbeat, no
+# tool, no live harness, a pid of another session, or a call past the cap
+# (c-001 2026-10-07: S1 restarted it mid-Bash twice).
 wd_s1_tool_held() {
-  local st t since ts
+  local st t since hp
   wd_has heartbeat || return 1
   st="$(wd_hb state)"
   [[ "$st" == working || "$st" == in-tool ]] || return 1
   t="$(wd_hb tool)"
   [[ -n "$t" ]] || return 1
   since="$(wd_epoch "$(wd_hb tool_since)")"
-  ts="$(wd_epoch "$(wd_hb ts)")"
-  [[ "$since" =~ ^[0-9]+$ && "$ts" =~ ^[0-9]+$ ]] || return 1
-  (( WD_NOW - ts <= ${WD_HUNG:-180} )) || return 1
+  hp="$(wd_hb pid)"
+  [[ "$since" =~ ^[0-9]+$ && "$hp" =~ ^[0-9]+$ && "$hp" == "$WD_PID" ]] || return 1
   (( WD_NOW - since < ${WD_S1_TOOL_CAP:-900} )) || return 1
   echo "$t $((WD_NOW - since))"
 }

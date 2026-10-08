@@ -61,3 +61,47 @@ export function mockActAsClear(store) {
     return false
   }
 }
+
+/**
+ * CLE-77819 test hook (mock only): the workspace "Who can archive topics" an
+ * e2e opts into with localStorage `spool.mock.archive_policy`; '' = off.
+ */
+export function mockArchivePolicy() {
+  try {
+    const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.archive_policy') || '') : ''
+    return ['everyone', 'admins', 'starter'].includes(v) ? v : ''
+  } catch { return '' }
+}
+
+/**
+ * CLE-77891 test hook (mock only), next to the archive policy: the mock
+ * member's role ('admin' | 'developer', default developer) an e2e opts into
+ * with localStorage `spool.mock.role`. Read only when the policy hook is on.
+ */
+export function mockRole() {
+  try {
+    const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.role') || '') : ''
+    return ['admin', 'developer'].includes(v) ? v : 'developer'
+  } catch { return 'developer' }
+}
+
+/**
+ * specs/025 me() in the mock: null = unrestricted, unless an e2e opted into
+ * act-as (specs/054), a role + permission list (spec 073 4.7) or an archive
+ * policy (CLE-77819). `dir` is the client's directory loader (act-as names
+ * the target from it). Kept here, out of spool-client.mjs, so it is lazy.
+ */
+export async function mockMe(dir) {
+  const a = mockActAsGet()
+  const meMock = mockMeGet()
+  if (meMock && (!a || !a.target_hum)) return meMock
+  const policy = mockArchivePolicy()
+  if (policy && (!a || !a.target_hum)) return { role: mockRole(), tenant_owner: false, topic_archive_policy: policy }
+  if (!a || !a.target_hum) return null
+  let name = a.target_hum
+  try {
+    const m = (await dir()).list().members.find((x) => x.human_id === a.target_hum)
+    if (m && m.display_name) name = m.display_name
+  } catch { /* keep the id */ }
+  return { act_as: { target_hum: a.target_hum, target_name: name, expires_at: a.expires_at || '' } }
+}

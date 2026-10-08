@@ -4,7 +4,7 @@
  * initial JS; this half loads on the first call to one of these (its stubs
  * there await this chunk), so it no longer rides every first load. Each
  * takes the client's ctx first: { live, mock, state, dir, tenantMock,
- * issuesMock, mockArchivePolicy }.
+ * issuesMock }.
  *
  * Only `lazySpoolMethods` is exported: Nuxt auto-imports every utils/ export
  * by name, and a name like createChannel would collide with other modules'.
@@ -16,6 +16,7 @@ import { CHANNEL_ORDER_MAX, MOCK_CHANNEL_ORDER_KEY, normalizeChannelOrder } from
 import { isPublicChannel, normalizeChannelId, rosterHumanIds } from './spool-client.mjs'
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 import { loadCursors } from './read-cursor.mjs'
+import { mockArchivePolicy } from './act-as-mock.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
 import { mockFleetRead, mockFleetWrite } from './fleet-load.mjs'
 import { mockPreviews } from './link-preview-lookup.mjs'
@@ -687,7 +688,7 @@ async function archiveTopicAndTell(ctx, msgId, archived = true) {
 
 /** topic-archive-v1 §3: { replies, task_ids, can_delete, ... } for the confirm dialog. */
 async function topicSize(ctx, msgId) {
-  const { live, mock, state, mockArchivePolicy } = ctx
+  const { live, mock, state } = ctx
   const id = String(msgId || '')
   if (mock) {
     /* test hook (mock only): a confirm dialog reads the reply count from

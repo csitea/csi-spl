@@ -172,29 +172,6 @@ export function rosterHumanIds(roster) {
 }
 
 /**
- * CLE-77819 test hook (mock only): the workspace "Who can archive topics" an
- * e2e opts into with localStorage `spool.mock.archive_policy`; '' = off.
- */
-function mockArchivePolicy() {
-  try {
-    const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.archive_policy') || '') : ''
-    return ['everyone', 'admins', 'starter'].includes(v) ? v : ''
-  } catch { return '' }
-}
-
-/**
- * CLE-77891 test hook (mock only), next to the archive policy: the mock
- * member's role ('admin' | 'developer', default developer) an e2e opts into
- * with localStorage `spool.mock.role`. Read only when the policy hook is on.
- */
-function mockRole() {
-  try {
-    const v = typeof localStorage !== 'undefined' ? String(localStorage.getItem('spool.mock.role') || '') : ''
-    return ['admin', 'developer'].includes(v) ? v : 'developer'
-  } catch { return 'developer' }
-}
-
-/**
  * Live mode talks to the tenant hub: the 003 viewer API (contracts/view-v1.md:
  * /v1/view/*, GET /v1/files/{file_id}, /v1/health — FR-023: Cloud Run shadows
  * /healthz), POST /v1/channels (channels-v1 §5.1), and sends over the WUI
@@ -517,26 +494,10 @@ export function createSpoolClient({
      */
     async me() {
       if (mock) {
-        // specs/054: the OPT-IN act-as mock. Absent by default (the other e2e
-        // specs see null = unrestricted admin, unchanged). When present, report
-        // act_as as the hub would, with the target's name from the directory.
-        const { mockActAsGet, mockMeGet } = await import('./act-as-mock.mjs')
-        const a = mockActAsGet()
-        /* spec 073 4.7: the OPT-IN role + permissions (a biz_owner without agents.join) */
-        const meMock = mockMeGet()
-        if (meMock && (!a || !a.target_hum)) return meMock
-        /* CLE-77819: the OPT-IN archive-policy mock. Absent by default (null =
-           unrestricted, as before); when set, the mock member is a plain
-           developer in a workspace with that "Who can archive topics". */
-        const policy = mockArchivePolicy()
-        if (policy && (!a || !a.target_hum)) return { role: mockRole(), tenant_owner: false, topic_archive_policy: policy }
-        if (!a || !a.target_hum) return null
-        let name = a.target_hum
-        try {
-          const m = (await dir()).list().members.find((x) => x.human_id === a.target_hum)
-          if (m && m.display_name) name = m.display_name
-        } catch { /* keep the id */ }
-        return { act_as: { target_hum: a.target_hum, target_name: name, expires_at: a.expires_at || '' } }
+        /* the mock answer (act-as, role + permissions, archive policy) lives
+           in the lazy act-as-mock.mjs: none of it rides the initial JS */
+        const { mockMe } = await import('./act-as-mock.mjs')
+        return mockMe(dir)
       }
       try {
         return await live('/v1/view/me')
@@ -805,7 +766,7 @@ export function createSpoolClient({
   }
   /* P3-30: the stubs of the lazy half. Read as a member: a bare name from a
      utils/ module here makes Nuxt's auto-import add a STATIC import of it. */
-  const ctx = { live, mock, get state() { return state }, dir, tenantMock, issuesMock, mockArchivePolicy }
+  const ctx = { live, mock, get state() { return state }, dir, tenantMock, issuesMock }
   let lazy = null
   const loadLazy = () => (lazy ||= import('./spool-client-lazy.mjs').then(
     (m) => m.lazySpoolMethods,

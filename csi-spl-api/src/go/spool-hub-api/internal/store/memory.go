@@ -393,22 +393,23 @@ func (s *Memory) QueuedFor(_ context.Context, tenant, toBox string, now time.Tim
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	type row struct {
-		d   *memDelivery
-		env []byte
-		id  string
+		d    *memDelivery
+		env  []byte
+		id   string
+		task string
 	}
 	var rows []row
 	for k, d := range s.deliveries {
 		if k[0] == tenant && k[2] == toBox && d.state == StateQueued && now.Before(d.expiresAt) {
 			if m, ok := s.messages[[2]string{tenant, k[1]}]; ok {
-				rows = append(rows, row{d, m.Env, k[1]})
+				rows = append(rows, row{d, m.Env, k[1], m.TaskID})
 			}
 		}
 	}
 	sort.Slice(rows, func(i, j int) bool { return older(rows[i].d, rows[j].d) })
 	out := make([]Queued, len(rows))
 	for i, r := range rows {
-		out[i] = Queued{MsgID: r.id, Env: r.env}
+		out[i] = Queued{MsgID: r.id, Env: r.env, TaskID: r.task}
 	}
 	return out, nil
 }

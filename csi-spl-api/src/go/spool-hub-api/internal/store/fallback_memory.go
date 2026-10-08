@@ -57,6 +57,17 @@ func (s *Memory) RecordFallback(_ context.Context, d FallbackDelivery) error {
 	return nil
 }
 
+func (s *Memory) FallbackOf(_ context.Context, tenant, msgID string) (FallbackDelivery, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fb.init()
+	d, ok := s.fb.delivered[[2]string{tenant, msgID}]
+	if !ok {
+		return FallbackDelivery{}, ErrNotFound
+	}
+	return d, nil
+}
+
 func (s *Memory) ClaimFallback(_ context.Context, d FallbackDelivery) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

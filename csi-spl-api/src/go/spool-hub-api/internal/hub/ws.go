@@ -390,7 +390,7 @@ func (s *Server) drain(ctx context.Context, x *session) {
 	// frames its last session lost (spec 059 S2).
 	n := s.pushUnacked(ctx, x, s.o.Now())
 	for _, d := range q {
-		if s.push(ctx, x, d.MsgID, d.Env) {
+		if s.push(ctx, x, d.MsgID, s.retaskEnv(ctx, x.tenant, d.Env, d.TaskID)) {
 			n++
 		}
 	}
@@ -948,7 +948,8 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 		return
 	}
 	for _, e := range envs {
-		if err := x.write(ctx, wire.Frame{Type: wire.TTailMsg, Env: e}); err != nil {
+		// every row read lives in f.TaskID now; a moved one's envelope may not say so
+		if err := x.write(ctx, wire.Frame{Type: wire.TTailMsg, Env: s.retaskEnv(ctx, x.tenant, e, f.TaskID)}); err != nil {
 			return
 		}
 	}

@@ -551,12 +551,12 @@ func (s *Postgres) DeliveryState(ctx context.Context, tenant, msgID, toBox strin
 
 func (s *Postgres) QueuedFor(ctx context.Context, tenant, toBox string, now time.Time) ([]Queued, error) {
 	var out []Queued
-	err := s.queryTenant(ctx, tenant, `SELECT d.msg_id::text, m.env FROM deliveries d
+	err := s.queryTenant(ctx, tenant, `SELECT d.msg_id::text, m.env, m.task_id::text FROM deliveries d
 		JOIN messages m ON m.tenant_id = d.tenant_id AND m.msg_id = d.msg_id
 		WHERE d.tenant_id = $1 AND d.to_box = $2 AND d.state = 'queued' AND d.expires_at > $3
 		ORDER BY d.received_at, d.msg_id`, []any{tenant, toBox, now}, func(rows pgx.Rows) error {
 		var q Queued
-		if err := rows.Scan(&q.MsgID, &q.Env); err != nil {
+		if err := rows.Scan(&q.MsgID, &q.Env, &q.TaskID); err != nil {
 			return err
 		}
 		out = append(out, q)

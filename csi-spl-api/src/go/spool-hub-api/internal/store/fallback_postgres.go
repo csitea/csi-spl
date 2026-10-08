@@ -45,6 +45,23 @@ func (s *Postgres) RecordFallback(ctx context.Context, d FallbackDelivery) error
 	return err
 }
 
+func (s *Postgres) FallbackOf(ctx context.Context, tenant, msgID string) (FallbackDelivery, error) {
+	if !canonUUIDRe.MatchString(msgID) {
+		return FallbackDelivery{}, ErrNotFound
+	}
+	d := FallbackDelivery{TenantID: tenant, MsgID: msgID}
+	err := s.queryRowTenant(ctx, tenant, `SELECT channel_id, box_id, agent_id, delivered_at, attempts
+		FROM fallback_deliveries WHERE tenant_id = $1 AND msg_id = $2`, []any{tenant, msgID},
+		&d.Channel, &d.Box, &d.Agent, &d.DeliveredAt, &d.Attempts)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return FallbackDelivery{}, ErrNotFound
+	}
+	if err != nil {
+		return FallbackDelivery{}, err
+	}
+	return d, nil
+}
+
 func (s *Postgres) ClaimFallback(ctx context.Context, d FallbackDelivery) (bool, error) {
 	tag, err := s.execTenant(ctx, d.TenantID, `INSERT INTO fallback_deliveries
 		(tenant_id, msg_id, channel_id, box_id, agent_id, delivered_at)

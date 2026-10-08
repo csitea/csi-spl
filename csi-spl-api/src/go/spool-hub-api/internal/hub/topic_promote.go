@@ -110,6 +110,7 @@ func (s *Server) promoteMessage(w http.ResponseWriter, r *http.Request, mr moveR
 	to.TaskID = newTask
 	s.fanoutMove(r.Context(), c.t.ID, c.m, to, promoteFrame(topicPromotedFrame, out))
 	writeJSON(w, http.StatusOK, out)
+	s.moveNotice(r.Context(), c.t.ID, c.m, newTask, c.m.Channel, c.from)
 }
 
 // demoteTopic reverses a promote from its answer's undo payload.
@@ -131,6 +132,7 @@ func (s *Server) demoteTopic(w http.ResponseWriter, r *http.Request, mr moveRow,
 	to.TaskID = home
 	s.fanoutMove(r.Context(), c.t.ID, c.m, to, promoteFrame(topicDemotedFrame, out))
 	writeJSON(w, http.StatusOK, out)
+	s.moveNotice(r.Context(), c.t.ID, c.m, home, c.m.Channel, c.from)
 }
 
 // promoteFrame is the answer as a frame: the type added, undo and kind left out.

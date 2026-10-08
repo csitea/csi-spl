@@ -179,7 +179,7 @@ func (s *Server) pushQueued(ctx context.Context, x *session) int {
 	}
 	n := 0
 	for _, d := range q {
-		if s.push(ctx, x, d.MsgID, d.Env) {
+		if s.push(ctx, x, d.MsgID, s.retaskEnv(ctx, x.tenant, d.Env, d.TaskID)) {
 			n++
 		}
 	}

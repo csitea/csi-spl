@@ -51,6 +51,10 @@ type Fallbacks interface {
 	// reports whether this call wrote it: the claim that keeps two hub
 	// processes from both handing one post out (SPL-1004).
 	ClaimFallback(ctx context.Context, d FallbackDelivery) (bool, error)
+	// FallbackOf is the post's fallback record: the box and agent it was last
+	// handed to (a re-escalation rewrites them). ErrNotFound when none took it.
+	// A move reads it to tell that agent where the post lives now.
+	FallbackOf(ctx context.Context, tenantID, msgID string) (FallbackDelivery, error)
 	// UnheardPosts lists signed browser posts by a person (from_box box-wui,
 	// from HUM-*) received in [since, until) that no agent box was sent and
 	// no fallback took, oldest first, at most limit (SPL-1004). Only posts

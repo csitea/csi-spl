@@ -323,6 +323,7 @@ func (s *Server) moveMessage(w http.ResponseWriter, r *http.Request, mr moveRow,
 	to.Channel, to.TaskID = card.Channel, task
 	s.fanoutMove(r.Context(), c.t.ID, c.m, to, moveFrame(messageMovedFrame, out))
 	writeJSON(w, http.StatusOK, out)
+	s.moveNotice(r.Context(), c.t.ID, c.m, task, card.Channel, c.from)
 }
 
 // moveStored answers a store error; ok=true when there was none.

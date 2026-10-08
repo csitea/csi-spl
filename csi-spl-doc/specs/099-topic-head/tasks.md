@@ -357,7 +357,8 @@ parallel with T002.
   5. `pg_stat_database.deadlocks` delta of 0 over 24 h.
 - On prd: the same steps. The shadow runs until n >= 500 compares over all
   six shapes with 0 mismatches, and for at least 24 h. Read it with
-  `do_spl_topic_head_shadow_report`.
+  `do_spl_topic_head_shadow_report`. Organic traffic reaches only some
+  shapes: drive all six with `do_spl_topic_head_shape_probe` (`eaf8ffac0`).
 - The due set is counted hourly for a day through `do_spl_db_query`.
 - The before-numbers:
   - hot-measure, n=20, twice;

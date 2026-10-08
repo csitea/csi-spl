@@ -16,6 +16,8 @@
 #     b. a Sweep step stripped of its allow-list is REFUSED, not passed
 #     c. a workflow with no Sweep step at all is REFUSED, not passed
 #     d. a tree that is not a git checkout is REFUSED, not passed
+#     e. the .vibe/ rule is the workflow's: a Sweep step with it removed lets
+#        the planted .vibe/hooks.toml pass -- the action holds no second list
 #   The banned literal is assembled at run time, so this file carries none.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -147,6 +149,18 @@ if [[ $rc -ne 0 ]] && grep -q 'not a git checkout' "$T/out"; then
   pass "CONTROL d. a tree that is not a git checkout is REFUSED (rc=$rc), not passed"
 else
   fail "CONTROL d. a non-checkout was not refused (rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+
+# --- CONTROL e. the .vibe/ rule is read from the workflow, not held here ------
+git -C "$T/vibe" add -f sub/dir/.vibe/hooks.toml
+check "$T/vibe" "$WF"; rc_real=$?
+doctor 's|^vibe=.*$|vibe=""|' "$T/wf-novibe.yml"
+check "$T/vibe" "$T/wf-novibe.yml"; rc_novibe=$?
+if [[ $rc_real -ne 0 && $rc_novibe -eq 0 ]]; then
+  pass "CONTROL e. the .vibe/ refusal comes from the workflow's Sweep step (real rc $rc_real, rule removed rc 0) -- one list, CI's"
+else
+  fail "CONTROL e. the .vibe/ verdict did not follow the given workflow (real rc=$rc_real, rule removed rc=$rc_novibe)"
+  sed 's/^/    | /' "$T/out"
 fi
 
 if [[ $fails -eq 0 ]]; then

@@ -13,11 +13,9 @@
 # @description were red on ONE banned line in one spec.md -- every push in the
 # @description window inherited it. This action is the cheapest way to not be
 # @description the lane that lands the next one.
-# @description It also refuses a TRACKED .vibe/ dir anywhere in the tree (spec
-# @description 110 2.3, seat-4 change 3): every worktree is a trusted Vibe
-# @description folder, whose .vibe/{config.toml,hooks.toml,AGENTS.md} is read
-# @description first, so one commit could change the model, add an MCP server
-# @description or run a pre_tool hook on every m- seat.
+# @description That step also refuses a TRACKED .vibe/ dir anywhere in the tree
+# @description (spec 110 2.3): the rule lives in the workflow only, so the CI
+# @description gate and this action cannot hold two lists.
 # @param HYGIENE_TREE (optional) - default: $APP_PATH, the checkout to sweep
 # @param HYGIENE_WORKFLOW (optional) - default: <tree>/.github/workflows/10_ci-quality.yml
 # @example ./run -a do_check_dist_hygiene
@@ -56,7 +54,6 @@ do_check_dist_hygiene() {
 
   (cd "$tmp/tree" && bash "$tmp/sweep.sh") || rc=$?
   rm -rf "$tmp"
-  _check_dist_hygiene_vibe "$tree" || rc=1
 
   if [[ "$rc" -ne 0 ]]; then
     do_log "FATAL the distribution-hygiene gate would FAIL on this tree (rc=$rc) -- fix the file:line named above, do not push"
@@ -64,15 +61,4 @@ do_check_dist_hygiene() {
   fi
   do_log "INFO distribution-hygiene: clean over the tracked tree of $tree"
   return 0
-}
-
-# _check_dist_hygiene_vibe <tree>: 1 and one ::error:: line per tracked file
-# under a .vibe/ dir (spec 110 2.3), 0 when there is none.
-_check_dist_hygiene_vibe() {
-  local f n=0
-  while IFS= read -r -d '' f; do
-    echo "::error file=$f::a tracked .vibe/ file: Vibe reads it first in every trusted worktree (model, MCP servers, pre_tool hooks) - git rm --cached it (spec 110 2.3)"
-    n=$((n + 1))
-  done < <(git -C "$1" ls-files -z | grep -zE '(^|/)\.vibe/')
-  (( n == 0 )) || { do_log "FAIL $n tracked .vibe/ file(s): refused"; return 1; }
 }

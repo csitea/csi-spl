@@ -1088,4 +1088,21 @@ jobs:
           sweep "personal home directory"          '/home/(?!runner\b)[a-z][a-z0-9_-]*/'
           sweep "owner mail address or domain"     '(?i)@gmail\.com|flok\.fi' \
                 "$allow_line" "gcp_account_owner_email key"
+          # Spec 110 2.3: no TRACKED .vibe/ dir anywhere in the tree. Every
+          # worktree is a trusted Vibe folder whose .vibe/{config.toml,
+          # hooks.toml,AGENTS.md} is read first, so one commit could change the
+          # model, add an MCP server or run a pre_tool hook on every m- seat.
+          # Over the files on disk, not git ls-files: here that is the
+          # checkout, and do_check_dist_hygiene runs this same step over a
+          # tracked-file export -- one rule, one place.
+          # CONTROL: csi-spl-iac/src/bash/tests/check-dist-hygiene.tst.sh
+          vibe="$(find . -path ./.git -prune -o ! -type d -print | sed 's|^\./||' | grep -E '(^|/)\.vibe/' | sort)" || true
+          if [[ -n "$vibe" ]]; then
+            while IFS= read -r f; do
+              echo "::error file=$f::a tracked .vibe/ file: Vibe reads it first in every trusted worktree (model, MCP servers, pre_tool hooks) - git rm --cached it (spec 110 2.3)"
+            done <<<"$vibe"
+            fail=1
+          else
+            echo "ok - no tracked .vibe/ dir"
+          fi
           exit "$fail"

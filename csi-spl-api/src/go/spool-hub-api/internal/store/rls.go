@@ -188,6 +188,26 @@ func (s *Postgres) asOperatorQuery(ctx context.Context, sql string, args []any, 
 	return err
 }
 
+// asOperatorInTx is asOperatorQuery for a read inside an open transaction
+// (spec 108 3.1, claimKey): the operator scope is switched on for the read
+// alone, on tx itself, then set back to what it was, so the rest of tx keeps
+// its own scope. Never asOperatorQuery while a tx is held: that takes a second
+// pool connection, and N such callers on a pool of N deadlock it.
+func (s *Postgres) asOperatorInTx(ctx context.Context, tx pgx.Tx, sql string, args []any, each func(pgx.Rows) error) error {
+	var prev string
+	if err := tx.QueryRow(ctx, `SELECT coalesce(current_setting('app.rls_scope', true), '')`).Scan(&prev); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, pgScopeOperator); err != nil {
+		return err
+	}
+	if err := eachRow(ctx, tx, sql, args, each); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `SELECT set_config('app.rls_scope', $1, true)`, prev)
+	return err
+}
+
 // RLSBypassed reports whether the connected role skips every policy
 // (superuser or BYPASSRLS). The hub logs it at startup: 0014 protects nothing
 // for such a role.

@@ -160,7 +160,7 @@ func (s *Postgres) claimKey(ctx context.Context, tx pgx.Tx, tenant, box string, 
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 73))`, hex.EncodeToString(pub)); err != nil {
 		return err
 	}
-	if taken, err := s.keyLiveElsewhere(ctx, tenant, box, pub); err != nil {
+	if taken, err := s.keyLiveElsewhere(ctx, tx, tenant, box, pub); err != nil {
 		return err
 	} else if taken {
 		return ErrKeyLive
@@ -170,10 +170,11 @@ func (s *Postgres) claimKey(ctx context.Context, tx pgx.Tx, tenant, box string, 
 
 // keyLiveElsewhere reports whether pub is the live key of any other box of
 // any workspace, box-wui aside (spec 108 3.1). A bool only: the caller never
-// learns which workspace holds it.
-func (s *Postgres) keyLiveElsewhere(ctx context.Context, tenant, box string, pub ed25519.PublicKey) (bool, error) {
+// learns which workspace holds it. It reads on the caller's tx, never on the
+// pool: claimKey holds that tx and its advisory lock.
+func (s *Postgres) keyLiveElsewhere(ctx context.Context, tx pgx.Tx, tenant, box string, pub ed25519.PublicKey) (bool, error) {
 	var taken bool
-	err := s.asOperatorQuery(ctx, `SELECT EXISTS (SELECT 1 FROM pins
+	err := s.asOperatorInTx(ctx, tx, `SELECT EXISTS (SELECT 1 FROM pins
 		WHERE pubkey = $1 AND revoked_at IS NULL AND box_id <> $4
 		AND NOT (tenant_id = $2 AND box_id = $3))`,
 		[]any{[]byte(pub), tenant, box, wuiBox}, func(rows pgx.Rows) error { return rows.Scan(&taken) })

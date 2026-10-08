@@ -62,9 +62,10 @@ var operatorCallers = map[string]string{
 }
 
 // operatorEntries are the only functions that set the operator scope:
-// asOperator (a transaction) and asOperatorQuery (one read as one batch).
-// A caller of either is an operator caller.
-var operatorEntries = map[string]bool{"asOperator": true, "asOperatorQuery": true}
+// asOperator (a transaction), asOperatorQuery (one read as one batch) and
+// asOperatorInTx (one read inside the caller's open transaction). A caller of
+// any of them is an operator caller.
+var operatorEntries = map[string]bool{"asOperator": true, "asOperatorQuery": true, "asOperatorInTx": true}
 
 // TestOperatorScopeCallers: the set of functions in this package that call
 // an operatorEntries function equals operatorCallers. CONTROL: the parse finds

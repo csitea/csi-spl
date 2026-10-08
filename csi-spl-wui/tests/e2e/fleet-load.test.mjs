@@ -239,6 +239,52 @@ try {
   await p.waitForSelector('[data-test=tenant-fleet-bands-empty]', { timeout: NAV_TIMEOUT })
   ok('21 reset on the box removes it from the Fleet load page', (await bands(p)).length === 0)
 
+  // rdb 0152 (t1 338e5258): runner_cpu_pct. A box's own cap set by the CLI
+  // survives a band save on the Boxes view (the hub replaces the whole map);
+  // the Fleet load page shows and edits the fleet cap and the box's cap.
+  const storedRow = () => p.evaluate((k) => JSON.parse(localStorage.getItem(k) || '{}'), FLEET_STORE_KEY)
+  await p.evaluate((key) => {
+    const row = JSON.parse(localStorage.getItem(key) || '{}')
+    row.boxes = { 'box-desk': { low: 40, high: 70, runner_cpu_pct: 60 } }
+    localStorage.setItem(key, JSON.stringify(row))
+  }, FLEET_STORE_KEY)
+  await openBox()
+  ok('21b /boxes/box-desk shows its own runner CPU cap', /60 %/.test(await text(p, '[data-test=box-band-cpu]')), await text(p, '[data-test=box-band-cpu]'))
+  await setField(p, '[data-test=box-band-low]', '45')
+  await p.click('[data-test=box-band-save]')
+  await p.waitForSelector('[data-test=box-band-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  const afterBand = (await storedRow()).boxes
+  ok('21c saving the box band keeps its runner_cpu_pct', JSON.stringify(afterBand) === '{"box-desk":{"low":45,"high":70,"runner_cpu_pct":60}}', afterBand)
+
+  await p.goto(server.base + '/tenant-settings/fleet-load', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-desk]', { timeout: NAV_TIMEOUT })
+  const cpuOpen = { fleet: await value(p, '[data-test=tenant-fleet-cpu]'), box: await value(p, '[data-test=tenant-fleet-band-cpu]') }
+  ok('21d the page shows the fleet cap (default 80) and box-desk\'s own 60',
+    cpuOpen.fleet === '80' && cpuOpen.box === '60' && (await p.$eval('[data-test=tenant-fleet-cpu]', (e) => e.getAttribute('data-using-default'))) === '1', cpuOpen)
+  await setField(p, '[data-test=tenant-fleet-cpu]', '0')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-form-error]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('21e CONTROL: a fleet cap of 0 is refused in the form, nothing stored', (await storedRow()).runner_cpu_pct == null)
+  await setField(p, '[data-test=tenant-fleet-cpu]', '70')
+  await setField(p, '[data-test=tenant-fleet-band-high]', '75')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-desk]', { timeout: NAV_TIMEOUT })
+  const cpuKept = { fleet: await value(p, '[data-test=tenant-fleet-cpu]'), row: await storedRow() }
+  ok('21f the fleet cap 70 and box-desk\'s band edit survive a reload; its cap 60 is kept',
+    cpuKept.fleet === '70' && cpuKept.row.runner_cpu_pct === 70 && JSON.stringify(cpuKept.row.boxes) === '{"box-desk":{"low":45,"high":75,"runner_cpu_pct":60}}', cpuKept)
+  await setField(p, '[data-test=tenant-fleet-band-cpu]', '')
+  await p.click('[data-test=tenant-fleet-cpu-reset]')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  const cleared = await storedRow()
+  ok('21g clearing the box cap and resetting the fleet cap store neither', cleared.runner_cpu_pct == null &&
+    JSON.stringify(cleared.boxes) === '{"box-desk":{"low":45,"high":75}}', cleared)
+  await p.$$eval('[data-test=tenant-fleet-band-remove]', (els) => els.forEach((e) => e.click()))
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForFunction((k) => !(localStorage.getItem(k) || '').includes('box-desk'), { timeout: NAV_TIMEOUT }, FLEET_STORE_KEY)
+
   await openBox()
   await p.evaluate((op) => localStorage.removeItem(op), FLEET_OPERATOR_KEY)
   await setField(p, '[data-test=box-band-low]', '40')

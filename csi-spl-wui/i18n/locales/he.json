@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "מושהה: {reason} עד {until}",
     "fleet_load_kind_resume": "חידוש",
     "fleet_load_kinds_all_off": "לפחות סוג סוכן אחד נשאר פעיל.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "מי יכול להעביר נושאים לארכיון",
     "archive_policy_hint": "מי רשאי להעביר נושא לארכיון ולהוציא אותו מהארכיון בסביבת עבודה זו. העברה לארכיון מסתירה נושא מערוצים, מהודעות ישירות ומהחיפוש; היא אינה מוחקת אותו.",
     "archive_policy_everyone": "כולם",
@@ -1863,6 +1867,7 @@
     "band_own": "הטווח של מכונה זו גובר על טווח הצי {low}..{high}.",
     "band_now": "עומס כעת: {pct} % מהליבות (load5).",
     "band_reset": "חזרה לטווח הצי",
+    "band_cpu": "תקרת CPU ל-runners: {n} % מהליבות, של מכונה זו. איפוס לטווח הצי מוחק גם אותה.",
     "band_who": "רק מנהל של סביבת העבודה של המפעיל יכול לשנות זאת."
   },
   "act_as": {

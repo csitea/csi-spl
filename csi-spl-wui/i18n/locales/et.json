@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Peatatud: {reason} kuni {until}",
     "fleet_load_kind_resume": "Jätka",
     "fleet_load_kinds_all_off": "Vähemalt üks agenditüüp jääb sisse.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Kes saab teemasid arhiveerida",
     "archive_policy_hint": "Kes saab selles tööruumis teemat arhiveerida ja arhiivist taastada. Arhiveerimine peidab teema kanalites, otsesõnumites ja otsingus; see ei kustuta teemat.",
     "archive_policy_everyone": "Kõik",
@@ -1863,6 +1867,7 @@
     "band_own": "Selle masina oma vahemik asendab laevastiku vahemiku {low}..{high}.",
     "band_now": "Koormus praegu: {pct} % tuumadest (load5).",
     "band_reset": "Laevastiku vahemikule tagasi",
+    "band_cpu": "Runnerite CPU piir: {n} % tuumadest, selle masina oma. Laevastiku vahemikule lähtestamine kustutab ka selle.",
     "band_who": "Seda saab muuta ainult operaatori tööruumi administraator."
   },
   "act_as": {

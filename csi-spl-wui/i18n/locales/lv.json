@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Apturēts: {reason} līdz {until}",
     "fleet_load_kind_resume": "Atsākt",
     "fleet_load_kinds_all_off": "Vismaz viens aģenta veids paliek ieslēgts.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Kas var arhivēt tēmas",
     "archive_policy_hint": "Kas šajā darbvietā var arhivēt tēmu un atjaunot to no arhīva. Arhivēšana paslēpj tēmu kanālos, tiešajās ziņās un meklēšanā; tā tēmu neizdzēš.",
     "archive_policy_everyone": "Visi",
@@ -1863,6 +1867,7 @@
     "band_own": "Šīs mašīnas josla aizstāj flotes joslu {low}..{high}.",
     "band_now": "Slodze tagad: {pct} % no kodoliem (load5).",
     "band_reset": "Atjaunot flotes joslu",
+    "band_cpu": "Runner CPU griesti: {n} % no kodoliem, šīs mašīnas pašas. Atiestatot uz flotes joslu, tie arī tiek notīrīti.",
     "band_who": "Mainīt var tikai operatora darbvietas administrators."
   },
   "act_as": {

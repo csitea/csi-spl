@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "En pausa: {reason} hasta {until}",
     "fleet_load_kind_resume": "Reanudar",
     "fleet_load_kinds_all_off": "Al menos un tipo de agente queda activo.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Quién puede archivar temas",
     "archive_policy_hint": "Quién puede archivar y desarchivar un tema en este espacio de trabajo. Archivar oculta un tema en canales, mensajes directos y búsqueda; no lo elimina.",
     "archive_policy_everyone": "Todos",
@@ -1863,6 +1867,7 @@
     "band_own": "La banda propia de esta máquina sustituye a la banda de la flota {low}..{high}.",
     "band_now": "Carga ahora: {pct} % de los núcleos (load5).",
     "band_reset": "Volver a la banda de la flota",
+    "band_cpu": "Límite de CPU para runners: {n} % de los núcleos, propio de esta máquina. Volver a la banda de la flota también lo borra.",
     "band_who": "Solo un administrador del espacio de trabajo del operador puede cambiarla."
   },
   "act_as": {

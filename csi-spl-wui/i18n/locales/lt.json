@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Pristabdyta: {reason} iki {until}",
     "fleet_load_kind_resume": "Tęsti",
     "fleet_load_kinds_all_off": "Bent vienas agento tipas lieka įjungtas.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Kas gali archyvuoti temas",
     "archive_policy_hint": "Kas šioje darbo srityje gali archyvuoti temą ir grąžinti ją iš archyvo. Archyvavimas paslepia temą kanaluose, tiesioginėse žinutėse ir paieškoje; jos neištrina.",
     "archive_policy_everyone": "Visi",
@@ -1863,6 +1867,7 @@
     "band_own": "Šios mašinos juosta pakeičia parko juostą {low}..{high}.",
     "band_now": "Apkrova dabar: {pct} % branduolių (load5).",
     "band_reset": "Grąžinti parko juostą",
+    "band_cpu": "Runner'ių CPU riba: {n} % branduolių, šios mašinos. Grąžinus parko juostą, ji taip pat išvaloma.",
     "band_who": "Pakeisti gali tik operatoriaus darbo srities administratorius."
   },
   "act_as": {

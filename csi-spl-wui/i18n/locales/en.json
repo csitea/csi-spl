@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Paused: {reason} until {until}",
     "fleet_load_kind_resume": "Resume",
     "fleet_load_kinds_all_off": "At least one agent type stays on.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Who can archive topics",
     "archive_policy_hint": "Who may archive and unarchive a topic in this workspace. Archiving hides a topic from channels, direct messages and search; it does not delete it.",
     "archive_policy_everyone": "Everyone",
@@ -1863,6 +1867,7 @@
     "band_own": "This box's own band overrides the fleet band {low}..{high}.",
     "band_now": "Load now: {pct} % of cores (load5).",
     "band_reset": "Reset to the fleet band",
+    "band_cpu": "Runner CPU cap: {n} % of cores, this box's own. Reset to the fleet band clears it too.",
     "band_who": "Only an admin of the operator workspace can change it."
   },
   "act_as": {

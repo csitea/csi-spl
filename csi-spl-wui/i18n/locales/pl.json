@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Wstrzymano: {reason} do {until}",
     "fleet_load_kind_resume": "Wznów",
     "fleet_load_kinds_all_off": "Co najmniej jeden typ agenta pozostaje włączony.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Kto może archiwizować tematy",
     "archive_policy_hint": "Kto może archiwizować temat i przywracać go z archiwum w tym obszarze roboczym. Archiwizacja ukrywa temat w kanałach, wiadomościach bezpośrednich i wyszukiwaniu; nie usuwa go.",
     "archive_policy_everyone": "Wszyscy",
@@ -1863,6 +1867,7 @@
     "band_own": "Własne pasmo tej maszyny zastępuje pasmo floty {low}..{high}.",
     "band_now": "Obciążenie teraz: {pct} % rdzeni (load5).",
     "band_reset": "Przywróć pasmo floty",
+    "band_cpu": "Limit CPU dla runnerów: {n} % rdzeni, własny dla tej maszyny. Powrót do pasma floty też go usuwa.",
     "band_who": "Zmienić je może tylko administrator przestrzeni roboczej operatora."
   },
   "act_as": {

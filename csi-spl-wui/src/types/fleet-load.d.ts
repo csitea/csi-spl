@@ -6,12 +6,15 @@ declare module '~/utils/fleet-load.mjs' {
   export const FLEET_BAD_SETTING: string
   export const FLEET_DEFAULT_LOW: number
   export const FLEET_DEFAULT_HIGH: number
+  export const FLEET_DEFAULT_RUNNER_CPU: number
   export const FLEET_AGENT_KINDS: string[]
 
   export interface FleetBoxBand {
     box: string
     low: number
     high: number
+    /** rdb 0152: this box's own runner CPU cap; absent / null = the fleet's */
+    runnerCpuPct?: number | null
   }
   export interface FleetKindPause {
     kind: string
@@ -25,6 +28,7 @@ declare module '~/utils/fleet-load.mjs' {
     boxOrder: string[] | null
     boxes?: FleetBoxBand[] | null
     kindsOff?: string[] | null
+    runnerCpuPct?: number | null
   }
   export interface FleetLoadView {
     low: number
@@ -33,9 +37,10 @@ declare module '~/utils/fleet-load.mjs' {
     boxes: FleetBoxBand[]
     kindsOff: string[]
     paused: FleetKindPause[]
+    runnerCpuPct: number
     source: string
     stored: FleetLoadStored
-    defaults: { low: number, high: number, boxOrder: string[] }
+    defaults: { low: number, high: number, boxOrder: string[], runnerCpuPct: number }
   }
   export interface FleetLoadDraft {
     low: number
@@ -48,12 +53,15 @@ declare module '~/utils/fleet-load.mjs' {
     resetBoxes?: boolean
     kindsOff?: string[]
     lift?: string[]
+    runnerCpuPct?: number | ''
+    resetCpu?: boolean
   }
 
   export function validFleetBox(id: unknown): boolean
   export function fleetBandList(v: unknown): FleetBoxBand[]
   export function fleetBandMap(list: FleetBoxBand[]): Record<string, { low: number, high: number }>
   export function fleetBandOk(b: unknown): boolean
+  export function fleetCpuOk(v: unknown): boolean
   export function fleetKindList(v: unknown): string[]
   export function fleetPauseList(v: unknown): FleetKindPause[]
   export function fleetKindsOk(kindsOff: unknown): boolean
@@ -63,6 +71,7 @@ declare module '~/utils/fleet-load.mjs' {
   export function fleetLoadPatchBody(saved: FleetLoadView, draft: FleetLoadDraft): Record<string, unknown>
   export function suggestFleetBoxes(stats: unknown): string[]
   export function fleetBoxBandOf(view: FleetLoadView | null | undefined, box: string): { low: number, high: number } | null
+  export function fleetBoxCpuOf(view: FleetLoadView | null | undefined, box: string): number | null
   export function fleetBoxBandPatch(view: FleetLoadView | null | undefined, box: string, band: { low: number, high: number } | null): Record<string, unknown>
   export function boxLoadPct(row: unknown): number | null
   export function fleetStoredOk(stored: FleetLoadStored | null | undefined): boolean

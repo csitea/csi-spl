@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "În pauză: {reason} până la {until}",
     "fleet_load_kind_resume": "Reia",
     "fleet_load_kinds_all_off": "Cel puțin un tip de agent rămâne activ.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Cine poate arhiva subiecte",
     "archive_policy_hint": "Cine poate arhiva un subiect și îl poate scoate din arhivă în acest spațiu de lucru. Arhivarea ascunde un subiect în canale, mesaje directe și căutare; nu îl șterge.",
     "archive_policy_everyone": "Toată lumea",
@@ -1863,6 +1867,7 @@
     "band_own": "Banda proprie a acestei mașini înlocuiește banda flotei {low}..{high}.",
     "band_now": "Încărcare acum: {pct} % din nuclee (load5).",
     "band_reset": "Înapoi la banda flotei",
+    "band_cpu": "Limita CPU pentru runneri: {n} % din nuclee, proprie acestei mașini. Revenirea la banda flotei o șterge și pe ea.",
     "band_who": "Doar un administrator al spațiului de lucru al operatorului o poate schimba."
   },
   "act_as": {

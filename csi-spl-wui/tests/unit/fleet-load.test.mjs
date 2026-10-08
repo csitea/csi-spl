@@ -229,6 +229,35 @@ kindStore.setItem('spool.mock.fleet_load', JSON.stringify({ agent_kinds_off: ['g
 const lifted = normalizeFleetLoad(mockFleetWrite({ agent_kinds_paused: { agy: null } }, kindStore))
 ok('mock: resume lifts the pause and keeps the kinds off', lifted.paused.length === 0 && lifted.kindsOff.join() === 'grok', JSON.stringify(lifted))
 
+// rdb 0152 (t1 338e5258): runner_cpu_pct, fleet-wide and per box. The hub
+// replaces the whole boxes map, so a band save must carry a box's own cap.
+const cpuView = normalizeFleetLoad({ low: 50, high: 75, runner_cpu_pct: 70, boxes: { 'box-s': { low: 30, high: 60, runner_cpu_pct: 60 }, 'box-z': { low: 10, high: 20 } } })
+ok('cpu: the view reads the fleet cap and a per-box cap', cpuView.runnerCpuPct === 70 &&
+  JSON.stringify(cpuView.boxes) === '[{"box":"box-s","low":30,"high":60,"runnerCpuPct":60},{"box":"box-z","low":10,"high":20}]', JSON.stringify(cpuView))
+ok('cpu: the fleet cap defaults to 80', normalizeFleetLoad({}).runnerCpuPct === 80 && normalizeFleetLoad({}).defaults.runnerCpuPct === 80)
+const keepCpu = fleetBoxBandPatch(cpuView, 'box-s', { low: 35, high: 65 })
+ok('cpu: saving a box band keeps its own runner_cpu_pct', JSON.stringify(keepCpu) === '{"boxes":{"box-z":{"low":10,"high":20},"box-s":{"low":35,"high":65,"runner_cpu_pct":60}}}', JSON.stringify(keepCpu))
+const otherCpu = fleetBoxBandPatch(cpuView, 'box-c', { low: 40, high: 70 })
+ok('cpu: saving another box band keeps box-s\'s cap', Boolean(otherCpu.boxes) && otherCpu.boxes['box-s'].runner_cpu_pct === 60 && !('runner_cpu_pct' in otherCpu.boxes['box-c']), JSON.stringify(otherCpu))
+const cpuDraft = (extra) => ({ low: 50, high: 75, boxOrder: [], resetLow: false, resetHigh: false, resetOrder: false, ...extra })
+ok('cpu: an unchanged draft sends nothing', Object.keys(fleetLoadPatchBody(cpuView, cpuDraft({ boxes: cpuView.boxes, runnerCpuPct: 70 }))).length === 0)
+ok('cpu: a fleet cap edit sends runner_cpu_pct; a reset sends null',
+  fleetLoadPatchBody(cpuView, cpuDraft({ runnerCpuPct: 90 })).runner_cpu_pct === 90 &&
+  fleetLoadPatchBody(cpuView, cpuDraft({ runnerCpuPct: 80, resetCpu: true })).runner_cpu_pct === null)
+const clearCpu = fleetLoadPatchBody(cpuView, cpuDraft({ boxes: [{ box: 'box-s', low: 30, high: 60, runnerCpuPct: null }, { box: 'box-z', low: 10, high: 20 }] }))
+ok('cpu: clearing a box cap sends that band without runner_cpu_pct', JSON.stringify(clearCpu) === '{"boxes":{"box-s":{"low":30,"high":60},"box-z":{"low":10,"high":20}}}', JSON.stringify(clearCpu))
+ok('cpu: a box cap 1..100 passes; 0, 101 and 1.5 do not', fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpuPct: 100 }) &&
+  !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpuPct: 0 }) && !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpuPct: 101 }) &&
+  !fleetBandOk({ box: 'b', low: 1, high: 2, runnerCpuPct: 1.5 }))
+const cpuStore = mem({ [FLEET_OPERATOR_KEY]: '1' })
+mockFleetWrite({ runner_cpu_pct: 70, boxes: { 'box-s': { low: 30, high: 60, runner_cpu_pct: 60 } } }, cpuStore)
+const cpuSaved = normalizeFleetLoad(mockFleetWrite(fleetBoxBandPatch(normalizeFleetLoad(mockFleetRead(cpuStore)), 'box-s', { low: 35, high: 65 }), cpuStore))
+ok('mock: a band save keeps the box cap and the fleet cap', cpuSaved.runnerCpuPct === 70 && cpuSaved.boxes[0].runnerCpuPct === 60 && cpuSaved.boxes[0].low === 35, JSON.stringify(cpuSaved))
+let cpuBad = ''
+try { mockFleetWrite({ runner_cpu_pct: 0 }, cpuStore) } catch (e) { cpuBad = e.token }
+ok('CONTROL: mock refuses a fleet cap of 0', cpuBad === 'bad_setting', cpuBad)
+ok('mock: runner_cpu_pct null resets the fleet cap to 80', normalizeFleetLoad(mockFleetWrite({ runner_cpu_pct: null }, cpuStore)).runnerCpuPct === 80)
+
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs this suite', suite.ok, suite.why)
 

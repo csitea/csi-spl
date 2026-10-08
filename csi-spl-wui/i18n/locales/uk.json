@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Призупинено: {reason} до {until}",
     "fleet_load_kind_resume": "Відновити",
     "fleet_load_kinds_all_off": "Принаймні один тип агента залишається увімкненим.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Хто може архівувати теми",
     "archive_policy_hint": "Хто може архівувати тему й повертати її з архіву в цьому робочому просторі. Архівування приховує тему в каналах, особистих повідомленнях і пошуку; воно її не видаляє.",
     "archive_policy_everyone": "Усі",
@@ -1863,6 +1867,7 @@
     "band_own": "Власний діапазон цієї машини замінює діапазон флоту {low}..{high}.",
     "band_now": "Навантаження зараз: {pct} % ядер (load5).",
     "band_reset": "Повернути діапазон флоту",
+    "band_cpu": "Межа CPU для раннерів: {n} % ядер, власна для цієї машини. Скидання до діапазону флоту видаляє і її.",
     "band_who": "Змінити його може лише адміністратор операторського робочого простору."
   },
   "act_as": {

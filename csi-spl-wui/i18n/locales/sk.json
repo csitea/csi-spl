@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Pozastavené: {reason} do {until}",
     "fleet_load_kind_resume": "Pokračovať",
     "fleet_load_kinds_all_off": "Aspoň jeden typ agenta zostáva zapnutý.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Kto môže archivovať témy",
     "archive_policy_hint": "Kto môže v tomto pracovnom priestore archivovať tému a obnoviť ju z archívu. Archivácia skryje tému v kanáloch, priamych správach a vo vyhľadávaní; neodstráni ju.",
     "archive_policy_everyone": "Všetci",
@@ -1863,6 +1867,7 @@
     "band_own": "Vlastné pásmo tohto stroja nahrádza pásmo flotily {low}..{high}.",
     "band_now": "Záťaž teraz: {pct} % jadier (load5).",
     "band_reset": "Späť na pásmo flotily",
+    "band_cpu": "Strop CPU pre runnery: {n} % jadier, vlastný pre tento stroj. Návrat na pásmo flotily ho tiež vymaže.",
     "band_who": "Zmeniť ho môže iba správca pracovného priestoru operátora."
   },
   "act_as": {

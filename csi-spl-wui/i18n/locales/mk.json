@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Паузирано: {reason} до {until}",
     "fleet_load_kind_resume": "Продолжи",
     "fleet_load_kinds_all_off": "Барем еден тип агент останува вклучен.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Кој може да архивира теми",
     "archive_policy_hint": "Кој може да архивира тема и да ја врати од архива во овој работен простор. Архивирањето ја крие темата од каналите, директните пораки и пребарувањето; не ја брише.",
     "archive_policy_everyone": "Сите",
@@ -1863,6 +1867,7 @@
     "band_own": "Сопствениот опсег на оваа машина го заменува опсегот на флотата {low}..{high}.",
     "band_now": "Оптоварување сега: {pct} % од јадрата (load5).",
     "band_reset": "Назад на опсегот на флотата",
+    "band_cpu": "Горна граница на CPU за runner-ите: {n} % од јадрата, сопствена на оваа машина. Враќањето на опсегот на флотата ја брише и неа.",
     "band_who": "Само администратор на операторскиот работен простор може да го смени."
   },
   "act_as": {

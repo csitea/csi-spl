@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Gepauzeerd: {reason} tot {until}",
     "fleet_load_kind_resume": "Hervatten",
     "fleet_load_kinds_all_off": "Minstens één agenttype blijft aan.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Wie onderwerpen kan archiveren",
     "archive_policy_hint": "Wie in deze werkruimte een onderwerp mag archiveren en uit het archief halen. Archiveren verbergt een onderwerp in kanalen, directe berichten en zoeken; het verwijdert het niet.",
     "archive_policy_everyone": "Iedereen",
@@ -1863,6 +1867,7 @@
     "band_own": "De eigen band van deze machine vervangt de vlootband {low}..{high}.",
     "band_now": "Belasting nu: {pct} % van de cores (load5).",
     "band_reset": "Terug naar de vlootband",
+    "band_cpu": "CPU-limiet voor runners: {n} % van de cores, van deze machine zelf. Terugzetten naar de vlootband wist die ook.",
     "band_who": "Alleen een beheerder van de operatorwerkruimte kan dit wijzigen."
   },
   "act_as": {

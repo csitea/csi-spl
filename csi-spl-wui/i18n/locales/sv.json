@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Pausad: {reason} till {until}",
     "fleet_load_kind_resume": "Återuppta",
     "fleet_load_kinds_all_off": "Minst en agenttyp förblir på.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Vem kan arkivera ämnen",
     "archive_policy_hint": "Vem som får arkivera ett ämne och återställa det från arkivet i den här arbetsytan. Arkivering döljer ett ämne i kanaler, direktmeddelanden och sökning; det raderar det inte.",
     "archive_policy_everyone": "Alla",
@@ -1863,6 +1867,7 @@
     "band_own": "Maskinens eget band ersätter flottans band {low}..{high}.",
     "band_now": "Last nu: {pct} % av kärnorna (load5).",
     "band_reset": "Tillbaka till flottans band",
+    "band_cpu": "CPU-tak för runners: {n} % av kärnorna, maskinens eget. Återställning till flottans band rensar det också.",
     "band_who": "Bara en administratör för operatörens arbetsyta kan ändra det."
   },
   "act_as": {

@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Tauolla: {reason} asti {until}",
     "fleet_load_kind_resume": "Jatka",
     "fleet_load_kinds_all_off": "Vähintään yksi agenttityyppi pysyy päällä.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Kuka voi arkistoida aiheita",
     "archive_policy_hint": "Kuka voi arkistoida aiheen ja palauttaa sen arkistosta tässä työtilassa. Arkistointi piilottaa aiheen kanavista, yksityisviesteistä ja hausta; se ei poista aihetta.",
     "archive_policy_everyone": "Kaikki",
@@ -1863,6 +1867,7 @@
     "band_own": "Tämän koneen oma alue korvaa laivueen alueen {low}..{high}.",
     "band_now": "Kuorma nyt: {pct} % ytimistä (load5).",
     "band_reset": "Palauta laivueen alueeseen",
+    "band_cpu": "Runnereiden CPU-katto: {n} % ytimistä, tämän koneen oma. Palautus laivueen alueeseen poistaa myös sen.",
     "band_who": "Vain operaattorityötilan ylläpitäjä voi muuttaa sitä."
   },
   "act_as": {

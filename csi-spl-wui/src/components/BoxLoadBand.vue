@@ -7,7 +7,8 @@
      there and back. Shown only when that GET succeeds: a 403
      operator.workspaces (not the operator workspace's admin) hides it, as the
      settings card is hidden. Save re-reads the row first and changes only this
-     box's entry (utils/fleet-load.mjs fleetBoxBandPatch). Lazy: its own chunk. -->
+     box's entry (utils/fleet-load.mjs fleetBoxBandPatch), keeping the box's own
+     runner CPU cap (rdb 0152), which is shown here when set. Lazy: its own chunk. -->
 <template>
   <section
     v-if="state === 'ready' && view"
@@ -19,6 +20,7 @@
     <h3>{{ t('boxes.band_title') }}</h3>
     <p v-if="own" class="box-band__src" data-test="box-band-own">{{ t('boxes.band_own', { low: view.low, high: view.high }) }}</p>
     <p v-else class="muted box-band__src" data-test="box-band-fleet">{{ t('boxes.band_fleet', { low: view.low, high: view.high }) }}</p>
+    <p v-if="cpu !== null" class="muted" data-test="box-band-cpu">{{ t('boxes.band_cpu', { n: cpu }) }}</p>
     <p v-if="pct !== null" class="muted" data-test="box-band-now">{{ t('boxes.band_now', { pct }) }}</p>
     <div class="box-band__marks">
       <label>
@@ -73,6 +75,7 @@ import {
   fleetBandOk,
   fleetBoxBandOf,
   fleetBoxBandPatch,
+  fleetBoxCpuOf,
   fleetLoadForbidden,
   fleetLoadStatusDetail,
   normalizeFleetLoad,
@@ -98,6 +101,7 @@ const notice = ref('')
 const error = ref('')
 
 const own = computed(() => fleetBoxBandOf(view.value, props.box))
+const cpu = computed(() => fleetBoxCpuOf(view.value, props.box))
 const pct = computed(() => boxLoadPct(props.sample))
 const dirty = computed(() => {
   const v = view.value

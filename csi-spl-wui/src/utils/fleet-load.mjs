@@ -8,6 +8,10 @@
  * (never all four); `agent_kinds_paused` is {kind: {until, reason, box}}, a
  * timed pause a box reported when that kind hit its usage limit. A PATCH
  * replaces the kinds off; {agent_kinds_paused: {kind: null}} lifts a pause.
+ * rdb 0152: `runner_cpu_pct` is the % of a box's cores CI runners plus agents
+ * may use, fleet-wide (default 80), and a band may carry its own
+ * {low, high, runner_cpu_pct}. Every boxes PATCH carries each band's own cap,
+ * since the hub replaces the whole map.
  * Node tests import this file; the settings card does too.
  */
 
@@ -19,10 +23,12 @@ export const FLEET_BOX_MAX = 32
 export const FLEET_BOX_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const FLEET_DEFAULT_LOW = 50
 export const FLEET_DEFAULT_HIGH = 75
+/** store.DefaultRunnerCPUPct: 20 % of every box kept free. */
+export const FLEET_DEFAULT_RUNNER_CPU = 80
 /** The agent kinds a box can start (store.AgentKinds), in the hub's order. */
 export const FLEET_AGENT_KINDS = ['claude', 'grok', 'agy', 'qwen']
 /** The hub's 400 bad_setting detail (internal/hub/fleet_load.go). */
-export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, never all four; agent_kinds_paused maps a kind to null (lift its pause)'
+export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, never all four; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes'
 
 export function validFleetBox(id) {
   return FLEET_BOX_RE.test(String(id || ''))
@@ -50,7 +56,21 @@ function boxList(v) {
   return v.map((x) => String(x))
 }
 
-/** {box: {low, high}} → [{box, low, high}] sorted by box; junk entries dropped. */
+/** True for a runner CPU cap the hub takes: an integer 1..100. */
+export function fleetCpuOk(v) {
+  return Number.isInteger(v) && v >= 1 && v <= 100
+}
+
+/** A band's own cap, or null (the box uses the fleet's); '' and junk are null. */
+function bandCpu(b) {
+  const n = intOrNull(b && b.runnerCpuPct)
+  return n == null ? null : n
+}
+
+/**
+ * {box: {low, high, runner_cpu_pct?}} → [{box, low, high, runnerCpuPct?}]
+ * sorted by box; junk entries dropped. runnerCpuPct is there only when set.
+ */
 export function fleetBandList(v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return []
   const out = []
@@ -58,23 +78,29 @@ export function fleetBandList(v) {
     const low = intOrNull(b && b.low)
     const high = intOrNull(b && b.high)
     if (low == null || high == null) continue
-    out.push({ box: String(box), low, high })
+    const cpu = intOrNull(b.runner_cpu_pct)
+    out.push(cpu ? { box: String(box), low, high, runnerCpuPct: cpu } : { box: String(box), low, high })
   }
   return out.sort((a, b) => (a.box < b.box ? -1 : a.box > b.box ? 1 : 0))
 }
 
-/** [{box, low, high}] → {box: {low, high}}. */
+/** [{box, low, high, runnerCpuPct?}] → {box: {low, high, runner_cpu_pct?}}; a null cap is left out. */
 export function fleetBandMap(list) {
   const out = {}
-  for (const b of Array.isArray(list) ? list : []) out[b.box] = { low: Number(b.low), high: Number(b.high) }
+  for (const b of Array.isArray(list) ? list : []) {
+    const band = { low: Number(b.low), high: Number(b.high) }
+    if (b.runnerCpuPct != null && b.runnerCpuPct !== '') band.runner_cpu_pct = Number(b.runnerCpuPct)
+    out[b.box] = band
+  }
   return out
 }
 
-/** True when one per-box band is a box id with both marks in range and low < high. */
+/** True when one per-box band is a box id with both marks in range, low < high, and its cap (if any) 1..100. */
 export function fleetBandOk(b) {
   if (!b || !validFleetBox(b.box)) return false
   const low = Number(b.low)
   const high = Number(b.high)
+  if (b.runnerCpuPct != null && b.runnerCpuPct !== '' && !fleetCpuOk(Number(b.runnerCpuPct))) return false
   return Number.isInteger(low) && Number.isInteger(high) && low >= 1 && low <= 99 && high >= 2 && high <= 100 && low < high
 }
 
@@ -110,6 +136,7 @@ export function normalizeFleetLoad(body) {
     low: intOrNull(d.low) ?? FLEET_DEFAULT_LOW,
     high: intOrNull(d.high) ?? FLEET_DEFAULT_HIGH,
     boxOrder: Array.isArray(d.box_order) ? boxList(d.box_order) : [],
+    runnerCpuPct: intOrNull(d.runner_cpu_pct) ?? FLEET_DEFAULT_RUNNER_CPU,
   }
   const s = b.stored && typeof b.stored === 'object' ? b.stored : {}
   const stored = {
@@ -118,6 +145,7 @@ export function normalizeFleetLoad(body) {
     boxOrder: s.box_order == null ? null : boxList(s.box_order),
     boxes: s.boxes == null ? null : fleetBandList(s.boxes),
     kindsOff: s.agent_kinds_off == null ? null : fleetKindList(s.agent_kinds_off),
+    runnerCpuPct: s.runner_cpu_pct == null ? null : intOrNull(s.runner_cpu_pct),
   }
   const boxOrder = Array.isArray(b.box_order)
     ? boxList(b.box_order)
@@ -129,6 +157,7 @@ export function normalizeFleetLoad(body) {
     boxes: b.boxes != null ? fleetBandList(b.boxes) : (stored.boxes ? stored.boxes.slice() : []),
     kindsOff: b.agent_kinds_off != null ? fleetKindList(b.agent_kinds_off) : (stored.kindsOff ? stored.kindsOff.slice() : []),
     paused: fleetPauseList(b.agent_kinds_paused),
+    runnerCpuPct: intOrNull(b.runner_cpu_pct) ?? (stored.runnerCpuPct ?? defaults.runnerCpuPct),
     source: typeof b.source === 'string' ? b.source : '',
     stored,
     defaults,
@@ -152,6 +181,8 @@ export function fleetLoadPatchBody(saved, draft) {
   const bands = Array.isArray(draft.boxes) ? draft.boxes : []
   if (draft.resetBoxes) body.boxes = null
   else if (!sameBands(bands, saved.boxes || [])) body.boxes = fleetBandMap(bands)
+  if (draft.resetCpu) body.runner_cpu_pct = null
+  else if (draft.runnerCpuPct != null && Number(draft.runnerCpuPct) !== saved.runnerCpuPct) body.runner_cpu_pct = Number(draft.runnerCpuPct)
   if (Array.isArray(draft.kindsOff)) {
     const off = fleetKindList(draft.kindsOff)
     if (off.join() !== fleetKindList(saved.kindsOff).join()) body.agent_kinds_off = off
@@ -173,15 +204,26 @@ export function fleetBoxBandOf(view, box) {
   return b ? { low: b.low, high: b.high } : null
 }
 
+/** One box's own runner CPU cap from a normalizeFleetLoad() view; null = it uses the fleet's. */
+export function fleetBoxCpuOf(view, box) {
+  const list = view && Array.isArray(view.boxes) ? view.boxes : []
+  const b = list.find((x) => x.box === box)
+  return b ? bandCpu(b) : null
+}
+
 /**
  * The Boxes view's PATCH body: set (band) or remove (null) ONE box's entry.
  * The other boxes' bands, the fleet band and the box order stay as `view` has
  * them (the hub replaces the whole map, so the rest is sent back unchanged).
+ * A set keeps the box's own runner_cpu_pct (rdb 0152); a remove drops the
+ * entry, cap and all.
  */
 export function fleetBoxBandPatch(view, box, band) {
   if (!view || !validFleetBox(box)) return {}
   const others = (Array.isArray(view.boxes) ? view.boxes : []).filter((b) => b.box !== box)
-  const boxes = band ? others.concat({ box, low: Number(band.low), high: Number(band.high) }) : others
+  const cpu = fleetBoxCpuOf(view, box)
+  const own = { box, low: Number(band && band.low), high: Number(band && band.high) }
+  const boxes = band ? others.concat(cpu == null ? own : { ...own, runnerCpuPct: cpu }) : others
   return fleetLoadPatchBody(view, {
     low: view.low,
     high: view.high,
@@ -248,6 +290,7 @@ export function fleetStoredOk(stored) {
       seen.add(b)
     }
   }
+  if (stored.runnerCpuPct != null && !fleetCpuOk(stored.runnerCpuPct)) return false
   const off = stored.kindsOff
   if (off != null) {
     if (!Array.isArray(off) || fleetKindList(off).length !== off.length || !fleetKindsOk(off)) return false
@@ -270,6 +313,7 @@ export function applyFleetPatch(stored, patch) {
     boxes: stored && Array.isArray(stored.boxes) ? stored.boxes.slice() : null,
     kindsOff: stored && Array.isArray(stored.kindsOff) ? stored.kindsOff.slice() : null,
     paused: stored && stored.paused && typeof stored.paused === 'object' ? { ...stored.paused } : null,
+    runnerCpuPct: stored && stored.runnerCpuPct != null ? stored.runnerCpuPct : null,
   }
   const p = patch && typeof patch === 'object' ? patch : {}
   if (Object.prototype.hasOwnProperty.call(p, 'low')) {
@@ -294,12 +338,19 @@ export function applyFleetPatch(stored, patch) {
     else if (p.boxes && typeof p.boxes === 'object' && !Array.isArray(p.boxes)) {
       const list = []
       for (const [box, b] of Object.entries(p.boxes)) {
-        if (!b || typeof b !== 'object' || Object.keys(b).length !== 2) return null
+        const hasCpu = b && typeof b === 'object' && Object.prototype.hasOwnProperty.call(b, 'runner_cpu_pct')
+        if (!b || typeof b !== 'object' || Object.keys(b).length !== (hasCpu ? 3 : 2)) return null
         if (!Number.isInteger(b.low) || !Number.isInteger(b.high)) return null
-        list.push({ box, low: b.low, high: b.high })
+        if (hasCpu && !fleetCpuOk(b.runner_cpu_pct)) return null
+        list.push(hasCpu ? { box, low: b.low, high: b.high, runnerCpuPct: b.runner_cpu_pct } : { box, low: b.low, high: b.high })
       }
       next.boxes = list.length === 0 ? null : fleetBandList(fleetBandMap(list))
     } else return null
+  }
+  if (Object.prototype.hasOwnProperty.call(p, 'runner_cpu_pct')) {
+    if (p.runner_cpu_pct === null) next.runnerCpuPct = null
+    else if (typeof p.runner_cpu_pct === 'number' && Number.isInteger(p.runner_cpu_pct)) next.runnerCpuPct = p.runner_cpu_pct
+    else return null
   }
   if (Object.prototype.hasOwnProperty.call(p, 'agent_kinds_off')) {
     if (p.agent_kinds_off === null) next.kindsOff = null
@@ -333,6 +384,7 @@ function fleetBody(stored) {
     boxes: stored.boxes == null ? {} : fleetBandMap(stored.boxes),
     agent_kinds_off: stored.kindsOff == null ? [] : stored.kindsOff.slice(),
     agent_kinds_paused: stored.paused == null ? {} : { ...stored.paused },
+    runner_cpu_pct: stored.runnerCpuPct == null ? FLEET_DEFAULT_RUNNER_CPU : stored.runnerCpuPct,
     source: 'hub',
     stored: {
       low: stored.low,
@@ -341,8 +393,9 @@ function fleetBody(stored) {
       boxes: stored.boxes == null ? null : fleetBandMap(stored.boxes),
       agent_kinds_off: stored.kindsOff == null ? null : stored.kindsOff.slice(),
       agent_kinds_paused: stored.paused == null ? null : { ...stored.paused },
+      runner_cpu_pct: stored.runnerCpuPct,
     },
-    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [], boxes: {}, agent_kinds_off: [], agent_kinds_paused: {} },
+    defaults: { low: FLEET_DEFAULT_LOW, high: FLEET_DEFAULT_HIGH, box_order: [], boxes: {}, agent_kinds_off: [], agent_kinds_paused: {}, runner_cpu_pct: FLEET_DEFAULT_RUNNER_CPU },
   }
 }
 
@@ -358,7 +411,7 @@ function browserStore() {
 function readStored(store) {
   /* keep the "no store" guard: storageGetJson would fall back to localStorage */
   const p = store && typeof store.getItem === 'function' ? storageGetJson(FLEET_STORE_KEY, null, store) : null
-  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null, kindsOff: null, paused: null }
+  if (!p || typeof p !== 'object') return { low: null, high: null, boxOrder: null, boxes: null, kindsOff: null, paused: null, runnerCpuPct: null }
   return {
     low: p.low == null ? null : Number(p.low),
     high: p.high == null ? null : Number(p.high),
@@ -367,6 +420,7 @@ function readStored(store) {
     kindsOff: p.agent_kinds_off == null ? null : fleetKindList(p.agent_kinds_off),
     /* the e2e plants a pause here, as a box's fleet_load_pause would */
     paused: p.agent_kinds_paused && typeof p.agent_kinds_paused === 'object' ? { ...p.agent_kinds_paused } : null,
+    runnerCpuPct: p.runner_cpu_pct == null ? null : Number(p.runner_cpu_pct),
   }
 }
 
@@ -394,6 +448,7 @@ export function mockFleetWrite(patch, store) {
     boxes: next.boxes == null ? null : fleetBandMap(next.boxes),
     agent_kinds_off: next.kindsOff,
     agent_kinds_paused: next.paused,
+    runner_cpu_pct: next.runnerCpuPct,
   }))
   return fleetBody(next)
 }

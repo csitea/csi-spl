@@ -1574,6 +1574,10 @@
     "fleet_load_kind_paused": "Σε παύση: {reason} έως {until}",
     "fleet_load_kind_resume": "Συνέχιση",
     "fleet_load_kinds_all_off": "Τουλάχιστον ένας τύπος πράκτορα μένει ενεργός.",
+    "fleet_load_cpu": "Runner CPU cap %",
+    "fleet_load_cpu_hint": "The share of a box's cores that CI runners and agents together may use. A per-box band can carry its own cap; left empty, that box uses this one.",
+    "fleet_load_cpu_bad": "The runner CPU cap is 1..100 % of cores, or empty on a per-box band.",
+    "fleet_load_cpu_box": "Cap % (empty: {n})",
     "archive_policy": "Ποιος μπορεί να αρχειοθετεί θέματα",
     "archive_policy_hint": "Ποιος μπορεί να αρχειοθετεί και να επαναφέρει από το αρχείο ένα θέμα σε αυτόν τον χώρο εργασίας. Η αρχειοθέτηση κρύβει ένα θέμα από κανάλια, άμεσα μηνύματα και αναζήτηση· δεν το διαγράφει.",
     "archive_policy_everyone": "Όλοι",
@@ -1863,6 +1867,7 @@
     "band_own": "Το δικό του εύρος αυτού του μηχανήματος αντικαθιστά το εύρος του στόλου {low}..{high}.",
     "band_now": "Φορτίο τώρα: {pct} % των πυρήνων (load5).",
     "band_reset": "Επαναφορά στο εύρος του στόλου",
+    "band_cpu": "Όριο CPU για runners: {n} % των πυρήνων, δικό αυτού του μηχανήματος. Η επαναφορά στο εύρος του στόλου το καθαρίζει επίσης.",
     "band_who": "Μόνο ένας διαχειριστής του χώρου εργασίας του διαχειριστή συστήματος μπορεί να το αλλάξει."
   },
   "act_as": {

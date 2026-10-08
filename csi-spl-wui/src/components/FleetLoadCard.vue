@@ -7,7 +7,10 @@
      instead of the fleet band; the PATCH sends the whole map.
      Agent types (rdb 0149): one on/off per kind; no box starts a new agent
      of a kind that is off. A kind a box paused (its usage limit) shows
-     "paused ... until"; Resume lifts it. -->
+     "paused ... until"; Resume lifts it.
+     Runner CPU cap (rdb 0152): the % of a box's cores CI runners plus agents
+     may use, fleet-wide, and a band's own cap where set (empty = the fleet's).
+     Every boxes PATCH carries each band's cap: the hub replaces the map. -->
 <template>
   <div data-test="tenant-fleet-root" :data-state="state">
     <p v-if="state === 'loading'" class="muted">{{ t('common.loading') }}</p>
@@ -58,6 +61,29 @@
         <small class="muted" data-test="tenant-fleet-high-default">{{ t('tenant_settings.fleet_load_default', { n: view.defaults.high }) }}</small>
         <small v-if="highUsesDefault" class="muted" data-test="tenant-fleet-high-using">{{ t('tenant_settings.fleet_load_using_default') }}</small>
         <button type="button" class="btn ghost" :disabled="saving || highUsesDefault" data-test="tenant-fleet-high-reset" @click="resetToDefault('high')">
+          {{ t('tenant_settings.fleet_load_reset') }}
+        </button>
+      </div>
+
+      <div class="fl-field">
+        <label for="tenant-fleet-cpu">{{ t('tenant_settings.fleet_load_cpu') }}</label>
+        <small class="muted">{{ t('tenant_settings.fleet_load_cpu_hint') }}</small>
+        <input
+          id="tenant-fleet-cpu"
+          :value="cpu"
+          type="number"
+          min="1"
+          max="100"
+          step="1"
+          inputmode="numeric"
+          autocomplete="off"
+          data-test="tenant-fleet-cpu"
+          :data-using-default="cpuUsesDefault ? '1' : '0'"
+          @input="editCpu(($event.target as HTMLInputElement).value)"
+        >
+        <small class="muted" data-test="tenant-fleet-cpu-default">{{ t('tenant_settings.fleet_load_default', { n: view.defaults.runnerCpuPct }) }}</small>
+        <small v-if="cpuUsesDefault" class="muted" data-test="tenant-fleet-cpu-using">{{ t('tenant_settings.fleet_load_using_default') }}</small>
+        <button type="button" class="btn ghost" :disabled="saving || cpuUsesDefault" data-test="tenant-fleet-cpu-reset" @click="resetToDefault('cpu')">
           {{ t('tenant_settings.fleet_load_reset') }}
         </button>
       </div>
@@ -163,6 +189,20 @@
               data-test="tenant-fleet-band-high"
               @input="editBand(i, 'high', ($event.target as HTMLInputElement).value)"
             >
+            <input
+              :value="b.runnerCpuPct ?? ''"
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              inputmode="numeric"
+              autocomplete="off"
+              :placeholder="String(fleetCpu)"
+              :title="t('tenant_settings.fleet_load_cpu_box', { n: fleetCpu })"
+              :aria-label="t('tenant_settings.fleet_load_cpu') + ' ' + b.box"
+              data-test="tenant-fleet-band-cpu"
+              @input="editBand(i, 'runnerCpuPct', ($event.target as HTMLInputElement).value)"
+            >
             <button
               type="button"
               class="icon-btn"
@@ -264,6 +304,7 @@ import {
   FLEET_AGENT_KINDS,
   FLEET_BOX_MAX,
   fleetBandOk,
+  fleetCpuOk,
   fleetKindsOk,
   fleetLoadForbidden,
   fleetLoadPatchBody,
@@ -297,6 +338,8 @@ const resetHigh = ref(false)
 const resetOrder = ref(false)
 const bands = ref<FleetBoxBand[]>([])
 const resetBoxes = ref(false)
+const cpu = ref<number | ''>(80)
+const resetCpu = ref(false)
 const bandBox = ref('')
 const kindsOff = ref<string[]>([])
 const lift = ref<string[]>([])
@@ -339,6 +382,14 @@ const bandsUseDefault = computed(() => {
   if (resetBoxes.value) return true
   return s.stored.boxes == null && bands.value.length === 0
 })
+const cpuUsesDefault = computed(() => {
+  const s = view.value
+  if (!s) return false
+  if (resetCpu.value) return true
+  return s.stored.runnerCpuPct == null && Number(cpu.value) === s.defaults.runnerCpuPct
+})
+/* what an empty per-box cap falls back to: the fleet cap as edited */
+const fleetCpu = computed(() => (cpu.value === '' ? view.value?.runnerCpuPct ?? '' : cpu.value))
 const dirty = computed(() => {
   const s = view.value
   if (!s) return false
@@ -357,6 +408,8 @@ function draft() {
     resetBoxes: resetBoxes.value,
     kindsOff: kindsOff.value.slice(),
     lift: lift.value.slice(),
+    runnerCpuPct: cpu.value,
+    resetCpu: resetCpu.value,
   }
 }
 
@@ -372,6 +425,8 @@ function take(next: FleetLoadView) {
   resetBoxes.value = false
   kindsOff.value = next.kindsOff.slice()
   lift.value = []
+  cpu.value = next.runnerCpuPct
+  resetCpu.value = false
 }
 
 function toggleKind(k: string, on: boolean) {
@@ -392,7 +447,12 @@ function editHigh(raw: string) {
   high.value = raw === '' ? '' : Number(raw)
 }
 
-function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes') {
+function editCpu(raw: string) {
+  resetCpu.value = false
+  cpu.value = raw === '' ? '' : Number(raw)
+}
+
+function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes' | 'cpu') {
   const s = view.value
   if (!s) return
   formError.value = ''
@@ -402,6 +462,9 @@ function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes') {
   } else if (which === 'high') {
     high.value = s.defaults.high
     resetHigh.value = true
+  } else if (which === 'cpu') {
+    cpu.value = s.defaults.runnerCpuPct
+    resetCpu.value = true
   } else if (which === 'order') {
     boxes.value = []
     resetOrder.value = true
@@ -411,8 +474,10 @@ function resetToDefault(which: 'low' | 'high' | 'order' | 'boxes') {
   }
 }
 
-function editBand(i: number, field: 'low' | 'high', raw: string) {
-  bands.value = bands.value.map((b, j) => (j === i ? { ...b, [field]: raw === '' ? NaN : Number(raw) } : b))
+/* an empty cap is null: that box uses the fleet's */
+function editBand(i: number, field: 'low' | 'high' | 'runnerCpuPct', raw: string) {
+  const empty = field === 'runnerCpuPct' ? null : NaN
+  bands.value = bands.value.map((b, j) => (j === i ? { ...b, [field]: raw === '' ? empty : Number(raw) } : b))
   resetBoxes.value = false
 }
 function removeBand(i: number) {
@@ -492,6 +557,11 @@ async function save() {
     formError.value = t('tenant_settings.fleet_load_kinds_all_off')
     return
   }
+  const boxCpuBad = !resetBoxes.value && bands.value.some((b) => b.runnerCpuPct != null && !fleetCpuOk(b.runnerCpuPct))
+  if ((!resetCpu.value && !fleetCpuOk(cpu.value)) || boxCpuBad) {
+    formError.value = t('tenant_settings.fleet_load_cpu_bad')
+    return
+  }
   if (!resetBoxes.value && !bands.value.every(fleetBandOk)) {
     formError.value = t('tenant_settings.fleet_load_band_bad')
     return
@@ -563,6 +633,7 @@ watch(() => session.state, (st) => {
 .fl-row { display: flex; align-items: center; gap: 8px; min-height: 36px; min-width: 0; }
 .fl-row__n { width: 2.5ch; color: var(--color-muted); flex: none; }
 .fl-row__id { min-width: 0; overflow-wrap: anywhere; }
+.fl-band { flex-wrap: wrap; }
 .fl-band .fl-row__id { flex: 1 1 8ch; }
 .fl-band input { width: 6em; min-width: 0; padding: 4px 6px; background: var(--color-surface); color: var(--color-fg); border: 1px solid var(--color-border-strong); }
 .fl-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 100%; }

@@ -31,7 +31,7 @@ This directory holds goal and strategy documents for the csi-spl project.
 ## Rules
 
 - **Public by default (D1)**: All documents are public unless `public: false` is set in `goal.yaml`.
-- **Owner as a role (D2)**: Never use a person\'s name. Use an RBAC role ID.
+- **Owner as a role (D2)**: Never use a person's name. Use an RBAC role ID.
 - **Retrospective**: After the deadline, document outcomes in `strategy.md`.
 - **Language review**: agy reviews all documents last (LANE_MIX_KIND=i18n).
 
@@ -44,4 +44,3 @@ This directory holds goal and strategy documents for the csi-spl project.
 
 - [`template-goal.yaml`](./template-goal.yaml): Goal metadata.
 - [`template-strategy.md`](./template-strategy.md): Strategy and retrospective.
-EOF'

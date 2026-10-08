@@ -11,6 +11,11 @@
 #      one (registry pid, or the uuid on a running command line), one whose
 #      .jsonl or whose dir changed inside AGE_DAYS, a symlink (and its
 #      target), and every non-session file or dir (memory/)
+#   4. a HUMAN tree (SESSION_PRUNE_AGENT_ONLY=1, every user by default):
+#      only old dead sessions of an agent worktree slug (-wt-c-123,
+#      -wt4-CLE-31) go; the owner's own sessions (-opt, a project dir) are
+#      KEEP human however old; =2 is refused; a role seat's worktree
+#      (-wt-c-002) and an agent whose record says alive keep theirs
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -66,6 +71,29 @@ grep -q "KEEP recent $P/$u_new\$" <<<"$out" && grep -q "KEEP recent $P/$u_dirnew
 grep -q "KEEP symlink $R/-opt-b/$u_link\$" <<<"$out" && [ -L "$R/-opt-b/$u_link.jsonl" ] && [ -f "$OUT/$u_link.jsonl" ] \
   && pass "3. a symlink and its target are kept" || fail "3. symlink ($out)"
 [ -f "$P/memory/MEMORY.md" ] && [ -f "$P/notes.txt" ] && pass "3. non-session files and dirs are untouched" || fail "3. touched memory/ or notes"
+
+H="$T/human"; u_h1=aaaaaaaa-1111-4111-8111-111111111111 u_h2=aaaaaaaa-2222-4222-8222-222222222222
+u_a1=aaaaaaaa-3333-4333-8333-333333333333 u_a2=aaaaaaaa-4444-4444-8444-444444444444
+u_seat=aaaaaaaa-5555-4555-8555-555555555555 u_alive=aaaaaaaa-6666-4666-8666-666666666666
+mkdir -p "$H/-opt" "$H/-var-opt-x-doc" "$H/-opt-x-x-spl-wt-c-123" "$H/-tmp-tmp-Ab-wt4-CLE-31" "$H/-opt-x-wt-notes" \
+  "$H/-opt-x-x-spl-wt-c-002" "$H/-opt-x-x-spl-wt-c-777"
+echo '{}' >"$H/-opt-x-x-spl-wt-c-002/$u_seat.jsonl"; echo '{}' >"$H/-opt-x-x-spl-wt-c-777/$u_alive.jsonl"
+printf '{"id":"c-777","alive":true}\n' >"$A/c-777.json"
+echo '{}' >"$H/-opt/$u_h1.jsonl"; echo '{}' >"$H/-var-opt-x-doc/$u_h2.jsonl"; echo '{}' >"$H/-opt-x-wt-notes/$u_h2.jsonl"
+echo '{}' >"$H/-opt-x-x-spl-wt-c-123/$u_a1.jsonl"; echo '{}' >"$H/-tmp-tmp-Ab-wt4-CLE-31/$u_a2.jsonl"
+find "$H" -exec touch -h -d '9 days ago' {} +
+hprune() { SNIPPET='do_spl_session_prune' in_orc SESSION_PRUNE_ROOT="$H" SESSION_PRUNE_SESSIONS="$S" SPOOL_ROOT="$T/spool" "$@" 2>&1; }
+out="$(hprune SESSION_PRUNE_AGENT_ONLY=2 DRY_RUN=0)"; rc=$?
+[ "$rc" = 2 ] && grep -q 'SESSION_PRUNE_AGENT_ONLY must be 0 or 1' <<<"$out" && pass "4. SESSION_PRUNE_AGENT_ONLY is checked" || fail "4. AGENT_ONLY=2 (rc $rc: $out)"
+out="$(hprune SESSION_PRUNE_AGENT_ONLY=1 DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && [ ! -e "$H/-opt-x-x-spl-wt-c-123/$u_a1.jsonl" ] && [ ! -e "$H/-tmp-tmp-Ab-wt4-CLE-31/$u_a2.jsonl" ] \
+  && [ "$(grep -c 'REMOVE' <<<"$out")" = 2 ] && pass "4. a human tree loses only the agent worktree sessions" || fail "4. agent slugs (rc $rc: $out)"
+grep -q "KEEP human $H/-opt/$u_h1\$" <<<"$out" && grep -q "KEEP human $H/-var-opt-x-doc/$u_h2\$" <<<"$out" \
+  && grep -q "KEEP human $H/-opt-x-wt-notes/$u_h2\$" <<<"$out" && [ -f "$H/-opt/$u_h1.jsonl" ] && [ -f "$H/-var-opt-x-doc/$u_h2.jsonl" ] \
+  && pass "4. the owner's own sessions are KEEP human, however old" || fail "4. human sessions ($out)"
+grep -q "KEEP role-seat $H/-opt-x-x-spl-wt-c-002/$u_seat\$" <<<"$out" && grep -q "KEEP alive $H/-opt-x-x-spl-wt-c-777/$u_alive\$" <<<"$out" \
+  && [ -f "$H/-opt-x-x-spl-wt-c-002/$u_seat.jsonl" ] && [ -f "$H/-opt-x-x-spl-wt-c-777/$u_alive.jsonl" ] \
+  && pass "4. a role seat's and an alive agent's worktree sessions are kept" || fail "4. seat/alive ($out)"
 kill "$cmd_pid" 2>/dev/null; wait "$cmd_pid" 2>/dev/null
 
 echo "spl-session-prune: ${fails} failure(s)"

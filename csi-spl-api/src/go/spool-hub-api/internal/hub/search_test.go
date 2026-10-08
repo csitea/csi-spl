@@ -71,8 +71,8 @@ func TestSearchAPI(t *testing.T) {
 	ta, _ := e.tenant()
 	tb, _ := e.tenant()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	pub, _, _ := ed25519.GenerateKey(nil)
 	for _, tid := range []string{ta, tb} {
+		pub, _, _ := ed25519.GenerateKey(nil) // one live pin per key (rdb 0154)
 		if err := e.st.PutPin(ctx, tid, "box-a", pub, false, now, now); err != nil {
 			t.Fatal(err)
 		}

@@ -30,8 +30,8 @@ func TestSearchEntityRows(t *testing.T) {
 	ctx := context.Background()
 	ta, _ := e.tenant()
 	at := fixtureAt()
-	pub, _, _ := ed25519.GenerateKey(nil)
 	for _, b := range []string{"box-z", "box-a", "box-r"} {
+		pub, _, _ := ed25519.GenerateKey(nil) // one live pin per key (rdb 0154)
 		if err := e.st.PutPin(ctx, ta, b, pub, false, at, at); err != nil {
 			t.Fatal(err)
 		}

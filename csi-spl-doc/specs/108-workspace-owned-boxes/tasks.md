@@ -57,7 +57,7 @@ is the milestone that proves it.
       pinned, n=3: the same key cannot be pinned into a second workspace;
       control: a unique key pins. Postgres
       (`PRE_PUSH_TIER=full ./run -a do_check_pre_push`).
-- [ ] T008 **hub**, tests only (no dependency; `inTenant` runs are built,
+- [x] T008 (4a243524b) **hub**, tests only (no dependency; `inTenant` runs are built,
       spec 5 step 2): the session-pinning pairs. Files, all *new*, beside
       the existing `internal/hub/crosstenant_test.go` (not edited here):
       `internal/hub/tenant_header_pin_test.go`,

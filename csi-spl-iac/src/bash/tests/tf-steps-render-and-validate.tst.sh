@@ -114,6 +114,24 @@ grep -qE 'predefined_acl|default_acl|allUsers|allAuthenticatedUsers|cors' "$TFD/
   && grep -qE '^\s*role\s*=\s*"roles/storage.objectAdmin"' "$TFD/052-gcs-workspace-docs/04-hub-object-admin.tf" \
   && grep -qE '^\s*member\s*=\s*"serviceAccount:\$\{var.hub_runtime_sa_account_id\}@' "$TFD/052-gcs-workspace-docs/04-hub-object-admin.tf" \
   && pass "052: the hub SA reads and writes (one objectAdmin binding per bucket), nothing else" || fail "052 bindings are not exactly the hub's objectAdmin"
+# the blog's picture bucket (054, spec 111 T006b, Q4 (a)): private like 051,
+# no public IAM, wf 30's WIF deploy SA (016) reads it and nothing else
+f="$TFD/054-gcs-blog-media/03-media-bucket.tf"
+grep -qE '^\s*uniform_bucket_level_access\s*=\s*true' "$f" && pass "blog media bucket: uniform bucket-level access on" || fail "blog media bucket: uniform access is not true"
+grep -qE '^\s*public_access_prevention\s*=\s*"enforced"' "$f" && pass "blog media bucket: public access prevention enforced" || fail "blog media bucket: PAP is not enforced"
+grep -qE '^\s*force_destroy\s*=\s*false' "$f" && pass "blog media bucket: force_destroy false" || fail "blog media bucket: force_destroy is not false"
+public_grant='predefined_acl|default_acl|allUsers|allAuthenticatedUsers|cors'
+grep -qE "$public_grant" "$TFD/054-gcs-blog-media/"*.tf && fail "a public/ACL/CORS grant appears in 054" || pass "no ACL, allUsers or CORS in 054"
+grep -qE "$public_grant" <<<'  member = "allUsers"' && pass "CONTROL: a planted allUsers member is caught" || fail "CONTROL: the 054 public-grant grep misses allUsers"
+[[ "$(cat "$TFD"/054-gcs-blog-media/*.tf | grep -cE '^resource "google_(storage_bucket_iam_(member|binding|policy)|project_iam_[a-z_]+)"')" == 1 ]] \
+  && grep -qE '^\s*role\s*=\s*"roles/storage.objectViewer"' "$TFD/054-gcs-blog-media/04-deploy-reader.tf" \
+  && grep -qE '^\s*member\s*=\s*"serviceAccount:\$\{var.deploy_sa_account_id\}@' "$TFD/054-gcs-blog-media/04-deploy-reader.tf" \
+  && pass "054: the deploy SA reads (one objectViewer binding), nothing else" || fail "054 bindings are not exactly the deploy SA's objectViewer"
+for env in dev prd; do
+  m="$APP_ROOT/csi-spl-cnf/csi-spl/$env/tf/054-gcs-blog-media.vars.tfvars"
+  grep -qx "media_bucket_name = \"csi-spl-$env-blog-media\"" "$m" && grep -qx "deploy_sa_account_id = \"csi-spl-$env-fb-deploy\"" "$m" \
+    && pass "$env blog media bucket is csi-spl-$env-blog-media, read by csi-spl-$env-fb-deploy" || fail "$env 054 tfvars"
+done
 # No secret may reach tf state: no password, no generated secret, no secret
 # VERSION, no SA key anywhere in the terraform tree.
 grep -lE 'resource "(random_password|google_secret_manager_secret_version|google_service_account_key)"|resource "google_sql_user"' "$TFD"/*/*.tf >/dev/null \

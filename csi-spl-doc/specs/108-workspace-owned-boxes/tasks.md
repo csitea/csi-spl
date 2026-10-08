@@ -43,7 +43,7 @@ is the milestone that proves it.
       (`spl-desk-up.func.sh` and its tests). Done: pair (d) EACCES, n=4:
       the per-workspace OS user cannot read another workspace's spool root;
       control: its own root stays readable.
-- [ ] T006 **rdb** (no dependency): unique index on live `pins(pubkey)`
+- [x] T006 **rdb** (no dependency): unique index on live `pins(pubkey)` (19342d073)
       (`revoked_at IS NULL`), exempting `box-wui` (spec 3.2). Files:
       `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_pins_pubkey_unique.sql`
       *new*. Done: migration lint and postgres store tests green; pair (c)

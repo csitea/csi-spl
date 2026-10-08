@@ -338,17 +338,25 @@ appSrc.includes('htmlAttrs') && appSrc.includes('dir') && appSrc.includes('he')
 
 // --- The sign-in frame and the app top bar wire the switcher ---
 // (the donor wires AppHeader + MobileMenu; the login layout carries it
-// in its top bar, and since 022 the app shell's top bar (TopBar.vue, mounted by
-// layouts/default.vue) carries it at its end, next to the user menu)
+// in its top bar; spec 109 FR-008 moved the app shell's copy from the top bar
+// (TopBar.vue, mounted by layouts/default.vue) into its avatar menu
+// (UserMenu.vue), still lazy: UserMenu is in the initial set)
 readFileSync(join(WUI, 'src/layouts/default.vue'), 'utf8').includes('<TopBar')
   ? pass('src/layouts/default.vue mounts TopBar')
   : fail('src/layouts/default.vue mounts TopBar', 'missing')
-for (const rel of ['src/layouts/login.vue', 'src/components/TopBar.vue']) {
+for (const rel of ['src/layouts/login.vue', 'src/components/UserMenu.vue']) {
   const src = readFileSync(join(WUI, rel), 'utf8')
   src.includes('LanguageSwitcher')
     ? pass(rel + ' uses LanguageSwitcher')
     : fail(rel + ' uses LanguageSwitcher', 'missing')
 }
+!readFileSync(join(WUI, 'src/components/TopBar.vue'), 'utf8').includes('LanguageSwitcher')
+  ? pass('spec 109 FR-008: TopBar.vue has no LanguageSwitcher')
+  : fail('spec 109 FR-008: TopBar.vue has no LanguageSwitcher', 'still there')
+const userMenuSrc = readFileSync(join(WUI, 'src/components/UserMenu.vue'), 'utf8')
+userMenuSrc.includes("defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))")
+  ? pass('UserMenu.vue loads LanguageSwitcher with defineAsyncComponent')
+  : fail('UserMenu.vue loads LanguageSwitcher with defineAsyncComponent', 'not async')
 
 // --- nuxt i18n: cookie persistence + locale names ---
 const nuxtCfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')

@@ -2,8 +2,9 @@
      (owner 2026-09-27: no brand text) | the Omnibox (the one
      MessageComposer, so the ``` code-block composer works in it; plain text
      goes to the page's send target, `/search <q>` opens /search?q=) | the
-     language switcher + the user menu (the former .app-corner, CLE-3402 /
-     spec 021).
+     user menu (the former .app-corner, CLE-3402 / spec 021). Spec 109
+     FR-008: the language switcher left this bar for the avatar menu and
+     Settings -> Language; its 171 px are the 107 timer's room.
      SPL-990 (<= 820 px, the mobile revamp): ONE compact row - the tenant
      switcher (SPL-995: a drop box opening a bottom sheet) ... the avatar
      menu (Back is M1's MobileBack in each pane header). The omnibox leaves
@@ -91,9 +92,6 @@
       <!-- owner, t1 be316fdc: the clock sits right of the version; here only
            on a screen that draws no version (useClockHost) -->
       <LastDataClock v-if="clockHost.bar.value" />
-      <!-- perf r4 W6: not mounted on a phone (the avatar sheet has it), so
-           its async chunk is not fetched there either -->
-      <div v-if="!phone" class="top-bar__lang"><LanguageSwitcher /></div>
       <!-- spec 107 Q7 = B: the hours timer. A plain button until it is
            first used; the timer chunk loads on that click, or at once when
            this device holds a running timer (027: none of it at first paint) -->
@@ -107,9 +105,6 @@
 </template>
 
 <script setup lang="ts">
-/* Async: its Combobox pulls @headlessui/vue + @tanstack/virtual-core
-   (~17 KB gzip) into the first download of every page; it loads right after. */
-const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 import MessageComposer from '@/components/MessageComposer.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
@@ -402,7 +397,6 @@ onUnmounted(() => {
 .top-bar__omnibox--bottom .top-bar__send-note { order: -1; margin: 0 0 4px; }
 /* SPL-990: phone-only parts; above 820 px they take no space at all */
 .top-bar__tenant { display: none; }
-.top-bar__lang { display: contents; }
 
 /* SPL-990 (was FR-003 at 640 px): phones and small tablets. One compact
    row: tenant | search | avatar. The Omnibox is no longer in

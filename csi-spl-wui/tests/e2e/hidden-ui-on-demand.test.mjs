@@ -3,8 +3,10 @@
 // (v-if, was v-show), and the top bar's language switcher is not mounted on
 // a phone (was display:none there), so its async chunk is not imported
 // either - the avatar menu's sheet still offers both. 1440x900 and 390x844.
-// CONTROL: the desktop top bar keeps its language switcher, and opening the
-// picker still lists every theme with the current one focused.
+// Spec 109 FR-008: the desktop top bar has no language switcher either; the
+// avatar dropdown mounts it (and fetches its chunk) only when opened.
+// CONTROL: opening the theme picker still lists every theme with the
+// current one focused.
 //
 // Run:
 //   pnpm run test:e2e hidden-ui-on-demand
@@ -98,7 +100,7 @@ async function exercisePicker(p, tag, scope) {
 const server = await startServer()
 const browser = await launch()
 try {
-  /* desktop: the top bar's own picker and language switcher */
+  /* desktop: the top bar's own picker; the language switcher is the avatar dropdown's */
   {
     const size = { width: 1440, height: 900 }
     const p = await browser.newPage()
@@ -107,8 +109,17 @@ try {
     await setPageViewport(p, size)
     await p.goto(server.base + '/', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await applyViewport(p, size)
-    await p.waitForSelector('[data-test=top-bar] [data-test=lang-switcher]', { visible: true, timeout: NAV_TIMEOUT })
-    ok('1440: CONTROL the top bar keeps its language switcher', true)
+    await p.waitForSelector('[data-test=top-bar-start] [data-test=theme-picker]', { visible: true, timeout: NAV_TIMEOUT })
+    if (!(await signIn(p))) throw new Error('no session store')
+    await p.waitForSelector('[data-test=user-menu-trigger]', { timeout: NAV_TIMEOUT })
+    const barLang = await p.evaluate(() => document.querySelectorAll('.top-bar__lang, [data-test=top-bar] [data-test=lang-switcher]').length)
+    ok('1440: the top bar mounts no language switcher (spec 109 FR-008)', barLang === 0, barLang)
+    ok('1440: the language switcher chunk is not loaded before it is asked for', !(await langCssLoaded(p)))
+    await p.click('[data-test=user-menu-trigger]')
+    await p.waitForSelector('[data-test=user-menu-language] [data-test=lang-switcher]', { visible: true, timeout: 10000 })
+    ok('1440: the avatar dropdown offers the language switcher', true)
+    ok('1440: opening the dropdown loads it', await langCssLoaded(p))
+    await p.click('[data-test=user-menu-trigger]')
     await exercisePicker(p, '1440 top bar', '[data-test=top-bar-start]')
     ok('1440: no page error', errors.length === 0, errors)
     await p.close()

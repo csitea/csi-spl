@@ -14,8 +14,9 @@
 //       cuts no language name
 //   H   the Theme picker in the same sheet cuts no theme name
 //   N   no sideways scroll at any size
-//   D   1440: the top bar's language control stays bounded (<= 20rem) and its
-//       open list cuts no name
+//   D   1440 (spec 109 FR-008: the control left the top bar for the avatar
+//       dropdown): it stays inside the 272 px dropdown and its open list cuts
+//       no name
 // CONTROL: the locale list is read from the open options (>= 19 rows), so a
 // list that never rendered cannot make "longest name" trivially short.
 //
@@ -184,13 +185,14 @@ try {
 
   await setTheme('light')
   await load({ name: '1440', width: 1440, height: 900 }, false)
-  const TOP = '[data-test=top-bar] [data-test=lang-switcher]'
+  await openSheet()
   const d = await p.evaluate((root) => {
     const c = document.querySelector(`${root} .lang-switcher__control`)?.getBoundingClientRect()
-    return { w: c ? Math.round(c.width) : -1, remPx: parseFloat(getComputedStyle(document.documentElement).fontSize) }
-  }, TOP)
-  ok('D1 1440: the top bar language control stays bounded', d.w > 0 && d.w <= 20 * d.remPx, d)
-  const od = await openList(TOP)
+    const panel = document.querySelector('[data-test=user-menu-panel]')?.getBoundingClientRect()
+    return { w: c ? Math.round(c.width) : -1, l: Math.round(c?.left ?? -1), r: Math.round(c?.right ?? -1), pl: Math.round(panel?.left ?? 0), pr: Math.round(panel?.right ?? 0) }
+  }, SHEET)
+  ok('D1 1440: the dropdown language control stays inside the dropdown', d.w > 0 && d.l >= d.pl && d.r <= d.pr, d)
+  const od = await openList(SHEET)
   ok('D2 1440: its open list cuts no name', od.n >= 19 && od.cut.length === 0, od)
 
   ok('no page errors', errors.filter((e) => !/dynamically imported module/.test(e)).length === 0, errors)

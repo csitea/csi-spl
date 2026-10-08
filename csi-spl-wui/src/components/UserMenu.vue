@@ -11,7 +11,11 @@
      focus to the button, Tab or a click outside closes.
      SPL-990 (<= 820 px): the panel is a bottom sheet over a scrim, and it
      carries what the phone top bar has no room for - language, theme and the
-     notification toggles (the rail's copy hides itself there). -->
+     notification toggles (the rail's copy hides itself there).
+     Spec 109 FR-008: on the desktop the dropdown carries the language row
+     too (the top bar no longer does); FR-009: Workspace settings shows here
+     on the desktop only while the channels panel (and its rail gear) is
+     collapsed. -->
 <template>
   <div ref="root" class="user-menu" data-test="user-menu">
     <template v-if="signedIn">
@@ -72,24 +76,25 @@
             <span v-if="access.roleKey" class="user-menu__secondary" data-test="user-menu-role">{{ t('user_menu.role', { role: t(access.roleKey) }) }}</span>
           </span>
         </div>
-        <!-- mounted while open, SHOWN only <= 820 px (CSS), so the phone
+        <!-- mounted while open; the language row shows everywhere (spec 109
+             FR-008), the --phone rows only <= 820 px (CSS), so the phone
              never depends on script to reach these controls -->
         <div v-if="open" class="user-menu__prefs" data-test="user-menu-prefs">
           <div class="user-menu__pref" data-test="user-menu-language">
             <span class="user-menu__pref-label">{{ t('nav.lang_label') }}</span>
             <LanguageSwitcher fill />
           </div>
-          <div class="user-menu__pref" data-test="user-menu-theme">
+          <div class="user-menu__pref user-menu__pref--phone" data-test="user-menu-theme">
             <span class="user-menu__pref-label">{{ t('settings.theme') }}</span>
             <ThemeToggle align="end" />
           </div>
-          <div class="user-menu__pref" data-test="user-menu-notify">
+          <div class="user-menu__pref user-menu__pref--phone" data-test="user-menu-notify">
             <span class="user-menu__pref-label">{{ t('settings.notifications') }}</span>
             <NotificationCenter placement="menu" />
           </div>
           <!-- owner 2026-09-27 (topic 86a570ea): the hub connection lives here
                on phones, next to the bell and the note, not on the start screen -->
-          <div class="user-menu__pref" data-test="user-menu-connection" role="status">
+          <div class="user-menu__pref user-menu__pref--phone" data-test="user-menu-connection" role="status">
             <span class="user-menu__pref-label"><ConnectionStatus /></span>
           </div>
         </div>
@@ -185,7 +190,9 @@
             </button>
           </li>
           <!-- SPL-1037 (specs/046): Tenant settings for admins and biz_owners;
-               on desktop the same entry is the sidebar's bottom-left icon -->
+               on desktop the same entry is the sidebar's bottom-left icon,
+               so here only on a phone or while that rail is collapsed
+               (spec 109 FR-009: one entry on screen) -->
           <li v-if="tenantSettingsShown" role="none">
             <NuxtLink
               ref="itemTenant"
@@ -268,8 +275,8 @@
 <script setup lang="ts">
 import { useStatusPicker } from '~/composables/useStatusPicker'
 import ThemeToggle from '@/components/ThemeToggle.vue'
-/* SPL-990: only a phone's sheet mounts these two; async keeps them out of
-   the first paint */
+/* SPL-990: mounted only once the menu opens; async keeps them out of the
+   first paint (spec 109: UserMenu is in the initial set) */
 const LanguageSwitcher = defineAsyncComponent(() => import('@/components/LanguageSwitcher.vue'))
 const NotificationCenter = defineAsyncComponent(() => import('@/components/NotificationCenter.vue'))
 /* topic 86a570ea: reads the live socket state - async keeps the live store out of the entry */
@@ -284,6 +291,7 @@ import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-po
 import { AVATAR_MISS_KEY, forgetRosterRead, loadAvatarImageUrl } from '~/utils/avatar.mjs'
 import { useAuthBase } from '~/composables/useAuthClient'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { usePaneCollapse } from '~/stores/pane-collapse'
 
 const session = useSessionStore()
 const access = useAccessStore()
@@ -293,7 +301,17 @@ const { t } = useI18n({ useScope: 'global' })
 const menuId = 'user-menu-panel'
 
 const signedIn = computed(() => session.state === 'in' && !!session.claims)
-const tenantSettingsShown = computed(() => signedIn.value && tenantSettingsVisible(access.me))
+/* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
+   media query is read too, for a shell that has not installed the stack. */
+const narrow = useMobileStack().isMobile
+const phone = () => narrow.value || window.matchMedia(MOBILE_STACK_QUERY).matches
+/* spec 109 FR-009: on the desktop the rail gear is the one Workspace
+   settings entry; the menu offers it only while that rail is collapsed. The
+   gate is the rail's own (the mock build plays an admin). */
+const api = useSpoolApi()
+const collapse = usePaneCollapse()
+const tenantSettingsShown = computed(() => signedIn.value && tenantSettingsVisible(access.me, { mock: api.mock })
+  && (narrow.value || collapse.collapsed.channels))
 // specs/054: while this session is an act-as clone, the menu offers "Stop
 // acting as X" above Sign out (the same exit as the banner).
 const actingAs = computed(() => access.me?.actAs ?? null)
@@ -344,11 +362,6 @@ const itemPictureRemove = ref<HTMLButtonElement | null>(null)
 function items(): HTMLElement[] {
   return [item0.value?.$el, itemPicture.value, itemPictureRemove.value, itemPassword.value?.$el, itemStatus.value, itemTenant.value?.$el, itemActAs.value, itemActAsStop.value, item1.value].filter((el): el is HTMLElement => !!el)
 }
-
-/* SPL-990: <= 820 px is the phone layout; M1's stack owns that answer. The
-   media query is read too, for a shell that has not installed the stack. */
-const narrow = useMobileStack().isMobile
-const phone = () => narrow.value || window.matchMedia(MOBILE_STACK_QUERY).matches
 
 /* drop the popover style but keep `display`: v-show hides the closed panel
    with an inline display:none, and wiping the whole style attribute on a
@@ -682,7 +695,39 @@ watch(signedIn, (v) => { if (!v) close(false) })
 @media (max-width: 640px) {
   .user-menu__signin-label { display: none; }
 }
-.user-menu__grip, .user-menu__prefs { display: none; }
+.user-menu__grip { display: none; }
+/* spec 109 FR-008: the prefs block shows on the desktop too, with its
+   language row only; the --phone rows are the sheet's (below) */
+.user-menu__prefs {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.user-menu__pref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--tap, 44px);
+  padding: 2px 14px;
+  min-width: 0;
+}
+.user-menu__pref--phone { display: none; }
+.user-menu__pref-label {
+  font-size: 0.875rem;
+  color: var(--color-fg);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* async child: its root does not carry this scope id, hence :deep.
+   CLE-77892 (owner, t1 9417ccf3: "this still looks quite narrow on my
+   phone"): the language control takes its own full-width line under the
+   label (it was capped at 14rem, and the corner's 5.5rem rule in main.css
+   shrank it to "🇬🇧 En" beside a separate ▾); one tap target, no cut name. */
+.user-menu__pref[data-test=user-menu-language] { flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
+.user-menu__pref :deep(.lang-switcher) { flex: 1 1 auto; min-width: 0; max-width: none; }
+.user-menu__pref-label { flex: 0 0 auto; }
 /* SPL-990: the bottom sheet. A popover style left from a desktop open is
    removed by placePanel() and by the rotation watch, so plain rules win. */
 @media (max-width: 820px) {
@@ -715,35 +760,7 @@ watch(signedIn, (v) => { if (!v) close(false) })
     border-radius: var(--radius-pill, 999px);
     background: var(--color-border-strong);
   }
-  .user-menu__prefs {
-    display: flex;
-    flex-direction: column;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .user-menu__pref {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: var(--tap, 44px);
-    padding: 2px 14px;
-    min-width: 0;
-  }
-  .user-menu__pref-label {
-    font-size: 0.875rem;
-    color: var(--color-fg);
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
+  .user-menu__pref--phone { display: flex; }
   .user-menu__item { min-height: 48px; }
-  /* async child: its root does not carry this scope id, hence :deep.
-     CLE-77892 (owner, t1 9417ccf3: "this still looks quite narrow on my
-     phone"): the language control takes its own full-width line under the
-     label (it was capped at 14rem, and the corner's 5.5rem rule in main.css
-     shrank it to "🇬🇧 En" beside a separate ▾); one tap target, no cut name. */
-  .user-menu__pref[data-test=user-menu-language] { flex-wrap: wrap; row-gap: 6px; padding-block: 6px; }
-  .user-menu__pref :deep(.lang-switcher) { flex: 1 1 auto; min-width: 0; max-width: none; }
-  .user-menu__pref-label { flex: 0 0 auto; }
 }
 </style>

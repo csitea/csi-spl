@@ -7,8 +7,11 @@
 // `/search hello` typed there opens the results. The avatar opens a bottom sheet that carries language, theme and
 // the notification toggles (the rail's copy is hidden). Every control named
 // here is >= 44 px, and the page never scrolls sideways.
-// At 1440 px the desktop bar is unchanged: omnibox, logo, theme, language
-// in the row, no floating GO, no tenant label, and no phone rows in the menu.
+// At 1440 px the desktop bar: omnibox, logo, theme in the row, no floating
+// GO, no tenant label. Spec 109 FR-008: no language switcher in the bar; the
+// avatar dropdown has it (its one desktop pref row, no other phone row).
+// FR-009: the dropdown offers Workspace settings only while the channels
+// rail (and its gear) is collapsed - one entry on screen either way.
 //
 // Run:
 //   node tests/e2e/top-bar-mobile.test.mjs
@@ -173,22 +176,39 @@ async function desktop(p, base) {
   const tag = '1440px'
   await open(p, base, 1440, 900, false)
   const bar = await probe(p, [
-    '[data-test=top-bar]', '[data-test=top-bar-omnibox] textarea', '[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]',
+    '[data-test=top-bar]', '[data-test=top-bar-omnibox] textarea', '[data-testid=tenant-switcher]', '[data-test=theme-picker]',
     '[data-test=top-bar-search-toggle]', '[data-test=top-bar-tenant]', '[data-testid=notify-box-rail]',
   ])
   check(`${tag}: bar height unchanged (58)`, bar['[data-test=top-bar]']?.h === 58, bar['[data-test=top-bar]'])
-  for (const s of ['[data-test=top-bar-omnibox] textarea', '[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-test=lang-switcher]', '[data-testid=notify-box-rail]']) {
+  for (const s of ['[data-test=top-bar-omnibox] textarea', '[data-testid=tenant-switcher]', '[data-test=theme-picker]', '[data-testid=notify-box-rail]']) {
     check(`${tag}: ${s} in place`, bar[s]?.shown === true, bar[s])
   }
+  const barLang = await p.evaluate(() => [...document.querySelectorAll('[data-test=top-bar] [data-test=lang-switcher], .top-bar__lang')]
+    .filter((el) => !el.closest('[data-test=user-menu]')).length)
+  check(`${tag}: spec 109 FR-008: no language switcher in the top bar`, barLang === 0, barLang)
   for (const s of ['[data-test=top-bar-search-toggle]', '[data-test=top-bar-tenant]']) {
     check(`${tag}: ${s} takes no space`, !bar[s]?.shown, bar[s])
   }
+  const gear = '[data-testid=tenant-settings-open]'
+  const entry = '[data-test=user-menu-tenant-settings]'
   await p.click('[data-test=user-menu-trigger]')
-  await sleep(300)
-  const menu = await probe(p, ['[data-test=user-menu-panel]', '[data-test=user-menu-prefs]', '[data-test=user-menu-scrim]'])
+  await p.waitForSelector('[data-test=user-menu-language] [data-test=lang-switcher]', { visible: true, timeout: 10000 }).catch(() => {})
+  const menu = await probe(p, ['[data-test=user-menu-panel]', '[data-test=user-menu-scrim]', '[data-test=user-menu-language] [data-test=lang-switcher]',
+    '[data-test=user-menu-theme]', '[data-test=user-menu-notify]', '[data-test=user-menu-connection]', gear, entry])
   const panel = menu['[data-test=user-menu-panel]']
   check(`${tag}: the menu is the 272 px dropdown`, panel?.shown && panel.w === 272 && panel.y < 80, panel)
-  check(`${tag}: no phone rows, no scrim`, !menu['[data-test=user-menu-prefs]']?.shown && !menu['[data-test=user-menu-scrim]']?.shown, menu)
+  check(`${tag}: spec 109 FR-008: the dropdown has the language switcher`, menu['[data-test=user-menu-language] [data-test=lang-switcher]']?.shown === true, menu)
+  check(`${tag}: no other phone row, no scrim`, ['[data-test=user-menu-theme]', '[data-test=user-menu-notify]', '[data-test=user-menu-connection]', '[data-test=user-menu-scrim]'].every((s) => !menu[s]?.shown), menu)
+  check(`${tag}: spec 109 FR-009: rail open -> the gear only, not the menu`, menu[gear]?.shown === true && !menu[entry]?.shown, { gear: menu[gear], entry: menu[entry] })
+  await p.keyboard.press('Escape')
+  await p.click('[data-test=pane-collapse-channels]')
+  await sleep(300)
+  await p.click('[data-test=user-menu-trigger]')
+  await sleep(300)
+  const shut = await probe(p, [gear, entry])
+  check(`${tag}: spec 109 FR-009: rail collapsed -> the menu entry only`, !shut[gear]?.shown && shut[entry]?.shown === true, shut)
+  await p.keyboard.press('Escape')
+  await p.click('[data-test=pane-collapse-channels]')
 }
 
 const server = await startServer()

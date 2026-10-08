@@ -163,7 +163,7 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 		t.Fatalf("admin PATCH agent_kinds_off = %d %v", code, body)
 	}
 	for _, bad := range []map[string]any{
-		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen"}},
+		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen", "mistral"}},
 		{"agent_kinds_off": []string{"gpt"}},
 		{"agent_kinds_off": []string{"agy", "agy"}},
 		{"agent_kinds_off": "grok"},
@@ -173,6 +173,14 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 		if code, _ := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, bad); code != http.StatusBadRequest {
 			t.Errorf("PATCH %v = %d, want 400", bad, code)
 		}
+	}
+	// CONTROL (spec 110): the old four off leaves mistral on, so it is taken.
+	four := map[string]any{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen"}}
+	if code, body := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, four); code != http.StatusOK {
+		t.Fatalf("four off with mistral on = %d %v", code, body)
+	}
+	if code, body := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, off); code != http.StatusOK {
+		t.Fatalf("reset to grok off = %d %v", code, body)
 	}
 	b := e.box(other, "box-b", "CLE-08")
 	e.pin(other, b)
@@ -260,7 +268,7 @@ func TestFleetLoadOperatorSA(t *testing.T) {
 	}
 	for _, bad := range []map[string]any{
 		{"agent_kinds_off": []string{"grok"}, "ordered_by": "bob"},
-		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen"}},
+		{"agent_kinds_off": []string{"claude", "grok", "agy", "qwen", "mistral"}},
 	} {
 		if code, _ := opCall(t, e, op, http.MethodPatch, fleetLoadPath, "good", bad); code != http.StatusBadRequest {
 			t.Errorf("PATCH %v = %d, want 400", bad, code)

@@ -153,7 +153,7 @@ the owner's Team login on each box.
   Done: the MCP install writes one `[[mcp_servers]]` stdio entry into a stub
   `~/.vibe/config.toml` and is idempotent (2 runs = 1 entry); the mirror
   reads a fixture session file.
-- [ ] T009 **hub API** (needs T001 applied). Files:
+- [x] T009 **hub API** (c-578; needs T001 applied). Files:
   - `store/fleet_load.go` + `_test.go` (`AgentKinds`);
   - `hub/fleet_load.go` + `_test.go`;
   - `store/tenant_settings.go`, `store/tenant_agent_split_test.go`;

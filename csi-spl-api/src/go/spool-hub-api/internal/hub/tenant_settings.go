@@ -32,14 +32,15 @@ func (s *Server) tenantSettingsStore(w http.ResponseWriter) (store.TenantSetting
 }
 
 type agentSplitJSON struct {
-	Claude int `json:"claude"`
-	Grok   int `json:"grok"`
-	Agy    int `json:"agy"`
-	Qwen   int `json:"qwen"`
+	Claude  int `json:"claude"`
+	Grok    int `json:"grok"`
+	Agy     int `json:"agy"`
+	Qwen    int `json:"qwen"`
+	Mistral int `json:"mistral"`
 }
 
 func agentSplitJSONFrom(a store.AgentSplit) agentSplitJSON {
-	return agentSplitJSON{Claude: a.Claude, Grok: a.Grok, Agy: a.Agy, Qwen: a.Qwen}
+	return agentSplitJSON{Claude: a.Claude, Grok: a.Grok, Agy: a.Agy, Qwen: a.Qwen, Mistral: a.Mistral}
 }
 
 type tenantSettingsBody struct {
@@ -255,25 +256,27 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request, tenant str
 
 // agentSplitPatch is the optional agent_split object on PATCH /v1/tenant/settings.
 type agentSplitPatch struct {
-	Claude *int `json:"claude"`
-	Grok   *int `json:"grok"`
-	Agy    *int `json:"agy"`
-	Qwen   *int `json:"qwen"`
+	Claude  *int `json:"claude"`
+	Grok    *int `json:"grok"`
+	Agy     *int `json:"agy"`
+	Qwen    *int `json:"qwen"`
+	Mistral *int `json:"mistral"`
 }
 
-// patchAgentSplit checks the four shares. A nil patch leaves the stored
+// patchAgentSplit checks the five shares (spec 110: a 4-number PATCH from an
+// old WUI is refused). A nil patch leaves the stored
 // split. ok=false: it already wrote bad_split.
 func patchAgentSplit(w http.ResponseWriter, in *agentSplitPatch) (*store.AgentSplit, bool) {
 	if in == nil {
 		return nil, true
 	}
-	if in.Claude == nil || in.Grok == nil || in.Agy == nil || in.Qwen == nil {
-		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy and qwen, whole numbers from 0 to 100 that sum to 100")
+	if in.Claude == nil || in.Grok == nil || in.Agy == nil || in.Qwen == nil || in.Mistral == nil {
+		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy, qwen and mistral, whole numbers from 0 to 100 that sum to 100")
 		return nil, false
 	}
-	got := store.AgentSplit{Claude: *in.Claude, Grok: *in.Grok, Agy: *in.Agy, Qwen: *in.Qwen}
+	got := store.AgentSplit{Claude: *in.Claude, Grok: *in.Grok, Agy: *in.Agy, Qwen: *in.Qwen, Mistral: *in.Mistral}
 	if !got.Valid() {
-		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy and qwen, whole numbers from 0 to 100 that sum to 100")
+		writeErr(w, http.StatusBadRequest, "bad_split", "agent_split needs claude, grok, agy, qwen and mistral, whole numbers from 0 to 100 that sum to 100")
 		return nil, false
 	}
 	return &got, true

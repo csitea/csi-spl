@@ -56,6 +56,7 @@ var hostProbes = []struct {
 	{"grok", []string{"grok", "--version"}, true},
 	{"qwen", []string{"qwen", "--version"}, true},
 	{"agy", []string{"agy", "--version"}, true},
+	{"mistral", []string{"vibe", "--version"}, true},
 }
 
 // versionRe is the first dotted version in a --version line:

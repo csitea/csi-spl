@@ -33,8 +33,8 @@ import (
 // band may carry its own, which overrides it for that box only.
 
 // AgentKinds are the agent kinds a box can start a lane of (the launchers
-// /claude-spawn, /grok-spawn, /agy-spawn, /qwen-spawn).
-var AgentKinds = []string{"claude", "grok", "agy", "qwen"}
+// /claude-spawn, /grok-spawn, /agy-spawn, /qwen-spawn, /mistral-spawn; spec 110).
+var AgentKinds = []string{"claude", "grok", "agy", "qwen", "mistral"}
 
 // BoxBand is one box's band, % of cores, and its own runner CPU cap
 // (rdb 0152; 0 = the fleet's RunnerCPUPct).

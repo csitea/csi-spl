@@ -133,9 +133,9 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 				t.Fatalf("set kinds off = %+v, %v", got, err)
 			}
 			for _, bad := range [][]string{
-				{"claude", "grok", "agy", "qwen"}, // every kind off
-				{"gpt"},                           // not a kind
-				{"grok", "grok"},                  // not distinct
+				{"claude", "grok", "agy", "qwen", "mistral"}, // every kind off (spec 110: five)
+				{"gpt"},          // not a kind
+				{"grok", "grok"}, // not distinct
 			} {
 				if _, err := fl.SetFleetLoad(ctx, tid, FleetLoadPatch{KindsOffSet: true, AgentKindsOff: bad}); !errors.Is(err, ErrBadFleetLoad) {
 					t.Errorf("kinds off %v: %v, want ErrBadFleetLoad", bad, err)
@@ -143,6 +143,15 @@ func TestFleetLoadAgentKinds(t *testing.T) {
 			}
 			if got, _ = fl.FleetLoadOf(ctx, tid); !slices.Equal(got.AgentKindsOff, []string{"grok", "qwen"}) {
 				t.Fatalf("a refused patch changed the kinds: %+v", got.AgentKindsOff)
+			}
+			// CONTROL (spec 110): the old four off is no longer every kind,
+			// mistral stays on.
+			four := []string{"claude", "grok", "agy", "qwen"}
+			if got, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{KindsOffSet: true, AgentKindsOff: four}); err != nil || !slices.Equal(got.AgentKindsOff, four) {
+				t.Fatalf("four off with mistral on = %+v, %v", got.AgentKindsOff, err)
+			}
+			if _, err = fl.SetFleetLoad(ctx, tid, FleetLoadPatch{KindsOffSet: true, AgentKindsOff: []string{"grok", "qwen"}}); err != nil {
+				t.Fatal(err)
 			}
 			week := &KindPause{Until: now.Add(6 * time.Hour), Reason: "weekly limit", Box: "box-s"}
 			old := &KindPause{Until: now.Add(-time.Minute), Reason: "ran out"}

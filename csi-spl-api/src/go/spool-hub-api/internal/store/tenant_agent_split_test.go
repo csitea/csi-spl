@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// rdb 0109: the workspace vendor split is four whole numbers that sum to
-// 100. A fresh tenant is the owner's current split (claude 40, grok 50,
-// agy 10, qwen 0). A partial settings write leaves it. A split outside
+// rdb 0109 + 0155 (spec 110): the workspace vendor split is five whole
+// numbers that sum to 100. A fresh tenant is the owner's current split
+// (claude 40, grok 50, agy 10, qwen 0, mistral 0). A partial settings write leaves it. A split outside
 // 0..100 or off 100 is refused on every driver.
 func TestTenantAgentSplit(t *testing.T) {
 	ctx := context.Background()
@@ -42,6 +42,15 @@ func TestTenantAgentSplit(t *testing.T) {
 				t.Fatalf("split round trip %+v: %v", cfg, err)
 			}
 
+			moved := AgentSplit{Claude: 30, Grok: 0, Agy: 5, Qwen: 10, Mistral: 55} // spec 110 D1
+			if err := ts.SetTenantConfig(ctx, tid, TenantConfigPatch{AgentSplit: &moved}); err != nil {
+				t.Fatal(err)
+			}
+			if cfg, err = ts.TenantConfig(ctx, tid); err != nil || cfg.AgentSplit != moved {
+				t.Fatalf("mistral round trip %+v: %v", cfg.AgentSplit, err)
+			}
+			next = moved
+
 			renamed := "Acme 2"
 			if err := ts.SetTenantConfig(ctx, tid, TenantConfigPatch{DisplayName: &renamed}); err != nil {
 				t.Fatal(err)
@@ -54,6 +63,8 @@ func TestTenantAgentSplit(t *testing.T) {
 				{Claude: 101, Grok: 0, Agy: 0, Qwen: -1},
 				{Claude: 40, Grok: 50, Agy: 10, Qwen: 10},
 				{Claude: 25, Grok: 25, Agy: 25, Qwen: 24},
+				{Claude: 30, Grok: 0, Agy: 5, Qwen: 10, Mistral: 54},
+				{Claude: 30, Grok: 0, Agy: 5, Qwen: 10, Mistral: 101},
 				{},
 			} {
 				b := bad

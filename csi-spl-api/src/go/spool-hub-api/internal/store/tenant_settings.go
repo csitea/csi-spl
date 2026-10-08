@@ -35,7 +35,7 @@ type TenantConfigPatch struct {
 	DisplayName        *string
 	DefaultLocale      *string
 	TopicArchivePolicy *string
-	// AgentSplit, when set, replaces all four shares. Nil leaves them.
+	// AgentSplit, when set, replaces all five shares. Nil leaves them.
 	AgentSplit *AgentSplit
 }
 
@@ -74,13 +74,15 @@ func EffectiveArchivePolicy(stored string) string {
 }
 
 // AgentSplit is the workspace guideline for new agent work (rdb 0109).
-// The hub stores it and does not enforce it. qwen is 0 in the default so
-// the owner's current claude 40 / grok 50 / agy 10 split still sums to 100.
+// The hub stores it and does not enforce it. qwen and mistral (rdb 0155,
+// spec 110) are 0 in the default so the owner's current claude 40 / grok 50 /
+// agy 10 split still sums to 100.
 type AgentSplit struct {
-	Claude int
-	Grok   int
-	Agy    int
-	Qwen   int
+	Claude  int
+	Grok    int
+	Agy     int
+	Qwen    int
+	Mistral int
 }
 
 // DefaultAgentSplit is what a workspace has until an admin sets another.
@@ -88,14 +90,14 @@ func DefaultAgentSplit() AgentSplit {
 	return AgentSplit{Claude: 40, Grok: 50, Agy: 10, Qwen: 0}
 }
 
-// Valid reports whether each share is 0..100 and the four sum to 100.
+// Valid reports whether each share is 0..100 and the five sum to 100.
 func (a AgentSplit) Valid() bool {
-	for _, n := range []int{a.Claude, a.Grok, a.Agy, a.Qwen} {
+	for _, n := range []int{a.Claude, a.Grok, a.Agy, a.Qwen, a.Mistral} {
 		if n < 0 || n > 100 {
 			return false
 		}
 	}
-	return a.Claude+a.Grok+a.Agy+a.Qwen == 100
+	return a.Claude+a.Grok+a.Agy+a.Qwen+a.Mistral == 100
 }
 
 // TenantSettings is implemented by Memory and Postgres.
@@ -272,10 +274,10 @@ func (s *Postgres) TenantConfig(ctx context.Context, tenant string) (TenantConfi
 	var kv []byte
 	err := s.queryRowTenant(ctx, tenant, `SELECT COALESCE(display_name, ''), COALESCE(default_locale, ''),
 		COALESCE(topic_archive_policy, ''),
-		agent_split_claude, agent_split_grok, agent_split_agy, agent_split_qwen,
+		agent_split_claude, agent_split_grok, agent_split_agy, agent_split_qwen, agent_split_mistral,
 		`+tenantSettingsCol(s.hasTenantSettings(ctx))+`
 		FROM tenants WHERE tenant_id = $1`, []any{tenant}, &c.DisplayName, &c.DefaultLocale, &c.TopicArchivePolicy,
-		&c.AgentSplit.Claude, &c.AgentSplit.Grok, &c.AgentSplit.Agy, &c.AgentSplit.Qwen, &kv)
+		&c.AgentSplit.Claude, &c.AgentSplit.Grok, &c.AgentSplit.Agy, &c.AgentSplit.Qwen, &c.AgentSplit.Mistral, &kv)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TenantConfig{}, ErrNotFound
 	}
@@ -291,7 +293,7 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 	// hot entry so a policy change takes effect at once.
 	defer s.hot.forget()
 	var name, loc, pol any
-	var claude, grok, agy, qwen any
+	var claude, grok, agy, qwen, mistral any
 	if p.DisplayName != nil {
 		name = nullIfEmpty(*p.DisplayName)
 	}
@@ -306,6 +308,7 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 		grok = p.AgentSplit.Grok
 		agy = p.AgentSplit.Agy
 		qwen = p.AgentSplit.Qwen
+		mistral = p.AgentSplit.Mistral
 	}
 	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET
 		display_name         = CASE WHEN $2 THEN $3::text ELSE display_name END,
@@ -314,9 +317,10 @@ func (s *Postgres) SetTenantConfig(ctx context.Context, tenant string, p TenantC
 		agent_split_claude   = CASE WHEN $8 THEN $9::smallint ELSE agent_split_claude END,
 		agent_split_grok     = CASE WHEN $8 THEN $10::smallint ELSE agent_split_grok END,
 		agent_split_agy      = CASE WHEN $8 THEN $11::smallint ELSE agent_split_agy END,
-		agent_split_qwen     = CASE WHEN $8 THEN $12::smallint ELSE agent_split_qwen END
+		agent_split_qwen     = CASE WHEN $8 THEN $12::smallint ELSE agent_split_qwen END,
+		agent_split_mistral  = CASE WHEN $8 THEN $13::smallint ELSE agent_split_mistral END
 		WHERE tenant_id = $1`, tenant, p.DisplayName != nil, name, p.DefaultLocale != nil, loc,
-		p.TopicArchivePolicy != nil, pol, p.AgentSplit != nil, claude, grok, agy, qwen)
+		p.TopicArchivePolicy != nil, pol, p.AgentSplit != nil, claude, grok, agy, qwen, mistral)
 	if err != nil {
 		return err
 	}

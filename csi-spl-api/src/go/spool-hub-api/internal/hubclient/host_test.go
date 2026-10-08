@@ -99,6 +99,8 @@ func TestCollectHostNoSwapAgentUser(t *testing.T) {
 			return "2.1.291 (Claude Code)", nil
 		case "grok":
 			return "grok 1.4.0", nil
+		case "vibe":
+			return "vibe 2.26.0", nil
 		}
 		return "", errors.New("sudo: command not found")
 	}
@@ -106,7 +108,7 @@ func TestCollectHostNoSwapAgentUser(t *testing.T) {
 	if h.System == nil || h.System.SwapTotalMB == nil || *h.System.SwapTotalMB != 0 || h.System.SwapFreeMB == nil || *h.System.SwapFreeMB != 0 {
 		t.Fatalf("swap 0 not reported as 0: %+v", h.System)
 	}
-	want := map[string]string{"go": "1.25.1", "claude": "2.1.291", "grok": "1.4.0", "qwen": "0.9.0"}
+	want := map[string]string{"go": "1.25.1", "claude": "2.1.291", "grok": "1.4.0", "qwen": "0.9.0", "mistral": "2.26.0"}
 	if !reflect.DeepEqual(h.Runtimes, want) {
 		t.Fatalf("runtimes = %v, want %v", h.Runtimes, want)
 	}

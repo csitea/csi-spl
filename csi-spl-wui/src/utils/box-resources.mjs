@@ -28,11 +28,11 @@ export function boxResourceOf(q) {
 /**
  * @typedef {{ box: string, at: string, load1: number, load5: number, load15: number,
  *   cpus: number, mem_total_kb: number, mem_avail_kb: number, swap_used_kb: number,
- *   agents_live: number, disks?: { mount: string, total_kb: number, avail_kb: number }[] }} BoxStat
+ *   agents_live: number, disks?: { mount: string, total_kb: number, avail_kb: number, used_kb?: number }[] }} BoxStat
  * @typedef {{ box: string, hour: string, n: number, cpus: number, load1_avg: number,
  *   load1_peak: number, mem_used_avg_kb: number, mem_used_peak_kb: number,
  *   mem_avail_min_kb: number, agents_avg: number, agents_peak: number,
- *   disks?: { mount: string, total_kb: number, avail_min_kb: number }[] }} BoxStatHour
+ *   disks?: { mount: string, total_kb: number, avail_min_kb: number, used_max_kb?: number }[] }} BoxStatHour
  */
 
 /**
@@ -58,58 +58,75 @@ export function isBoxStatsForbidden(err) {
 /**
  * The disks of one sample (rdb 0118), sorted by mount; [] while the hub does
  * not serve them yet (c-202: read `disks ?? []`).
+ * usedKB is df's Used (c-542), 0 from a box that does not send it.
  * @param {BoxStat | null | undefined} row
- * @returns {{ mount: string, totalKB: number, availKB: number }[]}
+ * @returns {{ mount: string, totalKB: number, availKB: number, usedKB: number }[]}
  */
 export function boxDisksOf(row) {
   const list = row && Array.isArray(row.disks) ? row.disks : []
   return list
     .filter((d) => d && d.mount)
-    .map((d) => ({ mount: String(d.mount), totalKB: Number(d.total_kb) || 0, availKB: Number(d.avail_kb) || 0 }))
+    .map((d) => ({ mount: String(d.mount), totalKB: Number(d.total_kb) || 0, availKB: Number(d.avail_kb) || 0, usedKB: Number(d.used_kb) || 0 }))
     .sort((a, b) => a.mount.localeCompare(b.mount))
 }
 
 /**
  * The disks of one hour (rdb 0121: per mount the largest size and the least
- * free of the hour), sorted by mount; [] for an hour from before the hub
- * reported disks.
+ * free and the most used of the hour), sorted by mount; [] for an hour from
+ * before the hub reported disks.
  * @param {BoxStatHour | null | undefined} hour
- * @returns {{ mount: string, totalKB: number, availKB: number }[]}
+ * @returns {{ mount: string, totalKB: number, availKB: number, usedKB: number }[]}
  */
 export function hourDisksOf(hour) {
   const list = hour && Array.isArray(hour.disks) ? hour.disks : []
   return list
     .filter((d) => d && d.mount)
-    .map((d) => ({ mount: String(d.mount), totalKB: Number(d.total_kb) || 0, availKB: Number(d.avail_min_kb) || 0 }))
+    .map((d) => ({ mount: String(d.mount), totalKB: Number(d.total_kb) || 0, availKB: Number(d.avail_min_kb) || 0, usedKB: Number(d.used_max_kb) || 0 }))
     .sort((a, b) => a.mount.localeCompare(b.mount))
 }
 
 /**
- * The mount nearest full (the least free share of its size, then the least
- * free), or null with no disks: what a one-cell Disk column shows.
- * @param {{ mount: string, totalKB: number, availKB: number }[]} disks
+ * A mount's Use% as df prints it (c-542): used / (used + avail), rounded up.
+ * The root-reserved blocks are in the size but neither used nor available,
+ * so 1 - avail / size reads higher than df (sat /: 47% for df's 45%). A
+ * sample without usedKB (a box from before it) falls back to size - avail.
+ * @param {{ totalKB: number, availKB: number, usedKB?: number }} d
+ */
+export function diskUsedPct(d) {
+  const df = Number(d.usedKB) > 0
+  const used = df ? Number(d.usedKB) : Math.max(0, d.totalKB - d.availKB)
+  const base = df ? used + d.availKB : d.totalKB
+  return base > 0 ? Math.ceil((used * 100) / base) : 0
+}
+
+/**
+ * The mount nearest full (the highest Use%, then the least free), or null
+ * with no disks: what a one-cell Disk column shows. A zero-size mount never
+ * wins.
+ * @param {{ mount: string, totalKB: number, availKB: number, usedKB?: number }[]} disks
  */
 export function lowestDisk(disks) {
-  const share = (/** @type {{ totalKB: number, availKB: number }} */ d) => (d.totalKB > 0 ? d.availKB / d.totalKB : 1)
+  const pct = (/** @type {{ totalKB: number, availKB: number, usedKB?: number }} */ d) => (d.totalKB > 0 ? diskUsedPct(d) : -1)
   let best = null
   for (const d of Array.isArray(disks) ? disks : []) {
-    if (!best || share(d) < share(best) || (share(d) === share(best) && d.availKB < best.availKB)) best = d
+    if (!best || pct(d) > pct(best) || (pct(d) === pct(best) && d.availKB < best.availKB)) best = d
   }
   return best
 }
 
 /**
- * One mount in one line, "/: 12 GiB free of 100 GiB" ('' for none), and every
- * mount one a line for the hover (undefined for none, so no empty tooltip).
- * @param {{ mount: string, totalKB: number, availKB: number } | null} d
+ * One mount in one line, "/: 45% used, 15 GiB free of 29 GiB" ('' for none),
+ * and every mount one a line for the hover (undefined for none, so no empty
+ * tooltip).
+ * @param {{ mount: string, totalKB: number, availKB: number, usedKB?: number } | null} d
  * @param {(key: string, args: Record<string, string>) => string} t vue-i18n t
  */
 export function diskLine(d, t) {
-  return d ? t('boxes.disk_val', { mount: d.mount, avail: formatKB(d.availKB), total: formatKB(d.totalKB) }) : ''
+  return d ? t('boxes.disk_val', { mount: d.mount, pct: String(diskUsedPct(d)), avail: formatKB(d.availKB), total: formatKB(d.totalKB) }) : ''
 }
 
 /**
- * @param {{ mount: string, totalKB: number, availKB: number }[]} disks
+ * @param {{ mount: string, totalKB: number, availKB: number, usedKB?: number }[]} disks
  * @param {(key: string, args: Record<string, string>) => string} t
  */
 export function diskTitle(disks, t) {

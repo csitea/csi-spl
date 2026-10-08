@@ -9,7 +9,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   BOX_RESOURCES, ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxResourceOf, boxRuntimesOf,
-  boxStatsOf, boxSystemOf, currentOf, diskLine, diskTitle, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary,
+  boxStatsOf, boxSystemOf, currentOf, diskLine, diskTitle, diskUsedPct, factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary,
   hourDisksOf, isBoxStatsForbidden, isNoBoxStats, latestBoxStat, lowestDisk, osLine,
 } from '../../src/utils/box-resources.mjs'
 
@@ -50,8 +50,8 @@ describe('box-stats read', () => {
     assert.deepEqual(boxDisksOf({ box: 'box-a' }), [])
     assert.deepEqual(boxDisksOf(null), [])
     assert.deepEqual(
-      boxDisksOf({ disks: [{ mount: '/var', total_kb: 2048, avail_kb: 1024 }, { mount: '/', total_kb: 4096, avail_kb: 100 }, { total_kb: 1 }] }),
-      [{ mount: '/', totalKB: 4096, availKB: 100 }, { mount: '/var', totalKB: 2048, availKB: 1024 }],
+      boxDisksOf({ disks: [{ mount: '/var', total_kb: 2048, avail_kb: 1024 }, { mount: '/', total_kb: 4096, avail_kb: 100, used_kb: 3800 }, { total_kb: 1 }] }),
+      [{ mount: '/', totalKB: 4096, availKB: 100, usedKB: 3800 }, { mount: '/var', totalKB: 2048, availKB: 1024, usedKB: 0 }],
     )
   })
   it('hour disks (rdb 0121): the least free of the hour; an older hour has none', () => {
@@ -59,23 +59,38 @@ describe('box-stats read', () => {
     assert.deepEqual(hourDisksOf(null), [])
     assert.deepEqual(hourDisksOf({ disks: null }), [])
     assert.deepEqual(
-      hourDisksOf({ disks: [{ mount: '/var', total_kb: 2048, avail_min_kb: 512 }, { mount: '/', total_kb: 4096, avail_min_kb: 100 }, { avail_min_kb: 1 }] }),
-      [{ mount: '/', totalKB: 4096, availKB: 100 }, { mount: '/var', totalKB: 2048, availKB: 512 }],
+      hourDisksOf({ disks: [{ mount: '/var', total_kb: 2048, avail_min_kb: 512 }, { mount: '/', total_kb: 4096, avail_min_kb: 100, used_max_kb: 3800 }, { avail_min_kb: 1 }] }),
+      [{ mount: '/', totalKB: 4096, availKB: 100, usedKB: 3800 }, { mount: '/var', totalKB: 2048, availKB: 512, usedKB: 0 }],
     )
   })
   it('the Disk column: the mount nearest full, every mount on hover, "" with none', () => {
-    const t = (/** @type {string} */ k, /** @type {Record<string, string>} */ a) => `${k}|${a.mount}|${a.avail}|${a.total}`
+    const t = (/** @type {string} */ k, /** @type {Record<string, string>} */ a) => `${k}|${a.mount}|${a.pct}|${a.avail}|${a.total}`
     const big = { mount: '/', totalKB: 104857600, availKB: 52428800 }
     const tight = { mount: '/var', totalKB: 209715200, availKB: 10485760 }
     assert.equal(lowestDisk([]), null)
     assert.equal(lowestDisk(/** @type {any} */ (undefined)), null)
-    assert.deepEqual(lowestDisk([big, tight]), tight, 'the least free share wins, not the least free bytes')
+    assert.deepEqual(lowestDisk([big, tight]), tight, 'the highest Use% wins, not the least free bytes')
     assert.deepEqual(lowestDisk([{ mount: '/a', totalKB: 0, availKB: 0 }, big]), big, 'a zero-size mount never wins')
     assert.deepEqual(lowestDisk([{ mount: '/a', totalKB: 200, availKB: 100 }, { mount: '/b', totalKB: 100, availKB: 50 }]).mount, '/b')
-    assert.equal(diskLine(tight, t), 'boxes.disk_val|/var|10 GiB|200 GiB')
+    assert.equal(diskLine(tight, t), 'boxes.disk_val|/var|95|10 GiB|200 GiB')
     assert.equal(diskLine(null, t), '')
-    assert.equal(diskTitle([big, tight], t), 'boxes.disk_val|/|50 GiB|100 GiB\nboxes.disk_val|/var|10 GiB|200 GiB')
+    assert.equal(diskTitle([big, tight], t), 'boxes.disk_val|/|50|50 GiB|100 GiB\nboxes.disk_val|/var|95|10 GiB|200 GiB')
     assert.equal(diskTitle([], t), undefined)
+  })
+  it("Use% is df's (c-542): used / (used + avail) rounded up, the reserved blocks left out", () => {
+    // sat / on 2026-10-08 07:20Z: df -kP 30723076 13182232 16167984 45%
+    const sat = { mount: '/', totalKB: 30723076, availKB: 16167984, usedKB: 13182232 }
+    assert.equal(diskUsedPct(sat), 45, 'df printed 45%')
+    assert.equal(diskUsedPct({ ...sat, usedKB: 0 }), 48, 'control: size - avail counts the reserved blocks and reads high')
+    // a second box / 931638328 634268756 250010180 72% (df rounds 71.7 up)
+    assert.equal(diskUsedPct({ mount: '/', totalKB: 931638328, availKB: 250010180, usedKB: 634268756 }), 72)
+    assert.equal(diskUsedPct({ mount: '/a', totalKB: 0, availKB: 0 }), 0, 'a zero-size mount is 0%, not NaN')
+    // the Now line picks the fullest by df's number: sat /mnt/data 67% over / 45% and /boot/efi 8%
+    const data = { mount: '/mnt/data', totalKB: 102626232, availKB: 34616676, usedKB: 67991408 }
+    const efi = { mount: '/boot/efi', totalKB: 126678, availKB: 117574, usedKB: 9104 }
+    assert.equal(diskUsedPct(data), 67)
+    assert.equal(diskUsedPct(efi), 8)
+    assert.equal(lowestDisk([efi, sat, data]), data)
   })
   it('the hardware summary is sample-weighted; none without hours', () => {
     assert.equal(hardwareSummary([]), null)

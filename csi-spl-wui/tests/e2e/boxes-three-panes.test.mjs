@@ -146,7 +146,7 @@ try {
     ok(`${theme}: now - memory used and free`, /12 GiB.*20 GiB/.test(await p.$eval('[data-test=box-now-mem]', (e) => e.textContent)))
     ok(`${theme}: now - its sample age`, /ago/.test(await p.$eval('[data-test=box-now-age]', (e) => e.textContent)))
     /* owner f5389813 "add a disk col": the mount nearest full, every mount on hover */
-    ok(`${theme}: now - the disk nearest full`, /\/var.*10 GiB.*200 GiB/.test(await p.$eval('[data-test=box-now-disk]', (e) => e.textContent)))
+    ok(`${theme}: now - the disk nearest full`, /\/var: 95% used.*10 GiB.*200 GiB/.test(await p.$eval('[data-test=box-now-disk]', (e) => e.textContent)))
     ok(`${theme}: now - every mount on hover`, (await p.$eval('[data-test=box-now-disk]', (e) => e.getAttribute('title') || '')).split('\n').length === 2)
     await click(p, '[data-test=box-resource-system]')
     await p.waitForSelector('[data-test=box-stats-system]', { visible: true, timeout: NAV_TIMEOUT })
@@ -176,6 +176,9 @@ try {
       /\/var.*10 GiB.*200 GiB/.test(diskCells[0].text) && /\/:.*50 GiB.*100 GiB/.test(diskCells[0].title), diskCells)
     ok(`${theme}: hardware - an hour with no disks shows "—"`, diskCells[1].text === '—' && diskCells[1].title === '', diskCells)
     ok(`${theme}: hardware - the current disks, one row a mount`, await count(p, '[data-test=box-stats-disk-row]') === 2)
+    /* c-542: the Use% column is df's (the owner read the page against df) */
+    ok(`${theme}: hardware - each mount's Use% as df prints it`,
+      JSON.stringify(await p.$$eval('[data-test=box-stats-disk-used]', (es) => es.map((e) => e.textContent.trim()))) === '["50%","95%"]')
     ok(`${theme}: no horizontal page scroll`, await noXScroll(p))
     await p.close()
   }

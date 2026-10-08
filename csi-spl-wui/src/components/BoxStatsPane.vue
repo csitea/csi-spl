@@ -80,7 +80,7 @@
                 <th scope="col">{{ t('boxes.stat_load_peak') }}</th>
                 <th scope="col">{{ t('boxes.col_mem_avg') }}</th>
                 <th scope="col">{{ t('boxes.stat_mem_peak') }}</th>
-                <th scope="col">{{ t('boxes.disk') }}</th>
+                <th scope="col">{{ t('boxes.col_disk_hour') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -100,9 +100,9 @@
         <h4>{{ t('boxes.disk') }}</h4>
         <div v-if="disks.length" class="bstat__scroll">
           <table class="bstat__table">
-            <thead><tr><th scope="col">{{ t('boxes.col_mount') }}</th><th scope="col">{{ t('boxes.col_size') }}</th><th scope="col">{{ t('boxes.col_free') }}</th></tr></thead>
+            <thead><tr><th scope="col">{{ t('boxes.col_mount') }}</th><th scope="col">{{ t('boxes.col_size') }}</th><th scope="col">{{ t('boxes.col_used') }}</th><th scope="col">{{ t('boxes.col_free') }}</th></tr></thead>
             <tbody>
-              <tr v-for="d in disks" :key="d.mount" data-test="box-stats-disk-row"><td><code>{{ d.mount }}</code></td><td>{{ formatKB(d.totalKB) }}</td><td>{{ formatKB(d.availKB) }}</td></tr>
+              <tr v-for="d in disks" :key="d.mount" data-test="box-stats-disk-row"><td><code>{{ d.mount }}</code></td><td>{{ formatKB(d.totalKB) }}</td><td data-test="box-stats-disk-used">{{ diskUsedPct(d) }}%</td><td>{{ formatKB(d.availKB) }}</td></tr>
             </tbody>
           </table>
         </div>
@@ -168,7 +168,7 @@
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
-  ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxRuntimesOf, boxSystemOf, diskLine, diskTitle,
+  ageOf, agentCounts, agentStatRows, boxDisksOf, boxNetworkOf, boxOsOf, boxRuntimesOf, boxSystemOf, diskLine, diskTitle, diskUsedPct,
   factsReportedAt, formatKB, formatLoad, formatMB, hardwareSummary, hourDisksOf, latestBoxStat, lowestDisk,
 } from '~/utils/box-resources.mjs'
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'

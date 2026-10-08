@@ -7,7 +7,9 @@
 #   2. a CLAUDE.md an older renderer wrote: the personal fragments and the
 #      header stay byte for byte, a same-NN fleet fragment is taken over (gone,
 #      named), the block is there once, a backup is kept
-#   3. a hand-edited block is left alone and named; --force-skills replaces it
+#   3. a hand-edited block is left alone and named; --force-skills replaces it,
+#      the old file first kept as CLAUDE.md.bak-spool-install-<UTC stamp>, a
+#      new one per forced run (an older backup is never overwritten)
 #   4. settings.json: other keys and the mirror hooks kept, ours win; a file
 #      that is not JSON fails the step and is left untouched
 #   5. DRY=1 and SPOOL_INSTALL_CLAUDE_CONFIG=0 write nothing
@@ -124,9 +126,27 @@ cp "$md" "$T/md3"
 step "$H" 2>"$T/err3"
 cmp -s "$T/md3" "$md" && grep -q 'edited by hand: left alone' "$T/err3" &&
   pass "3: a hand-edited block is left alone and named" || fail "3: a hand-edited block was overwritten"
+# an older backup is there already (the 10-03 one of the live box): it must
+# neither stand in for the new one nor be overwritten
+echo 'an older backup' >"$md.bak-spool-install"
+step "$H" FORCE_SKILLS=1 2>"$T/err3f"
+baks3() { find "$H/.claude" -maxdepth 1 -name 'CLAUDE.md.bak-spool-install-*' | sort; }
+b1="$(baks3)"
+cmp -s "$T/md1" "$md" && [ "$(baks3 | wc -l)" = 1 ] && cmp -s "$T/md3" "$b1" &&
+  [[ "$b1" =~ \.bak-spool-install-[0-9]{8}T[0-9]{6}Z$ ]] && grep -qF "the old file kept as $b1" "$T/err3f" &&
+  pass "3: --force-skills replaces it, the edit first kept as .bak-spool-install-<UTC stamp>, named" ||
+  fail "3: --force-skills: $(baks3) $(cat "$T/err3f")"
+[ "$(cat "$md.bak-spool-install")" = 'an older backup' ] && pass "3: an older backup is left as it was" || fail "3: the older backup changed"
+sed -i 's/^# Global Claude Code Instructions$/# Global Claude Code Instructions (edited again)/' "$md"
+cp "$md" "$T/md3b"
+step "$H" FORCE_SKILLS=1 2>/dev/null; step "$H" 2>/dev/null
+sed -i 's/^# Global Claude Code Instructions$/# Global Claude Code Instructions (third)/' "$md"
+cp "$md" "$T/md3c"
 step "$H" FORCE_SKILLS=1 2>/dev/null
-cmp -s "$T/md1" "$md" && cmp -s "$T/md3" "$md.bak-spool-install" &&
-  pass "3: --force-skills replaces it, the edit kept as .bak-spool-install" || fail "3: --force-skills did not replace it"
+mapfile -t bs3 < <(baks3)
+[ "${#bs3[@]}" = 3 ] && cmp -s "$T/md3" "$b1" && { cmp -s "$T/md3b" "${bs3[1]}" || cmp -s "$T/md3b" "${bs3[2]}"; } &&
+  { cmp -s "$T/md3c" "${bs3[1]}" || cmp -s "$T/md3c" "${bs3[2]}"; } && cmp -s "$T/md1" "$md" &&
+  pass "3: each forced run keeps its own backup (same second -> -2), none overwritten" || fail "3: backups: ${bs3[*]}"
 
 # ── 4. settings.json ────────────────────────────────────────────────────────
 H=$(fresh h4)

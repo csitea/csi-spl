@@ -14,7 +14,8 @@
 #     taken over: removed and named, so no rule is there twice. A re-run
 #     rewrites the block only while its sha256 still matches (untouched); a
 #     hand-edited block is left alone and named (--force-skills replaces it,
-#     the old file kept as CLAUDE.md.bak-spool-install).
+#     the old file first kept as CLAUDE.md.bak-spool-install-<UTC stamp>,
+#     a new file each time: an older backup is never overwritten).
 #   settings.json: assets/claude/settings/NN-<slug>.json deep-merged in NN
 #     order over the current file (other keys kept, ours win), and the marker
 #     env.SPOOL_INSTALL_SETTINGS=sha256=<hex of the merged fragments>.

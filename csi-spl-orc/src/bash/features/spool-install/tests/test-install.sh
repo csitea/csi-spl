@@ -44,6 +44,10 @@
 #      no release, offline -> the build, named in one line; a bad checksum ->
 #      exit 6, nothing installed, nothing built; SPOOL_INSTALL_CLI=download
 #      never builds; --fleet builds; the dry run names both paths
+#  15. every path that replaces the spool binary (the --fleet build, the
+#      download) keeps the old one as spool.bak (its bytes, not an older
+#      .bak) and puts its owner, group and mode on the new one; the same
+#      bytes again rename nothing and keep spool.bak
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -114,7 +118,9 @@ EOF
 cat >"$T/stub/build.sh" <<EOF
 #!/bin/bash
 echo "build \$1 go=\$(command -v go)" >>"$T/build.log"
-printf '#!/bin/sh\necho spool-stub\n' >"\$1"; chmod +x "\$1"
+# like go build -o: a new file renamed over the target (a new inode, this
+# user's owner, group and umask mode), never written in place
+printf '#!/bin/sh\necho spool-stub\n' >"\$1.stub\$\$"; chmod +x "\$1.stub\$\$"; mv -f "\$1.stub\$\$" "\$1"
 EOF
 # the ./run stub: the mirror hooks come from the REAL action; the seat is scripted
 cat >"$T/stub/run" <<EOF
@@ -175,7 +181,7 @@ grep -qx "vendor-grok ran GROK_BIN_DIR=$H/.local/bin" "$T/vendor.log" && [[ -x "
   pass "3. grok installs into <prefix>/bin" || fail "3. grok: $(cat "$T/vendor.log")"
 [[ -x "$TOOLS/bin/yq" && -x "$TOOLS/go/bin/go" ]] && grep -q 'https://go.test/dl/go1.99.0.linux-' "$T/net.log" &&
   pass "3. yq and the latest Go land in tools" || fail "3. tools: $(ls -R "$TOOLS" | sed -n 1,10p) $(cat "$T/net.log")"
-grep -q "^build $TOOLS/bin/spool go=$TOOLS/go/bin/go" "$T/build.log" && [[ -x "$TOOLS/bin/spool" ]] &&
+grep -qE "^build $TOOLS/bin/spool\.new\.[0-9]+ go=$TOOLS/go/bin/go" "$T/build.log" && [[ -x "$TOOLS/bin/spool" ]] && ! compgen -G "$TOOLS/bin/*.new.*" >/dev/null &&
   pass "3. spool is built into tools with the tools Go on PATH" || fail "3. build: $(cat "$T/build.log")"
 [[ -L "$H/.local/bin/spool" && "$(readlink "$H/.local/bin/spool")" == "$TOOLS/bin/spool" ]] &&
   [[ "$(env -i PATH="$H/.local/bin:/usr/bin:/bin" bash -c 'command -v spool && spool')" == "$H/.local/bin/spool"$'\n'spool-stub ]] &&
@@ -460,7 +466,7 @@ ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-bad.json; rc=$?
 H="$T/home-a4b-noasset"; mkdir -p "$H"; TOOLS="$H/.local/share/spool-agent/tools"; : >"$T/build.log"
 ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-noasset.json; rc=$?
 [[ $rc -eq 0 && "$(cli_lines)" == 1 ]] && grep -q "spool CLI: building from this checkout - stable-2026-10-05 has no $ASSET (this OS/arch)" "$T/o" &&
-  grep -q "^build $TOOLS/bin/spool go=$TOOLS/go/bin/go" "$T/build.log" &&
+  grep -qE "^build $TOOLS/bin/spool\.new\.[0-9]+ go=$TOOLS/go/bin/go" "$T/build.log" &&
   pass "14. no asset for this OS/arch: the Go build, named in one line" || fail "14. no asset: rc $rc $(cat "$T/o" "$T/build.log")"
 : >"$T/build.log"
 ARGS=(--cli none --no-seat --no-skills); inst; rc=$?
@@ -486,5 +492,33 @@ ARGS=(--cli none --no-seat --dry-run); inst STUB_REL=rel-good.json; rc=$?
   grep -q 'would: build spool from .* (only when the download is impossible)' "$T/o" &&
   pass "14. the dry run names the download and the fallback, fetches nothing" || fail "14. dry: rc $rc $(cat "$T/o")"
 grep -c 'releases/download' "$INSTALL" >/dev/null && pass "14. spec check: install.sh names releases/download" || fail "14. no releases/download in install.sh"
+
+# --- 15. every replace keeps the old binary as spool.bak, owner/group/mode kept ------------------
+# The 2026-10-08 fleet-box run: --fleet rebuilt the binary in place, spool.bak was
+# still the build before last, and the owner moved to the agent user.
+H="$T/home-bak"; TOOLS="$H/.local/share/spool-agent/tools"; mkdir -p "$TOOLS/bin"
+printf '#!/bin/sh\necho old-spool-12h\n' >"$TOOLS/bin/spool"; chmod 751 "$TOOLS/bin/spool"
+echo 'the build before last' >"$TOOLS/bin/spool.bak"
+cp -p "$TOOLS/bin/spool" "$T/old-spool"
+g2="$(id -G | tr ' ' '\n' | grep -vx "$(id -g)" | sed -n 1p)"
+[ -n "$g2" ] && chgrp "$g2" "$TOOLS/bin/spool"
+want_ugm="$(stat -c '%u %g %a' "$TOOLS/bin/spool")"
+: >"$T/build.log"
+ARGS=(--cli none --no-seat --no-skills --fleet --force-skills); inst; rc=$?
+[[ $rc -eq 0 && -s "$T/build.log" ]] && cmp -s "$T/old-spool" "$TOOLS/bin/spool.bak" && grep -q 'spool-stub' "$TOOLS/bin/spool" &&
+  grep -q "spool: the old $TOOLS/bin/spool kept as $TOOLS/bin/spool.bak" "$T/o" &&
+  pass "15. a forced --fleet build keeps the replaced binary as spool.bak (its old bytes, not the build before)" || fail "15. fleet bak: rc $rc $(cat "$T/o")"
+[[ "$(stat -c '%u %g %a' "$TOOLS/bin/spool")" == "$want_ugm" ]] &&
+  pass "15. ... owner, group${g2:+ ($g2, not the primary)} and mode 751 kept" || fail "15. ugm: $(stat -c '%u %g %a' "$TOOLS/bin/spool") want $want_ugm"
+! compgen -G "$TOOLS/bin/*.new.*" >/dev/null && ! compgen -G "$TOOLS/bin/*.tmp.*" >/dev/null && pass "15. no temp file left beside it" || fail "15. temp left: $(ls "$TOOLS/bin/")"
+ARGS=(--cli none --no-seat --no-skills --fleet); inst; rc=$?
+[[ $rc -eq 0 ]] && cmp -s "$T/old-spool" "$TOOLS/bin/spool.bak" && grep -q 'is unchanged (the same bytes)' "$T/o" &&
+  pass "15. a re-run with the same bytes keeps spool.bak (the real previous build)" || fail "15. re-run: rc $rc $(cat "$T/o")"
+H="$T/home-bak-dl"; TOOLS="$H/.local/share/spool-agent/tools"; mkdir -p "$TOOLS/bin"
+printf '#!/bin/sh\necho old-dl\n' >"$TOOLS/bin/spool"; chmod 750 "$TOOLS/bin/spool"; cp -p "$TOOLS/bin/spool" "$T/old-dl"
+ARGS=(--cli none --no-seat --no-skills); inst STUB_REL=rel-good.json; rc=$?
+[[ $rc -eq 0 ]] && cmp -s "$T/old-dl" "$TOOLS/bin/spool.bak" && cmp -s "$TOOLS/bin/spool" "$T/www/dl/stable-2026-10-05/$ASSET" &&
+  [[ "$(stat -c %a "$TOOLS/bin/spool")" == 750 ]] &&
+  pass "15. a download keeps the replaced binary as spool.bak, mode kept" || fail "15. download bak: rc $rc $(cat "$T/o")"
 
 [[ $fails -eq 0 ]] && echo "OK test-install: $n passed" || { echo "FAILED test-install: $fails of $n"; exit 1; }

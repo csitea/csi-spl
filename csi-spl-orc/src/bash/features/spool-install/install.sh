@@ -487,10 +487,43 @@ PY
   chmod 755 "$tmp/$CLI_ASSET"
   ver="$("$tmp/$CLI_ASSET" version 2>/dev/null | sed -n 1p)"
   [ -n "$ver" ] || { rm -rf "$tmp"; CLI_WHY="$CLI_ASSET of $tag does not run here ('spool version' printed nothing)"; return 1; }
-  mkdir -p "${SPOOL%/*}" && cp "$tmp/$CLI_ASSET" "$SPOOL.new.$$" && mv -f "$SPOOL.new.$$" "$SPOOL" ||
+  mkdir -p "${SPOOL%/*}" && cp "$tmp/$CLI_ASSET" "$SPOOL.new.$$" && chmod 755 "$SPOOL.new.$$" ||
     { rm -rf "$tmp" "$SPOOL.new.$$"; die 6 "cannot write $SPOOL: check that ${SPOOL%/*} is yours, then re-run install.sh"; }
   rm -rf "$tmp"
+  spool_swap "$SPOOL.new.$$"
   say "spool CLI: downloaded $CLI_ASSET of $tag ($CLI_BASE/$tag/$CLI_ASSET, sha256 checked against spool-SHA256SUMS) -> $SPOOL ($ver)"
+}
+# file_ugm <path>: "<uid> <gid> <octal mode>" (GNU stat, else BSD stat)
+file_ugm() { stat -c '%u %g %a' "$1" 2>/dev/null || stat -f '%u %g %Lp' "$1" 2>/dev/null; }
+# spool_swap <new>: rename <new> over $SPOOL - the ONE way every path (the
+# download, the build, --binary-only) replaces the binary. A real file there
+# is first kept as spool.bak (a temp copy renamed in, so spool.bak is always
+# one whole binary), and its owner, group and mode go onto <new> before the
+# rename. The right owner is the old file's: the box user, who owns the
+# shared dir and runs its refreshes, so a refresh by an agent user must not
+# hand the machine's one binary to that agent. A non-root user cannot give a
+# file away: then the group and mode are kept (all a linked user needs to
+# refresh it; the shared dir is 2775) and one WARN line names the new owner.
+# The same bytes: nothing renamed, spool.bak keeps the build before it.
+spool_swap() {
+  local new="$1" bak="$SPOOL.bak" u g m nu ng
+  if [ -f "$SPOOL" ] && [ ! -L "$SPOOL" ]; then
+    if cmp -s "$new" "$SPOOL"; then rm -f "$new"; say "spool: $SPOOL is unchanged (the same bytes) - $bak kept as it was"; return 0; fi
+    { cp -p "$SPOOL" "$bak.tmp.$$" && mv -f "$bak.tmp.$$" "$bak"; } ||
+      { rm -f "$bak.tmp.$$" "$new"; die 6 "cannot back up $SPOOL to $bak; $SPOOL untouched"; }
+    read -r u g m < <(file_ugm "$SPOOL")
+    read -r nu ng _ < <(file_ugm "$new")
+    if [ -n "$u" ] && [ "$nu" != "$u" ] && ! chown "$u:$g" "$new" 2>/dev/null; then
+      say "WARN $SPOOL was owned by uid $u; this user ($(id -un)) cannot give a file away, so the new one is owned by uid $nu (group and mode kept)"
+    fi
+    read -r nu ng _ < <(file_ugm "$new")
+    if [ -n "$g" ] && [ "$ng" != "$g" ] && ! chgrp "$g" "$new" 2>/dev/null; then
+      say "WARN $SPOOL had group $g; this user is not in it, so the new one has group $ng"
+    fi
+    [ -z "$m" ] || chmod "$m" "$new" || { rm -f "$new"; die 6 "cannot set mode $m on the new $SPOOL; $SPOOL untouched"; }
+    say "spool: the old $SPOOL kept as $bak"
+  fi
+  mv -f "$new" "$SPOOL" || { rm -f "$new"; die 6 "cannot rename the new binary into $SPOOL"; }
 }
 CLI_FROM=build CLI_WHY=""
 if [ "$BINONLY" = 1 ]; then :  # --binary-only verifies this checkout's HEAD: always a build
@@ -596,11 +629,8 @@ binary_only() {
       { rm -f "$new"; die 6 "the spool build failed ($BUILD_SH); $SPOOL untouched"; }
   fi
   bin_ok "$new" "$want" || { rm -f "$new"; die 6 "the new binary failed verification; $SPOOL untouched"; }
-  if [ -e "$SPOOL" ]; then
-    say "old spool: commit $(bin_rev "$SPOOL"), version $("$SPOOL" version 2>/dev/null | sed -n 1p), kept as $bak"
-    cp -p "$SPOOL" "$bak" || { rm -f "$new"; die 6 "cannot back up $SPOOL to $bak; $SPOOL untouched"; }
-  fi
-  mv -f "$new" "$SPOOL" || { rm -f "$new"; die 6 "cannot rename the new binary into $SPOOL"; }
+  [ -e "$SPOOL" ] && say "old spool: commit $(bin_rev "$SPOOL"), version $("$SPOOL" version 2>/dev/null | sed -n 1p)"
+  spool_swap "$new"
   if ! bin_ok "$SPOOL" "$want"; then
     if [ -e "$bak" ]; then cp -p "$bak" "$SPOOL"; else rm -f "$SPOOL"; fi
     die 6 "$SPOOL failed verification after the rename; the old binary is restored"
@@ -647,11 +677,14 @@ else
   # build.sh is offline (GOPROXY=off): a fresh machine fetches the modules
   # once, through Go's own default proxy, then builds offline ever after -
   # which is what every later do_spl_desk_up rebuild relies on.
-  if ! bash "$BUILD_SH" "$SPOOL" >/dev/null 2>&1; then
+  # Built beside $SPOOL, then swapped in (spool.bak, owner/group/mode kept).
+  new="$SPOOL.new.$$"
+  if ! bash "$BUILD_SH" "$new" >/dev/null 2>&1; then
     say "fetching the Go modules of $MOD (first build on this machine)"
-    ( cd "$MOD" && GOFLAGS=-mod=mod "${GO_BIN:-go}" mod download ) >&2 || die 6 "go mod download failed in $MOD"
-    bash "$BUILD_SH" "$SPOOL" >&2 || die 6 "the spool build failed ($BUILD_SH)"
+    ( cd "$MOD" && GOFLAGS=-mod=mod "${GO_BIN:-go}" mod download ) >&2 || { rm -f "$new"; die 6 "go mod download failed in $MOD"; }
+    bash "$BUILD_SH" "$new" >&2 || { rm -f "$new"; die 6 "the spool build failed ($BUILD_SH); $SPOOL untouched"; }
   fi
+  spool_swap "$new"
   say "spool: $SPOOL ($("$SPOOL" version 2>/dev/null | sed -n 1p))"
 fi
 link_tools

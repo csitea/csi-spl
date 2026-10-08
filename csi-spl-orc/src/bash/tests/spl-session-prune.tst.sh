@@ -63,6 +63,8 @@ out="$(prune)"; rc=$?
 out="$(prune DRY_RUN=0)"; rc=$?
 [ "$rc" = 0 ] && [ ! -e "$P/$u_old.jsonl" ] && [ ! -e "$P/$u_old" ] && [ ! -e "$P/$u_orph" ] \
   && grep -q "REMOVE [0-9]*KB $P/$u_old\$" <<<"$out" && pass "3. DRY_RUN=0 removes the old dead .jsonl, its dir and the orphan dir" || fail "3. live run (rc $rc: $out)"
+! grep -q "KEEP [a-z-]* $P/$u_old\$" <<<"$out" && [ "$(grep -c "$P/$u_old\$" <<<"$out")" = 1 ] \
+  && pass "3. a removed session is one line, never also a KEEP for its dir" || fail "3. double visit ($out)"
 grep -q "KEEP restorable $P/$u_rest\$" <<<"$out" && [ -f "$P/$u_rest.jsonl" ] && pass "3. a session an agent record names is kept" || fail "3. restorable ($out)"
 grep -q "KEEP live $P/$u_live\$" <<<"$out" && [ -f "$P/$u_live.jsonl" ] && pass "3. a registry-live session is kept" || fail "3. live ($out)"
 grep -q "KEEP live $P/$u_cmd\$" <<<"$out" && [ -f "$P/$u_cmd.jsonl" ] && pass "3. a session named on a running command line is kept" || fail "3. resumed ($out)"

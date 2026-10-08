@@ -155,6 +155,8 @@ while IFS= read -r -d '' p; do
   stem="${p%.jsonl}"
   parts=()
   for x in "$stem.jsonl" "$stem"; do [[ -e "$x" || -L "$x" ]] && parts+=("$x"); done
+  # Gone already: its dir, listed by find, went with its .jsonl a moment ago.
+  (( ${#parts[@]} )) || continue
   why=""
   slug="${stem%/*}"; slug="${slug##*/}"
   if [[ "$slug" =~ $slug_ere ]]; then

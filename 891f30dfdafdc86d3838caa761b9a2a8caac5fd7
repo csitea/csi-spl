@@ -1,0 +1,6 @@
+Lay-What: The guides and helper commands now describe Mistral as a fifth kind of agent, including how to start one.
+Lay-How: The rules for agent names, the setup guide, the start command and the routing guide were rewritten to include it.
+Lay-Why: The owner chose Mistral to take over Grok's share of the work, and agents need written instructions before they can use it.
+Tech-What: Agent id grammar becomes ^[acgmq]-[0-9]{3}$ in the docs; new /mistral-spawn command and mistral ISG; repo data rule D2.
+Tech-How: Doc edits plus harness-parity.tsv dispositions added/planned, checked by test-harness-parity.sh and skipped by the drift check.
+Tech-Why: Spec 110 T011: the docs and the parity manifest must name the new kind before its adapter (T005) and restore (T007) land.

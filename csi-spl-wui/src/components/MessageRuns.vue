@@ -133,13 +133,6 @@ function onLink(e: MouseEvent, href?: string) {
   -webkit-user-drag: none;
 }
 .msg-link:hover { color: var(--color-accent-pressed); }
-.code-inline {
-  font-family: var(--font-mono);
-  background: var(--color-bg-2);
-  padding: 1px 4px;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  white-space: pre-wrap;
-}
+/* .code-inline is global (main.css): the same look in every body */
 em { font-style: italic; }
 </style>

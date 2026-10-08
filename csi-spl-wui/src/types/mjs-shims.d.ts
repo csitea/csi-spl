@@ -2468,3 +2468,7 @@ declare module '~/utils/vim-panels.mjs' {
   export function panelEntry(items: readonly unknown[], opts?: { remembered?: string }): HTMLElement | null
   export function vimStepItem(items: readonly unknown[], current: unknown, action: 'down' | 'up' | 'first' | 'last'): HTMLElement | null
 }
+
+declare module '~/utils/composer-code-marks.mjs' {
+  export function composerCodeRuns(src: string): { text: string, kind?: 'inline' | 'block' }[]
+}

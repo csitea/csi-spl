@@ -248,11 +248,14 @@ MdNodes.props = ['nodes', 'stamp']
   border-top: 1px solid var(--color-border);
   margin: 0.5em 0;
 }
-.md-block :deep(code) {
+/* inline code: the global .code-inline look (main.css), here too */
+.md-block :deep(:not(pre) > code) {
   font-family: var(--font-mono);
-  font-size: 0.9em;
-  background: var(--color-bg-2);
-  padding: 1px 4px;
+  font-size: 0.8125rem;
+  color: var(--color-code-inline-fg);
+  background: var(--color-code-inline-bg);
+  border: 1px solid var(--color-code-inline-edge);
+  padding: 0 0.25em;
   border-radius: var(--radius-sm);
 }
 .md-block :deep(pre) {

@@ -26,6 +26,8 @@
 //       "#alerts" (085 T002) with NO hash glyph in front of it (HUM-10: a
 //       glyph plus that placeholder reads "# #alerts"); tap a card -> mode
 //       thread, the tree glyph, placeholder "Reply…"
+//   t1 3558e416, /channel/alerts (dark and light): `foobar` and an unclosed
+//     ``` look like code while typing (codeCase), and once posted
 //     CONTROL: before HUM-24 the desktop had no data-mode and one GO label
 //     (1-4 fail), the edit box had no label (5 fails).
 //
@@ -337,6 +339,115 @@ async function newTopicOnce(browser, width, height, mobile) {
   await p.close()
 }
 
+/** t1 3558e416 (owner HUM-10): code looks like code - in the composer WHILE
+ *  TYPING, then in the posted body.
+ *  - `foobar` typed: a mark (ComposerCodeMarks) sits exactly over the span,
+ *    a box the plain text does not have
+ *  - ``` + two lines, no closer typed: ONE block mark over all of it at once;
+ *    GO posts it as ONE code block (the composer adds the closer)
+ *  - the posted `foobar`: mono, its own tint, its own box and edge, unlike
+ *    the paragraph around it
+ *  CONTROL: before the fix there is no mark (the composer checks fail) and
+ *  the posted span had the paragraph's colour and no edge (the last check). */
+async function codeCase(browser, theme) {
+  const tag = `1440 ${theme} code`
+  const { p, errors } = await open(browser, { width: 1440, height: 900 }, '/channel/alerts', theme)
+  await firstCard(p)
+  await waitMode(p, 'new')
+  const TA = 'form.composer.omnibox--global textarea'
+  const clear = async () => {
+    await p.focus(TA)
+    await p.keyboard.down('Control'); await p.keyboard.press('a'); await p.keyboard.up('Control')
+    await p.keyboard.press('Backspace')
+  }
+  const marks = () => p.evaluate((sel) => {
+    const ta = [...document.querySelectorAll(sel)].find((el) => el.getClientRects().length > 0)
+    const ts = getComputedStyle(ta)
+    const ctx = document.createElement('canvas').getContext('2d')
+    ctx.font = `${ts.fontStyle} ${ts.fontWeight} ${ts.fontSize} ${ts.fontFamily}`
+    const r = ta.getBoundingClientRect()
+    const x0 = r.left + parseFloat(ts.borderLeftWidth) + parseFloat(ts.paddingLeft)
+    return {
+      value: ta.value,
+      inCode: ta.classList.contains('in-code'),
+      taBg: ts.backgroundColor,
+      lineH: parseFloat(ts.lineHeight) || parseFloat(ts.fontSize) * 1.4,
+      /* where the textarea draws "see " ends, by its own font */
+      expectLeft: x0 + ctx.measureText('see ').width,
+      expectW: ctx.measureText('`foobar`').width,
+      marks: [...document.querySelectorAll('[data-test=composer-code-mark]')].map((m) => {
+        const cs = getComputedStyle(m)
+        const rs = [...m.getClientRects()]
+        const b = m.getBoundingClientRect()
+        return { kind: m.dataset.kind, text: m.textContent, bg: cs.backgroundColor, ring: cs.boxShadow, left: rs[0] ? rs[0].left : 0, w: rs[0] ? rs[0].width : 0, h: b.height }
+      }),
+    }
+  }, TA)
+
+  await clear()
+  await p.keyboard.type('see `foobar` here')
+  await p.waitForSelector('[data-test=composer-code-mark]', { timeout: 15000 }).catch(() => null)
+  const a = await marks()
+  await shot(p, `code-inline-composer-${theme}`)
+  const m = a.marks[0]
+  ok(`${tag} composer: \`foobar\` gets ONE inline mark while typing`,
+    Boolean(a.marks.length === 1 && m.kind === 'inline' && m.text === '`foobar`'), a)
+  ok(`${tag} composer: the mark lies over the typed span (<= 2 px off)`,
+    Boolean(m && Math.abs(m.left - a.expectLeft) <= 2 && Math.abs(m.w - a.expectW) <= 2), { left: m && m.left, expect: a.expectLeft, w: m && m.w, expectW: a.expectW })
+  ok(`${tag} composer: the mark has a box the plain text has not (fill + edge)`,
+    Boolean(m && m.bg !== 'rgba(0, 0, 0, 0)' && m.bg !== a.taBg && m.ring !== 'none'), { bg: m && m.bg, ta: a.taBg, ring: m && m.ring })
+
+  await clear()
+  await p.keyboard.type('```line one')
+  await p.keyboard.down('Shift'); await p.keyboard.press('Enter'); await p.keyboard.up('Shift')
+  await p.keyboard.type('line two')
+  await sleep(300)
+  const b = await marks()
+  await shot(p, `code-block-composer-${theme}`)
+  const blk = b.marks[0]
+  ok(`${tag} composer: \`\`\` + two lines, no closer: ONE block mark over both lines at once`,
+    Boolean(b.marks.length === 1 && blk.kind === 'block' && blk.text === '```line one\nline two' && blk.h >= 1.5 * b.lineH && b.inCode), b)
+
+  const before = await p.evaluate(() => document.querySelectorAll('.spool-main .msg-body .code-block').length)
+  await p.click('form.composer.omnibox--global [data-testid=send]')
+  let posted = null
+  for (let i = 0; i < 40 && !posted; i++) {
+    await sleep(250)
+    posted = await p.evaluate((n) => {
+      const bs = [...document.querySelectorAll('.spool-main .msg-body')].filter((x) => x.textContent.includes('line one'))
+      const all = document.querySelectorAll('.spool-main .msg-body .code-block').length
+      if (!bs.length || all <= n) return null
+      const body = bs[bs.length - 1]
+      return { blocks: body.querySelectorAll('.code-block').length, code: (body.querySelector('.code-block pre') || {}).textContent || '', ticks: body.textContent.includes('```') }
+    }, before)
+  }
+  ok(`${tag} posted: the unclosed block sends as ONE code block, no stray fence`,
+    Boolean(posted && posted.blocks === 1 && posted.code.includes('line one') && posted.code.includes('line two') && !posted.ticks), posted)
+
+  await clear()
+  await p.keyboard.type('for example this one "`foobar`" , plain words')
+  await p.click('form.composer.omnibox--global [data-testid=send]')
+  let look = null
+  for (let i = 0; i < 40 && !look; i++) {
+    await sleep(250)
+    look = await p.evaluate(() => {
+      const bodies = [...document.querySelectorAll('.spool-main .msg-body')].filter((x) => x.textContent.includes('plain words'))
+      const code = bodies.length ? bodies[bodies.length - 1].querySelector('code') : null
+      if (!code) return null
+      const c = getComputedStyle(code)
+      const q = getComputedStyle(code.parentElement)
+      return { tag: code.tagName, font: c.fontFamily, pFont: q.fontFamily, color: c.color, pColor: q.color, bg: c.backgroundColor, edge: c.borderTopWidth, edgeColor: c.borderTopColor, size: c.fontSize }
+    })
+  }
+  await shot(p, `code-inline-posted-${theme}`)
+  ok(`${tag} posted: \`foobar\` is mono on a fill, unlike its paragraph`,
+    Boolean(look && look.font !== look.pFont && /mono/i.test(look.font) && look.bg !== 'rgba(0, 0, 0, 0)'), look)
+  ok(`${tag} posted: \`foobar\` has its own tint and a 1px edge (CONTROL: the old look had neither)`,
+    Boolean(look && look.color !== look.pColor && look.edge === '1px'), look)
+  ok(`${tag} no page error`, errors.length === 0, errors)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -349,6 +460,8 @@ try {
   await dmCase(browser)
   await editCase(browser)
   await phoneCase(browser)
+  await codeCase(browser, 'dark')
+  await codeCase(browser, 'light')
 } finally {
   await browser.close()
   await server.stop()

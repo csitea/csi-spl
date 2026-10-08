@@ -178,6 +178,8 @@
           @blur="onOmniboxBlur"
           @paste="onPaste"
         />
+        <!-- t1 3558e416: `inline` and ``` blocks look like code while typing -->
+        <LazyComposerCodeMarks v-if="codeMarksDue" :el="inputEl" :text="text" />
         <p :id="hintId" class="code-hint muted" aria-live="polite">{{ inCode ? t('composer.code_hint') : '' }}</p>
         <p v-if="global" :id="slashHintId" class="sr-only">{{ t('search.slash_shortcut') }}</p>
         <ul v-if="picked.length" class="file-chips">
@@ -422,6 +424,8 @@ const statusLineDue = computed(() => !searchMode.value && (/^HUM-/.test(statusDm
 const liveMain = useLiveFeed('main')
 const text = ref('')
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+/* the code-marks mirror loads with the first backtick, never for a query */
+const codeMarksDue = computed(() => !searchMode.value && text.value.includes('`'))
 
 /*
  * 080 FR-001..FR-003: one draft per place. The page's omnibox target names

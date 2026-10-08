@@ -394,6 +394,21 @@
   --color-mode-edit: #8a6100;
 }
 
+/* t1 3558e416 (owner, msg 841cf92c): `inline code` reads as code - Slack's
+   tinted text on a grey box with a thin edge. The old bg-2 fill sat at
+   ~1.1:1 against the page, so `foobar` looked like plain text. One set per
+   theme family, shared by posted bodies and the composer's marks. */
+:root {
+  --color-code-inline-fg: #ff9db4;
+  --color-code-inline-bg: rgba(255, 255, 255, 0.09);
+  --color-code-inline-edge: rgba(255, 255, 255, 0.22);
+}
+:root[data-theme^="light"] {
+  --color-code-inline-fg: #b4144a;
+  --color-code-inline-bg: rgba(12, 22, 38, 0.07);
+  --color-code-inline-edge: rgba(12, 22, 38, 0.2);
+}
+
 /* spec 097 T014 (G8, spec 3.3): an event's colour - the hub's 11 palette
    names, one variable each. The dark family (the default) gets lighter
    tones so a swatch and an event's edge read on the navy; every light-*

@@ -1,9 +1,11 @@
 /**
  * Spec 116 T7 (HUM-10, t1 598f2807): the public, signed-out pages a search
  * engine may index, and the head they carry. Public = /login (the front page:
- * a signed-out visitor at / is sent there), /help and /help/<page>, and the
- * blog (/blog, /blog/page/<n>, /blog/<id>), each also under /<lang>/. Every
- * other screen, / included, stays `noindex, nofollow`.
+ * a signed-out visitor at / is sent there), /public-calendar, /help and
+ * /help/<page>, and the blog (/blog, /blog/page/<n>, /blog/<id>), each also
+ * under /<lang>/. Every other screen, / and /docs included, stays `noindex,
+ * nofollow`: which docs are public is a build-time list (`public: true`,
+ * src/node/docs/sync-public-docs.mjs), not a path shape.
  *
  * Indexing is on only where the build says so: cnf env.wui.seo_index (prd)
  * -> NUXT_PUBLIC_SEO_INDEX=1. Canonical, hreflang and og:url are ALWAYS on
@@ -17,7 +19,7 @@
 export const SITE_NAME = 'spool-hub'
 /** the og/twitter picture of a page with none of its own */
 export const SITE_IMAGE = '/spool-hub-emblem-1120.webp'
-const PUBLIC_RE = /^\/(?:login|help(?:\/[a-z0-9][a-z0-9-]*)?|blog(?:\/.*)?)$/
+const PUBLIC_RE = /^\/(?:login|public-calendar|help(?:\/[a-z0-9][a-z0-9-]*)?|blog(?:\/.*)?)$/
 
 /**
  * Pathname with the locale prefix, query, hash and trailing slash taken off.
@@ -107,24 +109,30 @@ const FRONT = {
   title: 'Agents and people, one channel feed',
   description: 'spool-hub is a channel feed where AI agents and people work side by side: channels, topics, direct messages, a calendar, help and release notes, in 19 languages.',
 }
+const CALENDAR = {
+  title: 'Public calendar',
+  description: 'What shipped in spool-hub, month by month: the releases and the features each one brought.',
+}
 const HELP = {
   title: 'Help',
   description: 'How to use spool-hub: channels, topics, direct messages, agents, boxes, the calendar and the rest of the app.',
 }
 
 /**
- * The head of /login and /help/** (the blog builds its own, pages/blog.vue),
- * or null for any other path. /login exists in every locale; the help text
- * is one language, so every /<lang>/help copy canonicalises to the default one.
+ * The head of /login, /public-calendar and /help/** (the blog builds its own,
+ * pages/blog.vue), or null for any other path. /login and /public-calendar
+ * exist in every locale; the help text is one language, so every /<lang>/help
+ * copy canonicalises to the default one.
  * @param {{ path: string, locale: string, codes: string[], defaultLocale: string, siteUrl: string }} o
  */
 export function publicPageHead(o) {
   const base = seoBasePath(o.path, o.codes)
   const site = String(o.siteUrl || '').replace(/\/+$/, '')
   const login = base === '/login'
-  if (!login && !/^\/help(?:\/|$)/.test(base)) return null
-  const page = login ? FRONT : HELP
-  const link = localeLinks(login
+  const calendar = base === '/public-calendar'
+  if (!login && !calendar && !/^\/help(?:\/|$)/.test(base)) return null
+  const page = login ? FRONT : calendar ? CALENDAR : HELP
+  const link = localeLinks(login || calendar
     ? { siteUrl: site, base, canonicalCode: o.locale, langs: o.codes, defaultLocale: o.defaultLocale }
     : { siteUrl: site, base, canonicalCode: o.defaultLocale, langs: [], defaultLocale: o.defaultLocale })
   const meta = [
@@ -195,7 +203,7 @@ export function buildRobotsTxt(o) {
   if (!o.indexOn || !o.siteUrl) return 'User-agent: *\nDisallow: /\n'
   const lines = ['User-agent: *', 'Disallow: /', 'Allow: /$']
   for (const c of o.codes) {
-    for (const p of ['/login', '/blog', '/help']) lines.push(`Allow: ${localizedPath(c, p, o.defaultLocale)}`)
+    for (const p of ['/login', '/public-calendar', '/blog', '/help']) lines.push(`Allow: ${localizedPath(c, p, o.defaultLocale)}`)
   }
   for (const a of ROBOTS_ASSETS) lines.push(`Allow: ${a}`)
   lines.push('', `Sitemap: ${o.siteUrl}/sitemap.xml`, '')

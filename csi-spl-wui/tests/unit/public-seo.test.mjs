@@ -22,6 +22,21 @@ describe('public SEO: which paths', () => {
       assert.equal(isPublicSeoPath(p, codes), false, p)
     }
   })
+  it('/public-calendar, in any locale, is public; nothing under it or beside it is', () => {
+    for (const p of ['/public-calendar', '/fi/public-calendar', '/public-calendar/', '/public-calendar?m=2026-10']) {
+      assert.equal(isPublicSeoPath(p, codes), true, p)
+    }
+    for (const p of ['/public-calendar/x', '/public-calendarx', '/calendar', '/fi/calendar']) {
+      assert.equal(isPublicSeoPath(p, codes), false, p)
+    }
+    assert.equal(robotsContent('/fi/public-calendar', codes, true), 'index, follow')
+    assert.equal(robotsContent('/public-calendar', codes, false), 'noindex, nofollow')
+  })
+  it('/docs is not public by path: which docs are is a build-time list', () => {
+    for (const p of ['/docs', '/fi/docs', '/docs/README.md', '/docs/csi-spl-doc/doc/md/x.md']) {
+      assert.equal(isPublicSeoPath(p, codes), false, p)
+    }
+  })
   it('a route named like a locale is not a prefix unless it is one', () => {
     assert.equal(seoBasePath('/dm/login', ['bg', 'en']), '/dm/login')
     assert.equal(seoBasePath('/fi/login/', codes), '/login')
@@ -48,16 +63,20 @@ describe('public SEO: head', () => {
     assert.ok(meta['og:image'].startsWith(site + '/'))
     assert.match(h.script[0].innerHTML, /"@type":"Organization".*"@type":"WebSite"/)
   })
-  it('/public-calendar: apex canonical, hreflang per locale, og, twitter', () => {
-    const h = publicPageHead({ path: '/fi/public-calendar', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
+  it('/public-calendar: apex canonical per locale, hreflang per locale + x-default, og, twitter, no JSON-LD', () => {
+    const h = publicPageHead({ path: '/fi/public-calendar?m=2026-10', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site + '/' })
     assert.ok(h)
-    assert.deepEqual(h.link[0], { rel: 'canonical', href:  })
+    assert.deepEqual(h.link[0], { rel: 'canonical', href: `${site}/fi/public-calendar` })
     assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
-    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === ))
+    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === `${site}/public-calendar`))
+    assert.ok(h.link.some((l) => l.hreflang === 'bg' && l.href === `${site}/bg/public-calendar`))
     const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
-    assert.equal(meta['og:url'], )
+    assert.equal(meta['og:url'], `${site}/fi/public-calendar`)
+    assert.equal(meta['og:title'], `${h.title} · spool-hub`)
     assert.equal(meta['twitter:card'], 'summary_large_image')
-    assert.ok(meta['og:image'].startsWith(site))
+    assert.ok(meta.description)
+    assert.ok(meta['og:image'].startsWith(`${site}/`))
+    assert.deepEqual(h.script, [])
   })
   it('/<lang>/help canonicalises to the default copy, no alternates (one language)', () => {
     const h = publicPageHead({ path: '/fi/help/agents', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
@@ -80,10 +99,10 @@ describe('public SEO: head', () => {
 describe('public SEO: robots.txt and sitemap.xml', () => {
   it('an indexable build allows the public pages, disallows the rest, names the sitemap', () => {
     const r = buildRobotsTxt({ siteUrl: site, codes: ['bg', 'en', 'fi'], defaultLocale: 'en', indexOn: true })
-    for (const l of ['Disallow: /', 'Allow: /login', 'Allow: /fi/login', 'Allow: /blog', 'Allow: /help', 'Allow: /_nuxt/', `Sitemap: ${site}/sitemap.xml`]) {
+    for (const l of ['Disallow: /', 'Allow: /login', 'Allow: /fi/login', 'Allow: /public-calendar', 'Allow: /fi/public-calendar', 'Allow: /blog', 'Allow: /help', 'Allow: /_nuxt/', `Sitemap: ${site}/sitemap.xml`]) {
       assert.ok(r.split('\n').includes(l), l)
     }
-    assert.ok(!/Allow: \/(lobby|channel|dm\/|t\/|settings)/.test(r))
+    assert.ok(!/Allow: \/(lobby|channel|dm\/|t\/|settings|docs|calendar)/.test(r))
   })
   it('any other build disallows everything and names no sitemap', () => {
     assert.equal(buildRobotsTxt({ siteUrl: site, codes, defaultLocale: 'en', indexOn: false }), 'User-agent: *\nDisallow: /\n')
@@ -118,25 +137,3 @@ describe('public SEO: a client-only page head written at build time', () => {
     assert.equal(injectPublicHead(out, head, 'index, follow'), out)
   })
 })
-
-  it('/public-calendar: apex canonical, hreflang per locale, og, twitter', () => {
-    const h = publicPageHead({ path: '/fi/public-calendar', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
-    assert.ok(h)
-    assert.deepEqual(h.link[0], { rel: 'canonical', href:  })
-    assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
-    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === ))
-    const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
-    assert.equal(meta['og:url'], )
-    assert.equal(meta['twitter:card'], 'summary_large_image')
-    assert.ok(meta['og:image'].startsWith(site))
-  })
-
-  it("/public-calendar: public path", () => {
-    assert.equal(isPublicSeoPath("/public-calendar", codes), true)
-    assert.equal(isPublicSeoPath("/fi/public-calendar", codes), true)
-  })
-
-  it("/public-calendar: public path", () => {
-    assert.equal(isPublicSeoPath("/public-calendar", codes), true)
-    assert.equal(isPublicSeoPath("/fi/public-calendar", codes), true)
-  })

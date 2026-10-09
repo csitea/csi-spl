@@ -211,7 +211,7 @@ for h in dict.fromkeys(hosts):
 # spec 116 T7: the public pages' served X-Robots-Tag (the WUI's
 # src/utils/public-seo.mjs is the same list; nuxt generate checks the meta)
 seo_index = bool((env.get("wui") or {}).get("seo_index"))
-SEO_PUBLIC_SOURCES = ("**/blog", "**/blog/**", "/login", "/*/login", "/help", "/help/**", "/public-calendar", "/*/public-calendar", "**/docs", "**/docs/**")
+SEO_PUBLIC_SOURCES = ("**/blog", "**/blog/**", "/login", "/*/login", "/help", "/help/**", "/public-calendar", "/*/public-calendar")
 card = (env.get("payment") or {}).get("wui_csp") or {}
 ORIGIN_RE = re.compile(r"^https://(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 def card_sources(kind):

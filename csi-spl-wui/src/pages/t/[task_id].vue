@@ -32,7 +32,7 @@
           @click.exact.prevent="pick(row.task_id)"
           @keydown="onRowKey(row.task_id, $event)"
         >
-          <div class="topic-subject">{{ rowTitle(row.subject) }}</div>
+          <div class="topic-subject">{{ rowTitle(row.subject) || t('topic.title') }}</div>
           <ArchivedBadge v-if="row.archived_at" :at="row.archived_at" />
           <small class="muted">{{ t('pages.index.messages', { n: row.count }, row.count) }}</small>
         </a>
@@ -133,7 +133,7 @@ import { useSidePane } from '~/composables/useSidePane'
 import { bumpTopic } from '~/utils/topic-list.mjs'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
 import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
-import { topicOpening } from '~/utils/view-api.mjs'
+import { rowTitle } from '~/utils/view-api.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { writeClipboard } from '~/utils/clipboard.mjs'
@@ -232,10 +232,6 @@ watch(() => viewer.needsToken, (need) => {
 })
 
 watch(() => api.mock || String(session.state) === 'in', (on) => { if (on) void access.load() }, { immediate: true })
-
-function rowTitle(subject: string) {
-  return topicOpening(subject) || t('topic.title')
-}
 
 function openingOf(rows: SpoolMessage[], id: string): SpoolMessage | null {
   const mine = rows.filter((m) => String(m.parent_task_id || m.task_id || '') === id)

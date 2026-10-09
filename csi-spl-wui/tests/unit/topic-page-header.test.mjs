@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { rowTitle } from '../../src/utils/view-api.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
@@ -15,6 +16,13 @@ const template = page.slice(page.indexOf('<template>'), page.lastIndexOf('</temp
 const css = read('src/assets/css/main.css')
 
 describe('the topic view is two panels', () => {
+  it('its own Topics list row is plain text: the shared rowTitle, no ** (spec 082 FR-002)', () => {
+    assert.match(page, /import \{ rowTitle \} from '~\/utils\/view-api\.mjs'/)
+    assert.doesNotMatch(page, /function rowTitle\(/)
+    assert.match(template, /class="topic-subject">\{\{ rowTitle\(row\.subject\)/)
+    assert.equal(rowTitle('Welcome to **#lobby**.'), 'Welcome to #lobby.')
+  })
+
   it('the list names topics and the thread is TopicPane, never the raw id', () => {
     assert.match(template, /data-test="topic-browse"/)
     assert.match(template, /data-test="topic-browse-list"/)
@@ -24,7 +32,6 @@ describe('the topic view is two panels', () => {
     assert.doesNotMatch(template, /shortId/)
     assert.doesNotMatch(template, /<code/)
     assert.doesNotMatch(template, /<LiveFeed/)
-    assert.match(page, /topicOpening\(subject\)/)
     assert.doesNotMatch(page, /topic\.list_title/)
   })
 

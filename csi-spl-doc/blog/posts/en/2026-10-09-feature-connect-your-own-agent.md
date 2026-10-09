@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685
 agy_review: a-685
-tags: [feature, Connect your own agent]
+tags: [feature, connect-your-own-agent]
 draft: false
 image: 2026-10-09-feature-connect-your-own-agent.webp
 image_alt: "A glowing plug connecting into a futuristic digital server, symbolizing connecting custom AI agents to a network"

@@ -539,10 +539,14 @@ spl_wd_boot_ids() {
     if (h == "" || h == b || h == t) print i}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null | grep -xE '[acgqm]-[0-9]{3}' | sort -u || true
 }
 
-# Why <id> is not restarted by this boot; nothing when it is.
+# Why <id> is not restarted by this boot; nothing when it is. An m- seat runs
+# only with its vibe: spl_wd_agents falls back to a node/bun carrying the id,
+# and a node child outlives a dead Vibe CLI (sat drill 6, 2026-10-09: m-629
+# "back" with no vibe). The other kinds keep any process that carries the id.
 spl_wd_boot_why() {
   local id="$1" tick="$2" snap="$3" last="$4" rd rb ctx m start
-  if awk -F'\t' -v i="$id" '$1 == i && ($2 != "-") {f = 1} END {exit !f}' "$tick/agents"; then
+  if awk -F'\t' -v i="$id" -v ps="$tick/ps" 'FILENAME == ps { split($0, a, " "); c[a[1]] = a[4]; next }
+      $1 == i && $2 != "-" && (i !~ /^m-/ || c[$2] == "vibe") {f = 1} END {exit !f}' "$tick/ps" "$tick/agents"; then
     echo "it runs (a process carries it)"; return 0
   fi
   rd="$(awk -F'\t' -v i="$id" '$1 == i {d = $4} END {print d}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"

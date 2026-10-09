@@ -25,6 +25,11 @@
 #      daemon, inherited the pass's fd 5 (boot.lock) and held it for good:
 #      every later pass gave up on the lock in silence, boot.q/m-617 kept
 #      try 1. Control: a tmux call that keeps fd 5 -> no retry, no log
+#   5. sat drill 5: a window with only a shell is not back
+#   6. sat drill 6 (2026-10-09, n=1): m-629 logged "back: it runs (a process
+#      carries it)" while no Vibe CLI ran; a node child carrying its
+#      SPOOL_AGENT_ID filled the agents file's pid. An m- seat is back only
+#      with its vibe; control: the same seat with a Vibe CLI process is back
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -257,6 +262,35 @@ window_only m-617
 WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 500 ))
 grep -q 'm-617 given up: not back after 2 tries' "$D/wd.log" && [[ "$(cat "$W/boot.result" 2>/dev/null)" == "$BT back=0 failed=1 m-617" ]] \
   && pass "tick 4: given up, reported (boot.result failed=1 m-617)" || fail "tick 4: boot.result '$(cat "$W/boot.result" 2>/dev/null)', $(grep m-617 "$D/wd.log" | tail -2)"
+cleanup_stubs
+
+# ---- 6. an m- seat whose only process is a node child --------------------------------
+echo "=== 6. drill 6: an m- seat with only a node (MCP) child carrying its id -> not back; with its vibe -> back"
+# proc_only <id> <comm...>: the restart ends, a window carries the id, each comm runs in it carrying SPOOL_AGENT_ID
+proc_only() {
+  local id="$1" c; shift
+  touch "$T/go.$id"
+  for _ in $(seq 1 100); do [[ -e "$T/end.$id" ]] && break; sleep 0.05; done
+  pid=$(( pid + 2 ))
+  printf '%%%s\t%s\t$1\t%s@box1\tsh\n' "$pid" "$pid" "$id" >> "$T/tmux/panes"
+  printf '%s 1 60 sh\n' "$pid" >> "$T/ps"
+  for c in "$@"; do
+    pid=$(( pid + 1 ))
+    printf '%s %s 60 %s\n' "$pid" "$(( pid - 1 ))" "$c" >> "$T/ps"
+    mkdir -p "$T/proc/$pid"; printf 'SPOOL_AGENT_ID=%s\0' "$id" > "$T/proc/$pid/environ"
+  done
+}
+IDS="m-629"; box; wd $(( BT + 60 ))
+b="$(started)"; WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 300 )); settle 1
+[[ "$(new_ids "$b")" == "m-629" ]] && pass "tick 1: m-629 started (try 1)" || fail "tick 1: started '$(new_ids "$b")'"
+proc_only m-629 node
+WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 330 ))
+! grep -q 'm-629 back' "$D/wd.log" && [[ -e "$W/boot.q/m-629" ]] && pass "tick 2: only a node child carries m-629: not back, still in flight" || fail "tick 2: $(grep m-629 "$D/wd.log" | tail -2)"
+# control: the same seat once its Vibe CLI runs is back
+printf '%s %s 60 Vibe CLI\n' "$(( pid + 1 ))" "$pid" >> "$T/ps"
+mkdir -p "$T/proc/$(( pid + 1 ))"; printf 'SPOOL_AGENT_ID=m-629\0' > "$T/proc/$(( pid + 1 ))/environ"; pid=$(( pid + 1 ))
+WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 360 ))
+[[ "$(grep -c 'm-629 back: it runs' "$D/wd.log")" == 1 && ! -e "$W/boot.q/m-629" ]] && pass "control: with its Vibe CLI m-629 is back" || fail "control: $(grep m-629 "$D/wd.log" | tail -2)"
 cleanup_stubs
 
 echo

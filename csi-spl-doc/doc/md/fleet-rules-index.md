@@ -10,7 +10,7 @@ mention is a one-line pointer.
 
 | # | source | read by | governs |
 |---|---|---|---|
-| 1.1 | `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/*.md` | every Claude seat on every box: spool-install (step y4) renders these parts into the installed global `~/.claude/CLAUDE.md`; every mistral (vibe) seat: step y8 renders the same parts into `~/.vibe/AGENTS.md` (vibe loads AGENTS.md, never CLAUDE.md) | `05` seats run as the agent user; `07` permission mode bypass only; `10` push trunk, deploy dev and prd; `20` spawn an agent: launcher choice, the agent ceiling + count command, the data rule, the language rule; `30` a cross-lane finding states version, tree and n |
+| 1.1 | `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/*.md` | every Claude seat on every box: spool-install (step y4) renders these parts into the installed global `~/.claude/CLAUDE.md`; every mistral (vibe) seat: step y8 renders the same parts into `~/.vibe/AGENTS.md` (vibe loads AGENTS.md, never CLAUDE.md) | `05` seats run as the agent user; `07` permission mode bypass only; `10` push trunk, deploy dev and prd; `20` spawn an agent: launcher choice, the agent ceiling + count command, the data rule, the language rule; `25` stay in your own lane; `30` a cross-lane finding states version, tree and n |
 | 1.2 | repo `CLAUDE.md` (the repo `AGENTS.md` only points to it, for vibe) | every agent working in this repo | repo rules: environments, service accounts only, nothing ad hoc, terraform via tf-runner, cheap gates before a push, version minting, the commit identity; pointers to 1.1 and to this page |
 | 1.3 | `csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md` | orchestrator and dispatcher seats | roles `001`..`003`, where messages come from, the routing rule, the leases, failover, hourly rotation |
 | 1.4 | `csi-spl-doc/doc/md/lane-integration-rules.md` | a lane, when a rule of its seed seems odd | the why of the spawn seed's INTEGRATION (1)-(8), SCOPE (a)-(d) and DEPLOY-GATE (a)-(e); the rules themselves are in `spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_seed_blocks`) |
@@ -28,6 +28,7 @@ mention is a one-line pointer.
 | language rule: agy has the final word on multilingual text | 1.1 `20-spawn-an-agent.md` | repo `CLAUDE.md` (one line); the `i18n` row in 1.5 |
 | commit identity, no AI trailers | repo `CLAUDE.md`, the "Commits:" line (the canonical address the seed's LEAK-GATE defers to) | 1.4 section 5 (the why) |
 | spool posts are markdown | 1.7 | repo `CLAUDE.md` (one line) |
+| stay in your own lane („Всяка жаба да си знае гьола“): your brief only, a finding outside it to the orchestrator | 1.1 `25-stay-in-your-lane.md` | the mistral seed (`spawn-mistral.sh`, `spawn_rename_how`, one line), because vibe 2.26.0 keeps no memory file across sessions |
 | lane integration (commit, rebase, push, teardown) | the seed, `spawn-core.inc.sh` | 1.4 (the why) |
 
 ## 3. The drift check

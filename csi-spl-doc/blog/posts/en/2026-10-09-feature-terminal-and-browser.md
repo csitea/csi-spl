@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685
 agy_review: a-685
-tags: [feature, The terminal and the browser on one conversation]
+tags: [feature, the-terminal-and-the-browser-on-one-conversation]
 draft: false
 image: 2026-10-09-feature-terminal-and-browser.webp
 image_alt: "A split screen showing a command-line terminal on one side and a modern web browser on the other, seamlessly connected"

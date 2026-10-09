@@ -394,18 +394,25 @@ func TestHubRuntimeLimits(t *testing.T) {
 	}
 }
 
-// specs/077 FR-004: the demo providers default to google,facebook, and a
-// password (or any other) provider can never open the demo.
+// specs/077 FR-004: the demo providers default to google,facebook,linkedin
+// (linkedin: owner, t1 msg fafec44f), and a password (or any other) provider
+// can never open the demo.
 func TestLoadHubDemoProviders(t *testing.T) {
 	setHubBase(t)
 	h, err := LoadHub()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(h.DemoProviders, ",") != "google,facebook" || h.DemoTenant() != "" {
+	if strings.Join(h.DemoProviders, ",") != "google,facebook,linkedin" || h.DemoTenant() != "" {
 		t.Fatalf("defaults: providers %v, demo %q (want off)", h.DemoProviders, h.DemoTenant())
 	}
-	for _, bad := range []string{"password", "google,password", "microsoft"} {
+	for _, good := range []string{"linkedin", "google,facebook,linkedin"} {
+		t.Setenv("SPOOL_HUB_DEMO_PROVIDERS", good)
+		if _, err := LoadHub(); err != nil {
+			t.Fatalf("SPOOL_HUB_DEMO_PROVIDERS=%s was refused: %v", good, err)
+		}
+	}
+	for _, bad := range []string{"password", "google,password", "microsoft", "xai", "linkedin,xai"} {
 		t.Setenv("SPOOL_HUB_DEMO_PROVIDERS", bad)
 		if _, err := LoadHub(); err == nil {
 			t.Fatalf("SPOOL_HUB_DEMO_PROVIDERS=%s was accepted", bad)

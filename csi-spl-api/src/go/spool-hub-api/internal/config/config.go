@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -403,7 +404,7 @@ type Hub struct {
 	DemoWorkspace string `env:"SPOOL_HUB_DEMO_WORKSPACE" envDefault:"demo"`
 	// DemoProviders are the sign-in providers the open demo admission takes
 	// (cnf env.demo.providers, specs/077 FR-004); never password.
-	DemoProviders []string `env:"SPOOL_HUB_DEMO_PROVIDERS" envSeparator:"," envDefault:"google,facebook"`
+	DemoProviders []string `env:"SPOOL_HUB_DEMO_PROVIDERS" envSeparator:"," envDefault:"google,facebook,linkedin"`
 	// MarketingWorkspaces is the outer marketing allow-list (spec 090, cnf
 	// marketing.workspaces): the workspaces whose admins may turn marketing
 	// on or off, or the one entry "all" (every workspace). Empty = off
@@ -689,8 +690,8 @@ func (h *Hub) checkViews() error {
 			h.DemoVisitsPerDay, h.DemoSignupsPerIP)
 	}
 	for _, p := range h.DemoProviders {
-		if p != "google" && p != "facebook" {
-			return fmt.Errorf("SPOOL_HUB_DEMO_PROVIDERS %q: only google and facebook may open the demo", p)
+		if !slices.Contains(demoProviderAllow, p) {
+			return fmt.Errorf("SPOOL_HUB_DEMO_PROVIDERS %q: only %s may open the demo", p, strings.Join(demoProviderAllow, ", "))
 		}
 	}
 	for _, o := range h.ViewCORSOrigins {
@@ -775,6 +776,11 @@ func checkOrigin(o string) error {
 	}
 	return nil
 }
+
+// demoProviderAllow are the only IdPs that may open the demo (specs/077
+// FR-004; linkedin by the owner, t1 msg fafec44f): each one verifies the
+// identity it hands over. Password and every other provider stay refused.
+var demoProviderAllow = []string{"google", "facebook", "linkedin"}
 
 var tenantIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 

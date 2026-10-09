@@ -16,6 +16,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { docsBody } from '../../utils/docs.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WUI = join(__dirname, '../../..')
@@ -54,7 +55,8 @@ export function helpFiles(src = HELP_SRC, domain = helpDomain()) {
   const out = new Map()
   const pages = []
   for (const n of names) {
-    const md = tokenizeHosts(readFileSync(join(src, n), 'utf8'), domain)
+    /* a page's frontmatter (`public: true`, sync-public-docs.mjs) is not page text */
+    const md = tokenizeHosts(docsBody(readFileSync(join(src, n), 'utf8')), domain)
     out.set(n, md)
     const slug = n.slice(0, -3)
     if (slug !== 'index') pages.push({ slug, title: helpTitle(md, slug) })

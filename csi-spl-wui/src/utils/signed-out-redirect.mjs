@@ -57,7 +57,8 @@ export function isProductScreen(input) {
   if (p === '/dm' || p.startsWith('/dm/')) return true
   if (p === '/t' || p.startsWith('/t/')) return true
   if (p === '/settings' || p.startsWith('/settings/')) return true
-  if (p === '/docs' || p.startsWith('/docs/')) return true
+  /* /docs is not here: a doc marked public is read signed out, so the docs
+     page is its own door (pages/docs.vue, owner HUM-10 e3ce4c34) */
   return false
 }
 

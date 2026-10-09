@@ -10,3 +10,5 @@ dist
 i18n/.split/
 # spec 111 T002: the blog copy, made by pnpm run generate (src/node/blog/sync-blog.mjs)
 src/public/blog-md/
+# owner HUM-10 e3ce4c34: the public docs copy, made by pnpm run generate (src/node/docs/sync-public-docs.mjs)
+src/public/docs-public/

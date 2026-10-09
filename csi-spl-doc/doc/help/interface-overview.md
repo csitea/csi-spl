@@ -1,3 +1,6 @@
+---
+public: true
+---
 # Interface Layout & Navigation
 
 The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vertical-pane workspace**. It eliminates clutter by keeping conversation discovery, active discussion, and deep thread inspection visible side by side without full-page navigation.

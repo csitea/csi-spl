@@ -43,7 +43,10 @@ touch "$P/$u_new.jsonl" "$P/$u_dirnew/tool-results/r"
 printf '{"id":"c-901","alive":false,"session_id":"%s"}\n' "$u_rest" >"$A/c-901.json"
 printf '{"pid":%s,"sessionId":"%s"}\n' "$$" "$u_live" >"$S/$$.json"
 printf 'not json' >"$S/bad.json"
-bash -c 'sleep 30; :' "$u_cmd" & cmd_pid=$!
+# A process that outlives the slowest CI run (a 30 s sleep was gone by the
+# check on a loaded runner: runs 37861395574, 37861816984); TERM at the end
+# kills its sleep too. Not exec'd, so the uuid stays on its command line.
+bash -c 'sleep 600 & trap "kill $!" TERM; wait' "$u_cmd" & cmd_pid=$!
 
 prune() { SNIPPET='do_spl_session_prune' in_orc SESSION_PRUNE_ROOT="$R" SESSION_PRUNE_SESSIONS="$S" SPOOL_ROOT="$T/spool" "$@" 2>&1; }
 n_files() { find "$R" "$OUT" | wc -l; }
@@ -120,7 +123,7 @@ mkdir -p "$V/notes"; echo x >"$V/notes/n"
 find "$T/vibe" -exec touch -h -d '9 days ago' {} +
 touch "$V/session_20261001_141414_bbbbbbbb/messages.jsonl"; chmod 0755 "$V"
 printf '{"id":"m-005","alive":false,"session_id":"%s"}\n' "$v_rest" >"$A/m-005.json"
-bash -c 'sleep 30; :' vibe --resume ccccdddd & vibe_pid=$!
+bash -c 'sleep 600 & trap "kill $!" TERM; wait' vibe --resume ccccdddd & vibe_pid=$!
 vprune() { SNIPPET='do_spl_session_prune' in_orc SESSION_PRUNE_ROOT="$T/no-claude" SESSION_PRUNE_VIBE_DIR="$V" \
   SESSION_PRUNE_SESSIONS="$T/nope" SESSION_PRUNE_AGENT_ONLY=1 SPOOL_ROOT="$T/spool" "$@" 2>&1; }
 out="$(vprune)"; rc=$?

@@ -2,9 +2,11 @@
 #------------------------------------------------------------------------------
 # @description Install (or remove) the box disk sweep's cron line: ONE line in
 # @description the running user's crontab (the box user, <DEV_USER>: its steps
-# @description reach the other agent users through sudo -n), every 4 hours at
-# @description minute BOX_SWEEP_CRON_MINUTE, running box-disk-sweep.sh with
-# @description DRY_RUN=BOX_SWEEP_CRON_DRY_RUN and appending to
+# @description reach the other agent users through sudo -n), every 15 minutes
+# @description from minute BOX_SWEEP_CRON_MINUTE (mod 15), running
+# @description box-disk-sweep.sh with BOX_SWEEP_GATE=1 (a tick with enough free
+# @description space runs only every 4 h; a low-space tick always runs, with
+# @description shorter age limits) and DRY_RUN=BOX_SWEEP_CRON_DRY_RUN, appending to
 # @description <log dir>/box-disk-sweep.log. Tagged `# csi-spl:box-disk-sweep`,
 # @description matched only as the whole END of a line, so no other job is
 # @description touched; idempotent (the line is replaced in place). From a
@@ -36,7 +38,7 @@ do_box_disk_sweep_install_cron() {
     [[ "$dry" == 0 ]] && { do_log "FATAL $PROJ_PATH is a linked worktree: install from the main checkout - nothing changed"; return 1; }
     echo "WARN $PROJ_PATH is a linked worktree: the path below would vanish with it; install from the main checkout"
   fi
-  want="$min */4 * * * DRY_RUN=$live BOX_SWEEP_LOCK=$logdir/box-disk-sweep.lock bash $script >> $logdir/box-disk-sweep.log 2>&1 # $tag"
+  want="$((min % 15))-59/15 * * * * DRY_RUN=$live BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$logdir/box-disk-sweep.lock bash $script >> $logdir/box-disk-sweep.log 2>&1 # $tag"
   before="$(mktemp)"; after="$(mktemp)"
   $ct -l 2>/dev/null >"$before"
   awk -v suf=" # $tag" '{ l = length($0); s = length(suf); if (l >= s && substr($0, l - s + 1) == suf) next; print }' "$before" >"$after"
@@ -54,5 +56,5 @@ do_box_disk_sweep_install_cron() {
   fi
   $ct "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab refused the new file"; return 1; }
   rm -f "$before" "$after"
-  do_log "OK the box disk sweep cron is $([[ "$act" == install ]] && echo "installed (DRY_RUN=$live, every 4 h at :$min)" || echo removed)"
+  do_log "OK the box disk sweep cron is $([[ "$act" == install ]] && echo "installed (DRY_RUN=$live, every 15 min from :$((min % 15)), gated)" || echo removed)"
 }

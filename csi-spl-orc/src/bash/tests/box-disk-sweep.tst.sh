@@ -13,7 +13,13 @@
 #   3. do_box_disk_sweep: runs the steps in order with DRY_RUN and the docker
 #      age passed on, a failing step does not stop the next (rc 1), an
 #      unknown step is refused, a held lock skips
-#   4. do_box_disk_sweep_install_cron: the dry run prints the 4-hourly line
+#   3b. the free-space trigger, on a planted free %: 50 runs the normal
+#      limits (72h / 1440 min), 10 the low ones (12h / 360), 3 the crit ones
+#      (2h / 60) and, still under 7% after, ONE note to the orchestrator
+#      (CONTROLS: 15 and 7, the boundaries, are not low / crit; the dry run
+#      only plans the note); the gate skips a normal tick younger than 4 h
+#      but never a low one
+#   4. do_box_disk_sweep_install_cron: the dry run prints the 15-min gated line
 #      and changes nothing; DRY_RUN=0 adds ONE tagged line, every other kept;
 #      a second install is a no-op; remove restores the crontab byte for byte
 #------------------------------------------------------------------------------
@@ -82,13 +88,15 @@ mkdir -p "$F" "$O"
 for s in spl-session-prune tmp-stale-sweep wt-dead-sweep prune-docker-images; do
   printf '#!/bin/sh\necho "%s DRY_RUN=$DRY_RUN UNTIL=${PRUNE_UNTIL:-}" >>%q\n[ %s != tmp-stale-sweep ]\n' "$s" "$L" "$s" >"$F/$s.sh"
 done
-printf '#!/bin/sh\necho "go $* DRY_RUN=$DRY_RUN" >>%q\n' "$L" >"$O/run"; chmod +x "$O/run"
-bsw() { SNIPPET='do_box_disk_sweep' in_orc BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_ORC="$O" BOX_SWEEP_LOCK="$T/sweep.lock" BOX_SWEEP_MOUNTS="$T" "$@" 2>&1; }
+printf '#!/bin/sh\necho "go $* DRY_RUN=$DRY_RUN AGE=${GO_CACHE_MAX_AGE_MIN:-}" >>%q\n' "$L" >"$O/run"; chmod +x "$O/run"
+printf '#!/bin/sh\necho "send $*" >>%q\n' "$T/sent" >"$T/send"
+bsw() { SNIPPET='do_box_disk_sweep' in_orc BOX_SWEEP_SCRIPTS="$F" BOX_SWEEP_ORC="$O" BOX_SWEEP_LOCK="$T/sweep.lock" BOX_SWEEP_MOUNTS="$T" \
+  BOX_SWEEP_SEND="$T/send" BOX_SWEEP_FREE_PCT="${FREE:-50}" "$@" 2>&1; }
 out="$(bsw DRY_RUN=0)"; rc=$?
 want="spl-session-prune DRY_RUN=0 UNTIL=
 tmp-stale-sweep DRY_RUN=0 UNTIL=
 wt-dead-sweep DRY_RUN=0 UNTIL=
-go -a do_prune_go_build_cache DRY_RUN=0
+go -a do_prune_go_build_cache DRY_RUN=0 AGE=1440
 prune-docker-images DRY_RUN=0 UNTIL=72h"
 [ "$(cat "$L")" = "$want" ] && pass "3. the steps run in order, DRY_RUN and the docker age passed on" || fail "3. steps: $(cat "$L")"
 [ "$rc" = 1 ] && grep -q 'FAIL step tmp rc=1' <<<"$out" && grep -q 'DONE rc=1' <<<"$out" && pass "3. a failing step is reported and the next still runs" || fail "3. rc $rc ($out)"
@@ -102,6 +110,38 @@ out="$(bsw)"; rc=$?
 kill "$lock_pid" 2>/dev/null; wait "$lock_pid" 2>/dev/null
 [ "$rc" = 0 ] && grep -q 'SKIP another box disk sweep' <<<"$out" && [ ! -s "$L" ] && pass "3. a held lock skips the sweep" || fail "3. lock (rc $rc: $out)"
 
+# ---- 3b. the free-space trigger ------------------------------------------------
+lim() { grep -oE '^(go .* AGE=[0-9]*|prune-docker-images .* UNTIL=[0-9]+h)$' "$L" | sed -E 's/.*(AGE|UNTIL)=/\1=/' | tr '\n' ' '; }
+for c in "50 normal AGE=1440 UNTIL=72h" "15 normal AGE=1440 UNTIL=72h" "10 low AGE=360 UNTIL=12h" "7 low AGE=360 UNTIL=12h" "3 crit AGE=60 UNTIL=2h"; do
+  read -r f lv a u <<<"$c"; : >"$L"; : >"$T/sent"
+  out="$(FREE=$f bsw DRY_RUN=0)"
+  [ "$(lim)" = "$a $u " ] && grep -q "START .* level=$lv free=$f% (planted)" <<<"$out" \
+    && pass "3b. free $f% -> level $lv, go $a, docker $u" || fail "3b. free $f% ($(lim) / $out)"
+done
+grep -q "FAIL level=crit: still 3% free" <<<"$out" && [ "$(grep -c . "$T/sent")" = 1 ] \
+  && grep -q -- '--to orchestrator --kind note --task disk-sweep-.* CRITICAL planted is still at 3% free after a crit sweep' "$T/sent" \
+  && pass "3b. a crit sweep that leaves the disk under 7% sends ONE note to the orchestrator" || fail "3b. crit note ($out / $(cat "$T/sent"))"
+: >"$T/sent"; FREE=3 bsw DRY_RUN=0 >/dev/null
+[ ! -s "$T/sent" ] && pass "3b. ...once: the next crit tick sends nothing new" || fail "3b. crit repeat ($(cat "$T/sent"))"
+FREE=20 bsw DRY_RUN=0 >/dev/null; : >"$T/sent"; FREE=3 bsw DRY_RUN=0 >/dev/null
+[ "$(grep -c . "$T/sent")" = 1 ] && pass "3b. ...and again after the disk went back over 7%" || fail "3b. crit re-cross ($(cat "$T/sent"))"
+: >"$T/sent"; out="$(FREE=10 bsw DRY_RUN=0)"
+[ ! -s "$T/sent" ] && pass "3b. CONTROL: a low (not crit) sweep sends no note" || fail "3b. low note ($(cat "$T/sent"))"
+rm -f "$T/sweep.lock.crit-noted"; : >"$T/sent"; out="$(FREE=3 bsw)"
+[ ! -s "$T/sent" ] && grep -q 'PLAN note to orchestrator: CRITICAL' <<<"$out" && pass "3b. the dry run only plans the note" || fail "3b. dry note ($out)"
+rm -f "$T/sweep.lock.last-normal"; FREE=50 bsw DRY_RUN=0 BOX_SWEEP_GATE=1 >/dev/null; : >"$L"
+out="$(FREE=50 bsw DRY_RUN=0 BOX_SWEEP_GATE=1)"; rc=$?
+[ "$rc" = 0 ] && grep -q 'SKIP level=normal free=50%' <<<"$out" && [ ! -s "$L" ] \
+  && pass "3b. the gate skips a normal tick when the last normal sweep is under 4 h old" || fail "3b. gate (rc $rc: $out)"
+out="$(FREE=10 bsw DRY_RUN=0 BOX_SWEEP_GATE=1)"
+grep -q 'level=low' <<<"$out" && [ -s "$L" ] && pass "3b. ...but never a low-space tick" || fail "3b. gate low ($out)"
+touch -d '5 hours ago' "$T/sweep.lock.last-normal"; : >"$L"
+out="$(FREE=50 bsw DRY_RUN=0 BOX_SWEEP_GATE=1)"
+grep -q 'level=normal' <<<"$out" && [ -s "$L" ] && pass "3b. CONTROL: a 5 h old normal sweep lets the gate run" || fail "3b. gate old ($out)"
+
+out="$(bsw BOX_SWEEP_FREE_PCT=)"
+grep -qE "START .* level=[a-z]+ free=[0-9]+% \($T\)" <<<"$out" && pass "3b. CONTROL: unplanted, the real df measures the mount" || fail "3b. real df ($out)"
+
 # ---- 4. the cron line --------------------------------------------------------
 CT="$T/crontab"
 printf '%s\n' '*/5 * * * * bash /x/a.sh # csi-spl:desk-reconcile-prd' '* * * * * bash /x/b.sh # csi-spl:box-disk-sweep-other' '@reboot /usr/bin/true' >"$CT"
@@ -109,8 +149,8 @@ cp "$CT" "$T/crontab.orig"
 printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$CT" "$CT" >"$T/fake-crontab"; chmod +x "$T/fake-crontab"
 inst() { SNIPPET='do_box_disk_sweep_install_cron' in_orc BOX_SWEEP_CRONTAB="$T/fake-crontab" BOX_SWEEP_CRON_LOG_DIR="$T/log" BOX_SWEEP_ALLOW_WORKTREE=1 "$@" 2>&1; }
 out="$(inst)"
-grep -q '^  +41 \*/4 \* \* \* DRY_RUN=0 BOX_SWEEP_LOCK='"$T"'/log/box-disk-sweep.lock bash .*/box-disk-sweep.sh >> '"$T"'/log/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep$' <<<"$out" \
-  && pass "4. the dry run prints the 4-hourly line" || fail "4. dry-run diff ($out)"
+grep -q '^  +11-59/15 \* \* \* \* DRY_RUN=0 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK='"$T"'/log/box-disk-sweep.lock bash .*/box-disk-sweep.sh >> '"$T"'/log/box-disk-sweep.log 2>&1 # csi-spl:box-disk-sweep$' <<<"$out" \
+  && pass "4. the dry run prints the 15-min gated line" || fail "4. dry-run diff ($out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "4. ...and changes nothing" || fail "4. the dry run wrote the crontab"
 inst DRY_RUN=0 >/dev/null
 [ "$(grep -c ' # csi-spl:box-disk-sweep$' "$CT")" = 1 ] && [ -d "$T/log" ] && pass "4. DRY_RUN=0 adds one tagged line and the log dir" || fail "4. tagged lines: $(cat "$CT")"

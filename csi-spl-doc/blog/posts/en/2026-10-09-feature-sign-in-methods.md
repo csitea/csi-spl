@@ -12,7 +12,7 @@ tags: [feature, sign in]
 image: 2026-10-09-feature-sign-in-methods.webp
 image_alt: "A digital lock opening to reveal multiple colorful social logos floating in cyberspace"
 image_prompt: "a glowing digital lock mechanism unlocking to release floating colorful logos in a deep blue cyberspace, cinematic lighting, matrix style, 3d render"
-draft: true
+draft: false
 ---
 ## What it is
 

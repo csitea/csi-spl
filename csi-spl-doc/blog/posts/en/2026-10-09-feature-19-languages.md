@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687
 agy_review: a-687
-tags: [feature, 19 languages]
+tags: [feature, 19-languages]
 image: 2026-10-09-feature-19-languages.webp
 image_alt: "A glowing globe surrounded by language translation symbols floating in cyberspace"
 image_prompt: "a glowing blue wireframe globe surrounded by glowing translation symbols and chat bubbles in different languages floating in a dark cyberspace, cinematic lighting, matrix style, 3d render"

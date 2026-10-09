@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:18:00Z
 author: a-687
 agy_review: a-687
-tags: [feature, demo workspace]
+tags: [feature, demo-workspace]
 image: 2026-10-09-feature-demo-workspace.webp
 image_alt: "A digital sandbox environment with floating UI elements in a glowing matrix"
 image_prompt: "a glowing blue wireframe sandbox environment with floating holographic user interface elements and chat bubbles in a dark cyberspace, cinematic lighting, matrix style, 3d render"

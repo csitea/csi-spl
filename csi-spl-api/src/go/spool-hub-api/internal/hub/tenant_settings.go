@@ -664,4 +664,5 @@ func (s *Server) routeTenantSettings(mux *http.ServeMux) {
 	mux.HandleFunc("OPTIONS /v1/tenant/channels/{channel}", s.tenantSettingsPreflight)
 	s.routeAgentLifecycle(mux) // spec 063 sections 11 + 12: Workspace settings -> Agents
 	s.routeMarketing(mux)      // spec 090 §15: Workspace settings -> General, the marketing switch
+	s.routeAgentSplit(mux)     // spec 115 HUB-1: Workspace settings -> Vendor split, per task kind
 }

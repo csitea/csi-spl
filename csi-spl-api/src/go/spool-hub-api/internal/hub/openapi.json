@@ -1288,6 +1288,57 @@
         ]
       }
     },
+    "/v1/agent-split": {
+      "get": {
+        "operationId": "getAgentSplit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the vendor split per task kind (spec 115)",
+        "tags": [
+          "tenant"
+        ]
+      },
+      "patch": {
+        "operationId": "patchAgentSplit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Update the vendor split per task kind (spec 115)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/audit/clones": {
       "get": {
         "operationId": "getAuditClones",

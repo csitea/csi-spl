@@ -60,6 +60,8 @@ type Memory struct {
 	revokedAt map[string]time.Time
 	// tenant_settings.go (rdb 0109): vendor split, guarded by mu. Missing = the default.
 	agentSplit map[string]AgentSplit
+	// agent_split_kind.go (rdb 0163): tenant -> kind -> row, guarded by mu. Missing = the default.
+	splitKinds map[string]map[string]SplitKind
 	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.
 	marketingOn map[string]bool
 	// roadmap_switch.go (rdb 0162): roadmap turned public, guarded by mu. Missing = internal.

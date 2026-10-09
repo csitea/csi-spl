@@ -36,7 +36,7 @@ events) meant `workspace`; 12.5 supersedes it.
   - Done: `cd csi-spl-iac && ./run -a do_check_dist_hygiene` prints no finding for `csi-spl-doc/goals/`; the templates have the spec 2/3 fields and carry the owner as a role id, never a name (D2). Control: a planted personal name in a copy of the template turns the gate red.
   - Vendor: mistral drafts, agy reviews the language last. Box: any.
 
-- [ ] **DOC-2**: A goal names its workspace (spec 12.2, 12.3, 12.4).
+- [x] **DOC-2**: A goal names its workspace (spec 12.2, 12.3, 12.4).
   - Depends: DOC-1.
   - Owns: `csi-spl-doc/goals/template-goal.yaml`, `csi-spl-doc/goals/README.md`.
   - Done: the template has `workspace: "<workspace slug>"` (required, no default); `owner_role` reads `biz_owner or admin`; the README says a goal's events land in its `workspace` only and that a `biz_owner` or `admin` of that workspace approves it (12.3); the comment on `public:` says it is D1's repo-doc flag, never the calendar audience (the audience is the workspace switch, RDB-2). `do_check_dist_hygiene` prints nothing for `csi-spl-doc/goals/`. Control: `grep -c '^workspace:' csi-spl-doc/goals/template-goal.yaml` -> 1 (0 on today's file).
@@ -126,11 +126,12 @@ events) meant `workspace`; 12.5 supersedes it.
 
 ## 5. Sync and backfill actions
 
-- [ ] **ORC-2**: Deploy-time goal sync, per workspace (spec 4.2, 12.2, 12.4). Re-split by spec 12: the git backfill moved to ORC-5.
+- [x] **ORC-2**: Deploy-time goal sync, per workspace (spec 4.2, 12.2, 12.4). Re-split by spec 12: the git backfill moved to ORC-5.
   - Depends: HUB-2, DOC-2.
   - Owns: `csi-spl-orc/src/bash/run/spl-goals-sync.func.sh` (`do_spl_goals_sync`), its `.tst.sh`, and the wf 20 step that calls it after the hub deploy.
   - Done: reads every `goal.yaml`, takes each goal's `workspace`, and PUTs one batch whose events and goals each name their workspace; it sends NO audience (HUB-2 sets `internal` or `public` from the workspace switch); `props.roadmap_url` = `/roadmap?ws=<slug>&goal=G01#spec-089` and the deadline event's props carry the goal's `specs` and `done_lines` (WUI-3 reads them); a second run adds 0 events. Test against a stub route on a fixture with goals in two workspaces. Controls: a goal without `workspace` fails the run before any call; a batch that carries an `audience` on a `goal:` key turns the test red.
   - Vendor: mistral. Box: any.
+  - Built (c-696, caa58bdbc): `do_spl_goals_sync` (`DRY_RUN=1` default prints the batch) and the wf 20 step "Sync the roadmap goals" after the release-note ingest, per env, `continue-on-error` like the ingest; no `goal.yaml` yet = a no-op, rc 0. `specs` and `done_lines` ride top-level on the deadline event (as `roadmap_url` does; no `props`, no `remind_at` on the wire). HUB-2's `calendarSyncEventIn` does not take them yet, so a live sync of a real goal answers 400 `bad_json` until a hub lane adds the two fields (c-002, msg 25036f85). Test: `spl-goals-sync.tst.sh` against a HUB-2-like stub route, goals in two workspaces; both controls red-then-green.
 
 - [x] **ORC-5**: Git backfill, per workspace (spec 8.1, 12.7). Split out of ORC-2.
   - Depends: HUB-2, DOC-1.

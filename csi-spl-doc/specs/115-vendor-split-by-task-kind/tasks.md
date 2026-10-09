@@ -56,7 +56,7 @@ Status vocabulary: `../README.md` item 3 (`[x]` Implemented, `[~]` Partial / in 
 
 ## 5. Fleet rules
 
-- [ ] **DOC-1**: Update the global CLAUDE.md "Spawn an agent" section and `/spawn-an-agent`.
+- [x] **DOC-1**: Update the global CLAUDE.md "Spawn an agent" section and `/spawn-an-agent`.
   - Depends: none.
   - Owns: `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/20-spawn-an-agent.md` and `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/spawn-an-agent.md`.
   - Done: the section and the launcher say per-kind main and backup; `do_check_fleet_rules_drift` pins the per-kind main. Test: the launcher prints the per-kind table; the drift check fails when a main is changed. Control: a missing per-kind main turns the drift check red.

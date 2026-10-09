@@ -4,3 +4,5 @@
 # here; drop the line the moment its fix lands. run-ci-tests.sh fails on a
 # line whose file no longer exists. Empty is the goal.
 spawn-agents/test-agent-hook.sh  flaky on master 2026-10-09, even run alone: case 1 rc=141 (printf SIGPIPEs when the hook exits before reading stdin) and the absolute 50 ms budget fails at load 8 on 16 cpus (15/200). Owner: spec 093 T002 (1dd693890), routed via the orchestrator by c-603
+spawn-agents/test-agent-id-retire.sh  flaky in CI 2026-10-09, red even run alone on the self-hosted runner (run 37879786626, 1 of 4 hosted runs too): line 75 waits for the id dir to go, line 78 then reads the close log the deferred retire writes a moment later. Owner: d3b715c4f / 20bb79f7c lane, routed via the orchestrator by c-603
+spawn-agents/test-agent-id-retire-worktree.sh  same race (case 6 waits for the worktree, then checks the branch the deferred retire deletes after it): red under load (1 of 3 local parallel runs). Owner: 33d05fe0b lane, routed via the orchestrator by c-603

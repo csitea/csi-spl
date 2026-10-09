@@ -1,5 +1,4 @@
 # Feature tests run-ci-tests.sh runs one by one AFTER the parallel pool, by
 # name: their verdict depends on the box's load, which sibling tests raise.
-# One line each: <feature>/<test file>  <why>. Measured 2026-10-09 at 6 jobs.
-spawn-agents/test-agent-id-retire-worktree.sh  case 6 waits for the worktree to go, then checks the branch the deferred retire deletes a moment later: FAIL under load (1 of 3 local parallel runs)
-spawn-agents/test-agent-id-retire.sh  "the close log records the retire" missed under parallel load on a 4-cpu hosted runner (1 of 4 runs, run 37875306468)
+# One line each: <feature>/<test file>  <why>. A test that is red even run
+# alone belongs in ci-skip.txt instead (test-agent-id-retire was, 2026-10-09).

@@ -420,8 +420,8 @@ stays. Where one conflicts with v1.1, it carries an "Amended by v1.1, section
   goal calendar events, in that workspace only.
 - **`env.roadmap.tenant_id` is deprecated.** It no longer names the one
   workspace that receives events (4.1). The workspace of a goal comes from the
-  goal itself (12.4). Where workspace goals are stored when the workspace has
-  no repo is open question OQ1 (12.8).
+  goal itself (12.4). A workspace with no repo keeps its goals as goal
+  documents inside the app (OQ1 DECIDED, msg 730f6f90, 12.8).
 
 ### 12.3. Who approves a goal (per workspace)
 
@@ -490,5 +490,5 @@ m-689's. The owner answered all three in HUM-10, t1 4e373f5d, msg 730f6f90:
 
 ### 12.9. Tasks
 
-`tasks.md` is not changed by v1.1. The build tasks for 12.2-12.7 are added
-once OQ1-OQ3 are answered.
+`tasks.md` is not changed by v1.1. OQ1-OQ3 are answered (msg 730f6f90); the
+build tasks for 12.2-12.7 come from a later lane.

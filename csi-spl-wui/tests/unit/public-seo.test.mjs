@@ -48,6 +48,17 @@ describe('public SEO: head', () => {
     assert.ok(meta['og:image'].startsWith(site + '/'))
     assert.match(h.script[0].innerHTML, /"@type":"Organization".*"@type":"WebSite"/)
   })
+  it('/public-calendar: apex canonical, hreflang per locale, og, twitter', () => {
+    const h = publicPageHead({ path: '/fi/public-calendar', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
+    assert.ok(h)
+    assert.deepEqual(h.link[0], { rel: 'canonical', href:  })
+    assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
+    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === ))
+    const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
+    assert.equal(meta['og:url'], )
+    assert.equal(meta['twitter:card'], 'summary_large_image')
+    assert.ok(meta['og:image'].startsWith(site))
+  })
   it('/<lang>/help canonicalises to the default copy, no alternates (one language)', () => {
     const h = publicPageHead({ path: '/fi/help/agents', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
     assert.ok(h)
@@ -107,3 +118,20 @@ describe('public SEO: a client-only page head written at build time', () => {
     assert.equal(injectPublicHead(out, head, 'index, follow'), out)
   })
 })
+
+  it('/public-calendar: apex canonical, hreflang per locale, og, twitter', () => {
+    const h = publicPageHead({ path: '/fi/public-calendar', locale: 'fi', codes, defaultLocale: 'en', siteUrl: site })
+    assert.ok(h)
+    assert.deepEqual(h.link[0], { rel: 'canonical', href:  })
+    assert.equal(h.link.filter((l) => l.rel === 'alternate').length, codes.length + 1)
+    assert.ok(h.link.some((l) => l.hreflang === 'x-default' && l.href === ))
+    const meta = Object.fromEntries(h.meta.map((m) => [m.property || m.name, m.content]))
+    assert.equal(meta['og:url'], )
+    assert.equal(meta['twitter:card'], 'summary_large_image')
+    assert.ok(meta['og:image'].startsWith(site))
+  })
+
+  it("/public-calendar: public path", () => {
+    assert.equal(isPublicSeoPath("/public-calendar", codes), true)
+    assert.equal(isPublicSeoPath("/fi/public-calendar", codes), true)
+  })

@@ -2,6 +2,7 @@ package notify
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -82,17 +83,40 @@ func TestALanePokesInDeliveryOrder(t *testing.T) {
 
 // Two agents must not wait on each other: that is the head-of-line blocking
 // the queue was added to remove, and it is invisible in a single-lane test.
+//
+// Overlap is proved by the condition, not by a wall clock: each poke checks
+// in and then holds until the test releases it, and the test releases only
+// once all four are in flight at the same time. A serialised queue never has
+// more than one poke in flight, so it cannot meet the barrier however fast
+// the runner is; a slow runner only delays a parallel queue meeting it.
 func TestLanesForDifferentAgentsRunConcurrently(t *testing.T) {
-	cmd, _ := fakeNotifier(t, 0, "sleep 0.25\n")
-	cfg := &config.Config{NotifyCmd: cmd, SpoolRoot: t.TempDir()}
+	gate := t.TempDir()
+	release := filepath.Join(gate, "release")
+	// A poke's marker lives exactly as long as the poke, so the markers count
+	// pokes in flight, not pokes started. The hold is capped at 30 s so a
+	// test that dies before releasing never leaves a poke behind, and the
+	// notify timeout outlives both the cap and the wait below, so no held
+	// poke is killed to make room for the next one in a serialised queue.
+	cmd, _ := fakeNotifier(t, 0, "m=$(mktemp "+gate+"/inflight.XXXXXX); trap 'rm -f \"$m\"' EXIT\n"+
+		"for i in $(seq 3000); do [ -e "+release+" ] && break; sleep 0.01; done\n")
+	cfg := &config.Config{NotifyCmd: cmd, SpoolRoot: t.TempDir(), NotifyTimeout: time.Minute}
 	q := Start(cfg)
-	for _, to := range []string{"CLE-91", "CLE-92", "CLE-93", "CLE-94"} {
+	defer q.Stop()
+	agents := []string{"CLE-91", "CLE-92", "CLE-93", "CLE-94"}
+	for _, to := range agents {
 		Deliver(cfg, qmsg("m-"+to, to), to)
 	}
-	start := time.Now()
-	q.Stop()
-	if d := time.Since(start); d > 600*time.Millisecond {
-		t.Fatalf("four agents' pokes serialised: drained in %v, one poke is ~250ms", d)
+
+	most := 0
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline) && most < len(agents); time.Sleep(10 * time.Millisecond) {
+		got, _ := filepath.Glob(filepath.Join(gate, "inflight.*"))
+		most = max(most, len(got))
+	}
+	if err := os.WriteFile(release, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if most != len(agents) {
+		t.Fatalf("four agents' pokes serialised: at most %d of %d were ever in flight at once", most, len(agents))
 	}
 }
 

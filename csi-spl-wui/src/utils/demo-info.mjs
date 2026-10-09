@@ -11,10 +11,10 @@ export const DEMO_PATH = '/v1/demo'
 
 /**
  * The sign-ins the open demo admission accepts (T007: hub env
- * SPOOL_HUB_DEMO_PROVIDERS, default google,facebook; a password or operator
+ * SPOOL_HUB_DEMO_PROVIDERS, default google,facebook,linkedin; a password or operator
  * identity never). GET /v1/demo does not name them yet.
  */
-export const DEMO_PROVIDERS = ['google', 'facebook']
+export const DEMO_PROVIDERS = ['google', 'facebook', 'linkedin']
 
 const LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 

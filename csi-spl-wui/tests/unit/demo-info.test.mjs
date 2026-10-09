@@ -37,8 +37,8 @@ describe('loadDemo', () => {
 
 describe('demoProviders', () => {
   it('keeps the registry order and only the sign-ins the demo admits', () => {
-    assert.deepEqual(DEMO_PROVIDERS, ['google', 'facebook'])
-    assert.deepEqual(demoProviders(['microsoft', 'facebook', 'google', 'linkedin']), ['facebook', 'google'])
+    assert.deepEqual(DEMO_PROVIDERS, ['google', 'facebook', 'linkedin'])
+    assert.deepEqual(demoProviders(['microsoft', 'facebook', 'google', 'linkedin', 'xai']), ['facebook', 'google', 'linkedin'])
     assert.deepEqual(demoProviders(undefined), [])
   })
 })

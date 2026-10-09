@@ -28,7 +28,7 @@
 
 ## Phase 3 — Out of the product gate (document only)
 
-- [x] T020 Implemented as policy — spawn-agents tests are local (FR-011). Do not add them to `10_ci-quality.yml`.
+- [x] T020 Reversed 2026-10-09 — the feature tests (spawn-agents included) run in `10_ci-quality.yml` job `orc-features` (`csi-spl-orc/src/bash/features/run-ci-tests.sh`, skips by name in `features/ci-skip.txt`).
 - [x] T021 Implemented `05aaaa7` (GRK-3379) — `10_ci-quality.yml` job `wui-e2e`: `nuxt generate` with `NUXT_PUBLIC_USE_MOCK=1`, serve via `serve-generated.mjs`, then `pnpm test:e2e` + `test:e2e:console-errors` + `test:e2e:topic-pane` (the script was named `thread-pane` in this sentence; `package.json` has `test:e2e:topic-pane` and the workflow calls that). Missing Chrome fails the job. Left out: `test:live` (needs `HUB_URL`), `test:e2e:csp` (Hosting CSP), `*.proof.mjs` (live sites or credentials). Check at landing: `command grep -c wui-e2e .github/workflows/10_ci-quality.yml` → 5. Re-measured 2026-09-25, tree `4ae33835`: the same grep → 7, and the job also runs `test:e2e:msg-edit`, `test:e2e:dm-remove`, `test:e2e:display-name`, `test:e2e:typed-by`. CONTROL red run 35605305098 (job 106350815619, `scrollWidth=9999`); green run 35604599982 (job 106348514551, 56/56 + zero console + 34/34) and 35605772205 (job 106352358451) after revert. Viewport guard `4153561` (GRK-3381): after setViewport, read innerWidth/innerHeight back, retry once, else fail `harness: viewport not applied`. Check: `command grep -c "harness: viewport not applied" csi-spl-wui/tests/e2e/lib/viewport.mjs` → 2. Control: `E2E_VIEWPORT_NOOP=1` exits 1 with that phrase. CI 10 run 35614054020 / 30 run 35614054219 on `4153561`; both apexes served that sha. FR-005.
 
 ## FR → task

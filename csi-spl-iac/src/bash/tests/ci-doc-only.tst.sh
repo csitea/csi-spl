@@ -87,7 +87,7 @@ expect false "unreadable base"                      "1234567890abcdef1234567890a
 expect false "empty head"                           "$base" ""
 
 # --- 2. the wiring in wf 10 ---------------------------------------------------
-CODE_JOBS=(hub-suite wui-suite wui-generate wui-e2e iac-suite orc-suite cnf-suite)
+CODE_JOBS=(hub-suite wui-suite wui-generate wui-e2e iac-suite orc-suite orc-features cnf-suite)
 KEEP_JOBS=(distribution-hygiene no-ysg-box-ref pr-sec-scan)
 check10() {  # <wf 10 file> - prints the first violation, or nothing
   local f="$1" j ifc needs run

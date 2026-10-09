@@ -18,7 +18,7 @@
 | I. IAC bash | `bash csi-spl-iac/src/bash/tests/run-all-tests.sh` | tfvars parity, 025/028/030/031/017/019/120, hygiene, no keys in tf | missing terraform = FAIL unless `SPL_TF_ALLOW_SKIP=1` |
 | J. ORC bash | `bash csi-spl-orc/src/bash/tests/run-all-tests.sh` | lde stack, tenant-create, wui-actions, deploy-check, DNS helpers | skip → CI fail; needs a cached `postgres:16-alpine` + the `<ORG>/<ORG>-<APP>` checkout layout |
 | K. CNF | `bash csi-spl-cnf/src/bash/tests/conf-validator-exit-codes.tst.sh` | validator 0/1/2; refuses to skip | in CI (`cnf-suite`); no skip path |
-| L. Spawn-agents | `csi-spl-orc/src/bash/features/spawn-agents/tests/run-all-tests.sh` | tmux window spawn | **never in product CI** (needs tmux) |
+| L. Spawn-agents | `csi-spl-orc/src/bash/features/run-ci-tests.sh` (every `features/*/tests/test-*.sh`) | private tmux server, throwaway spool root | **CI** — wf 10 job `orc-features` |
 | M. Hygiene sweep | `10_ci-quality.yml` `distribution-hygiene` | no personal names / hosts in the tree | a clean grep is a pass (008 FR-P07) |
 
 ## 2. CI today (`10_ci-quality.yml`)
@@ -38,6 +38,6 @@ Runs **A–F** (via hub-suite + wui-suite), **G** (`wui-e2e`: generate mock tena
 | hub-pg / hub-gcs | exit 0 skip | **red** if the skip line appears |
 | iac tf validate | FAIL, or PARTIAL if `SPL_TF_ALLOW_SKIP=1` | runs without that env; `SKIP:`/`PARTIAL:` → red |
 | live-interop | exit 0 when `CI` is unset | fail-closed when `CI` is set (T006); still not a CI job |
-| spawn-agents | local | never CI |
+| spawn-agents | local + CI | wf 10 `orc-features` |
 
 <!-- version: 0.2.4 · updated: 2026-09-25 · last-edit: 2026-09-25T18:18:58Z -->

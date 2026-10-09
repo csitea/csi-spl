@@ -32,7 +32,7 @@ Re-measured on that tree, n=1 per count. The 2026-09-19 inventory at `35ed54c` i
 | IAC bash | `csi-spl-iac/src/bash/tests/*.tst.sh` (one directory) | 36 | **yes** — `iac-suite` |
 | ORC bash | `csi-spl-orc/src/bash/tests/*.tst.sh` (one directory) | 56 | **yes** — `orc-suite` |
 | CNF validator | `conf-validator-exit-codes.tst.sh` | 1 | **yes** — `cnf-suite` |
-| Spawn-agents | `csi-spl-orc/src/bash/features/spawn-agents/tests/` | local only | **no** — FR-011, needs tmux |
+| Spawn-agents | `csi-spl-orc/src/bash/features/*/tests/test-*.sh` | every discovered file | **yes** — job `orc-features` (`csi-spl-orc/src/bash/features/run-ci-tests.sh`, skips by name in `features/ci-skip.txt`); FR-011 reversed 2026-10-09 |
 | `-race` | `go test -race` | hub gate | **yes** — `run-all-tests.sh` line 26 |
 
 Commands (tree `4ae33835`):
@@ -73,7 +73,7 @@ Any suite that cannot run (missing terraform, missing `HUB_URL`, missing tpl-gen
 
 **Independent Test**: `SPL_TF_ALLOW_SKIP=1` on the iac validate suite prints PARTIAL; without the flag a missing terraform is FAIL (007 T070). `live-interop` with `HUB_URL` unset still exits 0 — that is the remaining hole if it is ever added to CI as-is.
 
-**Status**: **Implemented** for the CI skip-pass holes. T070 fails a missing terraform. T006: `live-interop.test.mjs` exits 1 when `CI` is set and `HUB_URL` is unset (local unset still exits 0, and the script is not a CI job). Spawn-agents stay out of the product gate on purpose (FR-011).
+**Status**: **Implemented** for the CI skip-pass holes. T070 fails a missing terraform. T006: `live-interop.test.mjs` exits 1 when `CI` is set and `HUB_URL` is unset (local unset still exits 0, and the script is not a CI job). Spawn-agents tests joined the gate on 2026-10-09 (FR-011 reversed).
 
 ### US4 — Races and browser behaviour have a named home (P2)
 
@@ -95,7 +95,7 @@ Any suite that cannot run (missing terraform, missing `HUB_URL`, missing tpl-gen
 - **FR-008** — Partial: payment seam has `internal/payments/payments_test.go` and `store/payments_test.go`. M2 checkout page and live rails are not an e2e in CI (spec 006). Seat tests now exist (`internal/store/seats_test.go` on `4ae33835`); whether spec 009's seat row is closed is that spec's, not this one's. The checkout e2e is still missing here.
 - **FR-009** — Partial: two-box hub mail is `hub-e2e.tst.sh` on throwaway Postgres (M1 local). Cloud two-machine demo (006 T011c) is still Planned — not a unit-test gap.
 - **FR-010** — Implemented (007 T070): `tf-steps-render-and-validate.tst.sh` fails when tpl-gen or terraform is missing, unless `SPL_TF_ALLOW_SKIP=1`. **Not** in CI (blocked on FR-003).
-- **FR-011** — Planned: spawn-agents tests stay out of the product quality gate (they need tmux). They must not be invoked from `10_ci-quality.yml`. Documented as local-only in `./contracts/test-layers.md`.
+- **FR-011** — **Reversed 2026-10-09.** Was: spawn-agents tests stay out of the gate (they need tmux). Two of them then stayed red on master unnoticed (fixed `9fb5f0a54`, `2645bc5de`). Now every `features/*/tests/test-*.sh` runs in job `orc-features` (`csi-spl-orc/src/bash/features/run-ci-tests.sh`, skips by name in `features/ci-skip.txt`); the runner has tmux and each test uses a private tmux server and a throwaway `SPOOL_ROOT`.
 
 ---
 

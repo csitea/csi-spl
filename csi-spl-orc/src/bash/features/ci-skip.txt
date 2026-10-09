@@ -1,0 +1,6 @@
+# Feature tests the quality gate (wf 10 job orc-features) leaves out, by name.
+# One line each: <feature>/<test file>  <why, and the lane that owns the fix>.
+# Only a test that is red on master for a reason outside the gate's lane goes
+# here; drop the line the moment its fix lands. run-ci-tests.sh fails on a
+# line whose file no longer exists. Empty is the goal.
+spawn-agents/test-agent-hook.sh  flaky on master 2026-10-09, even run alone: case 1 rc=141 (printf SIGPIPEs when the hook exits before reading stdin) and the absolute 50 ms budget fails at load 8 on 16 cpus (15/200). Owner: spec 093 T002 (1dd693890), routed via the orchestrator by c-603

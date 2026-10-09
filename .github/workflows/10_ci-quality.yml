@@ -42,7 +42,7 @@ name: "10 ci: quality gate"
 # first job (classify) decides by FILES, never by author. A push whose every
 # path changed since the last GREEN gate on the ref is a *.md outside csi-spl-wui/** and .github/** (the set wf 32
 # publishes) skips the code jobs (hub, wui, wui-generate, wui-e2e, iac, orc,
-# cnf); distribution-hygiene and no-ysg-box-ref still run (a doc can carry a
+# orc-features, cnf); distribution-hygiene and no-ysg-box-ref still run (a doc can carry a
 # banned name), and a skipped job is not a failure, so the gate is green.
 # It FAILS SAFE: an error, an empty diff, a merge, a force-push or new-branch
 # base, a pull request, a dispatch without express_base -> the full gate.
@@ -668,8 +668,8 @@ jobs:
   # stubbed per test, lde-stack.tst.sh needs only `docker compose config` and
   # `sudo -n` (both on the runner), checkout-fake-buy.tst.sh a spool build
   # and a throwaway postgres:16-alpine (pulled here, since the test never
-  # pulls). No GCP, no tmux server, no running lde stack. Spawn-agents tests
-  # are never part of this gate (016 FR-011).
+  # pulls). No GCP, no tmux server, no running lde stack. The feature tests
+  # (spawn-agents and the rest) are job orc-features below.
   # Two shards (ORC_TEST_SHARD=<k>/2, every 2nd file): one job reached the
   # 20-min cap with 266 of 280 files done (runs 37851965128, 37857115383;
   # green runs before took 16-17 min). Each shard prints its 10 slowest files.
@@ -823,6 +823,63 @@ jobs:
           echo "ok - no orc check skipped outside the container-proven sections"
 
   # ===========================================================================
+  # The orc FEATURE tests: every csi-spl-orc/src/bash/features/*/tests/test-*.sh
+  # (spawn-agents, graft, mcp-bot, ...), found by
+  # csi-spl-orc/src/bash/features/run-ci-tests.sh, one per cpu (at most 6;
+  # features/ci-serial.txt names the ones that run alone after). Reverses 016
+  # FR-011: two spawn-agents tests stayed red on master unnoticed (fixed
+  # 9fb5f0a54, 2645bc5de) because nothing ran them. Each test drives a private
+  # tmux server and a throwaway SPOOL_ROOT (SPOOL_TEST=1), so nothing touches
+  # the box. Left out, each printed by name: features/ci-skip.txt (a red owned
+  # by another lane) and the files an orc-suite wrapper already execs.
+  # Its own job, beside orc-suite (16-17 min): measured 2026-10-09, 73 files
+  # in 80 s at 6 jobs on the box, 192 s on a 4-cpu hosted runner (452 s for
+  # spawn-agents alone, serial).
+  # ===========================================================================
+  orc-features:
+    name: "orc: feature tests (spawn-agents, graft, mcp-bot, ...)"
+    needs: classify
+    if: ${{ !cancelled() && needs.classify.outputs.doc_only != 'true' }}
+    runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    # Same operator layout as orc-suite: ./run derives ORG/APP from the parent dirs.
+    defaults:
+      run:
+        working-directory: csi/csi-spl
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: csi/csi-spl
+
+      # Temp on the job's disk, not the box's shared /tmp tmpfs (see hub-suite).
+      # A tmux socket path over 107 bytes fails to bind, and every spawn-agents
+      # test keeps its socket under TMPDIR: refuse a long one up front.
+      - name: Temp files on the runner's disk, short enough for tmux sockets
+        run: |
+          (( ${#RUNNER_TEMP} <= 60 )) || { echo "::error::RUNNER_TEMP is ${#RUNNER_TEMP} bytes; tmux sockets under it would not bind"; exit 1; }
+          echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
+
+      # Several tests build spool (go build, GOPROXY=off in some).
+      - name: Set up Go (version from go.mod)
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: csi/csi-spl/csi-spl-api/src/go/spool-hub-api/go.mod
+          cache: false
+
+      - name: Download Go modules
+        working-directory: csi/csi-spl/csi-spl-api/src/go/spool-hub-api
+        run: go mod download
+
+      # The self-hosted box has tmux; a hosted runner may not.
+      - name: tmux on PATH
+        run: |
+          command -v tmux >/dev/null && { tmux -V; exit 0; }
+          sudo -n apt-get install -y -qq tmux >/dev/null && tmux -V
+
+      - name: run-ci-tests.sh
+        run: bash csi-spl-orc/src/bash/features/run-ci-tests.sh
+
+  # ===========================================================================
   # The CNF suite (016 T005): the conf-validator exit-code contract
   # (0 valid / 1 invalid / 2 could not check). The test refuses to skip: an
   # interpreter without the validator's dependencies is exit 2. The poetry
@@ -970,7 +1027,7 @@ jobs:
   # ===========================================================================
   gate-health:
     name: "gate health: what else has been failing"
-    needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
+    needs: [hub-suite, wui-suite, wui-generate, wui-e2e, iac-suite, orc-suite, orc-features, cnf-suite, no-ysg-box-ref, distribution-hygiene, pr-sec-scan]
     if: failure()
     runs-on: ${{ inputs.runner && fromJSON(inputs.runner) || vars.SPOOL_CI_RUNNER && fromJSON(vars.SPOOL_CI_RUNNER) || github.repository == 'csitea/csi-spl' && fromJSON('["self-hosted","spool-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 5

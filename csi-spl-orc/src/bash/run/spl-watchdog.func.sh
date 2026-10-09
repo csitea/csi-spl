@@ -52,6 +52,7 @@
 # @param WD_START_GRACE (optional) - seconds after a session start or a box resume with no situation, default 180
 # @param RESTART_MAX_PER_HOUR (optional) - restarts per id per rolling hour, default 3 (spec 102 6.1)
 # @param WD_TAKEOVER_MAX (optional) - do_spl_wd_takeover's own limit (a seat's request), default 2
+# @param WD_BOOT_S3_WAIT (optional) - seconds after a boot a takeover (S3 and the rest, not the boot pass's own) waits for the boot pass, default 3600
 # @param WD_TAKEOVER_RETRY (optional) - seconds after an S3 takeover whose session is dead again before it is retried, default WD_START_WAIT + WD_START_GRACE (300)
 # @param WD_LIMIT_GRACE (optional) - seconds past a usage limit's reset before the ONE wake of a seat still on its limit, default 120
 # @param WD_JOBS (optional) - agents checked at once, default 8
@@ -357,13 +358,13 @@ spl_wd_boot_queue() {
     [[ "$(cat "$WD_DIR/boot.d/$id" 2>/dev/null || true)" == "$bt" ]] && continue
     why="$(spl_wd_boot_why "$id" "$tick" "$snap" "$last")"
     if [[ -n "$why" ]]; then
-      if [[ -f "$WD_DIR/boot.q/$id" ]]; then spl_wd_log "BOOT $at $id back: $why"; back=$((back + 1))
+      if [[ -f "$WD_DIR/boot.q/$id" ]]; then spl_wd_log "BOOT $at $id back: $why"; back=$((back + 1)); spl_wd_boot_tally "$bt" back
       else spl_wd_log "BOOT $at $id left alone: $why"; fi
       spl_wd_boot_done "$id" "$bt"; continue
     fi
     st="$(spl_wd_boot_attempt "$id" "$bt" "$now" "$at")"
     if [[ "$st" == fly ]]; then fly=$((fly + 1)); continue; fi
-    [[ "$st" != refused* ]] || ref=$((ref + 1))
+    [[ "$st" != refused* ]] || { ref=$((ref + 1)); spl_wd_boot_tally "$bt" refused; }
     if [[ "$st" == *spent ]]; then failed="$failed $id"; spl_wd_boot_done "$id" "$bt"; continue; fi
     if [[ -n "$stop" ]]; then q=$((q + 1)); continue; fi
     if spl_wd_boot_seat "$id"; then [[ -n "$seat" ]] || { q=$((q + 1)); continue; }
@@ -373,14 +374,18 @@ spl_wd_boot_queue() {
     rc=0; out="$(spl_wd_boot_start "$id" "$bt" "$now" "$at")" || rc=$?
     spl_wd_log "BOOT $at $id: $out"
     case "$rc" in
-      0) n=$((n + 1)) ;;
+      0) n=$((n + 1)); spl_wd_boot_tally "$bt" started ;;
       1) q=$((q + 1)); continue ;;
-      *) ref=$((ref + 1)); failed="$failed $id"; spl_wd_boot_done "$id" "$bt"; continue ;;
+      *) ref=$((ref + 1)); spl_wd_boot_tally "$bt" refused; failed="$failed $id"; spl_wd_boot_done "$id" "$bt"; continue ;;
     esac
     if spl_wd_boot_seat "$id"; then seat=""; [[ "$id" =~ -00[1-3]$ ]] && stop="its restart of $id holds rotate.hold"
     else lanes=$((lanes - 1)); fi
   done < <(spl_wd_boot_ids | spl_wd_boot_order)
   if (( n + q + fly == 0 )); then
+    # the done line and boot.result count the whole boot, every tick of it
+    if [[ "${DRY_RUN:-1}" != 1 ]]; then
+      n="$(spl_wd_boot_tally_n "$bt" started)"; ref="$(spl_wd_boot_tally_n "$bt" refused)"; back="$(spl_wd_boot_tally_n "$bt" back)"
+    fi
     spl_wd_boot_result "$bt" "$at" "$back" "$failed"
     spl_wd_boot_seen "$bt" "BOOT $at done: $n restart(s) started, $ref refused, $back back${failed:+, failed:$failed} (cause reboot)"
   else
@@ -506,6 +511,18 @@ spl_wd_boot_attempt() {
   echo "$st"
 }
 
+# spl_wd_boot_tally BT WHAT: one started / refused / back of the boot BT in
+# <WD_DIR>/boot.<bt>.tally; spl_wd_boot_tally_n BT WHAT counts them. The done
+# line counted its own tick only (sat drill 7: "0 started, 0 refused, 0 back"
+# with 6 back).
+spl_wd_boot_tally() {
+  [[ "${DRY_RUN:-1}" == 1 ]] || echo "$2" >> "$WD_DIR/boot.$1.tally" 2>/dev/null || true
+}
+spl_wd_boot_tally_n() {
+  [[ -f "$WD_DIR/boot.$1.tally" ]] || { echo 0; return 0; }
+  grep -cx "$2" "$WD_DIR/boot.$1.tally" || true
+}
+
 # spl_wd_boot_done ID BT: <id> is handled for this boot.
 spl_wd_boot_done() {
   [[ "${DRY_RUN:-1}" == 1 ]] && return 0
@@ -529,7 +546,7 @@ spl_wd_boot_seen() {
   spl_wd_log "$2"
   [[ "${DRY_RUN:-1}" == 1 ]] && return 0
   echo "$1" > "$WD_DIR/boot.seen"
-  find "$WD_DIR" -maxdepth 1 -name 'boot.*.seen' ! -name "boot.$1.seen" -delete 2>/dev/null || true
+  find "$WD_DIR" -maxdepth 1 \( -name 'boot.*.seen' ! -name "boot.$1.seen" -o -name 'boot.*.tally' \) -delete 2>/dev/null || true
   return 0
 }
 
@@ -1353,6 +1370,10 @@ spl_wd_takeover() {
   local id="$1" code="$2" ev="$3" now n cause
   if spl_wd_box_fenced; then echo "fenced: this box starts nothing (spec 102 10.2)"; return 1; fi
   now="$(spl_lease_now)"
+  if [[ "$code" != reboot ]]; then
+    local wb; wb="$(spl_wd_boot_pending "$id" "$now")"
+    if [[ -n "$wb" ]]; then echo "$wb"; return 1; fi
+  fi
   n="$(spl_wd_restarts_n "$id" "$now")"
   if (( n >= RESTART_MAX_PER_HOUR )); then
     spl_wd_hold_out "$id" "$now" "$n restarts in the last hour, then $code again ($ev)"
@@ -1375,6 +1396,25 @@ spl_wd_takeover() {
   ( ID="$id" CAUSE="$cause" REASON="$code" WD_EVIDENCE="$ev" setsid ${WD_TAKEOVER_CMD:-$ROTATE_RUN -a do_spl_agent_restart} \
       >> "$WD_DIR/restart.$id.out" 2>&1 < /dev/null 6>&- 7>&- 8>&- 9>&- & )
   return 0
+}
+
+# spl_wd_boot_pending ID NOW: why a takeover of <id> waits for the boot
+# pass; nothing when it may run. Before the pass has handled the CURRENT boot
+# (boot.seen = btime) or <id> (boot.d/<id> = btime) no restart but its own
+# runs: the tmux server is not up yet, and the restart's failed spawn still
+# counted in lifetime/restarts (sat drill 7, 2026-10-09, n=1: c-001..c-003's
+# S3 failed 3 times before the pass, its restarts read "REBORN #2"). Nothing
+# was started, so nothing is counted; the next tick asks again. Waits at most
+# WD_BOOT_S3_WAIT s (3600) after the boot; WD_BOOT=0: no wait.
+spl_wd_boot_pending() {
+  local id="$1" now="$2" bt seen
+  [[ "${WD_BOOT:-1}" != 0 ]] || return 0
+  bt="$(spl_wd_boot_time)"
+  [[ "$bt" =~ ^[0-9]+$ ]] && (( now >= bt && now - bt < ${WD_BOOT_S3_WAIT:-3600} )) || return 0
+  seen="$(cat "$WD_DIR/boot.seen" 2>/dev/null || true)"
+  if [[ "$seen" =~ ^[0-9]+$ ]] && (( bt - seen <= 60 && seen - bt <= 60 )); then return 0; fi
+  [[ "$(cat "$WD_DIR/boot.d/$id" 2>/dev/null || true)" == "$bt" ]] && return 0
+  echo "waits for the boot pass of $(date -u -d "@$bt" +%FT%TZ) (not counted; retried next tick)"
 }
 
 # spl_wd_restarts_n ID NOW: the restarts of <id> in the rolling hour, from the

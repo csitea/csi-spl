@@ -30,6 +30,14 @@
 #      carries it)" while no Vibe CLI ran; a node child carrying its
 #      SPOOL_AGENT_ID filled the agents file's pid. An m- seat is back only
 #      with its vibe; control: the same seat with a Vibe CLI process is back
+#   7. sat drill 7 (2026-10-09, n=1 boot): the dead seat c-002's S3 tried a
+#      restart 3 times before the boot pass made the tmux server, each spawn
+#      FAILed and counted in lifetime/restarts. Now S3 waits for the boot
+#      pass, nothing counted; the boot pass's restart is the boot's one;
+#      control: after the boot pass S3 restarts the seat dead again. The done
+#      line counts every tick of the boot (drill: "0 back" with 6 back).
+#      The instance had no last.tick before the boot: no resume grace, its
+#      S3 judged at once while the pass waited WD_START_GRACE after btime
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -57,12 +65,14 @@ esac
 exit 0
 STUB
 printf '#!/usr/bin/env bash\necho "send $*" >> "%s/sent"\n' "$T" > "$T/bin/send"
-printf '#!/usr/bin/env bash\ncase "${1:-}" in --norm|--scrub) cat ;; esac\nexit 0\n' > "$T/sit/s3.sh"
+# s3: a hit for every id while $T/s3hit exists (case 7: a dead seat)
+printf '#!/usr/bin/env bash\ncase "${1:-}" in --norm|--scrub) cat ;; *) [[ -e "$T/s3hit" ]] && echo "HIT S3 pane %%9 is gone, registry row open, no harness process carries $1" ;; esac\nexit 0\n' > "$T/sit/s3.sh"
 # the restart: the real gate's slot and rotate.hold refusals, then it runs until go.<id>
 cat > "$T/bin/takeover" <<STUB
 #!/usr/bin/env bash
 id="\$ID" T="$T" H="$D/rotate.hold" got=""
 echo "\$id cause=\$CAUSE" >> "\$T/takeovers"
+mkdir -p "$S/\$id/lifetime"; echo "\$LEASE_NOW \$CAUSE" >> "$S/\$id/lifetime/restarts"
 if [[ -e "\$T/fail.\$id" ]]; then echo "2027-01-15T08:05:00Z x-rs-\$id RS-SPAWN FAIL no mistral session carrying \$id started in %5 within 120s"; exit 1; fi
 first=1 last=4; [[ "\$id" =~ -00[1-4]\$ ]] && first=0 last=0
 mkdir -p "$S/peer"
@@ -167,7 +177,7 @@ step "" "tick 8 (all back)"
 [[ "$(started)" == 11 && "$(awk '{print $1}' "$T/takeovers" | sort -u | wc -l)" == 11 ]] && pass "all 11 restarted, each once" || fail "takeovers: $(awk '{print $1}' "$T/takeovers" | paste -sd' ' -)"
 [[ "$(n_of "$T/refused")" == 0 ]] && pass "0 refused by its own slots or hold" || fail "refused: $(cat "$T/refused")"
 ! grep -q 'refused (try' "$D/wd.log" && pass "wd.log: no refusal" || fail "wd.log refusals: $(grep 'refused (try' "$D/wd.log")"
-[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" ]] && grep -q 'done: 0 restart(s) started, 0 refused, 2 back' "$D/wd.log" && pass "boot.seen once all are back; the done line" || fail "boot.seen: $(cat "$W/boot.seen" 2>/dev/null); $(last_sum)"
+[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" ]] && grep -q 'done: 11 restart(s) started, 0 refused, 11 back' "$D/wd.log" && pass "boot.seen once all are back; the done line counts the whole boot" || fail "boot.seen: $(cat "$W/boot.seen" 2>/dev/null); $(last_sum)"
 step "" "tick 9 (handled)"
 
 # ---- 2. control ------------------------------------------------------------------
@@ -292,6 +302,33 @@ mkdir -p "$T/proc/$(( pid + 1 ))"; printf 'SPOOL_AGENT_ID=m-629\0' > "$T/proc/$(
 WD_BOOT_TRIES=2 WD_BOOT_BACK_WAIT=60 wd $(( BT + 360 ))
 [[ "$(grep -c 'm-629 back: it runs' "$D/wd.log")" == 1 && ! -e "$W/boot.q/m-629" ]] && pass "control: with its Vibe CLI m-629 is back" || fail "control: $(grep m-629 "$D/wd.log" | tail -2)"
 cleanup_stubs
+
+# ---- 7. S3 before the boot pass -------------------------------------------------
+echo "=== 7. drill 7: a dead seat's S3 before the boot pass -> waits, not counted; after it S3 still restarts"
+# pre_boot [WD_EXTRA]: c-002 (a seat) ran before the boot, no tmux server, its
+# spawn fails; four ticks inside the boot pass's start grace, S3 hitting
+pre_boot() {
+  IDS="c-002"; box; rm -f "$T/tmux/up" "$W/last.tick"; echo c-002 > "$S/peer/seats"; touch "$T/s3hit" "$T/fail.c-002" "$T/go.c-002"
+  local s; for s in 60 90 120 150; do WD_EXTRA="${1:-}" wd $(( BT + s )); sleep 0.3; done
+}
+lt() { grep -c "$1" "$S/c-002/lifetime/restarts" 2>/dev/null || echo 0; }
+pre_boot 'spl_wd_boot_pending() { return 0; }'
+c="$(lt S3)"
+(( c >= 1 )) && pass "red: the old code restarts c-002 by S3 before the boot pass, $c counted in lifetime/restarts" || fail "control: S3 restarts before the boot pass: $c ($(cat "$T/takeovers" 2>/dev/null))"
+pre_boot
+[[ "$(lt .)" == 0 && ! -s "$T/takeovers" ]] && pass "S3 before the boot pass: nothing started, 0 counted" || fail "pre-boot S3 counted: $(cat "$S/c-002/lifetime/restarts" 2>/dev/null)"
+grep -q 'c-002 .*takeover not done: waits for the boot pass' "$D/wd.log" && pass "the wait is logged, retried next tick" || fail "no wait line: $(grep c-002 "$D/wd.log" | tail -2)"
+rm -f "$T/fail.c-002"
+wd $(( BT + 300 )); settle 1
+[[ "$(cat "$S/c-002/lifetime/restarts" 2>/dev/null | awk '{print $2}' | paste -sd' ' -)" == reboot ]] && pass "the boot pass restarts c-002: its one restart (cause reboot)" || fail "boot restarts: $(cat "$S/c-002/lifetime/restarts" 2>/dev/null)"
+rm -f "$T/s3hit"; release c-002
+wd $(( BT + 330 ))
+[[ "$(cat "$W/boot.seen" 2>/dev/null)" == "$BT" ]] && grep -q 'done: 1 restart(s) started, 0 refused, 1 back' "$D/wd.log" && pass "boot done, the done line counts the whole boot (1 started, 1 back)" || fail "done: $(last_sum)"
+# control: c-002 dead again after the boot pass (its window and process gone)
+: > "$T/tmux/panes"; : > "$T/ps"; touch "$T/s3hit"; rm -f "$T/go.c-002"; touch "$T/go.c-002"
+for s in 660 690 720; do wd $(( BT + s )); sleep 0.3; done
+[[ "$(lt S3)" == 1 ]] && pass "control: after the boot pass S3 restarts the dead seat (cause S3)" || fail "control: post-boot S3: $(cat "$S/c-002/lifetime/restarts" 2>/dev/null)"
+rm -f "$T/s3hit"; cleanup_stubs
 
 echo
 if (( fails == 0 )); then echo "wd-boot-queue: all passed"; else echo "wd-boot-queue: $fails failed"; fi

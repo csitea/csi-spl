@@ -37,7 +37,7 @@ phase 2). T002's tests gate everything after it. T000b is independent.
 
 ## 2. Data model
 
-- [ ] **T001**: migration `<next>_workspace_docs.sql` (spec 2.2, 2.3, 3.2).
+- [x] **T001**: migration `<next>_workspace_docs.sql` (spec 2.2, 2.3, 3.2). Landed as rdb `0157_workspace_docs.sql` (86b5e3a46), test `csi-spl-orc/src/bash/tests/workspace-docs-migration.tst.sh` (40 PASS, race 3 of 3 refused, both controls); `/version` `schema_head` = `0157_workspace_docs.sql` on dev and prd (v4.0.8). tenant_id is the workspace (rdb 0126), so no separate `workspace_id` column.
   - Depends: none. Applied to dev and prd before T002 ships (DDL first).
   - Owns: `csi-spl-rdb/src/sql/postgres/spool-hub/<next>_workspace_docs.sql` (*new*; claim the number at build time), its SQL test.
   - Ports: the sibling's SQL test hierarchy table and its `*_doc` tables, as the column list only (they carry no constraint to port).

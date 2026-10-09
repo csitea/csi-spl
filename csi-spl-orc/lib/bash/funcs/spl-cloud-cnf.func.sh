@@ -273,6 +273,8 @@ spl_host_spool() {
     keep) return 0 ;;
     refuse) do_log "WARN keeping $SPL_SPOOL: $why (SPL_SPOOL_REBUILD=1 overrides)"; return 0 ;;
   esac
+  [[ -f "$build" ]] ||
+    { do_log "FATAL no spool binary to keep at $SPL_SPOOL and no $build to build one ($APP_PATH has no api tree: a watchdog code snapshot?)"; return 1; }
   mkdir -p "$SPL_STATE_DIR/bin" || return 1
   tmp="$SPL_SPOOL.build.$$"
   bash "$build" "$tmp" >/dev/null && mv -f "$tmp" "$SPL_SPOOL" ||
@@ -332,6 +334,12 @@ spl_host_spool_verdict() {
   local bin="$1" head state rev mod stamp
   [[ "${SPL_SPOOL_REBUILD:-0}" == 1 ]] && { echo "build SPL_SPOOL_REBUILD=1"; return 0; }
   [[ -x "$bin" ]] || { echo "build no binary yet"; return 0; }
+  # A watchdog code snapshot (spl_wd_upd_snapshot) carries no api tree and is
+  # no git tree: nothing to build from, so the installed binary is the one.
+  # Drill 6 (2026-10-09, sat): "is not a git tree" made every lane write from
+  # the snapshot run build.sh, which the snapshot does not have.
+  [[ -f "$APP_PATH/$SPL_ORG_APP-api/src/bash/build.sh" ]] ||
+    { echo "keep $APP_PATH has no $SPL_ORG_APP-api to build from"; return 0; }
   head="$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null)"
   [[ -n "$head" ]] || { echo "build $APP_PATH is not a git tree"; return 0; }
   read -r rev mod < <(spl_host_spool_bin_rev "$bin") || true

@@ -18,6 +18,10 @@
 #      and there _sp_cnf_max_price returns '' (the drill 5 refusal)
 #   6. a change only in csi-spl-iac/lib/bash is a code change (restart
 #      path), a cnf-only change is not
+#   7. drill 6 (sat): do_spl_lane_put -> spl_lane_init -> spl_host_spool run
+#      from the snapshot keeps the installed spool binary instead of running
+#      the api's build.sh the snapshot does not carry; 7b. no binary -> rc 1
+#      with a FATAL that says why (CONTROL: the old verdict ran build.sh)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -120,5 +124,28 @@ else
   fail "6. code paths: $(spl_wd_upd_code_paths)"
 fi
 
+# 7 lane-put from the snapshot (drill 6, sat: m-617's do_spl_lane_put died on
+# "csi-spl-api/src/bash/build.sh: No such file"). spl_lane_init calls
+# spl_host_spool, whose verdict for a non-git tree was "build": from a
+# snapshot it must keep the installed spool binary, and with no binary say why.
+host_spool_in_snap() {  # <state dir>
+  APP_PATH="$SNAP" PROJ_PATH="$SNAP/csi-spl-orc" SPL_ORG_APP=csi-spl SPL_STATE_DIR="$1" bash -c '
+    set -uo pipefail
+    do_log() { echo "$*"; }
+    source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh" || exit 9
+    spl_host_spool; rc=$?
+    echo "SPL_SPOOL=$SPL_SPOOL"
+    exit "$rc"' 2>&1
+}
+mkdir -p "$T/st7/bin"
+printf '#!/bin/sh\necho stub\n' >"$T/st7/bin/spool"; chmod +x "$T/st7/bin/spool"
+out="$(host_spool_in_snap "$T/st7")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SPL_SPOOL=$T/st7/bin/spool"* && "$out" != *build.sh* && "$(cat "$T/st7/bin/spool")" == *stub* ]] &&
+  pass "7. from the snapshot spl_host_spool keeps the installed spool (no build.sh run)" ||
+  fail "7. spl_host_spool from the snapshot rc=$rc: $out"
+out="$(host_spool_in_snap "$T/st7b")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"no spool binary to keep"* && "$out" == *"no api tree"* ]] &&
+  pass "7b. from the snapshot with no spool binary: rc 1, the FATAL says there is no api tree" ||
+  fail "7b. no binary rc=$rc: $out"
 echo "=== fails=$fails"
 [[ "$fails" -eq 0 ]]

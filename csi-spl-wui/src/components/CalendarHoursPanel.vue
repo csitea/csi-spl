@@ -4,8 +4,9 @@
      Mine (every member) - the period holding the shown day, its banner and
      its days newest first with their total and state; a click on a day
      opens that day's Working hours dialog (`open-day`). Team and Download
-     show only to a holder of hours.read and are filled by T015 (on T008 /
-     T009). Read only here: T013 adds Approve. Its own lazy chunk. -->
+     show only to a holder of hours.read (T015, on T008 / T009:
+     CalendarHoursTeam, CalendarHoursDownload). Mine is read only here:
+     T013 adds Approve. Its own lazy chunk. -->
 <template>
   <section class="hours-panel" data-test="hours-panel" :data-tab="tab" :data-state="hours.state.value">
     <header class="hours-panel__head">
@@ -64,8 +65,10 @@
         <strong dir="ltr">{{ hoursHhmm(periodTotal) }}</strong>
       </p>
     </div>
+    <!-- T015: Team and Download, each its own lazy chunk, fetched when its tab shows -->
     <div v-else class="hours-panel__body" role="tabpanel" :data-test="'hours-panel-' + tab">
-      <p class="muted">{{ t('hours_cal.' + tab + '_soon') }}</p>
+      <LazyCalendarHoursTeam v-if="tab === 'team'" :focus="focus" :today="today" :can-approve="canApprove" />
+      <LazyCalendarHoursDownload v-else :focus="focus" :today="today" />
     </div>
   </section>
 </template>
@@ -93,7 +96,10 @@ const bannerText = computed(() => {
 })
 
 /* spec 5.4: Team and Download for a holder of hours.read only (never fail open) */
-const canRead = computed(() => Boolean(access.me && Array.isArray(access.me.permissions) && access.me.permissions.includes('hours.read')))
+const holds = (perm: string) => Boolean(access.me && Array.isArray(access.me.permissions) && access.me.permissions.includes(perm))
+const canRead = computed(() => holds('hours.read'))
+/* T015: Approve / Return for a holder of hours.approve (the hub re-checks) */
+const canApprove = computed(() => holds('hours.approve'))
 const tabs = computed(() => (canRead.value ? ['mine', 'team', 'download'] : ['mine']))
 const tab = ref('mine')
 watch(tabs, (ids) => { if (!ids.includes(tab.value)) tab.value = 'mine' })

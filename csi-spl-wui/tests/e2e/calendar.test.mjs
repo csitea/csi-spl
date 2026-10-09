@@ -28,6 +28,7 @@ import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { calAddDays, calIsoDay, calWeekStart } from '../../src/utils/calendar-year.mjs'
+import { HOURS_BIZ_OWNER, HOURS_MEMBER, driveHoursTeam, hoursFrozenDay } from './lib/hours-team.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 /* ci_initial_gzip_kb (027 perf-budgets.json, owner 2026-10-02) */
@@ -233,6 +234,29 @@ try {
     await p.goto(server.base + '/calendar?d=' + later, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     ok('a deep link opens that week', await waitWeek(p, calWeekStart(later)), await week(p))
     ok('no sideways scroll', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    await p.close()
+  }
+
+  /* spec 107 v1.2 T015 (owner R11): the hours panel's Team and Download
+     tabs at 1440. A member without hours.read sees Mine only; a biz owner
+     (hours.read + hours.approve) gets the grid of a frozen period, approves
+     one member, returns one with a note, Approve all, and downloads CSV and
+     XLSX. CONTROL: before T015 the Team tab is a placeholder, so every T015
+     check FAILs. */
+  for (const [who, me] of [['member', HOURS_MEMBER], ['biz owner', HOURS_BIZ_OWNER]]) {
+    const p = await browser.newPage()
+    await p.setViewport({ width: 1440, height: 900 })
+    await p.evaluateOnNewDocument((m) => { try { localStorage.setItem('spool.mock.me', JSON.stringify(m)) } catch { /* private mode */ } }, me)
+    await p.goto(server.base + '/calendar?d=' + hoursFrozenDay(calWeekStart(today), calAddDays), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=hours-panel] [data-test=hours-panel-mine]', { visible: true, timeout: 15000 }).catch(() => null)
+    if (me === HOURS_MEMBER) {
+      await new Promise((r) => setTimeout(r, 800))
+      ok('T015: a member without hours.read sees no Team tab', !(await p.$('[data-test=hours-panel-tab-team]')) && !(await p.$('[data-test=hours-panel-tab-download]')))
+    } else {
+      await p.waitForSelector('[data-test=hours-panel-tab-team]', { visible: true, timeout: 10000 }).catch(() => null)
+      await driveHoursTeam(p, '[data-test=hours-panel]', '1440', ok, { layout: 'grid', shot: (n) => shot(p, `hours-${n}`) })
+      ok('T015 1440: no sideways scroll with the Team tab', await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    }
     await p.close()
   }
 } finally {

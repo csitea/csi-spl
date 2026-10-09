@@ -35,6 +35,7 @@ import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
 import { calAddDays, calIsoDay, calWeekStart } from '../../src/utils/calendar-year.mjs'
+import { HOURS_BIZ_OWNER, HOURS_MEMBER, driveHoursTeam, hoursFrozenDay } from './lib/hours-team.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -74,7 +75,7 @@ const today = calIsoDay(Date.now())
 const mon = calWeekStart(today)
 const sat = calAddDays(mon, 5)
 
-async function open(browser, vp, { theme, level, day }) {
+async function open(browser, vp, { theme, level, day, me }) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.evaluateOnNewDocument((s) => {
@@ -82,8 +83,9 @@ async function open(browser, vp, { theme, level, day }) {
       localStorage.setItem('spool-theme', s.theme)
       localStorage.setItem('spool-font-size', String(s.level))
       localStorage.setItem('spool-calendar-phone-view', 'day')
+      if (s.me) localStorage.setItem('spool.mock.me', JSON.stringify(s.me))
     } catch { /* about:blank */ }
-  }, { theme, level })
+  }, { theme, level, me: me || null })
   const spec = { ...vp, hasTouch: true }
   await setPageViewport(p, spec)
   await p.goto(server.base + '/calendar?d=' + day, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
@@ -163,6 +165,30 @@ try {
   await sleep(800)
   ok('line: a weekend day without hours shows no Working hours line', (await lineOf(p, sat)) === null && Boolean(await p.$(`${PAGE} [data-test=calphone-day][data-day="${sat}"]`)))
   await ctx.close()
+
+  /* spec 107 v1.2 T015 (owner R11) at 390: the hours sheet's Team and
+     Download tabs. A member without hours.read sees Mine only; a biz owner
+     gets one card per member of a frozen period, approves, returns with a
+     note, Approve all, downloads CSV and XLSX; nothing scrolls sideways.
+     CONTROL: before T015 the Team tab is a placeholder, so every T015 check FAILs. */
+  const frozen = hoursFrozenDay(mon, calAddDays)
+  for (const [who, me] of [['member', HOURS_MEMBER], ['biz owner', HOURS_BIZ_OWNER]]) {
+    const run = RUNS[1]
+    const o = await open(browser, run.vp, { ...run, day: frozen, me })
+    await o.p.click(`${ROOT} [data-test=calphone-menu]`)
+    const item = await o.p.waitForSelector('[data-test=calphone-menu-hours]', { visible: true, timeout: 5000 }).catch(() => null)
+    if (item) await item.click()
+    await o.p.waitForSelector('[data-test=calphone-hours-sheet] [data-test=hours-panel-mine]', { visible: true, timeout: 10000 }).catch(() => null)
+    if (who === 'member') {
+      await sleep(800)
+      ok('T015 390: a member without hours.read sees no Team tab', !(await o.p.$('[data-test=calphone-hours-sheet] [data-test=hours-panel-tab-team]')))
+    } else {
+      await o.p.waitForSelector('[data-test=calphone-hours-sheet] [data-test=hours-panel-tab-team]', { visible: true, timeout: 10000 }).catch(() => null)
+      await driveHoursTeam(o.p, '[data-test=calphone-hours-sheet]', '390', ok, { layout: 'cards', shot: (n) => shot(o.p, `390-team-${n}`) })
+      ok('T015 390: no sideways scroll with the Team and Download tabs', await sideways(o.p))
+    }
+    await o.ctx.close()
+  }
 } finally {
   await browser.close()
   await server.stop()

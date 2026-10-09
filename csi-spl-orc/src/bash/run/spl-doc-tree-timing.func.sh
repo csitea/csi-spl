@@ -45,10 +45,14 @@ do_spl_doc_tree_timing() {
     dsn="$(spl_doc_timing_pg "$con")" || return 1
   fi
 
-  local sha load rc=0
+  local sha load box rc=0
   sha="$(git -C "$mod" rev-parse --short=9 HEAD 2>/dev/null || echo unknown)"
+  # The fleet's desk box id (specs/058), not hostname: hosts may share one.
+  # shellcheck source=../../../lib/bash/funcs/spl-desk-box.func.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+  box="$(spl_desk_box_default)"
   load="$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo unknown)"
-  do_log "INFO doc tree timing: sha=$sha box=${SPOOL_BOX_ID:-$(hostname -s)} load=$load cpus=$(nproc) n=${WSDOC_TIMING_N:-5} ceilings=${WSDOC_TIMING_CEILINGS:-default}"
+  do_log "INFO doc tree timing: sha=$sha box=$box load=$load cpus=$(nproc) n=${WSDOC_TIMING_N:-5} ceilings=${WSDOC_TIMING_CEILINGS:-default}"
   (cd "$mod" && SPOOL_TEST_PG_DSN="$dsn" SPOOL_TEST_WSDOC_TIMING_GATE=1 \
     SPOOL_TEST_WSDOC_TIMING_CEILINGS="${WSDOC_TIMING_CEILINGS:-}" \
     SPOOL_TEST_WSDOC_TIMING_N="${WSDOC_TIMING_N:-5}" \

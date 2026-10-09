@@ -23,7 +23,7 @@ source "$PROJ_ROOT/src/bash/run/spl-doc-tree-timing.func.sh"
 do_log() { echo "$*"; }
 # shellcheck disable=SC2317 # called by the sourced action
 do_require_bin() { local b; for b in "$@"; do command -v "$b" >/dev/null || return 1; done; }
-export APP_PATH="$APP_ROOT" STUB_LOG="$T/calls.log" SPOOL_BOX_ID=box-t
+export APP_PATH="$APP_ROOT" STUB_LOG="$T/calls.log" SPOOL_DESK_BOX=box-t
 mkdir -p "$T/stub"
 cat >"$T/stub/docker" <<'EOF'
 #!/bin/bash

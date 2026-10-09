@@ -9,7 +9,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+
 	"errors"
 	"fmt"
 	"net/url"
@@ -524,12 +524,6 @@ func HTTPResultFrom(r Result) HTTPResult {
 		out.TaskID = r.Message.TaskID
 	}
 	return out
-}
-
-// DumpJSON is a test helper (compact).
-func DumpJSON(v any) string {
-	b, _ := json.Marshal(v)
-	return string(b)
 }
 
 var _ Fetcher = (*FakeFetcher)(nil)

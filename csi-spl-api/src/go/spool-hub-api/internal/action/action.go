@@ -113,13 +113,6 @@ func Put(cfg *config.Config, path string, dir bool) (PutResult, error) {
 	return PutResult{Bytes: a.Bytes, FileID: a.FileID, Kind: a.Kind, Name: a.Name, SHA256: a.SHA256}, nil
 }
 
-// Send builds the attachments and writes the message: locally (no hub), or in
-// hub mode ($SPOOL_HUB_URL set) through the box-signed envelope. It is the
-// test/legacy entry (no non-test caller); SendCtx is the API.
-func Send(cfg *config.Config, in SendArgs) (SendResult, error) {
-	return SendCtx(context.Background(), cfg, in)
-}
-
 // SendCtx is Send with a context for the hub round trip.
 func SendCtx(ctx context.Context, cfg *config.Config, in SendArgs) (SendResult, error) {
 	if err := checkSend(cfg, &in); err != nil {

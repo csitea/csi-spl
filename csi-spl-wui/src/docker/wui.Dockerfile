@@ -13,7 +13,9 @@
 # domain or tenant change is a restart, not a rebuild. The build args below
 # are only the defaults of those env values; SPOOL_DEFAULT_LOCALE stays a
 # build value because it decides which routes carry a locale prefix.
-FROM node:20-alpine AS build
+# Base images come through mirror.gcr.io, Google's Docker Hub mirror (same
+# tags): anonymous Docker Hub pulls from the CI runners hit its rate limit.
+FROM mirror.gcr.io/library/node:20-alpine AS build
 WORKDIR /app
 ENV NUXT_TELEMETRY_DISABLED=1 CI=1
 RUN corepack enable
@@ -37,7 +39,7 @@ RUN NUXT_PUBLIC_APP_VERSION="$(cat /meta/version.txt)" \
     NUXT_PUBLIC_USE_MOCK=0 \
     pnpm run generate
 
-FROM caddy:2-alpine
+FROM mirror.gcr.io/library/caddy:2-alpine
 COPY csi-spl-wui/src/docker/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/.output/public/ /srv/
 COPY --chmod=0755 csi-spl-wui/src/docker/wui-config.sh /usr/local/bin/wui-config.sh

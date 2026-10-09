@@ -47,6 +47,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # compose pulls only a MISSING image: fetch its Docker Hub ones through
+      # mirror.gcr.io first, since anonymous Docker Hub pulls from the
+      # runners time out or hit the rate limit (run 37995252968). The build
+      # stages' FROM lines read mirror.gcr.io themselves.
+      - name: Pre-pull the compose images through mirror.gcr.io
+        run: bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh postgres:16-alpine chrislusf/seaweedfs:4.48
+
       - name: docker compose up --build (no .env, the documented defaults)
         run: docker compose up --build --detach
 

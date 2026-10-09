@@ -112,14 +112,13 @@ jobs:
         run: go mod download
 
       - name: Cache the fake-gcs emulator image
-        # Docker Hub resets the connection now and then (run 36148403827):
-        # retry, then fall back to the runner's cached copy with a warning.
+        # A cached copy is used as is (the tag is pinned); else it is pulled
+        # through mirror.gcr.io: anonymous Docker Hub pulls hit
+        # `toomanyrequests` (run 37992239649) and reset now and then (run
+        # 36148403827).
         run: |
           img=fsouza/fake-gcs-server:1.52.2
-          for i in 1 2 3; do docker pull -q "$img" && exit 0; sleep $((i * 10)); done
-          docker image inspect "$img" >/dev/null 2>&1 \
-            && { echo "::warning::docker pull $img failed 3x; using the cached image"; exit 0; }
-          exit 1
+          bash csi-spl-orc/src/bash/scripts/docker-pull-mirror.sh "$img"
 
       - name: run-all-tests.sh
         run: bash csi-spl-api/src/bash/tests/run-all-tests.sh

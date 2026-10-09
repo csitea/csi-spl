@@ -219,7 +219,8 @@ jobs:
     timeout-minutes: 90
     services:
       postgres:
-        image: postgres:16-alpine
+        # mirror.gcr.io: no anonymous Docker Hub rate limit on the runners
+        image: mirror.gcr.io/postgres:16-alpine
         env:
           POSTGRES_USER: spool
           POSTGRES_PASSWORD: spool

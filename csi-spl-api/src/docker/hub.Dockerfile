@@ -15,7 +15,9 @@
 # The ONE hub image (specs/072 A21): the root docker-compose.yml, Cloud Run
 # (do_build_push_hub_image) and the lde stack all run it; the entrypoint's
 # `serve` is plain `spool serve` on Cloud Run and in lde.
-FROM golang:1.25-alpine AS build
+# Base images come through mirror.gcr.io, Google's Docker Hub mirror (same
+# tags): anonymous Docker Hub pulls from the CI runners hit its rate limit.
+FROM mirror.gcr.io/library/golang:1.25-alpine AS build
 ENV CGO_ENABLED=0 GOTOOLCHAIN=auto
 WORKDIR /src
 COPY csi-spl-api/src/go/spool-hub-api/go.mod csi-spl-api/src/go/spool-hub-api/go.sum ./
@@ -36,7 +38,7 @@ RUN set -eu; g() { git -c safe.directory='*' --git-dir=/meta "$@" 2>/dev/null; }
 COPY csi-spl-api/src/go/spool-hub-api/ ./
 RUN go build -trimpath -ldflags "-s -w -X main.version=$(cat /meta/version.txt) -X main.commit=$(cat /meta/commit.txt) -X main.builtAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o /out/spool ./cmd/spool
 
-FROM alpine:3.22
+FROM mirror.gcr.io/library/alpine:3.22
 RUN apk add --no-cache postgresql16-client ca-certificates tzdata \
  && addgroup -S -g 10001 spool && adduser -S -D -H -u 10001 -G spool spool \
  && mkdir -p /var/lib/spool/files /var/lib/spool/state \

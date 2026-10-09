@@ -67,6 +67,7 @@ has "6. ... under env -u MISTRAL_API_KEY, before the harness" "&& exec env -u MI
 pfx="$(sed -n "s/^SPAWN_EXEC_PREFIX=\"\(.*\)\"\$/\1/p" "$T_SCRIPTS/spawn-mistral.sh")"
 has "6. ... the exec prefix is spawn-mistral.sh's, word for word" "exec ${pfx} bash '" "$out"
 hasnt "6. ... and with a session, no --continue" "--continue" "$out"
+has "6. ... raising vibe's bash timeout (specs/110 vibe-bash-timeout-sudo.md)" "VIBE_TOOLS__BASH__DEFAULT_TIMEOUT=840 " "$out"
 out="$(SPOOL_MISTRAL_MAX_PRICE=3.50 r mistral m-008 "$D")"
 has "6. control: an m- id with no session plans --continue" "'vibe' --auto-approve --max-price 3.50 --continue" "$out"
 hasnt "6. ... and no --resume" "--resume" "$out"

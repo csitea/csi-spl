@@ -44,7 +44,15 @@ SPAWN_CONTINUE_FLAG=--continue
 # SPT_NOENV=1: vibe renames itself "Vibe CLI" with setproctitle, which by default
 # zeroes /proc/<pid>/environ, so SPOOL_AGENT_ID vanished and the agent run
 # report (spl_lease_live_ids) never listed an m- lane: roster running = f.
-SPAWN_EXEC_PREFIX="env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false SPT_NOENV=1"
+# VIBE_TOOLS__BASH__DEFAULT_TIMEOUT=840 (vibe's default is 300): when a bash
+# call times out, vibe 2.26.0 SIGKILLs the shell's group, stops reading its
+# pipes and waits for them to close, with no bound. A `sudo -u <box user> git
+# push` survives that kill as the box user, fills the pipe with its pre-push
+# output and blocks: "Running command... 33m" with no child (m-617@sat
+# 2026-10-09, n=2; specs/110 vibe-bash-timeout-sudo.md). 840 lets such a call
+# finish before it times out, and stays under the watchdog's S4 cap for bash
+# (wd_tool_cap, 900).
+SPAWN_EXEC_PREFIX="env -u MISTRAL_API_KEY VIBE_ENABLE_TELEMETRY=false VIBE_ENABLE_UPDATE_CHECKS=false VIBE_ENABLE_AUTO_UPDATE=false VIBE_EXPERIMENTS__ENABLE=false VIBE_TOOLS__BASH__DEFAULT_TIMEOUT=840 SPT_NOENV=1"
 spawn_rename_how() {
   # $SLUG is embedded already escaped for a double-quoted argument, so the
   # agent copy-pastes a command that cannot run $(...) from the title.

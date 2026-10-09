@@ -1,0 +1,6 @@
+Lay-What: The weekly box restart can now restart a desktop machine that has someone logged in, when that machine is set to allow it.
+Lay-How: It asks the system itself to restart, which stops every program cleanly, instead of asking the login manager, which said no.
+Lay-Why: The planned restart of a desktop machine failed twice, so the machine kept running past its weekly restart.
+Tech-What: do_spl_box_restart_run with inhibitors=ignore runs systemctl start reboot.target --job-mode=replace-irreversibly --no-block; respect is unchanged.
+Tech-How: spl_brx_reboot_cmd picks the PID 1 path for ignore; seam BOX_RESTART_SYSTEMCTL; the test stubs logind's refusal so the old command fails it.
+Tech-Why: systemd 257 logind checks polkit reboot-ignore-inhibit with ALWAYS_CHECK even for root under a block lock; auth_admin_keep gives a challenge.

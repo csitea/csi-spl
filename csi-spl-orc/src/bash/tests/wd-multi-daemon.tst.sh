@@ -63,6 +63,7 @@ mkdir -p "$SPOOL_ROOT/$ID/lifetime"; echo "$LEASE_NOW $CAUSE" >> "$SPOOL_ROOT/$I
 if flock -n "$SPOOL_ROOT/$ID/lifetime/restart.lock" true; then echo free; else echo held; fi >> "$T/idlock"
 n=0; for f in /proc/$$/fd/*; do case "$(readlink "$f")" in *judge.lock*) n=$((n + 1)) ;; esac; done; echo "$n" >> "$T/judgefd"
 echo "$(date -u -d "@$LEASE_NOW" +%FT%TZ) 20270115T0800Z-wd-$ID SPAWN OK started" >> "$SPOOL_ROOT/dispatch/rotate.log"
+echo "$ID" >> "$T/takeover.done"
 EOF
 # every situation script: --norm/--scrub copy the pane; else, when
 # "$T/hit.<id>.<sN>" exists, log "<sN> <id> <instance>" to $T/evals, sleep
@@ -97,7 +98,7 @@ agent() {
   printf 'working on the brief\n' > "$T/tmux/screen.$pane"
 }
 reset_box() {
-  rm -rf "$D" "$S"/c-* "$T/proc" "$T"/hit.* "$T/evals" "$T/sent" "$T/takeovers" "$T/idlock" "$T/judgefd" "$T/tmux/log"
+  rm -rf "$D" "$S"/c-* "$T/proc" "$T"/hit.* "$T/evals" "$T/sent" "$T/takeovers" "$T/idlock" "$T/judgefd" "$T/takeover.done" "$T/tmux/log"
   mkdir -p "$D" "$T/proc"; : > "$T/ps"; : > "$T/tmux/panes"
 }
 wd_env=(PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_BOX_ENV="$S/box.env" LEASE_PROC_ROOT="$T/proc"
@@ -117,7 +118,11 @@ both() {
   wd "$2" > "$T/out.$2" & local b=$!
   wait "$a" "$b"
 }
-settle() { for _ in $(seq 1 30); do [[ -s "$T/judgefd" ]] && return; sleep 0.1; done; }
+# settle [N]: wait (up to 30 s) until N detached restarts (default 1) have
+# made their last write. One still running when the next case resets the box
+# lands in the new rotate.log and that judge skips the id (gate 10 run
+# 37969307772: '4 S9:  /' after the S9 control's two restarts)
+settle() { local n="${1:-1}"; for _ in $(seq 1 300); do (( $(grep -c . "$T/takeover.done" 2>/dev/null || true) >= n )) && return; sleep 0.1; done; }
 held() { [[ -f "$1" ]] && ! flock -n "$1" true; }
 cnt() { local n; n="$(grep -c -- "$1" "$2" 2>/dev/null)"; echo "${n:-0}"; }
 
@@ -208,7 +213,7 @@ WD_JUDGE_LOCK=0 SIT_SLEEP=1 KEY_SLEEP=2 both 1 2
   fail "4 control did not double: $(cat "$T/evals" 2>/dev/null) / $(cat "$T/tmux/log" 2>/dev/null)"
 reset_box; agent c-952 %1 4052
 echo "HIT S9 stuck=1 poke_age=400" > "$T/hit.c-952.s9"
-WD_JUDGE_LOCK=0 SIT_SLEEP=1 SEND_SLEEP=2 both 1 2
+WD_JUDGE_LOCK=0 SIT_SLEEP=1 SEND_SLEEP=2 both 1 2; settle 2
 [[ "$(cnt 'WATCHDOG (102 S9): c-952' "$T/sent")" == 2 ]] && pass "4 control: no judge lock -> the S9 note goes twice (caught)" ||
   fail "4 S9 control: $(cat "$T/sent" 2>/dev/null)"
 reset_box; agent c-952 %1 4052
@@ -226,10 +231,12 @@ grep -q '^c-952 SKIP rotation: .*-wd-c-952 SPAWN' <<<"$out" && [[ "$(cnt 'takeov
 [[ "$(cut -d' ' -f1 "$S/c-952/lifetime/s9.reported" 2>/dev/null)" == "$T0" ]] && pass "5 s9.reported written with the report" || fail "5 s9.reported: $(cat "$S/c-952/lifetime/s9.reported" 2>/dev/null)"
 rm -f "$W"/c-952.ep.* "$D/rotate.log"
 out="$(NOW=$((T0 + 60)) wd 1)"
+settle 2
 [[ "$(cnt 'WATCHDOG (102 S9): c-952' "$T/sent")" == 1 ]] && grep -q 'reported 60s ago' <<<"$out" &&
   pass "5 a new S9 episode on the same pane 60 s later: not reported again" || fail "5 s9 dedup: $out / $(cat "$T/sent")"
 rm -f "$W"/c-952.ep.* "$D/rotate.log"; printf 'another screen\n' > "$T/tmux/screen.%1"
 out="$(NOW=$((T0 + 90)) wd 2)"
+settle 3
 [[ "$(cnt 'WATCHDOG (102 S9): c-952' "$T/sent")" == 2 ]] && pass "5 control: a changed pane is reported" || fail "5 s9 control: $out / $(cat "$T/sent")"
 # input.log: a poke recorded 30 s ago -> no poke now; control: 120 s ago -> one poke
 reset_box; agent c-953 %1 4053

@@ -13,6 +13,24 @@
  * rows passed through publicCalendarEvent like these.
  */
 
+import { isSignedOutVisitor } from './shell-bootstrap.mjs'
+
+/** pages/public-calendar.vue */
+export const PUBLIC_CALENDAR_PATH = '/public-calendar'
+
+/**
+ * Where /calendar sends a settled signed-out visitor (the public calendar),
+ * or null: signed in, 'loading', 'unknown' and the mock tenant stay. Read by
+ * pages/calendar.vue, a lazy chunk, so the signed-out door adds nothing to
+ * the initial download (ci_initial_gzip_kb, c-002 17f99072).
+ * @param {unknown} sessionState
+ * @param {boolean} [mock]
+ * @returns {string | null}
+ */
+export function signedOutCalendarTarget(sessionState, mock = false) {
+  return isSignedOutVisitor(sessionState, mock) ? PUBLIC_CALENDAR_PATH : null
+}
+
 /** Where each source's rows come from, in merge order. */
 export const PUBLIC_CALENDAR_SOURCES = Object.freeze([
   Object.freeze({ id: 'releases', from: 'build' }),

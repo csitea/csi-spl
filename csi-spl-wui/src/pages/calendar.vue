@@ -40,6 +40,9 @@ import { calDayMs, calIsoDay } from '~/utils/calendar-year.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useSessionStore } from '~/stores/session'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { signedOutCalendarTarget } from '~/utils/public-calendar.mjs'
 
 /* the main view is its own chunk, fetched on route entry (spec 3, AC-02) */
 const CalendarMainView = defineAsyncComponent(() => import('~/components/CalendarMainView.vue'))
@@ -76,6 +79,21 @@ function closeTopicPanel() {
 }
 watch(() => [livePane.taskId, topic.open], closeTopicPanel)
 onMounted(closeTopicPanel)
+
+/* HUM-10 t1 ef57739c: signed out, the public calendar (releases and feature
+   posts, no tenant entry) instead. A real navigation: while hydrating, the
+   workspace shell is pinned under a client one. Here, not in the global
+   middleware, so it rides this lazy chunk (ci_initial_gzip_kb). */
+const session = useSessionStore()
+const spoolApi = useSpoolApi()
+const localePath = useLocalePath()
+onMounted(() => {
+  if (session.state === 'loading') void session.probe()
+  watch(() => session.state, (s) => {
+    const to = signedOutCalendarTarget(s, spoolApi.mock)
+    if (to) window.location.replace(localePath(to))
+  }, { immediate: true })
+})
 useHead(() => ({ title: t('calendar.title') }))
 </script>
 

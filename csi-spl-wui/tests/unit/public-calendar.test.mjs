@@ -7,15 +7,14 @@
 //     Control: the same tenant title as a feature row passes, so the drop
 //     is the filter, not a malformed fixture.
 //   - the shown month and the day groups
-//   - signedOutPublicTarget: a settled signed-out /calendar goes to
-//     /public-calendar; signed in, mock, loading and other paths stay
+//   - signedOutCalendarTarget (pages/calendar.vue): a settled signed-out
+//     /calendar goes to /public-calendar; signed in, mock and loading stay
 //
 // Run: node tests/unit/public-calendar.test.mjs
 import { featureRows, mockReleaseRows, publicCalendarData, releaseRows } from '../../src/node/pubcal/public-calendar-data.mjs'
 import {
-  PUBLIC_CALENDAR_SOURCES, mergePublicCalendar, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth, publicCalendarEvent,
+  PUBLIC_CALENDAR_PATH, PUBLIC_CALENDAR_SOURCES, mergePublicCalendar, signedOutCalendarTarget, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth, publicCalendarEvent,
 } from '../../src/utils/public-calendar.mjs'
-import { PUBLIC_CALENDAR_PATH, signedOutPublicTarget } from '../../src/utils/signed-out-redirect.mjs'
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -83,12 +82,10 @@ ok('add months over a year', pubCalAddMonths('2026-12', 1) === '2027-01' && pubC
 const days = pubCalMonthDays(merged, '2026-10')
 ok('month days: one day, a release and a feature', days.length === 1 && days[0].releases.length === 1 && days[0].features.length === 1, JSON.stringify(days))
 
-ok('signed out on /calendar -> the public calendar', signedOutPublicTarget('/calendar?d=2026-10-01', 'out') === PUBLIC_CALENDAR_PATH)
-ok('signed out on /fi/calendar -> the public calendar', signedOutPublicTarget('/fi/calendar', 'out') === PUBLIC_CALENDAR_PATH)
-ok('signed in stays', signedOutPublicTarget('/calendar', 'in') === null)
-ok('loading and unknown stay', signedOutPublicTarget('/calendar', 'loading') === null && signedOutPublicTarget('/calendar', 'unknown') === null)
-ok('the mock tenant stays', signedOutPublicTarget('/calendar', 'out', true) === null)
-ok('other paths stay', signedOutPublicTarget('/calendars', 'out') === null && signedOutPublicTarget('/', 'out') === null)
+ok('signed out on /calendar -> the public calendar', signedOutCalendarTarget('out') === PUBLIC_CALENDAR_PATH)
+ok('signed in stays', signedOutCalendarTarget('in') === null)
+ok('loading and unknown stay', signedOutCalendarTarget('loading') === null && signedOutCalendarTarget('unknown') === null)
+ok('the mock tenant stays', signedOutCalendarTarget('out', true) === null)
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed')
 process.exit(failed ? 1 : 0)

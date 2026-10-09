@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 func TestWorkspaceDocTiming(t *testing.T) {
 	pg, tid := wsDocPG(t)
 	n := wsEnvInt("SPOOL_TEST_WSDOC_TIMING_N", 5)
+	ceil := wsCeilings(t, os.Getenv("SPOOL_TEST_WSDOC_TIMING_CEILINGS"))
 	enforce := os.Getenv("SPOOL_TEST_WSDOC_TIMING_GATE") == "1"
 	if !enforce {
 		t.Log("WSDOC timing: ceilings printed, not enforced (a shared run); SPOOL_TEST_WSDOC_TIMING_GATE=1 enforces them")
@@ -40,8 +42,11 @@ func TestWorkspaceDocTiming(t *testing.T) {
 		{"1x1000", func(t *testing.T, pg *Postgres, tid string) wsTimingDoc { return wsBuildWide(t, pg, tid, 1000) }, 0},
 		{"1x10000", func(t *testing.T, pg *Postgres, tid string) wsTimingDoc { return wsBuildWide(t, pg, tid, 10000) }, 0},
 	} {
+		if v, ok := ceil[c.name]; ok {
+			c.gate = v
+		}
 		d := c.build(t, pg, tid)
-		t.Logf("WSDOC timing %s: box load %s", c.name, wsLoad())
+		t.Logf("WSDOC timing %s: box load %s, ceiling %s", c.name, wsLoad(), wsCeilingText(c.gate))
 		for _, op := range d.ops(pg, tid) {
 			var took []time.Duration
 			for i := 0; i < n; i++ {
@@ -53,7 +58,7 @@ func TestWorkspaceDocTiming(t *testing.T) {
 			}
 			sort.Slice(took, func(a, b int) bool { return took[a] < took[b] })
 			med, max := took[len(took)/2], took[len(took)-1]
-			t.Logf("WSDOC timing %-15s %-12s n=%d median=%6.2f ms max=%6.2f ms", c.name, op.name, n, wsMs(med), wsMs(max))
+			t.Logf("WSDOC timing %-15s %-12s n=%d median=%6.2f ms max=%6.2f ms ceiling %s", c.name, op.name, n, wsMs(med), wsMs(max), wsCeilingText(c.gate))
 			if enforce && c.gate > 0 && med > c.gate {
 				t.Errorf("%s %s: median %.2f ms > %.0f ms", c.name, op.name, wsMs(med), wsMs(c.gate))
 			}
@@ -62,6 +67,34 @@ func TestWorkspaceDocTiming(t *testing.T) {
 			t.Fatalf("%s: invariants after the timed ops: %s", c.name, msg)
 		}
 	}
+}
+
+// wsCeilings parses SPOOL_TEST_WSDOC_TIMING_CEILINGS, "<case>=<ms>,...": the
+// control's seam (a ceiling lowered below its median must turn the run red)
+// and the place the owner's 1 x 1,000 ceiling can be tried before it lands.
+// 0 ms = printed only. An unknown case or a bad number fails the test.
+func wsCeilings(t *testing.T, spec string) map[string]time.Duration {
+	out := map[string]time.Duration{}
+	for _, kv := range strings.Split(spec, ",") {
+		if strings.TrimSpace(kv) == "" {
+			continue
+		}
+		name, val, ok := strings.Cut(strings.TrimSpace(kv), "=")
+		msv, err := strconv.ParseFloat(val, 64)
+		known := name == "11111-fanout10" || name == "1x1000" || name == "1x10000"
+		if !ok || err != nil || msv < 0 || !known {
+			t.Fatalf("SPOOL_TEST_WSDOC_TIMING_CEILINGS: bad entry %q (want <11111-fanout10|1x1000|1x10000>=<ms>)", kv)
+		}
+		out[name] = time.Duration(msv * float64(time.Millisecond))
+	}
+	return out
+}
+
+func wsCeilingText(d time.Duration) string {
+	if d == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%.0f ms", wsMs(d))
 }
 
 // wsLoad is the 1/5/15-minute load average and the CPU count of the box.

@@ -48,6 +48,13 @@ eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
+# node and pnpm only feed the wui cache key a version string (_pp_key,
+# _pp_tree_key), and each `pnpm -v` starts Node: 46 per run, ~10 of the 30 s
+# idle; a loaded CI runner killed the file at 300 s (c-729, wf 10 job
+# 113993661903). Fixed stubs give the same key on both sides of every case.
+mkdir -p "$ROOT/tools"
+for t in node pnpm; do printf '#!/bin/sh\necho v0-stub\n' >"$ROOT/tools/$t"; chmod +x "$ROOT/tools/$t"; done
+export PATH="$ROOT/tools:$PATH"
 
 do_log() { :; }
 do_check_dist_hygiene() { return 0; }

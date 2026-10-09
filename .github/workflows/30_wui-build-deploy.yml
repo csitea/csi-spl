@@ -483,6 +483,17 @@ jobs:
           source csi-spl-orc/lib/bash/funcs/spl-release-version.func.sh
           RELEASE_CYCLE="$(spl_release_cycle_now .)" bash csi-spl-orc/src/bash/scripts/wait-for-hub-version.sh
 
+      # spec 111 T006b: the pictures the blog index names, from the env's
+      # private 054 bucket into .output/public/blog/img/ (RIFF/WEBP magic,
+      # 300 KB, name = <post-id>(-og).webp; a bad file fails the deploy and is
+      # named). As the project key; the WIF path copies no pictures yet.
+      - name: Copy the blog pictures (do_copy_blog_media)
+        if: steps.ver.outputs.stale != 'true' && steps.auth_key.outcome == 'success'
+        env:
+          ENV: ${{ matrix.environment }}
+          BLOG_MEDIA_OUT: ${{ github.workspace }}/csi-spl-wui/.output/public
+        run: GCP_SA_KEY_FILE="$GOOGLE_APPLICATION_CREDENTIALS" ./csi-spl-orc/run -a do_copy_blog_media
+
       - name: firebase deploy --only hosting
         if: steps.ver.outputs.stale != 'true'
         working-directory: csi-spl-wui

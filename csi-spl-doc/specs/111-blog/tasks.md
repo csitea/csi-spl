@@ -147,7 +147,7 @@ Multilingual text gets agy's review last (repo language rule).
     name to the action), `OT/blog-image.tst.sh` (*new*).
   - Done: 9-i (stubbed vendor), plus one real picture on the drafting box
     (open: the owner's key on that box first, and the `webp` package).
-- [ ] T006b **picture store + deploy copy** (waits for Q4). Under Q4 (a):
+- [x] T006b **picture store + deploy copy** (waits for Q4). Under Q4 (a):
   the private per-env bucket by a terraform step (uniform access,
   public-access-prevention enforced, an `allUsers` test, `objectViewer`
   for the wf 30 deploy identity only); the plan shown to the owner, the
@@ -159,6 +159,10 @@ Multilingual text gets agy's review last (repo language rule).
     wf 30 workflow (the copy step only), its test.
   - Done: 9-i copy controls; `terraform plan` on dev and prd, apply after
     the owner's go.
+  - Landed (c-628): 054 applied on dev and prd (2 add each, after the
+    owner's go, t1 d49b6b76); anonymous GET 403/401; `do_copy_blog_media`
+    (`RUN/copy-blog-media.func.sh`) in wf 30, test
+    `OT/copy-blog-media.tst.sh` with a control per check.
 - [ ] T007 **post action + MCP** (needs T004, T006). Builds
   `do_spl_blog_post` (6.1): the early cap refusal (exit 3), UTC
   `published` and `author` stamping, `posts/en/<id>.md`, the picture call,

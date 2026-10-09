@@ -5,9 +5,13 @@
 //
 // Sources, both non-tenant (src/utils/public-calendar.mjs
 // PUBLIC_CALENDAR_SOURCES):
-//   releases  every v<X.Y.Z>[-cN] git tag (spec 065), dated by its commit.
-//             A shallow clone has none; the mock bundle uses the mock
-//             tenant's release list (utils/release-notes-api.mjs) instead.
+//   releases  every v<X.Y.Z>[-cN] git tag (spec 065; -cN is the version
+//             odometer's cycle N after the 9.9.9 wrap, e.g. v4.4.2-c2 is the
+//             deploy whose footer shows 4.4.2), summed to ONE entry per UTC
+//             day ("n releases, first..last", in tag time order) with no
+//             link: release notes need a signed-in session. Any other suffix
+//             is left out. A shallow clone has no tags; the mock bundle uses
+//             the mock tenant's release list (utils/release-notes-api.mjs).
 //   features  the live (`draft: false`) blog posts tagged `feature`
 //             (spec 111), from the copy sync-blog.mjs wrote before
 //             `nuxt generate` (src/public/blog-md/index.json).
@@ -22,26 +26,35 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isoSeconds } from '../../utils/iso-seconds.mjs'
-import { mergePublicCalendar } from '../../utils/public-calendar.mjs'
+import { PUBLIC_RELEASE_TAG, mergePublicCalendar } from '../../utils/public-calendar.mjs'
 import { mockReleaseNotes } from '../../utils/release-notes-api.mjs'
 
 export const WUI = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 export const PUBCAL_FILE = join(WUI, 'src/public/pub-cal/events.json')
 const BLOG_INDEX = join(WUI, 'src/public/blog-md/index.json')
-const TAG_RE = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]{1,4})?$/
 
 /**
- * Release rows from `git for-each-ref` lines: `<tag>\t<iso date>`.
+ * One release entry per UTC day from `git for-each-ref` lines
+ * (`<tag>\t<iso date>`): n, and the first and last tag by time.
  * @param {string} text
  */
 export function releaseRows(text) {
-  const out = []
+  /** @type {Map<string, { tag: string, at: string }[]>} */
+  const byDay = new Map()
   for (const line of String(text || '').split('\n')) {
     const [tag, iso] = line.split('\t')
     const t = Date.parse(iso || '')
-    if (!TAG_RE.test(tag || '') || Number.isNaN(t)) continue
+    if (!PUBLIC_RELEASE_TAG.test(tag || '') || Number.isNaN(t)) continue
     const at = isoSeconds(new Date(t))
-    out.push({ kind: 'release', id: tag, day: at.slice(0, 10), at, title: tag, href: `/releases/${tag}` })
+    const day = at.slice(0, 10)
+    if (!byDay.has(day)) byDay.set(day, [])
+    byDay.get(day)?.push({ tag, at })
+  }
+  const out = []
+  for (const [day, tags] of byDay) {
+    tags.sort((a, b) => a.at.localeCompare(b.at) || a.tag.localeCompare(b.tag))
+    const last = tags[tags.length - 1]
+    out.push({ kind: 'release', day, at: last.at, n: tags.length, first: tags[0].tag, last: last.tag })
   }
   return out
 }
@@ -52,7 +65,7 @@ export function readReleaseTags(dir = WUI) {
   return r.status === 0 ? r.stdout : ''
 }
 
-/** The mock tenant's releases (one per version), as release rows. */
+/** The mock tenant's releases, as release rows (one per day). */
 export function mockReleaseRows() {
   const all = []
   let before = ''

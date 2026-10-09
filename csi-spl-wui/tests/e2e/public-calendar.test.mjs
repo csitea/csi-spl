@@ -5,7 +5,8 @@
 // workspace, not the internet) is seeded into the mock workspace, today. In a
 // fresh browser context (no cookie, no sign-in):
 //   - /public-calendar, on today's month and on a month with a mock release,
-//     shows a release (as text, no /releases link) and never the tenant title
+//     shows one release line per day (text, no /releases link) and never the
+//     tenant title
 //   - /pub-cal/events.json, the page's only data, holds a release and not
 //     the tenant title
 //   - the page reads no tenant calendar API (/v1/calendar/*)
@@ -97,10 +98,11 @@ try {
 
   const month = release ? release.day.slice(0, 7) : ''
   await openPublic(p, month)
-  const rels = await p.$$eval('[data-test=public-calendar-release]', (as) => as.map((a) => ({ ref: a.getAttribute('data-ref'), href: a.getAttribute('href') })))
-  ok('a release month shows releases', rels.length > 0 && rels.every((r) => /^v\d/.test(r.ref || '')), { month, n: rels.length, first: rels[0] })
+  const rels = await p.$$eval('[data-test=public-calendar-release]', (ps) => ps.map((e) => ({ first: e.getAttribute('data-first'), day: e.closest('[data-day]')?.getAttribute('data-day'), links: e.querySelectorAll('a').length })))
+  ok('a release month shows releases', rels.length > 0 && rels.every((r) => /^v\d/.test(r.first || '')), { month, n: rels.length, first: rels[0] })
+  ok('one release entry per day', new Set(rels.map((r) => r.day)).size === rels.length)
   /* /releases/<ref> reads /v1/release-notes, which the hub refuses signed out */
-  ok('no release links to the signed-in /releases page', rels.every((r) => r.href === null))
+  ok('no release links to the signed-in /releases page', rels.every((r) => r.links === 0))
   ok('the release month: no tenant title', !(await bodyText(p)).includes(TENANT_TITLE))
   ok('no tenant calendar API was read', calendarApi.length === 0, calendarApi.slice(0, 3))
 

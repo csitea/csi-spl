@@ -1,7 +1,7 @@
 <!-- HUM-10 (t1 ef57739c, a8e3d31d): the public calendar. A signed-out
-     visitor sees the product's own events: each release (a v<X.Y.Z> tag,
-     shown as text: /releases/<tag> needs a signed-in session) and each live
-     `feature` blog post (linking /blog/<id>). Never a tenant calendar entry: the tenant audience `public`
+     visitor sees the product's own events: each live `feature` blog post
+     (linking /blog/<id>) and one line per day of releases ("n releases,
+     v<first> … v<last>", as text: /releases/<tag> needs a signed-in session). Never a tenant calendar entry: the tenant audience `public`
      is "everyone in the workspace", not the internet (rdb 0125), so this page
      reads no store and no hub API, only /pub-cal/events.json, written at
      build time (src/node/pubcal/public-calendar-data.mjs).
@@ -46,17 +46,19 @@
               </NuxtLink>
             </li>
           </ul>
-          <p v-if="d.releases.length" class="pubcal-releases">
-            <span class="pubcal-kind">{{ t('public_calendar.releases', { n: d.releases.length }) }}</span>
-            <!-- plain text, not a /releases/<ref> link: that page reads
-                 /v1/release-notes, which the hub refuses signed out -->
-            <span
-              v-for="r in d.releases"
-              :key="r.href"
-              class="pubcal-release"
-              data-test="public-calendar-release"
-              :data-ref="r.id"
-            >{{ r.title }}</span>
+          <!-- one entry per day, plain text: /releases/<ref> reads
+               /v1/release-notes, which the hub refuses signed out -->
+          <p
+            v-for="r in d.releases"
+            :key="r.id"
+            class="pubcal-releases"
+            data-test="public-calendar-release"
+            :data-n="r.n"
+            :data-first="r.first"
+            :data-last="r.last"
+          >
+            <span class="pubcal-kind">{{ t('public_calendar.releases', { n: r.n }) }}</span>
+            <span class="pubcal-release">{{ r.n === 1 ? r.first : `${r.first} … ${r.last}` }}</span>
           </p>
         </li>
       </ol>
@@ -78,8 +80,7 @@ const route = useRoute()
 const router = useRouter()
 const localePath = useLocalePath()
 
-type PubEvent = ReturnType<typeof mergePublicCalendar>[number]
-const events = ref<PubEvent[]>([])
+const events = ref<ReturnType<typeof mergePublicCalendar>>([])
 const state = ref<'loading' | 'ready' | 'error'>('loading')
 const today = new Date().toISOString().slice(0, 10)
 

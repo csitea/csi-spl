@@ -7,7 +7,8 @@
  * The events come from PUBLIC_CALENDAR_SOURCES. Today both are written at
  * `nuxt generate` time into /pub-cal/events.json
  * (src/node/pubcal/public-calendar-data.mjs): the release tags (spec 065) and
- * the live `feature` blog posts (spec 111). A later source (the hub's `web`
+ * the live `feature` blog posts (spec 111), releases summed to one entry per
+ * day. A later source (the hub's `web`
  * audience, lane pub-cal-web-audience) is one more entry in that list, its
  * rows passed through publicCalendarEvent like these.
  */
@@ -18,31 +19,52 @@ export const PUBLIC_CALENDAR_SOURCES = Object.freeze([
   Object.freeze({ id: 'features', from: 'build' }),
 ])
 
-/** The only kinds an event may have, and the only link each may carry. */
-const KIND_HREF = Object.freeze({
-  release: /^\/releases\/v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]{1,4})?$/,
-  feature: /^\/blog\/\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/,
-})
+/**
+ * The only kinds an event may have. A feature links its blog post. A release
+ * is one day's deploys summed up ("n releases, v<first>..v<last>") and links
+ * nowhere: /releases/<ref> reads /v1/release-notes, which the hub refuses to
+ * a signed-out visitor (release_notes.go).
+ */
+const FEATURE_HREF = /^\/blog\/\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
+/** A public release tag: v<X.Y.Z>, or v<X.Y.Z>-c<N> past an odometer wrap (spec 065). */
+export const PUBLIC_RELEASE_TAG = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]{1,4})?$/
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 
 /**
+ * @typedef {{ kind: 'feature', id: string, day: string, at: string, title: string, href: string }} PubFeature
+ * @typedef {{ kind: 'release', id: string, day: string, at: string, n: number, first: string, last: string }} PubRelease
+ * @typedef {PubFeature | PubRelease} PubEvent
+ */
+
+/**
  * One row as the page shows it, or null when it is not a public product
- * event: an unknown kind, a link outside its kind's pattern, no day.
+ * event: an unknown kind, a feature linking outside /blog, a release with a
+ * link or a tag outside PUBLIC_RELEASE_TAG, no day.
  * @param {unknown} row
- * @returns {{ kind: 'release' | 'feature', id: string, day: string, at: string, title: string, href: string } | null}
+ * @returns {PubEvent | null}
  */
 export function publicCalendarEvent(row) {
   if (!row || typeof row !== 'object') return null
   const r = /** @type {Record<string, unknown>} */ (row)
-  const kind = String(r.kind || '')
-  if (!Object.prototype.hasOwnProperty.call(KIND_HREF, kind)) return null
-  const href = String(r.href || '')
   const day = String(r.day || '')
-  if (!KIND_HREF[/** @type {'release' | 'feature'} */ (kind)].test(href) || !DAY_RE.test(day)) return null
-  const title = String(r.title || '').slice(0, 200)
-  if (!title) return null
-  return { kind: /** @type {'release' | 'feature'} */ (kind), id: String(r.id || href), day, at: String(r.at || ''), title, href }
+  if (!DAY_RE.test(day)) return null
+  const at = String(r.at || '')
+  if (r.kind === 'feature') {
+    const href = String(r.href || '')
+    const title = String(r.title || '').slice(0, 200)
+    if (!FEATURE_HREF.test(href) || !title) return null
+    return { kind: 'feature', id: String(r.id || href), day, at, title, href }
+  }
+  if (r.kind === 'release') {
+    const n = Number(r.n)
+    const first = String(r.first || '')
+    const last = String(r.last || '')
+    if (r.href !== undefined || !Number.isInteger(n) || n < 1) return null
+    if (!PUBLIC_RELEASE_TAG.test(first) || !PUBLIC_RELEASE_TAG.test(last)) return null
+    return { kind: 'release', id: `releases-${day}`, day, at, n, first, last }
+  }
+  return null
 }
 
 /**
@@ -55,8 +77,8 @@ export function mergePublicCalendar(...sources) {
   for (const rows of sources) {
     for (const row of Array.isArray(rows) ? rows : []) {
       const ev = publicCalendarEvent(row)
-      if (!ev || seen.has(ev.href)) continue
-      seen.add(ev.href)
+      if (!ev || seen.has(ev.id)) continue
+      seen.add(ev.id)
       out.push(ev)
     }
   }
@@ -97,11 +119,11 @@ export function pubCalShownMonth(events, asked, today) {
 /**
  * The days of one month that have events, newest first, each with its
  * releases and its feature posts.
- * @param {ReturnType<typeof mergePublicCalendar>} events newest first
+ * @param {PubEvent[]} events newest first
  * @param {string} month `YYYY-MM`
  */
 export function pubCalMonthDays(events, month) {
-  /** @type {Map<string, { day: string, releases: typeof events, features: typeof events }>} */
+  /** @type {Map<string, { day: string, releases: PubRelease[], features: PubFeature[] }>} */
   const days = new Map()
   for (const ev of events) {
     if (pubCalMonthOf(ev.day) !== month) continue

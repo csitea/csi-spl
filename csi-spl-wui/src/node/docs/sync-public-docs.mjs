@@ -6,11 +6,12 @@
 // call runs, and a doc that is not in it goes to /login.
 //
 //   src/public/docs-public/index.json      { files: [{ path, title }] }
-//   src/public/docs-public/<repo path>     the doc, its frontmatter taken out
+//   src/public/docs-public/<repo path>     the doc, its marker taken out
 //
-// - A doc is public ONLY when its leading frontmatter says `public: true`;
-//   the default is not public. No frontmatter, `public: false` or any other
-//   value: not copied.
+// - A doc is public ONLY when its LAST line is `<!-- public: true -->` (owner
+//   HUM-10, ef9bb80c: at the end, so GitHub shows no frontmatter table), or,
+//   the older form, its leading frontmatter says `public: true`; the default
+//   is not public. No marker, `public: false` or any other value: not copied.
 // - The candidates are the docs do_publish_docs publishes (spl_docs_stage):
 //   tracked *.md, minus the agent-instruction files, node_modules/, tpl-gen/,
 //   bin/ and the WUI's help copy, each a path the hub would serve.
@@ -24,7 +25,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { validDocsPath } from '../../utils/docs.mjs'
-import { docsBody } from '../../utils/public-docs.mjs'
+import { PUBLIC_END_MARKER, docsBody } from '../../utils/public-docs.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const WUI = join(__dirname, '../../..')
@@ -40,8 +41,9 @@ export function skippedPath(p) {
     s.startsWith('/csi-spl-wui/src/public/help-md/')
 }
 
-/** Does the doc's leading frontmatter say `public: true`? */
+/** Is the doc's last line `<!-- public: true -->`, or (the older form) does its leading frontmatter say `public: true`? */
 export function markedPublic(text) {
+  if (PUBLIC_END_MARKER.test(String(text))) return true
   const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(String(text))
   return Boolean(m && /^public:[ \t]*true[ \t]*(?:#.*)?$/m.test(m[1]))
 }

@@ -5,12 +5,21 @@
 import { validDocsPath } from './docs.mjs'
 
 /**
- * The doc without its leading `---` frontmatter (`public: true` marks a doc
- * a signed-out visitor reads, owner HUM-10 e3ce4c34); the text as it is
- * when there is none.
+ * The public marker, the doc's last line (owner HUM-10, t1 41881574,
+ * ef9bb80c: "not at the beginning of the doc, but at the end"): an HTML
+ * comment, so GitHub renders nothing for it.
+ */
+export const PUBLIC_END_MARKER = /(?:^|\r?\n)[ \t]*<!--[ \t]*public:[ \t]*true[ \t]*-->\s*$/
+
+/**
+ * The doc without its leading `---` frontmatter and without its end marker
+ * `<!-- public: true -->` (both mark a doc a signed-out visitor reads, owner
+ * HUM-10 e3ce4c34 / ef9bb80c); the text as it is when there is neither.
  */
 export function docsBody(md) {
-  return String(md).replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '')
+  const s = String(md).replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '')
+  const m = PUBLIC_END_MARKER.exec(s)
+  return m ? s.slice(0, m.index).replace(/\s*$/, '') + (m.index > 0 ? '\n' : '') : s
 }
 
 /** Where the build-time copy of the public docs is served (sync-public-docs.mjs). */

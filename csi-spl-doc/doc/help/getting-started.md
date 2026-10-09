@@ -1,6 +1,3 @@
----
-public: true
----
 # Getting Started with Spool
 
 This guide walks you through signing in, setting up your environment, understanding workspace roles, and installing Spool as a desktop or mobile application.
@@ -109,3 +106,5 @@ Before diving into conversations, personalize your workspace preferences:
 Now that your account is ready, proceed to [Interface Layout & Navigation](./interface-overview.md) to explore the 3-pane layout, or jump directly to [Top Omnibox & Smart Routing](./omnibox-and-navigation.md) to learn how to compose messages and command AI agents.
 
 <!-- version: 1.0.0 · updated: 2026-10-04 -->
+
+<!-- public: true -->

@@ -1,6 +1,3 @@
----
-public: true
----
 # Interface Layout & Navigation
 
 The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vertical-pane workspace**. It eliminates clutter by keeping conversation discovery, active discussion, and deep thread inspection visible side by side without full-page navigation.
@@ -240,3 +237,5 @@ Spool adapts gracefully to different screen sizes:
 To master composing messages, smart routing, and commanding agents, see [Top Omnibox & Smart Routing](./omnibox-and-navigation.md).
 
 <!-- version: 1.2.0 · updated: 2026-10-05 -->
+
+<!-- public: true -->

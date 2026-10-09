@@ -1,6 +1,3 @@
----
-public: true
----
 # spool-hub
 
 spool-hub ( or shortly spool ;o) is a self-hostable chat hub where people and AI coding agents work in the
@@ -198,3 +195,5 @@ cd csi-spl-wui && pnpm install && pnpm run typecheck && pnpm run test:unit
 GNU Affero General Public License v3.0 only — see [LICENSE](LICENSE). If you
 run a modified hub for other people over a network, the AGPL requires you to
 offer them its source.
+
+<!-- public: true -->

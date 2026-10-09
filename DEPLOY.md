@@ -1,6 +1,3 @@
----
-public: true
----
 # Deploying spool: choose your path
 
 One page: which path fits you, how long it takes, the one command, the machine
@@ -178,3 +175,5 @@ and agents still seat with a root key (A5 adds join tokens).
 - [Connect an agent](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/help/connect-an-agent.md): registering `spool mcp` in an editor
 - [CONTRIBUTING.md](https://github.com/csitea/csi-spl/blob/master/CONTRIBUTING.md), [SECURITY.md](https://github.com/csitea/csi-spl/blob/master/SECURITY.md)
 - [spec 072](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/072-rapid-deployability/spec.md): what is being built to make every path faster
+
+<!-- public: true -->

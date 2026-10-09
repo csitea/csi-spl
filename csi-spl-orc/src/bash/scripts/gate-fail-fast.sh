@@ -19,7 +19,14 @@
 # request (wf 11) keeps the full red report: the contributor gets every red
 # file in one round, and nothing on master queues behind its run.
 #
+# Which red stops it (round 5 action 08): the e2e shards (GITHUB_JOB
+# wui-e2e) stop only on a red in a job they need, `wui-generate` or the wui
+# unit job. In the 6 red master runs of 2026-10-09, 17 of 18 shard ends were
+# kills for a hub or orc red, so e2e gave no verdict of its own. Every other
+# job (hub, orc) still stops on any red job.
+#
 # Env: GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT, GH_TOKEN (gh),
+#      GITHUB_JOB (the job id; picks the filter above),
 #      GATE_FAIL_FAST_POLL_S (seconds between queries, default 30).
 # A failing jobs query is NOT a red: the command just keeps running.
 #------------------------------------------------------------------------------
@@ -31,11 +38,20 @@ set -uo pipefail
 poll="${GATE_FAIL_FAST_POLL_S:-30}"
 jobs_api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/${GITHUB_RUN_ATTEMPT:-1}/jobs"
 
-# red_jobs - names of this run attempt's jobs that ended failure / timed_out.
-# A job still running has no conclusion, so this job never counts itself.
+# needs - a regex of the job names whose red stops this job: for the e2e
+# shards the names of wui-generate and wui-suite in wf 10, else any job.
+case "${GITHUB_JOB:-}" in
+  wui-e2e) needs='^wui: (nuxt generate|unit tests)' ;;
+  *)       needs='.' ;;
+esac
+
+# red_jobs - names of this run attempt's jobs that ended failure / timed_out
+# and match $needs. A job still running has no conclusion, so this job never
+# counts itself.
 red_jobs() {
   gh api "$jobs_api" --paginate \
-    --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .name' 2>/dev/null
+    --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | .name' 2>/dev/null \
+    | grep -E -- "$needs"
 }
 
 # The command in its own process group, so a stop reaches every child

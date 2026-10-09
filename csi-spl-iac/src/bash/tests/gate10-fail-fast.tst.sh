@@ -16,10 +16,14 @@
 #   4. the script, with a stubbed gh: stops the command (and its children)
 #      within seconds of a red job and exits 1; with no red job, passes the
 #      command's own status through; a failing jobs query is not a red;
-#      off (GATE_FAIL_FAST unset), never queries.
+#      off (GATE_FAIL_FAST unset), never queries;
+#   5. as an e2e shard (GITHUB_JOB=wui-e2e, round 5 action 08): a red in
+#      every hub, orc, iac and cnf job of wf 10 does NOT stop it (the shard
+#      ends with its own status); a red wui-generate or wui-suite does. The
+#      job names come from wf 10, so a renamed job breaks this.
 # CONTROLS: a wf with the wrapper dropped (e2e, and orc alone), one with GATE_FAIL_FAST on every
-# event, one asking actions: write, and a script that only runs the command
-# (no watcher) are each red.
+# event, one asking actions: write, a script that only runs the command
+# (no watcher), and one whose e2e shards stop on any red are each red.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -63,11 +67,18 @@ gh_red()   { stub gh "echo called >>$T/gh.calls; echo 'wui: browser e2e (mock, g
 gh_green() { stub gh "echo called >>$T/gh.calls; exit 0"; }
 gh_down()  { stub gh "echo called >>$T/gh.calls; echo 'HTTP 502' >&2; exit 1"; }
 
+# wf 10 job names as the jobs API prints them (matrix shard 1)
+wf_name() { yq ".jobs.$1.name" "$W10" | sed 's/\${{ *matrix\.shard *}}/1/'; }
+for j in hub-suite orc-suite orc-features iac-suite cnf-suite; do wf_name "$j"; done >"$T/red-other"
+wf_name wui-generate >"$T/red-generate"
+wf_name wui-suite >"$T/red-unit"
+gh_names() { stub gh "echo called >>$T/gh.calls; cat $T/$1"; }
+
 check_script() {  # <script> - prints the first violation, or nothing
-  local s="$1" out rc t0 secs
+  local s="$1" out rc t0 secs need
   rm -f "$T/gh.calls" "$T/child.pid"
   gh_red; t0=$SECONDS
-  out=$(GATE_FAIL_FAST=1 timeout 60 bash "$s" bash -c "echo \$\$ >$T/child.pid; sleep 20; exit 0" 2>&1); rc=$?
+  out=$(GATE_FAIL_FAST=1 GITHUB_JOB=orc-suite timeout 60 bash "$s" bash -c "echo \$\$ >$T/child.pid; sleep 20; exit 0" 2>&1); rc=$?
   secs=$((SECONDS - t0))
   (( rc == 1 && secs < 10 )) || { echo "a red job did not stop the command (rc=$rc after ${secs}s)"; return; }
   [[ "$out" == *"::error::gate fail-fast"*"1/3"* ]] || { echo "the stop does not name the red job: $out"; return; }
@@ -81,6 +92,15 @@ check_script() {  # <script> - prints the first violation, or nothing
   gh_red; rm -f "$T/gh.calls"
   env -u GATE_FAIL_FAST bash "$s" bash -c 'sleep 2; exit 0' >/dev/null 2>&1; rc=$?
   (( rc == 0 )) && [[ ! -e "$T/gh.calls" ]] || { echo "off (no GATE_FAIL_FAST) it still queried or stopped (rc=$rc)"; return; }
+  gh_names red-other; rm -f "$T/gh.calls"
+  GATE_FAIL_FAST=1 GITHUB_JOB=wui-e2e bash "$s" bash -c 'sleep 3; exit 3' >/dev/null 2>&1; rc=$?
+  (( rc == 3 )) && [[ -s "$T/gh.calls" ]] || { echo "an e2e shard was stopped by a red it does not need (hub/orc/iac/cnf), rc=$rc"; return; }
+  for need in red-generate red-unit; do
+    gh_names "$need"; t0=$SECONDS
+    GATE_FAIL_FAST=1 GITHUB_JOB=wui-e2e timeout 60 bash "$s" bash -c 'sleep 20; exit 0' >/dev/null 2>&1; rc=$?
+    secs=$((SECONDS - t0))
+    (( rc == 1 && secs < 10 )) || { echo "an e2e shard was not stopped by $(cat "$T/$need") (rc=$rc after ${secs}s)"; return; }
+  done
 }
 
 v=$(check_script "$FF"); [[ -z "$v" ]] && pass "gate-fail-fast.sh: stops on a red job, passes status through, off by default" || fail "gate-fail-fast.sh: $v"
@@ -109,5 +129,9 @@ yq '.jobs.wui-e2e.permissions.actions = "write"' "$W10" >"$T/c3.yml"
 printf '#!/usr/bin/env bash\nexec "$@"\n' >"$T/no-watch.sh"
 [[ -n "$(check_script "$T/no-watch.sh")" ]] && pass "CONTROL: a wrapper that only runs the command is caught" \
   || fail "CONTROL: a wrapper that only runs the command passed"
+sed "s/^\( *wui-e2e) needs=\).*/\1'.' ;;/" "$FF" >"$T/no-filter.sh"
+cmp -s "$FF" "$T/no-filter.sh" && fail "CONTROL setup: no-filter.sh is the script unchanged"
+[[ -n "$(check_script "$T/no-filter.sh")" ]] && pass "CONTROL: e2e shards that stop on any red are caught" \
+  || fail "CONTROL: e2e shards that stop on any red passed"
 
 echo "---"; (( fails == 0 )) && echo "PASS: all gate10-fail-fast.tst.sh assertions" || { echo "gate10-fail-fast: $fails failed"; exit 1; }

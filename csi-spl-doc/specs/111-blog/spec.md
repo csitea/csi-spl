@@ -448,13 +448,28 @@ with the owner's key**, called by the code action `do_spl_blog_image`.
   change, no terraform for the model.
 - **No people** (s111-3 change 10): a fixed instruction "no people, no
   logos, no text" is prepended to every prompt, and 4.4 refuses a person in
-  `image_prompt`. I believe, unchecked, that this model has no
-  `personGeneration` switch like Imagen's; T006 checks the API reference and
-  sends it if one exists.
+  `image_prompt`. There is no person switch to send: the API reference's
+  `ImageConfig` has two fields only, `aspectRatio` and `imageSize`
+  (https://ai.google.dev/api/generate-content, read 2026-10-09).
 - **Re-encode** to webp (strips EXIF/XMP), 1600x900 + the 1200x630 crop.
-- **Cost and licence.** T006 quotes the Gemini API price page and Google's
-  generated-image terms (ownership, commercial use, watermarking) here
-  before the first picture.
+- **Cost and licence** (T006, each quoted from the page on 2026-10-09):
+  - **Price**, https://ai.google.dev/gemini-api/docs/pricing, Gemini 2.5
+    Flash Image: input "$0.30 (text / image)"; output "$0.039 per image"
+    (1,290 tokens per image at $30 per 1M tokens); batch "$0.0195 per
+    image"; free tier "Not available". At the 7/day cap that is at most
+    7 x $0.039 = $0.273 a day.
+  - **Ownership**, https://ai.google.dev/gemini-api/terms (last modified
+    2026-04-28): "Google won't claim ownership over that content. You
+    acknowledge that Google may generate the same or similar content for
+    others and that we reserve all rights to do so."
+  - **Use**, same page: "Use of Google AI Studio and Gemini API is for
+    developers building with Google AI models for professional or business
+    purposes, not for consumer use." and "You're responsible for your use
+    of generated content, and for the use of that content by anyone you
+    share it with."
+  - **Watermark**, https://ai.google.dev/gemini-api/docs/image-generation:
+    "All generated images include a SynthID watermark." (invisible; the
+    webp re-encode strips EXIF/XMP, not the SynthID mark).
 - **Fallback.** If the key is missing, the call fails or the picture is
   filtered out, the post ships without one. A missing picture never blocks
   a post.

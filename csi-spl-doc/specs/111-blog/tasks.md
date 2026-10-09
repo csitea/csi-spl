@@ -122,7 +122,7 @@ Multilingual text gets agy's review last (repo language rule).
   - Vendor: mistral (port and adapt). Box: the drafting box.
   - Files: `WUI/src/node/blog/feed.mjs` (*new*) and its unit test.
   - Done: 9-j.
-- [ ] T006 **picture** (needs T011). Builds `do_spl_blog_image`: the Gemini
+- [x] T006 **picture** (needs T011, c-612). Builds `do_spl_blog_image`: the Gemini
   API call (Nano Banana) with the key from `~/.nano-banana/crs` passed as a
   header from a file descriptor; the fixed no-people/no-logo/no-text
   instruction (and a person switch, if the API has one); re-encode to webp
@@ -131,8 +131,10 @@ Multilingual text gets agy's review last (repo language rule).
   0. Quotes the Gemini API price page and the generated-image terms into
   `spec.md` 5.4. No terraform, no GCP change.
   - Vendor: claude (uses a secret). Box: any box with the key.
-  - Files: `RUN/blog-image.func.sh` (*new*), `OT/blog-image.tst.sh` (*new*).
-  - Done: 9-i (stubbed vendor), plus one real picture on the drafting box.
+  - Files: `RUN/spl-blog-image.func.sh` (*new*; `./run` maps the file
+    name to the action), `OT/blog-image.tst.sh` (*new*).
+  - Done: 9-i (stubbed vendor), plus one real picture on the drafting box
+    (open: the owner's key on that box first, and the `webp` package).
 - [ ] T006b **picture store + deploy copy** (waits for Q4). Under Q4 (a):
   the private per-env bucket by a terraform step (uniform access,
   public-access-prevention enforced, an `allUsers` test, `objectViewer`

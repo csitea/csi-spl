@@ -249,6 +249,33 @@ out="$("${SPOOL_TM[@]}" new-window -d -t "${sess}:" -n "$(spool_decorate "$TITLE
 pane="$(printf '%s\n' "$out" | grep -m1 -xE '%[0-9]+')"
 [ -n "$pane" ] || { echo "spawn-window: new-window (rc=$rc) printed no pane id: ${out:-<nothing>}" >&2; exit 4; }
 
+# --- ORC-2: Write the journal row after the pane is created ---
+# Fields: task_id, kind, vendor, id, start_epoch, outcome=run
+# Location: $SPOOL_ROOT/<agent-id>/attempts.tsv
+ATTEMPTS_DIR="${SPOOL_ROOT}/${TITLE}"
+ATTEMPTS_FILE="${ATTEMPTS_DIR}/attempts.tsv"
+if [ ! -d "$ATTEMPTS_DIR" ]; then
+  mkdir -p "$ATTEMPTS_DIR" || { echo "spawn-window: failed to create attempts dir ${ATTEMPTS_DIR}" >&2; exit 4; }
+fi
+
+# Extract task_id from the brief file or use the agent id as fallback
+TASK_ID="${TITLE}"
+if [ -n "${3:-}" ] && [ -r "${3:-}" ]; then
+  TASK_ID="$(grep -m1 '^task_id:' "${3:-}" | cut -d: -f2 | tr -d '[:space:]')"
+  [ -z "$TASK_ID" ] && TASK_ID="${TITLE}"
+fi
+
+# Write the journal row
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "${TASK_ID}" \
+  "${LANE_MIX_KIND:-simple_coding}" \
+  "${KIND}" \
+  "${TITLE}" \
+  "$(date -u +%s)" \
+  "run" \
+  >> "${ATTEMPTS_FILE}"
+# --- End ORC-2 ---
+
 # The notice strip is split NOW, before the CLI has painted anything, so the
 # TUI starts at the size it will keep and never takes a mid-session resize.
 #

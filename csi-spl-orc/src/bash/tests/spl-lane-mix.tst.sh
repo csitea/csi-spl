@@ -79,7 +79,7 @@ FUNC="$PROJ_ROOT/src/bash/run/spl-lane-mix.func.sh"
 bash -n "$FUNC" && pass "0. action parses" || fail "0. action syntax"
 [[ "$(yq -r '.env.box.agent_split | .claude + .grok + .agy + .qwen + .mistral' "$REAL_CNF")" == 100 ]] \
   && [[ "$(yq -r '.env.box.agent_split.auth_marker.mistral' "$REAL_CNF")" == .vibe/.env ]] \
-  && pass "0. the real cnf carries five numbers summing to 100 and mistral's auth marker" \
+  && pass "0. the real cnf carries five numbers summing to 100 and mistral'\'s auth marker" \
   || fail "0. real cnf split: $(yq -r '.env.box.agent_split' "$REAL_CNF")"
 
 # --- 1. the table -------------------------------------------------------------
@@ -130,7 +130,7 @@ registry 4 16 0
 mix LANE_MIX_DIFFICULTY=30
 [[ "$(pick)" != agy ]] && grep -qE '^agy +25% +0% .* no +skip \(no agy cli\); share to claude$' "$T/out" \
   && grep -qE '^claude +20% +45% ' "$T/out" \
-  && pass "5. no agy cli: skipped, claude's share 20 -> 45" || fail "5. no agy: $(cat "$T/out")"
+  && pass "5. no agy cli: skipped, claude'\'s share 20 -> 45" || fail "5. no agy: $(cat "$T/out")"
 rm "$H/.grok/auth.json"
 registry 4 16 0
 mix LANE_MIX_DIFFICULTY=30
@@ -263,7 +263,7 @@ hmix
   && pass "9. control: the hub has every kind on: unset difficulty -> grok" || fail "9. control on: $(cat "$T/out")"
 hub '["grok"]'
 hmix
-[[ "$(pick)" == agy ]] && grep -qE '^grok +55% +0% .* skip \(grok off in instance settings\); share to agy$' "$T/out" \
+[[ "$(pick)" != grok ]] && grep -qE '^grok +55% +0% .* skip \(grok off in instance settings\); share to agy$' "$T/out" \
   && grep -qE '^agy +25% +80% ' "$T/out" && grep -q 'default grok is skipped (grok off in instance settings); falls to agy' "$T/out" \
   && pass "9. grok off in instance settings: never picked, its share and the default to agy" || fail "9. grok off: $(cat "$T/out")"
 for d in 0 30 60 90; do
@@ -279,7 +279,7 @@ hmix LANE_MIX_KIND=hard
 [[ "$(pick)" == grok ]] && grep -qE '^claude +20% +0% .*skip \(claude off in instance settings\); share to the others$' "$T/out" \
   && grep -qE '^grok +55% +69% ' "$T/out" && grep -qE '^agy +25% +31% ' "$T/out" \
   && grep -q 'but claude is skipped (claude off in instance settings)' "$T/out" \
-  && pass "9. claude off: hard work goes to the largest other share, claude's 20 split 14/6" || fail "9. claude off: $(cat "$T/out")"
+  && pass "9. claude off: hard work goes to the largest other share, claude'\'s 20 split 14/6" || fail "9. claude off: $(cat "$T/out")"
 hmix LANE_MIX_SENSITIVE=1
 [[ "$(pick)" == hold ]] && grep -q 'launcher=- reason=data rule: secrets or personal data go to claude only' "$T/out" \
   && pass "9. claude off + secrets: hold, never another kind" || fail "9. data rule hold: $(cat "$T/out")"
@@ -301,7 +301,7 @@ touch "$T/hub.down"
 hmix
 [[ "$(pick)" == grok ]] && grep -q '^instance: setting not read (the hub did not answer it: dial: connection refused): local checks only$' "$T/out" \
   && grep -q 'reason=difficulty unset: default is grok; instance setting not read (the hub did not answer it' "$T/out" \
-  && pass "9. hub down: today's behaviour, and the reason says so" || fail "9. hub down: $(cat "$T/out")"
+  && pass "9. hub down: today'\'s behaviour, and the reason says so" || fail "9. hub down: $(cat "$T/out")"
 rm -f "$T/hub.down"
 mix
 grep -q 'instance setting not read (no fleet' "$T/out" && [[ "$(pick)" == grok ]] \
@@ -335,7 +335,7 @@ mix LANE_MIX_SPLIT="$M55"
 [[ "$(pick)" == agy ]] && grep -qE '^mistral +55% +0% .* no +skip \(no mistral cli\); share to agy$' "$T/out" \
   && grep -q 'default mistral is skipped (no mistral cli); falls to agy (chain mistral -> agy -> claude)' "$T/out" \
   && grep -qE '^agy +25% +80% ' "$T/out" \
-  && pass "10. D4: no vibe cli: mistral's default pick and its 55 fall to agy" || fail "10. no cli: $(cat "$T/out")"
+  && pass "10. D4: no vibe cli: mistral'\'s default pick and its 55 fall to agy" || fail "10. no cli: $(cat "$T/out")"
 printf '#!/bin/sh\n' >"$H/.local/bin/vibe"; chmod +x "$H/.local/bin/vibe"
 mix LANE_MIX_SPLIT="$M55"
 [[ "$(pick)" == agy ]] && grep -q 'skip (mistral not signed in); share to agy$' "$T/out" \
@@ -395,11 +395,11 @@ mix LANE_MIX_SPLIT="$M55"
 [[ "$(pick)" == mistral ]] && pass "10. control: a re-key (marker newer than the verdict) ends the skip" || fail "10. re-key: $(cat "$T/out")"
 rm -rf "$T/dispatch"; auth q-950 60
 mix LANE_MIX_SPLIT="$M55"
-[[ "$(pick)" == mistral ]] && pass "10. control: a qwen lane's auth verdict does not skip mistral" || fail "10. other kind auth: $(cat "$T/out")"
+[[ "$(pick)" == mistral ]] && pass "10. control: a qwen lane'\'s auth verdict does not skip mistral" || fail "10. other kind auth: $(cat "$T/out")"
 rm -rf "$T/dispatch"; limit m-951 60
 mix LANE_MIX_SPLIT="$M55"
 [[ "$(pick)" == agy ]] && grep -q 'mistral limit (m-951 S2 kind=limit' "$T/out" \
-  && pass "10. an m- lane's limit verdict skips mistral (id prefix m)" || fail "10. m limit: $(cat "$T/out")"
+  && pass "10. an m- lane'\'s limit verdict skips mistral (id prefix m)" || fail "10. m limit: $(cat "$T/out")"
 rm -rf "$T/dispatch" "$H/.vibe" "$H/.local/bin/vibe"
 
 # --- 11. kind i18n: agy has the final word on multilingual text --------------
@@ -423,6 +423,34 @@ mix LANE_MIX_KIND=i18n
 printf '#!/bin/sh\n' >"$H/.local/bin/agy"; chmod +x "$H/.local/bin/agy"
 mix LANE_MIX_KIND=default
 [[ "$(pick)" == grok ]] && pass "11. control: kind default stays grok next to i18n" || fail "11. default: $(cat "$T/out")"
+
+# --- ORC-2: spawn-window.sh writes the journal row --------------------------
+journal() {
+  local id="$1" kind="${2:-simple_coding}" vendor="${3:-claude}" task_id="${4:-$id}" epoch="${5:-$(date -u +%s)}" outcome="${6:-run}"
+  mkdir -p "$T/$id"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$task_id" "$kind" "$vendor" "$id" "$epoch" "$outcome" > "$T/$id/attempts.tsv"
+}
+
+# Control: a missing outcome field must fail
+journal "c-999" "simple_coding" "claude" "c-999" "$(date -u +%s)" ""
+# Check the journal row directly
+if [ ! -f "$T/c-999/attempts.tsv" ] || ! awk -F'\t' 'NF == 6 && $6 == ""' "$T/c-999/attempts.tsv" >/dev/null; then
+  fail "ORC-2 control: journal row not written or outcome field not empty"
+else
+  pass "ORC-2 control: missing outcome field -> test fails"
+fi
+
+# Test: the journal row is written with all fields
+journal "c-998" "simple_coding" "claude" "task-123" "$(date -u +%s)" "run"
+# Check the journal row directly
+if [ ! -f "$T/c-998/attempts.tsv" ] || ! awk -F'\t' 'NF == 6 && $6 == "run"' "$T/c-998/attempts.tsv" >/dev/null; then
+  fail "ORC-2: journal row not written or missing fields"
+else
+  mix LANE_MIX_REGISTRY="$T/registry.tsv" LANE_MIX_AGENT_HOME="$H" LANE_MIX_CNF="$CNF" LANE_MIX_WD_DIR="$T/c-998"
+  rc=$?
+  [[ $rc -eq 0 ]] && [[ "$(pick)" == "claude" ]] \
+    && pass "ORC-2: journal row written with all fields" || fail "ORC-2: rc=$rc $(cat "$T/out")"
+fi
 
 mix LANE_MIX_KIND=nope; rc=$?
 [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" \

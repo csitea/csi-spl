@@ -2115,6 +2115,8 @@
     "field_private": "Privé",
     "public_hint": "Openbaar: iedereen in de werkruimte ziet deze afspraak.",
     "private_hint": "Privé: alleen jij en de mensen die je noemt zien deze afspraak.",
+    "field_web": "Webagenda",
+    "web_hint": "Web: iedereen op internet ziet deze afspraak in de openbare agenda.",
     "field_description": "Beschrijving",
     "private_badge": "Privé",
     "delete": "Verwijderen",
@@ -2311,6 +2313,7 @@
     "error": "De kalender kon niet worden geladen. Probeer het later opnieuw.",
     "empty_month": "Er zijn deze maand geen releases geweest.",
     "feature": "Nieuwe functie",
+    "event": "Afspraak",
     "releases": "Releases ({n})"
   },
   "ws_doctree": {

@@ -1,10 +1,14 @@
 <!-- HUM-10 (t1 ef57739c, a8e3d31d): the public calendar. A signed-out
      visitor sees the product's own events: each live `feature` blog post
      (linking /blog/<id>) and one line per day of releases ("n releases,
-     v<first> … v<last>", as text: /releases/<tag> needs a signed-in session). Never a tenant calendar entry: the tenant audience `public`
-     is "everyone in the workspace", not the internet (rdb 0125), so this page
-     reads no store and no hub API, only /pub-cal/events.json, written at
-     build time (src/node/pubcal/public-calendar-data.mjs).
+     v<first> … v<last>", as text: /releases/<tag> needs a signed-in session). Never a tenant calendar entry of another audience: `public`
+     is "everyone in the workspace", not the internet (rdb 0125). This page
+     reads no store and no member API: /pub-cal/events.json, written at
+     build time (src/node/pubcal/public-calendar-data.mjs), and the
+     workspace's `web` events of the shown month (rdb 0158, owner t1
+     a3ce2031) from the signed-out GET /v1/public/calendar/events, through
+     utils/public-calendar-web.mjs loaded on mount. That read failing leaves
+     the build's events on the page.
      Its own route rather than a branch of /calendar: /calendar runs the
      workspace shell (rail, live feed, the calendar store), and a signed-out
      visitor of /calendar is sent here (middleware/signed-out-redirect).
@@ -46,6 +50,14 @@
               </NuxtLink>
             </li>
           </ul>
+          <ul v-if="d.events.length" class="pubcal-features" data-test="public-calendar-events">
+            <li v-for="e in d.events" :key="e.id" class="pubcal-web" data-test="public-calendar-event" :data-all-day="e.allDay ? '1' : '0'">
+              <span class="pubcal-kind">{{ t('public_calendar.event') }}</span>
+              <span v-if="e.from" class="pubcal-release" data-test="public-calendar-event-time">{{ e.to ? `${e.from}–${e.to}` : e.from }}</span>
+              <span class="pubcal-feature__title" data-test="public-calendar-event-title">{{ e.title }}</span>
+              <p v-if="e.description" class="pubcal-web__desc">{{ e.description }}</p>
+            </li>
+          </ul>
           <!-- one entry per day, plain text: /releases/<ref> reads
                /v1/release-notes, which the hub refuses signed out -->
           <p
@@ -67,7 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useSpoolApi } from '~/composables/useSpoolApi'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import {
   mergePublicCalendar, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth,
@@ -80,17 +93,20 @@ const route = useRoute()
 const router = useRouter()
 const localePath = useLocalePath()
 
-const events = ref<ReturnType<typeof mergePublicCalendar>>([])
+type PubEvents = ReturnType<typeof mergePublicCalendar>
+const built = ref<PubEvents>([])
+const web = ref<PubEvents>([])
+const events = computed(() => (web.value.length ? mergePublicCalendar(built.value, web.value) : built.value))
 const state = ref<'loading' | 'ready' | 'error'>('loading')
 const today = new Date().toISOString().slice(0, 10)
 
-/* the build's file only (PUBLIC_CALENDAR_SOURCES): no store, no hub API */
+/* the build's file (PUBLIC_CALENDAR_SOURCES releases + features) */
 async function load() {
   try {
     const r = await fetch('/pub-cal/events.json', { cache: 'no-cache', signal: AbortSignal.timeout(DOC_READ_TIMEOUT_MS) })
     if (!r.ok) throw new Error(String(r.status))
     const body = await r.json() as { events?: unknown[] }
-    events.value = mergePublicCalendar(body.events || [])
+    built.value = mergePublicCalendar(body.events || [])
     state.value = 'ready'
   } catch {
     state.value = 'error'
@@ -98,7 +114,23 @@ async function load() {
 }
 onMounted(load)
 
-const month = computed(() => pubCalShownMonth(events.value, String(route.query.m || ''), today))
+/* the month follows the build's events only, so the web read cannot move it */
+const month = computed(() => pubCalShownMonth(built.value, String(route.query.m || ''), today))
+
+/* the hub's web events of the shown month (source `web`), lazily: a refusal
+   or a timeout shows the build's events alone */
+async function loadWeb(m: string) {
+  try {
+    const { fetchWebCalendar } = await import('~/utils/public-calendar-web.mjs')
+    const rows = await fetchWebCalendar(useSpoolApi(), m, today)
+    if (month.value === m) web.value = mergePublicCalendar(rows)
+  } catch {
+    if (month.value === m) web.value = []
+  }
+}
+onMounted(() => {
+  watch(month, (m) => { void loadWeb(m) }, { immediate: true })
+})
 const days = computed(() => pubCalMonthDays(events.value, month.value))
 
 function go(step: number) {
@@ -163,6 +195,8 @@ useHead(() => ({ title: t('public_calendar.title') }))
   color: var(--color-muted);
 }
 .pubcal-releases { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; }
+.pubcal-web { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; overflow-wrap: anywhere; }
+.pubcal-web__desc { flex-basis: 100%; margin: 0; color: var(--color-muted); font-size: 0.875rem; white-space: pre-line; }
 .pubcal-release { font-family: var(--font-mono, monospace); font-size: 0.875rem; }
 @media (max-width: 600px) {
   .pubcal-main { padding: 16px 12px 32px; }

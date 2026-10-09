@@ -2115,6 +2115,8 @@
     "field_private": "Privaatne",
     "public_hint": "Avalik: kõik tööruumis näevad seda sündmust.",
     "private_hint": "Privaatne: ainult sina ja sinu mainitud inimesed näevad seda sündmust.",
+    "field_web": "Veebikalender",
+    "web_hint": "Veeb: igaüks internetis näeb seda sündmust avalikus kalendris.",
     "field_description": "Kirjeldus",
     "private_badge": "Privaatne",
     "delete": "Kustuta",
@@ -2311,6 +2313,7 @@
     "error": "Kalendrit ei saanud laadida. Proovige hiljem uuesti.",
     "empty_month": "Sel kuul väljalaskeid polnud.",
     "feature": "Uus funktsioon",
+    "event": "Sündmus",
     "releases": "Väljalasked ({n})"
   },
   "ws_doctree": {

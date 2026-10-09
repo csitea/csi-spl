@@ -11,7 +11,11 @@
      The fields stand in spec 097 section 5's order, so 097 T014..T016 add
      theirs between them without a rewrite: title; date, time, all-day
      [097: time zone, repeat, location, guests, reminders, colour]; audience
-     (the Private switch); description.
+     (the Private switch, then the Web switch); description.
+
+     rdb 0158 (owner t1 a3ce2031): the Web switch, for every member, puts the
+     event on the signed-out /public-calendar. Never on by default (a new
+     event, a Duplicate); on, it turns Private off and the other way round.
 
      097 T014 (G6..G9, G11; spec 5.1.2, 5.1.6, 5.1.9): time zone, location,
      reminders (up to 5, a whole number and minutes / hours / days) and the
@@ -150,6 +154,20 @@
         </label>
         <small class="muted" data-test="calendar-event-audience-hint">{{ form.private ? t('calendar_event.private_hint') : t('calendar_event.public_hint') }}</small>
       </div>
+      <div class="cal-dlg__field cal-dlg__field--wide" data-test="calendar-event-web-field">
+        <label class="cal-dlg__check">
+          <input
+            v-model="form.web"
+            type="checkbox"
+            role="switch"
+            :aria-checked="form.web ? 'true' : 'false'"
+            data-test="calendar-event-web"
+            :disabled="busy"
+          >
+          <span>{{ t('calendar_event.field_web') }}</span>
+        </label>
+        <small v-if="form.web" class="muted" data-test="calendar-event-web-hint">{{ t('calendar_event.web_hint') }}</small>
+      </div>
       <label class="cal-dlg__field cal-dlg__field--wide">
         <span>{{ t('calendar_event.field_description') }}</span>
         <textarea v-model="form.description" rows="3" data-test="calendar-event-description" :maxlength="CAL_DESCRIPTION_MAX" :disabled="busy" />
@@ -179,7 +197,7 @@
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import {
   CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
-  calCanSetPrivate, calFormBody, calFormFromEvent, calHourAfter, calNewReminder, calReminderAmount, calReminderError,
+  calAudienceSwitched, calCanSetPrivate, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calNewReminder, calReminderAmount, calReminderError,
 } from '~/utils/calendar-event-form.mjs'
 import type { CalReminderRow } from '~/utils/calendar-event-form.mjs'
 import { knownTimeZones } from '~/utils/date-iso.mjs'
@@ -240,12 +258,15 @@ const confirmDelete = ref(false)
 /* every opening starts from the event (or a clean new one): a dialog
    closed half-typed is a cancel */
 function reset() {
-  form.value = !props.event && props.copy ? calFormFromEvent(props.copy, props.day) : calFormFromEvent(props.event, props.day || props.today)
+  form.value = !props.event && props.copy ? calFormCopy(props.copy, props.day) : calFormFromEvent(props.event, props.day || props.today)
   if (!props.event && props.span) form.value = { ...form.value, start: props.span.start, end: props.span.end }
   error.value = ''
   confirmDelete.value = false
 }
 watch(() => [props.open, props.event, props.copy, props.day], () => { if (props.open) reset() }, { immediate: true })
+/* Private and Web exclude each other: the one switched on turns the other off */
+watch(() => form.value.private, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'private') })
+watch(() => form.value.web, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'web') })
 onMounted(() => { void access.load() })
 
 /* a new start keeps the event's length at one hour when the end would fall before it */

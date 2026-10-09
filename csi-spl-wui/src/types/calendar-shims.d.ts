@@ -50,7 +50,7 @@ declare module '~/utils/calendar-event-form.mjs' {
   export type CalForm = {
     title: string, date: string, start: string, end: string, allDay: boolean, endDays: number,
     timeZone: string, zoneWas: string, location: string, reminders: CalReminderRow[], color: string,
-    private: boolean, description: string,
+    private: boolean, web: boolean, description: string,
   }
   type Item = import('~/utils/calendar-mock.mjs').CalendarItem
   export const CAL_TITLE_MAX: number
@@ -64,9 +64,11 @@ declare module '~/utils/calendar-event-form.mjs' {
   export function calReminderError(row: CalReminderRow): string
   export function calNewReminder(rows: CalReminderRow[]): CalReminderRow | null
   export function calEditable(ev: Item | null | undefined): boolean
+  export function calAudienceSwitched<F extends { private: boolean, web: boolean }>(form: F, which: 'private' | 'web'): F
   export function calCanSetPrivate(ev: Item | null | undefined, viewerId: string): boolean
   export function calWallToUtc(date: string, hhmm: string, zone?: string): string
   export function calFormFromEvent(ev: Item | null, day: string): CalForm
+  export function calFormCopy(ev: Item, day: string): CalForm
   export function calFormBody(form: CalForm, ev?: Item | null): { body: Record<string, unknown> | null, error?: undefined } | { error: string, body?: undefined }
   export function calHourAfter(hhmm: string): string
 }

@@ -13,14 +13,21 @@
 // - a reminder amount keeps digits only (1.5, 0, -1 cannot be typed); up to
 //   5 reminders, each at most 4 weeks; equal ones once
 // - location and one of the 11 colours; Duplicate keeps every field
+// rdb 0158 (owner t1 a3ce2031): the Web switch
+// - never on by default: a new event, a Duplicate (even of a web event) and
+//   an event of another audience open with it off
+// - create and edit send `web` only when it is on; off on a web event is
+//   `public`; Private wins over it; the two switches exclude each other
+// - the mock workspace keeps `web` and answers the signed-out read with
+//   its web events only, in the hub's five fields
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import {
-  CAL_COLORS, calCanSetPrivate, calEditable, calFormBody, calFormFromEvent, calHourAfter, calNewReminder,
+  CAL_COLORS, calAudienceSwitched, calCanSetPrivate, calEditable, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calNewReminder,
   calReminderAmount, calReminderError, calWallToUtc,
 } from '../../src/utils/calendar-event-form.mjs'
-import { mockCalendarCreate, mockCalendarDelete, mockCalendarEvents, mockCalendarUpdate } from '../../src/utils/calendar-mock.mjs'
+import { mockCalendarCreate, mockCalendarDelete, mockCalendarEvents, mockCalendarUpdate, mockWebCalendarEvents } from '../../src/utils/calendar-mock.mjs'
 
 const ev = (fields = {}) => ({
   id: 'e1', source: 'event', title: 'Standup', description: '', kind: 'other',
@@ -37,7 +44,7 @@ describe('create', () => {
     const form = calFormFromEvent(null, '2026-10-07')
     assert.deepEqual(form, {
       title: '', date: '2026-10-07', start: '09:00', end: '10:00', allDay: false, endDays: 0,
-      timeZone: 'UTC', zoneWas: 'UTC', location: '', reminders: [], color: '', private: false, description: '',
+      timeZone: 'UTC', zoneWas: 'UTC', location: '', reminders: [], color: '', private: false, web: false, description: '',
     })
     form.title = '  Planning  '
     assert.deepEqual(calFormBody(form), {
@@ -106,6 +113,47 @@ describe('edit', () => {
     assert.deepEqual(calFormBody({ ...calFormFromEvent(pub, ''), private: true }, pub).body, { audience: 'private' })
     const internal = ev({ audience: 'internal' })
     assert.deepEqual(calFormBody({ ...calFormFromEvent(internal, ''), title: 'x' }, internal).body, { title: 'x' })
+  })
+})
+
+describe('rdb 0158: the Web switch', () => {
+  it('never the default: a new event is public with Web off', () => {
+    const form = { ...calFormFromEvent(null, '2026-10-07'), title: 'Open day' }
+    assert.equal(form.web, false)
+    assert.equal(calFormBody(form).body.audience, 'public')
+    for (const e of [ev(), ev({ audience: 'private' }), ev({ audience: 'internal' })]) assert.equal(calFormFromEvent(e, '').web, false, e.audience)
+  })
+  it('create: Web on stores web', () => {
+    const form = { ...calFormFromEvent(null, '2026-10-07'), title: 'Open day', web: true }
+    assert.equal(calFormBody(form).body.audience, 'web')
+  })
+  it('edit: Web on a public event sends web; off on a web event sends public; untouched sends nothing', () => {
+    const pub = ev()
+    assert.deepEqual(calFormBody({ ...calFormFromEvent(pub, ''), web: true }, pub).body, { audience: 'web' })
+    const web = ev({ audience: 'web' })
+    const f = calFormFromEvent(web, '')
+    assert.equal(f.web, true)
+    assert.deepEqual(calFormBody(f, web), { body: null })
+    assert.deepEqual(calFormBody({ ...f, title: 'x' }, web).body, { title: 'x' })
+    assert.deepEqual(calFormBody({ ...f, web: false }, web).body, { audience: 'public' })
+    assert.deepEqual(calFormBody({ ...f, web: false, private: true }, web).body, { audience: 'private' })
+    const internal = ev({ audience: 'internal' })
+    assert.deepEqual(calFormBody({ ...calFormFromEvent(internal, ''), web: true }, internal).body, { audience: 'web' })
+  })
+  it('Private wins over Web; switching one on turns the other off', () => {
+    const form = { ...calFormFromEvent(null, '2026-10-07'), title: 'x', private: true, web: true }
+    assert.equal(calFormBody(form).body.audience, 'private')
+    assert.deepEqual([calAudienceSwitched(form, 'private').private, calAudienceSwitched(form, 'private').web], [true, false])
+    assert.deepEqual([calAudienceSwitched(form, 'web').private, calAudienceSwitched(form, 'web').web], [false, true])
+    const off = { ...form, private: false, web: false }
+    assert.equal(calAudienceSwitched(off, 'web'), off)
+  })
+  it('Duplicate of a web event keeps every field but Web: the copy is public', () => {
+    const web = ev({ audience: 'web', title: 'Open day', location: 'Hall' })
+    const copy = calFormCopy(web, '')
+    assert.equal(copy.web, false)
+    assert.equal(copy.location, 'Hall')
+    assert.equal(calFormBody(copy).body.audience, 'public')
   })
 })
 
@@ -228,6 +276,14 @@ describe('mock workspace writes', () => {
     assert.equal(b.audience, 'private')
     assert.equal(b.all_day, true)
     assert.deepEqual(week().filter((x) => x.title === 'A' || x.title === 'B').map((x) => x.audience), ['public', 'private'])
+  })
+  it('rdb 0158: create keeps web; the signed-out read answers web events only, five fields', () => {
+    const w = mockCalendarCreate({ title: 'Open day', description: 'doors at 9', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T12:00:00Z', audience: 'web' })
+    mockCalendarCreate({ title: 'Board', starts_at: '2026-10-07T13:00:00Z', ends_at: '2026-10-07T14:00:00Z' })
+    assert.equal(w.audience, 'web')
+    const out = mockWebCalendarEvents('2026-10-05T00:00:00Z', '2026-10-12T00:00:00Z', today)
+    assert.deepEqual(out, { events: [{ title: 'Open day', description: 'doors at 9', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T12:00:00Z', all_day: false }] })
+    assert.ok(week().some((x) => x.title === 'Board'), 'control: the workspace event is in the member read')
   })
   it('097 T014: create keeps time_zone, location, color and reminders', () => {
     const a = mockCalendarCreate({ title: 'A', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z', time_zone: 'Europe/Helsinki', location: 'Room 1', color: 'sage', reminders: [{ amount: 10, unit: 'minutes', method: 'popup' }] })

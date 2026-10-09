@@ -2115,6 +2115,8 @@
     "field_private": "Privāts",
     "public_hint": "Publisks: visi darbvietā redz šo notikumu.",
     "private_hint": "Privāts: tikai jūs un jūsu pieminētie cilvēki redz šo notikumu.",
+    "field_web": "Tīmekļa kalendārs",
+    "web_hint": "Tīmeklis: ikviens internetā redz šo notikumu publiskajā kalendārā.",
     "field_description": "Apraksts",
     "private_badge": "Privāts",
     "delete": "Dzēst",
@@ -2311,6 +2313,7 @@
     "error": "Neizdevās ielādēt kalendāru. Mēģiniet vēlreiz vēlāk.",
     "empty_month": "Šajā mēnesī nebija neviena izlaiduma.",
     "feature": "Jauna funkcija",
+    "event": "Notikums",
     "releases": "Izlaidumi ({n})"
   },
   "ws_doctree": {

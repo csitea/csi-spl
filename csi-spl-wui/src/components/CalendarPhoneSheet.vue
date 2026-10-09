@@ -7,11 +7,12 @@
      The quick part (half height): the title (focused), the date chip, the
      start and end chips, the All-day switch. More grows the same sheet to
      full height with 097's fields in 097's order (time zone, location,
-     reminders, colour, private, description; 097 T015 / T016 add repeat
+     reminders, colour, private, web, description; 097 T015 / T016 add repeat
      and guests where the event dialog has them). Edit opens full height on
      the event; Delete sits at the bottom start, and its confirm question
      never moves Save. Duplicate (`copy`, 097 G11) opens a new event full
-     height, filled from its source as the 089 dialog's: calFormFromEvent.
+     height, filled from its source as the 089 dialog's: calFormCopy (the Web
+     switch off, rdb 0158).
 
      The chips are WUI controls showing ISO dates and the 24-hour clock: the
      native date / time input lies transparent over the chip text (the
@@ -251,6 +252,20 @@
               </label>
               <small class="calsheet__hint">{{ form.private ? t('calendar_event.private_hint') : t('calendar_event.public_hint') }}</small>
             </div>
+            <div class="calsheet__field" data-test="calphone-sheet-web-field">
+              <label class="calsheet__switch">
+                <span>{{ t('calendar_event.field_web') }}</span>
+                <input
+                  v-model="form.web"
+                  type="checkbox"
+                  role="switch"
+                  :aria-checked="form.web ? 'true' : 'false'"
+                  data-test="calphone-sheet-web"
+                  :disabled="busy"
+                >
+              </label>
+              <small v-if="form.web" class="calsheet__hint">{{ t('calendar_event.web_hint') }}</small>
+            </div>
             <label class="calsheet__field">
               <span>{{ t('calendar_event.field_description') }}</span>
               <textarea v-model="form.description" rows="3" data-test="calphone-sheet-description" :maxlength="CAL_DESCRIPTION_MAX" :disabled="busy" />
@@ -276,7 +291,7 @@
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import {
   CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
-  calCanSetPrivate, calFormBody, calFormFromEvent, calHourAfter, calNewReminder, calReminderAmount, calReminderError,
+  calAudienceSwitched, calCanSetPrivate, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calNewReminder, calReminderAmount, calReminderError,
 } from '~/utils/calendar-event-form.mjs'
 import type { CalForm, CalReminderRow } from '~/utils/calendar-event-form.mjs'
 import { calPhoneHourPreset, calPhoneNextFullHour } from '~/utils/calendar-phone-nav.mjs'
@@ -347,7 +362,7 @@ function preset(): { date: string, start: string, end: string, endDays: number }
 /* every opening starts clean from the event, or from a new one */
 function reset() {
   const from = props.event || props.copy || null
-  form.value = calFormFromEvent(from, props.day || props.today)
+  form.value = !props.event && props.copy ? calFormCopy(props.copy, props.day || props.today) : calFormFromEvent(from, props.day || props.today)
   if (!from) {
     const p = preset()
     if (p) form.value = { ...form.value, ...p }
@@ -576,6 +591,9 @@ watch(() => props.open, (v) => {
   else closed()
 }, { immediate: true })
 watch(() => [props.event, props.copy, props.day, props.hour], () => { if (props.open) reset() })
+/* rdb 0158: Private and Web exclude each other (calAudienceSwitched) */
+watch(() => form.value.private, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'private') })
+watch(() => form.value.web, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'web') })
 onBeforeUnmount(() => { if (props.open) closed() })
 onMounted(() => { void access.load() })
 

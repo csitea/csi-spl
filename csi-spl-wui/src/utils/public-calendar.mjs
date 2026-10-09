@@ -8,9 +8,11 @@
  * `nuxt generate` time into /pub-cal/events.json
  * (src/node/pubcal/public-calendar-data.mjs): the release tags (spec 065) and
  * the live `feature` blog posts (spec 111), releases summed to one entry per
- * day. A later source (the hub's `web`
- * audience, lane pub-cal-web-audience) is one more entry in that list, its
- * rows passed through publicCalendarEvent like these.
+ * day. The third is the hub's: the workspace's `web` events (rdb 0158, the
+ * only audience meant for the internet), read by the page per shown month
+ * from the signed-out GET /v1/public/calendar/events
+ * (utils/public-calendar-web.mjs, loaded lazily), its rows passed through
+ * publicCalendarEvent like these.
  */
 
 import { isSignedOutVisitor } from './shell-bootstrap.mjs'
@@ -35,30 +37,36 @@ export function signedOutCalendarTarget(sessionState, mock = false) {
 export const PUBLIC_CALENDAR_SOURCES = Object.freeze([
   Object.freeze({ id: 'releases', from: 'build' }),
   Object.freeze({ id: 'features', from: 'build' }),
+  Object.freeze({ id: 'web', from: 'hub' }),
 ])
 
 /**
  * The only kinds an event may have. A feature links its blog post. A release
  * is one day's deploys summed up ("n releases, v<first>..v<last>") and links
  * nowhere: /releases/<ref> reads /v1/release-notes, which the hub refuses to
- * a signed-out visitor (release_notes.go).
+ * a signed-out visitor (release_notes.go). A web event is one the
+ * workspace put on the web calendar: a title, maybe a description and its
+ * clock, and no link.
  */
 const FEATURE_HREF = /^\/blog\/\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
 /** A public release tag: v<X.Y.Z>, or v<X.Y.Z>-c<N> past an odometer wrap (spec 065). */
 export const PUBLIC_RELEASE_TAG = /^v[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-c[0-9]{1,4})?$/
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 /**
  * @typedef {{ kind: 'feature', id: string, day: string, at: string, title: string, href: string }} PubFeature
  * @typedef {{ kind: 'release', id: string, day: string, at: string, n: number, first: string, last: string }} PubRelease
- * @typedef {PubFeature | PubRelease} PubEvent
+ * @typedef {{ kind: 'web', id: string, day: string, at: string, title: string, description: string, allDay: boolean, from: string, to: string }} PubWeb
+ * @typedef {PubFeature | PubRelease | PubWeb} PubEvent
  */
 
 /**
  * One row as the page shows it, or null when it is not a public product
  * event: an unknown kind, a feature linking outside /blog, a release with a
- * link or a tag outside PUBLIC_RELEASE_TAG, no day.
+ * link or a tag outside PUBLIC_RELEASE_TAG, a web event with a link or no
+ * title, no day.
  * @param {unknown} row
  * @returns {PubEvent | null}
  */
@@ -81,6 +89,15 @@ export function publicCalendarEvent(row) {
     if (r.href !== undefined || !Number.isInteger(n) || n < 1) return null
     if (!PUBLIC_RELEASE_TAG.test(first) || !PUBLIC_RELEASE_TAG.test(last)) return null
     return { kind: 'release', id: `releases-${day}`, day, at, n, first, last }
+  }
+  if (r.kind === 'web') {
+    const title = String(r.title || '').slice(0, 200)
+    if (r.href !== undefined || !title) return null
+    const allDay = r.allDay === true
+    const from = allDay || !HHMM_RE.test(String(r.from)) ? '' : String(r.from)
+    const to = allDay || !HHMM_RE.test(String(r.to)) ? '' : String(r.to)
+    const description = String(r.description || '').slice(0, 4000)
+    return { kind: 'web', id: `web-${at}-${title}`, day, at, title, description, allDay, from, to }
   }
   return null
 }
@@ -136,22 +153,25 @@ export function pubCalShownMonth(events, asked, today) {
 
 /**
  * The days of one month that have events, newest first, each with its
- * releases and its feature posts.
+ * releases, its feature posts and its web events.
  * @param {PubEvent[]} events newest first
  * @param {string} month `YYYY-MM`
  */
 export function pubCalMonthDays(events, month) {
-  /** @type {Map<string, { day: string, releases: PubRelease[], features: PubFeature[] }>} */
+  /** @type {Map<string, { day: string, releases: PubRelease[], features: PubFeature[], events: PubWeb[] }>} */
   const days = new Map()
   for (const ev of events) {
     if (pubCalMonthOf(ev.day) !== month) continue
     let d = days.get(ev.day)
     if (!d) {
-      d = { day: ev.day, releases: [], features: [] }
+      d = { day: ev.day, releases: [], features: [], events: [] }
       days.set(ev.day, d)
     }
     if (ev.kind === 'release') d.releases.push(ev)
+    else if (ev.kind === 'web') d.events.push(ev)
     else d.features.push(ev)
   }
+  /* a day's web events by their clock, earliest first */
+  for (const d of days.values()) d.events.sort((x, y) => x.at.localeCompare(y.at))
   return [...days.values()]
 }

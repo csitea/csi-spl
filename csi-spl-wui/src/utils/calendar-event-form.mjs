@@ -8,7 +8,12 @@
 // [D 00:00Z, D+1 00:00Z), as the hub stores official days. Audience: the
 // Private switch off is `public` (089 4.2, the default), on is `private`; an
 // `internal` event keeps `internal` while the switch is not moved (v1 does
-// not offer `internal`, the field stays).
+// not offer `internal`, the field stays). The Web switch (rdb 0158, owner
+// t1 a3ce2031) is `web`: the event shows to signed-out visitors on
+// /public-calendar. It is never on by default - a new event, a Duplicate
+// (calFormCopy, even of a web event) and an event of another audience open
+// with it off - and Private wins over it, so a form with both on never
+// sends `web`.
 //
 // spec 097 T014..T016 add fields here (time zone, location, guests, reminders,
 // colour) in the order of 097 section 5: one key in calFormFromEvent, one
@@ -90,7 +95,7 @@ export function calFormFromEvent(ev, day) {
     const timeZone = calDefaultZone()
     return {
       title: '', date: day, start: '09:00', end: '10:00', allDay: false, endDays: 0,
-      timeZone, zoneWas: timeZone, location: '', reminders: [], color: '', private: false, description: '',
+      timeZone, zoneWas: timeZone, location: '', reminders: [], color: '', private: false, web: false, description: '',
     }
   }
   const allDay = Boolean(ev.all_day)
@@ -116,8 +121,17 @@ export function calFormFromEvent(ev, day) {
     reminders: calRemindersOf(ev).map((r) => ({ amount: String(r.amount), unit: r.unit })),
     color: CAL_COLORS.includes(ev.color) ? ev.color : '',
     private: ev.audience === 'private',
+    web: ev.audience === 'web',
     description: String(ev.description || ''),
   }
+}
+
+/**
+ * Duplicate (G11): the form of `ev` for a new event, every field kept but
+ * the Web switch - the internet sees an event only when someone chose it.
+ */
+export function calFormCopy(ev, day) {
+  return { ...calFormFromEvent(ev, day), web: false }
 }
 
 /** A new event's zone: the member's `time_zone` preference, else the browser's, else UTC. */
@@ -166,7 +180,22 @@ const remindersKey = (list) => list.map((r) => `${r.amount} ${r.unit}`).join(','
 /** The audience the switch means for `ev` (null = a new event). */
 function audienceOf(form, ev) {
   if (form.private) return 'private'
-  return ev && ev.audience && ev.audience !== 'private' ? ev.audience : 'public'
+  if (form.web) return 'web'
+  return ev && ev.audience && ev.audience !== 'private' && ev.audience !== 'web' ? ev.audience : 'public'
+}
+
+/**
+ * The form after one of the two exclusive switches moved: Private on turns
+ * Web off, Web on turns Private off.
+ * @template {{ private: boolean, web: boolean }} F
+ * @param {F} form
+ * @param {'private' | 'web'} which
+ * @returns {F}
+ */
+export function calAudienceSwitched(form, which) {
+  if (which === 'private' && form.private) return { ...form, web: false }
+  if (which === 'web' && form.web) return { ...form, private: false }
+  return form
 }
 
 /**

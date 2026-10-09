@@ -2115,6 +2115,8 @@
     "field_private": "Yksityinen",
     "public_hint": "Julkinen: kaikki työtilassa näkevät tämän tapahtuman.",
     "private_hint": "Yksityinen: vain sinä ja mainitsemasi henkilöt näette tämän tapahtuman.",
+    "field_web": "Verkkokalenteri",
+    "web_hint": "Verkko: kuka tahansa internetissä näkee tämän tapahtuman julkisessa kalenterissa.",
     "field_description": "Kuvaus",
     "private_badge": "Yksityinen",
     "delete": "Poista",
@@ -2311,6 +2313,7 @@
     "error": "Kalenteria ei voitu ladata. Yritä myöhemmin uudelleen.",
     "empty_month": "Tässä kuussa ei ollut julkaisuja.",
     "feature": "Uusi ominaisuus",
+    "event": "Tapahtuma",
     "releases": "Julkaisut ({n})"
   },
   "ws_doctree": {

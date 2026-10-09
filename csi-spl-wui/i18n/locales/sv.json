@@ -2115,6 +2115,8 @@
     "field_private": "Privat",
     "public_hint": "Offentlig: alla i arbetsytan ser den här händelsen.",
     "private_hint": "Privat: bara du och de personer du nämner ser den här händelsen.",
+    "field_web": "Webbkalender",
+    "web_hint": "Webb: alla på internet ser den här händelsen i den offentliga kalendern.",
     "field_description": "Beskrivning",
     "private_badge": "Privat",
     "delete": "Ta bort",
@@ -2311,6 +2313,7 @@
     "error": "Det gick inte att ladda kalendern. Försök igen senare.",
     "empty_month": "Inget släpptes den här månaden.",
     "feature": "Ny funktion",
+    "event": "Händelse",
     "releases": "Släpp ({n})"
   },
   "ws_doctree": {

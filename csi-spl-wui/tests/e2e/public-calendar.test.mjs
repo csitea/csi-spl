@@ -12,6 +12,9 @@
 //   - the page reads no tenant calendar API (/v1/calendar/*)
 // Control: /calendar (the mock workspace, signed in) shows the same seeded
 // title, so its absence above is the public view, not a seed that failed.
+// rdb 0158 (owner t1 a3ce2031): a `web` event seeded beside it, today, IS
+// shown on today's month (kind Event, its title, no link), read through the
+// signed-out web source; the `public` one still is not.
 //
 // Run:
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e public-calendar
@@ -47,12 +50,19 @@ async function launch() {
 
 const today = new Date().toISOString().slice(0, 10)
 const TENANT_TITLE = 'Tenant-only board meeting 7f3c'
+const WEB_TITLE = 'Web open day 7f3d'
 const SEED = [{
   id: '00000000-0000-4000-8000-0000000007f3',
   title: TENANT_TITLE,
   starts_at: `${today}T09:00:00Z`,
   ends_at: `${today}T10:00:00Z`,
   audience: 'public',
+}, {
+  id: '00000000-0000-4000-8000-0000000007f4',
+  title: WEB_TITLE,
+  starts_at: `${today}T11:00:00Z`,
+  ends_at: `${today}T12:00:00Z`,
+  audience: 'web',
 }]
 
 /** A fresh context with the tenant event seeded in the mock workspace. */
@@ -95,6 +105,9 @@ try {
   ok('today\'s month: no tenant title', !(await bodyText(p)).includes(TENANT_TITLE), await p.$eval('[data-test=public-calendar-month]', (e) => e.getAttribute('data-month')).catch(() => ''))
   await openPublic(p, today.slice(0, 7))
   ok('today\'s month (asked): no tenant title', !(await bodyText(p)).includes(TENANT_TITLE))
+  const webSeen = await p.waitForFunction((t) => [...document.querySelectorAll('[data-test=public-calendar-event-title]')].some((e) => e.textContent === t), { timeout: 15000 }, WEB_TITLE).then(() => true, () => false)
+  const webEv = await p.$$eval('[data-test=public-calendar-event]', (ls, t) => ls.filter((e) => e.textContent.includes(t)).map((e) => ({ day: e.closest('[data-day]')?.getAttribute('data-day'), links: e.querySelectorAll('a').length })), WEB_TITLE).catch(() => [])
+  ok('rdb 0158: today\'s month shows the web event, no link', webSeen && webEv.length === 1 && webEv[0].links === 0, webEv)
 
   const month = release ? release.day.slice(0, 7) : ''
   await openPublic(p, month)

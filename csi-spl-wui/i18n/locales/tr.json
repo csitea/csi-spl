@@ -2115,6 +2115,8 @@
     "field_private": "Özel",
     "public_hint": "Herkese açık: çalışma alanındaki herkes bu etkinliği görür.",
     "private_hint": "Özel: bu etkinliği yalnızca siz ve andığınız kişiler görür.",
+    "field_web": "Web takvimi",
+    "web_hint": "Web: internetteki herkes bu etkinliği herkese açık takvimde görür.",
     "field_description": "Açıklama",
     "private_badge": "Özel",
     "delete": "Sil",
@@ -2311,6 +2313,7 @@
     "error": "Takvim yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "empty_month": "Bu ay hiçbir sürüm yayınlanmadı.",
     "feature": "Yeni özellik",
+    "event": "Etkinlik",
     "releases": "Sürümler ({n})"
   },
   "ws_doctree": {

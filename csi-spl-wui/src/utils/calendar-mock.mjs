@@ -64,7 +64,7 @@ export function mockCalendarCreate(body = {}) {
     starts_at: String(body.starts_at || ''),
     ends_at: String(body.ends_at || ''),
     all_day: Boolean(body.all_day),
-    audience: ['public', 'internal', 'private'].includes(String(body.audience)) ? String(body.audience) : 'public',
+    audience: ['public', 'internal', 'private', 'web'].includes(String(body.audience)) ? String(body.audience) : 'public',
     topic_id: String(body.topic_id || ''),
     time_zone: String(body.time_zone || 'UTC'),
     location: String(body.location || ''),
@@ -228,6 +228,21 @@ export function mockCalendarEvents(start, end, todayIso) {
     .filter((x) => Date.parse(x.starts_at) < e && (Date.parse(x.ends_at) > s || (x.starts_at === x.ends_at && Date.parse(x.starts_at) >= s)))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at) || a.id.localeCompare(b.id))
   return { start, end, events }
+}
+
+/**
+ * GET /v1/public/calendar/events?start=&end= (rdb 0158) in the mock
+ * workspace: its `web` events overlapping [start, end), with only the
+ * fields the hub sends a signed-out visitor.
+ * @param {string} start RFC 3339
+ * @param {string} end RFC 3339
+ * @param {string} todayIso
+ */
+export function mockWebCalendarEvents(start, end, todayIso) {
+  const events = mockCalendarEvents(start, end, todayIso).events
+    .filter((x) => x.source === 'event' && x.audience === 'web')
+    .map((x) => ({ title: x.title, description: x.description, starts_at: x.starts_at, ends_at: x.ends_at, all_day: Boolean(x.all_day) }))
+  return { events }
 }
 
 /**

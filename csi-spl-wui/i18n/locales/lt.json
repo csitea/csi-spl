@@ -2115,6 +2115,8 @@
     "field_private": "Privatus",
     "public_hint": "Viešas: visi darbo erdvėje mato šį įvykį.",
     "private_hint": "Privatus: tik jūs ir jūsų paminėti žmonės mato šį įvykį.",
+    "field_web": "Žiniatinklio kalendorius",
+    "web_hint": "Žiniatinklis: bet kas internete mato šį įvykį viešame kalendoriuje.",
     "field_description": "Aprašymas",
     "private_badge": "Privatus",
     "delete": "Ištrinti",
@@ -2311,6 +2313,7 @@
     "error": "Nepavyko įkelti kalendoriaus. Bandykite vėliau.",
     "empty_month": "Šį mėnesį leidimų nebuvo.",
     "feature": "Nauja funkcija",
+    "event": "Įvykis",
     "releases": "Leidimai ({n})"
   },
   "ws_doctree": {

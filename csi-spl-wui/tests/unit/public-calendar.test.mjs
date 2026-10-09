@@ -7,6 +7,11 @@
 //     Control: the same tenant title as a feature row passes, so the drop
 //     is the filter, not a malformed fixture.
 //   - the shown month and the day groups
+//   - rdb 0158 (owner t1 a3ce2031): the hub's `web` events of the shown
+//     month (public-calendar-web.mjs) merge in as kind `web`: on the
+//     viewer's day and clock, earliest first in a day, never with a link;
+//     the month read is the month's days and one either side; the mock
+//     answers its web events only
 //   - signedOutCalendarTarget (pages/calendar.vue): a settled signed-out
 //     /calendar goes to /public-calendar; signed in, mock and loading stay
 //
@@ -15,6 +20,8 @@ import { featureRows, mockReleaseRows, publicCalendarData, releaseRows } from '.
 import {
   PUBLIC_CALENDAR_PATH, PUBLIC_CALENDAR_SOURCES, mergePublicCalendar, signedOutCalendarTarget, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth, publicCalendarEvent,
 } from '../../src/utils/public-calendar.mjs'
+import { fetchWebCalendar, pubCalWebRange, webCalendarRows } from '../../src/utils/public-calendar-web.mjs'
+import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -73,7 +80,7 @@ ok('merge: tenant row dropped, duplicates once, newest first', merged.length ===
 
 const data = publicCalendarData({ tags: TAGS, blogIndex: BLOG })
 ok('the file: v1, releases and the feature post', data.v === 1 && data.events.length === 3, JSON.stringify(data))
-ok('sources: releases then features', PUBLIC_CALENDAR_SOURCES.map((s) => s.id).join() === 'releases,features')
+ok('sources: releases, features, then the hub\'s web events', PUBLIC_CALENDAR_SOURCES.map((s) => s.id).join() === 'releases,features,web' && PUBLIC_CALENDAR_SOURCES[2].from === 'hub')
 
 ok('shown month: asked one wins', pubCalShownMonth(merged, '2026-01', '2026-10-09') === '2026-01')
 ok('shown month: this month when it has events', pubCalShownMonth(merged, '', '2026-10-20') === '2026-10')
@@ -81,6 +88,63 @@ ok('shown month: else the newest with events', pubCalShownMonth(merged, 'junk', 
 ok('add months over a year', pubCalAddMonths('2026-12', 1) === '2027-01' && pubCalAddMonths('2026-01', -1) === '2025-12')
 const days = pubCalMonthDays(merged, '2026-10')
 ok('month days: one day, a release and a feature', days.length === 1 && days[0].releases.length === 1 && days[0].features.length === 1, JSON.stringify(days))
+
+/* rdb 0158: the hub's web events */
+setTimeZoneSource(() => 'Europe/Helsinki')
+const HUB = { events: [
+  { title: 'Open day', description: 'doors at 9', starts_at: '2026-10-09T06:00:00Z', ends_at: '2026-10-09T09:00:00Z', all_day: false },
+  { title: 'Late talk', description: '', starts_at: '2026-10-09T22:30:00Z', ends_at: '2026-10-09T23:30:00Z', all_day: false },
+  { title: 'Fair', description: '', starts_at: '2026-10-09T00:00:00Z', ends_at: '2026-10-10T00:00:00Z', all_day: true },
+  { title: 'Bad start', starts_at: 'never' },
+] }
+const webRows = webCalendarRows(HUB)
+ok('web rows: every event with a start, kind web', webRows.length === 3 && webRows.every((r) => r.kind === 'web'), JSON.stringify(webRows))
+ok('web row: a timed event on the viewer\'s day and clock', webRows[0].day === '2026-10-09' && webRows[0].from === '09:00' && webRows[0].to === '12:00', JSON.stringify(webRows[0]))
+ok('web row: 22:30Z is the next day in Helsinki', webRows[1].day === '2026-10-10' && webRows[1].from === '01:30', JSON.stringify(webRows[1]))
+ok('web row: all day keeps its UTC day, no clock', webRows[2].day === '2026-10-09' && webRows[2].allDay && webRows[2].from === '', JSON.stringify(webRows[2]))
+ok('web rows: no hub answer = none', webCalendarRows(null).length === 0 && webCalendarRows({ events: 'x' }).length === 0)
+ok('a web event with a link is dropped', publicCalendarEvent({ ...webRows[0], href: '/t/abc' }) === null)
+ok('a web event with no title is dropped', publicCalendarEvent({ ...webRows[0], title: '' }) === null)
+ok('control: the same web row without a link passes', publicCalendarEvent(webRows[0])?.kind === 'web')
+ok('a tenant event of another audience is still dropped', publicCalendarEvent({ ...TENANT, audience: 'web' }) === null)
+const withWeb = mergePublicCalendar(rel, feat, webRows)
+const oct = pubCalMonthDays(withWeb, '2026-10')
+const d9 = oct.find((d) => d.day === '2026-10-09')
+ok('month days: the web events sit on their day with the releases and features', d9 && d9.events.length === 2 && d9.releases.length === 1 && d9.features.length === 1, JSON.stringify(d9))
+ok('month days: a day\'s web events earliest first', d9 && d9.events[0].title === 'Fair' && d9.events[1].title === 'Open day', JSON.stringify(d9 && d9.events.map((e) => e.title)))
+ok('month days: the 10th has the late talk only', oct.find((d) => d.day === '2026-10-10')?.events.map((e) => e.title).join() === 'Late talk')
+ok('web events once, merged twice', mergePublicCalendar(withWeb, webRows).length === withWeb.length)
+ok('the month read: its days and one either side', JSON.stringify(pubCalWebRange('2026-10')) === JSON.stringify({ start: '2026-09-30T00:00:00Z', end: '2026-11-02T00:00:00Z' }))
+ok('the month read over a year', pubCalWebRange('2026-12').end === '2027-01-02T00:00:00Z' && pubCalWebRange('2026-01').start === '2025-12-31T00:00:00Z')
+setTimeZoneSource(() => 'UTC')
+
+/* the hub read: signed out, the month's range, the answer's rows; a refusal throws */
+const calls = []
+const realFetch = globalThis.fetch
+globalThis.fetch = async (url, init) => {
+  calls.push({ url: String(url), init })
+  return { ok: true, status: 200, json: async () => HUB }
+}
+const hubRows = await fetchWebCalendar({ base: 'https://hub.example', mock: false }, '2026-10', '2026-10-09')
+const u = new URL(calls[0].url)
+ok('hub read: GET /v1/public/calendar/events with the month range', u.pathname === '/v1/public/calendar/events' && u.searchParams.get('start') === '2026-09-30T00:00:00Z' && u.searchParams.get('end') === '2026-11-02T00:00:00Z', calls[0].url)
+ok('hub read: no cookie, no token', calls[0].init.credentials === 'omit' && !('authorization' in calls[0].init.headers), JSON.stringify(calls[0].init))
+ok('hub read: the rows', hubRows.length === 3)
+globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({}) })
+const refused = await fetchWebCalendar({ base: '', mock: false }, '2026-10', '2026-10-09').then(() => 0, (e) => e.status)
+ok('hub read: a refusal throws with its status', refused === 400)
+globalThis.fetch = realFetch
+
+/* the mock workspace: its web events only */
+const ls = new Map()
+globalThis.localStorage = { getItem: (k) => ls.get(k) ?? null, setItem: (k, v) => ls.set(k, String(v)) }
+ls.set('spool.mock.calendar-added', JSON.stringify([
+  { id: 'w1', title: 'Mock open day', starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'web' },
+  { id: 'p1', title: TENANT.title, starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'public' },
+]))
+const mockRows = await fetchWebCalendar({ mock: true }, '2026-10', '2026-10-09')
+ok('mock read: the web event, not the workspace one', mockRows.length === 1 && mockRows[0].title === 'Mock open day', JSON.stringify(mockRows))
+delete globalThis.localStorage
 
 ok('signed out on /calendar -> the public calendar', signedOutCalendarTarget('out') === PUBLIC_CALENDAR_PATH)
 ok('signed in stays', signedOutCalendarTarget('in') === null)

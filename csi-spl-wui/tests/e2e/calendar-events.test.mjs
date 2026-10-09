@@ -74,12 +74,14 @@ const closed = (p) => p.waitForFunction((s) => !document.querySelector(s), { tim
 const state = (p) => p.evaluate((s) => {
   const form = document.querySelector(s)
   const sw = document.querySelector('[data-test=calendar-event-private]')
+  const web = document.querySelector('[data-test=calendar-event-web]')
   return {
     mode: form?.getAttribute('data-mode') || '',
     date: document.querySelector('[data-test=calendar-event-date]')?.value || '',
     title: document.querySelector('[data-test=calendar-event-title]')?.value || '',
     focused: document.activeElement?.getAttribute('data-test') || '',
     switch: sw ? (sw.checked ? 'on' : 'off') : 'none',
+    web: web ? (web.checked ? 'on' : 'off') : 'none',
     del: Boolean(document.querySelector('[data-test=calendar-event-delete]')),
   }
 }, DIALOG)
@@ -133,6 +135,7 @@ try {
   ok('a create dialog on the shown day, the title focused', s.mode === 'create' && s.date === today && s.focused === 'calendar-event-title', s)
   ok('AC-09: the creator sees the Private switch, off (public is the default)', s.switch === 'off', s)
   ok('a new event has no Delete', !s.del, s)
+  ok('rdb 0158: the Web switch is there, off (never the default)', s.web === 'off', s)
   await typeTitle(p, 'E2E public')
   await shot(p, 'dialog-1440')
   ok('the dialog fits 1440 px with no sideways scroll', await noSideways(p))
@@ -183,6 +186,19 @@ try {
   await p.click('[data-test=calendar-event-save]')
   await closed(p)
   ok('AC-05: switched off and saved, it is public again', await waitItem(p, 'E2E private', 'public'), await item(p, 'E2E private'))
+
+  /* rdb 0158: edit -> Web; Web on turns Private off, saved it is `web` */
+  await clickItem(p, 'E2E private')
+  await dialog(p)
+  s = await state(p)
+  ok('rdb 0158: a public event opens with Web off', s.mode === 'edit' && s.web === 'off', s)
+  await p.click('[data-test=calendar-event-private]')
+  await p.click('[data-test=calendar-event-web]')
+  s = await state(p)
+  ok('rdb 0158: Web on turns Private off', s.web === 'on' && s.switch === 'off', s)
+  await p.click('[data-test=calendar-event-save]')
+  await closed(p)
+  ok('rdb 0158: saved with Web on, it is web', await waitItem(p, 'E2E private', 'web') && (await stored(p, 'E2E private')) === 'web', await item(p, 'E2E private'))
 
   /* AC-05: delete asks once, then deletes */
   await clickItem(p, 'E2E public')

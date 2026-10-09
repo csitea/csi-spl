@@ -2115,6 +2115,8 @@
     "field_private": "Private",
     "public_hint": "Public: everyone in the workspace sees this event.",
     "private_hint": "Private: only you and the people you mention see this event.",
+    "field_web": "Web calendar",
+    "web_hint": "Web: anyone on the internet sees this event on the public calendar.",
     "field_description": "Description",
     "private_badge": "Private",
     "delete": "Delete",
@@ -2311,6 +2313,7 @@
     "error": "The calendar could not be loaded. Try again later.",
     "empty_month": "Nothing was released this month.",
     "feature": "New feature",
+    "event": "Event",
     "releases": "Releases ({n})"
   },
   "ws_doctree": {

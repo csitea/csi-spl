@@ -2115,6 +2115,8 @@
     "field_private": "Privat",
     "public_hint": "Public: toți cei din spațiul de lucru văd acest eveniment.",
     "private_hint": "Privat: doar tu și persoanele pe care le menționezi vedeți acest eveniment.",
+    "field_web": "Calendar web",
+    "web_hint": "Web: oricine de pe internet vede acest eveniment în calendarul public.",
     "field_description": "Descriere",
     "private_badge": "Privat",
     "delete": "Șterge",
@@ -2311,6 +2313,7 @@
     "error": "Calendarul nu a putut fi încărcat. Încercați din nou mai târziu.",
     "empty_month": "Nu au existat lansări luna aceasta.",
     "feature": "Funcție nouă",
+    "event": "Eveniment",
     "releases": "Lansări ({n})"
   },
   "ws_doctree": {

@@ -2115,6 +2115,8 @@
     "field_private": "Prywatne",
     "public_hint": "Publiczne: wszyscy w przestrzeni roboczej widzą to wydarzenie.",
     "private_hint": "Prywatne: tylko Ty i osoby, które wspomnisz, widzicie to wydarzenie.",
+    "field_web": "Kalendarz w sieci",
+    "web_hint": "Sieć: każdy w internecie widzi to wydarzenie w publicznym kalendarzu.",
     "field_description": "Opis",
     "private_badge": "Prywatne",
     "delete": "Usuń",
@@ -2311,6 +2313,7 @@
     "error": "Nie udało się załadować kalendarza. Spróbuj ponownie później.",
     "empty_month": "W tym miesiącu nie było żadnych wydań.",
     "feature": "Nowa funkcja",
+    "event": "Wydarzenie",
     "releases": "Wydania ({n})"
   },
   "ws_doctree": {

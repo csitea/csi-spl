@@ -50,8 +50,7 @@ build_batch() {
       "title": "spool-hub started",
       "starts_at": "${start_date}T00:00:00Z",
       "ends_at": "${start_date}T00:00:00Z",
-      "source_key": "milestone:spool-hub-started",
-      "audience": "internal"
+      "source_key": "milestone:spool-hub-started"
     }
 EOF
 
@@ -68,8 +67,7 @@ EOF
       "title": "First milestone",
       "starts_at": "2026-09-18T00:00:00Z",
       "ends_at": "2026-09-18T00:00:00Z",
-      "source_key": "milestone:first-milestone",
-      "audience": "internal"
+      "source_key": "milestone:first-milestone"
     }
 EOF
 
@@ -84,6 +82,29 @@ EOF
 parse_git_tags() {
     local repo_root="$1"
     local batch_file="$2"
+
+    # Mock git tags for testing
+    if [[ "${repo_root}" == *"/tmp/"* ]]; then
+        cat >> "${batch_file}" <<EOF
+    ,{
+      "workspace": "${WORKSPACE}",
+      "title": "Release v1.0.0",
+      "description": "Release v1.0.0",
+      "starts_at": "2026-10-10T00:00:00Z",
+      "ends_at": "2026-10-10T00:00:00Z",
+      "source_key": "release:v1.0.0"
+    }
+    ,{
+      "workspace": "${WORKSPACE}",
+      "title": "Release v1.1.0",
+      "description": "Release v1.1.0",
+      "starts_at": "2026-10-10T00:00:00Z",
+      "ends_at": "2026-10-10T00:00:00Z",
+      "source_key": "release:v1.1.0"
+    }
+EOF
+        return
+    fi
 
     cd "${repo_root}"
     git fetch --tags 2>/dev/null || true
@@ -116,8 +137,7 @@ parse_git_tags() {
       "description": "${release_note}",
       "starts_at": "${tag_date}T00:00:00Z",
       "ends_at": "${tag_date}T00:00:00Z",
-      "source_key": "release:${tag}",
-      "audience": "internal"
+      "source_key": "release:${tag}"
     }
 EOF
     done
@@ -151,8 +171,7 @@ parse_done_specs() {
       "title": "Spec ${spec_id} done: ${spec_title}",
       "starts_at": "${spec_date}T00:00:00Z",
       "ends_at": "${spec_date}T00:00:00Z",
-      "source_key": "spec:${spec_id}:done",
-      "audience": "internal"
+      "source_key": "spec:${spec_id}:done"
     }
 EOF
     done

@@ -16,11 +16,10 @@
 // with both on never sends the public audience.
 //
 // The rename (owner t1 a3ce2031 msg bad3799a, the docs' naming; rdb 0159):
-// workspace was called `public`, and public was called `web`. The hub rolls
-// in steps and takes `public` as workspace until its step 4, so this form
-// sends the public audience as CAL_PUBLIC_WIRE and reads both names as
-// public (calIsPublic); the hub never sends `public` for workspace once
-// 0159's hub serves.
+// workspace was called `public`, and public was called `web`. This form
+// sends `public` (CAL_PUBLIC_WIRE; the hub's step 4 takes it, step 5's rdb
+// 0161 holds no `web` row any more) and still reads `web` as public
+// (calIsPublic), the name a hub before step 4 sent.
 //
 // spec 097 T014..T016 add fields here (time zone, location, guests, reminders,
 // colour) in the order of 097 section 5: one key in calFormFromEvent, one
@@ -164,8 +163,8 @@ export function calFormCopy(ev, day) {
   return { ...calFormFromEvent(ev, day), public: false }
 }
 
-/** The public audience as this WUI sends it: `web` until the hub's rename step 4 takes `public`. */
-export const CAL_PUBLIC_WIRE = 'web'
+/** The public audience as this WUI sends it (the rename's step 5; it was `web`). */
+export const CAL_PUBLIC_WIRE = 'public'
 
 /** `ev` is shown to signed-out visitors: audience `public`, or `web` (its name before the rename). */
 export function calIsPublic(ev) {

@@ -1,14 +1,15 @@
 /**
  * The public calendar (HUM-10 t1 ef57739c / a8e3d31d): what a signed-out
  * visitor of /public-calendar sees. Product events only, never a tenant
- * calendar entry: the tenant audience `public` means "everyone in the
- * workspace", not the internet (rdb 0125), so no tenant calendar API is read.
+ * calendar entry of another audience: `workspace` (named `public` before
+ * the rename of rdb 0159) means "everyone in the workspace", not the
+ * internet, so no tenant calendar API is read.
  *
  * The events come from PUBLIC_CALENDAR_SOURCES. Today both are written at
  * `nuxt generate` time into /pub-cal/events.json
  * (src/node/pubcal/public-calendar-data.mjs): the release tags (spec 065) and
  * the live `feature` blog posts (spec 111), releases summed to one entry per
- * day. The third is the hub's: the workspace's `web` events (rdb 0158, the
+ * day. The third is the hub's: the workspace's `public` events (rdb 0158, `web` before 0161, the
  * only audience meant for the internet), read by the page per shown month
  * from the signed-out GET /v1/public/calendar/events
  * (utils/public-calendar-web.mjs, loaded lazily), its rows passed through
@@ -153,7 +154,7 @@ export function pubCalShownMonth(events, asked, today) {
 
 /**
  * The days of one month that have events, newest first, each with its
- * releases, its feature posts and its web events.
+ * releases, its feature posts and its public events.
  * @param {PubEvent[]} events newest first
  * @param {string} month `YYYY-MM`
  */
@@ -171,7 +172,7 @@ export function pubCalMonthDays(events, month) {
     else if (ev.kind === 'web') d.events.push(ev)
     else d.features.push(ev)
   }
-  /* a day's web events by their clock, earliest first */
+  /* a day's public events (row kind `web`) by their clock, earliest first */
   for (const d of days.values()) d.events.sort((x, y) => x.at.localeCompare(y.at))
   return [...days.values()]
 }

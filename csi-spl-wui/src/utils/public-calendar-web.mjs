@@ -1,6 +1,6 @@
 /**
  * The public calendar's hub source (rdb 0158, owner t1 a3ce2031): the
- * workspace's `web` events, the one audience meant for the internet, from
+ * workspace's `public` events (`web` before rdb 0161), the one audience meant for the internet, from
  * the signed-out GET /v1/public/calendar/events?start=&end= (hub
  * calendar_web.go). The hub answers only title, description, start, end and
  * all day; no id, no link, no people. pages/public-calendar.vue imports this
@@ -60,7 +60,7 @@ export function webCalendarRows(body) {
 
 /**
  * The web rows of one shown month. The mock workspace answers from
- * calendar-mock (its `web` events); the hub is read without a session.
+ * calendar-mock (its `public` events); the hub is read without a session.
  * Throws on a refusal (the page then shows the build's events only).
  * @param {{ base?: string, mock?: boolean }} api useSpoolApi()
  * @param {string} month `YYYY-MM`

@@ -187,8 +187,8 @@ try {
   await closed(p)
   ok('AC-05: switched off and saved, it is workspace again', await waitItem(p, 'E2E private', 'workspace'), await item(p, 'E2E private'))
 
-  /* rdb 0158: edit -> Public; Public on turns Private off, saved it is the
-     public audience, `web` while the hub is at rename step 1 (rdb 0159) */
+  /* rdb 0158: edit -> Public; Public on turns Private off, saved it is
+     `public` (the rename, rdb 0159..0161) */
   await clickItem(p, 'E2E private')
   await dialog(p)
   s = await state(p)
@@ -199,7 +199,7 @@ try {
   ok('rdb 0158: Public on turns Private off', s.pub === 'on' && s.switch === 'off', s)
   await p.click('[data-test=calendar-event-save]')
   await closed(p)
-  ok('rdb 0158: saved with Public on, it is web (rename step 1)', await waitItem(p, 'E2E private', 'web') && (await stored(p, 'E2E private')) === 'web', await item(p, 'E2E private'))
+  ok('rdb 0158: saved with Public on, it is public', await waitItem(p, 'E2E private', 'public') && (await stored(p, 'E2E private')) === 'public', await item(p, 'E2E private'))
 
   /* AC-05: delete asks once, then deletes */
   await clickItem(p, 'E2E public')

@@ -139,7 +139,7 @@ globalThis.fetch = realFetch
 const ls = new Map()
 globalThis.localStorage = { getItem: (k) => ls.get(k) ?? null, setItem: (k, v) => ls.set(k, String(v)) }
 ls.set('spool.mock.calendar-added', JSON.stringify([
-  { id: 'w1', title: 'Mock open day', starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'web' },
+  { id: 'w1', title: 'Mock open day', starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'public' },
   { id: 'p1', title: TENANT.title, starts_at: '2026-10-09T09:00:00Z', ends_at: '2026-10-09T10:00:00Z', audience: 'workspace' },
 ]))
 const mockRows = await fetchWebCalendar({ mock: true }, '2026-10', '2026-10-09')

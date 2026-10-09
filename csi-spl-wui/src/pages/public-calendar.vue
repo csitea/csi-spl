@@ -1,11 +1,11 @@
 <!-- HUM-10 (t1 ef57739c, a8e3d31d): the public calendar. A signed-out
      visitor sees the product's own events: each live `feature` blog post
      (linking /blog/<id>) and one line per day of releases ("n releases,
-     v<first> … v<last>", as text: /releases/<tag> needs a signed-in session). Never a tenant calendar entry of another audience: `public`
-     is "everyone in the workspace", not the internet (rdb 0125). This page
+     v<first> … v<last>", as text: /releases/<tag> needs a signed-in session). Never a tenant calendar entry of another audience: `workspace`
+     is "everyone in the workspace", not the internet (rdb 0159). This page
      reads no store and no member API: /pub-cal/events.json, written at
      build time (src/node/pubcal/public-calendar-data.mjs), and the
-     workspace's `web` events of the shown month (rdb 0158, owner t1
+     workspace's `public` events of the shown month (rdb 0158, owner t1
      a3ce2031) from the signed-out GET /v1/public/calendar/events, through
      utils/public-calendar-web.mjs loaded on mount. That read failing leaves
      the build's events on the page.
@@ -120,7 +120,7 @@ onMounted(load)
 /* the month follows the build's events only, so the web read cannot move it */
 const month = computed(() => pubCalShownMonth(built.value, String(route.query.m || ''), today))
 
-/* the hub's web events of the shown month (source `web`), lazily: a refusal
+/* the hub's public events of the shown month (source `web`), lazily: a refusal
    or a timeout shows the build's events alone */
 async function loadWeb(m: string) {
   try {

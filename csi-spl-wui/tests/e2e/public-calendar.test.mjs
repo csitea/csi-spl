@@ -12,7 +12,7 @@
 //   - the page reads no tenant calendar API (/v1/calendar/*)
 // Control: /calendar (the mock workspace, signed in) shows the same seeded
 // title, so its absence above is the public view, not a seed that failed.
-// rdb 0158 (owner t1 a3ce2031): a `web` event seeded beside it, today, IS
+// rdb 0158 (owner t1 a3ce2031): a `public` event (`web` before rdb 0161) seeded beside it, today, IS
 // shown on today's month (kind Event, its title, no link), read through the
 // signed-out web source; the `workspace` one still is not.
 //
@@ -62,7 +62,7 @@ const SEED = [{
   title: WEB_TITLE,
   starts_at: `${today}T11:00:00Z`,
   ends_at: `${today}T12:00:00Z`,
-  audience: 'web',
+  audience: 'public',
 }]
 
 /** A fresh context with the tenant event seeded in the mock workspace. */

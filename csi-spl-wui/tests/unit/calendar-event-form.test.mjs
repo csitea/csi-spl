@@ -18,12 +18,11 @@
 // (was web). The Public switch:
 // - never on by default: a new event, a Duplicate (even of a public event)
 //   and an event of another audience open with it off
-// - create and edit send the public audience only when it is on, as `web`
-//   while the hub is at rename step 1 (it reads `public` as workspace); an
-//   event stored as `public` or `web` opens with it on; off is `workspace`;
-//   Private wins over it; the two switches exclude each other
-// - the mock workspace is the step-1 hub: `public` in is workspace, it
-//   keeps `web` and answers the signed-out read with web events only
+// - create and edit send `public` only when it is on (rename step 5); an
+//   event stored as `public` or `web` (its old name) opens with it on; off
+//   is `workspace`; Private wins over it; the two switches exclude each other
+// - the mock workspace is the hub after the rename: `public` is signed-out,
+//   `web` in is public, and the signed-out read answers public events only
 import { afterEach, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
@@ -127,11 +126,10 @@ describe('rdb 0158 + the rename (rdb 0159): the Public switch', () => {
     assert.equal(calFormBody(form).body.audience, 'workspace')
     for (const e of [ev(), ev({ audience: 'private' }), ev({ audience: 'internal' })]) assert.equal(calFormFromEvent(e, '').public, false, e.audience)
   })
-  it('create: Public on sends the public audience under the name the step-1 hub takes (web)', () => {
+  it('create: Public on sends public', () => {
     const form = { ...calFormFromEvent(null, '2026-10-07'), title: 'Open day', public: true }
-    assert.equal(CAL_PUBLIC_WIRE, 'web')
-    assert.equal(calFormBody(form).body.audience, CAL_PUBLIC_WIRE)
-    assert.notEqual(calFormBody(form).body.audience, 'public', 'a step-1 hub reads public as workspace')
+    assert.equal(CAL_PUBLIC_WIRE, 'public')
+    assert.equal(calFormBody(form).body.audience, 'public')
   })
   it('both names of the public audience open with Public on; untouched they send nothing', () => {
     for (const name of ['public', 'web']) {
@@ -297,19 +295,19 @@ describe('mock workspace writes', () => {
   const today = '2026-10-07'
   const week = () => mockCalendarEvents('2026-10-05T00:00:00Z', '2026-10-12T00:00:00Z', today).events
 
-  it('create keeps all_day and audience; workspace by default, public taken as workspace', () => {
+  it('create keeps all_day and audience; workspace by default', () => {
     const a = mockCalendarCreate({ title: 'A', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z' })
     const b = mockCalendarCreate({ title: 'B', starts_at: '2026-10-08T00:00:00Z', ends_at: '2026-10-09T00:00:00Z', all_day: true, audience: 'private' })
     assert.equal(a.audience, 'workspace')
-    assert.equal(mockCalendarCreate({ title: 'C', starts_at: '2026-10-08T00:00:00Z', ends_at: '2026-10-08T01:00:00Z', audience: 'public' }).audience, 'workspace')
     assert.equal(b.audience, 'private')
     assert.equal(b.all_day, true)
     assert.deepEqual(week().filter((x) => x.title === 'A' || x.title === 'B').map((x) => x.audience), ['workspace', 'private'])
   })
-  it('rdb 0158: create keeps web; the signed-out read answers web events only, five fields', () => {
-    const w = mockCalendarCreate({ title: 'Open day', description: 'doors at 9', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T12:00:00Z', audience: 'web' })
+  it('rdb 0158 + 0161: create keeps public (web in is public); the signed-out read answers public events only, five fields', () => {
+    const w = mockCalendarCreate({ title: 'Open day', description: 'doors at 9', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T12:00:00Z', audience: 'public' })
     mockCalendarCreate({ title: 'Board', starts_at: '2026-10-07T13:00:00Z', ends_at: '2026-10-07T14:00:00Z' })
-    assert.equal(w.audience, 'web')
+    assert.equal(w.audience, 'public')
+    assert.equal(mockCalendarCreate({ title: 'Old', starts_at: '2026-10-20T09:00:00Z', ends_at: '2026-10-20T10:00:00Z', audience: 'web' }).audience, 'public')
     const out = mockWebCalendarEvents('2026-10-05T00:00:00Z', '2026-10-12T00:00:00Z', today)
     assert.deepEqual(out, { events: [{ title: 'Open day', description: 'doors at 9', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T12:00:00Z', all_day: false }] })
     assert.ok(week().some((x) => x.title === 'Board'), 'control: the workspace event is in the member read')

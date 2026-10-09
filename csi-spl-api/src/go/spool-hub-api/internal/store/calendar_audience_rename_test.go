@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,36 +47,59 @@ func TestCalendarAudiencePublicIsSignedOut(t *testing.T) {
 	}
 }
 
-// A row written before step 4 still holds web: it reads as public, a search
-// for public finds it, and the signed-out read answers it.
-func TestCalendarAudienceStoredWebReadsPublic(t *testing.T) {
+// Step 5 (rdb 0161): a row written before step 4 still holds web. It reads
+// as public, and 0161 maps it to public, leaves updated_at alone and
+// leaves a check that refuses web. The test drops the check to write that
+// row; 0161 adds it back in the same transaction.
+func TestCalendarAudience0161MapsWeb(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
+	raw, err := os.ReadFile(filepath.Join(sqlDir(t), "0161_calendar_web_to_public.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	tid := newTenant(t, pg)
 	e, err := pg.CreateCalendarEvent(ctx, tid, calEvent("old row"), calT0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `UPDATE calendar_events SET audience = 'web' WHERE event_id = $1::uuid`, e.ID)
+	var mid string
+	var upd0, upd1 time.Time
+	if err := pgx.BeginFunc(ctx, pg.Pool(), func(tx pgx.Tx) error {
+		for _, q := range []string{pgScopeOperator, `ALTER TABLE calendar_events DROP CONSTRAINT calendar_events_audience_check`} {
+			if _, err := tx.Exec(ctx, q); err != nil {
+				return err
+			}
+		}
+		if err := tx.QueryRow(ctx, `UPDATE calendar_events SET audience = 'web' WHERE event_id = $1::uuid
+			RETURNING audience, updated_at`, e.ID).Scan(&mid, &upd0); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, string(raw))
 		return err
-	}); err != nil {
-		t.Fatal(err)
+	}); err != nil || mid != "web" {
+		t.Fatalf("seed web + 0161: %q %v", mid, err)
 	}
-	if got, err := pg.GetCalendarEvent(ctx, tid, calOwner, e.ID); err != nil || got.Audience != CalendarPublic {
-		t.Fatalf("stored web reads: %+v %v", got, err)
-	}
-	q := CalendarQuery{Audiences: []string{CalendarPublic}, Range: calWeek()}
-	if evs, err := pg.SearchCalendarEvents(ctx, tid, calOwner, q); err != nil || calIDs(evs) != "old row" {
-		t.Fatalf("search public: %q %v", calIDs(evs), err)
+	var aud string
+	if err := pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT audience, updated_at FROM calendar_events WHERE event_id = $1::uuid`, e.ID).Scan(&aud, &upd1)
+	}); err != nil || aud != CalendarPublic || !upd1.Equal(upd0) {
+		t.Fatalf("after 0161: %q %v -> %v %v", aud, upd0, upd1, err)
 	}
 	if evs, err := pg.WebCalendarEvents(ctx, tid, calWeek()); err != nil || webTitles(evs) != "old row" {
-		t.Fatalf("a stored web row is not in the signed-out read: %+v %v", evs, err)
+		t.Fatalf("the mapped row is not in the signed-out read: %+v %v", evs, err)
+	}
+	err = pg.inTenant(ctx, tid, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE calendar_events SET audience = 'web' WHERE event_id = $1::uuid`, e.ID)
+		return err
+	})
+	if err == nil || !strings.Contains(err.Error(), "calendar_events_audience_check") {
+		t.Fatalf("the check still takes web: %v", err)
 	}
 }
 
 // Step 2 (rdb 0160): every stored public row becomes workspace, its
-// updated_at untouched; web and private rows keep theirs.
+// updated_at untouched; private rows keep theirs.
 func TestCalendarAudience0160MapsPublic(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
@@ -84,7 +108,7 @@ func TestCalendarAudience0160MapsPublic(t *testing.T) {
 		t.Fatal(err)
 	}
 	tid := newTenant(t, pg)
-	for _, title := range []string{"public", "web", "private"} {
+	for _, title := range []string{"public", "private"} {
 		if _, err := pg.CreateCalendarEvent(ctx, tid, calEvent(title), calT0); err != nil {
 			t.Fatal(err)
 		}
@@ -120,7 +144,7 @@ func TestCalendarAudience0160MapsPublic(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, upd0 := audiences()
-	if before["public"] != "public" || before["web"] != "web" {
+	if before["public"] != "public" {
 		t.Fatalf("CONTROL: the seeded rows: %v", before)
 	}
 	if err := pgx.BeginFunc(ctx, pg.Pool(), func(tx pgx.Tx) error {
@@ -130,7 +154,7 @@ func TestCalendarAudience0160MapsPublic(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, upd1 := audiences()
-	want := map[string]string{"public": CalendarWorkspace, "web": calendarLegacyWeb, "private": CalendarPrivate}
+	want := map[string]string{"public": CalendarWorkspace, "private": CalendarPrivate}
 	for title, a := range want {
 		if after[title] != a || !upd1[title].Equal(upd0[title]) {
 			t.Errorf("%s: audience %q (want %q), updated_at %v -> %v", title, after[title], a, upd0[title], upd1[title])

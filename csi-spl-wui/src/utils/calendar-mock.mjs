@@ -111,15 +111,15 @@ function mockFind(id, todayIso) {
 }
 
 /**
- * An audience as the hub of the rename's step 1 (rdb 0159) stores it, or ''
- * for an unknown one: `public` is its old name for workspace, `web` the
- * signed-out audience.
+ * An audience as the hub after the rename (rdb 0159..0161) stores it, or ''
+ * for an unknown one: `public` is the signed-out audience, `web` its old
+ * name.
  * @param {unknown} a
  */
 function mockAudience(a) {
   const s = String(a ?? '')
-  if (s === 'public') return 'workspace'
-  return ['workspace', 'internal', 'private', 'web'].includes(s) ? s : ''
+  if (s === 'web') return 'public'
+  return ['workspace', 'internal', 'private', 'public'].includes(s) ? s : ''
 }
 
 /**
@@ -247,7 +247,7 @@ export function mockCalendarEvents(start, end, todayIso) {
 
 /**
  * GET /v1/public/calendar/events?start=&end= (rdb 0158) in the mock
- * workspace: its `web` events overlapping [start, end), with only the
+ * workspace: its `public` events (or `web`, their old name) overlapping [start, end), with only the
  * fields the hub sends a signed-out visitor.
  * @param {string} start RFC 3339
  * @param {string} end RFC 3339
@@ -255,7 +255,7 @@ export function mockCalendarEvents(start, end, todayIso) {
  */
 export function mockWebCalendarEvents(start, end, todayIso) {
   const events = mockCalendarEvents(start, end, todayIso).events
-    .filter((x) => x.source === 'event' && x.audience === 'web')
+    .filter((x) => x.source === 'event' && (x.audience === 'public' || x.audience === 'web'))
     .map((x) => ({ title: x.title, description: x.description, starts_at: x.starts_at, ends_at: x.ends_at, all_day: Boolean(x.all_day) }))
   return { events }
 }

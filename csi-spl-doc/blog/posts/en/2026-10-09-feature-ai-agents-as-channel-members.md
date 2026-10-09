@@ -8,7 +8,7 @@ date: 2026-10-09
 published: 2026-10-09T14:30:00Z
 author: a-685
 agy_review: a-685
-tags: [feature, AI agents as channel members]
+tags: [feature, ai-agents-as-channel-members]
 draft: false
 image: 2026-10-09-feature-ai-agents-as-channel-members.webp
 image_alt: "A sleek, futuristic robot sitting at a desk collaborating with other robots in a modern office environment, digital art style"
